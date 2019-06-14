@@ -23,6 +23,7 @@ package com.elphel.imagej.calibration;
  **
  */
 
+import java.awt.Rectangle;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -67,6 +68,8 @@ import ij.text.TextWindow;
     	public static final int INDEX_R =        5;
     	public static final int INDEX_G =        6;
     	public static final int INDEX_B =        7;
+    	public static final double SMALL_FRACTION = 0.8; // consider sesnor to be a "small" if average grid period < this fraction of the large
+
     	public String pathName=null;
     	public EyesisCameraParameters eyesisCameraParameters; // has "cartesian"
         public int       numSubCameras=1;
@@ -74,6 +77,8 @@ import ij.text.TextWindow;
         public int       numMotors  =3;    // maximal number of motors to look for
         public GridImageParameters [] gIP= null; // per-grid image parameters
         public GridImageSet []        gIS= null; // sets of images with the same timestamp
+        public boolean [] small_sensors =    null; // set by filter grids
+        public double     small_period_frac =   0; // set by filter grids - ratio of small sensor period to large sensor period
         // keep for now?
     	public double [][] pars=null; // for each defined image: set of (22) parameters
     	public double [][] sensorMasks= null; // per-channel (not image) mask
@@ -86,7 +91,7 @@ import ij.text.TextWindow;
     		return (eyesisCameraParameters==null)?0:eyesisCameraParameters.getNumStations();
     	}
 
-    	public class GridImageParameters{
+     	public class GridImageParameters{
     		public int         imgNumber=-1; // index of this image (for pars[][])
     		private int        setNumber=-1; // long overdue  - will be some inconsistency
     		GridImageSet       gridImageSet=null;
@@ -114,11 +119,16 @@ import ij.text.TextWindow;
     		public boolean  [] badNodes=  null; // if not null, marks node with excessive errors
     		public double [][] pixelsXY_extra=  null; // extra data, for nodes that are out of the physical grid (may be needed after re-calibration)
     		public int    [][] pixelsUV_extra=  null;
-    		public double      gridPeriod=0.0;  // average grid period, in pixels (to filter out (double-) reflected images
+    		private double      gridPeriod=0.0;  // average grid period, in pixels (to filter out (double-) reflected images
     		public boolean     noUsefulPSFKernels=false; // used to mark images w/o good PSF data
     		public double      diameter=0.0;
     		public int []      UVShiftRot={0,0,0}; // shift and rotation of the grid
+    		public Rectangle   woi;
     		final int contrastIndex=2;
+
+
+    		public double getGridPeriod() {	return gridPeriod;}
+    		public void setGfridPeriod(double v) {gridPeriod = v;}
     		public int getSetNumber(){return this.setNumber;}
         	public GridImageParameters(int index){
         		this.imgNumber=index;
@@ -165,6 +175,12 @@ import ij.text.TextWindow;
         		for (int i=0;i<this.pixelsXY.length;i++) if (this.pixelsXY[i][contrastIndex]>=minContrast) num++;
         		return num;
         	}
+
+        	public int getChannel() {
+        		return channel;
+        	}
+
+
         	/**
         	 * Calculate "diameter" of the image to be used for image weight
         	 * @param xc image center pixel X
@@ -773,11 +789,13 @@ import ij.text.TextWindow;
         			}
     				spaths = new String[num_chn];
         			if (sdir != null) {
-        				// consruct source image set directory name
+        				// construct source image set directory name
         				String set_name = (new File(dir)).getName();
         				File set_dir = new File(sdir, set_name );
         				String [] sfiles = set_dir.list(sourceFilter);
-
+if (sfiles == null) {
+	System.out.println("sfiles == null");
+}
         				for (String spath:sfiles) {
         					int last_dash = spath.lastIndexOf('-');
         					int last =      spath.lastIndexOf('_');
@@ -872,11 +890,16 @@ import ij.text.TextWindow;
                 				IJ.showMessage("Error",msg);
                 				throw new IllegalArgumentException (msg);
                 			}
-                			this.gIP[numFile].gridImage = imp_grid; // Save all images?
-        // TODO: here - need to decode properties
+                	        // TODO: here - need to decode properties
                 			jp4_reader.decodeProperiesFromInfo(imp_grid);
-                    		this.gIP[numFile].laserPixelCoordinates = MatchSimulatedPattern.getPointersXYUV(imp_grid, laserPointers);
+                			this.gIP[numFile].woi = new Rectangle(
+                					getImagePlusProperty(imp_grid,"WOI_LEFT",0),
+                					getImagePlusProperty(imp_grid,"WOI_TOP",0),
+                					getImagePlusProperty(imp_grid,"WOI_WIDTH",  eyesisCameraParameters.getSensorWidth(nc)),
+                					getImagePlusProperty(imp_grid,"WOI_HEIGHT", eyesisCameraParameters.getSensorHeight(nc)));
 
+                			this.gIP[numFile].gridImage = imp_grid; // Save all images?
+                    		this.gIP[numFile].laserPixelCoordinates = MatchSimulatedPattern.getPointersXYUV(imp_grid, laserPointers);
                     		this.gIP[numFile].motors =                getMotorPositions(imp_grid, this.numMotors);
                     		this.gIS[nis].motors=                     this.gIP[numFile].motors.clone();
                     		this.gIP[numFile].matchedPointers =       getUsedPonters(imp_grid);
@@ -934,7 +957,7 @@ import ij.text.TextWindow;
 
                 				if (this.debugLevel>-1) {
                 					if (this.gIP[numFile].pixelsUV != null) {
-                						System.out.print(" ["+ this.gIP[numFile].pixelsUV.length+"]");
+                						System.out.print(" ["+ this.gIP[numFile].pixelsUV.length+"+"+this.gIP[numFile].pixelsUV_extra.length+"]");
                 					} else {
                 						System.out.print(" [null]");
                 					}
@@ -945,12 +968,8 @@ import ij.text.TextWindow;
                 							" enabled="+this.gIP[numFile].enabled+" hintedMatch="+this.gIP[numFile].hintedMatch);
 
                 				}
-                            	calcGridPeriod(numFile); // will be used to filter out reflections
+                            	calcGridPeriod(numFile, true); // may be not absolutely calibrated, use_extra out-of-pattern nodes will be used to filter out reflections
                 //System.out.println ("pixelsXY["+fileNumber+"]length="+pixelsXY[fileNumber].length);
-
-
-
-
                     		} //if (read_grids)
                     		// not reading the grid itself
                     		first_in_set = false;
@@ -959,40 +978,115 @@ import ij.text.TextWindow;
 
         			}
         		}
+        		if (with_pointers < 0) { // no matching pointers, will try to match selected channel with the pattern
+        			int main_channel = 4; // one of the VNIR channels to match with the pattern
+//        			boolean [] sensor_mask = null; // later may be used to limit scope to VNIR-only
+        			int extra_search = 2;
+//        			int base_channel = this.gIP[with_pointers].channel;
+        			if (this.gIS[nis].imageSet[main_channel] != null) {
+        				int imgNum =  this.gIS[nis].imageSet[main_channel].imgNumber;
+        				boolean invert_color = (main_channel & 4) == 0; // first 4 - LWIR
+
+						if (this.updateStatus) IJ.showStatus("Matching with the pattern, grid file "+(imgNum+1)+" (of "+(numFiles)+"): "+this.gIP[imgNum].path);
+						if (this.debugLevel>-1) System.out.print(imgNum+">("+this.gIP[imgNum].getStationNumber()+
+								":"+this.gIP[imgNum].setNumber+":"+this.gIP[imgNum].channel+"): "+this.gIP[imgNum].path);
+
+    					double [] sensor_wh = {
+    							this.gIP[imgNum].woi.width +  this.gIP[imgNum].woi.x,
+    							this.gIP[imgNum].woi.height + this.gIP[imgNum].woi.y};
+
+        				int [] uv_shift_rot = correlateWithPattern(
+        		        		patternParameters,
+    							set_widths[main_channel], // 		int        test_width,
+    							set_pixels[main_channel], //		float [][] test_pixels,
+        		        		invert_color,
+        		        		extra_search,
+        		        		5.0, // double     sigma,
+        		        		sensor_wh, // test set pixels width/height pair to reduce weight near the margins (or null)
+        		        		false // true // boolean    bdebug
+        		        		);
+    					System.out.print(" {"+uv_shift_rot[0]+":"+uv_shift_rot[1]+"]");
+
+    					this.gIS[nis].imageSet[main_channel].setUVShiftRot(uv_shift_rot);
+
+                    	int [][] shiftRotMatrix= MatchSimulatedPattern.getRemapMatrix(this.gIS[nis].imageSet[main_channel].getUVShiftRot());
+                    	setGridsWithRemap( // null immediately
+                    			imgNum,
+                    			shiftRotMatrix, // int [][] reMap,
+                    			set_pixels[main_channel],
+                    			patternParameters);
+                    	calcGridPeriod(imgNum, false);  // centered, can skip _extra
+
+    					if (this.gIP[imgNum].pixelsUV != null) {
+    						System.out.println(" ["+ this.gIP[imgNum].pixelsUV.length+"+"+this.gIP[imgNum].pixelsUV_extra.length+"]");
+    					} else {
+    						System.out.println(" [null]");
+    					}
+
+    					with_pointers = imgNum; // no adjust all other channels by this one
+        			}
+        		}
+
         		if (with_pointers >= 0) { // set initial grids offset from the grid files in the same image set that do not have absolute calibration
         			boolean [] sensor_mask = null; // later may be used to limit scope to VNIR-only
         			int extra_search = 1;
         			int base_channel = this.gIP[with_pointers].channel;
         			for (int nc = 0; nc < this.gIS[nis].imageSet.length; nc++) if ((sensor_mask == null) || sensor_mask[nc]) {
         				boolean invert_color = ((base_channel ^ nc) & 4) != 0;
-        				if (this.gIS[nis].imageSet[nc].matchedPointers <= 0) {
-        					int [] uv_shift_rot = correlateGrids(
+        				if ((this.gIS[nis].imageSet[nc].matchedPointers <= 0) && (nc != base_channel)) { // Later add non-laser conditions
+        					int imgNum =  this.gIS[nis].imageSet[nc].imgNumber; // with_pointers - base_channel + nc;
+    						if (this.updateStatus) IJ.showStatus("Re-reading grid file "+(imgNum+1)+" (of "+(numFiles)+"): "+this.gIP[imgNum].path);
+    						if (this.debugLevel>-1) System.out.print(imgNum+"*("+this.gIP[imgNum].getStationNumber()+
+    								":"+this.gIP[imgNum].setNumber+":"+this.gIP[imgNum].channel+"): "+this.gIP[imgNum].path);
+
+        					int [] uv_shift_rot0 = correlateGrids(
         							set_widths[base_channel], // int        base_width,
         							set_pixels[base_channel], //		float [][] base_pixels,
         							set_widths[nc], // 		int        test_width,
         							set_pixels[nc], //		float [][] test_pixels,
         							invert_color,
         							extra_search);
-        					this.gIS[nis].imageSet[nc].setUVShiftRot(uv_shift_rot);
+
+        					double [] sensor_wh = {
+        							this.gIP[imgNum].woi.width +  this.gIP[imgNum].woi.x,
+        							this.gIP[imgNum].woi.height + this.gIP[imgNum].woi.y};
+
+        					int [] uv_shift_rot = correlateGrids(
+        							set_widths[base_channel], // int        base_width,
+        							set_pixels[base_channel], //		float [][] base_pixels,
+        							set_widths[nc], // 		int        test_width,
+        							set_pixels[nc], //		float [][] test_pixels,
+        							invert_color,
+        							extra_search,
+        							5.0, // 2.0, // sigma
+        							sensor_wh,
+        							false); // true);
+
+        					System.out.print(" {"+uv_shift_rot0[0]+":"+uv_shift_rot0[1]+"->"+uv_shift_rot[0]+":"+uv_shift_rot[1]+"->");
+                        	int [] combinedUVShiftRot=MatchSimulatedPattern.combineUVShiftRot(
+                        			this.gIS[nis].imageSet[base_channel].getUVShiftRot(),
+                        			uv_shift_rot);
+
+        					this.gIS[nis].imageSet[nc].setUVShiftRot(combinedUVShiftRot); // uv_shift_rot);
+        					System.out.print(combinedUVShiftRot[0]+":"+combinedUVShiftRot[1]+"}");
 
                         	int [][] shiftRotMatrix= MatchSimulatedPattern.getRemapMatrix(this.gIS[nis].imageSet[nc].getUVShiftRot());
-//                        	int [] sizeSizeExtra=
-                        	int imgNum =  with_pointers - base_channel + nc;
                         	setGridsWithRemap( // null immediately
                         			imgNum,
                         			shiftRotMatrix, // int [][] reMap,
                         			set_pixels[nc],
                         			patternParameters);
+                        	calcGridPeriod(imgNum, false); // centered, can skip _extra
+        					if (this.gIP[imgNum].pixelsUV != null) {
+        						System.out.println(" ["+ this.gIP[imgNum].pixelsUV.length+"+"+this.gIP[imgNum].pixelsUV_extra.length+"]");
+        					} else {
+        						System.out.println(" [null]");
+        					}
                 		}
-
-
         			}
-//        			for (this.gIS[nis]
+        		} else {
 
         		}
-
-        		//
-
         	} // for (int nis = 0; nis<this.gIS.length; nis++)
 
 
@@ -1030,7 +1124,40 @@ import ij.text.TextWindow;
 
         }
 
+        public static int getImagePlusProperty(ImagePlus imp, String name, int dflt) {
+           	try {
+           		dflt = Integer.parseInt((String) (imp.getProperty(name)));
+           	} catch (Exception e) {
 
+           	}
+           	return dflt;
+        }
+
+        public static double getImagePlusProperty(ImagePlus imp, String name, double dflt) {
+           	try {
+           		dflt = Double.parseDouble((String) (imp.getProperty(name)));
+           	} catch (Exception e) {
+
+           	}
+           	return dflt;
+        }
+
+        public static boolean getImagePlusProperty(ImagePlus imp, String name, boolean dflt) {
+           	try {
+           		dflt = Boolean.parseBoolean((String) (imp.getProperty(name)));
+           	} catch (Exception e) {
+
+           	}
+           	return dflt;
+        }
+
+        public static String getImagePlusProperty(ImagePlus imp, String name, String dflt) {
+        	Object obj = imp.getProperty(name);
+        	if (obj != null) {
+        		dflt =  (String) obj;
+        	}
+           	return dflt;
+        }
 
 
         public DistortionCalibrationData (
@@ -1081,6 +1208,7 @@ import ij.text.TextWindow;
         	}
 
         	if (xcam && (numSubCameras == 4)) {
+//           	if (xcam) {
         		listCameraParametersXcam();
         	} else {
         		listCameraParameters();
@@ -1357,10 +1485,11 @@ import ij.text.TextWindow;
         }
 
         public void listImageSet(){
-        	listImageSet(null,null, null);
+        	listImageSet(0, null,null, null);
         }
 
         public void listImageSet(
+        		int    mode,
         		int [] numPoints,
         		double [] setRMS,
         		boolean [] hasNaNInSet){
@@ -1446,21 +1575,44 @@ import ij.text.TextWindow;
             		sb.append("\t"+(((hasNaNInSet!=null) && hasNaNInSet[i])?"*":"")+IJ.d2s(setRMS[i],3));
             		sb.append("\t"+IJ.d2s(this.gIS[i].setWeight,3));
             	}
-            	for (int n=0;n<this.gIS[i].imageSet.length;n++){
-            		sb.append("\t");
-            		if (this.gIS[i].imageSet[n]!=null){
-            			int numPointers=0; // count number of laser pointers
-            			if (this.gIS[i].imageSet[n].laserPixelCoordinates!=null){
-            				for (int j=0;j<this.gIS[i].imageSet[n].laserPixelCoordinates.length;j++) {
-            					if (this.gIS[i].imageSet[n].laserPixelCoordinates[j]!=null) numPointers++;
+            	switch (mode) {
+            	case 0:
+            		for (int n=0;n<this.gIS[i].imageSet.length;n++){
+            			sb.append("\t");
+            			if (this.gIS[i].imageSet[n]!=null){
+            				int numPointers=0; // count number of laser pointers
+            				if (this.gIS[i].imageSet[n].laserPixelCoordinates!=null){
+            					for (int j=0;j<this.gIS[i].imageSet[n].laserPixelCoordinates.length;j++) {
+            						if (this.gIS[i].imageSet[n].laserPixelCoordinates[j]!=null) numPointers++;
+            					}
             				}
-            			}
-            			if (!this.gIS[i].imageSet[n].enabled) sb.append("(");
-            			sb.append(numPointers+"("+this.gIS[i].imageSet[n].matchedPointers+"):"+this.gIS[i].imageSet[n].hintedMatch +
-            					" "+IJ.d2s(this.gIS[i].imageSet[n].gridPeriod,1));
-            			if (!this.gIS[i].imageSet[n].enabled) sb.append(")");
+            				if (!this.gIS[i].imageSet[n].enabled) sb.append("(");
+            				sb.append(numPointers+"("+this.gIS[i].imageSet[n].matchedPointers+"):"+this.gIS[i].imageSet[n].hintedMatch +
+            						" "+IJ.d2s(this.gIS[i].imageSet[n].getGridPeriod(),1));
+            				if (!this.gIS[i].imageSet[n].enabled) sb.append(")");
 
+            			}
             		}
+            		break;
+            	case 1:
+            		for (int n=0;n<this.gIS[i].imageSet.length;n++){
+            			sb.append("\t");
+            			if (this.gIS[i].imageSet[n]!=null){
+            				int [] uvrot = this.gIS[i].imageSet[n].getUVShiftRot();
+            				sb.append(uvrot[0]+":"+uvrot[1]+"("+uvrot[2]+")");
+
+            			}
+            		}
+            		break;
+            	case 2:
+            		for (int n=0;n<this.gIS[i].imageSet.length;n++){
+            			sb.append("\t");
+            			if (this.gIS[i].imageSet[n]!=null){
+            				sb.append(this.gIS[i].imageSet[n].pixelsXY.length+"+"+this.gIS[i].imageSet[n].pixelsXY_extra.length);
+
+            			}
+            		}
+            		break;
             	}
             	sb.append("\n");
     		}
@@ -1488,7 +1640,7 @@ import ij.text.TextWindow;
          * Filter images (grids) by calibration status with laser pointers and "hinted" from the camera orientation
          * buildImageSets may be needed to be re-ran (if it was ran with all=false)
          * @param resetHinted - if true - reset status of "hinted" calibration to undefined
-         * @param minPointers minimal number of laser pointers considered to be enough (usually 2, as mirror/non-mirror is apriori known
+         * @param minPointers minimal number of laser pointers considered to be enough (usually 2, as mirror/non-mirror is aPriori known
          * @parame minGridPeriod - minimal detected grid period as a fraction of the maximal (filtering reflected grids)
          * @return number of enabled images
          */
@@ -1508,12 +1660,51 @@ import ij.text.TextWindow;
         	double [] medianGridPeriod=new double [this.eyesisCameraParameters.numStations];
         	double [] maxGridPeriod=new double [this.eyesisCameraParameters.numStations];
         	double [] minGridPeriod=new double [this.eyesisCameraParameters.numStations];
+        	// With different sensors different channels wil have different periods
+        	int numChannels = getNumSubCameras(); // this.eyesisCameraParameters.getNumChannels();
+        	double [][] sw = new double [numChannels][2];
+    		for (int i=0;i<this.gIP.length;i++) if (getNumNodes(i, false) >0) {
+    			double period = this.gIP[i].getGridPeriod();
+    			if (!Double.isNaN(period) && !Double.isInfinite(period) ) {
+    				int chn = this.gIP[i].getChannel();
+    				sw[chn][0] += getNumNodes(i, false); // weight
+    				sw[chn][1] += getNumNodes(i, false) * period; // weight
+    			}
+    		}
+
+    		double [] avg_periods =  new double [numChannels];
+    		double [] ravg_periods = new double [numChannels];
+    		this.small_sensors =     new boolean [numChannels];
+    		double max_per = 0;
+    		for (int i = 0; i < numChannels; i++) {
+    			avg_periods[i] =sw[i][1] / sw[i][0];
+    			if (max_per < avg_periods[i])  max_per = avg_periods[i];
+    		}
+    		double [][] sw1 = new double [2][2];
+    		for (int i = 0; i < numChannels; i++) {
+    			ravg_periods[i] = avg_periods[i] / max_per;
+    			small_sensors[i] = ravg_periods[i] < SMALL_FRACTION;
+    			sw1[small_sensors[i]?1:0][0] += sw[i][0];
+    			sw1[small_sensors[i]?1:0][1] += sw[i][0] * ravg_periods[i];
+    		}
+    		this.small_period_frac = (sw1[1][0] == 0) ? 0.0 : (sw1[1][1] * sw1[0][0] / (sw1[1][0] * sw1[0][1]));
+    		if (small_period_frac > 0.0) {
+    			System.out.println(String.format("2 types of sensors are detected, lowres has %5.2f%% resolution",100*small_period_frac));
+    			System.out.print("Sensor map: ");
+    			for (int i = 0; i < numChannels; i++) {
+    				System.out.print(i+":"+(small_sensors[i]?"low-res":"high-res")+", ");
+    			}
+    			System.out.println();
+    		}
         	for (int stationNumber=0;stationNumber<this.eyesisCameraParameters.numStations;stationNumber++){
         		for (int i=0;i<numBins;i++) periodHistogram[i]=0.0;
         		int numSamples=0;
         		for (int i=0;i<this.gIP.length;i++) if (this.gIP[i].getStationNumber()==stationNumber){
-        			if (!Double.isNaN(this.gIP[i].gridPeriod)) {
-        				int iPeriod=(int) Math.round(this.gIP[i].gridPeriod*periodSubdivide);
+        			double period = getEffectivePeriod(i);
+//        			if (!Double.isNaN(this.gIP[i].getGridPeriod())) {
+        			if (!Double.isNaN(period)) {
+//        				int iPeriod=(int) Math.round(this.gIP[i].getGridPeriod()*periodSubdivide);
+        				int iPeriod=(int) Math.round(period*periodSubdivide);
         				if (iPeriod>=numBins) iPeriod=numBins-1;
         				else if (iPeriod<0) iPeriod=0; // does not count NaN
         				if (iPeriod>0) {
@@ -1534,7 +1725,12 @@ import ij.text.TextWindow;
 
         		maxGridPeriod[stationNumber]=0.0;
         		for (int i=0;i<this.gIP.length;i++) if (this.gIP[i].getStationNumber()==stationNumber){
-        			if (this.gIP[i].gridPeriod>maxGridPeriod[stationNumber]) maxGridPeriod[stationNumber]=this.gIP[i].gridPeriod;
+//        			if (this.gIP[i].getGridPeriod()>maxGridPeriod[stationNumber]) {
+//        				maxGridPeriod[stationNumber]=this.gIP[i].getGridPeriod();
+//        			}
+        			if (getEffectivePeriod(i) > maxGridPeriod[stationNumber]) {
+        				maxGridPeriod[stationNumber]=getEffectivePeriod(i);
+        			}
         		}
         		minGridPeriod[stationNumber]=medianGridPeriod[stationNumber]*minGridPeriodFraction;
             	System.out.print("Station "+stationNumber+ ": maximal grid period="+maxGridPeriod[stationNumber]+" minimal grid period="+minGridPeriod[stationNumber]+" median grid period="+medianGridPeriod[stationNumber]+" numSamples="+numSamples);
@@ -1556,13 +1752,17 @@ import ij.text.TextWindow;
         		boolean enableNoLaser=this.eyesisCameraParameters.getEnableNoLaser(stationNumber,this.gIP[i].channel);
         		boolean wasEnabled=this.gIP[i].enabled;
         		if (resetHinted) this.gIP[i].hintedMatch=-1; // undefined
-        		if (Double.isNaN(this.gIP[i].gridPeriod) ||
-        				((minGridPeriodFraction>0) && ((this.gIP[i].gridPeriod<minGridPeriod[stationNumber]) || (this.gIP[i].gridPeriod>maxGridPeriod[stationNumber])))){
+///        		if (Double.isNaN(this.gIP[i].getGridPeriod()) ||
+///        				((minGridPeriodFraction>0) && ((this.gIP[i].getGridPeriod()<minGridPeriod[stationNumber]) || (this.gIP[i].getGridPeriod()>maxGridPeriod[stationNumber])))){
+           		if (Double.isNaN(getEffectivePeriod(i)) ||
+           				((minGridPeriodFraction>0) && ((getEffectivePeriod(i)<minGridPeriod[stationNumber]) ||
+           						(getEffectivePeriod(i) > maxGridPeriod[stationNumber])))){
         			this.gIP[i].hintedMatch=0; // is it needed?
         			this.gIP[i].enabled=false; // failed against minimal grid period (too far) - probably double reflection in the windows
         		}
-        		if (this.gIP[i].hintedMatch==0) this.gIP[i].enabled=false; // failed against predicted grid
-        		else {
+        		if (this.gIP[i].hintedMatch==0) {
+        			this.gIP[i].enabled=false; // failed against predicted grid
+        		} else {
         			if (
         					(this.gIP[i].matchedPointers>=minPointers) ||
         					((this.gIP[i].matchedPointers>0) && (this.gIP[i].hintedMatch>0)) || // orientation and one pointer
@@ -1573,7 +1773,9 @@ import ij.text.TextWindow;
         					if (!Double.isNaN(this.gIS[gIS_index[i]].goniometerAxial))	setGA(i,this.gIS[gIS_index[i]].goniometerAxial );
         				}
         				this.gIP[i].enabled=true;
-        			} else this.gIP[i].enabled=false;
+        			} else {
+        				this.gIP[i].enabled=false;
+        			}
         			if ((this.gIP[i].hintedMatch>1) && !enableNoLaser && (this.gIP[i].matchedPointers==0)){
         				disabledNoLaser++;
         			}
@@ -1591,7 +1793,9 @@ import ij.text.TextWindow;
                 			break;
                 		}
                 	}
-                	if (hasMotors) this.gIP[i].enabled=false; // got some no-motor images made without scanning
+                	if (hasMotors) {
+                		this.gIP[i].enabled=false; // got some no-motor images made without scanning
+                	}
         		}
 
         		/* Disable no-pointer, new, number of points less than required */
@@ -2556,17 +2760,34 @@ import ij.text.TextWindow;
         }
 
 //    		public double      gridPeriod=0.0;  // average grid period, in pixels (to filter out (double-) reflected images
-        public double calcGridPeriod(int fileNumber){
-        	if ((this.gIP[fileNumber].pixelsXY==null) || (this.gIP[fileNumber].pixelsXY.length<3)) {
+        public double calcGridPeriod(
+        		int fileNumber,
+        		boolean use_extra){ // use out-of grid nodes (can be w/o absolute matching
+        	use_extra &= (this.gIP[fileNumber].pixelsXY_extra !=null);
+        	int len = (this.gIP[fileNumber].pixelsXY==null)? 0 : this.gIP[fileNumber].pixelsXY.length;
+        	int len0 = len;
+        	if (use_extra ) {
+        		len += this.gIP[fileNumber].pixelsXY_extra.length;
+        	}
+        	if (len<3) {
         		this.gIP[fileNumber].gridPeriod=Double.NaN;
         	} else {
-        		double [][][] data =new double [this.gIP[fileNumber].pixelsXY.length][2][2];
+//        		double [][][] data =new double [this.gIP[fileNumber].pixelsXY.length][2][2];
+        		double [][][] data =new double [len][2][2];
         		// U(x,y), v(x,y)
-        		for (int i=0;i<data.length;i++){
+        		for (int i=0; i < this.gIP[fileNumber].pixelsXY.length; i++){
         			data[i][0][0]=this.gIP[fileNumber].pixelsXY[i][0];
         			data[i][0][1]=this.gIP[fileNumber].pixelsXY[i][1];
         			data[i][1][0]=this.gIP[fileNumber].pixelsUV[i][0];
         			data[i][1][1]=this.gIP[fileNumber].pixelsUV[i][1];
+        		}
+        		if (use_extra) {
+            		for (int i=0; i < this.gIP[fileNumber].pixelsXY_extra.length; i++){
+            			data[i + len0][0][0]=this.gIP[fileNumber].pixelsXY_extra[i][0];
+            			data[i + len0][0][1]=this.gIP[fileNumber].pixelsXY_extra[i][1];
+            			data[i + len0][1][0]=this.gIP[fileNumber].pixelsUV_extra[i][0];
+            			data[i + len0][1][1]=this.gIP[fileNumber].pixelsUV_extra[i][1];
+            		}
         		}
         		if (this.debugLevel>3) {
         			System.out.println("calcGridPeriod("+fileNumber+"), debugLevel="+this.debugLevel+":");
@@ -2583,9 +2804,9 @@ import ij.text.TextWindow;
          	   }
         	}
     		if (this.debugLevel>3) {
-    			System.out.println("calcGridPeriod("+fileNumber+") => "+this.gIP[fileNumber].gridPeriod);
+    			System.out.println("calcGridPeriod("+fileNumber+") => "+this.gIP[fileNumber].getGridPeriod());
     		}
-        	return this.gIP[fileNumber].gridPeriod;
+        	return this.gIP[fileNumber].getGridPeriod();
 
         }
 
@@ -2747,7 +2968,7 @@ import ij.text.TextWindow;
             	numOfGridNodes+=sizeSizeExtra[0];
             	numOfGridNodes_extra+=sizeSizeExtra[1];
 
-            	calcGridPeriod(fileNumber); // will be used to filter out reflections
+            	calcGridPeriod(fileNumber,true); // use _extra (out-of-pattern nodes) will be used to filter out reflections
 //System.out.println ("pixelsXY["+fileNumber+"]length="+pixelsXY[fileNumber].length);
         	}
     		if (this.debugLevel>3) {
@@ -3095,6 +3316,129 @@ import ij.text.TextWindow;
         }
 
 
+        // get "effective" grid period scaled for low-res (as LWIR) sensors
+    	public double getEffectivePeriod(int numImg) {
+    		double period = this.gIP[numImg].getGridPeriod();
+    		int chn =       this.gIP[numImg].getChannel();
+    		if ((this.small_sensors != null) && this.small_sensors[chn]) period /= small_period_frac;
+    		return period;
+    	}
+
+    	public boolean hasSmallSensors() {
+    		return small_period_frac > 0.0;
+    	}
+    	public boolean [] getSmallSensors() {
+    		return small_sensors;
+    	}
+    	public boolean isSmallSensor(int numImg) {
+    		if ((this.gIP != null) &&  (numImg < this.gIP.length) && (small_sensors == null)){
+    			return small_sensors[this.gIP[numImg].getChannel()];
+    		}
+    		return false;
+    	}
+    	public double getSmallPeriodFrac() {
+    		return small_period_frac;
+    	}
+//        public boolean [] small_sensors =    null; // set by filter grids
+//        public double     small_period_frac =   0; // set by filter grids - ratio of small sensor period to large sensor period
+
+    	// depending on camera type, return group, groups, group name
+    	// camera type: eyesis26, lwir/vnir (2 resolutions) , single, other
+    	//getNumSubCameras()
+    	public int getNumLwir() {
+    		if (hasSmallSensors()) {
+    			int n = 0;
+    			for (int i = 0; i < small_sensors.length; i++) if (small_sensors[i]) n++;
+    			return n;
+    		} else {
+    			return 0;
+    		}
+    	}
+    	public int getNumVnir() {
+    		return getNumSubCameras() - getNumLwir();
+    	}
+    	public int getVnir0() {
+    		if (hasSmallSensors()) {
+    			for (int i = 0; i < small_sensors.length; i++) if (!small_sensors[i]) return i;
+    			return -1; // should not happen
+    		}
+    		return 0;
+    	}
+
+    	public int getLwir0() {
+    		if (hasSmallSensors()) {
+    			for (int i = 0; i < small_sensors.length; i++) if (small_sensors[i]) return i;
+    			return -1; // should not happen
+    		}
+    		return -1;
+    	}
+
+    	// Get number of different subcameras for adjustments (to share adjustment types)
+    	public int getSubGroups() {
+    		int num_sub = getNumSubCameras();
+    		if (num_sub == 1)  return 1; // single
+    		if (num_sub == 26) return 3; // eyesis4pi-26
+    		int n = 2;
+    		if (hasSmallSensors()) {
+    			if (getNumLwir() > 1) n++;
+    			if (getNumVnir() > 1) n++;
+    		}
+    		return n;
+    	}
+
+    	// Get subcamera adjustment group
+    	// May be modified to use other subcamera as zero (eyesis in the middle row)
+    	public int getSubGroup(int chn) {
+    		int groups = getSubGroups();
+    		if (groups == 1) return 0; // single camera
+    		int num_sub = getNumSubCameras();
+    		if (num_sub == 26) { // eyesis4pi-26
+    			if (chn == 0) return 0;
+    			if (chn < 24) return 1;
+    			return 2;
+    		}
+			int n = 0;
+    		if (hasSmallSensors()) {
+    			if (small_sensors[chn]) { // current is LWIR
+    				n = 1;
+    				if (getNumVnir() > 1) n = 2;
+    				if (chn != getLwir0()) n++;
+    			} else {  // current is VNIR
+    				n = 0;
+    				if (chn != getVnir0()) n++;
+    			}
+    		}
+			return n;
+    	}
+
+    	public String getSubName(int chn) {
+    		int groups = getSubGroups();
+    		if (groups == 1) return "sub"; // single camera
+    		int num_sub = getNumSubCameras();
+    		if (num_sub == 26) { // eyesis4pi-26
+    			if (chn == 0) return "sub-head-0";
+    			if (chn < 24) return "sub-head-other";
+    			return               "sub-bottom";
+    		}
+    		if (hasSmallSensors()) {
+    			if (small_sensors[chn]) { // current is LWIR
+    				if (chn != getLwir0()) return "sub-lwir-other";
+    				if (getNumLwir() > 1) return  "sub-lwir0";
+    				return                        "sub-lwir";
+    			} else {  // current is VNIR
+    				if (chn != getVnir0()) return "sub-vnir-other";
+    				if (getNumVnir() > 1) return  "sub-vnir0";
+    				return                        "sub-vnir";
+    			}
+    		}
+			if (chn != getVnir0()) return "sub-other";
+			return                        "sub0";
+    	}
+
+
+
+
+
         public int getImageNumPoints(int numImg){
         	return this.gIP[numImg].pixelsUV.length;
         }
@@ -3362,6 +3706,13 @@ import ij.text.TextWindow;
         public int getNumSubCameras() {
         	return this.numSubCameras;
         }
+        public int getNumNodes(int num, boolean use_extra) {
+        	if ((this.gIP == null) || (num >= this.gIP.length) || (this.gIP[num].pixelsXY == null)) return 0;
+        	int len = this.gIP[num].pixelsXY.length;
+        	if (use_extra && (this.gIP[num].pixelsXY_extra != null)) len += this.gIP[num].pixelsXY_extra.length;
+        	return len;
+        }
+
         /**
          *
          * @param imgNumber number of grid image to edit parameters (location, distortion) for
@@ -3394,7 +3745,8 @@ import ij.text.TextWindow;
     		if (!gd.wasOKed()) return -1; // pressed Done (no need to ask for the next number)
             return imgNumber;
         }
-        public void setMaskFromImageStack(String path){
+        @Deprecated
+        public void setMaskFromImageStack(String path){ // can not work with different size senors
     		Opener opener=new Opener();
 			if (this.debugLevel>1) System.out.println("Opening "+path+" as a stack of sensor masks");
 			ImagePlus imp=opener.openImage("", path);
@@ -3409,11 +3761,11 @@ import ij.text.TextWindow;
             	if (imp.getProperty("maskBlurSigma")!=null)
             		eyesisCameraParameters.maskBlurSigma=Double.parseDouble((String) imp.getProperty("maskBlurSigma"));
             	if (imp.getProperty("decimateMasks")!=null)
-            		eyesisCameraParameters.decimateMasks=Integer.parseInt((String) imp.getProperty("decimateMasks"));
+            		eyesisCameraParameters.setDecimateMasks(Integer.parseInt((String) imp.getProperty("decimateMasks")));
             	if (imp.getProperty("sensorWidth")!=null)
-            		eyesisCameraParameters.sensorWidth=Integer.parseInt((String) imp.getProperty("sensorWidth"));
+            		eyesisCameraParameters.setSensorWidth(Integer.parseInt((String) imp.getProperty("sensorWidth")));
             	if (imp.getProperty("sensorHeight")!=null)
-            		eyesisCameraParameters.sensorHeight=Integer.parseInt((String) imp.getProperty("sensorHeight"));
+            		eyesisCameraParameters.setSensorHeight(Integer.parseInt((String) imp.getProperty("sensorHeight")));
         	setMaskFromImageStack(imp);
         }
         /**
@@ -3427,39 +3779,38 @@ import ij.text.TextWindow;
         }
 
         public double getMask(int chnNum, double px, double py){
-        	int width= eyesisCameraParameters.sensorWidth/eyesisCameraParameters.decimateMasks;
-        	int height=eyesisCameraParameters.sensorHeight/eyesisCameraParameters.decimateMasks;
-        	int iPX= ((int) Math.round(px))/eyesisCameraParameters.decimateMasks;
-        	int iPY= ((int) Math.round(py))/eyesisCameraParameters.decimateMasks;
+        	int width= eyesisCameraParameters.getSensorWidth(chnNum)/eyesisCameraParameters.getDecimateMasks(chnNum);
+        	int height=eyesisCameraParameters.getSensorHeight(chnNum)/eyesisCameraParameters.getDecimateMasks(chnNum);
+        	int iPX= ((int) Math.round(px))/eyesisCameraParameters.getDecimateMasks(chnNum);
+        	int iPY= ((int) Math.round(py))/eyesisCameraParameters.getDecimateMasks(chnNum);
         	if ((iPX<0) || (iPY<0) || (iPX>=width) || (iPY>=height)) return 0.0;
         	if ((this.sensorMasks==null) || (this.sensorMasks[chnNum]==null)) return 1.0;
         	return this.sensorMasks[chnNum][iPY*width+iPX];
         }
-        public double getMask(double[] mask, double px, double py){
+        @Deprecated
+        public double getMask(double[] mask, double px, double py){ // problems with different size sensors
         	if (mask==null) return 0;
-        	int width= eyesisCameraParameters.sensorWidth/eyesisCameraParameters.decimateMasks;
-        	int height=eyesisCameraParameters.sensorHeight/eyesisCameraParameters.decimateMasks;
-        	int iPX= ((int) Math.round(px))/eyesisCameraParameters.decimateMasks;
-        	int iPY= ((int) Math.round(py))/eyesisCameraParameters.decimateMasks;
+        	int width= eyesisCameraParameters.getSensorWidth()/eyesisCameraParameters.getDecimateMasks();
+        	int height=eyesisCameraParameters.getSensorHeight()/eyesisCameraParameters.getDecimateMasks();
+        	int iPX= ((int) Math.round(px))/eyesisCameraParameters.getDecimateMasks();
+        	int iPY= ((int) Math.round(py))/eyesisCameraParameters.getDecimateMasks();
         	if ((iPX<0) || (iPY<0) || (iPX>=width) || (iPY>=height)) return 0.0;
         	return mask[iPY*width+iPX];  // null ponter
         }
 
 
+        @Deprecated
         public void setMaskFromImageStack(ImagePlus imp){
         	if (imp == null){
         		String msg="sensors mask image is null";
         		IJ.showMessage("Error",msg);
         		throw new IllegalArgumentException (msg);
         	}
-        	if (imp.getProperty("decimateMasks")!=null)
-        		eyesisCameraParameters.decimateMasks=Integer.parseInt((String) imp.getProperty("decimateMasks"));
-        	eyesisCameraParameters.sensorWidth= imp.getWidth()*eyesisCameraParameters.decimateMasks;
-        	eyesisCameraParameters.sensorHeight=imp.getHeight()*eyesisCameraParameters.decimateMasks;
-        	if (imp.getProperty("sensorWidth")!=null)
-        		eyesisCameraParameters.sensorWidth=Integer.parseInt((String) imp.getProperty("sensorWidth"));
-        	if (imp.getProperty("sensorHeight")!=null)
-        		eyesisCameraParameters.sensorHeight=Integer.parseInt((String) imp.getProperty("sensorHeight"));
+        	if (imp.getProperty("decimateMasks")!=null) eyesisCameraParameters.setDecimateMasks(Integer.parseInt((String) imp.getProperty("decimateMasks")));
+        	eyesisCameraParameters.setSensorWidth(imp.getWidth()*eyesisCameraParameters.getDecimateMasks());
+        	eyesisCameraParameters.setSensorHeight(imp.getHeight()*eyesisCameraParameters.getDecimateMasks());
+        	if (imp.getProperty("sensorWidth")!=null)	eyesisCameraParameters.setSensorWidth(Integer.parseInt((String) imp.getProperty("sensorWidth")));
+        	if (imp.getProperty("sensorHeight")!=null)  eyesisCameraParameters.setSensorHeight(Integer.parseInt((String) imp.getProperty("sensorHeight")));
 
     		if (this.sensorMasks==null) {
     			this.sensorMasks=new double[getNumChannels()][];
@@ -3479,7 +3830,7 @@ import ij.text.TextWindow;
             	for (int i=0;i<numChannels;i++) pixels[i]= (float[]) stack.getPixels(i+1);
     		}
     		for (int numChn=0;(numChn<numChannels) && (numChn<this.sensorMasks.length);numChn++){
-    			//Make shure masks contain non-zero (>0.0) pixels, otherwise skip those
+    			//Make sure masks contain non-zero (>0.0) pixels, otherwise skip those
         		boolean defined=false;
         		for (int i=0;i<pixels[numChn].length;i++) if (pixels[numChn][i]>0.0){
         			defined=true;
@@ -3491,7 +3842,6 @@ import ij.text.TextWindow;
     			}
     		}
         }
-
         public ImagePlus saveMaskAsImageStack(String title, String path){
         	ImagePlus imp=getMaskAsImageStack(title);
         	if (imp==null) return null;
@@ -3505,14 +3855,15 @@ import ij.text.TextWindow;
         	return imp;
         }
 
+        @Deprecated
         public ImagePlus getMaskAsImageStack(String title){
         	if (this.sensorMasks==null){
         		String msg="Sensor mask array does not exist, nothing to convert";
         		IJ.showMessage("Error",msg);
         		throw new IllegalArgumentException (msg);
         	}
-        	int width= eyesisCameraParameters.sensorWidth/eyesisCameraParameters.decimateMasks;
-        	int height=eyesisCameraParameters.sensorHeight/eyesisCameraParameters.decimateMasks;
+        	int width= eyesisCameraParameters.getSensorWidth()/eyesisCameraParameters.getDecimateMasks();
+        	int height=eyesisCameraParameters.getSensorHeight()/eyesisCameraParameters.getDecimateMasks();
         	float [][]pixels=new float [getNumChannels()][width*height];
         	ImagePlus imp=null;
         	for (int numChn=0;numChn<getNumChannels();numChn++){
@@ -3529,11 +3880,11 @@ import ij.text.TextWindow;
         		imp=new ImagePlus(title, ip);
         	}
 // TODO: add more properties here (MAC+channel)? preserve other properties?
-        	imp.setProperty("sensorWidth", ""+eyesisCameraParameters.sensorWidth);
-        	imp.setProperty("sensorHeight", ""+eyesisCameraParameters.sensorHeight);
+        	imp.setProperty("sensorWidth", ""+eyesisCameraParameters.getSensorWidth());
+        	imp.setProperty("sensorHeight", ""+eyesisCameraParameters.getSensorHeight());
         	imp.setProperty("shrinkGridForMask", ""+eyesisCameraParameters.shrinkGridForMask);
         	imp.setProperty("maskBlurSigma", ""+eyesisCameraParameters.maskBlurSigma);
-        	imp.setProperty("decimateMasks", ""+eyesisCameraParameters.decimateMasks);
+        	imp.setProperty("decimateMasks", ""+eyesisCameraParameters.getDecimateMasks());
 
         	(new JP46_Reader_camera(false)).encodeProperiesToInfo(imp);
         	imp.getProcessor().resetMinAndMax();
@@ -3582,23 +3933,31 @@ import ij.text.TextWindow;
         	if (minimalAlpha>0.0) for (int i=0;i<mask.length;i++) if (mask[i]<minimalAlpha) mask[i]=0.0;
         	return mask;
         }
-
-        public double [][] calculateSensorMasks() {
+        @Deprecated
+        public double [][] calculateSensorMasksOld() {
         	return calculateSensorMasks(
-        			eyesisCameraParameters.decimateMasks,
-        			eyesisCameraParameters.sensorWidth,
-        			eyesisCameraParameters.sensorHeight,
+        			eyesisCameraParameters.getDecimateMasks(),
+        			eyesisCameraParameters.getSensorWidth(),
+        			eyesisCameraParameters.getSensorHeight(),
         			eyesisCameraParameters.shrinkGridForMask,
         			eyesisCameraParameters.maskBlurSigma);
         }
+
+        public double [][] calculateSensorMasks() {
+        	return calculateSensorMasks(
+        			eyesisCameraParameters.shrinkGridForMask,
+        			eyesisCameraParameters.maskBlurSigma);
+        }
+
         /**
          *
          * @param width image width, in pixels (pixel X coordinates are between 0 and width-1, inclusive)
          * @param height image height, in pixels (pixel Y coordinates are between 0 and height-1, inclusive)
          * @param shrinkGridForMask shrink detected grids by this number of nodes in each direction before bluring
-         * @param sigmaUV Gaussian sigma fro bluring of the sensor mask (if negative - in grid inter-node distances)
+         * @param sigmaUV Gaussian sigma for blurring of the sensor mask (if negative - in grid inter-node distances)
          * @return array of pixel arrays (or nulls) for each camera subchannel (also keeps it in the class instance)
          */
+        @Deprecated
         public double [][] calculateSensorMasks( int decimate, int width, int height, int shrinkGridForMask, double sigmaUV) {
         	int dWidth=  (width -1)/decimate+1;
         	int dHeight= (height-1)/decimate+1;
@@ -3633,6 +3992,42 @@ import ij.text.TextWindow;
         	return this.sensorMasks;
         }
 
+        public double [][] calculateSensorMasks(int shrinkGridForMask, double sigmaUV) {
+        	int numChannels=getNumChannels();
+        	this.sensorMasks=new double [numChannels][];
+        	DoubleGaussianBlur gb=new DoubleGaussianBlur();
+        	if ((this.debugLevel>1) && (SDFA_INSTANCE==null)) SDFA_INSTANCE=new ShowDoubleFloatArrays();
+			if (this.debugLevel>2)System.out.println("calculateSensorMasks("+shrinkGridForMask+","+sigmaUV+")");
+        	for (int chNum=0;chNum<numChannels; chNum++){
+        		int decimate = eyesisCameraParameters.getDecimateMasks(chNum);
+        		int width = eyesisCameraParameters.getSensorWidth(chNum);
+        		int height = eyesisCameraParameters.getSensorHeight(chNum);
+            	int dWidth=  (width -1)/decimate+1;
+            	int dHeight= (height-1)/decimate+1;
+
+        		this.sensorMasks[chNum]=new double[dWidth*dHeight];
+        		for (int i=0;i<this.sensorMasks[chNum].length;i++) this.sensorMasks[chNum][i]=0.0;
+        		double rAverage=0.0;
+        		double rAverageNum=0.0;
+        		for (int imgNum=0;imgNum<this.gIP.length;imgNum++) if (this.gIP[imgNum].channel==chNum){ // image is for this this channel
+        	        double [][] preMask=preCalculateSingleImageMask(imgNum, decimate, width, height, shrinkGridForMask);
+        	        if (preMask==null) continue; //nothing in this channel
+            		rAverage+=preMask[0][0];
+            		rAverageNum+=preMask[0][1];
+       			    for (int i=0;i<this.sensorMasks[chNum].length;i++) if (preMask[1][i]>0.0) this.sensorMasks[chNum][i]=1.0;
+        		}
+        		if (rAverageNum==0.0) continue; // nothing to blur/process for this channel
+        		rAverage/=rAverageNum; // average distance to the fartherst node from the current
+        		double      sigma=sigmaUV;
+        		if(sigma<0) sigma*=-rAverage;
+        		gb.blurDouble(this.sensorMasks[chNum], dWidth, dHeight, sigma/decimate, sigma/decimate, 0.01);
+        	}
+        	return this.sensorMasks;
+        }
+
+
+
+
 
         /**
          * Create round mask inside the actual one, with the provided center. Blur result with the same sigma as original
@@ -3642,14 +4037,12 @@ import ij.text.TextWindow;
          * @return this channel mask, also sets the round mask instead of the original
          */
         public double [] roundOffMask(int chn, double xCenter, double yCenter){
-        	int dWidth=  (eyesisCameraParameters.sensorWidth -1)/eyesisCameraParameters.decimateMasks+1;
-        	int dHeight= (eyesisCameraParameters.sensorHeight-1)/eyesisCameraParameters.decimateMasks+1;
+        	int dWidth=  (eyesisCameraParameters.getSensorWidth(chn) -1)/eyesisCameraParameters.getDecimateMasks(chn)+1;
+        	int dHeight= (eyesisCameraParameters.getSensorHeight(chn)-1)/eyesisCameraParameters.getDecimateMasks(chn)+1;
         	DoubleGaussianBlur gb=new DoubleGaussianBlur();
 
-        	int iXC=(int) Math.round(xCenter/eyesisCameraParameters.decimateMasks);
-        	int iYC=(int) Math.round(yCenter/eyesisCameraParameters.decimateMasks);
-//        	int dcW=eyesisCameraParameters.sensorWidth/eyesisCameraParameters.decimateMasks;
-//        	int dcH=eyesisCameraParameters.sensorHeight/eyesisCameraParameters.decimateMasks;
+        	int iXC=(int) Math.round(xCenter/eyesisCameraParameters.getDecimateMasks(chn));
+        	int iYC=(int) Math.round(yCenter/eyesisCameraParameters.getDecimateMasks(chn));
         	double r0=iXC;
         	r0 = Math.min(r0, iYC);
         	r0 = Math.min(r0, dWidth - iXC);
@@ -3673,9 +4066,9 @@ import ij.text.TextWindow;
         	}
         	// blur result
         	double [][] preMask=preCalculateSingleImageMask(chn,
-        			eyesisCameraParameters.decimateMasks,
-        			eyesisCameraParameters.sensorWidth,
-        			eyesisCameraParameters.sensorHeight,
+        			eyesisCameraParameters.getDecimateMasks(chn),
+        			eyesisCameraParameters.getSensorWidth(chn),
+        			eyesisCameraParameters.getSensorHeight(chn),
         			eyesisCameraParameters.shrinkGridForMask);
 
         	if (preMask==null) return null; //nothing in this channel
@@ -3685,7 +4078,7 @@ import ij.text.TextWindow;
         	rAverage/=rAverageNum; // average distance to the fartherst node from the current
         	double      sigma = eyesisCameraParameters.maskBlurSigma;
         	if(sigma<0) sigma*=-rAverage;
-        	gb.blurDouble(mask, dWidth, dHeight, sigma/eyesisCameraParameters.decimateMasks, sigma/eyesisCameraParameters.decimateMasks, 0.01);
+        	gb.blurDouble(mask, dWidth, dHeight, sigma/eyesisCameraParameters.getDecimateMasks(chn), sigma/eyesisCameraParameters.getDecimateMasks(chn), 0.01);
         	for (int i=0;i < mask.length;i++){
         		this.sensorMasks[chn][i] = Math.min(this.sensorMasks[chn][i],mask[i]);
         	}
@@ -3694,11 +4087,12 @@ import ij.text.TextWindow;
 
 
         public double [] calculateImageGridMask(int imgNum) {
+        	int chn = this.gIP[imgNum].channel; // getChannel()
         	return calculateImageGridMask(
         			imgNum,
-        			eyesisCameraParameters.decimateMasks,
-        			eyesisCameraParameters.sensorWidth,
-        			eyesisCameraParameters.sensorHeight,
+        			eyesisCameraParameters.getDecimateMasks(chn),
+        			eyesisCameraParameters.getSensorWidth(chn),
+        			eyesisCameraParameters.getSensorHeight(chn),
         			eyesisCameraParameters.shrinkGridForMask,
         			eyesisCameraParameters.maskBlurSigma);
         }
@@ -3891,6 +4285,169 @@ import ij.text.TextWindow;
         	int offs_y = base_height/2 - test_height/2; // subtract from test.y
         	double [] corr = new double [(2*search_rad + 1)*(2*search_rad + 1)];
         	for (int dy = -search_rad; dy <= search_rad; dy++) {
+        		for (int dx = -search_rad; dx <= search_rad; dx++) {
+        			double sum = 0;
+        			for (int y0 = 0; y0 < base_height; y0++) {
+        				int y1 = y0 - offs_y - dy;
+        				if ((y1 >= 0) && (y1 < test_height)) {
+
+        					for (int x0 = 0; x0 < base_width; x0++) {
+        						int x1 = x0 - offs_x - dx;
+        						if ((x1 >= 0) && (x1 < test_width)) {
+        							sum+= base_pixels[INDEX_CONTRAST][y0*base_width + x0] * test_pixels[INDEX_CONTRAST][y1*test_width + x1];
+        						}
+        					}
+        				}
+        			}
+        			corr[(2*search_rad + 1)*(search_rad + dy) +(search_rad + dx)] = sum;
+        		}
+        	}
+        	int [] indx_max_even_odd = {0,0};
+        	for (int i = 1; i < corr.length; i++) {
+        		int parity = ((i /(2*search_rad + 1)) +  (i %(2*search_rad + 1))) & 1;
+        		if (corr[indx_max_even_odd[parity]] <corr[i]) {
+        			indx_max_even_odd[parity] = i;
+        		}
+        	}
+        	// find first non-zero matching cell
+        	int indx0=-1,indx1=-1;
+        	int [] rslt = new int[3];
+        	for (int parity = 0; parity < 2; parity++) {
+        		int dy = indx_max_even_odd[parity] / (2*search_rad + 1) - search_rad;
+        		int dx = indx_max_even_odd[parity] % (2*search_rad + 1) - search_rad;
+
+        		first_nonzero:
+
+        			for (int y0 = 0; y0 < base_height; y0++) {
+        				int y1 = y0 - offs_y - dy;
+        				if ((y1 >= 0) && (y1 < test_height)) {
+        					for (int x0 = 0; x0 < base_width; x0++) {
+        						int x1 = x0 - offs_x - dx;
+        						if ((x1 >= 0) && (x1 < test_width)) {
+        							indx0 = y0*base_width + x0;
+        							indx1 = y1*test_width + x1;
+        							if ((base_pixels[INDEX_CONTRAST][indx0] > 0 )&&
+        									(test_pixels[INDEX_CONTRAST][indx1] > 0)) {
+        								break first_nonzero;
+        							}
+        						}
+        					}
+        				}
+        			}
+        		// test grid with index indx1 matches base grid with indx0
+        		rslt[0] = Math.round(base_pixels[INDEX_U][indx0] - test_pixels[INDEX_U][indx1]);
+        		rslt[1] = Math.round(base_pixels[INDEX_V][indx0] - test_pixels[INDEX_V][indx1]);
+        		rslt[2] = 0; // rotation
+        		if (((rslt[0] + rslt[1] + (invert_color?1:0)) & 1) == 0) break;
+        	}
+        	return rslt;
+        }
+
+        int [] correlateWithPattern(
+        		PatternParameters patternParameters,
+        		int        test_width,
+        		float [][] test_pixels,
+        		boolean    invert_color,
+        		int        extra_search,
+        		double     sigma,
+        		double []  sensor_wh, // test set pixels width/height pair to reduce weight near the margins (or null)
+        		boolean    bdebug
+        		) {
+        	int base_height = patternParameters.gridGeometry.length;
+        	int base_width =  patternParameters.gridGeometry[0].length;
+        	int index_mask =  3;
+        	float [][] base_pixels = new float [INDEX_CONTRAST+1][base_height*base_width];
+    		int indx = 0;
+        	for (int iv = 0; iv < base_height; iv++) {
+            	for (int iu = 0; iu < base_width; iu++) {
+            		base_pixels[INDEX_U][indx] =        iu - patternParameters.U0;
+            		base_pixels[INDEX_V][indx] =        iv - patternParameters.V0;
+            		base_pixels[INDEX_CONTRAST][indx] = (float) patternParameters.gridGeometry[iv][iu][index_mask];
+            		indx++;
+            	}
+        	}
+        	return correlateGrids(
+            		base_width,
+            		base_pixels,
+            		test_width,
+            		test_pixels,
+            		invert_color,
+            		extra_search,
+            		sigma,
+            		sensor_wh, // test set pixels width/height pair to reduce weight near the margins (or null)
+            		bdebug
+            		) ;
+        }
+
+        int [] correlateGrids(
+        		int        base_width,
+        		float [][] base_pixels,
+        		int        test_width,
+        		float [][] test_pixels,
+        		boolean    invert_color,
+        		int        extra_search,
+        		double     sigma,
+        		double []  sensor_wh, // test set pixels width/height pair to reduce weight near the margins (or null)
+        		boolean    bdebug
+        		) { // Gaussian blur sigma to subtract
+        	int base_height = base_pixels[0].length/base_width;
+        	int test_height = test_pixels[0].length/test_width;
+        	int search_rad = Math.max(
+        			(Math.max(base_width,  test_width)- Math.min(base_width,  test_width) + 1) /2,
+        			(Math.max(base_height, test_height)-Math.min(base_height, test_height) + 1) /2) + extra_search;
+        	int offs_x = base_width/2 -  test_width/2;  // subtract from test.x
+        	int offs_y = base_height/2 - test_height/2; // subtract from test.y
+        	double [] corr = new double [(2*search_rad + 1)*(2*search_rad + 1)];
+        	double [] base_contrast = new double [base_pixels[INDEX_U].length];
+        	double [] test_contrast = new double [test_pixels[INDEX_U].length];
+        	for (int i = 0; i < base_contrast.length; i++) {
+        		base_contrast[i] = base_pixels[INDEX_CONTRAST][i];
+        	}
+        	for (int i = 0; i < test_contrast.length; i++) {
+        		test_contrast[i] = test_pixels[INDEX_CONTRAST][i];
+        	}
+        	double [] tmp_b = base_contrast.clone();
+        	DoubleGaussianBlur gb = new DoubleGaussianBlur();
+        	gb.blurDouble(tmp_b, base_width, base_height, sigma, sigma, 0.01);
+        	// subtract DC
+        	double s = 0.0;
+        	for (int i = 0; i < base_contrast.length; i++) {
+        		base_contrast[i] -= tmp_b[i];
+        		s+=base_contrast[i];
+        	}
+        	s/=base_contrast.length;
+        	for (int i = 0; i < base_contrast.length; i++) {
+        		base_contrast[i] -= s;
+        	}
+
+        	tmp_b = test_contrast.clone();
+        	gb.blurDouble(tmp_b, test_width, test_height, sigma, sigma, 0.01);
+        	// subtract DC
+        	s = 0.0;
+        	for (int i = 0; i < test_contrast.length; i++) {
+        		test_contrast[i] -= tmp_b[i];
+        		s+=test_contrast[i];
+        	}
+        	s/=test_contrast.length;
+        	for (int i = 0; i < test_contrast.length; i++) {
+        		test_contrast[i] -= s;
+        	}
+
+        	if (sensor_wh != null) {
+        		double x0 = sensor_wh[0]/2;
+        		double y0 = sensor_wh[1]/2;
+        		for (int i = 0; i < test_contrast.length; i++) {
+        			double x = (test_pixels[INDEX_PX][i] - x0)/x0;
+        			double y = (test_pixels[INDEX_PY][i] - y0)/y0;
+        			test_contrast[i] *= (1.0 - x*x)* (1.0 - y*y);
+        		}
+        	}
+        	if (bdebug) {
+        		(new ShowDoubleFloatArrays()).showArrays(base_contrast, base_width, base_height, "base_sigma-"+sigma);
+        		(new ShowDoubleFloatArrays()).showArrays(test_contrast, test_width, test_height, "test_sigma-"+sigma);
+        	}
+
+        	for (int dy = -search_rad; dy <= search_rad; dy++) {
             	for (int dx = -search_rad; dx <= search_rad; dx++) {
             		double sum = 0;
             		for (int y0 = 0; y0 < base_height; y0++) {
@@ -3900,7 +4457,7 @@ import ij.text.TextWindow;
                     		for (int x0 = 0; x0 < base_width; x0++) {
                     			int x1 = x0 - offs_x - dx;
                     			if ((x1 >= 0) && (x1 < test_width)) {
-                    				sum+= base_pixels[INDEX_CONTRAST][y0*base_width + x0] * test_pixels[INDEX_CONTRAST][y1*test_width + x1];
+                    				sum+= base_contrast[y0*base_width + x0] * test_contrast[y1*test_width + x1];
                     			}
                     		}
             			}
@@ -3908,10 +4465,13 @@ import ij.text.TextWindow;
             		corr[(2*search_rad + 1)*(search_rad + dy) +(search_rad + dx)] = sum;
             	}
         	}
-        	int [] indx_max_even_odd = {0,0};
+           	if (bdebug) {
+        		(new ShowDoubleFloatArrays()).showArrays(corr, "corr_sigma-"+sigma);
+           	}
+        	int [] indx_max_even_odd = {-1,-1};
         	for (int i = 1; i < corr.length; i++) {
         		int parity = ((i /(2*search_rad + 1)) +  (i %(2*search_rad + 1))) & 1;
-        		if (corr[indx_max_even_odd[parity]] <corr[i]) {
+        		if ((indx_max_even_odd[parity] < 0) || (corr[indx_max_even_odd[parity]] < corr[i])) {
         			indx_max_even_odd[parity] = i;
         		}
         	}
@@ -3948,7 +4508,15 @@ import ij.text.TextWindow;
         	}
         	return rslt;
         }
+
+
         // Set initial shifts for the grids that do not have absolute match from the one in the same set that does
 
         // end of class DistortionCalibrationData
-    }
+
+
+    // Set initial shifts for the grids that do not have absolute match from the one in the same set that does
+
+    // end of class DistortionCalibrationData
+}
+

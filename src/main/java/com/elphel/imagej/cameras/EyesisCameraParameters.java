@@ -12,7 +12,6 @@ import com.elphel.imagej.common.GenericJTabbedDialog;
 import com.elphel.imagej.common.WindowTools;
 
 import Jama.Matrix;
-import ij.Prefs;
 /*
  **
  ** EyesisCameraParameters.java
@@ -66,11 +65,12 @@ import ij.gui.GenericDialog;
     	public boolean isTripod= false; // when true - make goniometerHorizontal rotation around "vertical" axis and "goniometerAxial" - around
     	public boolean cartesian=false; //
         // rotated horizontal.
-    	public int sensorWidth=      2592;
-    	public int sensorHeight=     1936;
+    	private int defaultSensorWidth=      2592;
+    	private int defaultSensorHeight=     1936;
+    	private int defaultDecimateMasks=       1;
+
     	public int    shrinkGridForMask=4; //2; //shrink detected grids by one point for/vert this number of times before calculating masks
     	public double maskBlurSigma=    -3; //2.0;   // blur sensor masks (>0 - pixels, <0 - in grid units)
-    	public int    decimateMasks=     1;
     	public double badNodeThreshold=0.1; // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
     	public int    maxBadNeighb=      1; // maximal number of bad nodes around the corrected one to fix
     	public int    minimalValidNodes=50; // do not use images with less than this number of non-zero nodes (after all applicable weight masks)
@@ -459,11 +459,11 @@ import ij.gui.GenericDialog;
     	    	double entrancePupilForward, // common to all lenses - distance from the sensor to the lens entrance pupil
     	    	double centerAboveHorizontal, // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each
     	    	double [] GXYZ, // coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
-    	    	int sensorWidth,
-    	    	int sensorHeight,
+    	    	int defaultSensorWidth,
+    	    	int defaultSensorHeight,
     	    	int    shrinkGridForMask, //shrink detected grids by one point for/vert this number of times before calculating masks
     	    	double maskBlurSigma,      // blur sensor masks (in grid units)
-    	    	int    decimateMasks,       // reduce masks resolution
+    	    	int    defaultDecimateMasks,       // reduce masks resolution
     	    	double badNodeThreshold, // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
     	    	int    maxBadNeighb, // maximal number of bad nodes around the corrected one to fix
     	    	int    minimalValidNodes,
@@ -481,11 +481,11 @@ import ij.gui.GenericDialog;
     		this.numStations=numStations;
     		this.isTripod=isTripod;
     		this.cartesian = cartesian; // Need to set each subcamera?
-	    	this.sensorWidth=sensorWidth;
-	    	this.sensorHeight=sensorHeight;
+	    	this.defaultSensorWidth=defaultSensorWidth;
+	    	this.defaultSensorHeight=defaultSensorHeight;
 	    	this.shrinkGridForMask=shrinkGridForMask; //shrink detected grids by one point for/vert this number of times before calculating masks
 	    	this.maskBlurSigma=maskBlurSigma;      // blur sensor masks (in grid units)
-	    	this.decimateMasks=decimateMasks;
+	    	this.defaultDecimateMasks=defaultDecimateMasks;
 	    	this.badNodeThreshold=badNodeThreshold; // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
 	    	this.maxBadNeighb=maxBadNeighb; // maximal number of bad nodes around the corrected one to fix
 	    	this.minimalValidNodes=minimalValidNodes;
@@ -544,11 +544,11 @@ import ij.gui.GenericDialog;
     			EyesisCameraParameters destination) {
     		destination.numStations=newNumStations;
     		destination.isTripod=source.isTripod;
-    		destination.sensorWidth=source.sensorWidth;
-    		destination.sensorHeight=source.sensorHeight;
+    		destination.defaultSensorWidth=source.defaultSensorWidth;
+    		destination.defaultSensorHeight=source.defaultSensorHeight;
     		destination.shrinkGridForMask=source.shrinkGridForMask; //shrink detected grids by one point for/vert this number of times before calculating masks
     		destination.maskBlurSigma=source.maskBlurSigma;      // blur sensor masks (in grid units)
-    		destination.decimateMasks=source.decimateMasks;
+    		destination.defaultDecimateMasks=source.defaultDecimateMasks;
     		destination.badNodeThreshold=source.badNodeThreshold; // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
     		destination.maxBadNeighb=source.maxBadNeighb; // maximal number of bad nodes around the corrected one to fix
     		destination.minimalValidNodes=source.minimalValidNodes;
@@ -600,11 +600,11 @@ import ij.gui.GenericDialog;
     	public void setProperties(String prefix,Properties properties){
     		properties.setProperty(prefix+"isTripod",this.isTripod+"");
     		properties.setProperty(prefix+"cartesian",this.cartesian+"");
-    		properties.setProperty(prefix+"sensorWidth",this.sensorWidth+"");
-    		properties.setProperty(prefix+"sensorHeight",this.sensorHeight+"");
+    		properties.setProperty(prefix+"defaultSensorWidth",this.defaultSensorWidth+"");
+    		properties.setProperty(prefix+"defaultSensorHeight",this.defaultSensorHeight+"");
     		properties.setProperty(prefix+"shrinkGridForMask",this.shrinkGridForMask+"");
     		properties.setProperty(prefix+"maskBlurSigma",this.maskBlurSigma+"");
-    		properties.setProperty(prefix+"decimateMasks",this.decimateMasks+"");
+    		properties.setProperty(prefix+"defaultDecimateMasks",this.defaultDecimateMasks+"");
     		properties.setProperty(prefix+"badNodeThreshold",this.badNodeThreshold+"");
     		properties.setProperty(prefix+"maxBadNeighb",this.maxBadNeighb+"");
     		properties.setProperty(prefix+"minimalValidNodes",this.minimalValidNodes+"");
@@ -644,16 +644,25 @@ import ij.gui.GenericDialog;
     			this.isTripod=Boolean.parseBoolean(properties.getProperty(prefix+"isTripod"));
     		if (properties.getProperty(prefix+"cartesian")!=null)
     			this.cartesian=Boolean.parseBoolean(properties.getProperty(prefix+"cartesian"));
+    		// For old compatibility
+    		if (properties.getProperty(prefix+"decimateMasks")!=null)
+    			this.defaultDecimateMasks=Integer.parseInt(properties.getProperty(prefix+"decimateMasks"));
     		if (properties.getProperty(prefix+"sensorWidth")!=null)
-    			this.sensorWidth=Integer.parseInt(properties.getProperty(prefix+"sensorWidth"));
+    			this.defaultSensorWidth=Integer.parseInt(properties.getProperty(prefix+"sensorWidth"));
     		if (properties.getProperty(prefix+"sensorHeight")!=null)
-    			this.sensorHeight=Integer.parseInt(properties.getProperty(prefix+"sensorHeight"));
+    			this.defaultSensorHeight=Integer.parseInt(properties.getProperty(prefix+"sensorHeight"));
+    		// New version
+    		if (properties.getProperty(prefix+"defaultDecimateMasks")!=null)
+    			this.defaultDecimateMasks=Integer.parseInt(properties.getProperty(prefix+"defaultDecimateMasks"));
+    		if (properties.getProperty(prefix+"defaultSensorWidth")!=null)
+    			this.defaultSensorWidth=Integer.parseInt(properties.getProperty(prefix+"defaultSensorWidth"));
+    		if (properties.getProperty(prefix+"defaultSensorHeight")!=null)
+    			this.defaultSensorHeight=Integer.parseInt(properties.getProperty(prefix+"defaultSensorHeight"));
+
     		if (properties.getProperty(prefix+"shrinkGridForMask")!=null)
     			this.shrinkGridForMask=Integer.parseInt(properties.getProperty(prefix+"shrinkGridForMask"));
     		if (properties.getProperty(prefix+"maskBlurSigma")!=null)
     			this.maskBlurSigma=Double.parseDouble(properties.getProperty(prefix+"maskBlurSigma"));
-    		if (properties.getProperty(prefix+"decimateMasks")!=null)
-    			this.decimateMasks=Integer.parseInt(properties.getProperty(prefix+"decimateMasks"));
 
     		if (properties.getProperty(prefix+"badNodeThreshold")!=null)
     			this.badNodeThreshold=Double.parseDouble(properties.getProperty(prefix+"badNodeThreshold"));
@@ -824,11 +833,11 @@ import ij.gui.GenericDialog;
     		}
     		gd.addMessage("=== Other parameters ===");
 
-    		gd.addNumericField("Image sensor width (maximal if different)",                            this.sensorWidth, 0,4,"pix");
-    		gd.addNumericField("Image sensor height (maximal if different)",                           this.sensorHeight, 0,4,"pix");
+    		gd.addNumericField("Image sensor width (maximal if different)",                            this.defaultSensorWidth, 0,4,"pix");
+    		gd.addNumericField("Image sensor height (maximal if different)",                           this.defaultSensorHeight, 0,4,"pix");
     		gd.addNumericField("Shrink detected grid by this number of nodes (half/periods) for masks",this.shrinkGridForMask, 0,4,"grid nodes");
     		gd.addNumericField("Gaussian blur masks for the sensors (positive - pixels, negative - grid half-periods)", this.maskBlurSigma, 2,6,"pix");
-    		gd.addNumericField("Reduce sensor resolution when calculating masks",                      this.decimateMasks, 0);
+    		gd.addNumericField("Reduce sensor resolution when calculating masks",                      this.defaultDecimateMasks, 0);
 
     		gd.addNumericField("Filter out grid nodes with difference from quadratically predicted from 8 neighbors", this.badNodeThreshold, 2,6,"pix");
     		gd.addNumericField("Maximal number of bad nodes around the corrected one to fix",          this.maxBadNeighb, 0);
@@ -877,11 +886,11 @@ import ij.gui.GenericDialog;
     			this.GXYZ[numStation][1]=                  gd.getNextNumber();
     			this.GXYZ[numStation][2]=                  gd.getNextNumber();
     		}
-    		this.sensorWidth=         (int) gd.getNextNumber();
-    		this.sensorHeight=        (int) gd.getNextNumber();
+    		this.defaultSensorWidth=  (int) gd.getNextNumber();
+    		this.defaultSensorHeight= (int) gd.getNextNumber();
     		this.shrinkGridForMask=   (int) gd.getNextNumber();
     		this.maskBlurSigma=             gd.getNextNumber();
-    		this.decimateMasks=       (int) gd.getNextNumber();
+    		this.defaultDecimateMasks=(int) gd.getNextNumber();
 	    	this.badNodeThreshold=          gd.getNextNumber();
 	    	this.maxBadNeighb=        (int) gd.getNextNumber();
 	    	this.minimalValidNodes=   (int) gd.getNextNumber();
@@ -1263,10 +1272,41 @@ import ij.gui.GenericDialog;
         public int getGoniometerHorizontalIndex(){return 6;}
         public int getGoniometerAxialIndex(){return 7;}
         public int getInterAxisAngleIndex(){return 9;}
-        public int getSensorWidth() { return this.sensorWidth;}
-        public int getSensorHeight() { return this.sensorHeight;}
-        public int getSensorWidth(int subCam) { return this.sensorWidth;} // for the future? different sensors
-        public int getSensorHeight(int subCam) { return this.sensorHeight;}// for the future? different sensors
+
+        public int getSensorWidth()         { return this.defaultSensorWidth;}
+        public int getSensorHeight()        { return this.defaultSensorHeight;}
+        public int getDecimateMasks()       { return this.defaultDecimateMasks;}
+        public void setSensorWidth(int v)   { this.defaultSensorWidth = v;}
+        public void setSensorHeight(int v)  { this.defaultSensorHeight = v;}
+        public void setDecimateMasks(int v) { this.defaultDecimateMasks = v;}
+
+
+        public int getSensorWidth(int subCam) { return this.eyesisSubCameras[0][subCam].sensorWidth;} // for the future? different sensors
+        public int getSensorHeight(int subCam) { return this.eyesisSubCameras[0][subCam].sensorHeight;}// for the future? different sensors
+        public int getDecimateMasks(int subCam) { return this.eyesisSubCameras[0][subCam].decimateMasks;}// for the future? different sensors
+
+        public void setSensorWidth(int subCam, int v)   { this.eyesisSubCameras[0][subCam].sensorWidth = v;}
+        public void setSensorHeight(int subCam, int v)  { this.eyesisSubCameras[0][subCam].sensorHeight = v;}
+        public void setDecimateMasks(int subCam, int v) { this.eyesisSubCameras[0][subCam].decimateMasks = v;}
+
+        public int [] getSensorWidths() {
+        	int [] v = new int [eyesisSubCameras[0].length];
+        	for (int subCam = 0; subCam < v.length; subCam++) v[subCam] = getSensorWidth(subCam);
+        	return v;
+        } // for the future? different sensors
+        public int [] getSensorHeights() {
+        	int [] v = new int [eyesisSubCameras[0].length];
+        	for (int subCam = 0; subCam < v.length; subCam++) v[subCam] = getSensorHeight(subCam);
+        	return v;
+
+        }// for the future? different sensors
+        public int [] getAllMasks() {
+        	int [] v = new int [eyesisSubCameras[0].length];
+        	for (int subCam = 0; subCam < v.length; subCam++) v[subCam] = getDecimateMasks(subCam);
+        	return v;
+        }// for the future? different sensors
+
+
         public double getPixelSize(int subCamNumber){return  this.eyesisSubCameras[0][subCamNumber].pixelSize;} // use station 0's pixel size
         public double getDistortionRadius(int subCamNumber){return  this.eyesisSubCameras[0][subCamNumber].distortionRadius;}
 
@@ -1391,6 +1431,9 @@ import ij.gui.GenericDialog;
     		if (numSubCameras==3) {
     			this.cartesian = false; // change?
     			this.eyesisSubCameras[numStation][0]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -1422,6 +1465,9 @@ import ij.gui.GenericDialog;
 
 
     			this.eyesisSubCameras[numStation][1]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -1452,6 +1498,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][2]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -1484,6 +1533,9 @@ import ij.gui.GenericDialog;
     		} else if (numSubCameras==1) {
     			this.cartesian = false;
     			this.eyesisSubCameras[numStation][0]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -1519,6 +1571,9 @@ import ij.gui.GenericDialog;
     			//
     			this.cartesian = false; // change
     			this.eyesisSubCameras[numStation][0]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -1549,6 +1604,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][1]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -1579,6 +1637,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][2]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -1609,6 +1670,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][3]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -1639,6 +1703,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][4]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -1669,6 +1736,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][5]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -1699,6 +1769,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][6]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -1729,6 +1802,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][7]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -1759,6 +1835,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][8]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -1789,6 +1868,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][9]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -1819,6 +1901,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][10]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -1849,6 +1934,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][11]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -1879,6 +1967,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][12]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -1909,6 +2000,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][13]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -1939,6 +2033,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][14]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -1969,6 +2066,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][15]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -1999,6 +2099,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][16]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -2029,6 +2132,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][17]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -2059,6 +2165,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][18]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -2089,6 +2198,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][19]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -2119,6 +2231,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			this.eyesisSubCameras[numStation][20]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -2154,6 +2269,9 @@ import ij.gui.GenericDialog;
     			} else {
     			// default setup for the 26 sub-cameras
     			for (int i=0;i<8;i++) if (i<numSubCameras) 	this.eyesisSubCameras[numStation][i]=new EyesisSubCameraParameters( // top 8 cameras
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -2184,6 +2302,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			for (int i=8;i<16;i++) if (i<numSubCameras) 	this.eyesisSubCameras[numStation][i]=new EyesisSubCameraParameters( // middle 8 cameras
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -2214,6 +2335,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			for (int i=16;i<24;i++) if (i<numSubCameras) 	this.eyesisSubCameras[numStation][i]=new EyesisSubCameraParameters( // bottom eight cameras
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
@@ -2244,6 +2368,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			if (24<numSubCameras) 	this.eyesisSubCameras[numStation][24]=new EyesisSubCameraParameters(
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					false,
@@ -2274,6 +2401,9 @@ import ij.gui.GenericDialog;
     					0);   // public int subchannel
 
     			if (25<numSubCameras) 	this.eyesisSubCameras[numStation][25]=new EyesisSubCameraParameters(
+    					this.defaultSensorWidth,
+    					this.defaultSensorHeight,
+    					this.defaultDecimateMasks,
     					this.cartesian,
     					defaultLensDistortionModel,
     					false,
@@ -2544,7 +2674,6 @@ import ij.gui.GenericDialog;
     		DistortionCalibrationData sub_distortionCalibrationData = null;
     		EyesisAberrations.AberrationParameters sub_aberrationParameters = null;
     		LensDistortionParameters sub_lensDistortionParameters = null;
-//    		boolean update_sensor_files = subsystemOffsets.update_sensor_files;
     		// TODO: check sub_distortions != null
     		if (subsystemOffsets.update_sensor_files) {
     			sub_aberrationParameters=new EyesisAberrations.AberrationParameters();
@@ -2554,17 +2683,12 @@ import ij.gui.GenericDialog;
 
     			sensors_path =  sub_aberrationParameters.sensorsPath;
     			System.out.println("sensors_path = "+sensors_path);
-    			String [][] stationFilenames = new String[sub_system.numStations][0];
+///    			String [][] stationFilenames = new String[sub_system.numStations][0];
     			sub_distortionCalibrationData = new DistortionCalibrationData(
-//    					stationFilenames, // String [][] stationFilenames,
-//    	        		null, // PatternParameters patternParameters,
     	        		sub_system // EyesisCameraParameters eyesisCameraParameters
-//    	        		,0 // debugLevel
     					);
     			// now read all sensor files
     			if ((sensors_path !=null) && (sensors_path != "")){ // load sensor
-//    				if (sub_distortions.fittingStrategy==null) return false; // Why?
-//    				if (DEBUG_LEVEL>0) System.out.println("Autoloading sensor calibration files "+configPaths[3]);
     				sub_distortions = new Distortions(
     						sub_lensDistortionParameters, // LensDistortionParameters lensDistortionParameters,
     						null, // PatternParameters patternParameters,
@@ -2653,18 +2777,18 @@ import ij.gui.GenericDialog;
     				for (int i = 0; i < tmp_masks.length; i++ ) system_distortionCalibrationData.sensorMasks[i] = tmp_masks[i];
     			}
     			// now copy data over, update the path names?
-    			String imported_name=sub_distortions.pathNames[0];
-    			int last_sep =  imported_name.lastIndexOf(Prefs.getFileSeparator());
-    			if (last_sep>=0) imported_name = imported_name.substring(last_sep + 1);
-    			int indexPeriod=imported_name.lastIndexOf('.');
-    			int indexSuffix=indexPeriod;
-    			String digits="0123456789";
-    	    	for (int i=1;i<=2;i++) if (digits.indexOf(imported_name.charAt(indexSuffix-1))>=0) indexSuffix--; // remove 1 or 2 digits before period
-    	    	boolean hadSuffix= (imported_name.charAt(indexSuffix-1)=='-');
+///    			String imported_name=sub_distortions.pathNames[0];
+///    			int last_sep =  imported_name.lastIndexOf(Prefs.getFileSeparator());
+///    			if (last_sep>=0) imported_name = imported_name.substring(last_sep + 1);
+///    			int indexPeriod=imported_name.lastIndexOf('.');
+///    			int indexSuffix=indexPeriod;
+///    			String digits="0123456789";
+///    	    	for (int i=1;i<=2;i++) if (digits.indexOf(imported_name.charAt(indexSuffix-1))>=0) indexSuffix--; // remove 1 or 2 digits before period
+///    	    	boolean hadSuffix= (imported_name.charAt(indexSuffix-1)=='-');
     	    	for (int nc = 0; nc < sub_system.getNumChannels(); nc++) {
     	    		int chn = nc+subsystemOffsets.offset_channel;
-    	    		systemDistortions.pathNames[chn]=calibration_directory+Prefs.getFileSeparator()+((hadSuffix?imported_name.substring(0,indexSuffix):(imported_name.substring(0,indexPeriod)+"-"))+
-    	    	    		String.format("%02d",chn)+imported_name.substring(indexPeriod));
+//    	    		systemDistortions.pathNames[chn]=calibration_directory+Prefs.getFileSeparator()+((hadSuffix?imported_name.substring(0,indexSuffix):(imported_name.substring(0,indexPeriod)+"-"))+
+//    	    	    		String.format("%02d",chn)+imported_name.substring(indexPeriod));
     	    		systemDistortions.pixelCorrection[chn] = sub_distortions.pixelCorrection[nc];
     	    		system_distortionCalibrationData.sensorMasks[chn] = sub_distortionCalibrationData.sensorMasks[nc];
     	    	}
@@ -2680,8 +2804,22 @@ import ij.gui.GenericDialog;
     	    			parFilter,
     	    			systemDistortions.getSensorPath(-1)); //String defaultPath
     	    	if ((pathname==null) || (pathname=="")) return true;
+///    			int last_sep =  pathname.lastIndexOf(Prefs.getFileSeparator());
+///    			if (last_sep>=0) pathname = pathname.substring(last_sep + 1);
+    			int indexPeriod=pathname.lastIndexOf('.');
+    			int indexSuffix=indexPeriod;
+    			String digits="0123456789";
+    	    	for (int i=1;i<=2;i++) if (digits.indexOf(pathname.charAt(indexSuffix-1))>=0) indexSuffix--; // remove 1 or 2 digits before period
+    	    	boolean hadSuffix= (pathname.charAt(indexSuffix-1)=='-');
+
+
     	    	for (int nc = 0; nc < sub_system.getNumChannels(); nc++) {
     	    		int chn = nc+subsystemOffsets.offset_channel;
+    	    		// Make systemDistortions.pathNames[chn] from pathname replacing channel
+    	    		systemDistortions.pathNames[chn]= // calibration_directory+Prefs.getFileSeparator()+
+    	    				((hadSuffix?pathname.substring(0,indexSuffix):(pathname.substring(0,indexPeriod)+"-"))+
+    	    				String.format("%02d",chn)+pathname.substring(indexPeriod));
+
     	    		systemDistortions.saveDistortionAsImageStack(
     	    				system_distortionCalibrationData,
     	    				null, // camerasInterface, // to save channel map

@@ -25,6 +25,9 @@ package com.elphel.imagej.cameras;
 import java.util.Properties;
 
     public class EyesisSubCameraParameters{
+    	public int sensorWidth=      2592; // moving here from the camera as a whole
+    	public int sensorHeight=     1936;
+    	public int decimateMasks=       1;
     	// origin is on the rotation axis of the tube body closest to the goniometer horizontal axis
     	public boolean cartesian = false; // cartesian coordinates mode (false - cylindrical)
     	public int    lensDistortionModel=0;
@@ -80,6 +83,9 @@ import java.util.Properties;
 		*/
 
     	public EyesisSubCameraParameters(
+    	    	int sensorWidth,
+    	    	int sensorHeight,
+    	    	int decimateMasks,
     			boolean cartesian,
     			int lensDistortionModel,
     			boolean enableNoLaser,
@@ -111,6 +117,9 @@ import java.util.Properties;
     			int sensor_port,
     			int subchannel
     	){
+    		this.decimateMasks = decimateMasks;
+        	this.sensorWidth= sensorWidth;
+        	this.sensorHeight=sensorHeight;
     		this.cartesian = cartesian;
     		this.lensDistortionModel=lensDistortionModel;
     		this.enableNoLaser=enableNoLaser;
@@ -156,6 +165,9 @@ import java.util.Properties;
     	@Override
 		public EyesisSubCameraParameters clone() {
     		return new EyesisSubCameraParameters(
+    				this.sensorWidth,
+    				this.sensorHeight,
+    				this.decimateMasks,
     	    		this.cartesian,
     				this.lensDistortionModel,
     				this.enableNoLaser,
@@ -196,6 +208,9 @@ import java.util.Properties;
     	}
 // TODO: add/restore new properties
     	public void setProperties(String prefix,Properties properties){
+    		properties.setProperty(prefix+"sensorWidth",         this.sensorWidth+"");
+    		properties.setProperty(prefix+"sensorHeight",        this.sensorHeight+"");
+      		properties.setProperty(prefix+"decimateMasks",       this.decimateMasks+"");
     		properties.setProperty(prefix+"cartesian",           this.cartesian+"");
     		properties.setProperty(prefix+"lensDistortionModel", this.lensDistortionModel+"");
     		properties.setProperty(prefix+"enableNoLaser",       this.enableNoLaser+"");
@@ -239,6 +254,12 @@ import java.util.Properties;
     		getProperties(prefix,properties, -1);
     	}
     	public void getProperties(String prefix,Properties properties, int channel){
+    		if (properties.getProperty(prefix+"sensorWidth")!=null)
+    			this.sensorWidth=Integer.parseInt(properties.getProperty(prefix+"sensorWidth"));
+    		if (properties.getProperty(prefix+"sensorHeight")!=null)
+    			this.sensorHeight=Integer.parseInt(properties.getProperty(prefix+"sensorHeight"));
+       		if (properties.getProperty(prefix+"decimateMasks")!=null)
+       			this.decimateMasks=Integer.parseInt(properties.getProperty(prefix+"decimateMasks"));
     		if (properties.getProperty(prefix+"cartesian")!=null)
     			this.cartesian=Boolean.parseBoolean(properties.getProperty(prefix+"cartesian"));
     		if (properties.getProperty(prefix+"lensDistortionModel")!=null)

@@ -2634,6 +2634,7 @@ if (MORE_BUTTONS) {
 					parFilter,
 					""); //String defaultPath
 			if ((pathname==null) || (pathname=="")) return;
+			System.out.println("*** Will not work with different size senspors !!!");
 		    DISTORTION_CALIBRATION_DATA.setMaskFromImageStack(pathname);
 			if (LENS_DISTORTIONS!=null) LENS_DISTORTIONS.updateSensorMasks();
 			return;
@@ -3642,8 +3643,8 @@ if (MORE_BUTTONS) {
 
 
 				double threadPitch=0.35; // M1.6
-				double dPx0=camPars.eyesisSubCameras[stationNumber][0].px0-(camPars.sensorWidth/2)-FOCUS_MEASUREMENT_PARAMETERS.centerDeltaX;
-				double dPy0=camPars.eyesisSubCameras[stationNumber][0].py0-(camPars.sensorHeight/2)-FOCUS_MEASUREMENT_PARAMETERS.centerDeltaY;
+				double dPx0=camPars.eyesisSubCameras[stationNumber][0].px0-(camPars.getSensorWidth(0)/2)-FOCUS_MEASUREMENT_PARAMETERS.centerDeltaX;
+				double dPy0=camPars.eyesisSubCameras[stationNumber][0].py0-(camPars.getSensorHeight(0)/2)-FOCUS_MEASUREMENT_PARAMETERS.centerDeltaY;
 			   	double psi=camPars.eyesisSubCameras[stationNumber][0].psi;     // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
 
 			   	FOCUS_MEASUREMENT_PARAMETERS.result_PX0=camPars.eyesisSubCameras[stationNumber][0].px0;
@@ -5026,8 +5027,8 @@ if (MORE_BUTTONS) {
 						if (DEBUG_LEVEL>2) System.out.println("sfeParameters["+numSFE+"].length="+sfeParameters[numSFE].length);
 						if (DEBUG_LEVEL>2) System.out.println("sfeParameters["+numSFE+"]["+iLens+"].length="+sfeParameters[numSFE][iLens].length);
 						sfeParameters[numSFE][iLens][iState]=FOCUS_MEASUREMENT_PARAMETERS.clone();
-						sensorDimensions[numSFE][0]=EYESIS_CAMERA_PARAMETERS.sensorWidth; // should be the same for all lenses/states
-						sensorDimensions[numSFE][1]=EYESIS_CAMERA_PARAMETERS.sensorHeight;
+						sensorDimensions[numSFE][0]=EYESIS_CAMERA_PARAMETERS.getSensorWidth(numSFE); // should be the same for all lenses/states
+						sensorDimensions[numSFE][1]=EYESIS_CAMERA_PARAMETERS.getSensorHeight(numSFE);
 						iState++;
 					}
 					iLens++;
@@ -5492,12 +5493,12 @@ if (MORE_BUTTONS) {
 				String path=dFile+Prefs.getFileSeparator()+lensPrefix+CAMERAS.getLastTimestampUnderscored()+
 				(modeAverage?"-summary.csv":"-tempscan.csv");
 				if (MASTER_DEBUG_LEVEL>0) System.out.println ((modeAverage?"Saving averaged measurements to ":"Saving temperature measurement log data to ")+path);
-				int sensorWidth=2992,sensorHeight=1936;
+				int sensorWidth=2592,sensorHeight=1936;
 				if ((LENS_DISTORTIONS!=null) && (LENS_DISTORTIONS.fittingStrategy!=null) && (LENS_DISTORTIONS.fittingStrategy!=null)&&
 						(LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData!=null) &&
 						(LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.eyesisCameraParameters!=null)){
-					sensorWidth=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorWidth;
-					sensorHeight=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorHeight;
+					sensorWidth=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorWidth(0);
+					sensorHeight=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorHeight(0);
 				}
 				if (FOCUSING_FIELD!=null){
 					sensorWidth=FOCUSING_FIELD.sensorWidth;
@@ -5918,7 +5919,12 @@ if (MORE_BUTTONS) {
 				IJ.showMessage("LENS_DISTORTION.fittingStrategy is not set");
 				return;
 			}
-			LENS_DISTORTIONS.listImageSets();
+			GenericDialog gd=new GenericDialog ("Select list mode");
+    		gd.addNumericField("Mode 0 - old, 1 - shift/Rots", 0, 0);
+    		gd.showDialog();
+    		if (gd.wasCanceled()) return;
+    		int listMode=          (int) gd.getNextNumber();
+			LENS_DISTORTIONS.listImageSets(listMode);
 			return;
 		}
 /* ======================================================================== */
@@ -8986,12 +8992,20 @@ if (MORE_BUTTONS) {
     	    	for (int nChn=0;nChn<masks.length;nChn++) if ((nChn<selectedChannels.length)&&!selectedChannels[nChn]) masks[nChn]=null;
     	    }
 
-			if (showSensorMasks) this.SDFA_INSTANCE.showArrays( //java.lang.ArrayIndexOutOfBoundsException: 313632
-					masks,
-					LENS_DISTORTIONS.pixelCorrectionWidth/ LENS_DISTORTIONS.pixelCorrectionDecimation,
-					LENS_DISTORTIONS.pixelCorrectionHeight/LENS_DISTORTIONS.pixelCorrectionDecimation,
-					true,
-					"nonVinetting masks");
+    	    if (showSensorMasks) {
+    	    	boolean same_size = true;
+    	    	for (int i = 1; i < masks.length; i++) same_size &= (masks[i].length == masks[0].length);
+    	    	if (same_size) {
+    	    		this.SDFA_INSTANCE.showArrays( //java.lang.ArrayIndexOutOfBoundsException: 313632
+    	    				masks,
+    	    				LENS_DISTORTIONS.getSensorWidth(0)/ LENS_DISTORTIONS.getDecimateMasks(0),
+    	    				LENS_DISTORTIONS.getSensorHeight(0)/LENS_DISTORTIONS.getDecimateMasks(0),
+    	    				true,
+    	    				"nonVinetting masks");
+    	    	} else {
+    	    		System.out.println("**** Can't show sesnor masks for different size sesnors as a stack! ");
+    	    	}
+    	    }
 			double [][][][] sensorGrids=LENS_DISTORTIONS.calculateGridFlatField(
 					serNumber,
 					masks,
@@ -9556,7 +9570,7 @@ if (MORE_BUTTONS) {
 				true,                    // boolean read_grids
 				MASTER_DEBUG_LEVEL);
 
-	    if (MASTER_DEBUG_LEVEL <100) return true;
+///	    if (MASTER_DEBUG_LEVEL <100) return true;
 	    // patterns are not yet read here!
 
 /*
@@ -9639,6 +9653,11 @@ if (MORE_BUTTONS) {
 				path,
 				PROCESS_PARAMETERS.useXML,
 				null); // Properties properties
+		if (LENS_DISTORTIONS==null) {
+			System.out.println("Creating new LENS_DISTORTIONS");
+			LENS_DISTORTIONS=new Distortions(LENS_DISTORTION_PARAMETERS,PATTERN_PARAMETERS,REFINE_PARAMETERS,this.SYNC_COMMAND.stopRequested);
+		}
+//		ABERRATIONS_PARAMETERS.selectCalibrationDirectory(true, ABERRATIONS_PARAMETERS.calibrationDirectory, true);
 		return EYESIS_CAMERA_PARAMETERS.importSystem(
 				properties,
 				prefix,

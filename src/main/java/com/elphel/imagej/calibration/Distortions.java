@@ -119,9 +119,23 @@ public class Distortions {
     public boolean saveSeries=false;   // just for the dialog
     public double [][][] pixelCorrection=null; // for each sensor: corr-X, corr-Y, mask, flat-field-Red, flat-field-Green, flat-field-Blue
     public String []  pathNames=null;
-    public int        pixelCorrectionDecimation=1;
-    public int        pixelCorrectionWidth=2592;
-    public int        pixelCorrectionHeight=1936;
+
+    // Will have to chage for different resolution
+//    public int [][]   pixelCorrectionWHD= null; // For each sensor -width, height, decimation
+//    public int        defaultPixelCorrectionDecimation=   1;
+//   public int        defaultPixelCorrectionWidth=     2592;
+//    public int        defaultPixelCorrectionHeight=    1936;
+
+//    @Deprecated
+//    public int        pixelCorrectionDecimation=   1;
+//    @Deprecated
+//    public int        pixelCorrectionWidth=     2592;
+//    @Deprecated
+//    public int        pixelCorrectionHeight=    1936;
+
+
+
+
     public double     RMSscale=Math.sqrt(2.0); // errors for x and y are calculated separately, so actual error is larger
 
     public boolean  showIndex=true;
@@ -143,23 +157,27 @@ public class Distortions {
     public AtomicInteger stopRequested=null; // 1 - stop now, 2 - when convenient
 
     public String [] status ={"",""};
-/*
-    public void showStatus (String msg, int slot){
-    	String separator = " | ";
-    	if ((slot<0) || (slot>=status.length)) return;
-    	status[slot]=msg;
-    	String s=status[0];
-    	for (int i=1;i<status.length;i++) if (status[i].length()>0) s+=separator+status[i];
-    	IJ.showStatus(s);
+
+
+    public int getSensorWidth(int subCam) { return fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorWidth(subCam);} // for the future? different sensors
+    public int getSensorHeight(int subCam) { return fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorHeight(subCam);}// for the future? different sensors
+    public int getDecimateMasks(int subCam) { return fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getDecimateMasks(subCam);}// for the future? different sensors
+
+    public int getSensorWidth() { return fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorWidth();} // for the future? different sensors
+    public int getSensorHeight() { return fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorHeight();}// for the future? different sensors
+    public int getDecimateMasks() { return fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getDecimateMasks();}// for the future? different sensors
+
+    public int getSensorCorrWidth(int subCam) { return(getSensorWidth(subCam)-1)/getDecimateMasks(subCam)+1;}
+    public int getSensorCorrWidth() { return(getSensorWidth()-1)/getDecimateMasks()+1;}
+
+    public void setSensorWidth(int subCam, int v)  {
+    	fittingStrategy.distortionCalibrationData.eyesisCameraParameters.setSensorWidth(subCam, v);
     }
-    public void showProgress(double frac){
-    	if ((frac>=1.0) || (frac <=0)) showStatus("",1);
-    	showStatus(IJ.d2s(100*frac,2)+"%",1);
-    }
-    public void showProgress(int currentIndex, int finalIndex){
-    	showProgress((currentIndex+1.0)/(double)finalIndex);
-    }
- */
+    public void setSensorHeight(int subCam, int v) {fittingStrategy.distortionCalibrationData.eyesisCameraParameters.setSensorHeight(subCam, v);}
+    public void setDecimateMasks(int subCam, int v){fittingStrategy.distortionCalibrationData.eyesisCameraParameters.setDecimateMasks(subCam, v);}
+
+
+
     public class LMAArrays {
         public double [][] jTByJ=  null; // jacobian multiplied by Jacobian transposed
         public double []   jTByDiff=null; // jacobian multiplied difference vector
@@ -393,12 +411,11 @@ public class Distortions {
 		this.sumWeights=0.0;
 		this.imageStartIndex=new int [numImg+1];
 		// added here, was using pixelCorrectionDecimation==1
-		this.pixelCorrectionDecimation=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.decimateMasks;
-		this.pixelCorrectionWidth=   fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorWidth;
-		this.pixelCorrectionHeight=  fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorHeight;
+///		this.pixelCorrectionDecimation=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getDecimateMasks();
+///		this.pixelCorrectionWidth=   fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorWidth();
+///		this.pixelCorrectionHeight=  fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorHeight();
+///		int sensorCorrWidth= (this.pixelCorrectionWidth-1)/this.pixelCorrectionDecimation+1;
 
-
-		int sensorCorrWidth= (this.pixelCorrectionWidth-1)/this.pixelCorrectionDecimation+1;
 		double [] multiWeight=new double [numImg];
 		for (int imgNum=0;imgNum<numImg;imgNum++) multiWeight[imgNum]=0.0;
         double minimalGridContrast=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.minimalGridContrast;
@@ -556,12 +573,12 @@ public class Distortions {
 								fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsXY[pointNumber][1]
 						};
 // TODO: Should it be interpolated? Correction is normally small/smooth, so it may be not important
-						int indexXY=((int) Math.floor(pXY[0]/this.pixelCorrectionDecimation)) +
-						((int) Math.floor(pXY[1]/this.pixelCorrectionDecimation))*sensorCorrWidth;
+						int indexXY=((int) Math.floor(pXY[0]/getDecimateMasks(chnNum))) +
+						((int) Math.floor(pXY[1]/getDecimateMasks(chnNum)))*getSensorCorrWidth(chnNum);
 						if (this.pixelCorrection[chnNum][0].length<=indexXY){
 							System.out.println("initFittingSeries("+numSeries+") bug:");
 							System.out.println("this.pixelCorrection["+chnNum+"][0].length="+this.pixelCorrection[chnNum][0].length);
-							System.out.println("indexXY="+indexXY+" pXY[0]="+pXY[0]+", pXY[1]="+pXY[1]+" sensorCorrWidth="+sensorCorrWidth);
+							System.out.println("indexXY="+indexXY+" pXY[0]="+pXY[0]+", pXY[1]="+pXY[1]+" sensorCorrWidth="+getSensorCorrWidth(chnNum));
 
 						} else {
 							this.Y[2*index]=  pXY[0]-this.pixelCorrection[chnNum][0][indexXY]; //java.lang.ArrayIndexOutOfBoundsException: 3204663
@@ -727,7 +744,7 @@ public class Distortions {
         return this.fittingStrategy.distortionCalibrationData.gIP[imgNum].getGridDiameter();
 	}
 
-	public void listImageSets(){ // TODO: use series -1 - should work now
+	public void listImageSets(int mode){ // TODO: use series -1 - should work now
 //		boolean [] oldSelection=this.fittingStrategy.selectAllImages(0); // enable all images in series 0
 		if (this.fittingStrategy.distortionCalibrationData.gIS!=null){
 			if (this.debugLevel>2){
@@ -783,7 +800,11 @@ public class Distortions {
 	    	numSetPoints[setNum]=numInSet;
 	    	rmsPerSet[setNum]=Math.sqrt(error2/numInSet);
 	    }
-	    this.fittingStrategy.distortionCalibrationData.listImageSet(numSetPoints, rmsPerSet,hasNaNInSet );
+	    this.fittingStrategy.distortionCalibrationData.listImageSet(
+	    		mode,
+	    		numSetPoints,
+	    		rmsPerSet,
+	    		hasNaNInSet );
 //		this.fittingStrategy.setImageSelection(0, oldSelection); // restore original selection in series 0
 	}
 
@@ -813,12 +834,24 @@ public class Distortions {
 	    	for (int nChn=0;nChn<masks.length;nChn++) if ((nChn<selectedChannels.length)&&!selectedChannels[nChn]) masks[nChn]=null;
 	    }
 		 */
-		if (enableShow && this.refineParameters.flatFieldShowSensorMasks) (new ShowDoubleFloatArrays()).showArrays( //java.lang.ArrayIndexOutOfBoundsException: 313632
+		boolean same_size = true;
+		for (int nChn=1; nChn < masks.length; nChn++) same_size &= (masks[nChn].length == masks[0].length);
+
+
+		if (enableShow && this.refineParameters.flatFieldShowSensorMasks) {
+			if (same_size) {
+			(new ShowDoubleFloatArrays()).showArrays( //java.lang.ArrayIndexOutOfBoundsException: 313632
 				masks,
-				this.pixelCorrectionWidth/ this.pixelCorrectionDecimation,
-				this.pixelCorrectionHeight/this.pixelCorrectionDecimation,
+				getSensorWidth(0)/ getDecimateMasks(0),
+				getSensorHeight(0)/getDecimateMasks(0),
 				true,
 		"nonVinetting masks");
+			} else {
+				System.out.println ("Can not display different saze masks in a stack");
+			}
+		}
+
+
 		double [][][][] sensorGrids=calculateGridFlatField(
 				this.refineParameters.flatFieldSerNumber,
 				masks,
@@ -895,11 +928,11 @@ public class Distortions {
 				updateStatus,
 				debugLevel);
     	String [] titles={"X-corr(pix)","Y-corr(pix)","weight","Red","Green","Blue"};
-		int decimate=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.decimateMasks;
-		int sWidth= (fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorWidth-1)/decimate+1;
-		int sHeight=(fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorHeight-1)/decimate+1;
 		if (enableShow && this.refineParameters.showUnfilteredCorrection) {
 			for (int numChn=0;numChn<sensorXYRGBCorr.length;numChn++) if (sensorXYRGBCorr[numChn]!=null){
+				int decimate=getDecimateMasks(numChn);
+				int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
+
 				//this.SDFA_INSTANCE.showArrays(sensorXYRGBCorr[numChn], sWidth, sHeight,  true, "chn_"+numChn+"_extra_correction", titles);
 				showWithRadialTangential(
 						titles,
@@ -943,6 +976,9 @@ public class Distortions {
     		boolean [] whichBlur={true,true,false,true,true,true}; // all but weight
     		IJ.showStatus("Bluring sensor corrections...");
     		for (int numChn=0;numChn<sensorXYRGBCorr.length;numChn++) if (sensorXYRGBCorr[numChn]!=null){
+				int decimate=getDecimateMasks(numChn);
+				int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
+				int sHeight=(getSensorHeight(numChn)-1)/decimate+1;
     			DoubleGaussianBlur gb=new DoubleGaussianBlur();
     			for (int m=0;m<whichBlur.length;m++) if (whichBlur[m]){
     				gb.blurDouble(
@@ -960,6 +996,8 @@ public class Distortions {
 
     	if (enableShow && this.refineParameters.showThisCorrection ) {
     		for (int numChn=0;numChn<sensorXYRGBCorr.length;numChn++) if (sensorXYRGBCorr[numChn]!=null){
+				int decimate=getDecimateMasks(numChn);
+				int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
 //    		   this.SDFA_INSTANCE.showArrays(sensorXYRGBCorr[numChn], sWidth, sHeight,  true, "chn_"+numChn+"_filtered", titles);
 				showWithRadialTangential(
 						titles,
@@ -989,6 +1027,8 @@ public class Distortions {
     			fittingStrategy.distortionCalibrationData);
     	if (enableShow && this.refineParameters.showCumulativeCorrection) {
     		for (int numChn=0;numChn<sensorXYRGBCorr.length;numChn++) if (sensorXYRGBCorr[numChn]!=null){
+				int decimate=getDecimateMasks(numChn);
+				int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
 //    		   this.SDFA_INSTANCE.showArrays(sensorXYRGBCorr[numChn], sWidth, sHeight,  true, "Cumulative_chn_"+numChn+"_corrections", titles);
 				showWithRadialTangential(
 						titles,
@@ -1365,11 +1405,11 @@ public class Distortions {
 
 		final int alphaIndex=2;
 
-		final int sensorWidth=   fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorWidth;
-		final int sensorHeight=  fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorHeight;
-		final int decimation=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.decimateMasks;
-		final int width= (sensorWidth-1)/decimation+1; // decimated width (648)
-		final int height= (sensorHeight-1)/decimation+1; // decimated width (648)
+//		final int sensorWidth=   fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorWidth;
+//		final int sensorHeight=  fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorHeight;
+//		final int decimation=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.decimateMasks;
+//		final int width= (sensorWidth-1)/decimation+1; // decimated width (648)
+//		final int height= (sensorHeight-1)/decimation+1; // decimated width (648)
 		final boolean extraShowDebug=showDebugImages&& (debugLevel>2);
 
    		for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -1386,6 +1426,12 @@ public class Distortions {
    					}
    					if (shrinkBlurComboSigma>0.0) gb=new DoubleGaussianBlur();
    					for (int sensorNum=sensorNumberAtomic.getAndIncrement(); (sensorNum<gridPCorr.length) && !interruptedAtomic.get();sensorNum=sensorNumberAtomic.getAndIncrement()){
+   						int sensorWidth=   fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorWidth(sensorNum);
+   						int sensorHeight=  fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorHeight(sensorNum);
+   						int decimation=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getDecimateMasks(sensorNum);
+   						int width= (sensorWidth-1)/decimation+1; // decimated width (648)
+   						int height= (sensorHeight-1)/decimation+1; // decimated width (648)
+
    						if (gridPCorr[sensorNum]!=null){
    							final double [] centerPXY={
    									eyesisSubCameras[sensorNum].px0,
@@ -1821,9 +1867,10 @@ public class Distortions {
 				showIntermediate,
 				debugLevel);
 		if (showIntermediate) correctionInNodes.show("finNode-"+imgNum);
-		int sensorWidth=   fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorWidth;
-		int sensorHeight=  fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorHeight;
-		int decimation=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.decimateMasks;
+		int chnNum=fittingStrategy.distortionCalibrationData.gIP[imgNum].channel;
+		int sensorWidth=   fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorWidth(chnNum);
+		int sensorHeight=  fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorHeight(chnNum);
+		int decimation=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getDecimateMasks(chnNum);
 		double [][] additionalCorrection=correctionInNodes.mapToPixels(
 				decimation,
 				sensorWidth,
@@ -2362,14 +2409,15 @@ public class Distortions {
 			double [] vector={0.0,0.0,1.0,1.0,1.0,1.0};
 			return vector;
 		}
-		this.pixelCorrectionDecimation=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.decimateMasks;
-		this.pixelCorrectionWidth=   fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorWidth;
-		this.pixelCorrectionHeight=  fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorHeight;
+//		this.pixelCorrectionDecimation=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.decimateMasks;
+//		this.pixelCorrectionWidth=   fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorWidth;
+//		this.pixelCorrectionHeight=  fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorHeight;
 
-		int sensorCorrWidth= (this.pixelCorrectionWidth-1)/this.pixelCorrectionDecimation+1;
+		int sensorCorrWidth= getSensorCorrWidth(chnNum);
 		int sensorCorrHeight=this.pixelCorrection[chnNum][0].length/sensorCorrWidth;
-		int [] ix={(int) Math.floor(px/this.pixelCorrectionDecimation), (int) Math.floor(px/this.pixelCorrectionDecimation)+1};
-		int [] iy={(int) Math.floor(py/this.pixelCorrectionDecimation),(int) Math.floor(py/this.pixelCorrectionDecimation)+1};
+
+		int [] ix={(int) Math.floor(px/getDecimateMasks(chnNum)), (int) Math.floor(px/getDecimateMasks(chnNum))+1};
+		int [] iy={(int) Math.floor(py/getDecimateMasks(chnNum)),(int) Math.floor(py/getDecimateMasks(chnNum))+1};
 		for (int i=0;i<2;i++){
 			if (ix[i]<0) ix[i]=0;
 			else if (ix[i]>=sensorCorrWidth) ix[i]=sensorCorrWidth-1;
@@ -2403,17 +2451,18 @@ public class Distortions {
 	 * @return interpolated mask data at specified fractional pixel
 	 */
 	public double interpolateMask (
+			int       chnNum,
 			double [] mask,
 			double px,
 			double py){
-		this.pixelCorrectionDecimation=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.decimateMasks;
-		this.pixelCorrectionWidth=   fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorWidth;
-		this.pixelCorrectionHeight=  fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorHeight;
+///		this.pixelCorrectionDecimation=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.decimateMasks;
+///		this.pixelCorrectionWidth=   fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorWidth;
+///		this.pixelCorrectionHeight=  fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorHeight;
 
-		int sensorCorrWidth= (this.pixelCorrectionWidth-1)/this.pixelCorrectionDecimation+1;
+		int sensorCorrWidth= getSensorCorrWidth(chnNum); // (this.pixelCorrectionWidth-1)/this.pixelCorrectionDecimation+1;
 		int sensorCorrHeight=mask.length/sensorCorrWidth;
-		int [] ix={(int) Math.floor(px/this.pixelCorrectionDecimation), (int) Math.floor(px/this.pixelCorrectionDecimation)+1};
-		int [] iy={(int) Math.floor(py/this.pixelCorrectionDecimation),(int) Math.floor(py/this.pixelCorrectionDecimation)+1};
+		int [] ix={(int) Math.floor(px/getDecimateMasks(chnNum)), (int) Math.floor(px/getDecimateMasks(chnNum))+1};
+		int [] iy={(int) Math.floor(py/getDecimateMasks(chnNum)), (int) Math.floor(py/getDecimateMasks(chnNum))+1};
 		for (int i=0;i<2;i++){
 			if (ix[i]<0) ix[i]=0;
 			else if (ix[i]>=sensorCorrWidth) ix[i]=sensorCorrWidth-1;
@@ -2499,8 +2548,8 @@ For each point in the image
 		matchSimulatedPattern.debugLevel = mspDebugLevel;
 		//		MatchSimulatedPattern.DistortionParameters distortionParameters = modifyDistortionParameters();
 		//		SimulationPattern.SimulParameters simulParameters = modifySimulParameters();
-		int sensorWidth=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorWidth(subCam);
-		int sensorHeight=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorHeight(subCam);
+		int sensorWidth=  getSensorWidth(subCam);
+		int sensorHeight= getSensorHeight(subCam);
 
 		double [][][] hintGrid=estimateGridOnSensor(
 				stationNumber,
@@ -2630,7 +2679,7 @@ For each point in the image
 					System.out.println("\n---- applyHintedGrids() image #"+numGridImage+" (imageNumber="+imageNumber+") "+
 							" dcd.gIP["+numGridImage+"].pixelsXY.length="+dcd.gIP[numGridImage].pixelsXY.length+
 							" dcd.gIP["+numGridImage+"].pixelsXY_extra.length="+dcd.gIP[numGridImage].pixelsXY_extra.length+
-							" grid period="+dcd.gIP[numGridImage].gridPeriod+
+							" grid period="+dcd.gIP[numGridImage].getGridPeriod()+
 							" enabled="+dcd.gIP[numGridImage].enabled+
 							" hintedMatch="+dcd.gIP[numGridImage].hintedMatch
 							);
@@ -4390,7 +4439,7 @@ List calibration
     			sb.append("\t");
     			if (!gip.enabled) sb.append("(");
     			sb.append(numPointers+"("+gip.matchedPointers+"):"+gip.hintedMatch +
-    					" "+IJ.d2s(gip.gridPeriod,1));
+    					" "+IJ.d2s(gip.getGridPeriod(),1));
     			if (!gip.enabled) sb.append(")");
 			}
 			sb.append("\n");
@@ -4754,6 +4803,13 @@ List calibration
 			}
 		} else {
 			selectedImages=tmpSelectedImages;
+			int numImg = 0;
+			for (int i=0;i<selectedImages.length;i++) if (selectedImages[i]) numImg++;
+			imageNumbers = new int [numImg];
+			numImg = 0;
+			for (int i=0;i<selectedImages.length;i++)  if (selectedImages[i]) {
+				imageNumbers[numImg++] = i;
+			}
 		}
 		int width= getGridWidth();
 		int height=getGridHeight();
@@ -5816,23 +5872,26 @@ List calibration
     			this.refineParameters.showIndividualNumber,
     			this.refineParameters.usePatternAlpha);
     	String [] titles={"X-corr(pix)","Y-corr(pix)","alpha","weight","Red","Green","Blue"};
-		int decimate=distortionCalibrationData.eyesisCameraParameters.decimateMasks;
-		int sWidth= (distortionCalibrationData.eyesisCameraParameters.sensorWidth-1)/decimate+1;
-		int sHeight=(distortionCalibrationData.eyesisCameraParameters.sensorHeight-1)/decimate+1;
-    	if (this.refineParameters.showUnfilteredCorrection) {
-    		for (int numChn=0;numChn<sensorXYCorr.length;numChn++) if (sensorXYCorr[numChn]!=null){
-    		   this.SDFA_INSTANCE.showArrays(sensorXYCorr[numChn], sWidth, sHeight,  true, "chn_"+numChn+"_extra_correction", titles);
-    		}
-    	}
     	if (this.refineParameters.extrapolate) {
     		boolean [] whichExtrapolate={true, true,false,false,true,true,true};
     		boolean [] whichPositive=   {false,false,false,false,true,true,true};
     		IJ.showStatus("Extrapolating sensor corrections...");
     		for (int numChn=0;numChn<sensorXYCorr.length;numChn++) if (sensorXYCorr[numChn]!=null){
+    			int decimate=getDecimateMasks(numChn);
+    			int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
+    			int sHeight=(getSensorHeight(numChn)-1)/decimate+1;
+    	    	if (this.refineParameters.showUnfilteredCorrection) {
+    	    		this.SDFA_INSTANCE.showArrays(sensorXYCorr[numChn], sWidth, sHeight,  true, "chn_"+numChn+"_extra_correction", titles);
+    	    	}
+
+
+
+
     			for (int i=0;i<whichPositive.length;i++) if (whichPositive[i]){
     				logScale(sensorXYCorr[numChn][i],this.refineParameters.fatZero);
     			}
     		    boolean extrapolateOK=extrapolateSensorCorrection( //ava.lang.NullPointerException  at Distortions.modifyPixelCorrection(Distortions.java:2595)
+    		    		numChn,
     		    		whichExtrapolate,
     		    		sensorXYCorr[numChn],
     		    		sensorXYCorr[numChn][2],// alpha - it is more pessimistic than fittingStrategy.distortionCalibrationData.sensorMasks[numChn]
@@ -5851,7 +5910,10 @@ List calibration
 
     	if (this.refineParameters.showExtrapolationCorrection && this.refineParameters.extrapolate && this.refineParameters.smoothCorrection) {
     		for (int numChn=0;numChn<sensorXYCorr.length;numChn++) if (sensorXYCorr[numChn]!=null){
-    		   this.SDFA_INSTANCE.showArrays(sensorXYCorr[numChn], sWidth, sHeight,  true, "chn_"+numChn+"_extrapolated", titles);
+    			int decimate=getDecimateMasks(numChn);
+    			int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
+    			int sHeight=(getSensorHeight(numChn)-1)/decimate+1;
+    			this.SDFA_INSTANCE.showArrays(sensorXYCorr[numChn], sWidth, sHeight,  true, "chn_"+numChn+"_extrapolated", titles);
     		}
     	}
 
@@ -5859,6 +5921,9 @@ List calibration
     		boolean [] whichBlur={true,true,false,false,true,true,true};
     		IJ.showStatus("Bluring sensor corrections...");
     		for (int numChn=0;numChn<sensorXYCorr.length;numChn++) if (sensorXYCorr[numChn]!=null){
+    			int decimate=getDecimateMasks(numChn);
+    			int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
+    			int sHeight=(getSensorHeight(numChn)-1)/decimate+1;
     			DoubleGaussianBlur gb=new DoubleGaussianBlur();
     			for (int m=0;m<whichBlur.length;m++) if (whichBlur[m]){
     			gb.blurDouble(sensorXYCorr[numChn][m],
@@ -5874,7 +5939,10 @@ List calibration
     	}
     	if (this.refineParameters.showThisCorrection ) {
     		for (int numChn=0;numChn<sensorXYCorr.length;numChn++) if (sensorXYCorr[numChn]!=null){
-    		   this.SDFA_INSTANCE.showArrays(sensorXYCorr[numChn], sWidth, sHeight,  true, "chn_"+numChn+"_filtered", titles);
+    			int decimate=getDecimateMasks(numChn);
+    			int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
+    			int sHeight=(getSensorHeight(numChn)-1)/decimate+1;
+    			this.SDFA_INSTANCE.showArrays(sensorXYCorr[numChn], sWidth, sHeight,  true, "chn_"+numChn+"_filtered", titles);
     		}
     	}
 //   	if (!selectCorrectionScale()) return false;
@@ -5894,12 +5962,13 @@ List calibration
     			distortionCalibrationData);
     	if (this.refineParameters.showCumulativeCorrection) {
     		for (int numChn=0;numChn<sensorXYCorr.length;numChn++) if (sensorXYCorr[numChn]!=null){
-    		   this.SDFA_INSTANCE.showArrays(sensorXYCorr[numChn], sWidth, sHeight,  true, "Cumulative_chn_"+numChn+"_corrections", titles);
+    			int decimate=getDecimateMasks(numChn);
+    			int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
+    			int sHeight=(getSensorHeight(numChn)-1)/decimate+1;
+    			this.SDFA_INSTANCE.showArrays(sensorXYCorr[numChn], sWidth, sHeight,  true, "Cumulative_chn_"+numChn+"_corrections", titles);
     		}
     	}
     	if (result) {
-//    		updateCameraParametersFromCalculated();
-
     		// NEED to update from all?
 //			updateCameraParametersFromCalculated(true); // update camera parameters from all (even disabled) images
 			updateCameraParametersFromCalculated(false); // update camera parameters from enabled only images (may overwrite some of the above)
@@ -5951,18 +6020,18 @@ List calibration
     		double [][][] sensorXYCorr,
     		DistortionCalibrationData distortionCalibrationData){
 		int numLayers=6;
-		int decimate=distortionCalibrationData.eyesisCameraParameters.decimateMasks;
-		int width= distortionCalibrationData.eyesisCameraParameters.sensorWidth;
-		int height=distortionCalibrationData.eyesisCameraParameters.sensorHeight;
-    	if ((this.pixelCorrection!=null) && (this.pixelCorrectionDecimation!=decimate)){
-    		IJ.showMessage("Error","Can not apply correction as the current correction and the new one have different decimations");
-    		return false;
-    	}
+///		int decimate=distortionCalibrationData.eyesisCameraParameters.decimateMasks;
+///		int width= distortionCalibrationData.eyesisCameraParameters.sensorWidth;
+///		int height=distortionCalibrationData.eyesisCameraParameters.sensorHeight;
+///    	if ((this.pixelCorrection!=null) && (this.pixelCorrectionDecimation!=decimate)){
+///    		IJ.showMessage("Error","Can not apply correction as the current correction and the new one have different decimations");
+///    		return false;
+///    	}
     	if ((this.pixelCorrection==null) && !update && !updateFlatField) return true;
     	if (update){
-    		this.pixelCorrectionDecimation=decimate;
-    		this.pixelCorrectionWidth=width;
-    		this.pixelCorrectionHeight=height;
+///    		this.pixelCorrectionDecimation=decimate;
+///    		this.pixelCorrectionWidth=width;
+///    		this.pixelCorrectionHeight=height;
     	}
         if (this.pixelCorrection==null) {
         	if (this.debugLevel>1) System.out.println("Initializing pixelCorrection array");
@@ -5996,7 +6065,6 @@ List calibration
         	int indxR=in6?3:4;
         	int indxG=in6?4:5;
         	int indxB=in6?5:6;
- //       	System.out.println("applySensorCorrection(): in6="+in6+" indxR="+indxR+" indxG="+indxG+" indxB="+indxB);
         	double [] sensorMask=in6?((fittingStrategy.distortionCalibrationData.sensorMasks==null)?null:fittingStrategy.distortionCalibrationData.sensorMasks[i]):sensorXYCorr[i][2];
         	if (this.pixelCorrection[i]==null) {
         		if (update || updateFlatField) {
@@ -6014,7 +6082,6 @@ List calibration
         				this.pixelCorrection[i][4]=sensorXYCorr[i][indxG];
         				this.pixelCorrection[i][5]=sensorXYCorr[i][indxB];
         			} else {
-//        				for (int n=2;n<numLayers;n++){
         				for (int n=3;n<numLayers;n++){
         					this.pixelCorrection[i][n]=new double[this.pixelCorrection[0].length];
         					for (int j=0;j<this.pixelCorrection[i][0].length;j++) this.pixelCorrection[i][n][j]=1.0;
@@ -6139,8 +6206,12 @@ List calibration
     	}
     	if ((this.pixelCorrection!=null) && (numSensor>=0) && (numSensor<this.pixelCorrection.length))
     		pixelCorr=this.pixelCorrection[numSensor];
-    	int width=this.pixelCorrectionWidth/this.pixelCorrectionDecimation;
-    	int height=this.pixelCorrectionHeight/this.pixelCorrectionDecimation;
+
+    	int width =  distortionCalibrationData.eyesisCameraParameters.getSensorWidth(numSensor) /
+    			distortionCalibrationData.eyesisCameraParameters.getDecimateMasks(numSensor);
+    	int height = distortionCalibrationData.eyesisCameraParameters.getSensorHeight(numSensor) /
+    			distortionCalibrationData.eyesisCameraParameters.getDecimateMasks(numSensor);
+
 //    	int length=this.pixelCorrection[numSensor][0].length; // should be == width*height
     	int length=width*height;
 
@@ -6180,9 +6251,9 @@ List calibration
     	imp.setProperty("comment_arrays",  "Array corrections from acquired image to radially distorted, in pixels");
     	imp.setProperty("arraysSet",  ""+(pixelCorr!=null)); // per-pixel arrays are not set, using 0.0
     	imp.setProperty("maskSet",     ""+(mask!=null)); // per-pixel masks is not set, using 1.0
-    	imp.setProperty("pixelCorrectionWidth",  ""+this.pixelCorrectionWidth);
-    	imp.setProperty("pixelCorrectionHeight", ""+this.pixelCorrectionHeight);
-    	imp.setProperty("pixelCorrectionDecimation", ""+this.pixelCorrectionDecimation);
+    	imp.setProperty("pixelCorrectionWidth",  ""+distortionCalibrationData.eyesisCameraParameters.getSensorWidth(numSensor)); // this.pixelCorrectionWidth);
+    	imp.setProperty("pixelCorrectionHeight", ""+distortionCalibrationData.eyesisCameraParameters.getSensorHeight(numSensor));
+    	imp.setProperty("pixelCorrectionDecimation", ""+distortionCalibrationData.eyesisCameraParameters.getDecimateMasks(numSensor));
     	imp.setProperty("comment_decimation", "when decimation use integer divide to find the index, corection values are in non-decimated pixels");
     	imp.setProperty("distortion_formula",  "(normalized by distortionRadius in mm) Rdist/R=A8*R^7+A7*R^6+A6*R^5+A5*R^4+A*R^3+B*R^2+C*R+(1-A6-A7-A6-A5-A-B-C)");
     	imp.setProperty("distortionRadius", ""+subCam.distortionRadius);
@@ -6394,17 +6465,17 @@ List calibration
 
     	EyesisSubCameraParameters subCam;
     	EyesisCameraParameters cam=     distortionCalibrationData.eyesisCameraParameters;
-        this.pixelCorrectionWidth=      Integer.parseInt  ((String) imp.getProperty("pixelCorrectionWidth"));
-        this.pixelCorrectionHeight=     Integer.parseInt  ((String) imp.getProperty("pixelCorrectionHeight"));
-        this.pixelCorrectionDecimation= Integer.parseInt  ((String) imp.getProperty("pixelCorrectionDecimation"));
-
         if ((distortionCalibrationData!=null) && (distortionCalibrationData.eyesisCameraParameters!=null)){
-    		distortionCalibrationData.eyesisCameraParameters.decimateMasks=this.pixelCorrectionDecimation;
-    		distortionCalibrationData.eyesisCameraParameters.sensorWidth=  this.pixelCorrectionWidth;
-    		distortionCalibrationData.eyesisCameraParameters.sensorHeight=this.pixelCorrectionHeight;
+        	// Now it is the same
+///    		distortionCalibrationData.eyesisCameraParameters.decimateMasks=this.pixelCorrectionDecimation;
+///    		distortionCalibrationData.eyesisCameraParameters.sensorWidth=  this.pixelCorrectionWidth;
+///    		distortionCalibrationData.eyesisCameraParameters.sensorHeight=this.pixelCorrectionHeight;
         }
         for (int stationNumber=0; stationNumber < distortionCalibrationData.eyesisCameraParameters.numStations; stationNumber++){
         	subCam=distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[stationNumber][numSensor];
+        	distortionCalibrationData.eyesisCameraParameters.setSensorWidth(  numSensor, Integer.parseInt ((String) imp.getProperty("pixelCorrectionWidth")));
+        	distortionCalibrationData.eyesisCameraParameters.setSensorHeight( numSensor, Integer.parseInt ((String) imp.getProperty("pixelCorrectionHeight")));
+        	distortionCalibrationData.eyesisCameraParameters.setDecimateMasks(numSensor, Integer.parseInt ((String) imp.getProperty("pixelCorrectionDecimation")));
 
         	subCam.distortionRadius=        Double.parseDouble((String) imp.getProperty("distortionRadius"));
         	subCam.focalLength=             Double.parseDouble((String) imp.getProperty("focalLength"));
@@ -6579,18 +6650,15 @@ List calibration
     		boolean ignoreSensorFlatField){
    // TODO: add standard weight function used elsethere.
     	int indexContrast=2;
- //   	int indexRGB=3;
     	boolean [] selectedImages=fittingStrategy.selectedImages(serNumber); // negative series number OK - will select all enabled
     	int gridHeight=this.patternParameters.gridGeometry.length;
     	int gridWidth=this.patternParameters.gridGeometry[0].length;
     	// was not here
-		this.pixelCorrectionDecimation=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.decimateMasks;
-		this.pixelCorrectionWidth=   fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorWidth;
-		this.pixelCorrectionHeight=  fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorHeight;
+///		this.pixelCorrectionDecimation=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.decimateMasks;
+///		this.pixelCorrectionWidth=   fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorWidth;
+///		this.pixelCorrectionHeight=  fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorHeight;
 
-//		int sensorCorrWidth= (this.pixelCorrectionWidth-1)/this.pixelCorrectionDecimation+1;
     	int maxChannel=0;
-//    	int numVierws=  this.patternParameters.getNumViews();
     	int numStations=this.patternParameters.getNumStations();
        	for (int numImg=0;numImg<fittingStrategy.distortionCalibrationData.gIP.length;numImg++) if (selectedImages[numImg]){
     		if (fittingStrategy.distortionCalibrationData.gIP[numImg].channel>maxChannel) maxChannel=fittingStrategy.distortionCalibrationData.gIP[numImg].channel;
@@ -6638,6 +6706,7 @@ List calibration
     	   			int index=patternParameters.getGridIndex(pixelsUV[i][0], pixelsUV[i][1]);
     	   			bMask[index]=(pixelsXY[i][indexContrast]>=minContrast);
     	   			mask[index]=interpolateMask (
+    	   					channel,
         					sensorMasks[channel],
         					pixelsXY[i][0],
         					pixelsXY[i][1]);
@@ -6745,9 +6814,9 @@ List calibration
 			int chnNum,
 			double px,
 			double py){
-		int sensorCorrWidth= (this.pixelCorrectionWidth-1)/this.pixelCorrectionDecimation+1;
-		int indexXY=((int) Math.floor(px/this.pixelCorrectionDecimation)) +
-		((int) Math.floor(py/this.pixelCorrectionDecimation))*sensorCorrWidth;
+		int sensorCorrWidth= getSensorCorrWidth(chnNum);
+		int indexXY=((int) Math.floor(px/getDecimateMasks(chnNum))) +
+		((int) Math.floor(py/getDecimateMasks(chnNum)))*sensorCorrWidth;
 		double []vector=new double[this.pixelCorrection[chnNum].length];
 		for (int i=0;i<vector.length;i++) vector[i]=this.pixelCorrection[chnNum][i][indexXY];
         return vector;
@@ -7288,8 +7357,8 @@ List calibration
     		else {
     			masks[numSensor] = fittingStrategy.distortionCalibrationData.nonVignettedMask(
     					this.pixelCorrection[numSensor][maskIndex],
-    	        		this.pixelCorrectionWidth,
-    	        		this.pixelCorrectionHeight,
+    					getSensorWidth(numSensor), // this.pixelCorrectionWidth,
+    					getSensorHeight(numSensor), // this.pixelCorrectionHeight,
     	        		fittingStrategy.distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[0][numSensor].px0,     // lens center X (sensor, non-decimated pix)
     	        		fittingStrategy.distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[0][numSensor].py0,     // lens center Y (sensor, non-decimated pix)
     	        		shrink,
@@ -8829,6 +8898,7 @@ M * V = B
 	 * @return false if nothing to extrapolate (too small mask)?
 	 */
 	public boolean extrapolateSensorCorrection(
+			int    numChn,
 			boolean [] whichExtrapolate,
 			double [][] fieldXY,
 			double []sMask,
@@ -8836,9 +8906,9 @@ M * V = B
 			double nsigma,
 			double ksigma){
 
-		int decimate=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.decimateMasks;
-		int sWidth= (fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorWidth-1)/decimate+1;
-		int sHeight=(fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorHeight-1)/decimate+1;
+		int decimate = getDecimateMasks(numChn);
+		int sWidth =   (getSensorWidth(numChn)-1)/decimate+1;
+		int sHeight =  (getSensorHeight(numChn)-1)/decimate+1;
 		double sigma=nsigma/decimate;
 		boolean [] fMask=new boolean[fieldXY[0].length];
 		for (int i=0;i<fMask.length;i++)
@@ -9016,9 +9086,6 @@ M * V = B
 			int showIndividualNumber, // which image to show (-1 - all)
 			boolean useGridAlpha // use grid alpha, false - use old calculations
 			){
-		int decimate=distortionCalibrationData.eyesisCameraParameters.decimateMasks;
-		int sWidth= (distortionCalibrationData.eyesisCameraParameters.sensorWidth-1)/decimate+1;
-		int sHeight=(distortionCalibrationData.eyesisCameraParameters.sensorHeight-1)/decimate+1;
 		int numChannels=distortionCalibrationData.getNumChannels(); // number of used channels
 		int width=getGridWidth();
 		int height=getGridHeight();
@@ -9042,6 +9109,11 @@ M * V = B
 		for (int imgNum=0;imgNum<selectedImages.length;imgNum++) if (selectedImages[imgNum]) {
 			if (debugExit) break;
 			int chnNum=fittingStrategy.distortionCalibrationData.gIP[imgNum].channel; // number of sub-camera
+
+			int decimate=getDecimateMasks(chnNum);
+			int sWidth= (getSensorWidth(chnNum)-1)/decimate+1;
+			int sHeight=(getSensorHeight(chnNum)-1)/decimate+1;
+
 			int station=fittingStrategy.distortionCalibrationData.gIP[imgNum].getStationNumber(); // number of sub-camera
 			double [][] photometrics=patternParameters.getPhotometricBySensor(station,chnNum); // head/bottom grid intensity/alpha
 
@@ -9363,293 +9435,6 @@ M * V = B
 			for (int chnNum=0;chnNum<gridPCorr.length;chnNum++) if (gridPCorr[chnNum]!=null) this.SDFA_INSTANCE.showArrays(gridPCorr[chnNum], sWidth, sHeight,  true, "gridPCorr2"+chnNum, titles);
 		}
 */
-		return gridPCorr;
-	}
-
-	public double [][][] calculateSensorXYCorrOld(
-			DistortionCalibrationData distortionCalibrationData,
-			boolean showIndividual
-			){
-		int decimate=distortionCalibrationData.eyesisCameraParameters.decimateMasks;
-		int sWidth= (distortionCalibrationData.eyesisCameraParameters.sensorWidth-1)/decimate+1;
-		int sHeight=(distortionCalibrationData.eyesisCameraParameters.sensorHeight-1)/decimate+1;
-		int numChannels=distortionCalibrationData.getNumChannels(); // number of used channels
-		int width=getGridWidth();
-		int height=getGridHeight();
-		int [] uvInc={0,1,width,width+1}; // four corners as vu index
-		int [][] cycles={ // counter-clockwise corners bounding the area  (only orthogonal sides?)
-//				{0,2,3,1}, //
-				{1,0,2},
-				{2,3,1},
-				{0,2,3},
-				{3,1,0}};
-
-		// prepare grid correction arrays
-//		if ((decimate!=)
-//	    public double [][][] pixelCorrection=null;
-//	    public int        pixelCorrectionDecimation=1;
-
-		double [][][] gridPCorr=new double [numChannels][][];
-		for (int chnNum=0;chnNum<gridPCorr.length;chnNum++) gridPCorr[chnNum]=null;
-		boolean [] selectedImages=fittingStrategy.selectedImages();
-		boolean debugExit=false;
-		int debugCntr=2;
-		for (int imgNum=0;imgNum<selectedImages.length;imgNum++) if (selectedImages[imgNum]) {
-			if (debugExit) break;
-			int chnNum=fittingStrategy.distortionCalibrationData.gIP[imgNum].channel; // number of sub-camera
-			// initialize this array if it is needed, leave unused null
-			if (gridPCorr[chnNum]==null){
-				 gridPCorr[chnNum]=new double [4][sWidth*sHeight];
-				for (int n=0;n<gridPCorr[chnNum].length;n++) for (int i=0;i<gridPCorr[chnNum][0].length;i++) gridPCorr[chnNum][n][i]=0.0;
-			}
-			double [][] thisPCorr=null;
-
-			thisPCorr=new double [4][sWidth*sHeight]; // calculate for a single (this) image, accumulate in the end
-			for (int n=0;n<thisPCorr.length;n++) for (int i=0;i<thisPCorr[0].length;i++) thisPCorr[n][i]=0.0;
-			double [] diff=calcYminusFx(this.currentfX);
-			// find data range for the selected image
-			int index=0;
-			int numImg=fittingStrategy.distortionCalibrationData.getNumImages();
-			for (int iNum=0;(iNum<imgNum) && (iNum<numImg) ;iNum++) if (selectedImages[iNum])
-				index+=fittingStrategy.distortionCalibrationData.gIP[iNum].pixelsUV.length;
-			if (this.debugLevel>2) {
-				System.out.println("calculateGridXYCorr(): fX.length="+this.currentfX.length+" this image index="+index);
-			}
-			double [][] imgData=new double[5][getGridHeight() * width]; // dPX, dPY, Px, Py, alpha
-			for (int i=0;i<imgData.length;i++) for (int j=0;j<imgData[i].length;j++)imgData[i][j]=0.0;
-			// first pass - prepare [v][u]arrays
-			double []mask= fittingStrategy.distortionCalibrationData.calculateImageGridMask(imgNum);
-			for (int i=0;i<fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsUV.length;i++){
-				int u=fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsUV[i][0]+patternParameters.U0;
-				int v=fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsUV[i][1]+patternParameters.V0;
-				int vu=u+width*v;
-				imgData[0][vu]=   diff[2*(index+i)];
-				imgData[1][vu]=   diff[2*(index+i)+1];
-				imgData[2][vu]= this.Y[2*(index+i)];  // measured pixel x
-				imgData[3][vu]= this.Y[2*(index+i)+1];// measured pixel y
-//				imgData[2][vu]= this.currentfX[2*(index+i)];  // calculated pixel x
-//				imgData[3][vu]= this.currentfX[2*(index+i)+1];// calculated pixel y
-// next line not needed? - no, let it stay, 0.0 / >0 will be needed
-// TODO: Use grid alpha
-				imgData[4][vu]= fittingStrategy.distortionCalibrationData.getMask(mask, imgData[2][vu], imgData[3][vu]); // will decimate
-			}
-			// now use imgData array to fill thisPCorr by linear interpolation
-			for (int v=0;v<(height-1); v++) for (int u=0; u<(width-1);u++){
-				if (debugExit) break;
-				int vu=u+width*v;
-                double [][] cornerXY =new double[4][];
-                for (int i=0;i<uvInc.length;i++){
-                	int vu1=vu+uvInc[i];
-                	if (imgData[4][vu1]>0.0){
-                		cornerXY[i]=new double[2];
-                		cornerXY[i][0]=imgData[2][vu1];
-                		cornerXY[i][1]=imgData[3][vu1];
-                	} else cornerXY[i]=null;
-                }
-                boolean [] cycleFits=new boolean[cycles.length];
-                boolean anyFits=false;
-                for (int i=0;i<cycles.length;i++){
-                	cycleFits[i]=true;
-                	for (int j=0;j<cycles[i].length;j++) if (cornerXY[cycles[i][j]]==null) {
-                		cycleFits[i]=false;
-                		break;
-                	}
-                }
-                if (!anyFits) continue; // not a single cycle
-				if ((this.debugLevel>3) && !debugExit) {
-					String debugString="cycleFits ";
-					for (int i =0;i<cycleFits.length; i++) debugString+=" "+cycleFits[i];
-					System.out.println(debugString);
-				}
-                if (cycleFits[0]&&cycleFits[1]){ // remove overlaps
-                	cycleFits[2]=false;
-                	cycleFits[3]=false;
-                }
-                boolean minMaxUndefined=true;
-				double minX=0,maxX=0,minY=0,maxY=0;
-				// find bounding rectangle;
-				for (int nCycle=0;nCycle<cycles.length;nCycle++) if (cycleFits[nCycle]){
-					int [] cycle=cycles[nCycle];
-					for (int corner=0; corner<cycle.length;corner++){
-						if (minMaxUndefined || (minX>cornerXY[cycle[corner]][0])) minX=cornerXY[cycle[corner]][0];
-						if (minMaxUndefined || (maxX<cornerXY[cycle[corner]][0])) maxX=cornerXY[cycle[corner]][0];
-						if (minMaxUndefined || (minY>cornerXY[cycle[corner]][1])) minY=cornerXY[cycle[corner]][1];
-						if (minMaxUndefined || (maxY<cornerXY[cycle[corner]][1])) maxY=cornerXY[cycle[corner]][1];
-						minMaxUndefined=false;
-					}
-				}
-				int iMinX=(int) Math.floor(minX/decimate);
-				int iMinY=(int) Math.floor(minY/decimate);
-				int iMaxX=(int) Math.ceil(maxX/decimate);
-				int iMaxY=(int) Math.ceil(maxY/decimate);
-				double [] originXY=new double [2];
-				double [] endXY=new double [2];
-				boolean debugHadPixels=false;
-//TODO: scan X,Y in this rectangle, for points in defined squares/triangles find if the point is inside (accurate not to loose any).
-				for (int idY=iMinY; idY<=iMaxY;idY++){
-
-					double pY=idY*decimate; // in sensor pixels
-					for (int idX=iMinX; idX<=iMaxX;idX++){
-						double pX=idX*decimate; // in sensor pixels
-						// scan allowed triangles, usually 2
-						for (int nCycle=0;nCycle<cycles.length;nCycle++) if (cycleFits[nCycle]){
-							int [] cycle=cycles[nCycle];
-							// is this point inside?
-							if (debugExit) {
-								for (int nEdge=0;nEdge<cycle.length;nEdge++){
-									int nextNEdge=(nEdge==(cycle.length-1))?0:(nEdge+1);
-									System.out.println("nEdge="+nEdge+" nextNEdge"+nextNEdge);
-
-									originXY[0]=imgData[2][vu+uvInc[cycle[nEdge]]];
-									originXY[1]=imgData[3][vu+uvInc[cycle[nEdge]]];
-									endXY[0]=   imgData[2][vu+uvInc[cycle[nextNEdge]]];
-									endXY[1]=   imgData[3][vu+uvInc[cycle[nextNEdge]]];
-									System.out.println("--- pX="+IJ.d2s(pX,1)+" originXY[0]="+IJ.d2s(originXY[0],1)+
-											" endXY[1]="+IJ.d2s(endXY[1],1)+" originXY[1]="+IJ.d2s(originXY[1],1));
-									System.out.println("--- pY="+IJ.d2s(pY,1)+" originXY[1]="+IJ.d2s(originXY[1],1)+
-											" endXY[0]="+IJ.d2s(endXY[0],1)+" originXY[0]="+IJ.d2s(originXY[0],1));
-									System.out.println("Cross-product="+IJ.d2s(((pX-originXY[0])*(endXY[1]-originXY[1]) - (pY-originXY[1])*(endXY[0]-originXY[0])),1));
-
-								}
-							}
-
-							boolean inside=true;
-							for (int nEdge=0;nEdge<cycle.length;nEdge++){
-								int nextNEdge=(nEdge==(cycle.length-1))?0:(nEdge+1);
-
-								originXY[0]=imgData[2][vu+uvInc[cycle[nEdge]]];
-								originXY[1]=imgData[3][vu+uvInc[cycle[nEdge]]];
-								endXY[0]=   imgData[2][vu+uvInc[cycle[nextNEdge]]];
-								endXY[1]=   imgData[3][vu+uvInc[cycle[nextNEdge]]];
-								if (((pX-originXY[0])*(endXY[1]-originXY[1]) - (pY-originXY[1])*(endXY[0]-originXY[0]))<0.0){
-									inside=false;
-									break;
-								}
-							}
-							if (!inside) continue; // point is outside of the interpolation area, try next triangle (if any)
-//							if ((this.debugLevel>3) && !debugExit) {
-							if (this.debugLevel>3) {
-								System.out.println("idX="+idX+" idY="+idY+" nCycle="+nCycle);
-								String debugString1="cycle:";
-								for (int i =0;i<cycle.length; i++) debugString1+=" "+cycle[i];
-								System.out.println(debugString1);
-							}
-
-							/* interpolate:
-							1. taking cycles[0] as origin and two (non co-linear) edge vectors - V1:from 0 to 1 and V2 from 1 to 2
-							    find a1 and a2  so that vector V  (from 0  to pXY) = a1*V1+ a2*V2
-							2. if F0 is the value of the interpolated function at cycles[0], F1 and F2 - at cycles[1] and cycles2
-							   then F=F0+(F1-F0)*a1 +(F2-F1)*a2
-							 */
-							double [] XY0={imgData[2][vu+uvInc[cycle[0]]],imgData[3][vu+uvInc[cycle[0]]]};
-							double [] XY1={imgData[2][vu+uvInc[cycle[1]]],imgData[3][vu+uvInc[cycle[1]]]};
-							double [] XY2={imgData[2][vu+uvInc[cycle[2]]],imgData[3][vu+uvInc[cycle[2]]]};
-							double [] V= {pX-XY0[0],pY-XY0[1]};
-							double [][] M={
-									{XY1[0]-XY0[0],XY2[0]-XY1[0]},
-									{XY1[1]-XY0[1],XY2[1]-XY1[1]}};
-							double det=M[0][0]*M[1][1]-M[1][0]*M[0][1];
-							double [][] MInverse={
-									{ M[1][1]/det,-M[0][1]/det},
-									{-M[1][0]/det, M[0][0]/det}};
-							double [] a12={
-									MInverse[0][0]*V[0]+MInverse[0][1]*V[1],
-									MInverse[1][0]*V[0]+MInverse[1][1]*V[1]};
-							int pCorrIndex=idY*sWidth+idX;
-// some points may be accumulated multiple times - thisPCorr[3] will take care of this
-							if (this.debugLevel>3) {
-								System.out.println("XY0="+IJ.d2s(XY0[0],3)+":"+IJ.d2s(XY0[1],3));
-								System.out.println("XY1="+IJ.d2s(XY1[0],3)+":"+IJ.d2s(XY1[1],3));
-								System.out.println("XY2="+IJ.d2s(XY2[0],3)+":"+IJ.d2s(XY2[1],3));
-								System.out.println("M00="+IJ.d2s(M[0][0],3)+" M01="+IJ.d2s(M[0][1],3));
-								System.out.println("M10="+IJ.d2s(M[1][0],3)+" M11="+IJ.d2s(M[1][1],3));
-								System.out.println("MInverse00="+IJ.d2s(MInverse[0][0],5)+" MInverse01="+IJ.d2s(MInverse[0][1],5));
-								System.out.println("MInverse10="+IJ.d2s(MInverse[1][0],5)+" MInverse11="+IJ.d2s(MInverse[1][1],5));
-								System.out.println("a12="+IJ.d2s(a12[0],3)+":"+IJ.d2s(a12[1],3));
-								System.out.println("imgData[0][vu+uvInc[cycle[0]]]="+IJ.d2s(imgData[0][vu+uvInc[cycle[0]]],3)+
-										"imgData[1][vu+uvInc[cycle[0]]]="+IJ.d2s(imgData[1][vu+uvInc[cycle[0]]],3));
-								System.out.println("imgData[0][vu+uvInc[cycle[1]]]="+IJ.d2s(imgData[0][vu+uvInc[cycle[1]]],3)+
-										"imgData[1][vu+uvInc[cycle[1]]]="+IJ.d2s(imgData[1][vu+uvInc[cycle[1]]],3));
-								System.out.println("imgData[0][vu+uvInc[cycle[2]]]="+IJ.d2s(imgData[0][vu+uvInc[cycle[2]]],3)+
-										"imgData[1][vu+uvInc[cycle[2]]]="+IJ.d2s(imgData[1][vu+uvInc[cycle[2]]],3));
-							}
-
-							double [] corr={
-									imgData[0][vu+uvInc[cycle[0]]]+ // dPx
-									(imgData[0][vu+uvInc[cycle[1]]]-imgData[0][vu+uvInc[cycle[0]]])*a12[0]+
-									(imgData[0][vu+uvInc[cycle[2]]]-imgData[0][vu+uvInc[cycle[1]]])*a12[1],
-									imgData[1][vu+uvInc[cycle[0]]]+ // dPy
-									(imgData[1][vu+uvInc[cycle[1]]]-imgData[1][vu+uvInc[cycle[0]]])*a12[0]+
-									(imgData[1][vu+uvInc[cycle[2]]]-imgData[1][vu+uvInc[cycle[1]]])*a12[1],
-									imgData[4][vu+uvInc[cycle[0]]]+ // alpha
-									(imgData[4][vu+uvInc[cycle[1]]]-imgData[4][vu+uvInc[cycle[0]]])*a12[0]+
-									(imgData[4][vu+uvInc[cycle[2]]]-imgData[4][vu+uvInc[cycle[1]]])*a12[1]};
-							if (this.debugLevel>3) {
-								System.out.println("corr="+IJ.d2s(corr[0],3)+" "+IJ.d2s(corr[1],3)+" "+IJ.d2s(corr[2],3));
-							}
-
-							thisPCorr[0][pCorrIndex]+= corr[0];// dPx
-							thisPCorr[1][pCorrIndex]+= corr[1];// dPy
-							thisPCorr[2][pCorrIndex]+= corr[2];// alpha
-							thisPCorr[3][pCorrIndex]+= 1.0;    // number of times accumulated
-
-							if (this.debugLevel>3) {
-								debugHadPixels=true;
-//								if (!debugExit) debugCntr--;
-//								if (debugCntr==0) debugExit=true; // exit after first non-empty tile
-							}
-
-//gridPCorr[chnNum]
-						}
-					} // idX
-					// use same order in calculations, make sure no gaps
-				} // idY
-				if ((this.debugLevel>3) && (debugHadPixels)){
-					if (!debugExit) {
-						System.out.println(
-								" minX="+IJ.d2s(minX,1)+
-								" maxX="+IJ.d2s(maxX,1));
-						System.out.println(
-								" minY="+IJ.d2s(minY,1)+
-								" maxY="+IJ.d2s(maxY,1));
-						System.out.println(
-								" iMinX="+iMinX+
-								" iMaxX="+iMaxX);
-						System.out.println(
-								" iMinY="+iMinY+
-								" iMaxY="+iMaxY);
-					}
-					if (!debugExit) debugCntr--;
-					if (debugCntr==0) debugExit=true; // exit after first non-empty tile
-
-				}
-			} // finished image
-			// some points may be calculated multiple times
-			for (int i=0;i<gridPCorr[chnNum][0].length;i++) if (thisPCorr[3][i]>=1.0){
-				thisPCorr[0][i]/=thisPCorr[3][i];
-				thisPCorr[1][i]/=thisPCorr[3][i];
-				thisPCorr[2][i]/=thisPCorr[3][i];
-			}
-
-			if (showIndividual) {
-				String [] titles={"dPx","dPy","alpha","Multiple"};
-				this.SDFA_INSTANCE.showArrays(thisPCorr, sWidth, sHeight,  true, "thisPCorr"+imgNum, titles);
-			}
-			for (int i=0;i<gridPCorr[chnNum][0].length;i++) if (thisPCorr[2][i]>0){
-				gridPCorr[chnNum][0][i]+=thisPCorr[0][i]*thisPCorr[2][i];
-				gridPCorr[chnNum][1][i]+=thisPCorr[1][i]*thisPCorr[2][i];
-				/**TODO: not used anyway - just for debugging? see if just the sensor mask should go here? Or when saving?*/
-				if (gridPCorr[chnNum][2][i]<thisPCorr[2][i]) gridPCorr[chnNum][2][i]=thisPCorr[2][i]; // best alpha
-				gridPCorr[chnNum][3][i]+=                thisPCorr[2][i]; // sum of weights from all images
-			}
-
-		}
-		for (int chnNum=0;chnNum<gridPCorr.length;chnNum++){
-			for (int i=0;i<gridPCorr[chnNum][0].length;i++) if (gridPCorr[chnNum][2][i]>0){ //null pointer
-				gridPCorr[chnNum][0][i]/=gridPCorr[chnNum][3][i];
-				gridPCorr[chnNum][1][i]/=gridPCorr[chnNum][3][i];
-			}
-		}
 		return gridPCorr;
 	}
 

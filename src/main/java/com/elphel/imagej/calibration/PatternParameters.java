@@ -1,4 +1,9 @@
 package com.elphel.imagej.calibration;
+import java.awt.Rectangle;
+import java.util.Properties;
+
+import com.elphel.imagej.jp4.JP46_Reader_camera;
+
 /*
  **
  ** PatternParameters.java
@@ -6,7 +11,7 @@ package com.elphel.imagej.calibration;
  ** Copyright (C) 2011-2014 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
- **  
+ **
  **  PatternParameters.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
@@ -28,16 +33,10 @@ import ij.ImageStack;
 import ij.gui.GenericDialog;
 import ij.io.FileSaver;
 import ij.io.Opener;
-
-import java.awt.Rectangle;
-import java.util.Properties;
-
-import com.elphel.imagej.calibration.CalibrationFileManagement.MultipleExtensionsFileFilter;
-import com.elphel.imagej.jp4.JP46_Reader_camera;
 	/* gridGeometry:
 	 * [v][u][0] - x(mm) of the node(u,v), right (looking to the wall) - positive
-	 * [v][u][1] - y(mm) of the node(u,v), down - positive	
-	 * [v][u][2] - z(mm) of the node(u,v), away (into the wall) - positive	
+	 * [v][u][1] - y(mm) of the node(u,v), down - positive
+	 * [v][u][2] - z(mm) of the node(u,v), away (into the wall) - positive
 	 * [v][u][3] - mask 0.0 - outside of the pattern rectangle, 1.0 - on the pattern
 	 * RGB moved to Photometric
 	 * [v][u][4] - R-intensity (normalized to 1.0 full scale)
@@ -54,8 +53,8 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
 		public int    numStations=1;
 		public int    numberOfViews=1;
         public double [][][] gridGeometry=null; // [v][u]{x,y,z,{"alpha", R-intensity, G--intensity, B--intensity} alpha=0 - no ghrid, 1 - grid}
-        public double [][][] stationZCorr=null; // [v][u]{station0... stationN} - per-station addition to the gridGeometry[][][2] 
-        public double [] averageRGB={1.0,1.0,1.0}; 
+        public double [][][] stationZCorr=null; // [v][u]{station0... stationN} - per-station addition to the gridGeometry[][][2]
+        public double [] averageRGB={1.0,1.0,1.0};
     	public int numGeometricChannels=4;   // x,y,z,mask
     	public int numPhotometricChannels=4; // r,g,b,a
     	public int defaultNumberOfChannels=26;
@@ -71,7 +70,7 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
         public double [] patternErrors=null; // weighted RMS error for each pattern node, calculated
         public double [] patternErrorMask=null; // weighted RMS error for each pattern node, calculated
         public double [] patternErrorMaskSaved=null; // weighted RMS error for each pattern node, calculated
-        
+
         public void initStationZCorr(){
         	this.stationZCorr=new double [this.gridGeometry.length][this.gridGeometry[0].length][this.numStations];
         	for (int v=0;v<this.stationZCorr.length;v++) for (int u=0;u<this.stationZCorr[0].length;u++) for (int s=0;s<this.stationZCorr[0][0].length;s++){
@@ -97,7 +96,7 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
         	double [] mask=new double [this.patternErrors.length]; // null pointer
         	double a=1.0/(maxRMS-minRMS);
         	boolean binary=maxRMS==minRMS;
-        	
+
         	for (int i=0;i<this.patternErrors.length;i++){
         		if (Double.isNaN(this.patternErrors[i])) mask[i]=0.0;
         		else {
@@ -184,7 +183,7 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
 									this.photometricByView[i][j][k]=null;
 								} else {
 									this.photometricByView[i][j][k]=photometricByViewCopy[iSource][j][k].clone();
-								}								
+								}
 							}
 						}
 					}
@@ -214,7 +213,7 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
 			for (int i=0;i<num;i++) this.viewMap[i]=(i<24)?0:1;
 			this.numberOfViews=2;
 		}
-		
+
 		public double [][] getPhotometricByView(int stationNumber, int nView){
 			if (stationNumber>=this.photometricByView.length) stationNumber=this.photometricByView.length-1;
 			if (nView>=this.photometricByView[stationNumber].length) nView=this.photometricByView[stationNumber].length-1;
@@ -240,7 +239,7 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
 		public int getNumStations(){return this.numStations;}
 		public void setNumStations(int numStations){this.numStations=numStations;}
 		public int [] getViewMap(){return this.viewMap;}
-		
+
 		public int getNumGeometricChannels(){return this.numGeometricChannels;}
 		public int getNumPhotometricChannels(){return this.numPhotometricChannels;}
 
@@ -260,6 +259,7 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
 			setPhotometric(viewMap);
 			calculateGridGeometryAndPhotometric(true);
 		}
+		@Override
 		public PatternParameters clone() {
 			PatternParameters patternParameters= new PatternParameters(
 					this.viewMap,
@@ -282,12 +282,12 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
 	   					fs.saveAsTiffStack(path);
 	   				else
 	   					fs.saveAsTiff(path);
-	   				
+
 	   				this.pathName=path;
 	   				if (this.debugLevel>0) System.out.println("Pattern saved as "+this.pathName);
         	return imp;
         }
-        
+
         public String selectAndSave(boolean smart, String defaultPath){
 			String [] extensions={".grid-tiff","-grid.tiff"};
 			CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"Pattern grid *.grid-tiff files");
@@ -302,7 +302,7 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
 			return pathname;
         }
 
-        
+
         public String selectAndRestore(boolean smart, String defaultPath, int numStations){
 			String [] extensions={".grid-tiff","-grid.tiff"};
 			CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"Pattern grid *.grid-tiff files");
@@ -354,14 +354,14 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
         		IJ.showMessage("Error",msg);
         		throw new IllegalArgumentException (msg);
         	}
-        	this.U0=Integer.parseInt((String) imp.getProperty("U0")); 
+        	this.U0=Integer.parseInt((String) imp.getProperty("U0"));
         	this.V0=Integer.parseInt((String) imp.getProperty("V0"));
         	// Other properties that are needed only during pattern generation:
         	if (imp.getProperty("patternWidth")!=null) this.patternWidth=Double.parseDouble((String) imp.getProperty("patternWidth"));
         	if (imp.getProperty("patternHeight")!=null) this.patternHeight=Double.parseDouble((String) imp.getProperty("patternHeight"));
         	if (imp.getProperty("patternHalfPeriod")!=null) this.patternHalfPeriod=Double.parseDouble((String) imp.getProperty("patternHalfPeriod"));
         	if (imp.getProperty("patternTilt")!=null) this.patternTilt=Double.parseDouble((String) imp.getProperty("patternTilt"));
-        	
+
         	if (imp.getProperty("AverageRed")!=null)   this.averageRGB[0]=Double.parseDouble((String) imp.getProperty("AverageRed"));
         	if (imp.getProperty("AverageGreen")!=null) this.averageRGB[1]=Double.parseDouble((String) imp.getProperty("AverageGreen"));
         	if (imp.getProperty("AverageBlue")!=null)  this.averageRGB[2]=Double.parseDouble((String) imp.getProperty("AverageBlue"));
@@ -369,7 +369,7 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
         	if (imp.getProperty("numZCorr")!=null)  numZCorr=Integer.parseInt((String) imp.getProperty("numZCorr"));
 
  //       	if (imp.getProperty("numStations")!=null)  this.numStations=Integer.parseInt((String) imp.getProperty("numStations"));
-        	
+
         	int width=imp.getWidth();
         	int height=imp.getHeight();
     		ImageStack stack = imp.getStack();
@@ -384,8 +384,8 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
         		System.out.println("setGridFromImageStack() width="+width+", height="+height+", pixels[0].length="+pixels[0].length);
         	}
         	this.gridGeometry=new double[height][width][getNumGeometricChannels()]; // x,y,z, alpha
-        	
-        	
+
+
         	boolean geometryMaskOnly=(pixels.length==getNumGeometricChannels());
         	boolean singleNoAlpha=(pixels.length==7);
         	int totalNumViews=(geometryMaskOnly || singleNoAlpha)?1:((pixels.length-getNumGeometricChannels()-numZCorr)/getNumPhotometricChannels());
@@ -394,7 +394,7 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
         	for (int v=0;v<height;v++) for (int u=0;u<width;u++) for (int n=0;n<getNumGeometricChannels();n++){ // x,y,z, alpha
         		this.gridGeometry[v][u][n]=pixels[n][v*width+u];
         	}
-        	
+
         	if (fileNumStations!=getNumStations()){
             	if (this.debugLevel>0){
             		System.out.println("File has "+totalNumViews+" photometric slices, expected "+(getNumStations()*getNumViews())+
@@ -415,16 +415,16 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
         		} else {
             		System.out.println("File has "+numZCorr+" ZCorr slices, current number of stations is "+getNumStations()+
             				", skipping loading zCorr data (per-station pattern Z-correction from the average Z)");
-        			
+
         		}
 
         	}
-        	
+
         	if (this.debugLevel>0){
         		System.out.println("Loading photometric data: "+(getNumStations()*getNumViews())+" slices "+
         				" ("+getNumStations()+" stations, "+getNumViews()+" vies )");
         	}
-        	
+
         	this.photometricByView=new double [this.numStations][this.numberOfViews][getNumPhotometricChannels()][length]; // r,g,b,a
         	for (int numStation=0;numStation<this.numStations;numStation++) {
         		int useNumStation=numStation;
@@ -444,9 +444,9 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
         				}
         			}
         		}
-        	}	
+        	}
         }
- //getNumPhotometricChannels()       
+ //getNumPhotometricChannels()
         public ImagePlus getGridAsImageStack(String title){
         	if (this.gridGeometry==null){
         		String msg="Grid geometry does not exist, nothing to convert";
@@ -470,7 +470,7 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
         	String [] zCorrTitles=new String [numZCorr];
         	for (int i=0;i<numZCorr;i++) zCorrTitles[i]="dZ"+i;
         	String [] photometricTitles={"red","green","blue","alpha"};
-        	
+
         	int index=0;
         	for (int v=0;v<height;v++) for (int u=0;u<width;u++){
         		for (int n=0;n<getNumGeometricChannels();n++) { // should be 4==numGeometricChannels
@@ -513,7 +513,7 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
         	imp.getProcessor().resetMinAndMax();
         	return imp;
         }
-        
+
         public void applyGridCorrection(double [][] gridCorr){
         	applyGridCorrection(gridCorr, 1.0);
         }
@@ -542,7 +542,7 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
         	}
 
         }
-        
+
         public void applyZGridCorrection(
     			double [][] gridZCorr3d,
     			double scale){
@@ -562,7 +562,7 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
         	}
     	}
 
-        
+
 		public void setProperties(String prefix,Properties properties){
 			properties.setProperty(prefix+"patternWidth",this.patternWidth+"");
 			properties.setProperty(prefix+"patternHeight",this.patternHeight+"");
@@ -609,14 +609,16 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
 			GenericDialog gd = new GenericDialog("Initial Wall pattern parameters");
 			gd.addNumericField("Pattern full width",                  this.patternWidth, 1,6,"mm"); // pattern full width in mm
 			gd.addNumericField("Pattern full height",                 this.patternHeight, 1,6,"mm"); // pattern full width in mm
-			gd.addNumericField("Distance between opposite sign nodes",this.patternHalfPeriod, 4,8,"mm"); // istance between opposite sign nodes in mm
-			gd.addNumericField("Pattern tilt (clockwise)",            this.patternTilt, 1,5,"degrees"); //  pattern tilt (degrees) - U clockwise from X-right (V clockwise from Y-down)
+			gd.addNumericField("Distance between opposite sign nodes",this.patternHalfPeriod, 4,8,"mm"); // distance between opposite sign nodes in mm
+			gd.addNumericField("Pattern tilt (clockwise)",            this.patternTilt, 3,8,"degrees"); //  pattern tilt (degrees) - U clockwise from X-right (V clockwise from Y-down)
 			gd.addNumericField("Average grid RED   (1.0 for white)",  this.averageRGB[0], 3,5,"x"); //
 			gd.addNumericField("Average grid GREEN (1.0 for white)",  this.averageRGB[1], 3,5,"x"); //
 			gd.addNumericField("Average grid BLUE  (1.0 for white)",  this.averageRGB[2], 3,5,"x"); //
-			
+
 			gd.addNumericField("Number of sensors (>24 - two groups, 0 - do not change)",this.defaultNumberOfChannels,0); //
-			
+			gd.addCheckbox("Reset to standard fine pitch pattern" ,   false);
+			gd.addCheckbox("Reset to standard LWIR pattern" ,         false);
+
 			gd.addMessage("Pressing OK will recalculate grid and clear current grid calibration");
 			gd.showDialog();
 			if (gd.wasCanceled()) return false;
@@ -628,7 +630,28 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
 			this.averageRGB[1]=        gd.getNextNumber();
 			this.averageRGB[2]=        gd.getNextNumber();
 			int numberOfChannels= (int)gd.getNextNumber();
-			
+			boolean use_fine_pattern = gd.getNextBoolean();
+			boolean use_lwir_pattern = gd.getNextBoolean();
+
+			if (use_fine_pattern) {
+				this.patternWidth=         7010.0;
+				this.patternHeight=        3073.0;
+				this.patternHalfPeriod=      41.57;
+				this.patternTilt=             5.0;
+				this.averageRGB[0]=           1.0;
+				this.averageRGB[1]=           1.0;
+				this.averageRGB[2]=           1.0;
+
+			} else if (use_lwir_pattern) {
+				this.patternWidth=         7010.0; // 7192.0
+				this.patternHeight=        2997.2;
+				this.patternHalfPeriod=     178.65;
+				this.patternTilt=             14.036;
+				this.averageRGB[0]=           1.0;
+				this.averageRGB[1]=           1.0;
+				this.averageRGB[2]=           1.0;
+			}
+
 			if (numberOfChannels>0){
 				initDefaultChannels(numberOfChannels);
 //				setPhotometric();
@@ -642,7 +665,7 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
 * @param resetAll - if true - reset all grid info, if false - only recalculate mask and reset flat field info, keep distortions
 */
 		public void calculateGridGeometryAndPhotometric(boolean resetAll){
-			// this.photometricByView should be initialized 
+			// this.photometricByView should be initialized
 			int indexAlpha=3;
 			int indexMask=3;
 			double cosA=Math.cos(this.patternTilt/180*Math.PI);
@@ -704,10 +727,10 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
 					}
 				}
 				index++;
-			}			
+			}
 		}
 
-		
+
 		public int [] uvIndicesToUV (int u1, int v1){
         	if ((v1<0) || (u1<0) ||
         			(v1 >= this.gridGeometry.length) ||
@@ -732,7 +755,7 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
         	}
         	if (this.stationZCorr==null) return this.gridGeometry[v1][u1];
         	double [] result=this.gridGeometry[v1][u1].clone();
-// use lower station if grid file does not have current        	
+// use lower station if grid file does not have current
         	int useStation=(this.stationZCorr[v1][u1].length>station)?station:(this.stationZCorr[v1][u1].length-1);
         	result[2]+=this.stationZCorr[v1][u1][useStation];
 			return result;
@@ -747,7 +770,7 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
         	}
 			return u1+this.gridGeometry[0].length*v1;
 		}
-		
+
 		public double[] getXYZM(int u, int v, int station){ // u=0,v=0 - center!
 			int u1=u+this.U0;
 			int v1=v+this.V0;
@@ -817,8 +840,8 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
         	 return this.stationZCorr[v1][u1][station];
 		}
 
-		
-		
+
+
 		/**
 		 * Return grid geometry and photometics: X,Y,Z,mask,R,G,B,Alpha
 		 * @param u       signed grid U (0 in the center)
@@ -899,7 +922,7 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
         		System.out.println();
         	}
 
-        	double [] result= { // null 
+        	double [] result= { // null
         			this.gridGeometry[v1][u1][0],
         			this.gridGeometry[v1][u1][1],
 //        			this.gridGeometry[v1][u1][2]+((this.stationZCorr!=null)?this.stationZCorr[v1][u1][station]:0.0), // per-station correction
@@ -913,8 +936,8 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
         	};
 			return result;
 		}
-		public double [][][] getGeometry(){return this.gridGeometry;} 
+		public double [][][] getGeometry(){return this.gridGeometry;}
 	}
-	
-	
-	
+
+
+

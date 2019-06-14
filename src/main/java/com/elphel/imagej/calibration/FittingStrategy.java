@@ -37,7 +37,6 @@ import java.util.Set;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.XMLConfiguration;
 
-import com.elphel.imagej.calibration.CalibrationFileManagement.MultipleExtensionsFileFilter;
 import com.elphel.imagej.common.WindowTools;
 
 import ij.IJ;
@@ -1627,6 +1626,16 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     				"Image sets, start from empty selection",         // 5
     				"Image sets, start from current selection"        // 6
     				};
+    		String help = "<html>"+
+    				"<h2>Use of buttons in this dialog:</h2>"+
+    				"<ul>"+
+    				"<li><b>More</b> will re-open dialog after performin selection modification actions,"+
+    				" in case of selecting individual images that may happen after multiple selection "+
+    				"screens</li>"+
+    				"<li><b>Cancel</b> - keep current selection that you do not want to modify further"+
+    				" (e.g. if you wrongly pressed 'More' in this dialog earlier)</li>"+
+    				"<li><b>OK</b> - perform selection modification once (same as 'More'...'Cancel')</li>"+
+    				"</ul><br/>";
     		int numStations=this.distortionCalibrationData.eyesisCameraParameters.getNumStations();
     		int numChannels=this.distortionCalibrationData.eyesisCameraParameters.getNumChannels(0); // for station 0
     		boolean [] selected=          this.selectedImages[numSeries];
@@ -1833,6 +1842,11 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     		//selectionType
 //			gd.addCheckbox("Select images with estimated orientation", selectEstimated);
 //			gd.addCheckbox("Select new enabled images", selectNewEnabled);
+			if (this.distortionCalibrationData.hasSmallSensors()) {
+				gd.addMessage("=== Filter selection by High/Low resolution sensors (such as VNIR/LWIR)");
+				gd.addCheckbox("Select high-res sensors", true);
+				gd.addCheckbox("Select low-res sensors", true);
+			}
     		gd.addMessage("=== Filter selection by the number of matched laser pointers ===");
     		for (int i=0;i<matchedPointersIndex.length;i++){
     			gd.addCheckbox("Select images with "+matchedPointersIndex[i]+" pointers", requiredMatchedPointers[i]);
@@ -1850,14 +1864,21 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     			gd.addCheckbox("Select channel "+i, requiredChannels[i]);
     		}
     		gd.enableYesNoCancel("OK", "More");
+    		gd.addHelp(help);
 			WindowTools.addScrollBars(gd);
 			gd.showDialog();
 			if (gd.wasCanceled()) return -1;
 			boolean more=!gd.wasOKed();
+			System.out.println("manageSelection(): more=!gd.wasOKed() = "+more);
 			operIndex=gd.getNextChoiceIndex();
 			selectionTypeIndex=gd.getNextChoiceIndex(); // TODO:Implement!
-//			selectEstimated=gd.getNextBoolean();
-//			selectNewEnabled=gd.getNextBoolean();
+
+			boolean [] selectHiLowRes = null;
+			if (this.distortionCalibrationData.hasSmallSensors()) {
+				selectHiLowRes = new boolean[2];
+				selectHiLowRes[0] = gd.getNextBoolean(); //	gd.addCheckbox("Select high-res sensors", true);
+				selectHiLowRes[1] = gd.getNextBoolean(); //	gd.addCheckbox("Select low-res sensors", true);
+			}
     		for (int i=0;i<matchedPointersIndex.length;i++) requiredMatchedPointers[i]=gd.getNextBoolean();
     		for (int i=0;i<hintedMatchIndex.length;i++)     requiredHintedMatch[i]=    gd.getNextBoolean();
     		for (int i=0;i<requiredStations.length;i++)     requiredStations[i]=gd.getNextBoolean();
@@ -1882,6 +1903,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 	    			false, // allImages,
 	    			0, // star iIndex
 	    			500)) return -1; //perPage))
+    			break;
     		case 6: // start from current selection
     			selection=selected.clone();
     			break;
@@ -1899,8 +1921,18 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 			for (int i=0;i<selection.length;i++) if (imageStations[i]>=0) selection[i] &= requiredStations[imageStations[i]];
 			else selection[i] = false;
 
+			if (selectHiLowRes != null) {
+				boolean [] lowres_channel = this.distortionCalibrationData.getSmallSensors();
+				for (int i =0; i < requiredChannels.length;i++) {
+					if ((lowres_channel[i] && !selectHiLowRes[1]) ||(!lowres_channel[i] && !selectHiLowRes[0])) {
+						requiredChannels[i] = false;
+					}
+				}
+			}
+
 			for (int i=0;i<selection.length;i++) if (imageChannels[i]>=0) selection[i] &= requiredChannels[imageChannels[i]];
 			else selection[i] = false;
+
 
 			// now combine new/old selections
 			switch (operIndex){
@@ -1926,6 +1958,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 			for (int i=0;i<selection.length;i++) selection[i] &= enabled[i];
 			// replace current selection
 			this.selectedImages[numSeries]=selection;
+			System.out.println("manageSelection(): on exit more = "+more);
 			return more?0:1;
     	}
        	/**
@@ -1936,21 +1969,8 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
    	 * @param useParameters Select parameters for this series
    	 * @param askNextSeries Ask for next series number
    	 * @param zeroAndOther use 2 channels 0 and "other", propagate settings for channel 1 to all the rest
+   	 * For low/high res (LWIR/VNIR) - use first /other for each class
    	 * @return -2 - cancel, -1, done, otherwise - number of step to edit
-   	public int selectStrategyStep(
-   			int numSeries,
-   			boolean useImages,
-				int [] fromToImages,
-   			boolean allImages,
-   			boolean useParameters,
-   			boolean askLambdas,
-   			boolean askNextSeries,
-   			boolean zeroAndOther
-   			){
-			GenericDialog gd = new GenericDialog("Fitting Strategy Step Configuration, step "+numSeries+
-					                             " number of enabled images="+this.distortionCalibrationData.getNumEnabled());
-			gd.addStringField  ("Comment",   this.strategyComment[numSeries],80);
-
    	 */
 
     	public void listStrategies() {
@@ -2117,9 +2137,15 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 			for (int i=0;i<constrainByStation.length;i++) constrainByStation[i]=true;
 			if (this.distortionCalibrationData.eyesisCameraParameters.numStations>1){
 				gd.addMessage("Constrain by stations");
-//				gd.addCheckbox("Remove images of unselected stations below", true);
 				for (int i=0;i<this.distortionCalibrationData.eyesisCameraParameters.numStations;i++) 	gd.addCheckbox("Station "+i, constrainByStation[i]);
 			}
+			if (this.distortionCalibrationData.hasSmallSensors()) {
+				gd.addMessage("Constrain by High/Low resolution sensors (such as VNIR/LWIR)");
+				gd.addCheckbox("Select high-res sensors", true);
+				gd.addCheckbox("Select low-res sensors", true);
+			}
+
+
 
 			if (useImages) {
 	    		gd.addNumericField("Image selection range, from", fromToImages[0], 0);
@@ -2141,7 +2167,6 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 
 			}
 			if (useParameters) {
-//				choice_offsets = new int [this.parameterEnable.length];
 				gd.addMessage("Select parameters to fit");
 				for (int i =0; i<this.parameterEnable.length;i++) if (this.parameterEnable[i] &&
 						(!zeroAndOther || (this.parameterList[i][0] <= 1) || (this.parameterList[i][0] ==24))){ // in "zeroAndOther" mode do not show other subcameras
@@ -2159,18 +2184,14 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 									) { // both subcameras are "other" subcameras
 								double parValue=this.distortionCalibrationData.getParameterValue(imgNumber,parIndex);
 								if (!defined) {
-//									min=this.distortionCalibrationData.pars[imgNumber][parIndex];
 									min=parValue;
 									max=min;
 									defined=true;
 								}
-//								if (this.distortionCalibrationData.pars[imgNumber][parIndex]<min) min=this.distortionCalibrationData.pars[imgNumber][parIndex];
-//								if (this.distortionCalibrationData.pars[imgNumber][parIndex]>max) max=this.distortionCalibrationData.pars[imgNumber][parIndex];
 								if (parValue<min) min=parValue;
 								if (parValue>max) max=parValue;
 							}
 						}
-//					System.out.println(i+": "+parIndex+":"+subCam+"defined="+defined+" min="+min+" max="+max);
 					// undefined, min, max
 					String sValue=(defined)?((min==max)?(min+""):(min+"..."+max)):"undefined";
 					String sChn=(zeroAndOther && (subCam>=1)&& (subCam<24))?"-head-other":
@@ -2263,8 +2284,9 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 			showAdvancedImageSelection=gd.getNextBoolean();
 			if (showAdvancedImageSelection){
 				int rslt=0;
-				while (rslt==0) rslt=manageSelection(numSeries);
-//				return (rslt<0)?-2:numSeries;
+				while (rslt==0) {
+					rslt=manageSelection(numSeries);
+				}
 				return numSeries; // cancel from manageSelection will just exit that mode with no changes
 			}
 			boolean copyFromPrevious=gd.getNextBoolean();
@@ -2276,9 +2298,15 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 			boolean selectNewEnabled=false;
 			if (numNewEnabled>0) selectNewEnabled=gd.getNextBoolean();
 			if (this.distortionCalibrationData.eyesisCameraParameters.numStations>1){
-//				boolean removeUnselectedStations=gd.getNextBoolean();
 				for (int i=0;i<constrainByStation.length; i++) constrainByStation[i]=gd.getNextBoolean();
 			}
+			boolean [] selectHiLowRes = null;
+			if (this.distortionCalibrationData.hasSmallSensors()) {
+				selectHiLowRes = new boolean[2];
+				selectHiLowRes[0] = gd.getNextBoolean(); //	gd.addCheckbox("Select high-res sensors", true);
+				selectHiLowRes[1] = gd.getNextBoolean(); //	gd.addCheckbox("Select low-res sensors", true);
+			}
+
 			if (selectNewEnabled) {
 				this.selectedImages[numSeries]=this.distortionCalibrationData.selectNewEnabled();
 				for (int i =0; i<this.distortionCalibrationData.getNumImages();i++){
@@ -2308,9 +2336,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 				return numSeries; // caller will repeat with the same series
 			}
 			if (removeAllImages || selectAllImages) {
-//
 				for (int i =0; i<this.distortionCalibrationData.getNumImages();i++){
-//					this.selectedImages[numSeries][i]=false; // invalidate - all, regardless of .enabled
 					this.selectedImages[numSeries][i]=selectAllImages || ((i==0) && removeAllImages); // invalidate - all, regardless of .enabled
 					this.selectedImages[numSeries][i]&=constrainByStation[this.distortionCalibrationData.gIP[i].getStationNumber()];
 				}
@@ -2329,6 +2355,15 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 				if (this.masterImages[numSeries]<0)this.masterImages[numSeries]=0;
 				if (this.masterImages[numSeries]>=this.selectedImages[numSeries].length)this.masterImages[numSeries]=this.selectedImages[numSeries].length;
 			}
+			if (selectHiLowRes != null) {
+				for (int i =0; i<this.distortionCalibrationData.getNumImages();i++) {
+					boolean low_res = this.distortionCalibrationData.isSmallSensor(i);
+					if ((low_res && !selectHiLowRes[1]) && (!low_res && !selectHiLowRes[0])){
+						this.selectedImages[numSeries][i]= false;
+					}
+				}
+			}
+
 			if (useParameters) {
 				int [] lastGroups=null;
 				for (int i =0; i<this.parameterEnable.length;i++) if (this.parameterEnable[i] &&
