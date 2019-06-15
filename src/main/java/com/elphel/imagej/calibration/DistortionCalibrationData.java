@@ -1573,7 +1573,7 @@ if (sfiles == null) {
     			firstInterAxisAngle = this.gIS[i].interAxisAngle;
 
     			sb.append(i+"\t"+IJ.d2s(this.gIS[i].timeStamp,6));
-    			if (this.eyesisCameraParameters.numStations>1)	sb.append(i+"\t"+ this.gIS[i].getStationNumber());
+    			if (this.eyesisCameraParameters.numStations>1)	sb.append("\t"+ this.gIS[i].getStationNumber());
     			sb.append("\t"+(Double.isNaN(this.gIS[i].goniometerAxial)?"---":((this.gIS[i].orientationEstimated?"(":"")+IJ.d2s(axial_corr_sign,3)+(this.gIS[i].orientationEstimated?")":""))));
     			sb.append("\t"+(Double.isNaN(this.gIS[i].goniometerTilt)?"---":((this.gIS[i].orientationEstimated?"(":"")+IJ.d2s(this.gIS[i].goniometerTilt,3)+(this.gIS[i].orientationEstimated?")":""))));
 
@@ -2564,20 +2564,7 @@ if (sfiles == null) {
 			updateSetOrientation(null); // update orientation of image sets (built in readAllGrids() UPDATE - not anymore)
 
         }
-/*
-        public DistortionCalibrationData(
-        		String pathname,
-        		PatternParameters patternParameters,
-        		EyesisCameraParameters eyesisCameraParameters) {
-        	setFromXML(
-        			pathname,
-            		eyesisCameraParameters);
-        	System.out.println("DistortionCalibrationData("+pathname+",eyesisCameraParameters) 1 -> this.gIS.length="+((this.gIS==null)?"null":this.gIS.length));
-        	readAllGrids(patternParameters); // prepare grid parameters for LMA (now will preserve this.gIS if it is non-null)
-        	System.out.println("DistortionCalibrationData("+pathname+",eyesisCameraParameters) 2 -> this.gIS.length="+((this.gIS==null)?"null":this.gIS.length));
-			updateSetOrientation(null); // update orientation of image sets (built in readAllGrids())
-        	}
-*/
+
         public void setFromXML(String pathname,
         		EyesisCameraParameters eyesisCameraParameters, // should have cartesian set
     			EyesisAberrations.AberrationParameters aberrationParameters) {
@@ -3036,7 +3023,7 @@ if (sfiles == null) {
     			System.out.println("readAllGrids(), numImages="+numImages+", total number of grid nodes="+numOfGridNodes+", unused nodes "+numOfGridNodes_extra);
     		}
     		 // probably - do not need to verify that this.gIS is null - should do that anyway. UPDATE: no, now reading config file creates gIS
-    		buildImageSets(this.gIS!=null);
+    		buildImageSets(this.gIS!=null); // with non-null just copies motors from any of the images that has it
 
         	return true;
         }

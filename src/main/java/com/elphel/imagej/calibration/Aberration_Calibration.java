@@ -2823,6 +2823,7 @@ if (MORE_BUTTONS) {
 /* ======================================================================== */
 		if       (label.equals("Reset Sensor")) {
 			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+			ABERRATIONS_PARAMETERS.sensorsPath = ""; // null;
 			if (LENS_DISTORTIONS==null) {
 				IJ.showMessage("LENS_DISTORTION is not set");
 				return;
@@ -10231,7 +10232,8 @@ if (MORE_BUTTONS) {
 	    	}
 			if ((LENS_DISTORTIONS.fittingStrategy != null) && ABERRATIONS_PARAMETERS.autoFilter) { // trying to fix restore
     			if (DEBUG_LEVEL>0) System.out.println("LENS_DISTORTIONS.fittingStrategy != null -> Extra after loading");
-    			int minGridsNoPointer=1000;
+    			int minGridsNoPointer=40; // 1000;
+    			System.out.println("Using minGridsNoPointer="+minGridsNoPointer+", TODO: Use pattern grid size fraction?");
         		int [] numImages=DISTORTION_CALIBRATION_DATA.filterImages(
         				false, // resetHinted,
         				0, // 2, // minPointers,
@@ -10563,7 +10565,7 @@ if (MORE_BUTTONS) {
 
 	public boolean restoreFocusingHistory(boolean interactive){
 		if (!interactive && ((FOCUS_MEASUREMENT_PARAMETERS.focusingHistoryFile==null) || (FOCUS_MEASUREMENT_PARAMETERS.focusingHistoryFile.length()==0))){
-			System.out.println("*** No focusing history to load!");
+			System.out.println("*** No focusing history to load! (used only for SFE focusing) ****");
 			return false;
 		}
 		FOCUSING_FIELD=new FocusingField(
@@ -11050,12 +11052,16 @@ if (MORE_BUTTONS) {
 			}
 			distortions.fittingStrategy.debugLevel=debugLevel;
 			distortions.fittingStrategy.adjustNumberOfImages(dcd.gIP.length);
+		} else {
+			System.out.println("No fitting strategy is provided");
 		}
 		if (configPaths[2] !=null){ // load grid file
 			patternParameters.debugLevel=debugLevel;
 			patternParameters.updateStatus=updateStstus;
 			if (DEBUG_LEVEL>0) System.out.println("Autolading grid file "+configPaths[2]);
 			patternParameters.selectAndRestore(true,configPaths[2],dcd.eyesisCameraParameters.numStations); // returns path or null on failure
+		} else {
+			System.out.println("No pattern grid file (ground gtruth) is provided");
 		}
 		if ((configPaths[3] !=null) && (configPaths[3] != "")){ // load sensor
 			if (distortions.fittingStrategy==null) return false; // Why?
@@ -11067,6 +11073,9 @@ if (MORE_BUTTONS) {
 					aberrationParameters.autoRestoreSensorOverwriteOrientation,
 					aberrationParameters.autoRestoreSensorOverwriteDistortion
 					);
+			System.out.println("... overwriting subcamera parameters");
+		} else {
+			System.out.println("No sensor calibration files are provided");
 		}
 		return true;
 	}

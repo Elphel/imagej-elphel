@@ -4745,7 +4745,9 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			return result;
 		}
 		public boolean [] getChannelSelection(Distortions distortions){
-			if (distortions==null) return null;
+			if ((distortions==null) ||
+					(distortions.fittingStrategy == null) ||
+					(distortions.fittingStrategy.distortionCalibrationData == null)) return null;
 		   	int numChannels=distortions.fittingStrategy.distortionCalibrationData.getNumChannels(); // number of used channels
     		if (this.selectedChannels==null) {
     			this.selectedChannels=new boolean[1];
@@ -4762,8 +4764,9 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 
 		}
 		public boolean selectChannelsToProcess(String title, Distortions distortions) {
-    		boolean [] newSelecttion=getChannelSelection(distortions).clone(); //java.lang.NullPointerException
+    		boolean [] newSelecttion=getChannelSelection(distortions); // .clone(); //java.lang.NullPointerException
 			if (newSelecttion==null) return false;
+			newSelecttion = newSelecttion.clone();
 			int numChannels=newSelecttion.length;
     		while (true) {
     			GenericDialog gd = new GenericDialog(title);
