@@ -84,8 +84,8 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     	private boolean [][] selectedImages=null; // images selected for each step (will be masked with enabled images)
     	private boolean [][] selectedValidImages=null; // images selected for each step same as selected, but only if number of weight>0.0 nodes > threshold
     	public boolean [] stopAfterThis=null;
-    	final public int modeFixed=0,modeCommon=1,modeSupercommon=2,modeIndividual=3,modeGroup=4;
-    	final public int modeStation=5,modeSuperStation=6,modeWeakCommon=7,modeWeakStation=8,modeTiltEqualize=9;
+    	final public static int modeFixed=0,modeCommon=1,modeSupercommon=2,modeIndividual=3,modeGroup=4;
+    	final public static int modeStation=5,modeSuperStation=6,modeWeakCommon=7,modeWeakStation=8,modeTiltEqualize=9;
     	public String[] definedModes={
     			"fixed",                         // modeFixed=0
     			"common",                        // modeCommon=1
@@ -121,13 +121,16 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     			"tilt equalize"                 // modeTiltEqualize
     			};
     	public String[] definedModesAll= definedModesTiltEq;
-    	public int [][] parameterMode=null; // per series, per-parameter
+    	public int [][] parameterMode=null; // per series, per-parameter - see modeFixed...modeTiltEqualize. Higher numbers - mean "same as"
+    	// and master subcamera index is calculated by subtracting this.definedModesAll.length
+
     	public int [][][] parameterGroups=null; // per series, per-parameter - null or array of group numbers (1 element per image)
     	public int [][] zGroups=null;
     	public boolean saveUnusedGroups=false; // purge groups for parameters when saving to XML, preserve if true
     	public double [] lambdas=null;   // LMA initial lambda for each step
     	public double defaultLambda=0.001;
     	public int [][] parameterList=null; // list of all parameters in the system, each has subcamera number and parameters index
+    	// [][0] - subcamera (0 also for non-subcamera specific), [][1] - parameter "name"
     	public boolean [] parameterEnable=null; // select which parameters (of some 320 to display in selector)
     	public int [] masterImages=null;        // number of image no take "common" parameters from if they are different
     	public double defaultStepDone=1.0E-6;
@@ -411,7 +414,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
             				(this.distortionCalibrationData.isSubcameraParameter(nPar)?("_sub"+nSub):""),
             				this.parameterMode[i][j]);
 // cleaning up output - removing unused groups (may disable
-            		if (((this.parameterMode[i][j]==this.modeGroup) || this.saveUnusedGroups ) &&  (this.parameterGroups[i][j]!=null)){
+            		if (((this.parameterMode[i][j]==modeGroup) || this.saveUnusedGroups ) &&  (this.parameterGroups[i][j]!=null)){
             			for (int ni=0;ni<this.parameterGroups[i][j].length;ni++){
                     		hConfig.addProperty(sSeries+".parameterMode."+
                     				this.distortionCalibrationData.parameterDescriptions[nPar][0]+
@@ -680,14 +683,14 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 			double masterTS=this.distortionCalibrationData.getImageTimestamp(this.masterImages[numSeries]); // timestamp of the master image
 			int [] masterVectorIndices = new int [numTPars];
 // iterate through all global/subcamera parameters
-    		for (int numTPar=0;numTPar<numTPars;numTPar++) if (this.parameterMode[numSeries][numTPar]!=this.modeFixed){ // skip "fixed"
+    		for (int numTPar=0;numTPar<numTPars;numTPar++) if (this.parameterMode[numSeries][numTPar]!=modeFixed){ // skip "fixed"
     			boolean isCommon=
-    				(this.parameterMode[numSeries][numTPar]==this.modeCommon) ||
-    				(this.parameterMode[numSeries][numTPar]==this.modeSupercommon);
+    				(this.parameterMode[numSeries][numTPar]==modeCommon) ||
+    				(this.parameterMode[numSeries][numTPar]==modeSupercommon);
     			boolean isStation=
-    				(this.parameterMode[numSeries][numTPar]==this.modeStation) ||
-    				(this.parameterMode[numSeries][numTPar]==this.modeSuperStation);
-    			boolean isGroup=(this.parameterMode[numSeries][numTPar]==this.modeGroup);
+    				(this.parameterMode[numSeries][numTPar]==modeStation) ||
+    				(this.parameterMode[numSeries][numTPar]==modeSuperStation);
+    			boolean isGroup=(this.parameterMode[numSeries][numTPar]==modeGroup);
     			int numSub=this.parameterList[numTPar][0]; // number of sub-camera for this total parameter index
     			int numPar=this.parameterList[numTPar][1]; // number of per-image parameter for this total parameter index
     			boolean isSubCamera=this.distortionCalibrationData.isSubcameraParameter(numPar);
@@ -695,13 +698,14 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     			int sameAs = this.parameterMode[numSeries][numTPar] - this.definedModesAll.length; // number of subcamera to use
     			int numTParMaster = -1;
     			int vectorIndexMaster = -1;
-    			if (sameAs < 0  ) sameAs = -1;
-    			else {
+    			if (sameAs < 0  ) {
+    				sameAs = -1;
+    			} else {
     				for (numTParMaster = 0; numTParMaster < numTPar; numTParMaster++){
     					if ((this.parameterList[numTParMaster][0] == sameAs) && (this.parameterList[numTParMaster][1] == numPar)) break;
     				}
     				// find master index for this parameter
-    				if (numTParMaster == numTPar) { // bug, reposrt and terat as fixed
+    				if (numTParMaster == numTPar) { // bug, report and treat as fixed
     					System.out.println("Bug in buildParameterMap("+numSeries+"): could not find master parameter for numTPar="+numTPar+", sameAs="+sameAs);
     					System.out.println("Treaing as fixed");
     					continue;
@@ -1420,7 +1424,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     				this.selectedImages[i][j]=false;
     			}
     			for (int j=0;j<this.parameterMode[i].length;j++){
-    				this.parameterMode[i][j]=this.modeFixed; // fixed
+    				this.parameterMode[i][j]=modeFixed; // fixed
     				this.parameterGroups[i][j]=null; // no groups yet defined
     			}
     			this.lambdas[i]=defaultLambda;
@@ -1434,16 +1438,21 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     		initParameterList();
 
     		for (int i=0;i<numPars;i++){
-    			this.parameterEnable[i]=true; // initially enable all parameters for the first camera
+    			this.parameterEnable[i]=!this.distortionCalibrationData.isNonRadial(i); // true; // initially enable all parameters for the first camera
     		}
     		for (int i=1;i<numSubCams;i++){
     			int i1=numPars+numSubPars*(i-1);
     			int j1=0;
     			for (int j=0;j<numPars;j++) if (this.distortionCalibrationData.isSubcameraParameter(j)){
-    				this.parameterEnable[i1+j1]=false; // initially disable all other subcamera parameters
+    				this.parameterEnable[i1+j1]=
+    						this.distortionCalibrationData.firstInGroup(i) &&
+    						!this.distortionCalibrationData.isNonRadial(j); // false; // initially disable all other subcamera parameters
         			j1++;
     			}
     		}
+    		// Improve - add main parameters (up to A8?) for each master channel
+
+
     	}
 
     	private void initParameterList(){
@@ -1906,7 +1915,6 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     			break;
     		case 6: // start from current selection
     			selection=selected.clone();
-    			break;
     		case 5: // start from empty selection
     			if (!selectImageSets(
     	    			selection,
@@ -2020,16 +2028,46 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 			sb.append("\n");
 			// parameters
 			for (int ipar =0; ipar<this.parameterEnable.length;ipar++) if (this.parameterEnable[ipar] &&
-					(!zeroAndOther || (this.parameterList[ipar][0] <= 1) || (this.parameterList[ipar][0] ==24))){ // in "zeroAndOther" mode do not show other subcameras
+//					(!zeroAndOther || (this.parameterList[ipar][0] <= 1) || (this.parameterList[ipar][0] ==24))){ // in "zeroAndOther" mode do not show other subcameras
+				    (!zeroAndOther || this.distortionCalibrationData.firstInGroup(this.parameterList[ipar][0]))){ // in "zeroAndOther" mode do not show other subcameras
 				int parIndex=this.parameterList[ipar][1];
 				int subCam=this.parameterList[ipar][0];
 				boolean isSub=this.distortionCalibrationData.isSubcameraParameter(parIndex);
-				String sChn=(zeroAndOther && (subCam>=1)&& (subCam<24))?"-head-other":
-					((zeroAndOther && (subCam>=24))?"-bottom":("-"+subCam));
+//				String sChn=(zeroAndOther && (subCam>=1)&& (subCam<24))?"-head-other":
+//					((zeroAndOther && (subCam>=24))?"-bottom":("-"+subCam));
+				String sChn=this.distortionCalibrationData.getSubName(subCam,false);
 				boolean noWeak=!this.distortionCalibrationData.eyesisCameraParameters.isExtrinsic(parIndex);
 				boolean isTilt=this.distortionCalibrationData.eyesisCameraParameters.isTilt(parIndex);
 				// for non-subcamera or subcam 0 - no extra choices. For "zeroAndOther" - only "0". For other subCam - all less than this
-				int subMaxNum = (this.distortionCalibrationData.isSubcameraParameter(parIndex) && (subCam > 0)) ? (zeroAndOther? 0 : (subCam-1)):-1;
+				// if zeroAndOther:
+				// non-sub: -1
+				// sub0 : -1
+				// sub:    0
+				// not zeroAndOther:
+				// non-sub - -1:
+				// sub: subCam-1 (previous index)
+				//int subMaxNum = (this.distortionCalibrationData.isSubcameraParameter(parIndex) && (subCam > 0)) ? (zeroAndOther? 0 : (subCam-1)):-1;
+				//
+				// new:
+				// if zeroAndOther:
+				// non-sub: -1
+				// firstInGroup : -1
+				// sub(other):    their group number - no, 0 - later add this.definedModesAll.length to master subcamera
+				// not zeroAndOther:
+				// non-sub - -1:
+				// sub(>0): subCam-1 (previous index) - will suggest any with smaller index - may be useless with lwir < vnir indices
+//				int subMaxNum = (this.distortionCalibrationData.isSubcameraParameter(parIndex) && (subCam > 0)) ? (zeroAndOther? 0 : (subCam-1)):-1;
+				int subMaxNum = -1;
+				if (this.distortionCalibrationData.isSubcameraParameter(parIndex)) { // only for subcamera parameters
+					if (zeroAndOther) {
+						subMaxNum = this.distortionCalibrationData.firstInGroup(subCam)?-1:0; //this.distortionCalibrationData.getSubGroup(subCam);
+					} else {
+						subMaxNum =  subCam-1; // 0 will be -1 - this may be wrong to align to higher index
+					}
+				}
+
+	/*=========*/
+
 				String [] commonChoices = (isTilt?this.definedModesTiltEq:(noWeak?this.definedModesNoWeak:this.definedModes));
 				String [] theseChoices;
 				String thisChoice = "";
@@ -2038,15 +2076,23 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 				sb.append(this.distortionCalibrationData.getParameterName(parIndex)+"\t"+(isSub?(" sub"+sChn):"com "));
 				for (int numSeries=fromSer;numSeries<toSer;numSeries++) if (isSeriesValid(numSeries)) {
 					if (subMaxNum < 0){
-//						theseChoices = commonChoices;
 						thisChoice = this.definedModesAll[this.parameterMode[numSeries][ipar]];
 					} else { // only can happen if (!isTilt) && (noWeak)
 						choice_offsets[ipar] = commonChoices.length;
 						theseChoices = new String [commonChoices.length + subMaxNum + 1];
 						for (int ch = 0; ch < commonChoices.length; ch++) theseChoices[ch] = commonChoices[ch];
-						for (int ch = 0; ch <= subMaxNum; ch++)  theseChoices[ch + commonChoices.length] = "same as "+ch;
+						if (zeroAndOther) {
+							if (subMaxNum >=0) { // can only be 0
+								theseChoices[commonChoices.length] = "same as "+this.distortionCalibrationData.masterSub(subCam);
+							}
+						} else {
+							for (int ch = 0; ch <= subMaxNum; ch++)  {
+								theseChoices[ch + commonChoices.length] = "same as "+ch;
+							}
+						}
 						// choice index for "same as ..." starts with  this.definedModesAll.length, but in the listbox index is lower
 						int indx = this.parameterMode[numSeries][ipar];
+
 						if (indx >= this.definedModesAll.length) {
 							indx -= (this.definedModesAll.length - choice_offsets[ipar]);
 						}
@@ -2074,6 +2120,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     	 * @param useParameters Select parameters for this series
     	 * @param askNextSeries Ask for next series number
     	 * @param zeroAndOther use 2 channels 0 and "other", propagate settings for channel 1 to all the rest
+    	 * Updated for more groups (up to 4 in LWIR/VNIR) - use 1 channel for each group, propagate to the rest of the group
     	 * @return -2 - cancel, -1, done, otherwise - number of step to edit
     	 */
     	public int selectStrategyStep(
@@ -2136,11 +2183,11 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 			boolean [] constrainByStation=new boolean[numStations];
 			for (int i=0;i<constrainByStation.length;i++) constrainByStation[i]=true;
 			if (this.distortionCalibrationData.eyesisCameraParameters.numStations>1){
-				gd.addMessage("Constrain by stations");
+				gd.addMessage("Constrain (select/remove all) by stations");
 				for (int i=0;i<this.distortionCalibrationData.eyesisCameraParameters.numStations;i++) 	gd.addCheckbox("Station "+i, constrainByStation[i]);
 			}
 			if (this.distortionCalibrationData.hasSmallSensors()) {
-				gd.addMessage("Constrain by High/Low resolution sensors (such as VNIR/LWIR)");
+				gd.addMessage("Constrain (select/remove all) by High/Low resolution sensors (such as VNIR/LWIR)");
 				gd.addCheckbox("Select high-res sensors", true);
 				gd.addCheckbox("Select low-res sensors", true);
 			}
@@ -2169,18 +2216,22 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 			if (useParameters) {
 				gd.addMessage("Select parameters to fit");
 				for (int i =0; i<this.parameterEnable.length;i++) if (this.parameterEnable[i] &&
-						(!zeroAndOther || (this.parameterList[i][0] <= 1) || (this.parameterList[i][0] ==24))){ // in "zeroAndOther" mode do not show other subcameras
+///						(!zeroAndOther || (this.parameterList[i][0] <= 1) || (this.parameterList[i][0] ==24))){ // in "zeroAndOther" mode do not show other subcameras
+						(!zeroAndOther || this.distortionCalibrationData.firstInGroup(this.parameterList[i][0]))){ // in "zeroAndOther" mode do not show other subcameras
+
 					int parIndex=this.parameterList[i][1];
 					int subCam=this.parameterList[i][0];
 					boolean isSub=this.distortionCalibrationData.isSubcameraParameter(parIndex);
 					boolean defined=false;
 					double min=0.0,max=0.0;
-					for (int imgNumber=0;imgNumber<this.distortionCalibrationData.getNumImages(); imgNumber++)
+					int sub_group = this.distortionCalibrationData.getSubGroup(subCam);
+					for (int imgNumber=0;imgNumber<this.distortionCalibrationData.getNumImages(); imgNumber++) {
 						if (this.selectedImages[numSeries][imgNumber] && this.distortionCalibrationData.gIP[imgNumber].enabled){
 							int sub=this.distortionCalibrationData.gIP[imgNumber].channel;
 							if (!isSub || (sub==subCam) ||  // global or same subcamera
-									(zeroAndOther && (subCam>=1) && (subCam<24) && (sub>=1) && (sub<24)) || // both head "other"
-									(zeroAndOther && (subCam>=24) && (sub>=24) )
+									//									(zeroAndOther && (subCam>=1) && (subCam<24) && (sub>=1) && (sub<24)) || // both head "other"
+									//									(zeroAndOther && (subCam>=24) && (sub>=24) )
+									(zeroAndOther && (sub_group == this.distortionCalibrationData.getSubGroup(sub)))
 									) { // both subcameras are "other" subcameras
 								double parValue=this.distortionCalibrationData.getParameterValue(imgNumber,parIndex);
 								if (!defined) {
@@ -2192,14 +2243,46 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 								if (parValue>max) max=parValue;
 							}
 						}
+					}
 					// undefined, min, max
 					String sValue=(defined)?((min==max)?(min+""):(min+"..."+max)):"undefined";
-					String sChn=(zeroAndOther && (subCam>=1)&& (subCam<24))?"-head-other":
-						((zeroAndOther && (subCam>=24))?"-bottom":("-"+subCam));
+///					String sChn=(zeroAndOther && (subCam>=1)&& (subCam<24))?"-head-other":
+///						((zeroAndOther && (subCam>=24))?"-bottom":("-"+subCam));
+					String sChn = this.distortionCalibrationData.getSubName(subCam,false);
+
 					boolean noWeak=!this.distortionCalibrationData.eyesisCameraParameters.isExtrinsic(parIndex);
 					boolean isTilt=this.distortionCalibrationData.eyesisCameraParameters.isTilt(parIndex);
 					// for non-subcamera or subcam 0 - no extra choices. For "zeroAndOther" - only "0". For other subCam - all less than this
-					int subMaxNum = (this.distortionCalibrationData.isSubcameraParameter(parIndex) && (subCam > 0)) ? (zeroAndOther? 0 : (subCam-1)):-1;
+
+///					int subMaxNum = (this.distortionCalibrationData.isSubcameraParameter(parIndex) && (subCam > 0)) ? (zeroAndOther? 0 : (subCam-1)):-1;
+					// for non-subcamera or subcam 0 - no extra choices. For "zeroAndOther" - only "0". For other subCam - all less than this
+					// if zeroAndOther:
+					// non-sub: -1
+					// sub0 : -1
+					// sub:    0
+					// not zeroAndOther:
+					// non-sub - -1:
+					// sub: subCam-1 (previous index)
+					//int subMaxNum = (this.distortionCalibrationData.isSubcameraParameter(parIndex) && (subCam > 0)) ? (zeroAndOther? 0 : (subCam-1)):-1;
+					//
+					// new:
+					// if zeroAndOther:
+					// non-sub: -1
+					// firstInGroup : -1
+					// sub(other):    their group number - no, 0
+					// not zeroAndOther:
+					// non-sub - -1:
+					// sub(>0): subCam-1 (previous index) - will suggest any with smaller index - may be useless with lwir < vnir indices
+//					int subMaxNum = (this.distortionCalibrationData.isSubcameraParameter(parIndex) && (subCam > 0)) ? (zeroAndOther? 0 : (subCam-1)):-1;
+					int subMaxNum = -1;
+					if (this.distortionCalibrationData.isSubcameraParameter(parIndex)) { // only for subcamera parameters
+						if (zeroAndOther) {
+							subMaxNum = this.distortionCalibrationData.firstInGroup(subCam)?-1:0; //this.distortionCalibrationData.getSubGroup(subCam);
+						} else {
+							subMaxNum =  subCam-1; // 0 will be -1 - this may be wrong to align to higher index
+						}
+					}
+
 					String [] commonChoices = (isTilt?this.definedModesTiltEq:(noWeak?this.definedModesNoWeak:this.definedModes));
 					String [] theseChoices;
 					String thisChoice = "";
@@ -2211,7 +2294,15 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 						choice_offsets[i] = commonChoices.length;
 						theseChoices = new String [commonChoices.length + subMaxNum + 1];
 						for (int ch = 0; ch < commonChoices.length; ch++) theseChoices[ch] = commonChoices[ch];
-						for (int ch = 0; ch <= subMaxNum; ch++)  theseChoices[ch + commonChoices.length] = "same as "+ch;
+						if (zeroAndOther) {
+							if (subMaxNum >=0) {
+								theseChoices[commonChoices.length] = "same as "+this.distortionCalibrationData.masterSub(subCam);
+							}
+						} else {
+							for (int ch = 0; ch <= subMaxNum; ch++)  {
+								theseChoices[ch + commonChoices.length] = "same as "+ch;
+							}
+						}
 						// choice index for "same as ..." starts with  this.definedModesAll.length, but in the listbox index is lower
 						int indx = this.parameterMode[numSeries][i];
 						if (indx >= this.definedModesAll.length) {
@@ -2221,10 +2312,12 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 						System.out.println("selectStrategyStep(): this.parameterMode["+numSeries+"]["+i+"]=" + this.parameterMode[numSeries][i]+" indx = "+indx);
 					}
 					gd.addChoice( // ArrayIndexOutOfBoundsException: 9
+							(this.distortionCalibrationData.isSubcameraParameter(parIndex)?"":"* ") +
 							this.distortionCalibrationData.getParameterName(parIndex)+
 							" ("+sValue+" "+
 							this.distortionCalibrationData.getParameterUnits(parIndex)+")"+
-							(this.distortionCalibrationData.isSubcameraParameter(parIndex)?(" sub"+sChn):"com "),
+//							(this.distortionCalibrationData.isSubcameraParameter(parIndex)?(" sub"+sChn):"com "),
+							(this.distortionCalibrationData.isSubcameraParameter(parIndex)?("   "+sChn):"   common"),
 							theseChoices,
 							thisChoice);
 				}
@@ -2324,12 +2417,12 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 			}
 
 			if (copyFromPrevious){
-    			int sourceSeries= findLastValidSeries(sourceStrategy);
-    			if (sourceSeries>=0) {
-    				copySeries(sourceSeries, numSeries);
-    			} else {
-    				System.out.println("Could not copy from invalid series "+sourceSeries);
-    			}
+				int sourceSeries= findLastValidSeries(sourceStrategy);
+				if (sourceSeries>=0) {
+					copySeries(sourceSeries, numSeries);
+				} else {
+					System.out.println("Could not copy from invalid series "+sourceSeries);
+				}
 				for (int i =0; i<this.distortionCalibrationData.getNumImages();i++){
 					this.selectedImages[numSeries][i]&=constrainByStation[this.distortionCalibrationData.gIP[i].getStationNumber()];
 				}
@@ -2338,47 +2431,54 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 			if (removeAllImages || selectAllImages) {
 				for (int i =0; i<this.distortionCalibrationData.getNumImages();i++){
 					this.selectedImages[numSeries][i]=selectAllImages || ((i==0) && removeAllImages); // invalidate - all, regardless of .enabled
-					this.selectedImages[numSeries][i]&=constrainByStation[this.distortionCalibrationData.gIP[i].getStationNumber()];
+					this.selectedImages[numSeries][i] &= constrainByStation[this.distortionCalibrationData.gIP[i].getStationNumber()];
+					if (selectHiLowRes != null) {
+						int small_01 = this.distortionCalibrationData.isSmallSensor(i)?1:0;
+//						System.out.println(i+":"+small_01);
+						this.selectedImages[numSeries][i] &= selectHiLowRes[small_01];
+					}
+
 				}
 				return numSeries; // caller will repeat with the same series
 			}
 			boolean enableDisableSelected=false;
 			if (useImages) {
-	    		fromToImages[0]=    (int) gd.getNextNumber();
-	    		fromToImages[1]=    (int) gd.getNextNumber();
+				fromToImages[0]=    (int) gd.getNextNumber();
+				fromToImages[1]=    (int) gd.getNextNumber();
 				for (int i =0; i<this.distortionCalibrationData.getNumImages();i++)
 					if ((allImages || this.distortionCalibrationData.gIP[i].enabled) && (i>=fromToImages[0]) && (i<=fromToImages[1])){
-					this.selectedImages[numSeries][i]=gd.getNextBoolean();
-				}
+						this.selectedImages[numSeries][i]=gd.getNextBoolean();
+					}
 				if (allImages) enableDisableSelected=gd.getNextBoolean();
 				this.masterImages[numSeries]=(int) gd.getNextNumber();
 				if (this.masterImages[numSeries]<0)this.masterImages[numSeries]=0;
 				if (this.masterImages[numSeries]>=this.selectedImages[numSeries].length)this.masterImages[numSeries]=this.selectedImages[numSeries].length;
 			}
-			if (selectHiLowRes != null) {
-				for (int i =0; i<this.distortionCalibrationData.getNumImages();i++) {
-					boolean low_res = this.distortionCalibrationData.isSmallSensor(i);
-					if ((low_res && !selectHiLowRes[1]) && (!low_res && !selectHiLowRes[0])){
-						this.selectedImages[numSeries][i]= false;
-					}
-				}
-			}
+//			if (selectHiLowRes != null) {
+//				for (int i =0; i<this.distortionCalibrationData.getNumImages();i++) {
+//					boolean low_res = this.distortionCalibrationData.isSmallSensor(i);
+//					if ((low_res && !selectHiLowRes[1]) && (!low_res && !selectHiLowRes[0])){
+//						this.selectedImages[numSeries][i]= false;
+//					}
+//				}
+//			}
 
 			if (useParameters) {
 				int [] lastGroups=null;
 				for (int i =0; i<this.parameterEnable.length;i++) if (this.parameterEnable[i] &&
-						(!zeroAndOther || (this.parameterList[i][0] <=1) || (this.parameterList[i][0]==24))){ // in "zeroAndOther" mode do not show other subcameras
-					//				for (int i =0; i<this.parameterEnable.length;i++) if (this.parameterEnable[i]){
+//						(!zeroAndOther || (this.parameterList[i][0] <=1) || (this.parameterList[i][0]==24))){ // in "zeroAndOther" mode do not show other subcameras
+				    (!zeroAndOther || this.distortionCalibrationData.firstInGroup(this.parameterList[i][0]))){ // in "zeroAndOther" mode do not show other subcameras
+
 					this.parameterMode[numSeries][i]=gd.getNextChoiceIndex();
 
-// make adjustment for "same as (other lower numbered subcamera)"
+					// make adjustment for "same as (other lower numbered subcamera)"
 					if ((choice_offsets[i] > 0) && (this.parameterMode[numSeries][i] >= choice_offsets[i])){
 						System.out.print("selectStrategyStep(): choice_offsets["+i+"]="+choice_offsets[i]+ " this.parameterMode["+numSeries+"]["+i+"]=" + this.parameterMode[numSeries][i]);
 						this.parameterMode[numSeries][i] += (this.definedModesAll.length - choice_offsets[i]);
 						System.out.println(", corrected=" + this.parameterMode[numSeries][i]);
 					}
 
-					if (this.parameterMode[numSeries][i]==this.modeGroup) {
+					if (this.parameterMode[numSeries][i]==modeGroup) {
 						if (this.parameterGroups[numSeries][i]!=null) lastGroups=this.parameterGroups[numSeries][i]; // default groups
 						else if (lastGroups!=null) this.parameterGroups[numSeries][i]=lastGroups.clone(); // may be null
 						selectGroups(numSeries,i);
@@ -2386,13 +2486,16 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 				}
 				if (zeroAndOther){
 					for (int i =0; i<this.parameterEnable.length;i++) {
-						if ((this.parameterList[i][0]>1) && (this.parameterList[i][0]!=24)){ // "other" subchannels - copy from subchannel1
-							int refChannel=(this.parameterList[i][0]<24)?1:24;
+//						if ((this.parameterList[i][0]>1) && (this.parameterList[i][0]!=24)){ // "other" subchannels - copy from subchannel1
+						if (!this.distortionCalibrationData.firstInGroup(this.parameterList[i][0])){ // "other" subchannels - copy from subchannel1
+//							int refChannel=(this.parameterList[i][0]<24)?1:24;
+							int refChannel= this.distortionCalibrationData.masterSub(this.parameterList[i][0]);
+
 							int iSub1=getParameterNumber(refChannel, this.parameterList[i][1]);
 							if (this.parameterEnable[iSub1]){
 								//					System.out.println(	"parameter number="+i+" this.parameterList[i][0]="+this.parameterList[i][0]+" this.parameterList[i][1]="+this.parameterList[i][1]+" iSub1="+iSub1);
 								this.parameterMode[numSeries][i]=this.parameterMode[numSeries][iSub1];
-								if (this.parameterMode[numSeries][i]==this.modeGroup) { // copy groups from channel 1
+								if (this.parameterMode[numSeries][i]==modeGroup) { // copy groups from channel 1
 									if (this.parameterGroups[numSeries][i]!=null) this.parameterGroups[numSeries][i]=this.parameterGroups[numSeries][iSub1].clone(); // may be null
 									else this.parameterGroups[numSeries][i]=null;
 								}
@@ -2406,20 +2509,20 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 				this.stepDone[numSeries]=Double.parseDouble(gd.getNextString());
 				this.stopAfterThis[numSeries]=gd.getNextBoolean();
 			}
-    		if (enableDisableSelected) {
-    			this.distortionCalibrationData.enableSelected(this.selectedImages[numSeries]);
-    		}
+			if (enableDisableSelected) {
+				this.distortionCalibrationData.enableSelected(this.selectedImages[numSeries]);
+			}
 
-    		if (this.varianceModes!=null) this.varianceModes[numSeries]=gd.getNextChoiceIndex();
+			if (this.varianceModes!=null) this.varianceModes[numSeries]=gd.getNextChoiceIndex();
 
-    		boolean editVariancesCosts=gd.getNextBoolean();
-    		if (editVariancesCosts){
+			boolean editVariancesCosts=gd.getNextBoolean();
+			if (editVariancesCosts){
 				for (int i =0; i<this.parameterList.length;i++) {
 					int parIndex=this.parameterList[i][1];
 					if ((this.parameterMode[numSeries][i]==modeWeakCommon) ||
 							(this.parameterMode[numSeries][i]==modeWeakStation) ||
 							(this.parameterMode[numSeries][i]==modeTiltEqualize)
-					){
+							){
 						if (!this.distortionCalibrationData.eyesisCameraParameters.isExtrinsic(parIndex)){
 							System.out.println("BUG: this.parameterMode["+numSeries+"]["+i+"]="+this.parameterMode[numSeries][i]+
 									", but this parameter ("+this.distortionCalibrationData.getParameterName(parIndex)+" is not valid for variances");
@@ -2432,7 +2535,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 								this.distortionCalibrationData.getParameterUnits(parIndex));
 					}
 				}
-    		}
+			}
 
 			if (numStations>1){
 				for (int i=0;i<numStations;i++){
@@ -2440,7 +2543,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 				}
 			}
 
-    		if (!gd.wasOKed()) return -1; // pressed Done (no need to ask for the next number)
+			if (!gd.wasOKed()) return -1; // pressed Done (no need to ask for the next number)
 
 			if (askNextSeries) {
 				showDirectMap=gd.getNextBoolean();
@@ -2459,17 +2562,17 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     	}
 
     	private boolean selectGroups(
-				int numSeries,
-				int numPar){
- //   		if (this.debugLevel>1){
- //   			System.out.println("selectGroups("+numSeries+", "+numPar+")");
- //   		}
+    			int numSeries,
+    			int numPar){
+    		//   		if (this.debugLevel>1){
+    		//   			System.out.println("selectGroups("+numSeries+", "+numPar+")");
+    		//   		}
 
 
-			int parIndex=this.parameterList[numPar][1];
-			int subCam=this.parameterList[numPar][0];
-			String name=this.distortionCalibrationData.getParameterName(parIndex)+
-			(this.distortionCalibrationData.isSubcameraParameter(parIndex)?(" s"+subCam):"com ");
+    		int parIndex=this.parameterList[numPar][1];
+    		int subCam=this.parameterList[numPar][0];
+    		String name=this.distortionCalibrationData.getParameterName(parIndex)+
+    				(this.distortionCalibrationData.isSubcameraParameter(parIndex)?(" s"+subCam):"com ");
     		GenericDialog gd = new GenericDialog("Select image groups for "+name);
     		gd.addMessage("Select which images share the same value of "+name);
 
@@ -2485,53 +2588,53 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     					choices[this.parameterGroups[numSeries][numPar][i]]
     					);
     		}
-			WindowTools.addScrollBars(gd);
+    		WindowTools.addScrollBars(gd);
 
-			gd.showDialog();
-			if (gd.wasCanceled()) return false;
+    		gd.showDialog();
+    		if (gd.wasCanceled()) return false;
     		for (int i =0; i<this.distortionCalibrationData.getNumImages();i++) if (this.selectedImages[numSeries][i]){
     			this.parameterGroups[numSeries][numPar][i]=gd.getNextChoiceIndex();
     		}
-			return true;
+    		return true;
 
-		}
-		/**
-		 * Organizes list of groups and creates a list of selection choices. If all members fit in the range
-		 * of 0 (length-1) and (force==false), group numbers are preserved, otherwise they are renumbered
-		 * @param groups array of integers - group numbers
-		 * @param force force renumbering groups
-		 * @return list of selection choices
-		 */
-		private String [] organizeGroups(int []groups, boolean force) {
-			if ((groups==null) || (groups.length==0)){
-				String msg="Cannot organize mull or empty group";
-				IJ.showMessage("Error",msg);
-				throw new IllegalArgumentException (msg);
-			}
-			// See if 0.. length-1 groups is not enough to represent all numbers used
-			for (int i=0;!force && (i<groups.length);i++) if ((groups[i]<0) || (groups[i]>=(groups.length-1))) force = true;
-			if (force){
-				int [] tmp=groups.clone();
-				for (int i=0;i<groups.length;i++) groups[i]=-1;
-				int groupNumber=0;
-				int max=tmp[0]; for (int i=0;i<tmp.length;i++) if (max<tmp[i]) max=tmp[i];
-				for (boolean organized=false; !organized;){
-					int min=max+1;
-					for (int i=0;i<tmp.length;i++) if ((groups[i]<0) && (min>tmp[i])) min=tmp[i];
-					if (min>max) organized=true;
-					else {
-						for (int i=0;i<tmp.length;i++) if ((groups[i]<0) && (min == tmp[i])) {
-							groups[i]=groupNumber;
-						}
-						groupNumber++;
-					}
-				}
-			}
-			String [] rslt= new String [groups.length];
-			for (int i=0;i<rslt.length;i++) rslt[i]="Group "+(i+1);
-			return rslt;
+    	}
+    	/**
+    	 * Organizes list of groups and creates a list of selection choices. If all members fit in the range
+    	 * of 0 (length-1) and (force==false), group numbers are preserved, otherwise they are renumbered
+    	 * @param groups array of integers - group numbers
+    	 * @param force force renumbering groups
+    	 * @return list of selection choices
+    	 */
+    	private String [] organizeGroups(int []groups, boolean force) {
+    		if ((groups==null) || (groups.length==0)){
+    			String msg="Cannot organize mull or empty group";
+    			IJ.showMessage("Error",msg);
+    			throw new IllegalArgumentException (msg);
+    		}
+    		// See if 0.. length-1 groups is not enough to represent all numbers used
+    		for (int i=0;!force && (i<groups.length);i++) if ((groups[i]<0) || (groups[i]>=(groups.length-1))) force = true;
+    		if (force){
+    			int [] tmp=groups.clone();
+    			for (int i=0;i<groups.length;i++) groups[i]=-1;
+    			int groupNumber=0;
+    			int max=tmp[0]; for (int i=0;i<tmp.length;i++) if (max<tmp[i]) max=tmp[i];
+    			for (boolean organized=false; !organized;){
+    				int min=max+1;
+    				for (int i=0;i<tmp.length;i++) if ((groups[i]<0) && (min>tmp[i])) min=tmp[i];
+    				if (min>max) organized=true;
+    				else {
+    					for (int i=0;i<tmp.length;i++) if ((groups[i]<0) && (min == tmp[i])) {
+    						groups[i]=groupNumber;
+    					}
+    					groupNumber++;
+    				}
+    			}
+    		}
+    		String [] rslt= new String [groups.length];
+    		for (int i=0;i<rslt.length;i++) rslt[i]="Group "+(i+1);
+    		return rslt;
 
-		}
+    	}
     	public boolean selectStrategy(int startSerNumber){
     		int defaultLength=30;
     		boolean selectImages=    false;
@@ -2557,7 +2660,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     		gd.addCheckbox    ("Select parameters",selectParameters);
     		gd.addCheckbox    ("Ask for initial lambda",askLambdas);
     		gd.addCheckbox    ("Ask for parameter mask",askParameterMask);
-    		gd.addCheckbox    ("Use only channel 0 and \"all other channels\"",zeroAndOther);
+    		gd.addCheckbox    ("Use only 'master' channels",zeroAndOther);
     		gd.addCheckbox    ("Ask for next series",askNextSeries);
     		if (oldLength>0)  gd.addNumericField("Increase number of series in this strategy", oldLength, 0);
    	        gd.enableYesNoCancel("OK", "Done");
@@ -2594,44 +2697,45 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     		return true;
     	}
 
+//TODO: Use Tabbed dialog
     	public boolean setParameterSelectionMask(boolean zeroAndOther){
     		GenericDialog gd = new GenericDialog("Set Parameter Selection Mask");
-    		gd.addMessage("Common parameters and sub-camera 0 parameters");
-    		int subCam=0;
-    		boolean showParameter=true;
+//    		gd.addMessage("Common parameters and sub-camera 0 parameters");
+//    		gd.addMessage("Common parameters");
+    		int lastSub = -2;
+    		boolean [] show_parameter = new boolean[this.parameterList.length];
     		for (int i=0;i<this.parameterList.length;i++){
-    			if (this.parameterList[i][0]!=subCam){
-    				subCam=this.parameterList[i][0];
+    			show_parameter[i]=true;
+    			int subCam = this.parameterList[i][0];
+    			int parIndex=this.parameterList[i][1];
+    			boolean isSub=this.distortionCalibrationData.isSubcameraParameter(parIndex);
+    			if (!isSub) subCam = -1;
+				show_parameter[i] = true; // show all non-subcamera parameters
+    			if (subCam >= 0) {
     				if (zeroAndOther) {
-    					showParameter=true;
-    					if (subCam==1) gd.addMessage("Other sub-cameras parameters");
-    					else if (subCam==24) gd.addMessage("Bottom sub-cameras parameters");
-//    					else break;
-    					else {
-    						showParameter=false;
-//    						continue;
+    					if (this.distortionCalibrationData.firstInGroup(subCam)) {
+    						if (subCam != lastSub) gd.addMessage(this.distortionCalibrationData.getSubName(subCam,true));
+    					} else {
+    						show_parameter[i] = false;
     					}
     				} else {
     					gd.addMessage("Sub-camera "+subCam+" parameters");
     				}
+    			} else {
+					if (subCam != lastSub) gd.addMessage("Common parameters");
     			}
-        		if (showParameter) gd.addCheckbox (this.distortionCalibrationData.getParameterName(parameterList[i][1]),this.parameterEnable[i]);
+    			lastSub = subCam;
+    			if (show_parameter[i]) {
+    				gd.addCheckbox (this.distortionCalibrationData.getParameterName(parameterList[i][1]),this.parameterEnable[i]);
+    			}
     		}
       	     WindowTools.addScrollBars(gd);
 //   	     gd.setBackground(Color.white);
 			gd.showDialog();
 			if (gd.wasCanceled()) return false;
-			subCam=0;
-			showParameter=true;
-			//May add disablong all other subcameras, but try keeping it for later running with zeroAndOther==false
-    		for (int i=0;i<this.parameterList.length;i++){
-    			if (this.parameterList[i][0]!=subCam){
-    				subCam=this.parameterList[i][0];
-					showParameter=true;
-//					if (subCam>1) break;
-					if ((subCam>1) && (subCam!=24))	showParameter=false;
-    			}
-    			if (showParameter) this.parameterEnable[i]=gd.getNextBoolean();
+			//May add disabling all other subcameras, but try keeping it for later running with zeroAndOther==false
+    		for (int i=0;i<this.parameterList.length;i++) if(show_parameter[i]) {
+    			this.parameterEnable[i]=gd.getNextBoolean();
     		}
     		return true;
     	}

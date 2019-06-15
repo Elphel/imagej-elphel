@@ -1490,19 +1490,46 @@ if (sfiles == null) {
 
         public void listImageSet(
         		int    mode,
-        		int [] numPoints,
+        		int [] numPoints, // All arrays may be twice long, then 1 - EO, second - LWIR
         		double [] setRMS,
         		boolean [] hasNaNInSet){
         	if ((this.gIS==null) || (this.gIS.length==0)){
         		return;
         	}
+        	boolean showXYZ = true;
+    		boolean hasLwir = false;
+    		if (numPoints!=null) {
+        		hasLwir = numPoints.length > this.gIS.length; // twice longer
+    		} else if (setRMS != null) {
+        		hasLwir = setRMS.length > this.gIS.length; // twice longer
+    		} else if (hasNaNInSet != null) {
+        		hasLwir = hasNaNInSet.length > this.gIS.length; // twice longer
+    		}
+
+
         	String header="#\ttimestamp";
         	if (this.eyesisCameraParameters.numStations>1) header+="\tStation";
 //        	header+="\tAxial\tTilt\thorPhi\thorPsi\tX\tY\tZ\tMotor2\tMotor3";
-        	header+="\tAxial\tTilt\tdTilt\tInter\tMotor2\tMotor3";
-        	if (numPoints!=null) header+="\tNumPoints";
+        	header+="\tAxial\tTilt\tdTilt\tInter";
+        	if (showXYZ) {
+            	header+="\tGXY0\tGXY1\tGXY2";
+        	}
+        	header+="\tMotor2\tMotor3";
+        	if (numPoints!=null) {
+        		if (hasLwir) {
+            		header+="\tNumPointsEO\tNumPointsLWIR";
+        		} else {
+        			header+="\tNumPoints";
+        		}
+        	}
         	header+="\tEnabled\tMatched";
-        	if (setRMS!=null) header+="\tRMS\tWeight";
+        	if (setRMS!=null) {
+        		if (hasLwir) {
+            		header+="\tRMS-EO\tRMS-LWIR\tWeight";
+        		} else {
+            		header+="\tRMS\tWeight";
+        		}
+        	}
         	for (int n=0;n<this.gIS[0].imageSet.length;n++) header+="\t"+n;
     		StringBuffer sb = new StringBuffer();
 
@@ -1553,12 +1580,25 @@ if (sfiles == null) {
     			sb.append("\t"+(Double.isNaN(dTilt)?"---":IJ.d2s(dTilt,3)));
     			sb.append("\t"+(Double.isNaN(firstInterAxisAngle)?"---":IJ.d2s(firstInterAxisAngle,3)));
 
+            	if (showXYZ) {
+                	sb.append(String.format("\t%.1f\t%.1f\t%.1f", this.gIS[i].GXYZ[0], this.gIS[i].GXYZ[1], this.gIS[i].GXYZ[2]));
+            	}
+
+
+
     			if (this.gIS[i].motors==null) {
     				sb.append("\t"+"bug"+"\t"+"bug");
     			} else {
     				sb.append("\t"+this.gIS[i].motors[1]+"\t"+this.gIS[i].motors[2]); // null pointer here????
     			}
-            	if (numPoints!=null) sb.append("\t"+numPoints[i]);
+            	if (numPoints!=null) {
+            		if (hasLwir) {
+                		sb.append("\t"+numPoints[2 * i + 0]);
+                		sb.append("\t"+numPoints[2 * i + 1]);
+            		} else {
+                		sb.append("\t"+numPoints[i]);
+            		}
+            	}
             	int numEnImages=0;
             	for (int n=0;n<this.gIS[i].imageSet.length;n++)if (this.gIS[i].imageSet[n]!=null){
             		if (this.gIS[i].imageSet[n].enabled) numEnImages++;
@@ -1572,8 +1612,14 @@ if (sfiles == null) {
             	}
             	sb.append("\t"+matchedPointersInSet);
             	if (setRMS!=null) {
-            		sb.append("\t"+(((hasNaNInSet!=null) && hasNaNInSet[i])?"*":"")+IJ.d2s(setRMS[i],3));
-            		sb.append("\t"+IJ.d2s(this.gIS[i].setWeight,3));
+            		if (hasLwir) {
+                		sb.append("\t"+(((hasNaNInSet!=null) && hasNaNInSet[2 * i + 0])?"*":"")+IJ.d2s(setRMS[2 * i + 0],3));
+                		sb.append("\t"+(((hasNaNInSet!=null) && hasNaNInSet[2 * i + 1])?"*":"")+IJ.d2s(setRMS[2 * i + 1],3)); //393
+                		sb.append("\t"+IJ.d2s(this.gIS[i].setWeight,3));
+            		} else {
+                		sb.append("\t"+(((hasNaNInSet!=null) && hasNaNInSet[i])?"*":"")+IJ.d2s(setRMS[i],3));
+                		sb.append("\t"+IJ.d2s(this.gIS[i].setWeight,3));
+            		}
             	}
             	switch (mode) {
             	case 0:
@@ -3331,7 +3377,7 @@ if (sfiles == null) {
     		return small_sensors;
     	}
     	public boolean isSmallSensor(int numImg) {
-    		if ((this.gIP != null) &&  (numImg < this.gIP.length) && (small_sensors == null)){
+    		if ((this.gIP != null) &&  (numImg < this.gIP.length) && (small_sensors != null)){
     			return small_sensors[this.gIP[numImg].getChannel()];
     		}
     		return false;
@@ -3410,32 +3456,52 @@ if (sfiles == null) {
     		}
 			return n;
     	}
+    	// check if the channel is the first in group
+    	public boolean firstInGroup(int chn) {
+    		if (chn >= 24) return (chn == 24);
+    		if ((chn == getVnir0()) || (chn == getLwir0())) return true;
+    		int [] num = {0,0};
+    		for (int i = 0; i < chn; i++) {
+    			if ((small_sensors != null) && small_sensors[i]) num[1]++;
+    			else num[0]++;
+    		}
+    		if ((small_sensors != null) && small_sensors[chn]) return (num[1] == 1);
+    		else                                               return (num[0] == 1);
+    	}
 
-    	public String getSubName(int chn) {
+    	public String getSubName(int chn, boolean full) {
     		int groups = getSubGroups();
-    		if (groups == 1) return "sub"; // single camera
+    		if (groups == 1) return full?"Single subcamera":"sub"; // single camera
     		int num_sub = getNumSubCameras();
     		if (num_sub == 26) { // eyesis4pi-26
-    			if (chn == 0) return "sub-head-0";
-    			if (chn < 24) return "sub-head-other";
-    			return               "sub-bottom";
+    			if (chn == 0) return full?"Camera head subcamera 0":"sub-head-0";
+    			if (chn < 24) return full?"Camera head other subcameras":"sub-head-other";
+    			if (chn == 24) return full?"Camera bottom 0":"sub-bottom-0";
+    			return                full?"Camera bottom other":"sub-bottom-other";
     		}
     		if (hasSmallSensors()) {
     			if (small_sensors[chn]) { // current is LWIR
-    				if (chn != getLwir0()) return "sub-lwir-other";
-    				if (getNumLwir() > 1) return  "sub-lwir0";
-    				return                        "sub-lwir";
+    				if (chn != getLwir0()) return full?"Subcamera LWIR other":"sub-lwir-other";
+    				if (getNumLwir() > 1) return  full?"Subcamera LWIR 0":"sub-lwir0";
+    				return                        full?"Subcamera LWIR":"sub-lwir";
     			} else {  // current is VNIR
-    				if (chn != getVnir0()) return "sub-vnir-other";
-    				if (getNumVnir() > 1) return  "sub-vnir0";
-    				return                        "sub-vnir";
+    				if (chn != getVnir0()) return full?"Subcamera VNIR other":"sub-vnir-other";
+    				if (getNumVnir() > 1) return  full?"Subcamera VNIR 0":"sub-vnir0";
+    				return                        full?"Subcamera VNIR":"sub-vnir";
     			}
     		}
-			if (chn != getVnir0()) return "sub-other";
-			return                        "sub0";
+			if (chn != getVnir0()) return full?"Subcamera other":"sub-other";
+			return                        full?"Subcamera 0":"sub0";
     	}
 
-
+    	// get subcamera index this one should copy parameters from (-1 if it is first in group
+    	public int masterSub(int chn) {
+    		if (firstInGroup(chn)) return -1;
+    		for (int mchn = chn -1; mchn >= 0; mchn--) {
+    			if (firstInGroup(mchn)) return mchn;
+    		}
+    		return -1; // should never get here
+    	}
 
 
 

@@ -780,25 +780,52 @@ public class Distortions {
 		int [] numPairs=calcNumPairs();
 
 	    int [][] imageSets=this.fittingStrategy.distortionCalibrationData.listImages(false); // true - only enabled images
-	    int [] numSetPoints=new int [imageSets.length];
-	    double [] rmsPerSet=new double[imageSets.length];
-	    boolean [] hasNaNInSet=new boolean[imageSets.length];
-	    for (int setNum=0;setNum<imageSets.length;setNum++){
-	    	double error2=0.0;
-	    	int numInSet=0;
-    		hasNaNInSet[setNum]=false;
-	    	for (int imgInSet=0;imgInSet<imageSets[setNum].length;imgInSet++) {
-	    		int imgNum=imageSets[setNum][imgInSet];
-	    		int num=numPairs[imgNum];
-	    		if (Double.isNaN(errors[imgNum])){
-	    			hasNaNInSet[setNum]=true;
-	    		} else {
-	    			error2+=errors[imgNum]*errors[imgNum]*num;
-	    			numInSet+=num;
+	    boolean hasLWIR = this.fittingStrategy.distortionCalibrationData.hasSmallSensors();
+
+	    int [] numSetPoints=new int [imageSets.length*(hasLWIR?2:1)];
+	    double [] rmsPerSet=new double[imageSets.length*(hasLWIR?2:1)];
+	    boolean [] hasNaNInSet=new boolean[imageSets.length*(hasLWIR?2:1)];
+	    if (hasLWIR) {
+	    	for (int setNum=0;setNum<imageSets.length;setNum++){
+	    		double [] error2= {0.0,0.0};
+	    		int [] numInSet= {0,0};
+	    		hasNaNInSet[2*setNum]=false;
+	    		hasNaNInSet[2*setNum+1]=false;
+	    		for (int imgInSet=0;imgInSet<imageSets[setNum].length;imgInSet++) {
+	    			int imgNum=imageSets[setNum][imgInSet];
+	    			int isLwir = this.fittingStrategy.distortionCalibrationData.isSmallSensor(imgNum)?1:0;
+	    			int num=numPairs[imgNum];
+	    			if (Double.isNaN(errors[imgNum])){
+	    				hasNaNInSet[2 * setNum + isLwir]=true;
+	    			} else {
+	    				error2[isLwir]+=errors[imgNum]*errors[imgNum]*num;
+	    				numInSet[isLwir]+=num;
+	    			}
 	    		}
+	    		numSetPoints[2 * setNum + 0]= numInSet[0];
+	    		rmsPerSet   [2 * setNum + 0]= Math.sqrt(error2[0]/numInSet[0]);
+	    		numSetPoints[2 * setNum + 1]= numInSet[1];
+	    		rmsPerSet   [2 * setNum + 1]= Math.sqrt(error2[1]/numInSet[1]);
 	    	}
-	    	numSetPoints[setNum]=numInSet;
-	    	rmsPerSet[setNum]=Math.sqrt(error2/numInSet);
+
+	    } else {
+	    	for (int setNum=0;setNum<imageSets.length;setNum++){
+	    		double error2=0.0;
+	    		int numInSet=0;
+	    		hasNaNInSet[setNum]=false;
+	    		for (int imgInSet=0;imgInSet<imageSets[setNum].length;imgInSet++) {
+	    			int imgNum=imageSets[setNum][imgInSet];
+	    			int num=numPairs[imgNum];
+	    			if (Double.isNaN(errors[imgNum])){
+	    				hasNaNInSet[setNum]=true;
+	    			} else {
+	    				error2+=errors[imgNum]*errors[imgNum]*num;
+	    				numInSet+=num;
+	    			}
+	    		}
+	    		numSetPoints[setNum]=numInSet;
+	    		rmsPerSet[setNum]=Math.sqrt(error2/numInSet);
+	    	}
 	    }
 	    this.fittingStrategy.distortionCalibrationData.listImageSet(
 	    		mode,
