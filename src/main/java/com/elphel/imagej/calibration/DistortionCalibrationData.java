@@ -68,7 +68,7 @@ import ij.text.TextWindow;
     	public static final int INDEX_R =        5;
     	public static final int INDEX_G =        6;
     	public static final int INDEX_B =        7;
-    	public static final double SMALL_FRACTION = 0.8; // consider sesnor to be a "small" if average grid period < this fraction of the large
+    	public static final double SMALL_FRACTION = 0.8; // consider sensor to be a "small" if average grid period < this fraction of the large
 
     	public String pathName=null;
     	public EyesisCameraParameters eyesisCameraParameters; // has "cartesian"
@@ -247,7 +247,7 @@ import ij.text.TextWindow;
         			double minContrast,
         			double shrinkBlurSigma,
         			double shrinkBlurLevel){
-        		if (this.pixelsMask!=null) return; // need to reset ro re-calculate
+        		if (this.pixelsMask!=null) return; // need to reset to re-calculate
         		if (this.pixelsUV==null) {this.pixelsMask=null; return; }
         		if (this.pixelsUV.length==0){ this.pixelsMask=new double[0]; return; }
 
@@ -316,7 +316,7 @@ import ij.text.TextWindow;
     		public double [] GXYZ=new double [3];  //14 (12) coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
 //			this.GXYZ[stationNumber][1],              //15 (13)  y
 //			this.GXYZ[stationNumber][2],              //16 (14)  z
-    		public boolean orientationEstimated=true; // orientation is estimated from other stes, notr adjusted by LMA
+    		public boolean orientationEstimated=true; // orientation is estimated from other stes, not adjusted by LMA
     		public double setWeight=0.0; // weight of this set when calculating errors
     		public void setEstimatedFromNonNaN(){
     			this.orientationEstimated= Double.isNaN(this.goniometerTilt) ||  Double.isNaN(this.goniometerAxial);
@@ -733,7 +733,9 @@ import ij.text.TextWindow;
         	this.gIS=null; // so it will be initialized in readAllGrids()
         	readAllGrids(
         			patternParameters,
-        			laserPointers); // prepare grid parameters for LMA
+        			laserPointers, // prepare grid parameters for LMA
+            		true); // boolean keep_images make it configurable parameter?
+
         	// no orientation
         }
 
@@ -1124,6 +1126,135 @@ if (sfiles == null) {
 
         }
 
+        // provide image set index for the same station that has at least one marked image
+        // non_estimated - disregard images with estimated orientation
+        public int getMarkedSet(int num_set, boolean non_estimated) {
+        	int station = this.gIS[num_set].stationNumber;
+        	for (int ns = 0; ns < this.gIS.length; ns++) {
+        		if (	(this.gIS[ns].stationNumber == station) &&
+        				(!non_estimated || !this.gIS[ns].orientationEstimated)) {
+                	for (int n=0;n<this.gIS[ns].imageSet.length;n++){
+                		if ((this.gIS[ns].imageSet[n]!=null) && (this.gIS[ns].imageSet[n].matchedPointers > 0)){
+                			return ns;
+                		}
+                	}
+        		}
+
+        	}
+        	return -1; // none found
+        }
+
+        // get XYZ for this set's station from marked grid
+        public double [] getXYZFromMarked(int num_set, boolean non_estimated) {
+        	int ns = getMarkedSet(num_set, non_estimated);
+        	if (ns < 0) return null;
+        	return this.gIS[ns].GXYZ;
+        }
+
+        // suggest set grid offset by comparing with known (by mark) set.
+        // Wrong Grid UV should cause parallel shift - same Z, different XY
+        public int [] suggestOffset (
+        		int num_img,
+        		boolean non_estimated,
+        		boolean even,
+        		PatternParameters patternParameters) {
+    		int num_set = this.gIP[num_img].setNumber;
+        	int station = this.gIS[num_set].stationNumber;
+        	double [] ref_xyz = getXYZFromMarked(num_set, non_estimated);
+        	if (ref_xyz == null) {
+        		System.out.println("Error: Could not find reference goniometer XYZ for set "+num_set);
+        		return null;
+        	}
+        	double [] diff_xyz = this.gIS[num_set].GXYZ.clone();
+        	for (int i = 0; i < diff_xyz.length; i++) diff_xyz[i]-=ref_xyz[i];
+        	int [][] pixelsUV =  this.gIP[num_img].pixelsUV ; // null; // for each image, each grid node - a pair of {gridU, gridV}
+        	if ((pixelsUV == null) || ((pixelsUV.length <3 ))) {
+        		System.out.println("No/too few pixelsUV data for image "+num_img);
+        		return null;
+        	}
+        	double [][][] data =new double [pixelsUV.length][3][];
+    		for (int i=0; i < pixelsUV.length; i++){
+    			data[i][0]=new double[2];
+    			data[i][1]=new double[2];
+    			data[i][2]=new double[1];
+    			double [] xyzm = patternParameters.getXYZM(
+    					pixelsUV[i][0],
+    					pixelsUV[i][1],
+    					false, // boolean verbose,
+    					station); // int station)
+    			data[i][0][0]=xyzm[0];// pixelsXY[i][0];
+    			data[i][0][1]=xyzm[1];// pixelsXY[i][1];
+    			data[i][1][0]=pixelsUV[i][0];
+    			data[i][1][1]=pixelsUV[i][1];
+    			data[i][2][0]=xyzm[3];// mask
+    		}
+      	   double [][] coeff=new PolynomialApproximation(this.debugLevel).quadraticApproximation(data, true); // force linear
+      	   double [] dUV = {
+      			   -(coeff[0][0]* diff_xyz[0] + coeff[0][1]* diff_xyz[1]),
+      			   -(coeff[1][0]* diff_xyz[0] + coeff[1][1]* diff_xyz[1])};
+        	int [] idUV = {(int) Math.round(dUV[0]), (int) Math.round(dUV[1]), 0}; // 0 - no rot
+        	int parity = (idUV[0]+idUV[1] + (even?0:1)) & 1;
+    		double [] UV_err = {dUV[0]-idUV[0], dUV[1]-idUV[1]};
+        	if (parity !=0) {
+        		if (UV_err[1] > UV_err[0]) {
+            		if (UV_err[1] > -UV_err[0]) idUV[1]++;
+            		else             			idUV[0]--;
+        		} else {
+            		if (UV_err[1] > -UV_err[0]) idUV[0]++;
+            		else	                    idUV[1]--;
+        		}
+        		UV_err[0] = dUV[0] - idUV[0];
+        		UV_err[1] = dUV[1] - idUV[1];
+        	}
+        	System.out.println(String.format("Errors U/V = %.3f:%.3f",UV_err[0],UV_err[1]));
+        	return idUV;
+        }
+
+
+        public int [] offsetGrid(
+        		int img_num,
+        		int [] uv_shift_rot,
+        		PatternParameters patternParameters) {
+        	ImagePlus imp_grid = null;
+    		if (this.gIP[img_num].gridImage!=null){ // use in-memory grid images instead of the files
+    			int numGridImg=img_num;
+    			if (numGridImg>=this.gIP.length) numGridImg=this.gIP.length-1;
+    			imp_grid=this.gIP[numGridImg].gridImage;
+    		}else if (this.gIP[img_num].path != null) {
+    			imp_grid=(new Opener()).openImage("", this.gIP[img_num].path);
+    			if (imp_grid==null) {
+    				String msg="Failed to read grid file "+this.gIP[img_num].path;
+    				IJ.showMessage("Error",msg);
+    				throw new IllegalArgumentException (msg);
+    			}
+    			(new JP46_Reader_camera()).decodeProperiesFromInfo(imp_grid);
+    		} else {
+    			System.out.println("Grid is not in memory, file path is not specified");
+    			return null;
+    		}
+			ImageStack stack=imp_grid.getStack();
+			if ((stack==null) || (stack.getSize()<4)) {
+				String msg="Expected a 8-slice stack";
+				IJ.showMessage("Error",msg);
+				throw new IllegalArgumentException (msg);
+			}
+			float [][] pixels=new float[stack.getSize()][]; // now - 8 (x,y,u,v,contrast, vignR,vignG,vignB
+        	for (int i=0;i<pixels.length;i++) pixels[i]= (float[]) stack.getPixels(i+1); // pixel X : negative - no grid here
+            int [] combinedUVShiftRot=MatchSimulatedPattern.combineUVShiftRot(
+                    this.gIP[img_num].getUVShiftRot(),
+                    uv_shift_rot);
+            this.gIP[img_num].setUVShiftRot(combinedUVShiftRot); // uv_shift_rot);
+            int [][] shiftRotMatrix= MatchSimulatedPattern.getRemapMatrix(this.gIP[img_num].getUVShiftRot());
+            setGridsWithRemap( // null immediately
+            		img_num,
+                    shiftRotMatrix, // int [][] reMap,
+                    pixels,
+                    patternParameters);
+            calcGridPeriod(img_num, false); // centered, can skip _extra
+            return this.gIP[img_num].getUVShiftRot();
+        }
+
+
         public static int getImagePlusProperty(ImagePlus imp, String name, int dflt) {
            	try {
            		dflt = Integer.parseInt((String) (imp.getProperty(name)));
@@ -1480,19 +1611,23 @@ if (sfiles == null) {
         	this.gIS=null; // so it will be created in readAllGrids()
         	readAllGrids(
         			patternParameters, // prepare grid parameters for LMA
-        			laserPointers); //
+        			laserPointers, // prepare grid parameters for LMA
+            		true); // boolean keep_images make it configurable parameter?
         	// no orientation
         }
 
         public void listImageSet(){
-        	listImageSet(0, null,null, null);
+        	listImageSet(0, null,null, null,null,null);
         }
 
         public void listImageSet(
         		int    mode,
         		int [] numPoints, // All arrays may be twice long, then 1 - EO, second - LWIR
         		double [] setRMS,
-        		boolean [] hasNaNInSet){
+        		boolean [] hasNaNInSet,
+    			int [][] numImgPoints,
+    			double [][] rmsPerImg
+        		){
         	if ((this.gIS==null) || (this.gIS.length==0)){
         		return;
         	}
@@ -1646,7 +1781,8 @@ if (sfiles == null) {
             			if (this.gIS[i].imageSet[n]!=null){
             				int [] uvrot = this.gIS[i].imageSet[n].getUVShiftRot();
             				sb.append(uvrot[0]+":"+uvrot[1]+"("+uvrot[2]+")");
-
+            			} else {
+            				sb.append("\t---");
             			}
             		}
             		break;
@@ -1655,7 +1791,22 @@ if (sfiles == null) {
             			sb.append("\t");
             			if (this.gIS[i].imageSet[n]!=null){
             				sb.append(this.gIS[i].imageSet[n].pixelsXY.length+"+"+this.gIS[i].imageSet[n].pixelsXY_extra.length);
-
+            			} else {
+            				sb.append("\t---");
+            			}
+            		}
+            		break;
+            	case 3:
+            		for (int n=0;n<this.gIS[i].imageSet.length;n++){
+            			sb.append("\t");
+            			if ((this.gIS[i].imageSet[n]!=null) && (numImgPoints!=null) && (rmsPerImg !=null)){
+            				if (Double.isNaN(rmsPerImg[i][n])) {
+                				sb.append("NaN ("+numImgPoints[i][n]+")");
+            				} else {
+                				sb.append(String.format("%.3f (%d)",rmsPerImg[i][n],numImgPoints[i][n]));
+            				}
+            			} else {
+            				sb.append("---");
             			}
             		}
             		break;
@@ -1664,6 +1815,8 @@ if (sfiles == null) {
     		}
 			new TextWindow("Image calibration state (pointers/hinted state)", header, sb.toString(), 900,1400);
         }
+
+
         /**
          * create list of image indices per image set
          * @return array of image indices for each image set
@@ -2560,7 +2713,8 @@ if (sfiles == null) {
 			}
         	readAllGrids(
         			patternParameters, // prepare grid parameters for LMA
-        			laserPointers);
+        			laserPointers, // prepare grid parameters for LMA
+            		true); // boolean keep_images make it configurable parameter?
 			updateSetOrientation(null); // update orientation of image sets (built in readAllGrids() UPDATE - not anymore)
 
         }
@@ -2912,7 +3066,8 @@ if (sfiles == null) {
 
         public boolean readAllGrids(
         		PatternParameters patternParameters,
-        		LaserPointer      laserPointers // as a backup if data is not available in the file
+        		LaserPointer      laserPointers, // as a backup if data is not available in the file
+        		boolean keep_images
             ){
         	boolean disableNoFlatfield=false;  // true only for processing transitional images - mixture of ff/ no-ff
 			System.out.println("readAllGrids(), this.debugLevel="+this.debugLevel+" this.gIS is "+((this.gIS==null)?"null":"not null"));
@@ -2942,6 +3097,9 @@ if (sfiles == null) {
         			}
 // TODO: here - need to decode properties
         			jp4_reader.decodeProperiesFromInfo(imp_grid);
+        			if (keep_images) {
+        				this.gIP[fileNumber].gridImage = imp_grid;
+        			}
         		}
         		this.gIP[fileNumber].laserPixelCoordinates=MatchSimulatedPattern.getPointersXYUV(imp_grid, laserPointers);
         		this.gIP[fileNumber].motors=getMotorPositions(imp_grid, this.numMotors);
@@ -3364,11 +3522,13 @@ if (sfiles == null) {
     		return small_sensors;
     	}
     	public boolean isSmallSensor(int numImg) {
-    		if ((this.gIP != null) &&  (numImg < this.gIP.length) && (small_sensors != null)){
+    		if ((this.gIP != null) && (numImg >= 0) &&   (numImg < this.gIP.length) && (small_sensors != null)){
     			return small_sensors[this.gIP[numImg].getChannel()];
     		}
     		return false;
     	}
+
+
     	public double getSmallPeriodFrac() {
     		return small_period_frac;
     	}
@@ -3766,6 +3926,19 @@ if (sfiles == null) {
         	return len;
         }
 
+        public int getImageNumber(int set_number, int sub_number) {
+        	if ((this.gIS== null) || (this.gIS.length <= set_number) || (this.gIS[set_number] == null)) return -1;
+        	if (sub_number >= getNumChannels()) return -1;
+        	if ((this.gIS[set_number].imageSet == null) || (this.gIS[set_number].imageSet[sub_number] == null)) return -1;
+        	return this.gIS[set_number].imageSet[sub_number].imgNumber;
+        }
+
+        public int getImageSet(int img_number) {
+        	if ((this.gIP== null) || (this.gIP.length <= img_number) || (img_number <  0) ||(this.gIP[img_number] == null)) return -1;
+        	return this.gIP[img_number].setNumber;
+        }
+
+
         /**
          *
          * @param imgNumber number of grid image to edit parameters (location, distortion) for
@@ -3830,6 +4003,7 @@ if (sfiles == null) {
         	for (int i=0;i<this.gIP.length;i++) if (this.gIP[i].channel>nChn) nChn=this.gIP[i].channel;
         	return nChn+1;
         }
+
 
         public double getMask(int chnNum, double px, double py){
         	int width= eyesisCameraParameters.getSensorWidth(chnNum)/eyesisCameraParameters.getDecimateMasks(chnNum);

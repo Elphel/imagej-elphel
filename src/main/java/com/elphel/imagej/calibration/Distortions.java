@@ -237,6 +237,10 @@ public class Distortions {
 	}
 	*/
 
+	public DistortionCalibrationData getDistortionCalibrationData() {
+		return (fittingStrategy == null)?null:fittingStrategy.distortionCalibrationData;
+	}
+
 	public void resetGridImageMasks(){
 		int numImg=fittingStrategy.distortionCalibrationData.getNumImages();
 		System.out.println("resetGridImageMasks()");
@@ -601,7 +605,7 @@ public class Distortions {
 		}
 		this.imageStartIndex[numImg]=index; // one after last
 		if ((pass==1) && (numSeries>=0) && !skipMinVal){
-    		// count non-zero weight nodes for each image, disable image if this number uis less than
+    		// count non-zero weight nodes for each image, disable image if this number is less than
     		int needReCalc=0;
     		for (int imgNum=0;imgNum<numImg;imgNum++) if (selectedImages[imgNum]) {
     			index=this.imageStartIndex[imgNum];
@@ -784,6 +788,10 @@ public class Distortions {
 
 	    int [] numSetPoints=new int [imageSets.length*(hasLWIR?2:1)];
 	    double [] rmsPerSet=new double[imageSets.length*(hasLWIR?2:1)];
+	    int [][] numImgPoints=new int [imageSets.length][this.fittingStrategy.distortionCalibrationData.getNumSubCameras()];
+	    double [][] rmsPerImg=new double[imageSets.length][this.fittingStrategy.distortionCalibrationData.getNumSubCameras()];
+
+
 	    boolean [] hasNaNInSet=new boolean[imageSets.length*(hasLWIR?2:1)];
 	    if (hasLWIR) {
 	    	for (int setNum=0;setNum<imageSets.length;setNum++){
@@ -795,6 +803,8 @@ public class Distortions {
 	    			int imgNum=imageSets[setNum][imgInSet];
 	    			int isLwir = this.fittingStrategy.distortionCalibrationData.isSmallSensor(imgNum)?1:0;
 	    			int num=numPairs[imgNum];
+	    			rmsPerImg[setNum][imgInSet] = errors[imgNum];
+	    			numImgPoints[setNum][imgInSet] = num;
 	    			if (Double.isNaN(errors[imgNum])){
 	    				hasNaNInSet[2 * setNum + isLwir]=true;
 	    			} else {
@@ -816,6 +826,8 @@ public class Distortions {
 	    		for (int imgInSet=0;imgInSet<imageSets[setNum].length;imgInSet++) {
 	    			int imgNum=imageSets[setNum][imgInSet];
 	    			int num=numPairs[imgNum];
+	    			rmsPerImg[setNum][imgInSet] = errors[imgNum];
+	    			numImgPoints[setNum][imgInSet] = num;
 	    			if (Double.isNaN(errors[imgNum])){
 	    				hasNaNInSet[setNum]=true;
 	    			} else {
@@ -831,7 +843,10 @@ public class Distortions {
 	    		mode,
 	    		numSetPoints,
 	    		rmsPerSet,
-	    		hasNaNInSet );
+	    		hasNaNInSet,
+    			numImgPoints,
+    			rmsPerImg
+	    		);
 //		this.fittingStrategy.setImageSelection(0, oldSelection); // restore original selection in series 0
 	}
 
@@ -4310,7 +4325,7 @@ List calibration
 				if (this.debugLevel>0) System.out.println(" Removing imgages in image set "+numSet);
 				for (int i=0;i<imageSets[numSet].length;i++){
 					int numImg=imageSets[numSet][i];
-					if (this.debugLevel>0) System.out.println(n+":"+i+" "+IJ.d2s(errors[numImg],3)+" "+
+					if (this.debugLevel>0) System.out.println(n+":"+i+"("+numImg+")"+IJ.d2s(errors[numImg],3)+" "+
 							this.fittingStrategy.distortionCalibrationData.gIP[numImg].path);
 					this.fittingStrategy.distortionCalibrationData.gIP[numImg].enabled=false;
 					this.fittingStrategy.distortionCalibrationData.gIP[numImg].hintedMatch=-1; // so can be re-calibrated again w/o others
