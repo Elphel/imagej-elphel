@@ -2863,10 +2863,10 @@ public class EyesisCorrectionParameters {
   		public double     stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
 
 
-  		public double     outlayerStrength  = 0.3;   // Outlayer tiles weaker than this may be replaced from neighbors
-  		public double     outlayerDiff      = 0.4;   // Replace weak outlayer tiles that do not have neighbors within this disparity difference
-  		public double     outlayerDiffPos   = 1.0;   // Replace weak outlayer tiles that have higher disparity than weighted average
-  		public double     outlayerDiffNeg   = 0.4;   // Replace weak outlayer tiles that have lower disparity than weighted average
+  		public double     outlierStrength  =  0.3;   // Outlier tiles weaker than this may be replaced from neighbors
+  		public double     outlierDiff      =  0.4;   // Replace weak outlier tiles that do not have neighbors within this disparity difference
+  		public double     outlierDiffPos   =  1.0;   // Replace weak outlier tiles that have higher disparity than weighted average
+  		public double     outlierDiffNeg   =  0.4;   // Replace weak outlier tiles that have lower disparity than weighted average
 
   		// TODO: Make refine skip if already good?
   		public boolean    combine_refine    = true; // combine with all previous after refine pass
@@ -3582,10 +3582,10 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"stHighMix",        this.stHighMix +"");
 
 
-			properties.setProperty(prefix+"outlayerStrength", this.outlayerStrength +"");
-			properties.setProperty(prefix+"outlayerDiff",     this.outlayerDiff +"");
-			properties.setProperty(prefix+"outlayerDiffPos",  this.outlayerDiffPos +"");
-			properties.setProperty(prefix+"outlayerDiffNeg",  this.outlayerDiffNeg +"");
+			properties.setProperty(prefix+"outlierStrength", this.outlierStrength +"");
+			properties.setProperty(prefix+"outlierDiff",     this.outlierDiff +"");
+			properties.setProperty(prefix+"outlierDiffPos",  this.outlierDiffPos +"");
+			properties.setProperty(prefix+"outlierDiffNeg",  this.outlierDiffNeg +"");
 
 			properties.setProperty(prefix+"combine_refine",   this.combine_refine+"");
 
@@ -4282,10 +4282,17 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"stSmallDiff")!=null)       this.stSmallDiff=Double.parseDouble(properties.getProperty(prefix+"stSmallDiff"));
   			if (properties.getProperty(prefix+"stHighMix")!=null)         this.stHighMix=Double.parseDouble(properties.getProperty(prefix+"stHighMix"));
 
-  			if (properties.getProperty(prefix+"outlayerStrength")!=null)  this.outlayerStrength=Double.parseDouble(properties.getProperty(prefix+"outlayerStrength"));
-  			if (properties.getProperty(prefix+"outlayerDiff")!=null)      this.outlayerDiff=Double.parseDouble(properties.getProperty(prefix+"outlayerDiff"));
-  			if (properties.getProperty(prefix+"outlayerDiffPos")!=null)   this.outlayerDiffPos=Double.parseDouble(properties.getProperty(prefix+"outlayerDiffPos"));
-  			if (properties.getProperty(prefix+"outlayerDiffNeg")!=null)   this.outlayerDiffNeg=Double.parseDouble(properties.getProperty(prefix+"outlayerDiffNeg"));
+// old wrong spelling
+  			if (properties.getProperty(prefix+"outlayerStrength")!=null)  this.outlierStrength=Double.parseDouble(properties.getProperty(prefix+"outlayerStrength"));
+  			if (properties.getProperty(prefix+"outlayerDiff")!=null)      this.outlierDiff=Double.parseDouble(properties.getProperty(prefix+"outlayerDiff"));
+  			if (properties.getProperty(prefix+"outlayerDiffPos")!=null)   this.outlierDiffPos=Double.parseDouble(properties.getProperty(prefix+"outlayerDiffPos"));
+  			if (properties.getProperty(prefix+"outlayerDiffNeg")!=null)   this.outlierDiffNeg=Double.parseDouble(properties.getProperty(prefix+"outlayerDiffNeg"));
+
+
+  			if (properties.getProperty(prefix+"outlierStrength")!=null)  this.outlierStrength=Double.parseDouble(properties.getProperty(prefix+"outlierStrength"));
+  			if (properties.getProperty(prefix+"outlierDiff")!=null)      this.outlierDiff=Double.parseDouble(properties.getProperty(prefix+"outlierDiff"));
+  			if (properties.getProperty(prefix+"outlierDiffPos")!=null)   this.outlierDiffPos=Double.parseDouble(properties.getProperty(prefix+"outlierDiffPos"));
+  			if (properties.getProperty(prefix+"outlierDiffNeg")!=null)   this.outlierDiffNeg=Double.parseDouble(properties.getProperty(prefix+"outlierDiffNeg"));
 
   			if (properties.getProperty(prefix+"combine_refine")!=null)    this.combine_refine=Boolean.parseBoolean(properties.getProperty(prefix+"combine_refine"));
 
@@ -5030,10 +5037,10 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Consider merging initial planes if disparity difference below",                this.stSmallDiff,  6);
   			gd.addNumericField("Consider merging initial planes if jumps between ratio above",                 this.stHighMix,  6);
 
-  			gd.addNumericField("Outlier tiles weaker than this may be replaced from neighbors",                this.outlayerStrength,  6);
-  			gd.addNumericField("Replace weak outlier tiles that do not have neighbors within this disparity difference", this.outlayerDiff,  6);
-  			gd.addNumericField("Replace weak outlier tiles that have higher disparity than weighted average",  this.outlayerDiffPos,  6);
-  			gd.addNumericField("Replace weak outlier tiles that have lower disparity than weighted average",   this.outlayerDiffNeg,  6);
+  			gd.addNumericField("Outlier tiles weaker than this may be replaced from neighbors",                this.outlierStrength,  6);
+  			gd.addNumericField("Replace weak outlier tiles that do not have neighbors within this disparity difference", this.outlierDiff,  6);
+  			gd.addNumericField("Replace weak outlier tiles that have higher disparity than weighted average",  this.outlierDiffPos,  6);
+  			gd.addNumericField("Replace weak outlier tiles that have lower disparity than weighted average",   this.outlierDiffNeg,  6);
 
   			gd.addCheckbox    ("Combine with all previous after refine pass",                                  this.combine_refine);
   			gd.addNumericField("Disregard weaker tiles when combining scans",                                  this.combine_min_strength,  6);
@@ -5792,10 +5799,10 @@ public class EyesisCorrectionParameters {
   			this.stSmallDiff=           gd.getNextNumber();
   			this.stHighMix=             gd.getNextNumber();
 
-  			this.outlayerStrength=      gd.getNextNumber();
-  			this.outlayerDiff=          gd.getNextNumber();
-  			this.outlayerDiffPos=       gd.getNextNumber();
-  			this.outlayerDiffNeg=       gd.getNextNumber();
+  			this.outlierStrength=      gd.getNextNumber();
+  			this.outlierDiff=          gd.getNextNumber();
+  			this.outlierDiffPos=       gd.getNextNumber();
+  			this.outlierDiffNeg=       gd.getNextNumber();
 
   			this.combine_refine=        gd.getNextBoolean();
 

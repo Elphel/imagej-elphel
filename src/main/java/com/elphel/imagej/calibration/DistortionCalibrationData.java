@@ -1555,6 +1555,16 @@ import ij.text.TextWindow;
         		sb.append("Lens Distortion Model\t");
         		for (int i=0;i<numSubCameras;i++) sb.append("\t"+lensDistortionModels[i]);
         		sb.append("\n");
+
+        		sb.append("Sensor width\t");
+        		for (int i=0;i<numSubCameras;i++) sb.append("\t"+eyesisCameraParameters.getSensorWidth(i));
+        		sb.append("\n");
+
+        		sb.append("Sensor height\t");
+        		for (int i=0;i<numSubCameras;i++) sb.append("\t"+eyesisCameraParameters.getSensorHeight(i));
+        		sb.append("\n");
+
+
         		double [][] cameraPars=new double [numSubCameras][];
 
             	for (int i=0;i<numSubCameras;i++) cameraPars[i]=eyesisCameraParameters.getParametersVector(stationNumber,i);
@@ -1626,6 +1636,15 @@ import ij.text.TextWindow;
 //        		sb.append("Lens Distortion Model\t");
 //        		for (int i=0;i<numSubCameras;i++) sb.append("\t"+lensDistortionModels[i]);
 //        		sb.append("\n");
+
+        		sb.append("Sensor width\t");
+        		for (int i=0;i<numSubCameras;i++) sb.append("\t"+eyesisCameraParameters.getSensorWidth(i));
+        		sb.append("\n");
+
+        		sb.append("Sensor height\t");
+        		for (int i=0;i<numSubCameras;i++) sb.append("\t"+eyesisCameraParameters.getSensorHeight(i));
+        		sb.append("\n");
+
         		double [][] cameraPars=new double [numSubCameras][];
 
             	for (int i=0;i<numSubCameras;i++) cameraPars[i]=eyesisCameraParameters.getParametersVector(stationNumber,i);
@@ -2396,7 +2415,7 @@ import ij.text.TextWindow;
         		IJ.showMessage(msg);
         	}
         	for (int i=0; i<this.gIS.length;i++){
-        		if (selectedImages==null){ // if all selected - remove orientation if there are no enabled images (i.e. after removeOutlayers)
+        		if (selectedImages==null){ // if all selected - remove orientation if there are no enabled images (i.e. after removeOutliers)
     				this.gIS[i].goniometerAxial=Double.NaN;
     				this.gIS[i].goniometerTilt= Double.NaN;
     				this.gIS[i].orientationEstimated=true;
@@ -3379,7 +3398,7 @@ import ij.text.TextWindow;
         	return true;
         }
         /**
-         * Sometimes "Process grid files" generates outlayers (by 0.1..5 pixels) TODO: find the bug
+         * Sometimes "Process grid files" generates outliers (by 0.1..5 pixels) TODO: find the bug
          * This program replaces the "bad" ones with predicted by 8 neighbors using 2-nd order interpolation
          * @param fPixels stack of pX,pY,target-U,target-V,contrast (some bad pixels have low contrast), red,green,blue
          * @param width grid width

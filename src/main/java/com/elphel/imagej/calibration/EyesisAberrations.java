@@ -1585,7 +1585,7 @@ public class EyesisAberrations {
 		if (thisDebugLevel>1) sdfa_instance.showArrays(weightsMasked, kWidth, kHeight,  true, "weightsMasked");
 
 		double [][][] psfRadius=c[5]; // later may remove all other calculations for c[i]?
-		double [][][] pxfCenterX=c[0]; // some outlayer kernels have large x/y shift with normal radius - remove them too
+		double [][][] pxfCenterX=c[0]; // some outlier kernels have large x/y shift with normal radius - remove them too
 		double [][][] pxfCenterY=c[1];
 		if (thisDebugLevel>1) {
 			for (int color=0;color<nChn;color++) sdfa_instance.showArrays(psfRadius[color], kWidth, kHeight,  true, "psfRadius-"+color);
@@ -1610,11 +1610,11 @@ public class EyesisAberrations {
 					pxfCenterY[color][0][index]=0.0;
 				}
 				double sumWeights=0.0;
-				for (int nFile=0;nFile<nFiles;nFile++) 	if ((weightsMasked[nFile+1][index]>0.0) && (weights[nFile+1][index]>0.0)){ // both, with outlayers removed
+				for (int nFile=0;nFile<nFiles;nFile++) 	if ((weightsMasked[nFile+1][index]>0.0) && (weights[nFile+1][index]>0.0)){ // both, with outliers removed
 					for (int i=0;i<dirs.length;i++) {
 						int yn=tileY+dirs[i][1];
 						int xn=tileX+dirs[i][0];
-						if ((yn>=0) && (yn<kHeight) && (xn>=0) && (xn<kWidth) && (weightsNotMasked[nFile+1][yn*kWidth+xn]>0.0)){ // including removed outlayers
+						if ((yn>=0) && (yn<kHeight) && (xn>=0) && (xn<kWidth) && (weightsNotMasked[nFile+1][yn*kWidth+xn]>0.0)){ // including removed outliers
 							int indexNeib=xn+ kWidth*yn;
 							double weight=weightsMasked[nFile+1][indexNeib];
 							if (multiFilePSF.sharpBonusPower>0) {
@@ -1643,7 +1643,7 @@ public class EyesisAberrations {
 				double [] diffs=new double[nFiles];
 				double [] diffsXY2=new double[nFiles];
 //				for (int nFile=0;nFile<nFiles;nFile++) 	if ( weights[nFile+1][index]>0.0){ // here all , not just masked - why?
-				for (int nFile=0;nFile<nFiles;nFile++) 	if ((weights[nFile+1][index]>0.0) && (weightsMasked[nFile+1][index]>0.0)){ //no outlayers, no masked - find worst
+				for (int nFile=0;nFile<nFiles;nFile++) 	if ((weights[nFile+1][index]>0.0) && (weightsMasked[nFile+1][index]>0.0)){ //no outliers, no masked - find worst
 					diffs[nFile]=0;
 					diffsXY2[nFile]=0;
 					for (int color=0;color<nChn;color++) {
@@ -1658,11 +1658,11 @@ public class EyesisAberrations {
 						diffs[nFile]+=multiFilePSF.shiftToRadiusContrib*(Math.sqrt(diffXY2)/radiusRatio[color][0][index]); // now difference combines size and position
 					}
 				}
-				// mask out outlayers
+				// mask out outliers
 				//weightsMasked[0]
 
 				// TODO: when averaging, divide by r^2 to some power to give bonus low-radius samples.
-				//       also - combine dX^2+dY2+dR^2 when selecting outlayers
+				//       also - combine dX^2+dY2+dR^2 when selecting outliers
 				if (thisDebugLevel>1) {
 					System.out.print("\n === "+tileY+":"+tileX);
 					for (int nFile=0;nFile<nFiles;nFile++) if ( weights[nFile+1][index]>0.0){
@@ -1740,7 +1740,7 @@ public class EyesisAberrations {
 		// for each channel, each cell - compare radius calculated for neighbors (use masked weights) and the cell
 
 
-		// TODO: Filter out outlayers: Add bonus to cells surrounded by others?
+		// TODO: Filter out outliers: Add bonus to cells surrounded by others?
 
 
 		//    	double [][][][] c= new double[numResults][nChn][nFiles+1][kLength];
@@ -4466,7 +4466,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			public double  shiftToRadiusContrib=1.0; // Center shift (in pixels) addition to the difference relative to radius difference (in pixels)
 			public double  sharpBonusPower=2.0; // increase weight of the "sharp" kernels by dividing weight by radius to this power
 			public double  maxFracDiscardWorse=0.1; // discard up to this fraction of samples that have larger radius (i.e. falling on the target seam that may only make PSF larger)
-			public double  maxFracDiscardAll=0.5; // continue removing outlayers (combined radius and shift), removing not more that this fraction (including maxFracDiscardWorse)
+			public double  maxFracDiscardAll=0.5; // continue removing outliers (combined radius and shift), removing not more that this fraction (including maxFracDiscardWorse)
 			public double  internalBonus=1.0;    // cell having 8 around will "seem" twice better than having none (radiusDiff* twice higher)
 			public double  validateThreshold;      // fraction of full PSF "energy"
 			public boolean validateShowEllipse;    // show ellipse parameters of partial PSF arrays
@@ -4480,7 +4480,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 					double  shiftToRadiusContrib, // Center shift (in pixels) addition to the difference relative to radius difference (in pixels)
 					double  sharpBonusPower, // increase weight of the "sharp" kernels by dividing weight by radius to this power
 					double  maxFracDiscardWorse, // discard up to this fraction of samples that have larger radius (i.e. falling on the target seam that may only make PSF larger)
-					double  maxFracDiscardAll,  // continue removing outlayers (combined radius and shift), removing not more that this fraction (including maxFracDiscardWorse)
+					double  maxFracDiscardAll,  // continue removing outliers (combined radius and shift), removing not more that this fraction (including maxFracDiscardWorse)
 					double  internalBonus,
 					double  validateThreshold,
 					boolean validateShowEllipse,
@@ -4494,7 +4494,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 				this.shiftToRadiusContrib=shiftToRadiusContrib; // Center shift (in pixels) addition to the difference relative to radius difference (in pixels)
 				this.sharpBonusPower=sharpBonusPower; // increase weight of the "sharp" kernels by dividing weight by radius to this power
 				this.maxFracDiscardWorse=maxFracDiscardWorse; // discard up to this fraction of samples that have larger radius (i.e. falling on the target seam that may only make PSF larger)
-				this.maxFracDiscardAll=maxFracDiscardAll; // continue removing outlayers (combined radius and shift), removing not more that this fraction (including maxFracDiscardWorse)
+				this.maxFracDiscardAll=maxFracDiscardAll; // continue removing outliers (combined radius and shift), removing not more that this fraction (including maxFracDiscardWorse)
 				this.internalBonus=internalBonus;
 				this.validateThreshold=validateThreshold;
 				this.validateShowEllipse=validateShowEllipse;

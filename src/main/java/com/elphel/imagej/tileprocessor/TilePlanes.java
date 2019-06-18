@@ -829,7 +829,7 @@ public class TilePlanes {
 			for (int nl = 0; nl < measuredLayers.getNumLayers(); nl ++){
 				if ((measuredSelection[nl] != null) &&  ((measSel & (1 << nl)) !=0)) {
 					if (smplMode) {
-						disp_strength[nl] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outlayers
+						disp_strength[nl] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outliers
 								nl, // int num_layer,
 								getSTileXY()[0],        // int stX,
 								getSTileXY()[1],        // int stY,
@@ -964,7 +964,7 @@ public class TilePlanes {
 					if ((measuredSelection[nl] != null) &&  ((measSel & (1 << nl)) !=0)) {
 						// recalculate for all measure tiles, not just selected in the original PD
 						if (smplMode) {
-							disp_strength[nl] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outlayers
+							disp_strength[nl] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outliers
 									nl, // int num_layer,
 									getSTileXY()[0],        // int stX,
 									getSTileXY()[1],        // int stY,
@@ -1222,7 +1222,7 @@ public class TilePlanes {
 				for (int nl = 0; nl < measuredSelection.length; nl++){
 					if (measuredSelection[nl] != null){
 						if (smplMode) {
-							disp_str[nl] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outlayers
+							disp_str[nl] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outliers
 									nl, // int num_layer,
 									sTileXY[0], // int stX,
 									sTileXY[1], // int stY,
@@ -1373,7 +1373,7 @@ public class TilePlanes {
 					if (measuredSelection[nl] != null){
 						if (smplMode) {
 //							if (need_disp_str) {
-								disp_str[nl] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outlayers
+								disp_str[nl] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outliers
 										nl, // int num_layer,
 										sTileXY[0], // int stX,
 										sTileXY[1], // int stY,
@@ -1652,7 +1652,7 @@ public class TilePlanes {
 				if (tile_sel[nl] != null){
 					if (smplMode) {
 						if (need_disp_str) {
-							disp_str[nl] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outlayers
+							disp_str[nl] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outliers
 									nl, // int num_layer,
 									sTileXY[0], // int stX,
 									sTileXY[1], // int stY,
@@ -2067,7 +2067,7 @@ public class TilePlanes {
 				if (tile_sel[nl] != null){
 					if (smplMode) {
 						if (need_disp_str) {
-							disp_str[nl] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outlayers
+							disp_str[nl] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outliers
 									nl, // int num_layer,
 									sTileXY[0], // int stX,
 									sTileXY[1], // int stY,
@@ -4597,7 +4597,7 @@ public class TilePlanes {
 			double [][][] disp_strength = new double[measuredLayers.getNumLayers()][][];
 			for (int ml = 0; ml < disp_strength.length; ml++) if ((stMeasSel & ( 1 << ml)) != 0){
 				if (smplMode) {
-					disp_strength[ml] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outlayers
+					disp_strength[ml] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outliers
 							ml, // int num_layer,
 							getSTileXY()[0],        // int stX,
 							getSTileXY()[1],        // int stY,
@@ -5042,7 +5042,7 @@ public class TilePlanes {
 			double [][][] disp_strength = new double[measuredLayers.getNumLayers()][][];
 			for (int ml = 0; ml < disp_strength.length; ml++) if ((stMeasSel & ( 1 << ml)) != 0){
 				if (smplMode) {
-					disp_strength[ml] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outlayers
+					disp_strength[ml] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outliers
 							ml, // int num_layer,
 							getSTileXY()[0],        // int stX,
 							getSTileXY()[1],        // int stY,
@@ -5822,12 +5822,12 @@ public class TilePlanes {
 				}
 			}
 
-			// it is foreground, now get measured data and find maximal strength (remove outlayers?
+			// it is foreground, now get measured data and find maximal strength (remove outliers?
 			double [] lap_weights = measuredLayers.getLapWeights1d();
 			double [][][] disp_strength = new double[measuredLayers.getNumLayers()][][];
 			for (int ml = 0; ml < disp_strength.length; ml++) if (fg_sel[ml] != null){ //  if ((stMeasSel & ( 1 << ml)) != 0) {
 				if (this.smplMode) {
-					disp_strength[ml] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outlayers
+					disp_strength[ml] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outliers
 							ml, // int num_layer,
 							getSTileXY()[0],        // int stX,
 							getSTileXY()[1],        // int stY,

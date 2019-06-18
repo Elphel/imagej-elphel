@@ -1919,7 +1919,7 @@ public class BiScan {
 		double rms = Double.NaN;
 		if (smpl_p == null) smpl_p = new double [smpl_len];
 		while (num_in_sample >= fin_samples) {
-			// fit plane to the selected and remove outlayers after each iteration
+			// fit plane to the selected and remove outliers after each iteration
 			disp_tilts = fitPlane(
 					smpl_radius,  //int        smpl_radius,
 					max_tilt,     //double     max_tilt,

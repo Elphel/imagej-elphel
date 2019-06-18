@@ -113,7 +113,7 @@ public class SFEPhases {
 			
 		}
 		final AtomicInteger aNumTile=new AtomicInteger(0);
-		final AtomicInteger numOutlayers=new AtomicInteger(0);
+		final AtomicInteger numOutliers=new AtomicInteger(0);
 		final AtomicInteger numPix=new AtomicInteger(0);
 		final Thread[] threads = newThreadArray(threadsMax);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -138,7 +138,7 @@ public class SFEPhases {
 								colorComponents,
 								debugLevel);
 						if (tilePhaseStats[0]>0){
-							numOutlayers.getAndAdd(tilePhaseStats[0]);
+							numOutliers.getAndAdd(tilePhaseStats[0]);
 							numPix.getAndAdd(tilePhaseStats[1]);
 							if (debugLevel>debugThreshold){
 								System.out.println("x0="+tileList[nTile][0]+" y0="+tileList[nTile][1]+" tilePhaseStats[0]="+tilePhaseStats[0]+" tilePhaseStats[1]"+tilePhaseStats[1]);
@@ -149,7 +149,7 @@ public class SFEPhases {
 			};
 		}
 		startAndJoin(threads);
-		int [] result = {numOutlayers.get(),numPix.get()};
+		int [] result = {numOutliers.get(),numPix.get()};
 		return result;
 	}
 	
@@ -265,7 +265,7 @@ public class SFEPhases {
 			if ((polyCoeff==null) || (polyCoeff.length==0)  || (polyCoeff[0]==null)) continue;
 
 			nPix=0;
-			int nOutlayers=0;
+			int nOutliers=0;
 			double halfBinWidth=binWidth/2;
 			int nGap=0; // should be 0 to count
 			for (int i=0;i<input_bayer[chn].length;i++){
@@ -291,7 +291,7 @@ public class SFEPhases {
 					double diff=Math.abs(d-f);
 					if (diff >= halfBinWidth) {
 						if (diff >= (halfBinWidth+gapWidth)){
-							nOutlayers++;
+							nOutliers++;
 						} else {
 							nGap++; // do not need to continue, only if for debug
 							break;
@@ -302,7 +302,7 @@ public class SFEPhases {
 				}
 			}
 			if (nGap>0) continue; // gap is not empty, can not tell if the phase is wrong
-			result[0]+=nOutlayers;
+			result[0]+=nOutliers;
 			result[1]+=nPix;
 		}
 		return result;
@@ -313,7 +313,7 @@ public class SFEPhases {
 			final int tileClearSize0,
 			final int tileMargins0,
 			final int cmask, // bitmask of color channels to process (9 - two greens)
-			final int numPasses, // number of passes to replace outlayers (will end if none was replaced)
+			final int numPasses, // number of passes to replace outliers (will end if none was replaced)
 			final int numInBase, // number of neighbors (of 8) to use as a base if they all agree
 			final double sigma, // for high-pass filtering
 			final boolean processNoReplace, // calculate differences even if no replacements were made
@@ -332,7 +332,7 @@ public class SFEPhases {
 				tileClearSize0,
 				tileMargins0,
 				cmask, // bitmask of color channels to process (9 - two greens)
-				numPasses, // number of passes to replace outlayers (will end if none was replaced)
+				numPasses, // number of passes to replace outliers (will end if none was replaced)
 				numInBase, // number of neighbors (of 8) to use as a base if they all agree
 				sigma, // for high-pass filtering
 				processNoReplace, // calculate differences even if no replacements were made
@@ -366,7 +366,7 @@ public class SFEPhases {
 			final int tileClearSize0,
 			final int tileMargins0,
 			final int cmask, // bitmask of color channels to process (9 - two greens)
-			final int numPasses, // number of passes to replace outlayers (will end if none was replaced)
+			final int numPasses, // number of passes to replace outliers (will end if none was replaced)
 			final int numInBase, // number of neighbors (of 8) to use as a base if they all agree
 			final double sigma, // for high-pass filtering
 			final boolean processNoReplace, // calculate differences even if no replacements were made
@@ -427,7 +427,7 @@ public class SFEPhases {
 								imp,
 								tileHalfSize,
 								cmask, // bitmask of color channels to process (9 - two greens)
-								numPasses, // number of passes to replace outlayers (will end if none was replaced)
+								numPasses, // number of passes to replace outliers (will end if none was replaced)
 								numInBase, // number of neighbors (of 8) to use as a base if they all agree
 								sigma, // for high-pass filtering
 								processNoReplace, // calculate differences even if no replacements were made
@@ -477,7 +477,7 @@ public class SFEPhases {
 			ImagePlus imp,
 			int tileHalfSize,
 			int cmask, // bitmask of color channels to process (9 - two greens)
-			int numPasses, // number of passes to replace outlayers (will end if none was replaced)
+			int numPasses, // number of passes to replace outliers (will end if none was replaced)
 			int numInBase, // number of neighbors (of 8) to use as a base if they all agree
 			double sigma, // for high-pass filtering
 			boolean processNoReplace, // calculate differences even if no replacements were made
@@ -551,7 +551,7 @@ public class SFEPhases {
 				}
 			}
 			if ((numReplacements==0) && !processNoReplace) continue;
-// run low pass filter on the tile with outlayers replaced with the averages 
+// run low pass filter on the tile with outliers replaced with the averages 
 			if (doubleGaussianBlur==null) doubleGaussianBlur=new DoubleGaussianBlur();
 			doubleGaussianBlur.blurDouble(tilePix,tileHalfSize,tileHalfSize,sigma,sigma, 0.01);
 			for (int i=0;i<tilePix.length;i++) tilePix[i]=input_bayer[chn][i]-tilePix[i];
@@ -863,7 +863,7 @@ public class SFEPhases {
 			int tileClearSize,
 			int tileMargins,
 			int cmask, // bitmask of color channels to process (9 - two greens)
-			int numPasses, // number of passes to replace outlayers (will end if none was replaced)
+			int numPasses, // number of passes to replace outliers (will end if none was replaced)
 			int numInBase, // number of neighbors (of 8) to use as a base if they all agree
 			double sigma, // for high-pass filtering
 			boolean processNoReplace, // calculate differences even if no replacements were made
@@ -885,17 +885,17 @@ public class SFEPhases {
 		gd.addNumericField("Tile clearSize", tileClearSize, 0 ,4, "pix");
 		gd.addNumericField("Tile margin (extra) width", tileMargins, 0 ,4, "pix");
 		gd.addNumericField("Color channel mask", cmask, 0 ,4, "9 - both green colors");
-		gd.addNumericField("Number of \"remove outlayers\" passes", numPasses, 0 ,4, "");
-		gd.addNumericField("Number of neighbors (of total 8) to base outlayers", numInBase, 0 ,4, "<=8");
+		gd.addNumericField("Number of \"remove outliers\" passes", numPasses, 0 ,4, "");
+		gd.addNumericField("Number of neighbors (of total 8) to base outliers", numInBase, 0 ,4, "<=8");
 		gd.addNumericField("Base low-pass sigma ", sigma, 3 ,7, "double pixels");
-		gd.addCheckbox    ("Process tiles with no outlayer replacements", processNoReplace);
+		gd.addCheckbox    ("Process tiles with no outlier replacements", processNoReplace);
 		gd.addNumericField("\"Normal\" pixels variation", binWidth, 3 ,7, "");
-		gd.addNumericField("Empty level gap between \"normal\" pixels and outlayers", gapWidth, 3 ,7, "");
+		gd.addNumericField("Empty level gap between \"normal\" pixels and outliers", gapWidth, 3 ,7, "");
 
 		gd.addNumericField("Post-HPF algorithm number", algorithmNumber, 0 ,4, "(1 or 2");
-		gd.addNumericField("Number of neighbors (of total 8) to base outlayers (after high-pass), 0 - no filter", numInBase2, 0 ,4, "<=8");
+		gd.addNumericField("Number of neighbors (of total 8) to base outliers (after high-pass), 0 - no filter", numInBase2, 0 ,4, "<=8");
 		gd.addNumericField("\"Normal\" pixels variation (after high-pass)", binWidth2, 3 ,7, "");
-		gd.addNumericField("Empty level gap between \"normal\" pixels and outlayers (after high-pass)", gapWidth2, 3 ,7, "");
+		gd.addNumericField("Empty level gap between \"normal\" pixels and outliers (after high-pass)", gapWidth2, 3 ,7, "");
 		gd.addCheckbox    ("Update sensor calibration files with defects data", updateSensorCalibrationFiles);
 		gd.addCheckbox    ("Clear defects in sensor calibration files if none new detected", clearDefects);
 
@@ -922,7 +922,7 @@ public class SFEPhases {
 				tileClearSize,
 				tileMargins,
 				cmask, // bitmask of color channels to process (9 - two greens)
-				numPasses, // number of passes to replace outlayers (will end if none was replaced)
+				numPasses, // number of passes to replace outliers (will end if none was replaced)
 				numInBase, // number of neighbors (of 8) to use as a base if they all agree
 				sigma, // for high-pass filtering
 				processNoReplace, // calculate differences even if no replacements were made
@@ -964,7 +964,7 @@ public class SFEPhases {
 					int tileClearSize,
 					int tileMargins,
 					int cmask, // bitmask of color channels to process (9 - two greens)
-					int numPasses, // number of passes to replace outlayers (will end if none was replaced)
+					int numPasses, // number of passes to replace outliers (will end if none was replaced)
 					int numInBase, // number of neighbors (of 8) to use as a base if they all agree
 					double sigma, // for high-pass filtering
 					boolean processNoReplace, // calculate differences even if no replacements were made
@@ -991,7 +991,7 @@ public class SFEPhases {
 						tileClearSize,
 						tileMargins,
 						cmask, // bitmask of color channels to process (9 - two greens)
-						numPasses, // number of passes to replace outlayers (will end if none was replaced)
+						numPasses, // number of passes to replace outliers (will end if none was replaced)
 						numInBase, // number of neighbors (of 8) to use as a base if they all agree
 						sigma, // for high-pass filtering
 						processNoReplace, // calculate differences even if no replacements were made
@@ -1212,7 +1212,7 @@ public class SFEPhases {
 			int tileClearSize,
 			int tileMargins,
 			int cmask, // bitmask of color channels to process (9 - two greens)
-			int numPasses, // number of passes to replace outlayers (will end if none was replaced)
+			int numPasses, // number of passes to replace outliers (will end if none was replaced)
 			int numInBase, // number of neighbors (of 8) to use as a base if they all agree
 			double sigma, // for high-pass filtering
 			boolean processNoReplace, // calculate differences even if no replacements were made
@@ -1249,7 +1249,7 @@ public class SFEPhases {
 					tileClearSize,
 					tileMargins,
 					cmask, // bitmask of color channels to process (9 - two greens)
-					numPasses, // number of passes to replace outlayers (will end if none was replaced)
+					numPasses, // number of passes to replace outliers (will end if none was replaced)
 					numInBase, // number of neighbors (of 8) to use as a base if they all agree
 					sigma, // for high-pass filtering
 					processNoReplace, // calculate differences even if no replacements were made

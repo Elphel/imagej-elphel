@@ -510,7 +510,7 @@ public class EyesisCorrections {
 							if (this.defectsXY[srcChannel]==null){
 								System.out.println("No pixel defects info is available for channel "+srcChannel);
 							} else {
-								System.out.println("Extracted "+this.defectsXY[srcChannel].length+" pixel outlayers for channel "+srcChannel+
+								System.out.println("Extracted "+this.defectsXY[srcChannel].length+" pixel outliers for channel "+srcChannel+
 										" (x:y:difference");
 								int numInLine=8;
 								for (int i=0;i<this.defectsXY[srcChannel].length;i++){

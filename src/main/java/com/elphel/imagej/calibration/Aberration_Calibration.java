@@ -270,7 +270,7 @@ public class Aberration_Calibration extends PlugInFrame implements ActionListene
 			1.0,    // shiftToRadiusContrib; // Center shift (in pixels) addition to the difference relative to radius difference (in pixels)
 			2.0,    // sharpBonusPower; // increase weight of the "sharp" kernels by dividing weight by radius to this power
 			0.1,    // maxFracDiscardWorse=0.1; // discard up to this fraction of samples that have larger radius (i.e. falling on the target seam that may only make PSF larger)
-			0.5,    // maxFracDiscardAll=0.5; // continue removing outlayers (combined radius and shift), removing not more that this fraction (including maxFracDiscardWorse)
+			0.5,    // maxFracDiscardAll=0.5; // continue removing outliers (combined radius and shift), removing not more that this fraction (including maxFracDiscardWorse)
 			0.8, //,   // internalBonus // cell having 8 around will "seem" twice better than having none (radiusDiff* twice higher)
 			0.75,  // validateThreshold -       fraction of full PSF "energy"
 			false, // validateShowEllipse -     show ellipse parameters of partial PSF arrays
@@ -927,7 +927,7 @@ if (MORE_BUTTONS) {
 		addButton("Filter Grids",panelGoniometer,color_bundle);
 		addButton("Update Image Set",panelGoniometer);
 
-		addButton("Remove Outlayers",panelGoniometer,color_bundle);
+		addButton("Remove Outliers",panelGoniometer,color_bundle);
 		addButton("Remove Sets",panelGoniometer,color_bundle);
 
 		addButton("Update Sets Orientation",panelGoniometer);
@@ -2516,7 +2516,7 @@ if (MORE_BUTTONS) {
 		    gd.addNumericField("Tile half size", tileHalfSize, 0 ,4, "pix");
 		    gd.addNumericField("Color channel mask", cmask, 0 ,4, "9 - both green colors");
 		    gd.addNumericField("\"Normal\" pixels variation", binWidth, 3 ,7, "");
-		    gd.addNumericField("Empty level gap between \"normal\" pixels and outlayers (caused by wrong cable phase)", gapWidth, 3 ,7, "");
+		    gd.addNumericField("Empty level gap between \"normal\" pixels and outliers (caused by wrong cable phase)", gapWidth, 3 ,7, "");
 		    gd.addNumericField("Disregard pixels above this threshold", satLevel, 3 ,5, "pixel value");
 		    gd.addNumericField("Fraction of \"normal\" pixels to determing their average", baseFrac, 3 ,5, "fraction");
 		    gd.addNumericField("Minimal number of non-satureted pixels to process in a tile", minPixToProcess, 0 ,4, "pix");
@@ -2548,7 +2548,7 @@ if (MORE_BUTTONS) {
 					COMPONENTS,
 					THREADS_MAX,
 					DEBUG_LEVEL);
-			System.out.println("Number of phase outlayer pixels:"+stats[0]);
+			System.out.println("Number of phase outlier pixels:"+stats[0]);
 			System.out.println("Number of processed pixels:"+stats[1]);
 			return;
 		}
@@ -2940,7 +2940,6 @@ if (MORE_BUTTONS) {
 	    		IJ.showMessage("Error",msg);
 	    		throw new IllegalArgumentException (msg);
 	    	}
-//	    	int series=refineParameters.showDialog("Select Lens Distortion Residual Compensation Parameters", 0x1efff, (this.seriesNumber>=0)?this.seriesNumber:0);
 	    	int series=LENS_DISTORTIONS.refineParameters.showDialog(
 	    			"Select Lens Distortion Residual Compensation Parameters",
 //	    			0x846f1,
@@ -5870,7 +5869,7 @@ if (MORE_BUTTONS) {
 			return;
 		}
 /* ======================================================================== */
-		if       (label.equals("Remove Outlayers")) {
+		if       (label.equals("Remove Outliers")) {
 			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 			if (LENS_DISTORTIONS==null) {
 				IJ.showMessage("LENS_DISTORTION is not set");
@@ -5885,9 +5884,9 @@ if (MORE_BUTTONS) {
 				selectedChannels=ABERRATIONS_PARAMETERS.getChannelSelection(LENS_DISTORTIONS);
 
 			}
-			LENS_DISTORTIONS.removeOutLayers(
+			LENS_DISTORTIONS.removeOutLiers(
 					-1, //int series, (<0 - ask)
-					-1,  //int numOutLayers  (<0 - ask)
+					-1,  //int numOutLiers  (<0 - ask)
 					selectedChannels
 					);
 			return;
@@ -5903,8 +5902,8 @@ if (MORE_BUTTONS) {
 				IJ.showMessage("LENS_DISTORTION.fittingStrategy is not set");
 				return;
 			}
-			LENS_DISTORTIONS.removeOutLayerSets(
-					-1  //int numOutLayers  (<0 - ask)
+			LENS_DISTORTIONS.removeOutLierSets(
+					-1  //int numOutLiers  (<0 - ask)
 					);
 			return;
 		}
@@ -6030,7 +6029,7 @@ if (MORE_BUTTONS) {
     		boolean useSetsData=  true;
 			gd=new GenericDialog ("Image set # "+imageSetNumber+" re-calibration without laser pointers");
 			gd.addMessage("Strategy 0 should have all parameters but 2 goniometer axes disabled");
-			gd.addMessage("Imgages belonging to the set will be selected, possible to check with \"Remove Outlayers\" for strategy 0");
+			gd.addMessage("Imgages belonging to the set will be selected, possible to check with \"Remove Outliers\" for strategy 0");
     		gd.addNumericField("Mismatch tolerance of match between the predicted and acquired grid", hintGridTolerance, 1,4,"fraction of grid half-period");
     		gd.addCheckbox("Ignore laser pointers", ignoreLaserPointers);
     		gd.addNumericField("Image set tilt", tiltCenter, 2,6,"degrees");
@@ -10536,17 +10535,17 @@ if (MORE_BUTTONS) {
 		gd.addNumericField("Tile clearSize", tileClearSize, 0 ,4, "pix");
 		gd.addNumericField("Tile margin (extra) width", tileMargins, 0 ,4, "pix");
 		gd.addNumericField("Color channel mask", cmask, 0 ,4, "9 - both green colors");
-		gd.addNumericField("Number of \"remove outlayers\" passes", numPasses, 0 ,4, "");
-		gd.addNumericField("Number of neighbors (of total 8) to base outlayers", numInBase, 0 ,4, "<=8");
+		gd.addNumericField("Number of \"remove outliers\" passes", numPasses, 0 ,4, "");
+		gd.addNumericField("Number of neighbors (of total 8) to base outliers", numInBase, 0 ,4, "<=8");
 		gd.addNumericField("Base low-pass sigma ", sigma, 3 ,7, "double pixels");
-		gd.addCheckbox    ("Process tiles with no outlayer replacements", processNoReplace);
+		gd.addCheckbox    ("Process tiles with no outlier replacements", processNoReplace);
 		gd.addNumericField("\"Normal\" pixels variation", binWidth, 3 ,7, "");
-		gd.addNumericField("Empty level gap between \"normal\" pixels and outlayers", gapWidth, 3 ,7, "");
+		gd.addNumericField("Empty level gap between \"normal\" pixels and outliers", gapWidth, 3 ,7, "");
 
 		gd.addNumericField("Post-HPF algorithm number", algNum, 0 ,4, "(1 or 2");
-		gd.addNumericField("Number of neighbors (of total 8) to base outlayers (after high-pass), 0 - no filter", numInBase2, 0 ,4, "<=8");
+		gd.addNumericField("Number of neighbors (of total 8) to base outliers (after high-pass), 0 - no filter", numInBase2, 0 ,4, "<=8");
 		gd.addNumericField("\"Normal\" pixels variation (after high-pass)", binWidth2, 3 ,7, "");
-		gd.addNumericField("Empty level gap between \"normal\" pixels and outlayers (after high-pass)", gapWidth2, 3 ,7, "");
+		gd.addNumericField("Empty level gap between \"normal\" pixels and outliers (after high-pass)", gapWidth2, 3 ,7, "");
 
 
 		gd.showDialog();
@@ -10570,7 +10569,7 @@ if (MORE_BUTTONS) {
 				tileClearSize,
 				tileMargins,
 				cmask, // bitmask of color channels to process (9 - two greens)
-				numPasses, // number of passes to replace outlayers (will end if none was replaced)
+				numPasses, // number of passes to replace outliers (will end if none was replaced)
 				numInBase, // number of neighbors (of 8) to use as a base if they all agree
 				sigma, // for high-pass filtering
 				processNoReplace, // calculate differences even if no replacements were made
@@ -10588,7 +10587,7 @@ if (MORE_BUTTONS) {
 				defectsBayer,
 				imp_sel.getWidth(),
 				imp_sel.getHeight(),
-				"Outlayer pixels");
+				"Outlier pixels");
 		int numDefects=0;
 		for (double d:defectsBayer) if (d!=0.0) numDefects++;
 		if (numDefects>0) System.out.println("Number of pixel (or phase) defects detected: "+numDefects);
@@ -10614,17 +10613,17 @@ if (MORE_BUTTONS) {
 			gd.addNumericField("Tile clearSize", tileClearSize, 0 ,4, "pix");
 			gd.addNumericField("Tile margin (extra) width", tileMargins, 0 ,4, "pix");
 			gd.addNumericField("Color channel mask", cmask, 0 ,4, "9 - both green colors");
-			gd.addNumericField("Number of \"remove outlayers\" passes", numPasses, 0 ,4, "");
-			gd.addNumericField("Number of neighbors (of total 8) to base outlayers", numInBase, 0 ,4, "<=8");
+			gd.addNumericField("Number of \"remove outliers\" passes", numPasses, 0 ,4, "");
+			gd.addNumericField("Number of neighbors (of total 8) to base outliers", numInBase, 0 ,4, "<=8");
 			gd.addNumericField("Base low-pass sigma ", sigma, 3 ,7, "double pixels");
-			gd.addCheckbox    ("Process tiles with no outlayer replacements", processNoReplace);
+			gd.addCheckbox    ("Process tiles with no outlier replacements", processNoReplace);
 			gd.addNumericField("\"Normal\" pixels variation", binWidth, 3 ,7, "");
-			gd.addNumericField("Empty level gap between \"normal\" pixels and outlayers", gapWidth, 3 ,7, "");
+			gd.addNumericField("Empty level gap between \"normal\" pixels and outliers", gapWidth, 3 ,7, "");
 
 			gd.addNumericField("Post-HPF algorithm number", algNum, 0 ,4, "(1 or 2");
-			gd.addNumericField("Number of neighbors (of total 8) to base outlayers (after high-pass), 0 - no filter", numInBase2, 0 ,4, "<=8");
+			gd.addNumericField("Number of neighbors (of total 8) to base outliers (after high-pass), 0 - no filter", numInBase2, 0 ,4, "<=8");
 			gd.addNumericField("\"Normal\" pixels variation (after high-pass)", binWidth2, 3 ,7, "");
-			gd.addNumericField("Empty level gap between \"normal\" pixels and outlayers (after high-pass)", gapWidth2, 3 ,7, "");
+			gd.addNumericField("Empty level gap between \"normal\" pixels and outliers (after high-pass)", gapWidth2, 3 ,7, "");
 
 
 			gd.showDialog();
@@ -10649,7 +10648,7 @@ if (MORE_BUTTONS) {
 					tileClearSize,
 					tileMargins,
 					cmask, // bitmask of color channels to process (9 - two greens)
-					numPasses, // number of passes to replace outlayers (will end if none was replaced)
+					numPasses, // number of passes to replace outliers (will end if none was replaced)
 					numInBase, // number of neighbors (of 8) to use as a base if they all agree
 					sigma, // for high-pass filtering
 					processNoReplace, // calculate differences even if no replacements were made
@@ -10731,7 +10730,7 @@ if (MORE_BUTTONS) {
 					128,  // tileClearSize,
 					16,   // tileMargins,
 					15,   // cmask, // bitmask of color channels to process (9 - two greens)
-					1000, // numPasses, // number of passes to replace outlayers (will end if none was replaced)
+					1000, // numPasses, // number of passes to replace outliers (will end if none was replaced)
 					5,    // numInBase, // number of neighbors (of 8) to use as a base if they all agree
 					1.5,  // sigma, // for high-pass filtering
 					true, // processNoReplace, // calculate differences even if no replacements were made
@@ -20537,7 +20536,7 @@ use the result to create a rejectiobn mask - if the energy was high, (multiplica
 		gd.addNumericField("Increase weight of the \"sharp\" kernels by dividing weights by the radius to this power",multiFilePSF.sharpBonusPower,3); //  1.0; // Center shift (in pixels) addition to the difference relative to radius difference (in pixels)
 
 		gd.addNumericField("Discard up to this fraction of samples that have larger radius (i.e. falling on the target seam that may only make PSF larger)",100.0*multiFilePSF.maxFracDiscardWorse,1,5,"%"); // 0.1, discard up to this fraction of samples that have larger radius (i.e. falling on the target seam that may only make PSF larger)
-		gd.addNumericField("Continue removing outlayers (combined radius and shift), removing not more that this fraction (including maxFracDiscardWorse)",100.0*multiFilePSF.maxFracDiscardAll,1,5,"%"); // 0.5, continue removing outlayers (combined radius and shift), removing not more that this fraction (including maxFracDiscardWorse)
+		gd.addNumericField("Continue removing outliers (combined radius and shift), removing not more that this fraction (including maxFracDiscardWorse)",100.0*multiFilePSF.maxFracDiscardAll,1,5,"%"); // 0.5, continue removing outliers (combined radius and shift), removing not more that this fraction (including maxFracDiscardWorse)
 
 		gd.addNumericField("Cell having 8 around will have thresholds above twice higher than having none when this is set to 1.0, 0.0 - all same thresholds",multiFilePSF.internalBonus,3);
 

@@ -4102,16 +4102,16 @@ List calibration
     	return true;
     }
 
-    public boolean removeOutLayers(
+    public boolean removeOutLiers(
     		int series,
-    		int numOutLayers,
+    		int numOutLiers,
     		boolean [] selectedChannels){
     	int numSeries=fittingStrategy.getNumSeries();
     	boolean removeEmpty=false;
     	boolean recalculate=false;
     	boolean applyChannelFilter=false;
 		int filter=filterForAll;
-    	if ((series<0) || (numOutLayers<0)) {
+    	if ((series<0) || (numOutLiers<0)) {
     		GenericDialog gd = new GenericDialog("Select series to process");
     		gd.addNumericField("Iteration number to start (0.."+(numSeries-1)+")", this.seriesNumber, 0);
     		if (selectedChannels != null) {
@@ -4120,7 +4120,7 @@ List calibration
     			gd.addCheckbox("Filter by channel selection ("+s+")", applyChannelFilter);
     		}
     		gd.addCheckbox("Recalculate parameters vector from selected strategy",recalculate);
-    		gd.addNumericField("Number of outlayers to show", 10, 0);
+    		gd.addNumericField("Number of outliers to show", 10, 0);
     		gd.addCheckbox("Remove empty (rms==NaN) images", removeEmpty);
     		gd.addCheckbox("Ask filter (current filter="+filter+")",    this.askFilter);
     		gd.showDialog();
@@ -4128,7 +4128,7 @@ List calibration
     		this.seriesNumber=                           (int) gd.getNextNumber();
     		if (selectedChannels != null) applyChannelFilter=  gd.getNextBoolean();
     		recalculate=                                       gd.getNextBoolean();
-    		numOutLayers=                                (int) gd.getNextNumber();
+    		numOutLiers=                                (int) gd.getNextNumber();
     		removeEmpty=                                       gd.getNextBoolean();
     		this.askFilter=                                    gd.getNextBoolean();
     		if (this.askFilter) filter=  selectFilter(filter);
@@ -4162,14 +4162,14 @@ List calibration
 		int index=0;
 		for (int i=0;i<selectedImages.length;i++) if ( selectedImages[i] && !Double.isNaN(errors[i])) imgIndices[index++]=i; // OOB 2389
 
-		if (numOutLayers>numSelectedNotNaNImages) numOutLayers=numSelectedNotNaNImages;
-		int [] indices=new int [numOutLayers];
+		if (numOutLiers>numSelectedNotNaNImages) numOutLiers=numSelectedNotNaNImages;
+		int [] indices=new int [numOutLiers];
 		boolean [] availableImages=selectedImages.clone();
 		for (int i=0;i<selectedImages.length;i++) if (selectedImages[i] && Double.isNaN(errors[i])) availableImages[i]=false;
 
 
 		if ((this.debugLevel>0) && (numNaN>0)){
-			System.out.println("removeOutLayers(): Number of empty (rms=NaN) images="+numNaN+":");
+			System.out.println("removeOutLiers(): Number of empty (rms=NaN) images="+numNaN+":");
 			int n=0;
 			for (int i=0;i<selectedImages.length;i++) if (selectedImages[i] && Double.isNaN(errors[i])){
 				n++;
@@ -4187,8 +4187,8 @@ List calibration
 
 		}
 
-		System.out.println("removeOutLayers(): availableImages.length="+availableImages.length+" numSelectedNotNaNImages="+numSelectedNotNaNImages);
-		for (int n=0;n<numOutLayers;n++){
+		System.out.println("removeOutLiers(): availableImages.length="+availableImages.length+" numSelectedNotNaNImages="+numSelectedNotNaNImages);
+		for (int n=0;n<numOutLiers;n++){
 			double maxRMS=-1.0;
 			indices[n]=-1;
 			for (int i=0;i<availableImages.length;i++)if (availableImages[i] && (Double.isNaN(errors[i]) || (errors[i]>maxRMS))){ // Double.NaN will be greater
@@ -4196,14 +4196,14 @@ List calibration
 					indices[n]=i;
 			}
 			if (indices[n]<0){
-				System.out.println("removeOutLayers(): indices["+n+"]="+indices[n]);
+				System.out.println("removeOutLiers(): indices["+n+"]="+indices[n]);
 				continue;
 			}
 			availableImages[indices[n]]=false; // java.lang.ArrayIndexOutOfBoundsException: -1
 		}
 
 		GenericDialog gd = new GenericDialog("Select images to remove (RMS="+IJ.d2s(rms,3)+")");
-		if (this.debugLevel>0) System.out.println("Listing "+numOutLayers+" worst images:");
+		if (this.debugLevel>0) System.out.println("Listing "+numOutLiers+" worst images:");
 		for (int n=0;n<indices.length;n++){
 			String msg=n+" ("+indices[n]+" / "+ this.fittingStrategy.distortionCalibrationData.gIP[indices[n]].getSetNumber()+"): "+
 			IJ.d2s(errors[indices[n]],3)+" "+
@@ -4218,7 +4218,7 @@ List calibration
 		WindowTools.addScrollBars(gd);
 		gd.showDialog();
 		if (gd.wasCanceled()) return false;
-		if (this.debugLevel>0) System.out.println("Removing outlayers:");
+		if (this.debugLevel>0) System.out.println("Removing outliers:");
 		for (int n=0;n<indices.length;n++){
 			if (gd.getNextBoolean()) {
 				if (this.debugLevel>0) System.out.println(n+" :"+IJ.d2s(errors[indices[n]],3)+" "+this.fittingStrategy.distortionCalibrationData.gIP[indices[n]].path);
@@ -4230,18 +4230,18 @@ List calibration
 		return true;
     }
 
-    public boolean removeOutLayerSets(int numOutLayers){
+    public boolean removeOutLierSets(int numOutLiers){
     	boolean removeEmptySets=false;
-    	if (numOutLayers<0) {
+    	if (numOutLiers<0) {
     		GenericDialog gd = new GenericDialog("Select sets to process");
     		gd.addNumericField("Series number (<0 - all images)", -1, 0);
-    		gd.addNumericField("Number of outlayers to show", 5, 0);
+    		gd.addNumericField("Number of outliers to show", 5, 0);
     		gd.addCheckbox("Remove empty sets", removeEmptySets);
     		gd.addCheckbox("Ask for weight function filter",     this.askFilter);
     		gd.showDialog();
     		if (gd.wasCanceled()) return false;
     		this.seriesNumber= (int) gd.getNextNumber();
-    		numOutLayers=      (int) gd.getNextNumber();
+    		numOutLiers=      (int) gd.getNextNumber();
     		removeEmptySets=         gd.getNextBoolean();
     		this.askFilter=         gd.getNextBoolean();
     	}
@@ -4291,12 +4291,12 @@ List calibration
 //		int index=0;
 //		for (int i=0;i<imageSets.length;i++) if ( selectedImages[i]) imgIndices[index++]=i;
 
-		if (numOutLayers>numSelectedSets) numOutLayers=numSelectedSets;
-		int [] indices=new int [numOutLayers];
+		if (numOutLiers>numSelectedSets) numOutLiers=numSelectedSets;
+		int [] indices=new int [numOutLiers];
 		boolean [] availableSets= new boolean  [imageSets.length];
 		for (int i=0;i<imageSets.length;i++) availableSets[i]= !allNaNInSet[i]; //!Double.isNaN(rmsPerSet[i]);
 		if (removeEmptySets  && (numNaN>0)){ //(this.debugLevel>0)
-			if (this.debugLevel>0) System.out.println("removeOutLayerSets(): Number of empty (rms=NaN) sets="+numNaN+":");
+			if (this.debugLevel>0) System.out.println("removeOutLierSets(): Number of empty (rms=NaN) sets="+numNaN+":");
 //			int n=0;
 			for (int setNum=0;setNum<imageSets.length;setNum++) if (!availableSets[setNum]){
 //				n++;
@@ -4311,8 +4311,8 @@ List calibration
 			}
 		}
 
-		System.out.println("removeOutLayerSets(): availableSets.length="+availableSets.length+" numSelectedSets="+numSelectedSets);
-		for (int n=0;n<numOutLayers;n++){
+		System.out.println("removeOutLierSets(): availableSets.length="+availableSets.length+" numSelectedSets="+numSelectedSets);
+		for (int n=0;n<numOutLiers;n++){
 			double maxRMS=-1.0;
 			indices[n]=-1;
 			for (int i=0;i<availableSets.length;i++)if (availableSets[i] && (rmsPerSet[i]>maxRMS)){ // NaN are already skipped
@@ -4320,14 +4320,14 @@ List calibration
 					indices[n]=i;
 			}
 			if (indices[n]<0){
-				System.out.println("removeOutLayerSets(): indices["+n+"]="+indices[n]);
+				System.out.println("removeOutLierSets(): indices["+n+"]="+indices[n]);
 				continue;
 			}
 			availableSets[indices[n]]=false; // java.lang.ArrayIndexOutOfBoundsException: -1
 		}
 
 		GenericDialog gd = new GenericDialog("Select image Sets to remove (RMS="+IJ.d2s(rms,3)+")");
-		if (this.debugLevel>0) System.out.println("Listing "+numOutLayers+" worst image sets");
+		if (this.debugLevel>0) System.out.println("Listing "+numOutLiers+" worst image sets");
 		for (int n=0;n<indices.length;n++){
 			int numSet=indices[n];
 			double setWeight=this.fittingStrategy.distortionCalibrationData.gIS[numSet].setWeight;
@@ -4351,7 +4351,7 @@ List calibration
 //			this.fittingStrategy.setImageSelection(0, oldSelection); // restore original selection in series 0
 			return false;
 		}
-		if (this.debugLevel>0) System.out.println("Removing outlayers:");
+		if (this.debugLevel>0) System.out.println("Removing outliers:");
 		for (int n=0;n<indices.length;n++){
 			if (gd.getNextBoolean()) {
 				int numSet=indices[n];
@@ -4371,16 +4371,16 @@ List calibration
 		return true;
     }
 
-    public boolean removeOutLayersJunk(int series, int numOutLayers){
+    public boolean removeOutLiersJunk(int series, int numOutLiers){
     	int numSeries=fittingStrategy.getNumSeries();
-    	if ((series<0) || (numOutLayers<0)) {
+    	if ((series<0) || (numOutLiers<0)) {
     		GenericDialog gd = new GenericDialog("Select series to process");
     		gd.addNumericField("Iteration number to start (0.."+(numSeries-1)+")", this.seriesNumber, 0);
-    		gd.addNumericField("Number of outlayers to show", 10, 0);
+    		gd.addNumericField("Number of outliers to show", 10, 0);
     		gd.showDialog();
     		if (gd.wasCanceled()) return false;
     		this.seriesNumber=          (int) gd.getNextNumber();
-    		numOutLayers=               (int) gd.getNextNumber();
+    		numOutLiers=               (int) gd.getNextNumber();
     	} else {
     		this.seriesNumber=series;
     	}
@@ -4395,12 +4395,12 @@ List calibration
 		int index=0;
 		for (int i=0;i<selectedImages.length;i++) if ( selectedImages[i]) imgIndices[index++]=i;
 
-		if (numOutLayers>numSelectedImages) numOutLayers=numSelectedImages;
-		int [] indices=new int [numOutLayers];
-		int [] indicesSelected=new int [numOutLayers];
+		if (numOutLiers>numSelectedImages) numOutLiers=numSelectedImages;
+		int [] indices=new int [numOutLiers];
+		int [] indicesSelected=new int [numOutLiers];
 		boolean [] availableImages=new boolean[numSelectedImages];
 		for (int i=0;i<availableImages.length;i++)availableImages[i]=true;
-		for (int n=0;n<numOutLayers;n++){
+		for (int n=0;n<numOutLiers;n++){
 			double maxRMS=0;
 			indices[n]=-1;
 			indicesSelected[n]=-1;

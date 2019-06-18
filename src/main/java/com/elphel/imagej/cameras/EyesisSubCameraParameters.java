@@ -370,4 +370,25 @@ import java.util.Properties;
     		return this.distortionRadius;
     	}
 
+        public void setSensorWidth(int v)   {
+        		this.sensorWidth = v;
+        }
+        public void setSensorHeight(int v)  {
+        		this.sensorHeight = v;
+        }
+        public void setDecimateMasks(int v) {
+        		this.decimateMasks = v;
+        }
+
+        public int getSensorWidth()   {
+        	return this.sensorWidth;
+        }
+        public int getSensorHeight()  {
+        	return this.sensorHeight;
+        }
+        public int getDecimateMasks() {
+        	return this.decimateMasks;
+        }
+
+
     }

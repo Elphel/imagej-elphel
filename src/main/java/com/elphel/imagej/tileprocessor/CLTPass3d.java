@@ -528,7 +528,7 @@ public class CLTPass3d{
 			final int tilesY = tileProcessor.getTilesY();
 
 			final int nTiles = tilesX*tilesY;
-			final boolean [] weakOutlayers = new boolean [nTiles];
+			final boolean [] weakOutliers = new boolean [nTiles];
 			int [] dirs8 = {-tilesX,  -tilesX + 1, 1, tilesX +1, tilesX, tilesX - 1, -1, -tilesX - 1};
 			final int [] dirs = dirs8;
 			final double [] disparity = getDisparity(0);
@@ -554,11 +554,11 @@ public class CLTPass3d{
 								double dbg_disparity_nTile = disparity[nTile];
 								double dbg_disparityFar = disparityFar;
 								double dbg_disparityNear = disparityNear;
-								boolean [] dbg_weakOutlayers = weakOutlayers;
+								boolean [] dbg_weakOutliers = weakOutliers;
 								int tileY = nTile / tilesX;
 								int tileX = nTile % tilesX;
 								if ((tileY > 0) && (tileY < (tilesY -1)) &&(tileX > 0) && (tileX < (tilesX -1))){ // disregard outer row/cols
-									weakOutlayers[nTile] = true;
+									weakOutliers[nTile] = true;
 									boolean hasNeighbors = false;
 									double sd = 0.0, sw = 0.0;
 									for (int dir = 0; dir< dirs.length; dir++){
@@ -572,20 +572,20 @@ public class CLTPass3d{
 											sd += w * disparity[nTile1];
 											hasNeighbors = true;
 											if (Math.abs(disparity[nTile]-disparity[nTile1]) <= maxDiff){ // any outlier - will be false
-												weakOutlayers[nTile] = false;
+												weakOutliers[nTile] = false;
 //												break;
 											}
 										}
 									}
 									if (sw >= 0.0) {
 										sd /= sw;
-										if      (disparity[nTile] < (sd - maxDiffNeg)) weakOutlayers[nTile] = true;
-										else if (disparity[nTile] > (sd + maxDiffPos)) weakOutlayers[nTile] = true;
+										if      (disparity[nTile] < (sd - maxDiffNeg)) weakOutliers[nTile] = true;
+										else if (disparity[nTile] > (sd + maxDiffPos)) weakOutliers[nTile] = true;
 									}
-									if (disparity[nTile] < disparityFar)  weakOutlayers[nTile] = true;
-									if (disparity[nTile] > disparityNear) weakOutlayers[nTile] = true;
+									if (disparity[nTile] < disparityFar)  weakOutliers[nTile] = true;
+									if (disparity[nTile] > disparityNear) weakOutliers[nTile] = true;
 									if (!hasNeighbors) {
-										weakOutlayers[nTile] = false; // lone tile or NaN among NaNs
+										weakOutliers[nTile] = false; // lone tile or NaN among NaNs
 									}
 								}
 							}
@@ -606,11 +606,11 @@ public class CLTPass3d{
 							if (nTile == dbg_nTile){
 								System.out.println("replaceWeakOutliers():2 nTile="+nTile);
 							}
-							if (weakOutlayers[nTile]) {
+							if (weakOutliers[nTile]) {
 								double sw = 0.0, sd = 0.0;
 								for (int dir = 0; dir< dirs.length; dir++){
 									int nTile1 = nTile + dirs[dir];
-									if (!weakOutlayers[nTile1] && ((selection == null) || selection[nTile1 ]) ) {
+									if (!weakOutliers[nTile1] && ((selection == null) || selection[nTile1 ]) ) {
 										double w = strength[nTile1];
 										sw += w;
 										sd += w * src_disparity[nTile1];
@@ -642,7 +642,7 @@ public class CLTPass3d{
 				};
 			}
 			ImageDtt.startAndJoin(threads);
-			return weakOutlayers;
+			return weakOutliers;
 		}
 
 		public boolean [] getUntestedBackgroundBorder (

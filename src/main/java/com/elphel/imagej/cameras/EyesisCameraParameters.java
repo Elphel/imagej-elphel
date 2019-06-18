@@ -960,8 +960,12 @@ import ij.gui.GenericDialog;
         				gd.addNumericField("Channel "+numSubCam+" default weight",      subCam.channelWeightDefault, 5,8,"");
     				}
     				if (this.numStations>1) gd.addMessage("--- Station number "+numStation+" ---");
-    				gd.addNumericField("Subcamera lens distortion model",               subCam.lensDistortionModel, 5,0,"");
+    				gd.addNumericField("Subcamera lens distortion model",               subCam.lensDistortionModel, 8,0,"");
     				gd.addCheckbox    ("Enable matching w/o laser pointers",            subCam.enableNoLaser);
+    				if (numStation == 0) {
+    					gd.addNumericField("Image sensor width",                            this.getSensorWidth (numSubCam), 0,4,"pix");
+    					gd.addNumericField("Image sensor height",                           this.getSensorHeight(numSubCam), 0,4,"pix");
+    				}
     				if (subCam.cartesian) {
     					gd.addNumericField("Subcamera right from the axis",             subCam.right, 5,9,"mm");
     					gd.addNumericField("Subcamera forward from the rotation axis",  subCam.forward,  5,9,"mm");
@@ -1044,6 +1048,10 @@ import ij.gui.GenericDialog;
     				subCam.channelWeightDefault= channelWeightDefault; // assign to all stations
     				subCam.lensDistortionModel= (int) gd.getNextNumber();
     				subCam.enableNoLaser =            gd.getNextBoolean();
+    				if (numStation == 0) {
+    					this.setSensorWidth (numSubCam,(int) gd.getNextNumber());
+    					this.setSensorHeight(numSubCam,(int) gd.getNextNumber());
+    				}
     				if (subCam.cartesian) {
     					subCam.right=       gd.getNextNumber();
     					subCam.forward=     gd.getNextNumber();
@@ -1106,6 +1114,9 @@ import ij.gui.GenericDialog;
     	    		for (int numStation=1;numStation<this.numStations;numStation++) {
     	    			EyesisSubCameraParameters subCam=this.eyesisSubCameras[numStation][numSubCam];
     	    			if (subCam!=null) {
+    	    	    		this.setSensorWidth (numSubCam,first.getSensorWidth  ());
+    	    	    		this.setSensorHeight(numSubCam,first.getSensorHeight ());
+
     	    				if (subCam.cartesian) {
     	    					subCam.right=       first.right;
     	    					subCam.forward=     first.forward;
@@ -1298,22 +1309,39 @@ import ij.gui.GenericDialog;
         public int getGoniometerHorizontalIndex(){return 6;}
         public int getGoniometerAxialIndex(){return 7;}
         public int getInterAxisAngleIndex(){return 9;}
-
+@Deprecated
         public int getSensorWidth()         { return this.defaultSensorWidth;}
+@Deprecated
         public int getSensorHeight()        { return this.defaultSensorHeight;}
+@Deprecated
         public int getDecimateMasks()       { return this.defaultDecimateMasks;}
+@Deprecated
         public void setSensorWidth(int v)   { this.defaultSensorWidth = v;}
+@Deprecated
         public void setSensorHeight(int v)  { this.defaultSensorHeight = v;}
+@Deprecated
         public void setDecimateMasks(int v) { this.defaultDecimateMasks = v;}
 
 
-        public int getSensorWidth(int subCam) { return this.eyesisSubCameras[0][subCam].sensorWidth;} // for the future? different sensors
-        public int getSensorHeight(int subCam) { return this.eyesisSubCameras[0][subCam].sensorHeight;}// for the future? different sensors
-        public int getDecimateMasks(int subCam) { return this.eyesisSubCameras[0][subCam].decimateMasks;}// for the future? different sensors
+        public int getSensorWidth(int subCam) { return this.eyesisSubCameras[0][subCam].getSensorWidth();} // for the future? different sensors
+        public int getSensorHeight(int subCam) { return this.eyesisSubCameras[0][subCam].getSensorHeight();}// for the future? different sensors
+        public int getDecimateMasks(int subCam) { return this.eyesisSubCameras[0][subCam].getDecimateMasks();}// for the future? different sensors
 
-        public void setSensorWidth(int subCam, int v)   { this.eyesisSubCameras[0][subCam].sensorWidth = v;}
-        public void setSensorHeight(int subCam, int v)  { this.eyesisSubCameras[0][subCam].sensorHeight = v;}
-        public void setDecimateMasks(int subCam, int v) { this.eyesisSubCameras[0][subCam].decimateMasks = v;}
+        public void setSensorWidth(int subCam, int v)   {
+        	for (int station = 0; station < this.eyesisSubCameras.length; station++) {
+        		this.eyesisSubCameras[station][subCam].setSensorWidth(v);
+        	}
+        }
+        public void setSensorHeight(int subCam, int v)  {
+        	for (int station = 0; station < this.eyesisSubCameras.length; station++) {
+        		this.eyesisSubCameras[station][subCam].setSensorHeight(v);
+        	}
+        }
+        public void setDecimateMasks(int subCam, int v) {
+        	for (int station = 0; station < this.eyesisSubCameras.length; station++) {
+        		this.eyesisSubCameras[station][subCam].setDecimateMasks(v);
+        	}
+        }
 
         public int [] getSensorWidths() {
         	int [] v = new int [eyesisSubCameras[0].length];

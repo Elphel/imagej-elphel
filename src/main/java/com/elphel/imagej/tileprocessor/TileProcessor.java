@@ -5032,10 +5032,10 @@ public class TileProcessor {
 		// replace weak outliers tiles with weighted averages (modifies disparity)
 		boolean[] outliers = scan_prev.replaceWeakOutliers(
 				null, // final boolean [] selection,
-				clt_parameters.outlayerStrength , //final double weakStrength,    // strength to be considered weak, subject to this replacement
-				clt_parameters.outlayerDiff, // final double maxDiff)
-				clt_parameters.outlayerDiffPos, // final double maxDiff)
-				clt_parameters.outlayerDiffNeg, // final double maxDiff)
+				clt_parameters.outlierStrength , //final double weakStrength,    // strength to be considered weak, subject to this replacement
+				clt_parameters.outlierDiff, // final double maxDiff)
+				clt_parameters.outlierDiffPos, // final double maxDiff)
+				clt_parameters.outlierDiffNeg, // final double maxDiff)
 				0.5 * disparity_far,
 				2.0 * disparity_near,
 				debugLevel);
@@ -5124,7 +5124,7 @@ public class TileProcessor {
 		}
 		if (show_super && (debugLevel > 100)){ // something is broken, java.lang.NullPointerException at TileProcessor.refinePassSetup(TileProcessor.java:4488)
 			String [] dbg_disp_tiltes={"masked", "filtered", "disp_combo", "disparity","st_disparity", "strength",
-					"st_strength","outlayers","these","border","border_tiles"}; // ,"before","after","after1","after2","after3","neib"};
+					"st_strength","outliers","these","border","border_tiles"}; // ,"before","after","after1","after2","after3","neib"};
 			double [][] dbg_disp = new double [dbg_disp_tiltes.length][];
 			dbg_disp[0] = masked_filtered;            // +
 			dbg_disp[1] = scan_prev.getDisparity();   // +
@@ -7165,7 +7165,7 @@ public class TileProcessor {
 				this_disparity[i] = ortho_disparity[i];
 			}
 
-			// average disparity along the runs, if they are close enough (remove outlayers?)
+			// average disparity along the runs, if they are close enough (remove outliers?)
 			if (clt_parameters.ortho_rms > 0){
 				double ortho_rms2 = clt_parameters.ortho_rms * clt_parameters.ortho_rms;
 
