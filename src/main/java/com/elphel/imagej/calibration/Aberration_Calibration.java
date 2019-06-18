@@ -501,7 +501,7 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 	    	4,    // int    decimateMasks
 	    	0.1,  // double badNodeThreshold=0.1; // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
     		1,    // int  maxBadNeighb; // maximal number of bad nodes around the corrected one to fix
-    		50,   // int minimalValidNodes
+    		10,   // int minimalValidNodes
         	1,    // int   weightMultiImageMode=1; // increase weight for multi-image sets (0 - do not increase, 1 - multiply by number of images in a set)
         	1.0,  // public double  weightMultiExponent= 1.0; // if( >0) use grid diameter to scale weights of this image
         	1.0,  // public double  weightDiameterExponent=1.0;
@@ -511,7 +511,8 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 	    	0.5,  // public double shrinkBlurLevel = 0.5;
 	       -1.0, // double balanceChannelWeightsMode
 	    	2.0, // public double removeOverRMS=2.0;            // error is multiplied by weight function before comparison (more permissive on the borders
-	    	4.0 //public double removeOverRMSNonweighted=4.0; // error is not multiplied (no more permissions on tyhe borders
+	    	4.0, //public double removeOverRMSNonweighted=4.0; // error is not multiplied (no more permissions on tyhe borders
+	    	true // boolean invertUnmarkedLwirGrid
 	    	);
 
     //
@@ -1020,6 +1021,7 @@ if (MORE_BUTTONS) {
 		addButton("Import Subsystem",           panelLWIR,color_configure);
 		addButton("Select LWIR grids",          panelLWIR,color_configure);
 		addButton("Grid offset",                panelLWIR,color_process);
+		addButton("LWIR to EO",                 panelLWIR,color_process);
 		addButton("Manual hint",                panelLWIR,color_configure);
 
 		add(panelLWIR);
@@ -2080,6 +2082,8 @@ if (MORE_BUTTONS) {
 			double[][] gridDisplay=LENS_DISTORTIONS.prepareDisplayGrid();
 			SDFA_INSTANCE.showArrays(gridDisplay,LENS_DISTORTIONS.getGridWidth(),LENS_DISTORTIONS.getGridHeight(),  true, "Grid",
 					LENS_DISTORTIONS.displayGridTitles());
+
+			// Does not update pixelSize and DistortionRadius !!
 			LENS_DISTORTIONS.calcGridOnSensor(0.0);
 			double[][] gridDisplayOnSensor=LENS_DISTORTIONS.prepareDisplayGridOnSensor(false);
 			SDFA_INSTANCE.showArrays(gridDisplayOnSensor,LENS_DISTORTIONS.getGridWidth(),LENS_DISTORTIONS.getGridHeight(),  true, "GridOnSensor",
@@ -2297,7 +2301,9 @@ if (MORE_BUTTONS) {
 			if (LENS_DISTORTIONS.fittingStrategy==null) return;
 			LENS_DISTORTIONS.fittingStrategy.debugLevel=DEBUG_LEVEL;
 
-			LENS_DISTORTIONS.LevenbergMarquardt(true); // open dialog
+			LENS_DISTORTIONS.LevenbergMarquardt(true, // open dialog
+					false); // dry_run
+
 			return;
 		}
 /* ======================================================================== */
@@ -3610,7 +3616,9 @@ if (MORE_BUTTONS) {
 				LENS_DISTORTIONS.thresholdFinish=FOCUS_MEASUREMENT_PARAMETERS.thresholdFinish;
 				LENS_DISTORTIONS.numIterations=FOCUS_MEASUREMENT_PARAMETERS.numIterations;
 
-				LENS_DISTORTIONS.LevenbergMarquardt(false); //  skip dialog
+				LENS_DISTORTIONS.LevenbergMarquardt(
+						false, // skip dialog
+						false); // new: dry_run use it here?
 				if (DEBUG_LEVEL>0) System.out.println("Finished LMA at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 				int stationNumber=0;
 				// Read camera parameters
@@ -3635,7 +3643,9 @@ if (MORE_BUTTONS) {
 					LENS_DISTORTIONS.thresholdFinish=FOCUS_MEASUREMENT_PARAMETERS.thresholdFinish;
 					LENS_DISTORTIONS.numIterations=FOCUS_MEASUREMENT_PARAMETERS.numIterations;
 
-					LENS_DISTORTIONS.LevenbergMarquardt(false); //  skip dialog
+					LENS_DISTORTIONS.LevenbergMarquardt(
+							false, // skip dialog
+							false); // new: dry_run use it here?
 					if (DEBUG_LEVEL>0) System.out.println("Finished second LMA at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 					if (!FOCUS_MEASUREMENT_PARAMETERS.keepCircularMask) {
 						DISTORTION_CALIBRATION_DATA.calculateSensorMasks(); // TODO: save/restore original mask for channel 0
@@ -5922,7 +5932,7 @@ if (MORE_BUTTONS) {
 				return;
 			}
 			GenericDialog gd=new GenericDialog ("Select list mode");
-    		gd.addNumericField("Mode 0 - pointers, 1 - shift/Rots, 2 - points/extra, 3 - rms", 0, 0);
+    		gd.addNumericField("Mode 0 - pointers, 1 - shift/Rots, 2 - points/extra, 3 - rms", 3, 0);
     		gd.showDialog();
     		if (gd.wasCanceled()) return;
     		int listMode=          (int) gd.getNextNumber();
@@ -6100,7 +6110,9 @@ if (MORE_BUTTONS) {
 				LENS_DISTORTIONS.stopEachSeries= false; // will not ask for confirmation after done
 				LENS_DISTORTIONS.stopOnFailure=false;
 				LENS_DISTORTIONS.lambda=LENS_DISTORTIONS.fittingStrategy.lambdas[0]; // 0.001; // why it does not use fitting series lambda?
-				boolean LMA_OK=LENS_DISTORTIONS.LevenbergMarquardt(false); //  skip dialog
+				boolean LMA_OK=LENS_DISTORTIONS.LevenbergMarquardt(
+						false, // skip dialog
+						false); // new: dry_run use it here?
 				if (LMA_OK) {
 					finalTilt[tiltIndex][axialIndex]=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerTilt;
 					finalAxial[tiltIndex][axialIndex]=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerAxial;
@@ -6177,7 +6189,9 @@ if (MORE_BUTTONS) {
 			LENS_DISTORTIONS.stopEachStep=   false;
 			LENS_DISTORTIONS.stopEachSeries= false; // will not ask for confirmation after done
 			LENS_DISTORTIONS.lambda=LENS_DISTORTIONS.fittingStrategy.lambdas[0];
-			LENS_DISTORTIONS.LevenbergMarquardt(false); //  skip dialog
+			LENS_DISTORTIONS.LevenbergMarquardt(
+					false, // skip dialog
+					false); // new: dry_run use it here?
 
 // save safe settings to run LMA manually
 			LENS_DISTORTIONS.seriesNumber=   0; // start from 0;
@@ -9435,16 +9449,17 @@ if (MORE_BUTTONS) {
 	    calculateLwirGrids();
         return;
 	}
-
+/* ======================================================================== */
 	if       (label.equals("Import Subsystem")) {
 		importSystem(null, "EYESIS_CAMERA_PARAMETERS.");
         return;
 	}
-
+/* ======================================================================== */
 	if       (label.equals("Select LWIR grids")) {
 		selectLwirGrids(LWIR_PARAMETERS);
         return;
 	}
+/* ======================================================================== */
 	if       (label.equals("Manual hint")) {
 		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 		if (LENS_DISTORTIONS==null) {
@@ -9466,12 +9481,19 @@ if (MORE_BUTTONS) {
 		LENS_DISTORTIONS.manualGridHint(numGridImage);
         return;
 	}
-
+/* ======================================================================== */
 	if       (label.equals("Grid offset")) {
 		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 		offsetGrids(0, 0, null);
 		return;
 	}
+/* ======================================================================== */
+	if       (label.equals("LWIR to EO")) {
+		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+		lwirToEo();
+		return;
+	}
+
 /* ======================================================================== */
 
 		IJ.showMessage("Not yet implemented");
@@ -9480,6 +9502,108 @@ if (MORE_BUTTONS) {
 	}
 
 /* ===== Other methods ==================================================== */
+
+	public boolean lwirToEo() {
+		if (LENS_DISTORTIONS == null) {
+			System.out.println("LENS_DISTORTIONS is null");
+			return false;
+		}
+		if (PATTERN_PARAMETERS == null) {
+			System.out.println("PATTERN_PARAMETERS is null");
+			return false;
+		}
+		DistortionCalibrationData dcd = LENS_DISTORTIONS.getDistortionCalibrationData();
+		if (dcd == null) {
+			dcd = DISTORTION_CALIBRATION_DATA;
+		}
+		if (dcd == null) {
+			System.out.println("dcd is null");
+			return false;
+		}
+
+		int min_set = 0;
+		int max_set = dcd.getNumSets()-1;
+		boolean adjust_eo =   false;
+		boolean adjust_lwir = true;
+		boolean use_lma =     true;
+
+		GenericDialog gd = new GenericDialog("Initial alignment of the secondary camera to the reference one");
+		gd.addMessage("This command used Fitting Strategy[0] that should be set with all parameters but\n"+
+		"GXYZ0 and GXYZ1 are set to 'fixed', and GXYZ0 and GXYZ1 are set to 'individual'.\n"+
+				"Each selected set should already have GXYZ set correctly (e.g. by reference cameras)");
+		gd.addNumericField("Image set start", min_set, 0);
+		gd.addNumericField("Image set last",  max_set, 0);
+		gd.addCheckbox("Adjust EO (reference) sensors", adjust_eo);
+		gd.addCheckbox("Adjust LWIR (target) sensors", adjust_lwir);
+		gd.addCheckbox("Use LMA (unchecked - initial approximate grid setum by correlation)", use_lma);
+		gd.showDialog();
+		if (gd.wasCanceled()) return false;
+		min_set = (int) gd.getNextNumber();
+		max_set = (int) gd.getNextNumber();
+		adjust_eo =     gd.getNextBoolean();
+		adjust_lwir =   gd.getNextBoolean();
+		use_lma =   gd.getNextBoolean();
+       	if (!dcd.hasSmallSensors()) {
+    		String msg="This system does not have any LWIR or other dependent sub-cameras";
+    		IJ.showMessage("Error",msg);
+    		return false;
+    	}
+
+       	if (use_lma) {
+       		for (int num_set = min_set; num_set <=max_set; num_set++) if
+       		((dcd.gIS[num_set] != null) && (dcd.gIS[num_set].imageSet != null)) {
+       			for (int nc = 0; nc < dcd.getNumChannels(); nc++) {
+       				if (dcd.gIS[num_set].imageSet[nc]!= null) {
+       					int num_img = dcd.gIS[num_set].imageSet[nc].imgNumber;
+       					if (dcd.isSmallSensor(num_img)) {
+       						if (!adjust_lwir) {
+       							continue;
+       						}
+       					} else {
+       						if (!adjust_eo) {
+       							continue;
+       						}
+       					}
+       					int [] uvr = LENS_DISTORTIONS. findImageGridOffset(
+       							num_img,
+       							true, // boolean even, For first time - use parameter and parity of uv_rot
+       							PATTERN_PARAMETERS);
+       					if ((uvr != null) && ((uvr[0] != 0) || (uvr[1] != 0))) {
+       						int [] uv_shift_rot = {uvr[0],uvr[1],0};
+       						//						int [] new_uv_shift_rots =
+       						dcd.offsetGrid(
+       								num_img, // int img_num,
+       								uv_shift_rot,
+       								PATTERN_PARAMETERS);
+       						if (DEBUG_LEVEL > 0) {
+       							System.out.println(num_img+ "("+num_set+"."+nc+"): uv_shift = "+uvr[0]+":"+uvr[1]);
+       						}
+       					}
+       				}
+       			}
+
+
+       		}
+
+       	} else {
+
+       		for (int num_set = min_set; num_set <=max_set; num_set++) {
+       			int               extra_search =2;
+       			double            sigma = 5;
+
+
+       			dcd.initialSetLwirFromEO( //
+       					num_set,
+       					EYESIS_CAMERA_PARAMETERS.invertUnmarkedLwirGrid,      // boolean           invert_unmarked_grid,
+       					extra_search,                                         // 2
+       					sigma,                                                //5.0
+       					PATTERN_PARAMETERS,
+       					true); // debug
+       		}
+       	}
+       	return true;
+	}
+
 	public boolean offsetGrids(int ichoice, int inum, int [] uv_shift_rot) {
 		if (LENS_DISTORTIONS == null) {
 			System.out.println("LENS_DISTORTIONS is null");
@@ -9517,7 +9641,7 @@ if (MORE_BUTTONS) {
 		gd.addNumericField("Image/set number",  inum, 0);
 		gd.addCheckbox    ("Auto calculate UV", auto);
 		if (has_lwir) {
-			gd.addCheckbox    ("Auto from EO grid", true);
+			gd.addCheckbox    ("Auto from EO grid (calculatre from EO even if the requested image is LWIR)", false); //true
 		}
 		gd.addNumericField("Grid offset U",     uv_shift_rot[0], 0);
 		gd.addNumericField("Grid offset V",     uv_shift_rot[1], 0);
@@ -9580,11 +9704,17 @@ if (MORE_BUTTONS) {
 			// find first enabled image
 			for (int n:img_nums) {
 				if (n >= 0) {
-					int [] auto_uvr = dcd. suggestOffset (
-			        		n,    // int num_img,
-			        		true, // boolean non_estimated,
-			        		true, // boolean even,
-			        		PATTERN_PARAMETERS); // PatternParameters patternParameters)
+
+					int [] auto_uvr = LENS_DISTORTIONS.findImageGridOffset( // null for now
+							n,
+							true, // boolean even,
+							PATTERN_PARAMETERS); // PatternParameters patternParameters)
+
+//					int [] auto_uvr = dcd. suggestOffset (
+//			        		n,    // int num_img,
+//			        		true, // boolean non_estimated,
+//			        		true, // boolean even,
+//			        		PATTERN_PARAMETERS); // PatternParameters patternParameters)
 					return offsetGrids(ichoice, inum, auto_uvr);
 				}
 			}
@@ -9616,14 +9746,14 @@ if (MORE_BUTTONS) {
 		LENS_DISTORTIONS=new Distortions(LENS_DISTORTION_PARAMETERS,PATTERN_PARAMETERS,REFINE_PARAMETERS,this.SYNC_COMMAND.stopRequested);
 		int min_files = 8; // use folders that have all 8 files
 		int lwir_chn0 = lwirReaderParameters.getLwirChn0();
-		int vnir_chn0 = lwirReaderParameters.getVnirChn0();
+		int eo_chn0 = lwirReaderParameters.getEoChn0();
 		int numStations = 3;
 	    GenericDialog gd = new GenericDialog("Setup Goniometer/Camera Stations");
 	    gd.addMessage("Setting up calibration that includes multiple camera tripod or goniometer positions.");
 	    gd.addMessage("File selection dialog will open for each station separateley.");
 	    gd.addNumericField("Number of goniometer/camera stations", numStations,0);
 	    gd.addMessage("lwir_chn0 = "+lwir_chn0);
-	    gd.addMessage("vnir_chn0 = "+vnir_chn0);
+	    gd.addMessage("eo_chn0 = "+eo_chn0);
 	    gd.addMessage("min_files = "+min_files);
 
 	    gd.showDialog();
@@ -9757,7 +9887,6 @@ if (MORE_BUTTONS) {
         matchSimulatedPattern.debugLevel=MASTER_DEBUG_LEVEL;
         String [] sourceSetList = DISTORTION_PROCESS_CONFIGURATION.selectSourceSets();
         LWIR_PARAMETERS.selectSourceChannels();
-//        boolean [] sel_chn = LWIR_PARAMETERS.getSelectedVnir(); // start with regular cameras only
         boolean [] sel_chn = LWIR_PARAMETERS.getSelected();
         int numFiles = LWIR_PARAMETERS.getSourceFilesFlat(sourceSetList, sel_chn).length; // just the number
         String [][] sourceFilesList=LWIR_PARAMETERS.getSourceFiles(sourceSetList, sel_chn);

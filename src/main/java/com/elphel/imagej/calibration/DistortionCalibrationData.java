@@ -91,6 +91,27 @@ import ij.text.TextWindow;
     		return (eyesisCameraParameters==null)?0:eyesisCameraParameters.getNumStations();
     	}
 
+		public double getPixelSize(int station, int channel) {
+			return this.eyesisCameraParameters.eyesisSubCameras[station][channel].getPixelSize();
+		}
+		public double getDistortionRadius(int station, int channel) {
+			return this.eyesisCameraParameters.eyesisSubCameras[station][channel].getDistortionRadius();
+		}
+		public double getPixelSize(int imgNumber) {
+			return getPixelSize(this.gIP[imgNumber].stationNumber, this.gIP[imgNumber].channel);
+		}
+		public double getDistortionRadius(int imgNumber) {
+			return getDistortionRadius(this.gIP[imgNumber].stationNumber, this.gIP[imgNumber].channel);
+		}
+        public boolean isTripod() {
+        	return (eyesisCameraParameters !=null) && this.eyesisCameraParameters.isTripod();
+        }
+
+        public boolean isCartesian() {
+        	return (eyesisCameraParameters !=null) && this.eyesisCameraParameters.isCartesian();
+        }
+
+
      	public class GridImageParameters{
     		public int         imgNumber=-1; // index of this image (for pars[][])
     		private int        setNumber=-1; // long overdue  - will be some inconsistency
@@ -127,8 +148,9 @@ import ij.text.TextWindow;
     		final int contrastIndex=2;
 
 
+
     		public double getGridPeriod() {	return gridPeriod;}
-    		public void setGfridPeriod(double v) {gridPeriod = v;}
+    		public void setGridPeriod(double v) {gridPeriod = v;}
     		public int getSetNumber(){return this.setNumber;}
         	public GridImageParameters(int index){
         		this.imgNumber=index;
@@ -145,7 +167,7 @@ import ij.text.TextWindow;
         	public void setStationNumber(int stationNumber){ // TODO: make only a single station number - in GridImageSet?
         		this.stationNumber=stationNumber;
         	}
-        	public double []getGridWeight(){
+        	public double [] getGridWeight(){
         		return this.pixelsMask;
         	}
         	public void resetMask(){
@@ -553,6 +575,11 @@ import ij.text.TextWindow;
         		"10","11","12","13","14","15","16","17","18","19",
         		"20","21","22","23","24","25","26","27","28","29"};
 
+
+        public int getNumSets() {
+        	return gIS.length;
+        }
+
         public void setupIndices(){ // should be always called during initialization !
         	this.index_right =     getParameterIndexByName("subcamRight");          // 0 may be -1 if !cartesian
         	this.index_forward =   getParameterIndexByName("subcamForward");        // 1 may be -1 if !cartesian
@@ -563,13 +590,10 @@ import ij.text.TextWindow;
         	this.index_ga=         getParameterIndexByName("goniometerAxial");      // 7
         }
 
-        public boolean isCartesian(){
-        	return (eyesisCameraParameters !=null) && eyesisCameraParameters.cartesian;
-        }
         public String descrField(int i,int j){
         	if (
         			(eyesisCameraParameters !=null) &&
-        			eyesisCameraParameters.cartesian &&
+        			eyesisCameraParameters.isCartesian() &&
         			(i < this.parameterDescriptionsCartesian.length) &&
         			(this.parameterDescriptionsCartesian[i]!=null) &&
         			(j<this.parameterDescriptionsCartesian[i].length)){
@@ -795,9 +819,9 @@ import ij.text.TextWindow;
         				String set_name = (new File(dir)).getName();
         				File set_dir = new File(sdir, set_name );
         				String [] sfiles = set_dir.list(sourceFilter);
-if (sfiles == null) {
-	System.out.println("sfiles == null");
-}
+        				if (sfiles == null) {
+        					System.out.println("sfiles == null");
+        				}
         				for (String spath:sfiles) {
         					int last_dash = spath.lastIndexOf('-');
         					int last =      spath.lastIndexOf('_');
@@ -812,6 +836,8 @@ if (sfiles == null) {
         			}
         		}
         	}
+        	boolean ignore_LWIR_pointers = true; // skip LWIR absolute marks, use them later
+        	int max_lwir_width = 1023;  // use LWIR class
         	setupIndices();
         	this.eyesisCameraParameters=eyesisCameraParameters;
         	int numSubCameras=(eyesisCameraParameters==null)?1:eyesisCameraParameters.eyesisSubCameras[0].length;
@@ -906,7 +932,10 @@ if (sfiles == null) {
                     		this.gIS[nis].motors=                     this.gIP[numFile].motors.clone();
                     		this.gIP[numFile].matchedPointers =       getUsedPonters(imp_grid);
                     		if (this.gIP[numFile].matchedPointers > 0) {
-                    			with_pointers = numFile;
+                    			// Not using LWIR pointers here!
+                    			if (!ignore_LWIR_pointers || (getImagePlusProperty(imp_grid,"WOI_TOP",0) > max_lwir_width)) {
+                    				with_pointers = numFile;
+                    			}
                     		}
                     		double [] saturations=new double [4];
                     		for (int i=0;i<saturations.length;i++) {
@@ -981,8 +1010,8 @@ if (sfiles == null) {
         			}
         		}
         		if (with_pointers < 0) { // no matching pointers, will try to match selected channel with the pattern
-        			int main_channel = 4; // one of the VNIR channels to match with the pattern
-//        			boolean [] sensor_mask = null; // later may be used to limit scope to VNIR-only
+        			int main_channel = 4; // one of the EO channels to match with the pattern
+//        			boolean [] sensor_mask = null; // later may be used to limit scope to EO-only
         			int extra_search = 2;
 //        			int base_channel = this.gIP[with_pointers].channel;
         			if (this.gIS[nis].imageSet[main_channel] != null) {
@@ -1030,7 +1059,7 @@ if (sfiles == null) {
         		}
 
         		if (with_pointers >= 0) { // set initial grids offset from the grid files in the same image set that do not have absolute calibration
-        			boolean [] sensor_mask = null; // later may be used to limit scope to VNIR-only
+        			boolean [] sensor_mask = null; // later may be used to limit scope to EO-only
         			int extra_search = 1;
         			int base_channel = this.gIP[with_pointers].channel;
         			for (int nc = 0; nc < this.gIS[nis].imageSet.length; nc++) if ((sensor_mask == null) || sensor_mask[nc]) {
@@ -1040,14 +1069,6 @@ if (sfiles == null) {
     						if (this.updateStatus) IJ.showStatus("Re-reading grid file "+(imgNum+1)+" (of "+(numFiles)+"): "+this.gIP[imgNum].path);
     						if (this.debugLevel>-1) System.out.print(imgNum+"*("+this.gIP[imgNum].getStationNumber()+
     								":"+this.gIP[imgNum].setNumber+":"+this.gIP[imgNum].channel+"): "+this.gIP[imgNum].path);
-
-        					int [] uv_shift_rot0 = correlateGrids(
-        							set_widths[base_channel], // int        base_width,
-        							set_pixels[base_channel], //		float [][] base_pixels,
-        							set_widths[nc], // 		int        test_width,
-        							set_pixels[nc], //		float [][] test_pixels,
-        							invert_color,
-        							extra_search);
 
         					double [] sensor_wh = {
         							this.gIP[imgNum].woi.width +  this.gIP[imgNum].woi.x,
@@ -1063,8 +1084,7 @@ if (sfiles == null) {
         							5.0, // 2.0, // sigma
         							sensor_wh,
         							false); // true);
-
-        					System.out.print(" {"+uv_shift_rot0[0]+":"+uv_shift_rot0[1]+"->"+uv_shift_rot[0]+":"+uv_shift_rot[1]+"->");
+        					System.out.print(" {"+uv_shift_rot[0]+":"+uv_shift_rot[1]+"->");
                         	int [] combinedUVShiftRot=MatchSimulatedPattern.combineUVShiftRot(
                         			this.gIS[nis].imageSet[base_channel].getUVShiftRot(),
                         			uv_shift_rot);
@@ -1126,6 +1146,155 @@ if (sfiles == null) {
 
         }
 
+        public boolean initialSetLwirFromEO( //
+        		int               num_set,
+        		boolean           invert_unmarked_grid,
+        		int               extra_search,         // 2
+        		double            sigma,                 //5.0
+        		PatternParameters patternParameters,
+        		boolean           bdebug
+        		) {
+        	// see if there is any LWIR in the system is sensor and throw if there is none
+        	if (!hasSmallSensors()) {
+        		String msg="This system does not have any LWIR or other dependent sub-cameras";
+        		IJ.showMessage("Error",msg);
+        		throw new IllegalArgumentException (msg);
+        	}
+        	if ((this.gIS[num_set] == null) || (this.gIS[num_set].imageSet == null)) {
+        		return false;
+        	}
+        	// See if any of the LWIR subcameras has a mark (absolute grid) in this set
+        	int lwir_mark = -1;
+        	for (int ns = 0; ns <  this.gIS[num_set].imageSet.length; ns++) {
+        		if (this.gIS[num_set].imageSet[ns]!=null) {
+        			int imgNum = this.gIS[num_set].imageSet[ns].imgNumber;
+        			if (isSmallSensor(imgNum) && (this.gIP[imgNum].matchedPointers > 0)) {
+        				lwir_mark = ns;
+        				break;
+        			}
+        		}
+        	}
+        	int master_sub = getEo0(); //  lowest number EO channel, use as a reference
+        	if (lwir_mark >=0) { // some LWIR grid already has mark
+        		master_sub = lwir_mark;
+        		if (bdebug) {
+        			System.out.println ("Aligning to marked LWIR grid image rather than to EO one");
+        		}
+//        		return false;
+        	}
+        	if (this.gIS[num_set].imageSet[master_sub] == null) {
+        		return false; // master EO is not available // may try to search other channels
+        	}
+        	int imgMaster = this.gIS[num_set].imageSet[master_sub].imgNumber;
+        	// get EO image and pixels
+        	ImagePlus imp_master_grid = null;
+    		if (this.gIP[imgMaster].gridImage!=null){ // use in-memory grid images instead of the files
+    			imp_master_grid=this.gIP[imgMaster].gridImage;
+    		} else if (this.gIP[imgMaster].path != null) {
+    			imp_master_grid=(new Opener()).openImage("", this.gIP[imgMaster].path);
+    			if (imp_master_grid==null) {
+    				String msg="Failed to read grid file "+this.gIP[imgMaster].path;
+    				IJ.showMessage("Error",msg);
+    				throw new IllegalArgumentException (msg);
+    			}
+    			(new JP46_Reader_camera()).decodeProperiesFromInfo(imp_master_grid);
+    		} else {
+    			System.out.println("EO grid is not in memory, file path is not specified");
+    			return false;
+    		}
+			ImageStack stack_master=imp_master_grid.getStack();
+			if ((stack_master==null) || (stack_master.getSize()<4)) {
+				String msg="Expected a 8-slice stack";
+				IJ.showMessage("Error",msg);
+				throw new IllegalArgumentException (msg);
+			}
+			float [][] pixels_master =new float[stack_master.getSize()][]; // now - 8 (x,y,u,v,contrast, vignR,vignG,vignB
+        	for (int i=0;i<pixels_master.length;i++) pixels_master[i]= (float[]) stack_master.getPixels(i+1); // pixel X : negative - no grid here
+        	int width_master = imp_master_grid.getWidth();
+        	// If master is LWIR - reset it's shift to zero
+        	if (lwir_mark >=0) {
+    			// reset master sub UV shift
+    			int [] zero_uvr = {0,0,0};
+	            this.gIS[num_set].imageSet[master_sub].setUVShiftRot(zero_uvr); // uv_shift_rot);
+	            int [][] shiftRotMatrix= MatchSimulatedPattern.getRemapMatrix(this.gIS[num_set].imageSet[master_sub].getUVShiftRot());
+	            setGridsWithRemap( // null immediately
+	            		imgMaster,
+	                    shiftRotMatrix, // int [][] reMap,
+	                    pixels_master,
+	                    patternParameters);
+        	}
+
+
+        	for (int ns = 0; ns <  this.gIS[num_set].imageSet.length; ns++) {
+        		if ((this.gIS[num_set].imageSet[ns]!=null) &&(ns != lwir_mark)) {
+        			int imgNum = this.gIS[num_set].imageSet[ns].imgNumber;
+        			if (isSmallSensor(imgNum)) { // repeat for all target grid images in the image set
+        	        	// get target EO image and pixels
+        	        	ImagePlus imp_grid = null;
+        	    		if (this.gIP[imgNum].gridImage!=null){ // use in-memory grid images instead of the files
+        	    			imp_grid=this.gIP[imgNum].gridImage;
+        	    		} else if (this.gIP[imgNum].path != null) {
+        	    			imp_grid=(new Opener()).openImage("", this.gIP[imgNum].path);
+        	    			if (imp_grid==null) {
+        	    				String msg="Failed to read grid file "+this.gIP[imgNum].path;
+        	    				IJ.showMessage("Error",msg);
+        	    				throw new IllegalArgumentException (msg);
+        	    			}
+        	    			(new JP46_Reader_camera()).decodeProperiesFromInfo(imp_grid);
+        	    		} else {
+        	    			System.out.println("EO grid is not in memory, file path is not specified");
+        	    			return false;
+        	    		}
+        				ImageStack stack = imp_grid.getStack();
+        				if ((stack==null) || (stack.getSize()<4)) {
+        					String msg="Expected a 8-slice stack";
+        					IJ.showMessage("Error",msg);
+        					throw new IllegalArgumentException (msg);
+        				}
+        				float [][] pixels =new float[stack.getSize()][]; // now - 8 (x,y,u,v,contrast, vignR,vignG,vignB
+        	        	for (int i=0;i<pixels.length;i++) pixels[i]= (float[]) stack.getPixels(i+1); // pixel X : negative - no grid here
+        	        	int width_lwir = imp_grid.getWidth();
+    					double [] sensor_wh = {
+    							this.gIP[imgNum].woi.width +  this.gIP[imgNum].woi.x,
+    							this.gIP[imgNum].woi.height + this.gIP[imgNum].woi.y};
+        	            int [] uv_shift_rot = correlateGrids(
+        	                    width_master, // int        base_width,
+        	                    pixels_master, //		float [][] base_pixels,
+        	                    width_lwir, // 		int        test_width,
+        	                    pixels, //		float [][] test_pixels,
+        	                    invert_unmarked_grid,
+        	                    extra_search,
+        	                    sigma,
+        	                    sensor_wh,
+        	                    false); // true); //bdebug
+
+        	            // combined rotation - first this, next what is applied to EO channel
+
+        	            int [] combinedUVShiftRot=MatchSimulatedPattern.combineUVShiftRot(
+        	            		uv_shift_rot,
+        	                    this.gIS[num_set].imageSet[master_sub].getUVShiftRot()
+        	                    );
+        	            if (bdebug) {
+        	            	System.out.print(imgNum+": calculated uv_shift_rot= ["+uv_shift_rot[0]+":"+uv_shift_rot[1]+"], ");
+        	            	System.out.print(imgNum+": EO uv_shift_rot= ["+this.gIS[num_set].imageSet[master_sub].getUVShiftRot()[0]+
+        	            			":"+this.gIS[num_set].imageSet[master_sub].getUVShiftRot()[1]+"], ");
+        	            	System.out.println(imgNum+": combined uv_shift_rot= ["+combinedUVShiftRot[0]+":"+combinedUVShiftRot[1]+"]");
+        	            }
+
+        	            this.gIS[num_set].imageSet[ns].setUVShiftRot(combinedUVShiftRot); // uv_shift_rot);
+        	            int [][] shiftRotMatrix= MatchSimulatedPattern.getRemapMatrix(this.gIS[num_set].imageSet[ns].getUVShiftRot());
+        	            setGridsWithRemap( // null immediately
+        	                    imgNum,
+        	                    shiftRotMatrix, // int [][] reMap,
+        	                    pixels,
+        	                    patternParameters);
+        			}
+        		}
+        	}
+        	return true; // OK
+        }
+
+
         // provide image set index for the same station that has at least one marked image
         // non_estimated - disregard images with estimated orientation
         public int getMarkedSet(int num_set, boolean non_estimated) {
@@ -1151,6 +1320,12 @@ if (sfiles == null) {
         	return this.gIS[ns].GXYZ;
         }
 
+        public double [] getXYZ(int num_img) {
+        	int ns = gIP[num_img].getSetNumber();
+        	return this.gIS[ns].GXYZ;
+        }
+
+
         // suggest set grid offset by comparing with known (by mark) set.
         // Wrong Grid UV should cause parallel shift - same Z, different XY
         public int [] suggestOffset (
@@ -1158,8 +1333,7 @@ if (sfiles == null) {
         		boolean non_estimated,
         		boolean even,
         		PatternParameters patternParameters) {
-    		int num_set = this.gIP[num_img].setNumber;
-        	int station = this.gIS[num_set].stationNumber;
+        	int num_set = this.gIP[num_img].getSetNumber();
         	double [] ref_xyz = getXYZFromMarked(num_set, non_estimated);
         	if (ref_xyz == null) {
         		System.out.println("Error: Could not find reference goniometer XYZ for set "+num_set);
@@ -1167,41 +1341,55 @@ if (sfiles == null) {
         	}
         	double [] diff_xyz = this.gIS[num_set].GXYZ.clone();
         	for (int i = 0; i < diff_xyz.length; i++) diff_xyz[i]-=ref_xyz[i];
+        	return suggestOffset (
+        			num_img,
+        			diff_xyz, // z is not used, may ne just[2]
+        			even,
+        			patternParameters);
+        }
+
+        public int [] suggestOffset (
+        		int num_img,
+        		double [] diff_xyz, // This XYZ minus reference XYZ  z is not used, may be just[2]
+        		boolean even,
+        		PatternParameters patternParameters) {
+        	int num_set = this.gIP[num_img].setNumber;
+        	int station = this.gIS[num_set].stationNumber;
         	int [][] pixelsUV =  this.gIP[num_img].pixelsUV ; // null; // for each image, each grid node - a pair of {gridU, gridV}
         	if ((pixelsUV == null) || ((pixelsUV.length <3 ))) {
         		System.out.println("No/too few pixelsUV data for image "+num_img);
         		return null;
         	}
         	double [][][] data =new double [pixelsUV.length][3][];
-    		for (int i=0; i < pixelsUV.length; i++){
-    			data[i][0]=new double[2];
-    			data[i][1]=new double[2];
-    			data[i][2]=new double[1];
-    			double [] xyzm = patternParameters.getXYZM(
-    					pixelsUV[i][0],
-    					pixelsUV[i][1],
-    					false, // boolean verbose,
-    					station); // int station)
-    			data[i][0][0]=xyzm[0];// pixelsXY[i][0];
-    			data[i][0][1]=xyzm[1];// pixelsXY[i][1];
-    			data[i][1][0]=pixelsUV[i][0];
-    			data[i][1][1]=pixelsUV[i][1];
-    			data[i][2][0]=xyzm[3];// mask
-    		}
-      	   double [][] coeff=new PolynomialApproximation(this.debugLevel).quadraticApproximation(data, true); // force linear
-      	   double [] dUV = {
-      			   -(coeff[0][0]* diff_xyz[0] + coeff[0][1]* diff_xyz[1]),
-      			   -(coeff[1][0]* diff_xyz[0] + coeff[1][1]* diff_xyz[1])};
+        	for (int i=0; i < pixelsUV.length; i++){
+        		data[i][0]=new double[2];
+        		data[i][1]=new double[2];
+        		data[i][2]=new double[1];
+        		double [] xyzm = patternParameters.getXYZM(
+        				pixelsUV[i][0],
+        				pixelsUV[i][1],
+        				false, // boolean verbose,
+        				station); // int station)
+        		data[i][0][0]=xyzm[0];// pixelsXY[i][0];
+        		data[i][0][1]=xyzm[1];// pixelsXY[i][1];
+        		data[i][1][0]=pixelsUV[i][0];
+        		data[i][1][1]=pixelsUV[i][1];
+        		data[i][2][0]=xyzm[3];// mask
+        	}
+        	double [][] coeff=new PolynomialApproximation(this.debugLevel).quadraticApproximation(data, true); // force linear
+        	double [] dUV = {
+        			-(coeff[0][0]* diff_xyz[0] + coeff[0][1]* diff_xyz[1]),
+        			-(coeff[1][0]* diff_xyz[0] + coeff[1][1]* diff_xyz[1])};
         	int [] idUV = {(int) Math.round(dUV[0]), (int) Math.round(dUV[1]), 0}; // 0 - no rot
         	int parity = (idUV[0]+idUV[1] + (even?0:1)) & 1;
-    		double [] UV_err = {dUV[0]-idUV[0], dUV[1]-idUV[1]};
+        	double [] UV_err = {dUV[0]-idUV[0], dUV[1]-idUV[1]};
         	if (parity !=0) {
         		if (UV_err[1] > UV_err[0]) {
-            		if (UV_err[1] > -UV_err[0]) idUV[1]++;
-            		else             			idUV[0]--;
+        			if (UV_err[1] > -UV_err[0]) idUV[1]++;
+        			else             			idUV[0]--;
         		} else {
-            		if (UV_err[1] > -UV_err[0]) idUV[0]++;
-            		else	                    idUV[1]--;
+        			if (UV_err[1] > -UV_err[0]) idUV[0]++;
+        			else	                    idUV[1]--;
         		}
         		UV_err[0] = dUV[0] - idUV[0];
         		UV_err[1] = dUV[1] - idUV[1];
@@ -3101,6 +3289,11 @@ if (sfiles == null) {
         				this.gIP[fileNumber].gridImage = imp_grid;
         			}
         		}
+    			this.gIP[fileNumber].woi = new Rectangle(
+    					getImagePlusProperty(imp_grid,"WOI_LEFT",0),
+    					getImagePlusProperty(imp_grid,"WOI_TOP",0),
+    					getImagePlusProperty(imp_grid,"WOI_WIDTH",  eyesisCameraParameters.getSensorWidth(this.gIP[fileNumber].getChannel())),
+    					getImagePlusProperty(imp_grid,"WOI_HEIGHT", eyesisCameraParameters.getSensorHeight(this.gIP[fileNumber].getChannel())));
         		this.gIP[fileNumber].laserPixelCoordinates=MatchSimulatedPattern.getPointersXYUV(imp_grid, laserPointers);
         		this.gIP[fileNumber].motors=getMotorPositions(imp_grid, this.numMotors);
         		this.gIP[fileNumber].matchedPointers=getUsedPonters(imp_grid);
@@ -3536,7 +3729,7 @@ if (sfiles == null) {
 //        public double     small_period_frac =   0; // set by filter grids - ratio of small sensor period to large sensor period
 
     	// depending on camera type, return group, groups, group name
-    	// camera type: eyesis26, lwir/vnir (2 resolutions) , single, other
+    	// camera type: eyesis26, lwir/eo (2 resolutions) , single, other
     	//getNumSubCameras()
     	public int getNumLwir() {
     		if (hasSmallSensors()) {
@@ -3547,10 +3740,10 @@ if (sfiles == null) {
     			return 0;
     		}
     	}
-    	public int getNumVnir() {
+    	public int getNumEo() {
     		return getNumSubCameras() - getNumLwir();
     	}
-    	public int getVnir0() {
+    	public int getEo0() {
     		if (hasSmallSensors()) {
     			for (int i = 0; i < small_sensors.length; i++) if (!small_sensors[i]) return i;
     			return -1; // should not happen
@@ -3574,7 +3767,7 @@ if (sfiles == null) {
     		int n = 2;
     		if (hasSmallSensors()) {
     			if (getNumLwir() > 1) n++;
-    			if (getNumVnir() > 1) n++;
+    			if (getNumEo() > 1) n++;
     		}
     		return n;
     	}
@@ -3594,11 +3787,11 @@ if (sfiles == null) {
     		if (hasSmallSensors()) {
     			if (small_sensors[chn]) { // current is LWIR
     				n = 1;
-    				if (getNumVnir() > 1) n = 2;
+    				if (getNumEo() > 1) n = 2;
     				if (chn != getLwir0()) n++;
-    			} else {  // current is VNIR
+    			} else {  // current is EO
     				n = 0;
-    				if (chn != getVnir0()) n++;
+    				if (chn != getEo0()) n++;
     			}
     		}
 			return n;
@@ -3606,7 +3799,7 @@ if (sfiles == null) {
     	// check if the channel is the first in group
     	public boolean firstInGroup(int chn) {
     		if (chn >= 24) return (chn == 24);
-    		if ((chn == getVnir0()) || (chn == getLwir0())) return true;
+    		if ((chn == getEo0()) || (chn == getLwir0())) return true;
     		int [] num = {0,0};
     		for (int i = 0; i < chn; i++) {
     			if ((small_sensors != null) && small_sensors[i]) num[1]++;
@@ -3631,13 +3824,13 @@ if (sfiles == null) {
     				if (chn != getLwir0()) return full?"Subcamera LWIR other":"sub-lwir-other";
     				if (getNumLwir() > 1) return  full?"Subcamera LWIR 0":"sub-lwir0";
     				return                        full?"Subcamera LWIR":"sub-lwir";
-    			} else {  // current is VNIR
-    				if (chn != getVnir0()) return full?"Subcamera VNIR other":"sub-vnir-other";
-    				if (getNumVnir() > 1) return  full?"Subcamera VNIR 0":"sub-vnir0";
-    				return                        full?"Subcamera VNIR":"sub-vnir";
+    			} else {  // current is EO
+    				if (chn != getEo0()) return full?"Subcamera EO other":"sub-eo-other";
+    				if (getNumEo() > 1) return  full?"Subcamera EO 0":"sub-eo0";
+    				return                        full?"Subcamera EO":"sub-eo";
     			}
     		}
-			if (chn != getVnir0()) return full?"Subcamera other":"sub-other";
+			if (chn != getEo0()) return full?"Subcamera other":"sub-other";
 			return                        full?"Subcamera 0":"sub0";
     	}
 

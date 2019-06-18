@@ -521,42 +521,70 @@ public class Distortions {
 //					Individual image mask is needed as some parts can be obscured by moving parts - not present on  all images.
 //					grid "contrast" may be far from 1.0 but probably should work OK
 ///					double gridContrast= fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsXY[pointNumber][2]-minimalGridContrast;//minimalGridContrast\
+					double dbg;
+//					if (weight > 0) {
+					if ((weight > 0) && (imgNum == 244)) {
+						dbg = weight;
+					}
 					if ((filter & this.filterContrast)!=0) {
 						double gridContrast= gridWeight[pointNumber];
 						weight*=gridContrast;
 						if (Double.isNaN(gridContrast) && (this.debugLevel>1)) System.out.println("gridContrast=NaN, imgNum="+imgNum);
-
 					}
+//					if (weight > 0) {
+					if ((weight > 0) && (imgNum == 244)) {
+						dbg = weight;
+					}
+
 					if ((filter & this.filterTargetMask)!=0) {
 						weight*=XYZMP[patternMaskIndex];//DONE: Use grid mask also (fade out outer grid nodes?)
 						if (Double.isNaN(XYZMP[patternMaskIndex]) && (this.debugLevel>1)) System.out.println("XYZMP["+patternMaskIndex+"]=NaN, imgNum="+imgNum);
+					}
+//					if (weight > 0) {
+					if ((weight > 0) && (imgNum == 244)) {
+						dbg = weight;
 					}
 					if ((filter & this.filterTargetAlpha)!=0) {
 						weight*=XYZMP[patternAlphaIndex];//DONE: Use grid mask also (fade out outer grid nodes?)
 						if (Double.isNaN(XYZMP[patternAlphaIndex]) && (this.debugLevel>1)) System.out.println("XYZMP["+patternAlphaIndex+"]=NaN, imgNum="+imgNum);
 					}
+//					if (weight > 0) {
+					if ((weight > 0) && (imgNum == 244)) {
+						dbg = weight;
+					}
 					if ((filter & this.filterTargetErrors)!=0) {
 						weight*=XYZMP[patternErrorMaskIndex];//DONE: Use grid mask also (fade out outer grid nodes?)
 						if (Double.isNaN(XYZMP[patternErrorMaskIndex]) && (this.debugLevel>1)) System.out.println("XYZMP["+patternErrorMaskIndex+"]=NaN, imgNum="+imgNum);
+					}
+//					if (weight > 0) {
+					if ((weight > 0) && (imgNum == 244)) {
+						dbg = weight;
 					}
 					if ((filter & this.filterMulti)!=0) {
 						weight*=multiWeight[imgNum];
 						if (Double.isNaN(multiWeight[imgNum]) && (this.debugLevel>1)) System.out.println("multiWeight["+imgNum+"]=NaN, imgNum="+imgNum);
 					}
+//					if (weight > 0) {
+					if ((weight > 0) && (imgNum == 244)) {
+						dbg = weight;
+					}
 					if ((filter & this.filterMaskBadNodes)!=0) {
 						if (fittingStrategy.distortionCalibrationData.gIP[imgNum].isNodeBad(pointNumber)) weight=0.0;
+					}
+//					if (weight > 0) {
+					if ((weight > 0) && (imgNum == 244)) {
+						dbg = weight; // got here
 					}
 
 					//fittingStrategy.distortionCalibrationData.eyesisCameraParameters.weightMultiExponent)
 					if (((filter & this.filterDiameter)!=0) && (fittingStrategy.distortionCalibrationData.eyesisCameraParameters.weightDiameterExponent>0.0)) {
 						weight*=gridImageWeight;
 						if (Double.isNaN(gridImageWeight) && (this.debugLevel>1)) System.out.println("gridImageWeight=NaN, imgNum="+imgNum);
-
 					}
-
-
-
-
+//					if (weight > 0) {
+					if ((weight > 0) && (imgNum == 244)) {
+						dbg = weight;
+					}
 					if (Double.isNaN(weight)) {
 						weight=0.0; // find who makes it NaN
 						if (Double.isNaN(multiWeight[imgNum])) System.out.println("weight is null, imgNum="+imgNum);
@@ -619,7 +647,9 @@ public class Distortions {
 
     					continue;
     				}
-    				if (this.weightFunction[2*(index+pointNumber)]>0.0) numValidNodes++; //OOB 5064
+    				if (this.weightFunction[2*(index+pointNumber)]>0.0) {
+    					numValidNodes++; //OOB 5064
+    				}
     			}
     			if (numValidNodes<this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.minimalValidNodes){
     				this.fittingStrategy.invalidateSelectedImage(numSeries,imgNum);
@@ -3269,19 +3299,14 @@ For each point in the image
 
 	public LensDistortionParameters setupLensDistortionParameters(
 			int numImg,
-//			int stationNumber,
-//			int subCamera,
 			int debugLevel){     // Axial - may be Double.NaN
 
-//		double [] parVector=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getParametersVector(stationNumber,subCamera);
-//		System.out.println("setupLensDistortionParameters(): subCamera="+subCamera+", goniometerHorizontal="+goniometerHorizontal+", goniometerAxial="+goniometerAxial);
-    	boolean isTripod=this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod;
-    	boolean cartesian=this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian;
 		LensDistortionParameters lensDistortionParameters = new LensDistortionParameters (
-	    		isTripod,
-	    		cartesian,
+				this.fittingStrategy.distortionCalibrationData.isTripod(),
+				this.fittingStrategy.distortionCalibrationData.isCartesian(),
+	    		this.fittingStrategy.distortionCalibrationData.getPixelSize(numImg),
+	    		this.fittingStrategy.distortionCalibrationData.getDistortionRadius(numImg),
 	            null, //double [][] interParameterDerivatives, //partial derivative matrix from subcamera-camera-goniometer to single camera (12x21) if null - just values, no derivatives
-//	            this.fittingStrategy.distortionCalibrationData.pars[numImg], //parVector,
 	            this.fittingStrategy.distortionCalibrationData.getParameters(numImg), //parVector,
 	    		null, //boolean [] mask, // calculate only selected derivatives (all parVect values are still
 	    		debugLevel
@@ -3298,16 +3323,13 @@ For each point in the image
 		double [] parVector=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getParametersVector(stationNumber,subCamera);
 		int goniometerHorizontalIndex=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getGoniometerHorizontalIndex();
 		int goniometerAxialIndex=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getGoniometerAxialIndex();
-//		int sensorWidth=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorWidth(subCamera);
-//		int sensorHeight=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorHeight(subCamera);
 		if (!Double.isNaN(goniometerHorizontal))parVector[goniometerHorizontalIndex]=goniometerHorizontal;
 		if (!Double.isNaN(goniometerAxial))parVector[goniometerAxialIndex]=goniometerAxial;
-//		System.out.println("setupLensDistortionParameters(): subCamera="+subCamera+", goniometerHorizontal="+goniometerHorizontal+", goniometerAxial="+goniometerAxial);
-    	boolean isTripod=this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod;
-    	boolean cartesian=this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian;
 		LensDistortionParameters lensDistortionParameters = new LensDistortionParameters (
-	    		isTripod,
-	    		cartesian,
+				this.fittingStrategy.distortionCalibrationData.isTripod(),
+				this.fittingStrategy.distortionCalibrationData.isCartesian(),
+	    		this.fittingStrategy.distortionCalibrationData.getPixelSize(stationNumber, subCamera),
+	    		this.fittingStrategy.distortionCalibrationData.getDistortionRadius(stationNumber, subCamera),
 	            null, //double [][] interParameterDerivatives, //partial derivative matrix from subcamera-camera-goniometer to single camera (12x21) if null - just values, no derivatives
 	    		parVector,
 	    		null, //boolean [] mask, // calculate only selected derivatives (all parVect values are still
@@ -3450,8 +3472,10 @@ For each point in the image
 		System.out.println("estimateGridOnSensor(): subCamera="+subCamera+", goniometerHorizontal="+goniometerHorizontal+", goniometerAxial="+goniometerAxial);
 		this.lensDistortionParameters.lensCalcInterParamers(
 				this.lensDistortionParameters, // 22-long parameter vector for the image
-				this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod,
-				this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian,
+				this.fittingStrategy.distortionCalibrationData.isTripod(),
+				this.fittingStrategy.distortionCalibrationData.isCartesian(),
+	    		this.fittingStrategy.distortionCalibrationData.getPixelSize(stationNumber, subCamera),
+	    		this.fittingStrategy.distortionCalibrationData.getDistortionRadius(stationNumber, subCamera),
 				null, // this.interParameterDerivatives, // [22][]
 				parVector,
 				null); // if no derivatives, null is OK
@@ -3570,13 +3594,14 @@ For each point in the image
 			return; // no images found
 		}
 		double [] imgVector=fittingStrategy.getImageParametersVector(imgNum, vector); //this.currentVector);
-//		boolean [] imgMask= fittingStrategy.getImageParametersVectorMask(imgNum);
 		boolean [] imgMask= new boolean[imgVector.length];
 		for (int i=0;i<imgMask.length;i++) imgMask[i]=true;
 		this.lensDistortionParameters.lensCalcInterParamers(
 				this.lensDistortionParameters,
-				this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod,
-				this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian,
+				this.fittingStrategy.distortionCalibrationData.isTripod(),
+				this.fittingStrategy.distortionCalibrationData.isCartesian(),
+	    		this.fittingStrategy.distortionCalibrationData.getPixelSize(imgNum),
+	    		this.fittingStrategy.distortionCalibrationData.getDistortionRadius(imgNum),
 				this.interParameterDerivatives, // [22][]
 				imgVector,
 				imgMask); // calculate only selected derivatives (all parVect values are still
@@ -3599,8 +3624,10 @@ For each point in the image
 			vector_delta[i]+=delta;
 			this.lensDistortionParameters.lensCalcInterParamers(
 					this.lensDistortionParameters,
-					this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod,
-					this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian,
+					this.fittingStrategy.distortionCalibrationData.isTripod(),
+					this.fittingStrategy.distortionCalibrationData.isCartesian(),
+		    		this.fittingStrategy.distortionCalibrationData.getPixelSize(imgNum),
+		    		this.fittingStrategy.distortionCalibrationData.getDistortionRadius(imgNum),
 					null, // this.interParameterDerivatives, // just values, no derivatives
 					vector_delta,
 					imgMask);
@@ -3687,8 +3714,10 @@ For each point in the image
 			this.lensDistortionParameters.debugLevel=this.debugLevel;
 			this.lensDistortionParameters.lensCalcInterParamers(
 					this.lensDistortionParameters,
-					this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod,
-					this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian,
+					this.fittingStrategy.distortionCalibrationData.isTripod(),
+					this.fittingStrategy.distortionCalibrationData.isCartesian(),
+		    		this.fittingStrategy.distortionCalibrationData.getPixelSize(imgNum),
+		    		this.fittingStrategy.distortionCalibrationData.getDistortionRadius(imgNum),
 					calcJacobian?this.interParameterDerivatives:null, // [22][]
 					imgVector,
 					imgMask); // imgMask may be null if no derivativescalculate only selected derivatives (all parVect values are still
@@ -3805,8 +3834,10 @@ For each point in the image
 		if (this.debugLevel>3) System.out.println("calculatePartialFxAndJacobian(), numImage="+numImage+" calcInterParamers():");
 		lensDistortionParameters.lensCalcInterParamers(
 				lensDistortionParameters,
-				this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod,
-				this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian,
+				this.fittingStrategy.distortionCalibrationData.isTripod(),
+				this.fittingStrategy.distortionCalibrationData.isCartesian(),
+	    		this.fittingStrategy.distortionCalibrationData.getPixelSize(numImage),
+	    		this.fittingStrategy.distortionCalibrationData.getDistortionRadius(numImage),
 				calcJacobian?interParameterDerivatives:null, // [22][]
 						imgVector,
 						imgMask); // calculate only selected derivatives (all parVect values are still
@@ -3889,8 +3920,10 @@ For each point in the image
 				}
 				this.lensDistortionParameters.lensCalcInterParamers(
 						this.lensDistortionParameters,
-						this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod,
-						this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian,
+						this.fittingStrategy.distortionCalibrationData.isTripod(),
+						this.fittingStrategy.distortionCalibrationData.isCartesian(),
+			    		this.fittingStrategy.distortionCalibrationData.getPixelSize(imgNum),
+			    		this.fittingStrategy.distortionCalibrationData.getDistortionRadius(imgNum),
 						null, //this.interParameterDerivatives, // [22][]
 						imgVector,
 						imgMask); // calculate only selected derivatives (all parVect values are still
@@ -4436,8 +4469,10 @@ List calibration
 			}
 			this.lensDistortionParameters.lensCalcInterParamers(
 					this.lensDistortionParameters,
-					this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod,
-					this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian,
+					this.fittingStrategy.distortionCalibrationData.isTripod(),
+					this.fittingStrategy.distortionCalibrationData.isCartesian(),
+		    		this.fittingStrategy.distortionCalibrationData.getPixelSize(imgNum),
+		    		this.fittingStrategy.distortionCalibrationData.getDistortionRadius(imgNum),
 					null, //this.interParameterDerivatives, // [22][]
 //					fittingStrategy.distortionCalibrationData.pars[imgNum], // 22-long parameter vector for the image
 					fittingStrategy.distortionCalibrationData.getParameters(imgNum), // 22-long parameter vector for the image
@@ -7412,8 +7447,81 @@ List calibration
     	return masks;
     }
 
+    // Use series0 to find grid mismatch (and set it correctly). Uses that pattern in the world coordinate system is
+    // approximately in XY plane, so by freezing all other parameters but GXY0 and GXY1 it is possible to find
+    // the pattern grid match.
+    public int [] findImageGridOffset(
+    		int num_img,
+    		boolean even,
+    		PatternParameters patternParameters) {
 
-    public boolean LevenbergMarquardt(boolean openDialog){
+		// set series 0 to this set images
+		boolean [] selection = fittingStrategy.selectAllImages(0); // enable all images in series 0
+		for (int i=0;i<selection.length;i++) selection[i]=false;
+		selection[num_img]=true;
+		fittingStrategy.setImageSelection(0,selection);
+		seriesNumber=   0; // start from 0;
+		initFittingSeries(false, filterForAll,0); // will set this.currentVector
+		//this.stopAfterThis[numSeries]
+		fittingStrategy.stopAfterThis[0]=true;
+		stopEachStep=      false;
+		stopEachSeries=    false; // will not ask for confirmation after done
+		lambda =           fittingStrategy.lambdas[0];
+		boolean   LMA_OK = false;
+		try {
+			LMA_OK = 	LevenbergMarquardt (false, true); //  skip dialog, dry run (no updates)
+		} catch (Exception e) {
+			// LMA failed - e.g. not enough points (Singular Matrix)
+		}
+		if (!LMA_OK) {
+			return null; // LMA did not converge
+		}
+		double [] new_XY = {this.currentVector[0],this.currentVector[1]};
+		DistortionCalibrationData dcd = this.fittingStrategy.distortionCalibrationData;
+//		int num_set = dcd.gIP[num_img].getSetNumber();
+		double [] 	ref_XYZ = dcd.getXYZ(num_img);
+		double []   diff_XY = {
+				new_XY[0] -ref_XYZ[0],
+				new_XY[1] -ref_XYZ[1]};
+
+//save safe settings to run LMA manually (or save what was set)
+		seriesNumber=      0; // start from 0;
+		initFittingSeries  (false,filterForAll,0); // will set this.currentVector
+		stopEachSeries=    true; // will not ask for confirmation after done
+		stopOnFailure=     true;
+		lambda=            fittingStrategy.lambdas[0];
+
+		int [] grid_offset = dcd.suggestOffset (
+        		num_img,
+        		diff_XY, // This XYZ minus reference XYZ  z is not used, may be just[2]
+        		even,
+        		patternParameters);
+		return grid_offset;
+
+
+
+
+
+/*
+ *
+  this.currentVector[0] - GXYZ[0]
+  this.currentVector[1] - GXYZ[1]
+
+ dcd.        public int [] suggestOffset (
+        		int num_img,
+        		double [] diff_xyz, // This XYZ minus reference XYZ  z is not used, may be just[2]
+        		boolean even,
+        		PatternParameters patternParameters) {
+
+ */
+
+    }
+
+
+
+    public boolean LevenbergMarquardt(
+    		boolean openDialog,
+    		boolean dry_run){ // do not save results
     	if (this.fittingStrategy==null) {
         		String msg="Fitting strategy does not exist, exiting";
         		IJ.showMessage("Error",msg);
@@ -7497,7 +7605,7 @@ List calibration
 							") at "+ IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3));
 				}
 				if (!cont){
-					if (this.saveSeries) {
+					if (this.saveSeries && !dry_run) {
 						saveFittingSeries(); // will save series even if it ended in failure, vector will be only updated
 						updateCameraParametersFromCalculated(true); // update camera parameters from all (even disabled) images
 						updateCameraParametersFromCalculated(false); // update camera parameters from enabled only images (may overwrite some of the above)
@@ -7508,11 +7616,15 @@ List calibration
 //stepLevenbergMarquardtAction();
     			if (state[1]) {
     				if (!state[0]) return false; // sequence failed
-    				saveFittingSeries();
-					updateCameraParametersFromCalculated(true); // update camera parameters from all (even disabled) images
-					updateCameraParametersFromCalculated(false); // update camera parameters from enabled only images (may overwrite some of the above)
-					wasLastSeries=this.fittingStrategy.isLastSeries(this.seriesNumber);
-    				this.seriesNumber++;
+    				if (dry_run) {
+    					wasLastSeries= true; // always just one series
+    				} else {
+    					saveFittingSeries();
+    					updateCameraParametersFromCalculated(true); // update camera parameters from all (even disabled) images
+    					updateCameraParametersFromCalculated(false); // update camera parameters from enabled only images (may overwrite some of the above)
+    					wasLastSeries=this.fittingStrategy.isLastSeries(this.seriesNumber);
+    					this.seriesNumber++;
+    				}
     				break; // while (true), proceed to the next series
     			}
     		}
@@ -8024,8 +8136,8 @@ D2=
 			final int threadsMax,
 			final boolean updateStatus
 			){
-		final boolean isTripod=this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod;
-		final boolean cartesian=this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian;
+//		final boolean isTripod=this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.is_tripod;
+//		final boolean cartesian=this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian;
 		final int [][] dirs=            {{0,0},{-1,0},{1,0},{0,-1},{0,1}}; // possible to make 8 directions
 		final double [][][] derivatives={ // for of /du, /dv 3 variants, depending on which neighbors are available
 				{
@@ -8078,10 +8190,11 @@ D2=
 						// The following method sets this.lensDistortionParameters and invokes this.lensDistortionParameters.recalcCommons();
 						lensDistortionParameters.lensCalcInterParamers(
 								lensDistortionParameters,
-								isTripod,
-								cartesian,
+								fittingStrategy.distortionCalibrationData.isTripod(),
+								fittingStrategy.distortionCalibrationData.isCartesian(),
+					    		fittingStrategy.distortionCalibrationData.getPixelSize(imgNum),
+					    		fittingStrategy.distortionCalibrationData.getDistortionRadius(imgNum),
 								null, //this.interParameterDerivatives, // [22][]
-//								fittingStrategy.distortionCalibrationData.pars[imgNum], // 22-long parameter vector for the image
 								fittingStrategy.distortionCalibrationData.getParameters(imgNum), // 22-long parameter vector for the image
 								null); // if no derivatives, null is OK
 						//				false); // calculate this.interParameterDerivatives -derivatives array (false - just this.values)
@@ -8276,8 +8389,10 @@ D2=
 			// The following method sets this.lensDistortionParameters and invokes this.lensDistortionParameters.recalcCommons();
 			this.lensDistortionParameters.lensCalcInterParamers(
 					this.lensDistortionParameters,
-					this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod,
-					this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian,
+					fittingStrategy.distortionCalibrationData.isTripod(),
+					fittingStrategy.distortionCalibrationData.isCartesian(),
+		    		fittingStrategy.distortionCalibrationData.getPixelSize(imgNum),
+		    		fittingStrategy.distortionCalibrationData.getDistortionRadius(imgNum),
 					null, //this.interParameterDerivatives, // [22][]
 //					fittingStrategy.distortionCalibrationData.pars[imgNum], // 22-long parameter vector for the image
 					fittingStrategy.distortionCalibrationData.getParameters(imgNum), // 22-long parameter vector for the image
@@ -9722,6 +9837,8 @@ M * V = B
         	}
         }
         LensDistortionParameters ldp=this.lensDistortionParameters.clone();
+        // 06/2019 - need to update distortionRadius, pixelSize)
+
 //		public void setLensDistortionParameters(LensDistortionParameters ldp
 
         for (int v=0; v<gridHeight; v++) for (int u=0; u<gridWidth; u++) if (patternParameters.gridGeometry[v][u][3]>0) {

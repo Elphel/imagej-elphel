@@ -989,7 +989,9 @@ horizontal axis:
 		// TODO: Set initial values for the goniometer angles from the sensor
 		// (channel) number, average them if there are several in the list
 
-		lensDistortions.LevenbergMarquardt(false); // skip dialog
+		lensDistortions.LevenbergMarquardt(
+				false, // skip dialog
+				false); // new: dry_run use it here?
 		if (debug_level > 0)
 			System.out.println("Finished LMA at "
 					+ IJ.d2s(0.000000001 * (System.nanoTime() - startTime), 3));

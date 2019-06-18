@@ -1520,9 +1520,10 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     		for (;(endIndex<enabled.length) && !allImages && !enabled[endIndex];endIndex++); // advance over disabled images
     		GenericDialog gd=new GenericDialog("Select images "+startIndex+"..."+(endIndex-1));
     		for (int i=startIndex;i<endIndex;i++) if (allImages || enabled[i]){
-				gd.addCheckbox    (i+" - "+(this.distortionCalibrationData.gIP[i].enabled?"":"(disabled) ")+
+				gd.addCheckbox    (i+ " ("+this.distortionCalibrationData.gIP[i].getSetNumber()+
+						"."+this.distortionCalibrationData.gIP[i].getChannel()+")"+
+    		            " - "+(this.distortionCalibrationData.gIP[i].enabled?"":"(disabled) ")+
 						IJ.d2s(this.distortionCalibrationData.gIP[i].timestamp,6)+
-						": "+this.distortionCalibrationData.gIP[i].channel+
 						" matched "+this.distortionCalibrationData.gIP[i].matchedPointers+" pointers"+
 						", hinted state: "+((hintedMatch[i]<0)?"undefined":((hintedMatch[i]==0)?"failed":((hintedMatch[i]==1)?"orientation":"orientation and translation"))),
 						selection[i]);
@@ -1852,7 +1853,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 //			gd.addCheckbox("Select images with estimated orientation", selectEstimated);
 //			gd.addCheckbox("Select new enabled images", selectNewEnabled);
 			if (this.distortionCalibrationData.hasSmallSensors()) {
-				gd.addMessage("=== Filter selection by High/Low resolution sensors (such as VNIR/LWIR)");
+				gd.addMessage("=== Filter selection by High/Low resolution sensors (such as EO/LWIR)");
 				gd.addCheckbox("Select high-res sensors", true);
 				gd.addCheckbox("Select low-res sensors", true);
 			}
@@ -1977,7 +1978,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
    	 * @param useParameters Select parameters for this series
    	 * @param askNextSeries Ask for next series number
    	 * @param zeroAndOther use 2 channels 0 and "other", propagate settings for channel 1 to all the rest
-   	 * For low/high res (LWIR/VNIR) - use first /other for each class
+   	 * For low/high res (LWIR/EO) - use first /other for each class
    	 * @return -2 - cancel, -1, done, otherwise - number of step to edit
    	 */
 
@@ -2055,7 +2056,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 				// sub(other):    their group number - no, 0 - later add this.definedModesAll.length to master subcamera
 				// not zeroAndOther:
 				// non-sub - -1:
-				// sub(>0): subCam-1 (previous index) - will suggest any with smaller index - may be useless with lwir < vnir indices
+				// sub(>0): subCam-1 (previous index) - will suggest any with smaller index - may be useless with lwir < eo indices
 //				int subMaxNum = (this.distortionCalibrationData.isSubcameraParameter(parIndex) && (subCam > 0)) ? (zeroAndOther? 0 : (subCam-1)):-1;
 				int subMaxNum = -1;
 				if (this.distortionCalibrationData.isSubcameraParameter(parIndex)) { // only for subcamera parameters
@@ -2120,7 +2121,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     	 * @param useParameters Select parameters for this series
     	 * @param askNextSeries Ask for next series number
     	 * @param zeroAndOther use 2 channels 0 and "other", propagate settings for channel 1 to all the rest
-    	 * Updated for more groups (up to 4 in LWIR/VNIR) - use 1 channel for each group, propagate to the rest of the group
+    	 * Updated for more groups (up to 4 in LWIR/EO) - use 1 channel for each group, propagate to the rest of the group
     	 * @return -2 - cancel, -1, done, otherwise - number of step to edit
     	 */
     	public int selectStrategyStep(
@@ -2187,7 +2188,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 				for (int i=0;i<this.distortionCalibrationData.eyesisCameraParameters.numStations;i++) 	gd.addCheckbox("Station "+i, constrainByStation[i]);
 			}
 			if (this.distortionCalibrationData.hasSmallSensors()) {
-				gd.addMessage("Constrain (select/remove all) by High/Low resolution sensors (such as VNIR/LWIR)");
+				gd.addMessage("Constrain (select/remove all) by High/Low resolution sensors (such as EO/LWIR)");
 				gd.addCheckbox("Select high-res sensors", true);
 				gd.addCheckbox("Select low-res sensors", true);
 			}
@@ -2272,7 +2273,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 					// sub(other):    their group number - no, 0
 					// not zeroAndOther:
 					// non-sub - -1:
-					// sub(>0): subCam-1 (previous index) - will suggest any with smaller index - may be useless with lwir < vnir indices
+					// sub(>0): subCam-1 (previous index) - will suggest any with smaller index - may be useless with lwir < eo indices
 //					int subMaxNum = (this.distortionCalibrationData.isSubcameraParameter(parIndex) && (subCam > 0)) ? (zeroAndOther? 0 : (subCam-1)):-1;
 					int subMaxNum = -1;
 					if (this.distortionCalibrationData.isSubcameraParameter(parIndex)) { // only for subcamera parameters

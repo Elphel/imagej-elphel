@@ -62,8 +62,8 @@ import ij.gui.GenericDialog;
     	// non-adjustable parameters, not parts of vector
     	public int     numStations;
     	public double [] stationWeight; // reprojection error weights (close station - relax errors)
-    	public boolean isTripod= false; // when true - make goniometerHorizontal rotation around "vertical" axis and "goniometerAxial" - around
-    	public boolean cartesian=false; //
+    	private boolean is_tripod= false; // when true - make goniometerHorizontal rotation around "vertical" axis and "goniometerAxial" - around
+    	private boolean cartesian=false; //
         // rotated horizontal.
     	private int defaultSensorWidth=      2592;
     	private int defaultSensorHeight=     1936;
@@ -73,7 +73,7 @@ import ij.gui.GenericDialog;
     	public double maskBlurSigma=    -3; //2.0;   // blur sensor masks (>0 - pixels, <0 - in grid units)
     	public double badNodeThreshold=0.1; // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
     	public int    maxBadNeighb=      1; // maximal number of bad nodes around the corrected one to fix
-    	public int    minimalValidNodes=50; // do not use images with less than this number of non-zero nodes (after all applicable weight masks)
+    	public int    minimalValidNodes=10; // do not use images with less than this number of non-zero nodes (after all applicable weight masks)
     	public int    weightMultiImageMode=1; // increase weight for multi-image sets (0 - do not increase, 1 - multiply by number of images in a set to weightMultiExponent power)
     	public double weightMultiExponent= 1.0;
     	public double weightDiameterExponent=1.0; // if( >0) use grid diameter to scale weights of this image
@@ -84,6 +84,7 @@ import ij.gui.GenericDialog;
     	public double balanceChannelWeightsMode=-1.0; // <0 - use defaults, 0 - keep, >0 balance by number of points to this power
     	public double removeOverRMS=2.0;            // error is multiplied by weight function before comparison (more permissive on the borders
     	public double removeOverRMSNonweighted=4.0; // error is not multiplied (no more permissions on tyhe borders
+    	public boolean invertUnmarkedLwirGrid = true; // LWIR grid currently is saved shifted (not compensating color inversion)
         public int [] extrinsicIndices={6,7,8,9,10,11,12,13,14,15,16}; //support variations
         public double [][] variationsDefaults={
         		null,               // 0
@@ -104,6 +105,19 @@ import ij.gui.GenericDialog;
         		{10.0,2.0,0.0,1.0}, // 15 GXYZ1
         		{10.0,2.0,0.0,1.0}  // 16 GXYZ2
         };
+
+        public boolean isTripod() {
+        	return is_tripod;
+        }
+
+        public boolean isCartesian() {
+        	return cartesian;
+        }
+
+        public boolean isLwirUnmarkedInverted() {
+        	return invertUnmarkedLwirGrid;
+        }
+
         public int    tiltIndex=6;
         private ParameterVariationCosts []  parameterVariationCosts=null;
 
@@ -337,7 +351,8 @@ import ij.gui.GenericDialog;
     	    	double shrinkBlurLevel,
     	    	double balanceChannelWeightsMode,
     	    	double removeOverRMS,
-    	    	double removeOverRMSNonweighted
+    	    	double removeOverRMSNonweighted,
+    	    	boolean invertUnmarkedLwirGrid
     			){
     		double [] GXYZ={GXYZ_0,GXYZ_1,GXYZ_2};
     		setSameEyesisCameraParameters (
@@ -372,7 +387,8 @@ import ij.gui.GenericDialog;
     		    	shrinkBlurLevel,
     		    	balanceChannelWeightsMode,
         	    	removeOverRMS,
-        	    	removeOverRMSNonweighted
+        	    	removeOverRMSNonweighted,
+        	    	invertUnmarkedLwirGrid
     		);
     	}
     	public EyesisCameraParameters (
@@ -407,7 +423,8 @@ import ij.gui.GenericDialog;
     	    	double shrinkBlurLevel,
     	    	double balanceChannelWeightsMode,
     	    	double removeOverRMS,
-    	    	double removeOverRMSNonweighted
+    	    	double removeOverRMSNonweighted,
+    	    	boolean invertUnmarkedLwirGrid
     			){
     		setSameEyesisCameraParameters (
     				numStations,
@@ -441,7 +458,8 @@ import ij.gui.GenericDialog;
     		    	shrinkBlurLevel,
     		    	balanceChannelWeightsMode,
         	    	removeOverRMS,
-        	    	removeOverRMSNonweighted
+        	    	removeOverRMSNonweighted,
+        	    	invertUnmarkedLwirGrid
     		);
     	}
     	void setSameEyesisCameraParameters (
@@ -476,10 +494,11 @@ import ij.gui.GenericDialog;
     	    	double shrinkBlurLevel,
     	    	double balanceChannelWeightsMode,
     	    	double removeOverRMS,
-    	    	double removeOverRMSNonweighted
+    	    	double removeOverRMSNonweighted,
+    	    	boolean invertUnmarkedLwirGrid
     			){
     		this.numStations=numStations;
-    		this.isTripod=isTripod;
+    		this.is_tripod=isTripod;
     		this.cartesian = cartesian; // Need to set each subcamera?
 	    	this.defaultSensorWidth=defaultSensorWidth;
 	    	this.defaultSensorHeight=defaultSensorHeight;
@@ -543,7 +562,7 @@ import ij.gui.GenericDialog;
     			EyesisCameraParameters source,
     			EyesisCameraParameters destination) {
     		destination.numStations=newNumStations;
-    		destination.isTripod=source.isTripod;
+    		destination.is_tripod=source.is_tripod;
     		destination.defaultSensorWidth=source.defaultSensorWidth;
     		destination.defaultSensorHeight=source.defaultSensorHeight;
     		destination.shrinkGridForMask=source.shrinkGridForMask; //shrink detected grids by one point for/vert this number of times before calculating masks
@@ -561,6 +580,7 @@ import ij.gui.GenericDialog;
 	    	destination.shrinkBlurLevel=source.shrinkBlurLevel;
 	    	destination.balanceChannelWeightsMode=source.balanceChannelWeightsMode;
 	    	destination.removeOverRMSNonweighted=source.removeOverRMSNonweighted;
+	    	destination.invertUnmarkedLwirGrid=source.invertUnmarkedLwirGrid;
     		destination.goniometerHorizontal=new double[destination.numStations];
     		destination.goniometerAxial=new double[destination.numStations];
     		destination.interAxisDistance=new double[destination.numStations];
@@ -598,7 +618,7 @@ import ij.gui.GenericDialog;
     	}
 
     	public void setProperties(String prefix,Properties properties){
-    		properties.setProperty(prefix+"isTripod",this.isTripod+"");
+    		properties.setProperty(prefix+"isTripod",this.is_tripod+"");
     		properties.setProperty(prefix+"cartesian",this.cartesian+"");
     		properties.setProperty(prefix+"defaultSensorWidth",this.defaultSensorWidth+"");
     		properties.setProperty(prefix+"defaultSensorHeight",this.defaultSensorHeight+"");
@@ -618,6 +638,7 @@ import ij.gui.GenericDialog;
     		properties.setProperty(prefix+"balanceChannelWeightsMode",this.balanceChannelWeightsMode+"");
     		properties.setProperty(prefix+"removeOverRMS",this.removeOverRMS+"");
     		properties.setProperty(prefix+"removeOverRMSNonweighted",this.removeOverRMSNonweighted+"");
+    		properties.setProperty(prefix+"invertUnmarkedLwirGrid",this.invertUnmarkedLwirGrid+"");
 			properties.setProperty(prefix+"numSubCameras",this.eyesisSubCameras[0].length+"");
     		properties.setProperty(prefix+"numStations",this.numStations+"");
     		for (int numStation=0;numStation<this.numStations;numStation++){
@@ -641,7 +662,7 @@ import ij.gui.GenericDialog;
     	}
     	public void getProperties(String prefix,Properties properties){
     		if (properties.getProperty(prefix+"isTripod")!=null)
-    			this.isTripod=Boolean.parseBoolean(properties.getProperty(prefix+"isTripod"));
+    			this.is_tripod=Boolean.parseBoolean(properties.getProperty(prefix+"isTripod"));
     		if (properties.getProperty(prefix+"cartesian")!=null)
     			this.cartesian=Boolean.parseBoolean(properties.getProperty(prefix+"cartesian"));
     		// For old compatibility
@@ -690,6 +711,9 @@ import ij.gui.GenericDialog;
     			this.removeOverRMS=Double.parseDouble(properties.getProperty(prefix+"removeOverRMS"));
     		if (properties.getProperty(prefix+"removeOverRMSNonweighted")!=null)
     			this.removeOverRMSNonweighted=Double.parseDouble(properties.getProperty(prefix+"removeOverRMSNonweighted"));
+    		if (properties.getProperty(prefix+"invertUnmarkedLwirGrid")!=null)
+    			this.invertUnmarkedLwirGrid=Boolean.parseBoolean(properties.getProperty(prefix+"invertUnmarkedLwirGrid"));
+
     		boolean multiStation=true; // new default
     		int newNumStations=1;
     		int numSubCameras=0;
@@ -799,14 +823,14 @@ import ij.gui.GenericDialog;
     		modelChoice[0]="--- keep current ---";
     		for (int i=0;i<distortionModelDescriptions.length;i++) modelChoice[i+1]=distortionModelDescriptions[i];
     		gd.addChoice("Change camera distortion model for all channels", modelChoice, modelChoice[0]);
-    		gd.addCheckbox("Tripod mode (first vertical axis, then horizontal), changes meaning of the next 2 fields",this.isTripod);
+    		gd.addCheckbox("Tripod mode (first vertical axis, then horizontal), changes meaning of the next 2 fields",this.is_tripod);
     		gd.addMessage("=== Camera parameters to be fitted ===");
     		for (int numStation=0;numStation<this.numStations;numStation++) {
     			if (this.numStations>1){
     				gd.addMessage("--- Station number "+numStation+" ---");
     				gd.addNumericField("Station reprojection errors weight",      100*this.stationWeight[numStation], 1,5,"%");
     			}
-    			if (this.isTripod) {
+    			if (this.is_tripod) {
     				gd.addNumericField("Tripod rotation around vertical axis (clockwise from top - positive)",this.goniometerHorizontal[numStation], 3,7,"degrees");
     				gd.addNumericField("Tripod rotation around horizontal axis (camera up - positive)",       this.goniometerAxial[numStation], 3,7,"degrees");
     			} else {
@@ -816,7 +840,7 @@ import ij.gui.GenericDialog;
 
     			gd.addNumericField("Distance between goniometer axes",                                     this.interAxisDistance[numStation], 3,7,"mm");
     			gd.addNumericField("Angle error between goniometer axes (<0 if vertical axis rotated CW )",this.interAxisAngle[numStation],  3,7,"degrees");
-    			if (this.isTripod) {
+    			if (this.is_tripod) {
     				gd.addNumericField("Vertical tripod axis tilt  from true vertical",                    this.horAxisErrPhi[numStation],  3,7,"degrees");
     				gd.addNumericField("Vertical tripod axis roll error from true vertical",               this.horAxisErrPsi[numStation],  3,7,"degrees");
     			} else {
@@ -852,6 +876,7 @@ import ij.gui.GenericDialog;
     		gd.addNumericField("Channel balace mode: <0 - use specified defaults, 0 - keep curent, >0 - exponent for correction (1.0 - precise equalization)", this.balanceChannelWeightsMode, 3,6,"");
     		gd.addNumericField("Remove nodes with error greater than scaled RMS in that image, weighted",  this.removeOverRMS, 2,6,"xRMS");
     		gd.addNumericField("Same, not weghted (not more permissive near the borders with low weight)", this.removeOverRMSNonweighted, 2,6,"xRMS");
+    		gd.addCheckbox    ("Unmared grid files for LWIR is saved invereted",                       this.invertUnmarkedLwirGrid);
     		gd.addNumericField("Number of sub-camera modules",                                         this.eyesisSubCameras[0].length,   0,2,"");
     		gd.addNumericField("Number of sub-camera module to edit (<=0  - none)",                    nextSubCamera,   0,2,"");
    	        gd.enableYesNoCancel("OK", "Done");
@@ -868,7 +893,7 @@ import ij.gui.GenericDialog;
     			}
     		}
 
-    		this.isTripod=                 gd.getNextBoolean();
+    		this.is_tripod=                 gd.getNextBoolean();
     		for (int numStation=0;numStation<this.numStations;numStation++) {
     			if (this.numStations>1){
     				this.stationWeight[numStation]=0.01*gd.getNextNumber();
@@ -904,6 +929,7 @@ import ij.gui.GenericDialog;
 	    	this.balanceChannelWeightsMode= gd.getNextNumber();
 	    	this.removeOverRMS =            gd.getNextNumber();
 	    	this.removeOverRMSNonweighted=  gd.getNextNumber();
+	    	this.invertUnmarkedLwirGrid =   gd.getNextBoolean();
     		int numSubCams=           (int) gd.getNextNumber();
     		int numSubCam=            (int) gd.getNextNumber();
     		if (numSubCams!=this.eyesisSubCameras[0].length){
@@ -2504,8 +2530,8 @@ import ij.gui.GenericDialog;
     		public int     offset_channel =    4; // 0;
     		public int     new_subcam =        1; // new subcamera number
     		public double  offset_height =    50.8;
-    		public double  offset_right =    -35.0; //vnir -35., lwir +35.0
-    		public double  offset_forward =   15.0; //vnir +??,  lwir -??
+    		public double  offset_right =    -35.0; //eo -35., lwir +35.0
+    		public double  offset_forward =   15.0; //eo +??,  lwir -??
     		public double  offset_heading =    0.0;
     		public double  offset_elevation =  0.0;
     		public double  offset_roll =       0.0;

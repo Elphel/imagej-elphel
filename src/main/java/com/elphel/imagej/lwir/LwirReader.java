@@ -496,12 +496,12 @@ public class LwirReader {
 		if (lrp.lwir_ffc) {
 			calibrate(lrp); // seems to work. test calibration duration and if any images are sent during calibration
 		}
-		int num_frames = lrp.avg_number + lrp.vnir_lag + 2 * lrp.max_frame_diff;
+		int num_frames = lrp.avg_number + lrp.eo_lag + 2 * lrp.max_frame_diff;
 		ImagePlus [][] imps = readAllMultiple(
 				num_frames,
 //				lrp.lwir_telemetry,
 				false, // final boolean show,
-				lrp.vnir_scale);
+				lrp.eo_scale);
 		if (imps == null) {
 			LOGGER.error("acquire(): failed to acquire images");
 			return null;
@@ -521,9 +521,9 @@ public class LwirReader {
 			LOGGER.warn(String.format("LWIR channel %d time from FFC: %.3f", chn, after_ffc[chn]));
 		}
 
-		int [] lags = new int [lrp.lwir_channels.length + lrp.vnir_channels.length];
+		int [] lags = new int [lrp.lwir_channels.length + lrp.eo_channels.length];
 		for (int i = 0; i < lags.length; i++) {
-			lags[i] = (i >= lrp.lwir_channels.length) ? lrp.vnir_lag : 0;
+			lags[i] = (i >= lrp.lwir_channels.length) ? lrp.eo_lag : 0;
 		}
 		ImagePlus [][] imps_sync =  matchSets(
 				imps,
@@ -605,10 +605,10 @@ public class LwirReader {
 
 	public boolean programLWIRCamera(LwirReaderParameters lrp) {
 		int lwir_master_port = 0;
-		int vnir_master_port = 0;
+		int eo_master_port = 0;
 		int num_lwir = lrp.lwir_channels.length;
-		int num_vnir = lrp.vnir_channels.length;
-		final String [] urls = new String [num_lwir + num_vnir];
+		int num_eo = lrp.eo_channels.length;
+		final String [] urls = new String [num_lwir + num_eo];
 		for (int chn:lrp.lwir_channels) {
 			urls[chn] = "http://"+lrp.lwir_ip+"/parsedit.php?immediate&sensor_port="+chn+
 					"&BITS=16"+
@@ -623,21 +623,21 @@ public class LwirReader {
 						"&XMIT_TIMESTAMP=1*0";
 			}
 		}
-		for (int chn:lrp.vnir_channels) {
+		for (int chn:lrp.eo_channels) {
 	   		int minExposure=10; // usec
 	   		int maxExposure=1000000; //usec
 	   		int minGain=(int) (0x10000*1.0);
 	   		int maxGain=(int) (0x10000*15.75);
 	   		int minScale=0;
 	   		int maxScale=(int) (0x10000*4.0);
-	   		int exposure= (int) (Math.round(1000*lrp.vnir_exposure_ms * lrp.vnir_exp_corr[chn]));
-	   		int autoExposureMax= (int) (Math.round(1000*lrp.vnir_max_autoexp_ms));
-	   		int gain=     (int) (Math.round(0x10000*lrp.vnir_gain_g));
-	   		int rScale=   (int) (Math.round(0x10000*lrp.vnir_gain_rg*lrp.vnir_gcorr_rbgb[3*chn+0]));
-	   		int bScale=   (int) (Math.round(0x10000*lrp.vnir_gain_bg*lrp.vnir_gcorr_rbgb[3*chn+1]));
-	   		int gScale=   (int) (Math.round(0x10000*                 lrp.vnir_gcorr_rbgb[3*chn+2]));
-	   		int autoExp=  lrp.vnir_autoexp?1:0;
-	   		int autoWB=   lrp.vnir_whitebal?1:0;
+	   		int exposure= (int) (Math.round(1000*lrp.eo_exposure_ms * lrp.eo_exp_corr[chn]));
+	   		int autoExposureMax= (int) (Math.round(1000*lrp.eo_max_autoexp_ms));
+	   		int gain=     (int) (Math.round(0x10000*lrp.eo_gain_g));
+	   		int rScale=   (int) (Math.round(0x10000*lrp.eo_gain_rg*lrp.eo_gcorr_rbgb[3*chn+0]));
+	   		int bScale=   (int) (Math.round(0x10000*lrp.eo_gain_bg*lrp.eo_gcorr_rbgb[3*chn+1]));
+	   		int gScale=   (int) (Math.round(0x10000*                 lrp.eo_gcorr_rbgb[3*chn+2]));
+	   		int autoExp=  lrp.eo_autoexp?1:0;
+	   		int autoWB=   lrp.eo_whitebal?1:0;
 	   		if (exposure<minExposure) exposure=minExposure; else if (exposure>maxExposure) exposure=maxExposure;
 	   		if (autoExposureMax<minExposure) autoExposureMax=minExposure; else if (autoExposureMax>maxExposure) autoExposureMax=maxExposure;
 	   		if (gain<minGain) gain= minGain ; else if (gain> maxGain) gain= maxGain;
@@ -645,9 +645,9 @@ public class LwirReader {
 	   		if (bScale<minScale) bScale= minScale ; else if (bScale> maxScale) bScale= maxScale;
 	   		if (gScale<minScale) gScale= minScale ; else if (gScale> maxScale) gScale= maxScale;
 
-	   		urls[num_lwir+chn] = "http://"+lrp.vnir_ip+"/parsedit.php?immediate&sensor_port="+chn+
+	   		urls[num_lwir+chn] = "http://"+lrp.eo_ip+"/parsedit.php?immediate&sensor_port="+chn+
 	   				"&COLOR="+COLOR_JP4+ // "*1"+ // JP4 always
-	   				"&QUALITY="+lrp.vnir_quality+ // "*0"+
+	   				"&QUALITY="+lrp.eo_quality+ // "*0"+
 	   				"&EXPOS="+exposure+ // "*0"+
 		   			"&AUTOEXP_EXP_MAX="+autoExposureMax+//"*0"+
 		   			"&AUTOEXP_ON="+autoExp+//"*0"+
@@ -659,7 +659,7 @@ public class LwirReader {
 	   				"&DAEMON_EN_TEMPERATURE=1";//"*0";
 
 
-	   		if (chn == vnir_master_port) {
+	   		if (chn == eo_master_port) {
 	   			urls[num_lwir+chn] += "&TRIG=4*0"+
 	   					"&TRIG_CONDITION=611669*0"+ // external input
 	   					"&TRIG_BITLENGTH=31*0"+

@@ -362,4 +362,12 @@ import java.util.Properties;
     		updateCartesian();
     		this.cartesian = cartesian;
     	}
+
+    	public double getPixelSize() {
+    		return this.pixelSize;
+    	}
+    	public double getDistortionRadius() {
+    		return this.distortionRadius;
+    	}
+
     }

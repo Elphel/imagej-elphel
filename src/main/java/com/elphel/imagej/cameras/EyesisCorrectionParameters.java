@@ -5476,7 +5476,7 @@ public class EyesisCorrectionParameters {
   			gd.addMessage     ("Unity up vector in camera coordinate system (x - right, y - up, z - to camera): {"+
   			this.vertical_xyz[0]+","+this.vertical_xyz[1]+","+this.vertical_xyz[2]+"}");
 
-  			gd.addTab         ("LWIR", "parameters for LWIR/VNIR 8-camera rig");
+  			gd.addTab         ("LWIR", "parameters for LWIR/EO 8-camera rig");
   			this.lwir.dialogQuestions(gd);
 
 //  			gd.buildDialog();
