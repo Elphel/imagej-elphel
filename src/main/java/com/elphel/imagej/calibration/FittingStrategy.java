@@ -1718,12 +1718,12 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
         		Arrays.fill(numMatchedPointersEnabledPerStation[n], 0);
     		}
 
-    		int []   numHintedMatch=        new int [matchedPointersIndex.length];
-    		int []   numHintedMatchSelected=new int [matchedPointersIndex.length];
-    		int []   numHintedMatchEnabled= new int [matchedPointersIndex.length];
-    		int [][] numHintedMatchPerStation=        new int [matchedPointersIndex.length][];
-    		int [][] numHintedMatchSelectedPerStation=new int [matchedPointersIndex.length][];
-    		int [][] numHintedMatchEnabledPerStation= new int [matchedPointersIndex.length][];
+    		int []   numHintedMatch=        new int [hintedMatchIndex.length];
+    		int []   numHintedMatchSelected=new int [hintedMatchIndex.length];
+    		int []   numHintedMatchEnabled= new int [hintedMatchIndex.length];
+    		int [][] numHintedMatchPerStation=        new int [hintedMatchIndex.length][];
+    		int [][] numHintedMatchSelectedPerStation=new int [hintedMatchIndex.length][];
+    		int [][] numHintedMatchEnabledPerStation= new int [hintedMatchIndex.length][];
     		for (int n=0;n<numHintedMatch.length;n++){
     			numHintedMatch[n]=0;
     			numHintedMatchSelected[n]=0;
@@ -1771,9 +1771,12 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
         			}
         			numMatchedPointersEnabledPerStation[mpi][imageStations[i]]++;
     				numMatchedPointersEnabled[mpi]++;
-
-        			numHintedMatchEnabledPerStation[hmi][imageStations[i]]++;
-    				numHintedMatchEnabled[hmi]++;
+    				if (hmi>=numHintedMatchEnabledPerStation.length) {
+    					System.out.println("*** Bug: hmi>=numHintedMatchEnabledPerStation.length");
+    				} else {
+    					numHintedMatchEnabledPerStation[hmi][imageStations[i]]++;
+    					numHintedMatchEnabled[hmi]++;
+    				}
 
 
     			}
@@ -2013,6 +2016,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     			IJ.showMessage("Error",msg);
     			return;
     		}
+    		int numSubCams=this.distortionCalibrationData.getNumSubCameras();
     		int [] choice_offsets = new int [this.parameterEnable.length];
     		//
     	    String header="Strategy #\tType";
@@ -2061,11 +2065,13 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 				int subMaxNum = -1;
 				if (this.distortionCalibrationData.isSubcameraParameter(parIndex)) { // only for subcamera parameters
 					if (zeroAndOther) {
-						subMaxNum = this.distortionCalibrationData.firstInGroup(subCam)?-1:0; //this.distortionCalibrationData.getSubGroup(subCam);
+//						subMaxNum = this.distortionCalibrationData.firstInGroup(subCam)?-1:0; //this.distortionCalibrationData.getSubGroup(subCam);
+						subMaxNum = (this.distortionCalibrationData.sourceToCopy(subCam) < 0)?-1:0; //this.distortionCalibrationData.getSubGroup(subCam);
 					} else {
 						subMaxNum =  subCam-1; // 0 will be -1 - this may be wrong to align to higher index
 					}
 				}
+
 
 	/*=========*/
 
@@ -2080,24 +2086,33 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 						thisChoice = this.definedModesAll[this.parameterMode[numSeries][ipar]];
 					} else { // only can happen if (!isTilt) && (noWeak)
 						choice_offsets[ipar] = commonChoices.length;
-						theseChoices = new String [commonChoices.length + subMaxNum + 1];
+//						theseChoices = new String [commonChoices.length + subMaxNum + 1];
+						theseChoices = new String [commonChoices.length];
 						for (int ch = 0; ch < commonChoices.length; ch++) theseChoices[ch] = commonChoices[ch];
+/*
 						if (zeroAndOther) {
 							if (subMaxNum >=0) { // can only be 0
-								theseChoices[commonChoices.length] = "same as "+this.distortionCalibrationData.masterSub(subCam);
+//								theseChoices[commonChoices.length] = "same as "+this.distortionCalibrationData.masterSub(subCam);
+								// TODO: Make human-readable channel name?
+								theseChoices[commonChoices.length] = "same as "+this.distortionCalibrationData.sourceToCopy(subCam);
 							}
 						} else {
 							for (int ch = 0; ch <= subMaxNum; ch++)  {
 								theseChoices[ch + commonChoices.length] = "same as "+ch;
 							}
 						}
+*/
 						// choice index for "same as ..." starts with  this.definedModesAll.length, but in the listbox index is lower
 						int indx = this.parameterMode[numSeries][ipar];
 
 						if (indx >= this.definedModesAll.length) {
 							indx -= (this.definedModesAll.length - choice_offsets[ipar]);
 						}
-						thisChoice = theseChoices[indx];
+						if (indx < theseChoices.length) {
+							thisChoice = theseChoices[indx];
+						} else {
+							thisChoice = "same as "+ (indx - theseChoices.length);
+						}
 //						System.out.println("selectStrategyStep(): this.parameterMode["+numSeries+"]["+ipar+"]=" + this.parameterMode[numSeries][ipar]+" indx = "+indx);
 					}
 					if (thisChoice.equals("fixed")) thisChoice = "-";
@@ -2278,7 +2293,8 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 					int subMaxNum = -1;
 					if (this.distortionCalibrationData.isSubcameraParameter(parIndex)) { // only for subcamera parameters
 						if (zeroAndOther) {
-							subMaxNum = this.distortionCalibrationData.firstInGroup(subCam)?-1:0; //this.distortionCalibrationData.getSubGroup(subCam);
+//							subMaxNum = this.distortionCalibrationData.firstInGroup(subCam)?-1:0; //this.distortionCalibrationData.getSubGroup(subCam);
+							subMaxNum = (this.distortionCalibrationData.sourceToCopy(subCam) < 0)?-1:0; //this.distortionCalibrationData.getSubGroup(subCam);
 						} else {
 							subMaxNum =  subCam-1; // 0 will be -1 - this may be wrong to align to higher index
 						}
@@ -2297,7 +2313,9 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 						for (int ch = 0; ch < commonChoices.length; ch++) theseChoices[ch] = commonChoices[ch];
 						if (zeroAndOther) {
 							if (subMaxNum >=0) {
-								theseChoices[commonChoices.length] = "same as "+this.distortionCalibrationData.masterSub(subCam);
+//								theseChoices[commonChoices.length] = "same as "+this.distortionCalibrationData.masterSub(subCam);
+								// TODO: Make human-readable channel name?
+								theseChoices[commonChoices.length] = "same as "+this.distortionCalibrationData.sourceToCopy(subCam);
 							}
 						} else {
 							for (int ch = 0; ch <= subMaxNum; ch++)  {
@@ -2309,6 +2327,12 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 						if (indx >= this.definedModesAll.length) {
 							indx -= (this.definedModesAll.length - choice_offsets[i]);
 						}
+						// currently only out of limits can occur with a single choice, so
+						if (indx >= theseChoices.length) {
+							indx = theseChoices.length - 1;
+						}
+
+
 						thisChoice = theseChoices[indx];
 						System.out.println("selectStrategyStep(): this.parameterMode["+numSeries+"]["+i+"]=" + this.parameterMode[numSeries][i]+" indx = "+indx);
 					}
@@ -2474,6 +2498,10 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 
 					// make adjustment for "same as (other lower numbered subcamera)"
 					if ((choice_offsets[i] > 0) && (this.parameterMode[numSeries][i] >= choice_offsets[i])){
+						if (zeroAndOther) { // add reference channel
+							int ref_chn = this.distortionCalibrationData.sourceToCopy(this.parameterList[i][0]);
+							this.parameterMode[numSeries][i] += ref_chn;
+						}
 						System.out.print("selectStrategyStep(): choice_offsets["+i+"]="+choice_offsets[i]+ " this.parameterMode["+numSeries+"]["+i+"]=" + this.parameterMode[numSeries][i]);
 						this.parameterMode[numSeries][i] += (this.definedModesAll.length - choice_offsets[i]);
 						System.out.println(", corrected=" + this.parameterMode[numSeries][i]);
@@ -2485,12 +2513,14 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 						selectGroups(numSeries,i);
 					}
 				}
-				if (zeroAndOther){
+				if (zeroAndOther ){
 					for (int i =0; i<this.parameterEnable.length;i++) {
 //						if ((this.parameterList[i][0]>1) && (this.parameterList[i][0]!=24)){ // "other" subchannels - copy from subchannel1
 						if (!this.distortionCalibrationData.firstInGroup(this.parameterList[i][0])){ // "other" subchannels - copy from subchannel1
+///						if (this.distortionCalibrationData.sourceToCopy(this.parameterList[i][0]) >= 0){ // "other" subchannels - copy from subchannel1
 //							int refChannel=(this.parameterList[i][0]<24)?1:24;
 							int refChannel= this.distortionCalibrationData.masterSub(this.parameterList[i][0]);
+///							int refChannel= this.distortionCalibrationData.sourceToCopy(this.parameterList[i][0]);
 
 							int iSub1=getParameterNumber(refChannel, this.parameterList[i][1]);
 							if (this.parameterEnable[iSub1]){

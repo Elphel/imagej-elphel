@@ -1135,11 +1135,14 @@ public class EyesisAberrations {
     	for (int imgNum=0;imgNum<sourcePaths.length;imgNum++){
     		if (!selectedImages[imgNum]) sourcePaths[imgNum]=null;
     		else {
-    			String filename=this.aberrationParameters.sourcePrefix+IJ.d2s(distortionCalibrationData.gIP[imgNum].timestamp,6).replace('.','_')+
-    			String.format("-%02d"+this.aberrationParameters.sourceSuffix, distortionCalibrationData.gIP[imgNum].channel); // sensor number
-    			sourcePaths[imgNum]=this.aberrationParameters.sourceDirectory+Prefs.getFileSeparator()+filename;
+///    			String filename=this.aberrationParameters.sourcePrefix+IJ.d2s(distortionCalibrationData.gIP[imgNum].timestamp,6).replace('.','_')+
+///    			String.format("-%02d"+this.aberrationParameters.sourceSuffix, distortionCalibrationData.gIP[imgNum].channel); // sensor number
+///    			sourcePaths[imgNum]=this.aberrationParameters.sourceDirectory+Prefs.getFileSeparator()+filename;
+    			sourcePaths[imgNum]=distortionCalibrationData.gIP[imgNum].source_path;
+
     			File srcFile=new File(sourcePaths[imgNum]);
     			if (!srcFile.exists()){
+    				String filename = sourcePaths[imgNum].substring(sourcePaths[imgNum].lastIndexOf(Prefs.getFileSeparator()));
     				if (skipMissing) {
     					if (debugLevel>0) System.out.println("Skipping missing file: "+sourcePaths[imgNum]);
     	    	    	sourcePaths[imgNum]=null;
@@ -1242,6 +1245,14 @@ public class EyesisAberrations {
 			if (debugLevel>0) System.out.println("Processing file #"+(imgNum+1)+ " ( of "+files.length+") :"+files[imgNum][0]);
         	ImagePlus imp=new ImagePlus(files[imgNum][0]); // read source file
         	JP4_INSTANCE.decodeProperiesFromInfo(imp);
+        	// pad image to full sensor size
+			int numGridImage=fileIndices[imgNum];
+			int chn = distortions.fittingStrategy.distortionCalibrationData.gIP[numGridImage].getChannel();
+			int [] sensor_width_height = distortions.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorWidthHeight(chn);
+        	imp = ShowDoubleFloatArrays.padBayerToFullSize(
+					  imp, // ImagePlus imp_src,
+					  sensor_width_height, // eyesisCorrections.pixelMapping.sensors[srcChannel].getSensorWH(),
+					  true); // boolean replicate);
 // TODO: Add vignetting correction ?
         	MatchSimulatedPattern matchSimulatedPattern= new MatchSimulatedPattern(distortionParameters.FFTSize);
 			boolean [] correlationSizesUsed=null;
@@ -1256,20 +1267,20 @@ public class EyesisAberrations {
         			double hintTolerance=0.0;
         			if (partialToReprojected){ // replace px, py with projected values form the grid
         				// this.distortions is set to the global LENS_DISTORTIONS
-        				int numGridImage=fileIndices[imgNum];
+///        				int numGridImage=fileIndices[imgNum];
         				projectedGrid=distortions.estimateGridOnSensor( // return grid array [v][u][0- x,  1 - y, 2 - u, 3 - v]
         						distortions.fittingStrategy.distortionCalibrationData.getImageStation(numGridImage), // station number,
-        						distortions.fittingStrategy.distortionCalibrationData.gIP[numGridImage].channel, // subCamera,
+        						distortions.fittingStrategy.distortionCalibrationData.gIP[numGridImage].getChannel(), // subCamera,
         						Double.NaN, // goniometerHorizontal, - not used
         						Double.NaN, // goniometerAxial, - not used
         						Double.NaN, // inter-axis angle, - not used ?
         						distortions.fittingStrategy.distortionCalibrationData.gIP[numGridImage].getSetNumber(), //imageSet,
-        						true); //filterBorder)
+        						false); // true); //filterBorder) // TODO: MAKE IT configurable parameter!
         				hintTolerance=5.0; // TODO:set from configurable parameter
         				if (applySensorCorrection){
         					boolean applied=distortions.correctGridOnSensor(
         							projectedGrid,
-        							distortions.fittingStrategy.distortionCalibrationData.gIP[numGridImage].channel);
+        							distortions.fittingStrategy.distortionCalibrationData.gIP[numGridImage].getChannel());
                 			if (debugLevel>0) {
                 				if (applied) System.out.println("Applied sensor correction to the projected grid");
                 				else System.out.println("No sensor correction available to apply to the projected grid");
@@ -1285,7 +1296,7 @@ public class EyesisAberrations {
 //        		            patternDetectParameters.maxGridPeriod/2,
         					simulParameters,
         					colorComponents.equalizeGreens,
-        					imp,
+        					imp, // has WOI_TOP and possibly - WOI_COMPENSATED
         					null, // LaserPointer laserPointer, // LaserPointer object or null
         					true, // don't care -removeOutOfGridPointers
         					projectedGrid, // null, //   double [][][] hintGrid, // predicted grid array (or null)
@@ -1301,7 +1312,9 @@ public class EyesisAberrations {
         			}
         			// now replace extracted grid X,Y with projected (need to add sensor correction)
         			if (projectedGrid!=null){
-        				int numReplaced= matchSimulatedPattern.replaceGridXYWithProjected(projectedGrid,(debugLevel>1)?imp.getTitle():null);
+        				int numReplaced= matchSimulatedPattern.replaceGridXYWithProjected(
+        						projectedGrid,
+        						((debugLevel>1)?imp.getTitle():null));
             			if (debugLevel>0) System.out.println("Replaced extracted XY with projected ones for "+numReplaced+" nodes");
         			}
         			correlationSizesUsed=matchSimulatedPattern.getCorrelationSizesUsed();
@@ -1314,7 +1327,7 @@ public class EyesisAberrations {
         					threadsMax,
         					updateStatus,
         					debugLevel,
-        					loopDebugLevel); // debug level
+        					loopDebugLevel+1); // debug level
 
         			createPSFMap(
         					matchSimulatedPattern,
@@ -2312,6 +2325,7 @@ public class EyesisAberrations {
 		final int mapWidth=imp_sel.getWidth();
    		final AtomicInteger tilesFinishedAtomic = new AtomicInteger(1); // first finished will be 1
    		final int debugNumColors=6;
+   		final int dbgTile0 = -1; // 245; //
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			// Concurrently run in as many threads as CPUs
 			threads[ithread] = new Thread() {
@@ -2346,6 +2360,9 @@ public class EyesisAberrations {
 						nTY=tilesToProcessXY[nTile][1];
 						y0=tilesToProcessXY[nTile][3];
 						x0=tilesToProcessXY[nTile][2];
+						if (nTile == dbgTile0) {
+							System.out.println("#!# "+x0+":"+y0+" Processing tile["+nTY+"]["+nTX+"] ("+(nTile+1)+" of "+patternCells+") : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+						}
 						if (updateStatus) IJ.showStatus("Processing tile["+nTY+"]["+nTX+"] ("+(nTile+1)+" of "+patternCells+")");
 						if (masterDebugLevel>1) System.out.println("#!# "+x0+":"+y0+" Processing tile["+nTY+"]["+nTX+"] ("+(nTile+1)+" of "+patternCells+") : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 						if (overexposed!=null){
@@ -2383,7 +2400,7 @@ public class EyesisAberrations {
 									fht_instance,      // provide DoubleFHT instance to save on initializations (or null)
 									debug_level,// ((x0<512)&& (y0<512))?3:debug_level DEBUG during "focusing"
 									masterDebugLevel, // get rid of it? // ** NEW
-									globalDebugLevel,// ** NEW
+									globalDebugLevel + ((nTile == dbgTile0)? 3:0),// ** NEW
 									debugLateralShifts?debugLateral[nTY][nTX]:null
 							);
 							if (kernels!=null) {
@@ -2678,7 +2695,7 @@ public class EyesisAberrations {
 
 		double [] localBarray;
 
-		if ((simArray==null) || (psfParameters.approximateGrid)){ // just for testing
+		if ((simArray==null) || (psfParameters.approximateGrid)){ // just for testing(never here?)
 			/* Calculate pattern parameters, including distortion */
 			if (matchSimulatedPattern.PATTERN_GRID==null) {
 				double[][] distortedPattern= matchSimulatedPattern.findPatternDistorted(input_bayer, // pixel array to process (no windowing!)
@@ -2775,7 +2792,7 @@ public class EyesisAberrations {
 			simul_pixels= normalizeAndWindow (simul_pixels, fullHamming);
 
 		} else {
-			Rectangle PSFCellSim=new Rectangle (x0*subpixel/2,y0*subpixel/2,size*subpixel/2,size*subpixel/2);
+			Rectangle PSFCellSim=new Rectangle (x0*subpixel/2,y0*subpixel/2,size*subpixel/2,size*subpixel/2); // getting here
 
 			simul_pixels=new double[6][];
 // simulationPattern.debugLevel=globalDebugLevel;
@@ -2837,7 +2854,7 @@ public class EyesisAberrations {
 		}
 		for (i=0;i<4;i++) if (!colorComponents.colorsToCorrect[i]) input_bayer[i]=null; // leave composite greens even if disabled
 		if (debugThis) {
-			SDFA_INSTANCE.showArrays(input_bayer, fft_size*subpixel, fft_size*subpixel, title);
+//			SDFA_INSTANCE.showArrays(input_bayer, fft_size*subpixel, fft_size*subpixel, title);
 		}
 		if (globalDebugLevel>2) System.out.println ( " input_bayer.length="+input_bayer.length+" simul_pixels.length="+simul_pixels.length+" fft_size*subpixel="+fft_size*subpixel);
 		for (i=0;(i<input_bayer.length) && (i<simul_pixels.length);i++) if ((colorComponents.colorsToCorrect[i]) && (input_bayer[i]!=null)){
@@ -2846,7 +2863,7 @@ public class EyesisAberrations {
 		if (debugThis) SDFA_INSTANCE.showArrays(input_bayer, true, title+"-input");
 		if (debugThis) SDFA_INSTANCE.showArrays(simul_pixels, true, title+"-SIM");
 
-if (globalDebugLevel>2)globalDebugLevel=0; //************************************************************
+//if (globalDebugLevel>2)globalDebugLevel=0; //************************************************************
 		double [][] inverted=new double[colorComponents.colorsToCorrect.length][];
 		double wvAverage=Math.sqrt(0.5*(wVectors[0][0]*wVectors[0][0]+wVectors[0][1]*wVectors[0][1]+
 				wVectors[1][0]*wVectors[1][0]+wVectors[1][1]*wVectors[1][1]));
@@ -3127,6 +3144,11 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 
 		double [] denominatorPixels= forward_OTF? modelPixels.clone():    measuredPixels.clone();
 		double [] nominatorPixels=   forward_OTF? measuredPixels.clone(): modelPixels.clone();
+		if ((debug>2) ||((globalDebugLevel>2) && (title!=""))) { /* Increase debug level later */ // was 3
+			double [][] meas_sim = {measuredPixels, modelPixels};
+//			String [] dbg_titles = {"measured","simulated"};
+			SDFA_INSTANCE.showArrays(meas_sim, true, title+"-MEAS_SIM");
+		}
 		if (fht_instance==null) fht_instance=new DoubleFHT(); // move upstream to reduce number of initializations
 		int i;
 		fht_instance.swapQuadrants(denominatorPixels);
@@ -3231,7 +3253,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 
 	/* ======================================================================== */
 	/* Trying to remove aliasing artifacts when the decimated (pixel resolution) image is deconvolved with full resolution (sub-pixel resolution)
-	model pattern. This effect is also easily visible if the decimated model is deconvolved with the same one art full resolution.
+	model pattern. This effect is also easily visible if the decimated model is deconvolved with the same one at full resolution.
 	Solution is to clone the power spectrum of the full resolution model with the shifts to match oversampling (15 clones for the 4x oversampling),
 	And add them together (adding also zero frequerncy point - it might be absent on the model) but not include the original (true one) and
 	use the result to create a rejectiobn mask - if the energy was high, (multiplicative) mask should be zero at those points. */

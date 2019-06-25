@@ -1,5 +1,7 @@
 package com.elphel.imagej.common;
 import java.awt.Rectangle;
+import java.util.Map;
+import java.util.Properties;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -651,6 +653,87 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
 	  ImagePlus imp_color=new ImagePlus(title,cp);
 	  return imp_color;
 
+  }
+
+
+  /**
+   * Pad acquired Bayer image to the full sensor width/height. Used when optical center pixel coordinates do not match for channels
+   * and WOI is adjusted during image capture to avoid ERS mismatch between horizontal pairs
+   * @param imp_src source image with WOI specified as properties (sizes and offsets should be even)
+   * @param wh {sesnor_width, sensor_height} in pixels
+   * @param replicate fill gaps by replicating existing pixels
+   * @return full size image
+   */
+
+  public static ImagePlus padBayerToFullSize(
+		  ImagePlus imp_src,
+		  int [] wh, // null OK - will use {woi_left+width, woi_top+height}
+		  boolean replicate) {
+	  int woi_top =    Integer.parseInt((String) imp_src.getProperty("WOI_TOP")); // enforce even
+	  int woi_left =   Integer.parseInt((String) imp_src.getProperty("WOI_LEFT"));
+	  int woi_width =  imp_src.getWidth(); // Integer.parseInt((String) imp_src.getProperty("WOI_WIDTH"));
+	  int woi_height = imp_src.getHeight(); // Integer.parseInt((String) imp_src.getProperty("WOI_HEIGHT"));
+	  Properties properties = imp_src.getProperties();
+
+	  if (wh == null) {
+		  wh = new int [2];
+		  wh[0] = woi_left + woi_width;
+		  wh[1] = woi_top  + woi_height;
+	  }
+	  if ((woi_top == 0) && (woi_left == 0) && (woi_width == wh[0])  && (woi_height == wh[1])){
+		  return imp_src; // good as is
+	  }
+	  float [] full_pixels = new float [wh[0]*wh[1]];
+	  float [] pixels=(float []) imp_src.getProcessor().getPixels();
+	  int dst_col = woi_left;
+	  int copy_width = woi_width;
+	  if ((dst_col + copy_width) > wh[0]) {
+		  copy_width = wh[0] - dst_col;
+	  }
+	  for (int src_row = 0; src_row < woi_height; src_row++) {
+		  int dst_row = src_row + woi_top;
+		  if (dst_row < wh[1]) {
+			  System.arraycopy( pixels,   src_row * woi_width,  full_pixels, dst_row * wh[0] + dst_col,  copy_width);
+		  }
+	  }
+	  if (replicate) {
+		  // replicate top
+		  for (int dst_row = 0; dst_row < woi_top; dst_row++) {
+			  int src_row = woi_top + (dst_row & 1);
+			  System.arraycopy( full_pixels,   src_row * wh[0] + dst_col,  full_pixels, dst_row * wh[0] + dst_col,  copy_width);
+		  }
+		  // replicate bottom
+		  for (int dst_row = woi_top + woi_height; dst_row < wh[1]; dst_row++) {
+			  int src_row = woi_top + woi_height - 2 + (dst_row & 1);
+			  System.arraycopy( full_pixels,   src_row * wh[0] + dst_col,  full_pixels, dst_row * wh[0] + dst_col,  copy_width);
+		  }
+		  // right and left are not likely, as there is no need to use them - horizontal mismatch does not influence ERS
+		  for (int col = 0; col < woi_left; col++) {
+			  for (int row = 0; row < wh[1]; row++) {
+				  full_pixels[row*wh[0] + col] = full_pixels[row*wh[0] + woi_left + (col & 1)];
+			  }
+		  }
+
+		  for (int col = woi_left + woi_width; col < wh[0]; col++) {
+			  for (int row = 0; row < wh[1]; row++) {
+				  full_pixels[row*wh[0] + col] = full_pixels[row*wh[0] + woi_left + woi_width - 2 +(col & 1)];
+			  }
+		  }
+	  }
+	  ImageProcessor ip = new FloatProcessor(wh[0],wh[1]);
+	  ip.setPixels(full_pixels);
+	  ip.resetMinAndMax(); // is it needed here?
+	  ImagePlus imp = new ImagePlus(imp_src.getTitle(),ip); // OK to have the same name?
+	  for (Map.Entry<?, ?> entry: properties.entrySet()) {
+		  String key = (String) entry.getKey();
+		  String value = (String) entry.getValue();
+		  imp.setProperty(key, value);
+	  }
+	  imp.setProperty("WOI_WIDTH", wh[0]+"");
+	  imp.setProperty("WOI_HEIGHTH", wh[1]+"");
+	  imp.setProperty("WOI_TOP", "0");
+	  imp.setProperty("WOI_LEFT", "0");
+	  return imp;
   }
 
 

@@ -925,6 +925,8 @@ import ij.text.TextWindow;
                 					getImagePlusProperty(imp_grid,"WOI_TOP",0),
                 					getImagePlusProperty(imp_grid,"WOI_WIDTH",  eyesisCameraParameters.getSensorWidth(nc)),
                 					getImagePlusProperty(imp_grid,"WOI_HEIGHT", eyesisCameraParameters.getSensorHeight(nc)));
+//                			boolean woi_compensated = getImagePlusProperty(imp_grid,"WOI_COMPENSATED",false);
+                			boolean woi_compensated = (this.gIP[numFile].woi.x == 0) && (this.gIP[numFile].woi.y == 0);
 
                 			this.gIP[numFile].gridImage = imp_grid; // Save all images?
                     		this.gIP[numFile].laserPixelCoordinates = MatchSimulatedPattern.getPointersXYUV(imp_grid, laserPointers);
@@ -958,9 +960,23 @@ import ij.text.TextWindow;
                     				throw new IllegalArgumentException (msg);
                     			}
                     			float [][] pixels=new float[stack.getSize()][]; // now - 8 (x,y,u,v,contrast, vignR,vignG,vignB
+                    			for (int i=0;i<pixels.length;i++) pixels[i]= (float[]) stack.getPixels(i+1); // pixel X : negative - no grid here
+                    			if (!woi_compensated) {
+                    				System.out.print(" woi_compensation-a "+numFile+" ");
+                    				for (int i = 0; i < pixels[0].length; i++) {
+                    					pixels[0][i] += this.gIP[numFile].woi.x;
+                    					pixels[1][i] += this.gIP[numFile].woi.y;
+                    				}
+                    				this.gIP[numFile].woi.width += this.gIP[numFile].woi.x;
+                    				this.gIP[numFile].woi.x = 0;
+                    				this.gIP[numFile].woi.height += this.gIP[numFile].woi.y;
+                    				this.gIP[numFile].woi.y = 0;
+                    				woi_compensated = true;
+                    			}
                     			set_pixels[nc] = pixels;
                     			set_widths[nc] = imp_grid.getWidth();
-                    			for (int i=0;i<pixels.length;i++) pixels[i]= (float[]) stack.getPixels(i+1); // pixel X : negative - no grid here
+
+
                     			int numBadNodes = 0;
                     			if (this.eyesisCameraParameters.badNodeThreshold>0.0){
                     				boolean thisDebug =false;
@@ -1208,8 +1224,25 @@ import ij.text.TextWindow;
 				IJ.showMessage("Error",msg);
 				throw new IllegalArgumentException (msg);
 			}
+//			boolean woi_compensated_master= getImagePlusProperty(imp_master_grid,"WOI_COMPENSATED",false);
+			boolean woi_compensated_master = (getImagePlusProperty(imp_master_grid,"WOI_TOP",0) == 0) &&
+					(getImagePlusProperty(imp_master_grid,"WOI_LEFT",0) == 0);
+
+
 			float [][] pixels_master =new float[stack_master.getSize()][]; // now - 8 (x,y,u,v,contrast, vignR,vignG,vignB
         	for (int i=0;i<pixels_master.length;i++) pixels_master[i]= (float[]) stack_master.getPixels(i+1); // pixel X : negative - no grid here
+			if (!woi_compensated_master) {
+				for (int i = 0; i < pixels_master[0].length; i++) {
+					pixels_master[0][i] += this.gIP[imgMaster].woi.x;
+					pixels_master[1][i] += this.gIP[imgMaster].woi.y;
+				}
+				this.gIP[imgMaster].woi.width += this.gIP[imgMaster].woi.x;
+				this.gIP[imgMaster].woi.x = 0;
+				this.gIP[imgMaster].woi.height += this.gIP[imgMaster].woi.y;
+				this.gIP[imgMaster].woi.y = 0;
+				woi_compensated_master = true;
+			}
+
         	int width_master = imp_master_grid.getWidth();
         	// If master is LWIR - reset it's shift to zero
         	if (lwir_mark >=0) {
@@ -1251,8 +1284,24 @@ import ij.text.TextWindow;
         					IJ.showMessage("Error",msg);
         					throw new IllegalArgumentException (msg);
         				}
+//        				boolean woi_compensated = getImagePlusProperty(imp_grid,"WOI_COMPENSATED",false);
+            			boolean woi_compensated = (this.gIP[imgNum].woi.x == 0) && (this.gIP[imgNum].woi.y == 0);
+
         				float [][] pixels =new float[stack.getSize()][]; // now - 8 (x,y,u,v,contrast, vignR,vignG,vignB
         	        	for (int i=0;i<pixels.length;i++) pixels[i]= (float[]) stack.getPixels(i+1); // pixel X : negative - no grid here
+            			if (!woi_compensated) {
+            				System.out.print(" woi_compensation-b "+imgNum+" ");
+            				for (int i = 0; i < pixels[0].length; i++) {
+            					pixels[0][i] += this.gIP[imgNum].woi.x;
+            					pixels[1][i] += this.gIP[imgNum].woi.y;
+            				}
+            				this.gIP[imgNum].woi.width += this.gIP[imgNum].woi.x;
+            				this.gIP[imgNum].woi.x = 0;
+            				this.gIP[imgNum].woi.height += this.gIP[imgNum].woi.y;
+            				this.gIP[imgNum].woi.y = 0;
+            				woi_compensated = true;
+            			}
+
         	        	int width_lwir = imp_grid.getWidth();
     					double [] sensor_wh = {
     							this.gIP[imgNum].woi.width +  this.gIP[imgNum].woi.x,
@@ -1404,6 +1453,7 @@ import ij.text.TextWindow;
         		int [] uv_shift_rot,
         		PatternParameters patternParameters) {
         	ImagePlus imp_grid = null;
+        	boolean woi_compensated = true;
     		if (this.gIP[img_num].gridImage!=null){ // use in-memory grid images instead of the files
     			int numGridImg=img_num;
     			if (numGridImg>=this.gIP.length) numGridImg=this.gIP.length-1;
@@ -1416,6 +1466,9 @@ import ij.text.TextWindow;
     				throw new IllegalArgumentException (msg);
     			}
     			(new JP46_Reader_camera()).decodeProperiesFromInfo(imp_grid);
+    			woi_compensated = (getImagePlusProperty(imp_grid,"WOI_TOP",0) == 0) &&
+    					(getImagePlusProperty(imp_grid,"WOI_LEFT",0) == 0);
+//    			woi_compensated = getImagePlusProperty(imp_grid,"WOI_COMPENSATED",false);
     		} else {
     			System.out.println("Grid is not in memory, file path is not specified");
     			return null;
@@ -1427,8 +1480,23 @@ import ij.text.TextWindow;
 				throw new IllegalArgumentException (msg);
 			}
 			float [][] pixels=new float[stack.getSize()][]; // now - 8 (x,y,u,v,contrast, vignR,vignG,vignB
+
         	for (int i=0;i<pixels.length;i++) pixels[i]= (float[]) stack.getPixels(i+1); // pixel X : negative - no grid here
-            int [] combinedUVShiftRot=MatchSimulatedPattern.combineUVShiftRot(
+
+			if (!woi_compensated) { // in memory - always compensated
+				System.out.print(" woi_compensation-c "+img_num+" ");
+				for (int i = 0; i < pixels[0].length; i++) {
+					pixels[0][i] += this.gIP[img_num].woi.x;
+					pixels[1][i] += this.gIP[img_num].woi.y;
+				}
+				this.gIP[img_num].woi.width += this.gIP[img_num].woi.x;
+				this.gIP[img_num].woi.x = 0;
+				this.gIP[img_num].woi.height += this.gIP[img_num].woi.y;
+				this.gIP[img_num].woi.y = 0;
+				woi_compensated = true;
+			}
+
+        	int [] combinedUVShiftRot=MatchSimulatedPattern.combineUVShiftRot(
                     this.gIP[img_num].getUVShiftRot(),
                     uv_shift_rot);
             this.gIP[img_num].setUVShiftRot(combinedUVShiftRot); // uv_shift_rot);
@@ -2020,7 +2088,7 @@ import ij.text.TextWindow;
             	}
             	sb.append("\n");
     		}
-			new TextWindow("Image calibration state (pointers/hinted state)", header, sb.toString(), 900,1400);
+			new TextWindow("Image calibration state (pointers/hinted state)", header, sb.toString(), 1400, 900);
         }
 
 
@@ -3286,6 +3354,7 @@ import ij.text.TextWindow;
     		int numOfGridNodes=0;
     		int numOfGridNodes_extra=0;
         	for (int fileNumber=0;fileNumber<numImages;fileNumber++){
+        		boolean woi_compensated = true;
         		if (this.gIP[fileNumber].gridImage!=null){ // use in-memory grid images instead of the files
         			int numGridImg=fileNumber;
         			if (numGridImg>=this.gIP.length) numGridImg=this.gIP.length-1;
@@ -3293,6 +3362,7 @@ import ij.text.TextWindow;
         					this.gIP[numGridImg].gridImage.getTitle());
         			if (this.debugLevel>1) System.out.print((fileNumber+1)+": "+this.gIP[numGridImg].gridImage.getTitle());
         			imp_grid=this.gIP[numGridImg].gridImage;
+        			// in memory grid pixels are always compensated
         		} else {
         			if (this.updateStatus) IJ.showStatus("Reading grid file "+(fileNumber+1)+" (of "+(numImages)+"): "+this.gIP[fileNumber].path);
         			if (this.debugLevel>-1) System.out.print(fileNumber+" ("+this.gIP[fileNumber].getStationNumber()+"): "+this.gIP[fileNumber].path);
@@ -3304,6 +3374,10 @@ import ij.text.TextWindow;
         			}
 // TODO: here - need to decode properties
         			jp4_reader.decodeProperiesFromInfo(imp_grid);
+//        			woi_compensated = getImagePlusProperty(imp_grid,"WOI_COMPENSATED",false);
+        			woi_compensated = (getImagePlusProperty(imp_grid,"WOI_TOP",0) == 0) &&
+        					(getImagePlusProperty(imp_grid,"WOI_LEFT",0) == 0);
+
         			if (keep_images) {
         				this.gIP[fileNumber].gridImage = imp_grid;
         			}
@@ -3337,7 +3411,19 @@ import ij.text.TextWindow;
             	}
         		float [][] pixels=new float[stack.getSize()][]; // now - 8 (x,y,u,v,contrast, vignR,vignG,vignB
             	for (int i=0;i<pixels.length;i++) pixels[i]= (float[]) stack.getPixels(i+1); // pixel X : negative - no grid here
+    			if (!woi_compensated) {
+    				System.out.print(" woi_compensation-d "+fileNumber+" ");
+    				for (int i = 0; i < pixels[0].length; i++) {
+    					pixels[0][i] += this.gIP[fileNumber].woi.x;
+    					pixels[1][i] += this.gIP[fileNumber].woi.y;
+    				}
+    				this.gIP[fileNumber].woi.width += this.gIP[fileNumber].woi.x;
+    				this.gIP[fileNumber].woi.x = 0;
+    				this.gIP[fileNumber].woi.height += this.gIP[fileNumber].woi.y;
+    				this.gIP[fileNumber].woi.y = 0;
+    				woi_compensated = true;
 
+    			}
 
             	if (this.eyesisCameraParameters.badNodeThreshold>0.0){
             		boolean thisDebug =false;
@@ -3815,7 +3901,7 @@ import ij.text.TextWindow;
     		}
 			return n;
     	}
-    	// check if the channel is the first in group
+    	// check if the channel is the first in group that represents settings
     	public boolean firstInGroup(int chn) {
     		if (chn >= 24) return (chn == 24);
     		if ((chn == getEo0()) || (chn == getLwir0())) return true;
@@ -3827,6 +3913,14 @@ import ij.text.TextWindow;
     		if ((small_sensors != null) && small_sensors[chn]) return (num[1] == 1);
     		else                                               return (num[0] == 1);
     	}
+
+    	// can be a clone of the previous channel (same value)
+    	public int sourceToCopy(int chn) {
+    		if ((chn == getEo0()) || (chn == getLwir0())) return -1; // no prototype to copy
+    		return chn -1; // copy from previous
+    	}
+
+
 
     	public String getSubName(int chn, boolean full) {
     		int groups = getSubGroups();

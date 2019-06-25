@@ -1325,6 +1325,11 @@ import ij.gui.GenericDialog;
 
         public int getSensorWidth(int subCam) { return this.eyesisSubCameras[0][subCam].getSensorWidth();} // for the future? different sensors
         public int getSensorHeight(int subCam) { return this.eyesisSubCameras[0][subCam].getSensorHeight();}// for the future? different sensors
+        public int [] getSensorWidthHeight(int subCam) {
+        	int [] wh = {getSensorWidth( subCam), getSensorHeight( subCam)};
+        	return wh;
+        }
+
         public int getDecimateMasks(int subCam) { return this.eyesisSubCameras[0][subCam].getDecimateMasks();}// for the future? different sensors
 
         public void setSensorWidth(int subCam, int v)   {

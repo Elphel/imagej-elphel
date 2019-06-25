@@ -6136,7 +6136,7 @@ public class MatchSimulatedPattern {
 			MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
 			SimulationPattern.SimulParameters  simulParameters,
 			boolean equalizeGreens,
-			ImagePlus imp, // image to process
+			ImagePlus imp, // image to process // has WOI_TOP and possibly - WOI_COMPENSATED
 			LaserPointer laserPointer, // LaserPointer object or null
 			boolean removeOutOfGridPointers, //
 			double [][][] hintGrid, // predicted grid array (or null)

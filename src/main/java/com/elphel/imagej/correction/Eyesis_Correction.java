@@ -619,6 +619,7 @@ private Panel panel1,
 			addButton("CLT reset 3D",              panelClt2, color_stop);
 			addButton("MAIN extrinsics",           panelClt2, color_process);
 			addButton("CLT Poly corr",             panelClt2, color_process);
+			addButton("DRY RUN",                   panelClt2, color_configure);
 			addButton("CLT 3D",                    panelClt2, color_process);
 			addButton("CLT planes",                panelClt2, color_conf_process);
 			addButton("CLT ASSIGN",                panelClt2, color_process);
@@ -4407,14 +4408,16 @@ private Panel panel1,
 
 /// ============================================
 
-    } else if (label.equals("CLT 3D") || label.equals("MAIN extrinsics") || label.equals("CLT Poly corr")) {
+    } else if (label.equals("CLT 3D") || label.equals("MAIN extrinsics") || label.equals("CLT Poly corr") || label.equals("DRY RUN")) {
 
     	boolean adjust_extrinsics = label.equals("MAIN extrinsics") || label.equals("CLT Poly corr");
     	boolean adjust_poly = label.equals("CLT Poly corr");
+		boolean dry_run =  label.equals("DRY RUN");// init kernel/geometry only
+
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
 
-    	clt3d(adjust_extrinsics, adjust_poly);
+    	clt3d(adjust_extrinsics, adjust_poly, dry_run);
         return;
     } else if (label.equals("AUX extrinsics") || label.equals("AUX Poly corr")) {
     	boolean adjust_extrinsics = label.equals("AUX extrinsics") || label.equals("AUX Poly corr");
@@ -5562,7 +5565,8 @@ private Panel panel1,
 
 	public boolean clt3d(
 			boolean adjust_extrinsics,
-			boolean adjust_poly
+			boolean adjust_poly,
+			boolean dry_run // init kernel/geometry only
 			) {
 		if (QUAD_CLT == null){
 			QUAD_CLT = new  QuadCLT (
@@ -5607,7 +5611,9 @@ private Panel panel1,
 				return false;
 			}
 		}
-
+		if (dry_run) {
+			return true;
+		}
 		QUAD_CLT.processCLTQuads3d(
 				adjust_extrinsics, // boolean adjust_extrinsics,
 				adjust_poly,       // boolean adjust_poly,
@@ -5639,7 +5645,9 @@ private Panel panel1,
 		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)  || (QUAD_CLT.tp.clt_3d_passes.size() == 0)) {
 			boolean OK = clt3d(
 					false, // boolean adjust_extrinsics,
-					false); // boolean adjust_poly);
+					false, // boolean adjust_poly);
+					false); // boolean dry_run // init kernel/geometry only
+
 			if (! OK) {
 				String msg = "DSI data is not available and \"CLT 3D\" failed";
 				IJ.showMessage("Error",msg);
@@ -5680,7 +5688,8 @@ private Panel panel1,
 		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)  || (QUAD_CLT.tp.clt_3d_passes.size() == 0)) {
 			boolean OK = clt3d(
 					false, // boolean adjust_extrinsics,
-					false); // boolean adjust_poly);
+					false, // boolean adjust_poly);
+					false); // boolean dry_run // init kernel/geometry only
 			if (! OK) {
 				String msg = "DSI data is not available and \"CLT 3D\" failed";
 				IJ.showMessage("Error",msg);

@@ -626,7 +626,7 @@ Cv=(Cy*x-Cx*y)+(-Cy*Dx+Cx*Dy)
 		float [][] simArray=new float [2][];
 		simArray[0]=(new SimulationPattern(simulParameters)).combineWithCanvas(0.0,  k*width, k*height, scaledWoi,simArray0[0]);
 		simArray[1]=(new SimulationPattern(simulParameters)).combineWithCanvas(0.0,  k*width, k*height, scaledWoi,simArray0[1]);
-		if (globalDebugLevel>1) SDFA_INSTANCE.showArrays(simArray,width*k,height*k,true, "full-simulation");
+		if (globalDebugLevel>0) SDFA_INSTANCE.showArrays(simArray,width*k,height*k,true, "full-simulation");
 		return simArray;
 	}
 

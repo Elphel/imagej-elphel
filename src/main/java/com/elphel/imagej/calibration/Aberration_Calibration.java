@@ -5949,6 +5949,16 @@ if (MORE_BUTTONS) {
 				IJ.showMessage("LENS_DISTORTION.fittingStrategy is not set");
 				return;
 			}
+			DistortionCalibrationData dcd = LENS_DISTORTIONS.getDistortionCalibrationData();
+			if (dcd == null) {
+				dcd = DISTORTION_CALIBRATION_DATA;
+			}
+			if (dcd == null) {
+				System.out.println("dcd is null");
+				return;
+			}
+
+
 			GenericDialog gd=new GenericDialog ("Parameters of the filter by predicted grid");
     		gd.addNumericField("Mismatch tolerance of match between the predicted and acquired grid", 0.5, 1,4,"fraction of grid half-period");
     		gd.addCheckbox    ("Calibrate by translation (false - orientation only)", true);
@@ -5957,6 +5967,8 @@ if (MORE_BUTTONS) {
     		gd.addCheckbox    ("Process images with estimated orientation and no matched laser pointers", false);
     		gd.addCheckbox    ("Use image sets data if available (false - use camera data)", true);
     		gd.addNumericField("Process only one specified image (<0 - all)", -1, 0);
+    		gd.addNumericField("Start image set", 0, 0);
+    		gd.addNumericField("End image set", dcd.getNumSets()-1, 0);
 
     		gd.showDialog();
     		if (gd.wasCanceled()) return;
@@ -5967,6 +5979,8 @@ if (MORE_BUTTONS) {
     		boolean processBlind=           gd.getNextBoolean();
     		boolean useSetsData=            gd.getNextBoolean();
     		int imageNumber=          (int) gd.getNextNumber();
+    		int start_set=            (int) gd.getNextNumber();
+    		int end_set=              (int) gd.getNextNumber();
     		if (imageNumber>=0) processAll=true; // no additional filtering
 
     		int numMatched=LENS_DISTORTIONS.applyHintedGrids(
@@ -5977,6 +5991,8 @@ if (MORE_BUTTONS) {
     				ignoreLaserPointers,
     				processBlind,
     				imageNumber,
+    				start_set,
+    				end_set,
     				useSetsData,
     				THREADS_MAX,                 //int threadsMax,
     				UPDATE_STATUS,               // boolean updateStatus,

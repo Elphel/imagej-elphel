@@ -1810,12 +1810,32 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		System.out.println("heading =\t"+      heading+"\tdegrees");
 		System.out.println("numSensors =\t"+   numSensors);
 		System.out.println("'=== Individual input parameters ===");
-		System.out.print  ("forward = ");for (int i = 0; i < numSensors;i++) System.out.print("\t"+forward[i]); System.out.println("\tmm");
-		System.out.print  ("right = ");  for (int i = 0; i < numSensors;i++) System.out.print("\t"+right[i]);   System.out.println("\tmm");
-		System.out.print  ("height = "); for (int i = 0; i < numSensors;i++) System.out.print("\t"+height[i]);  System.out.println("\tmm");
-		System.out.print  ("roll = ");   for (int i = 0; i < numSensors;i++) System.out.print("\t"+roll[i]);      System.out.println("\tdegrees");
-		System.out.print  ("px0 = ");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+pXY0[i][0]);  System.out.println("\tpix");
-		System.out.print  ("py0 = ");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+pXY0[i][1]);  System.out.println("\tpix");
+
+		System.out.print  ("forward = ");
+		if (forward != null) {
+			for (int i = 0; i < numSensors;i++) System.out.print("\t"+forward[i]); System.out.println("\tmm");
+		} 	else System.out.println("\tnull");
+		System.out.print  ("right = ");
+
+		if (right != null) {
+			for (int i = 0; i < numSensors;i++) System.out.print("\t"+right[i]);   System.out.println("\tmm");
+		} 	else System.out.println("\tnull");
+		System.out.print  ("height = ");
+		if (height != null) {
+			for (int i = 0; i < numSensors;i++) System.out.print("\t"+height[i]);  System.out.println("\tmm");
+		} 	else System.out.println("\tnull");
+		System.out.print  ("roll = ");
+		if (roll != null) {
+			for (int i = 0; i < numSensors;i++) System.out.print("\t"+roll[i]);      System.out.println("\tdegrees");
+		} 	else System.out.println("\tnull");
+		System.out.print  ("px0 = ");
+		if (pXY0 != null) {
+			for (int i = 0; i < numSensors;i++) System.out.print("\t"+pXY0[i][0]);  System.out.println("\tpix");
+		} 	else System.out.println("\tnull");
+		System.out.print  ("py0 = ");
+		if (pXY0 != null) {
+			for (int i = 0; i < numSensors;i++) System.out.print("\t"+pXY0[i][1]);  System.out.println("\tpix");
+		} 	else System.out.println("\tnull");
 
 		System.out.println("'=== Common calculated parameters ===");
 		System.out.println("common_right =\t"+common_right + "\tmm");
@@ -1827,19 +1847,35 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 
 		if (showAll){
 			System.out.println("'=== Intermediate data: coordinates corrected for common elevation and heading ===");
-			System.out.print  ("X_he =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+XYZ_he[i][0]);  System.out.println("\tmm");
-			System.out.print  ("Y_he =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+XYZ_he[i][1]);  System.out.println("\tmm");
-			System.out.print  ("Z_he =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+XYZ_he[i][2]);  System.out.println("\tmm");
+			if (XYZ_he != null) {
+				System.out.print  ("X_he =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+XYZ_he[i][0]);  System.out.println("\tmm");
+				System.out.print  ("Y_he =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+XYZ_he[i][1]);  System.out.println("\tmm");
+				System.out.print  ("Z_he =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+XYZ_he[i][2]);  System.out.println("\tmm");
+			} else {
+				System.out.println("X_he, Y_he and Z_he are null");
+			}
 			System.out.println("'=== Intermediate data: coordinates corrected for common elevation, heading and roll ===");
-			System.out.print  ("X_her =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+XYZ_her[i][0]);  System.out.println("\tmm");
-			System.out.print  ("Y_her =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+XYZ_her[i][1]);  System.out.println("\tmm");
-			System.out.print  ("Z_her =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+XYZ_her[i][2]);  System.out.println("\tmm");
+			if (XYZ_her != null) {
+				System.out.print  ("X_her =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+XYZ_her[i][0]);  System.out.println("\tmm");
+				System.out.print  ("Y_her =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+XYZ_her[i][1]);  System.out.println("\tmm");
+				System.out.print  ("Z_her =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+XYZ_her[i][2]);  System.out.println("\tmm");
+			} else {
+				System.out.println("X_her, Y_her and Z_her are null");
+			}
 		}
 
 		System.out.println("'=== Individual calculated parameters ===");
-		System.out.print  ("residual_roll = ");   for (int i = 0; i < numSensors;i++) System.out.print("\t"+(roll[i]-common_roll));System.out.println("\tdegrees");
+
+		System.out.print  ("residual_roll = ");
+		if (roll != null) {
+			for (int i = 0; i < numSensors;i++) System.out.print("\t"+(roll[i]-common_roll));System.out.println("\tdegrees");
+		} 	else System.out.println("\tnull");
+		if (rXY != null) {
 		System.out.print  ("X_rel =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+rXY[i][0]);  System.out.println("\trelative to disparityRadius");
 		System.out.print  ("Y_rel =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+rXY[i][1]);  System.out.println("\trelative to disparityRadius");
+		} else {
+			System.out.println("X_rel and Y_rel are null");
+		}
 	}
 
 	// return distance from disparity (in pixel units) for the current camera geometry
