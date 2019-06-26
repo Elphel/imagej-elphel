@@ -4276,7 +4276,7 @@ List calibration
     }
 
     public boolean removeOutLierSets(int numOutLiers){
-    	boolean removeEmptySets=false;
+    	boolean removeEmptySets=true; // false;
     	if (numOutLiers<0) {
     		GenericDialog gd = new GenericDialog("Select sets to process");
     		gd.addNumericField("Series number (<0 - all images)", -1, 0);

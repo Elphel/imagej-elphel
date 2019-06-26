@@ -1105,21 +1105,27 @@ Cv=(Cy*x-Cx*y)+(-Cy*Dx+Cx*Dy)
 				result[index]=spixels[(ixi+iyi) & 1][iy*full_width+ix];
 			}
 		} else { // components 0..3
+			int ser;
+			if (colorComp < 0) {
+				ser = 1; // offset by 1/2 pix? should it be so? // FIXME: verify and fix if needed - compare to extractSimulMono()
+			} else {
+				ser = 0;
 			r.x+=(bayerPeriod/2)*(colorComp &1);
 			r.y+=(bayerPeriod/2)*((colorComp>>1) &1);
+			}
 			if (debugLevel>2) System.out.println(">>> r.width="+r.width+
 					" r.height="+r.height+
 					" r.x="+r.x+
 					" r.y="+r.y+
 					" colorComp="+colorComp);
 			for (index=0;index<result.length;index++){
-				int iy=r.y+(index / r.width);
-				int ix=r.x+(index % r.width);
-				if (iy<0) iy=0;
-				else if (iy>=full_height) iy=full_height-1;
-				if (ix<0) ix=0;
-				else if (ix>=full_width) iy=full_width-1;
-				result[index]=spixels[0][iy*full_width+ix];
+				int iy = r.y + (index / r.width);
+				int ix = r.x + (index % r.width);
+				if (iy < 0) iy = 0;
+				else if (iy >= full_height) iy = full_height - 1;
+				if (ix < 0) ix = 0;
+				else if (ix >= full_width) iy = full_width - 1;
+				result[index] = spixels[ser][iy * full_width + ix];
 			}
 		}
 		return result;
