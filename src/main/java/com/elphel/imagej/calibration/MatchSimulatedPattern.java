@@ -768,16 +768,39 @@ public class MatchSimulatedPattern {
 		for (iq=0; iq<9;iq++) {
 			index=quarterIndex[iq];
 			qindex=0;
+			if (is_mono) {
+				quarter_pixels[iq] = new double [hsize * hsize];
+				for (i=0;i<hsize;i++) {
+					for (j=0;j<hsize;j++) { //quarter_pixels[iq][qindex++]=input_pixels[index++];
+						quarter_pixels[iq][qindex++] = bayer_mono_pixels[0][index++];
+					}
+					index+=hsize; // jump to the next line
+				}
+			} else {
 				for (i=0;i<hsize;i++) {
 					for (j=0;j<hsize;j++) { //quarter_pixels[iq][qindex++]=input_pixels[index++];
 						green0[qindex]=  bayer_mono_pixels[0][index];
 						green3[qindex++]=bayer_mono_pixels[3][index++];
 					}
-				quarter_pixels[iq]=combineDiagonalGreens (green0, green3,  hsize, hsize);
+					//				quarter_pixels[iq]=combineDiagonalGreens (
+					//						green0,
+					//						green3,
+					//						hsize,
+					//						hsize);
 					index+=hsize; // jump to the next line
 				}
+				// Moved outside of the i-loop, that was wrong!
+				quarter_pixels[iq]=combineDiagonalGreens (
+						green0,
+						green3,
+						hsize,
+						hsize);
+
+			}
+
 			quarter_pixels[iq]= normalizeAndWindow (quarter_pixels[iq], quarterHamming);
 			if (this.debugLevel>2) SDFA_INSTANCE.showArrays(quarter_pixels[iq],hsize, hsize, title+"-new"+iq);
+			//			findPattern - see MSP 3290:
 			quarter_patterns[iq] = findPattern(
 					null, // 			DoubleFHT doubleFHT,
 					quarter_pixels[iq],
@@ -787,9 +810,10 @@ public class MatchSimulatedPattern {
 					max_half_period,
 					greens,
 					title+"Q_"+iq);
-
 			if (quarter_patterns[iq]==null) return null;
 		}
+
+
 		if (this.debugLevel>2) {
 			for (iq=0; iq<9;iq++) {
 				System.out.println("Quarter="+iq+
