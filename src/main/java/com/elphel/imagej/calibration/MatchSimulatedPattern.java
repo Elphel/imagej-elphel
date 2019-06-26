@@ -725,19 +725,19 @@ public class MatchSimulatedPattern {
 
 	/* returns array of 3 arrays: first two are 3-element wave vectors (x,y,phase), last - 3-rd order correction coefficients */
 	public double[][] findPatternDistorted(
-			double [][]             bayer_pixels, // pixel array to process (no windowing!), two greens will be used
+			double [][]             bayer_mono_pixels, // pixel array to process (no windowing!), two greens will be used
 			PatternDetectParameters patternDetectParameters,
 			double                  min_half_period,
 			double                  max_half_period,
 			boolean                 greens,  // this is a pattern for combined greens (diagonal), adjust results accordingly
 			String                  title){ // title prefix to use for debug  images
-		if (bayer_pixels==null) return null;
-		if (bayer_pixels.length<4) return null;
-		if (bayer_pixels[0]==null) return null;
-		if (bayer_pixels[3]==null) return null;
-		int size2=bayer_pixels[0].length;
-		int size=(int) Math.sqrt(size2);
-		int hsize=size/2;
+		if (bayer_mono_pixels==null) return null;
+			if (bayer_mono_pixels.length<4) return null;
+		if (bayer_mono_pixels[0]==null) return null;
+			if (bayer_mono_pixels[3]==null) return null;
+		int tile_size2=bayer_mono_pixels[0].length;
+		int tile_size=(int) Math.sqrt(tile_size2);
+		int hsize=tile_size/2;
 		int hsize2=hsize*hsize;
 		double [] quarterHamming=initWindowFunction(hsize, patternDetectParameters.gaussWidth);
 		double [] patternCorr=new double[6]; // second order non-linear pattern correction (perspective+distortion)
@@ -747,29 +747,29 @@ public class MatchSimulatedPattern {
 		double [][]   quarter_pixels =new double[9][];
 		double [][][] quarter_patterns =new double[9][][];
 		int [] quarterIndex={0, // top left
-				size/2, // top right
-				size*size/2, // bottom left
-				(size+1)*size/2, // bottom right
-				(size+1)*size/4, // center
-				size/4, // top
-				size*size/4,// left
-				(size+2)*size/4,   // right
-				(2*size+1)*size/4};   // bottom
+				tile_size/2, // top right
+				tile_size*tile_size/2, // bottom left
+				(tile_size+1)*tile_size/2, // bottom right
+				(tile_size+1)*tile_size/4, // center
+				tile_size/4, // top
+				tile_size*tile_size/4,// left
+				(tile_size+2)*tile_size/4,   // right
+				(2*tile_size+1)*tile_size/4};   // bottom
 
 		int i,j,iq;
 		int index,qindex;
-		if (this.debugLevel>2) SDFA_INSTANCE.showArrays(bayer_pixels, size, size, title+"-bayer");
+		if (this.debugLevel>2) SDFA_INSTANCE.showArrays(bayer_mono_pixels, tile_size, tile_size, title+"-bayer");
 		for (iq=0; iq<9;iq++) {
 			index=quarterIndex[iq];
 			qindex=0;
-			for (i=0;i<hsize;i++) {
-				for (j=0;j<hsize;j++) { //quarter_pixels[iq][qindex++]=input_pixels[index++];
-					green0[qindex]=  bayer_pixels[0][index];
-					green3[qindex++]=bayer_pixels[3][index++];
-				}
+				for (i=0;i<hsize;i++) {
+					for (j=0;j<hsize;j++) { //quarter_pixels[iq][qindex++]=input_pixels[index++];
+						green0[qindex]=  bayer_mono_pixels[0][index];
+						green3[qindex++]=bayer_mono_pixels[3][index++];
+					}
 				quarter_pixels[iq]=combineDiagonalGreens (green0, green3,  hsize, hsize);
-				index+=hsize; // jump to the next line
-			}
+					index+=hsize; // jump to the next line
+				}
 			quarter_pixels[iq]= normalizeAndWindow (quarter_pixels[iq], quarterHamming);
 			if (this.debugLevel>2) SDFA_INSTANCE.showArrays(quarter_pixels[iq],hsize, hsize, title+"-new"+iq);
 			quarter_patterns[iq] = findPattern(
@@ -9523,12 +9523,12 @@ y=xy0[1] + dU*deltaUV[0]*(xy1[1]-xy0[1])+dV*deltaUV[1]*(xy2[1]-xy0[1])
 //		double[][] sim_pix;
 
 				double[][] sim_pix= simulationPattern.extractSimulPatterns (
-						barray,
-						thisSimulParameters,
-						1,       // subdivide output pixels
-						thisCorrelationSize,    // number of Bayer cells in width of the square selection (half number of pixels)
-						0,
-						0);
+							barray,
+							thisSimulParameters,
+							1,       // subdivide output pixels
+							thisCorrelationSize,    // number of Bayer cells in width of the square selection (half number of pixels)
+							0,
+							0);
 				if (sim_pix==null){
 					System.out.println("***** BUG: extractSimulPatterns() FAILED *****");
 					return null;
@@ -11554,6 +11554,9 @@ error=Sum(W(x,y)*(F^2 +  2*F*(A*x^2+B*y^2+C*x*y+D*x+E*y-Z(x,y)) +(...) )
 		// additionally multiply by Hamming
 		public int   FFTSize;
 		public int   FFTSize_lwir;
+		public int   FFTOverlap;      // 32 used for aberration kernels, former FFT_OVERLAP
+		public int   FFTOverlap_lwir; // 4
+
 		public double fftGaussWidth;
 		public double phaseCorrelationFraction=1.0; // 1.0 - phase correlation, 0.0 - just cross-correlation
 		public double correlationHighPassSigma;
@@ -11628,6 +11631,8 @@ error=Sum(W(x,y)*(F^2 +  2*F*(A*x^2+B*y^2+C*x*y+D*x+E*y-Z(x,y)) +(...) )
 				int zeros,
 				int FFTSize,
 				int FFTSize_lwir,
+				int FFTOverlap,
+				int FFTOverlap_lwir,
 				double fftGaussWidth,
 				double phaseCorrelationFraction,
 				double correlationHighPassSigma,
@@ -11695,6 +11700,8 @@ error=Sum(W(x,y)*(F^2 +  2*F*(A*x^2+B*y^2+C*x*y+D*x+E*y-Z(x,y)) +(...) )
 			this.zeros=zeros;
 			this.FFTSize = FFTSize;
 			this.FFTSize_lwir = FFTSize_lwir;
+			this.FFTOverlap = FFTOverlap;
+			this.FFTOverlap_lwir = FFTOverlap_lwir;
 			this.fftGaussWidth = fftGaussWidth;
 			this.phaseCorrelationFraction=phaseCorrelationFraction;
 			this.correlationHighPassSigma=correlationHighPassSigma;
@@ -11764,6 +11771,8 @@ error=Sum(W(x,y)*(F^2 +  2*F*(A*x^2+B*y^2+C*x*y+D*x+E*y-Z(x,y)) +(...) )
 					this.zeros,
 					this.FFTSize,
 					this.FFTSize_lwir,
+					this.FFTOverlap,
+					this.FFTOverlap_lwir,
 					this.fftGaussWidth,
 					this.phaseCorrelationFraction,
 					this.correlationHighPassSigma,
@@ -11832,6 +11841,8 @@ error=Sum(W(x,y)*(F^2 +  2*F*(A*x^2+B*y^2+C*x*y+D*x+E*y-Z(x,y)) +(...) )
 			properties.setProperty(prefix+"zeros",this.zeros+"");
 			properties.setProperty(prefix+"FFTSize",this.FFTSize+"");
 			properties.setProperty(prefix+"FFTSize_lwir",this.FFTSize_lwir+"");
+			properties.setProperty(prefix+"FFTOverlap",this.FFTOverlap+"");
+			properties.setProperty(prefix+"FFTOverlap_lwir",this.FFTOverlap_lwir+"");
 			properties.setProperty(prefix+"fftGaussWidth",this.fftGaussWidth+"");
 			properties.setProperty(prefix+"phaseCorrelationFraction",this.phaseCorrelationFraction+"");
 			properties.setProperty(prefix+"correlationHighPassSigma",this.correlationHighPassSigma+"");
@@ -11891,6 +11902,7 @@ error=Sum(W(x,y)*(F^2 +  2*F*(A*x^2+B*y^2+C*x*y+D*x+E*y-Z(x,y)) +(...) )
 			properties.setProperty(prefix+"legacyMode",this.minUVSpan+"");
 		}
 		public void getProperties(String prefix,Properties properties){
+//			EProperties properties = (EProperties) pproperties;
 			if (properties.getProperty(prefix+"correlationSize")!=null)
 				this.correlationSize=Integer.parseInt(properties.getProperty(prefix+"correlationSize"));
 			if (properties.getProperty(prefix+"correlationSizeLwir")!=null)
@@ -11905,6 +11917,17 @@ error=Sum(W(x,y)*(F^2 +  2*F*(A*x^2+B*y^2+C*x*y+D*x+E*y-Z(x,y)) +(...) )
 				this.FFTSize=Integer.parseInt(properties.getProperty(prefix+"FFTSize"));
 			if (properties.getProperty(prefix+"FFTSize_lwir")!=null)
 				this.FFTSize_lwir=Integer.parseInt(properties.getProperty(prefix+"FFTSize_lwir"));
+
+			if (properties.getProperty(prefix+"FFTOverlap")!=null)
+				this.FFTOverlap=Integer.parseInt(properties.getProperty(prefix+"FFTOverlap"));
+			if (properties.getProperty(prefix+"FFTOverlap_lwir")!=null)
+				this.FFTOverlap_lwir=Integer.parseInt(properties.getProperty(prefix+"FFTOverlap_lwir"));
+
+
+// finally shortened :
+//			this.FFTOverlap=      properties.getProperty(prefix+"FFTOverlap",     this.FFTOverlap);
+//			this.FFTOverlap_lwir= properties.getProperty(prefix+"FFTOverlap_lwir",this.FFTOverlap_lwir);
+
 			if (properties.getProperty(prefix+"absoluteCorrelationGaussWidth")!=null)
 				this.absoluteCorrelationGaussWidth=Boolean.parseBoolean(properties.getProperty(prefix+"absoluteCorrelationGaussWidth"));
 			if (properties.getProperty(prefix+"zeros")!=null)

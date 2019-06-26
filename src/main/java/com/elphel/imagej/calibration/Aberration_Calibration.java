@@ -375,6 +375,8 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 	        // additionally multiply by Hamming
 		  256, // FFTSize (was 128)
 		  32,  // FFTSize_lwir
+		  32,  // FFTOverlap (was 32)
+		  4,   // FFTOverlap_lwir
 		  0.5, //fftGaussWidth
 		  0.0, //phaseCorrelationFraction
 		  1.5, // 2.5, //6.0, // 2.0, // 0.0, // correlationHighPassSigma, - pixels in frequency domain
