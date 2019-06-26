@@ -9232,6 +9232,12 @@ y=xy0[1] + dU*deltaUV[0]*(xy1[1]-xy0[1])+dV*deltaUV[1]*(xy2[1]-xy0[1])
 		boolean is_lwir = ((lwirReaderParameters != null) && lwirReaderParameters.is_LWIR(imp));
 		int     correlation_size =     is_lwir ? distortionParameters.correlationSizeLwir :        distortionParameters.correlationSize;
 		int     max_correlation_size = is_lwir ? distortionParameters.maximalCorrelationSizeLwir : distortionParameters.maximalCorrelationSize;
+		boolean is_mono = false;
+		try {
+			is_mono = Boolean.parseBoolean((String) imp.getProperty("MONOCHROME"));
+		} catch (Exception e) {
+		}
+		is_mono |= is_lwir;
 
 		int debug_threshold = 3;
 		// next print - same for good and bad, correction==null
@@ -9521,14 +9527,25 @@ y=xy0[1] + dU*deltaUV[0]*(xy1[1]-xy0[1])+dV*deltaUV[1]*(xy2[1]-xy0[1])
 					SDFA_INSTANCE.showArrays(barray, "barray"+ixc+":"+iyc);
 				}
 //		double[][] sim_pix;
-
-				double[][] sim_pix= simulationPattern.extractSimulPatterns (
+				double[][] sim_pix=null;
+				if (is_mono) {
+					sim_pix= new double[1][];
+					sim_pix[0]=  simulationPattern.extractSimulMono ( // TODO: can use twice smaller barray
+							barray,
+							thisSimulParameters,
+							1,  // subdivide output pixels - now 4
+							thisCorrelationSize,    // number of Bayer cells in width of the square selection (half number of pixels)
+							0,    // selection center, X (in pixels)
+							0);
+				} else {
+					sim_pix= simulationPattern.extractSimulPatterns (
 							barray,
 							thisSimulParameters,
 							1,       // subdivide output pixels
 							thisCorrelationSize,    // number of Bayer cells in width of the square selection (half number of pixels)
 							0,
 							0);
+				}
 				if (sim_pix==null){
 					System.out.println("***** BUG: extractSimulPatterns() FAILED *****");
 					return null;
