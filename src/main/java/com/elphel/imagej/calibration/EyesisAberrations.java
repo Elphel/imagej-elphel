@@ -14,6 +14,7 @@ import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.common.WindowTools;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
+import com.elphel.imagej.lwir.LwirReaderParameters;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -1056,15 +1057,12 @@ public class EyesisAberrations {
    		}
    		return fileList;
    	}
-/*
-    	int numChannels=this.fittingStrategy.distortionCalibrationData.getNumChannels(); // number of used channels
 
- */
-	public boolean createPartialKernels(
+   	public boolean createPartialKernels(
 		    AtomicInteger stopRequested, // 1 - stop now, 2 - when convenient
-			int             mapFFTsize, // scanImageForPatterns:FFT size
-			int            fft_overlap,
-			int               fft_size,
+			LwirReaderParameters lwirReaderParameters, // null is OK
+//			int            fft_overlap,
+//			int               fft_size,
 			int           PSF_subpixel,
 			OTFFilterParameters otfFilterParameters,
 			PSFParameters psfParameters,
@@ -1245,6 +1243,10 @@ public class EyesisAberrations {
 			if (debugLevel>0) System.out.println("Processing file #"+(imgNum+1)+ " ( of "+files.length+") :"+files[imgNum][0]);
         	ImagePlus imp=new ImagePlus(files[imgNum][0]); // read source file
         	JP4_INSTANCE.decodeProperiesFromInfo(imp);
+       		boolean is_lwir =      lwirReaderParameters.is_LWIR(imp);
+       	    int     fft_size =     is_lwir ? distortionParameters.FFTSize_lwir :    distortionParameters.FFTSize;
+       	    int     fft_overlap =  is_lwir ? distortionParameters.FFTOverlap_lwir : distortionParameters.FFTOverlap;
+       	    imp.setProperty("MONOCHROME",""+is_lwir);
         	// pad image to full sensor size
 			int numGridImage=fileIndices[imgNum];
 			int chn = distortions.fittingStrategy.distortionCalibrationData.gIP[numGridImage].getChannel();
@@ -1335,7 +1337,7 @@ public class EyesisAberrations {
         					null,     //  int [][][] sampleList, // optional (or null) 2-d array: list of coordinate pairs (2d - to match existent  PSF_KERNEL_MAP structure)
         					multiFilePSF.overexposedMaxFraction, //MULTIFILE_PSF.overexposedMaxFraction,
         					simulParameters, //SIMUL, //simulation parameters
-        					mapFFTsize, // MAP_FFT_SIZE, // scanImageForPatterns:FFT size int             mapFFTsize, // scanImageForPatterns:FFT size
+//        					mapFFTsize, // MAP_FFT_SIZE, // scanImageForPatterns:FFT size int             mapFFTsize, // scanImageForPatterns:FFT size
         					patternDetectParameters, //PATTERN_DETECT, //MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
         					fft_overlap, //FFT_OVERLAP, // int            fft_overlap,
         					fft_size, // FFT_SIZE, // int               fft_size,
@@ -2237,11 +2239,11 @@ public class EyesisAberrations {
 
 	public double [][][][] createPSFMap(
 			final MatchSimulatedPattern commonMatchSimulatedPattern, // to be cloned in threads, using common data
-			final ImagePlus          imp_sel, // linearized Bayer mosaic image from the camera, GR/BG
+			final ImagePlus         imp_sel, // linearized Bayer mosaic image from the camera, GR/BG
 			final int [][][]        sampleList, // optional (or null) 2-d array: list of coordinate pairs (2d - to match existent  pdfKernelMap structure)
 			final double  overexposedAllowed, // fraction of pixels OK to be overexposed
 			final SimulationPattern.SimulParameters simulParameters,
-			final int             mapFFTsize, // scanImageForPatterns:FFT size
+//			final int             mapFFTsize, // scanImageForPatterns:FFT size
 			final MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
 			final int            fft_overlap,
 			final int               fft_size,
@@ -2279,7 +2281,7 @@ public class EyesisAberrations {
 						imp_sel.getWidth(), // image (mask) width
 						fft_size*2,
 						fft_overlap*2,
-						fft_size,   // backward compatibility margin==tileSize/2
+						fft_size,     // backward compatibility margin==tileSize/2
 						gaussWidth,
 						//	psfParameters.minDefinedArea);
 						minDefinedArea,
@@ -2309,7 +2311,7 @@ public class EyesisAberrations {
 				tilesToProcessXY[ncell  ][1]=nTileY;
 				tilesToProcessXY[ncell  ][2]=(sampleList==null)?(fft_overlap*2*nTileX):sampleList[nTileY][nTileX][0];
 				tilesToProcessXY[ncell++][3]=(sampleList==null)?(fft_overlap*2*nTileY):sampleList[nTileY][nTileX][1];
-				pdfKernelMap[nTileY][nTileX]=new double[colorComponents.colorsToCorrect.length][];
+					pdfKernelMap[nTileY][nTileX]=new double[colorComponents.colorsToCorrect.length][];
 			} else pdfKernelMap[nTileY][nTileX]=null;
 		}
 		final double [][][][] debugLateral=new double [PSFBooleanMap.length][PSFBooleanMap[0].length][][];
@@ -2652,39 +2654,39 @@ public class EyesisAberrations {
 
 
 	public double [][] getPSFKernels ( ImagePlus imp,
-			float [][] simArray, //simulation image, scaled PSF_subpixel/2 (or null), [0] - main pixels, [1] - shifted diagonally by 0.5 pixels (for checker greens)
-			int size,   // size in pixels (twice FFT_SIZE)
-			int x0,      // top left corner X (pixels)
-			int y0,      // top left corner Y (pixels)
+			float [][]            simArray, //simulation image, scaled PSF_subpixel/2 (or null), [0] - main pixels, [1] - shifted diagonally by 0.5 pixels (for checker greens)
+			int tile_size,   // size in pixels (twice FFT_SIZE)
+			int                   x0,          // top left corner X (pixels)
+			int                   y0,          // top left corner Y (pixels)
 			SimulationPattern     simulationPattern,
 		    MatchSimulatedPattern matchSimulatedPattern,
 			MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
-			double [] Hamming, //=initHamming( fft_size) calculate once
-			double [] fullHamming, //=initHamming( fft_size*subpixel);
-			int subpixel, // use finer grid than actual pixels
+			double []             Hamming, //=initHamming( fft_size) calculate once
+			double []             fullHamming, //=initHamming( fft_size*subpixel);
+			int                   subpixel, // use finer grid than actual pixels
 			SimulationPattern.SimulParameters  simulParameters,
 			EyesisAberrations.ColorComponents colorComponents,
 			EyesisAberrations.OTFFilterParameters otfFilterParameters,
-			int referenceComp, // number of color component to reference lateral chromatic aberration to (now 4 - checkerboard greens)
+			int                   referenceComp, // number of color component to reference lateral chromatic aberration to (now 4 - checkerboard greens)
 			EyesisAberrations.PSFParameters psfParameters,
 			DoubleFHT fht_instance, // provide DoubleFHT instance to save on initializations (or null)
-			int masterDebugLevel, // get rid of it? // ** NEW
-			int globalDebugLevel,// ** NEW
-			int debug,
-			double [][] debugLateralTile
+			int                   masterDebugLevel, // get rid of it? // ** NEW
+			int                   globalDebugLevel,// ** NEW
+			int                   debug,
+			double [][]           debugLateralTile
 	){
 		boolean debugThis=false; //(y0==384) && ((x0==448) || (x0==512));
 		if (globalDebugLevel>1){
 			System.out.println("getPSFKernels(), simArray is "+((simArray==null)?"":"not ")+"null");
 		}
-
+		boolean is_mono = false;
 		if (imp==null) return null; // Maybe convert to double pixel array once to make it faster?
 		if (fht_instance==null) fht_instance=new DoubleFHT(); // move upstream to reduce number of initializations
 		double [][] kernels=         new double[6][];  // was global
 		String title=imp.getTitle()+"X"+x0+"Y"+y0;
-		Rectangle PSFCell=new Rectangle (x0,y0,size,size);
-		int fft_size=size/2;
-		double [][] input_bayer=matchSimulatedPattern.splitBayer(imp,PSFCell,colorComponents.equalizeGreens); // does it work trhe same?
+		Rectangle PSFCell=new Rectangle (x0,y0,tile_size,tile_size);
+		int fft_size=tile_size/2;
+		double [][] input_bayer_or_mono=matchSimulatedPattern.splitBayer(imp,PSFCell,colorComponents.equalizeGreens); // does it work trhe same?
 		//int greensToProcess=4;
 		int i,j,l;
 		double [][] simul_pixels;
@@ -2698,7 +2700,7 @@ public class EyesisAberrations {
 		if ((simArray==null) || (psfParameters.approximateGrid)){ // just for testing(never here?)
 			/* Calculate pattern parameters, including distortion */
 			if (matchSimulatedPattern.PATTERN_GRID==null) {
-				double[][] distortedPattern= matchSimulatedPattern.findPatternDistorted(input_bayer, // pixel array to process (no windowing!)
+				double[][] distortedPattern= matchSimulatedPattern.findPatternDistorted(input_bayer_or_mono, // pixel array to process (no windowing!)
 						patternDetectParameters,
 						patternDetectParameters.minGridPeriod/2,
 			            patternDetectParameters.maxGridPeriod/2,
@@ -2737,7 +2739,7 @@ public class EyesisAberrations {
 				double[][] distPatPars= matchSimulatedPattern.findPatternFromGrid(
 						x0, // top-left pixel of the square WOI
 						y0,
-						size, // size of square (pixels)
+						tile_size, // size of square (pixels)
 						Hamming, // only half-window!
 						false,  // use linear approximation (instead of quadratic)
 						1.0E-10,  // thershold ratio of matrix determinant to norm for linear approximation (det too low - fail)
@@ -2755,12 +2757,10 @@ public class EyesisAberrations {
 				double [] phases={
 						1.0*Math.PI*(distPatPars[0][2]-iUV[0]+(negative?(-0.5):0.5)), // measured from the center of white
 						1.0*Math.PI*(distPatPars[1][2]-iUV[1]+0.5)};
-//				double [][]wVectors={{distPatPars[0][0],distPatPars[0][1]},{distPatPars[1][0],distPatPars[1][1]}};
 				wVectors[0][0]=distPatPars[0][0];
 				wVectors[0][1]=distPatPars[0][1];
 				wVectors[1][0]=distPatPars[1][0];
 				wVectors[1][1]=distPatPars[1][1];
-//		    	simulationPattern.simulatePatternFullPattern( // Not thread safe!
 				localBarray=simulationPattern.simulatePatternFullPatternSafe(
 						wVectors[0][0],
 						wVectors[0][1],
@@ -2774,14 +2774,13 @@ public class EyesisAberrations {
 						simulParameters.center_for_g2,
 						false);//boolean mono
 			}
-//			simul_pixels= simulationPattern.extractSimulPatterns (
-			simul_pixels= simulationPattern.extractSimulPatterns (
-					localBarray,		// this version is thread safe
-					simulParameters,
-					subpixel, // subdivide pixels
-					fft_size*subpixel, // number of Bayer cells in width of the square selection (half number of pixels)
-					0.0,    // selection center, X (in pixels)
-					0.0);   // selection center, y (in pixels)
+				simul_pixels= simulationPattern.extractSimulPatterns (
+						localBarray,		// this version is thread safe
+						simulParameters,
+						subpixel, // subdivide pixels
+						fft_size*subpixel, // number of Bayer cells in width of the square selection (half number of pixels)
+						0.0,    // selection center, X (in pixels)
+						0.0);   // selection center, y (in pixels)
 			if (subpixel>1) {
 				if (colorComponents.colorsToCorrect[5])  simul_pixels=combineCheckerGreens (simul_pixels,   // pixel arrays after oversampleFFTInput() or extractSimulPatterns())
 						subpixel); // same as used in oversampleFFTInput() - oversampling ratio
@@ -2791,23 +2790,20 @@ public class EyesisAberrations {
 			}
 			simul_pixels= normalizeAndWindow (simul_pixels, fullHamming);
 
-		} else {
-			Rectangle PSFCellSim=new Rectangle (x0*subpixel/2,y0*subpixel/2,size*subpixel/2,size*subpixel/2); // getting here
+			} else {
+			Rectangle PSFCellSim=new Rectangle (x0*subpixel/2,y0*subpixel/2,tile_size*subpixel/2,tile_size*subpixel/2); // getting here
 
-			simul_pixels=new double[6][];
-// simulationPattern.debugLevel=globalDebugLevel;
-			for (i=0;i<simul_pixels.length; i++) {
-				if (colorComponents.colorsToCorrect[i]) simul_pixels[i]=simulationPattern.extractBayerSim (
-						simArray, // [0] - regular pixels, [1] - shifted by 1/2 diagonally, for checker greens
-						imgWidth*subpixel/2,
-						PSFCellSim,
-						subpixel, // 4
-						i);
-				else simul_pixels[i]=null;
-			}
-//System.out.println("PSFCell.y="+PSFCell.y+" PSFCell.height="+PSFCell.height+" imgWidth="+imgWidth+" PSFCell.x="+PSFCell.x+" PSFCell.width="+PSFCell.width+" matchSimulatedPattern.UV_INDEX.length="+matchSimulatedPattern.UV_INDEX.length);
+				simul_pixels=new double[6][];
+				for (i=0;i<simul_pixels.length; i++) {
+					if (colorComponents.colorsToCorrect[i]) simul_pixels[i]=simulationPattern.extractBayerSim (
+							simArray, // [0] - regular pixels, [1] - shifted by 1/2 diagonally, for checker greens
+							imgWidth*subpixel/2,
+							PSFCellSim,
+							subpixel, // 4
+							i);
+					else simul_pixels[i]=null;
+				}
 			int index=matchSimulatedPattern.getUVIndex((PSFCell.y+PSFCell.height/2)*imgWidth+(PSFCell.x+PSFCell.width/2));
-//			int index=matchSimulatedPattern.getUVIndex((PSFCell.y+PSFCell.height/2)*matchSimulatedPattern.getWOI().width+(PSFCell.x+PSFCell.width/2));
 
 			if (index<0) {
 				System.out.println ("Error, No UV pattern @ x="+(PSFCell.x+PSFCell.width/2)+", y="+(PSFCell.y+PSFCell.height/2));
@@ -2833,7 +2829,7 @@ public class EyesisAberrations {
 			wVectors[1]=matchSimulatedPattern.getDArray(iUV[1],iUV[0],2);
 			// should it be averaged WV?
 			if (globalDebugLevel>2) System.out.println ( " x0="+x0+" y0="+y0);
-			if (globalDebugLevel>2) SDFA_INSTANCE.showArrays(input_bayer, true, title+"-in");
+			if (globalDebugLevel>2) SDFA_INSTANCE.showArrays(input_bayer_or_mono, true, title+"-in");
 			if (globalDebugLevel>2) SDFA_INSTANCE.showArrays(simul_pixels, true, title+"-S");
 			//if (globalDebugLevel>2) System.out.println (simArray[0][-1]); // cause error
 			if (masterDebugLevel>1){
@@ -2846,21 +2842,21 @@ public class EyesisAberrations {
 			simul_pixels= normalizeAndWindow (simul_pixels, fullHamming);
 		}
 
-		input_bayer= normalizeAndWindow (input_bayer, Hamming);
+		input_bayer_or_mono= normalizeAndWindow (input_bayer_or_mono, Hamming);
 		if (subpixel>1) {
-			input_bayer= oversampleFFTInput (input_bayer,subpixel);
-			if (colorComponents.colorsToCorrect[5])  input_bayer=combineCheckerGreens (input_bayer,   // pixel arrays after oversampleFFTInput() or extractSimulPatterns())
+			input_bayer_or_mono= oversampleFFTInput (input_bayer_or_mono,subpixel);
+			if (colorComponents.colorsToCorrect[5])  input_bayer_or_mono=combineCheckerGreens (input_bayer_or_mono,   // pixel arrays after oversampleFFTInput() or extractSimulPatterns())
 					subpixel); // same as used in oversampleFFTInput() - oversampling ratio
 		}
-		for (i=0;i<4;i++) if (!colorComponents.colorsToCorrect[i]) input_bayer[i]=null; // leave composite greens even if disabled
+		for (i=0;i<4;i++) if (!colorComponents.colorsToCorrect[i]) input_bayer_or_mono[i]=null; // leave composite greens even if disabled
 		if (debugThis) {
 //			SDFA_INSTANCE.showArrays(input_bayer, fft_size*subpixel, fft_size*subpixel, title);
 		}
-		if (globalDebugLevel>2) System.out.println ( " input_bayer.length="+input_bayer.length+" simul_pixels.length="+simul_pixels.length+" fft_size*subpixel="+fft_size*subpixel);
-		for (i=0;(i<input_bayer.length) && (i<simul_pixels.length);i++) if ((colorComponents.colorsToCorrect[i]) && (input_bayer[i]!=null)){
-			if (globalDebugLevel>2) System.out.println ( "input_bayer["+i+"].length="+input_bayer[i].length+" simul_pixels["+i+"].length="+simul_pixels[i].length);
+		if (globalDebugLevel>2) System.out.println ( " input_bayer.length="+input_bayer_or_mono.length+" simul_pixels.length="+simul_pixels.length+" fft_size*subpixel="+fft_size*subpixel);
+		for (i=0;(i<input_bayer_or_mono.length) && (i<simul_pixels.length);i++) if ((colorComponents.colorsToCorrect[i]) && (input_bayer_or_mono[i]!=null)){
+			if (globalDebugLevel>2) System.out.println ( "input_bayer["+i+"].length="+input_bayer_or_mono[i].length+" simul_pixels["+i+"].length="+simul_pixels[i].length);
 		}
-		if (debugThis) SDFA_INSTANCE.showArrays(input_bayer, true, title+"-input");
+		if (debugThis) SDFA_INSTANCE.showArrays(input_bayer_or_mono, true, title+"-input");
 		if (debugThis) SDFA_INSTANCE.showArrays(simul_pixels, true, title+"-SIM");
 
 //if (globalDebugLevel>2)globalDebugLevel=0; //************************************************************
@@ -2868,44 +2864,45 @@ public class EyesisAberrations {
 		double wvAverage=Math.sqrt(0.5*(wVectors[0][0]*wVectors[0][0]+wVectors[0][1]*wVectors[0][1]+
 				wVectors[1][0]*wVectors[1][0]+wVectors[1][1]*wVectors[1][1]));
 
-		for (i=0;(i<input_bayer.length) && (i<simul_pixels.length);i++) if ((colorComponents.colorsToCorrect[i]) && (input_bayer[i]!=null)){
-			if (globalDebugLevel>2) System.out.println ( "Color "+colorComponents.getColorName(i)+" is re-calculated into bayer pixels ");
-			if (globalDebugLevel>2) System.out.println ( "input_bayer["+i+"].length="+input_bayer[i].length+" simul_pixels["+i+"].length="+simul_pixels[i].length);
-			inverted[i]=limitedInverseOfFHT(input_bayer[i],
-					simul_pixels[i],
-					fft_size*subpixel,
-					(i==5),     //    boolean checker // checkerboard pattern in the source file (use when filtering)
-					true, //      forwardOTF,
-					subpixel,
-					otfFilterParameters,
-					fht_instance,
-					psfParameters.mask1_sigma*size*wvAverage,      // normalize to wave vectors!
-					psfParameters.mask1_threshold,
-					psfParameters.gaps_sigma*size*wvAverage,
-					psfParameters.mask_denoise,
-					debug,
-					globalDebugLevel,
-					title+"-"+i);
-		}
+		for (i=0;(i<input_bayer_or_mono.length) && (i<simul_pixels.length);i++) if ((colorComponents.colorsToCorrect[i]) && (input_bayer_or_mono[i]!=null)){
+				if (globalDebugLevel>2) System.out.println ( "Color "+colorComponents.getColorName(i)+" is re-calculated into bayer pixels ");
+				if (globalDebugLevel>2) System.out.println ( "input_bayer["+i+"].length="+input_bayer_or_mono[i].length+" simul_pixels["+i+"].length="+simul_pixels[i].length);
+			inverted[i]=limitedInverseOfFHT(input_bayer_or_mono[i],
+						simul_pixels[i],
+						fft_size*subpixel,
+						(i==5),     //    boolean checker // checkerboard pattern in the source file (use when filtering)
+						true, //      forwardOTF,
+						subpixel,
+						otfFilterParameters,
+						fht_instance,
+					psfParameters.mask1_sigma*tile_size*wvAverage,      // normalize to wave vectors!
+						psfParameters.mask1_threshold,
+					psfParameters.gaps_sigma*tile_size*wvAverage,
+						psfParameters.mask_denoise,
+						debug,
+						globalDebugLevel,
+						title+"-"+i);
+			}
 		int debugThreshold=1;
 		if (debugThis) SDFA_INSTANCE.showArrays(inverted, fft_size*subpixel, fft_size*subpixel, title+"_Combined-PSF");
 /* correct composite greens */
 /* Here we divide wave vectors by subpixel as the pixels are already added */
 		double [][] wVrotMatrix= {{0.5,0.5},{-0.5,0.5}};
-		double [][]wVectors4= new double [2][2];
+		double [][]wVectors4= new double [2][2]; // Will only be used for color, combined diagonal greens
 		for (i=0;i<2;i++) for (j=0;j<2;j++) {
 			wVectors4[i][j]=0.0;
 			for (l=0;l<2;l++) wVectors4[i][j]+=wVectors[i][l]*wVrotMatrix[l][j];
 		}
-		double [][] PSF_shifts=         new double [input_bayer.length][];    // X/Y shift of the PSF array, in Bayer component pixel coordinates (same as PSF arrays)
-		double [][] PSF_centroids=      new double [input_bayer.length][];    // X/Y coordinates of the centroids of PSF in Bayer component pioxel coordinates (same as PSF arrays) (after they were optionally shifted)
-		double [][] lateralChromatic=   new double [input_bayer.length][]; // X/Y coordinates of the centroids of Bayer component PSF in sensor pixel coordinates
-		double [][] kernelsForFFT=      new double [input_bayer.length][];
-		double [][] psf_inverted=       new double [input_bayer.length][];
-		double [][] psf_inverted_masked=new double [input_bayer.length][];
-		double [] lateralChromaticAbs=new double [input_bayer.length];
+
+		double [][] PSF_shifts =          new double [input_bayer_or_mono.length][]; // X/Y shift of the PSF array, in Bayer component pixel coordinates (same as PSF arrays)
+		double [][] PSF_centroids =       new double [input_bayer_or_mono.length][]; // X/Y coordinates of the centroids of PSF in Bayer component pioxel coordinates (same as PSF arrays) (after they were optionally shifted)
+		double [][] lateralChromatic =    new double [input_bayer_or_mono.length][]; // X/Y coordinates of the centroids of Bayer component PSF in sensor pixel coordinates
+		double [][] kernelsForFFT =       new double [input_bayer_or_mono.length][];
+		double [][] psf_inverted =        new double [input_bayer_or_mono.length][];
+		double [][] psf_inverted_masked = new double [input_bayer_or_mono.length][];
+		double [] lateralChromaticAbs =   new double [input_bayer_or_mono.length];
 		double [] zeroVector={0.0,0.0};
-		for (i=input_bayer.length-1;i>=0;i--) {
+		for (i=input_bayer_or_mono.length-1;i>=0;i--) {
 			if (colorComponents.colorsToCorrect[i]) {
 				PSF_shifts[i]=       zeroVector.clone();
 				PSF_centroids[i]=    zeroVector.clone();
@@ -2922,15 +2919,15 @@ public class EyesisAberrations {
 		}
 		//int [][]  clusterMask;
 /* Start with referenceComp */
-		i= referenceComp;
-		if (globalDebugLevel>debugThreshold) {
-			System.out.println(x0+":"+y0+"1-PSF_shifts.length= "+PSF_shifts.length+" i="+i+" input_bayer.length="+input_bayer.length);
+		i = referenceComp; // now 0 for mono
+		if (globalDebugLevel > debugThreshold) {
+			System.out.println(x0+":"+y0+"1-PSF_shifts.length= "+PSF_shifts.length+" i="+i+" input_bayer.length="+input_bayer_or_mono.length);
 			System.out.println("Before: color Component "+i+" PSF_shifts["+i+"][0]="+IJ.d2s(PSF_shifts[i][0],3)+
 					" PSF_shifts["+i+"][1]="+IJ.d2s(PSF_shifts[i][1],3));
 		}
 
-
-		kernels[i]=combinePSF (inverted[i], // Square array of pixels with multiple repeated PSF (alternating sign)
+		kernels[i]=combinePSF (
+				inverted[i], // Square array of pixels with multiple repeated PSF (alternating sign)
 				!psfParameters.absoluteCenter, //true, // master, force ignoreChromatic
 				PSF_shifts[i],  // centerXY[] - will be modified inside combinePSF() if PSF_PARS.ignoreChromatic is true
 				PSF_centroids[i], // will return array of XY coordinates of the result centroid
@@ -2940,12 +2937,13 @@ public class EyesisAberrations {
 						title+"_"+i,    // reduce the PSF cell size to this part of the area connecting first negative clones
 						(globalDebugLevel>4),
 						globalDebugLevel
-						);
+				);
+
 		if (globalDebugLevel>debugThreshold)     System.out.println(x0+":"+y0+"After-1: color Component "+i+"    PSF_shifts["+i+"][0]="+IJ.d2s(PSF_shifts   [i][0],3)+"    PSF_shifts["+i+"][1]="+IJ.d2s(   PSF_shifts[i][1],3));
 		if (globalDebugLevel>debugThreshold)     System.out.println(x0+":"+y0+"After-1: color Component "+i+" PSF_centroids["+i+"][0]="+IJ.d2s(PSF_centroids[i][0],3)+" PSF_centroids["+i+"][1]="+IJ.d2s(PSF_centroids[i][1],3));
 
 		if (!psfParameters.ignoreChromatic && !psfParameters.absoluteCenter) { /* Recalculate center to pixels from greens (diagonal)) and supply it to other colors (lateral chromatic aberration correction) */
-			for (j=0;j<input_bayer.length;j++) if ((colorComponents.colorsToCorrect[j]) && (j!=referenceComp)) {
+			for (j=0;j<input_bayer_or_mono.length;j++) if ((colorComponents.colorsToCorrect[j]) && (j!=referenceComp)) {
 				PSF_shifts[j]=shiftSensorToBayer (shiftBayerToSensor(PSF_shifts[referenceComp],referenceComp,subpixel),j,subpixel);
 				if (globalDebugLevel>debugThreshold)       System.out.println(x0+":"+y0+"After-2 (recalc): color Component "+j+" PSF_shifts["+j+"][0]="+IJ.d2s(PSF_shifts[j][0],3)+" PSF_shifts["+j+"][1]="+IJ.d2s(PSF_shifts[j][1],3));
 			}
@@ -2956,10 +2954,12 @@ public class EyesisAberrations {
 				i,
 				subpixel);
 		lateralChromaticAbs[i]=Math.sqrt(lateralChromatic[i][0]*lateralChromatic[i][0]+lateralChromatic[i][1]*lateralChromatic[i][1]);
+
 /* Now process all the other components */
-		for (i=0; i<input_bayer.length;i++) if ((i!=referenceComp) && (colorComponents.colorsToCorrect[i])) {
+		for (i=0; i<input_bayer_or_mono.length;i++) if ((i!=referenceComp) && (colorComponents.colorsToCorrect[i])) {
+			// Will never get here for mono
 			if (globalDebugLevel>debugThreshold) {
-				System.out.println(x0+":"+y0+"2-PSF_shifts.length= "+PSF_shifts.length+" i="+i+" input_bayer.length="+input_bayer.length);
+				System.out.println(x0+":"+y0+"2-PSF_shifts.length= "+PSF_shifts.length+" i="+i+" input_bayer.length="+input_bayer_or_mono.length);
 
 				System.out.println(x0+":"+y0+"Before: color Component "+i+" PSF_shifts["+i+"][0]="+IJ.d2s(PSF_shifts[i][0],3)+
 						" PSF_shifts["+i+"][1]="+IJ.d2s(PSF_shifts[i][1],3));
@@ -2998,27 +2998,31 @@ public class EyesisAberrations {
 							"  lateralChromatic["+i+"][1]="+IJ.d2s(lateralChromatic[i][1],3));
 				}
 			}
-			if (colorComponents.colorsToCorrect[referenceComp]) for (i=0;i<colorComponents.colorsToCorrect.length;i++) if ((colorComponents.colorsToCorrect[i])&& (i!=referenceComp)){
-				System.out.println("#!# "+x0+":"+y0+" "+colorComponents.getColorName(i)+" lateral chromatic (from green) "+IJ.d2s(lateralChromaticAbs[i],3)+"pix(sensor):  ["+i+"][0]="+IJ.d2s(lateralChromatic[i][0]-lateralChromatic[referenceComp][0],3)+
-						"  ["+i+"][1]="+IJ.d2s(lateralChromatic[i][1]-lateralChromatic[referenceComp][1],3));
+			if (colorComponents.colorsToCorrect[referenceComp]) {
+				for (i=0;i<colorComponents.colorsToCorrect.length;i++) {
+					if ((colorComponents.colorsToCorrect[i])&& (i!=referenceComp)){
+						System.out.println("#!# "+x0+":"+y0+" "+colorComponents.getColorName(i)+" lateral chromatic (from green) "+IJ.d2s(lateralChromaticAbs[i],3)+"pix(sensor):  ["+i+"][0]="+IJ.d2s(lateralChromatic[i][0]-lateralChromatic[referenceComp][0],3)+
+								"  ["+i+"][1]="+IJ.d2s(lateralChromatic[i][1]-lateralChromatic[referenceComp][1],3));
+					}
+				}
 			}
 			System.out.println("#!# "+x0+":"+y0+" "+"Lateral shift green from simulation "+IJ.d2s(lateralChromaticAbs[referenceComp],3)+"pix(sensor):  ["+referenceComp+"][0]="+IJ.d2s(lateralChromatic[referenceComp][0],3)+
 					"  ["+referenceComp+"][1]="+IJ.d2s(lateralChromatic[referenceComp][1],3));
 		}
-		if (debugLateralTile!=null)	for (i=0;i<PSF_shifts.length;i++) {
-				if (colorComponents.colorsToCorrect[i]){
-					debugLateralTile[i]=new double [6];
-					debugLateralTile[i][0]=lateralChromatic[i][0];
-					debugLateralTile[i][1]=lateralChromatic[i][1];
-					debugLateralTile[i][2]=PSF_shifts[i][0];
-					debugLateralTile[i][3]=PSF_shifts[i][1];
-					debugLateralTile[i][4]=PSF_centroids[i][0];
-					debugLateralTile[i][5]=PSF_centroids[i][1];
-			} else {
-				debugLateralTile[i]=null;
+		if (debugLateralTile != null)	{
+			for (i = 0; i < PSF_shifts.length; i++) {
+				if (is_mono || colorComponents.colorsToCorrect[i]){
+					debugLateralTile[i] =    new double [6];
+					debugLateralTile[i][0] = lateralChromatic[i][0];
+					debugLateralTile[i][1] = lateralChromatic[i][1];
+					debugLateralTile[i][2] = PSF_shifts[i][0];
+					debugLateralTile[i][3] = PSF_shifts[i][1];
+					debugLateralTile[i][4] = PSF_centroids[i][0];
+					debugLateralTile[i][5] = PSF_centroids[i][1];
+				} else {
+					debugLateralTile[i] = null;
+				}
 			}
-
-
 		}
 		if (debugThis && (kernels!=null)){
 			int debugSize=0;

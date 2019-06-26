@@ -9163,9 +9163,10 @@ if (MORE_BUTTONS) {
 
 			EYESIS_ABERRATIONS.createPartialKernels(
 					this.SYNC_COMMAND.stopRequested,
-					MAP_FFT_SIZE, // scanImageForPatterns:FFT size //int             mapFFTsize, // scanImageForPatterns:FFT size
-					FFT_OVERLAP, ////int            fft_overlap,
-					FFT_SIZE, //int               fft_size,
+					LWIR_PARAMETERS,
+//					MAP_FFT_SIZE, // scanImageForPatterns:FFT size //int             mapFFTsize, // scanImageForPatterns:FFT size
+//					FFT_OVERLAP, ////int            fft_overlap,
+//					FFT_SIZE, //int               fft_size,
 					PSF_SUBPIXEL, // //int           PSF_subpixel,
 					OTF_FILTER, // //OTFFilterParameters otfFilterParameters,
 					PSF_PARS, //PSFParameters psfParameters,
