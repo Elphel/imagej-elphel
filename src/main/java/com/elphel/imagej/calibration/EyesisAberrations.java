@@ -1334,10 +1334,10 @@ public class EyesisAberrations {
         			createPSFMap(
         					matchSimulatedPattern,
         					matchSimulatedPattern.applyFlatField (imp), // if grid is flat-field calibrated, apply it (may throw here)
+        					lwirReaderParameters, //final LwirReaderParameters lwirReaderParameters, // null is OK
         					null,     //  int [][][] sampleList, // optional (or null) 2-d array: list of coordinate pairs (2d - to match existent  PSF_KERNEL_MAP structure)
         					multiFilePSF.overexposedMaxFraction, //MULTIFILE_PSF.overexposedMaxFraction,
         					simulParameters, //SIMUL, //simulation parameters
-//        					mapFFTsize, // MAP_FFT_SIZE, // scanImageForPatterns:FFT size int             mapFFTsize, // scanImageForPatterns:FFT size
         					patternDetectParameters, //PATTERN_DETECT, //MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
         					fft_overlap, //FFT_OVERLAP, // int            fft_overlap,
         					fft_size, // FFT_SIZE, // int               fft_size,
@@ -2240,10 +2240,10 @@ public class EyesisAberrations {
 	public double [][][][] createPSFMap(
 			final MatchSimulatedPattern commonMatchSimulatedPattern, // to be cloned in threads, using common data
 			final ImagePlus         imp_sel, // linearized Bayer mosaic image from the camera, GR/BG
+			final LwirReaderParameters lwirReaderParameters, // null is OK
 			final int [][][]        sampleList, // optional (or null) 2-d array: list of coordinate pairs (2d - to match existent  pdfKernelMap structure)
 			final double  overexposedAllowed, // fraction of pixels OK to be overexposed
 			final SimulationPattern.SimulParameters simulParameters,
-//			final int             mapFFTsize, // scanImageForPatterns:FFT size
 			final MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
 			final int            fft_overlap,
 			final int               fft_size,
@@ -2260,6 +2260,14 @@ public class EyesisAberrations {
 			final int          masterDebugLevel, // get rid of it? // ** NEW
 			final int          globalDebugLevel,// ** NEW
 			final int          debug_level){// debug level used inside loops
+		boolean is_lwir = ((lwirReaderParameters != null) && lwirReaderParameters.is_LWIR(imp_sel));
+		boolean is_mono = false;
+		try {
+			is_mono = Boolean.parseBoolean((String) imp_sel.getProperty("MONOCHROME"));
+		} catch (Exception e) {
+		}
+		is_mono |= is_lwir;
+
 		final boolean debugLateralShifts=(globalDebugLevel>1);
 		System.out.println("createPSFMap(): masterDebugLevel="+masterDebugLevel+" globalDebugLevel="+globalDebugLevel+" debug_level="+debug_level); // 2 2 0
 		final long startTime = System.nanoTime();
@@ -2275,12 +2283,18 @@ public class EyesisAberrations {
 		int numPatternCells=0;
 /* Filter results based on correlation with the actual pattern */
 		boolean [][]   PSFBooleanMap; // map of 2*fft_size x 2*fft_size squares with 2*fft_overlap step, true means that that tile can be used for PSF
+		final int mapWidth=imp_sel.getWidth();
+		final int tile_size =    (is_mono? 1 : 2) * fft_size;
+		final int tile_overlap = (is_mono? 1 : 2) * fft_overlap;
+
+
 		if (sampleList==null){
+			    // tiles are twice smaller for monochrome
 				PSFBooleanMap= mapFromPatternMask ( // count number of defined cells
 						commonMatchSimulatedPattern,
-						imp_sel.getWidth(), // image (mask) width
-						fft_size*2,
-						fft_overlap*2,
+						mapWidth,     // imp_sel.getWidth(), // image (mask) width
+						tile_size,    // fft_size*2,
+						tile_overlap, // fft_overlap*2,
 						fft_size,     // backward compatibility margin==tileSize/2
 						gaussWidth,
 						//	psfParameters.minDefinedArea);
@@ -2288,7 +2302,11 @@ public class EyesisAberrations {
 						globalDebugLevel);
 		} else {
 			PSFBooleanMap= new boolean[sampleList.length][sampleList[0].length];
-			for (int i=0;i<sampleList.length;i++) for (int j=0;j<sampleList[0].length;j++) PSFBooleanMap[i][j]=(sampleList[i][j][0]>=0); // all with positive X
+			for (int i=0;i<sampleList.length;i++) {
+				for (int j=0;j<sampleList[0].length;j++) {
+					PSFBooleanMap[i][j]=(sampleList[i][j][0]>=0); // all with positive X
+				}
+			}
 		}
 		if (PSFBooleanMap==null) return null;
 		numPatternCells=0;
@@ -2324,9 +2342,8 @@ public class EyesisAberrations {
 		final int patternCells=numPatternCells;
 		//	  final double []   overexposedMap, // map of overexposed pixels in the image (may be null)
 		final double [] overexposed=(overexposedAllowed>0)?JP4_INSTANCE.overexposedMap (imp_sel):null;
-		final int mapWidth=imp_sel.getWidth();
    		final AtomicInteger tilesFinishedAtomic = new AtomicInteger(1); // first finished will be 1
-   		final int debugNumColors=6;
+   		final int debugNumColors = is_mono? 1 : colorComponents.colorsToCorrect.length;
    		final int dbgTile0 = -1; // 245; //
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			// Concurrently run in as many threads as CPUs

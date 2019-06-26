@@ -9163,7 +9163,7 @@ if (MORE_BUTTONS) {
 
 			EYESIS_ABERRATIONS.createPartialKernels(
 					this.SYNC_COMMAND.stopRequested,
-					LWIR_PARAMETERS,
+					LWIR_PARAMETERS, // LwirReaderParameters lwirReaderParameters,
 //					MAP_FFT_SIZE, // scanImageForPatterns:FFT size //int             mapFFTsize, // scanImageForPatterns:FFT size
 //					FFT_OVERLAP, ////int            fft_overlap,
 //					FFT_SIZE, //int               fft_size,
@@ -20699,8 +20699,10 @@ use the result to create a rejectiobn mask - if the energy was high, (multiplica
 		public boolean showDistortionDialog(MatchSimulatedPattern.DistortionParameters distortionParameters) {
 			int i;
 			GenericDialog gd = new GenericDialog("Distrortion parameters");
-			gd.addNumericField("FFTSize (Initial pattern detection only):",        distortionParameters.FFTSize, 0);      // 256
+			gd.addNumericField("FFTSize (Initial pattern and aberraton kernels):", distortionParameters.FFTSize, 0);      // 256
 			gd.addNumericField("FFTSize for LWIR sensors):",                       distortionParameters.FFTSize_lwir, 0); // 32
+			gd.addNumericField("FFTOverlap (aberration kernels):",                 distortionParameters.FFTOverlap, 0);      // 32
+			gd.addNumericField("FFTOverlap for LWIR sensors):",                    distortionParameters.FFTOverlap_lwir, 0); // 4
 			gd.addNumericField("FFT Gaussian width (relative):",                   distortionParameters.fftGaussWidth, 3);
 			gd.addNumericField("Correlation size:",                                distortionParameters.correlationSize, 0); // 64
 			gd.addNumericField("Correlation size LWIR:",                           distortionParameters.correlationSizeLwir, 0); // 16
@@ -20789,6 +20791,8 @@ use the result to create a rejectiobn mask - if the energy was high, (multiplica
 			if (gd.wasCanceled()) return false;
 			distortionParameters.FFTSize =                     makePowerOfTwo((int) gd.getNextNumber());
 			distortionParameters.FFTSize_lwir =                makePowerOfTwo((int) gd.getNextNumber());
+			distortionParameters.FFTOverlap =                  makePowerOfTwo((int) gd.getNextNumber());
+			distortionParameters.FFTOverlap_lwir =             makePowerOfTwo((int) gd.getNextNumber());
 			distortionParameters.fftGaussWidth=                gd.getNextNumber();
 			distortionParameters.correlationSize =             makePowerOfTwo((int) gd.getNextNumber());
 			distortionParameters.correlationSizeLwir =         makePowerOfTwo((int) gd.getNextNumber());
