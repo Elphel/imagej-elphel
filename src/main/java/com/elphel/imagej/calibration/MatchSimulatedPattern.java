@@ -732,9 +732,15 @@ public class MatchSimulatedPattern {
 			boolean                 greens,  // this is a pattern for combined greens (diagonal), adjust results accordingly
 			String                  title){ // title prefix to use for debug  images
 		if (bayer_mono_pixels==null) return null;
-			if (bayer_mono_pixels.length<4) return null;
+		if (bayer_mono_pixels.length < 1) return null;
 		if (bayer_mono_pixels[0]==null) return null;
+		if (greens) {
+			if (bayer_mono_pixels.length<4) return null;
 			if (bayer_mono_pixels[3]==null) return null;
+		} else {
+			if (bayer_mono_pixels.length > 1) return null;
+		}
+		boolean is_mono = bayer_mono_pixels.length == 1;
 		int tile_size2=bayer_mono_pixels[0].length;
 		int tile_size=(int) Math.sqrt(tile_size2);
 		int hsize=tile_size/2;
@@ -747,14 +753,14 @@ public class MatchSimulatedPattern {
 		double [][]   quarter_pixels =new double[9][];
 		double [][][] quarter_patterns =new double[9][][];
 		int [] quarterIndex={0, // top left
-				tile_size/2, // top right
-				tile_size*tile_size/2, // bottom left
-				(tile_size+1)*tile_size/2, // bottom right
-				(tile_size+1)*tile_size/4, // center
+				tile_size /2, // top right
+				tile_size * tile_size/2, // bottom left
+				(tile_size + 1) * tile_size/2, // bottom right
+				(tile_size + 1) * tile_size/4, // center
 				tile_size/4, // top
-				tile_size*tile_size/4,// left
-				(tile_size+2)*tile_size/4,   // right
-				(2*tile_size+1)*tile_size/4};   // bottom
+				tile_size * tile_size/4,// left
+				(tile_size + 2) * tile_size/4,   // right
+				(2 * tile_size + 1) * tile_size/4};   // bottom
 
 		int i,j,iq;
 		int index,qindex;
