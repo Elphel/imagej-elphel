@@ -2705,7 +2705,6 @@ public class EyesisAberrations {
 		if (globalDebugLevel>1){
 			System.out.println("getPSFKernels(), simArray is "+((simArray==null)?"":"not ")+"null");
 		}
-
 		if (imp==null) return null; // Maybe convert to double pixel array once to make it faster?
 		if (fht_instance==null) fht_instance=new DoubleFHT(); // move upstream to reduce number of initializations
 		String title=imp.getTitle()+"X"+x0+"Y"+y0;
@@ -2744,9 +2743,6 @@ public class EyesisAberrations {
 					colorComponents.equalizeGreens); // does it work the same?
 		}
 
-
-
-
 		//int greensToProcess=4;
 		int i,j,l;
 		double [][] simul_pixels;
@@ -2756,6 +2752,10 @@ public class EyesisAberrations {
 		double [][] dbgSimPix=null;
 
 		double [] localBarray;
+		double min_half_period = (is_lwir? patternDetectParameters.minGridPeriodLwir: patternDetectParameters.minGridPeriod)/2;
+		double max_half_period = (is_lwir? patternDetectParameters.maxGridPeriodLwir:patternDetectParameters.maxGridPeriod)/2;
+
+
 
 		if ((simArray==null) || (psfParameters.approximateGrid)){ // just for testing(never here?)
 			/* Calculate pattern parameters, including distortion */
@@ -2763,8 +2763,8 @@ public class EyesisAberrations {
 				double[][] distortedPattern= matchSimulatedPattern.findPatternDistorted(
 						input_bayer_or_mono,             // pixel array to process (no windowing!)
 						patternDetectParameters,
-						patternDetectParameters.minGridPeriod/2,
-			            patternDetectParameters.maxGridPeriod/2,
+						min_half_period, // patternDetectParameters.minGridPeriod/2,
+						max_half_period, // patternDetectParameters.maxGridPeriod/2,
 						true, //(greensToProcess==4), // boolean greens, // this is a pattern for combined greens (diagonal), adjust results accordingly
 						title); // title prefix to use for debug  images
 
@@ -2835,6 +2835,16 @@ public class EyesisAberrations {
 						simulParameters.center_for_g2,
 						false);//boolean mono
 			}
+			if (is_mono) {
+				simul_pixels= new double[1][];
+				simul_pixels[0]=  simulationPattern.extractSimulMono ( // TODO: can use twice smaller barray
+						localBarray,
+						simulParameters,
+						1,  // subdivide output pixels - now 4
+						fft_size*subpixel,    // number of Bayer cells in width of the square selection (half number of pixels)
+						0,    // selection center, X (in pixels)
+						0);
+			} else {
 				simul_pixels= simulationPattern.extractSimulPatterns (
 						localBarray,		// this version is thread safe
 						simulParameters,
@@ -2842,6 +2852,7 @@ public class EyesisAberrations {
 						fft_size*subpixel, // number of Bayer cells in width of the square selection (half number of pixels)
 						0.0,    // selection center, X (in pixels)
 						0.0);   // selection center, y (in pixels)
+			}
 			if (subpixel>1) {
 				if (colorComponents.colorsToCorrect[5])  simul_pixels=combineCheckerGreens (simul_pixels,   // pixel arrays after oversampleFFTInput() or extractSimulPatterns())
 						subpixel); // same as used in oversampleFFTInput() - oversampling ratio
