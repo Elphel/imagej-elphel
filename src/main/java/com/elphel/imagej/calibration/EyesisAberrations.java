@@ -2705,14 +2705,48 @@ public class EyesisAberrations {
 		if (globalDebugLevel>1){
 			System.out.println("getPSFKernels(), simArray is "+((simArray==null)?"":"not ")+"null");
 		}
-		boolean is_mono = false;
+
 		if (imp==null) return null; // Maybe convert to double pixel array once to make it faster?
 		if (fht_instance==null) fht_instance=new DoubleFHT(); // move upstream to reduce number of initializations
-		double [][] kernels=         new double[6][];  // was global
 		String title=imp.getTitle()+"X"+x0+"Y"+y0;
-		Rectangle PSFCell=new Rectangle (x0,y0,tile_size,tile_size);
-		int fft_size=tile_size/2;
-		double [][] input_bayer_or_mono=matchSimulatedPattern.splitBayer(imp,PSFCell,colorComponents.equalizeGreens); // does it work trhe same?
+
+		boolean is_lwir = ((lwirReaderParameters != null) && lwirReaderParameters.is_LWIR(imp));
+		boolean is_mono = false;
+		try {
+			is_mono = Boolean.parseBoolean((String) imp.getProperty("MONOCHROME"));
+		} catch (Exception e) {
+
+		}
+		is_mono |= is_lwir;
+		if (is_mono) referenceComp = 0; //
+
+		int fft_size=is_mono ? tile_size : (tile_size/2);
+
+		Rectangle PSFCell=new Rectangle (
+				x0,
+				y0,
+				tile_size,
+				tile_size);
+
+		double [][] kernels=         new double[is_mono?1:6][];
+
+
+		double [][] input_bayer_or_mono=null; // single mono slice will have twice dimensions of the bayer
+		if (is_mono) {
+			input_bayer_or_mono = new double[1][];
+			input_bayer_or_mono[0] = matchSimulatedPattern.getNoBayer(
+					imp,
+					PSFCell);
+		} else {
+			input_bayer_or_mono=matchSimulatedPattern.splitBayer(
+					imp,
+					PSFCell,
+					colorComponents.equalizeGreens); // does it work the same?
+		}
+
+
+
+
 		//int greensToProcess=4;
 		int i,j,l;
 		double [][] simul_pixels;
