@@ -2862,20 +2862,23 @@ public class EyesisAberrations {
 			}
 			simul_pixels= normalizeAndWindow (simul_pixels, fullHamming);
 
-			} else {
-			Rectangle PSFCellSim=new Rectangle (x0*subpixel/2,y0*subpixel/2,tile_size*subpixel/2,tile_size*subpixel/2); // getting here
-
-				simul_pixels=new double[6][];
-				for (i=0;i<simul_pixels.length; i++) {
-					if (colorComponents.colorsToCorrect[i]) simul_pixels[i]=simulationPattern.extractBayerSim (
-							simArray, // [0] - regular pixels, [1] - shifted by 1/2 diagonally, for checker greens
-							imgWidth*subpixel/2,
-							PSFCellSim,
-							subpixel, // 4
-							i);
-					else simul_pixels[i]=null;
-				}
-			int index=matchSimulatedPattern.getUVIndex((PSFCell.y+PSFCell.height/2)*imgWidth+(PSFCell.x+PSFCell.width/2));
+		} else { //if ((simArray==null) || (psfParameters.approximateGrid)){ // just for testing(never here?)
+			Rectangle PSFCellSim = new Rectangle (
+					x0 * subpixel/2,
+					y0 * subpixel/2,
+					tile_size * subpixel/2,
+					tile_size * subpixel/2); // getting here
+			simul_pixels=new double[6][];
+			for (i=0;i<simul_pixels.length; i++) {
+				if (colorComponents.colorsToCorrect[i]) simul_pixels[i]=simulationPattern.extractBayerSim (
+						simArray, // [0] - regular pixels, [1] - shifted by 1/2 diagonally, for checker greens
+						imgWidth*subpixel/2,
+						PSFCellSim,
+						subpixel, // 4
+						i);
+				else simul_pixels[i]=null;
+			}
+            int index=matchSimulatedPattern.getUVIndex((PSFCell.y+PSFCell.height/2)*imgWidth+(PSFCell.x+PSFCell.width/2));
 
 			if (index<0) {
 				System.out.println ("Error, No UV pattern @ x="+(PSFCell.x+PSFCell.width/2)+", y="+(PSFCell.y+PSFCell.height/2));
@@ -2956,9 +2959,11 @@ public class EyesisAberrations {
 						subpixel,
 						otfFilterParameters,
 						fht_instance,
-					psfParameters.mask1_sigma*tile_size*wvAverage,      // normalize to wave vectors!
+						psfParameters.mask1_sigma*tile_size*wvAverage,      // normalize to wave vectors!
+//						psfParameters.mask1_sigma*(fft_size/2)*wvAverage,      // normalize to wave vectors!
 						psfParameters.mask1_threshold,
-					psfParameters.gaps_sigma*tile_size*wvAverage,
+						psfParameters.gaps_sigma*tile_size*wvAverage,
+//						psfParameters.gaps_sigma*(fft_size/2)*wvAverage,
 						psfParameters.mask_denoise,
 						debug,
 						globalDebugLevel,
