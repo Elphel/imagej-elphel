@@ -2971,11 +2971,9 @@ public class EyesisAberrations {
 						subpixel,
 						otfFilterParameters,
 						fht_instance,
-						psfParameters.mask1_sigma*tile_size*wvAverage,      // normalize to wave vectors!
-//						psfParameters.mask1_sigma*(fft_size/2)*wvAverage,      // normalize to wave vectors!
+						psfParameters.mask1_sigma * (fft_size * 2) * wvAverage,      // normalize to wave vectors!
 						psfParameters.mask1_threshold,
-						psfParameters.gaps_sigma*tile_size*wvAverage,
-//						psfParameters.gaps_sigma*(fft_size/2)*wvAverage,
+						psfParameters.gaps_sigma * (fft_size * 2) * wvAverage,     // normalize to wave vectors!
 						psfParameters.mask_denoise,
 						debug,
 						globalDebugLevel,
