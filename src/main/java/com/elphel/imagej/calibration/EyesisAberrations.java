@@ -2943,7 +2943,8 @@ public class EyesisAberrations {
 		double wvAverage=Math.sqrt(0.5*(wVectors[0][0]*wVectors[0][0]+wVectors[0][1]*wVectors[0][1]+
 				wVectors[1][0]*wVectors[1][0]+wVectors[1][1]*wVectors[1][1]));
 
-		for (i=0;(i<input_bayer_or_mono.length) && (i<simul_pixels.length);i++) if ((colorComponents.colorsToCorrect[i]) && (input_bayer_or_mono[i]!=null)){
+		for (i=0;(i<input_bayer_or_mono.length) && (i<simul_pixels.length);i++) {
+			if ((is_mono ||  colorComponents.colorsToCorrect[i]) && (input_bayer_or_mono[i]!=null)){
 				if (globalDebugLevel>2) System.out.println ( "Color "+colorComponents.getColorName(i)+" is re-calculated into bayer pixels ");
 				if (globalDebugLevel>2) System.out.println ( "input_bayer["+i+"].length="+input_bayer_or_mono[i].length+" simul_pixels["+i+"].length="+simul_pixels[i].length);
 				inverted[i]=limitedInverseOfFHT(
@@ -2963,6 +2964,7 @@ public class EyesisAberrations {
 						globalDebugLevel,
 						title+"-"+i);
 			}
+		}
 		int debugThreshold=1;
 		if (debugThis) SDFA_INSTANCE.showArrays(inverted, fft_size*subpixel, fft_size*subpixel, title+"_Combined-PSF");
 /* correct composite greens */
@@ -3022,7 +3024,7 @@ public class EyesisAberrations {
 		if (globalDebugLevel>debugThreshold)     System.out.println(x0+":"+y0+"After-1: color Component "+i+"    PSF_shifts["+i+"][0]="+IJ.d2s(PSF_shifts   [i][0],3)+"    PSF_shifts["+i+"][1]="+IJ.d2s(   PSF_shifts[i][1],3));
 		if (globalDebugLevel>debugThreshold)     System.out.println(x0+":"+y0+"After-1: color Component "+i+" PSF_centroids["+i+"][0]="+IJ.d2s(PSF_centroids[i][0],3)+" PSF_centroids["+i+"][1]="+IJ.d2s(PSF_centroids[i][1],3));
 
-		if (!psfParameters.ignoreChromatic && !psfParameters.absoluteCenter) { /* Recalculate center to pixels from greens (diagonal)) and supply it to other colors (lateral chromatic aberration correction) */
+		if (!is_mono && !psfParameters.ignoreChromatic && !psfParameters.absoluteCenter) { /* Recalculate center to pixels from greens (diagonal)) and supply it to other colors (lateral chromatic aberration correction) */
 			for (j=0;j<input_bayer_or_mono.length;j++) if ((colorComponents.colorsToCorrect[j]) && (j!=referenceComp)) {
 				PSF_shifts[j]=shiftSensorToBayer (shiftBayerToSensor(PSF_shifts[referenceComp],referenceComp,subpixel),j,subpixel);
 				if (globalDebugLevel>debugThreshold)       System.out.println(x0+":"+y0+"After-2 (recalc): color Component "+j+" PSF_shifts["+j+"][0]="+IJ.d2s(PSF_shifts[j][0],3)+" PSF_shifts["+j+"][1]="+IJ.d2s(PSF_shifts[j][1],3));
