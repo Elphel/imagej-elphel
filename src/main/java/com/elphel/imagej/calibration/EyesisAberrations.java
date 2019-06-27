@@ -2405,7 +2405,9 @@ public class EyesisAberrations {
 							if (debugLateralShifts) {
 								debugLateral[nTY][nTX]= new double [debugNumColors][];    // X/Y shift of the PSF array, in Bayer component pixel coordinates (same as PSF arrays)
 							}
-							kernels=getPSFKernels(imp_sel,
+							kernels=getPSFKernels(
+									imp_sel,
+									lwirReaderParameters,  //LwirReaderParameters lwirReaderParameters, // null is OK
 									simArray, //simulation image, scaled PSF_subpixel/2
 									tile_size,        // 2*fft_size,    // size in pixels (twice fft_size for Bayer only?)
 									x0,               // top left corner X (pixels)
@@ -2674,8 +2676,10 @@ public class EyesisAberrations {
 		return 0;
 	}
 
-
-	public double [][] getPSFKernels ( ImagePlus imp,
+// should return [1] for mono
+	public double [][] getPSFKernels (
+			ImagePlus             imp,
+			LwirReaderParameters lwirReaderParameters, // null is OK
 			float [][]            simArray, //simulation image, scaled PSF_subpixel/2 (or null), [0] - main pixels, [1] - shifted diagonally by 0.5 pixels (for checker greens)
 			int                   tile_size,   // size in pixels (twice FFT_SIZE for Bayer, equals FFT size for mono)
 			int                   x0,          // top left corner X (pixels)
