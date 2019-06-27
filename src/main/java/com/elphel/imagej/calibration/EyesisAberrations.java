@@ -2868,17 +2868,29 @@ public class EyesisAberrations {
 					y0 * subpixel/2,
 					tile_size * subpixel/2,
 					tile_size * subpixel/2); // getting here
-			simul_pixels=new double[6][];
-			for (i=0;i<simul_pixels.length; i++) {
-				if (colorComponents.colorsToCorrect[i]) simul_pixels[i]=simulationPattern.extractBayerSim (
+			if (is_mono) {
+				simul_pixels=new double[1][];
+				simul_pixels[0]=simulationPattern.extractBayerSim (
 						simArray, // [0] - regular pixels, [1] - shifted by 1/2 diagonally, for checker greens
 						imgWidth*subpixel/2,
 						PSFCellSim,
 						subpixel, // 4
-						i);
-				else simul_pixels[i]=null;
+						-1); //New :  -1 - extract mono TODO: see if 1/2pix shift is needed
+			} else {
+				simul_pixels=new double[6][];
+				for (i=0;i<simul_pixels.length; i++) {
+					if (colorComponents.colorsToCorrect[i]) simul_pixels[i]=simulationPattern.extractBayerSim (
+							simArray, // [0] - regular pixels, [1] - shifted by 1/2 diagonally, for checker greens
+							imgWidth*subpixel/2,
+							PSFCellSim,
+							subpixel, // 4
+							i);
+					else simul_pixels[i]=null;
+				}
 			}
-            int index=matchSimulatedPattern.getUVIndex((PSFCell.y+PSFCell.height/2)*imgWidth+(PSFCell.x+PSFCell.width/2));
+//System.out.println("PSFCell.y="+PSFCell.y+" PSFCell.height="+PSFCell.height+" imgWidth="+imgWidth+" PSFCell.x="+PSFCell.x+" PSFCell.width="+PSFCell.width+" matchSimulatedPattern.UV_INDEX.length="+matchSimulatedPattern.UV_INDEX.length);
+			int index=matchSimulatedPattern.getUVIndex(
+					(PSFCell.y+PSFCell.height/2)*imgWidth+(PSFCell.x+PSFCell.width/2));
 
 			if (index<0) {
 				System.out.println ("Error, No UV pattern @ x="+(PSFCell.x+PSFCell.width/2)+", y="+(PSFCell.y+PSFCell.height/2));
