@@ -117,10 +117,11 @@ public class EyesisAberrations {
    				System.out.println("Failed to open interpolated PSF kernel stack "+srcPaths[nChn]);
    				continue;
    			}
-   			if (impSpsf.getStackSize()<3) {
-   				System.out.println("Need a 3-layer stack with interpolated PSF kernels");
+   			if ((impSpsf.getStackSize() < 3) && (impSpsf.getStackSize() != 1)) {
+   				System.out.println("Need a 3-layer stack (for color) or single (for mono) with interpolated PSF kernels");
    				continue;
    			}
+
    			ImageStack stack= reversePSFKernelStack(
    					impSpsf.getStack(), // stack of 3 32-bit (float) images, made of square kernels
    					inverseParameters, // size (side of square) of direct PSF kernel
@@ -142,7 +143,9 @@ public class EyesisAberrations {
    			if (saveResult){
    				if (globalDebugLevel>0) System.out.println((numProcessed+1)+" of "+numToProcess+": saving invered (of the file"+srcPaths[nChn]+") kernel to "+resultPaths[nChn]+ " at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
    				FileSaver fs=new FileSaver(impInvertedPSF);
-   				fs.saveAsTiffStack(resultPaths[nChn]);
+//   				fs.saveAsTiffStack(resultPaths[nChn]);
+   				fs.saveAsTiff(resultPaths[nChn]);
+
    			}
    			numProcessed++;
     		if 	(stopRequested.get()>0) {
@@ -714,8 +717,8 @@ public class EyesisAberrations {
    				System.out.println("Failed to open raw PSF kernel stack "+srcPaths[nChn]);
    				continue;
    			}
-   			if (impSpsf.getStackSize()<3) {
-   				System.out.println("Need a 3-layer stack with raw PSF kernels");
+   			if ((impSpsf.getStackSize() < 3) && (impSpsf.getStackSize() != 1)) {
+   				System.out.println("Need a 3-layer stack (for color) or single (for mono) with raw PSF kernels");
    				continue;
    			}
    			ImageStack stack= interpolateKernelStack(
@@ -739,7 +742,8 @@ public class EyesisAberrations {
    				if (globalDebugLevel>0) System.out.println((numProcessed+1)+" of "+numToProcess+": saving interpolation result (of the file"+srcPaths[nChn]+") to "+
    						resultPaths[nChn]+ " at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
    				FileSaver fs=new FileSaver(impInterpolatedPSF);
-   				fs.saveAsTiffStack(resultPaths[nChn]);
+//   				fs.saveAsTiffStack(resultPaths[nChn]);
+   				fs.saveAsTiff(resultPaths[nChn]);
    			}
    			numProcessed++;
     		if 	(stopRequested.get()>0) {
@@ -1610,6 +1614,10 @@ public class EyesisAberrations {
 			for (int color=0;color<nChn;color++) sdfa_instance.showArrays(pxfCenterY[color], kWidth, kHeight,  true, "pxfCenterY-"+color);
 		}
 		double [][][] radiusRatio=new double[nChn][nFiles+1][kLength];
+		int ref_color = 2; // green
+		if (ref_color >= nChn) {
+			ref_color = 0;
+		}
 		for (int tileY=0;tileY<kHeight;tileY++) for (int tileX=0;tileX<kWidth;tileX++) {
 			int index=tileY*kWidth+tileX;
 			int totalNumSamples=0;
@@ -1635,7 +1643,7 @@ public class EyesisAberrations {
 							int indexNeib=xn+ kWidth*yn;
 							double weight=weightsMasked[nFile+1][indexNeib];
 							if (multiFilePSF.sharpBonusPower>0) {
-								weight/=Math.pow(psfRadius[2][nFile+1][indexNeib],multiFilePSF.sharpBonusPower); // use green color
+								weight/=Math.pow(psfRadius[ref_color][nFile+1][indexNeib],multiFilePSF.sharpBonusPower); // use green color ava.lang.ArrayIndexOutOfBoundsException: 2
 							}
 							sumWeights+=weight;
 							for (int color=0;color<nChn;color++) {
@@ -1868,7 +1876,8 @@ public class EyesisAberrations {
 			if (numMissing==0) {
 			  if (thisDebugLevel>1) System.out.println("Saving result to "+resultPath);
 			  FileSaver fs=new FileSaver(imp_psf);
-			  fs.saveAsTiffStack(resultPath);
+//			  fs.saveAsTiffStack(resultPath);
+			  fs.saveAsTiff(resultPath);
 			  if (multiFilePSF.fillMissing && (filledMissing>0)) {
 					System.out.println("*** Warning "+filledMissing+" kernel tiles are missing from the results (insufficient overlap) \n"+
 					"You may disable filling missing kernels from neighbors in Conf. Multifile");
