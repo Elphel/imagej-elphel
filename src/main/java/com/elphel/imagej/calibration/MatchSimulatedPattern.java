@@ -4807,8 +4807,6 @@ public class MatchSimulatedPattern {
 							}
 						}
 
-						//							if (nowDebugCell)correctedPatternCrossLocationAverage4(
-
 						double [] centerXY=correctedPatternCrossLocation(
 								lwirReaderParameters, // LwirReaderParameters lwirReaderParameters, // null is OK
 								patternGrid[iUV[1]][iUV[0]][0], // initial coordinates of the pattern cross point

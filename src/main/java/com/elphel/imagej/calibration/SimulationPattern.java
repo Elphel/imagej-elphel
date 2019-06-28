@@ -1009,7 +1009,6 @@ Cv=(Cy*x-Cx*y)+(-Cy*Dx+Cx*Dy)
 				y0);
 	}
 
-
 	public double [] extractSimulMono ( // TODO: can use twice smaller barray
 			double [] localbArray,
 			SimulParameters  simulParameters,
@@ -1017,6 +1016,25 @@ Cv=(Cy*x-Cx*y)+(-Cy*Dx+Cx*Dy)
 			int size,    // number of Bayer cells in width of the square selection (half number of pixels)
 			double x0,    // selection center, X (in pixels)
 			double y0) {
+		return extractSimulMono ( // TODO: can use twice smaller barray
+				localbArray,
+				false, // boolean invert,
+				simulParameters,
+				outSubdiv,  // subdivide output pixels - now 4
+				size,    // number of Bayer cells in width of the square selection (half number of pixels)
+				x0,    // selection center, X (in pixels)
+				y0);
+	}
+
+	public double [] extractSimulMono ( // TODO: can use twice smaller barray
+			double [] localbArray,
+			boolean invert,
+			SimulParameters  simulParameters,
+			int outSubdiv,  // subdivide output pixels - now 4
+			int size,    // number of Bayer cells in width of the square selection (half number of pixels)
+			double x0,    // selection center, X (in pixels)
+			double y0) {
+		double pattern_sign = invert? -1.0 : 1.0;
 		int sampleWidth=(int) (Math.sqrt(simulParameters.fill)*simulParameters.subdiv);
 		int sampleN=sampleWidth*sampleWidth;
 		if      (sampleWidth<1)     sampleWidth=1;
@@ -1043,7 +1061,7 @@ Cv=(Cy*x-Cx*y)+(-Cy*Dx+Cx*Dy)
 						return null;
 					}
 				}
-				simul_pixels[iy*size+ix]= (s-sampleAverage)/sampleAverage;
+				simul_pixels[iy*size+ix]= pattern_sign * (s - sampleAverage) / sampleAverage;
 			}
 		}
 		if (this.debugLevel>2) {
@@ -1069,6 +1087,7 @@ Cv=(Cy*x-Cx*y)+(-Cy*Dx+Cx*Dy)
 		return rslt;
 	}
 
+	// colorComp == -1 = mono, positive, colorComp == -2 - mono, negative
 	public double[] extractBayerSim (
 			float [][] spixels, // [0] - regular pixels, [1] - shifted by 1/2 diagonally, for checker greens
 			int full_width,
@@ -1106,6 +1125,7 @@ Cv=(Cy*x-Cx*y)+(-Cy*Dx+Cx*Dy)
 			}
 		} else { // components 0..3
 			int ser;
+			double pattern_sign = (colorComp == -2)? -1.0: 1.0;
 			if (colorComp < 0) {
 				ser = 1; // offset by 1/2 pix? should it be so? // FIXME: verify and fix if needed - compare to extractSimulMono()
 			} else {
@@ -1125,7 +1145,7 @@ Cv=(Cy*x-Cx*y)+(-Cy*Dx+Cx*Dy)
 				else if (iy >= full_height) iy = full_height - 1;
 				if (ix < 0) ix = 0;
 				else if (ix >= full_width) iy = full_width - 1;
-				result[index] = spixels[ser][iy * full_width + ix];
+				result[index] = pattern_sign * spixels[ser][iy * full_width + ix];
 			}
 		}
 		return result;

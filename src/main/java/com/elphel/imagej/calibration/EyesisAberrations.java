@@ -1065,6 +1065,7 @@ public class EyesisAberrations {
 //			int               fft_size,
 			int           PSF_subpixel,
 			OTFFilterParameters otfFilterParameters,
+			OTFFilterParameters otfFilterParameters_lwir,
 			PSFParameters psfParameters,
 			int          PSFKernelSize, // size of square used in the new map (should be multiple of map step)
 			double       gaussWidth,  // ** NEW
@@ -1291,7 +1292,7 @@ public class EyesisAberrations {
         			}
 
         			int rslt=matchSimulatedPattern.calculateDistortions(
-    				        null, // LwirReaderParameters lwirReaderParameters, // null is OK
+        					lwirReaderParameters, // LwirReaderParameters lwirReaderParameters, // null is OK
         					distortionParameters, //
         					patternDetectParameters,
 //        					patternDetectParameters.minGridPeriod/2,
@@ -1343,7 +1344,8 @@ public class EyesisAberrations {
         					fft_size, // FFT_SIZE, // int               fft_size,
         					colorComponents, //COMPONENTS,   // ColorComponents colorComponents,
         					PSF_subpixel, //PSF_SUBPIXEL, // int           PSF_subpixel,
-        					otfFilterParameters, // OTF_FILTER, // OTFFilterParameters otfFilterParameters,
+        					(is_lwir?otfFilterParameters_lwir:otfFilterParameters),
+//        					otfFilterParameters, // OTF_FILTER, // OTFFilterParameters otfFilterParameters,
         					psfParameters, //PSF_PARS, // final PSFParameters psfParameters
         					psfParameters.minDefinedArea , //PSF_PARS.minDefinedArea, // final double       minDefinedArea,
         					PSFKernelSize, //// int          PSFKernelSize, // size of square used in the new map (should be multiple of map step)
@@ -2163,7 +2165,8 @@ public class EyesisAberrations {
 
 		jp4_instance.encodeProperiesToInfo(impPsf);
 		FileSaver fs=new FileSaver(impPsf);
-		fs.saveAsTiffStack(path);
+//		fs.saveAsTiffStack(path);
+		fs.saveAsTiff(path);
 	}
 
 
@@ -2176,15 +2179,24 @@ public class EyesisAberrations {
 		if (kernels==null) return null;
 		int tilesY=kernels.length;
 		int tilesX=kernels[0].length;
-		int i,j,k,nChn, chn,x,y,index;
+		int i=0,j=0,k,nChn, chn,x,y,index;
 		double [][]kernel=null;
-		for (i=0;(i<tilesY) && (kernel==null);i++)  for (j=0;(j<tilesX) && (kernel==null);j++)  kernel=kernels[i][j];
-		if (kernel==null) return null;
-		int length=0;
-		for (i=0;i<kernel.length;i++) if (kernel[i]!=null){
-			length=kernel[i].length;
-			break;
+		for (i=0;(i<tilesY) && (kernel==null);i++) {
+			for (j=0;(j<tilesX) && (kernel==null);j++) {
+				kernel=kernels[i][j];
+			}
 		}
+		System.out.println("Got non-empty kernel at "+i+":"+j);
+
+		if (kernel==null) return null;
+///		int length=0;
+///		for (i=0;i<kernel.length;i++) if (kernel[i]!=null){
+///			length=kernel[i].length;
+///			break;
+///		}
+
+		int length = kernel.length; // number of color channels
+
 		if (length==0){
 			System.out.println("mergeKernelsToStack(): no non-null kernels");
 			return null;
@@ -2194,7 +2206,7 @@ public class EyesisAberrations {
 		for (i=0;i<tilesY ;i++)  for (j=0;j<tilesX;j++) if (kernels[i][j]!=null) {
 			for (k=0;(k<kernel.length)&& (k<channelsMask.length);k++) if (kernels[i][j][k]!=null) {
 				channelsMask[k]=1;
-				if (kernels[i][j][k].length>length) length=kernels[i][j][k].length;
+				if (kernels[i][j][k].length > length) length=kernels[i][j][k].length;
 			}
 		}
 
@@ -2267,6 +2279,9 @@ public class EyesisAberrations {
 		} catch (Exception e) {
 		}
 		is_mono |= is_lwir;
+
+		final int full_fft_size = fft_size * PSF_subpixel / (is_mono? 2: 1); // for LWIR - 64, 5MPix: 1024. fft_size = 32/256
+
 
 		final boolean debugLateralShifts=(globalDebugLevel>1);
 		System.out.println("createPSFMap(): masterDebugLevel="+masterDebugLevel+" globalDebugLevel="+globalDebugLevel+" debug_level="+debug_level); // 2 2 0
@@ -2349,7 +2364,7 @@ public class EyesisAberrations {
 		final double [] overexposed=(overexposedAllowed>0)?JP4_INSTANCE.overexposedMap (imp_sel):null;
    		final AtomicInteger tilesFinishedAtomic = new AtomicInteger(1); // first finished will be 1
    		final int debugNumColors = is_mono? 1 : colorComponents.colorsToCorrect.length;
-   		final int dbgTile0 = -1; // 245; //
+//   		final int dbgTile0 = 217; // -1; // 245; //
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			// Concurrently run in as many threads as CPUs
 			threads[ithread] = new Thread() {
@@ -2374,7 +2389,9 @@ public class EyesisAberrations {
 					SimulationPattern simulationPattern= new SimulationPattern(bitmaskPattern);
 					simulationPattern.debugLevel=globalDebugLevel;
 					double [] windowFFTSize=    matchSimulatedPattern.initWindowFunction(fft_size,gaussWidth); //=initHamming( fft_size) calculate once
-					double [] windowFullFFTSize=matchSimulatedPattern.initWindowFunction(fft_size*PSF_subpixel,gaussWidth); //=initHamming( fft_size*subpixel);
+					// same width - different size?
+///					double [] windowFullFFTSize = matchSimulatedPattern.initWindowFunction(fft_size*PSF_subpixel,gaussWidth); //=initHamming( fft_size*subpixel);
+					double [] windowFullFFTSize = matchSimulatedPattern.initWindowFunction(full_fft_size,gaussWidth); //=initHamming( fft_size*subpixel);
 					DoubleFHT fht_instance =new DoubleFHT(); // provide DoubleFHT instance to save on initializations (or null)
 					double over;
 // individual per-thread - will be needed when converted to doubleFHT
@@ -2384,7 +2401,8 @@ public class EyesisAberrations {
 						nTY=tilesToProcessXY[nTile][1];
 						y0=tilesToProcessXY[nTile][3];
 						x0=tilesToProcessXY[nTile][2];
-						if (nTile == dbgTile0) {
+						boolean debugThis = false; // (y0==48) && (x0==80);
+						if (debugThis) {
 							System.out.println("#!# "+x0+":"+y0+" Processing tile["+nTY+"]["+nTX+"] ("+(nTile+1)+" of "+patternCells+") : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 						}
 						if (updateStatus) IJ.showStatus("Processing tile["+nTY+"]["+nTX+"] ("+(nTile+1)+" of "+patternCells+")");
@@ -2412,7 +2430,7 @@ public class EyesisAberrations {
 									tile_size,        // 2*fft_size,    // size in pixels (twice fft_size for Bayer only?)
 									x0,               // top left corner X (pixels)
 									y0,               // top left corner Y (pixels)
-									simulationPattern,
+									simulationPattern, // should be individual for each sensor type? Probably not, it is just a high res bitmap
 									matchSimulatedPattern,
 									patternDetectParameters,
 									windowFFTSize,    //=initHamming( fft_size) calculate once
@@ -2425,14 +2443,18 @@ public class EyesisAberrations {
 									psfParameters,
 									fht_instance,      // provide DoubleFHT instance to save on initializations (or null)
 									debug_level,// ((x0<512)&& (y0<512))?3:debug_level DEBUG during "focusing"
-									masterDebugLevel, // get rid of it? // ** NEW
-									globalDebugLevel + ((nTile == dbgTile0)? 3:0),// ** NEW
-									debugLateralShifts?debugLateral[nTY][nTX]:null
+									masterDebugLevel+ (debugThis? 3:0), // get rid of it? // ** NEW
+									globalDebugLevel + (debugThis? 3:0),// ** NEW
+									debugLateralShifts?debugLateral[nTY][nTX] : null
 							);
 							if (kernels!=null) {
-								if (kernelLength(kernels)>(PSFKernelSize*PSFKernelSize)) kernels=resizeForFFT(kernels,PSFKernelSize); // shrink before normalizing
+								if (kernelLength(kernels)>(PSFKernelSize*PSFKernelSize)) {
+									kernels=resizeForFFT(kernels,PSFKernelSize); // shrink before normalizing
+								}
 								normalizeKernel(kernels); // in-place
-								if (kernelLength(kernels)<(PSFKernelSize*PSFKernelSize)) kernels=resizeForFFT(kernels,PSFKernelSize); // expand after normalizing
+								if (kernelLength(kernels)<(PSFKernelSize*PSFKernelSize)) {
+									kernels=resizeForFFT(kernels,PSFKernelSize); // expand after normalizing
+								}
 								for (nChn=0;nChn<kernels.length;nChn++) if (kernels[nChn]!=null){
 									pdfKernelMap[nTY][nTX][nChn]=kernels[nChn]; // not .clone()?
 								}
@@ -2688,7 +2710,7 @@ public class EyesisAberrations {
 		    MatchSimulatedPattern matchSimulatedPattern,
 			MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
 			double []             Hamming, //=initHamming( fft_size) calculate once
-			double []             fullHamming, //=initHamming( fft_size*subpixel);
+			double []             fullHamming, //=initHamming( fft_size*subpixel); for mono - twice smaller !
 			int                   subpixel, // use finer grid than actual pixels
 			SimulationPattern.SimulParameters  simulParameters,
 			EyesisAberrations.ColorComponents colorComponents,
@@ -2701,7 +2723,7 @@ public class EyesisAberrations {
 			int                   debug,
 			double [][]           debugLateralTile
 	){
-		boolean debugThis=false; //(y0==384) && ((x0==448) || (x0==512));
+		boolean debugThis= false; // (y0==48) && (x0==80); //(y0==384) && ((x0==448) || (x0==512));// false;
 		if (globalDebugLevel>1){
 			System.out.println("getPSFKernels(), simArray is "+((simArray==null)?"":"not ")+"null");
 		}
@@ -2711,6 +2733,7 @@ public class EyesisAberrations {
 
 		boolean is_lwir = ((lwirReaderParameters != null) && lwirReaderParameters.is_LWIR(imp));
 		boolean is_mono = false;
+		boolean invert_pattern = is_lwir;
 		try {
 			is_mono = Boolean.parseBoolean((String) imp.getProperty("MONOCHROME"));
 		} catch (Exception e) {
@@ -2719,7 +2742,8 @@ public class EyesisAberrations {
 		is_mono |= is_lwir;
 		if (is_mono) referenceComp = 0; //
 
-		int fft_size=is_mono ? tile_size : (tile_size/2);
+		int fft_size=is_mono ? tile_size : (tile_size/2);          // for LWIR - 32
+		int full_fft_size = fft_size * subpixel / (is_mono? 2: 1); // for LWIR - 64
 
 		Rectangle PSFCell=new Rectangle (
 				x0,
@@ -2765,7 +2789,7 @@ public class EyesisAberrations {
 						patternDetectParameters,
 						min_half_period, // patternDetectParameters.minGridPeriod/2,
 						max_half_period, // patternDetectParameters.maxGridPeriod/2,
-						true, //(greensToProcess==4), // boolean greens, // this is a pattern for combined greens (diagonal), adjust results accordingly
+						(!is_mono), //true, //(greensToProcess==4), // boolean greens, // this is a pattern for combined greens (diagonal), adjust results accordingly
 						title); // title prefix to use for debug  images
 
 				if (distortedPattern==null) return null;
@@ -2779,8 +2803,7 @@ public class EyesisAberrations {
 							" W1_phase="+IJ.d2s(distortedPattern[1][2],2));
 
 				}
-//				simulationPattern.simulatePatternFullPattern( // Not thread safe!
-						localBarray=simulationPattern.simulatePatternFullPatternSafe(
+				localBarray=simulationPattern.simulatePatternFullPatternSafe(
 						distortedPattern[0][0],
 						distortedPattern[0][1],
 						distortedPattern[0][2],
@@ -2789,7 +2812,7 @@ public class EyesisAberrations {
 						distortedPattern[1][2],
 						distortedPattern[2], //
 						simulParameters.subdiv,
-						fft_size,
+						fft_size, // FIXME?
 						simulParameters.center_for_g2,
 						false);//boolean mono
 				wVectors[0][0]=2.0*distortedPattern[0][0]/subpixel;
@@ -2831,17 +2854,19 @@ public class EyesisAberrations {
 						phases[1],
 						simCorr, //
 						simulParameters.subdiv,
-						fft_size,
+						fft_size, // FIXME!
 						simulParameters.center_for_g2,
 						false);//boolean mono
 			}
 			if (is_mono) {
 				simul_pixels= new double[1][];
+				// TODO: so many places to invert LWIR pattern... or not
 				simul_pixels[0]=  simulationPattern.extractSimulMono ( // TODO: can use twice smaller barray
 						localBarray,
+						invert_pattern,
 						simulParameters,
-						1,  // subdivide output pixels - now 4
-						fft_size*subpixel,    // number of Bayer cells in width of the square selection (half number of pixels)
+						subpixel, // 1,  // subdivide output pixels - now 4
+						full_fft_size, // fft_size*subpixel,    // number of Bayer cells in width of the square selection (half number of pixels)
 						0,    // selection center, X (in pixels)
 						0);
 			} else {
@@ -2849,33 +2874,34 @@ public class EyesisAberrations {
 						localBarray,		// this version is thread safe
 						simulParameters,
 						subpixel, // subdivide pixels
-						fft_size*subpixel, // number of Bayer cells in width of the square selection (half number of pixels)
+						full_fft_size, // fft_size*subpixel, // number of Bayer cells in width of the square selection (half number of pixels)
 						0.0,    // selection center, X (in pixels)
 						0.0);   // selection center, y (in pixels)
-			}
-			if (subpixel>1) {
-				if (colorComponents.colorsToCorrect[5])  simul_pixels=combineCheckerGreens (simul_pixels,   // pixel arrays after oversampleFFTInput() or extractSimulPatterns())
-						subpixel); // same as used in oversampleFFTInput() - oversampling ratio
-			}
-			for (i=0;i<simul_pixels.length; i++) {
-				if (!colorComponents.colorsToCorrect[i]) simul_pixels[i]=null; // removed unused
+				if (subpixel>1) {
+					if (colorComponents.colorsToCorrect[5])  simul_pixels=combineCheckerGreens (simul_pixels,   // pixel arrays after oversampleFFTInput() or extractSimulPatterns())
+							subpixel); // same as used in oversampleFFTInput() - oversampling ratio
+				}
+				for (i=0;i<simul_pixels.length; i++) {
+					if (!colorComponents.colorsToCorrect[i]) simul_pixels[i]=null; // removed unused
+				}
 			}
 			simul_pixels= normalizeAndWindow (simul_pixels, fullHamming);
 
-		} else { //if ((simArray==null) || (psfParameters.approximateGrid)){ // just for testing(never here?)
+		} else { //if ((simArray==null) || (psfParameters.approximateGrid)){ // never above?
 			Rectangle PSFCellSim = new Rectangle (
 					x0 * subpixel/2,
 					y0 * subpixel/2,
 					tile_size * subpixel/2,
 					tile_size * subpixel/2); // getting here
 			if (is_mono) {
+				//FIXME: Somewhere need to invert color for LWIR
 				simul_pixels=new double[1][];
-				simul_pixels[0]=simulationPattern.extractBayerSim (
+				simul_pixels[0]=simulationPattern.extractBayerSim ( // works with mono now
 						simArray, // [0] - regular pixels, [1] - shifted by 1/2 diagonally, for checker greens
 						imgWidth*subpixel/2,
 						PSFCellSim,
 						subpixel, // 4
-						-1); //New :  -1 - extract mono TODO: see if 1/2pix shift is needed
+						(invert_pattern? -2: -1)); //New :  -1 - extract mono TODO: see if 1/2pix shift is needed
 			} else {
 				simul_pixels=new double[6][];
 				for (i=0;i<simul_pixels.length; i++) {
@@ -2918,9 +2944,13 @@ public class EyesisAberrations {
 			wVectors[1]=matchSimulatedPattern.getDArray(iUV[1],iUV[0],2);
 
 			// should it be averaged WV?
-			if (globalDebugLevel>2) System.out.println ( " x0="+x0+" y0="+y0);
-			if (globalDebugLevel>2) SDFA_INSTANCE.showArrays(input_bayer_or_mono, true, title+"-in");
-			if (globalDebugLevel>2) SDFA_INSTANCE.showArrays(simul_pixels, true, title+"-S");
+			if (debugThis || (globalDebugLevel>2)) System.out.println ( " x0="+x0+" y0="+y0);
+			if (debugThis || (globalDebugLevel>2)) {
+				SDFA_INSTANCE.showArrays(input_bayer_or_mono, true, title+"-in");
+			}
+			if (debugThis || (globalDebugLevel>2)) {
+				SDFA_INSTANCE.showArrays(simul_pixels, true, title+"-S");
+			}
 
 			if (masterDebugLevel>1){
 				dbgSimPix=new double[simul_pixels.length][];
@@ -2933,28 +2963,42 @@ public class EyesisAberrations {
 		}
 
 		input_bayer_or_mono= normalizeAndWindow (input_bayer_or_mono, Hamming);
+		if (debugThis || (globalDebugLevel>2)) {
+			SDFA_INSTANCE.showArrays(input_bayer_or_mono, true, title+"-in-norm");
+		}
 		if (subpixel>1) {
-			input_bayer_or_mono= oversampleFFTInput (input_bayer_or_mono,subpixel);
-			if (colorComponents.colorsToCorrect[5])  input_bayer_or_mono=combineCheckerGreens (input_bayer_or_mono,   // pixel arrays after oversampleFFTInput() or extractSimulPatterns())
-					subpixel); // same as used in oversampleFFTInput() - oversampling ratio
+			if (is_mono) {
+				if (subpixel > 2) { // mono requires >1 !)
+					input_bayer_or_mono= oversampleFFTInput (input_bayer_or_mono, subpixel/2);
+				}
+			} else {
+				input_bayer_or_mono= oversampleFFTInput (input_bayer_or_mono,subpixel);
+				if (colorComponents.colorsToCorrect[5])  input_bayer_or_mono=combineCheckerGreens (input_bayer_or_mono,   // pixel arrays after oversampleFFTInput() or extractSimulPatterns())
+						subpixel); // same as used in oversampleFFTInput() - oversampling ratio
+			}
 		}
-		for (i=0;i<4;i++) if (!colorComponents.colorsToCorrect[i]) input_bayer_or_mono[i]=null; // leave composite greens even if disabled
-
+		if (!is_mono) {
+			for (i=0;i<4;i++) if (!colorComponents.colorsToCorrect[i]) input_bayer_or_mono[i]=null; // leave composite greens even if disabled
+		}
 		if (debugThis) {
-//			SDFA_INSTANCE.showArrays(input_bayer, fft_size*subpixel, fft_size*subpixel, title);
+//			SDFA_INSTANCE.showArrays(input_bayer_or_mono, full_fft_size, full_fft_size, title);
 		}
 
-		if (globalDebugLevel>2) System.out.println ( " input_bayer.length="+input_bayer_or_mono.length+" simul_pixels.length="+simul_pixels.length+" fft_size*subpixel="+fft_size*subpixel);
+		if (globalDebugLevel>2) System.out.println ( " input_bayer.length="+input_bayer_or_mono.length+" simul_pixels.length="+simul_pixels.length+" full_fft_size="+full_fft_size*subpixel);
 		for (i=0;(i<input_bayer_or_mono.length) && (i<simul_pixels.length);i++) if ((colorComponents.colorsToCorrect[i]) && (input_bayer_or_mono[i]!=null)){
 			if (globalDebugLevel>2) System.out.println ( "input_bayer["+i+"].length="+input_bayer_or_mono[i].length+" simul_pixels["+i+"].length="+simul_pixels[i].length);
 		}
 
-		if (debugThis) SDFA_INSTANCE.showArrays(input_bayer_or_mono, true, title+"-input");
-		if (debugThis) SDFA_INSTANCE.showArrays(simul_pixels, true, title+"-SIM");
+		if (debugThis) {
+			SDFA_INSTANCE.showArrays(input_bayer_or_mono, true, title+"-input");
+		}
+		if (debugThis) {
+			SDFA_INSTANCE.showArrays(simul_pixels, true, title+"-SIM");
+		}
 
 //if (globalDebugLevel>2)globalDebugLevel=0; //************************************************************
 
-		double [][] inverted=new double[colorComponents.colorsToCorrect.length][];
+		double [][] inverted=new double[is_mono? 1 : colorComponents.colorsToCorrect.length][];
 		double wvAverage=Math.sqrt(0.5*(wVectors[0][0]*wVectors[0][0]+wVectors[0][1]*wVectors[0][1]+
 				wVectors[1][0]*wVectors[1][0]+wVectors[1][1]*wVectors[1][1]));
 
@@ -2965,10 +3009,10 @@ public class EyesisAberrations {
 				inverted[i]=limitedInverseOfFHT(
 						input_bayer_or_mono[i],
 						simul_pixels[i],
-						fft_size*subpixel,
+						full_fft_size, // fft_size*subpixel,
 						(i==5),     //    boolean checker // checkerboard pattern in the source file (use when filtering)
 						true, //      forwardOTF,
-						subpixel,
+						(subpixel / (is_mono? 2 : 1)),
 						otfFilterParameters,
 						fht_instance,
 						psfParameters.mask1_sigma * (fft_size * 2) * wvAverage,      // normalize to wave vectors!
@@ -2976,12 +3020,14 @@ public class EyesisAberrations {
 						psfParameters.gaps_sigma * (fft_size * 2) * wvAverage,     // normalize to wave vectors!
 						psfParameters.mask_denoise,
 						debug,
-						globalDebugLevel,
+						(globalDebugLevel + (debugThis? 3:0)),
 						title+"-"+i);
 			}
 		}
 		int debugThreshold=1;
-		if (debugThis) SDFA_INSTANCE.showArrays(inverted, fft_size*subpixel, fft_size*subpixel, title+"_Combined-PSF");
+		if (debugThis) {
+			SDFA_INSTANCE.showArrays(inverted, title+"_Combined-PSF"); // Here OK with mono
+		}
 /* correct composite greens */
 /* Here we divide wave vectors by subpixel as the pixels are already added */
 		double [][] wVrotMatrix= {{0.5,0.5},{-0.5,0.5}};
@@ -3000,7 +3046,7 @@ public class EyesisAberrations {
 		double [] lateralChromaticAbs =   new double [input_bayer_or_mono.length];
 		double [] zeroVector={0.0,0.0};
 		for (i=input_bayer_or_mono.length-1;i>=0;i--) {
-			if (colorComponents.colorsToCorrect[i]) {
+			if (is_mono || colorComponents.colorsToCorrect[i]) {
 				PSF_shifts[i]=       zeroVector.clone();
 				PSF_centroids[i]=    zeroVector.clone();
 				lateralChromatic[i]= zeroVector.clone();
@@ -3127,7 +3173,9 @@ public class EyesisAberrations {
 				debugSize=(int)Math.sqrt(kernels[ii].length);
 				break;
 			}
-			if (debugSize>0) SDFA_INSTANCE.showArrays(kernels, debugSize, debugSize, title+"_KERNELS");
+			if (debugSize>0) {
+				SDFA_INSTANCE.showArrays(kernels, debugSize, debugSize, title+"_KERNELS");
+			}
 		}
 		return kernels;
 	}
@@ -3183,7 +3231,8 @@ public class EyesisAberrations {
 
 	/* ======================================================================== */
 
-	private double[] limitedInverseOfFHT(double [] measuredPixels,  // measured pixel array
+	private double[] limitedInverseOfFHT(
+			double [] measuredPixels,  // measured pixel array
 			double [] modelPixels,  // simulated (model) pixel array)
 			int size,  // FFT size
 			boolean checker,  // checkerboard pattern in the source file (use when filtering)
@@ -3198,7 +3247,8 @@ public class EyesisAberrations {
 			int debug,
 			int globalDebugLevel,
 			String title){ // title base for optional plots names
-		return limitedInverseOfFHT(measuredPixels,
+		return limitedInverseOfFHT(
+				measuredPixels,
 				modelPixels,
 				size,
 				checker,
@@ -3369,11 +3419,20 @@ public class EyesisAberrations {
 				double threshold_low,  // leave intact if energy is below this part of maximal
 				DoubleFHT fht_instance,
 				int globalDebugLevel){ // provide DoubleFHT instance to save on initializations (or null)
-			double th=threshold_high*threshold_high;
-			double tl=threshold_low*threshold_low;
 
 			int length=fht.length;
 			int size=(int) Math.sqrt(fht.length);
+// temporary fix to match original parameters for size = 10254 (LWIR - 64)
+
+//			double threshold_high_mod = threshold_high * 1024/size;
+//			double threshold_low_mod = threshold_low *   1024/size;
+
+//			double th=threshold_high_mod * threshold_high_mod;
+//			double tl=threshold_low_mod *  threshold_low_mod;
+
+			double th=threshold_high * threshold_high;
+			double tl=threshold_low *  threshold_low;
+
 			//	double [][] ps=new double [size/2+1][size];
 			int i,ix,iy, cloneNx, cloneNy, cloneX, cloneY;
 			int cloneStep=size/oversample;
@@ -3384,7 +3443,9 @@ public class EyesisAberrations {
 			for (i=0;i<length; i++) if (psMax<ps[i]) psMax=ps[i];
 			double k=1.0/psMax;
 			for (i=0;i<length; i++) ps[i]*=k;
-			if (globalDebugLevel>2) SDFA_INSTANCE.showArrays(ps, "PS");
+			if (globalDebugLevel>2) {
+				SDFA_INSTANCE.showArrays(ps, "PS");
+			}
 	/* Add maximum at (0,0) */
 			double [] psWithZero=ps;
 			if (zerofreq_size>0.0) {
@@ -3412,11 +3473,15 @@ public class EyesisAberrations {
 					}
 			}
 	/* debug show the mask */
-			if (globalDebugLevel>2) SDFA_INSTANCE.showArrays(mask, "PS-cloned");
+			if (globalDebugLevel>2) {
+				SDFA_INSTANCE.showArrays(mask, "PS-cloned");
+			}
 			if (sigma>0) {
 				DoubleGaussianBlur gb = new DoubleGaussianBlur();
 				gb.blurDouble(mask,size,size,sigma,sigma, 0.01);
-				if (globalDebugLevel>2) SDFA_INSTANCE.showArrays(mask, "PS-smooth");
+				if (globalDebugLevel>2) {
+					SDFA_INSTANCE.showArrays(mask, "PS-smooth");
+				}
 			}
 
 	/* make mask of cloned power spectrums */
@@ -3437,7 +3502,9 @@ public class EyesisAberrations {
 					mask[i]*=ps[i]/(ps[i]+k2);
 				}
 			}
-			if (globalDebugLevel>2) SDFA_INSTANCE.showArrays(mask, "mask-all");
+			if (globalDebugLevel>2) {
+				SDFA_INSTANCE.showArrays(mask, "mask-all");
+			}
 			/* zeros are now for FHT - in the top left corner */
 			fht_instance.swapQuadrants(mask);
 			return mask;
@@ -3509,6 +3576,9 @@ public class EyesisAberrations {
 				int debugLevel)
 		{
 			if (pixels==null) return null;
+//			if (centroid_xy == null) {
+//				return null; // debugging LWIR, never before
+//			}
 			//    double [] contrastCache=new double[pixelSize*pixelSize];
 			int i,j;
 
@@ -4251,7 +4321,11 @@ public class EyesisAberrations {
 						else       listIndex++;     // increase list index
 					}
 					if (maxValue==0.0) { // Should
-						if (!noThreshold) System.out.println("findClusterOnPSF: - should not get here - no points around >0, and threshold is not reached yet.");
+						if (!noThreshold) {
+							SDFA_INSTANCE.showArrays(psf, title+"-failed_cluster");
+							System.out.println("findClusterOnPSF: - should not get here - no points around >0, and threshold is not reached yet."+
+							" startX="+startX+" startY="+startY);
+						}
 						break;
 					}
 		/* Add this new point to the list */

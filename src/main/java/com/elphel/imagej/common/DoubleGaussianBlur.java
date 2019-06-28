@@ -2,8 +2,8 @@ package com.elphel.imagej.common;
 /**
  * The code below is extracted form ImageJ plugin GaussianBlur.java, stripped of ImageProcessor and used (double) instead of (float) arrays.
  * The following are notes from the original file:
- *    
- *  
+ *
+ *
  *  This plug-in filter uses convolution with a Gaussian function for smoothing.
  * 'Radius' means the radius of decay to exp(-0.5) ~ 61%, i.e. the standard
  * deviation sigma of the Gaussian (this is the same as in Photoshop, but
@@ -20,7 +20,7 @@ package com.elphel.imagej.common;
  * - For increased speed, except for small blur radii, the lines (rows or
  * columns of the image) are downscaled before convolution and upscaled
  * to their original length thereafter.
- * 
+ *
  * Version 03-Jun-2007 M. Schmid with preview, progressBar stack-aware,
  * snapshot via snapshot flag; restricted range for resetOutOfRoi
  *
@@ -39,12 +39,12 @@ public class DoubleGaussianBlur {
     private int nPasses = 1;            // The number of passes (filter directions * color channels * stack slices)
 //	private int nChannels = 1;        // The number of color channels
     private int pass;                   // Current pass
-    
+
     /* Default constructor */
     public DoubleGaussianBlur() {
     }
-	
-	
+
+
 	  public void blurDouble(double[] pixels,
 			                 int width,
 			                 int height,
@@ -64,7 +64,7 @@ public class DoubleGaussianBlur {
 	     * @param sigma     Standard deviation of the Gaussian
 	     * @param accuracy  Accuracy of kernel, should not be > 0.02
 	     * @param xDirection True for blurring in x direction, false for y direction
-	     * @param extraLines Number of lines (parallel to the blurring direction) 
+	     * @param extraLines Number of lines (parallel to the blurring direction)
 	     *                  below and above the roi bounds that should be processed.
 	     */
 	    public void blur1Direction(double [] pixels,
@@ -73,7 +73,7 @@ public class DoubleGaussianBlur {
 	    		                   double     sigma,
 	    		                   double   accuracy,
 	                               boolean xDirection
-//	                               int extraLines 
+//	                               int extraLines
 	                               ) {
 	        final int UPSCALE_K_RADIUS = 2;             //number of pixels to add for upscaling
 	        final double MIN_DOWNSCALED_SIGMA = 4.;     //minimum standard deviation in the downscaled image
@@ -171,7 +171,7 @@ public class DoubleGaussianBlur {
 	        if (kRadius > maxRadius) kRadius = maxRadius;
 	        double[][] kernel = new double[2][kRadius];
 	        for (int i=0; i<kRadius; i++)               // Gaussian function
-	            kernel[0][i] = (double)(Math.exp(-0.5*i*i/sigma/sigma));
+	            kernel[0][i] = (Math.exp(-0.5*i*i/sigma/sigma));
 	        if (kRadius < maxRadius && kRadius > 3) {   // edge correction
 	            double sqrtSlope = Double.MAX_VALUE;
 	            int r = kRadius;
@@ -184,7 +184,7 @@ public class DoubleGaussianBlur {
 	                    break;
 	            }
 	            for (int r1 = r+2; r1 < kRadius; r1++)
-	                kernel[0][r1] = (double)((kRadius-r1)*(kRadius-r1)*sqrtSlope*sqrtSlope);
+	                kernel[0][r1] = (kRadius-r1)*(kRadius-r1)*sqrtSlope*sqrtSlope;
 	        }
 	        double sum;                                 // sum over all kernel elements for normalization
 	        if (kRadius < maxRadius) {
@@ -193,13 +193,13 @@ public class DoubleGaussianBlur {
 	                sum += 2*kernel[0][i];
 	        } else
 	            sum = sigma * Math.sqrt(2*Math.PI);
-	        
+
 	        double rsum = 0.5 + 0.5*kernel[0][0]/sum;
 	        for (int i=0; i<kRadius; i++) {
 	            double v = (kernel[0][i]/sum);
-	            kernel[0][i] = (double)v;
+	            kernel[0][i] = v;
 	            rsum -= v;
-	            kernel[1][i] = (double)rsum;
+	            kernel[1][i] = rsum;
 	            //IJ.log("k["+i+"]="+(float)v+" sum="+(float)rsum);
 	        }
 	        return kernel;
@@ -213,6 +213,10 @@ public class DoubleGaussianBlur {
 	     */
 	    void downscaleLine(double[] pixels, double[] cache, double[] kernel,
 	            int reduceBy, int pixel0, int unscaled0, int length, int pointInc, int newLength) {
+	    	if (pixel0 > pixels.length) {
+	    		System.out.println("++++++ Error in DoubleGaussianBlur, pixel0="+pixel0+", pixels.length="+(pixels.length));
+	    		return;
+	    	}
 	        double first = pixels[pixel0];
 	        double last = pixels[pixel0 + pointInc*(length-1)];
 	        int xin = unscaled0 - reduceBy/2;
@@ -241,13 +245,13 @@ public class DoubleGaussianBlur {
 	        double[] kernel = new double[3*unitLength];
 	        for (int i=0; i<=unitLength/2; i++) {
 	            double x = i/(double)unitLength;
-	            double v = (double)((0.75-x*x)/unitLength);
+	            double v = (0.75-x*x)/unitLength;
 	            kernel[mid-i] = v;
 	            kernel[mid+i] = v;
 	        }
 	        for (int i=unitLength/2+1; i<(unitLength*3+1)/2; i++) {
 	            double x = i/(double)unitLength;
-	            double v = (double)((0.125 + 0.5*(x-1)*(x-2))/unitLength);
+	            double v = (0.125 + 0.5*(x-1)*(x-2))/unitLength;
 	            kernel[mid-i] = v;
 	            kernel[mid+i] = v;
 	        }
@@ -284,13 +288,13 @@ public class DoubleGaussianBlur {
 	        kernel[0] = 0;
 	        for (int i=0; i<unitLength; i++) {
 	            double x = i/(double)unitLength;
-	            double v = (double)((2./3. -x*x*(1-0.5*x)));
+	            double v = ((2./3. -x*x*(1-0.5*x)));
 	            kernel[mid+i] = v;
 	            kernel[mid-i] = v;
 	        }
 	        for (int i=unitLength; i<2*unitLength; i++) {
 	            double x = i/(double)unitLength;
-	            double v = (double)((2.-x)*(2.-x)*(2.-x)/6.);
+	            double v = (2.-x)*(2.-x)*(2.-x)/6.;
 	            kernel[mid+i] = v;
 	            kernel[mid-i] = v;
 	        }
@@ -350,7 +354,7 @@ public class DoubleGaussianBlur {
 	                result += kern[k] * (input[i-k] + input[i+k]);
 	            pixels[p] = result;
 	        }
-	        for (; i<writeTo; i++,p+=pointInc) {    //while the sum would include pixels >= length 
+	        for (; i<writeTo; i++,p+=pointInc) {    //while the sum would include pixels >= length
 	            double result = input[i]*kern0;
 	            if (i<kRadius) result += kernSum[i]*first;
 	            if (i+kRadius>=length) result += kernSum[length-i-1]*last;

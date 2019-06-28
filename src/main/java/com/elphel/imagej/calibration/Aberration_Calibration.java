@@ -208,12 +208,21 @@ public class Aberration_Calibration extends PlugInFrame implements ActionListene
 
 
 	public static EyesisAberrations.OTFFilterParameters OTF_FILTER = new  EyesisAberrations.OTFFilterParameters(
-			0.008, // deconvInvert - when FFT component is less than this fraction of the maximal value, replace 1/z with Z
-			2.0,   // zerofreqSize - used for filtering oversampling artifacts - size of zero freq maximum (if absent on simulated model PS)
-			2.5,   // smoothPS - smooth model PS for rejecting aliases (0 - no smooth, >0 additional Gauss before FFT smaller than normal by this ratio)
+			0.002, // deconvInvert - when FFT component is less than this fraction of the maximal value, replace 1/z with Z
+			1.0,   // zerofreqSize - used for filtering oversampling artifacts - size of zero freq maximum (if absent on simulated model PS)
+			1.25,   // smoothPS - smooth model PS for rejecting aliases (0 - no smooth, >0 additional Gauss before FFT smaller than normal by this ratio)
 			0.02,  // thresholdHigh -used for filtering oversampling artifacts - relative to max PS value to make filter completely rejecting
 			0.002  // thresholdLow - used for filtering oversampling artifacts - relative to max PS to make filter completely transmissive
 	);
+
+	public static EyesisAberrations.OTFFilterParameters OTF_FILTER_LWIR = new  EyesisAberrations.OTFFilterParameters(
+			0.01,  // deconvInvert - when FFT component is less than this fraction of the maximal value, replace 1/z with Z
+			1.0,   // zerofreqSize - used for filtering oversampling artifacts - size of zero freq maximum (if absent on simulated model PS)
+			1.25,  // smoothPS - smooth model PS for rejecting aliases (0 - no smooth, >0 additional Gauss before FFT smaller than normal by this ratio)
+			0.2,   // thresholdHigh -used for filtering oversampling artifacts - relative to max PS value to make filter completely rejecting
+			0.05   // thresholdLow - used for filtering oversampling artifacts - relative to max PS to make filter completely transmissive
+	);
+
 
 	public static MatchSimulatedPattern.PatternDetectParameters PATTERN_DETECT = new MatchSimulatedPattern.PatternDetectParameters (
 			0.4, // GAUSS_WIDTH=    0.4; //0 - use Hamming window - initWindowFunction()
@@ -1185,7 +1194,7 @@ if (MORE_BUTTONS) {
 			return;
 /* ======================================================================== */
 		} else if (label.equals("Conf. OTF Filter")) {
-			showOTFFilterParametersDialog(OTF_FILTER);
+			showOTFFilterParametersDialog(OTF_FILTER, OTF_FILTER_LWIR); // second may be null
 			return;
 /* ======================================================================== */
 		} else if (label.equals("Conf. Interpolation")) {
@@ -9168,7 +9177,8 @@ if (MORE_BUTTONS) {
 //					FFT_OVERLAP, ////int            fft_overlap,
 //					FFT_SIZE, //int               fft_size,
 					PSF_SUBPIXEL, // //int           PSF_subpixel,
-					OTF_FILTER, // //OTFFilterParameters otfFilterParameters,
+					OTF_FILTER,      // OTFFilterParameters otfFilterParameters,
+					OTF_FILTER_LWIR, //OTFFilterParameters otfFilterParameters_lwir,
 					PSF_PARS, //PSFParameters psfParameters,
 					INVERSE.dSize, //int          PSFKernelSize, // size of square used in the new map (should be multiple of map step)
 
@@ -15516,6 +15526,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
     	boolean select_INVERSE=!select;
     	boolean select_PSF_PARS=!select;
     	boolean select_OTF_FILTER=!select;
+    	boolean select_OTF_FILTER_LWIR=!select;
     	boolean select_PATTERN_DETECT=!select;
     	boolean select_COMPONENTS=!select;
     	boolean select_SHOW_RESULTS=!select;
@@ -15557,6 +15568,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
         	gd.addCheckbox("INVERSE",select_INVERSE);
         	gd.addCheckbox("PSF_PARS",select_PSF_PARS);
         	gd.addCheckbox("OTF_FILTER",select_OTF_FILTER);
+        	gd.addCheckbox("OTF_FILTER_LWIR",select_OTF_FILTER_LWIR);
         	gd.addCheckbox("PATTERN_DETECT",select_PATTERN_DETECT);
         	gd.addCheckbox("COMPONENTS",select_COMPONENTS);
         	gd.addCheckbox("SHOW_RESULTS",select_SHOW_RESULTS);
@@ -15599,6 +15611,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
         	select_INVERSE=gd.getNextBoolean();
         	select_PSF_PARS=gd.getNextBoolean();
         	select_OTF_FILTER=gd.getNextBoolean();
+        	select_OTF_FILTER_LWIR=gd.getNextBoolean();
         	select_PATTERN_DETECT=gd.getNextBoolean();
         	select_COMPONENTS=gd.getNextBoolean();
         	select_SHOW_RESULTS=gd.getNextBoolean();
@@ -15638,7 +15651,8 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
         if (select_INTERPOLATE) INTERPOLATE.setProperties(       "INTERPOLATE.", properties);
         if (select_INVERSE) INVERSE.setProperties(           "INVERSE.", properties);
         if (select_PSF_PARS) PSF_PARS.setProperties(          "PSF_PARS.", properties);
-        if (select_OTF_FILTER) OTF_FILTER.setProperties(        "OTF_FILTER.", properties);
+        if (select_OTF_FILTER) OTF_FILTER.setProperties(         "OTF_FILTER.", properties);
+        if (select_OTF_FILTER) OTF_FILTER_LWIR.setProperties(    "OTF_FILTER_LWIR.", properties);
         if (select_PATTERN_DETECT) PATTERN_DETECT.setProperties(    "PATTERN_DETECT.", properties);
         if (select_COMPONENTS) COMPONENTS.setProperties(        "COMPONENTS.", properties);
         if (select_SHOW_RESULTS) SHOW_RESULTS.setProperties(      "SHOW_RESULTS.", properties);
@@ -15682,6 +15696,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
        INVERSE.getProperties("INVERSE.", properties);
        PSF_PARS.getProperties("PSF_PARS.", properties);
        OTF_FILTER.getProperties("OTF_FILTER.", properties);
+       OTF_FILTER_LWIR.getProperties("OTF_FILTER_LWIR.", properties);
        PATTERN_DETECT.getProperties("PATTERN_DETECT.", properties);
        COMPONENTS.getProperties("COMPONENTS.", properties);
        SHOW_RESULTS.getProperties("SHOW_RESULTS.", properties);
@@ -20391,13 +20406,29 @@ use the result to create a rejectiobn mask - if the energy was high, (multiplica
 /* ======================================================================== */
 /* ======================================================================== */
 /**TODO: add variable gaussian filter to direct psf */
-	public boolean showOTFFilterParametersDialog(EyesisAberrations.OTFFilterParameters otfFilterParameters) {
+	public boolean showOTFFilterParametersDialog(
+			EyesisAberrations.OTFFilterParameters otfFilterParameters,
+			EyesisAberrations.OTFFilterParameters otfFilterParameters_lwir) {
 		GenericDialog gd = new GenericDialog("OTF Filter parameters");
+		if (otfFilterParameters_lwir!=null) {
+			gd.addMessage("EO (high-res color) sensors:");
+		}
 		gd.addNumericField("Invert deconvolution if less than",                           otfFilterParameters.deconvInvert, 3);
 		gd.addNumericField("OTF zero frequency size on power spectrum ",                  otfFilterParameters.zerofreqSize, 3); //2.0;
 		gd.addNumericField("OTF smouth PS to generate alias rejection mask (0 - none)",   otfFilterParameters.smoothPS,      3); //2.5 - smooth model PS for rejecting aliases (0 - no smouth, >0 additional Gauss )
 		gd.addNumericField("OTF relative high value of PS for rejection mask ",           otfFilterParameters.thresholdHigh, 3); //0.1
 		gd.addNumericField("OTF relative low  value of PS for rejection mask ",           otfFilterParameters.thresholdLow,  3); //0.01; // when FFT component is less than this fraction of the maximal value, replace 1/z with Z
+		if (otfFilterParameters_lwir!=null) {
+			gd.addMessage("LWIR (low-res mono) sensors:");
+			gd.addNumericField("Invert deconvolution if less than",                           otfFilterParameters_lwir.deconvInvert, 3);
+			gd.addNumericField("OTF zero frequency size on power spectrum ",                  otfFilterParameters_lwir.zerofreqSize, 3); //2.0;
+			gd.addNumericField("OTF smouth PS to generate alias rejection mask (0 - none)",   otfFilterParameters_lwir.smoothPS,      3); //2.5 - smooth model PS for rejecting aliases (0 - no smouth, >0 additional Gauss )
+			gd.addNumericField("OTF relative high value of PS for rejection mask ",           otfFilterParameters_lwir.thresholdHigh, 3); //0.1
+			gd.addNumericField("OTF relative low  value of PS for rejection mask ",           otfFilterParameters_lwir.thresholdLow,  3); //0.01; // when FFT component is less than this fraction of the maximal value, replace 1/z with Z
+		}
+
+
+
 		gd.showDialog();
 		if (gd.wasCanceled()) return false;
 		otfFilterParameters.deconvInvert=        gd.getNextNumber();
@@ -20405,6 +20436,13 @@ use the result to create a rejectiobn mask - if the energy was high, (multiplica
 		otfFilterParameters.smoothPS=            gd.getNextNumber();
 		otfFilterParameters.thresholdHigh=       gd.getNextNumber();
 		otfFilterParameters.thresholdLow=        gd.getNextNumber();
+		if (otfFilterParameters_lwir!=null) {
+			otfFilterParameters_lwir.deconvInvert=        gd.getNextNumber();
+			otfFilterParameters_lwir.zerofreqSize=        gd.getNextNumber();
+			otfFilterParameters_lwir.smoothPS=            gd.getNextNumber();
+			otfFilterParameters_lwir.thresholdHigh=       gd.getNextNumber();
+			otfFilterParameters_lwir.thresholdLow=        gd.getNextNumber();
+		}
 		return true;
 	}
 /* ======================================================================== */
