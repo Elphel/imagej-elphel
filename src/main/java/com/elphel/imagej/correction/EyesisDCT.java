@@ -281,6 +281,8 @@ public class EyesisDCT {
 			){
 		String [] sharpKernelPaths= correctionsParameters.selectKernelChannelFiles(
 				0,  // 0 - sharp, 1 - smooth
+				  correctionsParameters.firstSubCameraConfig,
+//				  correctionsParameters.numSubCameras,
 				eyesisCorrections.usedChannels.length, // numChannels, // number of channels
 				eyesisCorrections.debugLevel);
 		if (sharpKernelPaths==null) return false;

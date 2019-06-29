@@ -867,7 +867,9 @@ public class QuadCLT {
 
 		  String [] sharpKernelPaths= correctionsParameters.selectKernelChannelFiles(
 				  0,  // 0 - sharp, 1 - smooth
-				  eyesisCorrections.usedChannels.length, // numChannels, // number of channels
+				  correctionsParameters.firstSubCameraConfig,
+				  correctionsParameters.numSubCameras,
+//				  eyesisCorrections.usedChannels.length, // numChannels, // number of channels
 				  eyesisCorrections.debugLevel);
 		  if (sharpKernelPaths==null) return false;
 		  for (int i=0;i<sharpKernelPaths.length;i++){
@@ -884,8 +886,8 @@ public class QuadCLT {
 		  for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
 			  if (eyesisCorrections.usedChannels[chn] && (sharpKernelPaths[chn]!=null) && (clt_kernels[chn]==null)){
 				  ImagePlus imp_kernel_sharp=new ImagePlus(sharpKernelPaths[chn]);
-				  if (imp_kernel_sharp.getStackSize()<3) {
-					  System.out.println("Need a 3-layer stack with kernels");
+				  if ((imp_kernel_sharp.getStackSize()<3) && (imp_kernel_sharp.getStackSize() != 1)) {
+					  System.out.println("Need a 3-layer stack with Bayer or single for mono kernels");
 					  sharpKernelPaths[chn]=null;
 					  continue;
 				  }
@@ -913,18 +915,20 @@ public class QuadCLT {
 				  int tileWidth =  2 * dtt_size;
 				  int width =  tileWidth *  kernelNumHor;
 				  int height = flat_kernels[0].length/width;
-
 				  String [] layerNames = {"red_clt_kernels","blue_clt_kernels","green_clt_kernels"};
+				  if (flat_kernels.length ==1){
+					  layerNames = new String[1];
+					  layerNames[0] = "mono_clt_kernels";
+				  }
 				  ImageStack cltStack = sdfa_instance.makeStack(
 						  flat_kernels,
 						  width,
 						  height,
 						  layerNames);
-
 				  String cltPath=correctionsParameters.cltKernelDirectory+
 						  Prefs.getFileSeparator()+
 						  correctionsParameters.cltKernelPrefix+
-						  String.format("%02d",chn)+
+						  String.format("%02d",chn + correctionsParameters.firstSubCameraConfig)+
 						  correctionsParameters.cltSuffix;
 				  String msg="Saving CLT convolution kernels to "+cltPath;
 				  IJ.showStatus(msg);
@@ -935,7 +939,8 @@ public class QuadCLT {
 					  imp_clt.show();
 				  }
 				  FileSaver fs=new FileSaver(imp_clt);
-				  fs.saveAsTiffStack(cltPath); // directory does not exist
+//				  fs.saveAsTiffStack(cltPath); // directory does not exist
+				  fs.saveAsTiff(cltPath); // directory does not exist
 			  }
 		  }
 		  return true;
@@ -951,6 +956,7 @@ public class QuadCLT {
 			  ){
 		  int dtt_size = clt_parameters.transform_size;
 		  String [] cltKernelPaths = correctionsParameters.selectCLTChannelFiles(
+				  correctionsParameters.firstSubCameraConfig,
 				  //					0,  // 0 - sharp, 1 - smooth
 				  eyesisCorrections.usedChannels.length, // numChannels, // number of channels
 				  eyesisCorrections.debugLevel);
@@ -974,8 +980,8 @@ public class QuadCLT {
 		  for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
 			  if (eyesisCorrections.usedChannels[chn] && (cltKernelPaths[chn]!=null)){
 				  ImagePlus imp_kernel_clt=new ImagePlus(cltKernelPaths[chn]);
-				  if (imp_kernel_clt.getStackSize()<3) {
-					  System.out.println("Need a 3-layer stack with symmetrical DCT kernels");
+				  if ((imp_kernel_clt.getStackSize()< 3) && (imp_kernel_clt.getStackSize()!= 1))   {
+					  System.out.println("Need a 3-layer stack or Bayer and 1-layer for mono with CLT kernels");
 					  cltKernelPaths[chn]=null;
 					  continue;
 				  }

@@ -94,6 +94,7 @@ public class EyesisCorrectionParameters {
     	public String sourceDirectory=         "";
     	public String sourcePrefix=            "";
     	public String sourceSuffix=            ".tiff"; //".jp4"
+    	public int    firstSubCameraConfig=    0; // channel index in config (sensor, clt) files
     	public int    firstSubCamera=          1; // channel index in source file names
     	public int    numSubCameras=           4; // channel index in source file names
     	public String sensorDirectory=         "";
@@ -300,6 +301,7 @@ public class EyesisCorrectionParameters {
   			cp.cltKernelDirectory=    	""; // this.cltKernelDirectory;
   			cp.resultsDirectory=    	this.resultsDirectory+"/aux";
   			cp.firstSubCamera=    	    this.firstSubCamera + this.numSubCameras;
+  			cp.firstSubCameraConfig=    this.firstSubCameraConfig; //  + this.numSubCameras; so old setups will have it zero
   			cp.numSubCameras=    	    this.numSubCameras;
   			cp.sensorPrefix=            ""; // this.sensorPrefix;
   			cp.sensorSuffix=      	    this.sensorSuffix;
@@ -310,16 +312,17 @@ public class EyesisCorrectionParameters {
     	}
 
 		public void auxFromExternal(CorrectionParameters ecp) { // from master to aux
-			this.aux_camera.sensorDirectory=    ecp.sensorDirectory;
-			this.aux_camera.cltKernelDirectory= ecp.cltKernelDirectory;
-			this.aux_camera.resultsDirectory=   ecp.resultsDirectory+"/aux";
-			this.aux_camera.firstSubCamera=    	ecp.firstSubCamera;
-			this.aux_camera.numSubCameras=    	ecp.numSubCameras;
-			this.aux_camera.sensorPrefix=       ecp.sensorPrefix;
-			this.aux_camera.sensorSuffix=      	ecp.sensorSuffix;
-			this.aux_camera.cltKernelPrefix=    ecp.cltKernelPrefix;
-			this.aux_camera.cltSuffix=          ecp.cltSuffix;
-			this.aux_camera.x3dSubdirSuffix=    ecp.x3dSubdirSuffix + "-aux";
+			this.aux_camera.sensorDirectory=      ecp.sensorDirectory;
+			this.aux_camera.cltKernelDirectory=   ecp.cltKernelDirectory;
+			this.aux_camera.resultsDirectory=     ecp.resultsDirectory+"/aux";
+			this.aux_camera.firstSubCamera=       ecp.firstSubCamera;
+			this.aux_camera.firstSubCameraConfig= ecp.firstSubCameraConfig;
+			this.aux_camera.numSubCameras=    	  ecp.numSubCameras;
+			this.aux_camera.sensorPrefix=         ecp.sensorPrefix;
+			this.aux_camera.sensorSuffix=      	  ecp.sensorSuffix;
+			this.aux_camera.cltKernelPrefix=      ecp.cltKernelPrefix;
+			this.aux_camera.cltSuffix=            ecp.cltSuffix;
+			this.aux_camera.x3dSubdirSuffix=      ecp.x3dSubdirSuffix + "-aux";
     	}
 
 
@@ -364,6 +367,7 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"sourcePrefix",this.sourcePrefix);
     		properties.setProperty(prefix+"sourceSuffix",this.sourceSuffix);
     		properties.setProperty(prefix+"firstSubCamera",this.firstSubCamera+"");
+    		properties.setProperty(prefix+"firstSubCameraConfig",this.firstSubCameraConfig+"");
     		properties.setProperty(prefix+"numSubCameras", this.numSubCameras+"");
 
     		properties.setProperty(prefix+"sensorDirectory",this.sensorDirectory);
@@ -458,18 +462,18 @@ public class EyesisCorrectionParameters {
     		if (aux_camera != null) { // always
         		updateAuxFromMain();
     			String aux_prefix = prefix + AUX_PREFIX;
-        		properties.setProperty(aux_prefix+"sensorDirectory",    this.aux_camera.sensorDirectory);
-        		properties.setProperty(aux_prefix+"cltKernelDirectory", this.aux_camera.cltKernelDirectory);
-        		properties.setProperty(aux_prefix+"resultsDirectory",   this.aux_camera.resultsDirectory);
-        		properties.setProperty(aux_prefix+"firstSubCamera",     this.aux_camera.firstSubCamera+"");
-        		properties.setProperty(aux_prefix+"numSubCameras",      this.aux_camera.numSubCameras+"");
-        		properties.setProperty(aux_prefix+"sensorPrefix",       this.aux_camera.sensorPrefix);
-        		properties.setProperty(aux_prefix+"sensorSuffix",       this.aux_camera.sensorSuffix);
-        		properties.setProperty(aux_prefix+"cltKernelPrefix",    this.aux_camera.cltKernelPrefix);
-        		properties.setProperty(aux_prefix+"cltSuffix",          this.aux_camera.cltSuffix);
-        		properties.setProperty(aux_prefix+"x3dSubdirSuffix",    this.aux_camera.x3dSubdirSuffix);
+        		properties.setProperty(aux_prefix+"sensorDirectory",      this.aux_camera.sensorDirectory);
+        		properties.setProperty(aux_prefix+"cltKernelDirectory",   this.aux_camera.cltKernelDirectory);
+        		properties.setProperty(aux_prefix+"resultsDirectory",     this.aux_camera.resultsDirectory);
+        		properties.setProperty(aux_prefix+"firstSubCamera",       this.aux_camera.firstSubCamera+"");
+        		properties.setProperty(aux_prefix+"firstSubCameraConfig", this.aux_camera.firstSubCameraConfig+"");
+        		properties.setProperty(aux_prefix+"numSubCameras",        this.aux_camera.numSubCameras+"");
+        		properties.setProperty(aux_prefix+"sensorPrefix",         this.aux_camera.sensorPrefix);
+        		properties.setProperty(aux_prefix+"sensorSuffix",         this.aux_camera.sensorSuffix);
+        		properties.setProperty(aux_prefix+"cltKernelPrefix",      this.aux_camera.cltKernelPrefix);
+        		properties.setProperty(aux_prefix+"cltSuffix",            this.aux_camera.cltSuffix);
+        		properties.setProperty(aux_prefix+"x3dSubdirSuffix",      this.aux_camera.x3dSubdirSuffix);
     		}
-
     	}
 
     	public void getProperties(String prefix,Properties properties){
@@ -512,6 +516,7 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"sourcePrefix")!=         null) this.sourcePrefix=properties.getProperty(prefix+"sourcePrefix");
 			if (properties.getProperty(prefix+"sourceSuffix")!=         null) this.sourceSuffix=properties.getProperty(prefix+"sourceSuffix");
   		    if (properties.getProperty(prefix+"firstSubCamera")!=       null) this.firstSubCamera=Integer.parseInt(properties.getProperty(prefix+"firstSubCamera"));
+  		    if (properties.getProperty(prefix+"firstSubCameraConfig")!= null) this.firstSubCameraConfig=Integer.parseInt(properties.getProperty(prefix+"firstSubCameraConfig"));
   		    if (properties.getProperty(prefix+"numSubCameras")!=        null) this.numSubCameras=Integer.parseInt(properties.getProperty(prefix+"numSubCameras"));
 			if (properties.getProperty(prefix+"sensorDirectory")!=      null) this.sensorDirectory=properties.getProperty(prefix+"sensorDirectory");
 			if (properties.getProperty(prefix+"sensorPrefix")!=         null) this.sensorPrefix=properties.getProperty(prefix+"sensorPrefix");
@@ -608,16 +613,17 @@ public class EyesisCorrectionParameters {
     		// copy common parameters to the auxiliary camera ones
     		updateAuxFromMain();
 			String aux_prefix = prefix + AUX_PREFIX;
-			if (properties.getProperty(aux_prefix+"sensorDirectory")!=    null) this.aux_camera.sensorDirectory=properties.getProperty(aux_prefix+"sensorDirectory");
-			if (properties.getProperty(aux_prefix+"cltKernelDirectory")!= null) this.aux_camera.cltKernelDirectory=properties.getProperty(aux_prefix+"cltKernelDirectory");
-			if (properties.getProperty(aux_prefix+"resultsDirectory")!=   null) this.aux_camera.resultsDirectory=properties.getProperty(aux_prefix+"resultsDirectory");
-  		    if (properties.getProperty(aux_prefix+"firstSubCamera")!=     null) this.aux_camera.firstSubCamera=Integer.parseInt(properties.getProperty(aux_prefix+"firstSubCamera"));
-  		    if (properties.getProperty(aux_prefix+"numSubCameras")!=      null) this.aux_camera.numSubCameras=Integer.parseInt(properties.getProperty(aux_prefix+"numSubCameras"));
-			if (properties.getProperty(aux_prefix+"sensorPrefix")!=       null) this.aux_camera.sensorPrefix=properties.getProperty(aux_prefix+"sensorPrefix");
-			if (properties.getProperty(aux_prefix+"sensorSuffix")!=       null) this.aux_camera.sensorSuffix=properties.getProperty(aux_prefix+"sensorSuffix");
-			if (properties.getProperty(aux_prefix+"cltKernelPrefix")!=    null) this.aux_camera.cltKernelPrefix=properties.getProperty(aux_prefix+"cltKernelPrefix");
-			if (properties.getProperty(aux_prefix+"cltSuffix")!=          null) this.aux_camera.cltSuffix=properties.getProperty(aux_prefix+"cltSuffix");
-			if (properties.getProperty(aux_prefix+"x3dSubdirSuffix")!=    null) this.aux_camera.x3dSubdirSuffix=properties.getProperty(aux_prefix+"x3dSubdirSuffix");
+			if (properties.getProperty(aux_prefix+"sensorDirectory")!=      null) this.aux_camera.sensorDirectory=properties.getProperty(aux_prefix+"sensorDirectory");
+			if (properties.getProperty(aux_prefix+"cltKernelDirectory")!=   null) this.aux_camera.cltKernelDirectory=properties.getProperty(aux_prefix+"cltKernelDirectory");
+			if (properties.getProperty(aux_prefix+"resultsDirectory")!=     null) this.aux_camera.resultsDirectory=properties.getProperty(aux_prefix+"resultsDirectory");
+  		    if (properties.getProperty(aux_prefix+"firstSubCamera")!=       null) this.aux_camera.firstSubCamera=Integer.parseInt(properties.getProperty(aux_prefix+"firstSubCamera"));
+  		    if (properties.getProperty(aux_prefix+"firstSubCameraConfig")!= null) this.aux_camera.firstSubCameraConfig=Integer.parseInt(properties.getProperty(aux_prefix+"firstSubCameraConfig"));
+  		    if (properties.getProperty(aux_prefix+"numSubCameras")!=        null) this.aux_camera.numSubCameras=Integer.parseInt(properties.getProperty(aux_prefix+"numSubCameras"));
+			if (properties.getProperty(aux_prefix+"sensorPrefix")!=         null) this.aux_camera.sensorPrefix=properties.getProperty(aux_prefix+"sensorPrefix");
+			if (properties.getProperty(aux_prefix+"sensorSuffix")!=         null) this.aux_camera.sensorSuffix=properties.getProperty(aux_prefix+"sensorSuffix");
+			if (properties.getProperty(aux_prefix+"cltKernelPrefix")!=      null) this.aux_camera.cltKernelPrefix=properties.getProperty(aux_prefix+"cltKernelPrefix");
+			if (properties.getProperty(aux_prefix+"cltSuffix")!=            null) this.aux_camera.cltSuffix=properties.getProperty(aux_prefix+"cltSuffix");
+			if (properties.getProperty(aux_prefix+"x3dSubdirSuffix")!=      null) this.aux_camera.x3dSubdirSuffix=properties.getProperty(aux_prefix+"x3dSubdirSuffix");
 		}
 
     	public boolean showJDialog(String title) {
@@ -714,7 +720,8 @@ public class EyesisCorrectionParameters {
     		gd.addStringField("Source files prefix",                               this.sourcePrefix, 60);
     		gd.addStringField("Source files suffix",                               this.sourceSuffix, 60);
     		gd.addNumericField("First subcamera (in the source filenames)",        this.firstSubCamera, 0);
-    		gd.addNumericField("Number of subcameras in this camera (in the source filenames)",  this.numSubCameras, 0);
+    		gd.addNumericField("First subcamera (in config (clt, sensor) directories)",        this.firstSubCameraConfig, 0);
+    		gd.addNumericField("Number of subcameras in this camera",              this.numSubCameras, 0);
 
     		gd.addStringField("Sensor files prefix",                               this.sensorPrefix, 40);
     		gd.addStringField("Sensor files suffix",                               this.sensorSuffix, 40);
@@ -822,6 +829,7 @@ public class EyesisCorrectionParameters {
     		this.sourcePrefix=           gd.getNextString();
     		this.sourceSuffix=           gd.getNextString();
     		this.firstSubCamera=   (int) gd.getNextNumber();
+    		this.firstSubCameraConfig=(int) gd.getNextNumber();
     		this.numSubCameras=    (int) gd.getNextNumber();
     		this.sensorPrefix=           gd.getNextString();
     		this.sensorSuffix=           gd.getNextString();
@@ -894,7 +902,8 @@ public class EyesisCorrectionParameters {
     		gd.addStringField ("Results directory",                                this.resultsDirectory, 60);   // 11
     		gd.addCheckbox    ("Select results directory",                         false);                       // 12
     		gd.addNumericField("First subcamera (in the source filename)",         this.firstSubCamera, 0);      // 15
-    		gd.addNumericField("Number of subcameras in this camera (in the source filenames)",  this.numSubCameras, 0); // 16
+    		gd.addNumericField("First subcamera (in config (clt, sensor) directories)", this.firstSubCameraConfig, 0);
+    		gd.addNumericField("Number of subcameras in this camera ",             this.numSubCameras, 0); // 16
     		gd.addStringField ("Sensor files prefix",                              this.sensorPrefix, 40);       // 17
     		gd.addStringField ("Sensor files suffix",                              this.sensorSuffix, 40);       // 18
 
@@ -911,7 +920,8 @@ public class EyesisCorrectionParameters {
     		gd.addStringField ("Aux results directory",                                this.aux_camera.resultsDirectory, 60);   // 11b
     		gd.addCheckbox    ("Select aux results directory",                         false);                                  // 12b
     		gd.addNumericField("First aux subcamera (in the source filename)",         this.aux_camera.firstSubCamera, 0);      // 15b
-    		gd.addNumericField("Number of aux subcameras in this camera (in the source filenames)",  this.aux_camera.numSubCameras, 0); // 16b
+    		gd.addNumericField("First aux subcamera (in config (clt, sensor) directories)",this.aux_camera.firstSubCameraConfig, 0);
+    		gd.addNumericField("Number of aux subcameras in this camera ",             this.aux_camera.numSubCameras, 0); // 16b
     		gd.addStringField ("Aux sensor files prefix",                              this.aux_camera.sensorPrefix, 40);       // 17b
     		gd.addStringField ("Aux sensor files suffix",                              this.aux_camera.sensorSuffix, 40);       // 18b
 
@@ -987,6 +997,7 @@ public class EyesisCorrectionParameters {
     		this.cltKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectCLTKernelDirectory(false, true); // 7
     		this.resultsDirectory=       gd.getNextString(); if (gd.getNextBoolean()) selectResultsDirectory(false, true);   // 12
     		this.firstSubCamera=   (int) gd.getNextNumber();  // 15
+    		this.firstSubCameraConfig=(int) gd.getNextNumber();
     		this.numSubCameras=    (int) gd.getNextNumber();  // 16
     		this.sensorPrefix=           gd.getNextString();  // 17
     		this.sensorSuffix=           gd.getNextString();  // 18
@@ -999,6 +1010,7 @@ public class EyesisCorrectionParameters {
     		this.aux_camera.cltKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) aux_camera.selectCLTKernelDirectory(false, true); // 7b
     		this.aux_camera.resultsDirectory=       gd.getNextString(); if (gd.getNextBoolean()) aux_camera.selectResultsDirectory(false, true);   // 12b
     		this.aux_camera.firstSubCamera=   (int) gd.getNextNumber();  // 15b
+    		this.aux_camera.firstSubCameraConfig=(int) gd.getNextNumber();
     		this.aux_camera.numSubCameras=    (int) gd.getNextNumber();  // 16b
     		this.aux_camera.sensorPrefix=           gd.getNextString();  // 17b
     		this.aux_camera.sensorSuffix=           gd.getNextString();  // 18b
@@ -1275,6 +1287,7 @@ public class EyesisCorrectionParameters {
 
     	public String [] selectKernelChannelFiles(
     			int type,  // 0 - sharp, 1 - smooth
+    			int firstChannel,
     			int numChannels, // number of channels
     			int debugLevel) { // will only open dialog if directory or files are not found
     		String [] kernelFiles= selectKernelFiles(
@@ -1284,7 +1297,7 @@ public class EyesisCorrectionParameters {
     		String [] channelPaths=new String[numChannels];
     		for (int i=0;i<channelPaths.length;i++)channelPaths[i]=null;
     		for (int fileNum=0;fileNum<kernelFiles.length;fileNum++){
-    			int chn=getChannelFromKernelTiff(kernelFiles[fileNum], type);
+    			int chn=getChannelFromKernelTiff(kernelFiles[fileNum], type) - firstChannel;
     			if ((chn>=0) && (chn<numChannels)){
     				if (channelPaths[chn]==null){ // use first file for channel if there are multiple
     					channelPaths[chn]=kernelFiles[fileNum];
@@ -1424,6 +1437,7 @@ public class EyesisCorrectionParameters {
 
 
     	public String [] selectCLTChannelFiles(
+    			int firstChannel,
     			int numChannels, // number of channels
     			int debugLevel) { // will only open dialog if directory or files are not found
     		String [] kernelFiles= selectCLTFiles(
@@ -1432,7 +1446,7 @@ public class EyesisCorrectionParameters {
     		String [] channelPaths=new String[numChannels];
     		for (int i=0;i<channelPaths.length;i++)channelPaths[i]=null;
     		for (int fileNum=0;fileNum<kernelFiles.length;fileNum++){
-    			int chn=getChannelFromCLTTiff(kernelFiles[fileNum]);
+    			int chn=getChannelFromCLTTiff(kernelFiles[fileNum]) - firstChannel;
     			if ((chn>=0) && (chn<numChannels)){
     				if (channelPaths[chn]==null){ // use first file for channel if there are multiple
     					channelPaths[chn]=kernelFiles[fileNum];

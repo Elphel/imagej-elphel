@@ -593,6 +593,7 @@ private Panel panel1,
 			addButton("Select second CLT image",   panelClt1, color_configure);
 			addButton("CLT correlate",             panelClt1, color_process);
 			addButton("Create CLT kernels",        panelClt1, color_process);
+			addButton("Create AUX CLT kernels",    panelClt1, color_process);
 			addButton("Read CLT kernels",          panelClt1, color_process);
 			addButton("Reset CLT kernels",         panelClt1, color_stop);
 			addButton("CLT process files",         panelClt1, color_process);
@@ -3902,7 +3903,11 @@ private Panel panel1,
 			return;
     	}
 
-        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
+        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL,
+        		true, // true - ignore missing files
+    			true, // boolean all_sensors,
+    			true); //boolean no_vignetting
+
 
         QUAD_CLT.createCLTKernels(
         		CLT_PARAMETERS,
@@ -3910,7 +3915,44 @@ private Panel panel1,
                 THREADS_MAX,
                 UPDATE_STATUS, // update status info
         		DEBUG_LEVEL);
+//==============================================================================
+    } else if (label.equals("Create AUX CLT kernels")) {
+        if (!CLT_PARAMETERS.showJDialog()) return;
+		if (EYESIS_CORRECTIONS_AUX == null) {
+			EYESIS_CORRECTIONS_AUX = new EyesisCorrections(SYNC_COMMAND.stopRequested,CORRECTION_PARAMETERS.getAux());
+		}
+        if ((QUAD_CLT_AUX == null) ||(QUAD_CLT_AUX.eyesisCorrections == null)){
+        	QUAD_CLT_AUX = new  QuadCLT (
+        			QuadCLT.PREFIX_AUX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS_AUX,
+        			CORRECTION_PARAMETERS.getAux());
+        }
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return;
+    	String cltPath=EYESIS_CORRECTIONS.correctionsParameters.selectCLTKernelDirectory( // create if it does not exist
+				true,
+				true);
+    	if (cltPath==null) {
+			String msg="No CLT kernels (results) directory selected, command aborted";
+			System.out.println("Warning: "+msg);
+			IJ.showMessage("Warning",msg);
+			return;
+    	}
 
+
+        EYESIS_CORRECTIONS_AUX.initSensorFiles(DEBUG_LEVEL,
+        		true, // true - ignore missing files
+    			true, // boolean all_sensors,
+    			true); //boolean no_vignetting
+
+
+        QUAD_CLT_AUX.createCLTKernels(
+        		CLT_PARAMETERS,
+        		CONVOLVE_FFT_SIZE/2,
+                THREADS_MAX,
+                UPDATE_STATUS, // update status info
+        		DEBUG_LEVEL);
         //"Reset DCT kernels"
     } else if (label.equals("Reset CLT kernels")) {
         if (QUAD_CLT != null){
@@ -5013,11 +5055,11 @@ private Panel panel1,
     	if (DEBUG_LEVEL > -2){
     		System.out.println("++++++++++++++ Running initSensorFiles for the main camera ++++++++++++++");
     	}
-        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL+2, true); // missing_ok
+        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL+2, true, false, false); // missing_ok
     	if (DEBUG_LEVEL > -2){
     		System.out.println("++++++++++++++ Running initSensorFiles for the auxiliary camera ++++++++++++++");
     	}
-        EYESIS_CORRECTIONS_AUX.initSensorFiles(DEBUG_LEVEL+2, true); // some files belong to oher cameras\
+        EYESIS_CORRECTIONS_AUX.initSensorFiles(DEBUG_LEVEL+2, true, false, false); // some files belong to oher cameras\
 
 
         int numChannels=    EYESIS_CORRECTIONS.getNumChannels();
@@ -5147,11 +5189,11 @@ private Panel panel1,
     	if (DEBUG_LEVEL > -2){
     		System.out.println("++++++++++++++ Running initSensorFiles for the main camera ++++++++++++++");
     	}
-        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL+2, true); // missing_ok
+        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL+2, true, false, false); // missing_ok
     	if (DEBUG_LEVEL > -2){
     		System.out.println("++++++++++++++ Running initSensorFiles for the auxiliary camera ++++++++++++++");
     	}
-        EYESIS_CORRECTIONS_AUX.initSensorFiles(DEBUG_LEVEL+2, true); // some files belong to oher cameras\
+        EYESIS_CORRECTIONS_AUX.initSensorFiles(DEBUG_LEVEL+2, true, false, false); // some files belong to other cameras\
 
 
         int numChannels=    EYESIS_CORRECTIONS.getNumChannels();

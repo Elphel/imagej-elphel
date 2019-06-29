@@ -98,17 +98,38 @@ public class EyesisCorrections {
 	// TODO: preserve some data when re-running with new source files
 	// FIXME: Make forgiving alien files
 	public void initSensorFiles(int debugLevel){
-		initSensorFiles(debugLevel, false);
+		initSensorFiles(debugLevel,
+				false,
+				false,
+				false);
 	}
-	public void initSensorFiles(int debugLevel, boolean missing_ok){
+	public void initSensorFiles(int debugLevel,
+			boolean missing_ok,
+			boolean all_sensors,
+			boolean no_vignetting
+			){
 		this.sharpKernelPaths=null;
 		this.smoothKernelPaths=null;
 		String [] sensorPaths=correctionsParameters.selectSensorFiles(this.debugLevel);
-		this.pixelMapping=new PixelMapping(sensorPaths,debugLevel);
-		this.usedChannels= usedChannels(correctionsParameters.getSourcePaths(),missing_ok);
+		this.pixelMapping=new PixelMapping(
+				sensorPaths,
+				correctionsParameters.firstSubCameraConfig, // 	int first_channel, // 0 - old way
+				correctionsParameters.numSubCameras,        // int num_channels,  // 0 - any
+	    		true, // boolean update_channel, // false (replace file channel with effective channel (subtract first_channel)
+				debugLevel);
+		if (all_sensors) {
+			this.usedChannels = new boolean [this.pixelMapping.sensors.length];
+			for (int i = 0; i < this.usedChannels.length; i++) {
+				this.usedChannels[i] = true;
+			}
+		} else {
+			this.usedChannels= usedChannels(correctionsParameters.getSourcePaths(),missing_ok);
+		}
 		// TODO: Combine with additional channel map to be able to select single image (of all 3)
 		if (correctionsParameters.removeUnusedSensorData){
-			for (int nChn=0;nChn< this.usedChannels.length; nChn++) if (!this.usedChannels[nChn]) this.pixelMapping.removeChannel(nChn);
+			for (int nChn=0;nChn< this.usedChannels.length; nChn++) {
+				if (!this.usedChannels[nChn]) this.pixelMapping.removeChannel(nChn);
+			}
 		}
 		int numUsedChannels=0;
 		for (int nChn=0;nChn< this.usedChannels.length; nChn++) if (this.usedChannels[nChn]) numUsedChannels++;
@@ -117,7 +138,9 @@ public class EyesisCorrections {
 			for (int nChn=0;nChn< this.usedChannels.length; nChn++) if (this.usedChannels[nChn]) sChannels+=" "+nChn;
 			System.out.println ("Number of used channels: "+numUsedChannels+" ("+sChannels+" )");
 		}
-		createChannelVignetting();
+		if (!no_vignetting) {
+			createChannelVignetting();
+		}
 		if ((this.debugLevel>101) && (correctionsParameters.sourcePaths!=null) && (correctionsParameters.sourcePaths.length>0)) {
 			testFF(correctionsParameters.sourcePaths[0]);
 		}
@@ -126,12 +149,32 @@ public class EyesisCorrections {
 		}
 	}
 
-	public void initSensorFilesAux(int debugLevel){
+	// Never used !
+	public void initSensorFilesAux(int debugLevel, // what is different from initSensorFiles()? Never used !
+			boolean missing_ok,
+			boolean all_sensors,
+			boolean no_vignetting
+			){
 //		this.sharpKernelPaths=null;
 //		this.smoothKernelPaths=null;
 		String [] sensorPaths=correctionsParameters.selectSensorFiles(this.debugLevel);
-		this.pixelMapping=new PixelMapping(sensorPaths,debugLevel);
-		this.usedChannels= usedChannels(correctionsParameters.getSourcePaths());
+
+//		this.pixelMapping=new PixelMapping(sensorPaths,debugLevel);
+
+		this.pixelMapping=new PixelMapping(
+				sensorPaths,
+				correctionsParameters.firstSubCameraConfig, // 	int first_channel, // 0 - old way
+				correctionsParameters.numSubCameras,        // int num_channels,  // 0 - any
+	    		true, // boolean update_channel, // false (replace file channel with effective channel (subtract first_channel)
+				debugLevel);
+		if (all_sensors) {
+			this.usedChannels = new boolean [this.pixelMapping.sensors.length];
+			for (int i = 0; i < this.usedChannels.length; i++) {
+				this.usedChannels[i] = true;
+			}
+		} else {
+			this.usedChannels= usedChannels(correctionsParameters.getSourcePaths(),missing_ok);
+		}
 		// TODO: Combine with additional channel map to be able to select single image (of all 3)
 		if (correctionsParameters.removeUnusedSensorData){
 			for (int nChn=0;nChn< this.usedChannels.length; nChn++) if (!this.usedChannels[nChn]) this.pixelMapping.removeChannel(nChn);
@@ -229,7 +272,12 @@ public class EyesisCorrections {
 //		boolean processPlaneProjection= equirectangularParameters.generateCommonPlane &&
 //			equirectangularParameters.selectChannelsToProcess("Select channels for plane projection", this.pixelMapping.sensors.length);
 
-		this.pixelMapping=new PixelMapping(sensorPaths,debugLevel);
+		this.pixelMapping=new PixelMapping(
+				sensorPaths,
+				0, // int first_channel, // 0 - old way
+				0, // int num_channels,  // 0 - any
+				false, // boolean update_channel, // false (replace file channel with effective channel (subtract first_channel)
+				debugLevel);
 		pixelMapping.generateAndSaveEquirectangularMaps(
 				correctionsParameters.equirectangularDirectory+
 				Prefs.getFileSeparator()+
@@ -356,12 +404,16 @@ public class EyesisCorrections {
 		}
 		this.sharpKernelPaths=correctionsParameters.selectKernelChannelFiles(
 				0,  // 0 - sharp, 1 - smooth
+				  correctionsParameters.firstSubCameraConfig,
+//				  correctionsParameters.numSubCameras,
 				numChannels, // number of channels
 				this.debugLevel);
 		if (this.sharpKernelPaths==null) return false;
 		if (nonlinParameters.useDiffNoiseGains) {
 			this.smoothKernelPaths=correctionsParameters.selectKernelChannelFiles(
 					1,  // 0 - sharp, 1 - smooth
+					  correctionsParameters.firstSubCameraConfig,
+//					  correctionsParameters.numSubCameras,
 					numChannels, // number of channels
 					this.debugLevel);
 			if (this.smoothKernelPaths==null) return false;
@@ -1024,7 +1076,9 @@ public class EyesisCorrections {
 			if (this.sharpKernelPaths==null){ // make sure the paths list is reset after changing parameters
 				this.sharpKernelPaths=correctionsParameters.selectKernelChannelFiles(
 						0,  // 0 - sharp, 1 - smooth
-						this.usedChannels.length, // number of channels
+						  correctionsParameters.firstSubCameraConfig,
+						  correctionsParameters.numSubCameras,
+//						this.usedChannels.length, // number of channels
 						this.debugLevel);
 			}
 			if ((this.sharpKernelPaths==null) || (this.sharpKernelPaths[channel]==null)){
@@ -1055,6 +1109,8 @@ public class EyesisCorrections {
 				if (this.smoothKernelPaths==null){ // make sure the paths list is reset after changing parameters
 					this.smoothKernelPaths=correctionsParameters.selectKernelChannelFiles(
 							1,  // 0 - sharp, 1 - smooth
+							  correctionsParameters.firstSubCameraConfig,
+//							  correctionsParameters.numSubCameras,
 							this.usedChannels.length, // number of channels
 							this.debugLevel);
 				}
@@ -1156,6 +1212,8 @@ public class EyesisCorrections {
 			if (this.smoothKernelPaths==null){ // make sure the paths list is reset after changing parameters
 				this.smoothKernelPaths=correctionsParameters.selectKernelChannelFiles(
 						1,  // 0 - sharp, 1 - smooth
+						  correctionsParameters.firstSubCameraConfig,
+//						  correctionsParameters.numSubCameras,
 						this.usedChannels.length, // number of channels
 						this.debugLevel);
 			}

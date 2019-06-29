@@ -38,7 +38,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.SwingUtilities;
 
-import com.elphel.imagej.calibration.CalibrationFileManagement.MultipleExtensionsFileFilter;
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
@@ -109,15 +108,27 @@ public class PixelMapping {
        	}
     }
 
-    public PixelMapping (String [] calibFiles, int debugLevel){
+    public PixelMapping (
+    		String [] calibFiles,
+    		int first_channel, // 0 - old way
+    		int num_channels,  // 0 - any
+    		boolean update_channel, // false (replace file channel with effective channel (subtract first_channel)
+    		int debugLevel){
     	this.debugLevel=debugLevel;
     	if (calibFiles==null) calibFiles=new String[0];
-       	this.sensors=new SensorData[this.maxSensors];
+       	this.sensors=new SensorData[(num_channels > 0)? num_channels: this.maxSensors];
        	for (int i=0;i<this.sensors.length;i++) this.sensors[i]=null;
        	int maxChannel=0;
        	for (int i=0;i<calibFiles.length;i++){
        		SensorData sensorData=new SensorData (calibFiles[i],this.debugLevel);
-       		int channel=sensorData.getChannel();
+       		int channel=sensorData.getChannel(); // from Properties
+       		if ((channel < first_channel) || ((num_channels > 0) && (channel >= (first_channel + num_channels)))) {
+       			continue; // wrong channels
+       		}
+   			channel -= first_channel;
+       		if (update_channel) {
+       			sensorData.setChannel(channel);
+       		}
        		this.sensors[channel]=sensorData;
       		if (channel>maxChannel) maxChannel=channel;
        	}
@@ -170,7 +181,7 @@ public class PixelMapping {
 //    	} else if (this.debugLevel > -2) {
 //    		System.out.print(".");
     	}
-    		
+
 //    	ArrayList<ArrayList<ArrayList<Integer>>> camera_IPs = new ArrayList<ArrayList<ArrayList<Integer>>>();
     	ArrayList<Point> cam_port = new ArrayList<Point>();
     	for (int i=0;i<this.sensors.length;i++)  if (this.sensors[i]!=null) {
@@ -16221,6 +16232,7 @@ public class PixelMapping {
 	    }
 	    public SensorData (){} // just to get parameter names
 
+	    public void setChannel(int chn){this.channel = chn;}
 	    public int getChannel(){return this.channel;}
 	    public int getSubChannel(){return this.subchannel;}
 	    public int getSubCamera(){return this.subcamera;}
