@@ -28,7 +28,6 @@ import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.correction.EyesisDCT;
-import com.elphel.imagej.correction.EyesisDCT.DCTKernels;
 
 import Jama.Matrix;
 import ij.ImageStack;
@@ -2700,8 +2699,12 @@ public class ImageDtt {
 											clt_tile = dtt.dttt_iv  (clt_tile, idct_mode, transform_size);
 											System.out.println("\n-------- tileX="+tileX+", tileY="+tileY+", idct_mode="+idct_mode+" ---#, standard, good, bad, diff---");
 											for (int nt = 0; nt < clt_tile_dbg.length; nt++) {
-												System.out.println(String.format("%2d: %8f %8f %8f %8f %8f",
-														clt_tile[nt],clt_tile_dbg[nt],clt_tile_dbg1[nt],clt_tile_dbg[nt] - clt_tile_dbg[nt],clt_tile_dbg1[nt] - clt_tile_dbg[nt]));
+												System.out.println(String.format("%2d: %8f %8f %8f %8f", //  %8f",
+														clt_tile[nt],
+														clt_tile_dbg[nt],
+														clt_tile_dbg1[nt],
+														clt_tile_dbg[nt] - clt_tile_dbg[nt],
+														clt_tile_dbg1[nt] - clt_tile_dbg[nt]));
 											}
 										} else {
 											clt_tile = dtt.dttt_iv  (clt_tile, idct_mode, transform_size);

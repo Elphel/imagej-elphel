@@ -176,8 +176,8 @@ import ij.gui.GenericDialog;
 				defaultPaths[0]="";
 			}
 
-			CalibrationFileManagement.MultipleExtensionsFileFilter sourceFilter =
-				new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"Source files");
+			MultipleExtensionsFileFilter sourceFilter =
+				new MultipleExtensionsFileFilter("",extensions,"Source files");
 			String [] sourceFiles=null;
     		if (allFiles){
 				File dir= new File (this.sourceDirectory);
@@ -193,7 +193,7 @@ import ij.gui.GenericDialog;
 				sourceFiles = new String[fileList.length];
 				for (int i=0;i<sourceFiles.length;i++) sourceFiles[i]=fileList[i].getPath();
     		} else {
-    				new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"Source files");
+    				new MultipleExtensionsFileFilter("",extensions,"Source files");
     			sourceFiles=CalibrationFileManagement.selectFiles(false,
     					"Select Source files, saved as TIFF",
     					"Select",

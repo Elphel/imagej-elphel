@@ -47,6 +47,7 @@ import com.elphel.imagej.calibration.CalibrationFileManagement;
 import com.elphel.imagej.calibration.DistortionProcessConfiguration;
 import com.elphel.imagej.calibration.EyesisAberrations;
 import com.elphel.imagej.calibration.MatchSimulatedPattern;
+import com.elphel.imagej.calibration.MultipleExtensionsFileFilter;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
@@ -940,7 +941,7 @@ public class SFEPhases {
 				debugLevel);
 		if (updateSensorCalibrationFiles) {
 			String [] extensions={".calib-tiff"};
-			CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"distortion calibration .calib-tiff files");
+			MultipleExtensionsFileFilter parFilter = new MultipleExtensionsFileFilter("",extensions,"distortion calibration .calib-tiff files");
 			String anySensorPath=CalibrationFileManagement.selectFile(false,
 					"Select one of the sensor calibration files of a set to be updated",
 					"Update",

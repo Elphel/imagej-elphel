@@ -295,8 +295,12 @@ public class ElphelJp4Reader  extends ImageIOReader{
 			}
 		}
 		if (tags.containsKey(EXPOSURE_TIME)){
-			String [] s = tags.get(EXPOSURE_TIME).split("/");
-			exposure = 1.0 * Integer.parseInt(s[0]) / Integer.parseInt(s[1].split(" ")[0]);
+			if (tags.get(EXPOSURE_TIME).contains("/")) {
+				String [] s = tags.get(EXPOSURE_TIME).split("/");
+				exposure = 1.0 * Integer.parseInt(s[0]) / Integer.parseInt(s[1].split(" ")[0]);
+			} else {
+				exposure = Double.parseDouble(tags.get(EXPOSURE_TIME));
+			}
 		}
 		if (tags.containsKey(DATE_TIME_ORIGINAL)){
 			date_time = tags.get(DATE_TIME_ORIGINAL);

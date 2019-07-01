@@ -39,6 +39,7 @@ import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 import com.elphel.imagej.readers.EyesisTiff;
+import com.elphel.imagej.readers.ImagejJp4Tiff;
 
 import ij.CompositeImage;
 import ij.IJ;
@@ -56,7 +57,9 @@ import loci.formats.FormatException;
 
 
 public class EyesisCorrections {
-	public JP46_Reader_camera JP4_INSTANCE=       new JP46_Reader_camera(false);
+	public JP46_Reader_camera JP4_INSTANCE=   new JP46_Reader_camera(false);
+	public ImagejJp4Tiff      imagejJp4Tiff = new ImagejJp4Tiff();
+
 	ShowDoubleFloatArrays SDFA_INSTANCE=   new ShowDoubleFloatArrays();
 	DebayerScissorsClass debayerScissors=null;
     public AtomicInteger stopRequested=null; // 1 - stop now, 2 - when convenient
@@ -67,7 +70,7 @@ public class EyesisCorrections {
 	public int [][][] defectsXY=null; // per each channel: pixel defects coordinates list (starting with worst)
 	public double [][] defectsDiff=null; // per each channel: pixel defects value (diff from average of neighbors), matching defectsXY
 
-	public int   [][] channelWidthHeight=null;
+///	public int   [][] channelWidthHeight=null;
 	public ImagePlus [] imageNoiseGains=null;
 	public String [] sharpKernelPaths=null;
 	public String [] smoothKernelPaths=null;
@@ -75,6 +78,8 @@ public class EyesisCorrections {
 	public String [] stackColorNames= {"Red","Green","Blue"};
 	public int psfSubpixelShouldBe4=4;         // sub-pixel decimation
 	public long   startTime=0;
+
+	public boolean ALL_AS_JP4 = true; // all w/o 10359mux - treat tiff as JP4
 
 //	public boolean BUG_subchannel=true; // top channel - 1, middle - 0, bottom - 2 (should be -0-1-2)
 //	public boolean BUG_subchannel=false; // top channel - 1, middle - 0, bottom - 2 (should be -0-1-2)
@@ -87,9 +92,23 @@ public class EyesisCorrections {
 			){
 		this.correctionsParameters=correctionsParameters;
 		this.stopRequested=stopRequested;
+		setDebug(-2);
 	}
 	public void setDebug(int debugLevel){
 		this.debugLevel=debugLevel;
+		String LOG_LEVEL = "OFF";
+    	switch (this.debugLevel) {
+    	case -2: LOG_LEVEL = "FATAL"; break;
+    	case -1: LOG_LEVEL = "ERROR"; break;
+    	case  0: LOG_LEVEL = "WARN";  break;
+    	case  1: LOG_LEVEL = "INFO";  break;
+    	case  2: LOG_LEVEL = "DEBUG"; break;
+    	default: LOG_LEVEL = "OFF";
+    	}
+    	boolean LOG_LEVEL_SET = loci.common.DebugTools.enableLogging(LOG_LEVEL);
+    	if (!LOG_LEVEL_SET) { // only first time true
+    		loci.common.DebugTools.setRootLevel(LOG_LEVEL);
+    	}
 	}
 
 	public int getNumChannels(){return (this.usedChannels!=null)?this.usedChannels.length:0;}
@@ -98,12 +117,14 @@ public class EyesisCorrections {
 	// TODO: preserve some data when re-running with new source files
 	// FIXME: Make forgiving alien files
 	public void initSensorFiles(int debugLevel){
-		initSensorFiles(debugLevel,
+		initSensorFiles(
+				debugLevel,
 				false,
 				false,
 				false);
 	}
-	public void initSensorFiles(int debugLevel,
+	public void initSensorFiles(
+			int debugLevel,
 			boolean missing_ok,
 			boolean all_sensors,
 			boolean no_vignetting
@@ -194,6 +215,67 @@ public class EyesisCorrections {
 		}
 	}
 
+	public ImagePlus getJp4Tiff(
+			String path,
+			int [] woi_tops) {
+		return getJp4Tiff(path, false, woi_tops);
+	}
+	public ImagePlus getJp4Tiff(
+			String path) {
+		return getJp4Tiff(path, false, null);
+	}
+
+	public ImagePlus getJp4Tiff(
+			String path,
+			boolean ignore_alien, // open image even if it does not belong to the current camera
+			int [] woi_tops) {
+		// get source file channel
+		int src_channel = correctionsParameters.getChannelFromSourceTiff(path);
+		int sub_camera = src_channel - correctionsParameters.firstSubCamera;
+		int subchannel=  pixelMapping.getSubChannel(sub_camera); // only used for demux
+
+		ImagePlus imp = null;
+		try {
+			imp = imagejJp4Tiff.readTiffJp4(
+					path,
+					true); // scale);
+		} catch (IOException | FormatException e) {
+			e.printStackTrace();
+			return null;
+		}
+		if ((subchannel >=0) && correctionsParameters.isJP4()) {
+			if (this.correctionsParameters.swapSubchannels01) {
+				switch (subchannel){
+				case 0: subchannel=1; break;
+				case 1: subchannel=0; break;
+				}
+			}
+			ImagePlus imp_demux=JP4_INSTANCE.demuxImage(imp, subchannel);
+			  if (imp_demux != null) imp = imp_demux;
+		}
+		int [] wh = null;
+		if (!this.pixelMapping.subcamerasUsed()) { // non-eyesis, single sensor file per input channel
+			int [] channels = this.pixelMapping.channelsForSubCamera(src_channel - correctionsParameters.firstSubCameraConfig);
+			if (channels != null) {
+				int sensor_number = channels[0];
+				wh = pixelMapping.getSensorWH(sensor_number);
+				if ((woi_tops != null) && (imp.getProperty("WOI_TOP") != null) && (sensor_number< woi_tops.length)) {
+					if (imp.getProperty("WOI_TOP") != null)
+						woi_tops[sensor_number] = Integer.parseInt((String) imp.getProperty("WOI_TOP"));
+				}
+			} else if (!ignore_alien) {
+				return null;
+			}
+		}
+		imp =  ShowDoubleFloatArrays.padBayerToFullSize(
+				imp, // ImagePlus imp_src,
+				wh, // null OK
+				true); // boolean replicate);
+		return imp;
+	}
+
+
+// FIXME: Use only this PixelMappings's channels, do not mix exposures from main/aux!
 	public double [] calcReferenceExposures(int debugLevel){
 		String [] paths=this.correctionsParameters.getSourcePaths();
 		double [] exposures=new double [paths.length];
@@ -204,6 +286,18 @@ public class EyesisCorrections {
 		} else {
 			ImagePlus imp; // using that composite image has same exposure
 			for (int nFile=0;nFile<paths.length;nFile++){
+				imp = getJp4Tiff(paths[nFile]);
+				/*
+				try {
+					imp = imagejJp4Tiff.readTiffJp4(
+							paths[nFile],
+							true); // scale);
+				} catch (IOException | FormatException e) {
+					e.printStackTrace();
+					imp = null;
+					exposures[nFile]=Double.NaN;
+					continue;
+				}
 				if (this.correctionsParameters.isJP4()){
 					imp=JP4_INSTANCE.open(
 							"", // path,
@@ -217,7 +311,8 @@ public class EyesisCorrections {
 					//				  (new JP46_Reader_camera(false)).decodeProperiesFromInfo(imp_src); // decode existent properties from info
 					JP4_INSTANCE.decodeProperiesFromInfo(imp); // decode existent properties from info
 				}
-				if (imp.getProperty("EXPOSURE")!=null){
+*/
+				if ((imp != null) &&(imp.getProperty("EXPOSURE")!=null)){
 					exposures[nFile]=Double.parseDouble((String)imp.getProperty("EXPOSURE"));
 				} else {
 					exposures[nFile]=Double.NaN;
@@ -479,13 +574,13 @@ public class EyesisCorrections {
 	}
 
 	public void createChannelVignetting(){
-		this.channelWidthHeight=new int [this.usedChannels.length][];
+///		this.channelWidthHeight=new int [this.usedChannels.length][];
 		this.channelVignettingCorrection=new float [this.usedChannels.length][];
 		this.defectsXY=new int [this.usedChannels.length][][];
 		this.defectsDiff=new double [this.usedChannels.length][];
 
 		for (int nChn=0;nChn< this.usedChannels.length; nChn++){
-			this.channelWidthHeight[nChn]=null;
+///			this.channelWidthHeight[nChn]=null;
 			this.channelVignettingCorrection[nChn]=null;
 			this.defectsXY[nChn]=null;
 			this.defectsDiff[nChn]=null;
@@ -494,7 +589,9 @@ public class EyesisCorrections {
 		ImagePlus imp=null,imp_composite=null;
 		for (int nFile=0;nFile<correctionsParameters.getSourcePaths().length;nFile++){
 			int [] channels={correctionsParameters.getChannelFromSourceTiff(correctionsParameters.getSourcePaths()[nFile])};
-			if (correctionsParameters.isJP4()){
+			if (!this.pixelMapping.subcamerasUsed()) {
+				channels = this.pixelMapping.channelsForSubCamera(channels[0]-correctionsParameters.firstSubCameraConfig); // index in calibration files matching this source
+			} else 	if (correctionsParameters.isJP4()){
 				int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
 				channels=this.pixelMapping.channelsForSubCamera(subCamera);
 			}
@@ -502,6 +599,17 @@ public class EyesisCorrections {
 			if (channels!=null) {
 				imp=null;
 				imp_composite=null;
+
+				try {
+					imp_composite = imagejJp4Tiff.readTiffJp4(
+							correctionsParameters.getSourcePaths()[nFile],
+							true); // scale);
+				} catch (IOException | FormatException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				} // throws IOException, FormatException { // std - include non-elphel properties with prefix std
+
+				/*
 				if (correctionsParameters.isJP4()){
 					  imp_composite=JP4_INSTANCE.open(
 							  "", // path,
@@ -510,7 +618,10 @@ public class EyesisCorrections {
 							  true, // un-apply camera color gains
 							  null, // new window
 							  false); // do not show
-				} else imp=new ImagePlus(correctionsParameters.getSourcePaths()[nFile]);
+				} else {
+					imp = imp_composite; // new ImagePlus(correctionsParameters.getSourcePaths()[nFile]);
+				}
+				*/
 				if ((imp==null) && (imp_composite==null)) {
 					if (this.debugLevel>0) System.out.println("createChannelVignetting(): can not open "+correctionsParameters.getSourcePaths()[nFile]+
 							" as "+(correctionsParameters.isJP4()?"JP4":"TIFF")+" file");
@@ -518,7 +629,8 @@ public class EyesisCorrections {
 				}
 				for (int chn=0;chn<channels.length;chn++) {
 					int srcChannel=channels[chn];
-					if ((this.channelWidthHeight[srcChannel]==null) && this.pixelMapping.isChannelAvailable(srcChannel)){
+///					if ((this.channelWidthHeight[srcChannel]==null) && this.pixelMapping.isChannelAvailable(srcChannel)){
+					if (this.pixelMapping.isChannelAvailable(srcChannel)){
 						int subChannel=this.pixelMapping.getSubChannel(srcChannel);
 						  if (this.correctionsParameters.swapSubchannels01) {
 							  switch (subChannel){
@@ -526,35 +638,45 @@ public class EyesisCorrections {
 							  case 1: subChannel=0; break;
 							  }
 						  }
+						  if ((channels.length > 1) && correctionsParameters.isJP4()) {
+							  if (subChannel<0){
+								  System.out.println("BUG in createChannelVignetting(): chn="+chn+
+										  " subChannel="+subChannel+
+										  " nFile="+nFile+" : "+correctionsParameters.getSourcePaths()[nFile]+
+										  " channels.length="+channels.length);
+								  for (int i=0;i<channels.length;i++) System.out.print(" "+channels[i]);
+								  System.out.println();
+								  for (int i=0;i<this.usedChannels.length;i++) if (this.usedChannels[i]) {
+									  System.out.println(i+": subCamera="+this.pixelMapping.sensors[i].subcamera);
+								  }
 
-						if (subChannel<0){
-							System.out.println("BUG in createChannelVignetting(): chn="+chn+
-									" subChannel="+subChannel+
-									" nFile="+nFile+" : "+correctionsParameters.getSourcePaths()[nFile]+
-									" channels.length="+channels.length);
-							for (int i=0;i<channels.length;i++) System.out.print(" "+channels[i]);
-							System.out.println();
-							for (int i=0;i<this.usedChannels.length;i++) if (this.usedChannels[i]) {
-								System.out.println(i+": subCamera="+this.pixelMapping.sensors[i].subcamera);
-							}
-
-						}
-						if (correctionsParameters.isJP4()) imp=JP4_INSTANCE.demuxImage(imp_composite, subChannel);
-						if (imp==null) imp=imp_composite; // not a composite image
-
-//						int [] widthHeight={imp.getWidth(),imp.getHeight()};
-
-//						this.channelWidthHeight[srcChannel]=widthHeight;
+							  }
+							  imp=JP4_INSTANCE.demuxImage(imp_composite, subChannel);
+							  if (imp==null) imp=imp_composite; // not a composite image
+						  } else {
+							  imp=imp_composite;
+						  }
+						imp =  ShowDoubleFloatArrays.padBayerToFullSize(
+								  imp, // ImagePlus imp_src,
+								  pixelMapping.sensors[srcChannel].getSensorWH(),
+								  true); // boolean replicate);
 						this.channelVignettingCorrection[srcChannel]=this.pixelMapping.getBayerFlatFieldFloat(
 								srcChannel,
-//								this.channelWidthHeight[srcChannel][0],
-//								this.channelWidthHeight[srcChannel][1],
-								bayer);
+								bayer,
+								1.5); // TODO: Make range configurable, improve FF interpolation in calibraion
+						if (this.debugLevel>0){
+							SDFA_INSTANCE.showArrays(
+									this.channelVignettingCorrection[srcChannel],
+									this.pixelMapping.sensors[srcChannel].pixelCorrectionWidth,
+									this.pixelMapping.sensors[srcChannel].pixelCorrectionHeight,
+									"Vingetting-"+srcChannel
+									);
+						}
 						if (this.debugLevel>0){
 							System.out.println("Created vignetting info for channel "+srcChannel+
 									" subchannel="+subChannel+" ("+
 									correctionsParameters.getSourcePaths()[nFile]+")");
-							System.out.println("imageWidth= "+this.channelWidthHeight[srcChannel][0]+" imageHeight="+this.channelWidthHeight[srcChannel][1]);
+///							System.out.println("imageWidth= "+this.channelWidthHeight[srcChannel][0]+" imageHeight="+this.channelWidthHeight[srcChannel][1]);
 						}
 						this.defectsXY[srcChannel]=this.pixelMapping.getDefectsXY(srcChannel);
 						this.defectsDiff[srcChannel]=this.pixelMapping.getDefectsDiff(srcChannel);
@@ -591,8 +713,8 @@ public class EyesisCorrections {
 		for (int i=0;i<numChannels;i++) usedChannels[i]= false; // this.pixelMapping.isChannelAvailable(i);
 		for (int i=0;i<paths.length;i++){
 			int srcChannel=correctionsParameters.getChannelFromSourceTiff(paths[i]); // different for JP4
-			if (correctionsParameters.isJP4()){
-				int subCamera= srcChannel- correctionsParameters.firstSubCamera; // to match those in the sensor files
+			int subCamera= srcChannel- correctionsParameters.firstSubCamera; // to match those in the sensor files
+			if (correctionsParameters.isJP4() || ALL_AS_JP4){
 				int [] channels=this.pixelMapping.channelsForSubCamera(subCamera);
 				if (channels!=null) for (int j=0;j<channels.length;j++) usedChannels[channels[j]]=true;
 			} else {

@@ -43,7 +43,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.XMLConfiguration;
 
-import com.elphel.imagej.calibration.CalibrationFileManagement.MultipleExtensionsFileFilter;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.common.WindowTools;
 
@@ -5037,7 +5036,7 @@ public boolean LevenbergMarquardt(
             boolean smart, // do not open dialog if default matches
             String defaultPath){ // x,y,r
         String [] extensions={".history-xml"};
-        CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"*.history-xml files");
+        MultipleExtensionsFileFilter parFilter = new MultipleExtensionsFileFilter("",extensions,"*.history-xml files");
         String pathname=CalibrationFileManagement.selectFile(
                 smart,
                 false,
@@ -9589,7 +9588,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
         		path= CalibrationFileManagement.selectFile(true, // save
         				"Save Field LMA Strategy selection", // title
         				"Select Field LMA Strategy file", // button
-        				new CalibrationFileManagement.MultipleExtensionsFileFilter(patterns,
+        				new MultipleExtensionsFileFilter(patterns,
         						"Strategy files (*.fstg-xml)"), // filter
         						directory); // may be ""
         	} else path+=patterns[0];
@@ -9628,7 +9627,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
         		path= CalibrationFileManagement.selectFile(false, // save
         				"Field LMA Strategy selection", // title
         				"Select Field LMA Strategy file", // button
-        				new CalibrationFileManagement.MultipleExtensionsFileFilter(patterns,
+        				new MultipleExtensionsFileFilter(patterns,
         						"Strategy files (*.fstg-xml)"), // filter
         						directory); // may be ""
         	} else {

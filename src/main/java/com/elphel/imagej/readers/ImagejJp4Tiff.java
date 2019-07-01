@@ -292,10 +292,10 @@ public class ImagejJp4Tiff {
 		long [] gamma_scales =    new long[4];
 		double [][] rgammas =     new double[4][];
 		double min_gain = 1.0;
-		boolean flipv, fliph;
-		if (meta_hash.get(prefix+"FLIPV")!=null) flipv=   Integer.valueOf((String) meta_hash.get(prefix+"FLIPV")).intValue() > 0;  else return null;
-		if (meta_hash.get(prefix+"FLIPH")!=null) fliph=    Integer.valueOf((String) meta_hash.get(prefix+"FLIPV")).intValue() > 0; else return null;
-		if (meta_hash.get(prefix+"GAIN")!=null) min_gain=  Double.valueOf((String) meta_hash.get(prefix+"GAIN")).doubleValue();    else return null;
+		boolean flipv = false, fliph=false;
+		if (meta_hash.get(prefix+"FLIPV")!=null) flipv=   Integer.valueOf((String) meta_hash.get(prefix+"FLIPV")).intValue() > 0; // else return null;
+		if (meta_hash.get(prefix+"FLIPH")!=null) fliph=    Integer.valueOf((String) meta_hash.get(prefix+"FLIPV")).intValue() > 0;// else return null;
+		if (meta_hash.get(prefix+"GAIN")!=null) min_gain=  Double.valueOf((String) meta_hash.get(prefix+"GAIN")).doubleValue();   // else return null;
 		for (int i=0;i<4;i++) { /* r,g,gb,b */
 			if (scale) {
 				if (meta_hash.get(prefix+"gains_"+i)!=null)        rgains[i]=      min_gain/Double.valueOf((String) meta_hash.get(prefix+"gains_"+i)).doubleValue();        else return null;

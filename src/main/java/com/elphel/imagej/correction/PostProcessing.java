@@ -36,6 +36,7 @@ import java.util.Properties;
 //import java.util.concurrent.atomic.AtomicInteger;
 
 import com.elphel.imagej.calibration.CalibrationFileManagement;
+import com.elphel.imagej.calibration.MultipleExtensionsFileFilter;
 import com.elphel.imagej.calibration.PixelMapping;
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
@@ -984,8 +985,8 @@ public class PostProcessing {
     			}
     		}
     		String [] extensions={this.sourceSuffix};
-			CalibrationFileManagement.MultipleExtensionsFileFilter sourceFilter =
-				new CalibrationFileManagement.MultipleExtensionsFileFilter(this.sourcePrefix,extensions,"Source files");
+			MultipleExtensionsFileFilter sourceFilter =
+				new MultipleExtensionsFileFilter(this.sourcePrefix,extensions,"Source files");
 			String [] sourceFiles=null;
     		if (allFiles){
 				File dir= new File (this.sourceDirectory);

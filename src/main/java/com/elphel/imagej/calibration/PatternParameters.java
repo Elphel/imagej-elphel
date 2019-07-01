@@ -290,7 +290,7 @@ import ij.io.Opener;
 
         public String selectAndSave(boolean smart, String defaultPath){
 			String [] extensions={".grid-tiff","-grid.tiff"};
-			CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"Pattern grid *.grid-tiff files");
+			MultipleExtensionsFileFilter parFilter = new MultipleExtensionsFileFilter("",extensions,"Pattern grid *.grid-tiff files");
 			String pathname=CalibrationFileManagement.selectFile(
 					smart,
 					true,
@@ -305,7 +305,7 @@ import ij.io.Opener;
 
         public String selectAndRestore(boolean smart, String defaultPath, int numStations){
 			String [] extensions={".grid-tiff","-grid.tiff"};
-			CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"Pattern grid *.grid-tiff files");
+			MultipleExtensionsFileFilter parFilter = new MultipleExtensionsFileFilter("",extensions,"Pattern grid *.grid-tiff files");
 			String pathname=CalibrationFileManagement.selectFile(
 					smart,
 					false,

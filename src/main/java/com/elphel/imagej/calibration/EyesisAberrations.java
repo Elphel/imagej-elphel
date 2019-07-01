@@ -1164,7 +1164,7 @@ public class EyesisAberrations {
     	    	    	continue;
     	    	    }
     				String [] extensions={filename}; // just this one file
-    				CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,filename);
+    				MultipleExtensionsFileFilter parFilter = new MultipleExtensionsFileFilter("",extensions,filename);
     				String pathname=CalibrationFileManagement.selectFile(
     						false,
     						false,

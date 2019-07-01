@@ -1256,6 +1256,32 @@ public class GeometryCorrection {
 			else           return vector[10 + indx];
 		}
 
+		public double setZoomsFromF(double f0, double f1, double f2, double f3) {
+			double f_avg = (f0+f1+f2+f3)/4;
+			vector[10] = (f0 - f_avg)/f_avg;
+			vector[11] = (f1 - f_avg)/f_avg;
+			vector[12] = (f2 - f_avg)/f_avg;
+			return f_avg;
+		}
+
+		// Tilts in radians, theta in degrees
+		public double setTiltsFromThetas(double t0, double t1, double t2, double t3) {
+			double t_avg = (t0+t1+t2+t3)/4;
+			vector[0] = (t0 - t_avg)*Math.PI/180.0;
+			vector[1] = (t1 - t_avg)*Math.PI/180.0;
+			vector[2] = (t2 - t_avg)*Math.PI/180.0;
+			return t_avg;
+		}
+
+		// Azimuths in radians, headings in degrees
+		public double setAzimuthsFromHeadings(double h0, double h1, double h2, double h3) {
+			double h_avg = (h0+h1+h2+h3)/4;
+			vector[3] = (h0 - h_avg)*Math.PI/180.0;
+			vector[4] = (h1 - h_avg)*Math.PI/180.0;
+			vector[5] = (h2 - h_avg)*Math.PI/180.0;
+			return h_avg;
+		}
+
 
 		// Include factory calibration rolls
 		public double [] getFullRolls()
@@ -1798,7 +1824,6 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		System.out.println("pixelSize =\t"+             pixelSize+"\tum");
 		System.out.println("distortionRadius =\t"+      distortionRadius+"\tmm");
 		System.out.println("'=== Common input parameters ===");
-		System.out.println("focalLength =\t"+  focalLength + " mm");
 		System.out.println("distortionA8 =\t"+ distortionA8);
 		System.out.println("distortionA7 =\t"+ distortionA7);
 		System.out.println("distortionA6 =\t"+ distortionA6);
@@ -1806,9 +1831,13 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		System.out.println("distortionA =\t"+  distortionA);
 		System.out.println("distortionB =\t"+  distortionB);
 		System.out.println("distortionC =\t"+  distortionC);
+		System.out.println("numSensors =\t"+   numSensors);
+		System.out.println("'=== Average (for all 4 sensors) input parameters ===");
+		System.out.println("focalLength =\t"+  focalLength + " mm");
 		System.out.println("elevation =\t"+    elevation+"\tdegrees");
 		System.out.println("heading =\t"+      heading+"\tdegrees");
-		System.out.println("numSensors =\t"+   numSensors);
+
+
 		System.out.println("'=== Individual input parameters ===");
 
 		System.out.print  ("forward = ");

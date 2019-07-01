@@ -31,10 +31,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Properties;
 import java.util.Set;
 
+import javax.swing.JFileChooser;
+
 import com.elphel.imagej.calibration.CalibrationFileManagement;
+import com.elphel.imagej.calibration.DirectoryChoser;
+import com.elphel.imagej.calibration.MultipleExtensionsFileFilter;
 import com.elphel.imagej.common.GenericJTabbedDialog;
 import com.elphel.imagej.common.WindowTools;
 import com.elphel.imagej.lwir.LwirReaderParameters;
@@ -91,11 +96,19 @@ public class EyesisCorrectionParameters {
   		public boolean saveSettings =          true;
 
     	public String [] sourcePaths=          {};
+//    	public String [] sourceSetPaths=       {}; // 2019 - directories with image sets
+    	public boolean   use_set_dirs =        false; // each image set in a directory, use directory as a timestamp
     	public String sourceDirectory=         "";
     	public String sourcePrefix=            "";
     	public String sourceSuffix=            ".tiff"; //".jp4"
+    	// first subcamera index as in properties of the sensor configuration and kernels and CLT kernels
     	public int    firstSubCameraConfig=    0; // channel index in config (sensor, clt) files
+    	// first filename index to be processed by this PixelMapping instance
+    	// only one instance for Eyesis, two for 8-rig and Talon (4EO+4LWIR)
     	public int    firstSubCamera=          1; // channel index in source file names
+    	// number of subcameras in this PixelMapping instance
+    	// number of source file indices and image channels (including mux) are found from the number
+    	// of PixelMapping instance
     	public int    numSubCameras=           4; // channel index in source file names
     	public String sensorDirectory=         "";
     	public String sensorPrefix=            "sensor-";
@@ -159,7 +172,7 @@ public class EyesisCorrectionParameters {
 
 
     	public String x3dModelVersion="v01";
-    	public String jp4SubDir="jp4";
+    	public String jp4SubDir="jp4"; // FIXME:
 
     	public String x3dDirectory="";
 
@@ -224,8 +237,9 @@ public class EyesisCorrectionParameters {
   			cp.zcorrect=  			    this.zcorrect;
   			cp.saveSettings=  		    this.saveSettings;
   			cp.sourceDirectory=    	    this.sourceDirectory;
-  			cp.sourcePrefix=    	    this.sourcePrefix;
-  			cp.sourceSuffix=    	    this.sourceSuffix;
+  			cp.use_set_dirs =           this.use_set_dirs;
+//  			cp.sourcePrefix=    	    this.sourcePrefix;
+//  			cp.sourceSuffix=    	    this.sourceSuffix;
 //  			cp.firstSubCamera=    	    this.firstSubCamera;
 //  			cp.numSubCameras=    	    this.numSubCameras;
 //  			cp.sensorDirectory=         this.sensorDirectory;
@@ -305,6 +319,8 @@ public class EyesisCorrectionParameters {
   			cp.numSubCameras=    	    this.numSubCameras;
   			cp.sensorPrefix=            ""; // this.sensorPrefix;
   			cp.sensorSuffix=      	    this.sensorSuffix;
+  			cp.sourcePrefix=      	    this.sourcePrefix;
+  			cp.sourceSuffix=      	    this.sourceSuffix;
   			cp.cltKernelPrefix=    		this.cltKernelPrefix;
   			cp.cltSuffix=               this.cltSuffix;
   			cp.x3dSubdirSuffix=    		this.x3dSubdirSuffix+"-aux";
@@ -318,6 +334,8 @@ public class EyesisCorrectionParameters {
 			this.aux_camera.firstSubCamera=       ecp.firstSubCamera;
 			this.aux_camera.firstSubCameraConfig= ecp.firstSubCameraConfig;
 			this.aux_camera.numSubCameras=    	  ecp.numSubCameras;
+			this.aux_camera.sourcePrefix=         ecp.sourcePrefix;
+			this.aux_camera.sourceSuffix=      	  ecp.sourceSuffix;
 			this.aux_camera.sensorPrefix=         ecp.sensorPrefix;
 			this.aux_camera.sensorSuffix=      	  ecp.sensorSuffix;
 			this.aux_camera.cltKernelPrefix=      ecp.cltKernelPrefix;
@@ -364,6 +382,8 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"saveSettings",this.saveSettings+"");
 
     		properties.setProperty(prefix+"sourceDirectory",this.sourceDirectory);
+    		properties.setProperty(prefix+"use_set_dirs",   this.use_set_dirs+"");
+
     		properties.setProperty(prefix+"sourcePrefix",this.sourcePrefix);
     		properties.setProperty(prefix+"sourceSuffix",this.sourceSuffix);
     		properties.setProperty(prefix+"firstSubCamera",this.firstSubCamera+"");
@@ -468,6 +488,8 @@ public class EyesisCorrectionParameters {
         		properties.setProperty(aux_prefix+"firstSubCamera",       this.aux_camera.firstSubCamera+"");
         		properties.setProperty(aux_prefix+"firstSubCameraConfig", this.aux_camera.firstSubCameraConfig+"");
         		properties.setProperty(aux_prefix+"numSubCameras",        this.aux_camera.numSubCameras+"");
+        		properties.setProperty(aux_prefix+"sourcePrefix",         this.aux_camera.sourcePrefix);
+        		properties.setProperty(aux_prefix+"sourceSuffix",         this.aux_camera.sourceSuffix);
         		properties.setProperty(aux_prefix+"sensorPrefix",         this.aux_camera.sensorPrefix);
         		properties.setProperty(aux_prefix+"sensorSuffix",         this.aux_camera.sensorSuffix);
         		properties.setProperty(aux_prefix+"cltKernelPrefix",      this.aux_camera.cltKernelPrefix);
@@ -513,15 +535,15 @@ public class EyesisCorrectionParameters {
   		    if (properties.getProperty(prefix+"zcorrect")!=null) this.zcorrect=Boolean.parseBoolean(properties.getProperty(prefix+"zcorrect"));
   		    if (properties.getProperty(prefix+"saveSettings")!=null) this.saveSettings=Boolean.parseBoolean(properties.getProperty(prefix+"saveSettings"));
 			if (properties.getProperty(prefix+"sourceDirectory")!=      null) this.sourceDirectory=properties.getProperty(prefix+"sourceDirectory");
-			if (properties.getProperty(prefix+"sourcePrefix")!=         null) this.sourcePrefix=properties.getProperty(prefix+"sourcePrefix");
-			if (properties.getProperty(prefix+"sourceSuffix")!=         null) this.sourceSuffix=properties.getProperty(prefix+"sourceSuffix");
   		    if (properties.getProperty(prefix+"firstSubCamera")!=       null) this.firstSubCamera=Integer.parseInt(properties.getProperty(prefix+"firstSubCamera"));
   		    if (properties.getProperty(prefix+"firstSubCameraConfig")!= null) this.firstSubCameraConfig=Integer.parseInt(properties.getProperty(prefix+"firstSubCameraConfig"));
   		    if (properties.getProperty(prefix+"numSubCameras")!=        null) this.numSubCameras=Integer.parseInt(properties.getProperty(prefix+"numSubCameras"));
 			if (properties.getProperty(prefix+"sensorDirectory")!=      null) this.sensorDirectory=properties.getProperty(prefix+"sensorDirectory");
+			if (properties.getProperty(prefix+"use_set_dirs")!=         null) this.use_set_dirs=Boolean.parseBoolean(properties.getProperty(prefix+"use_set_dirs"));
+			if (properties.getProperty(prefix+"sourcePrefix")!=         null) this.sourcePrefix=properties.getProperty(prefix+"sourcePrefix");
+			if (properties.getProperty(prefix+"sourceSuffix")!=         null) this.sourceSuffix=properties.getProperty(prefix+"sourceSuffix");
 			if (properties.getProperty(prefix+"sensorPrefix")!=         null) this.sensorPrefix=properties.getProperty(prefix+"sensorPrefix");
 			if (properties.getProperty(prefix+"sensorSuffix")!=         null) this.sensorSuffix=properties.getProperty(prefix+"sensorSuffix");
-
 			if (properties.getProperty(prefix+"sharpKernelDirectory")!= null) this.sharpKernelDirectory=properties.getProperty(prefix+"sharpKernelDirectory");
 			if (properties.getProperty(prefix+"sharpKernelPrefix")!=    null) this.sharpKernelPrefix=properties.getProperty(prefix+"sharpKernelPrefix");
 			if (properties.getProperty(prefix+"sharpKernelSuffix")!=    null) this.sharpKernelSuffix=properties.getProperty(prefix+"sharpKernelSuffix");
@@ -619,6 +641,8 @@ public class EyesisCorrectionParameters {
   		    if (properties.getProperty(aux_prefix+"firstSubCamera")!=       null) this.aux_camera.firstSubCamera=Integer.parseInt(properties.getProperty(aux_prefix+"firstSubCamera"));
   		    if (properties.getProperty(aux_prefix+"firstSubCameraConfig")!= null) this.aux_camera.firstSubCameraConfig=Integer.parseInt(properties.getProperty(aux_prefix+"firstSubCameraConfig"));
   		    if (properties.getProperty(aux_prefix+"numSubCameras")!=        null) this.aux_camera.numSubCameras=Integer.parseInt(properties.getProperty(aux_prefix+"numSubCameras"));
+  		    if (properties.getProperty(aux_prefix+"sourcePrefix")!=         null) this.aux_camera.sourcePrefix=properties.getProperty(aux_prefix+"sourcePrefix");
+			if (properties.getProperty(aux_prefix+"sourceSuffix")!=         null) this.aux_camera.sourceSuffix=properties.getProperty(aux_prefix+"sourceSuffix");
 			if (properties.getProperty(aux_prefix+"sensorPrefix")!=         null) this.aux_camera.sensorPrefix=properties.getProperty(aux_prefix+"sensorPrefix");
 			if (properties.getProperty(aux_prefix+"sensorSuffix")!=         null) this.aux_camera.sensorSuffix=properties.getProperty(aux_prefix+"sensorSuffix");
 			if (properties.getProperty(aux_prefix+"cltKernelPrefix")!=      null) this.aux_camera.cltKernelPrefix=properties.getProperty(aux_prefix+"cltKernelPrefix");
@@ -683,6 +707,8 @@ public class EyesisCorrectionParameters {
             gd.addTab("Directories","Direcories paths");
     		gd.addStringField ("Source files directory",                           this.sourceDirectory, 60);
     		gd.addCheckbox    ("Select source directory",                          false);
+    		gd.addCheckbox    ("Use individual subdirectory for image set",        this.use_set_dirs);
+
     		gd.addStringField ("Sensor calibration directory",                     this.sensorDirectory, 60);
     		gd.addCheckbox    ("Select sensor calibration directory",              false);
 
@@ -809,6 +835,7 @@ public class EyesisCorrectionParameters {
     		this.saveSettings=      gd.getNextBoolean();
 
     		this.sourceDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSourceDirectory(false, false);
+    		this.use_set_dirs =          gd.getNextBoolean();
     		this.sensorDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSensorDirectory(false, false);
     		this.sharpKernelDirectory=   gd.getNextString(); if (gd.getNextBoolean()) selectSharpKernelDirectory(false, false);
     		this.smoothKernelDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectSmoothKernelDirectory(false, true);
@@ -875,6 +902,7 @@ public class EyesisCorrectionParameters {
     		gd.addCheckbox    ("Save current settings with results",               this.saveSettings);           // 1
     		gd.addStringField ("Source files directory",                           this.sourceDirectory, 60);    // 2
     		gd.addCheckbox    ("Select source directory",                          false);                       // 3
+    		gd.addCheckbox    ("Use individual subdirectory for each image set (timestamp as name)", this.use_set_dirs); //10
 
     		gd.addStringField ("x3d model version",                                this.x3dModelVersion, 60);    // 10a
     		gd.addStringField ("jp4 source copy subdirectory",                     this.jp4SubDir, 60);          // 10b
@@ -883,8 +911,8 @@ public class EyesisCorrectionParameters {
 
     		gd.addCheckbox    ("Use individual subdirectory for each 3d model (timestamp as name)", this.use_x3d_subdirs); //10
 
-    		gd.addStringField ("Source files prefix",                              this.sourcePrefix, 60);       // 13
-    		gd.addStringField ("Source files suffix",                              this.sourceSuffix, 60);       // 14
+//    		gd.addStringField ("Source files prefix",                              this.sourcePrefix, 60);       // 13
+//    		gd.addStringField ("Source files suffix",                              this.sourceSuffix, 60);       // 14
 
     		gd.addStringField ("x3d subdirectory prefix",                          this.x3dSubdirPrefix, 10,    // 14a
     				"When using timestamp as a subdirectory, add this prefix");
@@ -904,6 +932,8 @@ public class EyesisCorrectionParameters {
     		gd.addNumericField("First subcamera (in the source filename)",         this.firstSubCamera, 0);      // 15
     		gd.addNumericField("First subcamera (in config (clt, sensor) directories)", this.firstSubCameraConfig, 0);
     		gd.addNumericField("Number of subcameras in this camera ",             this.numSubCameras, 0); // 16
+    		gd.addStringField ("Source files prefix",                              this.sourcePrefix, 60);       // 13
+    		gd.addStringField ("Source files suffix",                              this.sourceSuffix, 60);       // 14
     		gd.addStringField ("Sensor files prefix",                              this.sensorPrefix, 40);       // 17
     		gd.addStringField ("Sensor files suffix",                              this.sensorSuffix, 40);       // 18
 
@@ -922,9 +952,10 @@ public class EyesisCorrectionParameters {
     		gd.addNumericField("First aux subcamera (in the source filename)",         this.aux_camera.firstSubCamera, 0);      // 15b
     		gd.addNumericField("First aux subcamera (in config (clt, sensor) directories)",this.aux_camera.firstSubCameraConfig, 0);
     		gd.addNumericField("Number of aux subcameras in this camera ",             this.aux_camera.numSubCameras, 0); // 16b
+    		gd.addStringField ("Aux Source files prefix",                              this.aux_camera.sourcePrefix, 60);       // 13
+    		gd.addStringField ("Aux Source files suffix",                              this.aux_camera.sourceSuffix, 60);       // 14
     		gd.addStringField ("Aux sensor files prefix",                              this.aux_camera.sensorPrefix, 40);       // 17b
     		gd.addStringField ("Aux sensor files suffix",                              this.aux_camera.sensorSuffix, 40);       // 18b
-
     		gd.addStringField ("Aux CLT kernel files prefix",                          this.aux_camera.cltKernelPrefix, 40);    // 19b
     		gd.addStringField ("Aux CLT kernel files suffix",                          this.aux_camera.cltSuffix, 40);          // 20b
     		gd.addStringField ("Aux x3d subdirectory suffix",                          this.aux_camera.x3dSubdirSuffix, 10,     // 20ba
@@ -983,12 +1014,13 @@ public class EyesisCorrectionParameters {
     		this.saveSettings=      gd.getNextBoolean(); // 1
 
     		this.sourceDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSourceDirectory(false, false);   // 3
+    		this.use_set_dirs =          gd.getNextBoolean();
     		this.x3dModelVersion=        gd.getNextString(); //  10a
     		this.jp4SubDir=              gd.getNextString(); //  10b
     		this.x3dDirectory=           gd.getNextString(); if (gd.getNextBoolean()) selectX3dDirectory(false, true);       // 9
     		this.use_x3d_subdirs=        gd.getNextBoolean(); // 10
-    		this.sourcePrefix=           gd.getNextString();  // 13
-    		this.sourceSuffix=           gd.getNextString();  // 14
+//    		this.sourcePrefix=           gd.getNextString();  // 13
+//    		this.sourceSuffix=           gd.getNextString();  // 14
     		this.x3dSubdirPrefix=        gd.getNextString();  // 14a
     		this.mlDirectory=            gd.getNextString(); if (gd.getNextBoolean()) selectMlDirectory(null,false, true);       // 8d
 
@@ -999,6 +1031,8 @@ public class EyesisCorrectionParameters {
     		this.firstSubCamera=   (int) gd.getNextNumber();  // 15
     		this.firstSubCameraConfig=(int) gd.getNextNumber();
     		this.numSubCameras=    (int) gd.getNextNumber();  // 16
+    		this.sourcePrefix=           gd.getNextString();  // 13
+    		this.sourceSuffix=           gd.getNextString();  // 14
     		this.sensorPrefix=           gd.getNextString();  // 17
     		this.sensorSuffix=           gd.getNextString();  // 18
     		this.cltKernelPrefix=        gd.getNextString();  // 19
@@ -1012,6 +1046,8 @@ public class EyesisCorrectionParameters {
     		this.aux_camera.firstSubCamera=   (int) gd.getNextNumber();  // 15b
     		this.aux_camera.firstSubCameraConfig=(int) gd.getNextNumber();
     		this.aux_camera.numSubCameras=    (int) gd.getNextNumber();  // 16b
+    		this.aux_camera.sourcePrefix=           gd.getNextString();  // 13
+    		this.aux_camera.sourceSuffix=           gd.getNextString();  // 14
     		this.aux_camera.sensorPrefix=           gd.getNextString();  // 17b
     		this.aux_camera.sensorSuffix=           gd.getNextString();  // 18b
     		this.aux_camera.cltKernelPrefix=        gd.getNextString();  // 19b
@@ -1068,7 +1104,37 @@ public class EyesisCorrectionParameters {
     		return Integer.parseInt(path.substring(indexLastDash+1,indexSuffix));
 
     	}
+
+    	public int getChannelFromTiff(String path, String [] suffixes){
+    		String suffix = null;
+    		for (String s:suffixes) {
+    			if (path.endsWith(s)) {
+    				suffix = s;
+    				break;
+    			}
+    		}
+    		if (suffix == null) {
+    			return -1;
+    		}
+    		int indexSuffix=path.length()-suffix.length();
+    		int indexLastDash=indexSuffix-1; // in jp4 it will be underscore, not dash? Or should we change that?
+    		while ((indexLastDash>0) &&
+    				(indexLastDash>(indexSuffix-3)) &&
+    				(path.charAt(indexLastDash)!='_') &&
+    				(path.charAt(indexLastDash)!='-')) indexLastDash--;
+    		return Integer.parseInt(path.substring(indexLastDash+1,indexSuffix));
+
+    	}
+
+    	// from source file name, if image set dirs are used, it's name will be used instead
+    	public String getNameFromTiff(String path){
+    		return getNameFromTiff(path, getSourceSuffixes());
+    	}
+
     	public String getNameFromTiff(String path, String suffix){
+    		if (use_set_dirs) { // use set name, not the file name
+    			return getSetName(path);
+    		}
     		int indexSuffix=path.length()-suffix.length();
     		int indexLastDash=indexSuffix-1; // in jp4 it will be underscore, not dash? Or should we change that?
     		while ((indexLastDash>0) &&
@@ -1078,11 +1144,41 @@ public class EyesisCorrectionParameters {
     		int nameStart=path.lastIndexOf(Prefs.getFileSeparator())+1;
     		return path.substring(nameStart,indexLastDash);
     	}
+
+    	public String getNameFromTiff(String path, String suffixes[]){
+    		if (use_set_dirs) { // use set name, not the file name
+    			return getSetName(path);
+    		}
+    		String suffix = null;
+    		for (String s:suffixes) {
+    			if (path.endsWith(s)) {
+    				suffix = s;
+    				break;
+    			}
+    		}
+    		if (suffix == null) {
+    			return null;
+    		}
+    		int indexSuffix=path.length()-suffix.length();
+    		int indexLastDash=indexSuffix-1; // in jp4 it will be underscore, not dash? Or should we change that?
+    		while ((indexLastDash>0) &&
+    				(indexLastDash>(indexSuffix-3)) &&
+    				(path.charAt(indexLastDash)!='_') &&
+    				(path.charAt(indexLastDash)!='-')) indexLastDash--;
+    		int nameStart=path.lastIndexOf(Prefs.getFileSeparator())+1;
+    		return path.substring(nameStart,indexLastDash);
+    	}
+
+
     	public boolean isJP4(){
 			return this.sourceSuffix.equals(".jp4") || this.sourceSuffix.equals(".jp46");
     	}
-    	public int getChannelFromSourceTiff(String path){ return getChannelFromTiff(path, this.sourceSuffix);	}
-    	public String getNameFromSourceTiff(String path){ return getNameFromTiff(path, this.sourceSuffix);	}
+    	public int getChannelFromSourceTiff(String path){
+    		return getChannelFromTiff(path, getSourceSuffixes());
+    	}
+    	public String getNameFromSourceTiff(String path){
+    		return getNameFromTiff(path, getSourceSuffixes());
+    	}
 
     	public int getChannelFromKernelTiff(String path, int type){return getChannelFromTiff(path, (type==0)?this.sharpKernelSuffix:this.smoothKernelSuffix);}
     	public String getNameFromKernelTiff(String path, int type){return getNameFromTiff(path, (type==0)?this.sharpKernelSuffix:this.smoothKernelSuffix);}
@@ -1093,9 +1189,137 @@ public class EyesisCorrectionParameters {
     	public int getChannelFromCLTTiff(String path){return getChannelFromTiff(path, this.cltSuffix);}
     	public String getNameFromCLTTiff(String path){return getNameFromTiff(path, this.cltSuffix);}
 
+
+    	public boolean selectSourceSets() {
+    		return selectSourceSets(1);
+    	}
+
+    	public String getSetName(String filePath) {
+//    		System.out.println(filePath);
+    		if (filePath == null) {
+    			return null;
+    		}
+    		return new File(filePath).getParentFile().getName();
+    	}
+    	public String getSetPath(String filePath) {
+    		if (filePath == null) {
+    			return null;
+    		}
+    		return (new File(filePath)).getParentFile().getPath();
+    	}
+    	public String [] getSetList(String [] filePaths) {
+    		if ((filePaths == null) || (filePaths.length == 0)) {
+    			return new String[0];
+    		}
+    		HashSet<String> sets= new HashSet<String>();
+    		for (String fn:filePaths) {
+    			String p =  getSetPath(fn);
+    			if (p != null) {
+    				sets.add(getSetPath(fn));
+    			}
+    		}
+    		ArrayList<String> setList = new ArrayList<String>(sets);
+    		Collections.sort(setList);
+    		return setList.toArray(new String[0]);
+    	}
+
+    	public String [] getSourceSuffixes() {
+    		String [] suffixes = null;//    		={this.sourceSuffix};
+    		if (aux_camera != null) {
+    			suffixes = new String[2];
+    			suffixes[1] = aux_camera.sourceSuffix;
+    		} else {
+    			suffixes = new String[1];
+    		}
+    		suffixes[0] = sourceSuffix;
+    		return suffixes;
+    	}
+
+    	public String [] getSourcePrefixes() {
+    		String [] prefixes = null;//    		={this.sourceSuffix};
+    		if (aux_camera != null) {
+    			prefixes = new String[2];
+    			prefixes[1] = aux_camera.sourcePrefix;
+    		} else {
+    			prefixes = new String[1];
+    		}
+    		prefixes[0] = sourcePrefix;
+    		return prefixes;
+    	}
+
+    	public boolean selectSourceSets(int debugLevel) {
+    		String [] defaultPaths = getSetList(this.sourcePaths); // returns non-null
+    		File [] defaultFiles = new File[defaultPaths.length];
+    		for (int i = 0; i < defaultPaths.length; i++) {
+    			defaultFiles[i] = new File(defaultPaths[i]);
+    		}
+
+    		String [] extensions = getSourceSuffixes();//    		={this.sourceSuffix};
+    		String [] prefixes = getSourcePrefixes();
+    		int num_chn_files = numSubCameras + ((aux_camera != null)?aux_camera.numSubCameras : 0);
+    		extensions[0] = sourceSuffix;
+    		prefixes[0] =   sourcePrefix;
+			MultipleExtensionsFileFilter setFilter = new MultipleExtensionsFileFilter(prefixes,extensions,"Image sets");
+
+	    	DirectoryChoser dc = new DirectoryChoser(
+	    			setFilter,
+	    			num_chn_files,
+	    			0, // num_chn_files?
+	    			null);
+	    	dc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+	    	dc.setMultiSelectionEnabled(true);
+	    	dc.setDialogTitle("Select Image sets (directories with simultaneous image files)");
+	    	dc.setApproveButtonText("Select");
+	    	File cur_dir = new File(this.sourceDirectory);
+//	    	if (cur_dir != null) {
+//	    		cur_dir = cur_dir.getParentFile();
+//	    	}
+	    	dc.setCurrentDirectory(cur_dir);
+	    	dc.setSelectedFiles(defaultFiles);
+
+
+	    	int returnVal = dc.showOpenDialog(IJ.getInstance());
+	    	if (returnVal!=JFileChooser.APPROVE_OPTION)	return false;
+	    	File [] files = dc.getSelectedFiles();
+	    	if (files.length<1) return false;
+	    	// Can not make it work correctly with multiple selection, giving up for now
+
+	    	ArrayList<File>  setDirList =   new ArrayList<File>(); // list of set directories
+	    	ArrayList<File>  setFilesList = new ArrayList<File>(); // list of set files
+	    	for (int nFile=0;nFile<files.length;nFile++) {
+//	    		String [] setChnFiles = files[nFile].list(setFilter);
+	    		File [] setChnFiles = files[nFile].listFiles(setFilter);
+	    		int num_match = setChnFiles.length;
+	    		if (num_match == num_chn_files) { // only use sets of exact number of files
+	    			setDirList.add(files[nFile]);
+	    			for (File f: setChnFiles) {
+	    				setFilesList.add(f);
+	    			}
+	    		}
+	    	}
+	    	String [] sourceSetPaths = new String[setDirList.size()];
+	    	for (int nFile = 0; nFile < sourceSetPaths.length; nFile++) {
+	    		sourceSetPaths[nFile]= setDirList.get(nFile).getPath();
+	    	}
+
+	    	this.sourcePaths = new String[setFilesList.size()];
+	    	for (int nFile = 0; nFile < sourcePaths.length; nFile++) {
+	    		sourcePaths[nFile]= setFilesList.get(nFile).getPath();
+	    	}
+
+	    	if (setDirList.size() >1) {
+	    		this.sourceDirectory = setDirList.get(0).getParentFile().getPath();
+	    	}
+    		return true;
+    	}
+
+
+
     	public boolean selectSourceFiles(boolean allFiles) {
     		return selectSourceFiles(allFiles, 1); // debug level 1 - modify here
     	}
+
+
     	public boolean selectSourceFiles(boolean allFiles, int debugLevel) {
     		String [] defaultPaths=this.sourcePaths;
     		if ((defaultPaths==null) || (defaultPaths.length==0)){
@@ -1107,8 +1331,8 @@ public class EyesisCorrectionParameters {
     			}
     		}
     		String [] extensions={this.sourceSuffix};
-			CalibrationFileManagement.MultipleExtensionsFileFilter sourceFilter =
-				new CalibrationFileManagement.MultipleExtensionsFileFilter(this.sourcePrefix,extensions,"Source files");
+			MultipleExtensionsFileFilter sourceFilter =
+				new MultipleExtensionsFileFilter(this.sourcePrefix,extensions,"Source files");
 			String [] sourceFiles=null;
     		if (allFiles){
 				File dir= new File (this.sourceDirectory);
@@ -1151,8 +1375,8 @@ public class EyesisCorrectionParameters {
     			defaultPaths[0]=this.sensorDirectory+Prefs.getFileSeparator();
     		}
     		String [] extensions={this.sensorSuffix};
-			CalibrationFileManagement.MultipleExtensionsFileFilter sensorFilter =
-				new CalibrationFileManagement.MultipleExtensionsFileFilter(this.sensorPrefix,extensions,this.sensorPrefix+"*"+extensions[0]+" Sensor calibration files");
+			MultipleExtensionsFileFilter sensorFilter =
+				new MultipleExtensionsFileFilter(this.sensorPrefix,extensions,this.sensorPrefix+"*"+extensions[0]+" Sensor calibration files");
 			if (debugLevel>1) System.out.println("selectSensorFiles("+debugLevel+"): defaultPaths[0]="+defaultPaths[0]+" "+this.sensorPrefix+"*"+this.sensorSuffix);
 
 			String [] sensorFiles=null;
@@ -1198,8 +1422,8 @@ public class EyesisCorrectionParameters {
     			defaultPath=this.equirectangularDirectory+Prefs.getFileSeparator();
     		}
     		String [] extensions={String.format("%02d",channel)+this.equirectangularSuffix}; // looking just for a single map
-			CalibrationFileManagement.MultipleExtensionsFileFilter equirectangularFilter =
-				new CalibrationFileManagement.MultipleExtensionsFileFilter(this.equirectangularPrefix,extensions,
+			MultipleExtensionsFileFilter equirectangularFilter =
+				new MultipleExtensionsFileFilter(this.equirectangularPrefix,extensions,
 						this.equirectangularPrefix+"*"+extensions[0]+" Equirectangular map for channel "+channel);
 			if (debugLevel>1) System.out.println("selectEquirectangularMapFile("+debugLevel+"): defaultPath="+defaultPath+
 					" "+this.equirectangularPrefix+"*"+this.equirectangularSuffix);
@@ -1245,8 +1469,8 @@ public class EyesisCorrectionParameters {
     			defaultPath=this.equirectangularDirectory+Prefs.getFileSeparator();
     		}
     		String [] extensions={this.planeMapSuffix}; // looking just for a single map
-			CalibrationFileManagement.MultipleExtensionsFileFilter planeMapFilter =
-				new CalibrationFileManagement.MultipleExtensionsFileFilter(this.planeMapPrefix,extensions,
+			MultipleExtensionsFileFilter planeMapFilter =
+				new MultipleExtensionsFileFilter(this.planeMapPrefix,extensions,
 						this.planeMapPrefix+"*"+extensions[0]+" Plane map (all channels)");
 			if (debugLevel>1) System.out.println("selectPlaneMapFile("+debugLevel+"): defaultPath="+defaultPath+
 					" "+this.planeMapPrefix+"*"+this.planeMapSuffix);
@@ -1322,8 +1546,8 @@ public class EyesisCorrectionParameters {
     		}
     		String [] extensions={(type==0)?this.sharpKernelSuffix:this.smoothKernelSuffix};
     		String  kernelPrefix= (type==0)?this.sharpKernelPrefix:this.smoothKernelPrefix;
-			CalibrationFileManagement.MultipleExtensionsFileFilter kernelFilter =
-				new CalibrationFileManagement.MultipleExtensionsFileFilter(kernelPrefix,extensions,kernelPrefix+
+			MultipleExtensionsFileFilter kernelFilter =
+				new MultipleExtensionsFileFilter(kernelPrefix,extensions,kernelPrefix+
 						"*"+extensions[0]+" "+((type==0)?"Sharp":"Smooth")+" kernel files");
 			if (debugLevel>1) System.out.println("selectKernelFiles("+debugLevel+"): defaultPaths[0]="+defaultPaths[0]+" "+kernelPrefix+"*"+extensions[0]);
 
@@ -1396,8 +1620,8 @@ public class EyesisCorrectionParameters {
     		}
     		String [] extensions={this.dctSymSuffix};
     		String  kernelPrefix= this.dctKernelPrefix;
-			CalibrationFileManagement.MultipleExtensionsFileFilter kernelFilter =
-				new CalibrationFileManagement.MultipleExtensionsFileFilter(kernelPrefix,extensions,kernelPrefix+
+			MultipleExtensionsFileFilter kernelFilter =
+				new MultipleExtensionsFileFilter(kernelPrefix,extensions,kernelPrefix+
 						"*"+extensions[0]+" DCT symmetrical kernel files");
 			if (debugLevel>1) System.out.println("selectKernelFiles("+debugLevel+"): defaultPaths[0]="+defaultPaths[0]+" "+kernelPrefix+"*"+extensions[0]);
 
@@ -1470,8 +1694,8 @@ public class EyesisCorrectionParameters {
     		}
     		String [] extensions={this.cltSuffix};
     		String  kernelPrefix= this.cltKernelPrefix;
-			CalibrationFileManagement.MultipleExtensionsFileFilter kernelFilter =
-				new CalibrationFileManagement.MultipleExtensionsFileFilter(kernelPrefix,extensions,kernelPrefix+
+			MultipleExtensionsFileFilter kernelFilter =
+				new MultipleExtensionsFileFilter(kernelPrefix,extensions,kernelPrefix+
 						"*"+extensions[0]+" CLT kernel files");
 			if (debugLevel>1) System.out.println("selectKernelFiles("+debugLevel+"): defaultPaths[0]="+defaultPaths[0]+" "+kernelPrefix+"*"+extensions[0]);
 

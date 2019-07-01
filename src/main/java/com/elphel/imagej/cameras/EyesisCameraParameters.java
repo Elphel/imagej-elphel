@@ -8,6 +8,7 @@ import com.elphel.imagej.calibration.DistortionCalibrationData;
 import com.elphel.imagej.calibration.Distortions;
 import com.elphel.imagej.calibration.EyesisAberrations;
 import com.elphel.imagej.calibration.LensDistortionParameters;
+import com.elphel.imagej.calibration.MultipleExtensionsFileFilter;
 import com.elphel.imagej.common.GenericJTabbedDialog;
 import com.elphel.imagej.common.WindowTools;
 
@@ -2856,7 +2857,7 @@ import ij.gui.GenericDialog;
     			// sub_distortionCalibrationData.sensorMasks
 
     	    	String [] extensions={".calib-tiff"};
-    	    	CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"distortion calibration .calib-tiff files");
+    	    	MultipleExtensionsFileFilter parFilter = new MultipleExtensionsFileFilter("",extensions,"distortion calibration .calib-tiff files");
     	    	String pathname=CalibrationFileManagement.selectFile(true,
     	    			"Save distortion calibration for sensor (will add channel number when saving all)",
     	    			"Save",

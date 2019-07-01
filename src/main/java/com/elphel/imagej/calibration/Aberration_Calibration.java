@@ -2113,8 +2113,8 @@ if (MORE_BUTTONS) {
 			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 			LENS_DISTORTIONS=new Distortions(LENS_DISTORTION_PARAMETERS,PATTERN_PARAMETERS,REFINE_PARAMETERS,this.SYNC_COMMAND.stopRequested);
 			String [] extensions={".tif",".tiff"};
-			CalibrationFileManagement.MultipleExtensionsFileFilter gridFilter =
-				new CalibrationFileManagement.MultipleExtensionsFileFilter("grid",extensions,"Calibrated grid files");
+			MultipleExtensionsFileFilter gridFilter =
+				new MultipleExtensionsFileFilter("grid",extensions,"Calibrated grid files");
 		    GenericDialog gd = new GenericDialog("Setup Goniometer/Camera Stations");
 		    gd.addMessage("Setting up calibration that includes multiple camera tripod or goniometer positions.");
 		    gd.addMessage("File selection dialog will open for each station separateley.");
@@ -2623,7 +2623,7 @@ if (MORE_BUTTONS) {
 		    	return;
 		    }
 			String [] extensions={".mask-tiff","-masks.tiff"};
-			CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"*.mask-tiff files");
+			MultipleExtensionsFileFilter parFilter = new MultipleExtensionsFileFilter("",extensions,"*.mask-tiff files");
 			String pathname=CalibrationFileManagement.selectFile(true,
 					"Save Sensor Masks file",
 					"Save",
@@ -2645,7 +2645,7 @@ if (MORE_BUTTONS) {
 		    DISTORTION_CALIBRATION_DATA.updateStatus=UPDATE_STATUS;
 			String [] extensions={".mask-tiff","-masks.tiff"};
 
-			CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"Sensor masks *.mask-tiff files");
+			MultipleExtensionsFileFilter parFilter = new MultipleExtensionsFileFilter("",extensions,"Sensor masks *.mask-tiff files");
 			String pathname=CalibrationFileManagement.selectFile(false,
 					"Restore Sensor Masks",
 					"Restore",
@@ -2860,7 +2860,7 @@ if (MORE_BUTTONS) {
 			}
 			LENS_DISTORTIONS.debugLevel=DEBUG_LEVEL;
 			String [] extensions={".calib-tiff"};
-			CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"distortion calibration .calib-tiff files");
+			MultipleExtensionsFileFilter parFilter = new MultipleExtensionsFileFilter("",extensions,"distortion calibration .calib-tiff files");
 			String pathname=CalibrationFileManagement.selectFile(false,
 					"Restore distortion calibration for sensor",
 					"Restore",
@@ -2975,7 +2975,7 @@ if (MORE_BUTTONS) {
 			}
 			LENS_DISTORTIONS.debugLevel=DEBUG_LEVEL;
 			String [] extensions={".calib-tiff"};
-			CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"distortion calibration .calib-tiff files");
+			MultipleExtensionsFileFilter parFilter = new MultipleExtensionsFileFilter("",extensions,"distortion calibration .calib-tiff files");
 			String pathname=CalibrationFileManagement.selectFile(true,
 					"Save distortion calibration for sensor (will add channel number when saving all)",
 					"Save",
@@ -6648,7 +6648,7 @@ if (MORE_BUTTONS) {
 			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 			if (PIXEL_MAPPING==null) PIXEL_MAPPING=new PixelMapping((String)null,DEBUG_LEVEL); // ask for and load sensor calibration files
 			String [] extensions={".eqr-tiff",".eqrect-tiff"};
-			CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"equirectangular map "+extensions[0]+" files");
+			MultipleExtensionsFileFilter parFilter = new MultipleExtensionsFileFilter("",extensions,"equirectangular map "+extensions[0]+" files");
 			String pathname=CalibrationFileManagement.selectFile(true,
 					"Save equirectangular calibration file (will add channel number suffix)",
 					"Save",
@@ -6838,8 +6838,8 @@ if (MORE_BUTTONS) {
 			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 			if (PIXEL_MAPPING==null) PIXEL_MAPPING=new PixelMapping(null,true,DEBUG_LEVEL);
 	    	String [] extensions={".tiff",".jpeg"};
-	    	CalibrationFileManagement.MultipleExtensionsFileFilter parFilter =
-	    		new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"channel images, may be scaled");
+	    	MultipleExtensionsFileFilter parFilter =
+	    		new MultipleExtensionsFileFilter("",extensions,"channel images, may be scaled");
 	    	String [] files=CalibrationFileManagement.selectFiles(false,
 	    			"Select channel images to warp to equirectangular",
 	    			"Select",
@@ -6949,7 +6949,7 @@ if (MORE_BUTTONS) {
 			if (gd.wasCanceled()) return;
 			String resultPath=gd.getNextString();
 			if (gd.getNextBoolean() || (resultPath==null) || (resultPath.length()==0)){
-				CalibrationFileManagement.MultipleExtensionsFileFilter filter= new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"sensors map file ("+extList+")");
+				MultipleExtensionsFileFilter filter= new MultipleExtensionsFileFilter("",extensions,"sensors map file ("+extList+")");
 				resultPath=CalibrationFileManagement.selectFile(
 						false, // smart
 						true,  // save
@@ -9789,10 +9789,10 @@ if (MORE_BUTTONS) {
 	    numStations= (int) gd.getNextNumber();
 		String [] grid_extensions={".tif",".tiff"};
 		String [] src_extensions={".tif",".tiff"};
-		CalibrationFileManagement.MultipleExtensionsFileFilter gridFilter =
-			new CalibrationFileManagement.MultipleExtensionsFileFilter("grid",grid_extensions,"Calibrated grid files");
-		CalibrationFileManagement.MultipleExtensionsFileFilter sourceFilter =
-				new CalibrationFileManagement.MultipleExtensionsFileFilter("",src_extensions,"Source calibration images");
+		MultipleExtensionsFileFilter gridFilter =
+			new MultipleExtensionsFileFilter("grid",grid_extensions,"Calibrated grid files");
+		MultipleExtensionsFileFilter sourceFilter =
+				new MultipleExtensionsFileFilter("",src_extensions,"Source calibration images");
 
 //		CalibrationFileManagement.DirectoryContentsFilter gridDirFilter =
 //				new CalibrationFileManagement.DirectoryContentsFilter (gridFilter, min_files, 0, null);
@@ -9801,7 +9801,7 @@ if (MORE_BUTTONS) {
 		String []   sourceStationDirs = new String [numStations];      // directories of the source files per station
 
 	    for (int numStation=0;numStation<numStations;numStation++){
-	    	CalibrationFileManagement.DirectoryChoser dc = new CalibrationFileManagement.DirectoryChoser(
+	    	DirectoryChoser dc = new DirectoryChoser(
 	    			gridFilter,
 	    			min_files,
 	    			0,
@@ -10496,7 +10496,7 @@ if (MORE_BUTTONS) {
 
 	public void viewCSVFile(){
 		String [] extensions={".csv","CSV"};
-		CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"CSV table *.csv files");
+		MultipleExtensionsFileFilter parFilter = new MultipleExtensionsFileFilter("",extensions,"CSV table *.csv files");
 		String pathname=CalibrationFileManagement.selectFile(
 				true, // smart,
 				false,
@@ -15339,7 +15339,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
 	    path= CalibrationFileManagement.selectFile(true, // save
 			  "Save configuration selection", // title
 			  "Select configuration file", // button
-			  new CalibrationFileManagement.MultipleExtensionsFileFilter(patterns, (useXML?"XML ":"")+"Configuration files ("+(useXML?"*.conf-xml":"*.conf")+")"), // filter
+			  new MultipleExtensionsFileFilter(patterns, (useXML?"XML ":"")+"Configuration files ("+(useXML?"*.conf-xml":"*.conf")+")"), // filter
 			  directory); // may be ""
      } else path+=patterns[0];
      if (path==null) return;
@@ -15392,7 +15392,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
 	 	    path= CalibrationFileManagement.selectFile(false, // save
 	 			  "Configuration file selection", // title
 	 			  "Read configuration file", // button
-	 			  new CalibrationFileManagement.MultipleExtensionsFileFilter(patterns,(useXML?"XML ":"")+"Configuration files ("+(useXML?"*.conf-xml":"*.conf")+")"), // filter
+	 			  new MultipleExtensionsFileFilter(patterns,(useXML?"XML ":"")+"Configuration files ("+(useXML?"*.conf-xml":"*.conf")+")"), // filter
 	 			  directory); // may be ""
 	      }  else {
 	    	  // do not add extension if it already exists

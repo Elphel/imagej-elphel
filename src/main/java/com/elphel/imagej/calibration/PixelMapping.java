@@ -84,7 +84,7 @@ public class PixelMapping {
 		String [] extensions={".calib-tiff"};
 		String [] defaultPaths=((defaultPath==null) || defaultPath.equals(""))?null:(new String[1]);
 		if (defaultPaths!=null) defaultPaths[0]=defaultPath;
-		CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"distortion calibration .calib-tiff files");
+		MultipleExtensionsFileFilter parFilter = new MultipleExtensionsFileFilter("",extensions,"distortion calibration .calib-tiff files");
 		String [] calibFiles=CalibrationFileManagement.selectFiles(false,
 				"Select camera sub-modules calibration files",
 				"Select",
@@ -157,13 +157,8 @@ public class PixelMapping {
     	if ((channel<0) || (channel>=this.sensors.length)) return -1;
     	return this.sensors[channel].getSubCamera();
     }
-/*
-    public int getSensorPort(int channel ){
-    	if ((channel<0) || (channel>=this.sensors.length)) return -1;
-    	return this.sensors[channel].getSensorPort();
-    }
-    */
 
+// Enumerated calibration file
 
     public boolean isChannelAvailable(int channel){
     	return (this.sensors != null) && (channel>=0)  && (channel<this.sensors.length) && (this.sensors[channel]!=null);
@@ -171,25 +166,51 @@ public class PixelMapping {
 
     // Updating for nc393. subCamera here is 0..9 for Eyesis4pi393 - 0-based index of the file, so it combines physical camera (separate IP)
     // as stored in "subcamera" field of the calibration file and "sensor_port". sensor_port may start from non-0, so we need to count all combinations
-    //removeUnusedSensorData xshould be off!
+    //removeUnusedSensorData should be off!
+
+
+    public boolean subcamerasUsed() {
+    	for (int i=0;i<this.sensors.length;i++)  if ((this.sensors[i]!=null) && (this.sensors[i].subcamera >= 0)) {
+    		return  true;
+    	}
+    	return false;
+    }
+
+    // if subcameras are not used (-1), as in Quads, return {channel index} or null if alien file
+
+	public int [] getSensorWH(int chn) {
+		if ((sensors == null) || (chn < 0) || (chn >= sensors.length)) {
+			return null;
+		}
+		return sensors[chn].getSensorWH();
+	}
+
+
+
     public int [] channelsForSubCamera(int subCamera){
     	if (subCamera < 0) {
     		return null;
     	}
+    	if (this.sensors == null) return null;
+
     	if (this.debugLevel>1) {
     		System.out.print("channelsForSubCamera("+subCamera+"),this.sensors.length="+this.sensors.length+": ");
-//    	} else if (this.debugLevel > -2) {
-//    		System.out.print(".");
+    	}
+    	if (!subcamerasUsed()) {
+        	for (int i=0;i<this.sensors.length;i++)  if ((this.sensors[i]!=null) && (this.sensors[i].channel == subCamera)) {
+        		int [] rslt = {i};
+        		return rslt;
+        	}
+        	return null;
     	}
 
-//    	ArrayList<ArrayList<ArrayList<Integer>>> camera_IPs = new ArrayList<ArrayList<ArrayList<Integer>>>();
+    	// Eyesis version
     	ArrayList<Point> cam_port = new ArrayList<Point>();
     	for (int i=0;i<this.sensors.length;i++)  if (this.sensors[i]!=null) {
     		Point cp = new Point(this.sensors[i].subcamera, this.sensors[i].sensor_port);
     		if (!cam_port.contains(cp)){
     			cam_port.add(cp);
     		}
-//    		System.out.println("this.sensors["+i+"]!=null, this.sensors[i].subcamera="+this.sensors[i].subcamera+", this.sensors[i].sensor_port="+this.sensors[i].sensor_port);
     	}
     	Point [] cam_port_arr = cam_port.toArray(new Point[0]);
 		Arrays.sort(cam_port_arr, new Comparator<Point>() {
@@ -210,7 +231,6 @@ public class PixelMapping {
 		} else if (this.debugLevel > -2) {
     		System.out.print(".");
 		}
-    	if (this.sensors == null) return null;
     	int numChannels=0;
     	for (int i=0;i<this.sensors.length;i++) if (this.sensors[i]!=null) {
     		if (new Point(this.sensors[i].subcamera, this.sensors[i].sensor_port).equals(cam_port_arr[subCamera])) numChannels++;
@@ -231,21 +251,16 @@ public class PixelMapping {
 
 	public float [] getBayerFlatFieldFloat(
 			int channel,
-//			int width,
-//			int height,
-			int [][] bayer){ //{{1,0},{2,1}} GR/BG
+			int [][] bayer, //{{1,0},{2,1}} GR/BG
+			double range) { // max/min
 		if ((this.sensors == null) || (channel<0)  && (channel>=this.sensors.length))return null;
-//		width = this.sensors[channel]
 		return this.sensors[channel].getBayerFlatFieldFloat(
-//				width,
-//				height,
-				bayer);
+				bayer,
+				range);
 	}
 
 	public double [] getBayerFlatField(
 			int channel,
-//			int width,
-//			int height,
 			int [][] bayer){ //{{1,0},{2,1}} GR/BG
 		if ((this.sensors == null) || (channel<0)  && (channel>=this.sensors.length))return null;
 		return this.sensors[channel].getBayerFlatField(
@@ -303,7 +318,7 @@ public class PixelMapping {
     	String [] extensions={".eqr-tiff", ".eqrect-tiff"};
     	String [] defaultPaths=((defaultPath==null) || defaultPath.equals(""))?null:(new String[1]);
     	if (defaultPaths!=null) defaultPaths[0]=defaultPath;
-    	CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"equirectangular map "+extensions[0]+" files");
+    	MultipleExtensionsFileFilter parFilter = new MultipleExtensionsFileFilter("",extensions,"equirectangular map "+extensions[0]+" files");
     	String [] eqrectFiles=CalibrationFileManagement.selectFiles(false,
     			"Select equirectangular calibration files",
     			"Select",
@@ -15946,16 +15961,19 @@ public class PixelMapping {
 			return corrScale;
 		}
 		public float [] getBayerFlatFieldFloat(
-				int [][] bayer){ //{{1,0},{2,1}} GR/BG
+				int [][] bayer, //{{1,0},{2,1}} GR/BG
+				double range) {
 			return _getBayerFlatFieldFloat(
 					this.pixelCorrectionWidth, //  width,
 					this.pixelCorrectionHeight, // int height,
-					bayer);
+					bayer,
+					range);
 		}
 		private float [] _getBayerFlatFieldFloat(
 				int width,
 				int height,
-				int [][] bayer){ //{{1,0},{2,1}} GR/BG
+				int [][] bayer, //{{1,0},{2,1}} GR/BG
+				double range) {
 
 			float [] corrScale = new float [width*height];
 			for (int y=0;y<height;y++) for (int x=0;x<width;x++){
@@ -15965,17 +15983,30 @@ public class PixelMapping {
 						x,    //double px,
 						y //double py)
 						);
-/*				double d=interpolateCorrectionVector(
-						true, // boolean rgbOnly,
-						x,    //double px,
-						y //double py)
-						)[iBayer];*/
 				if (iBayer>=v.length){
 					System.out.println("getBayerFlatField(): v.length="+v.length+" x="+x+" y="+y+" iBayer="+iBayer);
 				}
 				double d=v[iBayer];
 				if (d!=0.0) d=1.0/d;
 				corrScale[y*width+x]= (float) d;
+			}
+			if (range > 0.0) {
+				double [] mins = {Double.NaN,Double.NaN,Double.NaN,Double.NaN};
+				int indx = 0;
+				for (int y=0;y<height;y++) for (int x=0;x<width;x++){
+					int iBayer= 2*(y&1) +(x&1);
+					double d = corrScale[indx++];
+					if (! ( d >=  mins[iBayer])) mins[iBayer] = d;
+				}
+				for (int i = 0; i < mins.length; i++) {
+					mins[i] *= range;
+				}
+				indx = 0;
+				for (int y=0;y<height;y++) for (int x=0;x<width;x++){
+					int iBayer= 2*(y&1) +(x&1);
+					if ( corrScale[indx] >=  mins[iBayer]) corrScale[indx] = (float) mins[iBayer];
+					indx++;
+				}
 			}
 			return corrScale;
 		}

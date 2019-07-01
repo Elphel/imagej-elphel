@@ -180,7 +180,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     	    	DistortionCalibrationData distortionCalibrationData // per-image parameters
     			) {
 			String [] extensions={".stg-xml","-strategy.xml"};
-			CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"*.stg-xml files");
+			MultipleExtensionsFileFilter parFilter = new MultipleExtensionsFileFilter("",extensions,"*.stg-xml files");
 			String pathname=CalibrationFileManagement.selectFile(
 					smart,
 					false,
@@ -359,7 +359,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     			boolean smart,
     			String defaultPath){
 			String [] extensions={".stg-xml","-strategy.xml"};
-			CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"*.stg-xml files");
+			MultipleExtensionsFileFilter parFilter = new MultipleExtensionsFileFilter("",extensions,"*.stg-xml files");
 			if ((defaultPath==null) || (defaultPath.length()==0)){
 				defaultPath=this.pathName;
 			}

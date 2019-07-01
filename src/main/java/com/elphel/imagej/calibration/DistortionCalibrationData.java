@@ -677,8 +677,8 @@ import ij.text.TextWindow;
         public DistortionCalibrationData (
         		String [][] stationFilenames,
         		String []                                              source_dirs,      // directories of the source files per station
-        		CalibrationFileManagement.MultipleExtensionsFileFilter gridFilter,
-        		CalibrationFileManagement.MultipleExtensionsFileFilter sourceFilter,
+        		MultipleExtensionsFileFilter gridFilter,
+        		MultipleExtensionsFileFilter sourceFilter,
         		PatternParameters                                      patternParameters,
         		EyesisCameraParameters                                 eyesisCameraParameters,
         		LaserPointer                                           laserPointers, // as a backup if data is not available in the file
@@ -767,8 +767,8 @@ import ij.text.TextWindow;
         public void setupDirDistortionCalibrationData (
         		String [][]                                            stationFilenames, // per-station List of image set directories
         		String []                                              source_dirs,      // directories of the source files per station
-        		CalibrationFileManagement.MultipleExtensionsFileFilter gridFilter,
-        		CalibrationFileManagement.MultipleExtensionsFileFilter sourceFilter,
+        		MultipleExtensionsFileFilter gridFilter,
+        		MultipleExtensionsFileFilter sourceFilter,
         		PatternParameters                                      patternParameters,
         		EyesisCameraParameters                                 eyesisCameraParameters,
         		LaserPointer                                           laserPointers, // as a backup if data is not available in the file
@@ -789,8 +789,8 @@ import ij.text.TextWindow;
         			  String dir,  // grid image set directory that contains channel files (may be different timestamps)
         			  String sdir, // source super directory that contains image set directories with files
         			  int num_chn,
-        			  CalibrationFileManagement.MultipleExtensionsFileFilter gridFilter,
-        			  CalibrationFileManagement.MultipleExtensionsFileFilter sourceFilter)
+        			  MultipleExtensionsFileFilter gridFilter,
+        			  MultipleExtensionsFileFilter sourceFilter)
         		{
         			this.station = station;
 //        			this.dir = dir;
@@ -2945,7 +2945,7 @@ import ij.text.TextWindow;
 				ImagePlus[] gridImages  ){ // null - use specified files
         	setupIndices();
 			String [] extensions={".dcal-xml","-distcal.xml"};
-			CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"Distortion calibration *.dcal-xml files");
+			MultipleExtensionsFileFilter parFilter = new MultipleExtensionsFileFilter("",extensions,"Distortion calibration *.dcal-xml files");
 			String pathname=CalibrationFileManagement.selectFile(
 					smart,
 					false,
@@ -3149,7 +3149,7 @@ import ij.text.TextWindow;
         }
         public String selectAndSaveToXML(boolean smart, String defaultPath, String comment){
 			String [] extensions={".dcal-xml","-distcal.xml"};
-			CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"Distortion calibration *.dcal-xml files");
+			MultipleExtensionsFileFilter parFilter = new MultipleExtensionsFileFilter("",extensions,"Distortion calibration *.dcal-xml files");
 			String pathname=CalibrationFileManagement.selectFile(
 					smart,
 					true,

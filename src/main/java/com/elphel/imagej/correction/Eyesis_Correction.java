@@ -531,6 +531,7 @@ private Panel panel1,
 		addButton("Channel gains/colors", panel7, color_configure);
 		addButton("Configure warping", panel7, color_conf_process);
 		addButton("Select source files", panel7, color_configure);
+		addButton("Select source sets",  panel7, color_configure);
 		addButton("Process files", panel7,color_process);
 		if (ADVANCED_MODE) {
 			addButton("Tiff Writer", panel7);
@@ -592,10 +593,13 @@ private Panel panel1,
 			addButton("CLT stack",                 panelClt1, color_process);
 			addButton("Select second CLT image",   panelClt1, color_configure);
 			addButton("CLT correlate",             panelClt1, color_process);
+			addButton("Reset Geometry",            panelClt1, color_stop);
+			addButton("Reset AUX Geometry",        panelClt1, color_stop);
 			addButton("Create CLT kernels",        panelClt1, color_process);
 			addButton("Create AUX CLT kernels",    panelClt1, color_process);
 			addButton("Read CLT kernels",          panelClt1, color_process);
 			addButton("Reset CLT kernels",         panelClt1, color_stop);
+
 			addButton("CLT process files",         panelClt1, color_process);
 			addButton("CLT process sets",          panelClt1, color_process);
 			addButton("CLT process quads",         panelClt1, color_process);
@@ -692,6 +696,13 @@ private Panel panel1,
 		if (LWIR_MODE) {
 			panelLWIR = new Panel();
 			panelLWIR.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
+			addButton("Setup CLT Batch parameters", panelLWIR, color_configure);
+			addButton("Reset Geometry",             panelLWIR, color_stop);
+			addButton("Reset AUX Geometry",         panelLWIR, color_stop);
+			addButton("Create CLT kernels",         panelLWIR, color_process);
+			addButton("Create AUX CLT kernels",     panelLWIR, color_process);
+			addButton("Select source sets",         panelLWIR, color_configure);
+			addButton("CLT 4 images",               panelLWIR, color_conf_process);
 			addButton("LWIR_TEST",                  panelLWIR, color_conf_process);
 			addButton("LWIR_ACQUIRE",               panelLWIR, color_conf_process);
 			plugInFrame.add(panelLWIR);
@@ -1431,6 +1442,15 @@ private Panel panel1,
     			false, // boolean allFiles,
     			DEBUG_LEVEL); //int debugLevel
     	return;
+/* ======================================================================== */
+    } else if (label.equals("Select source sets" )) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	CORRECTION_PARAMETERS.selectSourceSets(
+//    			false, // boolean allFiles,
+    			DEBUG_LEVEL); //int debugLevel
+    	return;
+
+//
 /* ======================================================================== */
     } else if (label.equals("Process files")) {
     	processFiles();
@@ -3881,7 +3901,69 @@ private Panel panel1,
 		CLTCorrelate();
 		return;
 //==============================================================================
+    } else if (label.equals("Reset Geometry")) {
+        if (!CLT_PARAMETERS.showJDialog()) return;
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        }
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return;
+    	String cltPath=EYESIS_CORRECTIONS.correctionsParameters.selectCLTKernelDirectory( // create if it does not exist
+				true,
+				true);
+    	if (cltPath==null) {
+			String msg="No CLT kernels (results) directory selected, command aborted";
+			System.out.println("Warning: "+msg);
+			IJ.showMessage("Warning",msg);
+			return;
+    	}
 
+        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL,
+        		true, // true - ignore missing files
+    			true, // boolean all_sensors,
+    			true); //boolean no_vignetting
+
+        QUAD_CLT.resetGeometryCorrection();
+        QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL+2);
+
+      //==============================================================================
+    } else if (label.equals("Reset AUX Geometry")) {
+        if (!CLT_PARAMETERS.showJDialog()) return;
+		if (EYESIS_CORRECTIONS_AUX == null) {
+			EYESIS_CORRECTIONS_AUX = new EyesisCorrections(SYNC_COMMAND.stopRequested,CORRECTION_PARAMETERS.getAux());
+		}
+        if ((QUAD_CLT_AUX == null) ||(QUAD_CLT_AUX.eyesisCorrections == null)){
+        	QUAD_CLT_AUX = new  QuadCLT (
+        			QuadCLT.PREFIX_AUX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS_AUX,
+        			CORRECTION_PARAMETERS.getAux());
+        }
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return;
+    	String cltPath=EYESIS_CORRECTIONS.correctionsParameters.selectCLTKernelDirectory( // create if it does not exist
+				true,
+				true);
+    	if (cltPath==null) {
+			String msg="No CLT kernels (results) directory selected, command aborted";
+			System.out.println("Warning: "+msg);
+			IJ.showMessage("Warning",msg);
+			return;
+    	}
+
+        EYESIS_CORRECTIONS_AUX.initSensorFiles(DEBUG_LEVEL,
+        		true, // true - ignore missing files
+    			true, // boolean all_sensors,
+    			true); //boolean no_vignetting
+
+        QUAD_CLT_AUX.resetGeometryCorrection();
+        QUAD_CLT_AUX.initGeometryCorrection(DEBUG_LEVEL+2);
+
+//==============================================================================
     } else if (label.equals("Create CLT kernels")) {
         if (!CLT_PARAMETERS.showJDialog()) return;
         if (QUAD_CLT == null){
@@ -3953,6 +4035,10 @@ private Panel panel1,
                 THREADS_MAX,
                 UPDATE_STATUS, // update status info
         		DEBUG_LEVEL);
+
+
+
+
         //"Reset DCT kernels"
     } else if (label.equals("Reset CLT kernels")) {
         if (QUAD_CLT != null){
@@ -4207,7 +4293,12 @@ private Panel panel1,
     	String configPath=getSaveCongigPath();
     	if (configPath.equals("ABORT")) return;
 
-        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
+        EYESIS_CORRECTIONS.initSensorFiles(
+        		DEBUG_LEVEL,
+    			false, // boolean missing_ok,
+    			true, // boolean all_sensors, Otherwise - Eyesis
+    			false); //boolean no_vignetting
+
         int numChannels=EYESIS_CORRECTIONS.getNumChannels();
 //        NONLIN_PARAMETERS.modifyNumChannels(numChannels);
         CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);

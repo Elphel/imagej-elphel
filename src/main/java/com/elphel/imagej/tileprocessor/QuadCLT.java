@@ -46,6 +46,7 @@ import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.correction.CorrectionColorProc;
 import com.elphel.imagej.correction.EyesisCorrections;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
+import com.elphel.imagej.tileprocessor.GeometryCorrection.CorrVector;
 import com.elphel.imagej.x3d.export.WavefrontExport;
 import com.elphel.imagej.x3d.export.X3dOutput;
 
@@ -72,7 +73,7 @@ public class QuadCLT {
 	public EyesisCorrections                               eyesisCorrections = null;
 	public EyesisCorrectionParameters.CorrectionParameters correctionsParameters=null;
 	double [][][][][][]                                    clt_kernels = null;
-	public GeometryCorrection                                     geometryCorrection = null;
+	public GeometryCorrection                              geometryCorrection = null;
 	double []                                              extrinsic_corr = new double [GeometryCorrection.CORR_NAMES.length]; // extrinsic corrections (needed from properties, before geometryCorrection
 	public int                                             extra_items = 8; // number of extra items saved with kernels (center offset (partial, full, derivatives)
 	public ImagePlus                                       eyesisKernelImage = null;
@@ -336,6 +337,10 @@ public class QuadCLT {
 	public boolean geometryCorrectionAvailable(){
 		return (geometryCorrection != null) && geometryCorrection.isInitialized();
 	}
+	public void resetGeometryCorrection() {
+		geometryCorrection = null;
+		extrinsic_corr = new double [GeometryCorrection.CORR_NAMES.length];
+	}
 	public boolean initGeometryCorrection(int debugLevel){
 		// keep rig offsets if edited
 		if (geometryCorrection == null) {
@@ -345,7 +350,7 @@ public class QuadCLT {
 		// verify that all sensors have the same distortion parameters
 		int numSensors = sensors.length;
 		for (int i = 1; i < numSensors; i++){
-			if (	(sensors[0].focalLength !=           sensors[i].focalLength) || // null pointer
+			if (//	(sensors[0].focalLength !=           sensors[i].focalLength) || // null pointer
 					(sensors[0].distortionC !=           sensors[i].distortionC) ||
 					(sensors[0].distortionB !=           sensors[i].distortionB) ||
 					(sensors[0].distortionA !=           sensors[i].distortionA) ||
@@ -361,9 +366,17 @@ public class QuadCLT {
 				return false;
 			}
 		}
+		// TODO: Verify correction sign!
+		double f_avg = geometryCorrection.getCorrVector().setZoomsFromF(
+				sensors[0].focalLength,
+				sensors[1].focalLength,
+				sensors[2].focalLength,
+				sensors[3].focalLength);
+		for (int i = CorrVector.LENGTH_ANGLES; i < CorrVector.LENGTH; i++){
+		}
 		// set common distportion parameters
 		geometryCorrection.setDistortion(
-				sensors[0].focalLength,
+				f_avg, // sensors[0].focalLength,
 				sensors[0].distortionC,
 				sensors[0].distortionB,
 				sensors[0].distortionA,
@@ -376,6 +389,7 @@ public class QuadCLT {
 				sensors[0].pixelCorrectionHeight,
 				sensors[0].pixelSize);
 		// set other/individual sensor parameters
+		/*
 		for (int i = 1; i < numSensors; i++){
 			if (	(sensors[0].theta !=                 sensors[i].theta) || // elevation
 					(sensors[0].heading !=               sensors[i].heading)){
@@ -383,6 +397,20 @@ public class QuadCLT {
 				return false;
 			}
 		}
+		*/
+		double theta_avg = geometryCorrection.getCorrVector().setTiltsFromThetas(
+				sensors[0].theta,
+				sensors[1].theta,
+				sensors[2].theta,
+				sensors[3].theta);
+
+		double heading_avg = geometryCorrection.getCorrVector().setAzimuthsFromHeadings(
+				sensors[0].heading,
+				sensors[1].heading,
+				sensors[2].heading,
+				sensors[3].heading);
+
+
 		double []   forward = new double[numSensors];
 		double []   right =   new double[numSensors];
 		double []   height =  new double[numSensors];
@@ -398,8 +426,8 @@ public class QuadCLT {
 		}
 		geometryCorrection.setSensors(
 				numSensors,
-				sensors[0].theta,
-				sensors[0].heading,
+				theta_avg, // sensors[0].theta,
+				heading_avg, // sensors[0].heading,
 				forward,
 				right,
 				height,
@@ -420,6 +448,8 @@ public class QuadCLT {
 		// Print parameters
 		if (debugLevel > 0){
 			geometryCorrection.listGeometryCorrection(debugLevel > 1);
+			System.out.println("=== Extrinsic corrections ===");
+			System.out.println(geometryCorrection.getCorrVector().toString());
 		}
 
 //listGeometryCorrection
@@ -1365,12 +1395,10 @@ public class QuadCLT {
 	  public void processCLTChannelImages(
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-//			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-//			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
 			  final int          threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel)
@@ -1383,12 +1411,7 @@ public class QuadCLT {
 		  int numImagesToProcess=0;
 		  for (int nFile=0;nFile<enabledFiles.length;nFile++){
 			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1)) {
-				  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
-				  if (correctionsParameters.isJP4()){
-					  int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
-					  // removeUnusedSensorData should be off!?
-					  channels=this.eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera);
-				  }
+				  int [] channels= fileChannelToSensorChannels(correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile]));
 				  if (channels!=null){
 					  for (int i=0;i<channels.length;i++) if (eyesisCorrections.isChannelEnabled(channels[i])){
 						  if (!enabledFiles[nFile]) numFilesToProcess++;
@@ -1409,11 +1432,7 @@ public class QuadCLT {
 		  int index=0;
 		  for (int nFile=0;nFile<enabledFiles.length;nFile++){
 			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1)) {
-				  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
-				  if (correctionsParameters.isJP4()){
-					  int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
-					  channels=eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera);
-				  }
+				  int [] channels= fileChannelToSensorChannels(correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile]));
 				  if (channels!=null){
 					  for (int i=0;i<channels.length;i++) if (eyesisCorrections.isChannelEnabled(channels[i])){
 						  fileIndices[index  ][0]=nFile;
@@ -1427,32 +1446,9 @@ public class QuadCLT {
 			  ImagePlus imp_src=null;
 			  //				  int srcChannel=correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile]);
 			  int srcChannel=fileIndices[iImage][1];
-			  if (correctionsParameters.isJP4()){
-				  int subchannel=eyesisCorrections.pixelMapping.getSubChannel(srcChannel);
-				  if (this.correctionsParameters.swapSubchannels01) {
-					  switch (subchannel){
-					  case 0: subchannel=1; break;
-					  case 1: subchannel=0; break;
-					  }
-				  }
-				  if (debugLevel>0) System.out.println("Processing channel "+fileIndices[iImage][1]+" - subchannel "+subchannel+" of "+sourceFiles[nFile]);
-				  ImagePlus imp_composite=eyesisCorrections.JP4_INSTANCE.open(
-						  "", // path,
-						  sourceFiles[nFile],
-						  "",  //arg - not used in JP46 reader
-						  true, // un-apply camera color gains
-						  null, // new window
-						  false); // do not show
-				  imp_src=eyesisCorrections.JP4_INSTANCE.demuxImage(imp_composite, subchannel);
-				  if (imp_src==null) imp_src=imp_composite; // not a composite image
 
-				  // do we need to add any properties?
-			  } else {
-				  imp_src=new ImagePlus(sourceFiles[nFile]);
-				  //					  (new JP46_Reader_camera(false)).decodeProperiesFromInfo(imp_src); // decode existent properties from info
-				  eyesisCorrections.JP4_INSTANCE.decodeProperiesFromInfo(imp_src); // decode existent properties from info
-				  if (debugLevel>0) System.out.println("Processing "+sourceFiles[nFile]);
-			  }
+			  imp_src = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], this.geometryCorrection.woi_tops);
+
 			  double scaleExposure=1.0;
 			  if (!Double.isNaN(referenceExposures[nFile]) && (imp_src.getProperty("EXPOSURE")!=null)){
 				  scaleExposure=referenceExposures[nFile]/Double.parseDouble((String) imp_src.getProperty("EXPOSURE"));
@@ -1971,12 +1967,7 @@ public class QuadCLT {
 		  int numImagesToProcess=0;
 		  for (int nFile=0;nFile<enabledFiles.length;nFile++){
 			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1)) {
-				  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
-				  if (correctionsParameters.isJP4()){
-					  int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
-					  // removeUnusedSensorData should be off!?
-					  channels=this.eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera);
-				  }
+				  int [] channels= fileChannelToSensorChannels(correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile]));
 				  if (channels!=null){
 					  for (int i=0;i<channels.length;i++) if (eyesisCorrections.isChannelEnabled(channels[i])){
 						  if (!enabledFiles[nFile]) numFilesToProcess++;
@@ -1997,11 +1988,7 @@ public class QuadCLT {
 		  int index=0;
 		  for (int nFile=0;nFile<enabledFiles.length;nFile++){
 			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1)) {
-				  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
-				  if (correctionsParameters.isJP4()){
-					  int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
-					  channels=eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera);
-				  }
+				  int [] channels= fileChannelToSensorChannels(correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile]));
 				  if (channels!=null){
 					  for (int i=0;i<channels.length;i++) if (eyesisCorrections.isChannelEnabled(channels[i])){
 						  fileIndices[index  ][0]=nFile;
@@ -2041,31 +2028,8 @@ public class QuadCLT {
 				  int nFile=channelFiles[srcChannel];
 				  imp_srcs[srcChannel]=null;
 				  if (nFile >=0){
-					  if (correctionsParameters.isJP4()){
-						  int subchannel=eyesisCorrections.pixelMapping.getSubChannel(srcChannel);
-						  if (this.correctionsParameters.swapSubchannels01) {
-							  switch (subchannel){
-							  case 0: subchannel=1; break;
-							  case 1: subchannel=0; break;
-							  }
-						  }
-						  if (debugLevel>0) System.out.println("Processing set " + setNames.get(nSet)+" channel "+srcChannel+" - subchannel "+subchannel+" of "+sourceFiles[nFile]);
-						  ImagePlus imp_composite=eyesisCorrections.JP4_INSTANCE.open(
-								  "", // path,
-								  sourceFiles[nFile],
-								  "",  //arg - not used in JP46 reader
-								  true, // un-apply camera color gains
-								  null, // new window
-								  false); // do not show
-						  imp_srcs[srcChannel]=eyesisCorrections.JP4_INSTANCE.demuxImage(imp_composite, subchannel);
-						  if (imp_srcs[srcChannel] == null) imp_srcs[srcChannel] = imp_composite; // not a composite image
-						  // do we need to add any properties?
-					  } else {
-						  imp_srcs[srcChannel]=new ImagePlus(sourceFiles[nFile]);
-						  //					  (new JP46_Reader_camera(false)).decodeProperiesFromInfo(imp_src); // decode existent properties from info
-						  eyesisCorrections.JP4_INSTANCE.decodeProperiesFromInfo(imp_srcs[srcChannel]); // decode existent properties from info
-						  if (debugLevel>0) System.out.println("Processing "+sourceFiles[nFile]);
-					  }
+					  imp_srcs[srcChannel] = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], this.geometryCorrection.woi_tops);
+
 					  scaleExposure[srcChannel] = 1.0;
 					  if (!Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
 						  scaleExposure[srcChannel] = referenceExposures[nFile]/Double.parseDouble((String) imp_srcs[srcChannel].getProperty("EXPOSURE"));
@@ -2603,12 +2567,10 @@ public class QuadCLT {
 	  public void processCLTQuads(
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-//			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-//			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
 			  final int          threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel)
@@ -2621,12 +2583,7 @@ public class QuadCLT {
 		  int numImagesToProcess=0;
 		  for (int nFile=0;nFile<enabledFiles.length;nFile++){
 			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1)) {
-				  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
-				  if (correctionsParameters.isJP4()){
-					  int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
-					  // removeUnusedSensorData should be off!?
-					  channels=this.eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera);
-				  }
+				  int [] channels= fileChannelToSensorChannels(correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile]));
 				  if (channels!=null){
 					  for (int i=0;i<channels.length;i++) if (eyesisCorrections.isChannelEnabled(channels[i])){
 						  if (!enabledFiles[nFile]) numFilesToProcess++;
@@ -2647,11 +2604,7 @@ public class QuadCLT {
 		  int index=0;
 		  for (int nFile=0;nFile<enabledFiles.length;nFile++){
 			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1)) {
-				  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
-				  if (correctionsParameters.isJP4()){
-					  int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
-					  channels=eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera);
-				  }
+				  int [] channels= fileChannelToSensorChannels(correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile]));
 				  if (channels!=null){
 					  for (int i=0;i<channels.length;i++) if (eyesisCorrections.isChannelEnabled(channels[i])){
 						  fileIndices[index  ][0]=nFile;
@@ -2693,36 +2646,8 @@ public class QuadCLT {
 				  int nFile=channelFiles[srcChannel];
 				  imp_srcs[srcChannel]=null;
 				  if (nFile >=0){
-					  if (correctionsParameters.isJP4()){
-						  int subchannel=eyesisCorrections.pixelMapping.getSubChannel(srcChannel);
-						  if (this.correctionsParameters.swapSubchannels01) {
-							  switch (subchannel){
-							  case 0: subchannel=1; break;
-							  case 1: subchannel=0; break;
-							  }
-						  }
-						  if (debugLevel>0) System.out.println("Processing set " + setNames.get(nSet)+" channel "+srcChannel+" - subchannel "+subchannel+" of "+sourceFiles[nFile]);
-						  ImagePlus imp_composite=eyesisCorrections.JP4_INSTANCE.open(
-								  "", // path,
-								  sourceFiles[nFile],
-								  "",  //arg - not used in JP46 reader
-								  true, // un-apply camera color gains
-								  null, // new window
-								  false); // do not show
-						  imp_srcs[srcChannel]=eyesisCorrections.JP4_INSTANCE.demuxImage(imp_composite, subchannel);
-						  if (imp_srcs[srcChannel] == null) imp_srcs[srcChannel] = imp_composite; // not a composite image
-						  // do we need to add any properties?
-					  } else {
-						  imp_srcs[srcChannel]=new ImagePlus(sourceFiles[nFile]);
-						  //					  (new JP46_Reader_camera(false)).decodeProperiesFromInfo(imp_src); // decode existent properties from info
-						  eyesisCorrections.JP4_INSTANCE.decodeProperiesFromInfo(imp_srcs[srcChannel]); // decode existent properties from info
-						  if (debugLevel>0) System.out.println("Processing "+sourceFiles[nFile]);
-					  }
-					  imp_srcs[srcChannel] =  ShowDoubleFloatArrays.padBayerToFullSize(
-							  imp_srcs[srcChannel], // ImagePlus imp_src,
-							  eyesisCorrections.pixelMapping.sensors[srcChannel].getSensorWH(),
-							  true); // boolean replicate);
-					  this.geometryCorrection.woi_tops[srcChannel] = Integer.parseInt((String) imp_srcs[srcChannel].getProperty("WOI_TOP"));
+					  imp_srcs[srcChannel] = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], this.geometryCorrection.woi_tops);
+
 					  scaleExposures[srcChannel] = 1.0;
 					  if (!Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
 						  scaleExposures[srcChannel] = referenceExposures[nFile]/Double.parseDouble((String) imp_srcs[srcChannel].getProperty("EXPOSURE"));
@@ -3196,7 +3121,19 @@ public class QuadCLT {
 		  return setChannels(null, debugLevel);
 	  }
 
-
+	  public int [] fileChannelToSensorChannels(int file_channel) {
+		  if (!eyesisCorrections.pixelMapping.subcamerasUsed()) { // not an Eyesis-type system
+			  // Here use firstSubCameraConfig - subcamera, corresponding to sensors[0] of this PixelMapping instance (1 for Eyesis, 2 for Rig/LWIR)
+			  return eyesisCorrections.pixelMapping.channelsForSubCamera(file_channel - correctionsParameters.firstSubCameraConfig);
+		  } else 	if (correctionsParameters.isJP4()){
+			  // Here use firstSubCamera - first filename index to be processed by this PixelMapping instance (1 for Eyesis, 2 for Rig/LWIR)
+			  int subCamera= file_channel- correctionsParameters.firstSubCamera; // to match those in the sensor files
+			  return  eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera);
+		  } else {
+			  int [] channels = {file_channel};
+			  return channels;
+		  }
+	  }
 
 	  SetChannels [] setChannels(
 			  String single_set_name, // process only files that contain specified series (timestamp) in the name
@@ -3207,13 +3144,10 @@ public class QuadCLT {
 		  int numFilesToProcess=0;
 		  int numImagesToProcess=0;
 		  for (int nFile=0;nFile<enabledFiles.length;nFile++){
-			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1) && ((single_set_name == null) || (sourceFiles[nFile].contains(single_set_name)))) {
-				  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
-				  if (correctionsParameters.isJP4()){
-					  int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
-					  // removeUnusedSensorData should be off!?
-					  channels=this.eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera); // limit here or disable Error
-				  }
+			  if (    (sourceFiles[nFile]!=null) &&
+					  (sourceFiles[nFile].length() > 1) &&
+					  ((single_set_name == null) || (correctionsParameters.getNameFromTiff(sourceFiles[nFile]).contains(single_set_name)))) {
+				  int [] channels= fileChannelToSensorChannels(correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile]));
 				  if (channels!=null){
 					  for (int i=0;i<channels.length;i++) if (eyesisCorrections.isChannelEnabled(channels[i])){
 						  if (!enabledFiles[nFile]) numFilesToProcess++;
@@ -3229,16 +3163,13 @@ public class QuadCLT {
 		  } else {
 			  if (debugLevel>0) System.out.println(numFilesToProcess+ " files to process (of "+sourceFiles.length+"), "+numImagesToProcess+" images to process");
 		  }
-//		  double [] referenceExposures=eyesisCorrections.calcReferenceExposures(debugLevel); // multiply each image by this and divide by individual (if not NaN)
 		  int [][] fileIndices=new int [numImagesToProcess][2]; // file index, channel number
 		  int index=0;
 		  for (int nFile=0;nFile<enabledFiles.length;nFile++){ // enabledFiles not used anymore?
-			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1) && ((single_set_name == null) || (sourceFiles[nFile].contains(single_set_name)))) {
-				  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
-				  if (correctionsParameters.isJP4()){
-					  int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
-					  channels=eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera);
-				  }
+			  if (    (sourceFiles[nFile]!=null) &&
+					  (sourceFiles[nFile].length()>1) &&
+					  ((single_set_name == null) || (correctionsParameters.getNameFromTiff(sourceFiles[nFile]).contains(single_set_name)))) {
+				  int [] channels= fileChannelToSensorChannels(correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile]));
 				  if (channels!=null){
 					  for (int i=0;i<channels.length;i++) if (eyesisCorrections.isChannelEnabled(channels[i])){
 						  fileIndices[index  ][0]=nFile;
@@ -3252,7 +3183,7 @@ public class QuadCLT {
 
 		  for (int iImage=0;iImage<fileIndices.length;iImage++){
 			  int nFile=fileIndices[iImage][0];
-			  String setName = correctionsParameters.getNameFromSourceTiff(sourceFiles[nFile]);
+			  String setName = correctionsParameters.getNameFromSourceTiff(sourceFiles[nFile]); // supports set directory name
 			  if (!setNames.contains(setName)) {
 				  setNames.add(setName);
 				  setFiles.add(new ArrayList<Integer>());
@@ -3309,47 +3240,14 @@ public class QuadCLT {
 		  this.image_name = set_name;
 		  ImagePlus [] imp_srcs = new ImagePlus[channelFiles.length];
 		  this.geometryCorrection.woi_tops = new int [channelFiles.length];
-//		  double [] scaleExposures = new double[channelFiles.length]; //
 		  double [][] dbg_dpixels = new double [channelFiles.length][];
-//		  int [] fullWindowWH = geometryCorrection.getSensorWH();
 
 		  for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++){
 			  int nFile=channelFiles[srcChannel]; // channelFiles[srcChannel];
 
 			  imp_srcs[srcChannel]=null;
 			  if (nFile >=0){
-				  if (correctionsParameters.isJP4()){
-					  int subchannel=eyesisCorrections.pixelMapping.getSubChannel(srcChannel);
-					  if (this.correctionsParameters.swapSubchannels01) {
-						  switch (subchannel){
-						  case 0: subchannel=1; break;
-						  case 1: subchannel=0; break;
-						  }
-					  }
-					  if (debugLevel>0) System.out.println("Processing set " + set_name+" channel "+srcChannel+" - subchannel "+subchannel+" of "+sourceFiles[nFile]);
-					  ImagePlus imp_composite=eyesisCorrections.JP4_INSTANCE.open(
-							  "", // path,
-							  sourceFiles[nFile],
-							  "",  //arg - not used in JP46 reader
-							  true, // un-apply camera color gains
-							  null, // new window
-							  false); // do not show
-					  imp_srcs[srcChannel]=eyesisCorrections.JP4_INSTANCE.demuxImage(imp_composite, subchannel);
-					  if (imp_srcs[srcChannel] == null) imp_srcs[srcChannel] = imp_composite; // not a composite image
-					  // do we need to add any properties?
-				  } else {
-					  imp_srcs[srcChannel]=new ImagePlus(sourceFiles[nFile]);
-					  //					  (new JP46_Reader_camera(false)).decodeProperiesFromInfo(imp_src); // decode existent properties from info
-					  eyesisCorrections.JP4_INSTANCE.decodeProperiesFromInfo(imp_srcs[srcChannel]); // decode existent properties from info
-					  if (debugLevel>0) System.out.println("Processing "+sourceFiles[nFile]);
-				  }
-// imp_srcs[srcChannel].show(); // REMOVE ME!
-
-				  this.geometryCorrection.woi_tops[srcChannel] = Integer.parseInt((String) imp_srcs[srcChannel].getProperty("WOI_TOP"));
-				  imp_srcs[srcChannel] =  ShowDoubleFloatArrays.padBayerToFullSize(
-						  imp_srcs[srcChannel], // ImagePlus imp_src,
-						  eyesisCorrections.pixelMapping.sensors[srcChannel].getSensorWH(),
-						  true); // boolean replicate);
+				  imp_srcs[srcChannel] = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], this.geometryCorrection.woi_tops);
 
 				  scaleExposures[srcChannel] = 1.0;
 				  if (!Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
@@ -3478,7 +3376,7 @@ public class QuadCLT {
 			  }
 		  }
 		  // temporary applying scaleExposures[srcChannel] here, setting it to all 1.0
-		  System.out.println("Temporarily applying scaleExposures[] here" );
+		  System.out.println("Temporarily applying scaleExposures[] here - 1" );
 		  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
 			  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
 			  for (int i = 0; i < pixels.length; i++){
@@ -3529,7 +3427,7 @@ public class QuadCLT {
 		  //			  Overlay ovl = imp_srcs[0].getOverlay();
 		  // once per quad here
 		  // may need to equalize gains between channels
-		  if (clt_parameters.gain_equalize || clt_parameters.colors_equalize){
+		  if (clt_parameters.gain_equalize || clt_parameters.colors_equalize){ // false, true
 			  channelGainsEqualize(
 					  clt_parameters.gain_equalize,
 					  clt_parameters.colors_equalize,
@@ -3572,7 +3470,8 @@ public class QuadCLT {
 			  System.out.println("No files to process (of "+sourceFiles.length+")");
 			  return;
 		  }
-		  double [] referenceExposures=eyesisCorrections.calcReferenceExposures(debugLevel); // multiply each image by this and divide by individual (if not NaN)
+		// multiply each image by this and divide by individual (if not NaN)
+		  double [] referenceExposures=eyesisCorrections.calcReferenceExposures(debugLevel);
 		  for (int nSet = 0; nSet < set_channels.length; nSet++){
 			  int [] channelFiles = set_channels[nSet].fileNumber();
 			  boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
@@ -4398,6 +4297,20 @@ public class QuadCLT {
 							  correctionsParameters.JPEG_quality, // jpegQuality); // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
 							  (debugLevel > 0) ? debugLevel : 1); // int debugLevel (print what it saves)
 				  }
+
+				  String model_path= correctionsParameters.selectX3dDirectory(
+						  name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+						  null,
+						  true,  // smart,
+						  true);  //newAllowed, // save
+
+				  createThumbNailImage(
+						  imps_RGB[0],
+						  model_path,
+						  "thumb",
+						  debugLevel);
+
+
 			  }
 		  }
 		  return results;
@@ -4821,12 +4734,10 @@ public class QuadCLT {
 	  public void cltDisparityScans(
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-//			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-//			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
 			  final int          threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel)
@@ -4839,12 +4750,7 @@ public class QuadCLT {
 		  int numImagesToProcess=0;
 		  for (int nFile=0;nFile<enabledFiles.length;nFile++){
 			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1)) {
-				  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
-				  if (correctionsParameters.isJP4()){
-					  int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
-					  // removeUnusedSensorData should be off!?
-					  channels=this.eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera);
-				  }
+				  int [] channels= fileChannelToSensorChannels(correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile]));
 				  if (channels!=null){
 					  for (int i=0;i<channels.length;i++) if (eyesisCorrections.isChannelEnabled(channels[i])){
 						  if (!enabledFiles[nFile]) numFilesToProcess++;
@@ -4865,11 +4771,7 @@ public class QuadCLT {
 		  int index=0;
 		  for (int nFile=0;nFile<enabledFiles.length;nFile++){
 			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1)) {
-				  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
-				  if (correctionsParameters.isJP4()){
-					  int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
-					  channels=eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera);
-				  }
+				  int [] channels= fileChannelToSensorChannels(correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile]));
 				  if (channels!=null){
 					  for (int i=0;i<channels.length;i++) if (eyesisCorrections.isChannelEnabled(channels[i])){
 						  fileIndices[index  ][0]=nFile;
@@ -4910,36 +4812,8 @@ public class QuadCLT {
 				  int nFile=channelFiles[srcChannel];
 				  imp_srcs[srcChannel]=null;
 				  if (nFile >=0){
-					  if (correctionsParameters.isJP4()){
-						  int subchannel=eyesisCorrections.pixelMapping.getSubChannel(srcChannel);
-						  if (this.correctionsParameters.swapSubchannels01) {
-							  switch (subchannel){
-							  case 0: subchannel=1; break;
-							  case 1: subchannel=0; break;
-							  }
-						  }
-						  if (debugLevel>0) System.out.println("Processing set " + setNames.get(nSet)+" channel "+srcChannel+" - subchannel "+subchannel+" of "+sourceFiles[nFile]);
-						  ImagePlus imp_composite=eyesisCorrections.JP4_INSTANCE.open(
-								  "", // path,
-								  sourceFiles[nFile],
-								  "",  //arg - not used in JP46 reader
-								  true, // un-apply camera color gains
-								  null, // new window
-								  false); // do not show
-						  imp_srcs[srcChannel]=eyesisCorrections.JP4_INSTANCE.demuxImage(imp_composite, subchannel);
-						  if (imp_srcs[srcChannel] == null) imp_srcs[srcChannel] = imp_composite; // not a composite image
-						  // do we need to add any properties?
-					  } else {
-						  imp_srcs[srcChannel]=new ImagePlus(sourceFiles[nFile]);
-						  //					  (new JP46_Reader_camera(false)).decodeProperiesFromInfo(imp_src); // decode existent properties from info
-						  eyesisCorrections.JP4_INSTANCE.decodeProperiesFromInfo(imp_srcs[srcChannel]); // decode existent properties from info
-						  if (debugLevel>0) System.out.println("Processing "+sourceFiles[nFile]);
-					  }
-					  imp_srcs[srcChannel] =  ShowDoubleFloatArrays.padBayerToFullSize(
-							  imp_srcs[srcChannel], // ImagePlus imp_src,
-							  eyesisCorrections.pixelMapping.sensors[srcChannel].getSensorWH(),
-							  true); // boolean replicate);
-					  this.geometryCorrection.woi_tops[srcChannel] = Integer.parseInt((String) imp_srcs[srcChannel].getProperty("WOI_TOP"));
+					  imp_srcs[srcChannel] = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], this.geometryCorrection.woi_tops);
+
 					  scaleExposures[srcChannel] = 1.0;
 					  if (!Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
 						  scaleExposures[srcChannel] = referenceExposures[nFile]/Double.parseDouble((String) imp_srcs[srcChannel].getProperty("EXPOSURE"));
@@ -5047,7 +4921,7 @@ public class QuadCLT {
 				  }
 			  }
 
-			  System.out.println("Temporarily applying scaleExposures[] here" );
+			  System.out.println("Temporarily applying scaleExposures[] here - 2" );
 			  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
 				  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
 				  for (int i = 0; i < pixels.length; i++){
@@ -8811,36 +8685,8 @@ public class QuadCLT {
 			  int nFile=channelFiles[srcChannel];
 			  imp_srcs[srcChannel]=null;
 			  if (nFile >=0){
-				  if (correctionsParameters.isJP4()){
-					  int subchannel=eyesisCorrections.pixelMapping.getSubChannel(srcChannel);
-					  if (this.correctionsParameters.swapSubchannels01) {
-						  switch (subchannel){
-						  case 0: subchannel=1; break;
-						  case 1: subchannel=0; break;
-						  }
-					  }
-					  if (debugLevel>0) System.out.println("Processing set " + setNames.get(nSet)+" channel "+srcChannel+" - subchannel "+subchannel+" of "+sourceFiles[nFile]);
-					  ImagePlus imp_composite=eyesisCorrections.JP4_INSTANCE.open(
-							  "", // path,
-							  sourceFiles[nFile],
-							  "",  //arg - not used in JP46 reader
-							  true, // un-apply camera color gains
-							  null, // new window
-							  false); // do not show
-					  imp_srcs[srcChannel]=eyesisCorrections.JP4_INSTANCE.demuxImage(imp_composite, subchannel);
-					  if (imp_srcs[srcChannel] == null) imp_srcs[srcChannel] = imp_composite; // not a composite image
-					  // do we need to add any properties?
-				  } else {
-					  imp_srcs[srcChannel]=new ImagePlus(sourceFiles[nFile]);
-					  //					  (new JP46_Reader_camera(false)).decodeProperiesFromInfo(imp_src); // decode existent properties from info
-					  eyesisCorrections.JP4_INSTANCE.decodeProperiesFromInfo(imp_srcs[srcChannel]); // decode existent properties from info
-					  if (debugLevel>0) System.out.println("Processing "+sourceFiles[nFile]);
-				  }
-				  imp_srcs[srcChannel] =  ShowDoubleFloatArrays.padBayerToFullSize(
-						  imp_srcs[srcChannel], // ImagePlus imp_src,
-						  eyesisCorrections.pixelMapping.sensors[srcChannel].getSensorWH(),
-						  true); // boolean replicate);
-				  this.geometryCorrection.woi_tops[srcChannel] = Integer.parseInt((String) imp_srcs[srcChannel].getProperty("WOI_TOP"));
+				  imp_srcs[srcChannel] = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], this.geometryCorrection.woi_tops);
+
 				  scaleExposures[srcChannel] = 1.0;
 				  if (!Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
 					  scaleExposures[srcChannel] = referenceExposures[nFile]/Double.parseDouble((String) imp_srcs[srcChannel].getProperty("EXPOSURE"));
@@ -8968,7 +8814,7 @@ public class QuadCLT {
 			  }
 		  }
 		  // temporary applying scaleExposures[srcChannel] here, setting it to all 1.0
-		  System.out.println("Temporarily applying scaleExposures[] here" );
+		  System.out.println("Temporarily applying scaleExposures[] here - 3" );
 		  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
 			  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
 			  for (int i = 0; i < pixels.length; i++){
@@ -9055,12 +8901,7 @@ public class QuadCLT {
 		  int numImagesToProcess=0;
 		  for (int nFile=0;nFile<enabledFiles.length;nFile++){
 			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1)) {
-				  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
-				  if (correctionsParameters.isJP4()){
-					  int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
-					  // removeUnusedSensorData should be off!?
-					  channels=this.eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera);
-				  }
+				  int [] channels= fileChannelToSensorChannels(correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile]));
 				  if (channels!=null){
 					  for (int i=0;i<channels.length;i++) if (eyesisCorrections.isChannelEnabled(channels[i])){
 						  if (!enabledFiles[nFile]) numFilesToProcess++;
@@ -9081,11 +8922,7 @@ public class QuadCLT {
 		  int index=0;
 		  for (int nFile=0;nFile<enabledFiles.length;nFile++){
 			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1)) {
-				  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
-				  if (correctionsParameters.isJP4()){
-					  int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
-					  channels=eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera);
-				  }
+				  int [] channels= fileChannelToSensorChannels(correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile]));
 				  if (channels!=null){
 					  for (int i=0;i<channels.length;i++) if (eyesisCorrections.isChannelEnabled(channels[i])){
 						  fileIndices[index  ][0]=nFile;
