@@ -5207,7 +5207,7 @@ public class TileProcessor {
 			boolean show_rgba_color = false; //true; // clt_parameters.show_rgba_color
 
 			if (!batch_mode && show_nonoverlap){
-				texture_nonoverlap = image_dtt.combineRGBATiles(
+				texture_nonoverlap = image_dtt.combineRBGATiles(
 						texture_tiles,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
 						clt_parameters.transform_size,
 						false,                         // when false - output each tile as 16x16, true - overlap to make 8x8
@@ -5226,7 +5226,7 @@ public class TileProcessor {
 
 			if (!batch_mode && (show_overlap || show_rgba_color)){
 				int alpha_index = 3;
-				texture_overlap = image_dtt.combineRGBATiles(
+				texture_overlap = image_dtt.combineRBGATiles(
 						texture_tiles,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
 						clt_parameters.transform_size,
 						true,                         // when false - output each tile as 16x16, true - overlap to make 8x8

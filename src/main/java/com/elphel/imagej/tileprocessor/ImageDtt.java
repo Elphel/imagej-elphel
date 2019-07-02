@@ -63,6 +63,8 @@ public class ImageDtt {
 
 	  static int  QUAD =                           4; // number of cameras in camera
 	  static int  GREEN_CHN =                      2; // index of green channel
+	  static int  MONO_CHN =                       2; // index of channel used in monochrome mode
+
 	  static int  DISPARITY_INDEX_INT =            0; // 0 - disparity from correlation integer pixels, 1 - ortho
 	  // Now DISPARITY_INDEX_CM may be POLY with backup from CM (for bad correlation)
 	  static int  DISPARITY_INDEX_CM =             2; // 2 - disparity from correlation "center mass", 3 - ortho (only used for fine correction)
@@ -199,7 +201,7 @@ public class ImageDtt {
 	  static int  TCORR_COMBO_VERT =  3; // combined correlation from 2 vertical   pairs (0,1). Used to detect horizontal features
 	  static String [] TCORR_TITLES = {"combo","sum","hor","vert"};
 
-	  public boolean monochrome = false;
+	  private final boolean monochrome;
 
 
      public static int getImgMask  (int data){ return (data & 0xf);}      // which images to use
@@ -211,8 +213,12 @@ public class ImageDtt {
      public static boolean getOrthoLines (int data){return (data & 0x200) != 0;}
      public static int     setOrthoLines (int data, boolean force) {return (data & ~0x200) | (force?0x200:0);}
 
-	public ImageDtt(boolean monochrome){
-		this.monochrome = monochrome;
+	public ImageDtt(boolean mono){
+		monochrome = mono;
+	}
+
+	public boolean isMonochrome() {
+		return monochrome;
 	}
 
 	public double [][][][] mdctStack(
@@ -1522,10 +1528,6 @@ public class ImageDtt {
 	  		final double              min_corr,        // 0.02; // minimal correlation value to consider valid
 			final double              max_corr_sigma,  // 1.2;  // weights of points around global max to find fractional
 			final double              max_corr_radius, // 3.9;
-
-//			final int                 enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
-//			final double              enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
-
 			final boolean 			  max_corr_double, //"Double pass when masking center of mass to reduce preference for integer values
 			final int                 corr_mode, // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
 			final double              min_shot,        // 10.0;  // Do not adjust for shot noise if lower than
@@ -1555,12 +1557,11 @@ public class ImageDtt {
 			final int                 threadsMax,  // maximal number of threads to launch
 			final int                 globalDebugLevel)
 	{
-//		final boolean debug_ports_coordinates = (debug_tileX == -1234);
-//		final double poly_corr = imgdtt_params.poly_corr_scale; // maybe add per-tile task bits to select none/near/far
 		final boolean macro_mode = macro_scale != 1;      // correlate tile data instead of the pixel data
-
 		final int quad = 4;   // number of subcameras
-		final int numcol = 3; // number of colors
+
+		final int numcol = 3; // number of colors // keep the same, just do not use [0] and [1], [2] - green
+
 		final int nChn = image_data[0].length;
 		final int height=image_data[0][0].length/width;
 		final int tilesX=width/transform_size;
@@ -1570,6 +1571,8 @@ public class ImageDtt {
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final double [] col_weights= new double [numcol]; // colors are RBG
+
+		// keep for now for mono, find out  what do they mean for macro mode
 		if (macro_mode) { // all the same as they now mean different
 			//compensating Bayer correction
 			col_weights[0] = 0.25; //  1.0/3;
@@ -1724,14 +1727,10 @@ public class ImageDtt {
 			}
 		}
 
-//		final double [] corr_max_weights_poly =(((max_corr_sigma > 0) && (disparity_map != null))?
-//				setMaxXYWeights(max_corr_sigma,max_search_radius_poly): null); // here use square anyway
-
 		dtt.set_window(window_type);
 		final double [] lt_window = dtt.getWin2d();	// [256]
 		final double [] lt_window2 = new double [lt_window.length]; // squared
 		for (int i = 0; i < lt_window.length; i++) lt_window2[i] = lt_window[i] * lt_window[i];
-
 
 		if (globalDebugLevel > 1) {
 			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
@@ -1763,19 +1762,16 @@ public class ImageDtt {
 					double [][][]   tcorr_partial =  null; // [quad][numcol+1][15*15]
 					double [][][][] tcorr_tpartial = null; // [quad][numcol+1][4][8*8]
 					double [] ports_rgb = null;
-//					PolynomialApproximation pa =     null;
-//					if (corr_max_weights_poly !=null)   pa = new PolynomialApproximation(0); // debug level
 					Correlation2d corr2d = new Correlation2d(
 							imgdtt_params,              // ImageDttParameters  imgdtt_params,
 							transform_size,             // int transform_size,
 							2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
+							isMonochrome(), // boolean monochrome,
 							(globalDebugLevel > -1));   //   boolean debug)
 					corr2d.createOrtoNotch(
 							imgdtt_params.enhortho_width, // double enhortho_width,
 							imgdtt_params.enhortho_scale, //double enhortho_scale,
 							(imgdtt_params.lma_debug_level > 1)); // boolean debug);
-//					public int     enhortho_width =         2;   // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
-//					public double  enhortho_scale =         0.0; // 0.2;  // multiply center correlation pixels (inside enhortho_width)
 
 					for (int nTile = ai.getAndIncrement(); nTile < nTilesInChn; nTile = ai.getAndIncrement()) {
 
@@ -1902,8 +1898,8 @@ public class ImageDtt {
 									dtt
 									);
 						}
-
-						for (int chn = 0; chn <numcol; chn++) {
+// See if macro_mode uses color channels for non-color?
+						for (int chn = 0; chn <numcol; chn++) if (!isMonochrome() || (chn == MONO_CHN) || macro_mode) { // in monochrome mode skip all non-mono (green) channels
 							boolean debug_for_fpga = FPGA_COMPARE_DATA && (globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2);
 							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) {
 								System.out.println("\nUsing "+(macro_mode?"MACRO":"PIXEL")+" mode, centerX="+centerX+", centerY="+centerY);
@@ -2023,8 +2019,7 @@ public class ImageDtt {
 										false, // ); // transpose);
 										((saturation_imp != null) ? saturation_imp[i] : null), //final boolean [][]        saturation_imp, // (near) saturated pixels or null
 										((saturation_imp != null) ? overexp_all: null)); // final double [] overexposed)
-
-							}
+							} // for (int i = 0; i < quad; i++)
 							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) {
 								System.out.println();
 							}
@@ -2044,7 +2039,6 @@ public class ImageDtt {
 								}
 							}
 
-//							if (!no_fract_shift && !FPGA_COMPARE_DATA) {
 							if (!no_fract_shift) {
 								// apply residual shift
 								for (int i = 0; i < quad; i++) {
@@ -2054,7 +2048,9 @@ public class ImageDtt {
 											fract_shiftsXY[i][0],            // double        shiftX,
 											fract_shiftsXY[i][1],            // double        shiftY,
 											//									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
-											((globalDebugLevel > 1) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
+											((globalDebugLevel > 1) &&
+													((chn==0) || isMonochrome()) &&
+													(tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
 													(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
 								}
 								if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
@@ -2068,7 +2064,7 @@ public class ImageDtt {
 
 
 							}
-						}
+						} // end of for (int chn = 0; chn <numcol; chn++) if (!isMonochrome() || (chn == MONO_CHN) || macro_mode) { // in monochrome mode skip all non-mono (green) channels
 
 						int tile_lma_debug_level =  ((tileX == debug_tileX) && (tileY == debug_tileY))? imgdtt_params.lma_debug_level : -1;
 
@@ -3860,8 +3856,8 @@ public class ImageDtt {
 
 
 
-
-	public double [][] combineRGBATiles(
+// in monochrome mode only MONO_CHN == GREEN_CHN is used, R and B are null
+	public double [][] combineRBGATiles(
 			final double [][][][] texture_tiles,  // array [tilesY][tilesX][4][4*transform_size] or [tilesY][tilesX]{null}
 			final int             transform_size,
 			final boolean         overlap,    // when false - output each tile as 16x16, true - overlap to make 8x8
@@ -3932,13 +3928,21 @@ public class ImageDtt {
 										for (int i = 0; i < n2;i++){
 											int start_line = ((tileY*transform_size + i) * tilesX + tileX)*transform_size - offset;
 											for (int chn = 0; chn < texture_tile.length; chn++) {
-												if ((chn != 3) || !sharp_alpha) {
-													for (int j = 0; j<n2;j++) {
-														dpixels[chn][start_line + j] += texture_tile[chn][n2 * i + j];
-													}
-												} else if ((i >= n_half) && (i < (n2-n_half))) {
-													for (int j = n_half; j < (n2 - n_half); j++) {
-														dpixels[chn][start_line + j] += texture_tile[chn][n2 * i + j];
+												int schn = chn;
+												if (isMonochrome() && (chn<3)) {
+													schn = MONO_CHN; // clone green to red and blue output
+												}
+												if (texture_tile[schn] == null) {
+													dpixels[chn] = null;
+												} else {
+													if ((chn != 3) || !sharp_alpha) {
+														for (int j = 0; j<n2;j++) {
+															dpixels[chn][start_line + j] += texture_tile[schn][n2 * i + j];
+														}
+													} else if ((i >= n_half) && (i < (n2-n_half))) {
+														for (int j = n_half; j < (n2 - n_half); j++) {
+															dpixels[chn][start_line + j] += texture_tile[schn][n2 * i + j];
+														}
 													}
 												}
 											}
@@ -3950,20 +3954,28 @@ public class ImageDtt {
 													((tileY == lastY) && (i < (n2 - n_half)))) {
 												int start_line = ((tileY*transform_size + i) * tilesX + tileX)*transform_size  - offset;
 												for (int chn = 0; chn < texture_tile.length; chn++) {
-													if ((chn != 3) || !sharp_alpha) {
-														for (int j = 0; j<n2;j++) {
-															if (	((tileX > 0) && (tileX < lastX)) ||
-																	((tileX == 0) && (j >= n_half)) ||
-																	((tileX == lastX) && (j < (n2 - n_half)))) {
-																dpixels[chn][start_line + j] += texture_tile[chn][n2 * i + j];
+													int schn = chn;
+													if (isMonochrome() && (chn<3)) {
+														schn = MONO_CHN; // clone green to red and blue output
+													}
+													if (texture_tile[schn] == null) {
+														dpixels[chn] = null;
+													} else {
+														if ((chn != 3) || !sharp_alpha) {
+															for (int j = 0; j<n2;j++) {
+																if (	((tileX > 0) && (tileX < lastX)) ||
+																		((tileX == 0) && (j >= n_half)) ||
+																		((tileX == lastX) && (j < (n2 - n_half)))) {
+																	dpixels[chn][start_line + j] += texture_tile[schn][n2 * i + j];
+																}
 															}
-														}
-													} else if ((i >= n_half) && (i < (n2-n_half))) {
-														for (int j = n_half; j < (n2 - n_half); j++) {
-															if (	((tileX > 0) && (tileX < lastX)) ||
-																	((tileX == 0) && (j >= n_half)) ||
-																	((tileX == lastX) && (j < (n2 - n_half)))) {
-																dpixels[chn][start_line + j] += texture_tile[chn][n2 * i + j];
+														} else if ((i >= n_half) && (i < (n2-n_half))) {
+															for (int j = n_half; j < (n2 - n_half); j++) {
+																if (	((tileX > 0) && (tileX < lastX)) ||
+																		((tileX == 0) && (j >= n_half)) ||
+																		((tileX == lastX) && (j < (n2 - n_half)))) {
+																	dpixels[chn][start_line + j] += texture_tile[schn][n2 * i + j];
+																}
 															}
 														}
 													}
@@ -3975,12 +3987,21 @@ public class ImageDtt {
 								} else { //if (overlap) - just copy tiles w/o overlapping
 									for (int i = 0; i < n2;i++){
 										for (int chn = 0; chn < texture_tile.length; chn++) {
-											System.arraycopy(
-													texture_tile[chn],
-													i * n2,
-													dpixels[chn],
-													(tileY * n2 + i)* width + tileX*n2,
-													n2);
+											int schn = chn;
+											if (isMonochrome() && (chn<3)) {
+												schn = MONO_CHN; // clone green to red and blue output
+											}
+											if (texture_tile[schn] == null) {
+												dpixels[chn] = null;
+											} else {
+
+												System.arraycopy(
+														texture_tile[schn],
+														i * n2,
+														dpixels[chn],
+														(tileY * n2 + i)* width + tileX*n2,
+														n2);
+											}
 										}
 									}
 								}
@@ -4894,6 +4915,12 @@ public class ImageDtt {
 		if (debug_fpga) debugLevel = 1;
 		if (debug_gpu) debugLevel = 0; // 1; // skip too many images
 
+		int chn_kernel = chn;
+		// use zero kernel channel for monochrome images
+		if ((clt_kernels != null) && (clt_kernels.length <= chn_kernel)) {
+			chn_kernel = clt_kernels.length - 1;
+		}
+
 		boolean use_kernels = (clt_kernels != null) && !dbg_no_deconvolution;
 		boolean bdebug0 = debugLevel > 0;
 		boolean bdebug =  debugLevel > 1;
@@ -4912,11 +4939,11 @@ public class ImageDtt {
 			ktileX = (int) Math.round(centerX/kernel_step) + 1;
 			ktileY = (int) Math.round(centerY/kernel_step) + 1;
 			if      (ktileY < 0)                                ktileY = 0;
-			else if (ktileY >= clt_kernels[chn].length)         ktileY = clt_kernels[chn].length-1;
+			else if (ktileY >= clt_kernels[chn_kernel].length)  ktileY = clt_kernels[chn_kernel].length-1;
 			if      (ktileX < 0)                                ktileX = 0;
-			else if (ktileX >= clt_kernels[chn][ktileY].length) ktileX = clt_kernels[chn][ktileY].length-1;
+			else if (ktileX >= clt_kernels[chn_kernel][ktileY].length) ktileX = clt_kernels[chn_kernel][ktileY].length-1;
 			// extract center offset data stored with each kernel tile
-			CltExtra ce = new CltExtra (clt_kernels[chn][ktileY][ktileX][4]);
+			CltExtra ce = new CltExtra (clt_kernels[chn_kernel][ktileY][ktileX][4]);
 			// 2. calculate correction for center of the kernel offset
 			double kdx = centerX - (ktileX -1 +0.5) *  kernel_step; // difference in pixel
 			double kdy = centerY - (ktileY -1 +0.5) *  kernel_step;
@@ -4926,7 +4953,7 @@ public class ImageDtt {
 			px = centerX - transform_size - (ce.data_x + ce.dxc_dx * kdx + ce.dxc_dy * kdy) ; // fractional left corner
 			py = centerY - transform_size - (ce.data_y + ce.dyc_dx * kdx + ce.dyc_dy * kdy) ; // fractional top corner
 			if (debug_gpu) {
-				System.out.println("========= Color channel "+chn+" =============");
+				System.out.println("========= Color channel "+chn+" , kernel channel "+chn_kernel+" =============");
 				System.out.println("ce.data_x="+ce.data_x+", ce.data_y="+ce.data_y);
 				System.out.println("ce.center_x="+ce.center_x+", ce.center_y="+ce.center_y);
 				System.out.println("ce.dxc_dx="+ce.dxc_dx+", ce.dxc_dy="+ce.dxc_dy);
@@ -4986,7 +5013,6 @@ public class ImageDtt {
 
 
 		if (debug_fpga){ // show extended tile, all colors
-//		//FPGA_TILE_SIZE
 			System.out.println("\nFull Bayer fpga tile data");
 			int lt = (FPGA_TILE_SIZE - transform_size2)/2;
 			double [][] fpga_tile = new double [3][FPGA_TILE_SIZE * FPGA_TILE_SIZE];
@@ -5009,9 +5035,7 @@ public class ImageDtt {
 		}
 
 
-		if ((chn == GREEN_CHN) && (saturation_imp != null)) {
-//			double overexp_fract = 1.0/(transform_size2 * transform_size2 * QUAD);
-//			int num_overexp = 0;
+		if (((chn == GREEN_CHN) || isMonochrome()) && (saturation_imp != null)) {
 			//overexp_all
 			if ((ctile_left >= 0) && (ctile_left < (width - transform_size2)) &&
 					(ctile_top >= 0) && (ctile_top < (height - transform_size2))) {
@@ -5263,29 +5287,8 @@ public class ImageDtt {
 					}
 				}
 
-
-
-//				clt_tile[dct_mode] = dtt.dttt_iv   (clt_tile[dct_mode], dct_mode, transform_size);
-				/*
-				if (bdebug) {
-					double [] clt_tile_dbg = clt_tile[dct_mode].clone();
-					double [] clt_tile_dbg1 = clt_tile[dct_mode].clone();
-					clt_tile_dbg1 =      dtt.dttt_ivn  (clt_tile_dbg1, dct_mode, transform_size,true);
-					clt_tile_dbg =       dtt.dttt_ivn  (clt_tile_dbg, dct_mode, transform_size,false);
-
-					clt_tile[dct_mode] = dtt.dttt_iv   (clt_tile[dct_mode], dct_mode, transform_size);
-					System.out.println("\n-------- 2: dct_mode="+dct_mode+" ---#, standard, good, bad, diff---");
-					for (int nt = 0; nt < clt_tile_dbg.length; nt++) {
-						System.out.println(String.format("%2d: %8f %8f %8f %8f %8f",
-								nt, clt_tile[dct_mode][nt],clt_tile_dbg[nt], clt_tile_dbg1[nt],clt_tile_dbg[nt] - clt_tile_dbg[nt], clt_tile_dbg1[nt] - clt_tile_dbg[nt]));
-					}
-					System.out.println("done debug");
-				} else {
-				*/
 				clt_tile[dct_mode] = dtt.dttt_iv   (clt_tile[dct_mode], dct_mode, transform_size);
-					/*
-				}
-				*/
+
 				if (debug_gpu) {
 					System.out.println("=== Image tile DTT converted for color="+chn+", dct_mode="+dct_mode+" ===");
 					for (int i = 0; i < transform_size; i++) {
@@ -5375,12 +5378,7 @@ public class ImageDtt {
 				System.out.println();
 			}
 			System.out.println();
-
-
-
-//apply rotation
-
-		}
+		} // end of if (debug_fpga){
 
 
 
@@ -5392,9 +5390,9 @@ public class ImageDtt {
 		}
 		// deconvolve with kernel
 		if (use_kernels) {
-			double [][] ktile = clt_kernels[chn][ktileY][ktileX];
+			double [][] ktile = clt_kernels[chn_kernel][ktileY][ktileX];
 			if (debug_gpu) {
-				System.out.println("=== kernel tile for color="+chn+" ===");
+				System.out.println("=== kernel tile for color="+chn_kernel+" (color = "+chn+") ===");
 				for (int dct_mode = 0; dct_mode < 4; dct_mode++) {
 					System.out.println("dct_mode="+dct_mode);
 					for (int i = 0; i < transform_size; i++) {
@@ -5944,7 +5942,7 @@ public class ImageDtt {
 			final int                 threadsMax,  // maximal number of threads to launch
 			final int                 globalDebugLevel)
 	{
-		if (imgdtt_params.corr_var_cam) {
+		if (imgdtt_params.corr_var_cam) { // New correlation mode compatible with 8 subcameras
 			return clt_aberrations_quad_corr_new(
 					imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 					macro_scale,     // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
@@ -5977,10 +5975,6 @@ public class ImageDtt {
 			  		min_corr,        // 0.02; // minimal correlation value to consider valid
 					max_corr_sigma,  // 1.2;  // weights of points around global max to find fractional
 					max_corr_radius, // 3.9;
-
-//					final int                 enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
-//					final double              enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
-
 					max_corr_double, //"Double pass when masking center of mass to reduce preference for integer values
 					corr_mode, // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
 					min_shot,        // 10.0;  // Do not adjust for shot noise if lower than
@@ -6009,7 +6003,7 @@ public class ImageDtt {
 					no_deconvolution,
 					threadsMax,  // maximal number of threads to launch
 					globalDebugLevel);
-		} else {
+		} else { // old way?
 			return clt_aberrations_quad_corr_old(
 					imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 					macro_scale,     // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
@@ -6357,6 +6351,7 @@ public class ImageDtt {
 							imgdtt_params,              // ImageDttParameters  imgdtt_params,
 							transform_size,             // int transform_size,
 							2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
+							isMonochrome(), // boolean monochrome,
 							(globalDebugLevel > -1));   //   boolean debug)
 
 					corr2d.createOrtoNotch(
@@ -8142,6 +8137,7 @@ public class ImageDtt {
 							clt_parameters.img_dtt,              // ImageDttParameters  imgdtt_params,
 							clt_parameters.transform_size,             // int transform_size,
 							2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
+							isMonochrome(), // boolean monochrome,
 							(globalDebugLevel > -1));   //   boolean debug)
 
 					for (int nTile = ai.getAndIncrement(); nTile < nTilesInChn; nTile = ai.getAndIncrement()) {
@@ -8651,6 +8647,7 @@ public class ImageDtt {
 								clt_parameters.img_dtt,              // ImageDttParameters  imgdtt_params,
 								clt_parameters.transform_size,             // int transform_size,
 								2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
+								isMonochrome(), // boolean monochrome,
 								(globalDebugLevel > -1));   //   boolean debug)
 						for (int nTile = ai.getAndIncrement(); nTile < nTilesInChn; nTile = ai.getAndIncrement()) if (lt_corr[nTile] != null){ // center must be non-null (from tile_op)
 							int tileX = nTile % tilesX;
@@ -8941,6 +8938,7 @@ public class ImageDtt {
 							clt_parameters.img_dtt,              // ImageDttParameters  imgdtt_params,
 							clt_parameters.transform_size,             // int transform_size,
 							2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
+							isMonochrome(), // boolean monochrome,
 							(globalDebugLevel > -1));   //   boolean debug)
 
 					for (int nTile = ai.getAndIncrement(); nTile < nTilesInChn; nTile = ai.getAndIncrement()) {
@@ -9425,6 +9423,7 @@ public class ImageDtt {
 								clt_parameters.img_dtt,              // ImageDttParameters  imgdtt_params,
 								clt_parameters.transform_size,             // int transform_size,
 								2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
+								isMonochrome(), // boolean monochrome,
 								(globalDebugLevel > -1));   //   boolean debug)
 						for (int nTile = ai.getAndIncrement(); nTile < nTilesInChn; nTile = ai.getAndIncrement()) if (lt_corr[nTile] != null){ // center must be non-null (from tile_op)
 							int tileX = nTile % tilesX;
@@ -9661,6 +9660,7 @@ public class ImageDtt {
 							clt_parameters.img_dtt,              // ImageDttParameters  imgdtt_params,
 							clt_parameters.transform_size,             // int transform_size,
 							2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
+							isMonochrome(), // boolean monochrome,
 							(globalDebugLevel > -1));   //   boolean debug)
 
 					for (int nTile = ai.getAndIncrement(); nTile < nTilesInChn; nTile = ai.getAndIncrement()) {

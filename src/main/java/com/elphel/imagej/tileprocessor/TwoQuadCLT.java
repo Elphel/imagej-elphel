@@ -687,7 +687,7 @@ public class TwoQuadCLT {
 		String [] rgba_weights_titles = {"red","blue","green","alpha","port0","port1","port2","port3","r-rms","b-rms","g-rms","w-rms"};
 		if ((texture_tiles_main != null) && (texture_tiles_aux != null)){
 			if (clt_parameters.show_nonoverlap){
-				texture_nonoverlap_main = image_dtt.combineRGBATiles(
+				texture_nonoverlap_main = image_dtt.combineRBGATiles(
 						texture_tiles_main,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
 						clt_parameters.transform_size,
 						false,                         // when false - output each tile as 16x16, true - overlap to make 8x8
@@ -702,7 +702,7 @@ public class TwoQuadCLT {
 						name + "-TXTNOL-D"+clt_parameters.disparity+"-MAIN",
 						(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
 
-				texture_nonoverlap_aux = image_dtt.combineRGBATiles(
+				texture_nonoverlap_aux = image_dtt.combineRBGATiles(
 						texture_tiles_aux,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
 						clt_parameters.transform_size,
 						false,                         // when false - output each tile as 16x16, true - overlap to make 8x8
@@ -719,7 +719,7 @@ public class TwoQuadCLT {
 			}
 			if (!infinity_corr && (clt_parameters.show_overlap || clt_parameters.show_rgba_color)){
 				int alpha_index = 3;
-				texture_overlap_main = image_dtt.combineRGBATiles(
+				texture_overlap_main = image_dtt.combineRBGATiles(
 						texture_tiles_main,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
 						clt_parameters.transform_size,
 						true,                         // when false - output each tile as 16x16, true - overlap to make 8x8
@@ -737,7 +737,7 @@ public class TwoQuadCLT {
 					}
 				}
 
-				texture_overlap_aux = image_dtt.combineRGBATiles(
+				texture_overlap_aux = image_dtt.combineRBGATiles(
 						texture_tiles_aux,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
 						clt_parameters.transform_size,
 						true,                         // when false - output each tile as 16x16, true - overlap to make 8x8
@@ -1464,7 +1464,7 @@ public class TwoQuadCLT {
 		String [] rgba_weights_titles = {"red","blue","green","alpha","port0","port1","port2","port3","r-rms","b-rms","g-rms","w-rms"};
 		if ((texture_tiles_main != null) && (texture_tiles_aux != null)){
 			if (clt_parameters.show_nonoverlap){
-				texture_nonoverlap_main = image_dtt.combineRGBATiles(
+				texture_nonoverlap_main = image_dtt.combineRBGATiles(
 						texture_tiles_main,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
 						clt_parameters.transform_size,
 						false,                         // when false - output each tile as 16x16, true - overlap to make 8x8
@@ -1479,7 +1479,7 @@ public class TwoQuadCLT {
 						name + "-TXTNOL-D"+clt_parameters.disparity+"-MAIN",
 						(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
 
-				texture_nonoverlap_aux = image_dtt.combineRGBATiles(
+				texture_nonoverlap_aux = image_dtt.combineRBGATiles(
 						texture_tiles_aux,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
 						clt_parameters.transform_size,
 						false,                         // when false - output each tile as 16x16, true - overlap to make 8x8
@@ -1496,7 +1496,7 @@ public class TwoQuadCLT {
 			}
 			if (!infinity_corr && (clt_parameters.show_overlap || clt_parameters.show_rgba_color)){
 				int alpha_index = 3;
-				texture_overlap_main = image_dtt.combineRGBATiles(
+				texture_overlap_main = image_dtt.combineRBGATiles(
 						texture_tiles_main,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
 						clt_parameters.transform_size,
 						true,                         // when false - output each tile as 16x16, true - overlap to make 8x8
@@ -1514,7 +1514,7 @@ public class TwoQuadCLT {
 					}
 				}
 
-				texture_overlap_aux = image_dtt.combineRGBATiles(
+				texture_overlap_aux = image_dtt.combineRBGATiles(
 						texture_tiles_aux,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
 						clt_parameters.transform_size,
 						true,                         // when false - output each tile as 16x16, true - overlap to make 8x8
@@ -3326,6 +3326,7 @@ if (debugLevel > -100) return true; // temporarily !
 				clt_parameters.img_dtt,              // ImageDttParameters  imgdtt_params,
 				clt_parameters.transform_size,             // int transform_size,
 				2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
+				quadCLT_main.isMonochrome(),
 				(debugLevel > -1));   //   boolean debug)
 
 // Create test data that does not rely on the rig measurements
@@ -7033,6 +7034,7 @@ if (debugLevel > -100) return true; // temporarily !
 				clt_parameters.img_dtt,              // ImageDttParameters  imgdtt_params,
 				clt_parameters.transform_size,             // int transform_size,
 				2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
+				quadCLT_main.isMonochrome(),
 				(debugLevel > -1));   //   boolean debug)
 
 		for (int nTile = 0; nTile < disparity.length; nTile++) {

@@ -43,6 +43,8 @@ public class Correlation2d {
 	private final double [] corr_wndx;
 	private final double [] corr_wndy;
 	private final double [] corr_wndy_notch;
+    private final boolean monochrome;
+
 
 	// configuration for 8-lens and 4-lens cameras. 8-lens has baseline = 1 for 1..4 and 1/2 for 4..7
 /*0        1
@@ -89,6 +91,7 @@ public class Correlation2d {
 		 {-2, -3,  0,  1},
 		 { 3, -2, -1,  0}};
 
+	public boolean isMonochrome() {return monochrome;}
 // for 8 cameras and 16 pairs. Following data moved from ImageDtt
     // which images to use (0..3 - external, 4..7 - internal)
     public static int getImgMask  (int data){ return (data & 0xff);}
@@ -127,7 +130,9 @@ public class Correlation2d {
     		  ImageDttParameters  imgdtt_params,
     		  int transform_size,
     		  double wndx_scale, // (wndy scale is always 1.0)
+    		  boolean monochrome,
     		  boolean debug) {
+    	this.monochrome = monochrome;
     	this.dtt = new DttRad2(transform_size);
     	this.transform_size = transform_size;
     	this.transform_len = transform_size * transform_size;

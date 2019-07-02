@@ -43,6 +43,7 @@ import com.elphel.imagej.calibration.PixelMapping;
 import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.cameras.ColorProcParameters;
 import com.elphel.imagej.cameras.EyesisCorrectionParameters;
+import com.elphel.imagej.cameras.ThermalColor;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.correction.CorrectionColorProc;
@@ -100,7 +101,10 @@ public class QuadCLT {
 
 // magic scale should be set before using  TileProcessor (calculated disparities depend on it)
     public boolean isMonochrome() {return is_mono;} // clt_kernels
-    public void resetGroundTruthByRig() {
+    public boolean isLwir() {return !Double.isNaN(lwir_offset);} // clt_kernels
+    public double  getLwirOffset() {return lwir_offset;}
+
+    public void    resetGroundTruthByRig() {
     	tp.rig_disparity_strength = null;
     }
     public double [][] getGroundTruthByRig(){
@@ -3983,11 +3987,12 @@ public class QuadCLT {
 		  // visualize texture tiles as RGBA slices
 		  double [][] texture_nonoverlap = null;
 		  double [][] texture_overlap = null;
-		  String [] rgba_titles = {"red","blue","green","alpha"};
-		  String [] rgba_weights_titles = {"red","blue","green","alpha","port0","port1","port2","port3","r-rms","b-rms","g-rms","w-rms"};
+		  String [] rbga_titles = {"red","blue","green","alpha"};
+		  String [] rbga_weights_titles = {"red","blue","green","alpha","port0","port1","port2","port3","r-rms","b-rms","g-rms","w-rms"};
+		  // In monochrome mode only G is used ImageDtt.MONO_CHN(==2), others are null
 		  if (texture_tiles != null){
 			  if (clt_parameters.show_nonoverlap){
-				  texture_nonoverlap = image_dtt.combineRGBATiles(
+				  texture_nonoverlap = image_dtt.combineRBGATiles(
 						  texture_tiles,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
 						  clt_parameters.transform_size,
 						  false,                         // when false - output each tile as 16x16, true - overlap to make 8x8
@@ -4000,12 +4005,12 @@ public class QuadCLT {
 						  tilesY * (2 * clt_parameters.transform_size),
 						  true,
 						  name + "-TXTNOL-D"+clt_parameters.disparity,
-						  (clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
+						  (clt_parameters.keep_weights?rbga_weights_titles:rbga_titles));
 
 			  }
 			  if (!infinity_corr && (clt_parameters.show_overlap || clt_parameters.show_rgba_color)){
 				  int alpha_index = 3;
-				  texture_overlap = image_dtt.combineRGBATiles(
+				  texture_overlap = image_dtt.combineRBGATiles(
 						  texture_tiles,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
 						  clt_parameters.transform_size,
 						  true,                         // when false - output each tile as 16x16, true - overlap to make 8x8
@@ -4030,7 +4035,7 @@ public class QuadCLT {
 							  tilesY * clt_parameters.transform_size,
 							  true,
 							  name + "-TXTOL-D"+clt_parameters.disparity,
-							  (clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
+							  (clt_parameters.keep_weights?rbga_weights_titles:rbga_titles));
 				  }
 				  if (!batch_mode && clt_parameters.show_rgba_color) {
 					  // for now - use just RGB. Later add option for RGBA
@@ -4481,8 +4486,9 @@ public class QuadCLT {
 		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		  // convert to ImageStack of 3 slices
 		  String [] sliceNames = {"red", "blue", "green"};
+		  int green_index = 2;
 		  double []   alpha = null; // (0..1.0)
-		  double [][] rgb_in = {iclt_data[0],iclt_data[1],iclt_data[2]};
+		  double [][] rbg_in = {iclt_data[0],iclt_data[1],iclt_data[2]};
 		  float [] alpha_pixels = null;
 		  if (iclt_data.length > 3) {
 			  alpha = iclt_data[3];
@@ -4493,8 +4499,26 @@ public class QuadCLT {
 				  }
 			  }
 		  }
+		  if (isLwir()) {
+			  double offset = getLwirOffset();
+			  double mn = colorProcParameters.lwir_low - offset;
+			  double mx = colorProcParameters.lwir_high - offset;
+			  ThermalColor tc = new ThermalColor(
+					  colorProcParameters.lwir_palette,
+					  mn,
+					  mx,
+					  255.0);
+			  rbg_in = new double [3][iclt_data[green_index].length];
+			  for (int i = 0; i < rbg_in.length; i++) {
+				  double [] rgb = tc.getRGB(iclt_data[green_index][i]);
+				  rbg_in[i][0] = rgb[0]; // red
+				  rbg_in[i][1] = rgb[2]; // blue
+				  rbg_in[i][2] = rgb[1]; // green
+			  }
+		  }
+
 		  ImageStack stack = sdfa_instance.makeStack(
-				  rgb_in, // iclt_data,
+				  rbg_in, // iclt_data,
 				  width,  // (tilesX + 0) * clt_parameters.transform_size,
 				  height, // (tilesY + 0) * clt_parameters.transform_size,
 				  sliceNames,  // or use null to get chn-nn slice names
@@ -4502,6 +4526,7 @@ public class QuadCLT {
 
 		  return linearStackToColor(
 				  clt_parameters, // EyesisCorrectionParameters.CLTParameters         clt_parameters,
+				  // gamma should be 1.0 for LWIR
 				  colorProcParameters, // EyesisCorrectionParameters.ColorProcParameters   colorProcParameters,
 				  rgbParameters, // EyesisCorrectionParameters.RGBParameters         rgbParameters,
 				  name,   // String name,
@@ -4517,6 +4542,8 @@ public class QuadCLT {
 				  scaleExposure, // double scaleExposure,
 				  debugLevel); //int debugLevel
 	  }
+
+	  // Convert a single value pixels to color (r,b,g) values to be processed instead of the normal colors
 
 
 	  public ImagePlus linearStackToColor(
@@ -7999,7 +8026,7 @@ public class QuadCLT {
 			  return null; // no background to generate
 		  }
 		  ImageDtt image_dtt = new ImageDtt(isMonochrome());
-		  double [][] texture_overlap = image_dtt.combineRGBATiles(
+		  double [][] texture_overlap = image_dtt.combineRBGATiles(
 				  texture_tiles_bgnd, // texture_tiles,               // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
 				  clt_parameters.transform_size,
 				  true,                         // when false - output each tile as 16x16, true - overlap to make 8x8
@@ -8129,7 +8156,7 @@ public class QuadCLT {
 		  }
 
 		  ImageDtt image_dtt = new ImageDtt(isMonochrome());
-		  double [][] texture_overlap = image_dtt.combineRGBATiles(
+		  double [][] texture_overlap = image_dtt.combineRBGATiles(
 				  texture_tiles_cluster, // texture_tiles,               // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
 				  clt_parameters.transform_size,
 				  true,                         // when false - output each tile as 16x16, true - overlap to make 8x8
