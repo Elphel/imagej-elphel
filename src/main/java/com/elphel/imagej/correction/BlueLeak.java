@@ -30,7 +30,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import com.elphel.imagej.cameras.EyesisCorrectionParameters;
+import com.elphel.imagej.cameras.ColorProcParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
@@ -41,7 +41,7 @@ public class BlueLeak {
 	private int width;
 	private int height;
 	private int length;
-	EyesisCorrectionParameters.ColorProcParameters  colorProcParameters;
+	ColorProcParameters  colorProcParameters;
 	private ShowDoubleFloatArrays SDFA_INSTANCE;
 	private int [] dirs20;
 	private double [] weights20;
@@ -53,7 +53,7 @@ public class BlueLeak {
 	private int xMax,yMax;
 	
 	public BlueLeak(
-			EyesisCorrectionParameters.ColorProcParameters  colorProcParameters,
+			ColorProcParameters  colorProcParameters,
 			double [][] rgb,
 			int width,
 			ShowDoubleFloatArrays SDFA_INSTANCE,
@@ -419,7 +419,7 @@ public class BlueLeak {
 
 
 	private double [] overexposed(
-			EyesisCorrectionParameters.ColorProcParameters  colorProcParameters,
+			ColorProcParameters  colorProcParameters,
 			double [] dpixels,
 			int width
 			){
@@ -454,7 +454,7 @@ public class BlueLeak {
 
 
 	private double [] overexposed(
-			EyesisCorrectionParameters.ColorProcParameters  colorProcParameters,
+			ColorProcParameters  colorProcParameters,
 			double [] dpixels,
 			int width,
 			int shftX,

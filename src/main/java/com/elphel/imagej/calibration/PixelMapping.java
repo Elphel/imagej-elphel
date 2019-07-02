@@ -153,6 +153,13 @@ public class PixelMapping {
 //		System.out.println("getSubChannel("+channel+") => "+this.sensors[channel].getSubChannel());
     	return this.sensors[channel].getSubChannel();
     }
+    public int getSubChannelSilent(int channel ){
+        	if ((channel<0) || (channel>=this.sensors.length)) {
+        		return -1;
+        	}
+//    		System.out.println("getSubChannel("+channel+") => "+this.sensors[channel].getSubChannel());
+        	return this.sensors[channel].getSubChannel();
+    }
     public int getSubCamera(int channel ){
     	if ((channel<0) || (channel>=this.sensors.length)) return -1;
     	return this.sensors[channel].getSubCamera();
@@ -162,6 +169,14 @@ public class PixelMapping {
 
     public boolean isChannelAvailable(int channel){
     	return (this.sensors != null) && (channel>=0)  && (channel<this.sensors.length) && (this.sensors[channel]!=null);
+    }
+
+    public boolean isChannelAvailable(int [] channels){
+    	if (channels == null) return false;
+    	for (int c:channels) {
+    		if (isChannelAvailable(c)) return true;
+    	}
+    	return false;
     }
 
     // Updating for nc393. subCamera here is 0..9 for Eyesis4pi393 - 0-based index of the file, so it combines physical camera (separate IP)

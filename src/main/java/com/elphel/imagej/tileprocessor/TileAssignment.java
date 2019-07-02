@@ -27,7 +27,7 @@ import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.elphel.imagej.cameras.EyesisCorrectionParameters;
+import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
@@ -37,7 +37,7 @@ import com.elphel.imagej.common.ShowDoubleFloatArrays;
 public class TileAssignment {
 	private TileSurface ts;
 	private CLTPass3d p3d; // last/ combined FPGA data
-	private EyesisCorrectionParameters.CLTParameters clt_parameters;
+	private CLTParameters clt_parameters;
 	private double [][][] dispStrength; // indexed as a surface (full supertiles), not as image
 	private boolean [] valid_ml;
 	private double [][] tile_tones;
@@ -112,7 +112,7 @@ public class TileAssignment {
 empty=     0.00000 nolink= 1.50705 swtch=     0.59474 color= 2.25763 diff=        1.94213
 diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch= 0.00000
 		 */
-		public TACosts (EyesisCorrectionParameters.CLTParameters clt_parameters)
+		public TACosts (CLTParameters clt_parameters)
 		{
 			this.empty =       clt_parameters.taEnEmpty?    clt_parameters.taCostEmpty    : 0.0;
 			this.nolink =      clt_parameters.taEnNoLink?   clt_parameters.taCostNoLink   : 0.0;
@@ -247,7 +247,7 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 	 * @param fatZero
 	 */
 	public TileAssignment (
-			EyesisCorrectionParameters.CLTParameters clt_parameters,
+			CLTParameters clt_parameters,
 			TileSurface ts,
 			CLTPass3d p3d,
 			double [][][] dispStrength,
@@ -277,7 +277,7 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 	}
 
 
-	public void copyParams(EyesisCorrectionParameters.CLTParameters clt_parameters)
+	public void copyParams(CLTParameters clt_parameters)
 	{
 		this.dispNorm =          clt_parameters.plDispNorm;
 		this.minFgBg =           clt_parameters.taMinFgBg;

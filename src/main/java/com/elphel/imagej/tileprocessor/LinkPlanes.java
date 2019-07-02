@@ -29,7 +29,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.elphel.imagej.cameras.EyesisCorrectionParameters;
+import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 public class LinkPlanes {
@@ -122,7 +122,7 @@ public class LinkPlanes {
 
 
 	public LinkPlanes (
-			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			CLTParameters           clt_parameters,
 			SuperTiles st)
 	{
 		plWorstWorsening =  clt_parameters.plWorstWorsening;

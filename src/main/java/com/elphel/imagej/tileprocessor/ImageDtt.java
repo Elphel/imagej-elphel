@@ -24,6 +24,7 @@ package com.elphel.imagej.tileprocessor;
  */
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
@@ -198,6 +199,7 @@ public class ImageDtt {
 	  static int  TCORR_COMBO_VERT =  3; // combined correlation from 2 vertical   pairs (0,1). Used to detect horizontal features
 	  static String [] TCORR_TITLES = {"combo","sum","hor","vert"};
 
+	  public boolean monochrome = false;
 
 
      public static int getImgMask  (int data){ return (data & 0xf);}      // which images to use
@@ -209,8 +211,8 @@ public class ImageDtt {
      public static boolean getOrthoLines (int data){return (data & 0x200) != 0;}
      public static int     setOrthoLines (int data, boolean force) {return (data & ~0x200) | (force?0x200:0);}
 
-	public ImageDtt(){
-
+	public ImageDtt(boolean monochrome){
+		this.monochrome = monochrome;
 	}
 
 	public double [][][][] mdctStack(
@@ -3681,6 +3683,7 @@ public class ImageDtt {
 	{
 		final int tilesY=dct_data.length;
 		final int tilesX=dct_data[0].length;
+		@SuppressWarnings("unused")
 		final double [][] dbg_tile = dct_data[debug_tileY][debug_tileX];
 
 //		final int width=  (tilesX+1)*dct_size;
@@ -4546,7 +4549,7 @@ public class ImageDtt {
 	public double [][][][][] cltStack(
 			final ImageStack                                 imageStack,
 			final int                                        subcamera, //
-			final EyesisCorrectionParameters.CLTParameters   cltParameters, //
+			final CLTParameters   cltParameters, //
 			final int                                        shiftX, // shift image horizontally (positive - right)
 			final int                                        shiftY, // shift image vertically (positive - down)
 			final int                                        threadsMax, // maximal step in pixels on the maxRadius for 1 angular step (i.e. 0.5)
@@ -7334,7 +7337,7 @@ public class ImageDtt {
 
 	public double [] tileInterCamCorrs(
 			final boolean                                   no_int_x0, // do not offset window to integer - used when averaging low textures to avoid "jumps" for very wide
-			final EyesisCorrectionParameters.CLTParameters  clt_parameters,
+			final CLTParameters  clt_parameters,
 			final double                                    fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 			final Correlation2d                             corr2d,
     		final double [][][][]                           clt_data_tile_main,
@@ -7373,7 +7376,7 @@ public class ImageDtt {
 	public double [] tileInterCamCorrs(
 			final boolean                                   no_int_x0, // do not offset window to integer - used when averaging low textures to avoid "jumps" for very wide
 			// maximums. That reduces the residual disparity, but works continuously when it is known the maximum should be near zero
-			final EyesisCorrectionParameters.CLTParameters  clt_parameters,
+			final CLTParameters  clt_parameters,
 			final double []                                 inter_cam_corr,
 			final Correlation2d                             corr2d,
     		final int                                       ml_hwidth,
@@ -7383,7 +7386,7 @@ public class ImageDtt {
 			final int             							tileX, // only used in debug output
 			final int             							tileY,
 			final int             							debugLevel) {
-		int strip_hight = notch_mode? clt_parameters.img_dtt.corr_strip_notch : clt_parameters.img_dtt.corr_strip_hight;
+//		int strip_hight = notch_mode? clt_parameters.img_dtt.corr_strip_notch : clt_parameters.img_dtt.corr_strip_hight;
 		double [] result = {Double.NaN,  0.0, Double.NaN, Double.NaN};
 
 // using exacltly as for main/aux
@@ -7582,7 +7585,7 @@ public class ImageDtt {
 	 * indexed by DISP_*_INDEX and STR_*_INDEX constants
 	 */
 	public double [] tileCorrs(
-			final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			final CLTParameters       clt_parameters,
 			final double          fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 			final boolean         get4dirs, // calculate disparity/strength for each of the 4 directions
 			final Correlation2d   corr2d,
@@ -7790,7 +7793,7 @@ public class ImageDtt {
 
 
 	public void generateTextureTiles(
-			final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			final CLTParameters       clt_parameters,
 			final double           extra_disparity,
 			final int              quad,      // number of subcameras
 			final int              numcol, // number of colors
@@ -7931,7 +7934,7 @@ public class ImageDtt {
 //	public double [][][][][][] clt_bi_quad(
 
 	public double [][][][][][][]  clt_bi_quad_dbg(
-			final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			final CLTParameters       clt_parameters,
 			final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 			final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 			final int                 lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
@@ -8027,11 +8030,11 @@ public class ImageDtt {
 			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+clt_parameters.transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
-		final int [][] corr_pairs ={ // {first, second, rot} rot: 0 - as is, 1 - swap y,x
-				{0,1,0},
-				{2,3,0},
-				{0,2,1},
-				{1,3,1}};
+///		final int [][] corr_pairs ={ // {first, second, rot} rot: 0 - as is, 1 - swap y,x
+///				{0,1,0},
+///				{2,3,0},
+///				{0,2,1},
+///				{1,3,1}};
 
 		final double[][] port_offsets = {
 				{-0.5, -0.5},
@@ -8153,16 +8156,16 @@ public class ImageDtt {
 							 continue; // nothing to do for this tile
 						}
 						int                 img_mask =       getImgMask(tile_op[tileY][tileX]);         // which images to use
-						int                 corr_mask =      getPairMask(tile_op[tileY][tileX]);       // which pairs to combine in the combo:  1 - top, 2 bottom, 4 - left, 8 - right
+///						int                 corr_mask =      getPairMask(tile_op[tileY][tileX]);       // which pairs to combine in the combo:  1 - top, 2 bottom, 4 - left, 8 - right
 						// mask out pairs that use missing channels
 
 // Is it currently used with diagonals?
 						// TODO: use masks from tile task
-						for (int i = 0; i< corr_pairs.length; i++){
-							if ((((1 << corr_pairs[i][0]) & img_mask) == 0) || (((1 << corr_pairs[i][1]) & img_mask) == 0)) {
-								corr_mask &= ~ (1 << i);
-							}
-						}
+///						for (int i = 0; i< corr_pairs.length; i++){
+///							if ((((1 << corr_pairs[i][0]) & img_mask) == 0) || (((1 << corr_pairs[i][1]) & img_mask) == 0)) {
+///								corr_mask &= ~ (1 << i);
+///							}
+///						}
 //						boolean debugTile =(tileX == debug_tileX) && (tileY == debug_tileY);
 
 						final int [] overexp_main = (saturation_main != null) ? ( new int [2]): null;
@@ -8732,7 +8735,7 @@ public class ImageDtt {
 	}
 
 	public double [][][][][][][]  clt_bi_quad(
-			final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			final CLTParameters       clt_parameters,
 			final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 			final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 			final int                 lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
@@ -8826,11 +8829,11 @@ public class ImageDtt {
 			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+clt_parameters.transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
-		final int [][] corr_pairs ={ // {first, second, rot} rot: 0 - as is, 1 - swap y,x
-				{0,1,0},
-				{2,3,0},
-				{0,2,1},
-				{1,3,1}};
+///		final int [][] corr_pairs ={ // {first, second, rot} rot: 0 - as is, 1 - swap y,x
+///				{0,1,0},
+///				{2,3,0},
+///				{0,2,1},
+///				{1,3,1}};
 
 		final double[][] port_offsets = {
 				{-0.5, -0.5},
@@ -8952,16 +8955,16 @@ public class ImageDtt {
 							 continue; // nothing to do for this tile
 						}
 						int                 img_mask =       getImgMask(tile_op[tileY][tileX]);         // which images to use
-						int                 corr_mask =      getPairMask(tile_op[tileY][tileX]);       // which pairs to combine in the combo:  1 - top, 2 bottom, 4 - left, 8 - right
+///						int                 corr_mask =      getPairMask(tile_op[tileY][tileX]);       // which pairs to combine in the combo:  1 - top, 2 bottom, 4 - left, 8 - right
 						// mask out pairs that use missing channels
 
 // Is it currently used with diagonals?
 						// TODO: use masks from tile task
-						for (int i = 0; i< corr_pairs.length; i++){
-							if ((((1 << corr_pairs[i][0]) & img_mask) == 0) || (((1 << corr_pairs[i][1]) & img_mask) == 0)) {
-								corr_mask &= ~ (1 << i);
-							}
-						}
+///						for (int i = 0; i< corr_pairs.length; i++){
+///							if ((((1 << corr_pairs[i][0]) & img_mask) == 0) || (((1 << corr_pairs[i][1]) & img_mask) == 0)) {
+///								corr_mask &= ~ (1 << i);
+///							}
+///						}
 //						boolean debugTile =(tileX == debug_tileX) && (tileY == debug_tileY);
 
 						final int [] overexp_main = (saturation_main != null) ? ( new int [2]): null;
@@ -9506,7 +9509,7 @@ public class ImageDtt {
 	}
 
 	public void  clt_bi_macro( // not yet operational
-			final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			final CLTParameters       clt_parameters,
 			final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 			final int                 macro_scale,
 			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile

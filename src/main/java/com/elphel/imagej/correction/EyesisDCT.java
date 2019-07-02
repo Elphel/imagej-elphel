@@ -26,6 +26,7 @@ package com.elphel.imagej.correction;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.elphel.imagej.cameras.ColorProcParameters;
 import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
@@ -941,7 +942,7 @@ public class EyesisDCT {
 			  EyesisCorrectionParameters.DCTParameters           dct_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
-			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
@@ -1078,7 +1079,7 @@ public class EyesisDCT {
 			  EyesisCorrectionParameters.DCTParameters           dct_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
-			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
@@ -1219,7 +1220,7 @@ public class EyesisDCT {
 		  }
 
 		  if (this.correctionsParameters.deconvolve) { // process with DCT, otherwise use simple debayer
-			  ImageDtt image_dtt = new ImageDtt();
+			  ImageDtt image_dtt = new ImageDtt(false); // Bayer, not monochrome
 			  double [][][][] dct_data = image_dtt.mdctStack(
 					  stack,
 					  channel,

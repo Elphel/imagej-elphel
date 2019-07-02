@@ -72,6 +72,8 @@ import javax.swing.filechooser.FileFilter;
 import com.elphel.imagej.calibration.CalibrationFileManagement;
 import com.elphel.imagej.calibration.DeBayerScissors;
 import com.elphel.imagej.calibration.PixelMapping;
+import com.elphel.imagej.cameras.CLTParameters;
+import com.elphel.imagej.cameras.ColorProcParameters;
 import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
@@ -125,7 +127,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 	private PlugInFrame plugInFrame;
 	String prefsPath;
 
-	private static final long serialVersionUID = -1507307664341265263L;
+//	private static final long serialVersionUID = -1507307664341265263L;
 private Panel panel1,
          panel2,
          panel3,
@@ -175,7 +177,7 @@ private Panel panel1,
 	        8   // seed_size
    );
 
-   public static EyesisCorrectionParameters.CLTParameters CLT_PARAMETERS = new EyesisCorrectionParameters.CLTParameters();
+   public static CLTParameters CLT_PARAMETERS = new CLTParameters();
 
    public static EyesisDCT        EYESIS_DCT = null;
    public static QuadCLT          QUAD_CLT =   null;
@@ -239,10 +241,17 @@ private Panel panel1,
 		    9.0    //  ringOR;            // ring outer radius
 
    );
-   public static EyesisCorrectionParameters.ColorProcParameters COLOR_PROC_PARAMETERS=new EyesisCorrectionParameters.ColorProcParameters (
-		1.0,  // 1.245,   // balanceRed   - manual color balance, gain 1.0 matches 0.0.255.0 range of the input Bayer data
-		1.0,  // 1.34,   // balanceBlue;
-		0.45, // 1.45,   // gain;
+   public static ColorProcParameters COLOR_PROC_PARAMETERS=new ColorProcParameters (
+		false, //     boolean lwir_islwir,        // false;
+		27000, //     double  lwir_low,           // 27000;
+		31000, //     double  lwir_high,          // 31000;
+		0,     //     int     lwir_palette,       //  0 - white - hot, 1 - black - hot, 2+ - colored
+		false, //     boolean lwir_subtract_dc,   //   = false;
+		true,  // 	  boolean lwir_eq_chn   =      true;  // adjust average temperature between channels
+		true,  //     boolean correct_vignetting, //  = true;
+		1.0,   // 1.245,   // balanceRed   - manual color balance, gain 1.0 matches 0.0.255.0 range of the input Bayer data
+		1.0,   // 1.34,   // balanceBlue;
+		0.45,  // 1.45,   // gain;
 		1.0,   // weightScaleR; - (now not used) additional correction for the weights of colors for different sub-pixels in a Bayer cell
 		1.0,   // weightScaleB;
 //		2.0,   // sigma;
@@ -288,9 +297,7 @@ private Panel panel1,
 	  	true    // use8 // use 8 neighbors (false - only 4)
 
    );
-
-
-
+   public static ColorProcParameters COLOR_PROC_PARAMETERS_AUX = null;
 
    //ColorCalibrationParameters
    public static CorrectionColorProc.ColorGainsParameters CHANNEL_GAINS_PARAMETERS=new CorrectionColorProc.ColorGainsParameters();
@@ -451,12 +458,15 @@ private Panel panel1,
 	}
 
 	public void initGui()  {
-		Color color_configure=     new Color(200, 200,160);
-		Color color_process=       new Color(180, 180, 240);
-		Color color_conf_process=  new Color(180, 240, 240);
-		Color color_restore=       new Color(160, 240, 160);
-		Color color_stop=          new Color(255, 160, 160);
-		Color color_report=        new Color(180, 220, 180);
+		Color color_configure=         new Color(200, 200,160);
+		Color color_configure_aux=     new Color(190, 190, 180);
+		Color color_process=           new Color(180, 180, 240);
+		Color color_process_aux=       new Color(175, 175, 250);
+		Color color_conf_process=      new Color(180, 240, 240);
+		Color color_conf_process_aux=  new Color(175, 235, 250);
+		Color color_restore=           new Color(160, 240, 160);
+		Color color_stop=              new Color(255, 160, 160);
+		Color color_report=            new Color(180, 220, 180);
 		plugInFrame=new PlugInFrame("Eyesis_Correction") {
 			private static final long serialVersionUID = -4138832568507690332L;
 			@Override
@@ -490,6 +500,7 @@ private Panel panel1,
 		addButton("Configure convolution", panel5a, color_configure);
 		addButton("Configure denoise", panel5a, color_configure);
 		addButton("Configure color", panel5a, color_configure);
+		addButton("Configure AUX color", panel5a, color_configure_aux);
 //		addButton("Channel gains", panel5a, color_configure);
 		addButton("Configure RGB", panel5a, color_configure);
 		plugInFrame.add(panel5a);
@@ -597,7 +608,7 @@ private Panel panel1,
 			addButton("Reset AUX Geometry",        panelClt1, color_stop);
 			addButton("Create CLT kernels",        panelClt1, color_process);
 			addButton("Create AUX CLT kernels",    panelClt1, color_process);
-			addButton("Read CLT kernels",          panelClt1, color_process);
+			addButton("Read CLT kernels",          panelClt1, color_process_aux);
 			addButton("Reset CLT kernels",         panelClt1, color_stop);
 
 			addButton("CLT process files",         panelClt1, color_process);
@@ -700,9 +711,21 @@ private Panel panel1,
 			addButton("Reset Geometry",             panelLWIR, color_stop);
 			addButton("Reset AUX Geometry",         panelLWIR, color_stop);
 			addButton("Create CLT kernels",         panelLWIR, color_process);
-			addButton("Create AUX CLT kernels",     panelLWIR, color_process);
+			addButton("Create AUX CLT kernels",     panelLWIR, color_process_aux);
 			addButton("Select source sets",         panelLWIR, color_configure);
+			addButton("Configure color",            panelLWIR, color_configure);
 			addButton("CLT 4 images",               panelLWIR, color_conf_process);
+			addButton("CLT 3D",                     panelLWIR, color_process);
+			addButton("CLT planes",                 panelLWIR, color_conf_process);
+			addButton("CLT ASSIGN",                 panelLWIR, color_process);
+			addButton("CLT OUT 3D",                 panelLWIR, color_process);
+			addButton("Configure AUX color",        panelLWIR, color_configure_aux);
+			addButton("AUX 4 images",               panelLWIR, color_conf_process_aux);
+			addButton("AUX 3D",                     panelLWIR, color_process);
+			addButton("AUX planes",                 panelLWIR, color_conf_process_aux);
+			addButton("AUX ASSIGN",                 panelLWIR, color_process_aux);
+			addButton("AUX OUT 3D",                 panelLWIR, color_process_aux);
+
 			addButton("LWIR_TEST",                  panelLWIR, color_conf_process);
 			addButton("LWIR_ACQUIRE",               panelLWIR, color_conf_process);
 			plugInFrame.add(panelLWIR);
@@ -828,7 +851,9 @@ private Panel panel1,
 
 	public class AwtToolTip extends MouseAdapter{
 
+		@SuppressWarnings("unused")
 		private String toolTipText= "...";
+		@SuppressWarnings("unused")
 		private Component component = null;
 		private Dialog dialog;
 
@@ -1024,7 +1049,15 @@ private Panel panel1,
     }
 /* ======================================================================== */
     if (label.equals("Configure color")) {
-    	showColorProcessDialog(COLOR_PROC_PARAMETERS);
+    	COLOR_PROC_PARAMETERS.showColorProcessDialog();
+        return;
+    }
+/* ======================================================================== */
+    if (label.equals("Configure AUX color")) {
+    	if (COLOR_PROC_PARAMETERS_AUX == null) {
+    		COLOR_PROC_PARAMETERS_AUX = COLOR_PROC_PARAMETERS.clone();
+    	}
+    	COLOR_PROC_PARAMETERS_AUX.showColorProcessDialog(COLOR_PROC_PARAMETERS);
         return;
     }
 /* ======================================================================== */
@@ -1175,7 +1208,7 @@ private Panel panel1,
         IJ.showMessage("Error","Please select image stack of 5 (float) slices (r,g,b) and 2 weight slices");
         return;
       }
-      if (!showColorProcessDialog(COLOR_PROC_PARAMETERS)) return;
+      if (!COLOR_PROC_PARAMETERS.showColorProcessDialog()) return;
 
 
       DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
@@ -2897,7 +2930,8 @@ private Panel panel1,
     	DttRad2 dtt =   new DttRad2(n);
     	double [] x =   new double[n];
     	double [] y =   new double[n];
-    	double [] xr =  new double[n];
+    	@SuppressWarnings("unused")
+		double [] xr =  new double[n];
     	double [] yc =  new double[n];
     	double [] yr1 = new double[n];
     	double [] dindex= new double[n];
@@ -3027,7 +3061,7 @@ private Panel panel1,
            	}
 
            }
-           ImageDtt image_dtt = new ImageDtt();
+           ImageDtt image_dtt = new ImageDtt(false); // Bayer, not monochrome
            double [][][][] dctdc_data = image_dtt.mdctScale(
            		DBG_IMP.getStack(),
            		DCT_PARAMETERS.kernel_chn,
@@ -3125,7 +3159,7 @@ private Panel panel1,
         	}
 
         }
-        ImageDtt image_dtt = new ImageDtt();
+        ImageDtt image_dtt = new ImageDtt(false); // Bayer, not monochrome
         double [][][][] dctdc_data = image_dtt.mdctStack(
         		DBG_IMP.getStack(),
         		DCT_PARAMETERS.kernel_chn,
@@ -3925,7 +3959,7 @@ private Panel panel1,
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL,
         		true, // true - ignore missing files
     			true, // boolean all_sensors,
-    			true); //boolean no_vignetting
+    			COLOR_PROC_PARAMETERS.correct_vignetting); //boolean correct_vignetting
 
         QUAD_CLT.resetGeometryCorrection();
         QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL+2);
@@ -3958,7 +3992,7 @@ private Panel panel1,
         EYESIS_CORRECTIONS_AUX.initSensorFiles(DEBUG_LEVEL,
         		true, // true - ignore missing files
     			true, // boolean all_sensors,
-    			true); //boolean no_vignetting
+    			COLOR_PROC_PARAMETERS_AUX.correct_vignetting); //boolean correct_vignetting
 
         QUAD_CLT_AUX.resetGeometryCorrection();
         QUAD_CLT_AUX.initGeometryCorrection(DEBUG_LEVEL+2);
@@ -3988,7 +4022,7 @@ private Panel panel1,
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL,
         		true, // true - ignore missing files
     			true, // boolean all_sensors,
-    			true); //boolean no_vignetting
+    			COLOR_PROC_PARAMETERS.correct_vignetting); //boolean correct_vignetting
 
 
         QUAD_CLT.createCLTKernels(
@@ -4026,7 +4060,7 @@ private Panel panel1,
         EYESIS_CORRECTIONS_AUX.initSensorFiles(DEBUG_LEVEL,
         		true, // true - ignore missing files
     			true, // boolean all_sensors,
-    			true); //boolean no_vignetting
+    			COLOR_PROC_PARAMETERS_AUX.correct_vignetting); //boolean correct_vignetting
 
 
         QUAD_CLT_AUX.createCLTKernels(
@@ -4297,7 +4331,7 @@ private Panel panel1,
         		DEBUG_LEVEL,
     			false, // boolean missing_ok,
     			true, // boolean all_sensors, Otherwise - Eyesis
-    			false); //boolean no_vignetting
+    			COLOR_PROC_PARAMETERS.correct_vignetting); //boolean correct_vignetting
 
         int numChannels=EYESIS_CORRECTIONS.getNumChannels();
 //        NONLIN_PARAMETERS.modifyNumChannels(numChannels);
@@ -4354,6 +4388,95 @@ private Panel panel1,
         			PROPERTIES);
         }
         return;
+
+//-------------------------------------------------------
+    } else if (label.equals("AUX 4 images") || label.equals("AUX apply fine corr") || label.equals("AUX infinity corr")) {
+    	boolean apply_corr = label.equals("AUX apply fine corr");
+    	boolean infinity_corr = label.equals("AUX infinity corr");
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+		if (EYESIS_CORRECTIONS_AUX == null) {
+			EYESIS_CORRECTIONS_AUX = new EyesisCorrections(SYNC_COMMAND.stopRequested,CORRECTION_PARAMETERS.getAux());
+		}
+    	EYESIS_CORRECTIONS_AUX.setDebug(DEBUG_LEVEL);
+        if (QUAD_CLT_AUX == null){
+        	QUAD_CLT_AUX = new  QuadCLT (
+        			QuadCLT.PREFIX_AUX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS_AUX,
+        			CORRECTION_PARAMETERS.getAux());
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT AUX instance, will need to read CLT kernels");
+        	}
+        }
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return;
+
+    	EYESIS_CORRECTIONS_AUX.initSensorFiles(
+        		DEBUG_LEVEL,
+    			false, // boolean missing_ok,
+    			true, // boolean all_sensors, Otherwise - Eyesis
+    			COLOR_PROC_PARAMETERS_AUX.correct_vignetting); //boolean correct_vignetting
+
+        int numChannels=EYESIS_CORRECTIONS_AUX.getNumChannels();
+//        NONLIN_PARAMETERS.modifyNumChannels(numChannels);
+        CHANNEL_GAINS_PARAMETERS_AUX.modifyNumChannels(numChannels);
+
+        if (!QUAD_CLT_AUX.CLTKernelsAvailable()){
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Reading AUX CLT kernels");
+        	}
+        	QUAD_CLT_AUX.readCLTKernels(
+            		CLT_PARAMETERS,
+                    THREADS_MAX,
+                    UPDATE_STATUS, // update status info
+            		DEBUG_LEVEL);
+
+            if (DEBUG_LEVEL > 1){
+            	QUAD_CLT_AUX.showCLTKernels(
+            			THREADS_MAX,
+            			UPDATE_STATUS, // update status info
+            			DEBUG_LEVEL);
+        	}
+        }
+
+        if (!QUAD_CLT_AUX.geometryCorrectionAvailable()){
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Calculating geometryCorrection");
+        	}
+        	if (!QUAD_CLT_AUX.initGeometryCorrection(DEBUG_LEVEL+2)){
+        		return;
+        	}
+        }
+
+///========================================
+        int num_infinity_corr = infinity_corr? CLT_PARAMETERS.inf_repeat : 1;
+        if ( num_infinity_corr < 1) num_infinity_corr = 1;
+        for (int i_infinity_corr = 0;  i_infinity_corr < num_infinity_corr; i_infinity_corr++) {
+        QUAD_CLT_AUX.processCLTQuadCorrs(
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+        		COLOR_PROC_PARAMETERS_AUX, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        		CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        		apply_corr,
+        		infinity_corr, // calculate and apply geometry correction at infinity
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+        }
+        if (configPath!=null) {
+        	saveTimestampedProperties( // save config again
+        			configPath,      // full path or null
+        			null, // use as default directory if path==null
+        			true,
+        			PROPERTIES);
+        }
+        return;
+
+
+
+
+
     } else if (label.equals("CLT reset fine corr")) {
         if (QUAD_CLT == null){
         	QUAD_CLT = new  QuadCLT (
@@ -4753,7 +4876,7 @@ private Panel panel1,
         	}
         }
 
-///========================================
+///======================================== Main camera, same can be done for aAUX one! =====
         QUAD_CLT.batchCLT3d(
   			    TWO_QUAD_CLT,    // TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
@@ -4864,8 +4987,10 @@ private Panel panel1,
         QUAD_CLT_AUX.showExtrinsicCorr("aux");// show_fine_corr("aux");
         QUAD_CLT_AUX.geometryCorrection.showRig();// show_fine_corr("aux");
 
-        QuadCLT dbg_QUAD_CLT = QUAD_CLT;
-        QuadCLT dbg_QUAD_CLT_AUX = QUAD_CLT_AUX;
+        @SuppressWarnings("unused")
+		QuadCLT dbg_QUAD_CLT = QUAD_CLT;
+        @SuppressWarnings("unused")
+		QuadCLT dbg_QUAD_CLT_AUX = QUAD_CLT_AUX;
 
         return;
 /* ======================================================================== */
@@ -5040,9 +5165,9 @@ private Panel panel1,
 		}
         ImagePlus [] imps = LWIR_READER.acquire("attic/lwir_test_images"); // directory to save
 		if (imps != null) {
-			for (ImagePlus imp: imps) {
-//				imp.show();
-			}
+///			for (ImagePlus imp: imps) {
+///				imp.show();
+///			}
 		}
 
 //JTabbedTest
@@ -5146,11 +5271,19 @@ private Panel panel1,
     	if (DEBUG_LEVEL > -2){
     		System.out.println("++++++++++++++ Running initSensorFiles for the main camera ++++++++++++++");
     	}
-        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL+2, true, false, false); // missing_ok
+        EYESIS_CORRECTIONS.initSensorFiles(
+        		DEBUG_LEVEL+2,
+        		true,
+        		false,
+    			COLOR_PROC_PARAMETERS.correct_vignetting); //boolean correct_vignetting
     	if (DEBUG_LEVEL > -2){
     		System.out.println("++++++++++++++ Running initSensorFiles for the auxiliary camera ++++++++++++++");
     	}
-        EYESIS_CORRECTIONS_AUX.initSensorFiles(DEBUG_LEVEL+2, true, false, false); // some files belong to oher cameras\
+        EYESIS_CORRECTIONS_AUX.initSensorFiles(
+        		DEBUG_LEVEL+2,
+        		true,
+        		false,
+    			COLOR_PROC_PARAMETERS_AUX.correct_vignetting); //boolean correct_vignetting
 
 
         int numChannels=    EYESIS_CORRECTIONS.getNumChannels();
@@ -5229,7 +5362,7 @@ private Panel panel1,
         QUAD_CLT_AUX.processCLTQuadCorrs(
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        		COLOR_PROC_PARAMETERS_AUX, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
         		CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
         		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
         		false, // apply_corr,
@@ -5280,11 +5413,18 @@ private Panel panel1,
     	if (DEBUG_LEVEL > -2){
     		System.out.println("++++++++++++++ Running initSensorFiles for the main camera ++++++++++++++");
     	}
-        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL+2, true, false, false); // missing_ok
+        EYESIS_CORRECTIONS.initSensorFiles(
+        		DEBUG_LEVEL+2,
+        		true,
+        		false,
+    			COLOR_PROC_PARAMETERS.correct_vignetting); //boolean correct_vignetting
     	if (DEBUG_LEVEL > -2){
     		System.out.println("++++++++++++++ Running initSensorFiles for the auxiliary camera ++++++++++++++");
     	}
-        EYESIS_CORRECTIONS_AUX.initSensorFiles(DEBUG_LEVEL+2, true, false, false); // some files belong to other cameras\
+        EYESIS_CORRECTIONS_AUX.initSensorFiles(DEBUG_LEVEL+2,
+        		true,
+        		false,
+    			COLOR_PROC_PARAMETERS_AUX.correct_vignetting); //boolean correct_vignetting
 
 
         int numChannels=    EYESIS_CORRECTIONS.getNumChannels();
@@ -5376,7 +5516,9 @@ private Panel panel1,
 		if (QUAD_CLT_AUX.tp != null) {
 			QUAD_CLT_AUX.tp.clt_3d_passes = null; // resetCLTPasses();
 		}
-
+		if (COLOR_PROC_PARAMETERS_AUX == null) {
+			COLOR_PROC_PARAMETERS_AUX = COLOR_PROC_PARAMETERS.clone();
+		}
 		try {
 			TWO_QUAD_CLT.processCLTQuadCorrPairs(
 					QUAD_CLT, // QuadCLT quadCLT_main,
@@ -5384,6 +5526,7 @@ private Panel panel1,
 					CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
 					DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 					COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+					COLOR_PROC_PARAMETERS_AUX, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 					//        				CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 					//        				CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters       channelGainParameters_aux,
 					RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
@@ -5428,6 +5571,9 @@ private Panel panel1,
 		if (QUAD_CLT_AUX.tp != null) {
 			QUAD_CLT_AUX.tp.clt_3d_passes = null; // resetCLTPasses();
 		}
+		if (COLOR_PROC_PARAMETERS_AUX == null) {
+			COLOR_PROC_PARAMETERS_AUX = COLOR_PROC_PARAMETERS.clone();
+		}
 
 		try {
 			TWO_QUAD_CLT.prepareFilesForGPUDebug(
@@ -5436,8 +5582,7 @@ private Panel panel1,
 					CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
 					DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 					COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-					//        				CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-					//        				CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters       channelGainParameters_aux,
+					COLOR_PROC_PARAMETERS_AUX, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters_aux,
 					RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
 					THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
 					UPDATE_STATUS, //final boolean    updateStatus,
@@ -5485,7 +5630,9 @@ private Panel panel1,
 			} //final int        debugLevel);
 
 		}
-
+		if (COLOR_PROC_PARAMETERS_AUX == null) {
+			COLOR_PROC_PARAMETERS_AUX = COLOR_PROC_PARAMETERS.clone();
+		}
 		try {
 			TWO_QUAD_CLT.processCLTQuadCorrPairsGpu(
 					GPU_TILE_PROCESSOR,
@@ -5494,8 +5641,7 @@ private Panel panel1,
 					CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
 					DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 					COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-					//        				CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-					//        				CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters       channelGainParameters_aux,
+					COLOR_PROC_PARAMETERS_AUX, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters_aux,
 					RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
 					THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
 					UPDATE_STATUS, //final boolean    updateStatus,
@@ -5789,31 +5935,36 @@ private Panel panel1,
 			}
 		}
 		if (!prepareRigImages()) return false;
-    	String configPath=getSaveCongigPath();
-    	if (configPath.equals("ABORT")) return false;
+		String configPath=getSaveCongigPath();
+		if (configPath.equals("ABORT")) return false;
 
-        	if (DEBUG_LEVEL > -2){
-        		System.out.println("++++++++++++++ Enhancing single-camera DSI by the dual-camera rig using planes ++++++++++++++");
-        	}
-    		TWO_QUAD_CLT.groundTruth( // actually there is no sense to process multiple image sets. Combine with other processing?
-    				QUAD_CLT, // QuadCLT quadCLT_main,
-    				QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
-    				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-    				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-    				UPDATE_STATUS, //final boolean    updateStatus,
-    				DEBUG_LEVEL -2);
-    	if (configPath!=null) {
-    		saveTimestampedProperties( // save config again
-    				configPath,      // full path or null
-    				null, // use as default directory if path==null
-    				true,
-    				PROPERTIES);
-    	}
+		if (DEBUG_LEVEL > -2){
+			System.out.println("++++++++++++++ Enhancing single-camera DSI by the dual-camera rig using planes ++++++++++++++");
+		}
+		if (COLOR_PROC_PARAMETERS_AUX == null) {
+			COLOR_PROC_PARAMETERS_AUX = COLOR_PROC_PARAMETERS.clone();
+		}
+		TWO_QUAD_CLT.groundTruth( // actually there is no sense to process multiple image sets. Combine with other processing?
+				QUAD_CLT, // QuadCLT quadCLT_main,
+				QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
+				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+				COLOR_PROC_PARAMETERS,
+				COLOR_PROC_PARAMETERS_AUX,
+				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+				UPDATE_STATUS, //final boolean    updateStatus,
+				DEBUG_LEVEL -2);
+		if (configPath!=null) {
+			saveTimestampedProperties( // save config again
+					configPath,      // full path or null
+					null, // use as default directory if path==null
+					true,
+					PROPERTIES);
+		}
 		System.out.println("groundTruth(): Processing finished at "+
-				  IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec, --- Free memory="+
+				IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec, --- Free memory="+
 				Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
-    	return true;
+		return true;
 	}
 
 	public boolean rigDSI() {
@@ -5837,10 +5988,16 @@ private Panel panel1,
     	if (DEBUG_LEVEL > -2){
     		System.out.println("++++++++++++++ Creating a dual camera rig DSI from a single camera DSI ++++++++++++++");
     	}
+		if (COLOR_PROC_PARAMETERS_AUX == null) {
+			COLOR_PROC_PARAMETERS_AUX = COLOR_PROC_PARAMETERS.clone();
+		}
+
     	boolean OK = (TWO_QUAD_CLT.rigInitialScan( // actually there is no sense to process multiple image sets. Combine with other processing?
     			QUAD_CLT, // QuadCLT quadCLT_main,
     			QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
     			CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+    			COLOR_PROC_PARAMETERS,
+    			COLOR_PROC_PARAMETERS_AUX,
     			THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
     			UPDATE_STATUS, //final boolean    updateStatus,
     			DEBUG_LEVEL -2) != null);
@@ -5874,6 +6031,9 @@ private Panel panel1,
 		if (DEBUG_LEVEL > -2){
 			System.out.println("++++++++++++++ Running batch processing of dual-quad camera rig ++++++++++++++");
 		}
+		if (COLOR_PROC_PARAMETERS_AUX == null) {
+			COLOR_PROC_PARAMETERS_AUX = COLOR_PROC_PARAMETERS.clone();
+		}
 		try {
 			TWO_QUAD_CLT.batchRig(
 					QUAD_CLT, // QuadCLT quadCLT_main,
@@ -5881,6 +6041,7 @@ private Panel panel1,
 					CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
 					DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 					COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+					COLOR_PROC_PARAMETERS_AUX, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters_aux,
 					CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 					RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
 					EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
@@ -6118,7 +6279,7 @@ private Panel panel1,
 			return false;
 		}
 		int indx = 0;
-		String [] used_models =getUsedModels();
+///		String [] used_models =getUsedModels();
 		for (Path p:files) {
 
 			int count =     p.getNameCount();
@@ -6181,6 +6342,9 @@ private Panel panel1,
 				if (mldir.equals("ml")) {
 					mldir = "ml"; // not to overwrite original data
 				}
+				if (COLOR_PROC_PARAMETERS_AUX == null) {
+					COLOR_PROC_PARAMETERS_AUX = COLOR_PROC_PARAMETERS.clone();
+				}
 				try {
 					TWO_QUAD_CLT.regenerateML(
 							dsi_combo_path.toString(), // String                                         path_DSI,   // Combo DSI path
@@ -6188,9 +6352,10 @@ private Panel panel1,
 							mldir, // "ml1",                     // String                                         ml_subdir,  // new ML subdir (or null to use configuartion one)
 							QUAD_CLT, // QuadCLT quadCLT_main,
 							QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
-							CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-							DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-							COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+							CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters                dct_parameters,
+							DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters          debayerParameters,
+							COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters     colorProcParameters,
+							COLOR_PROC_PARAMETERS_AUX, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters_aux,
 							RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
 							THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
 							UPDATE_STATUS, //final boolean    updateStatus,
@@ -6202,9 +6367,6 @@ private Panel panel1,
 					e.printStackTrace();
 				}
 
-//				if (indx > 0) { //-1) {
-//					return true; // temporarily
-//				}
 				indx++;
 				if (DEBUG_LEVEL>0) System.out.println("Finished scene "+indx+" of "+files.size() + " at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+
 						" seconds  Free memory="+IJ.d2s(runtime.freeMemory()/(1024.0*1024.0*1024.0),3)+" GB (of "+
@@ -6581,11 +6743,16 @@ private Panel panel1,
     	if (DEBUG_LEVEL > -2){
     		System.out.println("++++++++++++++ Processing infinity rig calibration ++++++++++++++");
     	}
+		if (COLOR_PROC_PARAMETERS_AUX == null) {
+			COLOR_PROC_PARAMETERS_AUX = COLOR_PROC_PARAMETERS.clone();
+		}
     	try {
     		TWO_QUAD_CLT.processInfinityRigs( // actually there is no sense to process multiple image sets. Combine with other processing?
     				QUAD_CLT, // QuadCLT quadCLT_main,
     				QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
     				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+    				COLOR_PROC_PARAMETERS,
+    				COLOR_PROC_PARAMETERS_AUX,
     				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
     				UPDATE_STATUS, //final boolean    updateStatus,
     				DEBUG_LEVEL);
@@ -6670,7 +6837,7 @@ private Panel panel1,
 			}
 		}
 
-		ImageDtt image_dtt = new ImageDtt();
+        ImageDtt image_dtt = new ImageDtt(false); // Bayer, not monochrome
 		double [][][][][] clt_data = image_dtt.cltStack(
 				DBG_IMP.getStack(),
 				0, // CLT_PARAMETERS.kernel_chn,
@@ -6800,7 +6967,7 @@ private Panel panel1,
 
         }
         String suffix = "-dx_"+(CLT_PARAMETERS.ishift_x+CLT_PARAMETERS.shift_x)+"_dy_"+(CLT_PARAMETERS.ishift_y+CLT_PARAMETERS.shift_y);
-        ImageDtt image_dtt = new ImageDtt();
+        ImageDtt image_dtt = new ImageDtt(false); // Bayer, not monochrome
         String [] titles = {
         		"redCC",  "redSC",  "redCS",  "redSS",
         		"blueCC", "blueSC", "blueCS", "blueSS",
@@ -7033,7 +7200,7 @@ private Panel panel1,
 			System.out.println(msg);
 			return false;
 		}
-		int scan_index = 0;
+///		int scan_index = 0;
 		String [] titles =  QUAD_CLT.tp.getScanTitles();
 
 		GenericJTabbedDialog gd = new GenericJTabbedDialog("Select scan slice to show",400,800);
@@ -7825,6 +7992,10 @@ private Panel panel1,
     	DEBAYER_PARAMETERS.setProperties("DEBAYER_PARAMETERS.", properties);
     	NONLIN_PARAMETERS.setProperties("NONLIN_PARAMETERS.", properties); // keep for Eyesis, not used fro Quad CLT
     	COLOR_PROC_PARAMETERS.setProperties("COLOR_PROC_PARAMETERS.", properties);
+    	if (COLOR_PROC_PARAMETERS_AUX != null) { // for saving settings
+//    		COLOR_PROC_PARAMETERS_AUX = COLOR_PROC_PARAMETERS.clone();
+        	COLOR_PROC_PARAMETERS_AUX.setProperties("COLOR_PROC_PARAMETERS."+ColorProcParameters.AUX_PREFIX, properties);
+    	}
     	RGB_PARAMETERS.setProperties("RGB_PARAMETERS.", properties);
     	PROCESS_PARAMETERS.setProperties("PROCESS_PARAMETERS.", properties);
     	CORRECTION_PARAMETERS.setProperties("CORRECTION_PARAMETERS.", properties);
@@ -7851,6 +8022,15 @@ private Panel panel1,
        DEBAYER_PARAMETERS.getProperties("DEBAYER_PARAMETERS.", properties);
    	   NONLIN_PARAMETERS.getProperties("NONLIN_PARAMETERS.", properties); // keep for Eyesis, not used fro Quad CLT
        COLOR_PROC_PARAMETERS.getProperties("COLOR_PROC_PARAMETERS.", properties);
+   	   // try AUX parameters, if none - remove
+       if (COLOR_PROC_PARAMETERS_AUX == null) {
+    	   COLOR_PROC_PARAMETERS_AUX = COLOR_PROC_PARAMETERS.clone();
+    	   if (!COLOR_PROC_PARAMETERS_AUX.getProperties("COLOR_PROC_PARAMETERS."+ColorProcParameters.AUX_PREFIX, properties)) {
+    		   CHANNEL_GAINS_PARAMETERS_AUX = null;
+    	   }
+       } else { //read on top, do not remove
+    	   COLOR_PROC_PARAMETERS_AUX.getProperties("COLOR_PROC_PARAMETERS."+ColorProcParameters.AUX_PREFIX, properties);
+       }
 	   RGB_PARAMETERS.getProperties("RGB_PARAMETERS.", properties);
    	   PROCESS_PARAMETERS.getProperties("PROCESS_PARAMETERS.", properties);
    	   CORRECTION_PARAMETERS.getProperties("CORRECTION_PARAMETERS.", properties);
@@ -7886,7 +8066,7 @@ private Panel panel1,
 		  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 		  EyesisCorrectionParameters.FilesParameters         filesParameters,
 		  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
-		  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+		  ColorProcParameters colorProcParameters,
 		  EyesisCorrectionParameters.ColorCalibParameters colorCalibParameters,
 		  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 		  int                     convolveFFTSize, // 128; // FFT size for sliding convolution with kernel
@@ -9902,121 +10082,6 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
     return true;
   }
 
-/* ======================================================================== */
-  public boolean showColorProcessDialog(EyesisCorrectionParameters.ColorProcParameters colorProcParameters) {
-	    GenericDialog gd = new GenericDialog("Color processing parameters");
-	    gd.addNumericField("YCbCr gamma",                             colorProcParameters.gamma,     3); //0.53
-	    gd.addNumericField("Color saturation, red.green",             colorProcParameters.saturationRed,3); //2.0
-	    gd.addNumericField("Color saturation, blue/green",            colorProcParameters.saturationBlue,3); //2.0
-	    gd.addNumericField("Color balance, red-to-green",             colorProcParameters.balanceRed,     3); //1.8
-	    gd.addNumericField("Color balance, blue-to-green",            colorProcParameters.balanceBlue,    3); //1.8
-	    gd.addNumericField("Gain green",                              colorProcParameters.gain,      3); //1.8
-	    gd.addNumericField("Weight scale RED  (which color to use)",  colorProcParameters.weightScaleR,  3); //1.8
-	    gd.addNumericField("Weight scale BLUE (which color to use)",  colorProcParameters.weightScaleB,  3); //1.8
-	    gd.addNumericField("Minimal linear value to apply gammaY",    colorProcParameters.minLin,    3); //0.53
-	    gd.addNumericField("YCbCr Kb",                                colorProcParameters.kb,        3); //0.114
-	    gd.addNumericField("YCbCr Kr",                                colorProcParameters.kr,        3); //0.299
-	    gd.addCheckbox    ("Use first approximation for Y",           colorProcParameters.useFirstY);
-	    gd.addMessage("Color denoise parameters");
-	    gd.addNumericField("Low-pass sigma for luma to calculate mask",colorProcParameters.maskSigma,        3);
-	    gd.addNumericField("Filtered luma minimal level for mask transition",colorProcParameters.maskMin,        3);
-	    gd.addNumericField("Filtered luma maximal level for mask transition",colorProcParameters.maskMax,        3);
-	    gd.addCheckbox    ("Combine chroma mask with sharpness one (reduce color leak)",  colorProcParameters.combineWithSharpnessMask);
-	    gd.addNumericField("Low-pass sigma for chroma in bright areas",colorProcParameters.chromaBrightSigma,        3);
-	    gd.addNumericField("Low-pass sigma for chroma in dark areas",colorProcParameters.chromaDarkSigma,        3);
-	    gd.addMessage("Parameters to remove blue near overexposed areas");
-	    gd.addCheckbox ("Remove blue color leak in the darks near saturation",colorProcParameters.corrBlueLeak);
-
-	    gd.addNumericField("Size of sliding square do detect potential overexposure",colorProcParameters.satDetSquareSize,    0);
-	    gd.addNumericField("Most pixels in square should be within this difference from average",colorProcParameters.satDetRelDiff,       4);
-	    gd.addNumericField("Fraction of all pixels in the square to fit inside",colorProcParameters.satDetPartInside,    4);
-	    gd.addNumericField("Minimal value for average compared to average over the whole picture",colorProcParameters.satDetMinFrac,       4);
-	    gd.addNumericField("Maximal difference from average for the saturated tile to be considered saturated",colorProcParameters.satDetFinRelDiff,    4);
-	    gd.addNumericField("Maximal difference from the start tile average during growing",colorProcParameters.satDetGrowRelDiff,    4);
-
-
-	    gd.addNumericField("Weight of new pixel when expanding overexposed areas",colorProcParameters.satDetNewWeight,    4);
-
-
-	    gd.addNumericField("Number of overexposure expand steps, nothing special for brighter",colorProcParameters.satDetExpSym,    0);
-	    gd.addNumericField("Number of overexposure expand steps, limited under, any over",colorProcParameters.satDetExpOver,    0);
-
-	    gd.addNumericField("Maximal difference from the start tile average during growing (final to clean up oscillations)",colorProcParameters.satDetGrowRelDiffCleanUp,    4);
-	    gd.addNumericField("Number of overexposure expand steps, final to clean up oscillations)",colorProcParameters.satDetExpCleanUp,    0);
-	    gd.addNumericField("Shrink blue overexposed area by this number of pixels (to get to undisturbed R/G)",colorProcParameters.blueOverShrink,    0);
-	    gd.addNumericField("Grow blue overexposed area by this number of pixels",colorProcParameters.blueOverGrow,    0);
-	    gd.addNumericField("Average amount of blue leak in pixels",colorProcParameters.blueBandWidth,    4);
-	    gd.addNumericField("Average amount of blue leak in pixels (slope at dark)",colorProcParameters.blueBandWidthDark,    4);
-
-
-	    gd.addNumericField("Value of Yb/Yrg ratio for the small areas where safe color can not be found",colorProcParameters.blueNeutral,    4);
-	    gd.addNumericField("How far to trust blue color ratio from the found solution (in pixels)",colorProcParameters.blueSolutionRadius,    4);
-
-
-	    gd.addCheckbox    ("Use blueNeutral in the small areas that do not have reliable color sample",  colorProcParameters.blueLeakNoHint);
-	    gd.addCheckbox    ("Do not brighten blue in corrected areas, only darken",  colorProcParameters.blueLeakNoBrighten);
-
-	    gd.addCheckbox    ("Fix thin objects with saturated blue, but not R+G",  colorProcParameters.blueLeakFixWires);
-	    gd.addNumericField("Width (in pixels) of the small objects to fix blue flood",colorProcParameters.blueLeakWiresSize,    4);
-	    gd.addNumericField("Relative amplitude (fraction of saturation) of samll flooded by blue objects to process",colorProcParameters.blueLeakWiresThreshold,    4);
-
-	    gd.addCheckbox    ("Use 8 neighbors (false - only 4)",  colorProcParameters.use8);
-
-	    gd.addNumericField("Debug Level:",                          MASTER_DEBUG_LEVEL,      0);
-	    WindowTools.addScrollBars(gd);
-	    gd.showDialog();
-	    if (gd.wasCanceled()) return false;
-
-	    colorProcParameters.gamma=                    gd.getNextNumber();
-	    colorProcParameters.saturationRed=            gd.getNextNumber();
-	    colorProcParameters.saturationBlue=           gd.getNextNumber();
-	    colorProcParameters.balanceRed=               gd.getNextNumber();
-	    colorProcParameters.balanceBlue=              gd.getNextNumber();
-	    colorProcParameters.gain=                     gd.getNextNumber();
-	    colorProcParameters.weightScaleR=             gd.getNextNumber();
-	    colorProcParameters.weightScaleB=             gd.getNextNumber();
-	    colorProcParameters.minLin=                   gd.getNextNumber();
-	    colorProcParameters.kb=                       gd.getNextNumber(); //---
-	    colorProcParameters.kr=                       gd.getNextNumber();
-	    colorProcParameters.useFirstY=                gd.getNextBoolean();
-	    colorProcParameters.maskSigma=                gd.getNextNumber();
-	    colorProcParameters.maskMin=                  gd.getNextNumber();
-	    colorProcParameters.maskMax=                  gd.getNextNumber();
-	    colorProcParameters.combineWithSharpnessMask= gd.getNextBoolean();
-	    colorProcParameters.chromaBrightSigma=        gd.getNextNumber();
-	    colorProcParameters.chromaDarkSigma=          gd.getNextNumber();
-	    colorProcParameters.corrBlueLeak=             gd.getNextBoolean();
-	    colorProcParameters.satDetSquareSize=   (int) gd.getNextNumber();
-	    colorProcParameters.satDetRelDiff=            gd.getNextNumber();
-	    colorProcParameters.satDetPartInside=         gd.getNextNumber();
-	    colorProcParameters.satDetMinFrac=            gd.getNextNumber();
-	    colorProcParameters.satDetFinRelDiff=         gd.getNextNumber();
-	    colorProcParameters.satDetGrowRelDiff=        gd.getNextNumber();
-	    colorProcParameters.satDetNewWeight=          gd.getNextNumber();
-
-	    colorProcParameters.satDetExpSym=       (int) gd.getNextNumber();
-	    colorProcParameters.satDetExpOver=      (int) gd.getNextNumber();
-
-	    colorProcParameters.satDetGrowRelDiffCleanUp= gd.getNextNumber();
-	    colorProcParameters.satDetExpCleanUp=   (int) gd.getNextNumber();
-	    colorProcParameters.blueOverShrink=     (int) gd.getNextNumber();
-	    colorProcParameters.blueOverGrow=       (int) gd.getNextNumber();
-	    colorProcParameters.blueBandWidth=            gd.getNextNumber();
-	    colorProcParameters.blueBandWidthDark=        gd.getNextNumber();
-	    colorProcParameters.blueNeutral=              gd.getNextNumber();
-	    colorProcParameters.blueSolutionRadius=       gd.getNextNumber();
-
-	    colorProcParameters.blueLeakNoHint=           gd.getNextBoolean();
-	    colorProcParameters.blueLeakNoBrighten=       gd.getNextBoolean();
-
-	    colorProcParameters.blueLeakFixWires=         gd.getNextBoolean();
-	    colorProcParameters.blueLeakWiresSize=        gd.getNextNumber();
-	    colorProcParameters.blueLeakWiresThreshold=   gd.getNextNumber();
-
-	    colorProcParameters.use8=                     gd.getNextBoolean();
-	    MASTER_DEBUG_LEVEL=      (int) gd.getNextNumber();
-	    return true;
-	  }
   /* ======================================================================== */
   public boolean showColorCalibDialog(EyesisCorrectionParameters.ColorCalibParameters colorCalibParameters) {
 		int i,j;
@@ -10230,7 +10295,7 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
 
   public void  processColorsWeights(ImageStack stack,
 		  double scale,     // initila maximal pixel value (16))
-		  EyesisCorrectionParameters.ColorProcParameters  colorProcParameters,
+		  ColorProcParameters  colorProcParameters,
 		  EyesisCorrectionParameters.ColorCalibParameters colorCalibParameters, // if null - assume all 1-s
 		  int nChn,
 		  int nSubChn

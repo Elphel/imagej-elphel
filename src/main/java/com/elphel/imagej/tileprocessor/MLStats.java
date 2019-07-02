@@ -40,6 +40,8 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Properties;
 
+import com.elphel.imagej.cameras.CLTParameters;
+import com.elphel.imagej.cameras.ColorProcParameters;
 import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
@@ -430,9 +432,9 @@ public class MLStats {
 	}
 
 	public static boolean mlRecalc(String dir,
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters   debayerParameters,
-			EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			ColorProcParameters colorProcParameters,
 			EyesisCorrectionParameters.RGBParameters       rgbParameters,
 			final int                                      threadsMax,  // maximal number of threads to launch
 			final boolean                                  updateStatus,

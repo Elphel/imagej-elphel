@@ -24,7 +24,7 @@ package com.elphel.imagej.tileprocessor;
  */
 import java.util.ArrayList;
 
-import com.elphel.imagej.cameras.EyesisCorrectionParameters;
+import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
@@ -286,7 +286,7 @@ public class AlignmentCorrection {
 			final int        hist_min_samples,
 			final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with
 
-			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			CLTParameters           clt_parameters,
 			double [][]      disp_strength_in,
 			int              tilesX,
 			double           magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5
@@ -484,7 +484,7 @@ public class AlignmentCorrection {
 			final int max_iterations,
 			final double max_coeff_diff,
 			final double far_pull, //  = 0.2; // 1; //  0.5;
-			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			CLTParameters           clt_parameters,
 			double [][] disp_strength,
 			int         tilesX,
 			double      magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
@@ -706,7 +706,7 @@ public class AlignmentCorrection {
 			//			final double max_coeff_diff0,
 			//			final double far_pull0, //  = 0.2; // 1; //  0.5;
 			final boolean use_vertical,
-			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			CLTParameters           clt_parameters,
 			double [][] disp_strength,
 			ArrayList<Sample> samples_list,
 			int         tilesX,
@@ -882,7 +882,7 @@ public class AlignmentCorrection {
 			final boolean use_vertical,
 			final boolean use_disparity, // for infinity // now disabled?
 			final boolean allow_dispatity,
-			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			CLTParameters           clt_parameters,
 			double [][] disp_strength,
 			ArrayList<Sample> samples_list,
 			int         tilesX,
@@ -1775,7 +1775,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			final int        hist_min_samples,
 			final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with
 			final double     inf_fraction,    // fraction of the weight for the infinity tiles
-			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			CLTParameters           clt_parameters,
 			double [][]      scans_14,
 			double [][]      target_disparity, // null or programmed disparity (1 per each 14 entries of scans_14)
 			int              tilesX,
@@ -2362,7 +2362,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with
 			final double     inf_fraction,    // fraction of the weight for the infinity tiles
 			final double     inf_max_disparity, // use all smaller disparities as inf_fraction
-			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			CLTParameters           clt_parameters,
 			double [][]      scans_14, // here - always 14 - infinity and non-infinity
 			double [][][]    gt_disparity_strength, // 1 pair for each 14 entries of scans_14 (normally - just 1 scan
 			final boolean    filter_ds, //
@@ -2802,7 +2802,7 @@ B = |+dy0   -dy1      -2*dy3 |
 
 
 	public double [][] combineCltMismatches(
-			EyesisCorrectionParameters.CLTParameters clt_parameters,
+			CLTParameters clt_parameters,
 			double [][][]                            clt_mismatches,
 			double [][][]                            disparity_maps,
 			int                                      disparity_index,
@@ -2826,7 +2826,7 @@ B = |+dy0   -dy1      -2*dy3 |
 
 	public void showCltMismatches(
 			String                                   title,
-			EyesisCorrectionParameters.CLTParameters clt_parameters,
+			CLTParameters clt_parameters,
 			double [][]                              combo_data,
 			int tilesX,
 			int tilesY)
@@ -2853,7 +2853,7 @@ B = |+dy0   -dy1      -2*dy3 |
 
 	public void showCltMismatch(
 			String                                   title,
-			EyesisCorrectionParameters.CLTParameters clt_parameters,
+			CLTParameters clt_parameters,
 			double [][]                              clt_mismatch,
 			int tilesX,
 			int tilesY)

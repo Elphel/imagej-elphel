@@ -29,7 +29,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.elphel.imagej.cameras.EyesisCorrectionParameters;
+import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
@@ -1811,7 +1811,7 @@ public class PoleProcessor {
 //			  BiScan                                         biScan,
 			  double [][]                                    src_ds, // source disparity, strength pair
 			  boolean []                                     selection, // source tile selection, will be modified
-			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			  CLTParameters       clt_parameters,
 			  final int                                      threadsMax,  // maximal number of threads to launch
 			  final boolean                                  updateStatus,
 			  final int                                      globalDebugLevel)
@@ -2423,7 +2423,7 @@ public class PoleProcessor {
 	  public void measurePoles(
 			  QuadCLT            quadCLT_main,  // tiles should be set
 			  QuadCLT            quadCLT_aux,
-			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			  CLTParameters       clt_parameters,
 			  ArrayList<PoleProcessor.PoleCluster> pole_clusters,
 			  final int                                      threadsMax,  // maximal number of threads to launch
 			  final boolean                                  updateStatus,
@@ -2692,7 +2692,7 @@ public class PoleProcessor {
 			  QuadCLT                                  quadCLT_main,  // tiles should be set
 			  QuadCLT                                  quadCLT_aux,
 			  double [][]                              poles_ds,
-			  EyesisCorrectionParameters.CLTParameters clt_parameters,
+			  CLTParameters clt_parameters,
 			  boolean                                  notch_mode, // use pole-detection mode for inter-camera correlation
 			  int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
 			  final int                                threadsMax,  // maximal number of threads to launch

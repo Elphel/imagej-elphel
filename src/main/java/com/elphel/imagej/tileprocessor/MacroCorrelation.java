@@ -29,7 +29,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.elphel.imagej.cameras.EyesisCorrectionParameters;
+import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 
@@ -62,6 +62,7 @@ public class MacroCorrelation {
 					mTilesY,   // int tilesY,
 					tileSize,  // int tileSize,
 					tp.superTileSize, // int superTileSize,
+					tp.isMonochrome(),
 					tp.getMagicScale(), // double scale,
 					trusted_correlation, // double trustedCorrelation,
 					0.0, // double maxOverexposure,
@@ -70,7 +71,7 @@ public class MacroCorrelation {
 	public TileProcessor  CLTMacroScan( // perform single pass according to prepared tiles operations and disparity
 			final CLTPass3d                          src_scan, // results of the normal correlations (now expecting infinity)
 //			final double [][][]                      other_channels, // other channels to correlate, such as average RGB (first index - subcamera, 2-nd - channel, 3-rd - pixel)
-			EyesisCorrectionParameters.CLTParameters clt_parameters,
+			CLTParameters clt_parameters,
 			GeometryCorrection                       geometryCorrection,
 			final double                             macro_disparity_low,
 			final double                             macro_disparity_high,
@@ -222,7 +223,7 @@ public class MacroCorrelation {
 
 	public CLTPass3d CLTMacroSetMeasure( // perform single pass according to prepared tiles operations and disparity
 			final CLTPass3d                          macro_scan, // new, will be filled out
-			EyesisCorrectionParameters.CLTParameters clt_parameters,
+			CLTParameters clt_parameters,
 			GeometryCorrection                       geometryCorrection,
 			final double                             macro_disparity,
 			final boolean                            show_corr_partial,
@@ -256,7 +257,7 @@ public class MacroCorrelation {
 	public CLTPass3d  CLTMacroMeasure( // perform single pass according to prepared tiles operations and disparity
 			final CLTPass3d                          macro_scan, //
 			final double [][][]                      input_data,
-			EyesisCorrectionParameters.CLTParameters clt_parameters,
+			CLTParameters clt_parameters,
 			GeometryCorrection                       geometryCorrection,
 			final String                             suffix,
 			final boolean                            show_corr_partial,
@@ -304,7 +305,7 @@ public class MacroCorrelation {
 
 
 		//		  double [][][][] texture_tiles =   save_textures ? new double [tilesY][tilesX][][] : null; // ["RGBA".length()][];
-		ImageDtt image_dtt = new ImageDtt();
+		ImageDtt image_dtt = new ImageDtt(this.mtp.isMonochrome());
 		image_dtt.clt_aberrations_quad_corr(
 			    clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 				8,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
@@ -430,7 +431,7 @@ public class MacroCorrelation {
 
 	public CLTPass3d refineMacro(
 			final double [][][]                      input_data,
-			EyesisCorrectionParameters.CLTParameters clt_parameters,
+			CLTParameters clt_parameters,
 			GeometryCorrection                       geometryCorrection,
 			final double                             trustedCorrelation,
 			final double                             disp_far,   // limit results to the disparity range, far - start with 1 step above 0 (was valid for all)

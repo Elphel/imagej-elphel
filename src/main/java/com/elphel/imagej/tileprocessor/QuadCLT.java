@@ -40,6 +40,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.elphel.imagej.calibration.PixelMapping;
+import com.elphel.imagej.cameras.CLTParameters;
+import com.elphel.imagej.cameras.ColorProcParameters;
 import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
@@ -72,7 +74,7 @@ public class QuadCLT {
 //	public String                                          properties_prefix = "EYESIS_DCT.";
 	public EyesisCorrections                               eyesisCorrections = null;
 	public EyesisCorrectionParameters.CorrectionParameters correctionsParameters=null;
-	double [][][][][][]                                    clt_kernels = null;
+	double [][][][][][]                                    clt_kernels = null; // can be used to determine monochrome too?
 	public GeometryCorrection                              geometryCorrection = null;
 	double []                                              extrinsic_corr = new double [GeometryCorrection.CORR_NAMES.length]; // extrinsic corrections (needed from properties, before geometryCorrection
 	public int                                             extra_items = 8; // number of extra items saved with kernels (center offset (partial, full, derivatives)
@@ -90,10 +92,14 @@ public class QuadCLT {
 	double [][][]                                          image_data = null;
     boolean [][]                                           saturation_imp = null; // (near) saturated pixels or null
     boolean                                                is_aux = false;
+    boolean                                                is_mono = false; // Use clt_kernels?
+    double  []                                             lwir_offsets = null; // per image subtracted values
+    double                                                 lwir_offset =  Double.NaN; // average of lwir_offsets[]
 //    int []                                                 woi_tops; // used to calculate scanline timing
 
 
 // magic scale should be set before using  TileProcessor (calculated disparities depend on it)
+    public boolean isMonochrome() {return is_mono;} // clt_kernels
     public void resetGroundTruthByRig() {
     	tp.rig_disparity_strength = null;
     }
@@ -102,29 +108,17 @@ public class QuadCLT {
     	return tp.rig_disparity_strength;
     }
 	public void setTiles (ImagePlus imp, // set tp.tilesX, tp.tilesY
-			EyesisCorrectionParameters.CLTParameters    clt_parameters,
+			CLTParameters    clt_parameters,
 			int threadsMax
 			){
 		setTiles(clt_parameters,
 				imp.getWidth()/clt_parameters.transform_size,
 				imp.getHeight()/clt_parameters.transform_size,
 				threadsMax);
-		/*
-		if (tp == null){
-			tp = new TileProcessor(imp.getWidth()/clt_parameters.transform_size,
-					imp.getHeight()/clt_parameters.transform_size,
-					clt_parameters.transform_size,
-					clt_parameters.stSize,
-					clt_parameters.corr_magic_scale,
-					clt_parameters.grow_disp_trust,
-					clt_parameters.max_overexposure, // double maxOverexposure,
-					threadsMax);
-		}
-		*/
 	}
 
 	public void setTiles (
-			EyesisCorrectionParameters.CLTParameters    clt_parameters,
+			CLTParameters    clt_parameters,
 			int tilesX,
 			int tilesY,
 			int threadsMax
@@ -135,6 +129,7 @@ public class QuadCLT {
 					tilesY,
 					clt_parameters.transform_size,
 					clt_parameters.stSize,
+					this.is_mono,
 					clt_parameters.corr_magic_scale,
 					clt_parameters.grow_disp_trust,
 					clt_parameters.max_overexposure, // double maxOverexposure,
@@ -146,7 +141,8 @@ public class QuadCLT {
 	public boolean setupImageData(
 			String image_name,
 			String [] sourceFiles,
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
+			ColorProcParameters                            colorProcParameters, //
 			int threadsMax,
 			int debugLevel) {
 		  QuadCLT.SetChannels [] set_channels_aux =  setChannels(image_name, debugLevel);
@@ -161,6 +157,7 @@ public class QuadCLT {
 		  double [] scaleExposures_aux =  new double[channelFiles_aux.length];
 		  ImagePlus [] imp_srcs_aux = conditionImageSet(
 				  clt_parameters,               // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+				  colorProcParameters,          //  ColorProcParameters                       colorProcParameters, //
 				  sourceFiles,                  // String []                                 sourceFiles,
 				  image_name,      // set_channels_aux[0].name(), // String                                    set_name,
 				  referenceExposures_aux,       // double []                                 referenceExposures,
@@ -173,7 +170,8 @@ public class QuadCLT {
 		  for (int i = 0; i < double_stacks_aux.length; i++){
 			  double_stacks_aux[i] = eyesisCorrections.bayerToDoubleStack(
 					  imp_srcs_aux[i], // source Bayer image, linearized, 32-bit (float))
-					  null); // no margins, no oversample
+					  null, // no margins, no oversample
+					  this.is_mono);
 		  }
 
 		  for (int i = 0; i < double_stacks_aux.length; i++){
@@ -462,7 +460,7 @@ public class QuadCLT {
 			  final PixelMapping.SensorData sensor, // to calculate extra shift
 			  final ImageStack kernelStack,  // first stack with 3 colors/slices convolution kernels
 			  final int          kernelSize, // 64
-			  final EyesisCorrectionParameters.CLTParameters clt_parameters,
+			  final CLTParameters clt_parameters,
 
 			  final int          threadsMax,  // maximal number of threads to launch
 			  final boolean      updateStatus,
@@ -510,7 +508,7 @@ public class QuadCLT {
 					  double [] kernel=      new double[kernelSize*kernelSize];
 					  int centered_len = (2*dtt_size-1) * (2*dtt_size-1);
 					  double [] kernel_centered = new double [centered_len + extra_items];
-					  ImageDtt image_dtt = new ImageDtt();
+					  ImageDtt image_dtt = new ImageDtt(isMonochrome());
 					  int chn,tileY,tileX;
 					  DttRad2 dtt = new DttRad2(dtt_size);
 					  ShowDoubleFloatArrays sdfa_instance = null;
@@ -686,7 +684,7 @@ public class QuadCLT {
 		  if (globalDebugLevel > 1) System.out.println("Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 		  System.out.println("1.Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 		  // Calculate differential offsets to interpolate for tiles between kernel centers
-		  ImageDtt image_dtt = new ImageDtt();
+		  ImageDtt image_dtt = new ImageDtt(isMonochrome());
 		  image_dtt.clt_fill_coord_corr(
 				  clt_parameters.kernel_step,  //  final int             kern_step, // distance between kernel centers, in pixels.
 				  clt_kernels,                 // final double [][][][] clt_data,
@@ -886,7 +884,7 @@ public class QuadCLT {
 
 
 	  public boolean createCLTKernels(
-			  EyesisCorrectionParameters.CLTParameters clt_parameters,
+			  CLTParameters clt_parameters,
 			  int          srcKernelSize,
 			  int          threadsMax,  // maximal number of threads to launch
 			  boolean      updateStatus,
@@ -979,7 +977,7 @@ public class QuadCLT {
 
 
 	  public boolean readCLTKernels(
-			  EyesisCorrectionParameters.CLTParameters clt_parameters,
+			  CLTParameters clt_parameters,
 			  int          threadsMax,  // maximal number of threads to launch
 			  boolean      updateStatus,
 			  int          debugLevel
@@ -1393,9 +1391,9 @@ public class QuadCLT {
 	  }
 
 	  public void processCLTChannelImages(
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
@@ -1493,10 +1491,10 @@ public class QuadCLT {
 	  public ImagePlus processCLTChannelImage(
 			  ImagePlus imp_src, // should have properties "name"(base for saving results), "channel","path"
 //			  EyesisCorrectionParameters.DCTParameters           dct_parameters,
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 //			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
-			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 //			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
@@ -1608,7 +1606,8 @@ public class QuadCLT {
 
 		  double [][] double_stack = eyesisCorrections.bayerToDoubleStack(
 				  result, // source Bayer image, linearized, 32-bit (float))
-				  null); // no margins, no oversample
+				  null, // no margins, no oversample
+				  this.is_mono);
 
 //		  ImageStack stack= eyesisCorrections.bayerToStack(
 //				  result, // source Bayer image, linearized, 32-bit (float))
@@ -1644,21 +1643,8 @@ public class QuadCLT {
 			  sdfa_instance.showArrays(double_stack,  imp_src.getWidth(), imp_src.getHeight(), true, "BEFORE_CLT_PROC", rbg_titles);
 		  }
 		  if (this.correctionsParameters.deconvolve) { // process with DCT, otherwise use simple debayer
-			  ImageDtt image_dtt = new ImageDtt();
-/*
-			  double [][][][][] clt_data = image_dtt.cltStack(
-					  stack,
-					  channel,
-					  clt_parameters,
-					  clt_parameters.ishift_x, //final int shiftX, // shift image horizontally (positive - right)
-					  clt_parameters.ishift_y, //final int shiftY, // shift image vertically (positive - down)
-					  threadsMax,
-					  debugLevel,
-					  updateStatus);
-*/
+			  ImageDtt image_dtt = new ImageDtt(isMonochrome());
 			  for (int i =0 ; i < double_stack[0].length; i++){
-//				  double_stack[0][i]*=2.0; // Scale red twice to compensate less pixels than green
-//				  double_stack[1][i]*=2.0; // Scale blue twice to compensate less pixels than green
 				  double_stack[2][i]*=0.5; // Scale blue twice to compensate less pixels than green
 			  }
 			  double [][][][][] clt_data = image_dtt.clt_aberrations(
@@ -1947,10 +1933,10 @@ public class QuadCLT {
 
 // Processing sets of 4 images together
 	  public void processCLTSets(
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 //			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
-			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
@@ -2189,10 +2175,10 @@ public class QuadCLT {
 
 	  public ImagePlus processCLTSetImage(
 			  ImagePlus imp_src, // should have properties "name"(base for saving results), "channel","path"
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 //			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
-			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 //			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
@@ -2226,7 +2212,8 @@ public class QuadCLT {
 
 		  double [][] double_stack = eyesisCorrections.bayerToDoubleStack(
 				  result, // source Bayer image, linearized, 32-bit (float))
-				  null); // no margins, no oversample
+				  null, // no margins, no oversample
+				  this.is_mono);
 
 		  String titleFull=title+"-SPLIT";
 		  if (debugLevel > -1){
@@ -2246,8 +2233,6 @@ public class QuadCLT {
 		  String [] rbg_titles = {"Red", "Blue", "Green"};
 		  ImageStack stack;
 		  if (!this.correctionsParameters.debayer) {
-//			  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
-//			  ImageStack
 			  stack = sdfa_instance.makeStack(double_stack, imp_src.getWidth(), imp_src.getHeight(), rbg_titles);
 			  result= new ImagePlus(titleFull, stack);
 			  eyesisCorrections.saveAndShow(result, this.correctionsParameters);
@@ -2259,21 +2244,8 @@ public class QuadCLT {
 			  sdfa_instance.showArrays(double_stack,  imp_src.getWidth(), imp_src.getHeight(), true, "BEFORE_CLT_PROC", rbg_titles);
 		  }
 		  if (this.correctionsParameters.deconvolve) { // process with DCT, otherwise use simple debayer
-			  ImageDtt image_dtt = new ImageDtt();
-/*
-			  double [][][][][] clt_data = image_dtt.cltStack(
-					  stack,
-					  channel,
-					  clt_parameters,
-					  clt_parameters.ishift_x, //final int shiftX, // shift image horizontally (positive - right)
-					  clt_parameters.ishift_y, //final int shiftY, // shift image vertically (positive - down)
-					  threadsMax,
-					  debugLevel,
-					  updateStatus);
-*/
+			  ImageDtt image_dtt = new ImageDtt(isMonochrome());
 			  for (int i =0 ; i < double_stack[0].length; i++){
-//				  double_stack[0][i]*=2.0; // Scale red twice to compensate less pixels than green
-//				  double_stack[1][i]*=2.0; // Scale blue twice to compensate less pixels than green
 				  double_stack[2][i]*=0.5; // Scale blue twice to compensate less pixels than green
 			  }
 			  double [][][][][] clt_data = image_dtt.clt_aberrations(
@@ -2565,9 +2537,9 @@ public class QuadCLT {
 	  }
 
 	  public void processCLTQuads(
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
@@ -2796,10 +2768,10 @@ public class QuadCLT {
 
 	  public ImagePlus [] processCLTQuad(
 			  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 //			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
-			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 //			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
@@ -2830,13 +2802,14 @@ public class QuadCLT {
 		  for (int i = 0; i < double_stacks.length; i++){
 			  double_stacks[i] = eyesisCorrections.bayerToDoubleStack(
 					  imp_quad[i], // source Bayer image, linearized, 32-bit (float))
-					  null); // no margins, no oversample
+					  null, // no margins, no oversample
+					  this.is_mono);
 		  }
 
 //		  String [] rbg_titles = {"Red", "Blue", "Green"};
 		  ImageStack stack;
 		  // =================
-		  ImageDtt image_dtt = new ImageDtt();
+		  ImageDtt image_dtt = new ImageDtt(isMonochrome());
 		  for (int i = 0; i < double_stacks.length; i++){
 			  for (int j =0 ; j < double_stacks[i][0].length; j++){
 				  double_stacks[i][2][j]*=0.5; // Scale green 0.5 to compensate more pixels than R,B
@@ -3228,7 +3201,8 @@ public class QuadCLT {
 	   * @return array of per-channel ImagePlus objects to process (with saturation_imp)
 	   */
 	  public ImagePlus[] conditionImageSet(
-			  EyesisCorrectionParameters.CLTParameters  clt_parameters,
+			  CLTParameters  clt_parameters,
+			  ColorProcParameters                       colorProcParameters, //
 			  String []                                 sourceFiles,
 			  String                                    set_name,
 			  double []                                 referenceExposures,
@@ -3241,16 +3215,20 @@ public class QuadCLT {
 		  ImagePlus [] imp_srcs = new ImagePlus[channelFiles.length];
 		  this.geometryCorrection.woi_tops = new int [channelFiles.length];
 		  double [][] dbg_dpixels = new double [channelFiles.length][];
+		  boolean is_lwir =            colorProcParameters.lwir_islwir;
+		  boolean ignore_saturation =  is_lwir;
+		  boolean lwir_subtract_dc =   colorProcParameters.lwir_subtract_dc;
+		  boolean lwir_eq_chn =        colorProcParameters.lwir_eq_chn;
+		  boolean correct_vignetting = colorProcParameters.correct_vignetting;
 
 		  for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++){
 			  int nFile=channelFiles[srcChannel]; // channelFiles[srcChannel];
-
 			  imp_srcs[srcChannel]=null;
 			  if (nFile >=0){
 				  imp_srcs[srcChannel] = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], this.geometryCorrection.woi_tops);
 
 				  scaleExposures[srcChannel] = 1.0;
-				  if (!Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
+				  if (!(referenceExposures == null) && !Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
 					  scaleExposures[srcChannel] = referenceExposures[nFile]/Double.parseDouble((String) imp_srcs[srcChannel].getProperty("EXPOSURE"));
 					  if (debugLevel > -1) {
 						  System.out.println("Will scale intensity (to compensate for exposure) by  "+scaleExposures[srcChannel]+
@@ -3292,84 +3270,87 @@ public class QuadCLT {
 					  //						  imp_srcs[srcChannel].show();
 				  }
 				  if (clt_parameters.sat_level > 0.0){
-					  double [] saturations = {
-							  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_1")),
-							  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_0")),
-							  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_3")),
-							  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_2"))};
 					  saturation_imp[srcChannel] = new boolean[width*height];
-					  System.out.println(String.format("channel %d saturations = %6.2f %6.2f %6.2f %6.2f", srcChannel,
-							  saturations[0],saturations[1],saturations[2],saturations[3]));
-					  double [] scaled_saturations = new double [saturations.length];
-					  for (int i = 0; i < scaled_saturations.length; i++){
-						  scaled_saturations[i] = saturations[i] * clt_parameters.sat_level;
-					  }
-					  for (int y = 0; y < height-1; y+=2){
-						  for (int x = 0; x < width-1; x+=2){
-							  if (pixels[y*width+x        ] > scaled_saturations[0])  saturation_imp[srcChannel][y*width+x        ] = true;
-							  if (pixels[y*width+x+      1] > scaled_saturations[1])  saturation_imp[srcChannel][y*width+x      +1] = true;
-							  if (pixels[y*width+x+width  ] > scaled_saturations[2])  saturation_imp[srcChannel][y*width+x+width  ] = true;
-							  if (pixels[y*width+x+width+1] > scaled_saturations[3])  saturation_imp[srcChannel][y*width+x+width+1] = true;
+					  if (!ignore_saturation) {
+						  double [] saturations = {
+								  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_1")),
+								  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_0")),
+								  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_3")),
+								  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_2"))};
+						  System.out.println(String.format("channel %d saturations = %6.2f %6.2f %6.2f %6.2f", srcChannel,
+								  saturations[0],saturations[1],saturations[2],saturations[3]));
+						  double [] scaled_saturations = new double [saturations.length];
+						  for (int i = 0; i < scaled_saturations.length; i++){
+							  scaled_saturations[i] = saturations[i] * clt_parameters.sat_level;
+						  }
+						  for (int y = 0; y < height-1; y+=2){
+							  for (int x = 0; x < width-1; x+=2){
+								  if (pixels[y*width+x        ] > scaled_saturations[0])  saturation_imp[srcChannel][y*width+x        ] = true;
+								  if (pixels[y*width+x+      1] > scaled_saturations[1])  saturation_imp[srcChannel][y*width+x      +1] = true;
+								  if (pixels[y*width+x+width  ] > scaled_saturations[2])  saturation_imp[srcChannel][y*width+x+width  ] = true;
+								  if (pixels[y*width+x+width+1] > scaled_saturations[3])  saturation_imp[srcChannel][y*width+x+width+1] = true;
+							  }
 						  }
 					  }
 				  }
 
-
-				  if (this.correctionsParameters.vignetting){
-					  if ((eyesisCorrections.channelVignettingCorrection==null) || (srcChannel<0) || (srcChannel>=eyesisCorrections.channelVignettingCorrection.length) || (eyesisCorrections.channelVignettingCorrection[srcChannel]==null)){
-						  System.out.println("No vignetting data for channel "+srcChannel);
-						  return null;
-					  }
-					  ///						  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
-
-
-					  if (pixels.length!=eyesisCorrections.channelVignettingCorrection[srcChannel].length){
-						  System.out.println("Vignetting data for channel "+srcChannel+" has "+eyesisCorrections.channelVignettingCorrection[srcChannel].length+" pixels, image "+sourceFiles[nFile]+" has "+pixels.length);
-						  return null;
-					  }
-					  // TODO: Move to do it once:
-					  double min_non_zero = 0.0;
-					  for (int i=0;i<pixels.length;i++){
-						  double d = eyesisCorrections.channelVignettingCorrection[srcChannel][i];
-						  if ((d > 0.0) && ((min_non_zero == 0) || (min_non_zero > d))){
-							  min_non_zero = d;
+				  if (!is_lwir) { // no vigneting correction and no color scaling
+					  if (this.correctionsParameters.vignetting && correct_vignetting){
+						  if ((eyesisCorrections.channelVignettingCorrection==null) || (srcChannel<0) || (srcChannel>=eyesisCorrections.channelVignettingCorrection.length) || (eyesisCorrections.channelVignettingCorrection[srcChannel]==null)){
+							  System.out.println("No vignetting data for channel "+srcChannel);
+							  return null;
 						  }
-					  }
-					  double max_vign_corr = clt_parameters.vignetting_range*min_non_zero;
+						  ///						  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
 
-					  System.out.println("Vignetting data: channel="+srcChannel+", min = "+min_non_zero);
-					  for (int i=0;i<pixels.length;i++){
-						  double d = eyesisCorrections.channelVignettingCorrection[srcChannel][i];
-						  if (d > max_vign_corr) d = max_vign_corr;
-						  pixels[i]*=d;
-					  }
-					  // Scale here, combine with vignetting later?
-					  ///						  int width =  imp_srcs[srcChannel].getWidth();
-					  ///						  int height = imp_srcs[srcChannel].getHeight();
-					  for (int y = 0; y < height-1; y+=2){
-						  for (int x = 0; x < width-1; x+=2){
-							  pixels[y*width+x        ] *= clt_parameters.scale_g;
-							  pixels[y*width+x+width+1] *= clt_parameters.scale_g;
-							  pixels[y*width+x      +1] *= clt_parameters.scale_r;
-							  pixels[y*width+x+width  ] *= clt_parameters.scale_b;
+
+						  if (pixels.length!=eyesisCorrections.channelVignettingCorrection[srcChannel].length){
+							  System.out.println("Vignetting data for channel "+srcChannel+" has "+eyesisCorrections.channelVignettingCorrection[srcChannel].length+" pixels, image "+sourceFiles[nFile]+" has "+pixels.length);
+							  return null;
 						  }
-					  }
+						  // TODO: Move to do it once:
+						  double min_non_zero = 0.0;
+						  for (int i=0;i<pixels.length;i++){
+							  double d = eyesisCorrections.channelVignettingCorrection[srcChannel][i];
+							  if ((d > 0.0) && ((min_non_zero == 0) || (min_non_zero > d))){
+								  min_non_zero = d;
+							  }
+						  }
+						  double max_vign_corr = clt_parameters.vignetting_range*min_non_zero;
 
-				  } else { // assuming GR/BG pattern
-					  System.out.println("Applying fixed color gain correction parameters: Gr="+
-							  clt_parameters.novignetting_r+", Gg="+clt_parameters.novignetting_g+", Gb="+clt_parameters.novignetting_b);
-					  ///						  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
-					  ///						  int width =  imp_srcs[srcChannel].getWidth();
-					  ///						  int height = imp_srcs[srcChannel].getHeight();
-					  double kr = clt_parameters.scale_r/clt_parameters.novignetting_r;
-					  double kg = clt_parameters.scale_g/clt_parameters.novignetting_g;
-					  double kb = clt_parameters.scale_b/clt_parameters.novignetting_b;
-					  for (int y = 0; y < height-1; y+=2){
-						  for (int x = 0; x < width-1; x+=2){
-							  pixels[y*width+x        ] *= kg;
-							  pixels[y*width+x+width+1] *= kg;
-							  pixels[y*width+x      +1] *= kr;
-							  pixels[y*width+x+width  ] *= kb;
+						  System.out.println("Vignetting data: channel="+srcChannel+", min = "+min_non_zero);
+						  for (int i=0;i<pixels.length;i++){
+							  double d = eyesisCorrections.channelVignettingCorrection[srcChannel][i];
+							  if (d > max_vign_corr) d = max_vign_corr;
+							  pixels[i]*=d;
+						  }
+						  // Scale here, combine with vignetting later?
+						  ///						  int width =  imp_srcs[srcChannel].getWidth();
+						  ///						  int height = imp_srcs[srcChannel].getHeight();
+						  for (int y = 0; y < height-1; y+=2){
+							  for (int x = 0; x < width-1; x+=2){
+								  pixels[y*width+x        ] *= clt_parameters.scale_g;
+								  pixels[y*width+x+width+1] *= clt_parameters.scale_g;
+								  pixels[y*width+x      +1] *= clt_parameters.scale_r;
+								  pixels[y*width+x+width  ] *= clt_parameters.scale_b;
+							  }
+						  }
+
+					  } else { // assuming GR/BG pattern
+						  System.out.println("Applying fixed color gain correction parameters: Gr="+
+								  clt_parameters.novignetting_r+", Gg="+clt_parameters.novignetting_g+", Gb="+clt_parameters.novignetting_b);
+						  ///						  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
+						  ///						  int width =  imp_srcs[srcChannel].getWidth();
+						  ///						  int height = imp_srcs[srcChannel].getHeight();
+						  double kr = clt_parameters.scale_r/clt_parameters.novignetting_r;
+						  double kg = clt_parameters.scale_g/clt_parameters.novignetting_g;
+						  double kb = clt_parameters.scale_b/clt_parameters.novignetting_b;
+						  for (int y = 0; y < height-1; y+=2){
+							  for (int x = 0; x < width-1; x+=2){
+								  pixels[y*width+x        ] *= kg;
+								  pixels[y*width+x+width+1] *= kg;
+								  pixels[y*width+x      +1] *= kr;
+								  pixels[y*width+x+width  ] *= kb;
+							  }
 						  }
 					  }
 				  }
@@ -3378,11 +3359,14 @@ public class QuadCLT {
 		  // temporary applying scaleExposures[srcChannel] here, setting it to all 1.0
 		  System.out.println("Temporarily applying scaleExposures[] here - 1" );
 		  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
-			  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
-			  for (int i = 0; i < pixels.length; i++){
-				  pixels[i] *= scaleExposures[srcChannel];
+			  if (!is_lwir) {
+				  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
+				  for (int i = 0; i < pixels.length; i++){
+					  pixels[i] *= scaleExposures[srcChannel];
+				  }
 			  }
 			  scaleExposures[srcChannel] = 1.0;
+
 		  }
 
 		  if ((debugLevel > -1) && (saturation_imp != null)){
@@ -3427,25 +3411,44 @@ public class QuadCLT {
 		  //			  Overlay ovl = imp_srcs[0].getOverlay();
 		  // once per quad here
 		  // may need to equalize gains between channels
-		  if (clt_parameters.gain_equalize || clt_parameters.colors_equalize){ // false, true
+		  if (!is_lwir && (clt_parameters.gain_equalize || clt_parameters.colors_equalize)){ // false, true
 			  channelGainsEqualize(
-					  clt_parameters.gain_equalize,
-					  clt_parameters.colors_equalize,
-					  clt_parameters.nosat_equalize, // boolean nosat_equalize,
+					  clt_parameters.gain_equalize, //false
+					  clt_parameters.colors_equalize, // true
+					  clt_parameters.nosat_equalize, // boolean nosat_equalize, // true
 					  channelFiles,
 					  imp_srcs,
 					  saturation_imp, // boolean[][] saturated,
 					  set_name,       // setNames.get(nSet), // just for debug messages == setNames.get(nSet)
 					  debugLevel);
 		  }
+		  if (is_lwir && (lwir_subtract_dc || lwir_eq_chn)) {
+			   this.lwir_offsets = channelLwirEqualize(
+						  channelFiles,
+						  imp_srcs,
+						  lwir_subtract_dc, // boolean      remove_dc,
+						  set_name, // just for debug messages == setNames.get(nSet)
+						  debugLevel);
+			   int num_avg = 0;
+			   this.lwir_offset = 0.0;
+			   for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++){
+				   int nFile=channelFiles[srcChannel];
+				   if (nFile >=0){
+					   this.lwir_offset += this.lwir_offsets[srcChannel];
+					   num_avg++;
+				   }
+			   }
+			   this.lwir_offset /= num_avg;
+		  }
+		  this.is_mono = is_lwir; // maybe add other monochrome?
 		  return imp_srcs;
 	  }
 
 
 	  public void processCLTQuadCorrs(
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 //			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
@@ -3471,7 +3474,10 @@ public class QuadCLT {
 			  return;
 		  }
 		// multiply each image by this and divide by individual (if not NaN)
-		  double [] referenceExposures=eyesisCorrections.calcReferenceExposures(debugLevel);
+		  double [] referenceExposures = null;
+		  if (!colorProcParameters.lwir_islwir) {
+			  referenceExposures=eyesisCorrections.calcReferenceExposures(debugLevel);
+		  }
 		  for (int nSet = 0; nSet < set_channels.length; nSet++){
 			  int [] channelFiles = set_channels[nSet].fileNumber();
 			  boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
@@ -3479,6 +3485,7 @@ public class QuadCLT {
 
 			  ImagePlus [] imp_srcs = conditionImageSet(
 					  clt_parameters,             // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+					  colorProcParameters,
 					  sourceFiles,                // String []                                 sourceFiles,
 					  set_channels[nSet].name(),  // String                                    set_name,
 					  referenceExposures,         // double []                                 referenceExposures,
@@ -3669,11 +3676,6 @@ public class QuadCLT {
 							  avr_pix[srcChannel][2] += pixels[indx];
 							  num_nonsat[2]++;
 						  }
-
-//						  avr_pix[srcChannel][0] += pixels[y*width+x      +1];
-//						  avr_pix[srcChannel][2] += pixels[y*width+x+width  ];
-//						  avr_pix[srcChannel][1] += pixels[y*width+x        ];
-//						  avr_pix[srcChannel][1] += pixels[y*width+x+width+1];
 					  }
 				  }
 				  for (int i = 0; i < num_nonsat.length; i++){
@@ -3733,15 +3735,79 @@ public class QuadCLT {
 			  }
 		  }
 	  }
+	  public double []  channelLwirEqualize(
+			  int [] channelFiles,
+			  ImagePlus [] imp_srcs,
+			  boolean      remove_dc,
+			  String setName, // just for debug messages == setNames.get(nSet)
+			  int debugLevel){
+		  double [] offsets = new double [channelFiles.length];
+		  double [][] avr_pix = new double [channelFiles.length][2]; // val/weight
+		  double [] wnd_x = {};
+		  double [] wnd_y = {};
+		  double total_s = 0.0, total_w = 0.0;
+		  for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++){
+			  int nFile=channelFiles[srcChannel];
+			  if (nFile >=0){
+				  avr_pix[srcChannel][0] = 0.0;
+				  avr_pix[srcChannel][1] = 0.0;
+				  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
+				  int width =  imp_srcs[srcChannel].getWidth();
+				  int height = imp_srcs[srcChannel].getHeight();
+				  if (wnd_x.length != width) {
+					  wnd_x = new double[width];
+					  for (int i = 0; i < width; i++) {
+						  wnd_x[i] = 0.5 - 0.5*Math.cos(2*Math.PI * (i+1) / (width + 1));
+					  }
+				  }
+				  if (wnd_y.length != height) {
+					  wnd_y = new double[height];
+					  for (int i = 0; i < height; i++) {
+						  wnd_y[i] = 0.5 - 0.5*Math.cos(2*Math.PI * (i+1) / (height + 1));
+					  }
+				  }
+				  int indx = 0;
+				  for (int y = 0; y < height; y++) {
+					  for (int x = 0; x < width; x++) {
+						  double w = wnd_y[y]*wnd_x[x];
+						  avr_pix[srcChannel][0] += w * pixels[indx++];
+						  avr_pix[srcChannel][1] += w;
+					  }
+				  }
+				  total_s += avr_pix[srcChannel][0];
+				  total_w += avr_pix[srcChannel][1];
+				  avr_pix[srcChannel][0]/=avr_pix[srcChannel][1]; // weighted average
+			  }
+		  }
+		  double avg = total_s/total_w;
+		  if (!remove_dc) {
+			  for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++) if (channelFiles[srcChannel] >=0){
+				  avr_pix[srcChannel][0] -= avg;
+			  }
 
+		  }
+		  for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++){
+			  int nFile=channelFiles[srcChannel];
+			  if (nFile >=0) {
+				  offsets[srcChannel]= (avr_pix[srcChannel][0] - (remove_dc ? 0.0: avg));
+				  float fd = (float)offsets[srcChannel];
+				  float [] pixels = (float []) imp_srcs[srcChannel].getProcessor().getPixels();
+				  for (int i = 0; i < pixels.length; i++) {
+					  pixels[i] -= fd;
+				  }
+			  }
+		  }
+
+		  return offsets;
+	  }
 
 
 	  public ImagePlus [] processCLTQuadCorr(
 			  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"
 			  boolean [][] saturation_imp, // (near) saturated pixels or null
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 //			  int              convolveFFTSize, // 128 - fft size, kernel size should be size/2
@@ -3771,13 +3837,20 @@ public class QuadCLT {
 		  for (int i = 0; i < double_stacks.length; i++){
 			  double_stacks[i] = eyesisCorrections.bayerToDoubleStack(
 					  imp_quad[i], // source Bayer image, linearized, 32-bit (float))
-					  null); // no margins, no oversample
+					  null, // no margins, no oversample
+					  this.is_mono);
 		  }
 
-		  ImageDtt image_dtt = new ImageDtt();
+		  ImageDtt image_dtt = new ImageDtt(isMonochrome());
 		  for (int i = 0; i < double_stacks.length; i++){
-			  for (int j =0 ; j < double_stacks[i][0].length; j++){
-				  double_stacks[i][2][j]*=0.5; // Scale green 0.5 to compensate more pixels than R,B
+			  if ( double_stacks[i].length > 2) {
+				  for (int j =0 ; j < double_stacks[i][0].length; j++){
+					  double_stacks[i][2][j]*=0.5; // Scale green 0.5 to compensate more pixels than R,B
+				  }
+			  } else {
+				  for (int j =0 ; j < double_stacks[i][0].length; j++){
+					  double_stacks[i][0][j]*=0.25; // Scale mono by 1/4 - to have the same overall "gain" as for bayer
+				  }
 			  }
 		  }
 
@@ -3803,7 +3876,6 @@ public class QuadCLT {
 		  final int tilesY = tp.getTilesY();
 
 		  if (clt_parameters.correlate){
-			  //			  clt_corr_combo =    new double [2][tp.tilesY][tp.tilesX][];
 			  clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][];
 			  texture_tiles =     new double [tilesY][tilesX][][]; // ["RGBA".length()][];
 			  for (int i = 0; i < tilesY; i++){
@@ -3811,7 +3883,6 @@ public class QuadCLT {
 					  for (int k = 0; k<clt_corr_combo.length; k++){
 						  clt_corr_combo[k][i][j] = null;
 					  }
-					  //					  clt_corr_combo[1][i][j] = null;
 					  texture_tiles[i][j] = null;
 				  }
 			  }
@@ -3824,12 +3895,12 @@ public class QuadCLT {
 				  }
 			  }
 			  if (clt_parameters.corr_mismatch || apply_corr || infinity_corr){ // added infinity_corr
-				  clt_mismatch = new double [12][];
+				  clt_mismatch = new double [12][]; // What is 12?
 			  }
 		  }
+		  // Includes all 3 colors - will have zeros in unused
 		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
 
-//		  double min_corr_selected = clt_parameters.corr_normalize? clt_parameters.min_corr_normalized: clt_parameters.min_corr;
 		  double min_corr_selected = clt_parameters.min_corr;
 		  double [][] shiftXY = new double [4][2];
 		  if (!clt_parameters.fine_corr_ignore) {
@@ -3840,7 +3911,7 @@ public class QuadCLT {
 					  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
 			  shiftXY = shiftXY0;
 		  }
-//		  final double disparity_corr = (clt_parameters.z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/clt_parameters.z_correction);
+
 		  double z_correction =  clt_parameters.z_correction;
 		  if (clt_parameters.z_corr_map.containsKey(name)){
 			  z_correction +=clt_parameters.z_corr_map.get(name);
@@ -3909,8 +3980,6 @@ public class QuadCLT {
 					  +" clt_data[0][0].length="+clt_data[0][0].length+" clt_data[0][0][0].length="+
 					  clt_data[0][0][0].length);
 		  }
-//		  +" clt_data[0][0][0][0].length="+clt_data[0][0][0][0].length+
-//				  " clt_data[0][0][0][0][0].length="+clt_data[0][0][0][0][0].length);
 		  // visualize texture tiles as RGBA slices
 		  double [][] texture_nonoverlap = null;
 		  double [][] texture_overlap = null;
@@ -4344,8 +4413,8 @@ public class QuadCLT {
 
 	  // float
 	  public ImagePlus linearStackToColor(
-			  EyesisCorrectionParameters.CLTParameters         clt_parameters,
-			  EyesisCorrectionParameters.ColorProcParameters   colorProcParameters,
+			  CLTParameters         clt_parameters,
+			  ColorProcParameters   colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters         rgbParameters,
 			  String name,
 			  String suffix, // such as disparity=...
@@ -4393,8 +4462,8 @@ public class QuadCLT {
 	  }
 	  // double data
 	  public ImagePlus linearStackToColor(
-			  EyesisCorrectionParameters.CLTParameters         clt_parameters,
-			  EyesisCorrectionParameters.ColorProcParameters   colorProcParameters,
+			  CLTParameters         clt_parameters,
+			  ColorProcParameters   colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters         rgbParameters,
 			  String name,
 			  String suffix, // such as disparity=...
@@ -4451,8 +4520,8 @@ public class QuadCLT {
 
 
 	  public ImagePlus linearStackToColor(
-			  EyesisCorrectionParameters.CLTParameters         clt_parameters,
-			  EyesisCorrectionParameters.ColorProcParameters   colorProcParameters,
+			  CLTParameters         clt_parameters,
+			  ColorProcParameters   colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters         rgbParameters,
 			  String name,
 			  String suffix, // such as disparity=...
@@ -4720,7 +4789,7 @@ public class QuadCLT {
 
 
 	  public void resetExtrinsicCorr(
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters)
+			  CLTParameters           clt_parameters)
 	  {
 		  this.extrinsic_corr = new double [GeometryCorrection.CORR_NAMES.length];
 		  if (geometryCorrection != null){
@@ -4732,9 +4801,9 @@ public class QuadCLT {
 	  }
 
 	  public void cltDisparityScans(
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
@@ -4974,10 +5043,10 @@ public class QuadCLT {
 	  public ImagePlus [] cltDisparityScan(
 			  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"
 			  boolean [][] saturation_imp, // (near) saturated pixels or null
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 //			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
-			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 //			  int              convolveFFTSize, // 128 - fft size, kernel size should be size/2
@@ -5002,10 +5071,11 @@ public class QuadCLT {
 		  for (int i = 0; i < double_stacks.length; i++){
 			  double_stacks[i] = eyesisCorrections.bayerToDoubleStack(
 					  imp_quad[i], // source Bayer image, linearized, 32-bit (float))
-					  null); // no margins, no oversample
+					  null, // no margins, no oversample
+					  this.is_mono);
 		  }
 		  // =================
-		  ImageDtt image_dtt = new ImageDtt();
+		  ImageDtt image_dtt = new ImageDtt(isMonochrome());
 		  for (int i = 0; i < double_stacks.length; i++){
 			  for (int j =0 ; j < double_stacks[i][0].length; j++){
 				  double_stacks[i][2][j]*=0.5; // Scale green 0.5 to compensate more pixels than R,B
@@ -5274,7 +5344,7 @@ public class QuadCLT {
 	  }
 
 	  public void process_infinity_corr( //from existing image
-			  EyesisCorrectionParameters.CLTParameters clt_parameters,
+			  CLTParameters clt_parameters,
 			  int debugLevel
 			  ) {
 	        ImagePlus imp_src = WindowManager.getCurrentImage();
@@ -5350,7 +5420,7 @@ public class QuadCLT {
 
 	  public void processLazyEye(
 			  boolean dry_run,
-			  EyesisCorrectionParameters.CLTParameters clt_parameters,
+			  CLTParameters clt_parameters,
 			  int debugLevel
 			  ) {
 	        ImagePlus imp_src = WindowManager.getCurrentImage();
@@ -5502,7 +5572,7 @@ public class QuadCLT {
 	  }
 
 	  public void showCLTPlanes(
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  final int          threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel)
@@ -5530,7 +5600,7 @@ public class QuadCLT {
 	  }
 
 	  public double [][]  assignCLTPlanes(
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  final int          threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel)
@@ -5560,7 +5630,7 @@ public class QuadCLT {
 
 
 	  public void out3d_old(
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  final int          threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel)
@@ -5590,9 +5660,9 @@ public class QuadCLT {
 			  boolean adjust_extrinsics,
 			  boolean adjust_poly,
 			  TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
@@ -5615,6 +5685,7 @@ public class QuadCLT {
 
 			  ImagePlus [] imp_srcs = conditionImageSet(
 					  clt_parameters,             // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+					  colorProcParameters,        // ColorProcParameters                       colorProcParameters,
 					  sourceFiles,                // String []                                 sourceFiles,
 					  set_channels[nSet].name(),  // String                                    set_name,
 					  referenceExposures,         // double []                                 referenceExposures,
@@ -5705,9 +5776,9 @@ public class QuadCLT {
 	  public boolean preExpandCLTQuad3d(
 			  ImagePlus []                                     imp_quad, // should have properties "name"(base for saving results), "channel","path"
 			  boolean [][]                                     saturation_imp,   // (near) saturated pixels or null
-			  EyesisCorrectionParameters.CLTParameters         clt_parameters,
+			  CLTParameters         clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  EyesisCorrectionParameters.ColorProcParameters   colorProcParameters,
+			  ColorProcParameters   colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters         rgbParameters,
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
@@ -5722,7 +5793,8 @@ public class QuadCLT {
 		  for (int i = 0; i < image_data.length; i++){
 			  image_data[i] = eyesisCorrections.bayerToDoubleStack(
 					  imp_quad[i], // source Bayer image, linearized, 32-bit (float))
-					  null); // no margins, no oversample
+					  null, // no margins, no oversample
+					  this.is_mono);
 		  }
 		  for (int i = 0; i < image_data.length; i++){
 			  for (int j =0 ; j < image_data[i][0].length; j++){
@@ -6156,7 +6228,7 @@ public class QuadCLT {
 
 //	  public ImagePlus expandCLTQuad3d(
 	  public boolean extrinsicsCLT(
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  boolean 		   adjust_poly,
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
@@ -6493,7 +6565,7 @@ public class QuadCLT {
 
 	  public boolean extrinsicsCLTfromGT(
 			  TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  boolean 		   adjust_poly,
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
@@ -6682,9 +6754,9 @@ public class QuadCLT {
 
 
 	  public boolean expandCLTQuad3d(
-		  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+		  CLTParameters           clt_parameters,
 		  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-		  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+		  ColorProcParameters colorProcParameters,
 		  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 		  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 		  final int        threadsMax,  // maximal number of threads to launch
@@ -6927,7 +6999,7 @@ public class QuadCLT {
 
 	  public int zMapExpansionStep(
 				final ArrayList <CLTPass3d> passes,// List, first, last - to search for the already tried disparity
-				final EyesisCorrectionParameters.CLTParameters           clt_parameters, // for refinePassSetup()
+				final CLTParameters           clt_parameters, // for refinePassSetup()
 				final int         firstPass,
 				final int         lastPassPlus1,
 				final int         bg_index,
@@ -7351,7 +7423,7 @@ public class QuadCLT {
 // Separate method to detect and remove periodic structures
 
 	  public boolean showPeriodic(
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel) {
@@ -7409,8 +7481,8 @@ public class QuadCLT {
 
 //	  public ImagePlus output3d(
 	  public boolean output3d(
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
-			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  CLTParameters           clt_parameters,
+			  ColorProcParameters colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
@@ -7795,8 +7867,8 @@ public class QuadCLT {
 
 	  public ImagePlus getBackgroundImage(
 			  boolean    no_image_save,
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
-			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  CLTParameters           clt_parameters,
+			  ColorProcParameters colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  String     name,
 			  int        disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
@@ -7926,7 +7998,7 @@ public class QuadCLT {
 		  if (num_bgnd < clt_parameters.min_bgnd_tiles){
 			  return null; // no background to generate
 		  }
-		  ImageDtt image_dtt = new ImageDtt();
+		  ImageDtt image_dtt = new ImageDtt(isMonochrome());
 		  double [][] texture_overlap = image_dtt.combineRGBATiles(
 				  texture_tiles_bgnd, // texture_tiles,               // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
 				  clt_parameters.transform_size,
@@ -8002,8 +8074,8 @@ public class QuadCLT {
 
 
 	 public String getPassImage( // get image form a single pass, return relative path for x3d
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
-			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  CLTParameters           clt_parameters,
+			  ColorProcParameters colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  String     name,
 			  int        scanIndex,
@@ -8056,7 +8128,7 @@ public class QuadCLT {
 			  }
 		  }
 
-		  ImageDtt image_dtt = new ImageDtt();
+		  ImageDtt image_dtt = new ImageDtt(isMonochrome());
 		  double [][] texture_overlap = image_dtt.combineRGBATiles(
 				  texture_tiles_cluster, // texture_tiles,               // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
 				  clt_parameters.transform_size,
@@ -8198,7 +8270,7 @@ public class QuadCLT {
 //			  final String        image_name,
 			  final double [][][] image_data, // first index - number of image in a quad
 			  final boolean [][]  saturation_imp, // (near) saturated pixels or null
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  final int           threadsMax,  // maximal number of threads to launch
 			  final boolean       updateStatus,
 			  final int           debugLevel)
@@ -8231,7 +8303,7 @@ public class QuadCLT {
 		  }
 
 		  double [][][][] texture_tiles =     new double [tilesY][tilesX][][]; // ["RGBA".length()][];
-		  ImageDtt image_dtt = new ImageDtt();
+		  ImageDtt image_dtt = new ImageDtt(isMonochrome());
 //		  final double disparity_corr = (clt_parameters.z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/clt_parameters.z_correction);
 		  double z_correction =  clt_parameters.z_correction;
 		  if (clt_parameters.z_corr_map.containsKey(image_name)){
@@ -8310,7 +8382,7 @@ public class QuadCLT {
 	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
 			  final double [][][]       image_data, // first index - number of image in a quad
 			  final boolean [][]  saturation_imp, // (near) saturated pixels or null
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  final int         scanIndex,
 			  final boolean     save_textures,
 			  final int         threadsMax,  // maximal number of threads to launch
@@ -8332,7 +8404,7 @@ public class QuadCLT {
 	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
 			  final double [][][]       image_data, // first index - number of image in a quad
 			  final boolean [][]  saturation_imp, // (near) saturated pixels or null
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  final int         scanIndex,
 			  final boolean     save_textures,
 			  final boolean     save_corr,
@@ -8354,7 +8426,7 @@ public class QuadCLT {
 	  }
 	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
 			  final double [][][]       image_data, // first index - number of image in a quad
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  final int         scanIndex,
 			  final boolean     save_textures,
 			  final int         threadsMax,  // maximal number of threads to launch
@@ -8376,7 +8448,7 @@ public class QuadCLT {
 
 	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
 			  final double [][][]       image_data, // first index - number of image in a quad
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  CLTParameters           clt_parameters,
 			  final int         scanIndex,
 			  final boolean     save_textures,
 			  final boolean     save_corr,
@@ -8401,7 +8473,7 @@ public class QuadCLT {
 //			  final String        image_name,
 			  final double [][][] image_data, // first index - number of image in a quad
 			  final boolean [][]  saturation_imp, // (near) saturated pixels or null
-			  final EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  final CLTParameters           clt_parameters,
 			  final int           scanIndex,
 			  final boolean       save_textures,
 			  final boolean       save_corr,
@@ -8446,7 +8518,7 @@ public class QuadCLT {
 		  }
 
 		  double [][][][] texture_tiles =   save_textures ? new double [tilesY][tilesX][][] : null; // ["RGBA".length()][];
-		  ImageDtt image_dtt = new ImageDtt();
+		  ImageDtt image_dtt = new ImageDtt(isMonochrome());
 //		  final double disparity_corr = (clt_parameters.z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/clt_parameters.z_correction);
 		  double z_correction =  clt_parameters.z_correction;
 		  if (clt_parameters.z_corr_map.containsKey(image_name)){
@@ -8523,7 +8595,7 @@ public class QuadCLT {
 	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
 			  final double [][][] image_data, // first index - number of image in a quad
 			  final boolean [][]  saturation_imp, // (near) saturated pixels or null
-			  final EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  final CLTParameters           clt_parameters,
 			  final CLTPass3d     scan,
 			  final boolean       save_textures,
 			  final boolean       save_corr,
@@ -8580,7 +8652,7 @@ public class QuadCLT {
 		  }
 
 		  double [][][][] texture_tiles =   save_textures ? new double [tilesY][tilesX][][] : null; // ["RGBA".length()][];
-		  ImageDtt image_dtt = new ImageDtt();
+		  ImageDtt image_dtt = new ImageDtt(isMonochrome());
 		  double z_correction =  clt_parameters.z_correction;
 		  if (clt_parameters.z_corr_map.containsKey(image_name)){
 			  z_correction +=clt_parameters.z_corr_map.get(image_name);
@@ -8655,7 +8727,7 @@ public class QuadCLT {
 
 	  public ImagePlus [] conditionImageSetBatch( // used in batchCLT3d
 			  final int                           nSet, // index of the 4-image set
-			  final EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  final CLTParameters           clt_parameters,
 			  final int [][]                      fileIndices, // =new int [numImagesToProcess][2]; // file index, channel number
 			  final ArrayList<String>             setNames, //  = new ArrayList<String>();
 			  final ArrayList<ArrayList<Integer>> setFiles, //  = new ArrayList<ArrayList<Integer>>();
@@ -8879,15 +8951,14 @@ public class QuadCLT {
 		  return imp_srcs;
 	  }
 
-	  public void batchCLT3d(
+	  public void batchCLT3d( // Same can be ran for aux?
 			  TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
-			  EyesisCorrectionParameters.CLTParameters          clt_parameters,
+			  CLTParameters          clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters      debayerParameters,
-			  EyesisCorrectionParameters.ColorProcParameters    colorProcParameters,
-			  CorrectionColorProc.ColorGainsParameters          channelGainParameters,
+			  ColorProcParameters                               colorProcParameters,
+			  CorrectionColorProc.ColorGainsParameters          channelGainParameters, // also need aux!
 			  EyesisCorrectionParameters.RGBParameters          rgbParameters,
 			  EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-//			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel)
@@ -9033,9 +9104,7 @@ public class QuadCLT {
 						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						  clt_parameters,
 						  debayerParameters,
-//						  nonlinParameters,
 						  colorProcParameters,
-//						  channelGainParameters,
 						  rgbParameters,
 						  threadsMax,  // maximal number of threads to launch
 						  updateStatus,
@@ -9043,7 +9112,6 @@ public class QuadCLT {
 				  if (ok) {
 					  System.out.println("Adjusting extrinsics");
 					  extrinsicsCLT(
-//							  twoQuadCLT,   // TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
 							  clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 							  false,          // adjust_poly,
 							  threadsMax,     //final int        threadsMax,  // maximal number of threads to launch
@@ -9058,9 +9126,7 @@ public class QuadCLT {
 						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						  clt_parameters,
 						  debayerParameters,
-//						  nonlinParameters,
 						  colorProcParameters,
-//						  channelGainParameters,
 						  rgbParameters,
 						  threadsMax,  // maximal number of threads to launch
 						  updateStatus,
@@ -9068,7 +9134,6 @@ public class QuadCLT {
 				  if (ok) {
 					  System.out.println("Adjusting polynomial fine crorection");
 					  extrinsicsCLT(
-//							  twoQuadCLT,   // TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
 							  clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 							  true,           // adjust_poly,
 							  threadsMax,     //final int        threadsMax,  // maximal number of threads to launch
@@ -9083,11 +9148,9 @@ public class QuadCLT {
 						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						  clt_parameters,
 						  debayerParameters,
-//						  nonlinParameters,
 						  colorProcParameters,
 						  channelGainParameters,
 						  rgbParameters,
-//						  convolveFFTSize, // 128 - fft size, kernel size should be size/2
 						  scaleExposures,
 						  false, // apply_corr, // calculate and apply additional fine geometry correction
 						  false, // infinity_corr, // calculate and apply geometry correction at infinity
@@ -9102,9 +9165,7 @@ public class QuadCLT {
 						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						  clt_parameters,
 						  debayerParameters,
-//						  nonlinParameters,
 						  colorProcParameters,
-//						  channelGainParameters,
 						  rgbParameters,
 						  threadsMax,  // maximal number of threads to launch
 						  updateStatus,
@@ -9112,10 +9173,8 @@ public class QuadCLT {
 				  if (ok) {
 					  System.out.println("Explore 3d space");
 					  expandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
-//							  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
 							  clt_parameters,
 							  debayerParameters,
-//							  nonlinParameters,
 							  colorProcParameters,
 							  channelGainParameters,
 							  rgbParameters,
@@ -9153,14 +9212,11 @@ public class QuadCLT {
 						  rgbParameters,       // EyesisCorrectionParameters.RGBParameters             rgbParameters,
 						  threadsMax,          // final int        threadsMax,  // maximal number of threads to launch
 						  updateStatus,        // final boolean    updateStatus,
-//						  !clt_parameters.batch_run, // !batch_dbg,          //   final boolean    batch_mode,
 						  debugLevelInner);         // final int        debugLevel)
 				  if (!ok) continue;
 			  } else continue; // if (correctionsParameters.clt_batch_gen3d)
 
 			  Runtime.getRuntime().gc();
-//			  if (debugLevel > -2) System.out.println("Processing set "+(nSet+1)+" (of "+fileIndices.length+") finished at "+
-//					  IJ.d2s(0.000000001*(System.nanoTime()-this.startSetTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
 				  System.out.println("User requested stop");
 				  System.out.println("Processing "+(nSet + 1)+" file sets (of "+setNames.size()+") finished at "+

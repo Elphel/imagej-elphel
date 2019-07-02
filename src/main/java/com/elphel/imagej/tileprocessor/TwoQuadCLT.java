@@ -40,6 +40,8 @@ import java.util.ArrayList;
 import java.util.Properties;
 import java.util.Random;
 
+import com.elphel.imagej.cameras.CLTParameters;
+import com.elphel.imagej.cameras.ColorProcParameters;
 import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.GenericJTabbedDialog;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
@@ -121,9 +123,10 @@ public class TwoQuadCLT {
 	public void processCLTQuadCorrs(
 			QuadCLT quadCLT_main,
 			QuadCLT quadCLT_aux,
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters   debayerParameters,
-			EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			ColorProcParameters                            colorProcParameters,
+			ColorProcParameters                            colorProcParameters_aux,
 			CorrectionColorProc.ColorGainsParameters       channelGainParameters_main,
 			CorrectionColorProc.ColorGainsParameters       channelGainParameters_aux,
 			EyesisCorrectionParameters.RGBParameters       rgbParameters,
@@ -160,6 +163,8 @@ public class TwoQuadCLT {
 
 			ImagePlus [] imp_srcs_main = quadCLT_main.conditionImageSet(
 					clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+				    colorProcParameters,            //  ColorProcParameters                       colorProcParameters, //
+
 					sourceFiles,                    // String []                                 sourceFiles,
 					set_channels_main[nSet].name(), // String                                    set_name,
 					referenceExposures_main,        // double []                                 referenceExposures,
@@ -170,6 +175,7 @@ public class TwoQuadCLT {
 
 			ImagePlus [] imp_srcs_aux = quadCLT_aux.conditionImageSet(
 					clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+					colorProcParameters_aux,        //  ColorProcParameters                       colorProcParameters, //
 					sourceFiles,                    // String []                                 sourceFiles,
 					set_channels_aux[nSet].name(), // String                                    set_name,
 					referenceExposures_aux,        // double []                                 referenceExposures,
@@ -203,7 +209,7 @@ public class TwoQuadCLT {
 					saturation_imp_aux, // boolean [][] saturation_imp, // (near) saturated pixels or null
 					clt_parameters,
 					debayerParameters,
-					colorProcParameters,
+					colorProcParameters_aux,
 					channelGainParameters_aux,
 					rgbParameters,
 					scaleExposures_aux,
@@ -236,11 +242,10 @@ public class TwoQuadCLT {
 	public void processCLTQuadCorrPairs(
 			QuadCLT                                        quadCLT_main,
 			QuadCLT                                        quadCLT_aux,
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters   debayerParameters,
-			EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-			//			  CorrectionColorProc.ColorGainsParameters       channelGainParameters_main,
-			//			  CorrectionColorProc.ColorGainsParameters       channelGainParameters_aux,
+			ColorProcParameters                            colorProcParameters,
+			ColorProcParameters                            colorProcParameters_aux,
 			EyesisCorrectionParameters.RGBParameters       rgbParameters,
 			final int                                      threadsMax,  // maximal number of threads to launch
 			final boolean                                  updateStatus,
@@ -275,6 +280,7 @@ public class TwoQuadCLT {
 
 			ImagePlus [] imp_srcs_main = quadCLT_main.conditionImageSet(
 					clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+					colorProcParameters,            //  ColorProcParameters                       colorProcParameters, //
 					sourceFiles,                    // String []                                 sourceFiles,
 					set_channels_main[nSet].name(), // String                                    set_name,
 					referenceExposures_main,        // double []                                 referenceExposures,
@@ -285,6 +291,7 @@ public class TwoQuadCLT {
 
 			ImagePlus [] imp_srcs_aux = quadCLT_aux.conditionImageSet(
 					clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+					colorProcParameters_aux,        //  ColorProcParameters                       colorProcParameters, //
 					sourceFiles,                    // String []                                 sourceFiles,
 					set_channels_aux[nSet].name(), // String                                    set_name,
 					referenceExposures_aux,        // double []                                 referenceExposures,
@@ -304,8 +311,7 @@ public class TwoQuadCLT {
 					clt_parameters,             // EyesisCorrectionParameters.CLTParameters       clt_parameters,
 					debayerParameters,          // EyesisCorrectionParameters.DebayerParameters   debayerParameters,
 					colorProcParameters,        // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-					//					  channelGainParameters_main, // CorrectionColorProc.ColorGainsParameters       channelGainParameters_main,
-					//					  channelGainParameters_aux,  // CorrectionColorProc.ColorGainsParameters       channelGainParameters_aux,
+					colorProcParameters_aux,
 					rgbParameters,              // EyesisCorrectionParameters.RGBParameters       rgbParameters,
 					scaleExposures_main,        // double []	                                     scaleExposures_main, // probably not needed here - restores brightness of the final image
 					scaleExposures_aux,         // double []	                                     scaleExposures_aux, // probably not needed here - restores brightness of the final image
@@ -338,9 +344,10 @@ public class TwoQuadCLT {
 	public void prepareFilesForGPUDebug(
 			QuadCLT                                        quadCLT_main,
 			QuadCLT                                        quadCLT_aux,
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters   debayerParameters,
-			EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			ColorProcParameters                            colorProcParameters,
+			ColorProcParameters                            colorProcParameters_aux,
 			EyesisCorrectionParameters.RGBParameters       rgbParameters,
 			final int                                      threadsMax,  // maximal number of threads to launch
 			final boolean                                  updateStatus,
@@ -375,6 +382,7 @@ public class TwoQuadCLT {
 
 			ImagePlus [] imp_srcs_main = quadCLT_main.conditionImageSet(
 					clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+					colorProcParameters,            //  ColorProcParameters                       colorProcParameters, //
 					sourceFiles,                    // String []                                 sourceFiles,
 					set_channels_main[nSet].name(), // String                                    set_name,
 					referenceExposures_main,        // double []                                 referenceExposures,
@@ -385,6 +393,7 @@ public class TwoQuadCLT {
 
 			ImagePlus [] imp_srcs_aux = quadCLT_aux.conditionImageSet(
 					clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+					colorProcParameters_aux,        //  ColorProcParameters                       colorProcParameters, //
 					sourceFiles,                    // String []                                 sourceFiles,
 					set_channels_aux[nSet].name(), // String                                    set_name,
 					referenceExposures_aux,        // double []                                 referenceExposures,
@@ -404,8 +413,7 @@ public class TwoQuadCLT {
 					clt_parameters,             // EyesisCorrectionParameters.CLTParameters       clt_parameters,
 					debayerParameters,          // EyesisCorrectionParameters.DebayerParameters   debayerParameters,
 					colorProcParameters,        // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-					//					  channelGainParameters_main, // CorrectionColorProc.ColorGainsParameters       channelGainParameters_main,
-					//					  channelGainParameters_aux,  // CorrectionColorProc.ColorGainsParameters       channelGainParameters_aux,
+					colorProcParameters_aux,        // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 					rgbParameters,              // EyesisCorrectionParameters.RGBParameters       rgbParameters,
 					scaleExposures_main,        // double []	                                     scaleExposures_main, // probably not needed here - restores brightness of the final image
 					scaleExposures_aux,         // double []	                                     scaleExposures_aux, // probably not needed here - restores brightness of the final image
@@ -439,11 +447,10 @@ public class TwoQuadCLT {
 			GPUTileProcessor                               gPUTileProcessor,
 			QuadCLT                                        quadCLT_main,
 			QuadCLT                                        quadCLT_aux,
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters   debayerParameters,
-			EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-			//			  CorrectionColorProc.ColorGainsParameters       channelGainParameters_main,
-			//			  CorrectionColorProc.ColorGainsParameters       channelGainParameters_aux,
+			ColorProcParameters                            colorProcParameters,
+			ColorProcParameters                            colorProcParameters_aux,
 			EyesisCorrectionParameters.RGBParameters       rgbParameters,
 			final int                                      threadsMax,  // maximal number of threads to launch
 			final boolean                                  updateStatus,
@@ -478,6 +485,7 @@ public class TwoQuadCLT {
 
 			ImagePlus [] imp_srcs_main = quadCLT_main.conditionImageSet(
 					clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+					colorProcParameters,            //  ColorProcParameters                       colorProcParameters, //
 					sourceFiles,                    // String []                                 sourceFiles,
 					set_channels_main[nSet].name(), // String                                    set_name,
 					referenceExposures_main,        // double []                                 referenceExposures,
@@ -488,6 +496,7 @@ public class TwoQuadCLT {
 
 			ImagePlus [] imp_srcs_aux = quadCLT_aux.conditionImageSet(
 					clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+					colorProcParameters_aux,        //  ColorProcParameters                       colorProcParameters, //
 					sourceFiles,                    // String []                                 sourceFiles,
 					set_channels_aux[nSet].name(), // String                                    set_name,
 					referenceExposures_aux,        // double []                                 referenceExposures,
@@ -508,8 +517,7 @@ public class TwoQuadCLT {
 					clt_parameters,             // EyesisCorrectionParameters.CLTParameters       clt_parameters,
 					debayerParameters,          // EyesisCorrectionParameters.DebayerParameters   debayerParameters,
 					colorProcParameters,        // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-					//					  channelGainParameters_main, // CorrectionColorProc.ColorGainsParameters       channelGainParameters_main,
-					//					  channelGainParameters_aux,  // CorrectionColorProc.ColorGainsParameters       channelGainParameters_aux,
+					colorProcParameters_aux,    // EyesisCorrectionParameters.ColorProcParameters colorProcParameters_aux,
 					rgbParameters,              // EyesisCorrectionParameters.RGBParameters       rgbParameters,
 					scaleExposures_main,        // double []	                                     scaleExposures_main, // probably not needed here - restores brightness of the final image
 					scaleExposures_aux,         // double []	                                     scaleExposures_aux, // probably not needed here - restores brightness of the final image
@@ -545,9 +553,10 @@ public class TwoQuadCLT {
 			ImagePlus []                                   imp_quad_aux,
 			boolean [][]                                   saturation_main, // (near) saturated pixels or null
 			boolean [][]                                   saturation_aux, // (near) saturated pixels or null
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters   debayerParameters,
-			EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			ColorProcParameters                            colorProcParameters,
+			ColorProcParameters                            colorProcParameters_aux,
 			EyesisCorrectionParameters.RGBParameters       rgbParameters,
 			double []	                                     scaleExposures_main, // probably not needed here - restores brightness of the final image
 			double []	                                     scaleExposures_aux, // probably not needed here - restores brightness of the final image
@@ -624,7 +633,8 @@ public class TwoQuadCLT {
 
 		double [][] disparity_bimap  = new double [ImageDtt.BIDISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
 
-		ImageDtt image_dtt = new ImageDtt();
+		ImageDtt image_dtt = new ImageDtt(quadCLT_main.isMonochrome());
+
 		double [][] ml_data = null;
 //		int [][] woi_tops = {quadCLT_main.woi_tops,quadCLT_aux.woi_tops};
 		final double [][][]       ers_delay = get_ers?(new double [2][][]):null;
@@ -788,7 +798,7 @@ public class TwoQuadCLT {
 							debugLevel );
 					ImagePlus imp_texture_aux = quadCLT_aux.linearStackToColor(
 							clt_parameters,
-							colorProcParameters,
+							colorProcParameters_aux,
 							rgbParameters,
 							name+"-texture", // String name,
 							"-D"+clt_parameters.disparity+"-AUX", //String suffix, // such as disparity=...
@@ -1261,9 +1271,10 @@ public class TwoQuadCLT {
 			ImagePlus []                                   imp_quad_aux,
 			boolean [][]                                   saturation_main, // (near) saturated pixels or null
 			boolean [][]                                   saturation_aux, // (near) saturated pixels or null
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters   debayerParameters,
-			EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			ColorProcParameters                            colorProcParameters,
+			ColorProcParameters                            colorProcParameters_aux,
 			EyesisCorrectionParameters.RGBParameters       rgbParameters,
 			double []	                                     scaleExposures_main, // probably not needed here - restores brightness of the final image
 			double []	                                     scaleExposures_aux, // probably not needed here - restores brightness of the final image
@@ -1342,16 +1353,16 @@ public class TwoQuadCLT {
 
 		double [][] disparity_bimap  = new double [ImageDtt.BIDISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
 
-		ImageDtt image_dtt = new ImageDtt();
+		ImageDtt image_dtt = new ImageDtt(quadCLT_main.isMonochrome());
 		double [][] ml_data = null;
 //		int [][] woi_tops = {quadCLT_main.woi_tops,quadCLT_aux.woi_tops};
 		double [][][]       ers_delay = get_ers?(new double [2][][]):null;
-		double [][][][][][] clt_kernels_main = quadCLT_main.getCLTKernels(); // [4][3][123][164]{[64],[64],[64],[64],[8]}
-		double [][][][][][] clt_kernels_aux =  quadCLT_aux.getCLTKernels();
+///		double [][][][][][] clt_kernels_main = quadCLT_main.getCLTKernels(); // [4][3][123][164]{[64],[64],[64],[64],[8]}
+///		double [][][][][][] clt_kernels_aux =  quadCLT_aux.getCLTKernels();
 
 
 		//[4][3][123][164][5][]
-		double [][] dbg_kern = clt_kernels_main[0][0][0][0];
+///		double [][] dbg_kern = clt_kernels_main[0][0][0][0];
 		// here all data is ready (images, kernels) to try GPU code
 
 		float [][] main_bayer = new float [quadCLT_main.image_data.length][quadCLT_main.image_data[0][0].length];
@@ -1564,7 +1575,7 @@ public class TwoQuadCLT {
 							debugLevel );
 					ImagePlus imp_texture_aux = quadCLT_aux.linearStackToColor(
 							clt_parameters,
-							colorProcParameters,
+							colorProcParameters_aux,
 							rgbParameters,
 							name+"-texture", // String name,
 							"-D"+clt_parameters.disparity+"-AUX", //String suffix, // such as disparity=...
@@ -1808,9 +1819,10 @@ public class TwoQuadCLT {
 			ImagePlus []                                   imp_quad_aux,
 			boolean [][]                                   saturation_main, // (near) saturated pixels or null
 			boolean [][]                                   saturation_aux, // (near) saturated pixels or null
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters   debayerParameters,
-			EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			ColorProcParameters                            colorProcParameters,
+			ColorProcParameters                            colorProcParameters_aux,
 			EyesisCorrectionParameters.RGBParameters       rgbParameters,
 			double []	                                     scaleExposures_main, // probably not needed here - restores brightness of the final image
 			double []	                                     scaleExposures_aux, // probably not needed here - restores brightness of the final image
@@ -2034,7 +2046,7 @@ public class TwoQuadCLT {
 
 	//	  public double [][][][] getRigImageStacks(
 	public void getRigImageStacks(
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			QuadCLT                                        quadCLT_main,
 			QuadCLT                                        quadCLT_aux,
 			ImagePlus []                                   imp_quad_main,
@@ -2047,14 +2059,16 @@ public class TwoQuadCLT {
 		for (int i = 0; i < double_stacks_main.length; i++){
 			double_stacks_main[i] = quadCLT_main.eyesisCorrections.bayerToDoubleStack(
 					imp_quad_main[i], // source Bayer image, linearized, 32-bit (float))
-					null); // no margins, no oversample
+					  null, // no margins, no oversample
+					  quadCLT_main.is_mono);
 		}
 
 		double [][][] double_stacks_aux = new double [imp_quad_aux.length][][];
 		for (int i = 0; i < double_stacks_aux.length; i++){
 			double_stacks_aux[i] = quadCLT_aux.eyesisCorrections.bayerToDoubleStack(
 					imp_quad_aux[i], // source Bayer image, linearized, 32-bit (float))
-					null); // no margins, no oversample
+					  null, // no margins, no oversample
+					  quadCLT_aux.is_mono);
 		}
 
 		for (int i = 0; i < double_stacks_main.length; i++){
@@ -2090,7 +2104,9 @@ public class TwoQuadCLT {
 	public void processInfinityRigs( // actually there is no sense to process multiple image sets. Combine with other processing?
 			QuadCLT quadCLT_main,
 			QuadCLT quadCLT_aux,
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
+			ColorProcParameters                            colorProcParameters, //
+			ColorProcParameters                            colorProcParameters_aux, //
 			final int                                      threadsMax,  // maximal number of threads to launch
 			final boolean                                  updateStatus,
 			final int                                      debugLevel) throws Exception
@@ -2124,6 +2140,7 @@ public class TwoQuadCLT {
 
 			ImagePlus [] imp_srcs_main = quadCLT_main.conditionImageSet(
 					clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+					colorProcParameters,            //  ColorProcParameters                       colorProcParameters, //
 					sourceFiles,                    // String []                                 sourceFiles,
 					set_channels_main[nSet].name(), // String                                    set_name,
 					referenceExposures_main,        // double []                                 referenceExposures,
@@ -2134,6 +2151,7 @@ public class TwoQuadCLT {
 
 			ImagePlus [] imp_srcs_aux = quadCLT_aux.conditionImageSet(
 					clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+					colorProcParameters_aux,        //  ColorProcParameters                       colorProcParameters, //
 					sourceFiles,                    // String []                                 sourceFiles,
 					set_channels_aux[nSet].name(), // String                                    set_name,
 					referenceExposures_aux,        // double []                                 referenceExposures,
@@ -2177,7 +2195,7 @@ public class TwoQuadCLT {
 	public boolean prealignInfinityRig(
 			QuadCLT                                        quadCLT_main,
 			QuadCLT                                        quadCLT_aux,
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			final int        threadsMax,  // maximal number of threads to launch
 			final boolean    updateStatus,
 			final int        debugLevel){
@@ -2239,7 +2257,7 @@ public class TwoQuadCLT {
 		}
 		double [][] mdisparity_array = new double [mTilesY][mTilesX]; // keep all zeros
 		double [][] mdisparity_bimap = new double [ImageDtt.BIDISPARITY_TITLES.length][];
-		ImageDtt image_dtt = new ImageDtt();
+		ImageDtt image_dtt = new ImageDtt(quadCLT_main.isMonochrome());
 		image_dtt.clt_bi_macro(
 				clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				clt_parameters.fat_zero,              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
@@ -2292,7 +2310,7 @@ public class TwoQuadCLT {
 			ImagePlus []                                   imp_quad_aux,
 			boolean [][]                                   saturation_main, // (near) saturated pixels or null
 			boolean [][]                                   saturation_aux, // (near) saturated pixels or null
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			final int        threadsMax,  // maximal number of threads to launch
 			final boolean    updateStatus,
 			final int        debugLevel0){
@@ -2560,7 +2578,7 @@ if (debugLevel > -100) return true; // temporarily !
 			QuadCLT            quadCLT_main,  // tiles should be set
 			QuadCLT            quadCLT_aux,
 			BiCamDSI                                       biCamDSI,
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			final int                                      threadsMax,  // maximal number of threads to launch
 			final boolean                                  updateStatus,
 			final int                                      globalDebugLevel)
@@ -2642,7 +2660,9 @@ if (debugLevel > -100) return true; // temporarily !
 	public void groundTruth(
 			QuadCLT            quadCLT_main,  // tiles should be set
 			QuadCLT            quadCLT_aux,
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
+			ColorProcParameters                            colorProcParameters, //
+			ColorProcParameters                            colorProcParameters_aux, //
 			final int                                      threadsMax,  // maximal number of threads to launch
 			final boolean                                  updateStatus,
 			final int                                      debugLevel)// throws Exception
@@ -2661,6 +2681,8 @@ if (debugLevel > -100) return true; // temporarily !
 					quadCLT_main,   // QuadCLT            quadCLT_main,  // tiles should be set
 					quadCLT_aux,    // QuadCLT            quadCLT_aux,
 					clt_parameters, // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+					colorProcParameters,          //  ColorProcParameters                       colorProcParameters, //
+					colorProcParameters_aux,          //  ColorProcParameters                       colorProcParameters, //
 					threadsMax,     // final int                                      threadsMax,  // maximal number of threads to launch
 					updateStatus,   // final boolean                                  updateStatus,
 					debugLevel);    // final int                                      debugLevel);
@@ -3099,7 +3121,7 @@ if (debugLevel > -100) return true; // temporarily !
 			double []                                disparity, // non-nan - measure
 			QuadCLT                                  quadCLT_main,  // tiles should be set
 			QuadCLT                                  quadCLT_aux,
-			EyesisCorrectionParameters.CLTParameters clt_parameters,
+			CLTParameters clt_parameters,
 			final int                                threadsMax,  // maximal number of threads to launch
 			final boolean                            updateStatus,
 			final int                                debugLevel) // throws Exception
@@ -3124,8 +3146,7 @@ if (debugLevel > -100) return true; // temporarily !
 				}
 			}
 		}
-		ImageDtt image_dtt = new ImageDtt();
-//		int [][] woi_tops = {quadCLT_main.woi_tops,quadCLT_aux.woi_tops};
+		ImageDtt image_dtt = new ImageDtt(quadCLT_main.isMonochrome());
 		image_dtt.clt_bi_quad (
 				clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				clt_parameters.fat_zero,              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
@@ -3167,7 +3188,7 @@ if (debugLevel > -100) return true; // temporarily !
 	public void copyJP4src(
 			QuadCLT                                  quadCLT_main,  // tiles should be set
 			QuadCLT                                  quadCLT_aux,
-			EyesisCorrectionParameters.CLTParameters clt_parameters,
+			CLTParameters clt_parameters,
 			final int                                debugLevel) // throws Exception
 	{
 		//		  quadCLT_main.writeKml(debugLevel);
@@ -3237,7 +3258,7 @@ if (debugLevel > -100) return true; // temporarily !
 	public void outputMLData(
 			QuadCLT                                  quadCLT_main,  // tiles should be set
 			QuadCLT                                  quadCLT_aux,
-			EyesisCorrectionParameters.CLTParameters clt_parameters,
+			CLTParameters clt_parameters,
 			String                                   ml_directory,       // full path or null (will use config one)
 			final int                                threadsMax,  // maximal number of threads to launch
 			final boolean                            updateStatus,
@@ -3502,7 +3523,9 @@ if (debugLevel > -100) return true; // temporarily !
 	public double [][] prepareRefineExistingDSI(
 			QuadCLT            quadCLT_main,  // tiles should be set
 			QuadCLT            quadCLT_aux,
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
+			ColorProcParameters                            colorProcParameters, //
+			ColorProcParameters                            colorProcParameters_aux, //
 			final int                                      threadsMax,  // maximal number of threads to launch
 			final boolean                                  updateStatus,
 			final int                                      debugLevel) //  throws Exception
@@ -3526,6 +3549,7 @@ if (debugLevel > -100) return true; // temporarily !
 					quadCLT_main.image_name,                             // String image_name,
 					quadCLT_main.correctionsParameters.getSourcePaths(), // String [] sourceFiles,
 					clt_parameters,                                      // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+					colorProcParameters,                                 //  ColorProcParameters                       colorProcParameters, //
 					threadsMax,                                          // int threadsMax,
 					debugLevel);                                         // int debugLevel);
 			if (!aux_OK) {
@@ -3905,7 +3929,9 @@ if (debugLevel > -100) return true; // temporarily !
 	public BiScan rigInitialScan(
 			QuadCLT            quadCLT_main,  // tiles should be set
 			QuadCLT            quadCLT_aux,
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
+			ColorProcParameters                            colorProcParameters, //
+			ColorProcParameters                            colorProcParameters_aux, //
 			final int                                      threadsMax,  // maximal number of threads to launch
 			final boolean                                  updateStatus,
 			final int                                      debugLevel) //  throws Exception
@@ -3922,6 +3948,8 @@ if (debugLevel > -100) return true; // temporarily !
 				quadCLT_main,  // QuadCLT            quadCLT_main,  // tiles should be set
 				quadCLT_aux,   // QuadCLT            quadCLT_aux,
 				clt_parameters, // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+				colorProcParameters,          //  ColorProcParameters                       colorProcParameters, //
+				colorProcParameters_aux,          //  ColorProcParameters                       colorProcParameters, //
 				threadsMax,        // final int           threadsMax,      // maximal number of threads to launch
 				updateStatus,      // final boolean       updateStatus,
 				debugLevel);       // final int           debugLevel);
@@ -3967,7 +3995,9 @@ if (debugLevel > -100) return true; // temporarily !
 	public double [][] groundTruthByRigPlanes(
 			QuadCLT            quadCLT_main,  // tiles should be set
 			QuadCLT            quadCLT_aux,
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
+			ColorProcParameters                            colorProcParameters, //
+			ColorProcParameters                            colorProcParameters_aux, //
 			final int                                      threadsMax,  // maximal number of threads to launch
 			final boolean                                  updateStatus,
 			final int                                      debugLevel) //  throws Exception
@@ -3987,6 +4017,9 @@ if (debugLevel > -100) return true; // temporarily !
 			if (rigInitialScan(				quadCLT_main,  // QuadCLT            quadCLT_main,  // tiles should be set
 					quadCLT_aux,   // QuadCLT            quadCLT_aux,
 					clt_parameters, // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+					colorProcParameters,          //  ColorProcParameters                       colorProcParameters, //
+					colorProcParameters_aux,          //  ColorProcParameters                       colorProcParameters, //
+
 					threadsMax,        // final int           threadsMax,      // maximal number of threads to launch
 					updateStatus,      // final boolean       updateStatus,
 					debugLevel)== null)       // final int           debugLevel);
@@ -4500,7 +4533,7 @@ if (debugLevel > -100) return true; // temporarily !
 	public boolean showBiScan(
 			QuadCLT            quadCLT_main,  // tiles should be set
 			QuadCLT            quadCLT_aux,  // tiles should be set
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			final int                                      threadsMax,  // maximal number of threads to launch
 			final boolean                                  updateStatus,
 			final int                                      debugLevel) //  throws Exception
@@ -4761,6 +4794,7 @@ if (debugLevel > -100) return true; // temporarily !
 		BiScan biScan =  biCamDSI_persistent.biScans.get(scan_index);
 		double [][] ds = null;
 		if (show_smooth) {
+			@SuppressWarnings("unused")
 			double [][] final_ds=  measureLowTextureAreas(
 					quadCLT_main,      // QuadCLT            quadCLT_main,  // tiles should be set
 					quadCLT_aux,       // QuadCLT            quadCLT_aux,  // tiles should be set
@@ -4829,7 +4863,7 @@ if (debugLevel > -100) return true; // temporarily !
 	public double [][] measureLowTextureAreas(
 			QuadCLT            quadCLT_main,  // tiles should be set
 			QuadCLT            quadCLT_aux,  // tiles should be set
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			final int     threadsMax,  // maximal number of threads to launch
 			final boolean updateStatus,
 			final int    debugLevel) //  throws Exception
@@ -4898,7 +4932,7 @@ if (debugLevel > -100) return true; // temporarily !
 	public double [][] measureLowTextureAreas(
 			QuadCLT            quadCLT_main,  // tiles should be set
 			QuadCLT            quadCLT_aux,  // tiles should be set
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			// from clt_parameters.rig
 			double      trusted_strength,
 			double      cond_rtrusted,
@@ -5517,7 +5551,7 @@ if (debugLevel > -100) return true; // temporarily !
 			double []                                scale_bad,
 			final boolean []  area_of_interest,
 			int     []                               num_new,
-			EyesisCorrectionParameters.CLTParameters clt_parameters,
+			CLTParameters clt_parameters,
 			final int                                lt_radius,      // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
 			final BiScan                             biScan,
 			//			  final double [][] disparityStrength,
@@ -5690,7 +5724,7 @@ if (debugLevel > -100) return true; // temporarily !
 	public double [][] fillPoorTextureByInter(
 			QuadCLT            quadCLT_main,  // tiles should be set
 			QuadCLT            quadCLT_aux,
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			double [][]                                    disparity_bimap,
 			BiCamDSI                                       biCamDSI,
 			final int                                      threadsMax,  // maximal number of threads to launch
@@ -6134,7 +6168,7 @@ if (debugLevel > -100) return true; // temporarily !
 			CLTPass3d                                      scan,
 			QuadCLT                                        quadCLT_main,  // tiles should be set
 			QuadCLT                                        quadCLT_aux,
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			final int                                      threadsMax,  // maximal number of threads to launch
 			final boolean                                  updateStatus,
 			final int                                      debugLevel){
@@ -6194,7 +6228,7 @@ if (debugLevel > -100) return true; // temporarily !
 			double []                                      disparity,
 			QuadCLT                                        quadCLT_main,  // tiles should be set
 			QuadCLT                                        quadCLT_aux,
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			boolean                                        notch_mode,      // use notch filter for inter-camera correlation to detect poles
 			int                                            lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
 			boolean                                        no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
@@ -6335,7 +6369,7 @@ if (debugLevel > -100) return true; // temporarily !
 			double                                   refine_tolerance,    // do not refine if absolute disparity below
 			ArrayList<Integer>                       tile_list, // or null
 			int     []                               num_new,
-			EyesisCorrectionParameters.CLTParameters clt_parameters,
+			CLTParameters clt_parameters,
 			boolean                                  notch_mode,      // use notch filter for inter-camera correlation to detect poles
 			int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
 			final boolean                            no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
@@ -6382,7 +6416,7 @@ if (debugLevel > -100) return true; // temporarily !
 			double                                         refine_tolerance,    // do not refine if absolute disparity below
 			boolean []                                     selection,
 			int     []                                     num_new,
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			final boolean                                  notch_mode,      // use notch filter for inter-camera correlation to detect poles
 			final int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
 			final boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
@@ -6476,7 +6510,7 @@ if (debugLevel > -100) return true; // temporarily !
 			double                                   refine_tolerance,    // do not refine if absolute disparity below
 			ArrayList<Integer>                       tile_list, // or null
 			int     []                               num_new,
-			EyesisCorrectionParameters.CLTParameters clt_parameters,
+			CLTParameters clt_parameters,
 			boolean                                  notch_mode,      // use notch filter for inter-camera correlation to detect poles
 			int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
 			final boolean                            no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
@@ -6531,7 +6565,7 @@ if (debugLevel > -100) return true; // temporarily !
 			double                                         refine_tolerance,    // do not refine if absolute disparity below
 			boolean []                                     selection,
 			int     []                                     num_new,
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			final boolean                                  notch_mode,      // use notch filter for inter-camera correlation to detect poles
 			final int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
 			final boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
@@ -6637,7 +6671,7 @@ if (debugLevel > -100) return true; // temporarily !
 			double [][]                                    src_bimap, // current state of measurements (or null for new measurement)
 			double                                         disparity,
 			ArrayList<Integer>                             tile_list, // or null. If non-null - do not remeasure members of the list
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			boolean                                        notch_mode,      // use notch filter for inter-camera correlation to detect poles
 			int                                            lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
 			boolean                                        no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
@@ -6733,7 +6767,7 @@ if (debugLevel > -100) return true; // temporarily !
 			QuadCLT                                        quadCLT_main,  // tiles should be set
 			QuadCLT                                        quadCLT_aux,
 			double []                                      disparity, // Double.NaN - skip, ohers - measure
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 			int                 lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
 			boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
@@ -6775,7 +6809,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 	private boolean prepRefineTile(
 			boolean                                        remeasure_nan, // use old suggestion if result of the measurement was NaN
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			int                                            tile_op_all,
 			double [][]                                    src_bimap, // current state of measurements
 			double [][]                                    prev_bimap, // previous state of measurements or null
@@ -6896,7 +6930,7 @@ if (debugLevel > -100) return true; // temporarily !
 			int [][]                                 tile_op, // common for both amin and aux
 			double [][]                              disparity_array,
 			double [][]                              ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
-			EyesisCorrectionParameters.CLTParameters clt_parameters,
+			CLTParameters clt_parameters,
 			double                                   fatzero,
 			boolean                                  notch_mode, // use pole-detection mode for inter-camera correlation
 			int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
@@ -6904,7 +6938,7 @@ if (debugLevel > -100) return true; // temporarily !
 			final int                                threadsMax,  // maximal number of threads to launch
 			final boolean                            updateStatus,
 			final int                                debugLevel){
-		ImageDtt image_dtt = new ImageDtt();
+		ImageDtt image_dtt = new ImageDtt(quadCLT_main.isMonochrome());
 
 		double [][] disparity_bimap  = new double [ImageDtt.BIDISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
 
@@ -6950,7 +6984,7 @@ if (debugLevel > -100) return true; // temporarily !
 			double []                                      disparity_main, // main camera disparity to use - if null, calculate from the rig one
 			double []                                      disparity,
 			double []                                      strength,
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			int                                            ml_hwidth,
 			double                                         fatzero,
 			int              lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
@@ -7057,7 +7091,7 @@ if (debugLevel > -100) return true; // temporarily !
 	}
 
 	ArrayList<Integer> selectRigTiles(
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			boolean select_infinity,
 			boolean select_noninfinity,
 			double                                   inf_disparity,
@@ -7101,7 +7135,7 @@ if (debugLevel > -100) return true; // temporarily !
 	}
 
 	ArrayList<Integer> selectRigTiles_new(
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			boolean ignore_target,    // to select non-zero "infinity"
 			boolean []  disabled,
 			boolean select_infinity,
@@ -7187,9 +7221,10 @@ if (debugLevel > -100) return true; // temporarily !
 	public void batchRig(
 			QuadCLT                                              quadCLT_main,  // tiles should be set
 			QuadCLT                                              quadCLT_aux,
-			EyesisCorrectionParameters.CLTParameters             clt_parameters,
+			CLTParameters             clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
-			EyesisCorrectionParameters.ColorProcParameters       colorProcParameters,
+			ColorProcParameters                                  colorProcParameters,
+			ColorProcParameters                                  colorProcParameters_aux,
 			CorrectionColorProc.ColorGainsParameters             channelGainParameters,
 			EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
@@ -7228,6 +7263,7 @@ if (debugLevel > -100) return true; // temporarily !
 			if (updateStatus) IJ.showStatus("Conditioning main camera image set for "+quadCLT_main.image_name);
 			ImagePlus [] imp_srcs_main = quadCLT_main.conditionImageSet(
 					clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+					colorProcParameters,            //  ColorProcParameters                       colorProcParameters, //
 					sourceFiles,                    // String []                                 sourceFiles,
 					set_channels_main[nSet].name(), // String                                    set_name,
 					referenceExposures_main,        // double []                                 referenceExposures,
@@ -7238,6 +7274,7 @@ if (debugLevel > -100) return true; // temporarily !
 			if (updateStatus) IJ.showStatus("Conditioning aux camera image set for "+quadCLT_main.image_name);
 			ImagePlus [] imp_srcs_aux = quadCLT_aux.conditionImageSet(
 					clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+					colorProcParameters_aux,        //  ColorProcParameters                       colorProcParameters, //
 					sourceFiles,                    // String []                                 sourceFiles,
 					set_channels_aux[nSet].name(), // String                                    set_name,
 					referenceExposures_aux,        // double []                                 referenceExposures,
@@ -7297,7 +7334,7 @@ if (debugLevel > -100) return true; // temporarily !
 						saturation_imp_aux, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						clt_parameters,
 						debayerParameters,
-						colorProcParameters,
+						colorProcParameters_aux,
 						rgbParameters,
 						threadsMax,  // maximal number of threads to launch
 						updateStatus,
@@ -7386,6 +7423,8 @@ if (debugLevel > -100) return true; // temporarily !
 							quadCLT_main,  // QuadCLT            quadCLT_main,  // tiles should be set
 							quadCLT_aux,  // QuadCLT            quadCLT_aux,
 							clt_parameters, // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+							colorProcParameters,           //  ColorProcParameters                       colorProcParameters, //
+							colorProcParameters_aux,          //  ColorProcParameters                       colorProcParameters, //
 							threadsMax,  // final int                                      threadsMax,  // maximal number of threads to launch
 							updateStatus, // final boolean                                  updateStatus,
 							debugLevel); // final int                                      debugLevel)
@@ -7482,6 +7521,7 @@ if (debugLevel > -100) return true; // temporarily !
 						clt_parameters,             // EyesisCorrectionParameters.CLTParameters       clt_parameters,
 						debayerParameters,          // EyesisCorrectionParameters.DebayerParameters   debayerParameters,
 						colorProcParameters,        // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+						colorProcParameters_aux,    // EyesisCorrectionParameters.ColorProcParameters colorProcParameters_aux,
 						rgbParameters,              // EyesisCorrectionParameters.RGBParameters       rgbParameters,
 						scaleExposures_main,        // double []	                                     scaleExposures_main, // probably not needed here - restores brightness of the final image
 						scaleExposures_aux,         // double []	                                     scaleExposures_aux, // probably not needed here - restores brightness of the final image
@@ -7503,7 +7543,7 @@ if (debugLevel > -100) return true; // temporarily !
 						saturation_imp_aux, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						clt_parameters,
 						debayerParameters,
-						colorProcParameters,
+						colorProcParameters_aux,
 						rgbParameters,
 						threadsMax,  // maximal number of threads to launch
 						updateStatus,
@@ -7512,7 +7552,7 @@ if (debugLevel > -100) return true; // temporarily !
 				quadCLT_aux.expandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
 						clt_parameters,
 						debayerParameters,
-						colorProcParameters,
+						colorProcParameters_aux,
 						channelGainParameters,
 						rgbParameters,
 						threadsMax,  // maximal number of threads to launch
@@ -7563,6 +7603,8 @@ if (debugLevel > -100) return true; // temporarily !
 						quadCLT_main,               // QuadCLT quadCLT_main,
 						quadCLT_aux,                // QuadCLT quadCLT_aux,
 						clt_parameters,             // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+						colorProcParameters,          //  ColorProcParameters                       colorProcParameters, //
+						colorProcParameters_aux,          //  ColorProcParameters                       colorProcParameters, //
 						threadsMax,                 // final int        threadsMax,  // maximal number of threads to launch
 						updateStatus,               // final boolean    updateStatus,
 						debugLevelInner-2);                // final int        debugLevel);
@@ -7680,7 +7722,7 @@ if (debugLevel > -100) return true; // temporarily !
 	}
 
 	public void saveDSI(
-			EyesisCorrectionParameters.CLTParameters           clt_parameters)
+			CLTParameters           clt_parameters)
 	{
 		  String x3d_path= quadCLT_main.correctionsParameters.selectX3dDirectory( // for x3d and obj
 				  quadCLT_main.correctionsParameters.getModelName(quadCLT_main.image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
@@ -7937,9 +7979,10 @@ if (debugLevel > -100) return true; // temporarily !
 			String                                         ml_subdir,  // new ML subdir (or null to use configuartion one)
 			QuadCLT                                        quadCLT_main,
 			QuadCLT                                        quadCLT_aux,
-			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			CLTParameters       clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters   debayerParameters,
-			EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			ColorProcParameters                            colorProcParameters,
+			ColorProcParameters                            colorProcParameters_aux,
 			EyesisCorrectionParameters.RGBParameters       rgbParameters,
 			final int                                      threadsMax,  // maximal number of threads to launch
 			final boolean                                  updateStatus,
@@ -7988,6 +8031,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 		ImagePlus [] imp_quad_main = quadCLT_main.conditionImageSet(
 				clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+				colorProcParameters,            //  ColorProcParameters                       colorProcParameters, //
 				sourceFiles,                    // String []                                 sourceFiles,
 				set_channels_main[nSet].name(), // String                                    set_name,
 				referenceExposures_main,        // double []                                 referenceExposures,
@@ -7998,6 +8042,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 		ImagePlus [] imp_quad_aux = quadCLT_aux.conditionImageSet(
 				clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+				colorProcParameters_aux,        //  ColorProcParameters                       colorProcParameters, //
 				sourceFiles,                    // String []                                 sourceFiles,
 				set_channels_aux[nSet].name(),  // String                                    set_name,
 				referenceExposures_aux,         // double []                                 referenceExposures,

@@ -30,8 +30,8 @@ import java.util.ArrayList;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.cameras.EyesisCorrectionParameters;
-import com.elphel.imagej.cameras.EyesisCorrectionParameters.CLTParameters;
 import com.elphel.imagej.cameras.EyesisCorrectionParameters.CorrectionParameters;
 import com.elphel.imagej.tileprocessor.CLTPass3d;
 import com.elphel.imagej.tileprocessor.GeometryCorrection;
@@ -43,7 +43,7 @@ public class WavefrontExport {
 	static final String OBJ_EXT=".obj";
 		GeometryCorrection                                     geometry_correction;
 		public ArrayList <CLTPass3d>             clt_3d_passes;
-		public  EyesisCorrectionParameters.CLTParameters       clt_parameters;
+		public  CLTParameters       clt_parameters;
 		public EyesisCorrectionParameters.CorrectionParameters correctionsParameters;
 		public int debugLevel = 1;
 		FileWriter obj_writer; // f0 = new FileWriter("output.txt");
@@ -62,7 +62,7 @@ public class WavefrontExport {
 		public WavefrontExport(
 				String                                          out_dir,
 				String                                          project_name,
-				EyesisCorrectionParameters.CLTParameters        clt_parameters,
+				CLTParameters        clt_parameters,
 				EyesisCorrectionParameters.CorrectionParameters correctionsParameters,
 				GeometryCorrection                              geometry_correction,
 				ArrayList <CLTPass3d>             clt_3d_passes) throws IOException{

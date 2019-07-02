@@ -31,7 +31,7 @@ import java.util.Comparator;
 //import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.elphel.imagej.cameras.EyesisCorrectionParameters;
+import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
@@ -74,6 +74,7 @@ public class TileProcessor {
 	public boolean []  rig_post_poles_sel =      null; // Rig tile selection after processing poles
 	public double [][] main_ds_ml =              null; // main camera DSI restored from the COMBO-DSI file to generate ML test files
 
+	public boolean   monochrome =                false;   // these are monochrome images
 	public int       clt_3d_passes_size =     0; //clt_3d_passes size after initial processing
 	public int       clt_3d_passes_rig_size = 0; //clt_3d_passes size after initial processing and rig processing
 	private int      tilesX;
@@ -102,6 +103,7 @@ public class TileProcessor {
 			int tilesY,
 			int tileSize,
 			int superTileSize,
+			boolean monochrome,
 			double scale,
 			double trustedCorrelation,
 			double maxOverexposure,
@@ -111,15 +113,17 @@ public class TileProcessor {
 		this.tilesY = tilesY;
 		this.tileSize = tileSize;
 		this.superTileSize = superTileSize;
+		this.monochrome = monochrome;
 		this.corr_magic_scale = scale;
 		this.trustedCorrelation = trustedCorrelation;
 		this.maxOverexposure =      maxOverexposure;
 		this.threadsMax = threadsMax;
 	}
-	public int getTilesX() {return tilesX;};
-	public int getTilesY() {return tilesY;};
-	public int getTileSize() {return tileSize;};
-	public int getSuperTileSize() {return superTileSize;};
+	public boolean isMonochrome() {return monochrome;}
+	public int getTilesX() {return tilesX;}
+	public int getTilesY() {return tilesY;}
+	public int getTileSize() {return tileSize;}
+	public int getSuperTileSize() {return superTileSize;}
 	public void setTrustedCorrelation(double trustedCorrelation)
 	{
 		this.trustedCorrelation = trustedCorrelation;
@@ -1836,6 +1840,7 @@ public class TileProcessor {
 			}
 		}
 		int removed = 0, total = 0;
+		@SuppressWarnings("unused")
 		int dbg_remain = 0;
 		for (int ty = 0; ty < tilesY; ty ++) {
 			for (int tx = 0; tx < tilesX; tx ++){
@@ -2180,6 +2185,7 @@ public class TileProcessor {
 
 		boolean [] dbg_last_selected = last_scan.selected.clone();
 		boolean [] dbg_last_border =   last_scan.border_tiles.clone();
+		@SuppressWarnings("unused")
 		boolean [] dbg_no_border =     these_no_border.clone();
 
 		boolean [] known_tiles = these_no_border.clone();
@@ -2356,7 +2362,7 @@ public class TileProcessor {
 			final boolean     grow_pedantic,   // Scan full range between max_tried_disparity of the background and known foreground
 			final boolean     grow_retry_inf,  // Retry border tiles that were identified as infinity earlier
 
-			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			CLTParameters           clt_parameters,
 			GeometryCorrection geometryCorrection,
 			final boolean     show_debug,
 			final int         threadsMax,      // maximal number of threads to launch
@@ -2412,8 +2418,11 @@ public class TileProcessor {
 						debugLevel);    // final int     debugLevel)
 
 			}
-			if (!grow_retry_inf && (bg_scan == null)){
-				for (int i = 0; i < untested_bgnd.length; i++) if (bg_scan.selected[i]) untested_bgnd[i] = false;
+///			if (!grow_retry_inf && (bg_scan == null)){ // FIXME: BUG bg_scan == null here!
+			if (!grow_retry_inf && (bg_scan != null)){ // FIXME: BUG bg_scan == null here!
+				for (int i = 0; i < untested_bgnd.length; i++) {
+					if (bg_scan.selected[i]) untested_bgnd[i] = false;
+				}
 			}
 			// turn these tiles as if they are not known (really known or belong to bgnd)
 			for (int i = 0; i < known_tiles.length; i++) known_tiles[i] &= !untested_bgnd[i];
@@ -4055,7 +4064,7 @@ public class TileProcessor {
 
 
 	public int [][] setSameTileOp(
-			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			CLTParameters           clt_parameters,
 			int        op,
 			int        debugLevel
 			)
@@ -4509,7 +4518,7 @@ public class TileProcessor {
 			final double      this_sure,        // minimal strength to be considered definitely background
 			final double      this_maybe,       // maximal strength to ignore as non-background
 			final double      sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
-			final EyesisCorrectionParameters.CLTParameters clt_parameters,
+			final CLTParameters clt_parameters,
 //			final int         threadsMax,  // maximal number of threads to launch
 //			final boolean     updateStatus,
 			final int         debugLevel
@@ -4792,7 +4801,7 @@ public class TileProcessor {
 
 	public CLTPass3d refinePassSetup( // prepare tile tasks for the second pass based on the previous one(s)
 			//			  final double [][][]       image_data, // first index - number of image in a quad
-			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			CLTParameters           clt_parameters,
 			// disparity range - differences from
 			boolean           use_supertiles,   // false (2018)
 			int               bg_scan_index,    // 0
@@ -5156,7 +5165,7 @@ public class TileProcessor {
 
 
 	public double [][] assignTilesToSurfaces(
-			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			CLTParameters           clt_parameters,
 			GeometryCorrection geometryCorrection,
 			final int         threadsMax,  // maximal number of threads to launch
 			final boolean     updateStatus,
@@ -5176,7 +5185,7 @@ public class TileProcessor {
 		// show testure_tiles
 
 		double [][][][] texture_tiles = scan_prev.getTextureTiles();
-		ImageDtt image_dtt = new ImageDtt();
+		ImageDtt image_dtt = new ImageDtt(isMonochrome());
 
 		double [][][]  dispStrength = st.getDisparityStrengths(
 				clt_parameters.stMeasSel); // int        stMeasSel) //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert)
@@ -5294,6 +5303,7 @@ public class TileProcessor {
 
 
 		// Reset/initialize assignments - if not done so yet or specifically requested
+		@SuppressWarnings("unused")
 		boolean first_run = !tileSurface.isInit() || clt_parameters.tsReset;
 		tileSurface.InitTilesAssignment(
 				clt_parameters.tsReset,
@@ -5729,7 +5739,7 @@ public class TileProcessor {
 
 //======================
 	public void showPlanes(
-			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			CLTParameters           clt_parameters,
 			GeometryCorrection geometryCorrection,
 			final int         threadsMax,  // maximal number of threads to launch
 			final boolean     updateStatus,
@@ -6279,7 +6289,7 @@ public class TileProcessor {
 
 	public void showPlaneData(
 			String suffix,
-			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			CLTParameters           clt_parameters,
 			SuperTiles st,
 			TilePlanes.PlaneData[][][] split_planes
 			)
@@ -6384,7 +6394,7 @@ public class TileProcessor {
 
 
 	public void createShells_old (
-			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			CLTParameters           clt_parameters,
 			SuperTiles st,
 			boolean [][] selected_planes,
 			GeometryCorrection geometryCorrection,
@@ -6599,7 +6609,7 @@ public class TileProcessor {
 
 
 	public void secondPassSetup( // prepare tile tasks for the second pass based on the previous one(s)
-			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			CLTParameters           clt_parameters,
 			boolean           use_supertiles,
 			int               bg_scan_index,
 			// disparity range - differences from
@@ -6740,8 +6750,11 @@ public class TileProcessor {
 		//************************************************
 
 		// try renovated supertiles. Do twice to show both original and blurred histograms
+		@SuppressWarnings("unused")
 		double [] dbg_orig_disparity =  null;
+		@SuppressWarnings("unused")
 		double [] dbg_with_super_disp = null;
+		@SuppressWarnings("unused")
 		double [] dbg_outliers =       null;
 //		boolean [] grown = these_tiles.clone();
 
@@ -6762,6 +6775,7 @@ public class TileProcessor {
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[0] = scan_prev.getSuperTiles().showDisparityHistogram();
 
+			@SuppressWarnings("unused")
 			SuperTiles st = scan_prev.setSuperTiles(
 					clt_parameters.stStepNear,       // double     step_disparity,
 					clt_parameters.stStepFar,        // double     step_near,
@@ -6788,7 +6802,7 @@ public class TileProcessor {
 
 //==================
 	public void thirdPassSetup_old( // prepare tile tasks for the second pass based on the previous one(s)
-			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			CLTParameters           clt_parameters,
 			double            disparity_far,    //
 			double            disparity_near,   //
 			GeometryCorrection geometryCorrection,
@@ -6916,7 +6930,7 @@ public class TileProcessor {
 
 
 	public void thirdPassSetupSurf( // prepare tile tasks for the second pass based on the previous one(s)
-			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			CLTParameters           clt_parameters,
 			double            disparity_far,    //
 			double            disparity_near,   //
 			GeometryCorrection geometryCorrection,
@@ -7040,7 +7054,7 @@ public class TileProcessor {
 
 
 	public int bridgeFgndOrthoGap(
-			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			CLTParameters           clt_parameters,
 			boolean vert, // verical pairs, horizontal features
 			boolean disp_interpolate, // fill interpolated disparity for bridged over tiles, false - copy from  ortho_disparity (if not null)
 			boolean closer_only, // only update disparity if laregr than was

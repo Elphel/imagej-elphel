@@ -26,7 +26,7 @@ package com.elphel.imagej.tileprocessor;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.elphel.imagej.cameras.EyesisCorrectionParameters;
+import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 public class DisparityProcessor {
@@ -272,7 +272,7 @@ public class DisparityProcessor {
 			final double  []  hor_strength, // not yet used
 			final boolean []  selected,
 			final boolean []  border,       // may be null
-			final  EyesisCorrectionParameters.CLTParameters  clt_parameters,
+			final  CLTParameters  clt_parameters,
 			final int         threadsMax,      // maximal number of threads to launch                         
 			final int         debugLevel)
 	{
@@ -480,7 +480,7 @@ public class DisparityProcessor {
 			final boolean     extend_flat, // if the tile is on the hor/vert edge, assume same disparity on the other side
 			final double      k_same,
 			final double      k_turn,
-			final  EyesisCorrectionParameters.CLTParameters  clt_parameters,
+			final  CLTParameters  clt_parameters,
 			final double [][] dbgDeriv, //double [2][len] or null;
 			final int         threadsMax,      // maximal number of threads to launch                         
 			final int         debugLevel)

@@ -29,7 +29,7 @@ package com.elphel.imagej.correction;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.elphel.imagej.cameras.EyesisCorrectionParameters;
+import com.elphel.imagej.cameras.ColorProcParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.GenericJTabbedDialog;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
@@ -56,7 +56,7 @@ public class CorrectionColorProc {
 
     public void  processColorsWeights(ImageStack stack, // does not like NaN (in GaussianBlur
   		  double scale,     // initial maximal pixel value (16))
-  		  EyesisCorrectionParameters.ColorProcParameters  colorProcParameters,
+  		  ColorProcParameters  colorProcParameters,
   		  CorrectionColorProc.ColorGainsParameters channelGainParameters,
   		  int channel,
   		  double [] denoiseMask,
@@ -290,7 +290,7 @@ public class CorrectionColorProc {
 // old versiion
     public void  processColorsWeightsOld(ImageStack stack,
     		  double scale,     // initial maximal pixel value (16))
-    		  EyesisCorrectionParameters.ColorProcParameters  colorProcParameters,
+    		  ColorProcParameters  colorProcParameters,
     		  CorrectionColorProc.ColorGainsParameters channelGainParameters,
     		  int channel,
     		  double [] denoiseMask,
@@ -548,6 +548,21 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
 
     	public ColorGainsParameters(){
     	}
+
+    	@Override
+		public ColorGainsParameters clone() {
+    		ColorGainsParameters cgp = new ColorGainsParameters();
+    		cgp.gain =        this.gain.clone();
+    		cgp.balanceRed =  this.balanceRed.clone();
+    		cgp.balanceBlue = this.balanceBlue.clone();
+    		return cgp;
+    	}
+    	public void  copyFrom(ColorGainsParameters cgp) {
+    		this.gain =        cgp.gain.clone();
+    		this.balanceRed =  cgp.balanceRed.clone();
+    		this.balanceBlue = cgp.balanceBlue.clone();
+    	}
+
     	public void setProperties(String prefix,Properties properties){
     		properties.setProperty(prefix+"channels",this.gain.length+"");
     		for (int i=0; i<this.gain.length;i++) {
@@ -608,6 +623,7 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
     		}
     		return true;
     	}
+
 
     	public boolean showDialog(ColorGainsParameters aux) {
 
