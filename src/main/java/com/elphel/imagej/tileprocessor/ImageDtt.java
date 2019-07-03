@@ -2644,29 +2644,31 @@ public class ImageDtt {
 						if (texture_tiles !=null) {
 							if ((extra_disparity != 0) && !getForcedDisparity(tile_op[tileY][tileX])){ // 0 - adjust disparity, 1 - use provided
 								// shift images by 0.5 * extra disparity in the diagonal direction
-								for (int chn = 0; chn <numcol; chn++) { // color
+								for (int ncol = 0; ncol <numcol; ncol++) { // color
 									for (int i = 0; i < quad; i++) {
-										fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
-												clt_data[i][chn][tileY][tileX], // double  [][]  clt_tile,
-												transform_size,
-												extra_disparity * port_offsets[i][0] / corr_magic_scale,     // double        shiftX,
-												extra_disparity * port_offsets[i][1] / corr_magic_scale,     // double        shiftY,
-												//									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
-												((globalDebugLevel > 0) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
-														(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
+										if (clt_data[i][ncol] != null) {
+											fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
+													clt_data[i][ncol][tileY][tileX], // double  [][]  clt_tile,
+													transform_size,
+													extra_disparity * port_offsets[i][0] / corr_magic_scale,     // double        shiftX,
+													extra_disparity * port_offsets[i][1] / corr_magic_scale,     // double        shiftY,
+													//									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
+													((globalDebugLevel > 0) && (ncol==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
+															(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
+										}
 									}
 								}
 							}
 							// lpf tiles (same as images before)
 							// iclt tiles
-							double [][][] iclt_tile = new double [quad][numcol][];
+							double [][][] iclt_tile = new double [quad][numcol][]; // in mono some may remain null
 							double [] clt_tile;
 							double scale = 0.25;  // matching iclt_2d
 							for (int i = 0; i < quad; i++) {
-								for (int chn = 0; chn <numcol; chn++) { // color
+								for (int ncol = 0; ncol <numcol; ncol++) if (clt_data[i][ncol] != null) { // color
 									// double [] clt_tile = new double [transform_size*transform_size];
 									for (int dct_mode = 0; dct_mode < 4; dct_mode++){
-										clt_tile = clt_data[i][chn][tileY][tileX][dct_mode].clone();
+										clt_tile = clt_data[i][ncol][tileY][tileX][dct_mode].clone();
 										// lpf each of the 4 quadrants before idct
 										for (int j = 0; j < filter.length; j++){
 											clt_tile[j] *= scale*filter[j];
@@ -2697,10 +2699,10 @@ public class ImageDtt {
 										double [] tile_mdct = dtt.unfold_tile(clt_tile, transform_size, dct_mode); // mode=0 - DCCT 16x16
 										// accumulate partial mdct results
 										if (dct_mode == 0){
-											iclt_tile[i][chn] = tile_mdct;
+											iclt_tile[i][ncol] = tile_mdct;
 										} else{
 											for (int j = 0; j<tile_mdct.length; j++){
-												iclt_tile[i][chn][j] += tile_mdct[j]; // matching iclt_2d
+												iclt_tile[i][ncol][j] += tile_mdct[j]; // matching iclt_2d
 											}
 										}
 									}
@@ -2712,8 +2714,8 @@ public class ImageDtt {
 								String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
 								double [][] dbg_tile = new double [quad*numcol][];
 								for (int i = 0; i < quad; i++) {
-									for (int chn = 0; chn <numcol; chn++) { // color
-										dbg_tile[i * numcol + chn] = iclt_tile[i][chn];
+									for (int ncol = 0; ncol <numcol; ncol++) if (iclt_tile[i][ncol] != null) { // color
+										dbg_tile[i * numcol + ncol] = iclt_tile[i][ncol];
 									}
 								}
 								sdfa_instance.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "iclt_x"+tileX+"_y"+tileY, titles);
@@ -2723,16 +2725,19 @@ public class ImageDtt {
 							// "de-bayer" tiles for matching, use original data for output
 							double [][][] tiles_debayered = new double [quad][numcol][];
 							for (int i =0; i<quad; i++){
-								for (int chn = 0; chn < numcol; chn++){
-
-									tiles_debayered[i][chn] =  tile_debayer_shot_corr(
-											(chn != 2), // red or blue (false - green)
-											iclt_tile[i][chn],
-											2 * transform_size,
-											lt_window2, // squared lapping window
-											min_shot,   // 10.0;  // Do not adjust for shot noise if lower than
-											scale_shot,  //3.0;   // scale when dividing by sqrt
-											lt_window2); // re-apply window to the result
+								for (int ncol = 0; ncol < numcol; ncol++) if (iclt_tile[i][ncol] != null) {
+									if (isMonochrome()) {
+										tiles_debayered[i][ncol] =  iclt_tile[i][ncol];
+									} else {
+										tiles_debayered[i][ncol] =  tile_debayer_shot_corr(
+												(ncol != 2), // red or blue (false - green)
+												iclt_tile[i][ncol],
+												2 * transform_size,
+												lt_window2, // squared lapping window
+												min_shot,   // 10.0;  // Do not adjust for shot noise if lower than
+												scale_shot,  //3.0;   // scale when dividing by sqrt
+												lt_window2); // re-apply window to the result
+									}
 								}
 							}
 							if ((globalDebugLevel > 0) && debugTile) {
@@ -2766,7 +2771,7 @@ public class ImageDtt {
 									diff_threshold,  // pixel value/pixel change
 									diff_gauss,      // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
 									min_agree,       // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-									col_weights,     // color channel weights, sum == 1.0
+									col_weights,     // color channel weights, sum == 1.0 (already set to 0/0/1 for monochrome
 									dust_remove,     // boolean dust_remove,    // Do not reduce average weight when only one image differes much from the average
 									keep_weights,    // keep_weights);   // return channel weights after A in RGBA
 									(globalDebugLevel > 0) && debugTile);
@@ -2778,10 +2783,10 @@ public class ImageDtt {
 									sw += texture_tiles[tileY][tileX][numcol+1+ip][i];
 								}
 								if (sw != 0 ) sw = 1.0/sw;
-								for (int chn = 0; chn <numcol; chn++) { // color
-									texture_tiles[tileY][tileX][chn][i] = 0.0; //iclt[tileY][tileX][chn]
+								for (int ncol = 0; ncol < numcol; ncol++) { // color
+									texture_tiles[tileY][tileX][ncol][i] = 0.0; //iclt[tileY][tileX][chn]
 									for (int ip = 0; ip < quad; ip++) {
-										texture_tiles[tileY][tileX][chn][i] += sw * texture_tiles[tileY][tileX][numcol+1+ip][i] * iclt_tile[ip][chn][i];
+										texture_tiles[tileY][tileX][ncol][i] += sw * texture_tiles[tileY][tileX][numcol+1+ip][i] * iclt_tile[ip][ncol][i];
 									}
 								}
 							}
@@ -2814,7 +2819,7 @@ public class ImageDtt {
 	}
 
 	public double [][] tile_combine_rgba(
-			double [][][] iclt_tile,     // [port][numcol][256]
+			double [][][] iclt_tile,     // [port][numcol][256] // in mono some are null
 			double []     ports_rgb,     // average values of R,G,B for each camera (R0,R1,...,B2,B3)
 			double []     max_diff,      // maximal (weighted) deviation of each channel from the average
 			double []     lt_window,     // [256]
@@ -2830,8 +2835,16 @@ public class ImageDtt {
 			boolean       debug)
 	{
 		int ports =  iclt_tile.length;
+
 		int numcol =  iclt_tile[0].length;
-		int tile_len = iclt_tile[0][0].length;
+		int tile_len = 0;
+		for (int ncol = 0; ncol < numcol; ncol++) {
+			if (iclt_tile[0][ncol] != null) {
+				tile_len = iclt_tile[0][ncol].length;
+				break;
+			}
+		}
+
 		int usedPorts = ((port_mask >> 0) & 1) + ((port_mask >> 1) & 1) + ((port_mask >> 2) & 1) + ((port_mask >> 3) & 1);
 
 
@@ -2840,20 +2853,20 @@ public class ImageDtt {
 		double [][] rgba = new double[numcol + 1 + (keep_weights?(ports + 4):0)][];
 		int rms_start = numcol + 1 + ports;
 		if (keep_weights){
-			for (int chn = 0; chn <= numcol ; chn++){
-				rgba[rms_start + chn] = new double [tile_len]; // rms for each color, then - weighted
+			for (int ncol = 0; ncol <= numcol ; ncol++) if ((ncol == numcol) || (iclt_tile[0][ncol] != null)) {
+				rgba[rms_start + ncol] = new double [tile_len]; // rms for each color, then - weighted
 			}
 			for (int i = 0; i <tile_len; i++){
 				double sw = 0.0;
-				for (int chn = 0; chn < numcol; chn ++ ){
+				for (int ncol = 0; ncol < numcol; ncol ++ )  if (iclt_tile[0][ncol] != null){
 					double s0 = 0, s1 = 0, s2 = 0;
 					for (int ip = 0; ip < ports; ip++)if ((port_mask & ( 1 << ip)) != 0){
 						s0 += 1;
-						s1 += iclt_tile[ip][chn][i];
-						s2 += iclt_tile[ip][chn][i]*iclt_tile[ip][chn][i];
+						s1 += iclt_tile[ip][ncol][i];
+						s2 += iclt_tile[ip][ncol][i]*iclt_tile[ip][ncol][i];
 					}
-					rgba[rms_start+chn][i] = Math.sqrt(s0*s2 - s1*s1) / s0;
-					sw += chn_weights[chn]*rgba[rms_start+chn][i]*rgba[rms_start+chn][i];
+					rgba[rms_start+ncol][i] = Math.sqrt(s0*s2 - s1*s1) / s0;
+					sw += chn_weights[ncol]*rgba[rms_start+ncol][i]*rgba[rms_start+ncol][i];
 				}
 				rgba[rms_start+numcol][i] = Math.sqrt(sw); // will fade as window
 			}
@@ -2882,10 +2895,10 @@ public class ImageDtt {
 				for (int ip = 0; ip < ports; ip++) port_weights[ip][i] = 0.0;
 				for (int ip = 0; ip<pair_ports.length; ip++){
 					double d = 0;
-					for (int chn = 0; chn < numcol; chn++){
-						double dc = iclt_tile[pair_ports[ip][0]][chn][i] - iclt_tile[pair_ports[ip][1]][chn][i];
+					for (int ncol = 0; ncol < numcol; ncol++) if (iclt_tile[0][ncol] != null){
+						double dc = iclt_tile[pair_ports[ip][0]][ncol][i] - iclt_tile[pair_ports[ip][1]][ncol][i];
 						dc /= lt_window[i]; // to compensate fading near the edges
-						d+= chn_weights[chn]*dc*dc;
+						d+= chn_weights[ncol]*dc*dc;
 
 					}
 					d = Math.exp(-pair_dist2r[ip]*d); // 0.5 for exact match, lower for mismatch. Add this weight to both ports involved
@@ -2901,17 +2914,17 @@ public class ImageDtt {
 				// find weighted average between these 2 ports
 				double w1 = port_weights[bestPort1][i]/(port_weights[bestPort1][i]+port_weights[bestPort2][i]);
 				double w2 = 1.0 - w1;
-				for (int chn = 0; chn < numcol; chn++){
-					color_avg[chn][i] = w1 * iclt_tile[bestPort1][chn][i] + w2 * iclt_tile[bestPort2][chn][i];
+				for (int ncol = 0; ncol < numcol; ncol++) if (iclt_tile[0][ncol] != null) {
+					color_avg[ncol][i] = w1 * iclt_tile[bestPort1][ncol][i] + w2 * iclt_tile[bestPort2][ncol][i];
 				}
 				// recalculate all weights using difference from this average of the best pair
 				double [] d2 = new double [ports]; //weighted squared differences
 				for (int ip = 0; ip < ports; ip++) if ((port_mask & ( 1 << ip)) != 0){
 					d2[ip] = 0;
-					for (int chn = 0; chn < numcol; chn++){
-						double dc = iclt_tile[ip][chn][i] - color_avg[chn][i];
+					for (int ncol = 0; ncol < numcol; ncol++)  if (iclt_tile[0][ncol] != null){
+						double dc = iclt_tile[ip][ncol][i] - color_avg[ncol][i];
 						dc /= lt_window[i]; // to compensate fading near the edges
-						d2[ip]+= chn_weights[chn]*dc*dc;
+						d2[ip]+= chn_weights[ncol]*dc*dc;
 					}
 					port_weights[ip][i] = Math.exp(-ksigma * d2[ip]);
 				}
@@ -2919,10 +2932,10 @@ public class ImageDtt {
 				double k = 0.0;
 				for (int ip = 0; ip < ports; ip++) k+=port_weights[ip][i];
 				k = 1.0/k;
-				for (int chn = 0; chn < numcol; chn++){
-					color_avg[chn][i] = 0;
+				for (int ncol = 0; ncol < numcol; ncol++) if (iclt_tile[0][ncol] != null) {
+					color_avg[ncol][i] = 0;
 					for (int ip = 0; ip < ports; ip++) {
-						color_avg[chn][i] += k* port_weights[ip][i] * iclt_tile[ip][chn][i];
+						color_avg[ncol][i] += k* port_weights[ip][i] * iclt_tile[ip][ncol][i];
 					}
 				}
 
@@ -2931,8 +2944,8 @@ public class ImageDtt {
 		} else if (usedPorts > 0){ // just copy from a single channel
 			for (int ip = 0; ip < ports; ip++) if ((port_mask & ( 1 << ip)) != 0){
 				for (int i = 0; i < tile_len; i++){
-					for (int chn = 0; chn < numcol; chn++){
-						color_avg[chn][i] = iclt_tile[ip][chn][i];
+					for (int ncol = 0; ncol < numcol; ncol++)  if (iclt_tile[0][ncol] != null){
+						color_avg[ncol][i] = iclt_tile[ip][ncol][i];
 					}
 					port_weights[ip][i] = 1.0; // lt_window[i]; // or use 1.0?
 				}
@@ -2950,8 +2963,11 @@ public class ImageDtt {
 			alpha[i] *= lt_window[i]/usedPorts; // make it configurable?
 		}
 
-		for (int i = 0; i < numcol; i++) rgba[i] = color_avg[i];
+		for (int ncol = 0; ncol < numcol; ncol++) {
+			rgba[ncol] = color_avg[ncol];
+		}
 		rgba[numcol] = alpha;
+
 		for (int i = 0; i < ports; i++)  rgba[numcol + 1 + i] = port_weights[i];
 		if (max_diff != null){
 			for (int ip = 0; ip < ports; ip++){
@@ -2959,9 +2975,9 @@ public class ImageDtt {
 				if ((port_mask & ( 1 << ip)) != 0) {
 					for (int i = 0; i < tile_len; i++){
 						double d2 = 0.0;
-						for (int chn = 0; chn < numcol; chn++){
-							double dc = (iclt_tile[ip][chn][i]-color_avg[chn][i]);
-							d2+=dc*dc*chn_weights[chn];
+						for (int ncol = 0; ncol < numcol; ncol++) if (iclt_tile[0][ncol] != null) {
+							double dc = (iclt_tile[ip][ncol][i] - color_avg[ncol][i]);
+							d2+=dc*dc*chn_weights[ncol];
 						}
 						d2 *=lt_window[i];
 						if (d2 > max_diff[ip]) max_diff[ip]  = d2;
@@ -2972,11 +2988,11 @@ public class ImageDtt {
 		}
 		if (ports_rgb != null) {
 			for (int ip = 0; ip < ports; ip++){
-				for (int chn = 0; chn < numcol; chn++){
-					int indx = chn*ports+ip;
+				for (int ncol = 0; ncol < numcol; ncol++) if (iclt_tile[0][ncol] != null) {
+					int indx = ncol*ports+ip;
 					ports_rgb[indx]=0;
 					for (int i = 0; i < tile_len; i++){
-						ports_rgb[indx] += iclt_tile[ip][chn][i];
+						ports_rgb[indx] += iclt_tile[ip][ncol][i];
 					}
 					ports_rgb[indx] /= tile_len;
 				}
