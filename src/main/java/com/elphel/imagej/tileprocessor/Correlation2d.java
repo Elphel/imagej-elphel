@@ -193,7 +193,7 @@ public class Correlation2d {
       }
 
     /**
-     * Multiply CLT data of two channels, normalize amplitude
+     * Multiply CLT data of two channels, normalize amplitude, OK with null inputs (missing colors for monochrome images)
      * @param clt_data1 first operand FD CLT data[4][transform_len]
      * @param clt_data2 second operand FD CLT data[4][transform_len]
      * @param fat_zero add to normalization amplitude
@@ -204,7 +204,9 @@ public class Correlation2d {
     		double [][] clt_data2,
     		double [][] tcorr, // null or initialized to [4][transform_len]
     		double      fat_zero) {
+
     	if (tcorr == null) tcorr = new double [4][transform_len];
+    	if ((clt_data1 == null) || (clt_data1 == null)) return null; // to work with missing colors for monochrome
     	double [] a2 = new double[transform_len];
     	double sa2 = 0.0;
 		for (int i = 0; i < transform_len; i++) {
@@ -235,37 +237,6 @@ public class Correlation2d {
 		return tcorr;
     }
 
-    public double[][] correlateSingleColorFD_old(
-    		double [][] clt_data1,
-    		double [][] clt_data2,
-    		double [][] tcorr, // null or initialized to [4][transform_len]
-    		double      fat_zero) {
-    	if (tcorr == null) tcorr = new double [4][transform_len];
-		for (int i = 0; i < transform_len; i++) {
-			double s1 = 0.0, s2=0.0;
-			for (int n = 0; n< 4; n++){
-				s1+=clt_data1[n][i] * clt_data1[n][i];
-				s2+=clt_data2[n][i] * clt_data2[n][i];
-			}
-			double scale = 1.0 / (Math.sqrt(s1*s2) + fat_zero*fat_zero); // squared to match units
-			for (int n = 0; n<4; n++){
-				tcorr[n][i] = 0;
-				for (int k=0; k<4; k++){
-					if (ZI[n][k] < 0)
-						tcorr[n][i] -=
-								clt_data1[-ZI[n][k]][i] * clt_data2[k][i];
-					else
-						tcorr[n][i] +=
-								clt_data1[ZI[n][k]][i] * clt_data2[k][i];
-				}
-				tcorr[n][i] *= scale;
-			}
-		}
-		return tcorr;
-    }
-
-
-
     /**
      * Calculate color channels FD phase correlations, mix results with weights, apply optional low-pass filter
      * and convert to the pixel domain  as [(2*transform_size-1) * (2*transform_size-1)] tiles (15x15)
@@ -281,31 +252,47 @@ public class Correlation2d {
     		double [][][] clt_data1,
     		double [][][] clt_data2,
     		double []     lpf,
-    		double []     col_weights,
+    		double []     col_weights_in, // should have the same dimension as clt_data1 and clt_data2
     		double        fat_zero) {
 
 //    	if ((clt_data1 == null) || (clt_data1 == null)) return null;
+    	// work with sparse clt
+    	double [] col_weights = col_weights_in.clone();
+    	double s = 0.0;
+    	for (int i = 0; i < col_weights.length; i++) {
+    		if ((clt_data1[i] == null) || (clt_data2[i] == null)) {
+    			col_weights[i]= 0.0;
+    		}
+    		s+=col_weights[i];
+    	}
+    	for (int i = 0; i < col_weights.length; i++) {
+    		if (col_weights[i] != 0.0) col_weights[i]/=s; // will have 1.0 for the single color
+    	}
+
     	if (clt_data1.length == 1) { // monochrome
     		col_weights = new double[1];
     		col_weights[0] = 1.0;
     	}
     	double [][][]tcorr = new double [clt_data1.length][4][transform_len];
-    	for (int col = 0; col < tcorr.length; col++) {
+    	int first_col = -1;
+    	for (int col = 0; col < tcorr.length; col++) if (col_weights[col] > 0.0 ) {
     		 correlateSingleColorFD(
     		    		clt_data1[col],
     		    		clt_data2[col],
     		    		tcorr[col],
     		    		fat_zero);
-    		 if (col == 0) { // accummulate all channels in color 0
-    			 for (int n = 0; n<4; n++) {
+
+    		 if (first_col < 0) {// accummulate all channels in frst non-null color ( 0 for color, 2 for mono?)
+    			 first_col = col; // first non-empty color (2, green) or 0 for color images
+    			 for (int n = 0; n < 4; n++) {
     				 for (int i = 0; i < transform_len; i++) {
-    					 tcorr[0][n][i] *= col_weights[col];
+    					 tcorr[first_col][n][i] *= col_weights[col];
     				 }
     			 }
     		 } else {
-    			 for (int n = 0; n<4; n++) {
+    			 for (int n = 0; n < 4; n++) {
     				 for (int i = 0; i < transform_len; i++) {
-    					 tcorr[0][n][i] += tcorr[col][n][i] * col_weights[col];
+    					 tcorr[first_col][n][i] += tcorr[col][n][i] * col_weights[col];
     				 }
     			 }
     		 }
@@ -313,18 +300,17 @@ public class Correlation2d {
     	if (lpf != null) {
     		for (int n = 0; n<4; n++) {
     			for (int i = 0; i < transform_len; i++) {
-    				tcorr[0][n][i] *= lpf[i];
+    				tcorr[first_col][n][i] *= lpf[i];
     			}
     		}
     	}
 
     	for (int quadrant = 0; quadrant < 4; quadrant++){
     		int mode = ((quadrant << 1) & 2) | ((quadrant >> 1) & 1); // transpose
-    		tcorr[0][quadrant] = dtt.dttt_iie(tcorr[0][quadrant], mode, transform_size);
+    		tcorr[first_col][quadrant] = dtt.dttt_iie(tcorr[first_col][quadrant], mode, transform_size);
     	}
 		// convert from 4 quadrants to 15x15 centered tiles (only composite)
-    	double [] corr_pd =  dtt.corr_unfold_tile(tcorr[0],	transform_size);
-
+    	double [] corr_pd =  dtt.corr_unfold_tile(tcorr[first_col],	transform_size);
     	return corr_pd;
     }
     /**
@@ -434,15 +420,21 @@ public class Correlation2d {
     	int tlen = transform_size * transform_size;
     	double [][][] clt_mix = new double [clt_data_tile[0].length][4][tlen];
     	for (int color = 0; color < clt_mix.length; color++) {
+
     		for (int cltq = 0; cltq <4; cltq++) {
     			for (int i = 0; i < tlen; i++) {
-    				for (int cam = 0; cam < clt_data_tile.length; cam++)
-    				clt_mix[color][cltq][i] += clt_data_tile[cam][color][cltq][i];
+    				for (int cam = 0; cam < clt_data_tile.length; cam++) {
+    					if (clt_data_tile[cam][color] != null) {
+    						clt_mix[color][cltq][i] += clt_data_tile[cam][color][cltq][i];
+    					} else {
+    						clt_mix[color] = null; // delete it
+    					}
+    				}
     			}
     		}
     	}
     	double k = 1.0/clt_data_tile.length;
-    	for (int color = 0; color < clt_mix.length; color++) {
+    	for (int color = 0; color < clt_mix.length; color++) if (clt_mix[color] != null) {
     		for (int cltq = 0; cltq <4; cltq++) {
     			for (int i = 0; i < tlen; i++) {
     				clt_mix[color][cltq][i] *= k;
@@ -555,7 +547,7 @@ public class Correlation2d {
      * This method has limited sub-pixel resolution, it is used to prevent false positives on periodic structures
      * @param correlations array of per-pair correlations (some elements may be nulls)
      * @param pairs_mask bitmask of selected pairs
-     * @param hwidth number of the result rows (1 - only main diagonal, 2 - main diagonal end 2 other color ones
+     * @param hwidth number of the result rows (1 - only main diagonal, 2 - main diagonal and 2 other color ones
      * @return transformed array of correlation arrays [hwidth][2*transform_size-1] (some may be nulls)
      */
     public double [][] scaleRotateInterpoateCorrelations(
@@ -594,7 +586,7 @@ public class Correlation2d {
      * @param correlations array of per-pair correlations (some elements may be nulls)
      * @param npair number of this pair to extract
      * @param sub_sampling minimal subsampling for the selected pairs (divide by it)
-     * @param hwidth number of the result rows (1 - only main diagonal, 2 - main diagonal end 2 other color ones
+     * @param hwidth number of the result rows (1 - only main diagonal, 2 - main diagonal and 2 other color ones
      * @return transformed correlation array [hwidth][2*transform_size-1]
      */
 
@@ -619,8 +611,6 @@ public class Correlation2d {
     		int         ss,
     		boolean     debug
     		) {
-//    	int dir = PAIRS[npair][2]; // 0 - hor, 1 - vert, 2 - parallel to row = col (main) diagonal (0->3), 3 -2->1
-//   	int ss =  PAIRS[npair][3]/sub_sampling;
     	int center = transform_size - 1;
     	int width = 2 * center + 1;
     	double [] strip = new double [hwidth * width];
@@ -628,7 +618,6 @@ public class Correlation2d {
     	int denom =  ss * ((dir > 1)?1:2);
     	double rdenom = denom;
     	int ilimit = center * denom;
-//    	double [] corr = correlations[npair];
 		if (debug) {
 			System.out.println("\n============== scaleRotateInterpoateSingleCorrelation() ===============");
 		}
@@ -652,7 +641,6 @@ public class Correlation2d {
     					break;
     				case 3:
     					xnum =  scol - (( down * row    ) >> 1);
-//    					ynum = scol + ((-down * row - 1) >> 1);
     					ynum = -scol - (( down * row + 1) >> 1);
     					break;
     				}
@@ -719,7 +707,7 @@ public class Correlation2d {
 	    	}
 		}
     	return strip;
-// todo: if there are no diagonals - why interpolate?
+// TODO: if there are no diagonals - why interpolate?
     }
 
     /**
@@ -737,8 +725,6 @@ public class Correlation2d {
     		int         pairs_mask,
     		double      offset,
     		boolean     twice_diagonal){
-//    	int center = transform_size - 1;
- //   	int width = 2 * center + 1;
     	double [] combo = null;
     	int ncombined = 0;
     	if (offset >= 0) { // use shifted multiplication
@@ -869,7 +855,6 @@ public class Correlation2d {
 		}
 		int center = transform_size - 1;
 		int data_size = 2 * transform_size - 1;
-//		int [] icenter0 = {icenter[0]+center,icenter[1]+center};
 		//calculate as "center of mass"
 		int iradius = (int) Math.abs(radius);
 		int ir2 = (int) (radius*radius);
@@ -1454,7 +1439,6 @@ public class Correlation2d {
 
     	int np= 0;
     	for (int pair = 0; pair <  corrs.length; pair++)  if ((corrs[pair] != null) && (((1 << pair) & pair_mask) != 0)) {
-//    	for (int np = 0; np < num_pairs; np++) {
     		int this_mask = 1 << pair;
     		if (debug_level > -1) {
     			System.out.println(String.format("mismatchPairs(), np = %d pairs mask = 0x%x", np, this_mask));
@@ -1466,7 +1450,6 @@ public class Correlation2d {
     				true,          // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
     				xcenter,       // double              xcenter,   // preliminary center x in pixels for largest baseline
     				vasw_pwr,      // double              vasw_pwr,  // value as weight to this power,
-//    				debug_level-3, // int                 debug_level,
     				debug_level, // -1, // int                 debug_level,
     				tileX,         // int                 tileX, // just for debug output
     				tileY);        //int                 tileY
@@ -1483,13 +1466,9 @@ public class Correlation2d {
     				rslt[3 * np + 0] = -poly_xyvwh[1];
     				rslt[3 * np + 1] =  xcenter - poly_xyvwh[0];
     			} else if (isDiagonalMainPair(pair)) {
-//    				rslt[3 * np + 0] = xcenter - poly_xyvwh[0];
-//    				rslt[3 * np + 1] = -poly_xyvwh[1];
     				rslt[3 * np + 0] =  xcenter - poly_xyvwh[0] + poly_xyvwh[1]; // x - y
     				rslt[3 * np + 1] =  xcenter - poly_xyvwh[0] - poly_xyvwh[1]; // x + y
     			} else if (isDiagonalOtherPair(pair)) {
-//    				rslt[3 * np + 0] = xcenter - poly_xyvwh[0];
-//    				rslt[3 * np + 1] =  poly_xyvwh[1];
     				rslt[3 * np + 0] =  xcenter - poly_xyvwh[0] + poly_xyvwh[1]; // x - y
     				rslt[3 * np + 1] = -xcenter + poly_xyvwh[0] + poly_xyvwh[1]; // x + y
     			} else {
@@ -2016,9 +1995,6 @@ public class Correlation2d {
     	return lmaSuccess? lma: null;
     }
 
-
-
-
     /**
      * Create mask of usable points, allowing only first non bi-convex away from the center
      * @param corr_data correlation data, packed in linescan order
@@ -2045,8 +2021,6 @@ public class Correlation2d {
     	int y0=            y0c +center;
     	int width =        2 * center + 1;
     	int dlen =         width * width;
-//    	int width_m1 =     width - 1;
-//    	int win = 2 * hwin -1;
     	double [] weights = new double [dlen];
     	boolean [] convex = new boolean[dlen];
     	int min_row = y0 - hwin;
@@ -2058,9 +2032,6 @@ public class Correlation2d {
     	int max_col = x0 + hwin;
     	if (max_col >= width) max_col = width -1 ;
 
-    	// modify
-
-//    	int [][] dirs8 = {
     	for (int row = min_row + 1; row < max_row; row ++) {
         	for (int col = min_col + 1; col < max_col; col ++) {
         		int indx = row * width + col;
@@ -2328,15 +2299,12 @@ public class Correlation2d {
     		if (diagonal) {
     			for (int arow =  0; arow < hwindow_y2; arow ++) {
     				int odd = arow & 1;
-//    				double wy = window_y[arow] * groups_pairs[0][0]; // number of pair averaged
     				for (int acol =  odd; acol < hwindow_x2; acol +=2) {
-//    					double wxy = window_x[acol] * wy;  // full weight before value as weight
     					for (int quad = 0; quad < 4; quad ++) if (((arow > 0) || ((quad & 2) !=0 )) && ((acol > 0) || ((quad & 1) !=0 ))){
     						int cx = (quad_signs[quad][0] * acol - quad_signs[quad][1] * arow)/2 + ixcenter; // ix0;
     						int cy = (quad_signs[quad][0] * acol + quad_signs[quad][1] * arow)/2 + ixcenter; // ix0;
     						// calculate coordinates in the correlation array
     						if ((cx >= -center) && (cx <= center) && (cy >= -center) && (cy <= center)) {
-//    							double w = wxy;  // full weight before value as weight
     							double w = filtWeight[center_index + width * cy + cx] * groups_pairs[ig][0]; // number of pair averaged
     							if (w > 0.0) {
     								double v = groups_LMA[ig][center_index + width * cy + cx];
@@ -2357,15 +2325,12 @@ public class Correlation2d {
     			}
     		} else { // ortho
     			for (int arow =  0; arow < hwindow_y2; arow += 2) {
-//    				double wy = window_y[arow] * groups_pairs[0][0]; // number of pair averaged
     				for (int acol =  0; acol < hwindow_x2; acol +=2) {
-//    					double wxy = window_x[acol] * wy;  // full weight before value as weight
     					for (int quad = 0; quad < 4; quad ++) if (((arow > 0) || ((quad & 2) !=0 )) && ((acol > 0) || ((quad & 1) !=0 ))){
     						int cx = (quad_signs[quad][0] * acol)/2 + ixcenter; // ix0;
     						int cy = (quad_signs[quad][1] * arow)/2;
     						// calculate coordinates in the correlation array
     						if ((cx >= -center) && (cx <= center) && (cy >= -center) && (cy <= center)) {
-//    							double w = wxy;  // full weight before value as weight
     							double w = filtWeight[center_index + width * cy + cx] * groups_pairs[ig][0]; // number of pair averaged;
     							if (w > 0.0) {
     								double v = groups_LMA[ig][center_index + width * cy + cx];
@@ -2412,8 +2377,6 @@ public class Correlation2d {
     	// convex filter expects half window in pixels, arow/acol - half-pixel grid
     	int hwindow_y2 = 2 * hwindow_y + 1;
     	int hwindow_x2 = 2 * hwindow_x + 1;
-//    	int hwindow_y = window_y.length; // should actually be the same?
-//    	int hwindow_x = window_x.length;
     	int [][] quad_signs = {{-1,-1},{1,-1},{-1,1},{1,1}}; // {sign_x, sign_y} per quadrant
     	int numSample = 0;
        	for (int ig = 0; ig < groups_pairs.length; ig++) if (groups_pairs[ig][0] > 0) {
@@ -2503,7 +2466,6 @@ public class Correlation2d {
      * @param debug
      * @return {center, strength} pair (center is 0 for the correlation center)
      */
-//  		public double     max_corr_radius =   3.9;  // maximal distance from int max to consider
 	public double [] getMaxXSOrtho( // // get fractional center using a quadratic polynomial
     		double [][] correlations,
     		int         pairs_mask,
@@ -2660,8 +2622,6 @@ public class Correlation2d {
 			double enhortho_width,
 			double enhortho_scale,
 			boolean debug) {
-//		int corr_size = transform_size * 2 -1;
-//		double [] ortho_notch = new double [corr_size];
 		for (int i = 0; i < corr_size; i++){
 			if ((i < (transform_size - enhortho_width)) || (i > (transform_size - 2 + enhortho_width))) {
 				this.ortho_notch_filter[i] = 1.0;

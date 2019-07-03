@@ -1579,9 +1579,15 @@ public class ImageDtt {
 			col_weights[1] = 0.25; //  1.0/3;
 			col_weights[2] = 0.5; // 1.0/3;
 		} else {
-			col_weights[2] = 1.0/(1.0 + corr_red + corr_blue);    // green color
-			col_weights[0] = corr_red *  col_weights[2];
-			col_weights[1] = corr_blue * col_weights[2];
+			if (isMonochrome()) {
+				col_weights[2] = 1.0;// green color/mono
+				col_weights[0] = 0;
+				col_weights[1] = 0;
+			} else {
+				col_weights[2] = 1.0/(1.0 + corr_red + corr_blue);    // green color
+				col_weights[0] = corr_red *  col_weights[2];
+				col_weights[1] = corr_blue * col_weights[2];
+			}
 		}
 
 		final int corr_size = transform_size * 2 -1;
@@ -2095,7 +2101,7 @@ public class ImageDtt {
 
 							// calculate all selected pairs correlations
 							int all_pairs = imgdtt_params.dbg_pair_mask; //TODO: use tile tasks
-						    double [][]  corrs = corr2d.correlateCompositeFD(
+						    double [][]  corrs = corr2d.correlateCompositeFD( // now works with nulls for some clt_data colors
 						    		clt_data,       // double [][][][][][] clt_data,
 						    		tileX,          // int                 tileX,
 						    		tileY,          // int                 tileY,
@@ -2330,8 +2336,6 @@ public class ImageDtt {
 													disparity_map[DISPARITY_INDEX_CM]       [tIndex] = disparity;
 												}
 											}
-
-
 										}
 										if (tile_lma_debug_level > -1) {
 											System.out.println("debug12348973591");
@@ -2427,112 +2431,93 @@ public class ImageDtt {
 								System.out.println("BUG: 3. disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] should not be NaN");
 							}
 						} // if (disparity_map != null){ // not null - calculate correlations
-
-
 						// only debug is left
 						// old (per-color correlation)
 						if ((clt_corr_combo != null)  && !imgdtt_params.corr_mode_debug){ // not null - calculate correlations
-
 							tcorr_tpartial=  new double[corr_pairs.length][numcol+1][4][transform_len];
 							tcorr_partial =  new double[quad][numcol+1][];
 
 							for (int pair = 0; pair < corr_pairs.length; pair++){
-								for (int chn = 0; chn <numcol; chn++){
-									double [][] data1 = clt_data[corr_pairs[pair][0]][chn][tileY][tileX];
-									double [][] data2 = clt_data[corr_pairs[pair][1]][chn][tileY][tileX];
-									/* for (int i = 0; i < transform_len; i++) {
-										double s1 = 0.0, s2=0.0;
-										for (int n = 0; n< 4; n++){
-											s1+=data1[n][i] * data1[n][i];
-											s2+=data2[n][i] * data2[n][i];
-										}
-										double scale = 1.0 / (Math.sqrt(s1*s2) + corr_fat_zero*corr_fat_zero); // squared to match units
-										for (int n = 0; n<4; n++){
-											tcorr_tpartial[pair][chn][n][i] = 0;
-											for (int k=0; k<4; k++){
-												if (zi[n][k] < 0)
-													tcorr_tpartial[pair][chn][n][i] -=
-															data1[-zi[n][k]][i] * data2[k][i];
-												else
-													tcorr_tpartial[pair][chn][n][i] +=
-													data1[zi[n][k]][i] * data2[k][i];
+								for (int ncol = 0; ncol <numcol; ncol++){
+									double [][] data1 = clt_data[corr_pairs[pair][0]][ncol][tileY][tileX];
+									double [][] data2 = clt_data[corr_pairs[pair][1]][ncol][tileY][tileX];
+									if ((data1 != null) && (data2 != null)) {
+
+										double [] a2 = new double[transform_len];
+										double sa2 = 0.0;
+										for (int i = 0; i < transform_len; i++) {
+											double s1 = 0.0, s2=0.0;
+											for (int n = 0; n< 4; n++){
+												s1+=data1[n][i] * data1[n][i];
+												s2+=data2[n][i] * data2[n][i];
 											}
-											tcorr_tpartial[pair][chn][n][i] *= scale;
+											a2[i] = Math.sqrt(s1*s2);
+											sa2 += a2[i];
 										}
-									} */
-
-
-									double [] a2 = new double[transform_len];
-							    	double sa2 = 0.0;
-									for (int i = 0; i < transform_len; i++) {
-										double s1 = 0.0, s2=0.0;
-										for (int n = 0; n< 4; n++){
-											s1+=data1[n][i] * data1[n][i];
-											s2+=data2[n][i] * data2[n][i];
-										}
-										a2[i] = Math.sqrt(s1*s2);
-										sa2 += a2[i];
-									}
-									double fz2 = sa2/transform_len * corr_fat_zero * corr_fat_zero; // fat_zero squared to match units
-									for (int i = 0; i < transform_len; i++) {
-										double scale = 1.0 / (a2[i] + fz2);
-										for (int n = 0; n<4; n++){
-											tcorr_tpartial[pair][chn][n][i] = 0;
-											for (int k=0; k<4; k++){
-												if (zi[n][k] < 0)
-													tcorr_tpartial[pair][chn][n][i] -=
-															data1[-zi[n][k]][i] * data2[k][i];
-												else
-													tcorr_tpartial[pair][chn][n][i] +=
-													data1[zi[n][k]][i] * data2[k][i];
+										double fz2 = sa2/transform_len * corr_fat_zero * corr_fat_zero; // fat_zero squared to match units
+										for (int i = 0; i < transform_len; i++) {
+											double scale = 1.0 / (a2[i] + fz2);
+											for (int n = 0; n<4; n++){
+												tcorr_tpartial[pair][ncol][n][i] = 0;
+												for (int k=0; k<4; k++){
+													if (zi[n][k] < 0)
+														tcorr_tpartial[pair][ncol][n][i] -=
+														data1[-zi[n][k]][i] * data2[k][i];
+													else
+														tcorr_tpartial[pair][ncol][n][i] +=
+														data1[zi[n][k]][i] * data2[k][i];
+												}
+												tcorr_tpartial[pair][ncol][n][i] *= scale;
 											}
-											tcorr_tpartial[pair][chn][n][i] *= scale;
 										}
+									} else {
+										tcorr_tpartial[pair][ncol] = null;
 									}
-
 									// got transform-domain correlation for the pair, 1 color
 								}
 								// calculate composite color
 								for (int i = 0; i < transform_len; i++) {
 									for (int n = 0; n<4; n++) {
-										tcorr_tpartial[pair][numcol][n][i] =
-												col_weights[0]* tcorr_tpartial[pair][0][n][i] +
-												col_weights[1]* tcorr_tpartial[pair][1][n][i] +
-												col_weights[2]* tcorr_tpartial[pair][2][n][i];
+										tcorr_tpartial[pair][numcol][n][i] = 0.0;
+										for (int ncol= 0; ncol < tcorr_tpartial[pair].length; ncol++) {
+											if (tcorr_tpartial[pair][ncol] != null) {
+												tcorr_tpartial[pair][numcol][n][i] += col_weights[ncol] * tcorr_tpartial[pair][0][n][i];
+											}
+										}
 									}
 								}
 								// now lpf (only last/composite color if do not preserve intermediate
 								int firstColor = (clt_corr_partial == null)? numcol : 0;
 								if (corr_sigma >0) {
-									for (int chn = firstColor; chn <= numcol; chn++){
+									for (int ncol = firstColor; ncol <= numcol; ncol++) if (tcorr_tpartial[pair][ncol] != null){
 										for (int i = 0; i < transform_len; i++) {
 											for (int n = 0; n<4; n++) {
-												tcorr_tpartial[pair][chn][n][i] *= filter[i];
+												tcorr_tpartial[pair][ncol][n][i] *= filter[i];
 											}
 										}
 									}
 								}
 								// convert to pixel domain - all or just composite color
-								for (int chn = firstColor; chn <= numcol; chn++){
+								for (int ncol = firstColor; ncol <= numcol; ncol++) if (tcorr_tpartial[pair][ncol] != null) {
 									for (int quadrant = 0; quadrant < 4; quadrant++){
 										int mode = ((quadrant << 1) & 2) | ((quadrant >> 1) & 1); // transpose
-										tcorr_tpartial[pair][chn][quadrant] =
-												dtt.dttt_iie(tcorr_tpartial[pair][chn][quadrant], mode, transform_size);
+										tcorr_tpartial[pair][ncol][quadrant] =
+												dtt.dttt_iie(tcorr_tpartial[pair][ncol][quadrant], mode, transform_size);
 									}
 								}
 								// convert from 4 quadrants to 15x15 centered tiles (each color or only composite)
-								for (int chn = firstColor; chn <= numcol; chn++){
-									tcorr_partial[pair][chn] = dtt.corr_unfold_tile(
-											tcorr_tpartial[pair][chn],
+								for (int ncol = firstColor; ncol <= numcol; ncol++) if (tcorr_tpartial[pair][ncol] != null) {
+									tcorr_partial[pair][ncol] = dtt.corr_unfold_tile(
+											tcorr_tpartial[pair][ncol],
 											transform_size);
 								}
 								// transpose vertical pairs
 								if (corr_pairs[pair][2] != 0) {
-									for (int chn = firstColor; chn <= numcol; chn++){
+									for (int ncol = firstColor; ncol <= numcol; ncol++) if (tcorr_tpartial[pair][ncol] != null) {
 										for (int i = 0; i < transpose_indices.length; i++) {
-											double d = tcorr_partial[pair][chn][transpose_indices[i][0]];
-											tcorr_partial[pair][chn][transpose_indices[i][0]] = tcorr_partial[pair][chn][transpose_indices[i][1]];
-											tcorr_partial[pair][chn][transpose_indices[i][1]] = d;
+											double d = tcorr_partial[pair][ncol][transpose_indices[i][0]];
+											tcorr_partial[pair][ncol][transpose_indices[i][0]] = tcorr_partial[pair][ncol][transpose_indices[i][1]];
+											tcorr_partial[pair][ncol][transpose_indices[i][1]] = d;
 											//transpose_indices
 										}
 									}
@@ -2540,16 +2525,16 @@ public class ImageDtt {
 								// make symmetrical around the disparity direction (horizontal) (here using just average, not mul/sum mixture)
 								// symmetry can be added to result, not individual (if sum - yes, but with multiplication - not)
 								if (corr_sym && (clt_mismatch == null)){ // when measuring clt_mismatch symmetry should be off !
-									for (int chn = firstColor; chn <= numcol; chn++){
+									for (int ncol = firstColor; ncol <= numcol; ncol++) if (tcorr_tpartial[pair][ncol] != null) {
 										for (int i = 1 ; i < transform_size; i++){
 											int indx1 = (transform_size - 1 - i) * corr_size;
 											int indx2 = (transform_size - 1 + i) * corr_size;
 											for (int j = 0; j< corr_size; j++){
 												int indx1j = indx1 + j;
 												int indx2j = indx2 + j;
-												tcorr_partial[pair][chn][indx1j] =
-														0.5* (tcorr_partial[pair][chn][indx1j] + tcorr_partial[pair][chn][indx2j]);
-												tcorr_partial[pair][chn][indx2j] = tcorr_partial[pair][chn][indx1j];
+												tcorr_partial[pair][ncol][indx1j] =
+														0.5* (tcorr_partial[pair][ncol][indx1j] + tcorr_partial[pair][ncol][indx2j]);
+												tcorr_partial[pair][ncol][indx2j] = tcorr_partial[pair][ncol][indx1j];
 											}
 										}
 									}
