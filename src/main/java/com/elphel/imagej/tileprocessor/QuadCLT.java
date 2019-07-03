@@ -3224,6 +3224,7 @@ public class QuadCLT {
 		  boolean lwir_subtract_dc =   colorProcParameters.lwir_subtract_dc;
 		  boolean lwir_eq_chn =        colorProcParameters.lwir_eq_chn;
 		  boolean correct_vignetting = colorProcParameters.correct_vignetting;
+		  this.is_mono = is_lwir; // maybe add other monochrome?
 
 		  for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++){
 			  int nFile=channelFiles[srcChannel]; // channelFiles[srcChannel];
@@ -3256,10 +3257,10 @@ public class QuadCLT {
 				  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
 				  int width =  imp_srcs[srcChannel].getWidth();
 				  int height = imp_srcs[srcChannel].getHeight();
-				  if (debugLevel > -1) {
+				  if ((debugLevel > -1) && (!isMonochrome())) {
 					  double [] max_pix= {0.0, 0.0, 0.0, 0.0};
 //					  for (int y = 0; y < height-1; y+=2){
-					  for (int y = 0; y < 499; y+=2){
+					  for (int y = 0; (y < 499) && (y < height); y+=2){
 //						  for (int x = 0; x < width-1; x+=2){
 						  for (int x = width/2; x < width-1; x+=2){
 							  if (pixels[y*width+x        ] > max_pix[0])  max_pix[0] = pixels[y*width+x        ];
@@ -3373,7 +3374,7 @@ public class QuadCLT {
 
 		  }
 
-		  if ((debugLevel > -1) && (saturation_imp != null)){
+		  if ((debugLevel > -1) && (saturation_imp != null) && !is_lwir){
 			  String [] titles = {"chn0","chn1","chn2","chn3"};
 			  double [][] dbg_satur = new double [saturation_imp.length] [saturation_imp[0].length];
 			  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
@@ -3385,7 +3386,7 @@ public class QuadCLT {
 			  int height = imp_srcs[0].getHeight();
 			  (new ShowDoubleFloatArrays()).showArrays(dbg_satur, width, height, true, "Saturated" , titles);
 
-			  if (debugLevel > -1) { // 0){
+			  if ((debugLevel > -1) && !isMonochrome()) { // 0){
 				  double [][] dbg_dpixels_norm = new double [channelFiles.length][];
 				  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
 					  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
@@ -3444,7 +3445,6 @@ public class QuadCLT {
 			   }
 			   this.lwir_offset /= num_avg;
 		  }
-		  this.is_mono = is_lwir; // maybe add other monochrome?
 		  return imp_srcs;
 	  }
 
@@ -3793,7 +3793,8 @@ public class QuadCLT {
 		  for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++){
 			  int nFile=channelFiles[srcChannel];
 			  if (nFile >=0) {
-				  offsets[srcChannel]= (avr_pix[srcChannel][0] - (remove_dc ? 0.0: avg));
+//				  offsets[srcChannel]= (avr_pix[srcChannel][0] - (remove_dc ? 0.0: avg));
+				  offsets[srcChannel]= avr_pix[srcChannel][0];
 				  float fd = (float)offsets[srcChannel];
 				  float [] pixels = (float []) imp_srcs[srcChannel].getProcessor().getPixels();
 				  for (int i = 0; i < pixels.length; i++) {
@@ -3853,7 +3854,7 @@ public class QuadCLT {
 				  }
 			  } else {
 				  for (int j =0 ; j < double_stacks[i][0].length; j++){
-					  double_stacks[i][0][j]*=0.25; // Scale mono by 1/4 - to have the same overall "gain" as for bayer
+					  double_stacks[i][0][j]*=1.0; // Scale mono by 1/4 - to have the same overall "gain" as for bayer
 				  }
 			  }
 		  }
@@ -3979,10 +3980,11 @@ public class QuadCLT {
 				  //				  (clt_parameters.dbg_mode & 256) != 0, // transpose convolve
 				  threadsMax,
 				  debugLevel);
+		  int first_color = isMonochrome()? ImageDtt.MONO_CHN:0;
 		  if (debugLevel > -1){
 			  System.out.println("clt_data.length="+clt_data.length+" clt_data[0].length="+clt_data[0].length
-					  +" clt_data[0][0].length="+clt_data[0][0].length+" clt_data[0][0][0].length="+
-					  clt_data[0][0][0].length);
+					  +" clt_data[0]["+first_color+"].length="+clt_data[0][first_color].length+" clt_data[0]["+first_color+"][0].length="+
+					  clt_data[0][first_color][0].length);
 		  }
 		  // visualize texture tiles as RGBA slices
 		  double [][] texture_nonoverlap = null;
@@ -4029,7 +4031,7 @@ public class QuadCLT {
 				  }
 
 				  if (!batch_mode && clt_parameters.show_overlap) {
-					  sdfa_instance.showArrays(
+					  sdfa_instance.showArrays( // all but r-rms, b-rms
 							  texture_overlap,
 							  tilesX * clt_parameters.transform_size,
 							  tilesY * clt_parameters.transform_size,
@@ -4061,6 +4063,7 @@ public class QuadCLT {
 			  }
 		  }
 		  // visualize correlation results
+		  // bo-b3 non-zero, r*, g* - zero
 		  if (clt_corr_combo!=null){
 			  if (disparity_map != null){
 				  if (!batch_mode && clt_parameters.show_map &&  (debugLevel > -1)){
@@ -4215,7 +4218,7 @@ public class QuadCLT {
 							  threadsMax,
 							  debugLevel);
 				  }
-
+// all zeros
 				  sdfa_instance.showArrays(
 						  corr_rslt,
 						  tilesX*(2*clt_parameters.transform_size),
@@ -4240,13 +4243,15 @@ public class QuadCLT {
 							  clt_parameters.corr_border_contrast,
 							  threadsMax,
 							  debugLevel);
-					  sdfa_instance.showArrays(
+					  // titles.length = 15, corr_rslt_partial.length=16!
+					  System.out.println("corr_rslt_partial.length = "+corr_rslt_partial.length+", titles.length = "+titles.length);
+					  sdfa_instance.showArrays( // out of boundary 15
 							  corr_rslt_partial,
 							  tilesX*(2*clt_parameters.transform_size),
 							  tilesY*(2*clt_parameters.transform_size),
 							  true,
-							  name+"-PART_CORR-D"+clt_parameters.disparity,
-							  titles);
+							  name+"-PART_CORR-D"+clt_parameters.disparity);
+//							  titles);
 				  }
 			  }
 		  }
@@ -4259,7 +4264,7 @@ public class QuadCLT {
 				  //				  String titleFull=title+"-SPLIT-D"+clt_parameters.disparity;
 
 				  if (clt_parameters.corr_sigma > 0){ // no filter at all
-					  for (int chn = 0; chn < clt_data[iQuad].length; chn++) {
+					  for (int chn = 0; chn < clt_data[iQuad].length; chn++) if (clt_data[iQuad][chn] != null){
 						  image_dtt.clt_lpf(
 								  clt_parameters.corr_sigma,
 								  clt_data[iQuad][chn],
@@ -4275,7 +4280,7 @@ public class QuadCLT {
 				  }
 				  if (!batch_mode && (debugLevel > 0)){
 					  double [][] clt = new double [clt_data[iQuad].length*4][];
-					  for (int chn = 0; chn < clt_data[iQuad].length; chn++) {
+					  for (int chn = 0; chn < clt_data[iQuad].length; chn++) if (clt_data[iQuad][chn] != null){
 						  double [][] clt_set = image_dtt.clt_dbg(
 								  clt_data [iQuad][chn],
 								  threadsMax,
@@ -4292,7 +4297,7 @@ public class QuadCLT {
 					  }
 				  }
 				  double [][] iclt_data = new double [clt_data[iQuad].length][];
-				  for (int chn=0; chn<iclt_data.length;chn++){
+				  for (int chn=0; chn<iclt_data.length;chn++) if (clt_data[iQuad][chn] != null) {
 					  iclt_data[chn] = image_dtt.iclt_2d(
 							  clt_data[iQuad][chn],           // scanline representation of dcd data, organized as dct_size x dct_size tiles
 							  clt_parameters.transform_size,  // final int
@@ -4509,11 +4514,11 @@ public class QuadCLT {
 					  mx,
 					  255.0);
 			  rbg_in = new double [3][iclt_data[green_index].length];
-			  for (int i = 0; i < rbg_in.length; i++) {
+			  for (int i = 0; i < rbg_in[0].length; i++) {
 				  double [] rgb = tc.getRGB(iclt_data[green_index][i]);
-				  rbg_in[i][0] = rgb[0]; // red
-				  rbg_in[i][1] = rgb[2]; // blue
-				  rbg_in[i][2] = rgb[1]; // green
+				  rbg_in[0][i] = rgb[0]; // red
+				  rbg_in[1][i] = rgb[2]; // blue
+				  rbg_in[2][i] = rgb[1]; // green
 			  }
 		  }
 

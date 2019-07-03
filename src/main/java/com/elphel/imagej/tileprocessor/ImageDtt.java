@@ -1562,12 +1562,12 @@ public class ImageDtt {
 
 		final int numcol = 3; // number of colors // keep the same, just do not use [0] and [1], [2] - green
 
-		final int nChn = image_data[0].length;
+//		final int numColors = image_data[0].length;
 		final int height=image_data[0][0].length/width;
 		final int tilesX=width/transform_size;
 		final int tilesY=height/transform_size;
 		final int nTilesInChn=tilesX*tilesY;
-		final double [][][][][][] clt_data = new double[quad][nChn][tilesY][tilesX][][];
+		final double [][][][][][] clt_data = new double[quad][numcol][tilesY][tilesX][][];
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final double [] col_weights= new double [numcol]; // colors are RBG
@@ -1602,6 +1602,9 @@ public class ImageDtt {
 				transpose_indices[indx++][1] = j * corr_size + i;
 			}
 		}
+
+
+		final int first_color = isMonochrome()? MONO_CHN : 0; // color that is non-zero
 
 		// reducing weight of on-axis correlation values to enhance detection of vertical/horizontal lines
 		// multiply correlation results inside the horizontal center strip  2*enhortho_width - 1 wide by enhortho_scale
@@ -1905,172 +1908,178 @@ public class ImageDtt {
 									);
 						}
 // See if macro_mode uses color channels for non-color?
-						for (int chn = 0; chn <numcol; chn++) if (!isMonochrome() || (chn == MONO_CHN) || macro_mode) { // in monochrome mode skip all non-mono (green) channels
-							boolean debug_for_fpga = FPGA_COMPARE_DATA && (globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2);
-							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) {
-								System.out.println("\nUsing "+(macro_mode?"MACRO":"PIXEL")+" mode, centerX="+centerX+", centerY="+centerY);
-								System.out.println(disparity_array[tileY][tileX]+"\t"+
-							    centersXY[0][0]+"\t"+centersXY[0][1]+"\t"+
-							    centersXY[1][0]+"\t"+centersXY[1][1]+"\t"+
-							    centersXY[2][0]+"\t"+centersXY[2][1]+"\t"+
-							    centersXY[3][0]+"\t"+centersXY[3][1]+"\t");
-							}
+						for (int ncol = 0; ncol <numcol; ncol++) {
+							if (!isMonochrome() || (ncol == MONO_CHN) || macro_mode) { // in monochrome mode skip all non-mono (green) channels
+								boolean debug_for_fpga = FPGA_COMPARE_DATA && (globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (ncol == 2);
+								if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (ncol == 2)) {
+									System.out.println("\nUsing "+(macro_mode?"MACRO":"PIXEL")+" mode, centerX="+centerX+", centerY="+centerY);
+									System.out.println(disparity_array[tileY][tileX]+"\t"+
+											centersXY[0][0]+"\t"+centersXY[0][1]+"\t"+
+											centersXY[1][0]+"\t"+centersXY[1][1]+"\t"+
+											centersXY[2][0]+"\t"+centersXY[2][1]+"\t"+
+											centersXY[3][0]+"\t"+centersXY[3][1]+"\t");
+								}
 
-							for (int i = 0; i < quad; i++) {
-								if (debug_for_fpga && (i==0)){
-									double [][] fpga_clt_data = new double [4][];
-									double [] fpga_fract_shiftsXY;
-									double [] fpga_centersXY = {centersXY[i][0],centersXY[i][1]};
-									int fpga_chn = chn; // ==2, green
-									// round to nearest 1/128 pix (supported by FPGA code)
-									System.out.println(String.format("Center X= %f, center Y = %f", fpga_centersXY[0],fpga_centersXY[1]));
-									for (int j=0; j<2;j++){
-										fpga_centersXY[j] = Math.round(128*fpga_centersXY[j])/128.0;
-									}
-
-
-									for (int j=0; j<2;j++){
-										fpga_centersXY[j] = Math.round(fpga_centersXY[j]);
-									}
+								for (int i = 0; i < quad; i++) {
+									if (debug_for_fpga && (i==0)){
+										double [][] fpga_clt_data = new double [4][];
+										double [] fpga_fract_shiftsXY;
+										double [] fpga_centersXY = {centersXY[i][0],centersXY[i][1]};
+										int fpga_chn = ncol; // ==2, green
+										// round to nearest 1/128 pix (supported by FPGA code)
+										System.out.println(String.format("Center X= %f, center Y = %f", fpga_centersXY[0],fpga_centersXY[1]));
+										for (int j=0; j<2;j++){
+											fpga_centersXY[j] = Math.round(128*fpga_centersXY[j])/128.0;
+										}
 
 
-//									fpga_centersXY[0]+=0.5; // half pixel shift horizontal zero pixel shift vertical
-//									fpga_centersXY[1]+=0.5; // half pixel shift vertical, zero pixel shift horizontal
-
-//									fpga_centersXY[0]+=1.0; //
-
-									fpga_chn =           2;
+										for (int j=0; j<2;j++){
+											fpga_centersXY[j] = Math.round(fpga_centersXY[j]);
+										}
 
 
-									System.out.println(String.format("Manually changing offset: center X= %f, center Y = %f", fpga_centersXY[0],fpga_centersXY[1]));
-									System.out.println(String.format("Manually changing color to %d (was %d)", fpga_chn, chn));
+										//									fpga_centersXY[0]+=0.5; // half pixel shift horizontal zero pixel shift vertical
+										//									fpga_centersXY[1]+=0.5; // half pixel shift vertical, zero pixel shift horizontal
+
+										//									fpga_centersXY[0]+=1.0; //
+
+										fpga_chn =           2;
+
+
+										System.out.println(String.format("Manually changing offset: center X= %f, center Y = %f", fpga_centersXY[0],fpga_centersXY[1]));
+										System.out.println(String.format("Manually changing color to %d (was %d)", fpga_chn, ncol));
 
 
 
-									fpga_fract_shiftsXY = extract_correct_tile( // return a pair of residual offsets
+										fpga_fract_shiftsXY = extract_correct_tile( // return a pair of residual offsets
+												image_data[i],
+												width,       // image width
+												null,
+												fpga_clt_data, //double  [][]        clt_tile,    // should be double [4][];
+												kernel_step,
+												transform_size,
+												dtt,
+												fpga_chn, // chn,
+												fpga_centersXY[0], // centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
+												fpga_centersXY[1], // centersXY[i][1], // centerY, //
+												-10, // globalDebugLevel,
+												true, // no_deconvolution,
+												false, // ); // transpose);
+												null,
+												null);
+										ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
+										String [] titles = {"CC","SC","CS","SS"};
+										double [][] dbg_tile = new double [4][];
+										for (int im = 0; im < 4; im++) dbg_tile[im]=fpga_clt_data[im];
+										sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "fpre-shifted_x"+tileX+"_y"+tileY+"-z", titles);
+										fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
+												fpga_clt_data, // double  [][]  clt_tile,
+												transform_size,
+												fpga_fract_shiftsXY[0],            // double        shiftX,
+												fpga_fract_shiftsXY[1],            // double        shiftY,
+												true); // debug
+										for (int im = 0; im < 4; im++) dbg_tile[im]=fpga_clt_data[im];
+										sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "f-shifted_x"+tileX+"_y"+tileY+"-z", titles);
+										System.out.println("Debugging for FPGA data, globalDebugLevel = "+globalDebugLevel+", tileX="+tileX+", tileY="+tileY+", sesnlor="+i+", color="+ncol);
+										System.out.println("Debugging for FPGA data, fpga_fract_shiftsXY[0] = "+fpga_fract_shiftsXY[0]+", fpga_fract_shiftsXY[1]="+fpga_fract_shiftsXY[1]);
+										System.out.println();
+
+										double scale = (1 << (FPGA_DTT_IN - 9)); //  -1;
+										// compensate for DTT scale
+										scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+										scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+										// compensate for rotator scale:
+										scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+										scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+										double [] fpga_dtt_lim = {0.0,0.0};
+										for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+											for (int j = 0; j < 64; j++){
+												if (fpga_clt_data[dct_mode][j] > fpga_dtt_lim[0]) fpga_dtt_lim[0] = fpga_clt_data[dct_mode][j];
+												if (fpga_clt_data[dct_mode][j] < fpga_dtt_lim[1]) fpga_dtt_lim[1] = fpga_clt_data[dct_mode][j];
+											}
+										}
+
+										System.out.println(String.format("// DTT rotated, shift_x=%f. shift_y = %f", fpga_fract_shiftsXY[0],fpga_fract_shiftsXY[1]));
+										System.out.println(String.format("// DTT rotated  range: %f ... %f", fpga_dtt_lim[1], fpga_dtt_lim[0]));
+										//									scale = (1 << (FPGA_DTT_IN - 9)); //  -1;
+										for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+											for (int j = 0; j < 64; j++){
+												int id = (int) Math.round(scale * fpga_clt_data[dct_mode][j]);
+												System.out.print(String.format("%7x ", id & ((1 << 25) -1)));
+												if ((j % 8) == 7) System.out.println();
+											}
+											System.out.println();
+										}
+									} // end of debug_for_fpga
+
+									clt_data[i][ncol][tileY][tileX] = new double [4][];
+									fract_shiftsXY[i] = extract_correct_tile( // return a pair of residual offsets
 											image_data[i],
 											width,       // image width
-											null,
-											fpga_clt_data, //double  [][]        clt_tile,    // should be double [4][];
-											kernel_step,
-											transform_size,
-											dtt,
-											fpga_chn, // chn,
-											fpga_centersXY[0], // centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
-											fpga_centersXY[1], // centersXY[i][1], // centerY, //
-											-10, // globalDebugLevel,
-											true, // no_deconvolution,
-											false, // ); // transpose);
-											null,
-											null);
-									ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-									String [] titles = {"CC","SC","CS","SS"};
-									double [][] dbg_tile = new double [4][];
-									for (int im = 0; im < 4; im++) dbg_tile[im]=fpga_clt_data[im];
-									sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "fpre-shifted_x"+tileX+"_y"+tileY+"-z", titles);
-									fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
-											fpga_clt_data, // double  [][]  clt_tile,
-											transform_size,
-											fpga_fract_shiftsXY[0],            // double        shiftX,
-											fpga_fract_shiftsXY[1],            // double        shiftY,
-											true); // debug
-									for (int im = 0; im < 4; im++) dbg_tile[im]=fpga_clt_data[im];
-									sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "f-shifted_x"+tileX+"_y"+tileY+"-z", titles);
-									System.out.println("Debugging for FPGA data, globalDebugLevel = "+globalDebugLevel+", tileX="+tileX+", tileY="+tileY+", sesnlor="+i+", color="+chn);
-									System.out.println("Debugging for FPGA data, fpga_fract_shiftsXY[0] = "+fpga_fract_shiftsXY[0]+", fpga_fract_shiftsXY[1]="+fpga_fract_shiftsXY[1]);
+											(clt_kernels == null) ? null : clt_kernels[i], // [color][tileY][tileX][band][pixel]
+													clt_data[i][ncol][tileY][tileX], //double  [][]        clt_tile,    // should be double [4][];
+													kernel_step,
+													transform_size,
+													dtt,
+													ncol,
+													centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
+													centersXY[i][1], // centerY, //
+													(!FPGA_COMPARE_DATA && (globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (ncol == 2) && (i==0)) ? (globalDebugLevel + 0) : 0, // external tile compare
+															no_deconvolution,
+															false, // ); // transpose);
+															((saturation_imp != null) ? saturation_imp[i] : null), //final boolean [][]        saturation_imp, // (near) saturated pixels or null
+															((saturation_imp != null) ? overexp_all: null)); // final double [] overexposed)
+								} // for (int i = 0; i < quad; i++)
+								if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (ncol == 2)) {
 									System.out.println();
-
-									double scale = (1 << (FPGA_DTT_IN - 9)); //  -1;
-									// compensate for DTT scale
-									scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
-									scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
-									// compensate for rotator scale:
-									scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
-									scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
-									double [] fpga_dtt_lim = {0.0,0.0};
-									for (int dct_mode = 0; dct_mode <4; dct_mode++) {
-										for (int j = 0; j < 64; j++){
-											if (fpga_clt_data[dct_mode][j] > fpga_dtt_lim[0]) fpga_dtt_lim[0] = fpga_clt_data[dct_mode][j];
-											if (fpga_clt_data[dct_mode][j] < fpga_dtt_lim[1]) fpga_dtt_lim[1] = fpga_clt_data[dct_mode][j];
-										}
-									}
-
-									System.out.println(String.format("// DTT rotated, shift_x=%f. shift_y = %f", fpga_fract_shiftsXY[0],fpga_fract_shiftsXY[1]));
-									System.out.println(String.format("// DTT rotated  range: %f ... %f", fpga_dtt_lim[1], fpga_dtt_lim[0]));
-//									scale = (1 << (FPGA_DTT_IN - 9)); //  -1;
-									for (int dct_mode = 0; dct_mode <4; dct_mode++) {
-										for (int j = 0; j < 64; j++){
-											int id = (int) Math.round(scale * fpga_clt_data[dct_mode][j]);
-											System.out.print(String.format("%7x ", id & ((1 << 25) -1)));
-											if ((j % 8) == 7) System.out.println();
-										}
-										System.out.println();
-									}
-								} // end of debug_for_fpga
-
-								clt_data[i][chn][tileY][tileX] = new double [4][];
-								fract_shiftsXY[i] = extract_correct_tile( // return a pair of residual offsets
-										image_data[i],
-										width,       // image width
-										(clt_kernels == null) ? null : clt_kernels[i], // [color][tileY][tileX][band][pixel]
-										clt_data[i][chn][tileY][tileX], //double  [][]        clt_tile,    // should be double [4][];
-										kernel_step,
-										transform_size,
-										dtt,
-										chn,
-										centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
-										centersXY[i][1], // centerY, //
-										(!FPGA_COMPARE_DATA && (globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2) && (i==0)) ? (globalDebugLevel + 0) : 0, // external tile compare
-										no_deconvolution,
-										false, // ); // transpose);
-										((saturation_imp != null) ? saturation_imp[i] : null), //final boolean [][]        saturation_imp, // (near) saturated pixels or null
-										((saturation_imp != null) ? overexp_all: null)); // final double [] overexposed)
-							} // for (int i = 0; i < quad; i++)
-							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) {
-								System.out.println();
-							}
-							if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (chn == 2) && !FPGA_COMPARE_DATA) {
-								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-								String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
-								double [][] dbg_tile = new double [16][];
-								for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][chn][tileY][tileX][i & 3];
-								sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "pre-shifted_x"+tileX+"_y"+tileY, titles);
-							}
-
-							if ((globalDebugLevel > 0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
-									(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)) {
-								for (int i = 0; i < quad; i++) {
-									System.out.println("clt_aberrations_quad(): color="+chn+", tileX="+tileX+", tileY="+tileY+
-											" fract_shiftsXY["+i+"][0]="+fract_shiftsXY[i][0]+" fract_shiftsXY["+i+"][1]="+fract_shiftsXY[i][1]);
 								}
-							}
-
-							if (!no_fract_shift) {
-								// apply residual shift
-								for (int i = 0; i < quad; i++) {
-									fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
-											clt_data[i][chn][tileY][tileX], // double  [][]  clt_tile,
-											transform_size,
-											fract_shiftsXY[i][0],            // double        shiftX,
-											fract_shiftsXY[i][1],            // double        shiftY,
-											//									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
-											((globalDebugLevel > 1) &&
-													((chn==0) || isMonochrome()) &&
-													(tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
-													(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
-								}
-								if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
+								if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (ncol == 2) && !FPGA_COMPARE_DATA) {
 									ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 									String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 									double [][] dbg_tile = new double [16][];
-									for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][chn][tileY][tileX][i & 3];
-									sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY+"-z", titles);
+									for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][ncol][tileY][tileX][i & 3];
+									sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "pre-shifted_x"+tileX+"_y"+tileY, titles);
 								}
 
+								if ((globalDebugLevel > 0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
+										(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)) {
+									for (int i = 0; i < quad; i++) {
+										System.out.println("clt_aberrations_quad(): color="+ncol+", tileX="+tileX+", tileY="+tileY+
+												" fract_shiftsXY["+i+"][0]="+fract_shiftsXY[i][0]+" fract_shiftsXY["+i+"][1]="+fract_shiftsXY[i][1]);
+									}
+								}
+
+								if (!no_fract_shift) {
+									// apply residual shift
+									for (int i = 0; i < quad; i++) {
+										fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
+												clt_data[i][ncol][tileY][tileX], // double  [][]  clt_tile,
+												transform_size,
+												fract_shiftsXY[i][0],            // double        shiftX,
+												fract_shiftsXY[i][1],            // double        shiftY,
+												//									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
+												((globalDebugLevel > 1) &&
+														((ncol==0) || isMonochrome()) &&
+														(tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
+														(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
+									}
+									if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
+										ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
+										String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
+										double [][] dbg_tile = new double [16][];
+										for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][ncol][tileY][tileX][i & 3];
+										sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY+"-z", titles);
+									}
 
 
+
+								}
+							} else { // if (!isMonochrome() || (chn == MONO_CHN) || macro_mode) { // in monochrome mode skip all non-mono (green) channels
+								for (int i = 0; i < quad; i++) {
+									clt_data[i][ncol] = null; // erase unused clt_data
+								}
 							}
-						} // end of for (int chn = 0; chn <numcol; chn++) if (!isMonochrome() || (chn == MONO_CHN) || macro_mode) { // in monochrome mode skip all non-mono (green) channels
+						}// end of for (int chn = 0; chn <numcol; chn++)
 
 						int tile_lma_debug_level =  ((tileX == debug_tileX) && (tileY == debug_tileY))? imgdtt_params.lma_debug_level : -1;
 
@@ -2438,7 +2447,7 @@ public class ImageDtt {
 							tcorr_partial =  new double[quad][numcol+1][];
 
 							for (int pair = 0; pair < corr_pairs.length; pair++){
-								for (int ncol = 0; ncol <numcol; ncol++){
+								for (int ncol = 0; ncol <numcol; ncol++) if (clt_data[ncol] != null){
 									double [][] data1 = clt_data[corr_pairs[pair][0]][ncol][tileY][tileX];
 									double [][] data2 = clt_data[corr_pairs[pair][1]][ncol][tileY][tileX];
 									if ((data1 != null) && (data2 != null)) {
@@ -2777,13 +2786,13 @@ public class ImageDtt {
 									(globalDebugLevel > 0) && debugTile);
 
 							// mix RGB from iclt_tile, mix alpha with - what? correlation strength or 'don't care'? good correlation or all > min?
-							for (int i = 0; i < iclt_tile[0][0].length; i++ ) {
+							for (int i = 0; i < iclt_tile[0][first_color].length; i++ ) {
 								double sw = 0.0;
 								for (int ip = 0; ip < quad; ip++) {
 									sw += texture_tiles[tileY][tileX][numcol+1+ip][i];
 								}
 								if (sw != 0 ) sw = 1.0/sw;
-								for (int ncol = 0; ncol < numcol; ncol++) { // color
+								for (int ncol = 0; ncol < numcol; ncol++) if (iclt_tile[0][ncol] !=null){ // color
 									texture_tiles[tileY][tileX][ncol][i] = 0.0; //iclt[tileY][tileX][chn]
 									for (int ip = 0; ip < quad; ip++) {
 										texture_tiles[tileY][tileX][ncol][i] += sw * texture_tiles[tileY][tileX][numcol+1+ip][i] * iclt_tile[ip][ncol][i];
@@ -4210,6 +4219,10 @@ public class ImageDtt {
 			final int             threadsMax,     // maximal number of threads to launch
 			final int             globalDebugLevel)
 	{
+		if (clt_data == null) {
+			System.out.println("clt_lpf(): clt_data=null");
+			return;
+		}
 		final int tilesY=clt_data.length;
 		final int tilesX=clt_data[0].length;
 		final int nTiles=tilesX*tilesY;
@@ -4922,11 +4935,19 @@ public class ImageDtt {
 			chn_kernel = clt_kernels.length - 1;
 		}
 
+		int chn_img = chn;
+		// use zero kernel channel for monochrome images
+		if (image_data.length <= chn_img) {
+			chn_img = image_data.length - 1;
+		}
+
+		// now for mono both image_data and clt_kernel have outer dimension of 1, but chn == 2 (green)
+
 		boolean use_kernels = (clt_kernels != null) && !dbg_no_deconvolution;
 		boolean bdebug0 = debugLevel > 0;
 		boolean bdebug =  debugLevel > 1;
 		double [] residual_shift = new double[2];
-		int height = image_data[0].length/width;
+		int height = image_data[chn_img].length/width;
 		int transform_size2 = 2* transform_size;
 //		if (dtt == null) dtt = new DttRad2(transform_size); should have window set up
 		double []   tile_in =  new double [4*transform_size*transform_size];
@@ -4954,7 +4975,7 @@ public class ImageDtt {
 			px = centerX - transform_size - (ce.data_x + ce.dxc_dx * kdx + ce.dxc_dy * kdy) ; // fractional left corner
 			py = centerY - transform_size - (ce.data_y + ce.dyc_dx * kdx + ce.dyc_dy * kdy) ; // fractional top corner
 			if (debug_gpu) {
-				System.out.println("========= Color channel "+chn+" , kernel channel "+chn_kernel+" =============");
+				System.out.println("========= Color channel "+chn+" , kernel channel "+chn_kernel+" input image channel="+chn_img+" =============");
 				System.out.println("ce.data_x="+ce.data_x+", ce.data_y="+ce.data_y);
 				System.out.println("ce.center_x="+ce.center_x+", ce.center_y="+ce.center_y);
 				System.out.println("ce.dxc_dx="+ce.dxc_dx+", ce.dxc_dy="+ce.dxc_dy);
@@ -4987,7 +5008,7 @@ public class ImageDtt {
 		if ((ctile_left >= 0) && (ctile_left < (width - transform_size2)) &&
 				(ctile_top >= 0) && (ctile_top < (height - transform_size2))) {
 			for (int i = 0; i < transform_size2; i++){
-				System.arraycopy(image_data[chn], (ctile_top + i) * width + ctile_left, tile_in, transform_size2 * i, transform_size2);
+				System.arraycopy(image_data[chn_img], (ctile_top + i) * width + ctile_left, tile_in, transform_size2 * i, transform_size2);
 			}
 		} else { // copy by 1
 			for (int i = 0; i < transform_size2; i++){
@@ -4998,12 +5019,12 @@ public class ImageDtt {
 					int pj = ctile_left + j;
 					if      (pj < 0)      pj &= 1;
 					else if (pj >= width) pj = width - 2 + (pj & 1);
-					tile_in[transform_size2 * i + j] = image_data[chn][pi * width + pj];
+					tile_in[transform_size2 * i + j] = image_data[chn_img][pi * width + pj];
 				}
 			}
 		}
 		if (debug_gpu) {
-			System.out.println("---Image tile for color="+chn+"---");
+			System.out.println("---Image tile for color="+chn_img+"---");
 			for (int i = 0; i < transform_size2; i++) {
 				for (int j = 0; j < transform_size2; j++) {
 					System.out.print(String.format("%10.5f ", tile_in[transform_size2 * i + j]));
