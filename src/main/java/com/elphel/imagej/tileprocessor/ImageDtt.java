@@ -8063,13 +8063,13 @@ public class ImageDtt {
 
 
 		final double [] filter_direct= new double[transform_len];
-		if (clt_parameters.corr_sigma == 0) {
+		if (clt_parameters.getCorrSigma(isMonochrome()) == 0) {
 			filter_direct[0] = 1.0;
 			for (int i= 1; i<filter_direct.length;i++) filter_direct[i] =0;
 		} else {
 			for (int i = 0; i < clt_parameters.transform_size; i++){
 				for (int j = 0; j < clt_parameters.transform_size; j++){
-					filter_direct[i * clt_parameters.transform_size+j] = Math.exp(-(i*i+j*j)/(2*clt_parameters.corr_sigma)); // FIXME: should be sigma*sigma !
+					filter_direct[i * clt_parameters.transform_size+j] = Math.exp(-(i*i+j*j)/(2*clt_parameters.getCorrSigma(isMonochrome()))); // FIXME: should be sigma*sigma !
 				}
 			}
 		}
@@ -8864,13 +8864,13 @@ public class ImageDtt {
 
 
 		final double [] filter_direct= new double[transform_len];
-		if (clt_parameters.corr_sigma == 0) {
+		if (clt_parameters.getCorrSigma(isMonochrome()) == 0) {
 			filter_direct[0] = 1.0;
 			for (int i= 1; i<filter_direct.length;i++) filter_direct[i] =0;
 		} else {
 			for (int i = 0; i < clt_parameters.transform_size; i++){
 				for (int j = 0; j < clt_parameters.transform_size; j++){
-					filter_direct[i * clt_parameters.transform_size+j] = Math.exp(-(i*i+j*j)/(2*clt_parameters.corr_sigma)); // FIXME: should be sigma*sigma !
+					filter_direct[i * clt_parameters.transform_size+j] = Math.exp(-(i*i+j*j)/(2*clt_parameters.getCorrSigma(isMonochrome()))); // FIXME: should be sigma*sigma !
 				}
 			}
 		}
@@ -9594,13 +9594,13 @@ public class ImageDtt {
 
 
 		final double [] filter_direct= new double[transform_len];
-		if (clt_parameters.corr_sigma == 0) {
+		if (clt_parameters.getCorrSigma(isMonochrome()) == 0) {
 			filter_direct[0] = 1.0;
 			for (int i= 1; i<filter_direct.length;i++) filter_direct[i] =0;
 		} else {
 			for (int i = 0; i < clt_parameters.transform_size; i++){
 				for (int j = 0; j < clt_parameters.transform_size; j++){
-					filter_direct[i * clt_parameters.transform_size+j] = Math.exp(-(i*i+j*j)/(2*clt_parameters.corr_sigma)); // FIXME: should be sigma*sigma !
+					filter_direct[i * clt_parameters.transform_size+j] = Math.exp(-(i*i+j*j)/(2*clt_parameters.getCorrSigma(isMonochrome()))); // FIXME: should be sigma*sigma !
 				}
 			}
 		}

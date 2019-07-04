@@ -30,7 +30,8 @@ public class CLTParameters {
   		public int        ishift_x =            0;  // debug feature - shift source image by this pixels left
   		public int        ishift_y =            0;  // debug feature - shift source image by this pixels down
   		public double     fat_zero =          0.0;  // modify phase correlation to prevent division by very small numbers
-  		public double     corr_sigma =        0.8;  // LPF correlation sigma
+  		private double    corr_sigma =        0.8;  // LPF correlation sigma
+  		private double    corr_sigma_mono =   0.1;  // LPF correlation sigma for monochrome images
   		public boolean    norm_kern =         true; // normalize kernels
   		public boolean    gain_equalize =     false;// equalize green channel gain (bug fix for wrong exposure in Exif ?)
   		public boolean    colors_equalize =   true; // equalize R/G, B/G of the individual channels
@@ -766,7 +767,9 @@ public class CLTParameters {
 
   		public boolean   batch_run =               false; // turned on only while running in batch mode
 
-
+  		public double getCorrSigma(boolean monochrome) {
+  			return monochrome ? corr_sigma_mono : corr_sigma;
+  		}
 
   		public CLTParameters(){}
   		public void setProperties(String prefix,Properties properties){
@@ -782,6 +785,7 @@ public class CLTParameters {
   			properties.setProperty(prefix+"ishift_y",         this.ishift_y+"");
   			properties.setProperty(prefix+"fat_zero",         this.fat_zero+"");
   			properties.setProperty(prefix+"corr_sigma",       this.corr_sigma+"");
+  			properties.setProperty(prefix+"corr_sigma_mono",  this.corr_sigma_mono+"");
 			properties.setProperty(prefix+"norm_kern",        this.norm_kern+"");
 			properties.setProperty(prefix+"gain_equalize",    this.gain_equalize+"");
 			properties.setProperty(prefix+"colors_equalize",  this.colors_equalize+"");
@@ -1476,6 +1480,7 @@ public class CLTParameters {
   			if (properties.getProperty(prefix+"ishift_y")!=null)       this.ishift_y=Integer.parseInt(properties.getProperty(prefix+"ishift_y"));
   			if (properties.getProperty(prefix+"fat_zero")!=null)       this.fat_zero=Double.parseDouble(properties.getProperty(prefix+"fat_zero"));
   			if (properties.getProperty(prefix+"corr_sigma")!=null)     this.corr_sigma=Double.parseDouble(properties.getProperty(prefix+"corr_sigma"));
+  			if (properties.getProperty(prefix+"corr_sigma_mono")!=null)this.corr_sigma_mono=Double.parseDouble(properties.getProperty(prefix+"corr_sigma_mono"));
   			if (properties.getProperty(prefix+"norm_kern")!=null)      this.norm_kern=Boolean.parseBoolean(properties.getProperty(prefix+"norm_kern"));
   			if (properties.getProperty(prefix+"gain_equalize")!=null)  this.gain_equalize=Boolean.parseBoolean(properties.getProperty(prefix+"gain_equalize"));
   			if (properties.getProperty(prefix+"colors_equalize")!=null)this.colors_equalize=Boolean.parseBoolean(properties.getProperty(prefix+"colors_equalize"));
@@ -2185,8 +2190,9 @@ public class CLTParameters {
   			gd.addNumericField("ishift_x: shift source image by this pixels left",                        this.ishift_x,                  0);
   			gd.addNumericField("ishift_y: shift source image by this pixels down",                        this.ishift_y,                  0);
    			gd.addNumericField("Modify phase correlation to prevent division by very small numbers",      this.fat_zero,                  4);
-   			gd.addNumericField("LPF correlarion sigma ",                                                  this.corr_sigma,                3);
-  			gd.addCheckbox    ("Normalize kernels ",                                                      this.norm_kern);
+   			gd.addNumericField("LPF correlarion sigma for Bayer color images",                            this.corr_sigma,                3);
+   			gd.addNumericField("LPF correlarion sigma for monochrome images",                             this.corr_sigma_mono,           3);
+  			gd.addCheckbox    ("Normalize kernels",                                                       this.norm_kern);
   			gd.addCheckbox    ("Equalize green channel gain of the individual cnannels (bug fix for exposure)", this.gain_equalize);
   			gd.addCheckbox    ("Equalize R/G, B/G balance of the individual channels",                    this.colors_equalize);
   			gd.addCheckbox    ("Skip saturated when adjusting gains",                                     this.nosat_equalize);
@@ -3010,6 +3016,7 @@ public class CLTParameters {
   			this.ishift_y=        (int) gd.getNextNumber();
   			this.fat_zero =             gd.getNextNumber();
   			this.corr_sigma =           gd.getNextNumber();
+  			this.corr_sigma_mono =      gd.getNextNumber();
   			this.norm_kern=             gd.getNextBoolean();
   			this.gain_equalize=         gd.getNextBoolean();
   			this.colors_equalize=       gd.getNextBoolean();

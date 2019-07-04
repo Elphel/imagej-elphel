@@ -65,6 +65,10 @@ public class ColorProcParameters {
 
 	public boolean use8; // use 8 neighbors (false - only 4)
 
+	public boolean isMonochrome() {
+		return lwir_islwir; // for now it is the only reason to be monochrome
+	}
+
 	private ColorProcParameters() {}
 	public ColorProcParameters(
 			boolean lwir_islwir,        // false;

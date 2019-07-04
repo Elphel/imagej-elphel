@@ -6967,7 +6967,7 @@ private Panel panel1,
 
         }
         String suffix = "-dx_"+(CLT_PARAMETERS.ishift_x+CLT_PARAMETERS.shift_x)+"_dy_"+(CLT_PARAMETERS.ishift_y+CLT_PARAMETERS.shift_y);
-        ImageDtt image_dtt = new ImageDtt(false); // Bayer, not monochrome
+        ImageDtt image_dtt = new ImageDtt(COLOR_PROC_PARAMETERS.isMonochrome()); // Bayer, not monochrome
         String [] titles = {
         		"redCC",  "redSC",  "redCS",  "redSS",
         		"blueCC", "blueSC", "blueCS", "blueSS",
@@ -7081,10 +7081,10 @@ private Panel panel1,
         			DBG_IMP.getTitle()+"-CORR+"+suffix, titles);
         }
 
-        if (CLT_PARAMETERS.corr_sigma > 0.0){
+        if (CLT_PARAMETERS.getCorrSigma(image_dtt.isMonochrome()) > 0.0){
         	for (int chn = 0; chn < clt_data.length; chn++) {
         		image_dtt.clt_lpf( // filter in-place
-        				CLT_PARAMETERS.corr_sigma,            // final double          sigma,
+        				CLT_PARAMETERS.getCorrSigma(image_dtt.isMonochrome()),            // final double          sigma,
         				clt_corr[chn],                        // final double [][][][] clt_data,
         				CLT_PARAMETERS.transform_size,
         				THREADS_MAX,                          // maximal number of threads to launch

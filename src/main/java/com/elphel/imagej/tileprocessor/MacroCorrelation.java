@@ -326,7 +326,7 @@ public class MacroCorrelation {
 				clt_parameters.corr_offset,
 				clt_parameters.corr_red,
 				clt_parameters.corr_blue,
-				clt_parameters.corr_sigma,
+				clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
 				clt_parameters.corr_normalize, // normalize correlation results by rms
 				min_corr_selected, // 0.0001; // minimal correlation value to consider valid
 				clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional

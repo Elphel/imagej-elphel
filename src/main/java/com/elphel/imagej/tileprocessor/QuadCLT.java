@@ -1686,10 +1686,10 @@ public class QuadCLT {
 						  debugLevel);
 			  } else { // just LPF RGB
 			  */
-				  if (clt_parameters.corr_sigma > 0){ // no filter at all
+				  if (clt_parameters.getCorrSigma(image_dtt.isMonochrome()) > 0){ // no filter at all
 					  for (int chn = 0; chn < clt_data.length; chn++) {
 						  image_dtt.clt_lpf(
-								  clt_parameters.corr_sigma,
+								  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
 								  clt_data[chn],
 								  clt_parameters.transform_size,
 								  threadsMax,
@@ -2287,10 +2287,10 @@ public class QuadCLT {
 						  debugLevel);
 			  } else { // just LPF RGB
 			  */
-				  if (clt_parameters.corr_sigma > 0){ // no filter at all
+				  if (clt_parameters.getCorrSigma(image_dtt.isMonochrome()) > 0){ // no filter at all
 					  for (int chn = 0; chn < clt_data.length; chn++) {
 						  image_dtt.clt_lpf(
-								  clt_parameters.corr_sigma,
+								  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
 								  clt_data[chn],
 								  clt_parameters.transform_size,
 								  threadsMax,
@@ -2848,10 +2848,10 @@ public class QuadCLT {
 			  String title=name+"-"+String.format("%02d", iQuad);
 			  String titleFull=title+"-SPLIT";
 
-			  if (clt_parameters.corr_sigma > 0){ // no filter at all
+			  if (clt_parameters.getCorrSigma(image_dtt.isMonochrome()) > 0){ // no filter at all
 				  for (int chn = 0; chn < clt_data[iQuad].length; chn++) {
 					  image_dtt.clt_lpf(
-							  clt_parameters.corr_sigma,
+							  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
 							  clt_data[iQuad][chn],
 							  clt_parameters.transform_size,
 							  threadsMax,
@@ -3941,7 +3941,7 @@ public class QuadCLT {
 				  clt_parameters.corr_offset,
 				  clt_parameters.corr_red,
 				  clt_parameters.corr_blue,
-				  clt_parameters.corr_sigma,
+				  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
 //				  clt_parameters.corr_mask,
 				  clt_parameters.corr_normalize, // normalize correlation results by rms
 				  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
@@ -4263,10 +4263,10 @@ public class QuadCLT {
 				  String title=name+"-"+String.format("%02d", iQuad);
 				  //				  String titleFull=title+"-SPLIT-D"+clt_parameters.disparity;
 
-				  if (clt_parameters.corr_sigma > 0){ // no filter at all
+				  if (clt_parameters.getCorrSigma(image_dtt.isMonochrome()) > 0){ // no filter at all
 					  for (int chn = 0; chn < clt_data[iQuad].length; chn++) if (clt_data[iQuad][chn] != null){
 						  image_dtt.clt_lpf(
-								  clt_parameters.corr_sigma,
+								  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
 								  clt_data[iQuad][chn],
 								  clt_parameters.transform_size,
 								  threadsMax,
@@ -5204,7 +5204,7 @@ public class QuadCLT {
 					  clt_parameters.corr_offset,
 					  clt_parameters.corr_red,
 					  clt_parameters.corr_blue,
-					  clt_parameters.corr_sigma,
+					  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
 					  clt_parameters.corr_normalize, // normalize correlation results by rms
 					  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
 					  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
@@ -8393,7 +8393,7 @@ public class QuadCLT {
 				  clt_parameters.corr_offset,
 				  clt_parameters.corr_red,
 				  clt_parameters.corr_blue,
-				  clt_parameters.corr_sigma,
+				  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
 				  clt_parameters.corr_normalize, // normalize correlation results by rms
 				  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
 				  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
@@ -8608,7 +8608,7 @@ public class QuadCLT {
 				  clt_parameters.corr_offset,
 				  clt_parameters.corr_red,
 				  clt_parameters.corr_blue,
-				  clt_parameters.corr_sigma,
+				  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
 				  clt_parameters.corr_normalize, // normalize correlation results by rms
 				  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
 				  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
@@ -8741,7 +8741,7 @@ public class QuadCLT {
 				  clt_parameters.corr_offset,
 				  clt_parameters.corr_red,
 				  clt_parameters.corr_blue,
-				  clt_parameters.corr_sigma,
+				  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
 				  clt_parameters.corr_normalize, // normalize correlation results by rms
 				  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
 				  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
