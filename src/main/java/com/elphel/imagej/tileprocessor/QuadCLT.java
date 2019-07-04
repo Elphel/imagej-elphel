@@ -96,6 +96,10 @@ public class QuadCLT {
     boolean                                                is_mono = false; // Use clt_kernels?
     double  []                                             lwir_offsets = null; // per image subtracted values
     double                                                 lwir_offset =  Double.NaN; // average of lwir_offsets[]
+    // hot and cold are calculated during autoranging (when generating 4 images for restored (added lwir_offset)
+    // absolute temperatures to be used instead of colorProcParameters lwir_low and lwir_high if autoranging
+    // is enabled
+    double []                                              lwir_cold_hot = null;
 //    int []                                                 woi_tops; // used to calculate scanline timing
 
 
@@ -103,6 +107,18 @@ public class QuadCLT {
     public boolean isMonochrome() {return is_mono;} // clt_kernels
     public boolean isLwir() {return !Double.isNaN(lwir_offset);} // clt_kernels
     public double  getLwirOffset() {return lwir_offset;}
+
+    public double [] getColdHot() {
+    	return lwir_cold_hot;
+    }
+    public void setColdHot(double [] cold_hot) {
+    	lwir_cold_hot = cold_hot;
+    }
+    public void setColdHot(double cold, double hot) {
+    	lwir_cold_hot = new double[2];
+    	lwir_cold_hot[0] = cold;
+    	lwir_cold_hot[1] = hot;
+    }
 
     public void    resetGroundTruthByRig() {
     	tp.rig_disparity_strength = null;
@@ -3812,8 +3828,8 @@ public class QuadCLT {
 			  boolean [][] saturation_imp, // (near) saturated pixels or null
 			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  ColorProcParameters colorProcParameters,
-			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+			  ColorProcParameters                              colorProcParameters,
+			  CorrectionColorProc.ColorGainsParameters         channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 //			  int              convolveFFTSize, // 128 - fft size, kernel size should be size/2
 			  double []	       scaleExposures, // probably not needed here
@@ -4255,9 +4271,9 @@ public class QuadCLT {
 				  }
 			  }
 		  }
-
+		  double [][][] iclt_data = new double [clt_data.length][][];
 		  if (!infinity_corr && (clt_parameters.gen_chn_img || clt_parameters.gen_4_img || clt_parameters.gen_chn_stacks)) {
-			  ImagePlus [] imps_RGB = new ImagePlus[clt_data.length];
+//			  ImagePlus [] imps_RGB = new ImagePlus[clt_data.length];
 			  for (int iQuad = 0; iQuad < clt_data.length; iQuad++){
 
 				  String title=name+"-"+String.format("%02d", iQuad);
@@ -4296,10 +4312,11 @@ public class QuadCLT {
 								  results[iQuad].getTitle()+"-CLT-D"+clt_parameters.disparity);
 					  }
 				  }
-				  double [][] iclt_data = new double [clt_data[iQuad].length][];
-				  for (int chn=0; chn<iclt_data.length;chn++) if (clt_data[iQuad][chn] != null) {
-					  iclt_data[chn] = image_dtt.iclt_2d(
-							  clt_data[iQuad][chn],           // scanline representation of dcd data, organized as dct_size x dct_size tiles
+				  iclt_data[iQuad] = new double [clt_data[iQuad].length][];
+
+				  for (int ncol=0; ncol<iclt_data[iQuad].length;ncol++) if (clt_data[iQuad][ncol] != null) {
+					  iclt_data[iQuad][ncol] = image_dtt.iclt_2d(
+							  clt_data[iQuad][ncol],           // scanline representation of dcd data, organized as dct_size x dct_size tiles
 							  clt_parameters.transform_size,  // final int
 							  clt_parameters.clt_window,      // window_type
 							  15,                             // clt_parameters.iclt_mask,       //which of 4 to transform back
@@ -4308,14 +4325,15 @@ public class QuadCLT {
 							  debugLevel);
 
 				  }
-
-				  if (clt_parameters.gen_chn_stacks) sdfa_instance.showArrays(iclt_data,
+				  if (clt_parameters.gen_chn_stacks) sdfa_instance.showArrays(
+//				  if (clt_parameters.gen_chn_stacks || true) sdfa_instance.showArrays(
+						  iclt_data[iQuad],
 						  (tilesX + 0) * clt_parameters.transform_size,
 						  (tilesY + 0) * clt_parameters.transform_size,
 						  true,
 						  results[iQuad].getTitle()+"-ICLT-RGB-D"+clt_parameters.disparity);
+				  /*
 				  if (!clt_parameters.gen_chn_img) continue;
-
 				  imps_RGB[iQuad] = linearStackToColor(
 						  clt_parameters,
 						  colorProcParameters,
@@ -4326,13 +4344,60 @@ public class QuadCLT {
 						  !this.correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
 						  !batch_mode, // true, // boolean saveShowIntermediate, // save/show if set globally
 						  false, // boolean saveShowFinal,        // save/show result (color image?)
-						  iclt_data,
+						  iclt_data[iQuad],
 						  tilesX *  clt_parameters.transform_size,
 						  tilesY *  clt_parameters.transform_size,
 						  scaleExposures[iQuad], // double scaleExposure, // is it needed?
 						  debugLevel );
-
+                 */
 			  } // end of generating shifted channel images
+
+
+			  // Use iclt_data here for LWIR autorange
+			  if (colorProcParameters.isLwir() && colorProcParameters.lwir_autorange) {
+				  double rel_low =  colorProcParameters.lwir_low;
+				  double rel_high = colorProcParameters.lwir_high;
+				  if (!Double.isNaN(getLwirOffset())) {
+					  rel_low -=  getLwirOffset();
+					  rel_high -= getLwirOffset();
+				  }
+				  double [] cold_hot =  autorange(
+						  iclt_data, // double [][][] iclt_data, //  [iQuad][ncol][i] - normally only [][2][] is non-null
+						  rel_low, // double hard_cold,// matches data, DC (this.lwir_offset)  subtracted
+						  rel_high, // double hard_hot, // matches data, DC (this.lwir_offset)  subtracted
+						  colorProcParameters.lwir_too_cold, // double too_cold, // pixels per image
+						  colorProcParameters.lwir_too_hot, // double too_hot,  // pixels per image
+						  1024); // int num_bins)
+				  if (cold_hot != null) {
+					  if (!Double.isNaN(getLwirOffset())) {
+						  cold_hot[0] += getLwirOffset();
+						  cold_hot[1] += getLwirOffset();
+					  }
+				  }
+				  setColdHot(cold_hot); // will be used for shifted images and for texture tiles
+			  }
+			  ImagePlus [] imps_RGB = new ImagePlus[clt_data.length];
+				  for (int iQuad = 0; iQuad < clt_data.length; iQuad++){
+					  if (!clt_parameters.gen_chn_img) continue;
+					  String title=name+"-"+String.format("%02d", iQuad);
+					  imps_RGB[iQuad] = linearStackToColor(
+							  clt_parameters,
+							  colorProcParameters,
+							  rgbParameters,
+							  title, // String name,
+							  "-D"+clt_parameters.disparity, //String suffix, // such as disparity=...
+							  toRGB,
+							  !this.correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
+							  !batch_mode, // true, // boolean saveShowIntermediate, // save/show if set globally
+							  false, // boolean saveShowFinal,        // save/show result (color image?)
+							  iclt_data[iQuad],
+							  tilesX *  clt_parameters.transform_size,
+							  tilesY *  clt_parameters.transform_size,
+							  scaleExposures[iQuad], // double scaleExposure, // is it needed?
+							  debugLevel );
+				  }
+
+
 			  if (clt_parameters.gen_chn_img) {
 				  // combine to a sliced color image
 				  int [] slice_seq = {0,1,3,2}; //clockwise
@@ -4420,6 +4485,112 @@ public class QuadCLT {
 		  }
 		  return rslt;
 	  }
+	  public int [] getLwirHistogram(
+			  double [] data,
+			  double    hard_cold,
+			  double    hard_hot,
+			  int       num_bins) {
+			  int [] hist = new int [num_bins];
+			  double k = num_bins / (hard_hot - hard_cold);
+			  for (double d:data) {
+				  int bin = (int) ((d - hard_cold)*k);
+				  if (bin < 0) bin = 0;
+				  else if (bin >= num_bins) bin = (num_bins -1);
+				  hist[bin]++;
+			  }
+			  return hist;
+		  }
+		  public int [] addHist(
+				  int [] this_hist,
+				  int [] other_hist) {
+			  for (int i = 0; i < this_hist.length; i++) {
+				  this_hist[i] += other_hist[i];
+			  }
+			  return this_hist;
+		  }
+		  // get low/high (soft min/max) from the histogram
+		  // returns value between 0.0 (low histogram limit and 1.0 - high histgram limit
+		  public double getMarginFromHist(
+				  int [] hist, // histogram
+				  double cumul_val, // cummulative number of items to be ignored
+				  boolean high_marg) { // false - find low margin(output ~0.0) , true - find high margin (output ~1.0)
+			  int n = 0;
+			  int n_prev = 0;
+			  int bin;
+			  double s = 1.0 / hist.length;
+			  double v;
+			  if (high_marg) {
+				  for (bin = hist.length -1; bin >= 0; bin--) {
+					  n_prev = n;
+					  n+= hist[bin];
+					  if (n > cumul_val) break;
+				  }
+				  if (n <= cumul_val) {
+					  v =  0.0; // cumul_val > total number of samples
+				  } else {
+					  v = s* (bin + 1 - (cumul_val - n_prev)/(n - n_prev));
+				  }
+
+			  } else {
+				  for (bin = 0; bin < hist.length; bin++) {
+					  n_prev = n;
+					  n+= hist[bin];
+					  if (n > cumul_val) break;
+				  }
+				  if (n <= cumul_val) {
+					  v =  1.0; // cumul_val > total number of samples
+				  } else {
+					  v = s * (bin + (cumul_val - n_prev)/(n - n_prev));
+				  }
+			  }
+			  return v;
+		  }
+
+		  public double [] autorange(
+				  double [][][] iclt_data, //  [iQuad][ncol][i] - normally only [][2][] is non-null
+				  double hard_cold,// matches data, DC (this.lwir_offset)  subtracted
+				  double hard_hot, // matches data, DC (this.lwir_offset)  subtracted
+				  double too_cold, // pixels per image
+				  double too_hot,  // pixels per image
+				  int num_bins) {
+			  int ncol;
+			  for (ncol = 0; ncol < iclt_data[0].length; ncol++) {
+				  if (iclt_data[0][ncol] != null) break;
+			  }
+			  too_cold *= iclt_data.length;
+			  too_hot *= iclt_data.length;
+			  int [] hist = null;
+			  for (int iQuad = 0; iQuad < iclt_data.length; iQuad++) {
+				  int [] this_hist = getLwirHistogram(
+						  iclt_data[iQuad][ncol], // double [] data,
+						  hard_cold,
+						  hard_hot,
+						  num_bins);
+				  if (hist == null) {
+					  hist = this_hist;
+				  } else {
+					  addHist(
+							  hist,
+							  this_hist);
+				  }
+			  }
+			  double [] rel_lim = {
+					  getMarginFromHist(
+							  hist, // histogram
+							  too_cold, // double cumul_val, // cummulative number of items to be ignored
+							  false), // boolean high_marg)
+					  getMarginFromHist(
+							  hist, // histogram
+							  too_hot, // double cumul_val, // cummulative number of items to be ignored
+							  true)}; // boolean high_marg)
+			  double [] abs_lim = {
+					  rel_lim[0] * (hard_hot - hard_cold) + hard_cold,
+					  rel_lim[1] * (hard_hot - hard_cold) + hard_cold,
+			  };
+			  return abs_lim;
+		  }
+
+
 
 	  // float
 	  public ImagePlus linearStackToColor(
@@ -4471,6 +4642,8 @@ public class QuadCLT {
 
 	  }
 	  // double data
+
+
 	  public ImagePlus linearStackToColor(
 			  CLTParameters         clt_parameters,
 			  ColorProcParameters   colorProcParameters,
@@ -4509,9 +4682,20 @@ public class QuadCLT {
 			  String [] rgba_titles = {"red","green","blue","alpha"};
 			  String [] titles = (alpha == null) ? rgb_titles : rgba_titles;
 			  int num_slices = (alpha == null) ? 3 : 4;
+			  double mn = colorProcParameters.lwir_low;
+			  double mx = colorProcParameters.lwir_high;
+			  double [] cold_hot = getColdHot();
+			  if (cold_hot != null) {
+				  mn = cold_hot[0];
+				  mx = cold_hot[1];
+			  }
+
 			  double offset = getLwirOffset();
-			  double mn = colorProcParameters.lwir_low - offset;
-			  double mx = colorProcParameters.lwir_high - offset;
+			  if (!Double.isNaN(offset)) {
+				  mn -=  offset;
+				  mx -=  offset;
+			  }
+
 			  ThermalColor tc = new ThermalColor(
 					  colorProcParameters.lwir_palette,
 					  mn,

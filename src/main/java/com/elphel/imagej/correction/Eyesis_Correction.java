@@ -245,7 +245,10 @@ private Panel panel1,
 		false, //     boolean lwir_islwir,        // false;
 		27000, //     double  lwir_low,           // 27000;
 		31000, //     double  lwir_high,          // 31000;
-		0,     //     int     lwir_palette,       //  0 - white - hot, 1 - black - hot, 2+ - colored
+		true,  //     boolean lwir_autorange,     //  true;
+		100.0, //     double  lwir_too_cold,      //   100.0; // discard this number of pixels too cold
+		3.0,   //     double  lwir_too_hot,       //     3.0; // discard this number of pixels too hot
+		1,     //     int     lwir_palette,       //  0 - white - hot, 1 - black - hot, 2+ - pseudocolored
 		false, //     boolean lwir_subtract_dc,   //   = false;
 		true,  // 	  boolean lwir_eq_chn   =      true;  // adjust average temperature between channels
 		true,  //     boolean correct_vignetting, //  = true;
