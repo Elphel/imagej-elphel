@@ -1838,6 +1838,57 @@ public class EyesisCorrections {
 		return imp;
 	}
 
+	public static ImagePlus convertRGBAFloatToRGBA32(
+			ImageStack stackFloat, //r,g,b,a
+			String title,
+			double r_min,
+			double r_max,
+			double g_min,
+			double g_max,
+			double b_min,
+			double b_max,
+			double alpha_min,
+			double alpha_max){
+		double [] mins= {r_min,g_min,b_min,alpha_min};
+		double [] maxs= {r_max,g_max,b_max,alpha_max};
+		int i;
+		int length=stackFloat.getWidth()*stackFloat.getHeight();
+		int numSlices  = stackFloat.getSize();
+		if (numSlices > 4) numSlices = 4;
+		float [][] fpixels=new float[numSlices][];
+		int [] sliceSeq = new int [numSlices];
+		for (int j = 0; j < numSlices; j++) sliceSeq[j] = (j + ((numSlices > 3)? 3:0)) % 4;
+
+		int [] pixels=new int[length];
+		int c,d;
+
+		double [] scale=new double[numSlices];
+		for (c = 0; c < numSlices; c++) {
+			scale[c]=256.0/(maxs[c]-mins[c]);
+		}
+		for (i = 0; i < numSlices; i++) {
+
+			fpixels[i]= (float[])stackFloat.getPixels(i+1);
+		}
+		for (i = 0; i < length; i++) {
+			pixels[i]=0;
+			for (int j=0; j < numSlices; j++) {
+				c = sliceSeq[j];
+				d=(int)((fpixels[c][i]-mins[c])*scale[c]);
+				if (d > 255) d=255;
+				else if (d < 0) d=0;
+				pixels[i]= d | (pixels[i] << 8);
+			}
+		}
+		ColorProcessor cp=new ColorProcessor(stackFloat.getWidth(),stackFloat.getHeight());
+		cp.setPixels(pixels);
+		ImagePlus imp=new ImagePlus(title,cp);
+		return imp;
+	}
+
+
+
+
 	public ImageStack convertRGB48toRGBA24Stack(
 			ImageStack stack16,
 			double [] dalpha, // alpha pixel array 0..1.0 or null

@@ -26,11 +26,11 @@ public class ThermalColor {
 
 	public double [] getRGB(double v) { // Get R,G,B (0..255) triplet for input value in the range 0..1
 		double k = out_range/PALETTE_RANGE;
-		double value = (v-min)/(max-min);
-		int ivalue = (int) (value/(this.palette.length - 1));
+		double value = (v-min)/(max-min) * (this.palette.length - 1);
+		int ivalue = (int) (value);
 		if (ivalue < 0) return this.palette[0];
 		if (ivalue >= (this.palette.length -1)) return this.palette[this.palette.length -1];
-		double a = (value-ivalue)*(this.palette.length - 1); // 0..1
+		double a = (value-ivalue); // 0..1
 		double [] rslt = {
 				k*((1 - a) * this.palette[ivalue][0] + a * this.palette[ivalue+1][0]),
 				k*((1 - a) * this.palette[ivalue][1] + a * this.palette[ivalue+1][1]),
@@ -97,7 +97,8 @@ public class ThermalColor {
 				0xfff285, 0xfff28a, 0xfff38e, 0xfff492, 0xfff496, 0xfff49a, 0xfff59e, 0xfff5a2,
 				0xfff5a6, 0xfff6aa, 0xfff6af, 0xfff7b3, 0xfff7b6, 0xfff8ba, 0xfff8bd, 0xfff8c1,
 				0xfff8c4, 0xfff9c7, 0xfff9ca, 0xfff9cd, 0xfffad1, 0xfffad4, 0xfffbd8, 0xfffcdb,
-				0xfffcdf, 0xfffde2, 0xfffde5, 0xfffde8, 0xfffeeb, 0xfffeee, 0xfffef1, 0xfffef4, 0xfffff};
+				0xfffcdf, 0xfffde2, 0xfffde5, 0xfffde8, 0xfffeeb, 0xfffeee, 0xfffef1, 0xfffef4,
+				0xffffff};
 		int [][] palettes = {white_hot_palette, black_hot_palette, iron_palette};
 		if (indx <0) indx = 0;
 		else if (indx >= palettes.length) indx = palettes.length - 1;

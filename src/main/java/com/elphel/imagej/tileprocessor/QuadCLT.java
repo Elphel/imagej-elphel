@@ -4505,6 +4505,10 @@ public class QuadCLT {
 			  }
 		  }
 		  if (isLwir()) {
+			  String [] rgb_titles =  {"red","green","blue"};
+			  String [] rgba_titles = {"red","green","blue","alpha"};
+			  String [] titles = (alpha == null) ? rgb_titles : rgba_titles;
+			  int num_slices = (alpha == null) ? 3 : 4;
 			  double offset = getLwirOffset();
 			  double mn = colorProcParameters.lwir_low - offset;
 			  double mx = colorProcParameters.lwir_high - offset;
@@ -4513,13 +4517,38 @@ public class QuadCLT {
 					  mn,
 					  mx,
 					  255.0);
-			  rbg_in = new double [3][iclt_data[green_index].length];
-			  for (int i = 0; i < rbg_in[0].length; i++) {
+			  double [][] rgba = new double [num_slices][];
+			  for (int i = 0; i < 3; i++) rgba[i] = new double [iclt_data[green_index].length];
+			  for (int i = 0; i < rbg_in[green_index].length; i++) {
+				  if (i == 700) {
+					  System.out.println("linearStackToColor(): i="+i);
+				  }
 				  double [] rgb = tc.getRGB(iclt_data[green_index][i]);
-				  rbg_in[0][i] = rgb[0]; // red
-				  rbg_in[1][i] = rgb[2]; // blue
-				  rbg_in[2][i] = rgb[1]; // green
+				  rgba[0][i] = rgb[0]; // red
+				  rgba[1][i] = rgb[1]; // green
+				  rgba[2][i] = rgb[2]; // blue
 			  }
+			  if (alpha != null) {
+				  rgba[3] = alpha; // 0..1
+			  }
+			  ImageStack stack = sdfa_instance.makeStack(
+					  rgba,       // iclt_data,
+					  width,      // (tilesX + 0) * clt_parameters.transform_size,
+					  height,     // (tilesY + 0) * clt_parameters.transform_size,
+					  titles,     // or use null to get chn-nn slice names
+					  true);      // replace NaN with 0.0
+			  ImagePlus imp_rgba =  EyesisCorrections.convertRGBAFloatToRGBA32(
+					  stack,   // ImageStack stackFloat, //r,g,b,a
+						name+"ARGB"+suffix, // String title,
+						0.0,   // double r_min,
+						255.0, // double r_max,
+						0.0,   // double g_min,
+						255.0, // double g_max,
+						0.0,   // double b_min,
+						255.0, // double b_max,
+						0.0,   // double alpha_min,
+						1.0);  // double alpha_max)
+			  return imp_rgba;
 		  }
 
 		  ImageStack stack = sdfa_instance.makeStack(
@@ -4659,6 +4688,7 @@ public class QuadCLT {
 			  titleFull=name+"-YPrPb"+suffix;
 			  if (debugLevel > 1) System.out.println("Using full stack, including YPbPr");
 		  }
+
 		  if (alpha_pixels != null){
 			  stack.addSlice("alpha",alpha_pixels);
 		  }
@@ -8178,7 +8208,7 @@ public class QuadCLT {
 				  texture_overlap[alpha_index][i] = d;
 			  }
 		  }
-		  // for now - use just RGB. Later add oprion for RGBA
+		  // for now - use just RGB. Later add option for RGBA
 		  double [][] texture_rgb = {texture_overlap[0],texture_overlap[1],texture_overlap[2]};
 		  double [][] texture_rgba = {texture_overlap[0],texture_overlap[1],texture_overlap[2],texture_overlap[3]};
 		  double [][] texture_rgbx = ((clt_parameters.alpha1 > 0)? texture_rgba: texture_rgb);
