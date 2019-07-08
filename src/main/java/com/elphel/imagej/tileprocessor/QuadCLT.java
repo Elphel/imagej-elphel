@@ -6793,7 +6793,8 @@ public class QuadCLT {
 					  comp_diff += new_corr[0][0][i] * new_corr[0][0][i];
 				  }
 				  comp_diff = Math.sqrt(comp_diff);
-				  boolean done = (comp_diff < min_sym_update) || (num_iter == max_tries);
+				  boolean done = (comp_diff < min_sym_update) || (num_iter == (max_tries - 1));
+//				  System.out.println("done="+done);
 				  if (debugLevel > -10) { // should work even in batch mode
 					  System.out.println("#### extrinsicsCLT(): iteration step = "+(num_iter + 1) + " ( of "+max_tries+") change = "+
 							  comp_diff + " ("+min_sym_update+"), previous RMS = " + new_corr[0][1][0]+ " (debugLevel = "+debugLevel+")");
