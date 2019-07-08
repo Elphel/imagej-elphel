@@ -1775,7 +1775,8 @@ B = |+dy0   -dy1      -2*dy3 |
 			final int        hist_min_samples,
 			final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with
 			final double     inf_fraction,    // fraction of the weight for the infinity tiles
-			CLTParameters           clt_parameters,
+			final boolean    right_left, // equalize weights of right/left FoV (use with horizon in both halves and gross infinity correction)
+			CLTParameters    clt_parameters,
 			double [][]      scans_14,
 			double [][]      target_disparity, // null or programmed disparity (1 per each 14 entries of scans_14)
 			int              tilesX,
@@ -1878,7 +1879,8 @@ B = |+dy0   -dy1      -2*dy3 |
 		}
 
 		if (debugLevel > -2) {
-			System.out.println("lazyEyeCorrection() 1: removing tiles with residual disparity absoulte value > "+lazyEyeCompDiff);
+			System.out.println("lazyEyeCorrection().a 1: removing tiles with residual disparity absolute value > "+lazyEyeCompDiff);
+//			System.out.println("lazyEyeCorrection().a 1: removing tiles with residual disparity absolute value > "+(2*lazyEyeCompDiff));
 		}
 
 		double [][] combo_mismatch = new double [NUM_SLICES][num_tiles];
@@ -1891,6 +1893,7 @@ B = |+dy0   -dy1      -2*dy3 |
 				double w = filtered_scans[ns * NUM_SLICES + 1][nTile];
 				if (w > 0.0){
 					double disp = filtered_scans[ns * NUM_SLICES + 0][nTile];
+//					if (Math.abs(disp) <= 2.0*lazyEyeCompDiff) {
 					if (Math.abs(disp) <= lazyEyeCompDiff) {
 						for (int i = 2; i < NUM_SLICES; i++) if (i != 1){
 							combo_mismatch[i][nTile] += filtered_scans[ns * NUM_SLICES + i][nTile] * w;
@@ -2214,6 +2217,29 @@ B = |+dy0   -dy1      -2*dy3 |
 			System.out.println("lazyEyeCorrection(): number of all samples="+inf_samples_list.size()+", total weight = "+inf_weight);
 
 		}
+		if (right_left) {
+			System.out.println("Balancing right/left part of FoV weights, width = "+tilesX+" tiles");
+			double [] right_left_weights = {0.0, 0.0};
+			for (Sample s: inf_samples_list) {
+				int rl = (s.tile % tilesX) / (tilesX/2);
+				right_left_weights[rl] += s.weight;
+			}
+			System.out.println("Weights: left:"+ right_left_weights[0]+", right:"+ right_left_weights[1]);
+			for (Sample s: inf_samples_list) {
+				int rl = (s.tile % tilesX) / (tilesX/2);
+				s.weight *= right_left_weights[1 - rl];
+			}
+			// just verifying
+			right_left_weights[0] = 0.0;
+			right_left_weights[1] = 0.0;
+			for (Sample s: inf_samples_list) {
+				int rl = (s.tile % tilesX) / (tilesX/2);
+				right_left_weights[rl] += s.weight;
+			}
+			System.out.println("Weights after balancing: left:"+ right_left_weights[0]+", right:"+ right_left_weights[1]);
+		}
+
+
 
 		if (debugLevel > 0) {
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
@@ -3369,6 +3395,11 @@ B = |+dy0   -dy1      -2*dy3 |
 		int dbg_height = qc.tp.getTilesY()*qc.tp.getTileSize();
 		int dbg_owidth = dbg_width/dbg_decimate;
 		int dbg_oheight = dbg_height/dbg_decimate;
+		while (dbg_owidth < 40) {
+			dbg_decimate /= 2;
+			dbg_owidth = dbg_width/dbg_decimate;
+			dbg_oheight = dbg_height/dbg_decimate;
+		}
 		int dbg_length = dbg_owidth*dbg_oheight;
 		String [] dbg_titles_sym= {"sym0","sym1","sym2","sym3","sym4","sym5","sroll0","sroll1","sroll2","sroll3", "zoom0", "zoom1", "zoom2"};
 		String [] dbg_titles_xy=  {"dx0","dy0","dx1","dy1","dx2","dy2","dx3","y3"};

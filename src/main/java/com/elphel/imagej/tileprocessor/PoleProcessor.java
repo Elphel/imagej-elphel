@@ -2723,7 +2723,7 @@ public class PoleProcessor {
 					  disparity_array,     // double [][]                                    disparity_array,
 	    			  null, // double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
 					  clt_parameters,      // EyesisCorrectionParameters.CLTParameters       clt_parameters,
-					  clt_parameters.fat_zero, // double                                         fatzero,
+					  clt_parameters.getFatZero(quadCLT_main.isMonochrome()), // double                                         fatzero,
 					  notch_mode,          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 					  lt_rad,              // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
 					  true,                // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide

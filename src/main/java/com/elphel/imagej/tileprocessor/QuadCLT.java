@@ -104,8 +104,9 @@ public class QuadCLT {
 
 
 // magic scale should be set before using  TileProcessor (calculated disparities depend on it)
-    public boolean isMonochrome() {return is_mono;} // clt_kernels
-    public boolean isLwir() {return !Double.isNaN(lwir_offset);} // clt_kernels
+    public boolean isMonochrome() {return is_mono;}
+    public boolean isAux()        {return is_aux;}
+    public boolean isLwir()       {return !Double.isNaN(lwir_offset);} // clt_kernels
     public double  getLwirOffset() {return lwir_offset;}
 
     public double [] getColdHot() {
@@ -149,7 +150,8 @@ public class QuadCLT {
 					tilesY,
 					clt_parameters.transform_size,
 					clt_parameters.stSize,
-					this.is_mono,
+					isMonochrome(),
+					isAux(),
 					clt_parameters.corr_magic_scale,
 					clt_parameters.grow_disp_trust,
 					clt_parameters.max_overexposure, // double maxOverexposure,
@@ -528,7 +530,7 @@ public class QuadCLT {
 					  double [] kernel=      new double[kernelSize*kernelSize];
 					  int centered_len = (2*dtt_size-1) * (2*dtt_size-1);
 					  double [] kernel_centered = new double [centered_len + extra_items];
-					  ImageDtt image_dtt = new ImageDtt(isMonochrome());
+					  ImageDtt image_dtt = new ImageDtt(isMonochrome(),clt_parameters.getScaleStrength(isAux()));
 					  int chn,tileY,tileX;
 					  DttRad2 dtt = new DttRad2(dtt_size);
 					  ShowDoubleFloatArrays sdfa_instance = null;
@@ -704,7 +706,7 @@ public class QuadCLT {
 		  if (globalDebugLevel > 1) System.out.println("Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 		  System.out.println("1.Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 		  // Calculate differential offsets to interpolate for tiles between kernel centers
-		  ImageDtt image_dtt = new ImageDtt(isMonochrome());
+		  ImageDtt image_dtt = new ImageDtt(isMonochrome(),clt_parameters.getScaleStrength(isAux()));
 		  image_dtt.clt_fill_coord_corr(
 				  clt_parameters.kernel_step,  //  final int             kern_step, // distance between kernel centers, in pixels.
 				  clt_kernels,                 // final double [][][][] clt_data,
@@ -1663,7 +1665,7 @@ public class QuadCLT {
 			  sdfa_instance.showArrays(double_stack,  imp_src.getWidth(), imp_src.getHeight(), true, "BEFORE_CLT_PROC", rbg_titles);
 		  }
 		  if (this.correctionsParameters.deconvolve) { // process with DCT, otherwise use simple debayer
-			  ImageDtt image_dtt = new ImageDtt(isMonochrome());
+			  ImageDtt image_dtt = new ImageDtt(isMonochrome(),clt_parameters.getScaleStrength(isAux()));
 			  for (int i =0 ; i < double_stack[0].length; i++){
 				  double_stack[2][i]*=0.5; // Scale blue twice to compensate less pixels than green
 			  }
@@ -2264,7 +2266,7 @@ public class QuadCLT {
 			  sdfa_instance.showArrays(double_stack,  imp_src.getWidth(), imp_src.getHeight(), true, "BEFORE_CLT_PROC", rbg_titles);
 		  }
 		  if (this.correctionsParameters.deconvolve) { // process with DCT, otherwise use simple debayer
-			  ImageDtt image_dtt = new ImageDtt(isMonochrome());
+			  ImageDtt image_dtt = new ImageDtt(isMonochrome(),clt_parameters.getScaleStrength(isAux()));
 			  for (int i =0 ; i < double_stack[0].length; i++){
 				  double_stack[2][i]*=0.5; // Scale blue twice to compensate less pixels than green
 			  }
@@ -2829,7 +2831,7 @@ public class QuadCLT {
 //		  String [] rbg_titles = {"Red", "Blue", "Green"};
 		  ImageStack stack;
 		  // =================
-		  ImageDtt image_dtt = new ImageDtt(isMonochrome());
+		  ImageDtt image_dtt = new ImageDtt(isMonochrome(),clt_parameters.getScaleStrength(isAux()));
 		  for (int i = 0; i < double_stacks.length; i++){
 			  for (int j =0 ; j < double_stacks[i][0].length; j++){
 				  double_stacks[i][2][j]*=0.5; // Scale green 0.5 to compensate more pixels than R,B
@@ -3862,7 +3864,7 @@ public class QuadCLT {
 					  this.is_mono);
 		  }
 
-		  ImageDtt image_dtt = new ImageDtt(isMonochrome());
+		  ImageDtt image_dtt = new ImageDtt(isMonochrome(),clt_parameters.getScaleStrength(isAux()));
 		  for (int i = 0; i < double_stacks.length; i++){
 			  if ( double_stacks[i].length > 2) {
 				  for (int j =0 ; j < double_stacks[i][0].length; j++){
@@ -3896,7 +3898,7 @@ public class QuadCLT {
 		  final int tilesX = tp.getTilesX();
 		  final int tilesY = tp.getTilesY();
 
-		  if (clt_parameters.correlate){
+		  if (clt_parameters.correlate){ // true
 			  clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][];
 			  texture_tiles =     new double [tilesY][tilesX][][]; // ["RGBA".length()][];
 			  for (int i = 0; i < tilesY; i++){
@@ -3907,14 +3909,14 @@ public class QuadCLT {
 					  texture_tiles[i][j] = null;
 				  }
 			  }
-			  if (!infinity_corr && clt_parameters.corr_keep){
+			  if (!infinity_corr && clt_parameters.corr_keep){ // true
 				  clt_corr_partial = new double [tilesY][tilesX][][][];
 				  for (int i = 0; i < tilesY; i++){
 					  for (int j = 0; j < tilesX; j++){
 						  clt_corr_partial[i][j] = null;
 					  }
 				  }
-			  }
+			  } // clt_parameters.corr_mismatch = false
 			  if (clt_parameters.corr_mismatch || apply_corr || infinity_corr){ // added infinity_corr
 				  clt_mismatch = new double [12][]; // What is 12?
 			  }
@@ -3952,7 +3954,7 @@ public class QuadCLT {
 				  disparity_map,                // [2][tp.tilesY * tp.tilesX]
 				  texture_tiles,                // [tp.tilesY][tp.tilesX]["RGBA".length()][];
 				  imp_quad[0].getWidth(),       // final int width,
-				  clt_parameters.fat_zero,      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
+				  clt_parameters.getFatZero(isMonochrome()),      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
 				  clt_parameters.corr_sym,
 				  clt_parameters.corr_offset,
 				  clt_parameters.corr_red,
@@ -4276,7 +4278,7 @@ public class QuadCLT {
 //			  ImagePlus [] imps_RGB = new ImagePlus[clt_data.length];
 			  for (int iQuad = 0; iQuad < clt_data.length; iQuad++){
 
-				  String title=name+"-"+String.format("%02d", iQuad);
+//				  String title=name+"-"+String.format("%02d", iQuad);
 				  //				  String titleFull=title+"-SPLIT-D"+clt_parameters.disparity;
 
 				  if (clt_parameters.getCorrSigma(image_dtt.isMonochrome()) > 0){ // no filter at all
@@ -4332,24 +4334,6 @@ public class QuadCLT {
 						  (tilesY + 0) * clt_parameters.transform_size,
 						  true,
 						  results[iQuad].getTitle()+"-ICLT-RGB-D"+clt_parameters.disparity);
-				  /*
-				  if (!clt_parameters.gen_chn_img) continue;
-				  imps_RGB[iQuad] = linearStackToColor(
-						  clt_parameters,
-						  colorProcParameters,
-						  rgbParameters,
-						  title, // String name,
-						  "-D"+clt_parameters.disparity, //String suffix, // such as disparity=...
-						  toRGB,
-						  !this.correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
-						  !batch_mode, // true, // boolean saveShowIntermediate, // save/show if set globally
-						  false, // boolean saveShowFinal,        // save/show result (color image?)
-						  iclt_data[iQuad],
-						  tilesX *  clt_parameters.transform_size,
-						  tilesY *  clt_parameters.transform_size,
-						  scaleExposures[iQuad], // double scaleExposure, // is it needed?
-						  debugLevel );
-                 */
 			  } // end of generating shifted channel images
 
 
@@ -5264,11 +5248,9 @@ public class QuadCLT {
 					  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 					  clt_parameters,
 					  debayerParameters,
-//					  nonlinParameters,
 					  colorProcParameters,
 					  channelGainParameters,
 					  rgbParameters,
-//					  convolveFFTSize, // 128 - fft size, kernel size should be size/2
 					  scaleExposures,
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
@@ -5321,7 +5303,7 @@ public class QuadCLT {
 					  this.is_mono);
 		  }
 		  // =================
-		  ImageDtt image_dtt = new ImageDtt(isMonochrome());
+		  ImageDtt image_dtt = new ImageDtt(isMonochrome(),clt_parameters.getScaleStrength(isAux()));
 		  for (int i = 0; i < double_stacks.length; i++){
 			  for (int j =0 ; j < double_stacks[i][0].length; j++){
 				  double_stacks[i][2][j]*=0.5; // Scale green 0.5 to compensate more pixels than R,B
@@ -5383,7 +5365,7 @@ public class QuadCLT {
 					  disparity_maps[scan_step],    // [2][tp.tilesY * tp.tilesX]
 					  null, //texture_tiles,        // [tp.tilesY][tp.tilesX]["RGBA".length()][];
 					  imp_quad[0].getWidth(),       // final int width,
-					  clt_parameters.fat_zero,      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
+					  clt_parameters.getFatZero(isMonochrome()),      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
 					  clt_parameters.corr_sym,
 					  clt_parameters.corr_offset,
 					  clt_parameters.corr_red,
@@ -5512,6 +5494,7 @@ public class QuadCLT {
 						  clt_parameters.ih_min_samples,     // 10,   // final int        hist_min_samples,
 						  clt_parameters.ih_norm_center,     // true, // final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with
 						  clt_parameters.ly_inf_frac,        // 0.5, // final double     inf_fraction,    // fraction of the weight for the infinity tiles
+						  clt_parameters.ly_right_left,      // false // equalize weights of right/left FoV (use with horizon in both halves and gross infinity correction)
 						  clt_parameters,  // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 						  disp_strength, // scans,   // double [][] disp_strength,
 						  null,          // double [][]      target_disparity, // null or programmed disparity (1 per each 14 entries of scans_14)
@@ -5720,6 +5703,7 @@ public class QuadCLT {
 		    		clt_parameters.ih_min_samples,     // 10,   // final int        hist_min_samples,
 		    		clt_parameters.ih_norm_center,     // true, // final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with
 		    		clt_parameters.ly_inf_frac,        // 0.5, // final double     inf_fraction,    // fraction of the weight for the infinity tiles
+		    		clt_parameters.ly_right_left,      // false // equalize weights of right/left FoV (use with horizon in both halves and gross infinity correction)
 					clt_parameters,  // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 					disp_strength, // scans,   // double [][] disp_strength,
 					null,          // double [][]      target_disparity, // null or programmed disparity (1 per each 14 entries of scans_14)
@@ -5903,18 +5887,18 @@ public class QuadCLT {
 
 
 	  public void processCLTQuads3d(
-			  boolean adjust_extrinsics,
-			  boolean adjust_poly,
-			  TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
-			  CLTParameters           clt_parameters,
-			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  ColorProcParameters colorProcParameters,
-			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+			  boolean                                              adjust_extrinsics,
+			  boolean                                              adjust_poly,
+			  TwoQuadCLT                                           twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
+			  CLTParameters                                        clt_parameters,
+			  EyesisCorrectionParameters.DebayerParameters         debayerParameters,
+			  ColorProcParameters                                  colorProcParameters,
+			  CorrectionColorProc.ColorGainsParameters             channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-			  final int          threadsMax,  // maximal number of threads to launch
-			  final boolean    updateStatus,
-			  final int        debugLevel)
+			  final int                                            threadsMax,  // maximal number of threads to launch
+			  final boolean                                        updateStatus,
+			  final int                                            debugLevel)
 	  {
 		  this.startTime=System.nanoTime();
 		  String [] sourceFiles=correctionsParameters.getSourcePaths();
@@ -5939,22 +5923,14 @@ public class QuadCLT {
 					  scaleExposures,   //output  // double [] scaleExposures
 					  saturation_imp,   //output  // boolean [][]                              saturation_imp,
 					  debugLevel); // int                                       debugLevel);
-//			  if (adjust_extrinsics && (debugLevel >-2)) {
-//				  boolean tmp_exit = (debugLevel > -10); // == true;
-//				  System.out.println("processCLTQuads3d(): adjust_extrinsics="+adjust_extrinsics);
-//				  if (tmp_exit) {
-//					  System.out.println("will now exit. To continue - change variable tmp_exit in debugger" );
-//					  if (tmp_exit) {
-//						  return;
-//					  }
-//				  }
-//			  }
 			  boolean use_rig = (twoQuadCLT != null) && (twoQuadCLT.getBiScan(0) != null);
 			  if (!adjust_extrinsics || !use_rig) {
 				  // Difficult to fix: adjust extrinsics for aux - when it is adjusted alone, it will not match tiles to those of a rig!
 				  // can use only far tiles with small gradients?
 
 				  // once per quad here
+
+// need to replace for low-res?
 				  preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
 						  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
 						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
@@ -6030,6 +6006,8 @@ public class QuadCLT {
 			  final boolean    updateStatus,
 			  final int        debugLevel)
 	  {
+		  boolean no_macro = isLwir(); // make it a separate configurable parameter?
+
 		  this.startStepTime=System.nanoTime();
 		  final boolean    show_init_refine = clt_parameters.show_init_refine;
 
@@ -6043,8 +6021,15 @@ public class QuadCLT {
 					  this.is_mono);
 		  }
 		  for (int i = 0; i < image_data.length; i++){
-			  for (int j =0 ; j < image_data[i][0].length; j++){
-				  image_data[i][2][j]*=0.5; // Scale green 0.5 to compensate more pixels than R,B
+			  if ( image_data[i].length > 2) {
+				  for (int j =0 ; j < image_data[i][0].length; j++){
+					  image_data[i][2][j]*=0.5; // Scale green 0.5 to compensate more pixels than R,B
+				  }
+			  } else {
+				  for (int j =0 ; j < image_data[i][0].length; j++){
+					  image_data[i][0][j]*=1.0; // Scale green 0.5 to compensate more pixels than R,B
+				  }
+
 			  }
 		  }
 		  setTiles (imp_quad[0], // set global tp.tilesX, tp.tilesY
@@ -6055,9 +6040,8 @@ public class QuadCLT {
 		  this.image_data =     image_data;
 		  this.saturation_imp = saturation_imp;
 
-
 		  tp.resetCLTPasses();
-		  tp.setTrustedCorrelation(clt_parameters.grow_disp_trust);
+		  tp.setTrustedCorrelation(clt_parameters.grow_disp_trust); // 6.0
 
 		  CLTPass3d bgnd_data = CLTBackgroundMeas( // measure background
 				  image_data, //
@@ -6103,7 +6087,6 @@ public class QuadCLT {
 
 		  x3dOutput.generateBackground(clt_parameters.infinityDistance <= 0.0); // needs just first (background) scan
 
-/*		  */
 
 
     	  // refine first measurement
@@ -6127,117 +6110,124 @@ public class QuadCLT {
     	  // TODO: Make double pass - with only 	weight_var (thin wires) and weight_Y, weight_RBmG - larger objects
     	  // just use two instances of MacroCorrelation, run one after another (move code to MacroCorrelation class)
     	  // and then join
+    	  ArrayList <CLTPass3d> new_meas = null; // filled either from macro correlation, or just from plain disparity scan
+    	  if (no_macro) {
+    		  new_meas = prepareDisparityScan(
+    				  clt_parameters.disp_scan_start, // double scan_start,
+    				  clt_parameters.disp_scan_step, // 	double scan_step,
+    				  clt_parameters.disp_scan_count); // 	int    scan_count)
+    	  } else {
+    		  MacroCorrelation mc = new MacroCorrelation(
+    				  tp,
+    				  clt_parameters.mc_disp8_trust,
+    				  clt_parameters.mc_weight_var,   // final double     weight_var,   // weight of variance data (old, detects thin wires?)
+    				  clt_parameters.mc_weight_Y,     // final double     weight_Y,     // weight of average intensity
+    				  clt_parameters.mc_weight_RBmG   // final double     weight_RBmG,  // weight of average color difference (0.5*(R+B)-G), shoukld be ~5*weight_Y
+    				  );
 
-    	  MacroCorrelation mc = new MacroCorrelation(
-    			  tp,
-    			  clt_parameters.mc_disp8_trust,
-    			  clt_parameters.mc_weight_var,   // final double     weight_var,   // weight of variance data (old, detects thin wires?)
-    			  clt_parameters.mc_weight_Y,     // final double     weight_Y,     // weight of average intensity
-    			  clt_parameters.mc_weight_RBmG   // final double     weight_RBmG,  // weight of average color difference (0.5*(R+B)-G), shoukld be ~5*weight_Y
-    			  );
 
+    		  double [][][] input_data = mc.CLTMacroSetData( // perform single pass according to prepared tiles operations and disparity
+    				  bgnd_data);           // final CLTPass3d      src_scan, // results of the normal correlations (now expecting infinity)
 
-    	  double [][][] input_data = mc.CLTMacroSetData( // perform single pass according to prepared tiles operations and disparity
-    			  bgnd_data);           // final CLTPass3d      src_scan, // results of the normal correlations (now expecting infinity)
-    	  //    			  null);               // final double [][][]  other_channels, // other channels to correlate, such as average RGB (first index - subcamera, 2-nd - channel, 3-rd - pixel)
+    		  TileProcessor mtp =  mc.CLTMacroScan( // perform single pass according to prepared tiles operations and disparity
+    				  bgnd_data,          // final CLTPass3d                            src_scan, // results of the normal correlations (now expecting infinity)
+    				  clt_parameters,     // EyesisCorrectionParameters.CLTParameters clt_parameters,
+    				  geometryCorrection, // GeometryCorrection geometryCorrection,
+    				  0.0,                // 	final double                             macro_disparity_low,
+    				  clt_parameters.grow_disp_max / tp.getTileSize(), // final double                             macro_disparity_high,
+    				  clt_parameters.mc_disp8_step, // final double                             macro_disparity_step,
+    				  debugLevel); // 1); // 	final int                                debugLevel){
 
-
-    	  TileProcessor mtp =  mc.CLTMacroScan( // perform single pass according to prepared tiles operations and disparity
-    			  bgnd_data,          // final CLTPass3d                            src_scan, // results of the normal correlations (now expecting infinity)
-    			  clt_parameters,     // EyesisCorrectionParameters.CLTParameters clt_parameters,
-    			  geometryCorrection, // GeometryCorrection geometryCorrection,
-    			  0.0,                // 	final double                             macro_disparity_low,
-    			  clt_parameters.grow_disp_max / tp.getTileSize(), // final double                             macro_disparity_high,
-    			  clt_parameters.mc_disp8_step, // final double                             macro_disparity_step,
-    			  debugLevel); // 1); // 	final int                                debugLevel){
-
-    	  CLTPass3d macro_combo = mtp.compositeScan(
-    			  mtp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
-    			  0, //  final int                   firstPass,
-    			  mtp.clt_3d_passes.size(),                         //  final int                   lastPassPlus1,
-    			  mtp.getTrustedCorrelation(),                      // 	final double                trustedCorrelation,
-    			  mtp.getMaxOverexposure(),                         //  final double                max_overexposure,
-    			  0.0, // clt_parameters.bgnd_range,                //	final double                disp_far,   // limit results to the disparity range
-    			  clt_parameters.grow_disp_max / tp.getTileSize(),  //  final double                disp_near,
-    			  clt_parameters.mc_strength,                       // final double                minStrength,
-    			  Double.NaN, // clt_parameters.combine_min_hor,                   // final double                minStrengthHor,
-    			  Double.NaN, // clt_parameters.combine_min_vert,                  // final double                minStrengthVert,
-    			  // maybe temporarily? later keep weak?
-    			  true,      // final boolean               no_weak,
-    			  false, // final boolean               use_last,   //
-    			  // TODO: when useCombo - pay attention to borders (disregard)
-    			  false, // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
-    			  true, // 	 final boolean               copyDebug)
-    			  debugLevel);
-    	  mtp.clt_3d_passes.add(macro_combo);
-    	  if (clt_parameters.show_macro) {
-    		  mtp.showScan(
-    				  macro_combo, // CLTPass3d   scan,
-    				  "macro_combo-"+mtp.clt_3d_passes.size());
-    	  }
-
-    	  for (int num_try = 0; num_try < 100; num_try++) {
-    		  CLTPass3d refined_macro = mc.refineMacro(
-    				  input_data,                                        // final double [][][]                      input_data,
-    				  clt_parameters,                                    // EyesisCorrectionParameters.CLTParameters clt_parameters,
-    				  geometryCorrection,                                // GeometryCorrection                       geometryCorrection,
-    				  clt_parameters.mc_disp8_trust,                     // final double                             trustedCorrelation,
-    				  0, //  final double                             disp_far,   // limit results to the disparity range
-    				  clt_parameters.grow_disp_max / tp.getTileSize(), // final double                             disp_near,
-    				  clt_parameters.mc_strength, // final double                             minStrength,
-    				  clt_parameters.mc_unique_tol, // final double                             unique_tolerance,
-    				  1); // final int                                debugLevel)
-    		  if (refined_macro == null) break;
-    		  mtp.clt_3d_passes.add(refined_macro);
+    		  CLTPass3d macro_combo = mtp.compositeScan(
+    				  mtp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
+    				  0, //  final int                   firstPass,
+    				  mtp.clt_3d_passes.size(),                         //  final int                   lastPassPlus1,
+    				  mtp.getTrustedCorrelation(),                      // 	final double                trustedCorrelation,
+    				  mtp.getMaxOverexposure(),                         //  final double                max_overexposure,
+    				  0.0, // clt_parameters.bgnd_range,                //	final double                disp_far,   // limit results to the disparity range
+    				  clt_parameters.grow_disp_max / tp.getTileSize(),  //  final double                disp_near,
+    				  clt_parameters.mc_strength,                       // final double                minStrength,
+    				  Double.NaN, // clt_parameters.combine_min_hor,                   // final double                minStrengthHor,
+    				  Double.NaN, // clt_parameters.combine_min_vert,                  // final double                minStrengthVert,
+    				  // maybe temporarily? later keep weak?
+    				  true,      // final boolean               no_weak,
+    				  false, // final boolean               use_last,   //
+    				  // TODO: when useCombo - pay attention to borders (disregard)
+    				  false, // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
+    				  true, // 	 final boolean               copyDebug)
+    				  debugLevel);
+    		  mtp.clt_3d_passes.add(macro_combo);
     		  if (clt_parameters.show_macro) {
     			  mtp.showScan(
-    					  refined_macro, // CLTPass3d   scan,
-    					  "refined_macro-"+mtp.clt_3d_passes.size());
+    					  macro_combo, // CLTPass3d   scan,
+    					  "macro_combo-"+mtp.clt_3d_passes.size());
     		  }
 
-    	  }
-    	  CLTPass3d macro_combo1 = mtp.compositeScan(
-    			  mtp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
-    			  0, //  final int                   firstPass,
-    			  mtp.clt_3d_passes.size(),                         //  final int                   lastPassPlus1,
-    			  mtp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
-    			  mtp.getMaxOverexposure(),                         //  final double                max_overexposure,
-    			  0.0, // clt_parameters.bgnd_range,                //	 final double                disp_far,   // limit results to the disparity range
-    			  clt_parameters.grow_disp_max / tp.getTileSize(),  //  final double                disp_near,
-    			  clt_parameters.mc_strength,                       // final double                minStrength,
-    			  Double.NaN, // clt_parameters.combine_min_hor,                   // final double                minStrengthHor,
-    			  Double.NaN, // clt_parameters.combine_min_vert,                  // final double                minStrengthVert,
-    			  // maybe temporarily? later keep weak?
-    			  true,      // final boolean               no_weak,
-    			  false, // final boolean               use_last,   //
-    			  // TODO: when useCombo - pay attention to borders (disregard)
-    			  false, // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
-    			  true, // 	 final boolean               copyDebug)
-    			  debugLevel);
-    	  mtp.clt_3d_passes.add(macro_combo1);
-    	  if (clt_parameters.show_macro) {
-    		  mtp.showScan(
-    			  macro_combo1, // CLTPass3d   scan,
-    			  "macro_combo-"+mtp.clt_3d_passes.size());
-    	  }
+    		  for (int num_try = 0; num_try < 100; num_try++) {
+    			  CLTPass3d refined_macro = mc.refineMacro(
+    					  input_data,                                        // final double [][][]                      input_data,
+    					  clt_parameters,                                    // EyesisCorrectionParameters.CLTParameters clt_parameters,
+    					  geometryCorrection,                                // GeometryCorrection                       geometryCorrection,
+    					  clt_parameters.mc_disp8_trust,                     // final double                             trustedCorrelation,
+    					  0, //  final double                             disp_far,   // limit results to the disparity range
+    					  clt_parameters.grow_disp_max / tp.getTileSize(), // final double                             disp_near,
+    					  clt_parameters.mc_strength, // final double                             minStrength,
+    					  clt_parameters.mc_unique_tol, // final double                             unique_tolerance,
+    					  1); // final int                                debugLevel)
+    			  if (refined_macro == null) break;
+    			  mtp.clt_3d_passes.add(refined_macro);
+    			  if (clt_parameters.show_macro) {
+    				  mtp.showScan(
+    						  refined_macro, // CLTPass3d   scan,
+    						  "refined_macro-"+mtp.clt_3d_passes.size());
+    			  }
+
+    		  }
+    		  CLTPass3d macro_combo1 = mtp.compositeScan(
+    				  mtp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
+    				  0, //  final int                   firstPass,
+    				  mtp.clt_3d_passes.size(),                         //  final int                   lastPassPlus1,
+    				  mtp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
+    				  mtp.getMaxOverexposure(),                         //  final double                max_overexposure,
+    				  0.0, // clt_parameters.bgnd_range,                //	 final double                disp_far,   // limit results to the disparity range
+    				  clt_parameters.grow_disp_max / tp.getTileSize(),  //  final double                disp_near,
+    				  clt_parameters.mc_strength,                       // final double                minStrength,
+    				  Double.NaN, // clt_parameters.combine_min_hor,                   // final double                minStrengthHor,
+    				  Double.NaN, // clt_parameters.combine_min_vert,                  // final double                minStrengthVert,
+    				  // maybe temporarily? later keep weak?
+    				  true,      // final boolean               no_weak,
+    				  false, // final boolean               use_last,   //
+    				  // TODO: when useCombo - pay attention to borders (disregard)
+    				  false, // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
+    				  true, // 	 final boolean               copyDebug)
+    				  debugLevel);
+    		  mtp.clt_3d_passes.add(macro_combo1);
+    		  if (clt_parameters.show_macro) {
+    			  mtp.showScan(
+    					  macro_combo1, // CLTPass3d   scan,
+    					  "macro_combo-"+mtp.clt_3d_passes.size());
+    		  }
 
 
-    	  ArrayList <CLTPass3d> new_meas = mc.prepareMeasurementsFromMacro(
-    			  mtp.clt_3d_passes, // final ArrayList <CLTPass3d> macro_passes, // macro correlation measurements
-    			  // in pixels
-    			  3.0, // final double                disp_far,   // limit results to the disparity range
-    			  clt_parameters.grow_disp_max, // final double                disp_near,
-    			  clt_parameters.mc_strength, // final double                minStrength,
-    			  clt_parameters.mc_strength, //final double                mc_trust_fin, //          =   0.3;   // When consolidating macro results, exclude high residual disparity
-    			  clt_parameters.mc_strength, //final double                mc_trust_sigma, //        =   0.2;   // Gaussian sigma to reduce weight of large residual disparity
-    			  clt_parameters.mc_strength, //final double                mc_ortho_weight, //       =   0.5;   // Weight from ortho neighbor supertiles
-    			  clt_parameters.mc_strength, //final double                mc_diag_weight, //        =   0.25;  // Weight from diagonal neighbor supertiles
-    			  clt_parameters.mc_strength, //final double                mc_gap, //                =   0.4;   // Do not remove measurements farther from the kept ones
-    			  false, // final boolean               usePoly,  // use polynomial method to find max), valid if useCombo == false
-    			  true, // final boolean               sort_disparity,  // sort results for increasing disparity (false - decreasing strength)
-    			  clt_parameters.tileX, // final int                   dbg_x,
-    			  clt_parameters.tileY, // final int                   dbg_y,
-    			  debugLevel); // final int                   debugLevel);
+    		  //    	  ArrayList <CLTPass3d>
+    		  new_meas = mc.prepareMeasurementsFromMacro(
+    				  mtp.clt_3d_passes, // final ArrayList <CLTPass3d> macro_passes, // macro correlation measurements
+    				  // in pixels
+    				  3.0, // final double                disp_far,   // limit results to the disparity range
+    				  clt_parameters.grow_disp_max, // final double                disp_near,
+    				  clt_parameters.mc_strength, // final double                minStrength,
+    				  clt_parameters.mc_strength, //final double                mc_trust_fin, //          =   0.3;   // When consolidating macro results, exclude high residual disparity
+    				  clt_parameters.mc_strength, //final double                mc_trust_sigma, //        =   0.2;   // Gaussian sigma to reduce weight of large residual disparity
+    				  clt_parameters.mc_strength, //final double                mc_ortho_weight, //       =   0.5;   // Weight from ortho neighbor supertiles
+    				  clt_parameters.mc_strength, //final double                mc_diag_weight, //        =   0.25;  // Weight from diagonal neighbor supertiles
+    				  clt_parameters.mc_strength, //final double                mc_gap, //                =   0.4;   // Do not remove measurements farther from the kept ones
+    				  false, // final boolean               usePoly,  // use polynomial method to find max), valid if useCombo == false
+    				  true, // final boolean               sort_disparity,  // sort results for increasing disparity (false - decreasing strength)
+    				  clt_parameters.tileX, // final int                   dbg_x,
+    				  clt_parameters.tileY, // final int                   dbg_y,
+    				  debugLevel); // final int                   debugLevel);
+    	  }  // if (no_macro) {} else
+
     	  System.out.println("new_meas.size()="+new_meas.size());
     	  int indx = 0;
     	  if (clt_parameters.show_macro) {
@@ -6352,7 +6342,7 @@ public class QuadCLT {
 					  image_data, // first index - number of image in a quad
 					  saturation_imp, //final boolean [][]  saturation_imp, // (near) saturated pixels or null
 					  clt_parameters,
-					  tp.clt_3d_passes.size() -1, // refine_pass,
+					  tp.clt_3d_passes.size() -1, // refine_pass, - just added from macro?
 					  true, // final boolean     save_textures,
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
@@ -6471,8 +6461,24 @@ public class QuadCLT {
 		  return true;
 	  }
 
+	  ArrayList <CLTPass3d> prepareDisparityScan(
+			  	double scan_start,
+			  	double scan_step,
+			  	int    scan_count){
+		  ArrayList <CLTPass3d> measurements = new ArrayList <CLTPass3d>();
+		  for (int si = 0; si < scan_count; si++ ) {
+			  double disparity = scan_start + scan_step * si;
+			  CLTPass3d pass = new CLTPass3d(tp, 0 );
+			  int op = ImageDtt.setImgMask(0, 0xf);
+			  op =     ImageDtt.setPairMask(op,0xf);
+			  op =     ImageDtt.setForcedDisparity(op,true);
+			  pass.disparity = tp.setSameDisparity(disparity);
+			  pass.tile_op = tp.setSameTileOp(op);
+			  measurements.add(pass);
+		  }
+		  return measurements;
+	  }
 
-//	  public ImagePlus expandCLTQuad3d(
 	  public boolean extrinsicsCLT(
 			  CLTParameters           clt_parameters,
 			  boolean 		   adjust_poly,
@@ -6484,7 +6490,7 @@ public class QuadCLT {
 		  int debugLevelInner =  batch_mode ? -5: debugLevel;
 		  boolean update_disp_from_latest = clt_parameters.lym_update_disp ; // true;
 		  int max_tries =                   clt_parameters.lym_iter; // 25;
-		  double min_sym_update =           clt_parameters.lym_change; //  4e-6; // stop iterations if no angle changes more than this
+		  double min_sym_update =           clt_parameters.getLymChange(is_aux); //  4e-6; // stop iterations if no angle changes more than this
 		  double min_poly_update =          clt_parameters.lym_poly_change; //  Parameter vector difference to exit from polynomial correction
 		  int bg_scan = 0;
 		  int combo_scan= tp.clt_3d_passes.size()-1;
@@ -6499,7 +6505,7 @@ public class QuadCLT {
 					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
 					  "combo_scan-"+combo_scan); //String title)
 		  }
-
+// combo_scan: normStrength - junk. Is it used?
 		  boolean [] bg_sel = null;
 		  boolean [] bg_use = null;
 		  double [] combo_disp = null;
@@ -6750,6 +6756,7 @@ public class QuadCLT {
 					  clt_parameters.ih_min_samples,     // 10,   // final int        hist_min_samples,
 					  clt_parameters.ih_norm_center,     // true, // final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with
 					  clt_parameters.ly_inf_frac,        // 0.5, // final double     inf_fraction,    // fraction of the weight for the infinity tiles
+					  clt_parameters.ly_right_left,      // false // equalize weights of right/left FoV (use with horizon in both halves and gross infinity correction)
 					  clt_parameters,  // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 					  scans14, // disp_strength, // scans,   // double [][] disp_strength,
 					  target_disparity,          // double [][]      target_disparity, // null or programmed disparity (1 per each 14 entries of scans_14)
@@ -6786,13 +6793,13 @@ public class QuadCLT {
 					  comp_diff += new_corr[0][0][i] * new_corr[0][0][i];
 				  }
 				  comp_diff = Math.sqrt(comp_diff);
+				  boolean done = (comp_diff < min_sym_update) || (num_iter == max_tries);
 				  if (debugLevel > -10) { // should work even in batch mode
 					  System.out.println("#### extrinsicsCLT(): iteration step = "+(num_iter + 1) + " ( of "+max_tries+") change = "+
 							  comp_diff + " ("+min_sym_update+"), previous RMS = " + new_corr[0][1][0]+ " (debugLevel = "+debugLevel+")");
 				  }
-
 				  if (debugLevel > -2) {
-					  if ((debugLevel > -1) || (comp_diff < min_sym_update)) {
+					  if ((debugLevel > -1) || done) {
 //						  System.out.println("#### extrinsicsCLT(): iteration step = "+(num_iter + 1) + " ( of "+max_tries+") change = "+
 //								  comp_diff + " ("+min_sym_update+"), previous RMS = " + new_corr[0][1][0]);
 						  System.out.println("New extrinsic corrections:");
@@ -6824,7 +6831,7 @@ public class QuadCLT {
 		  final boolean    batch_mode = clt_parameters.batch_run;
 		  int debugLevelInner =  batch_mode ? -5: debugLevel;
 		  int max_tries =                   clt_parameters.lym_iter; // 25;
-		  double min_sym_update =           clt_parameters.lym_change; //  4e-6; // stop iterations if no angle changes more than this
+		  double min_sym_update =           clt_parameters.getLymChange(is_aux); //  4e-6; // stop iterations if no angle changes more than this
 		  double min_poly_update =          clt_parameters.lym_poly_change; //  Parameter vector difference to exit from polynomial correction
 		  if ((twoQuadCLT == null) || (twoQuadCLT.getBiScan(0) == null)){
 			  System.out.println("Rig data is not available, aborting");
@@ -8244,7 +8251,7 @@ public class QuadCLT {
 		  if (num_bgnd < clt_parameters.min_bgnd_tiles){
 			  return null; // no background to generate
 		  }
-		  ImageDtt image_dtt = new ImageDtt(isMonochrome());
+		  ImageDtt image_dtt = new ImageDtt(isMonochrome(),clt_parameters.getScaleStrength(isAux()));
 		  double [][] texture_overlap = image_dtt.combineRBGATiles(
 				  texture_tiles_bgnd, // texture_tiles,               // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
 				  clt_parameters.transform_size,
@@ -8374,7 +8381,7 @@ public class QuadCLT {
 			  }
 		  }
 
-		  ImageDtt image_dtt = new ImageDtt(isMonochrome());
+		  ImageDtt image_dtt = new ImageDtt(isMonochrome(),clt_parameters.getScaleStrength(isAux()));
 		  double [][] texture_overlap = image_dtt.combineRBGATiles(
 				  texture_tiles_cluster, // texture_tiles,               // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
 				  clt_parameters.transform_size,
@@ -8448,7 +8455,7 @@ public class QuadCLT {
 	  public ImagePlus resizeForBackdrop(
 			  ImagePlus imp,
 			  boolean fillBlack,
-			  boolean noalpha, // only with fillBlack, otherwize ignored
+			  boolean noalpha, // only with fillBlack, otherwise ignored
 			  int debugLevel)
 	  {
 		  double backdropPixels = 2.0/geometryCorrection.getFOVPix();
@@ -8513,7 +8520,6 @@ public class QuadCLT {
 //linearStackToColor
 
 	  public CLTPass3d CLTBackgroundMeas( // measure background
-//			  final String        image_name,
 			  final double [][][] image_data, // first index - number of image in a quad
 			  final boolean [][]  saturation_imp, // (near) saturated pixels or null
 			  CLTParameters           clt_parameters,
@@ -8523,7 +8529,6 @@ public class QuadCLT {
 	  {
 		  final int tilesX = tp.getTilesX();
 		  final int tilesY = tp.getTilesY();
-//		  CLTPass3d scan_rslt = tp.new CLTPass3d(tp);
 		  CLTPass3d scan_rslt = new CLTPass3d(tp);
 		  int d = ImageDtt.setImgMask(0, 0xf);
 		  d =     ImageDtt.setPairMask(d,0xf);
@@ -8533,8 +8538,7 @@ public class QuadCLT {
 		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
 		  double [][][][]     clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][]; // will only be used inside?
 
-//		  double min_corr_selected = clt_parameters.corr_normalize? clt_parameters.min_corr_normalized: clt_parameters.min_corr;
-		  double min_corr_selected = clt_parameters.min_corr;
+		  double min_corr_selected = clt_parameters.min_corr; // 0.02
 
 		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
 
@@ -8549,8 +8553,7 @@ public class QuadCLT {
 		  }
 
 		  double [][][][] texture_tiles =     new double [tilesY][tilesX][][]; // ["RGBA".length()][];
-		  ImageDtt image_dtt = new ImageDtt(isMonochrome());
-//		  final double disparity_corr = (clt_parameters.z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/clt_parameters.z_correction);
+		  ImageDtt image_dtt = new ImageDtt(isMonochrome(),clt_parameters.getScaleStrength(isAux()));
 		  double z_correction =  clt_parameters.z_correction;
 		  if (clt_parameters.z_corr_map.containsKey(image_name)){
 			  z_correction +=clt_parameters.z_corr_map.get(image_name);
@@ -8572,7 +8575,7 @@ public class QuadCLT {
 				  disparity_map,    // [12][tp.tilesY * tp.tilesX]
 				  texture_tiles,        // [tp.tilesY][tp.tilesX]["RGBA".length()][];
 				  tilesX * clt_parameters.transform_size, // imp_quad[0].getWidth(),       // final int width,
-				  clt_parameters.fat_zero,      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
+				  clt_parameters.getFatZero(isMonochrome()),      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
 				  clt_parameters.corr_sym,
 				  clt_parameters.corr_offset,
 				  clt_parameters.corr_red,
@@ -8582,8 +8585,6 @@ public class QuadCLT {
 				  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
 				  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
 				  clt_parameters.max_corr_radius,
-//				  clt_parameters.enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
-//				  clt_parameters.enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
 				  clt_parameters.max_corr_double, // Double pass when masking center of mass to reduce preference for integer values
 				  clt_parameters.corr_mode,     // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
 				  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
@@ -8764,7 +8765,7 @@ public class QuadCLT {
 		  }
 
 		  double [][][][] texture_tiles =   save_textures ? new double [tilesY][tilesX][][] : null; // ["RGBA".length()][];
-		  ImageDtt image_dtt = new ImageDtt(isMonochrome());
+		  ImageDtt image_dtt = new ImageDtt(isMonochrome(),clt_parameters.getScaleStrength(isAux()));
 //		  final double disparity_corr = (clt_parameters.z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/clt_parameters.z_correction);
 		  double z_correction =  clt_parameters.z_correction;
 		  if (clt_parameters.z_corr_map.containsKey(image_name)){
@@ -8787,7 +8788,7 @@ public class QuadCLT {
 				  disparity_map,    // [12][tp.tilesY * tp.tilesX]
 				  texture_tiles,        // [tp.tilesY][tp.tilesX]["RGBA".length()][];
 				  tilesX * clt_parameters.transform_size, // imp_quad[0].getWidth(),       // final int width,
-				  clt_parameters.fat_zero,      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
+				  clt_parameters.getFatZero(isMonochrome()),      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
 				  clt_parameters.corr_sym,
 				  clt_parameters.corr_offset,
 				  clt_parameters.corr_red,
@@ -8898,7 +8899,7 @@ public class QuadCLT {
 		  }
 
 		  double [][][][] texture_tiles =   save_textures ? new double [tilesY][tilesX][][] : null; // ["RGBA".length()][];
-		  ImageDtt image_dtt = new ImageDtt(isMonochrome());
+		  ImageDtt image_dtt = new ImageDtt(isMonochrome(),clt_parameters.getScaleStrength(isAux()));
 		  double z_correction =  clt_parameters.z_correction;
 		  if (clt_parameters.z_corr_map.containsKey(image_name)){
 			  z_correction +=clt_parameters.z_corr_map.get(image_name);
@@ -8920,7 +8921,7 @@ public class QuadCLT {
 				  disparity_map,    // [12][tp.tilesY * tp.tilesX]
 				  texture_tiles,        // [tp.tilesY][tp.tilesX]["RGBA".length()][];
 				  tilesX * clt_parameters.transform_size, // imp_quad[0].getWidth(),       // final int width,
-				  clt_parameters.fat_zero,      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
+				  clt_parameters.getFatZero(isMonochrome()),      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
 				  clt_parameters.corr_sym,
 				  clt_parameters.corr_offset,
 				  clt_parameters.corr_red,

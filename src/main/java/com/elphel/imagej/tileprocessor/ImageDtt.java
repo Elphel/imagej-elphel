@@ -202,6 +202,7 @@ public class ImageDtt {
 	  static String [] TCORR_TITLES = {"combo","sum","hor","vert"};
 
 	  private final boolean monochrome;
+	  private final double scale_strengths; // scale all correlation strengths (to compensate for LPF sigma changes)
 
 
      public static int getImgMask  (int data){ return (data & 0xf);}      // which images to use
@@ -213,8 +214,11 @@ public class ImageDtt {
      public static boolean getOrthoLines (int data){return (data & 0x200) != 0;}
      public static int     setOrthoLines (int data, boolean force) {return (data & ~0x200) | (force?0x200:0);}
 
-	public ImageDtt(boolean mono){
-		monochrome = mono;
+	public ImageDtt(
+			boolean mono,
+			double scale_strengths){
+		this.monochrome = mono;
+		this.scale_strengths = scale_strengths;
 	}
 
 	public boolean isMonochrome() {
@@ -2110,14 +2114,16 @@ public class ImageDtt {
 
 							// calculate all selected pairs correlations
 							int all_pairs = imgdtt_params.dbg_pair_mask; //TODO: use tile tasks
-						    double [][]  corrs = corr2d.correlateCompositeFD( // now works with nulls for some clt_data colors
-						    		clt_data,       // double [][][][][][] clt_data,
-						    		tileX,          // int                 tileX,
-						    		tileY,          // int                 tileY,
-						    		all_pairs,      // int                 pairs_mask,
-						    		filter,         // double []           lpf,
-						    		col_weights,    // double []           col_weights,
-						    		corr_fat_zero); // double              fat_zero)
+
+							double [][]  corrs = corr2d.correlateCompositeFD( // now works with nulls for some clt_data colors
+						    		clt_data,        // double [][][][][][] clt_data,
+						    		tileX,           // int                 tileX,
+						    		tileY,           // int                 tileY,
+						    		all_pairs,       // int                 pairs_mask,
+						    		filter,          // double []           lpf,
+						    		scale_strengths, // double              scale_value, // scale correlation value
+						    		col_weights,     // double []           col_weights,
+						    		corr_fat_zero);  // double              fat_zero)
 
 						    // calculate interpolated "strips" to match different scales and orientations (ortho/diagonal) on the
 						    // fine (0.5 pix) grid. ortho for scale == 1 provide even/even samples (1/4 of all), diagonal ones -
@@ -2233,8 +2239,8 @@ public class ImageDtt {
 									false,                              // boolean     is_vert,      // transpose X/Y
 									tile_lma_debug_level > 0);          // boolean   debug);
 							if (hor_pair1 != null) {
-								disparity_map[DISPARITY_INDEX_HOR][tIndex] =         -hor_pair1[0];
-								disparity_map[DISPARITY_INDEX_HOR_STRENGTH][tIndex] = hor_pair1[1];
+								disparity_map[DISPARITY_INDEX_HOR][tIndex] =          -hor_pair1[0];
+								disparity_map[DISPARITY_INDEX_HOR_STRENGTH][tIndex] =  hor_pair1[1];
 							}
 
 							double [] vert_pair1 = corr2d.getMaxXSOrtho(
@@ -6208,7 +6214,7 @@ public class ImageDtt {
 
 		// Create window  to select center correlation strip using
 		// ortho_height - full width of non-zero elements
-		// ortho_eff_height - effective height (ration of the weighted column sum to the center value)
+		// ortho_eff_height - effective height (ratio of the weighted column sum to the center value)
 		int wcenter = transform_size - 1;
 		final double [] ortho_weights = new double [corr_size]; // [15]
 		for (int i = 0; i < corr_size; i++){
@@ -7372,6 +7378,7 @@ public class ImageDtt {
 				clt_data_tile_main,       // double [][][][]     clt_data_tile_main,
 				clt_data_tile_aux,        // double [][][][]     clt_data_tile_aux,
 	    		filter,                   // double []           lpf,
+	    		scale_strengths,
 	    		col_weights,              // double []           col_weights,
 	    		fatzero);                 // double              fat_zero)
 
@@ -7627,6 +7634,7 @@ public class ImageDtt {
 	    		clt_data,       // double [][][][] clt_data, // aberration-corrected FD CLT data for one tile [camera][color][quadrant][index]
 	    		all_pairs,      // int                 pairs_mask,
 	    		filter,         // double []           lpf,
+	    		scale_strengths,
 	    		col_weights,    // double []           col_weights,
 	    		fatzero);       // double              fat_zero)
 
@@ -8466,6 +8474,7 @@ public class ImageDtt {
 									clt_data_main,       // double [][][][]     clt_data_tile_main,
 									clt_data_aux,        // double [][][][]     clt_data_tile_aux,
 						    		filter,                   // double []           lpf,
+						    		scale_strengths,
 						    		col_weights,              // double []           col_weights,
 						    		fatzero);                 // double              fat_zero)
 
@@ -9242,6 +9251,7 @@ public class ImageDtt {
 									clt_data_main,       // double [][][][]     clt_data_tile_main,
 									clt_data_aux,        // double [][][][]     clt_data_tile_aux,
 						    		filter,                   // double []           lpf,
+						    		scale_strengths,
 						    		col_weights,              // double []           col_weights,
 						    		fatzero);                 // double              fat_zero)
 
@@ -9630,7 +9640,7 @@ public class ImageDtt {
 			System.out.println("max_corr_radius=       "+clt_parameters.max_corr_radius);
 			System.out.println("max_search_radius=     "+max_search_radius);
 			System.out.println("max_search_radius_poly="+max_search_radius_poly);
-			System.out.println("corr_fat_zero=         "+clt_parameters.fat_zero);
+			System.out.println("corr_fat_zero=         "+clt_parameters.getFatZero(isMonochrome()));
 			System.out.println("disparity_array[0][0]= "+disparity_array[0][0]);
 
 

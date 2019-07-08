@@ -63,6 +63,7 @@ public class MacroCorrelation {
 					tileSize,  // int tileSize,
 					tp.superTileSize, // int superTileSize,
 					tp.isMonochrome(),
+					tp.isAux(),
 					tp.getMagicScale(), // double scale,
 					trusted_correlation, // double trustedCorrelation,
 					0.0, // double maxOverexposure,
@@ -305,7 +306,9 @@ public class MacroCorrelation {
 
 
 		//		  double [][][][] texture_tiles =   save_textures ? new double [tilesY][tilesX][][] : null; // ["RGBA".length()][];
-		ImageDtt image_dtt = new ImageDtt(this.mtp.isMonochrome());
+		ImageDtt image_dtt = new ImageDtt(
+				this.mtp.isMonochrome(),
+				clt_parameters.getScaleStrength(this.mtp.isAux()));
 		image_dtt.clt_aberrations_quad_corr(
 			    clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 				8,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
@@ -321,7 +324,7 @@ public class MacroCorrelation {
 				disparity_map,    // [12][tp.tilesY * tp.tilesX]
 				null, // [tp.tilesY][tp.tilesX]["RGBA".length()][];
 				mTilesX * clt_parameters.transform_size, // imp_quad[0].getWidth(),       // final int width,
-				clt_parameters.fat_zero,      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
+				clt_parameters.getFatZero(image_dtt.isMonochrome()),      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
 				clt_parameters.corr_sym,
 				clt_parameters.corr_offset,
 				clt_parameters.corr_red,

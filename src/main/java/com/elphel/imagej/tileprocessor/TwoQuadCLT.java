@@ -633,7 +633,7 @@ public class TwoQuadCLT {
 
 		double [][] disparity_bimap  = new double [ImageDtt.BIDISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
 
-		ImageDtt image_dtt = new ImageDtt(quadCLT_main.isMonochrome());
+		ImageDtt image_dtt = new ImageDtt(quadCLT_main.isMonochrome(),clt_parameters.getScaleStrength(false));
 
 		double [][] ml_data = null;
 //		int [][] woi_tops = {quadCLT_main.woi_tops,quadCLT_aux.woi_tops};
@@ -643,7 +643,7 @@ public class TwoQuadCLT {
 		final double [][][][][][][] clt_bidata = // new double[2][quad][nChn][tilesY][tilesX][][]; // first index - main/aux
 				image_dtt.clt_bi_quad (
 						clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
-						clt_parameters.fat_zero,              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
+						clt_parameters.getFatZero(image_dtt.isMonochrome()),  // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 						notch_mode,                           //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 						lt_rad,                               // final int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
 						// first measurement - use default setting
@@ -1353,7 +1353,7 @@ public class TwoQuadCLT {
 
 		double [][] disparity_bimap  = new double [ImageDtt.BIDISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
 
-		ImageDtt image_dtt = new ImageDtt(quadCLT_main.isMonochrome());
+		ImageDtt image_dtt = new ImageDtt(quadCLT_main.isMonochrome(),clt_parameters.getScaleStrength(false));
 		double [][] ml_data = null;
 //		int [][] woi_tops = {quadCLT_main.woi_tops,quadCLT_aux.woi_tops};
 		double [][][]       ers_delay = get_ers?(new double [2][][]):null;
@@ -1381,7 +1381,7 @@ public class TwoQuadCLT {
 		final double [][][][][][][] clt_bidata = // new double[2][quad][nChn][tilesY][tilesX][][]; // first index - main/aux
 				image_dtt.clt_bi_quad_dbg (
 						clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
-						clt_parameters.fat_zero,              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
+						clt_parameters.getFatZero(image_dtt.isMonochrome()),              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 						notch_mode,                           //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 						lt_rad,                               // final int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
 						// first measurement - use default setting
@@ -2257,10 +2257,10 @@ public class TwoQuadCLT {
 		}
 		double [][] mdisparity_array = new double [mTilesY][mTilesX]; // keep all zeros
 		double [][] mdisparity_bimap = new double [ImageDtt.BIDISPARITY_TITLES.length][];
-		ImageDtt image_dtt = new ImageDtt(quadCLT_main.isMonochrome());
+		ImageDtt image_dtt = new ImageDtt(quadCLT_main.isMonochrome(),clt_parameters.getScaleStrength(false));
 		image_dtt.clt_bi_macro(
 				clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
-				clt_parameters.fat_zero,              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
+				clt_parameters.getFatZero(image_dtt.isMonochrome()),              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 				macro_scale, // final int                 macro_scale,
 				mtile_op, // final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 				mdisparity_array, // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
@@ -3146,10 +3146,10 @@ if (debugLevel > -100) return true; // temporarily !
 				}
 			}
 		}
-		ImageDtt image_dtt = new ImageDtt(quadCLT_main.isMonochrome());
+		ImageDtt image_dtt = new ImageDtt(quadCLT_main.isMonochrome(),clt_parameters.getScaleStrength(false));
 		image_dtt.clt_bi_quad (
 				clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
-				clt_parameters.fat_zero,              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
+				clt_parameters.getFatZero(image_dtt.isMonochrome()),              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 				false,                                //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 				0,                                    // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
 				// does not matter here
@@ -5689,7 +5689,7 @@ if (debugLevel > -100) return true; // temporarily !
 				disparity_array,     // double [][]                                    disparity_array,
 				null, // double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
 				clt_parameters,      // EyesisCorrectionParameters.CLTParameters       clt_parameters,
-				clt_parameters.fat_zero, // double                                         fatzero,
+				clt_parameters.getFatZero(quadCLT_main.isMonochrome()), // double                                         fatzero,
 				false,                          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 				lt_radius,                       // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
 				true,                            // final boolean             no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
@@ -6202,7 +6202,7 @@ if (debugLevel > -100) return true; // temporarily !
 				disparity_array, // double [][]                              disparity_array,
 				null, // double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
 				clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
-				clt_parameters.fat_zero, // double                                         fatzero,
+				clt_parameters.getFatZero(quadCLT_main.isMonochrome()), // double                                         fatzero,
 				false,                   //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 				0,                          // final int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
 				clt_parameters.rig.no_int_x0, // final boolean             no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very
@@ -6258,7 +6258,7 @@ if (debugLevel > -100) return true; // temporarily !
 				disparity_array, // double [][]                              disparity_array,
 				null, // double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
 				clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
-				clt_parameters.fat_zero, // double                                         fatzero,
+				clt_parameters.getFatZero(quadCLT_main.isMonochrome()), // double                                         fatzero,
 				notch_mode,                          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 				lt_rad,                               // final int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
 				no_int_x0,       // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
@@ -6471,7 +6471,7 @@ if (debugLevel > -100) return true; // temporarily !
 				disparity_array,     // double [][]                                    disparity_array,
 				null, // double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
 				clt_parameters,      // EyesisCorrectionParameters.CLTParameters       clt_parameters,
-				clt_parameters.fat_zero, // double                                         fatzero,
+				clt_parameters.getFatZero(quadCLT_main.isMonochrome()), // double                                         fatzero,
 				notch_mode,                          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 				lt_rad,                              // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
 				no_int_x0,                            // final boolean             no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
@@ -6620,7 +6620,7 @@ if (debugLevel > -100) return true; // temporarily !
 				disparity_array,     // double [][]                                    disparity_array,
 				null, // double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
 				clt_parameters,      // EyesisCorrectionParameters.CLTParameters       clt_parameters,
-				clt_parameters.fat_zero, // double                                         fatzero,
+				clt_parameters.getFatZero(quadCLT_main.isMonochrome()), // double                                         fatzero,
 				notch_mode,                          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 				lt_rad,                              // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
 				no_int_x0,                            // final boolean             no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
@@ -6710,7 +6710,7 @@ if (debugLevel > -100) return true; // temporarily !
 				disparity_array,     // double [][]                                    disparity_array,
 				null, // double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
 				clt_parameters,      // EyesisCorrectionParameters.CLTParameters       clt_parameters,
-				clt_parameters.fat_zero, // double                                         fatzero,
+				clt_parameters.getFatZero(quadCLT_main.isMonochrome()), // double                                         fatzero,
 				notch_mode,                          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 				lt_rad,                              // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
 				no_int_x0,           // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
@@ -6797,7 +6797,7 @@ if (debugLevel > -100) return true; // temporarily !
 				disparity_array,     // double [][]                                    disparity_array,
 				null, // double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
 				clt_parameters,      // EyesisCorrectionParameters.CLTParameters       clt_parameters,
-				clt_parameters.fat_zero, // double                                         fatzero,
+				clt_parameters.getFatZero(quadCLT_main.isMonochrome()), // double                                         fatzero,
 				notch_mode,          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 				lt_rad,                              // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
 				no_int_x0,           // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
@@ -6939,7 +6939,7 @@ if (debugLevel > -100) return true; // temporarily !
 			final int                                threadsMax,  // maximal number of threads to launch
 			final boolean                            updateStatus,
 			final int                                debugLevel){
-		ImageDtt image_dtt = new ImageDtt(quadCLT_main.isMonochrome());
+		ImageDtt image_dtt = new ImageDtt(quadCLT_main.isMonochrome(),clt_parameters.getScaleStrength(false));
 
 		double [][] disparity_bimap  = new double [ImageDtt.BIDISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
 

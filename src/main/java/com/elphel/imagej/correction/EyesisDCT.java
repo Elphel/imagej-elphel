@@ -1220,7 +1220,7 @@ public class EyesisDCT {
 		  }
 
 		  if (this.correctionsParameters.deconvolve) { // process with DCT, otherwise use simple debayer
-			  ImageDtt image_dtt = new ImageDtt(false); // Bayer, not monochrome
+			  ImageDtt image_dtt = new ImageDtt(false, 1.0); // Bayer( not monochrome), scale correlation strengths
 			  double [][][][] dct_data = image_dtt.mdctStack(
 					  stack,
 					  channel,

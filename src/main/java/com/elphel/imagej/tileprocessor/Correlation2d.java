@@ -244,6 +244,7 @@ public class Correlation2d {
      * @param clt_data1 [3][4][transform_len] first operand data. First index - RBG color
      * @param clt_data2 [3][4][transform_len] first operand data. First index - RBG color
      * @param lpf   optional [transform_len] LPF filter data
+     * @param scale_value   scale correlation results to compensate for lpf changes and other factors
      * @param col_weights [3] - color weights {R, B, G} - green is last, normalized to sum =1.0
      * @param fat_zero fat zero for phase correlation (0 seems to be OK)
      * @return correlation result [(2*transform_size-1) * (2*transform_size-1)]
@@ -252,6 +253,7 @@ public class Correlation2d {
     		double [][][] clt_data1,
     		double [][][] clt_data2,
     		double []     lpf,
+    		double        scale_value, // scale correlation value
     		double []     col_weights_in, // should have the same dimension as clt_data1 and clt_data2
     		double        fat_zero) {
 
@@ -266,13 +268,18 @@ public class Correlation2d {
     		s+=col_weights[i];
     	}
     	for (int i = 0; i < col_weights.length; i++) {
-    		if (col_weights[i] != 0.0) col_weights[i]/=s; // will have 1.0 for the single color
+    		if (col_weights[i] != 0.0) col_weights[i] *= scale_value;
     	}
 
     	if (clt_data1.length == 1) { // monochrome
     		col_weights = new double[1];
     		col_weights[0] = 1.0;
     	}
+    	for (int i = 0; i < col_weights.length; i++) {
+    		if (col_weights[i] != 0.0) col_weights[i]/=s; // will have 1.0 for the single color
+    	}
+
+
     	double [][][]tcorr = new double [clt_data1.length][4][transform_len];
     	int first_col = -1;
     	for (int col = 0; col < tcorr.length; col++) if (col_weights[col] > 0.0 ) {
@@ -280,7 +287,7 @@ public class Correlation2d {
     		    		clt_data1[col],
     		    		clt_data2[col],
     		    		tcorr[col],
-    		    		fat_zero);
+    		    		fat_zero/scale_value);
 
     		 if (first_col < 0) {// accummulate all channels in frst non-null color ( 0 for color, 2 for mono?)
     			 first_col = col; // first non-empty color (2, green) or 0 for color images
@@ -320,6 +327,7 @@ public class Correlation2d {
      * @param tileY tile to extract Y index
      * @param pairs_mask bimask of required pairs
      * @param lpf optional low-pass filter
+     * @param scale_value   scale correlation results to compensate for lpf changes and other factors
      * @param col_weights RBG color weights
      * @param fat_zero fat zero for phase correlations
      * @return [pair][corr_index]
@@ -330,6 +338,7 @@ public class Correlation2d {
     		int                 tileY,
     		int                 pairs_mask,
     		double []           lpf,
+    		double              scale_value, // scale correlation value
     		double []           col_weights,
     		double              fat_zero) {
     	double [][][][]     clt_data_tile = new double[clt_data.length][][][];
@@ -343,6 +352,7 @@ public class Correlation2d {
     		    		clt_data_tile,
     		    		pairs_mask, // already decoded so bit 0 - pair 0
     		    		lpf,
+    		    		scale_value,
     		    		col_weights,
     		    		fat_zero);
     }
@@ -352,6 +362,7 @@ public class Correlation2d {
      * @param clt_data aberration-corrected FD CLT data for one tile [camera][color][quadrant][index]
      * @param pairs_mask bimask of required pairs
      * @param lpf optional low-pass filter
+     * @param scale_value   scale correlation results to compensate for lpf changes and other factors
      * @param col_weights RBG color weights
      * @param fat_zero fat zero for phase correlations
      * @return [pair][corr_index]
@@ -360,6 +371,7 @@ public class Correlation2d {
     		double [][][][]     clt_data_tile,
     		int                 pairs_mask, // already decoded so bit 0 - pair 0
     		double []           lpf,
+    		double              scale_value, // scale correlation value
     		double []           col_weights,
     		double              fat_zero) {
     	if (clt_data_tile == null) return null;
@@ -372,6 +384,7 @@ public class Correlation2d {
     					clt_data_tile[ncam1], // double [][][] clt_data1,
     					clt_data_tile[ncam2], // double [][][] clt_data2,
     		    		lpf,                  // double []     lpf,
+    		    		scale_value,
     		    		col_weights,          // double []     col_weights,
     		    		fat_zero);            // double        fat_zero)
     		}
@@ -385,6 +398,7 @@ public class Correlation2d {
      * @param clt_data_tile_main aberration-corrected FD CLT data for one tile of the main quad camera  [sub-camera][color][quadrant][index]
      * @param clt_data_tile_aux aberration-corrected FD CLT data for one tile of the auxiliary quad camera  [sub-camera][color][quadrant][index]
      * @param lpf optional low-pass filter
+     * @param scale_value   scale correlation results to compensate for lpf changes and other factors
      * @param col_weights RBG color weights
      * @param fat_zero fat zero for phase correlations
      * @return 2-d correlation array in line scan order
@@ -393,6 +407,7 @@ public class Correlation2d {
     		double [][][][]     clt_data_tile_main,
     		double [][][][]     clt_data_tile_aux,
     		double []           lpf,
+    		double              scale_value, // scale correlation value
     		double []           col_weights,
     		double              fat_zero) {
     	if ((clt_data_tile_main == null) || (clt_data_tile_aux == null)) return null;
@@ -402,6 +417,7 @@ public class Correlation2d {
     			clt_mix_main,         // double [][][] clt_data1,
     			clt_mix_aux,          // double [][][] clt_data2,
 	    		lpf,                  // double []     lpf,
+	    		scale_value,          // scale correlation value
 	    		col_weights,          // double []     col_weights,
 	    		fat_zero);            // double        fat_zero)
     	return inter_cam_corr;

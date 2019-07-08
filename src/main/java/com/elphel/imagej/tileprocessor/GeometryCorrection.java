@@ -1340,8 +1340,8 @@ public class GeometryCorrection {
 				sv[i] = sym_vect[i]*1000.0*distortionRadius/pixelSize; // zooms
 			}
 
-			s  = String.format("tilt    (up):    %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift of he image center)\n" , v[0], v[1], v[2], -(v[0] + v[1] + v[2]) );
-			s += String.format("azimuth (right): %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift of he image center)\n" , v[3], v[4], v[5], -(v[3] + v[4] + v[5]) );
+			s  = String.format("tilt    (up):    %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift of the image center)\n" , v[0], v[1], v[2], -(v[0] + v[1] + v[2]) );
+			s += String.format("azimuth (right): %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift of the image center)\n" , v[3], v[4], v[5], -(v[3] + v[4] + v[5]) );
 			s += String.format("roll    (CW):    %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift at the image half-width from the center)\n" , v[6], v[7], v[8], v[9] );
 			s += String.format("diff zoom (in):  %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift at the image half-width from the center)\n" , v[10], v[11],  v[12], -(v[10] + v[11] + v[12]) );
 			s += "Symmetrical vector:\n";

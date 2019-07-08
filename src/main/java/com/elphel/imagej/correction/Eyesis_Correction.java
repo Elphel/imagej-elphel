@@ -3064,7 +3064,7 @@ private Panel panel1,
            	}
 
            }
-           ImageDtt image_dtt = new ImageDtt(false); // Bayer, not monochrome
+		  ImageDtt image_dtt = new ImageDtt(false, 1.0); // Bayer( not monochrome), scale correlation strengths
            double [][][][] dctdc_data = image_dtt.mdctScale(
            		DBG_IMP.getStack(),
            		DCT_PARAMETERS.kernel_chn,
@@ -3162,7 +3162,7 @@ private Panel panel1,
         	}
 
         }
-        ImageDtt image_dtt = new ImageDtt(false); // Bayer, not monochrome
+        ImageDtt image_dtt = new ImageDtt(false, 1.0); // Bayer( not monochrome), scale correlation strengths
         double [][][][] dctdc_data = image_dtt.mdctStack(
         		DBG_IMP.getStack(),
         		DCT_PARAMETERS.kernel_chn,
@@ -4455,17 +4455,17 @@ private Panel panel1,
         int num_infinity_corr = infinity_corr? CLT_PARAMETERS.inf_repeat : 1;
         if ( num_infinity_corr < 1) num_infinity_corr = 1;
         for (int i_infinity_corr = 0;  i_infinity_corr < num_infinity_corr; i_infinity_corr++) {
-        QUAD_CLT_AUX.processCLTQuadCorrs(
-        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-        		COLOR_PROC_PARAMETERS_AUX, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-        		CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-        		apply_corr,
-        		infinity_corr, // calculate and apply geometry correction at infinity
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-        		UPDATE_STATUS, //final boolean    updateStatus,
-        		DEBUG_LEVEL); //final int        debugLevel);
+        	QUAD_CLT_AUX.processCLTQuadCorrs(
+        			CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        			DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+        			COLOR_PROC_PARAMETERS_AUX, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        			CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        			RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        			apply_corr,
+        			infinity_corr, // calculate and apply geometry correction at infinity
+        			THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        			UPDATE_STATUS, //final boolean    updateStatus,
+        			DEBUG_LEVEL); //final int        debugLevel);
         }
         if (configPath!=null) {
         	saveTimestampedProperties( // save config again
@@ -4631,7 +4631,6 @@ private Panel panel1,
         QUAD_CLT.cltDisparityScans(
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-//        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
         		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
         		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
         		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
@@ -4678,82 +4677,12 @@ private Panel panel1,
 
     	clt3d(adjust_extrinsics, adjust_poly, dry_run);
         return;
-    } else if (label.equals("AUX extrinsics") || label.equals("AUX Poly corr")) {
+    } else if (label.equals("AUX 3D") || label.equals("AUX extrinsics") || label.equals("AUX Poly corr")) {
     	boolean adjust_extrinsics = label.equals("AUX extrinsics") || label.equals("AUX Poly corr");
     	boolean adjust_poly = label.equals("AUX Poly corr");
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
     	clt3d_aux(adjust_extrinsics, adjust_poly);
-/*
-        if (QUAD_CLT_AUX == null){
-        	if (EYESIS_CORRECTIONS_AUX == null) {
-        		EYESIS_CORRECTIONS_AUX = new EyesisCorrections(SYNC_COMMAND.stopRequested,CORRECTION_PARAMETERS.getAux());
-        	}
-        	QUAD_CLT_AUX = new  QuadCLT (
-        			QuadCLT.PREFIX_AUX,
-        			PROPERTIES,
-        			EYESIS_CORRECTIONS_AUX,
-        			CORRECTION_PARAMETERS.getAux());
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Created new QuadCLT instance for AUX camera, will need to read CLT kernels for aux camera");
-        	}
-        }
-    	String configPath=getSaveCongigPath();
-    	if (configPath.equals("ABORT")) return;
-
-    	EYESIS_CORRECTIONS_AUX.initSensorFiles(DEBUG_LEVEL);
-        int numChannelsAux=EYESIS_CORRECTIONS_AUX.getNumChannels();
-        CHANNEL_GAINS_PARAMETERS_AUX.modifyNumChannels(numChannelsAux);
-
-        if (!QUAD_CLT_AUX.CLTKernelsAvailable()){
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Reading AUX CLT kernels");
-        	}
-        	QUAD_CLT_AUX.readCLTKernels(
-            		CLT_PARAMETERS,
-                    THREADS_MAX,
-                    UPDATE_STATUS, // update status info
-            		DEBUG_LEVEL);
-
-            if (DEBUG_LEVEL > 1){
-            	QUAD_CLT_AUX.showCLTKernels(
-            			THREADS_MAX,
-            			UPDATE_STATUS, // update status info
-            			DEBUG_LEVEL);
-        	}
-        }
-
-        if (!QUAD_CLT_AUX.geometryCorrectionAvailable()){
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Calculating geometryCorrection for AUX camera");
-        	}
-        	if (!QUAD_CLT_AUX.initGeometryCorrection(DEBUG_LEVEL+2)){
-        		return;
-        	}
-        }
-
-        QUAD_CLT_AUX.processCLTQuads3d(
-        		adjust_extrinsics, // boolean adjust_extrinsics,
-        		adjust_poly,       // boolean adjust_poly,
-        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-        		CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-        		UPDATE_STATUS, //final boolean    updateStatus,
-        		DEBUG_LEVEL); //final int        debugLevel);
-
-
-        if (configPath!=null) {
-        	saveTimestampedProperties( // save config again
-        			configPath,      // full path or null
-        			null, // use as default directory if path==null
-        			true,
-        			PROPERTIES);
-        }
-*/
         return;
 
     } else if (label.equals("CLT planes")) {
@@ -5821,18 +5750,18 @@ private Panel panel1,
 		}
 
 		QUAD_CLT_AUX.processCLTQuads3d(
-				adjust_extrinsics, // boolean adjust_extrinsics,
-				adjust_poly,       // boolean adjust_poly,
-  			    TWO_QUAD_CLT,    // TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
-				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-				DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-				COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-				CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-				RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-				EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-				UPDATE_STATUS, //final boolean    updateStatus,
-				DEBUG_LEVEL); //final int        debugLevel);
+				adjust_extrinsics,            // boolean adjust_extrinsics,
+				adjust_poly,                  // boolean adjust_poly,
+  			    TWO_QUAD_CLT,                 // TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
+				CLT_PARAMETERS,               // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+				DEBAYER_PARAMETERS,           // EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+				COLOR_PROC_PARAMETERS_AUX,    // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+				CHANNEL_GAINS_PARAMETERS_AUX, // CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+				RGB_PARAMETERS,               // EyesisCorrectionParameters.RGBParameters             rgbParameters,
+				EQUIRECTANGULAR_PARAMETERS,   // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+				THREADS_MAX,                  // final int          threadsMax,  // maximal number of threads to launch
+				UPDATE_STATUS,                // final boolean    updateStatus,
+				DEBUG_LEVEL);                 // final int        debugLevel);
 
 
 		if (configPath!=null) {
@@ -6840,7 +6769,7 @@ private Panel panel1,
 			}
 		}
 
-        ImageDtt image_dtt = new ImageDtt(false); // Bayer, not monochrome
+		ImageDtt image_dtt = new ImageDtt(false, 1.0); // Bayer( not monochrome), scale correlation strengths
 		double [][][][][] clt_data = image_dtt.cltStack(
 				DBG_IMP.getStack(),
 				0, // CLT_PARAMETERS.kernel_chn,
@@ -6970,7 +6899,7 @@ private Panel panel1,
 
         }
         String suffix = "-dx_"+(CLT_PARAMETERS.ishift_x+CLT_PARAMETERS.shift_x)+"_dy_"+(CLT_PARAMETERS.ishift_y+CLT_PARAMETERS.shift_y);
-        ImageDtt image_dtt = new ImageDtt(COLOR_PROC_PARAMETERS.isMonochrome()); // Bayer, not monochrome
+        ImageDtt image_dtt = new ImageDtt(COLOR_PROC_PARAMETERS.isMonochrome(), CLT_PARAMETERS.getScaleStrength(false)); // Bayer, not monochrome
         String [] titles = {
         		"redCC",  "redSC",  "redCS",  "redSS",
         		"blueCC", "blueSC", "blueCS", "blueSS",
@@ -7059,7 +6988,7 @@ private Panel panel1,
         			clt_data[chn],                  // final double [][][][] data1,  // array [tilesY][tilesX][4][dct_size*dct_size]
         			clt_data2[chn],                 // final double [][][][] data2,  // array [tilesY][tilesX][4][dct_size*dct_size]
         			CLT_PARAMETERS.transform_size,  // final int             dct_size,
-        			CLT_PARAMETERS.fat_zero,  // final double          fat_zero,    // add to denominator to modify phase correlation (same units as data1, data2)
+        			CLT_PARAMETERS.getFatZero(image_dtt.isMonochrome()),  // final double          fat_zero,    // add to denominator to modify phase correlation (same units as data1, data2)
             		CLT_PARAMETERS.tileX, //final int debug_tileX
             		CLT_PARAMETERS.tileY, //final int debug_tileY
 

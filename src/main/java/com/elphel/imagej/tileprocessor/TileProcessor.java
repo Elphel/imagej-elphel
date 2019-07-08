@@ -75,6 +75,7 @@ public class TileProcessor {
 	public double [][] main_ds_ml =              null; // main camera DSI restored from the COMBO-DSI file to generate ML test files
 
 	public boolean   monochrome =                false;   // these are monochrome images
+	private boolean  is_aux =                    false;   // this camera is aux
 	public int       clt_3d_passes_size =     0; //clt_3d_passes size after initial processing
 	public int       clt_3d_passes_rig_size = 0; //clt_3d_passes size after initial processing and rig processing
 	private int      tilesX;
@@ -104,6 +105,7 @@ public class TileProcessor {
 			int tileSize,
 			int superTileSize,
 			boolean monochrome,
+			boolean is_aux,
 			double scale,
 			double trustedCorrelation,
 			double maxOverexposure,
@@ -114,12 +116,15 @@ public class TileProcessor {
 		this.tileSize = tileSize;
 		this.superTileSize = superTileSize;
 		this.monochrome = monochrome;
+		this.is_aux = is_aux;
 		this.corr_magic_scale = scale;
 		this.trustedCorrelation = trustedCorrelation;
 		this.maxOverexposure =      maxOverexposure;
 		this.threadsMax = threadsMax;
 	}
 	public boolean isMonochrome() {return monochrome;}
+	public boolean isAux()        {return is_aux;}
+
 	public int getTilesX() {return tilesX;}
 	public int getTilesY() {return tilesY;}
 	public int getTileSize() {return tileSize;}
@@ -3055,7 +3060,7 @@ public class TileProcessor {
 				dbg_img[3][i] = disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][i];
 				dbg_img[4][i] = disparity_map[disparity_index][i];
 			}
-			sdfa_instance.showArrays(dbg_img,  tilesX, tilesY, true, "bgnd_nonbgnd",titles);
+			sdfa_instance.showArrays(dbg_img,  tilesX, tilesY, true, "bgnd_nonbgnd_new",titles);
 		}
 
 		for (int gain = 1; gain > 0;){
@@ -4062,19 +4067,53 @@ public class TileProcessor {
 
 	}
 
+	public int [][] setSameTileOp(
+			int        op){
+		return setSameTileOp(
+				0,
+				tilesX,
+				0,
+				tilesY,
+				op,
+				-1);
+	}
 
 	public int [][] setSameTileOp(
 			CLTParameters           clt_parameters,
 			int        op,
-			int        debugLevel
+			int        debugLevel){
+		int txl =  clt_parameters.tile_task_wl;
+		int txr =  txl + clt_parameters.tile_task_ww;
+		int tyt =  clt_parameters.tile_task_wt;
+		int tyb =  tyt + clt_parameters.tile_task_wh;
+		if (debugLevel > -1){
+			System.out.println("clt_parameters.tile_task_wl="+clt_parameters.tile_task_wl );
+			System.out.println("clt_parameters.tile_task_wt="+clt_parameters.tile_task_wt );
+			System.out.println("clt_parameters.tile_task_ww="+clt_parameters.tile_task_ww );
+			System.out.println("clt_parameters.tile_task_wh="+clt_parameters.tile_task_wh );
+		}
+		return setSameTileOp(
+				txl,
+				txr,
+				tyt,
+				tyb,
+				op,
+				debugLevel);
+	}
+
+
+
+	public int [][] setSameTileOp(
+//			CLTParameters           clt_parameters,
+			int txl, //  =  clt_parameters.tile_task_wl;
+			int txr, //  =  txl + clt_parameters.tile_task_ww;
+			int tyt, //  =  clt_parameters.tile_task_wt;
+			int tyb, //  =  tyt + clt_parameters.tile_task_wh;
+			int op,
+			int debugLevel
 			)
 	{
 		int [][] tile_op = new int [tilesY][tilesX]; // all zero
-		int txl =  clt_parameters.tile_task_wl;
-		int txr =  txl + clt_parameters.tile_task_ww;
-
-		int tyt =  clt_parameters.tile_task_wt;
-		int tyb =  tyt + clt_parameters.tile_task_wh;
 		if      (txl < 0)       txl = 0;
 		else if (txl >= tilesX) txl = tilesX - 1;
 
@@ -4093,10 +4132,6 @@ public class TileProcessor {
 			}
 		}
 		if (debugLevel > -1){
-			System.out.println("clt_parameters.tile_task_wl="+clt_parameters.tile_task_wl );
-			System.out.println("clt_parameters.tile_task_wt="+clt_parameters.tile_task_wt );
-			System.out.println("clt_parameters.tile_task_ww="+clt_parameters.tile_task_ww );
-			System.out.println("clt_parameters.tile_task_wh="+clt_parameters.tile_task_wh );
 			System.out.println("getImgMask("+op+")="+ImageDtt.getImgMask(op) );
 			System.out.println("getPairMask("+op+")="+ImageDtt.getPairMask(op) );
 			System.out.println("getForcedDisparity("+op+")="+ImageDtt.getForcedDisparity(op) );
@@ -5165,12 +5200,11 @@ public class TileProcessor {
 
 
 	public double [][] assignTilesToSurfaces(
-			CLTParameters           clt_parameters,
+			CLTParameters      clt_parameters,
 			GeometryCorrection geometryCorrection,
-			final int         threadsMax,  // maximal number of threads to launch
-			final boolean     updateStatus,
-//			final boolean     batch_mode,
-			final int         debugLevel)
+			final int          threadsMax,  // maximal number of threads to launch
+			final boolean      updateStatus,
+			final int          debugLevel)
 	{
 		final boolean    batch_mode = clt_parameters.batch_run;
 		final int debugLevelInner =  batch_mode ? -5: debugLevel;
@@ -5185,7 +5219,7 @@ public class TileProcessor {
 		// show testure_tiles
 
 		double [][][][] texture_tiles = scan_prev.getTextureTiles();
-		ImageDtt image_dtt = new ImageDtt(isMonochrome());
+		ImageDtt image_dtt = new ImageDtt(isMonochrome(), clt_parameters.getScaleStrength(is_aux));
 
 		double [][][]  dispStrength = st.getDisparityStrengths(
 				clt_parameters.stMeasSel); // int        stMeasSel) //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert)
