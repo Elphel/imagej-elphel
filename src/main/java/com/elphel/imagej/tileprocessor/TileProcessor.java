@@ -4835,9 +4835,7 @@ public class TileProcessor {
 
 
 	public CLTPass3d refinePassSetup( // prepare tile tasks for the second pass based on the previous one(s)
-			//			  final double [][][]       image_data, // first index - number of image in a quad
 			CLTParameters           clt_parameters,
-			// disparity range - differences from
 			boolean           use_supertiles,   // false (2018)
 			int               bg_scan_index,    // 0
 			double            disparity_far,    // 0.3

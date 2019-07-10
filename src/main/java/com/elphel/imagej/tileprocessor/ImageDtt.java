@@ -224,6 +224,11 @@ public class ImageDtt {
 	public boolean isMonochrome() {
 		return monochrome;
 	}
+	// maybe change in the future
+	public boolean isAux() {
+		return monochrome;
+	}
+
 
 	public double [][][][] mdctStack(
 			final ImageStack                                 imageStack,
@@ -1615,16 +1620,16 @@ public class ImageDtt {
 
 		final double [] enh_ortho_scale = new double [corr_size];
 		for (int i = 0; i < corr_size; i++){
-			if ((i < (transform_size - imgdtt_params.enhortho_width)) || (i > (transform_size - 2 + imgdtt_params.enhortho_width))) {
+			if ((i < (transform_size - imgdtt_params.getEnhOrthoWidth(isAux()))) || (i > (transform_size - 2 + imgdtt_params.getEnhOrthoWidth(isAux())))) {
 				enh_ortho_scale[i] = 1.0;
 			} else {
-				enh_ortho_scale[i] = imgdtt_params.enhortho_scale;
+				enh_ortho_scale[i] = imgdtt_params.getEnhOrthoScale(isAux());
 			}
 			if (i == (transform_size-1)) enh_ortho_scale[i] = 0.0 ; // hardwired 0 in the center
 			enh_ortho_scale[i] *= Math.sin(Math.PI*(i+1.0)/(2*transform_size));
 		}
 		if (globalDebugLevel > 1){
-			System.out.println("enhortho_width="+ imgdtt_params.enhortho_width+" enhortho_scale="+ imgdtt_params.enhortho_scale);
+			System.out.println("getEnhOrthoWidth(isAux())="+ imgdtt_params.getEnhOrthoWidth(isAux())+" getEnhOrthoScale(isAux())="+ imgdtt_params.getEnhOrthoScale(isAux()));
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" enh_ortho_scale["+i+"]="+ enh_ortho_scale[i]);
 
@@ -1782,8 +1787,8 @@ public class ImageDtt {
 							isMonochrome(), // boolean monochrome,
 							(globalDebugLevel > -1));   //   boolean debug)
 					corr2d.createOrtoNotch(
-							imgdtt_params.enhortho_width, // double enhortho_width,
-							imgdtt_params.enhortho_scale, //double enhortho_scale,
+							imgdtt_params.getEnhOrthoWidth(isAux()), // double getEnhOrthoWidth(isAux()),
+							imgdtt_params.getEnhOrthoScale(isAux()), //double getEnhOrthoScale(isAux()),
 							(imgdtt_params.lma_debug_level > 1)); // boolean debug);
 
 					for (int nTile = ai.getAndIncrement(); nTile < nTilesInChn; nTile = ai.getAndIncrement()) {
@@ -6192,20 +6197,20 @@ public class ImageDtt {
 		}
 
 		// reducing weight of on-axis correlation values to enhance detection of vertical/horizontal lines
-		// multiply correlation results inside the horizontal center strip  2*enhortho_width - 1 wide by enhortho_scale
+		// multiply correlation results inside the horizontal center strip  2*getEnhOrthoWidth(isAux()) - 1 wide by getEnhOrthoScale(isAux())
 
 		final double [] enh_ortho_scale = new double [corr_size];
 		for (int i = 0; i < corr_size; i++){
-			if ((i < (transform_size - imgdtt_params.enhortho_width)) || (i > (transform_size - 2 + imgdtt_params.enhortho_width))) {
+			if ((i < (transform_size - imgdtt_params.getEnhOrthoWidth(isAux()))) || (i > (transform_size - 2 + imgdtt_params.getEnhOrthoWidth(isAux())))) {
 				enh_ortho_scale[i] = 1.0;
 			} else {
-				enh_ortho_scale[i] = imgdtt_params.enhortho_scale;
+				enh_ortho_scale[i] = imgdtt_params.getEnhOrthoScale(isAux());
 			}
 			if (i == (transform_size-1)) enh_ortho_scale[i] = 0.0 ; // hardwired 0 in the center
 			enh_ortho_scale[i] *= Math.sin(Math.PI*(i+1.0)/(2*transform_size));
 		}
 		if (globalDebugLevel > 1){
-			System.out.println("enhortho_width="+ imgdtt_params.enhortho_width+" enhortho_scale="+ imgdtt_params.enhortho_scale);
+			System.out.println("getEnhOrthoWidth(isAux())="+ imgdtt_params.getEnhOrthoWidth(isAux())+" getEnhOrthoScale(isAux())="+ imgdtt_params.getEnhOrthoScale(isAux()));
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" enh_ortho_scale["+i+"]="+ enh_ortho_scale[i]);
 
@@ -6383,8 +6388,8 @@ public class ImageDtt {
 							(globalDebugLevel > -1));   //   boolean debug)
 
 					corr2d.createOrtoNotch(
-							imgdtt_params.enhortho_width, // double enhortho_width,
-							imgdtt_params.enhortho_scale, //double enhortho_scale,
+							imgdtt_params.getEnhOrthoWidth(isAux()), // double enhortho_width,
+							imgdtt_params.getEnhOrthoScale(isAux()), //double enhortho_scale,
 							false); // true); // boolean debug);
 //					public int     enhortho_width =         2;   // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
 //					public double  enhortho_scale =         0.0; // 0.2;  // multiply center correlation pixels (inside enhortho_width)

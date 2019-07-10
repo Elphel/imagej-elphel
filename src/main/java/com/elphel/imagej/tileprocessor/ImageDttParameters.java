@@ -45,8 +45,10 @@ public class ImageDttParameters {
 	public int     ortho_nsamples =           5; // number of samples to fit parabola
 	public double  ortho_vasw_pwr =         2.0; // use data as weights when fitting parabola (high value samples are more important (when false use 3 samples only)
 
-	public int     enhortho_width =         2;   // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
-	public double  enhortho_scale =         0.0; // 0.2;  // multiply center correlation pixels (inside enhortho_width)
+	private int     enhortho_width =        2;   // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
+	private int     enhortho_width_aux =    1;   // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
+	private double  enhortho_scale =        0.0; // 0.2;  // multiply center correlation pixels (inside enhortho_width)
+	private double  enhortho_scale_aux =    0.0; // 0.2;  // multiply center correlation pixels (inside enhortho_width)
 	public boolean ly_poly =                false; // Use polynomial when measuring mismatch (false - use center of mass)
 	public double  ly_crazy_poly =          1.0;  // Maximal allowed mismatch difference calculated as polynomial maximum
 	public boolean ly_poly_backup =         true; // Use CM offset measuremets if poly failed
@@ -111,6 +113,22 @@ public class ImageDttParameters {
 	public boolean corr_var_cam =           true;  // New correlation mode compatible with 8 subcameras
 	public double  cm_max_normalization =   0.55; // fraction of correlation maximum radius, being squared multiplied by maximum to have the same total mass
 
+	public int getEnhOrthoWidth(boolean aux) {
+		return aux ? enhortho_width_aux : enhortho_width;
+	}
+
+	public double getEnhOrthoScale(boolean aux) {
+		return aux ? enhortho_scale_aux : enhortho_scale;
+	}
+
+	// next 2 only used to read old config files
+	public void setEnhOrthoWidth (int w) {
+		enhortho_width = w;
+	}
+	public void setEnhOrthoScale (double s) {
+		enhortho_scale = s;
+	}
+
 
 	public void dialogQuestions(GenericJTabbedDialog gd) {
 			gd.addCheckbox    ("Enable ImageDtt correlation debug layers",                        this.corr_mode_debug,
@@ -135,8 +153,10 @@ public class ImageDttParameters {
 			gd.addNumericField("Use data as weights when fitting parabola for ortho mode",        this.ortho_vasw_pwr,3,6,"",
 					"Raise value to this power and apply as weight.  Reduce width to 3 samples if false, 5 OK when true");
 
-			gd.addNumericField("Reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)",  this.enhortho_width,            0);
-			gd.addNumericField("Multiply center correlation pixels (inside enhortho_width) (1.0 - disables enh_ortho)",  this.enhortho_scale,  3);
+			gd.addNumericField("Reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center) - main camera",  this.enhortho_width,            0);
+			gd.addNumericField("Reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center) - aux camera",  this.enhortho_width_aux,        0);
+			gd.addNumericField("Multiply center correlation pixels (inside enhortho_width) (1.0 - disables enh_ortho) - main camera",  this.enhortho_scale,  3);
+			gd.addNumericField("Multiply center correlation pixels (inside enhortho_width) (1.0 - disables enh_ortho) - aux camera",   this.enhortho_scale_aux,  3);
 
 			gd.addCheckbox    ("Use polynomial when measuring mismatch (false - use center of mass)",      this.ly_poly);
 			gd.addNumericField("Maximal allowed mismatch difference calculated as polynomial maximum",     this.ly_crazy_poly,3,6,"px",
@@ -276,7 +296,9 @@ public class ImageDttParameters {
 			this.ortho_vasw_pwr =        gd.getNextNumber();
 
   			this.enhortho_width=   (int) gd.getNextNumber();
+  			this.enhortho_width_aux=(int)gd.getNextNumber();
   			this.enhortho_scale=         gd.getNextNumber();
+  			this.enhortho_scale_aux=     gd.getNextNumber();
 
   			this.ly_poly =               gd.getNextBoolean();
   			this.ly_crazy_poly=          gd.getNextNumber();
@@ -364,7 +386,9 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"ortho_vasw",           this.ortho_vasw_pwr+"");
 
 		properties.setProperty(prefix+"enhortho_width",       this.enhortho_width +"");
+		properties.setProperty(prefix+"enhortho_width_aux",   this.enhortho_width_aux +"");
 		properties.setProperty(prefix+"enhortho_scale",       this.enhortho_scale +"");
+		properties.setProperty(prefix+"enhortho_scale_aux",   this.enhortho_scale_aux +"");
 
 		properties.setProperty(prefix+"corr_offset",          this.corr_offset +"");
 		properties.setProperty(prefix+"twice_diagonal",       this.twice_diagonal +"");
@@ -451,7 +475,9 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"ortho_vasw_pwr")!=null)        this.ortho_vasw_pwr=Double.parseDouble(properties.getProperty(prefix+"ortho_vasw_pwr"));
 
 		if (properties.getProperty(prefix+"enhortho_width")!=null)        this.enhortho_width=Integer.parseInt(properties.getProperty(prefix+"enhortho_width"));
+		if (properties.getProperty(prefix+"enhortho_width_aux")!=null)    this.enhortho_width_aux=Integer.parseInt(properties.getProperty(prefix+"enhortho_width_aux"));
 		if (properties.getProperty(prefix+"enhortho_scale")!=null)        this.enhortho_scale=Double.parseDouble(properties.getProperty(prefix+"enhortho_scale"));
+		if (properties.getProperty(prefix+"enhortho_scale_aux")!=null)    this.enhortho_scale_aux=Double.parseDouble(properties.getProperty(prefix+"enhortho_scale_aux"));
 
 		if (properties.getProperty(prefix+"fo_correct")!=null)            this.fo_correct=Boolean.parseBoolean(properties.getProperty(prefix+"fo_correct"));
 
@@ -543,7 +569,9 @@ public class ImageDttParameters {
 		idp.ortho_vasw_pwr =         this.ortho_vasw_pwr;
 
 		idp.enhortho_width =         this.enhortho_width;
+		idp.enhortho_width_aux =     this.enhortho_width_aux;
 		idp.enhortho_scale =         this.enhortho_scale;
+		idp.enhortho_scale_aux =     this.enhortho_scale_aux;
 
 		idp.ly_poly =                this.ly_poly;
 		idp.ly_crazy_poly =          this.ly_crazy_poly;

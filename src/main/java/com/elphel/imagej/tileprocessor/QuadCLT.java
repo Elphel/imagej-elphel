@@ -77,7 +77,7 @@ public class QuadCLT {
 	public EyesisCorrectionParameters.CorrectionParameters correctionsParameters=null;
 	double [][][][][][]                                    clt_kernels = null; // can be used to determine monochrome too?
 	public GeometryCorrection                              geometryCorrection = null;
-	double []                                              extrinsic_corr = new double [GeometryCorrection.CORR_NAMES.length]; // extrinsic corrections (needed from properties, before geometryCorrection
+	double []                                              extrinsic_vect = new double [GeometryCorrection.CORR_NAMES.length]; // extrinsic corrections (needed from properties, before geometryCorrection
 	public int                                             extra_items = 8; // number of extra items saved with kernels (center offset (partial, full, derivatives)
 	public ImagePlus                                       eyesisKernelImage = null;
 	public long                                            startTime;     // start of batch processing
@@ -86,7 +86,7 @@ public class QuadCLT {
 
 	public double [][][]                                   fine_corr  = new double [4][2][6]; // per port, per x/y, set of 6 coefficient for fine geometric corrections
 
-	public TileProcessor                                          tp = null;
+	public TileProcessor                                   tp = null;
 
 	String                                                 image_name = null;
 	double []                                              gps_lla =    null;
@@ -249,7 +249,7 @@ public class QuadCLT {
 		}
 		GeometryCorrection gc = geometryCorrection;
 		if (gc == null) { // if it was not yet created
-			gc = new GeometryCorrection(this.extrinsic_corr);
+			gc = new GeometryCorrection(this.extrinsic_vect);
 		}
 		for (int i = 0; i < GeometryCorrection.CORR_NAMES.length; i++){
 			String name = prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
@@ -278,14 +278,14 @@ public class QuadCLT {
 		}
 		GeometryCorrection gc = geometryCorrection;
 		if (gc == null) { // if it was not yet created
-			gc = new GeometryCorrection(this.extrinsic_corr);
+			gc = new GeometryCorrection(this.extrinsic_vect);
 		}
 		for (int i = 0; i < GeometryCorrection.CORR_NAMES.length; i++){
 			String other_name = other_prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
   			if (other_properties.getProperty(other_name)!=null) {
-  				this.extrinsic_corr[i] = Double.parseDouble(other_properties.getProperty(other_name));
+  				this.extrinsic_vect[i] = Double.parseDouble(other_properties.getProperty(other_name));
   				if (geometryCorrection != null){
-  					geometryCorrection.getCorrVector().toArray()[i] = this.extrinsic_corr[i];
+  					geometryCorrection.getCorrVector().toArray()[i] = this.extrinsic_vect[i];
   				}
   			}
 			String this_name =  this_prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
@@ -304,7 +304,7 @@ public class QuadCLT {
 	public void listGeometryCorrection(boolean full){
 		GeometryCorrection gc = geometryCorrection;
 		if (gc == null) { // if it was not yet created
-			gc = new GeometryCorrection(this.extrinsic_corr);
+			gc = new GeometryCorrection(this.extrinsic_vect);
 		}
 		gc.listGeometryCorrection(full);
 	}
@@ -323,11 +323,19 @@ public class QuadCLT {
 		for (int i = 0; i < GeometryCorrection.CORR_NAMES.length; i++){
 			String name = prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
   			if (properties.getProperty(name)!=null) {
-  				this.extrinsic_corr[i] = Double.parseDouble(properties.getProperty(name));
+  				if (this.extrinsic_vect == null) {
+  					// only create non-null array if there are saved values
+  					this.extrinsic_vect = new double [GeometryCorrection.CORR_NAMES.length];
+  				}
+  				this.extrinsic_vect[i] = Double.parseDouble(properties.getProperty(name));
 //  				System.out.println("getProperties():"+i+": getProperty("+name+") -> "+properties.getProperty(name)+"");
 
   				if (geometryCorrection != null){
-  					geometryCorrection.getCorrVector().toArray()[i] = this.extrinsic_corr[i];
+//  					if (geometryCorrection.getCorrVector().toArray() == null) {
+//  						geometryCorrection.resetCorrVector(); // make it array of zeros
+//  					}
+//  					geometryCorrection.getCorrVector().toArray()[i] = this.extrinsic_vect[i];
+  					geometryCorrection.setCorrVector(i,this.extrinsic_vect[i]);
   				}
   			}
 		}
@@ -335,7 +343,16 @@ public class QuadCLT {
 //			geometryCorrection.setRigOffsetFromProperies(prefix, properties);
 //		}
 		if (geometryCorrection == null) {
-			geometryCorrection = new GeometryCorrection(this.extrinsic_corr);
+			double [] extrinsic_vect_saved = this.extrinsic_vect.clone();
+			boolean OK = initGeometryCorrection(0); // int debugLevel);
+			if (!OK) {
+				throw new IllegalArgumentException ("Failed to initialize geometry correction");
+			}
+			// Substitute vector generated in initGeometryCorrection with the saved from properties one:
+			// it also replaces data inside geometryCorrection. TODO: redo to isolate this.extrinsic_vect from geometryCorrection
+			this.extrinsic_vect = 	extrinsic_vect_saved;
+			geometryCorrection.setCorrVector(this.extrinsic_vect);
+//			geometryCorrection = new GeometryCorrection(this.extrinsic_vect);
 		}
 
 		if (is_aux) {
@@ -359,12 +376,18 @@ public class QuadCLT {
 	}
 	public void resetGeometryCorrection() {
 		geometryCorrection = null;
-		extrinsic_corr = new double [GeometryCorrection.CORR_NAMES.length];
+//		extrinsic_vect = new double [GeometryCorrection.CORR_NAMES.length];
+		extrinsic_vect = null;
 	}
 	public boolean initGeometryCorrection(int debugLevel){
 		// keep rig offsets if edited
 		if (geometryCorrection == null) {
-			geometryCorrection = new GeometryCorrection(extrinsic_corr);
+			geometryCorrection = new GeometryCorrection(extrinsic_vect);
+		}
+		if (eyesisCorrections.pixelMapping == null) {
+			// need to initialize sensor data
+//			eyesisCorrections.initSensorFiles(.debugLevel..);
+			eyesisCorrections.initPixelMapping(debugLevel);
 		}
 		PixelMapping.SensorData [] sensors =  eyesisCorrections.pixelMapping.sensors;
 		// verify that all sensors have the same distortion parameters
@@ -386,12 +409,20 @@ public class QuadCLT {
 				return false;
 			}
 		}
+
+
 		// TODO: Verify correction sign!
 		double f_avg = geometryCorrection.getCorrVector().setZoomsFromF(
 				sensors[0].focalLength,
 				sensors[1].focalLength,
 				sensors[2].focalLength,
 				sensors[3].focalLength);
+
+		// following parameters are used for scaling extrinsic corrections
+		geometryCorrection.focalLength = f_avg;
+		geometryCorrection.pixelSize = sensors[0].pixelSize;
+		geometryCorrection.distortionRadius = sensors[0].distortionRadius;
+
 		for (int i = CorrVector.LENGTH_ANGLES; i < CorrVector.LENGTH; i++){
 		}
 		// set common distportion parameters
@@ -4987,7 +5018,7 @@ public class QuadCLT {
 		  System.out.println("Extrinsic corrections "+name);
 		  if (geometryCorrection == null){
 			  System.out.println("are not set, will be:");
-			  System.out.println(new GeometryCorrection(this.extrinsic_corr).getCorrVector().toString());
+			  System.out.println(new GeometryCorrection(this.extrinsic_vect).getCorrVector().toString());
 		  } else {
 			  System.out.println(geometryCorrection.getCorrVector().toString());
 		  }
@@ -5002,7 +5033,7 @@ public class QuadCLT {
 //		  GeometryCorrection gc = this.geometryCorrection;
 		  if (this.geometryCorrection == null){
 			  System.out.println("geometryCorrection is not set, creating one");
-			  this.geometryCorrection = new GeometryCorrection(this.extrinsic_corr);
+			  this.geometryCorrection = new GeometryCorrection(this.extrinsic_vect);
 		  }
 		  boolean edited = this.geometryCorrection.editRig();
 //		  if (edited) {
@@ -5021,9 +5052,10 @@ public class QuadCLT {
 	  public void resetExtrinsicCorr(
 			  CLTParameters           clt_parameters)
 	  {
-		  this.extrinsic_corr = new double [GeometryCorrection.CORR_NAMES.length];
+//		  this.extrinsic_vect = new double [GeometryCorrection.CORR_NAMES.length];
+		  this.extrinsic_vect = null;
 		  if (geometryCorrection != null){
-			  geometryCorrection.setCorrVector(null);
+			  geometryCorrection.resetCorrVector();
 		  }
 		  if (clt_parameters.fine_corr_apply){
 			  clt_parameters.fine_corr_ignore = false;
@@ -6324,7 +6356,7 @@ public class QuadCLT {
     						  false,      // final boolean               no_weak,
     						  false, // final boolean               use_last,   //
     						  // TODO: when useCombo - pay attention to borders (disregard)
-    						  false, // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
+    						  false, // final boolean               useP}oly)  // use polynomial method to find max), valid if useCombo == false
     						  true, // 	 final boolean               copyDebug)
     						  debugLevel);
 
@@ -6425,33 +6457,33 @@ public class QuadCLT {
 			  if (show_init_refine) tp.showScan(
 					  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
 					  "after_measure-"+tp.clt_3d_passes.size());
-//			  if (nnn < (num_macro_refine-1)) {
-				  //        	  if (clt_parameters.combine_refine){
-				  CLTPass3d combo_pass = tp.compositeScan(
-						  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
-						  bg_pass, //  final int                   firstPass,
-						  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
-						  //      				  tp.clt_3d_passes.get(bg_pass).getSelected(), // selected , // final boolean [] bg_tiles,          // get from selected in clt_3d_passes.get(0);
-						  //   				  clt_parameters.ex_min_over,// final double     ex_min_over,       // when expanding over previously detected (by error) background, disregard far tiles
-						  tp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
-		    			  tp.getMaxOverexposure(),                          //  final double                max_overexposure,
-						  0.0, // clt_parameters.bgnd_range,                //	 final double                disp_far,   // limit results to the disparity range
-						  clt_parameters.grow_disp_max,                     // final double                disp_near,
-						  clt_parameters.combine_min_strength,              // final double                minStrength,
-						  clt_parameters.combine_min_hor,                   // final double                minStrengthHor,
-						  clt_parameters.combine_min_vert,                  // final double                minStrengthVert,
-						  false,      // final boolean               no_weak,
-						  false, // final boolean               use_last,   //
-						  // TODO: when useCombo - pay attention to borders (disregard)
-						  false, // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
-						  true, // 	 final boolean               copyDebug)
-						  debugLevel);
+			  //			  if (nnn < (num_macro_refine-1)) {
+			  //        	  if (clt_parameters.combine_refine){
+			  CLTPass3d combo_pass = tp.compositeScan(
+					  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
+					  bg_pass, //  final int                   firstPass,
+					  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
+					  //      				  tp.clt_3d_passes.get(bg_pass).getSelected(), // selected , // final boolean [] bg_tiles,          // get from selected in clt_3d_passes.get(0);
+					  //   				  clt_parameters.ex_min_over,// final double     ex_min_over,       // when expanding over previously detected (by error) background, disregard far tiles
+					  tp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
+					  tp.getMaxOverexposure(),                          //  final double                max_overexposure,
+					  0.0, // clt_parameters.bgnd_range,                //	 final double                disp_far,   // limit results to the disparity range
+					  clt_parameters.grow_disp_max,                     // final double                disp_near,
+					  clt_parameters.combine_min_strength,              // final double                minStrength,
+					  clt_parameters.combine_min_hor,                   // final double                minStrengthHor,
+					  clt_parameters.combine_min_vert,                  // final double                minStrengthVert,
+					  false,      // final boolean               no_weak,
+					  false, // final boolean               use_last,   //
+					  // TODO: when useCombo - pay attention to borders (disregard)
+					  false, // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
+					  true, // 	 final boolean               copyDebug)
+					  debugLevel);
 
-				  if (show_init_refine) tp.showScan(
-						  combo_pass, // CLTPass3d   scan,
-						  "after_compositeScan-"+tp.clt_3d_passes.size());
+			  if (show_init_refine) tp.showScan(
+					  combo_pass, // CLTPass3d   scan,
+					  "after_compositeScan-"+tp.clt_3d_passes.size());
 
-				  tp.clt_3d_passes.add(combo_pass);
+			  tp.clt_3d_passes.add(combo_pass);
 		  }
 
  ///// Refining after all added   - end
@@ -7735,12 +7767,12 @@ public class QuadCLT {
 
 //	  public ImagePlus output3d(
 	  public boolean output3d(
-			  CLTParameters           clt_parameters,
-			  ColorProcParameters colorProcParameters,
-			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
-			  final int        threadsMax,  // maximal number of threads to launch
-			  final boolean    updateStatus,
-			  final int        debugLevel)
+			  CLTParameters                            clt_parameters,
+			  ColorProcParameters                      colorProcParameters,
+			  EyesisCorrectionParameters.RGBParameters rgbParameters,
+			  final int                                threadsMax,  // maximal number of threads to launch
+			  final boolean                            updateStatus,
+			  final int                                debugLevel)
 	  {
 		  final boolean    batch_mode = clt_parameters.batch_run;
 		  this.startStepTime=System.nanoTime();
@@ -7906,7 +7938,6 @@ public class QuadCLT {
 ///			  CLTPass3d scan =
 					  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
 					  image_data, // first index - number of image in a quad
-//					  saturation_imp, //final boolean [][]  saturation_imp, // (near) saturated pixels or null
 					  clt_parameters,
 					  scanIndex,
     				  true,  // final boolean     save_textures,
@@ -7917,12 +7948,6 @@ public class QuadCLT {
 
 		  }
 
-		  // TEMPORARY EXIT
-
-		  //      if (tp.clt_3d_passes.size() > 0) return null; // just to fool compiler
-
-
-		  //	  int scan_limit = 10;
 		  for (int scanIndex = next_pass; (scanIndex < tp.clt_3d_passes.size()) && (scanIndex < clt_parameters.max_clusters); scanIndex++){ // just temporary limiting
 			  if (debugLevel > -1){
 				  System.out.println("Generating cluster images (limit is set to "+clt_parameters.max_clusters+") largest, scan #"+scanIndex);
@@ -7940,21 +7965,10 @@ public class QuadCLT {
 
 			  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
 
-/*
-			  if ((scanIndex == 73) ) {
-				  tp.showScan(
-						  tp.clt_3d_passes.get(scanIndex), // CLTPass3d   scan,
-						  "SELECTED-"+scanIndex);
-			  }
-
-*/
-
 			  // TODO: use new updated disparity, for now just what was forced for the picture
 			  double [] scan_disparity = new double [tilesX * tilesY];
 			  int indx = 0;
-			  //		  boolean [] scan_selected = scan.getSelected();
 			  for (int ty = 0; ty < tilesY; ty ++) for (int tx = 0; tx < tilesX; tx ++){
-				  //			  scan_selected[indx] = scan.tile_op[ty][tx] != 0;
 				  scan_disparity[indx++] = scan.disparity[ty][tx];
 			  }
 			  if (clt_parameters.avg_cluster_disp){
@@ -7971,17 +7985,8 @@ public class QuadCLT {
 					  scan_disparity[i] = sdw;
 				  }
 			  }
-/*
-			  if ((scanIndex == 73)) {
-				  tp.showScan(
-						  tp.clt_3d_passes.get(scanIndex), // CLTPass3d   scan,
-						  "X3D-"+scanIndex);
-			  }
-*/
-//			  boolean showTri = ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||(scanIndex < 3);
 			  boolean showTri = !batch_mode && (debugLevel > -1) && (((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||((scanIndex - next_pass) == 73));
 
-//			  boolean showTri = ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||(scanIndex == 49) || (scanIndex == 54);
 			  try {
 				generateClusterX3d(
 						  x3dOutput,
@@ -8000,18 +8005,12 @@ public class QuadCLT {
 						  clt_parameters.grow_disp_max, // other_range, // 2.0 'other_range - difference from the specified (*_CM)
 						  clt_parameters.maxDispTriangle);
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 				return false;
 			}
 		  }
 
-		  // now generate and save texture files (start with full, later use bounding rectangle?)
-
-
 		  if ((x3d_path != null) && (x3dOutput != null)){
-//			  x3d_path+=Prefs.getFileSeparator()+correctionsParameters.getModelName(this.image_name)+".x3d";
-//			  x3dOutput.generateX3D(x3d_path);
 			  x3dOutput.generateX3D(x3d_path+Prefs.getFileSeparator()+correctionsParameters.getModelName(this.image_name)+".x3d");
 		  }
 		  if (wfOutput != null){

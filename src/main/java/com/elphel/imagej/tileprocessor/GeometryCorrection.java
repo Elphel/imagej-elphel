@@ -34,21 +34,23 @@ import ij.IJ;
  */
 
 public class GeometryCorrection {
-	static final double FOCAL_LENGTH = 4.5; // nominal focal length - used as default and to convert editable parameters to pixels
-	static final double DISTORTION_RADIUS = 2.8512; // nominal distortion radius - half width of the sensor
-	static final double PIXEL_SIZE = 2.2; //um
+//	static final double FOCAL_LENGTH = 4.5; // nominal focal length - used as default and to convert editable parameters to pixels
+//	static final double DISTORTION_RADIUS = 2.8512; // nominal distortion radius - half width of the sensor
+//	static final double PIXEL_SIZE = 2.2; //um
 	static final String[] RIG_PAR_NAMES = {"azimuth", "tilt", "roll", "zoom", "angle", "baseline"};
 	public static String RIG_PREFIX =     "rig-";
-	static double SCENE_UNITS_SCALE = 0.001;
+	static double SCENE_UNITS_SCALE = 0.001;  // meters from mm
 	static String SCENE_UNITS_NAME = "m";
 	static final String [] CORR_NAMES = {"tilt0","tilt1","tilt2","azimuth0","azimuth1","azimuth2","roll0","roll1","roll2","roll3","zoom0","zoom1","zoom2"};
 
 	public int    debugLevel = 0;
 	public int    pixelCorrectionWidth=2592;   // virtual camera center is at (pixelCorrectionWidth/2, pixelCorrectionHeight/2)
 	public int    pixelCorrectionHeight=1936;
-	public double focalLength=FOCAL_LENGTH;
-	public double pixelSize=  PIXEL_SIZE; //um
-	public double distortionRadius=  DISTORTION_RADIUS; // mm - half width of the sensor
+
+	public double focalLength; // =FOCAL_LENGTH;
+	public double pixelSize; // =  PIXEL_SIZE; //um
+	public double distortionRadius; // =  DISTORTION_RADIUS; // mm - half width of the sensor
+
 	public double distortionA8=0.0; //r^8 (normalized to focal length or to sensor half width?)
 	public double distortionA7=0.0; //r^7 (normalized to focal length or to sensor half width?)
 	public double distortionA6=0.0; //r^6 (normalized to focal length or to sensor half width?)
@@ -219,12 +221,29 @@ public class GeometryCorrection {
 		return extrinsic_corr;
 	}
 
+	public void setCorrVector(double [] dv){
+		setCorrVector(new CorrVector(dv));
+	}
+
+	public void setCorrVector(int indx, double d){
+		if (getCorrVector().toArray() == null) {
+			resetCorrVector();
+		}
+		getCorrVector().toArray()[indx] = d;
+	}
+
+
 	public void setCorrVector(CorrVector vector){
 		if (vector == null){
 			vector = new CorrVector();
 		}
 		extrinsic_corr = vector;
 	}
+
+	public void resetCorrVector(){
+		extrinsic_corr = new CorrVector();
+	}
+
 
 	public boolean [] getParMask(
 //			boolean disparity_only,
@@ -287,12 +306,12 @@ public class GeometryCorrection {
 		public RigOffset () {
 			System.out.println("created RigOffset");
 			par_scales = new double [VECTOR_LENGTH];
-			par_scales[AUX_AZIMUTH_INDEX] =  1000.0*FOCAL_LENGTH/PIXEL_SIZE;
-			par_scales[AUX_TILT_INDEX] =     1000.0*FOCAL_LENGTH/PIXEL_SIZE;
-			par_scales[AUX_ROLL_INDEX] =     1000.0*DISTORTION_RADIUS/PIXEL_SIZE;
-			par_scales[AUX_ZOOM_INDEX] =     1000.0*DISTORTION_RADIUS/PIXEL_SIZE;
+			par_scales[AUX_AZIMUTH_INDEX] =  1000.0*focalLength/pixelSize;
+			par_scales[AUX_TILT_INDEX] =     1000.0*focalLength/pixelSize;
+			par_scales[AUX_ROLL_INDEX] =     1000.0*distortionRadius/pixelSize;
+			par_scales[AUX_ZOOM_INDEX] =     1000.0*distortionRadius/pixelSize;
 			par_scales[AUX_ANGLE_INDEX] =    1.0; // 1000.0*BASELINE/pixelSize;
-			par_scales[AUX_BASELINE_INDEX] = 1.0/DISTORTION_RADIUS; // pixels per disparity pixel
+			par_scales[AUX_BASELINE_INDEX] = 1.0/distortionRadius; // pixels per disparity pixel
 
 		}
 
@@ -769,11 +788,6 @@ public class GeometryCorrection {
 
 		public Matrix getRotMatrix()
 		{
-			//			Matrix [] rots = new Matrix [4];
-			//			double [] azimuths = getAzimuths();
-			//			double [] tilts =    getTilts();
-			//			double [] rolls =    getFullRolls();
-			//			double [] zooms =    getZooms();
 			double ca = Math.cos(aux_azimuth);
 			double sa = Math.sin(aux_azimuth);
 			double ct = Math.cos(aux_tilt);
@@ -1185,6 +1199,8 @@ public class GeometryCorrection {
 					throw new IllegalArgumentException("vector.length = "+vector.length+" != "+LENGTH);
 				}
 				this.vector = vector;
+			} else {
+				this.vector = new double[LENGTH];
 			}
 		}
 		/**
@@ -1932,8 +1948,103 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	{
 		return ( 0.001 * this.pixelSize) / this.focalLength;
 	}
+	// get rotation matrix of the composite camera
+	public Matrix getCommonRotMatrix() {
+		double heading_rad =   Math.PI / 180.0 * heading;
+		double elevation_rad = Math.PI / 180.0 * elevation;
+		double roll_rad =      Math.PI / 180.0 * common_roll;
 
+		double ca = Math.cos(heading_rad);
+		double sa = Math.sin(heading_rad);
+		double ct = Math.cos(elevation_rad);
+		double st = Math.sin(elevation_rad);
+		double cr = Math.cos(roll_rad);
+		double sr = Math.sin(roll_rad);
+		double [][] a_az = { // inverted - OK
+				{ ca,    0.0,  -sa },
+				{ 0.0,   1.0,  0.0},
+				{ sa,    0.0,  ca}};
 
+		double [][] a_t =  { // inverted - OK
+				{ 1.0,  0.0, 0.0},
+				{ 0.0,  ct,   st},
+				{ 0.0, -st ,  ct}};
+
+		double [][] a_r =  { // inverted OK
+				{ cr,   sr,  0.0},
+				{ -sr,  cr,  0.0},
+				{ 0.0,  0.0, 1.0}};
+		Matrix rot  = (new Matrix(a_r).times(new Matrix(a_t).times(new Matrix(a_az))));
+		return rot;
+	}
+	public Matrix getCommonTranslateMatrix() {
+		// * SCENE_UNITS_SCALE to get meters from mm
+		double [][] a_translate= {
+				{common_right * SCENE_UNITS_SCALE},
+				{common_height * SCENE_UNITS_SCALE},
+				{common_forward * SCENE_UNITS_SCALE}};
+		return new Matrix(a_translate);
+	}
+
+	/**
+	 * Get true real world coordinates from pixel coordinates and nominal disparity
+	 * In addition to getWorldCoordinates() method that has WCS oriented with the composite
+	 * camera (this.elevation,this.heading, this.common_roll) and offset by this.common_right,
+	 * this.common_height and this.common_forward, this method compensates this orientation and offset.
+	 * @param px horizontal pixel coordinate (right)
+	 * @param py vertical pixel coordinate (down)
+	 * @param disparity nominal disparity (pixels)
+	 * @return {x, y, z} in meters
+	 */
+	public double [] getTrueWorldCoordinates(
+			double px,
+			double py,
+			double disparity)
+	{
+
+        double [] wc = getWorldCoordinates(px,py,disparity,true);
+		double [][] a_wc = {{wc[0]}, {wc[1]},{wc[2]}};
+		Matrix xyz = new Matrix(a_wc);
+		Matrix rwc = (getCommonRotMatrix().times(xyz)).plus(getCommonTranslateMatrix());
+		return rwc.getColumnPackedCopy();
+	}
+
+	/**
+	 * Get pixel disparity and coordinates from the real world coordinates (in meters)
+	 * In addition to getImageCoordinates() method that has WCS oriented with the composite
+	 * camera (this.elevation,this.heading, this.common_roll) and offset by this.common_right,
+	 * this.common_height and this.common_forward, this method compensates this orientation and offset.
+	 * @param xyz real world coordinates {x, y, z} in meters (right up, towards camera)
+	 * @return {disparity, px, py} (right, down)
+	 */
+	public double [] getTrueImageCoordinates(
+			double [] xyz) // correct distortion (will need corrected background too !)
+	{
+		double [][] a_xyz = {{xyz[0]}, {xyz[1]},{xyz[2]}};
+		Matrix      m_xyz = getCommonRotMatrix().transpose().times(((new Matrix (a_xyz)).minus(getCommonTranslateMatrix())));
+		return getImageCoordinates(m_xyz.getColumnPackedCopy(), true);
+	}
+	/**
+	 * Get pixel disparity and coordinates from the other GeometryCorrection px, py,and disparity
+	 * @param other_gc other (source) GeometryCorrection instance
+	 * @param other_px horizontal pixel coordinate (right) in other_gc
+	 * @param other_py vertical pixel coordinate (down) in other_gc
+	 * @param other_disparity nominal disparity (pixels)  in other_gc
+	 * @return {disparity, px, py} (right, down) for this GeometryCorrection
+	 */
+
+	public double [] getFromOther(
+			GeometryCorrection other_gc,
+			double other_px,
+			double other_py,
+			double other_disparity)
+	{
+		 double [] true_world_xyz = other_gc.getTrueWorldCoordinates(
+				 other_px,
+				 other_py,
+				 other_disparity);
+		 return getTrueImageCoordinates(true_world_xyz);
+	}
 	/**
 	 * Get real world coordinates from pixel coordinates and nominal disparity
 	 * @param px horizontal pixel coordinate (right)
@@ -1960,6 +2071,32 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		double [] xyz = {x,y,z};
 		return xyz;
 	}
+
+	/**
+	 * Get pixel disparity and coordinates from the real world coordinates (in meters)
+	 * @param xyz real world coordinates {x, y, z} in meters (right up, towards camera)
+	 * @param correctDistortions true: correct lens distortions, false - no lens distortions
+	 * @return {disparity, px, py} (right, down)
+	 */
+	public double [] getImageCoordinates(
+			double [] xyz,
+			boolean correctDistortions) // correct distortion (will need corrected background too !)
+	{
+		double x = xyz[0];
+		double y = xyz[1];
+		double z = xyz[2];
+		double disparity = -SCENE_UNITS_SCALE * this.focalLength * this.disparityRadius / (z * 0.001*this.pixelSize);
+		// non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)in mm
+		double pXc = x * disparity / (SCENE_UNITS_SCALE * this.disparityRadius); // pixels
+		double pYc =-y * disparity / (SCENE_UNITS_SCALE * this.disparityRadius); // pixels
+		double rND = Math.sqrt(pXc*pXc + pYc*pYc)*0.001*this.pixelSize; // mm
+		double rD2RND = correctDistortions?getRDistByR(rND/this.distortionRadius):1.0;
+		double px = pXc * rD2RND + 0.5 * this.pixelCorrectionWidth;  // distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
+		double py = pYc * rD2RND + 0.5 * this.pixelCorrectionHeight; // in pixels
+		double [] dxy = {disparity, px, py};
+		return dxy;
+	}
+
 
 	/**
 	 * Find disparity for the intersection of the view ray (px, py) and a real-world plane orthogonal through the end of the
@@ -2082,31 +2219,6 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 					{d_y_d_disparity, ky * d_pYc_d_px, ky * d_pYc_d_py},
 					{d_z_d_disparity, 0.0,             0.0}};
 		return jacobian; // xyz;
-	}
-
-	/**
-	 * Get pixel disparity and coordinates from the real world coordinates (in meters)
-	 * @param xyz real world coordinates {x, y, z} in meters (right up, towards camera)
-	 * @param correctDistortions true: correct lens distortions, false - no lens distortions
-	 * @return {disparity, px, py} (right, down)
-	 */
-	public double [] getImageCoordinates(
-			double [] xyz,
-			boolean correctDistortions) // correct distortion (will need corrected background too !)
-	{
-		double x = xyz[0];
-		double y = xyz[1];
-		double z = xyz[2];
-		double disparity = -SCENE_UNITS_SCALE * this.focalLength * this.disparityRadius / (z * 0.001*this.pixelSize);
-		// non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)in mm
-		double pXc = x * disparity / (SCENE_UNITS_SCALE * this.disparityRadius); // pixels
-		double pYc =-y * disparity / (SCENE_UNITS_SCALE * this.disparityRadius); // pixels
-		double rND = Math.sqrt(pXc*pXc + pYc*pYc)*0.001*this.pixelSize; // mm
-		double rD2RND = correctDistortions?getRDistByR(rND/this.distortionRadius):1.0;
-		double px = pXc * rD2RND + 0.5 * this.pixelCorrectionWidth;  // distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
-		double py = pYc * rD2RND + 0.5 * this.pixelCorrectionHeight; // in pixels
-		double [] dxy = {disparity, px, py};
-		return dxy;
 	}
 
 	/* Just for testing using delta instead of d */

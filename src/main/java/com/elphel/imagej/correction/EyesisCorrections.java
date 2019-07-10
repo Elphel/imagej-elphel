@@ -124,6 +124,18 @@ public class EyesisCorrections {
 				false,
 				false);
 	}
+
+	public void initPixelMapping(
+			int debugLevel) {
+		String [] sensorPaths=correctionsParameters.selectSensorFiles(this.debugLevel);
+		this.pixelMapping=new PixelMapping(
+				sensorPaths,
+				correctionsParameters.firstSubCameraConfig, // 	int first_channel, // 0 - old way
+				correctionsParameters.numSubCameras,        // int num_channels,  // 0 - any
+				true, // boolean update_channel, // false (replace file channel with effective channel (subtract first_channel)
+				debugLevel);
+	}
+
 	public void initSensorFiles(
 			int debugLevel,
 			boolean missing_ok,
@@ -132,6 +144,10 @@ public class EyesisCorrections {
 			){
 		this.sharpKernelPaths=null;
 		this.smoothKernelPaths=null;
+		if (this.pixelMapping == null) { // NOTE: will not notice switching sensor files !
+			initPixelMapping(debugLevel);
+		}
+		/*
 		String [] sensorPaths=correctionsParameters.selectSensorFiles(this.debugLevel);
 		this.pixelMapping=new PixelMapping(
 				sensorPaths,
@@ -139,6 +155,7 @@ public class EyesisCorrections {
 				correctionsParameters.numSubCameras,        // int num_channels,  // 0 - any
 				true, // boolean update_channel, // false (replace file channel with effective channel (subtract first_channel)
 				debugLevel);
+        */
 		if (all_sensors) {
 			this.usedChannels = new boolean [this.pixelMapping.sensors.length];
 			for (int i = 0; i < this.usedChannels.length; i++) {

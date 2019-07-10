@@ -9,7 +9,7 @@ import java.io.IOException;
  ** Copyright (C) 2017 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
- **  
+ **
  **  WavefrontExport.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
@@ -27,12 +27,12 @@ import java.io.IOException;
  */
 
 import java.util.ArrayList;
+
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
 import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.cameras.EyesisCorrectionParameters;
-import com.elphel.imagej.cameras.EyesisCorrectionParameters.CorrectionParameters;
 import com.elphel.imagej.tileprocessor.CLTPass3d;
 import com.elphel.imagej.tileprocessor.GeometryCorrection;
 
@@ -42,8 +42,8 @@ public class WavefrontExport {
 	static final String MTL_EXT=".mtl";
 	static final String OBJ_EXT=".obj";
 		GeometryCorrection                                     geometry_correction;
-		public ArrayList <CLTPass3d>             clt_3d_passes;
-		public  CLTParameters       clt_parameters;
+		public ArrayList <CLTPass3d>                           clt_3d_passes;
+		public  CLTParameters                                  clt_parameters;
 		public EyesisCorrectionParameters.CorrectionParameters correctionsParameters;
 		public int debugLevel = 1;
 		FileWriter obj_writer; // f0 = new FileWriter("output.txt");
@@ -62,7 +62,7 @@ public class WavefrontExport {
 		public WavefrontExport(
 				String                                          out_dir,
 				String                                          project_name,
-				CLTParameters        clt_parameters,
+				CLTParameters                                   clt_parameters,
 				EyesisCorrectionParameters.CorrectionParameters correctionsParameters,
 				GeometryCorrection                              geometry_correction,
 				ArrayList <CLTPass3d>             clt_3d_passes) throws IOException{
@@ -77,7 +77,7 @@ public class WavefrontExport {
 			mtl_writer.write("#\n# Wavefront material file\n#\n");
 			obj_writer.write("#\n# Wavefront object file\n#\n");
 			obj_writer.write("mtllib ./"+project_name+MTL_EXT+"\n\n"); // add "./" to indicate relative path? // ./1488240527_408296.obj.mtl\n");
-			
+
 		}
 		public void close()
 		{
@@ -121,10 +121,10 @@ map_Kd 1488240527_408296-img2-texture.png
 //			mtl_writer.write("illum 0\n"); // should it be 0 orf 2?
 			mtl_writer.write("Ns 0.000000\n");
 			mtl_writer.write("map_Kd "+texture_path+"\n");
-			
+
 			// Write OBJ file
 			// start using new material
-			
+
 			obj_writer.write("usemtl "+material_id+"\n");
 			// output all vertices
 			obj_writer.write("# start from vertex :         "+ v_index+ "\n");
@@ -152,17 +152,17 @@ map_Kd 1488240527_408296-img2-texture.png
 			obj_writer.write("# vertices:          "+         coordinate.length+"\n");
 			obj_writer.write("# texture vertices:  "+ texCoord.length+"\n");
 			obj_writer.write("# faces (triangles): "+ triangles.length+"\n");
-			
+
 			obj_writer.write("\n");
 			// increment indices
 			v_index +=  coordinate.length;
 			vt_index += texCoord.length;
 			f_index +=  triangles.length;
-//f 27151/27139/27151 27141/27140/27141 27140/27141/27140			 * 
-			
+//f 27151/27139/27151 27141/27140/27141 27140/27141/27140			 *
+
 		}
-		
-		
-		
+
+
+
 }
 

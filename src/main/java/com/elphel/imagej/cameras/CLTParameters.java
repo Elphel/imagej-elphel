@@ -1544,8 +1544,8 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"max_corr_radius")!=null)               this.max_corr_radius=Double.parseDouble(properties.getProperty(prefix+"max_corr_radius"));
 
 		// for compatibility with old settings
-		if (properties.getProperty(prefix+"enhortho_width")!=null)                this.img_dtt.enhortho_width=Integer.parseInt(properties.getProperty(prefix+"enhortho_width"));
-		if (properties.getProperty(prefix+"enhortho_scale")!=null)                this.img_dtt.enhortho_scale=Double.parseDouble(properties.getProperty(prefix+"enhortho_scale"));
+		if (properties.getProperty(prefix+"enhortho_width")!=null)                this.img_dtt.setEnhOrthoWidth(Integer.parseInt(properties.getProperty(prefix+"enhortho_width")));
+		if (properties.getProperty(prefix+"enhortho_scale")!=null)                this.img_dtt.setEnhOrthoScale(Double.parseDouble(properties.getProperty(prefix+"enhortho_scale")));
 		// for compatibility with old settings
 
 		if (properties.getProperty(prefix+"max_corr_double")!=null)               this.max_corr_double=Boolean.parseBoolean(properties.getProperty(prefix+"max_corr_double"));

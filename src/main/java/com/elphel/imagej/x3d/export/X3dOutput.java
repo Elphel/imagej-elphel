@@ -46,7 +46,6 @@ import org.w3c.dom.Element;
 
 import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.cameras.EyesisCorrectionParameters;
-import com.elphel.imagej.cameras.EyesisCorrectionParameters.CorrectionParameters;
 import com.elphel.imagej.tileprocessor.CLTPass3d;
 import com.elphel.imagej.tileprocessor.GeometryCorrection;
 
@@ -54,8 +53,8 @@ import com.elphel.imagej.tileprocessor.GeometryCorrection;
 
 public class X3dOutput {
 	GeometryCorrection                                     geometry_correction;
-	public ArrayList <CLTPass3d>             clt_3d_passes;
-	public  CLTParameters       clt_parameters;
+	public ArrayList <CLTPass3d>                           clt_3d_passes;
+	public  CLTParameters                                  clt_parameters;
 	public EyesisCorrectionParameters.CorrectionParameters correctionsParameters;
 	public int debugLevel = 1;
 	Document    x3dDoc;
@@ -67,10 +66,10 @@ public class X3dOutput {
 	public X3dOutput() {}
 
 	public X3dOutput(
-			CLTParameters        clt_parameters,
+			CLTParameters                                   clt_parameters,
 			EyesisCorrectionParameters.CorrectionParameters correctionsParameters,
 			GeometryCorrection                              geometry_correction,
-			ArrayList <CLTPass3d>             clt_3d_passes){
+			ArrayList <CLTPass3d>                           clt_3d_passes){
 		this.clt_parameters =        clt_parameters;
 		this.correctionsParameters = correctionsParameters;
 		this.geometry_correction =    geometry_correction;
