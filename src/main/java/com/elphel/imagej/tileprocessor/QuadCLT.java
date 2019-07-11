@@ -5973,8 +5973,41 @@ public class QuadCLT {
 						  threadsMax,  // maximal number of threads to launch
 						  updateStatus,
 						  debugLevel);
-
+// Add here composite scans and show FG and BG images
 				  // adjust extrinsics here
+
+
+				  ArrayList<CLTPass3d> combo_pass_list = tp.compositeScan(
+						  2, // just FG and BG
+						  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
+						  0, // bg_pass, //  final int                   firstPass,
+						  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
+						  tp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
+						  tp.getMaxOverexposure(),                          //  final double                max_overexposure,
+						  0.0, // clt_parameters.bgnd_range,                //	 final double                disp_far,   // limit results to the disparity range
+						  clt_parameters.grow_disp_max,                     // final double                disp_near,
+						  clt_parameters.combine_min_strength,              // final double                minStrength,
+						  clt_parameters.combine_min_hor,                   // final double                minStrengthHor,
+						  clt_parameters.combine_min_vert,                  // final double                minStrengthVert,
+						  false,                                            // final boolean               no_weak,
+						  false,                                            // final boolean               use_last,   //
+						  // TODO: when useCombo - pay attention to borders (disregard)
+						  false,                                            // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
+						  true,                                             // 	 final boolean               copyDebug)
+						  debugLevel);
+
+				  tp.ShowScansSFB(
+						  combo_pass_list, // ArrayList<CLTPass3d> scans, // list of composite scans
+						  this.image_name+"-SFB"); // String               title);
+/*
+ 			  if (show_init_refine) tp.showScan(
+					  combo_pass, // CLTPass3d   scan,
+					  "after_compositeScan-"+tp.clt_3d_passes.size());
+
+ */
+
+
+
 			  }
 			  if (adjust_extrinsics) {
 				  if (use_rig) {
@@ -6009,6 +6042,30 @@ public class QuadCLT {
 						  updateStatus,
 						  debugLevel);
 			  }
+
+			  ArrayList<CLTPass3d> combo_pass_list = tp.compositeScan(
+					  2, // just FG and BG
+					  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
+					  0, // bg_pass, //  final int                   firstPass,
+					  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
+					  tp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
+					  tp.getMaxOverexposure(),                          //  final double                max_overexposure,
+					  0.0, // clt_parameters.bgnd_range,                //	 final double                disp_far,   // limit results to the disparity range
+					  clt_parameters.grow_disp_max,                     // final double                disp_near,
+					  clt_parameters.combine_min_strength,              // final double                minStrength,
+					  clt_parameters.combine_min_hor,                   // final double                minStrengthHor,
+					  clt_parameters.combine_min_vert,                  // final double                minStrengthVert,
+					  false,                                            // final boolean               no_weak,
+					  false,                                            // final boolean               use_last,   //
+					  // TODO: when useCombo - pay attention to borders (disregard)
+					  false,                                            // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
+					  true,                                             // 	 final boolean               copyDebug)
+					  debugLevel);
+
+			  tp.ShowScansSFB(
+					  combo_pass_list, // ArrayList<CLTPass3d> scans, // list of composite scans
+					  this.image_name+"-SFB"); // String               title);
+
 
 			  Runtime.getRuntime().gc();
 
@@ -6457,14 +6514,11 @@ public class QuadCLT {
 			  if (show_init_refine) tp.showScan(
 					  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
 					  "after_measure-"+tp.clt_3d_passes.size());
-			  //			  if (nnn < (num_macro_refine-1)) {
-			  //        	  if (clt_parameters.combine_refine){
+
 			  CLTPass3d combo_pass = tp.compositeScan(
 					  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
 					  bg_pass, //  final int                   firstPass,
 					  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
-					  //      				  tp.clt_3d_passes.get(bg_pass).getSelected(), // selected , // final boolean [] bg_tiles,          // get from selected in clt_3d_passes.get(0);
-					  //   				  clt_parameters.ex_min_over,// final double     ex_min_over,       // when expanding over previously detected (by error) background, disregard far tiles
 					  tp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
 					  tp.getMaxOverexposure(),                          //  final double                max_overexposure,
 					  0.0, // clt_parameters.bgnd_range,                //	 final double                disp_far,   // limit results to the disparity range
@@ -6472,11 +6526,11 @@ public class QuadCLT {
 					  clt_parameters.combine_min_strength,              // final double                minStrength,
 					  clt_parameters.combine_min_hor,                   // final double                minStrengthHor,
 					  clt_parameters.combine_min_vert,                  // final double                minStrengthVert,
-					  false,      // final boolean               no_weak,
-					  false, // final boolean               use_last,   //
+					  false,                                            // final boolean               no_weak,
+					  false,                                            // final boolean               use_last,   //
 					  // TODO: when useCombo - pay attention to borders (disregard)
-					  false, // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
-					  true, // 	 final boolean               copyDebug)
+					  false,                                            // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
+					  true,                                             // 	 final boolean               copyDebug)
 					  debugLevel);
 
 			  if (show_init_refine) tp.showScan(

@@ -446,7 +446,7 @@ public class CLTPass3d{
 		}
 
 		/**
-		 * Get Get combine per-tile disparity values from correlation combined with pre-programmed initial disparity shift.
+		 * Combine per-tile disparity values from correlation combined with pre-programmed initial disparity shift.
 		 * @return line-scan array of per-tile disparity by reference (not a copy), so it can be modified
 		 */
 

@@ -5335,7 +5335,7 @@ private Panel panel1,
 				if(ds_list.get(nt).isEmpty()) continue;
 	    		Collections.sort(ds_list.get(nt), new Comparator<DS>() {
 	    		    @Override
-	    		    public int compare(DS lhs, DS rhs) {
+	    		    public int compare(DS lhs, DS rhs) { // ascending
 	    		        return rhs.disparity > lhs.disparity  ? -1 : (rhs.disparity  < lhs.disparity ) ? 1 : 0;
 	    		    }
 	    		});
