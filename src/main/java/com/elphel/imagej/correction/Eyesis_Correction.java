@@ -88,7 +88,6 @@ import com.elphel.imagej.lwir.LwirReader;
 import com.elphel.imagej.readers.EyesisTiff;
 import com.elphel.imagej.tensorflow.TensorflowInferModel;
 import com.elphel.imagej.tileprocessor.DttRad2;
-import com.elphel.imagej.tileprocessor.GeometryCorrection;
 import com.elphel.imagej.tileprocessor.ImageDtt;
 import com.elphel.imagej.tileprocessor.MLStats;
 import com.elphel.imagej.tileprocessor.QuadCLT;
@@ -729,6 +728,7 @@ private Panel panel1,
 			addButton("AUX planes",                 panelLWIR, color_conf_process_aux);
 			addButton("AUX ASSIGN",                 panelLWIR, color_process_aux);
 			addButton("AUX OUT 3D",                 panelLWIR, color_process_aux);
+			addButton("Main img AUX",               panelLWIR, color_process_aux);
 			addButton("Main to AUX",                panelLWIR, color_process_aux);
 
 			addButton("LWIR_TEST",                  panelLWIR, color_conf_process);
@@ -4690,10 +4690,10 @@ private Panel panel1,
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
     	clt3d_aux(adjust_extrinsics, adjust_poly);
         return;
-    } else if (label.equals("Main to AUX")) {
+    } else if (label.equals("Main to AUX") || label.equals("Main img AUX")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-    	mainToAux();
+    	mainToAux(label.equals("Main img AUX"));
         return;
 //
     } else if (label.equals("CLT planes")) {
@@ -5119,7 +5119,7 @@ private Panel panel1,
   }
 /* ======================================================================== */
 
-	public boolean mainToAux() {
+	public boolean mainToAux(boolean use_img) {
         if (QUAD_CLT == null){
         	QUAD_CLT = new  QuadCLT (
         			QuadCLT.PREFIX,
@@ -5163,10 +5163,11 @@ private Panel panel1,
 
 
 	    String [] choices = {"---", "disparity","strength"};
-		double min_strength =  0.18; // use some configurable parameters
-		boolean use_wnd =      true;
+//		double min_strength =  0.18; // use some configurable parameters
+//		boolean use_wnd =      true;
 		boolean split_fg_bg =  true;
-		double split_fbg_rms = 0.2; // split small source samples tp FG/BG if all aux tile RMS exceeds this value
+//		double split_fbg_rms = 0.2; // split small source samples tp FG/BG if all aux tile RMS exceeds this value
+		boolean for_adjust =  false;
 
 		GenericDialog gd = new GenericDialog("Select disparity and strength slices");
 		indx = 0;
@@ -5176,10 +5177,12 @@ private Panel panel1,
 			}
 		}
 		gd.addMessage("--- main-to-aux depth map parameters ---");
-		gd.addNumericField("Minimal EO correlation strength",                                          min_strength, 3, 6, "");
-		gd.addCheckbox("Use window for AUX tiles to reduce weight of the hi-res tiles near low-res tile boundaries" , use_wnd);
-		gd.addCheckbox("Split FG and BG if hi-res disparity varies for the same low-res tile",                    split_fg_bg);
-		gd.addNumericField("Aux disparity thershold to split FG and BG",                              split_fbg_rms, 3, 6, "");
+		gd.addNumericField("Minimal EO correlation strength",                                                         CLT_PARAMETERS.ly_gt_strength, 3, 6, "");
+		gd.addCheckbox("Use window for AUX tiles to reduce weight of the hi-res tiles near low-res tile boundaries" , CLT_PARAMETERS.ly_gt_use_wnd);
+		gd.addCheckbox("Split FG and BG if hi-res disparity varies for the same low-res tile",                        split_fg_bg);
+		gd.addNumericField("Aux disparity thershold to split FG and BG",                                              CLT_PARAMETERS.ly_gt_rms, 3, 6, "");
+		gd.addCheckbox("Data for Lazy Eye correction (remove ambiguous tiles)",                                       for_adjust);
+
 		WindowTools.addScrollBars(gd);
 		gd.showDialog();
 		if (gd.wasCanceled()) return false;
@@ -5189,10 +5192,11 @@ private Panel panel1,
 		for (int i = 0; i < selections.length; i++) {
 				selections[i] = gd.getNextChoiceIndex();
 		}
-		min_strength =  gd.getNextNumber();
-		use_wnd =       gd.getNextBoolean();
+		CLT_PARAMETERS.ly_gt_strength =  gd.getNextNumber();
+		CLT_PARAMETERS.ly_gt_use_wnd =       gd.getNextBoolean();
 		split_fg_bg =   gd.getNextBoolean();
-		split_fbg_rms = gd.getNextNumber();
+		CLT_PARAMETERS.ly_gt_rms = gd.getNextNumber();
+		for_adjust =    gd.getNextBoolean();
 
 		int index_disparity = -1, index_strength=-1;
 		indx = 0;
@@ -5232,177 +5236,24 @@ private Panel panel1,
 		String [] fgbg_titles = {"disparity","strength", "rms","rms-split","fg-disp","fg-str","bg-disp","bg-str"};
 		String [] rslt_titles = split_fg_bg ? fgbg_titles  :titles;
 
-		double [][] ds_aux = DepthMapMainToAux(
+		double [][] ds_aux = QUAD_CLT_AUX.depthMapMainToAux(
 				ds, // double [][] ds,
 				QUAD_CLT.getGeometryCorrection(), //  GeometryCorrection geometryCorrection_main,
 				QUAD_CLT_AUX.getGeometryCorrection(), //  GeometryCorrection geometryCorrection_aux,
 				CLT_PARAMETERS,
-				min_strength, // double min_strength,
-				use_wnd,
 				split_fg_bg,
-				split_fbg_rms,
+				for_adjust,
 				DEBUG_LEVEL); // int debug_level
 		(new ShowDoubleFloatArrays()).showArrays(ds_aux,  tilesX_aux, tilesY_aux, true, title+"_TOAUX", rslt_titles);
+		if (ds_aux.length == 2) {
+			QUAD_CLT_AUX.ds_from_main = ds_aux;
+		} else {
+			QUAD_CLT_AUX.ds_from_main = null;
+		}
 		return true;
 
 	}
-	public double [][] DepthMapMainToAux(
-			double [][]        ds,
-			GeometryCorrection geometryCorrection_main,
-			GeometryCorrection geometryCorrection_aux,
-			CLTParameters      clt_Parameters,
-			double             min_strength,
-			boolean            use_wnd,
-			boolean            split_fg_bg,
-			double             split_fbg_rms,
-			int                debug_level
-			){
-		class DS{
-			double disparity;  // gt disparity
-			double strength;   // gt strength
-			int tx;            // gt tile x
-			int ty;            // gt tile x
-			double fx;         // fractional aux tile X (0.0..1.0) for optional window
-			double fy;         // fractional aux tile Y (0.0..1.0) for optional window
-//			DS (double disparity, double strength){
-//				this.disparity = disparity;
-//				this.strength = strength;
-//			}
-			DS (double disparity, double strength, int tx, int ty, double fx, double fy){
-				this.disparity = disparity;
-				this.strength =  strength;
-				this.tx =        tx;
-				this.ty =        ty;
-				this.fx =        fx;
-				this.fy =        fy;
 
-			}
-			@Override
-			public String toString() {
-				return String.format("Disparity (str) = % 6f (%5f), tx=%d ty=%d fx=%5f fy=%5f\n", disparity, strength,tx,ty,fx,fy);
-			}
-		}
-		int tile_size =  clt_Parameters.transform_size;
-		int [] wh_main = geometryCorrection_main.getSensorWH();
-		int [] wh_aux =  geometryCorrection_aux.getSensorWH();
-		int tilesX_main = wh_main[0] / tile_size;
-		int tilesY_main = wh_main[1] / tile_size;
-		int tilesX_aux = wh_aux[0] / tile_size;
-		int tilesY_aux = wh_aux[1] / tile_size;
-
-		ArrayList<ArrayList<DS>> ds_list = new ArrayList<ArrayList<DS>>();
-		for (int nt = 0; nt < tilesX_aux * tilesY_aux; nt++) {
-			ds_list.add(new ArrayList<DS>());
-		}
-		for (int ty = 0; ty < tilesY_main; ty++) {
-			double centerY = ty * tile_size + tile_size/2;
-			for (int tx = 0; tx < tilesX_main; tx++) {
-				int nt = ty*tilesX_main + tx;
-				double centerX = tx * tile_size + tile_size/2;
-				double disparity = ds[0][nt];
-				double strength =  ds[1][nt];
-				if ((strength >= min_strength) && !Double.isNaN(disparity)) {
-					double [] dpxpy_aux =  geometryCorrection_aux.getFromOther(
-							geometryCorrection_main, // GeometryCorrection other_gc,
-							centerX,                 // double other_px,
-							centerY,                 // double other_py,
-							disparity);              // double other_disparity)
-					double fx = dpxpy_aux[1]/tile_size;
-					double fy = dpxpy_aux[2]/tile_size;
-					int tx_aux = (int) Math.floor(fx);
-					int ty_aux = (int) Math.floor(fy);
-					fx -= tx_aux;
-					fy -= ty_aux;
-					if ((ty_aux >= 0) && (ty_aux < tilesY_aux) && (tx_aux >= 0) && (tx_aux < tilesX_aux)) {
-						int nt_aux = ty_aux * tilesX_aux + tx_aux;
-						ds_list.get(nt_aux).add(new DS(dpxpy_aux[0], strength, tx, ty, fx, fy));
-					}
-				}
-			}
-		}
-
-		// simple average (ignoring below minimal)
-		int num_slices = split_fg_bg? 8:2;
-		double [][] ds_aux_avg = new double [num_slices][tilesX_aux * tilesY_aux];
-		for (int ty = 0; ty < tilesY_aux; ty++) {
-			for (int tx = 0; tx < tilesX_aux; tx++) {
-				if ((ty == 4) && (tx == 12)) {
-					System.out.println("tx = "+tx+", ty = "+ty);
-				}
-				int nt = ty * tilesX_aux + tx;
-				ds_aux_avg[0][nt] = Double.NaN;
-				ds_aux_avg[1][nt] = 0.0;
-				if(ds_list.get(nt).isEmpty()) continue;
-	    		Collections.sort(ds_list.get(nt), new Comparator<DS>() {
-	    		    @Override
-	    		    public int compare(DS lhs, DS rhs) { // ascending
-	    		        return rhs.disparity > lhs.disparity  ? -1 : (rhs.disparity  < lhs.disparity ) ? 1 : 0;
-	    		    }
-	    		});
-
-				double sw = 0.0, swd = 0.0, swd2 = 0.0;
-	    		for (DS dsi: ds_list.get(nt)) {
-	    			double w = dsi.strength;
-	    			if (use_wnd) {
-	    				w *= Math.sin(Math.PI * (dsi.fx + 0.5/tile_size)) * Math.sin(Math.PI * (dsi.fy + 0.5/tile_size));
-	    			}
-	    			sw +=  w;
-	    			double wd = w * dsi.disparity;
-	    			swd += wd;
-	    			swd2 += wd * dsi.disparity;
-
-	    		}
-	    		ds_aux_avg[0][nt] = swd/sw;
-	    		ds_aux_avg[1][nt] = sw/ds_list.get(nt).size();
-	    		if (split_fg_bg) {
-
-	    			ds_aux_avg[2][nt] = Math.sqrt( (swd2 * sw - swd * swd) / (sw * sw));
-	    			ds_aux_avg[3][nt] = ds_aux_avg[2][nt]; // rms
-	    			ds_aux_avg[4][nt] = ds_aux_avg[0][nt]; // fg disp
-	    			ds_aux_avg[5][nt] = ds_aux_avg[1][nt]; // fg strength
-	    			ds_aux_avg[6][nt] = ds_aux_avg[0][nt]; // bg disp
-	    			ds_aux_avg[7][nt] = ds_aux_avg[1][nt]; // bg strength
-	    			if (ds_aux_avg[2][nt] >= split_fbg_rms) {
-	    				// splitting while minimizing sum of 2 squared errors
-	    	    		double [][] swfb =  new double [2][ds_list.get(nt).size() -1];
-	    	    		double [][] swdfb = new double [2][ds_list.get(nt).size() -1];
-	    	    		double []   s2fb =  new double [ds_list.get(nt).size() -1];
-	    	    		for (int n = 0; n < s2fb.length; n++) { // split position
-	    	    			double [] s2 = new double[2];
-	    	    			for (int i = 0; i <= s2fb.length; i++) {
-	    	    				int fg = (i > n)? 1 : 0; // 0 - bg, 1 - fg
-	    	    				DS dsi = ds_list.get(nt).get(i);
-	    		    			double w = dsi.strength;
-	    		    			if (use_wnd) {
-	    		    				w *= Math.sin(Math.PI * dsi.fx) * Math.sin(Math.PI * dsi.fy);
-	    		    			}
-	    		    			swfb[fg][n] +=  w;
-	    		    			double wd =      w * dsi.disparity;
-	    		    			swdfb[fg][n] += wd;
-	    		    			s2[fg] +=        wd * dsi.disparity;
-	    	    			}
-	    	    			s2fb[n] =  ((s2[0] * swfb[0][n] - swdfb[0][n] * swdfb[0][n]) / swfb[0][n] +
-	    	    					(s2[1] * swfb[1][n] - swdfb[1][n] * swdfb[1][n]) / swfb[1][n]) / (swfb[0][n] + swfb[1][n]);
-	    	    		}
-		    			// now find the n with lowest s2fb and use it to split fg/bg. Could be done in a single pass, but with saved arrays
-		    			// it is easier to verify
-		    			int nsplit = 0;
-		    			for (int i = 1; i < s2fb.length; i++) if (s2fb[i] < s2fb[nsplit]) {
-		    				nsplit = i;
-		    			}
-		    			ds_aux_avg[3][nt] = s2fb[nsplit]; // rms split
-		    			ds_aux_avg[4][nt] = swdfb[1][nsplit] / swfb[1][nsplit] ;      // fg disp
-		    			ds_aux_avg[5][nt] = swfb[1][nsplit]/ (s2fb.length - nsplit) ; // fg strength
-
-		    			ds_aux_avg[6][nt] = swdfb[0][nsplit] / swfb[0][nsplit] ;      // bg disp
-		    			ds_aux_avg[7][nt] = swfb[0][nsplit]/ (nsplit + 1) ;           // bg strength
-	    			}
-	    		}
-			}
-		}
-		return ds_aux_avg;
-
-	}
 //getGeometryCorrection
 ///data_ssd/lwir3d/results/saved/1562390490_233403/v11/
 /* ======================================================================== */

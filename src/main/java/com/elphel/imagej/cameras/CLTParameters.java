@@ -163,6 +163,15 @@ public class CLTParameters {
 	public boolean    ih_norm_center =  true;    // Replace samples with a single average with equal weight
 	public boolean    inf_restore_disp = true;   // Add disparity back to d{x,y}[i] (debug feature)
 	// Lazy eye parameters
+
+	public double     ly_gt_strength =  0.18; // use some configurable parameters
+	public boolean    ly_gt_use_wnd =   true;
+	public double     ly_gt_rms =        0.2; // split small source samples tp FG/BG if all aux tile RMS exceeds this value
+
+//	boolean split_fg_bg =  true;
+//	boolean for_adjust =  false;
+
+
 	public boolean    ly_on_scan =      true;    // Calculate and apply lazy eye correction after disparity scan (poly or extrinsic)
 	public boolean    ly_inf_en =       true;    // Simultaneously correct disparity at infinity (both poly and extrinsic)
 	public boolean    ly_aztilt_en =    true;    // Adjust azimuths and tilts
@@ -922,6 +931,10 @@ public class CLTParameters {
 		properties.setProperty(prefix+"ih_norm_center",             this.ih_norm_center+"");
 		properties.setProperty(prefix+"inf_restore_disp",           this.inf_restore_disp+"");
 
+		properties.setProperty(prefix+"ly_gt_strength",             this.ly_gt_strength+"");
+		properties.setProperty(prefix+"ly_gt_use_wnd",              this.ly_gt_use_wnd+"");
+		properties.setProperty(prefix+"ly_gt_rms",                  this.ly_gt_rms+"");
+
 		properties.setProperty(prefix+"ly_on_scan",                 this.ly_on_scan+"");
 		properties.setProperty(prefix+"ly_inf_en",                  this.ly_inf_en+"");
 		properties.setProperty(prefix+"ly_aztilt_en",               this.ly_aztilt_en+"");
@@ -1627,6 +1640,9 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"ih_norm_center")!=null)                this.ih_norm_center=Boolean.parseBoolean(properties.getProperty(prefix+"ih_norm_center"));
 		if (properties.getProperty(prefix+"inf_restore_disp")!=null)              this.inf_restore_disp=Boolean.parseBoolean(properties.getProperty(prefix+"inf_restore_disp"));
 
+		if (properties.getProperty(prefix+"ly_gt_strength")!=null)                this.ly_gt_strength=Double.parseDouble(properties.getProperty(prefix+"ly_gt_strength"));
+		if (properties.getProperty(prefix+"ly_gt_use_wnd")!=null)                 this.ly_gt_use_wnd=Boolean.parseBoolean(properties.getProperty(prefix+"ly_gt_use_wnd"));
+		if (properties.getProperty(prefix+"ly_gt_rms")!=null)                     this.ly_gt_rms=Double.parseDouble(properties.getProperty(prefix+"ly_gt_rms"));
 		if (properties.getProperty(prefix+"ly_on_scan")!=null)                    this.ly_on_scan=Boolean.parseBoolean(properties.getProperty(prefix+"ly_on_scan"));
 		if (properties.getProperty(prefix+"ly_inf_en")!=null)                     this.ly_inf_en=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_en"));
 		if (properties.getProperty(prefix+"ly_aztilt_en")!=null)                  this.ly_aztilt_en=Boolean.parseBoolean(properties.getProperty(prefix+"ly_aztilt_en"));
@@ -2373,12 +2389,17 @@ public class CLTParameters {
 
 		gd.addTab         ("Lazy eye", "Lazy eye parameters");
 
-		gd.addCheckbox    ("Calculate and apply lazy eye correction after disparity scan (poly or extrinsic), may repeat",          this.ly_on_scan);
-		gd.addCheckbox    ("Adjust disparity using objects at infinity by changing individual tilt and azimuth ",           this.ly_inf_en," disable if there are no really far objects in the scene");
+		gd.addMessage     ("--- main-to-aux depth map parameters ---");
+		gd.addNumericField("Minimal reference (main) channel orrelation strength",                              this.ly_gt_strength,        3);
+		gd.addCheckbox    ("Use window for AUX tiles to reduce weight of the hi-res tiles near low-res tile boundaries", this.ly_gt_use_wnd);
+		gd.addNumericField("Aux disparity thershold to split FG and BG (and disable AUX tile for adjustment)",  this.ly_gt_rms,        3);
+		gd.addMessage     ("--- others ---");
+		gd.addCheckbox    ("Calculate and apply lazy eye correction after disparity scan (poly or extrinsic), may repeat", this.ly_on_scan);
+		gd.addCheckbox    ("Adjust disparity using objects at infinity by changing individual tilt and azimuth ",          this.ly_inf_en," disable if there are no really far objects in the scene");
 		gd.addCheckbox    ("Adjust azimuths and tilts",                                                         this.ly_aztilt_en,"Adjust azimuths and tilts excluding those that change disparity");
 		gd.addCheckbox    ("Adjust differential rolls",                                                         this.ly_diff_roll_en,"Adjust differential rolls (3 of 4 rolls, keeping average roll)");
 		gd.addCheckbox    ("Correct scales (focal length temperature? variations)",                             this.ly_focalLength);
-		gd.addCheckbox    ("Enable common roll adjustment (valid for high disparity range scans only)",           this.ly_com_roll);
+		gd.addCheckbox    ("Enable common roll adjustment (valid for high disparity range scans only)",         this.ly_com_roll);
 
 		gd.addNumericField("Manual parameter mask selection (0 use checkboxes above)",                          this.ly_par_sel,  0, 5,"",
 				"bit 0 - sym0, bit1 - sym1, ...");
@@ -3164,7 +3185,6 @@ public class CLTParameters {
 
 		this.inf_disp_apply=        gd.getNextBoolean();
 		this.inf_repeat=      (int) gd.getNextNumber();
-		//  			          this.inf_mism_apply=        gd.getNextBoolean();
 		this.inf_iters=       (int) gd.getNextNumber();
 		this.inf_final_diff=        gd.getNextNumber();
 		this.inf_far_pull=          gd.getNextNumber();
@@ -3184,6 +3204,9 @@ public class CLTParameters {
 		this.ih_norm_center=        gd.getNextBoolean();
 		this.inf_restore_disp=      gd.getNextBoolean();
 
+		this.ly_gt_strength=        gd.getNextNumber();
+		this.ly_gt_use_wnd=         gd.getNextBoolean();
+		this.ly_gt_rms=             gd.getNextNumber();
 		this.ly_on_scan=            gd.getNextBoolean();
 		this.ly_inf_en=             gd.getNextBoolean();
 		this.ly_aztilt_en=          gd.getNextBoolean();

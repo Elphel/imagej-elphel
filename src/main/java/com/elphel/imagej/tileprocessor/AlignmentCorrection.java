@@ -2311,7 +2311,7 @@ B = |+dy0   -dy1      -2*dy3 |
 					clt_parameters.ly_par_sel,     //int     manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 					mismatch_list,                          // ArrayList<Mismatch> mismatch_list,
 					qc.geometryCorrection,                  // GeometryCorrection geometryCorrection,
-					null, // GeometryCorrection geometryCorrection_main, // if is aux camera using main cameras' coordinates. Disparity is still in aux camera pixels
+///					null, // GeometryCorrection geometryCorrection_main, // if is aux camera using main cameras' coordinates. Disparity is still in aux camera pixels
 					qc.geometryCorrection.getCorrVector(),  // GeometryCorrection.CorrVector corr_vector,
 					old_new_rms,                            // double [] old_new_rms, // should be double[2]
 //					2); // debugLevel); // 2); // 1); // int debugLevel)
@@ -2360,7 +2360,7 @@ B = |+dy0   -dy1      -2*dy3 |
 
 
 	public double [][][] lazyEyeCorrectionFromGT(
-			final GeometryCorrection geometryCorrection_main, // if not null - this is an AUX camera of a rig
+//			final GeometryCorrection geometryCorrection_main, // if not null - this is an AUX camera of a rig
 			final boolean    use_poly, // Use polynomial correction, false - correct tilt/azimuth/roll of each sensor
 			final boolean    restore_disp_inf, // Restore subtracted disparity for scan #0 (infinity) always true
 			final double     fcorr_radius,
@@ -2398,7 +2398,6 @@ B = |+dy0   -dy1      -2*dy3 |
 			int              debugLevel){
 
 //		final double lazyEyeDispRelVariation = 0.02;
-//geometryCorrection_main
 		final int dbg_nTile = -34145; // 37005; // -59038;
 		final int num_scans = scans_14.length/NUM_ALL_SLICES;
 		final int num_tiles = scans_14[0].length;
@@ -2791,7 +2790,7 @@ B = |+dy0   -dy1      -2*dy3 |
 					clt_parameters.ly_par_sel,     // int     manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 					mismatch_list,                          // ArrayList<Mismatch> mismatch_list,
 					qc.geometryCorrection,                  // GeometryCorrection geometryCorrection,
-					geometryCorrection_main, //  GeometryCorrection geometryCorrection_main, // if is aux camera using main cameras' coordinates. Disparity is still in aux camera pixels
+///					geometryCorrection_main, //  GeometryCorrection geometryCorrection_main, // if is aux camera using main cameras' coordinates. Disparity is still in aux camera pixels
 					qc.geometryCorrection.getCorrVector(),  // GeometryCorrection.CorrVector corr_vector,
 					old_new_rms,                            // double [] old_new_rms, // should be double[2]
 //					2); // debugLevel); // 2); // 1); // int debugLevel)
@@ -3326,7 +3325,7 @@ B = |+dy0   -dy1      -2*dy3 |
 	  		int     manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 			ArrayList<Mismatch> mismatch_list,
 			GeometryCorrection geometryCorrection,
-			GeometryCorrection geometryCorrection_main, // if is aux camera using main cameras' coordinates. Disparity is still in aux camera pixels
+///			GeometryCorrection geometryCorrection_main, // if is aux camera using main cameras' coordinates. Disparity is still in aux camera pixels
 			GeometryCorrection.CorrVector corr_vector,
 			double [] old_new_rms, // should be double[2]
 			int debugLevel)

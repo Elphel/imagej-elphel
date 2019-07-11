@@ -34,6 +34,8 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
@@ -101,7 +103,8 @@ public class QuadCLT {
     // is enabled
     double []                                              lwir_cold_hot = null;
 //    int []                                                 woi_tops; // used to calculate scanline timing
-
+// just for debugging with the use of intermediate image
+    public double [][]                                     ds_from_main = null;
 
 // magic scale should be set before using  TileProcessor (calculated disparities depend on it)
     public boolean isMonochrome() {return is_mono;}
@@ -5999,21 +6002,36 @@ public class QuadCLT {
 				  tp.ShowScansSFB(
 						  combo_pass_list, // ArrayList<CLTPass3d> scans, // list of composite scans
 						  this.image_name+"-SFB"); // String               title);
-/*
- 			  if (show_init_refine) tp.showScan(
-					  combo_pass, // CLTPass3d   scan,
-					  "after_compositeScan-"+tp.clt_3d_passes.size());
-
- */
-
-
 
 			  }
 			  if (adjust_extrinsics) {
-				  if (use_rig) {
-					  System.out.println("Adjust extrinsics using rig data here");
+				  // temporarily
+				  if (ds_from_main != null) {
+					  System.out.println("Adjust AUX extrinsics using main camera measurements");
 					  extrinsicsCLTfromGT(
-							  twoQuadCLT,   // TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
+//							  twoQuadCLT,   // TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
+							  null,
+							  ds_from_main, // gt_disp_strength,
+							  clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
+							  adjust_poly,
+							  threadsMax,  //final int        threadsMax,  // maximal number of threads to launch
+							  updateStatus,// final boolean    updateStatus,
+							  debugLevel + 2); // final int        debugLevel)
+
+				  } else  if (use_rig) {
+					  System.out.println("Adjust extrinsics using rig data here");
+					  double [][] gt_disp_strength = getRigDSFromTwoQuadCL(
+							  twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
+							  clt_parameters,
+							  debugLevel + 2); // final int        debugLevel)
+					  GeometryCorrection geometryCorrection_main = null;
+					  if (geometryCorrection.getRotMatrix(true) != null) {
+						  geometryCorrection_main = twoQuadCLT.quadCLT_main.getGeometryCorrection();
+					  }
+					  extrinsicsCLTfromGT(
+//							  twoQuadCLT,   // TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
+							  geometryCorrection_main,
+							  gt_disp_strength,
 							  clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 							  adjust_poly,
 							  threadsMax,  //final int        threadsMax,  // maximal number of threads to launch
@@ -6083,6 +6101,167 @@ public class QuadCLT {
 		  System.out.println("Processing "+getTotalFiles(set_channels)+" files finished at "+
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
+
+	public double [][] depthMapMainToAux(
+			double [][]        ds,
+			GeometryCorrection geometryCorrection_main,
+			GeometryCorrection geometryCorrection_aux,
+			CLTParameters      clt_Parameters,
+//			double             min_strength,
+//			boolean            use_wnd,
+			boolean            split_fg_bg,
+//			double             split_fbg_rms,
+			boolean            for_adjust, // for LY adjustment: only keep d,s and remove samples with high variations
+			int                debug_level
+			){
+		class DS{
+			double disparity;  // gt disparity
+			double strength;   // gt strength
+			int tx;            // gt tile x
+			int ty;            // gt tile x
+			double fx;         // fractional aux tile X (0.0..1.0) for optional window
+			double fy;         // fractional aux tile Y (0.0..1.0) for optional window
+			DS (double disparity, double strength, int tx, int ty, double fx, double fy){
+				this.disparity = disparity;
+				this.strength =  strength;
+				this.tx =        tx;
+				this.ty =        ty;
+				this.fx =        fx;
+				this.fy =        fy;
+
+			}
+			@Override
+			public String toString() {
+				return String.format("Disparity (str) = % 6f (%5f), tx=%d ty=%d fx=%5f fy=%5f\n", disparity, strength,tx,ty,fx,fy);
+			}
+		}
+		int tile_size =  clt_Parameters.transform_size;
+		int [] wh_main = geometryCorrection_main.getSensorWH();
+		int [] wh_aux =  geometryCorrection_aux.getSensorWH();
+		int tilesX_main = wh_main[0] / tile_size;
+		int tilesY_main = wh_main[1] / tile_size;
+		int tilesX_aux = wh_aux[0] / tile_size;
+		int tilesY_aux = wh_aux[1] / tile_size;
+
+		ArrayList<ArrayList<DS>> ds_list = new ArrayList<ArrayList<DS>>();
+		for (int nt = 0; nt < tilesX_aux * tilesY_aux; nt++) {
+			ds_list.add(new ArrayList<DS>());
+		}
+		for (int ty = 0; ty < tilesY_main; ty++) {
+			double centerY = ty * tile_size + tile_size/2;
+			for (int tx = 0; tx < tilesX_main; tx++) {
+				int nt = ty*tilesX_main + tx;
+				double centerX = tx * tile_size + tile_size/2;
+				double disparity = ds[0][nt];
+				double strength =  ds[1][nt];
+				if ((strength >= clt_Parameters.ly_gt_strength) && !Double.isNaN(disparity)) {
+					double [] dpxpy_aux =  geometryCorrection_aux.getFromOther(
+							geometryCorrection_main, // GeometryCorrection other_gc,
+							centerX,                 // double other_px,
+							centerY,                 // double other_py,
+							disparity);              // double other_disparity)
+					double fx = dpxpy_aux[1]/tile_size;
+					double fy = dpxpy_aux[2]/tile_size;
+					int tx_aux = (int) Math.floor(fx);
+					int ty_aux = (int) Math.floor(fy);
+					fx -= tx_aux;
+					fy -= ty_aux;
+					if ((ty_aux >= 0) && (ty_aux < tilesY_aux) && (tx_aux >= 0) && (tx_aux < tilesX_aux)) {
+						int nt_aux = ty_aux * tilesX_aux + tx_aux;
+						ds_list.get(nt_aux).add(new DS(dpxpy_aux[0], strength, tx, ty, fx, fy));
+					}
+				}
+			}
+		}
+
+		// simple average (ignoring below minimal)
+		int num_slices = split_fg_bg? 8:2;
+		double [][] ds_aux_avg = new double [num_slices][tilesX_aux * tilesY_aux];
+		for (int ty = 0; ty < tilesY_aux; ty++) {
+			for (int tx = 0; tx < tilesX_aux; tx++) {
+				if ((ty == 3) && (tx == 12)) {
+					System.out.println("tx = "+tx+", ty = "+ty);
+				}
+				int nt = ty * tilesX_aux + tx;
+				ds_aux_avg[0][nt] = Double.NaN;
+				ds_aux_avg[1][nt] = 0.0;
+				if(ds_list.get(nt).isEmpty()) continue;
+	    		Collections.sort(ds_list.get(nt), new Comparator<DS>() {
+	    		    @Override
+	    		    public int compare(DS lhs, DS rhs) { // ascending
+	    		        return rhs.disparity > lhs.disparity  ? -1 : (rhs.disparity  < lhs.disparity ) ? 1 : 0;
+	    		    }
+	    		});
+
+				double sw = 0.0, swd = 0.0, swd2 = 0.0;
+	    		for (DS dsi: ds_list.get(nt)) {
+	    			double w = dsi.strength;
+	    			if (clt_Parameters.ly_gt_use_wnd) {
+	    				w *= Math.sin(Math.PI * dsi.fx) * Math.sin(Math.PI * dsi.fy);
+	    			}
+	    			sw +=  w;
+	    			double wd = w * dsi.disparity;
+	    			swd += wd;
+	    			swd2 += wd * dsi.disparity;
+
+	    		}
+	    		ds_aux_avg[0][nt] = swd/sw;
+	    		ds_aux_avg[1][nt] = sw/ds_list.get(nt).size();
+	    		double rms = Math.sqrt( (swd2 * sw - swd * swd) / (sw * sw));
+    			if (for_adjust && (rms >= clt_Parameters.ly_gt_rms)) { // remove ambiguous tiles
+    	    		ds_aux_avg[0][nt] = Double.NaN;
+    	    		ds_aux_avg[1][nt] = 0;
+
+    			}
+	    		if (split_fg_bg) {
+
+	    			ds_aux_avg[2][nt] = rms;
+	    			ds_aux_avg[3][nt] = ds_aux_avg[2][nt]; // rms
+	    			ds_aux_avg[4][nt] = ds_aux_avg[0][nt]; // fg disp
+	    			ds_aux_avg[5][nt] = ds_aux_avg[1][nt]; // fg strength
+	    			ds_aux_avg[6][nt] = ds_aux_avg[0][nt]; // bg disp
+	    			ds_aux_avg[7][nt] = ds_aux_avg[1][nt]; // bg strength
+	    			if (rms >= clt_Parameters.ly_gt_rms) {
+	    				// splitting while minimizing sum of 2 squared errors
+	    	    		double [][] swfb =  new double [2][ds_list.get(nt).size() -1];
+	    	    		double [][] swdfb = new double [2][ds_list.get(nt).size() -1];
+	    	    		double []   s2fb =  new double [ds_list.get(nt).size() -1];
+	    	    		for (int n = 0; n < s2fb.length; n++) { // split position
+	    	    			double [] s2 = new double[2];
+	    	    			for (int i = 0; i <= s2fb.length; i++) {
+	    	    				int fg = (i > n)? 1 : 0; // 0 - bg, 1 - fg
+	    	    				DS dsi = ds_list.get(nt).get(i);
+	    		    			double w = dsi.strength;
+	    		    			if (clt_Parameters.ly_gt_use_wnd) {
+	    		    				w *= Math.sin(Math.PI * dsi.fx) * Math.sin(Math.PI * dsi.fy);
+	    		    			}
+	    		    			swfb[fg][n] +=  w;
+	    		    			double wd =      w * dsi.disparity;
+	    		    			swdfb[fg][n] += wd;
+	    		    			s2[fg] +=        wd * dsi.disparity;
+	    	    			}
+	    	    			s2fb[n] =  ((s2[0] * swfb[0][n] - swdfb[0][n] * swdfb[0][n]) / swfb[0][n] +
+	    	    					(s2[1] * swfb[1][n] - swdfb[1][n] * swdfb[1][n]) / swfb[1][n]) / (swfb[0][n] + swfb[1][n]);
+	    	    		}
+		    			// now find the n with lowest s2fb and use it to split fg/bg. Could be done in a single pass, but with saved arrays
+		    			// it is easier to verify
+		    			int nsplit = 0;
+		    			for (int i = 1; i < s2fb.length; i++) if (s2fb[i] < s2fb[nsplit]) {
+		    				nsplit = i;
+		    			}
+		    			ds_aux_avg[3][nt] = s2fb[nsplit]; // rms split
+		    			ds_aux_avg[4][nt] = swdfb[1][nsplit] / swfb[1][nsplit] ;      // fg disp
+		    			ds_aux_avg[5][nt] = swfb[1][nsplit]/ (s2fb.length - nsplit) ; // fg strength
+
+		    			ds_aux_avg[6][nt] = swdfb[0][nsplit] / swfb[0][nsplit] ;      // bg disp
+		    			ds_aux_avg[7][nt] = swfb[0][nsplit]/ (nsplit + 1) ;           // bg strength
+	    			}
+	    		}
+			}
+		}
+		return ds_aux_avg;
+
+	}
 
 	  public boolean preExpandCLTQuad3d(
 			  ImagePlus []                                     imp_quad, // should have properties "name"(base for saving results), "channel","path"
@@ -6903,8 +7082,41 @@ public class QuadCLT {
 	  }
 
 
-	  public boolean extrinsicsCLTfromGT(
+	  public double [][] getRigDSFromTwoQuadCL(
 			  TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
+			  CLTParameters           clt_parameters,
+			  final int        debugLevel) {
+		  if ((twoQuadCLT == null) || (twoQuadCLT.getBiScan(0) == null)){
+			  System.out.println("Rig data is not available, aborting");
+			  return null;
+		  }
+
+		  BiScan scan = twoQuadCLT.getBiScan(0);
+		  double [][] rig_disp_strength = 		scan.getDisparityStrength(
+		    		true,   // final boolean only_strong,
+		    		true,   // final boolean only_trusted,
+		    		true) ; // final boolean only_enabled);
+		  GeometryCorrection geometryCorrection_main = null;
+		  if (geometryCorrection.getRotMatrix(true) != null) {
+			  geometryCorrection_main = twoQuadCLT.quadCLT_main.getGeometryCorrection();
+			  double disparityScale =  geometryCorrection.getDisparityRadius()/geometryCorrection_main.getDisparityRadius();
+			  for (int i = 0; i < rig_disp_strength[0].length; i++) {
+				  rig_disp_strength[0][i] *= disparityScale;
+			  }
+
+			  if (debugLevel > -2) {
+				  System.out.println("This is an AUX camera, using MAIN camera coordinates");
+			  }
+		  }
+		  return rig_disp_strength;
+
+
+	  }
+
+	  public boolean extrinsicsCLTfromGT(
+//			  TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
+			  GeometryCorrection geometryCorrection_main, // only used for aux camera if coordinates are for main (null for LWIR)
+			  double [][] rig_disp_strength,
 			  CLTParameters           clt_parameters,
 			  boolean 		   adjust_poly,
 			  final int        threadsMax,  // maximal number of threads to launch
@@ -6920,6 +7132,7 @@ public class QuadCLT {
 		  int max_tries =                   clt_parameters.lym_iter; // 25;
 		  double min_sym_update =           clt_parameters.getLymChange(is_aux); //  4e-6; // stop iterations if no angle changes more than this
 		  double min_poly_update =          clt_parameters.lym_poly_change; //  Parameter vector difference to exit from polynomial correction
+		  /*
 		  if ((twoQuadCLT == null) || (twoQuadCLT.getBiScan(0) == null)){
 			  System.out.println("Rig data is not available, aborting");
 			  return false;
@@ -6951,8 +7164,17 @@ public class QuadCLT {
 			  if (debugLevel > -2) {
 				  System.out.println("This is an AUX camera, using MAIN camera coordinates");
 			  }
-
-
+		  }
+*/
+		  if (debugLevel > 20) {
+			  boolean tmp_exit = true;
+			  System.out.println("extrinsicsCLTfromGT()");
+			  if (tmp_exit) {
+				  System.out.println("will now exit. To continue - change variable tmp_exit in debugger" );
+				  if (tmp_exit) {
+					  return false;
+				  }
+			  }
 		  }
 
 		  CLTPass3d comboScan = tp.compositeScan(
@@ -6966,7 +7188,6 @@ public class QuadCLT {
 		  // iteration steps
 		  double comp_diff = min_sym_update + 1; // (> min_sym_update)
 		  for (int num_iter = 0; num_iter < max_tries; num_iter++){
-
 			  double [][] combo_mismatch = new double[12][];
 			  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
 					  image_data,              // first index - number of image in a quad
@@ -6998,10 +7219,9 @@ public class QuadCLT {
 			  }
 
 			  double [][][] new_corr;
-//			  final double     inf_max_disparity = 2.0;
 			  double [][][]    gt_disparity_strength = {rig_disp_strength};
 			  new_corr = ac.lazyEyeCorrectionFromGT(
-					  geometryCorrection_main, //final GeometryCorrection geometryCorrection_main, // if not null - this is an AUX camera of a rig
+///					  geometryCorrection_main, //final GeometryCorrection geometryCorrection_main, // if not null - this is an AUX camera of a rig
 					  adjust_poly,                       // final boolean use_poly,
 					  true, // final boolean    restore_disp_inf, // Restore subtracted disparity for scan #0 (infinity)
 					  clt_parameters.fcorr_radius,       // 	final double fcorr_radius,

@@ -3680,7 +3680,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 		// Get DSI from the main camera
 		quadCLT_main.tp.trimCLTPasses(false); // remove rig composite scan if any
-		// last but not including any rid data
+		// last but not including any rig data
 		CLTPass3d scan_last = quadCLT_main.tp.clt_3d_passes.get( quadCLT_main.tp.clt_3d_passes_size -1); // get last one
 		double [][] disparity_bimap = setBimapFromCLTPass3d(
 				scan_last,      // CLTPass3d                                scan,
@@ -7445,14 +7445,25 @@ if (debugLevel > -100) return true; // temporarily !
 					System.out.println("Adjusting main camera image set for "+quadCLT_main.image_name+
 							" (with rig DSI), pass "+(num_adjust_main+1)+" of "+quadCLT_main.correctionsParameters.rig_batch_adjust_main_gt);
 				}
+				double [][] gt_disp_strength = quadCLT_main.getRigDSFromTwoQuadCL(
+						this, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
+						clt_parameters,
+						debugLevelInner); // final int        debugLevel)
+
+//				  GeometryCorrection geometryCorrection_main = null;
+//				  if (geometryCorrection.getRotMatrix(true) != null) {
+//					  geometryCorrection_main = twoQuadCLT.quadCLT_main.getGeometryCorrection();
+//				  }
 
 				quadCLT_main.extrinsicsCLTfromGT(
-						  this,   // TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
-						  clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
-						  false,
-						  threadsMax,  //final int        threadsMax,  // maximal number of threads to launch
-						  updateStatus,// final boolean    updateStatus,
-						  debugLevelInner); // final int        debugLevel)
+						//						  this,   // TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
+						null,
+						gt_disp_strength,
+						clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
+						false,
+						threadsMax,  //final int        threadsMax,  // maximal number of threads to launch
+						updateStatus,// final boolean    updateStatus,
+						debugLevelInner); // final int        debugLevel)
 			}
 
 			for (int num_adjust_aux = 0; num_adjust_aux < quadCLT_main.correctionsParameters.rig_batch_adjust_aux_gt; num_adjust_aux++) {
@@ -7462,9 +7473,15 @@ if (debugLevel > -100) return true; // temporarily !
 					System.out.println("Adjusting aux camera image set for "+quadCLT_main.image_name+
 							" (with rig DSI), pass "+(num_adjust_aux+1)+" of "+quadCLT_main.correctionsParameters.rig_batch_adjust_aux_gt);
 				}
+				double [][] gt_disp_strength = quadCLT_aux.getRigDSFromTwoQuadCL(
+						this, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
+						clt_parameters,
+						debugLevelInner); // final int        debugLevel)
 
 				quadCLT_aux.extrinsicsCLTfromGT(
-						  this,   // TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
+//						  this,   // TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
+						  quadCLT_main.getGeometryCorrection(),
+						  gt_disp_strength,
 						  clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 						  false,
 						  threadsMax,  //final int        threadsMax,  // maximal number of threads to launch
