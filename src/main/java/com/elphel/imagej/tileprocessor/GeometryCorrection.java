@@ -998,6 +998,9 @@ public class GeometryCorrection {
 	}
 
 	public void showRig() {
+		if (this.rigOffset == null) {
+			this.rigOffset = new RigOffset();
+		}
 		this.rigOffset.showRigOffsets();
 	}
 
@@ -1401,18 +1404,22 @@ public class GeometryCorrection {
 
 
 
-
-		public void incrementVector(double [] incr,
+		// returns false if any component is NaN, in that case do not increment
+		public boolean incrementVector(double [] incr,
 				double scale)
 		{
 			for (int i = 0; i < incr.length; i++){
+				if (Double.isNaN(vector[i])) return false;
+			}
+			for (int i = 0; i < incr.length; i++){
 				vector[i]+= incr[i] * scale;
 			}
+			return true;
 		}
 
-		public void incrementVector(CorrVector incr, double scale)
+		public boolean incrementVector(CorrVector incr, double scale)
 		{
-			incrementVector(incr.toArray(), scale);
+			return incrementVector(incr.toArray(), scale);
 		}
 
 		@Override

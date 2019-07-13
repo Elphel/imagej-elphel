@@ -23,6 +23,7 @@ package com.elphel.imagej.tileprocessor;
  **
  */
 import java.util.ArrayList;
+import java.util.Arrays;
 
 import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
@@ -1775,6 +1776,11 @@ B = |+dy0   -dy1      -2*dy3 |
 			final int        hist_min_samples,
 			final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with
 			final double     inf_fraction,    // fraction of the weight for the infinity tiles
+
+			final int        min_per_quadrant, // minimal tiles per quadrant (not counting the worst) tp proceed
+			final int        min_inf,          // minimal number of tiles at infinity to proceed
+			final int        min_inf_to_scale, // minimal number of tiles at infinity to apply weight scaling
+
 			final boolean    right_left, // equalize weights of right/left FoV (use with horizon in both halves and gross infinity correction)
 			CLTParameters    clt_parameters,
 			double [][]      scans_14,
@@ -2172,12 +2178,44 @@ B = |+dy0   -dy1      -2*dy3 |
 			// adjust weight to balance infinity data and lazy eye one. As some tiles were discarded by selectInfinityTiles() list and not the original
 			// array has to be used to find the total weight of the infinity tile. Other ones will be used with no extra filtering
 			double [] total_weights = new double[2];
+			int num_inf = 0;
+			int [] per_quad = new int[4];
 			for (Sample s: inf_samples_list) {
 				total_weights[0] += s.weight;
+				if (s.weight > 0.0) {
+					num_inf ++;
+					int hx = (s.tile % tilesX) / (tilesX/2);
+					int hy = (s.tile / tilesX) / (tilesY/2);
+					per_quad[hx + 2*hy]++;
+				}
 			}
 
 			for (int nTile = 0; nTile < num_tiles; nTile++) if (center_mask[nTile]){ // calculate total weight of non-infinity
 				total_weights[1]+= inf_and_ly[1 * NUM_SLICES + 1][nTile];
+				if (inf_and_ly[1 * NUM_SLICES + 1][nTile] > 0.0) {
+					int hx = (nTile % tilesX) / (tilesX/2);
+					int hy = (nTile / tilesX) / (tilesY/2);
+					per_quad[hx + 2*hy]++;
+				}
+			}
+
+			int [] pq = per_quad.clone();
+			Arrays.sort(per_quad);
+			if (debugLevel > -20) {
+				System.out.print(String.format("Tiles per quadrants :[%d, %d, %d, %d], tiles at infinity %d", pq[0],pq[1],pq[2],pq[3],num_inf));
+			}
+			if (per_quad[1] < min_per_quadrant) {
+				if (debugLevel > -20) {
+					System.out.print(String.format("Too few tiles in quadrants :[%d, %d, %d, %d], minimum for the second worst is %d", pq[0],pq[1],pq[2],pq[3],min_per_quadrant));
+				}
+				return null;
+			}
+
+			if (num_inf < min_inf) {
+				if (debugLevel > -20) {
+					System.out.print(String.format("Too few tiles at infinity: %d minimum is %d", num_inf, min_inf));
+				}
+				return null;
 			}
 
 			double inf_fraction_limited =  (inf_fraction >= 0.0) ?((inf_fraction > 1.0) ? 1.0 : inf_fraction):0.0;
@@ -2187,16 +2225,29 @@ B = |+dy0   -dy1      -2*dy3 |
 					(1.0 - inf_fraction_limited) * (total_weights[0] + total_weights[1]) / total_weights[1],
 			};
 
-			for (int ns = 0; ns <2; ns++) {
-				for (int nTile = 0; nTile < num_tiles; nTile++) {
-					inf_and_ly[ns * NUM_SLICES + 1][nTile] *= weights[ns];
+			if (num_inf < min_inf_to_scale) {
+				if (debugLevel>-1) {
+					System.out.println("Too few infinity tiles to boost ("+num_inf+" < "+min_inf_to_scale+", keeping original weights");
+				}
+			} else if (weights[0] > weights[1]) {
+				if (debugLevel>-1) {
+					System.out.println("Boosting weights of far tiles (weights[0]="+weights[0]+", weights[1]="+weights[1]);
+				}
+
+				for (int ns = 0; ns <2; ns++) {
+					for (int nTile = 0; nTile < num_tiles; nTile++) {
+						inf_and_ly[ns * NUM_SLICES + 1][nTile] *= weights[ns];
+					}
+				}
+				for (Sample s: inf_samples_list) {
+					s.weight *= weights[0];
+				}
+
+			} else {
+				if (debugLevel>-1) {
+					System.out.println("There are already more far tiles than requested (weights[0]="+weights[0]+", weights[1]="+weights[1]+", so keeping original weights");
 				}
 			}
-			for (Sample s: inf_samples_list) {
-				s.weight *= weights[0];
-			}
-//		} else {
-//			inf_samples_list = new ArrayList<Sample>(); // do not use infinity at all
 		}
 		///-----
 
@@ -2325,7 +2376,11 @@ B = |+dy0   -dy1      -2*dy3 |
 				System.out.println(corr_vector.toString());
 			}
 			if (apply_extrinsic){
-				qc.geometryCorrection.getCorrVector().incrementVector(corr_vector, clt_parameters.ly_corr_scale);
+				boolean ok = qc.geometryCorrection.getCorrVector().incrementVector(corr_vector, clt_parameters.ly_corr_scale);
+				if (!ok) {
+					System.out.println("Failed to solve correction, corr_vector:"+corr_vector.toString());
+					return null;
+				}
 				if (debugLevel > -1){
 					System.out.println("New extrinsic corrections:");
 					System.out.println(qc.geometryCorrection.getCorrVector().toString());
@@ -2351,7 +2406,46 @@ B = |+dy0   -dy1      -2*dy3 |
 
 
 
-
+/**
+ *
+ * @param use_poly
+ * @param restore_disp_inf
+ * @param fcorr_radius
+ * @param min_strength_in
+ * @param strength_pow
+ * @param lazyEyeCompDiff
+ * @param lazyEyeSmplSide
+ * @param lazyEyeSmplNum
+ * @param lazyEyeSmplRms
+ * @param lazyEyeDispVariation
+ * @param lazyEyeDispRelVariation
+ * @param ly_norm_disp
+ * @param smplSide
+ * @param smplNum
+ * @param smplRms
+ * @param hist_smpl_side
+ * @param hist_disp_min
+ * @param hist_disp_step
+ * @param hist_num_bins
+ * @param hist_sigma
+ * @param hist_max_diff
+ * @param hist_min_samples
+ * @param hist_norm_center
+ * @param inf_fraction
+ * @param min_per_quadrant
+ * @param min_inf
+ * @param min_inf_to_scale
+ * @param inf_max_disparity
+ * @param clt_parameters
+ * @param scans_14
+ * @param gt_disparity_strength
+ * @param filter_ds
+ * @param filter_lyf
+ * @param tilesX
+ * @param magic_coeff
+ * @param debugLevel
+ * @return will return null if can not adjust
+ */
 
 
 
@@ -2386,9 +2480,12 @@ B = |+dy0   -dy1      -2*dy3 |
 			final double     hist_max_diff,
 			final int        hist_min_samples,
 			final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with
-			final double     inf_fraction,    // fraction of the weight for the infinity tiles
+			final double     inf_fraction,     // fraction of the weight for the infinity tiles
+			final int        min_per_quadrant, // minimal tiles per quadrant (not counting the worst) tp proceed
+			final int        min_inf,          // minimal number of tiles at infinity to proceed
+			final int        min_inf_to_scale, // minimal number of tiles at infinity to apply weight scaling
 			final double     inf_max_disparity, // use all smaller disparities as inf_fraction
-			CLTParameters           clt_parameters,
+			CLTParameters    clt_parameters,
 			double [][]      scans_14, // here - always 14 - infinity and non-infinity
 			double [][][]    gt_disparity_strength, // 1 pair for each 14 entries of scans_14 (normally - just 1 scan
 			final boolean    filter_ds, //
@@ -2542,6 +2639,13 @@ B = |+dy0   -dy1      -2*dy3 |
 				}
 			}
 		}
+		if (debugLevel > 0) { // 0) {
+			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
+			(new ShowDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "removed_residual"+lazyEyeCompDiff, prefixes);
+		}
+
+
+
 		for (int nTile = 0; nTile < num_tiles; nTile++) {
 			if (nTile == dbg_nTile){
 				System.out.println("lazyEyeCorrectionFromGT().2: nTile="+nTile);
@@ -2559,6 +2663,10 @@ B = |+dy0   -dy1      -2*dy3 |
 			}
 		}
 
+		if (debugLevel > 0) { // 0) {
+			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
+			(new ShowDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "removed_residual-1"+lazyEyeCompDiff, prefixes);
+		}
 
 // reduce influence of high disparity,  using combined disparity
 //		double norm_ly_disparity = 100.0; // disabling
@@ -2566,6 +2674,10 @@ B = |+dy0   -dy1      -2*dy3 |
 			if ((combo_mismatch[0][nTile] > 0) && (combo_mismatch[0][nTile] > ly_norm_disp)) { // why 1-st term?
 				combo_mismatch[1][nTile] *= ly_norm_disp/combo_mismatch[0][nTile];
 			}
+		}
+		if (debugLevel > 0) { // 0) {
+			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
+			(new ShowDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "removed_residual-2"+lazyEyeCompDiff, prefixes);
 		}
 
 
@@ -2681,13 +2793,36 @@ B = |+dy0   -dy1      -2*dy3 |
 //	final double     inf_fraction,    // fraction of the weight for the infinity tiles
 // final double     inf_max_disparity, // use all smaller disparities as inf_fraction
 		double [] total_weights = new double[2];
-
-		for (int nTile = 0; nTile < combo_mismatch[INDEX_10_WEIGHT].length; nTile++ ) if (center_mask[nTile]){
+		int num_inf = 0;
+		int [] per_quad = new int[4];
+		for (int nTile = 0; nTile < combo_mismatch[INDEX_10_WEIGHT].length; nTile++ ) if (center_mask[nTile] && (combo_mismatch[INDEX_10_WEIGHT][nTile] > 0.0)){
 			if (combo_mismatch[INDEX_10_DISPARITY][nTile] <= inf_max_disparity) {
 				total_weights[0] += combo_mismatch[INDEX_10_WEIGHT][nTile];
+				num_inf ++;
 			} else {
 				total_weights[1] += combo_mismatch[INDEX_10_WEIGHT][nTile];
 			}
+			int hx = (nTile % tilesX) / (tilesX/2);
+			int hy = (nTile / tilesX) / (tilesY/2);
+			per_quad[hx + 2*hy]++;
+		}
+		int [] pq = per_quad.clone();
+		Arrays.sort(per_quad);
+		if (per_quad[1] < min_per_quadrant) {
+			if (debugLevel > -20) {
+				System.out.print(String.format("Too few tiles in quadrants :[%d, %d, %d, %d], minimum for the second worst is %d", pq[0],pq[1],pq[2],pq[3],min_per_quadrant));
+			}
+			return null;
+		}
+
+		if (num_inf < min_inf) {
+			if (debugLevel > -20) {
+				System.out.print(String.format("Too few tiles at infinity (<%4f): %d minimum is %d", inf_max_disparity, num_inf, min_inf));
+			}
+			return null;
+		}
+		if (debugLevel > -20) {
+			System.out.print(String.format("Tiles per quadrants :[%d, %d, %d, %d], tiles at infinity %d", pq[0],pq[1],pq[2],pq[3],num_inf));
 		}
 
 		double inf_fraction_limited =  (inf_fraction >= 0.0) ?((inf_fraction > 1.0) ? 1.0 : inf_fraction):0.0;
@@ -2696,10 +2831,13 @@ B = |+dy0   -dy1      -2*dy3 |
 				inf_fraction_limited *         (total_weights[0] + total_weights[1]) / total_weights[0],
 				(1.0 - inf_fraction_limited) * (total_weights[0] + total_weights[1]) / total_weights[1],
 		};
-
-		if (weights[0]> weights[1]) {
+		if (num_inf < min_inf_to_scale) {
 			if (debugLevel>-1) {
-				System.out.println("Boosting weights of far tiles (weights[0]="+weights[0]+", weights[1]="+weights[1]+", so keeping original weights");
+				System.out.println("Too few infinity tiles to boost ("+num_inf+" < "+min_inf_to_scale+", keeping original weights");
+			}
+		} else if (weights[0] > weights[1]) {
+			if (debugLevel>-1) {
+				System.out.println("Boosting weights of far tiles (weights[0]="+weights[0]+", weights[1]="+weights[1]);
 			}
 			for (int nTile = 0; nTile < num_tiles; nTile++) {
 				if (combo_mismatch[INDEX_10_DISPARITY][nTile] <= inf_max_disparity) {
@@ -2713,8 +2851,6 @@ B = |+dy0   -dy1      -2*dy3 |
 				System.out.println("There are already more far tiles than requested (weights[0]="+weights[0]+", weights[1]="+weights[1]+", so keeping original weights");
 			}
 		}
-
-
 
 		ArrayList<Sample> samples_list = new ArrayList<Sample>();
 
@@ -2742,7 +2878,7 @@ B = |+dy0   -dy1      -2*dy3 |
 
 		if (debugLevel > 1) {
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
-			(new ShowDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "combo_mismatch" , prefixes);
+			(new ShowDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "combo_mismatch4" , prefixes);
 		}
 
 

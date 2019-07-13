@@ -705,6 +705,10 @@ private Panel panel1,
 			addButton("GPU files",                  panelClt_GPU, color_conf_process);
 			addButton("Rig8 gpu",                   panelClt_GPU, color_conf_process);
 			addButton("ShowGPU",                    panelClt_GPU, color_conf_process);
+
+			addButton("LWIR_TEST",                  panelClt_GPU, color_conf_process);
+			addButton("LWIR_ACQUIRE",               panelClt_GPU, color_conf_process);
+
 			plugInFrame.add(panelClt_GPU);
 		}
 		if (LWIR_MODE) {
@@ -730,13 +734,13 @@ private Panel panel1,
 			addButton("AUX OUT 3D",                 panelLWIR, color_process_aux);
 			addButton("Main img AUX",               panelLWIR, color_process_aux);
 			addButton("Main to AUX",                panelLWIR, color_process_aux);
-
-			addButton("LWIR_TEST",                  panelLWIR, color_conf_process);
-			addButton("LWIR_ACQUIRE",               panelLWIR, color_conf_process);
+			addButton("LWIR batch",                  panelClt4, color_process);
+//			addButton("LWIR_TEST",                  panelLWIR, color_conf_process);
+//			addButton("LWIR_ACQUIRE",               panelLWIR, color_conf_process);
 			plugInFrame.add(panelLWIR);
 		}
 		plugInFrame.pack();
-
+//"LWIR batch"
 		GUI.center(plugInFrame);
 		plugInFrame.setVisible(true);
 		FHT_INSTANCE=       new DoubleFHT();
@@ -3960,12 +3964,6 @@ private Panel panel1,
 			IJ.showMessage("Warning",msg);
 			return;
     	}
-/*
-        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL,
-        		true, // true - ignore missing files
-    			true, // boolean all_sensors,
-    			COLOR_PROC_PARAMETERS.correct_vignetting); //boolean correct_vignetting
-*/
         QUAD_CLT.resetGeometryCorrection();
         QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL+2);
 
@@ -5017,6 +5015,14 @@ private Panel panel1,
     	return;
 
 /* ======================================================================== */
+    } else if (label.equals("LWIR batch")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        CLT_PARAMETERS.batch_run = true;
+    	batchLwir();
+    	return;
+
+/* ======================================================================== */
     } else if (label.equals("CLT rig edit")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
         if (QUAD_CLT_AUX == null){
@@ -5464,7 +5470,7 @@ private Panel panel1,
 
 		return true;
 	}
-
+// inverted false/true in initSensorFiles(), should work with LWIR also
 	public boolean prepareRigImages() {
         if (QUAD_CLT == null){
         	QUAD_CLT = new  QuadCLT (
@@ -5489,8 +5495,6 @@ private Panel panel1,
         		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
         	}
         }
-//        QuadCLT dbg_QUAD_CLT = QUAD_CLT;
-//        QuadCLT dbg_QUAD_CLT_AUX = QUAD_CLT_AUX;
     	String configPath=getSaveCongigPath();
     	if (configPath.equals("ABORT")) return false;
     	if (DEBUG_LEVEL > -2){
@@ -5498,15 +5502,15 @@ private Panel panel1,
     	}
         EYESIS_CORRECTIONS.initSensorFiles(
         		DEBUG_LEVEL+2,
-        		true,
-        		false,
+        		false, // true,
+        		true,  // false,
     			COLOR_PROC_PARAMETERS.correct_vignetting); //boolean correct_vignetting
     	if (DEBUG_LEVEL > -2){
     		System.out.println("++++++++++++++ Running initSensorFiles for the auxiliary camera ++++++++++++++");
     	}
         EYESIS_CORRECTIONS_AUX.initSensorFiles(DEBUG_LEVEL+2,
-        		true,
-        		false,
+        		false, // true,
+        		true,  // false,
     			COLOR_PROC_PARAMETERS_AUX.correct_vignetting); //boolean correct_vignetting
 
 
@@ -6149,6 +6153,52 @@ private Panel panel1,
 		return true;
 	}
 
+	public boolean batchLwir() {
+		long startTime=System.nanoTime();
+		// load needed sensor and kernels files
+		if (!prepareRigImages()) return false;
+		String configPath=getSaveCongigPath();
+		if (configPath.equals("ABORT")) return false;
+		setAllProperties(PROPERTIES); // batchRig may save properties with the model. Extrinsics will be updated, others should be set here
+		if (DEBUG_LEVEL > -2){
+			System.out.println("++++++++++++++ Running batch processing of dual-quad EO/LWIR camera rig ++++++++++++++");
+		}
+		// parameters are different
+///		if (COLOR_PROC_PARAMETERS_AUX == null) {
+///			COLOR_PROC_PARAMETERS_AUX = COLOR_PROC_PARAMETERS.clone();
+///		}
+		try {
+			TWO_QUAD_CLT.batchLwirRig(
+					QUAD_CLT, // QuadCLT quadCLT_main,
+					QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
+					CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+					DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+					COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+					COLOR_PROC_PARAMETERS_AUX, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters_aux,
+					CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+					RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+					EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+					PROPERTIES,  // Properties                                           properties,
+					THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+					UPDATE_STATUS, //final boolean    updateStatus,
+					DEBUG_LEVEL);
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} //final int        debugLevel);
+		if (configPath!=null) {
+			saveTimestampedProperties( // save config again
+					configPath,      // full path or null
+					null, // use as default directory if path==null
+					true,
+					PROPERTIES);
+		}
+		System.out.println("batchRig(): Processing finished at "+
+				IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec, --- Free memory="+
+				Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+		return true;
+	}
+
 
 
 
@@ -6337,7 +6387,9 @@ private Panel panel1,
 
 		String mask = ".*EXTRINSICS\\.corr-xml";
 		String full_conf_suffix = ".corr-xml";
-		String dsi_suffix = "-DSI_COMBO.tiff";
+//		String dsi_suffix = "-DSI_COMBO.tiff";
+		String dsi_suffix = TwoQuadCLT.DSI_COMBO_SUFFIX+".tiff";
+
 		String correction_parameters_prefix = "CORRECTION_PARAMETERS.";
 
 		System.out.println("File mask = "+mask);

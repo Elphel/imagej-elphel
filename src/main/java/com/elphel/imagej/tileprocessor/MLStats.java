@@ -83,7 +83,8 @@ public class MLStats {
 		int    result_disparity_step =  10; // bins
 
 
-		String mask = ".*-DSI_COMBO\\.tiff";
+//		String mask = ".*-DSI_COMBO\\.tiff";
+		String mask = ".*"+TwoQuadCLT.DSI_COMBO_SUFFIX+"\\.tiff";
 
 		GenericDialog gd = new GenericDialog("Select file mask and histogram parameters");
 		gd.addStringField ("Combined DSI file mask: ",                       mask,                        40);
@@ -443,7 +444,8 @@ public class MLStats {
 	{
 		String mask = ".*EXTRINSICS\\.corr-xml";
 		String full_conf_suffix = ".corr-xml";
-		String dsi_suffix = "-DSI_COMBO.tiff";
+//		String dsi_suffix = "-DSI_COMBO.tiff";
+		String dsi_suffix = TwoQuadCLT.DSI_COMBO_SUFFIX+".tiff";
 		String correction_parameters_prefix = "CORRECTION_PARAMETERS.";
 
 		System.out.println("File mask = "+mask);

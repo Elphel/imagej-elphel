@@ -23,7 +23,6 @@ package com.elphel.imagej.tileprocessor;
  **
  */
 import java.awt.Point;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -4016,7 +4015,7 @@ public class TilePlanes {
 				System.out.println("getPlaneToThis(), px_py = {"+px_py[0]+", "+px_py[1]+"}, px_py_other = {"+px_py_other[0]+", "+px_py_other[1]+"}");
 				System.out.println("getPlaneToThis(), disp = "+disp);
 				System.out.println("getPlaneToThis(), pd="+ pd.toString());
-//				System.out.println("getPlaneToThis(), otherPd="+ otherPd.toString()); 
+//				System.out.println("getPlaneToThis(), otherPd="+ otherPd.toString());
 //				System.out.println("getPlaneToThis(), pd.getWorldXYZ(this.correctDistortions)="+ pd.getWorldXYZ(this.correctDistortions));
 //				System.out.println("getPlaneToThis(), wv1 = {"+ wv1[0]+", "+ wv1[1]+", "+ wv1[2]+"}");
 //				System.out.println("getPlaneToThis(), wv2 = {"+ wv2[0]+", "+ wv2[1]+", "+ wv2[2]+"}");
@@ -4216,7 +4215,9 @@ public class TilePlanes {
 			if (world_xyz != null) {
 				double l2 = world_xyz[0]*world_xyz[0] + world_xyz[1]*world_xyz[1]+world_xyz[2]*world_xyz[2];
 				if (l2 < 0.5) {
-					System.out.println("getWorldXYZ(): l2="+l2); // +" this=\n"+this.toString());
+					if (debugLevel > -1) {
+						System.out.println("getWorldXYZ(): l2="+l2); // +" this=\n"+this.toString());
+					}
 					world_xyz = null;
 				}
 			}
@@ -4316,7 +4317,9 @@ public class TilePlanes {
 			world_xyz = norm_xyz.times((xyz.transpose().times(norm_xyz).get(0,0))).getColumnPackedCopy();
 			double l2 = world_xyz[0]*world_xyz[0] + world_xyz[1]*world_xyz[1]+world_xyz[2]*world_xyz[2];
 			if (l2 < 0.5) {
-				System.out.println("getWorldXYZ(): l2="+l2); // +" this=\n"+this.toString());
+				if (debugLevel > -1) {
+					System.out.println("getWorldXYZ(): l2="+l2); // +" this=\n"+this.toString());
+				}
 			}
 			return world_xyz;
 		}

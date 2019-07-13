@@ -109,6 +109,7 @@ public class QuadCLT {
 // magic scale should be set before using  TileProcessor (calculated disparities depend on it)
     public boolean isMonochrome() {return is_mono;}
     public boolean isAux()        {return is_aux;}
+    public String  sAux()         {return isAux()?"-AUX":"";}
     public boolean isLwir()       {return !Double.isNaN(lwir_offset);} // clt_kernels
     public double  getLwirOffset() {return lwir_offset;}
 
@@ -1532,7 +1533,7 @@ public class QuadCLT {
 				  if (equirectangularParameters.clearAllMaps) eyesisCorrections.pixelMapping.deleteEquirectangularMapAll(srcChannel); // save memory? //removeUnusedSensorData - no, use equirectangular specific settings
 			  }
 			  //pixelMapping
-			  Runtime.getRuntime().gc();
+//			  Runtime.getRuntime().gc();
 			  if (debugLevel >-1) System.out.println("Processing image "+(iImage+1)+" (of "+fileIndices.length+") finished at "+
 					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
@@ -1641,7 +1642,8 @@ public class QuadCLT {
 
 		  }
 
-		  String title=name+"-"+String.format("%02d", channel);
+//		  String title=name+"-"+String.format("%02d", channel);
+		  String title=String.format("%s%s-%02d",name, sAux(), channel);
 		  ImagePlus result=imp_src;
 		  if (debugLevel>1) System.out.println("processing: "+path);
 		  result.setTitle(title+"RAW");
@@ -2214,7 +2216,7 @@ public class QuadCLT {
 						  if (equirectangularParameters.clearAllMaps) eyesisCorrections.pixelMapping.deleteEquirectangularMapAll(srcChannel); // save memory? //removeUnusedSensorData - no, use equirectangular specific settings
 					  }
 					  //pixelMapping
-					  Runtime.getRuntime().gc();
+//					  Runtime.getRuntime().gc();
 					  if (debugLevel >-1) System.out.println("Processing image "+(iImage+1)+" (of "+fileIndices.length+") finished at "+
 							  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 					  if (eyesisCorrections.stopRequested.get()>0) {
@@ -2255,7 +2257,8 @@ public class QuadCLT {
 		  int channel= (Integer) imp_src.getProperty("channel");
 		  String path= (String) imp_src.getProperty("path");
 
-		  String title=name+"-"+String.format("%02d", channel);
+//		  String title=name+"-"+String.format("%02d", channel);
+		  String title=String.format("%s%s-%02d",name, sAux(), channel);
 		  ImagePlus result=imp_src;
 		  if (debugLevel>1) System.out.println("processing: "+path);
 		  result.setTitle(title+"RAW");
@@ -2810,7 +2813,7 @@ public class QuadCLT {
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
 					  debugLevel);
-			  Runtime.getRuntime().gc();
+			  // Runtime.getRuntime().gc();
 			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+setNames.size()+") finished at "+
 					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
@@ -2897,7 +2900,8 @@ public class QuadCLT {
 
 		  for (int iQuad = 0; iQuad <clt_data.length; iQuad++){
 
-			  String title=name+"-"+String.format("%02d", iQuad);
+//			  String title=name+"-"+String.format("%02d", iQuad);
+			  String title=String.format("%s%s-%02d",name, sAux(), iQuad);
 			  String titleFull=title+"-SPLIT";
 
 			  if (clt_parameters.getCorrSigma(image_dtt.isMonochrome()) > 0){ // no filter at all
@@ -3560,14 +3564,13 @@ public class QuadCLT {
 					  colorProcParameters,
 					  channelGainParameters,
 					  rgbParameters,
-//					  convolveFFTSize, // 128 - fft size, kernel size should be size/2
 					  scaleExposures,
 					  apply_corr, // calculate and apply additional fine geometry correction
 					  infinity_corr, // calculate and apply geometry correction at infinity
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
 					  debugLevel);
-			  Runtime.getRuntime().gc();
+			  //Runtime.getRuntime().gc();
 			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels.length+") finished at "+
 					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
@@ -3880,6 +3883,7 @@ public class QuadCLT {
 		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
 		  // may use this.StartTime to report intermediate steps execution times
+//		  String aux = isAux()?"-AUX":"";
 		  String name=this.correctionsParameters.getModelName((String) imp_quad[0].getProperty("name"));
 		  //		int channel= Integer.parseInt((String) imp_src.getProperty("channel"));
 		  String path= (String) imp_quad[0].getProperty("path");
@@ -4058,7 +4062,7 @@ public class QuadCLT {
 						  tilesX * (2 * clt_parameters.transform_size),
 						  tilesY * (2 * clt_parameters.transform_size),
 						  true,
-						  name + "-TXTNOL-D"+clt_parameters.disparity,
+						  name+sAux() + "-TXTNOL-D"+clt_parameters.disparity,
 						  (clt_parameters.keep_weights?rbga_weights_titles:rbga_titles));
 
 			  }
@@ -4088,7 +4092,7 @@ public class QuadCLT {
 							  tilesX * clt_parameters.transform_size,
 							  tilesY * clt_parameters.transform_size,
 							  true,
-							  name + "-TXTOL-D"+clt_parameters.disparity,
+							  name+sAux() + "-TXTOL-D"+clt_parameters.disparity,
 							  (clt_parameters.keep_weights?rbga_weights_titles:rbga_titles));
 				  }
 				  if (!batch_mode && clt_parameters.show_rgba_color) {
@@ -4100,7 +4104,7 @@ public class QuadCLT {
 							  clt_parameters,
 							  colorProcParameters,
 							  rgbParameters,
-							  name+"-texture", // String name,
+							  name+sAux()+"-texture", // String name,
 							  "-D"+clt_parameters.disparity, //String suffix, // such as disparity=...
 							  toRGB,
 							  !this.correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
@@ -4124,7 +4128,7 @@ public class QuadCLT {
 							  tilesX,
 							  tilesY,
 							  true,
-							  name+"-DISP_MAP-D"+clt_parameters.disparity,
+							  name+sAux()+"-DISP_MAP-D"+clt_parameters.disparity,
 							  ImageDtt.DISPARITY_TITLES);
 				  }
 			  }
@@ -4196,7 +4200,7 @@ public class QuadCLT {
 								  tilesX,
 								  tilesY,
 								  true,
-								  name + "-inf_corr",
+								  name+sAux() + "-inf_corr",
 								  titles );
 					  }
 				  } else { // calculate/apply coefficients
@@ -4208,7 +4212,7 @@ public class QuadCLT {
 									  tilesX,
 									  tilesY,
 									  true,
-									  name + "-inf_corr",
+									  name+sAux() + "-inf_corr",
 									  titles );
 						  }
 					  }
@@ -4276,7 +4280,7 @@ public class QuadCLT {
 						  tilesX*(2*clt_parameters.transform_size),
 						  tilesY*(2*clt_parameters.transform_size),
 						  true,
-						  name + "-CORR-D"+clt_parameters.disparity,
+						  name+sAux()+"-CORR-D"+clt_parameters.disparity,
 						  titles );
 			  }
 
@@ -4302,7 +4306,7 @@ public class QuadCLT {
 							  tilesX*(2*clt_parameters.transform_size),
 							  tilesY*(2*clt_parameters.transform_size),
 							  true,
-							  name+"-PART_CORR-D"+clt_parameters.disparity);
+							  name+sAux()+"-PART_CORR-D"+clt_parameters.disparity);
 //							  titles);
 				  }
 			  }
@@ -4397,7 +4401,7 @@ public class QuadCLT {
 			  ImagePlus [] imps_RGB = new ImagePlus[clt_data.length];
 				  for (int iQuad = 0; iQuad < clt_data.length; iQuad++){
 					  if (!clt_parameters.gen_chn_img) continue;
-					  String title=name+"-"+String.format("%02d", iQuad);
+					  String title=String.format("%s%s-%02d",name, sAux(), iQuad);
 					  imps_RGB[iQuad] = linearStackToColor(
 							  clt_parameters,
 							  colorProcParameters,
@@ -4429,7 +4433,7 @@ public class QuadCLT {
 						  array_stack.addSlice("port_"+slice_seq[i], results[slice_seq[i]].getProcessor().getPixels());
 					  }
 				  }
-				  ImagePlus imp_stack = new ImagePlus(name+"-SHIFTED-D"+clt_parameters.disparity, array_stack);
+				  ImagePlus imp_stack = new ImagePlus(name+sAux()+"-SHIFTED-D"+clt_parameters.disparity, array_stack);
 				  imp_stack.getProcessor().resetMinAndMax();
 				  if (!batch_mode) {
 					  imp_stack.updateAndDraw();
@@ -4469,7 +4473,7 @@ public class QuadCLT {
 				  createThumbNailImage(
 						  imps_RGB[0],
 						  model_path,
-						  "thumb",
+						  "thumb"+sAux(),
 						  debugLevel);
 
 
@@ -4741,7 +4745,8 @@ public class QuadCLT {
 					  true);      // replace NaN with 0.0
 			  ImagePlus imp_rgba =  EyesisCorrections.convertRGBAFloatToRGBA32(
 					  stack,   // ImageStack stackFloat, //r,g,b,a
-						name+"ARGB"+suffix, // String title,
+//						name+"ARGB"+suffix, // String title,
+						name+suffix, // String title,
 						0.0,   // double r_min,
 						255.0, // double r_max,
 						0.0,   // double g_min,
@@ -4829,7 +4834,7 @@ public class QuadCLT {
 //		  if (debugLevel > -1) System.out.println("before colors.2");
 		  if (saveShowIntermediate && (debugLevel > 1)){
 //		  if (saveShowIntermediate && (debugLevel > -1)){
-			  ImagePlus imp_dbg=new ImagePlus(name+"-preColors",stack);
+			  ImagePlus imp_dbg=new ImagePlus(name+sAux()+"-preColors",stack);
 			  eyesisCorrections.saveAndShow(
 					  imp_dbg,
 					  this.correctionsParameters);
@@ -4876,7 +4881,7 @@ public class QuadCLT {
 					  colorProcParameters.kr,        // 0.299;
 					  colorProcParameters.kb,        // 0.114;
 					  stack.getWidth());
-			  titleFull=name+"-RGB-float"+suffix;
+			  titleFull=name+sAux()+"-RGB-float"+suffix;
 			  //Trim stack to just first 3 slices
 			  if (saveShowIntermediate && (debugLevel > 1)){ // 2){
 				  ImagePlus imp_dbg=new ImagePlus("YPrPbToRGB",stack);
@@ -4887,7 +4892,7 @@ public class QuadCLT {
 			  while (stack.getSize() > 3) stack.deleteLastSlice();
 			  if (debugLevel > 1) System.out.println("Trimming color stack");
 		  } else {
-			  titleFull=name+"-YPrPb"+suffix;
+			  titleFull=name+sAux()+"-YPrPb"+suffix;
 			  if (debugLevel > 1) System.out.println("Using full stack, including YPbPr");
 		  }
 
@@ -4918,7 +4923,7 @@ public class QuadCLT {
 				  stack,
 				  rgbParameters);
 
-		  titleFull=name+"-RGB48"+suffix;
+		  titleFull=name+sAux()+"-RGB48"+suffix;
 		  result= new ImagePlus(titleFull, stack);
 		  result.updateAndDraw();
 		  if (debugLevel > 1) {
@@ -5290,7 +5295,7 @@ public class QuadCLT {
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
 					  debugLevel);
-			  Runtime.getRuntime().gc();
+			  //Runtime.getRuntime().gc();
 			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+fileIndices.length+") finished at "+
 					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
@@ -5497,7 +5502,7 @@ public class QuadCLT {
 						  scans,  // double [][] data,
 						  tilesX, // int         tilesX,
 						  debugLevel); // int debugLevel)
-
+				  int num_tiles = disp_strength[0].length;
 				  double [][][] new_corr = ac.lazyEyeCorrection(
 						  clt_parameters.ly_poly,        // final boolean use_poly,
 						  true, // 	final boolean    restore_disp_inf, // Restore subtracted disparity for scan #0 (infinity)
@@ -5529,6 +5534,9 @@ public class QuadCLT {
 						  clt_parameters.ih_min_samples,     // 10,   // final int        hist_min_samples,
 						  clt_parameters.ih_norm_center,     // true, // final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with
 						  clt_parameters.ly_inf_frac,        // 0.5, // final double     inf_fraction,    // fraction of the weight for the infinity tiles
+						  clt_parameters.getLyPerQuad(num_tiles), // final int        min_per_quadrant, // minimal tiles per quadrant (not counting the worst) tp proceed
+						  clt_parameters.getLyInf(num_tiles),	  // final int        min_inf,          // minimal number of tiles at infinity to proceed
+						  clt_parameters.getLyInfScale(num_tiles),// final int        min_inf_to_scale, // minimal number of tiles at infinity to apply weight scaling
 						  clt_parameters.ly_right_left,      // false // equalize weights of right/left FoV (use with horizon in both halves and gross infinity correction)
 						  clt_parameters,  // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 						  disp_strength, // scans,   // double [][] disp_strength,
@@ -5580,7 +5588,7 @@ public class QuadCLT {
 					  tilesY,
 					  disparities_titles);
 
-			  ImagePlus imp_stack = new ImagePlus( name+"-DISP_MAPS", array_stack);
+			  ImagePlus imp_stack = new ImagePlus( name+sAux()+"-DISP_MAPS", array_stack);
 			  imp_stack.getProcessor().resetMinAndMax();
 			  imp_stack.updateAndDraw();
 			  //imp_stack.getProcessor().resetMinAndMax();
@@ -5599,7 +5607,7 @@ public class QuadCLT {
 					  tilesX,
 					  tilesY,
 					  trend_titles);
-			  ImagePlus imp_stack_trends = new ImagePlus( name+"-DISP_TRENDS", trends_stack);
+			  ImagePlus imp_stack_trends = new ImagePlus( name+sAux()+"-DISP_TRENDS", trends_stack);
 			  imp_stack_trends.getProcessor().resetMinAndMax();
 			  imp_stack_trends.updateAndDraw();
 			  eyesisCorrections.saveAndShow(imp_stack_trends, this.correctionsParameters);
@@ -5707,6 +5715,7 @@ public class QuadCLT {
 					tilesX, // int         tilesX,
 					debugLevel); // int debugLevel)
 
+			int num_tiles = disp_strength[0].length;
 
 		    double [][][] new_corr = ac.lazyEyeCorrection(
 		    		clt_parameters.ly_poly,        // final boolean use_poly,
@@ -5738,6 +5747,9 @@ public class QuadCLT {
 		    		clt_parameters.ih_min_samples,     // 10,   // final int        hist_min_samples,
 		    		clt_parameters.ih_norm_center,     // true, // final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with
 		    		clt_parameters.ly_inf_frac,        // 0.5, // final double     inf_fraction,    // fraction of the weight for the infinity tiles
+		    		clt_parameters.getLyPerQuad(num_tiles), // final int        min_per_quadrant, // minimal tiles per quadrant (not counting the worst) tp proceed
+		    		clt_parameters.getLyInf(num_tiles),	    // final int        min_inf,          // minimal number of tiles at infinity to proceed
+		    		clt_parameters.getLyInfScale(num_tiles),// final int        min_inf_to_scale, // minimal number of tiles at infinity to apply weight scaling
 		    		clt_parameters.ly_right_left,      // false // equalize weights of right/left FoV (use with horizon in both halves and gross infinity correction)
 					clt_parameters,  // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 					disp_strength, // scans,   // double [][] disp_strength,
@@ -6001,7 +6013,7 @@ public class QuadCLT {
 
 				  tp.ShowScansSFB(
 						  combo_pass_list, // ArrayList<CLTPass3d> scans, // list of composite scans
-						  this.image_name+"-SFB"); // String               title);
+						  this.image_name+sAux()+"-SFB0"); // String               title);
 
 			  }
 			  if (adjust_extrinsics) {
@@ -6082,7 +6094,7 @@ public class QuadCLT {
 
 			  tp.ShowScansSFB(
 					  combo_pass_list, // ArrayList<CLTPass3d> scans, // list of composite scans
-					  this.image_name+"-SFB"); // String               title);
+					  this.image_name+sAux()+"-SFB1"); // String               title);
 
 
 			  Runtime.getRuntime().gc();
@@ -6743,7 +6755,15 @@ public class QuadCLT {
 		  }
 		  return measurements;
 	  }
-
+	  /**
+	   *
+	   * @param clt_parameters
+	   * @param adjust_poly
+	   * @param threadsMax
+	   * @param updateStatus
+	   * @param debugLevel
+	   * @return true on success, false - on failure
+	   */
 	  public boolean extrinsicsCLT(
 			  CLTParameters           clt_parameters,
 			  boolean 		   adjust_poly,
@@ -6984,8 +7004,7 @@ public class QuadCLT {
 
 			  double [][] target_disparity = {tp.clt_3d_passes.get(bg_scan).getDisparity(0), tp.clt_3d_passes.get(combo_scan).getDisparity(0)};
 
-
-
+			  int num_tiles = tp.clt_3d_passes.get(combo_scan).getStrength().length;
 
 
 // TODO: fix above for using GT
@@ -7021,6 +7040,11 @@ public class QuadCLT {
 					  clt_parameters.ih_min_samples,     // 10,   // final int        hist_min_samples,
 					  clt_parameters.ih_norm_center,     // true, // final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with
 					  clt_parameters.ly_inf_frac,        // 0.5, // final double     inf_fraction,    // fraction of the weight for the infinity tiles
+
+					  clt_parameters.getLyPerQuad(num_tiles), // final int        min_per_quadrant, // minimal tiles per quadrant (not counting the worst) tp proceed
+					  clt_parameters.getLyInf(num_tiles),	  // final int        min_inf,          // minimal number of tiles at infinity to proceed
+					  clt_parameters.getLyInfScale(num_tiles),// final int        min_inf_to_scale, // minimal number of tiles at infinity to apply weight scaling
+
 					  clt_parameters.ly_right_left,      // false // equalize weights of right/left FoV (use with horizon in both halves and gross infinity correction)
 					  clt_parameters,  // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 					  scans14, // disp_strength, // scans,   // double [][] disp_strength,
@@ -7028,6 +7052,9 @@ public class QuadCLT {
 					  tp.getTilesX(), // int         tilesX,
 					  clt_parameters.corr_magic_scale, // double      magic_coeff, // still not understood coefficent that reduces reported disparity value.  Seems to be around 8.5
 					  debugLevelInner - 1); //  + (clt_parameters.fine_dbg ? 1:0)); // int debugLevel)
+			  if (new_corr == null) {
+				  return false;
+			  }
 			  comp_diff = 0.0;
 			  int num_pars = 0;
 			  if (adjust_poly) {
@@ -7078,7 +7105,7 @@ public class QuadCLT {
 				  }
 			  }
 		  }
-		  return (comp_diff < (adjust_poly ? min_poly_update : min_sym_update));
+		  return true; // (comp_diff < (adjust_poly ? min_poly_update : min_sym_update));
 	  }
 
 
@@ -7112,7 +7139,17 @@ public class QuadCLT {
 
 
 	  }
-
+/**
+ *
+ * @param geometryCorrection_main
+ * @param rig_disp_strength
+ * @param clt_parameters
+ * @param adjust_poly
+ * @param threadsMax
+ * @param updateStatus
+ * @param debugLevel
+ * @return true on success, false on failure
+ */
 	  public boolean extrinsicsCLTfromGT(
 //			  TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
 			  GeometryCorrection geometryCorrection_main, // only used for aux camera if coordinates are for main (null for LWIR)
@@ -7220,6 +7257,8 @@ public class QuadCLT {
 
 			  double [][][] new_corr;
 			  double [][][]    gt_disparity_strength = {rig_disp_strength};
+			  int num_tiles = comboScan.getStrength().length;
+
 			  new_corr = ac.lazyEyeCorrectionFromGT(
 ///					  geometryCorrection_main, //final GeometryCorrection geometryCorrection_main, // if not null - this is an AUX camera of a rig
 					  adjust_poly,                       // final boolean use_poly,
@@ -7232,8 +7271,8 @@ public class QuadCLT {
 					  clt_parameters.ly_smpl_side,       // 3,   // final int        lazyEyeSmplSide, //        = 2;      // Sample size (side of a square)
 					  clt_parameters.ly_smpl_num,        // 5,   // final int        lazyEyeSmplNum, //         = 3;      // Number after removing worst (should be >1)
 					  clt_parameters.ly_smpl_rms,        // 0.1, // final double     lazyEyeSmplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-					  clt_parameters.ly_disp_var,        // 0.2, // final double     lazyEyeDispVariation, // 0.2, maximal full disparity difference between tgh tile and 8 neighborxs
-					  clt_parameters.ly_disp_rvar,       // 0.2, // final double     lazyEyeDispRelVariation, // 0.02 Maximal relative full disparity difference to 8 neighbors
+					  clt_parameters.ly_disp_var_gt,        // 0.2, // final double     lazyEyeDispVariation, // 0.2, maximal full disparity difference between tgh tile and 8 neighborxs
+					  clt_parameters.ly_disp_rvar_gt,       // 0.2, // final double     lazyEyeDispRelVariation, // 0.02 Maximal relative full disparity difference to 8 neighbors
 					  clt_parameters.ly_norm_disp,       //	final double     ly_norm_disp, //  =    5.0;     // Reduce weight of higher disparity tiles
 					  clt_parameters.inf_smpl_side,      // 3, //   final int        smplSide, //        = 2;      // Sample size (side of a square)
 					  clt_parameters.inf_smpl_num,       // 5, //   final int        smplNum,  //         = 3;      // Number after removing worst (should be >1)
@@ -7248,6 +7287,10 @@ public class QuadCLT {
 					  clt_parameters.ih_min_samples,     // 10,   // final int        hist_min_samples,
 					  clt_parameters.ih_norm_center,     // true, // final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with
 					  clt_parameters.ly_inf_frac,        // 0.5, // final double     inf_fraction,    // fraction of the weight for the infinity tiles
+					  clt_parameters.getLyPerQuad(num_tiles), // final int        min_per_quadrant, // minimal tiles per quadrant (not counting the worst) tp proceed
+					  0, // clt_parameters.getLyInf(num_tiles),	  // final int        min_inf,          // minimal number of tiles at infinity to proceed
+					  clt_parameters.getLyInfScale(num_tiles),// final int        min_inf_to_scale, // minimal number of tiles at infinity to apply weight scaling
+
 					  clt_parameters.ly_inf_max_disparity, // inf_max_disparity, // final double     inf_max_disparity, // use all smaller disparities as inf_fraction
 					  clt_parameters,  // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 					  scans14, // disp_strength, // scans,   // double [][] disp_strength,
@@ -7257,6 +7300,9 @@ public class QuadCLT {
 					  tp.getTilesX(), // int         tilesX,
 					  clt_parameters.corr_magic_scale, // double      magic_coeff, // still not understood coefficent that reduces reported disparity value.  Seems to be around 8.5
 					  debugLevelInner - 1); //  + (clt_parameters.fine_dbg ? 1:0)); // int debugLevel)
+			  if (new_corr == null) {
+				  return false;
+			  }
 			  comp_diff = 0.0;
 			  int num_pars = 0;
 			  if (adjust_poly) {
@@ -7305,7 +7351,7 @@ public class QuadCLT {
 				  }
 			  }
 		  }
-		  return (comp_diff < (adjust_poly ? min_poly_update : min_sym_update));
+		  return true; // (comp_diff < (adjust_poly ? min_poly_update : min_sym_update));
 	  }
 
 
@@ -7547,9 +7593,9 @@ public class QuadCLT {
 
 // Save tp.clt_3d_passes.size() to roll back without restarting the program
           tp.saveCLTPasses(false); // not rig, and reset rig data
-          Runtime runtime = Runtime.getRuntime();
-          runtime.gc();
-          System.out.println("--- Free memory="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
+///          Runtime runtime = Runtime.getRuntime();
+///          runtime.gc();
+///          System.out.println("--- Free memory="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
           return true; //  null;
 	  }
 
@@ -8027,7 +8073,7 @@ public class QuadCLT {
 				  tp.getTilesX(),
 				  tp.getTilesY(),
 				  true,
-				  image_name+"-PERIODIC",
+				  image_name+sAux()+"-PERIODIC",
 				  dbg_titles);
 		  return true;
 	  }
@@ -9823,28 +9869,35 @@ public class QuadCLT {
 			  int debugLevel)
 	  {
 		  String thumb_path = dir +  Prefs.getFileSeparator() + name+".jpeg";
-			if (new File(thumb_path).exists()) {
-				System.out.println("file "+thumb_path+" exists, skipping thumbnail generation");
-				return false;
-			}
+		  if (new File(thumb_path).exists() && !correctionsParameters.thumb_overwrite) {
+			  System.out.println("file "+thumb_path+" exists, skipping thumbnail generation");
+			  return false;
+		  }
 
 		  int image_width = imp.getWidth();
 		  int image_height = imp.getHeight();
-		  double scale_h = 1.0 * (correctionsParameters.thumb_width + 1)/image_width;
-		  double scale_v = 1.0 * (correctionsParameters.thumb_height + 1)/image_height;
-		  double scale = ((scale_h > scale_v) ? scale_h : scale_v) / correctionsParameters.thumb_size;
-
 		  ImageProcessor ip = imp.getProcessor().duplicate();
+		  if ((image_width >=  correctionsParameters.thumb_width) &&
+				  (image_height >=  correctionsParameters.thumb_height)) {
+			  double scale_h = 1.0 * (correctionsParameters.thumb_width + 1)/image_width;
+			  double scale_v = 1.0 * (correctionsParameters.thumb_height + 1)/image_height;
+			  double scale = ((scale_h > scale_v) ? scale_h : scale_v) / correctionsParameters.thumb_size;
 
-		  ip.setInterpolationMethod(ImageProcessor.BICUBIC);
-		  ip.blurGaussian(2.0);
-		  ip.scale(scale, scale);
-		  int lm = (int) Math.round (((image_width*scale)-correctionsParameters.thumb_width)* correctionsParameters.thumb_h_center + (0.5*image_width*(1.0-scale)));
-		  int tm = (int) Math.round (((image_height*scale)-correctionsParameters.thumb_height)* correctionsParameters.thumb_v_center + (0.5*image_height*(1.0-scale)));
-		  Rectangle r = new Rectangle(lm,tm,correctionsParameters.thumb_width,correctionsParameters.thumb_height);
-		  ip.setRoi(r);
-		  ImageProcessor ip2 = ip.crop();
-		  ImagePlus ip_thumb = new ImagePlus(name,ip2);
+
+			  ip.setInterpolationMethod(ImageProcessor.BICUBIC);
+			  if (!isMonochrome()) {
+				  ip.blurGaussian(2.0);
+			  }
+			  ip.scale(scale, scale);
+			  int lm = (int) Math.round (((image_width*scale)-correctionsParameters.thumb_width)* correctionsParameters.thumb_h_center + (0.5*image_width*(1.0-scale)));
+			  int tm = (int) Math.round (((image_height*scale)-correctionsParameters.thumb_height)* correctionsParameters.thumb_v_center + (0.5*image_height*(1.0-scale)));
+			  Rectangle r = new Rectangle(lm,tm,correctionsParameters.thumb_width,correctionsParameters.thumb_height);
+			  ip.setRoi(r);
+			  ip = ip.crop();
+		  } else {
+
+		  }
+		  ImagePlus ip_thumb = new ImagePlus(name,ip);
 		  eyesisCorrections.saveAndShow(
 				  ip_thumb,
 				  dir,
@@ -9852,6 +9905,7 @@ public class QuadCLT {
 				  false,
 				  correctionsParameters.JPEG_quality, // jpegQuality); // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
 				  (debugLevel > -2) ? debugLevel : 1); // int debugLevel (print what it saves)
+
 		  return true;
 	  }
 

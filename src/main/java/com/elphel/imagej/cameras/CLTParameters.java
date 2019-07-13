@@ -181,7 +181,15 @@ public class CLTParameters {
 	public int        ly_par_sel   =    0;       // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use checkbox selections above)
 
 	public boolean    ly_right_left=    false;   // equalize weights of right/left FoV (use with horizon in both halves and gross infinity correction)
-	public double     ly_inf_frac =     0.5;     // Relative weight of infinity calibration data
+
+	public int        ly_per_quad =     10;      // minimal tiles per quadrant (not counting the worst) tp proceed
+	public double     ly_per_quad_r =   0.01;    // minimal relative tiles per quadrant (not counting the worst) tp proceed
+	public int        ly_inf =          10;      // minimal number of tiles at infinity to proceed
+	public double     ly_inf_r =        0.01;    // minimal relative number of tiles at infinity to proceed
+	public int        ly_inf_scale =    20;      // minimal number of tiles at infinity to apply weight scaling
+	public double     ly_inf_scale_r =  0.02;    // minimal relative number of tiles at infinity to apply weight scaling
+
+	public double     ly_inf_frac =     0.7;     // Relative weight of infinity calibration data
 	public double     ly_inf_max_disparity = 0.2;   // Maximal disparity to be treated as infinity when adjusting with rig data
 	public boolean    ly_inf_disp=      false;   // Correct disparity for infinity tiles
 	public boolean    ly_inf_force=     false;   // Force convergence correction during extrinsic, even with no infinity data
@@ -191,8 +199,14 @@ public class CLTParameters {
 	public int        ly_smpl_num =     5;       // Number after removing worst (should be >1)
 	// 		public double     ly_meas_disp =    1.5;     // Maximal measured relative disparity - using  (0.8*disp_scan_step)
 	public double     ly_smpl_rms =     0.2;     // 1;     // Maximal RMS of the remaining tiles in a sample
-	public double     ly_disp_var =     0.5;     // 2;     // Maximal full disparity difference to 8 neighbors
-	public double     ly_disp_rvar =    0.02;    // Maximal relative full disparity difference to 8 neighbors
+
+	public double     ly_disp_var =     0.1;     // Maximal full disparity difference to 8 neighbors
+	public double     ly_disp_rvar =    0.01;    // Maximal relative full disparity difference to 8 neighbors
+
+	public double     ly_disp_var_gt =  0.5;     // Maximal full disparity difference to 8 neighbors when  GT is available
+	public double     ly_disp_rvar_gt = 0.05;    // Maximal relative full disparity difference to 8 neighbors when  GT is available
+
+
 	public double     ly_norm_disp =    5.0;     // Reduce weight of higher disparity tiles
 
 	// Lazy eye multi-step fitting
@@ -796,6 +810,15 @@ public class CLTParameters {
 		return aux ? lym_change_aux : lym_change;
 	}
 
+	public int getLyPerQuad (int num_tiles) {
+		return (int) Math.max(ly_per_quad_r * num_tiles , ly_per_quad );
+	}
+	public int getLyInf (int num_tiles) {
+		return (int) Math.max(ly_inf_r * num_tiles , ly_inf );
+	}
+	public int getLyInfScale (int num_tiles) {
+		return (int) Math.max(ly_inf_scale_r * num_tiles , ly_inf_scale );
+	}
 
 	public CLTParameters(){}
 	public void setProperties(String prefix,Properties properties){
@@ -945,6 +968,13 @@ public class CLTParameters {
 		properties.setProperty(prefix+"ly_par_sel",                 this.ly_par_sel+"");
 		properties.setProperty(prefix+"ly_right_left",              this.ly_right_left+"");
 
+		properties.setProperty(prefix+"ly_per_quad",                this.ly_per_quad +"");
+		properties.setProperty(prefix+"ly_per_quad_r",              this.ly_per_quad_r +"");
+		properties.setProperty(prefix+"ly_inf",                     this.ly_inf +"");
+		properties.setProperty(prefix+"ly_inf_r",                   this.ly_inf_r +"");
+		properties.setProperty(prefix+"ly_inf_scale",               this.ly_inf_scale +"");
+		properties.setProperty(prefix+"ly_inf_scale_r",             this.ly_inf_scale_r +"");
+
 		properties.setProperty(prefix+"ly_inf_frac",                this.ly_inf_frac +"");
 
 		properties.setProperty(prefix+"ly_inf_max_disparity",       this.ly_inf_max_disparity +"");
@@ -957,6 +987,8 @@ public class CLTParameters {
 		properties.setProperty(prefix+"ly_smpl_rms",                this.ly_smpl_rms +"");
 		properties.setProperty(prefix+"ly_disp_var",                this.ly_disp_var +"");
 		properties.setProperty(prefix+"ly_disp_rvar",               this.ly_disp_rvar +"");
+		properties.setProperty(prefix+"ly_disp_var_gt",             this.ly_disp_var_gt +"");
+		properties.setProperty(prefix+"ly_disp_rvar_gt",            this.ly_disp_rvar_gt +"");
 		properties.setProperty(prefix+"ly_norm_disp",               this.ly_norm_disp +"");
 		properties.setProperty(prefix+"lym_overexp",                this.lym_overexp +"");
 		properties.setProperty(prefix+"lym_update_disp",            this.lym_update_disp+"");
@@ -1653,6 +1685,13 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"ly_par_sel")!=null)                    this.ly_par_sel=Integer.parseInt(properties.getProperty(prefix+"ly_par_sel"));
 		if (properties.getProperty(prefix+"ly_right_left")!=null)                 this.ly_right_left=Boolean.parseBoolean(properties.getProperty(prefix+"ly_right_left"));
 
+		if (properties.getProperty(prefix+"ly_per_quad")!=null)                   this.ly_per_quad=Integer.parseInt(properties.getProperty(prefix+"ly_per_quad"));
+		if (properties.getProperty(prefix+"ly_per_quad_r")!=null)                 this.ly_per_quad_r=Double.parseDouble(properties.getProperty(prefix+"ly_per_quad_r"));
+		if (properties.getProperty(prefix+"ly_inf")!=null)                        this.ly_inf=Integer.parseInt(properties.getProperty(prefix+"ly_inf"));
+		if (properties.getProperty(prefix+"ly_inf_r")!=null)                      this.ly_inf_r=Double.parseDouble(properties.getProperty(prefix+"ly_inf_r"));
+		if (properties.getProperty(prefix+"ly_inf_scale")!=null)                  this.ly_inf_scale=Integer.parseInt(properties.getProperty(prefix+"ly_inf_scale"));
+		if (properties.getProperty(prefix+"ly_inf_scale_r")!=null)                this.ly_inf_scale_r=Double.parseDouble(properties.getProperty(prefix+"ly_inf_scale_r"));
+
 		if (properties.getProperty(prefix+"ly_inf_frac")!=null)                   this.ly_inf_frac=Double.parseDouble(properties.getProperty(prefix+"ly_inf_frac"));
 		if (properties.getProperty(prefix+"ly_inf_max_disparity")!=null)          this.ly_inf_max_disparity=Double.parseDouble(properties.getProperty(prefix+"ly_inf_max_disparity"));
 
@@ -1668,6 +1707,8 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"ly_smpl_rms")!=null)                   this.ly_smpl_rms=Double.parseDouble(properties.getProperty(prefix+"ly_smpl_rms"));
 		if (properties.getProperty(prefix+"ly_disp_var")!=null)                   this.ly_disp_var=Double.parseDouble(properties.getProperty(prefix+"ly_disp_var"));
 		if (properties.getProperty(prefix+"ly_disp_rvar")!=null)                  this.ly_disp_rvar=Double.parseDouble(properties.getProperty(prefix+"ly_disp_rvar"));
+		if (properties.getProperty(prefix+"ly_disp_var_gt")!=null)                this.ly_disp_var_gt=Double.parseDouble(properties.getProperty(prefix+"ly_disp_var_gt"));
+		if (properties.getProperty(prefix+"ly_disp_rvar_gt")!=null)               this.ly_disp_rvar_gt=Double.parseDouble(properties.getProperty(prefix+"ly_disp_rvar_gt"));
 		if (properties.getProperty(prefix+"ly_norm_disp")!=null)                  this.ly_norm_disp=Double.parseDouble(properties.getProperty(prefix+"ly_norm_disp"));
 		if (properties.getProperty(prefix+"lym_overexp")!=null)                   this.lym_overexp=Double.parseDouble(properties.getProperty(prefix+"lym_overexp"));
 		if (properties.getProperty(prefix+"lym_update_disp")!=null)               this.lym_update_disp=Boolean.parseBoolean(properties.getProperty(prefix+"lym_update_disp"));
@@ -2227,6 +2268,8 @@ public class CLTParameters {
 		//  			GenericDialog gd = new GenericDialog("Set CLT parameters");
 		GenericJTabbedDialog gd = new GenericJTabbedDialog("Set CLT parameters",800,900);
 		gd.addTab         ("General", "General parameters");
+		gd.addNumericField("Nominal (rectilinear) disparity between side of square cameras (pix)",              this.disparity,  3,7,"pix",
+				"Used when rendering 4 images");
 		gd.addNumericField("Transform size (default 8)",                                                        this.transform_size,            0, 6, "pixels","Should always be 8");
 		gd.addNumericField("Lapped transform window type (0- rectangular, 1 - sinus)",                          this.clt_window,                0);
 		gd.addNumericField("shift_x",                                                                           this.shift_x,                   4);
@@ -2261,8 +2304,6 @@ public class CLTParameters {
 		gd.addNumericField("Value (max) in vignetting data to correspond to 1x in the kernel",                  this.vignetting_max,      3);
 		gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",                this.vignetting_range,  3);
 		gd.addNumericField("Kernel step in pixels (has 1 kernel margin on each side)",                          this.kernel_step,            0);
-		gd.addNumericField("Nominal (rectilinear) disparity between side of square cameras (pix)",              this.disparity,  3,7,"pix",
-				"Used when rendering 4 images");
 		gd.addNumericField("Inverse distance to infinity (misalignment correction)",                            this.z_correction,  6);
 		gd.addCheckbox    ("Perform correlation",                                                               this.correlate);
 		gd.addNumericField("Bitmask of pairs to combine in the composite (top, bottom, left,righth)",           this.corr_mask,            0);
@@ -2406,12 +2447,20 @@ public class CLTParameters {
 		gd.addCheckbox    ("Equalize weights of right/left FoV",           this.ly_right_left,
 				"Use this mode use with horizon visible in both FoV halves when gross infinity correction is needed");
 
-		gd.addNumericField("Relative weight of infinity calibration data",                                      this.ly_inf_frac,  3);
+
+		gd.addNumericField("Minimal tiles per quadrant (not counting the worst) tp proceed",                         this.ly_per_quad,  0);
+		gd.addNumericField("Minimal tiles per quadrant (not counting the worst) tp proceed - fraction of all tiles", this.ly_per_quad_r,  3);
+		gd.addNumericField("Minimal number of tiles at infinity to proceed",                                         this.ly_inf,  0);
+		gd.addNumericField("Minimal number of tiles at infinity to proceed - fraction of all tiles",                 this.ly_inf_r,  3);
+		gd.addNumericField("Minimal number of tiles at infinity to apply weight scaling",                            this.ly_inf_scale,  0);
+		gd.addNumericField("Minimal number of tiles at infinity to apply weight scaling - fraction of all tiles",    this.ly_inf_scale_r,  3);
+
+		gd.addNumericField("Relative weight of infinity calibration data",                                          this.ly_inf_frac,  3);
 
 		gd.addNumericField("Maximal disparity to be treated as infinity when adjusting with the rig data",           this.ly_inf_max_disparity,  8,3,"pix",
 				"Only used in guided (by rig data) mode");
 
-		gd.addCheckbox    ("Correct disparity for infinity tiles )has to disable until code fixed)",            this.ly_inf_disp);
+		gd.addCheckbox    ("Correct disparity for infinity tiles )has to disable until code fixed)",              this.ly_inf_disp);
 		gd.addCheckbox    ("Force convergence correction during extrinsic, even with no infinity data",           this.ly_inf_force);
 		gd.addCheckbox    ("*Use polynomial correction, false - correct tilt/azimuth/roll of each sensor)",           this.ly_poly);
 
@@ -2425,6 +2474,10 @@ public class CLTParameters {
 				"Full allowed mismatch is a sum of absolute and disparity times relative");
 		gd.addNumericField("Maximal relative full disparity difference to 8 neighbors",                         this.ly_disp_rvar, 8,5,"",
 				"Full allowed mismatch is a sum of absolute and disparity times relative");
+		gd.addNumericField("Maximal full disparity difference to 8 neighbors with GT",                          this.ly_disp_var_gt, 8,5,"pix",
+				"Full allowed mismatch is a sum of absolute and disparity times relative (relaxed when ground truth is available)");
+		gd.addNumericField("Maximal relative full disparity difference to 8 neighbors with GT",                 this.ly_disp_rvar_gt, 8,5,"",
+				"Full allowed mismatch is a sum of absolute and disparity times relative (relaxed when ground truth is available)");
 		gd.addNumericField("Reduce weight of higher disparity tiles",                                           this.ly_norm_disp, 5);
 		gd.addMessage     ("--- Lazy eye multi-step fitting ---");
 		gd.addNumericField("Any (near) saturated pixels - discard tile (see sat_level also)",                   this.lym_overexp,  10);
@@ -2496,8 +2549,8 @@ public class CLTParameters {
 
 		gd.addCheckbox    ("Use old ortho features processing (ortho_* parameters, false - use or_*)",               this.ortho_old);
 		gd.addMessage     ("--- old ones, new are in  \"Ortho+4\" tab---");
-		gd.addNumericField("Minimal strength of hor correlation to be used instead of full 4-pair correlation",           this.ortho_min_hor,  3);
-		gd.addNumericField("Minimal strength of vert correlation to be used instead of full 4-pair correlation",           this.ortho_min_vert,  3);
+		gd.addNumericField("Minimal strength of hor correlation to be used instead of full 4-pair correlation",      this.ortho_min_hor,  3);
+		gd.addNumericField("Minimal strength of vert correlation to be used instead of full 4-pair correlation",     this.ortho_min_vert,  3);
 		gd.addNumericField("Vert/hor (or hor/vert) strength to be used instead of the full correlation",             this.ortho_asym,  3);
 		gd.addNumericField("Vert/hor (or hor/vert) strength exceeding scaled 4-pair strength",                       this.ortho_over4,  3);
 
@@ -3067,6 +3120,7 @@ public class CLTParameters {
   			gd.showDialog();
 		 */
 		if (gd.wasCanceled()) return false;
+		this.disparity=             gd.getNextNumber();
 		this.transform_size=  (int) gd.getNextNumber();
 		this.clt_window=      (int) gd.getNextNumber();
 		this.shift_x =              gd.getNextNumber();
@@ -3086,7 +3140,7 @@ public class CLTParameters {
 		this.norm_kern=             gd.getNextBoolean();
 		this.gain_equalize=         gd.getNextBoolean();
 		this.colors_equalize=       gd.getNextBoolean();
-		this.nosat_equalize=     gd.getNextBoolean();
+		this.nosat_equalize=        gd.getNextBoolean();
 		this.sat_level=             gd.getNextNumber();
 		this.max_overexposure=      gd.getNextNumber();
 
@@ -3099,7 +3153,6 @@ public class CLTParameters {
 		this.vignetting_max=        gd.getNextNumber();
 		this.vignetting_range=      gd.getNextNumber();
 		this.kernel_step=     (int) gd.getNextNumber();
-		this.disparity=             gd.getNextNumber();
 		this.z_correction=          gd.getNextNumber();
 		this.correlate=             gd.getNextBoolean();
 		this.corr_mask=       (int) gd.getNextNumber();
@@ -3216,6 +3269,14 @@ public class CLTParameters {
 		this.ly_par_sel=      (int) gd.getNextNumber();
 
 		this.ly_right_left=         gd.getNextBoolean();
+
+		this.ly_per_quad=     (int) gd.getNextNumber();
+		this.ly_per_quad_r=         gd.getNextNumber();
+		this.ly_inf=          (int) gd.getNextNumber();
+		this.ly_inf_r=              gd.getNextNumber();
+		this.ly_inf_scale=    (int) gd.getNextNumber();
+		this.ly_inf_scale_r=        gd.getNextNumber();
+
 		this.ly_inf_frac=           gd.getNextNumber();
 		this.ly_inf_max_disparity=  gd.getNextNumber();
 
@@ -3228,6 +3289,8 @@ public class CLTParameters {
 		this.ly_smpl_rms=           gd.getNextNumber();
 		this.ly_disp_var=           gd.getNextNumber();
 		this.ly_disp_rvar=          gd.getNextNumber();
+		this.ly_disp_var_gt=        gd.getNextNumber();
+		this.ly_disp_rvar_gt=       gd.getNextNumber();
 		this.ly_norm_disp=          gd.getNextNumber();
 		this.lym_overexp=           gd.getNextNumber();
 		this.lym_update_disp=       gd.getNextBoolean();

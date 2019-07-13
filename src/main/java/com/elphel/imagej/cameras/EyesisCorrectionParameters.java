@@ -169,6 +169,7 @@ public class EyesisCorrectionParameters {
 
     	public String mlDirectory="ml";
 
+    	public boolean  thumb_overwrite =     true;
     	public int      thumb_width =         200;
     	public int      thumb_height =        100;
     	public double   thumb_h_center =      0.5;
@@ -296,6 +297,17 @@ public class EyesisCorrectionParameters {
   			cp.clt_batch_dsi_aux=    	  this.clt_batch_dsi_aux;
   			cp.clt_batch_save_extrinsics= this.clt_batch_save_extrinsics;
   			cp.clt_batch_save_all=        this.clt_batch_save_all;
+
+
+    		cp.thumb_overwrite =        this.thumb_overwrite;
+    		cp.thumb_width =            this.thumb_width;
+    		cp.thumb_height =           this.thumb_height;
+    		cp.thumb_h_center =         this.thumb_h_center;
+    		cp.thumb_v_center =         this.thumb_v_center;
+    		cp.thumb_size =             this.thumb_size;
+    		cp.default_rating =         this.default_rating;
+
+
 		}
 
 
@@ -462,6 +474,7 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"clt_batch_save_extrinsics", this.clt_batch_save_extrinsics+"");
     		properties.setProperty(prefix+"clt_batch_save_all",        this.clt_batch_save_all+"");
 
+    		properties.setProperty(prefix+"thumb_overwrite",       this.thumb_overwrite+"");
     		properties.setProperty(prefix+"thumb_width",           this.thumb_width+"");
     		properties.setProperty(prefix+"thumb_height",          this.thumb_height+"");
     		properties.setProperty(prefix+"thumb_h_center",        this.thumb_h_center+"");
@@ -616,6 +629,7 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"clt_batch_save_extrinsics")!= null) this.clt_batch_save_extrinsics=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_save_extrinsics"));
 			if (properties.getProperty(prefix+"clt_batch_save_all")!= null)        this.clt_batch_save_all=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_save_all"));
 
+			if (properties.getProperty(prefix+"thumb_overwrite")!= null)     this.thumb_overwrite=Boolean.parseBoolean(properties.getProperty(prefix+"thumb_overwrite"));
 			if (properties.getProperty(prefix+"thumb_width")!=null)          this.thumb_width=Integer.parseInt(properties.getProperty(prefix+"thumb_width"));
   		    if (properties.getProperty(prefix+"thumb_height")!=null)         this.thumb_height=Integer.parseInt(properties.getProperty(prefix+"thumb_height"));
   		    if (properties.getProperty(prefix+"thumb_h_center")!=null)       this.thumb_h_center=   Double.parseDouble(properties.getProperty(prefix+"thumb_h_center"));
@@ -769,6 +783,7 @@ public class EyesisCorrectionParameters {
     		gd.addCheckbox   ("Swap top and equator images",     this.swapSubchannels01);
 
     		gd.addTab("Thumbnails","Thumbnail image generation");
+    		gd.addCheckbox("Overwrite existing thumbnail images",this.thumb_overwrite);
     		gd.addNumericField("Thumbnail image width",          this.thumb_width, 0,4,"pix",
     				"");
     		gd.addNumericField("Thumbnail image height",         this.thumb_height, 0,4,"pix",
@@ -871,6 +886,7 @@ public class EyesisCorrectionParameters {
     		this.removeUnusedSensorData= gd.getNextBoolean();
     		this.swapSubchannels01=      gd.getNextBoolean();
 
+    		this.thumb_overwrite =       gd.getNextBoolean();
     		this.thumb_width=      (int) gd.getNextNumber();
     		this.thumb_height=     (int) gd.getNextNumber();
     		this.thumb_h_center=         gd.getNextNumber();
