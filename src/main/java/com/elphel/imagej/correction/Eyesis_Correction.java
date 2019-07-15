@@ -5231,16 +5231,16 @@ private Panel panel1,
 				ds[l][i] = f_ds[l][i];
 			}
 		}
-		String [] titles = {"disparity","strength"};
-		(new ShowDoubleFloatArrays()) .showArrays(ds,  width, height, true, title, titles);
+		String [] rslt_titles = split_fg_bg ? QuadCLT.FGBG_TITLES_AUX  :QuadCLT.FGBG_TITLES_ADJ; // last 2 will be 0;
+
+		(new ShowDoubleFloatArrays()) .showArrays(ds,  width, height, true, title, QuadCLT.FGBG_TITLES_ADJ);
+
 		int tile_size =  CLT_PARAMETERS.transform_size;
 		int [] wh_aux =  QUAD_CLT_AUX.getGeometryCorrection().getSensorWH();
 		int tilesX_aux = wh_aux[0] / tile_size;
 		int tilesY_aux = wh_aux[1] / tile_size;
 
 //		int num_slices = split_fg_bg? 7:2;
-		String [] fgbg_titles = {"disparity","strength", "rms","rms-split","fg-disp","fg-str","bg-disp","bg-str"};
-		String [] rslt_titles = split_fg_bg ? fgbg_titles  :titles;
 
 		double [][] ds_aux = QUAD_CLT_AUX.depthMapMainToAux(
 				ds, // double [][] ds,

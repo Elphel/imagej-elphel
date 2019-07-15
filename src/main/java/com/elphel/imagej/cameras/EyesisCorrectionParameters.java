@@ -149,6 +149,7 @@ public class EyesisCorrectionParameters {
   		public boolean clt_batch_extrinsic =  false; // Calibrate extrinsic parameters for each set
   		public boolean clt_batch_poly =       false; // Calculate fine polynomial correction for each set
   		public boolean clt_batch_4img =       true;  // Create a set of 4 images, usually for disparity = 0
+  		public boolean clt_batch_4img_aux =   true;  // Create a set of 4 images, usually for disparity = 0 for AUX camera
   		public boolean clt_batch_explore =    true;  // 1-st step of 3d reconstruction - explore disparities for each tile
   		public boolean clt_batch_surf =       true;  // Create super-tile 2.5d surfaces
   		public boolean clt_batch_assign =     true;  // Assign tiles to surfaces
@@ -286,6 +287,7 @@ public class EyesisCorrectionParameters {
   			cp.clt_batch_extrinsic=		this.clt_batch_extrinsic;
   			cp.clt_batch_poly=    		this.clt_batch_poly;
   			cp.clt_batch_4img=    		this.clt_batch_4img;
+  			cp.clt_batch_4img_aux=      this.clt_batch_4img_aux;
   			cp.clt_batch_explore=       this.clt_batch_explore;
   			cp.clt_batch_surf=    		this.clt_batch_surf;
   			cp.clt_batch_assign=    	this.clt_batch_assign;
@@ -461,6 +463,7 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"clt_batch_extrinsic",   this.clt_batch_extrinsic+"");
     		properties.setProperty(prefix+"clt_batch_poly",        this.clt_batch_poly+"");
     		properties.setProperty(prefix+"clt_batch_4img",        this.clt_batch_4img+"");
+    		properties.setProperty(prefix+"clt_batch_4img_aux",    this.clt_batch_4img_aux+"");
     		properties.setProperty(prefix+"clt_batch_explore",     this.clt_batch_explore+"");
     		properties.setProperty(prefix+"clt_batch_surf",        this.clt_batch_surf+"");
     		properties.setProperty(prefix+"clt_batch_assign",      this.clt_batch_assign+"");
@@ -616,6 +619,7 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"clt_batch_extrinsic")!= null) this.clt_batch_extrinsic=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_extrinsic"));
 			if (properties.getProperty(prefix+"clt_batch_poly")!= null)      this.clt_batch_poly=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_poly"));
 			if (properties.getProperty(prefix+"clt_batch_4img")!= null)      this.clt_batch_4img=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_4img"));
+			if (properties.getProperty(prefix+"clt_batch_4img_aux")!= null)  this.clt_batch_4img_aux=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_4img_aux"));
 			if (properties.getProperty(prefix+"clt_batch_explore")!= null)   this.clt_batch_explore=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_explore"));
 			if (properties.getProperty(prefix+"clt_batch_surf")!= null)      this.clt_batch_surf=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_surf"));
 			if (properties.getProperty(prefix+"clt_batch_assign")!= null)    this.clt_batch_assign=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_assign"));
@@ -983,6 +987,7 @@ public class EyesisCorrectionParameters {
     		gd.addCheckbox    ("Calibrate extrinsic parameters for each set",                        this.clt_batch_extrinsic); // 22
     		gd.addCheckbox    ("Calculate fine polynomial correction for each set",                  this.clt_batch_poly);      // 23
     		gd.addCheckbox    ("Create a set of 4 images, usually for disparity = 0",                this.clt_batch_4img);      // 24
+    		gd.addCheckbox    ("Create a set of 4 images for AUX (LWIR) camera",                     this.clt_batch_4img_aux);      // 24
     		gd.addCheckbox    ("1-st step of 3d reconstruction - explore disparities for each tile", this.clt_batch_explore);   // 25
     		gd.addCheckbox    ("Create super-tile 2.5d surfaces",                                    this.clt_batch_surf);      // 26
     		gd.addCheckbox    ("Assign tiles to surfaces",                                           this.clt_batch_assign);    // 27
@@ -993,8 +998,9 @@ public class EyesisCorrectionParameters {
 
     		gd.addCheckbox    ("Create DSI combo image",                                             this.clt_batch_dsi,
     				"Save main camera, dual-quad rig and optionally aux camera combo DSI image with the model");
-    		gd.addCheckbox    ("Include aux camera DSI data in the combo DSI",                       this.clt_batch_dsi_aux,
-    				"Currently DSI for the AUX camera is offset (by the rig baseline) from the main and rig DSI. Aux DSI requires extra processing time");
+    		gd.addCheckbox    ("Include/genarate separate aux camera DSI data in the combo DSI",     this.clt_batch_dsi_aux,
+    				"8-rig: DSI for the AUX camera is offset (by the rig baseline) from the main and rig DSI. Aux DSI requires extra processing time."+
+    		" EO+LWIR - generate a separate GT+AUX file");
     		gd.addCheckbox    ("Save field adjustment data with the model",                          this.clt_batch_save_extrinsics,
     				"This data can be used to restore specific filed-adjusted cameras extrinsics used when the model was generated");
     		gd.addCheckbox    ("Save all parameters with the model",                                 this.clt_batch_save_all,
@@ -1073,6 +1079,7 @@ public class EyesisCorrectionParameters {
     		this.clt_batch_extrinsic=    gd.getNextBoolean(); // 22
     		this.clt_batch_poly=         gd.getNextBoolean(); // 23
     		this.clt_batch_4img=         gd.getNextBoolean(); // 24
+    		this.clt_batch_4img_aux=     gd.getNextBoolean(); // 24
     		this.clt_batch_explore=      gd.getNextBoolean(); // 25
     		this.clt_batch_surf=         gd.getNextBoolean(); // 26
     		this.clt_batch_assign=       gd.getNextBoolean(); // 27

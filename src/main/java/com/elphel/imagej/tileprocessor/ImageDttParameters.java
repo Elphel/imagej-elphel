@@ -221,7 +221,7 @@ public class ImageDttParameters {
 			gd.addNumericField("0% to 100 % transition range for poles",                          this.corr_notch_blur,  3,6,"half-pix",
 					"Transition range, shifted sine is used");
 
-			gd.addMessage("Window for niormal correlations");
+			gd.addMessage("Window for normal correlations");
 			gd.addNumericField("Number of rows to calculate CM disparity",                        this.corr_wndy_size,  0, 3, "",
 					"Number of rows to calculate maximum. Normally should be equal to the previous parameter");
 

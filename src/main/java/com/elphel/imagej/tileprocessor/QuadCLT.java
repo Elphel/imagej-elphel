@@ -68,6 +68,21 @@ import ij.process.ImageProcessor;
 
 
 public class QuadCLT {
+	public static final String [] FGBG_TITLES_ADJ = {"disparity","strength"};
+//	public static final String [] FGBG_TITLES = {"disparity","strength", "rms","rms-split","fg-disp","fg-str","bg-disp","bg-str"};
+	public static final String [] FGBG_TITLES_AUX = {"disparity","strength", "rms","rms-split","fg-disp","fg-str","bg-disp","bg-str","aux-disp","aux-str"};
+//	public static final enum      FGBG           {DISPARITY,  STRENGTH,   RMS,  RMS_SPLIT,  FG_DISP,  FG_STR,  BG_DISP,  BG_STR};
+	public static final int       FGBG_DISPARITY = 0;
+	public static final int       FGBG_STRENGTH =  1;
+	public static final int       FGBG_RMS =       2;
+	public static final int       FGBG_RMS_SPLIT = 3;
+	public static final int       FGBG_FG_DISP =   4;
+	public static final int       FGBG_FG_STR =    5;
+	public static final int       FGBG_BG_DISP =   6;
+	public static final int       FGBG_BG_STR =    7;
+	public static final int       FGBG_AUX_DISP =  8; // AUX calculated disparity
+	public static final int       FGBG_AUX_STR =   9; // AUX calculated strength
+
 	static String []                                       fine_corr_coeff_names = {"A","B","C","D","E","F"};
 	static String []                                       fine_corr_dir_names = {"X","Y"};
 	public static String                                   PREFIX =     "EYESIS_DCT.";    // change later (first on save)
@@ -6187,16 +6202,16 @@ public class QuadCLT {
 		}
 
 		// simple average (ignoring below minimal)
-		int num_slices = split_fg_bg? 8:2;
+		int num_slices = split_fg_bg? FGBG_TITLES_AUX.length:FGBG_TITLES_ADJ.length;
 		double [][] ds_aux_avg = new double [num_slices][tilesX_aux * tilesY_aux];
 		for (int ty = 0; ty < tilesY_aux; ty++) {
 			for (int tx = 0; tx < tilesX_aux; tx++) {
-				if ((ty == 3) && (tx == 12)) {
-					System.out.println("tx = "+tx+", ty = "+ty);
-				}
+//				if ((ty == 3) && (tx == 12)) {
+//					System.out.println("tx = "+tx+", ty = "+ty);
+//				}
 				int nt = ty * tilesX_aux + tx;
-				ds_aux_avg[0][nt] = Double.NaN;
-				ds_aux_avg[1][nt] = 0.0;
+				ds_aux_avg[FGBG_DISPARITY][nt] = Double.NaN;
+				ds_aux_avg[FGBG_STRENGTH][nt] = 0.0;
 				if(ds_list.get(nt).isEmpty()) continue;
 	    		Collections.sort(ds_list.get(nt), new Comparator<DS>() {
 	    		    @Override
@@ -6217,22 +6232,22 @@ public class QuadCLT {
 	    			swd2 += wd * dsi.disparity;
 
 	    		}
-	    		ds_aux_avg[0][nt] = swd/sw;
-	    		ds_aux_avg[1][nt] = sw/ds_list.get(nt).size();
+	    		ds_aux_avg[FGBG_DISPARITY][nt] = swd/sw;
+	    		ds_aux_avg[FGBG_STRENGTH][nt] = sw/ds_list.get(nt).size();
 	    		double rms = Math.sqrt( (swd2 * sw - swd * swd) / (sw * sw));
     			if (for_adjust && (rms >= clt_Parameters.ly_gt_rms)) { // remove ambiguous tiles
-    	    		ds_aux_avg[0][nt] = Double.NaN;
-    	    		ds_aux_avg[1][nt] = 0;
+    	    		ds_aux_avg[FGBG_DISPARITY][nt] = Double.NaN;
+    	    		ds_aux_avg[FGBG_STRENGTH][nt] = 0;
 
     			}
 	    		if (split_fg_bg) {
 
-	    			ds_aux_avg[2][nt] = rms;
-	    			ds_aux_avg[3][nt] = ds_aux_avg[2][nt]; // rms
-	    			ds_aux_avg[4][nt] = ds_aux_avg[0][nt]; // fg disp
-	    			ds_aux_avg[5][nt] = ds_aux_avg[1][nt]; // fg strength
-	    			ds_aux_avg[6][nt] = ds_aux_avg[0][nt]; // bg disp
-	    			ds_aux_avg[7][nt] = ds_aux_avg[1][nt]; // bg strength
+	    			ds_aux_avg[FGBG_RMS ][nt] =      rms;
+	    			ds_aux_avg[FGBG_RMS_SPLIT][nt] = ds_aux_avg[2][nt]; // rms
+	    			ds_aux_avg[FGBG_FG_DISP][nt] =   ds_aux_avg[0][nt]; // fg disp
+	    			ds_aux_avg[FGBG_FG_STR][nt] =    ds_aux_avg[1][nt]; // fg strength
+	    			ds_aux_avg[FGBG_BG_DISP][nt] =   ds_aux_avg[0][nt]; // bg disp
+	    			ds_aux_avg[FGBG_BG_STR][nt] =    ds_aux_avg[1][nt]; // bg strength
 	    			if (rms >= clt_Parameters.ly_gt_rms) {
 	    				// splitting while minimizing sum of 2 squared errors
 	    	    		double [][] swfb =  new double [2][ds_list.get(nt).size() -1];
@@ -6261,12 +6276,12 @@ public class QuadCLT {
 		    			for (int i = 1; i < s2fb.length; i++) if (s2fb[i] < s2fb[nsplit]) {
 		    				nsplit = i;
 		    			}
-		    			ds_aux_avg[3][nt] = s2fb[nsplit]; // rms split
-		    			ds_aux_avg[4][nt] = swdfb[1][nsplit] / swfb[1][nsplit] ;      // fg disp
-		    			ds_aux_avg[5][nt] = swfb[1][nsplit]/ (s2fb.length - nsplit) ; // fg strength
+		    			ds_aux_avg[FGBG_RMS_SPLIT][nt] = s2fb[nsplit]; // rms split
+		    			ds_aux_avg[FGBG_FG_DISP][nt] =   swdfb[1][nsplit] / swfb[1][nsplit] ;      // fg disp
+		    			ds_aux_avg[FGBG_FG_STR][nt] =    swfb[1][nsplit]/ (s2fb.length - nsplit) ; // fg strength
 
-		    			ds_aux_avg[6][nt] = swdfb[0][nsplit] / swfb[0][nsplit] ;      // bg disp
-		    			ds_aux_avg[7][nt] = swfb[0][nsplit]/ (nsplit + 1) ;           // bg strength
+		    			ds_aux_avg[FGBG_BG_DISP][nt] =   swdfb[0][nsplit] / swfb[0][nsplit] ;      // bg disp
+		    			ds_aux_avg[FGBG_BG_STR][nt] =    swfb[0][nsplit]/ (nsplit + 1) ;           // bg strength
 	    			}
 	    		}
 			}
@@ -7091,7 +7106,7 @@ public class QuadCLT {
 					  System.out.println("#### extrinsicsCLT(): iteration step = "+(num_iter + 1) + " ( of "+max_tries+") change = "+
 							  comp_diff + " ("+min_sym_update+"), previous RMS = " + new_corr[0][1][0]+ " (debugLevel = "+debugLevel+")");
 				  }
-				  if (debugLevel > -2) {
+				  if (debugLevel > -10) {
 					  if ((debugLevel > -1) || done) {
 //						  System.out.println("#### extrinsicsCLT(): iteration step = "+(num_iter + 1) + " ( of "+max_tries+") change = "+
 //								  comp_diff + " ("+min_sym_update+"), previous RMS = " + new_corr[0][1][0]);
@@ -7712,7 +7727,7 @@ public class QuadCLT {
     	  // Get filtered (by flexible "plates" that can tilt to accommodate tiles disparity/strength map, that uses data from all previous
     	  // disparity "measurements". This data will be combined with individual tiles, quad, hor and vert correlation results
 
-    	  double [][] filtered_disp_strength = tp.getFilteredDisparityStrength(
+    	  double [][] filtered_disp_strength = tp.getFilteredDisparityStrength( // disp all 0?, str -1/0
 				  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,// List, first, last - to search for the already tried disparity
     			  lastPassPlus1 - 1,                   // final int        measured_scan_index, // will not look at higher scans
     			  0,                                  // final int        start_scan_index,
@@ -7786,6 +7801,9 @@ public class QuadCLT {
     			  refine_pass, // may add 1 to include current (for future?)     //  final int                   lastPassPlus1,
     			  passes.get(refine_pass)); //  final int                   lastPassPlus1,
     	  // repeated composite scan may be replaced by just a clone
+		  if (last_pass){
+			  System.out.println("+++++++++++ Last pass - pre  compositeScan() ++++++++++++");
+		  }
 
     	  CLTPass3d extended_pass = tp.compositeScan(
     			  passes,             // final ArrayList <CLTPass3d> passes,
@@ -7904,7 +7922,7 @@ public class QuadCLT {
     				  dbg_x,
     				  dbg_y,
     				  debugLevel);
-        	  num_extended = numLeftRemoved[0];
+        	  num_extended = numLeftRemoved[0]; //0,0
 			  if (clt_parameters.show_expand || (clt_parameters.show_variant && (numLeftRemoved[1] > 1 ))) tp.showScan(
 					  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
 					  "prepareExpandVariant-"+numLeftRemoved[1]+"-"+refine_pass); //String title)
@@ -7971,7 +7989,7 @@ public class QuadCLT {
 
 //    	  num_extended = numLeftRemoved[0];
 
-    	  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
+    	  CLTMeasure( // perform single pass according to prepared tiles operations and disparity  BUG: gets with .disparity==null
     			  image_data, // first index - number of image in a quad
 				  saturation_imp, //final boolean [][]  saturation_imp, // (near) saturated pixels or null
     			  clt_parameters,
@@ -9055,9 +9073,30 @@ public class QuadCLT {
 		  final int tilesY = tp.getTilesY();
 		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
 		  int [][]     tile_op =         scan.tile_op;
-
-
+// Should not happen !
 		  double [][]  disparity_array = scan.disparity;
+		  if (scan.disparity == null) {
+			  System.out.println ("** BUG: should not happen - scan.disparity == null ! **");
+			  System.out.println ("Trying to recover");
+			  double [] backup_disparity = scan.getDisparity(0);
+			  if (backup_disparity == null) {
+				  System.out.println ("** BUG: no disparity at all !");
+				  backup_disparity = new double[tilesX*tilesY];
+			  }
+			  scan.disparity = new double[tilesY][tilesX];
+			  for (int ty = 0; ty < tilesY; ty++) {
+				  for (int tx = 0; tx < tilesX; tx++) {
+					  scan.disparity[ty][tx] = backup_disparity[ty*tilesX + tx];
+					  if (Double.isNaN(scan.disparity[ty][tx])) {
+						  scan.disparity[ty][tx] = 0;
+						  tile_op[ty][tx] = 0;
+					  }
+				  }
+			  }
+			  disparity_array = scan.disparity;
+
+		  }
+
 		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
 		  double [][][][]     clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][]; // will only be used inside?
 		  if (debugLevel > -1){

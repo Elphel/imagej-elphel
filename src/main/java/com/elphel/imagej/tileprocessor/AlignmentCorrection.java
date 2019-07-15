@@ -2202,18 +2202,18 @@ B = |+dy0   -dy1      -2*dy3 |
 			int [] pq = per_quad.clone();
 			Arrays.sort(per_quad);
 			if (debugLevel > -20) {
-				System.out.print(String.format("Tiles per quadrants :[%d, %d, %d, %d], tiles at infinity %d", pq[0],pq[1],pq[2],pq[3],num_inf));
+				System.out.println(String.format("Tiles per quadrants :[%d, %d, %d, %d], tiles at infinity %d", pq[0],pq[1],pq[2],pq[3],num_inf));
 			}
 			if (per_quad[1] < min_per_quadrant) {
 				if (debugLevel > -20) {
-					System.out.print(String.format("Too few tiles in quadrants :[%d, %d, %d, %d], minimum for the second worst is %d", pq[0],pq[1],pq[2],pq[3],min_per_quadrant));
+					System.out.println(String.format("Too few tiles in quadrants :[%d, %d, %d, %d], minimum for the second worst is %d", pq[0],pq[1],pq[2],pq[3],min_per_quadrant));
 				}
 				return null;
 			}
 
 			if (num_inf < min_inf) {
 				if (debugLevel > -20) {
-					System.out.print(String.format("Too few tiles at infinity: %d minimum is %d", num_inf, min_inf));
+					System.out.println(String.format("Too few tiles at infinity: %d minimum is %d", num_inf, min_inf));
 				}
 				return null;
 			}
@@ -2810,19 +2810,19 @@ B = |+dy0   -dy1      -2*dy3 |
 		Arrays.sort(per_quad);
 		if (per_quad[1] < min_per_quadrant) {
 			if (debugLevel > -20) {
-				System.out.print(String.format("Too few tiles in quadrants :[%d, %d, %d, %d], minimum for the second worst is %d", pq[0],pq[1],pq[2],pq[3],min_per_quadrant));
+				System.out.println(String.format("Too few tiles in quadrants :[%d, %d, %d, %d], minimum for the second worst is %d", pq[0],pq[1],pq[2],pq[3],min_per_quadrant));
 			}
 			return null;
 		}
 
 		if (num_inf < min_inf) {
 			if (debugLevel > -20) {
-				System.out.print(String.format("Too few tiles at infinity (<%4f): %d minimum is %d", inf_max_disparity, num_inf, min_inf));
+				System.out.println(String.format("Too few tiles at infinity (<%4f): %d minimum is %d", inf_max_disparity, num_inf, min_inf));
 			}
 			return null;
 		}
 		if (debugLevel > -20) {
-			System.out.print(String.format("Tiles per quadrants :[%d, %d, %d, %d], tiles at infinity %d", pq[0],pq[1],pq[2],pq[3],num_inf));
+			System.out.println(String.format("Tiles per quadrants :[%d, %d, %d, %d], tiles at infinity %d", pq[0],pq[1],pq[2],pq[3],num_inf));
 		}
 
 		double inf_fraction_limited =  (inf_fraction >= 0.0) ?((inf_fraction > 1.0) ? 1.0 : inf_fraction):0.0;

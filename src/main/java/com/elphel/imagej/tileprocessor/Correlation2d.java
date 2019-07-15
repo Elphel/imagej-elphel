@@ -289,7 +289,7 @@ public class Correlation2d {
     		    		tcorr[col],
     		    		fat_zero/scale_value);
 
-    		 if (first_col < 0) {// accummulate all channels in frst non-null color ( 0 for color, 2 for mono?)
+    		 if (first_col < 0) {// accummulate all channels in first non-null color ( 0 for color, 2 for mono?)
     			 first_col = col; // first non-empty color (2, green) or 0 for color images
     			 for (int n = 0; n < 4; n++) {
     				 for (int i = 0; i < transform_len; i++) {
@@ -1150,8 +1150,8 @@ public class Correlation2d {
     				double fc1 = full_corr[2 * ndir + 1][findx++]; // 1 - bottom, 3 (right)
     				double cc = 0.0;
     				if (offset >= 0.0) {
-    					if ((fc0 > 0.0) && (fc1 > 0.0)) {
-    						cc = Math.sqrt((fc0+offset)*(fc1+offset)) - offset;
+    					if ((fc0 > -offset) && (fc1 > -offset)) {
+    						cc = Math.sqrt((fc0 + offset) * (fc1 + offset)) - offset;
     					}
     				} else {
     					cc =  0.5*(fc0+fc1);
