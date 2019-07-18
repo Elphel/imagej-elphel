@@ -8472,10 +8472,15 @@ if (debugLevel > -100) return true; // temporarily !
 					}
 				}
 			} else { // if (quadCLT_main.correctionsParameters.clt_batch_explore) {
-				int num_restored =  restoreDSI(DSI_MAIN_SUFFIX); // "-DSI_COMBO", "-DSI_MAIN"
+				int num_restored =  0;
+				try {
+					num_restored =  restoreDSI(DSI_MAIN_SUFFIX); // "-DSI_COMBO", "-DSI_MAIN"
+				} catch (Exception e) {
+
+				}
 				if (num_restored < 2) {
-					System.out.println("No DSI form the main camera is available. Please re-run with 'clt_batch_explore' enabled to generate it");
-					return;
+					System.out.println("No DSI from the main camera is available. Please re-run with 'clt_batch_explore' enabled to generate it");
+					continue; // skipping to the next file
 				}
 			}
 
