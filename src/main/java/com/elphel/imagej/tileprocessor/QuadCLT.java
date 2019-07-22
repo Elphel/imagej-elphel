@@ -8226,41 +8226,43 @@ public class QuadCLT {
 						  threadsMax,  // maximal number of threads to launch
 						  updateStatus,
 						  batch_mode ? -5: debugLevel);
-				  double [] scan_disparity = new double [tilesX * tilesY];
-				  int indx = 0;
-				  //		  boolean [] scan_selected = scan.getSelected();
-				  for (int ty = 0; ty < tilesY; ty ++) for (int tx = 0; tx < tilesX; tx ++){
-					  scan_disparity[indx++] = infinity_disparity;
-				  }
-				  //			  tp.showScan(
-				  //    				  scan, // CLTPass3d   scan,
-				  //    				  "infinityDistance");
+				  if (texturePath != null) { // null if empty image
+					  double [] scan_disparity = new double [tilesX * tilesY];
+					  int indx = 0;
+					  //		  boolean [] scan_selected = scan.getSelected();
+					  for (int ty = 0; ty < tilesY; ty ++) for (int tx = 0; tx < tilesX; tx ++){
+						  scan_disparity[indx++] = infinity_disparity;
+					  }
+					  //			  tp.showScan(
+					  //    				  scan, // CLTPass3d   scan,
+					  //    				  "infinityDistance");
 
-				  boolean showTri = false; // ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||((scanIndex - next_pass) == 73);
-				  try {
-					  generateClusterX3d(
-							  x3dOutput,
-							  wfOutput,  // output WSavefront if not null
-							  texturePath,
-							  "INFINITY", // id (scanIndex - next_pass), // id
-							  "INFINITY", // class
-							  bgndScan.getTextureBounds(),
-							  bgndScan.selected,
-							  scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
-							  clt_parameters.transform_size,
-							  clt_parameters.correct_distortions, // requires backdrop image to be corrected also
-							  showTri, // (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
-							  infinity_disparity,  // 0.3
-							  clt_parameters.grow_disp_max, // other_range, // 2.0 'other_range - difference from the specified (*_CM)
-							  clt_parameters.maxDispTriangle);
-				  } catch (IOException e) {
-					  // TODO Auto-generated catch block
-					  e.printStackTrace();
-					  return false;
+					  boolean showTri = false; // ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||((scanIndex - next_pass) == 73);
+					  try {
+						  generateClusterX3d(
+								  x3dOutput,
+								  wfOutput,  // output WSavefront if not null
+								  texturePath,
+								  "INFINITY", // id (scanIndex - next_pass), // id
+								  "INFINITY", // class
+								  bgndScan.getTextureBounds(),
+								  bgndScan.selected,
+								  scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
+								  clt_parameters.transform_size,
+								  clt_parameters.correct_distortions, // requires backdrop image to be corrected also
+								  showTri, // (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
+								  infinity_disparity,  // 0.3
+								  clt_parameters.grow_disp_max, // other_range, // 2.0 'other_range - difference from the specified (*_CM)
+								  clt_parameters.maxDispTriangle);
+					  } catch (IOException e) {
+						  // TODO Auto-generated catch block
+						  e.printStackTrace();
+						  return false;
+					  }
+					  // maybe not needed
+					  bgndScan.setBorderTiles(bg_border_backup);
+					  bgndScan.setSelected(bg_sel_backup);
 				  }
-				  // maybe not needed
-				  bgndScan.setBorderTiles(bg_border_backup);
-				  bgndScan.setSelected(bg_sel_backup);
 			  }
 		  }
 
@@ -8300,7 +8302,9 @@ public class QuadCLT {
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
 					  batch_mode ? -5: debugLevel);
-
+			  if (texturePath == null) {
+				  continue; // empty image
+			  }
 			  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
 
 			  // TODO: use new updated disparity, for now just what was forced for the picture
@@ -8388,6 +8392,9 @@ public class QuadCLT {
 			  double          maxDispTriangle
 			  ) throws IOException
 	  {
+		  if (bounds == null) {
+			  return;
+		  }
 		  int [][] indices =  tp.getCoordIndices( // starting with 0, -1 - not selected
 				  bounds,
 				  selected);
@@ -8683,6 +8690,10 @@ public class QuadCLT {
 		  boolean [] borderTiles = scan.border_tiles;
 		  double [][][][] texture_tiles = scan.texture_tiles;
 		  scan.updateSelection(); // update .selected field (all selected, including border) and Rectangle bounds
+		  if (scan.getTextureBounds() == null) {
+			  System.out.println("getPassImage(): Empty image!");
+			  return null;
+		  }
 		  double [][]alphaFade = tp.getAlphaFade(clt_parameters.transform_size);
 		  if ((debugLevel > 0) && (scanIndex == 1)) {
 			  String [] titles = new String[16];
@@ -8754,6 +8765,9 @@ public class QuadCLT {
 
 		  int width = resize ? (clt_parameters.transform_size * scan.getTextureBounds().width): (clt_parameters.transform_size * tilesX);
 		  int height = resize ? (clt_parameters.transform_size * scan.getTextureBounds().height): (clt_parameters.transform_size * tilesY);
+		  if ((width <= 0) || (height <= 0)) {
+			  System.out.println("***** BUG in getPassImage(): width="+width+", height="+height+", resize="+resize+" ****");
+		  }
 
 		  ImagePlus imp_texture_cluster = linearStackToColor(
 				  clt_parameters,

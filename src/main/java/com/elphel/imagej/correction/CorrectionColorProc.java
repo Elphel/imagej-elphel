@@ -267,8 +267,12 @@ public class CorrectionColorProc {
     		this.denoiseMaskChroma=dmask; // (global, used to return denoise mask to save/show
     		this.denoiseMaskChromaWidth=width; // width of the this.denoiseMaskChroma image
     	} else {
-    		gb.blurDouble(dpixels_pr, width, height, colorProcParameters.chromaBrightSigma, colorProcParameters.chromaBrightSigma, 0.01);
-    		gb.blurDouble(dpixels_pb, width, height, colorProcParameters.chromaBrightSigma, colorProcParameters.chromaBrightSigma, 0.01);
+    		if ((width <= 0) || (height <= 0)) {
+    			System.out.println("***** BUG oin processColorsWeights: width="+width+", height="+height+" ****");
+    		} else {
+	    		gb.blurDouble(dpixels_pr, width, height, colorProcParameters.chromaBrightSigma, colorProcParameters.chromaBrightSigma, 0.01);
+	    		gb.blurDouble(dpixels_pb, width, height, colorProcParameters.chromaBrightSigma, colorProcParameters.chromaBrightSigma, 0.01);
+    		}
     		this.denoiseMaskChroma=null; // (global, used to return denoise mask to save/show
     	}
     	for (i=0;i<dpixels_pr.length;i++) {

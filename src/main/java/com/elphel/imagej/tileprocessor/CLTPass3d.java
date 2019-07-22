@@ -169,7 +169,11 @@ public class CLTPass3d{
 					selected[ty * tilesX + tx] = false; // may be omitted
 				}
 			}
-			texture_bounds = new Rectangle(minX, minY, maxX - minX +1, maxY - minY +1 );
+			if (maxX < 0) {
+				texture_bounds = null;
+			} else {
+				texture_bounds = new Rectangle(minX, minY, maxX - minX +1, maxY - minY +1 );
+			}
 		}
 
 		public  Rectangle  getTextureBounds(){
