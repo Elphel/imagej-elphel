@@ -1152,6 +1152,8 @@ public class Correlation2d {
     				if (offset >= 0.0) {
     					if ((fc0 > -offset) && (fc1 > -offset)) {
     						cc = Math.sqrt((fc0 + offset) * (fc1 + offset)) - offset;
+    					} else {
+    						cc = -offset; // smallest value
     					}
     				} else {
     					cc =  0.5*(fc0+fc1);
