@@ -743,6 +743,7 @@ public class AlignmentCorrection {
 					corr_rots, // Matrix []   rots,
 					null,      //  Matrix [][] deriv_rots,
 					null,      // double [][] pXYderiv, // if not null, should be double[8][]
+					null,      // double [][] disp_dist used to correct 3D correlations
 					centerX,
 					centerY,
 					disp_strength[2 * s.series + 0][s.tile]/magic_coeff); // disparity
@@ -752,6 +753,7 @@ public class AlignmentCorrection {
 					corr_rots, // Matrix []   rots,
 					null,      //  Matrix [][] deriv_rots,
 					null,      // double [][] pXYderiv, // if not null, should be double[8][]
+					null,      // double [][] disp_dist used to correct 3D correlations
 					centerX,
 					centerY,
 					0.0); // disparity
@@ -3089,12 +3091,14 @@ B = |+dy0   -dy1      -2*dy3 |
 			double [] pXY = mm.getPXY();
 			double [][] deriv = new double [2 * NUM_SENSORS][];
 			int dbg_index =dbg_index (pXY, dbg_decimate);
+			double [][] disp_dist = new double[dbg_titles_xy.length][]; // used to correct 3D correlations
 			geometryCorrection.getPortsCoordinatesAndDerivatives(
 					geometryCorrection, //			GeometryCorrection gc_main,
-					false,          // boolean use_rig_offsets,
+					false,       // boolean use_rig_offsets,
 					corr_rots,   //  Matrix []   rots,
 					deriv_rots,  //  Matrix [][] deriv_rots,
 					deriv,       // 	boolean calc_deriv,
+					disp_dist,   // used to correct 3D correlations
 					pXY[0],      // double px,
 					pXY[1],      // double py,
 					mm.getDisparityMeas()); // getDisparityTask()); // double disparity)
@@ -3124,6 +3128,7 @@ B = |+dy0   -dy1      -2*dy3 |
 						1E-9, // 1E-8, //6,    // double delta, // 1e-6
 						corr_vector, // CorrVector corr_vector,
 						deriv_dbg, // j_partial_debug, //
+						null, // disp_dist,       // used to correct 3D correlations
 						pXY[0],      // double px,
 						pXY[1],      // double py,
 						mm.getDisparityMeas()); // Task()); // double disparity)
@@ -3260,9 +3265,10 @@ B = |+dy0   -dy1      -2*dy3 |
 			double [][] f = geometryCorrection.getPortsCoordinatesAndDerivatives( // 4x2
 					geometryCorrection, //			GeometryCorrection gc_main,
 					false,          // boolean use_rig_offsets,
-					corr_rots,    //  Matrix []   rots,
-					null, //  Matrix [][] deriv_rots,
+					corr_rots,   //  Matrix []   rots,
+					null,        //  Matrix [][] deriv_rots,
 					null,        //	boolean calc_deriv,
+					null,        // disp_dist,       // used to correct 3D correlations
 					pXY[0],      // double px,
 					pXY[1],      // double py,
 					mm.getDisparityMeas()); // getDisparityTask()); // double disparity)

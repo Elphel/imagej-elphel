@@ -1046,6 +1046,7 @@ public class ImageDtt {
 								corr_rots, // Matrix []   rots,
 								null,      //  Matrix [][] deriv_rots,
 								null,      // double [][] pXYderiv, // if not null, should be double[8][]
+								null,      // double [][] disp_dist used to correct 3D correlations
 								centerX,
 								centerY,
 								disparity);
@@ -1822,6 +1823,7 @@ public class ImageDtt {
 						centerY = tileY * transform_size + transform_size/2 - shiftY;
 						// TODO: move port coordinates out of color channel loop
 						double [][] centersXY;
+						double [][] disp_dist = new double[2 * quad][]; // used to correct 3D correlations
 
 						if ((disparity_array == null) || (disparity_array[tileY] == null) || (Double.isNaN(disparity_array[tileY][tileX]))) {
 							System.out.println("Bug with disparity_array !!!");
@@ -1846,6 +1848,7 @@ public class ImageDtt {
 										corr_rots,       // Matrix []   rots,
 										null,            //  Matrix [][] deriv_rots,
 										null,            // double [][] pXYderiv, // if not null, should be double[8][]
+										disp_dist,       // used to correct 3D correlations
 										centerX,
 										centerY,
 										disparity_array[tileY][tileX] + disparity_corr); // _aux); //  + disparity_corr);
@@ -1854,10 +1857,11 @@ public class ImageDtt {
 							} else {
 								centersXY = geometryCorrection.getPortsCoordinatesAndDerivatives(
 										geometryCorrection, //			GeometryCorrection gc_main,
-										false,          // boolean use_rig_offsets,
-										corr_rots, // Matrix []   rots,
-										null,      //  Matrix [][] deriv_rots,
-										null,      // double [][] pXYderiv, // if not null, should be double[8][]
+										false,           // boolean use_rig_offsets,
+										corr_rots,       // Matrix []   rots,
+										null,            //  Matrix [][] deriv_rots,
+										null,            // double [][] pXYderiv, // if not null, should be double[8][]
+										disp_dist,       // used to correct 3D correlations
 										centerX,
 										centerY,
 										disparity_array[tileY][tileX] + disparity_corr);
@@ -6447,6 +6451,7 @@ public class ImageDtt {
 									corr_rots, // Matrix []   rots,
 									null,      //  Matrix [][] deriv_rots,
 									null,      // double [][] pXYderiv, // if not null, should be double[8][]
+									null,      // double [][] disp_dist used to correct 3D correlations
 									centerX,
 									centerY,
 									disparity_array[tileY][tileX] + disparity_corr);
@@ -8225,12 +8230,16 @@ public class ImageDtt {
 						if (disparity_bimap != null){
 							disparity_bimap[BI_TARGET_INDEX][tIndex] = disparity_main;
 						}
+						double [][] disp_dist_main = new double[2 * quad_main][]; // used to correct 3D correlations
+						double [][] disp_dist_aux =  new double[2 * quad_aux][]; // used to correct 3D correlations
+
 						centersXY_main = geometryCorrection_main.getPortsCoordinatesAndDerivatives(
 								geometryCorrection_main, //			GeometryCorrection gc_main,
 								false,          // boolean use_rig_offsets,
 								corr_rots_main, // Matrix []   rots,
 								null,           //  Matrix [][] deriv_rots,
 								null,           // double [][] pXYderiv, // if not null, should be double[8][]
+								disp_dist_main, // used to correct 3D correlations
 								centerX,
 								centerY,
 								disparity_main); //  + disparity_corr);
@@ -8241,6 +8250,7 @@ public class ImageDtt {
 								corr_rots_aux,   // Matrix []   rots,
 								null,            //  Matrix [][] deriv_rots,
 								null,            // double [][] pXYderiv, // if not null, should be double[8][]
+								disp_dist_aux,   // used to correct 3D correlations
 								centerX,
 								centerY,
 								disparity_aux); //  + disparity_corr);
@@ -9023,6 +9033,8 @@ public class ImageDtt {
 						if (disparity_bimap != null){
 							disparity_bimap[BI_TARGET_INDEX][tIndex] = disparity_main;
 						}
+						double [][] disp_dist_main = new double[2 * quad_main][]; // used to correct 3D correlations
+						double [][] disp_dist_aux =  new double[2 * quad_aux][]; // used to correct 3D correlations
 						if (calc_main) {
 							centersXY_main = geometryCorrection_main.getPortsCoordinatesAndDerivatives(
 									geometryCorrection_main, //			GeometryCorrection gc_main,
@@ -9030,6 +9042,7 @@ public class ImageDtt {
 									corr_rots_main, // Matrix []   rots,
 									null,           //  Matrix [][] deriv_rots,
 									null,           // double [][] pXYderiv, // if not null, should be double[8][]
+									disp_dist_main, // used to correct 3D correlations
 									centerX,
 									centerY,
 									disparity_main); //  + disparity_corr);
@@ -9042,6 +9055,7 @@ public class ImageDtt {
 										corr_rots_aux,   // Matrix []   rots,
 										null,            //  Matrix [][] deriv_rots,
 										null,            // double [][] pXYderiv, // if not null, should be double[8][]
+										disp_dist_aux, // used to correct 3D correlations
 										centerX,
 										centerY,
 										disparity_aux); //  + disparity_corr);
@@ -9052,6 +9066,7 @@ public class ImageDtt {
 										corr_rots_aux,   // Matrix []   rots,
 										null,            //  Matrix [][] deriv_rots,
 										null,            // double [][] pXYderiv, // if not null, should be double[8][]
+										disp_dist_aux, // used to correct 3D correlations
 										centerX,
 										centerY,
 										disparity_main); //  + disparity_corr);

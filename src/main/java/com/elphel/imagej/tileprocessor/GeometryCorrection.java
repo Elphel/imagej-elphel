@@ -2335,9 +2335,11 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 * @param use_rig_offsets - for the auxiliary camera - use offsets from the main one
 	 * @param rots misalignment correction (now includes zoom in addition to rotations
 	 * @param deriv_rots derivatives by d_az, f_elev, d_rot, d_zoom
+	 * @param pXYderiv - null or double[2 * number_of_cameras][] array to accommodate derivatives of px, py by each of the parameters
+	 * @param disp_dist - null or double[2 * number_of_cameras][] array to accommodate X,Y derivatives by disp and CCW90 of disp
 	 * @param px pixel X coordinate
 	 * @param py pixel Y coordinate
-	 * @param disparity disparity
+	 * @param disparity disparity (for non-distorted image space)
 	 * @return array of per port pairs of pixel shifts
 	 */
 	public double [][] getPortsCoordinatesAndDerivatives(
@@ -2346,6 +2348,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			Matrix []   rots,
 			Matrix [][] deriv_rots,
 			double [][] pXYderiv, // if not null, should be double[8][]
+			double [][] disp_dist, //
 			double px,
 			double py,
 			double disparity)
@@ -2405,7 +2408,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				rD2rND += rad_coeff[j]*(rri - 1.0); // Fixed
 			}
 
-			// Get port pixel coordiantes by scaling the 2d vector with Rdistorted/Dnondistorted coefficient)
+			// Get port pixel coordinates by scaling the 2d vector with Rdistorted/Dnondistorted coefficient)
 			double pXid = pXci * rD2rND;
 			double pYid = pYci * rD2rND;
 
@@ -2413,6 +2416,33 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 
 			pXY[i][0] =  pXid + this.pXY0[i][0];
 			pXY[i][1] =  pYid + this.pXY0[i][1];
+
+			if (disp_dist != null) {
+				disp_dist[2 * i] =   new double [2]; // dx/d_disp, dx_d_ccw_disp
+				disp_dist[2 * i+1] = new double [2]; // dy/d_disp, dy_d_ccw_disp
+				double [][] add0 = {
+						{-disparity *  rXY[i][0],  disparity *  rXY[i][1]},
+						{-disparity *  rXY[i][1], -disparity *  rXY[i][0]}};
+				Matrix dd0 = new Matrix(add0);
+				Matrix dd1 = rots[i].times(dd0).getMatrix(0, 1,0,1).times(norm_z); // get top left 2x2 sub-matrix
+				// unity vector in the direction of radius
+				double c_dist = pXci/rNDi;
+				double s_dist = pYci/rNDi;
+				double c2_dist = c_dist * c_dist;
+				double s2_dist = s_dist * s_dist;
+				double cs_dist = c_dist * s_dist;
+
+				double [][] adist_dcorr = {
+						{rD2rND *      c2_dist + s2_dist, (rD2rND - 1)* cs_dist},
+						{(rD2rND - 1)* cs_dist,           rD2rND *      s2_dist + c2_dist}};
+				Matrix dist_dcorr = new Matrix(adist_dcorr);
+				Matrix dd2 = dist_dcorr.times(dd1);
+
+				disp_dist[2 * i  ][0] =   dd2.get(0, 0);
+				disp_dist[2 * i  ][1] =   dd2.get(0, 1);
+				disp_dist[2 * i+1][0] =   dd2.get(1, 0);
+				disp_dist[2 * i+1][1] =   dd2.get(1, 1);
+			}
 
 
 
@@ -2691,6 +2721,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			double delta, // 1e-6
 			CorrVector corr_vector,
 			double [][] pXYderiv, // if not null, should be double[8][]
+			double [][] disp_dist, //
 			double px,
 			double py,
 			double disparity)
@@ -2703,6 +2734,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				corr_rots, // Matrix []   rots,
 				null, // deriv_rots, // Matrix [][] deriv_rots,
 				null, // pXYderiv0, // null, // false, // boolean calc_deriv,
+				disp_dist,
 				px, // double px,
 				py, // double py,
 				disparity // double disparity
@@ -2725,6 +2757,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 					corr_rots_p, // Matrix []   rots,
 					null, // Matrix [][] deriv_rots,
 					null, // boolean calc_deriv,
+					disp_dist,
 					px, // double px,
 					py, // double py,
 					disparity // double disparity
@@ -2735,6 +2768,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 					corr_rots_m, // Matrix []   rots,
 					null, // Matrix [][] deriv_rots,
 					null, // boolean calc_deriv,
+					disp_dist,
 					px, // double px,
 					py, // double py,
 					disparity // double disparity
