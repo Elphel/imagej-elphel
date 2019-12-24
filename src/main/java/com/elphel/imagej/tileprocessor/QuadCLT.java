@@ -505,7 +505,7 @@ public class QuadCLT {
 				pXY0);
 		geometryCorrection.planeProjectLenses(); // project all lenses to the common plane
 
-		// calcualte reverse distortion as a table to be linear intr4epolated
+		// calcualte reverse distortion as a table to be linear interpolated (now cubic!)
 		geometryCorrection.calcReverseDistortionTable();
 
 		if (numSensors == 4){

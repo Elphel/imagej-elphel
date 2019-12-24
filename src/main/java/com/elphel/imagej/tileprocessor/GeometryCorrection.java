@@ -83,7 +83,7 @@ public class GeometryCorrection {
 	public double disparityRadius=150.0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad camera (~=150mm)?
 
 	private double [] rByRDist=null;
-	private double    stepR=0.001;
+	private double    stepR=0.0001; // 0.001;
 	private double    maxR=2.0; // calculate up to this*distortionRadius
 
 	public  CorrVector extrinsic_corr;
@@ -2396,11 +2396,24 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			double pXci =  rvi.get(0, 0) * norm_z;
 			double pYci =  rvi.get(1, 0) * norm_z;
 
+			// debug
+			  double norm_z_dbg = fl_pix/vi.get(2, 0);
+			  double pXci_dbg =  vi.get(0, 0) * norm_z_dbg;
+			  double pYci_dbg =  vi.get(1, 0) * norm_z_dbg;
+
+
+
+
 			// Re-apply distortion
 			double rNDi = Math.sqrt(pXci*pXci + pYci*pYci); // in pixels
 			//		Rdist/R=A8*R^7+A7*R^6+A6*R^5+A5*R^4+A*R^3+B*R^2+C*R+(1-A6-A7-A6-A5-A-B-C)");
 			double ri = rNDi* ri_scale; // relative to distortion radius
 			//    		double rD2rND = (1.0 - distortionA8 - distortionA7 - distortionA6 - distortionA5 - distortionA - distortionB - distortionC);
+
+			  double rNDi_dbg = Math.sqrt(pXci_dbg*pXci_dbg + pYci_dbg*pYci_dbg); // in pixels
+			  double ri_dbg = rNDi_dbg* ri_scale; // relative to distortion radius
+
+
 			double rD2rND = 1.0;
 			double rri = 1.0;
 			for (int j = 0; j < rad_coeff.length; j++){
@@ -2408,40 +2421,74 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				rD2rND += rad_coeff[j]*(rri - 1.0); // Fixed
 			}
 
+			double rD2rND_dbg = 1.0;
+			double rri_dbg = 1.0;
+			for (int j = 0; j < rad_coeff.length; j++){
+				rri_dbg *= ri_dbg;
+				rD2rND_dbg += rad_coeff[j]*(rri_dbg - 1.0); // Fixed
+			}
+
+
+
 			// Get port pixel coordinates by scaling the 2d vector with Rdistorted/Dnondistorted coefficient)
 			double pXid = pXci * rD2rND;
 			double pYid = pYci * rD2rND;
 
+			double pXid_dbg = pXci_dbg * rD2rND_dbg; // Should be the same as pXcd
+			double pYid_dbg = pYci_dbg * rD2rND_dbg; //
 
 
 			pXY[i][0] =  pXid + this.pXY0[i][0];
 			pXY[i][1] =  pYid + this.pXY0[i][1];
 
+			// used when calculating derivatives, TODO: combine calculations !
+			double drD2rND_dri = 0.0;
+			if ((disp_dist != null) || (pXYderiv != null)) {
+				rri = 1.0;
+				for (int j = 0; j < rad_coeff.length; j++){
+					drD2rND_dri += rad_coeff[j] * (j+1) * rri;
+					rri *= ri;
+				}
+			}
+
 			if (disp_dist != null) {
 				disp_dist[2 * i] =   new double [2]; // dx/d_disp, dx_d_ccw_disp
 				disp_dist[2 * i+1] = new double [2]; // dy/d_disp, dy_d_ccw_disp
+				// Not clear - what should be in Z direction before rotation here?
 				double [][] add0 = {
-						{-disparity *  rXY[i][0],  disparity *  rXY[i][1]},
-						{-disparity *  rXY[i][1], -disparity *  rXY[i][0]}};
+						{-rXY[i][0],  rXY[i][1], 0.0},
+						{-rXY[i][1], -rXY[i][0], 0.0},
+						{ 0.0,                     0.0,                    0.0}}; // what is last element???
+/*
+				{1.0,  0.0, 0.0},
+				{0.0,  1.0, 0.0},
+				{0.0,  0.0, 0.0}}; // what is last element???
+*/
 				Matrix dd0 = new Matrix(add0);
 				Matrix dd1 = rots[i].times(dd0).getMatrix(0, 1,0,1).times(norm_z); // get top left 2x2 sub-matrix
+////				Matrix dd1 = dd0.getMatrix(0, 1,0,1); // get top left 2x2 sub-matrix
+				// now first column of 2x2 dd1 - x, y components of derivatives by disparity, second column - derivatives by ortho to disparity (~Y in 2d correlation)
 				// unity vector in the direction of radius
 				double c_dist = pXci/rNDi;
 				double s_dist = pYci/rNDi;
-				double c2_dist = c_dist * c_dist;
-				double s2_dist = s_dist * s_dist;
-				double cs_dist = c_dist * s_dist;
 
-				double [][] adist_dcorr = {
-						{rD2rND *      c2_dist + s2_dist, (rD2rND - 1)* cs_dist},
-						{(rD2rND - 1)* cs_dist,           rD2rND *      s2_dist + c2_dist}};
-				Matrix dist_dcorr = new Matrix(adist_dcorr);
-				Matrix dd2 = dist_dcorr.times(dd1);
+				double [][] arot2= {
+						{c_dist, s_dist},
+						{-s_dist, c_dist}};
+				Matrix rot2 = new Matrix(arot2); // convert from non-distorted X,Y to parallel and perpendicular (CCW) to the radius
+
+				double [][] ascale_distort = {
+						{rD2rND + ri* drD2rND_dri, 0     },
+						{0,                       rD2rND}};
+				Matrix scale_distort = new Matrix(ascale_distort); // scale component parallel to radius as distortion derivative, perpendicular - as distortion
+
+				Matrix dd2 = rot2.transpose().times(scale_distort).times(rot2).times(dd1);
 
 				disp_dist[2 * i  ][0] =   dd2.get(0, 0);
 				disp_dist[2 * i  ][1] =   dd2.get(0, 1);
 				disp_dist[2 * i+1][0] =   dd2.get(1, 0);
 				disp_dist[2 * i+1][1] =   dd2.get(1, 1);
+
 			}
 
 
@@ -2475,12 +2522,12 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				double dri_droll =     ri_scale / rNDi* (pXci * dpXci_droll +     pYci * dpYci_droll); // Not used anywhere ?
 // TODO: verify dri_droll == 0 and remove
 */
-				double drD2rND_dri = 0.0;
-				rri = 1.0;
-				for (int j = 0; j < rad_coeff.length; j++){
-					drD2rND_dri += rad_coeff[j] * (j+1) * rri;
-					rri *= ri;
-				}
+//				double drD2rND_dri = 0.0;
+//				rri = 1.0;
+//				for (int j = 0; j < rad_coeff.length; j++){
+//					drD2rND_dri += rad_coeff[j] * (j+1) * rri;
+//					rri *= ri;
+//				}
 
 				double drD2rND_dazimuth = drD2rND_dri * dri_dazimuth;
 				double drD2rND_dtilt =    drD2rND_dri * dri_dtilt;
@@ -2924,8 +2971,8 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 */
 	public boolean calcReverseDistortionTable(){
 		boolean debugThis=false; //true;
-		double delta=1E-8;
-		double minDerivative=0.1;
+		double delta=1E-20; // 12; // 10; // -8;
+		double minDerivative=0.01;
 		int numIterations=1000;
 		double drDistDr=1.0;
 		//	public double distortionA5=0.0; //r^5 (normalized to focal length or to sensor half width?)
@@ -2956,15 +3003,19 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 					drDistDr=(((5*this.distortionA5*r + 4*this.distortionA)*r+3*this.distortionB)*r+2*this.distortionC)*r+d;
 				}
 				double rD=r*k;
-				if (drDistDr<minDerivative) {
+				if (drDistDr<minDerivative) { // folds backwards !
 					bailOut=true;
 					break; // too high distortion
 				}
-				if (Math.abs(rD-rDist)<delta) break; // success
+				if (Math.abs(rD-rDist)<delta) {
+					System.out.println(i+": "+iteration+" "+ Math.abs(rD-rDist)+" drDistDr="+drDistDr);
+					break; // success
+				}
 				r+=(rDist-rD)/drDistDr;
 			}
 			if (bailOut) {
-				if (debugThis)	System.out.println("calcReverseDistortionTable() i="+i+" Bailing out, drDistDr="+drDistDr);
+//				if (debugThis)
+					System.out.println("calcReverseDistortionTable() i="+i+" Bailing out, drDistDr="+drDistDr);
 				return false;
 			}
 			rPrev=r;
@@ -3017,7 +3068,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	}
 
 
-	public double getRByRDist(double rDist, boolean debug){
+	public double getRByRDistlin(double rDist, boolean debug){
 		// add exceptions;
 		if (this.rByRDist==null) {
 			calcReverseDistortionTable();
@@ -3043,5 +3094,48 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		}
 		return result;
 	}
+
+
+	public double getRByRDist(double rDist, boolean debug){
+		// add exceptions;
+		if (this.rByRDist==null) {
+			calcReverseDistortionTable();
+			if (debug)System.out.println("getRByRDist("+IJ.d2s(rDist,3)+"): this.rByRDist==null");
+			//		return Double.NaN;
+		}
+		if (rDist < 0) {
+			if (debug)System.out.println("getRByRDist("+IJ.d2s(rDist,3)+"): rDist < 0");
+			return Double.NaN;
+		}
+		double findex = rDist/this.stepR;
+		int index=(int) Math.floor(findex);
+		if (index>=(this.rByRDist.length-2)) {
+			if (debug) System.out.println("getRByRDist("+IJ.d2s(rDist,3)+"): index="+index+">="+(this.rByRDist.length-2));
+			return Double.NaN;
+		}
+		double mu = findex - index;
+		double mu2 = mu * mu;
+		double y0 = (index > 0)? this.rByRDist[index-1] : ( 2 * this.rByRDist[index] - this.rByRDist[index+1]);
+		// use Catmull-Rom
+
+		double a0 = -0.5 * y0 + 1.5 * this.rByRDist[index] - 1.5 * this.rByRDist[index+1] + 0.5 * this.rByRDist[index+2];
+		double a1 =        y0 - 2.5 * this.rByRDist[index] + 2   * this.rByRDist[index+1] - 0.5 * this.rByRDist[index+2];
+		double a2 = -0.5 * y0                              + 0.5 * this.rByRDist[index+1];
+		double a3 =  this.rByRDist[index];
+
+
+		double result= a0*mu*mu2+a1*mu2+a2*mu+a3;
+//		double result=this.rByRDist[index] + (this.rByRDist[index+1]-this.rByRDist[index])*(rDist/this.stepR-index);
+//		double result=this.rByRDist[index] + (this.rByRDist[index+1]-this.rByRDist[index])*mu;
+		if (Double.isNaN(result)){
+			if (debug) System.out.println("this.rByRDist["+index+"]="+this.rByRDist[index]);
+			if (debug) System.out.println("this.rByRDist["+(index+1)+"]="+this.rByRDist[index+1]);
+			if (debug) System.out.println("rDist="+rDist);
+			if (debug) System.out.println("(rDist/this.stepR="+(rDist/this.stepR));
+
+		}
+		return result;
+	}
+
 
 }

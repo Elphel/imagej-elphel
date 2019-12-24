@@ -1575,9 +1575,9 @@ public class ImageDtt {
 			final int                 threadsMax,  // maximal number of threads to launch
 			final int                 globalDebugLevel)
 	{
+		final boolean debug_distort= true;
 		final boolean macro_mode = macro_scale != 1;      // correlate tile data instead of the pixel data
 		final int quad = 4;   // number of subcameras
-
 		final int numcol = 3; // number of colors // keep the same, just do not use [0] and [1], [2] - green
 
 //		final int numColors = image_data[0].length;
@@ -1589,6 +1589,8 @@ public class ImageDtt {
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final double [] col_weights= new double [numcol]; // colors are RBG
+		final double [][] dbg_distort = debug_distort? (new double [4*quad][tilesX*tilesY]) : null;
+
 
 		// keep for now for mono, find out  what do they mean for macro mode
 		if (macro_mode) { // all the same as they now mean different
@@ -1887,6 +1889,14 @@ public class ImageDtt {
 								centersXY[ip][0] -= shiftXY[ip][0];
 								centersXY[ip][1] -= shiftXY[ip][1];
 							}
+							// save disparity distortions for visualization:
+							for (int cam = 0; cam <quad; cam++) {
+								dbg_distort[cam * 4 + 0 ][nTile] = disp_dist[ 2* cam + 0][0];
+								dbg_distort[cam * 4 + 1 ][nTile] = disp_dist[ 2* cam + 0][1];
+								dbg_distort[cam * 4 + 2 ][nTile] = disp_dist[ 2* cam + 1][0];
+								dbg_distort[cam * 4 + 3 ][nTile] = disp_dist[ 2* cam + 1][1];
+							}
+
 							// TODO: use correction after disparity applied (to work for large disparity values)
 							if (fine_corr != null){
 
@@ -2842,6 +2852,12 @@ public class ImageDtt {
 			};
 		}
 		startAndJoin(threads);
+
+//		final double [][] dbg_distort = debug_distort? (new double [4*quad][tilesX*tilesY]) : null;
+		if (dbg_distort != null) {
+			(new ShowDoubleFloatArrays()).showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
+		}
+
 /*
 		if (dbg_ports_coords != null) {
 			(new showDoubleFloatArrays()).showArrays(dbg_ports_coords,  tilesX, tilesY, true, "ports_coordinates", dbg_titles);
