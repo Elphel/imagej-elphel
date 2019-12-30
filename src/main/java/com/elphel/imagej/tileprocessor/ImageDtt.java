@@ -219,8 +219,8 @@ public class ImageDtt {
      public static int setPairMask (int data, int mask) {return (data & ~0xf0) | ((mask & 0xf) << 4);}
      public static boolean getForcedDisparity (int data){return (data & 0x100) != 0;}
      public static int     setForcedDisparity (int data, boolean force) {return (data & ~0x100) | (force?0x100:0);}
-     public static boolean getOrthoLines (int data){return (data & 0x200) != 0;}
-     public static int     setOrthoLines (int data, boolean force) {return (data & ~0x200) | (force?0x200:0);}
+     public static boolean getOrthoLines (int data){return (data & 0x200) != 0;} // not used in lwir
+     public static int     setOrthoLines (int data, boolean force) {return (data & ~0x200) | (force?0x200:0);} // not used in lwir
 
 	public ImageDtt(
 			boolean mono,
@@ -238,7 +238,7 @@ public class ImageDtt {
 	}
 
 
-	public double [][][][] mdctStack(
+	public double [][][][] mdctStack( // not used in lwir
 			final ImageStack                                 imageStack,
 			final int                                        subcamera, //
 			final EyesisCorrectionParameters.DCTParameters   dctParameters, //
@@ -292,7 +292,7 @@ public class ImageDtt {
 		return dct_data;
 	}
 
-	public double [][][] lapped_dct(
+	public double [][][] lapped_dct( // not used in lwir
 			final double [] dpixels,
 			final int       width,
 			final int       dct_size,
@@ -557,7 +557,7 @@ public class ImageDtt {
 	}
 
 	// extract DCT transformed parameters in linescan order (for visualization)
-	public double [] lapped_dct_dbg(
+	public double [] lapped_dct_dbg( // not used in lwir
 			final double [][][] dct_data,
 			final int           threadsMax,     // maximal number of threads to launch
 			final int           globalDebugLevel)
@@ -591,7 +591,7 @@ public class ImageDtt {
 		return dct_data_out;
 	}
 
-	public void dct_lpf(
+	public void dct_lpf( // not used in lwir
 			final double sigma,
 			final double [][][] dct_data,
 			final int       threadsMax,     // maximal number of threads to launch
@@ -670,7 +670,7 @@ public class ImageDtt {
 		startAndJoin(threads);
 	}
 
-	public double [][][][] dct_color_convert(
+	public double [][][][] dct_color_convert( // not used in lwir
 			final double [][][][] dct_data,
 			final double kr,
 			final double kb,
@@ -797,7 +797,7 @@ public class ImageDtt {
 
 
 
-	public double [] lapped_idct(
+	public double [] lapped_idct( // not used in lwir
 //			final double [][][] dctdc_data,  // array [tilesY][tilesX][dct_size*dct_size+1] - last element is DC value
 			final double [][][] dct_data,  // array [tilesY][tilesX][dct_size*dct_size]
 			final int       dct_size,
@@ -870,7 +870,7 @@ public class ImageDtt {
 	}
 
 	// perform 2d clt and apply aberration corrections, all colors
-	public double [][][][][] clt_aberrations(
+	public double [][][][][] clt_aberrations( // not used in lwir
 			final double [][]       image_data,
 			final int               width,
 			final double [][][][][] clt_kernels, // [color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
@@ -974,7 +974,7 @@ public class ImageDtt {
 	}
 
 
-	public double [][][][][][] clt_aberrations_quad(
+	public double [][][][][][] clt_aberrations_quad( // not used in lwir
 			final double              disparity,
 			final double [][][]       image_data, // first index - number of image in a quad
 			final int                 width,
@@ -1128,7 +1128,7 @@ public class ImageDtt {
 		return clt_data;
 	}
 
-	public void printSignsFPGA (
+	public void printSignsFPGA ( // not used in lwir
 			DttRad2               dtt
 			){
 		double [][][] fold_coeff = dtt.getFoldK();
@@ -1171,7 +1171,7 @@ public class ImageDtt {
 		}
 	}
 
-	public void generateFPGACompareData(
+	public void generateFPGACompareData( // not used in lwir
 			final double [][]         image_data, // for selected subcamera
 			final double [][]         colorCentersXY, // pixel centers per color (2 - green)
 			final int                 transform_size,
@@ -1513,7 +1513,7 @@ public class ImageDtt {
 	}
 
 
-	public double [][][][][][] clt_aberrations_quad_corr_new(
+	public double [][][][][][] clt_aberrations_quad_corr_new( // USED in LWIR
 			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 			final int                 macro_scale,     // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
@@ -1677,13 +1677,13 @@ public class ImageDtt {
 			 {-1,  0, -3,  2},
 			 {-2, -3,  0,  1},
 			 { 3, -2, -1,  0}};
-		final int [][] corr_pairs ={ // {first, second, rot} rot: 0 - as is, 1 - swap y,x
+		final int [][] corr_pairs ={ // {first, second, rot} rot: 0 - as is, 1 - swap y,x  // not used in lwir
 				{0,1,0},
 				{2,3,0},
 				{0,2,1},
 				{1,3,1}};
 
-		final double[][] port_offsets = {
+		final double[][] port_offsets = { // lwir: used only in textures to scale differences
 				{-0.5, -0.5},
 				{ 0.5, -0.5},
 				{-0.5,  0.5},
@@ -1843,7 +1843,7 @@ public class ImageDtt {
 									macro_scale* disparity_array[tileY][tileX] + disparity_corr);
 
 						} else {
-							if (use_main) { // this is AUX camera that uses main coordinates
+							if (use_main) { // this is AUX camera that uses main coordinates  // not used in lwir
 								centersXY =  geometryCorrection.getPortsCoordinatesAndDerivatives(
 										geometryCorrection_main, //			GeometryCorrection gc_main,
 										true,            // boolean use_rig_offsets,
@@ -1856,7 +1856,7 @@ public class ImageDtt {
 										disparity_array[tileY][tileX] + disparity_corr); // _aux); //  + disparity_corr);
 
 
-							} else {
+							} else {  // used in lwir
 								centersXY = geometryCorrection.getPortsCoordinatesAndDerivatives(
 										geometryCorrection, //			GeometryCorrection gc_main,
 										false,           // boolean use_rig_offsets,
@@ -1914,7 +1914,7 @@ public class ImageDtt {
 								}
 							}
 						} // if (macro_mode) ... else
-						if (FPGA_COMPARE_DATA && (globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
+						if (FPGA_COMPARE_DATA && (globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)) { // not used in lwir
 							final int fpga_cam = 0;
 							double [][] manual_offsets={
 //									{ 1.3, -2.7},
@@ -1944,7 +1944,7 @@ public class ImageDtt {
 						}
 // See if macro_mode uses color channels for non-color?
 						for (int ncol = 0; ncol <numcol; ncol++) {
-							if (!isMonochrome() || (ncol == MONO_CHN) || macro_mode) { // in monochrome mode skip all non-mono (green) channels
+							if (!isMonochrome() || (ncol == MONO_CHN) || macro_mode) { // in monochrome mode skip all non-mono (green) channels  // used in lwir (5 of 6 branches)
 								boolean debug_for_fpga = FPGA_COMPARE_DATA && (globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (ncol == 2);
 								if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (ncol == 2)) {
 									System.out.println("\nUsing "+(macro_mode?"MACRO":"PIXEL")+" mode, centerX="+centerX+", centerY="+centerY);
@@ -1956,7 +1956,7 @@ public class ImageDtt {
 								}
 
 								for (int i = 0; i < quad; i++) {
-									if (debug_for_fpga && (i==0)){
+									if (debug_for_fpga && (i==0)){ // not used in lwir
 										double [][] fpga_clt_data = new double [4][];
 										double [] fpga_fract_shiftsXY;
 										double [] fpga_centersXY = {centersXY[i][0],centersXY[i][1]};
@@ -2046,24 +2046,24 @@ public class ImageDtt {
 											System.out.println();
 										}
 									} // end of debug_for_fpga
-
 									clt_data[i][ncol][tileY][tileX] = new double [4][];
+									// Extract image tiles and kernels, correct aberrations, return (ut do not apply) fractional shifts
 									fract_shiftsXY[i] = extract_correct_tile( // return a pair of residual offsets
 											image_data[i],
 											width,       // image width
-											(clt_kernels == null) ? null : clt_kernels[i], // [color][tileY][tileX][band][pixel]
-													clt_data[i][ncol][tileY][tileX], //double  [][]        clt_tile,    // should be double [4][];
-													kernel_step,
-													transform_size,
-													dtt,
-													ncol,
-													centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
-													centersXY[i][1], // centerY, //
-													(!FPGA_COMPARE_DATA && (globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (ncol == 2) && (i==0)) ? (globalDebugLevel + 0) : 0, // external tile compare
-															no_deconvolution,
-															false, // ); // transpose);
-															((saturation_imp != null) ? saturation_imp[i] : null), //final boolean [][]        saturation_imp, // (near) saturated pixels or null
-															((saturation_imp != null) ? overexp_all: null)); // final double [] overexposed)
+											((clt_kernels == null) ? null : clt_kernels[i]), // [color][tileY][tileX][band][pixel]
+											clt_data[i][ncol][tileY][tileX], //double  [][]        clt_tile,    // should be double [4][];
+											kernel_step,
+											transform_size,
+											dtt,
+											ncol,
+											centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
+											centersXY[i][1], // centerY, //
+											((!FPGA_COMPARE_DATA && (globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (ncol == 2) && (i==0)) ? (globalDebugLevel + 0) : 0), // external tile compare
+											no_deconvolution,
+											false, // ); // transpose);
+											((saturation_imp != null) ? saturation_imp[i] : null), //final boolean [][]        saturation_imp, // (near) saturated pixels or null
+											((saturation_imp != null) ? overexp_all: null)); // final double [] overexposed)
 								} // for (int i = 0; i < quad; i++)
 								if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (ncol == 2)) {
 									System.out.println();
@@ -2084,7 +2084,7 @@ public class ImageDtt {
 									}
 								}
 
-								if (!no_fract_shift) {
+								if (!no_fract_shift) {  // USED in lwir
 									// apply residual shift
 									for (int i = 0; i < quad; i++) {
 										fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
@@ -2110,12 +2110,12 @@ public class ImageDtt {
 
 								}
 							} else { // if (!isMonochrome() || (chn == MONO_CHN) || macro_mode) { // in monochrome mode skip all non-mono (green) channels
-								for (int i = 0; i < quad; i++) {
+								for (int i = 0; i < quad; i++) {  // used in lwir
 									clt_data[i][ncol] = null; // erase unused clt_data
 								}
 							}
 						}// end of for (int chn = 0; chn <numcol; chn++)
-
+						// used in lwir
 						int tile_lma_debug_level =  ((tileX == debug_tileX) && (tileY == debug_tileY))? imgdtt_params.lma_debug_level : -1;
 
 						// all color channels are done here
@@ -2395,7 +2395,7 @@ public class ImageDtt {
 												}
 												double [] mismatch_result = null;
 												boolean need_CM = true;
-												if (imgdtt_params.ly_poly) {
+												if (imgdtt_params.ly_poly) {  // not used in lwir
 													mismatch_result = corr2d.mismatchPairs( // returns x-xcenter, y, strength (sign same as disparity)
 															imgdtt_params,                // ImageDttParameters  imgdtt_params,
 															corrs,                        // double [][]         corrs,
@@ -2469,9 +2469,9 @@ public class ImageDtt {
 							if      (corr_mode == 0) extra_disparity = disparity_map[DISPARITY_INDEX_INT][tIndex];
 							else if (corr_mode == 1) extra_disparity = disparity_map[DISPARITY_INDEX_CM][tIndex];
 							else if (corr_mode == 2) extra_disparity = disparity_map[DISPARITY_INDEX_POLY][tIndex];
-							else if (corr_mode == 3) extra_disparity = disparity_map[DISPARITY_INDEX_HOR][tIndex];
-							else if (corr_mode == 4) extra_disparity = disparity_map[DISPARITY_INDEX_VERT][tIndex];
-							if (Double.isNaN(extra_disparity)) extra_disparity = 0;
+							else if (corr_mode == 3) extra_disparity = disparity_map[DISPARITY_INDEX_HOR][tIndex];  // not used in lwir
+							else if (corr_mode == 4) extra_disparity = disparity_map[DISPARITY_INDEX_VERT][tIndex];  // not used in lwir
+							if (Double.isNaN(extra_disparity)) extra_disparity = 0;  // used in lwir
 
 							if (Double.isNaN(disparity_map[DISPARITY_STRENGTH_INDEX][tIndex])) {
 								System.out.println("BUG: 3. disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] should not be NaN");
@@ -2479,7 +2479,7 @@ public class ImageDtt {
 						} // if (disparity_map != null){ // not null - calculate correlations
 						// only debug is left
 						// old (per-color correlation)
-						if ((clt_corr_combo != null)  && !imgdtt_params.corr_mode_debug){ // not null - calculate correlations
+						if ((clt_corr_combo != null)  && !imgdtt_params.corr_mode_debug){ // not null - calculate correlations  // not used in lwir
 							tcorr_tpartial=  new double[corr_pairs.length][numcol+1][4][transform_len];
 							tcorr_partial =  new double[quad][numcol+1][];
 
@@ -2689,7 +2689,7 @@ public class ImageDtt {
 
 						if (texture_tiles !=null) {
 							if ((extra_disparity != 0) && !getForcedDisparity(tile_op[tileY][tileX])){ // 0 - adjust disparity, 1 - use provided
-								// shift images by 0.5 * extra disparity in the diagonal direction
+								// shift images by 0.5 * extra disparity in the diagonal direction  // not used in lwir
 								for (int ncol = 0; ncol <numcol; ncol++) { // color
 									for (int i = 0; i < quad; i++) {
 										if (clt_data[i][ncol] != null) {
@@ -2710,7 +2710,7 @@ public class ImageDtt {
 							double [][][] iclt_tile = new double [quad][numcol][]; // in mono some may remain null
 							double [] clt_tile;
 							double scale = 0.25;  // matching iclt_2d
-							for (int i = 0; i < quad; i++) {
+							for (int i = 0; i < quad; i++) {  // USED in lwir
 								for (int ncol = 0; ncol <numcol; ncol++) if (clt_data[i][ncol] != null) { // color
 									// double [] clt_tile = new double [transform_size*transform_size];
 									for (int dct_mode = 0; dct_mode < 4; dct_mode++){
@@ -2772,9 +2772,9 @@ public class ImageDtt {
 							double [][][] tiles_debayered = new double [quad][numcol][];
 							for (int i =0; i<quad; i++){
 								for (int ncol = 0; ncol < numcol; ncol++) if (iclt_tile[i][ncol] != null) {
-									if (isMonochrome()) {
+									if (isMonochrome()) {  // used in lwir
 										tiles_debayered[i][ncol] =  iclt_tile[i][ncol];
-									} else {
+									} else {  // used in lwir
 										tiles_debayered[i][ncol] =  tile_debayer_shot_corr(
 												(ncol != 2), // red or blue (false - green)
 												iclt_tile[i][ncol],
@@ -2797,7 +2797,7 @@ public class ImageDtt {
 								}
 								sdfa_instance.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "tiles_debayered_x"+tileX+"_y"+tileY, titles);
 							}
-
+							// ... used in lwir
 							double []     max_diff = null;
 							if ((disparity_map != null) && (disparity_map.length >= (IMG_DIFF0_INDEX + quad))){
 								max_diff = new double[quad];
@@ -2854,7 +2854,7 @@ public class ImageDtt {
 		startAndJoin(threads);
 
 //		final double [][] dbg_distort = debug_distort? (new double [4*quad][tilesX*tilesY]) : null;
-		if (dbg_distort != null) {
+		if ((dbg_distort != null) &&(globalDebugLevel >=0)) {
 			(new ShowDoubleFloatArrays()).showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
 		}
 
@@ -2866,11 +2866,11 @@ public class ImageDtt {
 		return clt_data;
 	}
 
-	public boolean dmExists(double [][] dm, int indx) {
+	public boolean dmExists(double [][] dm, int indx) {  // not used in lwir or else
 		return (dm != null) && (dm.length > indx) && (dm[indx]!= null);
 	}
 
-	public double [][] tile_combine_rgba(
+	public double [][] tile_combine_rgba(  // used in lwir
 			double [][][] iclt_tile,     // [port][numcol][256] // in mono some are null
 			double []     ports_rgb,     // average values of R,G,B for each camera (R0,R1,...,B2,B3)
 			double []     max_diff,      // maximal (weighted) deviation of each channel from the average
@@ -2993,7 +2993,7 @@ public class ImageDtt {
 
 			} // or (int i = 0; i < tile_len; i++){
 
-		} else if (usedPorts > 0){ // just copy from a single channel
+		} else if (usedPorts > 0){ // just copy from a single channel  // not used in lwir
 			for (int ip = 0; ip < ports; ip++) if ((port_mask & ( 1 << ip)) != 0){
 				for (int i = 0; i < tile_len; i++){
 					for (int ncol = 0; ncol < numcol; ncol++)  if (iclt_tile[0][ncol] != null){
@@ -3053,7 +3053,7 @@ public class ImageDtt {
 		return rgba;
 	}
 
-	public void dust_remove( // redistribute weight between 3 best ports (use only when all 3 are enabled)
+	public void dust_remove( // redistribute weight between 3 best ports (use only when all 3 are enabled)  // USED in lwir
 			double [][]  port_weights)
 	{
 		int np = port_weights.length;
@@ -3073,7 +3073,7 @@ public class ImageDtt {
 	}
 
 
-	public double [] tile_debayer_shot_corr(
+	public double [] tile_debayer_shot_corr(  // USED in lwir
 			boolean   rb,
 			double [] tile,
 			int tile_size,
@@ -3099,7 +3099,7 @@ public class ImageDtt {
 	}
 
 
-	public double [] tile_debayer(
+	public double [] tile_debayer( // USED in lwir
 			boolean   rb,
 			double [] tile,
 			int tile_size)
@@ -3203,7 +3203,7 @@ public class ImageDtt {
 
 
 	// return weights for positive x,y, [(radius+a)*(radius+1)]
-	public double [] setMaxXYWeights(
+	public double [] setMaxXYWeights(  // not used in lwir
 			double sigma,
 			int    radius){ // ==3.0, ignore data outside sigma * nSigma
 			 //
@@ -3219,7 +3219,7 @@ public class ImageDtt {
 
 	// find interpolated location of maximum, return {x,y} or null (if too low or non-existing)
 
-	public int [] getMaxXYInt( // find integer pair or null if below threshold
+	public int [] getMaxXYInt( // find integer pair or null if below threshold  // not used in lwir
 			double [] data,      // [data_size * data_size]
 			int       data_size,
 			double    minMax,    // minimal value to consider (at integer location, not interpolated)
@@ -3244,7 +3244,7 @@ public class ImageDtt {
 		return rslt;
 	}
 
-	public double [] getMaxXYCm( // get fractiona center as a "center of mass" inside circle/square from the integer max
+	public double [] getMaxXYCm( // get fractiona center as a "center of mass" inside circle/square from the integer max  // not used in lwir
 			double [] data,      // [data_size * data_size]
 			int       data_size,
 			int []    icenter, // integer center coordinates (relative to top left)
@@ -3287,7 +3287,7 @@ public class ImageDtt {
 		return rslt;
 	}
 
-	public double [] getMaxXSOrtho( // // get fractional center using a quadratic polynomial
+	public double [] getMaxXSOrtho( // // get fractional center using a quadratic polynomial  // not used in lwir
 			double [] data,            // [data_size * data_size]
 			double [] enhortho_scales, // [data_size]
 			int       data_size,
@@ -3355,7 +3355,7 @@ public class ImageDtt {
 	// balance strength? Or just assume appropriate window
 	// maybe optimized to symmetrical data
 
-	public double [] getMaxXSOrtho2(   // get fractional center using a quadratic polynomial
+	public double [] getMaxXSOrtho2(   // get fractional center using a quadratic polynomial  // not used in lwir
 			double [] data,            // [data_size * data_size]
 			double [] vweights,        // [data_size]
 			int       data_size,
@@ -3435,7 +3435,7 @@ public class ImageDtt {
 
 
 
-	public double [] getMaxXYPoly( // get interpolated maximum coordinates using 2-nd degree polynomial
+	public double [] getMaxXYPoly( // get interpolated maximum coordinates using 2-nd degree polynomial  // not used in lwir
 			PolynomialApproximation pa,
 			double [] data,      // [data_size * data_size]
 			int       data_size,
@@ -3517,7 +3517,7 @@ public class ImageDtt {
 
 
 // perform 2d clt, result is [tileY][tileX][cc_sc_cs_ss][index_in_tile]
-	public double [][][][] clt_2d(
+	public double [][][][] clt_2d(  // not used in lwir
 			final double [] dpixels,
 			final int       width,
 			final int       dct_size,
@@ -3610,7 +3610,7 @@ public class ImageDtt {
 		return dct_data;
 	}
 
-	public double [] iclt_2d(
+	public double [] iclt_2d(  // USED in lwir
 			final double [][][][] dct_data,  // array [tilesY][tilesX][4][dct_size*dct_size]
 			final int             dct_size,
 			final int             window_type,
@@ -3719,7 +3719,7 @@ public class ImageDtt {
 		return dpixels;
 	}
 
-	public double [] iclt_2d_debug_gpu(
+	public double [] iclt_2d_debug_gpu( // not used in lwir
 			final double [][][][] dct_data,  // array [tilesY][tilesX][4][dct_size*dct_size]
 			final int             dct_size,
 			final int             window_type,
@@ -3910,7 +3910,7 @@ public class ImageDtt {
 
 
 // in monochrome mode only MONO_CHN == GREEN_CHN is used, R and B are null
-	public double [][] combineRBGATiles(
+	public double [][] combineRBGATiles(  // USED in lwir
 			final double [][][][] texture_tiles,  // array [tilesY][tilesX][4][4*transform_size] or [tilesY][tilesX]{null}
 			final int             transform_size,
 			final boolean         overlap,    // when false - output each tile as 16x16, true - overlap to make 8x8
@@ -3993,7 +3993,7 @@ public class ImageDtt {
 															dpixels[chn][start_line + j] += texture_tile[schn][n2 * i + j];
 														}
 													} else if ((i >= n_half) && (i < (n2-n_half))) {
-														for (int j = n_half; j < (n2 - n_half); j++) {
+														for (int j = n_half; j < (n2 - n_half); j++) { // not used in lwir
 															dpixels[chn][start_line + j] += texture_tile[schn][n2 * i + j];
 														}
 													}
@@ -4023,7 +4023,7 @@ public class ImageDtt {
 																}
 															}
 														} else if ((i >= n_half) && (i < (n2-n_half))) {
-															for (int j = n_half; j < (n2 - n_half); j++) {
+															for (int j = n_half; j < (n2 - n_half); j++) { // not used in lwir
 																if (	((tileX > 0) && (tileX < lastX)) ||
 																		((tileX == 0) && (j >= n_half)) ||
 																		((tileX == lastX) && (j < (n2 - n_half)))) {
@@ -4038,7 +4038,7 @@ public class ImageDtt {
 
 									}
 								} else { //if (overlap) - just copy tiles w/o overlapping
-									for (int i = 0; i < n2;i++){
+									for (int i = 0; i < n2;i++){ // not used in lwir
 										for (int chn = 0; chn < texture_tile.length; chn++) {
 											int schn = chn;
 											if (isMonochrome() && (chn<3)) {
@@ -4071,7 +4071,7 @@ public class ImageDtt {
 
 
 
-	public double [][][][] clt_shiftXY(
+	public double [][][][] clt_shiftXY( // not used in lwir
 			final double [][][][] dct_data,  // array [tilesY][tilesX][4][dct_size*dct_size]
 			final int             dct_size,
 			final double          shiftX,
@@ -4153,7 +4153,7 @@ public class ImageDtt {
 		return rslt;
 	}
 
-	public double [][][][] clt_correlate(
+	public double [][][][] clt_correlate( // not used in lwir
 			final double [][][][] data1,  // array [tilesY][tilesX][4][dct_size*dct_size]
 			final double [][][][] data2,  // array [tilesY][tilesX][4][dct_size*dct_size]
 			final int             dct_size,
@@ -4255,7 +4255,7 @@ public class ImageDtt {
 		return rslt;
 	}
 
-	public void clt_lpf(
+	public void clt_lpf(  // USED in lwir
 			final double          sigma,
 			final double [][][][] clt_data,
 			final int             dct_size,
@@ -4354,7 +4354,7 @@ public class ImageDtt {
 		startAndJoin(threads);
 	}
 
-	public void clt_dtt2( // transform dcct2, dsct2, dcst2, dsst2
+	public void clt_dtt2( // transform dcct2, dsct2, dcst2, dsst2 // not used in lwir
 			final double [][][][] data,
 			final boolean         transpose, // when doing inverse transform, the data comes in transposed form, so CS <->SC
 			final int             threadsMax,     // maximal number of threads to launch
@@ -4387,7 +4387,7 @@ public class ImageDtt {
 		startAndJoin(threads);
 	}
 
-	public double [][][] clt_corr_quad( // combine 4 correlation quadrants after DTT2
+	public double [][][] clt_corr_quad( // combine 4 correlation quadrants after DTT2  // not used in lwir
 			final double [][][][] data,
 			final int             threadsMax,     // maximal number of threads to launch
 			final int             globalDebugLevel)
@@ -4505,7 +4505,7 @@ public class ImageDtt {
 
 */
 	// extract correlation result  in linescan order (for visualization)
-	public double [] corr_dbg(
+	public double [] corr_dbg( // not used in lwir
 			final double [][][] corr_data,
 			final int           corr_size,
 			final double        border_contrast,
@@ -4555,7 +4555,7 @@ public class ImageDtt {
 
 
 	// extract correlation result  in linescan order (for visualization)
-	public double [][] corr_partial_dbg(
+	public double [][] corr_partial_dbg( // not used in lwir
 			final double [][][][][] corr_data,
 			final int corr_size,
 			final int pairs,
@@ -4624,7 +4624,7 @@ public class ImageDtt {
 
 
 
-	public double [][][][][] cltStack(
+	public double [][][][][] cltStack( // not used in lwir
 			final ImageStack                                 imageStack,
 			final int                                        subcamera, //
 			final CLTParameters   cltParameters, //
@@ -4667,7 +4667,7 @@ public class ImageDtt {
 
 
 	// extract DCT transformed parameters in linescan order (for visualization)
-	public double [][] clt_dbg(
+	public double [][] clt_dbg( // not used in lwir
 			final double [][][][] dct_data,
 			final int             threadsMax,     // maximal number of threads to launch
 			final int             globalDebugLevel)
@@ -4706,7 +4706,7 @@ public class ImageDtt {
 		return dct_data_out;
 	}
 
-	void clt_convert_double_kernel( // converts double resolution kernel
+	void clt_convert_double_kernel( // converts double resolution kernel // not used in lwir
 			double []   src_kernel, //
 			double []   dst_kernel, // should be (2*dtt_size-1) * (2*dtt_size-1) + extra_items size - kernel and dx, dy to the nearest 1/2 pixels + actual full center shift)
 			int src_size, // 64
@@ -4755,7 +4755,7 @@ public class ImageDtt {
 		dst_kernel[indx++] = 0.5*(sy / s);
 	}
 
-	void clt_normalize_kernel( //
+	void clt_normalize_kernel(  // not used in lwir
 			double []   kernel, // should be (2*dtt_size-1) * (2*dtt_size-1) + 4 size (last (2*dtt_size-1) are not modified)
 			double []   window, // normalizes result kernel * window to have sum of elements == 1.0
 			int dtt_size, // 8
@@ -4779,7 +4779,7 @@ public class ImageDtt {
 		}
  	}
 
-	void clt_symmetrize_kernel( //
+	void clt_symmetrize_kernel(  // not used in lwir
 			double []     kernel,      // should be (2*dtt_size-1) * (2*dtt_size-1) +2 size (last 2 are not modified)
 			double [][]   sym_kernels, // set of 4 SS, AS, SA, AA kdernels, each dtt_size * dtt_size (may have 5-th with center shift
 			final int     dtt_size) // 8
@@ -4806,7 +4806,7 @@ public class ImageDtt {
 		}
  	}
 
-	void clt_dtt3_kernel( //
+	void clt_dtt3_kernel( // not used in lwir
 			double [][]   kernels, // set of 4 SS, AS, SA, AA kdernels, each dtt_size * dtt_size (may have 5-th with center shift
 			final int     dtt_size, // 8
 			DttRad2       dtt)
@@ -4834,8 +4834,8 @@ public class ImageDtt {
 		public double dyc_dx   = 0.0;
 		public double dyc_dy   = 0.0;
 
-		public CltExtra(){}
-		public CltExtra(double [] data)
+		public CltExtra(){} // not used in lwir
+		public CltExtra(double [] data)  // USED in lwir
 		{
 			data_x   = data[0]; // kernel data is relative to this displacement X (0.5 pixel increments)
 			data_y   = data[1]; // kernel data is relative to this displacement Y (0.5 pixel increments)
@@ -4846,7 +4846,7 @@ public class ImageDtt {
 			dyc_dx   = data[6];
 			dyc_dy   = data[7];
 		}
-		public double [] getArray()
+		public double [] getArray() // not used in lwir
 		{
 			double [] rslt = {
 					data_x,
@@ -4862,7 +4862,7 @@ public class ImageDtt {
 		}
 	}
 
-	public void offsetKernelSensor(
+	public void offsetKernelSensor( // not used in lwir
 			double [][] clt_tile, // clt tile, including [4] - metadata
 			double dx,
 			double dy) {
@@ -4873,7 +4873,7 @@ public class ImageDtt {
 		ce.data_y +=   dy;
 		clt_tile[4] = ce.getArray();
 	}
-	public void clt_fill_coord_corr(
+	public void clt_fill_coord_corr( // not used in lwir
 			final int               kern_step, // distance between kernel centers, in pixels.
 			final double [][][][][] clt_data,
 			final int               threadsMax,     // maximal number of threads to launch
@@ -4934,7 +4934,7 @@ public class ImageDtt {
 		startAndJoin(threads);
 	}
 
-	public class CltTile{
+	public class CltTile{ // not used in lwir
 		public double [][] tile = new double[4][]; // 4 CLT tiles
 		public double fract_x; // remaining fractional offset X
 		public double fract_y; // remaining fractional offset X
@@ -4948,7 +4948,7 @@ public class ImageDtt {
 // return
 // kernel [0][0] is centered at  (-kernel_step/2,-kernel_step/2)
 
-	public double [] extract_correct_tile( // return a pair of residual offsets
+	public double [] extract_correct_tile( // return a pair of residual offsets // USED in lwir (except debug, fpga, gpu)
 			double [][]         image_data,
 			int                 width,       // image width
 			double  [][][][][]  clt_kernels, // [color][tileY][tileX][band][pixel]
@@ -5495,7 +5495,7 @@ public class ImageDtt {
 	}
 
 //	public
-	public void convolve_tile(
+	public void convolve_tile( // USED in lwir
 			double [][]     data,    // array [transform_size*transform_size], will be updated  DTT4 converted
 			double [][]     kernel,  // array [4][transform_size*transform_size]  DTT3 converted
 			int             transform_size,
@@ -5556,7 +5556,7 @@ public class ImageDtt {
 		}
 	}
 
-	public void fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
+	public void fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations // USED in lwir
 		double  [][]  clt_tile,
 		int           transform_size,
 		double        shiftX,
@@ -5654,7 +5654,7 @@ public class ImageDtt {
 
 
 
-	public double [][][][] mdctScale(
+	public double [][][][] mdctScale( // not used in lwir
 			final ImageStack                                 imageStack,
 			final int                                        subcamera, // not needed
 			final EyesisCorrectionParameters.DCTParameters   dctParameters, //
@@ -5699,7 +5699,7 @@ public class ImageDtt {
 
 
 
-	public double [][][] lapped_dct_scale( // scale image to 8/9 size in each direction
+	public double [][][] lapped_dct_scale( // scale image to 8/9 size in each direction // not used in lwir
 			final double [] dpixels,
 			final int       width,
 			final int       dct_size,
@@ -5783,7 +5783,7 @@ public class ImageDtt {
 		return dct_data;
 	}
 
-	public void dct_scale(
+	public void dct_scale( // not used in lwir
 			final double  scale_hor,  // < 1.0 - enlarge in dct domain (shrink in time/space)
 			final double  scale_vert, // < 1.0 - enlarge in dct domain (shrink in time/space)
 			final boolean normalize, // preserve weighted dct values
@@ -5913,7 +5913,7 @@ public class ImageDtt {
 	 * From Stephan Preibisch's Multithreading.java class. See:
 	 * http://repo.or.cz/w/trakem2.git?a=blob;f=mpi/fruitfly/general/MultiThreading.java;hb=HEAD
 	 */
-	public static Thread[] newThreadArray(int maxCPUs) {
+	public static Thread[] newThreadArray(int maxCPUs) { // USED in lwir
 		int n_cpus = Runtime.getRuntime().availableProcessors();
 		if (n_cpus>maxCPUs)n_cpus=maxCPUs;
 		return new Thread[n_cpus];
@@ -5922,7 +5922,7 @@ public class ImageDtt {
 	 * From Stephan Preibisch's Multithreading.java class. See:
 	 * http://repo.or.cz/w/trakem2.git?a=blob;f=mpi/fruitfly/general/MultiThreading.java;hb=HEAD
 	 */
-	public static void startAndJoin(Thread[] threads)
+	public static void startAndJoin(Thread[] threads) // USED in lwir
 	{
 		for (int ithread = 0; ithread < threads.length; ++ithread)
 		{
@@ -5942,7 +5942,7 @@ public class ImageDtt {
 
 	// temporary switch between old/new implementations
 
-	public double [][][][][][] clt_aberrations_quad_corr(
+	public double [][][][][][] clt_aberrations_quad_corr( // USED in lwir (new branch)
 			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 			final int                 macro_scale,     // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
@@ -6069,7 +6069,7 @@ public class ImageDtt {
 					threadsMax,  // maximal number of threads to launch
 					globalDebugLevel);
 		} else { // old way?
-			return clt_aberrations_quad_corr_old(
+			return clt_aberrations_quad_corr_old( // not used in lwir
 					imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 					macro_scale,     // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 					tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
@@ -6134,7 +6134,7 @@ public class ImageDtt {
 					globalDebugLevel);
 		}
 	}
-	public double [][][][][][] clt_aberrations_quad_corr_old(
+	public double [][][][][][] clt_aberrations_quad_corr_old( // not used in lwir
 			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 			final int                 macro_scale,     // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
@@ -7396,7 +7396,7 @@ public class ImageDtt {
 	 * @return
 	 */
 
-	public double [] tileInterCamCorrs(
+	public double [] tileInterCamCorrs( // not used in lwir
 			final boolean                                   no_int_x0, // do not offset window to integer - used when averaging low textures to avoid "jumps" for very wide
 			final CLTParameters  clt_parameters,
 			final double                                    fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
@@ -7435,7 +7435,7 @@ public class ImageDtt {
 
 	}
 
-	public double [] tileInterCamCorrs(
+	public double [] tileInterCamCorrs( // not used in lwir
 			final boolean                                   no_int_x0, // do not offset window to integer - used when averaging low textures to avoid "jumps" for very wide
 			// maximums. That reduces the residual disparity, but works continuously when it is known the maximum should be near zero
 			final CLTParameters  clt_parameters,
@@ -7646,7 +7646,7 @@ public class ImageDtt {
 	 * @return {disparity, disp_hor, disp_vert, disp_diagm, disp_diago, strength, str_hor, str_vert, str_diagm, str_diago}
 	 * indexed by DISP_*_INDEX and STR_*_INDEX constants
 	 */
-	public double [] tileCorrs(
+	public double [] tileCorrs( // USED in lwir
 			final CLTParameters       clt_parameters,
 			final double          fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 			final boolean         get4dirs, // calculate disparity/strength for each of the 4 directions
@@ -7676,7 +7676,7 @@ public class ImageDtt {
 	    		col_weights,    // double []           col_weights,
 	    		fatzero);       // double              fat_zero)
 
-	    if (ml_center_corr != null) {
+	    if (ml_center_corr != null) { // USED in lwir
 	    	corr2d.corrCenterValues(
 	    			ml_hwidth,                           // int         hwidth,
 	    			clt_parameters.img_dtt.corr_offset,  //double      offset,
@@ -7717,7 +7717,7 @@ public class ImageDtt {
 		// use clt_mismatch for that
 		double strength = 0.0;
 		double disparity = 0.0;
-		if (ixy != null) {
+		if (ixy != null) { // USED in lwir
 			strength = strip_combo[ixy[0]+clt_parameters.transform_size-1]; // strength at integer max on axis
 			disparity =      -ixy[0];
 			result[STR_FULL_INDEX] = strength;
@@ -7735,7 +7735,7 @@ public class ImageDtt {
 		}
 // removed HOR/VERT
 		// proceed only if CM correlation result is non-null // for compatibility with old code we need it to run regardless of the strength of the normal correlation
-		if (corr_stat != null) {
+		if (corr_stat != null) { // USED in lwir
 			disparity = -corr_stat[0];
 			result[DISP_FULL_INDEX] = disparity;
 			// see if strength is enough to proceed with LMA/poly (otherwise keep disp/strength
@@ -7763,7 +7763,7 @@ public class ImageDtt {
 		    						lma_disparity_strength[0],lma_disparity_strength[1]));
 		    		}
 					// if enabled overwrite - replace  DISPARITY_INDEX_CM and DISPARITY_STRENGTH_INDEX
-					if (clt_parameters.rig.use_poly) {
+					if (clt_parameters.rig.use_poly) { // not used in lwir
 						disparity = lma_disparity_strength[0];
 						strength =  lma_disparity_strength[1];
 						result[STR_FULL_INDEX] = strength;
@@ -7776,7 +7776,7 @@ public class ImageDtt {
                     // Correction for far foreground objects
 //					if ((clt_parameters.img_dtt.fo_correct && (strength > 0 * clt_parameters.img_dtt.fo_min_strength)) || get4dirs) {
 					// no fo_correct for the rig!
-					if (get4dirs) {
+					if (get4dirs) { // USED in lwir
 			    		// try all dirs:
 						dir_corr_strength = corr2d.corr4dirsLMA(
 			    				clt_parameters.img_dtt,                // ImageDttParameters  clt_parameters.img_dtt,
@@ -7796,31 +7796,31 @@ public class ImageDtt {
 			    					dir_corr_strength[0][0],dir_corr_strength[0][1],dir_corr_strength[1][0],dir_corr_strength[1][1],
 			    					dir_corr_strength[2][0],dir_corr_strength[2][1],dir_corr_strength[3][0],dir_corr_strength[3][1]));
 			    		}
-			    		if (dir_corr_strength[0] != null) {
+			    		if (dir_corr_strength[0] != null) { // USED in lwir
 			    			result[DISP_HOR_INDEX] =   dir_corr_strength[0][0];
 			    			result[STR_HOR_INDEX] =    dir_corr_strength[0][1];
-			    		} else {
+			    		} else { // USED in lwir
 			    			result[DISP_HOR_INDEX] =   Double.NaN;
 			    			result[STR_HOR_INDEX] =    0.0;
 			    		}
-			    		if (dir_corr_strength[1] != null) {
+			    		if (dir_corr_strength[1] != null) { // USED in lwir
 			    			result[DISP_VERT_INDEX] =  dir_corr_strength[1][0];
 			    			result[STR_VERT_INDEX] =   dir_corr_strength[1][1];
-			    		} else {
+			    		} else { // USED in lwir
 			    			result[DISP_VERT_INDEX] =  Double.NaN;
 			    			result[STR_VERT_INDEX] =   0.0;
 			    		}
-			    		if (dir_corr_strength[2] != null) {
+			    		if (dir_corr_strength[2] != null) { // USED in lwir
 			    			result[DISP_DIAGM_INDEX] = dir_corr_strength[2][0];
 			    			result[STR_DIAGM_INDEX] =  dir_corr_strength[2][1];
-			    		} else {
+			    		} else { // USED in lwir
 			    			result[DISP_DIAGM_INDEX] = Double.NaN;
 			    			result[STR_DIAGM_INDEX] =  0.0;
 			    		}
-			    		if (dir_corr_strength[3] != null) {
+			    		if (dir_corr_strength[3] != null) { // USED in lwir
 			    			result[DISP_DIAGO_INDEX] = dir_corr_strength[3][0];
 			    			result[STR_DIAGO_INDEX] =  dir_corr_strength[3][1];
-			    		} else {
+			    		} else { // USED in lwir
 			    			result[DISP_DIAGO_INDEX] = Double.NaN;
 			    			result[STR_DIAGO_INDEX] =  0.0;
 
@@ -7855,7 +7855,7 @@ public class ImageDtt {
 	}
 
 
-	public void generateTextureTiles(
+	public void generateTextureTiles(// not used in lwir
 			final CLTParameters       clt_parameters,
 			final double           extra_disparity,
 			final int              quad,      // number of subcameras
@@ -7996,7 +7996,7 @@ public class ImageDtt {
 
 //	public double [][][][][][] clt_bi_quad(
 
-	public double [][][][][][][]  clt_bi_quad_dbg(
+	public double [][][][][][][]  clt_bi_quad_dbg(// not used in lwir
 			final CLTParameters       clt_parameters,
 			final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 			final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
@@ -8805,7 +8805,7 @@ public class ImageDtt {
 		return  clt_bidata;
 	}
 
-	public double [][][][][][][]  clt_bi_quad(
+	public double [][][][][][][]  clt_bi_quad(// USED in lwir
 			final CLTParameters       clt_parameters,
 			final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 			final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
@@ -8856,7 +8856,7 @@ public class ImageDtt {
 		final int nTilesInChn=tilesX*tilesY;
 		// clt_data does not need to be for the whole image (no, it is used for textures)
 		final double [][][][][][][] clt_bidata = (keep_clt_data)? (new double[2][][][][][][]):null;
-		if (clt_bidata != null) {
+		if (clt_bidata != null) {// not used in lwir
 			clt_bidata[0] = new double[quad_main][numcol][tilesY][tilesX][][];
 			clt_bidata[1] = new double[quad_aux][numcol][tilesY][tilesX][][];
 		}
@@ -8871,7 +8871,7 @@ public class ImageDtt {
 			col_weights[2] = 1.0;// green color/mono
 			col_weights[0] = 0;
 			col_weights[1] = 0;
-		} else {
+		} else {// not used in lwir
 			col_weights[2] = 1.0/(1.0 + clt_parameters.corr_red + clt_parameters.corr_blue);    // green color
 			col_weights[0] = clt_parameters.corr_red *  col_weights[2];
 			col_weights[1] = clt_parameters.corr_blue * col_weights[2];
@@ -8924,10 +8924,10 @@ public class ImageDtt {
 
 
 		final double [] filter_direct= new double[transform_len];
-		if (clt_parameters.getCorrSigma(isMonochrome()) == 0) {
+		if (clt_parameters.getCorrSigma(isMonochrome()) == 0) {// not used in lwir
 			filter_direct[0] = 1.0;
 			for (int i= 1; i<filter_direct.length;i++) filter_direct[i] =0;
-		} else {
+		} else {// USED in lwir
 			for (int i = 0; i < clt_parameters.transform_size; i++){
 				for (int j = 0; j < clt_parameters.transform_size; j++){
 					filter_direct[i * clt_parameters.transform_size+j] = Math.exp(-(i*i+j*j)/(2*clt_parameters.getCorrSigma(isMonochrome()))); // FIXME: should be sigma*sigma !
@@ -8967,13 +8967,13 @@ public class ImageDtt {
 		}
 		// add optional initialization of debug layers here
 		if (disparity_bimap != null){
-			for (int i = 0; i < disparity_bimap.length;i++){
+			for (int i = 0; i < disparity_bimap.length;i++){// USED in lwir
 				disparity_bimap[i] = new double [tilesY*tilesX];
 			}
 		}
 
 		if (ers_delay != null) {
-			ers_delay[0] = new double [quad_main][];
+			ers_delay[0] = new double [quad_main][]; // not used in lwir
 			for (int i = 0; i < quad_main; i++) ers_delay[0][i] = new double [tilesX*tilesY];
 			ers_delay[1] = new double [quad_aux][];
 			for (int i = 0; i < quad_aux; i++)  ers_delay[1][i] = new double [tilesX*tilesY];
@@ -9051,7 +9051,7 @@ public class ImageDtt {
 						}
 						double [][] disp_dist_main = new double[2 * quad_main][]; // used to correct 3D correlations
 						double [][] disp_dist_aux =  new double[2 * quad_aux][]; // used to correct 3D correlations
-						if (calc_main) {
+						if (calc_main) {// not used in lwir
 							centersXY_main = geometryCorrection_main.getPortsCoordinatesAndDerivatives(
 									geometryCorrection_main, //			GeometryCorrection gc_main,
 									false,          // boolean use_rig_offsets,
@@ -9064,7 +9064,7 @@ public class ImageDtt {
 									disparity_main); //  + disparity_corr);
 						}
 						if (calc_aux) {
-							if (calc_main) { // use rig and main coordinates
+							if (calc_main) { // use rig and main coordinates // not used in lwir
 								centersXY_aux =  geometryCorrection_aux.getPortsCoordinatesAndDerivatives(
 										geometryCorrection_main, //			GeometryCorrection gc_main,
 										true,            // boolean use_rig_offsets,
@@ -9075,7 +9075,7 @@ public class ImageDtt {
 										centerX,
 										centerY,
 										disparity_aux); //  + disparity_corr);
-							} else {
+							} else {// USED in lwir
 								centersXY_aux =  geometryCorrection_aux.getPortsCoordinatesAndDerivatives(
 										geometryCorrection_aux, //			GeometryCorrection gc_main,
 										false,            // boolean use_rig_offsets,
@@ -9090,7 +9090,7 @@ public class ImageDtt {
 							}
 						}
 						// acquisition time of the tiles centers in scanline times
-						if (ers_delay != null) {
+						if (ers_delay != null) {// not used in lwir
 							for (int i = 0; i < quad_main; i++) ers_delay[0][i][nTile] = centersXY_main[i][1]-geometryCorrection_main.woi_tops[i];
 							for (int i = 0; i < quad_aux; i++)  ers_delay[1][i][nTile] = centersXY_aux[i][1]- geometryCorrection_aux.woi_tops[i];
 						}
@@ -9137,7 +9137,7 @@ public class ImageDtt {
 							    centersXY_aux[3][0]+"\t"+centersXY_aux[3][1]+"\t");
 							}
 
-							for (int i = 0; i < quad_main; i++) { // quad_main == 0 if not calculated
+							for (int i = 0; i < quad_main; i++) { // quad_main == 0 if not calculated // not used in lwir
 								clt_data_main[i][chn] = new double [4][];
 								fract_shiftsXY_main[i] = extract_correct_tile( // return a pair of residual offsets
 										image_data_main[i],
@@ -9158,7 +9158,7 @@ public class ImageDtt {
 
 
 							}
-							for (int i = 0; i < quad_aux; i++) { // quad_aux == 0 if not calculated
+							for (int i = 0; i < quad_aux; i++) { // quad_aux == 0 if not calculated // not used in lwir
 								clt_data_aux[i][chn] = new double [4][];
 								fract_shiftsXY_aux[i] = extract_correct_tile( // return a pair of residual offsets
 										image_data_aux[i],
@@ -9210,7 +9210,7 @@ public class ImageDtt {
 							}
 
 							// apply residual shift
-							for (int i = 0; i < quad_main; i++) {
+							for (int i = 0; i < quad_main; i++) {// not used in lwir
 								fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
 										clt_data_main[i][chn], // double  [][]  clt_tile,
 										clt_parameters.transform_size,
@@ -9219,7 +9219,7 @@ public class ImageDtt {
 										((globalDebugLevel > 1) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
 												(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
 							}
-							for (int i = 0; i < quad_aux; i++) {
+							for (int i = 0; i < quad_aux; i++) {// USED in lwir
 								fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
 										clt_data_aux[i][chn], // double  [][]  clt_tile,
 										clt_parameters.transform_size,
@@ -9255,7 +9255,7 @@ public class ImageDtt {
 						if (disparity_bimap != null){ // not null - calculate correlations
 							double [] tile_corrs_main = new double[0]; //null;
 							double [] tile_corrs_aux  = new double[0]; //null;
-							if (calc_main) {
+							if (calc_main) {// not used in lwir
 								tile_corrs_main = tileCorrs(
 										clt_parameters,        // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 										fatzero,               // final double          fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
@@ -9272,7 +9272,7 @@ public class ImageDtt {
 								extra_disparity_main = tile_corrs_main[DISP_FULL_INDEX];
 								if (Double.isNaN(extra_disparity_main)) extra_disparity_main = 0;
 							}
-							if (calc_aux) {
+							if (calc_aux) {// USED in lwir
 								tile_corrs_aux  = tileCorrs(
 										clt_parameters,        // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 										fatzero,               // final double          fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
@@ -9290,7 +9290,7 @@ public class ImageDtt {
 								if (Double.isNaN(extra_disparity_aux))  extra_disparity_aux = 0;
 							}
 
-							for (int i = 0; i < tile_corrs_main.length; i++) {
+							for (int i = 0; i < tile_corrs_main.length; i++) {// not used in lwir
 								int dest = SNGL_TO_BI[0][i];
 								if (disparity_bimap[dest] != null) disparity_bimap[dest][nTile] = tile_corrs_main[i];
 							}
@@ -9310,7 +9310,7 @@ public class ImageDtt {
 							}
 							double [] inter_cam_corr = null;
 							double [] inter_corrs_dxy = null;
-							if (calc_both) {
+							if (calc_both) {// not used in lwir
 								inter_cam_corr = corr2d.correlateInterCamerasFD(
 										clt_data_main,       // double [][][][]     clt_data_tile_main,
 										clt_data_aux,        // double [][][][]     clt_data_tile_aux,
@@ -9354,7 +9354,7 @@ public class ImageDtt {
 								// save data for the main camera
 								for (int nlayer = 0; nlayer <  ML_TOP_AUX_INDEX; nlayer++) {
 									// save main camera data
-									if (calc_main) {
+									if (calc_main) {// not used in lwir
 										corr2d.saveMlTile(
 												tileX,                     // int         tileX,
 												tileY,                     // int         tileY,
@@ -9365,7 +9365,7 @@ public class ImageDtt {
 												tilesX);                   // int         tilesX);
 									}
 									// save aux_camera data
-									if (calc_aux) {
+									if (calc_aux) {// USED in lwir
 										corr2d.saveMlTile(
 												tileX,                     // int         tileX,
 												tileY,                     // int         tileY,
@@ -9377,7 +9377,7 @@ public class ImageDtt {
 									}
 								}
 								// save inter-camera correlation
-								if (calc_both ) {
+								if (calc_both ) {// not used in lwir
 									corr2d.saveMlTile(
 											tileX,                         // int         tileX,
 											tileY,                         // int         tileY,
@@ -9389,7 +9389,7 @@ public class ImageDtt {
 								}
 								// save other data (just 1 value)
 
-								corr2d.saveMlTilePixel(
+								corr2d.saveMlTilePixel(// USED in lwir
 							    		tileX,                         // int         tileX,
 							    		tileY,                         // int         tileY,
 							    		ml_hwidth,                     // int         ml_hwidth,
@@ -9399,7 +9399,7 @@ public class ImageDtt {
 							    		disparity_main,                // target disparitydouble      ml_value,
 							    		tilesX);                       // int         tilesX);
 
-								if (calc_both && (ml_data_dbg1 != null)) {
+								if (calc_both && (ml_data_dbg1 != null)) { // not used in lwir
 									tileInterCamCorrs(
 											false,             // final boolean                                   no_int_x0, // do not offset window to integer - used when averaging low textures to avoid "jumps" for very wide
 											clt_parameters,    // final EyesisCorrectionParameters.CLTParameters  clt_parameters,
@@ -9430,12 +9430,12 @@ public class ImageDtt {
 						} // if (disparity_map != null){ // not null - calculate correlations
 
 						if (tcorr_combo != null) { // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
-							for (int i = 0; i < tcorr_combo.length; i++) {
+							for (int i = 0; i < tcorr_combo.length; i++) {// not used in lwir
 								clt_corr_combo[i][tileY][tileX] = tcorr_combo[i];
 							}
 						}
 
-						if (calc_main && (texture_tiles_main !=null)) {
+						if (calc_main && (texture_tiles_main !=null)) {// not used in lwir
 							generateTextureTiles (
 									clt_parameters,        // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 									extra_disparity_main,  // final double           extra_disparity,
@@ -9454,7 +9454,7 @@ public class ImageDtt {
 									tileY,                 // final int              tileY,
 									tile_lma_debug_level); // final int              debugLevel);
 						}
-						if (calc_aux && (texture_tiles_aux !=null)) {
+						if (calc_aux && (texture_tiles_aux !=null)) {// not used in lwir
 							generateTextureTiles (
 									clt_parameters,        // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 									extra_disparity_aux,   // final double           extra_disparity,
@@ -9474,7 +9474,7 @@ public class ImageDtt {
 									tile_lma_debug_level); // final int              debugLevel);
 						}
 						// Save channel tiles to result
-						if (clt_bidata != null) {
+						if (clt_bidata != null) {// not used in lwir
 							for (int i = 0; i < quad_main; i++) for (int j = 0; j < numcol; j++){
 								clt_bidata[0][i][j][tileY][tileX] = clt_data_main[i][j];
 							}
@@ -9489,7 +9489,7 @@ public class ImageDtt {
 		startAndJoin(threads);
 
 // If it was low-texture mode, 	use lt_corr to average bi-quad inter-correlation between neighbor tiles and then calculate disparity/strength
-		if (calc_both && (lt_corr != null)) {
+		if (calc_both && (lt_corr != null)) {// not used in lwir
 			//notch_mode
 			// prepare weights for neighbors
 			final int lt_rad_x = notch_mode? 0: lt_rad;
@@ -9598,7 +9598,7 @@ public class ImageDtt {
 		return  clt_bidata;
 	}
 
-	public void  clt_bi_macro( // not yet operational
+	public void  clt_bi_macro( // not yet operational // not used in lwir
 			final CLTParameters       clt_parameters,
 			final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 			final int                 macro_scale,

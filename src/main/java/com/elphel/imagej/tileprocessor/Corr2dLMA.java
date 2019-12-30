@@ -1,13 +1,13 @@
 package com.elphel.imagej.tileprocessor;
 /**
  **
- ** Correlation2dLMA - Fit multi - baseline correlation pairs to the model
+ ** Corr2dLMA - Fit multi - baseline correlation pairs to the model
  **
  ** Copyright (C) 2018 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
  **
- **  Correlation2dLMA.java is free software: you can redistribute it and/or modify
+ **  Corr2dLMA.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
  **  (at your option) any later version.
@@ -40,11 +40,26 @@ package com.elphel.imagej.tileprocessor;
  * orthogonal directions are combined it influences equally all directions (x,y) so Wx includes that term also
  *
  * Wxy widens maximum in disparity direction, it is caused by multiple overlapping maximums for different disparities and for
- * strong enough matches can indicate miz of disparities in the same tile
+ * strong enough matches can indicate mix of disparities in the same tile
  *
  * Fitting of a single scale groups (1 or 2) has to have Wm constant.
  *
  *
+Each camera has the same scale and aligned parallel to all others
+Each camera has a 2x2 matrix where d_disp - increment along disparity, d_ndisp - along rotated disparity:
+Mi=  | dx/d_disp , dx/d_ndisp|
+     | dy/d_disp , dy_d_ndisp|
+For each pair matrices are subtracted (6 for 4 cameras)
+Each correlation pair has the same shape, just shifted (add mask WXY that fades?)
+ndisp - array of 4 values or all 0
+disp - array of 4 symmetrized values, where the first is common disparity, 3 other may be forced to 0
+
+A0 - common gain, A(i>0) = A0*Ai
+W(x,y) window function for 2D correlation
+x0j, y0j - individual for each pair, calculated from disp_i, ndisp_i, and Mi1-Mi2 (i1 - first channel in pair, i2 - second)
+
+Fx=A(i)*W(x,y)*(pa*(x-x0j)^2+2*pb*(x-x0j)*(y-y0j)+pc*(y-y0j)^2)
+
 
  *
  */
@@ -57,20 +72,49 @@ import Jama.Matrix;
 
 
 
-public class Correlations2dLMA {
+public class Corr2dLMA {
+
+	final static int NUM_CAMS =     4; // not all have to be used, so it is maximal number of cameras
+	final static int NUM_PAIRS =    NUM_CAMS* (NUM_CAMS -1)/2; // number of possible pairs
+
+	final static int DISP_INDEX =   0; // common/average disparity
+	final static int A_INDEX =      1; // A*(x-x0)^2
+	final static int B_INDEX =      2; // 2*B*(x-x0)*(y-y0)
+	final static int CMA_INDEX =    3; // C*(y-y0)^2, encode C-A
+	final static int G0_INDEX =     4; // scale of correlation pair,
+	final static int DDISP_INDEX =  G0_INDEX +    NUM_PAIRS; // disparity offset per camera (at least 1 should be disabled)
+	final static int NDISP_INDEX =  DDISP_INDEX + NUM_CAMS;  // disparity offset per camera - none should be disable
+	final static int NUM_ALL_PARS = NDISP_INDEX+ NUM_CAMS; // maximal number of parameters
+
+	final int []     USED_CAMS_MAP =  new int[NUM_CAMS]; // for each camera index return used index ???
+	final int [][]   USED_PAIRS_MAP = new int[NUM_CAMS][NUM_CAMS]; // for each camera index return used index ??
+
+	@Deprecated
 	final static int X0_INDEX =  0;
+	@Deprecated
 	final static int WM_INDEX =  1; // may be frozen
+	@Deprecated
 	final static int WYD_INDEX = 2;
+	@Deprecated
 	final static int WXY_INDEX = 3;
+	@Deprecated
 	final static int AG_INDEX =  4; // and above
-	final static String [] PAR_NAMES = {"X0","HALF-WIDTH","WIDTH-EXTRA","WIDTH_X/Y","AMPLITUDE"};
+	@Deprecated
+	final static String [] PAR_NAMES_OLD = {"X0","HALF-WIDTH","WIDTH-EXTRA","WIDTH_X/Y","AMPLITUDE"};
+	final static String [] PAR_NAMES = {"DISP","A","B","C-A"};
+	final static String PAR_NAME_SCALE = "SCALE";
+	final static String PAR_NAME_CORRDISP = "CORR-DISP";
+	final static String PAR_NAME_CORRNDISP = "CORR-NDISP";
 	double  [] all_pars;
 	boolean [] par_mask;
 	double  [] vector;
 	double  [] scales = {1.0, 2.0, 4.0};
 	ArrayList<Sample> samples = new ArrayList<Sample>();
+	@Deprecated
 	HashMap<Integer,NumDiag> groups = new HashMap<Integer,NumDiag>();
+	@Deprecated
 	double  [] group_weights =   null; // per-group weights of samples sum == 1.0
+	double [] pair_weights = null; // per pair weights (sum == 1.0)
 	double [] weights; // normalized so sum is 1.0 for all - samples and extra regularization terms
 	double    pure_weight; // weight of samples only
 	double [] values;
@@ -80,10 +124,20 @@ public class Correlations2dLMA {
 	double []   initial_rms =     null; // {rms, rms_pure}, first-calcualted rms
 	double []   last_ymfx =       null;
 	double [][] last_jt =         null;
+	@Deprecated
 	boolean     input_diag =      false; // valid during adding samples, should be set before changing groups
 	double []   poly_coeff =      null;  // 6 elements - Xc, Yx, f(x,y), A, B, C (from A*x^2 + B*y^2 +C*x*y+...)
 	double []   poly_xyvwh =      null;  // result of 2-d polynomial approximation instead of the LMA - used for lazy eye correction
-
+	private final int transform_size;
+    private final double [][] corr_wnd;
+    private boolean [] used_cameras;
+    private final Matrix [] m_disp = new Matrix[NUM_CAMS];
+    private int     last_cam; // index of the last camera (special treatment for disparity correction)
+    private boolean second_last; // there is a pair where the second camera is the last one (false: first in a pair is the last one)
+    private final Matrix [][] m_pairs =      new Matrix[NUM_CAMS][NUM_CAMS];
+    private final Matrix [][] m_pairs_last = new Matrix[NUM_CAMS][NUM_CAMS];
+    private final int [][] pindx = new int [NUM_CAMS][NUM_CAMS];
+	@Deprecated
 	public class NumDiag{ // USED in lwir
 		int     num;
 		boolean diag;
@@ -94,12 +148,21 @@ public class Correlations2dLMA {
 	}
 
 	public class Sample{ // USED in lwir
+		int    fcam;   // first  camera index
+		int    scam;   // second camera index
+		int    ix;     // x coordinate in 2D correlation (0.. 2*transform_size-2, center: (transform_size-1)
+		int    iy;     // y coordinate in 2D correlation (0.. 2*transform_size-2, center: (transform_size-1)
+		@Deprecated
 		double x;      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
+		@Deprecated
 		double y;      // y coordinate (0 - disparity axis)
 		double v;      // correlation value at that point
-		double w;
-		int    si;     // baseline scale index
+		double w;      // weight
+		@Deprecated
+		int    si;     // baseline scale index //
+		@Deprecated
 		int    gi;     // group index
+		@Deprecated
 		Sample (
 				double x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
 				double y,      // y coordinate (0 - disparity axis)
@@ -115,14 +178,329 @@ public class Correlations2dLMA {
 				this.si = si;
 				this.gi = gi;
 			}
+		Sample (
+				int    fcam,   // first  camera index
+				int    scam,   // second camera index
+				int    x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
+				int    y,      //  coordinate in 2D correlation (0.. 2*transform_size-2, center: (transform_size-1)
+				double v,      // correlation value at that point
+				double w)
+			{
+				this.fcam = fcam;
+				this.scam = scam;
+				this.ix =  x;
+				this.iy =  y;
+				this.v =   v;
+				this.w =   w;
+			}
 	}
+
+	public Corr2dLMA (
+			int ts // null - use default table
+			) {
+		boolean sq = false;
+		this.transform_size = ts;
+		this.corr_wnd = new double[2 * transform_size - 1][2 * transform_size - 1];
+		int tsm1 =  transform_size - 1; // 7
+		int dtsm1 = 2 * transform_size - 1; // 15
+		this.corr_wnd[tsm1][tsm1] = 1.0;
+		for (int i = 1; i < transform_size; i++) {
+			this.corr_wnd[tsm1 + i][tsm1    ] = Math.acos(Math.PI*i/(2 * transform_size));
+			this.corr_wnd[tsm1 - i][tsm1    ] = Math.acos(Math.PI*i/(2 * transform_size));
+			this.corr_wnd[tsm1    ][tsm1 + i] = Math.acos(Math.PI*i/(2 * transform_size));
+			this.corr_wnd[tsm1    ][tsm1 - i] = Math.acos(Math.PI*i/(2 * transform_size));
+		}
+		for (int i = 1; i < transform_size; i++) {
+			for (int j = 1; j < transform_size; j++) {
+				double d = this.corr_wnd[tsm1 + i][tsm1] * this.corr_wnd[tsm1 + j][tsm1];
+				this.corr_wnd[tsm1 + i][tsm1 + j] = d;
+				this.corr_wnd[tsm1 + i][tsm1 - j] = d;
+				this.corr_wnd[tsm1 - i][tsm1 + j] = d;
+				this.corr_wnd[tsm1 - i][tsm1 - j] = d;
+			}
+		}
+		if (sq) {
+			for (int i = 0; i < dtsm1; i++) {
+				for (int j = 0; j < dtsm1; j++) {
+					this.corr_wnd[i][j] *=this.corr_wnd[i][j];
+				}
+			}
+		}
+	}
+
+
+	public void addSample( // x = 0, y=0 - center
+			int    fcam,   // first  camera index
+			int    scam,   // second camera index
+			int    x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
+			int    y,      // y coordinate (0 - disparity axis)
+			double v,      // correlation value at that point
+			double w){     // sample weight
+		if ((w > 0) && !Double.isNaN(v)) samples.add(new Sample(fcam,scam,x,y,v,w));
+	}
+
+
+	public int getPairIndex(int f, int s) {
+		if (f > s) {
+			int t = f;
+			f = s;
+			s = t;
+		}
+		return (NUM_CAMS * f) - (f + 1)*f/2 - f - 1 + s ; // return n*i - i*(i+1)//2 - i + j -1
+	}
+
+	public void setMatrices(double [][] am_disp) {
+		for (int n = 0; n < NUM_CAMS; n++) {
+			double [][] am = {
+					{am_disp[n][0],am_disp[n][1]},
+					{am_disp[n][2],am_disp[n][3]}};
+			m_disp[n] = new Matrix(am);
+		}
+	}
+	public void initVector( // USED in lwir
+			boolean adjust_width,     // adjust width of the maximum
+			boolean adjust_scales,    // adjust 2D correlation scales
+			boolean adjust_ellipse,   // allow non-circular correlation maximums
+			boolean adjust_lazyeye,   // adjust disparity corrections and orthogonal disparities
+			double  disp0,            // initial value of disparity
+			double  half_width,       // A=1/(half_widh)^2
+			double  cost_lazyeye     // cost for each of the non-zero disparity corrections and ortho disparity
+			) {
+//		int [][] pindx = new int [NUM_CAMS][NUM_CAMS];
+		for (int f = 0; f < NUM_CAMS; f++) {
+			pindx[f][f]=-1;
+			for (int s = f+1; s < NUM_CAMS; s++) {
+				pindx[f][s] = getPairIndex(f,s);
+				pindx[s][f] = pindx[f][s];
+			}
+		}
+		used_cameras = new boolean[NUM_CAMS];
+		boolean [] used_pairs = new boolean[NUM_PAIRS];
+		// 0-weight values and NaN-s should be filtered on input!
+		last_cam = -1;
+		for (int f = 0; f < NUM_CAMS; f++) for (int s = 0; s < NUM_CAMS; s++) USED_PAIRS_MAP[f][s] = -1;
+		boolean [][] used_pairs_dir = new boolean [NUM_CAMS][NUM_CAMS];
+		for (Sample s:samples) { // ignore zero-weight samples
+			used_cameras[s.fcam]=true;
+			used_cameras[s.scam]=true;
+			if (s.fcam > last_cam) {
+				second_last = false;
+				last_cam = s.fcam;
+			}
+			if (s.scam > last_cam) {
+				second_last = true;
+				last_cam = s.scam;
+			}
+			used_pairs[pindx[s.fcam][s.scam]]=true; // throws < 0 - wrong pair, f==s
+			used_pairs_dir[s.fcam][s.scam] = true;
+		}
+		int ncam = 0, npairs=0;
+		for (int i = 0; i < NUM_CAMS; i++) {
+			USED_CAMS_MAP[i] = ncam;
+			if (used_cameras[i]) {
+				last_cam = ncam;
+				ncam++;
+			}
+		}
+		int [] upmam = new int[NUM_PAIRS];
+		for (int i = 0; i < NUM_PAIRS; i++) {
+			upmam[i] = npairs;
+			if (used_pairs[i])  npairs++;
+		}
+		for (int f = 0; f < NUM_CAMS; f++) {
+//			USED_PAIRS_MAP[f][f] = -1;
+			for (int s = f+1; s < NUM_CAMS; s++) {
+				int npair = upmam[pindx[f][s]];
+				if      (used_pairs_dir[f][s]) USED_PAIRS_MAP[f][s] = npair;  // either or, can not be f,s and s,f pairs
+				else if (used_pairs_dir[s][f]) USED_PAIRS_MAP[s][f] = npair;
+			}
+		}
+
+		this.all_pars =        new double[NUM_ALL_PARS];
+		this.all_pars[DISP_INDEX] =  disp0;
+		this.all_pars[A_INDEX] =     1.0/(half_width * half_width);
+		this.all_pars[B_INDEX] =     0.0;
+		this.all_pars[CMA_INDEX] =   0.0; // C-A
+		this.par_mask = new boolean[NUM_ALL_PARS];
+		this.par_mask[DISP_INDEX] =  true;
+		this.par_mask[A_INDEX] =     adjust_width;
+		this.par_mask[B_INDEX] =     adjust_ellipse;
+		this.par_mask[CMA_INDEX] =   adjust_ellipse;
+		for (int i = 0; i <NUM_PAIRS; i++) {
+			this.par_mask[G0_INDEX + i] = used_pairs[i] & adjust_scales;
+			this.all_pars[G0_INDEX + i] = Double.NaN; // will be assigned later for used
+		}
+
+		for (int i = 0; i <NUM_CAMS; i++) {
+			this.all_pars[DDISP_INDEX + i] = 0.0; // C-A
+			this.par_mask[DDISP_INDEX + i] = used_cameras[i] & adjust_lazyeye & (i != last_cam);
+			this.all_pars[NDISP_INDEX + i] = 0.0; // C-A
+			this.par_mask[NDISP_INDEX + i] = used_cameras[i] & adjust_lazyeye;
+		}
+		int np = samples.size();
+
+		weights = new double [np + 2 * NUM_CAMS]; // npairs];
+		values =  new double [np + 2 * NUM_CAMS]; // npairs];
+		for (int i = 0; i < NUM_CAMS; i++) {
+			weights[np + 2 * i + 0] = (used_cameras[i] & adjust_lazyeye)? cost_lazyeye : 0.0; // ddisp
+			weights[np + 2 * i + 1] = (used_cameras[i] & adjust_lazyeye)? cost_lazyeye : 0.0; // ndisp
+			values [np + 2 * i + 0] = 0.0;
+			values [np + 2 * i + 1] = 0.0;
+		}
+
+		double sw = 0;
+		this.pair_weights = new double[NUM_PAIRS];
+		for (int i = 0; i < np; i++) {
+			Sample s = samples.get(i);
+			weights[i] = s.w;
+			values[i] =  s.v;
+			sw += weights[i];
+			int indx = pindx[s.fcam][s.scam];
+			pair_weights[indx] += s.w;
+			indx += G0_INDEX;
+			double d = s.v;
+			if (this.corr_wnd !=null) {
+				d /= this.corr_wnd[s.iy][s.ix];
+			}
+			if (d > this.all_pars[indx]) this.all_pars[indx] = d;
+		}
+		pure_weight = sw;
+		for (int i = 0; i < 2 * NUM_CAMS; i++) {
+			sw += weights[np + i];
+		}
+		if (sw != 0.0) {
+			double kw = 1.0/sw;
+			for (int i = 0; i < weights.length; i++) weights[i] *= kw;
+			pure_weight *= kw; // it is now fraction (0..1.0), and weigts are normalized
+		}
+		double spw = 0;
+		for (int i = 0; i < NUM_PAIRS; i++) {
+			spw += pair_weights[i];
+		}
+		if (spw > 0) {
+			double rspw = 1.0/spw;
+			for (int i = 0; i < NUM_PAIRS; i++) {
+				pair_weights[i]*=rspw;
+			}
+		}
+		toVector();
+	}
+
+	public void initMatrices() { // should be called after initVector and after setMatrices
+//    private final Matrix [][] m_pairs =      new Matrix[NUM_CAMS][NUM_CAMS];
+//    private final Matrix [][] m_pairs_last = new Matrix[NUM_CAMS][NUM_CAMS];
+		for (int f = 0; f < NUM_CAMS; f++) for (int s = 0; s < NUM_CAMS; s++) {
+			m_pairs[f][s] =      null;
+			m_pairs_last[f][s] = null;
+			if (USED_PAIRS_MAP[f][s] >= 0) {
+				m_pairs[f][s] = m_disp[f].minus(m_disp[s]);
+			}
+			if (f == last_cam) {
+				m_pairs_last[f][s] = m_disp[s].uminus();
+				for (int i = 0; i < NUM_CAMS; i++) if (used_cameras[i] && (i != last_cam) ){
+					m_pairs_last[f][s].minusEquals(m_disp[i]);
+				}
+			} else if (s == last_cam) {
+				m_pairs_last[f][s] = m_disp[f].copy();
+				for (int i = 0; i < NUM_CAMS; i++) if (used_cameras[i] && (i != last_cam) ){
+					m_pairs_last[f][s].plusEquals(m_disp[i]);
+				}
+			}
+		}
+	}
+
+	public double [] getFxJtNew( // USED in lwir
+			double []   vector,
+			double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
+		if (vector == null) return null;
+		double [] av = fromVector(vector);
+		// restore ddisp("x") offset for the last camera
+		// prepare parameters common for each camera/camera pair before calculating fx and derivatives
+		av[DDISP_INDEX + last_cam] = 0.0;
+		for (int i = 0; i < NUM_CAMS; i++) {
+			if (used_cameras[i] & (i != last_cam)) {
+				av[DDISP_INDEX + last_cam] -= av[DDISP_INDEX + i];
+			}
+		}
+		Matrix [] xcam_ycam = new Matrix[NUM_CAMS];
+		for (int i = 0; i < NUM_CAMS; i++) if (used_cameras[i]) {
+			double [] add_dnd = {av[DISP_INDEX]+ av[DDISP_INDEX + i],  av[NDISP_INDEX + i]};
+			xcam_ycam[i] = m_disp[i].arrayTimes(new Matrix(add_dnd,2));
+		}
+		double [][][] xp_yp = new double[NUM_CAMS][NUM_CAMS][];
+		double [] axc_yc = {transform_size - 1.0, transform_size-1.0};
+		Matrix xc_yc = new Matrix(axc_yc, 2);
+		for (int f = 0; f < NUM_CAMS; f++) if (used_cameras[f]) {
+			for (int s = 0; s < NUM_CAMS; s++) if (used_cameras[s]) {
+				xp_yp[f][s] =xcam_ycam[f].minus(xcam_ycam[s]).plus(xc_yc).getColumnPackedCopy();
+			}
+		}
+
+
+//USED_PAIRS_MAP
+
+		int num_samples = samples.size();
+		double [] fx= new double [num_samples + 2 * NUM_CAMS];
+		double sqrt2 = Math.sqrt(2.0);
+		double A = av[A_INDEX];
+		double B = av[B_INDEX];
+		double C = A + av[CMA_INDEX];
+//corr_wnd
+		for (int ns = 0; ns < num_samples; ns++) {
+			Sample s = samples.get(ns);
+			int pair = pindx[s.fcam][s.scam];
+			double Gp = av[G0_INDEX + pair];
+			double Wp = corr_wnd[s.fcam][s.scam];
+			double WGp = Wp * Gp;
+			double xmxp = s.ix - xp_yp[s.fcam][s.scam][0];
+			double ymyp = s.iy - xp_yp[s.fcam][s.scam][1];
+			double xmxp2 = xmxp * xmxp;
+			double ymyp2 = ymyp * ymyp;
+			double xmxp_ymyp = xmxp * ymyp;
+			double d = Wp*(1.0 - (A*xmxp2 + 2 * B * xmxp_ymyp + C * ymyp2));
+			fx[ns] = d * Gp;
+			int np = 0;
+			if (jt != null) {
+				if (par_mask[DISP_INDEX])  jt[np++][ns] = d;
+				if (par_mask[A_INDEX])     jt[np++][ns] = -WGp*(xmxp2 + ymyp2);
+				if (par_mask[B_INDEX])     jt[np++][ns] = -WGp* 2 * xmxp_ymyp;
+				if (par_mask[CMA_INDEX])   jt[np++][ns] = -WGp* ymyp2;
+
+
+
+
+			}
+		}
+		// add 2 extra samples - damping cost_wy, cost_wxy
+		fx[num_samples] =     av[WM_INDEX];
+		fx[num_samples + 1] = av[WXY_INDEX];
+		// and derivatives
+		if (jt != null) {
+			int np = 0;
+			for (int i = 0; i < par_mask.length; i++) if (par_mask[i]) {
+				jt[np][num_samples] =     (i == WM_INDEX)? 1.0 : 0.0;
+				jt[np++][num_samples+1] = (i == WXY_INDEX)? 1.0 : 0.0;
+			}
+		}
+		return fx;
+	}
+
+
+
+
 
 	public void printParams() { // not used in lwir
 		for (int np = 0; np < all_pars.length; np++) {
+			String parname;
+			if      (np < G0_INDEX)    parname = PAR_NAMES[np];
+			else if (np < DDISP_INDEX) parname = PAR_NAME_SCALE;
+			else if (np < NDISP_INDEX) parname = PAR_NAME_CORRDISP;
+			else                       parname = PAR_NAME_CORRNDISP;
+
 			System.out.println(String.format("%2d%1s %22s %f",
 					np,
 					(par_mask[np]?"+":" "),
-					((np < AG_INDEX)?PAR_NAMES[np]:(PAR_NAMES[AG_INDEX]+(np-AG_INDEX))),
+					parname,
 					all_pars[np]));
 		}
 	}
@@ -137,7 +515,7 @@ public class Correlations2dLMA {
 				double fx_pos = (fx[i] >= 0)? fx[i]: Double.NaN;
 				if (i < samples.size()) {
 					s = samples.get(i);
-					System.out.println(String.format("%3d: x=%8.4f y=%8.4f v=%9.6f fx=%9.6f w=%9.7f si=%1d gi=%1d", i, s.x, s.y, s.v, fx_pos, s.w, s.si, s.gi ));
+					System.out.println(String.format("%3d: x=%8.4f y=%8.4f v=%9.6f fx=%9.6f w=%9.7f fcam=%1d scam=%1d", i, s.x, s.y, s.v, fx_pos, s.w, s.fcam, s.scam));
 				}
 				else {
 					System.out.println(String.format("%3d: %10s %10s v=%9.6f fx=%9.6f w=%9.7f", i, "---", "---", this.values[i], fx_pos, this.weights[i]));
@@ -146,7 +524,7 @@ public class Correlations2dLMA {
 		} else {
 			int ns =0;
 			for (Sample s:samples){
-				System.out.println(String.format("%3d: x=%8.4f y=%8.4f v=%9.6f w=%9.7f si=%1d gi=%1d", ns++, s.x, s.y, s.v, s.w, s.si, s.gi ));
+				System.out.println(String.format("%3d: x=%8.4f y=%8.4f v=%9.6f w=%9.7f fcam=%1d scam=%1d", ns++, s.x, s.y, s.v, s.w, s.fcam, s.scam));
 			}
 		}
 	}
@@ -163,11 +541,11 @@ public class Correlations2dLMA {
 	}
 
 	public double [] getDisparityStrength() { // USED in lwir
-		if (group_weights == null) return null;
-		double disparity = -all_pars[X0_INDEX];
+		if (pair_weights == null) return null;
+		double disparity = -all_pars[DISP_INDEX];
 		double sum_amp = 0.0;
-		for (int i = 0; i < (all_pars.length - AG_INDEX); i++) {
-			sum_amp += group_weights[i]* all_pars[AG_INDEX + i]; // group_weights is normalized
+		for (int i = 0; i < NUM_PAIRS; i++) {
+			sum_amp += pair_weights[i] * all_pars[G0_INDEX + i]; // group_weights is normalized
 		}
 		// protect from weird fitting results
 		double max_amp = 0.0;
@@ -176,6 +554,15 @@ public class Correlations2dLMA {
 		double [] ds = {disparity, sum_amp};
 		return ds;
 	}
+
+	public double [] getDisparityStrengthABC() {// width = 1/sqrt(all_pars[A_INDEX])
+		double [] ds = getDisparityStrength();
+		if (ds == null) return null;
+		double [] dsw = {ds[0], ds[1], all_pars[A_INDEX], all_pars[B_INDEX],all_pars[CMA_INDEX]}; // asymmetry
+		return dsw;
+	}
+
+	@Deprecated
 	public double [] getDisparityStrengthWidth() { // USED in lwir
 		double [] ds = getDisparityStrength();
 		if (ds == null) return null;
@@ -184,15 +571,20 @@ public class Correlations2dLMA {
 	}
 
 
-	public Correlations2dLMA ( // USED in lwir
+	@Deprecated
+	public Corr2dLMA ( // USED in lwir
 			double [] scales // null - use default table
 			) {
+		this.transform_size = 8;
+		this.corr_wnd = null;
 		if (scales != null)	this.scales = scales.clone();
 	}
 
+	@Deprecated
 	public void setDiag(boolean diag_in) { // USED in lwir
 		this.input_diag = diag_in;
 	}
+	@Deprecated
 	public void addSample( // USED in lwir
 			double x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
 			double y,      // y coordinate (0 - disparity axis)
@@ -209,15 +601,16 @@ public class Correlations2dLMA {
 //NumDiag
 // TODO: add auto x0, half-width?
 // should be called ater all samples are entered (to list groups)
+	@Deprecated
 	public void initVector( // USED in lwir
-			boolean adjust_wm,
-			boolean adjust_wy,
-			boolean adjust_wxy,
-			boolean adjust_Ag,
+			boolean adjust_wm, // 1
+			boolean adjust_wy, // 0
+			boolean adjust_wxy,// 1
+			boolean adjust_Ag, // 1
 			double  x0,
-			double  half_width,
-			double  cost_wm,     // cost of non-zero this.all_pars[WM_INDEX]
-			double  cost_wxy     // cost of non-zero this.all_pars[WXY_INDEX]
+			double  half_width, // 2.0
+			double  cost_wm,     // cost of non-zero this.all_pars[WM_INDEX]  0.0005
+			double  cost_wxy     // cost of non-zero this.all_pars[WXY_INDEX] 0.001
 			) {
 //		for (Sample s:samples) if (!groups.containsKey(s.gi)) groups.put(s.gi,groups.size());
 		int num_groups = groups.size();
@@ -241,7 +634,7 @@ public class Correlations2dLMA {
 		for (int i = 0; i < num_groups; i++) this.all_pars[AG_INDEX + i] = values[imx];
 		toVector();
 	}
-
+	@Deprecated
 	public void setWeightsValues( // USED in lwir
 			double half_width,   // expected width
 			double  cost_wm,     // cost of non-zero this.all_pars[WYD_INDEX]
@@ -298,6 +691,8 @@ public class Correlations2dLMA {
 		return ap;
 	}
 
+////////////////////////////////////////////////////////////////////////
+
     public void debugJt( // not used in lwir
     		double      delta,
     		double []   vector) {
@@ -314,7 +709,7 @@ public class Correlations2dLMA {
     	System.out.println("Test of jt-jt_delta difference,  delta = "+delta);
     	System.out.print(String.format("%3s: %10s ", "#", "fx"));
     	for (int anp = 0; anp< all_pars.length; anp++) if(par_mask[anp]){
-        	System.out.print(String.format("%17s ", ((anp < AG_INDEX)?PAR_NAMES[anp]:(PAR_NAMES[AG_INDEX]+(anp-AG_INDEX)))));
+        	System.out.print(String.format("%17s ", ((anp < AG_INDEX)?PAR_NAMES_OLD[anp]:(PAR_NAMES_OLD[AG_INDEX]+(anp-AG_INDEX)))));
     	}
     	System.out.println();
 

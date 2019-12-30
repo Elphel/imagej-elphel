@@ -91,7 +91,7 @@ public class GeometryCorrection {
 	public RigOffset   rigOffset =    null;
 	public int []             woi_tops; // used to calculate scanline timing
 
-	public int [] getWOITops() {
+	public int [] getWOITops() {// not used in lwir
 		return woi_tops;
 	}
 
@@ -126,47 +126,47 @@ public class GeometryCorrection {
 	public double getDisparityRadius() {
 		return disparityRadius;
 	}
-	public double getBaseline() {
+	public double getBaseline() {// not used in lwir
 		return (rigOffset==null)?Double.NaN:rigOffset.baseline;
 	}
 
-	public double [][] getAuxOffsetAndDerivatives(
+	public double [][] getAuxOffsetAndDerivatives(// not used in lwir
 			GeometryCorrection gc_main) {
 		if (rigOffset == null) return null;
 		return rigOffset.getAuxOffsetAndDerivatives(gc_main);
 	}
 
-	public Matrix getAuxRotMatrix() {
+	public Matrix getAuxRotMatrix() {// not used in lwir
 		if (rigOffset == null) return null;
 		return rigOffset.getRotMatrix();
 	}
 
-	public Matrix [] getAuxRotDeriveMatrices() {
+	public Matrix [] getAuxRotDeriveMatrices() {// not used in lwir
 		if (rigOffset == null) return null;
 		return rigOffset.getRotDeriveMatrices();
 	}
 
-	public RigOffset rigOffsetClone() {
+	public RigOffset rigOffsetClone() {// not used in lwir
 		if (rigOffset == null) return null;
 		return rigOffset.clone();
 	}
 
-	public void rigOffestSetParNorm(int index, double value) {
+	public void rigOffestSetParNorm(int index, double value) {// not used in lwir
 		rigOffset.setParNorm(index, value);
 	}
-	public void rigOffestSetParNorm(RigOffset ro, int index, double value) {
+	public void rigOffestSetParNorm(RigOffset ro, int index, double value) {// not used in lwir
 		ro. setParNorm(index, value);
 	}
 
-	public double rigOffestGetParNorm(int index) {
+	public double rigOffestGetParNorm(int index) {// not used in lwir
 		return rigOffset.getParNorm(index);
 	}
-	public double rigOffestGetParNorm(RigOffset ro, int index) {
+	public double rigOffestGetParNorm(RigOffset ro, int index) {// not used in lwir
 		return ro.getParNorm(index);
 	}
 
 
-	public double [] getRigCorrection(
+	public double [] getRigCorrection(// not used in lwir
 			double             infinity_importance, // of all measurements
 			double             dx_max, //  = 0.3;
 			double             dx_pow, //  = 1.0;
@@ -208,7 +208,7 @@ public class GeometryCorrection {
 	}
 
 	// correction of cameras mis-alignment
-	public CorrVector getCorrVector(double [] vector){
+	public CorrVector getCorrVector(double [] vector){// not used in lwir
 		return new CorrVector(vector);
 	}
 	public CorrVector getCorrVector(
@@ -225,7 +225,7 @@ public class GeometryCorrection {
 		setCorrVector(new CorrVector(dv));
 	}
 
-	public void setCorrVector(int indx, double d){
+	public void setCorrVector(int indx, double d){// not used in lwir
 		if (getCorrVector().toArray() == null) {
 			resetCorrVector();
 		}
@@ -235,12 +235,12 @@ public class GeometryCorrection {
 
 	public void setCorrVector(CorrVector vector){
 		if (vector == null){
-			vector = new CorrVector();
+			vector = new CorrVector();// not used in lwir
 		}
 		extrinsic_corr = vector;
 	}
 
-	public void resetCorrVector(){
+	public void resetCorrVector(){// not used in lwir
 		extrinsic_corr = new CorrVector();
 	}
 
@@ -316,7 +316,7 @@ public class GeometryCorrection {
 		}
 
 		@Override
-		public RigOffset clone() {
+		public RigOffset clone() {// not used in lwir
 			RigOffset ro =      new RigOffset();
 			ro.baseline =       this.baseline;
 			ro.aux_angle =      this.aux_angle;
@@ -330,7 +330,7 @@ public class GeometryCorrection {
 			return ro;
 		}
 
-		public void setParNorm(int index, double value) {
+		public void setParNorm(int index, double value) {// not used in lwir
 			value /= par_scales[index];
 			switch (index) {
 			case AUX_AZIMUTH_INDEX:  aux_azimuth = value; break;
@@ -341,7 +341,7 @@ public class GeometryCorrection {
 			case AUX_BASELINE_INDEX: baseline =    value; break;
 			}
 		}
-		public double getParNorm(int index) {
+		public double getParNorm(int index) {// not used in lwir
 			switch (index) {
 			case AUX_AZIMUTH_INDEX:  return aux_azimuth * par_scales[index];
 			case AUX_TILT_INDEX:     return aux_tilt *    par_scales[index];
@@ -354,7 +354,7 @@ public class GeometryCorrection {
 		}
 
 
-		public void setVector(
+		public void setVector(// not used in lwir
 				boolean adjust_orientation,
 				boolean adjust_roll,
 				boolean adjust_zoom,
@@ -371,7 +371,7 @@ public class GeometryCorrection {
 			par_select[AUX_BASELINE_INDEX] = adjust_distance;
 			setVector();
 		}
-		public void setVector() {
+		public void setVector() {// not used in lwir
 			int num_pars = 0;
 			for (int i = 0; i < par_select.length; i++) if (par_select[i]) num_pars++;
 			vector = new double[num_pars];
@@ -392,7 +392,7 @@ public class GeometryCorrection {
 			}
 			//full_par_index
 		}
-		public void commitVector(double [] v) {
+		public void commitVector(double [] v) {// not used in lwir
 			vector = v;
 			int par_index = 0;
 			for (int i = 0; i < par_select.length; i++) if (par_select[i]) {
@@ -409,7 +409,7 @@ public class GeometryCorrection {
 			recalcRXY();
 		}
 
-		double [][] getJacobianTransposed(
+		double [][] getJacobianTransposed(// not used in lwir
 				GeometryCorrection gc_main,
 				int debugLevel){
 			double [][] jt = new double[vector.length][xy_vector.length]; // npe
@@ -440,7 +440,7 @@ public class GeometryCorrection {
 		}
 
 		// dbug method;
-		double [][] getJacobianTransposed(
+		double [][] getJacobianTransposed(// not used in lwir
 				double delta,
 				GeometryCorrection gc_main,
 				int debugLevel){
@@ -498,7 +498,7 @@ public class GeometryCorrection {
 
 
 
-		double [][] getJTJWeighted(
+		double [][] getJTJWeighted(// not used in lwir
 				double [][] jt)
 		{
 			double [][] jtj = new double [jt.length][jt.length];
@@ -515,7 +515,7 @@ public class GeometryCorrection {
 			return jtj;
 		}
 
-		double [] getJTYWeighted(double [][] jt) {
+		double [] getJTYWeighted(double [][] jt) {// not used in lwir
 			double [] jtyw = new double [jt.length];
 			for (int i = 0; i < jt.length; i++){
 				for (int k=0; k < jt[i].length; k++){
@@ -525,7 +525,7 @@ public class GeometryCorrection {
 			return jtyw;
 		}
 
-		public double [] getRigCorrection(
+		public double [] getRigCorrection(// not used in lwir
 				double             infinity_importance, // of all measurements
 				double             dx_max, //  = 0.3;
 				double             dx_pow, //  = 1.0;
@@ -649,7 +649,7 @@ public class GeometryCorrection {
 			return vector;
 		}
 
-		public double setupYW(
+		public double setupYW(// not used in lwir
 				double             infinity_importance, // of all measurements
 				double             dx_max, //  = 0.3;
 				double             dx_pow, //  = 1.0;
@@ -744,7 +744,7 @@ public class GeometryCorrection {
 			return Math.sqrt(sum2); // RMS
 		}
 
-		public void recalcRXY() {
+		public void recalcRXY() {// USED in lwir
 			if (rXY != null) {
 				//			rXY_aux = rXY; // FIXME: put real stuff !!!
 				double xc_pix = baseline * Math.cos(aux_angle)/getDisparityRadius();
@@ -769,7 +769,7 @@ public class GeometryCorrection {
 		 * @param gc_main Instance of the main camera GeometryCorrection class
 		 * @return {{xc, yc},{dxc/dAngle,dyc/dAngle},{dxc/dBaseline,dyc/dBaseline}}
 		 */
-		public double [][] getAuxOffsetAndDerivatives(
+		public double [][] getAuxOffsetAndDerivatives(// not used in lwir
 				GeometryCorrection gc_main) {
 			double blp = baseline /gc_main.getDisparityRadius();
 			double xc_pix = blp * Math.cos(aux_angle);
@@ -786,7 +786,7 @@ public class GeometryCorrection {
 			return rslt;
 		}
 
-		public Matrix getRotMatrix()
+		public Matrix getRotMatrix() // USED in lwir
 		{
 			double ca = Math.cos(aux_azimuth);
 			double sa = Math.sin(aux_azimuth);
@@ -820,7 +820,7 @@ public class GeometryCorrection {
 		 * @return 2-d array array of derivatives matrices
 		 */
 //TODO: UPDATE to include scales
-		public Matrix [] getRotDeriveMatrices()
+		public Matrix [] getRotDeriveMatrices()// not used in lwir
 		{
 			Matrix [] rot_derivs = new Matrix [4]; // channel, azimuth-tilt-roll-zoom
 
@@ -879,7 +879,7 @@ public class GeometryCorrection {
 
 
 
-		public void setProperties(String parent_prefix,Properties properties){
+		public void setProperties(String parent_prefix,Properties properties){// USED in lwir
 			String prefix = parent_prefix + RIG_PREFIX;
 			properties.setProperty(prefix+"baseline",      this.baseline+"");
 			properties.setProperty(prefix+"aux_angle",     this.aux_angle+"");
@@ -889,7 +889,7 @@ public class GeometryCorrection {
 			properties.setProperty(prefix+"aux_roll",      this.aux_roll+"");
 			properties.setProperty(prefix+"aux_zoom",      this.aux_zoom+"");
 		}
-		public boolean getProperties(String parent_prefix,Properties properties){
+		public boolean getProperties(String parent_prefix,Properties properties){// USED in lwir
 			String prefix = parent_prefix + RIG_PREFIX;
 			boolean got_data = false;
 			if (properties.getProperty(prefix+"baseline")!=null)    {this.baseline=Double.parseDouble(properties.getProperty(prefix+"baseline")); got_data=true;}
@@ -903,7 +903,7 @@ public class GeometryCorrection {
 			return got_data;
 		}
 		// 9:%8.5f° 10: %8.5f‰
-		public boolean editOffsetsDegrees() {
+		public boolean editOffsetsDegrees() {// not used in lwir
   			GenericJTabbedDialog gd = new GenericJTabbedDialog("Set CLT parameters",800,900);
 			gd.addNumericField("Baseline",                                                            this.baseline,  1,6,"mm",
 					"Distance between quad camera centers");
@@ -931,7 +931,7 @@ public class GeometryCorrection {
 			recalcRXY();
 			return true;
 		}
-		public boolean editOffsetsPixels() {
+		public boolean editOffsetsPixels() {// not used in lwir
   			GenericJTabbedDialog gd = new GenericJTabbedDialog("Set dual camera rig parameters (auxiliary camera relative to the main one)",800,300);
 			gd.addNumericField("Baseline",                                                            this.baseline,  1,6,"mm",
 					"Distance between quad camera centers");
@@ -959,7 +959,7 @@ public class GeometryCorrection {
 			recalcRXY();
 			return true;
 		}
-		public void showRigOffsets()
+		public void showRigOffsets()// not used in lwir
 		{
 			System.out.println("=== Inter-camera adjustments ===");
 			System.out.println("                                                           Baseline "+ this.baseline +"mm");
@@ -971,7 +971,7 @@ public class GeometryCorrection {
 			System.out.println("      Relative zoom - difference from 1.0 in parts parts per 1/1000 "+ (par_scales[AUX_ZOOM_INDEX] * this.aux_zoom) +"pix");
 		}
 
-		public double getRigOffsetParameter(int indx, boolean inPix)
+		public double getRigOffsetParameter(int indx, boolean inPix)// not used in lwir
 		{
 			if ((indx <0.0) || (indx >=par_scales.length)){
 				return Double.NaN;
@@ -990,25 +990,25 @@ public class GeometryCorrection {
 
 	}
 
-	public boolean editRig() {
+	public boolean editRig() {// not used in lwir
 		if (this.rigOffset == null) {
 			this.rigOffset = new RigOffset();
 		}
 		return this.rigOffset.editOffsetsPixels();
 	}
 
-	public void showRig() {
+	public void showRig() {// not used in lwir
 		if (this.rigOffset == null) {
 			this.rigOffset = new RigOffset();
 		}
 		this.rigOffset.showRigOffsets();
 	}
 
-	public double getRigOffsetParameter(int indx, boolean inPix) {
+	public double getRigOffsetParameter(int indx, boolean inPix) {// not used in lwir
 		return this.rigOffset.getRigOffsetParameter(indx,inPix);
 	}
 
-	public boolean setRigOffsetFromProperies(String parent_prefix,Properties properties) {
+	public boolean setRigOffsetFromProperies(String parent_prefix,Properties properties) {// USED in lwir
 		RigOffset rigOffset = new RigOffset();
 		boolean gotit = rigOffset.getProperties(parent_prefix, properties);
 		if (gotit) {
@@ -1030,7 +1030,7 @@ public class GeometryCorrection {
 		static final double ROT_RL_SGN =  1.0; // sign of first sin for roll rotation
 		double [] vector;
 
-		public Matrix [] getRotMatrices(Matrix rigMatrix)
+		public Matrix [] getRotMatrices(Matrix rigMatrix)// USED in lwir
 		{
 			Matrix [] rots = getRotMatrices();
 			if (rigMatrix != null) {
@@ -1043,7 +1043,7 @@ public class GeometryCorrection {
 		}
 
 		// not yet used
-		public Matrix [][] getRotDeriveMatrices(Matrix rigMatrix)
+		public Matrix [][] getRotDeriveMatrices(Matrix rigMatrix)// not used in lwir
 		{
 			Matrix [][] derivs = getRotDeriveMatrices();
 			if (rigMatrix != null) {
@@ -1057,7 +1057,7 @@ public class GeometryCorrection {
 			return derivs;
 		}
 
-		public Matrix [] getRotMatrices()
+		public Matrix [] getRotMatrices() // USED in lwir
 		{
 			Matrix [] rots = new Matrix [4];
 			double [] azimuths = getAzimuths();
@@ -1097,7 +1097,7 @@ public class GeometryCorrection {
 		 * @return 2-d array array of derivatives matrices
 		 */
 //TODO: UPDATE to include scales
-		public Matrix [][] getRotDeriveMatrices()
+		public Matrix [][] getRotDeriveMatrices() // USED in lwir
 		{
 			Matrix [][] rot_derivs = new Matrix [4][4]; // channel, azimuth-tilt-roll-zoom
 			double [] azimuths = getAzimuths();
@@ -1166,12 +1166,12 @@ public class GeometryCorrection {
 
 
 
-		public CorrVector ()
+		public CorrVector ()// USED in lwir
 		{
 			this.vector = new double[LENGTH];
 		}
 
-		public CorrVector (
+		public CorrVector (// USED in lwir
 				double [] sym_vector,
 				boolean [] par_mask)
 		{
@@ -1179,7 +1179,7 @@ public class GeometryCorrection {
 
 		}
 
-		public CorrVector (
+		public CorrVector (// not used in lwir
 				double tilt0,    double tilt1,    double tilt2,
 				double azimuth0, double azimuth1, double azimuth2,
 				double roll0,    double roll1,    double roll2, double roll3,
@@ -1199,11 +1199,11 @@ public class GeometryCorrection {
 
 			if (vector != null) {
 				if (vector.length != LENGTH) {
-					throw new IllegalArgumentException("vector.length = "+vector.length+" != "+LENGTH);
+					throw new IllegalArgumentException("vector.length = "+vector.length+" != "+LENGTH);// not used in lwir
 				}
 				this.vector = vector;
 			} else {
-				this.vector = new double[LENGTH];
+				this.vector = new double[LENGTH];// not used in lwir
 			}
 		}
 		/**
@@ -1213,7 +1213,7 @@ public class GeometryCorrection {
 		 * @param roll    for subcameras 0..3, radians, positive - CW looking to the target
 		 * @param zoom    for subcameras 0..2, difference from 1.0 . Positive - image is too small, needs to be zoomed in by (1.0 + scale)
 		 */
-		public CorrVector (double [] tilt, double [] azimuth, double [] roll, double [] zoom)
+		public CorrVector (double [] tilt, double [] azimuth, double [] roll, double [] zoom)// not used in lwir
 		{
 			double [] vector = {
 					tilt[0],    tilt[1],    tilt[2],
@@ -1223,59 +1223,59 @@ public class GeometryCorrection {
 			this.vector = vector;
 		}
 
-		public CorrVector getCorrVector(double [] vector){
+		public CorrVector getCorrVector(double [] vector){// not used in lwir
 			return new CorrVector(vector);
 		}
 
 
 
-		public double [] toArray()
+		public double [] toArray() // USED in lwir
 		{
 			return vector;
 		}
-		public double [] getTilts()
+		public double [] getTilts() // USED in lwir
 		{
 			double [] tilts =     {vector[0], vector[1], vector[2], - (vector[0] + vector[1] +vector[2])};
 			return tilts;
 		}
-		public double getTilt(int indx)
+		public double getTilt(int indx) // not used in lwir
 		{
 			if (indx == 3) return - (vector[0] + vector[1] +vector[2]);
 			else           return vector[0 + indx];
 		}
-		public double [] getAzimuths()
+		public double [] getAzimuths() // USED in lwir
 		{
 			double [] azimuths =  {vector[3], vector[4], vector[5], -(vector[3] + vector[4] + vector[5])};
 			return azimuths;
 		}
-		public double getAzimuth(int indx)
+		public double getAzimuth(int indx) // not used in lwir
 		{
 			if (indx == 3) return - (vector[3] + vector[4] +vector[5]);
 			else           return vector[3 + indx];
 		}
-		public double [] getRolls()
+		public double [] getRolls() // not used in lwir
 		{
 			double [] rolls =     {vector[6],vector[7],vector[8], vector[9]};
 			return rolls;
 		}
 
-		public double getRoll(int indx)
+		public double getRoll(int indx) // not used in lwir
 		{
 			return vector[6 + indx];
 		}
 
-		public double [] getZooms()
+		public double [] getZooms() // USED in lwir
 		{
 			double [] zooms =     {vector[10], vector[11], vector[12], - (vector[10] + vector[11] +vector[12])};
 			return zooms;
 		}
-		public double getZoom(int indx)
+		public double getZoom(int indx) // not used in lwir
 		{
 			if (indx == 3) return - (vector[10] + vector[11] +vector[12]);
 			else           return vector[10 + indx];
 		}
 
-		public double setZoomsFromF(double f0, double f1, double f2, double f3) {
+		public double setZoomsFromF(double f0, double f1, double f2, double f3) { // USED in lwir
 			double f_avg = (f0+f1+f2+f3)/4;
 			vector[10] = (f0 - f_avg)/f_avg;
 			vector[11] = (f1 - f_avg)/f_avg;
@@ -1284,7 +1284,7 @@ public class GeometryCorrection {
 		}
 
 		// Tilts in radians, theta in degrees
-		public double setTiltsFromThetas(double t0, double t1, double t2, double t3) {
+		public double setTiltsFromThetas(double t0, double t1, double t2, double t3) { // USED in lwir
 			double t_avg = (t0+t1+t2+t3)/4;
 			vector[0] = (t0 - t_avg)*Math.PI/180.0;
 			vector[1] = (t1 - t_avg)*Math.PI/180.0;
@@ -1293,7 +1293,7 @@ public class GeometryCorrection {
 		}
 
 		// Azimuths in radians, headings in degrees
-		public double setAzimuthsFromHeadings(double h0, double h1, double h2, double h3) {
+		public double setAzimuthsFromHeadings(double h0, double h1, double h2, double h3) { // USED in lwir
 			double h_avg = (h0+h1+h2+h3)/4;
 			vector[3] = (h0 - h_avg)*Math.PI/180.0;
 			vector[4] = (h1 - h_avg)*Math.PI/180.0;
@@ -1303,7 +1303,7 @@ public class GeometryCorrection {
 
 
 		// Include factory calibration rolls
-		public double [] getFullRolls()
+		public double [] getFullRolls() // USED in lwir
 		{
 			double d2r= Math.PI/180.0;
 			double [] rolls =     {
@@ -1313,7 +1313,7 @@ public class GeometryCorrection {
 					vector[9] + d2r * roll[3]};
 			return rolls;
 		}
-		public double getFullRoll(int indx)
+		public double getFullRoll(int indx) // not used in lwir
 		{
 			return vector[6 + indx] + roll[indx] * Math.PI/180.0;
 		}
@@ -1323,14 +1323,14 @@ public class GeometryCorrection {
 		 * @param inPix show result in pixels , false - in radians (even for zooms)
 		 * @return parameter value
 		 */
-		public double getExtrinsicParameterValue(int indx, boolean inPix) {
+		public double getExtrinsicParameterValue(int indx, boolean inPix) { // not used in lwir
 			if (indx <0) return Double.NaN;
 			if (indx <    ROLL_INDEX) return vector[indx]* (inPix? (1000.0*focalLength     /pixelSize): 1.0); // tilt and azimuth
 			if (indx < LENGTH_ANGLES) return vector[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); //  rolls
 			if (indx <        LENGTH) return vector[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); //  zooms
 			return Double.NaN;
 		}
-		public double getExtrinsicSymParameterValue(int indx, boolean inPix) {
+		public double getExtrinsicSymParameterValue(int indx, boolean inPix) { // not used in lwir
 			double [] sym_vect = toSymArray(null);
 			if (indx <0) return Double.NaN;
 			if (indx <    ROLL_INDEX) return sym_vect[indx]* (inPix? (1000.0*focalLength     /pixelSize): 1.0); // tilt and azimuth
@@ -1340,7 +1340,7 @@ public class GeometryCorrection {
 		}
 
 		@Override
-		public String toString()
+		public String toString() // USED in lwir
 		{
 			String s;
 			double [] sym_vect = toSymArray(null);
@@ -1372,7 +1372,7 @@ public class GeometryCorrection {
 			return s;
 		}
 
-		public String toStringDegrees()
+		public String toStringDegrees() // not used in lwir
 		{
 			String s;
 			double [] sym_vect = toSymArray(null);
@@ -1405,7 +1405,7 @@ public class GeometryCorrection {
 
 
 		// returns false if any component is NaN, in that case do not increment
-		public boolean incrementVector(double [] incr,
+		public boolean incrementVector(double [] incr, // USED in lwir
 				double scale)
 		{
 			for (int i = 0; i < incr.length; i++){
@@ -1417,13 +1417,13 @@ public class GeometryCorrection {
 			return true;
 		}
 
-		public boolean incrementVector(CorrVector incr, double scale)
+		public boolean incrementVector(CorrVector incr, double scale) // USED in lwir
 		{
 			return incrementVector(incr.toArray(), scale);
 		}
 
 		@Override
-		public CorrVector clone(){
+		public CorrVector clone(){ // not used in lwir
 			return new CorrVector(this.vector.clone());
 		}
 
@@ -1432,7 +1432,7 @@ public class GeometryCorrection {
 		 * and apply (add) them to the current vector (normally should be all 0.0)
 		 * @param pXY_shift manula XY pixel corrections (shiftXY made of clt_parameters.fine_corr_[xy]_[0123])
 		 */
-		public void applyPixelShift(double [][] pXY_shift){
+		public void applyPixelShift(double [][] pXY_shift){ // not used in lwir
 			double [] pXY_avg = {0.0,0.0};
 			for (int i = 0; i < numSensors; i++){
 				for (int j = 0; j < 2; j++) {
@@ -1454,7 +1454,7 @@ public class GeometryCorrection {
 		 *  0: |↗ ↖|  1: |↙ ↖|  2: |↖ ↙|  3: |↖ ↗|  4:  |↗ ↙|  5: |↘  ↖|
 		 *
 		 */
-		public double [][] dSym_j_dTar_i()
+		public double [][] dSym_j_dTar_i() // USED in lwir
 		{
 			double [][] tar_to_sym = {
 					{-2.0, -2.0,  2.0, -2.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // t0
@@ -1512,7 +1512,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
         [-0.   , -0.   , -0.   , -0.   , -0.   , -0.   , -0.   , -0.   ,   -0.   , -0.   , -0.5  , -0.5  ,  0.5  ],
         [ 0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,    0.   ,  0.   , -0.5  ,  0.5  ,  0.5  ]])
 */
-			double [][] sym_to_tar=	{
+			double [][] sym_to_tar=	{ // USED in lwir
 					// t0     t1     t2     a0     a1     a2     r0    r1    r2    r3    s0    s1    s2
 					{-0.125,-0.125, 0.125, 0.125,-0.125, 0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0 },  // sym0
 			        {-0.125, 0.125,-0.125, 0.125, 0.125,-0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0 },  // sym1
@@ -1531,7 +1531,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			return sym_to_tar;
 		}
 
-		public boolean [] getParMask(
+		public boolean [] getParMask( // USED in lwir
 				boolean use_disparity,
 //				boolean use_other_extr,
 				boolean use_aztilts,       // Adjust azimuths and tilts excluding disparity
@@ -1561,7 +1561,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 					corr_focalLength, //sym11
 					corr_focalLength  //sym12
 			};
-			if (manual_par_sel != 0) {
+			if (manual_par_sel != 0) { // not used in lwir
 				for (int i = 0; i < par_mask.length; i++) {
 					par_mask[i] = ((manual_par_sel >> i) & 1) != 0;
 				}
@@ -1593,7 +1593,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		 * @return
 		 */
 
-		public double [][] getJtPartial(
+		public double [][] getJtPartial( // USED in lwir
 				double [][] port_coord_deriv,
 				boolean [] par_mask)
 		{
@@ -1615,12 +1615,12 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			return jt_part;
 		}
 		// convert tilt0,... roll3 array to symmetrical coordinates [0] - to the center (disparity)
-		public double [] toSymArray(boolean [] par_mask)
+		public double [] toSymArray(boolean [] par_mask) // USED in lwir
 		{
 			return toSymArray(this.vector, par_mask);
 		}
 
-		public double [] toSymArray(
+		public double [] toSymArray( // USED in lwir
 				double [] tar_array,
 				boolean [] par_mask)
 		{
@@ -1640,7 +1640,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			return sym_array;
 		}
 
-		public double [] toTarArray(
+		public double [] toTarArray( // USED in lwir
 				double [] sym_array,
 				boolean [] par_mask)
 		{
@@ -1660,7 +1660,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 
 
 
-	public void setDistortion(
+	public void setDistortion( // USED in lwir
 			double focalLength,
 			double distortionC,
 			double distortionB,
@@ -1691,7 +1691,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		//	imp.setProperty("distortionRadius", ""+subCam.distortionRadius);
 	}
 
-	public void setSensors(
+	public void setSensors( // USED in lwir
 			int         numSensors, // <=0 - keep current
 			double      elevation,  // NaN - keep
 			double      heading,    // NaN - keep
@@ -1744,7 +1744,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		}
 	}
 
-	public void planeProjectLenses(){ // calculate XYZ_he (any number of sensors)
+	public void planeProjectLenses(){ // calculate XYZ_he (any number of sensors) // USED in lwir
 		// get center of the adjusted camera
 		common_right = 0;
 		common_forward = 0;
@@ -1799,7 +1799,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	}
 
 	// cameras should be Z-numbered (looking to the target, X - right, Y - down)
-	public void adustSquare(){ // rotate heading/elevation aligned cameras around the Z-axis to make it more "square"
+	public void adustSquare(){ // rotate heading/elevation aligned cameras around the Z-axis to make it more "square" // USED in lwir
 		if (numSensors != 4 ){
 			throw new IllegalArgumentException ("adjustSquare() is valid only for quad-cameras, numSensors="+numSensors);
 		}
@@ -1836,11 +1836,11 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			for (int j = 0; j<2;j++) this.rXY[i][j] = this.XYZ_her[i][j]/this.disparityRadius;
 		}
 		if (rigOffset != null) {
-			rigOffset.recalcRXY();
+			rigOffset.recalcRXY(); // not used in lwir
 		}
 	}
 
-	public void listGeometryCorrection(boolean showAll){
+	public void listGeometryCorrection(boolean showAll){ // not used in lwir
 		System.out.println("'=== Constant parameters ===");
 		System.out.println("pixelCorrectionWidth =\t"+  pixelCorrectionWidth+"\tpix");
 		System.out.println("pixelCorrectionHeight =\t"+ pixelCorrectionHeight+"\tpix");
@@ -1931,32 +1931,32 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	}
 
 	// return distance from disparity (in pixel units) for the current camera geometry
-	public double getZFromDisparity(double disparity){
+	public double getZFromDisparity(double disparity){ // not used in lwir
 		return SCENE_UNITS_SCALE * this.focalLength * this.disparityRadius / (disparity * 0.001*this.pixelSize);
 	}
 
-	public double getDisparityFromZ(double z){
+	public double getDisparityFromZ(double z){ // USED in lwir
 		return (1000.0 * SCENE_UNITS_SCALE * this.focalLength * this.disparityRadius / this.pixelSize) / z;
 	}
 
 
-	public double getFOVPix(){ // get ratio of 1 pixel X/Y to Z (distance to object)
+	public double getFOVPix(){ // get ratio of 1 pixel X/Y to Z (distance to object) // USED in lwir
 		return 0.001 * this.pixelSize / this.focalLength;
 	}
 
-	public double getFOVWidth(){ // get FOV ratio: width to distance
+	public double getFOVWidth(){ // get FOV ratio: width to distance  // USED in lwir
 		return this.pixelCorrectionWidth * 0.001 * this.pixelSize / this.focalLength;
 	}
-	public double getFOVHeight(){ // get FOV ratio: width to distance
+	public double getFOVHeight(){ // get FOV ratio: width to distance // USED in lwir
 		return this.pixelCorrectionHeight * 0.001 * this.pixelSize / this.focalLength;
 	}
 
-	public double getScaleDzDx()
+	public double getScaleDzDx() // USED in lwir
 	{
 		return ( 0.001 * this.pixelSize) / this.focalLength;
 	}
 	// get rotation matrix of the composite camera
-	public Matrix getCommonRotMatrix() {
+	public Matrix getCommonRotMatrix() { // USED in lwir
 		double heading_rad =   Math.PI / 180.0 * heading;
 		double elevation_rad = Math.PI / 180.0 * elevation;
 		double roll_rad =      Math.PI / 180.0 * common_roll;
@@ -1984,7 +1984,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		Matrix rot  = (new Matrix(a_r).times(new Matrix(a_t).times(new Matrix(a_az))));
 		return rot;
 	}
-	public Matrix getCommonTranslateMatrix() {
+	public Matrix getCommonTranslateMatrix() { // USED in lwir
 		// * SCENE_UNITS_SCALE to get meters from mm
 		double [][] a_translate= {
 				{common_right * SCENE_UNITS_SCALE},
@@ -2003,7 +2003,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 * @param disparity nominal disparity (pixels)
 	 * @return {x, y, z} in meters
 	 */
-	public double [] getTrueWorldCoordinates(
+	public double [] getTrueWorldCoordinates( // USED in lwir
 			double px,
 			double py,
 			double disparity)
@@ -2024,7 +2024,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 * @param xyz real world coordinates {x, y, z} in meters (right up, towards camera)
 	 * @return {disparity, px, py} (right, down)
 	 */
-	public double [] getTrueImageCoordinates(
+	public double [] getTrueImageCoordinates( // USED in lwir
 			double [] xyz) // correct distortion (will need corrected background too !)
 	{
 		double [][] a_xyz = {{xyz[0]}, {xyz[1]},{xyz[2]}};
@@ -2040,7 +2040,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 * @return {disparity, px, py} (right, down) for this GeometryCorrection
 	 */
 
-	public double [] getFromOther(
+	public double [] getFromOther( // USED in lwir
 			GeometryCorrection other_gc,
 			double other_px,
 			double other_py,
@@ -2060,7 +2060,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 * @param correctDistortions true: correct lens distortions, false - no lens distortions
 	 * @return {x, y, z} in meters
 	 */
-	public double [] getWorldCoordinates(
+	public double [] getWorldCoordinates( // USED in lwir
 			double px,
 			double py,
 			double disparity,
@@ -2085,7 +2085,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 * @param correctDistortions true: correct lens distortions, false - no lens distortions
 	 * @return {disparity, px, py} (right, down)
 	 */
-	public double [] getImageCoordinates(
+	public double [] getImageCoordinates( // USED in lwir
 			double [] xyz,
 			boolean correctDistortions) // correct distortion (will need corrected background too !)
 	{
@@ -2114,7 +2114,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 * @param correctDistortions true for lens distortion correction, false otherwise
 	 * @return disparity for the point on the plane specified by norm_xyz and known view coordinates px, py
 	 */
-	public double getPlaneDisparity(
+	public double getPlaneDisparity( // USED in lwir
 			double [] norm_xyz,
 			double px,
 			double py,
@@ -2136,7 +2136,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	}
 
 	/* Just for testing using delta instead of d */
-	public double [][] getWorldJacobian(
+	public double [][] getWorldJacobian( // not used in lwir
 			double px,
 			double py,
 			double disparity,
@@ -2166,7 +2166,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 * @param correctDistortions true: correct lens distortions, false - no lens distortions
 	 * @return {{dx/ddisparity, dx/dpx, dx/dpy},{dy/ddisparity, dy/dpx, dy/dpy},{dz/ddisparity, dz/dpx, dz/dpy}}
 	 */
-	public double [][] getWorldJacobian(
+	public double [][] getWorldJacobian( // USED in lwir
 			double px,
 			double py,
 			double disparity,
@@ -2229,7 +2229,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	}
 
 	/* Just for testing using delta instead of d */
-	public double [][] getImageJacobian(
+	public double [][] getImageJacobian( // not used in lwir
 			double [] xyz0,
 			boolean correctDistortions, // correct distortion (will need corrected background too !)
 			double delta)
@@ -2254,7 +2254,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 * @param correctDistortions true: correct lens distortions, false - no lens distortions
 	 * @return {{dx/ddisparity, dx/dpx, dx/dpy},{dy/ddisparity, dy/dpx, dy/dpy},{dz/ddisparity, dz/dpx, dz/dpy}}
 	 */
-	public double [][] getImageJacobian(
+	public double [][] getImageJacobian( // USED in lwir
 			double [] xyz,
 			boolean correctDistortions,
 			int debugLevel)
@@ -2320,7 +2320,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 * @param pXY pair of pixel  X, pixel Y image coordinates
 	 * @return pair of relative X, Y coordinates -n -1.0 ..+1.0 range
 	 */
-	public double [] getRelativeCoords(double [] pXY){
+	public double [] getRelativeCoords(double [] pXY){ // USED in lwir
 		double [] relXY ={
 				2.0 * (pXY[0]/this.pixelCorrectionWidth - 0.5),
 				2.0 * (pXY[1]/this.pixelCorrectionWidth - 0.5),
@@ -2342,7 +2342,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 * @param disparity disparity (for non-distorted image space)
 	 * @return array of per port pairs of pixel shifts
 	 */
-	public double [][] getPortsCoordinatesAndDerivatives(
+	public double [][] getPortsCoordinatesAndDerivatives( // USED in lwir
 			GeometryCorrection gc_main,
 			boolean     use_rig_offsets,
 			Matrix []   rots,
@@ -2589,7 +2589,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 * @return a pair of x,y coordinates of the matching image tile of the aux camera image
 	 */
 
-	public double [] getRigAuxCoordinatesAndDerivatives(
+	public double [] getRigAuxCoordinatesAndDerivatives( // not used in lwir
 			GeometryCorrection gc_main,
 			Matrix      aux_rot,
 			Matrix []   aux_rot_derivs,
@@ -2762,7 +2762,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		return pXY;
 	}
 
-	public double [][] getPortsCoordinatesAndDerivatives( // uses rotations - used in AlignmentCorrection class
+	public double [][] getPortsCoordinatesAndDerivatives( // uses rotations - used in AlignmentCorrection class // not used in lwir
 			boolean use_rig_offsets,
 			double [] dbg_a_vector, // replace actual radial distortion coefficients (not currently used)
 			double delta, // 1e-6
@@ -2831,7 +2831,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 
 
 	// should return same as input if disparity==0
-	public double [][] getPortsCoordinatesIdeal( // used in macro mode
+	public double [][] getPortsCoordinatesIdeal( // used in macro mode // USED in lwir
 			double px,
 			double py,
 			double disparity)
@@ -2920,7 +2920,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 */
 
 
-	public double [][] getPortsCoordinatesIdeal(
+	public double [][] getPortsCoordinatesIdeal( // USED in lwir
 			int    macro_scale, // 1 for pixels, 8 - for tiles when correlating tiles instead of the pixels
 			double px,
 			double py,
@@ -2938,7 +2938,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		return coords;
 	}
 
-	public double [] getRigAuxCoordinatesIdeal(
+	public double [] getRigAuxCoordinatesIdeal( // not used in lwir
 			int                macro_scale, // 1 for pixels, 8 - for tiles when correlating tiles instead of the pixels
 			GeometryCorrection gc_main,
 			Matrix             aux_rot,
@@ -2969,7 +2969,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 * Rdist/R=A5*R^4+A*R^3+B*R^2+C*R+(1-A5-A-B-C)
 	 * @return false if distortion is too high
 	 */
-	public boolean calcReverseDistortionTable(){
+	public boolean calcReverseDistortionTable(){ // USED in lwir
 		boolean debugThis=false; //true;
 		double delta=1E-20; // 12; // 10; // -8;
 		double minDerivative=0.01;
@@ -2998,7 +2998,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				if (use8){
 					k=(((((((this.distortionA8)*r+this.distortionA7)*r+this.distortionA6)*r+this.distortionA5)*r + this.distortionA)*r+this.distortionB)*r+this.distortionC)*r+d;
 					drDistDr=(((((((8*this.distortionA8)*r + 7*this.distortionA7)*r + 6*this.distortionA6)*r + 5*this.distortionA5)*r + 4*this.distortionA)*r+3*this.distortionB)*r+2*this.distortionC)*r+d;
-				} else {
+				} else { // not used in lwir
 					k=(((this.distortionA5*r + this.distortionA)*r+this.distortionB)*r+this.distortionC)*r+d;
 					drDistDr=(((5*this.distortionA5*r + 4*this.distortionA)*r+3*this.distortionB)*r+2*this.distortionC)*r+d;
 				}
@@ -3030,7 +3030,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 * @param r non-distorted radius (1.0 is 2.8512mm)
 	 * @return ratio of distorted to non-distorted radius
 	 */
-	public double getRDistByR(double r) // relative to distortion radius
+	public double getRDistByR(double r) // relative to distortion radius // USED in lwir
 	{
 		boolean use8=(this.distortionA8!=0.0) || (this.distortionA7!=0.0) || (this.distortionA6!=0.0);
 		double d=1.0-this.distortionA8-this.distortionA7-this.distortionA6-this.distortionA5-this.distortionA-this.distortionB-this.distortionC;
@@ -3038,7 +3038,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		double k;
 		if (use8){
 			k=(((((((this.distortionA8)*r+this.distortionA7)*r+this.distortionA6)*r+this.distortionA5)*r + this.distortionA)*r+this.distortionB)*r+this.distortionC)*r+d;
-		} else {
+		} else { // not used in lwir
 			k=(((this.distortionA5*r + this.distortionA)*r+this.distortionB)*r+this.distortionC)*r+d;
 		}
 		return k;
@@ -3049,26 +3049,26 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 * @param r non-distorted relative radius
 	 * @return derivative d_Rdist/d_R from (relative to relative)
 	 */
-	public double getDerivRDistFromR(double r) // relative to distortion radius
+	public double getDerivRDistFromR(double r) // relative to distortion radius // USED in lwir
 	{
 		boolean use8=(this.distortionA8!=0.0) || (this.distortionA7!=0.0) || (this.distortionA6!=0.0);
 		double drDistDr;
 		if (use8){
 			drDistDr=(((((((7*this.distortionA8)*r + 6*this.distortionA7)*r + 5*this.distortionA6)*r + 4*this.distortionA5)*r + 3*this.distortionA)*r+2*this.distortionB)*r+1*this.distortionC); // +d;
-		} else {
+		} else { // not used in lwir
 			drDistDr=((4*this.distortionA5*r + 3*this.distortionA)*r+2*this.distortionB)*r+1*this.distortionC;
 		}
 		return drDistDr;
 	}
 
-	public double getDerivRDistFromR(double r, double delta) // relative to distortion radius
+	public double getDerivRDistFromR(double r, double delta) // relative to distortion radius // not used in lwir
 	{
 		return (getRDistByR(r+delta) -getRDistByR(r))/delta;
 
 	}
 
 
-	public double getRByRDistlin(double rDist, boolean debug){
+	public double getRByRDistlin(double rDist, boolean debug){ // not used in lwir
 		// add exceptions;
 		if (this.rByRDist==null) {
 			calcReverseDistortionTable();
@@ -3096,20 +3096,20 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	}
 
 
-	public double getRByRDist(double rDist, boolean debug){
+	public double getRByRDist(double rDist, boolean debug){ // USED in lwir
 		// add exceptions;
-		if (this.rByRDist==null) {
+		if (this.rByRDist==null) { // not used in lwir
 			calcReverseDistortionTable();
 			if (debug)System.out.println("getRByRDist("+IJ.d2s(rDist,3)+"): this.rByRDist==null");
 			//		return Double.NaN;
 		}
-		if (rDist < 0) {
+		if (rDist < 0) { // not used in lwir
 			if (debug)System.out.println("getRByRDist("+IJ.d2s(rDist,3)+"): rDist < 0");
 			return Double.NaN;
 		}
 		double findex = rDist/this.stepR;
 		int index=(int) Math.floor(findex);
-		if (index>=(this.rByRDist.length-2)) {
+		if (index>=(this.rByRDist.length-2)) { // not used in lwir
 			if (debug) System.out.println("getRByRDist("+IJ.d2s(rDist,3)+"): index="+index+">="+(this.rByRDist.length-2));
 			return Double.NaN;
 		}
@@ -3127,7 +3127,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		double result= a0*mu*mu2+a1*mu2+a2*mu+a3;
 //		double result=this.rByRDist[index] + (this.rByRDist[index+1]-this.rByRDist[index])*(rDist/this.stepR-index);
 //		double result=this.rByRDist[index] + (this.rByRDist[index+1]-this.rByRDist[index])*mu;
-		if (Double.isNaN(result)){
+		if (Double.isNaN(result)){ // not used in lwir
 			if (debug) System.out.println("this.rByRDist["+index+"]="+this.rByRDist[index]);
 			if (debug) System.out.println("this.rByRDist["+(index+1)+"]="+this.rByRDist[index+1]);
 			if (debug) System.out.println("rDist="+rDist);

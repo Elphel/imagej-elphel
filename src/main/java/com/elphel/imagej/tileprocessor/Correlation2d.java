@@ -84,41 +84,41 @@ public class Correlation2d {
 			{ 0.5, -0.5},
 			{-0.5,  0.5},
 			{ 0.5,  0.5}};
-	// This table is used for CLT-based transform of teh correlation results to the pixel domain
+	// This table is used for CLT-based transform of the correlation results to the pixel domain
 	final static int [][] ZI =
 		{{ 0,  1,  2,  3},
 		 {-1,  0, -3,  2},
 		 {-2, -3,  0,  1},
 		 { 3, -2, -1,  0}};
 
-	public boolean isMonochrome() {return monochrome;}
+	public boolean isMonochrome() {return monochrome;} // not used in lwir
 // for 8 cameras and 16 pairs. Following data moved from ImageDtt
     // which images to use (0..3 - external, 4..7 - internal)
-    public static int getImgMask  (int data){ return (data & 0xff);}
+    public static int getImgMask  (int data){ return (data & 0xff);} // not used in lwir
     // which pairs to combine in the combo see PAIRS data
-    public static int getPairMask (int data){ return ((data >> 8) & 0xffff);}
-    public static int setImgMask  (int data, int mask) {return (data & ~0xff) | (mask & 0xff);}
-    public static int setPairMask (int data, int mask) {return (data & ~0xffff00) | ((mask & 0xffff) << 8);}
-    public static boolean getForcedDisparity (int data){return (data & 0x1000000) != 0;}
-    public static int     setForcedDisparity (int data, boolean force) {return (data & ~0x1000000) | (force?0x1000000:0);}
-    public static boolean getOrthoLines (int data){return (data & 0x2000000) != 0;}
-    public static int     setOrthoLines (int data, boolean ortho_lines) {return (data & ~0x2000000) | (ortho_lines?0x2000000:0);}
-    public static boolean isOrthoPair         (int npair) {return (PAIRS[npair][2]== PAIR_HORIZONTAL) || (PAIRS[npair][2]== PAIR_VERTICAL);}
-    public static boolean isDiagonalPair      (int npair) {return (PAIRS[npair][2]== PAIR_DIAGONAL_MAIN) || (PAIRS[npair][2]== PAIR_DIAGONAL_OTHER);}
-    public static boolean isHorizontalPair    (int npair) {return  PAIRS[npair][2]== PAIR_HORIZONTAL;}
-    public static boolean isVerticalPair      (int npair) {return  PAIRS[npair][2]== PAIR_VERTICAL;}
-    public static boolean isDiagonalMainPair  (int npair) {return  PAIRS[npair][2]== PAIR_DIAGONAL_MAIN;}
-    public static boolean isDiagonalOtherPair (int npair) {return  PAIRS[npair][2]== PAIR_DIAGONAL_OTHER;}
-    public static int     getScaleOfPair      (int npair) {return  PAIRS[npair][3];}
+    public static int getPairMask (int data){ return ((data >> 8) & 0xffff);} // not used in lwir
+    public static int setImgMask  (int data, int mask) {return (data & ~0xff) | (mask & 0xff);} // not used in lwir
+    public static int setPairMask (int data, int mask) {return (data & ~0xffff00) | ((mask & 0xffff) << 8);} // not used in lwir
+    public static boolean getForcedDisparity (int data){return (data & 0x1000000) != 0;} // not used in lwir
+    public static int     setForcedDisparity (int data, boolean force) {return (data & ~0x1000000) | (force?0x1000000:0);} // not used in lwir
+    public static boolean getOrthoLines (int data){return (data & 0x2000000) != 0;} // not used in lwir
+    public static int     setOrthoLines (int data, boolean ortho_lines) {return (data & ~0x2000000) | (ortho_lines?0x2000000:0);} // not used in lwir
+    public static boolean isOrthoPair         (int npair) {return (PAIRS[npair][2]== PAIR_HORIZONTAL) || (PAIRS[npair][2]== PAIR_VERTICAL);} // not used in lwir
+    public static boolean isDiagonalPair      (int npair) {return (PAIRS[npair][2]== PAIR_DIAGONAL_MAIN) || (PAIRS[npair][2]== PAIR_DIAGONAL_OTHER);} // USED in lwir
+    public static boolean isHorizontalPair    (int npair) {return  PAIRS[npair][2]== PAIR_HORIZONTAL;} // USED in lwir
+    public static boolean isVerticalPair      (int npair) {return  PAIRS[npair][2]== PAIR_VERTICAL;} // USED in lwir
+    public static boolean isDiagonalMainPair  (int npair) {return  PAIRS[npair][2]== PAIR_DIAGONAL_MAIN;} // USED in lwir
+    public static boolean isDiagonalOtherPair (int npair) {return  PAIRS[npair][2]== PAIR_DIAGONAL_OTHER;} // USED in lwir
+    public static int     getScaleOfPair      (int npair) {return  PAIRS[npair][3];} // not used in lwir
 
-    public static int     getMaskHorizontal(int scale)    {return getMaskType(PAIR_HORIZONTAL, scale);}
-    public static int     getMaskVertical(int scale)      {return getMaskType(PAIR_VERTICAL, scale);}
-    public static int     getMaskDiagonalMain(int scale)  {return getMaskType(PAIR_DIAGONAL_MAIN, scale);}
-    public static int     getMaskDiagonalOther(int scale) {return getMaskType(PAIR_DIAGONAL_OTHER, scale);}
-    public static int     getMaskOrtho(int scale)         {return getMaskHorizontal(scale) | getMaskVertical(scale);}
-    public static int     getMaskDiagonal(int scale)      {return getMaskDiagonalMain(scale) | getMaskDiagonalOther(scale);}
+    public static int     getMaskHorizontal(int scale)    {return getMaskType(PAIR_HORIZONTAL, scale);} // USED in lwir
+    public static int     getMaskVertical(int scale)      {return getMaskType(PAIR_VERTICAL, scale);} // USED in lwir
+    public static int     getMaskDiagonalMain(int scale)  {return getMaskType(PAIR_DIAGONAL_MAIN, scale);} // not used in lwir
+    public static int     getMaskDiagonalOther(int scale) {return getMaskType(PAIR_DIAGONAL_OTHER, scale);} // not used in lwir
+    public static int     getMaskOrtho(int scale)         {return getMaskHorizontal(scale) | getMaskVertical(scale);} // not used in lwir
+    public static int     getMaskDiagonal(int scale)      {return getMaskDiagonalMain(scale) | getMaskDiagonalOther(scale);} // not used in lwir
 
-    private static int     getMaskType(int type, int scale) { // scale <0 = any
+    private static int     getMaskType(int type, int scale) { // scale <0 = any  // USED in lwir
     	int bm = 0;
     	for (int i = 0; i <PAIRS.length; i++) if ((PAIRS[i][2]==type) && ((scale < 0) || (scale == PAIRS[i][3]))) bm |= 1 << i;
     	return bm;
@@ -126,7 +126,7 @@ public class Correlation2d {
 
 
 
-    public Correlation2d (
+    public Correlation2d ( // USED in lwir
     		  ImageDttParameters  imgdtt_params,
     		  int transform_size,
     		  double wndx_scale, // (wndy scale is always 1.0)
@@ -165,12 +165,12 @@ public class Correlation2d {
       }
 
 
-      public int [] getTransposeAll(boolean diagonal){
+      public int [] getTransposeAll(boolean diagonal){ // USED in lwir
     	  if (diagonal) return getTransposeAllDiagonal();
     	  else          return getTransposeAllOrtho();
       }
 
-      public int [] getTransposeAllOrtho(){
+      public int [] getTransposeAllOrtho(){ // USED in lwir
     	  if (this.transpose_all_ortho[0] == this.transpose_all_ortho[1]) {
     		  for (int i =0; i < corr_size; i++){
     			  for (int j =0; j < corr_size; j++){
@@ -181,7 +181,7 @@ public class Correlation2d {
     	  return this.transpose_all_ortho;
       }
 
-      public int [] getTransposeAllDiagonal(){
+      public int [] getTransposeAllDiagonal(){ // USED in lwir
     	  if (this.transpose_all_diagonal[0] == this.transpose_all_diagonal[1]) {
     		  for (int i =0; i < corr_size; i++){
     			  for (int j = 0; j < corr_size; j++){
@@ -199,7 +199,7 @@ public class Correlation2d {
      * @param fat_zero add to normalization amplitude
      * @return [4][transform_len] FD CLT data
      */
-    public double[][] correlateSingleColorFD(
+    public double[][] correlateSingleColorFD( // USED in lwir
     		double [][] clt_data1,
     		double [][] clt_data2,
     		double [][] tcorr, // null or initialized to [4][transform_len]
@@ -249,7 +249,7 @@ public class Correlation2d {
      * @param fat_zero fat zero for phase correlation (0 seems to be OK)
      * @return correlation result [(2*transform_size-1) * (2*transform_size-1)]
      */
-    public double[]       correlateCompositeFD(
+    public double[]       correlateCompositeFD( // USED in lwir
     		double [][][] clt_data1,
     		double [][][] clt_data2,
     		double []     lpf,
@@ -271,7 +271,7 @@ public class Correlation2d {
     		if (col_weights[i] != 0.0) col_weights[i] *= scale_value;
     	}
 
-    	if (clt_data1.length == 1) { // monochrome
+    	if (clt_data1.length == 1) { // monochrome  // not used in lwir
     		col_weights = new double[1];
     		col_weights[0] = 1.0;
     	}
@@ -332,7 +332,7 @@ public class Correlation2d {
      * @param fat_zero fat zero for phase correlations
      * @return [pair][corr_index]
      */
-    public double [][]  correlateCompositeFD(
+    public double [][]  correlateCompositeFD( // USED in lwir
     		double [][][][][][] clt_data,
     		int                 tileX,
     		int                 tileY,
@@ -359,7 +359,7 @@ public class Correlation2d {
 
     /**
      * Calculate all required image pairs phase correlation
-     * @param clt_data aberration-corrected FD CLT data for one tile [camera][color][quadrant][index]
+     * @param clt_data_tile aberration-corrected FD CLT data for one tile [camera][color][quadrant][index]
      * @param pairs_mask bimask of required pairs
      * @param lpf optional low-pass filter
      * @param scale_value   scale correlation results to compensate for lpf changes and other factors
@@ -367,7 +367,7 @@ public class Correlation2d {
      * @param fat_zero fat zero for phase correlations
      * @return [pair][corr_index]
      */
-    public double [][]  correlateCompositeFD(
+    public double [][]  correlateCompositeFD( // USED in lwir
     		double [][][][]     clt_data_tile,
     		int                 pairs_mask, // already decoded so bit 0 - pair 0
     		double []           lpf,
@@ -403,7 +403,7 @@ public class Correlation2d {
      * @param fat_zero fat zero for phase correlations
      * @return 2-d correlation array in line scan order
      */
-    public double []  correlateInterCamerasFD(
+    public double []  correlateInterCamerasFD( // not used in lwir
     		double [][][][]     clt_data_tile_main,
     		double [][][][]     clt_data_tile_aux,
     		double []           lpf,
@@ -431,7 +431,7 @@ public class Correlation2d {
      * @param clt_data_tile aberration-corrected FD CLT data for one tile [camera][color][quadrant][index]
      * @return averaged for all cameras FD data [color][quadrant][index]
      */
-    public double [][][] cltMixCameras(
+    public double [][][] cltMixCameras( // not used in lwir
     		double [][][][]     clt_data_tile){
     	int tlen = transform_size * transform_size;
     	double [][][] clt_mix = new double [clt_data_tile[0].length][4][tlen];
@@ -472,7 +472,7 @@ public class Correlation2d {
     * @return single square correlation array, same dimension as the input (now 15x15)
     */
 
-    public double [] combineCompatiblePairs(
+    public double [] combineCompatiblePairs(// USED in lwir
     		double [][] correlations,
     		int         pairs_mask,
         	boolean     diagonal,
@@ -512,7 +512,7 @@ public class Correlation2d {
      *        (1 - largest, 2 - half, 4 - quarter)
      * @return {number of compatible pairs among the selection, index of the base pair}
      */
-    public int [] getNumberBaseOfCompatiblePairs(
+    public int [] getNumberBaseOfCompatiblePairs(// USED in lwir
     		double [][] correlations,
     		int         pairs_mask,
         	boolean     diagonal,
@@ -541,7 +541,7 @@ public class Correlation2d {
      * @param pairs_mask bitmask of selected pairs
      * @return subsampling {min, max}: 1 - no subsampling, also possible 2 and 4 (8-camera)
      */
-    public int [] getMinMaxSubSample(int pairs_mask) {
+    public int [] getMinMaxSubSample(int pairs_mask) {// USED in lwir
     	int ss_max = 0;
     	for (int npair = 0; npair < PAIRS.length; npair++) if (((pairs_mask >> npair) & 1) != 0 ) {
     		if (PAIRS[npair][3] > ss_max) {
@@ -550,7 +550,7 @@ public class Correlation2d {
     	}
     	int ss_min = ss_max;
     	for (int npair = 0; npair < PAIRS.length; npair++) if (((pairs_mask >> npair) & 1) != 0 ) {
-    		if (PAIRS[npair][3] < ss_min) {
+    		if (PAIRS[npair][3] < ss_min) { // not used in lwir
     			ss_min = PAIRS[npair][3];
     		}
     	}
@@ -566,7 +566,7 @@ public class Correlation2d {
      * @param hwidth number of the result rows (1 - only main diagonal, 2 - main diagonal and 2 other color ones
      * @return transformed array of correlation arrays [hwidth][2*transform_size-1] (some may be nulls)
      */
-    public double [][] scaleRotateInterpoateCorrelations(
+    public double [][] scaleRotateInterpoateCorrelations(// USED in lwir
     		double [][] correlations,
     		int         pairs_mask,
 //    		int         sub_sampling,
@@ -606,7 +606,7 @@ public class Correlation2d {
      * @return transformed correlation array [hwidth][2*transform_size-1]
      */
 
-    public double [] scaleRotateInterpoateSingleCorrelation(
+    public double [] scaleRotateInterpoateSingleCorrelation(// USED in lwir
     		double [][] correlations,
     		int         npair,
     		int         sub_sampling,
@@ -620,7 +620,7 @@ public class Correlation2d {
             	PAIRS[npair][3]/sub_sampling,
         		debug);
     }
-    public double [] scaleRotateInterpoateSingleCorrelation(
+    public double [] scaleRotateInterpoateSingleCorrelation(// USED in lwir
     		double []   corr,
     		int         hwidth,
     		int         dir, // 0 - hor, 1 - vert, 2 - parallel to row = col (main) diagonal (0->3), 3 -2->1
@@ -678,11 +678,11 @@ public class Correlation2d {
     					} else { //interpolate x only
     						double dx = (xnum + ilimit) / rdenom - ix0;
     						double dy = (ynum + ilimit) / rdenom - iy0;
-    						if (int_y) {
+    						if (int_y) { // not used in lwir
     							d = (1.0-dx)*corr[iy0*width + ix0] + dx*corr[iy0 * width + ix0 + 1];
-    						} else if (int_x) {
+    						} else if (int_x) { // not used in lwir
     							d = (1.0-dy)*corr[iy0*width + ix0] + dy*corr[iy0 * width + ix0 + width];
-    						} else { // bilinear
+    						} else { // bilinear - // USED in LWIR
     							d = (   (1.0 - dx) * (1.0 - dy) * corr[iy0 * width + ix0]) +
     									(       dx  * (1.0 - dy) * corr[iy0 * width + ix0 + 1]) +
     									((1.0 - dx) *        dy  * corr[iy0 * width + ix0 + width]) +
@@ -736,7 +736,7 @@ public class Correlation2d {
      *  the weight of diagonal pairs
      * @return combined correlation data
      */
-    public double [] combineInterpolatedCorrelations(
+    public double [] combineInterpolatedCorrelations(  // USED in lwir
     		double [][] strips,
     		int         pairs_mask,
     		double      offset,
@@ -749,14 +749,14 @@ public class Correlation2d {
     				combo = new double [strips[npair].length];
     				for (int i = 0; i < combo.length; i++) combo[i] = 1.0;
     			}
-    			if (twice_diagonal) {
+    			if (twice_diagonal) { // USED in lwir
     				for (int i = 0; i < combo.length; i++) {
     					double d = strips[npair][i] + offset;
     					if (d < 0.0) d = 0.0;
     					combo[i] *= d * d;
     				}
     				ncombined++;
-    			} else {
+    			} else { // not used in lwir
     				for (int i = 0; i < combo.length; i++) {
     					double d = strips[npair][i] + offset;
     					if (d < 0.0) d = 0.0;
@@ -771,7 +771,7 @@ public class Correlation2d {
     				if (combo[i] > 0.0) combo[i] = Math.pow(combo[i], pwr) - offset;
     			}
     		}
-    	} else { // use addition
+    	} else { // use addition // not used in lwir
     		for (int npair = 0; npair < strips.length; npair++) if (((pairs_mask & (1 << npair)) != 0) && (strips[npair] != null)){
     			if (combo == null) {
     				combo = new double [strips[npair].length];
@@ -806,7 +806,7 @@ public class Correlation2d {
  */
 
 
-	public int [] getMaxXYInt( // find integer pair or null if below threshold
+	public int [] getMaxXYInt( // find integer pair or null if below threshold // USED in lwir
 			double [] data,      // [data_size * data_size]
 			boolean   axis_only,
 			double    minMax,    // minimal value to consider (at integer location, not interpolated)
@@ -817,7 +817,7 @@ public class Correlation2d {
 		int center_row = 0;
 		int center = transform_size - 1;
 		if (data_height == data_width) {
-			center_row = center;
+			center_row = center; // not used in lwir
 		} else {
 			axis_only = true;
 		}
@@ -831,7 +831,7 @@ public class Correlation2d {
 			for (int i = 1; i < data_width; i++) {
 				if (Double.isNaN(data[imx]) || (data[sol+i] > data[imx])) imx = sol+i;
 			}
-		} else { // only for the the square tile
+		} else { // only for the the square tile // not used in lwir
 			for (int i = 0; i < data.length; i++) {
 				if (Double.isNaN(data[imx]) || (data[i] > data[imx])) imx = i;
 			}
@@ -859,7 +859,7 @@ public class Correlation2d {
 	 * @param debug
 	 * @return a pair of {x,y} offsets of the center of masses to the tile center.
 	 */
-	public double [] getMaxXYCm(
+	public double [] getMaxXYCm( // not used in lwir
 			double [] data,
 			int []    icenter,
 			double    radius,    // positive - within that distance, negative - within 2*(-radius)+1 square
@@ -917,7 +917,7 @@ public class Correlation2d {
 	 * @param debug not yet used
 	 * @return {argmax from center, weight, half_width} or null
 	 */
-	public double [] getMaxXCm( // get fractional center as a "center of mass" inside circle/square from the integer max
+	public double [] getMaxXCm( // get fractional center as a "center of mass" inside circle/square from the integer max // USED in lwir
 			double [] data,      // [data_size * data_size]
 			int       ixcenter,  // integer center x
 			boolean   debug) {
@@ -928,7 +928,7 @@ public class Correlation2d {
 				this.corr_wndx, // double [] window_x,  // half of a window function in x (disparity) direction
 				debug);// boolean   debug);
 	}
-	public double [] getMaxXCmNotch( // get fractional center as a "center of mass" inside circle/square from the integer max
+	public double [] getMaxXCmNotch( // get fractional center as a "center of mass" inside circle/square from the integer max // not used in lwir
 			double [] data,      // [data_size * data_size]
 			int       ixcenter,  // integer center x
 			boolean   debug) {
@@ -939,7 +939,7 @@ public class Correlation2d {
 				this.corr_wndx,       // double [] window_x,  // half of a window function in x (disparity) direction
 				debug);               // boolean   debug);
 	}
-	public double [] getMaxXCm( // get fractional center as a "center of mass" inside circle/square from the integer max
+	public double [] getMaxXCm( // get fractional center as a "center of mass" inside circle/square from the integer max // USED in lwir
 			double [] data,      // rectangular strip of 1/2 of the correlation are with odd rows shifted by 1/2 pixels
 			int       ixcenter,  // integer center x
 			double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
@@ -951,7 +951,7 @@ public class Correlation2d {
 		double wy_scale = 1.0;
 		if (data_height > window_y.length) {
 			data_height = window_y.length;
-		} else if (data_height < window_y.length) { // re-
+		} else if (data_height < window_y.length) { // re-  // not used in lwir
 			double swy = window_y[0];
 			for (int i = 1; i < data_height; i++) swy += window_y[i];
 			wy_scale = 1.0/swy;
@@ -1050,7 +1050,7 @@ public class Correlation2d {
 	 * @return half-window array [ihwidth]
 	 */
 
-	public double [] halfFlatTopWindow(
+	public double [] halfFlatTopWindow( // USED in lwir
 			int     ihwidth,
 			double  hwidth,
 			double  blur,
@@ -1059,7 +1059,7 @@ public class Correlation2d {
 			double  scale) {
 		double [] wnd = new double [ihwidth];
 		for (int i = 0; i < ihwidth; i++) {
-			if (blur <= 0.0) {
+			if (blur <= 0.0) { // not used in lwir
 				wnd[i] = (i < hwidth)? 1.0:0.0;
 			} else {
 				if (i < hwidth - blur/2)       wnd[i] = 1.0;
@@ -1094,7 +1094,7 @@ public class Correlation2d {
 	 * @param center_corr - output array [(2*hwidth+1)*(2*hwidth+1)] or null
 	 * @return center_corr - center part of the correlation in linescan order
 	 */
-    public double [] corrCenterValues(
+    public double [] corrCenterValues( // USED in lwir
     		int       hwidth,
     		double [] full_corr,
     		double [] center_corr) {
@@ -1123,7 +1123,7 @@ public class Correlation2d {
      * @param full_corr  full pixel-domain correlation (now 15x15=225 long)for each of 6 pairs
      * @param center_corr - output array [(2*hwidth+1)*(2*hwidth+1)]. should be [8][]
      */
-    public void corrCenterValues(
+    public void corrCenterValues( // USED in lwir
     		int         hwidth,
     		double      offset,
     		double [][] full_corr,
@@ -1155,7 +1155,7 @@ public class Correlation2d {
     					} else {
     						cc = -offset; // smallest value
     					}
-    				} else {
+    				} else { // not used in lwir
     					cc =  0.5*(fc0+fc1);
     				}
 
@@ -1178,7 +1178,7 @@ public class Correlation2d {
      * @param ml_tile (2 * ml_hwidth + 1) * (2 * ml_hwidth + 1) tile data to be saved
      * @param tilesX image width in tiles
      */
-    public void saveMlTile(
+    public void saveMlTile( // USED in lwir
     		int         tileX,
     		int         tileY,
     		int         ml_hwidth,
@@ -1207,7 +1207,7 @@ public class Correlation2d {
      * @param ml_value value to set
      * @param tilesX image width in tiles
      */
-    public void saveMlTilePixel(
+    public void saveMlTilePixel(// USED in lwir
     		int         tileX,
     		int         tileY,
     		int         ml_hwidth,
@@ -1234,7 +1234,7 @@ public class Correlation2d {
      * @param tilesX image width in tiles
      * @return value indexed by tileX, tileY, ml_layer and ml_index
      */
-    public double restoreMlTilePixel(
+    public double restoreMlTilePixel( // not used in lwir
     		int         tileX,
     		int         tileY,
     		int         ml_hwidth,
@@ -1258,7 +1258,7 @@ public class Correlation2d {
      * @return index of teh selected pixel in thye whole image (specified by  tileX, tileY, and ml_index)
      */
 
-    public  int getMlTilePixelIndex(
+    public  int getMlTilePixelIndex( // not used in lwir
     		int         tileX,
     		int         tileY,
     		int         ml_hwidth,
@@ -1272,7 +1272,7 @@ public class Correlation2d {
 
 
 
-    public double [] debugStrip(
+    public double [] debugStrip( // USED in lwir
     		double [] strip) {
     	if (strip == null) return null;
     	int center = transform_size - 1;
@@ -1280,7 +1280,7 @@ public class Correlation2d {
     	int height =  strip.length/width;
     	double [] padded_strip = new double [width*width];
     	for (int row = 0; row < width; row++) {
-    		if ((row <= center - height) || (row >= center+ height)) {
+    		if ((row <= center - height) || (row >= center+ height)) { // not used in lwir
     			for (int j = 0; j<width; j++) padded_strip[row*width+j] = Double.NaN;
     		} else {
     			int srow = (row >= center)? (row - center) : (center - row);
@@ -1292,7 +1292,7 @@ public class Correlation2d {
     }
 
     // only show center part, but with correct shift
-    public double [] debugStrip2(
+    public double [] debugStrip2( // USED in lwir
     		double [] strip) {
     	if (strip == null) return null;
     	int center = transform_size - 1;
@@ -1300,7 +1300,7 @@ public class Correlation2d {
     	int height =  strip.length/width;
     	double [] padded_strip = new double [width*width];
     	for (int row = 0; row < width; row++) {
-    		if ((row <= center - height) || (row >= center+ height)) {
+    		if ((row <= center - height) || (row >= center+ height)) { // not used in lwir
     			for (int j = 0; j<width; j++) padded_strip[row*width+j] = Double.NaN;
     		} else {
     			int srow = (row >= center)? (row - center) : (center - row);
@@ -1316,7 +1316,7 @@ public class Correlation2d {
     }
 
     // Full size/resolution.but on a larger rectangle
-    public double [] debugStrip3(
+    public double [] debugStrip3( // not used in lwir
     		double [] strip) {
     	if (strip == null) return null;
     	int center = transform_size - 1;
@@ -1341,7 +1341,7 @@ public class Correlation2d {
     	return padded_strip;
     }
 
-    public double [] mismatchPairsCM( // returns x-xcenter, y, strength (sign same as disparity)
+    public double [] mismatchPairsCM( // returns x-xcenter, y, strength (sign same as disparity) // USED in lwir
     		ImageDttParameters  imgdtt_params,
     		double [][]         corrs,
     		int                 pair_mask, // which pairs to process
@@ -1378,7 +1378,7 @@ public class Correlation2d {
 			} else if (isDiagonalOtherPair(pair)) {
 				icenter[0] =  ixcenter;
 				icenter[1] = -ixcenter;
-			} else {
+			} else { // not used in lwir
 				System.out.println("************ BUG: illegal pair type for pair1"+pair);
 				return null;
 			}
@@ -1422,7 +1422,7 @@ public class Correlation2d {
 			} else if (isDiagonalOtherPair(pair)) {
 				rslt[3 * np + 0] =  xcenter - xm;
 				rslt[3 * np + 1] = -xcenter - ym;
-			} else {
+			} else { // not used in lwir
 				System.out.println("************ BUG: illegal pair type for pair "+pair);
 				return null;
 			}
@@ -1439,7 +1439,7 @@ public class Correlation2d {
 
     // returns array 3*num_pairs long
     // TODO: now works for small offsets. Maybe add re-calculate int argmax for each pair? xcenter is still needed to subtract Add switch? (small/large correction)
-    public double [] mismatchPairs( // returns x-xcenter, y, strength (sign same as disparity)
+    public double [] mismatchPairs( // returns x-xcenter, y, strength (sign same as disparity) // not used in lwir
     		ImageDttParameters  imgdtt_params,
     		double [][]         corrs,
     		int                 pair_mask, // which pairs to process
@@ -1508,7 +1508,7 @@ public class Correlation2d {
     }
 
 // run a single correlation poly
-    public double [] single2dPoly( // returns x-xcenter, y, strength (sign same as disparity)
+    public double [] single2dPoly( // returns x-xcenter, y, strength (sign same as disparity) // not used in lwir
     		ImageDttParameters  imgdtt_params,
     		double []           corr,
     		double              xcenter,   // -disparity to compare. use 0?
@@ -1537,7 +1537,7 @@ public class Correlation2d {
     }
 
     // ignores negative values
-    public double [] single2dCM( // returns x-xcenter, y, strength (sign same as disparity)
+    public double [] single2dCM( // returns x-xcenter, y, strength (sign same as disparity) // not used in lwir
     		ImageDttParameters  imgdtt_params,
     		double []           corr,
     		double              xcenter,   // -disparity to compare. use 0?
@@ -1590,7 +1590,7 @@ public class Correlation2d {
 
 
 
-    public double [][] corr4dirsLMA(
+    public double [][] corr4dirsLMA( // USED in lwir
     		ImageDttParameters  imgdtt_params,
     		double [][]         corrs,
     		int                 pair_mask, // which pairs to process
@@ -1609,7 +1609,7 @@ public class Correlation2d {
     		for (int i = 0; i < PAIRS.length; i++) if (((pair_mask & (1 << i)) != 0) && (PAIRS[i][2] == types[dir])) {
     			this_mask |= (1 << i);
     		}
-    		if (this_mask == 0) {
+    		if (this_mask == 0) { // not used in lwir
     			rslt[dir] = null;
     		} else {
     			Correlations2dLMA lma=corrLMA(
@@ -1662,7 +1662,7 @@ public class Correlation2d {
     		}
 // each element may be null, data may contain NaN
  */
-    public double [] foregroundCorrect(
+    public double [] foregroundCorrect( // USED in lwir
     		boolean     bg,
     		boolean     ortho,
     		double [][] dir_disp_strength, //
@@ -1716,7 +1716,7 @@ public class Correlation2d {
 					"width_d["+isel+"] = "+width_d[isel]+" > "+max_hwidth+")");
 		} else 		if ((eff_strength[isel]/eff_strength[iortho] < min_eff_ratio)) {
 			corr = Double.NaN;
-			if (debug) System.out.println("Direction with "+(bg?"min":"max")+" has effective strenbgth ratio too small -> no correction ("+
+			if (debug) System.out.println("Direction with "+(bg?"min":"max")+" has effective strength ratio too small -> no correction ("+
 					"(eff_strength["+isel+"] = "+eff_strength[isel]+")/(eff_strength["+iortho+"] = "+eff_strength[iortho]+") < "+min_eff_ratio+")");
 		} else {
 			if (ortho && !are_ortho) {
@@ -1728,7 +1728,7 @@ public class Correlation2d {
 					if (debug) System.out.println("Orthogonal direction is not strong enough -> overcorrection = 0 (just using "+(bg?"min":"max") );
 				}
 			}
-			if (!(mx >= (mn + min_diff))) { // so NaN are OK
+			if (!(mx >= (mn + min_diff))) { // so NaN are OK // not used in lwir
 				corr = Double.NaN;
 	    		if (debug) System.out.println("difference max - min="+(mx - mn)+" < "+min_diff+" -> no fo correction");
 			}
@@ -1736,7 +1736,7 @@ public class Correlation2d {
     	double disp = full_disp;
     	if (!Double.isNaN(corr)) {
     		double lim;
-    		if (bg) {
+    		if (bg) { // not used in lwir
     			lim = full_disp - (full_disp - mn) * lim_overcorr;
     			disp =  Math.max(mn - corr, lim);
     		} else {
@@ -1753,7 +1753,7 @@ public class Correlation2d {
 
 
 
-    public Correlations2dLMA corrLMA(
+    public Correlations2dLMA corrLMA( // USED in lwir
     		ImageDttParameters  imgdtt_params,
     		double [][]         corrs,
     		int                 pair_mask, // which pairs to process
@@ -1827,7 +1827,161 @@ public class Correlation2d {
 
         		debug_level);    // int               debug_level
         boolean lmaSuccess;
-        if (run_poly_instead) {
+        if (run_poly_instead) { // not used in lwir
+        	lma.getMaxXYPoly( // get interpolated maximum coordinates using 2-nd degree polynomial
+        			debug_level>3); // boolean debug
+        	lmaSuccess = lma.getPolyFx() != null;
+        } else {
+        	lma.initVector(
+        			imgdtt_params.lma_adjust_wm,   //  boolean adjust_wm,
+        			imgdtt_params.lma_adjust_wy,   // boolean adjust_wy,
+        			imgdtt_params.lma_adjust_wxy,  // boolean adjust_wxy,
+        			imgdtt_params.lma_adjust_ag,   // boolean adjust_Ag,
+        			xcenter,                       // double  x0,
+        			imgdtt_params.lma_half_width,  // double  half_width,
+        			imgdtt_params.lma_cost_wy,     // double  cost_wy,     // cost of non-zero this.all_pars[WYD_INDEX]
+        			imgdtt_params.lma_cost_wxy     //double  cost_wxy     // cost of non-zero this.all_pars[WXY_INDEX]
+        			);
+        	if (debug_level > 1) {
+        		System.out.println("Input data:");
+        		lma.printInputDataFx(false);
+        	}
+
+        	lmaSuccess = 	lma.runLma(
+        			imgdtt_params.lma_lambda_initial,     // double lambda,           // 0.1
+        			imgdtt_params.lma_lambda_scale_good,  // double lambda_scale_good,// 0.5
+        			imgdtt_params.lma_lambda_scale_bad,   // double lambda_scale_bad, // 8.0
+        			imgdtt_params.lma_lambda_max,         // double lambda_max,       // 100
+        			imgdtt_params.lma_rms_diff,           // double rms_diff,         // 0.001
+        			imgdtt_params.lma_num_iter,           // int    num_iter,         // 20
+        			debug_level);       // int    debug_level)
+
+        	lma.updateFromVector();
+        	double [] rms = lma.getRMS();
+        	if (debug_level > 0) {
+        		System.out.println("LMA ->"+lmaSuccess+" RMS="+rms[0]+", pure RMS="+rms[1]);
+        		lma.printParams();
+        	}
+        }
+    	if ((debug_level > 1) && (groups_LMA !=null) && (groups_LMA.length > 0)) {
+    		double [][] y_and_fx = new double [groups_LMA.length * 2][];
+    		double [][] groups_fx =  getFitSamples( // just for debug to compare LMA-fitted fx with original data
+    				xcenter,                      // double            xcenter,   // preliminary center x in pixels for largest baseline
+            		imgdtt_params.cnvx_hwnd_size, // int  hwindow_y, //  = window_y.length; // should actually be the same?
+            		imgdtt_params.cnvx_hwnd_size, //int   hwindow_x, // = window_x.length;
+    				groups_pairs,                 // int    [][]       groups_pairs,
+    				scales,                       // double []         scales,
+    				group_scale_ind,              // int    []         group_scale_ind,
+    				lma,                          // Correlations2dLMA lma,
+            		groups_LMA,                   // double [][]       groups_LMA,
+            		imgdtt_params.cnvx_add3x3,    // boolean   add3x3,
+            		imgdtt_params.cnvx_weight,    // double    nc_cost,
+            		debug_level);    // int               debug_level
+
+    		String [] titles = new String [groups_LMA.length * 2];
+    		for (int i = 0; i < groups_LMA.length; i++) if (groups_pairs[i][0] > 0){
+    			int base_pair = groups_pairs[i][1];
+    			titles[2 * i] =     (isDiagonalPair(base_pair)?"diag":"ortho")+getScaleOfPair(base_pair);
+    			titles[2 * i + 1] = (isDiagonalPair(base_pair)?"diag":"ortho")+getScaleOfPair(base_pair)+"-fit";
+    			y_and_fx[2 * i] =     groups_LMA[i];
+    			y_and_fx[2 * i + 1] = groups_fx[i];
+    		}
+
+    		//    		String [] titles = {"ortho","diagonal"};
+    		(new ShowDoubleFloatArrays()).showArrays(
+    				y_and_fx,
+    				2 * transform_size-1,
+    				2 * transform_size-1,
+    				true, (run_poly_instead?("mismatch"+pair_mask):"groups")+"_x"+tileX+"_y"+tileY, titles);
+    	}
+    	if (debug_level > 1) {
+    		System.out.println("Input data and approximation:");
+    		lma.printInputDataFx(true);
+    	}
+    	return lmaSuccess? lma: null;
+    }
+
+
+
+
+    public Correlations2dLMA corrLMA( // New for non-square
+    		ImageDttParameters  imgdtt_params,
+    		double [][]         disparity_distortions, // {d_disp/dx, d_ndisp/dx, d_disp/dy, d_ndisp/dy} for each camera
+    		double [][]         corrs,
+    		int                 pair_mask, // which pairs to process
+    		boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
+    		double              xcenter,   // preliminary center x in pixels for largest baseline
+    		double              vasw_pwr,  // value as weight to this power,
+    		int                 debug_level,
+    		int                 tileX, // just for debug output
+    		int                 tileY
+    		)
+    {
+    	// for quad camera
+    	int [][] groups = new int [GROUPS.length][];
+    	int   [] scale_ind = new int  [GROUPS.length];
+    	// See which groups exist for current pairs mask
+    	int ng = 0;
+    	ArrayList<Integer> sl = new ArrayList<Integer>();
+    	for (int i = 0; i < GROUPS.length; i++) {
+    		groups[i] = getNumberBaseOfCompatiblePairs(
+    				corrs,                       // double [][] correlations,
+    				pair_mask,                   // int         pairs_mask,
+    				(GROUPS[i][0] > 0),          // boolean     diagonal,
+    				GROUPS[i][1]);               // int         baseline_scale
+    		if (groups[i][0] > 0) {
+    			ng++;
+    			if (!sl.contains(GROUPS[i][1])) {
+    				sl.add(GROUPS[i][1]);
+    			}
+    			scale_ind[i] = sl.indexOf(GROUPS[i][1]);
+    		}
+    	}
+    	if (debug_level > 1) {
+    		System.out.println("corrLMA(): found "+ng+" groups, "+sl.size()+" scales");
+    	}
+    	double [][] groups_LMA =      new double [ng][];
+    	int    [][] groups_pairs =    new int [ng][]; // [ng]{number of combined pairs, index of base pair}
+    	int    []   group_scale_ind = new int [ng]; // number of combined pairs, index of base pair
+    	{
+    		int ig = 0;
+    		for (int i = 0; i < groups.length; i++) if (groups[i][0] >0){
+    			groups_LMA[ig] = combineCompatiblePairs(
+    					corrs,                       // double [][] correlations,
+    					pair_mask,                   // int         pairs_mask,
+    					(GROUPS[i][0] > 0),          // boolean     diagonal,
+    					GROUPS[i][1]);               // int         baseline_scale
+    			groups_pairs[ig] = groups[i]; // {number, base_pair_index}
+    			group_scale_ind[ig] = scale_ind[i];
+    			ig++;
+    		}
+    	}
+    	double [] scales = new double [sl.size()];
+    	for (int i = 0; i < scales.length; i++) scales[i] = sl.get(i); // from int to double
+
+
+    	Correlations2dLMA lma = new Correlations2dLMA(scales);
+    	if (debug_level > 1) {
+    		for (int i = 0; i < groups_pairs.length; i++) {
+    			System.out.println("Group #"+i+" - "+groups_pairs[i][0]+", type:"+groups_pairs[i][1]);
+    		}
+    	}
+        addSamples(
+        		xcenter,         // double            xcenter,   // preliminary center x in pixels for largest baseline
+        		imgdtt_params.cnvx_hwnd_size, // int  hwindow_y, //  = window_y.length; // should actually be the same?
+        		imgdtt_params.cnvx_hwnd_size, //int   hwindow_x, // = window_x.length;
+        		vasw_pwr,                     // double            vasw_pwr,  // value as weight to this power,
+        		groups_LMA,                   // double [][]       groups_LMA,
+        		groups_pairs,                 // int    [][]       groups_pairs,
+        		scales,                       // double []         scales,
+        		group_scale_ind,              // int    []         group_scale_ind,
+        		lma,                          // Correlations2dLMA lma,
+        		imgdtt_params.cnvx_add3x3,    // boolean   add3x3,
+        		imgdtt_params.cnvx_weight,    // double    nc_cost,
+
+        		debug_level);    // int               debug_level
+        boolean lmaSuccess;
+        if (run_poly_instead) { // not used in lwir
         	lma.getMaxXYPoly( // get interpolated maximum coordinates using 2-nd degree polynomial
         			debug_level>3); // boolean debug
         	lmaSuccess = lma.getPolyFx() != null;
@@ -1902,7 +2056,7 @@ public class Correlation2d {
     }
 
 // Run for a single horizontal 2d correlation array
-    public Correlations2dLMA corrLMA(
+    public Correlations2dLMA corrLMA( // not used in lwir
     		ImageDttParameters  imgdtt_params,
     		double []           corr,
     		boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
@@ -2025,7 +2179,7 @@ public class Correlation2d {
      * @return cost packed array, corresponding to the input. selected convex points have weight
      * 1.0, other selected - nc_cost
      */
-    public double [] filterConvex(
+    public double [] filterConvex(// USED in lwir
     		double [] corr_data,
     		int       hwin,
     		int       x0c,
@@ -2201,7 +2355,7 @@ public class Correlation2d {
     	return weights;
     }
 
-    public void debug_convex(
+    public void debug_convex( // not used in lwir
     		boolean [] convex,
     		boolean [] sel,
     		String title) {
@@ -2221,7 +2375,7 @@ public class Correlation2d {
 
     }
 
-    public void addSamples(
+    public void addSamples(// USED in lwir
     		double            xcenter,   // preliminary center x in pixels for largest baseline
         	int               hwindow_y, //  = window_y.length; // should actually be the same?
         	int               hwindow_x, // = window_x.length;
@@ -2373,7 +2527,7 @@ public class Correlation2d {
     }
 
     // Mimics addSamples, but reads f(x) values instead of setting them
-    public double [][] getFitSamples( // just for debug to compare LMA-fitted fx with original data
+    public double [][] getFitSamples( // just for debug to compare LMA-fitted fx with original data // not used in lwir
     		double            xcenter,   // preliminary center x in pixels for largest baseline
         	int hwindow_y, // should actually be the same?
         	int hwindow_x,
@@ -2458,7 +2612,7 @@ public class Correlation2d {
        	return groups_fitted;
     }
 
-    public int [] listPairs(
+    public int [] listPairs( // USED in lwir
     		double [][] correlations,
     		int         pairs_mask) {
 		ArrayList<Integer> pairs = new ArrayList<Integer>();
@@ -2484,7 +2638,7 @@ public class Correlation2d {
      * @param debug
      * @return {center, strength} pair (center is 0 for the correlation center)
      */
-	public double [] getMaxXSOrtho( // // get fractional center using a quadratic polynomial
+	public double [] getMaxXSOrtho( // // get fractional center using a quadratic polynomial // USED in lwir
     		double [][] correlations,
     		int         pairs_mask,
 			double      offset,      // double      offset);
@@ -2547,7 +2701,7 @@ public class Correlation2d {
 					}
 					if (debug) System.out.println();
 				}
-			} else { // use averaging (linear)
+			} else { // use averaging (linear) // not used in lwir
 				for (int j = 0; j < corr_size; j++){
 					corr_1d[j] = 0;
 					for (int ip = 0; ip < pairs.length; ip++) {
@@ -2583,7 +2737,7 @@ public class Correlation2d {
 					}
 					if (debug) System.out.println();
 				}
-			} else { // use averaging (linear)
+			} else { // use averaging (linear) // not used in lwir
 				for (int j = 0; j < corr_size; j++){
 					corr_1d[j] = 0;
 					for (int ip = 0; ip < pairs.length; ip++) {
@@ -2636,7 +2790,7 @@ public class Correlation2d {
 	}
 
 
-	public void createOrtoNotch(
+	public void createOrtoNotch( // USED in lwir
 			double enhortho_width,
 			double enhortho_scale,
 			boolean debug) {

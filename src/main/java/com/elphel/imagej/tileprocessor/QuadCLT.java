@@ -122,32 +122,32 @@ public class QuadCLT {
     public double [][]                                     ds_from_main = null;
 
 // magic scale should be set before using  TileProcessor (calculated disparities depend on it)
-    public boolean isMonochrome() {return is_mono;}
-    public boolean isAux()        {return is_aux;}
-    public String  sAux()         {return isAux()?"-AUX":"";}
-    public boolean isLwir()       {return !Double.isNaN(lwir_offset);} // clt_kernels
-    public double  getLwirOffset() {return lwir_offset;}
+    public boolean isMonochrome() {return is_mono;}  // USED in lwir
+    public boolean isAux()        {return is_aux;} // USED in lwir
+    public String  sAux()         {return isAux()?"-AUX":"";} // USED in lwir
+    public boolean isLwir()       {return !Double.isNaN(lwir_offset);} // clt_kernels // USED in lwir
+    public double  getLwirOffset() {return lwir_offset;} // USED in lwir
 
-    public double [] getColdHot() {
+    public double [] getColdHot() { // USED in lwir
     	return lwir_cold_hot;
     }
-    public void setColdHot(double [] cold_hot) {
+    public void setColdHot(double [] cold_hot) { // USED in lwir
     	lwir_cold_hot = cold_hot;
     }
-    public void setColdHot(double cold, double hot) {
+    public void setColdHot(double cold, double hot) { // not used in lwir
     	lwir_cold_hot = new double[2];
     	lwir_cold_hot[0] = cold;
     	lwir_cold_hot[1] = hot;
     }
 
-    public void    resetGroundTruthByRig() {
+    public void    resetGroundTruthByRig() { // not used in lwir
     	tp.rig_disparity_strength = null;
     }
-    public double [][] getGroundTruthByRig(){
+    public double [][] getGroundTruthByRig(){ // not used in lwir
     	if (tp == null) return null;
     	return tp.rig_disparity_strength;
     }
-	public void setTiles (ImagePlus imp, // set tp.tilesX, tp.tilesY
+	public void setTiles (ImagePlus imp, // set tp.tilesX, tp.tilesY // USED in lwir
 			CLTParameters    clt_parameters,
 			int threadsMax
 			){
@@ -157,7 +157,7 @@ public class QuadCLT {
 				threadsMax);
 	}
 
-	public void setTiles (
+	public void setTiles ( // USED in lwir
 			CLTParameters    clt_parameters,
 			int tilesX,
 			int tilesY,
@@ -179,7 +179,7 @@ public class QuadCLT {
 	}
 
 // used for aux camera
-	public boolean setupImageData(
+	public boolean setupImageData( // not used in lwir
 			String image_name,
 			String [] sourceFiles,
 			CLTParameters       clt_parameters,
@@ -253,7 +253,7 @@ public class QuadCLT {
 //	public void setProperties(){
 //		setProperties(this.properties_prefix);
 //	}
-	public void setProperties(String prefix, Properties properties){ // save
+	public void setProperties(String prefix, Properties properties){ // save // USED in lwir
 		if (properties == null) {
 			properties = this.properties;
 		}
@@ -268,7 +268,7 @@ public class QuadCLT {
 		}
 		GeometryCorrection gc = geometryCorrection;
 		if (gc == null) { // if it was not yet created
-			gc = new GeometryCorrection(this.extrinsic_vect);
+			gc = new GeometryCorrection(this.extrinsic_vect); // not used in lwir
 		}
 		for (int i = 0; i < GeometryCorrection.CORR_NAMES.length; i++){
 			String name = prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
@@ -281,7 +281,7 @@ public class QuadCLT {
 	}
 
 
-	public void copyPropertiesFrom(Properties other_properties, String other_prefix, String this_prefix){ // save
+	public void copyPropertiesFrom(Properties other_properties, String other_prefix, String this_prefix){ // save // not used in lwir
 //		System.out.println("copyPropertiesFrom(other_properties, "+other_prefix+", this_prefix"+")");
 		for (int n = 0; n < fine_corr.length; n++){
 			for (int d = 0; d < fine_corr[n].length; d++){
@@ -314,13 +314,13 @@ public class QuadCLT {
 //		System.out.println("Done copyPropertiesFrom");
 	}
 
-	public GeometryCorrection  getGeometryCorrection() {
+	public GeometryCorrection  getGeometryCorrection() { // USED in lwir
 		return geometryCorrection;
 	}
-	public double [][][][][][] getCLTKernels(){
+	public double [][][][][][] getCLTKernels(){ // USED in lwir
 		return clt_kernels;
 	}
-	public void listGeometryCorrection(boolean full){
+	public void listGeometryCorrection(boolean full){ // not used in lwir
 		GeometryCorrection gc = geometryCorrection;
 		if (gc == null) { // if it was not yet created
 			gc = new GeometryCorrection(this.extrinsic_vect);
@@ -328,7 +328,7 @@ public class QuadCLT {
 		gc.listGeometryCorrection(full);
 	}
 
-	public void getProperties(String prefix){ // restore
+	public void getProperties(String prefix){ // restore // USED in lwir
 //		System.out.println("getProperties("+prefix+")");
 		for (int n = 0; n < fine_corr.length; n++){
 			for (int d = 0; d < fine_corr[n].length; d++){
@@ -342,14 +342,14 @@ public class QuadCLT {
 		for (int i = 0; i < GeometryCorrection.CORR_NAMES.length; i++){
 			String name = prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
   			if (properties.getProperty(name)!=null) {
-  				if (this.extrinsic_vect == null) {
+  				if (this.extrinsic_vect == null) { // not used in lwir
   					// only create non-null array if there are saved values
   					this.extrinsic_vect = new double [GeometryCorrection.CORR_NAMES.length];
   				}
   				this.extrinsic_vect[i] = Double.parseDouble(properties.getProperty(name));
 //  				System.out.println("getProperties():"+i+": getProperty("+name+") -> "+properties.getProperty(name)+"");
 
-  				if (geometryCorrection != null){
+  				if (geometryCorrection != null){ // not used in lwir
 //  					if (geometryCorrection.getCorrVector().toArray() == null) {
 //  						geometryCorrection.resetCorrVector(); // make it array of zeros
 //  					}
@@ -364,7 +364,7 @@ public class QuadCLT {
 		if (geometryCorrection == null) {
 			double [] extrinsic_vect_saved = this.extrinsic_vect.clone();
 			boolean OK = initGeometryCorrection(0); // int debugLevel);
-			if (!OK) {
+			if (!OK) { // not used in lwir
 				throw new IllegalArgumentException ("Failed to initialize geometry correction");
 			}
 			// Substitute vector generated in initGeometryCorrection with the saved from properties one:
@@ -379,18 +379,18 @@ public class QuadCLT {
 		}
 	}
 
-	public void setKernelImageFile(ImagePlus img_kernels){
+	public void setKernelImageFile(ImagePlus img_kernels){ // not used in lwir
 		eyesisKernelImage = img_kernels;
 	}
 
-	public boolean kernelImageSet(){
+	public boolean kernelImageSet(){ // not used in lwir
 		return eyesisKernelImage != null;
 	}
 
-	public boolean CLTKernelsAvailable(){
+	public boolean CLTKernelsAvailable(){ // USED in lwir
 		return clt_kernels != null;
 	}
-	public boolean geometryCorrectionAvailable(){
+	public boolean geometryCorrectionAvailable(){ // USED in lwir
 		return (geometryCorrection != null) && geometryCorrection.isInitialized();
 	}
 	public void resetGeometryCorrection() {
@@ -398,7 +398,7 @@ public class QuadCLT {
 //		extrinsic_vect = new double [GeometryCorrection.CORR_NAMES.length];
 		extrinsic_vect = null;
 	}
-	public boolean initGeometryCorrection(int debugLevel){
+	public boolean initGeometryCorrection(int debugLevel){ // USED in lwir
 		// keep rig offsets if edited
 		if (geometryCorrection == null) {
 			geometryCorrection = new GeometryCorrection(extrinsic_vect);
@@ -425,7 +425,7 @@ public class QuadCLT {
 					(sensors[0].pixelCorrectionHeight != sensors[i].pixelCorrectionHeight) ||
 					(sensors[0].pixelSize !=             sensors[i].pixelSize)){
 				System.out.println("initGeometryCorrection(): All sensors have to have the same distortion model, but channels 0 and "+i+" mismatch");
-				return false;
+				return false; // not used in lwir
 			}
 		}
 
@@ -513,7 +513,7 @@ public class QuadCLT {
 			System.out.println("Adjusted camera to orient X Y along the sides of a square");
 		} else {
 			System.out.println("============= Cannot adustSquare() as it requires exactly 4 sensors, "+numSensors+" provided ==========");
-			return false;
+			return false; // not used in lwir
 		}
 		// Print parameters
 		if (debugLevel > 0){
@@ -528,7 +528,7 @@ public class QuadCLT {
 
 //GeometryCorrection
 
-	  public double [][][][][] calculateCLTKernel ( // per color/per tileY/ per tileX/per quadrant (plus offset as 5-th)/per pixel
+	  public double [][][][][] calculateCLTKernel ( // per color/per tileY/ per tileX/per quadrant (plus offset as 5-th)/per pixel // not used in lwir
 			  final PixelMapping.SensorData sensor, // to calculate extra shift
 			  final ImageStack kernelStack,  // first stack with 3 colors/slices convolution kernels
 			  final int          kernelSize, // 64
@@ -765,7 +765,7 @@ public class QuadCLT {
 		  return clt_kernels;
 	  }
 
-	  public double [][] flattenCLTKernels (      // per color, save 4 kernelas and displacement as (2*dtt_size+1)*(2*dtt_size) tiles in an image (last row - 4 values shift x,y)
+	  public double [][] flattenCLTKernels (      // per color, save 4 kernelas and displacement as (2*dtt_size+1)*(2*dtt_size) tiles in an image (last row - 4 values shift x,y) // not used in lwir
 			  final double [][][][][] kernels,    // per color/per tileY/ per tileX/per quadrant (plus offset as 5-th)/per pixel
 			  final int          threadsMax,      // maximal number of threads to launch
 			  final boolean      updateStatus,
@@ -843,7 +843,7 @@ public class QuadCLT {
 		  return clt_flat;
 	  }
 
-	  public void showCLTKernels(
+	  public void showCLTKernels( // not used in lwir
 			  final int          threadsMax,      // maximal number of threads to launch
 			  final boolean      updateStatus,
 			  final int          globalDebugLevel) // update status info
@@ -860,7 +860,7 @@ public class QuadCLT {
 		  }
 	  }
 
-	  public void showCLTKernels(
+	  public void showCLTKernels( // not used in lwir
 			  int chn,
 			  final int          threadsMax,      // maximal number of threads to launch
 			  final boolean      updateStatus,
@@ -884,7 +884,7 @@ public class QuadCLT {
 				  titles);
 	  }
 
-
+	  // USED in lwir
 	  public double [][][][][] extractCLTKernels (      // per color, save 4 kernelas and displacement as (2*dtt_size+1)*(2*dtt_size) tiles in an image (last row - shift x,y)
 			  final float [][]   flat_kernels,    // per color/per tileY/ per tileX/per quadrant (plus offset as 5-th)/per pixel
 			  final int          width,
@@ -955,7 +955,7 @@ public class QuadCLT {
 	  }
 
 
-	  public boolean createCLTKernels(
+	  public boolean createCLTKernels( // not used in lwir
 			  CLTParameters clt_parameters,
 			  int          srcKernelSize,
 			  int          threadsMax,  // maximal number of threads to launch
@@ -1048,7 +1048,7 @@ public class QuadCLT {
 
 
 
-	  public boolean readCLTKernels(
+	  public boolean readCLTKernels( // USED in lwir
 			  CLTParameters clt_parameters,
 			  int          threadsMax,  // maximal number of threads to launch
 			  boolean      updateStatus,
@@ -1137,7 +1137,7 @@ public class QuadCLT {
 
 // mostly for testing
 //eyesisKernelImage
-	  public double [] extractOneKernelFromStack(
+	  public double [] extractOneKernelFromStack( // not used in lwir
 			  final int          kernelSize, // 64
 			  final int chn,
 			  final int xTile, // horizontal number of kernel to extract
@@ -1153,7 +1153,7 @@ public class QuadCLT {
 				  yTile);  // vertical number of kernel to extract
 	  }
 
-	  public double [] extractOneKernelFromStack(
+	  public double [] extractOneKernelFromStack( // not used in lwir
 			  final ImageStack kernelStack,  // first stack with 3 colors/slices convolution kernels
 			  final int          kernelSize, // 64
 			  final int chn,
@@ -1172,7 +1172,7 @@ public class QuadCLT {
 		  return kernel;
 	  }
 	  // to be used in threaded method
-	  private void extractOneKernel(float [] pixels, //  array of combined square kernels, each
+	  private void extractOneKernel(float [] pixels, //  array of combined square kernels, each // not used in lwir
 			  double [] kernel, // will be filled, should have correct size before call
 			  int numHor, // number of kernels in a row
 			  int xTile, // horizontal number of kernel to extract
@@ -1192,7 +1192,7 @@ public class QuadCLT {
 		  for (i=0;i<size;i++) for (j=0;j<size;j++) kernel [i*size+j]=pixels[base+i*pixelsWidth+j];
 	  }
 
-	  public double [] reformatKernel(
+	  public double [] reformatKernel( // not used in lwir
 			  double [] src_kernel,// will be blured in-place
 			  int       src_size,  // typical 64
 			  int       dst_size,  // typical 15 // destination size
@@ -1214,7 +1214,7 @@ public class QuadCLT {
 
 	  }
 	  // to be used in threaded method
-	  private void reformatKernel(
+	  private void reformatKernel( // not used in lwir
 			  double [] src_kernel, // will be blured in-place
 			  double [] dst_kernel,
 			  int src_size,
@@ -1242,7 +1242,7 @@ public class QuadCLT {
 			  }
 		  }
 	  }
-	  public double []reformatKernel2( // averages by exactly 2 (decimate==2)
+	  public double []reformatKernel2( // averages by exactly 2 (decimate==2) // not used in lwir
 			  double [] src_kernel, //
 			  int src_size,
 			  int dst_size){
@@ -1255,7 +1255,7 @@ public class QuadCLT {
 		  return dst_kernel;
 	  }
 
-	  private void reformatKernel2( // averages by exactly 2 (decimate==2)
+	  private void reformatKernel2( // averages by exactly 2 (decimate==2) // not used in lwir
 			  double [] src_kernel, //
 			  double [] dst_kernel,
 			  int src_size,
@@ -1290,14 +1290,14 @@ public class QuadCLT {
 		  }
 	  }
 
-	  public void resetCLTKernels() // and geometry corection too
+	  public void resetCLTKernels() // and geometry correction too // not used in lwir
 	  {
 		  clt_kernels = null;
 		  geometryCorrection=null;
 
 	  }
 
-	  public ImageStack  YPrPbToRGB(double [][] yPrPb,
+	  public ImageStack  YPrPbToRGB(double [][] yPrPb,  // USED in lwir
 			  double Kr,        // 0.299;
 			  double Kb,        // 0.114;
 			  int width
@@ -1337,7 +1337,7 @@ public class QuadCLT {
 
 	  }
 
-	  public double [][]  YPrPbToRBG(double [][] yPrPb,
+	  public double [][]  YPrPbToRBG(double [][] yPrPb, // not used in lwir
 			  double Kr,        // 0.299;
 			  double Kb,        // 0.114;
 			  int width
@@ -1370,13 +1370,13 @@ public class QuadCLT {
 		  return rbg;
 	  }
 
-	  public void debayer_rbg(
+	  public void debayer_rbg( // not used in lwir
 			  ImageStack stack_rbg){
 		  debayer_rbg(stack_rbg, 1.0);
 	  }
 
 	  // Simple in-place debayer by (bi) linear approximation, assumes [0R/00], [00/B0], [G0/0G] slices
-	  public void debayer_rbg(
+	  public void debayer_rbg( // not used in lwir
 			  ImageStack stack_rbg,
 			  double scale)
 	  {
@@ -1462,7 +1462,7 @@ public class QuadCLT {
 		  }
 	  }
 
-	  public void processCLTChannelImages(
+	  public void processCLTChannelImages( // not used in lwir
 			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 			  ColorProcParameters colorProcParameters,
@@ -1560,7 +1560,7 @@ public class QuadCLT {
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
 
-	  public ImagePlus processCLTChannelImage(
+	  public ImagePlus processCLTChannelImage( // not used in lwir
 			  ImagePlus imp_src, // should have properties "name"(base for saving results), "channel","path"
 //			  EyesisCorrectionParameters.DCTParameters           dct_parameters,
 			  CLTParameters           clt_parameters,
@@ -2005,7 +2005,7 @@ public class QuadCLT {
 	  }
 
 // Processing sets of 4 images together
-	  public void processCLTSets(
+	  public void processCLTSets( // not used in lwir
 			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 //			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
@@ -2246,7 +2246,7 @@ public class QuadCLT {
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
 
-	  public ImagePlus processCLTSetImage(
+	  public ImagePlus processCLTSetImage( // not used in lwir
 			  ImagePlus imp_src, // should have properties "name"(base for saving results), "channel","path"
 			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
@@ -2610,7 +2610,7 @@ public class QuadCLT {
 		  return result;
 	  }
 
-	  public void processCLTQuads(
+	  public void processCLTQuads( // not used in lwir
 			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 			  ColorProcParameters colorProcParameters,
@@ -2840,7 +2840,7 @@ public class QuadCLT {
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
 
-	  public ImagePlus [] processCLTQuad(
+	  public ImagePlus [] processCLTQuad( // not used in lwir
 			  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"
 			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
@@ -3146,34 +3146,34 @@ public class QuadCLT {
 		  return results;
 	  }
 
-	  class SetChannels{
+	  class SetChannels{ // USED in lwir
 		  String set_name;    // set name (timestamp)
 		  int [] file_number; // array of file numbers for channels
-		  public SetChannels(String name, int[] fn){
+		  public SetChannels(String name, int[] fn){ // USED in lwir
 			  set_name = name;
 			  file_number = fn;
 		  }
-		  public String name() {
+		  public String name() { // USED in lwir
 			  return set_name;
 		  }
-		  public int [] fileNumber() {
+		  public int [] fileNumber() { // USED in lwir
 			  return file_number;
 		  }
-		  public int fileNumber(int i) {
+		  public int fileNumber(int i) { // not used in lwir
 			  return file_number[i];
 		  }
 	  }
 
-	  SetChannels [] setChannels(
+	  SetChannels [] setChannels( // USED in lwir
 			  int debugLevel) {
 		  return setChannels(null, debugLevel);
 	  }
 
-	  public int [] fileChannelToSensorChannels(int file_channel) {
+	  public int [] fileChannelToSensorChannels(int file_channel) { // USED in lwir
 		  if (!eyesisCorrections.pixelMapping.subcamerasUsed()) { // not an Eyesis-type system
 			  // Here use firstSubCameraConfig - subcamera, corresponding to sensors[0] of this PixelMapping instance (1 for Eyesis, 2 for Rig/LWIR)
 			  return eyesisCorrections.pixelMapping.channelsForSubCamera(file_channel - correctionsParameters.firstSubCameraConfig);
-		  } else 	if (correctionsParameters.isJP4()){
+		  } else 	if (correctionsParameters.isJP4()){ // not used in lwir
 			  // Here use firstSubCamera - first filename index to be processed by this PixelMapping instance (1 for Eyesis, 2 for Rig/LWIR)
 			  int subCamera= file_channel- correctionsParameters.firstSubCamera; // to match those in the sensor files
 			  return  eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera);
@@ -3183,7 +3183,7 @@ public class QuadCLT {
 		  }
 	  }
 
-	  SetChannels [] setChannels(
+	  SetChannels [] setChannels( // USED in lwir
 			  String single_set_name, // process only files that contain specified series (timestamp) in the name
 			  int debugLevel) {
 		  String [] sourceFiles=correctionsParameters.getSourcePaths();
@@ -3207,7 +3207,7 @@ public class QuadCLT {
 		  }
 		  if (numFilesToProcess==0){
 			  System.out.println("No files to process (of "+sourceFiles.length+")");
-			  return null;
+			  return null; // not used in lwir
 		  } else {
 			  if (debugLevel>0) System.out.println(numFilesToProcess+ " files to process (of "+sourceFiles.length+"), "+numImagesToProcess+" images to process");
 		  }
@@ -3216,7 +3216,7 @@ public class QuadCLT {
 		  for (int nFile=0;nFile<enabledFiles.length;nFile++){ // enabledFiles not used anymore?
 			  if (    (sourceFiles[nFile]!=null) &&
 					  (sourceFiles[nFile].length()>1) &&
-					  ((single_set_name == null) || (correctionsParameters.getNameFromTiff(sourceFiles[nFile]).contains(single_set_name)))) {
+					  ((single_set_name == null) || (correctionsParameters.getNameFromTiff(sourceFiles[nFile]).contains(single_set_name)))) { // not used in lwir
 				  int [] channels= fileChannelToSensorChannels(correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile]));
 				  if (channels!=null){
 					  for (int i=0;i<channels.length;i++) if (eyesisCorrections.isChannelEnabled(channels[i])){
@@ -3256,7 +3256,7 @@ public class QuadCLT {
 	  }
 
 
-	  int getTotalFiles(SetChannels [] sc) {
+	  int getTotalFiles(SetChannels [] sc) { // USED in lwir
 		  int nf = 0;
 		  for (int i = 0; i < sc.length; i++) nf+=sc[i].fileNumber().length;
 		  return nf;
@@ -3275,7 +3275,7 @@ public class QuadCLT {
 	   * @param debugLevel          debug (verbosity) level
 	   * @return array of per-channel ImagePlus objects to process (with saturation_imp)
 	   */
-	  public ImagePlus[] conditionImageSet(
+	  public ImagePlus[] conditionImageSet( // USED in lwir
 			  CLTParameters  clt_parameters,
 			  ColorProcParameters                       colorProcParameters, //
 			  String []                                 sourceFiles,
@@ -3317,7 +3317,7 @@ public class QuadCLT {
 
 				  if (this.correctionsParameters.pixelDefects && (eyesisCorrections.defectsXY!=null)&& (eyesisCorrections.defectsXY[srcChannel]!=null)){
 					  // apply pixel correction
-					  int numApplied=	eyesisCorrections.correctDefects(
+					  int numApplied=	eyesisCorrections.correctDefects( // not used in lwir
 							  imp_srcs[srcChannel],
 							  srcChannel,
 							  debugLevel);
@@ -3374,14 +3374,14 @@ public class QuadCLT {
 					  if (this.correctionsParameters.vignetting && correct_vignetting){
 						  if ((eyesisCorrections.channelVignettingCorrection==null) || (srcChannel<0) || (srcChannel>=eyesisCorrections.channelVignettingCorrection.length) || (eyesisCorrections.channelVignettingCorrection[srcChannel]==null)){
 							  System.out.println("No vignetting data for channel "+srcChannel);
-							  return null;
+							  return null; // not used in lwir
 						  }
 						  ///						  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
 
 
 						  if (pixels.length!=eyesisCorrections.channelVignettingCorrection[srcChannel].length){
 							  System.out.println("Vignetting data for channel "+srcChannel+" has "+eyesisCorrections.channelVignettingCorrection[srcChannel].length+" pixels, image "+sourceFiles[nFile]+" has "+pixels.length);
-							  return null;
+							  return null; // not used in lwir
 						  }
 						  // TODO: Move to do it once:
 						  double min_non_zero = 0.0;
@@ -3411,7 +3411,7 @@ public class QuadCLT {
 							  }
 						  }
 
-					  } else { // assuming GR/BG pattern
+					  } else { // assuming GR/BG pattern // not used in lwir
 						  System.out.println("Applying fixed color gain correction parameters: Gr="+
 								  clt_parameters.novignetting_r+", Gg="+clt_parameters.novignetting_g+", Gb="+clt_parameters.novignetting_b);
 						  ///						  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
@@ -3520,7 +3520,7 @@ public class QuadCLT {
 	  }
 
 
-	  public void processCLTQuadCorrs(
+	  public void processCLTQuadCorrs( // not used in lwir
 			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 			  ColorProcParameters colorProcParameters,
@@ -3600,7 +3600,7 @@ public class QuadCLT {
 	  }
 
 
-	  public void channelGainsEqualize(
+	  public void channelGainsEqualize( // USED in lwir
 			  boolean gain_equalize,
 			  boolean colors_equalize,
 			  boolean nosat_equalize,
@@ -3620,7 +3620,7 @@ public class QuadCLT {
 					  saturated,
 					  setName, // just for debug messages == setNames.get(nSet)
 					  debugLevel);
-		  } else {
+		  } else { // not used in lwir
 			  channelGainsEqualize_old(
 					  gain_equalize,
 					  colors_equalize,
@@ -3632,7 +3632,7 @@ public class QuadCLT {
 					  debugLevel);
 		  }
 	  }
-	  public void channelGainsEqualize_old(
+	  public void channelGainsEqualize_old( // not used in lwir
 			  boolean gain_equalize,
 			  boolean colors_equalize,
 			  boolean nosat_equalize,
@@ -3706,7 +3706,7 @@ public class QuadCLT {
 		  }
 	  }
 
-	  public void channelGainsEqualize_new(
+	  public void channelGainsEqualize_new( // USED in lwir
 			  boolean gain_equalize,
 			  boolean colors_equalize,
 			  boolean nosat_equalize,
@@ -3777,7 +3777,7 @@ public class QuadCLT {
 				  double avr_g = 0.5 * (avr_pix[srcChannel][1] + avr_pix[srcChannel][2]);
 				  for (int j=0;j < scales.length; j++){
 					  scales[j] = 1.0;
-					  if (gain_equalize){
+					  if (gain_equalize){ // not used in lwir
 						  scales[j] *=  avr_G/avr_g;
 					  }
 					  if (colors_equalize){
@@ -3809,7 +3809,7 @@ public class QuadCLT {
 			  }
 		  }
 	  }
-	  public double []  channelLwirEqualize(
+	  public double []  channelLwirEqualize( // USED in lwir
 			  int [] channelFiles,
 			  ImagePlus [] imp_srcs,
 			  boolean      remove_dc,
@@ -3854,7 +3854,7 @@ public class QuadCLT {
 			  }
 		  }
 		  double avg = total_s/total_w;
-		  if (!remove_dc) {
+		  if (!remove_dc) { // not used in lwir
 			  for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++) if (channelFiles[srcChannel] >=0){
 				  avr_pix[srcChannel][0] -= avg;
 			  }
@@ -3877,7 +3877,7 @@ public class QuadCLT {
 	  }
 
 
-	  public ImagePlus [] processCLTQuadCorr(
+	  public ImagePlus [] processCLTQuadCorr( // USED in lwir
 			  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"
 			  boolean [][] saturation_imp, // (near) saturated pixels or null
 			  CLTParameters           clt_parameters,
@@ -3971,7 +3971,7 @@ public class QuadCLT {
 				  }
 			  } // clt_parameters.corr_mismatch = false
 			  if (clt_parameters.corr_mismatch || apply_corr || infinity_corr){ // added infinity_corr
-				  clt_mismatch = new double [12][]; // What is 12?
+				  clt_mismatch = new double [12][]; // What is 12?// not used in lwir
 			  }
 		  }
 		  // Includes all 3 colors - will have zeros in unused
@@ -3990,7 +3990,7 @@ public class QuadCLT {
 
 		  double z_correction =  clt_parameters.z_correction;
 		  if (clt_parameters.z_corr_map.containsKey(name)){
-			  z_correction +=clt_parameters.z_corr_map.get(name);
+			  z_correction +=clt_parameters.z_corr_map.get(name);// not used in lwir
 		  }
 		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
 		  double [][][][][][] clt_data = image_dtt.clt_aberrations_quad_corr(
@@ -4064,7 +4064,7 @@ public class QuadCLT {
 		  String [] rbga_weights_titles = {"red","blue","green","alpha","port0","port1","port2","port3","r-rms","b-rms","g-rms","w-rms"};
 		  // In monochrome mode only G is used ImageDtt.MONO_CHN(==2), others are null
 		  if (texture_tiles != null){
-			  if (clt_parameters.show_nonoverlap){
+			  if (clt_parameters.show_nonoverlap){// not used in lwir
 				  texture_nonoverlap = image_dtt.combineRBGATiles(
 						  texture_tiles,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
 						  clt_parameters.transform_size,
@@ -4101,7 +4101,7 @@ public class QuadCLT {
 					  }
 				  }
 
-				  if (!batch_mode && clt_parameters.show_overlap) {
+				  if (!batch_mode && clt_parameters.show_overlap) {// not used in lwir
 					  sdfa_instance.showArrays( // all but r-rms, b-rms
 							  texture_overlap,
 							  tilesX * clt_parameters.transform_size,
@@ -4110,7 +4110,7 @@ public class QuadCLT {
 							  name+sAux() + "-TXTOL-D"+clt_parameters.disparity,
 							  (clt_parameters.keep_weights?rbga_weights_titles:rbga_titles));
 				  }
-				  if (!batch_mode && clt_parameters.show_rgba_color) {
+				  if (!batch_mode && clt_parameters.show_rgba_color) {// not used in lwir
 					  // for now - use just RGB. Later add option for RGBA
 					  double [][] texture_rgb = {texture_overlap[0],texture_overlap[1],texture_overlap[2]};
 					  double [][] texture_rgba = {texture_overlap[0],texture_overlap[1],texture_overlap[2],texture_overlap[3]};
@@ -4148,7 +4148,7 @@ public class QuadCLT {
 				  }
 			  }
 
-			  if (infinity_corr && (disparity_map != null)){
+			  if (infinity_corr && (disparity_map != null)){// not used in lwir
 				  System.out.println("=== applying geometry correction coefficients to correct disparity at infinity ===");
 				  System.out.println("=== Set inf_repeat =0 to disable automatic correction and just generate a data image to correct in offline mode ===");
 				  double [] mismatch_strength = disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX].clone();
@@ -4277,7 +4277,7 @@ public class QuadCLT {
 			  }
 
 
-			  if (!batch_mode && !infinity_corr && clt_parameters.corr_show && (debugLevel > -1)){
+			  if (!batch_mode && !infinity_corr && clt_parameters.corr_show && (debugLevel > -1)){ // not used in lwir
 				  double [][] corr_rslt = new double [clt_corr_combo.length][];
 				  String [] titles = new String[clt_corr_combo.length]; // {"combo","sum"};
 				  for (int i = 0; i< titles.length; i++) titles[i] = ImageDtt.TCORR_TITLES[i];
@@ -4299,7 +4299,7 @@ public class QuadCLT {
 						  titles );
 			  }
 
-			  if (!batch_mode && !infinity_corr && (clt_corr_partial!=null)){
+			  if (!batch_mode && !infinity_corr && (clt_corr_partial!=null)){ // not used in lwir
 				  if (debugLevel > -1){ // -1
 					  String [] allColorNames = {"red","blue","green","combo"};
 					  String [] titles = new String[clt_corr_partial.length];
@@ -4444,14 +4444,14 @@ public class QuadCLT {
 				  for (int i = 0; i<slice_seq.length; i++){
 					  if (imps_RGB[slice_seq[i]] != null) {
 						  array_stack.addSlice("port_"+slice_seq[i], imps_RGB[slice_seq[i]].getProcessor().getPixels());
-					  } else {
+					  } else { // not used in lwir
 						  array_stack.addSlice("port_"+slice_seq[i], results[slice_seq[i]].getProcessor().getPixels());
 					  }
 				  }
 				  ImagePlus imp_stack = new ImagePlus(name+sAux()+"-SHIFTED-D"+clt_parameters.disparity, array_stack);
 				  imp_stack.getProcessor().resetMinAndMax();
 				  if (!batch_mode) {
-					  imp_stack.updateAndDraw();
+					  imp_stack.updateAndDraw(); // not used in lwir
 				  }
 				  //imp_stack.getProcessor().resetMinAndMax();
 				  //imp_stack.show();
@@ -4497,7 +4497,7 @@ public class QuadCLT {
 		  return results;
 	  }
 
-	  double [][] resizeGridTexture(
+	  double [][] resizeGridTexture( // USED in lwir
 			  double [][] imgData,
 			  int tileSize,
 			  int tilesX,
@@ -4522,7 +4522,7 @@ public class QuadCLT {
 		  }
 		  return rslt;
 	  }
-	  public int [] getLwirHistogram(
+	  public int [] getLwirHistogram( // USED in lwir
 			  double [] data,
 			  double    hard_cold,
 			  double    hard_hot,
@@ -4537,7 +4537,7 @@ public class QuadCLT {
 			  }
 			  return hist;
 		  }
-		  public int [] addHist(
+		  public int [] addHist( // USED in lwir
 				  int [] this_hist,
 				  int [] other_hist) {
 			  for (int i = 0; i < this_hist.length; i++) {
@@ -4547,7 +4547,7 @@ public class QuadCLT {
 		  }
 		  // get low/high (soft min/max) from the histogram
 		  // returns value between 0.0 (low histogram limit and 1.0 - high histgram limit
-		  public double getMarginFromHist(
+		  public double getMarginFromHist( // USED in lwir
 				  int [] hist, // histogram
 				  double cumul_val, // cummulative number of items to be ignored
 				  boolean high_marg) { // false - find low margin(output ~0.0) , true - find high margin (output ~1.0)
@@ -4562,7 +4562,7 @@ public class QuadCLT {
 					  n+= hist[bin];
 					  if (n > cumul_val) break;
 				  }
-				  if (n <= cumul_val) {
+				  if (n <= cumul_val) { // not used in lwir
 					  v =  0.0; // cumul_val > total number of samples
 				  } else {
 					  v = s* (bin + 1 - (cumul_val - n_prev)/(n - n_prev));
@@ -4574,7 +4574,7 @@ public class QuadCLT {
 					  n+= hist[bin];
 					  if (n > cumul_val) break;
 				  }
-				  if (n <= cumul_val) {
+				  if (n <= cumul_val) { // not used in lwir
 					  v =  1.0; // cumul_val > total number of samples
 				  } else {
 					  v = s * (bin + (cumul_val - n_prev)/(n - n_prev));
@@ -4583,7 +4583,7 @@ public class QuadCLT {
 			  return v;
 		  }
 
-		  public double [] autorange(
+		  public double [] autorange( // USED in lwir
 				  double [][][] iclt_data, //  [iQuad][ncol][i] - normally only [][2][] is non-null
 				  double hard_cold,// matches data, DC (this.lwir_offset)  subtracted
 				  double hard_hot, // matches data, DC (this.lwir_offset)  subtracted
@@ -4630,7 +4630,7 @@ public class QuadCLT {
 
 
 	  // float
-	  public ImagePlus linearStackToColor(
+	  public ImagePlus linearStackToColor( // not used in lwir
 			  CLTParameters         clt_parameters,
 			  ColorProcParameters   colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters         rgbParameters,
@@ -4681,7 +4681,7 @@ public class QuadCLT {
 	  // double data
 
 
-	  public ImagePlus linearStackToColor(
+	  public ImagePlus linearStackToColor( // USED in lwir
 			  CLTParameters         clt_parameters,
 			  ColorProcParameters   colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters         rgbParameters,
@@ -4802,7 +4802,7 @@ public class QuadCLT {
 	  // Convert a single value pixels to color (r,b,g) values to be processed instead of the normal colors
 
 
-	  public ImagePlus linearStackToColor(
+	  public ImagePlus linearStackToColor( // USED in lwir
 			  CLTParameters         clt_parameters,
 			  ColorProcParameters   colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters         rgbParameters,
@@ -4843,7 +4843,7 @@ public class QuadCLT {
 				  stack,
 				  debugLevel)){
 			  if (debugLevel > -1) System.out.println("fixSliceSequence() returned false");
-			  return null;
+			  return null;// not used in lwir
 		  }
 		  if (debugLevel > 1) System.out.println("before colors.2");
 //		  if (debugLevel > -1) System.out.println("before colors.2");
@@ -4906,7 +4906,7 @@ public class QuadCLT {
 			  }
 			  while (stack.getSize() > 3) stack.deleteLastSlice();
 			  if (debugLevel > 1) System.out.println("Trimming color stack");
-		  } else {
+		  } else {// not used in lwir
 			  titleFull=name+sAux()+"-YPrPb"+suffix;
 			  if (debugLevel > 1) System.out.println("Using full stack, including YPbPr");
 		  }
@@ -4920,7 +4920,7 @@ public class QuadCLT {
 			  result.show();
 		  }
 
-		  if (!toRGB && !this.correctionsParameters.jpeg){ // toRGB set for equirectangular
+		  if (!toRGB && !this.correctionsParameters.jpeg){ // toRGB set for equirectangular// not used in lwir
 			  if (debugLevel > 1) System.out.println("!toRGB && !this.correctionsParameters.jpeg");
 			  if (saveShowIntermediate) eyesisCorrections.saveAndShow(result, this.correctionsParameters);
 			  return result;
@@ -4949,7 +4949,7 @@ public class QuadCLT {
 
 		  CompositeImage compositeImage=eyesisCorrections.convertToComposite(result);
 
-		  if (!this.correctionsParameters.jpeg && bpp16){ // RGB48 was the end result
+		  if (!this.correctionsParameters.jpeg && bpp16){ // RGB48 was the end result // not used in lwir
 			  if (debugLevel > 1) System.out.println("if (!this.correctionsParameters.jpeg && !advanced)");
 			  if (saveShowIntermediate) eyesisCorrections.saveAndShow(compositeImage, this.correctionsParameters);
 			  return compositeImage; // return result;
@@ -4973,7 +4973,7 @@ public class QuadCLT {
 
 
 
-	  public void apply_fine_corr(
+	  public void apply_fine_corr( // not used in lwir
 			  double [][][] corr,
 			  int debugLevel)
 	  {
@@ -5001,16 +5001,16 @@ public class QuadCLT {
 			  }
 		  }
 	  }
-	  public void show_fine_corr()
+	  public void show_fine_corr() // not used in lwir
 	  {
 		  show_fine_corr("");
 	  }
-	  public void show_fine_corr(String prefix)
+	  public void show_fine_corr(String prefix) // not used in lwir
 	  {
 		  show_fine_corr( this.fine_corr, prefix);
 	  }
 
-	  public void show_fine_corr(
+	  public void show_fine_corr( // not used in lwir
 			  double [][][] corr,
 			  String prefix)
 	  {
@@ -5031,12 +5031,12 @@ public class QuadCLT {
 	  }
 
 
-	  public void reset_fine_corr()
+	  public void reset_fine_corr() // not used in lwir
 	  {
 		  this.fine_corr = new double [4][2][6]; // reset all coefficients to 0
 	  }
 
-	  public void showExtrinsicCorr(String name)
+	  public void showExtrinsicCorr(String name) // not used in lwir
 	  {
 		  System.out.println("Extrinsic corrections "+name);
 		  if (geometryCorrection == null){
@@ -5047,7 +5047,7 @@ public class QuadCLT {
 		  }
 	  }
 
-	  public boolean editRig()
+	  public boolean editRig() // not used in lwir
 	  {
 		  if (!is_aux) {
 			  System.out.println("Rig offsets can only be edited for the auxiliary camera, not for the main one");
@@ -5072,7 +5072,7 @@ public class QuadCLT {
  */
 
 
-	  public void resetExtrinsicCorr(
+	  public void resetExtrinsicCorr( // not used in lwir
 			  CLTParameters           clt_parameters)
 	  {
 //		  this.extrinsic_vect = new double [GeometryCorrection.CORR_NAMES.length];
@@ -5085,7 +5085,7 @@ public class QuadCLT {
 		  }
 	  }
 
-	  public void cltDisparityScans(
+	  public void cltDisparityScans( // not used in lwir
 			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 			  ColorProcParameters colorProcParameters,
@@ -5323,7 +5323,7 @@ public class QuadCLT {
 	  }
 
 
-	  public ImagePlus [] cltDisparityScan(
+	  public ImagePlus [] cltDisparityScan( // not used in lwir
 			  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"
 			  boolean [][] saturation_imp, // (near) saturated pixels or null
 			  CLTParameters           clt_parameters,
@@ -5630,7 +5630,7 @@ public class QuadCLT {
 		  return results;
 	  }
 
-	  public void process_infinity_corr( //from existing image
+	  public void process_infinity_corr( //from existing image // not used in lwir
 			  CLTParameters clt_parameters,
 			  int debugLevel
 			  ) {
@@ -5705,7 +5705,7 @@ public class QuadCLT {
 	  }
 
 
-	  public void processLazyEye(
+	  public void processLazyEye( // not used in lwir
 			  boolean dry_run,
 			  CLTParameters clt_parameters,
 			  int debugLevel
@@ -5782,7 +5782,7 @@ public class QuadCLT {
 	  }
 
 
-	  public double [][] process_disparity_scan(
+	  public double [][] process_disparity_scan( // not used in lwir
 			  double [][] disparities_maps,
 			  double disp_step,
 			  double disp_start,
@@ -5863,7 +5863,7 @@ public class QuadCLT {
 		  return rslt;
 	  }
 
-	  public void showCLTPlanes(
+	  public void showCLTPlanes( // not used in lwir
 			  CLTParameters           clt_parameters,
 			  final int          threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
@@ -5891,7 +5891,7 @@ public class QuadCLT {
 			  IJ.d2s(0.000000001*(System.nanoTime()-this.startStepTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
 
-	  public double [][]  assignCLTPlanes(
+	  public double [][]  assignCLTPlanes( // not used in lwir
 			  CLTParameters           clt_parameters,
 			  final int          threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
@@ -5921,7 +5921,7 @@ public class QuadCLT {
 	  }
 
 
-	  public void out3d_old(
+	  public void out3d_old( // not used in lwir
 			  CLTParameters           clt_parameters,
 			  final int          threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
@@ -5948,7 +5948,7 @@ public class QuadCLT {
 
 
 
-	  public void processCLTQuads3d(
+	  public void processCLTQuads3d( // not used in lwir
 			  boolean                                              adjust_extrinsics,
 			  boolean                                              adjust_poly,
 			  TwoQuadCLT                                           twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
@@ -6129,7 +6129,7 @@ public class QuadCLT {
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
 
-	public double [][] depthMapMainToAux(
+	public double [][] depthMapMainToAux(// USED in lwir
 			double [][]        ds,
 			GeometryCorrection geometryCorrection_main,
 			GeometryCorrection geometryCorrection_aux,
@@ -6141,7 +6141,7 @@ public class QuadCLT {
 			boolean            for_adjust, // for LY adjustment: only keep d,s and remove samples with high variations
 			int                debug_level
 			){
-		class DS{
+		class DS{// USED in lwir
 			double disparity;  // gt disparity
 			double strength;   // gt strength
 			int tx;            // gt tile x
@@ -6158,7 +6158,7 @@ public class QuadCLT {
 
 			}
 			@Override
-			public String toString() {
+			public String toString() { // not used in lwir
 				return String.format("Disparity (str) = % 6f (%5f), tx=%d ty=%d fx=%5f fy=%5f\n", disparity, strength,tx,ty,fx,fy);
 			}
 		}
@@ -6290,7 +6290,7 @@ public class QuadCLT {
 
 	}
 
-	  public boolean preExpandCLTQuad3d(
+	  public boolean preExpandCLTQuad3d( // USED in lwir
 			  ImagePlus []                                     imp_quad, // should have properties "name"(base for saving results), "channel","path"
 			  boolean [][]                                     saturation_imp,   // (near) saturated pixels or null
 			  CLTParameters         clt_parameters,
@@ -6753,7 +6753,7 @@ public class QuadCLT {
 		  return true;
 	  }
 
-	  ArrayList <CLTPass3d> prepareDisparityScan(
+	  ArrayList <CLTPass3d> prepareDisparityScan( // USED in lwir
 			  	double scan_start,
 			  	double scan_step,
 			  	int    scan_count){
@@ -6779,7 +6779,7 @@ public class QuadCLT {
 	   * @param debugLevel
 	   * @return true on success, false - on failure
 	   */
-	  public boolean extrinsicsCLT(
+	  public boolean extrinsicsCLT( // USED in lwir
 			  CLTParameters           clt_parameters,
 			  boolean 		   adjust_poly,
 			  final int        threadsMax,  // maximal number of threads to launch
@@ -7124,7 +7124,7 @@ public class QuadCLT {
 	  }
 
 
-	  public double [][] getRigDSFromTwoQuadCL(
+	  public double [][] getRigDSFromTwoQuadCL( // not used in lwir
 			  TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
 			  CLTParameters           clt_parameters,
 			  final int        debugLevel) {
@@ -7165,7 +7165,7 @@ public class QuadCLT {
  * @param debugLevel
  * @return true on success, false on failure
  */
-	  public boolean extrinsicsCLTfromGT(
+	  public boolean extrinsicsCLTfromGT( // USED in lwir
 //			  TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
 			  GeometryCorrection geometryCorrection_main, // only used for aux camera if coordinates are for main (null for LWIR)
 			  double [][] rig_disp_strength,
@@ -7316,11 +7316,11 @@ public class QuadCLT {
 					  clt_parameters.corr_magic_scale, // double      magic_coeff, // still not understood coefficent that reduces reported disparity value.  Seems to be around 8.5
 					  debugLevelInner - 1); //  + (clt_parameters.fine_dbg ? 1:0)); // int debugLevel)
 			  if (new_corr == null) {
-				  return false;
+				  return false; // not used in lwir
 			  }
 			  comp_diff = 0.0;
 			  int num_pars = 0;
-			  if (adjust_poly) {
+			  if (adjust_poly) { // not used in lwir
 				  apply_fine_corr(
 						  new_corr,
 						  debugLevelInner + 2);
@@ -7343,7 +7343,7 @@ public class QuadCLT {
 				  if (comp_diff < min_poly_update) { // add other parameter to exit from poly
 					  break;
 				  }
-			  } else {
+			  } else { // USED in lwir
 				  for (int i = 0; i < new_corr[0][0].length; i++){
 					  comp_diff += new_corr[0][0][i] * new_corr[0][0][i];
 				  }
@@ -7374,7 +7374,7 @@ public class QuadCLT {
 
 
 
-	  public boolean expandCLTQuad3d(
+	  public boolean expandCLTQuad3d( // USED in lwir
 		  CLTParameters           clt_parameters,
 		  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 		  ColorProcParameters colorProcParameters,
@@ -7558,7 +7558,7 @@ public class QuadCLT {
         		  System.out.println("**** processCLTQuad3d(): nothing to expand ***");
         		  System.out.println("!clt_parameters.ex_over_bgnd="+clt_parameters.ex_over_bgnd+" over_infinity="+over_infinity);
         		  if (!clt_parameters.ex_over_bgnd || over_infinity)  last_pass = true;
-        		  else {
+        		  else { // not used in lwir
         			  over_infinity = true;
         			  if (debugLevel > -1){
         				  System.out.println("===== processCLTQuad3d(): trying to expand over previously identified background (may be by error)====");
@@ -7618,7 +7618,7 @@ public class QuadCLT {
 
 // called after composite scan is added to the list? composite scan is inside
 
-	  public int zMapExpansionStep(
+	  public int zMapExpansionStep( // USED in lwir
 				final ArrayList <CLTPass3d> passes,// List, first, last - to search for the already tried disparity
 				final CLTParameters           clt_parameters, // for refinePassSetup()
 				final int         firstPass,
@@ -7923,11 +7923,11 @@ public class QuadCLT {
     				  dbg_y,
     				  debugLevel);
         	  num_extended = numLeftRemoved[0]; //0,0
-			  if (clt_parameters.show_expand || (clt_parameters.show_variant && (numLeftRemoved[1] > 1 ))) tp.showScan(
+			  if (clt_parameters.show_expand || (clt_parameters.show_variant && (numLeftRemoved[1] > 1 ))) tp.showScan( // not used in lwir
 					  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
 					  "prepareExpandVariant-"+numLeftRemoved[1]+"-"+refine_pass); //String title)
     	  }
-    	  if ((num_extended == 0) && expand_legacy) { // if both are on, will use legacy if neighbors failed
+    	  if ((num_extended == 0) && expand_legacy) { // if both are on, will use legacy if neighbors failed // not used in lwir
 
     		  boolean show_ex_debug = show_retry_far || (clt_parameters.show_retry_far && last_pass) || dbg_pass;
     		  num_extended = tp.setupExtendDisparity(
@@ -8046,7 +8046,7 @@ public class QuadCLT {
 	  }
 // Separate method to detect and remove periodic structures
 
-	  public boolean showPeriodic(
+	  public boolean showPeriodic( // not used in lwir
 			  CLTParameters           clt_parameters,
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
@@ -8104,7 +8104,7 @@ public class QuadCLT {
 //*****************************************************************
 
 //	  public ImagePlus output3d(
-	  public boolean output3d(
+	  public boolean output3d( // USED in lwir
 			  CLTParameters                            clt_parameters,
 			  ColorProcParameters                      colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters rgbParameters,
@@ -8117,7 +8117,7 @@ public class QuadCLT {
 		  final int tilesX = tp.getTilesX();
 		  final int tilesY = tp.getTilesY();
 		  if (this.image_data == null){
-			  return false;
+			  return false; // not used in lwir
 		  }
 		  double infinity_disparity = 	geometryCorrection.getDisparityFromZ(clt_parameters.infinityDistance);
 		  X3dOutput x3dOutput = null;
@@ -8302,7 +8302,7 @@ public class QuadCLT {
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
 					  batch_mode ? -5: debugLevel);
-			  if (texturePath == null) {
+			  if (texturePath == null) { // not used in lwir
 				  continue; // empty image
 			  }
 			  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
@@ -8375,7 +8375,7 @@ public class QuadCLT {
 
 
 
-	  public void generateClusterX3d(
+	  public void generateClusterX3d( // USED in lwir
 			  X3dOutput       x3dOutput, // output x3d if not null
 			  WavefrontExport wfOutput,  // output WSavefront if not null
 			  String          texturePath,
@@ -8393,7 +8393,7 @@ public class QuadCLT {
 			  ) throws IOException
 	  {
 		  if (bounds == null) {
-			  return;
+			  return; // not used in lwir
 		  }
 		  int [][] indices =  tp.getCoordIndices( // starting with 0, -1 - not selected
 				  bounds,
@@ -8463,7 +8463,7 @@ public class QuadCLT {
 	  }
 
 
-	  public ImagePlus getBackgroundImage(
+	  public ImagePlus getBackgroundImage( // USED in lwir
 			  boolean    no_image_save,
 			  CLTParameters           clt_parameters,
 			  ColorProcParameters colorProcParameters,
@@ -8584,7 +8584,7 @@ public class QuadCLT {
 						  if (bgnd_tiles_grown2[tileY * tilesX + tileX]) {
 							  texture_tiles_bgnd[tileY][tileX]= texture_tiles[tileY][tileX];
 							  num_bgnd++;
-						  }else{
+						  }else{ // not used in lwir
 							  texture_tiles_bgnd[tileY][tileX]= texture_tiles[tileY][tileX].clone();
 							  texture_tiles_bgnd[tileY][tileX][alpha_index] = alpha_zero;
 						  }
@@ -8594,7 +8594,7 @@ public class QuadCLT {
 		  }
 
 		  if (num_bgnd < clt_parameters.min_bgnd_tiles){
-			  return null; // no background to generate
+			  return null; // no background to generate // not used in lwir
 		  }
 		  ImageDtt image_dtt = new ImageDtt(isMonochrome(),clt_parameters.getScaleStrength(isAux()));
 		  double [][] texture_overlap = image_dtt.combineRBGATiles(
@@ -8671,7 +8671,7 @@ public class QuadCLT {
 
 
 
-	 public String getPassImage( // get image form a single pass, return relative path for x3d
+	 public String getPassImage( // get image form a single pass, return relative path for x3d // USED in lwir
 			  CLTParameters           clt_parameters,
 			  ColorProcParameters colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
@@ -8690,12 +8690,12 @@ public class QuadCLT {
 		  boolean [] borderTiles = scan.border_tiles;
 		  double [][][][] texture_tiles = scan.texture_tiles;
 		  scan.updateSelection(); // update .selected field (all selected, including border) and Rectangle bounds
-		  if (scan.getTextureBounds() == null) {
+		  if (scan.getTextureBounds() == null) { // not used in lwir
 			  System.out.println("getPassImage(): Empty image!");
 			  return null;
 		  }
 		  double [][]alphaFade = tp.getAlphaFade(clt_parameters.transform_size);
-		  if ((debugLevel > 0) && (scanIndex == 1)) {
+		  if ((debugLevel > 0) && (scanIndex == 1)) { // not used in lwir
 			  String [] titles = new String[16];
 			  for (int i = 0; i<titles.length;i++)  titles[i]=""+i;
 			  sdfa_instance.showArrays(alphaFade, 2*clt_parameters.transform_size,2*clt_parameters.transform_size,true,"alphaFade",titles);
@@ -8710,7 +8710,7 @@ public class QuadCLT {
 				  if (texture_tiles[tileY][tileX] != null) {
 					  if (borderTiles[tileY * tilesX + tileX]) {
 						  texture_tiles_cluster[tileY][tileX]= texture_tiles[tileY][tileX].clone();
-						  if (clt_parameters.shAggrFade) {
+						  if (clt_parameters.shAggrFade) { // not used in lwir
 							  texture_tiles_cluster[tileY][tileX][alpha_index] = alpha_zero;
 						  } else {
 							  if ((debugLevel > -1) && (scanIndex == 1)) {
@@ -8766,7 +8766,7 @@ public class QuadCLT {
 		  int width = resize ? (clt_parameters.transform_size * scan.getTextureBounds().width): (clt_parameters.transform_size * tilesX);
 		  int height = resize ? (clt_parameters.transform_size * scan.getTextureBounds().height): (clt_parameters.transform_size * tilesY);
 		  if ((width <= 0) || (height <= 0)) {
-			  System.out.println("***** BUG in getPassImage(): width="+width+", height="+height+", resize="+resize+" ****");
+			  System.out.println("***** BUG in getPassImage(): width="+width+", height="+height+", resize="+resize+" ****"); // not used in lwir
 		  }
 
 		  ImagePlus imp_texture_cluster = linearStackToColor(
@@ -8804,7 +8804,7 @@ public class QuadCLT {
 
 
 
-	  public ImagePlus resizeForBackdrop(
+	  public ImagePlus resizeForBackdrop( // USED in lwir
 			  ImagePlus imp,
 			  boolean fillBlack,
 			  boolean noalpha, // only with fillBlack, otherwise ignored
@@ -8855,7 +8855,7 @@ public class QuadCLT {
 					  indx++;
 				  }
 			  }
-		  } else {
+		  } else { // not used in lwir
 			  for (int i = 0; i < height; i++){
 				  for (int j = 0; j < width; j++){
 					  pixels[offset+ i * width2 + j] = src_pixels[indx++];
@@ -8871,7 +8871,7 @@ public class QuadCLT {
 //[tp.tilesY][tp.tilesX]["RGBA".length()][]
 //linearStackToColor
 
-	  public CLTPass3d CLTBackgroundMeas( // measure background
+	  public CLTPass3d CLTBackgroundMeas( // measure background // USED in lwir
 			  final double [][][] image_data, // first index - number of image in a quad
 			  final boolean [][]  saturation_imp, // (near) saturated pixels or null
 			  CLTParameters           clt_parameters,
@@ -8907,7 +8907,7 @@ public class QuadCLT {
 		  double [][][][] texture_tiles =     new double [tilesY][tilesX][][]; // ["RGBA".length()][];
 		  ImageDtt image_dtt = new ImageDtt(isMonochrome(),clt_parameters.getScaleStrength(isAux()));
 		  double z_correction =  clt_parameters.z_correction;
-		  if (clt_parameters.z_corr_map.containsKey(image_name)){
+		  if (clt_parameters.z_corr_map.containsKey(image_name)){ // not used in lwir
 			  z_correction +=clt_parameters.z_corr_map.get(image_name);
 		  }
 		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
@@ -8978,7 +8978,7 @@ public class QuadCLT {
 		  return scan_rslt;
 	  }
 
-	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
+	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity // USED in lwir
 			  final double [][][]       image_data, // first index - number of image in a quad
 			  final boolean [][]  saturation_imp, // (near) saturated pixels or null
 			  CLTParameters           clt_parameters,
@@ -9000,7 +9000,7 @@ public class QuadCLT {
 				  updateStatus,   // final boolean     updateStatus,
 				  debugLevel);    // final int         debugLevel);
 	  }
-	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
+	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity // not used in lwir
 			  final double [][][]       image_data, // first index - number of image in a quad
 			  final boolean [][]  saturation_imp, // (near) saturated pixels or null
 			  CLTParameters           clt_parameters,
@@ -9023,7 +9023,7 @@ public class QuadCLT {
 				  updateStatus,   // final boolean     updateStatus,
 				  debugLevel);    // final int         debugLevel);
 	  }
-	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
+	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity // not used in lwir
 			  final double [][][]       image_data, // first index - number of image in a quad
 			  CLTParameters           clt_parameters,
 			  final int         scanIndex,
@@ -9045,7 +9045,7 @@ public class QuadCLT {
 				  debugLevel);    // final int         debugLevel);
 	  }
 
-	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
+	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity // USED in lwir
 			  final double [][][]       image_data, // first index - number of image in a quad
 			  CLTParameters           clt_parameters,
 			  final int         scanIndex,
@@ -9068,7 +9068,7 @@ public class QuadCLT {
 				  debugLevel);    // final int         debugLevel);
 	  }
 
-	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
+	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity // USED in lwir
 //			  final String        image_name,
 			  final double [][][] image_data, // first index - number of image in a quad
 			  final boolean [][]  saturation_imp, // (near) saturated pixels or null
@@ -9089,7 +9089,7 @@ public class QuadCLT {
 		  int [][]     tile_op =         scan.tile_op;
 // Should not happen !
 		  double [][]  disparity_array = scan.disparity;
-		  if (scan.disparity == null) {
+		  if (scan.disparity == null) { // not used in lwir
 			  System.out.println ("** BUG: should not happen - scan.disparity == null ! **");
 			  System.out.println ("Trying to recover");
 			  double [] backup_disparity = scan.getDisparity(0);
@@ -9141,7 +9141,7 @@ public class QuadCLT {
 		  ImageDtt image_dtt = new ImageDtt(isMonochrome(),clt_parameters.getScaleStrength(isAux()));
 //		  final double disparity_corr = (clt_parameters.z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/clt_parameters.z_correction);
 		  double z_correction =  clt_parameters.z_correction;
-		  if (clt_parameters.z_corr_map.containsKey(image_name)){
+		  if (clt_parameters.z_corr_map.containsKey(image_name)){ // not used in lwir
 			  z_correction +=clt_parameters.z_corr_map.get(image_name);
 		  }
 		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
@@ -9212,7 +9212,7 @@ public class QuadCLT {
 	  }
 
 
-	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
+	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity // USED in lwir
 			  final double [][][] image_data, // first index - number of image in a quad
 			  final boolean [][]  saturation_imp, // (near) saturated pixels or null
 			  final CLTParameters           clt_parameters,
@@ -9274,7 +9274,7 @@ public class QuadCLT {
 		  double [][][][] texture_tiles =   save_textures ? new double [tilesY][tilesX][][] : null; // ["RGBA".length()][];
 		  ImageDtt image_dtt = new ImageDtt(isMonochrome(),clt_parameters.getScaleStrength(isAux()));
 		  double z_correction =  clt_parameters.z_correction;
-		  if (clt_parameters.z_corr_map.containsKey(image_name)){
+		  if (clt_parameters.z_corr_map.containsKey(image_name)){ // not used in lwir
 			  z_correction +=clt_parameters.z_corr_map.get(image_name);
 		  }
 		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
@@ -9345,7 +9345,7 @@ public class QuadCLT {
 
 
 
-	  public ImagePlus [] conditionImageSetBatch( // used in batchCLT3d
+	  public ImagePlus [] conditionImageSetBatch( // used in batchCLT3d // not used in lwir
 			  final int                           nSet, // index of the 4-image set
 			  final CLTParameters           clt_parameters,
 			  final int [][]                      fileIndices, // =new int [numImagesToProcess][2]; // file index, channel number
@@ -9571,7 +9571,7 @@ public class QuadCLT {
 		  return imp_srcs;
 	  }
 
-	  public void batchCLT3d( // Same can be ran for aux?
+	  public void batchCLT3d( // Same can be ran for aux? // not used in lwir
 			  TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
 			  CLTParameters          clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters      debayerParameters,
@@ -9853,7 +9853,7 @@ public class QuadCLT {
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
 
-	  public boolean setGpsLla(
+	  public boolean setGpsLla( // USED in lwir
 			  String source_file)
 	  {
 		  ImagePlus imp=(new JP46_Reader_camera(false)).open(
@@ -9873,11 +9873,11 @@ public class QuadCLT {
 				if (imp.getProperty("ALTITUDE")  != null) gps_lla[2] =Double.parseDouble((String) imp.getProperty("ALTITUDE"));
 				return true;
 		  }
-		  return false;
+		  return false; // not used in lwir
 	  }
 
 
-	  public boolean writeKml(
+	  public boolean writeKml( // USED in lwir
 			  int debugLevel )
 	  {
 		  String [] sourceFiles_main=correctionsParameters.getSourcePaths();
@@ -9915,7 +9915,7 @@ public class QuadCLT {
 		  return true;
 	  }
 
-	  public boolean createThumbNailImage(
+	  public boolean createThumbNailImage( // USED in lwir
 			  ImagePlus imp,
 			  String dir,
 			  String name,
@@ -9964,7 +9964,7 @@ public class QuadCLT {
 
 
 
-	  public boolean writeRatingFile(
+	  public boolean writeRatingFile( // USED in lwir
 			  int debugLevel
 			  )
 	  {
