@@ -132,6 +132,7 @@ public class Corr2dLMA {
     private final double [][] corr_wnd;
     private boolean [] used_cameras;
     private final Matrix [] m_disp = new Matrix[NUM_CAMS];
+    private int ncam = 0; // number of used cameras
     private int     last_cam; // index of the last camera (special treatment for disparity correction)
     private boolean second_last; // there is a pair where the second camera is the last one (false: first in a pair is the last one)
     private final Matrix [][] m_pairs =      new Matrix[NUM_CAMS][NUM_CAMS];
@@ -294,7 +295,7 @@ public class Corr2dLMA {
 			used_pairs[pindx[s.fcam][s.scam]]=true; // throws < 0 - wrong pair, f==s
 			used_pairs_dir[s.fcam][s.scam] = true;
 		}
-		int ncam = 0, npairs=0;
+		int npairs=0;
 		for (int i = 0; i < NUM_CAMS; i++) {
 			USED_CAMS_MAP[i] = ncam;
 			if (used_cameras[i]) {
@@ -425,7 +426,7 @@ public class Corr2dLMA {
 		Matrix [] xcam_ycam = new Matrix[NUM_CAMS];
 		for (int i = 0; i < NUM_CAMS; i++) if (used_cameras[i]) {
 			double [] add_dnd = {av[DISP_INDEX]+ av[DDISP_INDEX + i],  av[NDISP_INDEX + i]};
-			xcam_ycam[i] = m_disp[i].arrayTimes(new Matrix(add_dnd,2));
+			xcam_ycam[i] = m_disp[i].times(new Matrix(add_dnd,2));
 		}
 		double [][][] xp_yp = new double[NUM_CAMS][NUM_CAMS][];
 		double [] axc_yc = {transform_size - 1.0, transform_size-1.0};
@@ -461,14 +462,61 @@ public class Corr2dLMA {
 			fx[ns] = d * Gp;
 			int np = 0;
 			if (jt != null) {
-				if (par_mask[DISP_INDEX])  jt[np++][ns] = d;
-				if (par_mask[A_INDEX])     jt[np++][ns] = -WGp*(xmxp2 + ymyp2);
-				if (par_mask[B_INDEX])     jt[np++][ns] = -WGp* 2 * xmxp_ymyp;
-				if (par_mask[CMA_INDEX])   jt[np++][ns] = -WGp* ymyp2;
+				if (par_mask[DISP_INDEX])      jt[np++][ns] = 2 * WGp *
+						((A * xmxp + B * ymyp) * m_pairs[s.fcam][s.scam].get(0, 0)+
+						 (B * xmxp + C * ymyp) * m_pairs[s.fcam][s.scam].get(1, 0));
+				if (par_mask[A_INDEX])         jt[np++][ns] = -WGp*(xmxp2 + ymyp2);
+				if (par_mask[B_INDEX])         jt[np++][ns] = -WGp* 2 * xmxp_ymyp;
+				if (par_mask[CMA_INDEX])       jt[np++][ns] = -WGp* ymyp2;
+				if (par_mask[G0_INDEX + pair]) jt[np++][ns] = d;
+// USED_PAIRS_MAP
+// USED_CAMS_MAP
+				// process ddisp (last camera not used, is equal to minus sum of others to make a sum == 0)
+				for (int f = 0; f < NUM_CAMS; f++) {
+					jt[np + USED_CAMS_MAP[f]][ns] = 0.0;
+				}
+				if (par_mask[DDISP_INDEX + s.fcam] && (par_mask[DDISP_INDEX + s.scam] )) {
+					if (s.fcam != last_cam) {
+						 jt[np + USED_CAMS_MAP[s.fcam]][ns] += 2 * WGp *
+									((A * xmxp + B * ymyp) * m_disp[s.fcam].get(0, 0)+
+									 (B * xmxp + C * ymyp) * m_disp[s.fcam].get(1, 0));
 
+					} else { // last camera - use all others with minus sign
+						for (int c = 0; c < NUM_CAMS; c++) if ((c != last_cam) && par_mask[DDISP_INDEX + c]) {
+							 jt[np + USED_CAMS_MAP[c]][ns] -= 2 * WGp *
+										((A * xmxp + B * ymyp) * m_disp[c].get(0, 0)+
+										 (B * xmxp + C * ymyp) * m_disp[c].get(1, 0));
+						}
 
+					}
+					if (s.scam != last_cam) {
+						 jt[np + USED_CAMS_MAP[s.scam]][ns] -= 2 * WGp *
+									((A * xmxp + B * ymyp) * m_disp[s.scam].get(0, 0)+
+									 (B * xmxp + C * ymyp) * m_disp[s.scam].get(1, 0));
 
+					} else {
+						for (int c = 0; c < NUM_CAMS; c++) if ((c != last_cam) && par_mask[DDISP_INDEX + c]) {
+							 jt[np + USED_CAMS_MAP[c]][ns] += 2 * WGp *
+										((A * xmxp + B * ymyp) * m_disp[c].get(0, 0)+
+										 (B * xmxp + C * ymyp) * m_disp[c].get(1, 0));
+						}
 
+					}
+				}
+				np += ncam;
+				// process ndisp
+				for (int f = 0; f < NUM_CAMS; f++) {
+					jt[np + USED_CAMS_MAP[f]][ns] = 0.0;
+				}
+				if (par_mask[NDISP_INDEX + s.fcam] && (par_mask[NDISP_INDEX + s.scam] )) {
+						 jt[np + USED_CAMS_MAP[s.fcam]][ns] += 2 * WGp *
+									((A * xmxp + B * ymyp) * m_disp[s.fcam].get(0, 1)+
+									 (B * xmxp + C * ymyp) * m_disp[s.fcam].get(1, 1));
+						 jt[np + USED_CAMS_MAP[s.scam]][ns] -= 2 * WGp *
+									((A * xmxp + B * ymyp) * m_disp[s.scam].get(0, 1)+
+									 (B * xmxp + C * ymyp) * m_disp[s.scam].get(1, 1));
+				}
+				np += ncam;
 			}
 		}
 		// add 2 extra samples - damping cost_wy, cost_wxy
