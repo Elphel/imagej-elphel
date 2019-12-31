@@ -64,9 +64,6 @@ Fx=A(i)*W(x,y)*(pa*(x-x0j)^2+2*pb*(x-x0j)*(y-y0j)+pc*(y-y0j)^2)
  *
  */
 import java.util.ArrayList;
-import java.util.HashMap;
-
-import com.elphel.imagej.common.PolynomialApproximation;
 
 import Jama.Matrix;
 
@@ -89,18 +86,6 @@ public class Corr2dLMA {
 	final int []     USED_CAMS_MAP =  new int[NUM_CAMS]; // for each camera index return used index ???
 	final int [][]   USED_PAIRS_MAP = new int[NUM_CAMS][NUM_CAMS]; // for each camera index return used index ??
 
-	@Deprecated
-	final static int X0_INDEX =  0;
-	@Deprecated
-	final static int WM_INDEX =  1; // may be frozen
-	@Deprecated
-	final static int WYD_INDEX = 2;
-	@Deprecated
-	final static int WXY_INDEX = 3;
-	@Deprecated
-	final static int AG_INDEX =  4; // and above
-	@Deprecated
-	final static String [] PAR_NAMES_OLD = {"X0","HALF-WIDTH","WIDTH-EXTRA","WIDTH_X/Y","AMPLITUDE"};
 	final static String [] PAR_NAMES = {"DISP","A","B","C-A"};
 	final static String PAR_NAME_SCALE = "SCALE";
 	final static String PAR_NAME_CORRDISP = "CORR-DISP";
@@ -110,10 +95,6 @@ public class Corr2dLMA {
 	double  [] vector;
 	double  [] scales = {1.0, 2.0, 4.0};
 	ArrayList<Sample> samples = new ArrayList<Sample>();
-	@Deprecated
-	HashMap<Integer,NumDiag> groups = new HashMap<Integer,NumDiag>();
-	@Deprecated
-	double  [] group_weights =   null; // per-group weights of samples sum == 1.0
 	double [] pair_weights = null; // per pair weights (sum == 1.0)
 	double [] weights; // normalized so sum is 1.0 for all - samples and extra regularization terms
 	double    pure_weight; // weight of samples only
@@ -124,8 +105,6 @@ public class Corr2dLMA {
 	double []   initial_rms =     null; // {rms, rms_pure}, first-calcualted rms
 	double []   last_ymfx =       null;
 	double [][] last_jt =         null;
-	@Deprecated
-	boolean     input_diag =      false; // valid during adding samples, should be set before changing groups
 	double []   poly_coeff =      null;  // 6 elements - Xc, Yx, f(x,y), A, B, C (from A*x^2 + B*y^2 +C*x*y+...)
 	double []   poly_xyvwh =      null;  // result of 2-d polynomial approximation instead of the LMA - used for lazy eye correction
 	private final int transform_size;
@@ -133,52 +112,20 @@ public class Corr2dLMA {
     private boolean [] used_cameras;
     private final Matrix [] m_disp = new Matrix[NUM_CAMS];
     private int ncam = 0; // number of used cameras
+    private int npairs=0; // number of used pairs
     private int     last_cam; // index of the last camera (special treatment for disparity correction)
     private boolean second_last; // there is a pair where the second camera is the last one (false: first in a pair is the last one)
     private final Matrix [][] m_pairs =      new Matrix[NUM_CAMS][NUM_CAMS];
     private final Matrix [][] m_pairs_last = new Matrix[NUM_CAMS][NUM_CAMS];
-    private final int [][] pindx = new int [NUM_CAMS][NUM_CAMS];
-	@Deprecated
-	public class NumDiag{ // USED in lwir
-		int     num;
-		boolean diag;
-		public NumDiag(int num, boolean diag) {
-			this.num =  num;
-			this.diag = diag;
-		}
-	}
+    private final int [][] pindx =           new int [NUM_CAMS][NUM_CAMS];
 
 	public class Sample{ // USED in lwir
 		int    fcam;   // first  camera index
 		int    scam;   // second camera index
 		int    ix;     // x coordinate in 2D correlation (0.. 2*transform_size-2, center: (transform_size-1)
 		int    iy;     // y coordinate in 2D correlation (0.. 2*transform_size-2, center: (transform_size-1)
-		@Deprecated
-		double x;      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
-		@Deprecated
-		double y;      // y coordinate (0 - disparity axis)
 		double v;      // correlation value at that point
 		double w;      // weight
-		@Deprecated
-		int    si;     // baseline scale index //
-		@Deprecated
-		int    gi;     // group index
-		@Deprecated
-		Sample (
-				double x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
-				double y,      // y coordinate (0 - disparity axis)
-				double v,      // correlation value at that point
-				double w,
-				int    si,     // baseline scale index
-				int    gi)     // baseline scale index
-			{
-				this.x =  x;
-				this.y =  y;
-				this.v =  v;
-				this.w =  w;
-				this.si = si;
-				this.gi = gi;
-			}
 		Sample (
 				int    fcam,   // first  camera index
 				int    scam,   // second camera index
@@ -295,7 +242,7 @@ public class Corr2dLMA {
 			used_pairs[pindx[s.fcam][s.scam]]=true; // throws < 0 - wrong pair, f==s
 			used_pairs_dir[s.fcam][s.scam] = true;
 		}
-		int npairs=0;
+
 		for (int i = 0; i < NUM_CAMS; i++) {
 			USED_CAMS_MAP[i] = ncam;
 			if (used_cameras[i]) {
@@ -343,10 +290,10 @@ public class Corr2dLMA {
 		weights = new double [np + 2 * NUM_CAMS]; // npairs];
 		values =  new double [np + 2 * NUM_CAMS]; // npairs];
 		for (int i = 0; i < NUM_CAMS; i++) {
-			weights[np + 2 * i + 0] = (used_cameras[i] & adjust_lazyeye)? cost_lazyeye : 0.0; // ddisp
-			weights[np + 2 * i + 1] = (used_cameras[i] & adjust_lazyeye)? cost_lazyeye : 0.0; // ndisp
-			values [np + 2 * i + 0] = 0.0;
-			values [np + 2 * i + 1] = 0.0;
+			weights[np + i] =            (used_cameras[i] & adjust_lazyeye)? cost_lazyeye : 0.0; // ddisp - including last_camera
+			weights[np + NUM_CAMS + i] = (used_cameras[i] & adjust_lazyeye)? cost_lazyeye : 0.0; // ndisp
+			values [np + i] =            0.0;
+			values [np + NUM_CAMS + i] = 0.0;
 		}
 
 		double sw = 0;
@@ -366,13 +313,13 @@ public class Corr2dLMA {
 			if (d > this.all_pars[indx]) this.all_pars[indx] = d;
 		}
 		pure_weight = sw;
-		for (int i = 0; i < 2 * NUM_CAMS; i++) {
+		for (int i = 0; i < 2 * NUM_CAMS; i++) { // weight of the regularization terms (twice number of cameras, some may be disabled by a mask)
 			sw += weights[np + i];
 		}
 		if (sw != 0.0) {
 			double kw = 1.0/sw;
 			for (int i = 0; i < weights.length; i++) weights[i] *= kw;
-			pure_weight *= kw; // it is now fraction (0..1.0), and weigts are normalized
+			pure_weight *= kw; // it is now fraction (0..1.0), and weights are normalized
 		}
 		double spw = 0;
 		for (int i = 0; i < NUM_PAIRS; i++) {
@@ -410,7 +357,7 @@ public class Corr2dLMA {
 		}
 	}
 
-	public double [] getFxJtNew( // USED in lwir
+	public double [] getFxJt( // USED in lwir
 			double []   vector,
 			double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
 		if (vector == null) return null;
@@ -446,6 +393,7 @@ public class Corr2dLMA {
 		double A = av[A_INDEX];
 		double B = av[B_INDEX];
 		double C = A + av[CMA_INDEX];
+
 //corr_wnd
 		for (int ns = 0; ns < num_samples; ns++) {
 			Sample s = samples.get(ns);
@@ -468,7 +416,9 @@ public class Corr2dLMA {
 				if (par_mask[A_INDEX])         jt[np++][ns] = -WGp*(xmxp2 + ymyp2);
 				if (par_mask[B_INDEX])         jt[np++][ns] = -WGp* 2 * xmxp_ymyp;
 				if (par_mask[CMA_INDEX])       jt[np++][ns] = -WGp* ymyp2;
-				if (par_mask[G0_INDEX + pair]) jt[np++][ns] = d;
+				for (int p = 0; p < npairs; p++) { // par_mask[G0_INDEX + p] as all pairs either used, or not - then npairs == 0
+					if (par_mask[G0_INDEX + p]) jt[np++][ns] = (p== pair)? d : 0.0; // (par_mask[G0_INDEX + pair])? d;
+				}
 // USED_PAIRS_MAP
 // USED_CAMS_MAP
 				// process ddisp (last camera not used, is equal to minus sum of others to make a sum == 0)
@@ -519,22 +469,40 @@ public class Corr2dLMA {
 				np += ncam;
 			}
 		}
-		// add 2 extra samples - damping cost_wy, cost_wxy
-		fx[num_samples] =     av[WM_INDEX];
-		fx[num_samples + 1] = av[WXY_INDEX];
-		// and derivatives
+		int np = 0;
+		for (int n = 0; n < NUM_CAMS; n++) { // av[DDISP_INDEX +last_cam] is already populated
+			fx[num_samples +            n] = av[DDISP_INDEX + n];
+			fx[num_samples + NUM_CAMS + n] = av[NDISP_INDEX + n];
+		}
+
+// and derivatives
 		if (jt != null) {
-			int np = 0;
-			for (int i = 0; i < par_mask.length; i++) if (par_mask[i]) {
-				jt[np][num_samples] =     (i == WM_INDEX)? 1.0 : 0.0;
-				jt[np++][num_samples+1] = (i == WXY_INDEX)? 1.0 : 0.0;
+			if (par_mask[DISP_INDEX]) np++;
+			if (par_mask[A_INDEX]) np++;
+			if (par_mask[B_INDEX]) np++;
+			if (par_mask[CMA_INDEX]) np++;
+			np+= npairs; // now it points to the ddisp block
+			for (int i = 0; i < NUM_CAMS; i++) {
+				if ((i != last_cam) && par_mask[DDISP_INDEX + i]) {
+					for (int j = 0; j < NUM_CAMS; j++) { // j - column
+						jt[np][num_samples + j] = (i==j)? 1.0 : 0.0;
+					}
+					jt[np][num_samples + last_cam] = -1.0;
+					np++;
+				}
+			}
+			// np now points at the first ndisp
+			for (int i = 0; i < NUM_CAMS; i++) {
+				if (par_mask[DDISP_INDEX + i]) {
+					for (int j = 0; j < NUM_CAMS; j++) { // j - column
+						jt[np][num_samples + NUM_CAMS + j] = (i==j)? 1.0 : 0.0;
+					}
+				}
+				np++;
 			}
 		}
 		return fx;
 	}
-
-
-
 
 
 	public void printParams() { // not used in lwir
@@ -556,23 +524,24 @@ public class Corr2dLMA {
 	public void printInputDataFx(boolean show_fx){ // not used in lwir
 		if 	(show_fx) {
 			Sample s = null;
-			double [] fx = getPolyFx();
-			if (fx == null) fx = getFx();
+//			double [] fx = getPolyFx();
+//			if (fx == null) fx = getFx();
+			double [] fx = getFx();
 			if (fx == null) return;
 			for (int i = 0; i < fx.length; i++) {
 				double fx_pos = (fx[i] >= 0)? fx[i]: Double.NaN;
 				if (i < samples.size()) {
 					s = samples.get(i);
-					System.out.println(String.format("%3d: x=%8.4f y=%8.4f v=%9.6f fx=%9.6f w=%9.7f fcam=%1d scam=%1d", i, s.x, s.y, s.v, fx_pos, s.w, s.fcam, s.scam));
+					System.out.println(String.format("%3d: x=%2d y=%2d v=%9.6f fx=%9.6f w=%9.7f fcam=%1d scam=%1d", i, s.ix, s.iy, s.v, fx_pos, s.w, s.fcam, s.scam));
 				}
 				else {
-					System.out.println(String.format("%3d: %10s %10s v=%9.6f fx=%9.6f w=%9.7f", i, "---", "---", this.values[i], fx_pos, this.weights[i]));
+					System.out.println(String.format("%3d: %2s %2s v=%9.6f fx=%9.6f w=%9.7f", i, "-", "-", this.values[i], fx_pos, this.weights[i]));
 				}
 			}
 		} else {
 			int ns =0;
 			for (Sample s:samples){
-				System.out.println(String.format("%3d: x=%8.4f y=%8.4f v=%9.6f w=%9.7f fcam=%1d scam=%1d", ns++, s.x, s.y, s.v, s.w, s.fcam, s.scam));
+				System.out.println(String.format("%3d: x=%2d y=%2d v=%9.6f w=%9.7f fcam=%1d scam=%1d", ns++, s.ix, s.iy, s.v, s.w, s.fcam, s.scam));
 			}
 		}
 	}
@@ -608,114 +577,6 @@ public class Corr2dLMA {
 		if (ds == null) return null;
 		double [] dsw = {ds[0], ds[1], all_pars[A_INDEX], all_pars[B_INDEX],all_pars[CMA_INDEX]}; // asymmetry
 		return dsw;
-	}
-
-	@Deprecated
-	public double [] getDisparityStrengthWidth() { // USED in lwir
-		double [] ds = getDisparityStrength();
-		if (ds == null) return null;
-		double [] dsw = {ds[0], ds[1], all_pars[WM_INDEX], all_pars[WXY_INDEX]}; // asymmetry
-		return dsw;
-	}
-
-
-	@Deprecated
-	public Corr2dLMA ( // USED in lwir
-			double [] scales // null - use default table
-			) {
-		this.transform_size = 8;
-		this.corr_wnd = null;
-		if (scales != null)	this.scales = scales.clone();
-	}
-
-	@Deprecated
-	public void setDiag(boolean diag_in) { // USED in lwir
-		this.input_diag = diag_in;
-	}
-	@Deprecated
-	public void addSample( // USED in lwir
-			double x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
-			double y,      // y coordinate (0 - disparity axis)
-			double v,      // correlation value at that point
-			double w,
-			int    si,     // baseline scale index
-			int    gi){     // baseline scale index
-		samples.add(new Sample(x,y,v,w,si,gi));
-		if (!groups.containsKey(gi)) {
-			groups.put(gi,new NumDiag(groups.size(),this.input_diag));
-		}
-
-	}
-//NumDiag
-// TODO: add auto x0, half-width?
-// should be called ater all samples are entered (to list groups)
-	@Deprecated
-	public void initVector( // USED in lwir
-			boolean adjust_wm, // 1
-			boolean adjust_wy, // 0
-			boolean adjust_wxy,// 1
-			boolean adjust_Ag, // 1
-			double  x0,
-			double  half_width, // 2.0
-			double  cost_wm,     // cost of non-zero this.all_pars[WM_INDEX]  0.0005
-			double  cost_wxy     // cost of non-zero this.all_pars[WXY_INDEX] 0.001
-			) {
-//		for (Sample s:samples) if (!groups.containsKey(s.gi)) groups.put(s.gi,groups.size());
-		int num_groups = groups.size();
-		this.all_pars =        new double[AG_INDEX + num_groups];
-		this.all_pars[X0_INDEX] =  x0;
-		this.all_pars[WM_INDEX] =  half_width;
-		this.all_pars[WYD_INDEX] = 0.0;
-		this.all_pars[WXY_INDEX] = 0.0;
-		this.par_mask = new boolean[AG_INDEX + num_groups];
-		this.par_mask[X0_INDEX] = true;
-		this.par_mask[WM_INDEX] = adjust_wm;
-		this.par_mask[WYD_INDEX] = adjust_wy;
-		this.par_mask[WXY_INDEX] = adjust_wxy;
-		for (int i = 0; i <num_groups; i++) {
-			this.par_mask[AG_INDEX + i] = adjust_Ag;
-		}
-		setWeightsValues(half_width, cost_wm, cost_wxy);
-		int imx = 0;
-		int num_samples = samples.size();
-		for (int i = 1; i<num_samples; i++) if (values[i] > values[imx]) imx = i;
-		for (int i = 0; i < num_groups; i++) this.all_pars[AG_INDEX + i] = values[imx];
-		toVector();
-	}
-	@Deprecated
-	public void setWeightsValues( // USED in lwir
-			double half_width,   // expected width
-			double  cost_wm,     // cost of non-zero this.all_pars[WYD_INDEX]
-			double  cost_wxy) {  // cost of non-zero this.all_pars[WXY_INDEX]
-		int np = samples.size();
-		group_weights = new double[groups.size()];
-		weights = new double [np+2];
-		values =  new double [np+2];
-		weights[np] =   cost_wm;
-		weights[np+1] = cost_wxy;
-		values[np] =    half_width;
-		values[np+1] =  0.0;
-		double sw = 0;
-		for (int i = 0; i < np; i++) {
-			Sample s = samples.get(i);
-			weights[i] = s.w;
-			values[i] =  s.v;
-			group_weights[groups.get(s.gi).num] += s.w;
-			if (Double.isNaN(values[i]) || Double.isNaN(weights[i])) { // not used in lwir
-				weights[i] = 0.0;
-				values[i] = 0.0;
-			}
-			sw += weights[i];
-		}
-		pure_weight = sw;
-		sw += weights[np] + weights[np+1];
-		if (sw != 0.0) {
-			sw = 1.0/sw;
-			for (int i = 0; i < weights.length; i++) weights[i] *= sw;
-		}
-
-		if (pure_weight > 0.0) for (int i = 0; i < group_weights.length; i++) group_weights[i] /= pure_weight;
-		pure_weight *= sw;
 	}
 
 	public void toVector() { // USED in lwir
@@ -757,7 +618,13 @@ public class Corr2dLMA {
     	System.out.println("Test of jt-jt_delta difference,  delta = "+delta);
     	System.out.print(String.format("%3s: %10s ", "#", "fx"));
     	for (int anp = 0; anp< all_pars.length; anp++) if(par_mask[anp]){
-        	System.out.print(String.format("%17s ", ((anp < AG_INDEX)?PAR_NAMES_OLD[anp]:(PAR_NAMES_OLD[AG_INDEX]+(anp-AG_INDEX)))));
+			String parname;
+			if      (anp < G0_INDEX)    parname = PAR_NAMES[anp];
+			else if (anp < DDISP_INDEX) parname = PAR_NAME_SCALE +     (anp - G0_INDEX);
+			else if (anp < NDISP_INDEX) parname = PAR_NAME_CORRDISP +  (anp - DDISP_INDEX);
+			else                        parname = PAR_NAME_CORRNDISP + (anp - NDISP_INDEX);
+
+        	System.out.print(String.format("%17s ", parname));
     	}
     	System.out.println();
 
@@ -777,7 +644,6 @@ public class Corr2dLMA {
         	System.out.print(String.format("%8s %8.5f ", "1/1000×",  1000*max_diff[np]));
     	}
     	System.out.println();
-
     }
 
 
@@ -808,55 +674,6 @@ public class Corr2dLMA {
 		return getFxJt(this.vector, null);
 	}
 
-	public double [] getFxJt( // USED in lwir
-			double []   vector,
-			double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
-		if (vector == null) return null;
-		double [] av = fromVector(vector);
-		int num_samples = samples.size();
-		double [] fx= new double [num_samples + 2];
-		int num_groups = groups.size();
-		double sqrt2 = Math.sqrt(2.0);
-		for (int ns = 0; ns < num_samples; ns++) {
-			Sample s = samples.get(ns);
-			int grp = groups.get(s.gi).num;
-			boolean diag = groups.get(s.gi).diag;
-			double wScale = diag?sqrt2:1.0;
-			double Wy = av[WM_INDEX] * scales[s.si] + av[WYD_INDEX];
-			double Wx = Wy + av[WXY_INDEX];
-			double dx = s.x - av[X0_INDEX];
-			double Ag = av[AG_INDEX+grp];
-			double dxw = wScale*dx/Wx;
-			double dyw = wScale*s.y/Wy;
-			double d = (1.0 - dxw*dxw - dyw*dyw);
-			fx[ns] = d * Ag;
-			int np = 0;
-			if (jt != null) {
-//				if (par_mask[X0_INDEX])  jt[np++][ns] = Ag * 2 * dxw/Wx; // d/dx0
-				if (par_mask[X0_INDEX])  jt[np++][ns] = wScale * Ag * 2 * dxw/Wx; // d/dx0
-				double dfdWx = Ag * 2 * dxw * dxw / Wx;
-				double dfdWy = Ag * 2 * dyw * dyw / Wy;
-				if (par_mask[WM_INDEX])  jt[np++][ns] =  scales[s.si] * (dfdWx + dfdWy); // d/dWm
-				if (par_mask[WYD_INDEX]) jt[np++][ns] = (dfdWx + dfdWy); // d/dWyd
-				if (par_mask[WXY_INDEX]) jt[np++][ns] =  dfdWx;          // d/dWxy
-				for (int i = 0; i < num_groups; i++) {
-					if (par_mask[AG_INDEX + i]) jt[np++][ns] =  (i == grp) ? d : 0.0;    // d/dWAg
-				}
-			}
-		}
-		// add 2 extra samples - damping cost_wy, cost_wxy
-		fx[num_samples] =     av[WM_INDEX];
-		fx[num_samples + 1] = av[WXY_INDEX];
-		// and derivatives
-		if (jt != null) {
-			int np = 0;
-			for (int i = 0; i < par_mask.length; i++) if (par_mask[i]) {
-				jt[np][num_samples] =     (i == WM_INDEX)? 1.0 : 0.0;
-				jt[np++][num_samples+1] = (i == WXY_INDEX)? 1.0 : 0.0;
-			}
-		}
-		return fx;
-	}
 
 	public double [][] getWJtJlambda( // USED in lwir
 			double      lambda,
@@ -885,7 +702,7 @@ public class Corr2dLMA {
 	public double [] getWYmFxRms( // USED in lwir
 			double []   fx) { // will be replaced with y-fx
 		int num_samples = samples.size();
-		int num_points = fx.length; // includes 2 extra for regularization
+		int num_points = fx.length; // includes some extra for regularization
 		double rms = 0, rms_pure = 0;
 		for (int i = 0; i < num_samples; i++) {
 			double d = (values[i] - fx[i]);
@@ -1080,88 +897,6 @@ public class Corr2dLMA {
 
 		}
 		return rslt;
-	}
-
-// modify to reuse Samples and apply polynomial approximation to resolve x0,y0 and strength?
-	public double [] getMaxXYPoly( // get interpolated maximum coordinates using 2-nd degree polynomial  // not used in lwir
-///			double  outside, // how much solution may be outside of the samples
-			boolean debug
-     ) {
-		double [][][] mdata = new double[samples.size()][3][];
-///		double min_x = Double.NaN, max_x = Double.NaN, min_y = Double.NaN, max_y =Double.NaN , min_v = Double.NaN;
-		for (int i = 0; i < mdata.length; i++) {
-			Sample s = samples.get(i);
-			mdata[i][0] = new double [2];
-			mdata[i][0][0] =  s.x;
-			mdata[i][0][1] =  s.y;
-			mdata[i][1] = new double [1];
-			mdata[i][1][0] =  s.v;
-			mdata[i][2] = new double [1];
-			mdata[i][2][0] =  s.w;
-			/*
-			if (i == 0) {
-				min_x = s.x;
-				max_x = min_x;
-				min_y = s.y;
-				max_y = min_y;
-				min_v = s.v;
-			} else {
-				if      (s.x > max_x) max_x = s.x;
-				else if (s.x < min_x) min_x = s.x;
-				if      (s.y > max_y) max_y = s.y;
-				else if (s.y < min_y) min_y = s.y;
-				if      (s.v < min_v) min_v = s.x;
-			}
-			*/
-		}
-		double [] rslt = (new PolynomialApproximation()).quadraticMaxV2dX2Y2XY( // 9 elements - Xc, Yx, f(x,y), A, B, C, D, E, F (from A*x^2 + B*y^2 +C*x*y+...)
-				mdata,
-				1.0E-30,//25, // 1.0E-15,
-				debug? 4:0);
-		this.poly_coeff = rslt;
-
-		if ((rslt == null) || (rslt[2] < 0.0) || // negative strength
-				(rslt[3] >= 0.0) || // x: min, not max
-				(rslt[4] >= 0.0)) { // y: min, not max
-			this.poly_coeff = null;
-			this.poly_xyvwh = null;
-			return null;
-		}
-//		if ()
-
-		// calculate width_x and width_y
-		double hwx = Double.NaN, hwy = Double.NaN;
-		if ((rslt[2] > 0.0) && (rslt[3] <0.0) && (rslt[4] <0.0)) {
-			hwx = Math.sqrt(-rslt[2]/rslt[3]);
-			hwy = Math.sqrt(-rslt[2]/rslt[4]);
-		}
-		double [] xyvwh = {rslt[0], rslt[1], rslt[2], hwx, hwy};
-		if (debug){
-			System.out.println("lma.getMaxXYPoly()");
-			for (int i = 0; i< mdata.length; i++){
-				System.out.println(i+": "+mdata[i][0][0]+"/"+mdata[i][0][1]+" z="+mdata[i][1][0]+" w="+mdata[i][2][0]);
-			}
-			System.out.println("quadraticMax2d(mdata) --> "+((rslt==null)?"null":(rslt[0]+"/"+rslt[1])));
-		}
-		this.poly_xyvwh = xyvwh;
-		return xyvwh; // rslt;
-	}
-	public double [] getPoly() { // not used in lwir
-		return poly_xyvwh;
-	}
-	public double [] getPolyFx() {return getPolyFx(this.poly_coeff);} // not used in lwir
-	public double [] getPolyFx( // not used in lwir
-			double [] coeff) { // 6 elements - Xc, Yx, f(x,y), A, B, C (from A*x^2 + B*y^2 +C*x*y+...)
-		if (coeff == null) {
-			return null;
-		}
-		int num_samples = samples.size();
-		double [] fx= new double [num_samples];
-		for (int ns = 0; ns < num_samples; ns++) {
-			Sample s = samples.get(ns);
-			fx[ns]= coeff[3]*s.x*s.x + coeff[4]*s.y*s.y +  coeff[5]*s.x*s.y + coeff[6]*s.x + coeff[7]*s.y + + coeff[8];
-		}
-		return fx;
 	}
 
 }
