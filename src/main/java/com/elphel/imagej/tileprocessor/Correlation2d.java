@@ -1768,11 +1768,26 @@ public class Correlation2d {
     {
     	// corrs are organized as PAIRS, some are null if not used
     	// for each enabled and available pair find a maximum, filter convex and create sample list
+    	boolean debug_graphic = (debug_level > -1);
     	DoubleGaussianBlur gb = null;
     	if (sigma > 0) gb = new DoubleGaussianBlur();
     	int center =       transform_size - 1;
     	int corr_size = 2 * transform_size - 1;
     	Corr2dLMA lma = new Corr2dLMA(transform_size);
+
+    	double [][] dbg_corr =    debug_graphic ? new double [corrs.length][] : null;
+    	double [][] dbg_weights = debug_graphic ? new double [corrs.length][] : null;
+    	if (debug_graphic) {
+    		(new ShowDoubleFloatArrays()).showArrays(
+    				corrs,
+    				corr_size,
+    				corr_size,
+    				true,
+    				"corr_pairs"+"_x"+tileX+"_y"+tileY);
+
+    	}
+
+
     	for (int npair = 0; npair < corrs.length; npair++) if ((corrs[npair] != null) && (((pair_mask >> npair) & 1) !=0)){
     		double[] corr = corrs[npair].clone();
     		if (sigma > 0) {
@@ -1791,6 +1806,9 @@ public class Correlation2d {
     	            imgdtt_params.cnvx_add3x3,    // boolean   add3x3,
     	            imgdtt_params.cnvx_weight,    // double    nc_cost,
     	            (debug_level > 2));           // boolean   debug);
+    	    if (dbg_corr    != null) 	dbg_corr   [npair] = corr;
+    	    if (dbg_weights != null) 	dbg_weights[npair] = filtWeight;
+
     	    int fcam = PAIRS[npair][0];
     	    int scam = PAIRS[npair][1];
     	    for (int i = 1; i < filtWeight.length; i++) if (filtWeight[i] > 0.0) {
@@ -1810,6 +1828,24 @@ public class Correlation2d {
     	    			w); //double w){      // sample weight
     	    }
     	}
+
+    	if (debug_graphic) {
+    		(new ShowDoubleFloatArrays()).showArrays(
+    				dbg_corr,
+    				corr_size,
+    				corr_size,
+    				true,
+    				"corr_blurred"+"_x"+tileX+"_y"+tileY);
+
+    		(new ShowDoubleFloatArrays()).showArrays(
+    				dbg_weights,
+    				corr_size,
+    				corr_size,
+    				true,
+    				"corr_weights"+"_x"+tileX+"_y"+tileY);
+    	}
+
+
     	lma.initVector( // USED in lwir
     			imgdtt_params.lma_adjust_wm,  // boolean adjust_width,     // adjust width of the maximum - lma_adjust_wm
     			imgdtt_params.lma_adjust_ag,  // boolean adjust_scales,    // adjust 2D correlation scales - lma_adjust_ag
