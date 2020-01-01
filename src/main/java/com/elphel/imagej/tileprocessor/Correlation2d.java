@@ -1809,6 +1809,8 @@ public class Correlation2d {
     	    if (dbg_corr    != null) 	dbg_corr   [npair] = corr;
     	    if (dbg_weights != null) 	dbg_weights[npair] = filtWeight;
 
+    	    // Normalize weight for each pair to compensate for different number of convex samples?
+
     	    int fcam = PAIRS[npair][0];
     	    int scam = PAIRS[npair][1];
     	    for (int i = 1; i < filtWeight.length; i++) if (filtWeight[i] > 0.0) {
