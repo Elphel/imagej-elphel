@@ -733,8 +733,8 @@ public class GPUTileProcessor {
 						// TODO: move port coordinates out of color channel loop
 						double [][] centersXY_main = null;
 						double [][] centersXY_aux =  null;
-						double [][] disp_dist_main = new double[2 * quad_main][]; // used to correct 3D correlations
-						double [][] disp_dist_aux =  new double[2 * quad_aux][]; // used to correct 3D correlations
+						double [][] disp_dist_main = new double[quad_main][]; // used to correct 3D correlations
+						double [][] disp_dist_aux =  new double[quad_aux][]; // used to correct 3D correlations
 
 						if (geometryCorrection_main != null) {
 							centersXY_main = geometryCorrection_main.getPortsCoordinatesAndDerivatives(

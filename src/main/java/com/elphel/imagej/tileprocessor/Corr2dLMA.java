@@ -114,7 +114,7 @@ public class Corr2dLMA {
     private int ncam = 0; // number of used cameras
     private int npairs=0; // number of used pairs
     private int     last_cam; // index of the last camera (special treatment for disparity correction)
-    private boolean second_last; // there is a pair where the second camera is the last one (false: first in a pair is the last one)
+//    private boolean second_last; // there is a pair where the second camera is the last one (false: first in a pair is the last one)
     private final Matrix [][] m_pairs =      new Matrix[NUM_CAMS][NUM_CAMS];
     private final Matrix [][] m_pairs_last = new Matrix[NUM_CAMS][NUM_CAMS];
     private final int [][] pindx =           new int [NUM_CAMS][NUM_CAMS];
@@ -206,13 +206,13 @@ public class Corr2dLMA {
 		}
 	}
 	public void initVector( // USED in lwir
-			boolean adjust_width,     // adjust width of the maximum
-			boolean adjust_scales,    // adjust 2D correlation scales
-			boolean adjust_ellipse,   // allow non-circular correlation maximums
-			boolean adjust_lazyeye,   // adjust disparity corrections and orthogonal disparities
+			boolean adjust_width,     // adjust width of the maximum -                                           lma_adjust_wm
+			boolean adjust_scales,    // adjust 2D correlation scales -                                          lma_adjust_ag
+			boolean adjust_ellipse,   // allow non-circular correlation maximums                                 lma_adjust_wy
+			boolean adjust_lazyeye,   // adjust disparity corrections and orthogonal disparities                 lma_adjust_wxy
 			double  disp0,            // initial value of disparity
-			double  half_width,       // A=1/(half_widh)^2
-			double  cost_lazyeye     // cost for each of the non-zero disparity corrections and ortho disparity
+			double  half_width,       // A=1/(half_widh)^2                                                       lma_half_width
+			double  cost_lazyeye     // cost for each of the non-zero disparity corrections and ortho disparity  lma_cost_wy
 			) {
 //		int [][] pindx = new int [NUM_CAMS][NUM_CAMS];
 		for (int f = 0; f < NUM_CAMS; f++) {
@@ -231,6 +231,7 @@ public class Corr2dLMA {
 		for (Sample s:samples) { // ignore zero-weight samples
 			used_cameras[s.fcam]=true;
 			used_cameras[s.scam]=true;
+			/*
 			if (s.fcam > last_cam) {
 				second_last = false;
 				last_cam = s.fcam;
@@ -239,6 +240,7 @@ public class Corr2dLMA {
 				second_last = true;
 				last_cam = s.scam;
 			}
+			*/
 			used_pairs[pindx[s.fcam][s.scam]]=true; // throws < 0 - wrong pair, f==s
 			used_pairs_dir[s.fcam][s.scam] = true;
 		}
@@ -335,8 +337,6 @@ public class Corr2dLMA {
 	}
 
 	public void initMatrices() { // should be called after initVector and after setMatrices
-//    private final Matrix [][] m_pairs =      new Matrix[NUM_CAMS][NUM_CAMS];
-//    private final Matrix [][] m_pairs_last = new Matrix[NUM_CAMS][NUM_CAMS];
 		for (int f = 0; f < NUM_CAMS; f++) for (int s = 0; s < NUM_CAMS; s++) {
 			m_pairs[f][s] =      null;
 			m_pairs_last[f][s] = null;
@@ -389,7 +389,7 @@ public class Corr2dLMA {
 
 		int num_samples = samples.size();
 		double [] fx= new double [num_samples + 2 * NUM_CAMS];
-		double sqrt2 = Math.sqrt(2.0);
+//		double sqrt2 = Math.sqrt(2.0);
 		double A = av[A_INDEX];
 		double B = av[B_INDEX];
 		double C = A + av[CMA_INDEX];

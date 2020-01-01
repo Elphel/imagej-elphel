@@ -2336,7 +2336,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 * @param rots misalignment correction (now includes zoom in addition to rotations
 	 * @param deriv_rots derivatives by d_az, f_elev, d_rot, d_zoom
 	 * @param pXYderiv - null or double[2 * number_of_cameras][] array to accommodate derivatives of px, py by each of the parameters
-	 * @param disp_dist - null or double[2 * number_of_cameras][] array to accommodate X,Y derivatives by disp and CCW90 of disp
+	 * @param disp_dist - null or double[number_of_cameras][4] array to accommodate X,Y (rows) derivatives by disp and CCW90 of disp (cols)
 	 * @param px pixel X coordinate
 	 * @param py pixel Y coordinate
 	 * @param disparity disparity (for non-distorted image space)
@@ -2452,8 +2452,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			}
 
 			if (disp_dist != null) {
-				disp_dist[2 * i] =   new double [2]; // dx/d_disp, dx_d_ccw_disp
-				disp_dist[2 * i+1] = new double [2]; // dy/d_disp, dy_d_ccw_disp
+				disp_dist[i] =   new double [4]; // dx/d_disp, dx_d_ccw_disp
 				// Not clear - what should be in Z direction before rotation here?
 				double [][] add0 = {
 						{-rXY[i][0],  rXY[i][1], 0.0},
@@ -2484,10 +2483,10 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 
 				Matrix dd2 = rot2.transpose().times(scale_distort).times(rot2).times(dd1);
 
-				disp_dist[2 * i  ][0] =   dd2.get(0, 0);
-				disp_dist[2 * i  ][1] =   dd2.get(0, 1);
-				disp_dist[2 * i+1][0] =   dd2.get(1, 0);
-				disp_dist[2 * i+1][1] =   dd2.get(1, 1);
+				disp_dist[i][0] =   dd2.get(0, 0);
+				disp_dist[i][1] =   dd2.get(0, 1);
+				disp_dist[i][2] =   dd2.get(1, 0);
+				disp_dist[i][3] =   dd2.get(1, 1);
 
 			}
 
@@ -3008,7 +3007,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 					break; // too high distortion
 				}
 				if (Math.abs(rD-rDist)<delta) {
-					System.out.println(i+": "+iteration+" "+ Math.abs(rD-rDist)+" drDistDr="+drDistDr);
+					if (debugThis) System.out.println(i+": "+iteration+" "+ Math.abs(rD-rDist)+" drDistDr="+drDistDr);
 					break; // success
 				}
 				r+=(rDist-rD)/drDistDr;

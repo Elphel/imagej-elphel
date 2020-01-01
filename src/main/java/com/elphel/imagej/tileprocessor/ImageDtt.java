@@ -1825,7 +1825,7 @@ public class ImageDtt {
 						centerY = tileY * transform_size + transform_size/2 - shiftY;
 						// TODO: move port coordinates out of color channel loop
 						double [][] centersXY;
-						double [][] disp_dist = new double[2 * quad][]; // used to correct 3D correlations
+						double [][] disp_dist = new double[quad][]; // used to correct 3D correlations
 
 						if ((disparity_array == null) || (disparity_array[tileY] == null) || (Double.isNaN(disparity_array[tileY][tileX]))) {
 							System.out.println("Bug with disparity_array !!!");
@@ -1891,10 +1891,10 @@ public class ImageDtt {
 							}
 							// save disparity distortions for visualization:
 							for (int cam = 0; cam <quad; cam++) {
-								dbg_distort[cam * 4 + 0 ][nTile] = disp_dist[ 2* cam + 0][0];
-								dbg_distort[cam * 4 + 1 ][nTile] = disp_dist[ 2* cam + 0][1];
-								dbg_distort[cam * 4 + 2 ][nTile] = disp_dist[ 2* cam + 1][0];
-								dbg_distort[cam * 4 + 3 ][nTile] = disp_dist[ 2* cam + 1][1];
+								dbg_distort[cam * 4 + 0 ][nTile] = disp_dist[cam][0];
+								dbg_distort[cam * 4 + 1 ][nTile] = disp_dist[cam][1];
+								dbg_distort[cam * 4 + 2 ][nTile] = disp_dist[cam][2];
+								dbg_distort[cam * 4 + 3 ][nTile] = disp_dist[cam][3];
 							}
 
 							// TODO: use correction after disparity applied (to work for large disparity values)
@@ -2156,6 +2156,7 @@ public class ImageDtt {
 						    		col_weights,     // double []           col_weights,
 						    		corr_fat_zero);  // double              fat_zero)
 
+
 						    // calculate interpolated "strips" to match different scales and orientations (ortho/diagonal) on the
 						    // fine (0.5 pix) grid. ortho for scale == 1 provide even/even samples (1/4 of all), diagonal ones -
 						    // checkerboard pattern
@@ -2295,6 +2296,26 @@ public class ImageDtt {
 								if (tile_lma_debug_level > 0) {
 									System.out.println("Will run getMaxXSOrtho( ) for tileX="+tileX+", tileY="+tileY);
 								}
+
+								// debug new LMA correlations
+								if (debugTile) {
+									System.out.println("Will run new LMA for tileX="+tileX+", tileY="+tileY);
+
+							    	Corr2dLMA lma2 = corr2d.corrLMA2(
+							    			imgdtt_params,                // ImageDttParameters  imgdtt_params,
+							    			corrs,                        // double [][]         corrs,
+							    			disp_dist,
+							    			imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
+							        		false,                        // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
+							        		0.5,                          // double              sigma, // low-pass sigma to find maximum (and convex too
+							    			corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
+							    			imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
+							    			tile_lma_debug_level,         // int                 debug_level,
+							        		tileX,                        // int                 tileX, // just for debug output
+							        		tileY );                      // int                 tileY
+
+								}
+
 //								disparity_map[DISPARITY_INDEX_CM + 1][tIndex] = // y not available here
 								// calculate/fill out hor and vert
 								// convert to multi-baseline combining results from several integer scales
@@ -8246,8 +8267,8 @@ public class ImageDtt {
 						if (disparity_bimap != null){
 							disparity_bimap[BI_TARGET_INDEX][tIndex] = disparity_main;
 						}
-						double [][] disp_dist_main = new double[2 * quad_main][]; // used to correct 3D correlations
-						double [][] disp_dist_aux =  new double[2 * quad_aux][]; // used to correct 3D correlations
+						double [][] disp_dist_main = new double[quad_main][]; // used to correct 3D correlations
+						double [][] disp_dist_aux =  new double[quad_aux][]; // used to correct 3D correlations
 
 						centersXY_main = geometryCorrection_main.getPortsCoordinatesAndDerivatives(
 								geometryCorrection_main, //			GeometryCorrection gc_main,
@@ -9049,8 +9070,8 @@ public class ImageDtt {
 						if (disparity_bimap != null){
 							disparity_bimap[BI_TARGET_INDEX][tIndex] = disparity_main;
 						}
-						double [][] disp_dist_main = new double[2 * quad_main][]; // used to correct 3D correlations
-						double [][] disp_dist_aux =  new double[2 * quad_aux][]; // used to correct 3D correlations
+						double [][] disp_dist_main = new double[quad_main][]; // used to correct 3D correlations
+						double [][] disp_dist_aux =  new double[quad_aux][]; // used to correct 3D correlations
 						if (calc_main) {// not used in lwir
 							centersXY_main = geometryCorrection_main.getPortsCoordinatesAndDerivatives(
 									geometryCorrection_main, //			GeometryCorrection gc_main,

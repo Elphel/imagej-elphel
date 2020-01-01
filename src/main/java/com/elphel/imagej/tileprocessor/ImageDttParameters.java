@@ -94,10 +94,13 @@ public class ImageDttParameters {
 	public double  corr_wndx_blur =         5.0;   // 100% to 0 % vertical transition range
 
 // LMA parameters
-	public boolean lma_adjust_wm =          true;
-	public boolean lma_adjust_wy =          false;
-	public boolean lma_adjust_wxy =         true;
-	public boolean lma_adjust_ag =          true;
+	public boolean lma_adjust_wm =          true;  // used in new for width
+	public boolean lma_adjust_wy =          false; // used in new for ellipse
+	public boolean lma_adjust_wxy =         true; // used in new for lazy eye
+	public boolean lma_adjust_ag =          true;// used in new for gains
+
+// new LMA parameters
+
 
 	public double  lma_half_width =         2.0;   //
 	public double  lma_cost_wy =            0.1;   //
@@ -241,12 +244,12 @@ public class ImageDttParameters {
 			gd.addTab("Corr LMA","Parameters for LMA fitting of the correlation maximum parameters");
 			gd.addCheckbox    ("Fit correlation defined half-width",                              this.lma_adjust_wm,
 					"Allow fitting of the half-width common for all pairs, defined by the LPF filter of the phase correlation");
-			gd.addCheckbox    ("Fit extra vertical half-width",                                   this.lma_adjust_wy,
-					"Fit extra perpendicular to disparity half-width (not used? and only possible with multi-baseline cameras)");
-			gd.addCheckbox    ("Fit extra half-width along disparity direction",                  this.lma_adjust_wxy,
+			gd.addCheckbox    ("Adjust ellipse parameters (was Fit extra vertical half-width)",   this.lma_adjust_wy,
+					"Adjust ellipse (non-circular) of the correlation maximum (was Fit extra perpendicular to disparity half-width (not used? and only possible with multi-baseline cameras))");
+			gd.addCheckbox    ("Adjust \"lazy eye\" paramdeters (was Fit extra half-width along disparity direction)", this.lma_adjust_wxy,
 					"Increased width in disparity direction caused by multi-distance objects in the tile");
-			gd.addCheckbox    ("Adjust per-group amplitudes",                                     this.lma_adjust_ag,
-					"Each correlation type's amplitude (now always needed)");
+			gd.addCheckbox    ("Adjust per-pair scale (was Adjust per-group amplitudes)",         this.lma_adjust_ag,
+					"Each correlation pair gain (was Each correlation type's amplitude (now always needed))");
 
 			gd.addNumericField("Initial/expected half-width of the correlation maximum in both directions", this.lma_half_width,  3, 6, "pix",
 					"With LPF sigma = 0.9 it seems to be ~= 2.0. Used both as initial parameter and the fitted value difference from this may be penalized");

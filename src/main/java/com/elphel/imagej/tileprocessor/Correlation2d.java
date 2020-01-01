@@ -1,6 +1,7 @@
 package com.elphel.imagej.tileprocessor;
 import java.util.ArrayList;
 
+import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
@@ -1751,7 +1752,103 @@ public class Correlation2d {
     	return    rslt;
     }
 
+    public Corr2dLMA corrLMA2( // USED in lwir
+    		ImageDttParameters  imgdtt_params,
+    		double [][]         corrs,
+    		double [][]         disp_dist, // per camera disparity matrix as a 1d (linescan order)
+    		int                 pair_mask, // which pairs to process
+    		boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
+    		double              sigma, // low-pass sigma to find maximum (and convex too
+    		double              xcenter,   // preliminary center x in pixels for largest baseline
+    		double              vasw_pwr,  // value as weight to this power,
+    		int                 debug_level,
+    		int                 tileX, // just for debug output
+    		int                 tileY
+    		)
+    {
+    	// corrs are organized as PAIRS, some are null if not used
+    	// for each enabled and available pair find a maximum, filter convex and create sample list
+    	DoubleGaussianBlur gb = null;
+    	if (sigma > 0) gb = new DoubleGaussianBlur();
+    	int center =       transform_size - 1;
+    	int corr_size = 2 * transform_size - 1;
+    	Corr2dLMA lma = new Corr2dLMA(transform_size);
+    	for (int npair = 0; npair < corrs.length; npair++) if ((corrs[npair] != null) && (((pair_mask >> npair) & 1) !=0)){
+    		double[] corr = corrs[npair].clone();
+    		if (sigma > 0) {
+    			gb.blurDouble(corr, corr_size, corr_size, sigma, sigma, 0.01);
+    		}
+    		int imx = 0;
+    		for (int i = 1; i < corr.length; i++) if (corr[i] > corr[imx]) imx = i;
+    		// filter convex
+    		int ix0 = (imx % corr_size) - center; // signed, around center to match filterConvex
+    		int iy0 = (imx / corr_size) - center; // signed, around center to match filterConvex
+    	    double [] filtWeight =  filterConvex(
+    	            corr,                         // double [] corr_data,
+    	            imgdtt_params.cnvx_hwnd_size, // int       hwin,
+    	            ix0,                          // int       x0,
+    	            iy0,                          // int       y0,
+    	            imgdtt_params.cnvx_add3x3,    // boolean   add3x3,
+    	            imgdtt_params.cnvx_weight,    // double    nc_cost,
+    	            (debug_level > 2));           // boolean   debug);
+    	    int fcam = PAIRS[npair][0];
+    	    int scam = PAIRS[npair][1];
+    	    for (int i = 1; i < filtWeight.length; i++) if (filtWeight[i] > 0.0) {
+    	    	int ix = i % corr_size; // >=0
+    	    	int iy = i / corr_size; // >=0
+    	    	double v = corrs[npair][i]; // not blurred
+    	    	double w = filtWeight[i];
+    	        if (vasw_pwr != 0) {
+    	            w *= Math.pow(Math.abs(v), vasw_pwr);
+    	        }
+    	    	lma.addSample( // x = 0, y=0 - center
+    	    			fcam, // int    fcam, // first  camera index
+    	    			scam, // int    scam, // second camera index
+    	    			ix, // int    x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
+    	    			iy, // int    y,      // y coordinate (0 - disparity axis)
+    	    			v, // double v,       // correlation value at that point
+    	    			w); //double w){      // sample weight
+    	    }
+    	}
+    	lma.initVector( // USED in lwir
+    			imgdtt_params.lma_adjust_wm,  // boolean adjust_width,     // adjust width of the maximum - lma_adjust_wm
+    			imgdtt_params.lma_adjust_ag,  // boolean adjust_scales,    // adjust 2D correlation scales - lma_adjust_ag
+    			imgdtt_params.lma_adjust_wy,  // boolean adjust_ellipse,   // allow non-circular correlation maximums lma_adjust_wy
+    			imgdtt_params.lma_adjust_wxy, // boolean adjust_lazyeye,   // adjust disparity corrections and orthogonal disparities lma_adjust_wxy
+    			xcenter,                      // double  disp0,            // initial value of disparity
+    			imgdtt_params.lma_half_width, // double  half_width,       // A=1/(half_widh)^2   lma_half_width
+    			imgdtt_params.lma_cost_wy     // double  cost_lazyeye     // cost for each of the non-zero disparity corrections and ortho disparity lma_cost_wy
+    			);
+    	lma.setMatrices(disp_dist);
+    	lma.initMatrices(); // should be called after initVector and after setMatrices
+    	boolean lmaSuccess = false;
+    	if (debug_level > 1) {
+    		System.out.println("Input data:");
+    		lma.printInputDataFx(false);
+    	}
 
+    	lmaSuccess = 	lma.runLma(
+    			imgdtt_params.lma_lambda_initial,     // double lambda,           // 0.1
+    			imgdtt_params.lma_lambda_scale_good,  // double lambda_scale_good,// 0.5
+    			imgdtt_params.lma_lambda_scale_bad,   // double lambda_scale_bad, // 8.0
+    			imgdtt_params.lma_lambda_max,         // double lambda_max,       // 100
+    			imgdtt_params.lma_rms_diff,           // double rms_diff,         // 0.001
+    			imgdtt_params.lma_num_iter,           // int    num_iter,         // 20
+    			debug_level);       // int    debug_level)
+
+    	lma.updateFromVector();
+    	double [] rms = lma.getRMS();
+    	if (debug_level > 0) {
+    		System.out.println("LMA ->"+lmaSuccess+" RMS="+rms[0]+", pure RMS="+rms[1]);
+    		lma.printParams();
+    	}
+
+    	if (debug_level > 1) {
+    		System.out.println("Input data and approximation:");
+    		lma.printInputDataFx(true);
+    	}
+    	return lmaSuccess? lma: null;
+    }
 
     public Correlations2dLMA corrLMA( // USED in lwir
     		ImageDttParameters  imgdtt_params,
@@ -1824,7 +1921,6 @@ public class Correlation2d {
         		lma,                          // Correlations2dLMA lma,
         		imgdtt_params.cnvx_add3x3,    // boolean   add3x3,
         		imgdtt_params.cnvx_weight,    // double    nc_cost,
-
         		debug_level);    // int               debug_level
         boolean lmaSuccess;
         if (run_poly_instead) { // not used in lwir
@@ -1833,7 +1929,7 @@ public class Correlation2d {
         	lmaSuccess = lma.getPolyFx() != null;
         } else {
         	lma.initVector(
-        			imgdtt_params.lma_adjust_wm,   //  boolean adjust_wm,
+        			imgdtt_params.lma_adjust_wm,   // boolean adjust_wm,
         			imgdtt_params.lma_adjust_wy,   // boolean adjust_wy,
         			imgdtt_params.lma_adjust_wxy,  // boolean adjust_wxy,
         			imgdtt_params.lma_adjust_ag,   // boolean adjust_Ag,

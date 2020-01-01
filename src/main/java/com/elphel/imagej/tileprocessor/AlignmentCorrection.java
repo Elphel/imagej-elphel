@@ -3091,7 +3091,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			double [] pXY = mm.getPXY();
 			double [][] deriv = new double [2 * NUM_SENSORS][];
 			int dbg_index =dbg_index (pXY, dbg_decimate);
-			double [][] disp_dist = new double[dbg_titles_xy.length][]; // used to correct 3D correlations
+			double [][] disp_dist = new double[NUM_SENSORS][]; // used to correct 3D correlations
 			geometryCorrection.getPortsCoordinatesAndDerivatives(
 					geometryCorrection, //			GeometryCorrection gc_main,
 					false,       // boolean use_rig_offsets,
