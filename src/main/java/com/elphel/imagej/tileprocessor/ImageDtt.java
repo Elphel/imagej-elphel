@@ -1791,6 +1791,7 @@ public class ImageDtt {
 					double [][][]   tcorr_partial =  null; // [quad][numcol+1][15*15]
 					double [][][][] tcorr_tpartial = null; // [quad][numcol+1][4][8*8]
 					double [] ports_rgb = null;
+					double [][] corr_wnd = (new Corr2dLMA(transform_size, null)).getCorrWnd();
 					Correlation2d corr2d = new Correlation2d(
 							imgdtt_params,              // ImageDttParameters  imgdtt_params,
 							transform_size,             // int transform_size,
@@ -2303,6 +2304,7 @@ public class ImageDtt {
 
 							    	Corr2dLMA lma2 = corr2d.corrLMA2(
 							    			imgdtt_params,                // ImageDttParameters  imgdtt_params,
+							    			corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
 							    			corrs,                        // double [][]         corrs,
 							    			disp_dist,
 							    			imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process

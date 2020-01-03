@@ -1754,6 +1754,7 @@ public class Correlation2d {
 
     public Corr2dLMA corrLMA2( // USED in lwir
     		ImageDttParameters  imgdtt_params,
+    		double [][]         corr_wnd, // correlation window to save on re-calculation of the window
     		double [][]         corrs,
     		double [][]         disp_dist, // per camera disparity matrix as a 1d (linescan order)
     		int                 pair_mask, // which pairs to process
@@ -1773,7 +1774,7 @@ public class Correlation2d {
     	if (sigma > 0) gb = new DoubleGaussianBlur();
     	int center =       transform_size - 1;
     	int corr_size = 2 * transform_size - 1;
-    	Corr2dLMA lma = new Corr2dLMA(transform_size);
+    	Corr2dLMA lma = new Corr2dLMA(transform_size, corr_wnd);
 
     	double [][] dbg_corr =    debug_graphic ? new double [corrs.length][] : null;
     	double [][] dbg_weights = debug_graphic ? new double [corrs.length][] : null;
@@ -1872,7 +1873,7 @@ public class Correlation2d {
     			imgdtt_params.lma_lambda_max,         // double lambda_max,       // 100
     			imgdtt_params.lma_rms_diff,           // double rms_diff,         // 0.001
     			imgdtt_params.lma_num_iter,           // int    num_iter,         // 20
-    			debug_level);       // int    debug_level)
+    			4); // debug_level);       // int    debug_level) // > 3
 
     	lma.updateFromVector();
     	double [] rms = lma.getRMS();

@@ -144,19 +144,24 @@ public class Corr2dLMA {
 	}
 
 	public Corr2dLMA (
-			int ts // null - use default table
+			int ts, // null - use default table
+			double [][] corr_wnd // may be null
 			) {
 		boolean sq = false;
 		this.transform_size = ts;
+		if (corr_wnd!=null) {
+		    this.corr_wnd = corr_wnd;
+		    return;
+		}
 		this.corr_wnd = new double[2 * transform_size - 1][2 * transform_size - 1];
 		int tsm1 =  transform_size - 1; // 7
 		int dtsm1 = 2 * transform_size - 1; // 15
 		this.corr_wnd[tsm1][tsm1] = 1.0;
 		for (int i = 1; i < transform_size; i++) {
-			this.corr_wnd[tsm1 + i][tsm1    ] = Math.acos(Math.PI*i/(2 * transform_size));
-			this.corr_wnd[tsm1 - i][tsm1    ] = Math.acos(Math.PI*i/(2 * transform_size));
-			this.corr_wnd[tsm1    ][tsm1 + i] = Math.acos(Math.PI*i/(2 * transform_size));
-			this.corr_wnd[tsm1    ][tsm1 - i] = Math.acos(Math.PI*i/(2 * transform_size));
+			this.corr_wnd[tsm1 + i][tsm1    ] = Math.cos(Math.PI*i/(2 * transform_size));
+			this.corr_wnd[tsm1 - i][tsm1    ] = Math.cos(Math.PI*i/(2 * transform_size));
+			this.corr_wnd[tsm1    ][tsm1 + i] = Math.cos(Math.PI*i/(2 * transform_size));
+			this.corr_wnd[tsm1    ][tsm1 - i] = Math.cos(Math.PI*i/(2 * transform_size));
 		}
 		for (int i = 1; i < transform_size; i++) {
 			for (int j = 1; j < transform_size; j++) {
@@ -175,7 +180,9 @@ public class Corr2dLMA {
 			}
 		}
 	}
-
+	public double[][] getCorrWnd() {
+		return this.corr_wnd;
+	}
 
 	public void addSample( // x = 0, y=0 - center
 			int    fcam,   // first  camera index
@@ -278,7 +285,7 @@ public class Corr2dLMA {
 		this.par_mask[CMA_INDEX] =   adjust_ellipse;
 		for (int i = 0; i <NUM_PAIRS; i++) {
 			this.par_mask[G0_INDEX + i] = used_pairs[i] & adjust_scales;
-			this.all_pars[G0_INDEX + i] = Double.NaN; // will be assigned later for used
+			this.all_pars[G0_INDEX + i] = Double.NaN; // will be assigned later for used - should be for all !
 		}
 
 		for (int i = 0; i <NUM_CAMS; i++) {
@@ -312,7 +319,7 @@ public class Corr2dLMA {
 			if (this.corr_wnd !=null) {
 				d /= this.corr_wnd[s.iy][s.ix];
 			}
-			if (d > this.all_pars[indx]) this.all_pars[indx] = d;
+			if (!(d <= this.all_pars[indx])) this.all_pars[indx] = d; // to include Double.isNan()
 		}
 		pure_weight = sw;
 		for (int i = 0; i < 2 * NUM_CAMS; i++) { // weight of the regularization terms (twice number of cameras, some may be disabled by a mask)
@@ -396,10 +403,13 @@ public class Corr2dLMA {
 
 //corr_wnd
 		for (int ns = 0; ns < num_samples; ns++) {
+//			if (ns == 18) {
+//				System.out.println("ns == 18");
+//			}
 			Sample s = samples.get(ns);
 			int pair = pindx[s.fcam][s.scam];
 			double Gp = av[G0_INDEX + pair];
-			double Wp = corr_wnd[s.fcam][s.scam];
+			double Wp = corr_wnd[s.ix][s.iy];
 			double WGp = Wp * Gp;
 			double xmxp = s.ix - xp_yp[s.fcam][s.scam][0];
 			double ymyp = s.iy - xp_yp[s.fcam][s.scam][1];
@@ -422,10 +432,11 @@ public class Corr2dLMA {
 // USED_PAIRS_MAP
 // USED_CAMS_MAP
 				// process ddisp (last camera not used, is equal to minus sum of others to make a sum == 0)
-				for (int f = 0; f < NUM_CAMS; f++) {
+				for (int f = 0; f < ncam - 1; f++) { // -1 for the last_cam
 					jt[np + USED_CAMS_MAP[f]][ns] = 0.0;
 				}
-				if (par_mask[DDISP_INDEX + s.fcam] && (par_mask[DDISP_INDEX + s.scam] )) {
+				if ((par_mask[DDISP_INDEX + s.fcam] || (s.fcam == last_cam)) &&
+						((par_mask[DDISP_INDEX + s.scam] || (s.scam == last_cam)))) {
 					if (s.fcam != last_cam) {
 						 jt[np + USED_CAMS_MAP[s.fcam]][ns] += 2 * WGp *
 									((A * xmxp + B * ymyp) * m_disp[s.fcam].get(0, 0)+
@@ -434,8 +445,10 @@ public class Corr2dLMA {
 					} else { // last camera - use all others with minus sign
 						for (int c = 0; c < NUM_CAMS; c++) if ((c != last_cam) && par_mask[DDISP_INDEX + c]) {
 							 jt[np + USED_CAMS_MAP[c]][ns] -= 2 * WGp *
-										((A * xmxp + B * ymyp) * m_disp[c].get(0, 0)+
-										 (B * xmxp + C * ymyp) * m_disp[c].get(1, 0));
+//										((A * xmxp + B * ymyp) * m_disp[c].get(0, 0)+
+//										 (B * xmxp + C * ymyp) * m_disp[c].get(1, 0));
+									 	((A * xmxp + B * ymyp) * m_disp[s.fcam].get(0, 0)+
+										 (B * xmxp + C * ymyp) * m_disp[s.fcam].get(1, 0));
 						}
 
 					}
@@ -447,15 +460,17 @@ public class Corr2dLMA {
 					} else {
 						for (int c = 0; c < NUM_CAMS; c++) if ((c != last_cam) && par_mask[DDISP_INDEX + c]) {
 							 jt[np + USED_CAMS_MAP[c]][ns] += 2 * WGp *
-										((A * xmxp + B * ymyp) * m_disp[c].get(0, 0)+
-										 (B * xmxp + C * ymyp) * m_disp[c].get(1, 0));
+//										((A * xmxp + B * ymyp) * m_disp[c].get(0, 0)+
+//										 (B * xmxp + C * ymyp) * m_disp[c].get(1, 0));
+								        ((A * xmxp + B * ymyp) * m_disp[s.scam].get(0, 0)+
+										 (B * xmxp + C * ymyp) * m_disp[s.scam].get(1, 0));
 						}
 
 					}
 				}
-				np += ncam;
+				np += ncam -1;//  -1 for the last_cam
 				// process ndisp
-				for (int f = 0; f < NUM_CAMS; f++) {
+				for (int f = 0; f < ncam; f++) {
 					jt[np + USED_CAMS_MAP[f]][ns] = 0.0;
 				}
 				if (par_mask[NDISP_INDEX + s.fcam] && (par_mask[NDISP_INDEX + s.scam] )) {
@@ -493,7 +508,7 @@ public class Corr2dLMA {
 			}
 			// np now points at the first ndisp
 			for (int i = 0; i < NUM_CAMS; i++) {
-				if (par_mask[DDISP_INDEX + i]) {
+				if (par_mask[NDISP_INDEX + i]) {
 					for (int j = 0; j < NUM_CAMS; j++) { // j - column
 						jt[np][num_samples + NUM_CAMS + j] = (i==j)? 1.0 : 0.0;
 					}
@@ -615,8 +630,8 @@ public class Corr2dLMA {
     	double [][] jt_delta = new double [num_pars][num_points];
     	double [] fx = getFxJt( vector,jt);
     	getFxJt(delta, vector,jt_delta);
-    	System.out.println("Test of jt-jt_delta difference,  delta = "+delta);
-    	System.out.print(String.format("%3s: %10s ", "#", "fx"));
+    	System.out.println("Test of jt-jt_delta difference,  delta = "+delta+ " ");
+    	System.out.print(String.format("  %3s: %10s ", "#", "fx"));
     	for (int anp = 0; anp< all_pars.length; anp++) if(par_mask[anp]){
 			String parname;
 			if      (anp < G0_INDEX)    parname = PAR_NAMES[anp];
@@ -624,14 +639,23 @@ public class Corr2dLMA {
 			else if (anp < NDISP_INDEX) parname = PAR_NAME_CORRDISP +  (anp - DDISP_INDEX);
 			else                        parname = PAR_NAME_CORRNDISP + (anp - NDISP_INDEX);
 
-        	System.out.print(String.format("%17s ", parname));
+        	System.out.print(String.format("| %16s ", parname));
     	}
     	System.out.println();
-
+    	int npair0 = -1;
     	for (int i = 0; i < num_points; i++) {
-        	System.out.print(String.format("%3d: %10.7f ", i, fx[i]));
+    		if (i < samples.size()) {
+        		int npair = USED_PAIRS_MAP[samples.get(i).fcam][samples.get(i).scam];
+        		if (npair !=npair0) {
+        			if (npair0 >=0) System.out.println();
+        			npair0 = npair;
+        		}
+    			System.out.print(String.format("%1d %3d: %10.7f ", npair, i, fx[i]));
+    		} else {
+            	System.out.print(String.format("  %3d: %10.7f ", i, fx[i]));
+    		}
         	for (int np = 0; np < num_pars; np++) {
-            	System.out.print(String.format("%8.5f %8.5f ", jt_delta[np][i], 1000*(jt[np][i] - jt_delta[np][i])));
+            	System.out.print(String.format("|%8.5f %8.5f ", jt_delta[np][i], 1000*(jt[np][i] - jt_delta[np][i])));
             	double adiff = Math.abs(jt[np][i] - jt_delta[np][i]);
             	if (adiff > max_diff[np]) {
             		max_diff[np] = adiff;
@@ -639,9 +663,9 @@ public class Corr2dLMA {
         	}
         	System.out.println();
     	}
-    	System.out.print(String.format("%15s ", "Maximal diff:"));
+    	System.out.print(String.format("  %15s ", "Maximal diff:"));
     	for (int np = 0; np < num_pars; np++) {
-        	System.out.print(String.format("%8s %8.5f ", "1/1000×",  1000*max_diff[np]));
+        	System.out.print(String.format("|%8s %8.5f ", "1/1000×",  1000*max_diff[np]));
     	}
     	System.out.println();
     }
