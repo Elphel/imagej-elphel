@@ -1576,6 +1576,12 @@ public class ImageDtt {
 			final int                 globalDebugLevel)
 	{
 		final boolean debug_distort= true;
+//		final double [][] debug_offsets = null;
+//		final double [][] debug_offsets = {{0.5, 0.5},{0.0,0.0},{0.0,0.0},{-0.5,-0.5}}; // add to calculated CenterXY for evaluating new LMA
+//		final double [][] debug_offsets = {{ 0.5, 0.5},{ 0.5,-0.5},{-0.5, 0.5},{-0.5,-0.5}}; // add to calculated CenterXY for evaluating new LMA
+//		final double [][] debug_offsets = {{ 0.5, 0.0},{ -0.5, 0.0},{-0.5, 0.0},{ 0.5, 0.0}}; // add to calculated CenterXY for evaluating new LMA
+//		final double [][] debug_offsets = {{ 1.0, 0.0},{ -1.0, 0.0},{-1.0, 0.0},{ 1.0, 0.0}}; // add to calculated CenterXY for evaluating new LMA
+		final double [][] debug_offsets = {{ 0.0, 1.0},{  0.0, -1.0},{ 0.0, -1.0},{ 0.0, 1.0}}; // add to calculated CenterXY for evaluating new LMA
 		final boolean macro_mode = macro_scale != 1;      // correlate tile data instead of the pixel data
 		final int quad = 4;   // number of subcameras
 		final int numcol = 3; // number of colors // keep the same, just do not use [0] and [1], [2] - green
@@ -1792,6 +1798,18 @@ public class ImageDtt {
 					double [][][][] tcorr_tpartial = null; // [quad][numcol+1][4][8*8]
 					double [] ports_rgb = null;
 					double [][] corr_wnd = (new Corr2dLMA(transform_size, null)).getCorrWnd();
+					double [] corr_wnd_limited = null;
+					if (imgdtt_params.lma_min_wnd <= 1.0) {
+						corr_wnd_limited = new double [corr_wnd.length * corr_wnd[0].length];
+						int indx = 0;
+						for (int i = 0; i < corr_wnd.length; i++) {
+							for (int j = 0; j < corr_wnd[i].length; j++) {
+								corr_wnd_limited[indx++] = Math.max(corr_wnd[i][j], imgdtt_params.lma_min_wnd);
+							}
+
+						}
+					}
+
 					Correlation2d corr2d = new Correlation2d(
 							imgdtt_params,              // ImageDttParameters  imgdtt_params,
 							transform_size,             // int transform_size,
@@ -1834,7 +1852,7 @@ public class ImageDtt {
 						}
 
 						if (macro_mode){
-							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY)) { // before correction
+							if ((globalDebugLevel > -1) && debugTile) { // before correction
 								System.out.println("\nUsing MACRO mode, centerX="+centerX+", centerY="+centerY);
 							}
 							centersXY = geometryCorrection.getPortsCoordinatesIdeal(
@@ -1870,9 +1888,29 @@ public class ImageDtt {
 										disparity_array[tileY][tileX] + disparity_corr);
 							}
 
-							if ((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
+							if (((globalDebugLevel > 0) || debug_distort) && debugTile) {
 								for (int i = 0; i < quad; i++) {
 									System.out.println("clt_aberrations_quad_corr():  tileX="+tileX+", tileY="+tileY+
+											" centerX="+centerX+" centerY="+centerY+" disparity="+disparity_array[tileY][tileX]+
+											" centersXY["+i+"][0]="+centersXY[i][0]+" centersXY["+i+"][1]="+centersXY[i][1]);
+								}
+							}
+							if (debug_distort && debugTile && (debug_offsets != null)) {
+								double [][] debug_offsets_xy = new double [debug_offsets.length][2];
+								for (int i = 0; i < debug_offsets.length; i++) {
+									debug_offsets_xy[i][0] = disp_dist[i][0] * debug_offsets[i][0] + disp_dist[i][1] * debug_offsets[i][1];
+									debug_offsets_xy[i][1] = disp_dist[i][2] * debug_offsets[i][0] + disp_dist[i][3] * debug_offsets[i][1];
+								}
+								for (int i = 0; i < quad; i++) {
+									System.out.println(String.format("%d: {%8.3f, %8.3f}",i,debug_offsets_xy[i][0],debug_offsets_xy[i][1]));
+								}
+
+								for (int i = 0; i < debug_offsets.length; i++) {
+									centersXY[i][0] += debug_offsets_xy[i][0];
+									centersXY[i][1] += debug_offsets_xy[i][1];
+								}
+								for (int i = 0; i < quad; i++) {
+									System.out.println("Corrected clt_aberrations_quad_corr():  tileX="+tileX+", tileY="+tileY+
 											" centerX="+centerX+" centerY="+centerY+" disparity="+disparity_array[tileY][tileX]+
 											" centersXY["+i+"][0]="+centersXY[i][0]+" centersXY["+i+"][1]="+centersXY[i][1]);
 								}
@@ -2305,6 +2343,7 @@ public class ImageDtt {
 							    	Corr2dLMA lma2 = corr2d.corrLMA2(
 							    			imgdtt_params,                // ImageDttParameters  imgdtt_params,
 							    			corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
+							    			corr_wnd_limited,             // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
 							    			corrs,                        // double [][]         corrs,
 							    			disp_dist,
 							    			imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
@@ -2312,7 +2351,7 @@ public class ImageDtt {
 							        		0.5,                          // double              sigma, // low-pass sigma to find maximum (and convex too
 							    			corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
 							    			imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
-							    			tile_lma_debug_level,         // int                 debug_level,
+							    			tile_lma_debug_level+2,         // int                 debug_level,
 							        		tileX,                        // int                 tileX, // just for debug output
 							        		tileY );                      // int                 tileY
 
@@ -2337,6 +2376,16 @@ public class ImageDtt {
 							        		tileX,                        // int                 tileX, // just for debug output
 							        		tileY );                      // int                 tileY
 							    	double [] lma_disparity_strength = null;
+							    	double max_disp_diff_lma = 3.0;
+							    	if (lma != null) {
+							    		lma_disparity_strength = lma.getDisparityStrength();
+							    		if (Math.abs(lma_disparity_strength[0] - disparity ) > max_disp_diff_lma) {
+							    			if (globalDebugLevel > -1) {
+							    				System.out.println("Crazy LMA for tileX="+tileX+", tileY="+tileY+": disparity="+disparity+",lma_disparity_strength[0]="+lma_disparity_strength[0]);
+							    			}
+							    			lma = null;
+							    		}
+							    	}
 							    	if (lma != null) {
 							    		double []   mod_disparity_diff = null;
 							    		double [][] dir_corr_strength =  null;

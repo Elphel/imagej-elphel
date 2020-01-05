@@ -95,16 +95,18 @@ public class ImageDttParameters {
 
 // LMA parameters
 	public boolean lma_adjust_wm =          true;  // used in new for width
-	public boolean lma_adjust_wy =          false; // used in new for ellipse
-	public boolean lma_adjust_wxy =         true; // used in new for lazy eye
-	public boolean lma_adjust_ag =          true;// used in new for gains
+	public boolean lma_adjust_wy =          true;  // false; // used in new for ellipse
+	public boolean lma_adjust_wxy =         true;  // used in new for lazy eye adjust parallel-to-disparity correction
+	public boolean lma_adjust_ly1 =         true;  // adjust ortho-to-disparity correction
+	public boolean lma_adjust_ag =          true;  // used in new for gains
 
 // new LMA parameters
-
+	public double  lma_min_wnd =            0.4;   // divide values by the 2D correlation window if it is >= this value for finding maximums and convex areas
+	// maybe try using sqrt (corr_wnd) ? or variable power?
 
 	public double  lma_half_width =         2.0;   //
-	public double  lma_cost_wy =            0.1;   //
-	public double  lma_cost_wxy =           0.1;   //
+	public double  lma_cost_wy =            0.003; // cost of parallel-to-disparity correction
+	public double  lma_cost_wxy =           0.003; // cost of ortho-to-disparity correction
 
 	public double  lma_lambda_initial =     0.1;   //
 	public double  lma_lambda_scale_good =  0.5;   //
@@ -246,16 +248,23 @@ public class ImageDttParameters {
 					"Allow fitting of the half-width common for all pairs, defined by the LPF filter of the phase correlation");
 			gd.addCheckbox    ("Adjust ellipse parameters (was Fit extra vertical half-width)",   this.lma_adjust_wy,
 					"Adjust ellipse (non-circular) of the correlation maximum (was Fit extra perpendicular to disparity half-width (not used? and only possible with multi-baseline cameras))");
-			gd.addCheckbox    ("Adjust \"lazy eye\" paramdeters (was Fit extra half-width along disparity direction)", this.lma_adjust_wxy,
+			gd.addCheckbox    ("Adjust \"lazy eye\" parameters parallel to disparity (was Fit extra half-width along disparity)", this.lma_adjust_wxy,
 					"Increased width in disparity direction caused by multi-distance objects in the tile");
+			gd.addCheckbox    ("Adjust \"lazy eye\" parameters orthogonal CW to disparity", this.lma_adjust_ly1,
+					"Increased width in disparity direction caused by multi-distance objects in the tile");
+
 			gd.addCheckbox    ("Adjust per-pair scale (was Adjust per-group amplitudes)",         this.lma_adjust_ag,
 					"Each correlation pair gain (was Each correlation type's amplitude (now always needed))");
 
+			gd.addNumericField("Minimal window value for normalization during max/convex", this.lma_min_wnd,  3, 6, "",
+					"divide values by the 2D correlation window if it is >= this value for finding maximums and convex areas");
+
+
 			gd.addNumericField("Initial/expected half-width of the correlation maximum in both directions", this.lma_half_width,  3, 6, "pix",
 					"With LPF sigma = 0.9 it seems to be ~= 2.0. Used both as initial parameter and the fitted value difference from this may be penalized");
-			gd.addNumericField("Cost of the difference of the actual half-width from the expected one",  this.lma_cost_wy,  5, 8, "",
+			gd.addNumericField("Lazy eye cost parallel to disparity (was Cost of the difference of the actual half-width...)",  this.lma_cost_wy,  5, 8, "",
 					"The higher this cost, the more close the fitted half-width will be to the expected one");
-			gd.addNumericField("Cost of the difference between horizontal and vertical widths",  this.lma_cost_wxy,  5, 8, "",
+			gd.addNumericField("Lazy eye cost ortho to disparity (was Cost of hor / vert widths difference)",  this.lma_cost_wxy,  5, 8, "",
 					"Tries to enforce equal width and hight of the correlation maximum");
 
 			gd.addNumericField("Initial value of LMA lambda",                                     this.lma_lambda_initial,  3, 6, "",
@@ -351,7 +360,10 @@ public class ImageDttParameters {
 			this.lma_adjust_wm=          gd.getNextBoolean();
 			this.lma_adjust_wy=          gd.getNextBoolean();
 			this.lma_adjust_wxy=         gd.getNextBoolean();
+			this.lma_adjust_ly1=         gd.getNextBoolean();
 			this.lma_adjust_ag=          gd.getNextBoolean();
+
+			this.lma_min_wnd =           gd.getNextNumber();
 
 			this.lma_half_width =        gd.getNextNumber();
 			this.lma_cost_wy =           gd.getNextNumber();
@@ -440,7 +452,11 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"lma_adjust_wm",        this.lma_adjust_wm +"");
 		properties.setProperty(prefix+"lma_adjust_wy",        this.lma_adjust_wy +"");
 		properties.setProperty(prefix+"lma_adjust_wxy",       this.lma_adjust_wxy +"");
+		properties.setProperty(prefix+"lma_adjust_ly1",       this.lma_adjust_ly1 +"");
+
 		properties.setProperty(prefix+"lma_adjust_ag",        this.lma_adjust_ag +"");
+
+		properties.setProperty(prefix+"lma_min_wnd",          this.lma_min_wnd +"");
 
 		properties.setProperty(prefix+"lma_half_width",       this.lma_half_width +"");
 		properties.setProperty(prefix+"lma_cost_wy",          this.lma_cost_wy +"");
@@ -533,7 +549,12 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"lma_adjust_wm")!=null)        this.lma_adjust_wm=Boolean.parseBoolean(properties.getProperty(prefix+"lma_adjust_wm"));
 		if (properties.getProperty(prefix+"lma_adjust_wy")!=null)        this.lma_adjust_wy=Boolean.parseBoolean(properties.getProperty(prefix+"lma_adjust_wy"));
 		if (properties.getProperty(prefix+"lma_adjust_wxy")!=null)       this.lma_adjust_wxy=Boolean.parseBoolean(properties.getProperty(prefix+"lma_adjust_wxy"));
+		if (properties.getProperty(prefix+"lma_adjust_ly1")!=null)       this.lma_adjust_ly1=Boolean.parseBoolean(properties.getProperty(prefix+"lma_adjust_ly1"));
+
+
 		if (properties.getProperty(prefix+"lma_adjust_ag")!=null)        this.lma_adjust_ag=Boolean.parseBoolean(properties.getProperty(prefix+"lma_adjust_ag"));
+
+		if (properties.getProperty(prefix+"lma_min_wnd")!=null)          this.lma_min_wnd=Double.parseDouble(properties.getProperty(prefix+"lma_min_wnd"));
 
 		if (properties.getProperty(prefix+"lma_half_width")!=null)       this.lma_half_width=Double.parseDouble(properties.getProperty(prefix+"lma_half_width"));
 		if (properties.getProperty(prefix+"lma_cost_wy")!=null)          this.lma_cost_wy=Double.parseDouble(properties.getProperty(prefix+"lma_cost_wy"));
@@ -621,7 +642,11 @@ public class ImageDttParameters {
 		idp.lma_adjust_wm =          this.lma_adjust_wm;
 		idp.lma_adjust_wy =          this.lma_adjust_wy;
 		idp.lma_adjust_wxy =         this.lma_adjust_wxy;
+		idp.lma_adjust_ly1 =         this.lma_adjust_ly1;
+
 		idp.lma_adjust_ag =          this.lma_adjust_ag;
+
+		idp.lma_min_wnd =            this.lma_min_wnd;
 
 		idp.lma_half_width =         this.lma_half_width;
 		idp.lma_cost_wy =            this.lma_cost_wy;

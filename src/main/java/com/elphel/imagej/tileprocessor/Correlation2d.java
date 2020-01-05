@@ -1755,6 +1755,7 @@ public class Correlation2d {
     public Corr2dLMA corrLMA2( // USED in lwir
     		ImageDttParameters  imgdtt_params,
     		double [][]         corr_wnd, // correlation window to save on re-calculation of the window
+    		double []           corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
     		double [][]         corrs,
     		double [][]         disp_dist, // per camera disparity matrix as a 1d (linescan order)
     		int                 pair_mask, // which pairs to process
@@ -1791,6 +1792,11 @@ public class Correlation2d {
 
     	for (int npair = 0; npair < corrs.length; npair++) if ((corrs[npair] != null) && (((pair_mask >> npair) & 1) !=0)){
     		double[] corr = corrs[npair].clone();
+    		if (corr_wnd_limited != null) {
+    			for (int i = 0; i < corr.length; i++) {
+    				corr[i] /= corr_wnd_limited[i];
+    			}
+    		}
     		if (sigma > 0) {
     			gb.blurDouble(corr, corr_size, corr_size, sigma, sigma, 0.01);
     		}
@@ -1853,10 +1859,13 @@ public class Correlation2d {
     			imgdtt_params.lma_adjust_wm,  // boolean adjust_width,     // adjust width of the maximum - lma_adjust_wm
     			imgdtt_params.lma_adjust_ag,  // boolean adjust_scales,    // adjust 2D correlation scales - lma_adjust_ag
     			imgdtt_params.lma_adjust_wy,  // boolean adjust_ellipse,   // allow non-circular correlation maximums lma_adjust_wy
-    			imgdtt_params.lma_adjust_wxy, // boolean adjust_lazyeye,   // adjust disparity corrections and orthogonal disparities lma_adjust_wxy
+    			imgdtt_params.lma_adjust_wxy, // boolean adjust_lazyeye_par,   // adjust disparity corrections parallel to disparities  lma_adjust_wxy
+    			imgdtt_params.lma_adjust_ly1, // boolean adjust_lazyeye_ortho, // adjust disparity corrections orthogonal to disparities lma_adjust_ly1
+
     			xcenter,                      // double  disp0,            // initial value of disparity
     			imgdtt_params.lma_half_width, // double  half_width,       // A=1/(half_widh)^2   lma_half_width
-    			imgdtt_params.lma_cost_wy     // double  cost_lazyeye     // cost for each of the non-zero disparity corrections and ortho disparity lma_cost_wy
+    			imgdtt_params.lma_cost_wy,     // double  cost_lazyeye_par,     // cost for each of the non-zero disparity corrections        lma_cost_wy
+    			imgdtt_params.lma_cost_wxy     // double  cost_lazyeye_odtho    // cost for each of the non-zero ortho disparity corrections  lma_cost_wxy
     			);
     	lma.setMatrices(disp_dist);
     	lma.initMatrices(); // should be called after initVector and after setMatrices
@@ -1864,6 +1873,8 @@ public class Correlation2d {
     	if (debug_level > 1) {
     		System.out.println("Input data:");
     		lma.printInputDataFx(false);
+    		lma.printParams();
+
     	}
 
     	lmaSuccess = 	lma.runLma(
@@ -1878,7 +1889,7 @@ public class Correlation2d {
     	lma.updateFromVector();
     	double [] rms = lma.getRMS();
     	if (debug_level > 0) {
-    		System.out.println("LMA ->"+lmaSuccess+" RMS="+rms[0]+", pure RMS="+rms[1]);
+    		System.out.println("LMA -> "+lmaSuccess+" RMS="+rms[0]+", pure RMS="+rms[1]);
     		lma.printParams();
     	}
 
@@ -1886,6 +1897,31 @@ public class Correlation2d {
     		System.out.println("Input data and approximation:");
     		lma.printInputDataFx(true);
     	}
+    	if (debug_graphic && lmaSuccess) {
+    		String [] sliceTitles = lma.dbgGetSliceTiles();
+
+    		(new ShowDoubleFloatArrays()).showArrays(
+    				lma.dbgGetSamples(0),
+    				corr_size,
+    				corr_size,
+    				true,
+    				"corr_values"+"_x"+tileX+"_y"+tileY, sliceTitles);
+
+    		(new ShowDoubleFloatArrays()).showArrays(
+    				lma.dbgGetSamples(1),
+    				corr_size,
+    				corr_size,
+    				true,
+    				"corr_weights"+"_x"+tileX+"_y"+tileY, sliceTitles);
+
+    		(new ShowDoubleFloatArrays()).showArrays(
+    				lma.dbgGetSamples(2),
+    				corr_size,
+    				corr_size,
+    				true,
+    				"corr_fx"+"_x"+tileX+"_y"+tileY, sliceTitles);
+    	}
+
     	return lmaSuccess? lma: null;
     }
 
@@ -2314,6 +2350,7 @@ public class Correlation2d {
      * @return cost packed array, corresponding to the input. selected convex points have weight
      * 1.0, other selected - nc_cost
      */
+
     public double [] filterConvex(// USED in lwir
     		double [] corr_data,
     		int       hwin,
