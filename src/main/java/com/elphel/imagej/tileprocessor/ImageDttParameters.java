@@ -99,6 +99,7 @@ public class ImageDttParameters {
 	public double  corr_wndx_blur =         5.0;   // 100% to 0 % vertical transition range
 
 // LMA parameters
+	public boolean lma_gaussian =           true;  // model correlation maximum as a Gaussian (false - as a parabola)
 	public boolean lma_adjust_wm =          true;  // used in new for width
 	public boolean lma_adjust_wy =          true;  // false; // used in new for ellipse
 	public boolean lma_adjust_wxy =         true;  // used in new for lazy eye adjust parallel-to-disparity correction
@@ -267,6 +268,8 @@ public class ImageDttParameters {
 					"Transition range, shifted sine is used");
 
 			gd.addTab("Corr LMA","Parameters for LMA fitting of the correlation maximum parameters");
+			gd.addCheckbox    ("Correlation maximum as gaussian",                                 this.lma_gaussian,
+					"Model correlation maximum as a Gaussian exp(-r^2)  (false - as a parabola - 1-r^2)");
 			gd.addCheckbox    ("Fit correlation defined half-width",                              this.lma_adjust_wm,
 					"Allow fitting of the half-width common for all pairs, defined by the LPF filter of the phase correlation");
 			gd.addCheckbox    ("Adjust ellipse parameters (was Fit extra vertical half-width)",   this.lma_adjust_wy,
@@ -412,6 +415,7 @@ public class ImageDttParameters {
 			this.corr_wndx_blur =        gd.getNextNumber();
 
 //LMA tab
+			this.lma_gaussian=           gd.getNextBoolean();
 			this.lma_adjust_wm=          gd.getNextBoolean();
 			this.lma_adjust_wy=          gd.getNextBoolean();
 			this.lma_adjust_wxy=         gd.getNextBoolean();
@@ -514,8 +518,7 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"corr_wndx_hwidth",     this.corr_wndx_hwidth +"");
 		properties.setProperty(prefix+"corr_wndx_blur",       this.corr_wndx_blur +"");
 
-
-
+		properties.setProperty(prefix+"lma_gaussian",         this.lma_gaussian +"");
 		properties.setProperty(prefix+"lma_adjust_wm",        this.lma_adjust_wm +"");
 		properties.setProperty(prefix+"lma_adjust_wy",        this.lma_adjust_wy +"");
 		properties.setProperty(prefix+"lma_adjust_wxy",       this.lma_adjust_wxy +"");
@@ -622,8 +625,7 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"corr_wndx_hwidth")!=null)     this.corr_wndx_hwidth=Double.parseDouble(properties.getProperty(prefix+"corr_wndx_hwidth"));
 		if (properties.getProperty(prefix+"corr_wndx_blur")!=null)       this.corr_wndx_blur=Double.parseDouble(properties.getProperty(prefix+"corr_wndx_blur"));
 
-
-
+		if (properties.getProperty(prefix+"lma_gaussian")!=null)        this.lma_gaussian=Boolean.parseBoolean(properties.getProperty(prefix+"lma_gaussian"));
 		if (properties.getProperty(prefix+"lma_adjust_wm")!=null)        this.lma_adjust_wm=Boolean.parseBoolean(properties.getProperty(prefix+"lma_adjust_wm"));
 		if (properties.getProperty(prefix+"lma_adjust_wy")!=null)        this.lma_adjust_wy=Boolean.parseBoolean(properties.getProperty(prefix+"lma_adjust_wy"));
 		if (properties.getProperty(prefix+"lma_adjust_wxy")!=null)       this.lma_adjust_wxy=Boolean.parseBoolean(properties.getProperty(prefix+"lma_adjust_wxy"));
@@ -736,6 +738,7 @@ public class ImageDttParameters {
 		idp.corr_wndx_hwidth =       this.corr_wndx_hwidth;
 		idp.corr_wndx_blur =         this.corr_wndx_blur;
 
+		idp.lma_gaussian =           this.lma_gaussian;
 		idp.lma_adjust_wm =          this.lma_adjust_wm;
 		idp.lma_adjust_wy =          this.lma_adjust_wy;
 		idp.lma_adjust_wxy =         this.lma_adjust_wxy;

@@ -130,6 +130,7 @@ public class Corr2dLMA {
     private final int [][] pindx =           new int [NUM_CAMS][NUM_CAMS];
     private int            numTiles = 1;
 
+    public boolean gaussian_mode = true;
 
 	public class Sample{ // USED in lwir
 		int    tile;   // tile in a cluster
@@ -162,8 +163,10 @@ public class Corr2dLMA {
 	public Corr2dLMA (
 				int numTiles,
 				int ts, // null - use default table
-				double [][] corr_wnd // may be null
+				double [][] corr_wnd, // may be null
+				boolean gaussian_mode
 				) {
+		this.gaussian_mode = gaussian_mode;
 		for (int f = 0; f < NUM_CAMS; f++) {
 			pindx[f][f]=-1;
 			for (int s = f+1; s < NUM_CAMS; s++) {
@@ -495,8 +498,14 @@ public class Corr2dLMA {
 			}
 		}
 	}
-
 	public double [] getFxJt( // USED in lwir
+			double []   vector,
+			double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
+		if (this.gaussian_mode) return getFxJt_gaussian(vector, jt);
+		else                    return getFxJt_parabola(vector, jt);
+	}
+
+	public double [] getFxJt_parabola( // USED in lwir
 			double []   vector,
 			double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
 		if (vector == null) return null;
@@ -635,6 +644,147 @@ public class Corr2dLMA {
 		return fx;
 	}
 
+	public double [] getFxJt_gaussian( // USED in lwir
+			double []   vector,
+			double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
+		if (vector == null) return null;
+		double [] av = fromVector(vector);
+		Matrix [][] xcam_ycam = new Matrix[numTiles][NUM_CAMS];
+		double [][][][] xp_yp = new double[numTiles][NUM_CAMS][NUM_CAMS][];
+		double [] axc_yc = {transform_size - 1.0, transform_size-1.0};
+		Matrix xc_yc = new Matrix(axc_yc, 2);
+		double [] AT = new double [numTiles]; // av[A_INDEX];
+		double [] BT = new double [numTiles]; // av[B_INDEX];
+		double [] CT = new double [numTiles]; // A + av[CMA_INDEX];
+		for (int nTile = 0; nTile < numTiles; nTile++) {
+			for (int i = 0; i < NUM_CAMS; i++) if (used_cameras[i]) {
+				double [] add_dnd = {av[DISP_INDEX+ nTile * TILE_PARAMS]+ av[DDISP_INDEX + i],  av[NDISP_INDEX + i]};
+				xcam_ycam[nTile][i] = m_disp[nTile][i].times(new Matrix(add_dnd,2));
+			}
+			for (int f = 0; f < NUM_CAMS; f++) if (used_cameras[f]) {
+				for (int s = 0; s < NUM_CAMS; s++) if (used_cameras[s]) {
+					xp_yp[nTile][f][s] =xcam_ycam[nTile][f].minus(xcam_ycam[nTile][s]).plus(xc_yc).getColumnPackedCopy();
+				}
+			}
+			AT[nTile] = av[A_INDEX + nTile * TILE_PARAMS];
+			BT[nTile] = av[B_INDEX + nTile * TILE_PARAMS];
+			CT[nTile] = AT[nTile] + av[CMA_INDEX + nTile * TILE_PARAMS];
+		}
+
+		int num_samples = samples.size();
+		double [] fx= new double [num_samples + 2 * NUM_CAMS];
+//corr_wnd
+		for (int ns = 0; ns < num_samples; ns++) {
+			Sample s = samples.get(ns);
+			int pair = pindx[s.fcam][s.scam]; // all pairs, noit just used?
+			double A = AT[s.tile];
+			double B = BT[s.tile];
+			double C = CT[s.tile];
+
+			double Gp = av[G0_INDEX + pair + s.tile * TILE_PARAMS];
+			double Wp = corr_wnd[s.ix][s.iy];
+			double WGp = Wp * Gp;
+			double xmxp = s.ix - xp_yp[s.tile][s.fcam][s.scam][0];
+			double ymyp = s.iy - xp_yp[s.tile][s.fcam][s.scam][1];
+			double xmxp2 = xmxp * xmxp;
+			double ymyp2 = ymyp * ymyp;
+			double xmxp_ymyp = xmxp * ymyp;
+////			double comm = Wp*(1.0 - (A*xmxp2 + 2 * B * xmxp_ymyp + C * ymyp2));
+			double exp = Math.exp(-(A*xmxp2 + 2 * B * xmxp_ymyp + C * ymyp2));
+			double comm = exp * Wp;
+			double WGpexp = WGp*exp;
+
+			fx[ns] = comm * Gp;
+			if (Double.isNaN(fx[ns])) {
+				System.out.println("fx["+ns+"]="+fx[ns]);
+			}
+			if (s.tile > 0) {
+				System.out.print("");
+			}
+			if (jt != null) {
+				if (par_map[DISP_INDEX + s.tile*TILE_PARAMS] >= 0)  jt[par_map[DISP_INDEX + s.tile*TILE_PARAMS]][ns] = 2 * WGpexp *
+						((A * xmxp + B * ymyp) * m_pairs[s.tile][s.fcam][s.scam].get(0, 0)+
+						 (B * xmxp + C * ymyp) * m_pairs[s.tile][s.fcam][s.scam].get(1, 0));
+
+
+				if (par_map[A_INDEX + s.tile*TILE_PARAMS] >= 0)     jt[par_map[A_INDEX + s.tile*TILE_PARAMS]][ns] = -WGpexp*(xmxp2 + ymyp2);
+				if (par_map[B_INDEX + s.tile*TILE_PARAMS] >= 0)     jt[par_map[B_INDEX + s.tile*TILE_PARAMS]][ns] = -WGpexp* 2 * xmxp_ymyp;
+				if (par_map[CMA_INDEX + s.tile*TILE_PARAMS] >= 0)   jt[par_map[CMA_INDEX + s.tile*TILE_PARAMS]][ns] = -WGp* ymyp2 * exp;
+				for (int p = 0; p < npairs[s.tile]; p++) { // par_mask[G0_INDEX + p] as all pairs either used, or not - then npairs == 0
+					if (par_map[G0_INDEX + p + s.tile*TILE_PARAMS] >= 0) jt[par_map[G0_INDEX + p + s.tile*TILE_PARAMS]][ns] = (p== pair)? comm : 0.0; // (par_mask[G0_INDEX + pair])? d;
+				}
+				// process ddisp (last camera not used, is equal to minus sum of others to make a sum == 0)
+
+				for (int f = 0; f < NUM_CAMS; f++) if (par_map[DDISP_INDEX + f] >= 0) { // -1 for the last_cam
+					jt[par_map[DDISP_INDEX + f]][ns] = 0.0;
+				}
+				if (par_map[DDISP_INDEX + s.fcam] >= 0){ // par_map[DDISP_INDEX + last_cam] always <0
+						jt[par_map[DDISP_INDEX + s.fcam]][ns] += 2 * WGpexp *
+									((A * xmxp + B * ymyp) * m_disp[s.tile][s.fcam].get(0, 0)+
+									 (B * xmxp + C * ymyp) * m_disp[s.tile][s.fcam].get(1, 0));
+				} else if (s.fcam == last_cam) {
+					for (int c = 0; c < NUM_CAMS; c++) if ((c != last_cam) && (par_map[DDISP_INDEX + c] >=0)) {
+						jt[par_map[DDISP_INDEX + c]][ns] -= 2 * WGpexp *
+								(       (A * xmxp + B * ymyp) * m_disp[s.tile][s.fcam].get(0, 0)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][s.fcam].get(1, 0));
+					}
+				}
+				if (par_map[DDISP_INDEX + s.scam]>= 0){ // par_map[DDISP_INDEX + last_cam] always <0
+					 jt[par_map[DDISP_INDEX + s.scam]][ns] -= 2 * WGpexp *
+								((A * xmxp + B * ymyp) * m_disp[s.tile][s.scam].get(0, 0)+
+								 (B * xmxp + C * ymyp) * m_disp[s.tile][s.scam].get(1, 0));
+
+				} else if (s.scam == last_cam) {
+					for (int c = 0; c < NUM_CAMS; c++) if ((c != last_cam) && (par_map[DDISP_INDEX + c] >= 0)) {
+						 jt[par_map[DDISP_INDEX + c]][ns] += 2 * WGpexp *
+							        ((A * xmxp + B * ymyp) * m_disp[s.tile][s.scam].get(0, 0)+
+									 (B * xmxp + C * ymyp) * m_disp[s.tile][s.scam].get(1, 0));
+					}
+				}
+
+				// process ndisp
+				for (int f = 0; f < ncam; f++) if (par_map[NDISP_INDEX + f] >= 0) {
+					jt[par_map[NDISP_INDEX + f]][ns] = 0.0;
+				}
+				if (par_map[NDISP_INDEX + s.fcam] >=0){
+					jt[par_map[NDISP_INDEX + s.fcam]][ns] += 2 * WGpexp *
+							(       (A * xmxp + B * ymyp) * m_disp[s.tile][s.fcam].get(0, 1)+
+									(B * xmxp + C * ymyp) * m_disp[s.tile][s.fcam].get(1, 1));
+				}
+
+				if (par_map[NDISP_INDEX + s.scam] >= 0) {
+
+					jt[par_map[NDISP_INDEX + s.scam]][ns] -= 2 * WGpexp *
+							(       (A * xmxp + B * ymyp) * m_disp[s.tile][s.scam].get(0, 1)+
+									(B * xmxp + C * ymyp) * m_disp[s.tile][s.scam].get(1, 1));
+				}
+			}
+		}
+		for (int n = 0; n < NUM_CAMS; n++) { // av[DDISP_INDEX +last_cam] is already populated
+			fx[num_samples +            n] = av[DDISP_INDEX + n];
+			fx[num_samples + NUM_CAMS + n] = av[NDISP_INDEX + n];
+		}
+
+// and derivatives
+		if (jt != null) {
+			for (int i = 0; i < NUM_CAMS; i++) {
+				if ((i != last_cam) && (par_map[DDISP_INDEX + i] >= 0)) {
+					for (int j = 0; j < NUM_CAMS; j++) { // j - column
+						jt[par_map[DDISP_INDEX + i]][num_samples + j] = (i==j)? 1.0 : 0.0;
+					}
+					jt[par_map[DDISP_INDEX + i]][num_samples + last_cam] = -1.0;
+				}
+			}
+			for (int i = 0; i < NUM_CAMS; i++) {
+				if (par_map[NDISP_INDEX + i] >= 0) {
+					for (int j = 0; j < NUM_CAMS; j++) { // j - column
+						jt[par_map[NDISP_INDEX + i] ][num_samples + NUM_CAMS + j] = (i==j)? 1.0 : 0.0;
+					}
+				}
+			}
+		}
+		return fx;
+	}
 
 	public void printParams() { // not used in lwir
 		for (int np = 0; np < all_pars.length; np++) {

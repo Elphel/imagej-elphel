@@ -1746,7 +1746,7 @@ public class ImageDtt {
 					double centerX; // center of aberration-corrected (common model) tile, X
 					double centerY; //
 					double [][] fract_shiftsXY = new double[quad][];
-					double [][] corr_wnd = (new Corr2dLMA(1, transform_size, null)).getCorrWnd();
+					double [][] corr_wnd = (new Corr2dLMA(1, transform_size, null,imgdtt_params.lma_gaussian)).getCorrWnd();
 					double [] corr_wnd_inv_limited = null;
 					if (imgdtt_params.lma_min_wnd <= 1.0) {
 						corr_wnd_inv_limited = new double [corr_wnd.length * corr_wnd[0].length];
@@ -2431,7 +2431,7 @@ public class ImageDtt {
 					double [][][]   tcorr_partial =  null; // [quad][numcol+1][15*15]
 					double [][][][] tcorr_tpartial = null; // [quad][numcol+1][4][8*8]
 					double [] ports_rgb = null;
-					double [][] corr_wnd = (new Corr2dLMA(1, transform_size, null)).getCorrWnd();
+					double [][] corr_wnd = (new Corr2dLMA(1, transform_size, null,imgdtt_params.lma_gaussian)).getCorrWnd();
 					double [] corr_wnd_inv_limited = null;
 					if (imgdtt_params.lma_min_wnd <= 1.0) {
 						corr_wnd_inv_limited = new double [corr_wnd.length * corr_wnd[0].length];

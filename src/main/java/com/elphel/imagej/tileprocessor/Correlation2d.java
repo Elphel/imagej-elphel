@@ -1823,14 +1823,19 @@ public class Correlation2d {
     	// corrs are organized as PAIRS, some are null if not used
     	// for each enabled and available pair find a maximum, filter convex and create sample list
     	boolean debug_graphic = (debug_level > -1);
-    	boolean debug_second_all = true;
+    	boolean debug_second_all = false; // true;
 		int  clust_height = corrs.length/clust_width;
     	int ntiles = corrs.length;
     	DoubleGaussianBlur gb = null;
     	if (imgdtt_params.lma_sigma > 0) gb = new DoubleGaussianBlur();
     	int center =       transform_size - 1;
     	int corr_size = 2 * transform_size - 1;
-    	Corr2dLMA lma = new Corr2dLMA(corrs.length,transform_size, corr_wnd);
+    	Corr2dLMA lma = new Corr2dLMA(
+    			corrs.length,
+    			transform_size,
+    			corr_wnd,
+    			imgdtt_params.lma_gaussian//boolean gaussian_mode
+    			);
 
     	double [][][] dbg_corr =    debug_graphic ? new double [corrs.length][][] : null;
     	double [][][] dbg_weights = debug_graphic ? new double [corrs.length][][] : null;
@@ -2082,24 +2087,37 @@ public class Correlation2d {
     					true,
     					"corr_fx"+"_x"+tileX+"_y"+tileY, sliceTitles);
     		} else {
+    			double [][] repacked_y = repackCluster(lma.dbgGetSamples(0),clust_width);
+    			double [][] repacked_fx = repackCluster(lma.dbgGetSamples(2),clust_width);
+    			double [][] y_minux_fx = new double [repacked_y.length][];
+    			for (int i = 0; i < repacked_y.length; i++) if ((repacked_y[i] != null) && (repacked_fx[i] != null)){
+    				y_minux_fx[i] = new double [repacked_y[i].length];
+    				for (int j = 0; j < y_minux_fx[i].length; j++) y_minux_fx[i][j] = repacked_y[i][j] - repacked_fx[i][j];
+    			}
     			(new ShowDoubleFloatArrays()).showArrays(
-    					repackCluster(lma.dbgGetSamples(0),clust_width),
+    					repacked_y,
     					dbg_out_width,
     					dbg_out_height,
     					true,
-    					"corr_values"+"_x"+tileX+"_y"+tileY, sliceTitles);
+    					"y"+"_x"+tileX+"_y"+tileY, sliceTitles);
+    			(new ShowDoubleFloatArrays()).showArrays(
+    					repacked_fx,
+    					dbg_out_width,
+    					dbg_out_height,
+    					true,
+    					"fx"+"_x"+tileX+"_y"+tileY, sliceTitles);
+    			(new ShowDoubleFloatArrays()).showArrays(
+    					y_minux_fx,
+    					dbg_out_width,
+    					dbg_out_height,
+    					true,
+    					"y-fx"+"_x"+tileX+"_y"+tileY, sliceTitles);
     			(new ShowDoubleFloatArrays()).showArrays(
     					repackCluster(lma.dbgGetSamples(1),clust_width),
     					dbg_out_width,
     					dbg_out_height,
     					true,
-    					"corr_weights"+"_x"+tileX+"_y"+tileY, sliceTitles);
-    			(new ShowDoubleFloatArrays()).showArrays(
-    					repackCluster(lma.dbgGetSamples(2),clust_width),
-    					dbg_out_width,
-    					dbg_out_height,
-    					true,
-    					"corr_fx"+"_x"+tileX+"_y"+tileY, sliceTitles);
+    					"weights"+"_x"+tileX+"_y"+tileY, sliceTitles);
     		}
     	}
 
@@ -2129,7 +2147,13 @@ public class Correlation2d {
     	if (imgdtt_params.lma_sigma > 0) gb = new DoubleGaussianBlur();
     	int center =       transform_size - 1;
     	int corr_size = 2 * transform_size - 1;
-    	Corr2dLMA lma = new Corr2dLMA(1,transform_size, corr_wnd);
+    	Corr2dLMA lma = new Corr2dLMA(
+    			1,
+    			transform_size,
+    			corr_wnd,
+    			imgdtt_params.lma_gaussian//boolean gaussian_mode
+    			);
+
 
     	double [][] dbg_corr =    debug_graphic ? new double [corrs.length][] : null;
     	double [][] dbg_weights = debug_graphic ? new double [corrs.length][] : null;
