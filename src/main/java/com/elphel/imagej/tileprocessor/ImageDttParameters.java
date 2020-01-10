@@ -78,6 +78,11 @@ public class ImageDttParameters {
 	public int     cnvx_hwnd_size =         4;     // half window size (both horizontal and vertical to extract bi-convex cells
 	public double  cnvx_weight =            0.5;   // relative weight of non-convex (border) cell
 	public boolean cnvx_add3x3 =            true;  // always select 3x3 cells around integer maximum
+	public int     cnvx_min_samples =       5;     // minimal number of used samples on a 2D correlation pair
+	public boolean cnvx_non_coll =          true;  // require non-collinear samples in a valid correlation pair
+	public int     cnvx_min_pairs =         5;     // minimal number 2D correlation pairs per tile
+
+
 
 	// pole window will be inverted
 	public int     corr_strip_notch =       11;     // number of rows to calculate for vertical poles
@@ -102,7 +107,14 @@ public class ImageDttParameters {
 
 // new LMA parameters
 	public double  lma_min_wnd =            0.4;   // divide values by the 2D correlation window if it is >= this value for finding maximums and convex areas
+	public double  lma_wnd_pwr =            0.8;   // Raise window for finding a maximum and a convex region to this power
+	public int     lma_hard_marg =          1;     // Zero out this width margins before blurring
+	public int     lma_soft_marg =          2;     // Do not look for maximums inside this width margins
+	public double  lma_sigma =              0.7;   // Blur correlation before finding maximum and convex region
+
+
 	// maybe try using sqrt (corr_wnd) ? or variable power?
+
 
 	public double  lma_half_width =         2.0;   //
 	public double  lma_cost_wy =            0.003; // cost of parallel-to-disparity correction
@@ -117,6 +129,7 @@ public class ImageDttParameters {
 	public int     lma_debug_level =        3;     //
 	public boolean corr_var_cam =           true;  // New correlation mode compatible with 8 subcameras
 	public double  cm_max_normalization =   0.55; // fraction of correlation maximum radius, being squared multiplied by maximum to have the same total mass
+	public double  [][] lma_dbg_offset =   new double [4][2]; //{{ 1.0, 0.0},{ -1.0, 0.0},{-1.0, 0.0},{ 1.0, 0.0}}; //  new double [4][2];
 
 	public int getEnhOrthoWidth(boolean aux) {
 		return aux ? enhortho_width_aux : enhortho_width;
@@ -217,6 +230,16 @@ public class ImageDttParameters {
 			gd.addCheckbox    ("Always select 3x3 cells around integer maximum",                  this.cnvx_add3x3,
 					"Add 3x3 cells selection around the original argmax, regardless of bi-convex property");
 
+			gd.addNumericField("Min samples per pair",                                            this.cnvx_min_samples,  0, 3, "pix",
+					"Minimal number of used samples on a 2D correlation pair");
+			gd.addCheckbox    ("Always select 3x3 cells around integer maximum",                  this.cnvx_non_coll,
+					"Must have non-collinear samples in each correlation pair");
+			gd.addNumericField("Minimal correlation pairs per tile",                              this.cnvx_min_pairs,  0, 3, "",
+					"Minimal number 2D correlation pairs per tile");
+
+
+
+
 			gd.addMessage("Window for pole detection mode");
 			gd.addNumericField("Strip height for pole detection",                                 this.corr_strip_notch,  0, 3, "half-pix",
 					"Number of rows to combine/interpolate correlation results. Rows are twice denser than pixels correponding to largest baseline disparity");
@@ -259,6 +282,14 @@ public class ImageDttParameters {
 			gd.addNumericField("Minimal window value for normalization during max/convex", this.lma_min_wnd,  3, 6, "",
 					"divide values by the 2D correlation window if it is >= this value for finding maximums and convex areas");
 
+			gd.addNumericField("LMA window power",                                                this.lma_wnd_pwr,  3, 6, "",
+					"Raise window for finding a maximum and a convex region to this power");
+			gd.addNumericField("LMA hard margin",                                                 this.lma_hard_marg,  0, 3, "",
+					"Zero out this width margins before blurring");
+			gd.addNumericField("LMA soft margins iterations",                                     this.lma_soft_marg,  0, 3, "",
+					"Do not look for maximums inside this width margins");
+			gd.addNumericField("LMA blur sigma",                                                  this.lma_sigma,  3, 6, "",
+					"Blur correlation before finding maximum and convex region");
 
 			gd.addNumericField("Initial/expected half-width of the correlation maximum in both directions", this.lma_half_width,  3, 6, "pix",
 					"With LPF sigma = 0.9 it seems to be ~= 2.0. Used both as initial parameter and the fitted value difference from this may be penalized");
@@ -287,7 +318,27 @@ public class ImageDttParameters {
 
 			gd.addNumericField("Normalization for the CM correlation strength",                  this.cm_max_normalization,  6, 8, "",
 					"Fraction of correlation maximum radius, being squared multiplied by maximum to have the same total mass. ~= 0.5, the lower the value, the higher strength reported by the CM");
-//	public double  cm_max_normalization =   0.55; //
+			gd.addMessage("Cameras offsets in the disparity direction and orthogonal to disparity (debugging LMA)");
+
+			gd.addNumericField("LMA debug offset: camera0, parallel",                   this.lma_dbg_offset[0][0],  6, 8, "pix",
+					"Add camera offset in the direction of disparity (to/from center)");
+			gd.addNumericField("LMA debug offset: camera0, ortho",                      this.lma_dbg_offset[0][1],  6, 8, "pix",
+					"Add camera offset in the direction of disparity (to/from center)");
+			gd.addNumericField("LMA debug offset: camera1, parallel",                   this.lma_dbg_offset[1][0],  6, 8, "pix",
+					"Add camera offset in the direction of disparity (to/from center)");
+			gd.addNumericField("LMA debug offset: camera1, ortho",                      this.lma_dbg_offset[1][1],  6, 8, "pix",
+					"Add camera offset in the direction of disparity (to/from center)");
+			gd.addNumericField("LMA debug offset: camera2, parallel",                   this.lma_dbg_offset[2][0],  6, 8, "pix",
+					"Add camera offset in the direction of disparity (to/from center)");
+			gd.addNumericField("LMA debug offset: camera2, ortho",                      this.lma_dbg_offset[2][1],  6, 8, "pix",
+					"Add camera offset in the direction of disparity (to/from center)");
+			gd.addNumericField("LMA debug offset: camera3, parallel",                   this.lma_dbg_offset[3][0],  6, 8, "pix",
+					"Add camera offset in the direction of disparity (to/from center)");
+			gd.addNumericField("LMA debug offset: camera3, ortho",                      this.lma_dbg_offset[3][1],  6, 8, "pix",
+					"Add camera offset in the direction of disparity (to/from center)");
+
+
+			//	public double  cm_max_normalization =   0.55; //
 
 	}
 	public void dialogAnswers(GenericJTabbedDialog gd) {
@@ -342,6 +393,10 @@ public class ImageDttParameters {
 			this.cnvx_weight =           gd.getNextNumber();
   			this.cnvx_add3x3 =           gd.getNextBoolean();
 
+  			this.cnvx_min_samples= (int) gd.getNextNumber();
+  			this.cnvx_non_coll =         gd.getNextBoolean();
+  			this.cnvx_min_pairs=   (int) gd.getNextNumber();
+
   			this.corr_strip_notch= (int) gd.getNextNumber();
   			this.corr_notch_hwidth=      gd.getNextNumber();
   			this.corr_notch_blur=        gd.getNextNumber();
@@ -365,6 +420,11 @@ public class ImageDttParameters {
 
 			this.lma_min_wnd =           gd.getNextNumber();
 
+			this.lma_wnd_pwr =           gd.getNextNumber();
+  			this.lma_hard_marg=    (int) gd.getNextNumber();
+  			this.lma_soft_marg=    (int) gd.getNextNumber();
+			this.lma_sigma =             gd.getNextNumber();
+
 			this.lma_half_width =        gd.getNextNumber();
 			this.lma_cost_wy =           gd.getNextNumber();
 			this.lma_cost_wxy =          gd.getNextNumber();
@@ -379,6 +439,10 @@ public class ImageDttParameters {
   			this.lma_debug_level=  (int) gd.getNextNumber();
   			this.corr_var_cam =          gd.getNextBoolean();
   			this.cm_max_normalization=   gd.getNextNumber();
+
+  			for (int i = 0; i < 4; i++) for (int j=0; j < 2; j++) {
+  				this.lma_dbg_offset[i][j]=   gd.getNextNumber();
+  			}
 
 	}
 
@@ -433,6 +497,9 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"cnvx_weight",          this.cnvx_weight +"");
 		properties.setProperty(prefix+"cnvx_add3x3",          this.cnvx_add3x3 +"");
 
+		properties.setProperty(prefix+"cnvx_min_samples",     this.cnvx_min_samples +"");
+		properties.setProperty(prefix+"cnvx_non_coll",        this.cnvx_non_coll +"");
+		properties.setProperty(prefix+"cnvx_min_pairs",       this.cnvx_min_pairs +"");
 
 		properties.setProperty(prefix+"corr_strip_notch",     this.corr_strip_notch +"");
 		properties.setProperty(prefix+"corr_notch_hwidth",    this.corr_notch_hwidth +"");
@@ -458,6 +525,11 @@ public class ImageDttParameters {
 
 		properties.setProperty(prefix+"lma_min_wnd",          this.lma_min_wnd +"");
 
+		properties.setProperty(prefix+"lma_wnd_pwr",          this.lma_wnd_pwr +"");
+		properties.setProperty(prefix+"lma_hard_marg",        this.lma_hard_marg +"");
+		properties.setProperty(prefix+"lma_soft_marg",        this.lma_soft_marg +"");
+		properties.setProperty(prefix+"lma_sigma",            this.lma_sigma +"");
+
 		properties.setProperty(prefix+"lma_half_width",       this.lma_half_width +"");
 		properties.setProperty(prefix+"lma_cost_wy",          this.lma_cost_wy +"");
 		properties.setProperty(prefix+"lma_cost_wxy",         this.lma_cost_wxy +"");
@@ -473,6 +545,10 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"corr_var_cam",         this.corr_var_cam +"");
 
 		properties.setProperty(prefix+"cm_max_normalization", this.cm_max_normalization +"");
+	    for (int i = 0; i < 4; i++) for (int j=0; j < 2; j++) {
+			properties.setProperty(prefix+"lma_dbg_offset_"+i+"_"+j, this.lma_dbg_offset[i][j] +"");
+	    }
+
 
 	}
 
@@ -528,7 +604,9 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"cnvx_weight")!=null)          this.cnvx_weight=Double.parseDouble(properties.getProperty(prefix+"cnvx_weight"));
 		if (properties.getProperty(prefix+"cnvx_add3x3")!=null)          this.cnvx_add3x3=Boolean.parseBoolean(properties.getProperty(prefix+"cnvx_add3x3"));
 
-
+		if (properties.getProperty(prefix+"cnvx_min_samples")!=null)     this.cnvx_min_samples=Integer.parseInt(properties.getProperty(prefix+"cnvx_min_samples"));
+		if (properties.getProperty(prefix+"cnvx_non_coll")!=null)        this.cnvx_non_coll=Boolean.parseBoolean(properties.getProperty(prefix+"cnvx_non_coll"));
+		if (properties.getProperty(prefix+"cnvx_min_pairs")!=null)       this.cnvx_min_pairs=Integer.parseInt(properties.getProperty(prefix+"cnvx_min_pairs"));
 
 		if (properties.getProperty(prefix+"corr_strip_notch")!=null)     this.corr_strip_notch=Integer.parseInt(properties.getProperty(prefix+"corr_strip_notch"));
 		if (properties.getProperty(prefix+"corr_notch_hwidth")!=null)    this.corr_notch_hwidth=Double.parseDouble(properties.getProperty(prefix+"corr_notch_hwidth"));
@@ -556,6 +634,13 @@ public class ImageDttParameters {
 
 		if (properties.getProperty(prefix+"lma_min_wnd")!=null)          this.lma_min_wnd=Double.parseDouble(properties.getProperty(prefix+"lma_min_wnd"));
 
+
+		if (properties.getProperty(prefix+"lma_wnd_pwr")!=null)          this.lma_wnd_pwr=Double.parseDouble(properties.getProperty(prefix+"lma_wnd_pwr"));
+		if (properties.getProperty(prefix+"lma_hard_marg")!=null)        this.lma_hard_marg=Integer.parseInt(properties.getProperty(prefix+"lma_hard_marg"));
+		if (properties.getProperty(prefix+"lma_soft_marg")!=null)        this.lma_soft_marg=Integer.parseInt(properties.getProperty(prefix+"lma_soft_marg"));
+		if (properties.getProperty(prefix+"lma_sigma")!=null)            this.lma_sigma=Double.parseDouble(properties.getProperty(prefix+"lma_sigma"));
+
+
 		if (properties.getProperty(prefix+"lma_half_width")!=null)       this.lma_half_width=Double.parseDouble(properties.getProperty(prefix+"lma_half_width"));
 		if (properties.getProperty(prefix+"lma_cost_wy")!=null)          this.lma_cost_wy=Double.parseDouble(properties.getProperty(prefix+"lma_cost_wy"));
 		if (properties.getProperty(prefix+"lma_cost_wxy")!=null)         this.lma_cost_wxy=Double.parseDouble(properties.getProperty(prefix+"lma_cost_wxy"));
@@ -571,6 +656,14 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"corr_var_cam")!=null)         this.corr_var_cam=Boolean.parseBoolean(properties.getProperty(prefix+"corr_var_cam"));
 
 		if (properties.getProperty(prefix+"cm_max_normalization")!=null) this.cm_max_normalization=Double.parseDouble(properties.getProperty(prefix+"cm_max_normalization"));
+
+		for (int i = 0; i < 4; i++) for (int j=0; j < 2; j++) {
+			if (properties.getProperty(prefix+"lma_dbg_offset_"+i+"_"+j)!=null) this.lma_dbg_offset[i][j]=Double.parseDouble(properties.getProperty(prefix+"lma_dbg_offset_"+i+"_"+j));
+	    }
+
+
+
+
 	}
 
 	@Override
@@ -625,6 +718,10 @@ public class ImageDttParameters {
 		idp.cnvx_weight=             this.cnvx_weight;
 		idp.cnvx_add3x3=             this.cnvx_add3x3;
 
+		idp.cnvx_min_samples=        this.cnvx_min_samples;
+		idp.cnvx_non_coll=           this.cnvx_non_coll;
+		idp.cnvx_min_pairs=          this.cnvx_min_pairs;
+
 		idp.corr_strip_notch=        this.corr_strip_notch;
 		idp.corr_notch_hwidth=       this.corr_notch_hwidth;
 		idp.corr_notch_blur=         this.corr_notch_blur;
@@ -648,6 +745,11 @@ public class ImageDttParameters {
 
 		idp.lma_min_wnd =            this.lma_min_wnd;
 
+		idp.lma_wnd_pwr =            this.lma_wnd_pwr;
+		idp.lma_hard_marg =          this.lma_hard_marg;
+		idp.lma_soft_marg =          this.lma_soft_marg;
+		idp.lma_sigma =              this.lma_sigma;
+
 		idp.lma_half_width =         this.lma_half_width;
 		idp.lma_cost_wy =            this.lma_cost_wy;
 		idp.lma_cost_wxy =           this.lma_cost_wxy;
@@ -663,6 +765,10 @@ public class ImageDttParameters {
 		idp.corr_var_cam =           this.corr_var_cam;
 
 		idp.cm_max_normalization=    this.cm_max_normalization;
+		idp.lma_dbg_offset=          new double [this.lma_dbg_offset.length][];
+		for (int i = 0; i < idp.lma_dbg_offset.length; i++) {
+			idp.lma_dbg_offset[i] =  this.lma_dbg_offset[i].clone();
+		}
 
 		return idp;
 	}

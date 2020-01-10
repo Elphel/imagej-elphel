@@ -721,6 +721,7 @@ private Panel panel1,
 			addButton("Create AUX CLT kernels",     panelLWIR, color_process_aux);
 			addButton("Select source sets",         panelLWIR, color_configure);
 			addButton("Configure color",            panelLWIR, color_configure);
+			addButton("CORR TEST",                  panelLWIR, color_conf_process);
 			addButton("CLT 4 images",               panelLWIR, color_conf_process);
 			addButton("CLT 3D",                     panelLWIR, color_process);
 			addButton("CLT planes",                 panelLWIR, color_conf_process);
@@ -4312,7 +4313,10 @@ private Panel panel1,
         return;
 
 
-    } else if (label.equals("CLT 4 images") || label.equals("CLT apply fine corr") || label.equals("CLT infinity corr")) {
+    } else if (label.equals("CLT 4 images") ||
+    		label.equals("CLT apply fine corr") ||
+    		label.equals("CLT infinity corr") ||
+    		label.equals("CORR TEST")) {
     	boolean apply_corr = label.equals("CLT apply fine corr");
     	boolean infinity_corr = label.equals("CLT infinity corr");
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
@@ -4371,18 +4375,35 @@ private Panel panel1,
         int num_infinity_corr = infinity_corr? CLT_PARAMETERS.inf_repeat : 1;
         if ( num_infinity_corr < 1) num_infinity_corr = 1;
         for (int i_infinity_corr = 0;  i_infinity_corr < num_infinity_corr; i_infinity_corr++) {
-        QUAD_CLT.processCLTQuadCorrs(
-        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-        		apply_corr,
-        		infinity_corr, // calculate and apply geometry correction at infinity
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-        		UPDATE_STATUS, //final boolean    updateStatus,
-        		DEBUG_LEVEL); //final int        debugLevel);
+        	if (label.equals("CORR TEST")) {
+        		QUAD_CLT.processCLTQuadCorrsTest(
+        				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        				DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+        				COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        				CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        				RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        				apply_corr,
+        				infinity_corr, // calculate and apply geometry correction at infinity
+        				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        				UPDATE_STATUS, //final boolean    updateStatus,
+        				DEBUG_LEVEL); //final int        debugLevel);
+
+        	} else {
+        		QUAD_CLT.processCLTQuadCorrs(
+        				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        				DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+        				COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        				CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        				RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        				apply_corr,
+        				infinity_corr, // calculate and apply geometry correction at infinity
+        				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        				UPDATE_STATUS, //final boolean    updateStatus,
+        				DEBUG_LEVEL); //final int        debugLevel);
+        	}
         }
+
+
         if (configPath!=null) {
         	saveTimestampedProperties( // save config again
         			configPath,      // full path or null

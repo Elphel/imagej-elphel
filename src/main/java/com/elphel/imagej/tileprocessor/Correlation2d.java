@@ -1752,15 +1752,369 @@ public class Correlation2d {
     	return    rslt;
     }
 
-    public Corr2dLMA corrLMA2( // USED in lwir
+    double [][] repackCluster(
+    		double [][][] data,
+    		int clust_width){
+		int  clust_height = data.length/clust_width;
+    	int corr_size = 2 * transform_size - 1;
+    	int nslices = 0;
+    	for (int i = 0; i < data.length; i++) {
+    		if (data[i] != null) {
+    			nslices = data[i].length;
+    			break;
+    		}
+    	}
+    	int out_width =  (corr_size+1)*clust_width;
+    	int out_height = (corr_size+1)*clust_height;
+    	double [][] mosaic = new double [nslices][];
+    	for (int ns = 0; ns <  nslices; ns++) {
+    		boolean slice_exists = false;
+    		for (int i = 0; i < data.length; i++){
+    			if ((data[i] != null) && (data[i][ns] != null)) {
+    				slice_exists = true;
+    				break;
+    			}
+    		}
+    		if (slice_exists) {
+    			mosaic[ns] = new double [out_height*out_width];
+    			for (int cy = 0; cy < clust_height; cy++) {
+    				for (int cx = 0; cx < clust_width; cx++) {
+    					int nclust = cy * clust_width + cx;
+    					int indx = cy * (corr_size+1)*out_width + cx * (corr_size+1);
+    					if ((data[nclust] == null) || (data[nclust][ns] == null)) {
+    						for (int i = 0; i < corr_size; i ++) {
+    							for (int j = 0; j < corr_size; j ++) {
+    								mosaic[ns][indx + j] = Double.NaN;
+    							}
+    							indx += out_width;
+    						}
+    					} else {
+    						for (int i = 0; i < corr_size; i ++) {
+    							for (int j = 0; j < corr_size; j ++) {
+    								mosaic[ns][indx + j] = data[nclust][ns][i * corr_size + j];
+    							}
+    							indx += out_width;
+    						}
+    					}
+    				}
+    			}
+    		}
+    	}
+    	return mosaic;
+    }
+
+    public Corr2dLMA corrLMA2( // multi-tile
+    		ImageDttParameters  imgdtt_params,
+    		int                 clust_width,
+    		double [][]         corr_wnd, // correlation window to save on re-calculation of the window
+    		double []           corr_wnd_inv_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
+    		double [][][]       corrs, // per tile, per pair, 2 correlation in line-scan order
+    		double [][][]       disp_dist, // per tile, per camera disparity matrix as a 1d (linescan order)
+    		int                 pair_mask, // which pairs to process
+    		boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
+//    		double              sigma, // low-pass sigma to find maximum (and convex too
+    		double[][]          xcenter_str,   // preliminary center x in pixels for largest baseline
+    		double              vasw_pwr,  // value as weight to this power,
+    		int                 debug_level,
+    		int                 tileX, // just for debug output
+    		int                 tileY
+    		)
+    {
+    	// corrs are organized as PAIRS, some are null if not used
+    	// for each enabled and available pair find a maximum, filter convex and create sample list
+    	boolean debug_graphic = (debug_level > -1);
+    	boolean debug_second_all = true;
+		int  clust_height = corrs.length/clust_width;
+    	int ntiles = corrs.length;
+    	DoubleGaussianBlur gb = null;
+    	if (imgdtt_params.lma_sigma > 0) gb = new DoubleGaussianBlur();
+    	int center =       transform_size - 1;
+    	int corr_size = 2 * transform_size - 1;
+    	Corr2dLMA lma = new Corr2dLMA(corrs.length,transform_size, corr_wnd);
+
+    	double [][][] dbg_corr =    debug_graphic ? new double [corrs.length][][] : null;
+    	double [][][] dbg_weights = debug_graphic ? new double [corrs.length][][] : null;
+    	int dbg_out_width =  (corr_size + 1) * clust_width;
+    	int dbg_out_height = (corr_size + 1) * clust_height;
+
+    	if (debug_graphic) {
+    	    double [][] dbg_corrs = repackCluster(
+    	    		corrs,
+    	    		clust_width);
+
+    		(new ShowDoubleFloatArrays()).showArrays(
+    				dbg_corrs,
+    				dbg_out_width,
+    				dbg_out_height,
+    				true,
+    				"corr_pairs-"+"_x"+tileX+"_y"+tileY);
+
+    	}
+    	int numpairs = 0;
+    	for (int ntile = 0; ntile < ntiles; ntile++) if (corrs[ntile] != null){
+    		double[][] corr = new double[corrs[ntile].length][];
+    		double [][] filtWeight = new double [corrs[ntile].length][];
+    		for (int npair = 0; npair < corrs[ntile].length; npair++) if ((corrs[ntile][npair] != null) && (((pair_mask >> npair) & 1) !=0)){
+    			corr[npair] = corrs[ntile][npair].clone();
+    			if (corr_wnd_inv_limited != null) {
+    				for (int i = 0; i < corr.length; i++) {
+    					corr[npair][i] *= corr_wnd_inv_limited[i];
+    				}
+    			}
+    			if (imgdtt_params.lma_sigma > 0) {
+    				gb.blurDouble(corr[npair], corr_size, corr_size, imgdtt_params.lma_sigma, imgdtt_params.lma_sigma, 0.01);
+    			}
+    			int imx = imgdtt_params.lma_soft_marg * (corr_size + 1);
+    			for (int iy = imgdtt_params.lma_soft_marg; iy < (corr_size - imgdtt_params.lma_soft_marg); iy++) {
+        			for (int ix = imgdtt_params.lma_soft_marg; ix < (corr_size - imgdtt_params.lma_soft_marg); ix++) {
+        				int indx = iy * corr_size + ix;
+        				if (corr[npair][indx] > corr[npair][imx]) imx = indx;
+
+        			}
+    			}
+    			// filter convex
+    			int ix0 = (imx % corr_size) - center; // signed, around center to match filterConvex
+    			int iy0 = (imx / corr_size) - center; // signed, around center to match filterConvex
+    			filtWeight[npair] =  filterConvex(
+    					corr[npair],                  // double [] corr_data,
+    					imgdtt_params.cnvx_hwnd_size, // int       hwin,
+    					ix0,                          // int       x0,
+    					iy0,                          // int       y0,
+    					imgdtt_params.cnvx_add3x3,    // boolean   add3x3,
+    					imgdtt_params.cnvx_weight,    // double    nc_cost,
+    					(debug_level > 2));           // boolean   debug);
+    			// remove too small clusters, or all collinear
+    		    if (!checkCluster(
+    		    		filtWeight[npair], // double [] weights,
+    		    		corr_size, // int       size,
+    		    		imgdtt_params.cnvx_min_samples, // int min_samples,
+    		    		imgdtt_params.cnvx_non_coll // boolean non_coll
+    		    		)) {
+    		    	filtWeight[npair] = null;
+    		    } else {
+    		    	numpairs++;
+    		    	if (dbg_corr    != null) 	{
+    		    		if (dbg_corr[ntile] == null) {
+    		    			dbg_corr[ntile] = new double [corrs[ntile].length][];
+    		    		}
+    		    		dbg_corr   [ntile][npair] = corr[npair];
+    		    	}
+    		    	if (dbg_weights != null) {
+    		    		if (dbg_weights[ntile] == null) {
+    		    			dbg_weights[ntile] = new double [corrs[ntile].length][];
+    		    		}
+    		    		dbg_weights[ntile][npair] = filtWeight[npair];
+    		    	}
+    		    }
+    			// Normalize weight for each pair to compensate for different number of convex samples?
+    		}
+
+    		// numpairs
+    		if (numpairs >= imgdtt_params.cnvx_min_pairs) {
+    			for (int npair = 0; npair < corrs[ntile].length; npair++) if (filtWeight[npair] != null){
+    				int fcam = PAIRS[npair][0];
+    				int scam = PAIRS[npair][1];
+    				for (int i = 1; i < filtWeight[npair].length; i++) if (filtWeight[npair][i] > 0.0) {
+    					int ix = i % corr_size; // >=0
+    					int iy = i / corr_size; // >=0
+    					double v = corrs[ntile][npair][i]; // not blurred
+    					double w = filtWeight[npair][i];
+    					if (vasw_pwr != 0) {
+    						w *= Math.pow(Math.abs(v), vasw_pwr);
+    					}
+    					lma.addSample( // x = 0, y=0 - center
+    							ntile, // tile
+    							fcam,  // int    fcam, // first  camera index
+    							scam,  // int    scam, // second camera index
+    							ix,    // int    x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
+    							iy,    // int    y,      // y coordinate (0 - disparity axis)
+    							v,     // double v,       // correlation value at that point
+    							w);    //double w){      // sample weight
+    				}
+    			}
+    		}
+    	}
+
+
+    	if (debug_graphic) {
+
+    	    double [][] dbg_corrs = repackCluster(
+    	    		dbg_corr,
+    	    		clust_width);
+
+    		(new ShowDoubleFloatArrays()).showArrays(
+    				dbg_corrs,
+    				dbg_out_width,
+    				dbg_out_height,
+    				true,
+    				"corr_blurred"+"_x"+tileX+"_y"+tileY);
+
+    	    double [][] dbg_w = repackCluster(
+    	    		dbg_weights,
+    	    		clust_width);
+
+    		(new ShowDoubleFloatArrays()).showArrays(
+    				dbg_w,
+    				dbg_out_width,
+    				dbg_out_height,
+    				true,
+    				"corr_weights"+"_x"+tileX+"_y"+tileY);
+    	}
+
+    	lma.initVector( // USED in lwir
+    			imgdtt_params.lma_adjust_wm,  // boolean adjust_width,     // adjust width of the maximum - lma_adjust_wm
+    			imgdtt_params.lma_adjust_ag,  // boolean adjust_scales,    // adjust 2D correlation scales - lma_adjust_ag
+    			imgdtt_params.lma_adjust_wy,  // boolean adjust_ellipse,   // allow non-circular correlation maximums lma_adjust_wy
+    			imgdtt_params.lma_adjust_wxy, // boolean adjust_lazyeye_par,   // adjust disparity corrections parallel to disparities  lma_adjust_wxy
+    			imgdtt_params.lma_adjust_ly1, // boolean adjust_lazyeye_ortho, // adjust disparity corrections orthogonal to disparities lma_adjust_ly1
+
+    			xcenter_str,                  // double [][] disp_str,         // initial value of disparity/strength/?
+    			imgdtt_params.lma_half_width, // double  half_width,       // A=1/(half_widh)^2   lma_half_width
+    			imgdtt_params.lma_cost_wy,     // double  cost_lazyeye_par,     // cost for each of the non-zero disparity corrections        lma_cost_wy
+    			imgdtt_params.lma_cost_wxy     // double  cost_lazyeye_odtho    // cost for each of the non-zero ortho disparity corrections  lma_cost_wxy
+    			);
+    	lma.setMatrices(disp_dist);
+    	lma.initMatrices(); // should be called after initVector and after setMatrices
+    	boolean lmaSuccess = false;
+    	if (debug_level > 1) {
+    		System.out.println("Input data:");
+    		lma.printInputDataFx(false);
+    		lma.printParams();
+
+    	}
+
+    	lmaSuccess = 	lma.runLma(
+    			imgdtt_params.lma_lambda_initial,     // double lambda,           // 0.1
+    			imgdtt_params.lma_lambda_scale_good,  // double lambda_scale_good,// 0.5
+    			imgdtt_params.lma_lambda_scale_bad,   // double lambda_scale_bad, // 8.0
+    			imgdtt_params.lma_lambda_max,         // double lambda_max,       // 100
+    			imgdtt_params.lma_rms_diff,           // double rms_diff,         // 0.001
+    			imgdtt_params.lma_num_iter,           // int    num_iter,         // 20
+    			2); //4); // debug_level);       // int    debug_level) // > 3
+
+    	lma.updateFromVector();
+    	double [] rms = lma.getRMS();
+    	if (debug_level > 0) {
+    		System.out.println("LMA -> "+lmaSuccess+" RMS="+rms[0]+", pure RMS="+rms[1]);
+    		lma.printParams();
+    	}
+
+    	if (debug_level > 1) {
+    		System.out.println("Input data and approximation:");
+    		lma.printInputDataFx(true);
+    	}
+    	//    	boolean debug_second_all = true;
+
+    	if (debug_second_all) {
+    		double [] all_pars_save = lma.all_pars.clone();
+        	lma.initVector( // USED in lwir
+        			imgdtt_params.lma_adjust_wm,  // boolean adjust_width,     // adjust width of the maximum - lma_adjust_wm
+        			imgdtt_params.lma_adjust_ag,  // boolean adjust_scales,    // adjust 2D correlation scales - lma_adjust_ag
+        			imgdtt_params.lma_adjust_wy,  // boolean adjust_ellipse,   // allow non-circular correlation maximums lma_adjust_wy
+        			true, // imgdtt_params.lma_adjust_wxy, // boolean adjust_lazyeye_par,   // adjust disparity corrections parallel to disparities  lma_adjust_wxy
+        			true, // imgdtt_params.lma_adjust_ly1, // boolean adjust_lazyeye_ortho, // adjust disparity corrections orthogonal to disparities lma_adjust_ly1
+
+        			xcenter_str,                  // double [][] disp_str,         // initial value of disparity/strength/?
+        			imgdtt_params.lma_half_width, // double  half_width,       // A=1/(half_widh)^2   lma_half_width
+        			imgdtt_params.lma_cost_wy,     // double  cost_lazyeye_par,     // cost for each of the non-zero disparity corrections        lma_cost_wy
+        			imgdtt_params.lma_cost_wxy     // double  cost_lazyeye_odtho    // cost for each of the non-zero ortho disparity corrections  lma_cost_wxy
+        			);
+        	lma.all_pars = all_pars_save;
+        	lma.toVector();
+
+
+        	lma.setMatrices(disp_dist);
+        	lma.initMatrices(); // should be called after initVector and after setMatrices
+        	//boolean
+        	lmaSuccess = false;
+        	if (debug_level > 1) {
+        		System.out.println("Input data:");
+        		lma.printInputDataFx(false);
+        		lma.printParams();
+
+        	}
+
+        	lmaSuccess = 	lma.runLma(
+        			imgdtt_params.lma_lambda_initial,     // double lambda,           // 0.1
+        			imgdtt_params.lma_lambda_scale_good,  // double lambda_scale_good,// 0.5
+        			imgdtt_params.lma_lambda_scale_bad,   // double lambda_scale_bad, // 8.0
+        			imgdtt_params.lma_lambda_max,         // double lambda_max,       // 100
+        			imgdtt_params.lma_rms_diff,           // double rms_diff,         // 0.001
+        			imgdtt_params.lma_num_iter,           // int    num_iter,         // 20
+        			2); //4); // debug_level);       // int    debug_level) // > 3
+
+        	lma.updateFromVector();
+        	//double []
+        	rms = lma.getRMS();
+        	if (debug_level > 0) {
+        		System.out.println("LMA -> "+lmaSuccess+" RMS="+rms[0]+", pure RMS="+rms[1]);
+        		lma.printParams();
+        	}
+
+        	if (debug_level > 1) {
+        		System.out.println("Input data and approximation:");
+        		lma.printInputDataFx(true);
+        	}
+
+    	}
+
+
+
+    	if (debug_graphic && lmaSuccess) {
+    		String [] sliceTitles = lma.dbgGetSliceTiles();
+    		if (corrs.length == 1) {
+    			(new ShowDoubleFloatArrays()).showArrays(
+    					lma.dbgGetSamples(0)[0],
+    					corr_size,
+    					corr_size,
+    					true,
+    					"corr_values"+"_x"+tileX+"_y"+tileY, sliceTitles);
+    			(new ShowDoubleFloatArrays()).showArrays(
+    					lma.dbgGetSamples(1)[0],
+    					corr_size,
+    					corr_size,
+    					true,
+    					"corr_weights"+"_x"+tileX+"_y"+tileY, sliceTitles);
+    			(new ShowDoubleFloatArrays()).showArrays(
+    					lma.dbgGetSamples(2)[0],
+    					corr_size,
+    					corr_size,
+    					true,
+    					"corr_fx"+"_x"+tileX+"_y"+tileY, sliceTitles);
+    		} else {
+    			(new ShowDoubleFloatArrays()).showArrays(
+    					repackCluster(lma.dbgGetSamples(0),clust_width),
+    					dbg_out_width,
+    					dbg_out_height,
+    					true,
+    					"corr_values"+"_x"+tileX+"_y"+tileY, sliceTitles);
+    			(new ShowDoubleFloatArrays()).showArrays(
+    					repackCluster(lma.dbgGetSamples(1),clust_width),
+    					dbg_out_width,
+    					dbg_out_height,
+    					true,
+    					"corr_weights"+"_x"+tileX+"_y"+tileY, sliceTitles);
+    			(new ShowDoubleFloatArrays()).showArrays(
+    					repackCluster(lma.dbgGetSamples(2),clust_width),
+    					dbg_out_width,
+    					dbg_out_height,
+    					true,
+    					"corr_fx"+"_x"+tileX+"_y"+tileY, sliceTitles);
+    		}
+    	}
+
+    	return lmaSuccess? lma: null;
+    }
+
+    public Corr2dLMA corrLMA2( // single tile
     		ImageDttParameters  imgdtt_params,
     		double [][]         corr_wnd, // correlation window to save on re-calculation of the window
-    		double []           corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
+    		double []           corr_wnd_inv_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
     		double [][]         corrs,
     		double [][]         disp_dist, // per camera disparity matrix as a 1d (linescan order)
     		int                 pair_mask, // which pairs to process
     		boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
-    		double              sigma, // low-pass sigma to find maximum (and convex too
+//    		double              sigma, // low-pass sigma to find maximum (and convex too
     		double              xcenter,   // preliminary center x in pixels for largest baseline
     		double              vasw_pwr,  // value as weight to this power,
     		int                 debug_level,
@@ -1772,10 +2126,10 @@ public class Correlation2d {
     	// for each enabled and available pair find a maximum, filter convex and create sample list
     	boolean debug_graphic = (debug_level > -1);
     	DoubleGaussianBlur gb = null;
-    	if (sigma > 0) gb = new DoubleGaussianBlur();
+    	if (imgdtt_params.lma_sigma > 0) gb = new DoubleGaussianBlur();
     	int center =       transform_size - 1;
     	int corr_size = 2 * transform_size - 1;
-    	Corr2dLMA lma = new Corr2dLMA(transform_size, corr_wnd);
+    	Corr2dLMA lma = new Corr2dLMA(1,transform_size, corr_wnd);
 
     	double [][] dbg_corr =    debug_graphic ? new double [corrs.length][] : null;
     	double [][] dbg_weights = debug_graphic ? new double [corrs.length][] : null;
@@ -1792,16 +2146,24 @@ public class Correlation2d {
 
     	for (int npair = 0; npair < corrs.length; npair++) if ((corrs[npair] != null) && (((pair_mask >> npair) & 1) !=0)){
     		double[] corr = corrs[npair].clone();
-    		if (corr_wnd_limited != null) {
+    		if (corr_wnd_inv_limited != null) {
     			for (int i = 0; i < corr.length; i++) {
-    				corr[i] /= corr_wnd_limited[i];
+    				corr[i] *= corr_wnd_inv_limited[i];
     			}
     		}
-    		if (sigma > 0) {
-    			gb.blurDouble(corr, corr_size, corr_size, sigma, sigma, 0.01);
+    		if (imgdtt_params.lma_sigma > 0) {
+    			gb.blurDouble(corr, corr_size, corr_size, imgdtt_params.lma_sigma, imgdtt_params.lma_sigma, 0.01);
     		}
-    		int imx = 0;
-    		for (int i = 1; i < corr.length; i++) if (corr[i] > corr[imx]) imx = i;
+			int imx = imgdtt_params.lma_soft_marg * (corr_size + 1);
+			for (int iy = imgdtt_params.lma_soft_marg; iy < (corr_size - imgdtt_params.lma_soft_marg); iy++) {
+    			for (int ix = imgdtt_params.lma_soft_marg; ix < (corr_size - imgdtt_params.lma_soft_marg); ix++) {
+    				int indx = iy * corr_size + ix;
+    				if (corr[indx] > corr[imx]) imx = indx;
+
+    			}
+			}
+
+
     		// filter convex
     		int ix0 = (imx % corr_size) - center; // signed, around center to match filterConvex
     		int iy0 = (imx / corr_size) - center; // signed, around center to match filterConvex
@@ -1829,12 +2191,13 @@ public class Correlation2d {
     	            w *= Math.pow(Math.abs(v), vasw_pwr);
     	        }
     	    	lma.addSample( // x = 0, y=0 - center
+    	    			0,    // tile
     	    			fcam, // int    fcam, // first  camera index
     	    			scam, // int    scam, // second camera index
-    	    			ix, // int    x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
-    	    			iy, // int    y,      // y coordinate (0 - disparity axis)
-    	    			v, // double v,       // correlation value at that point
-    	    			w); //double w){      // sample weight
+    	    			ix,   // int    x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
+    	    			iy,   // int    y,      // y coordinate (0 - disparity axis)
+    	    			v,    // double v,       // correlation value at that point
+    	    			w);   //double w){      // sample weight
     	    }
     	}
 
@@ -1854,6 +2217,7 @@ public class Correlation2d {
     				"corr_weights"+"_x"+tileX+"_y"+tileY);
     	}
 
+    	double [][] disp_str = {{xcenter, 1.0}}; // temporary
 
     	lma.initVector( // USED in lwir
     			imgdtt_params.lma_adjust_wm,  // boolean adjust_width,     // adjust width of the maximum - lma_adjust_wm
@@ -1862,7 +2226,7 @@ public class Correlation2d {
     			imgdtt_params.lma_adjust_wxy, // boolean adjust_lazyeye_par,   // adjust disparity corrections parallel to disparities  lma_adjust_wxy
     			imgdtt_params.lma_adjust_ly1, // boolean adjust_lazyeye_ortho, // adjust disparity corrections orthogonal to disparities lma_adjust_ly1
 
-    			xcenter,                      // double  disp0,            // initial value of disparity
+    			disp_str, // xcenter,                      // double  disp0,            // initial value of disparity
     			imgdtt_params.lma_half_width, // double  half_width,       // A=1/(half_widh)^2   lma_half_width
     			imgdtt_params.lma_cost_wy,     // double  cost_lazyeye_par,     // cost for each of the non-zero disparity corrections        lma_cost_wy
     			imgdtt_params.lma_cost_wxy     // double  cost_lazyeye_odtho    // cost for each of the non-zero ortho disparity corrections  lma_cost_wxy
@@ -1899,31 +2263,44 @@ public class Correlation2d {
     	}
     	if (debug_graphic && lmaSuccess) {
     		String [] sliceTitles = lma.dbgGetSliceTiles();
-
-    		(new ShowDoubleFloatArrays()).showArrays(
-    				lma.dbgGetSamples(0),
-    				corr_size,
-    				corr_size,
-    				true,
-    				"corr_values"+"_x"+tileX+"_y"+tileY, sliceTitles);
-
-    		(new ShowDoubleFloatArrays()).showArrays(
-    				lma.dbgGetSamples(1),
-    				corr_size,
-    				corr_size,
-    				true,
-    				"corr_weights"+"_x"+tileX+"_y"+tileY, sliceTitles);
-
-    		(new ShowDoubleFloatArrays()).showArrays(
-    				lma.dbgGetSamples(2),
-    				corr_size,
-    				corr_size,
-    				true,
-    				"corr_fx"+"_x"+tileX+"_y"+tileY, sliceTitles);
+    		if (corrs.length == 1) { // only for single-tile cluster
+    			(new ShowDoubleFloatArrays()).showArrays(
+    					lma.dbgGetSamples(0)[0],
+    					corr_size,
+    					corr_size,
+    					true,
+    					"corr_values"+"_x"+tileX+"_y"+tileY, sliceTitles);
+    			(new ShowDoubleFloatArrays()).showArrays(
+    					lma.dbgGetSamples(1)[0],
+    					corr_size,
+    					corr_size,
+    					true,
+    					"corr_weights"+"_x"+tileX+"_y"+tileY, sliceTitles);
+    			(new ShowDoubleFloatArrays()).showArrays(
+    					lma.dbgGetSamples(2)[0],
+    					corr_size,
+    					corr_size,
+    					true,
+    					"corr_fx"+"_x"+tileX+"_y"+tileY, sliceTitles);
+    		}
     	}
 
     	return lmaSuccess? lma: null;
     }
+
+    /*
+    	    double [][] dbg_w = repackCluster(
+    	    		dbg_weights,
+    	    		clust_width);
+
+    		(new ShowDoubleFloatArrays()).showArrays(
+    				dbg_w,
+    				dbg_out_width,
+    				dbg_out_height,
+    				true,
+    				"corr_weights"+"_x"+tileX+"_y"+tileY);
+
+     */
 
     public Correlations2dLMA corrLMA( // USED in lwir
     		ImageDttParameters  imgdtt_params,
@@ -2336,6 +2713,45 @@ public class Correlation2d {
     		lma.printInputDataFx(true);
     	}
     	return lmaSuccess? lma: null;
+    }
+
+    /**
+     * Verify that 2D correlation pair has enough enabled samples and they are not all collinear (if requested)
+     * @param weights 2D correlation weights (selected if > 0) in line-scan order
+     * @param size of the square (15 for transform size 8)
+     * @param min_samples minimal required number of non-zero samples
+     * @param non_coll requre non-collinear samples
+     * @return true if the data matches requirements
+     */
+    public boolean checkCluster(
+    		double [] weights,
+    		int       size,
+    		int min_samples,
+    		boolean non_coll
+    		) {
+    	int num_samples = 0;
+    	int [][] first2 = new int [2][2];
+    	boolean noncolinOK = !non_coll;
+    	for (int iy = 0; iy < size; iy++) {
+    		for (int ix = 0; ix < size; ix++) {
+    			if (weights[iy * size + ix] > 0) {
+    				if (num_samples == 0) {
+    					first2[0][0] = ix; // x0
+    					first2[0][1] = iy; // y0
+    				} else if (num_samples == 1) {
+    					first2[1][0] = ix - first2[0][0]; // dx1
+    					first2[1][1] = iy - first2[0][1]; // dy1
+    				} else {
+    					noncolinOK |= ((ix-first2[0][0])*first2[1][1] != (iy-first2[0][1])*first2[1][0]);
+    				}
+    				num_samples++;
+    				if (noncolinOK && (num_samples >= min_samples)) {
+    					return true;
+    				}
+    			}
+    		}
+    	}
+    	return false;
     }
 
     /**

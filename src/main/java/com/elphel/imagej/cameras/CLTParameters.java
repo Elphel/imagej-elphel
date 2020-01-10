@@ -23,6 +23,7 @@ public class CLTParameters {
 	public int        clt_window =          1; // currently only 3 types of windows - 0 (none), 1 and 2
 	public double     shift_x =           0.0;
 	public double     shift_y =           0.0;
+	public int        tileStep =            4;  // process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters
 	public int        iclt_mask =          15;  // which transforms to combine
 	public int        tileX =             258;  // number of kernel tile (0..163)
 	public int        tileY =             133;  // number of kernel tile (0..122)
@@ -826,6 +827,7 @@ public class CLTParameters {
 		properties.setProperty(prefix+"clt_window",                 this.clt_window+"");
 		properties.setProperty(prefix+"shift_x",                    this.shift_x+"");
 		properties.setProperty(prefix+"shift_y",                    this.shift_y+"");
+		properties.setProperty(prefix+"tileStep",                   this.tileStep+"");
 		properties.setProperty(prefix+"iclt_mask",                  this.iclt_mask+"");
 		properties.setProperty(prefix+"tileX",                      this.tileX+"");
 		properties.setProperty(prefix+"tileY",                      this.tileY+"");
@@ -1540,6 +1542,8 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"clt_window")!=null)                    this.clt_window=Integer.parseInt(properties.getProperty(prefix+"clt_window"));
 		if (properties.getProperty(prefix+"shift_x")!=null)                       this.shift_x=Double.parseDouble(properties.getProperty(prefix+"shift_x"));
 		if (properties.getProperty(prefix+"shift_y")!=null)                       this.shift_y=Double.parseDouble(properties.getProperty(prefix+"shift_y"));
+
+		if (properties.getProperty(prefix+"tileStep")!=null)                      this.tileStep=Integer.parseInt(properties.getProperty(prefix+"tileStep"));
 		if (properties.getProperty(prefix+"iclt_mask")!=null)                     this.iclt_mask=Integer.parseInt(properties.getProperty(prefix+"iclt_mask"));
 		if (properties.getProperty(prefix+"tileX")!=null)                         this.tileX=Integer.parseInt(properties.getProperty(prefix+"tileX"));
 		if (properties.getProperty(prefix+"tileY")!=null)                         this.tileY=Integer.parseInt(properties.getProperty(prefix+"tileY"));
@@ -1552,8 +1556,6 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"corr_sigma_mono")!=null)               this.corr_sigma_mono=Double.parseDouble(properties.getProperty(prefix+"corr_sigma_mono"));
 		if (properties.getProperty(prefix+"scale_strength_main")!=null)           this.scale_strength_main=Double.parseDouble(properties.getProperty(prefix+"scale_strength_main"));
 		if (properties.getProperty(prefix+"scale_strength_aux")!=null)            this.scale_strength_aux=Double.parseDouble(properties.getProperty(prefix+"scale_strength_aux"));
-
-
 
 		if (properties.getProperty(prefix+"norm_kern")!=null)                     this.norm_kern=Boolean.parseBoolean(properties.getProperty(prefix+"norm_kern"));
 		if (properties.getProperty(prefix+"gain_equalize")!=null)                 this.gain_equalize=Boolean.parseBoolean(properties.getProperty(prefix+"gain_equalize"));
@@ -2274,6 +2276,9 @@ public class CLTParameters {
 		gd.addNumericField("Lapped transform window type (0- rectangular, 1 - sinus)",                          this.clt_window,                0);
 		gd.addNumericField("shift_x",                                                                           this.shift_x,                   4);
 		gd.addNumericField("shift_y",                                                                           this.shift_y,                   4);
+
+		gd.addNumericField("Lazy eye cluster size",                                                             this.tileStep,                  0, 6, "tiles",
+				"Process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters");
 		gd.addNumericField("Bit mask - which of 4 transforms to combine after iclt",                            this.iclt_mask,                 0);
 		gd.addNumericField("Tile X to extract (0..163)",                                                        this.tileX,                     0);
 		gd.addNumericField("Tile Y to extract (0..122)",                                                        this.tileY,                     0);
@@ -3125,6 +3130,8 @@ public class CLTParameters {
 		this.clt_window=      (int) gd.getNextNumber();
 		this.shift_x =              gd.getNextNumber();
 		this.shift_y =              gd.getNextNumber();
+
+		this.tileStep=        (int) gd.getNextNumber();
 		this.iclt_mask=       (int) gd.getNextNumber();
 		this.tileX=           (int) gd.getNextNumber();
 		this.tileY=           (int) gd.getNextNumber();
