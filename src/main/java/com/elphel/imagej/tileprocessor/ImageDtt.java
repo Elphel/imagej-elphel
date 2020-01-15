@@ -1577,12 +1577,13 @@ public class ImageDtt {
 			final int                 globalDebugLevel)
 	{
 		final boolean debug_distort= true;
-
 //		final double [][] debug_offsets = null;
-		final double [][] debug_offsets = imgdtt_params.lma_dbg_offset;
-//		final double [][] debug_offsets = {{ 0.5, 0.0},{ -0.5, 0.0},{-0.5, 0.0},{ 0.5, 0.0}}; // add to calculated CenterXY for evaluating new LMA
-//		final double [][] debug_offsets = {{ 1.0, 0.0},{ -1.0, 0.0},{-1.0, 0.0},{ 1.0, 0.0}}; // add to calculated CenterXY for evaluating new LMA
-//		final double [][] debug_offsets = {{ 0.0, 1.0},{  0.0, -1.0},{ 0.0, -1.0},{ 0.0, 1.0}}; // add to calculated CenterXY for evaluating new LMA
+		//lma_dbg_scale
+		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
+		for (int i = 0; i < debug_offsets.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
+			debug_offsets[i][j] = imgdtt_params.lma_dbg_offset[i][j]*imgdtt_params.lma_dbg_scale;
+		}
+
 		final int quad = 4;   // number of subcameras
 		final int numcol = 3; // number of colors // keep the same, just do not use [0] and [1], [2] - green
 
@@ -1605,6 +1606,15 @@ public class ImageDtt {
 		final double [] col_weights= new double [numcol]; // colors are RBG
 		final double [][] dbg_distort = debug_distort? (new double [4*quad][tilesX*tilesY]) : null;
 
+		final double [][] corr_wnd = Corr2dLMA.getCorrWnd(transform_size);
+		final double [] corr_wnd_inv_limited = (imgdtt_params.lma_min_wnd <= 1.0)?  new double [corr_wnd.length * corr_wnd[0].length]: null;
+		if (corr_wnd_inv_limited != null) {
+			for (int i = imgdtt_params.lma_hard_marg; i < (corr_wnd.length - imgdtt_params.lma_hard_marg); i++) {
+				for (int j = imgdtt_params.lma_hard_marg; j < (corr_wnd.length - imgdtt_params.lma_hard_marg); j++) {
+					corr_wnd_inv_limited[i * (corr_wnd.length) + j] = 1.0/Math.max(Math.pow(corr_wnd[i][j],imgdtt_params.lma_wnd_pwr), imgdtt_params.lma_min_wnd);
+				}
+			}
+		}
 
 		// keep for now for mono, find out  what do they mean for macro mode
 		if (isMonochrome()) {
@@ -1746,7 +1756,8 @@ public class ImageDtt {
 					double centerX; // center of aberration-corrected (common model) tile, X
 					double centerY; //
 					double [][] fract_shiftsXY = new double[quad][];
-					double [][] corr_wnd = (new Corr2dLMA(1, transform_size, null,imgdtt_params.lma_gaussian)).getCorrWnd();
+//					double [][] corr_wnd = Corr2dLMA.getCorrWnd(transform_size);
+/*
 					double [] corr_wnd_inv_limited = null;
 					if (imgdtt_params.lma_min_wnd <= 1.0) {
 						corr_wnd_inv_limited = new double [corr_wnd.length * corr_wnd[0].length];
@@ -1756,7 +1767,7 @@ public class ImageDtt {
 							}
 						}
 					}
-
+*/
 					Correlation2d corr2d = new Correlation2d(
 							imgdtt_params,              // ImageDttParameters  imgdtt_params,
 							transform_size,             // int transform_size,
@@ -1767,6 +1778,13 @@ public class ImageDtt {
 							imgdtt_params.getEnhOrthoWidth(isAux()), // double getEnhOrthoWidth(isAux()),
 							imgdtt_params.getEnhOrthoScale(isAux()), //double getEnhOrthoScale(isAux()),
 							(imgdtt_params.lma_debug_level > 1)); // boolean debug);
+
+					double [][] rXY;
+					if (use_main) {
+						rXY = geometryCorrection.getRXY(true); // boolean use_rig_offsets,
+					} else  {
+						rXY = geometryCorrection.getRXY(false); // boolean use_rig_offsets,
+					}
 
 					//					for (int nTile = ai.getAndIncrement(); nTile < nTilesInChn; nTile = ai.getAndIncrement()) {
 					for (int nCluster = ai.getAndIncrement(); nCluster < nClustersInChn; nCluster = ai.getAndIncrement()) {
@@ -2068,6 +2086,7 @@ public class ImageDtt {
 															corr_wnd_inv_limited,         // corr_wnd_inv_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
 															corrs[cTile],                        // double [][]         corrs,
 															disp_dist[cTile],
+															rXY, // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
 															imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
 															false,                        // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
 															corr_stat[cTile][0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
@@ -2096,6 +2115,7 @@ public class ImageDtt {
 									corr_wnd_inv_limited,         // corr_wnd_inv_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
 									corrs, // [tIndex],                        // double [][]         corrs,
 									disp_dist, // [tIndex],
+									rXY, // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
 									imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
 									false,                        // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
 									corr_stat,                    // double[][]    xcenter_str,   // preliminary center x in pixels for largest baseline
@@ -2230,7 +2250,15 @@ public class ImageDtt {
 		final AtomicInteger ai = new AtomicInteger(0);
 		final double [] col_weights= new double [numcol]; // colors are RBG
 		final double [][] dbg_distort = debug_distort? (new double [4*quad][tilesX*tilesY]) : null;
-
+		final double [][] corr_wnd = Corr2dLMA.getCorrWnd(transform_size);
+		final double [] corr_wnd_inv_limited = (imgdtt_params.lma_min_wnd <= 1.0)?  new double [corr_wnd.length * corr_wnd[0].length]: null;
+		if (corr_wnd_inv_limited != null) {
+			for (int i = imgdtt_params.lma_hard_marg; i < (corr_wnd.length - imgdtt_params.lma_hard_marg); i++) {
+				for (int j = imgdtt_params.lma_hard_marg; j < (corr_wnd.length - imgdtt_params.lma_hard_marg); j++) {
+					corr_wnd_inv_limited[i * (corr_wnd.length) + j] = 1.0/Math.max(Math.pow(corr_wnd[i][j],imgdtt_params.lma_wnd_pwr), imgdtt_params.lma_min_wnd);
+				}
+			}
+		}
 
 		// keep for now for mono, find out  what do they mean for macro mode
 		if (macro_mode) { // all the same as they now mean different
@@ -2431,7 +2459,8 @@ public class ImageDtt {
 					double [][][]   tcorr_partial =  null; // [quad][numcol+1][15*15]
 					double [][][][] tcorr_tpartial = null; // [quad][numcol+1][4][8*8]
 					double [] ports_rgb = null;
-					double [][] corr_wnd = (new Corr2dLMA(1, transform_size, null,imgdtt_params.lma_gaussian)).getCorrWnd();
+//					double [][] corr_wnd = Corr2dLMA.getCorrWnd(transform_size);
+/*
 					double [] corr_wnd_inv_limited = null;
 					if (imgdtt_params.lma_min_wnd <= 1.0) {
 						corr_wnd_inv_limited = new double [corr_wnd.length * corr_wnd[0].length];
@@ -2441,7 +2470,14 @@ public class ImageDtt {
 							}
 						}
 					}
+*/
+					double [][] rXY;
 
+					if (use_main) {
+						rXY = geometryCorrection.getRXY(true); // boolean use_rig_offsets,
+					} else  {
+						rXY = geometryCorrection.getRXY(false); // boolean use_rig_offsets,
+					}
 					Correlation2d corr2d = new Correlation2d(
 							imgdtt_params,              // ImageDttParameters  imgdtt_params,
 							transform_size,             // int transform_size,
@@ -2978,6 +3014,7 @@ public class ImageDtt {
 							    			corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
 							    			corrs,                        // double [][]         corrs,
 							    			disp_dist,
+											rXY,                          // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
 							    			imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
 							        		false,                        // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
 							    			corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline

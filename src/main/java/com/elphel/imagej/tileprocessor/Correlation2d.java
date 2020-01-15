@@ -1810,9 +1810,9 @@ public class Correlation2d {
     		double []           corr_wnd_inv_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
     		double [][][]       corrs, // per tile, per pair, 2 correlation in line-scan order
     		double [][][]       disp_dist, // per tile, per camera disparity matrix as a 1d (linescan order)
+    		double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
     		int                 pair_mask, // which pairs to process
     		boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
-//    		double              sigma, // low-pass sigma to find maximum (and convex too
     		double[][]          xcenter_str,   // preliminary center x in pixels for largest baseline
     		double              vasw_pwr,  // value as weight to this power,
     		int                 debug_level,
@@ -1823,7 +1823,7 @@ public class Correlation2d {
     	// corrs are organized as PAIRS, some are null if not used
     	// for each enabled and available pair find a maximum, filter convex and create sample list
     	boolean debug_graphic = (debug_level > -1);
-    	boolean debug_second_all = false; // true;
+    	boolean debug_second_all = false; // true; // alse; // true;
 		int  clust_height = corrs.length/clust_width;
     	int ntiles = corrs.length;
     	DoubleGaussianBlur gb = null;
@@ -1834,6 +1834,7 @@ public class Correlation2d {
     			corrs.length,
     			transform_size,
     			corr_wnd,
+    			rXY, //double [][] rXY, // non-distorted X,Y offset per nominal pixel of disparity
     			imgdtt_params.lma_gaussian//boolean gaussian_mode
     			);
 
@@ -1989,13 +1990,13 @@ public class Correlation2d {
     	}
 
     	lmaSuccess = 	lma.runLma(
-    			imgdtt_params.lma_lambda_initial,     // double lambda,           // 0.1
-    			imgdtt_params.lma_lambda_scale_good,  // double lambda_scale_good,// 0.5
-    			imgdtt_params.lma_lambda_scale_bad,   // double lambda_scale_bad, // 8.0
-    			imgdtt_params.lma_lambda_max,         // double lambda_max,       // 100
-    			imgdtt_params.lma_rms_diff,           // double rms_diff,         // 0.001
-    			imgdtt_params.lma_num_iter,           // int    num_iter,         // 20
-    			2); //4); // debug_level);       // int    debug_level) // > 3
+    			imgdtt_params.lma_lambda_initial,      // double lambda,            // 0.1
+    			imgdtt_params.lma_lambda_scale_good,   // double lambda_scale_good, // 0.5
+    			imgdtt_params.lma_lambda_scale_bad,    // double lambda_scale_bad,  // 8.0
+    			imgdtt_params.lma_lambda_max,          // double lambda_max,        // 100
+    			imgdtt_params.lma_rms_diff,            // double rms_diff,          // 0.001
+    			imgdtt_params.lma_num_iter,            // int    num_iter,          // 20
+    			imgdtt_params.lma_debug_level1); //4); // debug_level);             // int    debug_level) // > 3
 
     	lma.updateFromVector();
     	double [] rms = lma.getRMS();
@@ -2124,15 +2125,15 @@ public class Correlation2d {
     	return lmaSuccess? lma: null;
     }
 
-    public Corr2dLMA corrLMA2( // single tile
+    public Corr2dLMA corrLMA2( // single tile ************* Will be obsolete ????
     		ImageDttParameters  imgdtt_params,
     		double [][]         corr_wnd, // correlation window to save on re-calculation of the window
     		double []           corr_wnd_inv_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
     		double [][]         corrs,
     		double [][]         disp_dist, // per camera disparity matrix as a 1d (linescan order)
+    		double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
     		int                 pair_mask, // which pairs to process
     		boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
-//    		double              sigma, // low-pass sigma to find maximum (and convex too
     		double              xcenter,   // preliminary center x in pixels for largest baseline
     		double              vasw_pwr,  // value as weight to this power,
     		int                 debug_level,
@@ -2151,7 +2152,8 @@ public class Correlation2d {
     			1,
     			transform_size,
     			corr_wnd,
-    			imgdtt_params.lma_gaussian//boolean gaussian_mode
+    			rXY,                       //double [][] rXY, // non-distorted X,Y offset per nominal pixel of disparity
+    			imgdtt_params.lma_gaussian //boolean gaussian_mode
     			);
 
 
@@ -2312,19 +2314,6 @@ public class Correlation2d {
     	return lmaSuccess? lma: null;
     }
 
-    /*
-    	    double [][] dbg_w = repackCluster(
-    	    		dbg_weights,
-    	    		clust_width);
-
-    		(new ShowDoubleFloatArrays()).showArrays(
-    				dbg_w,
-    				dbg_out_width,
-    				dbg_out_height,
-    				true,
-    				"corr_weights"+"_x"+tileX+"_y"+tileY);
-
-     */
 
     public Correlations2dLMA corrLMA( // USED in lwir
     		ImageDttParameters  imgdtt_params,

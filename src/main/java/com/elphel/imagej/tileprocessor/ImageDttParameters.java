@@ -128,9 +128,11 @@ public class ImageDttParameters {
 	public double  lma_rms_diff =           0.001; //
 	public int     lma_num_iter =          20;     //
 	public int     lma_debug_level =        3;     //
+	public int     lma_debug_level1 =       2;     //
 	public boolean corr_var_cam =           true;  // New correlation mode compatible with 8 subcameras
 	public double  cm_max_normalization =   0.55; // fraction of correlation maximum radius, being squared multiplied by maximum to have the same total mass
-	public double  [][] lma_dbg_offset =   new double [4][2]; //{{ 1.0, 0.0},{ -1.0, 0.0},{-1.0, 0.0},{ 1.0, 0.0}}; //  new double [4][2];
+	public double  lma_dbg_scale =          0.0;  // scale lma_dbg_offset
+	public double  [][] lma_dbg_offset =    {{ 1.0, 0.0},{ -1.0, 0.0},{-1.0, 0.0},{ 1.0, 0.0}}; //  new double [4][2];
 
 	public int getEnhOrthoWidth(boolean aux) {
 		return aux ? enhortho_width_aux : enhortho_width;
@@ -316,13 +318,16 @@ public class ImageDttParameters {
 					"Limit LMA cycles, so it will exit after certain number of small improvements");
 			gd.addNumericField("LMA debug level",                                                 this.lma_debug_level,  0, 3, "",
 					"Debug/verbosity level for the LMA correaltion maximum fitting");
+			gd.addNumericField("LMA debug level1",                                                 this.lma_debug_level1,  0, 3, "",
+					"Debug/verbosity level for the new LMA correaltion maximum fitting");
 			gd.addCheckbox    ("Use new correlation methods compatible with x8 camera",           this.corr_var_cam,
 					"Debug feature to compare old/new methods");
 
-			gd.addNumericField("Normalization for the CM correlation strength",                  this.cm_max_normalization,  6, 8, "",
+			gd.addNumericField("Normalization for the CM correlation strength",                   this.cm_max_normalization,  6, 8, "",
 					"Fraction of correlation maximum radius, being squared multiplied by maximum to have the same total mass. ~= 0.5, the lower the value, the higher strength reported by the CM");
 			gd.addMessage("Cameras offsets in the disparity direction and orthogonal to disparity (debugging LMA)");
-
+			gd.addNumericField("LMA debug offsets scale",                                         this.lma_dbg_scale,  6, 8, "",
+					"Scale the following offsets by this value");
 			gd.addNumericField("LMA debug offset: camera0, parallel",                   this.lma_dbg_offset[0][0],  6, 8, "pix",
 					"Add camera offset in the direction of disparity (to/from center)");
 			gd.addNumericField("LMA debug offset: camera0, ortho",                      this.lma_dbg_offset[0][1],  6, 8, "pix",
@@ -441,8 +446,10 @@ public class ImageDttParameters {
 
   			this.lma_num_iter=     (int) gd.getNextNumber();
   			this.lma_debug_level=  (int) gd.getNextNumber();
+  			this.lma_debug_level1= (int) gd.getNextNumber();
   			this.corr_var_cam =          gd.getNextBoolean();
   			this.cm_max_normalization=   gd.getNextNumber();
+  			this.lma_dbg_scale=          gd.getNextNumber();
 
   			for (int i = 0; i < 4; i++) for (int j=0; j < 2; j++) {
   				this.lma_dbg_offset[i][j]=   gd.getNextNumber();
@@ -459,14 +466,14 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"poly_corr_scale",      this.poly_corr_scale+"");
 
 		properties.setProperty(prefix+"poly_pwr",             this.poly_pwr+"");
-		properties.setProperty(prefix+"poly_value_to_weight", this.poly_vasw_pwr+"");
+		properties.setProperty(prefix+"poly_vasw_pwr",        this.poly_vasw_pwr+"");
 		properties.setProperty(prefix+"corr_magic_scale_cm",  this.corr_magic_scale_cm+"");
 		properties.setProperty(prefix+"corr_magic_scale_poly",this.corr_magic_scale_poly+"");
 
 		properties.setProperty(prefix+"ortho_height",         this.ortho_height+"");
 		properties.setProperty(prefix+"ortho_eff_height",     this.ortho_eff_height+"");
 		properties.setProperty(prefix+"ortho_nsamples",       this.ortho_nsamples+"");
-		properties.setProperty(prefix+"ortho_vasw",           this.ortho_vasw_pwr+"");
+		properties.setProperty(prefix+"ortho_vasw_pwr",       this.ortho_vasw_pwr+"");
 
 		properties.setProperty(prefix+"enhortho_width",       this.enhortho_width +"");
 		properties.setProperty(prefix+"enhortho_width_aux",   this.enhortho_width_aux +"");
@@ -545,10 +552,13 @@ public class ImageDttParameters {
 
 		properties.setProperty(prefix+"lma_num_iter",         this.lma_num_iter +"");
 		properties.setProperty(prefix+"lma_debug_level",      this.lma_debug_level +"");
+		properties.setProperty(prefix+"lma_debug_level1",     this.lma_debug_level1 +"");
 		properties.setProperty(prefix+"corr_var_cam",         this.corr_var_cam +"");
 
 		properties.setProperty(prefix+"cm_max_normalization", this.cm_max_normalization +"");
-	    for (int i = 0; i < 4; i++) for (int j=0; j < 2; j++) {
+
+		properties.setProperty(prefix+"lma_dbg_scale",        this.lma_dbg_scale +"");
+		for (int i = 0; i < 4; i++) for (int j=0; j < 2; j++) {
 			properties.setProperty(prefix+"lma_dbg_offset_"+i+"_"+j, this.lma_dbg_offset[i][j] +"");
 	    }
 
@@ -655,10 +665,11 @@ public class ImageDttParameters {
 
 		if (properties.getProperty(prefix+"lma_num_iter")!=null)         this.lma_num_iter=Integer.parseInt(properties.getProperty(prefix+"lma_num_iter"));
 		if (properties.getProperty(prefix+"lma_debug_level")!=null)      this.lma_debug_level=Integer.parseInt(properties.getProperty(prefix+"lma_debug_level"));
+		if (properties.getProperty(prefix+"lma_debug_level1")!=null)     this.lma_debug_level1=Integer.parseInt(properties.getProperty(prefix+"lma_debug_level1"));
 		if (properties.getProperty(prefix+"corr_var_cam")!=null)         this.corr_var_cam=Boolean.parseBoolean(properties.getProperty(prefix+"corr_var_cam"));
 
 		if (properties.getProperty(prefix+"cm_max_normalization")!=null) this.cm_max_normalization=Double.parseDouble(properties.getProperty(prefix+"cm_max_normalization"));
-
+		if (properties.getProperty(prefix+"lma_dbg_scale")!=null)        this.lma_dbg_scale=Double.parseDouble(properties.getProperty(prefix+"lma_dbg_scale"));
 		for (int i = 0; i < 4; i++) for (int j=0; j < 2; j++) {
 			if (properties.getProperty(prefix+"lma_dbg_offset_"+i+"_"+j)!=null) this.lma_dbg_offset[i][j]=Double.parseDouble(properties.getProperty(prefix+"lma_dbg_offset_"+i+"_"+j));
 	    }
@@ -765,9 +776,11 @@ public class ImageDttParameters {
 
 		idp.lma_num_iter =           this.lma_num_iter;
 		idp.lma_debug_level =        this.lma_debug_level;
+		idp.lma_debug_level1 =       this.lma_debug_level1;
 		idp.corr_var_cam =           this.corr_var_cam;
-
 		idp.cm_max_normalization=    this.cm_max_normalization;
+
+		idp.lma_dbg_scale=           this.lma_dbg_scale;
 		idp.lma_dbg_offset=          new double [this.lma_dbg_offset.length][];
 		for (int i = 0; i < idp.lma_dbg_offset.length; i++) {
 			idp.lma_dbg_offset[i] =  this.lma_dbg_offset[i].clone();
