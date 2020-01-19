@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
+import com.elphel.imagej.tileprocessor.Corr2dLMA.Sample;
 
 /**
  **
@@ -1812,8 +1813,8 @@ public class Correlation2d {
     		double [][][]       disp_dist, // per tile, per camera disparity matrix as a 1d (linescan order)
     		double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
     		int                 pair_mask, // which pairs to process
-    		boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
-    		double[][]          xcenter_str,   // preliminary center x in pixels for largest baseline
+//    		boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
+    		double[][]          disp_str,   // -preliminary center x in pixels for largest baseline
     		double              vasw_pwr,  // value as weight to this power,
     		int                 debug_level,
     		int                 tileX, // just for debug output
@@ -1822,14 +1823,15 @@ public class Correlation2d {
     {
     	// corrs are organized as PAIRS, some are null if not used
     	// for each enabled and available pair find a maximum, filter convex and create sample list
-    	boolean debug_graphic = (debug_level > -1);
-    	boolean debug_second_all = false; // true; // alse; // true;
+    	boolean debug_graphic = imgdtt_params.lma_debug_graphic; // (debug_level > -1) ;
+//    	boolean debug_second_all = false; // true; // alse; // true;
 		int  clust_height = corrs.length/clust_width;
     	int ntiles = corrs.length;
     	DoubleGaussianBlur gb = null;
     	if (imgdtt_params.lma_sigma > 0) gb = new DoubleGaussianBlur();
     	int center =       transform_size - 1;
     	int corr_size = 2 * transform_size - 1;
+//    	double [][] blur_max = new double [corrs.length][];
     	Corr2dLMA lma = new Corr2dLMA(
     			corrs.length,
     			transform_size,
@@ -1860,6 +1862,7 @@ public class Correlation2d {
     	for (int ntile = 0; ntile < ntiles; ntile++) if (corrs[ntile] != null){
     		double[][] corr = new double[corrs[ntile].length][];
     		double [][] filtWeight = new double [corrs[ntile].length][];
+//    		blur_max[ntile] = new double [corrs[ntile].length];
     		for (int npair = 0; npair < corrs[ntile].length; npair++) if ((corrs[ntile][npair] != null) && (((pair_mask >> npair) & 1) !=0)){
     			corr[npair] = corrs[ntile][npair].clone();
     			if (corr_wnd_inv_limited != null) {
@@ -1935,7 +1938,8 @@ public class Correlation2d {
     							ix,    // int    x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
     							iy,    // int    y,      // y coordinate (0 - disparity axis)
     							v,     // double v,       // correlation value at that point
-    							w);    //double w){      // sample weight
+    							w,     //double w){      // sample weight
+    							0.0);  // double bv);   // blurred/ normalized by window;
     				}
     			}
     		}
@@ -1973,8 +1977,7 @@ public class Correlation2d {
     			imgdtt_params.lma_adjust_wy,  // boolean adjust_ellipse,   // allow non-circular correlation maximums lma_adjust_wy
     			imgdtt_params.lma_adjust_wxy, // boolean adjust_lazyeye_par,   // adjust disparity corrections parallel to disparities  lma_adjust_wxy
     			imgdtt_params.lma_adjust_ly1, // boolean adjust_lazyeye_ortho, // adjust disparity corrections orthogonal to disparities lma_adjust_ly1
-
-    			xcenter_str,                  // double [][] disp_str,         // initial value of disparity/strength/?
+    			disp_str, // xcenter_str,                  // double [][] disp_str,         // initial value of disparity/strength/?
     			imgdtt_params.lma_half_width, // double  half_width,       // A=1/(half_widh)^2   lma_half_width
     			imgdtt_params.lma_cost_wy,     // double  cost_lazyeye_par,     // cost for each of the non-zero disparity corrections        lma_cost_wy
     			imgdtt_params.lma_cost_wxy     // double  cost_lazyeye_odtho    // cost for each of the non-zero ortho disparity corrections  lma_cost_wxy
@@ -2001,8 +2004,20 @@ public class Correlation2d {
     	lma.updateFromVector();
     	double [] rms = lma.getRMS();
     	if (debug_level > 0) {
-    		System.out.println("LMA -> "+lmaSuccess+" RMS="+rms[0]+", pure RMS="+rms[1]);
+    		System.out.println("LMA -> "+lmaSuccess+" RMS= "+rms[0]+", pure RMS= "+rms[1]);
     		lma.printParams();
+    	}
+    	double [][] ds = null;
+    	if (lmaSuccess) {
+//    		double [][] ds =         lma.getDisparityStrength();
+    		ds = lma.disparityStrength(
+    				imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
+    				imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
+    				imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+    				imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
+    				imgdtt_params.lma_str_offset    // convert lma-generated strength to match previous ones - add to result
+    				);
+    		if (debug_level > 0) lma.printStats(ds,clust_width);
     	}
 
     	if (debug_level > 1) {
@@ -2011,8 +2026,27 @@ public class Correlation2d {
     	}
     	//    	boolean debug_second_all = true;
 
-    	if (debug_second_all) {
-    		double [] all_pars_save = lma.all_pars.clone();
+    	if (lmaSuccess && imgdtt_params.lma_second) {
+    		double [] all_pars_save = null;
+    		ArrayList<Sample> samples = lma.filterSamples(ds);
+    		if (!lma.samplesExist()) {
+    			if (debug_level > 1) {
+    				System.out.println("No tiles left in a cluster!");
+    			}
+    			return null;
+    		}
+    		if (imgdtt_params.lma_gaussian == imgdtt_params.lma_second_gaussian) {
+    			all_pars_save = lma.all_pars.clone();
+    		} else { // have to restart LMA initialization
+    			lma = new Corr2dLMA(
+    	    			corrs.length,
+    	    			transform_size,
+    	    			corr_wnd,
+    	    			rXY, //double [][] rXY, // non-distorted X,Y offset per nominal pixel of disparity
+    	    			imgdtt_params.lma_second_gaussian//boolean gaussian_mode
+    	    			);
+    			lma.setSamples(samples); // restore samples
+    		}
         	lma.initVector( // USED in lwir
         			imgdtt_params.lma_adjust_wm,  // boolean adjust_width,     // adjust width of the maximum - lma_adjust_wm
         			imgdtt_params.lma_adjust_ag,  // boolean adjust_scales,    // adjust 2D correlation scales - lma_adjust_ag
@@ -2020,14 +2054,15 @@ public class Correlation2d {
         			true, // imgdtt_params.lma_adjust_wxy, // boolean adjust_lazyeye_par,   // adjust disparity corrections parallel to disparities  lma_adjust_wxy
         			true, // imgdtt_params.lma_adjust_ly1, // boolean adjust_lazyeye_ortho, // adjust disparity corrections orthogonal to disparities lma_adjust_ly1
 
-        			xcenter_str,                  // double [][] disp_str,         // initial value of disparity/strength/?
+        			ds, // disp_str, // xcenter_str,                  // double [][] disp_str,         // initial value of disparity/strength/?
         			imgdtt_params.lma_half_width, // double  half_width,       // A=1/(half_widh)^2   lma_half_width
         			imgdtt_params.lma_cost_wy,     // double  cost_lazyeye_par,     // cost for each of the non-zero disparity corrections        lma_cost_wy
         			imgdtt_params.lma_cost_wxy     // double  cost_lazyeye_odtho    // cost for each of the non-zero ortho disparity corrections  lma_cost_wxy
         			);
-        	lma.all_pars = all_pars_save;
-        	lma.toVector();
-
+        	if (all_pars_save != null) {
+        		lma.all_pars = all_pars_save;
+        		lma.toVector();
+        	}
 
         	lma.setMatrices(disp_dist);
         	lma.initMatrices(); // should be called after initVector and after setMatrices
@@ -2047,7 +2082,7 @@ public class Correlation2d {
         			imgdtt_params.lma_lambda_max,         // double lambda_max,       // 100
         			imgdtt_params.lma_rms_diff,           // double rms_diff,         // 0.001
         			imgdtt_params.lma_num_iter,           // int    num_iter,         // 20
-        			2); //4); // debug_level);       // int    debug_level) // > 3
+        			debug_level); // 2); //4); // debug_level);       // int    debug_level) // > 3
 
         	lma.updateFromVector();
         	//double []
@@ -2061,6 +2096,19 @@ public class Correlation2d {
         		System.out.println("Input data and approximation:");
         		lma.printInputDataFx(true);
         	}
+        	if (lmaSuccess) {
+//        		double [][] ds =         lma.getDisparityStrength();
+        		ds = lma.disparityStrength(
+        				imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
+        				imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
+        				imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+        				imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
+        				imgdtt_params.lma_str_offset    // convert lma-generated strength to match previous ones - add to result
+        				);
+        		if (debug_level > -1) {
+        			lma.printStats(ds,clust_width);
+        		}
+        	}
 
     	}
 
@@ -2070,26 +2118,26 @@ public class Correlation2d {
     		String [] sliceTitles = lma.dbgGetSliceTiles();
     		if (corrs.length == 1) {
     			(new ShowDoubleFloatArrays()).showArrays(
-    					lma.dbgGetSamples(0)[0],
+    					lma.dbgGetSamples(ds, 0)[0],
     					corr_size,
     					corr_size,
     					true,
     					"corr_values"+"_x"+tileX+"_y"+tileY, sliceTitles);
     			(new ShowDoubleFloatArrays()).showArrays(
-    					lma.dbgGetSamples(1)[0],
+    					lma.dbgGetSamples(ds, 1)[0],
     					corr_size,
     					corr_size,
     					true,
     					"corr_weights"+"_x"+tileX+"_y"+tileY, sliceTitles);
     			(new ShowDoubleFloatArrays()).showArrays(
-    					lma.dbgGetSamples(2)[0],
+    					lma.dbgGetSamples(ds, 2)[0],
     					corr_size,
     					corr_size,
     					true,
     					"corr_fx"+"_x"+tileX+"_y"+tileY, sliceTitles);
     		} else {
-    			double [][] repacked_y = repackCluster(lma.dbgGetSamples(0),clust_width);
-    			double [][] repacked_fx = repackCluster(lma.dbgGetSamples(2),clust_width);
+    			double [][] repacked_y = repackCluster(lma.dbgGetSamples(ds, 0),clust_width);
+    			double [][] repacked_fx = repackCluster(lma.dbgGetSamples(ds, 2),clust_width);
     			double [][] y_minux_fx = new double [repacked_y.length][];
     			for (int i = 0; i < repacked_y.length; i++) if ((repacked_y[i] != null) && (repacked_fx[i] != null)){
     				y_minux_fx[i] = new double [repacked_y[i].length];
@@ -2114,7 +2162,7 @@ public class Correlation2d {
     					true,
     					"y-fx"+"_x"+tileX+"_y"+tileY, sliceTitles);
     			(new ShowDoubleFloatArrays()).showArrays(
-    					repackCluster(lma.dbgGetSamples(1),clust_width),
+    					repackCluster(lma.dbgGetSamples(ds, 1),clust_width),
     					dbg_out_width,
     					dbg_out_height,
     					true,
@@ -2125,7 +2173,7 @@ public class Correlation2d {
     	return lmaSuccess? lma: null;
     }
 
-    public Corr2dLMA corrLMA2( // single tile ************* Will be obsolete ????
+    public Corr2dLMA corrLMA2( // single tile
     		ImageDttParameters  imgdtt_params,
     		double [][]         corr_wnd, // correlation window to save on re-calculation of the window
     		double []           corr_wnd_inv_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
@@ -2133,8 +2181,7 @@ public class Correlation2d {
     		double [][]         disp_dist, // per camera disparity matrix as a 1d (linescan order)
     		double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
     		int                 pair_mask, // which pairs to process
-    		boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
-    		double              xcenter,   // preliminary center x in pixels for largest baseline
+    		double[]            disp_str,   // -preliminary center x in pixels for largest baseline
     		double              vasw_pwr,  // value as weight to this power,
     		int                 debug_level,
     		int                 tileX, // just for debug output
@@ -2143,7 +2190,13 @@ public class Correlation2d {
     {
     	// corrs are organized as PAIRS, some are null if not used
     	// for each enabled and available pair find a maximum, filter convex and create sample list
-    	boolean debug_graphic = (debug_level > -1);
+    	boolean need_poly = true; // find initial disparity by polynomial approximation
+    	boolean debug_graphic = imgdtt_params.lma_debug_graphic && (imgdtt_params.lma_debug_level1 > 3) && (debug_level > 0) ;
+		String dbg_title = null;
+//    	if (debug_graphic) {
+		if (imgdtt_params.lma_debug_graphic) {
+			dbg_title = String.format("tX%d_tY%d",tileX,tileY);
+		}
     	DoubleGaussianBlur gb = null;
     	if (imgdtt_params.lma_sigma > 0) gb = new DoubleGaussianBlur();
     	int center =       transform_size - 1;
@@ -2157,7 +2210,7 @@ public class Correlation2d {
     			);
 
 
-    	double [][] dbg_corr =    debug_graphic ? new double [corrs.length][] : null;
+//    	double [][] dbg_corr =    debug_graphic ? new double [corrs.length][] : null;
     	double [][] dbg_weights = debug_graphic ? new double [corrs.length][] : null;
     	if (debug_graphic) {
     		(new ShowDoubleFloatArrays()).showArrays(
@@ -2169,23 +2222,25 @@ public class Correlation2d {
 
     	}
 
+		double[][]  corr_blur = new double[corrs.length][];
+//	    double [] blur_max = new double[corrs.length];
 
     	for (int npair = 0; npair < corrs.length; npair++) if ((corrs[npair] != null) && (((pair_mask >> npair) & 1) !=0)){
-    		double[] corr = corrs[npair].clone();
+//    		double[] corr = corrs[npair].clone();
+    		corr_blur[npair] = corrs[npair].clone();
     		if (corr_wnd_inv_limited != null) {
-    			for (int i = 0; i < corr.length; i++) {
-    				corr[i] *= corr_wnd_inv_limited[i];
+    			for (int i = 0; i < corr_blur[npair].length; i++) {
+    				corr_blur[npair][i] *= corr_wnd_inv_limited[i];
     			}
     		}
     		if (imgdtt_params.lma_sigma > 0) {
-    			gb.blurDouble(corr, corr_size, corr_size, imgdtt_params.lma_sigma, imgdtt_params.lma_sigma, 0.01);
+    			gb.blurDouble(corr_blur[npair], corr_size, corr_size, imgdtt_params.lma_sigma, imgdtt_params.lma_sigma, 0.01);
     		}
 			int imx = imgdtt_params.lma_soft_marg * (corr_size + 1);
 			for (int iy = imgdtt_params.lma_soft_marg; iy < (corr_size - imgdtt_params.lma_soft_marg); iy++) {
     			for (int ix = imgdtt_params.lma_soft_marg; ix < (corr_size - imgdtt_params.lma_soft_marg); ix++) {
     				int indx = iy * corr_size + ix;
-    				if (corr[indx] > corr[imx]) imx = indx;
-
+    				if (corr_blur[npair][indx] > corr_blur[npair][imx]) imx = indx;
     			}
 			}
 
@@ -2194,14 +2249,14 @@ public class Correlation2d {
     		int ix0 = (imx % corr_size) - center; // signed, around center to match filterConvex
     		int iy0 = (imx / corr_size) - center; // signed, around center to match filterConvex
     	    double [] filtWeight =  filterConvex(
-    	            corr,                         // double [] corr_data,
+    	    		corr_blur[npair],             // double [] corr_data,
     	            imgdtt_params.cnvx_hwnd_size, // int       hwin,
     	            ix0,                          // int       x0,
     	            iy0,                          // int       y0,
     	            imgdtt_params.cnvx_add3x3,    // boolean   add3x3,
     	            imgdtt_params.cnvx_weight,    // double    nc_cost,
     	            (debug_level > 2));           // boolean   debug);
-    	    if (dbg_corr    != null) 	dbg_corr   [npair] = corr;
+//    	    if (dbg_corr    != null) 	dbg_corr   [npair] = corr_blur[npair];
     	    if (dbg_weights != null) 	dbg_weights[npair] = filtWeight;
 
     	    // Normalize weight for each pair to compensate for different number of convex samples?
@@ -2216,20 +2271,23 @@ public class Correlation2d {
     	        if (vasw_pwr != 0) {
     	            w *= Math.pow(Math.abs(v), vasw_pwr);
     	        }
+//    	        if (v > blur_max[npair]) blur_max[npair] = v;
     	    	lma.addSample( // x = 0, y=0 - center
     	    			0,    // tile
-    	    			fcam, // int    fcam, // first  camera index
-    	    			scam, // int    scam, // second camera index
-    	    			ix,   // int    x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
-    	    			iy,   // int    y,      // y coordinate (0 - disparity axis)
-    	    			v,    // double v,       // correlation value at that point
-    	    			w);   //double w){      // sample weight
+    	    			fcam, // int    fcam,  // first  camera index
+    	    			scam, // int    scam,  // second camera index
+    	    			ix,   // int    x,     // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
+    	    			iy,   // int    y,     // y coordinate (0 - disparity axis)
+    	    			v,    // double v,     // correlation value at that point
+    	    			w,   //double w){      // sample weight
+    	    			corr_blur[npair][i]);  // double bv) {   // blurred/ normalized by window;
     	    }
+
     	}
 
     	if (debug_graphic) {
     		(new ShowDoubleFloatArrays()).showArrays(
-    				dbg_corr,
+    				corr_blur,
     				corr_size,
     				corr_size,
     				true,
@@ -2243,22 +2301,34 @@ public class Correlation2d {
     				"corr_weights"+"_x"+tileX+"_y"+tileY);
     	}
 
-    	double [][] disp_str = {{xcenter, 1.0}}; // temporary
+//    	double [][] disp_str = {{xcenter, 1.0}}; // temporary
+    	double [][] disp_str2 = {disp_str}; // temporary
 
     	lma.initVector( // USED in lwir
     			imgdtt_params.lma_adjust_wm,  // boolean adjust_width,     // adjust width of the maximum - lma_adjust_wm
     			imgdtt_params.lma_adjust_ag,  // boolean adjust_scales,    // adjust 2D correlation scales - lma_adjust_ag
     			imgdtt_params.lma_adjust_wy,  // boolean adjust_ellipse,   // allow non-circular correlation maximums lma_adjust_wy
-    			imgdtt_params.lma_adjust_wxy, // boolean adjust_lazyeye_par,   // adjust disparity corrections parallel to disparities  lma_adjust_wxy
-    			imgdtt_params.lma_adjust_ly1, // boolean adjust_lazyeye_ortho, // adjust disparity corrections orthogonal to disparities lma_adjust_ly1
-
-    			disp_str, // xcenter,                      // double  disp0,            // initial value of disparity
+    			false, //imgdtt_params.lma_adjust_wxy, // boolean adjust_lazyeye_par,   // adjust disparity corrections parallel to disparities  lma_adjust_wxy
+    			false, // imgdtt_params.lma_adjust_ly1, // boolean adjust_lazyeye_ortho, // adjust disparity corrections orthogonal to disparities lma_adjust_ly1
+    			disp_str2, // xcenter,                      // double  disp0,            // initial value of disparity
     			imgdtt_params.lma_half_width, // double  half_width,       // A=1/(half_widh)^2   lma_half_width
     			imgdtt_params.lma_cost_wy,     // double  cost_lazyeye_par,     // cost for each of the non-zero disparity corrections        lma_cost_wy
     			imgdtt_params.lma_cost_wxy     // double  cost_lazyeye_odtho    // cost for each of the non-zero ortho disparity corrections  lma_cost_wxy
     			);
     	lma.setMatrices(disp_dist);
     	lma.initMatrices(); // should be called after initVector and after setMatrices
+  //center
+    	double [] disp;
+       	if (need_poly) {
+       		disp = lma.polyDisparity(dbg_title); // 		double [] rslt = {-approx2d[0], approx2d[2], hwx, hwy};
+       		if (disp == null) {
+       			System.out.println("Poly disparity=NULL");
+       		} else {
+       		System.out.println("Poly disparity="+(disp[0])+", str="+disp[1]+", hwx="+disp[2]+", hwy="+disp[3]+
+       				", disp_str2[0][0]="+disp_str2[0][0]+", disp_str2[0][1]="+disp_str2[0][1]);
+       		}
+       	}
+
     	boolean lmaSuccess = false;
     	if (debug_level > 1) {
     		System.out.println("Input data:");
@@ -2274,9 +2344,20 @@ public class Correlation2d {
     			imgdtt_params.lma_lambda_max,         // double lambda_max,       // 100
     			imgdtt_params.lma_rms_diff,           // double rms_diff,         // 0.001
     			imgdtt_params.lma_num_iter,           // int    num_iter,         // 20
-    			4); // debug_level);       // int    debug_level) // > 3
+    			debug_level);  // imgdtt_params.lma_debug_level1);      // 4); // int    debug_level) // > 3
 
     	lma.updateFromVector();
+
+
+		double [][] dispStr = lma.disparityStrength(
+				imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
+				imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
+				imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+				imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
+				imgdtt_params.lma_str_offset    // convert lma-generated strength to match previous ones - add to result
+				);
+		System.out.println("dispStr[0][0]="+dispStr[0][0]+" dispStr[0][1]="+dispStr[0][1]);
+
     	double [] rms = lma.getRMS();
     	if (debug_level > 0) {
     		System.out.println("LMA -> "+lmaSuccess+" RMS="+rms[0]+", pure RMS="+rms[1]);
@@ -2287,27 +2368,28 @@ public class Correlation2d {
     		System.out.println("Input data and approximation:");
     		lma.printInputDataFx(true);
     	}
+    	double [][] ds = null;
     	if (debug_graphic && lmaSuccess) {
     		String [] sliceTitles = lma.dbgGetSliceTiles();
     		if (corrs.length == 1) { // only for single-tile cluster
     			(new ShowDoubleFloatArrays()).showArrays(
-    					lma.dbgGetSamples(0)[0],
+    					lma.dbgGetSamples(null,0)[0],
     					corr_size,
     					corr_size,
     					true,
     					"corr_values"+"_x"+tileX+"_y"+tileY, sliceTitles);
     			(new ShowDoubleFloatArrays()).showArrays(
-    					lma.dbgGetSamples(1)[0],
-    					corr_size,
-    					corr_size,
-    					true,
-    					"corr_weights"+"_x"+tileX+"_y"+tileY, sliceTitles);
-    			(new ShowDoubleFloatArrays()).showArrays(
-    					lma.dbgGetSamples(2)[0],
+    					lma.dbgGetSamples(null,2)[0],
     					corr_size,
     					corr_size,
     					true,
     					"corr_fx"+"_x"+tileX+"_y"+tileY, sliceTitles);
+    			(new ShowDoubleFloatArrays()).showArrays(
+    					lma.dbgGetSamples(null,1)[0],
+    					corr_size,
+    					corr_size,
+    					true,
+    					"corr_weights"+"_x"+tileX+"_y"+tileY, sliceTitles);
     		}
     	}
 

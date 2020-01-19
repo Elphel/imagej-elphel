@@ -99,7 +99,9 @@ public class ImageDttParameters {
 	public double  corr_wndx_blur =         5.0;   // 100% to 0 % vertical transition range
 
 // LMA parameters
-	public boolean lma_gaussian =           true;  // model correlation maximum as a Gaussian (false - as a parabola)
+	public boolean lma_gaussian =           false; // model correlation maximum as a Gaussian (false - as a parabola)
+	public boolean lma_second =             true;  // re-run LMA after removing weak/failed tiles
+	public boolean lma_second_gaussian =    true;  // re-run after removing weal/failed in Gaussian mode
 	public boolean lma_adjust_wm =          true;  // used in new for width
 	public boolean lma_adjust_wy =          true;  // false; // used in new for ellipse
 	public boolean lma_adjust_wxy =         true;  // used in new for lazy eye adjust parallel-to-disparity correction
@@ -107,6 +109,7 @@ public class ImageDttParameters {
 	public boolean lma_adjust_ag =          true;  // used in new for gains
 
 // new LMA parameters
+	public double  lma_wnd =                1.5;   // raise cosine window to this power (1.0 - just 2D cosine)
 	public double  lma_min_wnd =            0.4;   // divide values by the 2D correlation window if it is >= this value for finding maximums and convex areas
 	public double  lma_wnd_pwr =            0.8;   // Raise window for finding a maximum and a convex region to this power
 	public int     lma_hard_marg =          1;     // Zero out this width margins before blurring
@@ -121,14 +124,27 @@ public class ImageDttParameters {
 	public double  lma_cost_wy =            0.003; // cost of parallel-to-disparity correction
 	public double  lma_cost_wxy =           0.003; // cost of ortho-to-disparity correction
 
-	public double  lma_lambda_initial =     0.1;   //
+	public double  lma_lambda_initial =     0.03;   //
 	public double  lma_lambda_scale_good =  0.5;   //
 	public double  lma_lambda_scale_bad =   8.0;   //
 	public double  lma_lambda_max =       100.0;   //
 	public double  lma_rms_diff =           0.001; //
 	public int     lma_num_iter =          20;     //
-	public int     lma_debug_level =        3;     //
-	public int     lma_debug_level1 =       2;     //
+	// Filtering and strength calculation
+	public double  lma_max_rel_rms =        0.2;   // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
+	public double  lma_min_strength =       1.0;   // minimal composite strength (sqrt(average amp squared over absolute RMS)
+	public double  lma_min_ac =             0.03;  // minimal of a and C coefficients maximum (measures sharpest point/line)
+
+	public double  lma_str_scale =          0.2;   // convert lma-generated strength to match previous ones - scale
+	public double  lma_str_offset =         0.05;  // convert lma-generated strength to match previous ones - add to result
+
+
+
+
+
+	public int     lma_debug_level =        0;     //
+	public int     lma_debug_level1 =       0;     //
+	public boolean lma_debug_graphic =      false; //
 	public boolean corr_var_cam =           true;  // New correlation mode compatible with 8 subcameras
 	public double  cm_max_normalization =   0.55; // fraction of correlation maximum radius, being squared multiplied by maximum to have the same total mass
 	public double  lma_dbg_scale =          0.0;  // scale lma_dbg_offset
@@ -174,10 +190,14 @@ public class ImageDttParameters {
 			gd.addNumericField("Use data as weights when fitting parabola for ortho mode",        this.ortho_vasw_pwr,3,6,"",
 					"Raise value to this power and apply as weight.  Reduce width to 3 samples if false, 5 OK when true");
 
-			gd.addNumericField("Reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center) - main camera",  this.enhortho_width,            0);
-			gd.addNumericField("Reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center) - aux camera",  this.enhortho_width_aux,        0);
-			gd.addNumericField("Multiply center correlation pixels (inside enhortho_width) (1.0 - disables enh_ortho) - main camera",  this.enhortho_scale,  3);
-			gd.addNumericField("Multiply center correlation pixels (inside enhortho_width) (1.0 - disables enh_ortho) - aux camera",   this.enhortho_scale_aux,  3);
+			gd.addNumericField("Reduce weight of center correlation pixels from center for the main camera",this.enhortho_width, 0, 3, "pix",
+					"Reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)");
+			gd.addNumericField("Reduce weight of center correlation pixels from center for the aux camera", this.enhortho_width_aux, 0, 3, "pix",
+					"Reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)");
+			gd.addNumericField("Multiply center correlation pixels for the main camera",                   this.enhortho_scale, 0,3, "pix",
+					"Multiply center correlation pixels (inside enhortho_width) (1.0 - disables enh_ortho) - main camera");
+			gd.addNumericField("Multiply center correlation pixels for the aux camera",                    this.enhortho_scale_aux, 0,3, "pix",
+					"Multiply center correlation pixels (inside enhortho_width) (1.0 - disables enh_ortho) - aux camera");
 
 			gd.addCheckbox    ("Use polynomial when measuring mismatch (false - use center of mass)",      this.ly_poly);
 			gd.addNumericField("Maximal allowed mismatch difference calculated as polynomial maximum",     this.ly_crazy_poly,3,6,"px",
@@ -272,22 +292,28 @@ public class ImageDttParameters {
 			gd.addTab("Corr LMA","Parameters for LMA fitting of the correlation maximum parameters");
 			gd.addCheckbox    ("Correlation maximum as gaussian",                                 this.lma_gaussian,
 					"Model correlation maximum as a Gaussian exp(-r^2)  (false - as a parabola - 1-r^2)");
+			gd.addCheckbox    ("Re-run LMA after removing weak/failed tiles",                     this.lma_second,
+					"Re-run LMA with filtered tiles (see Correlation strength calculation section below)");
+			gd.addCheckbox    ("Gaussian mode during LMA re-run",                                 this.lma_second_gaussian,
+					"Parabola is more stable when using with un-filtered tiles, so it makes sense to use Gaussina only on filtered tiles");
+
 			gd.addCheckbox    ("Fit correlation defined half-width",                              this.lma_adjust_wm,
 					"Allow fitting of the half-width common for all pairs, defined by the LPF filter of the phase correlation");
 			gd.addCheckbox    ("Adjust ellipse parameters (was Fit extra vertical half-width)",   this.lma_adjust_wy,
 					"Adjust ellipse (non-circular) of the correlation maximum (was Fit extra perpendicular to disparity half-width (not used? and only possible with multi-baseline cameras))");
-			gd.addCheckbox    ("Adjust \"lazy eye\" parameters parallel to disparity (was Fit extra half-width along disparity)", this.lma_adjust_wxy,
-					"Increased width in disparity direction caused by multi-distance objects in the tile");
-			gd.addCheckbox    ("Adjust \"lazy eye\" parameters orthogonal CW to disparity", this.lma_adjust_ly1,
+			gd.addCheckbox    ("Adjust \"lazy eye\" parameters parallel to disparity",            this.lma_adjust_wxy,
+					"(was Fit extra half-width along disparity) Increased width in disparity direction caused by multi-distance objects in the tile");
+			gd.addCheckbox    ("Adjust \"lazy eye\" parameters orthogonal CW to disparity",       this.lma_adjust_ly1,
 					"Increased width in disparity direction caused by multi-distance objects in the tile");
 
 			gd.addCheckbox    ("Adjust per-pair scale (was Adjust per-group amplitudes)",         this.lma_adjust_ag,
 					"Each correlation pair gain (was Each correlation type's amplitude (now always needed))");
 
-			gd.addNumericField("Minimal window value for normalization during max/convex", this.lma_min_wnd,  3, 6, "",
+			gd.addNumericField("LMA window power",                                                this.lma_wnd,  3, 6, "",
+					"Raise cosine window to this power (1.0 - plane 2D cosine");
+			gd.addNumericField("Minimal window value for normalization during max/convex",        this.lma_min_wnd,  3, 6, "",
 					"divide values by the 2D correlation window if it is >= this value for finding maximums and convex areas");
-
-			gd.addNumericField("LMA window power",                                                this.lma_wnd_pwr,  3, 6, "",
+			gd.addNumericField("LMA window power for convex region",                              this.lma_wnd_pwr,  3, 6, "",
 					"Raise window for finding a maximum and a convex region to this power");
 			gd.addNumericField("LMA hard margin",                                                 this.lma_hard_marg,  0, 3, "",
 					"Zero out this width margins before blurring");
@@ -316,14 +342,33 @@ public class ImageDttParameters {
 
 			gd.addNumericField("LMA maximal iterations",                                          this.lma_num_iter,  0, 3, "",
 					"Limit LMA cycles, so it will exit after certain number of small improvements");
+
+			gd.addMessage("LMA results filtering");
+			gd.addNumericField("Maximal relative RMS ",                                           this.lma_max_rel_rms,  6, 8, "",
+					"Discard tile if ratio of RMS to average of min and max amplitude exceeds this value");
+			gd.addNumericField("Minimal composite strength",                                      this.lma_min_strength,  6, 8, "",
+					"Discard tile if composite strength (average amplitude over SQRT of RMS) is below");
+			gd.addNumericField("Minimal max (A,C)",                                               this.lma_min_ac,  6, 8, "",
+					"Minimal value of max (A,C) coefficients to keep the tile (measures sharpest point/line correlation maximum)");
+
+			gd.addMessage("Correlation strength calculation (match legacy)");
+			gd.addNumericField("Composite correlation strength scale",                            this.lma_str_scale,  6, 8, "",
+					"Multiply LMA composite correlation strength to match older CM value");
+			gd.addNumericField("Composite correlation strength offset",                            this.lma_str_offset,  6, 8, "",
+					"Add to scaled composite correlation strength to match older CM value");
+
+			gd.addMessage("Debug LMA parameters");
 			gd.addNumericField("LMA debug level",                                                 this.lma_debug_level,  0, 3, "",
 					"Debug/verbosity level for the LMA correaltion maximum fitting");
-			gd.addNumericField("LMA debug level1",                                                 this.lma_debug_level1,  0, 3, "",
+			gd.addNumericField("LMA debug level1",                                                this.lma_debug_level1,  0, 3, "",
 					"Debug/verbosity level for the new LMA correaltion maximum fitting");
+			gd.addCheckbox    ("Enable LMA debug images",                                         this.lma_debug_graphic,
+					"If false, no debug images generated regardless of debug levels");
+
 			gd.addCheckbox    ("Use new correlation methods compatible with x8 camera",           this.corr_var_cam,
 					"Debug feature to compare old/new methods");
 
-			gd.addNumericField("Normalization for the CM correlation strength",                   this.cm_max_normalization,  6, 8, "",
+			gd.addNumericField("Normalization for the CM correlation strength (old)",             this.cm_max_normalization,  6, 8, "",
 					"Fraction of correlation maximum radius, being squared multiplied by maximum to have the same total mass. ~= 0.5, the lower the value, the higher strength reported by the CM");
 			gd.addMessage("Cameras offsets in the disparity direction and orthogonal to disparity (debugging LMA)");
 			gd.addNumericField("LMA debug offsets scale",                                         this.lma_dbg_scale,  6, 8, "",
@@ -421,14 +466,16 @@ public class ImageDttParameters {
 
 //LMA tab
 			this.lma_gaussian=           gd.getNextBoolean();
+			this.lma_second=             gd.getNextBoolean();
+			this.lma_second_gaussian=    gd.getNextBoolean();
 			this.lma_adjust_wm=          gd.getNextBoolean();
 			this.lma_adjust_wy=          gd.getNextBoolean();
 			this.lma_adjust_wxy=         gd.getNextBoolean();
 			this.lma_adjust_ly1=         gd.getNextBoolean();
 			this.lma_adjust_ag=          gd.getNextBoolean();
 
+			this.lma_wnd =               gd.getNextNumber();
 			this.lma_min_wnd =           gd.getNextNumber();
-
 			this.lma_wnd_pwr =           gd.getNextNumber();
   			this.lma_hard_marg=    (int) gd.getNextNumber();
   			this.lma_soft_marg=    (int) gd.getNextNumber();
@@ -443,10 +490,17 @@ public class ImageDttParameters {
 			this.lma_lambda_scale_bad =  gd.getNextNumber();
 			this.lma_lambda_max =        gd.getNextNumber();
 			this.lma_rms_diff =          gd.getNextNumber();
-
   			this.lma_num_iter=     (int) gd.getNextNumber();
+
+			this.lma_max_rel_rms =       gd.getNextNumber();
+			this.lma_min_strength =      gd.getNextNumber();
+			this.lma_min_ac =            gd.getNextNumber();
+			this.lma_str_scale =         gd.getNextNumber();
+			this.lma_str_offset =        gd.getNextNumber();
+
   			this.lma_debug_level=  (int) gd.getNextNumber();
   			this.lma_debug_level1= (int) gd.getNextNumber();
+  			this.lma_debug_graphic =     gd.getNextBoolean();
   			this.corr_var_cam =          gd.getNextBoolean();
   			this.cm_max_normalization=   gd.getNextNumber();
   			this.lma_dbg_scale=          gd.getNextNumber();
@@ -454,7 +508,6 @@ public class ImageDttParameters {
   			for (int i = 0; i < 4; i++) for (int j=0; j < 2; j++) {
   				this.lma_dbg_offset[i][j]=   gd.getNextNumber();
   			}
-
 	}
 
 
@@ -526,6 +579,8 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"corr_wndx_blur",       this.corr_wndx_blur +"");
 
 		properties.setProperty(prefix+"lma_gaussian",         this.lma_gaussian +"");
+		properties.setProperty(prefix+"lma_second",           this.lma_second +"");
+		properties.setProperty(prefix+"lma_second_gaussian",  this.lma_second_gaussian +"");
 		properties.setProperty(prefix+"lma_adjust_wm",        this.lma_adjust_wm +"");
 		properties.setProperty(prefix+"lma_adjust_wy",        this.lma_adjust_wy +"");
 		properties.setProperty(prefix+"lma_adjust_wxy",       this.lma_adjust_wxy +"");
@@ -533,8 +588,8 @@ public class ImageDttParameters {
 
 		properties.setProperty(prefix+"lma_adjust_ag",        this.lma_adjust_ag +"");
 
+		properties.setProperty(prefix+"lma_wnd",              this.lma_wnd +"");
 		properties.setProperty(prefix+"lma_min_wnd",          this.lma_min_wnd +"");
-
 		properties.setProperty(prefix+"lma_wnd_pwr",          this.lma_wnd_pwr +"");
 		properties.setProperty(prefix+"lma_hard_marg",        this.lma_hard_marg +"");
 		properties.setProperty(prefix+"lma_soft_marg",        this.lma_soft_marg +"");
@@ -549,10 +604,18 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"lma_lambda_scale_bad", this.lma_lambda_scale_bad +"");
 		properties.setProperty(prefix+"lma_lambda_max",       this.lma_lambda_max +"");
 		properties.setProperty(prefix+"lma_rms_diff",         this.lma_rms_diff +"");
-
 		properties.setProperty(prefix+"lma_num_iter",         this.lma_num_iter +"");
+
+		properties.setProperty(prefix+"lma_max_rel_rms",      this.lma_max_rel_rms +"");
+		properties.setProperty(prefix+"lma_min_strength",     this.lma_min_strength +"");
+		properties.setProperty(prefix+"lma_min_ac",           this.lma_min_ac +"");
+		properties.setProperty(prefix+"lma_str_scale",        this.lma_str_scale +"");
+		properties.setProperty(prefix+"lma_str_offset",       this.lma_str_offset +"");
+
 		properties.setProperty(prefix+"lma_debug_level",      this.lma_debug_level +"");
 		properties.setProperty(prefix+"lma_debug_level1",     this.lma_debug_level1 +"");
+		properties.setProperty(prefix+"lma_debug_graphic",    this.lma_debug_graphic +"");
+
 		properties.setProperty(prefix+"corr_var_cam",         this.corr_var_cam +"");
 
 		properties.setProperty(prefix+"cm_max_normalization", this.cm_max_normalization +"");
@@ -635,7 +698,9 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"corr_wndx_hwidth")!=null)     this.corr_wndx_hwidth=Double.parseDouble(properties.getProperty(prefix+"corr_wndx_hwidth"));
 		if (properties.getProperty(prefix+"corr_wndx_blur")!=null)       this.corr_wndx_blur=Double.parseDouble(properties.getProperty(prefix+"corr_wndx_blur"));
 
-		if (properties.getProperty(prefix+"lma_gaussian")!=null)        this.lma_gaussian=Boolean.parseBoolean(properties.getProperty(prefix+"lma_gaussian"));
+		if (properties.getProperty(prefix+"lma_gaussian")!=null)         this.lma_gaussian=Boolean.parseBoolean(properties.getProperty(prefix+"lma_gaussian"));
+		if (properties.getProperty(prefix+"lma_second")!=null)           this.lma_second=Boolean.parseBoolean(properties.getProperty(prefix+"lma_second"));
+		if (properties.getProperty(prefix+"lma_second_gaussian")!=null)  this.lma_second_gaussian=Boolean.parseBoolean(properties.getProperty(prefix+"lma_second_gaussian"));
 		if (properties.getProperty(prefix+"lma_adjust_wm")!=null)        this.lma_adjust_wm=Boolean.parseBoolean(properties.getProperty(prefix+"lma_adjust_wm"));
 		if (properties.getProperty(prefix+"lma_adjust_wy")!=null)        this.lma_adjust_wy=Boolean.parseBoolean(properties.getProperty(prefix+"lma_adjust_wy"));
 		if (properties.getProperty(prefix+"lma_adjust_wxy")!=null)       this.lma_adjust_wxy=Boolean.parseBoolean(properties.getProperty(prefix+"lma_adjust_wxy"));
@@ -644,9 +709,8 @@ public class ImageDttParameters {
 
 		if (properties.getProperty(prefix+"lma_adjust_ag")!=null)        this.lma_adjust_ag=Boolean.parseBoolean(properties.getProperty(prefix+"lma_adjust_ag"));
 
+		if (properties.getProperty(prefix+"lma_wnd")!=null)              this.lma_wnd=Double.parseDouble(properties.getProperty(prefix+"lma_wnd"));
 		if (properties.getProperty(prefix+"lma_min_wnd")!=null)          this.lma_min_wnd=Double.parseDouble(properties.getProperty(prefix+"lma_min_wnd"));
-
-
 		if (properties.getProperty(prefix+"lma_wnd_pwr")!=null)          this.lma_wnd_pwr=Double.parseDouble(properties.getProperty(prefix+"lma_wnd_pwr"));
 		if (properties.getProperty(prefix+"lma_hard_marg")!=null)        this.lma_hard_marg=Integer.parseInt(properties.getProperty(prefix+"lma_hard_marg"));
 		if (properties.getProperty(prefix+"lma_soft_marg")!=null)        this.lma_soft_marg=Integer.parseInt(properties.getProperty(prefix+"lma_soft_marg"));
@@ -662,10 +726,18 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"lma_lambda_scale_bad")!=null) this.lma_lambda_scale_bad=Double.parseDouble(properties.getProperty(prefix+"lma_lambda_scale_bad"));
 		if (properties.getProperty(prefix+"lma_lambda_max")!=null)       this.lma_lambda_max=Double.parseDouble(properties.getProperty(prefix+"lma_lambda_max"));
 		if (properties.getProperty(prefix+"lma_rms_diff")!=null)         this.lma_rms_diff=Double.parseDouble(properties.getProperty(prefix+"lma_rms_diff"));
-
 		if (properties.getProperty(prefix+"lma_num_iter")!=null)         this.lma_num_iter=Integer.parseInt(properties.getProperty(prefix+"lma_num_iter"));
+
+		if (properties.getProperty(prefix+"lma_max_rel_rms")!=null)      this.lma_max_rel_rms=Double.parseDouble(properties.getProperty(prefix+"lma_max_rel_rms"));
+		if (properties.getProperty(prefix+"lma_min_strength")!=null)     this.lma_min_strength=Double.parseDouble(properties.getProperty(prefix+"lma_min_strength"));
+		if (properties.getProperty(prefix+"lma_min_ac")!=null)           this.lma_min_ac=Double.parseDouble(properties.getProperty(prefix+"lma_min_ac"));
+		if (properties.getProperty(prefix+"lma_str_scale")!=null)        this.lma_str_scale=Double.parseDouble(properties.getProperty(prefix+"lma_str_scale"));
+		if (properties.getProperty(prefix+"lma_str_offset")!=null)       this.lma_str_offset=Double.parseDouble(properties.getProperty(prefix+"lma_str_offset"));
+
 		if (properties.getProperty(prefix+"lma_debug_level")!=null)      this.lma_debug_level=Integer.parseInt(properties.getProperty(prefix+"lma_debug_level"));
 		if (properties.getProperty(prefix+"lma_debug_level1")!=null)     this.lma_debug_level1=Integer.parseInt(properties.getProperty(prefix+"lma_debug_level1"));
+		if (properties.getProperty(prefix+"lma_debug_graphic")!=null)    this.lma_debug_graphic=Boolean.parseBoolean(properties.getProperty(prefix+"lma_debug_graphic"));
+
 		if (properties.getProperty(prefix+"corr_var_cam")!=null)         this.corr_var_cam=Boolean.parseBoolean(properties.getProperty(prefix+"corr_var_cam"));
 
 		if (properties.getProperty(prefix+"cm_max_normalization")!=null) this.cm_max_normalization=Double.parseDouble(properties.getProperty(prefix+"cm_max_normalization"));
@@ -673,10 +745,6 @@ public class ImageDttParameters {
 		for (int i = 0; i < 4; i++) for (int j=0; j < 2; j++) {
 			if (properties.getProperty(prefix+"lma_dbg_offset_"+i+"_"+j)!=null) this.lma_dbg_offset[i][j]=Double.parseDouble(properties.getProperty(prefix+"lma_dbg_offset_"+i+"_"+j));
 	    }
-
-
-
-
 	}
 
 	@Override
@@ -750,6 +818,8 @@ public class ImageDttParameters {
 		idp.corr_wndx_blur =         this.corr_wndx_blur;
 
 		idp.lma_gaussian =           this.lma_gaussian;
+		idp.lma_second =             this.lma_second;
+		idp.lma_second_gaussian =    this.lma_second_gaussian;
 		idp.lma_adjust_wm =          this.lma_adjust_wm;
 		idp.lma_adjust_wy =          this.lma_adjust_wy;
 		idp.lma_adjust_wxy =         this.lma_adjust_wxy;
@@ -757,8 +827,8 @@ public class ImageDttParameters {
 
 		idp.lma_adjust_ag =          this.lma_adjust_ag;
 
+		idp.lma_wnd =                this.lma_wnd;
 		idp.lma_min_wnd =            this.lma_min_wnd;
-
 		idp.lma_wnd_pwr =            this.lma_wnd_pwr;
 		idp.lma_hard_marg =          this.lma_hard_marg;
 		idp.lma_soft_marg =          this.lma_soft_marg;
@@ -773,10 +843,18 @@ public class ImageDttParameters {
 		idp.lma_lambda_scale_bad =   this.lma_lambda_scale_bad;
 		idp.lma_lambda_max =         this.lma_lambda_max;
 		idp.lma_rms_diff =           this.lma_rms_diff;
-
 		idp.lma_num_iter =           this.lma_num_iter;
+
+		idp.lma_max_rel_rms=         this.lma_max_rel_rms;
+		idp.lma_min_strength=        this.lma_min_strength;
+		idp.lma_min_ac=              this.lma_min_ac;
+		idp.lma_str_scale=           this.lma_str_scale;
+		idp.lma_str_offset=          this.lma_str_offset;
+
 		idp.lma_debug_level =        this.lma_debug_level;
 		idp.lma_debug_level1 =       this.lma_debug_level1;
+		idp.lma_debug_graphic =      this.lma_debug_graphic;
+
 		idp.corr_var_cam =           this.corr_var_cam;
 		idp.cm_max_normalization=    this.cm_max_normalization;
 
