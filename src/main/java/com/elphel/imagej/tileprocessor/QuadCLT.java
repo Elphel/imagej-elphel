@@ -4703,7 +4703,7 @@ public class QuadCLT {
 				  // correlation results - final and partial
 //				  clt_corr_combo,               // [tp.tilesY][tp.tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 //				  clt_corr_partial,             // [tp.tilesY][tp.tilesX][pair][color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
-//				  clt_mismatch,                 // [12][tp.tilesY * tp.tilesX] // transpose unapplied. null - do not calculate
+				  clt_mismatch,                 // [12][tp.tilesY * tp.tilesX] // transpose unapplied. null - do not calculate
 				  disparity_map,                // [2][tp.tilesY * tp.tilesX]
 //				  texture_tiles,                // [tp.tilesY][tp.tilesX]["RGBA".length()][];
 				  imp_quad[0].getWidth(),       // final int width,
@@ -4750,6 +4750,108 @@ public class QuadCLT {
 				  //				  (clt_parameters.dbg_mode & 256) != 0, // transpose convolve
 				  threadsMax,
 				  debugLevel);
+		  if (disparity_map != null){
+			  if (!batch_mode && clt_parameters.show_map &&  (debugLevel > -2)){
+				  sdfa_instance.showArrays(
+						  disparity_map,
+						  tilesX,
+						  tilesY,
+						  true,
+						  name+sAux()+"-DISP_MAP-D"+clt_parameters.disparity,
+						  ImageDtt.DISPARITY_TITLES);
+			  }
+			  if (clt_mismatch != null) {
+				  sdfa_instance.showArrays(
+						  clt_mismatch,
+						  tilesX,
+						  tilesY,
+						  true,
+						  name+sAux()+"-CLT_MISMATCH-D"+clt_parameters.disparity);
+				  //					  ImageDtt.DISPARITY_TITLES);
+				  double min_bw = 0.005;
+//				  double [][] mismatch_w = new double [clt_mismatch.length][tilesX*tilesY];
+				  double mismatch_sigma = clt_parameters.tileStep * clt_parameters.img_dtt.lma_diff_sigma;
+				  DoubleGaussianBlur gb = new DoubleGaussianBlur();
+				  for (int ntile = 0; ntile < clt_mismatch[0].length; ntile++) {
+					  double w = disparity_map[ImageDtt.IMG_DIFF0_INDEX+0][ntile];
+					  if ( !(w >=  clt_parameters.img_dtt.lma_diff_minw)) {
+						  w = 0.0;
+					  }
+					  for (int n = 0; n < clt_mismatch.length/3; n++) {
+						  if (w <= 0.0) {
+							  clt_mismatch[3*n+0][ntile] = Double.NaN;
+							  clt_mismatch[3*n+1][ntile] = Double.NaN;
+							  clt_mismatch[3*n+2][ntile] = 0.0;
+						  } else {
+							  clt_mismatch[3*n+2][ntile]  = w;
+						  }
+					  }
+				  }
+				  sdfa_instance.showArrays(
+						  clt_mismatch,
+						  tilesX,
+						  tilesY,
+						  true,
+						  name+sAux()+"-CLT_MISMATCH-FILTERED-D"+clt_parameters.disparity);
+
+
+				  for (int ntile = 0; ntile < clt_mismatch[0].length; ntile++) {
+					  double w = disparity_map[ImageDtt.IMG_DIFF0_INDEX+0][ntile];
+					  if ( !(w >=  clt_parameters.img_dtt.lma_diff_minw)) {
+						  w = 0.0;
+					  }
+					  for (int n = 0; n < clt_mismatch.length/3; n++) {
+						  if (w <= 0.0) {
+							  clt_mismatch[3*n+0][ntile] = 0.0;
+							  clt_mismatch[3*n+1][ntile] = 0.0;
+							  clt_mismatch[3*n+2][ntile] = 0.0;
+						  } else {
+							  clt_mismatch[3*n+0][ntile] *= w;
+							  clt_mismatch[3*n+1][ntile] *= w;
+							  clt_mismatch[3*n+2][ntile]  = w;
+						  }
+					  }
+				  }
+				  for (int n = 0; n < clt_mismatch.length/3; n++) {
+					  gb.blurDouble(clt_mismatch[3*n+0] , tilesX, tilesY, mismatch_sigma, mismatch_sigma, 0.01);
+					  gb.blurDouble(clt_mismatch[3*n+1] , tilesX, tilesY, mismatch_sigma, mismatch_sigma, 0.01);
+					  gb.blurDouble(clt_mismatch[3*n+2] , tilesX, tilesY, mismatch_sigma, mismatch_sigma, 0.01);
+					  for (int ntile = 0; ntile < clt_mismatch[0].length; ntile++) {
+						  if (clt_mismatch[3*n+2][ntile] >= min_bw) {
+							  clt_mismatch[3*n+0][ntile] /= clt_mismatch[3*n+2][ntile];
+							  clt_mismatch[3*n+1][ntile] /= clt_mismatch[3*n+2][ntile];
+							  if (n>0) {
+								  double w = disparity_map[ImageDtt.IMG_DIFF0_INDEX+0][ntile];
+								  if ( w <  clt_parameters.img_dtt.lma_diff_minw) {
+									  w = 0.0;
+								  }
+								  clt_mismatch[3*n+2][ntile]  = w;
+							  }
+						  } else {
+							  clt_mismatch[3*n+0][ntile] = Double.NaN;
+							  clt_mismatch[3*n+1][ntile] = Double.NaN;
+							  clt_mismatch[3*n+2][ntile] = 0.0;
+						  }
+					  }
+				  }
+				  sdfa_instance.showArrays(
+						  clt_mismatch,
+						  tilesX,
+						  tilesY,
+						  true,
+						  name+sAux()+"-CLT_MISMATCH-BLUR-D"+clt_parameters.disparity);
+			  }
+
+/*
+	public boolean lma_diff_xy =            true;  // convert dd/nd to x,y
+	public double  lma_diff_minw =          0.5;   // minimal weight to keep
+	public double  lma_diff_sigma =         2.0;   // blur differential data (relative to the cluster linear size)
+
+ */
+
+		  }
+
+
 		  return results;
 	  }
 

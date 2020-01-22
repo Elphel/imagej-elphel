@@ -95,6 +95,8 @@ public class Corr2dLMA {
 	private double  []        vector;
 	private ArrayList<Sample> samples = new ArrayList<Sample>();
 //	private ArrayList<Sample> norm_samples = new ArrayList<Sample>(); // to calculate
+	private double            total_weight;
+	private int               total_tiles;
 	private double []         weights; // normalized so sum is 1.0 for all - samples and extra regularization terms
 	private double            pure_weight; // weight of samples only
 	private double []         values;
@@ -111,6 +113,7 @@ public class Corr2dLMA {
 	private int []            used_cams_map =  new int[NUM_CAMS]; // for each camera index return used index ???
 	private int []            used_cams_rmap; // variable-length list of used cameras numbers
 	private int [][][]        used_pairs_map; // for each camera index return used index ??
+	private boolean []        used_tiles;
 
 	private final int         transform_size;
     private final double [][] corr_wnd;
@@ -130,9 +133,9 @@ public class Corr2dLMA {
     private boolean           lazy_eye; // calculate parameters/derivatives for the "lazy eye" parameters
     private double [][]       rXY;
     private int []            dd_indices; //normally 5-long (2 * ncam -3), absolute parameter indices for dd_pre_last, dd_last and nd_last
-    private double thresholdLin = 1.0E-20;  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
-    private double thresholdQuad = 1.0E-30; // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
 
+    public int                bad_tile=-1;   // bad tile - exponent got infinite, remove the tile and start over again
+                                             // happens in gaussian mode with the convex area around wrong maximum
 
 	public class Sample{ // USED in lwir
 		int    tile;   // tile in a cluster
@@ -142,7 +145,6 @@ public class Corr2dLMA {
 		int    iy;     // y coordinate in 2D correlation (0.. 2*transform_size-2, center: (transform_size-1)
 		double v;      // correlation value at that point
 		double w;      // weight
-		double bv;     // blurred value
 		Sample (
 				int    tile,
 				int    fcam,   // first  camera index
@@ -150,8 +152,7 @@ public class Corr2dLMA {
 				int    x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
 				int    y,      //  coordinate in 2D correlation (0.. 2*transform_size-2, center: (transform_size-1)
 				double v,      // correlation value at that point
-				double w,
-				double bv)
+				double w)
 			{
 			    this.tile = tile;
 				this.fcam = fcam;
@@ -160,11 +161,10 @@ public class Corr2dLMA {
 				this.iy =  y;
 				this.v =   v;
 				this.w =   w;
-				this.bv = bv;
 			}
 		@Override
 		public String toString() {
-			return String.format("tile=%d, f=%d s=%d x=%d y=%d v=%f w=%f bv=%f", tile, fcam, scam, ix, iy, v, w, bv);
+			return String.format("tile=%d, f=%d, s=%d, x=%d, y=%d, v=%f, w=%f", tile, fcam, scam, ix, iy, v, w);
 		}
 	}
 
@@ -241,9 +241,8 @@ public class Corr2dLMA {
 			int    x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
 			int    y,      // y coordinate (0 - disparity axis)
 			double v,      // correlation value at that point
-			double w,      // sample weight
-			double bv) {   // blurred/ normalized by window;
-		if ((w > 0) && !Double.isNaN(v)) samples.add(new Sample(tile,fcam,scam,x,y,v,w,bv));
+			double w) {    // sample weight
+		if ((w > 0) && !Double.isNaN(v)) samples.add(new Sample(tile,fcam,scam,x,y,v,w));
 	}
 
 	public ArrayList<Sample>  filterSamples(
@@ -257,6 +256,27 @@ public class Corr2dLMA {
 		samples = filtered_samples;
 		return samples;
 	}
+
+	// maybe in the future - just remove a pad pair?
+	private void removeBadTile(
+			int ntile,
+			int fcam,   // not yet used, maybe try removing just a pair, not all tile?
+			int scam) {
+		bad_tile = ntile;
+		ArrayList<Sample> filtered_samples = new ArrayList<Sample>();
+		for (Sample s:samples) {
+			if (s.tile != ntile) {
+//			if (s.tile != ntile || (s.fcam!= fcam) || (s.scam !=scam)) {
+				filtered_samples.add(s);
+			}
+		}
+		samples = filtered_samples;
+	}
+
+	public int getBadTile() { // after failed LMA check bad_tile. If >=0 - reinit/restart LMA, samples have already removed bad_tile
+		return bad_tile;
+	}
+
 
 
 	boolean samplesExist() {
@@ -360,7 +380,7 @@ public class Corr2dLMA {
 
 	public void setMatrices(double [][][] am_disp) {
 		m_disp = new Matrix[am_disp.length][NUM_CAMS];
-		for (int nt = 0; nt < numTiles; nt++) {
+		for (int nt = 0; nt < numTiles; nt++) if (used_tiles[nt]){
 			for (int n = 0; n < NUM_CAMS; n++) {
 				double [][] am = {
 						{am_disp[nt][n][0], am_disp[nt][n][1]},
@@ -401,8 +421,19 @@ public class Corr2dLMA {
 		mddnd = A33.inverse().times(A35);
 
 	}
+	public void initDisparity ( // USED in lwir
+			double [][] disp_str         // initial value of disparity
+			) {
+		for (int nTile = 0; nTile < numTiles; nTile++) {
+			if ((disp_str[nTile] != null) && (disp_str[nTile][1] > 0.0) && used_tiles[nTile]) {
+				this.all_pars[DISP_INDEX + nTile*TILE_PARAMS] = -disp_str[nTile][0]; // disp0;
+			} else {
+				this.all_pars[DISP_INDEX + nTile*TILE_PARAMS] = 0.0; // disp0;
+			}
+		}
+	}
 
-	public void initVector( // USED in lwir
+	public boolean initVector( // USED in lwir
 			boolean adjust_width,         // adjust width of the maximum -                                           lma_adjust_wm
 			boolean adjust_scales,        // adjust 2D correlation scales -                                          lma_adjust_ag
 			boolean adjust_ellipse,       // allow non-circular correlation maximums                                 lma_adjust_wy
@@ -415,7 +446,7 @@ public class Corr2dLMA {
 			) {
 		adjust_lazyeye_ortho = adjust_lazyeye_par; // simplify relations for the calculated/dependent parameters
 		lazy_eye = adjust_lazyeye_par | adjust_lazyeye_ortho;
-
+		bad_tile = -1;
 		used_pairs_map = new int [numTiles][NUM_CAMS][NUM_CAMS];
 		used_cameras = new boolean[NUM_CAMS];
 		boolean [][] used_pairs = new boolean[numTiles][NUM_PAIRS];
@@ -424,7 +455,7 @@ public class Corr2dLMA {
 			used_pairs_map[t][f][s] = -1;
 		}
 		boolean [][][] used_pairs_dir = new boolean [numTiles][NUM_CAMS][NUM_CAMS];
-		boolean [] used_tiles = new boolean[numTiles];
+		used_tiles = new boolean[numTiles];
 		for (Sample s:samples) { // ignore zero-weight samples
 			used_cameras[s.fcam]=true;
 			used_cameras[s.scam]=true;
@@ -447,8 +478,12 @@ public class Corr2dLMA {
 				used_cams_rmap[ncam++] = i;
 			}
 		}
+		if (ncam < 2) {
+			return false;
+		}
 		last_cam =     (ncam > 1)? used_cams_rmap[ncam - 1] :-1;
 		pre_last_cam = (ncam > 2)? used_cams_rmap[ncam - 2] :-1;
+
 		setOffsetMatrices();
 
 		for (int nTile = 0; nTile < numTiles; nTile++) {
@@ -468,9 +503,9 @@ public class Corr2dLMA {
 
 		this.all_pars = new double[num_all_pars];
 		this.par_mask = new boolean[num_all_pars];
+		total_tiles = 0;
 		// per-tile parameters
 		for (int nTile = 0; nTile < numTiles; nTile++) if ((disp_str[nTile] != null) && (disp_str[nTile][1] > 0.0) && used_tiles[nTile]){
-//			this.all_pars[DISP_INDEX + nTile*TILE_PARAMS] = disp_str[nTile][0]; // disp0;
 			this.all_pars[DISP_INDEX + nTile*TILE_PARAMS] = -disp_str[nTile][0]; // disp0;
 			this.all_pars[A_INDEX    + nTile*TILE_PARAMS] = 1.0/(half_width * half_width);
 			this.all_pars[B_INDEX    + nTile*TILE_PARAMS] = 0.0;
@@ -483,6 +518,7 @@ public class Corr2dLMA {
 				this.par_mask[G0_INDEX + i + nTile*TILE_PARAMS] = used_pairs[nTile][i] & adjust_scales;
 				this.all_pars[G0_INDEX + i + nTile*TILE_PARAMS] = Double.NaN; // will be assigned later for used - should be for all !
 			}
+			total_tiles++;
 		}
 		// common for all tiles parameters
 		for (int i = 0; i <NUM_CAMS; i++) {
@@ -503,9 +539,12 @@ public class Corr2dLMA {
 		}
 
 		double sw = 0;
+		total_weight = 0.0;
+
 		for (int i = 0; i < np; i++) {
 			Sample s = samples.get(i);
 			weights[i] = s.w;
+			total_weight += s.w;
 			values[i] =  s.v;
 			sw += weights[i];
 			int indx = G0_INDEX + pindx[s.fcam][s.scam] + s.tile * TILE_PARAMS;
@@ -515,7 +554,6 @@ public class Corr2dLMA {
 			}
 			if (!(d <= this.all_pars[indx])) this.all_pars[indx] = d; // to include Double.isNaN()
 		}
-
 
 		pure_weight = sw;
 		for (int i = 0; i < 2 * NUM_CAMS; i++) { // weight of the regularization terms (twice number of cameras, some may be disabled by a mask)
@@ -544,6 +582,7 @@ public class Corr2dLMA {
 			}
 		}
 		toVector();
+		return true;
 	}
 
 
@@ -551,7 +590,7 @@ public class Corr2dLMA {
 	public void initMatrices() { // should be called after initVector and after setMatrices
 		m_pairs = new Matrix[used_pairs_map.length][NUM_CAMS][NUM_CAMS];
 		m_pairs_inv = new Matrix[used_pairs_map.length][NUM_CAMS][NUM_CAMS];
-		for (int nTile = 0; nTile < used_pairs_map.length; nTile++) {
+		for (int nTile = 0; nTile < used_pairs_map.length; nTile++) if (used_tiles[nTile]){
 			for (int f = 0; f < NUM_CAMS; f++) for (int s = 0; s < NUM_CAMS; s++) {
 				m_pairs[nTile][f][s] =      null;
 				//			m_pairs_last[f][s] = null;
@@ -567,7 +606,7 @@ public class Corr2dLMA {
 	public void initInvertMatrices() { // should be called after initMatrices only if m_pairs_inv are needed
 		m_pairs_inv = new Matrix[used_pairs_map.length][NUM_CAMS][NUM_CAMS];
 
-		for (int nTile = 0; nTile < used_pairs_map.length; nTile++) {
+		for (int nTile = 0; nTile < used_pairs_map.length; nTile++)  if (used_tiles[nTile]){
 			for (int f = 0; f < NUM_CAMS; f++) for (int s = 0; s < NUM_CAMS; s++) {
 				m_pairs_inv[nTile][f][s] =      null;
 				if (used_pairs_map[nTile][f][s] >= 0) {
@@ -579,22 +618,29 @@ public class Corr2dLMA {
 
 	/**
 	 * Calculate initial disparity by polynomial approximation. Only works with a single tile now
-	 * @param corr_blur blurred and normalized by window correlation data matching this.samples
-	 * @return estimated disparity
+	 * @param corr_wnd_inv_limited window (same as for finding convex) to boost gain in peripheral areas, but not the very marginal ones
+	 * @param max_offset maximal abs(disparity) value to trust
+	 * @param dgg_title if !=null - generate debug image with this title
+	 * @return estimated disparity, strength and half-window sizes
 	 */
-	public double [] polyDisparity() {
-		return polyDisparity(null);
-	}
-	public double [] polyDisparity( String dbg_title) {
+	public double [] polyDisparity(
+			double [] corr_wnd_inv_limited,
+			double max_offset, // 5?
+			String dbg_title) {
 		int center = transform_size -1;
-//		int corr_size = 2 * transform_size -1;
+		int corr_size = 2 * transform_size -1;
 		initInvertMatrices();
 		int nSamples = samples.size();
     	double [][][] mdata = new double [2 * nSamples][3][];
+    	double bv;
     	for (int ns = 0; ns < nSamples; ns++) {
     		Sample s = samples.get(ns);
-//    		double bv = s.bv/this.all_pars[G0_INDEX + pindx[s.fcam][s.scam] + s.tile * TILE_PARAMS];
-    		double bv = s.v/corr_wnd[s.iy][s.ix]/this.all_pars[G0_INDEX + pindx[s.fcam][s.scam] + s.tile * TILE_PARAMS];
+    		if (corr_wnd_inv_limited != null) {
+        		bv = s.v * corr_wnd_inv_limited[corr_size * s.iy +s.ix];
+    		} else {
+        		bv = s.v / corr_wnd[s.iy][s.ix];
+    		}
+    		bv /=this.all_pars[G0_INDEX + pindx[s.fcam][s.scam] + s.tile * TILE_PARAMS];
     		//corr_wnd
     		int indx = 2 * ns;
     	    mdata[indx  ][0] = new double [2];
@@ -626,10 +672,16 @@ public class Corr2dLMA {
 				(approx2d[4] >= 0.0)) { // y: min, not max
 			return null; // Double.NaN;
 		}
+		if (Math.abs(approx2d[0]) > max_offset) { // > 6 - too far for the maximum
+			return null; // Double.NaN;
+		}
 		// calculate width_x and width_y
 		double hwx = Math.sqrt(-approx2d[2]/approx2d[3]);
 		double hwy = Math.sqrt(-approx2d[2]/approx2d[4]);
-		double [] rslt = {-approx2d[0], approx2d[2], hwx, hwy};
+		double [] rslt = {
+				-approx2d[0],
+				approx2d[2] / Math.sqrt(hwx * hwy)};
+//				hwx, hwy};
 
 		if (dbg_title != null) {
 			polyDisparityDebug(
@@ -639,7 +691,6 @@ public class Corr2dLMA {
 					100, // int           irad,
 					10.0);//sigma);
 		}
-
 		return rslt; // [0];
 	}
 
@@ -649,17 +700,20 @@ public class Corr2dLMA {
 			double        scale,
 			int           irad,
 			double sigma){
-		double [][] dbg_img =     new double [NUM_CAMS*NUM_CAMS][];
-		double [][] dbg_weights = new double [NUM_CAMS*NUM_CAMS][];
-		String [] titles = new String [NUM_CAMS*NUM_CAMS];
+		double [][] dbg_img =     new double [NUM_CAMS*NUM_CAMS+1][];
+		double [][] dbg_weights = new double [NUM_CAMS*NUM_CAMS+1][];
+		String [] titles = new String [NUM_CAMS*NUM_CAMS+1];
 		int size = 2 * irad+1;
 		int nSamples = samples.size();
 		DoubleGaussianBlur gb = new DoubleGaussianBlur();
+		titles[0] = "combined";
+		dbg_img[0] =     new double [size*size];
+		dbg_weights[0] = new double [size*size];
 
     	for (int ns = 0; ns < nSamples; ns++) {
     		int indx = 2 * ns;
     		Sample s = samples.get(ns);
-    		int np = s.fcam* NUM_CAMS + s.scam;
+    		int np = s.fcam* NUM_CAMS + s.scam +1;
     		if (dbg_img[np] == null) {
     			dbg_img[np] =     new double [size*size];
     			dbg_weights[np] = new double [size*size];
@@ -675,8 +729,10 @@ public class Corr2dLMA {
     		int iy = (int) Math.round(mdata[indx  ][0][1] * scale + irad);
     		if ((ix >= 0) && (iy >= 0) && (ix < size) && (iy <size)) {
     			int offs = iy * size + ix;
-    			dbg_img[np][offs] =     w * d;
-    			dbg_weights[np][offs] = w;
+    			dbg_img[np][offs] +=     w * d;
+    			dbg_weights[np][offs] += w;
+    			dbg_img[0][offs] +=     w * d;
+    			dbg_weights[0][offs] += w;
     		}
     	}
     	for (int np = 0; np < dbg_img.length; np++) if (dbg_img[np] != null) {
@@ -707,14 +763,14 @@ public class Corr2dLMA {
 		return dbg_img;
 	}
 
-	public double [] getFxJt( // USED in lwir
+	private double [] getFxJt( // USED in lwir
 			double []   vector,
 			double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
 		if (this.gaussian_mode) return getFxJt_gaussian(vector, jt);
 		else                    return getFxJt_parabola(vector, jt);
 	}
 
-	public double [] getFxJt_parabola( // USED in lwir
+	private double [] getFxJt_parabola( // USED in lwir
 			double []   vector,
 			double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
 		if (vector == null) return null;
@@ -726,7 +782,7 @@ public class Corr2dLMA {
 		double [] AT = new double [numTiles]; // av[A_INDEX];
 		double [] BT = new double [numTiles]; // av[B_INDEX];
 		double [] CT = new double [numTiles]; // A + av[CMA_INDEX];
-		for (int nTile = 0; nTile < numTiles; nTile++) {
+		for (int nTile = 0; nTile < numTiles; nTile++) if (used_tiles[nTile]){
 			for (int i = 0; i < NUM_CAMS; i++) if (used_cameras[i]) {
 				double [] add_dnd = {av[DISP_INDEX+ nTile * TILE_PARAMS]+ av[ddisp_index + i],  av[ndisp_index + i]};
 				xcam_ycam[nTile][i] = m_disp[nTile][i].times(new Matrix(add_dnd,2));
@@ -836,6 +892,9 @@ public class Corr2dLMA {
 					for (int ddn = 0; ddn < 3; ddn++) if (dd_deriv[ddn] != 0.0) {
 						for (int i = 0; i < dd_indices.length; i++) {
 							jt[dd_indices[i]][ns] += dd_deriv[ddn] * mddnd.get(ddn, i);
+//							if (Double.isNaN(jt[dd_indices[i]][ns])){
+//								System.out.println("getFxJt_parabola(): jt[dd_indices["+i+"]]["+ns+"] == NaN, dd_indices["+i+"]="+dd_indices[i]);
+//							}
 						}
 					}
 				}
@@ -867,7 +926,7 @@ public class Corr2dLMA {
 		return fx;
 	}
 
-	public double [] getFxJt_gaussian( // USED in lwir
+	private double [] getFxJt_gaussian( // USED in lwir
 			double []   vector,
 			double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
 		if (vector == null) return null;
@@ -879,7 +938,7 @@ public class Corr2dLMA {
 		double [] AT = new double [numTiles]; // av[A_INDEX];
 		double [] BT = new double [numTiles]; // av[B_INDEX];
 		double [] CT = new double [numTiles]; // A + av[CMA_INDEX];
-		for (int nTile = 0; nTile < numTiles; nTile++) {
+		for (int nTile = 0; nTile < numTiles; nTile++)  if (used_tiles[nTile]){
 			for (int i = 0; i < NUM_CAMS; i++) if (used_cameras[i]) {
 				double [] add_dnd = {av[DISP_INDEX+ nTile * TILE_PARAMS]+ av[ddisp_index + i],  av[ndisp_index + i]};
 				xcam_ycam[nTile][i] = m_disp[nTile][i].times(new Matrix(add_dnd,2));
@@ -914,6 +973,18 @@ public class Corr2dLMA {
 			double xmxp_ymyp = xmxp * ymyp;
 ////			double comm = Wp*(1.0 - (A*xmxp2 + 2 * B * xmxp_ymyp + C * ymyp2));
 			double exp = Math.exp(-(A*xmxp2 + 2 * B * xmxp_ymyp + C * ymyp2));
+//			if ((exp > 1000.0) || (exp < 0.0000001)) {
+			if (exp > 1000.0) {
+//				System.out.println("Unreasonable exp = "+exp);
+				removeBadTile(s.tile, s.fcam, s.scam);
+				return null; // should re-start LMA
+			}
+
+			if (Double.isInfinite(exp)) {
+				removeBadTile(s.tile, s.fcam, s.scam);
+				return null; // should re-start LMA
+			}
+
 			double comm = exp * Wp;
 			double WGpexp = WGp*exp;
 
@@ -997,6 +1068,9 @@ public class Corr2dLMA {
 					for (int ddn = 0; ddn < 3; ddn++) if (dd_deriv[ddn] != 0.0) {
 						for (int i = 0; i < dd_indices.length; i++) {
 							jt[dd_indices[i]][ns] += dd_deriv[ddn] * mddnd.get(ddn, i);
+//							if (Double.isNaN(jt[dd_indices[i]][ns])){
+//								System.out.println("getFxJt_gaussian(): jt[dd_indices["+i+"]]["+ns+"] == NaN, dd_indices["+i+"]="+dd_indices[i]);
+//							}
 						}
 					}
 				}
@@ -1028,6 +1102,7 @@ public class Corr2dLMA {
 
 		return fx;
 	}
+
 
 	public void printParams() { // not used in lwir
 		// to make sure it is updated
@@ -1219,7 +1294,7 @@ public class Corr2dLMA {
 
 ////////////////////////////////////////////////////////////////////////
 
-    public void debugJt( // not used in lwir
+	private boolean debugJt( // not used in lwir
     		double      delta,
     		double []   vector) {
     	int num_points = this.values.length;
@@ -1231,7 +1306,8 @@ public class Corr2dLMA {
     	double [][] jt =       new double [num_pars][num_points];
     	double [][] jt_delta = new double [num_pars][num_points];
     	double [] fx = getFxJt( vector,jt);
-    	getFxJt(delta, vector,jt_delta);
+    	if (fx == null) return false;
+    	if (getFxJt(delta, vector,jt_delta) == null) return false;
     	System.out.println("Test of jt-jt_delta difference,  delta = "+delta+ ":");
     	System.out.print(String.format("Til P %3s: %10s ", "#", "fx"));
     	for (int anp = 0; anp< all_pars.length; anp++) if(par_mask[anp]){
@@ -1280,6 +1356,7 @@ public class Corr2dLMA {
         	System.out.print(String.format("|%8s %8.5f ", "1/1000×",  1000*max_diff[np]));
     	}
     	System.out.println();
+    	return true;
     }
 
 
@@ -1288,14 +1365,16 @@ public class Corr2dLMA {
 			double []   vector,
 			double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
 		double [] fx0=getFxJt(vector,null);
+		if (fx0 == null) return null;
 		for (int np = 0; np < vector.length; np++) {
 			double [] vector1 = vector.clone();
 			vector1[np]+= delta;
 			double [] fxp=getFxJt(vector1,null);
+			if (fxp == null) return null;
 			vector1 = vector.clone();
 			vector1[np]-= delta;
 			double [] fxm=getFxJt(vector1,null);
-
+			if (fxm == null) return null;
 			jt[np] = new double [fxp.length];
 			for (int i = 0; i < fxp.length; i++) {
 				jt[np][i] = (fxp[i] - fxm[i])/delta/2;
@@ -1390,6 +1469,49 @@ public class Corr2dLMA {
 		}
 		return ds;
 	}
+
+	public double [][] getDdNd(){ // this.all_pars should be current
+		double [][] ddnd = new double [NUM_CAMS][2];
+		for (int nc = 0; nc < NUM_CAMS; nc++) {
+			ddnd[nc][0] = all_pars[ddisp_index + nc];
+			ddnd[nc][1] = all_pars[ndisp_index + nc];
+		}
+		return ddnd;
+	}
+
+	public double [] getStats(){
+		double [] stats = {total_weight/numTiles, 1.0*total_tiles/numTiles, last_rms[0]};
+		return stats;
+	}
+
+
+	public void getDdNd(double [][] ddnd){ // this.all_pars should be current
+		if (ddnd != null) {
+			for (int nc = 0; nc < NUM_CAMS; nc++) {
+				ddnd[nc] = new double [2];
+				ddnd[nc][0] = all_pars[ddisp_index + nc];
+				ddnd[nc][1] = all_pars[ndisp_index + nc];
+			}
+		}
+	}
+
+	public void getStats(double [] stats){
+		if ((stats != null) && (stats.length > 0)) {
+			stats[0] = total_weight;
+			if (stats.length > 1) {
+				stats[1] = total_tiles;
+				if (stats.length > 2) {
+					stats[2] = last_rms[0];
+				}
+			}
+		}
+	}
+	public void getStats(double [][] stats){
+		double [] stats0 = {total_weight, total_tiles, last_rms[0]};
+		stats[0] = stats0;
+	}
+
+
 
 	public double [] getRmsTile() { //
 		double [] tile_rms =     new double[numTiles];
@@ -1507,6 +1629,9 @@ public class Corr2dLMA {
 					lambda,
 					rms_diff,
 					debug_level);
+			if (rslt == null) {
+				return false; // need to check
+			}
 			if (debug_level > 1) {
 				System.out.println("LMA step "+iter+": {"+rslt[0]+","+rslt[1]+"} full RMS= "+good_or_bad_rms[0]+
 						" ("+initial_rms[0]+"), pure RMS="+good_or_bad_rms[1]+" ("+initial_rms[1]+") + lambda="+lambda);
@@ -1559,6 +1684,9 @@ public class Corr2dLMA {
 			this.last_ymfx = getFxJt(
 					this.vector, // double []   vector,
 					this.last_jt); // double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
+			if (last_ymfx == null) {
+				return null; // need to re-init/restart LMA
+			}
 			this.last_rms = getWYmFxRms(this.last_ymfx); // modifies this.last_ymfx
 			this.initial_rms = this.last_rms.clone();
 			this.good_or_bad_rms = this.last_rms.clone();
@@ -1601,7 +1729,7 @@ public class Corr2dLMA {
 			System.out.println("(JtJ + lambda*diag(JtJ).inv()");
 			jtjl_inv.print(18, 6);
 		}
-
+//last_jt has NaNs
 		Matrix jty = (new Matrix(this.last_jt)).times(y_minus_fx_weighted);
 		if (debug_level>2) {
 			System.out.println("Jt * (y-fx)");
@@ -1622,6 +1750,9 @@ public class Corr2dLMA {
 		this.last_ymfx = getFxJt(
 				new_vector, // double []   vector,
 				this.last_jt); // double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
+		if (last_ymfx == null) {
+			return null; // need to re-init/restart LMA
+		}
 		double [] rms = getWYmFxRms(this.last_ymfx); // modifies this.last_ymfx
 		this.good_or_bad_rms = rms.clone();
 		if (rms[0] < this.last_rms[0]) { // improved
@@ -1644,6 +1775,9 @@ public class Corr2dLMA {
 			this.last_ymfx = getFxJt( // recalculate fx
 					this.vector, // double []   vector,
 					this.last_jt); // double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
+			if (last_ymfx == null) {
+				return null; // need to re-init/restart LMA
+			}
 			this.last_rms = getWYmFxRms(this.last_ymfx); // modifies this.last_ymfx
 			if (debug_level > 2) {
 				debugJt(
