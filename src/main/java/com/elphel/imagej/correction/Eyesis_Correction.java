@@ -4316,7 +4316,7 @@ private Panel panel1,
     } else if (label.equals("CLT 4 images") ||
     		label.equals("CLT apply fine corr") ||
     		label.equals("CLT infinity corr") ||
-    		label.equals("CORR TEST")) {
+    		label.equals("CORR TEST" )) {
     	boolean apply_corr = label.equals("CLT apply fine corr");
     	boolean infinity_corr = label.equals("CLT infinity corr");
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;

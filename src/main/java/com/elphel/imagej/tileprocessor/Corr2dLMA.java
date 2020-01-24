@@ -1167,6 +1167,30 @@ public class Corr2dLMA {
 
 
 	}
+	public double [][] getTileStats(){
+		double []   rms =        getRmsTile();
+		double [][] maxmin_amp = getMaxMinAmpTile();
+//		double [][] maxmin_val = getMaxMinValTile();
+		double [][] abc =        getABCTile();
+		double [][] tileStats = new double [numTiles][];
+		for (int tile = 0; tile < numTiles; tile++) if (!Double.isNaN(rms[tile]) && !Double.isNaN(maxmin_amp[tile][0])){
+			tileStats[tile] = new double[4];
+			double avg = 0.5*(maxmin_amp[tile][0]+maxmin_amp[tile][1]);
+			double rrms = rms[tile]/avg;
+			double strength = Math.sqrt(avg/rrms);
+			double area = Double.NaN;
+			if ((abc[tile][0] > 0.0) && (abc[tile][2] > 0.0)) {
+				area = 1.0/abc[tile][0] + 1.0/abc[tile][2]; // area of a maximum
+			}
+			tileStats[tile][0] = rrms;
+			tileStats[tile][1] = strength;
+			tileStats[tile][2] = Math.max(abc[tile][0], abc[tile][2]);
+			tileStats[tile][3] = area;
+		}
+		return tileStats;
+	}
+
+
 
 	public void printInputDataFx(boolean show_fx){ // not used in lwir
 		if 	(show_fx) {
@@ -1435,10 +1459,11 @@ public class Corr2dLMA {
 		return rslt;
 	}
 
-	public double [][] disparityStrength(
+	public double [][] lmaDisparityStrength(
 			double  lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 			double  lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 			double  lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+			double  lma_max_area,     // maximal half-area (if > 0.0)
 			double  lma_str_scale,    // convert lma-generated strength to match previous ones - scale
 			double  lma_str_offset    // convert lma-generated strength to match previous ones - add to result
 			){
@@ -1447,21 +1472,31 @@ public class Corr2dLMA {
 		double [][] maxmin_amp = getMaxMinAmpTile();
 		double [][] abc =        getABCTile();
 		for (int tile = 0; tile < numTiles; tile++) {
+			ds[tile][0] = Double.NaN;
 			if (Double.isNaN(maxmin_amp[tile][0])) {
-				ds[tile][0] = Double.NaN;
 				continue;
 			}
 			double avg = 0.5*(maxmin_amp[tile][0]+maxmin_amp[tile][1]);
 			double rrms = rms[tile]/avg;
 			if (((lma_max_rel_rms > 0.0) && (rrms > lma_max_rel_rms)) ||
 					(Math.max(abc[tile][0], abc[tile][2]) < lma_min_ac)) {
-				ds[tile][0] = Double.NaN;
 				continue;
+			}
+			if (lma_max_area > 0) {
+				if ((abc[tile][0] > 0.0) && (abc[tile][2] > 0.0)) {
+					double area = 1.0/abc[tile][0] + 1.0/abc[tile][2]; // area of a maximum
+					if (area > lma_max_area) {
+						continue; // too wide maximum
+					}
+				} else {
+					continue; // not a maximum
+				}
+
+
 			}
 			double strength = Math.sqrt(avg/rrms);
 			double disparity = -all_pars[DISP_INDEX + tile*TILE_PARAMS];
 			if ((strength < lma_min_strength) || Double.isNaN(disparity)) {
-				ds[tile][0] = Double.NaN;
 				continue;
 			}
 			ds[tile][0] = disparity;
@@ -1716,15 +1751,6 @@ public class Corr2dLMA {
 
 			return rslt;
 		}
-/*
-				try {
-					this.SYNC_COMMAND.wait();
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-
- */
 		if (debug_level>2) {
 			System.out.println("(JtJ + lambda*diag(JtJ).inv()");
 			jtjl_inv.print(18, 6);

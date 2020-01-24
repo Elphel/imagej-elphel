@@ -1867,7 +1867,7 @@ public class ImageDtt {
 													disparity_array[tileY][tileX] + disparity_corr);
 										}
 
-										if (((globalDebugLevel > 0) || debug_distort) && debugTile) {
+										if (((globalDebugLevel > 0) || debug_distort) || debugTile) {
 											for (int i = 0; i < quad; i++) {
 												System.out.println("clt_aberrations_quad_corr():  tileX="+tileX+", tileY="+tileY+
 														" centerX="+centerX+" centerY="+centerY+" disparity="+disparity_array[tileY][tileX]+
@@ -1884,7 +1884,7 @@ public class ImageDtt {
 												centersXY[cTile][i][0] += debug_offsets_xy[i][0];
 												centersXY[cTile][i][1] += debug_offsets_xy[i][1];
 											}
-											if (debug_distort && debugCluster) {
+											if ((debug_distort && debugCluster) || debugTile) {
 												for (int i = 0; i < quad; i++) {
 													System.out.println(String.format("%d: {%8.3f, %8.3f}",i,debug_offsets_xy[i][0],debug_offsets_xy[i][1]));
 												}
@@ -2114,12 +2114,13 @@ public class ImageDtt {
 												disparity_map[DISPARITY_INDEX_HOR][tIndex] =          poly_disp[0];
 												disparity_map[DISPARITY_INDEX_HOR_STRENGTH][tIndex] = poly_disp[1];
 												if (lma2 != null) {
-													disp_str[cTile] = lma2.disparityStrength(
+													disp_str[cTile] = lma2.lmaDisparityStrength(
 															imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 															imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 															imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
-															imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
-															imgdtt_params.lma_str_offset    // convert lma-generated strength to match previous ones - add to result
+										    				imgdtt_params.lmas_max_area,     //double  lma_max_area,     // maximal half-area (if > 0.0)
+															imgdtt_params.lma_str_scale,     // convert lma-generated strength to match previous ones - scale
+															imgdtt_params.lma_str_offset     // convert lma-generated strength to match previous ones - add to result
 															)[0];
 													if (tile_lma_debug_level > 0) {
 														double [][] ds_dbg = {disp_str[cTile]};
@@ -2165,12 +2166,14 @@ public class ImageDtt {
 							if (lma2 != null) {
 								double [][] ddnd = lma2.getDdNd();
 								double [] stats  = lma2.getStats();
-								double [][] lma2_ds = lma2.disparityStrength(
+								double [][] lma2_ds = lma2.lmaDisparityStrength(
 					    				imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 					    				imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 					    				imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+					    				imgdtt_params.lma_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
 					    				imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
 					    				imgdtt_params.lma_str_offset);  // convert lma-generated strength to match previous ones - add to result
+								double [][] extra_stats = lma2.getTileStats();
 								for (int cTileY = 0; cTileY < tileStep; cTileY++) {
 									tileY = clustY * tileStep + cTileY ;
 									if (tileY < tilesY) {
@@ -2182,8 +2185,15 @@ public class ImageDtt {
 //												int nTile = tileY * tilesX + tileX; // how is it different from tIndex?
 												for (int cam = 0; cam < ddnd.length; cam++) {
 													if (ddnd[cam] != null) {
-														clt_mismatch[3*cam + 0][tIndex] = ddnd[cam][0];
-														clt_mismatch[3*cam + 1][tIndex] = ddnd[cam][1];
+														if (imgdtt_params.lma_diff_xy) {
+															clt_mismatch[3*cam + 0][tIndex] =
+																	ddnd[cam][0] * rXY[cam][0] - ddnd[cam][1] * rXY[cam][1];
+															clt_mismatch[3*cam + 1][tIndex] =
+																	ddnd[cam][0] * rXY[cam][1] + ddnd[cam][1] * rXY[cam][0];
+														} else {
+															clt_mismatch[3*cam + 0][tIndex] = ddnd[cam][0];
+															clt_mismatch[3*cam + 1][tIndex] = ddnd[cam][1];
+														}
 													}
 													if (stats != null) {
 														disparity_map[IMG_DIFF0_INDEX+0][tIndex] = stats[0];
@@ -2194,6 +2204,25 @@ public class ImageDtt {
 													if ((lma2_ds != null) && ((lma2_ds[cTile] != null))) {
 														disparity_map[DISPARITY_INDEX_VERT][tIndex] =          lma2_ds[cTile][0];
 														disparity_map[DISPARITY_INDEX_VERT_STRENGTH][tIndex] = lma2_ds[cTile][1];
+														clt_mismatch[3*0 + 2][tIndex] =                        lma2_ds[cTile][1];
+													}
+												}
+												if (extra_stats != null) {
+													if (extra_stats[cTile] != null) {
+														disparity_map[DISPARITY_INDEX_CM+1][tIndex] =       extra_stats[cTile][0];
+														disparity_map[DISPARITY_VARIATIONS_INDEX][tIndex] = extra_stats[cTile][2];
+														disparity_map[OVEREXPOSED][tIndex] =                extra_stats[cTile][3];
+														clt_mismatch[3*1 + 2][tIndex] = extra_stats[cTile][0];
+														clt_mismatch[3*2 + 2][tIndex] = extra_stats[cTile][2];
+														clt_mismatch[3*3 + 2][tIndex] = extra_stats[cTile][3];
+
+													} else {
+														disparity_map[DISPARITY_INDEX_CM+1][tIndex] =       Double.NaN;
+														disparity_map[DISPARITY_VARIATIONS_INDEX][tIndex] = Double.NaN;
+														disparity_map[OVEREXPOSED][tIndex] =                Double.NaN;
+														clt_mismatch[3*1 + 2][tIndex] = Double.NaN;
+														clt_mismatch[3*2 + 2][tIndex] = Double.NaN;
+														clt_mismatch[3*3 + 2][tIndex] = Double.NaN;
 													}
 												}
 											}
@@ -2202,9 +2231,7 @@ public class ImageDtt {
 								}
 							}
 						}
-
 					}
-
 				}
 			};
 		}
@@ -3073,10 +3100,11 @@ public class ImageDtt {
 							        		tileY );                      // int                 tileY
 							    	double [][] ds = null;
 							    	if (lma2 != null) {
-							    		ds = lma2.disparityStrength(
-							    				imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
-							    				imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
-							    				imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+							    		ds = lma2.lmaDisparityStrength(
+							    				imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
+							    				imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
+							    				imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+							    				imgdtt_params.lmas_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
 							    				imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
 							    				imgdtt_params.lma_str_offset    // convert lma-generated strength to match previous ones - add to result
 							    				);

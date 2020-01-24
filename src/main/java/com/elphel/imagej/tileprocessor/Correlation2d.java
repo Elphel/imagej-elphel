@@ -1821,7 +1821,7 @@ public class Correlation2d {
     {
     	// corrs are organized as PAIRS, some are null if not used
     	// for each enabled and available pair find a maximum, filter convex and create sample list
-    	boolean debug_graphic = imgdtt_params.lma_debug_graphic; // (debug_level > -1) ;
+    	boolean debug_graphic = imgdtt_params.lma_debug_graphic && (debug_level > -1) ;
 //    	boolean debug_graphic = true;
 //    	boolean debug_second_all = false; // true; // alse; // true;
 		int  clust_height = corrs.length/clust_width;
@@ -1831,7 +1831,10 @@ public class Correlation2d {
     	int center =       transform_size - 1;
     	int corr_size = 2 * transform_size - 1;
 //    	double [][] blur_max = new double [corrs.length][];
-    	Corr2dLMA lma = new Corr2dLMA(
+    	if (debug_level > -2) {
+    		System.out.println("Debugging corrLMA2()// multi-tile");
+    	}
+    		Corr2dLMA lma = new Corr2dLMA(
     			corrs.length,
     			transform_size,
     			corr_wnd,
@@ -2024,10 +2027,11 @@ public class Correlation2d {
     		}
 
     		//    		double [][] ds =         lma.getDisparityStrength();
-    		ds = lma.disparityStrength(
+    		ds = lma.lmaDisparityStrength(
     				imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
     				imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
     				imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+    				imgdtt_params.lma_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
     				imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
     				imgdtt_params.lma_str_offset    // convert lma-generated strength to match previous ones - add to result
     				);
@@ -2121,10 +2125,11 @@ public class Correlation2d {
         				lma.printInputDataFx(true);
         			}
     				//        		double [][] ds =         lma.getDisparityStrength();
-    				ds = lma.disparityStrength(
+    				ds = lma.lmaDisparityStrength(
     						imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
     						imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
     						imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+    	    				imgdtt_params.lma_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
     						imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
     						imgdtt_params.lma_str_offset    // convert lma-generated strength to match previous ones - add to result
     						);
@@ -2217,8 +2222,8 @@ public class Correlation2d {
     	boolean need_poly = (disp_str == null); // true; // find initial disparity by polynomial approximation
     	boolean debug_graphic = imgdtt_params.lma_debug_graphic && (imgdtt_params.lma_debug_level1 > 3) && (debug_level > 0) ;
 		String dbg_title = null;
-//    	if (debug_graphic) {
-		if (imgdtt_params.lma_debug_graphic) {
+    	if (debug_graphic) {
+//		if (imgdtt_params.lma_debug_graphic) {
 			dbg_title = String.format("tX%d_tY%d",tileX,tileY);
 		}
     	DoubleGaussianBlur gb = null;
@@ -2350,7 +2355,7 @@ public class Correlation2d {
     			disp = lma.polyDisparity(
     					corr_wnd_inv_limited,
     					transform_size-1-imgdtt_params.lma_soft_marg,//double max_offset, // 5?
-    					dbg_title); // 		double [] rslt = {-approx2d[0], approx2d[2], hwx, hwy};
+    					debug_graphic?dbg_title:null); // 		double [] rslt = {-approx2d[0], approx2d[2], hwx, hwy};
 
     			if (disp == null) {
     				if (debug_level > 0) {
@@ -2414,10 +2419,11 @@ public class Correlation2d {
     		lma.updateFromVector();
 
 
-    		double [][] dispStr = lma.disparityStrength(
+    		double [][] dispStr = lma.lmaDisparityStrength(
     				imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
     				imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
     				imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+    				imgdtt_params.lmas_max_area,     //double  lma_max_area,     // maximal half-area (if > 0.0)
     				imgdtt_params.lma_str_scale,     // convert lma-generated strength to match previous ones - scale
     				imgdtt_params.lma_str_offset     // convert lma-generated strength to match previous ones - add to result
     				);

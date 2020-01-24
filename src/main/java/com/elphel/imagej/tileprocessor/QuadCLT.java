@@ -4593,9 +4593,13 @@ public class QuadCLT {
 			  final boolean    updateStatus,
 			  final int        debugLevel){
 		  final boolean      batch_mode = clt_parameters.batch_run; //disable any debug images
-		  boolean advanced=  this.correctionsParameters.zcorrect || this.correctionsParameters.equirectangular;
-		  boolean toRGB=     advanced? true: this.correctionsParameters.toRGB;
-		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
+//		  boolean advanced=  this.correctionsParameters.zcorrect || this.correctionsParameters.equirectangular;
+//		  boolean toRGB=     advanced? true: this.correctionsParameters.toRGB;
+
+
+//		  if (!batch_mode) return null;
+
+
 
 		  // may use this.StartTime to report intermediate steps execution times
 //		  String aux = isAux()?"-AUX":"";
@@ -4633,13 +4637,39 @@ public class QuadCLT {
 		  setTiles (imp_quad[0], // set global tp.tilesX, tp.tilesY
 				  clt_parameters,
 				  threadsMax);
+		  double [][] disparity_array = tp.setSameDisparity(clt_parameters.disparity); // 0.0); // [tp.tilesY][tp.tilesX] - individual per-tile expected disparity
+		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
+		  ImagePlus imp_sel = WindowManager.getCurrentImage();
+		  if ((imp_sel == null) || (imp_sel.getStackSize() != 3)) {
+			  System.out.println("No image / wrong image selected, using infinity");
+		  } else {
+			  System.out.println("Image: "+imp_sel.getTitle());
+				int width = imp_sel.getWidth();
+				int height = imp_sel.getHeight();
+				if ((width != tp.getTilesX()) || (height != tp.getTilesY())) {
+					  System.out.println(String.format("Image size mismatch: width=%d (%d), height=%d(%d)",
+							  width, tp.getTilesX(), height, tp.getTilesY()));
+					  return null;
+				}
+				ImageStack stack_sel = imp_sel.getStack();
+				float [] img_disparity = (float[]) stack_sel.getPixels(1); // first stack is disparity
+				int indx = 0;
+				for (int i = 0; i< disparity_array.length; i++){
+					for (int j = 0; j< disparity_array[0].length; j++){
+						double d = img_disparity[indx++];
+						if (!Double.isNaN(d)) { // treat NaN as 0
+							disparity_array[i][j] += d;
+						}
+					}
+				}
+		  }
 
 
 		  // temporary setting up tile task file (one integer per tile, bitmask
 		  // for testing defined for a window, later the tiles to process will be calculated based on previous passes results
 
 		  int [][]    tile_op = tp.setSameTileOp(clt_parameters,  clt_parameters.tile_task_op, debugLevel);
-		  double [][] disparity_array = tp.setSameDisparity(clt_parameters.disparity); // 0.0); // [tp.tilesY][tp.tilesX] - individual per-tile expected disparity
+//		  double [][] disparity_array = tp.setSameDisparity(clt_parameters.disparity); // 0.0); // [tp.tilesY][tp.tilesX] - individual per-tile expected disparity
 
 		  //TODO: Add array of default disparity - use for combining images in force disparity mode (no correlation), when disparity is predicted from other tiles
 
@@ -4821,8 +4851,8 @@ public class QuadCLT {
 							  clt_mismatch[3*n+0][ntile] /= clt_mismatch[3*n+2][ntile];
 							  clt_mismatch[3*n+1][ntile] /= clt_mismatch[3*n+2][ntile];
 							  if (n>0) {
-								  double w = disparity_map[ImageDtt.IMG_DIFF0_INDEX+0][ntile];
-								  if ( w <  clt_parameters.img_dtt.lma_diff_minw) {
+								  double w = disparity_map[ImageDtt.IMG_DIFF0_INDEX+0][ntile] - clt_parameters.img_dtt.lma_diff_minw;
+								  if ( w <  0.0) {
 									  w = 0.0;
 								  }
 								  clt_mismatch[3*n+2][ntile]  = w;
