@@ -708,6 +708,8 @@ private Panel panel1,
 
 			addButton("LWIR_TEST",                  panelClt_GPU, color_conf_process);
 			addButton("LWIR_ACQUIRE",               panelClt_GPU, color_conf_process);
+			addButton("IMU main",                   panelClt_GPU, color_conf_process);
+			addButton("IMU aux",                    panelClt_GPU, color_conf_process_aux);
 
 			plugInFrame.add(panelClt_GPU);
 		}
@@ -4956,6 +4958,12 @@ private Panel panel1,
 
         return;
 /* ======================================================================== */
+    } else if (label.equals("IMU main")) {
+    	editIMU(false);
+/* ======================================================================== */
+    } else if (label.equals("IMU aux")) {
+    	editIMU(true);
+/* ======================================================================== */
     } else if (label.equals("LIST extrinsics")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
@@ -5145,6 +5153,38 @@ private Panel panel1,
     }
   }
 /* ======================================================================== */
+	public boolean editIMU(boolean aux) {
+		if (aux) {
+	        if (QUAD_CLT_AUX == null){
+	        	if (EYESIS_CORRECTIONS_AUX == null) {
+	        		EYESIS_CORRECTIONS_AUX = new EyesisCorrections(SYNC_COMMAND.stopRequested,CORRECTION_PARAMETERS.getAux());
+	        	}
+	        	QUAD_CLT_AUX = new  QuadCLT (
+	        			QuadCLT.PREFIX_AUX,
+	        			PROPERTIES,
+	        			EYESIS_CORRECTIONS_AUX,
+	        			CORRECTION_PARAMETERS.getAux());
+	        	if (DEBUG_LEVEL > 0){
+	        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels for aux camera");
+	        	}
+	        }
+	        return QUAD_CLT_AUX.editExtrinsicCorr();
+		} else {
+	        if (QUAD_CLT == null){
+	        	QUAD_CLT = new  QuadCLT (
+	        			QuadCLT.PREFIX,
+	        			PROPERTIES,
+	        			EYESIS_CORRECTIONS,
+	        			CORRECTION_PARAMETERS);
+	        	if (DEBUG_LEVEL > 0){
+	        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+	        	}
+	        }
+	        return QUAD_CLT.editExtrinsicCorr();
+		}
+
+	}
+
 
 	public boolean mainToAux(boolean use_img) {
         if (QUAD_CLT == null){

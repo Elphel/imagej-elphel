@@ -41,11 +41,15 @@ public class GeometryCorrection {
 	public static String RIG_PREFIX =     "rig-";
 	static double SCENE_UNITS_SCALE = 0.001;  // meters from mm
 	static String SCENE_UNITS_NAME = "m";
-	static final String [] CORR_NAMES = {"tilt0","tilt1","tilt2","azimuth0","azimuth1","azimuth2","roll0","roll1","roll2","roll3","zoom0","zoom1","zoom2"};
+	static final String [] CORR_NAMES = {"tilt0","tilt1","tilt2","azimuth0","azimuth1","azimuth2","roll0","roll1","roll2","roll3","zoom0","zoom1","zoom2",
+			"omega_tilt", "omega_azimuth", "omega_roll"};
 
 	public int    debugLevel = 0;
+	public double line_time =  26.5E-6; // duration of sensor scan line (for ERS)
+
 	public int    pixelCorrectionWidth=2592;   // virtual camera center is at (pixelCorrectionWidth/2, pixelCorrectionHeight/2)
 	public int    pixelCorrectionHeight=1936;
+
 
 	public double focalLength; // =FOCAL_LENGTH;
 	public double pixelSize; // =  PIXEL_SIZE; //um
@@ -1019,12 +1023,13 @@ public class GeometryCorrection {
 
 
 	public class CorrVector{
-		static final int LENGTH =       13; //  10;
+		static final int LENGTH =       16; //  10;
 		static final int LENGTH_ANGLES =10;
 		static final int TILT_INDEX =    0;
 		static final int AZIMUTH_INDEX = 3;
 		static final int ROLL_INDEX =    6;
-		static final int ZOOM_INDEX =    10;
+		static final int ZOOM_INDEX =   10;
+		static final int IMU_INDEX =    13; // d_tilt/dt (rad/s), d_az/dt, d_roll/dt for ERS correction
 		static final double ROT_AZ_SGN = -1.0; // sign of first sin for azimuth rotation
 		static final double ROT_TL_SGN =  1.0; // sign of first sin for tilt rotation
 		static final double ROT_RL_SGN =  1.0; // sign of first sin for roll rotation
@@ -1180,16 +1185,18 @@ public class GeometryCorrection {
 		}
 
 		public CorrVector (// not used in lwir
-				double tilt0,    double tilt1,    double tilt2,
-				double azimuth0, double azimuth1, double azimuth2,
-				double roll0,    double roll1,    double roll2, double roll3,
-				double zoom0,   double zoom1,   double zoom2)
+				double tilt0,      double tilt1,         double tilt2,
+				double azimuth0,   double azimuth1,      double azimuth2,
+				double roll0,      double roll1,         double roll2, double roll3,
+				double zoom0,      double zoom1,         double zoom2,
+				double omega_tilt, double omega_azimuth, double omega_roll)
 		{
 			double [] v = {
-					tilt0,    tilt1,    tilt2,
-					azimuth0, azimuth1, azimuth2,
-					roll0,    roll1,    roll2, roll3,
-					zoom0,   zoom1,   zoom2};
+					tilt0,      tilt1,         tilt2,
+					azimuth0,   azimuth1,      azimuth2,
+					roll0,      roll1,         roll2, roll3,
+					zoom0,      zoom1,         zoom2,
+					omega_tilt, omega_azimuth, omega_roll};
 			this.vector = v;
 		}
 
@@ -1212,22 +1219,22 @@ public class GeometryCorrection {
 		 * @param azimuth for subcameras 0..2, radians, positive - right (subcamera 3 so sum == 0)
 		 * @param roll    for subcameras 0..3, radians, positive - CW looking to the target
 		 * @param zoom    for subcameras 0..2, difference from 1.0 . Positive - image is too small, needs to be zoomed in by (1.0 + scale)
+		 * @param imu     angular velocities for ERS correction
 		 */
-		public CorrVector (double [] tilt, double [] azimuth, double [] roll, double [] zoom)// not used in lwir
+		public CorrVector (double [] tilt, double [] azimuth, double [] roll, double [] zoom, double [] imu)// not used in lwir
 		{
 			double [] vector = {
 					tilt[0],    tilt[1],    tilt[2],
 					azimuth[0], azimuth[1], azimuth[2],
 					roll[0], roll[1], roll[2], roll[3],
-					zoom[0], zoom[1], zoom[2]};
+					zoom[0], zoom[1], zoom[2],
+					imu[0],  imu[1],  imu[2]};
 			this.vector = vector;
 		}
 
 		public CorrVector getCorrVector(double [] vector){// not used in lwir
 			return new CorrVector(vector);
 		}
-
-
 
 		public double [] toArray() // USED in lwir
 		{
@@ -1275,6 +1282,23 @@ public class GeometryCorrection {
 			else           return vector[10 + indx];
 		}
 
+		public double [] getIMU() {
+			double [] imu = {vector[IMU_INDEX + 0], vector[IMU_INDEX + 1], vector[IMU_INDEX + 2]};
+			return imu;
+		}
+
+		public double [] getIMU(int chn) {
+			// considering all sensors parallel, if needed process all angles
+			double [] imu = {vector[IMU_INDEX + 0], vector[IMU_INDEX + 1], vector[IMU_INDEX + 2]};
+			return imu;
+		}
+		public void setIMU(double [] imu) {
+			vector [IMU_INDEX + 0] = imu[0];
+			vector [IMU_INDEX + 1] = imu[1];
+			vector [IMU_INDEX + 2] = imu[2];
+		}
+
+
 		public double setZoomsFromF(double f0, double f1, double f2, double f3) { // USED in lwir
 			double f_avg = (f0+f1+f2+f3)/4;
 			vector[10] = (f0 - f_avg)/f_avg;
@@ -1301,7 +1325,6 @@ public class GeometryCorrection {
 			return h_avg;
 		}
 
-
 		// Include factory calibration rolls
 		public double [] getFullRolls() // USED in lwir
 		{
@@ -1327,7 +1350,9 @@ public class GeometryCorrection {
 			if (indx <0) return Double.NaN;
 			if (indx <    ROLL_INDEX) return vector[indx]* (inPix? (1000.0*focalLength     /pixelSize): 1.0); // tilt and azimuth
 			if (indx < LENGTH_ANGLES) return vector[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); //  rolls
-			if (indx <        LENGTH) return vector[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); //  zooms
+			if (indx <     IMU_INDEX) return vector[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); //  zooms
+			if (indx < (IMU_INDEX+2)) return vector[indx]* (inPix? (1000.0*focalLength     /pixelSize): 1.0); // omega_tilt and omega_azimuth
+			if (indx <        LENGTH) return vector[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); // omega_roll
 			return Double.NaN;
 		}
 		public double getExtrinsicSymParameterValue(int indx, boolean inPix) { // not used in lwir
@@ -1335,7 +1360,9 @@ public class GeometryCorrection {
 			if (indx <0) return Double.NaN;
 			if (indx <    ROLL_INDEX) return sym_vect[indx]* (inPix? (1000.0*focalLength     /pixelSize): 1.0); // tilt and azimuth
 			if (indx < LENGTH_ANGLES) return sym_vect[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); //  rolls
-			if (indx <        LENGTH) return sym_vect[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); //  zooms
+			if (indx <     IMU_INDEX) return sym_vect[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); //  zooms
+			if (indx < (IMU_INDEX+2)) return sym_vect[indx]* (inPix? (1000.0*focalLength     /pixelSize): 1.0); // omega_tilt and omega_azimuth
+			if (indx <        LENGTH) return sym_vect[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); // omega_roll
 			return Double.NaN;
 		}
 
@@ -1354,9 +1381,18 @@ public class GeometryCorrection {
 				v[i] = vector[i]*1000.0*distortionRadius/pixelSize; // rolls
 				sv[i] = sym_vect[i]*1000.0*distortionRadius/pixelSize; // combined rolls
 			}
-			for (int i = LENGTH_ANGLES; i < LENGTH; i++){
+			for (int i = LENGTH_ANGLES; i < IMU_INDEX; i++){
 				v[i] = vector[i]*1000.0*distortionRadius/pixelSize; // zooms
 				sv[i] = sym_vect[i]*1000.0*distortionRadius/pixelSize; // zooms
+			}
+
+			for (int i = IMU_INDEX; i < IMU_INDEX+2; i++){
+				v[i] =  vector[i]*  1000.0*focalLength/pixelSize;    // omega_tilt and omega_azimuth
+				sv[i] = sym_vect[i]*1000.0*focalLength/pixelSize;    // omega_tilt and omega_azimuth
+			}
+			for (int i = IMU_INDEX+2; i < LENGTH; i++){
+				v[i] = vector[i]*1000.0*distortionRadius/pixelSize;    // omega_roll
+				sv[i] = sym_vect[i]*1000.0*distortionRadius/pixelSize; // omega_rolls
 			}
 
 			s  = String.format("tilt    (up):    %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift of the image center)\n" , v[0], v[1], v[2], -(v[0] + v[1] + v[2]) );
@@ -1369,6 +1405,9 @@ public class GeometryCorrection {
 
 			s += String.format(" 0:%9.6fpx 1:%8.5fpx 2:%8.5fpx 3:%8.5fpx 4:%8.5fpx 5:%8.5fpx 6:%8.5fpx 7:%8.5fpx 8:%8.5fpx 9:%8.5fpx 10: %8.5fpx 11:%8.5fpx 12:%8.5fpx\n" ,
 					sv[0], sv[1], sv[2], sv[3], sv[4], sv[5], sv[6], sv[7], sv[8], sv[9], sv[10], sv[11], sv[12] );
+			s += String.format("omega_tilt = %9.4f pix/s, omega_azimuth = %9.4f pix/s, omega_roll = %9.4f pix/s\n",  sv[13],  sv[14],  sv[15]);
+
+
 			return s;
 		}
 
@@ -1382,9 +1421,12 @@ public class GeometryCorrection {
 				if (i < LENGTH_ANGLES) {
 					v[i] =  vector[i]*180/Math.PI;
 					sv[i] = sym_vect[i]*180/Math.PI;
-				} else {
+				} else if (i < IMU_INDEX){
 					v[i] =  vector[i];
 					sv[i] = sym_vect[i];
+				} else {
+					v[i] =  vector[i]*180/Math.PI;
+					sv[i] = sym_vect[i]*180/Math.PI;
 				}
 			}
 
@@ -1399,9 +1441,28 @@ public class GeometryCorrection {
 			s += String.format(" 0:%9.6f° 1:%8.5f° 2:%8.5f° 3:%8.5f° 4:%8.5f° 5:%8.5f° 6:%8.5f° 7:%8.5f° 8:%8.5f° 9:%8.5f° 10: %8.5f‰ 11:%8.5f‰ 12:%8.5f‰\n" ,
 					sv[0], sv[1], sv[2], sv[3], sv[4], sv[5], sv[6], sv[7], sv[8], sv[9], 1000*sv[10], 1000*sv[11], 1000*sv[12] );
 
+			s += String.format("omega_tilt = %9.4°/s, omega_azimuth = %9.4°/s, omega_roll = %9.4°/s\n",  sv[13],  sv[14],  sv[15]);
 			return s;
 		}
 
+
+		public boolean editIMU() {
+			double par_scales_tlaz = 1000.0*focalLength/pixelSize;
+			double par_scales_roll = 1000.0*distortionRadius/pixelSize;
+  			GenericJTabbedDialog gd = new GenericJTabbedDialog("Set camera angular velocities (in pix/sec)",800,300);
+			gd.addNumericField("Angular rotation azimuth  (positive - rotate camera  the right)", par_scales_tlaz * vector[IMU_INDEX + 0],  3,6,"pix/s",
+					"Horizonatal camera rotation (reasonable value ~1000 pix/s)");
+			gd.addNumericField("Angular rotation  tilt (positive - rotate camera up)",            par_scales_tlaz * vector[IMU_INDEX + 1],  3,6,"pix/s",
+					"Vertical camera rotation (reasonable value ~1000 pix/s)");
+			gd.addNumericField("Angular rotation  tilt (positive - clockwise)",                   par_scales_roll * vector[IMU_INDEX + 2],  3,6,"pix/s",
+					"Rollc amera rotation (reasonable value ~1000 pix/s)");
+  			gd.showDialog();
+			if (gd.wasCanceled()) return false;
+			vector[IMU_INDEX + 0] = gd.getNextNumber()/par_scales_tlaz;
+			vector[IMU_INDEX + 1] = gd.getNextNumber()/par_scales_tlaz;
+			vector[IMU_INDEX + 2] = gd.getNextNumber()/par_scales_roll;
+			return true;
+		}
 
 
 		// returns false if any component is NaN, in that case do not increment
@@ -1457,22 +1518,26 @@ public class GeometryCorrection {
 		public double [][] dSym_j_dTar_i() // USED in lwir
 		{
 			double [][] tar_to_sym = {
-					{-2.0, -2.0,  2.0, -2.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // t0
-					{-2.0,  0.0,  0.0, -2.0,  2.0, -2.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // t1
-					{ 0.0, -2.0,  2.0,  0.0,  2.0, -2.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // t2
+					{-2.0, -2.0,  2.0, -2.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // t0
+					{-2.0,  0.0,  0.0, -2.0,  2.0, -2.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // t1
+					{ 0.0, -2.0,  2.0,  0.0,  2.0, -2.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // t2
 
-					{ 2.0,  2.0,  2.0, -2.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // a0
-					{ 0.0,  2.0,  2.0,  0.0,  2.0,  2.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // a1
-					{ 2.0,  0.0,  0.0, -2.0,  2.0,  2.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // a2
+					{ 2.0,  2.0,  2.0, -2.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // a0
+					{ 0.0,  2.0,  2.0,  0.0,  2.0,  2.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // a1
+					{ 2.0,  0.0,  0.0, -2.0,  2.0,  2.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // a2
 
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.5,  0.0,  0.25,  0.0,  0.0,  0.0}, // roll 0
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.0,  0.5, -0.25,  0.0,  0.0,  0.0}, // roll 1
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.0, -0.5, -0.25,  0.0,  0.0,  0.0}, // roll 2
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25, -0.5,  0.0,  0.25,  0.0,  0.0,  0.0}, // roll 3
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.5,  0.0,  0.25,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // roll 0
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.0,  0.5, -0.25,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // roll 1
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.0, -0.5, -0.25,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // roll 2
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25, -0.5,  0.0,  0.25,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // roll 3
 
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,  -1.0, -1.0,  0.0}, // scale 0
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0, -1.0,  1.0}, // scale 1
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,  -1.0,  0.0,  1.0}  // scale 2
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,  -1.0, -1.0,  0.0,   0.0,  0.0,  0.0}, // scale 0
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0, -1.0,  1.0,   0.0,  0.0,  0.0}, // scale 1
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,  -1.0,  0.0,  1.0,   0.0,  0.0,  0.0},  // scale 2
+
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   1.0,  0.0,  0.0}, // omega_tilt
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  1.0,  0.0}, // omega_azimuth
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  1.0}  // omega_roll
 			};
 
 			return tar_to_sym;
@@ -1514,52 +1579,72 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 */
 			double [][] sym_to_tar=	{ // USED in lwir
 					// t0     t1     t2     a0     a1     a2     r0    r1    r2    r3    s0    s1    s2
-					{-0.125,-0.125, 0.125, 0.125,-0.125, 0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0 },  // sym0
-			        {-0.125, 0.125,-0.125, 0.125, 0.125,-0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0 },  // sym1
-			        { 0.125,-0.125, 0.125, 0.125, 0.125,-0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0 },  // sym2
-			        {-0.125,-0.125, 0.125,-0.125, 0.125,-0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0 },  // sym3
-			        {-0.125, 0.125, 0.125,-0.125, 0.125, 0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0 },  // sym4
-			        { 0.125,-0.125,-0.125,-0.125, 0.125, 0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0 },  // sym5
-			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 1.0,  1.0,  1.0,  1.0,  0.0,  0.0,  0.0 },  // sym6  = (r0+r1+r2+r3)/4
-			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 1.0,  0.0,  0.0, -1.0,  0.0,  0.0,  0.0 },  // sym7  = (r0-r3)/2
-			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  1.0, -1.0,  0.0,  0.0,  0.0,  0.0 },  // sym8  = (r1-r2)/2
-			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 1.0, -1.0, -1.0,  1.0,  0.0,  0.0,  0.0 },  // sym9  = (r0+r3-r1-r2)/4
-			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0, -1.0,  1.0, -0.5,  0.5, -0.5 },  // sym10 = -s0 - s2
-			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0, -1.0,  1.0, -0.5, -0.5,  0.5 },  // sym11 = -s0 - s1
-			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0, -1.0,  1.0, -0.5,  0.5,  0.5 }   // sym12 =  s1 + s2
+					{-0.125,-0.125, 0.125, 0.125,-0.125, 0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym0
+			        {-0.125, 0.125,-0.125, 0.125, 0.125,-0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym1
+			        { 0.125,-0.125, 0.125, 0.125, 0.125,-0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym2
+			        {-0.125,-0.125, 0.125,-0.125, 0.125,-0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym3
+			        {-0.125, 0.125, 0.125,-0.125, 0.125, 0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym4
+			        { 0.125,-0.125,-0.125,-0.125, 0.125, 0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym5
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 1.0,  1.0,  1.0,  1.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym6  = (r0+r1+r2+r3)/4
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 1.0,  0.0,  0.0, -1.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym7  = (r0-r3)/2
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  1.0, -1.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym8  = (r1-r2)/2
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 1.0, -1.0, -1.0,  1.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym9  = (r0+r3-r1-r2)/4
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0, -1.0,  1.0, -0.5,  0.5, -0.5,   0.0,  0.0,  0.0 },  // sym10 = -s0 - s2
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0, -1.0,  1.0, -0.5, -0.5,  0.5,   0.0,  0.0,  0.0 },  // sym11 = -s0 - s1
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0, -1.0,  1.0, -0.5,  0.5,  0.5,   0.0,  0.0,  0.0 },  // sym12 =  s1 + s2
+					{ 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   1.0,  0.0,  0.0},   // sym13 =  omega_tilt
+					{ 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  1.0,  0.0},   // sym14 =  omega_azimuth
+					{ 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  1.0}    // sym15 =  omega_roll
 			        };
 			return sym_to_tar;
 		}
 
 		public boolean [] getParMask( // USED in lwir
 				boolean use_disparity,
-//				boolean use_other_extr,
 				boolean use_aztilts,       // Adjust azimuths and tilts excluding disparity
 				boolean use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
-//				boolean disparity_only,
-//				boolean use_disparity,
 				boolean common_roll,
 				boolean corr_focalLength,
 		  		int     manual_par_sel)    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 
 		{
-//			common_roll &=      !disparity_only;
-//			corr_focalLength &= !disparity_only;
-//			use_disparity |=     disparity_only;
+			return getParMask( // USED in lwir
+					use_disparity,
+					use_aztilts,       // Adjust azimuths and tilts excluding disparity
+					use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
+					common_roll,
+					corr_focalLength,
+					false,            // boolean corr_imu,
+			  		manual_par_sel);
+		}
+
+		public boolean [] getParMask( // USED in lwir
+				boolean use_disparity,
+				boolean use_aztilts,       // Adjust azimuths and tilts excluding disparity
+				boolean use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
+				boolean common_roll,
+				boolean corr_focalLength,
+				boolean corr_imu,
+		  		int     manual_par_sel)    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
+
+		{
 			boolean [] par_mask = {
 					use_disparity,    //sym0
-					use_aztilts,  //sym1
-					use_aztilts,  //sym2
-					use_aztilts,  //sym3
-					use_aztilts,  //sym4
-					use_aztilts,  //sym5
+					use_aztilts,      //sym1
+					use_aztilts,      //sym2
+					use_aztilts,      //sym3
+					use_aztilts,      //sym4
+					use_aztilts,      //sym5
 					common_roll,      //sym6 // common roll
-					use_diff_rolls,  //sym7
-					use_diff_rolls,  //sym8
-					use_diff_rolls,  //sym9
+					use_diff_rolls,   //sym7
+					use_diff_rolls,   //sym8
+					use_diff_rolls,   //sym9
 					corr_focalLength, //sym10
 					corr_focalLength, //sym11
-					corr_focalLength  //sym12
+					corr_focalLength, //sym12
+					corr_imu,         //sym13
+					corr_imu,         //sym14
+					corr_imu          //sym15
 			};
 			if (manual_par_sel != 0) { // not used in lwir
 				for (int i = 0; i < par_mask.length; i++) {
@@ -1582,20 +1667,22 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		 *
 		 * Result is transposed Jacobian (rows (9 , 10,12 or 13) - parameters, columns - port coordinate components (8). Parameters
 		 * here are symmetrical, 0 is disparity-related (all to the center), remaining 9 preserve disparity and
-		 * are only responsible for the "lazy eye" (last 4  are were roll, now differential zooms are added):
+		 * are only responsible for the "lazy eye" (last 4  were roll, now differential zooms are added):
 		 *
 		 *     |↘ ↙|     |↘ ↗|     |↗ ↘|     |↙ ↘|      |↙ ↗|     |↖  ↘|
 		 *  0: |↗ ↖|  1: |↙ ↖|  2: |↖ ↙|  3: |↖ ↗|  4:  |↗ ↙|  5: |↘  ↖|
 		 *
 		 * @param port_coord_deriv result of getPortsCoordinatesAndDerivatives: first index: port0x, port0y... port3y,
 		 *                         second index - parameters [tilt0, tilt1, ..., roll3]
-		 * @param par_mask array of 10 elements - which parameters to use (normally all true or all but first
+		 * @param par_mask array of 10->13->16 elements - which parameters to use (normally all true or all but first
+		 *
+		 *  UPDATE
 		 * @return
 		 */
 
 		public double [][] getJtPartial( // USED in lwir
 				double [][] port_coord_deriv,
-				boolean [] par_mask)
+				boolean []  par_mask)
 		{
 			int num_pars = 0;
 			for (int npar = 0; npar < LENGTH; npar++) if ((par_mask==null) || par_mask[npar]) {
@@ -2360,7 +2447,12 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
  * 3) apply rotations and zoom
  * 4) re-apply distortion
  * 5) return port center X and Y
+ * line_time
  */
+		if ((disp_dist == null) && (pXYderiv != null)) {
+			disp_dist = new double [numSensors][4];
+		}
+
 		double [][] rXY = getRXY(use_rig_offsets); // may include rig offsets
 
 		double [][] pXY = new double [numSensors][2];
@@ -2434,8 +2526,8 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			double pXid = pXci * rD2rND;
 			double pYid = pYci * rD2rND;
 
-			double pXid_dbg = pXci_dbg * rD2rND_dbg; // Should be the same as pXcd
-			double pYid_dbg = pYci_dbg * rD2rND_dbg; //
+///			double pXid_dbg = pXci_dbg * rD2rND_dbg; // Should be the same as pXcd
+///			double pYid_dbg = pYci_dbg * rD2rND_dbg; //
 
 
 			pXY[i][0] =  pXid + this.pXY0[i][0];
@@ -2443,14 +2535,37 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 
 			// used when calculating derivatives, TODO: combine calculations !
 			double drD2rND_dri = 0.0;
+			Matrix drvi_daz = null;
+			Matrix drvi_dtl = null;
+			Matrix drvi_drl = null;
+			double dpXci_dazimuth = 0.0;
+			double dpYci_dazimuth = 0.0;
+			double dpXci_dtilt =    0.0;
+			double dpYci_dtilt =    0.0;
+			double dpXci_droll =    0.0;
+			double dpYci_droll =    0.0;
+
 			if ((disp_dist != null) || (pXYderiv != null)) {
 				rri = 1.0;
 				for (int j = 0; j < rad_coeff.length; j++){
 					drD2rND_dri += rad_coeff[j] * (j+1) * rri;
 					rri *= ri;
 				}
+				if (deriv_rots != null) {
+					// needed for derivatives and IMU
+					drvi_daz = deriv_rots[i][0].times(vi);
+					drvi_dtl = deriv_rots[i][1].times(vi);
+					drvi_drl = deriv_rots[i][2].times(vi);
+					dpXci_dazimuth = drvi_daz.get(0, 0) * norm_z - pXci * drvi_daz.get(2, 0) / rvi.get(2, 0);
+					dpYci_dazimuth = drvi_daz.get(1, 0) * norm_z - pYci * drvi_daz.get(2, 0) / rvi.get(2, 0);
+					dpXci_dtilt =    drvi_dtl.get(0, 0) * norm_z - pXci * drvi_dtl.get(2, 0) / rvi.get(2, 0);
+					dpYci_dtilt =    drvi_dtl.get(1, 0) * norm_z - pYci * drvi_dtl.get(2, 0) / rvi.get(2, 0);
+					dpXci_droll =    drvi_drl.get(0, 0) * norm_z - pXci * drvi_drl.get(2, 0) / rvi.get(2, 0);
+					dpYci_droll =    drvi_drl.get(1, 0) * norm_z - pYci * drvi_drl.get(2, 0) / rvi.get(2, 0);
+				}
 			}
-
+			double delta_t = 0.0;
+			double [] imu =  null;
 			if (disp_dist != null) {
 				disp_dist[i] =   new double [4]; // dx/d_disp, dx_d_ccw_disp
 				// Not clear - what should be in Z direction before rotation here?
@@ -2458,11 +2573,6 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 						{-rXY[i][0],  rXY[i][1], 0.0},
 						{-rXY[i][1], -rXY[i][0], 0.0},
 						{ 0.0,                     0.0,                    0.0}}; // what is last element???
-/*
-				{1.0,  0.0, 0.0},
-				{0.0,  1.0, 0.0},
-				{0.0,  0.0, 0.0}}; // what is last element???
-*/
 				Matrix dd0 = new Matrix(add0);
 				Matrix dd1 = rots[i].times(dd0).getMatrix(0, 1,0,1).times(norm_z); // get top left 2x2 sub-matrix
 ////				Matrix dd1 = dd0.getMatrix(0, 1,0,1); // get top left 2x2 sub-matrix
@@ -2485,9 +2595,17 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 
 				disp_dist[i][0] =   dd2.get(0, 0);
 				disp_dist[i][1] =   dd2.get(0, 1);
-				disp_dist[i][2] =   dd2.get(1, 0);
+				disp_dist[i][2] =   dd2.get(1, 0); // d_py/d_disp
 				disp_dist[i][3] =   dd2.get(1, 1);
 
+				imu =  extrinsic_corr.getIMU(i); // currently it is common for all channels
+				delta_t = dd2.get(1, 0) * disparity * line_time; // positive for top cameras, negative - for bottom
+				double ers_Xci = delta_t* (dpXci_dtilt * imu[0] + dpXci_dazimuth * imu[1]  + dpXci_droll * imu[2]);
+				double ers_Yci = delta_t* (dpYci_dtilt * imu[0] + dpYci_dazimuth * imu[1]  + dpYci_droll * imu[2]);
+				pXY[i][0] +=  ers_Xci * rD2rND; // added correction to pixel X
+				pXY[i][1] +=  ers_Yci * rD2rND; // added correction to pixel Y
+
+// TODO: calculate derivatives of pX, pY by 3 imu omegas
 			}
 
 
@@ -2495,19 +2613,19 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			if (pXYderiv != null) {
 				pXYderiv[2 * i] =   new double [CorrVector.LENGTH];
 				pXYderiv[2 * i+1] = new double [CorrVector.LENGTH];
-				Matrix drvi_daz = deriv_rots[i][0].times(vi);
-				Matrix drvi_dtl = deriv_rots[i][1].times(vi);
-				Matrix drvi_drl = deriv_rots[i][2].times(vi);
+///				Matrix drvi_daz = deriv_rots[i][0].times(vi);
+///				Matrix drvi_dtl = deriv_rots[i][1].times(vi);
+///				Matrix drvi_drl = deriv_rots[i][2].times(vi);
 				Matrix drvi_dzm = deriv_rots[i][3].times(vi);
 
-				double dpXci_dazimuth = drvi_daz.get(0, 0) * norm_z - pXci * drvi_daz.get(2, 0) / rvi.get(2, 0);
-				double dpYci_dazimuth = drvi_daz.get(1, 0) * norm_z - pYci * drvi_daz.get(2, 0) / rvi.get(2, 0);
+///				double dpXci_dazimuth = drvi_daz.get(0, 0) * norm_z - pXci * drvi_daz.get(2, 0) / rvi.get(2, 0);
+///				double dpYci_dazimuth = drvi_daz.get(1, 0) * norm_z - pYci * drvi_daz.get(2, 0) / rvi.get(2, 0);
 
-				double dpXci_dtilt =    drvi_dtl.get(0, 0) * norm_z - pXci * drvi_dtl.get(2, 0) / rvi.get(2, 0);
-				double dpYci_dtilt =    drvi_dtl.get(1, 0) * norm_z - pYci * drvi_dtl.get(2, 0) / rvi.get(2, 0);
+///				double dpXci_dtilt =    drvi_dtl.get(0, 0) * norm_z - pXci * drvi_dtl.get(2, 0) / rvi.get(2, 0);
+///				double dpYci_dtilt =    drvi_dtl.get(1, 0) * norm_z - pYci * drvi_dtl.get(2, 0) / rvi.get(2, 0);
 
-				double dpXci_droll =    drvi_drl.get(0, 0) * norm_z - pXci * drvi_drl.get(2, 0) / rvi.get(2, 0);
-				double dpYci_droll =    drvi_drl.get(1, 0) * norm_z - pYci * drvi_drl.get(2, 0) / rvi.get(2, 0);
+///				double dpXci_droll =    drvi_drl.get(0, 0) * norm_z - pXci * drvi_drl.get(2, 0) / rvi.get(2, 0);
+///				double dpYci_droll =    drvi_drl.get(1, 0) * norm_z - pYci * drvi_drl.get(2, 0) / rvi.get(2, 0);
 
 				double dpXci_dzoom =    drvi_dzm.get(0, 0) * norm_z - pXci * drvi_dzm.get(2, 0) / rvi.get(2, 0);
 				double dpYci_dzoom =    drvi_dzm.get(1, 0) * norm_z - pYci * drvi_dzm.get(2, 0) / rvi.get(2, 0);
@@ -2545,6 +2663,17 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				double dpXid_dzoom =    dpXci_dzoom    * rD2rND + pXci * drD2rND_dzoom; // new second term
 				double dpYid_dzoom =    dpYci_dzoom    * rD2rND + pYci * drD2rND_dzoom; // new second term
 
+				// assuming drD2rND_imu* is zero (rD2rND does not depend on imu_*
+				if (imu != null) {
+//  dpX_d = delta_t * rD2rND * (dpXci_dtilt * imu[0] + dpXci_dazimuth * imu[1]  + dpXci_droll * imu[2]);
+//	dpX_d = delta_t * rD2rND * (dpYci_dtilt * imu[0] + dpYci_dazimuth * imu[1]  + dpYci_droll * imu[2]);
+					pXYderiv[2 * i + 0][CorrVector.IMU_INDEX+0] = delta_t * rD2rND * dpXci_dtilt *    imu[0];
+					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+0] = delta_t * rD2rND * dpYci_dtilt *    imu[0];
+					pXYderiv[2 * i + 0][CorrVector.IMU_INDEX+1] = delta_t * rD2rND * dpXci_dazimuth * imu[0];
+					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+1] = delta_t * rD2rND * dpYci_dazimuth * imu[0];
+					pXYderiv[2 * i + 0][CorrVector.IMU_INDEX+2] = delta_t * rD2rND * dpYci_droll *    imu[0];
+					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+2] = delta_t * rD2rND * dpYci_droll *    imu[0];
+				}
 
 				// verify that d/dsym are well, symmetrical
 				if (i < (numSensors - 1)){

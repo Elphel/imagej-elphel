@@ -1519,6 +1519,12 @@ public class Corr2dLMA {
 		return stats;
 	}
 
+	public double [] getStats(int num_good_tiles){
+		double [] stats = {total_weight/num_good_tiles, 1.0*total_tiles/num_good_tiles, last_rms[0]};
+		return stats;
+	}
+
+//
 
 	public void getDdNd(double [][] ddnd){ // this.all_pars should be current
 		if (ddnd != null) {

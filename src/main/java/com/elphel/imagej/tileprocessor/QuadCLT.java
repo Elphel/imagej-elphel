@@ -4723,7 +4723,8 @@ public class QuadCLT {
 			  z_correction +=clt_parameters.z_corr_map.get(name);// not used in lwir
 		  }
 		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
-		  double [][][][][][] clt_data = image_dtt.clt_aberrations_quad_corr_min(
+//		  double [][][][][][] clt_data = image_dtt.clt_aberrations_quad_corr_min(
+		  double [][] lazy_eye_data = image_dtt.cltMeasureLazyEye(
 				  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 //				  1,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 				  tile_op,                      // per-tile operation bit codes
@@ -4780,6 +4781,54 @@ public class QuadCLT {
 				  //				  (clt_parameters.dbg_mode & 256) != 0, // transpose convolve
 				  threadsMax,
 				  debugLevel);
+
+		  if (lazy_eye_data != null) {
+			  int ns = 0;
+			  for (int n = 0; n < lazy_eye_data.length; n++) {
+				  if (lazy_eye_data[n] != null) {
+					  ns = lazy_eye_data[n].length;
+					  break;
+				  }
+			  }
+			  if (ns > 0) {
+				  String [] titles = new String [ns];
+				  titles [0] = "disparity";
+				  titles [1] = "strength";
+				  for (int i = 0; i < (ns - 2)/2; i++) {
+					  titles [2*i + 2] = "dx-"+i;
+					  titles [2*i + 3] = "dy-"+i;
+				  }
+				  int clustersX= (tilesX + clt_parameters.tileStep - 1) / clt_parameters.tileStep;
+				  int clustersY= (tilesY + clt_parameters.tileStep - 1) / clt_parameters.tileStep;
+				  double [][] dbg_cluster = new double [ns][clustersY * clustersX];
+				  for (int n = 0; n < lazy_eye_data.length; n++) {
+					  if ((lazy_eye_data[n] != null) && (lazy_eye_data[n][1] >= clt_parameters.img_dtt.lma_diff_minw)) {
+						  dbg_cluster[0][n] = lazy_eye_data[n][0]; // disparity
+						  dbg_cluster[1][n] = lazy_eye_data[n][1] - clt_parameters.img_dtt.lma_diff_minw; // strength
+						  for (int i = 0; i < (ns - 2)/2; i++) {
+							  dbg_cluster[2 * i + 2][n] = lazy_eye_data[n][2 * i + 2]; // x
+							  dbg_cluster[2 * i + 3][n] = lazy_eye_data[n][2 * i + 3]; // y
+						  }
+					  } else {
+						  dbg_cluster[0][n] = Double.NaN;
+						  dbg_cluster[1][n] = 0.0;
+						  for (int i = 0; i < (ns - 2)/2; i++) {
+							  dbg_cluster[2 * i + 2][n] = Double.NaN; // x
+							  dbg_cluster[2 * i + 3][n] = Double.NaN; // y
+						  }
+					  }
+				  }
+				  //clt_parameters.img_dtt.lma_diff_minw
+				  sdfa_instance.showArrays(
+						  dbg_cluster,
+						  clustersX,
+						  clustersY,
+						  true,
+						  name+sAux()+"-CLT_MISMATCH-D"+clt_parameters.disparity+"_"+clt_parameters.tileStep+"x"+clt_parameters.tileStep,
+						  titles);
+			  }
+		  }
+
 		  if (disparity_map != null){
 			  if (!batch_mode && clt_parameters.show_map &&  (debugLevel > -2)){
 				  sdfa_instance.showArrays(
@@ -5434,6 +5483,18 @@ public class QuadCLT {
 			  System.out.println(geometryCorrection.getCorrVector().toString());
 		  }
 	  }
+
+	  public boolean editExtrinsicCorr() // not used in lwir
+	  {
+		  if (geometryCorrection == null){
+			  System.out.println("are not set, will be:");
+			  return new GeometryCorrection(this.extrinsic_vect).getCorrVector().editIMU();
+		  } else {
+			  return geometryCorrection.getCorrVector().editIMU();
+		  }
+	  }
+
+
 
 	  public boolean editRig() // not used in lwir
 	  {

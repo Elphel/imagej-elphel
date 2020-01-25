@@ -1513,7 +1513,9 @@ public class ImageDtt {
 	}
 
 // removing macro and FPGA modes
-	public double [][][][][][] clt_aberrations_quad_corr_min( // USED in LWIR
+//	public double [][][][][][] clt_aberrations_quad_corr_min( // USED in LWIR
+//	public double [][] clt_aberrations_quad_corr_min( // returns d,s lazy eye parameters
+	public double [][] cltMeasureLazyEye ( // returns d,s lazy eye parameters
 			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 //			final int                 macro_scale,     // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
@@ -1594,6 +1596,8 @@ public class ImageDtt {
 
 		final int clustersX= (tilesX + tileStep - 1) / tileStep;
 		final int clustersY= (tilesY + tileStep - 1) / tileStep;
+		final double [][] lazy_eye_data = new double [clustersY*clustersX][];
+
 //		final int nTilesInChn=tilesX*tilesY;
 		final int nClustersInChn=clustersX * clustersY;
 		final int clustSize = tileStep*tileStep;
@@ -1754,12 +1758,16 @@ public class ImageDtt {
 			sdfa_instance.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
 		}
 		Matrix [] corr_rots_aux = null;
+		Matrix [][] deriv_rots_aux = null;
 		if (geometryCorrection_main != null) {
 			corr_rots_aux = geometryCorrection.getCorrVector().getRotMatrices(geometryCorrection.getRotMatrix(true));
+			deriv_rots_aux = geometryCorrection.getCorrVector().getRotDeriveMatrices();
 		}
 
 		final boolean use_main = corr_rots_aux != null;
 		final Matrix [] corr_rots = use_main ? corr_rots_aux : geometryCorrection.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices
+		final Matrix [][] deriv_rots = use_main ? deriv_rots_aux : geometryCorrection.getCorrVector().getRotDeriveMatrices();
+
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				@Override
@@ -1806,6 +1814,73 @@ public class ImageDtt {
 
 
 						int clust_lma_debug_level =  debugCluster? imgdtt_params.lma_debug_level : -5;
+// filter only tiles with similar disparity to enable lazy eye for the ERS.
+						int num_good_tiles = 0;
+						while (true) {
+							int mnTx = -1, mnTy = -1, mxTx = -1, mxTy = -1;
+							double mn = Double.NaN;
+							double mx = Double.NaN;
+							double avg= 0.0;
+							for (int cTileY = 0; cTileY < tileStep; cTileY++) {
+								tileY = clustY * tileStep + cTileY ;
+								if (tileY < tilesY) {
+									for (int cTileX = 0; cTileX < tileStep; cTileX++) {
+										tileX = clustX * tileStep + cTileX ;
+										if ((tileX < tilesX) && (tile_op[tileY][tileX] != 0)) {
+//											cTile = cTileY * tileStep + cTileX;
+											double d = disparity_array [tileY][tileX];
+											avg += d;
+											if (!(d <= mx)) {
+												mx = d;
+												mxTx = tileX;
+												mxTy = tileY;
+											}
+											if (!(d >= mn)) {
+												mn = d;
+												mnTx = tileX;
+												mnTy = tileY;
+											}
+											num_good_tiles++;
+										}
+									}
+								}
+							}
+							if (num_good_tiles ==0) {
+								break;
+							}
+							if ((mx-mn) <= imgdtt_params.lma_disp_range ) {
+								break;
+							}
+							avg /= num_good_tiles;
+							if ((mx-avg) > (avg-mn)) {
+								tile_op[mxTy][mxTx] = 0;
+							} else {
+								tile_op[mnTy][mnTx] = 0;
+							}
+							//imgdtt_params.lma_disp_range
+						}
+						if (num_good_tiles == 0) {
+							// fill out empty ...
+							for (int cTileY = 0; cTileY < tileStep; cTileY++) {
+								tileY = clustY * tileStep + cTileY ;
+								if (tileY < tilesY) {
+									for (int cTileX = 0; cTileX < tileStep; cTileX++) {
+										tileX = clustX * tileStep + cTileX ;
+										if (tileX < tilesX) {
+											cTile = cTileY * tileStep + cTileX;
+											tIndex =    tileY * tilesX + tileX;
+											//											int nTile = tileY * tilesX + tileX; // how is it different from tIndex?
+											for (int cam = 0; cam < quad; cam++) {
+												clt_mismatch[3*cam + 0][tIndex] = Double.NaN;
+												clt_mismatch[3*cam + 1][tIndex] = Double.NaN;
+											}
+										}
+									}
+								}
+							}
+							continue;
+						}
+
 
 
 						for (int cTileY = 0; cTileY < tileStep; cTileY++) {
@@ -1823,7 +1898,10 @@ public class ImageDtt {
 
 										tIndex = tileY * tilesX + tileX;
 										int nTile = tileY * tilesX + tileX; // how is it different from tIndex?
-										if (tile_op[tileY][tileX] == 0) continue; // nothing to do for this tile
+										if (tile_op[tileY][tileX] == 0) {
+											disp_str[cTile] = null;
+											continue; // nothing to do for this tile
+										}
 
 										boolean debugTile =(tileX == debug_tileX) && (tileY == debug_tileY);
 
@@ -1840,13 +1918,16 @@ public class ImageDtt {
 											System.out.println("Bug with disparity_array !!!");
 											continue; // nothing to do for this tile
 										}
+										if ((globalDebugLevel > -2) && debugTile) {
+											System.out.println ("Calculating offsets");
+										}
 
 										if (use_main) { // this is AUX camera that uses main coordinates  // not used in lwir
 											centersXY[cTile] =  geometryCorrection.getPortsCoordinatesAndDerivatives(
 													geometryCorrection_main, //			GeometryCorrection gc_main,
 													true,            // boolean use_rig_offsets,
 													corr_rots,       // Matrix []   rots,
-													null,            //  Matrix [][] deriv_rots,
+													deriv_rots,      //  Matrix [][] deriv_rots,
 													null,            // double [][] pXYderiv, // if not null, should be double[8][]
 													disp_dist[cTile],       // used to correct 3D correlations
 													centerX,
@@ -1859,7 +1940,7 @@ public class ImageDtt {
 													geometryCorrection, //			GeometryCorrection gc_main,
 													false,           // boolean use_rig_offsets,
 													corr_rots,       // Matrix []   rots,
-													null,            //  Matrix [][] deriv_rots,
+													deriv_rots,      //  Matrix [][] deriv_rots,
 													null,            // double [][] pXYderiv, // if not null, should be double[8][]
 													disp_dist[cTile],       // used to correct 3D correlations
 													centerX,
@@ -1867,7 +1948,7 @@ public class ImageDtt {
 													disparity_array[tileY][tileX] + disparity_corr);
 										}
 
-										if (((globalDebugLevel > 0) || debug_distort) || debugTile) {
+										if (((globalDebugLevel > 0) || debug_distort) || (debugTile && (globalDebugLevel > -2))) {
 											for (int i = 0; i < quad; i++) {
 												System.out.println("clt_aberrations_quad_corr():  tileX="+tileX+", tileY="+tileY+
 														" centerX="+centerX+" centerY="+centerY+" disparity="+disparity_array[tileY][tileX]+
@@ -2165,7 +2246,51 @@ public class ImageDtt {
 									clustY );                      // int                 tileY
 							if (lma2 != null) {
 								double [][] ddnd = lma2.getDdNd();
-								double [] stats  = lma2.getStats();
+								double [] stats  = lma2.getStats(num_good_tiles);
+								double [][] lma_ds = lma2.lmaDisparityStrength(
+					    				imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
+					    				imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
+					    				imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+					    				imgdtt_params.lma_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
+					    				1.0, // imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
+					    				0.0); // imgdtt_params.lma_str_offset);  // convert lma-generated strength to match previous ones - add to result
+								double [][] extra_stats = lma2.getTileStats();
+								//		final double [][] lazy_eye_data = new double [clustersY*clustersX][];
+								// calculate average disparity per cluster using a sum of the disparity_array and the result of the LMA
+								double sum_wd = 0, sum_w = 0;
+								for (int cTileY = 0; cTileY < tileStep; cTileY++) {
+									tileY = clustY * tileStep + cTileY ;
+									if (tileY < tilesY) {
+										for (int cTileX = 0; cTileX < tileStep; cTileX++) {
+											tileX = clustX * tileStep + cTileX ;
+											if (tileX < tilesX) {
+												cTile = cTileY * tileStep + cTileX;
+												tIndex =    tileY * tilesX + tileX;
+												if ((lma_ds[cTile] != null) && (lma_ds[cTile][1]> 0.0)) {
+													double d = lma_ds[cTile][0] + disparity_array[tileY][tileX] + disparity_corr;
+													double w = lma_ds[cTile][1];
+													sum_wd += w * d;
+													sum_w += w;
+												}
+											}
+										}
+									}
+								}
+								if (sum_w > 0.0) {
+									lazy_eye_data[nCluster] = new double [2+ 2 * ddnd.length];
+									lazy_eye_data[nCluster][0] = sum_wd / sum_w;
+									lazy_eye_data[nCluster][1] = stats[0];
+									for (int cam = 0; cam < ddnd.length; cam++) {
+										if (ddnd[cam] != null) { //convert to x,y from dd/nd
+											lazy_eye_data[nCluster][2 * cam + 2] = ddnd[cam][0] * rXY[cam][0] - ddnd[cam][1] * rXY[cam][1];
+											lazy_eye_data[nCluster][2 * cam + 3] = ddnd[cam][0] * rXY[cam][1] + ddnd[cam][1] * rXY[cam][0];
+										} else {
+											lazy_eye_data[nCluster][2 * cam + 2] = Double.NaN;
+											lazy_eye_data[nCluster][2 * cam + 3] = 0.0;
+										}
+									}
+								}
+
 								double [][] lma2_ds = lma2.lmaDisparityStrength(
 					    				imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 					    				imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
@@ -2173,7 +2298,7 @@ public class ImageDtt {
 					    				imgdtt_params.lma_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
 					    				imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
 					    				imgdtt_params.lma_str_offset);  // convert lma-generated strength to match previous ones - add to result
-								double [][] extra_stats = lma2.getTileStats();
+
 								for (int cTileY = 0; cTileY < tileStep; cTileY++) {
 									tileY = clustY * tileStep + cTileY ;
 									if (tileY < tilesY) {
@@ -2204,7 +2329,8 @@ public class ImageDtt {
 													if ((lma2_ds != null) && ((lma2_ds[cTile] != null))) {
 														disparity_map[DISPARITY_INDEX_VERT][tIndex] =          lma2_ds[cTile][0];
 														disparity_map[DISPARITY_INDEX_VERT_STRENGTH][tIndex] = lma2_ds[cTile][1];
-														clt_mismatch[3*0 + 2][tIndex] =                        lma2_ds[cTile][1];
+														clt_mismatch[3*0 + 2][tIndex] =
+																(lma2_ds[cTile][1] - imgdtt_params.lma_str_offset)/imgdtt_params.lma_str_scale - imgdtt_params.lma_min_strength;
 													}
 												}
 												if (extra_stats != null) {
@@ -2247,7 +2373,7 @@ public class ImageDtt {
 			(new showDoubleFloatArrays()).showArrays(dbg_ports_coords,  tilesX, tilesY, true, "ports_coordinates", dbg_titles);
 		}
 */
-		return clt_data;
+		return lazy_eye_data; // clt_data;
 	}
 
 	public double [][][][][][] clt_aberrations_quad_corr_new( // USED in LWIR
