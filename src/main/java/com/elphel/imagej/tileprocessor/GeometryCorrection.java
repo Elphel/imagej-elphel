@@ -41,8 +41,13 @@ public class GeometryCorrection {
 	public static String RIG_PREFIX =     "rig-";
 	static double SCENE_UNITS_SCALE = 0.001;  // meters from mm
 	static String SCENE_UNITS_NAME = "m";
-	static final String [] CORR_NAMES = {"tilt0","tilt1","tilt2","azimuth0","azimuth1","azimuth2","roll0","roll1","roll2","roll3","zoom0","zoom1","zoom2",
-			"omega_tilt", "omega_azimuth", "omega_roll"};
+	static final String [] CORR_NAMES = {
+			"tilt0","tilt1","tilt2",
+			"azimuth0","azimuth1","azimuth2",
+			"roll0","roll1","roll2","roll3",
+			"zoom0","zoom1","zoom2",
+			"omega_tilt", "omega_azimuth", "omega_roll",
+			"velocity_x", "velocity_y", "velocity_z"};
 
 	public int    debugLevel = 0;
 	public double line_time =  26.5E-6; // duration of sensor scan line (for ERS)
@@ -90,6 +95,11 @@ public class GeometryCorrection {
 	private double    stepR=0.0001; // 0.001;
 	private double    maxR=2.0; // calculate up to this*distortionRadius
 
+	private Matrix m_balance_xy = null; // [2*numSensors][2*numSensors] 8x8 matrix to make XY ports correction to have average == 0
+	private Matrix m_balance_dd = null; // [2*numSensors+1)][2*numSensors] 9x8 matrix to extract disparity from dd
+
+
+
 	public  CorrVector extrinsic_corr;
 
 	public RigOffset   rigOffset =    null;
@@ -108,6 +118,7 @@ public class GeometryCorrection {
 	public GeometryCorrection(double [] extrinsic_corr)
 	{
 		this.extrinsic_corr = 	new CorrVector(extrinsic_corr);
+		initPrePostMatrices(true); //false); //
 	}
 
 	public boolean isInitialized() {
@@ -116,6 +127,60 @@ public class GeometryCorrection {
 
 	public double [][] getRXY(boolean use_rig){
 		return (use_rig && (rigOffset != null)) ? rigOffset.rXY_aux: rXY ;
+	}
+	public void initPrePostMatrices(boolean invert) {
+		double [][] a_balance_xy = new double [2*numSensors][2*numSensors];
+		double [][] a_balance_dd = new double [2*numSensors+1][2*numSensors];
+		double wsame =   (numSensors - 1.0)/numSensors;
+		double wother =  1.0/numSensors;
+
+		double wsamei =   invert ? -wsame :  wsame;
+		double wotheri =  invert ? -wother : wother;
+
+
+		for (int i = 0; i < numSensors; i++) {
+			for (int j = 0; j < numSensors; j++) {
+				a_balance_xy[2*i]  [2*j] =   (i == j)? wsamei: -wotheri;
+				a_balance_xy[2*i+1][2*j+1] = (i == j)? wsamei: -wotheri;
+			}
+		}
+		m_balance_xy = new Matrix(a_balance_xy);
+		for (int i = 0; i < numSensors; i++) {
+			a_balance_dd[0]    [i] = wother;
+			for (int j = 0; j < numSensors; j++){
+				a_balance_dd[1 + i][j] = (j == i)? wsame: -wother;
+			}
+			a_balance_dd[numSensors + 1 + i][numSensors  + i] = 1.0;
+		}
+		m_balance_dd = new Matrix(a_balance_dd);
+	}
+
+	public Matrix [] getRXYMatrix(boolean use_rig) {
+		double [][] rXY = getRXY(use_rig);
+		Matrix []   mrXY = new Matrix[rXY.length];
+		for (int c = 0; c < rXY.length; c++) {
+			double [][] am = {{rXY[c][0], - rXY[c][1]},{rXY[c][1], rXY[c][0]}};
+			mrXY[c] = new Matrix(am);
+		}
+		return mrXY;
+	}
+
+	/**
+	 * Matrix to convert non-distorted {x0,y0,x1,y1,x2,y2,x3,y3} to {disp, dd0, dd1, dd2, dd3, nd0, nd1, nd2, nd3}
+	 * Used for both values and derivatives by attitude angles, etc.
+	 * @param use_rig
+	 * @return
+	 */
+	public Matrix xyToDdnd(boolean use_rig) {
+		Matrix xyddnd = new Matrix(2*numSensors, 2*numSensors);
+		Matrix []   mrXY = getRXYMatrix(use_rig);
+		int [] rows = new int[2];
+		for (int c = 0; c < numSensors; c++) {
+			rows[0] = c;
+			rows[1] = c + numSensors;
+			xyddnd.setMatrix(rows, 2*c, 2*c+1, mrXY[c].inverse());
+		}
+		return m_balance_dd.times(xyddnd).times(m_balance_xy);
 	}
 
 //	public double [] getAuxOffset(boolean use_rig){
@@ -248,18 +313,42 @@ public class GeometryCorrection {
 		extrinsic_corr = new CorrVector();
 	}
 
-
-	public boolean [] getParMask(
+	public boolean [] getParMask( // for compatibility with old
 //			boolean disparity_only,
 //			boolean use_disparity,
 			boolean use_disparity,
 //			boolean use_other_extr,
 			boolean use_aztilts,       // Adjust azimuths and tilts excluding disparity
 			boolean use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
-
-
 			boolean common_roll,
 			boolean corr_focalLength,
+//			boolean ers_rot,           // Enable ERS correction of the camera rotation
+//			boolean ers_lin,           // Enable ERS correction of the camera linear movement
+
+	  		int     manual_par_sel)    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
+	{
+		return getParMask(
+				use_disparity,
+				use_aztilts,       // Adjust azimuths and tilts excluding disparity
+				use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
+				common_roll,
+				corr_focalLength,
+				false, // boolean ers_rot,           // Enable ERS correction of the camera rotation
+				false, // boolean ers_lin,           // Enable ERS correction of the camera linear movement
+
+		  		manual_par_sel);    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
+
+	}
+
+	public boolean [] getParMask(
+			boolean use_disparity,
+			boolean use_aztilts,       // Adjust azimuths and tilts excluding disparity
+			boolean use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
+			boolean common_roll,
+			boolean corr_focalLength,
+			boolean ers_rot,           // Enable ERS correction of the camera rotation
+			boolean ers_lin,           // Enable ERS correction of the camera linear movement
+
 	  		int     manual_par_sel)    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 
 	{
@@ -270,6 +359,8 @@ public class GeometryCorrection {
 				use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
 				common_roll,
 				corr_focalLength,
+				ers_rot,           // Enable ERS correction of the camera rotation
+				ers_lin,           // Enable ERS correction of the camera linear movement
 		  		manual_par_sel);    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 
 	}
@@ -1023,13 +1114,13 @@ public class GeometryCorrection {
 
 
 	public class CorrVector{
-		static final int LENGTH =       16; //  10;
+		static final int LENGTH =       19; //  10;
 		static final int LENGTH_ANGLES =10;
 		static final int TILT_INDEX =    0;
 		static final int AZIMUTH_INDEX = 3;
 		static final int ROLL_INDEX =    6;
 		static final int ZOOM_INDEX =   10;
-		static final int IMU_INDEX =    13; // d_tilt/dt (rad/s), d_az/dt, d_roll/dt for ERS correction
+		static final int IMU_INDEX =    13; // d_tilt/dt (rad/s), d_az/dt, d_roll/dt for ERS correction, dx/dt, dy/dt, dz/dt
 		static final double ROT_AZ_SGN = -1.0; // sign of first sin for azimuth rotation
 		static final double ROT_TL_SGN =  1.0; // sign of first sin for tilt rotation
 		static final double ROT_RL_SGN =  1.0; // sign of first sin for roll rotation
@@ -1283,19 +1374,26 @@ public class GeometryCorrection {
 		}
 
 		public double [] getIMU() {
-			double [] imu = {vector[IMU_INDEX + 0], vector[IMU_INDEX + 1], vector[IMU_INDEX + 2]};
+			double [] imu = {
+					vector[IMU_INDEX + 0], vector[IMU_INDEX + 1], vector[IMU_INDEX + 2],
+					vector[IMU_INDEX + 3], vector[IMU_INDEX + 4], vector[IMU_INDEX + 5]};
 			return imu;
 		}
 
 		public double [] getIMU(int chn) {
 			// considering all sensors parallel, if needed process all angles
-			double [] imu = {vector[IMU_INDEX + 0], vector[IMU_INDEX + 1], vector[IMU_INDEX + 2]};
+			double [] imu = {
+					vector[IMU_INDEX + 0], vector[IMU_INDEX + 1], vector[IMU_INDEX + 2],
+					vector[IMU_INDEX + 3], vector[IMU_INDEX + 4], vector[IMU_INDEX + 5]};
 			return imu;
 		}
 		public void setIMU(double [] imu) {
 			vector [IMU_INDEX + 0] = imu[0];
 			vector [IMU_INDEX + 1] = imu[1];
 			vector [IMU_INDEX + 2] = imu[2];
+			vector [IMU_INDEX + 3] = imu[0];
+			vector [IMU_INDEX + 4] = imu[1];
+			vector [IMU_INDEX + 5] = imu[2];
 		}
 
 
@@ -1352,7 +1450,8 @@ public class GeometryCorrection {
 			if (indx < LENGTH_ANGLES) return vector[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); //  rolls
 			if (indx <     IMU_INDEX) return vector[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); //  zooms
 			if (indx < (IMU_INDEX+2)) return vector[indx]* (inPix? (1000.0*focalLength     /pixelSize): 1.0); // omega_tilt and omega_azimuth
-			if (indx <        LENGTH) return vector[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); // omega_roll
+			if (indx < (IMU_INDEX+3)) return vector[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); // omega_roll
+			if (indx <        LENGTH) return vector[indx]* (inPix? (1000.0): 1.0); //  m/s or mm/s
 			return Double.NaN;
 		}
 		public double getExtrinsicSymParameterValue(int indx, boolean inPix) { // not used in lwir
@@ -1362,7 +1461,8 @@ public class GeometryCorrection {
 			if (indx < LENGTH_ANGLES) return sym_vect[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); //  rolls
 			if (indx <     IMU_INDEX) return sym_vect[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); //  zooms
 			if (indx < (IMU_INDEX+2)) return sym_vect[indx]* (inPix? (1000.0*focalLength     /pixelSize): 1.0); // omega_tilt and omega_azimuth
-			if (indx <        LENGTH) return sym_vect[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); // omega_roll
+			if (indx < (IMU_INDEX+3)) return sym_vect[indx]* (inPix? (1000.0*focalLength     /pixelSize): 1.0); // omega_roll
+			if (indx <        LENGTH) return sym_vect[indx]* (inPix? (1000.0): 1.0);  // m/s mm/s
 			return Double.NaN;
 		}
 
@@ -1390,9 +1490,13 @@ public class GeometryCorrection {
 				v[i] =  vector[i]*  1000.0*focalLength/pixelSize;    // omega_tilt and omega_azimuth
 				sv[i] = sym_vect[i]*1000.0*focalLength/pixelSize;    // omega_tilt and omega_azimuth
 			}
-			for (int i = IMU_INDEX+2; i < LENGTH; i++){
+			for (int i = IMU_INDEX+2; i < IMU_INDEX+3; i++){
 				v[i] = vector[i]*1000.0*distortionRadius/pixelSize;    // omega_roll
 				sv[i] = sym_vect[i]*1000.0*distortionRadius/pixelSize; // omega_rolls
+			}
+			for (int i = IMU_INDEX+3; i < LENGTH; i++){
+				v[i] = vector[i] *1000.0; // *distortionRadius/pixelSize;    // movement mm/s
+				sv[i] = sym_vect[i]*1000.0; // *distortionRadius/pixelSize; // movement mm/s
 			}
 
 			s  = String.format("tilt    (up):    %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift of the image center)\n" , v[0], v[1], v[2], -(v[0] + v[1] + v[2]) );
@@ -1405,11 +1509,77 @@ public class GeometryCorrection {
 
 			s += String.format(" 0:%9.6fpx 1:%8.5fpx 2:%8.5fpx 3:%8.5fpx 4:%8.5fpx 5:%8.5fpx 6:%8.5fpx 7:%8.5fpx 8:%8.5fpx 9:%8.5fpx 10: %8.5fpx 11:%8.5fpx 12:%8.5fpx\n" ,
 					sv[0], sv[1], sv[2], sv[3], sv[4], sv[5], sv[6], sv[7], sv[8], sv[9], sv[10], sv[11], sv[12] );
-			s += String.format("omega_tilt = %9.4f pix/s, omega_azimuth = %9.4f pix/s, omega_roll = %9.4f pix/s\n",  sv[13],  sv[14],  sv[15]);
+			s += String.format("omega_tilt =  %9.4f pix/s, omega_azimuth = %9.4f pix/s, omega_roll = %9.4f pix/s\n",  sv[13],  sv[14],  sv[15]);
+			s += String.format("velocity Vx = %9.4f mm/s,             Vy = %9.4f mm/s,          Vz = %9.4f mm/s\n",  sv[16],  sv[17],  sv[18]);
 
 
 			return s;
 		}
+		public boolean editVector() {
+			System.out.println(toString());
+			String lines[] = toString().split("\\n");
+			double par_scales_tlaz = 1000.0*focalLength/pixelSize;
+			double par_scales_roll = 1000.0*distortionRadius/pixelSize;
+			double par_scales_linear = 1000.0;
+  			GenericJTabbedDialog gd = new GenericJTabbedDialog("Update extrinsic parameters",1500,1100);
+  			for (String s:lines) {
+  				gd.addMessage(s);
+  			}
+
+			for (int i = 0; i < AZIMUTH_INDEX; i++){
+				gd.addNumericField("Tilt "+i+" (up)",                               par_scales_tlaz * vector[i],                10, 13,"pix",
+						"Vertical (around horizontal axis perpendicular to te camera view direction) rotations in pixels for current camera parameters");
+			}
+			for (int i = AZIMUTH_INDEX; i < ROLL_INDEX; i++){
+				gd.addNumericField("Azimuth " + (i - AZIMUTH_INDEX) + " (right)",   par_scales_tlaz * vector[i],                10, 13,"pix",
+						"Horizontal (around vertical axis) rotations in pixels for current camera parameters");
+			}
+
+			for (int i = ROLL_INDEX; i < ZOOM_INDEX; i++){
+				gd.addNumericField("Roll " + (i - ROLL_INDEX) + " (clockwise)",     par_scales_roll * vector[i] ,               10, 13,"pix",
+						"Horizontal (around vertical axis) rotations in pixels for current camera parameters, 1 pixel corresponds to FoV edges");
+			}
+
+			for (int i = ZOOM_INDEX; i < IMU_INDEX; i++){
+				gd.addNumericField("Zoom " + (i - ZOOM_INDEX) + " (zoom in)",       par_scales_roll * vector[i],                10, 13,"pix",
+						"Relative (to the average) focal length modifications, 1 pixel corresponds to FoV edges");
+			}
+			gd.addMessage("--- ERS correction parameters ---");
+
+			gd.addNumericField("Angular rotation azimuth  (right)",                 par_scales_tlaz   * vector[IMU_INDEX + 0],  10, 13,"pix/s",
+					"Horizonatal camera rotation (reasonable value ~1000 pix/s)");
+			gd.addNumericField("Angular rotation  tilt (up)",                       par_scales_tlaz   * vector[IMU_INDEX + 1],  10, 13,"pix/s",
+					"Vertical camera rotation (reasonable value ~1000 pix/s)");
+			gd.addNumericField("Angular rotation  tilt (clockwise)",                par_scales_roll   * vector[IMU_INDEX + 2],  10, 13,"pix/s",
+					"Roll camera rotation (reasonable value ~1000 pix/s)");
+			gd.addNumericField("Linear velocity (right)",                           par_scales_linear * vector[IMU_INDEX + 3],  10, 13,"mm/s",
+					"Linear movement right");
+			gd.addNumericField("Linear velocity (up)",                              par_scales_linear * vector[IMU_INDEX + 4],  10, 13,"mm/s",
+					"Linear movement up");
+			gd.addNumericField("Linear velocity (forward)",                         par_scales_linear * vector[IMU_INDEX + 5],  10, 13,"mm/s",
+					"Linear movement forward");
+  			gd.showDialog();
+			if (gd.wasCanceled()) return false;
+
+			for (int i = 0; i < ROLL_INDEX; i++){
+				vector[i] = gd.getNextNumber()/par_scales_tlaz;
+			}
+
+			for (int i = ROLL_INDEX; i < IMU_INDEX; i++){
+				vector[i] = gd.getNextNumber()/par_scales_roll;
+			}
+
+			vector[IMU_INDEX + 0] = gd.getNextNumber()/par_scales_tlaz;
+			vector[IMU_INDEX + 1] = gd.getNextNumber()/par_scales_tlaz;
+			vector[IMU_INDEX + 2] = gd.getNextNumber()/par_scales_roll;
+			vector[IMU_INDEX + 3] = gd.getNextNumber()/par_scales_linear;
+			vector[IMU_INDEX + 4] = gd.getNextNumber()/par_scales_linear;
+			vector[IMU_INDEX + 5] = gd.getNextNumber()/par_scales_linear;
+
+			return true;
+		}
+
+
 
 		public String toStringDegrees() // not used in lwir
 		{
@@ -1424,9 +1594,12 @@ public class GeometryCorrection {
 				} else if (i < IMU_INDEX){
 					v[i] =  vector[i];
 					sv[i] = sym_vect[i];
-				} else {
+				} else if (i < IMU_INDEX+3){
 					v[i] =  vector[i]*180/Math.PI;
 					sv[i] = sym_vect[i]*180/Math.PI;
+				} else {
+					v[i] =  vector[i]*1000;
+					sv[i] = sym_vect[i]*1000;
 				}
 			}
 
@@ -1441,7 +1614,9 @@ public class GeometryCorrection {
 			s += String.format(" 0:%9.6f° 1:%8.5f° 2:%8.5f° 3:%8.5f° 4:%8.5f° 5:%8.5f° 6:%8.5f° 7:%8.5f° 8:%8.5f° 9:%8.5f° 10: %8.5f‰ 11:%8.5f‰ 12:%8.5f‰\n" ,
 					sv[0], sv[1], sv[2], sv[3], sv[4], sv[5], sv[6], sv[7], sv[8], sv[9], 1000*sv[10], 1000*sv[11], 1000*sv[12] );
 
-			s += String.format("omega_tilt = %9.4°/s, omega_azimuth = %9.4°/s, omega_roll = %9.4°/s\n",  sv[13],  sv[14],  sv[15]);
+			s += String.format("omega_tilt =  %9.4°/s, omega_azimuth = %9.4°/s, omega_roll = %9.4°/s\n",  sv[13],  sv[14],  sv[15]);
+			s += String.format("velocity Vx = %9.4f mm/s,         Vy = %9.4f mm/s,      Vz = %9.4f mm/s\n",  sv[16],  sv[17],  sv[18]);
+
 			return s;
 		}
 
@@ -1449,18 +1624,30 @@ public class GeometryCorrection {
 		public boolean editIMU() {
 			double par_scales_tlaz = 1000.0*focalLength/pixelSize;
 			double par_scales_roll = 1000.0*distortionRadius/pixelSize;
+			double par_scales_linear = 1000.0;
   			GenericJTabbedDialog gd = new GenericJTabbedDialog("Set camera angular velocities (in pix/sec)",800,300);
-			gd.addNumericField("Angular rotation azimuth  (positive - rotate camera  the right)", par_scales_tlaz * vector[IMU_INDEX + 0],  3,6,"pix/s",
+			gd.addNumericField("Angular rotation azimuth  (positive - rotate camera  the right)", par_scales_tlaz   * vector[IMU_INDEX + 0],  3,6,"pix/s",
 					"Horizonatal camera rotation (reasonable value ~1000 pix/s)");
-			gd.addNumericField("Angular rotation  tilt (positive - rotate camera up)",            par_scales_tlaz * vector[IMU_INDEX + 1],  3,6,"pix/s",
+			gd.addNumericField("Angular rotation  tilt (positive - rotate camera up)",            par_scales_tlaz   * vector[IMU_INDEX + 1],  3,6,"pix/s",
 					"Vertical camera rotation (reasonable value ~1000 pix/s)");
-			gd.addNumericField("Angular rotation  tilt (positive - clockwise)",                   par_scales_roll * vector[IMU_INDEX + 2],  3,6,"pix/s",
-					"Rollc amera rotation (reasonable value ~1000 pix/s)");
+			gd.addNumericField("Angular rotation  tilt (positive - clockwise)",                   par_scales_roll   * vector[IMU_INDEX + 2],  3,6,"pix/s",
+					"Roll camera rotation (reasonable value ~1000 pix/s)");
+			gd.addNumericField("Linear velocity (positive - right)",                              par_scales_linear * vector[IMU_INDEX + 3],  3,6,"mm/s",
+					"Linear movement right");
+			gd.addNumericField("Linear velocity (positive - up)",                                 par_scales_linear * vector[IMU_INDEX + 4],  3,6,"mm/s",
+					"Linear movement up");
+			gd.addNumericField("Linear velocity (positive - forward)",                            par_scales_linear * vector[IMU_INDEX + 5],  3,6,"mm/s",
+					"Linear movement forward");
+
+
   			gd.showDialog();
 			if (gd.wasCanceled()) return false;
 			vector[IMU_INDEX + 0] = gd.getNextNumber()/par_scales_tlaz;
 			vector[IMU_INDEX + 1] = gd.getNextNumber()/par_scales_tlaz;
 			vector[IMU_INDEX + 2] = gd.getNextNumber()/par_scales_roll;
+			vector[IMU_INDEX + 3] = gd.getNextNumber()/par_scales_linear;
+			vector[IMU_INDEX + 4] = gd.getNextNumber()/par_scales_linear;
+			vector[IMU_INDEX + 5] = gd.getNextNumber()/par_scales_linear;
 			return true;
 		}
 
@@ -1482,6 +1669,17 @@ public class GeometryCorrection {
 		{
 			return incrementVector(incr.toArray(), scale);
 		}
+
+		public CorrVector diffFromVector(CorrVector other_vector) {
+			double [] aother = other_vector.toArray();
+			double [] athis = toArray().clone();
+			for (int i = 0; i < athis.length; i++) {
+				athis[i] -= aother[i];
+			}
+			return new CorrVector(athis);
+		}
+
+
 
 		@Override
 		public CorrVector clone(){ // not used in lwir
@@ -1518,26 +1716,30 @@ public class GeometryCorrection {
 		public double [][] dSym_j_dTar_i() // USED in lwir
 		{
 			double [][] tar_to_sym = {
-					{-2.0, -2.0,  2.0, -2.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // t0
-					{-2.0,  0.0,  0.0, -2.0,  2.0, -2.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // t1
-					{ 0.0, -2.0,  2.0,  0.0,  2.0, -2.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // t2
+					{-2.0, -2.0,  2.0, -2.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0}, // t0
+					{-2.0,  0.0,  0.0, -2.0,  2.0, -2.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0}, // t1
+					{ 0.0, -2.0,  2.0,  0.0,  2.0, -2.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0}, // t2
 
-					{ 2.0,  2.0,  2.0, -2.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // a0
-					{ 0.0,  2.0,  2.0,  0.0,  2.0,  2.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // a1
-					{ 2.0,  0.0,  0.0, -2.0,  2.0,  2.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // a2
+					{ 2.0,  2.0,  2.0, -2.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0}, // a0
+					{ 0.0,  2.0,  2.0,  0.0,  2.0,  2.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0}, // a1
+					{ 2.0,  0.0,  0.0, -2.0,  2.0,  2.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0}, // a2
 
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.5,  0.0,  0.25,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // roll 0
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.0,  0.5, -0.25,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // roll 1
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.0, -0.5, -0.25,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // roll 2
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25, -0.5,  0.0,  0.25,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // roll 3
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.5,  0.0,  0.25,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0}, // roll 0
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.0,  0.5, -0.25,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0}, // roll 1
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.0, -0.5, -0.25,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0}, // roll 2
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25, -0.5,  0.0,  0.25,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0}, // roll 3
 
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,  -1.0, -1.0,  0.0,   0.0,  0.0,  0.0}, // scale 0
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0, -1.0,  1.0,   0.0,  0.0,  0.0}, // scale 1
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,  -1.0,  0.0,  1.0,   0.0,  0.0,  0.0},  // scale 2
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,  -1.0, -1.0,  0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0}, // scale 0
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0, -1.0,  1.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0}, // scale 1
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,  -1.0,  0.0,  1.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0},  // scale 2
 
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   1.0,  0.0,  0.0}, // omega_tilt
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  1.0,  0.0}, // omega_azimuth
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  1.0}  // omega_roll
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   1.0,  0.0,  0.0,  0.0,  0.0,  0.0}, // omega_tilt
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  1.0,  0.0,  0.0,  0.0,  0.0}, // omega_azimuth
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  1.0,  0.0,  0.0,  0.0},  // omega_roll
+
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,  1.0,  0.0,  0.0}, // velocity_x
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,  0.0,  1.0,  0.0}, // velocity_y
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  1.0}  // velocity_z
 			};
 
 			return tar_to_sym;
@@ -1579,32 +1781,37 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 */
 			double [][] sym_to_tar=	{ // USED in lwir
 					// t0     t1     t2     a0     a1     a2     r0    r1    r2    r3    s0    s1    s2
-					{-0.125,-0.125, 0.125, 0.125,-0.125, 0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym0
-			        {-0.125, 0.125,-0.125, 0.125, 0.125,-0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym1
-			        { 0.125,-0.125, 0.125, 0.125, 0.125,-0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym2
-			        {-0.125,-0.125, 0.125,-0.125, 0.125,-0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym3
-			        {-0.125, 0.125, 0.125,-0.125, 0.125, 0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym4
-			        { 0.125,-0.125,-0.125,-0.125, 0.125, 0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym5
-			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 1.0,  1.0,  1.0,  1.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym6  = (r0+r1+r2+r3)/4
-			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 1.0,  0.0,  0.0, -1.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym7  = (r0-r3)/2
-			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  1.0, -1.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym8  = (r1-r2)/2
-			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 1.0, -1.0, -1.0,  1.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym9  = (r0+r3-r1-r2)/4
-			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0, -1.0,  1.0, -0.5,  0.5, -0.5,   0.0,  0.0,  0.0 },  // sym10 = -s0 - s2
-			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0, -1.0,  1.0, -0.5, -0.5,  0.5,   0.0,  0.0,  0.0 },  // sym11 = -s0 - s1
-			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0, -1.0,  1.0, -0.5,  0.5,  0.5,   0.0,  0.0,  0.0 },  // sym12 =  s1 + s2
-					{ 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   1.0,  0.0,  0.0},   // sym13 =  omega_tilt
-					{ 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  1.0,  0.0},   // sym14 =  omega_azimuth
-					{ 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  1.0}    // sym15 =  omega_roll
-			        };
+					{-0.125,-0.125, 0.125, 0.125,-0.125, 0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym0
+			        {-0.125, 0.125,-0.125, 0.125, 0.125,-0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym1
+			        { 0.125,-0.125, 0.125, 0.125, 0.125,-0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym2
+			        {-0.125,-0.125, 0.125,-0.125, 0.125,-0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym3
+			        {-0.125, 0.125, 0.125,-0.125, 0.125, 0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym4
+			        { 0.125,-0.125,-0.125,-0.125, 0.125, 0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym5
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 1.0,  1.0,  1.0,  1.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym6  = (r0+r1+r2+r3)/4
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 1.0,  0.0,  0.0, -1.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym7  = (r0-r3)/2
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  1.0, -1.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym8  = (r1-r2)/2
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 1.0, -1.0, -1.0,  1.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym9  = (r0+r3-r1-r2)/4
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0, -1.0,  1.0, -0.5,  0.5, -0.5,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym10 = -s0 - s2
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0, -1.0,  1.0, -0.5, -0.5,  0.5,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym11 = -s0 - s1
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0, -1.0,  1.0, -0.5,  0.5,  0.5,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym12 =  s1 + s2
+					{ 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   1.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym13 =  omega_tilt
+					{ 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  1.0,  0.0,   0.0,  0.0,  0.0 },  // sym14 =  omega_azimuth
+					{ 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  1.0,   0.0,  0.0,  0.0 },  // sym15 =  omega_roll
+					{ 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   1.0,  0.0,  0.0 },  // sym16 =  velocity_x
+					{ 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  1.0,  0.0 },  // sym17 =  velocity_y
+					{ 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  1.0 }   // sym18 =  velocity_z
+			        } ;
 			return sym_to_tar;
 		}
-
+/*
 		public boolean [] getParMask( // USED in lwir
 				boolean use_disparity,
 				boolean use_aztilts,       // Adjust azimuths and tilts excluding disparity
 				boolean use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
 				boolean common_roll,
 				boolean corr_focalLength,
+				boolean ers_rot,           // Enable ERS correction of the camera rotation
+				boolean ers_lin,           // Enable ERS correction of the camera linear movement
 		  		int     manual_par_sel)    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 
 		{
@@ -1617,14 +1824,15 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 					false,            // boolean corr_imu,
 			  		manual_par_sel);
 		}
-
+*/
 		public boolean [] getParMask( // USED in lwir
 				boolean use_disparity,
 				boolean use_aztilts,       // Adjust azimuths and tilts excluding disparity
 				boolean use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
 				boolean common_roll,
 				boolean corr_focalLength,
-				boolean corr_imu,
+				boolean ers_rot,           // Enable ERS correction of the camera rotation
+				boolean ers_lin,           // Enable ERS correction of the camera linear movement
 		  		int     manual_par_sel)    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 
 		{
@@ -1642,9 +1850,12 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 					corr_focalLength, //sym10
 					corr_focalLength, //sym11
 					corr_focalLength, //sym12
-					corr_imu,         //sym13
-					corr_imu,         //sym14
-					corr_imu          //sym15
+					ers_rot,          //sym13
+					ers_rot,          //sym14
+					ers_rot,          //sym15
+					ers_lin,          //sym16
+					ers_lin,          //sym17
+					ers_lin           //sym18
 			};
 			if (manual_par_sel != 0) { // not used in lwir
 				for (int i = 0; i < par_mask.length; i++) {
@@ -1701,6 +1912,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			}
 			return jt_part;
 		}
+
 		// convert tilt0,... roll3 array to symmetrical coordinates [0] - to the center (disparity)
 		public double [] toSymArray(boolean [] par_mask) // USED in lwir
 		{
@@ -2673,6 +2885,9 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+1] = delta_t * rD2rND * dpYci_dazimuth * imu[0];
 					pXYderiv[2 * i + 0][CorrVector.IMU_INDEX+2] = delta_t * rD2rND * dpYci_droll *    imu[0];
 					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+2] = delta_t * rD2rND * dpYci_droll *    imu[0];
+
+					// TODO: Add linear egomotion
+
 				}
 
 				// verify that d/dsym are well, symmetrical
@@ -2701,6 +2916,226 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		}
 		return pXY;
 	}
+
+
+//	private Matrix m_balance_xy = null; // [2*numSensors][2*numSensors] 8x8 matrix to make XY ports correction to have average == 0
+//	private Matrix m_balance_dd = null; // [2*numSensors+1)][2*numSensors] 9x8 matrix to extract disparity from dd
+
+	// calculate non-distorted x/y pairs (relative to optical centers) for each port and derivatives
+
+	public double [] getPortsDDNDAndDerivatives( // USED in lwir
+			GeometryCorrection gc_main,
+			boolean     use_rig_offsets,
+			Matrix []   rots,
+			Matrix [][] deriv_rots,
+			double [][] DDNDderiv,     // if not null, should be double[8][]
+			double []   dy_ddisparity,   // double [][] disp_dist, //disp_dist[i][2] or null
+			double []   imu,
+			double []   pXYND0,        // per-port non-distorted coordinates corresponding to the correlation measurements
+			double px,
+			double py,
+			double disparity)
+	{
+		// make sure initPrePostMatrices(true) already ran (in constructor). (true) means that minus sign is already incorporated
+		Matrix m_xy_ddnd = xyToDdnd(use_rig_offsets);
+		double [][] pXYNDderiv = (DDNDderiv == null)? null: new double [DDNDderiv.length][];
+		double [] pXYND = getPortsNonDistortedCoordinatesAndDerivatives( // USED in lwir
+				gc_main,
+				use_rig_offsets,
+				rots,
+				deriv_rots,
+				pXYNDderiv, // if not null, should be double[8][]
+				dy_ddisparity,   // double [][] disp_dist, //disp_dist[i][2] or null
+				imu,
+				px,
+				py,
+				disparity);
+		for (int i = 0; i < pXYND.length; i++) {
+			pXYND[i] -= pXYND0[i];
+		}
+		Matrix m_pXYND = new Matrix(pXYND,pXYND.length); // column
+		double [] dddnd =  m_xy_ddnd.times(m_pXYND).getColumnPackedCopy();
+		if (pXYNDderiv != null) {
+			double [][] jt = m_xy_ddnd.times(new Matrix(pXYNDderiv)).getArray();
+			for (int i = 0; i < DDNDderiv.length; i++) {
+				DDNDderiv[i] = jt[i];
+			}
+		}
+		return dddnd;
+	}
+
+	// only derivatives
+	public double [][] getPortsDDNDDerivatives( // USED in lwir
+			GeometryCorrection gc_main,
+			boolean     use_rig_offsets,
+			Matrix []   rots,
+			Matrix [][] deriv_rots,
+			double []   dy_ddisparity,   // double [][] disp_dist, //disp_dist[i][2] or null
+			double []   imu, // may be null
+			double      px,
+			double      py,
+			double      disparity)
+	{
+		// make sure initPrePostMatrices(true) already ran (in constructor). (true) means that minus sign is already incorporated
+		Matrix m_xy_ddnd = xyToDdnd(use_rig_offsets);
+		double [][] pXYNDderiv = new double [2*numSensors][]; // CorrVector.LENGTH][];
+		getPortsNonDistortedCoordinatesAndDerivatives( // USED in lwir
+				gc_main,
+				use_rig_offsets,
+				rots,
+				deriv_rots,
+				pXYNDderiv, // if not null, should be double[8][]
+				dy_ddisparity,   // double [][] disp_dist, //disp_dist[i][2] or null
+				imu,
+				px,
+				py,
+				disparity);
+		double [][] jt = m_xy_ddnd.times(new Matrix(pXYNDderiv)).getArray();
+		return jt;
+	}
+
+
+
+
+
+	/**
+	 * Calculate non-distorted x/y pairs (relative to optical centers) for each port and derivatives
+	 * Requires array of derivatives of sesnor y by disparity (	calculated as disp_dist[i][2] by getPortsCoordinatesAndDerivatives())
+	 * @param gc_main - GeometryCorrection instance for the main camera, for which px,py are specified
+	 * @param use_rig_offsets - for the auxiliary camera - use offsets from the main one
+	 * @param rots misalignment correction (now includes zoom in addition to rotations
+	 * @param deriv_rots derivatives by d_az, f_elev, d_rot, d_zoom
+	 * @param pXYNDderiv null or double[2 * number_of_cameras][] array to accommodate derivatives of px, py by each of the parameters
+	 * @param dy_ddisparity - array of per-port derivatives of sensor pY by disparity (to correct ERS) or null (if no ERS correction needed)
+	 * @param px pixel X coordinate
+	 * @param py pixel Y coordinate
+	 * @param disparity disparity (for non-distorted image space)
+	 * @return array of per port pairs of pixel shifts, non-distorted, relative to lens optical centers
+	 */
+	public double [] getPortsNonDistortedCoordinatesAndDerivatives( // USED in lwir
+			GeometryCorrection gc_main,
+			boolean     use_rig_offsets,
+			Matrix []   rots,
+			Matrix [][] deriv_rots,
+			double [][] pXYNDderiv, // if not null, should be double[8][]
+			double []   dy_ddisparity,   // double [][] disp_dist, //disp_dist[i][2] or null
+			double []   imu,
+			double px,
+			double py,
+			double disparity)
+	{
+		double [][] rXY =   getRXY(use_rig_offsets); // may include rig offsets
+		double [] pXYND = new double [numSensors * 2];
+		double pXcd = px - 0.5 * gc_main.pixelCorrectionWidth;
+		double pYcd = py - 0.5 * gc_main.pixelCorrectionHeight;
+		double rD = Math.sqrt(pXcd*pXcd + pYcd*pYcd)*0.001*gc_main.pixelSize; // distorted radius in a virtual center camera
+		double rND2R=gc_main.getRByRDist(rD/gc_main.distortionRadius, (debugLevel > -1));
+		double pXc = pXcd * rND2R; // non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
+		double pYc = pYcd * rND2R; // in pixels
+		// next radial distortion coefficients are for this, not master camera (may be the same)
+//		double [] rad_coeff={this.distortionC,this.distortionB,this.distortionA,this.distortionA5,this.distortionA6,this.distortionA7,this.distortionA8};
+		double fl_pix = focalLength/(0.001*pixelSize); // focal length in pixels - this camera
+//		double  ri_scale = 0.001 * this.pixelSize / this.distortionRadius;
+
+		for (int i = 0; i < numSensors; i++){
+			// non-distorted XY of the shifted location of the individual sensor
+			double pXci0 = pXc - disparity *  rXY[i][0]; // in pixels
+			double pYci0 = pYc - disparity *  rXY[i][1];
+			// rectilinear, end of dealing with possibly other (master) camera, below all is for this camera distortions
+			// Convert a 2-d non-distorted vector to 3d at fl_pix distance in z direction
+			double [][] avi = {{pXci0}, {pYci0},{fl_pix}};
+			Matrix vi = new Matrix(avi); // non-distorted sensor channel view vector in pixels (z -along the common axis)
+			// Apply port-individual combined rotation/zoom matrix
+			Matrix rvi = rots[i].times(vi);
+			// get back to the projection plane by normalizing vector
+			double norm_z = fl_pix/rvi.get(2, 0);
+
+			double pXci =  rvi.get(0, 0) * norm_z;
+			double pYci =  rvi.get(1, 0) * norm_z;
+
+			pXYND[2 * i + 0] =  pXci;
+			pXYND[2 * i + 1] =  pYci;
+
+			// used when calculating derivatives, TODO: combine calculations !
+//			double drD2rND_dri = 0.0;
+			Matrix drvi_daz = null;
+			Matrix drvi_dtl = null;
+			Matrix drvi_drl = null;
+			double dpXci_dazimuth = 0.0;
+			double dpYci_dazimuth = 0.0;
+			double dpXci_dtilt =    0.0;
+			double dpYci_dtilt =    0.0;
+			double dpXci_droll =    0.0;
+			double dpYci_droll =    0.0;
+				if (deriv_rots != null) {
+					// needed for derivatives and IMU
+					drvi_daz = deriv_rots[i][0].times(vi);
+					drvi_dtl = deriv_rots[i][1].times(vi);
+					drvi_drl = deriv_rots[i][2].times(vi);
+					dpXci_dazimuth = drvi_daz.get(0, 0) * norm_z - pXci * drvi_daz.get(2, 0) / rvi.get(2, 0);
+					dpYci_dazimuth = drvi_daz.get(1, 0) * norm_z - pYci * drvi_daz.get(2, 0) / rvi.get(2, 0);
+					dpXci_dtilt =    drvi_dtl.get(0, 0) * norm_z - pXci * drvi_dtl.get(2, 0) / rvi.get(2, 0);
+					dpYci_dtilt =    drvi_dtl.get(1, 0) * norm_z - pYci * drvi_dtl.get(2, 0) / rvi.get(2, 0);
+					dpXci_droll =    drvi_drl.get(0, 0) * norm_z - pXci * drvi_drl.get(2, 0) / rvi.get(2, 0);
+					dpYci_droll =    drvi_drl.get(1, 0) * norm_z - pYci * drvi_drl.get(2, 0) / rvi.get(2, 0);
+				}
+			double delta_t = 0.0;
+			if ((dy_ddisparity != null) && (imu != null)) {
+				delta_t = dy_ddisparity[i] * disparity * line_time; // positive for top cameras, negative - for bottom
+				double ers_Xci = delta_t* (dpXci_dtilt * imu[0] + dpXci_dazimuth * imu[1]  + dpXci_droll * imu[2]);
+				double ers_Yci = delta_t* (dpYci_dtilt * imu[0] + dpYci_dazimuth * imu[1]  + dpYci_droll * imu[2]);
+				pXYND[2 * i + 0] +=  ers_Xci; // added correction to pixel X
+				pXYND[2 * i + 1] +=  ers_Yci; // added correction to pixel Y
+			}
+
+			if (pXYNDderiv != null) {
+				pXYNDderiv[2 * i] =   new double [CorrVector.LENGTH];
+				pXYNDderiv[2 * i+1] = new double [CorrVector.LENGTH];
+				Matrix drvi_dzm = deriv_rots[i][3].times(vi);
+				double dpXci_dzoom =    drvi_dzm.get(0, 0) * norm_z - pXci * drvi_dzm.get(2, 0) / rvi.get(2, 0);
+				double dpYci_dzoom =    drvi_dzm.get(1, 0) * norm_z - pYci * drvi_dzm.get(2, 0) / rvi.get(2, 0);
+				if (imu != null) {
+					pXYNDderiv[2 * i + 0][CorrVector.IMU_INDEX+0] = delta_t * dpXci_dtilt; // *    imu[0];
+					pXYNDderiv[2 * i + 1][CorrVector.IMU_INDEX+0] = delta_t * dpYci_dtilt; // *    imu[0];
+					pXYNDderiv[2 * i + 0][CorrVector.IMU_INDEX+1] = delta_t * dpXci_dazimuth; // * imu[1];
+					pXYNDderiv[2 * i + 1][CorrVector.IMU_INDEX+1] = delta_t * dpYci_dazimuth; // * imu[1];
+					pXYNDderiv[2 * i + 0][CorrVector.IMU_INDEX+2] = delta_t * dpXci_droll; // *    imu[2];
+					pXYNDderiv[2 * i + 1][CorrVector.IMU_INDEX+2] = delta_t * dpYci_droll; // *    imu[2];
+				}
+
+				// verify that d/dsym are well, symmetrical
+				if (i < (numSensors - 1)){
+					pXYNDderiv[2 * i + 0][CorrVector.TILT_INDEX+i] =         dpXci_dtilt;
+					pXYNDderiv[2 * i + 1][CorrVector.TILT_INDEX+i] =         dpYci_dtilt;
+					pXYNDderiv[2 * i + 0][CorrVector.AZIMUTH_INDEX+i] =      dpXci_dazimuth;
+					pXYNDderiv[2 * i + 1][CorrVector.AZIMUTH_INDEX+i] =      dpYci_dazimuth;
+
+					pXYNDderiv[2 * i + 0][CorrVector.ZOOM_INDEX+i] =         dpXci_dzoom;
+					pXYNDderiv[2 * i + 1][CorrVector.ZOOM_INDEX+i] =         dpYci_dzoom;
+				} else {
+					for (int j = 0; j < (numSensors - 1); j++){
+						pXYNDderiv[2 * i + 0][CorrVector.TILT_INDEX+j] =    -dpXci_dtilt;
+						pXYNDderiv[2 * i + 1][CorrVector.TILT_INDEX+j] =    -dpYci_dtilt;
+						pXYNDderiv[2 * i + 0][CorrVector.AZIMUTH_INDEX+j] = -dpXci_dazimuth;
+						pXYNDderiv[2 * i + 1][CorrVector.AZIMUTH_INDEX+j] = -dpYci_dazimuth;
+
+						pXYNDderiv[2 * i + 0][CorrVector.ZOOM_INDEX+j] =    -dpXci_dzoom;
+						pXYNDderiv[2 * i + 1][CorrVector.ZOOM_INDEX+j] =    -dpYci_dzoom;
+					}
+				}
+				pXYNDderiv[2 * i + 0][CorrVector.ROLL_INDEX+i] = dpXci_droll;
+				pXYNDderiv[2 * i + 1][CorrVector.ROLL_INDEX+i] = dpYci_droll;
+			}
+		}
+		return pXYND;
+	}
+
+
+
+
+
+
+
 
 	/**
 	 * Calculate pixel common "idealized" coordinates of the auxiliary camera image tile matching  the specified tile (px,py) of the idealized

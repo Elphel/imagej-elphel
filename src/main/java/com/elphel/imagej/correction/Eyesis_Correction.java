@@ -709,7 +709,9 @@ private Panel panel1,
 			addButton("LWIR_TEST",                  panelClt_GPU, color_conf_process);
 			addButton("LWIR_ACQUIRE",               panelClt_GPU, color_conf_process);
 			addButton("IMU main",                   panelClt_GPU, color_conf_process);
+			addButton("ERS main",                   panelClt_GPU, color_process);
 			addButton("IMU aux",                    panelClt_GPU, color_conf_process_aux);
+			addButton("ERS aux",                    panelClt_GPU, color_process_aux);
 
 			plugInFrame.add(panelClt_GPU);
 		}
@@ -4318,7 +4320,8 @@ private Panel panel1,
     } else if (label.equals("CLT 4 images") ||
     		label.equals("CLT apply fine corr") ||
     		label.equals("CLT infinity corr") ||
-    		label.equals("CORR TEST" )) {
+    		label.equals("CORR TEST" ) ||
+    		label.equals("ERS main")) {
     	boolean apply_corr = label.equals("CLT apply fine corr");
     	boolean infinity_corr = label.equals("CLT infinity corr");
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
@@ -4377,7 +4380,19 @@ private Panel panel1,
         int num_infinity_corr = infinity_corr? CLT_PARAMETERS.inf_repeat : 1;
         if ( num_infinity_corr < 1) num_infinity_corr = 1;
         for (int i_infinity_corr = 0;  i_infinity_corr < num_infinity_corr; i_infinity_corr++) {
-        	if (label.equals("CORR TEST")) {
+        	if (label.equals("ERS main")) {
+        		QUAD_CLT.processCLTQuadCorrsTestERS(
+        				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        				DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+        				COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        				CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        				RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        				apply_corr,
+        				infinity_corr, // calculate and apply geometry correction at infinity
+        				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        				UPDATE_STATUS, //final boolean    updateStatus,
+        				DEBUG_LEVEL); //final int        debugLevel);
+        	} else if (label.equals("CORR TEST")) {
         		QUAD_CLT.processCLTQuadCorrsTest(
         				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         				DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,

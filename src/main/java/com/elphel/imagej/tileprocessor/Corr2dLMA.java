@@ -100,6 +100,7 @@ public class Corr2dLMA {
 	private double []         weights; // normalized so sum is 1.0 for all - samples and extra regularization terms
 	private double            pure_weight; // weight of samples only
 	private double []         values;
+
 	// next values are only updated after success
 	private double []         last_rms =        null; // {rms, rms_pure}, matching this.vector
 	private double []         good_or_bad_rms = null; // just for diagnostics, to read last (failed) rms
@@ -763,7 +764,7 @@ public class Corr2dLMA {
 		return dbg_img;
 	}
 
-	private double [] getFxJt( // USED in lwir
+	private double [] getFxJt(
 			double []   vector,
 			double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
 		if (this.gaussian_mode) return getFxJt_gaussian(vector, jt);
@@ -1318,7 +1319,7 @@ public class Corr2dLMA {
 
 ////////////////////////////////////////////////////////////////////////
 
-	private boolean debugJt( // not used in lwir
+	private boolean debugJt(
     		double      delta,
     		double []   vector) {
     	int num_points = this.values.length;
@@ -1653,7 +1654,7 @@ public class Corr2dLMA {
 		return wjtymfx;
 	}
 
-	public boolean runLma( // USED in lwir
+	public boolean runLma(
 			double lambda,           // 0.1
 			double lambda_scale_good,// 0.5
 			double lambda_scale_bad, // 8.0
@@ -1713,7 +1714,7 @@ public class Corr2dLMA {
 
 
 	// returns {success, done}
-	public boolean [] lmaStep( // USED in lwir
+	public boolean [] lmaStep(
 			double lambda,
 			double rms_diff,
 			int debug_level) {
@@ -1821,5 +1822,4 @@ public class Corr2dLMA {
 		}
 		return rslt;
 	}
-
 }

@@ -177,9 +177,13 @@ public class CLTParameters {
 	public boolean    ly_inf_en =       true;    // Simultaneously correct disparity at infinity (both poly and extrinsic)
 	public boolean    ly_aztilt_en =    true;    // Adjust azimuths and tilts
 	public boolean    ly_diff_roll_en = true;    // Adjust differential rolls (3 of 4 angles)
-	public boolean    ly_focalLength=   true; // Correct scales (focal length temperature? variations)
+	public boolean    ly_focalLength=   true;    // Correct scales (focal length temperature? variations)
 	public boolean    ly_com_roll=      false;   // Enable common roll (valid for high disparity range only)
+	public boolean    ly_ers_rot=       true;    // Enable ERS correction of the camera rotation
+	public boolean    ly_ers_lin=       false;   // Enable ERS correction of the camera linear movement
 	public int        ly_par_sel   =    0;       // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use checkbox selections above)
+
+	public int        ly_debug_level =  0;       // LY debug level
 
 	public boolean    ly_right_left=    false;   // equalize weights of right/left FoV (use with horizon in both halves and gross infinity correction)
 
@@ -966,8 +970,12 @@ public class CLTParameters {
 		properties.setProperty(prefix+"ly_diff_roll_en",            this.ly_diff_roll_en+"");
 		properties.setProperty(prefix+"ly_focalLength",             this.ly_focalLength+"");
 		properties.setProperty(prefix+"ly_com_roll",                this.ly_com_roll+"");
-
+		properties.setProperty(prefix+"ly_ers_rot",                 this.ly_ers_rot+"");
+		properties.setProperty(prefix+"ly_ers_lin",                 this.ly_ers_lin+"");
 		properties.setProperty(prefix+"ly_par_sel",                 this.ly_par_sel+"");
+		properties.setProperty(prefix+"ly_debug_level",             this.ly_debug_level+"");
+
+
 		properties.setProperty(prefix+"ly_right_left",              this.ly_right_left+"");
 
 		properties.setProperty(prefix+"ly_per_quad",                this.ly_per_quad +"");
@@ -1683,8 +1691,11 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"ly_diff_roll_en")!=null)               this.ly_diff_roll_en=Boolean.parseBoolean(properties.getProperty(prefix+"ly_diff_roll_en"));
 		if (properties.getProperty(prefix+"ly_focalLength")!=null)                this.ly_focalLength=Boolean.parseBoolean(properties.getProperty(prefix+"ly_focalLength"));
 		if (properties.getProperty(prefix+"ly_com_roll")!=null)                   this.ly_com_roll=Boolean.parseBoolean(properties.getProperty(prefix+"ly_com_roll"));
-
+		if (properties.getProperty(prefix+"ly_ers_rot")!=null)                    this.ly_ers_rot=Boolean.parseBoolean(properties.getProperty(prefix+"ly_ers_rot"));
+		if (properties.getProperty(prefix+"ly_ers_lin")!=null)                    this.ly_ers_lin=Boolean.parseBoolean(properties.getProperty(prefix+"ly_ers_lin"));
 		if (properties.getProperty(prefix+"ly_par_sel")!=null)                    this.ly_par_sel=Integer.parseInt(properties.getProperty(prefix+"ly_par_sel"));
+		if (properties.getProperty(prefix+"ly_debug_level")!=null)                this.ly_debug_level=Integer.parseInt(properties.getProperty(prefix+"ly_debug_level"));
+
 		if (properties.getProperty(prefix+"ly_right_left")!=null)                 this.ly_right_left=Boolean.parseBoolean(properties.getProperty(prefix+"ly_right_left"));
 
 		if (properties.getProperty(prefix+"ly_per_quad")!=null)                   this.ly_per_quad=Integer.parseInt(properties.getProperty(prefix+"ly_per_quad"));
@@ -2436,7 +2447,7 @@ public class CLTParameters {
 		gd.addTab         ("Lazy eye", "Lazy eye parameters");
 
 		gd.addMessage     ("--- main-to-aux depth map parameters ---");
-		gd.addNumericField("Minimal reference (main) channel orrelation strength",                              this.ly_gt_strength,        3);
+		gd.addNumericField("Minimal reference (main) channel correlation strength",                              this.ly_gt_strength,        3);
 		gd.addCheckbox    ("Use window for AUX tiles to reduce weight of the hi-res tiles near low-res tile boundaries", this.ly_gt_use_wnd);
 		gd.addNumericField("Aux disparity thershold to split FG and BG (and disable AUX tile for adjustment)",  this.ly_gt_rms,        3);
 		gd.addMessage     ("--- others ---");
@@ -2446,9 +2457,15 @@ public class CLTParameters {
 		gd.addCheckbox    ("Adjust differential rolls",                                                         this.ly_diff_roll_en,"Adjust differential rolls (3 of 4 rolls, keeping average roll)");
 		gd.addCheckbox    ("Correct scales (focal length temperature? variations)",                             this.ly_focalLength);
 		gd.addCheckbox    ("Enable common roll adjustment (valid for high disparity range scans only)",         this.ly_com_roll);
-
+		gd.addCheckbox    ("Enable ERS correction of the camera rotation",                                      this.ly_ers_rot);
+		gd.addCheckbox    ("Enable ERS correction of the camera linear movement",                               this.ly_ers_lin);
 		gd.addNumericField("Manual parameter mask selection (0 use checkboxes above)",                          this.ly_par_sel,  0, 5,"",
 				"bit 0 - sym0, bit1 - sym1, ...");
+		gd.addNumericField("Debug level for lazy eye/ers processing",                                           this.ly_debug_level,  0, 5,"",
+				"Active when global debug level > -1");
+
+
+
 		gd.addCheckbox    ("Equalize weights of right/left FoV",           this.ly_right_left,
 				"Use this mode use with horizon visible in both FoV halves when gross infinity correction is needed");
 
@@ -3273,7 +3290,10 @@ public class CLTParameters {
 		this.ly_diff_roll_en=       gd.getNextBoolean();
 		this.ly_focalLength=        gd.getNextBoolean();
 		this.ly_com_roll=           gd.getNextBoolean();
+		this.ly_ers_rot=            gd.getNextBoolean();
+		this.ly_ers_lin=            gd.getNextBoolean();
 		this.ly_par_sel=      (int) gd.getNextNumber();
+		this.ly_debug_level=  (int) gd.getNextNumber();
 
 		this.ly_right_left=         gd.getNextBoolean();
 

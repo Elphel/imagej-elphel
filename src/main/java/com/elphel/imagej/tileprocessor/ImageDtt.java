@@ -1808,6 +1808,8 @@ public class ImageDtt {
 						double []     strength =  new double [clustSize];
 //						double []     disparity = new double [clustSize];
 						double [][]   disp_str =  new double [clustSize][];
+						double [][]   dY_dD =     new double [clustSize][quad];
+						double [][]   pxpy =      new double [clustSize][2];
 
 						boolean debugCluster =  (clustX == debug_clustX) && (clustY == debug_clustY);
 						boolean debugCluster1 = (Math.abs(clustX - debug_clustX) < 10) && (Math.abs(clustY - debug_clustY) < 10);
@@ -1947,6 +1949,8 @@ public class ImageDtt {
 													centerY,
 													disparity_array[tileY][tileX] + disparity_corr);
 										}
+										pxpy[cTile][0] = centerX;
+										pxpy[cTile][1] = centerY;
 
 										if (((globalDebugLevel > 0) || debug_distort) || (debugTile && (globalDebugLevel > -2))) {
 											for (int i = 0; i < quad; i++) {
@@ -2257,7 +2261,8 @@ public class ImageDtt {
 								double [][] extra_stats = lma2.getTileStats();
 								//		final double [][] lazy_eye_data = new double [clustersY*clustersX][];
 								// calculate average disparity per cluster using a sum of the disparity_array and the result of the LMA
-								double sum_wd = 0, sum_w = 0;
+								lazy_eye_data[nCluster] = new double [ExtrinsicAdjustment.INDX_LENGTH];
+								double sum_w = 0;
 								for (int cTileY = 0; cTileY < tileStep; cTileY++) {
 									tileY = clustY * tileStep + cTileY ;
 									if (tileY < tilesY) {
@@ -2267,9 +2272,15 @@ public class ImageDtt {
 												cTile = cTileY * tileStep + cTileX;
 												tIndex =    tileY * tilesX + tileX;
 												if ((lma_ds[cTile] != null) && (lma_ds[cTile][1]> 0.0)) {
-													double d = lma_ds[cTile][0] + disparity_array[tileY][tileX] + disparity_corr;
 													double w = lma_ds[cTile][1];
-													sum_wd += w * d;
+													lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_DISP] += (lma_ds[cTile][0] + disparity_array[tileY][tileX] + disparity_corr) * w;
+													lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_TARGET] += (disparity_array[tileY][tileX] + disparity_corr) * w;
+													lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_DIFF] += lma_ds[cTile][0] * w;
+													lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PX + 0] += pxpy[cTile][0] * w;
+													lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PX + 1] += pxpy[cTile][1] * w;
+													for (int cam = 0; cam < quad; cam++) {
+														lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_DYDDISP0 + cam] += disp_dist[cTile][cam][2] * w;
+													}
 													sum_w += w;
 												}
 											}
@@ -2277,20 +2288,34 @@ public class ImageDtt {
 									}
 								}
 								if (sum_w > 0.0) {
-									lazy_eye_data[nCluster] = new double [2+ 2 * ddnd.length];
-									lazy_eye_data[nCluster][0] = sum_wd / sum_w;
-									lazy_eye_data[nCluster][1] = stats[0];
+									lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_STRENGTH] = stats[0];
+									lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_DISP]   /= sum_w;
+									lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_TARGET] /= sum_w;
+									lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_DIFF]   /= sum_w;
+									lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PX + 0] /= sum_w;
+									lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PX + 1] /= sum_w;
+									for (int cam = 0; cam < quad; cam++) {
+										lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_DYDDISP0 + cam] /= sum_w;
+									}
+
 									for (int cam = 0; cam < ddnd.length; cam++) {
 										if (ddnd[cam] != null) { //convert to x,y from dd/nd
-											lazy_eye_data[nCluster][2 * cam + 2] = ddnd[cam][0] * rXY[cam][0] - ddnd[cam][1] * rXY[cam][1];
-											lazy_eye_data[nCluster][2 * cam + 3] = ddnd[cam][0] * rXY[cam][1] + ddnd[cam][1] * rXY[cam][0];
+											lazy_eye_data[nCluster][2 * cam + ExtrinsicAdjustment.INDX_X0 + 0] = ddnd[cam][0] * rXY[cam][0] - ddnd[cam][1] * rXY[cam][1];
+											lazy_eye_data[nCluster][2 * cam + ExtrinsicAdjustment.INDX_X0 + 1] = ddnd[cam][0] * rXY[cam][1] + ddnd[cam][1] * rXY[cam][0];
+											lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_DD0 + cam] = ddnd[cam][0];
+											lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_ND0 + cam] = ddnd[cam][1];
 										} else {
-											lazy_eye_data[nCluster][2 * cam + 2] = Double.NaN;
-											lazy_eye_data[nCluster][2 * cam + 3] = 0.0;
+											lazy_eye_data[nCluster][2 * cam + ExtrinsicAdjustment.INDX_X0 + 0] = Double.NaN;
+											lazy_eye_data[nCluster][2 * cam + ExtrinsicAdjustment.INDX_X0 + 1] = Double.NaN;
+											lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_DD0 + cam] = Double.NaN;
+											lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_ND0 + cam] = Double.NaN;
 										}
 									}
+								} else {
+									lazy_eye_data[nCluster] = null;
 								}
-
+// just for debugging, can be removed
+								/*
 								double [][] lma2_ds = lma2.lmaDisparityStrength(
 					    				imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 					    				imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
@@ -2355,6 +2380,7 @@ public class ImageDtt {
 										}
 									}
 								}
+								*/
 							}
 						}
 					}

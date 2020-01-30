@@ -3599,7 +3599,89 @@ public class QuadCLT {
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
 
-	  public void processCLTQuadCorrsTest( // not used in lwir
+
+
+	  public void processCLTQuadCorrsTestERS(
+			  CLTParameters           clt_parameters,
+			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+			  ColorProcParameters colorProcParameters,
+			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
+//			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+			  final boolean    apply_corr, // calculate and apply additional fine geometry correction
+			  final boolean    infinity_corr, // calculate and apply geometry correction at infinity
+			  final int        threadsMax,  // maximal number of threads to launch
+			  final boolean    updateStatus,
+			  final int        debugLevel)
+	  {
+		  if (infinity_corr && (clt_parameters.z_correction != 0.0)){
+			  System.out.println(
+					  "****************************************\n"+
+					  "* Resetting manual infinity correction *\n"+
+					  "****************************************\n");
+			  clt_parameters.z_correction = 0.0;
+		  }
+
+		  this.startTime=System.nanoTime();
+		  String [] sourceFiles=correctionsParameters.getSourcePaths();
+		  SetChannels [] set_channels=setChannels(debugLevel);
+		  if ((set_channels == null) || (set_channels.length==0)) {
+			  System.out.println("No files to process (of "+sourceFiles.length+")");
+			  return;
+		  }
+		// multiply each image by this and divide by individual (if not NaN)
+		  double [] referenceExposures = null;
+		  if (!colorProcParameters.lwir_islwir) {
+			  referenceExposures=eyesisCorrections.calcReferenceExposures(debugLevel);
+		  }
+		  for (int nSet = 0; nSet < set_channels.length; nSet++){
+			  int [] channelFiles = set_channels[nSet].fileNumber();
+			  boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
+			  double [] scaleExposures = new double[channelFiles.length];
+
+			  ImagePlus [] imp_srcs = conditionImageSet(
+					  clt_parameters,             // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+					  colorProcParameters,
+					  sourceFiles,                // String []                                 sourceFiles,
+					  set_channels[nSet].name(),  // String                                    set_name,
+					  referenceExposures,         // double []                                 referenceExposures,
+					  channelFiles,               // int []                                    channelFiles,
+					  scaleExposures,   //output  // double [] scaleExposures
+					  saturation_imp,   //output  // boolean [][]                              saturation_imp,
+					  debugLevel); // int                                       debugLevel);
+
+
+			  // once per quad here
+			  processCLTQuadCorrTestERS( // returns ImagePlus, but it already should be saved/shown
+					  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+					  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
+					  clt_parameters,
+					  debayerParameters,
+					  colorProcParameters,
+					  channelGainParameters,
+					  rgbParameters,
+					  scaleExposures,
+					  apply_corr, // calculate and apply additional fine geometry correction
+					  infinity_corr, // calculate and apply geometry correction at infinity
+					  threadsMax,  // maximal number of threads to launch
+					  updateStatus,
+					  debugLevel);
+			  //Runtime.getRuntime().gc();
+			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels.length+") finished at "+
+					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+			  if (eyesisCorrections.stopRequested.get()>0) {
+				  System.out.println("User requested stop");
+				  System.out.println("Processing "+(nSet + 1)+" file sets (of "+set_channels.length+") finished at "+
+						  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				  return;
+			  }
+		  }
+		  System.out.println("processCLTQuadCorrs(): processing "+getTotalFiles(set_channels)+" files ("+set_channels.length+" file sets) finished at "+
+				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+	  }
+
+
+	  public void processCLTQuadCorrsTest(
 			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 			  ColorProcParameters colorProcParameters,
@@ -4576,8 +4658,155 @@ public class QuadCLT {
 		  return results;
 	  }
 
+	  public ImagePlus [] processCLTQuadCorrTestERS(
+			  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"
+			  boolean [][] saturation_imp, // (near) saturated pixels or null
+			  CLTParameters           clt_parameters,
+			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+			  ColorProcParameters                              colorProcParameters,
+			  CorrectionColorProc.ColorGainsParameters         channelGainParameters,
+			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
+//			  int              convolveFFTSize, // 128 - fft size, kernel size should be size/2
+			  double []	       scaleExposures, // probably not needed here
+			  final boolean    apply_corr, // calculate and apply additional fine geometry correction
+			  final boolean    infinity_corr, // calculate and apply geometry correction at infinity
+			  final int        threadsMax,  // maximal number of threads to launch
+			  final boolean    updateStatus,
+			  int              debugLevel){
 
-	  public ImagePlus [] processCLTQuadCorrTest( // USED in lwir
+		  if (debugLevel > -2) { //  -1) {
+			  debugLevel = clt_parameters.ly_debug_level;
+		  }
+
+		  final boolean      batch_mode = clt_parameters.batch_run; //disable any debug images
+
+		  String name=this.correctionsParameters.getModelName((String) imp_quad[0].getProperty("name"));
+		  //		int channel= Integer.parseInt((String) imp_src.getProperty("channel"));
+		  String path= (String) imp_quad[0].getProperty("path");
+
+		  ImagePlus [] results = new ImagePlus[imp_quad.length];
+		  for (int i = 0; i < results.length; i++) {
+			  results[i] = imp_quad[i];
+			  results[i].setTitle(results[i].getTitle()+"RAW");
+		  }
+		  if (debugLevel>1) System.out.println("processing: "+path);
+
+		  setTiles (imp_quad[0], // set global tp.tilesX, tp.tilesY
+				  clt_parameters,
+				  threadsMax);
+//		  double [][] disparity_array = tp.setSameDisparity(clt_parameters.disparity); // 0.0); // [tp.tilesY][tp.tilesX] - individual per-tile expected disparity
+		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
+		  //		  clt_parameters.tileStep,
+
+		  final int tilesX=tp.getTilesX(); // imp_quad[0].getWidth()/clt_parameters.transform_size;
+		  final int tilesY=tp.getTilesY(); // imp_quad[0].getHeight()/clt_parameters.transform_size;
+
+		  final int clustersX= (tilesX + clt_parameters.tileStep - 1) / clt_parameters.tileStep;
+		  final int clustersY= (tilesY + clt_parameters.tileStep - 1) / clt_parameters.tileStep;
+		  final double [][] lazy_eye_data = new double [clustersY*clustersX][];
+
+		  //			final int nTilesInChn=tilesX*tilesY;
+		  final int nClustersInChn=clustersX * clustersY;
+
+		  double [][] dsxy = new double[clustersX * clustersY][];
+		  ImagePlus imp_sel = WindowManager.getCurrentImage();
+		  if ((imp_sel == null) || (imp_sel.getStackSize() != ExtrinsicAdjustment.INDX_LENGTH)) {
+			  System.out.println("No image / wrong image selected, bailing out");
+			  return null;
+		  } else {
+			  System.out.println("Image: "+imp_sel.getTitle());
+				int width = imp_sel.getWidth();
+				int height = imp_sel.getHeight();
+				if ((width != clustersX) || (height != clustersY)) {
+					  System.out.println(String.format("Image size mismatch: width=%d (%d), height=%d(%d)",
+							  width, clustersX, height, clustersY));
+					  return null;
+				}
+				ImageStack stack_sel = imp_sel.getStack();
+				float [][] fpixels = new float [ExtrinsicAdjustment.INDX_LENGTH][];
+				for (int i = 0; i < fpixels.length; i++) {
+					fpixels[i] = (float[]) stack_sel.getPixels(i+1);
+				}
+				for (int tile = 0; tile < dsxy.length; tile ++) {
+					if (fpixels[1][tile] > 0.0) {
+						dsxy[tile] = new double[fpixels.length];
+						for (int i = 0; i < fpixels.length; i++) {
+							dsxy[tile][i] = fpixels[i][tile];
+						}
+					}
+				}
+		  }
+		  ExtrinsicAdjustment ea = new ExtrinsicAdjustment(
+				  geometryCorrection, // GeometryCorrection gc,
+				  clt_parameters.tileStep,   // int         clusterSize,
+				  clustersX, // 	int         clustersX,
+				  clustersY); // int         clustersY);
+
+		  double [] old_new_rms = new double[2];
+		  boolean apply_extrinsic = (clt_parameters.ly_corr_scale != 0.0);
+
+		  GeometryCorrection.CorrVector corr_vector =   ea.solveCorr (
+				  clt_parameters.ly_inf_en, // boolean     use_disparity,     // adjust disparity-related extrinsics
+				  clt_parameters.ly_aztilt_en, // boolean     use_aztilts,       // Adjust azimuths and tilts excluding disparity
+				  clt_parameters.ly_diff_roll_en,//boolean     use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
+				  clt_parameters.ly_inf_force,   //	boolean     force_convergence, // if true try to adjust convergence (disparity, symmetrical parameter 0) even with no disparity
+				  // data, using just radial distortions
+				  clt_parameters.ly_com_roll,    //boolean     common_roll,       // Enable common roll (valid for high disparity range only)
+				  clt_parameters.ly_focalLength, //boolean     corr_focalLength,  // Correct scales (focal length temperature? variations)
+				  clt_parameters.ly_ers_rot, //	boolean     ers_rot,           // Enable ERS correction of the camera rotation
+				  clt_parameters.ly_ers_lin, //	boolean     ly_ers_lin,        // Enable ERS correction of the camera linear movement
+				  // add balancing-related here?
+				  clt_parameters.ly_par_sel, // 	int         manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
+				  1.0, // 	double      weight_disparity,
+				  1.0, // 	double      weight_lazyeye,
+				  dsxy, // double [][] measured_dsxy,
+				  null, //	boolean [] force_disparity,    // boolean [] force_disparity,
+				  geometryCorrection, // GeometryCorrection geometryCorrection,
+				  false, // 	boolean     use_main, // corr_rots_aux != null;
+				  geometryCorrection.getCorrVector(), // GeometryCorrection.CorrVector corr_vector,
+				  old_new_rms, // double [] old_new_rms, // should be double[2]
+				  debugLevel + 5);// int debugLevel)
+
+		  if (debugLevel > -1){
+			  System.out.println("Old extrinsic corrections:");
+			  System.out.println(geometryCorrection.getCorrVector().toString());
+		  }
+		  if (corr_vector != null) {
+			  GeometryCorrection.CorrVector diff_corr = corr_vector.diffFromVector(geometryCorrection.getCorrVector());
+			  if (debugLevel > -1){
+					  System.out.println("New extrinsic corrections:");
+					  System.out.println(corr_vector.toString());
+
+					  System.out.println("Increment extrinsic corrections:");
+					  System.out.println(diff_corr.toString());
+					  // System.out.println("Correction scale = "+clt_parameters.ly_corr_scale);
+
+			  }
+
+			  if (apply_extrinsic){
+				  geometryCorrection.setCorrVector(corr_vector) ;
+/*
+				  geometryCorrection.getCorrVector().incrementVector(diff_corr, clt_parameters.ly_corr_scale);
+				  System.out.println("New (with correction scale applied) extrinsic corrections:");
+				  System.out.println(geometryCorrection.getCorrVector().toString());
+*/
+				  System.out.println("Extrinsic correction updated (can be disabled by setting clt_parameters.ly_corr_scale = 0.0) ");
+
+			  } else {
+				  System.out.println("Correction is not applied according clt_parameters.ly_corr_scale == 0.0) ");
+			  }
+		  } else {
+			  if (debugLevel > -2){
+				  System.out.println("LMA failed");
+			  }
+		  }
+		  double [][][] mismatch_corr_coefficients = new double [1][2][];
+		  mismatch_corr_coefficients[0][0] = geometryCorrection.getCorrVector().toSymArray(null);
+		  mismatch_corr_coefficients[0][1] = old_new_rms;
+		  return null;
+	  }
+
+	  public ImagePlus [] processCLTQuadCorrTest(
 			  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"
 			  boolean [][] saturation_imp, // (near) saturated pixels or null
 			  CLTParameters           clt_parameters,
@@ -4783,38 +5012,25 @@ public class QuadCLT {
 				  debugLevel);
 
 		  if (lazy_eye_data != null) {
-			  int ns = 0;
-			  for (int n = 0; n < lazy_eye_data.length; n++) {
-				  if (lazy_eye_data[n] != null) {
-					  ns = lazy_eye_data[n].length;
-					  break;
-				  }
-			  }
-			  if (ns > 0) {
-				  String [] titles = new String [ns];
-				  titles [0] = "disparity";
-				  titles [1] = "strength";
-				  for (int i = 0; i < (ns - 2)/2; i++) {
-					  titles [2*i + 2] = "dx-"+i;
-					  titles [2*i + 3] = "dy-"+i;
-				  }
 				  int clustersX= (tilesX + clt_parameters.tileStep - 1) / clt_parameters.tileStep;
 				  int clustersY= (tilesY + clt_parameters.tileStep - 1) / clt_parameters.tileStep;
-				  double [][] dbg_cluster = new double [ns][clustersY * clustersX];
+				  double [][] dbg_cluster = new double [ExtrinsicAdjustment.INDX_LENGTH][clustersY * clustersX];
 				  for (int n = 0; n < lazy_eye_data.length; n++) {
-					  if ((lazy_eye_data[n] != null) && (lazy_eye_data[n][1] >= clt_parameters.img_dtt.lma_diff_minw)) {
-						  dbg_cluster[0][n] = lazy_eye_data[n][0]; // disparity
-						  dbg_cluster[1][n] = lazy_eye_data[n][1] - clt_parameters.img_dtt.lma_diff_minw; // strength
-						  for (int i = 0; i < (ns - 2)/2; i++) {
-							  dbg_cluster[2 * i + 2][n] = lazy_eye_data[n][2 * i + 2]; // x
-							  dbg_cluster[2 * i + 3][n] = lazy_eye_data[n][2 * i + 3]; // y
+					  if ((lazy_eye_data[n] != null) && (lazy_eye_data[n][ExtrinsicAdjustment.INDX_STRENGTH] >= clt_parameters.img_dtt.lma_diff_minw)) {
+						  for (int i = 0; i < ExtrinsicAdjustment.INDX_LENGTH; i++ ) {
+							  if (i == ExtrinsicAdjustment.INDX_STRENGTH) {
+								  dbg_cluster[i][n] = lazy_eye_data[n][i] - clt_parameters.img_dtt.lma_diff_minw; // strength
+							  } else {
+								  dbg_cluster[i][n] = lazy_eye_data[n][i];
+							  }
 						  }
 					  } else {
-						  dbg_cluster[0][n] = Double.NaN;
-						  dbg_cluster[1][n] = 0.0;
-						  for (int i = 0; i < (ns - 2)/2; i++) {
-							  dbg_cluster[2 * i + 2][n] = Double.NaN; // x
-							  dbg_cluster[2 * i + 3][n] = Double.NaN; // y
+						  for (int i = 0; i < ExtrinsicAdjustment.INDX_LENGTH; i++ ) {
+							  if (i == ExtrinsicAdjustment.INDX_STRENGTH) {
+								  dbg_cluster[i][n] = 0.0; // strength
+							  } else {
+								  dbg_cluster[i][n] = Double.NaN;
+							  }
 						  }
 					  }
 				  }
@@ -4825,10 +5041,10 @@ public class QuadCLT {
 						  clustersY,
 						  true,
 						  name+sAux()+"-CLT_MISMATCH-D"+clt_parameters.disparity+"_"+clt_parameters.tileStep+"x"+clt_parameters.tileStep,
-						  titles);
-			  }
+						  ExtrinsicAdjustment.DATA_TITLES);
 		  }
 
+/*
 		  if (disparity_map != null){
 			  if (!batch_mode && clt_parameters.show_map &&  (debugLevel > -2)){
 				  sdfa_instance.showArrays(
@@ -4920,16 +5136,8 @@ public class QuadCLT {
 						  true,
 						  name+sAux()+"-CLT_MISMATCH-BLUR-D"+clt_parameters.disparity);
 			  }
-
-/*
-	public boolean lma_diff_xy =            true;  // convert dd/nd to x,y
-	public double  lma_diff_minw =          0.5;   // minimal weight to keep
-	public double  lma_diff_sigma =         2.0;   // blur differential data (relative to the cluster linear size)
-
- */
-
 		  }
-
+*/
 
 		  return results;
 	  }
@@ -5488,9 +5696,9 @@ public class QuadCLT {
 	  {
 		  if (geometryCorrection == null){
 			  System.out.println("are not set, will be:");
-			  return new GeometryCorrection(this.extrinsic_vect).getCorrVector().editIMU();
+			  return new GeometryCorrection(this.extrinsic_vect).getCorrVector().editVector(); // editIMU();
 		  } else {
-			  return geometryCorrection.getCorrVector().editIMU();
+			  return geometryCorrection.getCorrVector().editVector(); // .editIMU();
 		  }
 	  }
 
