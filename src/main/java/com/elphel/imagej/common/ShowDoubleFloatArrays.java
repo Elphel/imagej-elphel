@@ -85,7 +85,7 @@ import ij.process.ImageProcessor;
 
         }
       }
-      ImagePlus imp_stack = new ImagePlus(title, array_stack);
+      ImagePlus imp_stack = new ImagePlus(title, array_stack); // stack is empty
       imp_stack.getProcessor().resetMinAndMax();
       imp_stack.show();
       return;

@@ -25,7 +25,7 @@ public class CLTParameters {
 	public double     shift_y =           0.0;
 	public int        tileStep =            4;  // process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters
 	public int        iclt_mask =          15;  // which transforms to combine
-	public int        tileX =             258;  // number of kernel tile (0..163)
+	public int        tileX =            -258;  // number of kernel tile (0..163)
 	public int        tileY =             133;  // number of kernel tile (0..122)
 	public int        dbg_mode =            0;  // 0 - normal, +1 - no DCT/IDCT
 	public int        ishift_x =            0;  // debug feature - shift source image by this pixels left
@@ -165,32 +165,37 @@ public class CLTParameters {
 	public boolean    inf_restore_disp = true;   // Add disparity back to d{x,y}[i] (debug feature)
 	// Lazy eye parameters
 
-	public double     ly_gt_strength =  0.18; // use some configurable parameters
-	public boolean    ly_gt_use_wnd =   true;
-	public double     ly_gt_rms =        0.2; // split small source samples tp FG/BG if all aux tile RMS exceeds this value
+	public boolean    ly_lma_ers =      true;    // Use 2020 LMA-based measurement of mismatch
+	public double     ly_gt_strength =  0.18;    // use some configurable parameters
+	public boolean    ly_gt_use_wnd =   true;    //
+	public double     ly_gt_rms =       0.2;     // split small source samples to FG/BG if all aux tile RMS exceeds this value
 
 //	boolean split_fg_bg =  true;
 //	boolean for_adjust =  false;
 
-
+	public double     ly_marg_fract =   0.2;     // part of half-width, and half-height to reduce weights
 	public boolean    ly_on_scan =      true;    // Calculate and apply lazy eye correction after disparity scan (poly or extrinsic)
 	public boolean    ly_inf_en =       true;    // Simultaneously correct disparity at infinity (both poly and extrinsic)
+	public int        ly_min_forced =     20;    // Minimal number of clusters with forced disparity to use it
 	public boolean    ly_aztilt_en =    true;    // Adjust azimuths and tilts
 	public boolean    ly_diff_roll_en = true;    // Adjust differential rolls (3 of 4 angles)
 	public boolean    ly_focalLength=   true;    // Correct scales (focal length temperature? variations)
 	public boolean    ly_com_roll=      false;   // Enable common roll (valid for high disparity range only)
 	public boolean    ly_ers_rot=       true;    // Enable ERS correction of the camera rotation
-	public boolean    ly_ers_lin=       false;   // Enable ERS correction of the camera linear movement
+	public boolean    ly_ers_forw=      true;    // Enable ERS correction of the camera linear movement in z direction
+	public boolean    ly_ers_side=      false;   // true;    // Enable ERS correction of the camera linear movement in x direction
+	public boolean    ly_ers_vert=      false;   // true;    // Enable ERS correction of the camera linear movement in y direction
+
 	public int        ly_par_sel   =    0;       // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use checkbox selections above)
 
 	public int        ly_debug_level =  0;       // LY debug level
 
-	public boolean    ly_right_left=    false;   // equalize weights of right/left FoV (use with horizon in both halves and gross infinity correction)
+	public boolean    ly_right_left=    true;    // equalize weights of right/left FoV (use with horizon in both halves and gross infinity correction)
 
 	public int        ly_per_quad =     10;      // minimal tiles per quadrant (not counting the worst) tp proceed
-	public double     ly_per_quad_r =   0.01;    // minimal relative tiles per quadrant (not counting the worst) tp proceed
+	public double     ly_per_quad_r =   0.003;    // minimal relative tiles per quadrant (not counting the worst) tp proceed
 	public int        ly_inf =          10;      // minimal number of tiles at infinity to proceed
-	public double     ly_inf_r =        0.01;    // minimal relative number of tiles at infinity to proceed
+	public double     ly_inf_r =        0.0; //0.01;    // minimal relative number of tiles at infinity to proceed
 	public int        ly_inf_scale =    20;      // minimal number of tiles at infinity to apply weight scaling
 	public double     ly_inf_scale_r =  0.02;    // minimal relative number of tiles at infinity to apply weight scaling
 
@@ -203,7 +208,7 @@ public class CLTParameters {
 	public int        ly_smpl_side =    3;       // Sample size (side of a square) disp/strength filter
 	public int        ly_smpl_num =     5;       // Number after removing worst (should be >1)
 	// 		public double     ly_meas_disp =    1.5;     // Maximal measured relative disparity - using  (0.8*disp_scan_step)
-	public double     ly_smpl_rms =     0.2;     // 1;     // Maximal RMS of the remaining tiles in a sample
+	public double     ly_smpl_rms =     0.05;     // 1;     // Maximal RMS of the remaining tiles in a sample
 
 	public double     ly_disp_var =     0.1;     // Maximal full disparity difference to 8 neighbors
 	public double     ly_disp_rvar =    0.01;    // Maximal relative full disparity difference to 8 neighbors
@@ -218,18 +223,18 @@ public class CLTParameters {
 	public double     lym_overexp     = 0.0001;  // Any (near) saturated pixels - discard tile (see sat_level also)
 	public boolean    lym_update_disp = true;    // Update target disparity after each step
 	public int        lym_iter =        25;      // Maximal number of iterations
-	private double    lym_change =      1e-5;    // Parameter vector difference to exit 4e-6 - OK
+	private double    lym_change =      0.5e-5;    // Parameter vector difference to exit 4e-6 - OK
 	private double    lym_change_aux =  1e-4;    // same for aux camera (currntly)lwir
 	public double     lym_poly_change = 0.002;   // Parameter vector difference to exit from polynomial correction
 
-	public boolean    lyf_filter =      true;    // Filter lazy eye pairs by their values
-	public int        lyf_smpl_side =   8;       // 8 x8 masked, 16x16 sampled
-	public double     lyf_rms_max =     0.25;    // Maximal RMS (all components to components average)
+	public boolean    lyf_filter =      false;   // Filter lazy eye pairs by their values
+	public int        lyf_smpl_side =   3;       // 8 x8 masked, 16x16 sampled
+	public double     lyf_rms_max =     0.1;     // Maximal RMS (all components to components average)
 	public double     lyf_frac_keep =   0.5;     // Keep best fit samples, discard worst
 	public int        lyf_min_samples = 5;       // Minimal number of tiles remaining in the sample
 	public boolean    lyf_norm_center = true;    // Replace samples with a single average with equal weight
 	public double     ly_corr_scale =   1.0;     // Scale calculated correction vector
-	public boolean    lyr_filter_ds =   false;   // true;
+	public boolean    lyr_filter_ds =   false;    // true;
 	public boolean    lyr_filter_lyf =  false;   // ~clt_parameters.lyf_filter, but may be different, now off for a single cameras
 
 
@@ -960,18 +965,26 @@ public class CLTParameters {
 		properties.setProperty(prefix+"ih_norm_center",             this.ih_norm_center+"");
 		properties.setProperty(prefix+"inf_restore_disp",           this.inf_restore_disp+"");
 
+		properties.setProperty(prefix+"ly_lma_ers",                 this.ly_lma_ers+"");
 		properties.setProperty(prefix+"ly_gt_strength",             this.ly_gt_strength+"");
 		properties.setProperty(prefix+"ly_gt_use_wnd",              this.ly_gt_use_wnd+"");
 		properties.setProperty(prefix+"ly_gt_rms",                  this.ly_gt_rms+"");
 
+		properties.setProperty(prefix+"ly_marg_fract",              this.ly_marg_fract+"");
 		properties.setProperty(prefix+"ly_on_scan",                 this.ly_on_scan+"");
 		properties.setProperty(prefix+"ly_inf_en",                  this.ly_inf_en+"");
+		properties.setProperty(prefix+"ly_min_forced",              this.ly_min_forced+"");
 		properties.setProperty(prefix+"ly_aztilt_en",               this.ly_aztilt_en+"");
 		properties.setProperty(prefix+"ly_diff_roll_en",            this.ly_diff_roll_en+"");
 		properties.setProperty(prefix+"ly_focalLength",             this.ly_focalLength+"");
 		properties.setProperty(prefix+"ly_com_roll",                this.ly_com_roll+"");
 		properties.setProperty(prefix+"ly_ers_rot",                 this.ly_ers_rot+"");
-		properties.setProperty(prefix+"ly_ers_lin",                 this.ly_ers_lin+"");
+		properties.setProperty(prefix+"ly_ers_forw",                this.ly_ers_forw+"");
+		properties.setProperty(prefix+"ly_ers_side",                this.ly_ers_side+"");
+		properties.setProperty(prefix+"ly_ers_vert",                this.ly_ers_vert+"");
+
+
+
 		properties.setProperty(prefix+"ly_par_sel",                 this.ly_par_sel+"");
 		properties.setProperty(prefix+"ly_debug_level",             this.ly_debug_level+"");
 
@@ -1682,17 +1695,27 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"ih_norm_center")!=null)                this.ih_norm_center=Boolean.parseBoolean(properties.getProperty(prefix+"ih_norm_center"));
 		if (properties.getProperty(prefix+"inf_restore_disp")!=null)              this.inf_restore_disp=Boolean.parseBoolean(properties.getProperty(prefix+"inf_restore_disp"));
 
+		if (properties.getProperty(prefix+"ly_lma_ers")!=null)                    this.ly_lma_ers=Boolean.parseBoolean(properties.getProperty(prefix+"ly_lma_ers"));
 		if (properties.getProperty(prefix+"ly_gt_strength")!=null)                this.ly_gt_strength=Double.parseDouble(properties.getProperty(prefix+"ly_gt_strength"));
 		if (properties.getProperty(prefix+"ly_gt_use_wnd")!=null)                 this.ly_gt_use_wnd=Boolean.parseBoolean(properties.getProperty(prefix+"ly_gt_use_wnd"));
 		if (properties.getProperty(prefix+"ly_gt_rms")!=null)                     this.ly_gt_rms=Double.parseDouble(properties.getProperty(prefix+"ly_gt_rms"));
+
+
+		if (properties.getProperty(prefix+"ly_marg_fract")!=null)                 this.ly_marg_fract=Double.parseDouble(properties.getProperty(prefix+"ly_marg_fract"));
 		if (properties.getProperty(prefix+"ly_on_scan")!=null)                    this.ly_on_scan=Boolean.parseBoolean(properties.getProperty(prefix+"ly_on_scan"));
 		if (properties.getProperty(prefix+"ly_inf_en")!=null)                     this.ly_inf_en=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_en"));
+		if (properties.getProperty(prefix+"ly_min_forced")!=null)                 this.ly_min_forced=Integer.parseInt(properties.getProperty(prefix+"ly_min_forced"));
 		if (properties.getProperty(prefix+"ly_aztilt_en")!=null)                  this.ly_aztilt_en=Boolean.parseBoolean(properties.getProperty(prefix+"ly_aztilt_en"));
 		if (properties.getProperty(prefix+"ly_diff_roll_en")!=null)               this.ly_diff_roll_en=Boolean.parseBoolean(properties.getProperty(prefix+"ly_diff_roll_en"));
 		if (properties.getProperty(prefix+"ly_focalLength")!=null)                this.ly_focalLength=Boolean.parseBoolean(properties.getProperty(prefix+"ly_focalLength"));
 		if (properties.getProperty(prefix+"ly_com_roll")!=null)                   this.ly_com_roll=Boolean.parseBoolean(properties.getProperty(prefix+"ly_com_roll"));
 		if (properties.getProperty(prefix+"ly_ers_rot")!=null)                    this.ly_ers_rot=Boolean.parseBoolean(properties.getProperty(prefix+"ly_ers_rot"));
-		if (properties.getProperty(prefix+"ly_ers_lin")!=null)                    this.ly_ers_lin=Boolean.parseBoolean(properties.getProperty(prefix+"ly_ers_lin"));
+		if (properties.getProperty(prefix+"ly_ers_forw")!=null)                   this.ly_ers_forw=Boolean.parseBoolean(properties.getProperty(prefix+"ly_ers_forw"));
+		if (properties.getProperty(prefix+"ly_ers_side")!=null)                   this.ly_ers_side=Boolean.parseBoolean(properties.getProperty(prefix+"ly_ers_side"));
+		if (properties.getProperty(prefix+"ly_ers_vert")!=null)                   this.ly_ers_vert=Boolean.parseBoolean(properties.getProperty(prefix+"ly_ers_vert"));
+
+
+
 		if (properties.getProperty(prefix+"ly_par_sel")!=null)                    this.ly_par_sel=Integer.parseInt(properties.getProperty(prefix+"ly_par_sel"));
 		if (properties.getProperty(prefix+"ly_debug_level")!=null)                this.ly_debug_level=Integer.parseInt(properties.getProperty(prefix+"ly_debug_level"));
 
@@ -2444,25 +2467,35 @@ public class CLTParameters {
 		gd.addCheckbox    ("Replace samples with a single average with equal weight",                           this.ih_norm_center);
 		gd.addCheckbox    ("Add disparity back to d{x,y}[i] (debug feature)",                                   this.inf_restore_disp);
 
+
 		gd.addTab         ("Lazy eye", "Lazy eye parameters");
 
+		gd.addCheckbox    ("Use 2020 LMA-based measurement of mismatch",                                        this.ly_lma_ers);
 		gd.addMessage     ("--- main-to-aux depth map parameters ---");
-		gd.addNumericField("Minimal reference (main) channel correlation strength",                              this.ly_gt_strength,        3);
+		gd.addNumericField("Minimal reference (main) channel correlation strength",                             this.ly_gt_strength,        3);
 		gd.addCheckbox    ("Use window for AUX tiles to reduce weight of the hi-res tiles near low-res tile boundaries", this.ly_gt_use_wnd);
 		gd.addNumericField("Aux disparity thershold to split FG and BG (and disable AUX tile for adjustment)",  this.ly_gt_rms,        3);
 		gd.addMessage     ("--- others ---");
+
+
+		gd.addNumericField("Relative weight margins (0.0 - all 1.0, 1.0 sin^2",                                 this.ly_marg_fract,  8,3,"",
+				"Reduce weigt of peripheral tiles");
+
 		gd.addCheckbox    ("Calculate and apply lazy eye correction after disparity scan (poly or extrinsic), may repeat", this.ly_on_scan);
 		gd.addCheckbox    ("Adjust disparity using objects at infinity by changing individual tilt and azimuth ",          this.ly_inf_en," disable if there are no really far objects in the scene");
+		gd.addNumericField("Minimal number of clusters with forced disparity to use it (otherwise keep current)",this.ly_min_forced,  0);
 		gd.addCheckbox    ("Adjust azimuths and tilts",                                                         this.ly_aztilt_en,"Adjust azimuths and tilts excluding those that change disparity");
 		gd.addCheckbox    ("Adjust differential rolls",                                                         this.ly_diff_roll_en,"Adjust differential rolls (3 of 4 rolls, keeping average roll)");
 		gd.addCheckbox    ("Correct scales (focal length temperature? variations)",                             this.ly_focalLength);
 		gd.addCheckbox    ("Enable common roll adjustment (valid for high disparity range scans only)",         this.ly_com_roll);
 		gd.addCheckbox    ("Enable ERS correction of the camera rotation",                                      this.ly_ers_rot);
-		gd.addCheckbox    ("Enable ERS correction of the camera linear movement",                               this.ly_ers_lin);
+		gd.addCheckbox    ("Enable ERS correction of the camera forward motion",                                this.ly_ers_forw);
+		gd.addCheckbox    ("Enable ERS correction of the camera sideways motion",                               this.ly_ers_side);
+		gd.addCheckbox    ("Enable ERS correction of the camera vertical motion",                               this.ly_ers_vert);
 		gd.addNumericField("Manual parameter mask selection (0 use checkboxes above)",                          this.ly_par_sel,  0, 5,"",
 				"bit 0 - sym0, bit1 - sym1, ...");
 		gd.addNumericField("Debug level for lazy eye/ers processing",                                           this.ly_debug_level,  0, 5,"",
-				"Active when global debug level > -1");
+				"Active when global debug level > -1, 1 - min, 2 - lma steps, 3 - images");
 
 
 
@@ -2477,14 +2510,14 @@ public class CLTParameters {
 		gd.addNumericField("Minimal number of tiles at infinity to apply weight scaling",                            this.ly_inf_scale,  0);
 		gd.addNumericField("Minimal number of tiles at infinity to apply weight scaling - fraction of all tiles",    this.ly_inf_scale_r,  3);
 
-		gd.addNumericField("Relative weight of infinity calibration data",                                          this.ly_inf_frac,  3);
+		gd.addNumericField("Relative weight of infinity calibration data",                                           this.ly_inf_frac,  3);
 
 		gd.addNumericField("Maximal disparity to be treated as infinity when adjusting with the rig data",           this.ly_inf_max_disparity,  8,3,"pix",
 				"Only used in guided (by rig data) mode");
 
-		gd.addCheckbox    ("Correct disparity for infinity tiles )has to disable until code fixed)",              this.ly_inf_disp);
-		gd.addCheckbox    ("Force convergence correction during extrinsic, even with no infinity data",           this.ly_inf_force);
-		gd.addCheckbox    ("*Use polynomial correction, false - correct tilt/azimuth/roll of each sensor)",           this.ly_poly);
+		gd.addCheckbox    ("Correct disparity for infinity tiles )has to disable until code fixed)",                 this.ly_inf_disp);
+		gd.addCheckbox    ("Force convergence correction during extrinsic, even with no infinity data",              this.ly_inf_force);
+		gd.addCheckbox    ("*Use polynomial correction, false - correct tilt/azimuth/roll of each sensor)",          this.ly_poly);
 
 		gd.addMessage     ("--- Lazy eye parameters ---");
 		gd.addNumericField("Sample size (side of a square)",                                                    this.ly_smpl_side,  0);
@@ -3281,17 +3314,23 @@ public class CLTParameters {
 		this.ih_norm_center=        gd.getNextBoolean();
 		this.inf_restore_disp=      gd.getNextBoolean();
 
+		this.ly_lma_ers =           gd.getNextBoolean();
 		this.ly_gt_strength=        gd.getNextNumber();
 		this.ly_gt_use_wnd=         gd.getNextBoolean();
 		this.ly_gt_rms=             gd.getNextNumber();
+
+		this.ly_marg_fract=         gd.getNextNumber();
 		this.ly_on_scan=            gd.getNextBoolean();
 		this.ly_inf_en=             gd.getNextBoolean();
+		this.ly_min_forced=   (int) gd.getNextNumber();
 		this.ly_aztilt_en=          gd.getNextBoolean();
 		this.ly_diff_roll_en=       gd.getNextBoolean();
 		this.ly_focalLength=        gd.getNextBoolean();
 		this.ly_com_roll=           gd.getNextBoolean();
 		this.ly_ers_rot=            gd.getNextBoolean();
-		this.ly_ers_lin=            gd.getNextBoolean();
+		this.ly_ers_forw=           gd.getNextBoolean();
+		this.ly_ers_side=           gd.getNextBoolean();
+		this.ly_ers_vert=           gd.getNextBoolean();
 		this.ly_par_sel=      (int) gd.getNextNumber();
 		this.ly_debug_level=  (int) gd.getNextNumber();
 

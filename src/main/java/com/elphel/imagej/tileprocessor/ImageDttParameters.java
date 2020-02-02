@@ -99,7 +99,7 @@ public class ImageDttParameters {
 	public double  corr_wndx_blur =         5.0;   // 100% to 0 % vertical transition range
 
 // LMA parameters
-	public double  lma_disp_range =         2.0;   // disparity range to combine in one cluster (to mitigate ERS
+	public double  lma_disp_range =          5.0;   // disparity range to combine in one cluster (to mitigate ERS
 // LMA single parameters
 	public boolean lmas_gaussian =           false; // model correlation maximum as a Gaussian (false - as a parabola)
 	public boolean lmas_adjust_wm =          true;  // used in new for width
@@ -110,16 +110,16 @@ public class ImageDttParameters {
 	public double  lmas_poly_str_min =       0.05;  // ignore tiles with poly strength (scaled) below
 
 	public double  lmas_lambda_initial =     0.03;   //
-	public double  lmas_rms_diff =           0.001; //
+	public double  lmas_rms_diff =           0.0003; //
 	public int     lmas_num_iter =          20;     //
 	// Filtering and strength calculation
-	public double  lmas_max_rel_rms =        0.2;   // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
-	public double  lmas_min_strength =       1.0;   // minimal composite strength (sqrt(average amp squared over absolute RMS)
-	public double  lmas_min_ac =             0.03;  // minimal of a and C coefficients maximum (measures sharpest point/line)
+	public double  lmas_max_rel_rms =        0.3;   // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
+	public double  lmas_min_strength =       0.7;   // minimal composite strength (sqrt(average amp squared over absolute RMS)
+	public double  lmas_min_ac =             0.02;  // minimal of a and C coefficients maximum (measures sharpest point/line)
 	public double  lmas_max_area =           0.0;  // maximal half-area (if > 0.0)
 
 	public boolean lma_gaussian =           false; // model correlation maximum as a Gaussian (false - as a parabola)
-	public boolean lma_second =             false;  // re-run LMA after removing weak/failed tiles
+	public boolean lma_second =             true;  // re-run LMA after removing weak/failed tiles
 	public boolean lma_second_gaussian =    false;  // re-run after removing weal/failed in Gaussian mode
 	public boolean lma_adjust_wm =          true;  // used in new for width
 	public boolean lma_adjust_wy =          true;  // false; // used in new for ellipse
@@ -128,7 +128,7 @@ public class ImageDttParameters {
 	public boolean lma_adjust_ag =          true;  // used in new for gains
 
 // new LMA parameters
-	public double  lma_wnd =                1.5;   // raise cosine window to this power (1.0 - just 2D cosine)
+	public double  lma_wnd =                1.0; //1.5;   // raise cosine window to this power (1.0 - just 2D cosine)
 	public double  lma_min_wnd =            0.4;   // divide values by the 2D correlation window if it is >= this value for finding maximums and convex areas
 	public double  lma_wnd_pwr =            0.8;   // Raise window for finding a maximum and a convex region to this power
 	public int     lma_hard_marg =          1;     // Zero out this width margins before blurring
@@ -148,13 +148,13 @@ public class ImageDttParameters {
 	public double  lma_lambda_scale_good =  0.5;   //
 	public double  lma_lambda_scale_bad =   8.0;   //
 	public double  lma_lambda_max =       100.0;   //
-	public double  lma_rms_diff =           0.001; //
-	public int     lma_num_iter =          20;     //
+	public double  lma_rms_diff =           0.003; //
+	public int     lma_num_iter =          10;     //
 	// Filtering and strength calculation
-	public double  lma_max_rel_rms =        0.12;  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
-	public double  lma_min_strength =       1.25;  // minimal composite strength (sqrt(average amp squared over absolute RMS)
-	public double  lma_min_ac =             0.15;  // minimal of a and C coefficients maximum (measures sharpest point/line)
-	public double  lma_max_area =           30.0;  // maximal half-area (if > 0.0)
+	public double  lma_max_rel_rms =        0.2;  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
+	public double  lma_min_strength =       1.0;  // minimal composite strength (sqrt(average amp squared over absolute RMS)
+	public double  lma_min_ac =             0.05;  // minimal of a and C coefficients maximum (measures sharpest point/line)
+	public double  lma_max_area =           45.0;  // maximal half-area (if > 0.0)
 
 	public double  lma_str_scale =          0.2;   // convert lma-generated strength to match previous ones - scale
 	public double  lma_str_offset =         0.05;  // convert lma-generated strength to match previous ones - add to result
@@ -162,8 +162,8 @@ public class ImageDttParameters {
 
 	// Lazy eye results interpretation
 	public boolean lma_diff_xy =            true;  // convert dd/nd to x,y
-	public double  lma_diff_minw =          0.5;   // minimal weight to keep
-	public double  lma_diff_sigma =         1.0;   // blur differential data (relative to the cluster linear size)
+	public double  lma_diff_minw =          0.07;   // minimal weight to keep
+	public double  lma_diff_sigma =         2.0;   // blur differential data (relative to the cluster linear size)
 
 	public int     lma_debug_level =        0;     //
 	public int     lma_debug_level1 =       0;     //

@@ -8255,7 +8255,7 @@ if (debugLevel > -100) return true; // temporarily !
 			final boolean    updateStatus,
 			final int        debugLevel)  throws Exception
 	{
-		//		  final boolean    batch_mode = clt_parameters.batch_run;
+		// final boolean    batch_mode = clt_parameters.batch_run;
 		// Reset dsi data (only 2 slices will be used)
 		this.dsi =           new double [DSI_SLICES.length][];
 		this.dsi_aux_from_main =   null; // full data, including rms, fg and bg data

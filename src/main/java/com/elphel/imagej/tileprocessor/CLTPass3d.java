@@ -34,7 +34,12 @@ public class CLTPass3d{
 		private  double [][]    disparity_sav; // saved disparity
 		private  int    [][]    tile_op_sav;   // saved tile_op
 		public   double [][]    disparity_map =  null; // add 4 layers - worst difference for the port
+		public   double [][]    lazy_eye_data = null;
+		public   int            lma_cluster_size = -1;
+		public   boolean []     lazy_eye_force_disparity = null;
+
 		double []               calc_disparity = null; // composite disparity, calculated from "disparity", and "disparity_map" fields
+
 		                                       // using horizontal features and corr_magic_scale
 		// used directly in TileProcessor.compositeScan()
 		double []               calc_disparity_hor =   null; // composite disparity, calculated from "disparity", and "disparity_map" fields
@@ -55,7 +60,7 @@ public class CLTPass3d{
 		public  boolean []      border_tiles =         null; // these are border tiles, zero out alpha
 		public  boolean []      selected =             null; // which tiles are selected for this layer
 		public  double [][][][] texture_tiles;
-		public double [][]      max_tried_disparity =  null; //[ty][tx] used for combined passes, shows maximal disparity for this tile, regardless of results
+		public  double [][]      max_tried_disparity =  null; //[ty][tx] used for combined passes, shows maximal disparity for this tile, regardless of results
 		public  boolean         is_combo =             false;
 		public  boolean         is_measured =          false;
 		public  String          texture = null; // relative (to x3d) path
@@ -234,6 +239,31 @@ public class CLTPass3d{
 			superTiles =     null;
 
 		}
+
+		public boolean [] getLazyEyeForceDisparity() {
+			return lazy_eye_force_disparity;
+		}
+
+		public void setLazyEyeForceDisparity(boolean [] lazy_eye_force_disparity) {
+			this.lazy_eye_force_disparity = lazy_eye_force_disparity;
+		}
+
+		public double [][] getLazyEyeData() {
+			return lazy_eye_data;
+		}
+
+		public void setLazyEyeData(double [][] lazy_eye_data) {
+			this.lazy_eye_data = lazy_eye_data;
+		}
+
+		public int getLazyEyeClusterSize() {
+			return lma_cluster_size;
+		}
+		public void setLazyEyeClusterSize(int lma_cluster_size) {
+			this.lma_cluster_size = lma_cluster_size;
+		}
+
+
 
 		public boolean [] getSelected(){
 			return selected;

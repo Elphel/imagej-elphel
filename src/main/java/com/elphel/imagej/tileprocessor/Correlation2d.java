@@ -1948,13 +1948,13 @@ public class Correlation2d {
     	}
 
 
-    	if (debug_graphic) {
+    	if (debug_graphic && (dbg_corr != null)) {
 
     	    double [][] dbg_corrs = repackCluster(
     	    		dbg_corr,
     	    		clust_width);
 
-    		(new ShowDoubleFloatArrays()).showArrays(
+    		(new ShowDoubleFloatArrays()).showArrays( // empty array
     				dbg_corrs,
     				dbg_out_width,
     				dbg_out_height,

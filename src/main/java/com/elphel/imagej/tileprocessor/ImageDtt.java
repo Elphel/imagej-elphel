@@ -1513,8 +1513,6 @@ public class ImageDtt {
 	}
 
 // removing macro and FPGA modes
-//	public double [][][][][][] clt_aberrations_quad_corr_min( // USED in LWIR
-//	public double [][] clt_aberrations_quad_corr_min( // returns d,s lazy eye parameters
 	public double [][] cltMeasureLazyEye ( // returns d,s lazy eye parameters
 			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 //			final int                 macro_scale,     // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
@@ -1813,8 +1811,9 @@ public class ImageDtt {
 
 						boolean debugCluster =  (clustX == debug_clustX) && (clustY == debug_clustY);
 						boolean debugCluster1 = (Math.abs(clustX - debug_clustX) < 10) && (Math.abs(clustY - debug_clustY) < 10);
-
-
+						if (debugCluster) {
+							System.out.println("debugCluster");
+						}
 						int clust_lma_debug_level =  debugCluster? imgdtt_params.lma_debug_level : -5;
 // filter only tiles with similar disparity to enable lazy eye for the ERS.
 						int num_good_tiles = 0;
@@ -1872,9 +1871,11 @@ public class ImageDtt {
 											cTile = cTileY * tileStep + cTileX;
 											tIndex =    tileY * tilesX + tileX;
 											//											int nTile = tileY * tilesX + tileX; // how is it different from tIndex?
-											for (int cam = 0; cam < quad; cam++) {
-												clt_mismatch[3*cam + 0][tIndex] = Double.NaN;
-												clt_mismatch[3*cam + 1][tIndex] = Double.NaN;
+											if (clt_mismatch != null) {
+												for (int cam = 0; cam < quad; cam++) {
+													clt_mismatch[3*cam + 0][tIndex] = Double.NaN;
+													clt_mismatch[3*cam + 1][tIndex] = Double.NaN;
+												}
 											}
 										}
 									}
@@ -1956,7 +1957,7 @@ public class ImageDtt {
 											for (int i = 0; i < quad; i++) {
 												System.out.println("clt_aberrations_quad_corr():  tileX="+tileX+", tileY="+tileY+
 														" centerX="+centerX+" centerY="+centerY+" disparity="+disparity_array[tileY][tileX]+
-														" centersXY["+cTile+"]["+i+"][0]="+centersXY[0][i][0]+" centersXY["+cTile+"]["+i+"][1]="+centersXY[cTile][i][1]);
+														" centersXY["+cTile+"]["+i+"][0]="+centersXY[cTile][i][0]+" centersXY["+cTile+"]["+i+"][1]="+centersXY[cTile][i][1]);
 											}
 										}
 										if (debug_offsets != null) {
@@ -2087,140 +2088,152 @@ public class ImageDtt {
 
 										// all color channels are done here
 
-										if (disparity_map != null){ // not null - calculate correlations
+//										if (disparity_map != null){ // not null - calculate correlations
+										if (disparity_map != null){
+
 											for (int i = 0; i < disparity_map.length; i++) {
 												if (disparity_map[i] != null) disparity_map[i][nTile] = (
 														(i == DISPARITY_STRENGTH_INDEX) ||
 														(i == DISPARITY_INDEX_HOR_STRENGTH) ||
 														(i == DISPARITY_INDEX_VERT_STRENGTH)) ? 0.0 : Double.NaN; // once and for all
 											}
-
-											// calculate overexposed fraction
+										// calculate overexposed fraction
 											if (saturation_imp != null){
 												disparity_map[OVEREXPOSED][nTile] = (1.0 * overexp_all[0]) / overexp_all[1];
 											}
+										}
 
-											// calculate all selected pairs correlations
-											int all_pairs = imgdtt_params.dbg_pair_mask; //TODO: use tile tasks
+										// calculate all selected pairs correlations
+										int all_pairs = imgdtt_params.dbg_pair_mask; //TODO: use tile tasks
 
-											corrs[cTile] = corr2d.correlateCompositeFD( // now works with nulls for some clt_data colors
-													clt_data,        // double [][][][][][] clt_data,
-													tileX,           // int                 tileX,
-													tileY,           // int                 tileY,
-													all_pairs,       // int                 pairs_mask,
-													filter,          // double []           lpf,
-													scale_strengths, // double              scale_value, // scale correlation value
-													col_weights,     // double []           col_weights,
-													corr_fat_zero);  // double              fat_zero)
+										corrs[cTile] = corr2d.correlateCompositeFD( // now works with nulls for some clt_data colors
+												clt_data,        // double [][][][][][] clt_data,
+												tileX,           // int                 tileX,
+												tileY,           // int                 tileY,
+												all_pairs,       // int                 pairs_mask,
+												filter,          // double []           lpf,
+												scale_strengths, // double              scale_value, // scale correlation value
+												col_weights,     // double []           col_weights,
+												corr_fat_zero);  // double              fat_zero)
 
 
-											// calculate interpolated "strips" to match different scales and orientations (ortho/diagonal) on the
-											// fine (0.5 pix) grid. ortho for scale == 1 provide even/even samples (1/4 of all), diagonal ones -
-											// checkerboard pattern
+										// calculate interpolated "strips" to match different scales and orientations (ortho/diagonal) on the
+										// fine (0.5 pix) grid. ortho for scale == 1 provide even/even samples (1/4 of all), diagonal ones -
+										// checkerboard pattern
 
-											double [][] strips = corr2d.scaleRotateInterpoateCorrelations(
-													corrs[cTile],                          // double [][] correlations,
-													all_pairs,                      // int         pairs_mask,
-													imgdtt_params.corr_strip_hight, //);    // int         hwidth);
-													(tile_lma_debug_level > 0) ? all_pairs:0); // debugMax);
+										double [][] strips = corr2d.scaleRotateInterpoateCorrelations(
+												corrs[cTile],                          // double [][] correlations,
+												all_pairs,                      // int         pairs_mask,
+												imgdtt_params.corr_strip_hight, //);    // int         hwidth);
+												(tile_lma_debug_level > 0) ? all_pairs:0); // debugMax);
 
-											// Combine strips for selected pairs. Now using only for all available pairs.
-											// Other combinations are used only if requested (clt_corr_partial != null)
+										// Combine strips for selected pairs. Now using only for all available pairs.
+										// Other combinations are used only if requested (clt_corr_partial != null)
 
-											double [] strip_combo = corr2d.combineInterpolatedCorrelations(
-													strips,                        // double [][] strips,
-													all_pairs,                     // int         pairs_mask,
-													imgdtt_params.corr_offset,     // double      offset);
-													imgdtt_params.twice_diagonal); //    		boolean     twice_diagonal)
+										double [] strip_combo = corr2d.combineInterpolatedCorrelations(
+												strips,                        // double [][] strips,
+												all_pairs,                     // int         pairs_mask,
+												imgdtt_params.corr_offset,     // double      offset);
+												imgdtt_params.twice_diagonal); //    		boolean     twice_diagonal)
 
-											// calculate CM maximums for all mixed channels
-											// First get integer correlation center, relative to the center
-											int [] ixy =  corr2d.getMaxXYInt( // find integer pair or null if below threshold
-													strip_combo,              // double [] data,
-													true,                     // boolean   axis_only,
-													imgdtt_params.min_corr,   //  double    minMax,    // minimal value to consider (at integer location, not interpolated)
-													tile_lma_debug_level > 0); // boolean   debug);
+										// calculate CM maximums for all mixed channels
+										// First get integer correlation center, relative to the center
+										int [] ixy =  corr2d.getMaxXYInt( // find integer pair or null if below threshold
+												strip_combo,              // double [] data,
+												true,                     // boolean   axis_only,
+												imgdtt_params.min_corr,   //  double    minMax,    // minimal value to consider (at integer location, not interpolated)
+												tile_lma_debug_level > 0); // boolean   debug);
 
-											//											double [] corr_stat = null;
+										//											double [] corr_stat = null;
 
-											// if integer argmax was strong enough, calculate CM argmax
-											// will not fill out DISPARITY_INDEX_INT+1, DISPARITY_INDEX_CM+1, DISPARITY_INDEX_POLY+1
-											// use clt_mismatch for that
-											//											double strength = 0.0;
-											//											double disparity = 0.0;
-											if (ixy != null) {
-												strength[cTile] = strip_combo[ixy[0]+transform_size-1]; // strength at integer max on axis
+										// if integer argmax was strong enough, calculate CM argmax
+										// will not fill out DISPARITY_INDEX_INT+1, DISPARITY_INDEX_CM+1, DISPARITY_INDEX_POLY+1
+										// use clt_mismatch for that
+										//											double strength = 0.0;
+										//											double disparity = 0.0;
+										if (ixy != null) {
+											strength[cTile] = strip_combo[ixy[0]+transform_size-1]; // strength at integer max on axis
+
+											if (disparity_map != null){
 												disparity_map[DISPARITY_INDEX_INT][tIndex] =      -ixy[0];
 												disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] = strength[cTile];
 												if (Double.isNaN(disparity_map[DISPARITY_STRENGTH_INDEX][tIndex])) {
 													System.out.println("BUG: 1. disparity_map[DISPARITY_STRENGTH_INDEX]["+tIndex+"] should not be NaN");
 												}
-												corr_stat[cTile] = corr2d.getMaxXCm(   // get fractional center as a "center of mass" inside circle/square from the integer max
-														strip_combo,                      // double [] data,      // [data_size * data_size]
-														ixy[0],                           // int       ixcenter,  // integer center x
-														// corr_wndy,                        // double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
-														// corr_wndx,                        // double [] window_x,  // half of a window function in x (disparity) direction
-														(tile_lma_debug_level > 0)); // boolean   debug);
 											}
+											corr_stat[cTile] = corr2d.getMaxXCm(   // get fractional center as a "center of mass" inside circle/square from the integer max
+													strip_combo,                      // double [] data,      // [data_size * data_size]
+													ixy[0],                           // int       ixcenter,  // integer center x
+													// corr_wndy,                        // double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
+													// corr_wndx,                        // double [] window_x,  // half of a window function in x (disparity) direction
+													(tile_lma_debug_level > 0)); // boolean   debug);
+										}
 
-											// proceed only if CM correlation result is non-null // for compatibility with old code we need it to run regardless of the strength of the normal correlation
+										// proceed only if CM correlation result is non-null // for compatibility with old code we need it to run regardless of the strength of the normal correlation
+										if (disparity_map != null){
 											if (corr_stat[cTile] != null) {
 												disparity_map[DISPARITY_INDEX_CM][tIndex] = -corr_stat[cTile][0]; // disp_str[cTile][0]; // disparity is negative X
+												disparity_map[DISPARITY_INDEX_INT+1][tIndex] = -corr_stat[cTile][0]/.85 + disparity_array[tileY][tileX] + disparity_corr; // disp_str[cTile][0]; // disparity is negative X
 											}
-											disp_str[cTile] = new double[2];
-											//												disp_str[cTile][0] = -corr_stat[cTile][0];
-											//												disp_str[cTile][1] =  corr_stat[cTile][1]; // strength
-											if (tile_lma_debug_level > 0) {
-												System.out.println("Will run getMaxXSOrtho( ) for tileX="+tileX+", tileY="+tileY);
-											}
+											// hack: reuse/overwrite for target disparity
+											disparity_map[DISPARITY_INDEX_INT][tIndex] =      disparity_array[tileY][tileX] + disparity_corr;
+										}
+										disp_str[cTile] = new double[2];
+										if (tile_lma_debug_level > 0) {
+											System.out.println("Will run getMaxXSOrtho( ) for tileX="+tileX+", tileY="+tileY);
+										}
 
-											// debug new LMA correlations
-											int tdl = debugCluster ? tile_lma_debug_level : -3;
-											if (true) { // debugCluster1) {
-												if (debugCluster && (globalDebugLevel > -1)) { // -2)) {
-													System.out.println("Will run new LMA for tileX="+tileX+", tileY="+tileY);
-												}
-												double [] poly_disp = {Double.NaN, 0.0};
-												Corr2dLMA lma2 = corr2d.corrLMA2(
-														imgdtt_params,                // ImageDttParameters  imgdtt_params,
-														corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
-														corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
-														corrs[cTile],                        // double [][]         corrs,
-														disp_dist[cTile],
-														rXY,                          // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
-														imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
-														null,                         // disp_str[cTile],  //corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
-														poly_disp,                    // double[]            poly_ds,    // null or pair of disparity/strength
-														imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
-														tdl, // tile_lma_debug_level, //+2,         // int                 debug_level,
-														tileX,                        // int                 tileX, // just for debug output
-														tileY);                       // int                 tileY
-												disp_str[cTile] = null;
+										// debug new LMA correlations
+										int tdl = debugCluster ? tile_lma_debug_level : -3;
+										if (true) { // debugCluster1) {
+											if (debugCluster && (globalDebugLevel > -1)) { // -2)) {
+												System.out.println("Will run new LMA for tileX="+tileX+", tileY="+tileY);
+											}
+											double [] poly_disp = {Double.NaN, 0.0};
+											Corr2dLMA lma2 = corr2d.corrLMA2(
+													imgdtt_params,                // ImageDttParameters  imgdtt_params,
+													corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
+													corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
+													corrs[cTile],                        // double [][]         corrs,
+													disp_dist[cTile],
+													rXY,                          // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
+													imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
+													null,                         // disp_str[cTile],  //corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
+													poly_disp,                    // double[]            poly_ds,    // null or pair of disparity/strength
+													imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
+													tdl, // tile_lma_debug_level, //+2,         // int                 debug_level,
+													tileX,                        // int                 tileX, // just for debug output
+													tileY);                       // int                 tileY
+											disp_str[cTile] = null;
+											if (disparity_map != null){
 												disparity_map[DISPARITY_INDEX_HOR][tIndex] =          poly_disp[0];
 												disparity_map[DISPARITY_INDEX_HOR_STRENGTH][tIndex] = poly_disp[1];
-												if (lma2 != null) {
-													disp_str[cTile] = lma2.lmaDisparityStrength(
-															imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
-															imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
-															imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
-										    				imgdtt_params.lmas_max_area,     //double  lma_max_area,     // maximal half-area (if > 0.0)
-															imgdtt_params.lma_str_scale,     // convert lma-generated strength to match previous ones - scale
-															imgdtt_params.lma_str_offset     // convert lma-generated strength to match previous ones - add to result
-															)[0];
-													if (tile_lma_debug_level > 0) {
-														double [][] ds_dbg = {disp_str[cTile]};
-														lma2.printStats(ds_dbg,1);
-													}
+											}
+											if (lma2 != null) {
+												disp_str[cTile] = lma2.lmaDisparityStrength(
+														imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
+														imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
+														imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+														imgdtt_params.lmas_max_area,     //double  lma_max_area,     // maximal half-area (if > 0.0)
+														imgdtt_params.lma_str_scale,     // convert lma-generated strength to match previous ones - scale
+														imgdtt_params.lma_str_offset     // convert lma-generated strength to match previous ones - add to result
+														)[0];
+												if (tile_lma_debug_level > 0) {
+													double [][] ds_dbg = {disp_str[cTile]};
+													lma2.printStats(ds_dbg,1);
+												}
+												if (disparity_map != null){
 													if (disp_str[cTile] != null) {
 														disparity_map[DISPARITY_INDEX_POLY][tIndex] =   disp_str[cTile][0];
 														disparity_map[DISPARITY_INDEX_POLY+1][tIndex] = disp_str[cTile][1];
 													}
-
 												}
 
 											}
-											//} // end of if (corr_stat != null)
-										} // if (disparity_map != null){ // not null - calculate correlations
+
+										}
+										//} // end of if (corr_stat != null)
+										//										} // if (disparity_map != null){ // not null - calculate correlations
 										// only debug is left
 									}
 								}
@@ -2315,72 +2328,80 @@ public class ImageDtt {
 									lazy_eye_data[nCluster] = null;
 								}
 // just for debugging, can be removed
-								/*
-								double [][] lma2_ds = lma2.lmaDisparityStrength(
-					    				imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
-					    				imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
-					    				imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
-					    				imgdtt_params.lma_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
-					    				imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
-					    				imgdtt_params.lma_str_offset);  // convert lma-generated strength to match previous ones - add to result
+								if (disparity_map != null){
+									double [][] lma2_ds = lma2.lmaDisparityStrength(
+											imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
+											imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
+											imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+											imgdtt_params.lma_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
+											imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
+											imgdtt_params.lma_str_offset);  // convert lma-generated strength to match previous ones - add to result
 
-								for (int cTileY = 0; cTileY < tileStep; cTileY++) {
-									tileY = clustY * tileStep + cTileY ;
-									if (tileY < tilesY) {
-										for (int cTileX = 0; cTileX < tileStep; cTileX++) {
-											tileX = clustX * tileStep + cTileX ;
-											if (tileX < tilesX) {
-												cTile = cTileY * tileStep + cTileX;
-												tIndex =    tileY * tilesX + tileX;
-//												int nTile = tileY * tilesX + tileX; // how is it different from tIndex?
-												for (int cam = 0; cam < ddnd.length; cam++) {
-													if (ddnd[cam] != null) {
-														if (imgdtt_params.lma_diff_xy) {
-															clt_mismatch[3*cam + 0][tIndex] =
-																	ddnd[cam][0] * rXY[cam][0] - ddnd[cam][1] * rXY[cam][1];
-															clt_mismatch[3*cam + 1][tIndex] =
-																	ddnd[cam][0] * rXY[cam][1] + ddnd[cam][1] * rXY[cam][0];
-														} else {
-															clt_mismatch[3*cam + 0][tIndex] = ddnd[cam][0];
-															clt_mismatch[3*cam + 1][tIndex] = ddnd[cam][1];
+									for (int cTileY = 0; cTileY < tileStep; cTileY++) {
+										tileY = clustY * tileStep + cTileY ;
+										if (tileY < tilesY) {
+											for (int cTileX = 0; cTileX < tileStep; cTileX++) {
+												tileX = clustX * tileStep + cTileX ;
+												if (tileX < tilesX) {
+													cTile = cTileY * tileStep + cTileX;
+													tIndex =    tileY * tilesX + tileX;
+													//												int nTile = tileY * tilesX + tileX; // how is it different from tIndex?
+													for (int cam = 0; cam < ddnd.length; cam++) {
+														if ((clt_mismatch != null) && (ddnd[cam] != null)) {
+															if (imgdtt_params.lma_diff_xy) {
+																clt_mismatch[3*cam + 0][tIndex] =
+																		ddnd[cam][0] * rXY[cam][0] - ddnd[cam][1] * rXY[cam][1];
+																clt_mismatch[3*cam + 1][tIndex] =
+																		ddnd[cam][0] * rXY[cam][1] + ddnd[cam][1] * rXY[cam][0];
+															} else {
+																clt_mismatch[3*cam + 0][tIndex] = ddnd[cam][0];
+																clt_mismatch[3*cam + 1][tIndex] = ddnd[cam][1];
+															}
+														}
+														if (stats != null) {
+															disparity_map[IMG_DIFF0_INDEX+0][tIndex] = stats[0];
+															disparity_map[IMG_DIFF0_INDEX+1][tIndex] = stats[1];
+															disparity_map[IMG_DIFF0_INDEX+2][tIndex] = stats[2];
+															//														disparity_map[IMG_DIFF0_INDEX+3][tIndex] = stats[3];
+														}
+														if ((lma2_ds != null) && ((lma2_ds[cTile] != null))) {
+															// composite new disparity
+															disparity_map[DISPARITY_INDEX_VERT][tIndex] =          lma2_ds[cTile][0]+ disparity_array[tileY][tileX] + disparity_corr;
+															disparity_map[DISPARITY_INDEX_VERT_STRENGTH][tIndex] = lma2_ds[cTile][1];
+															 if (clt_mismatch != null) {
+															clt_mismatch[3*0 + 2][tIndex] =
+																	(lma2_ds[cTile][1] - imgdtt_params.lma_str_offset)/imgdtt_params.lma_str_scale - imgdtt_params.lma_min_strength;
+															 }
 														}
 													}
-													if (stats != null) {
-														disparity_map[IMG_DIFF0_INDEX+0][tIndex] = stats[0];
-														disparity_map[IMG_DIFF0_INDEX+1][tIndex] = stats[1];
-														disparity_map[IMG_DIFF0_INDEX+2][tIndex] = stats[2];
-//														disparity_map[IMG_DIFF0_INDEX+3][tIndex] = stats[3];
-													}
-													if ((lma2_ds != null) && ((lma2_ds[cTile] != null))) {
-														disparity_map[DISPARITY_INDEX_VERT][tIndex] =          lma2_ds[cTile][0];
-														disparity_map[DISPARITY_INDEX_VERT_STRENGTH][tIndex] = lma2_ds[cTile][1];
-														clt_mismatch[3*0 + 2][tIndex] =
-																(lma2_ds[cTile][1] - imgdtt_params.lma_str_offset)/imgdtt_params.lma_str_scale - imgdtt_params.lma_min_strength;
-													}
-												}
-												if (extra_stats != null) {
-													if (extra_stats[cTile] != null) {
-														disparity_map[DISPARITY_INDEX_CM+1][tIndex] =       extra_stats[cTile][0];
-														disparity_map[DISPARITY_VARIATIONS_INDEX][tIndex] = extra_stats[cTile][2];
-														disparity_map[OVEREXPOSED][tIndex] =                extra_stats[cTile][3];
-														clt_mismatch[3*1 + 2][tIndex] = extra_stats[cTile][0];
-														clt_mismatch[3*2 + 2][tIndex] = extra_stats[cTile][2];
-														clt_mismatch[3*3 + 2][tIndex] = extra_stats[cTile][3];
+													if (extra_stats != null) {
+														if (extra_stats[cTile] != null) {
+															disparity_map[DISPARITY_INDEX_CM+1][tIndex] =       extra_stats[cTile][0];
+															disparity_map[DISPARITY_VARIATIONS_INDEX][tIndex] = extra_stats[cTile][2];
+															disparity_map[OVEREXPOSED][tIndex] =                extra_stats[cTile][3];
+															if (clt_mismatch != null) {
+																clt_mismatch[3*1 + 2][tIndex] = extra_stats[cTile][0];
+																clt_mismatch[3*2 + 2][tIndex] = extra_stats[cTile][2];
+																clt_mismatch[3*3 + 2][tIndex] = extra_stats[cTile][3];
+															}
+														} else {
+															disparity_map[DISPARITY_INDEX_CM+1][tIndex] =       Double.NaN;
+															disparity_map[DISPARITY_VARIATIONS_INDEX][tIndex] = Double.NaN;
+															disparity_map[OVEREXPOSED][tIndex] =                Double.NaN;
+															if (clt_mismatch != null) {
 
-													} else {
-														disparity_map[DISPARITY_INDEX_CM+1][tIndex] =       Double.NaN;
-														disparity_map[DISPARITY_VARIATIONS_INDEX][tIndex] = Double.NaN;
-														disparity_map[OVEREXPOSED][tIndex] =                Double.NaN;
-														clt_mismatch[3*1 + 2][tIndex] = Double.NaN;
-														clt_mismatch[3*2 + 2][tIndex] = Double.NaN;
-														clt_mismatch[3*3 + 2][tIndex] = Double.NaN;
+																clt_mismatch[3*1 + 2][tIndex] = Double.NaN;
+																clt_mismatch[3*2 + 2][tIndex] = Double.NaN;
+																clt_mismatch[3*3 + 2][tIndex] = Double.NaN;
+															}
+														}
 													}
 												}
 											}
 										}
 									}
 								}
-								*/
+								/**/
 							}
 						}
 					}
@@ -2464,13 +2485,14 @@ public class ImageDtt {
 			final int                 threadsMax,  // maximal number of threads to launch
 			final int                 globalDebugLevel)
 	{
-		final boolean debug_distort= true;
-//		final double [][] debug_offsets = null;
-//		final double [][] debug_offsets = {{0.5, 0.5},{0.0,0.0},{0.0,0.0},{-0.5,-0.5}}; // add to calculated CenterXY for evaluating new LMA
-//		final double [][] debug_offsets = {{ 0.5, 0.5},{ 0.5,-0.5},{-0.5, 0.5},{-0.5,-0.5}}; // add to calculated CenterXY for evaluating new LMA
-//		final double [][] debug_offsets = {{ 0.5, 0.0},{ -0.5, 0.0},{-0.5, 0.0},{ 0.5, 0.0}}; // add to calculated CenterXY for evaluating new LMA
-//		final double [][] debug_offsets = {{ 1.0, 0.0},{ -1.0, 0.0},{-1.0, 0.0},{ 1.0, 0.0}}; // add to calculated CenterXY for evaluating new LMA
-		final double [][] debug_offsets = {{ 0.0, 1.0},{  0.0, -1.0},{ 0.0, -1.0},{ 0.0, 1.0}}; // add to calculated CenterXY for evaluating new LMA
+		final boolean debug_distort= globalDebugLevel > 0; ///false; // true;
+
+		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
+		for (int i = 0; i < debug_offsets.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
+			debug_offsets[i][j] = imgdtt_params.lma_dbg_offset[i][j]*imgdtt_params.lma_dbg_scale;
+		}
+
+
 		final boolean macro_mode = macro_scale != 1;      // correlate tile data instead of the pixel data
 		final int quad = 4;   // number of subcameras
 		final int numcol = 3; // number of colors // keep the same, just do not use [0] and [1], [2] - green
@@ -2729,7 +2751,7 @@ public class ImageDtt {
 								corr_mask &= ~ (1 << i);
 							}
 						}
-						boolean debugTile =(tileX == debug_tileX) && (tileY == debug_tileY);
+						boolean debugTile =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -1);
 
 						final int [] overexp_all = (saturation_imp != null) ? ( new int [2]): null;
 
@@ -2823,13 +2845,14 @@ public class ImageDtt {
 								centersXY[ip][1] -= shiftXY[ip][1];
 							}
 							// save disparity distortions for visualization:
-							for (int cam = 0; cam <quad; cam++) {
-								dbg_distort[cam * 4 + 0 ][nTile] = disp_dist[cam][0];
-								dbg_distort[cam * 4 + 1 ][nTile] = disp_dist[cam][1];
-								dbg_distort[cam * 4 + 2 ][nTile] = disp_dist[cam][2];
-								dbg_distort[cam * 4 + 3 ][nTile] = disp_dist[cam][3];
+							if (dbg_distort != null) {
+								for (int cam = 0; cam <quad; cam++) {
+									dbg_distort[cam * 4 + 0 ][nTile] = disp_dist[cam][0];
+									dbg_distort[cam * 4 + 1 ][nTile] = disp_dist[cam][1];
+									dbg_distort[cam * 4 + 2 ][nTile] = disp_dist[cam][2];
+									dbg_distort[cam * 4 + 3 ][nTile] = disp_dist[cam][3];
+								}
 							}
-
 							// TODO: use correction after disparity applied (to work for large disparity values)
 							if (fine_corr != null){
 
@@ -3049,8 +3072,8 @@ public class ImageDtt {
 							}
 						}// end of for (int chn = 0; chn <numcol; chn++)
 						// used in lwir
-						int tile_lma_debug_level =  ((tileX == debug_tileX) && (tileY == debug_tileY))? imgdtt_params.lma_debug_level : -1;
-
+//						int tile_lma_debug_level =  ((tileX == debug_tileX) && (tileY == debug_tileY))? imgdtt_params.lma_debug_level : -1;
+						int tile_lma_debug_level =  ((tileX == debug_tileX) && (tileY == debug_tileY))? (imgdtt_params.lma_debug_level-1) : -2;
 						// all color channels are done here
 						double extra_disparity = 0.0; // used for textures:  if allowed, shift images extra before trying to combine
 

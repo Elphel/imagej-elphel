@@ -290,6 +290,7 @@ public class GeometryCorrection {
 		return extrinsic_corr;
 	}
 
+
 	public void setCorrVector(double [] dv){
 		setCorrVector(new CorrVector(dv));
 	}
@@ -333,9 +334,10 @@ public class GeometryCorrection {
 				use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
 				common_roll,
 				corr_focalLength,
-				false, // boolean ers_rot,           // Enable ERS correction of the camera rotation
-				false, // boolean ers_lin,           // Enable ERS correction of the camera linear movement
-
+				false, // boolean ers_rot,       // Enable ERS correction of the camera rotation
+				false, // boolean ers_forw,      // Enable ERS correction of the camera linear movement in z direction
+				false, // boolean ers_side,      // Enable ERS correction of the camera linear movement in x direction
+				false, // boolean ers_vert,      // Enable ERS correction of the camera linear movement in y direction
 		  		manual_par_sel);    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 
 	}
@@ -347,7 +349,9 @@ public class GeometryCorrection {
 			boolean common_roll,
 			boolean corr_focalLength,
 			boolean ers_rot,           // Enable ERS correction of the camera rotation
-			boolean ers_lin,           // Enable ERS correction of the camera linear movement
+			boolean ers_forw,      // Enable ERS correction of the camera linear movement in z direction
+			boolean ers_side,      // Enable ERS correction of the camera linear movement in x direction
+			boolean ers_vert,      // Enable ERS correction of the camera linear movement in y direction
 
 	  		int     manual_par_sel)    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 
@@ -360,7 +364,9 @@ public class GeometryCorrection {
 				common_roll,
 				corr_focalLength,
 				ers_rot,           // Enable ERS correction of the camera rotation
-				ers_lin,           // Enable ERS correction of the camera linear movement
+				ers_forw,      // Enable ERS correction of the camera linear movement in z direction
+				ers_side,      // Enable ERS correction of the camera linear movement in x direction
+				ers_vert,      // Enable ERS correction of the camera linear movement in y direction
 		  		manual_par_sel);    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 
 	}
@@ -1679,6 +1685,13 @@ public class GeometryCorrection {
 			return new CorrVector(athis);
 		}
 
+		public double getNorm() {
+			double s2 = 0;
+			for (int i = 0; i < vector.length; i++) {
+				s2 += vector[i]*vector[i];
+			}
+			return Math.sqrt(s2); // add weights to compare apples and oranges?
+		}
 
 
 		@Override
@@ -1832,7 +1845,9 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				boolean common_roll,
 				boolean corr_focalLength,
 				boolean ers_rot,           // Enable ERS correction of the camera rotation
-				boolean ers_lin,           // Enable ERS correction of the camera linear movement
+				boolean ers_forw,      // Enable ERS correction of the camera linear movement in z direction
+				boolean ers_side,      // Enable ERS correction of the camera linear movement in x direction
+				boolean ers_vert,      // Enable ERS correction of the camera linear movement in y direction
 		  		int     manual_par_sel)    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 
 		{
@@ -1853,9 +1868,9 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 					ers_rot,          //sym13
 					ers_rot,          //sym14
 					ers_rot,          //sym15
-					ers_lin,          //sym16
-					ers_lin,          //sym17
-					ers_lin           //sym18
+					ers_side,         //sym16
+					ers_vert,         //sym17
+					ers_forw          //sym18
 			};
 			if (manual_par_sel != 0) { // not used in lwir
 				for (int i = 0; i < par_mask.length; i++) {
@@ -2679,6 +2694,11 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		double [] rad_coeff={this.distortionC,this.distortionB,this.distortionA,this.distortionA5,this.distortionA6,this.distortionA7,this.distortionA8};
 		double fl_pix = focalLength/(0.001*pixelSize); // focal length in pixels - this camera
 		double  ri_scale = 0.001 * this.pixelSize / this.distortionRadius;
+		double [] xyz = (disparity > 0) ? getWorldCoordinates(   // USED in lwir
+				px,                                  // double px,
+				py,                                  // double py,
+				disparity,                           // double disparity,
+				true) : null;                               // boolean correctDistortions)
 
 		for (int i = 0; i < numSensors; i++){
 			// non-distorted XY of the shifted location of the individual sensor
@@ -2778,6 +2798,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			}
 			double delta_t = 0.0;
 			double [] imu =  null;
+			double [][] dpXci_pYci_imu_lin = new double[2][3]; // null
 			if (disp_dist != null) {
 				disp_dist[i] =   new double [4]; // dx/d_disp, dx_d_ccw_disp
 				// Not clear - what should be in Z direction before rotation here?
@@ -2811,11 +2832,35 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				disp_dist[i][3] =   dd2.get(1, 1);
 
 				imu =  extrinsic_corr.getIMU(i); // currently it is common for all channels
-				delta_t = dd2.get(1, 0) * disparity * line_time; // positive for top cameras, negative - for bottom
-				double ers_Xci = delta_t* (dpXci_dtilt * imu[0] + dpXci_dazimuth * imu[1]  + dpXci_droll * imu[2]);
-				double ers_Yci = delta_t* (dpYci_dtilt * imu[0] + dpYci_dazimuth * imu[1]  + dpYci_droll * imu[2]);
-				pXY[i][0] +=  ers_Xci * rD2rND; // added correction to pixel X
-				pXY[i][1] +=  ers_Yci * rD2rND; // added correction to pixel Y
+
+				// ERS linear does not yet use per-port rotations, probably not needed
+
+//				double [][] dpXci_pYci_imu_lin = new double[2][3]; // null
+				if ((imu[0] != 0.0) || (imu[1] != 0.0) ||(imu[2] != 0.0) ||(imu[3] != 0.0) ||(imu[4] != 0.0) ||(imu[5] != 0.0)) {
+					delta_t = dd2.get(1, 0) * disparity * line_time; // positive for top cameras, negative - for bottom
+					double ers_Xci = delta_t* (dpXci_dtilt * imu[0] + dpXci_dazimuth * imu[1]  + dpXci_droll * imu[2]);
+					double ers_Yci = delta_t* (dpYci_dtilt * imu[0] + dpYci_dazimuth * imu[1]  + dpYci_droll * imu[2]);
+					if (xyz != null) {
+						double k = SCENE_UNITS_SCALE * this.disparityRadius;
+//						double wdisparity = -(k * this.focalLength / (0.001*this.pixelSize)) / xyz[2];
+						double wdisparity = disparity;
+						double dwdisp_dz = (k * this.focalLength / (0.001*this.pixelSize)) / (xyz[2] * xyz[2]);
+						dpXci_pYci_imu_lin[0][0] = -wdisparity / k; // dpx/ dworld_X
+						dpXci_pYci_imu_lin[1][1] =  wdisparity / k; // dpy/ dworld_Y
+						dpXci_pYci_imu_lin[0][2] =  (xyz[0] / k) * dwdisp_dz; // dpx/ dworld_Z
+						dpXci_pYci_imu_lin[1][2] =  (xyz[1] / k) * dwdisp_dz; // dpy/ dworld_Z
+						ers_Xci += delta_t* (dpXci_pYci_imu_lin[0][0] * imu[3] + dpXci_pYci_imu_lin[0][2] * imu[5]);
+						ers_Yci += delta_t* (dpXci_pYci_imu_lin[1][1] * imu[4] + dpXci_pYci_imu_lin[1][2] * imu[5]);
+					}
+					pXY[i][0] +=  ers_Xci * rD2rND; // added correction to pixel X
+					pXY[i][1] +=  ers_Yci * rD2rND; // added correction to pixel Y
+
+
+				} else {
+					imu = null;
+				}
+
+
 
 // TODO: calculate derivatives of pX, pY by 3 imu omegas
 			}
@@ -2825,19 +2870,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			if (pXYderiv != null) {
 				pXYderiv[2 * i] =   new double [CorrVector.LENGTH];
 				pXYderiv[2 * i+1] = new double [CorrVector.LENGTH];
-///				Matrix drvi_daz = deriv_rots[i][0].times(vi);
-///				Matrix drvi_dtl = deriv_rots[i][1].times(vi);
-///				Matrix drvi_drl = deriv_rots[i][2].times(vi);
 				Matrix drvi_dzm = deriv_rots[i][3].times(vi);
-
-///				double dpXci_dazimuth = drvi_daz.get(0, 0) * norm_z - pXci * drvi_daz.get(2, 0) / rvi.get(2, 0);
-///				double dpYci_dazimuth = drvi_daz.get(1, 0) * norm_z - pYci * drvi_daz.get(2, 0) / rvi.get(2, 0);
-
-///				double dpXci_dtilt =    drvi_dtl.get(0, 0) * norm_z - pXci * drvi_dtl.get(2, 0) / rvi.get(2, 0);
-///				double dpYci_dtilt =    drvi_dtl.get(1, 0) * norm_z - pYci * drvi_dtl.get(2, 0) / rvi.get(2, 0);
-
-///				double dpXci_droll =    drvi_drl.get(0, 0) * norm_z - pXci * drvi_drl.get(2, 0) / rvi.get(2, 0);
-///				double dpYci_droll =    drvi_drl.get(1, 0) * norm_z - pYci * drvi_drl.get(2, 0) / rvi.get(2, 0);
 
 				double dpXci_dzoom =    drvi_dzm.get(0, 0) * norm_z - pXci * drvi_dzm.get(2, 0) / rvi.get(2, 0);
 				double dpYci_dzoom =    drvi_dzm.get(1, 0) * norm_z - pYci * drvi_dzm.get(2, 0) / rvi.get(2, 0);
@@ -2846,17 +2879,6 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				double dri_dtilt =     ri_scale / rNDi* (pXci * dpXci_dtilt +     pYci * dpYci_dtilt);
 
 				double dri_dzoom =     ri_scale / rNDi* (pXci * dpXci_dzoom +     pYci * dpYci_dzoom);
-
-/*
-				double dri_droll =     ri_scale / rNDi* (pXci * dpXci_droll +     pYci * dpYci_droll); // Not used anywhere ?
-// TODO: verify dri_droll == 0 and remove
-*/
-//				double drD2rND_dri = 0.0;
-//				rri = 1.0;
-//				for (int j = 0; j < rad_coeff.length; j++){
-//					drD2rND_dri += rad_coeff[j] * (j+1) * rri;
-//					rri *= ri;
-//				}
 
 				double drD2rND_dazimuth = drD2rND_dri * dri_dazimuth;
 				double drD2rND_dtilt =    drD2rND_dri * dri_dtilt;
@@ -2876,15 +2898,21 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				double dpYid_dzoom =    dpYci_dzoom    * rD2rND + pYci * drD2rND_dzoom; // new second term
 
 				// assuming drD2rND_imu* is zero (rD2rND does not depend on imu_*
+				// hope it will not be needed, as derivatives are used only for filed calibration, handled differently
 				if (imu != null) {
 //  dpX_d = delta_t * rD2rND * (dpXci_dtilt * imu[0] + dpXci_dazimuth * imu[1]  + dpXci_droll * imu[2]);
 //	dpX_d = delta_t * rD2rND * (dpYci_dtilt * imu[0] + dpYci_dazimuth * imu[1]  + dpYci_droll * imu[2]);
-					pXYderiv[2 * i + 0][CorrVector.IMU_INDEX+0] = delta_t * rD2rND * dpXci_dtilt *    imu[0];
-					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+0] = delta_t * rD2rND * dpYci_dtilt *    imu[0];
-					pXYderiv[2 * i + 0][CorrVector.IMU_INDEX+1] = delta_t * rD2rND * dpXci_dazimuth * imu[0];
-					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+1] = delta_t * rD2rND * dpYci_dazimuth * imu[0];
-					pXYderiv[2 * i + 0][CorrVector.IMU_INDEX+2] = delta_t * rD2rND * dpYci_droll *    imu[0];
-					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+2] = delta_t * rD2rND * dpYci_droll *    imu[0];
+					pXYderiv[2 * i + 0][CorrVector.IMU_INDEX+0] = delta_t * rD2rND * dpXci_dtilt; // *    imu[0];
+					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+0] = delta_t * rD2rND * dpYci_dtilt; // *    imu[0];
+					pXYderiv[2 * i + 0][CorrVector.IMU_INDEX+1] = delta_t * rD2rND * dpXci_dazimuth; // * imu[1];
+					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+1] = delta_t * rD2rND * dpYci_dazimuth; // * imu[1];
+					pXYderiv[2 * i + 0][CorrVector.IMU_INDEX+2] = delta_t * rD2rND * dpYci_droll; //  *    imu[2];
+					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+2] = delta_t * rD2rND * dpYci_droll; // *    imu[2];
+
+					pXYderiv[2 * i + 0][CorrVector.IMU_INDEX+3] = delta_t * rD2rND * dpXci_pYci_imu_lin[0][0]; // *    imu[3];
+					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+4] = delta_t * rD2rND * dpXci_pYci_imu_lin[1][1]; // * 	imu[5];
+					pXYderiv[2 * i + 0][CorrVector.IMU_INDEX+5] = delta_t * rD2rND * dpXci_pYci_imu_lin[0][2]; // *    imu[5];
+					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+5] = delta_t * rD2rND * dpXci_pYci_imu_lin[1][2]; // *    imu[5];
 
 					// TODO: Add linear egomotion
 
@@ -2932,6 +2960,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			double []   dy_ddisparity,   // double [][] disp_dist, //disp_dist[i][2] or null
 			double []   imu,
 			double []   pXYND0,        // per-port non-distorted coordinates corresponding to the correlation measurements
+			double []   xyz, // world XYZ for ERS correction
 			double px,
 			double py,
 			double disparity)
@@ -2947,6 +2976,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				pXYNDderiv, // if not null, should be double[8][]
 				dy_ddisparity,   // double [][] disp_dist, //disp_dist[i][2] or null
 				imu,
+				xyz,
 				px,
 				py,
 				disparity);
@@ -2972,6 +3002,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			Matrix [][] deriv_rots,
 			double []   dy_ddisparity,   // double [][] disp_dist, //disp_dist[i][2] or null
 			double []   imu, // may be null
+			double []   xyz, // world XYZ for ERS correction
 			double      px,
 			double      py,
 			double      disparity)
@@ -2987,6 +3018,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				pXYNDderiv, // if not null, should be double[8][]
 				dy_ddisparity,   // double [][] disp_dist, //disp_dist[i][2] or null
 				imu,
+				xyz,
 				px,
 				py,
 				disparity);
@@ -3007,6 +3039,8 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 * @param deriv_rots derivatives by d_az, f_elev, d_rot, d_zoom
 	 * @param pXYNDderiv null or double[2 * number_of_cameras][] array to accommodate derivatives of px, py by each of the parameters
 	 * @param dy_ddisparity - array of per-port derivatives of sensor pY by disparity (to correct ERS) or null (if no ERS correction needed)
+	 * @param imu - 6 components od the egomotion - 3 rotations and 3 linear velocities
+	 * $param xyz - world coordinates for linear motion ERS correction
 	 * @param px pixel X coordinate
 	 * @param py pixel Y coordinate
 	 * @param disparity disparity (for non-distorted image space)
@@ -3020,6 +3054,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			double [][] pXYNDderiv, // if not null, should be double[8][]
 			double []   dy_ddisparity,   // double [][] disp_dist, //disp_dist[i][2] or null
 			double []   imu,
+			double []   xyz, // world XYZ for ERS correction
 			double px,
 			double py,
 			double disparity)
@@ -3079,11 +3114,28 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 					dpXci_droll =    drvi_drl.get(0, 0) * norm_z - pXci * drvi_drl.get(2, 0) / rvi.get(2, 0);
 					dpYci_droll =    drvi_drl.get(1, 0) * norm_z - pYci * drvi_drl.get(2, 0) / rvi.get(2, 0);
 				}
+			double [][] dpXci_pYci_imu_lin = new double[2][3]; // null
+			if (xyz != null) {
+				// restore disparity back from the world coordinates to make it a constant
+				double k = SCENE_UNITS_SCALE * this.disparityRadius;
+				double wdisparity = -(k * this.focalLength / (0.001*this.pixelSize)) / xyz[2];
+				double dwdisp_dz = (k * this.focalLength / (0.001*this.pixelSize)) / (xyz[2] * xyz[2]);
+//				double wpXc = xyz[0] * wdisparity / k; // pixels
+//				double wpYc =-xyz[1] * wdisparity / k; // pixels
+				dpXci_pYci_imu_lin[0][0] = -wdisparity / k; // dpx/ dworld_X // TODO: Change sign - here and in the other similar place!
+				dpXci_pYci_imu_lin[1][1] = wdisparity / k; // dpy/ dworld_Y
+				dpXci_pYci_imu_lin[0][2] = (xyz[0] / k) * dwdisp_dz; // dpx/ dworld_Z
+				dpXci_pYci_imu_lin[1][2] = (xyz[1] / k) * dwdisp_dz; // dpy/ dworld_Z
+			}
 			double delta_t = 0.0;
+			// TODO: ignoring rotations - add it?
 			if ((dy_ddisparity != null) && (imu != null)) {
+
 				delta_t = dy_ddisparity[i] * disparity * line_time; // positive for top cameras, negative - for bottom
-				double ers_Xci = delta_t* (dpXci_dtilt * imu[0] + dpXci_dazimuth * imu[1]  + dpXci_droll * imu[2]);
-				double ers_Yci = delta_t* (dpYci_dtilt * imu[0] + dpYci_dazimuth * imu[1]  + dpYci_droll * imu[2]);
+				double ers_Xci = delta_t* (dpXci_dtilt * imu[0] + dpXci_dazimuth * imu[1]  + dpXci_droll * imu[2] +
+						dpXci_pYci_imu_lin[0][0] * imu[3] + dpXci_pYci_imu_lin[0][2] * imu[5]);
+				double ers_Yci = delta_t* (dpYci_dtilt * imu[0] + dpYci_dazimuth * imu[1]  + dpYci_droll * imu[2]+
+						dpXci_pYci_imu_lin[1][1] * imu[4] + dpXci_pYci_imu_lin[1][2] * imu[5]);
 				pXYND[2 * i + 0] +=  ers_Xci; // added correction to pixel X
 				pXYND[2 * i + 1] +=  ers_Yci; // added correction to pixel Y
 			}
@@ -3101,6 +3153,15 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 					pXYNDderiv[2 * i + 1][CorrVector.IMU_INDEX+1] = delta_t * dpYci_dazimuth; // * imu[1];
 					pXYNDderiv[2 * i + 0][CorrVector.IMU_INDEX+2] = delta_t * dpXci_droll; // *    imu[2];
 					pXYNDderiv[2 * i + 1][CorrVector.IMU_INDEX+2] = delta_t * dpYci_droll; // *    imu[2];
+
+
+					pXYNDderiv[2 * i + 0][CorrVector.IMU_INDEX+3] = delta_t * dpXci_pYci_imu_lin[0][0]; // *    imu[3];
+//					pXYNDderiv[2 * i + 1][CorrVector.IMU_INDEX+3] = delta_t * dpXci_pYci_imu_lin[1][0]; // *    imu[3]; // 0
+//					pXYNDderiv[2 * i + 0][CorrVector.IMU_INDEX+4] = delta_t * dpXci_pYci_imu_lin[0][1]; // *    imu[4]; // 0
+					pXYNDderiv[2 * i + 1][CorrVector.IMU_INDEX+4] = delta_t * dpXci_pYci_imu_lin[1][1]; // * 	imu[5];
+					pXYNDderiv[2 * i + 0][CorrVector.IMU_INDEX+5] = delta_t * dpXci_pYci_imu_lin[0][2]; // *    imu[5];
+					pXYNDderiv[2 * i + 1][CorrVector.IMU_INDEX+5] = delta_t * dpXci_pYci_imu_lin[1][2]; // *    imu[5];
+
 				}
 
 				// verify that d/dsym are well, symmetrical
