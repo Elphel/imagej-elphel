@@ -24,6 +24,7 @@ package com.elphel.imagej.calibration;
  **
  */
 
+import java.awt.Point;
 import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -49,6 +50,7 @@ import Jama.Matrix;  // Download here: http://math.nist.gov/javanumerics/jama/
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
+import ij.gui.PointRoi;
 import ij.gui.Roi;
 import ij.process.FHT; // get rid, change to double
 import ij.process.FloatProcessor;
@@ -3133,7 +3135,7 @@ public class MatchSimulatedPattern {
 		if (roi==null){
 			selection=new Rectangle(0, 0, imp.getWidth(), imp.getHeight());
 		} else {
-			selection=roi.getBounds();
+			selection= (roi instanceof PointRoi) ? (new Rectangle(0, 0, imp.getWidth(), imp.getHeight())) : roi.getBounds();
 		}
 		MatchSimulatedPattern matchSimulatedPattern=new MatchSimulatedPattern(distortionParameters.FFTSize);
 		matchSimulatedPattern.debugLevel=debugLevel;
@@ -3299,7 +3301,7 @@ public class MatchSimulatedPattern {
 		if (roi==null){
 			selection=new Rectangle(0, 0, imp.getWidth(), imp.getHeight());
 		} else {
-			selection=roi.getBounds();
+			selection= (roi instanceof PointRoi) ? (new Rectangle(0, 0, imp.getWidth(), imp.getHeight())) : roi.getBounds();
 		}
 		Rectangle initialPatternCell=new Rectangle(xc-fft_size,
 				yc-fft_size,
@@ -3626,7 +3628,7 @@ public class MatchSimulatedPattern {
 			if (roi==null){
 				selection=new Rectangle(0, 0, imp.getWidth(), imp.getHeight());
 			} else {
-				selection=roi.getBounds();
+				selection= (roi instanceof PointRoi) ? (new Rectangle(0, 0, imp.getWidth(), imp.getHeight())) : roi.getBounds();
 			}
 		} else {
 			if ((getImageHeight()!=imp.getHeight()) || (getImageWidth()!=imp.getWidth())){
@@ -6193,8 +6195,32 @@ public class MatchSimulatedPattern {
 			setWOI(0, 0, imp.getWidth(), imp.getHeight());
 			selection=new Rectangle(0, 0, imp.getWidth(), imp.getHeight());
 		} else {
-			setWOI(roi.getBounds());
-			selection=roi.getBounds();
+			if (roi instanceof PointRoi) {
+				PointRoi pointRoi =  (PointRoi) roi;
+				Point [] points = pointRoi.getContainedPoints();
+				int [][] ipoints = new int [points.length][2];
+				for (int n = 0; n < ipoints.length; n++) {
+					ipoints[n][0] = points[n].x;
+					ipoints[n][1] = points[n].y;
+				}
+				// as if they a laser pointers
+				double [][] xyuv = new double [points.length][4];
+				for (int i =0; i < ipoints.length; i++) {
+					xyuv[i][0]=ipoints[i][0];
+					xyuv[i][1]=ipoints[i][1];
+					xyuv[i][2]=0.5;
+					xyuv[i][3]=0.5;
+				}
+				System.out.println("Setting first marker (of "+ipoints.length+") as pointer 0.5/0.5 - use use multiple?");
+				System.out.println("**** Not yet implemented, use 'Manual hint' command for each of the annotated files ****");
+//				setPointersXYUV(imp, xyuv);
+
+				setWOI(0, 0, imp.getWidth(), imp.getHeight());
+				selection=new Rectangle(0, 0, imp.getWidth(), imp.getHeight());
+			} else {
+				setWOI(roi.getBounds());
+				selection=roi.getBounds();
+			}
 		}
 		this.debugLevel=global_debug_level;
 		int patternCells=0;
@@ -6377,6 +6403,8 @@ public class MatchSimulatedPattern {
 
 		int numPointers=(laserPointer!=null)?laserPointer.laserUVMap.length:0;
 		double [][] pointersXY=(numPointers>0)?getPointersXYUV(imp, laserPointer):null;
+
+
 		if (global_debug_level > (debugThreshold+1)){
 			if (pointersXY!=null){
 				System.out.println("calculateDistortions() numPointers="+numPointers+" pointersXY.length="+pointersXY.length);

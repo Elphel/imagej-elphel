@@ -7,6 +7,7 @@ import com.elphel.imagej.calibration.CalibrationFileManagement;
 import com.elphel.imagej.calibration.DistortionCalibrationData;
 import com.elphel.imagej.calibration.Distortions;
 import com.elphel.imagej.calibration.EyesisAberrations;
+import com.elphel.imagej.calibration.Goniometer;
 import com.elphel.imagej.calibration.LensDistortionParameters;
 import com.elphel.imagej.calibration.MultipleExtensionsFileFilter;
 import com.elphel.imagej.common.GenericJTabbedDialog;
@@ -2705,6 +2706,7 @@ import ij.gui.GenericDialog;
     			SubsystemOffsets subsystemOffsets,
     			Distortions systemDistortions,
     			DistortionCalibrationData system_distortionCalibrationData,
+    			Goniometer.GoniometerParameters goniometerParameters,
     			String calibration_directory) {
     		EyesisCameraParameters sub_system = new EyesisCameraParameters();
     		sub_system.getProperties(prefix, properties);
@@ -2745,7 +2747,8 @@ import ij.gui.GenericDialog;
     			System.out.println("sensors_path = "+sensors_path);
 ///    			String [][] stationFilenames = new String[sub_system.numStations][0];
     			sub_distortionCalibrationData = new DistortionCalibrationData(
-    	        		sub_system // EyesisCameraParameters eyesisCameraParameters
+    	        		sub_system, // EyesisCameraParameters eyesisCameraParameters
+    	        		goniometerParameters
     					);
     			// now read all sensor files
     			if ((sensors_path !=null) && (sensors_path != "")){ // load sensor
@@ -2827,7 +2830,7 @@ import ij.gui.GenericDialog;
     				for (int i = 0; i < tmpPixelCorrection.length; i++ ) systemDistortions.pixelCorrection[i] = tmpPixelCorrection[i];
     			}
     			if (system_distortionCalibrationData == null) {
-    				system_distortionCalibrationData = new DistortionCalibrationData (this);
+    				system_distortionCalibrationData = new DistortionCalibrationData (this, goniometerParameters);
     			}
     			if (system_distortionCalibrationData.sensorMasks == null) {
     				system_distortionCalibrationData.sensorMasks = new double [new_channels][];

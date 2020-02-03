@@ -2081,7 +2081,7 @@ if (MORE_BUTTONS) {
 		if (label.equals("List Eyesis4pi") || label.equals("List X-cam")) {
 			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 			DistortionCalibrationData dcd=(DISTORTION_CALIBRATION_DATA!=null)?DISTORTION_CALIBRATION_DATA:
-				new DistortionCalibrationData(EYESIS_CAMERA_PARAMETERS);
+				new DistortionCalibrationData(EYESIS_CAMERA_PARAMETERS,GONIOMETER_PARAMETERS);
 			dcd.listCameraParameters(label.equals("List X-cam"));
 			return;
 		}
@@ -2137,11 +2137,27 @@ if (MORE_BUTTONS) {
 			PATTERN_PARAMETERS.debugLevel=MASTER_DEBUG_LEVEL;
 			EYESIS_CAMERA_PARAMETERS.updateNumstations (numStations);
 //if (MASTER_DEBUG_LEVEL==0) return; //TODO: Remove - just debugging
+
+			if (GONIOMETER==null) {
+				GONIOMETER= new Goniometer(
+						CAMERAS, // CalibrationHardwareInterface.CamerasInterface cameras,
+						DISTORTION, //MatchSimulatedPattern.DistortionParameters distortion,
+						PATTERN_DETECT, //MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
+						EYESIS_CAMERA_PARAMETERS, //EyesisCameraParameters eyesisCameraParameters,
+						LASER_POINTERS, // MatchSimulatedPattern.LaserPointer laserPointers
+						SIMUL,                       //SimulationPattern.SimulParameters  simulParametersDefault,
+						GONIOMETER_PARAMETERS, //LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
+						DISTORTION_PROCESS_CONFIGURATION
+				);
+			}
+
+
 			DISTORTION_CALIBRATION_DATA=new DistortionCalibrationData(
 					gridFiles,
 					PATTERN_PARAMETERS,
 					EYESIS_CAMERA_PARAMETERS,
 					LASER_POINTERS,
+					GONIOMETER_PARAMETERS,
 					MASTER_DEBUG_LEVEL);
 			LENS_DISTORTIONS.initImageSet(
  					DISTORTION_CALIBRATION_DATA,
@@ -2178,7 +2194,6 @@ if (MORE_BUTTONS) {
 		if       (label.equals("Restore Calibration")) {
 			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 			String defaultPath= (DISTORTION_CALIBRATION_DATA!=null)?DISTORTION_CALIBRATION_DATA.pathName:"";
-//    public static DistortionCalibrationData DISTORTION_CALIBRATION_DATA=null;
 			DistortionCalibrationData oldDISTORTION_CALIBRATION_DATA=DISTORTION_CALIBRATION_DATA;
 			DISTORTION_CALIBRATION_DATA=new DistortionCalibrationData(
 					false,
@@ -2187,6 +2202,7 @@ if (MORE_BUTTONS) {
 					EYESIS_CAMERA_PARAMETERS,
 					ABERRATIONS_PARAMETERS,
 					LASER_POINTERS,
+					GONIOMETER_PARAMETERS,
 					null); // gridImages null - use specified files
 			if (DISTORTION_CALIBRATION_DATA.pathName== null){ // failed to select/open the file
 				DISTORTION_CALIBRATION_DATA=oldDISTORTION_CALIBRATION_DATA;
@@ -3563,6 +3579,7 @@ if (MORE_BUTTONS) {
 						EYESIS_CAMERA_PARAMETERS, // is it null or 1?
 						ABERRATIONS_PARAMETERS,
 						LASER_POINTERS,
+						GONIOMETER_PARAMETERS,
 						imp_calibrated); // gridImages null - use specified files - single image
 				if (DISTORTION_CALIBRATION_DATA.pathName== null){ // failed to select/open the file
 					DISTORTION_CALIBRATION_DATA=null;
@@ -6262,7 +6279,8 @@ if (MORE_BUTTONS) {
 			}
 			// initialize needed classes
 			DISTORTION_CALIBRATION_DATA=new DistortionCalibrationData( // images are not setup yet
-	        		EYESIS_CAMERA_PARAMETERS); //EyesisCameraParameters eyesisCameraParameters
+	        		EYESIS_CAMERA_PARAMETERS, //EyesisCameraParameters eyesisCameraParameters
+	        		GONIOMETER_PARAMETERS);
 			if ((LENS_DISTORTIONS!=null) && (LENS_DISTORTIONS.fittingStrategy!=null)) {
 				LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData=DISTORTION_CALIBRATION_DATA;
 			}
@@ -9860,7 +9878,8 @@ if (MORE_BUTTONS) {
         		sourceFilter,
 				PATTERN_PARAMETERS,
 				EYESIS_CAMERA_PARAMETERS,
-				LASER_POINTERS, //LaserPointer                                           laserPointers
+				LASER_POINTERS,          //LaserPointer                                           laserPointers
+				GONIOMETER_PARAMETERS,   //
 				true,                    // boolean read_grids
 				MASTER_DEBUG_LEVEL);
 
@@ -9868,7 +9887,7 @@ if (MORE_BUTTONS) {
 					DISTORTION_CALIBRATION_DATA,
 				EYESIS_CAMERA_PARAMETERS
 				);
-		// set initial orientation of the cameras from the sensors that see mpst of the matching pointers
+		// set initial orientation of the cameras from the sensors that see most of the matching pointers
 		// just for the LMA to start
 		DISTORTION_CALIBRATION_DATA.setInitialOrientation(true);
 		return true;
@@ -9899,6 +9918,7 @@ if (MORE_BUTTONS) {
 				null,
 				LENS_DISTORTIONS,
 				DISTORTION_CALIBRATION_DATA, // may be null, then it will not be updated, obviously (sensor masks)
+				GONIOMETER_PARAMETERS, // for motor sensitivity
 				ABERRATIONS_PARAMETERS.calibrationDirectory);//String calibration_directory
 //getProperties(String prefix,Properties properties)
 //EyesisCameraParameters
@@ -9951,12 +9971,26 @@ if (MORE_BUTTONS) {
         					" (of "+ sourceFilesList[nset].length+"), file "+in_file+" (of "+ numFiles+ ") success in "+saved_file+" - "+sourceFilesList[nset][nfile]);
         		}
         		String grid_path = null;
+        		/*
         		if (saveGrids && !overwriteGrids){ // check if result already exists
         			i = sourceFilesList[nset][nfile].lastIndexOf('/');
         			if (i>0){
         				String grid_name = prefix+sourceFilesList[nset][nfile].substring(i+1);
         				grid_path = gridSetPath + Prefs.getFileSeparator() + grid_name;
     					if ((new File(grid_path)).exists()){
+    						if (DEBUG_LEVEL>0) System.out.println("-->>> Skipping existing "+grid_path+" (as requested in \"Configure Process Distortions\")");
+    						continue;
+    					}
+        			}
+        		}
+        		 */
+
+        		if (saveGrids){ // check if result already exists
+        			i = sourceFilesList[nset][nfile].lastIndexOf('/');
+        			if (i>0){
+        				String grid_name = prefix+sourceFilesList[nset][nfile].substring(i+1);
+        				grid_path = gridSetPath + Prefs.getFileSeparator() + grid_name;
+        				if (!overwriteGrids && ((new File(grid_path)).exists())){ // check if result already exists
     						if (DEBUG_LEVEL>0) System.out.println("-->>> Skipping existing "+grid_path+" (as requested in \"Configure Process Distortions\")");
     						continue;
     					}
@@ -11260,6 +11294,7 @@ if (MORE_BUTTONS) {
 				eyesisCameraParameters,
 				aberrationParameters,
 				laserPointers,
+				GONIOMETER_PARAMETERS,
 				null); // gridImages null - use specified files
 		if (distortions.fittingStrategy!=null) {
 			distortions.fittingStrategy.distortionCalibrationData=dcd;
@@ -11291,7 +11326,7 @@ if (MORE_BUTTONS) {
 		if (configPaths[2] !=null){ // load grid file
 			patternParameters.debugLevel=debugLevel;
 			patternParameters.updateStatus=updateStstus;
-			if (DEBUG_LEVEL>0) System.out.println("Autolading grid file "+configPaths[2]);
+			if (DEBUG_LEVEL>0) System.out.println("Autoloading grid file "+configPaths[2]);
 			patternParameters.selectAndRestore(true,configPaths[2],dcd.eyesisCameraParameters.numStations); // returns path or null on failure
 		} else {
 			System.out.println("No pattern grid file (ground gtruth) is provided");

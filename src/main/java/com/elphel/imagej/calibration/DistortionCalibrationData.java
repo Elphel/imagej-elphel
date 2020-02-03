@@ -70,6 +70,7 @@ import ij.text.TextWindow;
     	public static final int INDEX_B =        7;
     	public static final double SMALL_FRACTION = 0.8; // consider sensor to be a "small" if average grid period < this fraction of the large
 
+    	Goniometer.GoniometerParameters goniometerParameters = null;
     	public String pathName=null;
     	public EyesisCameraParameters eyesisCameraParameters; // has "cartesian"
         public int       numSubCameras=1;
@@ -631,14 +632,16 @@ import ij.text.TextWindow;
         		String [] filenames,
         		PatternParameters patternParameters,
         		EyesisCameraParameters eyesisCameraParameters,
-        		LaserPointer laserPointers
+        		LaserPointer laserPointers,
+        		Goniometer.GoniometerParameters goniometerParameters
         		) {
     	    String [][] stationFilenames={filenames};
         	setupDistortionCalibrationData(
         			stationFilenames,
             		patternParameters,
             		eyesisCameraParameters, // debugLevel
-            		laserPointers
+            		laserPointers,
+            		goniometerParameters
             		);
         }
         public DistortionCalibrationData (
@@ -646,6 +649,7 @@ import ij.text.TextWindow;
         		PatternParameters      patternParameters,
         		EyesisCameraParameters eyesisCameraParameters,
         		LaserPointer           laserPointers,
+        		Goniometer.GoniometerParameters goniometerParameters,
         		int debugLevel
         		) {
         	    this.debugLevel=debugLevel;
@@ -654,7 +658,8 @@ import ij.text.TextWindow;
         			stationFilenames,
             		patternParameters,
             		eyesisCameraParameters, // debugLevel
-            		laserPointers
+            		laserPointers,
+            		goniometerParameters
             		);
         }
 
@@ -663,6 +668,7 @@ import ij.text.TextWindow;
         		PatternParameters patternParameters,
         		EyesisCameraParameters eyesisCameraParameters,
         		LaserPointer laserPointers,
+        		Goniometer.GoniometerParameters goniometerParameters,
         		int debugLevel
         		) {
         	    this.debugLevel=debugLevel;
@@ -670,7 +676,8 @@ import ij.text.TextWindow;
         			stationFilenames,
             		patternParameters,
             		eyesisCameraParameters, // debugLevel
-            		laserPointers
+            		laserPointers,
+            		goniometerParameters
             		);
         }
 
@@ -682,6 +689,7 @@ import ij.text.TextWindow;
         		PatternParameters                                      patternParameters,
         		EyesisCameraParameters                                 eyesisCameraParameters,
         		LaserPointer                                           laserPointers, // as a backup if data is not available in the file
+        		Goniometer.GoniometerParameters                        goniometerParameters,
         		boolean                                                read_grids,
         		int                                                    debugLevel
         		) {
@@ -694,6 +702,7 @@ import ij.text.TextWindow;
             		patternParameters,
             		eyesisCameraParameters, // debugLevel
             		laserPointers, // as a backup if data is not available in the file
+            		goniometerParameters,
             		read_grids
             		);
         }
@@ -703,8 +712,10 @@ import ij.text.TextWindow;
         		String [][]            stationFilenames,
         		PatternParameters      patternParameters,
         		EyesisCameraParameters eyesisCameraParameters,
-        		LaserPointer           laserPointers // as a backup if data is not available in the file
+        		LaserPointer           laserPointers, // as a backup if data is not available in the file
+        		Goniometer.GoniometerParameters goniometerParameters
         		) {
+        	this.goniometerParameters = goniometerParameters;
         	setupIndices();
         	this.eyesisCameraParameters=eyesisCameraParameters;
         	int numSubCameras=(eyesisCameraParameters==null)?1:eyesisCameraParameters.eyesisSubCameras[0].length;
@@ -772,6 +783,7 @@ import ij.text.TextWindow;
         		PatternParameters                                      patternParameters,
         		EyesisCameraParameters                                 eyesisCameraParameters,
         		LaserPointer                                           laserPointers, // as a backup if data is not available in the file
+        		Goniometer.GoniometerParameters goniometerParameters,
         		boolean                                                read_grids
         		) {
         	class DirTs{
@@ -836,6 +848,7 @@ import ij.text.TextWindow;
         			}
         		}
         	}
+    		this.goniometerParameters =  goniometerParameters;
         	boolean ignore_LWIR_pointers = true; // skip LWIR absolute marks, use them later
         	int max_lwir_width = 1023;  // use LWIR class
         	setupIndices();
@@ -1548,9 +1561,11 @@ import ij.text.TextWindow;
 
 
         public DistortionCalibrationData (
-        		EyesisCameraParameters eyesisCameraParameters
+        		EyesisCameraParameters eyesisCameraParameters,
+        		Goniometer.GoniometerParameters goniometerParameters
         		) {
         	setupIndices();
+        	this.goniometerParameters = goniometerParameters;
         	int numSubCameras=(eyesisCameraParameters==null)?1:eyesisCameraParameters.eyesisSubCameras[0].length;
 
         	this.numSubCameras=numSubCameras;
@@ -1562,9 +1577,11 @@ import ij.text.TextWindow;
         		ImagePlus []           images, // images in the memory
         		PatternParameters      patternParameters,
         		EyesisCameraParameters eyesisCameraParameters,
-        		LaserPointer           laserPointers
+        		LaserPointer           laserPointers,
+        		Goniometer.GoniometerParameters goniometerParameters
         		) {
         	setupIndices();
+        	this.goniometerParameters = goniometerParameters;
         	int numSubCameras=(eyesisCameraParameters==null)?1:eyesisCameraParameters.eyesisSubCameras[0].length;
         	this.numSubCameras=numSubCameras;
         	this.eyesisCameraParameters=eyesisCameraParameters;
@@ -2690,9 +2707,11 @@ import ij.text.TextWindow;
                     			if (this.debugLevel>0) System.out.println("Failed to find any known orientation");
                     			return null;
                 			}
-                			if       (late_set <0) iBest= early_set;
-                			else if  (early_set <0) iBest= late_set;
-                			else {
+                			if       (late_set <0) {
+                				iBest= early_set;
+                			} else if  (early_set <0) {
+                				iBest= late_set;
+                			} else {
                 				// interpolate
             					double axialEarly=this.gIS[early_set].goniometerAxial;
             					double axialLate= this.gIS[late_set].goniometerAxial;
@@ -2745,9 +2764,12 @@ import ij.text.TextWindow;
                 			}
             				this.gIS[i].orientationEstimated=true;
                 			double [] result = {
-                					this.gIS[iBest].goniometerTilt,
-                					this.gIS[iBest].goniometerAxial,
-                					this.gIS[iBest].interAxisAngle
+//                					this.gIS[iBest].goniometerTilt,
+//                					this.gIS[iBest].goniometerAxial,
+///                					this.gIS[iBest].interAxisAngle
+                					this.gIS[i].goniometerTilt,
+                					this.gIS[i].goniometerAxial,
+                					this.gIS[i].interAxisAngle
                 			};
         					return result;
         				}
@@ -2768,14 +2790,17 @@ import ij.text.TextWindow;
             				if ( //   (j!=i)  && // not needed - this set does not have orientation
             						(this.gIS[j].getStationNumber()==stationNumber) &&
             						(this.gIS[j].motors[mHorizontal]==thisMotorHorizontal) &&
+            						!this.gIS[j].orientationEstimated && // new
             						!Double.isNaN(this.gIS[j].goniometerTilt) &&
             						!Double.isNaN(this.gIS[j].goniometerAxial) &&
             						!Double.isNaN(this.gIS[j].interAxisAngle)){
+            					System.out.println("Found image set "+j+" with timestamp "+ timeStamp + " with known attitude to estimate this attitude");
             					setList.add(new Integer(j));
             				}
             			}
             			if (setList.size()>=2){
-            				if (this.debugLevel>2) System.out.println("getImagesetTiltAxial("+timeStamp+"): estimating orientation for set # "+i+": this.debugLevel="+this.debugLevel);
+//            				if (this.debugLevel>2) System.out.println("getImagesetTiltAxial("+timeStamp+"): estimating orientation for set # "+i+": this.debugLevel="+this.debugLevel);
+            				if (this.debugLevel > -1) System.out.println("getImagesetTiltAxial("+timeStamp+"): estimating orientation for set # "+i+": this.debugLevel="+this.debugLevel);
             				// find the closest one
             				int indexClosest=setList.get(0);
             				double dClosest=Math.abs(this.gIS[indexClosest].motors[mAxial]-thisMotorAxial);
@@ -2849,10 +2874,22 @@ import ij.text.TextWindow;
                     					") is not defined, using interpolated between sets # "+indexClosest+" (timestamp "+IJ.d2s(this.gIS[indexClosest].timeStamp,6)+") "+
                     					"and # "+indexSecond+" (timestamp "+IJ.d2s(this.gIS[indexSecond].timeStamp,6)+")");
             				}
+//            			} else if (setList.size() >= 1){
+//            				if (this.debugLevel > -1) System.out.println("getImagesetTiltAxial("+timeStamp+
+//            						"): estimating orientation for set # "+i+" from a single set "+setList.get(0)+": this.debugLevel="+this.debugLevel);
+
             			} else { // old way
+            				// first try for the same station number only:
+            				iBest = -1;
             				double d2Min=-1;
-            				for (int j=0;j<this.gIS.length;j++) if ((j!=i) && (this.gIS[j].motors!=null) &&
-            						!Double.isNaN(this.gIS[j].goniometerTilt) && !Double.isNaN(this.gIS[j].goniometerAxial )  && !Double.isNaN(this.gIS[j].interAxisAngle)) {
+            				int station_number = this.gIS[i].getStationNumber();
+            				for (int j=0;j<this.gIS.length;j++) if ((j!=i) &&
+            						(this.gIS[j].getStationNumber() == station_number) &&
+            						!this.gIS[j].orientationEstimated &&
+            						(this.gIS[j].motors!=null) &&
+            						!Double.isNaN(this.gIS[j].goniometerTilt) &&
+            						!Double.isNaN(this.gIS[j].goniometerAxial )  &&
+            						!Double.isNaN(this.gIS[j].interAxisAngle)) {
             					double d2=0;
             					for (int k=0;k<this.gIS[j].motors.length;k++){
             						d2+=1.0*(this.gIS[j].motors[k]-this.gIS[i].motors[k])*
@@ -2863,21 +2900,84 @@ import ij.text.TextWindow;
             						iBest=j;
             					}
             				}
+            				if (iBest < 0) {
+                				d2Min=-1;
+                				for (int j=0;j<this.gIS.length;j++) if ((j!=i) &&
+                						(this.gIS[j].motors!=null) &&
+                						!this.gIS[j].orientationEstimated &&
+                						!Double.isNaN(this.gIS[j].goniometerTilt) &&
+                						!Double.isNaN(this.gIS[j].goniometerAxial )  &&
+                						!Double.isNaN(this.gIS[j].interAxisAngle)) {
+                					double d2=0;
+                					for (int k=0;k<this.gIS[j].motors.length;k++){
+                						d2+=1.0*(this.gIS[j].motors[k]-this.gIS[i].motors[k])*
+                						(this.gIS[j].motors[k]-this.gIS[i].motors[k]);
+                					}
+                					if ((d2Min<0) || (d2Min>d2)) {
+                						d2Min=d2;
+                						iBest=j;
+                					}
+                				}
+                				if (iBest < 0) {
+                    				d2Min=-1;
+                    				for (int j=0;j<this.gIS.length;j++) if ((j!=i) &&
+                    						(this.gIS[j].motors!=null) &&
+                    						!Double.isNaN(this.gIS[j].goniometerTilt) &&
+                    						!Double.isNaN(this.gIS[j].goniometerAxial )  &&
+                    						!Double.isNaN(this.gIS[j].interAxisAngle)) {
+                    					double d2=0;
+                    					for (int k=0;k<this.gIS[j].motors.length;k++){
+                    						d2+=1.0*(this.gIS[j].motors[k]-this.gIS[i].motors[k])*
+                    						(this.gIS[j].motors[k]-this.gIS[i].motors[k]);
+                    					}
+                    					if ((d2Min<0) || (d2Min>d2)) {
+                    						d2Min=d2;
+                    						iBest=j;
+                    					}
+                    				}
+                    				System.out.println("Used any station numer with even estimated orientation, iBest = "+iBest);
+                				} else {
+                    				System.out.println("Used different station numer, iBest = "+iBest);
+                				}
+            				} else {
+                				System.out.println("Used the same station number, iBest = "+iBest);
+
+            				}
+
+
             			}
         			}
-        			double [] result = {
-        					this.gIS[iBest].goniometerTilt,
-        					this.gIS[iBest].goniometerAxial,
-        					this.gIS[iBest].interAxisAngle
-        			};
+//        			double [] result = {
+//        					this.gIS[iBest].goniometerTilt,
+//        					this.gIS[iBest].goniometerAxial,
+//        					this.gIS[iBest].interAxisAngle
+//        			};
         			if (iBest!=i){
+        				boolean usable_tilt  = (this.gIS[i].motors != null);
+        				boolean usable_axial = usable_tilt && (this.gIS[i].getStationNumber() == this.gIS[iBest].getStationNumber());
+        				double diff_axial = usable_axial? (this.gIS[i].motors[mAxial]-this.gIS[iBest].motors[mAxial])/
+        						goniometerParameters.goniometerMotors.stepsPerDegreeAxial : 0.0;
+        				double diff_horizontal = usable_tilt? (this.gIS[i].motors[mHorizontal]-this.gIS[iBest].motors[mHorizontal])/
+        						goniometerParameters.goniometerMotors.stepsPerDegreeTilt: 0.0;
+        				this.gIS[i].goniometerTilt =  this.gIS[iBest].goniometerTilt + diff_horizontal;
+        				this.gIS[i].goniometerAxial = this.gIS[iBest].goniometerAxial + diff_axial;
+
+        				this.gIS[i].goniometerTilt-=360.0*Math.floor((this.gIS[i].goniometerTilt+180.0)/360.0);
+        				this.gIS[i].goniometerAxial-=360.0*Math.floor((this.gIS[i].goniometerAxial+180.0)/360.0);
+
             			if (this.debugLevel>0) System.out.println("Orientation for set # "+i+" timestamp "+IJ.d2s(this.gIS[i].timeStamp,6)+
-            					") is not defined, using # "+iBest+" (timestamp "+IJ.d2s(this.gIS[iBest].timeStamp,6)+")" );
+            					") is not defined, estimating from  # "+iBest+" (timestamp "+IJ.d2s(this.gIS[iBest].timeStamp,6)+")" );
             			this.gIS[i].orientationEstimated=true;
-    					this.gIS[i].goniometerTilt= this.gIS[iBest].goniometerTilt;
-    					this.gIS[i].goniometerAxial=this.gIS[iBest].goniometerAxial;
+//    					this.gIS[i].goniometerTilt= this.gIS[iBest].goniometerTilt;
+//    					this.gIS[i].goniometerAxial=this.gIS[iBest].goniometerAxial;
     					this.gIS[i].interAxisAngle=this.gIS[iBest].interAxisAngle;
         			}
+        			double [] result = {
+        					this.gIS[i].goniometerTilt,
+        					this.gIS[i].goniometerAxial,
+        					this.gIS[i].interAxisAngle
+        			};
+
        				return result; // may have Double.NaN
         	}
         	return null;
@@ -2942,7 +3042,9 @@ import ij.text.TextWindow;
         		EyesisCameraParameters eyesisCameraParameters,
     			EyesisAberrations.AberrationParameters aberrationParameters,
     			LaserPointer laserPointers,
+    			Goniometer.GoniometerParameters goniometerParameters,
 				ImagePlus[] gridImages  ){ // null - use specified files
+        	this.goniometerParameters = goniometerParameters;
         	setupIndices();
 			String [] extensions={".dcal-xml","-distcal.xml"};
 			MultipleExtensionsFileFilter parFilter = new MultipleExtensionsFileFilter("",extensions,"Distortion calibration *.dcal-xml files");

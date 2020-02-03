@@ -3026,6 +3026,7 @@ For each point in the image
 			if (imp.getRoi() instanceof PointRoi) {
 				pointRoi =  (PointRoi) imp.getRoi();
 			} else {
+				System.out.println("This image does not have point marks - please mark it in "+source_path);
 				IJ.showMessage("This image does not have point marks - please mark it in "+source_path);
 				return null;
 			}
@@ -3123,7 +3124,7 @@ For each point in the image
 				xyuv[i][3]=0.5;
 			}
 			GenericDialog gd=new GenericDialog("Specify U,V coordinates of the marker(s)");
-			gd.addMessage("Center white cell U=0.5, V=0.5");
+			gd.addMessage("Center white (LWIR black) cell U=0.5, V=0.5");
 			for (int n = 0; n < markers.length; n++) {
 				String label = "Marker "+(n+1)+" (x="+markers[n][0]+", y="+markers[n][1];
 				gd.addNumericField(label+" U", xyuv[n][2], 1, 5, "");
