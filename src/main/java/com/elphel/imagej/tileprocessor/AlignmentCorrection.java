@@ -242,7 +242,10 @@ public class AlignmentCorrection {
 				double [][] jt)
 		{
 			double [][] dMismatch_dXY = get_dMismatch_dXY();
-
+            if ((dMismatch_dXY.length == 0) || (jt.length == 0)) { // happens with empty parameters list
+            	System.out.println("BUG:  dMismatch_dXY.length="+dMismatch_dXY.length+", jt.length="+jt.length);
+            	return null;
+            }
 			double [][] jt_conv = new double [jt.length][jt[0].length/dMismatch_dXY[0].length*dMismatch_dXY.length]; // now dMismatch_dXY is square
 			// multiplying by transposed dMismatch_dXY
 			for (int g = 0; g < jt[0].length/dMismatch_dXY[0].length; g++) {
@@ -2353,18 +2356,18 @@ B = |+dy0   -dy1      -2*dy3 |
 			double [] old_new_rms = new double[1];
 			boolean apply_extrinsic = true;
 			int solveCorr_debug =  ((clt_parameters.lym_iter == 1) && (clt_parameters.ly_par_sel != 0))? 2 : debugLevel;
+
+
 			GeometryCorrection.CorrVector corr_vector = solveCorr (
-					clt_parameters.ly_inf_en,      // boolean use_disparity,     // if true will ignore disparity data even if available (was false)
-//					clt_parameters.ly_combo_en,    // boolean use_other_extr,    // adjust other extrinsic parameters that do not influence disparity, common roll and zoom
-					clt_parameters.ly_aztilt_en,// boolean use_aztilts,       // Adjust azimuths and tilts excluding disparity
-					clt_parameters.ly_diff_roll_en,// boolean use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
+					clt_parameters.lylw_inf_en,      // boolean use_disparity,     // if true will ignore disparity data even if available (was false)
+					clt_parameters.lylw_aztilt_en,// boolean use_aztilts,       // Adjust azimuths and tilts excluding disparity
+					clt_parameters.lylw_diff_roll_en,// boolean use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
 					clt_parameters.ly_inf_force,   // boolean force_convergence, // if true try to adjust convergence (disparity, symmetrical parameter 0) even with no disparity
-					clt_parameters.ly_com_roll,    // boolean    common_roll,    // Enable common roll (valid for high disparity range only)
-					clt_parameters.ly_focalLength, // boolean    corr_focalLength,     // Correct scales (focal length temperature? variations)
-					clt_parameters.ly_par_sel,     //int     manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
+					clt_parameters.lylw_com_roll,    // boolean    common_roll,    // Enable common roll (valid for high disparity range only)
+					clt_parameters.lylw_focalLength, // boolean    corr_focalLength,     // Correct scales (focal length temperature? variations)
+					clt_parameters.lylw_par_sel,     // int     manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 					mismatch_list,                          // ArrayList<Mismatch> mismatch_list,
 					qc.geometryCorrection,                  // GeometryCorrection geometryCorrection,
-///					null, // GeometryCorrection geometryCorrection_main, // if is aux camera using main cameras' coordinates. Disparity is still in aux camera pixels
 					qc.geometryCorrection.getCorrVector(),  // GeometryCorrection.CorrVector corr_vector,
 					old_new_rms,                            // double [] old_new_rms, // should be double[2]
 //					2); // debugLevel); // 2); // 1); // int debugLevel)
@@ -2919,13 +2922,13 @@ B = |+dy0   -dy1      -2*dy3 |
 			boolean apply_extrinsic = true;
 			int solveCorr_debug =  ((clt_parameters.lym_iter == 1) && (clt_parameters.ly_par_sel != 0))? 2 : debugLevel;
 			GeometryCorrection.CorrVector corr_vector = solveCorr (
-					clt_parameters.ly_inf_en,      // boolean use_disparity,     // if true will ignore disparity data even if available (was false)
-					clt_parameters.ly_aztilt_en,// boolean use_aztilts,       // Adjust azimuths and tilts excluding disparity
-					clt_parameters.ly_diff_roll_en,// boolean use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
+					clt_parameters.lylw_inf_en,      // boolean use_disparity,     // if true will ignore disparity data even if available (was false)
+					clt_parameters.lylw_aztilt_en,// boolean use_aztilts,       // Adjust azimuths and tilts excluding disparity
+					clt_parameters.lylw_diff_roll_en,// boolean use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
 					clt_parameters.ly_inf_force,   // boolean force_convergence, // if true try to adjust convergence (disparity, symmetrical parameter 0) even with no disparity
-					clt_parameters.ly_com_roll,    // boolean    common_roll,    // Enable common roll (valid for high disparity range only)
-					clt_parameters.ly_focalLength, // boolean    corr_focalLength,     // Correct scales (focal length temperature? variations)
-					clt_parameters.ly_par_sel,     // int     manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
+					clt_parameters.lylw_com_roll,    // boolean    common_roll,    // Enable common roll (valid for high disparity range only)
+					clt_parameters.lylw_focalLength, // boolean    corr_focalLength,     // Correct scales (focal length temperature? variations)
+					clt_parameters.lylw_par_sel,     // int     manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 					mismatch_list,                          // ArrayList<Mismatch> mismatch_list,
 					qc.geometryCorrection,                  // GeometryCorrection geometryCorrection,
 ///					geometryCorrection_main, //  GeometryCorrection geometryCorrection_main, // if is aux camera using main cameras' coordinates. Disparity is still in aux camera pixels
@@ -3457,7 +3460,6 @@ B = |+dy0   -dy1      -2*dy3 |
 
 	public GeometryCorrection.CorrVector  solveCorr (
 			boolean use_disparity,     // adjust disparity-related extrinsics
-//			boolean use_other_extr,    // adjust other extrinsic parameters that do not influence disparity, common roll and zoom
 			boolean use_aztilts,       // Adjust azimuths and tilts excluding disparity
 			boolean use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
 			boolean force_convergence, // if true try to adjust convergence (disparity, symmetrical parameter 0) even with no disparity
@@ -3467,7 +3469,6 @@ B = |+dy0   -dy1      -2*dy3 |
 	  		int     manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 			ArrayList<Mismatch> mismatch_list,
 			GeometryCorrection geometryCorrection,
-///			GeometryCorrection geometryCorrection_main, // if is aux camera using main cameras' coordinates. Disparity is still in aux camera pixels
 			GeometryCorrection.CorrVector corr_vector,
 			double [] old_new_rms, // should be double[2]
 			int debugLevel)
@@ -3483,16 +3484,12 @@ B = |+dy0   -dy1      -2*dy3 |
 		}
 
 		boolean [] par_mask = geometryCorrection.getParMask(
-// temporary - just for testing
-//				force_convergence, // boolean disparity_only,
-//				force_convergence && has_disparity, // boolean use_disparity,
 				has_disparity, // boolean use_disparity,
-//				use_other_extr,    // boolean use_other_extr,
 				use_aztilts,       // Adjust azimuths and tilts excluding disparity
 				use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
 
-				common_roll,// boolean common_roll,
-				corr_focalLength, // boolean corr_focalLength);
+				common_roll,        // boolean common_roll,
+				corr_focalLength,   // boolean corr_focalLength);
 		  		manual_par_sel);    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 
 

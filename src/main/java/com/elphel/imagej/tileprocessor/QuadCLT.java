@@ -7662,7 +7662,7 @@ public class QuadCLT {
 		  }
 		  // iteration steps
 		  // if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) {
-		  if (clt_parameters.show_extrinsic && (debugLevel >-3)) { // temporary
+		  if (clt_parameters.show_extrinsic && (debugLevel > -1)) { // temporary
 			  tp.showScan(
 					  tp.clt_3d_passes.get(bg_scan),   // CLTPass3d   scan,
 					  "bg_scan_post"); //String title)
@@ -7688,10 +7688,12 @@ public class QuadCLT {
 						  (num_iter >0)? -1: bg_scan,        // final int           bgIndex, // combine, if >=0
 						  tp.threadsMax,  // maximal number of threads to launch
 						  false, // updateStatus,
-						  debugLevelInner + 7); // - 1); // -5-1
+						  debugLevelInner -1); // - 1); // -5-1
+				  if (debugLevel > -2) {
 				  tp.showScan(
 						  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
 						  "LY_combo_scan-"+combo_scan+"_post"); //String title)
+				  }
 
 				  int tilesX = tp.getTilesX();
 				  int tilesY = tp.getTilesY();
@@ -7745,7 +7747,8 @@ public class QuadCLT {
 					  if (debugLevel > -2){
 							  System.out.println("New extrinsic corrections:");
 							  System.out.println(corr_vector.toString());
-
+					  }
+					  if (debugLevel > -3){
 							  System.out.println("Increment extrinsic corrections:");
 							  System.out.println(diff_corr.toString());
 							  // System.out.println("Correction scale = "+clt_parameters.ly_corr_scale);
@@ -7772,7 +7775,7 @@ public class QuadCLT {
 							  " final RMS = " + old_new_rms[1]+ " (debugLevel = "+debugLevel+")");
 				  }
 				  if (debugLevel > -10) {
-					  if ((debugLevel > -1) || done) {
+					  if ((debugLevel > -3) || done) {
 						  //						  System.out.println("#### extrinsicsCLT(): iteration step = "+(num_iter + 1) + " ( of "+max_tries+") change = "+
 						  //								  comp_diff + " ("+min_sym_update+"), previous RMS = " + new_corr[0][1][0]);
 						  System.out.println("New extrinsic corrections:");
@@ -10280,11 +10283,11 @@ public class QuadCLT {
 		  }
 		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
 
-
-		  tp.showScan(
-				  scan,   // CLTPass3d   scan,
-				  "LY-combo_scan-"+scan+"_post"); //String title)
-
+		  if (debugLevel > -5){
+			  tp.showScan(
+					  scan,   // CLTPass3d   scan,
+					  "LY-combo_scan-"+scan+"_post"); //String title)
+		  }
 		  // use new, LMA-based mismatch calculation
 		  double [][] lazy_eye_data = image_dtt.cltMeasureLazyEye ( // returns d,s lazy eye parameters
 				  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others

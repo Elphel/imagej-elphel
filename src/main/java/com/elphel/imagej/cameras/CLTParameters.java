@@ -170,8 +170,13 @@ public class CLTParameters {
 	public boolean    ly_gt_use_wnd =   true;    //
 	public double     ly_gt_rms =       0.2;     // split small source samples to FG/BG if all aux tile RMS exceeds this value
 
-//	boolean split_fg_bg =  true;
-//	boolean for_adjust =  false;
+// Use for LWIR
+	public boolean    lylw_inf_en =       true;    // Simultaneously correct disparity at infinity (both poly and extrinsic)
+	public boolean    lylw_aztilt_en =    true;    // Adjust azimuths and tilts
+	public boolean    lylw_diff_roll_en = true;    // Adjust differential rolls (3 of 4 angles)
+	public boolean    lylw_focalLength=   true;    // Correct scales (focal length temperature? variations)
+	public boolean    lylw_com_roll=      false;   // Enable common roll (valid for high disparity range only)
+	public int        lylw_par_sel   =    0;       // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use checkbox selections above)
 
 	public double     ly_marg_fract =   0.2;     // part of half-width, and half-height to reduce weights
 	public boolean    ly_on_scan =      true;    // Calculate and apply lazy eye correction after disparity scan (poly or extrinsic)
@@ -970,6 +975,13 @@ public class CLTParameters {
 		properties.setProperty(prefix+"ly_gt_use_wnd",              this.ly_gt_use_wnd+"");
 		properties.setProperty(prefix+"ly_gt_rms",                  this.ly_gt_rms+"");
 
+		properties.setProperty(prefix+"lylw_inf_en",                  this.lylw_inf_en+"");
+		properties.setProperty(prefix+"lylw_aztilt_en",               this.lylw_aztilt_en+"");
+		properties.setProperty(prefix+"lylw_diff_roll_en",            this.lylw_diff_roll_en+"");
+		properties.setProperty(prefix+"lylw_focalLength",             this.lylw_focalLength+"");
+		properties.setProperty(prefix+"lylw_com_roll",                this.lylw_com_roll+"");
+		properties.setProperty(prefix+"lylw_par_sel",                 this.lylw_par_sel+"");
+
 		properties.setProperty(prefix+"ly_marg_fract",              this.ly_marg_fract+"");
 		properties.setProperty(prefix+"ly_on_scan",                 this.ly_on_scan+"");
 		properties.setProperty(prefix+"ly_inf_en",                  this.ly_inf_en+"");
@@ -1700,6 +1712,12 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"ly_gt_use_wnd")!=null)                 this.ly_gt_use_wnd=Boolean.parseBoolean(properties.getProperty(prefix+"ly_gt_use_wnd"));
 		if (properties.getProperty(prefix+"ly_gt_rms")!=null)                     this.ly_gt_rms=Double.parseDouble(properties.getProperty(prefix+"ly_gt_rms"));
 
+		if (properties.getProperty(prefix+"lylw_inf_en")!=null)                     this.lylw_inf_en=Boolean.parseBoolean(properties.getProperty(prefix+"lylw_inf_en"));
+		if (properties.getProperty(prefix+"lylw_aztilt_en")!=null)                  this.lylw_aztilt_en=Boolean.parseBoolean(properties.getProperty(prefix+"lylw_aztilt_en"));
+		if (properties.getProperty(prefix+"lylw_diff_roll_en")!=null)               this.lylw_diff_roll_en=Boolean.parseBoolean(properties.getProperty(prefix+"lylw_diff_roll_en"));
+		if (properties.getProperty(prefix+"lylw_focalLength")!=null)                this.lylw_focalLength=Boolean.parseBoolean(properties.getProperty(prefix+"lylw_focalLength"));
+		if (properties.getProperty(prefix+"lylw_com_roll")!=null)                   this.lylw_com_roll=Boolean.parseBoolean(properties.getProperty(prefix+"lylw_com_roll"));
+		if (properties.getProperty(prefix+"lylw_par_sel")!=null)                    this.lylw_par_sel=Integer.parseInt(properties.getProperty(prefix+"lylw_par_sel"));
 
 		if (properties.getProperty(prefix+"ly_marg_fract")!=null)                 this.ly_marg_fract=Double.parseDouble(properties.getProperty(prefix+"ly_marg_fract"));
 		if (properties.getProperty(prefix+"ly_on_scan")!=null)                    this.ly_on_scan=Boolean.parseBoolean(properties.getProperty(prefix+"ly_on_scan"));
@@ -2475,8 +2493,17 @@ public class CLTParameters {
 		gd.addNumericField("Minimal reference (main) channel correlation strength",                             this.ly_gt_strength,        3);
 		gd.addCheckbox    ("Use window for AUX tiles to reduce weight of the hi-res tiles near low-res tile boundaries", this.ly_gt_use_wnd);
 		gd.addNumericField("Aux disparity thershold to split FG and BG (and disable AUX tile for adjustment)",  this.ly_gt_rms,        3);
-		gd.addMessage     ("--- others ---");
 
+		gd.addMessage     ("--- Lazy eye from GT ---");
+		gd.addCheckbox    ("Adjust disparity using objects at infinity by changing individual tilt and azimuth ", this.lylw_inf_en," disable if there are no really far objects in the scene");
+		gd.addCheckbox    ("Adjust azimuths and tilts",                                                           this.lylw_aztilt_en,"Adjust azimuths and tilts excluding those that change disparity");
+		gd.addCheckbox    ("Adjust differential rolls",                                                           this.lylw_diff_roll_en,"Adjust differential rolls (3 of 4 rolls, keeping average roll)");
+		gd.addCheckbox    ("Correct scales (focal length temperature? variations)",                               this.lylw_focalLength);
+		gd.addCheckbox    ("Enable common roll adjustment (valid for high disparity range scans only)",           this.lylw_com_roll);
+		gd.addNumericField("Manual parameter mask selection (0 use checkboxes above)",                            this.lylw_par_sel,  0, 5,"",
+				"bit 0 - sym0, bit1 - sym1, ...");
+
+		gd.addMessage     ("--- other LMA parameters ---");
 
 		gd.addNumericField("Relative weight margins (0.0 - all 1.0, 1.0 sin^2",                                 this.ly_marg_fract,  8,3,"",
 				"Reduce weigt of peripheral tiles");
@@ -3318,6 +3345,13 @@ public class CLTParameters {
 		this.ly_gt_strength=        gd.getNextNumber();
 		this.ly_gt_use_wnd=         gd.getNextBoolean();
 		this.ly_gt_rms=             gd.getNextNumber();
+
+		this.lylw_inf_en =          gd.getNextBoolean();
+		this.lylw_aztilt_en =       gd.getNextBoolean();
+		this.lylw_diff_roll_en =    gd.getNextBoolean();
+		this.lylw_focalLength =     gd.getNextBoolean();
+		this.lylw_com_roll =        gd.getNextBoolean();
+		this.lylw_par_sel=    (int) gd.getNextNumber();
 
 		this.ly_marg_fract=         gd.getNextNumber();
 		this.ly_on_scan=            gd.getNextBoolean();
