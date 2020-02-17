@@ -657,6 +657,13 @@ public class LwirReader {
 		   			"&GSCALE="+gScale+//"*0"+ // GB/G ratio
 		   			"&WB_EN="+autoWB+//"*0"+
 	   				"&DAEMON_EN_TEMPERATURE=1";//"*0";
+	   		if (lrp.eo_full_window) {
+	   			urls[num_lwir+chn] +=
+	   					"&WOI_LEFT=0"+
+	   					"&WOI_TOP=0"+
+	   					"&WOI_WIDTH=2592"+
+	   					"&WOI_HEIGHT=1936";
+	   		}
 
 
 	   		if (chn == eo_master_port) {
@@ -664,13 +671,6 @@ public class LwirReader {
 	   					"&TRIG_CONDITION=611669*0"+ // external input
 	   					"&TRIG_BITLENGTH=31*0"+
 	   					"&EXTERN_TIMESTAMP=1*0";
-	   		}
-	   		if (lrp.eo_full_window) {
-	   			urls[num_lwir+chn] +=
-	   					"&WOI_LEFT=0"+
-	   					"&WOI_TOP=0"+
-	   					"&WOI_WIDTH=2592"+
-	   					"&WOI_HEIGHT=1936";
 	   		}
 		}
 		for (int i = 0; i < urls.length; i++) {
