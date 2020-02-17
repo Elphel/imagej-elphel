@@ -3378,15 +3378,52 @@ public class QuadCLT {
 						  }
 						  ///						  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
 
+						  float [] vign_pixels = eyesisCorrections.channelVignettingCorrection[srcChannel];
+						  if (pixels.length!=vign_pixels.length){
+//							  System.out.println("Vignetting data for channel "+srcChannel+" has "+vign_pixels.length+" pixels, image "+sourceFiles[nFile]+" has "+pixels.length);
+							  int woi_width =  Integer.parseInt((String) imp_srcs[srcChannel].getProperty("WOI_WIDTH"));
+							  int woi_height = Integer.parseInt((String) imp_srcs[srcChannel].getProperty("WOI_HEIGHT"));
+							  int woi_top =  Integer.parseInt((String) imp_srcs[srcChannel].getProperty("WOI_TOP"));
+							  int woi_left =  Integer.parseInt((String) imp_srcs[srcChannel].getProperty("WOI_LEFT"));
+							  int vign_width =  eyesisCorrections.pixelMapping.sensors[srcChannel].pixelCorrectionWidth;
+							  int vign_height = eyesisCorrections.pixelMapping.sensors[srcChannel].pixelCorrectionHeight;
 
-						  if (pixels.length!=eyesisCorrections.channelVignettingCorrection[srcChannel].length){
-							  System.out.println("Vignetting data for channel "+srcChannel+" has "+eyesisCorrections.channelVignettingCorrection[srcChannel].length+" pixels, image "+sourceFiles[nFile]+" has "+pixels.length);
-							  return null; // not used in lwir
+							  if (pixels.length != woi_width * woi_height){
+								  System.out.println("Vignetting data for channel "+srcChannel+" has "+vign_pixels.length+" pixels, < "+
+										  sourceFiles[nFile]+" has "+pixels.length);
+								  woi_width = width;
+								  woi_height = height;
+							  }
+							  if (vign_width < (woi_left + woi_width)) {
+								  System.out.println("Vignetting data for channel "+srcChannel+
+										  " has width + left ("+(woi_left+woi_width)+") > vign_width ("+vign_width+")");
+								  return null;
+							  }
+							  if (vign_height < (woi_top + woi_height)) {
+								  System.out.println("Vignetting data for channel "+srcChannel+
+										  " has height + top ("+(woi_top+woi_height)+") > vign_height ("+vign_width+")");
+								  return null;
+							  }
+							  if (pixels.length != woi_width * woi_height){
+								  System.out.println("Vignetting data for channel "+srcChannel+" has "+vign_pixels.length+" pixels, < "+
+										  sourceFiles[nFile]+" has "+pixels.length);
+								  return null;
+							  }
+							  vign_pixels = new float[woi_width * woi_height];
+							  for (int row = 0; row < woi_height; row++) {
+								  System.arraycopy(
+										  eyesisCorrections.channelVignettingCorrection[srcChannel], // src
+										  (woi_top + row) * vign_width + woi_left, // srcPos,
+										  vign_pixels,                             // dest,
+										  row * woi_width,                         // destPos,
+										  woi_width);                              // length);
+							  }
+
 						  }
 						  // TODO: Move to do it once:
 						  double min_non_zero = 0.0;
 						  for (int i=0;i<pixels.length;i++){
-							  double d = eyesisCorrections.channelVignettingCorrection[srcChannel][i];
+							  double d = vign_pixels[i];
 							  if ((d > 0.0) && ((min_non_zero == 0) || (min_non_zero > d))){
 								  min_non_zero = d;
 							  }
@@ -3395,7 +3432,7 @@ public class QuadCLT {
 
 						  System.out.println("Vignetting data: channel="+srcChannel+", min = "+min_non_zero);
 						  for (int i=0;i<pixels.length;i++){
-							  double d = eyesisCorrections.channelVignettingCorrection[srcChannel][i];
+							  double d = vign_pixels[i];
 							  if (d > max_vign_corr) d = max_vign_corr;
 							  pixels[i]*=d;
 						  }

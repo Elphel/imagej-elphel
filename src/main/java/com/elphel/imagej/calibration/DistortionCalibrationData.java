@@ -46,6 +46,7 @@ import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.common.WindowTools;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
+import Jama.Matrix;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
@@ -122,7 +123,7 @@ import ij.text.TextWindow;
     		public String      source_path = null; // Full path of the source image this grid was calculated from
     		public double [][] laserPixelCoordinates=null; // first index - absolute number of pointer. Each element may be either null or {x,y} pair
     		// moving for new files to have laser UV contained in the file
-    		public double [][] laserUVCoordinates=null;    // first index - absolute number of pointer. Each element may be either null or {u,v} pair
+    		public double [][] laserUVCoordinates=null;    // first index - absolute number of pointer. Each element may be either null or {u,v} pair - never used??????
     		public int         matchedPointers=0;
     		public int         hintedMatch=-1; // -1 - not tried, 0 - no real grid (i.e. double reflection), applied orientation, applied orientation and shift
     		public boolean     enabled=true; //false;  // to mask out some images from all strategy steps (i.e w/o reliable absolute calibration)
@@ -153,6 +154,7 @@ import ij.text.TextWindow;
     		public double getGridPeriod() {	return gridPeriod;}
     		public void setGridPeriod(double v) {gridPeriod = v;}
     		public int getSetNumber(){return this.setNumber;}
+    		public int getImageNumber() {return this.imgNumber;}
         	public GridImageParameters(int index){
         		this.imgNumber=index;
         	}
@@ -2259,7 +2261,7 @@ import ij.text.TextWindow;
         					((this.gIP[i].matchedPointers>0) && (this.gIP[i].hintedMatch>0)) || // orientation and one pointer
         					((this.gIP[i].hintedMatch>1) && enableNoLaser)) { // do not use bottom images w/o matched pointers
         				// before enabling - copy orientation from gIS
-        				if (!this.gIP[i].enabled && (gIS_index[i]>=0)){
+        				if (!this.gIP[i].enabled && (gIS_index[i]>=0)){ // FIXME - is it correct to use set index 0?
         					if (!Double.isNaN(this.gIS[gIS_index[i]].goniometerTilt))	setGH(i,this.gIS[gIS_index[i]].goniometerTilt );
         					if (!Double.isNaN(this.gIS[gIS_index[i]].goniometerAxial))	setGA(i,this.gIS[gIS_index[i]].goniometerAxial );
         				}
@@ -2407,9 +2409,11 @@ import ij.text.TextWindow;
         /**
          * Set goniometer initial orientation from the image with maximal number of laser pointers (make averaging later?)
          * Needed before LMA to have some reasonable initial orientation
-         * @param overwriteAll if true, overwrite orientation data even if it is alredy not NaN, false -skipp those that have orientation set
+         * @param overwriteAll if true, overwrite orientation data even if it is already not NaN, false -skip those that have orientation set
          */
-        public void setInitialOrientation(boolean overwriteAll){
+        public void setInitialOrientation(
+        		PatternParameters  patternParameters,
+        		boolean            overwriteAll) {
 			if (this.debugLevel>0) {
 				System.out.println("setInitialOrientation("+overwriteAll+"), debugLevel= "+this.debugLevel);
 			}
@@ -2427,6 +2431,70 @@ import ij.text.TextWindow;
         		}
         		if (bestRating>0){
         			EyesisSubCameraParameters esp = this.eyesisCameraParameters.eyesisSubCameras[stationNumber][bestChannel];
+        			double [] uv_center = getGridUVfromXY(
+        	        		esp.px0, // final double px,
+        	        		esp.py0, // final double py,
+        	        		this.gIS[i].imageSet[bestChannel].getImageNumber(), //  final int fileNumber,
+        	        		true); // boolean use_extra)
+// find UV of the center of the image getImageNumber
+        			if (uv_center == null) {
+        				if (this.debugLevel>0) {
+        					System.out.println("Center UV = NULL");
+        				}
+        			} else {
+        				if (this.debugLevel>0) {
+        					System.out.println("Center UV = "+uv_center[0]+","+uv_center[1]);
+        				}
+        				double [] patt_xyz = 		patternParameters.getXYZ(
+        						uv_center, // double [] uv,
+        						false, // boolean verbose,
+        						this.gIS[i].getStationNumber()); // int station); // u=0,v=0 - center!
+
+            			if (patt_xyz == null) {
+            				if (this.debugLevel>0) {
+            					System.out.println("Center UV = NULL");
+            				}
+            			} else {
+            				if (this.debugLevel>0) {
+            					System.out.println("Center XYZ = "+patt_xyz[0]+","+patt_xyz[1]+","+patt_xyz[2]);
+            				}
+// Calculate position relative to the view point on the target
+            				double [] aview = {
+            						patt_xyz[0]- this.gIS[i].GXYZ[0],
+            						-patt_xyz[1]+ (this.gIS[i].GXYZ[1] - this.gIS[i].centerAboveHorizontal),
+            						-patt_xyz[2]+ this.gIS[i].GXYZ[2]
+            				};
+            				Matrix mview = new Matrix(aview,3);
+            				double phi = -Math.PI/180.0*this.gIS[i].horAxisErrPhi;
+            				double cp = Math.cos(phi);
+            				double sp = Math.sin(phi);
+            				double [][] aphi = {
+            						{ cp, 0.0, sp},
+            						{0.0, 1.0, 0.0},
+            						{-sp, 0.0, cp}};
+            				Matrix mphi = new Matrix(aphi);
+            				Matrix mview_gon = mphi.times(mview); // view point on the target from the goniometer
+            				double tilt = -Math.atan2(mview_gon.get(1, 0), mview_gon.get(2, 0)); // y pointed up
+            				double ct =  Math.cos(tilt);
+            				double st = Math.sin(tilt);
+
+            				double [][] atilt = {
+            						{1.0, 0.0, 0.0},
+            						{0.0,  ct,  st},
+            						{0.0, -st,  ct}};
+            				Matrix mtilt = new Matrix(atilt);
+            				Matrix mview_tilt = mtilt.times(mview_gon); // view point on the target from the tilted goniometer
+            				double az = Math.atan2(mview_tilt.get(0, 0), mview_tilt.get(2, 0)); // x pointed right
+
+            				double tilt_deg = tilt/Math.PI*180;
+            				double az_deg =   az/Math.PI*180;
+            				if (this.debugLevel>0) {
+            					System.out.println("Tilt = "+tilt_deg+", az = "+az_deg);
+            					System.out.print("");
+            				}
+            			}
+        			}
+
         			if (overwriteAll || Double.isNaN(this.gIS[i].goniometerAxial)){
  //       				System.out.println("setInitialOrientation("+overwriteAll+"),  Double.isNaN(this.gIS["+i+"].goniometerAxial)="+Double.isNaN(this.gIS[i].goniometerAxial));
 
@@ -2435,7 +2503,9 @@ import ij.text.TextWindow;
         				for (int j=0;j<this.gIS[i].imageSet.length;j++) if (this.gIS[i].imageSet[j]!=null) setGA(this.gIS[i].imageSet[j].imgNumber,this.gIS[i].goniometerAxial);
             			this.gIS[i].orientationEstimated=true;
             			if (this.debugLevel>1) {
-            				System.out.println("Setting goniometerAxial for the image set #"+i+" ("+this.gIS[i].timeStamp+") to "+this.gIS[i].goniometerAxial+" +++++ orientationEstimated==true +++++");
+            				System.out.print(String.format("Setting goniometerAxial for the image set #%4d (%18.6f) to ", i, this.gIS[i].timeStamp));
+            				System.out.println(""+this.gIS[i].goniometerAxial+" +++++ orientationEstimated==true +++++");
+//            				System.out.println("Setting goniometerAxial for the image set #"+i+" ("+this.gIS[i].timeStamp+") to "+this.gIS[i].goniometerAxial+" +++++ orientationEstimated==true +++++");
             			}
         			}
         			if (overwriteAll || Double.isNaN(this.gIS[i].goniometerTilt )){
@@ -2444,7 +2514,8 @@ import ij.text.TextWindow;
         				for (int j=0;j<this.gIS[i].imageSet.length;j++) if (this.gIS[i].imageSet[j]!=null) setGH(this.gIS[i].imageSet[j].imgNumber,this.gIS[i].goniometerTilt);
             			this.gIS[i].orientationEstimated=true;
             			if (this.debugLevel>1) {
-            				System.out.println("Setting goniometerTilt for the image set #"+i+" ("+this.gIS[i].timeStamp+") to "+this.gIS[i].goniometerTilt+" ===== orientationEstimated==true =====");
+            				System.out.print(String.format("Setting goniometerTilt  for the image set #%4d (%18.6f) to ", i, this.gIS[i].timeStamp));
+            				System.out.println(""+this.gIS[i].goniometerTilt+" ===== orientationEstimated==true =====");
             			}
         			}
         		}
@@ -3334,7 +3405,7 @@ import ij.text.TextWindow;
         		len += this.gIP[fileNumber].pixelsXY_extra.length;
         	}
         	if (len<3) {
-        		this.gIP[fileNumber].gridPeriod=Double.NaN;
+        		this.gIP[fileNumber].setGridPeriod(Double.NaN);
         	} else {
 //        		double [][][] data =new double [this.gIP[fileNumber].pixelsXY.length][2][2];
         		double [][][] data =new double [len][2][2];
@@ -3359,12 +3430,12 @@ import ij.text.TextWindow;
         		}
          	   double [][] coeff=new PolynomialApproximation(this.debugLevel).quadraticApproximation(data, true); // force linear
          	   if (coeff!=null) {
-         	     this.gIP[fileNumber].gridPeriod=2.0/Math.sqrt(coeff[0][0]*coeff[0][0]+coeff[0][1]*coeff[0][1]+coeff[1][0]*coeff[1][0]+coeff[1][1]*coeff[1][1]);
+         	     this.gIP[fileNumber].setGridPeriod(2.0/Math.sqrt(coeff[0][0]*coeff[0][0]+coeff[0][1]*coeff[0][1]+coeff[1][0]*coeff[1][0]+coeff[1][1]*coeff[1][1]));
          	     if (this.debugLevel>3) {
          	    	System.out.println("coeff[][]={{"+coeff[0][0]+","+coeff[0][1]+"},{"+coeff[1][0]+","+coeff[1][1]+"}}");
          	     }
          	   } else {
-        		  this.gIP[fileNumber].gridPeriod=Double.NaN;
+        		  this.gIP[fileNumber].setGridPeriod(Double.NaN);
          	   }
         	}
     		if (this.debugLevel>3) {
@@ -3373,6 +3444,93 @@ import ij.text.TextWindow;
         	return this.gIP[fileNumber].getGridPeriod();
 
         }
+
+        public double [] getGridUVfromXY(
+        		final double px,
+        		final double py,
+        		final int fileNumber,
+        		boolean use_extra){ // use out-of grid nodes (can be w/o absolute matching
+        	use_extra &= (this.gIP[fileNumber].pixelsXY_extra !=null);
+        	int len = (this.gIP[fileNumber].pixelsXY==null)? 0 : this.gIP[fileNumber].pixelsXY.length;
+        	final int len0 = len;
+        	if (use_extra ) {
+        		len += this.gIP[fileNumber].pixelsXY_extra.length;
+        	}
+        	if (len<3) {
+        		return null;
+        	}
+        	final double [][] all_xy = new double [len][2];
+        	final int    [][] all_uv = new int   [len][2];
+        	if (len0 > 0) {
+        		System.arraycopy(this.gIP[fileNumber].pixelsXY, 0, all_xy, 0, len0);
+        		System.arraycopy(this.gIP[fileNumber].pixelsUV, 0, all_uv, 0, len0);
+        	}
+        	if (len > len0) {
+        		System.arraycopy(this.gIP[fileNumber].pixelsXY_extra, 0, all_xy, len0, len-len0);
+        		System.arraycopy(this.gIP[fileNumber].pixelsUV_extra, 0, all_uv, len0, len-len0);
+        	}
+
+    		ArrayList<Integer> neibs = new ArrayList<Integer>();
+    		for (int i = 0; i < len; i++) neibs.add(i);
+    		Collections.sort(neibs, new Comparator<Integer>() {
+    		    @Override
+    		    public int compare(Integer lhs, Integer rhs) {
+//    		    	double [] xy_lhs = (lhs < len0)? gIP[fileNumber].pixelsXY[lhs] : gIP[fileNumber].pixelsXY_extra[lhs-len0];
+//    		    	double [] xy_rhs = (rhs < len0)? gIP[fileNumber].pixelsXY[rhs] : gIP[fileNumber].pixelsXY_extra[rhs-len0];
+    		    	double x_lhs = all_xy[lhs][0] - px;
+    		    	double y_lhs = all_xy[lhs][1] - py;
+    		    	double x_rhs = all_xy[rhs][0] - px;
+    		    	double y_rhs = all_xy[rhs][1] - py;
+    		    	double l2_lhs = x_lhs*x_lhs + y_lhs*y_lhs;
+    		    	double l2_rhs = x_rhs*x_rhs + y_rhs*y_rhs;
+    		        return l2_rhs > l2_lhs ? -1 : (l2_rhs < l2_lhs) ? 1 : 0;
+    		    }
+    		});
+    		// now list neibs start with closest to px,py node. Get first with non-collinearU,V
+    		int dlen = -1;
+    		int [] i01 = {neibs.get(0), neibs.get(1)};
+    		int [] duv0 = {all_uv[i01[1]][0]-all_uv[i01[0]][0], all_uv[i01[1]][1]-all_uv[i01[0]][1]};
+    		for (int ii = 2;ii < len; ii++) {
+    			int i = neibs.get(ii);
+//        		int [] duv = {all_uv[i][0]-all_uv[0][0], all_uv[i][1]-all_uv[0][1]};
+        		int idet = (duv0[0] *  (all_uv[i][1]-all_uv[i01[0]][1]))
+        				-  (duv0[1] *  (all_uv[i][0]-all_uv[i01[0]][0]));
+        		if (idet != 0) {
+        			dlen = i + 1;
+        			break;
+        		}
+    		}
+    		if (dlen < 0) {
+    			return null;
+    		}
+    		double [][][] data =new double [dlen][2][2];
+    		// U(x,y), v(x,y)
+    		for (int i=0; i < dlen; i++){
+    			int indx = neibs.get(i);
+    			data[i][0][0]=all_xy[indx][0];
+    			data[i][0][1]=all_xy[indx][1];
+    			data[i][1][0]=all_uv[indx][0];
+    			data[i][1][1]=all_uv[indx][1];
+    		}
+      	   double [][] coeff=new PolynomialApproximation(this.debugLevel).quadraticApproximation(data, true); // force linear
+     	   if (coeff == null) {
+     		   return null;
+     	   }
+     	   double [] uv0 =
+     		   {       (coeff[0][0] * px + coeff[0][1] * py + coeff[0][2]),
+     				   (coeff[1][0] * px + coeff[1][1] * py + coeff[1][2])};
+
+     	   int [][] reMap= MatchSimulatedPattern.getRemapMatrix(this.gIP[fileNumber].getUVShiftRot());
+//     	   double [] uv = { reMap[0][0]*uv0[0] + reMap[0][1]* uv0[1] + reMap[0][2], // u
+//     			   (        reMap[1][0]*uv0[0] + reMap[1][1]* uv0[1] + reMap[1][2])}; // v;
+//     	   Sign?
+     	   double [] uv = { reMap[0][0]*uv0[0] + reMap[0][1]* uv0[1] - reMap[0][2], // u
+     			   (        reMap[1][0]*uv0[0] + reMap[1][1]* uv0[1] - reMap[1][2])}; // v;
+
+        	return uv;
+        }
+
+
 
         public int [] setGridsWithRemap(
         		int fileNumber,

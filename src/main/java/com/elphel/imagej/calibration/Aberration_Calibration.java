@@ -2165,7 +2165,7 @@ if (MORE_BUTTONS) {
 					);
 			// set initial orientation of the cameras from the sensors that see mpst of the matching pointers
 			// just for the LMA to start
-			DISTORTION_CALIBRATION_DATA.setInitialOrientation(true);
+			DISTORTION_CALIBRATION_DATA.setInitialOrientation(PATTERN_PARAMETERS, true);
 			return;
 		}
 
@@ -5871,7 +5871,7 @@ if (MORE_BUTTONS) {
     			DISTORTION_CALIBRATION_DATA.updateSetOrientation(null); // restore orientation from (enabled) image files
     			if (DEBUG_LEVEL>0) System.out.println("Setting sets orientation from per-grid image data");
     		}
-    		if (overwriteAll) DISTORTION_CALIBRATION_DATA.setInitialOrientation(overwriteAll);  // needed here? modify?
+    		if (overwriteAll) DISTORTION_CALIBRATION_DATA.setInitialOrientation(PATTERN_PARAMETERS, overwriteAll);  // needed here? modify?
 			if ((DEBUG_LEVEL>0) && (DISTORTION_CALIBRATION_DATA.gIS!=null)){
 				System.out.println("There are now "+DISTORTION_CALIBRATION_DATA.getNumberOfEstimated(true)+ "("+DISTORTION_CALIBRATION_DATA.getNumberOfEstimated(false)+") images with estimated orientation");
 			}
@@ -6255,7 +6255,7 @@ if (MORE_BUTTONS) {
 /* ======================================================================== */
 		if       (label.equals("Get Orientation")) {
 			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-			if (DEBUG_LEVEL>0){
+			if (DEBUG_LEVEL>10) { // 0){
 				IJ.showMessage("disabled option");
 				return;
 			}
@@ -6278,11 +6278,22 @@ if (MORE_BUTTONS) {
 				System.out.println("GONIOMETER was initialized");
 			}
 			// initialize needed classes
-			DISTORTION_CALIBRATION_DATA=new DistortionCalibrationData( // images are not setup yet
-	        		EYESIS_CAMERA_PARAMETERS, //EyesisCameraParameters eyesisCameraParameters
-	        		GONIOMETER_PARAMETERS);
+			if (DISTORTION_CALIBRATION_DATA == null ) {
+				System.out.println("Initiaslizing DISTORTION_CALIBRATION_DATA");
+				DISTORTION_CALIBRATION_DATA=new DistortionCalibrationData( // images are not setup yet
+		        		EYESIS_CAMERA_PARAMETERS, //EyesisCameraParameters eyesisCameraParameters
+		        		GONIOMETER_PARAMETERS);
+
+			} else if (DEBUG_LEVEL>1){
+				System.out.println("DISTORTION_CALIBRATION_DATA was initialized");
+			}
 			if ((LENS_DISTORTIONS!=null) && (LENS_DISTORTIONS.fittingStrategy!=null)) {
 				LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData=DISTORTION_CALIBRATION_DATA;
+				if (DEBUG_LEVEL>0){
+					System.out.println("Setting LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData=DISTORTION_CALIBRATION_DATA");
+				}
+			} else if (DEBUG_LEVEL>0){
+				System.out.println("Was already set: LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData=DISTORTION_CALIBRATION_DATA");
 			}
 
 			if (DEBUG_LEVEL>1){
@@ -6301,9 +6312,10 @@ if (MORE_BUTTONS) {
 					IJ.showMessage("Error",msg);
 					return;
 				}
+
 				LENS_DISTORTIONS=new Distortions(LENS_DISTORTION_PARAMETERS,PATTERN_PARAMETERS,REFINE_PARAMETERS,this.SYNC_COMMAND.stopRequested);
 				if (DEBUG_LEVEL>1){
-					System.out.println("Initiaslizing Distortions class");
+					System.out.println("Initiaslizing Distortions class (LENS_DISTORTIONS)");
 				}
 			} else if (DEBUG_LEVEL>1){
 				System.out.println("LENS_DISTORTIONS was initialized");
@@ -6324,10 +6336,13 @@ if (MORE_BUTTONS) {
 				return;
 			}
 			GONIOMETER_PARAMETERS.gridGeometryFile=gridPathname;
+			if (DEBUG_LEVEL > 0){
+				System.out.println("Using pattern file: "+gridPathname);
+			}
 
 // Find curernt orientation
 			double [] currentOrientation=GONIOMETER.estimateOrientation (
-					CAMERAS.getImages(1), // last acquired images with number of pointers detected>0
+					CAMERAS.getImages(1),       // last acquired images with number of pointers detected>0
 					DISTORTION_CALIBRATION_DATA, // DistortionCalibrationData distortionCalibrationData,
 					PATTERN_PARAMETERS,          //PatternParameters patternParameters, // should not be null
 					LENS_DISTORTIONS,            //Distortions lensDistortions, // should not be null
@@ -9871,7 +9886,22 @@ if (MORE_BUTTONS) {
 
 		PATTERN_PARAMETERS.debugLevel=MASTER_DEBUG_LEVEL;
 		EYESIS_CAMERA_PARAMETERS.updateNumstations (numStations);
-		DISTORTION_CALIBRATION_DATA=new DistortionCalibrationData( // new way for LWIR - initialize form dirs
+
+// Adding class here to use for orientation estimation - will not be needed?
+		if (GONIOMETER==null) {
+			GONIOMETER= new Goniometer(
+					CAMERAS, // CalibrationHardwareInterface.CamerasInterface cameras,
+					DISTORTION, //MatchSimulatedPattern.DistortionParameters distortion,
+					PATTERN_DETECT, //MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
+					EYESIS_CAMERA_PARAMETERS, //EyesisCameraParameters eyesisCameraParameters,
+					LASER_POINTERS, // MatchSimulatedPattern.LaserPointer laserPointers
+					SIMUL,                       //SimulationPattern.SimulParameters  simulParametersDefault,
+					GONIOMETER_PARAMETERS, //LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
+					DISTORTION_PROCESS_CONFIGURATION
+			);
+		}
+
+		DISTORTION_CALIBRATION_DATA=new DistortionCalibrationData( // new way for LWIR - initialize from dirs
 				gridFileDirs,
 				sourceStationDirs,
 				gridFilter,
@@ -9889,7 +9919,7 @@ if (MORE_BUTTONS) {
 				);
 		// set initial orientation of the cameras from the sensors that see most of the matching pointers
 		// just for the LMA to start
-		DISTORTION_CALIBRATION_DATA.setInitialOrientation(true);
+		DISTORTION_CALIBRATION_DATA.setInitialOrientation(PATTERN_PARAMETERS, true);
 		return true;
 
 

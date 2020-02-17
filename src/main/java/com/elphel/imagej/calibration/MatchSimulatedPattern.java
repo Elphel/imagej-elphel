@@ -6818,8 +6818,11 @@ public class MatchSimulatedPattern {
 				numPointerDetected++;
 			}
 		}
-		if (numPointerDetected>0) return pointersXY;
-		else return null;
+		if (numPointerDetected>0) {
+			return pointersXY;
+		}	else {
+			return null;
+		}
 	}
 
 	public static void setPointersXYUV(ImagePlus imp, double [][] pointersXYUV){

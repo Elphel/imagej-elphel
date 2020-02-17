@@ -739,6 +739,7 @@ import ij.io.Opener;
 			int [] iUV={u1-this.U0, v1-this.V0};
 			return iUV;
 		}
+
 		public double[] getXYZM(int u, int v, boolean verbose, int station){ // u=0,v=0 - center!
 			int u1=u+this.U0;
 			int v1=v+this.V0;
@@ -761,6 +762,31 @@ import ij.io.Opener;
 			return result;
 //			return this.gridGeometry[v1][u1];
 		}
+		public double[] getXYZ(
+				double [] uv,
+				boolean verbose,
+				int station){ // u=0,v=0 - center!
+			int iu = (int) Math.floor(uv[0]);
+			int iv = (int) Math.floor(uv[1]);
+			double fu = uv[0] - iu;
+			double fv = uv[1] - iv;
+			double [][] corn = new double [4][];
+			corn[0] = getXYZM(iu,     iv,     verbose, station);
+			corn[1] = getXYZM(iu + 1, iv,     verbose, station);
+			corn[2] = getXYZM(iu,     iv + 1, verbose, station);
+			corn[3] = getXYZM(iu + 1, iv + 1, verbose, station);
+			if ((corn[0] == null) || (corn[1] == null) || (corn[2] == null) || (corn[3] == null)) {
+				System.out.println("Optical axis outside of te grid: TODO: modify getXYZM() to handle!");
+				return null;
+			}
+			double [] rslt_xyz = new double[3];
+			rslt_xyz[0] = (1-fu) * (1-fv) * corn[0][0] + fu * (1-fv) * corn[1][0] + (1-fu) * fv * corn[2][0] + fu * fv * corn[3][0];
+			rslt_xyz[1] = (1-fu) * (1-fv) * corn[0][1] + fu * (1-fv) * corn[1][1] + (1-fu) * fv * corn[2][1] + fu * fv * corn[3][1];
+			rslt_xyz[2] = (1-fu) * (1-fv) * corn[0][2] + fu * (1-fv) * corn[1][2] + (1-fu) * fv * corn[2][2] + fu * fv * corn[3][2];
+			return rslt_xyz;
+		}
+
+
 		public int getGridIndex(int u, int v){ // u=0,v=0 - center!
 			int u1=u+this.U0;
 			int v1=v+this.V0;

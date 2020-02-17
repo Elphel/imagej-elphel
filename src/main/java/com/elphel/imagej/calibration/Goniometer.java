@@ -771,7 +771,7 @@ horizontal axis:
 			throw new IllegalArgumentException(msg);
 		}
 
-		// remove unneeded, copied from updateFocusGrid()
+		// remove unneeded, copied from updateFocusGrid() Now it is not needed?
 		SimulationPattern.SimulParameters simulParameters = modifySimulParameters();
 		MatchSimulatedPattern.DistortionParameters distortionParameters = modifyDistortionParameters();
 
@@ -1007,6 +1007,10 @@ horizontal axis:
 		};
 		return result;
 	}
+
+
+
+
     public static class GoniometerParameters {
     	public String gridGeometryFile="";
     	public String initialCalibrationFile="";

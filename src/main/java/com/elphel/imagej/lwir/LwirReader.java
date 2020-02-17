@@ -77,7 +77,7 @@ public class LwirReader {
 	public static final int MAX_THREADS = 100; // combine from all classes?
 
 	public static final int FRAMES_AHEAD = 5;
-	
+
 	/** Logger for this class. */
 	private static final Logger LOGGER =
 			LoggerFactory.getLogger(LwirReader.class);
@@ -568,7 +568,7 @@ public class LwirReader {
    				fs.saveAsTiff(path);
 			}
 		}
-		
+
 		if (lrp.isShowImages()) {
 			if (imps_avg != null) {
 				for (ImagePlus imp: imps_avg) {
@@ -665,8 +665,13 @@ public class LwirReader {
 	   					"&TRIG_BITLENGTH=31*0"+
 	   					"&EXTERN_TIMESTAMP=1*0";
 	   		}
-
-
+	   		if (lrp.eo_full_window) {
+	   			urls[num_lwir+chn] +=
+	   					"&WOI_LEFT=0"+
+	   					"&WOI_TOP=0"+
+	   					"&WOI_WIDTH=2592"+
+	   					"&WOI_HEIGHT=1936";
+	   		}
 		}
 		for (int i = 0; i < urls.length; i++) {
 				LOGGER.debug("programLWIRCamera(): reading url " + urls[i]);
