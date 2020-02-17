@@ -9446,8 +9446,9 @@ if (MORE_BUTTONS) {
 		if (LWIR_READER == null) {
 			LWIR_READER =  new LwirReader(LWIR_PARAMETERS);
 		}
-//        ImagePlus [] imps = LWIR_READER.acquire(DISTORTION_PROCESS_CONFIGURATION.sourceDirectory); // directory to save
-        ImagePlus [] imps = LWIR_READER.acquire("attic/lwir_test_images"); // directory to save
+//        ImagePlus [] imps =
+   		LWIR_READER.acquire(DISTORTION_PROCESS_CONFIGURATION.sourceDirectory); // directory to save
+//        ImagePlus [] imps = LWIR_READER.acquire("attic/lwir_test_images"); // directory to save
 		return;
 	}
 
