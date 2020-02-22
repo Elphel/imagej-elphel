@@ -9421,7 +9421,7 @@ if (MORE_BUTTONS) {
 				LWIR_READER =  new LwirReader(LWIR_PARAMETERS);
 			}
 			ImagePlus [][] imps = LWIR_READER.readAllMultiple(
-					10, // final int     num_frames,
+					LWIR_PARAMETERS.getNumFrames(), // 10, // final int     num_frames,
 					//    			true, // use LWIR telemetry
 					true, // final boolean show,
 					false); // true); // final boolean scale)

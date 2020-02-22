@@ -38,6 +38,7 @@ import ij.Prefs;
 public class LwirReaderParameters {
 	private boolean parameters_updated =     false;
 	protected int     avg_number =           4; // number of measurements to average
+	protected int     num_frames =           7; // misses images if high quality large size?
 	protected boolean lwir_ffc =             true;
 	protected boolean avg_all =              true;
 	protected String  lwir_ip =              "192.168.0.36";
@@ -84,6 +85,9 @@ public class LwirReaderParameters {
 
 
 	// --- interface methods
+	public int getNumFrames() {
+		return num_frames;
+	}
 	public int getLwirChn0 () {
 		return lwir_chn0;
 	}
@@ -113,6 +117,7 @@ public class LwirReaderParameters {
 	}
 	public void setProperties(String prefix,Properties properties){
 		properties.setProperty(prefix+"avg_number",          this.avg_number+"");
+		properties.setProperty(prefix+"num_frames",          this.num_frames+"");
 		properties.setProperty(prefix+"lwir_ffc",            this.lwir_ffc+"");
 		properties.setProperty(prefix+"avg_all",             this.avg_all+"");
 		properties.setProperty(prefix+"lwir_ip",             this.lwir_ip+"");
@@ -158,6 +163,8 @@ public class LwirReaderParameters {
 		if (properties.getProperty(prefix+"vnir_lag")!=null)            this.eo_lag=Integer.parseInt(properties.getProperty(prefix+"vnir_lag")); // old version
 
 		if (properties.getProperty(prefix+"avg_number")!=null)          this.avg_number=Integer.parseInt(properties.getProperty(prefix+"avg_number"));
+		if (properties.getProperty(prefix+"num_frames")!=null)          this.num_frames=Integer.parseInt(properties.getProperty(prefix+"num_frames"));
+
 		if (properties.getProperty(prefix+"lwir_ffc")!=null)            this.lwir_ffc= Boolean.parseBoolean(properties.getProperty(prefix+"lwir_ffc"));
 		if (properties.getProperty(prefix+"avg_all")!=null)             this.avg_all= Boolean.parseBoolean(properties.getProperty(prefix+"avg_all"));
 		if (properties.getProperty(prefix+"lwir_ip")!=null)             this.lwir_ip=      properties.getProperty(prefix+"lwir_ip");
@@ -190,6 +197,7 @@ public class LwirReaderParameters {
 	public LwirReaderParameters clone() { //  throws CloneNotSupportedException {
 		LwirReaderParameters lrp =  new LwirReaderParameters();
 		lrp.avg_number=             this.avg_number;
+		lrp.num_frames=             this.num_frames;
 		lrp.lwir_ffc=               this.lwir_ffc;
 		lrp.avg_all=                this.avg_all;
 		lrp.lwir_ip=                this.lwir_ip;
@@ -291,7 +299,9 @@ public class LwirReaderParameters {
 	}
 
 	public void dialogQuestions(GenericJTabbedDialog gd) {
-		gd.addNumericField("Number to average",this.avg_number,     0,3,"","Number of acquired consecutive images to average");
+		gd.addNumericField("Number to average",this.avg_number,           0,3,"","Number of acquired consecutive images to average");
+		gd.addNumericField("Number of sets to acquire",this.num_frames,   0,3,"","Total number, may be limited by EO quality/frame size (last will be missed/null)");
+		
 		gd.addCheckbox    ("Run FFC",       this.lwir_ffc, "Perform calibration before each measurements to average (takes ~1.6 sec, 15 frames)");
 		gd.addCheckbox    ("Average all",   this.avg_all, "Average all simultaneously acquired images (unchecked - only requested number to average)");
 		gd.addStringField ("LWIR IP",       this.lwir_ip, 20, "LWIR camera IP address");
@@ -322,6 +332,7 @@ public class LwirReaderParameters {
 
 	public void dialogAnswers(GenericJTabbedDialog gd) {
 		this.avg_number =        (int) gd.getNextNumber();
+		this.num_frames =        (int) gd.getNextNumber();
 		this.lwir_ffc =                gd.getNextBoolean();
 		this.avg_all =                 gd.getNextBoolean();
 		this.lwir_ip =                 gd.getNextString();

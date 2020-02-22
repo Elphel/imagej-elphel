@@ -189,7 +189,10 @@ public class LwirReader {
 				} catch (Exception e) {
 					LOGGER.error("Something is wrong!");
 				}
-
+				if (dt==null) {
+					System.out.println("n="+n+", i="+i+", dt is NULL! (may need to reduce number of acquire images to "+(n-1));
+				}
+//				System.out.println("n="+n+", i="+i+", dt="+dt);
 				img_seconds[n][i] = Double.parseDouble(dt.substring(dt.lastIndexOf(":")+1));
 				try {
 					img_numbers[n][i] = Integer.parseInt((String) imps[n][i].getProperty("STD_Image_Number"));
@@ -497,6 +500,11 @@ public class LwirReader {
 			calibrate(lrp); // seems to work. test calibration duration and if any images are sent during calibration
 		}
 		int num_frames = lrp.avg_number + lrp.eo_lag + 2 * lrp.max_frame_diff;
+		if (num_frames > lrp.num_frames) {
+			LOGGER.warn("acquire(): Wanted to acquire "+num_frames+", but hard limit is set to "+lrp.num_frames+
+					" TDOD: stop EO compressor after acquisition of the required number of frames") ;
+			num_frames = lrp.num_frames;
+		}
 		ImagePlus [][] imps = readAllMultiple(
 				num_frames,
 //				lrp.lwir_telemetry,
