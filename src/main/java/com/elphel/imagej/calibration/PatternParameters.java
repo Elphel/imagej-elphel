@@ -776,7 +776,7 @@ import ij.io.Opener;
 			corn[2] = getXYZM(iu,     iv + 1, verbose, station);
 			corn[3] = getXYZM(iu + 1, iv + 1, verbose, station);
 			if ((corn[0] == null) || (corn[1] == null) || (corn[2] == null) || (corn[3] == null)) {
-				System.out.println("Optical axis outside of te grid: TODO: modify getXYZM() to handle!");
+				System.out.println("Optical axis outside of the grid: TODO: modify getXYZM() to handle!");
 				return null;
 			}
 			double [] rslt_xyz = new double[3];

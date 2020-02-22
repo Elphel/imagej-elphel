@@ -6015,7 +6015,7 @@ if (MORE_BUTTONS) {
     				LASER_POINTERS, // MatchSimulatedPattern.LaserPointer laserPointer, // LaserPointer object that specifies actual laser poiners on the target
     				DISTORTION_PROCESS_CONFIGURATION.removeOutOfGridPointers, // boolean removeOutOfGridPointers,
     				(useHintTolerance?hintGridTolerance:0.0),                   //double  hintGridTolerance, // alllowed mismatch (fraction of period) or 0 - orientation only
-    				processAll, //boolean processAll, // if true - process all images, false - only disabeld
+    				processAll, //boolean processAll, // if true - process all images, false - only disabled
     				ignoreLaserPointers,
     				processBlind,
     				imageNumber,
@@ -9546,7 +9546,7 @@ if (MORE_BUTTONS) {
 /* ======================================================================== */
 	if       (label.equals("Grid offset")) {
 		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-		offsetGrids(0, 0, null);
+		offsetGrids(0, 0, null, null);
 		return;
 	}
 /* ======================================================================== */
@@ -9590,21 +9590,24 @@ if (MORE_BUTTONS) {
 		boolean use_lma =     true;
 
 		GenericDialog gd = new GenericDialog("Initial alignment of the secondary camera to the reference one");
-		gd.addMessage("This command used Fitting Strategy[0] that should be set with all parameters but\n"+
-		"GXYZ0 and GXYZ1 are set to 'fixed', and GXYZ0 and GXYZ1 are set to 'individual'.\n"+
+//		gd.addMessage("This command used Fitting Strategy[last] that should be set with all parameters but\n"+
+//		"GXYZ0 and GXYZ1 are set to 'fixed', and GXYZ0 and GXYZ1 are set to 'individual'.\n"+
+//				"Each selected set should already have GXYZ set correctly (e.g. by reference cameras)");
+		gd.addMessage("This command uses Fitting Strategy[last] and set  parameters but\n"+
+		"GXYZ0 and GXYZ1 to 'individual', all others - to 'fixed'.\n"+
 				"Each selected set should already have GXYZ set correctly (e.g. by reference cameras)");
 		gd.addNumericField("Image set start", min_set, 0);
 		gd.addNumericField("Image set last",  max_set, 0);
 		gd.addCheckbox("Adjust EO (reference) sensors", adjust_eo);
 		gd.addCheckbox("Adjust LWIR (target) sensors", adjust_lwir);
-		gd.addCheckbox("Use LMA (unchecked - initial approximate grid setum by correlation)", use_lma);
+		gd.addCheckbox("Use LMA (unchecked - initial approximate grid set by correlation)", use_lma);
 		gd.showDialog();
 		if (gd.wasCanceled()) return false;
 		min_set = (int) gd.getNextNumber();
 		max_set = (int) gd.getNextNumber();
 		adjust_eo =     gd.getNextBoolean();
 		adjust_lwir =   gd.getNextBoolean();
-		use_lma =   gd.getNextBoolean();
+		use_lma =       gd.getNextBoolean();
        	if (!dcd.hasSmallSensors()) {
     		String msg="This system does not have any LWIR or other dependent sub-cameras";
     		IJ.showMessage("Error",msg);
@@ -9626,10 +9629,14 @@ if (MORE_BUTTONS) {
        							continue;
        						}
        					}
+       					double [] stats = new double [3];
        					int [] uvr = LENS_DISTORTIONS. findImageGridOffset(
-       							num_img,
-       							true, // boolean even, For first time - use parameter and parity of uv_rot
-       							PATTERN_PARAMETERS);
+       							num_img,  // image num
+       				    		-1,       // use last series int     ser_num, // number of series to reprogram
+       				    		false,    // boolean adjust_attitude, // true for eo, false for lwir (uses exact attitude from eo)
+       							true,     // boolean even, For first time - use parameter and parity of uv_rot
+       							PATTERN_PARAMETERS,
+       							stats); // rms, dU, dV
        					if ((uvr != null) && ((uvr[0] != 0) || (uvr[1] != 0))) {
        						int [] uv_shift_rot = {uvr[0],uvr[1],0};
        						//						int [] new_uv_shift_rots =
@@ -9639,6 +9646,8 @@ if (MORE_BUTTONS) {
        								PATTERN_PARAMETERS);
        						if (DEBUG_LEVEL > 0) {
        							System.out.println(num_img+ "("+num_set+"."+nc+"): uv_shift = "+uvr[0]+":"+uvr[1]);
+       							System.out.println(num_img+ "("+num_set+"."+nc+"): errors: rms= "+stats[0]+", dU="+stats[1]+", dV="+stats[2]);
+
        						}
        					}
        				}
@@ -9666,7 +9675,7 @@ if (MORE_BUTTONS) {
        	return true;
 	}
 
-	public boolean offsetGrids(int ichoice, int inum, int [] uv_shift_rot) {
+	public boolean offsetGrids(int ichoice, int inum, int [] uv_shift_rot, String msg) {
 		if (LENS_DISTORTIONS == null) {
 			System.out.println("LENS_DISTORTIONS is null");
 			return false;
@@ -9695,8 +9704,16 @@ if (MORE_BUTTONS) {
 		String [] choices_nolwir = {"-- please select --","Image number","Image set number"};
 		String [] choices_lwir =   {"-- please select --","Image number","Image set number (all images)", "Image set (EO only)","Image set (LWIR only)"};
 		String [] choices = has_lwir ? choices_lwir : choices_nolwir;
+		boolean readjust =    true;
 		GenericDialog gd = new GenericDialog("Manually offset single grid or multiple grids in a set");
-
+		if (msg != null) {
+			gd.addMessage(msg);
+		}
+		if (auto) {
+			gd.addMessage("In 'auto' mode this command uses Fitting Strategy[last] and set  parameters but\n"+
+					"GXYZ0, GXYZ1, goniometerHorizontal, and  goniometerAxial to 'individual', all others - to 'fixed'.\n"+
+					"Each selected set should already have GXYZ set correctly (e.g. by reference cameras)");
+		}
 		gd. addChoice("Next number is: ",
 				choices,
 				choices[ichoice]);
@@ -9705,6 +9722,10 @@ if (MORE_BUTTONS) {
 		if (has_lwir) {
 			gd.addCheckbox    ("Auto from EO grid (calculatre from EO even if the requested image is LWIR)", false); //true
 		}
+		if (!auto) {
+			gd.addCheckbox("Run LMA to re-adjust goniometerHorizontal and goniometerAxial",     readjust);
+			readjust =      gd.getNextBoolean();
+		}
 		gd.addNumericField("Grid offset U",     uv_shift_rot[0], 0);
 		gd.addNumericField("Grid offset V",     uv_shift_rot[1], 0);
 		gd.addNumericField("Grid offset Rot",   uv_shift_rot[2], 0);
@@ -9712,17 +9733,24 @@ if (MORE_BUTTONS) {
 		if (gd.wasCanceled()) return false;
 		ichoice = gd.getNextChoiceIndex();
 		inum = (int) gd.getNextNumber();
+		boolean was_auto = auto;
 		auto = gd.getNextBoolean();
+
 		boolean auto_from_EO=false;
 		if (has_lwir) {
 			auto_from_EO = gd.getNextBoolean();
+		}
+
+		readjust =  false;
+		if (!was_auto) {
+			readjust =      gd.getNextBoolean();
 		}
 
 		uv_shift_rot[0] =  (int) gd.getNextNumber();
 		uv_shift_rot[1] =  (int) gd.getNextNumber();
 		uv_shift_rot[2] =  (int) gd.getNextNumber();
 		if (ichoice == 0) {
-			return offsetGrids(ichoice, inum, uv_shift_rot);
+			return offsetGrids(ichoice, inum, uv_shift_rot, msg);
 		}
 		int ichoicemod = ichoice;
 		if (auto && auto_from_EO) {
@@ -9766,20 +9794,23 @@ if (MORE_BUTTONS) {
 			// find first enabled image
 			for (int n:img_nums) {
 				if (n >= 0) {
-
+					double [] stats = new double[3]; // rms and 2 errors, null OK
 					int [] auto_uvr = LENS_DISTORTIONS.findImageGridOffset( // null for now
-							n,
-							true, // boolean even,
-							PATTERN_PARAMETERS); // PatternParameters patternParameters)
-
-//					int [] auto_uvr = dcd. suggestOffset (
-//			        		n,    // int num_img,
-//			        		true, // boolean non_estimated,
-//			        		true, // boolean even,
-//			        		PATTERN_PARAMETERS); // PatternParameters patternParameters)
-					return offsetGrids(ichoice, inum, auto_uvr);
+   							n,  // image number to use for fitting (only one)
+   				    		-1,       // use last series int     ser_num, // number of series to reprogram
+   				    		true,    // boolean adjust_attitude, // true for eo, false for lwir (uses exact attitude from eo)
+   							true,     // boolean even, For first time - use parameter and parity of uv_rot
+   							PATTERN_PARAMETERS,
+   							stats);
+					if (auto_uvr != null) {
+						String stats_msg = String.format("Fitting errors: LMA RMS = %7.4f, dU = %6.3f, dV = %6.3f", stats[0], stats[1], stats[2]);
+						return offsetGrids(ichoice, inum, auto_uvr, stats_msg);
+					} else {
+						System.out.println("**** LMA FAILED - trying next image");
+					}
 				}
 			}
+			return offsetGrids(ichoice, inum, null, "All images failed LMA !");
 		}
 
 		int [][] new_uv_shift_rots = new int [img_nums.length][];
@@ -9796,6 +9827,20 @@ if (MORE_BUTTONS) {
 				System.out.println("U="+new_uv_shift_rots[i][0]+", V="+new_uv_shift_rots[i][1]+" (rot="+new_uv_shift_rots[i][2]+")");
 			} else {
 				System.out.println("<null>");
+			}
+		}
+		if (readjust) {
+			for (int n:img_nums) {
+				if (n >= 0) {
+					if (LENS_DISTORTIONS.adjustAttitudeAfterOffset(
+							n, // int     num_img,
+							-1, // int     ser_num, // number of series to reprogram
+							PATTERN_PARAMETERS)) {
+						break; // only one image
+					} else {
+						System.out.println("***** LMA FAILED - trying next image");
+					}
+				}
 			}
 		}
 		return true;
@@ -9821,8 +9866,10 @@ if (MORE_BUTTONS) {
 	    gd.showDialog();
 	    if (gd.wasCanceled()) return false;
 	    numStations= (int) gd.getNextNumber();
-		String [] grid_extensions={".tif",".tiff"};
-		String [] src_extensions={".tif",".tiff"};
+//		String [] grid_extensions={".tif",".tiff"};
+//		String [] src_extensions={".tif",".tiff"};
+		String [] grid_extensions={".tiff"};
+		String [] src_extensions={".tiff"};
 		MultipleExtensionsFileFilter gridFilter =
 			new MultipleExtensionsFileFilter("grid",grid_extensions,"Calibrated grid files");
 		MultipleExtensionsFileFilter sourceFilter =
@@ -9859,6 +9906,13 @@ if (MORE_BUTTONS) {
 	    		int num_match = files[nFile].list(gridFilter).length;
 	    		if (num_match >= min_files) {
 	    			filelist.add(files[nFile]);
+	    		} else {
+//	    			System.out.println("nFile="+nFile+" files[nFile]="+files[nFile]+": num_match="+num_match);
+//	    			String[] matched=files[nFile].list(gridFilter);
+//	    			for (String s:matched) {
+//	    				System.out.println(s);
+//	    			}
+//	    			System.out.println("");
 	    		}
 	    	}
 

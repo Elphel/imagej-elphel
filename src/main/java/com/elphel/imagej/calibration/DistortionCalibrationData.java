@@ -1392,6 +1392,7 @@ import ij.text.TextWindow;
 
         // suggest set grid offset by comparing with known (by mark) set.
         // Wrong Grid UV should cause parallel shift - same Z, different XY
+/*
         public int [] suggestOffset (
         		int num_img,
         		boolean non_estimated,
@@ -1409,14 +1410,16 @@ import ij.text.TextWindow;
         			num_img,
         			diff_xyz, // z is not used, may ne just[2]
         			even,
-        			patternParameters);
+        			patternParameters,
+        			null);
         }
-
+*/
         public int [] suggestOffset (
         		int num_img,
         		double [] diff_xyz, // This XYZ minus reference XYZ  z is not used, may be just[2]
         		boolean even,
-        		PatternParameters patternParameters) {
+        		PatternParameters patternParameters,
+        		double [] errs) { // will return errors, if not null (should be double[2]
         	int num_set = this.gIP[num_img].setNumber;
         	int station = this.gIS[num_set].stationNumber;
         	int [][] pixelsUV =  this.gIP[num_img].pixelsUV ; // null; // for each image, each grid node - a pair of {gridU, gridV}
@@ -1458,7 +1461,11 @@ import ij.text.TextWindow;
         		UV_err[0] = dUV[0] - idUV[0];
         		UV_err[1] = dUV[1] - idUV[1];
         	}
-        	System.out.println(String.format("Errors U/V = %.3f:%.3f",UV_err[0],UV_err[1]));
+        	System.out.println(String.format("idUV ="+idUV[0]+" / "+idUV[1]+", errors U/V = %.3f:%.3f",UV_err[0],UV_err[1]));
+        	if (errs != null) {
+        		errs[0] = UV_err[0];
+        		errs[1] = UV_err[1];
+        	}
         	return idUV;
         }
 
@@ -2244,7 +2251,9 @@ import ij.text.TextWindow;
         		int stationNumber=this.gIP[i].getStationNumber();
         		boolean enableNoLaser=this.eyesisCameraParameters.getEnableNoLaser(stationNumber,this.gIP[i].channel);
         		boolean wasEnabled=this.gIP[i].enabled;
-        		if (resetHinted) this.gIP[i].hintedMatch=-1; // undefined
+        		if (resetHinted) {
+        			this.gIP[i].hintedMatch=-1; // undefined
+        		}
 ///        		if (Double.isNaN(this.gIP[i].getGridPeriod()) ||
 ///        				((minGridPeriodFraction>0) && ((this.gIP[i].getGridPeriod()<minGridPeriod[stationNumber]) || (this.gIP[i].getGridPeriod()>maxGridPeriod[stationNumber])))){
            		if (Double.isNaN(getEffectivePeriod(i)) ||
@@ -2431,6 +2440,7 @@ import ij.text.TextWindow;
         		}
         		if (bestRating>0){
         			EyesisSubCameraParameters esp = this.eyesisCameraParameters.eyesisSubCameras[stationNumber][bestChannel];
+        			System.out.println("Image number: "+this.gIS[i].imageSet[bestChannel].getImageNumber());
         			double [] uv_center = getGridUVfromXY(
         	        		esp.px0, // final double px,
         	        		esp.py0, // final double py,
@@ -2486,18 +2496,40 @@ import ij.text.TextWindow;
             				Matrix mview_tilt = mtilt.times(mview_gon); // view point on the target from the tilted goniometer
             				double az = Math.atan2(mview_tilt.get(0, 0), mview_tilt.get(2, 0)); // x pointed right
 
-            				double tilt_deg = tilt/Math.PI*180;
+            				double tilt_deg = -tilt/Math.PI*180; // why "-" (experimentally)
             				double az_deg =   az/Math.PI*180;
             				if (this.debugLevel>0) {
             					System.out.println("Tilt = "+tilt_deg+", az = "+az_deg);
             					System.out.print("");
             				}
+
+            				if (overwriteAll || Double.isNaN(this.gIS[i].goniometerAxial)){
+            					this.gIS[i].goniometerAxial=az_deg;
+            					for (int j=0;j<this.gIS[i].imageSet.length;j++) if (this.gIS[i].imageSet[j]!=null) setGA(this.gIS[i].imageSet[j].imgNumber,this.gIS[i].goniometerAxial);
+            					this.gIS[i].orientationEstimated=true;
+            					if (this.debugLevel>1) {
+            						System.out.print(String.format("Setting goniometerAxial for the image set #%4d (%18.6f) to ", i, this.gIS[i].timeStamp));
+            						System.out.println(""+this.gIS[i].goniometerAxial+" +++++ orientationEstimated==true +++++");
+            						//                				            				System.out.println("Setting goniometerAxial for the image set #"+i+" ("+this.gIS[i].timeStamp+") to "+this.gIS[i].goniometerAxial+" +++++ orientationEstimated==true +++++");
+            					}
+            				}
+            				if (overwriteAll || Double.isNaN(this.gIS[i].goniometerTilt )){
+            					this.gIS[i].goniometerTilt= tilt_deg;
+            					for (int j=0;j<this.gIS[i].imageSet.length;j++) if (this.gIS[i].imageSet[j]!=null) setGH(this.gIS[i].imageSet[j].imgNumber,this.gIS[i].goniometerTilt);
+            					this.gIS[i].orientationEstimated=true;
+            					if (this.debugLevel>1) {
+            						System.out.print(String.format("Setting goniometerTilt  for the image set #%4d (%18.6f) to ", i, this.gIS[i].timeStamp));
+            						System.out.println(""+this.gIS[i].goniometerTilt+" ===== orientationEstimated==true =====");
+            					}
+            				}
+
+
+
             			}
         			}
-
+/*
+ * Remove old method completely
         			if (overwriteAll || Double.isNaN(this.gIS[i].goniometerAxial)){
- //       				System.out.println("setInitialOrientation("+overwriteAll+"),  Double.isNaN(this.gIS["+i+"].goniometerAxial)="+Double.isNaN(this.gIS[i].goniometerAxial));
-
         				double subcam_heading = (esp.heading + (esp.cartesian? 0: esp.azimuth));
         				this.gIS[i].goniometerAxial=-subcam_heading;
         				for (int j=0;j<this.gIS[i].imageSet.length;j++) if (this.gIS[i].imageSet[j]!=null) setGA(this.gIS[i].imageSet[j].imgNumber,this.gIS[i].goniometerAxial);
@@ -2505,11 +2537,9 @@ import ij.text.TextWindow;
             			if (this.debugLevel>1) {
             				System.out.print(String.format("Setting goniometerAxial for the image set #%4d (%18.6f) to ", i, this.gIS[i].timeStamp));
             				System.out.println(""+this.gIS[i].goniometerAxial+" +++++ orientationEstimated==true +++++");
-//            				System.out.println("Setting goniometerAxial for the image set #"+i+" ("+this.gIS[i].timeStamp+") to "+this.gIS[i].goniometerAxial+" +++++ orientationEstimated==true +++++");
             			}
         			}
         			if (overwriteAll || Double.isNaN(this.gIS[i].goniometerTilt )){
-//        				System.out.println("setInitialOrientation("+overwriteAll+"),  Double.isNaN(this.gIS["+i+"].goniometerTilt)="+Double.isNaN(this.gIS[i].goniometerTilt));
         				this.gIS[i].goniometerTilt= -esp.theta;
         				for (int j=0;j<this.gIS[i].imageSet.length;j++) if (this.gIS[i].imageSet[j]!=null) setGH(this.gIS[i].imageSet[j].imgNumber,this.gIS[i].goniometerTilt);
             			this.gIS[i].orientationEstimated=true;
@@ -2518,6 +2548,9 @@ import ij.text.TextWindow;
             				System.out.println(""+this.gIS[i].goniometerTilt+" ===== orientationEstimated==true =====");
             			}
         			}
+*/
+
+
         		}
         	}
         }
@@ -2531,6 +2564,9 @@ import ij.text.TextWindow;
          * Updated version - only flag as orientationEstimated if no enabled images exist in the set or any of the angles is NaN
          * Temporarily duplicate  image parameters from those of the set (should not be needed)
          * selectedImages will not be used
+         * Modified (selectedImages was not used) 2020: do not touch set if nothing is selected there
+         * was: if selectedImages[] is not null will set orientationEstimated for unselected images
+         * restored to how it was
          */
         public void updateSetOrientation(boolean [] selectedImages){ // if selectedImages[] is not null will set orientationEstimated for unselected images
         	if (this.gIS==null){
@@ -2550,6 +2586,50 @@ import ij.text.TextWindow;
         				}
         			}
         		}
+        		if (!this.gIS[i].orientationEstimated){
+        			// now fill that data to all disabled images of the same set (just for listing RMS errors and debugging)
+        			for (int j=0;j<this.gIS[i].imageSet.length;j++) if (this.gIS[i].imageSet[j]!=null) { // fill even those that are enabled
+        				setGA(this.gIS[i].imageSet[j].imgNumber,this.gIS[i].goniometerAxial );
+        				setGH(this.gIS[i].imageSet[j].imgNumber,this.gIS[i].goniometerTilt );
+        			}
+        		} else {
+        			this.gIS[i].goniometerAxial=Double.NaN;
+        			this.gIS[i].goniometerTilt= Double.NaN;
+        			System.out.println("updateSetOrientation(): imageSet "+i+" orientationEstimated == true");
+        		}
+        	}
+        }
+
+
+        public void updateSetOrientation1(boolean [] selectedImages){
+        	if (this.gIS==null){
+        		String msg="Image set is not initilaized";
+        		System.out.println(msg);
+        		IJ.showMessage(msg);
+        	}
+
+        	for (int i=0; i<this.gIS.length;i++){
+        		if (!Double.isNaN(this.gIS[i].goniometerAxial) && !Double.isNaN(this.gIS[i].goniometerTilt)) {
+        			boolean has_selected = false;
+        			boolean has_enabled =   false;
+        			for (int j=0;j<this.gIS[i].imageSet.length;j++) {
+        				if ((this.gIS[i].imageSet[j]!=null) && this.gIS[i].imageSet[j].enabled){
+        					has_enabled = true;
+        					break;
+        				}
+        				has_selected |= (selectedImages == null) || selectedImages[this.gIS[i].imageSet[j].imgNumber];
+        			}
+        			if (has_enabled) {
+        				this.gIS[i].orientationEstimated=false;
+        				this.gIS[i].goniometerAxial-=360.0*Math.floor((this.gIS[i].goniometerAxial+180.0)/360.0);
+        			} else if (has_selected) { // nut none enabled!
+                		this.gIS[i].orientationEstimated=true;
+        			}
+
+        		} else {
+        			this.gIS[i].orientationEstimated=true;
+        		}
+
         		if (!this.gIS[i].orientationEstimated){
         			// now fill that data to all disabled images of the same set (just for listing RMS errors and debugging)
         			for (int j=0;j<this.gIS[i].imageSet.length;j++) if (this.gIS[i].imageSet[j]!=null) { // fill even those that are enabled
@@ -2751,6 +2831,11 @@ import ij.text.TextWindow;
         public double [] getImagesetTiltAxial(double timeStamp){
         	int mAxial=1;     // m2
         	int mHorizontal=2;// m3
+        	double [] degree_per_step = new double[3];
+        	degree_per_step[mAxial] =      1.0/goniometerParameters.goniometerMotors.stepsPerDegreeAxial;
+        	degree_per_step[mHorizontal] = 1.0/goniometerParameters.goniometerMotors.stepsPerDegreeTilt;
+
+
         	// this is probably already set
         	for (int i=0;i<this.gIS.length;i++){
         		if ((this.gIS[i].imageSet!=null) && (this.gIS[i].imageSet.length>0) && (this.gIS[i].imageSet[0]!=null)) this.gIS[i].setStationNumber(this.gIS[i].imageSet[0].getStationNumber());
@@ -2941,7 +3026,7 @@ import ij.text.TextWindow;
             						(this.gIS[indexSecond].motors[mAxial]-this.gIS[indexClosest].motors[mAxial]);
             					// 06/06/2015 Andrey: Was missing setting estimated orientation. Was it a bug?
                     			this.gIS[i].orientationEstimated=true;
-                    			if (this.debugLevel>0) System.out.println("Orientation for set # "+i+" timestamp "+IJ.d2s(this.gIS[i].timeStamp,6)+
+                    			if (this.debugLevel>-1) System.out.println("Orientation for set # "+i+" timestamp "+IJ.d2s(this.gIS[i].timeStamp,6)+
                     					") is not defined, using interpolated between sets # "+indexClosest+" (timestamp "+IJ.d2s(this.gIS[indexClosest].timeStamp,6)+") "+
                     					"and # "+indexSecond+" (timestamp "+IJ.d2s(this.gIS[indexSecond].timeStamp,6)+")");
             				}
@@ -2963,12 +3048,34 @@ import ij.text.TextWindow;
             						!Double.isNaN(this.gIS[j].interAxisAngle)) {
             					double d2=0;
             					for (int k=0;k<this.gIS[j].motors.length;k++){
-            						d2+=1.0*(this.gIS[j].motors[k]-this.gIS[i].motors[k])*
-            						(this.gIS[j].motors[k]-this.gIS[i].motors[k]);
+            						double da = (this.gIS[j].motors[k]-this.gIS[i].motors[k]) * degree_per_step[k];
+            						d2+=da * da;
             					}
             					if ((d2Min<0) || (d2Min>d2)) {
             						d2Min=d2;
             						iBest=j;
+            					}
+            				}
+            				if (iBest < 0) {
+            					// next try for the same station number only (any tilt):
+            					d2Min=-1;
+            					for (int j=0;j<this.gIS.length;j++) if ((j!=i) &&
+            							(this.gIS[j].getStationNumber() == station_number) &&
+            							(this.gIS[j].motors[mHorizontal] == this.gIS[i].motors[mHorizontal]) &&
+            							!this.gIS[j].orientationEstimated &&
+            							(this.gIS[j].motors!=null) &&
+            							!Double.isNaN(this.gIS[j].goniometerTilt) &&
+            							!Double.isNaN(this.gIS[j].goniometerAxial )  &&
+            							!Double.isNaN(this.gIS[j].interAxisAngle)) {
+            						double d2=0;
+            						for (int k=0;k<this.gIS[j].motors.length;k++){
+            							double da = (this.gIS[j].motors[k]-this.gIS[i].motors[k]) * degree_per_step[k];
+            							d2+=da * da;
+            						}
+            						if ((d2Min<0) || (d2Min>d2)) {
+            							d2Min=d2;
+            							iBest=j;
+            						}
             					}
             				}
             				if (iBest < 0) {
@@ -2980,9 +3087,12 @@ import ij.text.TextWindow;
                 						!Double.isNaN(this.gIS[j].goniometerAxial )  &&
                 						!Double.isNaN(this.gIS[j].interAxisAngle)) {
                 					double d2=0;
+
+
+
                 					for (int k=0;k<this.gIS[j].motors.length;k++){
-                						d2+=1.0*(this.gIS[j].motors[k]-this.gIS[i].motors[k])*
-                						(this.gIS[j].motors[k]-this.gIS[i].motors[k]);
+                						double da = (this.gIS[j].motors[k]-this.gIS[i].motors[k]) * degree_per_step[k];
+                						d2 += da* da;
                 					}
                 					if ((d2Min<0) || (d2Min>d2)) {
                 						d2Min=d2;
@@ -2998,8 +3108,8 @@ import ij.text.TextWindow;
                     						!Double.isNaN(this.gIS[j].interAxisAngle)) {
                     					double d2=0;
                     					for (int k=0;k<this.gIS[j].motors.length;k++){
-                    						d2+=1.0*(this.gIS[j].motors[k]-this.gIS[i].motors[k])*
-                    						(this.gIS[j].motors[k]-this.gIS[i].motors[k]);
+                    						double da = (this.gIS[j].motors[k]-this.gIS[i].motors[k]) * degree_per_step[k];
+                    						d2 += da* da;
                     					}
                     					if ((d2Min<0) || (d2Min>d2)) {
                     						d2Min=d2;
@@ -3024,6 +3134,7 @@ import ij.text.TextWindow;
 //        					this.gIS[iBest].interAxisAngle
 //        			};
         			if (iBest!=i){
+
         				boolean usable_tilt  = (this.gIS[i].motors != null);
         				boolean usable_axial = usable_tilt && (this.gIS[i].getStationNumber() == this.gIS[iBest].getStationNumber());
         				double diff_axial = usable_axial? (this.gIS[i].motors[mAxial]-this.gIS[iBest].motors[mAxial])/
@@ -3037,7 +3148,8 @@ import ij.text.TextWindow;
         				this.gIS[i].goniometerAxial-=360.0*Math.floor((this.gIS[i].goniometerAxial+180.0)/360.0);
 
             			if (this.debugLevel>0) System.out.println("Orientation for set # "+i+" timestamp "+IJ.d2s(this.gIS[i].timeStamp,6)+
-            					") is not defined, estimating from  # "+iBest+" (timestamp "+IJ.d2s(this.gIS[iBest].timeStamp,6)+")" );
+            					") is not defined, estimating from  # "+iBest+" (timestamp "+IJ.d2s(this.gIS[iBest].timeStamp,6)+"): "+
+            					"tilt="+this.gIS[i].goniometerTilt+", axial = " + this.gIS[i].goniometerAxial);
             			this.gIS[i].orientationEstimated=true;
 //    					this.gIS[i].goniometerTilt= this.gIS[iBest].goniometerTilt;
 //    					this.gIS[i].goniometerAxial=this.gIS[iBest].goniometerAxial;

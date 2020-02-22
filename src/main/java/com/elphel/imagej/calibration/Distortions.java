@@ -270,9 +270,9 @@ public class Distortions {
    				@Override
 				public void run() {
    					for (int imgNum=imageNumberAtomic.getAndIncrement(); imgNum<numImg;imgNum=imageNumberAtomic.getAndIncrement()){
-//   						if (imgNum == 443) {
-//   							System.out.println("calculateGridImageMasks(), imgNum="+imgNum);
-//   						}
+   						if (imgNum == 488) {
+   							System.out.println("calculateGridImageMasks(), imgNum="+imgNum);
+   						}
    						distortionCalibrationData[imgNum].calculateMask(
    			        			minContrast,
    			        			shrinkBlurSigma,
@@ -395,7 +395,7 @@ public class Distortions {
 		System.out.println("initFittingSeries("+justSelection+","+filter+","+numSeries+"), pass="+pass);
 		//TODO: ********* Implement comments above ************
 		  // calculate total number of x/y pairs in the selected images
-		if (numSeries<0)justSelection=true;
+		if (numSeries<0) justSelection=true;
 		if ((pass==1) && (numSeries>=0)) fittingStrategy.invalidateSelectedImages(numSeries); // next selectedImages() will select all, including empty
 		if (!justSelection) {
 			fittingStrategy.buildParameterMap (numSeries); // also sets currentSeriesNumber
@@ -598,7 +598,7 @@ public class Distortions {
 					this.weightFunction[2*index+1]=weight*weightScaleY;
 					this.sumWeights+=              weight*weightSumXY;
 	        		this.fittingStrategy.distortionCalibrationData.gIS[setNumber].setWeight+=2.0*weight;  // used for variances - proportional to the set weight
-					if (this.pixelCorrection==null){
+					if ((this.pixelCorrection==null) || (this.pixelCorrection[chnNum] == null)){
 						this.Y[2*index]=  fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsXY[pointNumber][0];
 						this.Y[2*index+1]=fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsXY[pointNumber][1];
 					} else {
@@ -2845,6 +2845,10 @@ For each point in the image
 						System.out.println("No goniometer orientation is available for image # "+numGridImage+" - "+dcd.gIP[numGridImage].path);
 					}
 				} else {
+					if ((numGridImage >= 234) && (numGridImage< 245)) {
+						System.out.println("debug numGridImage="+numGridImage);
+						System.out.println();
+					}
 					int station=dcd.getImageStation(numGridImage);
 					int setNumber=dcd.gIP[numGridImage].getSetNumber();
 					double [][][] hintGrid=estimateGridOnSensor(
@@ -3613,7 +3617,7 @@ For each point in the image
 					"Hinted-All",
 					debugTitles);
 		}
-		if (this.debugLevel>1) {
+		if (this.debugLevel>0) {
 			System.out.println("Grid in the FOV of the subcamera "+subCamera+
 					" tilt="+goniometerHorizontal+" axial="+goniometerAxial+" has "+visibleCells+" cells");
 		}
@@ -4183,6 +4187,9 @@ List calibration
     		this.seriesNumber=series;
     	}
     	if (!applyChannelFilter) selectedChannels=null;
+    	if (recalculate) {
+    		resetGridImageMasks(); // FIXME: move elsewhere?
+    	}
 //	    initFittingSeries(!recalculate,this.filterForAll,this.seriesNumber); // will set this.currentVector
 	    initFittingSeries(!recalculate,this.filterForAll,this.seriesNumber); // will set this.currentVector
 		this.currentfX=calculateFxAndJacobian(this.currentVector, false); // is it always true here (this.jacobian==null)
@@ -4294,13 +4301,24 @@ List calibration
 //		boolean [] oldSelection=this.fittingStrategy.selectAllImages(0); // enable all images in series 0
 		int filter=this.filterForAll;
 		if (this.askFilter) filter=selectFilter(filter);
+
+    	initFittingSeries(true,filter, -1); // this.seriesNumber); // will set this.currentVector
+		this.currentfX=calculateFxAndJacobian(this.currentVector, false); // is it always true here (this.jacobian==null)
+		double [] errors=calcErrors(calcYminusFx(this.currentfX)); // for all images
+		double    rms=   calcError (calcYminusFx(this.currentfX));
+		int []    numPairs=calcNumPairs(); // for all images, not only selected
+
+// re-init for the selected series
     	initFittingSeries(true,filter,this.seriesNumber); // will set this.currentVector
 //    	initFittingSeries(true,this.filterForAll,this.seriesNumber); // will set this.currentVector
 		this.currentfX=calculateFxAndJacobian(this.currentVector, false); // is it always true here (this.jacobian==null)
-		double [] errors=calcErrors(calcYminusFx(this.currentfX));
-		double    rms=   calcError (calcYminusFx(this.currentfX));
-//		boolean [] selectedImages=fittingStrategy.selectedImages();
-		int [] numPairs=calcNumPairs();
+//		double [] errors=calcErrors(calcYminusFx(this.currentfX)); // error - always for -1?
+		rms=   calcError (calcYminusFx(this.currentfX)); // for selected series
+
+
+
+		boolean [] selectedImages=fittingStrategy.selectedImages(this.seriesNumber);
+//		int [] numPairs=calcNumPairs();
 	    int [][] imageSets=this.fittingStrategy.distortionCalibrationData.listImages(false); // true - only enabled images
 	    int [] numSetPoints=new int [imageSets.length];
 	    double [] rmsPerSet=new double[imageSets.length];
@@ -4309,21 +4327,31 @@ List calibration
 	    for (int setNum=0;setNum<imageSets.length;setNum++){
 	    	double error2=0.0;
 	    	int numInSet=0;
+	    	int numInSetOther=0; // not selected in this
     		hasNaNInSet[setNum]=false;
+    		boolean has_selected = false; // remove selected with all nan in selected, and unselected with all nans
     		for (int imgInSet=0;imgInSet<imageSets[setNum].length;imgInSet++){
-	    		int imgNum=imageSets[setNum][imgInSet];
-	    		int num=numPairs[imgNum];
-	    		if (Double.isNaN(errors[imgNum])){
-	    			hasNaNInSet[setNum]=true;
-	    		} else {
-	    			error2+=errors[imgNum]*errors[imgNum]*num;
-	    			numInSet+=num;
+    			int imgNum=imageSets[setNum][imgInSet];
+				int num=numPairs[imgNum];
+    			if (selectedImages[imgNum]) {
+    				has_selected = true;
+    				if (Double.isNaN(errors[imgNum])){
+    					hasNaNInSet[setNum]=true;
+    				} else {
+    					error2+=errors[imgNum]*errors[imgNum]*num;
+    					numInSet+=num;
 
-	    		}
+    				}
+    			} else {
+    				if (!Double.isNaN(errors[imgNum])){
+    					numInSetOther += num;
+    				}
+    			}
 	    	}
-    		allNaNInSet[setNum]=(numInSet==0);
+//    		allNaNInSet[setNum]= hasNaNInSet[setNum] && (numInSet==0);
+    		allNaNInSet[setNum]= has_selected? (numInSet == 0) : ((numInSet + numInSetOther) == 0);
 	    	numSetPoints[setNum]=numInSet;
-	    	rmsPerSet[setNum]=(numInSet>0)?Math.sqrt(error2/numInSet):Double.NaN;
+	    	rmsPerSet[setNum]=(numInSet>0)?Math.sqrt(error2/numInSet) : Double.NaN; // only count selected images (i.e. only eo, ignore lwir)
 	    }
 //		int numSelectedNotNaNSets=0;
 		int numSelectedSets=0;
@@ -4341,8 +4369,10 @@ List calibration
 		int [] indices=new int [numOutLiers];
 		boolean [] availableSets= new boolean  [imageSets.length];
 		for (int i=0;i<imageSets.length;i++) availableSets[i]= !allNaNInSet[i]; //!Double.isNaN(rmsPerSet[i]);
+/*
+		// Remove all empty, not just selected by strategy. Now errors are calculated for all images, not juet selected
 		if (removeEmptySets  && (numNaN>0)){ //(this.debugLevel>0)
-			if (this.debugLevel>0) System.out.println("removeOutLierSets(): Number of empty (rms=NaN) sets="+numNaN+":");
+			if (this.debugLevel>-1) System.out.println("removeOutLierSets(): Number of empty (rms=NaN) sets="+numNaN+":");
 //			int n=0;
 			for (int setNum=0;setNum<imageSets.length;setNum++) if (!availableSets[setNum]){
 //				n++;
@@ -4356,7 +4386,7 @@ List calibration
 	    		}
 			}
 		}
-
+*/
 		System.out.println("removeOutLierSets(): availableSets.length="+availableSets.length+" numSelectedSets="+numSelectedSets);
 		for (int n=0;n<numOutLiers;n++){
 			double maxRMS=-1.0;
@@ -4376,19 +4406,21 @@ List calibration
 		if (this.debugLevel>0) System.out.println("Listing "+numOutLiers+" worst image sets");
 		for (int n=0;n<indices.length;n++){
 			int numSet=indices[n];
-			double setWeight=this.fittingStrategy.distortionCalibrationData.gIS[numSet].setWeight;
-			if (this.debugLevel>0) System.out.println(n+" ("+numSet+"): "+(hasNaNInSet[numSet]?"* ":"")+IJ.d2s(rmsPerSet[numSet],3)+
-					" points: "+numSetPoints[numSet]+" weight:"+setWeight);
-			gd.addCheckbox(n+": "+numSet+": "+(hasNaNInSet[numSet]?"* ":"")+IJ.d2s(rmsPerSet[numSet],3)+" weight:"+setWeight, true);
-			for (int i=0;i<imageSets[numSet].length;i++){
-				int numImg=imageSets[numSet][i];
-				double diameter=this.fittingStrategy.distortionCalibrationData.gIP[numImg].getGridDiameter();
-				gd.addMessage(i+":"+numImg+": "+IJ.d2s(errors[numImg],3)+" "+
-						" ("+this.fittingStrategy.distortionCalibrationData.gIP[numImg].pixelsXY.length+" points, diameter="+diameter+") "+
-						this.fittingStrategy.distortionCalibrationData.gIP[numImg].path);
-				if (this.debugLevel>0) System.out.println("  --- "+numImg+": "+IJ.d2s(errors[numImg],3)+" "+
-						" ("+this.fittingStrategy.distortionCalibrationData.gIP[numImg].pixelsXY.length+" points, diameter="+diameter+") "+
-						this.fittingStrategy.distortionCalibrationData.gIP[numImg].path);
+			if (numSet >= 0) {
+				double setWeight=this.fittingStrategy.distortionCalibrationData.gIS[numSet].setWeight; //-1
+				if (this.debugLevel>0) System.out.println(n+" ("+numSet+"): "+(hasNaNInSet[numSet]?"* ":"")+IJ.d2s(rmsPerSet[numSet],3)+
+						" points: "+numSetPoints[numSet]+" weight:"+setWeight);
+				gd.addCheckbox(n+": "+numSet+": "+(hasNaNInSet[numSet]?"* ":"")+IJ.d2s(rmsPerSet[numSet],3)+" weight:"+setWeight, true);
+				for (int i=0;i<imageSets[numSet].length;i++){
+					int numImg=imageSets[numSet][i];
+					double diameter=this.fittingStrategy.distortionCalibrationData.gIP[numImg].getGridDiameter();
+					gd.addMessage(i+":"+numImg+": "+IJ.d2s(errors[numImg],3)+" "+
+							" ("+this.fittingStrategy.distortionCalibrationData.gIP[numImg].pixelsXY.length+" points, diameter="+diameter+") "+
+							this.fittingStrategy.distortionCalibrationData.gIP[numImg].path);
+					if (this.debugLevel>0) System.out.println("  --- "+numImg+": "+IJ.d2s(errors[numImg],3)+" "+
+							" ("+this.fittingStrategy.distortionCalibrationData.gIP[numImg].pixelsXY.length+" points, diameter="+diameter+") "+
+							this.fittingStrategy.distortionCalibrationData.gIP[numImg].path);
+				}
 			}
 		}
 		WindowTools.addScrollBars(gd);
@@ -4399,20 +4431,41 @@ List calibration
 		}
 		if (this.debugLevel>0) System.out.println("Removing outliers:");
 		for (int n=0;n<indices.length;n++){
-			if (gd.getNextBoolean()) {
-				int numSet=indices[n];
-				if (this.debugLevel>0) System.out.println(" Removing imgages in image set "+numSet);
-				for (int i=0;i<imageSets[numSet].length;i++){
-					int numImg=imageSets[numSet][i];
-					if (this.debugLevel>0) System.out.println(n+":"+i+"("+numImg+")"+IJ.d2s(errors[numImg],3)+" "+
-							this.fittingStrategy.distortionCalibrationData.gIP[numImg].path);
-					this.fittingStrategy.distortionCalibrationData.gIP[numImg].enabled=false;
-					this.fittingStrategy.distortionCalibrationData.gIP[numImg].hintedMatch=-1; // so can be re-calibrated again w/o others
+			int numSet=indices[n];
+			if (numSet >= 0) {
+				if (gd.getNextBoolean()) {
+					if (this.debugLevel>0) System.out.println(" Removing imgages in image set "+numSet);
+					for (int i=0;i<imageSets[numSet].length;i++){
+						int numImg=imageSets[numSet][i];
+						if (this.debugLevel>0) System.out.println(n+":"+i+"("+numImg+")"+IJ.d2s(errors[numImg],3)+" "+
+								this.fittingStrategy.distortionCalibrationData.gIP[numImg].path);
+						this.fittingStrategy.distortionCalibrationData.gIP[numImg].enabled=false;
+						this.fittingStrategy.distortionCalibrationData.gIP[numImg].hintedMatch=-1; // so can be re-calibrated again w/o others
+					}
 				}
 			}
 		}
+
+		// Remove all empty, not just selected by strategy. Now errors are calculated for all images, not juet selected
+		if (removeEmptySets  && (numNaN>0)){ //(this.debugLevel>0)
+			if (this.debugLevel>-1) System.out.println("removeOutLierSets(): Number of empty (rms=NaN) sets="+numNaN+":");
+//			int n=0;
+			for (int setNum=0;setNum<imageSets.length;setNum++) if (!availableSets[setNum]){
+//				n++;
+				if (this.debugLevel>0) System.out.println("Set "+setNum);
+	    		for (int imgInSet=0;imgInSet<imageSets[setNum].length;imgInSet++){
+					int numImg=imageSets[setNum][imgInSet];
+					if (this.debugLevel>0) System.out.println(setNum+":"+imgInSet+" #"+ numImg+" "+IJ.d2s(errors[numImg],3)+" "+
+							this.fittingStrategy.distortionCalibrationData.gIP[numImg].path);
+					this.fittingStrategy.distortionCalibrationData.gIP[numImg].enabled=false;
+					this.fittingStrategy.distortionCalibrationData.gIP[numImg].hintedMatch=-1; // so can be re-calibrated again w/o others
+	    		}
+			}
+		}
+
+
 		// next is not needed
-		fittingStrategy.distortionCalibrationData.updateSetOrientation(null); // remove orientation information from the image set if none is enabled
+		fittingStrategy.distortionCalibrationData.updateSetOrientation(null); //selectedImages); // null); // remove orientation information from the image set if none is enabled
 //		this.fittingStrategy.setImageSelection(0, oldSelection); // restore original selection in series 0
 		return true;
     }
@@ -4700,12 +4753,19 @@ List calibration
 	 */
 	public double calcError(double [] diff){
 		double result=0;
+		double sumw = 0;
 		if (this.weightFunction!=null) {
-			for (int i=0;i<diff.length;i++) result+=diff[i]*diff[i]*this.weightFunction[i];
-			result/=this.sumWeights;
+			for (int i=0;i<diff.length;i++) if (!Double.isNaN(diff[i])){
+				result+=diff[i]*diff[i]*this.weightFunction[i];
+				sumw += this.weightFunction[i];
+			}
+			result/=sumw; // this.sumWeights;
 		} else {
-			for (int i=0;i<diff.length;i++) result+=diff[i]*diff[i];
-			result/=diff.length;
+			for (int i=0;i<diff.length;i++)  if (!Double.isNaN(diff[i])){
+				result+=diff[i]*diff[i];
+				sumw += 1.0;
+			}
+			result/=sumw; // diff.length;
 		}
 		return Math.sqrt(result)*this.RMSscale;
 	}
@@ -7497,22 +7557,52 @@ List calibration
     // approximately in XY plane, so by freezing all other parameters but GXY0 and GXY1 it is possible to find
     // the pattern grid match.
     public int [] findImageGridOffset(
-    		int num_img,
+    		int     num_img,
+    		int     ser_num, // number of series to reprogram (< 0 - from the last one)
+    		boolean adjust_attitude, // true for eo, false for lwir (uses exact attitude from eo)
     		boolean even,
-    		PatternParameters patternParameters) {
+    		PatternParameters patternParameters,
+    		double [] stats) { // result quality, null OK
+    	if (ser_num < 0) {
+    		ser_num = fittingStrategy.parameterMode.length + ser_num; // use from the last one
+    	}
+		if (this.debugLevel > 0) {
+			System.out.println("Will use/modify fitting series "+ser_num+" to adjust image "+num_img);
+			if (adjust_attitude) {
+				System.out.println("Will adjust GXYZ0, GXYZ1, goniometerHorizontal, and goniometerAxial");
+			} else {
+				System.out.println("Will adjust only GXYZ0 and GXYZ1.");
+			}
+		}
 
-		// set series 0 to this set images
-		boolean [] selection = fittingStrategy.selectAllImages(0); // enable all images in series 0
+    	int was_seriesNumber = seriesNumber;
+		// set series ser_num (was 0) to this set images
+		DistortionCalibrationData dcd = fittingStrategy.distortionCalibrationData;
+		int par_index_goniometerHorizontal = dcd.getParameterIndexByName("goniometerHorizontal");
+		int par_index_goniometerAxial =      dcd.getParameterIndexByName("goniometerAxial");
+		int par_index_GXYZ0 =                dcd.getParameterIndexByName("GXYZ0");
+		int par_index_GXYZ1 =                dcd.getParameterIndexByName("GXYZ1");
+		for (int i = 0; i < fittingStrategy.parameterMode[ser_num].length; i++) {
+			 fittingStrategy.parameterMode[ser_num][i] = FittingStrategy.modeFixed; // 0
+		}
+		fittingStrategy.parameterMode[ser_num][par_index_GXYZ0] =                    FittingStrategy.modeIndividual; // 3
+		fittingStrategy.parameterMode[ser_num][par_index_GXYZ1] =                    FittingStrategy.modeIndividual; // 3
+		if (adjust_attitude) {
+			fittingStrategy.parameterMode[ser_num][par_index_goniometerHorizontal] = FittingStrategy.modeIndividual; // 3
+			fittingStrategy.parameterMode[ser_num][par_index_goniometerAxial] =      FittingStrategy.modeIndividual; // 3
+		}
+
+		boolean [] selection = fittingStrategy.selectAllImages(ser_num); // enable all images in series 0
 		for (int i=0;i<selection.length;i++) selection[i]=false;
 		selection[num_img]=true;
-		fittingStrategy.setImageSelection(0,selection);
-		seriesNumber=   0; // start from 0;
-		initFittingSeries(false, filterForAll,0); // will set this.currentVector
+		fittingStrategy.setImageSelection(ser_num,selection);
+		seriesNumber=   ser_num; // start from 0;
+		initFittingSeries(false, filterForAll,ser_num); // will set this.currentVector, will build parameter map too
 		//this.stopAfterThis[numSeries]
-		fittingStrategy.stopAfterThis[0]=true;
+		fittingStrategy.stopAfterThis[ser_num]=true;
 		stopEachStep=      false;
 		stopEachSeries=    false; // will not ask for confirmation after done
-		lambda =           fittingStrategy.lambdas[0];
+		lambda =           fittingStrategy.lambdas[ser_num];
 		boolean   LMA_OK = false;
 		try {
 			LMA_OK = 	LevenbergMarquardt (false, true); //  skip dialog, dry run (no updates)
@@ -7522,8 +7612,13 @@ List calibration
 		if (!LMA_OK) {
 			return null; // LMA did not converge
 		}
-		double [] new_XY = {this.currentVector[0],this.currentVector[1]};
-		DistortionCalibrationData dcd = this.fittingStrategy.distortionCalibrationData;
+//		DistortionCalibrationData dcd = this.fittingStrategy.distortionCalibrationData;
+// find indices of GXYZ0 and GXYZ1 in the vector
+		int index_GXYZ0 = this.fittingStrategy.reverseParameterMap[num_img][par_index_GXYZ0];
+		int index_GXYZ1 = this.fittingStrategy.reverseParameterMap[num_img][par_index_GXYZ1];
+
+		double [] new_XY = {this.currentVector[index_GXYZ0],this.currentVector[index_GXYZ1]};
+//		DistortionCalibrationData dcd = this.fittingStrategy.distortionCalibrationData;
 //		int num_set = dcd.gIP[num_img].getSetNumber();
 		double [] 	ref_XYZ = dcd.getXYZ(num_img);
 		double []   diff_XY = {
@@ -7531,36 +7626,74 @@ List calibration
 				new_XY[1] -ref_XYZ[1]};
 
 //save safe settings to run LMA manually (or save what was set)
-		seriesNumber=      0; // start from 0;
-		initFittingSeries  (false,filterForAll,0); // will set this.currentVector
+		seriesNumber=      was_seriesNumber; // start from 0;
+		initFittingSeries  (false,filterForAll,seriesNumber); // will set this.currentVector
 		stopEachSeries=    true; // will not ask for confirmation after done
 		stopOnFailure=     true;
-		lambda=            fittingStrategy.lambdas[0];
+		lambda=            fittingStrategy.lambdas[seriesNumber];
+		double [] errs = new double[2];
 
 		int [] grid_offset = dcd.suggestOffset (
         		num_img,
         		diff_XY, // This XYZ minus reference XYZ  z is not used, may be just[2]
         		even,
-        		patternParameters);
+        		patternParameters,
+        		errs);
+		if (stats != null) {
+			stats[0] = this.currentRMS;
+			stats[1] = errs[0]; // dU
+			stats[2] = errs[1]; // dV
+		}
 		return grid_offset;
+    }
 
-
-
-
-
-/*
- *
-  this.currentVector[0] - GXYZ[0]
-  this.currentVector[1] - GXYZ[1]
-
- dcd.        public int [] suggestOffset (
-        		int num_img,
-        		double [] diff_xyz, // This XYZ minus reference XYZ  z is not used, may be just[2]
-        		boolean even,
-        		PatternParameters patternParameters) {
-
- */
-
+    public boolean adjustAttitudeAfterOffset(
+    		int     num_img,
+    		int     ser_num, // number of series to reprogram
+    		PatternParameters patternParameters) {
+    	if (ser_num < 0) {
+    		ser_num = fittingStrategy.parameterMode.length + ser_num; // use from the last one
+    	}
+		if (this.debugLevel > 0) {
+			System.out.println("Will use/modify fitting series "+ser_num+" for to adjust  az, tilt of image "+num_img);
+			System.out.println("Will adjust goniometerHorizontal, and goniometerAxial");
+		}
+    	int was_seriesNumber = seriesNumber;
+		// set series ser_num (was 0) to this set images
+		DistortionCalibrationData dcd = fittingStrategy.distortionCalibrationData;
+		int par_index_goniometerHorizontal = dcd.getParameterIndexByName("goniometerHorizontal");
+		int par_index_goniometerAxial =      dcd.getParameterIndexByName("goniometerAxial");
+		for (int i = 0; i < fittingStrategy.parameterMode[ser_num].length; i++) {
+			 fittingStrategy.parameterMode[ser_num][i] = FittingStrategy.modeFixed; // 0
+		}
+		fittingStrategy.parameterMode[ser_num][par_index_goniometerHorizontal] = FittingStrategy.modeIndividual; // 3
+		fittingStrategy.parameterMode[ser_num][par_index_goniometerAxial] =      FittingStrategy.modeIndividual; // 3
+		boolean [] selection = fittingStrategy.selectAllImages(ser_num); // enable all images in series 0
+		for (int i=0;i<selection.length;i++) selection[i]=false;
+		selection[num_img]=true;
+		fittingStrategy.setImageSelection(ser_num,selection);
+		seriesNumber=   ser_num; // start from 0;
+		initFittingSeries(false, filterForAll,ser_num); // will set this.currentVector, will build parameter map too
+		fittingStrategy.stopAfterThis[ser_num]=true;
+		stopEachStep=      false;
+		stopEachSeries=    false; // will not ask for confirmation after done
+		lambda =           fittingStrategy.lambdas[ser_num];
+		boolean   LMA_OK = false;
+		try {
+			LMA_OK = 	LevenbergMarquardt (false, false); // true); //  skip dialog, dry run (no updates)
+		} catch (Exception e) {
+			// LMA failed - e.g. not enough points (Singular Matrix)
+		}
+		if (!LMA_OK) {
+			return false; // LMA did not converge
+		}
+//save safe settings to run LMA manually (or save what was set)
+		seriesNumber=      was_seriesNumber; // start from 0;
+		initFittingSeries  (false,filterForAll,seriesNumber); // will set this.currentVector
+		stopEachSeries=    true; // will not ask for confirmation after done
+		stopOnFailure=     true;
+		lambda=            fittingStrategy.lambdas[seriesNumber];
+		return true;
     }
 
 

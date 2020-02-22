@@ -7074,6 +7074,10 @@ public class MatchSimulatedPattern {
 			coeff[0][2]=SMU;
 			coeff[1][2]=SMV;
 
+		} else {
+			if (this.debugLevel>0) {
+				System.out.println("coeff == null");
+			}
 		}
 		return coeff;
 	}
@@ -7589,7 +7593,7 @@ y=xy0[1] + dU*deltaUV[0]*(xy1[1]-xy0[1])+dV*deltaUV[1]*(xy2[1]-xy0[1])
 			double [][] pointersXYUV,
 			boolean removeOutOfGridPointers, //
 			double [][][] hintGrid, // predicted grid array (or null)
-			double        hintGridTolerance, // alllowed mismatch (fraction of period) or 0 - orientation only
+			double        hintGridTolerance, // allowed mismatch (fraction of period) or 0 - orientation only
 			int global_debug_level, // DEBUG_LEVEL
 			boolean noMessageBoxes
 			){
@@ -7602,7 +7606,7 @@ y=xy0[1] + dU*deltaUV[0]*(xy1[1]-xy0[1])+dV*deltaUV[1]*(xy2[1]-xy0[1])
 		}
 		int acalibrated=0;
 		double [][] gridMatchCoeff=null;
-		double searchAround=20.0; // how far to look for the grid node
+		double searchAround=50; // 20.0; // how far to look for the grid node
 		int gridRotation=-1; //undefined
 		int [] iGridTranslateUV=null; // translate UV grid by these integer numbers
 		if (hintGrid!=null){
@@ -7612,7 +7616,7 @@ y=xy0[1] + dU*deltaUV[0]*(xy1[1]-xy0[1])+dV*deltaUV[1]*(xy2[1]-xy0[1])
 				gridRotation=matrixToRot(gridMatchCoeff);
 				this.debugLevel=global_debug_level;
 				int [][] iGridMatchCoeff=gridMatrixApproximate(gridMatchCoeff);
-				if (global_debug_level>1){
+				if (global_debug_level > 0){
 					System.out.println("gridMatchCoeff[0]={"+IJ.d2s(gridMatchCoeff[0][0],5)+", "+IJ.d2s(gridMatchCoeff[0][1],5)+", "+IJ.d2s(gridMatchCoeff[0][2],5)+"}");
 					System.out.println("gridMatchCoeff[1]={"+IJ.d2s(gridMatchCoeff[1][0],5)+", "+IJ.d2s(gridMatchCoeff[1][1],5)+", "+IJ.d2s(gridMatchCoeff[1][2],5)+"}");
 					System.out.println("gridRotation="+gridRotation);
@@ -7624,12 +7628,13 @@ y=xy0[1] + dU*deltaUV[0]*(xy1[1]-xy0[1])+dV*deltaUV[1]*(xy2[1]-xy0[1])
 				// hintGridTolerance==0 - do not try to determine shift from the hint (not reliable yet)
 				if (hintGridTolerance>0) {
 					if (worstGridMatchTranslate(gridMatchCoeff)<=hintGridTolerance){ // convert to pixels from halfperiods (or just chnage definition of hintGridTolerance)
-						if (global_debug_level>1) System.out.println("worstGridMatchTranslate(gridMatchCoeff)= "+worstGridMatchTranslate(gridMatchCoeff)+", hintGridTolerance="+hintGridTolerance);
+						if (global_debug_level>0) System.out.println("worstGridMatchTranslate(gridMatchCoeff)= "+worstGridMatchTranslate(gridMatchCoeff)+", hintGridTolerance="+hintGridTolerance);
 						iGridTranslateUV=new int[2];
 						iGridTranslateUV[0]=iGridMatchCoeff[0][2];
 						iGridTranslateUV[1]=iGridMatchCoeff[1][2];
 					} else {
-						if (global_debug_level>1) System.out.println("*** Warning: combineGridCalibration() failed,  worstGridMatchTranslate(gridMatchCoeff)= "+worstGridMatchTranslate(gridMatchCoeff)+", hintGridTolerance="+hintGridTolerance);
+						if (global_debug_level>0) System.out.println("*** Warning: combineGridCalibration() failed,  worstGridMatchTranslate(gridMatchCoeff)= "+
+					worstGridMatchTranslate(gridMatchCoeff)+", hintGridTolerance="+hintGridTolerance);
 						return -1;
 					}
 				}
@@ -8720,7 +8725,7 @@ y=xy0[1] + dU*deltaUV[0]*(xy1[1]-xy0[1])+dV*deltaUV[1]*(xy2[1]-xy0[1])
 				distUV[0]=reReMap[0][0]*uv[i][0]+reReMap[0][1]*uv[i][1]+reReMap[0][2]-xyuv[i][2];
 				distUV[1]=reReMap[1][0]*uv[i][0]+reReMap[1][1]*uv[i][1]+reReMap[1][2]-xyuv[i][3];
 				dist=Math.sqrt(distUV[0]*distUV[0]+distUV[1]*distUV[1]);
-				if (debugLevel>1){
+				if (debugLevel > 0){ // 1) {
 					System.out.println("Laser spot #"+i+", distance from predicted ="+ IJ.d2s(dist,3)+" ("+IJ.d2s(200*dist,3)+
 							"% of cell radius), du="+IJ.d2s(distUV[0],3)+", dv="+IJ.d2s(distUV[1],3));
 				}

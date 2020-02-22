@@ -2470,10 +2470,23 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 			if (useImages) {
 				fromToImages[0]=    (int) gd.getNextNumber();
 				fromToImages[1]=    (int) gd.getNextNumber();
-				for (int i =0; i<this.distortionCalibrationData.getNumImages();i++)
-					if ((allImages || this.distortionCalibrationData.gIP[i].enabled) && (i>=fromToImages[0]) && (i<=fromToImages[1])){
-						this.selectedImages[numSeries][i]=gd.getNextBoolean();
+				for (int i =0; i<this.distortionCalibrationData.getNumImages();i++) {
+//					if ((allImages || this.distortionCalibrationData.gIP[i].enabled) && (i>=fromToImages[0]) && (i<=fromToImages[1])){
+//						this.selectedImages[numSeries][i]=gd.getNextBoolean();
+//					}
+					if ((i>=fromToImages[0]) && (i<=fromToImages[1])){
+						if (allImages || this.distortionCalibrationData.gIP[i].enabled) {
+							this.selectedImages[numSeries][i]=gd.getNextBoolean();
+						} else {
+							this.selectedImages[numSeries][i]=false; // unselect stray non-shown images
+						}
+
+
+
 					}
+
+
+				}
 				if (allImages) enableDisableSelected=gd.getNextBoolean();
 				this.masterImages[numSeries]=(int) gd.getNextNumber();
 				if (this.masterImages[numSeries]<0)this.masterImages[numSeries]=0;
