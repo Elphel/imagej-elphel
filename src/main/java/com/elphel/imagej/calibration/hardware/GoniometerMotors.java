@@ -30,6 +30,7 @@ public class GoniometerMotors{
         public int motorStuckTolerance=5; // steps - disregard error less than that
 
         public double coefficientETA=1.5;  // allow moving 1.5 longer than at maximal speed
+        
 
         private long nanoETA;
         private long nanoReferenceTime; // last time the position was checked
@@ -110,6 +111,8 @@ public class GoniometerMotors{
         	commandElphel10364Motors("http://"+this.ipAddress+"/10364.php?m"+(motorNumber+1)+"="+this.targetPosition[motorNumber]+"sleep=1");
         	enableMotors(true);
 			nanoETA=System.nanoTime()+((long)(1E9*(Math.abs(this.targetPosition[motorNumber]-this.curpos[motorNumber])*(this.coefficientETA/this.stepsPerSecond))));
+			
+			nanoETA += (long)(1E9*this.motorsStuckTestTime); // =5.0; // seconds
 			return true;
         }
 /*
