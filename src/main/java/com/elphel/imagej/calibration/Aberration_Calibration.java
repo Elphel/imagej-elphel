@@ -510,6 +510,10 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 	    	2,    //int    shrinkGridForMask=2; //shrink detected grids by one point for/vert this number of times before calculating masks
 	    	-2.0, // double maskBlurSigma=    2.0;   // blur sensor masks (>0 - pixels, <0 - in grid units)
 	    	4,    // int    decimateMasks
+	    	true, // replaceBad - remove bad, do not try to fix
+	    	false, // removeWorst - when removing, remove only local worst (false - all bad)
+	    	0.3,   // public double weightBad =       0.3;   // reduce contrast of bad nodes
+	    	0.05,  // public double weightWorst =     0.05;  // reduce contrast of bad, local worst nodes
 	    	0.1,  // double badNodeThreshold=0.1; // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
     		1,    // int  maxBadNeighb; // maximal number of bad nodes around the corrected one to fix
     		10,   // int minimalValidNodes
@@ -517,6 +521,7 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
         	1.0,  // public double  weightMultiExponent= 1.0; // if( >0) use grid diameter to scale weights of this image
         	1.0,  // public double  weightDiameterExponent=1.0;
         	1.0,  // public double weightYtoX=1.0; // relative Y-to-X errors weight (to somewhat compensate for rectabular shape of the sensor)
+        	0.2,  // public double gridMarginScale =  0.2; // apply -scaled maximal to grid margins (_extra) for masks
     		0.4,  //minimalGridContrast
 	    	4.0,  // public double shrinkBlurSigma = 4.0;
 	    	0.5,  // public double shrinkBlurLevel = 0.5;
@@ -582,7 +587,7 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
     	1         // public int    debugLevel=1;
     );
 
-    public static Distortions.RefineParameters REFINE_PARAMETERS = new Distortions.RefineParameters();
+    public static RefineParameters REFINE_PARAMETERS = new RefineParameters();
     public static DistortionCalibrationData DISTORTION_CALIBRATION_DATA=null;
 //    public static FittingStrategy FITTING_STRATEGY=null;
 
@@ -837,7 +842,7 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 
 		addButton("Reset Sensor",panelCorrectGrid,color_bundle);
 		addButton("Restore Sensor",panelCorrectGrid,color_restore);
-		if (MORE_BUTTONS1) addButton("Correct Sensor Old",panelCorrectGrid,color_process);
+//		if (MORE_BUTTONS1) addButton("Correct Sensor Old",panelCorrectGrid,color_process);
 		addButton("Correct Sensor",panelCorrectGrid,color_process);
 		addButton("Save Sensor",panelCorrectGrid,color_bundle);
 //		addButton("TestIpl",panelCorrectGrid);
@@ -2863,8 +2868,39 @@ if (MORE_BUTTONS) {
 				return;
 			}
 			LENS_DISTORTIONS.debugLevel=DEBUG_LEVEL;
-			LENS_DISTORTIONS.resetSensorCorrection();
-			LENS_DISTORTIONS.initSensorCorrection(); // set zero corrections (to be able to save sensor correction files)
+			int numChannels=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.getNumChannels(); // number of used channels
+
+			boolean [] selection=new boolean[numChannels];
+			for (int i = 0; i < numChannels; i++) {
+				selection[i] = true;
+			}
+			while (true) {
+				GenericDialog gd = new GenericDialog("Select sensors to reset");
+				for (int i=0;i<numChannels;i++) gd.addCheckbox("channel "+i, selection[i]);
+				gd.enableYesNoCancel("OK", "All like channel 0");
+				WindowTools.addScrollBars(gd);
+				gd.showDialog();
+				if (gd.wasCanceled()) return;
+				for (int i=0;i<numChannels;i++) selection[i]=gd.getNextBoolean();
+				if (gd.wasOKed()){
+					break;
+				} else {
+					for (int i=1;i<numChannels;i++) selection[i]=selection[0];
+				}
+			}
+			// are all selected?
+			boolean all_selected = true;
+			for (boolean s : selection) all_selected &= s;
+			if (all_selected) {
+				LENS_DISTORTIONS.resetSensorCorrection();
+				LENS_DISTORTIONS.initSensorCorrection(); // set zero corrections (to be able to save sensor correction files)
+			} else {
+				for (int chNum = 0; chNum < numChannels; chNum++) if (selection[chNum]){
+					LENS_DISTORTIONS.resetSensorCorrection(chNum);
+					LENS_DISTORTIONS.initSensorCorrection(chNum);
+				}
+			}
+
 			return;
 		}
 /* ======================================================================== */
@@ -2911,36 +2947,7 @@ if (MORE_BUTTONS) {
 			return;
 		}
 /* ======================================================================== */
-		if       (label.equals("Correct Sensor Old")) {
-			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-			if (LENS_DISTORTIONS==null) {
-				IJ.showMessage("LENS_DISTORTION is not set");
-				return;
-			}
-			LENS_DISTORTIONS.debugLevel=DEBUG_LEVEL;
-			PATTERN_PARAMETERS.debugLevel=DEBUG_LEVEL;
-			if (LENS_DISTORTIONS.fittingStrategy==null){
-				IJ.showMessage("Distortion Fitting strategy is not initialized - create it with" +
-				"\"New Strategy\", \"Edit Strategy\" or \"Restore Strategy\"");
-				return;
-			}
-			if (DISTORTION_CALIBRATION_DATA==null){
-				IJ.showMessage("Distortion Calibration data is not initialized - create it with"+
-				"\"SelectGrid Files\" or \"Restore Calibration\"");
-				return;
-			}
-			DISTORTION_CALIBRATION_DATA.debugLevel=DEBUG_LEVEL;
-			LENS_DISTORTIONS.fittingStrategy.debugLevel=DEBUG_LEVEL;
-			/*
-			if (DISTORTION_CALIBRATION_DATA.sensorMasks==null){
-				IJ.showMessage("Sensor mask(s) are not initialized - create them with"+
-				"\"Calculate Sensor Masks\" or \"Restore Sensor Masks\"");
-				return;
-			}
-			*/
-			LENS_DISTORTIONS.modifyPixelCorrection(DISTORTION_CALIBRATION_DATA);
-			return;
-		}
+//		if       (label.equals("Correct Sensor Old")) { //removed
 /* ======================================================================== */
 		if       (label.equals("Correct Sensor")) {
 			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
@@ -2970,9 +2977,10 @@ if (MORE_BUTTONS) {
 	    	int series=LENS_DISTORTIONS.refineParameters.showDialog(
 	    			"Select Lens Distortion Residual Compensation Parameters",
 //	    			0x846f1,
-	    			0x94ff1,
+	    			0x1094ff1,
 	    			((LENS_DISTORTIONS.seriesNumber>=0)?LENS_DISTORTIONS.seriesNumber:0),
-	    			null); // averageRGB - only for target flat-field correction
+	    			null, // averageRGB - only for target flat-field correction
+	    			DISTORTION_CALIBRATION_DATA.hasSmallSensors());
 	    	if (series<0) return;
 	    	LENS_DISTORTIONS.seriesNumber=series;
 			LENS_DISTORTIONS.modifyPixelCorrection(
@@ -8860,7 +8868,8 @@ if (MORE_BUTTONS) {
 	    			"Select Lens Distortion Residual Compensation Parameters",
 	    			0x100000,
 	    			((LENS_DISTORTIONS.seriesNumber>=0)?LENS_DISTORTIONS.seriesNumber:0),
-	    			LENS_DISTORTIONS.patternParameters.averageRGB);
+	    			LENS_DISTORTIONS.patternParameters.averageRGB,
+	    			DISTORTION_CALIBRATION_DATA.hasSmallSensors());
 			if (series<0) return;
 			LENS_DISTORTIONS.correctPatternFlatField(true); // boolean enableShow
 			return;
@@ -8877,7 +8886,8 @@ if (MORE_BUTTONS) {
 					"Removing specular reflections from the target",
 	    			0x400000,
 	    			((LENS_DISTORTIONS.seriesNumber>=0)?LENS_DISTORTIONS.seriesNumber:0),
-	    			LENS_DISTORTIONS.patternParameters.averageRGB);
+	    			LENS_DISTORTIONS.patternParameters.averageRGB,
+	    			DISTORTION_CALIBRATION_DATA.hasSmallSensors());
 			if (series<0) return;
 /*
     		double highPassSigma=10.0;
@@ -8940,10 +8950,12 @@ if (MORE_BUTTONS) {
 //	    	int series=refineParameters.showDialog("Select Lens Distortion Residual Compensation Parameters", 0x1efff, (this.seriesNumber>=0)?this.seriesNumber:0);
 	    	int series=LENS_DISTORTIONS.refineParameters.showDialog(
 	    			"Select Sensor and Target Flat-Field Correction Parameters",
-	    			0x794ff1,
+	    			0x1794ff1,
 //	    			/0x94ff1,
 	    			((LENS_DISTORTIONS.seriesNumber>=0)?LENS_DISTORTIONS.seriesNumber:0),
-	    			LENS_DISTORTIONS.patternParameters.averageRGB); // averageRGB - only for target flat-field correction
+	    			LENS_DISTORTIONS.patternParameters.averageRGB, // averageRGB - only for target flat-field correction
+	    			DISTORTION_CALIBRATION_DATA.hasSmallSensors());
+
 	    	if (series<0) return;
 	    	LENS_DISTORTIONS.seriesNumber=series;
 			long 	  startTime=System.nanoTime();
@@ -8988,147 +9000,6 @@ if (MORE_BUTTONS) {
 
 
 /* ======================================================================== */
-		if       (label.equals("Pattern Flat-Field0")) {
-			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-			if (LENS_DISTORTIONS==null) {
-				IJ.showMessage("LENS_DISTORTION is not set");
-				return;
-			}
-			LENS_DISTORTIONS.debugLevel=DEBUG_LEVEL;
-
-
-			GenericDialog gd=new GenericDialog("Pattern Flat Field parameters");
-			gd.addNumericField("Fitting series number (to select images), negative - use all enabled images", -1,0);
-			gd.addNumericField("Reference station number (unity target brightness)", 0,0);
-			gd.addNumericField("Shrink sensor mask",    100.0, 1,6,"sensor pix");
-			gd.addNumericField("Non-vignetted radius", 1000.0, 1,6,"sensor pix");
-			gd.addNumericField("Minimal alpha",           1.0, 3,7,"%");
-			gd.addNumericField("Minimal contrast (occlusion detection)", 0.1, 3,7,"(0 .. ~0.8");
-			gd.addNumericField("Minimal alpha for accumulation", 1.0, 3,7,"%");
-			gd.addNumericField("Shrink pattern for matching", 2.0, 3,7,"grid nodes");
-			gd.addNumericField("Maximal relative difference between nodes", 10.0, 3,7,"%");
-			gd.addNumericField("Shrink pattern border", 2, 0,3,"grid nodes");
-			gd.addNumericField("Fade pattern border", 2.0, 3,7,"grid nodes");
-			gd.addMessage("Update pattern white balance (if the illumination is yellowish, increase red and green here)");
-
-			gd.addNumericField("Average grid RED   (1.0 for white)",  LENS_DISTORTIONS.patternParameters.averageRGB[0], 3,5,"x"); //
-			gd.addNumericField("Average grid GREEN (1.0 for white)",  LENS_DISTORTIONS.patternParameters.averageRGB[1], 3,5,"x"); //
-			gd.addNumericField("Average grid BLUE  (1.0 for white)",  LENS_DISTORTIONS.patternParameters.averageRGB[2], 3,5,"x"); //
-			gd.addCheckbox("Reset pattern mask",               true);
-			gd.addCheckbox("Show non-vignetting sensor masks", false);
-			gd.addCheckbox("Show per-sensor patterns",         false);
-			gd.addCheckbox("Show result mask",                 true);
-			gd.addCheckbox("Apply pattern flat field and mask",true);
-			gd.addCheckbox("Use interpolation for sensor correction",true);
-			gd.addNumericField("Suspect occlusion only if grid is missing in the area where sensor mask is above this threshold",15, 3,7,"%");
-			gd.addNumericField("Expand suspected occlusion  area", 2, 0,3,"grid nodes");
-			gd.addNumericField("Fade grid on image (occlusion handling)", 2.0, 3,7,"grid nodes");
-			gd.addCheckbox("Ignore existent sensor flat-field calibration",false);
-			gd.addCheckbox("Use only selected channels",false);
-
-			gd.showDialog();
-			if (gd.wasCanceled()) return;
-			int serNumber=            (int) gd.getNextNumber();
-			int referenceStation=     (int) gd.getNextNumber();
-    		double shrink=                  gd.getNextNumber();
-    		double nonVignettedRadius =     gd.getNextNumber();
-    		double minimalAlpha =      0.01*gd.getNextNumber();
-
-    		double minimalContrast =        gd.getNextNumber();
-    		double minimalAccumulate = 0.01*gd.getNextNumber();
-    		double shrinkForMatching =      gd.getNextNumber();
-    		double maxRelDiff =        0.01*gd.getNextNumber();
-    		int shrinkMask=           (int) gd.getNextNumber();
-    		double fadeBorder =             gd.getNextNumber();
-    		LENS_DISTORTIONS.patternParameters.averageRGB[0]=gd.getNextNumber();
-    		LENS_DISTORTIONS.patternParameters.averageRGB[1]=gd.getNextNumber();
-    		LENS_DISTORTIONS.patternParameters.averageRGB[2]=gd.getNextNumber();
-    		boolean resetMask=      gd.getNextBoolean();
-    		boolean showSensorMasks=gd.getNextBoolean();
-    		boolean showIndividual= gd.getNextBoolean();
-    		boolean showResult=     gd.getNextBoolean();
-    		boolean applyResult=    gd.getNextBoolean();
-    		boolean useInterpolate= gd.getNextBoolean();
-    		double maskThresholdOcclusion=0.01*gd.getNextNumber();
-    		int shrinkOcclusion= (int)gd.getNextNumber();
-    		double fadeOcclusion=   gd.getNextNumber();
-
-    		boolean ignoreSensorFlatField= gd.getNextBoolean();
-    		boolean useSelectedChannels= gd.getNextBoolean();
-    		boolean [] selectedChannels=null;
-
-    		LENS_DISTORTIONS.patternParameters.updateNumStations(LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getNumStations());
-    		if (useSelectedChannels && (ABERRATIONS_PARAMETERS!=null))selectedChannels=ABERRATIONS_PARAMETERS.selectedChannels;
-    	    double [][] masks= LENS_DISTORTIONS.nonVignettedMasks(
-    	    		shrink,
-    	    		nonVignettedRadius,
-    	    		minimalAlpha);
-    	    if (selectedChannels!=null){
-    	    	for (int nChn=0;nChn<masks.length;nChn++) if ((nChn<selectedChannels.length)&&!selectedChannels[nChn]) masks[nChn]=null;
-    	    }
-
-    	    if (showSensorMasks) {
-    	    	boolean same_size = true;
-    	    	for (int i = 1; i < masks.length; i++) same_size &= (masks[i].length == masks[0].length);
-    	    	if (same_size) {
-    	    		this.SDFA_INSTANCE.showArrays( //java.lang.ArrayIndexOutOfBoundsException: 313632
-    	    				masks,
-    	    				LENS_DISTORTIONS.getSensorWidth(0)/ LENS_DISTORTIONS.getDecimateMasks(0),
-    	    				LENS_DISTORTIONS.getSensorHeight(0)/LENS_DISTORTIONS.getDecimateMasks(0),
-    	    				true,
-    	    				"nonVinetting masks");
-    	    	} else {
-    	    		System.out.println("**** Can't show sesnor masks for different size sesnors as a stack! ");
-    	    	}
-    	    }
-			double [][][][] sensorGrids=LENS_DISTORTIONS.calculateGridFlatField(
-					serNumber,
-					masks,
-					minimalContrast,
-					minimalAccumulate,
-					useInterpolate,
-				    maskThresholdOcclusion, // suspect occlusion only if grid is missing in the area where sensor mask is above this threshold
-		    		shrinkOcclusion,
-		    		fadeOcclusion,
-					ignoreSensorFlatField);
-			double [][][] geometry= LENS_DISTORTIONS.patternParameters.getGeometry();
-			if (showIndividual){
-				for (int station=0;station<sensorGrids.length;station++) if (sensorGrids[station]!=null){
-					for (int i=0;i<sensorGrids[station].length;i++) if (sensorGrids[station][i]!=null){
-						this.SDFA_INSTANCE.showArrays(
-								sensorGrids[station][i],
-								geometry[0].length,
-								geometry.length,
-								true,
-								"chn"+i+":"+station+"-pattern");
-					}
-				}
-			}
-			double [][][][] patternArray= LENS_DISTORTIONS.combineGridFlatField(
-					referenceStation,
-					sensorGrids,
-					shrinkForMatching,
-					resetMask,
-					maxRelDiff,
-				    shrinkMask,
-					fadeBorder);
-			if (showResult) {
-				String [] titles={"Alpha","Red","Green","Blue","Number of images used"};
-				for (int station=0;station<patternArray.length;station++) if (patternArray[station]!=null){
-					for (int nView=0;nView<patternArray[station].length;nView++) if (patternArray[station][nView]!=null){
-						this.SDFA_INSTANCE.showArrays(
-								patternArray[station][nView],
-								geometry[0].length,
-								geometry.length,
-								true,
-								"St"+station+"_V"+nView+"_Pattern_Colors "+maxRelDiff,
-								titles);
-					}
-				}
-			}
-			if (applyResult) LENS_DISTORTIONS.applyGridFlatField(patternArray); // {alpha, red,green,blue, number of images used}[pixel_index]
-			return;
-		}
 //"Pattern Flat-Field"
 //"Generate & Save Equirectangular"
 /* ======================================================================== */
@@ -9588,6 +9459,10 @@ if (MORE_BUTTONS) {
 		boolean adjust_eo =   false;
 		boolean adjust_lwir = true;
 		boolean use_lma =     true;
+		boolean use_nonlma =  true;
+		int                   extra_search =2;
+		double                sigma = 5;
+
 
 		GenericDialog gd = new GenericDialog("Initial alignment of the secondary camera to the reference one");
 //		gd.addMessage("This command used Fitting Strategy[last] that should be set with all parameters but\n"+
@@ -9601,13 +9476,21 @@ if (MORE_BUTTONS) {
 		gd.addCheckbox("Adjust EO (reference) sensors", adjust_eo);
 		gd.addCheckbox("Adjust LWIR (target) sensors", adjust_lwir);
 		gd.addCheckbox("Use LMA (unchecked - initial approximate grid set by correlation)", use_lma);
+		gd.addCheckbox("Use initial approximate grid set by correlation before LMA", use_nonlma);
+		gd.addNumericField("Extra search for the non-LMA method",  extra_search, 0);
+		gd.addNumericField("Sigma for the non-LMA method",  sigma, 3 ,7, "");
 		gd.showDialog();
 		if (gd.wasCanceled()) return false;
-		min_set = (int) gd.getNextNumber();
-		max_set = (int) gd.getNextNumber();
-		adjust_eo =     gd.getNextBoolean();
-		adjust_lwir =   gd.getNextBoolean();
-		use_lma =       gd.getNextBoolean();
+		min_set = (int)      gd.getNextNumber();
+		max_set = (int)      gd.getNextNumber();
+		adjust_eo =          gd.getNextBoolean();
+		adjust_lwir =        gd.getNextBoolean();
+		use_lma =            gd.getNextBoolean();
+		use_nonlma =         gd.getNextBoolean();
+		extra_search = (int) gd.getNextNumber();
+		sigma =              gd.getNextNumber();
+		use_nonlma |= !use_lma; // at least something
+
        	if (!dcd.hasSmallSensors()) {
     		String msg="This system does not have any LWIR or other dependent sub-cameras";
     		IJ.showMessage("Error",msg);
@@ -9617,6 +9500,16 @@ if (MORE_BUTTONS) {
        	if (use_lma) {
        		for (int num_set = min_set; num_set <=max_set; num_set++) if
        		((dcd.gIS[num_set] != null) && (dcd.gIS[num_set].imageSet != null)) {
+       			if (use_nonlma) {
+       				dcd.initialSetLwirFromEO( //
+       						num_set,
+       						EYESIS_CAMERA_PARAMETERS.invertUnmarkedLwirGrid,      // boolean           invert_unmarked_grid,
+       						extra_search,                                         // 2
+       						sigma,                                                //5.0
+       						PATTERN_PARAMETERS,
+       						true); // debug
+       			}
+
        			for (int nc = 0; nc < dcd.getNumChannels(); nc++) {
        				if (dcd.gIS[num_set].imageSet[nc]!= null) {
        					int num_img = dcd.gIS[num_set].imageSet[nc].imgNumber;
@@ -9659,8 +9552,8 @@ if (MORE_BUTTONS) {
        	} else {
 
        		for (int num_set = min_set; num_set <=max_set; num_set++) {
-       			int               extra_search =2;
-       			double            sigma = 5;
+//       			int               extra_search =2;
+//       			double            sigma = 5;
 
 
        			dcd.initialSetLwirFromEO( //

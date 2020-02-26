@@ -73,6 +73,10 @@ import ij.gui.GenericDialog;
 
     	public int    shrinkGridForMask=4; //2; //shrink detected grids by one point for/vert this number of times before calculating masks
     	public double maskBlurSigma=    -3; //2.0;   // blur sensor masks (>0 - pixels, <0 - in grid units)
+    	public boolean replaceBad =    false; // fix bad nodes x/y, false - keep (2020)
+    	public boolean removeWorst =   false;  // remove completely locally worst nodes
+    	public double weightBad =       0.3;   // reduce contrast of bad nodes
+    	public double weightWorst =     0.05;  // reduce contrast of bad, local worst nodes
     	public double badNodeThreshold=0.1; // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
     	public int    maxBadNeighb=      1; // maximal number of bad nodes around the corrected one to fix
     	public int    minimalValidNodes=10; // do not use images with less than this number of non-zero nodes (after all applicable weight masks)
@@ -80,6 +84,9 @@ import ij.gui.GenericDialog;
     	public double weightMultiExponent= 1.0;
     	public double weightDiameterExponent=1.0; // if( >0) use grid diameter to scale weights of this image
     	public double weightYtoX=1.0; // relative Y-to-X errors weight (to somewhat compensate for rectabular shape of the sensor)
+
+
+    	public double gridMarginScale =  0.2; // apply -scaled maximal to grid margins (_extra) for masks
     	public double minimalGridContrast=0.4; // (normally max ~0.8)
     	public double shrinkBlurSigma = 4.0;
     	public double shrinkBlurLevel = 0.5;
@@ -341,6 +348,10 @@ import ij.gui.GenericDialog;
     	    	int    shrinkGridForMask, //shrink detected grids by one point for/vert this number of times before calculating masks
     	    	double maskBlurSigma,      // blur sensor masks (in grid units)
     	    	int    decimateMasks,       // reduce masks resolution
+    	    	boolean replaceBad,
+    	    	boolean removeWorst,
+    	    	double  weightBad,
+    	    	double  weightWorst,
     	    	double badNodeThreshold, // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
     	    	int    maxBadNeighb, // maximal number of bad nodes around the corrected one to fix
     	    	int minimalValidNodes,
@@ -348,6 +359,7 @@ import ij.gui.GenericDialog;
     	    	double  weightMultiExponent,
     	    	double  weightDiameterExponent, // if( >0) use grid diameter to scale weights of this image
     	    	double weightYtoX,
+    	    	double gridMarginScale,
     	    	double minimalGridContrast,
     	    	double shrinkBlurSigma,
     	    	double shrinkBlurLevel,
@@ -377,6 +389,10 @@ import ij.gui.GenericDialog;
     				shrinkGridForMask, //shrink detected grids by one point for/vert this number of times before calculating masks
     				maskBlurSigma,      // blur sensor masks (in grid units)
     				decimateMasks,       // reduce masks resolution
+    				replaceBad,
+    				removeWorst,
+    				weightBad,
+    				weightWorst,
     				badNodeThreshold, // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
     				maxBadNeighb, // maximal number of bad nodes around the corrected one to fix
     				minimalValidNodes,
@@ -384,6 +400,7 @@ import ij.gui.GenericDialog;
         	    	weightMultiExponent,
         	    	weightDiameterExponent, // if( >0) use grid diameter to scale weights of this image
         	    	weightYtoX,
+        	    	gridMarginScale,
         	    	minimalGridContrast,
         	    	shrinkBlurSigma,
     		    	shrinkBlurLevel,
@@ -413,6 +430,10 @@ import ij.gui.GenericDialog;
     	    	int    shrinkGridForMask, //shrink detected grids by one point for/vert this number of times before calculating masks
     	    	double maskBlurSigma,      // blur sensor masks (in grid units)
     	    	int    decimateMasks,       // reduce masks resolution
+    	    	boolean replaceBad,
+    	    	boolean removeWorst,
+    	    	double  weightBad,
+    	    	double  weightWorst,
     	    	double badNodeThreshold, // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
     	    	int    maxBadNeighb, // maximal number of bad nodes around the corrected one to fix
     	    	int    minimalValidNodes,
@@ -420,6 +441,7 @@ import ij.gui.GenericDialog;
     	    	double  weightMultiExponent,
     	    	double  weightDiameterExponent, // if( >0) use grid diameter to scale weights of this image
     	    	double weightYtoX,
+    	    	double gridMarginScale,
     	    	double minimalGridContrast,
     	    	double shrinkBlurSigma,
     	    	double shrinkBlurLevel,
@@ -448,6 +470,10 @@ import ij.gui.GenericDialog;
     				shrinkGridForMask, //shrink detected grids by one point for/vert this number of times before calculating masks
     				maskBlurSigma,      // blur sensor masks (in grid units)
     				decimateMasks,       // reduce masks resolution
+    				replaceBad,
+    				removeWorst,
+    				weightBad,
+    				weightWorst,
     				badNodeThreshold, // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
     				maxBadNeighb, // maximal number of bad nodes around the corrected one to fix
     				minimalValidNodes,
@@ -455,6 +481,7 @@ import ij.gui.GenericDialog;
         	    	weightMultiExponent,
         	    	weightDiameterExponent, // if( >0) use grid diameter to scale weights of this image
         	    	weightYtoX,
+        	    	gridMarginScale,
         	    	minimalGridContrast,
         	    	shrinkBlurSigma,
     		    	shrinkBlurLevel,
@@ -484,6 +511,10 @@ import ij.gui.GenericDialog;
     	    	int    shrinkGridForMask, //shrink detected grids by one point for/vert this number of times before calculating masks
     	    	double maskBlurSigma,      // blur sensor masks (in grid units)
     	    	int    defaultDecimateMasks,       // reduce masks resolution
+    	    	boolean replaceBad,
+    	    	boolean removeWorst,
+    	    	double weightBad,
+    	    	double weightWorst,
     	    	double badNodeThreshold, // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
     	    	int    maxBadNeighb, // maximal number of bad nodes around the corrected one to fix
     	    	int    minimalValidNodes,
@@ -491,6 +522,7 @@ import ij.gui.GenericDialog;
     	    	double  weightMultiExponent,
     	    	double  weightDiameterExponent, // if( >0) use grid diameter to scale weights of this image
     	    	double weightYtoX,
+    	    	double gridMarginScale,
     	    	double minimalGridContrast,
     	    	double shrinkBlurSigma,
     	    	double shrinkBlurLevel,
@@ -507,6 +539,10 @@ import ij.gui.GenericDialog;
 	    	this.shrinkGridForMask=shrinkGridForMask; //shrink detected grids by one point for/vert this number of times before calculating masks
 	    	this.maskBlurSigma=maskBlurSigma;      // blur sensor masks (in grid units)
 	    	this.defaultDecimateMasks=defaultDecimateMasks;
+	    	this.replaceBad = replaceBad;
+	    	this.removeWorst = removeWorst;
+	    	this.weightBad = weightBad;
+	    	this.weightWorst = weightWorst;
 	    	this.badNodeThreshold=badNodeThreshold; // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
 	    	this.maxBadNeighb=maxBadNeighb; // maximal number of bad nodes around the corrected one to fix
 	    	this.minimalValidNodes=minimalValidNodes;
@@ -514,6 +550,7 @@ import ij.gui.GenericDialog;
 	    	this.weightMultiExponent=weightMultiExponent;
 	    	this.weightDiameterExponent=weightDiameterExponent; // if( >0) use grid diameter to scale weights of this image
 	    	this.weightYtoX=weightYtoX;
+	    	this.gridMarginScale=gridMarginScale;
 	    	this.minimalGridContrast=minimalGridContrast;
 	    	this.goniometerHorizontal=new double[numStations];
     		this.goniometerAxial=new double[numStations];
@@ -570,6 +607,10 @@ import ij.gui.GenericDialog;
     		destination.shrinkGridForMask=source.shrinkGridForMask; //shrink detected grids by one point for/vert this number of times before calculating masks
     		destination.maskBlurSigma=source.maskBlurSigma;      // blur sensor masks (in grid units)
     		destination.defaultDecimateMasks=source.defaultDecimateMasks;
+    		destination.replaceBad = source.replaceBad;
+    		destination.removeWorst = source.removeWorst;
+    		destination.weightBad = source.weightBad;
+    		destination.weightWorst = source.weightWorst;
     		destination.badNodeThreshold=source.badNodeThreshold; // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
     		destination.maxBadNeighb=source.maxBadNeighb; // maximal number of bad nodes around the corrected one to fix
     		destination.minimalValidNodes=source.minimalValidNodes;
@@ -577,6 +618,7 @@ import ij.gui.GenericDialog;
     		destination.weightMultiExponent= source.weightMultiExponent; // if( >0) use grid diameter to scale weights of this image
     		destination.weightDiameterExponent=source.weightDiameterExponent;
     		destination.weightYtoX=source.weightYtoX;
+    		destination.gridMarginScale=source.gridMarginScale;
 	    	destination.minimalGridContrast=source.minimalGridContrast;
 	    	destination.shrinkBlurSigma=source.shrinkBlurSigma;
 	    	destination.shrinkBlurLevel=source.shrinkBlurLevel;
@@ -627,6 +669,10 @@ import ij.gui.GenericDialog;
     		properties.setProperty(prefix+"shrinkGridForMask",this.shrinkGridForMask+"");
     		properties.setProperty(prefix+"maskBlurSigma",this.maskBlurSigma+"");
     		properties.setProperty(prefix+"defaultDecimateMasks",this.defaultDecimateMasks+"");
+    		properties.setProperty(prefix+"replaceBad", this.replaceBad+"");
+    		properties.setProperty(prefix+"removeWorst", this.removeWorst+"");
+    		properties.setProperty(prefix+"weightBad",  this.weightBad+"");
+    		properties.setProperty(prefix+"weightWorst",this.weightWorst+"");
     		properties.setProperty(prefix+"badNodeThreshold",this.badNodeThreshold+"");
     		properties.setProperty(prefix+"maxBadNeighb",this.maxBadNeighb+"");
     		properties.setProperty(prefix+"minimalValidNodes",this.minimalValidNodes+"");
@@ -634,6 +680,7 @@ import ij.gui.GenericDialog;
     		properties.setProperty(prefix+"weightMultiExponent",this.weightMultiExponent+"");
     		properties.setProperty(prefix+"weightDiameterExponent",this.weightDiameterExponent+"");
     		properties.setProperty(prefix+"weightYtoX",this.weightYtoX+"");
+    		properties.setProperty(prefix+"gridMarginScale",this.gridMarginScale+"");
     		properties.setProperty(prefix+"minimalGridContrast",this.minimalGridContrast+"");
     		properties.setProperty(prefix+"shrinkBlurSigma",this.shrinkBlurSigma+"");
     		properties.setProperty(prefix+"shrinkBlurLevel",this.shrinkBlurLevel+"");
@@ -687,6 +734,16 @@ import ij.gui.GenericDialog;
     		if (properties.getProperty(prefix+"maskBlurSigma")!=null)
     			this.maskBlurSigma=Double.parseDouble(properties.getProperty(prefix+"maskBlurSigma"));
 
+
+    		if (properties.getProperty(prefix+"replaceBad")!=null)
+    			this.replaceBad=Boolean.parseBoolean(properties.getProperty(prefix+"replaceBad"));
+    		if (properties.getProperty(prefix+"removeWorst")!=null)
+    			this.removeWorst=Boolean.parseBoolean(properties.getProperty(prefix+"removeWorst"));
+    		if (properties.getProperty(prefix+"weightBad")!=null)
+    			this.weightBad=Double.parseDouble(properties.getProperty(prefix+"weightBad"));
+    		if (properties.getProperty(prefix+"weightWorst")!=null)
+    			this.weightWorst=Double.parseDouble(properties.getProperty(prefix+"weightWorst"));
+
     		if (properties.getProperty(prefix+"badNodeThreshold")!=null)
     			this.badNodeThreshold=Double.parseDouble(properties.getProperty(prefix+"badNodeThreshold"));
     		if (properties.getProperty(prefix+"maxBadNeighb")!=null)
@@ -701,6 +758,8 @@ import ij.gui.GenericDialog;
     			this.weightDiameterExponent=Double.parseDouble(properties.getProperty(prefix+"weightDiameterExponent"));
     		if (properties.getProperty(prefix+"weightYtoX")!=null)
     			this.weightYtoX=Double.parseDouble(properties.getProperty(prefix+"weightYtoX"));
+    		if (properties.getProperty(prefix+"gridMarginScale")!=null)
+    			this.gridMarginScale=Double.parseDouble(properties.getProperty(prefix+"gridMarginScale"));
     		if (properties.getProperty(prefix+"minimalGridContrast")!=null)
     			this.minimalGridContrast=Double.parseDouble(properties.getProperty(prefix+"minimalGridContrast"));
     		if (properties.getProperty(prefix+"shrinkBlurSigma")!=null)
@@ -865,6 +924,11 @@ import ij.gui.GenericDialog;
     		gd.addNumericField("Gaussian blur masks for the sensors (positive - pixels, negative - grid half-periods)", this.maskBlurSigma, 2,6,"pix");
     		gd.addNumericField("Reduce sensor resolution when calculating masks",                      this.defaultDecimateMasks, 0);
 
+    		gd.addCheckbox    ("Replace bad/locally worst nodes by interpolation",                     this.replaceBad);
+    		gd.addCheckbox    ("Rremove completely locally worst nodes ",                              this.removeWorst);
+    		gd.addNumericField("Scale weight of bad nodes",                                            this.weightBad, 3,6,"");
+    		gd.addNumericField("Scale weight of bad, locally worst nodes",                             this.weightWorst, 3,6,"");
+
     		gd.addNumericField("Filter out grid nodes with difference from quadratically predicted from 8 neighbors", this.badNodeThreshold, 2,6,"pix");
     		gd.addNumericField("Maximal number of bad nodes around the corrected one to fix",          this.maxBadNeighb, 0);
     		gd.addNumericField("Minimal number of valid (with all filters applied) nodes in each image",this.minimalValidNodes, 0);
@@ -872,6 +936,7 @@ import ij.gui.GenericDialog;
     		gd.addNumericField("Increase weight of the multi-image sets power (used with mode above)", this.weightMultiExponent, 2,6,"");
     		gd.addNumericField("Increase weight of the images by the power of their diameters", this.weightDiameterExponent, 2,6,"");
     		gd.addNumericField("Increase weight Y-error with respect to X-error",                100.0*this.weightYtoX, 2,6,"%");
+    		gd.addNumericField("Apply -scaled maximal to grid margins (_extra) for masks",             this.gridMarginScale, 2,6,"");
     		gd.addNumericField("Filter out grid nodes with the contrast less than this value (maximal is ~0.8) ", this.minimalGridContrast, 2,6,"");
     		gd.addNumericField("Shrink-blur detected grids alpha",                                     this.shrinkBlurSigma, 2,6,"grid nodes");
     		gd.addNumericField("Shrink-blur detected grids  level (-1..+1)",                           this.shrinkBlurLevel, 2,6,"");
@@ -918,6 +983,10 @@ import ij.gui.GenericDialog;
     		this.shrinkGridForMask=   (int) gd.getNextNumber();
     		this.maskBlurSigma=             gd.getNextNumber();
     		this.defaultDecimateMasks=(int) gd.getNextNumber();
+    		this.replaceBad =               gd.getNextBoolean();
+    		this.removeWorst =              gd.getNextBoolean();
+	    	this.weightBad=                 gd.getNextNumber();
+	    	this.weightWorst=               gd.getNextNumber();
 	    	this.badNodeThreshold=          gd.getNextNumber();
 	    	this.maxBadNeighb=        (int) gd.getNextNumber();
 	    	this.minimalValidNodes=   (int) gd.getNextNumber();
@@ -925,6 +994,7 @@ import ij.gui.GenericDialog;
     		this.weightMultiExponent=       gd.getNextNumber();
     		this.weightDiameterExponent=    gd.getNextNumber();
     		this.weightYtoX=           0.01*gd.getNextNumber();
+    		this.gridMarginScale=           gd.getNextNumber();
 	    	this.minimalGridContrast=       gd.getNextNumber();
 	    	this.shrinkBlurSigma =          gd.getNextNumber();
 	    	this.shrinkBlurLevel =          gd.getNextNumber();

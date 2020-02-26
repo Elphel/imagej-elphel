@@ -139,7 +139,7 @@ import ij.text.TextWindow;
     		public double [][] pixelsXY=   null; // for each image, each grid node - a set of of {px,py,contrast,vignR,vignG,vignB} vign* is in the 0..1.0 range
     		public double []   pixelsMask= null; // for each image, each grid node - weight function derived from contrast and 3 parameters
     		public int    [][] pixelsUV=  null; // for each image, each grid node - a pair of {gridU, gridV}
-    		public boolean  [] badNodes=  null; // if not null, marks node with excessive errors
+    		private boolean  [] badNodes=  null; // if not null, marks node with excessive errors
     		public double [][] pixelsXY_extra=  null; // extra data, for nodes that are out of the physical grid (may be needed after re-calibration)
     		public int    [][] pixelsUV_extra=  null;
     		private double      gridPeriod=0.0;  // average grid period, in pixels (to filter out (double-) reflected images
@@ -269,6 +269,8 @@ import ij.text.TextWindow;
         	}
 
         	public void calculateMask(
+        			boolean proportional,
+        			double gridMarginScale,
         			double minContrast,
         			double shrinkBlurSigma,
         			double shrinkBlurLevel){
@@ -298,11 +300,48 @@ import ij.text.TextWindow;
         		int width= (maxU-minU+1+2*margin);
         		int height=(maxV-minV+1+2*margin);
         		double [] mask = new double [width*height];
+        		/*
         		for (int i=0;i<mask.length;i++) mask[i]=-1.0;
         		for (int i=0;i<this.pixelsUV.length;i++){
         			int index=(this.pixelsUV[i][0]-U0)+width*(this.pixelsUV[i][1]-V0);
         			mask[index]=(this.pixelsXY[i][contrastIndex]>=minContrast)?1.0:-1.0; // java.lang.ArrayIndexOutOfBoundsException: 2230
         		}
+        		*/
+
+//        		for (int i=0;i<mask.length;i++) mask[i]=-1.0;
+        		// trying to shrink grid only where there is an edge of the grid, keeping sensor outer regions intact
+        		double contrast = 0;
+        		for (int i=0;i<this.pixelsUV.length;i++){
+        			int index=(this.pixelsUV[i][0]-U0)+width*(this.pixelsUV[i][1]-V0);
+        			if (this.pixelsXY[i][contrastIndex] > contrast) contrast = this.pixelsXY[i][contrastIndex];
+        			if (proportional) {
+        				if (this.pixelsXY[i][contrastIndex] > 0.0) {
+        					mask[index] = this.pixelsXY[i][contrastIndex];
+        				}
+        			} else {
+        				if (this.pixelsXY[i][contrastIndex]>=minContrast) mask[index] = 1.0;
+        			}
+        		}
+        		contrast *= -gridMarginScale;
+        		if (!proportional) {
+        			contrast =-1;
+        		}
+        		if (this.pixelsUV_extra !=null) {
+        			for (int i=0;i<this.pixelsUV_extra.length;i++){
+        				int iu = this.pixelsUV_extra[i][0]-U0;
+        				int iv = this.pixelsUV_extra[i][1]-V0;
+        				if ((iu >= 0) && (iv >= 0) && (iu < width) && (iv < height)) {
+        					int index = iu +iv * width;
+        					mask[index] = contrast;
+        				}
+        			}
+        		}
+
+        		for (int i=0;i<this.pixelsUV.length;i++){
+        			int index=(this.pixelsUV[i][0]-U0)+width*(this.pixelsUV[i][1]-V0);
+        			mask[index]=(this.pixelsXY[i][contrastIndex]>=minContrast)?1.0:-1.0; // java.lang.ArrayIndexOutOfBoundsException: 2230
+        		}
+
         		(new DoubleGaussianBlur()).blurDouble(
 							mask,
 							width,
@@ -320,7 +359,83 @@ import ij.text.TextWindow;
         		}
  //      		System.out.print(" "+IJ.d2s(dbgMax,2)+" ");
         	}
-    	}
+
+         	public void showGridImage() {
+        		if (this.pixelsUV==null) return;
+        		int len0 = this.pixelsUV.length;
+        		if (this.pixelsUV_extra== null) this.pixelsUV_extra = new int[0][];
+        		if (this.pixelsXY_extra== null) this.pixelsXY_extra = new double[0][];
+        		int lenE = this.pixelsUV_extra.length;
+        		int len = len0 + lenE;
+        		if (len==0) return;
+        		// find
+         		String [] titles = {
+         				"pX", // 0
+         				"pY", // 1
+         				"U",  //2
+         				"V",  // 3
+         				"contrast", // 4
+         				"R", //5
+         				"G", //6
+         				"B", //7
+         				"Extra", // 8
+         				"Mask"}; //9
+        		int minU=this.pixelsUV[0][0],minV=this.pixelsUV[0][1];
+        		int maxU=minU,maxV=minV;
+        		int margin=0;//(int) (2*shrinkBlurSigma);
+        		int [][][]    pUV= {this.pixelsUV, this.pixelsUV_extra};
+        		double [][][] pXY= {this.pixelsXY, this.pixelsXY_extra};
+        		for (int mode = 0; mode < pUV.length; mode++) {
+        			for (int i=0; i < pUV[mode].length; i++){
+        				if (pUV[mode][i][0] > maxU) maxU = pUV[mode][i][0];
+        				if (pUV[mode][i][0] < minU) minU = pUV[mode][i][0];
+        				if (pUV[mode][i][1] > maxV) maxV = pUV[mode][i][1];
+        				if (pUV[mode][i][1] < minV) minV = pUV[mode][i][1];
+        			}
+        		}
+
+        		int U0=minU-margin;
+        		int V0=minV-margin;
+        		int width= (maxU-minU+1+2*margin);
+        		int height=(maxV-minV+1+2*margin);
+        		double [][] dbg_img = new double [titles.length][width*height];
+        		for (int i = 0; i < dbg_img.length;i++) for (int j = 0; j < dbg_img[i].length;j++) {
+        			dbg_img[i][j] = Double.NaN;
+        		}
+        		for (int mode = 0; mode < pUV.length; mode++) {
+        			for (int i=0; i < pUV[mode].length; i++){
+            			int index=(pUV[mode][i][0]-U0)+width*(pUV[mode][i][1]-V0);
+            			if ((index >= dbg_img[0].length) || (i >= pXY[mode].length)) {
+            				System.out.println("BUG");
+            			}
+            			dbg_img[0][index] = pXY[mode][i][0];
+            			dbg_img[1][index] = pXY[mode][i][1];
+            			dbg_img[2][index] = pUV[mode][i][0];
+            			dbg_img[3][index] = pUV[mode][i][1];
+            			dbg_img[4][index] = pXY[mode][i][2]; // contrast
+            			dbg_img[5][index] = pXY[mode][i][3]; // R
+            			dbg_img[6][index] = pXY[mode][i][4]; // G
+            			dbg_img[7][index] = pXY[mode][i][5]; // B
+            			dbg_img[8][index] = mode+1; // 9
+            			if ((this.pixelsMask != null) && (mode == 0)) {
+                			dbg_img[9][index] = this.pixelsMask[i]; // 9
+            			}
+        			}
+        		}
+        		(new ShowDoubleFloatArrays()).showArrays(
+        				dbg_img,
+        				width,
+        				height,
+        				true,
+        				"GI-"+this.imgNumber,
+        				titles);
+         	}
+
+
+     	}
+
+
+
     	public class GridImageSet{
     		private int numPars=53; // 27;
     		private int thisParsStartIndex=6;
@@ -992,13 +1107,17 @@ import ij.text.TextWindow;
                     			set_widths[nc] = imp_grid.getWidth();
 
 
-                    			int numBadNodes = 0;
+                    			int [] numBadNodes = new int [2];
                     			if (this.eyesisCameraParameters.badNodeThreshold>0.0){
                     				boolean thisDebug =false;
                     				//                            		thisDebug|=        (fileNumber== 720); // chn 25
                     				numBadNodes=fixBadGridNodes(
                     						pixels,
                     						stack.getWidth(),
+                                    		this.eyesisCameraParameters.replaceBad,
+                                    		this.eyesisCameraParameters.removeWorst,
+                                    		this.eyesisCameraParameters.weightBad,
+                                    		this.eyesisCameraParameters.weightWorst,
                     						this.eyesisCameraParameters.badNodeThreshold,
                     						this.eyesisCameraParameters.maxBadNeighb,
                     						this.debugLevel+(thisDebug?3:0),
@@ -1023,8 +1142,15 @@ import ij.text.TextWindow;
                 					} else {
                 						System.out.print(" [null]");
                 					}
-                					if (numBadNodes>0)
-                						System.out.print("  -- replaced "+numBadNodes+" bad grid nodes");
+                					if ((numBadNodes[0] + numBadNodes [1])>0) {
+                						if (this.eyesisCameraParameters.removeWorst) {
+                								System.out.print("  -- removed "+numBadNodes[0]+"("+numBadNodes[1]+")locally worst grid nodes,");
+                						} else if (this.eyesisCameraParameters.replaceBad){
+                							System.out.print("  -- replaced "+numBadNodes[0]+"("+numBadNodes[1]+") bad grid nodes,");
+                						} else {
+                							System.out.print("  -- scaled "+numBadNodes[0]+"("+numBadNodes[1]+") bad grid nodes,");
+                						}
+                					}
                 					int [] uvrot=this.gIP[numFile].getUVShiftRot();
                 					System.out.println(" shift:rot="+uvrot[0]+"/"+uvrot[1]+":"+uvrot[2]+
                 							" enabled="+this.gIP[numFile].enabled+" hintedMatch="+this.gIP[numFile].hintedMatch);
@@ -3797,25 +3923,37 @@ import ij.text.TextWindow;
 
     			}
 
-            	if (this.eyesisCameraParameters.badNodeThreshold>0.0){
-            		boolean thisDebug =false;
-//            		thisDebug|=        (fileNumber== 720); // chn 25
-                 int numBadNodes=fixBadGridNodes(
-                		pixels,
-                		stack.getWidth(),
-                		this.eyesisCameraParameters.badNodeThreshold,
-                		this.eyesisCameraParameters.maxBadNeighb,
-                		this.debugLevel+(thisDebug?3:0),
-                		thisDebug?("fixBad-"+fileNumber):null
-                		);
-                 if (this.debugLevel>-1) {
-                  if (numBadNodes>0)
-                	  System.out.print("  -- replaced "+numBadNodes+" bad grid nodes");
-                  int [] uvrot=this.gIP[fileNumber].getUVShiftRot();
-                  System.out.println(" shift:rot="+uvrot[0]+"/"+uvrot[1]+":"+uvrot[2]+
-                		  " enabled="+this.gIP[fileNumber].enabled+" hintedMatch="+this.gIP[fileNumber].hintedMatch);
-                 }
-            	}
+    			if (this.eyesisCameraParameters.badNodeThreshold>0.0){
+    				boolean thisDebug =false;
+    				//            		thisDebug|=        (fileNumber== 720); // chn 25
+    				int [] numBadNodes=fixBadGridNodes(
+    						pixels,
+    						stack.getWidth(),
+    						this.eyesisCameraParameters.replaceBad,
+    						this.eyesisCameraParameters.removeWorst,
+    						this.eyesisCameraParameters.weightBad,
+    						this.eyesisCameraParameters.weightWorst,
+    						this.eyesisCameraParameters.badNodeThreshold,
+    						this.eyesisCameraParameters.maxBadNeighb,
+    						this.debugLevel+(thisDebug?3:0),
+    						thisDebug?("fixBad-"+fileNumber):null
+    						);
+    				if (this.debugLevel>-1) {
+    					if ((numBadNodes[0] + numBadNodes [1])>0) {
+    						if (this.eyesisCameraParameters.removeWorst) {
+    								System.out.print("  -- removed "+numBadNodes[0]+"("+numBadNodes[1]+") locally worst grid nodes,");
+    						} else if (this.eyesisCameraParameters.replaceBad){
+    							System.out.print("  -- replaced "+numBadNodes[0]+"("+numBadNodes[1]+") bad grid nodes,");
+    						} else {
+    							System.out.print("  -- scaled "+numBadNodes[0]+"("+numBadNodes[1]+") bad grid nodes,");
+    						}
+    					}
+
+    					int [] uvrot=this.gIP[fileNumber].getUVShiftRot();
+    					System.out.println(" shift:rot="+uvrot[0]+"/"+uvrot[1]+":"+uvrot[2]+
+    							" enabled="+this.gIP[fileNumber].enabled+" hintedMatch="+this.gIP[fileNumber].hintedMatch);
+    				}
+    			}
 
     			this.gIP[fileNumber].flatFieldAvailable=pixels.length>=8;
             	if (disableNoFlatfield && !this.gIP[fileNumber].flatFieldAvailable) this.gIP[fileNumber].enabled=false; // just to use old mixed data
@@ -3860,25 +3998,33 @@ import ij.text.TextWindow;
          * This program replaces the "bad" ones with predicted by 8 neighbors using 2-nd order interpolation
          * @param fPixels stack of pX,pY,target-U,target-V,contrast (some bad pixels have low contrast), red,green,blue
          * @param width grid width
+         * @param removeBad remove bad nodes, do not try to fix them
          * @param tolerance maximal tolerated difference between the predicted by 8 neigbors and center pixels
          * @parame maxBadNeighb - maximal number of bad cells among 8 neighbors
          * @parame gebugLevel debug level
-         * @return number of fixed nodes
+         * @return number of fixed/removed nodes (first - fixed/removed, second other bad
          * Neighbors of bad pixels can be reported bad, so they have to be re-tried with the worst removed
          */
-        public int fixBadGridNodes(
+        public int [] fixBadGridNodes(
         		float [][] fpixels,
         		int width,
+        		boolean replaceBad,
+        		boolean removeWorst,
+        		double  weightBad,
+        		double  weightWorst,
         		double tolerance,
         		int maxBadNeighb,
         		int debugLevel,
         		String dbgTitle){
+        	int badMark = -2; // use -1?
+//        	double zeroContrast = 1.0; //  0.1; // 1.0; // interpolation weight of nodes with zero contreast
+//        	boolean allBad=true; // false - only local worst
         	int debugThreshold=3;
         	double tolerance2=tolerance*tolerance;
         	double tolerance2Final=10.0*tolerance2; // final pass - fix even if the surronding are not that good
         	int [][] dirs8=   {{1,0},{1,1},{0,1},{-1,1},{-1,0},{-1,-1},{0,-1},{1,-1}};
         	int [] dirs8Index={1,width+1,width,width-1,-1,-width-1,-width,-width+1};
-        	double [] diffs2=new double [fpixels[0].length];
+        	double [] diffs2=new double [fpixels[INDEX_PX].length];
         	int height=diffs2.length/width;
         	for (int i=0;i<diffs2.length;i++) diffs2[i]=-1.0; // no nodes
         	double [][][] data=new double [8][3][];
@@ -3891,18 +4037,18 @@ import ij.text.TextWindow;
         	double maxDiff2=0.0;
         	for (int y=1; y<(height-1);y++) for (int x=1;x<(width-1);x++) {
         		int index=y*width+x;
-        		if (fpixels[0][index]>=0.0){
+        		if (fpixels[INDEX_PX][index]>=0.0){
         			int numNonZero=0;
         			for (int iDir=0;iDir<dirs8.length;iDir++){
         				int index1=index+dirs8[iDir][1]*width+dirs8[iDir][0];
         				data[iDir][0][0]=dirs8[iDir][0];
         				data[iDir][0][1]=dirs8[iDir][1];
-        				data[iDir][1][0]=fpixels[0][index1];
-        				data[iDir][1][1]=fpixels[1][index1];
-        				if ((fpixels[0][index1]<0) || (fpixels[1][index1]<0)){
+        				data[iDir][1][0]=fpixels[INDEX_PX][index1];
+        				data[iDir][1][1]=fpixels[INDEX_PY][index1];
+        				if ((fpixels[INDEX_PX][index1]<0) || (fpixels[INDEX_PY][index1]<0)){
         					data[iDir][2][0]=0.0;
         				} else {
-        					data[iDir][2][0]=1.0;
+        					data[iDir][2][0]= 1.0; // fpixels[INDEX_CONTRAST][index1] + zeroContrast; // 1.0; Make it weighted
         					numNonZero++;
         				}
         			}
@@ -3919,10 +4065,19 @@ import ij.text.TextWindow;
             					}
             				}
         				}
-        				double dx=coeff[0][coeff[0].length-1] - fpixels[0][index];
-        				double dy=coeff[1][coeff[1].length-1] - fpixels[1][index];
+        				double dx=coeff[0][coeff[0].length-1] - fpixels[INDEX_PX][index];
+        				double dy=coeff[1][coeff[1].length-1] - fpixels[INDEX_PY][index];
         				diffs2[index]=dx*dx+dy*dy;
-        				if (diffs2[index]>maxDiff2) maxDiff2=diffs2[index];
+        				if (diffs2[index]>maxDiff2) {
+        					maxDiff2=diffs2[index];
+        				}
+        	        	if (maxDiff2 > tolerance2) {
+        	        		if (debugLevel> 2){
+        	        			System.out.println("index="+index+": "+Math.sqrt(maxDiff2));
+        	        		}
+
+        	        	}
+
         			} else {
         				if (debugLevel>0){
         					System.out.println("fixBadGridNodes() failed for x="+x+", y="+y);
@@ -3930,15 +4085,19 @@ import ij.text.TextWindow;
         			}
         		}
         	}
-        	if (maxDiff2<=tolerance2) return 0; // nothing to fix
+
+        	if (maxDiff2<=tolerance2) return new int[2]; // nothing to fix
         	// here - first debug show?
         	boolean [] localWorst=new boolean[diffs2.length];
+        	boolean [] badNodes= new boolean[diffs2.length];
         	int numBad=0;
         	for (int i=0;i<localWorst.length;i++){
         		if (diffs2[i]<tolerance2){
         			localWorst[i]=false;
+        			badNodes[i] = false;
         		} else {
         			localWorst[i]=true;
+        			badNodes[i] = true;
         			for (int iDir=0;iDir<dirs8Index.length;iDir++) if (diffs2[i+dirs8Index[iDir]] > diffs2[i]){
         				localWorst[i]=false;
         				break;
@@ -3948,8 +4107,9 @@ import ij.text.TextWindow;
         	}
         	if (numBad==0) {
 				System.out.println("fixBadGridNodes() BUG - should not get here.");
-        		return 0; // should not get here -
+        		return new int[2]; // should not get here -
         	}
+
         	double [][] dbgData=null;
 			if (debugLevel>debugThreshold){
 				dbgData=new double[9][];
@@ -3958,171 +4118,197 @@ import ij.text.TextWindow;
 				for (int i=0;i< dbgData[2].length;i++) if (!localWorst[i]) dbgData[2][i]=-1.0;
 //				(new showDoubleFloatArrays()).showArrays(diffs2, width, height,  "diffs2");
 			}
-        	// Trying to eliminate all non local worst (may that is just extra as there anot too many bad nodes)
-        	int numStillBad=0;
-        	for (int i=0;i<localWorst.length;i++) if (localWorst[i]){
-        		for (int iDir0=0;iDir0<dirs8Index.length;iDir0++) if (diffs2[i+dirs8Index[iDir0]] > tolerance2){ // don't bother with not-so-bad
-        			int index=i+dirs8Index[iDir0]; // will never be on the border as diffs2 is <=0.0 there
-        			int numNonZero=0;
-        			for (int iDir=0;iDir<dirs8.length;iDir++){
-        				int index1=index+dirs8[iDir][1]*width+dirs8[iDir][0];
-        				data[iDir][0][0]=dirs8[iDir][0];
-        				data[iDir][0][1]=dirs8[iDir][1];
-        				data[iDir][1][0]=fpixels[0][index1];
-        				data[iDir][1][1]=fpixels[1][index1];
-        				if ((data[iDir][1][0]<0) || (data[iDir][1][1]<0) || localWorst[index1]){
-            				data[iDir][2][0]=0.0;
-        				} else {
-        					data[iDir][2][0]=1.0;
-        					numNonZero++;
-        				}
 
-        			}
-    				if (debugLevel>3){
-    					System.out.print("+++ fixBadGridNodes() trying to fix for x="+(index%width)+", y="+(index/width)+", iDir0="+iDir0+" numNonZero="+numNonZero+" maxBadNeighb="+maxBadNeighb);
-    				}
+			if (replaceBad) {
+				// Trying to eliminate all non local worst (may that is just extra as there anot too many bad nodes)
+				int numStillBad=0;
+				for (int i=0;i<localWorst.length;i++) if (localWorst[i]){
+					for (int iDir0=0;iDir0<dirs8Index.length;iDir0++) if (diffs2[i+dirs8Index[iDir0]] > tolerance2){ // don't bother with not-so-bad
+						int index=i+dirs8Index[iDir0]; // will never be on the border as diffs2 is <=0.0 there
+						int numNonZero=0;
+						for (int iDir=0;iDir<dirs8.length;iDir++){
+							int index1=index+dirs8[iDir][1]*width+dirs8[iDir][0];
+							data[iDir][0][0]=dirs8[iDir][0];
+							data[iDir][0][1]=dirs8[iDir][1];
+							data[iDir][1][0]=fpixels[INDEX_PX][index1];
+							data[iDir][1][1]=fpixels[INDEX_PY][index1];
+							if ((data[iDir][1][0]<0) || (data[iDir][1][1]<0) || localWorst[index1]){
+								data[iDir][2][0]=0.0;
+							} else {
+								data[iDir][2][0] = 1.0; //  fpixels[INDEX_CONTRAST][index1] + zeroContrast; // 1.0; Make it weighted
+								numNonZero++;
+							}
 
-        			if (numNonZero<(data.length-maxBadNeighb-1)) continue;
-        			double [][] coeff=polynomialApproximation.quadraticApproximation(
-        					data,
-        					false); // boolean forceLinear  // use linear approximation
-        			if (coeff!=null) {
-        				double dx=coeff[0][coeff[0].length-1] - fpixels[0][index];
-        				double dy=coeff[1][coeff[1].length-1] - fpixels[1][index];
-        				if (debugLevel>3){
-        					System.out.print("fixBadGridNodes() old diffs2["+index+"]="+diffs2[index]);
-        				}
-        				diffs2[index]=dx*dx+dy*dy; // updated value
-        				if (debugLevel>3){
-        					System.out.print(" new diffs2["+index+"]="+diffs2[index]);
-        				}
-        				if (diffs2[index]>tolerance2) {
-        					numStillBad++;
-            				if (debugLevel>3){
-            					System.out.print(" --- BAD");
-            				}
-        				} else if (debugLevel>3){
-        					System.out.print(" --- GOOD");
-        				}
-        				if ((coeff[0].length<6) || (coeff[1].length<6)){
-        					if (debugLevel>3){
-            					System.out.print("fixBadGridNodes() 2 linear interpolate for x="+(index%width)+", y="+(index/width));
-            					for (int j=0;j<data.length;j++){
-            						System.out.println(j+" "+data[j][0][0]+"/"+data[j][0][1]+" - "+data[j][1][0]+"/"+data[j][1][1]+" : "+data[j][2][0]);
-            					}
-            				}
-        				}
-        			} else {
-        				if (debugLevel>3){
-        					System.out.println("fixBadGridNodes() failed for x="+(index%width)+", y="+(index/width)+", iDir0="+iDir0);
-        				}
-        			}
-        			if (debugLevel>3) System.out.println();
-        		}
-        	}
-        	if (numStillBad>0){
-        		if (debugLevel>3){
-        			System.out.println("fixBadGridNodes(): numStillBad="+numStillBad+" > 0 - probably near the border, just make sure  OK.");
-        		}
-        	}
-			if (debugLevel>debugThreshold){
-				dbgData[1]=diffs2.clone();
-				for (int i=0;i< dbgData[1].length;i++) if (localWorst[i]) dbgData[1][i]=0.0;
-				dbgData[3]=new double[dbgData[0].length];
-				for (int i=0;i< dbgData[3].length;i++)  dbgData[3][i]=0.0;
-				dbgData[4]=dbgData[3].clone();
-				dbgData[5]=dbgData[3].clone();
-				dbgData[6]=dbgData[3].clone();
-				dbgData[7]=dbgData[3].clone();
-				dbgData[8]=dbgData[3].clone();
-				for (int i=0;i< dbgData[3].length;i++)  {
-					dbgData[3][i]=fpixels[0][i];
-					dbgData[4][i]=fpixels[1][i];
-			    }
+						}
+						if (debugLevel>3){
+							System.out.print("+++ fixBadGridNodes() trying to fix for x="+(index%width)+", y="+(index/width)+", iDir0="+iDir0+" numNonZero="+numNonZero+" maxBadNeighb="+maxBadNeighb);
+						}
+
+						if (numNonZero<(data.length-maxBadNeighb-1)) continue;
+						double [][] coeff=polynomialApproximation.quadraticApproximation(
+								data,
+								false); // boolean forceLinear  // use linear approximation
+						if (coeff!=null) {
+							double dx=coeff[0][coeff[0].length-1] - fpixels[INDEX_PX][index];
+							double dy=coeff[1][coeff[1].length-1] - fpixels[INDEX_PY][index];
+							if (debugLevel>3){
+								System.out.print("fixBadGridNodes() old diffs2["+index+"]="+diffs2[index]);
+							}
+							diffs2[index]=dx*dx+dy*dy; // updated value
+							if (debugLevel>3){
+								System.out.print(" new diffs2["+index+"]="+diffs2[index]);
+							}
+							if (diffs2[index]>tolerance2) {
+								numStillBad++;
+								if (debugLevel>3){
+									System.out.print(" --- BAD");
+								}
+							} else if (debugLevel>3){
+								System.out.print(" --- GOOD");
+							}
+							if ((coeff[0].length<6) || (coeff[1].length<6)){
+								if (debugLevel>3){
+									System.out.print("fixBadGridNodes() 2 linear interpolate for x="+(index%width)+", y="+(index/width));
+									for (int j=0;j<data.length;j++){
+										System.out.println(j+" "+data[j][0][0]+"/"+data[j][0][1]+" - "+data[j][1][0]+"/"+data[j][1][1]+" : "+data[j][2][0]);
+									}
+								}
+							}
+						} else {
+							if (debugLevel>3){
+								System.out.println("fixBadGridNodes() failed for x="+(index%width)+", y="+(index/width)+", iDir0="+iDir0);
+							}
+						}
+						if (debugLevel>3) System.out.println();
+					}
+				}
+				if (numStillBad>0){
+					if (debugLevel>3){
+						System.out.println("fixBadGridNodes(): numStillBad="+numStillBad+" > 0 - probably near the border, just make sure  OK.");
+					}
+				}
+				if (debugLevel>debugThreshold){
+					dbgData[1]=diffs2.clone();
+					for (int i=0;i< dbgData[1].length;i++) if (localWorst[i]) dbgData[1][i]=0.0;
+					dbgData[3]=new double[dbgData[0].length];
+					for (int i=0;i< dbgData[3].length;i++)  dbgData[3][i]=0.0;
+					dbgData[4]=dbgData[3].clone();
+					dbgData[5]=dbgData[3].clone();
+					dbgData[6]=dbgData[3].clone();
+					dbgData[7]=dbgData[3].clone();
+					dbgData[8]=dbgData[3].clone();
+					for (int i=0;i< dbgData[3].length;i++)  {
+						dbgData[3][i]=fpixels[INDEX_PX][i];
+						dbgData[4][i]=fpixels[INDEX_PY][i];
+					}
+				}
+
+				// TODO - try to fix some around pixels first?
+
+				// Actually patching locally worst nodes
+				for (int index=0;index<localWorst.length;index++) if (localWorst[index]){
+					int numNonZero=0;
+					for (int iDir=0;iDir<dirs8.length;iDir++){
+						int index1=index+dirs8[iDir][1]*width+dirs8[iDir][0];
+						data[iDir][0][0]=dirs8[iDir][0];
+						data[iDir][0][1]=dirs8[iDir][1];
+						data[iDir][1][0]=fpixels[INDEX_PX][index1];
+						data[iDir][1][1]=fpixels[INDEX_PY][index1];
+						if (diffs2[index1]>tolerance2Final){ // increased tolerance for the final correction
+							data[iDir][2][0]=0.0; // do not count neighbors who are bad themselves
+						} else {
+							data[iDir][2][0]=  1.0; // fpixels[INDEX_CONTRAST][index1]+ zeroContrast; // 1.0; Make it weighted
+							numNonZero++;
+						}
+					}
+					if (numNonZero<(data.length-maxBadNeighb)){
+						if (debugLevel>3){
+							System.out.println("fixBadGridNodes() failed x="+(index%width)+", y="+(index/width)+", number of good neighbors="+numNonZero);
+						}
+						continue; // do not fix anything
+					}
+					double [][] coeff=polynomialApproximation.quadraticApproximation(
+							data,
+							false); // boolean forceLinear  // use linear approximation
+					if (coeff!=null) {
+						if ((coeff[0].length<6) || (coeff[1].length<6)){
+							if (debugLevel>3){
+								System.out.println("fixBadGridNodes() linear interpolate for x="+(index%width)+", y="+(index/width));
+								for (int j=0;j<data.length;j++){
+									System.out.println(j+" "+data[j][0][0]+"/"+data[j][0][1]+" - "+data[j][1][0]+"/"+data[j][1][1]+" : "+data[j][2][0]);
+								}
+								for (int n=0;n<coeff.length;n++){
+									for (int j=0;j<coeff[n].length;j++){
+										System.out.print(coeff[n][j]+" ");
+									}
+									System.out.println();
+								}
+							}
+						} else if (debugLevel>3){
+							System.out.println("fixBadGridNodes() qudratic interpolate for x="+(index%width)+", y="+(index/width));
+							for (int j=0;j<data.length;j++){
+								System.out.println(j+" "+data[j][0][0]+"/"+data[j][0][1]+" - "+data[j][1][0]+"/"+data[j][1][1]+" : "+data[j][2][0]);
+							}
+							for (int n=0;n<coeff.length;n++){
+								for (int j=0;j<coeff[n].length;j++){
+									System.out.print(coeff[n][j]+" ");
+								}
+								System.out.println();
+							}
+							if (((index%width)==19) && ((index/width)==57)){
+								coeff=(new PolynomialApproximation(4)).quadraticApproximation(
+										data,
+										false);
+							}
+						}
+						fpixels[INDEX_PX][index]=(float) coeff[0][coeff[0].length-1];
+						fpixels[INDEX_PY][index]=(float) coeff[1][coeff[1].length-1];
+					} else {
+						if (debugLevel>3){
+							System.out.println("fixBadGridNodes() failed for x="+(index%width)+", y="+(index/width)+", last pass");
+						}
+					}
+				}
 			}
 
-// TODO - try to fix some around pixels first?
+        	// scale contrasts of bad and worst nodes
+			numBad = 0;
+			int numWorst = 0;
 
-// Actually patching locally worst nodes
-        	for (int index=0;index<localWorst.length;index++) if (localWorst[index]){
-        		int numNonZero=0;
-    			for (int iDir=0;iDir<dirs8.length;iDir++){
-    				int index1=index+dirs8[iDir][1]*width+dirs8[iDir][0];
-    				data[iDir][0][0]=dirs8[iDir][0];
-    				data[iDir][0][1]=dirs8[iDir][1];
-    				data[iDir][1][0]=fpixels[0][index1];
-    				data[iDir][1][1]=fpixels[1][index1];
-    				if (diffs2[index1]>tolerance2Final){ // increased tolerance for the final correction
-    					data[iDir][2][0]=0.0; // do not count neighbors who are bad themselves
-    				} else {
-    					data[iDir][2][0]=1.0;
-    					numNonZero++;
-    				}
-    			}
-    			if (numNonZero<(data.length-maxBadNeighb)){
-    				if (debugLevel>3){
-    					System.out.println("fixBadGridNodes() failed x="+(index%width)+", y="+(index/width)+", number of good neighbors="+numNonZero);
-    				}
-    				continue; // do not fix anything
-    			}
-    			double [][] coeff=polynomialApproximation.quadraticApproximation(
-    					data,
-    					false); // boolean forceLinear  // use linear approximation
-    			if (coeff!=null) {
-    				if ((coeff[0].length<6) || (coeff[1].length<6)){
-    					if (debugLevel>3){
-        					System.out.println("fixBadGridNodes() linear interpolate for x="+(index%width)+", y="+(index/width));
-        					for (int j=0;j<data.length;j++){
-        						System.out.println(j+" "+data[j][0][0]+"/"+data[j][0][1]+" - "+data[j][1][0]+"/"+data[j][1][1]+" : "+data[j][2][0]);
-        					}
-        					for (int n=0;n<coeff.length;n++){
-        						for (int j=0;j<coeff[n].length;j++){
-        							System.out.print(coeff[n][j]+" ");
-        						}
-        						System.out.println();
-        					}
-        				}
-    				} else if (debugLevel>3){
-    					System.out.println("fixBadGridNodes() qudratic interpolate for x="+(index%width)+", y="+(index/width));
-    					for (int j=0;j<data.length;j++){
-    						System.out.println(j+" "+data[j][0][0]+"/"+data[j][0][1]+" - "+data[j][1][0]+"/"+data[j][1][1]+" : "+data[j][2][0]);
-    					}
-    					for (int n=0;n<coeff.length;n++){
-    						for (int j=0;j<coeff[n].length;j++){
-    							System.out.print(coeff[n][j]+" ");
-    						}
-    						System.out.println();
-    					}
-    					if (((index%width)==19) && ((index/width)==57)){
-    						coeff=(new PolynomialApproximation(4)).quadraticApproximation(
-    		    					data,
-    		    					false);
-    					}
-    				}
-    				fpixels[0][index]=(float) coeff[0][coeff[0].length-1];
-    				fpixels[1][index]=(float) coeff[1][coeff[1].length-1];
-    			} else {
-    				if (debugLevel>3){
-    					System.out.println("fixBadGridNodes() failed for x="+(index%width)+", y="+(index/width)+", last pass");
-    				}
-    			}
+        	for (int i=0; i<badNodes.length; i++){
+        		if (localWorst[i]) {
+    				numWorst++;
+    				numBad++;
+        			if (removeWorst ) {
+        				fpixels[INDEX_PX][i] = badMark;
+        				fpixels[INDEX_PY][i] = badMark;
+        			} else {
+        				fpixels[INDEX_CONTRAST][i] *= weightWorst;
+        			}
+        		} else if (badNodes[i]) {
+    				numBad++;
+    				fpixels[INDEX_CONTRAST][i] *= weightBad;
+        		}
         	}
+
+
 			if (debugLevel>debugThreshold){
 				for (int i=0;i< dbgData[3].length;i++)  {
 					dbgData[5][i]=fpixels[0][i];
 					dbgData[6][i]=fpixels[1][i];
-					dbgData[7][i]=dbgData[3][i]-fpixels[0][i];
-					dbgData[8][i]=dbgData[4][i]-fpixels[1][i];
+					dbgData[7][i]=dbgData[3][i]-fpixels[INDEX_PX][i];
+					dbgData[8][i]=dbgData[4][i]-fpixels[INDEX_PY][i];
 			    }
 
 				String [] dbgTitles={"diff20","diff2Mod","localWorst", "old-X", "old-Y", "new-X", "new-Y","old-new-X","old-new-Y"};
 				if (dbgTitle!=null) (new ShowDoubleFloatArrays()).showArrays(dbgData, width, height, true,  dbgTitle, dbgTitles);
 			}
-        	return numBad;
+			int [] nums = {numWorst, numBad};
+        	return nums;
         }
 
 // TODO: Move all custom image properties (including encode/decode from JP4_reader_camera) to a separate class.
-// below is a duplicatie from MatchSimulatedPattern
+// below is a duplicate from MatchSimulatedPattern
         @Deprecated
         public double[][] getPointersXY(ImagePlus imp, int numPointers){
 			   // read image info to properties (if it was not done yet - should it?
@@ -4854,6 +5040,13 @@ import ij.text.TextWindow;
         			eyesisCameraParameters.maskBlurSigma);
         }
 
+        public double [] calculateSensorMasks(int chNum) {
+        	return calculateSensorMasks(
+        			chNum,
+        			eyesisCameraParameters.shrinkGridForMask,
+        			eyesisCameraParameters.maskBlurSigma);
+        }
+
         /**
          *
          * @param width image width, in pixels (pixel X coordinates are between 0 and width-1, inclusive)
@@ -4922,12 +5115,42 @@ import ij.text.TextWindow;
        			    for (int i=0;i<this.sensorMasks[chNum].length;i++) if (preMask[1][i]>0.0) this.sensorMasks[chNum][i]=1.0;
         		}
         		if (rAverageNum==0.0) continue; // nothing to blur/process for this channel
-        		rAverage/=rAverageNum; // average distance to the fartherst node from the current
+        		rAverage/=rAverageNum; // average distance to the farthest node from the current
         		double      sigma=sigmaUV;
         		if(sigma<0) sigma*=-rAverage;
         		gb.blurDouble(this.sensorMasks[chNum], dWidth, dHeight, sigma/decimate, sigma/decimate, 0.01);
         	}
         	return this.sensorMasks;
+        }
+
+        public double [] calculateSensorMasks(int chNum, int shrinkGridForMask, double sigmaUV) {
+        	DoubleGaussianBlur gb=new DoubleGaussianBlur();
+        	if ((this.debugLevel>1) && (SDFA_INSTANCE==null)) SDFA_INSTANCE=new ShowDoubleFloatArrays();
+        	if (this.debugLevel>2)System.out.println("calculateSensorMasks("+shrinkGridForMask+","+sigmaUV+")");
+        	int decimate = eyesisCameraParameters.getDecimateMasks(chNum);
+        	int width = eyesisCameraParameters.getSensorWidth(chNum);
+        	int height = eyesisCameraParameters.getSensorHeight(chNum);
+        	int dWidth=  (width -1)/decimate+1;
+        	int dHeight= (height-1)/decimate+1;
+
+        	this.sensorMasks[chNum]=new double[dWidth*dHeight];
+        	for (int i=0;i<this.sensorMasks[chNum].length;i++) this.sensorMasks[chNum][i]=0.0;
+        	double rAverage=0.0;
+        	double rAverageNum=0.0;
+        	for (int imgNum=0;imgNum<this.gIP.length;imgNum++) if (this.gIP[imgNum].channel==chNum){ // image is for this this channel
+        		double [][] preMask=preCalculateSingleImageMask(imgNum, decimate, width, height, shrinkGridForMask);
+        		if (preMask==null) continue; //nothing in this channel
+        		rAverage+=preMask[0][0];
+        		rAverageNum+=preMask[0][1];
+        		for (int i=0;i<this.sensorMasks[chNum].length;i++) if (preMask[1][i]>0.0) this.sensorMasks[chNum][i]=1.0;
+        	}
+        	if (rAverageNum != 0.0) { // nothing to blur/process for this channel
+        		rAverage/=rAverageNum; // average distance to the farthest node from the current
+        		double      sigma=sigmaUV;
+        		if(sigma<0) sigma*=-rAverage;
+        		gb.blurDouble(this.sensorMasks[chNum], dWidth, dHeight, sigma/decimate, sigma/decimate, 0.01);
+        	}
+        	return this.sensorMasks[chNum];
         }
 
 

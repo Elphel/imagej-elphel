@@ -3,7 +3,7 @@ package com.elphel.imagej.calibration;
  **
  ** Distortions.java - Calculate lens distortion parameters from the pattern image
  **
- ** Copyright (C) 2011-2014 Elphel, Inc.
+ ** Copyright (C) 2011-2020 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
  **
@@ -30,7 +30,6 @@ import java.util.ArrayList;
 //import java.util.Arrays;
 //import java.io.StringWriter;
 import java.util.List;
-import java.util.Properties;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -250,6 +249,8 @@ public class Distortions {
 	}
 	// TODO - make station-dependent? Pass sensor mask and combine it?
 	public void calculateGridImageMasks(
+			final boolean proportional,
+			final double gridMarginScale,
 			final double minContrast,
 			final double shrinkBlurSigma,
 			final double shrinkBlurLevel,
@@ -270,10 +271,12 @@ public class Distortions {
    				@Override
 				public void run() {
    					for (int imgNum=imageNumberAtomic.getAndIncrement(); imgNum<numImg;imgNum=imageNumberAtomic.getAndIncrement()){
-   						if (imgNum == 488) {
-   							System.out.println("calculateGridImageMasks(), imgNum="+imgNum);
-   						}
+//   						if (imgNum == 488) {
+//   							System.out.println("calculateGridImageMasks(), imgNum="+imgNum);
+//   						}
    						distortionCalibrationData[imgNum].calculateMask(
+   								proportional,
+   								gridMarginScale,
    			        			minContrast,
    			        			shrinkBlurSigma,
    			        			shrinkBlurLevel);
@@ -409,7 +412,9 @@ public class Distortions {
 
 		boolean [] selectedImages=fittingStrategy.selectedImages(numSeries); // -1 OK, will select all
 		if (this.debugLevel>3)	System.out.println("initFittingSeries("+numSeries+"), selectedImages.length="+selectedImages.length);
+		int [] dbg_indices = new int[numImg];
 		for (int imgNum=0;imgNum<numImg;imgNum++) if (selectedImages[imgNum]) {
+			dbg_indices[imgNum] = numXYPairs;
 			numXYPairs+=fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsUV.length;
 		}
 		this.targetXYZ=new double[numXYPairs][3];
@@ -428,7 +433,11 @@ public class Distortions {
         double minimalGridContrast=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.minimalGridContrast;
         double shrinkBlurSigma=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.shrinkBlurSigma;
         double shrinkBlurLevel=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.shrinkBlurLevel;
+        double gridMarginScale = fittingStrategy.distortionCalibrationData.eyesisCameraParameters.gridMarginScale; // apply -scaled maximal to grid margins (_extra) for masks
+        boolean proportional = false;
         calculateGridImageMasks(
+        		proportional,
+        		gridMarginScale,
         		minimalGridContrast, // final double minContrast,
         		shrinkBlurSigma, //final double shrinkBlurSigma,
         		shrinkBlurLevel, //final double shrinkBlurLevel,
@@ -900,15 +909,9 @@ public class Distortions {
 	public boolean correctPatternFlatField(boolean enableShow){
 		if (this.debugLevel>0) System.out.println("=== Performing pattern flat field correction");
 		this.patternParameters.updateNumStations(this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getNumStations());
-		//		if (this.refineParameters.flatFieldUseSelectedChannels && (ABERRATIONS_PARAMETERS!=null))selectedChannels=ABERRATIONS_PARAMETERS.selectedChannels;
 		double [][] masks= nonVignettedMasks(
-				this.refineParameters.flatFieldShrink,
-				this.refineParameters.flatFieldNonVignettedRadius,
-				this.refineParameters.flatFieldMinimalAlpha);
-		/*	    if (selectedChannels!=null){
-	    	for (int nChn=0;nChn<masks.length;nChn++) if ((nChn<selectedChannels.length)&&!selectedChannels[nChn]) masks[nChn]=null;
-	    }
-		 */
+				this.refineParameters);
+
 		boolean same_size = true;
 		for (int nChn=1; nChn < masks.length; nChn++) same_size &= (masks[nChn].length == masks[0].length);
 
@@ -922,7 +925,7 @@ public class Distortions {
 				true,
 		"nonVinetting masks");
 			} else {
-				System.out.println ("Can not display different saze masks in a stack");
+				System.out.println ("Can not display different size masks in a stack");
 			}
 		}
 
@@ -930,13 +933,14 @@ public class Distortions {
 		double [][][][] sensorGrids=calculateGridFlatField(
 				this.refineParameters.flatFieldSerNumber,
 				masks,
-				this.refineParameters.flatFieldMinimalContrast,
-				this.refineParameters.flatFieldMinimalAccumulate,
-				this.refineParameters.flatFieldUseInterpolate,
-				this.refineParameters.flatFieldMaskThresholdOcclusion, // suspect occlusion only if grid is missing in the area where sensor mask is above this threshold
-				this.refineParameters.flatFieldShrinkOcclusion,
-				this.refineParameters.flatFieldFadeOcclusion,
-				this.refineParameters.flatFieldIgnoreSensorFlatField);
+				this.refineParameters);
+//				this.refineParameters.flatFieldMinimalContrast,
+//				this.refineParameters.flatFieldMinimalAccumulate,
+//				this.refineParameters.flatFieldUseInterpolate,
+//				this.refineParameters.flatFieldMaskThresholdOcclusion, // suspect occlusion only if grid is missing in the area where sensor mask is above this threshold
+//				this.refineParameters.flatFieldShrinkOcclusion,
+//				this.refineParameters.flatFieldFadeOcclusion,
+//				this.refineParameters.flatFieldIgnoreSensorFlatField);
 		double [][][] geometry= patternParameters.getGeometry();
 		if (enableShow && this.refineParameters.flatFieldShowIndividual){
 			for (int station=0;station<sensorGrids.length;station++) if (sensorGrids[station]!=null){
@@ -950,7 +954,10 @@ public class Distortions {
 				}
 			}
 		}
+
+
 		double [][][][] patternArray= combineGridFlatField(
+//				this.refineParameters,
 				this.refineParameters.flatFieldReferenceStation,
 				sensorGrids,
 				this.refineParameters.flatFieldShrinkForMatching,
@@ -997,21 +1004,47 @@ public class Distortions {
 		boolean [] selectedImages=fittingStrategy.selectedImages();
 		double [][][] sensorXYRGBCorr=  allImagesCorrectionMapped(
 				selectedImages,
-				enableShow && this.refineParameters.showPerImage,
-				this.refineParameters.showIndividualNumber,
+				enableShow, //  && this.refineParameters.showPerImage,
+				this.refineParameters, // .showIndividualNumber,
 				threadsMax,
 				updateStatus,
 				debugLevel);
-    	String [] titles={"X-corr(pix)","Y-corr(pix)","weight","Red","Green","Blue"};
-		if (enableShow && this.refineParameters.showUnfilteredCorrection) {
-			for (int numChn=0;numChn<sensorXYRGBCorr.length;numChn++) if (sensorXYRGBCorr[numChn]!=null){
-				int decimate=getDecimateMasks(numChn);
-				int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
-
-				//this.SDFA_INSTANCE.showArrays(sensorXYRGBCorr[numChn], sWidth, sHeight,  true, "chn_"+numChn+"_extra_correction", titles);
+		String [] titles={"X-corr(pix)","Y-corr(pix)","weight","Red","Green","Blue"};
+		for (int numChn=0;numChn<sensorXYRGBCorr.length;numChn++) if (sensorXYRGBCorr[numChn]!=null){
+			boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(numChn);
+			RefineParameters rp = small_sensor ? refineParameters.refineParametersSmall : refineParameters;
+			int decimate=getDecimateMasks(numChn);
+			int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
+			if (rp.showUnfilteredCorrection &&  enableShow) { //  && this.refineParameters.showUnfilteredCorrection) {
 				showWithRadialTangential(
 						titles,
-						"chn_"+numChn+"_extra_correction",
+						"chn_"+numChn+"_visible_correction",
+						sensorXYRGBCorr[numChn], // [0] - dx, [1] - dy
+						sWidth,
+						decimate,
+						fittingStrategy.distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[0][numChn].px0, // using station 0
+						fittingStrategy.distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[0][numChn].py0);
+			}
+			smoothSensorPolar(
+					titles,
+					"chn_"+numChn+"_polar_correction",
+					sensorXYRGBCorr[numChn], // [0] - dx, [1] - dy
+					sWidth,
+					decimate,
+					fittingStrategy.distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[0][numChn].px0, // using station 0
+					fittingStrategy.distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[0][numChn].py0,
+					rp.center_fract,       // 0.5, // double center_fract, // 0.5 of half-height
+					rp.transit_fract,      // 0.2, // double transit_fract, // 0.2 of half-height - transition from center ortho to outer polar
+					rp.gaus_ang,           // 0.2, // 1, // 0.2, // double gaus_ang,  // in radians
+					rp.gaus_rad,           // 0.05, // 0.1, // double gaus_rad   // in fractions of the full radius
+					rp.max_diff_err_geom,  // 0.25, // double max_diff_err_geom,   // before second pass linearly fade R/T and RGB where high-frequency error nears thios value
+					rp.max_diff_err_photo, // 0.25, // double max_diff_err_photo
+					rp.showExtrapolationCorrection &&  enableShow); // boolean showDebugImages);
+
+			if (rp.showThisCorrection &&  enableShow) { //  && this.refineParameters.showUnfilteredCorrection) {
+				showWithRadialTangential(
+						titles,
+						"after-chn_"+numChn+"_after_polar",
 						sensorXYRGBCorr[numChn], // [0] - dx, [1] - dy
 						sWidth,
 						decimate,
@@ -1019,85 +1052,90 @@ public class Distortions {
 						fittingStrategy.distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[0][numChn].py0);
 			}
 		}
-    	//eyesisSubCameras
-    	//extrapolate
-    	// TODO: different extrapolation for FF - not circular where shades are in effect (top/bottom)
-    	if (!this.refineParameters.sensorExtrapolateDiff) { // add current correction BEFORE extrapolating/blurring
-    		addOldXYCorrectionToCurrent(
-    				this.refineParameters.correctionScale,
-    				sensorXYRGBCorr
-    		);
-    	}
-    	if (this.refineParameters.extrapolate) {
-    		allSensorsExtrapolationMapped(
-    				0, //final int stationNumber, // has to be selected
-    				sensorXYRGBCorr, //final double [][][] gridPCorr,
-    				this.refineParameters.sensorShrinkBlurComboSigma,
-    				this.refineParameters.sensorShrinkBlurComboLevel,
-    				this.refineParameters.sensorAlphaThreshold,
-    				this.refineParameters.sensorStep,
-    				this.refineParameters.sensorInterpolationSigma,
-    				this.refineParameters.sensorTangentialRadius,
-    				this.refineParameters.sensorScanDistance,
-    				this.refineParameters.sensorResultDistance,
-    				this.refineParameters.sensorInterpolationDegree,
-    				threadsMax,
-    				updateStatus,
-    				enableShow && this.refineParameters.showExtrapolationCorrection, //final boolean showDebugImages,
-    				debugLevel
-    		);
-    	}
-    	if (this.refineParameters.smoothCorrection) {
-    		boolean [] whichBlur={true,true,false,true,true,true}; // all but weight
-    		IJ.showStatus("Bluring sensor corrections...");
-    		for (int numChn=0;numChn<sensorXYRGBCorr.length;numChn++) if (sensorXYRGBCorr[numChn]!=null){
-				int decimate=getDecimateMasks(numChn);
-				int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
-				int sHeight=(getSensorHeight(numChn)-1)/decimate+1;
+		//eyesisSubCameras
+		//extrapolate
+		// TODO: different extrapolation for FF - not circular where shades are in effect (top/bottom)
+		//    	if (!this.refineParameters.sensorExtrapolateDiff) { // add current correction BEFORE extrapolating/blurring
+		addOldXYCorrectionToCurrent(
+				//    				true, // if (!this.refineParameters.sensorExtrapolateDiff)
+				this.refineParameters, // .correctionScale,
+				sensorXYRGBCorr
+				);
+		/*
+		allSensorsExtrapolationMapped(
+				0, //final int stationNumber, // has to be selected
+				sensorXYRGBCorr, //final double [][][] gridPCorr,
+				this.refineParameters,
+				threadsMax,
+				updateStatus,
+				enableShow && this.refineParameters.showExtrapolationCorrection, //final boolean showDebugImages,
+				debugLevel
+				);
+		 */
+ //   	if (this.refineParameters.smoothCorrection) {
+		/*
+    	boolean [] whichBlur={true,true,false,true,true,true}; // all but weight
+    	IJ.showStatus("Bluring sensor corrections...");
+    	for (int numChn=0;numChn<sensorXYRGBCorr.length;numChn++) if (sensorXYRGBCorr[numChn]!=null){
+    		boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(numChn);
+    		RefineParameters rp = small_sensor ? refineParameters.refineParametersSmall : refineParameters;
+    		if (rp.smoothCorrection) {
+    			int decimate=getDecimateMasks(numChn);
+    			int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
+    			int sHeight=(getSensorHeight(numChn)-1)/decimate+1;
     			DoubleGaussianBlur gb=new DoubleGaussianBlur();
     			for (int m=0;m<whichBlur.length;m++) if (whichBlur[m]){
     				gb.blurDouble(
     						sensorXYRGBCorr[numChn][m],
     						sWidth,
     						sHeight,
-    						this.refineParameters.smoothSigma/decimate,
-    						this.refineParameters.smoothSigma/decimate,
+    						rp.smoothSigma/decimate,
+    						rp.smoothSigma/decimate,
     						0.01);
     			}
     			IJ.showProgress(numChn+1, sensorXYRGBCorr.length);
     		}
-    		IJ.showProgress(1.0);
     	}
-
-    	if (enableShow && this.refineParameters.showThisCorrection ) {
+    	IJ.showProgress(1.0);
+ //   	}
+		 */
+//    	if (enableShow && this.refineParameters.showThisCorrection ) {
+		/*
+    	if (enableShow) {
     		for (int numChn=0;numChn<sensorXYRGBCorr.length;numChn++) if (sensorXYRGBCorr[numChn]!=null){
-				int decimate=getDecimateMasks(numChn);
-				int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
-//    		   this.SDFA_INSTANCE.showArrays(sensorXYRGBCorr[numChn], sWidth, sHeight,  true, "chn_"+numChn+"_filtered", titles);
-				showWithRadialTangential(
-						titles,
-						"chn_"+numChn+"_filtered",
-						sensorXYRGBCorr[numChn], // [0] - dx, [1] - dy
-						sWidth,
-						decimate,
-						fittingStrategy.distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[0][numChn].px0, // using station 0
-						fittingStrategy.distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[0][numChn].py0);
+    			boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(numChn);
+    			RefineParameters rp = small_sensor ? refineParameters.refineParametersSmall : refineParameters;
+    			if (rp.showThisCorrection) {
+    				int decimate=getDecimateMasks(numChn);
+    				int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
+    				//    		   this.SDFA_INSTANCE.showArrays(sensorXYRGBCorr[numChn], sWidth, sHeight,  true, "chn_"+numChn+"_filtered", titles);
+    				showWithRadialTangential(
+    						titles,
+    						"chn_"+numChn+"_filtered",
+    						sensorXYRGBCorr[numChn], // [0] - dx, [1] - dy
+    						sWidth,
+    						decimate,
+    						fittingStrategy.distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[0][numChn].px0, // using station 0
+    						fittingStrategy.distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[0][numChn].py0);
+    			}
     		}
     	}
-    	if (this.refineParameters.sensorExtrapolateDiff) { // add current correction AFTER extrapolationg/bluring
+    	*/
+		/*
+//    	if (this.refineParameters.sensorExtrapolateDiff) { // add current correction AFTER extrapolationg/bluring
     		addOldXYCorrectionToCurrent(
-    				this.refineParameters.correctionScale,
+    				false, // if (this.refineParameters.sensorExtrapolateDiff) { // add current correction AFTER extrapolationg/bluring
+    				this.refineParameters, // .correctionScale,
     				sensorXYRGBCorr
     		);
-    	}
-
+//    	}
+	    */
 //   	if (!selectCorrectionScale()) return false;
+
 		IJ.showStatus("Applying corrections:"+((!this.refineParameters.applyCorrection && !this.refineParameters.applyFlatField)?
 				"none ":((this.refineParameters.applyCorrection?"geometry ":"")+(this.refineParameters.applyFlatField?"flat field":""))));
     	boolean result=applySensorCorrection(
-    			this.refineParameters.applyCorrection,
-    			this.refineParameters.applyFlatField,
-    			this.refineParameters.correctionScale,
+    			this.refineParameters,
     			sensorXYRGBCorr, //sensorXYCorr, // modified to accept both 7(old) and 6(new) entries
     			fittingStrategy.distortionCalibrationData);
     	if (enableShow && this.refineParameters.showCumulativeCorrection) {
@@ -1128,7 +1166,7 @@ public class Distortions {
 			String title,
 			double [][] preData, // [0] - dx, [1] - dy
 			int width,
-			int deciamte,
+			int decimate,
 			double x0,
 			double y0){
 		int indexDx=0;
@@ -1152,7 +1190,7 @@ public class Distortions {
 		}
 		Point2D Z=new Point2D.Double(0.0,0.0);
 		for (int i=0;i<length;i++){
-			Point2D R=new Point2D.Double((deciamte*(i%width))-x0,(deciamte*(i/width))-y0);
+			Point2D R=new Point2D.Double((decimate*(i%width))-x0,(decimate*(i/width))-y0);
 			double r=R.distance(Z);
 			Point2D uR=new Point2D.Double(1.0,0.0);
 			if (r>0) uR.setLocation(R.getX()/r,R.getY()/r);
@@ -1165,17 +1203,534 @@ public class Distortions {
 	}
 
 
-	public void addOldXYCorrectionToCurrent(
-    		double scale,
-    		double [][][] sensorXYCorr
-			){
-        if (this.pixelCorrection==null) return; // no modifications are needed
-		for (int i=0;i<sensorXYCorr.length;i++) if ((sensorXYCorr[i]!=null) && (this.pixelCorrection[i]!=null)) {
-			for (int j=0;j<sensorXYCorr[i][0].length;j++){
-				sensorXYCorr[i][0][j]=this.pixelCorrection[i][0][j]+scale*sensorXYCorr[i][0][j];
-				sensorXYCorr[i][1][j]=this.pixelCorrection[i][1][j]+scale*sensorXYCorr[i][1][j];
+
+
+
+	public double [][] DXYtoDRT(
+			double [][] dataXY, // [0] - dx, [1] - dy
+			int width,
+			int decimate,
+			double x0,
+			double y0){
+		int length=dataXY[0].length;
+//		int height=length/width;
+		double [][] dataRT = new double[2][length];
+		Point2D Z=new Point2D.Double(0.0,0.0);
+		for (int i=0;i<length;i++){
+			Point2D R=new Point2D.Double((decimate*(i%width))-x0,(decimate*(i/width))-y0);
+			double r=R.distance(Z);
+			Point2D uR=new Point2D.Double(1.0,0.0);
+			if (r>0) uR.setLocation(R.getX()/r,R.getY()/r);
+			Point2D dXY=new Point2D.Double(dataXY[0][i],dataXY[1][i]);
+			dataRT[0][i]= dXY.getX()*uR.getX()+dXY.getY()*uR.getY();
+			dataRT[1][i]=-dXY.getX()*uR.getY()+dXY.getY()*uR.getX();
+		}
+		return dataRT;
+	}
+
+	public double [][] DRTtoDXY(
+			double [][] dataRT, // [0] - dx, [1] - dy
+			int width,
+			int decimate,
+			double x0,
+			double y0){
+
+		int length=dataRT[0].length;
+//		int height=length/width;
+		double [][] dataXY = new double[2][length];
+		Point2D Z=new Point2D.Double(0.0,0.0);
+		for (int i=0;i<length;i++){
+			Point2D R=new Point2D.Double((decimate*(i%width))-x0,(decimate*(i/width))-y0);
+			double r=R.distance(Z);
+			Point2D uR=new Point2D.Double(1.0,0.0);
+			if (r>0) uR.setLocation(R.getX()/r,R.getY()/r); // cos, sin
+			Point2D dRT=new Point2D.Double(dataRT[0][i],dataRT[1][i]);
+			dataXY[0][i]= dRT.getX()*uR.getX()-dRT.getY()*uR.getY();
+			dataXY[1][i]= dRT.getX()*uR.getY()+dRT.getY()*uR.getX();
+		}
+		return dataXY;
+	}
+
+
+
+
+	public double [][] correctionToRadial(
+			double [][] preData, // variable number of layers, [0] - weight dRT or RGB
+			int width,
+			int decimate,
+			double x0,
+			double y0,
+			int inner_rad_d, // margins (minimal from all sides)
+			int lines_overlap, // add linesto the bottom (corresponding to the angle)
+			int indexWeight) {
+		int length=preData[0].length;
+		int height=length/width;
+		int [] ints = radialInts(
+				length,
+				width,
+				decimate,
+				x0,
+				y0,
+				inner_rad_d); // margins (minimal from all sides)
+//		int inner_rad_d =    ints[0];
+		int polar_height0 = ints[0];
+		int polar_width =   ints[1];
+
+		int polar_height =  polar_height0 + lines_overlap;
+
+
+		double [][] polar = new double[preData.length][polar_width * polar_height];
+		for (int i = 0; i < polar.length; i++) if (i != indexWeight){
+ 			for (int j = 0; j < polar[i].length; j++) {
+ 				polar[i][j] = Double.NaN;
+ 			}
+ 		}
+ 		double k = 2* Math.PI / polar_height0;
+ 		for (int iangle = 0; iangle < polar_height; iangle++) {
+ 			double angle = k * iangle;
+ 			double s = Math.sin(angle);
+ 			double c = Math.cos(angle);
+ 			for (int ir = 0; ir < polar_width; ir++) {
+ 				double r = decimate*(ir + inner_rad_d);
+ 				// calculate x,y - no interpolation here
+ 				int ix = (int) Math.round((x0 + r * c)/decimate);
+ 				int iy = (int) Math.round((y0 + r * s)/decimate);
+ 				if ((ix >= 0) && (iy >= 0) && (ix < width) && (iy < height)) {
+ 					int indx = ix+ iy* width;
+ 					int indx_polar = ir + iangle* polar_width;
+ 					for (int l = 0; l < polar.length; l++) {
+ 						polar[l][indx_polar] = preData[l][indx];
+ 					}
+ 				}
+ 			}
+ 		}
+ 		return polar;
+	}
+
+	public void correctionToOrtho(
+			double [][] data_ortho, // variable number of layers, will be modifier from the overlapping radial)
+			double [][] data_polar, // same layers as ortho, will be used as a source
+			int width,
+			int decimate,
+			double x0,
+			double y0,
+			int inner_rad_d, // margins (minimal from all sides)
+			int lines_overlap, // add lines to the bottom (corresponding to the angle)
+			int transit_rad) {
+		int length=data_ortho[0].length;
+		int height=length/width;
+
+		int [] ints = radialInts(
+				length,
+				width,
+				decimate,
+				x0,
+				y0,
+				inner_rad_d); // margins (minimal from all sides)
+
+		double [] transition = new double[transit_rad];
+		for (int i = 0; i < transit_rad; i++) {
+			transition[i] = 0.5*(1.0-Math.cos(Math.PI * (i +0.5)/transit_rad));
+		}
+		int polar_height0 = ints[0];
+		int polar_width =   ints[1];
+// 		double k = 2 * Math.PI / polar_height0;
+ 		int iangle0 = lines_overlap / 2; // polar was created with overlap (pver2PI) for angular blurring, use middle portion
+
+ 		for (int iy = 0; iy < height; iy++) {
+ 			double rs = iy * decimate - y0;
+ 			for (int ix = 0; ix < width; ix++) {
+ 				int indx = ix+ iy* width;
+ 	 			double rc = ix * decimate - x0;
+ 	 			double r = Math.sqrt(rc*rc + rs*rs);
+ 	 			double angle = Math.atan2(rs, rc);
+ 				if (angle < 0.0) angle += 2* Math.PI;
+ 				int iangle = (int) Math.round(polar_height0 * angle/ (2 * Math.PI));
+ 				if (iangle < iangle0) {
+ 					iangle += polar_height0;
+ 				}
+ 				int ir = (int) Math.round(r/decimate - inner_rad_d);
+ 				if ((ir >=0) && (ir < polar_width)) {
+ 					int indx_polar = ir + iangle* polar_width;
+ 					if (ir >= transit_rad){
+ 						for (int l = 0; l < data_ortho.length; l++) {
+ 							data_ortho[l][indx] = data_polar[l][indx_polar];
+ 						}
+ 					} else {
+ 						for (int l = 0; l < data_ortho.length; l++) {
+ 							data_ortho[l][indx] = transition[ir]*data_polar[l][indx_polar] + (1.0-transition[ir])*data_ortho[l][indx];
+ 						}
+ 					}
+ 				}
+ 			}
+ 		}
+	}
+
+
+	public void correctionToOrtho0XXX(
+			double [][] data_ortho, // variable number of layers, will be modifier from the overlapping radial)
+			double [][] data_polar, // same layers as ortho, will be used as a source
+			int width,
+			int decimate,
+			double x0,
+			double y0,
+			int inner_rad_d, // margins (minimal from all sides)
+			int lines_overlap){ // add lines to the bottom (corresponding to the angle)
+		int length=data_ortho[0].length;
+		int height=length/width;
+
+		int [] ints = radialInts(
+				length,
+				width,
+				decimate,
+				x0,
+				y0,
+				inner_rad_d); // margins (minimal from all sides)
+
+		int polar_height0 = ints[0];
+		int polar_width =   ints[1];
+ 		double k = 2 * Math.PI / polar_height0;
+ 		int iangle0 = lines_overlap / 2; // polar was created with overlap (pver2PI) for angular blurring, use middle portion
+
+ 		for (int iangle = iangle0; iangle < (iangle0 + polar_height0); iangle++) {
+ 			double angle = k * iangle;
+ 			double s = Math.sin(angle);
+ 			double c = Math.cos(angle);
+ 			for (int ir = 0; ir < polar_width; ir++) {
+ 				double r = decimate*(ir + inner_rad_d);
+ 				// calculate x,y - no interpolation here
+ 				int ix = (int) Math.round((x0 + r * c)/decimate);
+ 				int iy = (int) Math.round((y0 + r * s)/decimate);
+ 				if ((ix >= 0) && (iy >= 0) && (ix < width) && (iy < height)) {
+ 					int indx = ix+ iy* width;
+ 					int indx_polar = ir + iangle* polar_width;
+ 					for (int l = 0; l < data_ortho.length; l++) {
+ 						data_ortho[l][indx] = data_polar[l][indx_polar];
+ 					}
+ 				}
+ 			}
+ 		}
+	}
+
+	public int [] radialInts( // helper to correctionToRadial() and correctionToOrtho()
+			int length,
+			int width,
+			int decimate,
+			double x0,
+			double y0,
+			int inner_rad_d) { // margins (minimal from all sides)
+		int height=length/width;
+
+		//find longest distance from the center to the corners
+		Point2D C=new Point2D.Double(x0, y0);
+		Point2D [] corners = {
+				new Point2D.Double(-decimate,     -decimate),
+				new Point2D.Double(decimate*(width+1),-decimate),
+				new Point2D.Double(decimate*(width+1), decimate*(height+1)),
+				new Point2D.Double(-decimate,      decimate*(height+1)),
+		};
+		double radius = 0.0;
+		for (Point2D p :corners) {
+			radius = Math.max(radius, C.distance(p));
+		}
+//		double x0d = x0/decimate;
+//		double y0d = y0/decimate;
+//		double min_rad_d_h = Math.min(x0d, width- 1-x0d);
+//		double min_rad_d_v = Math.min(y0d, height-1-y0d);
+
+		int imax_rad_d = (int) Math.ceil(radius/decimate);
+
+//		int inner_rad_d = (int) Math.floor(Math.min(min_rad_d_h,min_rad_d_v)) -1 - margins;
+		int polar_height0 = (int) Math.ceil(2*Math.PI*radius/decimate);
+		int polar_width =  imax_rad_d - inner_rad_d + 1;
+		int [] rslt = {polar_height0, polar_width};
+		return rslt;
+	}
+
+	public void smoothSensorPolar(
+			String [] preTitles,
+			String title,
+			double [][] preData, // [0] - dx, [1] - dy
+			int width,
+			int decimate,
+			double x0,
+			double y0,
+			double center_fract, // 0.5 of half-height
+			double transit_fract, // 0.2 of half-height - transition from center ortho to outer polar
+			double gaus_ang_rel,  // in radians 0.2
+			double gaus_rad_rel,  // in fractions of the full radius 0.1
+			double max_diff_err_geom,   // before second pass linearly fade R/T and RGB where high-frequency error nears thios value
+			double max_diff_err_photo,
+			boolean showDebugImages
+			) {
+		int indexDx=    0;
+		int indexDy=    1;
+		int indexWeight=2;
+		int indexR=     3;
+		int indexG=     4;
+		int indexB=     5;
+		int length=preData[0].length;
+		int height=length/width;
+		double sensor_radius_d = Math.sqrt(width*width+height*height)/2;
+		double gaus_ang =   gaus_ang_rel * sensor_radius_d;
+		double gaus_rad =   gaus_rad_rel *  sensor_radius_d;
+		int lines_overlap = (int) Math.round(4 * gaus_ang);
+		int inner_rad_d = (int) Math.round(height/2 * center_fract);
+		int transit_rad = (int) Math.round(height/2 * transit_fract);
+
+		int [] ints = radialInts(
+				length,
+				width,
+				decimate,
+				x0,
+				y0,
+				inner_rad_d); // margins (minimal from all sides)
+		int polar_height0 = ints[0];
+		int polar_width =   ints[1];
+		int polar_height =  polar_height0 + lines_overlap;
+		int polar_length = polar_width * polar_height;
+
+// convert dXY to dRT
+		double [][] data_xy = {preData[indexDx].clone(), preData[indexDy].clone()}; // clone to later blur (actually src is not needed)
+ 		double [][] data_rt = DXYtoDRT(
+				data_xy, // [0] - dx, [1] - dy
+				width,
+				decimate,
+				x0,
+				y0);
+		double [][] data_ortho= {
+				preData[indexWeight],
+				data_rt[0],
+				data_rt[1],
+				preData[indexR],
+				preData[indexG],
+				preData[indexB]};
+
+		String [] dbg_titles= {"Weight","dR", "dT","Red", "Green", "Blue"};
+		if (showDebugImages) {
+			this.SDFA_INSTANCE.showArrays(data_ortho, width, height,  true, "ortho-"+title, dbg_titles);
+		}
+		double [][] data_polar = correctionToRadial(
+				data_ortho, // variable number of layers, [0] - weight dRT or RGB
+				width,
+				decimate,
+				x0,
+				y0,
+				inner_rad_d,    // distorted inner radis
+				lines_overlap, // add lines to the bottom (corresponding to the angle)
+				0); // indexWeight);
+
+		if (showDebugImages) {
+			this.SDFA_INSTANCE.showArrays(data_polar, polar_width, polar_height,  true, "polar-"+title, dbg_titles);
+		}
+		double [][] data_polar_blur = new double[data_polar.length][];
+		data_polar_blur[0] = data_polar[0].clone();
+		for (int i = 1; i < data_polar_blur.length; i++) {
+			data_polar_blur[i] = data_polar[i].clone();
+			for (int j = 0; j < polar_length; j++ ) {
+				data_polar_blur[i][j]*=data_polar[0][j]; // weight (was *= data_polar_blur[0][j] restore?
+				if (Double.isNaN(data_polar_blur[i][j])) data_polar_blur[i][j]= 0.0;
+			}
+			(new DoubleGaussianBlur() ).blurDouble(data_polar_blur[i], polar_width, polar_height, gaus_rad, gaus_ang, 0.01);
+		}
+		(new DoubleGaussianBlur() ).blurDouble(data_polar_blur[0], polar_width, polar_height, gaus_rad, gaus_ang, 0.01);
+		for (int i = 1; i < data_polar_blur.length; i++) {
+			for (int j = 0; j < polar_length; j++ ) {
+				if (data_polar_blur[0][j] == 0.0) {
+					data_polar_blur[i][j] = Double.NaN;
+				} else {
+					data_polar_blur[i][j] /= data_polar_blur[0][j]; // weight
+				}
+			}
+
+		}
+		if (showDebugImages) {
+			this.SDFA_INSTANCE.showArrays(data_polar_blur, polar_width, polar_height,  true, "polar-bl-"+title, dbg_titles);
+		}
+		double [][] data_polar_diff = new double[data_polar.length][data_polar[0].length];
+		for (int i = 0; i < data_polar_diff.length; i++) {
+			for (int j = 0; j < polar_length; j++ ) {
+				data_polar_diff[i][j] = data_polar[i][j] - data_polar_blur[i][j];
 			}
 		}
+		if (showDebugImages) {
+			this.SDFA_INSTANCE.showArrays(data_polar_diff, polar_width, polar_height,  true, "polar-diff-"+title, dbg_titles);
+		}
+
+		double [][] errors_gr = new double[5][data_polar[0].length];
+		for (int j = 0; j < polar_length; j++) {
+			for (int i = 1; i < 3; i++) {
+				errors_gr[0][j] += data_polar_diff[i][j]*data_polar_diff[i][j];
+			}
+			errors_gr[0][j] = Math.sqrt(errors_gr[0][j]);
+
+			for (int i = 3; i < 6; i++) {
+				errors_gr[1][j] += data_polar_diff[i][j]*data_polar_diff[i][j];
+			}
+			errors_gr[1][j] = Math.sqrt(errors_gr[1][j]);
+		}
+		errors_gr[2] = data_polar[0].clone(); // weight
+
+		// reduce weight where high frequency difference was high, re-run blur
+		double [] weight_geom =  data_polar[0].clone();
+		double [] weight_photo = data_polar[0].clone();
+		for (int i = 0; i <polar_length; i++) {
+			if (Double.isNaN(errors_gr[0][i]) || (errors_gr[0][i] > max_diff_err_geom)) {
+				weight_geom[i] = 0.0;
+			} else {
+				weight_geom[i] *= (max_diff_err_geom - errors_gr[0][i]) / max_diff_err_geom;
+			}
+			if (Double.isNaN(errors_gr[1][i]) || (errors_gr[1][i] > max_diff_err_photo)) {
+				weight_photo[i] = 0.0;
+			} else {
+				weight_photo[i] *= (max_diff_err_photo - errors_gr[1][i])/max_diff_err_photo;
+			}
+		}
+		errors_gr[3] = weight_geom.clone(); // weight
+		errors_gr[4] = weight_photo.clone(); // weight
+		if (showDebugImages) {
+			String [] titles_err = {"geom","photo","weight", "weight_geom","weight_photo"};
+			this.SDFA_INSTANCE.showArrays(errors_gr, polar_width, polar_height,  true, "polar-err-"+title, titles_err);
+		}
+
+		// geometry
+		for (int i = 1; i < 3; i++) { // geom
+			data_polar_blur[i] = data_polar[i].clone();
+			for (int j = 0; j < polar_length; j++ ) {
+				data_polar_blur[i][j] *= weight_geom[j]; // weight
+				if (Double.isNaN(data_polar_blur[i][j])) data_polar_blur[i][j]= 0.0;
+			}
+			(new DoubleGaussianBlur() ).blurDouble(data_polar_blur[i], polar_width, polar_height, gaus_rad, gaus_ang, 0.01);
+		}
+		(new DoubleGaussianBlur() ).blurDouble(weight_geom, polar_width, polar_height, gaus_rad, gaus_ang, 0.01);
+		for (int i = 1; i < 3; i++) { // geom
+			for (int j = 0; j < polar_length; j++ ) {
+				if (weight_geom[j] == 0.0) {
+					data_polar_blur[i][j] = Double.NaN;
+				} else {
+					data_polar_blur[i][j] /= weight_geom[j]; // weight
+				}
+			}
+		}
+
+		// photo
+		for (int i = 3; i < 6; i++) { // photo
+			data_polar_blur[i] = data_polar[i].clone();
+			for (int j = 0; j < polar_length; j++ ) {
+				data_polar_blur[i][j] *= weight_photo[j]; // weight
+				if (Double.isNaN(data_polar_blur[i][j])) data_polar_blur[i][j]= 0.0;
+			}
+			(new DoubleGaussianBlur() ).blurDouble(data_polar_blur[i], polar_width, polar_height, gaus_rad, gaus_ang, 0.01);
+		}
+		(new DoubleGaussianBlur() ).blurDouble(weight_photo, polar_width, polar_height, gaus_rad, gaus_ang, 0.01);
+		for (int i = 3; i < 6; i++) { // photo
+			for (int j = 0; j < polar_length; j++ ) {
+				if (weight_photo[j] == 0.0) {
+					data_polar_blur[i][j] = Double.NaN;
+				} else {
+					data_polar_blur[i][j] /= weight_photo[j]; // weight
+				}
+			}
+		}
+		data_polar_blur[0] = weight_geom.clone();
+		if (showDebugImages) {
+			this.SDFA_INSTANCE.showArrays(data_polar_blur, polar_width, polar_height,  true, "polar-bl2-"+title, dbg_titles);
+		}
+		data_polar_diff = new double[data_polar.length][polar_length];
+		for (int i = 0; i < data_polar_diff.length; i++) {
+			for (int j = 0; j < polar_length; j++ ) {
+				data_polar_diff[i][j] = data_polar[i][j] - data_polar_blur[i][j];
+			}
+		}
+		if (showDebugImages) {
+			this.SDFA_INSTANCE.showArrays(data_polar_diff, polar_width, polar_height,  true, "polar-diff2-"+title, dbg_titles);
+			this.SDFA_INSTANCE.showArrays(data_ortho, width, height,  true, "ortho-back-pre-"+title, dbg_titles);
+		}
+
+		// put back to ortho (so far no transition, no ortho blur)
+		// Blur dXY, not dRT!
+
+		for (int l = 0; l < 2; l++) {
+			(new DoubleGaussianBlur() ).blurDouble(data_xy[l], width, height, gaus_rad, gaus_rad, 0.01);
+		}
+		data_rt = DXYtoDRT(
+				data_xy, // [0] - dx, [1] - dy
+				width,
+				decimate,
+				x0,
+				y0);
+		for (int l = 0; l < 2; l++) {
+			data_ortho[l+1] = data_rt[l];
+		}
+
+
+		double [][] polar_back = {
+				data_polar[0], // weight
+				data_polar_blur[1],
+				data_polar_blur[2],
+				data_polar_blur[3],
+				data_polar_blur[4],
+				data_polar_blur[5]};
+
+
+		(new DoubleGaussianBlur() ).blurDouble(data_ortho[0], width, height, gaus_rad, gaus_rad, 0.01); // is it needed - blur alpha?
+
+		for (int l = 3; l < data_ortho.length; l++) { // only R,G,B
+			(new DoubleGaussianBlur() ).blurDouble(data_ortho[l], width, height, gaus_rad, gaus_rad, 0.01);
+		}
+
+//		if (showDebugImages) {
+//			this.SDFA_INSTANCE.showArrays(polar_back, polar_width, polar_height,  true, "polar-back-"+title, dbg_titles);
+//		}
+
+		correctionToOrtho(
+				data_ortho, // variable number of layers, will be modifier from the overlapping radial)
+				polar_back, // same layers as ortho, will be used as a source
+				width,
+				decimate,
+				x0,
+				y0,
+				inner_rad_d, // margins (minimal from all sides)
+				lines_overlap, // add lines to the bottom (corresponding to the angle)
+				transit_rad); // smooth transition between ortho and polar width
+		if (showDebugImages) {
+			this.SDFA_INSTANCE.showArrays(data_ortho, width, height,  true, "ortho-back"+title, dbg_titles);
+		}
+
+		double [][] data_rt_back = {data_ortho[1], data_ortho[2]};
+		double [][] data_xy_back = DRTtoDXY(
+				data_rt_back, // [0] - dx, [1] - dy
+				width,
+				decimate,
+				x0,
+				y0);
+
+		preData[indexWeight] = data_ortho[0];
+		preData[indexDx] =     data_xy_back[0]; // data_ortho[1];
+		preData[indexDy] =     data_xy_back[1]; // data_ortho[2];
+		preData[indexR] =      data_ortho[3];
+		preData[indexG] =      data_ortho[4];
+		preData[indexB] =      data_ortho[5];
+
+	}
+
+	public void addOldXYCorrectionToCurrent(
+//			boolean invert,
+    		RefineParameters refineParameters,
+    		double [][][] sensorXYCorr
+			){
+		if (this.pixelCorrection==null) return; // no modifications are needed
+		for (int i=0;i<sensorXYCorr.length;i++) if ((sensorXYCorr[i]!=null) && (this.pixelCorrection[i]!=null)) {
+			boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(i);
+			RefineParameters rp = small_sensor ? refineParameters.refineParametersSmall : refineParameters;
+//			if (rp.sensorExtrapolateDiff ^ invert) { // add current correction AFTER extrapolationg/bluring
+				double scale = rp.correctionScale;
+				for (int j=0;j<sensorXYCorr[i][0].length;j++){
+					sensorXYCorr[i][0][j]=this.pixelCorrection[i][0][j]+scale*sensorXYCorr[i][0][j];
+					sensorXYCorr[i][1][j]=this.pixelCorrection[i][1][j]+scale*sensorXYCorr[i][1][j];
+				}
+			}
+//		}
 	}
 
 
@@ -1378,11 +1933,11 @@ public class Distortions {
 	 */
 
 	public double [][][]  allImagesCorrectionMapped(
-			final boolean [] selectedImages,
-			final boolean showIndividual,
-			final int showIndividualNumber,
-			final int       threadsMax,
-			final boolean   updateStatus,
+			final boolean []       selectedImages,
+			final boolean          si,               // showIndividual,
+			final RefineParameters refineParameters, // final int showIndividualNumber,
+			final int              threadsMax,
+			final boolean          updateStatus,
 			final int debugLevel
 			){
 		int numChannels=  fittingStrategy.distortionCalibrationData.getNumChannels(); // number of used channels
@@ -1406,6 +1961,10 @@ public class Distortions {
    					for (int imgNum=imageNumberAtomic.getAndIncrement(); (imgNum<selectedImages.length) && !interruptedAtomic.get();imgNum=imageNumberAtomic.getAndIncrement()){
    						if (selectedImages[imgNum]){
    							int chnNum=fittingStrategy.distortionCalibrationData.gIP[imgNum].channel; // number of sub-camera
+   	   						boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(chnNum);
+   	   						RefineParameters rp = small_sensor ? refineParameters.refineParametersSmall : refineParameters;
+   	   						boolean   showIndividual = si && rp.showPerImage;
+   	   						int showIndividualNumber = rp.showIndividualNumber;
    							double [][] singleCorr=
    								singleImageCorrectionMapped(
    									imgNum, // image number
@@ -1451,19 +2010,11 @@ public class Distortions {
    		}
    		return gridPCorr;
 	}
-
+	@Deprecated
 	public void allSensorsExtrapolationMapped(
 			final int stationNumber, // has to be selected
 			final double [][][] gridPCorr,
-			final double shrinkBlurComboSigma,
-			final double shrinkBlurComboLevel,
-			final double alphaThreshold,
-			final double step,
-			final double interpolationSigma,
-			final double tangentialRadius,
-			final int    scanDistance,
-			final int resultDistance,
-			final int interpolationDegree,
+			final RefineParameters refineParameters, //
 			final int       threadsMax,
 			final boolean   updateStatus,
 			final boolean showDebugImages,
@@ -1480,11 +2031,6 @@ public class Distortions {
 
 		final int alphaIndex=2;
 
-//		final int sensorWidth=   fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorWidth;
-//		final int sensorHeight=  fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorHeight;
-//		final int decimation=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.decimateMasks;
-//		final int width= (sensorWidth-1)/decimation+1; // decimated width (648)
-//		final int height= (sensorHeight-1)/decimation+1; // decimated width (648)
 		final boolean extraShowDebug=showDebugImages&& (debugLevel>2);
 
    		for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -1499,98 +2045,103 @@ public class Distortions {
    						debugMasks1=new double[2][];
    						debugMasks2=new double[2][];
    					}
-   					if (shrinkBlurComboSigma>0.0) gb=new DoubleGaussianBlur();
+//   					if (shrinkBlurComboSigma>0.0) gb=new DoubleGaussianBlur();
+   					gb=new DoubleGaussianBlur();
    					for (int sensorNum=sensorNumberAtomic.getAndIncrement(); (sensorNum<gridPCorr.length) && !interruptedAtomic.get();sensorNum=sensorNumberAtomic.getAndIncrement()){
-   						int sensorWidth=   fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorWidth(sensorNum);
-   						int sensorHeight=  fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorHeight(sensorNum);
-   						int decimation=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getDecimateMasks(sensorNum);
-   						int width= (sensorWidth-1)/decimation+1; // decimated width (648)
-   						int height= (sensorHeight-1)/decimation+1; // decimated width (648)
+   						boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(sensorNum);
+   						RefineParameters rp = small_sensor ? refineParameters.refineParametersSmall : refineParameters;
+   						if (rp.extrapolate) {
+   							int sensorWidth=   fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorWidth(sensorNum);
+   							int sensorHeight=  fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorHeight(sensorNum);
+   							int decimation=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getDecimateMasks(sensorNum);
+   							int width= (sensorWidth-1)/decimation+1; // decimated width (648)
+   							int height= (sensorHeight-1)/decimation+1; // decimated width (648)
 
-   						if (gridPCorr[sensorNum]!=null){
-   							final double [] centerPXY={
-   									eyesisSubCameras[sensorNum].px0,
-   									eyesisSubCameras[sensorNum].py0
-   							};
-   							if (shrinkBlurComboSigma>0.0){
-   								double sigma=shrinkBlurComboSigma/decimation;
-   								int margin=(int) (2*sigma);
-   								int width1=width+2*margin;
-   								int height1=height+2*margin;
-   			   					if (extraShowDebug) debugMasks2[0]=gridPCorr[sensorNum][alphaIndex].clone();
-   								double [] mask= addMarginsThreshold(
-   										gridPCorr[sensorNum][alphaIndex], // double [] data,
-   										0.0, // double threshold,
-   										width,
-   										height,
-   										margin);
-   			   					if (extraShowDebug) debugMasks1[0]=mask.clone();
-   								gb.blurDouble(
-   										mask,
-   										width1,
-   										height1,
-   										sigma,
-   										sigma,
-   										0.01);
-
-   								double k=1.0/(1.0-shrinkBlurComboLevel);
-   								for (int i=0;i<mask.length;i++) {
-   									mask[i]=k*(mask[i]-shrinkBlurComboLevel);
-   									mask[i]=(mask[i]>0.0)?(mask[i]*mask[i]):0.0;
-   								}
-   								if (extraShowDebug) debugMasks1[1]=mask.clone();
-   								gridPCorr[sensorNum][alphaIndex]=removeMargins(
-   										mask, //double [] data,
-   										width, // w/o margins
-   										height,
-   										margin); //mask; // replace with 0.0 .. 1.0 mask
-   								if (extraShowDebug) debugMasks2[1]=gridPCorr[sensorNum][alphaIndex].clone();
-   								if (extraShowDebug) {
-   									(new ShowDoubleFloatArrays()).showArrays(
-   											debugMasks1,
-   											width1,
-   											height1,
-   											true,
-   											"M1-"+sensorNum,
-   											debugMaskTitles);
-   									(new ShowDoubleFloatArrays()).showArrays(
-   											debugMasks2,
+   							if (gridPCorr[sensorNum]!=null){
+   								final double [] centerPXY={
+   										eyesisSubCameras[sensorNum].px0,
+   										eyesisSubCameras[sensorNum].py0
+   								};
+   								if (rp.sensorShrinkBlurComboSigma>0.0){
+   									double sigma=rp.sensorShrinkBlurComboSigma/decimation;
+   									int margin=(int) (2*sigma);
+   									int width1=width+2*margin;
+   									int height1=height+2*margin;
+   									if (extraShowDebug) debugMasks2[0]=gridPCorr[sensorNum][alphaIndex].clone();
+   									double [] mask= addMarginsThreshold(
+   											gridPCorr[sensorNum][alphaIndex], // double [] data,
+   											0.0, // double threshold,
    											width,
    											height,
-   											true,
-   											"M2-"+sensorNum,
-   											debugMaskTitles);
-   								}
+   											margin);
+   									if (extraShowDebug) debugMasks1[0]=mask.clone();
+   									gb.blurDouble(
+   											mask,
+   											width1,
+   											height1,
+   											sigma,
+   											sigma,
+   											0.01);
 
-   							}
-   							singleSensorExtrapolationMapped(
-   									sensorNum,
-   									gridPCorr[sensorNum],
-   									sensorMasks[sensorNum],
-   									width,
-   									decimation,
-   									alphaThreshold,
- 									step,
- 									centerPXY,
-   									interpolationSigma,
-   									tangentialRadius,
-   									scanDistance,
-   									resultDistance,
-   									interpolationDegree,
-   									(shrinkBlurComboSigma>0.0),
-   									showDebugImages,
-   									debugLevel);
-   							final int numFinished=sensorFinishedAtomic.getAndIncrement();
-   							SwingUtilities.invokeLater(new Runnable() {
-   								@Override
-								public void run() {
-   									if (updateStatus) IJ.showProgress(numFinished,gridPCorr.length);
+   									double k=1.0/(1.0-rp.sensorShrinkBlurComboLevel);
+   									for (int i=0;i<mask.length;i++) {
+   										mask[i]=k*(mask[i]-rp.sensorShrinkBlurComboLevel);
+   										mask[i]=(mask[i]>0.0)?(mask[i]*mask[i]):0.0;
+   									}
+   									if (extraShowDebug) debugMasks1[1]=mask.clone();
+   									gridPCorr[sensorNum][alphaIndex]=removeMargins(
+   											mask, //double [] data,
+   											width, // w/o margins
+   											height,
+   											margin); //mask; // replace with 0.0 .. 1.0 mask
+   									if (extraShowDebug) debugMasks2[1]=gridPCorr[sensorNum][alphaIndex].clone();
+   									if (extraShowDebug) {
+   										(new ShowDoubleFloatArrays()).showArrays(
+   												debugMasks1,
+   												width1,
+   												height1,
+   												true,
+   												"M1-"+sensorNum,
+   												debugMaskTitles);
+   										(new ShowDoubleFloatArrays()).showArrays(
+   												debugMasks2,
+   												width,
+   												height,
+   												true,
+   												"M2-"+sensorNum,
+   												debugMaskTitles);
+   									}
+
    								}
-   							});
-   	   						if (stopRequested.get()==1){ // ASAP
-   	   							interruptedAtomic.set(true);
-   	   						}
-   						} //if (selectedImages[numImage]){
+   								singleSensorExtrapolationMapped(
+   										sensorNum,
+   										gridPCorr[sensorNum],
+   										sensorMasks[sensorNum],
+   										width,
+   										decimation,
+   										rp.sensorAlphaThreshold,
+   										rp.sensorStep,
+   										centerPXY,
+   										rp.sensorInterpolationSigma,
+   										rp.sensorTangentialRadius,
+   										rp.sensorScanDistance,
+   										rp.sensorResultDistance,
+   										rp.sensorInterpolationDegree,
+   										(rp.sensorShrinkBlurComboSigma > 0.0),
+   										showDebugImages,
+   										debugLevel);
+   								final int numFinished=sensorFinishedAtomic.getAndIncrement();
+   								SwingUtilities.invokeLater(new Runnable() {
+   									@Override
+   									public void run() {
+   										if (updateStatus) IJ.showProgress(numFinished,gridPCorr.length);
+   									}
+   								});
+   								if (stopRequested.get()==1){ // ASAP
+   									interruptedAtomic.set(true);
+   								}
+   							}
+   						} //if (rp.extrapolate); // if (selectedImages[numImage]){
    					} // for (int numImage=imageNumberAtomic.getAndIncrement(); ...
    				} // public void run() {
    			};
@@ -1599,7 +2150,8 @@ public class Distortions {
 		if (updateStatus) IJ.showProgress(0);
    		return;
 	}
-	public double [] addMargins(
+ @Deprecated
+ 	public double [] addMargins(
 			double [] data,
 			double marginData,
 			int width,
@@ -1620,7 +2172,7 @@ public class Distortions {
 		}
 		return result;
 	}
-
+    @Deprecated
 	public double [] addMarginsThreshold(
 			double [] data,
 			double threshold,
@@ -1642,7 +2194,7 @@ public class Distortions {
 		}
 		return result;
 	}
-
+    @Deprecated
 	public double [] removeMargins(
 			double [] data,
 			int width, // w/o margins
@@ -1662,7 +2214,7 @@ public class Distortions {
 		}
 		return result;
 	}
-
+    @Deprecated
 	public void singleSensorExtrapolationMapped(
 			int sensoNum,
 			double [][] gridPCorr,
@@ -1893,12 +2445,7 @@ public class Distortions {
 			}
 		}
 	}
-
-
-
-
-
-
+    // used 2020
 	public synchronized void combineImageCorrection(
 			int chnNum,
 			double [][][] gridPCorr,
@@ -4587,11 +5134,20 @@ List calibration
 			header+="\t"+IJ.d2s(fittingStrategy.distortionCalibrationData.getImageTimestamp(imgIndices[imgIndex]),6);
 	    StringBuffer sb = new StringBuffer();
 	    if (showIndex) {
-			sb.append("index \t");
+			sb.append("Station \t");
+			for (int imgIndex=0;imgIndex<numImages;imgIndex++){
+				sb.append("\t"+fittingStrategy.distortionCalibrationData.gIP[imgIndices[imgIndex]].getStationNumber());
+			}
+			sb.append("\n");
+			sb.append("Set \t");
+			for (int imgIndex=0;imgIndex<numImages;imgIndex++){
+				sb.append("\t"+fittingStrategy.distortionCalibrationData.gIP[imgIndices[imgIndex]].getSetNumber());
+			}
+			sb.append("\n");
+			sb.append("Index \t");
 			for (int imgIndex=0;imgIndex<numImages;imgIndex++){
 				sb.append("\t"+imgIndices[imgIndex]);
 			}
-			sb.append("\n");
 
 	    }
 	    if (showGridMatch){
@@ -4773,15 +5329,23 @@ List calibration
 
 	public double calcErrorDiffY(double [] fX){
 		double result=0;
+		double dbg_maxdiff = 0.0+0.0;
 		if (this.weightFunction!=null) {
-			for (int i=0;i<fX.length;i++){
+			for (int i=0;i<fX.length;i++)if (this.weightFunction[i] != 0.0){
 				double diff=this.Y[i]-fX[i];
+				if ((this.debugLevel>1) &&(Math.abs(diff) > dbg_maxdiff)) {
+					System.out.println("i="+i+", diff="+diff+" y="+this.Y[i]+" fX="+fX[i]+ " w="+this.weightFunction[i]);
+					dbg_maxdiff = Math.abs(diff);
+				}
 				result+=diff*diff*this.weightFunction[i];
 			}
 			result/=this.sumWeights;
 		} else {
 			for (int i=0;i<fX.length;i++){
 				double diff=this.Y[i]-fX[i];
+//				if (Math.abs(diff) > 1.0) {
+//					System.out.print("");
+//				}
 				result+=diff*diff;
 			}
 			result/=fX.length;
@@ -4798,12 +5362,18 @@ List calibration
 			effectiveWeight=this.sumWeights;
 			for (int i=0;i<fX.length;i++){
 				double diff=this.Y[i]-fX[i];
+//				if (Math.abs(diff) > 1.0) {
+//					System.out.print("");
+//				}
 				result+=diff*diff*this.weightFunction[i];
 			}
 		} else {
 			effectiveWeight=fX.length;
 			for (int i=0;i<fX.length;i++){
 				double diff=this.Y[i]-fX[i];
+//				if (Math.abs(diff) > 1.0) {
+//					System.out.print("");
+//				}
 				result+=diff*diff;
 			}
 		}
@@ -4908,12 +5478,14 @@ List calibration
     }
 	public boolean showImageReprojectionErrorsDialog( int debugLevel){
 		boolean eachImageInSet=false;
+		boolean showGrids = false;
 	    GenericDialog gd = new GenericDialog("Show Reprojection errors for image/image set/image selection");
 		gd.addNumericField("Series number for image selection (-1 - all enabled images)", -1, 0);
 		gd.addNumericField("Single image number to show (<0 - do not select)", -1,0);
 		gd.addNumericField("Image set number to show (<0 - do not select)", -1,0);
 		gd.addCheckbox("Open each image in the set",     eachImageInSet);
 		gd.addCheckbox("Ask for weight function filter",     this.askFilter);
+		gd.addCheckbox("Show grid images",                   showGrids);
 //		gd.addNumericField("Weight function filter (-1 - use default for all )",-1,0);
 	    gd.showDialog();
 	    if (gd.wasCanceled()) return false;
@@ -4923,12 +5495,16 @@ List calibration
 	    eachImageInSet=                 gd.getNextBoolean();
 	    this.askFilter=                 gd.getNextBoolean();
 //	    int weightFunctionFilter= (int) gd.getNextNumber();
+	    showGrids =                  gd.getNextBoolean();
 		int filter=this.filterForAll;
 		if (this.askFilter) filter=selectFilter(filter);
 	    int [] imageNumbers = null;
 	    if (singleImageNumber>=0){
 	    	imageNumbers=new int [1];
 	    	imageNumbers[0]=singleImageNumber;
+	    	if (showGrids) {
+	    		this.fittingStrategy.distortionCalibrationData.gIP[singleImageNumber].showGridImage();
+	    	}
 	    } else if (imageSetNumber>=0){
 	    	int numInSet=0;
 	    	for (int nChn=0;nChn<this.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].imageSet.length;nChn++){
@@ -4939,6 +5515,13 @@ List calibration
 	    	for (int nChn=0;nChn<this.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].imageSet.length;nChn++){
 	    		if (this.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].imageSet[nChn]!=null) {
 	    			imageNumbers[numInSet++]=this.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].imageSet[nChn].imgNumber;
+	    		}
+	    	}
+
+	    	if (showGrids) {
+	    		for (int nChn=0;nChn<imageNumbers.length;nChn++){
+	    			int img_num= imageNumbers[nChn];
+	    			this.fittingStrategy.distortionCalibrationData.gIP[img_num].showGridImage();
 	    		}
 	    	}
 	    	if (eachImageInSet){
@@ -5864,7 +6447,8 @@ List calibration
     			"Select Grid Tuning Parameters",
     			0x61000,
     			((this.seriesNumber>=0)?this.seriesNumber:0),
-    			null); // averageRGB - only for target flat-field correction
+    			null, // averageRGB - only for target flat-field correction
+    			false); // no difference for LWIR sensors?
 
 
     	if (series<0) return false;
@@ -5965,7 +6549,8 @@ List calibration
     			"Select Grid Tuning Parameters",
     			0x61000,
     			((this.seriesNumber>=0)?this.seriesNumber:0),
-    			null); // averageRGB - only for target flat-field correction
+    			null, // averageRGB - only for target flat-field correction
+    			false); // no difference for LWIR?
 
 
     	if (series<0) return false;
@@ -6014,153 +6599,7 @@ List calibration
     	return true;
     }
 
-    public boolean modifyPixelCorrection(DistortionCalibrationData distortionCalibrationData){ // old
-    	if (fittingStrategy==null) {
-    		String msg="Fitting strategy does not exist, exiting";
-    		IJ.showMessage("Error",msg);
-    		throw new IllegalArgumentException (msg);
-    	}
-    	if (distortionCalibrationData.eyesisCameraParameters==null){
-    		String msg="Eyesis camera parameters (and sensor dimensions) are not defined";
-    		IJ.showMessage("Error",msg);
-    		throw new IllegalArgumentException (msg);
-    	}
-    	//	fittingStrategy.distortionCalibrationData.readAllGrids();
-//    	if (! selectGridEnhanceParameters()) return false;
-
-    	int series=refineParameters.showDialog(
-    			"Select Lens Distrortion Residual Compensation Parameters",
-    			0x1efff,
-    			((this.seriesNumber>=0)?this.seriesNumber:0),
-    			null); // averageRGB - only for target flat-field correction
-    	if (series<0) return false;
-    	this.seriesNumber=series;
-
-		int filter=this.filterForSensor;
-		if (this.askFilter) filter=selectFilter(filter);
-    	initFittingSeries(true,filter,this.seriesNumber); // first step in series now uses pattern alpha
-//    	initFittingSeries(true,this.filterForSensor,this.seriesNumber); // first step in series now uses pattern alpha
-    	this.currentfX=calculateFxAndJacobian(this.currentVector, false);
-    	//        	this.currentRMS= calcError(calcYminusFx(this.currentfX));
-    	if (this.debugLevel>2) {
-    		System.out.println("this.currentVector");
-    		for (int i=0;i<this.currentVector.length;i++){
-    			System.out.println(i+": "+ this.currentVector[i]);
-    		}
-    	}
- //   	if (this.showThisImages) showDiff (this.currentfX, "residual-series-"+this.seriesNumber);
-    	double [][][] sensorXYCorr=	calculateSensorXYCorr(
-    			distortionCalibrationData,
-    			this.refineParameters.showPerImage,
-    			this.refineParameters.showIndividualNumber,
-    			this.refineParameters.usePatternAlpha);
-    	String [] titles={"X-corr(pix)","Y-corr(pix)","alpha","weight","Red","Green","Blue"};
-    	if (this.refineParameters.extrapolate) {
-    		boolean [] whichExtrapolate={true, true,false,false,true,true,true};
-    		boolean [] whichPositive=   {false,false,false,false,true,true,true};
-    		IJ.showStatus("Extrapolating sensor corrections...");
-    		for (int numChn=0;numChn<sensorXYCorr.length;numChn++) if (sensorXYCorr[numChn]!=null){
-    			int decimate=getDecimateMasks(numChn);
-    			int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
-    			int sHeight=(getSensorHeight(numChn)-1)/decimate+1;
-    	    	if (this.refineParameters.showUnfilteredCorrection) {
-    	    		this.SDFA_INSTANCE.showArrays(sensorXYCorr[numChn], sWidth, sHeight,  true, "chn_"+numChn+"_extra_correction", titles);
-    	    	}
-
-
-
-
-    			for (int i=0;i<whichPositive.length;i++) if (whichPositive[i]){
-    				logScale(sensorXYCorr[numChn][i],this.refineParameters.fatZero);
-    			}
-    		    boolean extrapolateOK=extrapolateSensorCorrection( //ava.lang.NullPointerException  at Distortions.modifyPixelCorrection(Distortions.java:2595)
-    		    		numChn,
-    		    		whichExtrapolate,
-    		    		sensorXYCorr[numChn],
-    		    		sensorXYCorr[numChn][2],// alpha - it is more pessimistic than fittingStrategy.distortionCalibrationData.sensorMasks[numChn]
-//    		    		fittingStrategy.distortionCalibrationData.sensorMasks[numChn],
-    		    		this.refineParameters.alphaThreshold,
-    		    		this.refineParameters.extrapolationSigma,
-    		    		this.refineParameters.extrapolationKSigma);
-    			IJ.showProgress(numChn+1, sensorXYCorr.length);
-    			for (int i=0;i<whichPositive.length;i++) if (whichPositive[i]){
-    				unLogScale(sensorXYCorr[numChn][i],this.refineParameters.fatZero);
-    			}
-    			if (!extrapolateOK) sensorXYCorr[numChn]=null; // no correction for too small areas
-     		}
-			IJ.showProgress(1.0);
-    	}
-
-    	if (this.refineParameters.showExtrapolationCorrection && this.refineParameters.extrapolate && this.refineParameters.smoothCorrection) {
-    		for (int numChn=0;numChn<sensorXYCorr.length;numChn++) if (sensorXYCorr[numChn]!=null){
-    			int decimate=getDecimateMasks(numChn);
-    			int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
-    			int sHeight=(getSensorHeight(numChn)-1)/decimate+1;
-    			this.SDFA_INSTANCE.showArrays(sensorXYCorr[numChn], sWidth, sHeight,  true, "chn_"+numChn+"_extrapolated", titles);
-    		}
-    	}
-
-    	if (this.refineParameters.smoothCorrection) {
-    		boolean [] whichBlur={true,true,false,false,true,true,true};
-    		IJ.showStatus("Bluring sensor corrections...");
-    		for (int numChn=0;numChn<sensorXYCorr.length;numChn++) if (sensorXYCorr[numChn]!=null){
-    			int decimate=getDecimateMasks(numChn);
-    			int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
-    			int sHeight=(getSensorHeight(numChn)-1)/decimate+1;
-    			DoubleGaussianBlur gb=new DoubleGaussianBlur();
-    			for (int m=0;m<whichBlur.length;m++) if (whichBlur[m]){
-    			gb.blurDouble(sensorXYCorr[numChn][m],
-    					sWidth,
-    					sHeight,
-    					this.refineParameters.smoothSigma/decimate,
-    					this.refineParameters.smoothSigma/decimate,
-    					 0.01);
-    			}
-    			IJ.showProgress(numChn+1, sensorXYCorr.length);
-     		}
-			IJ.showProgress(1.0);
-    	}
-    	if (this.refineParameters.showThisCorrection ) {
-    		for (int numChn=0;numChn<sensorXYCorr.length;numChn++) if (sensorXYCorr[numChn]!=null){
-    			int decimate=getDecimateMasks(numChn);
-    			int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
-    			int sHeight=(getSensorHeight(numChn)-1)/decimate+1;
-    			this.SDFA_INSTANCE.showArrays(sensorXYCorr[numChn], sWidth, sHeight,  true, "chn_"+numChn+"_filtered", titles);
-    		}
-    	}
-//   	if (!selectCorrectionScale()) return false;
-		IJ.showStatus("Applying corrections:"+((!this.refineParameters.applyCorrection && !this.refineParameters.applyFlatField)?
-				"none ":((this.refineParameters.applyCorrection?"geometry ":"")+(this.refineParameters.applyFlatField?"flat field":""))));
-
-
-		addOldXYCorrectionToCurrent(
-    			this.refineParameters.correctionScale,
-    			sensorXYCorr);
-
-    	boolean result=applySensorCorrection(
-    			this.refineParameters.applyCorrection,
-    			this.refineParameters.applyFlatField,
-    			this.refineParameters.correctionScale,
-    			sensorXYCorr,
-    			distortionCalibrationData);
-    	if (this.refineParameters.showCumulativeCorrection) {
-    		for (int numChn=0;numChn<sensorXYCorr.length;numChn++) if (sensorXYCorr[numChn]!=null){
-    			int decimate=getDecimateMasks(numChn);
-    			int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
-    			int sHeight=(getSensorHeight(numChn)-1)/decimate+1;
-    			this.SDFA_INSTANCE.showArrays(sensorXYCorr[numChn], sWidth, sHeight,  true, "Cumulative_chn_"+numChn+"_corrections", titles);
-    		}
-    	}
-    	if (result) {
-    		// NEED to update from all?
-//			updateCameraParametersFromCalculated(true); // update camera parameters from all (even disabled) images
-			updateCameraParametersFromCalculated(false); // update camera parameters from enabled only images (may overwrite some of the above)
-
-    	}
-		IJ.showStatus("");
-
-    	return result;
-    }
+//    public boolean modifyPixelCorrectionOld(DistortionCalibrationData distortionCalibrationData){ // old removed
 
     public void resetSensorCorrection(){
     	this.pixelCorrection=null;
@@ -6193,13 +6632,35 @@ List calibration
     	}
     }
 
+    public void initSensorCorrection(int sensorNum){
+    	int numLayers=7;
+    	if ((this.pixelCorrection!=null) && (sensorNum<this.pixelCorrection.length) && (sensorNum>=0)) {
+    		this.pixelCorrection[sensorNum]=null;
+    		this.pathNames[sensorNum]=null;
+    	}
+    	double [] mask = this.fittingStrategy.distortionCalibrationData.calculateSensorMasks(sensorNum);
+    	this.pixelCorrection[sensorNum]=new double [numLayers][];
+    	this.pathNames[sensorNum]=null;
+    	for (int n=0;n<numLayers;n++) this.pixelCorrection[sensorNum][n]=new double [mask.length];
+    	for (int j=0;j<mask.length;j++) {
+    		this.pixelCorrection[sensorNum][0][j]=0.0;
+    		this.pixelCorrection[sensorNum][1][j]=0.0;
+    		this.pixelCorrection[sensorNum][2][j]=mask[j];
+    		this.pixelCorrection[sensorNum][3][j]=1.0;
+    		this.pixelCorrection[sensorNum][4][j]=1.0;
+    		this.pixelCorrection[sensorNum][5][j]=1.0;
+    	}
+    }
+
+
     /*
      * Adds new correction to the current one with the result to the new one. If update, the old arrays are also modified/created
      */
     public boolean applySensorCorrection(
-    		boolean update,
-    		boolean updateFlatField,
-    		double scale,
+    		RefineParameters refineParameters,
+//    		boolean update,
+//    		boolean updateFlatField,
+//    		double scale,
     		double [][][] sensorXYCorr,
     		DistortionCalibrationData distortionCalibrationData){
 		int numLayers=6;
@@ -6210,12 +6671,12 @@ List calibration
 ///    		IJ.showMessage("Error","Can not apply correction as the current correction and the new one have different decimations");
 ///    		return false;
 ///    	}
-    	if ((this.pixelCorrection==null) && !update && !updateFlatField) return true;
-    	if (update){
+//    	if ((this.pixelCorrection==null) && !update && !updateFlatField) return true;
+//    	if (update){
 ///    		this.pixelCorrectionDecimation=decimate;
 ///    		this.pixelCorrectionWidth=width;
 ///    		this.pixelCorrectionHeight=height;
-    	}
+//    	}
         if (this.pixelCorrection==null) {
         	if (this.debugLevel>1) System.out.println("Initializing pixelCorrection array");
         	this.pixelCorrection=new double [sensorXYCorr.length][][];
@@ -6244,6 +6705,13 @@ List calibration
         	this.pathNames=tmpPaths;
         }
         for (int i=0;i<sensorXYCorr.length;i++) if (sensorXYCorr[i]!=null){
+			boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(i);
+			RefineParameters rp = small_sensor ? refineParameters.refineParametersSmall : refineParameters;
+    		boolean update =          rp.applyCorrection;
+    		boolean updateFlatField = rp.applyFlatField;
+    		double scale =            rp.correctionScale;
+
+
         	boolean in6=sensorXYCorr[i].length==6; // was - 7
         	int indxR=in6?3:4;
         	int indxG=in6?4:5;
@@ -6824,22 +7292,12 @@ List calibration
     public double [][][][] calculateGridFlatField(
     		int serNumber,
     		double [][] sensorMasks,
-    		double minContrast,
-    		double threshold,
-    		boolean interpolate,
-    		double maskThresholdOcclusion,
-    		int expandOcclusion,
-    		double fadeOcclusion,
-    		boolean ignoreSensorFlatField){
-   // TODO: add standard weight function used elsethere.
+    		RefineParameters refineParameters){
+   // TODO: add standard weight function used elsewhere.
     	int indexContrast=2;
     	boolean [] selectedImages=fittingStrategy.selectedImages(serNumber); // negative series number OK - will select all enabled
     	int gridHeight=this.patternParameters.gridGeometry.length;
     	int gridWidth=this.patternParameters.gridGeometry[0].length;
-    	// was not here
-///		this.pixelCorrectionDecimation=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.decimateMasks;
-///		this.pixelCorrectionWidth=   fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorWidth;
-///		this.pixelCorrectionHeight=  fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorHeight;
 
     	int maxChannel=0;
     	int numStations=this.patternParameters.getNumStations();
@@ -6852,6 +7310,17 @@ List calibration
     	// For each sensor separately accumulate grid intensity using current sensor flat field calibration
     	for (int numImg=0;numImg<fittingStrategy.distortionCalibrationData.gIP.length;numImg++) if (selectedImages[numImg]) {
     		int channel=fittingStrategy.distortionCalibrationData.gIP[numImg].channel;
+    		boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(channel);
+    		RefineParameters rp = small_sensor ? refineParameters.refineParametersSmall : refineParameters;
+
+    		double minContrast = rp.flatFieldMinimalContrast;
+//    		double threshold = rp.flatFieldMinimalContrast;
+    		boolean interpolate = rp.flatFieldUseInterpolate;
+    		double maskThresholdOcclusion = rp.flatFieldMaskThresholdOcclusion;
+    		int expandOcclusion = rp.flatFieldShrinkOcclusion;
+    		double fadeOcclusion = rp.flatFieldFadeOcclusion;
+    		boolean ignoreSensorFlatField = rp.flatFieldIgnoreSensorFlatField;
+
     		int station=fittingStrategy.distortionCalibrationData.gIP[numImg].getStationNumber();
     		if (sensorMasks[channel]==null) continue;
     		if (sensorGrids[station][channel]==null){ // null pointer
@@ -6870,9 +7339,7 @@ List calibration
     		}
     		int [][]    pixelsUV=fittingStrategy.distortionCalibrationData.gIP[numImg].pixelsUV;
     		double [] defaultVector={0.0, 0.0, 0.0, 1.0, 1.0, 1.0};
- //   		double [] sensorMask=sensorMasks[channel];
     		// detect if there is any occlusion (i.e. by goniometer rollers)
-//    		double [] green=new double [pixelsXY.length];
     		boolean [] bMask=new boolean [gridHeight*gridWidth];
     		double [] mask=new double[bMask.length];
     		for (int i=0;i<bMask.length;i++){
@@ -6977,6 +7444,9 @@ List calibration
     	}
     	for (int station=0;station<sensorGrids.length;station++){
     		for (int channel=0;channel<sensorGrids[station].length; channel++) if (sensorGrids[station][channel]!=null){
+        		boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(channel);
+        		RefineParameters rp = small_sensor ? refineParameters.refineParametersSmall : refineParameters;
+        		double threshold = rp.flatFieldMinimalContrast;
     			if (this.pixelCorrection[channel]==null) {
     				sensorGrids[station][channel]=null;
     			} else {
@@ -7018,16 +7488,24 @@ List calibration
      */
 
     public double [][][][] combineGridFlatField(
+//    		RefineParameters refineParameters,
     		int referenceStation,
     		double [][][][] flatFields,
     		double shrinkForMatching,
     		boolean resetMask,
-    		double maxDiffNeighb,  // maximal allowed relative difference between neighbour nodes (relative), 0 - do not  filter any
+    		double maxDiffNeighb,  // maximal allowed relative difference between neighbor nodes (relative), 0 - do not  filter any
     		int shrinkMask, // shrink result mask
     		double fadeMask
     		){
+    	// So far all parameters common for large/small sensors!
+//    	boolean resetMask = refineParameters.flatFieldResetMask;                // common for all sensors!
+//    	int referenceStation = refineParameters.flatFieldReferenceStation;      // common for all sensors!
+//    	double shrinkForMatching = refineParameters.flatFieldShrinkForMatching; // common for all sensors!
+//    	double maxDiffNeighb  = refineParameters.flatFieldMaxRelDiff;           // common for all sensors!
+//		int shrinkMask  = refineParameters.flatFieldShrinkMask;                 // common for all sensors!
+//		double fadeMask  = refineParameters.flatFieldFadeBorder;                // common for all sensors!
+
     	int maskIndex=3;
-//    	if (resetMask) patternParameters.calculateGridGeometry(false);
     	if (resetMask) patternParameters.calculateGridGeometryAndPhotometric(false);
     	double [][][] gridGeometry= patternParameters.getGeometry();
     	int [] viewMap=	patternParameters.getViewMap();
@@ -7526,6 +8004,7 @@ List calibration
      * @return returns arrray with the same size as sensorMask that corresponds to low-vignetting areas of the sensor/lens
      */
     // Using station 0 - should be not much difference
+    // older version with one type of sensors
     public double [][] nonVignettedMasks(
     		double shrink,
     		double radius,
@@ -7536,6 +8015,42 @@ List calibration
     	double [][]masks=new double [this.pixelCorrection.length][];
     	int maskIndex=2;
     	for (int numSensor=0;numSensor<masks.length;numSensor++){
+    		boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(numSensor);
+    		RefineParameters rp = small_sensor ? refineParameters.refineParametersSmall : refineParameters;
+
+    		if (this.pixelCorrection[numSensor]==null) masks[numSensor] = null;
+    		else {
+    			masks[numSensor] = fittingStrategy.distortionCalibrationData.nonVignettedMask(
+    					this.pixelCorrection[numSensor][maskIndex],
+    					getSensorWidth(numSensor), // this.pixelCorrectionWidth,
+    					getSensorHeight(numSensor), // this.pixelCorrectionHeight,
+    					fittingStrategy.distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[0][numSensor].px0,     // lens center X (sensor, non-decimated pix)
+    					fittingStrategy.distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[0][numSensor].py0,     // lens center Y (sensor, non-decimated pix)
+    					shrink,
+    					radius,
+    					minimalAlpha);
+    			//    			System.out.println("nonVignettedMasks(), masks["+numSensor+"].length="+masks[numSensor].length);
+    		}
+    	}
+    	return masks;
+    }
+
+// modified for multiple types of sensors:
+    public double [][] nonVignettedMasks(
+    		RefineParameters refineParameters){
+    	if (this.pixelCorrection==null){
+    		initSensorCorrection();
+    	}
+    	double [][]masks=new double [this.pixelCorrection.length][];
+    	int maskIndex=2;
+    	for (int numSensor=0;numSensor<masks.length;numSensor++){
+				boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(numSensor);
+				RefineParameters rp = small_sensor ? refineParameters.refineParametersSmall : refineParameters;
+
+    		double shrink = rp.flatFieldShrink;
+    		double radius = rp.flatFieldNonVignettedRadius;
+    		double minimalAlpha=rp.flatFieldMinimalAlpha;
+
     		if (this.pixelCorrection[numSensor]==null) masks[numSensor] = null;
     		else {
     			masks[numSensor] = fittingStrategy.distortionCalibrationData.nonVignettedMask(
@@ -7552,6 +8067,9 @@ List calibration
     	}
     	return masks;
     }
+
+
+
 
     // Use series0 to find grid mismatch (and set it correctly). Uses that pattern in the world coordinate system is
     // approximately in XY plane, so by freezing all other parameters but GXY0 and GXY1 it is possible to find
@@ -10569,706 +11087,5 @@ M * V = B
 			throw new RuntimeException(ie);
 		}
 	}
-
-    public static class RefineParameters{
-    	  public boolean extrapolate=true;   // extrapolate sensor distortion correction
-     	  public double alphaThreshold =0.8; // ignore sensor correction pixels with mask value below this
-     	  public double fatZero=0.01;        // when extrapolatging color transfer coefficients (flat field) use this for logariphm
-     	  public double extrapolationSigma=30.0; // sigmna for Gaussian weight function when fittinga plane to known pixels
-     	                                         // calculated for non-decimated pixels
-     	  public double extrapolationKSigma=2.0; // consider pixels in 2*extrapolationSigma*extrapolationKSigma square when fitting
-     	  public boolean smoothCorrection=true;  // apply Gaussian blur to calculated pixel correction field
-     	  public double smoothSigma=50.0; // sigma for Gaussian weight function when fittinga plane to known pixels
-     	  public double correctionScale=1.0; // scale correction when accumulating;
-     	  public boolean showCumulativeCorrection=false; // show correction afther this one is applied
-     	  public boolean showUnfilteredCorrection=true; // show this (additional) correction before extrapolation and/or smoothing
-     	  public boolean showExtrapolationCorrection=false; // show Extrapolation
-     	  public boolean showThisCorrection=false; // show this (additional) correction separately
-     	  public boolean showPerImage=false;     // show residuals for each individual image
-     	  public int     showIndividualNumber=0; // which image to show (-1 - all)
-     	  public boolean applyCorrection=true;   // apply calculated corerction
-     	  public boolean applyFlatField=true;   // apply calculated flat-field
-     	  public boolean grid3DCorrection=true; // Correct patetrn grid node locations in 3d (false - in 2d only)
-     	  public boolean rotateCorrection=true; // old value - did not yet understand why is it needed
-     	  public double  grid3DMaximalZCorr=20.0; // Maximal Z-axis correc tion (if more will fall back to 2d correction algorithm)
-
-     	  public boolean  useVariations=  false; // allow different Z for different stations (for not a wall/stable pattern)
-     	  public double  variationPenalty=0.001; // "stiffness" of individual (per-station) Z-values of the target pattern
-     	  public boolean  fixXY=          false; // adjust only Z of the target pattern, keep X and Y
-     	  public boolean  resetVariations=false;
-     	  public boolean  noFallBack=     true; // may have bugs - not tested yet
-
-
-     	  public boolean usePatternAlpha= true;  // use pattern grid alpha data, false - old calculation
-
-// New individual parameters for modify pattern grid
-     	 public boolean  targetShowPerImage=false;
-     	 public boolean  targetShowThisCorrection=false;
-     	 public boolean  targetApplyCorrection=true;
-    	 public double   targetCorrectionScale=1.0; // scale correction when accumulating;
-// New parameters for new sensor correction
-    	 public boolean sensorExtrapolateDiff =      false; // true - extrapolate correction, false - composite
-    	 public double sensorShrinkBlurComboSigma =  50.0;
-    	 public double sensorShrinkBlurComboLevel =  0.25;
-    	 public double sensorAlphaThreshold =        0.1;
-    	 public double sensorStep =                  5;
-    	 public double sensorInterpolationSigma=     100;
-    	 public double sensorTangentialRadius=       0.5;
-    	 public int    sensorScanDistance=           200;
-    	 public int    sensorResultDistance=         500;
-    	 public int    sensorInterpolationDegree=    2;
-//New parameters for Flat field correction
-    	 public int flatFieldSerNumber=             -1;
-    	 public int flatFieldReferenceStation=       0;
-    	 public double flatFieldShrink=              100.0;
-    	 public double flatFieldNonVignettedRadius = 1000.0;
-    	 public double flatFieldMinimalAlpha =       0.01; // use %
-    	 public double flatFieldMinimalContrast=     0.1;
-    	 public double flatFieldMinimalAccumulate =  0.01; // use %
-    	 public double flatFieldShrinkForMatching =  2.0;
-    	 public double flatFieldMaxRelDiff =         0.1;  // use %
-    	 public int    flatFieldShrinkMask=          2;
-    	 public double flatFieldFadeBorder =         2.0;
-    	 //			gd.addMessage("Update pattern white balance (if the illumination is yellowish, increase red and green here)");
-    	 //    		LENS_DISTORTIONS.patternParameters.averageRGB[0]=gd.getNextNumber();
-    	 //    		LENS_DISTORTIONS.patternParameters.averageRGB[1]=gd.getNextNumber();
-    	 //   		LENS_DISTORTIONS.patternParameters.averageRGB[2]=gd.getNextNumber();
-    	 public boolean flatFieldResetMask=      true;
-    	 public boolean flatFieldShowSensorMasks=false;
-    	 public boolean flatFieldShowIndividual= false;
-    	 public boolean flatFieldShowResult=     true;
-    	 public boolean flatFieldApplyResult=    true;
-    	 public boolean flatFieldUseInterpolate= true;
-    	 public double  flatFieldMaskThresholdOcclusion=0.15; // use %
-    	 public int     flatFieldShrinkOcclusion= 2;
-    	 public double  flatFieldFadeOcclusion=   2.0;
-
-    	 public boolean flatFieldIgnoreSensorFlatField= false;
-//    	 public boolean flatFieldUseSelectedChannels= false;
-// Other
-    	 public int    repeatFlatFieldSensor=10; // TODO: add stop !
-
-    	 public double  specularHighPassSigma=            10.0;
-    	 public double  specularLowPassSigma=              2.0;
-    	 public double  specularDiffFromAverageThreshold= 0.01;
-    	 public int     specularNumIter=                  5;
-    	 public boolean specularApplyNewWeights=          true;
-    	 public boolean specularPositiveDiffOnly=         true;
-    	 public int     specularShowDebug=                1; // 0 - do not show, 1 - show on last iteration only, 2 - show always
-
-
-     	  public RefineParameters(){}
-     	  public RefineParameters(
-     			  boolean extrapolate,
-     			  double alphaThreshold,
-     	     	  double fatZero,
-     			  double extrapolationSigma,
-     			  double extrapolationKSigma,
-     			  boolean smoothCorrection,
-     			  double smoothSigma,
-     	     	  double correctionScale,
-     	     	  boolean showCumulativeCorrection,
-     	     	  boolean showUnfilteredCorrection,
-     	     	  boolean showExtrapolationCorrection,
-     	     	  boolean showThisCorrection,
-     	     	  boolean showPerImage,
-     	     	  int     showIndividualNumber, // which image to show (-1 - all)
-     	     	  boolean applyCorrection,
-     	     	  boolean applyFlatField,   // apply calculated flat-field
-     	    	  boolean grid3DCorrection, // Correct patetrn grid node locations in 3d (false - in 2d only)
-     	    	  boolean rotateCorrection, // not clear
-     	     	  double  grid3DMaximalZCorr, // Maximal Z-axis correc tion (if more will fall back to 2d correction algorithm)
-     	     	  boolean useVariations,
-     	     	  double  variationPenalty, // "stiffness" of individual (per-station) Z-values of the target pattern
-     	     	  boolean  fixXY,
-     	     	  boolean  resetVariations,
-     	     	  boolean  noFallBack, // may have bugs - not tested yet
-     	     	  boolean usePatternAlpha,
-     	     	  boolean  targetShowPerImage,
-     	     	  boolean  targetShowThisCorrection,
-     	     	  boolean  targetApplyCorrection,
-     	     	  double   targetCorrectionScale,
-     	     	  boolean sensorExtrapolateDiff,
-     	     	  double sensorShrinkBlurComboSigma,
-     	     	  double sensorShrinkBlurComboLevel,
-     	     	  double sensorAlphaThreshold,
-     	     	  double sensorStep,
-     	     	  double sensorInterpolationSigma,
-     	     	  double sensorTangentialRadius,
-     	     	  int    sensorScanDistance,
-     	     	  int    sensorResultDistance,
-     	     	  int    sensorInterpolationDegree,
-     	     	  int flatFieldSerNumber,
-     	     	  int flatFieldReferenceStation,
-     	     	  double flatFieldShrink,
-     	     	  double flatFieldNonVignettedRadius,
-     	     	  double flatFieldMinimalAlpha,
-     	     	  double flatFieldMinimalContrast,
-     	     	  double flatFieldMinimalAccumulate,
-     	     	  double flatFieldShrinkForMatching,
-     	     	  double flatFieldMaxRelDiff,
-     	     	  int    flatFieldShrinkMask,
-     	     	  double flatFieldFadeBorder,
-     	     	  boolean flatFieldResetMask,
-     	     	  boolean flatFieldShowSensorMasks,
-     	     	  boolean flatFieldShowIndividual,
-     	     	  boolean flatFieldShowResult,
-     	     	  boolean flatFieldApplyResult,
-     	     	  boolean flatFieldUseInterpolate,
-     	     	  double  flatFieldMaskThresholdOcclusion,
-     	     	  int     flatFieldShrinkOcclusion,
-     	     	  double  flatFieldFadeOcclusion,
-     	     	  boolean flatFieldIgnoreSensorFlatField,
-     	     	  int    repeatFlatFieldSensor,
-     	    	  double  specularHighPassSigma,
-     	    	  double  specularLowPassSigma,
-     	    	  double  specularDiffFromAverageThreshold,
-     	    	  int     specularNumIter,
-     	    	  boolean specularApplyNewWeights,
-     	    	  boolean specularPositiveDiffOnly,
-     	    	  int     specularShowDebug){
-     		  this.extrapolate=extrapolate;
-     		  this.alphaThreshold=alphaThreshold;
-         	  this.fatZero=fatZero;        // when extrapolatging color transfer coefficients (flat field) use this for logariphm
-     		  this.extrapolationSigma=extrapolationSigma;
-     		  this.extrapolationKSigma=extrapolationKSigma;
-     		  this.smoothCorrection=smoothCorrection;
-     		  this.smoothSigma=smoothSigma;
-     		  this.correctionScale=correctionScale;
-     		  this.showCumulativeCorrection=showCumulativeCorrection;
-     		  this.showUnfilteredCorrection=showUnfilteredCorrection;
-     		  this.showExtrapolationCorrection=showExtrapolationCorrection;
-     		  this.showThisCorrection=showThisCorrection;
-     		  this.showPerImage=showPerImage;
-     		  this.showIndividualNumber=showIndividualNumber; // which image to show (-1 - all)
-     		  this.applyCorrection=applyCorrection;
-     		  this.applyFlatField=applyFlatField;
-     		  this.grid3DCorrection=grid3DCorrection;
- 	    	  this.rotateCorrection=rotateCorrection; // not clear
-         	  this.grid3DMaximalZCorr=grid3DMaximalZCorr; // Maximal Z-axis correc tion (if more will fall back to 2d correction algorithm)
-         	  this.useVariations=useVariations;
-         	  this.variationPenalty=variationPenalty; // "stiffness" of individual (per-station) Z-values of the target pattern
-         	  this.fixXY=fixXY;
-         	  this.resetVariations=resetVariations;
-         	  this.noFallBack=     noFallBack; // may have bugs - not tested yet
-         	  this.usePatternAlpha=usePatternAlpha;
-         	  this.targetShowPerImage=       targetShowPerImage;
-         	  this.targetShowThisCorrection=  targetShowThisCorrection;
-         	  this.targetApplyCorrection=     targetApplyCorrection;
-         	  this.targetCorrectionScale=     targetCorrectionScale;
-         	  this.sensorExtrapolateDiff=     sensorExtrapolateDiff;
-         	  this.sensorShrinkBlurComboSigma=sensorShrinkBlurComboSigma;
-         	  this.sensorShrinkBlurComboLevel=sensorShrinkBlurComboLevel;
-         	  this.sensorAlphaThreshold=sensorAlphaThreshold;
-         	  this.sensorStep=sensorStep;
-         	  this.sensorInterpolationSigma=sensorInterpolationSigma;
-         	  this.sensorTangentialRadius=sensorTangentialRadius;
-         	  this.sensorScanDistance=sensorScanDistance;
-         	  this.sensorResultDistance=sensorResultDistance;
-         	  this.sensorInterpolationDegree=sensorInterpolationDegree;
-         	  this.flatFieldSerNumber=flatFieldSerNumber;
-         	  this.flatFieldReferenceStation=flatFieldReferenceStation;
-         	  this.flatFieldShrink=flatFieldShrink;
-         	  this.flatFieldNonVignettedRadius=flatFieldNonVignettedRadius;
-         	  this.flatFieldMinimalAlpha=flatFieldMinimalAlpha;
-         	  this.flatFieldMinimalContrast=flatFieldMinimalContrast;
-         	  this.flatFieldMinimalAccumulate=flatFieldMinimalAccumulate;
-         	  this.flatFieldShrinkForMatching=flatFieldShrinkForMatching;
-         	  this.flatFieldMaxRelDiff=flatFieldMaxRelDiff;
-         	  this.flatFieldShrinkMask=flatFieldShrinkMask;
-         	  this.flatFieldFadeBorder=flatFieldFadeBorder;
-         	  this.flatFieldResetMask=flatFieldResetMask;
-         	  this.flatFieldShowSensorMasks=flatFieldShowSensorMasks;
-         	  this.flatFieldShowIndividual=flatFieldShowIndividual;
-         	  this.flatFieldShowResult=flatFieldShowResult;
-         	  this.flatFieldApplyResult=flatFieldApplyResult;
-         	  this.flatFieldUseInterpolate=flatFieldUseInterpolate;
-         	  this.flatFieldMaskThresholdOcclusion=flatFieldMaskThresholdOcclusion;
-         	  this.flatFieldShrinkOcclusion=flatFieldShrinkOcclusion;
-         	  this.flatFieldFadeOcclusion=flatFieldFadeOcclusion;
-         	  this.flatFieldIgnoreSensorFlatField=flatFieldIgnoreSensorFlatField;
-//         	  this.flatFieldUseSelectedChannels=flatFieldUseSelectedChannels;
-         	  this.repeatFlatFieldSensor=repeatFlatFieldSensor;
-
-         	  this.specularHighPassSigma=specularHighPassSigma;
-         	  this.specularLowPassSigma=specularLowPassSigma;
-         	  this.specularDiffFromAverageThreshold=specularDiffFromAverageThreshold;
-         	  this.specularNumIter=specularNumIter;
-         	  this.specularApplyNewWeights=specularApplyNewWeights;
-         	  this.specularPositiveDiffOnly=specularPositiveDiffOnly;
-         	  this.specularShowDebug=specularShowDebug;
-     	  }
-     	  @Override
-		public RefineParameters clone(){
-     		  return new RefineParameters(
-     				  this.extrapolate,
-     				  this.alphaThreshold,
-     	         	  this.fatZero,
-     				  this.extrapolationSigma,
-     				  this.extrapolationKSigma,
-     				  this.smoothCorrection,
-     				  this.smoothSigma,
-     				  this.correctionScale,
-     				  this.showCumulativeCorrection,
-     				  this.showUnfilteredCorrection,
-     				  this.showExtrapolationCorrection,
-     				  this.showThisCorrection,
-     				  this.showPerImage,
-     	     		  this.showIndividualNumber,
-     				  this.applyCorrection,
-     	     		  this.applyFlatField,
-     	     		  this.grid3DCorrection,
-         	    	  this.rotateCorrection, // not clear
-     	        	  this.grid3DMaximalZCorr, // Maximal Z-axis correc tion (if more will fall back to 2d correction algorithm)
-     	        	  this.useVariations,
-     	         	  this.variationPenalty, // "stiffness" of individual (per-station) Z-values of the target pattern
-     	         	  this.fixXY,
-     	         	  this.resetVariations,
-     	         	  this.noFallBack, // may have bugs - not tested yet
-     	     		  this.usePatternAlpha,
-     	         	  this.targetShowPerImage,
-     	         	  this.targetShowThisCorrection,
-     	         	  this.targetApplyCorrection,
-     	         	  this.targetCorrectionScale,
-     	         	  this.sensorExtrapolateDiff,
-     	         	  this.sensorShrinkBlurComboSigma,
-     	         	  this.sensorShrinkBlurComboLevel,
-     	         	  this.sensorAlphaThreshold,
-     	         	  this.sensorStep,
-     	         	  this.sensorInterpolationSigma,
-     	         	  this.sensorTangentialRadius,
-     	         	  this.sensorScanDistance,
-     	         	  this.sensorResultDistance,
-     	         	  this.sensorInterpolationDegree,
-     	         	  this.flatFieldSerNumber,
-     	         	  this.flatFieldReferenceStation,
-     	         	  this.flatFieldShrink,
-     	         	  this.flatFieldNonVignettedRadius,
-     	         	  this.flatFieldMinimalAlpha,
-     	         	  this.flatFieldMinimalContrast,
-     	         	  this.flatFieldMinimalAccumulate,
-     	         	  this.flatFieldShrinkForMatching,
-     	         	  this.flatFieldMaxRelDiff,
-     	         	  this.flatFieldShrinkMask,
-     	         	  this.flatFieldFadeBorder,
-     	         	  this.flatFieldResetMask,
-     	         	  this.flatFieldShowSensorMasks,
-     	         	  this.flatFieldShowIndividual,
-     	         	  this.flatFieldShowResult,
-     	         	  this.flatFieldApplyResult,
-     	         	  this.flatFieldUseInterpolate,
-     	         	  this.flatFieldMaskThresholdOcclusion,
-     	         	  this.flatFieldShrinkOcclusion,
-     	         	  this.flatFieldFadeOcclusion,
-     	         	  this.flatFieldIgnoreSensorFlatField,
-     	         	  this.repeatFlatFieldSensor,
-         	    	  this.specularHighPassSigma,
-         	    	  this.specularLowPassSigma,
-         	    	  this.specularDiffFromAverageThreshold,
-         	    	  this.specularNumIter,
-         	    	  this.specularApplyNewWeights,
-         	    	  this.specularPositiveDiffOnly,
-         	    	  this.specularShowDebug);
-     	  }
-     	   	public void setProperties(String prefix,Properties properties){
-
-        		properties.setProperty(prefix+"extrapolate",this.extrapolate+"");
-        		properties.setProperty(prefix+"alphaThreshold",this.alphaThreshold+"");
-        		properties.setProperty(prefix+"fatZero",this.fatZero+"");
-        		properties.setProperty(prefix+"extrapolationSigma",this.extrapolationSigma+"");
-        		properties.setProperty(prefix+"extrapolationKSigma",this.extrapolationKSigma+"");
-        		properties.setProperty(prefix+"smoothCorrection",this.smoothCorrection+"");
-        		properties.setProperty(prefix+"smoothSigma",this.smoothSigma+"");
-        		properties.setProperty(prefix+"correctionScale",this.correctionScale+"");
-        		properties.setProperty(prefix+"showCumulativeCorrection",this.showCumulativeCorrection+"");
-        		properties.setProperty(prefix+"showUnfilteredCorrection",this.showUnfilteredCorrection+"");
-        		properties.setProperty(prefix+"showExtrapolationCorrection",this.showExtrapolationCorrection+"");
-        		properties.setProperty(prefix+"showThisCorrection",this.showThisCorrection+"");
-        		properties.setProperty(prefix+"showPerImage",this.showPerImage+"");
-        		properties.setProperty(prefix+"showIndividualNumber",this.showIndividualNumber+"");
-        		properties.setProperty(prefix+"applyCorrection",this.applyCorrection+"");
-        		properties.setProperty(prefix+"applyFlatField",this.applyFlatField+"");
-        		properties.setProperty(prefix+"grid3DCorrection",this.grid3DCorrection+"");
-        		properties.setProperty(prefix+"rotateCorrection",this.rotateCorrection+"");
-        		properties.setProperty(prefix+"grid3DMaximalZCorr",this.grid3DMaximalZCorr+"");
-
-        		properties.setProperty(prefix+"useVariations",this.useVariations+"");
-        		properties.setProperty(prefix+"variationPenalty",this.variationPenalty+"");
-        		properties.setProperty(prefix+"fixXY",this.fixXY+"");
-
-        		properties.setProperty(prefix+"resetVariations",this.resetVariations+"");
-        		properties.setProperty(prefix+"noFallBack",this.noFallBack+"");
-
-        		properties.setProperty(prefix+"usePatternAlpha",this.usePatternAlpha+"");
-
-        		properties.setProperty(prefix+"targetShowPerImage",this.targetShowPerImage+"");
-        		properties.setProperty(prefix+"targetShowThisCorrection",this.targetShowThisCorrection+"");
-        		properties.setProperty(prefix+"targetApplyCorrection",this.targetApplyCorrection+"");
-        		properties.setProperty(prefix+"targetCorrectionScale",this.targetCorrectionScale+"");
-
-        		properties.setProperty(prefix+"sensorExtrapolateDiff",this.sensorExtrapolateDiff+"");
-        		properties.setProperty(prefix+"sensorShrinkBlurComboSigma",this.sensorShrinkBlurComboSigma+"");
-
-        		properties.setProperty(prefix+"sensorShrinkBlurComboLevel",this.sensorShrinkBlurComboLevel+"");
-        		properties.setProperty(prefix+"sensorAlphaThreshold",this.sensorAlphaThreshold+"");
-        		properties.setProperty(prefix+"sensorStep",this.sensorStep+"");
-        		properties.setProperty(prefix+"sensorInterpolationSigma",this.sensorInterpolationSigma+"");
-        		properties.setProperty(prefix+"sensorTangentialRadius",this.sensorTangentialRadius+"");
-
-        		properties.setProperty(prefix+"sensorScanDistance",this.sensorScanDistance+"");
-        		properties.setProperty(prefix+"sensorResultDistance",this.sensorResultDistance+"");
-        		properties.setProperty(prefix+"sensorInterpolationDegree",this.sensorInterpolationDegree+"");
-        		properties.setProperty(prefix+"flatFieldSerNumber",this.flatFieldSerNumber+"");
-        		properties.setProperty(prefix+"flatFieldReferenceStation",this.flatFieldReferenceStation+"");
-
-        		properties.setProperty(prefix+"flatFieldShrink",this.flatFieldShrink+"");
-        		properties.setProperty(prefix+"flatFieldNonVignettedRadius",this.flatFieldNonVignettedRadius+"");
-        		properties.setProperty(prefix+"flatFieldMinimalAlpha",this.flatFieldMinimalAlpha+"");
-
-        		properties.setProperty(prefix+"flatFieldMinimalContrast",this.flatFieldMinimalContrast+"");
-        		properties.setProperty(prefix+"flatFieldMinimalAccumulate",this.flatFieldMinimalAccumulate+"");
-        		properties.setProperty(prefix+"flatFieldShrinkForMatching",this.flatFieldShrinkForMatching+"");
-
-        		properties.setProperty(prefix+"flatFieldMaxRelDiff",this.flatFieldMaxRelDiff+"");
-        		properties.setProperty(prefix+"flatFieldShrinkMask",this.flatFieldShrinkMask+"");
-        		properties.setProperty(prefix+"flatFieldFadeBorder",this.flatFieldFadeBorder+"");
-        		properties.setProperty(prefix+"flatFieldResetMask",this.flatFieldResetMask+"");
-        		properties.setProperty(prefix+"flatFieldShowSensorMasks",this.flatFieldShowSensorMasks+"");
-
-        		properties.setProperty(prefix+"flatFieldShowIndividual",this.flatFieldShowIndividual+"");
-        		properties.setProperty(prefix+"flatFieldShowResult",this.flatFieldShowResult+"");
-        		properties.setProperty(prefix+"flatFieldApplyResult",this.flatFieldApplyResult+"");
-        		properties.setProperty(prefix+"flatFieldUseInterpolate",this.flatFieldUseInterpolate+"");
-        		properties.setProperty(prefix+"flatFieldMaskThresholdOcclusion",this.flatFieldMaskThresholdOcclusion+"");
-
-        		properties.setProperty(prefix+"flatFieldShrinkOcclusion",this.flatFieldShrinkOcclusion+"");
-        		properties.setProperty(prefix+"flatFieldFadeOcclusion",this.flatFieldFadeOcclusion+"");
-        		properties.setProperty(prefix+"flatFieldIgnoreSensorFlatField",this.flatFieldIgnoreSensorFlatField+"");
-        		properties.setProperty(prefix+"repeatFlatFieldSensor",this.repeatFlatFieldSensor+"");
-
-        		properties.setProperty(prefix+"specularHighPassSigma",this.specularHighPassSigma+"");
-        		properties.setProperty(prefix+"specularLowPassSigma", this.specularLowPassSigma+"");
-        		properties.setProperty(prefix+"specularDiffFromAverageThreshold",this.specularDiffFromAverageThreshold+"");
-        		properties.setProperty(prefix+"specularNumIter",this.specularNumIter+"");
-        		properties.setProperty(prefix+"specularApplyNewWeights",this.specularApplyNewWeights+"");
-        		properties.setProperty(prefix+"specularPositiveDiffOnly",this.specularPositiveDiffOnly+"");
-        		properties.setProperty(prefix+"specularShowDebug",this.specularShowDebug+"");
-        	}
-
-     	   	public void getProperties(String prefix,Properties properties){
-        		if (properties.getProperty(prefix+"extrapolate")!=null)
-        			this.extrapolate=Boolean.parseBoolean(properties.getProperty(prefix+"extrapolate"));
-        		if (properties.getProperty(prefix+"alphaThreshold")!=null)
-        			this.alphaThreshold=Double.parseDouble(properties.getProperty(prefix+"alphaThreshold"));
-        		if (properties.getProperty(prefix+"fatZero")!=null)
-        			this.fatZero=Double.parseDouble(properties.getProperty(prefix+"fatZero"));
-        		if (properties.getProperty(prefix+"extrapolationSigma")!=null)
-        			this.extrapolationSigma=Double.parseDouble(properties.getProperty(prefix+"extrapolationSigma"));
-        		if (properties.getProperty(prefix+"extrapolationKSigma")!=null)
-        			this.extrapolationKSigma=Double.parseDouble(properties.getProperty(prefix+"extrapolationKSigma"));
-        		if (properties.getProperty(prefix+"smoothCorrection")!=null)
-        			this.smoothCorrection=Boolean.parseBoolean(properties.getProperty(prefix+"smoothCorrection"));
-        		if (properties.getProperty(prefix+"smoothSigma")!=null)
-        			this.smoothSigma=Double.parseDouble(properties.getProperty(prefix+"smoothSigma"));
-        		if (properties.getProperty(prefix+"correctionScale")!=null)
-        			this.correctionScale=Double.parseDouble(properties.getProperty(prefix+"correctionScale"));
-        		if (properties.getProperty(prefix+"showCumulativeCorrection")!=null)
-        			this.showCumulativeCorrection=Boolean.parseBoolean(properties.getProperty(prefix+"showCumulativeCorrection"));
-        		if (properties.getProperty(prefix+"showUnfilteredCorrection")!=null)
-        			this.showUnfilteredCorrection=Boolean.parseBoolean(properties.getProperty(prefix+"showUnfilteredCorrection"));
-        		if (properties.getProperty(prefix+"showExtrapolationCorrection")!=null)
-        			this.showExtrapolationCorrection=Boolean.parseBoolean(properties.getProperty(prefix+"showExtrapolationCorrection"));
-        		if (properties.getProperty(prefix+"showThisCorrection")!=null)
-        			this.showThisCorrection=Boolean.parseBoolean(properties.getProperty(prefix+"showThisCorrection"));
-        		if (properties.getProperty(prefix+"showPerImage")!=null)
-        			this.showPerImage=Boolean.parseBoolean(properties.getProperty(prefix+"showPerImage"));
-        		if (properties.getProperty(prefix+"showIndividualNumber")!=null)
-        			this.showIndividualNumber=Integer.parseInt(properties.getProperty(prefix+"showIndividualNumber"));
-        		if (properties.getProperty(prefix+"applyCorrection")!=null)
-        			this.applyCorrection=Boolean.parseBoolean(properties.getProperty(prefix+"applyCorrection"));
-        		if (properties.getProperty(prefix+"applyFlatField")!=null)
-        			this.applyFlatField=Boolean.parseBoolean(properties.getProperty(prefix+"applyFlatField"));
-        		if (properties.getProperty(prefix+"grid3DCorrection")!=null)
-        			this.grid3DCorrection=Boolean.parseBoolean(properties.getProperty(prefix+"grid3DCorrection"));
-        		if (properties.getProperty(prefix+"rotateCorrection")!=null)
-        			this.rotateCorrection=Boolean.parseBoolean(properties.getProperty(prefix+"rotateCorrection"));
-        		if (properties.getProperty(prefix+"grid3DMaximalZCorr")!=null)
-        			this.grid3DMaximalZCorr=Double.parseDouble(properties.getProperty(prefix+"grid3DMaximalZCorr"));
-
-        		if (properties.getProperty(prefix+"useVariations")!=null)
-        			this.useVariations=Boolean.parseBoolean(properties.getProperty(prefix+"useVariations"));
-        		if (properties.getProperty(prefix+"variationPenalty")!=null)
-        			this.variationPenalty=Double.parseDouble(properties.getProperty(prefix+"variationPenalty"));
-        		if (properties.getProperty(prefix+"fixXY")!=null)
-        			this.fixXY=Boolean.parseBoolean(properties.getProperty(prefix+"fixXY"));
-        		if (properties.getProperty(prefix+"resetVariations")!=null)
-        			this.resetVariations=Boolean.parseBoolean(properties.getProperty(prefix+"resetVariations"));
-        		if (properties.getProperty(prefix+"noFallBack")!=null)
-        			this.noFallBack=Boolean.parseBoolean(properties.getProperty(prefix+"noFallBack"));
-        		if (properties.getProperty(prefix+"usePatternAlpha")!=null)
-        			this.usePatternAlpha=Boolean.parseBoolean(properties.getProperty(prefix+"usePatternAlpha"));
-        		if (properties.getProperty(prefix+"targetShowPerImage")!=null)
-        			this.targetShowPerImage=Boolean.parseBoolean(properties.getProperty(prefix+"targetShowPerImage"));
-        		if (properties.getProperty(prefix+"targetShowThisCorrection")!=null)
-        			this.targetShowThisCorrection=Boolean.parseBoolean(properties.getProperty(prefix+"targetShowThisCorrection"));
-        		if (properties.getProperty(prefix+"targetApplyCorrection")!=null)
-        			this.targetApplyCorrection=Boolean.parseBoolean(properties.getProperty(prefix+"targetApplyCorrection"));
-        		if (properties.getProperty(prefix+"targetCorrectionScale")!=null)
-        			this.targetCorrectionScale=Double.parseDouble(properties.getProperty(prefix+"targetCorrectionScale"));
-        		if (properties.getProperty(prefix+"sensorExtrapolateDiff")!=null)
-        			this.sensorExtrapolateDiff=Boolean.parseBoolean(properties.getProperty(prefix+"sensorExtrapolateDiff"));
-        		if (properties.getProperty(prefix+"sensorShrinkBlurComboSigma")!=null)
-        			this.sensorShrinkBlurComboSigma=Double.parseDouble(properties.getProperty(prefix+"sensorShrinkBlurComboSigma"));
-        		if (properties.getProperty(prefix+"sensorShrinkBlurComboLevel")!=null)
-        			this.sensorShrinkBlurComboLevel=Double.parseDouble(properties.getProperty(prefix+"sensorShrinkBlurComboLevel"));
-        		if (properties.getProperty(prefix+"sensorAlphaThreshold")!=null)
-        			this.sensorAlphaThreshold=Double.parseDouble(properties.getProperty(prefix+"sensorAlphaThreshold"));
-        		if (properties.getProperty(prefix+"sensorStep")!=null)
-        			this.sensorStep=Double.parseDouble(properties.getProperty(prefix+"sensorStep"));
-        		if (properties.getProperty(prefix+"sensorInterpolationSigma")!=null)
-        			this.sensorInterpolationSigma=Double.parseDouble(properties.getProperty(prefix+"sensorInterpolationSigma"));
-        		if (properties.getProperty(prefix+"sensorTangentialRadius")!=null)
-        			this.sensorTangentialRadius=Double.parseDouble(properties.getProperty(prefix+"sensorTangentialRadius"));
-        		if (properties.getProperty(prefix+"sensorScanDistance")!=null)
-        			this.sensorScanDistance=Integer.parseInt(properties.getProperty(prefix+"sensorScanDistance"));
-        		if (properties.getProperty(prefix+"sensorResultDistance")!=null)
-        			this.sensorResultDistance=Integer.parseInt(properties.getProperty(prefix+"sensorResultDistance"));
-        		if (properties.getProperty(prefix+"sensorInterpolationDegree")!=null)
-        			this.sensorInterpolationDegree=Integer.parseInt(properties.getProperty(prefix+"sensorInterpolationDegree"));
-        		if (properties.getProperty(prefix+"flatFieldSerNumber")!=null)
-        			this.flatFieldSerNumber=Integer.parseInt(properties.getProperty(prefix+"flatFieldSerNumber"));
-        		if (properties.getProperty(prefix+"flatFieldReferenceStation")!=null)
-        			this.flatFieldReferenceStation=Integer.parseInt(properties.getProperty(prefix+"flatFieldReferenceStation"));
-        		if (properties.getProperty(prefix+"flatFieldShrink")!=null)
-        			this.flatFieldShrink=Double.parseDouble(properties.getProperty(prefix+"flatFieldShrink"));
-        		if (properties.getProperty(prefix+"flatFieldNonVignettedRadius")!=null)
-        			this.flatFieldNonVignettedRadius=Double.parseDouble(properties.getProperty(prefix+"flatFieldNonVignettedRadius"));
-        		if (properties.getProperty(prefix+"flatFieldMinimalAlpha")!=null)
-        			this.flatFieldMinimalAlpha=Double.parseDouble(properties.getProperty(prefix+"flatFieldMinimalAlpha"));
-        		if (properties.getProperty(prefix+"flatFieldMinimalContrast")!=null)
-        			this.flatFieldMinimalContrast=Double.parseDouble(properties.getProperty(prefix+"flatFieldMinimalContrast"));
-        		if (properties.getProperty(prefix+"flatFieldMinimalAccumulate")!=null)
-        			this.flatFieldMinimalAccumulate=Double.parseDouble(properties.getProperty(prefix+"flatFieldMinimalAccumulate"));
-        		if (properties.getProperty(prefix+"flatFieldShrinkForMatching")!=null)
-        			this.flatFieldShrinkForMatching=Double.parseDouble(properties.getProperty(prefix+"flatFieldShrinkForMatching"));
-        		if (properties.getProperty(prefix+"flatFieldMaxRelDiff")!=null)
-        			this.flatFieldMaxRelDiff=Double.parseDouble(properties.getProperty(prefix+"flatFieldMaxRelDiff"));
-        		if (properties.getProperty(prefix+"flatFieldShrinkMask")!=null)
-        			this.flatFieldShrinkMask=Integer.parseInt(properties.getProperty(prefix+"flatFieldShrinkMask"));
-        		if (properties.getProperty(prefix+"flatFieldFadeBorder")!=null)
-        			this.flatFieldFadeBorder=Double.parseDouble(properties.getProperty(prefix+"flatFieldFadeBorder"));
-        		if (properties.getProperty(prefix+"flatFieldResetMask")!=null)
-        			this.flatFieldResetMask=Boolean.parseBoolean(properties.getProperty(prefix+"flatFieldResetMask"));
-        		if (properties.getProperty(prefix+"flatFieldShowSensorMasks")!=null)
-        			this.flatFieldShowSensorMasks=Boolean.parseBoolean(properties.getProperty(prefix+"flatFieldShowSensorMasks"));
-        		if (properties.getProperty(prefix+"flatFieldShowIndividual")!=null)
-        			this.flatFieldShowIndividual=Boolean.parseBoolean(properties.getProperty(prefix+"flatFieldShowIndividual"));
-        		if (properties.getProperty(prefix+"flatFieldShowResult")!=null)
-        			this.flatFieldShowResult=Boolean.parseBoolean(properties.getProperty(prefix+"flatFieldShowResult"));
-        		if (properties.getProperty(prefix+"flatFieldApplyResult")!=null)
-        			this.flatFieldApplyResult=Boolean.parseBoolean(properties.getProperty(prefix+"flatFieldApplyResult"));
-        		if (properties.getProperty(prefix+"flatFieldUseInterpolate")!=null)
-        			this.flatFieldUseInterpolate=Boolean.parseBoolean(properties.getProperty(prefix+"flatFieldUseInterpolate"));
-        		if (properties.getProperty(prefix+"flatFieldMaskThresholdOcclusion")!=null)
-        			this.flatFieldMaskThresholdOcclusion=Double.parseDouble(properties.getProperty(prefix+"flatFieldMaskThresholdOcclusion"));
-        		if (properties.getProperty(prefix+"flatFieldShrinkOcclusion")!=null)
-        			this.flatFieldShrinkOcclusion=Integer.parseInt(properties.getProperty(prefix+"flatFieldShrinkOcclusion"));
-        		if (properties.getProperty(prefix+"flatFieldFadeOcclusion")!=null)
-        			this.flatFieldFadeOcclusion=Double.parseDouble(properties.getProperty(prefix+"flatFieldFadeOcclusion"));
-        		if (properties.getProperty(prefix+"flatFieldIgnoreSensorFlatField")!=null)
-        			this.flatFieldIgnoreSensorFlatField=Boolean.parseBoolean(properties.getProperty(prefix+"flatFieldIgnoreSensorFlatField"));
-        		if (properties.getProperty(prefix+"repeatFlatFieldSensor")!=null)
-        			this.repeatFlatFieldSensor=Integer.parseInt(properties.getProperty(prefix+"repeatFlatFieldSensor"));
-
-
-        		if (properties.getProperty(prefix+"specularHighPassSigma")!=null)
-        			this.specularHighPassSigma=Double.parseDouble(properties.getProperty(prefix+"specularHighPassSigma"));
-        		if (properties.getProperty(prefix+"specularLowPassSigma")!=null)
-        			this.specularLowPassSigma=Double.parseDouble(properties.getProperty(prefix+"specularLowPassSigma"));
-        		if (properties.getProperty(prefix+"specularDiffFromAverageThreshold")!=null)
-        			this.specularDiffFromAverageThreshold=Double.parseDouble(properties.getProperty(prefix+"specularDiffFromAverageThreshold"));
-        		if (properties.getProperty(prefix+"specularNumIter")!=null)
-        			this.specularNumIter=Integer.parseInt(properties.getProperty(prefix+"specularNumIter"));
-        		if (properties.getProperty(prefix+"specularApplyNewWeights")!=null)
-        			this.specularApplyNewWeights=Boolean.parseBoolean(properties.getProperty(prefix+"specularApplyNewWeights"));
-        		if (properties.getProperty(prefix+"specularPositiveDiffOnly")!=null)
-        			this.specularPositiveDiffOnly=Boolean.parseBoolean(properties.getProperty(prefix+"specularPositiveDiffOnly"));
-        		if (properties.getProperty(prefix+"specularShowDebug")!=null)
-        			this.specularShowDebug=Integer.parseInt(properties.getProperty(prefix+"specularShowDebug"));
-        	}
-
-        	public int showDialog(String title, int parMask, int numSeries, double [] averageRGB) {
-        		// sensor 0xfff, grid - 0xcc0 // cannot show result (cumulative) grid correction
-        		GenericDialog gd = new GenericDialog(title);
-        		if (numSeries>=0) gd.addNumericField("Fitting strategy series number (selects images to process) ", numSeries,0);
-    			if ((parMask&0x200000)!=0) gd.addNumericField("Repeat target/sensor flat-field calculation", this.repeatFlatFieldSensor,0,3,"times");
-
-
-    			//sensorExtrapolateDiff
-    			if ((parMask&0x80000)!=0) gd.addCheckbox("Extrapolate incremetal (not checked - cumulative) correction",  this.sensorExtrapolateDiff);
-        		if ((parMask&0x80000) !=0) gd.addNumericField("Shrink-blur combined sigma", this.sensorShrinkBlurComboSigma, 2,6,"sensor pixels"); // 20
-        		if ((parMask&0x80000) !=0) gd.addNumericField("Shrink-blur combined level (-1..+1)", this.sensorShrinkBlurComboLevel, 2,6,""); // 0
-        		if ((parMask&0x80000) !=0) gd.addNumericField("Combined alpha extrapolation threshold", this.sensorAlphaThreshold, 2,6,""); // normalize later?
-        		if ((parMask&0x80000) !=0) gd.addNumericField("Extrapolation seed step",this.sensorStep, 1,4,"decimated pixels");
-        		if ((parMask&0x80000) !=0) gd.addNumericField("Extrapolation gaussian sigma", this.sensorInterpolationSigma, 2,6,"sensor pixels"); // 50
-        		if ((parMask&0x80000) !=0) gd.addNumericField("Extrapolation effective radius (doubling sigma in tangential direction)", this.sensorTangentialRadius, 2,6,"fraction of full image radius");
-        		if ((parMask&0x80000) !=0) gd.addNumericField("Extrapolation half-square side for polynomial approximation", this.sensorScanDistance, 0,3,"sensor pixels");
-        		if ((parMask&0x80000) !=0) gd.addNumericField("Extrapolation half-square side for extrapolation", this.sensorResultDistance, 0,3,"sensor pixels");
-        		if ((parMask&0x80000) !=0) gd.addNumericField("Extrapolation polynomial degree", this.sensorInterpolationDegree, 0,1,"");
-
-    			if ((parMask&0x100000)!=0) gd.addNumericField("Fitting series number (to select images), negative - use all enabled images", this.flatFieldSerNumber,0);
-    			if ((parMask&0x100000)!=0) gd.addNumericField("Reference station number (unity target brightness)", this.flatFieldReferenceStation,0);
-    			if ((parMask&0x100000)!=0) gd.addNumericField("Shrink sensor mask",    this.flatFieldShrink, 1,6,"sensor pix");
-    			if ((parMask&0x100000)!=0) gd.addNumericField("Non-vignetted radius", this.flatFieldNonVignettedRadius, 1,6,"sensor pix");
-    			if ((parMask&0x100000)!=0) gd.addNumericField("Minimal alpha",        100.0*this.flatFieldMinimalAlpha, 3,7,"%");
-
-    			if ((parMask&0x100000)!=0) gd.addNumericField("Minimal contrast (occlusion detection)", this.flatFieldMinimalContrast, 3,7,"(0 .. ~0.8");
-    			if ((parMask&0x100000)!=0) gd.addNumericField("Minimal alpha for accumulation", 100.0*this.flatFieldMinimalAccumulate, 3,7,"%");
-    			if ((parMask&0x100000)!=0) gd.addNumericField("Shrink pattern for matching", this.flatFieldShrinkForMatching, 3,7,"grid nodes");
-    			if ((parMask&0x100000)!=0) gd.addNumericField("Maximal relative difference between nodes", 100.0*this.flatFieldMaxRelDiff, 3,7,"%");
-    			if ((parMask&0x100000)!=0) gd.addNumericField("Shrink pattern border", this.flatFieldShrinkMask, 0,3,"grid nodes");
-    			if ((parMask&0x100000)!=0) gd.addNumericField("Fade pattern border", this.flatFieldFadeBorder, 3,7,"grid nodes");
-    			if ((parMask&0x100000)!=0) gd.addMessage("Update pattern white balance (if the illumination is yellowish, increase red and green here)");
-    			if ((parMask&0x100000)!=0) gd.addNumericField("Average grid RED   (1.0 for white)",  averageRGB[0], 3,5,"x"); //
-    			if ((parMask&0x100000)!=0) gd.addNumericField("Average grid GREEN (1.0 for white)",  averageRGB[1], 3,5,"x"); //
-    			if ((parMask&0x100000)!=0) gd.addNumericField("Average grid BLUE  (1.0 for white)",  averageRGB[2], 3,5,"x"); //
-    			if ((parMask&0x100000)!=0) gd.addCheckbox("Reset pattern mask",               this.flatFieldResetMask);
-    			if ((parMask&0x100000)!=0) gd.addCheckbox("Show non-vignetting sensor masks", this.flatFieldShowSensorMasks);
-    			if ((parMask&0x100000)!=0) gd.addCheckbox("Show per-sensor patterns",         this.flatFieldShowIndividual);
-    			if ((parMask&0x100000)!=0) gd.addCheckbox("Show result mask",                 this.flatFieldShowResult);
-    			if ((parMask&0x100000)!=0) gd.addCheckbox("Apply pattern flat field and mask",this.flatFieldApplyResult);
-    			if ((parMask&0x100000)!=0) gd.addCheckbox("Use interpolation for sensor correction",this.flatFieldUseInterpolate);
-    			if ((parMask&0x100000)!=0) gd.addNumericField("Suspect occlusion only if grid is missing in the area where sensor mask is above this threshold",100.0* this.flatFieldMaskThresholdOcclusion, 3,7,"%");
-    			if ((parMask&0x100000)!=0) gd.addNumericField("Expand suspected occlusion  area", this.flatFieldShrinkOcclusion, 0,3,"grid nodes");
-    			if ((parMask&0x100000)!=0) gd.addNumericField("Fade grid on image (occlusion handling)", this.flatFieldFadeOcclusion, 3,7,"grid nodes");
-    			if ((parMask&0x100000)!=0) gd.addCheckbox("Ignore existent sensor flat-field calibration",this.flatFieldIgnoreSensorFlatField);
-
-    			if ((parMask&0x400000)!=0) gd.addMessage("Specular reflections removal parameters:");
-    			if ((parMask&0x400000)!=0) gd.addCheckbox("Apply new (after removal of specular reflections) weights",           this.specularApplyNewWeights);
-    			if ((parMask&0x400000)!=0) gd.addCheckbox("Process only positive difference from average",                       this.specularPositiveDiffOnly);
-    			if ((parMask&0x400000)!=0) gd.addNumericField("High-pass sigma for difference from average (to detect specular)",this.specularHighPassSigma, 3,7,"pix");
-    			if ((parMask&0x400000)!=0) gd.addNumericField("Low-pass sigma for difference from average (to detect specular)",this.specularLowPassSigma, 3,7,"pix");
-
-    			if ((parMask&0x400000)!=0) gd.addNumericField("Difference from average threshold",                          100.0*this.specularDiffFromAverageThreshold, 3,7,"%");
-    			if ((parMask&0x400000)!=0) gd.addNumericField("Number of iterations for calculating average",                    this.specularNumIter, 0);
-
-    			if ((parMask&0x400000)!=0) gd.addNumericField("Debug show mode (0 - off, 1 - last iteration only, 2 - all iterations)",this.specularShowDebug, 0);
-
-
-        		if ((parMask &     1) !=0) gd.addCheckbox    ("Extrapolate correction results", this.extrapolate);
-        		if ((parMask &     2) !=0) gd.addNumericField("Threshold alpha (discard pixels with mask below that value)", this.alphaThreshold,3);
-        		if ((parMask &0x8000) !=0) gd.addNumericField("Fat zero for color trasfer functions", this.fatZero,3);
-        		if ((parMask &     4) !=0) gd.addNumericField("Fitting radius for extrapolation, Gaussian weight function sigma (in non-decimated pixels) ",    this.extrapolationSigma,3);
-        		if ((parMask &     8) !=0) gd.addNumericField("Fitting scan half-size of the square, in multiples of Fitting Radius", this.extrapolationKSigma,3);
-        		if ((parMask &  0x10) !=0) gd.addCheckbox    ("Apply smoothing to the correction results", this.smoothCorrection);
-        		if ((parMask &  0x20) !=0) gd.addNumericField("Smoothing sigma, in non-decimated pixels",  this.smoothSigma,3);
-        		if ((parMask &  0x40) !=0) gd.addCheckbox    ("Apply correction",                          this.applyCorrection);
-        		if ((parMask&0x40000) !=0) gd.addCheckbox    ("Apply correction",                          this.targetApplyCorrection);
-        		if ((parMask &0x4000) !=0) gd.addCheckbox    ("Apply flat-field correction",               this.applyFlatField);
-        		if ((parMask &  0x80) !=0) gd.addNumericField("Scale correction before applying",          this.correctionScale,3);
-        		if ((parMask&0x40000) !=0) gd.addNumericField("Scale correction before applying",          this.targetCorrectionScale,3);
-        		if ((parMask & 0x100) !=0) gd.addCheckbox    ("Show result (cumulative) correction",       this.showCumulativeCorrection);
-        		if ((parMask & 0x200) !=0) gd.addCheckbox    ("Show additional correction before blurring",this.showUnfilteredCorrection);
-        		if ((parMask & 0x200) !=0) gd.addCheckbox    ("Show correction extrapolatiuon",            this.showExtrapolationCorrection);
-        		if ((parMask & 0x400) !=0) gd.addCheckbox    ("Show this (additional) correction",         this.showThisCorrection);
-        		if ((parMask&0x40000) !=0) gd.addCheckbox    ("Show this (additional) correction",         this.targetShowThisCorrection);
-        		if ((parMask & 0x800) !=0) gd.addCheckbox    ("Show individual, per-image residuals",      this.showPerImage);
-        		if ((parMask&0x40000) !=0) gd.addCheckbox    ("Show individual, per-image residuals",      this.targetShowPerImage);
-        		if ((parMask&0x10000) !=0) gd.addNumericField("Show individual residuals for image number (<0 - all images)", this.showIndividualNumber,0);
-        		if ((parMask &0x1000) !=0) gd.addCheckbox    ("Correct patetrn grid node locations in 3d (false - in 2d only)",  this.grid3DCorrection);
-        		if ((parMask &0x1000) !=0) gd.addCheckbox    ("Rotate final 3d pattern correction (?)",   this.rotateCorrection);
-        		if ((parMask&0x20000) !=0) gd.addNumericField("Maximal Z-axis correction (if more will fall back to 2d correction algorithm)", this.grid3DMaximalZCorr,1,3,"mm");
-        		if ((parMask&0x20000) !=0) gd.addCheckbox    ("Use Z-variations of the pattern for different stations",   this.useVariations);
-        		if ((parMask&0x20000) !=0) gd.addNumericField("Penalty for different Z for the same target nodes for different stations", 100.0*this.variationPenalty,3,7,"%");
-        		if ((parMask&0x20000) !=0) gd.addCheckbox    ("Keep X and Y pattern correction, adjust only Z",this.fixXY);
-        		if ((parMask&0x20000) !=0) gd.addCheckbox    ("Reset previous Z variations before calculating the new one",   this.resetVariations);
-        		if ((parMask&0x20000) !=0) gd.addCheckbox    ("Do not fall back to 2-d calculation if 3d fails",   this.noFallBack);
-        		if ((parMask &0x2000) !=0) gd.addCheckbox    ("Use pattern grid alpha data",  this.usePatternAlpha);
-    			WindowTools.addScrollBars(gd);
-        		gd.showDialog();
-        		if (gd.wasCanceled()) return -1;
-        		int selectedSeries=0;
-        		if (numSeries>=0)          selectedSeries=          (int) gd.getNextNumber();
-    			if ((parMask&0x200000)!=0) this.repeatFlatFieldSensor=  (int) gd.getNextNumber();
-
-        		if ((parMask&0x80000) !=0) this.sensorExtrapolateDiff=          gd.getNextBoolean();
-        		if ((parMask&0x80000) !=0) this.sensorShrinkBlurComboSigma=     gd.getNextNumber();
-        		if ((parMask&0x80000) !=0) this.sensorShrinkBlurComboLevel=     gd.getNextNumber();
-        		if ((parMask&0x80000) !=0) this.sensorAlphaThreshold=           gd.getNextNumber();
-        		if ((parMask&0x80000) !=0) this.sensorStep=                     gd.getNextNumber();
-        		if ((parMask&0x80000) !=0) this.sensorInterpolationSigma=       gd.getNextNumber();
-        		if ((parMask&0x80000) !=0) this.sensorTangentialRadius=         gd.getNextNumber();
-        		if ((parMask&0x80000) !=0) this.sensorScanDistance=       (int) gd.getNextNumber();
-        		if ((parMask&0x80000) !=0) this.sensorResultDistance=     (int) gd.getNextNumber();
-        		if ((parMask&0x80000) !=0) this.sensorInterpolationDegree=(int) gd.getNextNumber();
-
-    			if ((parMask&0x100000)!=0) this.flatFieldSerNumber=         (int) gd.getNextNumber();
-    			if ((parMask&0x100000)!=0) this.flatFieldReferenceStation=  (int) gd.getNextNumber();
-    			if ((parMask&0x100000)!=0) this.flatFieldShrink=                  gd.getNextNumber();
-    			if ((parMask&0x100000)!=0) this.flatFieldNonVignettedRadius=      gd.getNextNumber();
-    			if ((parMask&0x100000)!=0) this.flatFieldMinimalAlpha=       0.01*gd.getNextNumber();
-    			if ((parMask&0x100000)!=0) this.flatFieldMinimalContrast=         gd.getNextNumber();
-    			if ((parMask&0x100000)!=0) this.flatFieldMinimalAccumulate=  0.01*gd.getNextNumber();
-    			if ((parMask&0x100000)!=0) this.flatFieldShrinkForMatching=       gd.getNextNumber();
-    			if ((parMask&0x100000)!=0) this.flatFieldMaxRelDiff=         0.01*gd.getNextNumber();
-    			if ((parMask&0x100000)!=0) this.flatFieldShrinkMask=        (int) gd.getNextNumber();
-    			if ((parMask&0x100000)!=0) this.flatFieldFadeBorder=              gd.getNextNumber();
-    			if ((parMask&0x100000)!=0) averageRGB[0]=                         gd.getNextNumber();
-    			if ((parMask&0x100000)!=0) averageRGB[1]=                         gd.getNextNumber();
-    			if ((parMask&0x100000)!=0) averageRGB[2]=                         gd.getNextNumber();
-    			if ((parMask&0x100000)!=0) this.flatFieldResetMask=               gd.getNextBoolean();
-    			if ((parMask&0x100000)!=0) this.flatFieldShowSensorMasks=         gd.getNextBoolean();
-    			if ((parMask&0x100000)!=0) this.flatFieldShowIndividual=          gd.getNextBoolean();
-    			if ((parMask&0x100000)!=0) this.flatFieldShowResult=              gd.getNextBoolean();
-    			if ((parMask&0x100000)!=0) this.flatFieldApplyResult=             gd.getNextBoolean();
-    			if ((parMask&0x100000)!=0) this.flatFieldUseInterpolate=          gd.getNextBoolean();
-    			if ((parMask&0x100000)!=0) this.flatFieldMaskThresholdOcclusion=0.01*gd.getNextNumber();
-    			if ((parMask&0x100000)!=0) this.flatFieldShrinkOcclusion=   (int) gd.getNextNumber();
-    			if ((parMask&0x100000)!=0) this.flatFieldFadeOcclusion=           gd.getNextNumber();
-    			if ((parMask&0x100000)!=0) this.flatFieldIgnoreSensorFlatField=   gd.getNextBoolean();
-//    			if ((parMask&0x100000)!=0) this.flatFieldUseSelectedChannels=     gd.getNextBoolean();
-
-    			if ((parMask&0x400000)!=0) this.specularApplyNewWeights=              gd.getNextBoolean();
-    			if ((parMask&0x400000)!=0) this.specularPositiveDiffOnly=             gd.getNextBoolean();
-    			if ((parMask&0x400000)!=0) this.specularHighPassSigma=                gd.getNextNumber();
-    			if ((parMask&0x400000)!=0) this.specularLowPassSigma=                gd.getNextNumber();
-    			if ((parMask&0x400000)!=0) this.specularDiffFromAverageThreshold=0.01*gd.getNextNumber();;
-    			if ((parMask&0x400000)!=0) this.specularNumIter=                (int) gd.getNextNumber();
-    			if ((parMask&0x400000)!=0) this.specularShowDebug=              (int) gd.getNextNumber();
-
-
-        		if ((parMask &     1) !=0) this.extrapolate=              gd.getNextBoolean();
-        		if ((parMask &     2) !=0) this.alphaThreshold=           gd.getNextNumber();
-        		if ((parMask &0x8000) !=0) this.fatZero=                  gd.getNextNumber();
-        		if ((parMask &     4) !=0) this.extrapolationSigma=       gd.getNextNumber();
-        		if ((parMask &     8) !=0) this.extrapolationKSigma=      gd.getNextNumber();
-        		if ((parMask &  0x10) !=0) this.smoothCorrection=         gd.getNextBoolean();
-        		if ((parMask &  0x20) !=0) this.smoothSigma=              gd.getNextNumber();
-        		if ((parMask &  0x40) !=0) this.applyCorrection=          gd.getNextBoolean();
-        		if ((parMask&0x40000) !=0) this.targetApplyCorrection=    gd.getNextBoolean();
-        		if ((parMask &0x4000) !=0) this.applyFlatField=           gd.getNextBoolean();
-        		if ((parMask &  0x80) !=0) this.correctionScale=          gd.getNextNumber();
-        		if ((parMask&0x40000) !=0) this.targetCorrectionScale=    gd.getNextNumber();
-        		if ((parMask & 0x100) !=0) this.showCumulativeCorrection= gd.getNextBoolean();
-        		if ((parMask & 0x200) !=0) this.showUnfilteredCorrection= gd.getNextBoolean();
-        		if ((parMask & 0x200) !=0) this.showExtrapolationCorrection= gd.getNextBoolean();
-        		if ((parMask & 0x400) !=0) this.showThisCorrection=       gd.getNextBoolean();
-        		if ((parMask&0x40000) !=0) this.targetShowThisCorrection= gd.getNextBoolean();
-        		if ((parMask & 0x800) !=0) this.showPerImage=             gd.getNextBoolean();
-        		if ((parMask&0x40000) !=0) this.targetShowPerImage=       gd.getNextBoolean();
-        		if ((parMask&0x10000) !=0) this.showIndividualNumber=(int)gd.getNextNumber();
-        		if ((parMask &0x1000) !=0) this.grid3DCorrection=         gd.getNextBoolean();
-        		if ((parMask &0x1000) !=0) this.rotateCorrection=         gd.getNextBoolean();
-        		if ((parMask&0x20000) !=0) this.grid3DMaximalZCorr=       gd.getNextNumber();
-
-        		if ((parMask&0x20000) !=0) this.useVariations=            gd.getNextBoolean();
-        		if ((parMask&0x20000) !=0) this.variationPenalty =   0.01*gd.getNextNumber();
-        		if ((parMask&0x20000) !=0) this.fixXY=                    gd.getNextBoolean();
-        		if ((parMask&0x20000) !=0) this.resetVariations=          gd.getNextBoolean();
-        		if ((parMask&0x20000) !=0) this.noFallBack=               gd.getNextBoolean();
-        		if ((parMask &0x2000) !=0) this.usePatternAlpha=          gd.getNextBoolean();
-        		return selectedSeries;
-        	}
-    }
 }
 
