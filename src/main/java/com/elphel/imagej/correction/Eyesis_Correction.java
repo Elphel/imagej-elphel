@@ -5784,7 +5784,7 @@ private Panel panel1,
 		}
 		if (GPU_TILE_PROCESSOR == null) {
 			try {
-				GPU_TILE_PROCESSOR = new GPUTileProcessor();
+				GPU_TILE_PROCESSOR = new GPUTileProcessor(CORRECTION_PARAMETERS.tile_processor_gpu);
 			} catch (Exception e) {
 				System.out.println("Failed to initialize GPU class");
 				// TODO Auto-generated catch block

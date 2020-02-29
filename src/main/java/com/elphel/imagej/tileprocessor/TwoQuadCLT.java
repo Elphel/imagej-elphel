@@ -1920,6 +1920,7 @@ public class TwoQuadCLT {
 		String [] rgb_titles = {"red","blue","green"};
 		int out_width =  GPUTileProcessor.IMG_WIDTH +  GPUTileProcessor.DTT_SIZE;
 		int out_height = GPUTileProcessor.IMG_HEIGHT + GPUTileProcessor.DTT_SIZE;
+		/*
 		for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
 			String title=name+"-RBG"+String.format("%02d", ncam);
 
@@ -1931,7 +1932,7 @@ public class TwoQuadCLT {
 					title,
 					rgb_titles);
 		}
-
+		 */
 		ImagePlus [] imps_RGB = new ImagePlus[iclt_fimg.length];
 		for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
 			String title=name+"-"+String.format("%02d", ncam);
@@ -2081,9 +2082,12 @@ public class TwoQuadCLT {
 				double_stacks_main[i][2][j]*=0.5; // Scale green 0.5 to compensate more pixels than R,B
 			}
 		}
+
 		for (int i = 0; i < double_stacks_aux.length; i++){
-			for (int j =0 ; j < double_stacks_aux[i][0].length; j++){
-				double_stacks_aux[i][2][j]*=0.5; // Scale green 0.5 to compensate more pixels than R,B
+			if (double_stacks_aux[i].length > 2) { // skip for monochrome, only if color
+				for (int j =0 ; j < double_stacks_aux[i][0].length; j++){
+					double_stacks_aux[i][2][j]*=0.5; // Scale green 0.5 to compensate more pixels than R,B
+				}
 			}
 		}
 		quadCLT_main.setTiles (imp_quad_main[0], // set global tp.tilesX, tp.tilesY

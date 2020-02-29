@@ -240,7 +240,7 @@ public class GPUTileProcessor {
         return new PointerWithAddress(p).getAddress();
     }
 
-    public GPUTileProcessor() throws IOException
+    public GPUTileProcessor(String cuda_project_directory) throws IOException
     {
     	// From code by Marco Hutter - http://www.jcuda.org
         // Enable exceptions and omit all subsequent error checks
@@ -276,7 +276,15 @@ public class GPUTileProcessor {
         				"#define IMCLT_TILES_PER_BLOCK " +  IMCLT_TILES_PER_BLOCK+"\n";
 
         for (String src_file:GPU_KERNEL_FILES) {
-        	File file = new File(classLoader.getResource(src_file).getFile());
+        	File file = null;
+        	if ((cuda_project_directory == null) || (cuda_project_directory == "")) {
+        		file = new File(classLoader.getResource(src_file).getFile());
+        		System.out.println("Loading resource "+file);
+        	} else {
+        		File src_dir = new File(cuda_project_directory, "src");
+        		file = new File(src_dir.getPath(), src_file);
+        		System.out.println("Loading resource "+file);
+        	}
         	System.out.println(file.getAbsolutePath());
         	String cuFileName = file.getAbsolutePath(); // /home/eyesis/workspace-python3/nvidia_dct8x8/src/dtt8x8.cuh";// "dtt8x8.cuh";
         	String sourceFile = readFileAsString(cuFileName); // readResourceAsString(cuFileName);

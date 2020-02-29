@@ -85,6 +85,7 @@ public class EyesisCorrectionParameters {
   		public boolean equirectangular=        true;
   		public boolean zcorrect=               true;
   		public boolean saveSettings =          true;
+  		public String  tile_processor_gpu =    ""; // absolute path to tile_processor_gpu project or empty to use default GPU kernels
 
     	public String [] sourcePaths=          {};
 //    	public String [] sourceSetPaths=       {}; // 2019 - directories with image sets
@@ -909,6 +910,9 @@ public class EyesisCorrectionParameters {
 
     		gd.addTab         ("File paths", "Select files and directories paths (common to main and optional auxiliary)");
 			gd.addMessage     ("============ Common to the main and optional auxiliary camera============");
+    		gd.addStringField ("GPU tile_processor_gpu project absolute path",     this.tile_processor_gpu, 60,
+    				"Keep empty to use default GPU kernels");
+    		gd.addCheckbox    ("Select GPU directory",                             false);
 
     		gd.addCheckbox    ("Save current settings with results",               this.saveSettings);           // 1
     		gd.addStringField ("Source files directory",                           this.sourceDirectory, 60);    // 2
@@ -1022,9 +1026,9 @@ public class EyesisCorrectionParameters {
     		gd.showDialog();
     		if (gd.wasCanceled()) return false;
 
+    		this.tile_processor_gpu =    gd.getNextString(); if (gd.getNextBoolean()) selectGPUSourceDirectory(false, false);
 
-
-    		this.saveSettings=      gd.getNextBoolean(); // 1
+    		this.saveSettings=           gd.getNextBoolean(); // 1
 
     		this.sourceDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSourceDirectory(false, false);   // 3
     		this.use_set_dirs =          gd.getNextBoolean();
@@ -1758,6 +1762,17 @@ public class EyesisCorrectionParameters {
     				null, // filter
     				this.sourceDirectory); // this.sourceDirectory);
     		if (dir!=null) this.sourceDirectory=dir;
+    		return dir;
+    	}
+    	public String selectGPUSourceDirectory(boolean smart, boolean newAllowed) { // normally newAllowed=false
+    		String dir= CalibrationFileManagement.selectDirectory(
+    				smart,
+    				newAllowed, // save
+    				"GPU kernel development project", // title
+    				"Select GPU project directory", // button
+    				null, // filter
+    				this.tile_processor_gpu); // this.sourceDirectory);
+    		if (dir!=null) this.tile_processor_gpu=dir;
     		return dir;
     	}
     	public String selectSensorDirectory(boolean smart,  boolean newAllowed) {

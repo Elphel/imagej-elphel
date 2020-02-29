@@ -206,8 +206,6 @@ public class JCuda_ImageJ_Example_Plugin implements PlugInFilter
      */
     private static String readResourceAsString(String name)
     {
-    	int a = 0;
-    	Class ccc = JCuda_ImageJ_Example_Plugin.class;
         InputStream inputStream =
             JCuda_ImageJ_Example_Plugin.class.getResourceAsStream(name);
         if (inputStream == null)
