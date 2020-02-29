@@ -46,6 +46,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import ij.ImagePlus;
+import ij.io.FileInfo;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import loci.common.ByteArrayHandle;
@@ -253,7 +254,19 @@ public class ImagejJp4Tiff {
 				imp.setProperty(TELEMETRY_PREFIX+key, telemetryMap.get(key));
 			}
 		}
+		
+		FileInfo fi = imp.getFileInfo();
+		
+		String dir = imageName.substring(0, imageName.lastIndexOf("/")+1);
+		
+		fi.directory = dir;
+		fi.fileName = imageName;
+		imp.setFileInfo(fi);
+		
 		encodeProperiesToInfo(imp);
+		
+		System.out.println("");
+		
 		Location.mapFile(content_fileName, null);
 		return imp;
 	}
