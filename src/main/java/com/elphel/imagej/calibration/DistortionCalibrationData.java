@@ -71,6 +71,8 @@ import ij.text.TextWindow;
     	public static final int INDEX_B =        7;
     	public static final double SMALL_FRACTION = 0.8; // consider sensor to be a "small" if average grid period < this fraction of the large
 
+    	public static final int MAX_LWIR_WIDTH = 1023; // Consider smaller sensors to be low-res
+
     	Goniometer.GoniometerParameters goniometerParameters = null;
     	public String pathName=null;
     	public EyesisCameraParameters eyesisCameraParameters; // has "cartesian"
@@ -967,7 +969,6 @@ import ij.text.TextWindow;
         	}
     		this.goniometerParameters =  goniometerParameters;
         	boolean ignore_LWIR_pointers = true; // skip LWIR absolute marks, use them later
-        	int max_lwir_width = 1023;  // use LWIR class
         	setupIndices();
         	this.eyesisCameraParameters=eyesisCameraParameters;
         	int numSubCameras=(eyesisCameraParameters==null)?1:eyesisCameraParameters.eyesisSubCameras[0].length;
@@ -1034,7 +1035,7 @@ import ij.text.TextWindow;
         				this.gIP[numFile].setNumber =    nis;
         				this.gIP[numFile].gridImageSet = this.gIS[nis];
             			this.gIS[nis].imageSet[nc]=this.gIP[numFile];
-
+            			boolean is_small = getImagePlusProperty(imp_grid,"WOI_WIDTH",0) <= MAX_LWIR_WIDTH;
         				//numFile
         				if (first_in_set || read_grids) {
         					if (read_grids) {
@@ -1064,10 +1065,14 @@ import ij.text.TextWindow;
                     		this.gIS[nis].motors=                     this.gIP[numFile].motors.clone();
                     		this.gIP[numFile].matchedPointers =       getUsedPonters(imp_grid);
                     		if (this.gIP[numFile].matchedPointers > 0) {
+                    			System.out.print("<"+(this.gIP[numFile].matchedPointers));
                     			// Not using LWIR pointers here!
-                    			if (!ignore_LWIR_pointers || (getImagePlusProperty(imp_grid,"WOI_TOP",0) > max_lwir_width)) {
+//                    			if (!ignore_LWIR_pointers || (getImagePlusProperty(imp_grid,"WOI_TOP",0) > MAX_LWIR_WIDTH)) {
+                       			if (!ignore_LWIR_pointers || !is_small) {
                     				with_pointers = numFile;
+                        			System.out.print("|"+numFile);
                     			}
+                    			System.out.print(">");
                     		}
                     		double [] saturations=new double [4];
                     		for (int i=0;i<saturations.length;i++) {
@@ -1108,7 +1113,8 @@ import ij.text.TextWindow;
 
 
                     			int [] numBadNodes = new int [2];
-                    			if (this.eyesisCameraParameters.badNodeThreshold>0.0){
+                    			double badNodeThreshold = is_small? this.eyesisCameraParameters.badNodeThresholdLWIR : this.eyesisCameraParameters.badNodeThreshold;
+                    			if (badNodeThreshold > 0.0){
                     				boolean thisDebug =false;
                     				//                            		thisDebug|=        (fileNumber== 720); // chn 25
                     				numBadNodes=fixBadGridNodes(
@@ -1118,7 +1124,7 @@ import ij.text.TextWindow;
                                     		this.eyesisCameraParameters.removeWorst,
                                     		this.eyesisCameraParameters.weightBad,
                                     		this.eyesisCameraParameters.weightWorst,
-                    						this.eyesisCameraParameters.badNodeThreshold,
+                    						badNodeThreshold,
                     						this.eyesisCameraParameters.maxBadNeighb,
                     						this.debugLevel+(thisDebug?3:0),
                     						thisDebug?("fixBad-"+numFile):null
@@ -1241,7 +1247,7 @@ import ij.text.TextWindow;
         							5.0, // 2.0, // sigma
         							sensor_wh,
         							false); // true);
-        					System.out.print(" {"+uv_shift_rot[0]+":"+uv_shift_rot[1]+"->");
+        					System.out.print(" {{"+uv_shift_rot[0]+":"+uv_shift_rot[1]+"->");
                         	int [] combinedUVShiftRot=MatchSimulatedPattern.combineUVShiftRot(
                         			this.gIS[nis].imageSet[base_channel].getUVShiftRot(),
                         			uv_shift_rot);
@@ -3880,6 +3886,7 @@ import ij.text.TextWindow;
         				this.gIP[fileNumber].gridImage = imp_grid;
         			}
         		}
+        		boolean is_small = getImagePlusProperty(imp_grid,"WOI_WIDTH",0) <= MAX_LWIR_WIDTH;
     			this.gIP[fileNumber].woi = new Rectangle(
     					getImagePlusProperty(imp_grid,"WOI_LEFT",0),
     					getImagePlusProperty(imp_grid,"WOI_TOP",0),
@@ -3922,8 +3929,10 @@ import ij.text.TextWindow;
     				woi_compensated = true;
 
     			}
+    	        double badNodeThreshold = is_small? this.eyesisCameraParameters.badNodeThresholdLWIR : this.eyesisCameraParameters.badNodeThreshold;
+    	        // TODO: maybe adjust threshold to grid period, not the sensor type?
 
-    			if (this.eyesisCameraParameters.badNodeThreshold>0.0){
+    			if (badNodeThreshold>0.0){
     				boolean thisDebug =false;
     				//            		thisDebug|=        (fileNumber== 720); // chn 25
     				int [] numBadNodes=fixBadGridNodes(
@@ -3933,7 +3942,7 @@ import ij.text.TextWindow;
     						this.eyesisCameraParameters.removeWorst,
     						this.eyesisCameraParameters.weightBad,
     						this.eyesisCameraParameters.weightWorst,
-    						this.eyesisCameraParameters.badNodeThreshold,
+    						badNodeThreshold,
     						this.eyesisCameraParameters.maxBadNeighb,
     						this.debugLevel+(thisDebug?3:0),
     						thisDebug?("fixBad-"+fileNumber):null
@@ -3941,11 +3950,11 @@ import ij.text.TextWindow;
     				if (this.debugLevel>-1) {
     					if ((numBadNodes[0] + numBadNodes [1])>0) {
     						if (this.eyesisCameraParameters.removeWorst) {
-    								System.out.print("  -- removed "+numBadNodes[0]+"("+numBadNodes[1]+") locally worst grid nodes,");
+    								System.out.print("  --- removed "+numBadNodes[0]+"("+numBadNodes[1]+") locally worst grid nodes,");
     						} else if (this.eyesisCameraParameters.replaceBad){
-    							System.out.print("  -- replaced "+numBadNodes[0]+"("+numBadNodes[1]+") bad grid nodes,");
+    							System.out.print("  --- replaced "+numBadNodes[0]+"("+numBadNodes[1]+") bad grid nodes,");
     						} else {
-    							System.out.print("  -- scaled "+numBadNodes[0]+"("+numBadNodes[1]+") bad grid nodes,");
+    							System.out.print("  --- scaled "+numBadNodes[0]+"("+numBadNodes[1]+") bad grid nodes,");
     						}
     					}
 
@@ -5119,6 +5128,13 @@ import ij.text.TextWindow;
         		double      sigma=sigmaUV;
         		if(sigma<0) sigma*=-rAverage;
         		gb.blurDouble(this.sensorMasks[chNum], dWidth, dHeight, sigma/decimate, sigma/decimate, 0.01);
+            	if (this.debugLevel >1) {
+            		(new ShowDoubleFloatArrays()).showArrays(
+            				this.sensorMasks[chNum],
+            				dWidth,
+            				dHeight,
+    	        			"SensorMask"+chNum);
+            	}
         	}
         	return this.sensorMasks;
         }

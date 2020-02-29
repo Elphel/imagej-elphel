@@ -8130,6 +8130,7 @@ List calibration
 		if (!LMA_OK) {
 			return null; // LMA did not converge
 		}
+
 //		DistortionCalibrationData dcd = this.fittingStrategy.distortionCalibrationData;
 // find indices of GXYZ0 and GXYZ1 in the vector
 		int index_GXYZ0 = this.fittingStrategy.reverseParameterMap[num_img][par_index_GXYZ0];
@@ -8169,11 +8170,26 @@ List calibration
     		int     num_img,
     		int     ser_num, // number of series to reprogram
     		PatternParameters patternParameters) {
+    	int [] num_imgs = {num_img};
+    	return  adjustAttitudeAfterOffset(
+        		num_imgs,
+        		ser_num, // number of series to reprogram
+        		patternParameters);
+    }
+
+    public boolean adjustAttitudeAfterOffset(
+    		int  []   num_imgs,
+    		int     ser_num, // number of series to reprogram
+    		PatternParameters patternParameters) {
     	if (ser_num < 0) {
     		ser_num = fittingStrategy.parameterMode.length + ser_num; // use from the last one
     	}
 		if (this.debugLevel > 0) {
-			System.out.println("Will use/modify fitting series "+ser_num+" for to adjust  az, tilt of image "+num_img);
+			System.out.print("Will use/modify fitting series "+ser_num+" for to adjust  az, tilt of images: ");
+			for (int num_img: num_imgs) {
+				System.out.print(" "+num_img);
+			}
+			System.out.println();
 			System.out.println("Will adjust goniometerHorizontal, and goniometerAxial");
 		}
     	int was_seriesNumber = seriesNumber;
@@ -8188,7 +8204,9 @@ List calibration
 		fittingStrategy.parameterMode[ser_num][par_index_goniometerAxial] =      FittingStrategy.modeIndividual; // 3
 		boolean [] selection = fittingStrategy.selectAllImages(ser_num); // enable all images in series 0
 		for (int i=0;i<selection.length;i++) selection[i]=false;
-		selection[num_img]=true;
+		for (int num_img:num_imgs) {
+			selection[num_img]=true;
+		}
 		fittingStrategy.setImageSelection(ser_num,selection);
 		seriesNumber=   ser_num; // start from 0;
 		initFittingSeries(false, filterForAll,ser_num); // will set this.currentVector, will build parameter map too

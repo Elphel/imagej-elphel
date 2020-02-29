@@ -77,7 +77,8 @@ import ij.gui.GenericDialog;
     	public boolean removeWorst =   false;  // remove completely locally worst nodes
     	public double weightBad =       0.3;   // reduce contrast of bad nodes
     	public double weightWorst =     0.05;  // reduce contrast of bad, local worst nodes
-    	public double badNodeThreshold=0.1; // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
+    	public double badNodeThreshold=0.1;     // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
+    	public double badNodeThresholdLWIR=0.2; // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
     	public int    maxBadNeighb=      1; // maximal number of bad nodes around the corrected one to fix
     	public int    minimalValidNodes=10; // do not use images with less than this number of non-zero nodes (after all applicable weight masks)
     	public int    weightMultiImageMode=1; // increase weight for multi-image sets (0 - do not increase, 1 - multiply by number of images in a set to weightMultiExponent power)
@@ -353,6 +354,7 @@ import ij.gui.GenericDialog;
     	    	double  weightBad,
     	    	double  weightWorst,
     	    	double badNodeThreshold, // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
+    	    	double badNodeThresholdLWIR, // same for the low-res sensors
     	    	int    maxBadNeighb, // maximal number of bad nodes around the corrected one to fix
     	    	int minimalValidNodes,
     	    	int    weightMultiImageMode, // increase weight for multi-image sets (0 - do not increase, 1 - multiply by number of images in a set)
@@ -394,6 +396,7 @@ import ij.gui.GenericDialog;
     				weightBad,
     				weightWorst,
     				badNodeThreshold, // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
+        	    	badNodeThresholdLWIR, // same for the low-res sensors
     				maxBadNeighb, // maximal number of bad nodes around the corrected one to fix
     				minimalValidNodes,
     				weightMultiImageMode, // increase weight for multi-image sets (0 - do not increase, 1 - multiply by number of images in a set)
@@ -435,6 +438,7 @@ import ij.gui.GenericDialog;
     	    	double  weightBad,
     	    	double  weightWorst,
     	    	double badNodeThreshold, // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
+    	    	double badNodeThresholdLWIR, // same for the low-res sensors
     	    	int    maxBadNeighb, // maximal number of bad nodes around the corrected one to fix
     	    	int    minimalValidNodes,
     	    	int    weightMultiImageMode, // increase weight for multi-image sets (0 - do not increase, 1 - multiply by number of images in a set)
@@ -475,6 +479,7 @@ import ij.gui.GenericDialog;
     				weightBad,
     				weightWorst,
     				badNodeThreshold, // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
+        	    	badNodeThresholdLWIR, // same for the low-res sensors
     				maxBadNeighb, // maximal number of bad nodes around the corrected one to fix
     				minimalValidNodes,
     				weightMultiImageMode, // increase weight for multi-image sets (0 - do not increase, 1 - multiply by number of images in a set)
@@ -516,6 +521,7 @@ import ij.gui.GenericDialog;
     	    	double weightBad,
     	    	double weightWorst,
     	    	double badNodeThreshold, // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
+    	    	double badNodeThresholdLWIR, // same for the low-res sensors
     	    	int    maxBadNeighb, // maximal number of bad nodes around the corrected one to fix
     	    	int    minimalValidNodes,
     	    	int    weightMultiImageMode, // increase weight for multi-image sets (0 - do not increase, 1 - multiply by number of images in a set)
@@ -544,6 +550,7 @@ import ij.gui.GenericDialog;
 	    	this.weightBad = weightBad;
 	    	this.weightWorst = weightWorst;
 	    	this.badNodeThreshold=badNodeThreshold; // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
+	    	this.badNodeThresholdLWIR=badNodeThresholdLWIR; // same for the low-res sensors
 	    	this.maxBadNeighb=maxBadNeighb; // maximal number of bad nodes around the corrected one to fix
 	    	this.minimalValidNodes=minimalValidNodes;
 	    	this.weightMultiImageMode=weightMultiImageMode; // increase weight for multi-image sets (0 - do not increase, 1 - multiply by number of images in a set)
@@ -612,6 +619,7 @@ import ij.gui.GenericDialog;
     		destination.weightBad = source.weightBad;
     		destination.weightWorst = source.weightWorst;
     		destination.badNodeThreshold=source.badNodeThreshold; // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
+    		destination.badNodeThresholdLWIR=source.badNodeThresholdLWIR; // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
     		destination.maxBadNeighb=source.maxBadNeighb; // maximal number of bad nodes around the corrected one to fix
     		destination.minimalValidNodes=source.minimalValidNodes;
     		destination.weightMultiImageMode=source.weightMultiImageMode; // increase weight for multi-image sets (0 - do not increase, 1 - multiply by number of images in a set)
@@ -674,6 +682,7 @@ import ij.gui.GenericDialog;
     		properties.setProperty(prefix+"weightBad",  this.weightBad+"");
     		properties.setProperty(prefix+"weightWorst",this.weightWorst+"");
     		properties.setProperty(prefix+"badNodeThreshold",this.badNodeThreshold+"");
+    		properties.setProperty(prefix+"badNodeThresholdLWIR",this.badNodeThresholdLWIR+"");
     		properties.setProperty(prefix+"maxBadNeighb",this.maxBadNeighb+"");
     		properties.setProperty(prefix+"minimalValidNodes",this.minimalValidNodes+"");
     		properties.setProperty(prefix+"weightMultiImageMode",this.weightMultiImageMode+"");
@@ -743,9 +752,10 @@ import ij.gui.GenericDialog;
     			this.weightBad=Double.parseDouble(properties.getProperty(prefix+"weightBad"));
     		if (properties.getProperty(prefix+"weightWorst")!=null)
     			this.weightWorst=Double.parseDouble(properties.getProperty(prefix+"weightWorst"));
-
     		if (properties.getProperty(prefix+"badNodeThreshold")!=null)
     			this.badNodeThreshold=Double.parseDouble(properties.getProperty(prefix+"badNodeThreshold"));
+    		if (properties.getProperty(prefix+"badNodeThresholdLWIR")!=null)
+    			this.badNodeThresholdLWIR=Double.parseDouble(properties.getProperty(prefix+"badNodeThresholdLWIR"));
     		if (properties.getProperty(prefix+"maxBadNeighb")!=null)
     			this.maxBadNeighb=Integer.parseInt(properties.getProperty(prefix+"maxBadNeighb"));
     		if (properties.getProperty(prefix+"minimalValidNodes")!=null)
@@ -930,6 +940,7 @@ import ij.gui.GenericDialog;
     		gd.addNumericField("Scale weight of bad, locally worst nodes",                             this.weightWorst, 3,6,"");
 
     		gd.addNumericField("Filter out grid nodes with difference from quadratically predicted from 8 neighbors", this.badNodeThreshold, 2,6,"pix");
+    		gd.addNumericField("Same for the low-res (LWIR) sensors",                                   this.badNodeThresholdLWIR, 2,6,"pix");
     		gd.addNumericField("Maximal number of bad nodes around the corrected one to fix",          this.maxBadNeighb, 0);
     		gd.addNumericField("Minimal number of valid (with all filters applied) nodes in each image",this.minimalValidNodes, 0);
     		gd.addNumericField("Increase weight of the multi-image sets (0 - do not increase, 1 - multiply by number of images in a set (to power ), 2 - same but remove single-image ",this.weightMultiImageMode, 0);
@@ -988,6 +999,7 @@ import ij.gui.GenericDialog;
 	    	this.weightBad=                 gd.getNextNumber();
 	    	this.weightWorst=               gd.getNextNumber();
 	    	this.badNodeThreshold=          gd.getNextNumber();
+	    	this.badNodeThresholdLWIR=      gd.getNextNumber();
 	    	this.maxBadNeighb=        (int) gd.getNextNumber();
 	    	this.minimalValidNodes=   (int) gd.getNextNumber();
 	    	this.weightMultiImageMode=(int) gd.getNextNumber();

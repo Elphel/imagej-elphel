@@ -515,6 +515,7 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 	    	0.3,   // public double weightBad =       0.3;   // reduce contrast of bad nodes
 	    	0.05,  // public double weightWorst =     0.05;  // reduce contrast of bad, local worst nodes
 	    	0.1,  // double badNodeThreshold=0.1; // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
+	    	0.2,  // public double badNodeThresholdLWIR=0.2; // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
     		1,    // int  maxBadNeighb; // maximal number of bad nodes around the corrected one to fix
     		10,   // int minimalValidNodes
         	1,    // int   weightMultiImageMode=1; // increase weight for multi-image sets (0 - do not increase, 1 - multiply by number of images in a set)
@@ -1037,6 +1038,7 @@ if (MORE_BUTTONS) {
 		addButton("Import Subsystem",           panelLWIR,color_configure);
 		addButton("Select LWIR grids",          panelLWIR,color_configure);
 		addButton("Grid offset",                panelLWIR,color_process);
+		addButton("EO Offsets",                 panelLWIR,color_process);
 		addButton("LWIR to EO",                 panelLWIR,color_process);
 		addButton("Manual hint",                panelLWIR,color_configure);
 
@@ -9421,6 +9423,13 @@ if (MORE_BUTTONS) {
 		return;
 	}
 /* ======================================================================== */
+	if       (label.equals("EO Offsets")) {
+		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+		EOoffsets();
+		return;
+	}
+
+/* ======================================================================== */
 	if       (label.equals("LWIR to EO")) {
 		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 		lwirToEo();
@@ -9435,6 +9444,141 @@ if (MORE_BUTTONS) {
 	}
 
 /* ===== Other methods ==================================================== */
+//();
+
+	public boolean EOoffsets() {
+		if (LENS_DISTORTIONS == null) {
+			System.out.println("LENS_DISTORTIONS is null");
+			return false;
+		}
+		if (PATTERN_PARAMETERS == null) {
+			System.out.println("PATTERN_PARAMETERS is null");
+			return false;
+		}
+		DistortionCalibrationData dcd = LENS_DISTORTIONS.getDistortionCalibrationData();
+		if (dcd == null) {
+			dcd = DISTORTION_CALIBRATION_DATA;
+		}
+		if (dcd == null) {
+			System.out.println("dcd is null");
+			return false;
+		}
+
+		int min_set = 0;
+		int max_set =           dcd.getNumSets()-1;
+		double maximalRMS =     1.0;
+		double maximalGridErr = 0.2;
+		boolean adjustAttitude = true;
+//		int                     extra_search = 2;
+//		double                  sigma = 5;
+
+
+		GenericDialog gd = new GenericDialog("Initial alignment of the secondary camera to the reference one");
+		//		gd.addMessage("This command used Fitting Strategy[last] that should be set with all parameters but\n"+
+		//		"GXYZ0 and GXYZ1 are set to 'fixed', and GXYZ0 and GXYZ1 are set to 'individual'.\n"+
+		//				"Each selected set should already have GXYZ set correctly (e.g. by reference cameras)");
+		gd.addMessage("This command uses Fitting Strategy[last] and set  parameters but\n"+
+				"GXYZ0 and GXYZ1 to 'individual', all others - to 'fixed'.\n"+
+				"Each selected set should already have GXYZ set correctly (e.g. by reference cameras)");
+		gd.addNumericField("Image set start", min_set, 0);
+		gd.addNumericField("Image set last",  max_set, 0);
+		gd.addNumericField("Maximal RMS to accept",  maximalRMS, 3 ,7, "");
+		gd.addNumericField("Maximal grid errot to accept",  maximalGridErr, 3 ,7, "");
+		gd.addCheckbox("Adjust set attitude after grid offsets", adjustAttitude);
+
+//		gd.addNumericField("Extra search for the non-LMA method",  extra_search, 0);
+//		gd.addNumericField("Sigma for the non-LMA method",  sigma, 3 ,7, "");
+		gd.showDialog();
+		if (gd.wasCanceled()) return false;
+		min_set = (int)      gd.getNextNumber();
+		max_set = (int)      gd.getNextNumber();
+		maximalRMS =         gd.getNextNumber();
+		maximalGridErr =     gd.getNextNumber();
+//		extra_search = (int) gd.getNextNumber();
+//		sigma =              gd.getNextNumber();
+		adjustAttitude =     gd.getNextBoolean();
+		if (!dcd.hasSmallSensors()) {
+			String msg="This system does not have any LWIR or other dependent sub-cameras";
+			IJ.showMessage("Error",msg);
+			return false;
+		}
+
+		for (int num_set = min_set; num_set <=max_set; num_set++) if
+		((dcd.gIS[num_set] != null) && (dcd.gIS[num_set].imageSet != null)) {
+			ArrayList<Integer> num_imgs_list = new ArrayList<Integer>();
+			for (int nc = 0; nc < dcd.getNumChannels(); nc++) {
+				if (dcd.gIS[num_set].imageSet[nc]!= null) {
+					int num_img = dcd.gIS[num_set].imageSet[nc].imgNumber;
+					if (dcd.isSmallSensor(num_img)) {
+						continue;
+					}
+					double [] stats = new double [3];
+					int [] uvr = LENS_DISTORTIONS.findImageGridOffset(
+							num_img,  // image num
+							-1,       // use last series int     ser_num, // number of series to reprogram
+							true,     // boolean adjust_attitude, // true for eo, false for lwir (uses exact attitude from eo)
+							true,     // boolean even, For first time - use parameter and parity of uv_rot
+							PATTERN_PARAMETERS,
+							stats); // rms, dU, dV
+					if (uvr == null) {
+						if (DEBUG_LEVEL > 0) {
+							System.out.println("LMA failed for set = "+ num_set +", channel = "+nc);
+						}
+						continue;
+					}
+					if (DEBUG_LEVEL > 0) {
+						System.out.println(num_img+ "("+num_set+"."+nc+"): uv_shift = "+uvr[0]+":"+uvr[1]);
+						System.out.println(num_img+ "("+num_set+"."+nc+"): errors: rms= "+stats[0]+", dU="+stats[1]+", dV="+stats[2]);
+					}
+					if ((maximalRMS > 0.0) && (stats[0] >maximalRMS)) {
+						if (DEBUG_LEVEL > 0) {
+							System.out.println("LMA RMS for set = "+ num_set +", channel = "+nc+" is too high: "+stats[0]+" > "+maximalRMS);
+						}
+						continue;
+					}
+					double grid_err =Math.max(Math.abs(stats[1]), Math.abs(stats[2]));
+					if ((maximalGridErr > 0.0) && (grid_err > maximalGridErr)) {
+						if (DEBUG_LEVEL > 0) {
+							System.out.println("Adjusted grid error for set = "+ num_set +", channel = "+nc+" is too high: "+
+									grid_err+" > "+maximalGridErr);
+						}
+						continue;
+					}
+					num_imgs_list.add(num_img);
+					if ((uvr[0] == 0) || (uvr[1] == 0)) {
+						if (DEBUG_LEVEL > 0) {
+							System.out.println("Grid alignment for set = "+ num_set +", channel = "+nc+" was correct, nothing to do");
+						}
+						continue;
+					}
+
+					int [] uv_shift_rot = {uvr[0],uvr[1],0};
+					//						int [] new_uv_shift_rots =
+					dcd.offsetGrid(
+							num_img, // int img_num,
+							uv_shift_rot,
+							PATTERN_PARAMETERS);
+					if (DEBUG_LEVEL > 0) {
+						System.out.println("Grid for set = "+ num_set +", channel = "+nc+" adjusted by "+uvr[0]+":"+uvr[1]);
+					}
+//					num_imgs_list.add(num_img);
+				}
+			}
+			if (adjustAttitude && !num_imgs_list.isEmpty()) {
+				int [] num_imgs = new int[num_imgs_list.size()];
+				for (int i = 0; i < num_imgs.length; i++) {
+					num_imgs[i] = num_imgs_list.get(i);
+				}
+				LENS_DISTORTIONS.adjustAttitudeAfterOffset(
+						num_imgs,
+						-1, // number of series to reprogram
+						PATTERN_PARAMETERS);
+			}
+
+		}
+		return true;
+	}
+
 
 	public boolean lwirToEo() {
 		if (LENS_DISTORTIONS == null) {
