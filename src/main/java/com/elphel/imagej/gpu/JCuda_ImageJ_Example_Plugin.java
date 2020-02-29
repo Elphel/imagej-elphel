@@ -1,7 +1,7 @@
 package com.elphel.imagej.gpu;
 /**
  * ImageJ Plugin using JCuda
- * 
+ *
  * Copyright (c) 2013-2018 Marco Hutter - http://www.jcuda.org
  */
 
@@ -51,14 +51,14 @@ public class JCuda_ImageJ_Example_Plugin implements PlugInFilter
 	 * The current image to operate on
 	 */
     private ImagePlus currentImage = null;
-    
+
     /**
      * The kernel function
      */
     private CUfunction kernelFunction = null;
-    
+
     @Override
-    public void run(ImageProcessor imageProcessor) 
+    public void run(ImageProcessor imageProcessor)
     {
     	int[] pixels = (int[])imageProcessor.getPixels();
         int w = imageProcessor.getWidth();
@@ -69,7 +69,7 @@ public class JCuda_ImageJ_Example_Plugin implements PlugInFilter
 
     /**
      * Will execute the CUDA kernel with the given parameters
-     * 
+     *
      * @param pixels An array containing the pixels of the
      * image as RGB integers
      * @param w The width of the image
@@ -82,19 +82,19 @@ public class JCuda_ImageJ_Example_Plugin implements PlugInFilter
             IJ.showMessage("Error", "The kernel was not initialized");
             return;
         }
-        
-    	// Allocate memory on the device, and copy the host data to the device 
+
+    	// Allocate memory on the device, and copy the host data to the device
         int size = w * h * Sizeof.INT;
         CUdeviceptr pointer = new CUdeviceptr();
         cuMemAlloc(pointer, size);
         cuMemcpyHtoD(pointer, Pointer.to(pixels), size);
-        
+
         // Set up the kernel parameters: A pointer to an array
         // of pointers which point to the actual values.
         Pointer kernelParameters = Pointer.to(
             Pointer.to(pointer),
-            Pointer.to(new int[] { w }), 
-            Pointer.to(new int[] { h })        
+            Pointer.to(new int[] { w }),
+            Pointer.to(new int[] { h })
         );
 
         // Call the kernel function
@@ -106,8 +106,8 @@ public class JCuda_ImageJ_Example_Plugin implements PlugInFilter
             0, null,                 // Shared memory size and stream
             kernelParameters, null   // Kernel- and extra parameters
         );
-        cuCtxSynchronize();        
-        
+        cuCtxSynchronize();
+
         // Copy the data from the device back to the host and clean up
         cuMemcpyDtoH(Pointer.to(pixels), pointer, size);
         cuMemFree(pointer);
@@ -135,7 +135,7 @@ public class JCuda_ImageJ_Example_Plugin implements PlugInFilter
         cuDeviceGet(device, 0);
         CUcontext context = new CUcontext();
         cuCtxCreate(context, 0, device);
-        
+
         // Obtain the CUDA source code from the CUDA file
         String cuFileName = "JCudaImageJExampleKernel.cu";
         String sourceCode = readResourceAsString(cuFileName);
@@ -145,17 +145,17 @@ public class JCuda_ImageJ_Example_Plugin implements PlugInFilter
                 "Could not read the kernel source code");
             return DOES_RGB;
         }
-        
+
         // Create the kernel function
         this.kernelFunction = createFunction(sourceCode, "invert");
-    	
+
     	return DOES_RGB;
     }
-    
+
     /**
      * Create the CUDA function object for the kernel function with the
      * given name that is contained in the given source code
-     * 
+     *
      * @param sourceCode The source code
      * @param kernelName The kernel function name
      * @return
@@ -168,7 +168,7 @@ public class JCuda_ImageJ_Example_Plugin implements PlugInFilter
         nvrtcCreateProgram(
             program, sourceCode, null, 0, null, null);
         nvrtcCompileProgram(program, 0, null);
-        
+
         // Obtain the compilation log, and print it if it is not empty
         // (for the case there are any warnings)
         String programLog[] = new String[1];
@@ -178,7 +178,7 @@ public class JCuda_ImageJ_Example_Plugin implements PlugInFilter
         {
             System.err.println("Program compilation log:\n" + log);
         }
-        
+
         // Obtain the PTX ("CUDA Assembler") code of the compiled program
         String[] ptx = new String[1];
         nvrtcGetPTX(program, ptx);
@@ -191,22 +191,24 @@ public class JCuda_ImageJ_Example_Plugin implements PlugInFilter
         // Obtain the function pointer to the kernel function from the module
         CUfunction function = new CUfunction();
         cuModuleGetFunction(function, module, kernelName);
-     
+
         return function;
     }
-    
-    
+
+
     /**
      * Read the resource with the given name, and return its contents as
      * a string. Returns <code>null</code> if the resource cannot be found
      * or read.
-     * 
+     *
      * @param name The name of the resource
      * @return The contents of the resource
      */
     private static String readResourceAsString(String name)
     {
-        InputStream inputStream = 
+    	int a = 0;
+    	Class ccc = JCuda_ImageJ_Example_Plugin.class;
+        InputStream inputStream =
             JCuda_ImageJ_Example_Plugin.class.getResourceAsStream(name);
         if (inputStream == null)
         {
@@ -225,10 +227,10 @@ public class JCuda_ImageJ_Example_Plugin implements PlugInFilter
             return null;
         }
     }
-    
+
     /**
      * Read the contents of the given input stream, and return it as a string
-     * 
+     *
      * @param inputStream The input stream
      * @return The string
      * @throws IOException If the input cannot be read
@@ -236,15 +238,15 @@ public class JCuda_ImageJ_Example_Plugin implements PlugInFilter
     private static String readStreamAsString(
         InputStream inputStream) throws IOException
     {
-        try(Scanner s = new Scanner(inputStream)) 
-        { 
+        try(Scanner s = new Scanner(inputStream))
+        {
             Scanner scanner = s.useDelimiter("\\A");
-            if (scanner.hasNext()) 
+            if (scanner.hasNext())
             {
                 return s.next();
             }
-            throw new IOException("Could not read input stream"); 
-        }        
+            throw new IOException("Could not read input stream");
+        }
     }
 
 }
