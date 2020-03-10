@@ -41,17 +41,24 @@
 #pragma once
 #include "dtt8x8.cuh"
 #define THREADSX         (DTT_SIZE)
-#define IMG_WIDTH       2592
-#define IMG_HEIGHT      1936
-#define KERNELS_HOR      164
-#define KERNELS_VERT     123
-#define NUM_CAMS           4
-#define NUM_COLORS         3
-#define KERNELS_LSTEP      4
-#define THREADS_PER_TILE   8
-#define TILES_PER_BLOCK    4
+#define IMG_WIDTH            2592
+#define IMG_HEIGHT           1936
+#define KERNELS_HOR           164
+#define KERNELS_VERT          123
+#define NUM_CAMS                4
+#define NUM_PAIRS               6
+#define NUM_COLORS              3
+#define KERNELS_LSTEP           4
+#define THREADS_PER_TILE        8
+#define TILES_PER_BLOCK         4
+#define CORR_THREADS_PER_TILE   8
+#define CORR_TILES_PER_BLOCK    4
 #define IMCLT_THREADS_PER_TILE 16
 #define IMCLT_TILES_PER_BLOCK   4
+#define CORR_PAIR_SHIFT         8 // 8 lower bits - number of a pair, other bits tile number
+#define TASK_CORR_BITS          4
+#define CORR_OUT_RAD            7
+
 
 #endif
 //#define IMCLT14
@@ -106,6 +113,11 @@
 #define DTT_SIZE1        (DTT_SIZE + 1)
 #define DTT_SIZE2        (2 * DTT_SIZE)
 #define DTT_SIZE21       (DTT_SIZE2 + 1)
+#define DTT_SIZE4        (4 * DTT_SIZE)
+#define DTT_SIZE2M1      (DTT_SIZE2 - 1)
+
+// Use CORR_OUT_RAD for the correlation output
+
 
 #define BAYER_RED   0
 #define BAYER_BLUE  1
@@ -117,15 +129,16 @@
 //#define BAYER_BLUE_COL (1 - BAYER_RED_COL)
 
 
-#define DBG_TILE_X     174
-#define DBG_TILE_Y     118
+#define DBG_TILE_X     40
+#define DBG_TILE_Y     80
 
-//#define DBG_TILE     (DBG_TILE_Y * 324 + DBG_TILE_X)
+#define DBG_TILE     (DBG_TILE_Y * 324 + DBG_TILE_X)
 //#define DEBUG1 1
 //#define DEBUG2 1
 //#define DEBUG3 1
 //#define DEBUG4 1
 //#define DEBUG5 1
+#define DEBUG6 1
 //56494
 // struct tp_task
 //#define TASK_SIZE      12
@@ -311,6 +324,24 @@ __constant__ float lpf_data[3][64]={
 				0.05616371f, 0.04888546f, 0.03703642f, 0.02442406f, 0.01402412f, 0.00703062f, 0.00315436f, 0.00153247f,
 				0.02728573f, 0.02374977f, 0.01799322f, 0.01186582f, 0.00681327f, 0.00341565f, 0.00153247f, 0.00074451f
 		}};
+__constant__ float lpf_corr[64]={ // modify if needed
+				1.00000000f, 0.87041007f, 0.65943687f, 0.43487258f, 0.24970076f, 0.12518080f, 0.05616371f, 0.02728573f,
+				0.87041007f, 0.75761368f, 0.57398049f, 0.37851747f, 0.21734206f, 0.10895863f, 0.04888546f, 0.02374977f,
+				0.65943687f, 0.57398049f, 0.43485698f, 0.28677101f, 0.16466189f, 0.08254883f, 0.03703642f, 0.01799322f,
+				0.43487258f, 0.37851747f, 0.28677101f, 0.18911416f, 0.10858801f, 0.05443770f, 0.02442406f, 0.01186582f,
+				0.24970076f, 0.21734206f, 0.16466189f, 0.10858801f, 0.06235047f, 0.03125774f, 0.01402412f, 0.00681327f,
+				0.12518080f, 0.10895863f, 0.08254883f, 0.05443770f, 0.03125774f, 0.01567023f, 0.00703062f, 0.00341565f,
+				0.05616371f, 0.04888546f, 0.03703642f, 0.02442406f, 0.01402412f, 0.00703062f, 0.00315436f, 0.00153247f,
+				0.02728573f, 0.02374977f, 0.01799322f, 0.01186582f, 0.00681327f, 0.00341565f, 0.00153247f, 0.00074451f
+		};
+
+__constant__ int pairs[6][2]={
+		{0, 1},
+		{2, 3},
+		{0, 2},
+		{1, 3},
+		{0, 3},
+		{2, 1}};
 //#endif
 __device__ void convertCorrectTile(
 		struct CltExtra     * gpu_kernel_offsets, // [tileY][tileX][color]
@@ -333,43 +364,306 @@ __device__ void convertCorrectTile(
 	    float window_hor_sin  [2*DTT_SIZE],
 	    float window_vert_cos [2*DTT_SIZE]);
 
+__device__ void debug_print_lpf(
+		float * lpf_tile);
+
+__device__ void debug_print_clt1(
+		float * clt_tile, //         [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
+		const int color,
+		int mask);
+
+__device__ void debug_print_mclt(
+		float * mclt_tile, //         [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
+		const int color);
+__device__ void debug_print_corr_15x15(
+		float * mclt_tile, //DTT_SIZE2M1 x DTT_SIZE2M1
+		const int color);
 // Fractional pixel shift (phase rotation), horizontal. In-place.
-__device__ void shiftTileHor(
+__device__ void shiftTileHor( // implemented, used
 		float * clt_tile, //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
 		float residual_shift                         );
 // Fractional pixel shift (phase rotation), vertical. In-place.
-__device__ void shiftTileVert(
+__device__ void shiftTileVert( // implemented, used
 		float *clt_tile, //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
 		float residual_shift                         );
-__device__ void convolveTiles(
+__device__ void convolveTiles( // implemented, used
 		float* clt_tile, //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
 		float* kernel); //      [4][DTT_SIZE][DTT_SIZE1]) // 4 quadrants of the CLT kernel (DTT3 converted)
-__device__ void imclt(
+__device__ void correlateAccumulateTiles(
+		float  scale,      //    scale correlation
+		float* clt_tile1,  //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data 1, rows extended to optimize shared ports
+		float* clt_tile2,  //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data 2, rows extended to optimize shared ports
+		float* corr_tile); //    [4][DTT_SIZE][DTT_SIZE1]) // 4 quadrants of the correlation result
+__device__ void resetCorrelation(
+		float* corr_tile); //    [4][DTT_SIZE][DTT_SIZE1]) // 4 quadrants of the correlation result
+__device__ void normalizeTileAmplitude(
+		float * clt_tile, //       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
+		float fat_zero);  // fat zero is absolute, scale it outside
+__device__ void corrUnfoldTile(
+		float* qdata0, //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
+		float* rslt);  //   [DTT_SIZE2M1][DTT_SIZE2M1]) // 15x15
+__device__ void imclt(  // implemented, used // why is it twice?
 		float * clt_tile,   //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports [4][8][9]
 		float * mclt_tile ); //           [2* DTT_SIZE][DTT_SIZE1+ DTT_SIZE], // +1 to alternate column ports[16][17]
-__device__ void imclt(
+__device__ void imclt(  // implemented, used // why is it twice?
 		float * clt_tile,   //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports [4][8][9]
 		float * mclt_tile ); //           [2* DTT_SIZE][DTT_SIZE1+ DTT_SIZE], // +1 to alternate column ports[16][17]
-__device__ void imclt_plane(
+__device__ void imclt_plane( // not implemented, not used
 		int               color,
 		float           * gpu_clt,   // [TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 		float           * gpu_rbg,            // WIDTH, HEIGHT
 		const size_t      dstride);            // in floats (pixels)
 
 extern "C"
-__global__ void convert_correct_tiles(
-//		struct CltExtra ** gpu_kernel_offsets, // [NUM_CAMS], // changed for jcuda to avoid struct paraeters
-		float           ** gpu_kernel_offsets, // [NUM_CAMS],
-		float           ** gpu_kernels,        // [NUM_CAMS],
-		float           ** gpu_images,         // [NUM_CAMS],
-		struct tp_task  * gpu_tasks,
-		float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
-		size_t            dstride,             // in floats (pixels)
-		int               num_tiles,           // number of tiles in task
-		int               lpf_mask)            // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green
-
+__global__ void correlate2D(
+		float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+//		int               tilesX,             // make it variable
+		int               colors,             // number of colors (3/1)
+		float             scale0,             // scale for R
+		float             scale1,             // scale for B
+		float             scale2,             // scale for G
+		float             fat_zero,           // here - absolute
+		size_t            num_corr_tiles,     // number of correlation tiles to process
+		int             * gpu_corr_indices,   // packed tile+pair
+		const size_t      corr_stride,        // in floats
+		float           * gpu_corrs)          // correlation output data
 {
-//	struct CltExtra* gpu_kernel_offsets = (struct CltExtra*) vgpu_kernel_offsets;
+///	int thr3 =        threadIdx.x >> 3; // now zero?
+///	int column =      threadIdx.x; // modify to use 2 * 8 threads, if needed.
+	float scales[3] = {scale0, scale1, scale2};
+	int corr_in_block = threadIdx.y;
+	int corr_num = blockIdx.x * CORR_TILES_PER_BLOCK + corr_in_block;
+	if (corr_num >= num_corr_tiles){
+		return; // nothing to do
+	}
+	// get number of pair and number of tile
+#define ALLTILES 1
+#ifdef ALLTILES
+	int corr_pair = corr_num % NUM_PAIRS;
+	int tile_num =  corr_num / NUM_PAIRS;
+#else
+	int corr_pair = gpu_corr_indices[corr_num];
+	int tile_num = corr_pair >> CORR_PAIR_SHIFT;
+#endif
+
+	corr_pair &= (corr_pair & ((1 << CORR_PAIR_SHIFT) - 1));
+	if (corr_pair > NUM_PAIRS){
+		return; // BUG - should not happen
+	}
+	int cam1 = pairs[corr_pair][0]; // number of the first camera in a pair
+	int cam2 = pairs[corr_pair][1]; // number of the first camera in a pair
+    __syncthreads();// __syncwarp();
+    __shared__ float clt_tiles1  [CORR_TILES_PER_BLOCK][4][DTT_SIZE][DTT_SIZE1];
+    __shared__ float clt_tiles2  [CORR_TILES_PER_BLOCK][4][DTT_SIZE][DTT_SIZE1];
+    __shared__ float clt_corrs   [CORR_TILES_PER_BLOCK][4][DTT_SIZE][DTT_SIZE1];
+    __shared__ float mlt_corrs   [CORR_TILES_PER_BLOCK][DTT_SIZE2M1][DTT_SIZE2M1]; // result correlation
+    // set clt_corr to all zeros
+    float * clt_corr =  ((float *) clt_corrs) +  corr_in_block * (4 * DTT_SIZE * DTT_SIZE1); // top left quadrant0
+    float * mclt_corr = ((float *) mlt_corrs) +  corr_in_block * (DTT_SIZE2M1*DTT_SIZE2M1);
+    resetCorrelation(clt_corr);
+    for (int color = 0; color < colors; color++){
+        // copy clt (frequency domain data)
+        float * clt_tile1 = ((float *) clt_tiles1) +  corr_in_block * (4 * DTT_SIZE * DTT_SIZE1);
+        float * clt_tile2 = ((float *) clt_tiles2) +  corr_in_block * (4 * DTT_SIZE * DTT_SIZE1);
+        int offs = (tile_num * NUM_COLORS + color) * (4 * DTT_SIZE * DTT_SIZE) + threadIdx.x;
+        float * gpu_tile1 = ((float *) gpu_clt[cam1]) + offs;
+        float * gpu_tile2 = ((float *) gpu_clt[cam2]) + offs;
+		float * clt_tile1i = clt_tile1 + threadIdx.x;
+		float * clt_tile2i = clt_tile2 + threadIdx.x;
+#pragma unroll
+		for (int i = 0; i < DTT_SIZE4; i++){ // copy 32 rows (4 quadrants of 8 rows)
+			*clt_tile1i= *gpu_tile1;
+			*clt_tile2i= *gpu_tile2;
+			clt_tile1i += DTT_SIZE1;
+			clt_tile2i += DTT_SIZE1;
+			gpu_tile1 += DTT_SIZE;
+			gpu_tile2 += DTT_SIZE;
+		}
+		__syncthreads();
+#ifdef DBG_TILE
+#ifdef DEBUG6
+    if ((tile_num == DBG_TILE) && (corr_pair == 0) && (threadIdx.x == 0)){
+        printf("\ncorrelate2D tile = %d, pair=%d, color = %d   CAMERA1\n",tile_num, corr_pair,color);
+    	debug_print_clt1(clt_tile1, color,  0xf); //
+        printf("\ncorrelate2D tile = %d, pair=%d, color = %d   CAMERA22\n",tile_num, corr_pair,color);
+    	debug_print_clt1(clt_tile2, color,  0xf); //
+    }
+     __syncthreads();// __syncwarp();
+#endif
+#endif
+		// each thread should get the same pointers here, offsets are inside
+        correlateAccumulateTiles(
+        		scales[color], // float  scale,     // scale correlation
+				clt_tile1, // float* clt_tile1, //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data 1, rows extended to optimize shared ports
+				clt_tile2, // float* clt_tile2, //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data 2, rows extended to optimize shared ports
+				clt_corr); // float* corr_tile) //    [4][DTT_SIZE][DTT_SIZE1]) // 4 quadrants of the correlation result
+    	__syncthreads();
+
+#ifdef DBG_TILE
+#ifdef DEBUG6
+    if ((tile_num == DBG_TILE) && (corr_pair == 0) && (threadIdx.x == 0)){
+        printf("\ncorrelate2D, color = %d CORRELATION\n", color);
+    	debug_print_clt1(clt_corr, color,  0xf);
+    }
+     __syncthreads();// __syncwarp();
+#endif
+#endif
+    }
+    normalizeTileAmplitude(
+    		clt_corr, // float * clt_tile, //       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
+			fat_zero); // float fat_zero ) // fat zero is absolute, scale it outside
+// Low Pass Filter from constant area (is it possible to replace?)
+
+#ifdef DBG_TILE
+#ifdef DEBUG6
+    if ((tile_num == DBG_TILE) && (corr_pair == 0) && (threadIdx.x == 0)){
+        printf("\ncorrelate2D CORRELATION NORMALIZED, fat_zero=%f\n",fat_zero);
+    	debug_print_clt1(clt_corr, -1,  0xf);
+    }
+     __syncthreads();// __syncwarp();
+#endif
+#endif
+
+
+#ifdef DBG_TILE
+#ifdef DEBUG6
+    if ((tile_num == DBG_TILE) && (corr_pair == 0) && (threadIdx.x == 0)){
+        printf("\ncorrelate2D LPF\n");
+        debug_print_lpf(lpf_corr);
+    }
+     __syncthreads();// __syncwarp();
+#endif
+#endif
+
+
+
+    float *clt = clt_corr + threadIdx.x;
+#pragma unroll
+    for (int q = 0; q < 4; q++){
+		float *lpf = lpf_corr + threadIdx.x;
+#pragma unroll
+    	for (int i = 0; i < DTT_SIZE; i++){
+    		(*clt) *= (*lpf);
+    		clt   += DTT_SIZE1;
+    		lpf   += DTT_SIZE;
+    	}
+    }
+    __syncthreads();// __syncwarp();
+#ifdef DBG_TILE
+#ifdef DEBUG6
+    if ((tile_num == DBG_TILE) && (corr_pair == 0) && (threadIdx.x == 0)){
+        printf("\ncorrelate2D CORRELATION LPF-ed\n");
+    	debug_print_clt1(clt_corr, -1,  0xf);
+    }
+     __syncthreads();// __syncwarp();
+#endif
+#endif
+
+
+// now new part - need to transform with DCT-II and make 15x15
+/*
+    //    quadrant 0 dct_ii hor, dct_ii vert,
+    //    quadrant 1 dct_ii hor, dst_ii vert,
+    //    quadrant 2 dst_ii hor, dct_ii vert,
+    //    quadrant 3 dst_ii hor, dst_ii vert,
+Java code:
+     	for (int quadrant = 0; quadrant < 4; quadrant++){
+    		int mode = ((quadrant << 1) & 2) | ((quadrant >> 1) & 1); // transpose
+    		tcorr[first_col][quadrant] = dtt.dttt_iie(tcorr[first_col][quadrant], mode, transform_size);
+    	}
+
+ */
+    // change to 16-32 threads?? in next iteration
+    // hor pass
+    for (int q = 0; q < 4; q++){
+    	int is_sin = (q >> 1) & 1;
+//    	int is_sin = q & 1;
+//    	dttii_shared_mem(clt_corr + (q * DTT_SIZE + threadIdx.x) * DTT_SIZE1 ,  1, is_sin); // horizontal pass, tread is row
+//    	dttii_shared_mem(clt_corr + q * (DTT_SIZE1 * DTT_SIZE) + threadIdx.x , DTT_SIZE1, is_sin); // vertical pass, thread is column
+    	dttii_shared_mem_nonortho(clt_corr + q * (DTT_SIZE1 * DTT_SIZE) + threadIdx.x , DTT_SIZE1, is_sin); // vertical pass, thread is column
+    }
+    __syncthreads();
+#ifdef DBG_TILE
+#ifdef DEBUG6
+    if ((tile_num == DBG_TILE) && (corr_pair == 0) && (threadIdx.x == 0)){
+        printf("\ncorrelate2D AFTER VERTICAL (HORIZONTAL) PASS\n");
+    	debug_print_clt1(clt_corr, -1,  0xf);
+    }
+     __syncthreads();// __syncwarp();
+#endif
+#endif
+
+    // vert pass
+    for (int q = 0; q < 4; q++){
+    	int is_sin = q & 1;
+//    	int is_sin = (q >> 1) & 1;
+//    	dttii_shared_mem(clt_corr + q * (DTT_SIZE1 * DTT_SIZE) + threadIdx.x , DTT_SIZE1, is_sin); // vertical pass, thread is column
+//    	dttii_shared_mem(clt_corr + (q * DTT_SIZE + threadIdx.x) * DTT_SIZE1 ,  1, is_sin); // horizontal pass, tread is row
+    	dttii_shared_mem_nonortho(clt_corr + (q * DTT_SIZE + threadIdx.x) * DTT_SIZE1 ,  1, is_sin); // horizontal pass, tread is row
+    }
+    __syncthreads();
+#ifdef DBG_TILE
+#ifdef DEBUG6
+    if ((tile_num == DBG_TILE) && (corr_pair == 0) && (threadIdx.x == 0)){
+        printf("\ncorrelate2D AFTER HOSIZONTAL (VERTICAL) PASS\n");
+    	debug_print_clt1(clt_corr, -1,  0xf);
+    }
+     __syncthreads();// __syncwarp();
+#endif
+#endif
+
+    corrUnfoldTile(
+    		(float *) clt_corr,  // float* qdata0, //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
+			(float *) mclt_corr); // float* rslt)  //   [DTT_SIZE2M1][DTT_SIZE2M1]) // 15x15
+
+    __syncthreads();
+
+#ifdef DBG_TILE
+#ifdef DEBUG6
+    if ((tile_num == DBG_TILE) && (corr_pair == 0) && (threadIdx.x == 0)){
+        printf("\ncorrelate2D after UNFOLD\n");
+    	debug_print_corr_15x15(mclt_corr, -1);
+    }
+     __syncthreads();// __syncwarp();
+#endif
+#endif
+
+    // copy 15x15 tile to main memory
+     int corr_tile_offset =  + corr_stride * corr_num;
+    float *mem_corr = gpu_corrs + corr_tile_offset;
+
+    //CORR_THREADS_PER_TILE
+//    int offs = threadIdx.x;
+#pragma unroll
+    for (int offs = threadIdx.x; offs < DTT_SIZE2M1*DTT_SIZE2M1; offs+=CORR_THREADS_PER_TILE){ // variable number of cycles per thread
+    	mem_corr[offs] = mclt_corr[offs];
+    }
+    __syncthreads();
+#ifdef DBG_TILE
+#ifdef DEBUG6
+    if ((tile_num == DBG_TILE) && (corr_pair == 0) && (threadIdx.x == 0)){
+        printf("\ncorrelate2D after copy to main memory\n");
+//    	debug_print_clt1(clt_corr, -1,  0xf);
+    }
+     __syncthreads();// __syncwarp();
+#endif
+#endif
+
+}
+
+
+extern "C"
+__global__ void convert_correct_tiles(
+//		struct CltExtra ** gpu_kernel_offsets, // [NUM_CAMS], // changed for jcuda to avoid struct parameters
+			float           ** gpu_kernel_offsets, // [NUM_CAMS],
+			float           ** gpu_kernels,        // [NUM_CAMS],
+			float           ** gpu_images,         // [NUM_CAMS],
+			struct tp_task   * gpu_tasks,
+			float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+			size_t             dstride,            // in floats (pixels)
+			int                num_tiles,          // number of tiles in task
+			int                lpf_mask)           // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green
+{
 	dim3 t = threadIdx;
 	int tile_in_block = threadIdx.y;
 	int task_num = blockIdx.x * TILES_PER_BLOCK + tile_in_block;
@@ -379,8 +673,6 @@ __global__ void convert_correct_tiles(
 	__shared__ struct tp_task tt [TILES_PER_BLOCK];
 	// Copy task data to shared memory
 	tt[tile_in_block].task =          gpu_task -> task;
-//	tt[tile_in_block].tx =            gpu_task -> tx;
-//	tt[tile_in_block].ty =            gpu_task -> ty;
 	tt[tile_in_block].txy =           gpu_task -> txy;
 	int thread0 =  threadIdx.x & 1;
 	int thread12 = threadIdx.x >>1;
@@ -426,7 +718,6 @@ __global__ void convert_correct_tiles(
 					lpf_mask,                        // const int         lpf_mask,
 					tt[tile_in_block].xy[ncam][0],   // const float       centerX,
 					tt[tile_in_block].xy[ncam][1],   // const float       centerY,
-//					tt[tile_in_block].tx | (tt[tile_in_block].ty <<16), //  const int txy,
 					tt[tile_in_block].txy,           //  const int txy,
 					dstride,                         // size_t            dstride, // in floats (pixels)
 					(float * )(clt_tile [tile_in_block]),        // float clt_tile [TILES_PER_BLOCK][NUM_CAMS][NUM_COLORS][4][DTT_SIZE][DTT_SIZE])
@@ -556,6 +847,191 @@ __device__ void convolveTiles(
 	}
 }
 
+__device__ void correlateAccumulateTiles(
+		float  scale,     // scale correlation
+		float* clt_tile1, //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data 1, rows extended to optimize shared ports
+		float* clt_tile2, //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data 2, rows extended to optimize shared ports
+		float* corr_tile) //    [4][DTT_SIZE][DTT_SIZE1]) // 4 quadrants of the correlation result
+{
+	int joffs = threadIdx.x * DTT_SIZE1;
+	float * clt_tile2_j; //  =   clt_tile2 +      joffs;                // ==&clt_tile2[0][j][0]
+	float * clt_tile1_j0 = clt_tile1 +    joffs;                // ==&clt_tile[0][j][0]
+	float * clt_tile1_j1 = clt_tile1_j0 + (DTT_SIZE1*DTT_SIZE); // ==&clt_tile[1][j][0]
+	float * clt_tile1_j2 = clt_tile1_j1 + (DTT_SIZE1*DTT_SIZE); // ==&clt_tile[2][j][0]
+	float * clt_tile1_j3 = clt_tile1_j2 + (DTT_SIZE1*DTT_SIZE); // ==&clt_tile[3][j][0]
+
+	float * corr_tile_j0 = corr_tile +    joffs;                // ==&clt_tile[0][j][0]
+	float * corr_tile_j1 = corr_tile_j0 + (DTT_SIZE1*DTT_SIZE); // ==&clt_tile[1][j][0]
+	float * corr_tile_j2 = corr_tile_j1 + (DTT_SIZE1*DTT_SIZE); // ==&clt_tile[2][j][0]
+	float * corr_tile_j3 = corr_tile_j2 + (DTT_SIZE1*DTT_SIZE); // ==&clt_tile[3][j][0]
+//#pragma unroll
+	for (int i = 0; i < DTT_SIZE; i++){
+		// k=0
+		clt_tile2_j =   clt_tile2 + joffs + i;
+		float clt2 = *(clt_tile2_j);
+		float r0 =  *(clt_tile1_j0) * clt2;
+		float r1 = -*(clt_tile1_j1) * clt2;
+		float r2 = -*(clt_tile1_j2) * clt2;
+		float r3 =  *(clt_tile1_j3) * clt2;
+		// k = 1
+		clt_tile2_j += (DTT_SIZE1*DTT_SIZE);
+		clt2 = *(clt_tile2_j);
+		r0 +=  *(clt_tile1_j1) * clt2;
+		r1 +=  *(clt_tile1_j0) * clt2;
+		r2 -=  *(clt_tile1_j3) * clt2;
+		r3 -=  *(clt_tile1_j2) * clt2;
+		// k=2
+		clt_tile2_j += (DTT_SIZE1*DTT_SIZE);
+		clt2 = *(clt_tile2_j);
+		r0 +=  *(clt_tile1_j2) * clt2;
+		r1 -=  *(clt_tile1_j3) * clt2;
+		r2 +=  *(clt_tile1_j0) * clt2;
+		r3 -=  *(clt_tile1_j1) * clt2;
+		// k=3
+		clt_tile2_j += (DTT_SIZE1*DTT_SIZE);
+		clt2 = *(clt_tile2_j);
+		r0 +=  *(clt_tile1_j3) * clt2;
+		r1 +=  *(clt_tile1_j2) * clt2;
+		r2 +=  *(clt_tile1_j1) * clt2;
+		r3 +=  *(clt_tile1_j0) * clt2;
+
+		*(corr_tile_j0) += scale * r0;
+		*(corr_tile_j1) += scale * r1;
+		*(corr_tile_j2) += scale * r2;
+		*(corr_tile_j3) += scale * r3;
+		clt_tile1_j0 ++;
+		clt_tile1_j1 ++;
+		clt_tile1_j2 ++;
+		clt_tile1_j3 ++;
+		corr_tile_j0 ++;
+		corr_tile_j1 ++;
+		corr_tile_j2 ++;
+		corr_tile_j3 ++;
+	}
+}
+
+__device__ void resetCorrelation(
+		float* corr_tile) //    [4][DTT_SIZE][DTT_SIZE1]) // 4 quadrants of the correlation result
+{
+	int joffs = threadIdx.x * DTT_SIZE1;
+
+	float * corr_tile_j0 = corr_tile +    joffs;                // k = 0
+	float * corr_tile_j1 = corr_tile_j0 + (DTT_SIZE1*DTT_SIZE); // k = 1
+	float * corr_tile_j2 = corr_tile_j1 + (DTT_SIZE1*DTT_SIZE); // k = 2
+	float * corr_tile_j3 = corr_tile_j2 + (DTT_SIZE1*DTT_SIZE); // k = 3
+//#pragma unroll
+	for (int i = 0; i < DTT_SIZE; i++){
+
+		*(corr_tile_j0) = 0;
+		*(corr_tile_j1) = 0;
+		*(corr_tile_j2) = 0;
+		*(corr_tile_j3) = 0;
+		corr_tile_j0 ++;
+		corr_tile_j1 ++;
+		corr_tile_j2 ++;
+		corr_tile_j3 ++;
+	}
+}
+
+__device__ void normalizeTileAmplitude(
+		float * clt_tile, //       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
+		float fat_zero ) // fat zero is absolute, scale it outside
+{
+	int joffs = threadIdx.x * DTT_SIZE1;
+	float * clt_tile_j0 = clt_tile +    joffs;                // ==&clt_tile[0][j][0]
+	float * clt_tile_j1 = clt_tile_j0 + (DTT_SIZE1*DTT_SIZE); // ==&clt_tile[1][j][0]
+	float * clt_tile_j2 = clt_tile_j1 + (DTT_SIZE1*DTT_SIZE); // ==&clt_tile[2][j][0]
+	float * clt_tile_j3 = clt_tile_j2 + (DTT_SIZE1*DTT_SIZE); // ==&clt_tile[3][j][0]
+#pragma unroll
+	for (int i = 0; i < DTT_SIZE; i++) {
+		float s2 = fat_zero * fat_zero +
+				*(clt_tile_j0) * *(clt_tile_j0) +
+				*(clt_tile_j1) * *(clt_tile_j1) +
+				*(clt_tile_j2) * *(clt_tile_j2) +
+				*(clt_tile_j3) * *(clt_tile_j3);
+		float scale = rsqrtf(s2); // 1.0/sqrt(s2)
+		*(clt_tile_j0) *= scale;
+		*(clt_tile_j1) *= scale;
+		*(clt_tile_j2) *= scale;
+		*(clt_tile_j3) *= scale;
+
+		clt_tile_j0 ++; // =DTT_SIZE1;
+		clt_tile_j1 ++; // =DTT_SIZE1;
+		clt_tile_j2 ++; // =DTT_SIZE1;
+		clt_tile_j3 ++; // =DTT_SIZE1;
+	}
+}
+/*
+Converted from DttRad2.java:443
+	public  double [] corr_unfold_tile(
+		double [][]  qdata, // [4][transform_size*transform_size] data after DCT2 (pixel domain)
+		int          transform_size
+	)
+ */
+__device__ void corrUnfoldTile(
+		float* qdata0, //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
+		float* rslt)  //   [DTT_SIZE2M1][DTT_SIZE2M1]) // 15x15
+{
+	const int rslt_base_index = DTT_SIZE2M1 * (DTT_SIZE) - DTT_SIZE;
+	float * qdata1 = qdata0 + (DTT_SIZE * DTT_SIZE1);
+	float * qdata2 = qdata1 + (DTT_SIZE * DTT_SIZE1);
+	float * qdata3 = qdata2 + (DTT_SIZE * DTT_SIZE1);
+	int i = threadIdx.x;
+	float corr_pixscale = 0.25f;
+	int i_transform_size = i * DTT_SIZE1; // used to address source rows which are 9 long
+	int im1_transform_size = i_transform_size - DTT_SIZE1; // negative for i = 0, use only after divergence
+	int rslt_row_offs = i * DTT_SIZE2M1;
+	int rslt_base_index_p = rslt_base_index + rslt_row_offs; // i * DTT_SIZE2M1;
+	int rslt_base_index_m = rslt_base_index - rslt_row_offs; // i * DTT_SIZE2M1;
+	rslt[rslt_base_index_p] = corr_pixscale * qdata0[i_transform_size]; // incomplete, will only be used for thread i=0
+	rslt[rslt_base_index_m] = rslt[rslt_base_index_p];                  // nop for i=0 incomplete, will only be used for thread i=0
+	for (int j = 1; j < DTT_SIZE; j++) {
+		int rslt_base_index_pp = rslt_base_index_p + j;
+		int rslt_base_index_pm = rslt_base_index_p - j;
+///		int rslt_base_index_mp = rslt_base_index_m + j;
+///		int rslt_base_index_mm = rslt_base_index_m - j;
+		rslt[rslt_base_index_pp] = corr_pixscale * (
+				 qdata0[i_transform_size + j] +
+				 qdata1[i_transform_size + j -1]); // incomplete, will only be used for thread i=0
+		rslt[rslt_base_index_pm] = corr_pixscale * (
+				 qdata0[i_transform_size + j] +
+				-qdata1[i_transform_size + j -1]); // incomplete, will only be used for thread i=0
+	}
+	if (i == 0) {
+		return;
+	}
+///	int im1 = i-1;
+	im1_transform_size = i_transform_size - DTT_SIZE1;
+	float d = corr_pixscale * qdata2[im1_transform_size];
+	rslt[rslt_base_index_p] += d;
+	rslt[rslt_base_index_m] -= d;
+	for (int j = 1; j < DTT_SIZE; j++) {
+		int rslt_base_index_pp = rslt_base_index_p + j;
+		int rslt_base_index_pm = rslt_base_index_p - j;
+		int rslt_base_index_mp = rslt_base_index_m + j;
+		int rslt_base_index_mm = rslt_base_index_m - j;
+		float d2 = corr_pixscale * qdata2[im1_transform_size + j];
+		float d3 = corr_pixscale * qdata3[im1_transform_size + j -1];
+		//rslt[rslt_base_index_mp], rslt[rslt_base_index_mp] are partially calculated in the cycle common with i=0
+		rslt[rslt_base_index_mp] = rslt[rslt_base_index_pp] - d2 - d3;
+		rslt[rslt_base_index_mm] = rslt[rslt_base_index_pm] - d2 + d3;
+		rslt[rslt_base_index_pp] += d2 + d3;
+		rslt[rslt_base_index_pm] += d2 - d3;
+	}
+}
+
+__device__ void debug_print_lpf(
+		float * lpf_tile)
+{
+	for (int dbg_row = 0; dbg_row < DTT_SIZE; dbg_row++){
+		for (int dbg_col = 0; dbg_col < DTT_SIZE; dbg_col++){
+			printf ("%10.5f ", lpf_tile[dbg_row * DTT_SIZE + dbg_col]);
+		}
+		printf("\n");
+	}
+}
+
+
 __device__ void debug_print_clt1(
 		float * clt_tile, //         [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
 		const int color,
@@ -590,6 +1066,23 @@ __device__ void debug_print_mclt(
 	}
 	printf("\n");
 }
+
+__device__ void debug_print_corr_15x15(
+		float * mclt_tile, //DTT_SIZE2M1 x DTT_SIZE2M1
+		const int color)
+{
+
+	if (color >= 0) printf("----------- Color = %d -----------\n",color);
+	for (int dbg_row = 0; dbg_row < DTT_SIZE2M1; dbg_row++){
+		for (int dbg_col = 0; dbg_col < DTT_SIZE2M1; dbg_col++){
+			printf ("%10.5f ", mclt_tile[dbg_row * DTT_SIZE2M1 + dbg_col]);
+		}
+		printf("\n");
+	}
+	printf("\n");
+}
+
+
 
 __device__ void convertCorrectTile(
 		struct CltExtra     * gpu_kernel_offsets, // [tileY][tileX][color]
@@ -1361,7 +1854,7 @@ __device__ void imclt_plane(
 
 //
 // Uses 16 threads, gets 4*8*8 clt tiles, performs idtt-iv (swapping 1 and 2 quadrants) and then unfolds with window,
-// adding to the output 16x16 tile (to use Read-modify-write with 4 passes over the frame. Shuld be zeroed before the
+// adding to the output 16x16 tile (to use Read-modify-write with 4 passes over the frame. Should be zeroed before the
 // first pass
 //__constant__ int imclt_indx9[16] = {0x28,0x31,0x3a,0x43,0x43,0x3a,0x31,0x28,0x1f,0x16,0x0d,0x04,0x04,0x0d,0x16,0x1f};
 __device__ void imclt(

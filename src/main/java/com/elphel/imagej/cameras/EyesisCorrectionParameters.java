@@ -231,6 +231,7 @@ public class EyesisCorrectionParameters {
   			cp.zcorrect=  			    this.zcorrect;
   			cp.saveSettings=  		    this.saveSettings;
   			cp.sourceDirectory=    	    this.sourceDirectory;
+  			cp.tile_processor_gpu =     this.tile_processor_gpu;
   			cp.use_set_dirs =           this.use_set_dirs;
 //  			cp.sourcePrefix=    	    this.sourcePrefix;
 //  			cp.sourceSuffix=    	    this.sourceSuffix;
@@ -388,6 +389,8 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"saveSettings",this.saveSettings+"");
 
     		properties.setProperty(prefix+"sourceDirectory",this.sourceDirectory);
+    		properties.setProperty(prefix+"tile_processor_gpu",this.tile_processor_gpu);
+
     		properties.setProperty(prefix+"use_set_dirs",   this.use_set_dirs+"");
 
     		properties.setProperty(prefix+"sourcePrefix",this.sourcePrefix);
@@ -543,6 +546,7 @@ public class EyesisCorrectionParameters {
   		    if (properties.getProperty(prefix+"zcorrect")!=null) this.zcorrect=Boolean.parseBoolean(properties.getProperty(prefix+"zcorrect"));
   		    if (properties.getProperty(prefix+"saveSettings")!=null) this.saveSettings=Boolean.parseBoolean(properties.getProperty(prefix+"saveSettings"));
 			if (properties.getProperty(prefix+"sourceDirectory")!=      null) this.sourceDirectory=properties.getProperty(prefix+"sourceDirectory");
+			if (properties.getProperty(prefix+"tile_processor_gpu")!=      null) this.tile_processor_gpu=properties.getProperty(prefix+"tile_processor_gpu");
   		    if (properties.getProperty(prefix+"firstSubCamera")!=       null) this.firstSubCamera=Integer.parseInt(properties.getProperty(prefix+"firstSubCamera"));
   		    if (properties.getProperty(prefix+"firstSubCameraConfig")!= null) this.firstSubCameraConfig=Integer.parseInt(properties.getProperty(prefix+"firstSubCameraConfig"));
   		    if (properties.getProperty(prefix+"numSubCameras")!=        null) this.numSubCameras=Integer.parseInt(properties.getProperty(prefix+"numSubCameras"));

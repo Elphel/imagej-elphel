@@ -347,6 +347,7 @@ public class TwoQuadCLT {
 	}
 
 	public void prepareFilesForGPUDebug(
+			String                                         save_prefix, // absolute path to the cuda project root
 			QuadCLT                                        quadCLT_main,
 			QuadCLT                                        quadCLT_aux,
 			CLTParameters       clt_parameters,
@@ -407,8 +408,9 @@ public class TwoQuadCLT {
 					saturation_imp_aux,            //output  // boolean [][]                              saturation_imp,
 					debugLevel); // int                                       debugLevel);
 
-			// Tempporarily processing individaully with the old code
+			// Tempporarily processing individually with the old code
 			processCLTQuadCorrPairForGPU(
+					save_prefix,                // String save_prefix,
 					quadCLT_main,               // QuadCLT                                        quadCLT_main,
 					quadCLT_aux,                // QuadCLT                                        quadCLT_aux,
 					imp_srcs_main,              // ImagePlus []                                   imp_quad_main,
@@ -638,7 +640,10 @@ public class TwoQuadCLT {
 
 		double [][] disparity_bimap  = new double [ImageDtt.BIDISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
 
-		ImageDtt image_dtt = new ImageDtt(quadCLT_main.isMonochrome(),clt_parameters.getScaleStrength(false));
+		ImageDtt image_dtt = new ImageDtt(
+				clt_parameters.transform_size,
+				quadCLT_main.isMonochrome(),
+				clt_parameters.getScaleStrength(false));
 
 		double [][] ml_data = null;
 //		int [][] woi_tops = {quadCLT_main.woi_tops,quadCLT_aux.woi_tops};
@@ -694,30 +699,30 @@ public class TwoQuadCLT {
 			if (clt_parameters.show_nonoverlap){
 				texture_nonoverlap_main = image_dtt.combineRBGATiles(
 						texture_tiles_main,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
-						clt_parameters.transform_size,
+//						image_dtt.transform_size,
 						false,                         // when false - output each tile as 16x16, true - overlap to make 8x8
 						clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 						threadsMax,                    // maximal number of threads to launch
 						debugLevel);
 				sdfa_instance.showArrays(
 						texture_nonoverlap_main,
-						tilesX * (2 * clt_parameters.transform_size),
-						tilesY * (2 * clt_parameters.transform_size),
+						tilesX * (2 * image_dtt.transform_size),
+						tilesY * (2 * image_dtt.transform_size),
 						true,
 						name + "-TXTNOL-D"+clt_parameters.disparity+"-MAIN",
 						(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
 
 				texture_nonoverlap_aux = image_dtt.combineRBGATiles(
 						texture_tiles_aux,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
-						clt_parameters.transform_size,
+//						image_dtt.transform_size,
 						false,                         // when false - output each tile as 16x16, true - overlap to make 8x8
 						clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 						threadsMax,                    // maximal number of threads to launch
 						debugLevel);
 				sdfa_instance.showArrays(
 						texture_nonoverlap_aux,
-						tilesX * (2 * clt_parameters.transform_size),
-						tilesY * (2 * clt_parameters.transform_size),
+						tilesX * (2 * image_dtt.transform_size),
+						tilesY * (2 * image_dtt.transform_size),
 						true,
 						name + "-TXTNOL-D"+clt_parameters.disparity+"-AUX",
 						(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
@@ -726,7 +731,7 @@ public class TwoQuadCLT {
 				int alpha_index = 3;
 				texture_overlap_main = image_dtt.combineRBGATiles(
 						texture_tiles_main,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
-						clt_parameters.transform_size,
+//						image_dtt.transform_size,
 						true,                         // when false - output each tile as 16x16, true - overlap to make 8x8
 						clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 						threadsMax,                    // maximal number of threads to launch
@@ -744,7 +749,7 @@ public class TwoQuadCLT {
 
 				texture_overlap_aux = image_dtt.combineRBGATiles(
 						texture_tiles_aux,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
-						clt_parameters.transform_size,
+//						image_dtt.transform_size,
 						true,                         // when false - output each tile as 16x16, true - overlap to make 8x8
 						clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 						threadsMax,                    // maximal number of threads to launch
@@ -763,8 +768,8 @@ public class TwoQuadCLT {
 				if (!batch_mode && clt_parameters.show_overlap) {
 					sdfa_instance.showArrays(
 							texture_overlap_main,
-							tilesX * clt_parameters.transform_size,
-							tilesY * clt_parameters.transform_size,
+							tilesX * image_dtt.transform_size,
+							tilesY * image_dtt.transform_size,
 							true,
 							name + "-TXTOL-D"+clt_parameters.disparity+"-MAIN",
 							(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
@@ -772,8 +777,8 @@ public class TwoQuadCLT {
 				if (!batch_mode && clt_parameters.show_overlap) {
 					sdfa_instance.showArrays(
 							texture_overlap_aux,
-							tilesX * clt_parameters.transform_size,
-							tilesY * clt_parameters.transform_size,
+							tilesX * image_dtt.transform_size,
+							tilesY * image_dtt.transform_size,
 							true,
 							name + "-TXTOL-D"+clt_parameters.disparity+"-AUX",
 							(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
@@ -797,8 +802,8 @@ public class TwoQuadCLT {
 							false, // true, // boolean saveShowIntermediate, // save/show if set globally
 							false, // true, // boolean saveShowFinal,        // save/show result (color image?)
 							((clt_parameters.alpha1 > 0)? texture_rgba_main: texture_rgb_main),
-							tilesX *  clt_parameters.transform_size,
-							tilesY *  clt_parameters.transform_size,
+							tilesX *  image_dtt.transform_size,
+							tilesY *  image_dtt.transform_size,
 							1.0,         // double scaleExposure, // is it needed?
 							debugLevel );
 					ImagePlus imp_texture_aux = quadCLT_aux.linearStackToColor(
@@ -812,8 +817,8 @@ public class TwoQuadCLT {
 							false, // true, // boolean saveShowIntermediate, // save/show if set globally
 							false, // true, // boolean saveShowFinal,        // save/show result (color image?)
 							((clt_parameters.alpha1 > 0)? texture_rgba_aux: texture_rgb_aux),
-							tilesX *  clt_parameters.transform_size,
-							tilesY *  clt_parameters.transform_size,
+							tilesX *  image_dtt.transform_size,
+							tilesY *  image_dtt.transform_size,
 							1.0,         // double scaleExposure, // is it needed?
 							debugLevel );
 					int width = imp_texture_main.getWidth();
@@ -870,7 +875,7 @@ public class TwoQuadCLT {
 				for (int i = 0; i<corr_rslt.length; i++) {
 					corr_rslt[i] = image_dtt.corr_dbg(
 							clt_corr_combo[i],
-							2*clt_parameters.transform_size - 1,
+							2*image_dtt.transform_size - 1,
 							clt_parameters.corr_border_contrast,
 							threadsMax,
 							debugLevel);
@@ -878,8 +883,8 @@ public class TwoQuadCLT {
 
 				sdfa_instance.showArrays(
 						corr_rslt,
-						tilesX*(2*clt_parameters.transform_size),
-						tilesY*(2*clt_parameters.transform_size),
+						tilesX*(2*image_dtt.transform_size),
+						tilesY*(2*image_dtt.transform_size),
 						true,
 						name + "-CORR-D"+clt_parameters.disparity,
 						titles );
@@ -904,7 +909,7 @@ public class TwoQuadCLT {
 						image_dtt.clt_lpf(
 								clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
 								clt_bidata[iAux][iSubCam][chn],
-								clt_parameters.transform_size,
+//								image_dtt.transform_size,
 								threadsMax,
 								debugLevel);
 					}
@@ -926,8 +931,8 @@ public class TwoQuadCLT {
 
 					if (debugLevel > 0){
 						sdfa_instance.showArrays(clt,
-								tilesX*clt_parameters.transform_size,
-								tilesY*clt_parameters.transform_size,
+								tilesX*image_dtt.transform_size,
+								tilesY*image_dtt.transform_size,
 								true,
 								results[iQuadComb].getTitle()+"-CLT-D"+clt_parameters.disparity);
 					}
@@ -936,7 +941,7 @@ public class TwoQuadCLT {
 				for (int chn=0; chn<iclt_data.length;chn++){
 					iclt_data[chn] = image_dtt.iclt_2d(
 							clt_bidata[iAux][iSubCam][chn], // scanline representation of dcd data, organized as dct_size x dct_size tiles
-							clt_parameters.transform_size,  // final int
+//							image_dtt.transform_size,  // final int
 							clt_parameters.clt_window,      // window_type
 							15,                             // clt_parameters.iclt_mask,       //which of 4 to transform back
 							0,                              // clt_parameters.dbg_mode,        //which of 4 to transform back
@@ -946,8 +951,8 @@ public class TwoQuadCLT {
 				}
 
 				if (clt_parameters.gen_chn_stacks) sdfa_instance.showArrays(iclt_data,
-						(tilesX + 0) * clt_parameters.transform_size,
-						(tilesY + 0) * clt_parameters.transform_size,
+						(tilesX + 0) * image_dtt.transform_size,
+						(tilesY + 0) * image_dtt.transform_size,
 						true,
 						results[iQuadComb].getTitle()+"-ICLT-RGB-D"+clt_parameters.disparity);
 				if (!clt_parameters.gen_chn_img) continue;
@@ -963,8 +968,8 @@ public class TwoQuadCLT {
 						!batch_mode, // true, // boolean saveShowIntermediate, // save/show if set globally
 						false, // boolean saveShowFinal,        // save/show result (color image?)
 						iclt_data,
-						tilesX *  clt_parameters.transform_size,
-						tilesY *  clt_parameters.transform_size,
+						tilesX *  image_dtt.transform_size,
+						tilesY *  image_dtt.transform_size,
 						scaleExposures[iAux][iSubCam], // double scaleExposure, // is it needed?
 						debugLevel );
 			} // end of generating shifted channel images
@@ -1162,7 +1167,12 @@ public class TwoQuadCLT {
 				bb.clear();
 				for (int i = 0; i <  image_data[chn][0].length; i++) {
 //					dos.writeFloat((float) (image_data[chn][0][i] + image_data[chn][1][i] + image_data[chn][2][i]));
-					bb.putFloat((float) (image_data[chn][0][i] + image_data[chn][1][i] + image_data[chn][2][i]));
+					double d = 0;
+					for (int c = 0; c < image_data[chn].length; c++) {
+						d += image_data[chn][c][i];
+					}
+//					bb.putFloat((float) (image_data[chn][0][i] + image_data[chn][1][i] + image_data[chn][2][i]));
+					bb.putFloat((float) d);
 				}
 				bb.flip();
 				channel.write(bb);
@@ -1270,6 +1280,7 @@ public class TwoQuadCLT {
 
 
 	public ImagePlus [] processCLTQuadCorrPairForGPU(
+			String                                         save_prefix,
 			QuadCLT                                        quadCLT_main,
 			QuadCLT                                        quadCLT_aux,
 			ImagePlus []                                   imp_quad_main,
@@ -1355,21 +1366,14 @@ public class TwoQuadCLT {
 			}
 
 		}
-
 		double [][] disparity_bimap  = new double [ImageDtt.BIDISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
-
-		ImageDtt image_dtt = new ImageDtt(quadCLT_main.isMonochrome(),clt_parameters.getScaleStrength(false));
+		ImageDtt image_dtt = new ImageDtt(
+				clt_parameters.transform_size,
+				quadCLT_main.isMonochrome(),
+				clt_parameters.getScaleStrength(false));
 		double [][] ml_data = null;
-//		int [][] woi_tops = {quadCLT_main.woi_tops,quadCLT_aux.woi_tops};
 		double [][][]       ers_delay = get_ers?(new double [2][][]):null;
-///		double [][][][][][] clt_kernels_main = quadCLT_main.getCLTKernels(); // [4][3][123][164]{[64],[64],[64],[64],[8]}
-///		double [][][][][][] clt_kernels_aux =  quadCLT_aux.getCLTKernels();
-
-
-		//[4][3][123][164][5][]
-///		double [][] dbg_kern = clt_kernels_main[0][0][0][0];
 		// here all data is ready (images, kernels) to try GPU code
-
 		float [][] main_bayer = new float [quadCLT_main.image_data.length][quadCLT_main.image_data[0][0].length];
 		float [][] dst_bayer =  new float [quadCLT_main.image_data.length][quadCLT_main.image_data[0][0].length];
 		for (int nc = 0; nc < main_bayer.length; nc++) {
@@ -1381,7 +1385,8 @@ public class TwoQuadCLT {
 		}
 
 		double [][][]       port_xy_main_dbg = new double [tilesX*tilesY][][];
-		double [][][]       port_xy_aux_dbg = new double [tilesX*tilesY][][];
+		double [][][]       port_xy_aux_dbg =  new double [tilesX*tilesY][][];
+//		double [][][]       corr2ddata =       new double [1][][];
 
 		final double [][][][][][][] clt_bidata = // new double[2][quad][nChn][tilesY][tilesX][][]; // first index - main/aux
 				image_dtt.clt_bi_quad_dbg (
@@ -1412,55 +1417,100 @@ public class TwoQuadCLT {
 						quadCLT_aux.getCLTKernels(),          // final double [][][][][][] clt_kernels_aux,  // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 						clt_parameters.corr_magic_scale,      // final double              corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
 						true,                                 // 	final boolean             keep_clt_data,
-//						woi_tops,                             // final int [][]            woi_tops,
 						ers_delay,                            // final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
 						threadsMax,                           // final int                 threadsMax,  // maximal number of threads to launch
 						debugLevel,                           // final int                 globalDebugLevel);
 						port_xy_main_dbg,                     // final double [][][]       port_xy_main_dbg, // for each tile/port save x,y pixel coordinates (gpu code development)
-						port_xy_aux_dbg);                     // final double [][][]       port_xy_aux_dbg) // for each tile/port save x,y pixel coordinates (gpu code development)
-/*
-		if (debugLevel < 1000) {
-			return null;
+						port_xy_aux_dbg);                      // final double [][][]       port_xy_aux_dbg) // for each tile/port save x,y pixel coordinates (gpu code development)
+
+
+		// Create list of all correlation pairs
+		double [][][][][][] clt_data = clt_bidata[0];
+		int numTiles = tilesX * tilesY;
+		int numPairs = GPUTileProcessor.NUM_PAIRS;
+		int [] corr_indices = new int [numTiles * numPairs];
+		int indx=0;
+		for (int i = 0; i < numTiles; i++) {
+			for (int j = 0; j < numPairs; j++) {
+				corr_indices[indx++] = (i << GPUTileProcessor.CORR_PAIR_SHIFT) + j;
+			}
 		}
-
-		String kernel_dir = "/home/eyesis/workspace-python3/nvidia_dct8x8/clt/";
-//		boolean [][] what_to_save = {{false,false,true}, {false,false,true}};
-		boolean [][] what_to_save = {{true,true,true}, {true,true,true}};
-		try {
-			saveFloatKernels(
-					kernel_dir +"main", // String file_prefix,
-					(what_to_save[0][0]?clt_kernels_main:null), // double [][][][][][] clt_kernels, // null
-					(what_to_save[0][1]?quadCLT_main.image_data:null),
-					(what_to_save[0][2]?port_xy_main_dbg:null), // double [][][]       port_xy,
-					true);
-		} catch (IOException e) {
-			System.out.println("Failed to save flattened kernels tp "+kernel_dir);
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} // boolean transpose);
-
-		try {
-			saveFloatKernels(
-					kernel_dir +"aux", // String file_prefix,
-					(what_to_save[1][0]?clt_kernels_aux:null), // double [][][][][][] clt_kernels, // null
-					(what_to_save[1][1]?quadCLT_aux.image_data:null),
-					(what_to_save[1][2]?port_xy_aux_dbg:null), // double [][][]       port_xy,
-			        true);
-		} catch (IOException e) {
-			System.out.println("Failed to save flattened kernels tp "+kernel_dir);
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} // boolean transpose);
-
-
-
-		if (debugLevel < 1000) {
-			return null;
+		double [][] corrs2d = image_dtt.get2DCorrs(
+				clt_parameters,  // final CLTParameters       clt_parameters,
+				clt_data,        // final double [][][][][][] clt_data, // [channel_in_quad][color][tileY][tileX][band][pixel];
+				corr_indices,      // final int    []           pairs_list,
+				threadsMax,      // final int                 threadsMax,  // maximal number of threads to launch
+				debugLevel);     // final int                 debugLevel
+		float [][] fcorrs2d = new float [corrs2d.length][corrs2d[0].length];
+		// for compatibility with the actual GPUI output
+		for (int n = 0; n < corrs2d.length; n++) {
+			for (int i = 0; i < corrs2d[0].length; i++) {
+				fcorrs2d[n][i] = (float) corrs2d[n][i];
+			}
 		}
-		if (ers_delay !=null) {
-			showERSDelay(ers_delay);
+		int [] wh = new int[2];
+		double [][] dbg_corr = GPUTileProcessor.getCorr2DView(
+	    		tilesX,
+	    		tilesY,
+	    		corr_indices,
+	    		fcorrs2d,
+	    		wh);
+		(new ShowDoubleFloatArrays()).showArrays(
+				dbg_corr,
+				wh[0],
+				wh[1],
+				true,
+				"CORR2D_CPU",
+				GPUTileProcessor.getCorrTitles());
+
+
+		if ((save_prefix != null) && (save_prefix != "")) {
+
+			if (debugLevel < -1000) {
+				return null;
+			}
+
+			String kernel_dir = save_prefix+"clt/";
+			File kdir = new File(kernel_dir);
+			kdir.mkdir();
+			//		boolean [][] what_to_save = {{false,false,true}, {false,false,true}};
+			boolean [][] what_to_save = {{true,true,true}, {true,true,true}};
+			try {
+				saveFloatKernels(
+						kernel_dir +"main", // String file_prefix,
+//						(what_to_save[0][0]?clt_kernels_main:null), // double [][][][][][] clt_kernels, // null
+						(what_to_save[0][0]?quadCLT_main.getCLTKernels():null), // double [][][][][][] clt_kernels, // null
+						(what_to_save[0][1]?quadCLT_main.image_data:null),
+						(what_to_save[0][2]?port_xy_main_dbg:null), // double [][][]       port_xy,
+						true);
+			} catch (IOException e) {
+				System.out.println("Failed to save flattened kernels tp "+kernel_dir);
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} // boolean transpose);
+
+			try {
+				saveFloatKernels(
+						kernel_dir +"aux", // String file_prefix,
+//						(what_to_save[1][0]?clt_kernels_aux:null), // double [][][][][][] clt_kernels, // null
+						(what_to_save[1][0]?quadCLT_aux.getCLTKernels():null), // double [][][][][][] clt_kernels, // null
+						(what_to_save[1][1]?quadCLT_aux.image_data:null),
+						(what_to_save[1][2]?port_xy_aux_dbg:null), // double [][][]       port_xy,
+						true);
+			} catch (IOException e) {
+				System.out.println("Failed to save flattened kernels tp "+kernel_dir);
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} // boolean transpose);
+
+			if (debugLevel < -1000) {
+				return null;
+			}
+			if (ers_delay !=null) {
+				showERSDelay(ers_delay);
+			}
+
 		}
-*/
 		double [][] texture_nonoverlap_main = null;
 		double [][] texture_nonoverlap_aux = null;
 		double [][] texture_overlap_main = null;
@@ -1471,30 +1521,30 @@ public class TwoQuadCLT {
 			if (clt_parameters.show_nonoverlap){
 				texture_nonoverlap_main = image_dtt.combineRBGATiles(
 						texture_tiles_main,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
-						clt_parameters.transform_size,
+//						image_dtt.transform_size,
 						false,                         // when false - output each tile as 16x16, true - overlap to make 8x8
 						clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 						threadsMax,                    // maximal number of threads to launch
 						debugLevel);
 				sdfa_instance.showArrays(
 						texture_nonoverlap_main,
-						tilesX * (2 * clt_parameters.transform_size),
-						tilesY * (2 * clt_parameters.transform_size),
+						tilesX * (2 * image_dtt.transform_size),
+						tilesY * (2 * image_dtt.transform_size),
 						true,
 						name + "-TXTNOL-D"+clt_parameters.disparity+"-MAIN",
 						(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
 
 				texture_nonoverlap_aux = image_dtt.combineRBGATiles(
 						texture_tiles_aux,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
-						clt_parameters.transform_size,
+//						image_dtt.transform_size,
 						false,                         // when false - output each tile as 16x16, true - overlap to make 8x8
 						clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 						threadsMax,                    // maximal number of threads to launch
 						debugLevel);
 				sdfa_instance.showArrays(
 						texture_nonoverlap_aux,
-						tilesX * (2 * clt_parameters.transform_size),
-						tilesY * (2 * clt_parameters.transform_size),
+						tilesX * (2 * image_dtt.transform_size),
+						tilesY * (2 * image_dtt.transform_size),
 						true,
 						name + "-TXTNOL-D"+clt_parameters.disparity+"-AUX",
 						(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
@@ -1503,7 +1553,7 @@ public class TwoQuadCLT {
 				int alpha_index = 3;
 				texture_overlap_main = image_dtt.combineRBGATiles(
 						texture_tiles_main,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
-						clt_parameters.transform_size,
+//						image_dtt.transform_size,
 						true,                         // when false - output each tile as 16x16, true - overlap to make 8x8
 						clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 						threadsMax,                    // maximal number of threads to launch
@@ -1521,7 +1571,7 @@ public class TwoQuadCLT {
 
 				texture_overlap_aux = image_dtt.combineRBGATiles(
 						texture_tiles_aux,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
-						clt_parameters.transform_size,
+//						image_dtt.transform_size,
 						true,                         // when false - output each tile as 16x16, true - overlap to make 8x8
 						clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 						threadsMax,                    // maximal number of threads to launch
@@ -1540,8 +1590,8 @@ public class TwoQuadCLT {
 				if (!batch_mode && clt_parameters.show_overlap) {
 					sdfa_instance.showArrays(
 							texture_overlap_main,
-							tilesX * clt_parameters.transform_size,
-							tilesY * clt_parameters.transform_size,
+							tilesX * image_dtt.transform_size,
+							tilesY * image_dtt.transform_size,
 							true,
 							name + "-TXTOL-D"+clt_parameters.disparity+"-MAIN",
 							(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
@@ -1549,8 +1599,8 @@ public class TwoQuadCLT {
 				if (!batch_mode && clt_parameters.show_overlap) {
 					sdfa_instance.showArrays(
 							texture_overlap_aux,
-							tilesX * clt_parameters.transform_size,
-							tilesY * clt_parameters.transform_size,
+							tilesX * image_dtt.transform_size,
+							tilesY * image_dtt.transform_size,
 							true,
 							name + "-TXTOL-D"+clt_parameters.disparity+"-AUX",
 							(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
@@ -1574,8 +1624,8 @@ public class TwoQuadCLT {
 							false, // true, // boolean saveShowIntermediate, // save/show if set globally
 							false, // true, // boolean saveShowFinal,        // save/show result (color image?)
 							((clt_parameters.alpha1 > 0)? texture_rgba_main: texture_rgb_main),
-							tilesX *  clt_parameters.transform_size,
-							tilesY *  clt_parameters.transform_size,
+							tilesX *  image_dtt.transform_size,
+							tilesY *  image_dtt.transform_size,
 							1.0,         // double scaleExposure, // is it needed?
 							debugLevel );
 					ImagePlus imp_texture_aux = quadCLT_aux.linearStackToColor(
@@ -1589,8 +1639,8 @@ public class TwoQuadCLT {
 							false, // true, // boolean saveShowIntermediate, // save/show if set globally
 							false, // true, // boolean saveShowFinal,        // save/show result (color image?)
 							((clt_parameters.alpha1 > 0)? texture_rgba_aux: texture_rgb_aux),
-							tilesX *  clt_parameters.transform_size,
-							tilesY *  clt_parameters.transform_size,
+							tilesX *  image_dtt.transform_size,
+							tilesY *  image_dtt.transform_size,
 							1.0,         // double scaleExposure, // is it needed?
 							debugLevel );
 					int width = imp_texture_main.getWidth();
@@ -1647,7 +1697,7 @@ public class TwoQuadCLT {
 				for (int i = 0; i<corr_rslt.length; i++) {
 					corr_rslt[i] = image_dtt.corr_dbg(
 							clt_corr_combo[i],
-							2*clt_parameters.transform_size - 1,
+							2*image_dtt.transform_size - 1,
 							clt_parameters.corr_border_contrast,
 							threadsMax,
 							debugLevel);
@@ -1655,8 +1705,8 @@ public class TwoQuadCLT {
 
 				sdfa_instance.showArrays(
 						corr_rslt,
-						tilesX*(2*clt_parameters.transform_size),
-						tilesY*(2*clt_parameters.transform_size),
+						tilesX*(2*image_dtt.transform_size),
+						tilesY*(2*image_dtt.transform_size),
 						true,
 						name + "-CORR-D"+clt_parameters.disparity,
 						titles );
@@ -1681,7 +1731,7 @@ public class TwoQuadCLT {
 						image_dtt.clt_lpf(
 								clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
 								clt_bidata[iAux][iSubCam][chn],
-								clt_parameters.transform_size,
+//								image_dtt.transform_size,
 								threadsMax,
 								debug_lpf);
 					}
@@ -1703,8 +1753,8 @@ public class TwoQuadCLT {
 
 					if (debugLevel > 0){
 						sdfa_instance.showArrays(clt,
-								tilesX*clt_parameters.transform_size,
-								tilesY*clt_parameters.transform_size,
+								tilesX*image_dtt.transform_size,
+								tilesY*image_dtt.transform_size,
 								true,
 								results[iQuadComb].getTitle()+"-CLT-D"+clt_parameters.disparity);
 					}
@@ -1713,7 +1763,7 @@ public class TwoQuadCLT {
 				for (int chn=0; chn<iclt_data.length;chn++){
 					iclt_data[chn] = image_dtt.iclt_2d_debug_gpu(
 							clt_bidata[iAux][iSubCam][chn], // scanline representation of dcd data, organized as dct_size x dct_size tiles
-							clt_parameters.transform_size,  // final int
+//							image_dtt.transform_size,  // final int
 							clt_parameters.clt_window,      // window_type
 							15,                             // clt_parameters.iclt_mask,       //which of 4 to transform back
 							0,                              // clt_parameters.dbg_mode,        //which of 4 to transform back
@@ -1725,8 +1775,8 @@ public class TwoQuadCLT {
 				}
 
 				if (clt_parameters.gen_chn_stacks) sdfa_instance.showArrays(iclt_data,
-						(tilesX + 0) * clt_parameters.transform_size,
-						(tilesY + 0) * clt_parameters.transform_size,
+						(tilesX + 0) * image_dtt.transform_size,
+						(tilesY + 0) * image_dtt.transform_size,
 						true,
 						results[iQuadComb].getTitle()+"-ICLT-RGB-D"+clt_parameters.disparity);
 				if (!clt_parameters.gen_chn_img) continue;
@@ -1742,8 +1792,8 @@ public class TwoQuadCLT {
 						!batch_mode, // true, // boolean saveShowIntermediate, // save/show if set globally
 						false, // boolean saveShowFinal,        // save/show result (color image?)
 						iclt_data,
-						tilesX *  clt_parameters.transform_size,
-						tilesY *  clt_parameters.transform_size,
+						tilesX *  image_dtt.transform_size,
+						tilesY *  image_dtt.transform_size,
 						scaleExposures[iAux][iSubCam], // double scaleExposure, // is it needed?
 						debugLevel );
 			} // end of generating shifted channel images
@@ -1824,7 +1874,7 @@ public class TwoQuadCLT {
 			ImagePlus []                                   imp_quad_aux,
 			boolean [][]                                   saturation_main, // (near) saturated pixels or null
 			boolean [][]                                   saturation_aux, // (near) saturated pixels or null
-			CLTParameters       clt_parameters,
+			CLTParameters                                  clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters   debayerParameters,
 			ColorProcParameters                            colorProcParameters,
 			ColorProcParameters                            colorProcParameters_aux,
@@ -1836,21 +1886,42 @@ public class TwoQuadCLT {
 			final int        threadsMax,  // maximal number of threads to launch
 			final boolean    updateStatus,
 			final int        debugLevel){
+// get fat_zero (absolute) and color scales
+		boolean is_mono = quadCLT_main.isMonochrome();
+		double    fat_zero = clt_parameters.getGpuFatZero(is_mono); //   30.0;
+		double [] scales = (is_mono) ? (new double [] {1.0}) :(new double [] {
+				clt_parameters.gpu_weight_r, // 0.25
+				clt_parameters.gpu_weight_b, // 0.25
+				1.0 - clt_parameters.gpu_weight_r - clt_parameters.gpu_weight_b}); // 0.5
+
+		ImageDtt image_dtt = new ImageDtt(
+				  clt_parameters.transform_size,
+				  is_mono,
+				  1.0);
+		float [][] lpf_rgb;
+		if (is_mono) {
+			lpf_rgb = new float[1][];
+			lpf_rgb[0] = image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_m);
+		} else {
+			lpf_rgb = new float[3][];
+			lpf_rgb[0] = image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_r);
+			lpf_rgb[1] = image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_b);
+			lpf_rgb[2] = image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_g);
+		}
 
 		gPUTileProcessor.setLpfRbg(
-				1.1f,  // float sigma_r,
-				1.1f,  // float sigma_b,
-				0.7f); // float sigma_g)
+				lpf_rgb);
+		float [] lpf_flat = image_dtt.floatGetCltLpfFd(clt_parameters.getGpuCorrSigma(is_mono));
+
+		gPUTileProcessor.setLpfCorr(
+				lpf_flat);
 
 
 		final boolean use_aux = false; // currently GPU is configured for a single quad camera
 
 		final boolean      batch_mode = clt_parameters.batch_run; //disable any debug images
-//		final boolean get_ers = !batch_mode;
-//		boolean infinity_corr = false;
-//		double [][] scaleExposures= {scaleExposures_main, scaleExposures_aux};
 		boolean toRGB=     quadCLT_main.correctionsParameters.toRGB;
-//		showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging? - TODO - move where it belongs
+
 		// may use this.StartTime to report intermediate steps execution times
 		String name=quadCLT_main.correctionsParameters.getModelName((String) imp_quad_main[0].getProperty("name"));
 		String path= (String) imp_quad_main[0].getProperty("path"); // Only for debug output
@@ -1872,7 +1943,7 @@ public class TwoQuadCLT {
 				imp_quad_main,   // ImagePlus []                                   imp_quad_main,
 				imp_quad_aux,    // ImagePlus []                                    imp_quad_aux,
 				saturation_main, // boolean [][]        saturation_main, // (near) saturated pixels or null
-				saturation_aux, // boolean [][]        saturation_aux, // (near) saturated pixels or null
+				saturation_aux,  // boolean [][]        saturation_aux, // (near) saturated pixels or null
 				threadsMax,      // maximal number of threads to launch
 				debugLevel);     // final int        debugLevel);
 
@@ -1888,6 +1959,8 @@ public class TwoQuadCLT {
 		// Set task clt_parameters.disparity
 		GPUTileProcessor.TpTask [] tp_tasks  = gPUTileProcessor.setFullFrameImages(
 	    		(float) clt_parameters.disparity,     // float                     target_disparity, // apply same disparity to all tiles
+	    		0xf, // int                       out_image, // from which tiles to generate image (currently 0/1)
+	    		0x3f, // int                       corr_mask,  // which correlation pairs to generate (maybe later - reduce size from 15x15)
 	    		!use_aux,                             // boolean                   use_master,
 	    		use_aux,                              // boolean                   use_aux,
 	    		quadCLT_main.getGeometryCorrection(), // final GeometryCorrection  geometryCorrection_main,
@@ -1895,44 +1968,55 @@ public class TwoQuadCLT {
 	    		null,                                 // final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
 	    		threadsMax,                           // final int                 threadsMax,  // maximal number of threads to launch
 	    		debugLevel);                          // final int                 debugLevel)
+
 		gPUTileProcessor.setTasks(
 				tp_tasks, // TpTask [] tile_tasks,
 				use_aux); // boolean use_aux)
+
+
+		int [] corr_indices = gPUTileProcessor.getCorrTasks(
+				tp_tasks);
+		// corr_indices array of integers to be passed to GPU
+		gPUTileProcessor.setCorrIndices(corr_indices);
 
 		// All set, run kernel (correct and convert)
 		int NREPEAT = 1; // 00;
 		System.out.println("\n------------ Running GPU "+NREPEAT+" times ----------------");
 		long startGPU=System.nanoTime();
 		for (int i = 0; i < NREPEAT; i++ ) gPUTileProcessor.execConverCorrectTiles();
+
 		// run imclt;
-		long firstGPUTime= (System.nanoTime() - startGPU)/NREPEAT;
+		long startIMCLT=System.nanoTime();
 		for (int i = 0; i < NREPEAT; i++ ) gPUTileProcessor.execImcltRbg();
-		long runGPUTime = (System.nanoTime() - startGPU)/NREPEAT;
+		long endImcltTime = System.nanoTime();
+
+		long startCorr2d=System.nanoTime();   // System.nanoTime();
+
+		for (int i = 0; i < NREPEAT; i++ ) gPUTileProcessor.execCorr2D(
+	    		scales,// double [] scales,
+	    		fat_zero); // double fat_zero);
+
+		long endCorr2d = System.nanoTime();
+
+		long endGPUTime = System.nanoTime();
+		long firstGPUTime= (startIMCLT- startGPU)/NREPEAT;
+		long runImcltTime = (endImcltTime - startIMCLT)/NREPEAT;
+		long runCorr2DTime = (endCorr2d - startCorr2d)/NREPEAT;
+		long runGPUTime = (endGPUTime - startGPU)/NREPEAT;
+		// run corr2d
+
 		System.out.println("\n------------ End of running GPU "+NREPEAT+" times ----------------");
 		System.out.println("GPU run time ="+(runGPUTime * 1.0e-6)+"ms, (direct conversion: "+(firstGPUTime*1.0e-6)+"ms, imclt: "+
-				((runGPUTime - firstGPUTime)*1.0e-6)+"ms)");
-
+				(runImcltTime*1.0e-6)+"ms), corr2D: "+(runCorr2DTime*1.0e-6)+"ms");
+		// get data back from GPU
 		float [][][] iclt_fimg = new float [GPUTileProcessor.NUM_CAMS][][];
 		for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
 			iclt_fimg[ncam] = gPUTileProcessor.getRBG(ncam);
 		}
-		// get data back from GPU
-		String [] rgb_titles = {"red","blue","green"};
+
 		int out_width =  GPUTileProcessor.IMG_WIDTH +  GPUTileProcessor.DTT_SIZE;
 		int out_height = GPUTileProcessor.IMG_HEIGHT + GPUTileProcessor.DTT_SIZE;
-		/*
-		for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
-			String title=name+"-RBG"+String.format("%02d", ncam);
 
-			(new ShowDoubleFloatArrays()).showArrays(
-					iclt_fimg[ncam],
-					out_width,
-					out_height,
-					true,
-					title,
-					rgb_titles);
-		}
-		 */
 		ImagePlus [] imps_RGB = new ImagePlus[iclt_fimg.length];
 		for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
 			String title=name+"-"+String.format("%02d", ncam);
@@ -1953,6 +2037,25 @@ public class TwoQuadCLT {
 					debugLevel );
 
 		}
+		float [][] corr2D = gPUTileProcessor.getCorr2D();
+// convert to 6-layer image		 using tasks
+		int tilesX =  GPUTileProcessor.IMG_WIDTH / GPUTileProcessor.DTT_SIZE;
+		int tilesY = GPUTileProcessor.IMG_HEIGHT / GPUTileProcessor.DTT_SIZE;
+		int [] wh = new int[2];
+		double [][] dbg_corr = gPUTileProcessor.getCorr2DView(
+	    		tilesX,
+	    		tilesY,
+	    		corr_indices,
+	    		corr2D,
+	    		wh);
+		(new ShowDoubleFloatArrays()).showArrays(
+				dbg_corr,
+				wh[0],
+				wh[1],
+				true,
+				"CORR2D",
+				gPUTileProcessor.getCorrTitles());
+
 		if (clt_parameters.gen_chn_img) {
 			// combine to a sliced color image
 			// assuming total number of images to be multiple of 4
@@ -2255,7 +2358,12 @@ public class TwoQuadCLT {
 					"MACRO-INPUT");
 		}
 
-		int macro_scale = clt_parameters.transform_size;
+		ImageDtt image_dtt = new ImageDtt(
+				clt_parameters.transform_size,
+				quadCLT_main.isMonochrome(),
+				clt_parameters.getScaleStrength(false));
+
+		int macro_scale = image_dtt.transform_size;
 		int mTilesX = tilesX/macro_scale;
 		int mTilesY = tilesY/macro_scale;
 		int [][] mtile_op = new int [mTilesY][mTilesX];
@@ -2266,7 +2374,6 @@ public class TwoQuadCLT {
 		}
 		double [][] mdisparity_array = new double [mTilesY][mTilesX]; // keep all zeros
 		double [][] mdisparity_bimap = new double [ImageDtt.BIDISPARITY_TITLES.length][];
-		ImageDtt image_dtt = new ImageDtt(quadCLT_main.isMonochrome(),clt_parameters.getScaleStrength(false));
 		image_dtt.clt_bi_macro(
 				clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				clt_parameters.getFatZero(image_dtt.isMonochrome()),              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
@@ -3155,7 +3262,10 @@ if (debugLevel > -100) return true; // temporarily !
 				}
 			}
 		}
-		ImageDtt image_dtt = new ImageDtt(quadCLT_main.isMonochrome(),clt_parameters.getScaleStrength(false));
+		ImageDtt image_dtt = new ImageDtt(
+				clt_parameters.transform_size,
+				quadCLT_main.isMonochrome(),
+				clt_parameters.getScaleStrength(false));
 		image_dtt.clt_bi_quad (
 				clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				clt_parameters.getFatZero(image_dtt.isMonochrome()),              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
@@ -3175,7 +3285,7 @@ if (debugLevel > -100) return true; // temporarily !
 				null, // ml_data,                     // 	final double [][]         ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
 				texture_tiles[0],                     // final double [][][][]     texture_tiles_main, // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
 				texture_tiles[1],                     // final double [][][][]     texture_tiles_aux,  // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
-				quadCLT_main.tp.getTilesX()*clt_parameters.transform_size, // final int                 width,
+				quadCLT_main.tp.getTilesX()*image_dtt.transform_size, // final int                 width,
 
 				quadCLT_main.getGeometryCorrection(), // final GeometryCorrection  geometryCorrection_main,
 				quadCLT_aux.getGeometryCorrection(),  // final GeometryCorrection  geometryCorrection_aux,
@@ -7232,7 +7342,10 @@ if (debugLevel > -100) return true; // temporarily !
 			final int                                threadsMax,  // maximal number of threads to launch
 			final boolean                            updateStatus,
 			final int                                debugLevel){
-		ImageDtt image_dtt = new ImageDtt(quadCLT_main.isMonochrome(),clt_parameters.getScaleStrength(false));
+		ImageDtt image_dtt = new ImageDtt(
+				clt_parameters.transform_size,
+				quadCLT_main.isMonochrome(),
+				clt_parameters.getScaleStrength(false));
 
 		double [][] disparity_bimap  = new double [ImageDtt.BIDISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
 
@@ -7255,7 +7368,7 @@ if (debugLevel > -100) return true; // temporarily !
 				ml_data,                              // 	final double [][]         ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
 				null,                                 // final double [][][][]     texture_tiles_main, // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
 				null,                                 // final double [][][][]     texture_tiles_aux,  // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
-				quadCLT_main.tp.getTilesX()*clt_parameters.transform_size, // final int                 width,
+				quadCLT_main.tp.getTilesX()*image_dtt.transform_size, // final int                 width,
 
 				quadCLT_main.getGeometryCorrection(), // final GeometryCorrection  geometryCorrection_main,
 				quadCLT_aux.getGeometryCorrection(),  // final GeometryCorrection  geometryCorrection_aux,
@@ -7397,7 +7510,10 @@ if (debugLevel > -100) return true; // temporarily !
 			final int                                threadsMax,  // maximal number of threads to launch
 			final boolean                            updateStatus,
 			final int                                debugLevel){
-		ImageDtt image_dtt = new ImageDtt(quadCLT_aux.isMonochrome(),clt_parameters.getScaleStrength(true));
+		ImageDtt image_dtt = new ImageDtt(
+				clt_parameters.transform_size,
+				quadCLT_aux.isMonochrome(),
+				clt_parameters.getScaleStrength(true));
 		double [][] disparity_bimap  = new double [ImageDtt.BIDISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
 		image_dtt.clt_bi_quad (
 				clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
@@ -7417,8 +7533,8 @@ if (debugLevel > -100) return true; // temporarily !
 				ml_data,                              // 	final double [][]         ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
 				null,                                 // final double [][][][]     texture_tiles_main, // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
 				null,                                 // final double [][][][]     texture_tiles_aux,  // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
-//				quadCLT_main.tp.getTilesX()*clt_parameters.transform_size, // final int                 width,
-				quadCLT_aux.tp.getTilesX()*clt_parameters.transform_size, // final int                 width,
+//				quadCLT_main.tp.getTilesX()*image_dtt.transform_size, // final int                 width,
+				quadCLT_aux.tp.getTilesX()*image_dtt.transform_size, // final int                 width,
 
 				null, // quadCLT_main.getGeometryCorrection(), // final GeometryCorrection  geometryCorrection_main,
 				quadCLT_aux.getGeometryCorrection(),  // final GeometryCorrection  geometryCorrection_aux,

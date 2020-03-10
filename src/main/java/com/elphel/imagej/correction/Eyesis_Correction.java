@@ -3075,7 +3075,7 @@ private Panel panel1,
            	}
 
            }
-		  ImageDtt image_dtt = new ImageDtt(false, 1.0); // Bayer( not monochrome), scale correlation strengths
+		  ImageDtt image_dtt = new ImageDtt(DCT_PARAMETERS.dct_size, false, 1.0); // Bayer( not monochrome), scale correlation strengths
            double [][][][] dctdc_data = image_dtt.mdctScale(
            		DBG_IMP.getStack(),
            		DCT_PARAMETERS.kernel_chn,
@@ -3173,7 +3173,7 @@ private Panel panel1,
         	}
 
         }
-        ImageDtt image_dtt = new ImageDtt(false, 1.0); // Bayer( not monochrome), scale correlation strengths
+        ImageDtt image_dtt = new ImageDtt(DCT_PARAMETERS.dct_size,false, 1.0); // Bayer( not monochrome), scale correlation strengths
         double [][][][] dctdc_data = image_dtt.mdctStack(
         		DBG_IMP.getStack(),
         		DCT_PARAMETERS.kernel_chn,
@@ -5723,6 +5723,7 @@ private Panel panel1,
 		if (!prepareRigImages()) return false;
 		String configPath=getSaveCongigPath();
 		if (configPath.equals("ABORT")) return false;
+//		if ((CORRECTION_PARAMETERS.tile_processor_gpu != null) &&
 
 		if (DEBUG_LEVEL > -2){
 			System.out.println("++++++++++++++ Calculating combined correlations ++++++++++++++");
@@ -5740,6 +5741,7 @@ private Panel panel1,
 
 		try {
 			TWO_QUAD_CLT.prepareFilesForGPUDebug(
+					CORRECTION_PARAMETERS.tile_processor_gpu,//			String                                         save_prefix, // absolute path to the cuda project root
 					QUAD_CLT, // QuadCLT quadCLT_main,
 					QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
 					CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
@@ -7048,7 +7050,10 @@ private Panel panel1,
 			}
 		}
 
-		ImageDtt image_dtt = new ImageDtt(false, 1.0); // Bayer( not monochrome), scale correlation strengths
+		ImageDtt image_dtt = new ImageDtt(
+				CLT_PARAMETERS.transform_size,
+				false,
+				1.0); // Bayer( not monochrome), scale correlation strengths
 		double [][][][][] clt_data = image_dtt.cltStack(
 				DBG_IMP.getStack(),
 				0, // CLT_PARAMETERS.kernel_chn,
@@ -7082,7 +7087,7 @@ private Panel panel1,
 			for (int chn = 0; chn < clt_data.length; chn++) {
 				clt_data[chn] = image_dtt.clt_shiftXY(
 						clt_data[chn],                  // final double [][][][] dct_data,  // array [tilesY][tilesX][4][dct_size*dct_size]
-						CLT_PARAMETERS.transform_size,  // final int             dct_size,
+///						CLT_PARAMETERS.transform_size,  // final int             dct_size,
 						CLT_PARAMETERS.shift_x,         // final double          shiftX,
 						CLT_PARAMETERS.shift_y,         // final double          shiftY,
 						(CLT_PARAMETERS.dbg_mode >> 2) & 3, // swap order hor/vert
@@ -7095,7 +7100,7 @@ private Panel panel1,
 		for (int chn=0; chn<iclt_data.length;chn++){
 			iclt_data[chn] = image_dtt.iclt_2d(
 					clt_data[chn],                  // scanline representation of dcd data, organized as dct_size x dct_size tiles
-					CLT_PARAMETERS.transform_size,  // final int
+///					CLT_PARAMETERS.transform_size,  // final int
 					CLT_PARAMETERS.clt_window,      //window_type
 					CLT_PARAMETERS.iclt_mask,       //which of 4 to transform back
 					CLT_PARAMETERS.dbg_mode,        //which of 4 to transform back
@@ -7178,7 +7183,10 @@ private Panel panel1,
 
         }
         String suffix = "-dx_"+(CLT_PARAMETERS.ishift_x+CLT_PARAMETERS.shift_x)+"_dy_"+(CLT_PARAMETERS.ishift_y+CLT_PARAMETERS.shift_y);
-        ImageDtt image_dtt = new ImageDtt(COLOR_PROC_PARAMETERS.isMonochrome(), CLT_PARAMETERS.getScaleStrength(false)); // Bayer, not monochrome
+        ImageDtt image_dtt = new ImageDtt(
+        		CLT_PARAMETERS.transform_size,
+        		COLOR_PROC_PARAMETERS.isMonochrome(),
+        		CLT_PARAMETERS.getScaleStrength(false)); // Bayer, not monochrome
         String [] titles = {
         		"redCC",  "redSC",  "redCS",  "redSS",
         		"blueCC", "blueSC", "blueCS", "blueSS",
@@ -7235,7 +7243,7 @@ private Panel panel1,
             for (int chn = 0; chn < clt_data.length; chn++) {
         	clt_data2[chn] = image_dtt.clt_shiftXY(
         			clt_data2[chn],                 // final double [][][][] dct_data,  // array [tilesY][tilesX][4][dct_size*dct_size]
-        			CLT_PARAMETERS.transform_size,  // final int             dct_size,
+///        			CLT_PARAMETERS.transform_size,  // final int             dct_size,
         			CLT_PARAMETERS.shift_x,         // final double          shiftX,
         			CLT_PARAMETERS.shift_y,         // final double          shiftY,
         			(CLT_PARAMETERS.dbg_mode >> 2) & 3, // swap order hor/vert
@@ -7266,7 +7274,7 @@ private Panel panel1,
         	clt_corr[chn] = image_dtt.clt_correlate(
         			clt_data[chn],                  // final double [][][][] data1,  // array [tilesY][tilesX][4][dct_size*dct_size]
         			clt_data2[chn],                 // final double [][][][] data2,  // array [tilesY][tilesX][4][dct_size*dct_size]
-        			CLT_PARAMETERS.transform_size,  // final int             dct_size,
+///        			CLT_PARAMETERS.transform_size,  // final int             dct_size,
         			CLT_PARAMETERS.getFatZero(image_dtt.isMonochrome()),  // final double          fat_zero,    // add to denominator to modify phase correlation (same units as data1, data2)
             		CLT_PARAMETERS.tileX, //final int debug_tileX
             		CLT_PARAMETERS.tileY, //final int debug_tileY
@@ -7297,7 +7305,7 @@ private Panel panel1,
         		image_dtt.clt_lpf( // filter in-place
         				CLT_PARAMETERS.getCorrSigma(image_dtt.isMonochrome()),            // final double          sigma,
         				clt_corr[chn],                        // final double [][][][] clt_data,
-        				CLT_PARAMETERS.transform_size,
+///        				CLT_PARAMETERS.transform_size,
         				THREADS_MAX,                          // maximal number of threads to launch
         				DEBUG_LEVEL);                        // globalDebugLevel)
         	}

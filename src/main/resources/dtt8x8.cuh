@@ -36,10 +36,10 @@
 * \brief DCT-II, DST-II, DCT-IV and DST-IV for Complex Lapped Transform of 16x16 (stride 8)
 *        in GPU
 * This file contains building blocks for the 16x16 stride 8 COmplex Lapped Transform (CLT)
-* imlementation. DTT-IV are used for forward and inverse 2D CLT, DTT-II - to convert correlation
+* implementation. DTT-IV are used for forward and inverse 2D CLT, DTT-II - to convert correlation
 * results from the frequency to pixel domain. DTT-III (inverse of DTT-II) is not implemented
 * here it is used to convert convolution kernels and LPF to the frequency domain - done in
-* softwaer.
+* software.
 *
 * This file is cpompatible with both runtime and driver API, runtime is used for development
 * with Nvidia Nsight, driver API when calling these kernels from Java
@@ -84,23 +84,24 @@ __constant__ float SINN1[] = {0.195090f,0.555570f};
 __constant__ float SINN2[] = {0.098017f,0.290285f,0.471397f,0.634393f};
 
 
-inline __device__ void dttii_shared_mem(float * x0,  int inc, int dst_not_dct);
-inline __device__ void dttiv_shared_mem(float * x0,  int inc, int dst_not_dct);
-inline __device__ void dttiv_nodiverg(float * x,  int inc, int dst_not_dct);
-inline __device__ void dctiv_nodiverg(float * x0,  int inc);
-inline __device__ void dstiv_nodiverg(float * x0,  int inc);
+inline __device__ void dttii_shared_mem_nonortho(float * x0,  int inc, int dst_not_dct); // does not scale by y[0] (y[7]) by 1/sqrt[0]
+inline __device__ void dttii_shared_mem(float * x0,  int inc, int dst_not_dct);   // used in GPU_DTT24_DRV
+inline __device__ void dttiv_shared_mem(float * x0,  int inc, int dst_not_dct);   // used in GPU_DTT24_DRV
+inline __device__ void dttiv_nodiverg  (float * x,   int inc, int dst_not_dct);   // not used
+inline __device__ void dctiv_nodiverg  (float * x0,  int inc);                    // used in TP
+inline __device__ void dstiv_nodiverg  (float * x0,  int inc);                    // used in TP
 
-inline __device__ void dct_ii8         ( float x[8], float y[8]); // x,y point to 8-element arrays each
-inline __device__ void dct_iv8         ( float x[8], float y[8]); // x,y point to 8-element arrays each
-inline __device__ void dst_iv8         ( float x[8], float y[8]); // x,y point to 8-element arrays each
-inline __device__ void _dctii_nrecurs8 ( float x[8], float y[8]); // x,y point to 8-element arrays each
-inline __device__ void _dctiv_nrecurs8 ( float x[8], float y[8]); // x,y point to 8-element arrays each
+inline __device__ void dct_ii8         ( float x[8], float y[8]); // x,y point to 8-element arrays each // not used
+inline __device__ void dct_iv8         ( float x[8], float y[8]); // x,y point to 8-element arrays each // not used
+inline __device__ void dst_iv8         ( float x[8], float y[8]); // x,y point to 8-element arrays each // not used
+inline __device__ void _dctii_nrecurs8 ( float x[8], float y[8]); // x,y point to 8-element arrays each // not used
+inline __device__ void _dctiv_nrecurs8 ( float x[8], float y[8]); // x,y point to 8-element arrays each // not used
 
 
 /**
 **************************************************************************
 *  Converts 2D image (in the GPU memory) using 8x8 DTT 8x8 tiles.
-*  Mostly for testing and profiling individual converions
+*  Mostly for testing and profiling individual conversions
 *
 * \param dst                        [OUT] - Coefficients as 8x8 tiles
 * \param src                         [IN] - Source image of floats
@@ -376,6 +377,88 @@ inline __device__ void dttii_shared_mem(float * x0,  int inc, int dst_not_dct)
 	}
 }
 
+inline __device__ void dttii_shared_mem_nonortho(float * x0,  int inc, int dst_not_dct)
+{
+	float *x1 = x0 + inc;
+	float *x2 = x1 + inc;
+	float *x3 = x2 + inc;
+	float *x4 = x3 + inc;
+	float *x5 = x4 + inc;
+	float *x6 = x5 + inc;
+	float *x7 = x6 + inc;
+	float u00, u01, u02, u03, u10, u11, u12, u13;
+	if (dst_not_dct) { // DSTII
+		// invert odd input samples
+		u00= ( (*x0) - (*x7));
+		u10= ( (*x0) + (*x7));
+
+		u01= (-(*x1) + (*x6));
+		u11= (-(*x1) - (*x6));
+
+		u02= ( (*x2) - (*x5));
+		u12= ( (*x2) + (*x5));
+
+		u03= (-(*x3) + (*x4));
+		u13= (-(*x3) - (*x4));
+	} else { // DCTII
+		u00= ( (*x0) + (*x7));
+		u10= ( (*x0) - (*x7));
+
+		u01= ( (*x1) + (*x6));
+		u11= ( (*x1) - (*x6));
+
+		u02= ( (*x2) + (*x5));
+		u12= ( (*x2) - (*x5));
+
+		u03= ( (*x3) + (*x4));
+		u13= ( (*x3) - (*x4));
+	}
+	//	_dctii_nrecurs4(u00,u01, u02, u03, &v00, &v01, &v02, &v03);
+
+		float w00= u00 + u03;
+		float w10= u00 - u03;
+
+		float w01= (u01 + u02);
+		float w11= (u01 - u02);
+
+		float v01= COSPI_1_8_SQRT2 * w10 + COSPI_3_8_SQRT2 * w11;
+		float v03= COSPI_3_8_SQRT2 * w10 - COSPI_1_8_SQRT2 * w11;
+	//	_dctiv_nrecurs4(u10, u11, u12, u13, &v10, &v11, &v12, &v13);
+		float w20=            ( COSN1[0] * u10 + SINN1[0] * u13);
+		float w30=            (-SINN1[1] * u11 + COSN1[1] * u12);
+
+		float w21=            ( COSN1[1] * u11 + SINN1[1] * u12);
+		float w31=           -(-SINN1[0] * u10 + COSN1[0] * u13);
+		float v11 = w20 - w21 - w30 + w31;
+		float v12 = w20 - w21 + w30 - w31;
+
+	if (dst_not_dct) { // DSTII
+		// Invert output sequence
+		*x0 =   (w30 + w31)*  0.5f;    // v13 * SQRT1_8; z10 * 0.5f
+		*x1 =   v03 *         SQRT1_8;
+
+		*x2 =   v12 *         SQRT1_8;
+		*x3 =   (w00 - w01) * SQRT1_8; // v02 * SQRT1_8
+
+		*x4 =   v11 *         SQRT1_8;
+		*x5 =   v01 *         SQRT1_8;
+
+		*x6 =   (w20 + w21) * 0.5f;    // v10 * SQRT1_8; z00 * 0.5f;
+		*x7 =   (w00 + w01) * 0.5f;    // SQRT1_8; // v00 * SQRT1_8 //*** no 1/sqrt(2)!
+	} else {
+		*x0 =   (w00 + w01) * 0.5f;    // SQRT1_8; // v00 * SQRT1_8 //*** no 1/sqrt(2)!
+		*x1 =   (w20 + w21) * 0.5f;    // v10 * SQRT1_8; z00 * 0.5f;
+
+		*x2 =   v01 *         SQRT1_8;
+		*x3 =   v11 *         SQRT1_8;
+
+		*x4 =   (w00 - w01) * SQRT1_8; // v02 * SQRT1_8
+		*x5 =   v12 *         SQRT1_8;
+
+		*x6 =   v03 *         SQRT1_8;
+		*x7 =   (w30 + w31)*  0.5f;    // v13 * SQRT1_8; z10 * 0.5f
+	}
+}
 
 inline __device__ void dttiv_shared_mem(float * x0,  int inc, int dst_not_dct)
 {

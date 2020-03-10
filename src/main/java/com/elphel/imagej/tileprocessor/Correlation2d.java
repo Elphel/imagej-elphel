@@ -194,6 +194,147 @@ public class Correlation2d {
     	  return this.transpose_all_diagonal;
       }
 
+      /**
+       * Multiply CLT data of two channels, OK with null inputs (missing colors for monochrome images)
+       * @param clt_data1 first operand FD CLT data[4][transform_len]
+       * @param clt_data2 second operand FD CLT data[4][transform_len]
+       * @return [4][transform_len] FD CLT data
+       */
+      public double[][] correlateSingleColorFD(
+      		double [][] clt_data1,
+      		double [][] clt_data2,
+      		double [][] tcorr){ // null or initialized to [4][transform_len]
+
+      	if (tcorr == null) tcorr = new double [4][transform_len];
+    	if ((clt_data1 == null) || (clt_data1 == null)) return null; // to work with missing colors for monochrome
+  		for (int i = 0; i < transform_len; i++) {
+  			for (int n = 0; n<4; n++){
+  				tcorr[n][i] = 0;
+  				for (int k=0; k<4; k++){
+  					if (ZI[n][k] < 0)
+  						tcorr[n][i] -=
+  								clt_data1[-ZI[n][k]][i] * clt_data2[k][i];
+  					else
+  						tcorr[n][i] +=
+  								clt_data1[ZI[n][k]][i] * clt_data2[k][i];
+  				}
+  			}
+  		}
+  		return tcorr;
+      }
+
+      /**
+       * Normalize 2D correlation in FD, LPF (if not null) and convert to pixel domain and trim
+       * @param tcorr FD representation of the correlation[4][64]
+       * @param lpf LPF [64] or null
+       * @param afat_zero2 fat zero to add during normalization, units of squared values
+       * @param corr_radius if >=0 and < 7 - extract only the central part of the 15x15 square
+       * @return 2D phase correlation in linescan order
+       */
+      public double[] normalizeConvertCorr(
+    		  double [][] tcorr, // null or initialized to [4][transform_len]
+    		  double []   lpf,
+    		  double      afat_zero2, // absolute fat zero, same units as components squared values
+    		  int corr_radius,
+    		  boolean debug_gpu){
+    	  if (tcorr == null) return null;
+    	  double afat_zero4 = afat_zero2*afat_zero2;
+
+    	  for (int i = 0; i < transform_len; i++) {
+    		  double s = afat_zero4;
+    		  for (int n = 0; n< 4; n++){
+    			  s += tcorr[n][i]*tcorr[n][i];
+    		  }
+    		  double k = 1.0/ Math.sqrt(s);
+    		  for (int n = 0; n< 4; n++){
+    			  tcorr[n][i]*= k;
+    		  }
+    	  }
+    	  if (debug_gpu) {
+    		  System.out.println("=== NORMALIZED CORRELATION , afat_zero2="+afat_zero2+", afat_zero4="+afat_zero4+" ===");
+    		  for (int dct_mode = 0; dct_mode < 4; dct_mode++) {
+    			  System.out.println("------dct_mode="+dct_mode);
+    			  for (int i = 0; i < transform_size; i++) {
+    				  for (int j = 0; j < transform_size; j++) {
+    					  System.out.print(String.format("%10.5f ", tcorr[dct_mode][transform_size * i + j]));
+    				  }
+    				  System.out.println();
+    			  }
+    		  }
+    	  }
+    	  if (lpf != null) {
+        	  if (debug_gpu) {
+        		  System.out.println("=== LPF for CORRELATION ===");
+        		  for (int i = 0; i < transform_size; i++) {
+        			  for (int j = 0; j < transform_size; j++) {
+        				  System.out.print(String.format("%10.5f ", lpf[transform_size * i + j]));
+        			  }
+        			  System.out.println();
+        		  }
+        	  }
+    		  for (int n = 0; n<4; n++) {
+    			  for (int i = 0; i < transform_len; i++) {
+    				  tcorr[n][i] *= lpf[i];
+    			  }
+    		  }
+    	  }
+    	  if (debug_gpu) {
+    		  System.out.println("=== LPF-ed CORRELATION ===");
+    		  for (int dct_mode = 0; dct_mode < 4; dct_mode++) {
+    			  System.out.println("------dct_mode="+dct_mode);
+    			  for (int i = 0; i < transform_size; i++) {
+    				  for (int j = 0; j < transform_size; j++) {
+    					  System.out.print(String.format("%10.5f ", tcorr[dct_mode][transform_size * i + j]));
+    				  }
+    				  System.out.println();
+    			  }
+    		  }
+    	  }
+		  for (int quadrant = 0; quadrant < 4; quadrant++){
+			  int mode = ((quadrant << 1) & 2) | ((quadrant >> 1) & 1); // transpose
+			  tcorr[quadrant] = dtt.dttt_iie(tcorr[quadrant], mode, transform_size, debug_gpu); // not orthogonal, term[0] is NOT *= 1/sqrt(2)
+		  }
+    	  if (debug_gpu) {
+    		  System.out.println("=== CONVERTED CORRELATION ===");
+    		  for (int dct_mode = 0; dct_mode < 4; dct_mode++) {
+    			  System.out.println("------dct_mode="+dct_mode);
+    			  for (int i = 0; i < transform_size; i++) {
+    				  for (int j = 0; j < transform_size; j++) {
+    					  System.out.print(String.format("%10.5f ", tcorr[dct_mode][transform_size * i + j]));
+    				  }
+    				  System.out.println();
+    			  }
+    		  }
+    	  }
+
+    	  // convert from 4 quadrants to 15x15 centered tiles (only composite)
+    	  double [] corr_pd =  dtt.corr_unfold_tile(tcorr,	transform_size);
+    	  if (debug_gpu) {
+    		  int corr_size = 2* transform_size -1;
+    		  System.out.println("=== UNFOLDED CORRELATION ===");
+    		  for (int i = 0; i < corr_size; i++) {
+    			  for (int j = 0; j < corr_size; j++) {
+    				  System.out.print(String.format("%10.5f ", corr_pd[corr_size * i + j]));
+    			  }
+    			  System.out.println();
+    		  }
+    	  }
+
+    	  if ((corr_radius <= 0) || (corr_radius >= (transform_size - 1))) {
+    		  return corr_pd;
+    	  }
+    	  int full_size = 2 * transform_size - 1;
+    	  int trimmed_size = 2 * corr_radius + 1;
+    	  int trim =  transform_size - 1 - corr_radius;
+    	  double [] trimmed_pd = new double [trimmed_size * trimmed_size];
+    	  int ioffs = (full_size + 1)*trim;
+    	  for (int orow = 0; orow < trimmed_size; orow++) {
+    		  System.arraycopy(corr_pd, orow*full_size + ioffs, trimmed_pd, orow*trimmed_size, trimmed_size);
+    	  }
+    	  return trimmed_pd;
+      }
+
+
     /**
      * Multiply CLT data of two channels, normalize amplitude, OK with null inputs (missing colors for monochrome images)
      * @param clt_data1 first operand FD CLT data[4][transform_len]
@@ -343,7 +484,7 @@ public class Correlation2d {
     		double              scale_value, // scale correlation value
     		double []           col_weights,
     		double              fat_zero) {
-    	double [][][][]     clt_data_tile = new double[clt_data.length][][][];
+    	double [][][][]     clt_data_tile = new double[clt_data.length][][][]; // [camera][color][quadrant][index]
     	for (int ncam = 0; ncam < clt_data.length; ncam++) if (clt_data[ncam] != null){
     		clt_data_tile[ncam] = new double[clt_data[ncam].length][][];
         	for (int ncol = 0; ncol < clt_data[ncam].length; ncol++) if ((clt_data[ncam][ncol] != null) && (clt_data[ncam][ncol][tileY] != null)){

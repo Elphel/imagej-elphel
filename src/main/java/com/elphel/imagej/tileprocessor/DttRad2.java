@@ -613,7 +613,61 @@ public class DttRad2 {
 		return y;
 	}
 
+	public double [] dttt_iie(double [] x, int mode, int n, boolean debug_gpu){
 
+		double [] y = new double [n*n];
+		double [] line = new double[n];
+		// first (horizontal) pass
+		for (int i = 0; i<n; i++){
+			System.arraycopy(x, n*i, line, 0, n);
+			line = ((mode & 1)!=0)? dstiie_direct(line):dctiie_direct(line);
+			for (int j=0; j < n;j++) y[j*n+i] =line[j]; // transpose
+		}
+		if (debug_gpu) {
+			System.out.println("------after hor, mode="+mode);
+			for (int i = 0; i < n; i++) {
+				for (int j = 0; j < n; j++) {
+					System.out.print(String.format("%10.5f ", y[n * i + j]));
+				}
+				System.out.println();
+			}
+		}
+
+
+		// second (vertical) pass
+		for (int i = 0; i<n; i++){
+			System.arraycopy(y, n*i, line, 0, n);
+			line = ((mode & 2)!=0)? dstiie_direct(line):dctiie_direct(line);
+			System.arraycopy(line, 0, y, n*i, n);
+		}
+		if (debug_gpu) {
+			System.out.println("------after vert, mode="+mode);
+			for (int i = 0; i < n; i++) {
+				for (int j = 0; j < n; j++) {
+					System.out.print(String.format("%10.5f ", y[n * i + j]));
+				}
+				System.out.println();
+			}
+		}
+		return y;
+	}
+
+
+/*
+    	  if (debug_gpu) {
+    		  System.out.println("=== CONVERTED CORRELATION ===");
+    		  for (int dct_mode = 0; dct_mode < 4; dct_mode++) {
+    			  System.out.println("------dct_mode="+dct_mode);
+    			  for (int i = 0; i < transform_size; i++) {
+    				  for (int j = 0; j < transform_size; j++) {
+    					  System.out.print(String.format("%10.3f ", tcorr[dct_mode][transform_size * i + j]));
+    				  }
+    				  System.out.println();
+    			  }
+    		  }
+    	  }
+
+ */
 
 
 	public double [] dttt_iii(double [] x){
@@ -780,7 +834,7 @@ public class DttRad2 {
 	}
 
 
-	public double [] dctii_direct(double[] x){
+	public double [] dctii_direct(double[] x){ // orthogonal, term[0] *= 1/sqrt(2)
 		int n = x.length;
 		int t = ilog2(n)-1;
 		if (CII==null){
@@ -796,7 +850,7 @@ public class DttRad2 {
 		return y;
 	}
 
-	public double [] dctiie_direct(double[] x){
+	public double [] dctiie_direct(double[] x){ // not orthogonal
 		int n = x.length;
 		int t = ilog2(n)-1;
 		if (CIIe==null){
@@ -928,7 +982,7 @@ public class DttRad2 {
 		}
 	}
 
-	private void setup_CII(int maxN){
+	private void setup_CII(int maxN){ // orthogonal, term[0] *= 1/sqrt(2)
 		if (maxN > N) setup_arrays(maxN);
 		int l = ilog2(N);
 		if (!(CII==null) && (CII.length >= l)) return;
@@ -949,7 +1003,7 @@ public class DttRad2 {
 		}
 	}
 
-	private void setup_CIIe(int maxN){
+	private void setup_CIIe(int maxN){ // not orthogonal
 		if (maxN > N) setup_arrays(maxN);
 		int l = ilog2(N);
 		if (!(CIIe==null) && (CIIe.length >= l)) return;

@@ -30,6 +30,7 @@ public class CLTParameters {
 	public int        dbg_mode =            0;  // 0 - normal, +1 - no DCT/IDCT
 	public int        ishift_x =            0;  // debug feature - shift source image by this pixels left
 	public int        ishift_y =            0;  // debug feature - shift source image by this pixels down
+
 	private double    fat_zero =          0.05; // modify phase correlation to prevent division by very small numbers
 	private double    fat_zero_mono =     0.1;  // modify phase correlation to prevent division by very small numbers
 	private double    corr_sigma =        0.8;  // LPF correlation sigma
@@ -763,7 +764,18 @@ public class CLTParameters {
 	public boolean    taEnFlaps            = true;   // Enable cost of using supertile "flaps" (not in the center 8x8 tiles area)
 	public boolean    taEnMismatch         = false;  // Enable cost of a measurement layer not having same layer in the same location or near
 
-
+// gpu processing parameters
+	public int        gpu_corr_rad =        7;  // size of the correlation to save - initially only 15x15
+	public double     gpu_weight_r =      0.25;
+	public double     gpu_weight_b =      0.25; // weight g = 1.0 - gpu_weight_r - gpu_weight_b
+	public double     gpu_sigma_r =       1.1;
+	public double     gpu_sigma_b =       1.1;
+	public double     gpu_sigma_g =       0.7;
+	public double     gpu_sigma_m =       0.7;
+	public double     gpu_sigma_corr =    0.9;
+	public double     gpu_sigma_corr_m =  0.15;
+	public double     gpu_fatz =          30.0;
+	public double     gpu_fatz_m =        30.0;
 
 	public boolean    replaceWeakOutliers =   true; // false;
 
@@ -816,6 +828,15 @@ public class CLTParameters {
 	public double getFatZero(boolean monochrome) {
 		return monochrome ? fat_zero_mono : fat_zero;
 	}
+
+	public double getGpuFatZero(boolean monochrome) {
+		return monochrome ? gpu_fatz_m : gpu_fatz;
+	}
+
+	public double getGpuCorrSigma(boolean monochrome) {
+		return monochrome ? gpu_sigma_corr_m : gpu_sigma_corr;
+	}
+
 
 	public double getScaleStrength(boolean aux) {
 		return aux ? scale_strength_aux : scale_strength_main;
@@ -1511,6 +1532,18 @@ public class CLTParameters {
 		properties.setProperty(prefix+"taEnFlaps",                  this.taEnFlaps +"");
 		properties.setProperty(prefix+"taEnMismatch",               this.taEnMismatch +"");
 
+
+		properties.setProperty(prefix+"gpu_corr_rad",               this.gpu_corr_rad +"");
+		properties.setProperty(prefix+"gpu_weight_r",               this.gpu_weight_r +"");
+		properties.setProperty(prefix+"gpu_weight_b",               this.gpu_weight_b +"");
+		properties.setProperty(prefix+"gpu_sigma_r",                this.gpu_sigma_r +"");
+		properties.setProperty(prefix+"gpu_sigma_b",                this.gpu_sigma_b +"");
+		properties.setProperty(prefix+"gpu_sigma_g",                this.gpu_sigma_g +"");
+		properties.setProperty(prefix+"gpu_sigma_m",                this.gpu_sigma_m +"");
+		properties.setProperty(prefix+"gpu_sigma_corr",             this.gpu_sigma_corr +"");
+		properties.setProperty(prefix+"gpu_sigma_corr_m",           this.gpu_sigma_corr_m +"");
+		properties.setProperty(prefix+"gpu_fatz",                   this.gpu_fatz +"");
+		properties.setProperty(prefix+"gpu_fatz_m",                 this.gpu_fatz_m +"");
 
 		properties.setProperty(prefix+"debug_initial_discriminate",           this.debug_initial_discriminate+"");
 		properties.setProperty(prefix+"dbg_migrate",                          this.dbg_migrate+"");
@@ -2265,6 +2298,17 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"taEnFlaps")!=null)                   this.taEnFlaps=Boolean.parseBoolean(properties.getProperty(prefix+"taEnFlaps"));
 		if (properties.getProperty(prefix+"taEnMismatch")!=null)                this.taEnMismatch=Boolean.parseBoolean(properties.getProperty(prefix+"taEnMismatch"));
 
+		if (properties.getProperty(prefix+"gpu_corr_rad")!=null)                this.gpu_corr_rad=Integer.parseInt(properties.getProperty(prefix+"gpu_corr_rad"));
+		if (properties.getProperty(prefix+"gpu_weight_r")!=null)                this.gpu_weight_r=Double.parseDouble(properties.getProperty(prefix+"gpu_weight_r"));
+		if (properties.getProperty(prefix+"gpu_weight_b")!=null)                this.gpu_weight_b=Double.parseDouble(properties.getProperty(prefix+"gpu_weight_b"));
+		if (properties.getProperty(prefix+"gpu_sigma_r")!=null)                 this.gpu_sigma_r=Double.parseDouble(properties.getProperty(prefix+"gpu_sigma_r"));
+		if (properties.getProperty(prefix+"gpu_sigma_b")!=null)                 this.gpu_sigma_b=Double.parseDouble(properties.getProperty(prefix+"gpu_sigma_b"));
+		if (properties.getProperty(prefix+"gpu_sigma_g")!=null)                 this.gpu_sigma_g=Double.parseDouble(properties.getProperty(prefix+"gpu_sigma_g"));
+		if (properties.getProperty(prefix+"gpu_sigma_m")!=null)                 this.gpu_sigma_m=Double.parseDouble(properties.getProperty(prefix+"gpu_sigma_m"));
+		if (properties.getProperty(prefix+"gpu_sigma_corr")!=null)              this.gpu_sigma_corr=Double.parseDouble(properties.getProperty(prefix+"gpu_sigma_corr"));
+		if (properties.getProperty(prefix+"gpu_sigma_corr_m")!=null)            this.gpu_sigma_corr_m=Double.parseDouble(properties.getProperty(prefix+"gpu_sigma_corr_m"));
+		if (properties.getProperty(prefix+"gpu_fatz")!=null)                    this.gpu_fatz=Double.parseDouble(properties.getProperty(prefix+"gpu_fatz"));
+		if (properties.getProperty(prefix+"gpu_fatz_m")!=null)                  this.gpu_fatz_m=Double.parseDouble(properties.getProperty(prefix+"gpu_fatz_m"));
 
 		if (properties.getProperty(prefix+"debug_initial_discriminate")!=null)           this.debug_initial_discriminate=Boolean.parseBoolean(properties.getProperty(prefix+"debug_initial_discriminate"));
 		if (properties.getProperty(prefix+"dbg_migrate")!=null)                          this.dbg_migrate=Boolean.parseBoolean(properties.getProperty(prefix+"dbg_migrate"));
@@ -3159,6 +3203,35 @@ public class CLTParameters {
 		gd.addCheckbox    ("Cost of using supertile \"flaps\" (not in the center 8x8 tiles area)",                      this.taEnFlaps);
 		gd.addCheckbox    ("Cost of a measurement layer not having same layer in the same location or near",            this.taEnMismatch);
 
+		gd.addTab         ("GPU", "Parameters for GPU development");
+		gd.addMessage     ("--- GPU processing parameters ---");
+		gd.addNumericField("Correlation radius",                                                                        this.gpu_corr_rad, 0, 6,"pix",
+				"Size of the 2D correlation - maximal radius = 7 corresponds to full 15x15 pixel tile");
+		gd.addNumericField("Correlation weight R",                                                                      this.gpu_weight_r, 4, 6,"",
+				"Weight of R for composite 2D correlation (green weight is 1.0 -gpu_weight_r - gpu_weight_b");
+		gd.addNumericField("Correlation weight B",                                                                      this.gpu_weight_b, 4, 6,"",
+				"Weight of R for composite 2D correlation (green weight is 1.0 -gpu_weight_r - gpu_weight_b");
+		gd.addNumericField("Color LPF sigma R",                                                                         this.gpu_sigma_r, 4, 6,"pix",
+				"LPF sigma to process color components during aberration correction");
+		gd.addNumericField("Color LPF sigma B",                                                                         this.gpu_sigma_b, 4, 6,"pix",
+				"LPF sigma to process color components during aberration correction");
+		gd.addNumericField("Color LPF sigma G",                                                                         this.gpu_sigma_g, 4, 6,"pix",
+				"LPF sigma to process color components during aberration correction");
+		gd.addNumericField("Monochrome LPF sigma",                                                                      this.gpu_sigma_m, 4, 6,"pix",
+				"LPF sigma to process monochrome (e.g.LWIR) during aberration correction");
+		gd.addNumericField("LPF sigma for correlation, color",                                                          this.gpu_sigma_corr, 4, 6,"pix",
+				"LPF sigma to apply to the composite 2D correlation for RGB images");
+		gd.addNumericField("LPF sigma for correlation, mono",                                                           this.gpu_sigma_corr_m, 4, 6,"pix",
+				"LPF sigma to apply to the composite 2D correlation for monochrome images");
+		gd.addNumericField("Fat zero (absolute) for phase correlation of color images",                                 this.gpu_fatz, 4, 6,"",
+				"Add squared fat zero to the sum of squared amplitudes, color images");
+		gd.addNumericField("Fat zero (absolute) for phase correlation of monochrome images",                            this.gpu_fatz_m, 4, 6,"",
+				"Add squared fat zero to the sum of squared amplitudes, monochrome images");
+
+		gd.addTab         ("LWIR", "parameters for LWIR/EO 8-camera rig");
+		this.lwir.dialogQuestions(gd);
+
+
 		gd.addTab         ("Debug", "Other debug images");
 		gd.addMessage     ("--- Other debug images ---");
 		//	clt_parameters.debug_initial_discriminate, // final boolean    debug_initial_discriminate,
@@ -3190,8 +3263,6 @@ public class CLTParameters {
 		gd.addMessage     ("Unity up vector in camera coordinate system (x - right, y - up, z - to camera): {"+
 				this.vertical_xyz[0]+","+          this.vertical_xyz[1]+","+          this.vertical_xyz[2]+"}");
 
-		gd.addTab         ("LWIR", "parameters for LWIR/EO 8-camera rig");
-		this.lwir.dialogQuestions(gd);
 
 		//  			gd.buildDialog();
 		gd.showDialog();
@@ -3886,6 +3957,20 @@ public class CLTParameters {
 		this.taEnFlaps=             gd.getNextBoolean();
 		this.taEnMismatch=          gd.getNextBoolean();
 
+		this.gpu_corr_rad =   (int) gd.getNextNumber();
+		this.gpu_weight_r =         gd.getNextNumber();
+		this.gpu_weight_b =         gd.getNextNumber();
+		this.gpu_sigma_r =          gd.getNextNumber();
+		this.gpu_sigma_b =          gd.getNextNumber();
+		this.gpu_sigma_g =          gd.getNextNumber();
+		this.gpu_sigma_m =          gd.getNextNumber();
+		this.gpu_sigma_corr =       gd.getNextNumber();
+		this.gpu_sigma_corr_m =     gd.getNextNumber();
+		this.gpu_fatz =             gd.getNextNumber();
+		this.gpu_fatz_m =           gd.getNextNumber();
+
+		this.lwir.dialogAnswers(gd);
+
 		this.debug_initial_discriminate= gd.getNextBoolean();
 		this.dbg_migrate=                gd.getNextBoolean();
 
@@ -3910,8 +3995,6 @@ public class CLTParameters {
 		this.show_flaps_dirs=       gd.getNextBoolean();
 		this.show_first_clusters=   gd.getNextBoolean();
 		this.show_planes=           gd.getNextBoolean();
-
-		this.lwir.dialogAnswers(gd);
 
 		return true;
 	}

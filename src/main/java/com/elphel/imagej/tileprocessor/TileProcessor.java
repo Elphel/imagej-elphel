@@ -5806,7 +5806,10 @@ public class TileProcessor {
 		// show testure_tiles
 
 		double [][][][] texture_tiles = scan_prev.getTextureTiles();
-		ImageDtt image_dtt = new ImageDtt(isMonochrome(), clt_parameters.getScaleStrength(is_aux));
+		ImageDtt image_dtt = new ImageDtt(
+				clt_parameters.transform_size,
+				isMonochrome(),
+				clt_parameters.getScaleStrength(is_aux));
 
 		double [][][]  dispStrength = st.getDisparityStrengths(
 				clt_parameters.stMeasSel); // int        stMeasSel) //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert)
@@ -5830,15 +5833,15 @@ public class TileProcessor {
 			if (!batch_mode && show_nonoverlap){
 				texture_nonoverlap = image_dtt.combineRBGATiles(
 						texture_tiles,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
-						clt_parameters.transform_size,
+///						image_dtt.transform_size,
 						false,                         // when false - output each tile as 16x16, true - overlap to make 8x8
 						clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 						threadsMax,                    // maximal number of threads to launch
 						debugLevel);
 				sdfa_instance.showArrays(
 						texture_nonoverlap,
-						tilesX * (2 * clt_parameters.transform_size),
-						tilesY * (2 * clt_parameters.transform_size),
+						tilesX * (2 * image_dtt.transform_size),
+						tilesY * (2 * image_dtt.transform_size),
 						true,
 						name + "-TXTNOL-D",
 						(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
@@ -5849,7 +5852,7 @@ public class TileProcessor {
 				int alpha_index = 3;
 				texture_overlap = image_dtt.combineRBGATiles(
 						texture_tiles,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
-						clt_parameters.transform_size,
+///						image_dtt.transform_size,
 						true,                         // when false - output each tile as 16x16, true - overlap to make 8x8
 						clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 						threadsMax,                    // maximal number of threads to launch
@@ -5868,8 +5871,8 @@ public class TileProcessor {
 				if (show_overlap) {
 					sdfa_instance.showArrays(
 							texture_overlap,
-							tilesX * clt_parameters.transform_size,
-							tilesY * clt_parameters.transform_size,
+							tilesX * image_dtt.transform_size,
+							tilesY * image_dtt.transform_size,
 							true,
 							name + "-TXTOL-D",
 							(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
@@ -7182,7 +7185,9 @@ public class TileProcessor {
 
 			CLTPass3d scan_prev = clt_3d_passes.get(clt_3d_passes.size() -1); // get last one
 			boolean [] these_tiles = scan_prev.getSelected();
-			DisparityProcessor dp = new DisparityProcessor(this, clt_parameters.transform_size * geometryCorrection.getScaleDzDx());
+			DisparityProcessor dp = new DisparityProcessor(
+					this,
+					clt_parameters.transform_size * geometryCorrection.getScaleDzDx());
 			boolean [] grown = these_tiles.clone();
 			growTiles(
 					2,          // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more

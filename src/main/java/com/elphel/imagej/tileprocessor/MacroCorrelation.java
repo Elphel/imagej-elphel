@@ -307,6 +307,7 @@ public class MacroCorrelation {
 
 		//		  double [][][][] texture_tiles =   save_textures ? new double [tilesY][tilesX][][] : null; // ["RGBA".length()][];
 		ImageDtt image_dtt = new ImageDtt(
+				clt_parameters.transform_size,
 				this.mtp.isMonochrome(),
 				clt_parameters.getScaleStrength(this.mtp.isAux()));
 		image_dtt.clt_aberrations_quad_corr(
@@ -350,7 +351,7 @@ public class MacroCorrelation {
 				null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 				null,     // clt_kernels,                  // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 				clt_parameters.kernel_step,
-				clt_parameters.transform_size,
+///				clt_parameters.transform_size,
 				clt_parameters.clt_window,
 				shiftXY, //
 				0.0, // disparity_corr, // final double              disparity_corr, // disparity at infinity
