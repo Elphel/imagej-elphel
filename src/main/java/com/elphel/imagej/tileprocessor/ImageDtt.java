@@ -9113,11 +9113,15 @@ public class ImageDtt {
 		final int transform_len =  transform_size*transform_size;
 		final double afat_zero2 = clt_parameters.getGpuFatZero(is_mono); // ? clt_parameters.gpu_fatz_m : clt_parameters.gpu_fatz;
 		final double sigma_corr = clt_parameters.getGpuCorrSigma(is_mono); // ? clt_parameters.gpu_sigma_corr_m : clt_parameters.gpu_sigma_corr;
+		final double sigma_rb_corr = clt_parameters.getGpuCorrRBSigma(is_mono);
 		final int corr_radius = clt_parameters.gpu_corr_rad;
 //		final double[] lpf =  getLpf(sigma_corr);
 
 		final double[] lpf_fd =  doubleGetCltLpfFd(
 				sigma_corr);
+		final double[] lpf_rb_fd =  doubleGetCltLpfFd(
+				sigma_rb_corr);
+
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				@Override
@@ -9196,6 +9200,35 @@ public class ImageDtt {
 												System.out.print(String.format("%10.3f ", tcorr[dct_mode][transform_size * i + j]));
 											}
 											System.out.println();
+										}
+									}
+								}
+								//c
+								if (c == 1) { // after red and blue, color only
+									if (lpf_rb_fd != null) {
+										for (int n = 0; n<4; n++) {
+											for (int i = 0; i < transform_len; i++) {
+												tcorr[n][i] *= lpf_rb_fd[i];
+											}
+										}
+										if (debug_gpu && debug_tile) {
+											System.out.println("=== LPF-RB for CORRELATION ===");
+											for (int i = 0; i < transform_size; i++) {
+												for (int j = 0; j < transform_size; j++) {
+													System.out.print(String.format("%10.5f ", lpf_rb_fd[transform_size * i + j]));
+												}
+												System.out.println();
+											}
+											System.out.println("=== R+B LPF-ed CORRELATION ===");
+											for (int dct_mode = 0; dct_mode < 4; dct_mode++) {
+												System.out.println("------dct_mode="+dct_mode);
+												for (int i = 0; i < transform_size; i++) {
+													for (int j = 0; j < transform_size; j++) {
+														System.out.print(String.format("%10.3f ", tcorr[dct_mode][transform_size * i + j]));
+													}
+													System.out.println();
+												}
+											}
 										}
 									}
 								}

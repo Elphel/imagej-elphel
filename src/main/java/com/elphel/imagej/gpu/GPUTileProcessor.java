@@ -765,7 +765,8 @@ public class GPUTileProcessor {
 
     public void execCorr2D(
     		double [] scales,
-    		double fat_zero) {
+    		double fat_zero,
+    		int corr_radius) {
     	if (GPU_CORRELATE2D_kernel == null)
     	{
     		IJ.showMessage("Error", "No GPU kernel: GPU_CORRELATE2D_kernel");
@@ -788,6 +789,7 @@ public class GPUTileProcessor {
     			Pointer.to(new int[] { num_corr_tiles }), // lpf_mask
     			Pointer.to(gpu_corr_indices),
     			Pointer.to(new int[] { corr_stride }),
+    			Pointer.to(new int[] { corr_radius }),
     			Pointer.to(gpu_corrs) // lpf_mask
     			);
     	cuCtxSynchronize();
@@ -800,9 +802,9 @@ public class GPUTileProcessor {
     	cuCtxSynchronize();
     }
 
-    public float [][] getCorr2D(){
-        float [] cpu_corrs = new float [ num_corr_tiles * CORR_SIZE];
-
+    public float [][] getCorr2D(int corr_rad){
+        int corr_size = (2 * corr_rad + 1) * (2 * corr_rad + 1);
+        float [] cpu_corrs = new float [ num_corr_tiles * corr_size];
         CUDA_MEMCPY2D copyD2H =   new CUDA_MEMCPY2D();
         copyD2H.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
         copyD2H.srcDevice =       gpu_corrs;
@@ -810,16 +812,16 @@ public class GPUTileProcessor {
 
         copyD2H.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
         copyD2H.dstHost =         Pointer.to(cpu_corrs);
-        copyD2H.dstPitch =        CORR_SIZE * Sizeof.FLOAT;
+        copyD2H.dstPitch =        corr_size * Sizeof.FLOAT;
 
-        copyD2H.WidthInBytes =    CORR_SIZE * Sizeof.FLOAT;
+        copyD2H.WidthInBytes =    corr_size * Sizeof.FLOAT;
         copyD2H.Height =          num_corr_tiles;
 
         cuMemcpy2D(copyD2H); // run copy
 
-        float [][] corrs = new float [num_corr_tiles][ CORR_SIZE];
+        float [][] corrs = new float [num_corr_tiles][ corr_size];
         for (int ncorr = 0; ncorr < num_corr_tiles; ncorr++) {
-        	System.arraycopy(cpu_corrs, ncorr*CORR_SIZE, corrs[ncorr], 0, CORR_SIZE);
+        	System.arraycopy(cpu_corrs, ncorr*corr_size, corrs[ncorr], 0, corr_size);
         }
         return corrs;
     }

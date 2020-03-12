@@ -1994,7 +1994,8 @@ public class TwoQuadCLT {
 
 		for (int i = 0; i < NREPEAT; i++ ) gPUTileProcessor.execCorr2D(
 	    		scales,// double [] scales,
-	    		fat_zero); // double fat_zero);
+	    		fat_zero, // double fat_zero);
+	    		clt_parameters.gpu_corr_rad); // int corr_radius
 
 		long endCorr2d = System.nanoTime();
 
@@ -2037,12 +2038,13 @@ public class TwoQuadCLT {
 					debugLevel );
 
 		}
-		float [][] corr2D = gPUTileProcessor.getCorr2D();
+		float [][] corr2D = gPUTileProcessor.getCorr2D(
+				clt_parameters.gpu_corr_rad); //  int corr_rad);
 // convert to 6-layer image		 using tasks
 		int tilesX =  GPUTileProcessor.IMG_WIDTH / GPUTileProcessor.DTT_SIZE;
 		int tilesY = GPUTileProcessor.IMG_HEIGHT / GPUTileProcessor.DTT_SIZE;
 		int [] wh = new int[2];
-		double [][] dbg_corr = gPUTileProcessor.getCorr2DView(
+		double [][] dbg_corr = GPUTileProcessor.getCorr2DView(
 	    		tilesX,
 	    		tilesY,
 	    		corr_indices,
@@ -2054,7 +2056,7 @@ public class TwoQuadCLT {
 				wh[1],
 				true,
 				"CORR2D",
-				gPUTileProcessor.getCorrTitles());
+				GPUTileProcessor.getCorrTitles());
 
 		if (clt_parameters.gen_chn_img) {
 			// combine to a sliced color image

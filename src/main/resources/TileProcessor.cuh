@@ -57,7 +57,8 @@
 #define IMCLT_TILES_PER_BLOCK   4
 #define CORR_PAIR_SHIFT         8 // 8 lower bits - number of a pair, other bits tile number
 #define TASK_CORR_BITS          4
-#define CORR_OUT_RAD            7
+#define CORR_OUT_RAD            4
+//7
 
 
 #endif
@@ -376,6 +377,7 @@ __device__ void debug_print_mclt(
 		float * mclt_tile, //         [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
 		const int color);
 __device__ void debug_print_corr_15x15(
+		int     corr_radius,
 		float * mclt_tile, //DTT_SIZE2M1 x DTT_SIZE2M1
 		const int color);
 // Fractional pixel shift (phase rotation), horizontal. In-place.
@@ -400,6 +402,7 @@ __device__ void normalizeTileAmplitude(
 		float * clt_tile, //       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
 		float fat_zero);  // fat zero is absolute, scale it outside
 __device__ void corrUnfoldTile(
+		int corr_radius,
 		float* qdata0, //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
 		float* rslt);  //   [DTT_SIZE2M1][DTT_SIZE2M1]) // 15x15
 __device__ void imclt(  // implemented, used // why is it twice?
@@ -426,6 +429,7 @@ __global__ void correlate2D(
 		size_t            num_corr_tiles,     // number of correlation tiles to process
 		int             * gpu_corr_indices,   // packed tile+pair
 		const size_t      corr_stride,        // in floats
+		int               corr_radius,        // radius of the output correlation (7 for 15x15)
 		float           * gpu_corrs)          // correlation output data
 {
 ///	int thr3 =        threadIdx.x >> 3; // now zero?
@@ -559,27 +563,17 @@ __global__ void correlate2D(
 #endif
 #endif
 
-
-// now new part - need to transform with DCT-II and make 15x15
 /*
-    //    quadrant 0 dct_ii hor, dct_ii vert,
-    //    quadrant 1 dct_ii hor, dst_ii vert,
-    //    quadrant 2 dst_ii hor, dct_ii vert,
-    //    quadrant 3 dst_ii hor, dst_ii vert,
 Java code:
      	for (int quadrant = 0; quadrant < 4; quadrant++){
     		int mode = ((quadrant << 1) & 2) | ((quadrant >> 1) & 1); // transpose
     		tcorr[first_col][quadrant] = dtt.dttt_iie(tcorr[first_col][quadrant], mode, transform_size);
     	}
-
  */
     // change to 16-32 threads?? in next iteration
-    // hor pass
+    // vert pass (hor pass in Java, before transpose. Here transposed, no transform needed)
     for (int q = 0; q < 4; q++){
     	int is_sin = (q >> 1) & 1;
-//    	int is_sin = q & 1;
-//    	dttii_shared_mem(clt_corr + (q * DTT_SIZE + threadIdx.x) * DTT_SIZE1 ,  1, is_sin); // horizontal pass, tread is row
-//    	dttii_shared_mem(clt_corr + q * (DTT_SIZE1 * DTT_SIZE) + threadIdx.x , DTT_SIZE1, is_sin); // vertical pass, thread is column
     	dttii_shared_mem_nonortho(clt_corr + q * (DTT_SIZE1 * DTT_SIZE) + threadIdx.x , DTT_SIZE1, is_sin); // vertical pass, thread is column
     }
     __syncthreads();
@@ -593,51 +587,55 @@ Java code:
 #endif
 #endif
 
-    // vert pass
+    // hor pass, corresponding to vert pass in Java
     for (int q = 0; q < 4; q++){
     	int is_sin = q & 1;
-//    	int is_sin = (q >> 1) & 1;
-//    	dttii_shared_mem(clt_corr + q * (DTT_SIZE1 * DTT_SIZE) + threadIdx.x , DTT_SIZE1, is_sin); // vertical pass, thread is column
-//    	dttii_shared_mem(clt_corr + (q * DTT_SIZE + threadIdx.x) * DTT_SIZE1 ,  1, is_sin); // horizontal pass, tread is row
     	dttii_shared_mem_nonortho(clt_corr + (q * DTT_SIZE + threadIdx.x) * DTT_SIZE1 ,  1, is_sin); // horizontal pass, tread is row
     }
     __syncthreads();
 #ifdef DBG_TILE
 #ifdef DEBUG6
-    if ((tile_num == DBG_TILE) && (corr_pair == 0) && (threadIdx.x == 0)){
-        printf("\ncorrelate2D AFTER HOSIZONTAL (VERTICAL) PASS\n");
+    if ((tile_num == DBG_TILE) && (corr_pair == 0) && (threadIdx.x == 4)){
+        printf("\ncorrelate2D AFTER HOSIZONTAL (VERTICAL) PASS, corr_radius=%d\n",corr_radius);
     	debug_print_clt1(clt_corr, -1,  0xf);
     }
      __syncthreads();// __syncwarp();
+
 #endif
 #endif
 
-    corrUnfoldTile(
-    		(float *) clt_corr,  // float* qdata0, //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
-			(float *) mclt_corr); // float* rslt)  //   [DTT_SIZE2M1][DTT_SIZE2M1]) // 15x15
+     corrUnfoldTile(
+    		 corr_radius, // int corr_radius,
+			 (float *) clt_corr,  // float* qdata0, //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
+			 (float *) mclt_corr); // float* rslt)  //   [DTT_SIZE2M1][DTT_SIZE2M1]) // 15x15
 
-    __syncthreads();
+     __syncthreads();
 
 #ifdef DBG_TILE
 #ifdef DEBUG6
     if ((tile_num == DBG_TILE) && (corr_pair == 0) && (threadIdx.x == 0)){
-        printf("\ncorrelate2D after UNFOLD\n");
-    	debug_print_corr_15x15(mclt_corr, -1);
+        printf("\ncorrelate2D after UNFOL, corr_radius=%d\n",corr_radius);
+    	debug_print_corr_15x15(
+    			corr_radius, // int     corr_radius,
+    			mclt_corr,
+				-1);
     }
      __syncthreads();// __syncwarp();
 #endif
 #endif
 
-    // copy 15x15 tile to main memory
-     int corr_tile_offset =  + corr_stride * corr_num;
+// searching for bug. Uncomment later
+    // copy 15x15 tile to main memory (2 * corr_radius +1) x (2 * corr_radius +1)
+ 	int size2r1 = 2 * corr_radius + 1;
+ 	int len2r1x2r1 = size2r1 * size2r1;
+    int corr_tile_offset =  + corr_stride * corr_num;
     float *mem_corr = gpu_corrs + corr_tile_offset;
-
-    //CORR_THREADS_PER_TILE
-//    int offs = threadIdx.x;
 #pragma unroll
-    for (int offs = threadIdx.x; offs < DTT_SIZE2M1*DTT_SIZE2M1; offs+=CORR_THREADS_PER_TILE){ // variable number of cycles per thread
+//    for (int offs = threadIdx.x; offs < DTT_SIZE2M1*DTT_SIZE2M1; offs+=CORR_THREADS_PER_TILE){ // variable number of cycles per thread
+    for (int offs = threadIdx.x; offs < len2r1x2r1; offs+=CORR_THREADS_PER_TILE){ // variable number of cycles per thread
     	mem_corr[offs] = mclt_corr[offs];
     }
+
     __syncthreads();
 #ifdef DBG_TILE
 #ifdef DEBUG6
@@ -969,27 +967,36 @@ Converted from DttRad2.java:443
 	)
  */
 __device__ void corrUnfoldTile(
+		int corr_radius,
 		float* qdata0, //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
 		float* rslt)  //   [DTT_SIZE2M1][DTT_SIZE2M1]) // 15x15
 {
-	const int rslt_base_index = DTT_SIZE2M1 * (DTT_SIZE) - DTT_SIZE;
+	int size2r1 = 2 * corr_radius + 1; // 15
+	int crp1 = corr_radius + 1;        //8
+///	const int rslt_base_index = DTT_SIZE2M1 * (DTT_SIZE) - DTT_SIZE; // offset of the center
+	int rslt_base_index = size2r1 * crp1 - crp1; // offset of the center
+
 	float * qdata1 = qdata0 + (DTT_SIZE * DTT_SIZE1);
 	float * qdata2 = qdata1 + (DTT_SIZE * DTT_SIZE1);
 	float * qdata3 = qdata2 + (DTT_SIZE * DTT_SIZE1);
 	int i = threadIdx.x;
+	if (i > corr_radius) {
+		return; // not needed, only use inner
+	}
+//	printf("\corrUnfoldTile() corr_radius=%d, i=%d\n",corr_radius,i);
 	float corr_pixscale = 0.25f;
 	int i_transform_size = i * DTT_SIZE1; // used to address source rows which are 9 long
 	int im1_transform_size = i_transform_size - DTT_SIZE1; // negative for i = 0, use only after divergence
-	int rslt_row_offs = i * DTT_SIZE2M1;
+///	int rslt_row_offs = i * DTT_SIZE2M1;
+	int rslt_row_offs = i * size2r1;
 	int rslt_base_index_p = rslt_base_index + rslt_row_offs; // i * DTT_SIZE2M1;
 	int rslt_base_index_m = rslt_base_index - rslt_row_offs; // i * DTT_SIZE2M1;
 	rslt[rslt_base_index_p] = corr_pixscale * qdata0[i_transform_size]; // incomplete, will only be used for thread i=0
 	rslt[rslt_base_index_m] = rslt[rslt_base_index_p];                  // nop for i=0 incomplete, will only be used for thread i=0
-	for (int j = 1; j < DTT_SIZE; j++) {
+///	for (int j = 1; j < DTT_SIZE; j++) {
+	for (int j = 1; j <= corr_radius; j++) {
 		int rslt_base_index_pp = rslt_base_index_p + j;
 		int rslt_base_index_pm = rslt_base_index_p - j;
-///		int rslt_base_index_mp = rslt_base_index_m + j;
-///		int rslt_base_index_mm = rslt_base_index_m - j;
 		rslt[rslt_base_index_pp] = corr_pixscale * (
 				 qdata0[i_transform_size + j] +
 				 qdata1[i_transform_size + j -1]); // incomplete, will only be used for thread i=0
@@ -1000,12 +1007,11 @@ __device__ void corrUnfoldTile(
 	if (i == 0) {
 		return;
 	}
-///	int im1 = i-1;
-	im1_transform_size = i_transform_size - DTT_SIZE1;
+///	im1_transform_size = i_transform_size - DTT_SIZE1; // already is calculated
 	float d = corr_pixscale * qdata2[im1_transform_size];
 	rslt[rslt_base_index_p] += d;
 	rslt[rslt_base_index_m] -= d;
-	for (int j = 1; j < DTT_SIZE; j++) {
+	for (int j = 1; j <= corr_radius; j++) {
 		int rslt_base_index_pp = rslt_base_index_p + j;
 		int rslt_base_index_pm = rslt_base_index_p - j;
 		int rslt_base_index_mp = rslt_base_index_m + j;
@@ -1068,14 +1074,15 @@ __device__ void debug_print_mclt(
 }
 
 __device__ void debug_print_corr_15x15(
+		int     corr_radius,
 		float * mclt_tile, //DTT_SIZE2M1 x DTT_SIZE2M1
 		const int color)
 {
-
+	int size2r1 = 2 * corr_radius + 1;
 	if (color >= 0) printf("----------- Color = %d -----------\n",color);
-	for (int dbg_row = 0; dbg_row < DTT_SIZE2M1; dbg_row++){
-		for (int dbg_col = 0; dbg_col < DTT_SIZE2M1; dbg_col++){
-			printf ("%10.5f ", mclt_tile[dbg_row * DTT_SIZE2M1 + dbg_col]);
+	for (int dbg_row = 0; dbg_row < size2r1; dbg_row++){
+		for (int dbg_col = 0; dbg_col < size2r1; dbg_col++){
+			printf ("%10.5f ", mclt_tile[dbg_row * size2r1 + dbg_col]);
 		}
 		printf("\n");
 	}

@@ -772,6 +772,7 @@ public class CLTParameters {
 	public double     gpu_sigma_b =       1.1;
 	public double     gpu_sigma_g =       0.7;
 	public double     gpu_sigma_m =       0.7;
+	public double     gpu_sigma_rb_corr = 0.5; // apply LPF after accumulating R and B correlation before G,
 	public double     gpu_sigma_corr =    0.9;
 	public double     gpu_sigma_corr_m =  0.15;
 	public double     gpu_fatz =          30.0;
@@ -837,6 +838,9 @@ public class CLTParameters {
 		return monochrome ? gpu_sigma_corr_m : gpu_sigma_corr;
 	}
 
+	public double getGpuCorrRBSigma(boolean monochrome) {
+		return monochrome ? 1.0 : gpu_sigma_rb_corr;
+	}
 
 	public double getScaleStrength(boolean aux) {
 		return aux ? scale_strength_aux : scale_strength_main;
@@ -1540,6 +1544,7 @@ public class CLTParameters {
 		properties.setProperty(prefix+"gpu_sigma_b",                this.gpu_sigma_b +"");
 		properties.setProperty(prefix+"gpu_sigma_g",                this.gpu_sigma_g +"");
 		properties.setProperty(prefix+"gpu_sigma_m",                this.gpu_sigma_m +"");
+		properties.setProperty(prefix+"gpu_sigma_rb_corr",          this.gpu_sigma_rb_corr +"");
 		properties.setProperty(prefix+"gpu_sigma_corr",             this.gpu_sigma_corr +"");
 		properties.setProperty(prefix+"gpu_sigma_corr_m",           this.gpu_sigma_corr_m +"");
 		properties.setProperty(prefix+"gpu_fatz",                   this.gpu_fatz +"");
@@ -2305,6 +2310,7 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"gpu_sigma_b")!=null)                 this.gpu_sigma_b=Double.parseDouble(properties.getProperty(prefix+"gpu_sigma_b"));
 		if (properties.getProperty(prefix+"gpu_sigma_g")!=null)                 this.gpu_sigma_g=Double.parseDouble(properties.getProperty(prefix+"gpu_sigma_g"));
 		if (properties.getProperty(prefix+"gpu_sigma_m")!=null)                 this.gpu_sigma_m=Double.parseDouble(properties.getProperty(prefix+"gpu_sigma_m"));
+		if (properties.getProperty(prefix+"gpu_sigma_rb_corr")!=null)           this.gpu_sigma_rb_corr=Double.parseDouble(properties.getProperty(prefix+"gpu_sigma_rb_corr"));
 		if (properties.getProperty(prefix+"gpu_sigma_corr")!=null)              this.gpu_sigma_corr=Double.parseDouble(properties.getProperty(prefix+"gpu_sigma_corr"));
 		if (properties.getProperty(prefix+"gpu_sigma_corr_m")!=null)            this.gpu_sigma_corr_m=Double.parseDouble(properties.getProperty(prefix+"gpu_sigma_corr_m"));
 		if (properties.getProperty(prefix+"gpu_fatz")!=null)                    this.gpu_fatz=Double.parseDouble(properties.getProperty(prefix+"gpu_fatz"));
@@ -3211,6 +3217,7 @@ public class CLTParameters {
 				"Weight of R for composite 2D correlation (green weight is 1.0 -gpu_weight_r - gpu_weight_b");
 		gd.addNumericField("Correlation weight B",                                                                      this.gpu_weight_b, 4, 6,"",
 				"Weight of R for composite 2D correlation (green weight is 1.0 -gpu_weight_r - gpu_weight_b");
+		gd.addMessage     ("--- LPF sigmas used for images/textures ---");
 		gd.addNumericField("Color LPF sigma R",                                                                         this.gpu_sigma_r, 4, 6,"pix",
 				"LPF sigma to process color components during aberration correction");
 		gd.addNumericField("Color LPF sigma B",                                                                         this.gpu_sigma_b, 4, 6,"pix",
@@ -3219,6 +3226,9 @@ public class CLTParameters {
 				"LPF sigma to process color components during aberration correction");
 		gd.addNumericField("Monochrome LPF sigma",                                                                      this.gpu_sigma_m, 4, 6,"pix",
 				"LPF sigma to process monochrome (e.g.LWIR) during aberration correction");
+		gd.addMessage     ("--- LPF sigmas used for 2D phase correlation ---");
+		gd.addNumericField("LPF sigma Red/Blue (extra)",                                                                this.gpu_sigma_rb_corr, 4, 6,"pix",
+				"LPF sigma to apply to the composite R+B 2D correlation before adding G (next LPF will be applied to R+B+G correlation");
 		gd.addNumericField("LPF sigma for correlation, color",                                                          this.gpu_sigma_corr, 4, 6,"pix",
 				"LPF sigma to apply to the composite 2D correlation for RGB images");
 		gd.addNumericField("LPF sigma for correlation, mono",                                                           this.gpu_sigma_corr_m, 4, 6,"pix",
@@ -3964,6 +3974,7 @@ public class CLTParameters {
 		this.gpu_sigma_b =          gd.getNextNumber();
 		this.gpu_sigma_g =          gd.getNextNumber();
 		this.gpu_sigma_m =          gd.getNextNumber();
+		this.gpu_sigma_rb_corr =    gd.getNextNumber();
 		this.gpu_sigma_corr =       gd.getNextNumber();
 		this.gpu_sigma_corr_m =     gd.getNextNumber();
 		this.gpu_fatz =             gd.getNextNumber();
