@@ -59,6 +59,12 @@
 #define TASK_CORR_BITS          4
 #define CORR_OUT_RAD            4
 //7
+//#define DEBUG1 1
+//#define DEBUG2 1
+//#define DEBUG3 1
+//#define DEBUG4 1
+//#define DEBUG5 1
+#define DEBUG6 1
 
 
 #endif
@@ -134,12 +140,6 @@
 #define DBG_TILE_Y     80
 
 #define DBG_TILE     (DBG_TILE_Y * 324 + DBG_TILE_X)
-//#define DEBUG1 1
-//#define DEBUG2 1
-//#define DEBUG3 1
-//#define DEBUG4 1
-//#define DEBUG5 1
-#define DEBUG6 1
 //56494
 // struct tp_task
 //#define TASK_SIZE      12
