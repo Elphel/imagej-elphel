@@ -325,6 +325,16 @@ __constant__ float lpf_data[3][64]={
 				0.05616371f, 0.04888546f, 0.03703642f, 0.02442406f, 0.01402412f, 0.00703062f, 0.00315436f, 0.00153247f,
 				0.02728573f, 0.02374977f, 0.01799322f, 0.01186582f, 0.00681327f, 0.00341565f, 0.00153247f, 0.00074451f
 		}};
+__constant__ float lpf_rb_corr[64]={ // modify if needed
+				1.00000000f, 0.92598908f, 0.79428680f, 0.63198650f, 0.46862740f, 0.32891038f, 0.22914618f, 0.17771927f,
+				0.92598908f, 0.85745578f, 0.73550091f, 0.58521260f, 0.43394386f, 0.30456742f, 0.21218686f, 0.16456610f,
+				0.79428680f, 0.73550091f, 0.63089153f, 0.50197854f, 0.37222456f, 0.26124917f, 0.18200779f, 0.14116007f,
+				0.63198650f, 0.58521260f, 0.50197854f, 0.39940694f, 0.29616619f, 0.20786692f, 0.14481729f, 0.11231618f,
+				0.46862740f, 0.43394386f, 0.37222456f, 0.29616619f, 0.21961164f, 0.15413642f, 0.10738418f, 0.08328412f,
+				0.32891038f, 0.30456742f, 0.26124917f, 0.20786692f, 0.15413642f, 0.10818204f, 0.07536856f, 0.05845371f,
+				0.22914618f, 0.21218686f, 0.18200779f, 0.14481729f, 0.10738418f, 0.07536856f, 0.05250797f, 0.04072369f,
+				0.17771927f, 0.16456610f, 0.14116007f, 0.11231618f, 0.08328412f, 0.05845371f, 0.04072369f, 0.03158414f
+		};
 __constant__ float lpf_corr[64]={ // modify if needed
 				1.00000000f, 0.87041007f, 0.65943687f, 0.43487258f, 0.24970076f, 0.12518080f, 0.05616371f, 0.02728573f,
 				0.87041007f, 0.75761368f, 0.57398049f, 0.37851747f, 0.21734206f, 0.10895863f, 0.04888546f, 0.02374977f,
@@ -501,18 +511,64 @@ __global__ void correlate2D(
 				clt_tile1, // float* clt_tile1, //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data 1, rows extended to optimize shared ports
 				clt_tile2, // float* clt_tile2, //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data 2, rows extended to optimize shared ports
 				clt_corr); // float* corr_tile) //    [4][DTT_SIZE][DTT_SIZE1]) // 4 quadrants of the correlation result
-    	__syncthreads();
+        __syncthreads();
 
 #ifdef DBG_TILE
 #ifdef DEBUG6
-    if ((tile_num == DBG_TILE) && (corr_pair == 0) && (threadIdx.x == 0)){
-        printf("\ncorrelate2D, color = %d CORRELATION\n", color);
-    	debug_print_clt1(clt_corr, color,  0xf);
-    }
-     __syncthreads();// __syncwarp();
+        if ((tile_num == DBG_TILE) && (corr_pair == 0) && (threadIdx.x == 0)){
+        	printf("\ncorrelate2D, color = %d CORRELATION\n", color);
+        	debug_print_clt1(clt_corr, color,  0xf);
+        }
+        __syncthreads();// __syncwarp();
 #endif
 #endif
-    }
+        if (color == 1){ // LPF only after B (nothing in mono)
+
+#ifdef DBG_TILE
+#ifdef DEBUG6
+        	if ((tile_num == DBG_TILE) && (corr_pair == 0) && (threadIdx.x == 0)){
+        		printf("\ncorrelate2D LPF for RB correlation\n");
+        		debug_print_lpf(lpf_rb_corr);
+        	}
+        	__syncthreads();// __syncwarp();
+#endif
+#endif
+
+        	float *clt = clt_corr + threadIdx.x;
+#pragma unroll
+        	for (int q = 0; q < 4; q++){
+        		float *lpf_rb = lpf_rb_corr + threadIdx.x;
+#pragma unroll
+        		for (int i = 0; i < DTT_SIZE; i++){
+        			(*clt) *= (*lpf_rb);
+        			clt    += DTT_SIZE1;
+        			lpf_rb += DTT_SIZE;
+        		}
+        	}
+        	__syncthreads();// __syncwarp();
+#ifdef DBG_TILE
+#ifdef DEBUG6
+        	if ((tile_num == DBG_TILE) && (corr_pair == 0) && (threadIdx.x == 0)){
+        		printf("\ncorrelate2D CORRELATION RB LPF-ed\n");
+        		debug_print_clt1(clt_corr, -1,  0xf);
+        	}
+        	__syncthreads();// __syncwarp();
+#endif
+#endif
+
+
+
+
+
+
+
+
+        } // if (color == 1){ // LPF only after B (nothing in mono)
+
+
+
+
+    } // for (int color = 0; color < colors; color++){
     normalizeTileAmplitude(
     		clt_corr, // float * clt_tile, //       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
 			fat_zero); // float fat_zero ) // fat zero is absolute, scale it outside
@@ -614,7 +670,7 @@ Java code:
 #ifdef DBG_TILE
 #ifdef DEBUG6
     if ((tile_num == DBG_TILE) && (corr_pair == 0) && (threadIdx.x == 0)){
-        printf("\ncorrelate2D after UNFOL, corr_radius=%d\n",corr_radius);
+        printf("\ncorrelate2D after UNFOLD, corr_radius=%d\n",corr_radius);
     	debug_print_corr_15x15(
     			corr_radius, // int     corr_radius,
     			mclt_corr,
