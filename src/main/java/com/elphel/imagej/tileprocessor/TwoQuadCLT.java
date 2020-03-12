@@ -1911,10 +1911,17 @@ public class TwoQuadCLT {
 
 		gPUTileProcessor.setLpfRbg(
 				lpf_rgb);
+
 		float [] lpf_flat = image_dtt.floatGetCltLpfFd(clt_parameters.getGpuCorrSigma(is_mono));
 
 		gPUTileProcessor.setLpfCorr(
+				"lpf_corr", // String const_name, // "lpf_corr"
 				lpf_flat);
+
+		float [] lpf_rb_flat = image_dtt.floatGetCltLpfFd(clt_parameters.getGpuCorrRBSigma(is_mono));
+		gPUTileProcessor.setLpfCorr(
+				"lpf_rb_corr", // String const_name, // "lpf_corr"
+				lpf_rb_flat);
 
 
 		final boolean use_aux = false; // currently GPU is configured for a single quad camera

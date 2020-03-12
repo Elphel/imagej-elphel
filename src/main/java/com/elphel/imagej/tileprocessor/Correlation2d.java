@@ -265,12 +265,31 @@ public class Correlation2d {
     	  if (lpf != null) {
         	  if (debug_gpu) {
         		  System.out.println("=== LPF for CORRELATION ===");
+/*
         		  for (int i = 0; i < transform_size; i++) {
+        			  System.out.print("\t\t");
         			  for (int j = 0; j < transform_size; j++) {
-        				  System.out.print(String.format("%10.5f ", lpf[transform_size * i + j]));
+        				  System.out.print(String.format("%10.8ff", lpf[transform_size * i + j]));
+        				  if ((j < (transform_size-1)) || (j < (transform_size-1))){
+        					  System.out.print(", ");
+        				  }
         			  }
         			  System.out.println();
         		  }
+*/
+      			System.out.print("__constant__ float lpf_corr[64]={");
+    			for (int i=0; i<lpf.length;i++){
+    				System.out.print(String.format("%10.8ff", lpf[i]));
+    				if (i == 63) {
+    					System.out.println("};");
+    				} else {
+    					System.out.print(", ");
+    					if ((i % 8) == 7) {
+    						System.out.print("\n                                 ");
+    					}
+    				}
+    			}
+
         	  }
     		  for (int n = 0; n<4; n++) {
     			  for (int i = 0; i < transform_len; i++) {

@@ -1044,11 +1044,12 @@ public class GPUTileProcessor {
 	}
 
 	public void setLpfCorr(
+			String const_name, // "lpf_corr"
 			float [] lpf_flat)
 	{
 		CUdeviceptr constantMemoryPointer = new CUdeviceptr();
 		long constantMemorySizeArray[] = { 0 };
-		cuModuleGetGlobal(constantMemoryPointer, constantMemorySizeArray,  module, "lpf_corr");
+		cuModuleGetGlobal(constantMemoryPointer, constantMemorySizeArray,  module, const_name);
 		int constantMemorySize = (int)constantMemorySizeArray[0];
 		System.out.println("constantMemoryPointer: " + constantMemoryPointer);
 		System.out.println("constantMemorySize: " + constantMemorySize);

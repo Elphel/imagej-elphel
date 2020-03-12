@@ -9213,12 +9213,33 @@ public class ImageDtt {
 										}
 										if (debug_gpu && debug_tile) {
 											System.out.println("=== LPF-RB for CORRELATION ===");
+											/*
 											for (int i = 0; i < transform_size; i++) {
+												System.out.print("\t\t");
 												for (int j = 0; j < transform_size; j++) {
-													System.out.print(String.format("%10.5f ", lpf_rb_fd[transform_size * i + j]));
+													System.out.print(String.format("%10.8ff", lpf_rb_fd[transform_size * i + j]));
+													if ((j < (transform_size-1)) || (j < (transform_size-1))){
+														System.out.print(", ");
+													}
 												}
 												System.out.println();
 											}
+											*/
+
+											System.out.print("__constant__ float lpf_rb_corr[64]={");
+											for (int i=0; i<lpf_rb_fd.length;i++){
+												System.out.print(String.format("%10.8ff", lpf_rb_fd[i]));
+												if (i == 63) {
+													System.out.println("};");
+												} else {
+													System.out.print(", ");
+													if ((i % 8) == 7) {
+														System.out.print("\n                                 ");
+													}
+												}
+											}
+
+
 											System.out.println("=== R+B LPF-ed CORRELATION ===");
 											for (int dct_mode = 0; dct_mode < 4; dct_mode++) {
 												System.out.println("------dct_mode="+dct_mode);
