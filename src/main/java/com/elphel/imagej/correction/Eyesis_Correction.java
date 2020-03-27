@@ -3075,7 +3075,11 @@ private Panel panel1,
            	}
 
            }
-		  ImageDtt image_dtt = new ImageDtt(DCT_PARAMETERS.dct_size, false, 1.0); // Bayer( not monochrome), scale correlation strengths
+		  ImageDtt image_dtt = new ImageDtt(
+				  DCT_PARAMETERS.dct_size,
+				  false, // mono
+				  false, // lwir
+				  1.0); // Bayer( not monochrome), scale correlation strengths
            double [][][][] dctdc_data = image_dtt.mdctScale(
            		DBG_IMP.getStack(),
            		DCT_PARAMETERS.kernel_chn,
@@ -3173,7 +3177,11 @@ private Panel panel1,
         	}
 
         }
-        ImageDtt image_dtt = new ImageDtt(DCT_PARAMETERS.dct_size,false, 1.0); // Bayer( not monochrome), scale correlation strengths
+        ImageDtt image_dtt = new ImageDtt(
+        		DCT_PARAMETERS.dct_size,
+				  false, // mono
+				  false, // lwir
+				  1.0); // Bayer( not monochrome), scale correlation strengths
         double [][][][] dctdc_data = image_dtt.mdctStack(
         		DBG_IMP.getStack(),
         		DCT_PARAMETERS.kernel_chn,
@@ -7052,8 +7060,9 @@ private Panel panel1,
 
 		ImageDtt image_dtt = new ImageDtt(
 				CLT_PARAMETERS.transform_size,
-				false,
-				1.0); // Bayer( not monochrome), scale correlation strengths
+				  false, // mono
+				  false, // lwir
+				  1.0); // Bayer( not monochrome), scale correlation strengths
 		double [][][][][] clt_data = image_dtt.cltStack(
 				DBG_IMP.getStack(),
 				0, // CLT_PARAMETERS.kernel_chn,
@@ -7186,6 +7195,7 @@ private Panel panel1,
         ImageDtt image_dtt = new ImageDtt(
         		CLT_PARAMETERS.transform_size,
         		COLOR_PROC_PARAMETERS.isMonochrome(),
+        		COLOR_PROC_PARAMETERS.isLwir(),
         		CLT_PARAMETERS.getScaleStrength(false)); // Bayer, not monochrome
         String [] titles = {
         		"redCC",  "redSC",  "redCS",  "redSS",

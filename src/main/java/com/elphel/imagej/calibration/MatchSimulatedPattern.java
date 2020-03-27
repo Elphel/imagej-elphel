@@ -4536,7 +4536,7 @@ public class MatchSimulatedPattern {
 			final int debugLevel
 			){
 		final int debugThreshold=2; // -1; // 1; ** Restore 1
-		if (debugThreshold < 0) {
+		if ((debugThreshold < 0) || (debugLevel < -10000)) {
 			System.out.println("findPatternCandidates(): debugThreshold < 0 - restore when done");
 		}
 		if ((debugLevel>debugThreshold) && ((debugLevel>1) || (startScanIndex>3))) {

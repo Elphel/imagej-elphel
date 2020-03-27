@@ -45,6 +45,7 @@ import static jcuda.nvrtc.JNvrtc.nvrtcDestroyProgram;
 import static jcuda.nvrtc.JNvrtc.nvrtcGetPTX;
 import static jcuda.nvrtc.JNvrtc.nvrtcGetProgramLog;
 
+import java.awt.Rectangle;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -77,32 +78,39 @@ public class GPUTileProcessor {
 	static String GPU_CONVERT_CORRECT_TILES_NAME = "convert_correct_tiles"; // name in C code
 	static String GPU_IMCLT_RBG_NAME =             "imclt_rbg"; // name in C code
 	static String GPU_CORRELATE2D_NAME =           "correlate2D"; // name in C code
+	static String GPU_TEXTURES_NAME =              "textures_gen"; // name in C code
 //  pass some defines to gpu source code with #ifdef JCUDA
-	public static int DTT_SIZE =         8;
-	static int THREADSX =         DTT_SIZE;
-	public static int NUM_CAMS =         4;
-	public static int NUM_PAIRS =        6; // top hor, bottom hor, left vert, right vert, main diagonal, other diagonal
-	static int NUM_COLORS =              3;
-	public static int IMG_WIDTH =     2592;
-	public static int IMG_HEIGHT =    1936;
-	static int KERNELS_HOR =           164;
-	static int KERNELS_VERT =          123;
-	static int KERNELS_LSTEP =           4;
-	static int THREADS_PER_TILE =        8;
-	static int TILES_PER_BLOCK =         4; // 8 - slower
-	static int CORR_THREADS_PER_TILE =   8;
-	static int CORR_TILES_PER_BLOCK	=    4;
-	static int IMCLT_THREADS_PER_TILE = 16;
-	static int IMCLT_TILES_PER_BLOCK =   4;
-
-	static int TPTASK_SIZE =   NUM_CAMS * 2 + 2;
-	static int CLTEXTRA_SIZE = 8;
-	static int KERN_TILES = KERNELS_HOR *  KERNELS_VERT * NUM_COLORS;
-	static int KERN_SIZE =  KERN_TILES * 4 * 64;
-	static int CORR_SIZE =  (2* DTT_SIZE - 1) * (2* DTT_SIZE - 1); // 15x15
-	public static int CORR_PAIR_SHIFT = 8;
-	public static int TASK_CORR_BITS =  4; // start of pair mask
-	public static int CORR_OUT_RAD =    7; // output radius of the correelations (implement)
+	public static int DTT_SIZE =                  8;
+	static int        THREADSX =                  DTT_SIZE;
+	public static int NUM_CAMS =                  4;
+	public static int NUM_PAIRS =                 6; // top hor, bottom hor, left vert, right vert, main diagonal, other diagonal
+	static int        NUM_COLORS =                3;
+	public static int IMG_WIDTH =              2592;
+	public static int IMG_HEIGHT =             1936;
+	static int        KERNELS_HOR =             164;
+	static int        KERNELS_VERT =            123;
+	static int        KERNELS_LSTEP =             4;
+	static int        THREADS_PER_TILE =          8;
+	static int        TILES_PER_BLOCK =           4; // 8 - slower
+	static int        CORR_THREADS_PER_TILE =     8;
+	static int        CORR_TILES_PER_BLOCK	=     4;
+	static int        TEXTURE_THREADS_PER_TILE =  8; // 16;
+	static int        TEXTURE_TILES_PER_BLOCK =   1;
+	static int        IMCLT_THREADS_PER_TILE =   16;
+	static int        IMCLT_TILES_PER_BLOCK =     4;
+	static int        TPTASK_SIZE =                 NUM_CAMS * 2 + 2;
+	static int        CLTEXTRA_SIZE =               8;
+	static int        KERN_TILES =                  KERNELS_HOR *  KERNELS_VERT * NUM_COLORS;
+	static int        KERN_SIZE =                   KERN_TILES * 4 * 64;
+	static int        CORR_SIZE =                   (2* DTT_SIZE - 1) * (2* DTT_SIZE - 1); // 15x15
+	public static int CORR_NTILE_SHIFT =          8;  // also for texture tiles list
+	public static int CORR_PAIRS_MASK =        0x3f;  // lower bits used to address correlation pair for the selected tile
+	public static int CORR_TEXTURE_BIT =          7;  // bit 7 used to request texture for the tile
+	public static int TASK_CORR_BITS =            4;  // start of pair mask
+	public static int TASK_TEXTURE_BIT =          3;  // bit to request texture calculation int task field of struct tp_task
+	public static int LIST_TEXTURE_BIT =          7;  // bit to request texture calculation
+	public static int CORR_OUT_RAD =              4;  // output radius of the correlations (implemented)
+	public static double FAT_ZERO_WEIGHT =        0.0001; // add to port weights to avoid nan
 
 
     int DTTTEST_BLOCK_WIDTH =        32; // may be read from the source code
@@ -114,6 +122,7 @@ public class GPUTileProcessor {
     private CUfunction GPU_CONVERT_CORRECT_TILES_kernel = null;
     private CUfunction GPU_IMCLT_RBG_kernel =             null;
     private CUfunction GPU_CORRELATE2D_kernel =           null;
+    private CUfunction GPU_TEXTURES_kernel =              null;
     // CPU arrays of pointers to GPU memory
     // These arrays may go to method, they are here just to be able to free GPU memory if needed
     private CUdeviceptr [] gpu_kernels_h =        new CUdeviceptr[NUM_CAMS];
@@ -127,26 +136,26 @@ public class GPUTileProcessor {
     private CUdeviceptr gpu_kernels =             new CUdeviceptr();
     private CUdeviceptr gpu_kernel_offsets =      new CUdeviceptr();
     private CUdeviceptr gpu_bayer =               new CUdeviceptr();
-
     private CUdeviceptr gpu_tasks =               new CUdeviceptr(); //  allocate tilesX * tilesY * TPTASK_SIZE * Sizeof.POINTER
-
     private CUdeviceptr gpu_corrs =               new CUdeviceptr(); //  allocate tilesX * tilesY * NUM_PAIRS * CORR_SIZE * Sizeof.POINTER
-
+    private CUdeviceptr gpu_textures =            new CUdeviceptr(); //  allocate tilesX * tilesY * ? * 256 * Sizeof.POINTER
     private CUdeviceptr gpu_clt =                 new CUdeviceptr();
-
-    private CUdeviceptr gpu_corr_indices =       new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.POINTER
-
+    private CUdeviceptr gpu_corr_indices =        new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.POINTER
+    private CUdeviceptr gpu_texture_indices =     new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.POINTER
+    private CUdeviceptr gpu_port_offsets =        new CUdeviceptr(); //  allocate Quad * 2 * Sizeof.POINTER
     //    private
     CUmodule    module; // to access constants memory
 //    private CUdeviceptr gpu_lpf =            new CUdeviceptr();
     private int mclt_stride;
     private int corr_stride;
     private int imclt_stride;
+    private int texture_stride;
     public int num_task_tiles;
     public int num_corr_tiles;
+    public int num_texture_tiles;
 
     public class TpTask {
-    	public int   task; // [0](+1) - generate 4 images, [4..9]+16..+512 - correlation pairs
+    	public int   task; // [0](+1) - generate 4 images, [4..9]+16..+512 - correlation pairs, 2 - generate texture tiles
     	public float target_disparity;
 
     	public int ty;
@@ -277,25 +286,32 @@ public class GPUTileProcessor {
         ClassLoader classLoader = getClass().getClassLoader();
         String kernelSource =
         		"#define JCUDA\n"+
-        				"#define DTT_SIZE " +               DTT_SIZE+"\n"+
-        				"#define THREADSX " +               THREADSX+"\n"+
-        				"#define NUM_CAMS " +               NUM_CAMS+"\n"+
-        				"#define NUM_PAIRS " +              NUM_PAIRS+"\n"+
-        				"#define NUM_COLORS " +             NUM_COLORS+"\n"+
-        				"#define IMG_WIDTH " +              IMG_WIDTH+"\n"+
-        				"#define IMG_HEIGHT " +             IMG_HEIGHT+"\n"+
-        				"#define KERNELS_HOR " +            KERNELS_HOR+"\n"+
-        				"#define KERNELS_VERT " +           KERNELS_VERT+"\n"+
-        				"#define KERNELS_LSTEP " +          KERNELS_LSTEP+"\n"+
-        				"#define THREADS_PER_TILE " +       THREADS_PER_TILE+"\n"+
-        				"#define TILES_PER_BLOCK " +        TILES_PER_BLOCK+"\n"+
-        				"#define CORR_THREADS_PER_TILE " +  CORR_THREADS_PER_TILE+"\n"+
-        				"#define CORR_TILES_PER_BLOCK " +   CORR_TILES_PER_BLOCK+"\n"+
-        				"#define IMCLT_THREADS_PER_TILE " + IMCLT_THREADS_PER_TILE+"\n"+
-        				"#define IMCLT_TILES_PER_BLOCK " +  IMCLT_TILES_PER_BLOCK+"\n"+
-        				"#define CORR_PAIR_SHIFT " +        CORR_PAIR_SHIFT+"\n"+
-        				"#define TASK_CORR_BITS " +         TASK_CORR_BITS+"\n"+
-        				"#define CORR_OUT_RAD " +           CORR_OUT_RAD+"\n";
+        				"#define DTT_SIZE " +                 DTT_SIZE+"\n"+
+        				"#define THREADSX " +                 THREADSX+"\n"+
+        				"#define NUM_CAMS " +                 NUM_CAMS+"\n"+
+        				"#define NUM_PAIRS " +                NUM_PAIRS+"\n"+
+        				"#define NUM_COLORS " +               NUM_COLORS+"\n"+
+        				"#define IMG_WIDTH " +                IMG_WIDTH+"\n"+
+        				"#define IMG_HEIGHT " +               IMG_HEIGHT+"\n"+
+        				"#define KERNELS_HOR " +              KERNELS_HOR+"\n"+
+        				"#define KERNELS_VERT " +             KERNELS_VERT+"\n"+
+        				"#define KERNELS_LSTEP " +            KERNELS_LSTEP+"\n"+
+        				"#define THREADS_PER_TILE " +         THREADS_PER_TILE+"\n"+
+        				"#define TILES_PER_BLOCK " +          TILES_PER_BLOCK+"\n"+
+        				"#define CORR_THREADS_PER_TILE " +    CORR_THREADS_PER_TILE+"\n"+
+        				"#define CORR_TILES_PER_BLOCK " +     CORR_TILES_PER_BLOCK+"\n"+
+        				"#define TEXTURE_THREADS_PER_TILE " + TEXTURE_THREADS_PER_TILE+"\n"+
+        				"#define TEXTURE_TILES_PER_BLOCK " +  TEXTURE_TILES_PER_BLOCK+"\n"+
+        				"#define IMCLT_THREADS_PER_TILE " +   IMCLT_THREADS_PER_TILE+"\n"+
+        				"#define IMCLT_TILES_PER_BLOCK " +    IMCLT_TILES_PER_BLOCK+"\n"+
+        				"#define CORR_NTILE_SHIFT " +         CORR_NTILE_SHIFT+"\n"+
+        				"#define CORR_PAIRS_MASK " +          CORR_PAIRS_MASK+"\n"+
+        				"#define CORR_TEXTURE_BIT " +         CORR_TEXTURE_BIT+"\n"+
+        				"#define TASK_CORR_BITS " +           TASK_CORR_BITS+"\n"+
+        				"#define TASK_TEXTURE_BIT " +         TASK_TEXTURE_BIT+"\n"+
+        				"#define LIST_TEXTURE_BIT " +         LIST_TEXTURE_BIT+"\n"+
+        				"#define CORR_OUT_RAD " +             CORR_OUT_RAD+"\n" +
+        				"#define FAT_ZERO_WEIGHT " +          FAT_ZERO_WEIGHT+"\n";
 
         for (String src_file:GPU_KERNEL_FILES) {
         	File file = null;
@@ -319,16 +335,17 @@ public class GPUTileProcessor {
 
         }
         // Create the kernel functions (first - just test)
-        String [] func_names = {GPU_CONVERT_CORRECT_TILES_NAME, GPU_IMCLT_RBG_NAME, GPU_CORRELATE2D_NAME};
+        String [] func_names = {GPU_CONVERT_CORRECT_TILES_NAME, GPU_IMCLT_RBG_NAME, GPU_CORRELATE2D_NAME, GPU_TEXTURES_NAME};
         CUfunction[] functions = createFunctions(kernelSource, func_names);
         this.GPU_CONVERT_CORRECT_TILES_kernel = functions[0];
         this.GPU_IMCLT_RBG_kernel =             functions[1];
         this.GPU_CORRELATE2D_kernel =           functions[2];
+        this.GPU_TEXTURES_kernel=               functions[3];
         System.out.println("GPU kernel functions initialized");
-//        System.out.println("Sizeof.POINTER="+Sizeof.POINTER);
         System.out.println(GPU_CONVERT_CORRECT_TILES_kernel.toString());
         System.out.println(GPU_IMCLT_RBG_kernel.toString());
         System.out.println(GPU_CORRELATE2D_kernel.toString());
+        System.out.println(GPU_TEXTURES_kernel.toString());
 
         // Init data arrays for all kernels
         int tilesX =  IMG_WIDTH / DTT_SIZE;
@@ -393,7 +410,10 @@ public class GPUTileProcessor {
 
     	// Set corrs array
 ///    	cuMemAlloc(gpu_corrs,       tilesX * tilesY * NUM_PAIRS * CORR_SIZE * Sizeof.POINTER);
-    	cuMemAlloc(gpu_corr_indices,tilesX * tilesY * NUM_PAIRS * Sizeof.POINTER);
+    	cuMemAlloc(gpu_corr_indices,   tilesX * tilesY * NUM_PAIRS * Sizeof.POINTER);
+    	cuMemAlloc(gpu_texture_indices,tilesX * tilesY * Sizeof.POINTER);
+    	cuMemAlloc(gpu_port_offsets,   NUM_CAMS * 2 * Sizeof.POINTER);
+
 
         cuMemAllocPitch (
         		gpu_corrs,                             // CUdeviceptr dptr,
@@ -402,6 +422,16 @@ public class GPUTileProcessor {
         		NUM_PAIRS * tilesX * tilesY,             // long Height,
                 Sizeof.FLOAT);                         // int ElementSizeBytes)
         corr_stride = (int)(device_stride[0] / Sizeof.FLOAT);
+
+        int max_texture_size = (NUM_COLORS + 1 + (NUM_CAMS + NUM_COLORS + 1)) * (2 * DTT_SIZE)* (2 * DTT_SIZE);
+        cuMemAllocPitch (
+        		gpu_textures,                             // CUdeviceptr dptr,
+        		device_stride,                         // long[] pPitch,
+        		max_texture_size * Sizeof.FLOAT,              // long WidthInBytes,
+        		tilesX * tilesY,             // long Height,
+                Sizeof.FLOAT);                         // int ElementSizeBytes)
+        texture_stride = (int)(device_stride[0] / Sizeof.FLOAT);
+
 
     }
 
@@ -424,6 +454,16 @@ public class GPUTileProcessor {
     		fcorr_indices[i] = Float.intBitsToFloat(corr_indices[i]);
     	}
         cuMemcpyHtoD(gpu_corr_indices, Pointer.to(fcorr_indices),  num_corr_tiles * Sizeof.FLOAT);
+    }
+
+    public void setTextureIndices(int [] texture_indices)
+    {
+    	num_texture_tiles = texture_indices.length;
+    	float [] ftexture_indices = new float [texture_indices.length];
+    	for (int i = 0; i < num_texture_tiles; i++) {
+    		ftexture_indices[i] = Float.intBitsToFloat(texture_indices[i]);
+    	}
+        cuMemcpyHtoD(gpu_texture_indices, Pointer.to(ftexture_indices),  num_texture_tiles * Sizeof.FLOAT);
     }
 
 
@@ -626,12 +666,41 @@ public class GPUTileProcessor {
     		if (pm != 0) {
     			int tile = (tt.ty * tilesX +tt.tx);
     			for (int b = 0; b < NUM_PAIRS; b++) if ((pm & (1 << b)) != 0) {
-    				iarr[num_corr++] = (tile << CORR_PAIR_SHIFT) | b;
+    				iarr[num_corr++] = (tile << CORR_NTILE_SHIFT) | b;
     			}
     		}
     	}
     	return iarr;
     }
+
+    /**
+     * Prepare contents pointers for calculation of the texture tiles (RGBA, 16x16)
+     * @param tp_tasks array of tasks that contain masks of the required pairs
+     * @return each element has (tile_number << 8) | (1 << LIST_TEXTURE_BIT)
+     */
+    public int [] getTextureTasks(
+    		TpTask [] tp_tasks) {
+    	int tilesX = IMG_WIDTH / DTT_SIZE;
+    	int num_textures = 0;
+    	for (TpTask tt: tp_tasks) {
+    		if ((tt.task & TASK_TEXTURE_BIT) !=0) {
+    			num_textures++;
+    		}
+    	}
+
+    	int [] iarr = new int[num_textures];
+    	num_textures = 0;
+    	int b = (1 << LIST_TEXTURE_BIT);
+    	for (TpTask tt: tp_tasks) {
+    		if ((tt.task & TASK_TEXTURE_BIT) !=0) {
+    			int tile = (tt.ty * tilesX +tt.tx);
+    			iarr[num_textures++] = (tile << CORR_NTILE_SHIFT) | b;
+    		}
+    	}
+    	return iarr;
+    }
+
+
 
     public static String [] getCorrTitles() {
     	return new String []{"hor-top","hor-bottom","vert-left","vert-right","diag-main","diag-other"};
@@ -664,8 +733,8 @@ public class GPUTileProcessor {
 			data[np] = data[0].clone();
 		}
 		for (int n = 0; n < indices.length; n++) {
-			int nt = indices[n] >> CORR_PAIR_SHIFT;
-			int np = indices[n] & ((1 << CORR_PAIR_SHIFT) - 1); // np should
+			int nt = indices[n] >> CORR_NTILE_SHIFT;
+			int np = indices[n] & CORR_PAIRS_MASK; // ((1 << CORR_NTILE_SHIFT) - 1); // np should
 			assert np < NUM_PAIRS : "invalid correllation pair";
 			int tx = nt % tilesX;
 			int ty = nt / tilesX;
@@ -711,7 +780,8 @@ public class GPUTileProcessor {
             Pointer.to(new int[] { mclt_stride }),
 /* 2020*///   Pointer.to(new int[] { corr_stride }),
             Pointer.to(new int[] { num_task_tiles }),
-            Pointer.to(new int[] { 7 }) // lpf_mask
+//            Pointer.to(new int[] { 7 }) // lpf_mask ??? (C-code has it 0)
+            Pointer.to(new int[] { 0 }) // lpf_mask ??? (C-code has it 0)
         );
 
         cuCtxSynchronize();
@@ -772,6 +842,7 @@ public class GPUTileProcessor {
     		IJ.showMessage("Error", "No GPU kernel: GPU_CORRELATE2D_kernel");
     		return;
     	}
+
     	int num_colors = scales.length;
     	if (num_colors > 3) num_colors = 3;
     	float fscale0 = (float) scales[0];
@@ -802,6 +873,73 @@ public class GPUTileProcessor {
     	cuCtxSynchronize();
     }
 
+    public void execTextures(
+    		double [][] port_offsets,
+    		double [] color_weights,
+    		boolean   is_lwir,
+    		double    min_shot,           // 10.0
+    		double    scale_shot,         // 3.0
+    		double    diff_sigma,         // pixel value/pixel change
+    		double    diff_threshold,     // pixel value/pixel change
+    		double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+    		boolean   dust_remove,
+    		boolean   keep_weights) {
+    	if (GPU_TEXTURES_kernel == null)
+    	{
+    		IJ.showMessage("Error", "No GPU kernel: GPU_TEXTURES_kernel");
+    		return;
+    	}
+    	float [] fport_offsets = new float[port_offsets.length * 2];
+    	for (int cam = 0; cam < port_offsets.length; cam++) {
+    		fport_offsets[2*cam + 0] = (float) port_offsets[cam][0];
+    		fport_offsets[2*cam + 1] = (float) port_offsets[cam][1];
+    	}
+        cuMemcpyHtoD(gpu_port_offsets, Pointer.to(fport_offsets),  fport_offsets.length * Sizeof.FLOAT);
+
+    	int num_colors = color_weights.length;
+    	if (num_colors > 3) num_colors = 3;
+    	float weighht0 = (float) color_weights[0];
+    	float weighht1 = (num_colors >1)?((float) color_weights[1]):0.0f;
+    	float weighht2 = (num_colors >2)?((float) color_weights[2]):0.0f;
+    	int iis_lwir =      (is_lwir)? 1:0;
+    	int idust_remove =  (dust_remove)? 1 : 0;
+    	int ikeep_weights = (keep_weights)? 1 : 0;
+
+		int [] GridFullWarps =    {(num_texture_tiles + TEXTURE_TILES_PER_BLOCK-1) / TEXTURE_TILES_PER_BLOCK,1,1};
+    	int [] ThreadsFullWarps = {TEXTURE_THREADS_PER_TILE, NUM_CAMS, 1};
+
+    	Pointer kernelParameters = Pointer.to(
+    			Pointer.to(gpu_clt),
+    			Pointer.to(new int[] { num_texture_tiles }),
+    			Pointer.to(gpu_texture_indices),
+    			Pointer.to(gpu_port_offsets),
+    			Pointer.to(new int[] { num_colors }),
+    			Pointer.to(new int[] { iis_lwir }),
+    			Pointer.to(new float[] {(float) min_shot }),
+    			Pointer.to(new float[] {(float) scale_shot }),
+    			Pointer.to(new float[] {(float) diff_sigma }),
+    			Pointer.to(new float[] {(float) diff_threshold }),
+    			Pointer.to(new float[] {(float) min_agree }),
+    			Pointer.to(new float[] {weighht0 }),
+    			Pointer.to(new float[] {weighht1 }),
+    			Pointer.to(new float[] {weighht2 }),
+    			Pointer.to(new int[] { idust_remove }),
+    			Pointer.to(new int[] { ikeep_weights }),
+    			Pointer.to(new int[] { texture_stride }),
+    			Pointer.to(gpu_textures) // lpf_mask
+    			);
+    	cuCtxSynchronize();
+    	// Call the kernel function
+    	cuLaunchKernel(GPU_TEXTURES_kernel,
+    			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
+    			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
+    			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
+    			kernelParameters, null);   // Kernel- and extra parameters
+    	cuCtxSynchronize();
+    }
+
+
+
     public float [][] getCorr2D(int corr_rad){
         int corr_size = (2 * corr_rad + 1) * (2 * corr_rad + 1);
         float [] cpu_corrs = new float [ num_corr_tiles * corr_size];
@@ -825,6 +963,115 @@ public class GPUTileProcessor {
         }
         return corrs;
     }
+
+    public float [] getFlatTextures(
+    		int     num_colors,
+    		boolean keep_weights){
+
+    	int texture_slices =     (num_colors + 1 + (keep_weights?(NUM_CAMS + num_colors + 1):0));
+    	int texture_slice_size = (2 * DTT_SIZE)* (2 * DTT_SIZE);
+    	int texture_tile_size =  texture_slices * texture_slice_size;
+    	int texture_size =       texture_tile_size * num_texture_tiles;
+        float [] cpu_textures = new float [ num_texture_tiles * texture_size];
+        CUDA_MEMCPY2D copyD2H =   new CUDA_MEMCPY2D();
+        copyD2H.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
+        copyD2H.srcDevice =       gpu_textures;
+        copyD2H.srcPitch =        texture_stride * Sizeof.FLOAT;
+
+        copyD2H.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
+        copyD2H.dstHost =         Pointer.to(cpu_textures);
+        copyD2H.dstPitch =        texture_tile_size * Sizeof.FLOAT;
+
+        copyD2H.WidthInBytes =    texture_tile_size * Sizeof.FLOAT;
+        copyD2H.Height =          num_texture_tiles;
+
+        cuMemcpy2D(copyD2H); // run copy
+        return cpu_textures;
+    }
+
+
+    public float [][][] getTextures(
+    		int     num_colors,
+    		boolean keep_weights){
+
+    	int texture_slices =     (num_colors + 1 + (keep_weights?(NUM_CAMS + num_colors + 1):0));
+    	int texture_slice_size = (2 * DTT_SIZE)* (2 * DTT_SIZE);
+    	int texture_tile_size =  texture_slices * texture_slice_size;
+//    	int texture_size =       texture_tile_size * num_texture_tiles;
+        float [] cpu_textures = getFlatTextures(
+        		num_colors,
+        		keep_weights);
+
+        float [][][] textures = new float [num_texture_tiles][texture_slices][texture_tile_size];
+        for (int ntile = 0; ntile < num_texture_tiles; ntile++) {
+        	for (int slice = 0; slice < texture_slices; slice++) {
+        		System.arraycopy(
+        				cpu_textures,                                           // src
+        				ntile * texture_tile_size + slice * texture_slice_size, // src offset
+        				textures[ntile][slice],                                 // dst
+        				0,                                                      // dst offset
+        				texture_slice_size);                                    // length to copy
+        	}
+        }
+        return textures;
+    }
+
+    public double [][][][] doubleTextures(
+    		Rectangle    woi,
+    		int []       indices,
+    		float [][][] ftextures,
+    		int          full_width,
+    		int          num_slices
+    		){
+    	int texture_slice_size = (2 * DTT_SIZE)* (2 * DTT_SIZE);
+    	double [][][][] textures = new double [woi.height][woi.width][num_slices][texture_slice_size];
+    	for (int indx = 0; indx < indices.length; indx++) if ((indices[indx] & (1 << LIST_TEXTURE_BIT)) != 0){
+    		int tile = indices[indx] >> CORR_NTILE_SHIFT;
+    		int tileX = tile % full_width;
+    		int tileY = tile / full_width;
+    		int wtileX = tileX - woi.x;
+    		int wtileY = tileY - woi.y;
+    		if ((wtileX < woi.width) && (wtileY < woi.height)) {
+    			for (int slice = 0; slice < num_slices; slice++) {
+    				for (int i = 0; i < texture_slice_size; i++) {
+    					textures[wtileY][wtileX][slice][i] = ftextures[indx][slice][i];
+    				}
+    			}
+    		}
+    	}
+    	return textures;
+    }
+
+
+    public double [][][][] doubleTextures(
+    		Rectangle    woi,
+    		int []       indices,
+    		float []     ftextures,
+    		int          full_width,
+    		int          num_slices,
+    		int          num_src_slices
+    		){
+    	int texture_slice_size = (2 * DTT_SIZE)* (2 * DTT_SIZE);
+    	int texture_tile_size = texture_slice_size * num_src_slices ;
+    	double [][][][] textures = new double [woi.height][woi.width][num_slices][texture_slice_size];
+    	for (int indx = 0; indx < indices.length; indx++) if ((indices[indx] & (1 << LIST_TEXTURE_BIT)) != 0){
+    		int tile = indices[indx] >> CORR_NTILE_SHIFT;
+    		int tileX = tile % full_width;
+    		int tileY = tile / full_width;
+    		int wtileX = tileX - woi.x;
+    		int wtileY = tileY - woi.y;
+    		if ((wtileX < woi.width) && (wtileY < woi.height)) {
+    			for (int slice = 0; slice < num_slices; slice++) {
+    				for (int i = 0; i < texture_slice_size; i++) {
+    					textures[wtileY][wtileX][slice][i] = ftextures[indx * texture_tile_size + slice * texture_slice_size + i];
+    				}
+    			}
+    		}
+    	}
+    	return textures;
+    }
+
+
 
 
     public float [][] getRBG (int ncam){
@@ -1014,20 +1261,14 @@ public class GPUTileProcessor {
 	}
 
 	public void setLpfRbg(
-			float [][] lpf_rbg) // 3 or single 64-el. array(s)
+			float [][] lpf_rbg) // 4 64-el. arrays: r,b,g,m
 	{
 
 		int l = lpf_rbg[0].length; // 64
-
-		float []   lpf_flat = new float [3 * l];
-		for (int i = 0; i < 3;i++) {
-			int ii = i;
-			if (ii > lpf_rbg.length) {
-				ii = 0; // mono
-			}
+		float []   lpf_flat = new float [lpf_rbg.length * l];
+		for (int i = 0; i < lpf_rbg.length; i++) {
 			for (int j = 0; j < l; j++) {
-//				lpf_flat[j + ii*l] = (float) (lpf_rbg[i][j]*2*dct_size);
-				lpf_flat[j + ii*l] = lpf_rbg[i][j];
+				lpf_flat[j + i * l] = lpf_rbg[i][j];
 			}
 		}
 
@@ -1035,8 +1276,6 @@ public class GPUTileProcessor {
 		long constantMemorySizeArray[] = { 0 };
 		cuModuleGetGlobal(constantMemoryPointer, constantMemorySizeArray,  module, "lpf_data");
 		int constantMemorySize = (int)constantMemorySizeArray[0];
-//__constant__ float lpf_data[3][64]={
-
 		System.out.println("constantMemoryPointer: " + constantMemoryPointer);
 		System.out.println("constantMemorySize: " + constantMemorySize);
         cuMemcpyHtoD(constantMemoryPointer, Pointer.to(lpf_flat), constantMemorySize);

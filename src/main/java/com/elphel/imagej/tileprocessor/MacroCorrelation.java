@@ -63,6 +63,7 @@ public class MacroCorrelation {
 					tileSize,  // int tileSize,
 					tp.superTileSize, // int superTileSize,
 					tp.isMonochrome(),
+					tp.isLwir(),
 					tp.isAux(),
 					tp.getMagicScale(), // double scale,
 					trusted_correlation, // double trustedCorrelation,
@@ -309,6 +310,7 @@ public class MacroCorrelation {
 		ImageDtt image_dtt = new ImageDtt(
 				clt_parameters.transform_size,
 				this.mtp.isMonochrome(),
+				this.mtp.isLwir(),
 				clt_parameters.getScaleStrength(this.mtp.isAux()));
 		image_dtt.clt_aberrations_quad_corr(
 			    clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others

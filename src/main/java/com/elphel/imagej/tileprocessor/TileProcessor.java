@@ -80,6 +80,7 @@ public class TileProcessor {
 	public double [][] main_ds_ml =              null; // main camera DSI restored from the COMBO-DSI file to generate ML test files
 
 	public boolean   monochrome =                false;   // these are monochrome images
+	public boolean   lwir =                      false;   // all monochrome are lwir
 	private boolean  is_aux =                    false;   // this camera is aux
 	public int       clt_3d_passes_size =     0; //clt_3d_passes size after initial processing
 	public int       clt_3d_passes_rig_size = 0; //clt_3d_passes size after initial processing and rig processing
@@ -110,6 +111,7 @@ public class TileProcessor {
 			int tileSize,
 			int superTileSize,
 			boolean monochrome,
+			boolean lwir,
 			boolean is_aux,
 			double scale,
 			double trustedCorrelation,
@@ -121,6 +123,7 @@ public class TileProcessor {
 		this.tileSize = tileSize;
 		this.superTileSize = superTileSize;
 		this.monochrome = monochrome;
+		this.lwir =       lwir;
 		this.is_aux = is_aux;
 		this.corr_magic_scale = scale;
 		this.trustedCorrelation = trustedCorrelation;
@@ -128,6 +131,7 @@ public class TileProcessor {
 		this.threadsMax = threadsMax;
 	}
 	public boolean isMonochrome() {return monochrome;}
+	public boolean isLwir()       {return lwir;}
 	public boolean isAux()        {return is_aux;}
 
 	public int getTilesX() {return tilesX;}
@@ -5809,6 +5813,7 @@ public class TileProcessor {
 		ImageDtt image_dtt = new ImageDtt(
 				clt_parameters.transform_size,
 				isMonochrome(),
+				isLwir(),
 				clt_parameters.getScaleStrength(is_aux));
 
 		double [][][]  dispStrength = st.getDisparityStrengths(

@@ -1,4 +1,5 @@
 package com.elphel.imagej.tileprocessor;
+import java.awt.Rectangle;
 /**
  ** TwoQuadCLT - Process images from a pair of Quad/Octal cameras
  **
@@ -643,6 +644,7 @@ public class TwoQuadCLT {
 		ImageDtt image_dtt = new ImageDtt(
 				clt_parameters.transform_size,
 				quadCLT_main.isMonochrome(),
+				quadCLT_main.isLwir(),
 				clt_parameters.getScaleStrength(false));
 
 		double [][] ml_data = null;
@@ -1370,6 +1372,7 @@ public class TwoQuadCLT {
 		ImageDtt image_dtt = new ImageDtt(
 				clt_parameters.transform_size,
 				quadCLT_main.isMonochrome(),
+				quadCLT_main.isLwir(),
 				clt_parameters.getScaleStrength(false));
 		double [][] ml_data = null;
 		double [][][]       ers_delay = get_ers?(new double [2][][]):null;
@@ -1432,7 +1435,7 @@ public class TwoQuadCLT {
 		int indx=0;
 		for (int i = 0; i < numTiles; i++) {
 			for (int j = 0; j < numPairs; j++) {
-				corr_indices[indx++] = (i << GPUTileProcessor.CORR_PAIR_SHIFT) + j;
+				corr_indices[indx++] = (i << GPUTileProcessor.CORR_NTILE_SHIFT) + j;
 			}
 		}
 		double [][] corrs2d = image_dtt.get2DCorrs(
@@ -1518,6 +1521,31 @@ public class TwoQuadCLT {
 		String [] rgba_titles = {"red","blue","green","alpha"};
 		String [] rgba_weights_titles = {"red","blue","green","alpha","port0","port1","port2","port3","r-rms","b-rms","g-rms","w-rms"};
 		if ((texture_tiles_main != null) && (texture_tiles_aux != null)){
+			if ((debugLevel > -2) && (clt_parameters.tileX >= 0) && (clt_parameters.tileY >= 0) && (clt_parameters.tileX < tilesX) && (clt_parameters.tileY < tilesY)) {
+				double [][] texture_tile = texture_tiles_main[clt_parameters.tileY][clt_parameters.tileX];
+				int tile = +clt_parameters.tileY * tilesX  +clt_parameters.tileX;
+    			System.out.println("=== tileX= "+clt_parameters.tileX+" tileY= "+clt_parameters.tileY+" tile="+tile+" ===");
+
+    			for (int slice =0; slice < texture_tile.length; slice++) {
+    				System.out.println("\n=== Slice="+slice+" ===");
+    				for (int i = 0; i < 2 * GPUTileProcessor.DTT_SIZE; i++) {
+    					for (int j = 0; j < 2 * GPUTileProcessor.DTT_SIZE; j++) {
+    						System.out.print(String.format("%10.4f ",
+    								texture_tile[slice][2 * GPUTileProcessor.DTT_SIZE * i + j]));
+    					}
+    					System.out.println();
+    				}
+    			}
+    			(new ShowDoubleFloatArrays()).showArrays(
+						texture_tile,
+						2 * image_dtt.transform_size,
+						2 * image_dtt.transform_size,
+						true,
+						name + "-TXTNOL-CPU-D"+clt_parameters.disparity+"-X"+clt_parameters.tileX+"-Y"+clt_parameters.tileY,
+						(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
+
+			}
+
 			if (clt_parameters.show_nonoverlap){
 				texture_nonoverlap_main = image_dtt.combineRBGATiles(
 						texture_tiles_main,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
@@ -1618,7 +1646,7 @@ public class TwoQuadCLT {
 							colorProcParameters,
 							rgbParameters,
 							name+"-texture", // String name,
-							"-D"+clt_parameters.disparity+"-MAIN", //String suffix, // such as disparity=...
+							"-D"+clt_parameters.disparity+"-MAINCPU", //String suffix, // such as disparity=...
 							toRGB,
 							!quadCLT_main.correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
 							false, // true, // boolean saveShowIntermediate, // save/show if set globally
@@ -1888,27 +1916,30 @@ public class TwoQuadCLT {
 			final int        debugLevel){
 // get fat_zero (absolute) and color scales
 		boolean is_mono = quadCLT_main.isMonochrome();
+		boolean is_lwir = quadCLT_main.isLwir();
+
 		double    fat_zero = clt_parameters.getGpuFatZero(is_mono); //   30.0;
 		double [] scales = (is_mono) ? (new double [] {1.0}) :(new double [] {
 				clt_parameters.gpu_weight_r, // 0.25
 				clt_parameters.gpu_weight_b, // 0.25
 				1.0 - clt_parameters.gpu_weight_r - clt_parameters.gpu_weight_b}); // 0.5
+		double cwgreen = 1.0/(1.0 + clt_parameters.corr_red + clt_parameters.corr_blue);    // green color
+		double [] col_weights= (is_mono) ? (new double [] {1.0}) :(new double [] {
+				clt_parameters.corr_red *  cwgreen,
+				clt_parameters.corr_blue * cwgreen,
+				cwgreen});
 
 		ImageDtt image_dtt = new ImageDtt(
 				  clt_parameters.transform_size,
 				  is_mono,
+				  is_lwir,
 				  1.0);
-		float [][] lpf_rgb;
-		if (is_mono) {
-			lpf_rgb = new float[1][];
-			lpf_rgb[0] = image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_m);
-		} else {
-			lpf_rgb = new float[3][];
-			lpf_rgb[0] = image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_r);
-			lpf_rgb[1] = image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_b);
-			lpf_rgb[2] = image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_g);
-		}
-
+		float [][] lpf_rgb = new float[][] {
+			image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_r),
+			image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_b),
+			image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_g),
+			image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_m)
+		};
 		gPUTileProcessor.setLpfRbg(
 				lpf_rgb);
 
@@ -1986,36 +2017,65 @@ public class TwoQuadCLT {
 		// corr_indices array of integers to be passed to GPU
 		gPUTileProcessor.setCorrIndices(corr_indices);
 
+		int [] texture_indices = gPUTileProcessor.getTextureTasks(
+				tp_tasks);
+		gPUTileProcessor.setTextureIndices(
+				texture_indices);
+
+		// TODO: calculate from the camera geometry?
+		double[][] port_offsets = { // used only in textures to scale differences
+				{-0.5, -0.5},
+				{ 0.5, -0.5},
+				{-0.5,  0.5},
+				{ 0.5,  0.5}};
+
 		// All set, run kernel (correct and convert)
 		int NREPEAT = 1; // 00;
 		System.out.println("\n------------ Running GPU "+NREPEAT+" times ----------------");
 		long startGPU=System.nanoTime();
 		for (int i = 0; i < NREPEAT; i++ ) gPUTileProcessor.execConverCorrectTiles();
 
-		// run imclt;
+// run imclt;
 		long startIMCLT=System.nanoTime();
-		for (int i = 0; i < NREPEAT; i++ ) gPUTileProcessor.execImcltRbg();
+		for (int i = 0; i < NREPEAT; i++ ) {
+			gPUTileProcessor.execImcltRbg();
+		}
 		long endImcltTime = System.nanoTime();
-
+// run correlation
 		long startCorr2d=System.nanoTime();   // System.nanoTime();
-
 		for (int i = 0; i < NREPEAT; i++ ) gPUTileProcessor.execCorr2D(
 	    		scales,// double [] scales,
 	    		fat_zero, // double fat_zero);
 	    		clt_parameters.gpu_corr_rad); // int corr_radius
 
 		long endCorr2d = System.nanoTime();
+// run textures
+		long startTextures = System.nanoTime();   // System.nanoTime();
+		for (int i = 0; i < NREPEAT; i++ ) gPUTileProcessor.execTextures(
+				port_offsets,                  // double [][] port_offsets,
+				col_weights,                   // double [] color_weights,
+				quadCLT_main.isLwir(),         // boolean   is_lwir,
+				clt_parameters.min_shot,       // double    min_shot,           // 10.0
+				clt_parameters.scale_shot,     // double    scale_shot,         // 3.0
+				clt_parameters.diff_sigma,     // double    diff_sigma,         // pixel value/pixel change
+				clt_parameters.diff_threshold, // double    diff_threshold,     // pixel value/pixel change
+				clt_parameters.min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+				clt_parameters.dust_remove,    // boolean   dust_remove,
+				clt_parameters.keep_weights);  // boolean   keep_weights); // int corr_radius
+
+		long endTextures = System.nanoTime();
 
 		long endGPUTime = System.nanoTime();
 		long firstGPUTime= (startIMCLT- startGPU)/NREPEAT;
 		long runImcltTime = (endImcltTime - startIMCLT)/NREPEAT;
 		long runCorr2DTime = (endCorr2d - startCorr2d)/NREPEAT;
+		long runTexturesTime = (endTextures - startTextures)/NREPEAT;
 		long runGPUTime = (endGPUTime - startGPU)/NREPEAT;
 		// run corr2d
 
 		System.out.println("\n------------ End of running GPU "+NREPEAT+" times ----------------");
 		System.out.println("GPU run time ="+(runGPUTime * 1.0e-6)+"ms, (direct conversion: "+(firstGPUTime*1.0e-6)+"ms, imclt: "+
-				(runImcltTime*1.0e-6)+"ms), corr2D: "+(runCorr2DTime*1.0e-6)+"ms");
+				(runImcltTime*1.0e-6)+"ms), corr2D: "+(runCorr2DTime*1.0e-6)+"ms), textures: "+(runTexturesTime*1.0e-6)+"ms");
 		// get data back from GPU
 		float [][][] iclt_fimg = new float [GPUTileProcessor.NUM_CAMS][][];
 		for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
@@ -2045,12 +2105,14 @@ public class TwoQuadCLT {
 					debugLevel );
 
 		}
+		//show_corr
+		int tilesX =  GPUTileProcessor.IMG_WIDTH / GPUTileProcessor.DTT_SIZE;
+		int tilesY =  GPUTileProcessor.IMG_HEIGHT / GPUTileProcessor.DTT_SIZE;
+		int [] wh = new int[2];
+		if (clt_parameters.show_corr) {
 		float [][] corr2D = gPUTileProcessor.getCorr2D(
 				clt_parameters.gpu_corr_rad); //  int corr_rad);
 // convert to 6-layer image		 using tasks
-		int tilesX =  GPUTileProcessor.IMG_WIDTH / GPUTileProcessor.DTT_SIZE;
-		int tilesY = GPUTileProcessor.IMG_HEIGHT / GPUTileProcessor.DTT_SIZE;
-		int [] wh = new int[2];
 		double [][] dbg_corr = GPUTileProcessor.getCorr2DView(
 	    		tilesX,
 	    		tilesY,
@@ -2064,7 +2126,8 @@ public class TwoQuadCLT {
 				true,
 				"CORR2D",
 				GPUTileProcessor.getCorrTitles());
-
+		}
+// convert to overlapping and show
 		if (clt_parameters.gen_chn_img) {
 			// combine to a sliced color image
 			// assuming total number of images to be multiple of 4
@@ -2127,6 +2190,124 @@ public class TwoQuadCLT {
 					debugLevel);
 
 		}
+		if (clt_parameters.show_rgba_color) {
+			int          num_src_slices = 12 ; // calculate
+//			float [][][] ftextures = gPUTileProcessor.getTextures(
+//		    		(is_mono?1:3), // int     num_colors,
+//		    		clt_parameters.keep_weights); // boolean keep_weights);
+			float [] flat_textures =  gPUTileProcessor.getFlatTextures(
+		    		(is_mono?1:3), // int     num_colors,
+		    		clt_parameters.keep_weights); // boolean keep_weights);
+	    	int texture_slice_size = (2 * GPUTileProcessor.DTT_SIZE)* (2 * GPUTileProcessor.DTT_SIZE);
+	    	int texture_tile_size = texture_slice_size * num_src_slices ;
+
+			if (debugLevel > -2) {
+		    	for (int indx = 0; indx < texture_indices.length; indx++) if ((texture_indices[indx] & (1 << GPUTileProcessor.LIST_TEXTURE_BIT)) != 0){
+		    		int tile = texture_indices[indx] >> GPUTileProcessor.CORR_NTILE_SHIFT;
+		    		int tileX = tile % tilesX;
+		    		int tileY = tile / tilesX;
+		    		if ((tileY == clt_parameters.tileY) && (tileX == clt_parameters.tileX)) {
+
+		    			System.out.println("=== tileX= "+tileX+" tileY= "+tileY+" tile="+tile+" ===");
+
+		    			for (int slice =0; slice < num_src_slices; slice++) {
+		    				System.out.println("=== Slice="+slice+" ===");
+		    				for (int i = 0; i < 2 * GPUTileProcessor.DTT_SIZE; i++) {
+		    					for (int j = 0; j < 2 * GPUTileProcessor.DTT_SIZE; j++) {
+		    						System.out.print(String.format("%10.4f ",
+		    								flat_textures[indx*texture_tile_size + slice* texture_slice_size + 2 * GPUTileProcessor.DTT_SIZE * i + j]));
+		    					}
+		    					System.out.println();
+		    				}
+		    			}
+		    		}
+		    	}
+			}
+			double [][][][] texture_tiles =     gPUTileProcessor.doubleTextures(
+		    		new Rectangle(0, 0, tilesX, tilesY), // Rectangle    woi,
+		    		texture_indices,                  // int []       indices,
+		    		flat_textures,                    // float [][][] ftextures,
+		    		tilesX,                           // int          full_width,
+		    		4, // rbga only /int          num_slices
+		    		num_src_slices // int          num_src_slices
+		    		);
+
+			if ((debugLevel > -2) && (clt_parameters.tileX >= 0) && (clt_parameters.tileY >= 0) && (clt_parameters.tileX < tilesX) && (clt_parameters.tileY < tilesY)) {
+				String [] rgba_titles = {"red","blue","green","alpha"};
+				String [] rgba_weights_titles = {"red","blue","green","alpha","port0","port1","port2","port3","r-rms","b-rms","g-rms","w-rms"};
+				double [][] texture_tile = texture_tiles[clt_parameters.tileY][clt_parameters.tileX];
+				int tile = +clt_parameters.tileY * tilesX  +clt_parameters.tileX;
+    			System.out.println("=== tileX= "+clt_parameters.tileX+" tileY= "+clt_parameters.tileY+" tile="+tile+" ===");
+
+    			for (int slice =0; slice < texture_tile.length; slice++) {
+    				System.out.println("\n=== Slice="+slice+" ===");
+    				for (int i = 0; i < 2 * GPUTileProcessor.DTT_SIZE; i++) {
+    					for (int j = 0; j < 2 * GPUTileProcessor.DTT_SIZE; j++) {
+    						System.out.print(String.format("%10.4f ",
+    								texture_tile[slice][2 * GPUTileProcessor.DTT_SIZE * i + j]));
+    					}
+    					System.out.println();
+    				}
+    			}
+    			(new ShowDoubleFloatArrays()).showArrays(
+						texture_tile,
+						2 * image_dtt.transform_size,
+						2 * image_dtt.transform_size,
+						true,
+						name + "-TXTNOL-GPU-D"+clt_parameters.disparity+"-X"+clt_parameters.tileX+"-Y"+clt_parameters.tileY,
+						(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
+
+			}
+
+
+			int alpha_index = 3;
+			// in monochrome mode only MONO_CHN == GREEN_CHN is used, R and B are null
+			double [][] texture_overlap_main = image_dtt.combineRBGATiles(
+					texture_tiles,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
+//					image_dtt.transform_size,
+					true,                         // when false - output each tile as 16x16, true - overlap to make 8x8
+					clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
+					threadsMax,                    // maximal number of threads to launch
+					debugLevel);
+			if (clt_parameters.alpha1 > 0){ // negative or 0 - keep alpha as it was
+				double scale = (clt_parameters.alpha1 > clt_parameters.alpha0) ? (1.0/(clt_parameters.alpha1 - clt_parameters.alpha0)) : 0.0;
+				for (int i = 0; i < texture_overlap_main[alpha_index].length; i++){
+					double d = texture_overlap_main[alpha_index][i];
+					if      (d >=clt_parameters.alpha1) d = 1.0;
+					else if (d <=clt_parameters.alpha0) d = 0.0;
+					else d = scale * (d- clt_parameters.alpha0);
+					texture_overlap_main[alpha_index][i] = d;
+				}
+			}
+
+			// for now - use just RGB. Later add option for RGBA
+			double [][] texture_rgb_main = {texture_overlap_main[0],texture_overlap_main[1],texture_overlap_main[2]};
+			double [][] texture_rgba_main = {texture_overlap_main[0],texture_overlap_main[1],texture_overlap_main[2],texture_overlap_main[3]};
+			ImagePlus imp_texture_main = quadCLT_main.linearStackToColor(
+					clt_parameters,
+					colorProcParameters,
+					rgbParameters,
+					name+"-texture", // String name,
+					"-D"+clt_parameters.disparity+"-MAINGPU", //String suffix, // such as disparity=...
+					toRGB,
+					!quadCLT_main.correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
+					false, // true, // boolean saveShowIntermediate, // save/show if set globally
+					false, // true, // boolean saveShowFinal,        // save/show result (color image?)
+					((clt_parameters.alpha1 > 0)? texture_rgba_main: texture_rgb_main),
+					tilesX *  image_dtt.transform_size,
+					tilesY *  image_dtt.transform_size,
+					1.0,         // double scaleExposure, // is it needed?
+					debugLevel );
+
+			int width = imp_texture_main.getWidth();
+			int height =imp_texture_main.getHeight();
+			ImageStack texture_stack=new ImageStack(width,height);
+			texture_stack.addSlice("main",      imp_texture_main.getProcessor().getPixels()); // single slice
+			ImagePlus imp_texture_stack = new ImagePlus(name+"-TEXTURES-D"+clt_parameters.disparity, texture_stack);
+			imp_texture_stack.getProcessor().resetMinAndMax();
+			imp_texture_stack.show();
+		}
+
 
 		return results;
 	}
@@ -2370,6 +2551,7 @@ public class TwoQuadCLT {
 		ImageDtt image_dtt = new ImageDtt(
 				clt_parameters.transform_size,
 				quadCLT_main.isMonochrome(),
+				quadCLT_main.isLwir(),
 				clt_parameters.getScaleStrength(false));
 
 		int macro_scale = image_dtt.transform_size;
@@ -3274,6 +3456,7 @@ if (debugLevel > -100) return true; // temporarily !
 		ImageDtt image_dtt = new ImageDtt(
 				clt_parameters.transform_size,
 				quadCLT_main.isMonochrome(),
+				quadCLT_main.isLwir(),
 				clt_parameters.getScaleStrength(false));
 		image_dtt.clt_bi_quad (
 				clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
@@ -7354,6 +7537,7 @@ if (debugLevel > -100) return true; // temporarily !
 		ImageDtt image_dtt = new ImageDtt(
 				clt_parameters.transform_size,
 				quadCLT_main.isMonochrome(),
+				quadCLT_main.isLwir(),
 				clt_parameters.getScaleStrength(false));
 
 		double [][] disparity_bimap  = new double [ImageDtt.BIDISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
@@ -7522,6 +7706,7 @@ if (debugLevel > -100) return true; // temporarily !
 		ImageDtt image_dtt = new ImageDtt(
 				clt_parameters.transform_size,
 				quadCLT_aux.isMonochrome(),
+				quadCLT_aux.isLwir(),
 				clt_parameters.getScaleStrength(true));
 		double [][] disparity_bimap  = new double [ImageDtt.BIDISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
 		image_dtt.clt_bi_quad (

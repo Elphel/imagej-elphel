@@ -112,6 +112,7 @@ public class CLTParameters {
 	public boolean    show_overlap =      true;  // show result RGBA (first channels, then RGBA combined?)
 	public boolean    show_rgba_color =   true;  // show combined color image
 	public boolean    show_map =          true;  // show disparity maps
+	public boolean    show_corr =         true;  // show GPU correlation
 
 	public double     disp_scan_start =   0.0;   // disparity scan start value
 	public double     disp_scan_step =    1.0;   // disparity scan step
@@ -768,10 +769,10 @@ public class CLTParameters {
 	public int        gpu_corr_rad =        7;  // size of the correlation to save - initially only 15x15
 	public double     gpu_weight_r =      0.25;
 	public double     gpu_weight_b =      0.25; // weight g = 1.0 - gpu_weight_r - gpu_weight_b
-	public double     gpu_sigma_r =       1.1;
-	public double     gpu_sigma_b =       1.1;
-	public double     gpu_sigma_g =       0.7;
-	public double     gpu_sigma_m =       0.7;
+	public double     gpu_sigma_r =       0.9; // 1.1;
+	public double     gpu_sigma_b =       0.9; // 1.1;
+	public double     gpu_sigma_g =       0.6; // 0.7;
+	public double     gpu_sigma_m =       0.4; // 0.7;
 	public double     gpu_sigma_rb_corr = 0.5; // apply LPF after accumulating R and B correlation before G,
 	public double     gpu_sigma_corr =    0.9;
 	public double     gpu_sigma_corr_m =  0.15;
@@ -946,6 +947,7 @@ public class CLTParameters {
 		properties.setProperty(prefix+"show_overlap",               this.show_overlap+"");
 		properties.setProperty(prefix+"show_rgba_color",            this.show_rgba_color+"");
 		properties.setProperty(prefix+"show_map",                   this.show_map+"");
+		properties.setProperty(prefix+"show_corr",                  this.show_corr+"");
 		properties.setProperty(prefix+"disp_scan_start",            this.disp_scan_start +"");
 		properties.setProperty(prefix+"disp_scan_step",             this.disp_scan_step +"");
 		properties.setProperty(prefix+"disp_scan_count",            this.disp_scan_count+"");
@@ -1693,6 +1695,8 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"show_overlap")!=null)                  this.show_overlap=Boolean.parseBoolean(properties.getProperty(prefix+"show_overlap"));
 		if (properties.getProperty(prefix+"show_rgba_color")!=null)               this.show_rgba_color=Boolean.parseBoolean(properties.getProperty(prefix+"show_rgba_color"));
 		if (properties.getProperty(prefix+"show_map")!=null)                      this.show_map=Boolean.parseBoolean(properties.getProperty(prefix+"show_map"));
+		if (properties.getProperty(prefix+"show_corr")!=null)                     this.show_corr=Boolean.parseBoolean(properties.getProperty(prefix+"show_corr"));
+
 		if (properties.getProperty(prefix+"disp_scan_start")!=null)               this.disp_scan_start=Double.parseDouble(properties.getProperty(prefix+"disp_scan_start"));
 		if (properties.getProperty(prefix+"disp_scan_step")!=null)                this.disp_scan_step=Double.parseDouble(properties.getProperty(prefix+"disp_scan_step"));
 		if (properties.getProperty(prefix+"disp_scan_count")!=null)               this.disp_scan_count=Integer.parseInt(properties.getProperty(prefix+"disp_scan_count"));
@@ -2473,11 +2477,13 @@ public class CLTParameters {
 		gd.addNumericField("Alpha channel 1.0 threshold (higher - opaque)",                                     this.alpha1,   3);
 		gd.addCheckbox    ("Generate shifted channel linear RGB stacks",                                        this.gen_chn_stacks);
 		gd.addCheckbox    ("Generate shifted channel color image stack",                                        this.gen_chn_img);
-		gd.addCheckbox    ("Generate shifted channel images and save with the model 'CLT process corr'",          this.gen_4_img);
+		gd.addCheckbox    ("Generate shifted channel images and save with the model 'CLT process corr'",        this.gen_4_img);
 		gd.addCheckbox    ("Show result RGBA before overlap combined",                                          this.show_nonoverlap);
 		gd.addCheckbox    ("Show result RGBA",                                                                  this.show_overlap);
 		gd.addCheckbox    ("Show result color",                                                                 this.show_rgba_color);
 		gd.addCheckbox    ("Show disparity maps",                                                               this.show_map);
+		gd.addCheckbox    ("Show correlation tiles",                                                            this.show_corr);
+
 		gd.addNumericField("Disparity scan start value",                                                        this.disp_scan_start,  2);
 		gd.addNumericField("Disparity scan step",                                                               this.disp_scan_step,  2);
 		gd.addNumericField("Disparity scan number of disparity values to scan",                                 this.disp_scan_count,            0);
@@ -3374,6 +3380,7 @@ public class CLTParameters {
 		this.show_overlap=          gd.getNextBoolean();
 		this.show_rgba_color=       gd.getNextBoolean();
 		this.show_map=              gd.getNextBoolean();
+		this.show_corr=             gd.getNextBoolean();
 		this.disp_scan_start=       gd.getNextNumber();
 		this.disp_scan_step=        gd.getNextNumber();
 		this.disp_scan_count= (int) gd.getNextNumber();

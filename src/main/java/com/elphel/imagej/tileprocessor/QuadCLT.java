@@ -123,6 +123,7 @@ public class QuadCLT {
 
 // magic scale should be set before using  TileProcessor (calculated disparities depend on it)
     public boolean isMonochrome() {return is_mono;}  // USED in lwir
+
     public boolean isAux()        {return is_aux;} // USED in lwir
     public String  sAux()         {return isAux()?"-AUX":"";} // USED in lwir
     public boolean isLwir()       {return !Double.isNaN(lwir_offset);} // clt_kernels // USED in lwir
@@ -170,6 +171,7 @@ public class QuadCLT {
 					clt_parameters.transform_size,
 					clt_parameters.stSize,
 					isMonochrome(),
+					isLwir(),
 					isAux(),
 					clt_parameters.corr_magic_scale,
 					clt_parameters.grow_disp_trust,
@@ -583,6 +585,7 @@ public class QuadCLT {
 					  ImageDtt image_dtt = new ImageDtt(
 							  clt_parameters.transform_size,
 							  isMonochrome(),
+							  isLwir(),
 							  clt_parameters.getScaleStrength(isAux()));
 					  int chn,tileY,tileX;
 					  DttRad2 dtt = new DttRad2(dtt_size);
@@ -759,7 +762,11 @@ public class QuadCLT {
 		  if (globalDebugLevel > 1) System.out.println("Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 		  System.out.println("1.Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 		  // Calculate differential offsets to interpolate for tiles between kernel centers
-		  ImageDtt image_dtt = new ImageDtt(clt_parameters.transform_size,isMonochrome(),clt_parameters.getScaleStrength(isAux()));
+		  ImageDtt image_dtt = new ImageDtt(
+				  clt_parameters.transform_size,
+				  isMonochrome(),
+				  isLwir(),
+				  clt_parameters.getScaleStrength(isAux()));
 		  image_dtt.clt_fill_coord_corr(
 				  clt_parameters.kernel_step,  //  final int             kern_step, // distance between kernel centers, in pixels.
 				  clt_kernels,                 // final double [][][][] clt_data,
@@ -1722,6 +1729,7 @@ public class QuadCLT {
 			  ImageDtt image_dtt = new ImageDtt(
 					  clt_parameters.transform_size,
 					  isMonochrome(),
+					  isLwir(),
 					  clt_parameters.getScaleStrength(isAux()));
 			  for (int i =0 ; i < double_stack[0].length; i++){
 				  double_stack[2][i]*=0.5; // Scale blue twice to compensate less pixels than green
@@ -2327,6 +2335,7 @@ public class QuadCLT {
 			  ImageDtt image_dtt = new ImageDtt(
 					  clt_parameters.transform_size,
 					  isMonochrome(),
+					  isLwir(),
 					  clt_parameters.getScaleStrength(isAux()));
 			  for (int i =0 ; i < double_stack[0].length; i++){
 				  double_stack[2][i]*=0.5; // Scale blue twice to compensate less pixels than green
@@ -2895,6 +2904,7 @@ public class QuadCLT {
 		  ImageDtt image_dtt = new ImageDtt(
 				  clt_parameters.transform_size,
 				  isMonochrome(),
+				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()));
 		  for (int i = 0; i < double_stacks.length; i++){
 			  for (int j =0 ; j < double_stacks[i][0].length; j++){
@@ -4130,6 +4140,7 @@ public class QuadCLT {
 		  ImageDtt image_dtt = new ImageDtt(
 				  clt_parameters.transform_size,
 				  isMonochrome(),
+				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()));
 		  for (int i = 0; i < double_stacks.length; i++){
 			  if ( double_stacks[i].length > 2) {
@@ -4730,10 +4741,8 @@ public class QuadCLT {
 			  debugLevel = clt_parameters.ly_debug_level;
 		  }
 
-		  final boolean      batch_mode = clt_parameters.batch_run; //disable any debug images
-
-		  String name=this.correctionsParameters.getModelName((String) imp_quad[0].getProperty("name"));
-		  //		int channel= Integer.parseInt((String) imp_src.getProperty("channel"));
+///		  final boolean      batch_mode = clt_parameters.batch_run; //disable any debug images
+///		  String name=this.correctionsParameters.getModelName((String) imp_quad[0].getProperty("name"));
 		  String path= (String) imp_quad[0].getProperty("path");
 
 		  ImagePlus [] results = new ImagePlus[imp_quad.length];
@@ -4746,19 +4755,14 @@ public class QuadCLT {
 		  setTiles (imp_quad[0], // set global tp.tilesX, tp.tilesY
 				  clt_parameters,
 				  threadsMax);
-//		  double [][] disparity_array = tp.setSameDisparity(clt_parameters.disparity); // 0.0); // [tp.tilesY][tp.tilesX] - individual per-tile expected disparity
-		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-		  //		  clt_parameters.tileStep,
 
 		  final int tilesX=tp.getTilesX(); // imp_quad[0].getWidth()/clt_parameters.transform_size;
 		  final int tilesY=tp.getTilesY(); // imp_quad[0].getHeight()/clt_parameters.transform_size;
 
 		  final int clustersX= (tilesX + clt_parameters.tileStep - 1) / clt_parameters.tileStep;
 		  final int clustersY= (tilesY + clt_parameters.tileStep - 1) / clt_parameters.tileStep;
-		  final double [][] lazy_eye_data = new double [clustersY*clustersX][];
-
-		  //			final int nTilesInChn=tilesX*tilesY;
-		  final int nClustersInChn=clustersX * clustersY;
+///		  final double [][] lazy_eye_data = new double [clustersY*clustersX][];
+///		  final int nClustersInChn=clustersX * clustersY;
 
 		  double [][] dsxy = new double[clustersX * clustersY][];
 		  ImagePlus imp_sel = WindowManager.getCurrentImage();
@@ -4895,7 +4899,11 @@ public class QuadCLT {
 					  this.is_mono);
 		  }
 
-		  ImageDtt image_dtt = new ImageDtt(clt_parameters.transform_size,isMonochrome(),clt_parameters.getScaleStrength(isAux()));
+		  ImageDtt image_dtt = new ImageDtt(
+				  clt_parameters.transform_size,
+				  isMonochrome(),
+				  isLwir(),
+				  clt_parameters.getScaleStrength(isAux()));
 		  for (int i = 0; i < double_stacks.length; i++){
 			  if ( double_stacks[i].length > 2) {
 				  for (int j =0 ; j < double_stacks[i][0].length; j++){
@@ -6065,6 +6073,7 @@ public class QuadCLT {
 		  ImageDtt image_dtt = new ImageDtt(
 				  clt_parameters.transform_size,
 				  isMonochrome(),
+				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()));
 		  for (int i = 0; i < double_stacks.length; i++){
 			  for (int j =0 ; j < double_stacks[i][0].length; j++){
@@ -9441,6 +9450,7 @@ public class QuadCLT {
 		  ImageDtt image_dtt = new ImageDtt(
 				  clt_parameters.transform_size,
 				  isMonochrome(),
+				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()));
 		  double [][] texture_overlap = image_dtt.combineRBGATiles(
 				  texture_tiles_bgnd, // texture_tiles,               // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
@@ -9542,6 +9552,7 @@ public class QuadCLT {
 		  ImageDtt image_dtt = new ImageDtt(
 				  clt_parameters.transform_size,
 				  isMonochrome(),
+				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()));
 		  double [][]alphaFade = tp.getAlphaFade(image_dtt.transform_size);
 		  if ((debugLevel > 0) && (scanIndex == 1)) { // not used in lwir
@@ -9756,6 +9767,7 @@ public class QuadCLT {
 		  ImageDtt image_dtt = new ImageDtt(
 				  clt_parameters.transform_size,
 				  isMonochrome(),
+				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()));
 		  double z_correction =  clt_parameters.z_correction;
 		  if (clt_parameters.z_corr_map.containsKey(image_name)){ // not used in lwir
@@ -9994,6 +10006,7 @@ public class QuadCLT {
 		  ImageDtt image_dtt = new ImageDtt(
 				  clt_parameters.transform_size,
 				  isMonochrome(),
+				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()));
 		  double z_correction =  clt_parameters.z_correction;
 		  if (clt_parameters.z_corr_map.containsKey(image_name)){ // not used in lwir
@@ -10129,6 +10142,7 @@ public class QuadCLT {
 		  ImageDtt image_dtt = new ImageDtt(
 				  clt_parameters.transform_size,
 				  isMonochrome(),
+				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()));
 		  double z_correction =  clt_parameters.z_correction;
 		  if (clt_parameters.z_corr_map.containsKey(image_name)){ // not used in lwir
@@ -10304,6 +10318,7 @@ public class QuadCLT {
 		  ImageDtt image_dtt = new ImageDtt(
 				  clt_parameters.transform_size,
 				  isMonochrome(),
+				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()));
 		  double z_correction =  clt_parameters.z_correction;
 		  if (clt_parameters.z_corr_map.containsKey(image_name)){ // not used in lwir
