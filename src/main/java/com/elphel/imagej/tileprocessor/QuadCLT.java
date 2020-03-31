@@ -8985,6 +8985,7 @@ public class QuadCLT {
 			  tp.clt_3d_passes.add(latest_scan); // put it back
 		  }
 		  int next_pass = tp.clt_3d_passes.size(); //
+		  // Create tasks to scan, have tasks, disparity and border tiles in tp.clt_3d_passes
 		  tp.thirdPassSetupSurf( // prepare tile tasks for the second pass based on the previous one(s) // needs last scan
 				  clt_parameters,
 				  //FIXME: make a special parameter?
@@ -9564,6 +9565,7 @@ public class QuadCLT {
 		  double [] alpha_zero = new double [4*image_dtt.transform_size*image_dtt.transform_size];
 		  int alpha_index = 3;
 		  for (int i = 0; i < alpha_zero.length; i++) alpha_zero[i]=0.0;
+		  // border tiles are copied, alpha from alphaFade (not multiplied?)
 		  for (int tileY = 0; tileY < tilesY; tileY++){
 			  for (int tileX = 0; tileX < tilesX; tileX++){
 				  texture_tiles_cluster[tileY][tileX]= null;
@@ -9607,7 +9609,7 @@ public class QuadCLT {
 				  texture_overlap[alpha_index][i] = d;
 			  }
 		  }
-		  // for now - use just RGB. Later add option for RGBA
+		  // for now - use just RGB. Later add option for RGBA (?)
 		  double [][] texture_rgb = {texture_overlap[0],texture_overlap[1],texture_overlap[2]};
 		  double [][] texture_rgba = {texture_overlap[0],texture_overlap[1],texture_overlap[2],texture_overlap[3]};
 		  double [][] texture_rgbx = ((clt_parameters.alpha1 > 0)? texture_rgba: texture_rgb);

@@ -26,19 +26,29 @@ package com.elphel.imagej.gpu;
 **
 */
 
+import static jcuda.driver.CUdevice_attribute.CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR;
+import static jcuda.driver.CUdevice_attribute.CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR;
 // Uses code by Marco Hutter - http://www.jcuda.org
+import static jcuda.driver.CUjitInputType.CU_JIT_INPUT_LIBRARY;
+import static jcuda.driver.CUjitInputType.CU_JIT_INPUT_PTX;
 import static jcuda.driver.JCudaDriver.cuCtxCreate;
 import static jcuda.driver.JCudaDriver.cuCtxSynchronize;
 import static jcuda.driver.JCudaDriver.cuDeviceGet;
+import static jcuda.driver.JCudaDriver.cuDeviceGetAttribute;
 import static jcuda.driver.JCudaDriver.cuInit;
 import static jcuda.driver.JCudaDriver.cuLaunchKernel;
+import static jcuda.driver.JCudaDriver.cuLinkAddData;
+import static jcuda.driver.JCudaDriver.cuLinkAddFile;
+import static jcuda.driver.JCudaDriver.cuLinkComplete;
+import static jcuda.driver.JCudaDriver.cuLinkCreate;
+import static jcuda.driver.JCudaDriver.cuLinkDestroy;
 import static jcuda.driver.JCudaDriver.cuMemAlloc;
 import static jcuda.driver.JCudaDriver.cuMemAllocPitch;
 import static jcuda.driver.JCudaDriver.cuMemcpy2D;
 import static jcuda.driver.JCudaDriver.cuMemcpyHtoD;
 import static jcuda.driver.JCudaDriver.cuModuleGetFunction;
 import static jcuda.driver.JCudaDriver.cuModuleGetGlobal;
-import static jcuda.driver.JCudaDriver.cuModuleLoadData;
+import static jcuda.driver.JCudaDriver.cuModuleLoadDataEx;
 import static jcuda.nvrtc.JNvrtc.nvrtcCompileProgram;
 import static jcuda.nvrtc.JNvrtc.nvrtcCreateProgram;
 import static jcuda.nvrtc.JNvrtc.nvrtcDestroyProgram;
@@ -66,14 +76,17 @@ import jcuda.driver.CUcontext;
 import jcuda.driver.CUdevice;
 import jcuda.driver.CUdeviceptr;
 import jcuda.driver.CUfunction;
+import jcuda.driver.CUlinkState;
 import jcuda.driver.CUmemorytype;
 import jcuda.driver.CUmodule;
 import jcuda.driver.JCudaDriver;
+import jcuda.driver.JITOptions;
 import jcuda.nvrtc.JNvrtc;
 import jcuda.nvrtc.nvrtcProgram;
 
 public class GPUTileProcessor {
-	static String GPU_KERNEL_FILE = "dtt8x8.cuh";
+	String LIBRARY_PATH = "/usr/local/cuda/targets/x86_64-linux/lib/libcudadevrt.a"; // linux
+	static String GPU_RESOURCE_DIR =              "kernels";
 	static String [] GPU_KERNEL_FILES = {"dtt8x8.cuh","TileProcessor.cuh"};
 	static String GPU_CONVERT_CORRECT_TILES_NAME = "convert_correct_tiles"; // name in C code
 	static String GPU_IMCLT_RBG_NAME =             "imclt_rbg"; // name in C code
@@ -112,6 +125,7 @@ public class GPUTileProcessor {
 	public static int CORR_OUT_RAD =              4;  // output radius of the correlations (implemented)
 	public static double FAT_ZERO_WEIGHT =        0.0001; // add to port weights to avoid nan
 
+	public static int THREADS_DYNAMIC_BITS =      5; // treads in block for CDP creation of the texture list
 
     int DTTTEST_BLOCK_WIDTH =        32; // may be read from the source code
     int DTTTEST_BLOCK_HEIGHT =       16; // may be read from the source code
@@ -129,7 +143,6 @@ public class GPUTileProcessor {
     private CUdeviceptr [] gpu_kernel_offsets_h = new CUdeviceptr[NUM_CAMS];
     private CUdeviceptr [] gpu_bayer_h =          new CUdeviceptr[NUM_CAMS];
     private CUdeviceptr [] gpu_clt_h =            new CUdeviceptr[NUM_CAMS];
-//    private CUdeviceptr [] gpu_lpf_h =            new CUdeviceptr[NUM_COLORS];
     private CUdeviceptr [] gpu_corr_images_h=     new CUdeviceptr[NUM_CAMS];
 
     // GPU pointers to array of GPU pointers
@@ -143,9 +156,7 @@ public class GPUTileProcessor {
     private CUdeviceptr gpu_corr_indices =        new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.POINTER
     private CUdeviceptr gpu_texture_indices =     new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.POINTER
     private CUdeviceptr gpu_port_offsets =        new CUdeviceptr(); //  allocate Quad * 2 * Sizeof.POINTER
-    //    private
     CUmodule    module; // to access constants memory
-//    private CUdeviceptr gpu_lpf =            new CUdeviceptr();
     private int mclt_stride;
     private int corr_stride;
     private int imclt_stride;
@@ -153,7 +164,6 @@ public class GPUTileProcessor {
     public int num_task_tiles;
     public int num_corr_tiles;
     public int num_texture_tiles;
-
     public class TpTask {
     	public int   task; // [0](+1) - generate 4 images, [4..9]+16..+512 - correlation pairs, 2 - generate texture tiles
     	public float target_disparity;
@@ -267,6 +277,7 @@ public class GPUTileProcessor {
 
     public GPUTileProcessor(String cuda_project_directory) throws IOException
     {
+
     	// From code by Marco Hutter - http://www.jcuda.org
         // Enable exceptions and omit all subsequent error checks
         JCudaDriver.setExceptionsEnabled(true);
@@ -274,13 +285,24 @@ public class GPUTileProcessor {
 
         // Initialize the driver and create a context for the first device.
         cuInit(0);
-        CUdevice device = new CUdevice();
+        //2020 - making them global
+        CUdevice
+        device = new CUdevice();
         cuDeviceGet(device, 0);
-        CUcontext context = new CUcontext();
+        CUcontext
+        context = new CUcontext();
         cuCtxCreate(context, 0, device);
 
+        int majorArray[] = { 0 };
+        int minorArray[] = { 0 };
+        cuDeviceGetAttribute(majorArray,  CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR, device);
+        cuDeviceGetAttribute(minorArray,  CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MINOR, device);
+        int major = majorArray[0];
+        int minor = minorArray[0];
+        int capability = major * 10 + minor;
+
         // Obtain the CUDA source code from the CUDA file
-        // Get absolute path to the file in resource foldder, then read it as a normal file.
+        // Get absolute path to the file in resource folder, then read it as a normal file.
         // When using just Eclipse resources - it does not notice that the file
         // was edited (happens frequently during kernel development).
         ClassLoader classLoader = getClass().getClassLoader();
@@ -311,12 +333,14 @@ public class GPUTileProcessor {
         				"#define TASK_TEXTURE_BIT " +         TASK_TEXTURE_BIT+"\n"+
         				"#define LIST_TEXTURE_BIT " +         LIST_TEXTURE_BIT+"\n"+
         				"#define CORR_OUT_RAD " +             CORR_OUT_RAD+"\n" +
-        				"#define FAT_ZERO_WEIGHT " +          FAT_ZERO_WEIGHT+"\n";
+        				"#define FAT_ZERO_WEIGHT " +          FAT_ZERO_WEIGHT+"\n"+
+        				"#define THREADS_DYNAMIC_BITS " +     THREADS_DYNAMIC_BITS+"\n";
+
 
         for (String src_file:GPU_KERNEL_FILES) {
         	File file = null;
-        	if ((cuda_project_directory == null) || (cuda_project_directory == "")) {
-        		file = new File(classLoader.getResource(src_file).getFile());
+        	if ((cuda_project_directory == null) || cuda_project_directory.isEmpty()) {
+        		file = new File(classLoader.getResource(GPU_RESOURCE_DIR+"/"+src_file).getFile());
         		System.out.println("Loading resource "+file);
         	} else {
         		File src_dir = new File(cuda_project_directory, "src");
@@ -336,11 +360,15 @@ public class GPUTileProcessor {
         }
         // Create the kernel functions (first - just test)
         String [] func_names = {GPU_CONVERT_CORRECT_TILES_NAME, GPU_IMCLT_RBG_NAME, GPU_CORRELATE2D_NAME, GPU_TEXTURES_NAME};
-        CUfunction[] functions = createFunctions(kernelSource, func_names);
+        CUfunction[] functions = createFunctions(kernelSource,
+        		                                 func_names,
+        		                                 capability); // on my - 75
+
         this.GPU_CONVERT_CORRECT_TILES_kernel = functions[0];
         this.GPU_IMCLT_RBG_kernel =             functions[1];
         this.GPU_CORRELATE2D_kernel =           functions[2];
         this.GPU_TEXTURES_kernel=               functions[3];
+
         System.out.println("GPU kernel functions initialized");
         System.out.println(GPU_CONVERT_CORRECT_TILES_kernel.toString());
         System.out.println(GPU_IMCLT_RBG_kernel.toString());
@@ -968,11 +996,12 @@ public class GPUTileProcessor {
     		int     num_colors,
     		boolean keep_weights){
 
-    	int texture_slices =     (num_colors + 1 + (keep_weights?(NUM_CAMS + num_colors + 1):0));
-    	int texture_slice_size = (2 * DTT_SIZE)* (2 * DTT_SIZE);
-    	int texture_tile_size =  texture_slices * texture_slice_size;
-    	int texture_size =       texture_tile_size * num_texture_tiles;
-        float [] cpu_textures = new float [ num_texture_tiles * texture_size];
+    	int texture_slices =     (num_colors + 1 + (keep_weights?(NUM_CAMS + num_colors + 1):0)); // number of texture slices
+    	int texture_slice_size = (2 * DTT_SIZE)* (2 * DTT_SIZE);        // number of (float) elements in a single slice of a tile
+    	int texture_tile_size =  texture_slices * texture_slice_size;   // number of (float) elements in a multi-slice tile
+    	int texture_size =       texture_tile_size * num_texture_tiles; // number of (float) elements in the whole texture
+//        float [] cpu_textures = new float [ num_texture_tiles * texture_size];
+        float [] cpu_textures = new float [texture_size];
         CUDA_MEMCPY2D copyD2H =   new CUDA_MEMCPY2D();
         copyD2H.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
         copyD2H.srcDevice =       gpu_textures;
@@ -1104,51 +1133,62 @@ public class GPUTileProcessor {
     }
 
 //    private static CUfunction [] createFunctions(
-      private CUfunction [] createFunctions(
-            String sourceCode, String [] kernelNames) throws IOException
-        {
+    private CUfunction [] createFunctions(
+    		String     sourceCode,
+    		String []  kernelNames,
+    		int        capability
+    		) throws IOException
+    {
     	CUfunction [] functions = new CUfunction [kernelNames.length];
-        	boolean OK = false;
-            // Use the NVRTC to create a program by compiling the source code
-            nvrtcProgram program = new nvrtcProgram();
-            nvrtcCreateProgram(
-                program, sourceCode, null, 0, null, null);
-            try {
-            	nvrtcCompileProgram(program, 0, null);
-            	OK = true;
-        	} catch (Exception e) {
-        		System.out.println("nvrtcCompileProgram() FAILED");
-        	}
-            // Compilation log with errors/warnongs
-            String programLog[] = new String[1];
-            nvrtcGetProgramLog(program, programLog);
-            String log = programLog[0].trim();
-            if (!log.isEmpty())
-            {
-                System.err.println("Program compilation log:\n" + log);
-            }
-            if (!OK) {
-            	throw new IOException("Could not compile program");
-            }
+    	boolean OK = false;
+    	// Use the NVRTC to create a program by compiling the source code
+    	nvrtcProgram program = new nvrtcProgram();
+    	nvrtcCreateProgram(	program, sourceCode, null, 0, null, null);
+    	String options[] = {"--gpu-architecture=compute_"+capability};
 
-            // Get the PTX code of the compiled program (not the binary)
-            String[] ptx = new String[1];
-            nvrtcGetPTX(program, ptx);
-            nvrtcDestroyProgram(program);
+    	try {
+    		nvrtcCompileProgram(program, options.length, options);
+    		OK = true;
+    	} catch (Exception e) {
+    		System.out.println("nvrtcCompileProgram() FAILED");
+    	}
+    	// Compilation log with errors/warnings
+    	String programLog[] = new String[1];
+    	nvrtcGetProgramLog(program, programLog);
+    	String log = programLog[0].trim();
+    	if (!log.isEmpty())
+    	{
+    		System.err.println("Program compilation log:\n" + log);
+    	}
+    	if (!OK) {
+    		throw new IOException("Could not compile program");
+    	}
 
-            // Create a CUDA module from the PTX code
-//            CUmodule
-            module = new CUmodule();
-            cuModuleLoadData(module, ptx[0]);
+    	// Get the PTX code of the compiled program (not the binary)
+    	String[] ptx = new String[1];
+    	nvrtcGetPTX(program, ptx);
+    	nvrtcDestroyProgram(program);
+    	byte[] ptxData = ptx[0].getBytes();
+    	JITOptions jitOptions = new JITOptions();
+    	CUlinkState state = new CUlinkState();
+    	cuLinkCreate(jitOptions, state);
+    	cuLinkAddFile(state, CU_JIT_INPUT_LIBRARY, LIBRARY_PATH, jitOptions);
+    	cuLinkAddData(state, CU_JIT_INPUT_PTX,     Pointer.to(ptxData), ptxData.length, "input.ptx", jitOptions);
+    	long size[] = { 0 };
+    	Pointer image = new Pointer();
+    	cuLinkComplete(state, image, size);
+    	module = new CUmodule();
+    	cuModuleLoadDataEx(module, image, 0, new int[0], Pointer.to(new int[0]));
+    	cuLinkDestroy(state);
 
-            for (int i = 0; i < kernelNames.length; i++) {
-            // Find the function in the source by name, get its pointer
-            	functions[i] = new CUfunction();
-            	cuModuleGetFunction(functions[i] , module, kernelNames[i]);
-            }
+    	for (int i = 0; i < kernelNames.length; i++) {
+    		// Find the function in the source by name, get its pointer
+    		functions[i] = new CUfunction();
+    		cuModuleGetFunction(functions[i] , module, kernelNames[i]);
+    	}
 
-            return functions;
-        }
+    	return functions;
+    }
 
     static String readFileAsString(String path)
     {

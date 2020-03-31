@@ -2191,7 +2191,9 @@ public class TwoQuadCLT {
 
 		}
 		if (clt_parameters.show_rgba_color) {
-			int          num_src_slices = 12 ; // calculate
+			int numcol = quadCLT_main.isMonochrome()?1:3;
+			int ports = imp_quad_main.length;
+			int          num_src_slices = numcol + 1 + (clt_parameters.keep_weights?(ports + numcol + 1):0); // 12 ; // calculate
 //			float [][][] ftextures = gPUTileProcessor.getTextures(
 //		    		(is_mono?1:3), // int     num_colors,
 //		    		clt_parameters.keep_weights); // boolean keep_weights);
@@ -3533,7 +3535,7 @@ if (debugLevel > -100) return true; // temporarily !
 			}
 		}
 
-		quadCLT_main.writeKml(debugLevel ); // alos generated with x3d model
+		quadCLT_main.writeKml(debugLevel ); // also generated with x3d model
 
 		String jp4_copy_path= quadCLT_main.correctionsParameters.selectX3dDirectory(
 				set_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false

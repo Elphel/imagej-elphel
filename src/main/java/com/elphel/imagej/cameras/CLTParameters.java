@@ -333,7 +333,7 @@ public class CLTParameters {
 	public double     infinityDistance  = 10000;  // Distance to generate backdrop (0 - use regular backdrop)
 	public int        min_bgnd_tiles    = 10;     // Minimal number of background tiles to generate background
 	public boolean    shUseFlaps        = true;  // Split into shells with flaps
-	public boolean    shAggrFade        = true;  // Aggressive fade alpha (whole boundary)
+	public boolean    shAggrFade        = false; // true;  // Aggressive fade alpha (whole boundary)
 	public int        shMinArea         = 1;     // Minimal shell area (not counting flaps
 	public double     shMinStrength    = 0.2;   // Minimal value of the shell maximum strength
 

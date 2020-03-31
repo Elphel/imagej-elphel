@@ -3867,7 +3867,9 @@ public class ImageDtt {
 
 		double [][] port_weights = new double[ports][tile_len];
 		double [][] color_avg =    new double[numcol][tile_len];
-		double [][] rgba = new double[numcol + 1 + (keep_weights?(ports + numcol + 1):0)][];
+//		double [][] rgba = new double[numcol + 1 + (keep_weights?(ports + numcol + 1):0)][];
+// need to pass keep_weights to the caller
+		double [][] rgba = new double[numcol + 1 + ports + (keep_weights?(numcol + 1):0)][];
 		int rms_start = numcol + 1 + ports;
 		if (keep_weights){
 			for (int ncol = 0; ncol <= numcol ; ncol++) if ((ncol == numcol) || (iclt_tile[0][ncol] != null)) {
@@ -4069,8 +4071,11 @@ public class ImageDtt {
 			rgba[ncol] = color_avg[ncol];
 		}
 		rgba[numcol] = alpha;
-
-		for (int i = 0; i < ports; i++)  rgba[numcol + 1 + i] = port_weights[i];
+//		if (keep_weights){
+			for (int i = 0; i < ports; i++) {
+				rgba[numcol + 1 + i] = port_weights[i];
+			}
+//		}
 		if (max_diff != null){
 			for (int ip = 0; ip < ports; ip++){
 				max_diff[ip] = 0;
@@ -5026,7 +5031,7 @@ public class ImageDtt {
 			System.out.println("iclt_2d():sharp_alpha=   "+sharp_alpha);
 		}
 		boolean has_weights = false;
-		boolean set_has_weight = false;
+		boolean set_has_weight = false; // not used
 		for (int i = 0; (i < tilesY) && !set_has_weight; i++){
 			for (int j = 0; (j < tilesX) && !set_has_weight; j++){
 				if (texture_tiles[i][j] != null) {
@@ -5064,15 +5069,15 @@ public class ImageDtt {
 						int n_half = transform_size / 2;
 						int lastY = tilesY-1;
 						int lastX = tilesX-1;
-						int offset = n_half * (transform_size * tilesX) + n_half;
+						int offset = n_half * (transform_size * tilesX) + n_half; // 4 pixels left and down (right/up when subtracted below)
 						for (int nTile = ai.getAndIncrement(); nTile < tiles_list[nser.get()].length; nTile = ai.getAndIncrement()) {
 							tileX = tiles_list[nser.get()][nTile][0];
 							tileY = tiles_list[nser.get()][nTile][1];
 							double [][] texture_tile =texture_tiles[tileY][tileX];
 							if (texture_tile != null) {
 								if (overlap) {
-									if ((tileY >0) && (tileX > 0) && (tileY < lastY) && (tileX < lastX)) { // fast, no extra checks
-										for (int i = 0; i < n2;i++){
+									if ((tileY >0) && (tileX > 0) && (tileY < lastY) && (tileX < lastX)) { // fast, no extra checks - ignore first/last rows and columns
+										for (int i = 0; i < n2; i++){
 											int start_line = ((tileY*transform_size + i) * tilesX + tileX)*transform_size - offset;
 											for (int chn = 0; chn < texture_tile.length; chn++) {
 												int schn = chn;
@@ -5082,6 +5087,7 @@ public class ImageDtt {
 												if (texture_tile[schn] == null) {
 													dpixels[chn] = null;
 												} else {
+													// should it be better to multiply each color by alpha before accumulating? No, it is already windowed!
 													if ((chn != 3) || !sharp_alpha) {
 														for (int j = 0; j<n2;j++) {
 															dpixels[chn][start_line + j] += texture_tile[schn][n2 * i + j];
@@ -9276,6 +9282,14 @@ public class ImageDtt {
 					}
 					System.out.println();
 				}
+			}
+		}
+		// fix: removing extra slices
+		if (!clt_parameters.keep_weights && (texture_tiles[tileY][tileX]!=null)) {
+			if (numcol == 3 ) {
+				texture_tiles[tileY][tileX] = new double[][] {texture_tiles[tileY][tileX][0],texture_tiles[tileY][tileX][1],texture_tiles[tileY][tileX][2],texture_tiles[tileY][tileX][3]};
+			} else {
+				texture_tiles[tileY][tileX] = new double[][] {texture_tiles[tileY][tileX][0],texture_tiles[tileY][tileX][1]};
 			}
 		}
 	}

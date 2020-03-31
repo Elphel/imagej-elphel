@@ -69,7 +69,7 @@ public class X3dOutput {
 			CLTParameters                                   clt_parameters,
 			EyesisCorrectionParameters.CorrectionParameters correctionsParameters,
 			GeometryCorrection                              geometry_correction,
-			ArrayList <CLTPass3d>                           clt_3d_passes){
+			ArrayList <CLTPass3d>                           clt_3d_passes){ // to scan for textures, contain disp, tasks, border tiles
 		this.clt_parameters =        clt_parameters;
 		this.correctionsParameters = correctionsParameters;
 		this.geometry_correction =    geometry_correction;
