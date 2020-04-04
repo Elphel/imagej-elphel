@@ -91,7 +91,10 @@ public class GPUTileProcessor {
 	static String GPU_CONVERT_CORRECT_TILES_NAME = "convert_correct_tiles"; // name in C code
 	static String GPU_IMCLT_RBG_NAME =             "imclt_rbg"; // name in C code
 	static String GPU_CORRELATE2D_NAME =           "correlate2D"; // name in C code
-	static String GPU_TEXTURES_NAME =              "textures_gen"; // name in C code
+//	static String GPU_TEXTURES_NAME =              "textures_gen"; // name in C code
+	static String GPU_TEXTURES_NAME =              "textures_accumulate"; // name in C code
+
+
 //  pass some defines to gpu source code with #ifdef JCUDA
 	public static int DTT_SIZE =                  8;
 	static int        THREADSX =                  DTT_SIZE;
@@ -120,12 +123,19 @@ public class GPUTileProcessor {
 	public static int CORR_PAIRS_MASK =        0x3f;  // lower bits used to address correlation pair for the selected tile
 	public static int CORR_TEXTURE_BIT =          7;  // bit 7 used to request texture for the tile
 	public static int TASK_CORR_BITS =            4;  // start of pair mask
-	public static int TASK_TEXTURE_BIT =          3;  // bit to request texture calculation int task field of struct tp_task
+	public static int TASK_TEXTURE_N_BIT =        0; // Texture with North neighbor
+	public static int TASK_TEXTURE_E_BIT =        1; // Texture with East  neighbor
+	public static int TASK_TEXTURE_S_BIT =        2; // Texture with South neighbor
+	public static int TASK_TEXTURE_W_BIT =        3; // Texture with West  neighbor
+//	public static int TASK_TEXTURE_BIT =          3;  // bit to request texture calculation int task field of struct tp_task
 	public static int LIST_TEXTURE_BIT =          7;  // bit to request texture calculation
 	public static int CORR_OUT_RAD =              4;  // output radius of the correlations (implemented)
 	public static double FAT_ZERO_WEIGHT =        0.0001; // add to port weights to avoid nan
 
 	public static int THREADS_DYNAMIC_BITS =      5; // treads in block for CDP creation of the texture list
+
+	public static int TASK_TEXTURE_BITS = ((1 << TASK_TEXTURE_N_BIT) | (1 << TASK_TEXTURE_E_BIT) | (1 << TASK_TEXTURE_S_BIT) | (1 << TASK_TEXTURE_W_BIT));
+
 
     int DTTTEST_BLOCK_WIDTH =        32; // may be read from the source code
     int DTTTEST_BLOCK_HEIGHT =       16; // may be read from the source code
@@ -330,7 +340,10 @@ public class GPUTileProcessor {
         				"#define CORR_PAIRS_MASK " +          CORR_PAIRS_MASK+"\n"+
         				"#define CORR_TEXTURE_BIT " +         CORR_TEXTURE_BIT+"\n"+
         				"#define TASK_CORR_BITS " +           TASK_CORR_BITS+"\n"+
-        				"#define TASK_TEXTURE_BIT " +         TASK_TEXTURE_BIT+"\n"+
+        				"#define TASK_TEXTURE_N_BIT " +       TASK_TEXTURE_N_BIT+"\n"+
+        				"#define TASK_TEXTURE_E_BIT " +       TASK_TEXTURE_E_BIT+"\n"+
+        				"#define TASK_TEXTURE_S_BIT " +       TASK_TEXTURE_S_BIT+"\n"+
+        				"#define TASK_TEXTURE_W_BIT " +       TASK_TEXTURE_W_BIT+"\n"+
         				"#define LIST_TEXTURE_BIT " +         LIST_TEXTURE_BIT+"\n"+
         				"#define CORR_OUT_RAD " +             CORR_OUT_RAD+"\n" +
         				"#define FAT_ZERO_WEIGHT " +          FAT_ZERO_WEIGHT+"\n"+
@@ -439,7 +452,11 @@ public class GPUTileProcessor {
     	// Set corrs array
 ///    	cuMemAlloc(gpu_corrs,       tilesX * tilesY * NUM_PAIRS * CORR_SIZE * Sizeof.POINTER);
     	cuMemAlloc(gpu_corr_indices,   tilesX * tilesY * NUM_PAIRS * Sizeof.POINTER);
-    	cuMemAlloc(gpu_texture_indices,tilesX * tilesY * Sizeof.POINTER);
+
+    	//#define TILESYA       ((TILESY +3) & (~3))
+    	int tilesYa = (tilesY + 3) & ~3;
+//    	cuMemAlloc(gpu_texture_indices,tilesX * tilesY * Sizeof.POINTER);
+    	cuMemAlloc(gpu_texture_indices,tilesX * tilesYa * Sizeof.POINTER);
     	cuMemAlloc(gpu_port_offsets,   NUM_CAMS * 2 * Sizeof.POINTER);
 
 
@@ -711,7 +728,7 @@ public class GPUTileProcessor {
     	int tilesX = IMG_WIDTH / DTT_SIZE;
     	int num_textures = 0;
     	for (TpTask tt: tp_tasks) {
-    		if ((tt.task & TASK_TEXTURE_BIT) !=0) {
+    		if ((tt.task & TASK_TEXTURE_BITS) !=0) {
     			num_textures++;
     		}
     	}
@@ -720,7 +737,7 @@ public class GPUTileProcessor {
     	num_textures = 0;
     	int b = (1 << LIST_TEXTURE_BIT);
     	for (TpTask tt: tp_tasks) {
-    		if ((tt.task & TASK_TEXTURE_BIT) !=0) {
+    		if ((tt.task & TASK_TEXTURE_BITS) !=0) {
     			int tile = (tt.ty * tilesX +tt.tx);
     			iarr[num_textures++] = (tile << CORR_NTILE_SHIFT) | b;
     		}
@@ -901,7 +918,7 @@ public class GPUTileProcessor {
     	cuCtxSynchronize();
     }
 
-    public void execTextures(
+    public void execTexturesOld(
     		double [][] port_offsets,
     		double [] color_weights,
     		boolean   is_lwir,
@@ -955,6 +972,75 @@ public class GPUTileProcessor {
     			Pointer.to(new int[] { ikeep_weights }),
     			Pointer.to(new int[] { texture_stride }),
     			Pointer.to(gpu_textures) // lpf_mask
+    			);
+    	cuCtxSynchronize();
+    	// Call the kernel function
+    	cuLaunchKernel(GPU_TEXTURES_kernel,
+    			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
+    			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
+    			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
+    			kernelParameters, null);   // Kernel- and extra parameters
+    	cuCtxSynchronize();
+    }
+
+    public void execTextures(
+    		double [][] port_offsets,
+    		double [] color_weights,
+    		boolean   is_lwir,
+    		double    min_shot,           // 10.0
+    		double    scale_shot,         // 3.0
+    		double    diff_sigma,         // pixel value/pixel change
+    		double    diff_threshold,     // pixel value/pixel change
+    		double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+    		boolean   dust_remove,
+    		boolean   keep_weights) {
+    	if (GPU_TEXTURES_kernel == null)
+    	{
+    		IJ.showMessage("Error", "No GPU kernel: GPU_TEXTURES_kernel");
+    		return;
+    	}
+    	float [] fport_offsets = new float[port_offsets.length * 2];
+    	for (int cam = 0; cam < port_offsets.length; cam++) {
+    		fport_offsets[2*cam + 0] = (float) port_offsets[cam][0];
+    		fport_offsets[2*cam + 1] = (float) port_offsets[cam][1];
+    	}
+        cuMemcpyHtoD(gpu_port_offsets, Pointer.to(fport_offsets),  fport_offsets.length * Sizeof.FLOAT);
+
+    	int num_colors = color_weights.length;
+    	if (num_colors > 3) num_colors = 3;
+    	float weighht0 = (float) color_weights[0];
+    	float weighht1 = (num_colors >1)?((float) color_weights[1]):0.0f;
+    	float weighht2 = (num_colors >2)?((float) color_weights[2]):0.0f;
+    	int iis_lwir =      (is_lwir)? 1:0;
+    	int idust_remove =  (dust_remove)? 1 : 0;
+    	int ikeep_weights = (keep_weights)? 1 : 0;
+
+		int [] GridFullWarps =    {(num_texture_tiles + TEXTURE_TILES_PER_BLOCK-1) / TEXTURE_TILES_PER_BLOCK,1,1};
+    	int [] ThreadsFullWarps = {TEXTURE_THREADS_PER_TILE, NUM_CAMS, 1};
+
+    	Pointer kernelParameters = Pointer.to(
+    			Pointer.to(new int[] {0}), // 0,          // int               border_tile,        // if 1 - watch for border
+    			Pointer.to(gpu_texture_indices), //  int             * woi, - not used
+    			Pointer.to(gpu_clt),
+    			Pointer.to(new int[] { num_texture_tiles }),
+    			Pointer.to(gpu_texture_indices),
+    			Pointer.to(gpu_port_offsets),
+    			Pointer.to(new int[] { num_colors }),
+    			Pointer.to(new int[] { iis_lwir }),
+    			Pointer.to(new float[] {(float) min_shot }),
+    			Pointer.to(new float[] {(float) scale_shot }),
+    			Pointer.to(new float[] {(float) diff_sigma }),
+    			Pointer.to(new float[] {(float) diff_threshold }),
+    			Pointer.to(new float[] {(float) min_agree }),
+    			Pointer.to(new float[] {weighht0 }),
+    			Pointer.to(new float[] {weighht1 }),
+    			Pointer.to(new float[] {weighht2 }),
+    			Pointer.to(new int[] { idust_remove }),
+    			Pointer.to(new int[] { ikeep_weights }),
+    			Pointer.to(new int[] {0}),//  0, // const size_t      texture_rbg_stride, // in floats - DISABLE GENERATION!
+    			Pointer.to(gpu_textures), // new Pointer(),  // Pointer.to(gpu_textures),
+    			Pointer.to(new int[] { texture_stride }), // can be a null pointer - will not be used! float           * gpu_texture_rbg,     // (number of colors +1 + ?)*16*16 rgba texture tiles
+    			Pointer.to(gpu_textures)
     			);
     	cuCtxSynchronize();
     	// Call the kernel function
@@ -1173,7 +1259,11 @@ public class GPUTileProcessor {
     	CUlinkState state = new CUlinkState();
     	cuLinkCreate(jitOptions, state);
     	cuLinkAddFile(state, CU_JIT_INPUT_LIBRARY, LIBRARY_PATH, jitOptions);
-    	cuLinkAddData(state, CU_JIT_INPUT_PTX,     Pointer.to(ptxData), ptxData.length, "input.ptx", jitOptions);
+
+    	System.out.println("ptxData.length="+ptxData.length);
+//    	System.out.println( ptx[0]);
+
+    	cuLinkAddData(state, CU_JIT_INPUT_PTX,     Pointer.to(ptxData), ptxData.length, "input.ptx", jitOptions); // CUDA_ERROR_INVALID_PTX
     	long size[] = { 0 };
     	Pointer image = new Pointer();
     	cuLinkComplete(state, image, size);
