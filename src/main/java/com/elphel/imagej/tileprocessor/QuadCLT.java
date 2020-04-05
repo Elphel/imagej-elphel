@@ -5350,11 +5350,73 @@ public class QuadCLT {
 		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		  // convert to ImageStack of 3 slices
 		  String [] sliceNames = {"red", "blue", "green"};
+		  int green_index = 2;
+		  float [][] rbg_in = {iclt_data[0],iclt_data[1],iclt_data[2]};
 		  float []   alpha = null; // (0..1.0)
-		  float [][] rgb_in = {iclt_data[0],iclt_data[1],iclt_data[2]};
+//		  float [][] rgb_in = {iclt_data[0],iclt_data[1],iclt_data[2]};
 		  if (iclt_data.length > 3) alpha = iclt_data[3];
+		  if (isLwir()) {
+			  String [] rgb_titles =  {"red","green","blue"};
+			  String [] rgba_titles = {"red","green","blue","alpha"};
+			  String [] titles = (alpha == null) ? rgb_titles : rgba_titles;
+			  int num_slices = (alpha == null) ? 3 : 4;
+			  double mn = colorProcParameters.lwir_low;
+			  double mx = colorProcParameters.lwir_high;
+			  double [] cold_hot = getColdHot();
+			  if (cold_hot != null) {
+				  mn = cold_hot[0];
+				  mx = cold_hot[1];
+			  }
+
+			  double offset = getLwirOffset();
+			  if (!Double.isNaN(offset)) {
+				  mn -=  offset;
+				  mx -=  offset;
+			  }
+
+			  ThermalColor tc = new ThermalColor(
+					  colorProcParameters.lwir_palette,
+					  mn,
+					  mx,
+					  255.0);
+			  float [][] rgba = new float [num_slices][];
+			  for (int i = 0; i < 3; i++) rgba[i] = new float [iclt_data[green_index].length];
+			  for (int i = 0; i < rbg_in[green_index].length; i++) {
+				  if (i == 700) {
+					  System.out.println("linearStackToColor(): i="+i);
+				  }
+				  float [] rgb = tc.getRGB(iclt_data[green_index][i]);
+				  rgba[0][i] = rgb[0]; // red
+				  rgba[1][i] = rgb[1]; // green
+				  rgba[2][i] = rgb[2]; // blue
+			  }
+			  if (alpha != null) {
+				  rgba[3] = alpha; // 0..1
+			  }
+			  ImageStack stack = sdfa_instance.makeStack(
+					  rgba,       // iclt_data,
+					  width,      // (tilesX + 0) * clt_parameters.transform_size,
+					  height,     // (tilesY + 0) * clt_parameters.transform_size,
+					  titles,     // or use null to get chn-nn slice names
+					  true);      // replace NaN with 0.0
+			  ImagePlus imp_rgba =  EyesisCorrections.convertRGBAFloatToRGBA32(
+					  stack,   // ImageStack stackFloat, //r,g,b,a
+					  //						name+"ARGB"+suffix, // String title,
+					  name+suffix, // String title,
+					  0.0,   // double r_min,
+					  255.0, // double r_max,
+					  0.0,   // double g_min,
+					  255.0, // double g_max,
+					  0.0,   // double b_min,
+					  255.0, // double b_max,
+					  0.0,   // double alpha_min,
+					  1.0);  // double alpha_max)
+			  return imp_rgba;
+		  }
+
 		  ImageStack stack = sdfa_instance.makeStack(
-				  rgb_in, // iclt_data,
+//				  rgb_in, // iclt_data,
+				  rbg_in, // iclt_data,
 				  width,  // (tilesX + 0) * clt_parameters.transform_size,
 				  height, // (tilesY + 0) * clt_parameters.transform_size,
 				  sliceNames,  // or use null to get chn-nn slice names
@@ -5375,8 +5437,6 @@ public class QuadCLT {
 				  height, // int height, // int tilesY,
 				  scaleExposure, // double scaleExposure,
 				  debugLevel); //int debugLevel
-
-
 	  }
 	  // double data
 
@@ -5460,16 +5520,16 @@ public class QuadCLT {
 					  true);      // replace NaN with 0.0
 			  ImagePlus imp_rgba =  EyesisCorrections.convertRGBAFloatToRGBA32(
 					  stack,   // ImageStack stackFloat, //r,g,b,a
-//						name+"ARGB"+suffix, // String title,
-						name+suffix, // String title,
-						0.0,   // double r_min,
-						255.0, // double r_max,
-						0.0,   // double g_min,
-						255.0, // double g_max,
-						0.0,   // double b_min,
-						255.0, // double b_max,
-						0.0,   // double alpha_min,
-						1.0);  // double alpha_max)
+					  //						name+"ARGB"+suffix, // String title,
+					  name+suffix, // String title,
+					  0.0,   // double r_min,
+					  255.0, // double r_max,
+					  0.0,   // double g_min,
+					  255.0, // double g_max,
+					  0.0,   // double b_min,
+					  255.0, // double b_max,
+					  0.0,   // double alpha_min,
+					  1.0);  // double alpha_max)
 			  return imp_rgba;
 		  }
 
@@ -5499,10 +5559,13 @@ public class QuadCLT {
 				  debugLevel); //int debugLevel
 	  }
 
+
+
+
 	  // Convert a single value pixels to color (r,b,g) values to be processed instead of the normal colors
 
 
-	  public ImagePlus linearStackToColor( // USED in lwir
+	  public ImagePlus linearStackToColor(
 			  CLTParameters         clt_parameters,
 			  ColorProcParameters   colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters         rgbParameters,

@@ -2061,21 +2061,36 @@ public class TwoQuadCLT {
 				clt_parameters.diff_threshold, // double    diff_threshold,     // pixel value/pixel change
 				clt_parameters.min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 				clt_parameters.dust_remove,    // boolean   dust_remove,
-				clt_parameters.keep_weights);  // boolean   keep_weights); // int corr_radius
-
+				clt_parameters.keep_weights);  // boolean   keep_weights);
 		long endTextures = System.nanoTime();
 
+// run texturesRBGA
+		long startTexturesRBGA = System.nanoTime();   // System.nanoTime();
+		for (int i = 0; i < NREPEAT; i++ ) gPUTileProcessor.execRBGA(
+				port_offsets,                  // double [][] port_offsets,
+				col_weights,                   // double [] color_weights,
+				quadCLT_main.isLwir(),         // boolean   is_lwir,
+				clt_parameters.min_shot,       // double    min_shot,           // 10.0
+				clt_parameters.scale_shot,     // double    scale_shot,         // 3.0
+				clt_parameters.diff_sigma,     // double    diff_sigma,         // pixel value/pixel change
+				clt_parameters.diff_threshold, // double    diff_threshold,     // pixel value/pixel change
+				clt_parameters.min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+				clt_parameters.dust_remove);   // boolean   dust_remove,
+		long endTexturesRBGA = System.nanoTime();
+
 		long endGPUTime = System.nanoTime();
-		long firstGPUTime= (startIMCLT- startGPU)/NREPEAT;
-		long runImcltTime = (endImcltTime - startIMCLT)/NREPEAT;
-		long runCorr2DTime = (endCorr2d - startCorr2d)/NREPEAT;
-		long runTexturesTime = (endTextures - startTextures)/NREPEAT;
-		long runGPUTime = (endGPUTime - startGPU)/NREPEAT;
+		long firstGPUTime=         (startIMCLT-       startGPU)         /NREPEAT;
+		long runImcltTime =        (endImcltTime -    startIMCLT)       /NREPEAT;
+		long runCorr2DTime =       (endCorr2d -       startCorr2d)      /NREPEAT;
+		long runTexturesTime =     (endTextures -     startTextures)    /NREPEAT;
+		long runTexturesRBGATime = (endTexturesRBGA - startTexturesRBGA)/NREPEAT;
+		long runGPUTime =          (endGPUTime -      startGPU)         /NREPEAT;
 		// run corr2d
 
 		System.out.println("\n------------ End of running GPU "+NREPEAT+" times ----------------");
 		System.out.println("GPU run time ="+(runGPUTime * 1.0e-6)+"ms, (direct conversion: "+(firstGPUTime*1.0e-6)+"ms, imclt: "+
-				(runImcltTime*1.0e-6)+"ms), corr2D: "+(runCorr2DTime*1.0e-6)+"ms), textures: "+(runTexturesTime*1.0e-6)+"ms");
+				(runImcltTime*1.0e-6)+"ms), corr2D: "+(runCorr2DTime*1.0e-6)+"ms), textures: "+(runTexturesTime*1.0e-6)+"ms, RGBA: "+
+				(runTexturesRBGATime*1.0e-6)+"ms");
 		// get data back from GPU
 		float [][][] iclt_fimg = new float [GPUTileProcessor.NUM_CAMS][][];
 		for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
@@ -2190,6 +2205,41 @@ public class TwoQuadCLT {
 					debugLevel);
 
 		}
+		// Use GPU prepared RBGA
+		if (clt_parameters.show_rgba_color) {
+			Rectangle woi = new Rectangle();
+			float [][] rbga = gPUTileProcessor.getRBGA(
+					(is_mono?1:3), // int     num_colors,
+					woi);
+			// for now - use just RGB. Later add option for RGBA
+			float [][] rgb_main = {rbga[0],rbga[1],rbga[2]};
+			float [][] rgba_main = {rbga[0],rbga[1],rbga[2],rbga[3]};
+			ImagePlus imp_rgba_main = quadCLT_main.linearStackToColor(
+					clt_parameters,
+					colorProcParameters,
+					rgbParameters,
+					name+"-texture", // String name,
+					"-D"+clt_parameters.disparity+"-MAINGPU", //String suffix, // such as disparity=...
+					toRGB,
+					!quadCLT_main.correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
+					false, // true, // boolean saveShowIntermediate, // save/show if set globally
+					false, // true, // boolean saveShowFinal,        // save/show result (color image?)
+					((clt_parameters.alpha1 > 0)? rgba_main: rgb_main),
+					tilesX *  image_dtt.transform_size,
+					tilesY *  image_dtt.transform_size,
+					1.0,         // double scaleExposure, // is it needed?
+					debugLevel );
+
+			int width = imp_rgba_main.getWidth();
+			int height =imp_rgba_main.getHeight();
+			ImageStack texture_stack=new ImageStack(width,height);
+			texture_stack.addSlice("main",      imp_rgba_main.getProcessor().getPixels()); // single slice
+			ImagePlus imp_texture_stack = new ImagePlus(name+"-RGBA-D"+clt_parameters.disparity, texture_stack);
+			imp_texture_stack.getProcessor().resetMinAndMax();
+			imp_texture_stack.show();
+		}
+
+		// convert textures to RGBA in Java
 		if (clt_parameters.show_rgba_color) {
 			int numcol = quadCLT_main.isMonochrome()?1:3;
 			int ports = imp_quad_main.length;
@@ -2309,6 +2359,8 @@ public class TwoQuadCLT {
 			imp_texture_stack.getProcessor().resetMinAndMax();
 			imp_texture_stack.show();
 		}
+
+
 
 
 		return results;

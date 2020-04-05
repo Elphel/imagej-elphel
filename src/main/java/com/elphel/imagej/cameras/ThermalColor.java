@@ -38,6 +38,19 @@ public class ThermalColor {
 		return rslt;
 	}
 
+	public float [] getRGB(float v) { // Get R,G,B (0..255) triplet for input value in the range 0..1
+		double k = out_range/PALETTE_RANGE;
+		double value = (v-min)/(max-min) * (this.palette.length - 1);
+		int ivalue = (int) (value);
+		if (ivalue < 0)                         return getRGB((float) min); // this.palette[0];
+		if (ivalue >= (this.palette.length -1)) return getRGB((float) max); // this.palette[this.palette.length -1];
+		double a = (value-ivalue); // 0..1
+		float [] rslt = {
+				(float) (k*((1 - a) * this.palette[ivalue][0] + a * this.palette[ivalue+1][0])),
+				(float) (k*((1 - a) * this.palette[ivalue][1] + a * this.palette[ivalue+1][1])),
+				(float) (k*((1 - a) * this.palette[ivalue][2] + a * this.palette[ivalue+1][2]))};
+		return rslt;
+	}
 
 	private int []  setupPalette(int indx) {
 		//https://stackoverflow.com/questions/28495390/thermal-imaging-palette

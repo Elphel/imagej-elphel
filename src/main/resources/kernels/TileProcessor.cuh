@@ -72,8 +72,8 @@
 
 #define THREADS_DYNAMIC_BITS      5 // treads in block for CDP creation of the texture list
 
-#undef HAS_PRINTF
-//#define HAS_PRINTF
+//#undef HAS_PRINTF
+#define HAS_PRINTF
 //7
 //#define DEBUG1 1
 //#define DEBUG2 1
@@ -87,7 +87,8 @@
 #define DEBUG9 1
 */
 #define DEBUG10 1
-
+#define DEBUG11 1
+#define DEBUG12 1
 //#define USE_textures_gen
 
 #endif //#ifndef JCUDA
@@ -1533,10 +1534,15 @@ __global__ void generate_RBGA(
 	 int texture_slices =       colors + 1;
 
 	 if (threadIdx.x == 0) {
+		 //DTT_SIZE_LOG2
+//		    dim3 threads2((1 << THREADS_DYNAMIC_BITS), 1, 1);
+//		    int blocks_x = (texture_width + ((1 << THREADS_DYNAMIC_BITS) - 1)) >> THREADS_DYNAMIC_BITS;
+//		    dim3 blocks2 (blocks_x, texture_tiles_height * texture_slices, 1); // each thread - 8 vertical
+
 		    dim3 threads2((1 << THREADS_DYNAMIC_BITS), 1, 1);
-		    int blocks_x = (texture_width + ((1 << THREADS_DYNAMIC_BITS) - 1)) >> THREADS_DYNAMIC_BITS;
+		    int blocks_x = (texture_width + ((1 << (THREADS_DYNAMIC_BITS + DTT_SIZE_LOG2 )) - 1)) >> (THREADS_DYNAMIC_BITS + DTT_SIZE_LOG2);
 		    dim3 blocks2 (blocks_x, texture_tiles_height * texture_slices, 1); // each thread - 8 vertical
-		    clear_texture_rbga<<<blocks2,threads2>>>(
+		    clear_texture_rbga<<<blocks2,threads2>>>( // illegal value error
 		    		texture_width,
 					texture_tiles_height * texture_slices, // int               texture_slice_height,
 					texture_rbga_stride,                   // const size_t      texture_rbga_stride,     // in floats 8*stride
@@ -1547,12 +1553,23 @@ __global__ void generate_RBGA(
 			for (int pass = 0; pass < 8; pass++){
 			    dim3 threads_texture(TEXTURE_THREADS_PER_TILE, NUM_CAMS, 1); // TEXTURE_TILES_PER_BLOCK, 1);
 			    int border_tile =  pass >> 2;
-			    size_t ntt = *(num_texture_tiles + (2* (pass & 3)) + border_tile);
+			    int ntt = *(num_texture_tiles + ((pass & 3) << 1) + border_tile);
 			    dim3 grid_texture((ntt + TEXTURE_TILES_PER_BLOCK-1) / TEXTURE_TILES_PER_BLOCK,1,1);
 			    int ti_offset = (pass & 3) * (TILESX * (TILESYA >> 2));  // 1/4
 			    if (border_tile){
 			    	ti_offset += TILESX * (TILESYA >> 2) - ntt;
 			    }
+#ifdef DEBUG12
+				printf("\ngenerate_RBGA() pass= %d, border_tile= %d, ti_offset= %d, ntt=%d\n",
+						pass, border_tile,ti_offset, ntt);
+				printf("\ngenerate_RBGA() gpu_texture_indices= 0x%x, gpu_texture_indices + ti_offset=0x%x\n",
+						(int) gpu_texture_indices, (int) (gpu_texture_indices + ti_offset));
+				printf("\ngenerate_RBGA() grid_texture={%d, %d, %d)\n",
+						grid_texture.x, grid_texture.y, grid_texture.z);
+				printf("\ngenerate_RBGA() threads_texture={%d, %d, %d)\n",
+						threads_texture.x, threads_texture.y, threads_texture.z);
+				printf("\n");
+#endif
 			    /* */
 			    textures_accumulate<<<grid_texture,threads_texture>>>(
 			    		border_tile,                     // int               border_tile,        // if 1 - watch for border
@@ -1578,9 +1595,8 @@ __global__ void generate_RBGA(
 						gpu_texture_tiles,               // float           * gpu_texture_rbg,     // (number of colors +1 + ?)*16*16 rgba texture tiles
 			    		0,                               // size_t      texture_stride,     // in floats (now 256*4 = 1024)
 						gpu_texture_tiles); // (float *) 0 );                   // float           * gpu_texture_tiles);  // (number of colors +1 + ?)*16*16 rgba texture tiles
-
+				cudaDeviceSynchronize(); // not needed yet, just for testing
 				/* */
-
 			}
 
 	 }
@@ -1590,21 +1606,20 @@ __global__ void generate_RBGA(
 
 // blockDim.x * gridDim.x >= width
 extern "C" __global__ void clear_texture_rbga(
-		int               texture_width,
+		int               texture_width, // aligned to DTT_SIZE
 		int               texture_slice_height,
 		const size_t      texture_rbga_stride,     // in floats 8*stride
 		float           * gpu_texture_tiles)  // (number of colors +1 + ?)*16*16 rgba texture tiles
 {
-	int col = blockDim.x * blockIdx.x + threadIdx.x;
+	int col = (blockDim.x * blockIdx.x + threadIdx.x) << DTT_SIZE_LOG2;
 	if (col > texture_width) {
 		return;
 	}
-	int row = (blockIdx.y << 3); // includes slices
+	int row = blockIdx.y;; // includes slices
 	float * pix = gpu_texture_tiles + col + row * texture_rbga_stride;
 #pragma unroll
 	for (int n = 0; n < DTT_SIZE; n++) {
-		*(pix) = 0.0;
-		pix += texture_rbga_stride;
+		*(pix++) = 0.0;
 	}
 }
 
@@ -1778,26 +1793,51 @@ __global__ void gen_texture_list(
 	int cxy = gpu_tasks[task_num].txy;
 	int x = (cxy & 0xffff);
 	int y = (cxy >> 16);
+
+#ifdef DEBUG12
+		if ((x == DBG_TILE_X)  && (y == DBG_TILE_Y)){
+			printf("\ngen_texture_list() x = %d, y= %d\n",x, y);
+			printf("\ngen_texture_list() num_texture_tiles = %d(%d) %d(%d) %d(%d) %d(%d)\n",
+					num_texture_tiles[0],num_texture_tiles[1],num_texture_tiles[2],num_texture_tiles[3],
+					num_texture_tiles[4],num_texture_tiles[5],num_texture_tiles[6],num_texture_tiles[7]);
+		}
+		__syncthreads();// __syncwarp();
+#endif // DEBUG12
+
+
 //	int is_border = (x == woi[0]) || (y == woi[1]) || (x == woi[2]) || (y == woi[3]);
 	// don't care if calculate extra pixels that still fit into memory
 	int is_border = (x == woi[0]) || (y == woi[1]) || (x == (TILESX - 1)) || (y == (TILESY - 1));
+	int buff_head = 0;
+	int num_offset = 0;
 	if (x & 1) {
-		gpu_texture_indices += TILESX * (TILESYA >> 2); //TILESYA - 2 LSB == 00
-		num_texture_tiles += 2; // int *
+		buff_head += TILESX * (TILESYA >> 2); //TILESYA - 2 LSB == 00
+		num_offset += 2; // int *
 	}
 	if (y & 1) {
-		gpu_texture_indices += TILESX * (TILESYA >> 1);
-		num_texture_tiles += 4; // int *
+		buff_head += TILESX * (TILESYA >> 1);
+		num_offset += 4; // int *
 	}
 	if (is_border){
-		gpu_texture_indices += (TILESX * (TILESYA >> 2) - 1); // end of the buffer
-		num_texture_tiles += 1; // int *
+		buff_head += (TILESX * (TILESYA >> 2) - 1); // end of the buffer
+		num_offset += 1; // int *
 	}
+	gpu_texture_indices += buff_head;
+	num_texture_tiles += num_offset;
 	// using atomic operation in global memory - slow, but as operations here are per-til, not per- pixel, it should be OK
 	int buf_offset = atomicAdd(num_texture_tiles, 1);
 	if (is_border){
 		buf_offset = -buf_offset;
 	}
+#ifdef DEBUG12
+	if ((x == DBG_TILE_X)  && (y == DBG_TILE_Y)){
+		printf("\ngen_texture_list() buff_head=%d, buf_offset = %d, num_offset= %d, is_border=%d\n",
+				buff_head, buf_offset, num_offset,is_border);
+		printf("\ngen_texture_list() gpu_texture_indices = 0x%x,  gpu_texture_indices + buf_offset = 0x%x\n",
+				 (int) gpu_texture_indices, (int) (gpu_texture_indices + buf_offset));
+	}
+	__syncthreads();// __syncwarp();
+#endif // DEBUG12
 	*(gpu_texture_indices + buf_offset) = task | ((x + y * TILESX) << CORR_NTILE_SHIFT) | (1 << LIST_TEXTURE_BIT);
 }
 
@@ -2420,7 +2460,7 @@ __global__ void textures_accumulate(
 		}
 #ifdef DEBUG7
 		if ((tile_num == DBG_TILE)  && (threadIdx.x == 0) && (threadIdx.y == 0)){
-			printf("\ntextures_gen tile done = %d, texture_stride= %d\n",tile_num, (int) texture_stride);
+			printf("\textures_accumulate tile done = %d, texture_stride= %d\n",tile_num, (int) texture_stride);
 		}
 		__syncthreads();// __syncwarp();
 #endif
@@ -2432,6 +2472,20 @@ __global__ void textures_accumulate(
 	}
 
 	if (gpu_texture_rbg && (texture_rbg_stride != 0)) { // generate RGBA
+#ifdef DEBUG12
+		if ((tile_num == DBG_TILE)  && (threadIdx.x == 0) && (threadIdx.y == 0)){
+			printf("\ntextures_accumulate accumulating tile = %d, tile_code= %d, border_tile=%d\n",
+					tile_num, (int) tile_code, border_tile);
+
+			for (int ncol = 0; ncol <= colors; ncol++) {
+				printf("\ntile[%d]\n",ncol);
+				debug_print_mclt(
+						(float *) (shr1.rgbaw[ncol]),
+						-1);
+			}
+		}
+		__syncthreads();// __syncwarp();
+#endif // DEBUG12
 		if (tile_code != TASK_TEXTURE_BITS){ // only multiply if needed, for tile_code == TASK_TEXTURE_BITS keep as is.
 			for (int pass = 0; pass < 8; pass ++) {
 				int row = pass * 2 + (threadIdx.y >> 1);
@@ -2453,12 +2507,26 @@ __global__ void textures_accumulate(
 				}
 			}
 		}
-		int slice_stride = texture_rbg_stride * *(woi + 3); // offset to the next color
+		int slice_stride = texture_rbg_stride * *(woi + 3) * DTT_SIZE; // offset to the next color
 		int tileY = tile_num / TILESX; // slow, but 1 per tile
 		int tileX = tile_num - tileY * TILESX;
 		int tile_x0 = (tileX - *(woi + 0)) * DTT_SIZE - (DTT_SIZE/2); // may be negative == -4
 		int tile_y0 = (tileY - *(woi + 1)) * DTT_SIZE - (DTT_SIZE/2); // may be negative == -4
 
+#ifdef DEBUG12
+		if ((tile_num == DBG_TILE)  && (threadIdx.x == 0) && (threadIdx.y == 0)){
+			printf("\ntextures_accumulate () tileX=%d, tileY=%d, tile_x0=%d, tile_y0=%d, slice_stride=%d\n",
+					tileX, tileY, tile_x0, tile_y0, slice_stride);
+
+			for (int ncol = 0; ncol <= colors; ncol++) {
+				printf("\ntile[%d]\n",ncol);
+				debug_print_mclt(
+						(float *) (shr1.rgbaw[ncol]),
+						-1);
+			}
+		}
+		__syncthreads();// __syncwarp();
+#endif // DEBUG12
 		for (int pass = 0; pass < 8; pass ++) {
 			int row = pass * 2 + (threadIdx.y >> 1);          // row    inside a tile (0..15)
 			int col = ((threadIdx.y & 1) << 3) + threadIdx.x; // column inside a tile (0..15)
@@ -2468,6 +2536,15 @@ __global__ void textures_accumulate(
 			int gi = g_row * texture_rbg_stride  + g_col; // offset to the top left corner
 			float * gpu_texture_rbg_gi = gpu_texture_rbg + gi;
 			float * rgba_i = ((float *) shr1.rgbaw) + i;
+#ifdef DEBUG12
+		if ((tile_num == DBG_TILE)  && (threadIdx.x == 0) && (threadIdx.y == 0)){
+			printf("\ntextures_accumulate () pass=%d, row=%d, col=%d, g_row=%d, g_col=%d, i=%d, gi=%d\n",
+					pass, row, col, g_row, g_col, i, gi);
+
+		}
+		__syncthreads();// __syncwarp();
+#endif // DEBUG12
+
 			if (!border_tile ||
 					((g_row >= 0) && (g_col >= 0) && (g_row < (DTT_SIZE * TILESX)) && (g_col < (DTT_SIZE * TILESY)))){
 				// always copy 3 (1) colors + alpha

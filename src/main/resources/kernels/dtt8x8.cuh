@@ -45,9 +45,11 @@
 * with Nvidia Nsight, driver API when calling these kernels from Java
 */
 #ifndef JCUDA
-#define DTT_SIZE                      8
+#define DTT_SIZE_LOG2                 3
+//#define DTT_SIZE                      8
 #endif
 #pragma once
+#define DTT_SIZE                     (1 << DTT_SIZE_LOG2)
 #define DTTTEST_BLOCK_WIDTH          32
 #define DTTTEST_BLOCK_HEIGHT         16
 #define DTTTEST_BLK_STRIDE     (DTTTEST_BLOCK_WIDTH+1)
