@@ -90,7 +90,7 @@
 #define DEBUG11 1
 #define DEBUG12 1
 //#define USE_textures_gen
-
+#define DEBUG_OOB1 1
 #endif //#ifndef JCUDA
 
 #define TASK_TEXTURE_BITS ((1 << TASK_TEXTURE_N_BIT) | (1 << TASK_TEXTURE_E_BIT) | (1 << TASK_TEXTURE_S_BIT) | (1 << TASK_TEXTURE_W_BIT))
@@ -169,8 +169,8 @@
 //#define BAYER_BLUE_COL (1 - BAYER_RED_COL)
 //#define DBG_TILE_X     40
 //#define DBG_TILE_Y     80
-#define DBG_TILE_X     49
-#define DBG_TILE_Y     66
+#define DBG_TILE_X     161 // 49
+#define DBG_TILE_Y     111 // 66
 
 #define DBG_TILE     (DBG_TILE_Y * 324 + DBG_TILE_X)
 //56494
@@ -1562,8 +1562,8 @@ __global__ void generate_RBGA(
 #ifdef DEBUG12
 				printf("\ngenerate_RBGA() pass= %d, border_tile= %d, ti_offset= %d, ntt=%d\n",
 						pass, border_tile,ti_offset, ntt);
-				printf("\ngenerate_RBGA() gpu_texture_indices= 0x%x, gpu_texture_indices + ti_offset=0x%x\n",
-						(int) gpu_texture_indices, (int) (gpu_texture_indices + ti_offset));
+				printf("\ngenerate_RBGA() gpu_texture_indices= %p, gpu_texture_indices + ti_offset= %p\n",
+						(void *) gpu_texture_indices, (void *) (gpu_texture_indices + ti_offset));
 				printf("\ngenerate_RBGA() grid_texture={%d, %d, %d)\n",
 						grid_texture.x, grid_texture.y, grid_texture.z);
 				printf("\ngenerate_RBGA() threads_texture={%d, %d, %d)\n",
@@ -1833,8 +1833,8 @@ __global__ void gen_texture_list(
 	if ((x == DBG_TILE_X)  && (y == DBG_TILE_Y)){
 		printf("\ngen_texture_list() buff_head=%d, buf_offset = %d, num_offset= %d, is_border=%d\n",
 				buff_head, buf_offset, num_offset,is_border);
-		printf("\ngen_texture_list() gpu_texture_indices = 0x%x,  gpu_texture_indices + buf_offset = 0x%x\n",
-				 (int) gpu_texture_indices, (int) (gpu_texture_indices + buf_offset));
+		printf("\ngen_texture_list() gpu_texture_indices = %p,  gpu_texture_indices + buf_offset = %p\n",
+				(void *) gpu_texture_indices, (void *) (gpu_texture_indices + buf_offset));
 	}
 	__syncthreads();// __syncwarp();
 #endif // DEBUG12
@@ -3170,6 +3170,12 @@ __device__ void convertCorrectTile(
 
 	px = centerX - DTT_SIZE - (clt_extra->data_x + clt_extra->dxc_dx * kdx + clt_extra->dxc_dy * kdy) ; // fractional left corner
 	int itlx = (int) floorf(px +0.5f);
+	if (itlx < 0){
+		itlx &= 1; // for color - extend by pairs
+	}
+	if (itlx >= (IMG_WIDTH - DTT_SIZE)){
+		itlx = itlx & 1 +(IMG_WIDTH - DTT_SIZE - 2); // for color - extend by pairs
+	}
 	int_topleft [0] = itlx;
 	float shift_hor =  itlx - px;
 	residual_shift[0] = shift_hor;
@@ -3205,7 +3211,23 @@ __device__ void convertCorrectTile(
 
 	py = centerY - DTT_SIZE - (clt_extra->data_y + clt_extra->dyc_dx * kdx + clt_extra->dyc_dy * kdy) ; // fractional top corner
 	int itly = (int) floorf(py +0.5f);
+	if (itly < 0){
+		itly &= 1; // for color - extend by pairs
+	}
+	if (itly >= (IMG_HEIGHT - DTT_SIZE)){
+		itly = (itly & 1) +(IMG_HEIGHT - DTT_SIZE - 2); // for color - extend by pairs
+	}
 	int_topleft[1] = itly;
+
+#ifdef DEBUG_OOB1
+	if ((int_topleft[0] < 0) || (int_topleft[1] < 0) || (int_topleft[0] >= (IMG_WIDTH - DTT_SIZE)) || (int_topleft[1] >= IMG_HEIGHT - DTT_SIZE)){
+		printf("Source data OOB, left=%d, top=%d\n",int_topleft[0],int_topleft[1]);
+		printf("\n");
+		printf("\n");
+	    __syncthreads();// __syncwarp();
+	}
+#endif // DEBUG_OOB1
+
 
 	float shift_vert =  itly - py;
 	residual_shift[1] = shift_vert;

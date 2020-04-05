@@ -452,17 +452,18 @@ public class TwoQuadCLT {
 	}
 
 	public void processCLTQuadCorrPairsGpu(
-			GPUTileProcessor                               gPUTileProcessor,
-			QuadCLT                                        quadCLT_main,
-			QuadCLT                                        quadCLT_aux,
+			GPUTileProcessor                                gPUTileProcessor,
+			QuadCLT                                         quadCLT_main,
+			QuadCLT                                         quadCLT_aux,
 			CLTParameters       clt_parameters,
-			EyesisCorrectionParameters.DebayerParameters   debayerParameters,
-			ColorProcParameters                            colorProcParameters,
-			ColorProcParameters                            colorProcParameters_aux,
-			EyesisCorrectionParameters.RGBParameters       rgbParameters,
-			final int                                      threadsMax,  // maximal number of threads to launch
-			final boolean                                  updateStatus,
-			final int                                      debugLevel) throws Exception
+			EyesisCorrectionParameters.CorrectionParameters ecp,
+			EyesisCorrectionParameters.DebayerParameters    debayerParameters,
+			ColorProcParameters                             colorProcParameters,
+			ColorProcParameters                             colorProcParameters_aux,
+			EyesisCorrectionParameters.RGBParameters        rgbParameters,
+			final int                                       threadsMax,  // maximal number of threads to launch
+			final boolean                                   updateStatus,
+			final int                                       debugLevel) throws Exception
 	{
 
 		this.startTime=System.nanoTime();
@@ -523,6 +524,7 @@ public class TwoQuadCLT {
 					saturation_imp_main,        // boolean [][]                                   saturation_main, // (near) saturated pixels or null
 					saturation_imp_aux,         // boolean [][]                                   saturation_aux, // (near) saturated pixels or null
 					clt_parameters,             // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+					ecp,                        // EyesisCorrectionParameters.CorrectionParameters ecp,
 					debayerParameters,          // EyesisCorrectionParameters.DebayerParameters   debayerParameters,
 					colorProcParameters,        // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 					colorProcParameters_aux,    // EyesisCorrectionParameters.ColorProcParameters colorProcParameters_aux,
@@ -1191,8 +1193,6 @@ public class TwoQuadCLT {
 				bb.order(ByteOrder.LITTLE_ENDIAN);
 				bb.clear();
 				for (int i = 0; i <  port_xy.length; i++) {
-//					dos.writeFloat((float) (port_xy[i][chn][0])); // x-offset
-//					dos.writeFloat((float) (port_xy[i][chn][1])); // y-offset
 					bb.putFloat((float) (port_xy[i][chn][0])); // x-offset
 					bb.putFloat((float) (port_xy[i][chn][1])); // y-offset
 				}
@@ -1521,7 +1521,7 @@ public class TwoQuadCLT {
 		String [] rgba_titles = {"red","blue","green","alpha"};
 		String [] rgba_weights_titles = {"red","blue","green","alpha","port0","port1","port2","port3","r-rms","b-rms","g-rms","w-rms"};
 		if ((texture_tiles_main != null) && (texture_tiles_aux != null)){
-			if ((debugLevel > -2) && (clt_parameters.tileX >= 0) && (clt_parameters.tileY >= 0) && (clt_parameters.tileX < tilesX) && (clt_parameters.tileY < tilesY)) {
+			if ((debugLevel > -1) && (clt_parameters.tileX >= 0) && (clt_parameters.tileY >= 0) && (clt_parameters.tileX < tilesX) && (clt_parameters.tileY < tilesY)) {
 				double [][] texture_tile = texture_tiles_main[clt_parameters.tileY][clt_parameters.tileX];
 				int tile = +clt_parameters.tileY * tilesX  +clt_parameters.tileX;
     			System.out.println("=== tileX= "+clt_parameters.tileX+" tileY= "+clt_parameters.tileY+" tile="+tile+" ===");
@@ -1895,22 +1895,23 @@ public class TwoQuadCLT {
 	}
 
 	public ImagePlus [] processCLTQuadCorrPairGpu(
-			GPUTileProcessor                               gPUTileProcessor,
-			QuadCLT                                        quadCLT_main,
-			QuadCLT                                        quadCLT_aux,
-			ImagePlus []                                   imp_quad_main,
-			ImagePlus []                                   imp_quad_aux,
-			boolean [][]                                   saturation_main, // (near) saturated pixels or null
-			boolean [][]                                   saturation_aux, // (near) saturated pixels or null
-			CLTParameters                                  clt_parameters,
-			EyesisCorrectionParameters.DebayerParameters   debayerParameters,
-			ColorProcParameters                            colorProcParameters,
-			ColorProcParameters                            colorProcParameters_aux,
-			EyesisCorrectionParameters.RGBParameters       rgbParameters,
-			double []	                                     scaleExposures_main, // probably not needed here - restores brightness of the final image
-			double []	                                     scaleExposures_aux, // probably not needed here - restores brightness of the final image
-			boolean                                        notch_mode, // use pole-detection mode for inter-camera correlation
-			final int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+			GPUTileProcessor                                gPUTileProcessor,
+			QuadCLT                                         quadCLT_main,
+			QuadCLT                                         quadCLT_aux,
+			ImagePlus []                                    imp_quad_main,
+			ImagePlus []                                    imp_quad_aux,
+			boolean [][]                                    saturation_main, // (near) saturated pixels or null
+			boolean [][]                                    saturation_aux, // (near) saturated pixels or null
+			CLTParameters                                   clt_parameters,
+			EyesisCorrectionParameters.CorrectionParameters ecp,
+			EyesisCorrectionParameters.DebayerParameters    debayerParameters,
+			ColorProcParameters                             colorProcParameters,
+			ColorProcParameters                             colorProcParameters_aux,
+			EyesisCorrectionParameters.RGBParameters        rgbParameters,
+			double []	                                    scaleExposures_main, // probably not needed here - restores brightness of the final image
+			double []	                                    scaleExposures_aux, // probably not needed here - restores brightness of the final image
+			boolean                                         notch_mode, // use pole-detection mode for inter-camera correlation
+			final int                                       lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
 			final int        threadsMax,  // maximal number of threads to launch
 			final boolean    updateStatus,
 			final int        debugLevel){
@@ -1997,7 +1998,7 @@ public class TwoQuadCLT {
 		// Set task clt_parameters.disparity
 		GPUTileProcessor.TpTask [] tp_tasks  = gPUTileProcessor.setFullFrameImages(
 	    		(float) clt_parameters.disparity,     // float                     target_disparity, // apply same disparity to all tiles
-	    		0xf, // int                       out_image, // from which tiles to generate image (currently 0/1)
+	    		0xf, // int                        out_image, // from which tiles to generate image (currently 0/1)
 	    		0x3f, // int                       corr_mask,  // which correlation pairs to generate (maybe later - reduce size from 15x15)
 	    		!use_aux,                             // boolean                   use_master,
 	    		use_aux,                              // boolean                   use_aux,
@@ -2006,6 +2007,47 @@ public class TwoQuadCLT {
 	    		null,                                 // final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
 	    		threadsMax,                           // final int                 threadsMax,  // maximal number of threads to launch
 	    		debugLevel);                          // final int                 debugLevel)
+
+		// Optionally save offsets here?
+//			EyesisCorrectionParameters.CorrectionParameters ecp,
+		boolean save_ports_xy = false; // true; Same files as saved with the kernels
+		if ((ecp.tile_processor_gpu != null) && !ecp.tile_processor_gpu.isEmpty() && save_ports_xy) {
+			int quad = 4;
+			String file_prefix = ecp.tile_processor_gpu +"clt/main";
+			for (int chn = 0; chn < quad; chn++) {
+				String img_path =  file_prefix+"_chn"+chn+".portsxy";
+				FileOutputStream fos;
+				try {
+					fos = new FileOutputStream(img_path);
+				} catch (FileNotFoundException e) {
+					// TODO Auto-generated catch block
+					System.out.println("Could not write to "+img_path+" (file not found) port offsets");
+					break;
+				}
+				DataOutputStream dos = new DataOutputStream(fos);
+				WritableByteChannel channel = Channels.newChannel(dos);
+				ByteBuffer bb = ByteBuffer.allocate(tp_tasks.length * 2 * 4);
+				bb.order(ByteOrder.LITTLE_ENDIAN);
+				bb.clear();
+				for (int i = 0; i <  tp_tasks.length; i++) {
+					bb.putFloat((tp_tasks[i].xy[chn][0])); // x-offset
+					bb.putFloat((tp_tasks[i].xy[chn][1])); // y-offset
+				}
+				bb.flip();
+				try {
+					channel.write(bb);
+				} catch (IOException e) {
+					System.out.println("Could not write to "+img_path+" port offsets");
+					break;
+				}
+				try {
+					dos.close();
+				} catch (IOException e) {
+					System.out.println("Could not close DataOutputStream for "+img_path+" port offsets");
+				}
+				System.out.println("Wrote port offsets to "+img_path+".");
+			}
+		}
 
 		gPUTileProcessor.setTasks(
 				tp_tasks, // TpTask [] tile_tasks,
@@ -2236,11 +2278,25 @@ public class TwoQuadCLT {
 			texture_stack.addSlice("main",      imp_rgba_main.getProcessor().getPixels()); // single slice
 			ImagePlus imp_texture_stack = new ImagePlus(name+"-RGBA-D"+clt_parameters.disparity, texture_stack);
 			imp_texture_stack.getProcessor().resetMinAndMax();
-			imp_texture_stack.show();
+//			imp_texture_stack.show();
+			String results_path= quadCLT_main.correctionsParameters.selectResultsDirectory( // selectX3dDirectory(
+//					name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+//					quadCLT_main.correctionsParameters.x3dModelVersion,
+					true,  // smart,
+					true);  //newAllowed, // save
+			quadCLT_main.eyesisCorrections.saveAndShow(
+					imp_texture_stack,
+					results_path,
+					true, // quadCLT_main.correctionsParameters.png && !clt_parameters.black_back,
+					true, // !batch_mode && clt_parameters.show_textures,
+					0, // quadCLT_main.correctionsParameters.JPEG_quality, // jpegQuality); // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+					(debugLevel > 0) ? debugLevel : 1); // int debugLevel (print what it saves)
+
+
 		}
 
 		// convert textures to RGBA in Java
-		if (clt_parameters.show_rgba_color) {
+		if (clt_parameters.show_rgba_color && (debugLevel > 0)) { // disabling
 			int numcol = quadCLT_main.isMonochrome()?1:3;
 			int ports = imp_quad_main.length;
 			int          num_src_slices = numcol + 1 + (clt_parameters.keep_weights?(ports + numcol + 1):0); // 12 ; // calculate
@@ -2253,7 +2309,7 @@ public class TwoQuadCLT {
 	    	int texture_slice_size = (2 * GPUTileProcessor.DTT_SIZE)* (2 * GPUTileProcessor.DTT_SIZE);
 	    	int texture_tile_size = texture_slice_size * num_src_slices ;
 
-			if (debugLevel > -2) {
+			if (debugLevel > -1) {
 		    	for (int indx = 0; indx < texture_indices.length; indx++) if ((texture_indices[indx] & (1 << GPUTileProcessor.LIST_TEXTURE_BIT)) != 0){
 		    		int tile = texture_indices[indx] >> GPUTileProcessor.CORR_NTILE_SHIFT;
 		    		int tileX = tile % tilesX;
@@ -2284,7 +2340,7 @@ public class TwoQuadCLT {
 		    		num_src_slices // int          num_src_slices
 		    		);
 
-			if ((debugLevel > -2) && (clt_parameters.tileX >= 0) && (clt_parameters.tileY >= 0) && (clt_parameters.tileX < tilesX) && (clt_parameters.tileY < tilesY)) {
+			if ((debugLevel > -1) && (clt_parameters.tileX >= 0) && (clt_parameters.tileY >= 0) && (clt_parameters.tileX < tilesX) && (clt_parameters.tileY < tilesY)) {
 				String [] rgba_titles = {"red","blue","green","alpha"};
 				String [] rgba_weights_titles = {"red","blue","green","alpha","port0","port1","port2","port3","r-rms","b-rms","g-rms","w-rms"};
 				double [][] texture_tile = texture_tiles[clt_parameters.tileY][clt_parameters.tileX];

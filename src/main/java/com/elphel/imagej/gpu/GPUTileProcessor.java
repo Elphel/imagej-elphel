@@ -1359,7 +1359,7 @@ public class GPUTileProcessor {
 	public void  getTileSubcamOffsets(
 			final TpTask[]            tp_tasks,        // will use // modify to have offsets for 8 cameras
 			final GeometryCorrection  geometryCorrection_main,
-			final GeometryCorrection  geometryCorrection_aux, // if null, will only calculate offsets fro the main camera
+			final GeometryCorrection  geometryCorrection_aux, // if null, will only calculate offsets from the main camera
 			final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
 			final int                 threadsMax,  // maximal number of threads to launch
 			final int                 debugLevel)
