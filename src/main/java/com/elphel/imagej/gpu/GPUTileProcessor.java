@@ -495,8 +495,8 @@ public class GPUTileProcessor {
         		tilesX * tilesY,             // long Height,
                 Sizeof.FLOAT);                         // int ElementSizeBytes)
         texture_stride = (int)(device_stride[0] / Sizeof.FLOAT);
-        int max_rgba_width  =  tilesX * DTT_SIZE;
-        int max_rgba_height =  tilesY * DTT_SIZE;
+        int max_rgba_width  =  (tilesX + 1) * DTT_SIZE;
+        int max_rgba_height =  (tilesY + 1) * DTT_SIZE;
         int max_rbga_slices =  NUM_COLORS + 1;
 
         cuMemAllocPitch (
@@ -1095,7 +1095,7 @@ public class GPUTileProcessor {
     	int [] ThreadsFullWarps = {TEXTURE_THREADS_PER_TILE, NUM_CAMS, 1};
 
     	Pointer kernelParameters = Pointer.to(
-    			Pointer.to(new int[] {0}), // 0,          // int               border_tile,        // if 1 - watch for border
+//    			Pointer.to(new int[] {0}), // 0,          // int               border_tile,        // if 1 - watch for border
     			Pointer.to(gpu_texture_indices), //  int             * woi, - not used
     			Pointer.to(gpu_clt),
     			Pointer.to(new int[] { num_texture_tiles }),
@@ -1155,6 +1155,7 @@ public class GPUTileProcessor {
 
     /**
      * Get woi and RBGA image from the GPU after execRBGA call as 2/4 slices.
+     * device array has 4 pixels margins on each side, skip them here
      * @param num_colors number of colors (1 or 3)
      * @param woi should be initialized as Rectangle(). x,y,width, height will be populated (in pixels,)
      * @return RBGA slices, last (alpha) in 0.0... 1.0 range, colors match input range
@@ -1180,9 +1181,11 @@ public class GPUTileProcessor {
 
         copy_rbga.WidthInBytes =    woi.width * Sizeof.FLOAT;
         copy_rbga.Height =          woi.height;
+        copy_rbga.srcXInBytes =     4 * Sizeof.FLOAT;
+
         for (int ncol = 0; ncol<= num_colors; ncol++ ) {
         	copy_rbga.dstHost =     Pointer.to(rslt[ncol]);
-            copy_rbga.srcY =        woi.height * ncol;
+            copy_rbga.srcY =        4 + (woi.height +DTT_SIZE) * ncol;
             cuMemcpy2D(copy_rbga); // run copy
         }
         return rslt;

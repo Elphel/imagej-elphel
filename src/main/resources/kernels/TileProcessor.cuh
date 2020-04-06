@@ -1149,7 +1149,7 @@ extern "C" __global__ void clear_texture_rbga(
 		const size_t      texture_rbga_stride,     // in floats 8*stride
 		float           * gpu_texture_tiles);  // (number of colors +1 + ?)*16*16 rgba texture tiles
 extern "C" __global__ void textures_accumulate(
-		int               border_tile,        // if 1 - watch for border
+//		int               border_tile,        // if 1 - watch for border
 		int             * woi,                // x, y, width,height
 		float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 		size_t            num_texture_tiles,  // number of texture tiles to process
@@ -1537,9 +1537,9 @@ __global__ void generate_RBGA(
 	 __syncthreads();
 // Zero output textures. Trim
 // texture_rbga_stride
-	 int texture_width =        *(woi + 2) * DTT_SIZE;
-	 int texture_tiles_height = *(woi + 3) * DTT_SIZE;
-	 int texture_height =       texture_tiles_height * DTT_SIZE;
+	 int texture_width =        (*(woi + 2) + 1)* DTT_SIZE;
+	 int texture_tiles_height = (*(woi + 3) + 1) * DTT_SIZE;
+///	 int texture_height =       texture_tiles_height * DTT_SIZE;
 	 int texture_slices =       colors + 1;
 
 	 if (threadIdx.x == 0) {
@@ -1581,7 +1581,8 @@ __global__ void generate_RBGA(
 #endif
 			    /* */
 			    textures_accumulate<<<grid_texture,threads_texture>>>(
-			    		border_tile,                     // int               border_tile,        // if 1 - watch for border
+			    		// get rid of border tile
+//			    		border_tile,                     // int               border_tile,        // if 1 - watch for border
 			    		woi,                             // int             * woi,                // x, y, width,height
 						gpu_clt,                         // float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 						ntt,                             // size_t            num_texture_tiles,  // number of texture tiles to process
@@ -2205,7 +2206,7 @@ __global__ void textures_gen(
 #endif // ifdef USE_textures_gen
 extern "C"
 __global__ void textures_accumulate(
-		int               border_tile,        // if 1 - watch for border
+//		int               border_tile,        // if 1 - watch for border
 		int             * woi,                // x, y, width,height
 		float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 		size_t            num_texture_tiles,  // number of texture tiles to process
@@ -2484,8 +2485,9 @@ __global__ void textures_accumulate(
 	if (gpu_texture_rbg && (texture_rbg_stride != 0)) { // generate RGBA
 #ifdef DEBUG12
 		if ((tile_num == DBG_TILE)  && (threadIdx.x == 0) && (threadIdx.y == 0)){
-			printf("\ntextures_accumulate accumulating tile = %d, tile_code= %d, border_tile=%d\n",
-					tile_num, (int) tile_code, border_tile);
+//			printf("\ntextures_accumulate accumulating tile = %d, tile_code= %d, border_tile=%d\n",
+//					tile_num, (int) tile_code, border_tile);
+			printf("\ntextures_accumulate accumulating tile = %d, tile_code= %d\n", tile_num, (int) tile_code);
 
 			for (int ncol = 0; ncol <= colors; ncol++) {
 				printf("\ntile[%d]\n",ncol);
@@ -2517,11 +2519,11 @@ __global__ void textures_accumulate(
 				}
 			}
 		}
-		int slice_stride = texture_rbg_stride * *(woi + 3) * DTT_SIZE; // offset to the next color
+		int slice_stride = texture_rbg_stride * (*(woi + 3) + 1) * DTT_SIZE; // offset to the next color
 		int tileY = tile_num / TILESX; // slow, but 1 per tile
 		int tileX = tile_num - tileY * TILESX;
-		int tile_x0 = (tileX - *(woi + 0)) * DTT_SIZE - (DTT_SIZE/2); // may be negative == -4
-		int tile_y0 = (tileY - *(woi + 1)) * DTT_SIZE - (DTT_SIZE/2); // may be negative == -4
+		int tile_x0 = (tileX - *(woi + 0)) * DTT_SIZE; //  - (DTT_SIZE/2); // may be negative == -4
+		int tile_y0 = (tileY - *(woi + 1)) * DTT_SIZE; //  - (DTT_SIZE/2); // may be negative == -4
 		int height = *(woi + 3) << DTT_SIZE_LOG2;
 
 #ifdef DEBUG12
@@ -2556,22 +2558,22 @@ __global__ void textures_accumulate(
 			__syncthreads();// __syncwarp();
 #endif // DEBUG12
 
-			if (!border_tile ||
-///					((g_row >= 0) && (g_col >= 0) && (g_row < (DTT_SIZE * TILESY)) && (g_col < (DTT_SIZE * TILESX)))){
-					((g_row >= 0) && (g_col >= 0) && (g_row < height) && (g_col < (DTT_SIZE * TILESX)))){
-				// always copy 3 (1) colors + alpha
-				if (colors == 3){
+			///			if (!border_tile ||
+			///					((g_row >= 0) && (g_col >= 0) && (g_row < (DTT_SIZE * TILESY)) && (g_col < (DTT_SIZE * TILESX)))){
+			///					((g_row >= 0) && (g_col >= 0) && (g_row < height) && (g_col < (DTT_SIZE * TILESX)))){
+			// always copy 3 (1) colors + alpha
+			if (colors == 3){
 #pragma unroll
-					for (int ncol = 0; ncol < NUM_COLORS + 1; ncol++) { // 4
-						*(gpu_texture_rbg_gi + ncol * slice_stride) += *(rgba_i + ncol * (DTT_SIZE2 * DTT_SIZE21));
-					}
-				} else { // assuming colors = 1
+				for (int ncol = 0; ncol < NUM_COLORS + 1; ncol++) { // 4
+					*(gpu_texture_rbg_gi + ncol * slice_stride) += *(rgba_i + ncol * (DTT_SIZE2 * DTT_SIZE21));
+				}
+			} else { // assuming colors = 1
 #pragma unroll
-					for (int ncol = 0; ncol < 1 + 1; ncol++) { // 2
-						*(gpu_texture_rbg_gi + ncol * slice_stride) += *(rgba_i + ncol * (DTT_SIZE2 * DTT_SIZE21));
-					}
+				for (int ncol = 0; ncol < 1 + 1; ncol++) { // 2
+					*(gpu_texture_rbg_gi + ncol * slice_stride) += *(rgba_i + ncol * (DTT_SIZE2 * DTT_SIZE21));
 				}
 			}
+///			}
 		}
 	} // 	if (gpu_texture_rbg) { // generate RGBA
 } // textures_accumulate()
