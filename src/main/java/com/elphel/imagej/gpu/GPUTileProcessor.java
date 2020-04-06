@@ -641,6 +641,8 @@ public class GPUTileProcessor {
     // prepare tasks for full frame, same dispaity.
     // need to run setTasks(TpTask [] tile_tasks, boolean use_aux) to format/transfer to GPU memory
     public TpTask [] setFullFrameImages(
+    		Rectangle                 woi,
+    		boolean                   round_woi,
     		float                     target_disparity, // apply same disparity to all tiles
     		int                       out_image, // from which tiles to generate image (currently 0/1)
     		int                       corr_mask,  // which correlation pairs to generate (maybe later - reduce size from 15x15)
@@ -664,19 +666,23 @@ public class GPUTileProcessor {
 			corr_masks[i] = corr_mask; // 0x3f; // all 6 correlations
 		}
     	return setFullFrameImages(
+    			woi,                // Rectangle                 woi,
+    			round_woi,          // boolean                   round_woi,
         		target_disparities, // should be tilesX*tilesY long
-        		out_images, // int   []                  out_images, // from which tiles to generate image (currently 0/1)
-        		corr_masks, // int   []                  corr_mask,  // which correlation pairs to generate (maybe later - reduce size from 15x15)
+        		out_images,         // int   []                  out_images, // from which tiles to generate image (currently 0/1)
+        		corr_masks,         // int   []                  corr_mask,  // which correlation pairs to generate (maybe later - reduce size from 15x15)
         		use_master,
         		use_aux,
     			geometryCorrection_main,
     			geometryCorrection_aux, // if null, will only calculate offsets fro the main camera
-    			ers_delay,        // if not null - fill with tile center acquisition delay
-    			threadsMax,  // maximal number of threads to launch
+    			ers_delay,              // if not null - fill with tile center acquisition delay
+    			threadsMax,             // maximal number of threads to launch
     			debugLevel);
     }
 
     public TpTask [] setFullFrameImages(
+    		Rectangle                 woi, // or null
+    		boolean                   round_woi,
     		float []                  target_disparities, // should be tilesX*tilesY long
     		int   []                  out_images, // from which tiles to generate image (currently 0/1)
     		int   []                  corr_mask,  // which correlation pairs to generate (maybe later - reduce size from 15x15)
@@ -690,11 +696,49 @@ public class GPUTileProcessor {
     {
         int tilesX =  IMG_WIDTH / DTT_SIZE;
         int tilesY =  IMG_HEIGHT / DTT_SIZE;
+        if (woi == null) {
+        	woi = new Rectangle(0,0,tilesX,tilesY);
+        }
+        if (woi.x < 0) woi.x = 0;
+        if (woi.y < 0) woi.y = 0;
+        if (woi.x > (tilesX - 2)) woi.x = tilesX - 2;
+        if (woi.y > (tilesY - 2)) woi.y = tilesY - 2;
 
-    	TpTask [] tp_tasks = new TpTask[tilesX*tilesY];
+        if ((woi.x + woi.width)  > tilesX) woi.width =  tilesX - woi.x;
+        if ((woi.y + woi.height) > tilesY) woi.height = tilesY - woi.y;
+        double rx = 0.5*woi.width;
+        double ry = 0.5*woi.height;
+        double xc = woi.x + rx - 0.5;
+        double yc = woi.y + ry - 0.5;
+        boolean dbg1 = false; //  true;
+    	boolean [] mask = new boolean[tilesX*tilesY];
+    	int num_tiles = 0;
+    	for (int ty = woi.y; ty < (woi.y +woi.height); ty++) {
+    		double ry2 = (ty - yc) / ry;
+    		ry2*=ry2;
+        	for (int tx = woi.x; tx < (woi.x +woi.width); tx++) {
+        		double rx2 = (tx - xc) / rx;
+        		rx2*=rx2;
+        		if (!round_woi || ((rx2+ry2) < 1.0)) {
+        			mask[ty * tilesX + tx] = true;
+        			num_tiles ++;
+        		}
+        	}
+    	}
+    	if (dbg1) {
+//    		mask[(woi.y-1) * tilesX + (woi.x-1)] = true;
+    		mask[(woi.y+woi.height) * tilesX + (woi.x+woi.width)] = true;
+			num_tiles += 1; // 2;
+
+    	}
+
+//    	TpTask [] tp_tasks = new TpTask[tilesX*tilesY];
+    	TpTask [] tp_tasks = new TpTask[num_tiles];
+
     	int indx = 0;
     	for (int ty = 0; ty < tilesY; ty++) {
-        	for (int tx = 0; tx < tilesX; tx++) {
+        	for (int tx = 0; tx < tilesX; tx++) if (mask[ty * tilesX + tx]) {
+
 //        		tp_tasks[indx] = new TpTask(tx,ty, target_disparities[indx], 1); // task == 1 for now
 // Only generate for non-empty tasks, use 1 empty empty as a terminator?
         		tp_tasks[indx] = new TpTask(tx,ty, target_disparities[indx],

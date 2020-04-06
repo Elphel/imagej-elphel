@@ -1996,7 +1996,14 @@ public class TwoQuadCLT {
 	    		true); // boolean                  force);
 
 		// Set task clt_parameters.disparity
+		Rectangle twoi = new Rectangle (
+				clt_parameters.gpu_woi_tx,
+				clt_parameters.gpu_woi_ty,
+				clt_parameters.gpu_woi_twidth,
+				clt_parameters.gpu_woi_theight);
 		GPUTileProcessor.TpTask [] tp_tasks  = gPUTileProcessor.setFullFrameImages(
+				twoi,                                  // Rectangle                 woi,
+				clt_parameters.gpu_woi_round,         // boolean                   round_woi,
 	    		(float) clt_parameters.disparity,     // float                     target_disparity, // apply same disparity to all tiles
 	    		0xf, // int                        out_image, // from which tiles to generate image (currently 0/1)
 	    		0x3f, // int                       corr_mask,  // which correlation pairs to generate (maybe later - reduce size from 15x15)
@@ -2007,6 +2014,7 @@ public class TwoQuadCLT {
 	    		null,                                 // final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
 	    		threadsMax,                           // final int                 threadsMax,  // maximal number of threads to launch
 	    		debugLevel);                          // final int                 debugLevel)
+
 
 		// Optionally save offsets here?
 //			EyesisCorrectionParameters.CorrectionParameters ecp,
@@ -2253,6 +2261,20 @@ public class TwoQuadCLT {
 			float [][] rbga = gPUTileProcessor.getRBGA(
 					(is_mono?1:3), // int     num_colors,
 					woi);
+			(new ShowDoubleFloatArrays()).showArrays(
+					rbga,
+					woi.width,
+					woi.height,
+					true,
+					name+"-RGBA-STACK-D"+clt_parameters.disparity+
+					":"+clt_parameters.gpu_woi_tx+":"+clt_parameters.gpu_woi_ty+
+					":"+clt_parameters.gpu_woi_twidth+":"+clt_parameters.gpu_woi_theight+
+					":"+(clt_parameters.gpu_woi_round?"C":"R"),
+					new String[] {"R","B","G","A"}
+					);
+
+
+
 			// for now - use just RGB. Later add option for RGBA
 			float [][] rgb_main = {rbga[0],rbga[1],rbga[2]};
 			float [][] rgba_main = {rbga[0],rbga[1],rbga[2],rbga[3]};
@@ -2267,8 +2289,8 @@ public class TwoQuadCLT {
 					false, // true, // boolean saveShowIntermediate, // save/show if set globally
 					false, // true, // boolean saveShowFinal,        // save/show result (color image?)
 					((clt_parameters.alpha1 > 0)? rgba_main: rgb_main),
-					tilesX *  image_dtt.transform_size,
-					tilesY *  image_dtt.transform_size,
+					woi.width, // clt_parameters.gpu_woi_twidth * image_dtt.transform_size, //  tilesX *  image_dtt.transform_size,
+					woi.height, // clt_parameters.gpu_woi_theight *image_dtt.transform_size, //  tilesY *  image_dtt.transform_size,
 					1.0,         // double scaleExposure, // is it needed?
 					debugLevel );
 
@@ -2276,7 +2298,13 @@ public class TwoQuadCLT {
 			int height =imp_rgba_main.getHeight();
 			ImageStack texture_stack=new ImageStack(width,height);
 			texture_stack.addSlice("main",      imp_rgba_main.getProcessor().getPixels()); // single slice
-			ImagePlus imp_texture_stack = new ImagePlus(name+"-RGBA-D"+clt_parameters.disparity, texture_stack);
+//			ImagePlus imp_texture_stack = new ImagePlus(name+"-RGBA-D"+clt_parameters.disparity, texture_stack);
+			ImagePlus imp_texture_stack = new ImagePlus(
+					name+"-RGBA-D"+clt_parameters.disparity+
+					":"+clt_parameters.gpu_woi_tx+":"+clt_parameters.gpu_woi_ty+
+					":"+clt_parameters.gpu_woi_twidth+":"+clt_parameters.gpu_woi_theight+
+					":"+(clt_parameters.gpu_woi_round?"C":"R"),
+					texture_stack);
 			imp_texture_stack.getProcessor().resetMinAndMax();
 //			imp_texture_stack.show();
 			String results_path= quadCLT_main.correctionsParameters.selectResultsDirectory( // selectX3dDirectory(

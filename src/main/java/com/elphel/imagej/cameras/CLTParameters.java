@@ -779,6 +779,12 @@ public class CLTParameters {
 	public double     gpu_fatz =          30.0;
 	public double     gpu_fatz_m =        30.0;
 
+	public int        gpu_woi_tx =          0;
+	public int        gpu_woi_ty =          0;
+	public int        gpu_woi_twidth =    324;
+	public int        gpu_woi_theight =   242;
+	public boolean    gpu_woi_round =   false;
+
 	public boolean    replaceWeakOutliers =   true; // false;
 
 	public boolean    debug_initial_discriminate = false;
@@ -1552,6 +1558,12 @@ public class CLTParameters {
 		properties.setProperty(prefix+"gpu_fatz",                   this.gpu_fatz +"");
 		properties.setProperty(prefix+"gpu_fatz_m",                 this.gpu_fatz_m +"");
 
+		properties.setProperty(prefix+"gpu_woi_tx",                 this.gpu_woi_tx +"");
+		properties.setProperty(prefix+"gpu_woi_ty",                 this.gpu_woi_ty +"");
+		properties.setProperty(prefix+"gpu_woi_twidth",             this.gpu_woi_twidth +"");
+		properties.setProperty(prefix+"gpu_woi_theight",            this.gpu_woi_theight +"");
+		properties.setProperty(prefix+"gpu_woi_round",              this.gpu_woi_round +"");
+
 		properties.setProperty(prefix+"debug_initial_discriminate",           this.debug_initial_discriminate+"");
 		properties.setProperty(prefix+"dbg_migrate",                          this.dbg_migrate+"");
 
@@ -2319,6 +2331,12 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"gpu_sigma_corr_m")!=null)            this.gpu_sigma_corr_m=Double.parseDouble(properties.getProperty(prefix+"gpu_sigma_corr_m"));
 		if (properties.getProperty(prefix+"gpu_fatz")!=null)                    this.gpu_fatz=Double.parseDouble(properties.getProperty(prefix+"gpu_fatz"));
 		if (properties.getProperty(prefix+"gpu_fatz_m")!=null)                  this.gpu_fatz_m=Double.parseDouble(properties.getProperty(prefix+"gpu_fatz_m"));
+
+		if (properties.getProperty(prefix+"gpu_woi_tx")!=null)                  this.gpu_woi_tx=Integer.parseInt(properties.getProperty(prefix+"gpu_woi_tx"));
+		if (properties.getProperty(prefix+"gpu_woi_ty")!=null)                  this.gpu_woi_ty=Integer.parseInt(properties.getProperty(prefix+"gpu_woi_ty"));
+		if (properties.getProperty(prefix+"gpu_woi_twidth")!=null)              this.gpu_woi_twidth=Integer.parseInt(properties.getProperty(prefix+"gpu_woi_twidth"));
+		if (properties.getProperty(prefix+"gpu_woi_theight")!=null)             this.gpu_woi_theight=Integer.parseInt(properties.getProperty(prefix+"gpu_woi_theight"));
+		if (properties.getProperty(prefix+"gpu_woi_round")!=null)               this.gpu_woi_round=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_woi_round"));
 
 		if (properties.getProperty(prefix+"debug_initial_discriminate")!=null)           this.debug_initial_discriminate=Boolean.parseBoolean(properties.getProperty(prefix+"debug_initial_discriminate"));
 		if (properties.getProperty(prefix+"dbg_migrate")!=null)                          this.dbg_migrate=Boolean.parseBoolean(properties.getProperty(prefix+"dbg_migrate"));
@@ -3243,11 +3261,20 @@ public class CLTParameters {
 				"Add squared fat zero to the sum of squared amplitudes, color images");
 		gd.addNumericField("Fat zero (absolute) for phase correlation of monochrome images",                            this.gpu_fatz_m, 4, 6,"",
 				"Add squared fat zero to the sum of squared amplitudes, monochrome images");
+		gd.addMessage     ("--- GPU WOI selection ---");
+
+		gd.addNumericField("WOI left",                                                                                  this.gpu_woi_tx, 0, 6,"tiles",
+				"Left WOI margin, in tiles (0..323");
+		gd.addNumericField("WOI top",                                                                                   this.gpu_woi_ty, 0, 6,"tiles",
+				"Top WOI margin, in tiles (0..241");
+		gd.addNumericField("WOI width",                                                                                 this.gpu_woi_twidth, 0, 6,"tiles",
+				"WOI width, in tiles (1..324");
+		gd.addNumericField("WOI height",                                                                                this.gpu_woi_theight, 0, 6,"tiles",
+				"WOI height, in tiles (1..242");
+		gd.addCheckbox    ("Select circle/ellipse within the rectanghular WOI ",                                        this.gpu_woi_round);
 
 		gd.addTab         ("LWIR", "parameters for LWIR/EO 8-camera rig");
 		this.lwir.dialogQuestions(gd);
-
-
 		gd.addTab         ("Debug", "Other debug images");
 		gd.addMessage     ("--- Other debug images ---");
 		//	clt_parameters.debug_initial_discriminate, // final boolean    debug_initial_discriminate,
@@ -3986,6 +4013,12 @@ public class CLTParameters {
 		this.gpu_sigma_corr_m =     gd.getNextNumber();
 		this.gpu_fatz =             gd.getNextNumber();
 		this.gpu_fatz_m =           gd.getNextNumber();
+
+		this.gpu_woi_tx =     (int) gd.getNextNumber();
+		this.gpu_woi_ty =     (int) gd.getNextNumber();
+		this.gpu_woi_twidth = (int) gd.getNextNumber();
+		this.gpu_woi_theight =(int) gd.getNextNumber();
+		this.gpu_woi_round=         gd.getNextBoolean();
 
 		this.lwir.dialogAnswers(gd);
 

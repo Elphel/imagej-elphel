@@ -1503,6 +1503,15 @@ __global__ void generate_RBGA(
 				num_tiles,           // number of tiles in task list
 				gpu_texture_indices, // packed tile + bits (now only (1 << 7)
 				woi);               // min_x, min_y, max_x, max_y
+// REMOVE when done!
+/*
+		*(woi + 0) -= 1;
+		*(woi + 1) -= 1;
+		*(woi + 2) += 1;
+		*(woi + 3) += 1;
+*/
+
+
 		cudaDeviceSynchronize();
 	    // Generate tile indices list, upper 24 bits - tile index, lower 4 bits: n/e/s/w neighbors, bit 7 - set to 1
 		*(num_texture_tiles+0) = 0;
@@ -1807,7 +1816,8 @@ __global__ void gen_texture_list(
 
 //	int is_border = (x == woi[0]) || (y == woi[1]) || (x == woi[2]) || (y == woi[3]);
 	// don't care if calculate extra pixels that still fit into memory
-	int is_border = (x == woi[0]) || (y == woi[1]) || (x == (TILESX - 1)) || (y == (TILESY - 1));
+//	int is_border = (x == woi[0]) || (y == woi[1]) || (x == (TILESX - 1)) || (y == (TILESY - 1));
+	int is_border = (x == woi[0]) || (y == woi[1]) || (x == (TILESX - 1)) || (y == woi[3]);
 	int buff_head = 0;
 	int num_offset = 0;
 	if (x & 1) {
@@ -2512,6 +2522,7 @@ __global__ void textures_accumulate(
 		int tileX = tile_num - tileY * TILESX;
 		int tile_x0 = (tileX - *(woi + 0)) * DTT_SIZE - (DTT_SIZE/2); // may be negative == -4
 		int tile_y0 = (tileY - *(woi + 1)) * DTT_SIZE - (DTT_SIZE/2); // may be negative == -4
+		int height = *(woi + 3) << DTT_SIZE_LOG2;
 
 #ifdef DEBUG12
 		if ((tile_num == DBG_TILE)  && (threadIdx.x == 0) && (threadIdx.y == 0)){
@@ -2537,16 +2548,17 @@ __global__ void textures_accumulate(
 			float * gpu_texture_rbg_gi = gpu_texture_rbg + gi;
 			float * rgba_i = ((float *) shr1.rgbaw) + i;
 #ifdef DEBUG12
-		if ((tile_num == DBG_TILE)  && (threadIdx.x == 0) && (threadIdx.y == 0)){
-			printf("\ntextures_accumulate () pass=%d, row=%d, col=%d, g_row=%d, g_col=%d, i=%d, gi=%d\n",
-					pass, row, col, g_row, g_col, i, gi);
+			if ((tile_num == DBG_TILE)  && (threadIdx.x == 0) && (threadIdx.y == 0)){
+				printf("\ntextures_accumulate () pass=%d, row=%d, col=%d, g_row=%d, g_col=%d, i=%d, gi=%d\n",
+						pass, row, col, g_row, g_col, i, gi);
 
-		}
-		__syncthreads();// __syncwarp();
+			}
+			__syncthreads();// __syncwarp();
 #endif // DEBUG12
 
 			if (!border_tile ||
-					((g_row >= 0) && (g_col >= 0) && (g_row < (DTT_SIZE * TILESX)) && (g_col < (DTT_SIZE * TILESY)))){
+///					((g_row >= 0) && (g_col >= 0) && (g_row < (DTT_SIZE * TILESY)) && (g_col < (DTT_SIZE * TILESX)))){
+					((g_row >= 0) && (g_col >= 0) && (g_row < height) && (g_col < (DTT_SIZE * TILESX)))){
 				// always copy 3 (1) colors + alpha
 				if (colors == 3){
 #pragma unroll
