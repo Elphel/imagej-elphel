@@ -45,14 +45,8 @@
 * with Nvidia Nsight, driver API when calling these kernels from Java
 */
 #ifndef JCUDA
-#define DTT_SIZE_LOG2                 3
-//#define DTT_SIZE                      8
+#include "dtt8x8.h"
 #endif
-#pragma once
-#define DTT_SIZE                     (1 << DTT_SIZE_LOG2)
-#define DTTTEST_BLOCK_WIDTH          32
-#define DTTTEST_BLOCK_HEIGHT         16
-#define DTTTEST_BLK_STRIDE     (DTTTEST_BLOCK_WIDTH+1)
 
 //#define CUDART_INF_F            __int_as_float(0x7f800000)
 /*
@@ -84,20 +78,32 @@ __constant__ float COSN1[] = {0.980785f,0.831470f};
 __constant__ float COSN2[] = {0.995185f,0.956940f,0.881921f,0.773010f};
 __constant__ float SINN1[] = {0.195090f,0.555570f};
 __constant__ float SINN2[] = {0.098017f,0.290285f,0.471397f,0.634393f};
+__constant__ int imclt_indx9[16] = {0x28,0x29,0x2a,0x2b,0x2b,0x2a,0x29,0x28,0x27,0x26,0x25,0x24,0x24,0x25,0x26,0x27};
+__constant__ float idct_signs[4][4][4] ={
+		{ // quadrant 0, each elements corresponds to 4x4 pixel output, covering altogether 16x16
+				{ 1,-1,-1,-1},
+				{-1, 1, 1, 1},
+				{-1, 1, 1, 1},
+				{-1, 1, 1, 1}
+		},{ // quadrant 1, each elements corresponds to 4x4 pixel output, covering altogether 16x16
+				{ 1, 1, 1,-1},
+				{-1,-1,-1, 1},
+				{-1,-1,-1, 1},
+				{-1,-1,-1, 1}
+		},{ // quadrant 2, each elements corresponds to 4x4 pixel output, covering altogether 16x16
+				{ 1,-1,-1,-1},
+				{ 1,-1,-1,-1},
+				{ 1,-1,-1,-1},
+				{-1, 1, 1, 1}
+		},{ // quadrant 3, each elements corresponds to 4x4 pixel output, covering altogether 16x16
+				{ 1, 1, 1,-1},
+				{ 1, 1, 1,-1},
+				{ 1, 1, 1,-1},
+				{-1,-1,-1, 1}
+		}};
+__constant__ float HWINDOW2[] =  {0.049009f, 0.145142f, 0.235698f, 0.317197f,
+                                  0.386505f, 0.440961f, 0.478470f, 0.497592f};
 
-
-inline __device__ void dttii_shared_mem_nonortho(float * x0,  int inc, int dst_not_dct); // does not scale by y[0] (y[7]) by 1/sqrt[0]
-inline __device__ void dttii_shared_mem(float * x0,  int inc, int dst_not_dct);   // used in GPU_DTT24_DRV
-inline __device__ void dttiv_shared_mem(float * x0,  int inc, int dst_not_dct);   // used in GPU_DTT24_DRV
-inline __device__ void dttiv_nodiverg  (float * x,   int inc, int dst_not_dct);   // not used
-inline __device__ void dctiv_nodiverg  (float * x0,  int inc);                    // used in TP
-inline __device__ void dstiv_nodiverg  (float * x0,  int inc);                    // used in TP
-
-inline __device__ void dct_ii8         ( float x[8], float y[8]); // x,y point to 8-element arrays each // not used
-inline __device__ void dct_iv8         ( float x[8], float y[8]); // x,y point to 8-element arrays each // not used
-inline __device__ void dst_iv8         ( float x[8], float y[8]); // x,y point to 8-element arrays each // not used
-inline __device__ void _dctii_nrecurs8 ( float x[8], float y[8]); // x,y point to 8-element arrays each // not used
-inline __device__ void _dctiv_nrecurs8 ( float x[8], float y[8]); // x,y point to 8-element arrays each // not used
 
 
 /**
@@ -120,7 +126,7 @@ inline __device__ void _dctiv_nrecurs8 ( float x[8], float y[8]); // x,y point t
 *
 * \return None
 */
-
+#ifdef BBBB
 extern "C"
 __global__ void GPU_DTT24_DRV(float *dst, float *src, int src_stride, int dtt_mode)
 {
@@ -159,6 +165,7 @@ __global__ void GPU_DTT24_DRV(float *dst, float *src, int src_stride, int dtt_mo
     for (unsigned int i = 0; i < DTT_SIZE; i++)
         dst[i * src_stride] = bl_ptr[i * DTTTEST_BLK_STRIDE];
 }
+#endif //#ifdef BBBB
 
 
 
@@ -218,7 +225,7 @@ inline __device__ void _dctiv_nrecurs8( float x[8], float y[8]) // x,y point to 
 	y[7] =  SQRT_2 * vb00;    // w1[3];
 }
 
-inline __device__ void _dttiv(float x0, float x1,float x2, float x3,float x4, float x5,float x6, float x7,
+__device__ void _dttiv(float x0, float x1,float x2, float x3,float x4, float x5,float x6, float x7,
 		float *y0, float *y1, float *y2, float *y3, float *y4, float *y5, float *y6, float *y7, int dst_not_dct)
 {
 	float u00, u01, u02, u03, u10, u11, u12, u13;
@@ -746,7 +753,7 @@ inline __device__ void dstiv_nodiverg(float * x,  int inc)
 
 
 
-inline __device__ void _dctii_nrecurs8( float x[8], float y[8]) // x,y point to 8-element arrays each
+inline  __device__ void _dctii_nrecurs8( float x[8], float y[8]) // x,y point to 8-element arrays each
 {
 	float u00= (x[0] + x[7]);
 	float u10= (x[0] - x[7]);
@@ -807,7 +814,7 @@ inline __device__ void _dctii_nrecurs8( float x[8], float y[8]) // x,y point to 
 	y[7] =   v13;
 }
 
-inline __device__ void dct_ii8( float x[8], float y[8]) // x,y point to 8-element arrays each
+inline  __device__ void dct_ii8( float x[8], float y[8]) // x,y point to 8-element arrays each
 {
 	_dctii_nrecurs8(x, y);
 #pragma unroll
@@ -817,7 +824,7 @@ inline __device__ void dct_ii8( float x[8], float y[8]) // x,y point to 8-elemen
 }
 
 
-inline __device__ void dct_iv8( float x[8], float y[8]) // x,y point to 8-element arrays each
+__device__ void dct_iv8( float x[8], float y[8]) // x,y point to 8-element arrays each
 {
 	_dctiv_nrecurs8(x, y);
 #pragma unroll
@@ -843,4 +850,438 @@ inline __device__ void dst_iv8( float x[8], float y[8]) // x,y point to 8-elemen
 }
 
 
+//=========================== 2D functions ===============
+__device__ void corrUnfoldTile(
+		int corr_radius,
+		float* qdata0, //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
+		float* rslt)  //   [DTT_SIZE2M1][DTT_SIZE2M1]) // 15x15
+{
+	int size2r1 = 2 * corr_radius + 1; // 15
+	int crp1 = corr_radius + 1;        //8
+///	const int rslt_base_index = DTT_SIZE2M1 * (DTT_SIZE) - DTT_SIZE; // offset of the center
+	int rslt_base_index = size2r1 * crp1 - crp1; // offset of the center
+
+	float * qdata1 = qdata0 + (DTT_SIZE * DTT_SIZE1);
+	float * qdata2 = qdata1 + (DTT_SIZE * DTT_SIZE1);
+	float * qdata3 = qdata2 + (DTT_SIZE * DTT_SIZE1);
+	int i = threadIdx.x;
+	if (i > corr_radius) {
+		return; // not needed, only use inner
+	}
+//	printf("\corrUnfoldTile() corr_radius=%d, i=%d\n",corr_radius,i);
+	float corr_pixscale = 0.25f;
+	int i_transform_size = i * DTT_SIZE1; // used to address source rows which are 9 long
+	int im1_transform_size = i_transform_size - DTT_SIZE1; // negative for i = 0, use only after divergence
+///	int rslt_row_offs = i * DTT_SIZE2M1;
+	int rslt_row_offs = i * size2r1;
+	int rslt_base_index_p = rslt_base_index + rslt_row_offs; // i * DTT_SIZE2M1;
+	int rslt_base_index_m = rslt_base_index - rslt_row_offs; // i * DTT_SIZE2M1;
+	rslt[rslt_base_index_p] = corr_pixscale * qdata0[i_transform_size]; // incomplete, will only be used for thread i=0
+	rslt[rslt_base_index_m] = rslt[rslt_base_index_p];                  // nop for i=0 incomplete, will only be used for thread i=0
+///	for (int j = 1; j < DTT_SIZE; j++) {
+	for (int j = 1; j <= corr_radius; j++) {
+		int rslt_base_index_pp = rslt_base_index_p + j;
+		int rslt_base_index_pm = rslt_base_index_p - j;
+		rslt[rslt_base_index_pp] = corr_pixscale * (
+				 qdata0[i_transform_size + j] +
+				 qdata1[i_transform_size + j -1]); // incomplete, will only be used for thread i=0
+		rslt[rslt_base_index_pm] = corr_pixscale * (
+				 qdata0[i_transform_size + j] +
+				-qdata1[i_transform_size + j -1]); // incomplete, will only be used for thread i=0
+	}
+	if (i == 0) {
+		return;
+	}
+///	im1_transform_size = i_transform_size - DTT_SIZE1; // already is calculated
+	float d = corr_pixscale * qdata2[im1_transform_size];
+	rslt[rslt_base_index_p] += d;
+	rslt[rslt_base_index_m] -= d;
+	for (int j = 1; j <= corr_radius; j++) {
+		int rslt_base_index_pp = rslt_base_index_p + j;
+		int rslt_base_index_pm = rslt_base_index_p - j;
+		int rslt_base_index_mp = rslt_base_index_m + j;
+		int rslt_base_index_mm = rslt_base_index_m - j;
+		float d2 = corr_pixscale * qdata2[im1_transform_size + j];
+		float d3 = corr_pixscale * qdata3[im1_transform_size + j -1];
+		//rslt[rslt_base_index_mp], rslt[rslt_base_index_mp] are partially calculated in the cycle common with i=0
+		rslt[rslt_base_index_mp] = rslt[rslt_base_index_pp] - d2 - d3;
+		rslt[rslt_base_index_mm] = rslt[rslt_base_index_pm] - d2 + d3;
+		rslt[rslt_base_index_pp] += d2 + d3;
+		rslt[rslt_base_index_pm] += d2 - d3;
+	}
+}
+
+__device__ void dttii_2d(
+		float * clt_corr) // shared memory, [4][DTT_SIZE1][DTT_SIZE]
+{
+    // change to 16-32 threads?? in next iteration
+    // vert pass (hor pass in Java, before transpose. Here transposed, no transform needed)
+    for (int q = 0; q < 4; q++){
+    	int is_sin = (q >> 1) & 1;
+    	dttii_shared_mem_nonortho(clt_corr + q * (DTT_SIZE1 * DTT_SIZE) + threadIdx.x , DTT_SIZE1, is_sin); // vertical pass, thread is column
+    }
+    __syncthreads();
+
+    // hor pass, corresponding to vert pass in Java
+    for (int q = 0; q < 4; q++){
+    	int is_sin = q & 1;
+    	dttii_shared_mem_nonortho(clt_corr + (q * DTT_SIZE + threadIdx.x) * DTT_SIZE1 ,  1, is_sin); // horizontal pass, tread is row
+    }
+    __syncthreads();
+
+}
+
+__device__ void dttiv_color_2d(
+		float * clt_tile,
+		int color)
+{
+    dctiv_nodiverg( // all colors
+			clt_tile + (DTT_SIZE1 * threadIdx.x), // [0][threadIdx.x], // pointer to start of row
+			1); //int inc);
+    if (color == BAYER_GREEN){
+        dstiv_nodiverg( // all colors
+				clt_tile + DTT_SIZE1 * threadIdx.x + DTT_SIZE1 * DTT_SIZE, // clt_tile[1][threadIdx.x], // pointer to start of row
+    			1); //int inc);
+
+    }
+  	 __syncthreads();// __syncwarp();
+
+#ifdef DEBUG222
+    if ((threadIdx.x) == 0){
+        printf("\nDTT Tiles after horizontal pass, color=%d\n",color);
+    	debug_print_clt1(clt_tile, color, (color== BAYER_GREEN)?3:1); // only 1 quadrant for R,B and 2 - for G
+    }
+     __syncthreads();// __syncwarp();
+#endif
+    dctiv_nodiverg( // all colors
+    		clt_tile + threadIdx.x, //  &clt_tile[0][0][threadIdx.x], // pointer to start of column
+			DTT_SIZE1); // int inc,
+    if (color == BAYER_GREEN){
+          dctiv_nodiverg( // all colors
+        		clt_tile + threadIdx.x + (DTT_SIZE1 * DTT_SIZE), // &clt_tile[1][0][threadIdx.x], // pointer to start of column
+    			DTT_SIZE1); // int inc,
+    }
+  	 __syncthreads();// __syncwarp();
+}
+
+//
+// Uses 16 threads, gets 4*8*8 clt tiles, performs idtt-iv (swapping 1 and 2 quadrants) and then unfolds with window,
+// adding to the output 16x16 tile (to use Read-modify-write with 4 passes over the frame. Should be zeroed before the
+// first pass
+//__constant__ int imclt_indx9[16] = {0x28,0x31,0x3a,0x43,0x43,0x3a,0x31,0x28,0x1f,0x16,0x0d,0x04,0x04,0x0d,0x16,0x1f};
+__device__ void imclt(
+		float * clt_tile,   //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports [4][8][9]
+		float * mclt_tile ) //           [2* DTT_SIZE][DTT_SIZE1+ DTT_SIZE], // +1 to alternate column ports[16][17]
+{
+	int thr3 =    threadIdx.x >> 3;
+	int column =  threadIdx.x; // modify to use 2*8 threads, if needed.
+	int thr012 =  threadIdx.x & 7;
+	int column4 = threadIdx.x >> 2;
+//	int wcolumn =column ^ (7 * thr3); //0..7,7,..0
+//	int wcolumn = ((thr3 << 3) -1) ^ thr3; //0..7,7,..0
+	int wcolumn = ((thr3 << 3) - thr3) ^ thr012; //0..7,7,..0
+	float * clt_tile1 = clt_tile +  (DTT_SIZE1 * DTT_SIZE);
+	float * clt_tile2 = clt_tile1 + (DTT_SIZE1 * DTT_SIZE);
+	float * clt_tile3 = clt_tile2 + (DTT_SIZE1 * DTT_SIZE);
+#ifdef DEBUG3
+    if ((threadIdx.x) == 0){
+        printf("\nDTT Tiles before IDTT\n");
+    	debug_print_clt1(clt_tile, -1,  0xf); // only 1 quadrant for R,B and 2 - for G
+    }
+     __syncthreads();// __syncwarp();
+#endif
+
+	// perform horizontal dct-iv on quadrants 0 and 1
+    dctiv_nodiverg(
+    		clt_tile +  DTT_SIZE1 * (thr012 + 2*DTT_SIZE * thr3), // pointer to start of row for quadrants 0 and 2
+			1);
+	// perform horizontal dst-iv on quadrants 2 and 3
+    dstiv_nodiverg( // all colors
+    		clt_tile1 + DTT_SIZE1 * (thr012 + 2*DTT_SIZE * thr3), // pointer to start of row for quadrants 1 and 3
+			1);
+    __syncthreads();// __syncwarp();
+	// perform vertical   dct-iv on quadrants 0 and 2
+    dctiv_nodiverg(
+    		clt_tile +  thr012 + (DTT_SIZE1 *   DTT_SIZE) * thr3, // pointer to start of row for quadrants 0 and 1
+			DTT_SIZE1);
+	// perform vertical   dst-iv on quadrants 1 and 3
+    dstiv_nodiverg(
+    		clt_tile2 + thr012 + (DTT_SIZE1 *   DTT_SIZE) * thr3, // pointer to start of row for quadrants 2 and 3
+			DTT_SIZE1);
+    __syncthreads();// __syncwarp();
+
+#ifdef DEBUG3
+    if ((threadIdx.x) == 0){
+        printf("\nDTT Tiles after IDTT\n");
+    	debug_print_clt1(clt_tile, -1,  0xf); // only 1 quadrant for R,B and 2 - for G
+    }
+     __syncthreads();// __syncwarp();
+#endif
+
+
+    float hw = HWINDOW2[wcolumn];
+    int clt_offset = imclt_indx9[column]; // index in each of the 4 iclt quadrants, accounting for stride=9
+    float * rslt = mclt_tile + column;
+#pragma unroll
+    for (int i = 0; i < 4; i++){
+    	float val = *rslt;
+    	float w = HWINDOW2[i] * hw;
+    	float d0 = idct_signs[0][0][column4] * (*(clt_tile +  clt_offset));
+    	float d1 = idct_signs[1][0][column4] * (*(clt_tile1 + clt_offset));
+    	float d2 = idct_signs[2][0][column4] * (*(clt_tile2 + clt_offset));
+    	float d3 = idct_signs[3][0][column4] * (*(clt_tile3 + clt_offset));
+    	d0+=d1;
+    	d2+=d3;
+    	d0+= d2;
+    	if (i < 3){
+    		clt_offset +=  DTT_SIZE1;
+    	}
+//    	*rslt = __fmaf_rd(w,d0,val); // w*d0 + val
+    	val = __fmaf_rd(w,d0,val); // w*d0 + val
+    	*rslt = val;
+    	rslt += DTT_SIZE21;
+    }
+#pragma unroll
+    for (int i = 4; i < 8; i++){
+    	float val = *rslt;
+    	float w = HWINDOW2[i] * hw;
+    	float d0 = idct_signs[0][1][column4] * (*(clt_tile +  clt_offset));
+    	float d1 = idct_signs[1][1][column4] * (*(clt_tile1 + clt_offset));
+    	float d2 = idct_signs[2][1][column4] * (*(clt_tile2 + clt_offset));
+    	float d3 = idct_signs[3][1][column4] * (*(clt_tile3 + clt_offset));
+    	d0+=d1;
+    	d2+=d3;
+    	d0+= d2;
+//    	if (i < 7){
+   		clt_offset -=  DTT_SIZE1;
+//    	}
+    	*rslt = __fmaf_rd(w,d0,val); // w*d0 + val
+    	rslt += DTT_SIZE21;
+    }
+#pragma unroll
+    for (int i = 7; i >= 4; i--){
+    	float val = *rslt;
+    	float w = HWINDOW2[i] * hw;
+    	float d0 = idct_signs[0][2][column4] * (*(clt_tile +  clt_offset));
+    	float d1 = idct_signs[1][2][column4] * (*(clt_tile1 + clt_offset));
+    	float d2 = idct_signs[2][2][column4] * (*(clt_tile2 + clt_offset));
+    	float d3 = idct_signs[3][2][column4] * (*(clt_tile3 + clt_offset));
+    	d0+=d1;
+    	d2+=d3;
+    	d0+= d2;
+    	if (i > 4){
+    		clt_offset -=  DTT_SIZE1;
+    	}
+    	*rslt = __fmaf_rd(w,d0,val); // w*d0 + val
+    	rslt += DTT_SIZE21;
+    }
+#pragma unroll
+    for (int i = 3; i >= 0; i--){
+    	float val = *rslt;
+    	float w = HWINDOW2[i] * hw;
+    	float d0 = idct_signs[0][3][column4] * (*(clt_tile +  clt_offset));
+    	float d1 = idct_signs[1][3][column4] * (*(clt_tile1 + clt_offset));
+    	float d2 = idct_signs[2][3][column4] * (*(clt_tile2 + clt_offset));
+    	float d3 = idct_signs[3][3][column4] * (*(clt_tile3 + clt_offset));
+    	d0+=d1;
+    	d2+=d3;
+    	d0+= d2;
+    	if (i > 0){
+    		clt_offset +=  DTT_SIZE1;
+    	}
+    	*rslt = __fmaf_rd(w,d0,val); // w*d0 + val
+    	rslt += DTT_SIZE21;
+    }
+#ifdef DEBUG3
+    __syncthreads();// __syncwarp();
+    if ((threadIdx.x) == 0){
+        printf("\nMCLT Tiles after IMCLT\n");
+    	debug_print_mclt(mclt_tile, -1); // only 1 quadrant for R,B and 2 - for G
+    }
+    __syncthreads();// __syncwarp();
+#endif
+}
+
+
+// Uses 8 threads, gets 4*8*8 clt tiles, performs idtt-iv (swapping 1 and 2 quadrants) and then unfolds to the 16x16
+// adding to the output 16x16 tile (to use Read-modify-write with 4 passes over the frame. Should be zeroed before the
+// first pass
+//__constant__ int imclt_indx9[16] = {0x28,0x31,0x3a,0x43,0x43,0x3a,0x31,0x28,0x1f,0x16,0x0d,0x04,0x04,0x0d,0x16,0x1f};
+
+__device__ void imclt8threads(
+		int     do_acc,     // 1 - add to previous value, 0 - overwrite
+		float * clt_tile,   //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports [4][8][9]
+		float * mclt_tile,  //           [2* DTT_SIZE][DTT_SIZE1+ DTT_SIZE], // +1 to alternate column ports[16][17]
+		int debug)
+{
+//	int thr3 =    threadIdx.x >> 3;
+//	int column =  threadIdx.x; // modify to use 2*8 threads, if needed.
+//	int thr012 =  threadIdx.x & 7;
+//	int column4 = threadIdx.x >> 2;
+//	int wcolumn = ((thr3 << 3) - thr3) ^ thr012; //0..7,7,..0
+	float * clt_tile1 = clt_tile +  (DTT_SIZE1 * DTT_SIZE);
+	float * clt_tile2 = clt_tile1 + (DTT_SIZE1 * DTT_SIZE);
+	float * clt_tile3 = clt_tile2 + (DTT_SIZE1 * DTT_SIZE);
+#ifdef DEBUG7
+    if (debug && (threadIdx.x == 0) && (threadIdx.y == 0)){
+        printf("\nDTT Tiles before IDTT\n");
+        debug_print_clt_scaled(clt_tile, -1,  0xf, 0.25); // only 1 quadrant for R,B and 2 - for G
+    }
+     __syncthreads();// __syncwarp();
+#endif
+
+	// perform horizontal dct-iv on quadrants 0 and 1
+    dctiv_nodiverg( // quadrant 0
+    		clt_tile +  threadIdx.x,                              // pointer to start of row for quadrant 0
+			DTT_SIZE1);
+    dctiv_nodiverg( // quadrant 1
+    		clt_tile +  threadIdx.x + (1 * DTT_SIZE * DTT_SIZE1), // pointer to start of row for quadrant 1
+			DTT_SIZE1);
+	// perform horizontal dst-iv on quadrants 2 and 3
+    dstiv_nodiverg( // quadrant 2
+    		clt_tile +  threadIdx.x + (2 * DTT_SIZE * DTT_SIZE1), // pointer to start of row for quadrant 2
+			DTT_SIZE1);
+    dstiv_nodiverg( // quadrant 3
+    		clt_tile +  threadIdx.x + (3 * DTT_SIZE * DTT_SIZE1), // pointer to start of row for quadrant 3
+			DTT_SIZE1);
+    __syncthreads();// __syncwarp();
+	// perform vertical   dct-iv on quadrants 0 and 2
+    dctiv_nodiverg( // quadrant 0
+    		clt_tile +  DTT_SIZE1 * threadIdx.x,                              // pointer to start of row for quadrant 0
+			1);
+    dctiv_nodiverg( // quadrant 2
+    		clt_tile +  DTT_SIZE1 * threadIdx.x + (2 * DTT_SIZE * DTT_SIZE1), // pointer to start of row for quadrant 2
+			1);
+    // perform vertical   dst-iv on quadrants 1 and 3
+    dstiv_nodiverg( // quadrant 1
+    		clt_tile +  DTT_SIZE1 * threadIdx.x + (1 * DTT_SIZE * DTT_SIZE1), // pointer to start of row for quadrant 1
+			1);
+    dstiv_nodiverg( // quadrant 3
+    		clt_tile +  DTT_SIZE1 * threadIdx.x + (3 * DTT_SIZE * DTT_SIZE1), // pointer to start of row for quadrant 3
+			1);
+    __syncthreads();// __syncwarp();
+
+#ifdef DEBUG7
+    if (debug && (threadIdx.x == 0) && (threadIdx.y == 0)){
+    	printf("\nDTT Tiles after IDTT\n");
+    	debug_print_clt_scaled(clt_tile, -1,  0xf, 0.25); // only 1 quadrant for R,B and 2 - for G
+    }
+    __syncthreads();// __syncwarp();
+#endif
+    // re-using 16-thread code (thr3 was bit 3 of threadIdx.x).
+    for (int thr3 = 0; thr3 < 2; thr3++){
+    	int thr3m = (thr3 << 3);
+    	int column =  threadIdx.x + thr3m; // modify to use 2*8 threads, if needed.
+    	int thr012 =  threadIdx.x & 7; // == threadIdx.x
+    	int column4 = column >> 2; // (threadIdx.x >> 2) | (thr3 << 1) ; // different !
+    	int wcolumn = (thr3m - thr3) ^ thr012; //0..7,7,..0
+
+    	float hw = HWINDOW2[wcolumn];
+    	int clt_offset = imclt_indx9[column]; // index in each of the 4 iclt quadrants, accounting for stride=9
+    	float * rslt = mclt_tile + column;
+#ifdef DEBUG7
+        if (debug && (threadIdx.x == 0) && (threadIdx.y == 0)){
+    	printf("\nUnrolling: thr3=%d, thr3m=%d, column=%d, thr012=%d, column4=%d, wcolumn=%d, hw=%f, clt_offset=%d\n",
+    			thr3, thr3m, column, thr012, column4, wcolumn, hw, clt_offset);
+    	debug_print_clt1(clt_tile, -1,  0xf); // only 1 quadrant for R,B and 2 - for G
+    }
+    __syncthreads();// __syncwarp();
+#endif
+
+#pragma unroll
+    	for (int i = 0; i < 4; i++){
+    		float val = *rslt;
+    		// facc
+    		float w = HWINDOW2[i] * hw;
+    		float d0 = idct_signs[0][0][column4] * (*(clt_tile +  clt_offset));
+    		float d1 = idct_signs[1][0][column4] * (*(clt_tile1 + clt_offset));
+    		float d2 = idct_signs[2][0][column4] * (*(clt_tile2 + clt_offset));
+    		float d3 = idct_signs[3][0][column4] * (*(clt_tile3 + clt_offset));
+    		d0+=d1;
+    		d2+=d3;
+    		d0+= d2;
+    		if (i < 3){
+    			clt_offset +=  DTT_SIZE1;
+    		}
+    		//    	*rslt = __fmaf_rd(w,d0,val); // w*d0 + val
+    		// val =__fmaf_rd(w,d0,val); // w*d0 + val
+    		// *rslt = val;
+    		*rslt = do_acc? __fmaf_rd(w,d0,val) : w * d0; // w*d0 + val do_acc - common for all thereads
+    		rslt += DTT_SIZE21;
+    	}
+#pragma unroll
+    	for (int i = 4; i < 8; i++){
+    		float val = *rslt;
+    		float w = HWINDOW2[i] * hw;
+    		float d0 = idct_signs[0][1][column4] * (*(clt_tile +  clt_offset));
+    		float d1 = idct_signs[1][1][column4] * (*(clt_tile1 + clt_offset));
+    		float d2 = idct_signs[2][1][column4] * (*(clt_tile2 + clt_offset));
+    		float d3 = idct_signs[3][1][column4] * (*(clt_tile3 + clt_offset));
+    		d0+=d1;
+    		d2+=d3;
+    		d0+= d2;
+    		//    	if (i < 7){
+    		clt_offset -=  DTT_SIZE1;
+    		//    	}
+//    		*rslt = __fmaf_rd(w,d0,val); // w*d0 + val
+    		*rslt = do_acc? __fmaf_rd(w,d0,val) : w * d0; // w*d0 + val do_acc - common for all thereads
+
+    		rslt += DTT_SIZE21;
+    	}
+#pragma unroll
+    	for (int i = 7; i >= 4; i--){
+    		float val = *rslt;
+    		float w = HWINDOW2[i] * hw;
+    		float d0 = idct_signs[0][2][column4] * (*(clt_tile +  clt_offset));
+    		float d1 = idct_signs[1][2][column4] * (*(clt_tile1 + clt_offset));
+    		float d2 = idct_signs[2][2][column4] * (*(clt_tile2 + clt_offset));
+    		float d3 = idct_signs[3][2][column4] * (*(clt_tile3 + clt_offset));
+    		d0+=d1;
+    		d2+=d3;
+    		d0+= d2;
+    		if (i > 4){
+    			clt_offset -=  DTT_SIZE1;
+    		}
+    		//*rslt = __fmaf_rd(w,d0,val); // w*d0 + val
+    		*rslt = do_acc? __fmaf_rd(w,d0,val) : w * d0; // w*d0 + val do_acc - common for all thereads
+    		rslt += DTT_SIZE21;
+    	}
+#pragma unroll
+    	for (int i = 3; i >= 0; i--){
+    		float val = *rslt;
+    		float w = HWINDOW2[i] * hw;
+    		float d0 = idct_signs[0][3][column4] * (*(clt_tile +  clt_offset));
+    		float d1 = idct_signs[1][3][column4] * (*(clt_tile1 + clt_offset));
+    		float d2 = idct_signs[2][3][column4] * (*(clt_tile2 + clt_offset));
+    		float d3 = idct_signs[3][3][column4] * (*(clt_tile3 + clt_offset));
+    		d0+=d1;
+    		d2+=d3;
+    		d0+= d2;
+    		if (i > 0){
+    			clt_offset +=  DTT_SIZE1;
+    		}
+    		//*rslt = __fmaf_rd(w,d0,val); // w*d0 + val
+    		*rslt = do_acc? __fmaf_rd(w,d0,val) : w * d0; // w*d0 + val do_acc - common for all thereads
+    		rslt += DTT_SIZE21;
+    	}
+    }
+#ifdef DEBUG7
+    __syncthreads();// __syncwarp();
+	for (int ccam = 0; ccam < NUM_CAMS; ccam++) {
+		if (debug  && (threadIdx.x == 0) && (threadIdx.y == ccam)){
+			printf("\nMCLT Tiles after IMCLT, cam=%d\n", threadIdx.y);
+			debug_print_mclt(
+					mclt_tile, //         [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
+					-1);
+		}
+		__syncthreads();// __syncwarp();
+	}
+    __syncthreads();// __syncwarp();
+#endif
+}
+
+
+
+
+//#endif
 
