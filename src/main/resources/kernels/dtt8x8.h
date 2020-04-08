@@ -70,18 +70,6 @@
 //extern __constant__ int imclt_indx9[16];
 //extern __constant__ float HWINDOW2[];
 
-inline __device__ void dttii_shared_mem_nonortho(float * x0,  int inc, int dst_not_dct); // does not scale by y[0] (y[7]) by 1/sqrt[0]
-inline __device__ void dttii_shared_mem(float * x0,  int inc, int dst_not_dct);   // used in GPU_DTT24_DRV
-inline __device__ void dttiv_shared_mem(float * x0,  int inc, int dst_not_dct);   // used in GPU_DTT24_DRV
-inline __device__ void dttiv_nodiverg  (float * x,   int inc, int dst_not_dct);   // not used
-inline __device__ void dctiv_nodiverg  (float * x0,  int inc);                    // used in TP
-inline __device__ void dstiv_nodiverg  (float * x0,  int inc);                    // used in TP
-
-inline __device__ void dct_ii8         ( float x[8], float y[8]); // x,y point to 8-element arrays each // not used
-inline __device__ void dct_iv8         ( float x[8], float y[8]); // x,y point to 8-element arrays each // not used
-inline __device__ void dst_iv8         ( float x[8], float y[8]); // x,y point to 8-element arrays each // not used
-inline __device__ void _dctii_nrecurs8 ( float x[8], float y[8]); // x,y point to 8-element arrays each // not used
-inline __device__ void _dctiv_nrecurs8 ( float x[8], float y[8]); // x,y point to 8-element arrays each // not used
 
 // kernels (not used so far)
 #ifdef BBBB

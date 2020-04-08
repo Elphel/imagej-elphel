@@ -105,6 +105,19 @@ __constant__ float HWINDOW2[] =  {0.049009f, 0.145142f, 0.235698f, 0.317197f,
                                   0.386505f, 0.440961f, 0.478470f, 0.497592f};
 
 
+inline __device__ void dttii_shared_mem_nonortho(float * x0,  int inc, int dst_not_dct); // does not scale by y[0] (y[7]) by 1/sqrt[0]
+inline __device__ void dttii_shared_mem(float * x0,  int inc, int dst_not_dct);   // used in GPU_DTT24_DRV
+inline __device__ void dttiv_shared_mem(float * x0,  int inc, int dst_not_dct);   // used in GPU_DTT24_DRV
+inline __device__ void dttiv_nodiverg  (float * x,   int inc, int dst_not_dct);   // not used
+inline __device__ void dctiv_nodiverg  (float * x0,  int inc);                    // used in TP
+inline __device__ void dstiv_nodiverg  (float * x0,  int inc);                    // used in TP
+
+inline __device__ void dct_ii8         ( float x[8], float y[8]); // x,y point to 8-element arrays each // not used
+inline __device__ void dct_iv8         ( float x[8], float y[8]); // x,y point to 8-element arrays each // not used
+inline __device__ void dst_iv8         ( float x[8], float y[8]); // x,y point to 8-element arrays each // not used
+inline __device__ void _dctii_nrecurs8 ( float x[8], float y[8]); // x,y point to 8-element arrays each // not used
+inline __device__ void _dctiv_nrecurs8 ( float x[8], float y[8]); // x,y point to 8-element arrays each // not used
+
 
 /**
 **************************************************************************
