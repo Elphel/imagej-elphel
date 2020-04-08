@@ -105,7 +105,9 @@
 #define DBG_TILE_X     161 // 49
 #define DBG_TILE_Y     111 // 66
 
-#define DBG_TILE     (DBG_TILE_Y * 324 + DBG_TILE_X)
+#define DBG_TILE    (DBG_TILE_Y * 324 + DBG_TILE_X)
+#undef DBG_MARK_DBG_TILE 1
+
 //56494
 // struct tp_task
 //#define TASK_SIZE      12
@@ -878,6 +880,18 @@ extern "C" __global__ void textures_accumulate(
 		float           * gpu_texture_rbg,    // (number of colors +1 + ?)*16*16 rgba texture tiles
 		size_t            texture_stride,     // in floats (now 256*4 = 1024)
 		float           * gpu_texture_tiles); // (number of colors +1 + ?)*16*16 rgba texture tiles
+
+extern "C"
+__global__ void imclt_rbg(
+		float           * gpu_clt,            // [TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+		float           * gpu_rbg,            // WIDTH, 3 * HEIGHT
+		int               apply_lpf,
+		int               mono,               // defines lpf filter
+		int               color,              // defines location of clt data
+		int               v_offset,
+		int               h_offset,
+		const size_t      dstride);            // in floats (pixels)
+//===========================
 
 extern "C"
 __global__ void correlate2D(
@@ -2274,16 +2288,12 @@ __global__ void textures_accumulate(
 } // textures_accumulate()
 
 
-
-
-
-
-
-
 extern "C"
 __global__ void imclt_rbg(
 		float           * gpu_clt,            // [TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 		float           * gpu_rbg,            // WIDTH, 3 * HEIGHT
+		int               apply_lpf,
+		int               mono,
 		int               color,
 		int               v_offset,
 		int               h_offset,
@@ -2334,13 +2344,27 @@ __global__ void imclt_rbg(
 
     clt_tile += column + thr3; // first 2 rows
     gpu_tile += column;  // first 2 rows
+    if (apply_lpf) {
+    	// lpf - covers 2 rows, as there there are 16 threads
+		float *lpf0 = lpf_data[mono? 3 :color] + threadIdx.x; // lpf_data[3] - mono
 #pragma unroll
-    for (int i = 0; i < DTT_SIZE2; i++){
-    	*clt_tile= *gpu_tile;
-    	clt_tile += (2 * DTT_SIZE1);
-    	gpu_tile += (2 * DTT_SIZE);
+		for (int q = 0; q < 4; q++){
+			float *lpf = lpf0;
+			for (int i = 0; i < DTT_SIZE/2; i++){
+				*clt_tile= *gpu_tile * (*lpf);
+				clt_tile += (2 * DTT_SIZE1);
+				gpu_tile += (2 * DTT_SIZE);
+				lpf +=      (2 * DTT_SIZE);
+			}
+		}
+    } else {
+#pragma unroll
+    	for (int i = 0; i < DTT_SIZE2; i++){
+    		*clt_tile= *gpu_tile;
+    		clt_tile += (2 * DTT_SIZE1);
+    		gpu_tile += (2 * DTT_SIZE);
+    	}
     }
-
 	float * mclt_top = ((float*) mclt_tiles) +  tile_in_block * (DTT_SIZE2 * DTT_SIZE21) + column;
 	float * rbg_top = color_plane + (tileY * DTT_SIZE)* dstride + (tileX * DTT_SIZE) + column;
 	float * mclt_tile = mclt_top;
@@ -2377,31 +2401,33 @@ __global__ void imclt_rbg(
 
 
 
-//	save result (back)
-	float * rbg_p = rbg_top;
-	mclt_tile =     mclt_top;
-	if ((tileX == 0)  && (tileY == 0)){
+    //	save result (back)
+    float * rbg_p = rbg_top;
+    mclt_tile =     mclt_top;
+    if ((tileX == 0)  && (tileY == 0)){
 #pragma unroll
-		for (int i = 0; i < DTT_SIZE2; i++){
-			*rbg_p = 100.0f; // just testing
-			mclt_tile += DTT_SIZE21;
-			rbg_p +=     dstride; // DTT_SIZE2; // FIXME
-		}
-	} else if ((tileX == DBG_TILE_X)  && (tileY == DBG_TILE_Y)){
+    	for (int i = 0; i < DTT_SIZE2; i++){
+    		*rbg_p = 100.0f; // just testing
+    		mclt_tile += DTT_SIZE21;
+    		rbg_p +=     dstride; // DTT_SIZE2; // FIXME
+    	}
+#ifdef DBG_MARK_DBG_TILE
+    } else if ((tileX == DBG_TILE_X)  && (tileY == DBG_TILE_Y)){
 #pragma unroll
-		for (int i = 0; i < DTT_SIZE2; i++){
-			*rbg_p = (*mclt_tile) * 2.0; // just testing
-			mclt_tile += DTT_SIZE21;
-			rbg_p +=     dstride; // DTT_SIZE2; // FIXME
-		}
-	} else {
+    	for (int i = 0; i < DTT_SIZE2; i++){
+    		*rbg_p = (*mclt_tile) * 2.0; // just testing
+    		mclt_tile += DTT_SIZE21;
+    		rbg_p +=     dstride; // DTT_SIZE2; // FIXME
+    	}
+#endif
+    } else {
 #pragma unroll
-		for (int i = 0; i < DTT_SIZE2; i++){
-			*rbg_p = *mclt_tile;
-			mclt_tile += DTT_SIZE21;
-			rbg_p +=     dstride; // DTT_SIZE2; // FIXME
-		}
-	}
+    	for (int i = 0; i < DTT_SIZE2; i++){
+    		*rbg_p = *mclt_tile;
+    		mclt_tile += DTT_SIZE21;
+    		rbg_p +=     dstride; // DTT_SIZE2; // FIXME
+    	}
+    }
 }
 
 
@@ -3184,15 +3210,15 @@ __device__ void convertCorrectTile(
     			 lpf   += DTT_SIZE;
     		 }
     	 }
-         __syncthreads();// __syncwarp();
+    	 __syncthreads();// __syncwarp();
 #ifdef DBG_TILE
 #ifdef DEBUG3
-         if ((threadIdx.x) == 0){
-        	 printf("\nDTT Tiles after LPF, color = %d\n",color);
-        	 debug_print_clt1(clt_tile, color,  0xf); // only 1 quadrant for R,B and 2 - for G
-        	 printf("\nDTT All done\n");
-         }
-     __syncthreads();// __syncwarp();
+    	 if ((threadIdx.x) == 0){
+    		 printf("\nDTT Tiles after LPF, color = %d\n",color);
+    		 debug_print_clt1(clt_tile, color,  0xf); // only 1 quadrant for R,B and 2 - for G
+    		 printf("\nDTT All done\n");
+    	 }
+    	 __syncthreads();// __syncwarp();
 #endif
 #endif
      }

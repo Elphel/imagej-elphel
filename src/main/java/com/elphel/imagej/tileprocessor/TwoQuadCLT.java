@@ -2088,7 +2088,7 @@ public class TwoQuadCLT {
 // run imclt;
 		long startIMCLT=System.nanoTime();
 		for (int i = 0; i < NREPEAT; i++ ) {
-			gPUTileProcessor.execImcltRbg();
+			gPUTileProcessor.execImcltRbg(quadCLT_main.isMonochrome());
 		}
 		long endImcltTime = System.nanoTime();
 // run correlation
@@ -2175,22 +2175,22 @@ public class TwoQuadCLT {
 		int tilesY =  GPUTileProcessor.IMG_HEIGHT / GPUTileProcessor.DTT_SIZE;
 		int [] wh = new int[2];
 		if (clt_parameters.show_corr) {
-		float [][] corr2D = gPUTileProcessor.getCorr2D(
-				clt_parameters.gpu_corr_rad); //  int corr_rad);
-// convert to 6-layer image		 using tasks
-		double [][] dbg_corr = GPUTileProcessor.getCorr2DView(
-	    		tilesX,
-	    		tilesY,
-	    		corr_indices,
-	    		corr2D,
-	    		wh);
-		(new ShowDoubleFloatArrays()).showArrays(
-				dbg_corr,
-				wh[0],
-				wh[1],
-				true,
-				"CORR2D",
-				GPUTileProcessor.getCorrTitles());
+			float [][] corr2D = gPUTileProcessor.getCorr2D(
+					clt_parameters.gpu_corr_rad); //  int corr_rad);
+			// convert to 6-layer image		 using tasks
+			double [][] dbg_corr = GPUTileProcessor.getCorr2DView(
+					tilesX,
+					tilesY,
+					corr_indices,
+					corr2D,
+					wh);
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_corr,
+					wh[0],
+					wh[1],
+					true,
+					"CORR2D",
+					GPUTileProcessor.getCorrTitles());
 		}
 // convert to overlapping and show
 		if (clt_parameters.gen_chn_img) {

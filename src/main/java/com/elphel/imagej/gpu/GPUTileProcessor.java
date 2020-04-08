@@ -979,12 +979,15 @@ public class GPUTileProcessor {
     	cuCtxSynchronize(); // remove later
     }
 
-    public void execImcltRbg() {
+    public void execImcltRbg(
+    		boolean is_mono
+    		) {
     	if (GPU_IMCLT_RBG_kernel == null)
     	{
     		IJ.showMessage("Error", "No GPU kernel: GPU_IMCLT_RBG_kernel");
     		return;
     	}
+    	int apply_lpf =  1;
     	int tilesX =  IMG_WIDTH / DTT_SIZE;
     	int tilesY =  IMG_HEIGHT / DTT_SIZE;
     	int [] ThreadsFullWarps = {IMCLT_THREADS_PER_TILE, IMCLT_TILES_PER_BLOCK, 1};
@@ -999,6 +1002,8 @@ public class GPUTileProcessor {
 						Pointer kernelParameters = Pointer.to(
 								Pointer.to(gpu_clt_h[ncam]),
 								Pointer.to(gpu_corr_images_h[ncam]),
+								Pointer.to(new int[] { apply_lpf }),
+								Pointer.to(new int[] { is_mono ? 1 : 0 }),
 								Pointer.to(new int[] { color }),
 								Pointer.to(new int[] { v_offs }),
 								Pointer.to(new int[] { h_offs }),
