@@ -1502,9 +1502,15 @@ public class TwoQuadCLT {
 						true);
 			} catch (IOException e) {
 				System.out.println("Failed to save flattened kernels tp "+kernel_dir);
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			} // boolean transpose);
+
+			try {
+				quadCLT_main.getGeometryCorrection().saveFloatsGPU(kernel_dir +"main");
+			} catch (IOException e) {
+				System.out.println("Failed to save geometry correction data to "+kernel_dir);
+				e.printStackTrace();
+			}
 
 			if (debugLevel < -1000) {
 				return null;

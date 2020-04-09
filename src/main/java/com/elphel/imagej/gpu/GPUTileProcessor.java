@@ -92,8 +92,11 @@ public class GPUTileProcessor {
 	static String GPU_RESOURCE_DIR =              "kernels";
 	static String [] GPU_KERNEL_FILES = {"dtt8x8.cuh","TileProcessor.cuh"};
 	// "*" - generated defines, first index - separately compiled unit
-//	static String [][] GPU_SRC_FILES = {{"*","dtt8x8.h","dtt8x8.cu"},{"*","dtt8x8.h","TileProcessor.cuh"}};
-	static String [][] GPU_SRC_FILES = {{"*","dtt8x8.h","dtt8x8.cu","TileProcessor.cuh"}};
+/*	static String [][] GPU_SRC_FILES = {
+	{"*","dtt8x8.h","dtt8x8.cu"},
+	{"*","dtt8x8.h","geometry_correction.h","TileProcessor.h","TileProcessor.cuh"}};
+*/
+	static String [][] GPU_SRC_FILES = {{"*","dtt8x8.h","dtt8x8.cu","geometry_correction.h","TileProcessor.h","TileProcessor.cuh"}};
 	//	static String [][] GPU_SRC_FILES = {{"*","dtt8x8.cuh","TileProcessor.cuh"}};
 	static String GPU_CONVERT_CORRECT_TILES_NAME = "convert_correct_tiles"; // name in C code
 	static String GPU_IMCLT_RBG_NAME =             "imclt_rbg"; // name in C code

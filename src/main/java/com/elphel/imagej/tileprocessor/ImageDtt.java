@@ -2548,40 +2548,6 @@ public class ImageDtt {
 				{ 0.5,  0.5}};
 		final int transform_len = transform_size * transform_size;
 
-
-/*
-		final double [] filter_direct= new double[transform_len];
-		if (corr_sigma == 0) {
-			filter_direct[0] = 1.0;
-			for (int i= 1; i<filter_direct.length;i++) filter_direct[i] =0;
-		} else {
-			for (int i = 0; i < transform_size; i++){
-				for (int j = 0; j < transform_size; j++){
-					filter_direct[i*transform_size+j] = Math.exp(-(i*i+j*j)/(2*corr_sigma)); // FIXME: should be sigma*sigma !
-				}
-			}
-		}
-		// normalize
-		double sum = 0;
-		for (int i = 0; i < transform_size; i++){
-			for (int j = 0; j < transform_size; j++){
-				double d = 	filter_direct[i*transform_size+j];
-				d*=Math.cos(Math.PI*i/(2*transform_size))*Math.cos(Math.PI*j/(2*transform_size));
-				if (i > 0) d*= 2.0;
-				if (j > 0) d*= 2.0;
-				sum +=d;
-			}
-		}
-		for (int i = 0; i<filter_direct.length; i++){
-			filter_direct[i] /= sum;
-		}
-
-		DttRad2 dtt = new DttRad2(transform_size);
-		final double [] filter= dtt.dttt_iiie(filter_direct);
-		for (int i=0; i < filter.length;i++) filter[i] *= 2*transform_size;
-
- 		*/
-
 		final double [] filter =  doubleGetCltLpfFd(corr_sigma);
 
 		// prepare disparity maps and weights

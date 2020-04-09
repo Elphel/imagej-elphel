@@ -41,6 +41,8 @@
 #ifndef JCUDA
 #include "tp_defines.h"
 #include "dtt8x8.h"
+#include "geometry_correction.h"
+#include "TileProcessor.h"
 #endif // #ifndef JCUDA
 
 #define TASK_TEXTURE_BITS ((1 << TASK_TEXTURE_N_BIT) | (1 << TASK_TEXTURE_E_BIT) | (1 << TASK_TEXTURE_S_BIT) | (1 << TASK_TEXTURE_W_BIT))
@@ -106,11 +108,12 @@
 #define DBG_TILE_Y     111 // 66
 
 #define DBG_TILE    (DBG_TILE_Y * 324 + DBG_TILE_X)
-#undef DBG_MARK_DBG_TILE 1
+#undef DBG_MARK_DBG_TILE
 
 //56494
 // struct tp_task
 //#define TASK_SIZE      12
+#if 0
 struct tp_task {
 	int   task;
 	union {
@@ -119,6 +122,7 @@ struct tp_task {
 	};
 	float xy[NUM_CAMS][2];
 };
+#endif
 struct CltExtra{
 	float data_x;   // kernel data is relative to this displacement X (0.5 pixel increments)
 	float data_y;   // kernel data is relative to this displacement Y (0.5 pixel increments)
@@ -826,6 +830,7 @@ __device__ void imclt_plane( // not implemented, not used
 		float           * gpu_rbg,            // WIDTH, HEIGHT
 		const size_t      dstride);            // in floats (pixels)
 
+#if 0
 extern "C"
 __global__ void clear_texture_list(
 		int              * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
@@ -892,6 +897,7 @@ __global__ void imclt_rbg(
 		int               h_offset,
 		const size_t      dstride);            // in floats (pixels)
 //===========================
+#endif
 
 extern "C"
 __global__ void correlate2D(

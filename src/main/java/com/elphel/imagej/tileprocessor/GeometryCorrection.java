@@ -1,4 +1,11 @@
 package com.elphel.imagej.tileprocessor;
+import java.io.DataOutputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.Channels;
+import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
 import java.util.Properties;
 
@@ -103,12 +110,111 @@ public class GeometryCorrection {
 	public  CorrVector extrinsic_corr;
 
 	public RigOffset   rigOffset =    null;
-	public int []             woi_tops; // used to calculate scanline timing
+	public int []      woi_tops; // used to calculate scanline timing
+
+
+	public float [] toFloatArray() { // for GPU comparison
+		return new float[] {
+				(float) focalLength,      // =FOCAL_LENGTH;
+				(float) pixelSize,        // =  PIXEL_SIZE; //um
+				(float) distortionRadius, // =  DISTORTION_RADIUS; // mm - half width of the sensor
+				(float) distortionA8,     //r^8 (normalized to focal length or to sensor half width?)
+				(float) distortionA7,     //r^7 (normalized to focal length or to sensor half width?)
+				(float) distortionA6,     //r^6 (normalized to focal length or to sensor half width?)
+				(float) distortionA5,     //r^5 (normalized to focal length or to sensor half width?)
+				(float) distortionA,      // r^4 (normalized to focal length or to sensor half width?)
+				(float) distortionB,      // r^3
+				(float) distortionC,      // r^2
+				// parameters, common for all sensors
+				(float)    elevation,     // degrees, up - positive;
+				(float)    heading,       // degrees, CW (from top) - positive
+				(float) forward[0], (float) forward[1], (float) forward[2], (float) forward[3], //    [NUM_CAMS];
+				(float) right[0],   (float) right[1],   (float) right[2],   (float) right[3],   // [NUM_CAMS];
+				(float) height[0],  (float) height[1],  (float) height[2],  (float) height[3],  //     [NUM_CAMS];
+				(float) roll[0],    (float) roll[1],    (float) roll[2],    (float) roll[3],     //    [NUM_CAMS];  // degrees, CW (to target) - positive
+				(float) common_right,    // mm right, camera center
+				(float) common_forward,  // mm forward (to target), camera center
+				(float) common_height,   // mm up, camera center
+				(float) common_roll,     // degrees CW (to target) camera as a whole
+//				(float) [][] XYZ_he;     // all cameras coordinates transformed to eliminate heading and elevation (rolls preserved)
+//				(float) [][] XYZ_her = null; // XYZ of the lenses in a corrected CCS (adjusted for to elevation, heading,  common_roll)
+				(float) rXY[0][0], (float) rXY[0][1],        // [NUM_CAMS][2]; // XY pairs of the in a normal plane, relative to disparityRadius
+				(float) rXY[1][0], (float) rXY[1][1],
+				(float) rXY[2][0], (float) rXY[2][1],
+				(float) rXY[3][0], (float) rXY[3][1],
+//				(float) [][] rXY_ideal = {{-0.5, -0.5}, {0.5,-0.5}, {-0.5, 0.5}, {0.5,0.5}};
+			// only used for the multi-quad systems
+				(float) cameraRadius,     // average distance from the "mass center" of the sensors to the sensors
+				(float) disparityRadius   //=150.0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad
+		};
+	}
 
 	public int [] getWOITops() {// not used in lwir
 		return woi_tops;
 	}
 
+	public double [] getRByRDist() {
+		return this.rByRDist;
+	}
+	public double getStepR() {
+		return this.stepR;
+	}
+
+
+	// save files for GPU comparison
+	public void saveFloatsGPU(String file_prefix)  throws IOException {
+		// Save GeometryCorrection global data
+		int sizeof_float = 4;
+		{
+			String gc_path =  file_prefix+".geometry_correction";
+			FileOutputStream fos = new FileOutputStream(gc_path);
+			DataOutputStream dos = new DataOutputStream(fos);
+			WritableByteChannel channel = Channels.newChannel(dos);
+			float [] fgc = toFloatArray();
+			ByteBuffer bb = ByteBuffer.allocate(fgc.length * sizeof_float);
+			bb.order(ByteOrder.LITTLE_ENDIAN);
+			bb.clear();
+			for (int i = 0; i <  fgc.length; i++) {
+				bb.putFloat(fgc[i]);
+			}
+			bb.flip();
+			channel.write(bb);
+			dos.close();
+		}
+		{
+			String gc_path =  file_prefix+".correction_vector";
+			FileOutputStream fos = new FileOutputStream(gc_path);
+			DataOutputStream dos = new DataOutputStream(fos);
+			WritableByteChannel channel = Channels.newChannel(dos);
+			float [] fcv = getCorrVector().toFloatArray();
+			ByteBuffer bb = ByteBuffer.allocate(fcv.length * sizeof_float);
+			bb.order(ByteOrder.LITTLE_ENDIAN);
+			bb.clear();
+			for (int i = 0; i <  fcv.length; i++) {
+				bb.putFloat(fcv[i]);
+			}
+			bb.flip();
+			channel.write(bb);
+			dos.close();
+		}
+//double [] getRByRDist()
+		{
+			String gc_path =  file_prefix+".rbyrdist";
+			FileOutputStream fos = new FileOutputStream(gc_path);
+			DataOutputStream dos = new DataOutputStream(fos);
+			WritableByteChannel channel = Channels.newChannel(dos);
+			double [] rByRDist = getRByRDist();
+			ByteBuffer bb = ByteBuffer.allocate(rByRDist.length * sizeof_float);
+			bb.order(ByteOrder.LITTLE_ENDIAN);
+			bb.clear();
+			for (int i = 0; i <  rByRDist.length; i++) {
+				bb.putFloat((float) rByRDist[i]);
+			}
+			bb.flip();
+			channel.write(bb);
+			dos.close();
+		}
+	}
 
 	public int [] getSensorWH() {
 		int [] wh = {this.pixelCorrectionWidth, this.pixelCorrectionHeight};
@@ -1331,6 +1437,17 @@ public class GeometryCorrection {
 
 		public CorrVector getCorrVector(double [] vector){// not used in lwir
 			return new CorrVector(vector);
+		}
+
+		public float [] toFloatArray() {
+			if (vector == null) {
+				return null;
+			}
+			float [] fvector = new float [vector.length];
+			for (int i = 0; i < vector.length; i++) {
+				fvector[i] = (float) vector[i];
+			}
+			return fvector;
 		}
 
 		public double [] toArray() // USED in lwir
@@ -2721,12 +2838,9 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			double pYci =  rvi.get(1, 0) * norm_z;
 
 			// debug
-			  double norm_z_dbg = fl_pix/vi.get(2, 0);
-			  double pXci_dbg =  vi.get(0, 0) * norm_z_dbg;
-			  double pYci_dbg =  vi.get(1, 0) * norm_z_dbg;
-
-
-
+			double norm_z_dbg = fl_pix/vi.get(2, 0);
+			double pXci_dbg =  vi.get(0, 0) * norm_z_dbg;
+			double pYci_dbg =  vi.get(1, 0) * norm_z_dbg;
 
 			// Re-apply distortion
 			double rNDi = Math.sqrt(pXci*pXci + pYci*pYci); // in pixels
@@ -2734,8 +2848,8 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			double ri = rNDi* ri_scale; // relative to distortion radius
 			//    		double rD2rND = (1.0 - distortionA8 - distortionA7 - distortionA6 - distortionA5 - distortionA - distortionB - distortionC);
 
-			  double rNDi_dbg = Math.sqrt(pXci_dbg*pXci_dbg + pYci_dbg*pYci_dbg); // in pixels
-			  double ri_dbg = rNDi_dbg* ri_scale; // relative to distortion radius
+			double rNDi_dbg = Math.sqrt(pXci_dbg*pXci_dbg + pYci_dbg*pYci_dbg); // in pixels
+			double ri_dbg = rNDi_dbg* ri_scale; // relative to distortion radius
 
 
 			double rD2rND = 1.0;
@@ -2745,13 +2859,14 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				rD2rND += rad_coeff[j]*(rri - 1.0); // Fixed
 			}
 
+/*
 			double rD2rND_dbg = 1.0;
 			double rri_dbg = 1.0;
 			for (int j = 0; j < rad_coeff.length; j++){
 				rri_dbg *= ri_dbg;
 				rD2rND_dbg += rad_coeff[j]*(rri_dbg - 1.0); // Fixed
 			}
-
+*/
 
 
 			// Get port pixel coordinates by scaling the 2d vector with Rdistorted/Dnondistorted coefficient)
@@ -2842,7 +2957,6 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 					double ers_Yci = delta_t* (dpYci_dtilt * imu[0] + dpYci_dazimuth * imu[1]  + dpYci_droll * imu[2]);
 					if (xyz != null) {
 						double k = SCENE_UNITS_SCALE * this.disparityRadius;
-//						double wdisparity = -(k * this.focalLength / (0.001*this.pixelSize)) / xyz[2];
 						double wdisparity = disparity;
 						double dwdisp_dz = (k * this.focalLength / (0.001*this.pixelSize)) / (xyz[2] * xyz[2]);
 						dpXci_pYci_imu_lin[0][0] = -wdisparity / k; // dpx/ dworld_X
