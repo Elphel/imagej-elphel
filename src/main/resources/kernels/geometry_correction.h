@@ -48,6 +48,8 @@ struct tp_task {
 		unsigned short sxy[2];
 	};
 	float xy[NUM_CAMS][2];
+	float target_disparity;
+	float disp_dist[NUM_CAMS][4]; // calculated with getPortsCoordinates()
 };
 
 struct corr_vector{

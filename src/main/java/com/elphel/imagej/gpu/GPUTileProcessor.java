@@ -126,7 +126,7 @@ public class GPUTileProcessor {
 	static int        TEXTURE_TILES_PER_BLOCK =   1;
 	static int        IMCLT_THREADS_PER_TILE =   16;
 	static int        IMCLT_TILES_PER_BLOCK =     4;
-	static int        TPTASK_SIZE =                 NUM_CAMS * 2 + 2;
+	static int        TPTASK_SIZE =                 1+ 1+ NUM_CAMS * 2 + 1 + NUM_CAMS * 4 ; // tp_task structure size in floats
 	static int        CLTEXTRA_SIZE =               8;
 	static int        KERN_TILES =                  KERNELS_HOR *  KERNELS_VERT * NUM_COLORS;
 	static int        KERN_SIZE =                   KERN_TILES * 4 * 64;
@@ -201,6 +201,7 @@ public class GPUTileProcessor {
     	public int tx;
     	public float[][] xy = null;
     	public float[][] xy_aux = null;
+    	public float [][] disp_dist = null;
     	public TpTask() {}
 
     	public TpTask(int tx, int ty, float target_disparity, int task ) {
@@ -208,11 +209,12 @@ public class GPUTileProcessor {
     		this.ty = ty;
     		this.target_disparity = target_disparity;
     		this.task = task;
+    		this.disp_dist = new float [NUM_CAMS][4];
     	}
 
     	// convert this class instance to float array to match layout of the C struct
     	public float [] asFloatArray(boolean use_aux) {
-    		float [] flt = new float [NUM_CAMS * 2 + 2];
+    		float [] flt = new float [TPTASK_SIZE];
     		return asFloatArray(flt, 0, use_aux);
     	}
     	// convert this class instance to float array to match layout of the C struct,
@@ -224,6 +226,13 @@ public class GPUTileProcessor {
     		for (int i = 0; i < NUM_CAMS; i++) {
     			flt[indx++] = offsets[i][0];
     			flt[indx++] = offsets[i][1];
+    		}
+    		flt[indx++] = this.target_disparity;
+    		for (int i = 0; i < NUM_CAMS; i++) { // actually disp_dist will be initialized by the GPU
+    			flt[indx++] = disp_dist[i][0];
+    			flt[indx++] = disp_dist[i][1];
+    			flt[indx++] = disp_dist[i][2];
+    			flt[indx++] = disp_dist[i][3];
     		}
     		return flt;
     	}
