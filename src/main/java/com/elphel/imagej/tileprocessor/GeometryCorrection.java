@@ -99,7 +99,7 @@ public class GeometryCorrection {
 	public double disparityRadius=150.0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad camera (~=150mm)?
 
 	private double [] rByRDist=null;
-	private double    stepR=0.0001; // 0.001;
+	private double    stepR=0.0004; // 0004 - double, 0.0002 - float to fit into GPU shared memory (was 0.001);
 	private double    maxR=2.0; // calculate up to this*distortionRadius
 
 	private Matrix m_balance_xy = null; // [2*numSensors][2*numSensors] 8x8 matrix to make XY ports correction to have average == 0
@@ -115,23 +115,31 @@ public class GeometryCorrection {
 
 	public float [] toFloatArray() { // for GPU comparison
 		return new float[] {
+				pixelCorrectionWidth, //  =2592;   // virtual camera center is at (pixelCorrectionWidth/2, pixelCorrectionHeight/2)
+				pixelCorrectionHeight, // =1936;
+				(float) line_time,        // duration of one scan line readout (for ERS)
 				(float) focalLength,      // =FOCAL_LENGTH;
 				(float) pixelSize,        // =  PIXEL_SIZE; //um
 				(float) distortionRadius, // =  DISTORTION_RADIUS; // mm - half width of the sensor
-				(float) distortionA8,     //r^8 (normalized to focal length or to sensor half width?)
-				(float) distortionA7,     //r^7 (normalized to focal length or to sensor half width?)
-				(float) distortionA6,     //r^6 (normalized to focal length or to sensor half width?)
-				(float) distortionA5,     //r^5 (normalized to focal length or to sensor half width?)
-				(float) distortionA,      // r^4 (normalized to focal length or to sensor half width?)
-				(float) distortionB,      // r^3
 				(float) distortionC,      // r^2
+				(float) distortionB,      // r^3
+				(float) distortionA,      // r^4 (normalized to focal length or to sensor half width?)
+				(float) distortionA5,     // r^5 (normalized to focal length or to sensor half width?)
+				(float) distortionA6,     // r^6 (normalized to focal length or to sensor half width?)
+				(float) distortionA7,     // r^7 (normalized to focal length or to sensor half width?)
+				(float) distortionA8,     // r^8 (normalized to focal length or to sensor half width?)
 				// parameters, common for all sensors
-				(float)    elevation,     // degrees, up - positive;
-				(float)    heading,       // degrees, CW (from top) - positive
+				(float) elevation,     // degrees, up - positive;
+				(float) heading,       // degrees, CW (from top) - positive
 				(float) forward[0], (float) forward[1], (float) forward[2], (float) forward[3], //    [NUM_CAMS];
 				(float) right[0],   (float) right[1],   (float) right[2],   (float) right[3],   // [NUM_CAMS];
 				(float) height[0],  (float) height[1],  (float) height[2],  (float) height[3],  //     [NUM_CAMS];
 				(float) roll[0],    (float) roll[1],    (float) roll[2],    (float) roll[3],     //    [NUM_CAMS];  // degrees, CW (to target) - positive
+
+				(float) pXY0[0][0], (float) pXY0[0][1], (float) pXY0[1][0], (float) pXY0[1][1],
+				(float) pXY0[2][0], (float) pXY0[2][1], (float) pXY0[3][0], (float) pXY0[3][1],
+//	public  double [][] pXY0 =    null;  // sensor center XY in pixels
+
 				(float) common_right,    // mm right, camera center
 				(float) common_forward,  // mm forward (to target), camera center
 				(float) common_height,   // mm up, camera center
@@ -146,6 +154,42 @@ public class GeometryCorrection {
 			// only used for the multi-quad systems
 				(float) cameraRadius,     // average distance from the "mass center" of the sensors to the sensors
 				(float) disparityRadius   //=150.0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad
+		};
+	}
+	public double [] toDoubleArray() { // for GPU comparison
+		return new double[] {
+				pixelCorrectionWidth, //  =2592;   // virtual camera center is at (pixelCorrectionWidth/2, pixelCorrectionHeight/2)
+				pixelCorrectionHeight, // =1936;
+				line_time,        // duration of one scan line readout (for ERS)
+				focalLength,      // =FOCAL_LENGTH;
+				pixelSize,        // =  PIXEL_SIZE; //um
+				distortionRadius, // =  DISTORTION_RADIUS; // mm - half width of the sensor
+				distortionC,      // r^2
+				distortionB,      // r^3
+				distortionA,      // r^4 (normalized to focal length or to sensor half width?)
+				distortionA5,     // r^5 (normalized to focal length or to sensor half width?)
+				distortionA6,     // r^6 (normalized to focal length or to sensor half width?)
+				distortionA7,     // r^7 (normalized to focal length or to sensor half width?)
+				distortionA8,     // r^8 (normalized to focal length or to sensor half width?)
+				elevation,     // degrees, up - positive;
+				heading,       // degrees, CW (from top) - positive
+				forward[0],  forward[1],  forward[2],  forward[3], //    [NUM_CAMS];
+				right[0],    right[1],    right[2],    right[3],   // [NUM_CAMS];
+				height[0],   height[1],   height[2],   height[3],  //     [NUM_CAMS];
+				roll[0],     roll[1],     roll[2],     roll[3],     //    [NUM_CAMS];  // degrees, CW (to target) - positive
+				pXY0[0][0],  pXY0[0][1],  pXY0[1][0],  pXY0[1][1],
+				pXY0[2][0],  pXY0[2][1],  pXY0[3][0],  pXY0[3][1],
+
+				common_right,    // mm right, camera center
+				common_forward,  // mm forward (to target), camera center
+				common_height,   // mm up, camera center
+				common_roll,     // degrees CW (to target) camera as a whole
+				rXY[0][0],  rXY[0][1],        // [NUM_CAMS][2]; // XY pairs of the in a normal plane, relative to disparityRadius
+				rXY[1][0],  rXY[1][1],
+				rXY[2][0],  rXY[2][1],
+				rXY[3][0],  rXY[3][1],
+cameraRadius,     // average distance from the "mass center" of the sensors to the sensors
+				disparityRadius   //=150.0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad
 		};
 	}
 
@@ -186,12 +230,13 @@ public class GeometryCorrection {
 			FileOutputStream fos = new FileOutputStream(gc_path);
 			DataOutputStream dos = new DataOutputStream(fos);
 			WritableByteChannel channel = Channels.newChannel(dos);
-			float [] fcv = getCorrVector().toFloatArray();
-			ByteBuffer bb = ByteBuffer.allocate(fcv.length * sizeof_float);
+			double [] dcv = getCorrVector().toFullRollArray();
+			ByteBuffer bb = ByteBuffer.allocate(dcv.length * sizeof_float);
 			bb.order(ByteOrder.LITTLE_ENDIAN);
 			bb.clear();
-			for (int i = 0; i <  fcv.length; i++) {
-				bb.putFloat(fcv[i]);
+			for (int i = 0; i <  dcv.length; i++) {
+				bb.putFloat((float) dcv[i]);
+				System.out.println("float: "+i+":"+(float) dcv[i]);
 			}
 			bb.flip();
 			channel.write(bb);
@@ -215,6 +260,62 @@ public class GeometryCorrection {
 			dos.close();
 		}
 	}
+
+	public void saveDoublesGPU(String file_prefix)  throws IOException {
+		// Save GeometryCorrection global data
+		int sizeof_double = 8;
+		{
+			String gc_path =  file_prefix+".geometry_correction_double";
+			FileOutputStream fos = new FileOutputStream(gc_path);
+			DataOutputStream dos = new DataOutputStream(fos);
+			WritableByteChannel channel = Channels.newChannel(dos);
+			double [] dgc = toDoubleArray();
+			ByteBuffer bb = ByteBuffer.allocate(dgc.length * sizeof_double);
+			bb.order(ByteOrder.LITTLE_ENDIAN);
+			bb.clear();
+			for (int i = 0; i <  dgc.length; i++) {
+				bb.putDouble(dgc[i]);
+			}
+			bb.flip();
+			channel.write(bb);
+			dos.close();
+		}
+		{
+			String gc_path =  file_prefix+".correction_vector_double";
+			FileOutputStream fos = new FileOutputStream(gc_path);
+			DataOutputStream dos = new DataOutputStream(fos);
+			WritableByteChannel channel = Channels.newChannel(dos);
+			double [] dcv = getCorrVector().toFullRollArray();
+			ByteBuffer bb = ByteBuffer.allocate(dcv.length * sizeof_double);
+			bb.order(ByteOrder.LITTLE_ENDIAN);
+			bb.clear();
+			for (int i = 0; i <  dcv.length; i++) {
+				bb.putDouble(dcv[i]);
+				System.out.println("double: "+i+":"+dcv[i]);
+			}
+			bb.flip();
+			channel.write(bb);
+			dos.close();
+		}
+//double [] getRByRDist()
+		{
+			String gc_path =  file_prefix+".rbyrdist_double";
+			FileOutputStream fos = new FileOutputStream(gc_path);
+			DataOutputStream dos = new DataOutputStream(fos);
+			WritableByteChannel channel = Channels.newChannel(dos);
+			double [] rByRDist = getRByRDist();
+			ByteBuffer bb = ByteBuffer.allocate(rByRDist.length * sizeof_double);
+			bb.order(ByteOrder.LITTLE_ENDIAN);
+			bb.clear();
+			for (int i = 0; i <  rByRDist.length; i++) {
+				bb.putDouble(rByRDist[i]);
+			}
+			bb.flip();
+			channel.write(bb);
+			dos.close();
+		}
+	}
+
 
 	public int [] getSensorWH() {
 		int [] wh = {this.pixelCorrectionWidth, this.pixelCorrectionHeight};
@@ -395,6 +496,7 @@ public class GeometryCorrection {
 	public CorrVector getCorrVector(){
 		return extrinsic_corr;
 	}
+
 
 
 	public void setCorrVector(double [] dv){
@@ -1264,6 +1366,148 @@ public class GeometryCorrection {
 			}
 			return derivs;
 		}
+		public Matrix [] getRotMatricesDbg() {
+			Matrix [] rots = new Matrix [4];
+			double [] azimuths = getAzimuths();
+			double [] tilts =    getTilts();
+			double [] rolls =    getFullRolls();
+			double [] zooms =    getZooms();
+			for (int chn = 0; chn < rots.length; chn++) {
+				double ca = Math.cos(azimuths[chn]);
+				double sa = Math.sin(azimuths[chn]);
+				double ct = Math.cos(tilts[chn]);
+				double st = Math.sin(tilts[chn]);
+				double zoom = (1.0 + zooms[chn]);
+				double cr = Math.cos(rolls[chn]) * zoom;
+				double sr = Math.sin(rolls[chn]) * zoom;
+				double [][] a_az = { // inverted - OK
+						{ ca,               0.0,  sa * ROT_AZ_SGN }, // -1.0
+						{ 0.0,              1.0,  0.0},
+						{ -sa* ROT_AZ_SGN,  0.0,  ca}};
+
+				double [][] a_t =  { // inverted - OK
+						{ 1.0,  0.0, 0.0},
+						{ 0.0,  ct,               st * ROT_TL_SGN}, // +1.0
+						{ 0.0, -st * ROT_TL_SGN,  ct}};
+
+				double [][] a_r =  { // inverted OK
+						{ cr,                sr * ROT_RL_SGN,  0.0}, // +1.0
+						{ -sr * ROT_RL_SGN,  cr,               0.0},
+						{ 0.0,               0.0,              1.0}};
+				rots[chn] = (new Matrix(a_r).times(new Matrix(a_t).times(new Matrix(a_az))));
+				System.out.println("Matrices for camera "+chn);
+				System.out.println("Azimuth "+chn+" angle = "+ azimuths[chn]);
+				(new Matrix(a_az)).print(10, 7);
+				System.out.println("Tilt "+chn+" angle = "+ tilts[chn]);
+				(new Matrix(a_t)).print(10, 7);
+				System.out.println("Roll/Zoom "+chn+" angle = "+ rolls[chn]+" zoom="+zooms[chn]+
+						" cr = "+ Math.cos(rolls[chn])+ " sr = "+ Math.sin(rolls[chn]));
+				(new Matrix(a_r)).print(10, 7);
+				System.out.println("Combined "+chn);
+				rots[chn].print(10, 7);
+			}
+			return rots;
+		}
+
+		public Matrix [][] getRotDeriveMatricesDbg() // USED in lwir
+		{
+			Matrix [][] rot_derivs = new Matrix [4][4]; // channel, azimuth-tilt-roll-zoom
+			double [] azimuths = getAzimuths();
+			double [] tilts =    getTilts();
+			double [] rolls =    getFullRolls();
+			double [] zooms =    getZooms();
+
+			for (int chn = 0; chn < rot_derivs.length; chn++) {
+				double ca = Math.cos(azimuths[chn]);
+				double sa = Math.sin(azimuths[chn]);
+				double ct = Math.cos(tilts[chn]);
+				double st = Math.sin(tilts[chn]);
+				double zoom = (1.0 + zooms[chn]);
+				double cr = Math.cos(rolls[chn]);
+				double sr = Math.sin(rolls[chn]);
+				double [][] a_az = { // inverted - OK
+						{  ca,                     0.0,                     sa * ROT_AZ_SGN },
+						{  0.0,                    1.0,                     0.0},
+						{ -sa* ROT_AZ_SGN,         0.0,                     ca}};
+
+				double [][] a_t =  { // inverted - OK
+						{  1.0,                    0.0,                     0.0},
+						{  0.0,                    ct,                      st * ROT_TL_SGN},
+						{  0.0,                   -st * ROT_TL_SGN,         ct}};
+
+				double [][] a_r =  { // inverted OK
+						{  cr * zoom,              sr * zoom * ROT_RL_SGN,  0.0},
+						{ -sr * zoom * ROT_RL_SGN, cr * zoom,               0.0},
+						{  0.0,                    0.0,                     1.0}};
+
+				double [][] a_daz = { // inverted - OK
+						{ -sa,                     0.0,                     ca * ROT_AZ_SGN },
+						{  0.0,                    0.0,                     0.0},
+						{ -ca* ROT_AZ_SGN,         0.0,                    -sa}};
+
+				double [][] a_dt =  { // inverted - OK
+						{ 0.0,  0.0,               0.0},
+						{ 0.0, -st,                ct * ROT_TL_SGN},
+						{ 0.0, -ct * ROT_TL_SGN,  -st}};
+
+				double [][] a_dr =  { // inverted OK
+						{ -sr * zoom,              cr * zoom * ROT_RL_SGN,  0.0},
+						{ -cr * zoom *ROT_RL_SGN, -sr * zoom,               0.0},
+						{ 0.0,                     0.0,                     0.0}};
+
+				double [][] a_dzoom =  { // inverted OK
+						{ cr,                      sr * ROT_RL_SGN,         0.0},
+						{ -sr * ROT_RL_SGN,        cr,                      0.0},
+						{ 0.0,                     0.0,                     0.0}};
+
+				// d/d_az
+				rot_derivs[chn][0] = (new Matrix(a_r ).times(new Matrix(a_t ).times(new Matrix(a_daz))));    // d/daz   - wrong, needs *zoom
+				rot_derivs[chn][1] = (new Matrix(a_r ).times(new Matrix(a_dt).times(new Matrix(a_az ))));    // d/dt    - wrong, needs *zoom
+				rot_derivs[chn][2] = (new Matrix(a_dr).times(new Matrix(a_t ).times(new Matrix(a_az ))));    // d/dr    - correct, has zoom
+				rot_derivs[chn][3] = (new Matrix(a_dzoom).times(new Matrix(a_t ).times(new Matrix(a_az )))); // d/dzoom - correct
+
+				System.out.println("\nMatrices for camera "+chn);
+				System.out.println("Azimuth "+chn+" angle = "+ azimuths[chn]);
+				(new Matrix(a_az)).print(10, 7);
+				System.out.println("Tilt "+chn+" angle = "+ tilts[chn]);
+				(new Matrix(a_t)).print(10, 7);
+
+				System.out.println("Roll/Zoom "+chn+" angle = "+ rolls[chn]+" zoom="+zooms[chn]+
+						" cr = "+ Math.cos(rolls[chn])+ " sr = "+ Math.sin(rolls[chn]));
+				(new Matrix(a_r)).print(10, 7);
+
+				System.out.println("Combined "+chn);
+				(new Matrix(a_r).times(new Matrix(a_t).times(new Matrix(a_az)))).print(10, 7);
+
+				System.out.println("a_t * a_az "+chn);
+				(new Matrix(a_t).times(new Matrix(a_az))).print(10, 7);
+
+
+
+				System.out.println("\n=== Matrices of Derivatives for camera "+chn);
+				System.out.println("d/d_Azimuth "+chn+" angle = "+ azimuths[chn]+" ca="+ca+" sa="+sa);
+				(new Matrix(a_daz)).print(10, 7);
+				System.out.println("d/d_Tilt "+chn+" angle = "+ tilts[chn]+" ct="+ct+" st="+st);
+				(new Matrix(a_dt)).print(10, 7);
+				System.out.println("d/d_Roll "+chn+" angle = "+ rolls[chn]+" cr="+cr+" sr="+sr);
+				(new Matrix(a_dr)).print(10, 7);
+				System.out.println("d/d_Zoom "+chn+" zoom="+zooms[chn]);
+				(new Matrix(a_dzoom)).print(10, 7);
+				System.out.println("Combined d/daz"+chn);
+				rot_derivs[chn][0].print(10, 7);
+				System.out.println("Combined d/dt"+chn);
+				rot_derivs[chn][1].print(10, 7);
+				System.out.println("Combined d/dr"+chn);
+				rot_derivs[chn][2].print(10, 7);
+				System.out.println("Combined d/dzoom"+chn);
+				rot_derivs[chn][3].print(10, 7);
+			}
+			return rot_derivs;
+		}
+
+
+
+
 
 		public Matrix [] getRotMatrices() // USED in lwir
 		{
@@ -1331,12 +1575,6 @@ public class GeometryCorrection {
 						{  0.0,                    ct,                      st * ROT_TL_SGN},
 						{  0.0,                   -st * ROT_TL_SGN,         ct}};
 
-/*
-				double [][] a_r =  { // inverted OK
-						{  cr,                     sr * ROT_RL_SGN,         0.0},
-						{ -sr * ROT_RL_SGN,        cr,                      0.0},
-						{  0.0,                    0.0,                     1.0}};
- */
 				double [][] a_r =  { // inverted OK
 						{  cr * zoom,              sr * zoom * ROT_RL_SGN,  0.0},
 						{ -sr * zoom * ROT_RL_SGN, cr * zoom,               0.0},
@@ -1449,6 +1687,17 @@ public class GeometryCorrection {
 			}
 			return fvector;
 		}
+
+		public double [] toFullRollArray()
+		{
+			double [] v =       vector.clone();
+			double [] rolls =   getFullRolls();
+			for (int i = 0; i < (ZOOM_INDEX - ROLL_INDEX); i++) {
+				v[ROLL_INDEX + i] = rolls[i];
+			}
+			return v;
+		}
+
 
 		public double [] toArray() // USED in lwir
 		{
@@ -2793,6 +3042,21 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
  * 5) return port center X and Y
  * line_time
  */
+
+		double [] imu =  null;
+		if (disp_dist != null) {
+			imu =  extrinsic_corr.getIMU(); // currently it is common for all channels
+			if ((deriv_rots == null) &&  ((imu[0] != 0.0) || (imu[1] != 0.0) ||(imu[2] != 0.0))){
+				// get deriv_rots - they are needed
+//				if (use_rig_offsets) {
+//					deriv_rots = extrinsic_corr.getRotDeriveMatrices(getRigMatrix);
+//				} else {
+					deriv_rots = extrinsic_corr.getRotDeriveMatrices();
+//				}
+			}
+		}
+
+
 		if ((disp_dist == null) && (pXYderiv != null)) {
 			disp_dist = new double [numSensors][4];
 		}
@@ -2859,22 +3123,9 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				rD2rND += rad_coeff[j]*(rri - 1.0); // Fixed
 			}
 
-/*
-			double rD2rND_dbg = 1.0;
-			double rri_dbg = 1.0;
-			for (int j = 0; j < rad_coeff.length; j++){
-				rri_dbg *= ri_dbg;
-				rD2rND_dbg += rad_coeff[j]*(rri_dbg - 1.0); // Fixed
-			}
-*/
-
-
 			// Get port pixel coordinates by scaling the 2d vector with Rdistorted/Dnondistorted coefficient)
 			double pXid = pXci * rD2rND;
 			double pYid = pYci * rD2rND;
-
-///			double pXid_dbg = pXci_dbg * rD2rND_dbg; // Should be the same as pXcd
-///			double pYid_dbg = pYci_dbg * rD2rND_dbg; //
 
 
 			pXY[i][0] =  pXid + this.pXY0[i][0];
@@ -2912,7 +3163,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				}
 			}
 			double delta_t = 0.0;
-			double [] imu =  null;
+//			double [] imu =  null;
 			double [][] dpXci_pYci_imu_lin = new double[2][3]; // null
 			if (disp_dist != null) {
 				disp_dist[i] =   new double [4]; // dx/d_disp, dx_d_ccw_disp
@@ -2946,12 +3197,12 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				disp_dist[i][2] =   dd2.get(1, 0); // d_py/d_disp
 				disp_dist[i][3] =   dd2.get(1, 1);
 
-				imu =  extrinsic_corr.getIMU(i); // currently it is common for all channels
+//				imu =  extrinsic_corr.getIMU(i); // currently it is common for all channels
 
 				// ERS linear does not yet use per-port rotations, probably not needed
 
 //				double [][] dpXci_pYci_imu_lin = new double[2][3]; // null
-				if ((imu[0] != 0.0) || (imu[1] != 0.0) ||(imu[2] != 0.0) ||(imu[3] != 0.0) ||(imu[4] != 0.0) ||(imu[5] != 0.0)) {
+				if ((imu != null) &&((imu[0] != 0.0) || (imu[1] != 0.0) ||(imu[2] != 0.0) ||(imu[3] != 0.0) ||(imu[4] != 0.0) ||(imu[5] != 0.0))) {
 					delta_t = dd2.get(1, 0) * disparity * line_time; // positive for top cameras, negative - for bottom
 					double ers_Xci = delta_t* (dpXci_dtilt * imu[0] + dpXci_dazimuth * imu[1]  + dpXci_droll * imu[2]);
 					double ers_Yci = delta_t* (dpYci_dtilt * imu[0] + dpYci_dazimuth * imu[1]  + dpYci_droll * imu[2]);
@@ -2973,9 +3224,6 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				} else {
 					imu = null;
 				}
-
-
-
 // TODO: calculate derivatives of pX, pY by 3 imu omegas
 			}
 

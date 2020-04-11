@@ -4798,7 +4798,7 @@ public class ImageDtt {
 		final int tilesY=dct_data.length;
 		final int tilesX=dct_data[0].length;
 		@SuppressWarnings("unused")
-		final double [][] dbg_tile = dct_data[debug_tileY][debug_tileX];
+		final double [][] dbg_tile = ((debug_tileY >=0) && (debug_tileX >=0))? dct_data[debug_tileY][debug_tileX]:null;
 
 //		final int width=  (tilesX+1)*dct_size;
 //		final int height= (tilesY+1)*dct_size;

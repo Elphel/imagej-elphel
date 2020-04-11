@@ -1508,9 +1508,19 @@ public class TwoQuadCLT {
 			try {
 				quadCLT_main.getGeometryCorrection().saveFloatsGPU(kernel_dir +"main");
 			} catch (IOException e) {
-				System.out.println("Failed to save geometry correction data to "+kernel_dir);
+				System.out.println("Failed to save geometry correction data (float) to "+kernel_dir);
 				e.printStackTrace();
 			}
+
+			try {
+				quadCLT_main.getGeometryCorrection().saveDoublesGPU(kernel_dir +"main");
+			} catch (IOException e) {
+				System.out.println("Failed to save geometry correction data (double) to "+kernel_dir);
+				e.printStackTrace();
+			}
+
+			quadCLT_main.getGeometryCorrection().getCorrVector().getRotMatricesDbg();
+			quadCLT_main.getGeometryCorrection().getCorrVector().getRotDeriveMatricesDbg();
 
 			if (debugLevel < -1000) {
 				return null;

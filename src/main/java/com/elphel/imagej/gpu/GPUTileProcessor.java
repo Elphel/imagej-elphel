@@ -146,6 +146,9 @@ public class GPUTileProcessor {
 
 	public static int THREADS_DYNAMIC_BITS =      5; // treads in block for CDP creation of the texture list
 
+	public static int RBYRDIST_LEN =           5001; //for double, 10001 - float;   // length of rByRDist to allocate shared memory
+	public static double RBYRDIST_STEP =          0.0004; //  for double, 0.0002 - for float; // to fit into GPU shared memory (was 0.001);
+	public static int TILES_PER_BLOCK_GEOM =     32; // blockDim.x = NUM_CAMS; blockDim.x = TILES_PER_BLOCK_GEOM
 	public static int TASK_TEXTURE_BITS = ((1 << TASK_TEXTURE_N_BIT) | (1 << TASK_TEXTURE_E_BIT) | (1 << TASK_TEXTURE_S_BIT) | (1 << TASK_TEXTURE_W_BIT));
 
 
@@ -344,7 +347,11 @@ public class GPUTileProcessor {
         				"#define LIST_TEXTURE_BIT " +         LIST_TEXTURE_BIT+"\n"+
         				"#define CORR_OUT_RAD " +             CORR_OUT_RAD+"\n" +
         				"#define FAT_ZERO_WEIGHT " +          FAT_ZERO_WEIGHT+"\n"+
-        				"#define THREADS_DYNAMIC_BITS " +     THREADS_DYNAMIC_BITS+"\n";
+        				"#define THREADS_DYNAMIC_BITS " +     THREADS_DYNAMIC_BITS+"\n"+
+        				"#define RBYRDIST_LEN " +             RBYRDIST_LEN+"\n"+
+        				"#define RBYRDIST_STEP " +            RBYRDIST_STEP+"\n"+
+        				"#define TILES_PER_BLOCK_GEOM " +     TILES_PER_BLOCK_GEOM+"\n";
+
 
     }
 
