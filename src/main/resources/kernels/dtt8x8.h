@@ -72,9 +72,9 @@
 
 
 // kernels (not used so far)
-#ifdef BBBB
+#if 0
 extern "C" __global__ void GPU_DTT24_DRV(float *dst, float *src, int src_stride, int dtt_mode);
-#endif// #ifdef BBBB
+#endif// #if 0
 
 //=========================== 2D functions ===============
 extern __device__ void corrUnfoldTile(

@@ -45,6 +45,15 @@
 #include "TileProcessor.h"
 #endif // #ifndef JCUDA
 
+// CUDA fast math is slower!
+//#define FASTMATH 1
+/*
+ fast
+GPU run time =620.210698ms, (direct conversion: 24.077195999999997ms, imclt: 17.218263ms), corr2D: 85.503204ms), textures: 237.225665ms, RGBA: 256.185703ms
+nofast
+GPU run time =523.451927ms, (direct conversion: 24.080189999999998ms, imclt: 17.090526999999998ms), corr2D: 30.623282999999997ms), textures: 231.154339ms, RGBA: 220.503017ms
+ */
+
 #define TASK_TEXTURE_BITS ((1 << TASK_TEXTURE_N_BIT) | (1 << TASK_TEXTURE_E_BIT) | (1 << TASK_TEXTURE_S_BIT) | (1 << TASK_TEXTURE_W_BIT))
 
 //#define IMCLT14
@@ -101,14 +110,6 @@
 
 #define MCLT_UNION_LEN   (DTT_SIZE2 * (DTT_SIZE2 + 2))
 
-// Use CORR_OUT_RAD for the correlation output
-//#define DBG_TILE_X     40
-//#define DBG_TILE_Y     80
-#define DBG_TILE_X     161 // 49
-#define DBG_TILE_Y     111 // 66
-
-#define DBG_TILE    (DBG_TILE_Y * 324 + DBG_TILE_X)
-#undef DBG_MARK_DBG_TILE
 
 //56494
 // struct tp_task
@@ -1019,19 +1020,7 @@ __global__ void correlate2D(
         	__syncthreads();// __syncwarp();
 #endif
 #endif
-
-
-
-
-
-
-
-
         } // if (color == 1){ // LPF only after B (nothing in mono)
-
-
-
-
     } // for (int color = 0; color < colors; color++){
     normalizeTileAmplitude(
     		clt_corr, // float * clt_tile, //       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
@@ -1083,23 +1072,6 @@ __global__ void correlate2D(
 #endif
 #endif
      dttii_2d(clt_corr);
-/*
-    // change to 16-32 threads?? in next iteration
-    // vert pass (hor pass in Java, before transpose. Here transposed, no transform needed)
-    for (int q = 0; q < 4; q++){
-    	int is_sin = (q >> 1) & 1;
-    	dttii_shared_mem_nonortho(clt_corr + q * (DTT_SIZE1 * DTT_SIZE) + threadIdx.x , DTT_SIZE1, is_sin); // vertical pass, thread is column
-    }
-    __syncthreads();
-
-    // hor pass, corresponding to vert pass in Java
-    for (int q = 0; q < 4; q++){
-    	int is_sin = q & 1;
-    	dttii_shared_mem_nonortho(clt_corr + (q * DTT_SIZE + threadIdx.x) * DTT_SIZE1 ,  1, is_sin); // horizontal pass, tread is row
-    }
-    __syncthreads();
-*/
-
 
 #ifdef DBG_TILE
 #ifdef DEBUG6
@@ -1170,6 +1142,7 @@ __global__ void generate_RBGA(
 			int                height, // <= TILESY, use for faster processing of LWIR images
 // Parameters for the texture generation
 			float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+			// TODO: use geometry_correction rXY !
 			float           * gpu_port_offsets,       // relative ports x,y offsets - just to scale differences, may be approximate
 			int               colors,             // number of colors (3/1)
 			int               is_lwir,            // do not perform shot correction
@@ -1920,11 +1893,11 @@ __global__ void textures_gen(
 #endif // ifdef USE_textures_gen
 extern "C"
 __global__ void textures_accumulate(
-//		int               border_tile,        // if 1 - watch for border
 		int             * woi,                // x, y, width,height
 		float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 		size_t            num_texture_tiles,  // number of texture tiles to process
 		int             * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
+		// TODO: use geometry_correction rXY !
 		float           * gpu_port_offsets,       // relative ports x,y offsets - just to scale differences, may be approximate
 		int               colors,             // number of colors (3/1)
 		int               is_lwir,            // do not perform shot correction
@@ -2026,14 +1999,21 @@ __global__ void textures_accumulate(
 		}
 		__syncthreads();// __syncwarp();
 #endif
-		// perform idct
+
+#ifdef DBG_TILE		// perform idct
 		imclt8threads(
 				0,          // int     do_acc,     // 1 - add to previous value, 0 - overwrite
 				clt_tile,   //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports [4][8][9]
 				mclt_tile,  // float * mclt_tile )
 				((tile_num == DBG_TILE)  && (threadIdx.x == 0)));
+#else
+		imclt8threads(
+				0,          // int     do_acc,     // 1 - add to previous value, 0 - overwrite
+				clt_tile,   //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports [4][8][9]
+				mclt_tile,  // float * mclt_tile )
+				0);
+#endif
 		__syncthreads();// __syncwarp();
-
 #ifdef DEBUG7
 		if ((tile_num == DBG_TILE)  && (threadIdx.x == 0) && (threadIdx.y == 0)){
 			printf("\ntextures_gen mclt color = %d\n",color);
@@ -2044,6 +2024,7 @@ __global__ void textures_accumulate(
 		__syncthreads();// __syncwarp();
 #endif
 		if (colors > 1) {
+#ifdef DBG_TILE
 			debayer_shot(
 					(color < 2), // const int rb_mode,    // 0 - green, 1 - r/b
 					min_shot,    // float     min_shot,   // 10.0
@@ -2052,6 +2033,16 @@ __global__ void textures_accumulate(
 					mclt_dst,    // float   * mclt_dst,   // [2* DTT_SIZE][DTT_SIZE1+ DTT_SIZE], // +1 to alternate column ports[16][17]
 					mclt_tmp,    // float   * mclt_tmp,
 					((tile_num == DBG_TILE)  && (threadIdx.x == 0))); // int debug);
+#else
+			debayer_shot(
+					(color < 2), // const int rb_mode,    // 0 - green, 1 - r/b
+					min_shot,    // float     min_shot,   // 10.0
+					scale_shot,  // float     scale_shot, // 3.0 (0.0 for mono)
+					mclt_tile,   // float   * mclt_src,   // [2* DTT_SIZE][DTT_SIZE1+ DTT_SIZE], // +1 to alternate column ports[16][17]
+					mclt_dst,    // float   * mclt_dst,   // [2* DTT_SIZE][DTT_SIZE1+ DTT_SIZE], // +1 to alternate column ports[16][17]
+					mclt_tmp,    // float   * mclt_tmp,
+					0); // int debug);
+#endif
 			__syncthreads();// __syncwarp();
 		} else {
 			// copy? - no, just remember to use mclt_tile, not mclt_dst
@@ -2125,6 +2116,7 @@ __global__ void textures_accumulate(
 	__syncthreads();// __syncwarp();
 #endif
 //	__shared__ float mclt_tiles [NUM_CAMS][NUM_COLORS][2*DTT_SIZE][DTT_SIZE21];
+#ifdef DBG_TILE
 	tile_combine_rgba(
 			colors,                    // int     colors,        // number of colors
 			(float*) shr.mclt_debayer, // float * mclt_tile,     // debayer // has gaps to align with union !
@@ -2140,7 +2132,23 @@ __global__ void textures_accumulate(
 			dust_remove,               // int     dust_remove,    // Do not reduce average weight when only one image differes much from the average
 			keep_weights,              // int     keep_weights,   // return channel weights and rms after A in RGBA (weight are always calculated)
 			(tile_num == DBG_TILE) );  //int     debug );
-
+#else
+	tile_combine_rgba(
+			colors,                    // int     colors,        // number of colors
+			(float*) shr.mclt_debayer, // float * mclt_tile,     // debayer // has gaps to align with union !
+			(float*) mclt_tiles,       // float * rbg_tile,      // if not null - original (not-debayered) rbg tile to use for the output
+			(float *) shr1.rgbaw,      // float * rgba,          // result
+			(float * ) 0,              // float * ports_rgb,     // average values of R,G,B for each camera (R0,R1,...,B2,B3) // null
+			(float * ) 0,              // float * max_diff,      // maximal (weighted) deviation of each channel from the average /null
+			(float *) port_offsets,    // float * port_offsets,  // [port]{x_off, y_off} - just to scale pixel value differences
+			diff_sigma,                // float   diff_sigma,     // pixel value/pixel change
+			diff_threshold,            // float   diff_threshold, // pixel value/pixel change
+			min_agree,                 // float   min_agree,   NOT USED?   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+			weights,                   // float * chn_weights,    // color channel weights, sum == 1.0
+			dust_remove,               // int     dust_remove,    // Do not reduce average weight when only one image differes much from the average
+			keep_weights,              // int     keep_weights,   // return channel weights and rms after A in RGBA (weight are always calculated)
+			0);  //int     debug );
+#endif
 // return either only 4 slices (RBGA) or all 12 (with weights and rms) if keep_weights
 // float rgbaw              [NUM_COLORS + 1 + NUM_CAMS + NUM_COLORS + 1][DTT_SIZE2][DTT_SIZE21];
 //	size_t texture_tile_offset = + tile_indx * texture_stride;
@@ -2655,7 +2663,11 @@ __device__ void normalizeTileAmplitude(
 				*(clt_tile_j1) * *(clt_tile_j1) +
 				*(clt_tile_j2) * *(clt_tile_j2) +
 				*(clt_tile_j3) * *(clt_tile_j3);
+#ifdef FASTMATH
+		float scale = __frsqrt_rn(s2); // 1.0/sqrt(s2)
+#else
 		float scale = rsqrtf(s2); // 1.0/sqrt(s2)
+#endif
 		*(clt_tile_j0) *= scale;
 		*(clt_tile_j1) *= scale;
 		*(clt_tile_j2) *= scale;
@@ -3333,7 +3345,12 @@ __device__ void debayer_shot(
 
 
 	if (scale_shot > 0.0) {
+
+#ifdef FASTMATH
+		float k = __frsqrt_rn(min_shot);
+#else
 		float k = rsqrtf(min_shot);
+#endif
 
 		// double k = 1.0/Math.sqrt(min_shot); //sqrtf
 		//for (int i = 0; i < tile.length; i++) tile_db[i] = scale_shot* ((tile_db[i] > min_shot)? Math.sqrt(tile_db[i]) : (k*tile_db[i]));
@@ -3343,7 +3360,14 @@ __device__ void debayer_shot(
 #pragma unroll
 			for (int col = 0; col < DTT_SIZE2; col += DTT_SIZE){
 				float d = *mcltp;
+#ifdef FASTMATH
+				*mcltp = scale_shot * (( d > min_shot)? __fsqrt_rn(d) : (k * d));
+#else
 				*mcltp = scale_shot * (( d > min_shot)? sqrtf(d) : (k * d));
+#endif
+
+
+
 				mcltp += DTT_SIZE;
 			}
 			mcltp += (DTT_SIZE21-DTT_SIZE2);
@@ -3549,10 +3573,19 @@ __device__ void tile_combine_rgba(
 					s2 += d * d;
 				}
 				float mse = (s0*s2 - s1*s1) / (s0 * s0);
+#ifdef FASTMATH
+				* crms_col_i = __fsqrt_rn(mse);
+#else
 				* crms_col_i = sqrtf(mse);
+#endif
+
 				sw += *(chn_weights +ncol) * mse;
 			}
+#ifdef FASTMATH
+			*(crms_i + (DTT_SIZE2*DTT_SIZE21) * colors) = __fsqrt_rn(sw); // will fade as window
+#else
 			*(crms_i + (DTT_SIZE2*DTT_SIZE21) * colors) = sqrtf(sw); // will fade as window
+#endif
 		}
 #ifdef DEBUG9
 	}
@@ -3605,7 +3638,12 @@ __device__ void tile_combine_rgba(
 				dc *= wnd2_inv; // to compensate fading near the edges
 				d+= *(chn_weights + ncol) * dc * dc;
 			}
+#ifdef FASTMATH
+			d = __expf(-pair_dist2r[ipair] * d) + (FAT_ZERO_WEIGHT); // 0.5 for exact match, lower for mismatch. Add this weight to both ports involved
+#else
 			d = expf(-pair_dist2r[ipair] * d) + (FAT_ZERO_WEIGHT); // 0.5 for exact match, lower for mismatch. Add this weight to both ports involved
+#endif
+
 			// Add weight to both channels in a pair
 			*(port_weights_i + (DTT_SIZE2*DTT_SIZE21) * pair_ports[ipair][0]) +=d;
 			*(port_weights_i + (DTT_SIZE2*DTT_SIZE21) * pair_ports[ipair][1]) +=d;
@@ -3711,7 +3749,13 @@ __device__ void tile_combine_rgba(
 			}
 			// TODO: Should it use pair_dist2r ? no as it is relative?
 			//				port_weights[ip][i] = Math.exp(-ksigma * d2[ip]);
+
+#ifdef FASTMATH
+			*(port_weights_i + (DTT_SIZE2*DTT_SIZE21) * cam) = __expf(-ksigma * d2_ip) + (FAT_ZERO_WEIGHT);
+#else
 			*(port_weights_i + (DTT_SIZE2*DTT_SIZE21) * cam) = expf(-ksigma * d2_ip) + (FAT_ZERO_WEIGHT);
+#endif
+
 		}
 		// and now make a new average with those weights
 		// Inserting dust remove here
@@ -3879,7 +3923,11 @@ __device__ void tile_combine_rgba(
 			for (int i = 0; i < TEXTURE_THREADS_PER_TILE; i++){
 				mx = fmaxf(mx, max_diff_tmp[cam][i]);
 			}
+#ifdef FASTMATH
+			max_diff[cam] = __fsqrt_rn(mx);
+#else
 			max_diff[cam] = sqrtf(mx);
+#endif
 		}
 	}
 
