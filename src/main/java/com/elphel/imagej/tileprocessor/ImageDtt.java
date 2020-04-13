@@ -9705,6 +9705,23 @@ public class ImageDtt {
 								centerX,
 								centerY,
 								disparity_aux); //  + disparity_corr);
+
+						if ((tileX == debug_tileX ) && (tileY == debug_tileY )) {
+							// will just print debug data
+							geometryCorrection_main.getPortsCoordinatesAndDerivativesDbg(
+									geometryCorrection_main, //			GeometryCorrection gc_main,
+									false,          // boolean use_rig_offsets,
+									corr_rots_main, // Matrix []   rots,
+									null,           //  Matrix [][] deriv_rots,
+									null,           // double [][] pXYderiv, // if not null, should be double[8][]
+									disp_dist_main,       // used to correct 3D correlations
+									centerX,
+									centerY,
+									disparity_main); //  + disparity_corr);
+						}
+
+
+
 						// acquisition time of the tiles centers in scanline times
 						if (ers_delay != null) {
 							for (int i = 0; i < quad_main; i++) ers_delay[0][i][nTile] = centersXY_main[i][1]-geometryCorrection_main.woi_tops[i];

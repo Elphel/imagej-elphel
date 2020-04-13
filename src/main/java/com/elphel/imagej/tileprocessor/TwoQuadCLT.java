@@ -2018,7 +2018,8 @@ public class TwoQuadCLT {
 				clt_parameters.gpu_woi_twidth,
 				clt_parameters.gpu_woi_theight);
 		GPUTileProcessor.TpTask [] tp_tasks  = gPUTileProcessor.setFullFrameImages(
-				twoi,                                  // Rectangle                 woi,
+				false,                                // boolean                   calc_offsets, // old way, now not needed with GPU calculation
+				twoi,                                 // Rectangle                 woi,
 				clt_parameters.gpu_woi_round,         // boolean                   round_woi,
 	    		(float) clt_parameters.disparity,     // float                     target_disparity, // apply same disparity to all tiles
 	    		0xf, // int                        out_image, // from which tiles to generate image (currently 0/1)
@@ -2030,7 +2031,6 @@ public class TwoQuadCLT {
 	    		null,                                 // final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
 	    		threadsMax,                           // final int                 threadsMax,  // maximal number of threads to launch
 	    		debugLevel);                          // final int                 debugLevel)
-
 
 		// Optionally save offsets here?
 //			EyesisCorrectionParameters.CorrectionParameters ecp,
@@ -2087,6 +2087,8 @@ public class TwoQuadCLT {
 				tp_tasks);
 		gPUTileProcessor.setTextureIndices(
 				texture_indices);
+		gPUTileProcessor.setGeometryCorrection(quadCLT_main.getGeometryCorrection()); // once
+		gPUTileProcessor.setExtrinsicsVector(quadCLT_main.getGeometryCorrection().getCorrVector()); // for each new image
 
 		// TODO: calculate from the camera geometry?
 		double[][] port_offsets = { // used only in textures to scale differences
@@ -2099,7 +2101,20 @@ public class TwoQuadCLT {
 		int NREPEAT = 1; // 00;
 		System.out.println("\n------------ Running GPU "+NREPEAT+" times ----------------");
 		long startGPU=System.nanoTime();
-		for (int i = 0; i < NREPEAT; i++ ) gPUTileProcessor.execConverCorrectTiles();
+		for (int i = 0; i < NREPEAT; i++ ) {
+			gPUTileProcessor.execRotDerivs();
+		}
+
+		long startTasksSetup=System.nanoTime();
+		for (int i = 0; i < NREPEAT; i++ ) {
+			gPUTileProcessor.execSetTilesOffsets();
+		}
+
+		long startDirectConvert=System.nanoTime();
+
+		for (int i = 0; i < NREPEAT; i++ ) {
+			gPUTileProcessor.execConverCorrectTiles();
+		}
 
 // run imclt;
 		long startIMCLT=System.nanoTime();
@@ -2145,18 +2160,26 @@ public class TwoQuadCLT {
 		long endTexturesRBGA = System.nanoTime();
 
 		long endGPUTime = System.nanoTime();
-		long firstGPUTime=         (startIMCLT-       startGPU)         /NREPEAT;
-		long runImcltTime =        (endImcltTime -    startIMCLT)       /NREPEAT;
-		long runCorr2DTime =       (endCorr2d -       startCorr2d)      /NREPEAT;
-		long runTexturesTime =     (endTextures -     startTextures)    /NREPEAT;
-		long runTexturesRBGATime = (endTexturesRBGA - startTexturesRBGA)/NREPEAT;
-		long runGPUTime =          (endGPUTime -      startGPU)         /NREPEAT;
+
+		long rotDerivsTime=        (startTasksSetup-    startGPU)           /NREPEAT;
+		long tasksSetupTime=       (startDirectConvert- startTasksSetup)    /NREPEAT;
+		long firstGPUTime=         (startIMCLT-         startDirectConvert) /NREPEAT;
+		long runImcltTime =        (endImcltTime -      startIMCLT)         /NREPEAT;
+		long runCorr2DTime =       (endCorr2d -         startCorr2d)        /NREPEAT;
+		long runTexturesTime =     (endTextures -       startTextures)      /NREPEAT;
+		long runTexturesRBGATime = (endTexturesRBGA -   startTexturesRBGA)  /NREPEAT;
+		long runGPUTime =          (endGPUTime -        startGPU)           /NREPEAT;
 		// run corr2d
 
 		System.out.println("\n------------ End of running GPU "+NREPEAT+" times ----------------");
-		System.out.println("GPU run time ="+(runGPUTime * 1.0e-6)+"ms, (direct conversion: "+(firstGPUTime*1.0e-6)+"ms, imclt: "+
-				(runImcltTime*1.0e-6)+"ms), corr2D: "+(runCorr2DTime*1.0e-6)+"ms), textures: "+(runTexturesTime*1.0e-6)+"ms, RGBA: "+
-				(runTexturesRBGATime*1.0e-6)+"ms");
+		System.out.println("GPU run time ="+        (runGPUTime * 1.0e-6)+"ms");
+		System.out.println(" - rot/derivs:        "+(rotDerivsTime*1.0e-6)+"ms");
+		System.out.println(" - tasks setup:       "+(tasksSetupTime*1.0e-6)+"ms");
+		System.out.println(" - direct conversion: "+(firstGPUTime*1.0e-6)+"ms");
+		System.out.println(" - imclt:             "+(runImcltTime*1.0e-6)+"ms");
+		System.out.println(" - corr2D:            "+(runCorr2DTime*1.0e-6)+"ms");
+		System.out.println(" - textures:          "+(runTexturesTime*1.0e-6)+"ms");
+		System.out.println(" - RGBA:              "+(runTexturesRBGATime*1.0e-6)+"ms");
 		// get data back from GPU
 		float [][][] iclt_fimg = new float [GPUTileProcessor.NUM_CAMS][][];
 		for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
