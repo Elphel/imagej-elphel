@@ -1268,8 +1268,6 @@ __global__ void generate_RBGA(
 #endif
 			    /* */
 			    textures_accumulate<<<grid_texture,threads_texture>>>(
-			    		// get rid of border tile
-//			    		border_tile,                     // int               border_tile,        // if 1 - watch for border
 			    		woi,                             // int             * woi,                // x, y, width,height
 						gpu_clt,                         // float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 						ntt,                             // size_t            num_texture_tiles,  // number of texture tiles to process
@@ -2418,30 +2416,26 @@ __global__ void imclt_rbg(
     //	save result (back)
     float * rbg_p = rbg_top;
     mclt_tile =     mclt_top;
-    if ((tileX == 0)  && (tileY == 0)){
-#pragma unroll
-    	for (int i = 0; i < DTT_SIZE2; i++){
-    		*rbg_p = 100.0f; // just testing
-    		mclt_tile += DTT_SIZE21;
-    		rbg_p +=     dstride; // DTT_SIZE2; // FIXME
-    	}
+
 #ifdef DBG_MARK_DBG_TILE
-    } else if ((tileX == DBG_TILE_X)  && (tileY == DBG_TILE_Y)){
+    if ((tileX == DBG_TILE_X)  && (tileY == DBG_TILE_Y)){
 #pragma unroll
     	for (int i = 0; i < DTT_SIZE2; i++){
     		*rbg_p = (*mclt_tile) * 2.0; // just testing
     		mclt_tile += DTT_SIZE21;
     		rbg_p +=     dstride; // DTT_SIZE2; // FIXME
     	}
-#endif
     } else {
+#endif // #ifdef DBG_MARK_DBG_TILE
 #pragma unroll
     	for (int i = 0; i < DTT_SIZE2; i++){
     		*rbg_p = *mclt_tile;
     		mclt_tile += DTT_SIZE21;
     		rbg_p +=     dstride; // DTT_SIZE2; // FIXME
     	}
+#ifdef DBG_MARK_DBG_TILE
     }
+#endif //#ifdef DBG_MARK_DBG_TILE
 }
 
 
@@ -2796,29 +2790,30 @@ __device__ void convertCorrectTile(
 	    float window_vert_cos [2*DTT_SIZE])
 
 {
+	// TODO: pass these values instead of constants to handle EO/LWIR
+	int max_px =   IMG_WIDTH  - 1; // odd
+	int max_py =   IMG_HEIGHT - 1; // odd
+	int max_pxm1 = max_px - 1; // even
+	int max_pym1 = max_py - 1; // even
+	int max_kernel_hor = KERNELS_HOR -1;
+	int max_kernel_vert = KERNELS_VERT-1;
 
 	int   ktileX, ktileY;
 	int   kernel_index; // common for all coors
 	float kdx, kdy;
 	if (threadIdx.x == 0){
-		ktileX = min(KERNELS_HOR-1,  max(0, ((int) lrintf(centerX * (1.0/KERNELS_STEP)+1))));
-		ktileY = min(KERNELS_VERT-1, max(0, ((int) lrintf(centerY * (1.0/KERNELS_STEP)+1))));
+		ktileX = min(max_kernel_hor,  max(0, ((int) lrintf(centerX * (1.0/KERNELS_STEP)+1))));
+		ktileY = min(max_kernel_vert, max(0, ((int) lrintf(centerY * (1.0/KERNELS_STEP)+1))));
 		kdx =    centerX - (ktileX << KERNELS_LSTEP) + (1 << (KERNELS_LSTEP -1)); // difference in pixel
 		kdy =    centerY - (ktileY << KERNELS_LSTEP) + (1 << (KERNELS_LSTEP -1)); // difference in pixel
-#ifdef USE_UMUL24
-    	kernel_index = __umul24((ktileX + __umul24(ktileY, KERNELS_HOR)), NUM_COLORS);
-#else
     	kernel_index = (ktileX + ktileY * KERNELS_HOR) * NUM_COLORS;
-#endif
 	}
-////     __syncthreads();// __syncwarp();
     // broadcast kernel_index
     kernel_index =  __shfl_sync(
     		0xffffffff,        // unsigned mask,
 			kernel_index,      // T var,
 			0,                 // int srcLane,
 			THREADS_PER_TILE); // int width=warpSize);
-////     __syncthreads();// __syncwarp(); // is it needed?
     kdx =  __shfl_sync(
     		0xffffffff,        // unsigned mask,
 			kdx,               // T var,
@@ -2834,12 +2829,7 @@ __device__ void convertCorrectTile(
     float px, py;
     // copy kernel
 	int kernel_full_index = kernel_index + color;
-#ifdef USE_UMUL24
-    float * kernel_src = gpu_kernels + __umul24(kernel_full_index, (DTT_SIZE * DTT_SIZE * 4));
-#else
     float * kernel_src = gpu_kernels + kernel_full_index* (DTT_SIZE * DTT_SIZE * 4);
-#endif
-
     float * kernelp =  clt_kernels;
 
     kernel_src += threadIdx.x; // lsb;
@@ -2857,12 +2847,6 @@ __device__ void convertCorrectTile(
 
 	px = centerX - DTT_SIZE - (clt_extra->data_x + clt_extra->dxc_dx * kdx + clt_extra->dxc_dy * kdy) ; // fractional left corner
 	int itlx = (int) floorf(px +0.5f);
-	if (itlx < 0){
-		itlx &= 1; // for color - extend by pairs
-	}
-	if (itlx >= (IMG_WIDTH - DTT_SIZE)){
-		itlx = itlx & 1 +(IMG_WIDTH - DTT_SIZE - 2); // for color - extend by pairs
-	}
 	int_topleft [0] = itlx;
 	float shift_hor =  itlx - px;
 	residual_shift[0] = shift_hor;
@@ -2898,15 +2882,9 @@ __device__ void convertCorrectTile(
 
 	py = centerY - DTT_SIZE - (clt_extra->data_y + clt_extra->dyc_dx * kdx + clt_extra->dyc_dy * kdy) ; // fractional top corner
 	int itly = (int) floorf(py +0.5f);
-	if (itly < 0){
-		itly &= 1; // for color - extend by pairs
-	}
-	if (itly >= (IMG_HEIGHT - DTT_SIZE)){
-		itly = (itly & 1) +(IMG_HEIGHT - DTT_SIZE - 2); // for color - extend by pairs
-	}
 	int_topleft[1] = itly;
 
-#ifdef DEBUG_OOB1
+#ifdef DEBUG_OOB11
 	if ((int_topleft[0] < 0) || (int_topleft[1] < 0) || (int_topleft[0] >= (IMG_WIDTH - DTT_SIZE)) || (int_topleft[1] >= IMG_HEIGHT - DTT_SIZE)){
 		printf("Source data OOB, left=%d, top=%d\n",int_topleft[0],int_topleft[1]);
 		printf("\n");
@@ -2964,68 +2942,47 @@ __device__ void convertCorrectTile(
     	int row_tl = int_topleft[1];
     	// for red, blue and green, pass 0
     	int local_col = ((col_tl & 1) ^ (BAYER_RED_COL ^ color0 ^ color1 ^ gpass)) + (threadIdx.x << 1); // green red row: invert column from red
-//    	int local_row = ((row_tl & 1) ^ BAYER_RED_ROW ^ gpass);                            // use red row
-//    	int local_row = ((row_tl & 1) ^ BAYER_RED_ROW ^ color0 ^ color1 ^ gpass);                            // use red row
     	int local_row = ((row_tl & 1) ^ BAYER_RED_ROW ^ color0          ^ gpass);                            // use red row
     	float hwind_cos = window_hor_cos[local_col];
     	float hwind_sin = window_hor_sin[local_col]; // **** only used for green
 
     	int dtt_offset =     fold_indx2[local_row][local_col];
     	int dtt_offset_inc = fold_inc[local_row];
-#ifdef USE_UMUL24
-    	float *dct_buf = clt_tile + __umul24(gpass << 1 , DTT_SIZE * DTT_SIZE1);
-    	float *dst_buf = clt_tile + __umul24((gpass << 1) + 1 , DTT_SIZE * DTT_SIZE1);   // **** only used for green
-#else
     	float *dct_buf = clt_tile + ((gpass << 1) * (DTT_SIZE * DTT_SIZE1));
     	float *dst_buf = clt_tile + (((gpass << 1) + 1) * (DTT_SIZE * DTT_SIZE1));   // **** only used for green
-#endif
 
-    	if ((col_tl >= 0) && ((col_tl < (IMG_WIDTH - DTT_SIZE * 2))) && (row_tl >= 0) && ((row_tl < (IMG_HEIGHT - DTT_SIZE * 2)))) {
-#ifdef USE_UMUL24
-    		float *image_p = gpu_images + __umul24(row_tl + local_row, dstride)+ col_tl + local_col;
-#else
-    		float *image_p = gpu_images + dstride * (row_tl + local_row)+ col_tl + local_col;
-#endif
-#pragma unroll
-    		for (int i = 0; i < 8; i++) {
-//    			float d = (*image_p) * window_vert_cos[local_row]; //warp illegal address (0,2,1)
-    			float d = (*image_p);
-    			d *= window_vert_cos[local_row]; //warp illegal address (0,2,1)
-    			int dtt_offset1 = dtt_offset + (dtt_offset >> 3); // converting for 9-long rows (DTT_SIZE1)
-    			dct_buf[dtt_offset1] = d * hwind_cos;
-    			dst_buf[dtt_offset1] = d * hwind_sin; // **** only used for green
-    			dtt_offset = ( dtt_offset + ((dtt_offset_inc & 0xf) << 3)) & 0x3f;
-    			dtt_offset_inc >>= 4;
-    			local_row += 2;
-    			image_p += dstride2;
-    		}
-    	} else { // handling border tiles (slower)
-    		int eff_col = (min(IMG_HEIGHT/2 -1, max(0, col_tl >> 1)) << 1) + (col_tl & 1);
-    		int row_lsb =  row_tl & 1;
-    		int row_pair = row_tl >> 1;
-#ifdef USE_UMUL24
-    		float *image_p = gpu_images + __umul24(local_row, dstride) + (eff_col + local_col);
-#else
-    		float *image_p = gpu_images + dstride * local_row+ (eff_col + local_col);
-#endif
-#pragma unroll
-    		for (int i = 0; i < 8; i++) {
-    			int eff_row = (min(IMG_WIDTH/2 - 1, max(0, row_pair + i)) << 1) + row_lsb;
-#ifdef USE_UMUL24
-    			float d =  image_p[__umul24(eff_row,dstride)] * window_vert_cos[local_row];
-#else
-    			float d =  image_p[dstride * eff_row] * window_vert_cos[local_row];
-#endif
-
-    			int dtt_offset1 = dtt_offset + (dtt_offset >> 3); // converting for 9-long rows (DTT_SIZE1)
-    			dct_buf[dtt_offset1] = d * hwind_cos;
-    			dst_buf[dtt_offset1] = d * hwind_sin; // **** only used for green
-
-    			dtt_offset = ( dtt_offset + ((dtt_offset_inc & 0xf) << 3)) & 0x3f;
-    			dtt_offset_inc >>= 4;
-    			local_row += 2;
-    		}
+    	int col_src = col_tl + local_col;
+    	if (col_src < 0) {
+    		col_src &= 1; // same Bayer
+    	} else if (col_src > max_px){
+    		col_src = (col_src & 1) + max_pxm1;
     	}
+    	int row_src = row_tl + local_row;
+    	int row_use = row_src;
+    	if (row_use < 0) {
+    		row_use &= 1; // same Bayer
+    	} else if (row_use > max_py){
+    		row_use = (row_use & 1) + max_pym1;
+    	}
+
+//		float *image_p = gpu_images + dstride * (row_tl + local_row)+ col_tl + local_col;
+		float *image_p = gpu_images + dstride * row_use + col_src;
+#pragma unroll
+		for (int i = 0; i < 8; i++) {
+			float d = (*image_p);
+			d *= window_vert_cos[local_row]; //warp illegal address (0,2,1)
+
+			int dtt_offset1 = dtt_offset + (dtt_offset >> 3); // converting for 9-long rows (DTT_SIZE1)
+			dct_buf[dtt_offset1] = d * hwind_cos;
+			dst_buf[dtt_offset1] = d * hwind_sin; // **** only used for green
+			dtt_offset = ( dtt_offset + ((dtt_offset_inc & 0xf) << 3)) & 0x3f;
+			dtt_offset_inc >>= 4;
+			local_row += 2;
+			row_src +=2;
+			if ((row_src >= 0) && (row_src <= max_pym1)){
+				image_p += dstride2;
+			}
+		}
     }
      __syncthreads();// __syncwarp();
 #ifdef DEBUG2
@@ -3058,35 +3015,6 @@ __device__ void convertCorrectTile(
      dttiv_color_2d(
      		clt_tile,
      		color);
-/*
-    dctiv_nodiverg( // all colors
-			clt_tile + (DTT_SIZE1 * threadIdx.x), // [0][threadIdx.x], // pointer to start of row
-			1); //int inc);
-    if (color == BAYER_GREEN){
-        dstiv_nodiverg( // all colors
-				clt_tile + DTT_SIZE1 * threadIdx.x + DTT_SIZE1 * DTT_SIZE, // clt_tile[1][threadIdx.x], // pointer to start of row
-    			1); //int inc);
-
-    }
-  	 __syncthreads();// __syncwarp();
-
-#ifdef DEBUG2
-    if ((threadIdx.x) == 0){
-        printf("\nDTT Tiles after horizontal pass, color=%d\n",color);
-    	debug_print_clt1(clt_tile, color, (color== BAYER_GREEN)?3:1); // only 1 quadrant for R,B and 2 - for G
-    }
-     __syncthreads();// __syncwarp();
-#endif
-    dctiv_nodiverg( // all colors
-    		clt_tile + threadIdx.x, //  &clt_tile[0][0][threadIdx.x], // pointer to start of column
-			DTT_SIZE1); // int inc,
-    if (color == BAYER_GREEN){
-          dctiv_nodiverg( // all colors
-        		clt_tile + threadIdx.x + (DTT_SIZE1 * DTT_SIZE), // &clt_tile[1][0][threadIdx.x], // pointer to start of column
-    			DTT_SIZE1); // int inc,
-    }
-  	 __syncthreads();// __syncwarp();
-*/
 
 #ifdef DEBUG2
     if ((threadIdx.x) == 0){
