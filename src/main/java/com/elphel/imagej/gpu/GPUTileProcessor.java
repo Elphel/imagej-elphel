@@ -94,7 +94,7 @@ public class GPUTileProcessor {
 	// "*" - generated defines, first index - separately compiled unit
 /*	static String [][] GPU_SRC_FILES = {
 	{"*","dtt8x8.h","dtt8x8.cu"},
-	{"*","dtt8x8.h","geometry_correction.h","TileProcessor.h","TileProcessor.cuh"}};
+	{"*","dtt8x8.h","geometry_correction.h","geometry_correction.cu","TileProcessor.h","TileProcessor.cuh"}};
 */
 	static String [][] GPU_SRC_FILES = {{"*","dtt8x8.h","dtt8x8.cu","geometry_correction.h","geometry_correction.cu","TileProcessor.h","TileProcessor.cuh"}};
 //	static String [][] GPU_SRC_FILES = {{"*","dtt8x8.h","dtt8x8.cu","geometry_correction.h","TileProcessor.h","TileProcessor.cuh"}};
