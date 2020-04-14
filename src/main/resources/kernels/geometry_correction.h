@@ -114,9 +114,9 @@ struct gc {
 			float distortionA7;     //r^7 (normalized to focal length or to sensor half width?)
 			float distortionA8;     //r^8 (normalized to focal length or to sensor half width?)
 #ifndef	NVRTC_BUG
-//		};
-//		float rad_coeff [7];
-//	};
+		};
+		float rad_coeff [7];
+	};
 #endif
 	// parameters, common for all sensors
 	float    elevation;     // degrees, up - positive;

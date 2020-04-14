@@ -732,8 +732,6 @@ __device__ void convertCorrectTile(
 		const int             lpf_mask,
 		const float           centerX,
 		const float           centerY,
-//		const short          tx,
-//		const short          ty,
 		const int             txy,
 		const size_t          dstride, // in floats (pixels)
 		float               * clt_tile, //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
@@ -742,7 +740,11 @@ __device__ void convertCorrectTile(
 		float residual_shift  [2],
 	    float window_hor_cos  [2*DTT_SIZE],
 	    float window_hor_sin  [2*DTT_SIZE],
-	    float window_vert_cos [2*DTT_SIZE]);
+	    float window_vert_cos [2*DTT_SIZE],
+		int                woi_width,
+		int                woi_height,
+		int                kernels_hor,
+		int                kernels_vert);
 
 __device__ void debug_print_lpf(
 		float * lpf_tile);
@@ -1551,7 +1553,11 @@ __global__ void convert_correct_tiles(
 			float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 			size_t             dstride,            // in floats (pixels)
 			int                num_tiles,          // number of tiles in task
-			int                lpf_mask)           // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green. Now - always 0 !
+			int                lpf_mask,           // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green. Now - always 0 !
+			int                woi_width,
+			int                woi_height,
+			int                kernels_hor,
+			int                kernels_vert)
 {
 	dim3 t = threadIdx;
 	int tile_in_block = threadIdx.y;
@@ -1615,280 +1621,18 @@ __global__ void convert_correct_tiles(
 					residual_shift[tile_in_block],   // float frac_topleft [NUM_COLORS][2],
 					window_hor_cos[tile_in_block],   // float window_hor_cos  [NUM_COLORS][2*DTT_SIZE],
 					window_hor_sin[tile_in_block],   //float window_hor_sin  [NUM_COLORS][2*DTT_SIZE],
-					window_vert_cos[tile_in_block]); //float window_vert_cos [NUM_COLORS][2*DTT_SIZE]);
+					window_vert_cos[tile_in_block],  //float window_vert_cos [NUM_COLORS][2*DTT_SIZE]);
+					woi_width,                       // int                woi_width,
+					woi_height,                      // int                woi_height,
+					kernels_hor,                     // int                kernels_hor,
+					kernels_vert); //int                kernels_vert)
+
     		 __syncthreads();// __syncwarp();
     	}
     }
 }
 
 //#undef USE_textures_gen
-#ifdef USE_textures_gen
-extern "C"
-__global__ void textures_gen(
-		float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
-		size_t            num_texture_tiles,  // number of texture tiles to process
-		int             * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
-		float           * gpu_port_offsets,       // relative ports x,y offsets - just to scale differences, may be approximate
-		int               colors,             // number of colors (3/1)
-		int               is_lwir,            // do not perform shot correction
-		float             min_shot,           // 10.0
-		float             scale_shot,         // 3.0
-		float             diff_sigma,         // pixel value/pixel change
-		float             diff_threshold,     // pixel value/pixel change
-		//		int               diff_gauss,         // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
-		float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-		float             weight0,            // scale for R
-		float             weight1,            // scale for B
-		float             weight2,            // scale for G
-		int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
-		int               keep_weights,       // return channel weights after A in RGBA (was removed)
-		const size_t      texture_stride,     // in floats (now 256*4 = 1024)
-		float           * gpu_texture_tiles)  // (number of colors +1 + ?)*16*16 rgba texture tiles
-{
-	float weights[3] = {weight0, weight1, weight2};
-	// will process exactly 4 cameras in one block (so this number is not adjustable here NUM_CAMS should be == 4 !
-	int camera_num = threadIdx.y;
-	int tile_indx = blockIdx.x; //  * TEXTURE_TILES_PER_BLOCK + tile_in_block;
-	if (tile_indx >= num_texture_tiles){
-		return; // nothing to do
-	}
-	// get number of tile
-	int tile_code = gpu_texture_indices[tile_indx];
-	if ((tile_code & (1 << CORR_TEXTURE_BIT)) == 0){
-		return; // nothing to do
-	}
-	int tile_num = tile_code >> CORR_NTILE_SHIFT;
-	__shared__ float mclt_tiles [NUM_CAMS][NUM_COLORS][2*DTT_SIZE][DTT_SIZE21];
-	__shared__ union {
-		float clt_tiles  [NUM_CAMS][NUM_COLORS][4][DTT_SIZE][DTT_SIZE1]; // NUM_CAMS == 4
-		float mclt_debayer [NUM_CAMS][NUM_COLORS][MCLT_UNION_LEN]; // to align with clt_tiles
-
-	} shr;
-	__shared__ union {
-		float mclt_tmp           [NUM_CAMS][NUM_COLORS][DTT_SIZE2][DTT_SIZE21];
-		float rgbaw              [NUM_COLORS + 1 + NUM_CAMS + NUM_COLORS + 1][DTT_SIZE2][DTT_SIZE21];
-		// add more
-	} shr1;
-	//	__shared__ float port_weights[NUM_CAMS][DTT_SIZE2 * DTT_SIZE21];
-	//	__shared__ float color_avg   [NUM_CAMS][DTT_SIZE2 * DTT_SIZE21];
-
-	__shared__ float port_offsets[NUM_CAMS][2];
-	__shared__ float ports_rgb   [NUM_CAMS][NUM_COLORS]; // return to system memory (optionally pass null to skip calculation)
-	__shared__ float max_diff [NUM_CAMS]; // return to system memory (optionally pass null to skip calculation)
-	if (threadIdx.x < 2){
-		port_offsets[camera_num][threadIdx.x] = * (gpu_port_offsets + 2 * camera_num + threadIdx.x);
-	}
-
-
-#ifdef DBG_TILE
-#ifdef DEBUG7
-	if ((tile_num == DBG_TILE)  && (threadIdx.x == 0) && (threadIdx.y == 0)){
-		printf("\ntextures_gen tile = %d\n",tile_num);
-		//    	debug_print_clt1(clt_tile1, color,  0xf); //
-		//        printf("\textures_gen tile = %d, pair=%d, color = %d   CAMERA22\n",tile_num, corr_pair,color);
-		//    	debug_print_clt1(clt_tile2, color,  0xf); //
-	}
-	__syncthreads();// __syncwarp();
-#endif
-#endif
-	// serially for each color, parallel for each camera
-	// copy clt (frequency domain data)
-	for (int color = 0; color < colors; color++){
-		//        int offs = (tile_num * NUM_COLORS + color) * (4 * DTT_SIZE * DTT_SIZE);
-		float * clt_tile = ((float *) shr.clt_tiles[camera_num][color]); // start of 4 * DTT_SIZE * DTT_SIZE block, no threadIdx.x here
-		float * clt_tilei = clt_tile + threadIdx.x;
-		float * gpu_tile = ((float *) gpu_clt[camera_num]) +  (tile_num * NUM_COLORS + color) * (4 * DTT_SIZE * DTT_SIZE) + threadIdx.x;
-		float * mclt_tile = (float *) mclt_tiles [camera_num][color];
-		float * mclt_dst =  (float *) shr.mclt_debayer[camera_num][color];
-		float * mclt_tmp =  (float *) shr1.mclt_tmp[camera_num][color];
-		//		float scale = 0.25;
-
-#pragma unroll
-		for (int q = 0; q < 4; q++) {
-			float *lpf = lpf_data[(colors > 1)? color : 3] + threadIdx.x; // lpf_data[3] - mono
-#pragma unroll
-			for (int i = 0; i < DTT_SIZE; i++){ // copy 32 rows (4 quadrants of 8 rows)
-				//				*clt_tilei = *gpu_tile * (*lpf) * scale;
-				*clt_tilei = *gpu_tile * (*lpf);
-				clt_tilei +=  DTT_SIZE1;
-				gpu_tile +=   DTT_SIZE;
-				lpf +=        DTT_SIZE;
-			}
-		}
-		__syncthreads();
-#ifdef DEBUG7
-		if ((tile_num == DBG_TILE)  && (threadIdx.x == 0) && (threadIdx.y == 0)){
-			printf("\ntextures_gen LPF for color = %d\n",color);
-			debug_print_lpf(lpf_data[(colors > 1)? color : 3]);
-
-			printf("\ntextures_gen tile = %d, color = %d \n",tile_num, color);
-			debug_print_clt_scaled(clt_tile, color,  0xf, 0.25); //
-		}
-		__syncthreads();// __syncwarp();
-#endif
-		// perform idct
-		imclt8threads(
-				0,          // int     do_acc,     // 1 - add to previous value, 0 - overwrite
-				clt_tile,   //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports [4][8][9]
-				mclt_tile,  // float * mclt_tile )
-				((tile_num == DBG_TILE)  && (threadIdx.x == 0)));
-		__syncthreads();// __syncwarp();
-
-#ifdef DEBUG7
-		if ((tile_num == DBG_TILE)  && (threadIdx.x == 0) && (threadIdx.y == 0)){
-			printf("\ntextures_gen mclt color = %d\n",color);
-			debug_print_mclt(
-					mclt_tile, //         [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
-					color);
-		}
-		__syncthreads();// __syncwarp();
-#endif
-		if (colors > 1) {
-			debayer_shot(
-					(color < 2), // const int rb_mode,    // 0 - green, 1 - r/b
-					min_shot,    // float     min_shot,   // 10.0
-					scale_shot,  // float     scale_shot, // 3.0 (0.0 for mono)
-					mclt_tile,   // float   * mclt_src,   // [2* DTT_SIZE][DTT_SIZE1+ DTT_SIZE], // +1 to alternate column ports[16][17]
-					mclt_dst,    // float   * mclt_dst,   // [2* DTT_SIZE][DTT_SIZE1+ DTT_SIZE], // +1 to alternate column ports[16][17]
-					mclt_tmp,    // float   * mclt_tmp,
-					((tile_num == DBG_TILE)  && (threadIdx.x == 0))); // int debug);
-			__syncthreads();// __syncwarp();
-		} else {
-			// copy? - no, just remember to use mclt_tile, not mclt_dst
-			// will have to copy mclt_tiles -> mclt_dst as they have different gaps
-			// untested copy for mono mode
-#pragma unroll
-			for (int n = 0; n <= DTT_SIZE; n += DTT_SIZE){
-				float * msp = mclt_tile + threadIdx.x + n;
-				float * dst = mclt_dst +  threadIdx.x + n;
-#pragma unroll
-				for (int row = 0; row < DTT_SIZE2; row++){
-					*dst = *msp;
-					msp += DTT_SIZE21;
-					dst += DTT_SIZE21;
-				}
-			}
-			__syncthreads();
-		}
-#ifdef DEBUG77
-		//		float * mclt_dst =  (float *) shr.mclt_debayer[camera_num][color];
-
-		for (int ccam = 0; ccam < NUM_CAMS; ccam++) {
-			if ((tile_num == DBG_TILE)  && (threadIdx.x == 0) && (threadIdx.y == ccam)){
-				printf("\ntextures_gen AFTER DEBAER cam= %d, color = %d\n",threadIdx.y, color);
-				debug_print_mclt(
-						mclt_dst, //         [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
-						-1);
-				printf("\ntextures_gen AFTER DEBAER0 cam= %d, color = %d\n",threadIdx.y, 0);
-				debug_print_mclt(
-						(float *) shr.mclt_debayer[ccam][0], //         [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
-						-1);
-
-			}
-			__syncthreads();// __syncwarp();
-		}
-		__syncthreads();// __syncwarp();
-#endif
-	} // for (int color = 0; color < colors; color++)
-
-	__syncthreads(); // __syncwarp();
-///	return;
-#ifdef DEBUG77
-	if ((tile_num == DBG_TILE)  && (threadIdx.x == 0) && (threadIdx.y == 0)){
-		for (int ccam = 0; ccam < NUM_CAMS; ccam++) {
-			//		if ((tile_num == DBG_TILE)  && (threadIdx.x == 0) && (threadIdx.y == ccam)){
-			for (int nncol = 0; nncol < colors; nncol++){
-				printf("\ntextures_gen AFTER DEBAER1 cam= %d, color = %d\n",ccam, nncol);
-				//				float * mclt_dst =  (float *) shr.mclt_debayer[camera_num][color];
-				debug_print_mclt(
-						(float *) shr.mclt_debayer[ccam][nncol], //         [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
-						-1);
-			}
-		}
-	}
-	__syncthreads();// __syncwarp();
-#endif
-
-#ifdef DEBUG77
-	for (int ccam = 0; ccam < NUM_CAMS; ccam++) {
-		if ((tile_num == DBG_TILE)  && (threadIdx.x == 0) && (threadIdx.y == ccam)){
-			for (int nncol = 0; nncol < colors; nncol++){
-				printf("\ntextures_gen AFTER DEBAER1 cam= %d, color = %d\n",ccam, nncol);
-				//				float * mclt_dst =  (float *) shr.mclt_debayer[camera_num][color];
-				debug_print_mclt(
-						(float *) shr.mclt_debayer[ccam][nncol], //         [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
-						-1);
-			}
-		}
-		__syncthreads();// __syncwarp();
-	}
-	__syncthreads();// __syncwarp();
-#endif
-//	__shared__ float mclt_tiles [NUM_CAMS][NUM_COLORS][2*DTT_SIZE][DTT_SIZE21];
-	tile_combine_rgba(
-			colors,                    // int     colors,        // number of colors
-			(float*) shr.mclt_debayer, // float * mclt_tile,     // debayer // has gaps to align with union !
-			(float*) mclt_tiles,       // float * rbg_tile,      // if not null - original (not-debayered) rbg tile to use for the output
-			(float *) shr1.rgbaw,      // float * rgba,          // result
-			(float * ) 0,              // float * ports_rgb,     // average values of R,G,B for each camera (R0,R1,...,B2,B3) // null
-			(float * ) 0,              // float * max_diff,      // maximal (weighted) deviation of each channel from the average /null
-			(float *) port_offsets,    // float * port_offsets,  // [port]{x_off, y_off} - just to scale pixel value differences
-			diff_sigma,                // float   diff_sigma,     // pixel value/pixel change
-			diff_threshold,            // float   diff_threshold, // pixel value/pixel change
-			min_agree,                 // float   min_agree,   NOT USED?   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-			weights,                   // float * chn_weights,    // color channel weights, sum == 1.0
-			dust_remove,               // int     dust_remove,    // Do not reduce average weight when only one image differes much from the average
-			keep_weights,              // int     keep_weights,   // return channel weights and rms after A in RGBA (weight are always calculated)
-			(tile_num == DBG_TILE) );  //int     debug );
-
-// return either only 4 slices (RBGA) or all 12 (with weights and rms) if keep_weights
-// float rgbaw              [NUM_COLORS + 1 + NUM_CAMS + NUM_COLORS + 1][DTT_SIZE2][DTT_SIZE21];
-//	size_t texture_tile_offset = + tile_indx * texture_stride;
-	float * gpu_texture_tile = gpu_texture_tiles + tile_indx * texture_stride;
-
-	for (int pass = 0; pass < 8; pass ++) {
-		int row = pass * 2 + (threadIdx.y >> 1);
-		int col = ((threadIdx.y & 1) << 3) + threadIdx.x;
-		int i  = row * DTT_SIZE21 + col;
-		int gi = row * DTT_SIZE2  + col;
-		float * gpu_texture_tile_gi = gpu_texture_tile + gi;
-		float * rgba_i = ((float *) shr1.rgbaw) + i;
-		// always copy 3 (1) colors + alpha
-		if (colors == 3){
-			if (keep_weights) {
-#pragma unroll
-				for (int ncol = 0; ncol < NUM_COLORS + 1 + NUM_CAMS + NUM_COLORS + 1 ; ncol++) { // 12
-					*(gpu_texture_tile_gi + ncol * (DTT_SIZE2 * DTT_SIZE2)) = *(rgba_i + ncol * (DTT_SIZE2 * DTT_SIZE21));
-				}
-			} else {
-#pragma unroll
-				for (int ncol = 0; ncol < NUM_COLORS + 1; ncol++) { // 4
-					*(gpu_texture_tile_gi + ncol * (DTT_SIZE2 * DTT_SIZE2)) = *(rgba_i + ncol * (DTT_SIZE2 * DTT_SIZE21));
-				}
-			}
-		} else { // assuming colors = 1
-			if (keep_weights) {
-#pragma unroll
-				for (int ncol = 0; ncol < 1 + 1 + NUM_CAMS + 1 + 1 ; ncol++) { // 8
-					*(gpu_texture_tile_gi + ncol * (DTT_SIZE2 * DTT_SIZE2)) = *(rgba_i + ncol * (DTT_SIZE2 * DTT_SIZE21));
-				}
-			} else {
-#pragma unroll
-				for (int ncol = 0; ncol < 1 + 1; ncol++) { // 2
-					*(gpu_texture_tile_gi + ncol * (DTT_SIZE2 * DTT_SIZE2)) = *(rgba_i + ncol * (DTT_SIZE2 * DTT_SIZE21));
-				}
-			}
-		}
-	}
-
-#ifdef DEBUG7
-	if ((tile_num == DBG_TILE)  && (threadIdx.x == 0) && (threadIdx.y == 0)){
-        printf("\ntextures_gen tile done = %d, texture_stride= %d\n",tile_num, (int) texture_stride);
-    }
-     __syncthreads();// __syncwarp();
-#endif
-}
-#endif // ifdef USE_textures_gen
 extern "C"
 __global__ void textures_accumulate(
 		int             * woi,                // x, y, width,height
@@ -2300,31 +2044,71 @@ __global__ void textures_accumulate(
 } // textures_accumulate()
 
 
+
+extern "C"
+__global__ void imclt_rbg_all(
+		float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+		float           ** gpu_corr_images,    // [NUM_CAMS][WIDTH, 3 * HEIGHT]
+		int                apply_lpf,
+		int                colors,
+		int                woi_twidth,
+		int                woi_theight,
+		const size_t       dstride)            // in floats (pixels)
+{
+	dim3 threads_imclt(IMCLT_THREADS_PER_TILE, IMCLT_TILES_PER_BLOCK, 1);
+	if (threadIdx.x == 0) { // anyway 1,1,1
+		for (int ncam = 0; ncam < NUM_CAMS; ncam++) {
+			for (int color = 0; color < colors; color++) {
+				for (int v_offs = 0; v_offs < 2; v_offs++){
+					for (int h_offs = 0; h_offs < 2; h_offs++){
+						int tilesy_half = (woi_theight + (v_offs ^ 1)) >> 1;
+						int tilesx_half = (woi_twidth + (h_offs ^ 1)) >> 1;
+						int tiles_in_pass = tilesy_half * tilesx_half;
+						dim3 grid_imclt((tiles_in_pass + IMCLT_TILES_PER_BLOCK-1) / IMCLT_TILES_PER_BLOCK,1,1);
+						//    				printf("grid_imclt=   (%d, %d, %d)\n",grid_imclt.x,   grid_imclt.y,   grid_imclt.z);
+						imclt_rbg<<<grid_imclt,threads_imclt>>>(
+								gpu_clt[ncam],         // float           * gpu_clt,     // [TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+								gpu_corr_images[ncam], // float           * gpu_rbg,     // WIDTH, 3 * HEIGHT
+								1,                     // int               apply_lpf,
+								colors,                // int               colors,      // defines lpf filter
+								color,                 // int               color,       // defines location of clt data
+								v_offs,                // int               v_offset,
+								h_offs,                // int               h_offset,
+								woi_twidth,            // int               woi_twidth,  // will increase by DTT_SIZE (todo - cut away?)
+								woi_theight,           // int               woi_theight, // will increase by DTT_SIZE (todo - cut away?)
+								dstride);              // const size_t      dstride);    // in floats (pixels)
+						cudaDeviceSynchronize();
+					}
+				}
+			}
+		}
+	}
+}
+
+
 extern "C"
 __global__ void imclt_rbg(
 		float           * gpu_clt,            // [TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 		float           * gpu_rbg,            // WIDTH, 3 * HEIGHT
 		int               apply_lpf,
-		int               mono,
+		int               colors, // was mono
 		int               color,
 		int               v_offset,
 		int               h_offset,
+		int               woi_twidth,  // will increase by DTT_SIZE (todo - cut away?)
+		int               woi_theight, // will increase by DTT_SIZE (todo - cut away?)
 		const size_t      dstride)            // in floats (pixels)
 {
-	float *color_plane = gpu_rbg + dstride * (IMG_HEIGHT + DTT_SIZE) * color;
+	float *color_plane = gpu_rbg + dstride * (woi_theight * DTT_SIZE + DTT_SIZE) * color;
 	int pass =           (v_offset << 1) + h_offset;     		// 0..3 to correctly acummulate 16x16 tiles stride 8
 	int tile_in_block = threadIdx.y;
 	int tile_num = blockIdx.x * IMCLT_TILES_PER_BLOCK + tile_in_block;
-//	if (tile_num >= (TILESY * TILESX)) {
-//		return; // just testing with a single tile
-//	}
-//	int tilesy_half = (TILESY + (v_offset ^ 1)) >> 1;
-	int tilesx_half = (TILESX + (h_offset ^ 1)) >> 1;
+	int tilesx_half = (woi_twidth + (h_offset ^ 1)) >> 1;
 	int tileY_half =  tile_num / tilesx_half;
 	int tileX_half =  tile_num - tileY_half * tilesx_half;
 	int tileY = (tileY_half << 1) + v_offset;
 	int tileX = (tileX_half << 1) + h_offset;
-	if (tileY >= TILESY) {
+	if (tileY >= woi_theight) {
 		return; // just testing with a single tile
 	}
 #ifdef DEBUG4
@@ -2351,14 +2135,13 @@ __global__ void imclt_rbg(
 
     // copy clt (frequency domain data)
     float * clt_tile = ((float *) clt_tiles) +  tile_in_block * (4 * DTT_SIZE * DTT_SIZE1); // top left quadrant0
-//    float * gpu_tile = ((float *) gpu_clt) +  ((DBG_TILE_Y * TILESX + DBG_TILE_X) * NUM_COLORS + color) * (4 * DTT_SIZE * DTT_SIZE); // top left quadrant0
-    float * gpu_tile = ((float *) gpu_clt) +  ((tileY * TILESX + tileX) * NUM_COLORS + color) * (4 * DTT_SIZE * DTT_SIZE); // top left quadrant0
+    float * gpu_tile = ((float *) gpu_clt) +  ((tileY * woi_twidth + tileX) * colors + color) * (4 * DTT_SIZE * DTT_SIZE); // top left quadrant0
 
     clt_tile += column + thr3; // first 2 rows
     gpu_tile += column;  // first 2 rows
     if (apply_lpf) {
     	// lpf - covers 2 rows, as there there are 16 threads
-		float *lpf0 = lpf_data[mono? 3 :color] + threadIdx.x; // lpf_data[3] - mono
+		float *lpf0 = lpf_data[(colors == 1)? 3 :color] + threadIdx.x; // lpf_data[3] - mono
 #pragma unroll
 		for (int q = 0; q < 4; q++){
 			float *lpf = lpf0;
@@ -2787,16 +2570,19 @@ __device__ void convertCorrectTile(
 		float residual_shift  [2],
 	    float window_hor_cos  [2*DTT_SIZE],
 	    float window_hor_sin  [2*DTT_SIZE],
-	    float window_vert_cos [2*DTT_SIZE])
-
+	    float window_vert_cos [2*DTT_SIZE],
+		int                woi_width,
+		int                woi_height,
+		int                kernels_hor,
+		int                kernels_vert)
 {
 	// TODO: pass these values instead of constants to handle EO/LWIR
-	int max_px =   IMG_WIDTH  - 1; // odd
-	int max_py =   IMG_HEIGHT - 1; // odd
+	int max_px =   woi_width - 1; // IMG_WIDTH  - 1; // odd
+	int max_py =   woi_height - 1; // IMG_HEIGHT - 1; // odd
 	int max_pxm1 = max_px - 1; // even
 	int max_pym1 = max_py - 1; // even
-	int max_kernel_hor = KERNELS_HOR -1;
-	int max_kernel_vert = KERNELS_VERT-1;
+	int max_kernel_hor = kernels_hor - 1; // KERNELS_HOR -1;
+	int max_kernel_vert = kernels_vert - 1; // KERNELS_VERT-1;
 
 	int   ktileX, ktileY;
 	int   kernel_index; // common for all coors
@@ -2806,7 +2592,7 @@ __device__ void convertCorrectTile(
 		ktileY = min(max_kernel_vert, max(0, ((int) lrintf(centerY * (1.0/KERNELS_STEP)+1))));
 		kdx =    centerX - (ktileX << KERNELS_LSTEP) + (1 << (KERNELS_LSTEP -1)); // difference in pixel
 		kdy =    centerY - (ktileY << KERNELS_LSTEP) + (1 << (KERNELS_LSTEP -1)); // difference in pixel
-    	kernel_index = (ktileX + ktileY * KERNELS_HOR) * NUM_COLORS;
+    	kernel_index = (ktileX + ktileY * kernels_hor) * NUM_COLORS;
 	}
     // broadcast kernel_index
     kernel_index =  __shfl_sync(
@@ -3157,7 +2943,6 @@ __device__ void convertCorrectTile(
     		 }
     	 }
     	 __syncthreads();// __syncwarp();
-#ifdef DBG_TILE
 #ifdef DEBUG3
     	 if ((threadIdx.x) == 0){
     		 printf("\nDTT Tiles after LPF, color = %d\n",color);
@@ -3166,31 +2951,20 @@ __device__ void convertCorrectTile(
     	 }
     	 __syncthreads();// __syncwarp();
 #endif
-#endif
      }
-     //	const int         tx = txy & 0xffff; // slow again
-     //	const int         ty = txy >> 16;
 
      int offset_src = threadIdx.x;
-//     int offset_dst = ((ty * TILESX + tx)*NUM_COLORS + color)* ( 4 * DTT_SIZE * DTT_SIZE) + threadIdx.x; // gpu_kernels + kernel_full_index* (DTT_SIZE * DTT_SIZE * 4);
-//     int offset_dst = ((ty * TILESX + tx)*NUM_COLORS + color)* ( 4 * DTT_SIZE * DTT_SIZE) + threadIdx.x; // gpu_kernels + kernel_full_index* (DTT_SIZE * DTT_SIZE * 4);
-#ifdef USE_UMUL24
-     int offset_dst = __umul24(    __umul24( __umul24(txy >> 16, TILESX) + (txy & 0xfff)  , NUM_COLORS) + color ,  4 * DTT_SIZE * DTT_SIZE) + threadIdx.x;
-#else
      int offset_dst = (((txy >> 16) * TILESX + (txy & 0xfff))*NUM_COLORS + color)* ( 4 * DTT_SIZE * DTT_SIZE) + threadIdx.x;
-#endif
 
      float * clt_src = clt_tile + offset_src; // threadIdx.x;
      float * clt_dst = gpu_clt +  offset_dst; // ((ty * TILESX + tx)*NUM_COLORS + color)* ( 4 * DTT_SIZE * DTT_SIZE1) + threadIdx.x; // gpu_kernels + kernel_full_index* (DTT_SIZE * DTT_SIZE * 4);
 //#ifndef NOICLT
 
-#ifdef DBG_TILE
 #ifdef DEBUG3
     if ((threadIdx.x) == 0){
         printf("clt_src = 0x%lx\n",clt_src);
         printf("clt_dst = 0x%lx\n",clt_dst);
     }
-#endif
 #endif
 
 

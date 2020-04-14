@@ -107,6 +107,7 @@ public class GPUTileProcessor {
 	static String GPU_RBGA_NAME =                  "generate_RBGA"; // name in C code
 	static String GPU_ROT_DERIV =                  "calc_rot_deriv"; // calculate rotation matrices and derivatives
 	static String SET_TILES_OFFSETS =              "get_tiles_offsets"; // calculate pixel offsets and disparity distortions
+	static String GPU_IMCLT_ALL_NAME =             "imclt_rbg_all";
 
 
 //  pass some defines to gpu source code with #ifdef JCUDA
@@ -168,6 +169,8 @@ public class GPUTileProcessor {
     private CUfunction GPU_RBGA_kernel =                  null;
     private CUfunction GPU_ROT_DERIV_kernel =             null;
     private CUfunction SET_TILES_OFFSETS_kernel =         null;
+    private CUfunction GPU_IMCLT_ALL_kernel =             null;
+
 
     // CPU arrays of pointers to GPU memory
     // These arrays may go to methods, they are here just to be able to free GPU memory if needed
@@ -186,6 +189,7 @@ public class GPUTileProcessor {
     private CUdeviceptr gpu_corrs =               new CUdeviceptr(); //  allocate tilesX * tilesY * NUM_PAIRS * CORR_SIZE * Sizeof.POINTER
     private CUdeviceptr gpu_textures =            new CUdeviceptr(); //  allocate tilesX * tilesY * ? * 256 * Sizeof.POINTER
     private CUdeviceptr gpu_clt =                 new CUdeviceptr();
+    private CUdeviceptr gpu_4_images =            new CUdeviceptr();
     private CUdeviceptr gpu_corr_indices =        new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.POINTER
     private CUdeviceptr gpu_texture_indices =     new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.POINTER
     private CUdeviceptr gpu_port_offsets =        new CUdeviceptr(); //  allocate Quad * 2 * Sizeof.POINTER
@@ -466,7 +470,8 @@ public class GPUTileProcessor {
         		GPU_TEXTURES_NAME,
         		GPU_RBGA_NAME,
         		GPU_ROT_DERIV,
-        		SET_TILES_OFFSETS
+        		SET_TILES_OFFSETS,
+        		GPU_IMCLT_ALL_NAME
         };
         CUfunction[] functions = createFunctions(kernelSources,
         		                                 func_names,
@@ -479,7 +484,7 @@ public class GPUTileProcessor {
         GPU_RBGA_kernel=                   functions[4];
         GPU_ROT_DERIV_kernel =             functions[5];
         SET_TILES_OFFSETS_kernel =         functions[6];
-
+        GPU_IMCLT_ALL_kernel =             functions[7];
 
         System.out.println("GPU kernel functions initialized");
         System.out.println(GPU_CONVERT_CORRECT_TILES_kernel.toString());
@@ -531,10 +536,13 @@ public class GPUTileProcessor {
     	cuMemAlloc(gpu_kernel_offsets, NUM_CAMS * Sizeof.POINTER);
     	cuMemAlloc(gpu_bayer,          NUM_CAMS * Sizeof.POINTER);
     	cuMemAlloc(gpu_clt,            NUM_CAMS * Sizeof.POINTER);
+    	cuMemAlloc(gpu_4_images,       NUM_CAMS * Sizeof.POINTER);
+
     	long [] gpu_kernels_l =        new long [NUM_CAMS];
     	long [] gpu_kernel_offsets_l = new long [NUM_CAMS];
     	long [] gpu_bayer_l =          new long [NUM_CAMS];
     	long [] gpu_clt_l =            new long [NUM_CAMS];
+    	long [] gpu_4_images_l =       new long [NUM_CAMS];
 
     	for (int ncam = 0; ncam < NUM_CAMS; ncam++) gpu_kernels_l[ncam] =        getPointerAddress(gpu_kernels_h[ncam]);
         cuMemcpyHtoD(gpu_kernels, Pointer.to(gpu_kernels_l),                     NUM_CAMS * Sizeof.POINTER);
@@ -547,6 +555,9 @@ public class GPUTileProcessor {
 
         for (int ncam = 0; ncam < NUM_CAMS; ncam++) gpu_clt_l[ncam] =            getPointerAddress(gpu_clt_h[ncam]);
         cuMemcpyHtoD(gpu_clt, Pointer.to(gpu_clt_l),                             NUM_CAMS * Sizeof.POINTER);
+
+        for (int ncam = 0; ncam < NUM_CAMS; ncam++) gpu_4_images_l[ncam] =       getPointerAddress(gpu_corr_images_h[ncam]);
+        cuMemcpyHtoD(gpu_4_images, Pointer.to(gpu_4_images_l),                   NUM_CAMS * Sizeof.POINTER);
 
         // Set GeometryCorrection data
     	cuMemAlloc(gpu_geometry_correction,      GeometryCorrection.arrayLength(NUM_CAMS) * Sizeof.FLOAT);
@@ -1093,9 +1104,12 @@ public class GPUTileProcessor {
             Pointer.to(gpu_clt),
             Pointer.to(new int[] { mclt_stride }),
             Pointer.to(new int[] { num_task_tiles }),
-            // move lpf to 4-image generator kernel
-//            Pointer.to(new int[] { 7 }) // lpf_mask ??? (C-code has it 0)
-            Pointer.to(new int[] { 0 }) // lpf_mask ??? (C-code has it 0)
+            // move lpf to 4-image generator kernel - DONE
+            Pointer.to(new int[] { 0 }), // lpf_mask
+            Pointer.to(new int[] { IMG_WIDTH}),          // int                woi_width,
+            Pointer.to(new int[] { IMG_HEIGHT}),         // int                woi_height,
+            Pointer.to(new int[] { KERNELS_HOR}),        // int                kernels_hor,
+            Pointer.to(new int[] { KERNELS_VERT})        // int                kernels_vert);
         );
 
         cuCtxSynchronize();
@@ -1132,10 +1146,12 @@ public class GPUTileProcessor {
 								Pointer.to(gpu_clt_h[ncam]),
 								Pointer.to(gpu_corr_images_h[ncam]),
 								Pointer.to(new int[] { apply_lpf }),
-								Pointer.to(new int[] { is_mono ? 1 : 0 }),
+								Pointer.to(new int[] { is_mono ? 1 : NUM_COLORS }), // now - NUM_COLORS
 								Pointer.to(new int[] { color }),
 								Pointer.to(new int[] { v_offs }),
 								Pointer.to(new int[] { h_offs }),
+								Pointer.to(new int[] { tilesX }),
+								Pointer.to(new int[] { tilesY }),
 								Pointer.to(new int[] { imclt_stride }) // lpf_mask
 								);
 						cuCtxSynchronize();
@@ -1151,6 +1167,39 @@ public class GPUTileProcessor {
     	}
     	cuCtxSynchronize();
     }
+
+    public void execImcltRbgAll(
+    		boolean is_mono
+    		) {
+    	if (GPU_IMCLT_ALL_kernel == null)
+    	{
+    		IJ.showMessage("Error", "No GPU kernel: GPU_IMCLT_ALL_kernel");
+    		return;
+    	}
+    	int apply_lpf =  1;
+    	int tilesX =  IMG_WIDTH / DTT_SIZE;
+    	int tilesY =  IMG_HEIGHT / DTT_SIZE;
+    	int [] ThreadsFullWarps = {1, 1, 1};
+    	int [] GridFullWarps =    {1, 1, 1};
+    	Pointer kernelParameters = Pointer.to(
+                Pointer.to(gpu_clt),                                // float  ** gpu_clt, // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+                Pointer.to(gpu_4_images),                           // float           ** gpu_corr_images,    // [NUM_CAMS][WIDTH, 3 * HEIGHT]
+    			Pointer.to(new int[] { apply_lpf }),                // int                apply_lpf,
+    			Pointer.to(new int[] { is_mono ? 1 : NUM_COLORS }), // int                colors,
+    			Pointer.to(new int[] { tilesX }),                   // int                woi_twidth,
+    			Pointer.to(new int[] { tilesY }),                   // int                woi_theight,
+    			Pointer.to(new int[] { imclt_stride })              // const size_t       dstride);            // in floats (pixels)
+    			);
+    	cuCtxSynchronize();
+    	// Call the kernel function
+    	cuLaunchKernel(GPU_IMCLT_ALL_kernel,
+    			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
+    			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
+    			0, null,                   // Shared memory size and stream (shared - only dynamic, static is in code)
+    			kernelParameters, null);   // Kernel- and extra parameters
+    	cuCtxSynchronize();
+    }
+
 
     public void execCorr2D(
     		double [] scales,

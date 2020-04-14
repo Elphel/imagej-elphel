@@ -2119,7 +2119,8 @@ public class TwoQuadCLT {
 // run imclt;
 		long startIMCLT=System.nanoTime();
 		for (int i = 0; i < NREPEAT; i++ ) {
-			gPUTileProcessor.execImcltRbg(quadCLT_main.isMonochrome());
+//			gPUTileProcessor.execImcltRbg(quadCLT_main.isMonochrome());
+			gPUTileProcessor.execImcltRbgAll(quadCLT_main.isMonochrome());
 		}
 		long endImcltTime = System.nanoTime();
 // run correlation

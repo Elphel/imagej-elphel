@@ -51,7 +51,12 @@ __global__ void convert_correct_tiles(
 		float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 		size_t             dstride,            // in floats (pixels)
 		int                num_tiles,          // number of tiles in task
-		int                lpf_mask);          // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green. Now - always 0 !
+		int                lpf_mask,           // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green. Now - always 0 !
+		int                woi_width,
+		int                woi_height,
+		int                kernels_hor,
+		int                kernels_vert);
+
 
 extern "C" __global__ void clear_texture_list(
 		int              * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
@@ -104,6 +109,16 @@ extern "C" __global__ void textures_accumulate(
 		size_t            texture_stride,     // in floats (now 256*4 = 1024)
 		float           * gpu_texture_tiles); // (number of colors +1 + ?)*16*16 rgba texture tiles
 
+extern "C"
+__global__ void imclt_rbg_all(
+		float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+		float           ** gpu_corr_images,    // [NUM_CAMS][WIDTH, 3 * HEIGHT]
+		int                apply_lpf,
+		int                colors,
+		int                woi_twidth,
+		int                woi_theight,
+		const size_t       dstride);            // in floats (pixels)
+
 extern "C" __global__ void imclt_rbg(
 		float           * gpu_clt,            // [TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 		float           * gpu_rbg,            // WIDTH, 3 * HEIGHT
@@ -112,6 +127,8 @@ extern "C" __global__ void imclt_rbg(
 		int               color,              // defines location of clt data
 		int               v_offset,
 		int               h_offset,
+		int               woi_twidth,
+		int               woi_theight,
 		const size_t      dstride);            // in floats (pixels)
 
 extern "C"
@@ -143,6 +160,4 @@ __global__ void generate_RBGA(
 			int               keep_weights,       // return channel weights after A in RGBA (was removed)
 			const size_t      texture_rbga_stride,     // in floats
 			float           * gpu_texture_tiles);  // (number of colors +1 + ?)*16*16 rgba texture tiles
-
-
 
