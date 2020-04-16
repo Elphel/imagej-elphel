@@ -4210,10 +4210,6 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		double minDerivative=0.01;
 		int numIterations=1000;
 		double drDistDr=1.0;
-		//	public double distortionA5=0.0; //r^5 (normalized to focal length or to sensor half width?)
-		//	public double distortionA=0.0; // r^4 (normalized to focal length or to sensor half width?)
-		//	public double distortionB=0.0; // r^3
-		//	public double distortionC=0.0; // r^2
 		boolean use8=(this.distortionA8!=0.0) || (this.distortionA7!=0.0) || (this.distortionA6!=0.0);
 		double d=1.0-this.distortionA8-this.distortionA7-this.distortionA6-this.distortionA5-this.distortionA-this.distortionB-this.distortionC;
 		double rPrev=0.0;

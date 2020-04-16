@@ -148,14 +148,15 @@ extern "C" __global__ void get_tiles_offsets(
 		float *              gpu_rByRDist, // length should match RBYRDIST_LEN
 		trot_deriv   * gpu_rot_deriv);
 
-#if 0
-// uses 3 threadIdx.x, 3 - threadIdx.y, 4 - threadIdx.z
-extern "C" __global__ void calc_rot_matrices(
-		struct corr_vector * gpu_correction_vector);
-#endif
 // uses NUM_CAMS blocks, (3,3,3) threads
 extern "C" __global__ void calc_rot_deriv(
 		struct corr_vector * gpu_correction_vector,
 		trot_deriv   * gpu_rot_deriv);
+
+#define CALC_REVERSE_TABLE_BLOCK_THREADS (NUM_CAMS * 3 * 3 * 3) // fixed blockDim
+// Use same blocks/threads as with calc_rot_deriv() - NUM_CAMS blocks, (3,3,3) threads
+extern "C" __global__ void calcReverseDistortionTable(
+		struct gc * geometry_correction,
+		float * rByRDist);
 
 

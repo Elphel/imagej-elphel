@@ -41,21 +41,44 @@
 #include "tp_defines.h"
 #endif
 
-
-extern "C"
-__global__ void convert_correct_tiles(
-		float           ** gpu_kernel_offsets, // [NUM_CAMS],
-		float           ** gpu_kernels,        // [NUM_CAMS],
-		float           ** gpu_images,         // [NUM_CAMS],
+extern "C" __global__ void index_direct(
 		struct tp_task   * gpu_tasks,
-		float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
-		size_t             dstride,            // in floats (pixels)
 		int                num_tiles,          // number of tiles in task
-		int                lpf_mask,           // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green. Now - always 0 !
-		int                woi_width,
-		int                woi_height,
-		int                kernels_hor,
-		int                kernels_vert);
+		int *              active_tiles,      // pointer to the calculated number of non-zero tiles
+		int *              num_active_tiles);  //  indices to gpu_tasks  // should be initialized to zero
+
+extern "C" __global__ void convert_direct( // called with a single block, CONVERT_DIRECT_INDEXING_THREADS threads
+//		struct CltExtra ** gpu_kernel_offsets, // [NUM_CAMS], // changed for jcuda to avoid struct parameters
+			float           ** gpu_kernel_offsets, // [NUM_CAMS],
+			float           ** gpu_kernels,        // [NUM_CAMS],
+			float           ** gpu_images,         // [NUM_CAMS],
+			struct tp_task   * gpu_tasks,
+			float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+			size_t             dstride,            // in floats (pixels)
+			int                num_tiles,          // number of tiles in task
+			int                lpf_mask,           // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green. Now - always 0 !
+			int                woi_width,
+			int                woi_height,
+			int                kernels_hor,
+			int                kernels_vert,
+			int *              gpu_active_tiles,      // pointer to the calculated number of non-zero tiles
+			int *              pnum_active_tiles);  //  indices to gpu_tasks
+
+extern "C" __global__ void convert_correct_tiles(
+			float           ** gpu_kernel_offsets, // [NUM_CAMS],
+			float           ** gpu_kernels,        // [NUM_CAMS],
+			float           ** gpu_images,         // [NUM_CAMS],
+			struct tp_task   * gpu_tasks,
+			int              * gpu_active_tiles,   // indices in gpu_tasks to non-zero tiles
+			int                num_active_tiles,   // number of tiles in task
+			float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+			size_t             dstride,            // in floats (pixels)
+//			int                num_tiles,          // number of tiles in task
+			int                lpf_mask,           // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green. Now - always 0 !
+			int                woi_width,
+			int                woi_height,
+			int                kernels_hor,
+			int                kernels_vert);
 
 
 extern "C" __global__ void clear_texture_list(

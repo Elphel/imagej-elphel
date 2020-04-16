@@ -62,6 +62,8 @@ __device__ void printExtrinsicCorrection(corr_vector * cv);
 inline __device__ float getRByRDist(float rDist,
 		float rByRDist [RBYRDIST_LEN]); //shared memory
 
+
+
 __constant__ float ROTS_TEMPLATE[7][3][3][3] = {//  ...{cos,sin,const}...
 		{ // azimuth
 				{{ 1, 0,0},{0, 0,0},{ 0,-1,0}},
@@ -116,201 +118,6 @@ __constant__ int mm_seq [3][3][3]={
 				{-1,-1,-1} // do nothing
 		}};
 
-#if 0
-__device__ float rot_matrices       [NUM_CAMS][3][3];
-//__device__ float rot_deriv_matrices [NUM_CAMS][4][3][3]; // /d_azimuth, /d_tilt, /d_roll, /d_zoom)
-
-
-// threads (3,3,4)
-extern "C" __global__ void calc_rot_matrices(
-		struct corr_vector * gpu_correction_vector)
-{
-	__shared__ float zoom    [NUM_CAMS];
-	__shared__ float sincos  [NUM_CAMS][3][2];    // {az,tilt,roll, d_az, d_tilt, d_roll, d_az}{cos,sin}
-	__shared__ float matrices[NUM_CAMS][4][3][3]; // [7] - extra
-
-	float angle;
-	int ncam = threadIdx.z;
-	int nangle1 = threadIdx.x + threadIdx.y * blockDim.x; // * >> 1;
-	int nangle =  nangle1 >> 1;
-	int is_sin = nangle1 & 1;
-
-#ifdef DEBUG20a
-	if ((threadIdx.x == 0)  && ( threadIdx.y == 0)  && ( threadIdx.z == 0)){
-		printf("\nget_tiles_offsets() threadIdx.x = %d, blockIdx.x= %d\n", (int)threadIdx.x, (int) blockIdx.x);
-		printExtrinsicCorrection(gpu_correction_vector);
-	}
-	__syncthreads();// __syncwarp();
-#endif // DEBUG20
-
-
-	if (nangle < 4){ // this part only for 1-st 3
-		float* gangles =
-				(nangle ==0)?gpu_correction_vector->azimuth:(
-						(nangle ==1)?gpu_correction_vector->tilt:(
-								(nangle ==2)?gpu_correction_vector->roll:
-										gpu_correction_vector->zoom));
-		if ((ncam < (NUM_CAMS -1)) || (nangle == 2)){ // for rolls - all 4
-			angle = *(gangles + ncam);
-
-		} else {
-			angle = 0.0f;
-
-#pragma	unroll
-			for (int n = 0; n < (NUM_CAMS-1); n++){
-				angle -= *(gangles + n);
-			}
-		}
-		if (!is_sin){
-			angle += M_PI/2;
-		}
-		if (nangle < 3) {
-			sincos[ncam][nangle][is_sin]=sinf(angle);
-		} else if (is_sin){
-			zoom[ncam] = angle;
-		}
-	}
-	__syncthreads();
-
-
-#ifdef DEBUG20a
-	if ((threadIdx.x == 0) && (threadIdx.y == 0) && (threadIdx.z == 0)){
-		for (int n = 0; n < NUM_CAMS; n++){
-			printf("\n    Azimuth matrix for camera %d, sincos[0] = %f, sincos[1] = %f, zoom = %f\n", n, sincos[n][0][0], sincos[n][0][1], zoom[n]);
-			printf("    Tilt matrix for camera %d, sincos[0] = %f, sincos[0] = %f\n", n, sincos[n][1][0], sincos[n][1][1]);
-			printf("    Roll matrix for camera %d, sincos[0] = %f, sincos[2] = %f\n", n, sincos[n][2][0], sincos[n][2][1]);
-		}
-	}
-	__syncthreads();// __syncwarp();
-#endif // DEBUG20
-
-
-	if (nangle == 3) {
-		sincos[ncam][2][is_sin] *= (1.0 + zoom[ncam]); // modify roll
-	}
-	__syncthreads();
-
-
-#ifdef DEBUG20a
-	if ((threadIdx.x == 0) && (threadIdx.y == 0) && (threadIdx.z == 0)){
-		for (int n = 0; n < NUM_CAMS; n++){
-			printf("\na    Azimuth matrix for camera %d, sincos[0] = %f, sincos[1] = %f, zoom = %f\n", n, sincos[n][0][0], sincos[n][0][1], zoom[n]);
-			printf("a    Tilt matrix for camera %d, sincos[0] = %f, sincos[0] = %f\n", n, sincos[n][1][0], sincos[n][1][1]);
-			printf("a    Roll matrix for camera %d, sincos[0] = %f, sincos[2] = %f\n", n, sincos[n][2][0], sincos[n][2][1]);
-		}
-	}
-	__syncthreads();// __syncwarp();
-#endif // DEBUG20
-
-
-
-
-
-	// now 3x3
-	for (int axis = 0; axis < 3; axis++) {
-		matrices[ncam][axis][threadIdx.y][threadIdx.x] =
-				ROTS_TEMPLATE[axis][threadIdx.y][threadIdx.x][0] * sincos[ncam][axis][0]+ // cos
-				ROTS_TEMPLATE[axis][threadIdx.y][threadIdx.x][1] * sincos[ncam][axis][1]+ // sin
-				ROTS_TEMPLATE[axis][threadIdx.y][threadIdx.x][2];                         // const
-	}
-	__syncthreads();
-
-
-#ifdef DEBUG20a
-	if ((threadIdx.x == 0) && (threadIdx.y == 0) && (threadIdx.z == 0)){
-		for (int n = 0; n < NUM_CAMS; n++){
-
-			printf("\n1-Azimuth matrix for camera %d, sincos[0] = %f, sincos[1] = %f\n", n, sincos[n][0][0], sincos[n][0][1]);
-			for (int i = 0; i < 3; i++){
-				for (int j = 0; j < 3; j++){
-					printf("%9.6f, ", matrices[n][0][i][j]);
-				}
-				printf("\n");
-			}
-
-			printf("1-Tilt matrix for camera %d, sincos[0] = %f, sincos[1] = %f\n", n, sincos[n][1][0], sincos[n][1][1]);
-			for (int i = 0; i < 3; i++){
-				for (int j = 0; j < 3; j++){
-					printf("%9.6f, ", matrices[n][1][i][j]);
-				}
-				printf("\n");
-			}
-
-			printf("1-Roll/Zoom matrix for camera %d, sincos[0] = %f, sincos[1] = %f\n", n, sincos[n][2][0], sincos[n][2][1]);
-			for (int i = 0; i < 3; i++){
-				for (int j = 0; j < 3; j++){
-					printf("%9.6f, ", matrices[n][2][i][j]);
-				}
-				printf("\n");
-			}
-
-		}
-	}
-	__syncthreads();// __syncwarp();
-#endif // DEBUG20
-
-
-
-
-
-    // tilt * az ->
-	// multiply matrices[ncam][1] * matrices[ncam][0] -> matrices[ncam][3]
-	matrices[ncam][3][threadIdx.y][threadIdx.x] =
-			matrices[ncam][1][threadIdx.y][0] * matrices[ncam][0][0][threadIdx.x]+
-			matrices[ncam][1][threadIdx.y][1] * matrices[ncam][0][1][threadIdx.x]+
-			matrices[ncam][1][threadIdx.y][2] * matrices[ncam][0][2][threadIdx.x];
-	// multiply matrices[ncam][2] * matrices[ncam][3] -> rot_matrices[ncam]
-	__syncthreads();
-	rot_matrices[ncam][threadIdx.y][threadIdx.x] =
-			matrices[ncam][2][threadIdx.y][0] * matrices[ncam][3][0][threadIdx.x]+
-			matrices[ncam][2][threadIdx.y][1] * matrices[ncam][3][1][threadIdx.x]+
-			matrices[ncam][2][threadIdx.y][2] * matrices[ncam][3][2][threadIdx.x];
-	__syncthreads();
-
-
-#ifdef DEBUG20
-	if ((threadIdx.x == 0) && (threadIdx.y == 0) && (threadIdx.z == 0)){
-		for (int n = 0; n < NUM_CAMS; n++){
-
-			printf("\n2 - Azimuth matrix for camera %d, sincos[0] = %f, sincos[1] = %f\n", n, sincos[n][0][0], sincos[n][0][1]);
-			for (int i = 0; i < 3; i++){
-				for (int j = 0; j < 3; j++){
-					printf("%9.6f, ", matrices[n][0][i][j]);
-				}
-				printf("\n");
-			}
-
-			printf("2 - Tilt matrix for camera %d, sincos[0] = %f, sincos[1] = %f\n", n, sincos[n][1][0], sincos[n][1][1]);
-			for (int i = 0; i < 3; i++){
-				for (int j = 0; j < 3; j++){
-					printf("%9.6f, ", matrices[n][1][i][j]);
-				}
-				printf("\n");
-			}
-
-			printf("2 - Roll/Zoom matrix for camera %d, sincos[0] = %f, sincos[1] = %f\n", n, sincos[n][2][0], sincos[n][2][1]);
-			for (int i = 0; i < 3; i++){
-				for (int j = 0; j < 3; j++){
-					printf("%9.6f, ", matrices[n][2][i][j]);
-				}
-				printf("\n");
-			}
-
-			printf("2 - Rotation matrix for camera %d\n", n);
-			for (int i = 0; i < 3; i++){
-				for (int j = 0; j < 3; j++){
-					printf("%9.6f, ", rot_matrices[n][i][j]);
-				}
-				printf("\n");
-			}
-		}
-	}
-	__syncthreads();// __syncwarp();
-#endif // DEBUG20
-
-
-}
-#endif
 __constant__ int offset_rots =     0;                   //0
 __constant__ int offset_derivs =   1;                   // 1..4 // should be next
 __constant__ int offset_matrices = 5;   // 5..11
@@ -890,8 +697,69 @@ extern "C" __global__ void get_tiles_offsets(
 
 
 }
-
-
+extern "C" __global__ void calcReverseDistortionTable(
+		struct gc * geometry_correction,
+		float * rByRDist)
+{
+	//int num_threads = NUM_CAMS *  blockDim.z  *  blockDim.y * blockDim.x; // 36
+	int indx =  ((blockIdx.x * blockDim.z + threadIdx.z) *  blockDim.y + threadIdx.y) * blockDim.x + threadIdx.x;
+//	double delta=1E-20; // 12; // 10; // -8; 215.983994 ms
+//	double delta=1E-4; //rByRDist error = 0.000072
+	double delta=1E-10; // 12; // 10; // -8; 0.730000 ms
+	double minDerivative=0.01;
+	int numIterations=1000;
+	double drDistDr=1.0;
+	double d=1.0
+			-geometry_correction -> distortionA8
+			-geometry_correction -> distortionA7
+			-geometry_correction -> distortionA6
+			-geometry_correction -> distortionA5
+			-geometry_correction -> distortionA
+			-geometry_correction -> distortionB
+			-geometry_correction -> distortionC;
+	double rPrev=0.0;
+	int num_points = (RBYRDIST_LEN + CALC_REVERSE_TABLE_BLOCK_THREADS - 1) / CALC_REVERSE_TABLE_BLOCK_THREADS;
+	for (int p = 0; p < num_points; p ++){
+		int i = indx * num_points +p;
+		if (i >= RBYRDIST_LEN){
+			return;
+		}
+		if (i == 0){
+			rByRDist[0]= (float) 1.0/d;
+			break;
+		}
+		double rDist = RBYRDIST_STEP * i;
+		double r = (p == 0) ? rDist : rPrev;
+		for (int iteration=0;iteration<numIterations;iteration++){
+			double k=(((((((
+					geometry_correction -> distortionA8) * r +
+					geometry_correction -> distortionA7) * r +
+					geometry_correction -> distortionA6) * r +
+					geometry_correction -> distortionA5) * r +
+					geometry_correction -> distortionA) * r +
+					geometry_correction -> distortionB) * r +
+					geometry_correction -> distortionC) * r + d;
+			drDistDr=(((((((
+					8 * geometry_correction -> distortionA8) * r +
+					7 * geometry_correction -> distortionA7) * r +
+					6 * geometry_correction -> distortionA6) * r +
+					5 * geometry_correction -> distortionA5) * r +
+					4 * geometry_correction -> distortionA) * r +
+					3 * geometry_correction -> distortionB) * r+
+					2 * geometry_correction -> distortionC) * r+d;
+			if (drDistDr<minDerivative) { // folds backwards !
+				return; // too high distortion
+			}
+			double rD=r*k;
+			if (fabs(rD-rDist)<delta){
+				break;
+			}
+			r+=(rDist-rD)/drDistDr;
+		}
+		rPrev=r;
+		rByRDist[i]= (float) r/rDist;
+	}
+}
 
 /**
  * Calculate non-distorted radius from distorted using table approximation

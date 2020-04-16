@@ -104,6 +104,8 @@ GPU run time =523.451927ms, (direct conversion: 24.080189999999998ms, imclt: 17.
 #define KERNELS_STEP  (1 << KERNELS_LSTEP)
 #define TILESX        (IMG_WIDTH / DTT_SIZE)
 #define TILESY        (IMG_HEIGHT / DTT_SIZE)
+#define CONVERT_DIRECT_INDEXING_THREADS_LOG2 5
+#define CONVERT_DIRECT_INDEXING_THREADS (1 << CONVERT_DIRECT_INDEXING_THREADS_LOG2) // 32
 // Make TILESYA >= TILESX and a multiple of 4
 #define TILESYA       ((TILESY +3) & (~3))
 // increase row length by 1 so vertical passes will use different ports
@@ -1541,10 +1543,32 @@ __global__ void gen_texture_list(
 
 #endif //#ifdef USE_CDP
 
+//#define CONVERT_DIRECT_INDEXING_THREADS_LOG2 5
+//#define CONVERT_DIRECT_INDEXING_THREADS (1 << CONVERT_DIRECT_INDEXING_THREADS_LOG2) // 32
+//#define CONVERT_DIRECT_NUM_CHUNKS  ((TILESY*TILESX+CONVERT_DIRECT_INDEXING_THREADS-1) >> CONVERT_DIRECT_INDEXING_THREADS_LOG2)
+//#define CONVERT_DIRECT_NUM_CHUNKS2 ((CONVERT_DIRECT_NUM_CHUNKS+CONVERT_DIRECT_INDEXING_THREADS-1) >> CONVERT_DIRECT_INDEXING_THREADS_LOG2)
+//__global__ int num_active_tiles;
+//__global__ int active_tiles        [TILESY*TILESX]; // indices of tiles in gpu_tasks that have non-zero correlations and/or textures
+//__device__ int num_acive_per_chunk [CONVERT_DIRECT_NUM_CHUNKS+1];
+//__device__ int num_acive_per_chunk2[CONVERT_DIRECT_NUM_CHUNKS2+1];
 
+// not maintaining order of the tiles to be processed
+extern "C" __global__ void index_direct(
+		struct tp_task   * gpu_tasks,
+		int                num_tiles,          // number of tiles in task
+		int *              active_tiles,      // pointer to the calculated number of non-zero tiles
+		int *              num_active_tiles)  //  indices to gpu_tasks  // should be initialized to zero
+{
+	int num_tile = blockIdx.x * blockDim.x + threadIdx.x;
+	if (num_tile >= num_tiles){
+		return;
+	}
+	if (gpu_tasks[num_tile].task != 0) {
+		active_tiles[atomicAdd(num_active_tiles, 1)] = num_tile;
+	}
+}
 
-extern "C"
-__global__ void convert_correct_tiles(
+extern "C" __global__ void convert_direct( // called with a single block, CONVERT_DIRECT_INDEXING_THREADS threads
 //		struct CltExtra ** gpu_kernel_offsets, // [NUM_CAMS], // changed for jcuda to avoid struct parameters
 			float           ** gpu_kernel_offsets, // [NUM_CAMS],
 			float           ** gpu_kernels,        // [NUM_CAMS],
@@ -1557,12 +1581,197 @@ __global__ void convert_correct_tiles(
 			int                woi_width,
 			int                woi_height,
 			int                kernels_hor,
+			int                kernels_vert,
+			int *              gpu_active_tiles,      // pointer to the calculated number of non-zero tiles
+			int *              pnum_active_tiles)  //  indices to gpu_tasks
+{
+	 dim3 threads0(CONVERT_DIRECT_INDEXING_THREADS, 1, 1);
+	 dim3 blocks0 ((num_tiles + CONVERT_DIRECT_INDEXING_THREADS -1) >> CONVERT_DIRECT_INDEXING_THREADS_LOG2,1, 1);
+	 if (threadIdx.x == 0) { // of CONVERT_DIRECT_INDEXING_THREADS
+		 *pnum_active_tiles = 0;
+		 index_direct<<<blocks0,threads0>>>(
+				 gpu_tasks,           // struct tp_task   * gpu_tasks,
+				 num_tiles,           //int                num_tiles,          // number of tiles in task
+				 gpu_active_tiles,    //int *              active_tiles,      // pointer to the calculated number of non-zero tiles
+				 pnum_active_tiles);  //int *              pnum_active_tiles)  //  indices to gpu_tasks  // should be initialized to zero
+		 cudaDeviceSynchronize();
+		 // now call actual convert_correct_tiles
+		 dim3 threads_tp(THREADSX, TILES_PER_BLOCK, 1);
+		 dim3 grid_tp((*pnum_active_tiles + TILES_PER_BLOCK -1 )/TILES_PER_BLOCK, 1);
+		 convert_correct_tiles<<<grid_tp,threads_tp>>>(
+				 gpu_kernel_offsets, // float           ** gpu_kernel_offsets, // [NUM_CAMS],
+				 gpu_kernels,        // float           ** gpu_kernels,        // [NUM_CAMS],
+				 gpu_images,         // float           ** gpu_images,         // [NUM_CAMS],
+				 gpu_tasks,          // struct tp_task   * gpu_tasks,          // array of tasks
+				 gpu_active_tiles,   // int              * gpu_active_tiles,   // indices in gpu_tasks to non-zero tiles
+				 *pnum_active_tiles, // int                num_active_tiles,   // number of tiles in task
+				 gpu_clt,            // float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+				 dstride,            // size_t             dstride,            // in floats (pixels)
+				 lpf_mask,           // int                lpf_mask,           // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green. Now - always 0 !
+				 woi_width,          // int                woi_width,          // varaible to swict between EO and LWIR
+				 woi_height,         // int                woi_height,         // varaible to swict between EO and LWIR
+				 kernels_hor,        // int                kernels_hor,        // varaible to swict between EO and LWIR
+				 kernels_vert);      // int                kernels_vert);      // varaible to swict between EO and LWIR
+	 }
+}
+#if 0 // trying to keep the same order
+extern "C" __global__ void index_direct_init(
+		int                num_chunks,          // number of tiles in task
+		struct  convert_direct_tmp* tmp)
+{
+	int chunk_index = blockIdx.x * blockDim.x + threadIdx.x;
+	if (chunk_index <= num_chunks){
+		tmp->num_acive_per_chunk[chunk_index] = 0;
+	}
+}
+extern "C" __global__ void index_direct(
+		struct tp_task   * gpu_tasks,
+		int                num_tiles,          // number of tiles in task
+		struct  convert_direct_tmp* tmp)
+{
+	__shared__ int num_active;
+	if (threadIdx.x == 0) {
+		num_active = 0;
+	}
+	 __syncthreads();
+	 int num_tile = blockIdx.x * blockDim.x + threadIdx.x;
+	 if (num_tile < num_tiles) {
+		 if (gpu_tasks[num_tile].task){
+			 atomicAdd(&num_active, 1);
+		 }
+	 }
+	 __syncthreads();
+	 tmp -> num_acive_per_chunk[(num_tile >> CONVERT_DIRECT_INDEXING_THREADS_LOG2) + 1] = num_active; // skip [0]
+}
+
+extern "C" __global__ void build_index_direct(
+		struct tp_task   * gpu_tasks,
+		int                num_tiles,          // number of tiles in task
+		struct  convert_direct_tmp* tmp)
+{
+	__shared__ int num_active;
+	if (threadIdx.x == 0) {
+		num_active = 0;
+	}
+	 __syncthreads();
+	 int num_tile = blockIdx.x * blockDim.x + threadIdx.x;
+	 if (num_tile < num_tiles) {
+		 if (gpu_tasks[num_tile].task){
+			 atomicAdd(&num_active, 1);
+		 }
+	 }
+	 __syncthreads();
+	 tmp -> num_acive_per_chunk[(num_tile >> CONVERT_DIRECT_INDEXING_THREADS_LOG2) + 1] = num_active; // skip [0]
+}
+
+
+/**
+ * Top level to call other kernel with CDP
+ */
+extern "C" __global__ void convert_direct( // called with a single block, CONVERT_DIRECT_INDEXING_THREADS threads
+//		struct CltExtra ** gpu_kernel_offsets, // [NUM_CAMS], // changed for jcuda to avoid struct parameters
+			float           ** gpu_kernel_offsets, // [NUM_CAMS],
+			float           ** gpu_kernels,        // [NUM_CAMS],
+			float           ** gpu_images,         // [NUM_CAMS],
+			struct tp_task   * gpu_tasks,
+			float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+			size_t             dstride,            // in floats (pixels)
+			int                num_tiles,          // number of tiles in task
+			int                lpf_mask,           // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green. Now - always 0 !
+			int                woi_width,
+			int                woi_height,
+			int                kernels_hor,
+			int                kernels_vert,
+			int *              num_active_tiles,
+			struct  convert_direct_tmp* tmp) // temporary storage - avoiding static data for future overlap of kernel execution
+{
+	 int num_chunks = (num_tiles + CONVERT_DIRECT_INDEXING_THREADS -1) >> CONVERT_DIRECT_INDEXING_THREADS_LOG2;
+	 int num_chunk_blocks = (num_chunks + CONVERT_DIRECT_INDEXING_THREADS -1) >> CONVERT_DIRECT_INDEXING_THREADS_LOG2;
+	 dim3 threads0(CONVERT_DIRECT_INDEXING_THREADS, 1, 1);
+	 dim3 blocks0 (num_chunk_blocks,1, 1);
+	 __shared__ int superchunks[CONVERT_DIRECT_INDEXING_THREADS + 1];
+	 if (threadIdx.x == 0) { // of CONVERT_DIRECT_INDEXING_THREADS
+
+		 index_direct_init<<<blocks0,threads0>>>(num_chunks, tmp); // zero num_acive_per_chunk[]
+
+		 cudaDeviceSynchronize(); // not needed yet, just for testing
+		 index_direct<<<blocks0,threads0>>>(
+				 gpu_tasks,  // struct tp_task   * gpu_tasks,
+				 num_tiles, // int                num_tiles)
+				 tmp);
+		 cudaDeviceSynchronize(); // not needed yet, just for testing
+		 // single-threaded - make cumulative
+//		 tmp-> num_acive_per_chunk2[0] = 0;
+		 superchunks[0] = 0;
+	 }
+	 __syncthreads();
+
+	 // calculate cumulative in 3 steps
+	 //1. num_acive_per_chunk2 with each element being a sum of CONVERT_DIRECT_INDEXING_THREADS (32) elements of num_acive_per_chunk
+	 int num_passes = (num_chunk_blocks + CONVERT_DIRECT_INDEXING_THREADS - 1) >> CONVERT_DIRECT_INDEXING_THREADS_LOG2;
+	 for (int pass = 0; pass < num_passes; pass++){
+		 int num_cluster2 = (pass << CONVERT_DIRECT_INDEXING_THREADS_LOG2) + threadIdx.x + 1; // skip 0
+		 if (num_cluster2 <= num_chunk_blocks){
+			 superchunks[threadIdx.x+1] = superchunks[0];
+			 int indx = num_cluster2 << CONVERT_DIRECT_INDEXING_THREADS_LOG2 + 1;
+			 for (int i = 0; i < CONVERT_DIRECT_INDEXING_THREADS; i++){
+				 if (indx <= num_chunks) {
+					 superchunks[threadIdx.x+1] += tmp -> num_acive_per_chunk[indx++];
+				 }
+			 }
+		 }
+		 __syncthreads();
+		 // make superchunks cumulative (single-threaded
+		 if (threadIdx.x == 0) { // of CONVERT_DIRECT_INDEXING_THREADS
+			 for (int i = 0; i < CONVERT_DIRECT_INDEXING_THREADS; i++){
+				 superchunks[i + 1] += superchunks[i];
+			 }
+		 }
+		 __syncthreads();
+		 // now update tmp -> num_acive_per_chunk[] by adding them together and adding the initial value
+
+		 if (num_cluster2 <= num_chunk_blocks){
+			 int indx = num_cluster2 << CONVERT_DIRECT_INDEXING_THREADS_LOG2 + 1;
+			 tmp -> num_acive_per_chunk[indx] += superchunks[threadIdx.x];
+			 for (int i = 0; i < CONVERT_DIRECT_INDEXING_THREADS; i++){
+				 int prev = tmp -> num_acive_per_chunk[indx++];
+				 if (indx <= num_chunks) {
+					 tmp -> num_acive_per_chunk[indx] += prev;
+				 }
+			 }
+		 }
+		 __syncthreads();
+	 }
+}
+#endif
+
+
+extern "C" __global__ void convert_correct_tiles(
+			float           ** gpu_kernel_offsets, // [NUM_CAMS],
+			float           ** gpu_kernels,        // [NUM_CAMS],
+			float           ** gpu_images,         // [NUM_CAMS],
+			struct tp_task   * gpu_tasks,
+			int              * gpu_active_tiles,   // indices in gpu_tasks to non-zero tiles
+			int                num_active_tiles,   // number of tiles in task
+			float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+			size_t             dstride,            // in floats (pixels)
+//			int                num_tiles,          // number of tiles in task
+			int                lpf_mask,           // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green. Now - always 0 !
+			int                woi_width,
+			int                woi_height,
+			int                kernels_hor,
 			int                kernels_vert)
 {
 	dim3 t = threadIdx;
 	int tile_in_block = threadIdx.y;
-	int task_num = blockIdx.x * TILES_PER_BLOCK + tile_in_block;
-	if (task_num >= num_tiles) return; // nothing to do
+//	int task_num = blockIdx.x * TILES_PER_BLOCK + tile_in_block;
+//	if (task_num >= num_tiles) return; // nothing to do
+	int task_indx = blockIdx.x * TILES_PER_BLOCK + tile_in_block;
+	if (task_indx >=  num_active_tiles){
+		return; // nothing to do
+	}
+	int task_num = gpu_active_tiles[task_indx];
+
 	struct tp_task  * gpu_task = &gpu_tasks[task_num];
 	if (!gpu_task->task)       return; // NOP tile
 	__shared__ struct tp_task tt [TILES_PER_BLOCK];
@@ -1626,8 +1835,7 @@ __global__ void convert_correct_tiles(
 					woi_height,                      // int                woi_height,
 					kernels_hor,                     // int                kernels_hor,
 					kernels_vert); //int                kernels_vert)
-
-    		 __syncthreads();// __syncwarp();
+    		 __syncthreads();
     	}
     }
 }
@@ -1989,7 +2197,7 @@ __global__ void textures_accumulate(
 		int tileX = tile_num - tileY * TILESX;
 		int tile_x0 = (tileX - *(woi + 0)) * DTT_SIZE; //  - (DTT_SIZE/2); // may be negative == -4
 		int tile_y0 = (tileY - *(woi + 1)) * DTT_SIZE; //  - (DTT_SIZE/2); // may be negative == -4
-		int height = *(woi + 3) << DTT_SIZE_LOG2;
+///		int height = *(woi + 3) << DTT_SIZE_LOG2;
 
 #ifdef DEBUG12
 		if ((tile_num == DBG_TILE)  && (threadIdx.x == 0) && (threadIdx.y == 0)){

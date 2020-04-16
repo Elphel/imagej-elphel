@@ -99,15 +99,14 @@ public class GPUTileProcessor {
 	static String [][] GPU_SRC_FILES = {{"*","dtt8x8.h","dtt8x8.cu","geometry_correction.h","geometry_correction.cu","TileProcessor.h","TileProcessor.cuh"}};
 //	static String [][] GPU_SRC_FILES = {{"*","dtt8x8.h","dtt8x8.cu","geometry_correction.h","TileProcessor.h","TileProcessor.cuh"}};
 	//	static String [][] GPU_SRC_FILES = {{"*","dtt8x8.cuh","TileProcessor.cuh"}};
-	static String GPU_CONVERT_CORRECT_TILES_NAME = "convert_correct_tiles"; // name in C code
-	static String GPU_IMCLT_RBG_NAME =             "imclt_rbg"; // name in C code
+	static String GPU_CONVERT_DIRECT_NAME =        "convert_direct"; // name in C code
+	static String GPU_IMCLT_ALL_NAME =             "imclt_rbg_all";
 	static String GPU_CORRELATE2D_NAME =           "correlate2D"; // name in C code
-//	static String GPU_TEXTURES_NAME =              "textures_gen"; // name in C code
 	static String GPU_TEXTURES_NAME =              "textures_accumulate"; // name in C code
 	static String GPU_RBGA_NAME =                  "generate_RBGA"; // name in C code
 	static String GPU_ROT_DERIV =                  "calc_rot_deriv"; // calculate rotation matrices and derivatives
-	static String SET_TILES_OFFSETS =              "get_tiles_offsets"; // calculate pixel offsets and disparity distortions
-	static String GPU_IMCLT_ALL_NAME =             "imclt_rbg_all";
+	static String GPU_SET_TILES_OFFSETS =          "get_tiles_offsets"; // calculate pixel offsets and disparity distortions
+	static String GPU_CALC_REVERSE_DISTORTION =    "calcReverseDistortionTable"; // calculate reverse radial distortion table from gpu_geometry_correction
 
 
 //  pass some defines to gpu source code with #ifdef JCUDA
@@ -162,14 +161,14 @@ public class GPUTileProcessor {
     public boolean kernels_set = false;
     public boolean bayer_set =   false;
 
-    private CUfunction GPU_CONVERT_CORRECT_TILES_kernel = null;
-    private CUfunction GPU_IMCLT_RBG_kernel =             null;
-    private CUfunction GPU_CORRELATE2D_kernel =           null;
-    private CUfunction GPU_TEXTURES_kernel =              null;
-    private CUfunction GPU_RBGA_kernel =                  null;
-    private CUfunction GPU_ROT_DERIV_kernel =             null;
-    private CUfunction SET_TILES_OFFSETS_kernel =         null;
-    private CUfunction GPU_IMCLT_ALL_kernel =             null;
+    private CUfunction GPU_CONVERT_DIRECT_kernel =          null;
+    private CUfunction GPU_IMCLT_ALL_kernel =               null;
+    private CUfunction GPU_CORRELATE2D_kernel =             null;
+    private CUfunction GPU_TEXTURES_kernel =                null;
+    private CUfunction GPU_RBGA_kernel =                    null;
+    private CUfunction GPU_ROT_DERIV_kernel =               null;
+    private CUfunction GPU_SET_TILES_OFFSETS_kernel =       null;
+    private CUfunction GPU_CALC_REVERSE_DISTORTION_kernel = null;
 
 
     // CPU arrays of pointers to GPU memory
@@ -201,6 +200,9 @@ public class GPUTileProcessor {
     private CUdeviceptr gpu_rot_deriv=            new CUdeviceptr(); //  used internally by device, may be read to CPU for testing
     private CUdeviceptr gpu_geometry_correction=  new CUdeviceptr();
     private CUdeviceptr gpu_rByRDist=             new CUdeviceptr(); //  calculated once for the camera distortion model in CPU (move to GPU?)
+
+    private CUdeviceptr gpu_active_tiles =        new CUdeviceptr(); //  TILESX*TILESY*sizeof(int)
+    private CUdeviceptr gpu_num_active_tiles =    new CUdeviceptr(); //  1 int
 
     CUmodule    module; // to access constants memory
     private int mclt_stride;
@@ -464,36 +466,40 @@ public class GPUTileProcessor {
 
         // Create the kernel functions (first - just test)
         String [] func_names = {
-        		GPU_CONVERT_CORRECT_TILES_NAME,
-        		GPU_IMCLT_RBG_NAME,
+//        		GPU_CONVERT_CORRECT_TILES_NAME,
+        		GPU_CONVERT_DIRECT_NAME,
+        		GPU_IMCLT_ALL_NAME,
         		GPU_CORRELATE2D_NAME,
         		GPU_TEXTURES_NAME,
         		GPU_RBGA_NAME,
         		GPU_ROT_DERIV,
-        		SET_TILES_OFFSETS,
-        		GPU_IMCLT_ALL_NAME
+        		GPU_SET_TILES_OFFSETS,
+        		GPU_CALC_REVERSE_DISTORTION
         };
         CUfunction[] functions = createFunctions(kernelSources,
         		                                 func_names,
         		                                 capability); // on my - 75
 
-        GPU_CONVERT_CORRECT_TILES_kernel = functions[0];
-        GPU_IMCLT_RBG_kernel =             functions[1];
-        GPU_CORRELATE2D_kernel =           functions[2];
-        GPU_TEXTURES_kernel=               functions[3];
-        GPU_RBGA_kernel=                   functions[4];
-        GPU_ROT_DERIV_kernel =             functions[5];
-        SET_TILES_OFFSETS_kernel =         functions[6];
-        GPU_IMCLT_ALL_kernel =             functions[7];
+//        GPU_CONVERT_CORRECT_TILES_kernel =   functions[0];
+        GPU_CONVERT_DIRECT_kernel =          functions[0];
+        GPU_IMCLT_ALL_kernel =               functions[1];
+        GPU_CORRELATE2D_kernel =             functions[2];
+        GPU_TEXTURES_kernel=                 functions[3];
+        GPU_RBGA_kernel=                     functions[4];
+        GPU_ROT_DERIV_kernel =               functions[5];
+        GPU_SET_TILES_OFFSETS_kernel =       functions[6];
+        GPU_CALC_REVERSE_DISTORTION_kernel = functions[7];
 
         System.out.println("GPU kernel functions initialized");
-        System.out.println(GPU_CONVERT_CORRECT_TILES_kernel.toString());
-        System.out.println(GPU_IMCLT_RBG_kernel.toString());
+//        System.out.println(GPU_CONVERT_CORRECT_TILES_kernel.toString());
+        System.out.println(GPU_CONVERT_DIRECT_kernel.toString());
+        System.out.println(GPU_IMCLT_ALL_kernel.toString());
         System.out.println(GPU_CORRELATE2D_kernel.toString());
         System.out.println(GPU_TEXTURES_kernel.toString());
         System.out.println(GPU_RBGA_kernel.toString());
         System.out.println(GPU_ROT_DERIV_kernel.toString());
-        System.out.println(SET_TILES_OFFSETS_kernel.toString());
+        System.out.println(GPU_SET_TILES_OFFSETS_kernel.toString());
+        System.out.println(GPU_CALC_REVERSE_DISTORTION_kernel.toString());
 
         // Init data arrays for all kernels
         int tilesX =  IMG_WIDTH / DTT_SIZE;
@@ -578,8 +584,10 @@ public class GPUTileProcessor {
     	cuMemAlloc(gpu_texture_indices,tilesX * tilesYa * Sizeof.POINTER);
     	cuMemAlloc(gpu_port_offsets,   NUM_CAMS * 2 * Sizeof.POINTER);
 
-    	cuMemAlloc(gpu_woi,                 4 * Sizeof.POINTER); // may be hidden in device code as a static array?
-    	cuMemAlloc(gpu_num_texture_tiles,   8 * Sizeof.POINTER); // may be hidden in device code as a static array?
+    	cuMemAlloc(gpu_woi,                               4 * Sizeof.FLOAT);
+    	cuMemAlloc(gpu_num_texture_tiles,                 8 * Sizeof.FLOAT);
+    	cuMemAlloc(gpu_active_tiles,        tilesX * tilesY * Sizeof.FLOAT);
+    	cuMemAlloc(gpu_num_active_tiles,                  1 * Sizeof.FLOAT);
 
         cuMemAllocPitch (
         		gpu_corrs,                             // CUdeviceptr dptr,
@@ -611,15 +619,18 @@ public class GPUTileProcessor {
 
     }
 
-    public void setGeometryCorrection(GeometryCorrection gc) {
+    public void setGeometryCorrection(GeometryCorrection gc,
+    		boolean use_java_rByRDist) { // false - use newer GPU execCalcReverseDistortions
     	float [] fgc = gc.toFloatArray();
-    	double [] rByRDist = gc.getRByRDist();
-    	float [] fFByRDist = new float [rByRDist.length];
-    	for (int i = 0; i < rByRDist.length; i++) {
-    		fFByRDist[i] = (float) rByRDist[i];
+    	if (use_java_rByRDist) {
+    		double [] rByRDist = gc.getRByRDist();
+    		float [] fFByRDist = new float [rByRDist.length];
+    		for (int i = 0; i < rByRDist.length; i++) {
+    			fFByRDist[i] = (float) rByRDist[i];
+    		}
+    		cuMemcpyHtoD(gpu_rByRDist,            Pointer.to(fFByRDist), fFByRDist.length * Sizeof.FLOAT);
     	}
     	cuMemcpyHtoD(gpu_geometry_correction, Pointer.to(fgc),       fgc.length * Sizeof.FLOAT);
-    	cuMemcpyHtoD(gpu_rByRDist,            Pointer.to(fFByRDist), fFByRDist.length * Sizeof.FLOAT);
     	cuMemAlloc  (gpu_rot_deriv, 5 * NUM_CAMS *3 *3 * Sizeof.FLOAT); // NCAM of 3x3 rotation matrices, plus 4 derivative matrices for each camera
     }
 
@@ -1061,11 +1072,32 @@ public class GPUTileProcessor {
     			kernelParameters, null);   // Kernel- and extra parameters
     	cuCtxSynchronize(); // remove later
     }
+    public void execCalcReverseDistortions() {
+        if (GPU_CALC_REVERSE_DISTORTION_kernel == null)
+        {
+            IJ.showMessage("Error", "No GPU kernel: GPU_CALC_REVERSE_DISTORTION_kernel");
+            return;
+        }
+        // kernel parameters: pointer to pointers
+        int [] GridFullWarps =    {NUM_CAMS, 1, 1}; // round up
+        int [] ThreadsFullWarps = {3,        3, 3};
+        Pointer kernelParameters = Pointer.to(
+        		Pointer.to(gpu_geometry_correction),     //	struct gc          * gpu_geometry_correction,
+        		Pointer.to(gpu_rByRDist));                //	float *              gpu_rByRDist)      // length should match RBYRDIST_LEN
+        cuCtxSynchronize();
+        	// Call the kernel function
+    	cuLaunchKernel(GPU_CALC_REVERSE_DISTORTION_kernel,
+    			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
+    			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
+    			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
+    			kernelParameters, null);   // Kernel- and extra parameters
+    	cuCtxSynchronize(); // remove later
+    }
 
     public void execSetTilesOffsets() {
-        if (SET_TILES_OFFSETS_kernel == null)
+        if (GPU_SET_TILES_OFFSETS_kernel == null)
         {
-            IJ.showMessage("Error", "No GPU kernel: SET_TILES_OFFSETS_kernel");
+            IJ.showMessage("Error", "No GPU kernel: GPU_SET_TILES_OFFSETS_kernel");
             return;
         }
         // kernel parameters: pointer to pointers
@@ -1079,7 +1111,7 @@ public class GPUTileProcessor {
         		Pointer.to(gpu_rByRDist),                //	float *              gpu_rByRDist)      // length should match RBYRDIST_LEN
         		Pointer.to(gpu_rot_deriv));              // trot_deriv         * gpu_rot_deriv);
         cuCtxSynchronize();
-    	cuLaunchKernel(SET_TILES_OFFSETS_kernel,
+    	cuLaunchKernel(GPU_SET_TILES_OFFSETS_kernel,
     			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
     			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
     			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
@@ -1087,34 +1119,36 @@ public class GPUTileProcessor {
     	cuCtxSynchronize(); // remove later
     }
 
-    public void execConverCorrectTiles() {
-        if (GPU_CONVERT_CORRECT_TILES_kernel == null)
+    public void execConverDirect() {
+        if (GPU_CONVERT_DIRECT_kernel == null)
         {
-            IJ.showMessage("Error", "No GPU kernel: GPU_CONVERT_CORRECT_TILES_kernel");
+            IJ.showMessage("Error", "No GPU kernel: GPU_CONVERT_DIRECT_kernel");
             return;
         }
         // kernel parameters: pointer to pointers
-        int [] GridFullWarps =    {(num_task_tiles + TILES_PER_BLOCK -1 )/TILES_PER_BLOCK, 1, 1}; // round up
-        int [] ThreadsFullWarps = {THREADSX, TILES_PER_BLOCK, 1};
+        int [] GridFullWarps =    {1, 1, 1};
+        int [] ThreadsFullWarps = {1, 1, 1};
         Pointer kernelParameters = Pointer.to(
-            Pointer.to(gpu_kernel_offsets),
-            Pointer.to(gpu_kernels),
-            Pointer.to(gpu_bayer),
-            Pointer.to(gpu_tasks),
-            Pointer.to(gpu_clt),
-            Pointer.to(new int[] { mclt_stride }),
-            Pointer.to(new int[] { num_task_tiles }),
-            // move lpf to 4-image generator kernel - DONE
-            Pointer.to(new int[] { 0 }), // lpf_mask
-            Pointer.to(new int[] { IMG_WIDTH}),          // int                woi_width,
-            Pointer.to(new int[] { IMG_HEIGHT}),         // int                woi_height,
-            Pointer.to(new int[] { KERNELS_HOR}),        // int                kernels_hor,
-            Pointer.to(new int[] { KERNELS_VERT})        // int                kernels_vert);
-        );
+        		Pointer.to(gpu_kernel_offsets),
+        		Pointer.to(gpu_kernels),
+        		Pointer.to(gpu_bayer),
+        		Pointer.to(gpu_tasks),
+        		Pointer.to(gpu_clt),
+        		Pointer.to(new int[] { mclt_stride }),
+        		Pointer.to(new int[] { num_task_tiles }),
+        		// move lpf to 4-image generator kernel - DONE
+        		Pointer.to(new int[] { 0 }), // lpf_mask
+        		Pointer.to(new int[] { IMG_WIDTH}),          // int                woi_width,
+        		Pointer.to(new int[] { IMG_HEIGHT}),         // int                woi_height,
+        		Pointer.to(new int[] { KERNELS_HOR}),        // int                kernels_hor,
+        		Pointer.to(new int[] { KERNELS_VERT}),       // int                kernels_vert);
+        		Pointer.to(gpu_active_tiles),
+        		Pointer.to(gpu_num_active_tiles)
+        		);
 
         cuCtxSynchronize();
         	// Call the kernel function
-    	cuLaunchKernel(GPU_CONVERT_CORRECT_TILES_kernel,
+    	cuLaunchKernel(GPU_CONVERT_DIRECT_kernel,
     			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
     			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
     			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
@@ -1122,51 +1156,7 @@ public class GPUTileProcessor {
     	cuCtxSynchronize(); // remove later
     }
 
-    public void execImcltRbg(
-    		boolean is_mono
-    		) {
-    	if (GPU_IMCLT_RBG_kernel == null)
-    	{
-    		IJ.showMessage("Error", "No GPU kernel: GPU_IMCLT_RBG_kernel");
-    		return;
-    	}
-    	int apply_lpf =  1;
-    	int tilesX =  IMG_WIDTH / DTT_SIZE;
-    	int tilesY =  IMG_HEIGHT / DTT_SIZE;
-    	int [] ThreadsFullWarps = {IMCLT_THREADS_PER_TILE, IMCLT_TILES_PER_BLOCK, 1};
-    	for (int ncam = 0; ncam < NUM_CAMS; ncam++) {
-    		for (int color = 0; color < NUM_COLORS; color++) {
-    			for (int v_offs = 0; v_offs < 2; v_offs++){
-    				for (int h_offs = 0; h_offs < 2; h_offs++){
-    					int tilesy_half = (tilesY + (v_offs ^ 1)) >> 1;
-	    				int tilesx_half = (tilesX + (h_offs ^ 1)) >> 1;
-						int tiles_in_pass = tilesy_half * tilesx_half;
-						int [] GridFullWarps =    {(tiles_in_pass + IMCLT_TILES_PER_BLOCK-1) / IMCLT_TILES_PER_BLOCK,1,1};
-						Pointer kernelParameters = Pointer.to(
-								Pointer.to(gpu_clt_h[ncam]),
-								Pointer.to(gpu_corr_images_h[ncam]),
-								Pointer.to(new int[] { apply_lpf }),
-								Pointer.to(new int[] { is_mono ? 1 : NUM_COLORS }), // now - NUM_COLORS
-								Pointer.to(new int[] { color }),
-								Pointer.to(new int[] { v_offs }),
-								Pointer.to(new int[] { h_offs }),
-								Pointer.to(new int[] { tilesX }),
-								Pointer.to(new int[] { tilesY }),
-								Pointer.to(new int[] { imclt_stride }) // lpf_mask
-								);
-						cuCtxSynchronize();
-						// Call the kernel function
-						cuLaunchKernel(GPU_IMCLT_RBG_kernel,
-								GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
-								ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
-								0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
-								kernelParameters, null);   // Kernel- and extra parameters
-    				}
-    			}
-    		}
-    	}
-    	cuCtxSynchronize();
-    }
+
 
     public void execImcltRbgAll(
     		boolean is_mono
@@ -1349,7 +1339,7 @@ public class GPUTileProcessor {
 
     	Pointer kernelParameters = Pointer.to(
 //    			Pointer.to(new int[] {0}), // 0,          // int               border_tile,        // if 1 - watch for border
-    			Pointer.to(gpu_texture_indices), //  int             * woi, - not used
+    			Pointer.to(new int[] {0}), //  int             * woi, - not used
     			Pointer.to(gpu_clt),
     			Pointer.to(new int[] { num_texture_tiles }),
     			Pointer.to(gpu_texture_indices),
