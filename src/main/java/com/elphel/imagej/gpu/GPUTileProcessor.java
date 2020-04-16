@@ -192,7 +192,10 @@ public class GPUTileProcessor {
     private CUdeviceptr gpu_corr_indices =        new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.POINTER
     private CUdeviceptr gpu_num_corr_tiles =      new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.POINTER
     private CUdeviceptr gpu_texture_indices =     new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.POINTER
+
     private CUdeviceptr gpu_port_offsets =        new CUdeviceptr(); //  allocate Quad * 2 * Sizeof.POINTER
+    private CUdeviceptr gpu_color_weights =       new CUdeviceptr(); //  allocate Quad * 2 * Sizeof.POINTER
+
     private CUdeviceptr gpu_woi =                 new CUdeviceptr(); //  4 integers (x, y, width, height) Rectangle - in tiles
     private CUdeviceptr gpu_num_texture_tiles =   new CUdeviceptr(); //  8 ints
     private CUdeviceptr gpu_textures_rgba =       new CUdeviceptr(); //  allocate tilesX * tilesY * ? * 256 * Sizeof.POINTER
@@ -429,7 +432,7 @@ public class GPUTileProcessor {
                 		file = new File(src_dir.getPath(), src_file);
                 		System.out.println("Loading resource "+file);
                 	}
-                	System.out.println(file.getAbsolutePath());
+//                	System.out.println(file.getAbsolutePath());
                 	String cuFileName = file.getAbsolutePath(); // /home/eyesis/workspace-python3/nvidia_dct8x8/src/dtt8x8.cuh";// "dtt8x8.cuh";
                 	String sourceFile = readFileAsString(cuFileName); // readResourceAsString(cuFileName);
                 	if (sourceFile == null) {
@@ -441,29 +444,6 @@ public class GPUTileProcessor {
             	}
             }
         }
-        /*
-        String kernelSource =     getTpDefines();
-        for (String src_file:GPU_KERNEL_FILES) {
-        	File file = null;
-        	if ((cuda_project_directory == null) || cuda_project_directory.isEmpty()) {
-        		file = new File(classLoader.getResource(GPU_RESOURCE_DIR+"/"+src_file).getFile());
-        		System.out.println("Loading resource "+file);
-        	} else {
-        		File src_dir = new File(cuda_project_directory, "src");
-        		file = new File(src_dir.getPath(), src_file);
-        		System.out.println("Loading resource "+file);
-        	}
-        	System.out.println(file.getAbsolutePath());
-        	String cuFileName = file.getAbsolutePath(); // /home/eyesis/workspace-python3/nvidia_dct8x8/src/dtt8x8.cuh";// "dtt8x8.cuh";
-        	String sourceFile = readFileAsString(cuFileName); // readResourceAsString(cuFileName);
-        	if (sourceFile == null) {
-        		String msg = "Could not read the kernel source code";
-        		IJ.showMessage("Error",	msg);
-        		new IllegalArgumentException (msg);
-        	}
-        	kernelSource += sourceFile;
-        }
-        */
 
         // Create the kernel functions (first - just test)
         String [] func_names = {
@@ -583,7 +563,10 @@ public class GPUTileProcessor {
     	int tilesYa = (tilesY + 3) & ~3;
 //    	cuMemAlloc(gpu_texture_indices,tilesX * tilesY * Sizeof.POINTER);
     	cuMemAlloc(gpu_texture_indices,tilesX * tilesYa * Sizeof.POINTER);
-    	cuMemAlloc(gpu_port_offsets,   NUM_CAMS * 2 * Sizeof.POINTER);
+
+    	cuMemAlloc(gpu_port_offsets,   NUM_CAMS * 2 * Sizeof.FLOAT);
+    	cuMemAlloc(gpu_color_weights,             3 * Sizeof.FLOAT);
+
 
     	cuMemAlloc(gpu_woi,                               4 * Sizeof.FLOAT);
     	cuMemAlloc(gpu_num_texture_tiles,                 8 * Sizeof.FLOAT);
@@ -1237,7 +1220,6 @@ public class GPUTileProcessor {
     }
 
     public void execRBGA(
-    		double [][] port_offsets,
     		double [] color_weights,
     		boolean   is_lwir,
     		double    min_shot,           // 10.0
@@ -1251,18 +1233,14 @@ public class GPUTileProcessor {
     		IJ.showMessage("Error", "No GPU kernel: GPU_TEXTURES_kernel");
     		return;
     	}
-    	float [] fport_offsets = new float[port_offsets.length * 2];
-    	for (int cam = 0; cam < port_offsets.length; cam++) {
-    		fport_offsets[2*cam + 0] = (float) port_offsets[cam][0];
-    		fport_offsets[2*cam + 1] = (float) port_offsets[cam][1];
-    	}
-        cuMemcpyHtoD(gpu_port_offsets, Pointer.to(fport_offsets),  fport_offsets.length * Sizeof.FLOAT);
-
     	int num_colors = color_weights.length;
     	if (num_colors > 3) num_colors = 3;
-    	float weighht0 = (float) color_weights[0];
-    	float weighht1 = (num_colors >1)?((float) color_weights[1]):0.0f;
-    	float weighht2 = (num_colors >2)?((float) color_weights[2]):0.0f;
+    	float [] fcolor_weights = new float[3];
+    	fcolor_weights[0] = (float) color_weights[0];
+    	fcolor_weights[1] = (num_colors >1)?((float) color_weights[1]):0.0f;
+    	fcolor_weights[2] = (num_colors >2)?((float) color_weights[2]):0.0f;
+        cuMemcpyHtoD(gpu_color_weights, Pointer.to(fcolor_weights),  fcolor_weights.length * Sizeof.FLOAT);
+
     	int iis_lwir =      (is_lwir)? 1:0;
     	int idust_remove =  (dust_remove)? 1 : 0;
 
@@ -1282,7 +1260,8 @@ public class GPUTileProcessor {
     			Pointer.to(new int[] {IMG_HEIGHT / DTT_SIZE}),   // int                height); // <= TILESY, use for faster processing of LWIR images
     	    	// Parameters for the texture generation
     			Pointer.to(gpu_clt),                             // float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
-	            Pointer.to(gpu_port_offsets),                    // float           * port_offsets,       // relative ports x,y offsets - just to scale differences, may be approximate
+        		Pointer.to(gpu_geometry_correction),             //	struct gc          * gpu_geometry_correction,
+//	            Pointer.to(gpu_port_offsets),                    // float           * port_offsets,       // relative ports x,y offsets - just to scale differences, may be approximate
 	            Pointer.to(new int[]   {num_colors}),            // int               colors,             // number of colors (3/1)
 	            Pointer.to(new int[]   {iis_lwir}),              // int               is_lwir,            // do not perform shot correction
 	            Pointer.to(new float[] {(float) min_shot}),      // float             min_shot,           // 10.0
@@ -1290,9 +1269,7 @@ public class GPUTileProcessor {
 	            Pointer.to(new float[] {(float) diff_sigma}),    // float             diff_sigma,         // pixel value/pixel change
 	            Pointer.to(new float[] {(float) diff_threshold}),// float             diff_threshold,     // pixel value/pixel change
 	            Pointer.to(new float[] {(float) min_agree}),     // float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-	            Pointer.to(new float[] {weighht0}),              // float             weight0,            // scale for R
-	            Pointer.to(new float[] {weighht1}),              // float             weight1,            // scale for B
-	            Pointer.to(new float[] {weighht2}),              // float             weight2,            // scale for G
+	            Pointer.to(gpu_color_weights),                   // float             weights[3],         // scale for R,B,G
 	            Pointer.to(new int[]   { idust_remove }),        // int               dust_remove,        // Do not reduce average weight when only one image differes much from the average
 	            Pointer.to(new int[]   {0}),                     // int               keep_weights,       // return channel weights after A in RGBA
 	            Pointer.to(new int[]   { texture_stride_rgba }), // const size_t      texture_rbga_stride,     // in floats
@@ -1300,6 +1277,76 @@ public class GPUTileProcessor {
     	cuCtxSynchronize();
     	// Call the kernel function
     	cuLaunchKernel(GPU_RBGA_kernel,
+    			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
+    			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
+    			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
+    			kernelParameters, null);   // Kernel- and extra parameters
+    	cuCtxSynchronize();
+    }
+
+    public void execTextures(
+//    		double [][] port_offsets,
+    		double [] color_weights,
+    		boolean   is_lwir,
+    		double    min_shot,           // 10.0
+    		double    scale_shot,         // 3.0
+    		double    diff_sigma,         // pixel value/pixel change
+    		double    diff_threshold,     // pixel value/pixel change
+    		double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+    		boolean   dust_remove,
+    		boolean   keep_weights) {
+    	if (GPU_TEXTURES_kernel == null)
+    	{
+    		IJ.showMessage("Error", "No GPU kernel: GPU_TEXTURES_kernel");
+    		return;
+    	}
+//    	float [] fport_offsets = new float[port_offsets.length * 2];
+//    	for (int cam = 0; cam < port_offsets.length; cam++) {
+//    		fport_offsets[2*cam + 0] = (float) port_offsets[cam][0];
+//    		fport_offsets[2*cam + 1] = (float) port_offsets[cam][1];
+//    	}
+//        cuMemcpyHtoD(gpu_port_offsets, Pointer.to(fport_offsets),  fport_offsets.length * Sizeof.FLOAT);
+
+    	int num_colors = color_weights.length;
+    	if (num_colors > 3) num_colors = 3;
+    	float weighht0 = (float) color_weights[0];
+    	float weighht1 = (num_colors >1)?((float) color_weights[1]):0.0f;
+    	float weighht2 = (num_colors >2)?((float) color_weights[2]):0.0f;
+    	int iis_lwir =      (is_lwir)? 1:0;
+    	int idust_remove =  (dust_remove)? 1 : 0;
+    	int ikeep_weights = (keep_weights)? 1 : 0;
+
+		int [] GridFullWarps =    {(num_texture_tiles + TEXTURE_TILES_PER_BLOCK-1) / TEXTURE_TILES_PER_BLOCK,1,1};
+    	int [] ThreadsFullWarps = {TEXTURE_THREADS_PER_TILE, NUM_CAMS, 1};
+
+    	Pointer kernelParameters = Pointer.to(
+//    			Pointer.to(new int[] {0}), // 0,          // int               border_tile,        // if 1 - watch for border
+    			Pointer.to(new int[] {0}), //  int             * woi, - not used
+    			Pointer.to(gpu_clt),
+    			Pointer.to(new int[] { num_texture_tiles }),
+    			Pointer.to(gpu_texture_indices),
+//    			Pointer.to(gpu_port_offsets),
+        		Pointer.to(gpu_geometry_correction),     //	struct gc          * gpu_geometry_correction,
+    			Pointer.to(new int[] { num_colors }),
+    			Pointer.to(new int[] { iis_lwir }),
+    			Pointer.to(new float[] {(float) min_shot }),
+    			Pointer.to(new float[] {(float) scale_shot }),
+    			Pointer.to(new float[] {(float) diff_sigma }),
+    			Pointer.to(new float[] {(float) diff_threshold }),
+    			Pointer.to(new float[] {(float) min_agree }),
+    			Pointer.to(new float[] {weighht0 }),
+    			Pointer.to(new float[] {weighht1 }),
+    			Pointer.to(new float[] {weighht2 }),
+    			Pointer.to(new int[] { idust_remove }),
+    			Pointer.to(new int[] { ikeep_weights }),
+    			Pointer.to(new int[] {0}),//  0, // const size_t      texture_rbg_stride, // in floats - DISABLE GENERATION!
+    			Pointer.to(new int[] {0}), // null, //  new Pointer(),  //Pointer.to(gpu_textures), // new Pointer(),  // Pointer.to(gpu_textures),
+    			Pointer.to(new int[] { texture_stride }), // can be a null pointer - will not be used! float           * gpu_texture_rbg,     // (number of colors +1 + ?)*16*16 rgba texture tiles
+    			Pointer.to(gpu_textures)
+    			);
+    	cuCtxSynchronize();
+    	// Call the kernel function
+    	cuLaunchKernel(GPU_TEXTURES_kernel,
     			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
     			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
     			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
@@ -1349,6 +1396,7 @@ public class GPUTileProcessor {
     			Pointer.to(new int[] { num_texture_tiles }),
     			Pointer.to(gpu_texture_indices),
     			Pointer.to(gpu_port_offsets),
+//        		Pointer.to(gpu_geometry_correction),     //	struct gc          * gpu_geometry_correction,
     			Pointer.to(new int[] { num_colors }),
     			Pointer.to(new int[] { iis_lwir }),
     			Pointer.to(new float[] {(float) min_shot }),

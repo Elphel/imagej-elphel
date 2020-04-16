@@ -2139,7 +2139,7 @@ public class TwoQuadCLT {
 // run textures
 		long startTextures = System.nanoTime();   // System.nanoTime();
 		for (int i = 0; i < NREPEAT; i++ ) gPUTileProcessor.execTextures(
-				port_offsets,                  // double [][] port_offsets,
+/** remove when done **/				port_offsets,                  // double [][] port_offsets,
 				col_weights,                   // double [] color_weights,
 				quadCLT_main.isLwir(),         // boolean   is_lwir,
 				clt_parameters.min_shot,       // double    min_shot,           // 10.0
@@ -2154,7 +2154,6 @@ public class TwoQuadCLT {
 // run texturesRBGA
 		long startTexturesRBGA = System.nanoTime();   // System.nanoTime();
 		for (int i = 0; i < NREPEAT; i++ ) gPUTileProcessor.execRBGA(
-				port_offsets,                  // double [][] port_offsets,
 				col_weights,                   // double [] color_weights,
 				quadCLT_main.isLwir(),         // boolean   is_lwir,
 				clt_parameters.min_shot,       // double    min_shot,           // 10.0

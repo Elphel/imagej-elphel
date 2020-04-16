@@ -121,7 +121,7 @@ extern "C" __global__ void imclt_rbg(
 		int               woi_twidth,
 		int               woi_theight,
 		const size_t      dstride);            // in floats (pixels)
-
+/*
 extern "C" __global__ void generate_RBGA(
 		// Parameters to generate texture tasks
 		struct tp_task   * gpu_tasks,
@@ -135,6 +135,7 @@ extern "C" __global__ void generate_RBGA(
 		// Parameters for the texture generation
 		float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 		// TODO: use geometry_correction rXY !
+		struct gc       * gpu_geometry_correction,
 		float           * gpu_port_offsets,       // relative ports x,y offsets - just to scale differences, may be approximate
 		int               colors,             // number of colors (3/1)
 		int               is_lwir,            // do not perform shot correction
@@ -150,4 +151,4 @@ extern "C" __global__ void generate_RBGA(
 		int               keep_weights,       // return channel weights after A in RGBA (was removed)
 		const size_t      texture_rbga_stride,     // in floats
 		float           * gpu_texture_tiles);  // (number of colors +1 + ?)*16*16 rgba texture tiles
-
+*/

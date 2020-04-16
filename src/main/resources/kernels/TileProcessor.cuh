@@ -1182,7 +1182,9 @@ __global__ void generate_RBGA(
 // Parameters for the texture generation
 			float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 			// TODO: use geometry_correction rXY !
-			float           * gpu_port_offsets,       // relative ports x,y offsets - just to scale differences, may be approximate
+			struct gc       * gpu_geometry_correction,
+//			float           * gpu_geometry_correction,
+//			float           * gpu_port_offsets,       // relative ports x,y offsets - just to scale differences, may be approximate
 			int               colors,             // number of colors (3/1)
 			int               is_lwir,            // do not perform shot correction
 			float             min_shot,           // 10.0
@@ -1190,9 +1192,7 @@ __global__ void generate_RBGA(
 			float             diff_sigma,         // pixel value/pixel change
 			float             diff_threshold,     // pixel value/pixel change
 			float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-			float             weight0,            // scale for R
-			float             weight1,            // scale for B
-			float             weight2,            // scale for G
+			float             weights[3],         // scale for R,B,G
 			int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
 			int               keep_weights,       // return channel weights after A in RGBA (was removed)
 			const size_t      texture_rbga_stride,     // in floats
@@ -1200,7 +1200,8 @@ __global__ void generate_RBGA(
 {
 // TODO use atomic_add to increment	num_texture_tiles
 // TODO calculate woi
-    dim3 threads0((1 << THREADS_DYNAMIC_BITS), 1, 1);
+
+	dim3 threads0((1 << THREADS_DYNAMIC_BITS), 1, 1);
     int blocks_x = (width + ((1 << THREADS_DYNAMIC_BITS) - 1)) >> THREADS_DYNAMIC_BITS;
     dim3 blocks0 (blocks_x, height, 1);
 
@@ -1311,7 +1312,8 @@ __global__ void generate_RBGA(
 						gpu_clt,                         // float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 						ntt,                             // size_t            num_texture_tiles,  // number of texture tiles to process
 						gpu_texture_indices + ti_offset, // int             * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
-						gpu_port_offsets,                // float           * gpu_port_offsets,       // relative ports x,y offsets - just to scale differences, may be approximate
+//						gpu_port_offsets,                // float           * gpu_port_offsets,       // relative ports x,y offsets - just to scale differences, may be approximate
+						(float *) gpu_geometry_correction ->pXY0,
 						colors,                          // int               colors,             // number of colors (3/1)
 						is_lwir,                         // int               is_lwir,            // do not perform shot correction
 						min_shot,                        // float             min_shot,           // 10.0
@@ -1319,9 +1321,9 @@ __global__ void generate_RBGA(
 						diff_sigma,                      // float             diff_sigma,         // pixel value/pixel change
 						diff_threshold,                  // float             diff_threshold,     // pixel value/pixel change
 						min_agree,                       // float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-						weight0,                         // float             weight0,            // scale for R
-						weight1,                         // float             weight1,            // scale for B
-						weight2,                         // float             weight2,            // scale for G
+						weights[0],                      // float             weight0,            // scale for R
+						weights[1],                      // float             weight1,            // scale for B
+						weights[2],                      // float             weight2,            // scale for G
 						dust_remove,                     // int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
 			    		0,                               // int               keep_weights,       // return channel weights after A in RGBA (was removed) (should be 0 if gpu_texture_rbg)?
 			    // combining both non-overlap and overlap (each calculated if pointer is not null )
