@@ -31,82 +31,50 @@
  */
 
 /**
-**************************************************************************
-* \file TileProcessor.h
-* \brief header file for  the Tile Processor for frequency domain
+ **************************************************************************
+ * \file TileProcessor.h
+ * \brief header file for  the Tile Processor for frequency domain
 
-*/
+ */
 #pragma once
 #ifndef NUM_CAMS
 #include "tp_defines.h"
 #endif
 
-extern "C" __global__ void index_direct(
+
+extern "C" __global__ void convert_direct( // called with a single block, single thread
+		//		struct CltExtra ** gpu_kernel_offsets, // [NUM_CAMS], // changed for jcuda to avoid struct parameters
+		float           ** gpu_kernel_offsets, // [NUM_CAMS],
+		float           ** gpu_kernels,        // [NUM_CAMS],
+		float           ** gpu_images,         // [NUM_CAMS],
 		struct tp_task   * gpu_tasks,
+		float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+		size_t             dstride,            // in floats (pixels)
 		int                num_tiles,          // number of tiles in task
-		int *              active_tiles,      // pointer to the calculated number of non-zero tiles
-		int *              num_active_tiles);  //  indices to gpu_tasks  // should be initialized to zero
+		int                lpf_mask,           // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green. Now - always 0 !
+		int                woi_width,
+		int                woi_height,
+		int                kernels_hor,
+		int                kernels_vert,
+		int *              gpu_active_tiles,      // pointer to the calculated number of non-zero tiles
+		int *              pnum_active_tiles);  //  indices to gpu_tasks
 
-extern "C" __global__ void convert_direct( // called with a single block, CONVERT_DIRECT_INDEXING_THREADS threads
-//		struct CltExtra ** gpu_kernel_offsets, // [NUM_CAMS], // changed for jcuda to avoid struct parameters
-			float           ** gpu_kernel_offsets, // [NUM_CAMS],
-			float           ** gpu_kernels,        // [NUM_CAMS],
-			float           ** gpu_images,         // [NUM_CAMS],
-			struct tp_task   * gpu_tasks,
-			float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
-			size_t             dstride,            // in floats (pixels)
-			int                num_tiles,          // number of tiles in task
-			int                lpf_mask,           // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green. Now - always 0 !
-			int                woi_width,
-			int                woi_height,
-			int                kernels_hor,
-			int                kernels_vert,
-			int *              gpu_active_tiles,      // pointer to the calculated number of non-zero tiles
-			int *              pnum_active_tiles);  //  indices to gpu_tasks
-
-extern "C" __global__ void convert_correct_tiles(
-			float           ** gpu_kernel_offsets, // [NUM_CAMS],
-			float           ** gpu_kernels,        // [NUM_CAMS],
-			float           ** gpu_images,         // [NUM_CAMS],
-			struct tp_task   * gpu_tasks,
-			int              * gpu_active_tiles,   // indices in gpu_tasks to non-zero tiles
-			int                num_active_tiles,   // number of tiles in task
-			float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
-			size_t             dstride,            // in floats (pixels)
-//			int                num_tiles,          // number of tiles in task
-			int                lpf_mask,           // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green. Now - always 0 !
-			int                woi_width,
-			int                woi_height,
-			int                kernels_hor,
-			int                kernels_vert);
+extern "C" __global__ void correlate2D(
+		float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+		int               colors,             // number of colors (3/1)
+		float             scale0,             // scale for R
+		float             scale1,             // scale for B
+		float             scale2,             // scale for G
+		float             fat_zero,           // here - absolute
+		struct tp_task  * gpu_tasks,          // array of per-tile tasks (now bits 4..9 - correlation pairs)
+		int               num_tiles,          // number of tiles in task
+		int             * gpu_corr_indices,   // packed tile+pair
+		int             * pnum_corr_tiles,    // pointer to a number of correlation tiles to process
+		const size_t      corr_stride,        // in floats
+		int               corr_radius,        // radius of the output correlation (7 for 15x15)
+		float           * gpu_corrs);          // correlation output data
 
 
-extern "C" __global__ void clear_texture_list(
-		int              * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
-		int                width,  // <= TILESX, use for faster processing of LWIR images
-		int                height); // <= TILESY, use for faster processing of LWIR images
-
-extern "C" __global__ void mark_texture_tiles(
-		struct tp_task   * gpu_tasks,
-		int                num_tiles,            // number of tiles in task list
-		int              * gpu_texture_indices); // packed tile + bits (now only (1 << 7)
-extern "C" __global__ void mark_texture_neighbor_tiles(
-		struct tp_task   * gpu_tasks,
-		int                num_tiles,           // number of tiles in task list
-		int              * gpu_texture_indices, // packed tile + bits (now only (1 << 7)
-		int              * woi);                // x,y,width,height of the woi
-extern "C" __global__ void gen_texture_list(
-		struct tp_task   * gpu_tasks,
-		int                num_tiles,           // number of tiles in task list
-		int              * gpu_texture_indices, // packed tile + bits (now only (1 << 7)
-		int              * num_texture_tiles,  // number of texture tiles to process
-		int              * woi);                // x,y,width,height of the woi
-
-extern "C" __global__ void clear_texture_rbga(
-		int               texture_width,
-		int               texture_slice_height,
-		const size_t      texture_rbga_stride,     // in floats 8*stride
-		float           * gpu_texture_tiles);  // (number of colors +1 + ?)*16*16 rgba texture tiles
 extern "C" __global__ void textures_accumulate(
 		int             * woi,                // x, y, width,height
 		float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
@@ -126,7 +94,7 @@ extern "C" __global__ void textures_accumulate(
 		float             weight2,            // scale for G
 		int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
 		int               keep_weights,       // return channel weights after A in RGBA (was removed) (should be 0 if gpu_texture_rbg)?
-// combining both non-overlap and overlap (each calculated if pointer is not null )
+		// combining both non-overlap and overlap (each calculated if pointer is not null )
 		size_t            texture_rbg_stride, // in floats
 		float           * gpu_texture_rbg,    // (number of colors +1 + ?)*16*16 rgba texture tiles
 		size_t            texture_stride,     // in floats (now 256*4 = 1024)
@@ -154,33 +122,32 @@ extern "C" __global__ void imclt_rbg(
 		int               woi_theight,
 		const size_t      dstride);            // in floats (pixels)
 
-extern "C"
-__global__ void generate_RBGA(
-// Parameters to generate texture tasks
-			struct tp_task   * gpu_tasks,
-			int                num_tiles,          // number of tiles in task list
-// declare arrays in device code?
-			int              * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
-			int              * num_texture_tiles,  // number of texture tiles to process  (8 separate elements for accumulation)
-			int              * woi,                // x,y,width,height of the woi
-			int                width,  // <= TILESX, use for faster processing of LWIR images (should be actual + 1)
-			int                height, // <= TILESY, use for faster processing of LWIR images
-// Parameters for the texture generation
-			float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
-			// TODO: use geometry_correction rXY !
-			float           * gpu_port_offsets,       // relative ports x,y offsets - just to scale differences, may be approximate
-			int               colors,             // number of colors (3/1)
-			int               is_lwir,            // do not perform shot correction
-			float             min_shot,           // 10.0
-			float             scale_shot,         // 3.0
-			float             diff_sigma,         // pixel value/pixel change
-			float             diff_threshold,     // pixel value/pixel change
-			float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-			float             weight0,            // scale for R
-			float             weight1,            // scale for B
-			float             weight2,            // scale for G
-			int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
-			int               keep_weights,       // return channel weights after A in RGBA (was removed)
-			const size_t      texture_rbga_stride,     // in floats
-			float           * gpu_texture_tiles);  // (number of colors +1 + ?)*16*16 rgba texture tiles
+extern "C" __global__ void generate_RBGA(
+		// Parameters to generate texture tasks
+		struct tp_task   * gpu_tasks,
+		int                num_tiles,          // number of tiles in task list
+		// declare arrays in device code?
+		int              * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
+		int              * num_texture_tiles,  // number of texture tiles to process  (8 separate elements for accumulation)
+		int              * woi,                // x,y,width,height of the woi
+		int                width,  // <= TILESX, use for faster processing of LWIR images (should be actual + 1)
+		int                height, // <= TILESY, use for faster processing of LWIR images
+		// Parameters for the texture generation
+		float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+		// TODO: use geometry_correction rXY !
+		float           * gpu_port_offsets,       // relative ports x,y offsets - just to scale differences, may be approximate
+		int               colors,             // number of colors (3/1)
+		int               is_lwir,            // do not perform shot correction
+		float             min_shot,           // 10.0
+		float             scale_shot,         // 3.0
+		float             diff_sigma,         // pixel value/pixel change
+		float             diff_threshold,     // pixel value/pixel change
+		float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+		float             weight0,            // scale for R
+		float             weight1,            // scale for B
+		float             weight2,            // scale for G
+		int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
+		int               keep_weights,       // return channel weights after A in RGBA (was removed)
+		const size_t      texture_rbga_stride,     // in floats
+		float           * gpu_texture_tiles);  // (number of colors +1 + ?)*16*16 rgba texture tiles
 

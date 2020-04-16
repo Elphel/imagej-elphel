@@ -112,20 +112,6 @@ GPU run time =523.451927ms, (direct conversion: 24.080189999999998ms, imclt: 17.
 
 #define MCLT_UNION_LEN   (DTT_SIZE2 * (DTT_SIZE2 + 2))
 
-
-//56494
-// struct tp_task
-//#define TASK_SIZE      12
-#if 0
-struct tp_task {
-	int   task;
-	union {
-		int      txy;
-		unsigned short sxy[2];
-	};
-	float xy[NUM_CAMS][2];
-};
-#endif
 struct CltExtra{
 	float data_x;   // kernel data is relative to this displacement X (0.5 pixel increments)
 	float data_y;   // kernel data is relative to this displacement Y (0.5 pixel increments)
@@ -835,25 +821,24 @@ __device__ void imclt_plane( // not implemented, not used
 		float           * gpu_rbg,            // WIDTH, HEIGHT
 		const size_t      dstride);            // in floats (pixels)
 
-#if 0
-extern "C"
+//extern "C"
 __global__ void clear_texture_list(
 		int              * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
 		int                width,  // <= TILESX, use for faster processing of LWIR images
 		int                height); // <= TILESY, use for faster processing of LWIR images
 
-extern "C"
+//extern "C"
 __global__ void mark_texture_tiles(
 		struct tp_task   * gpu_tasks,
 		int                num_tiles,            // number of tiles in task list
 		int              * gpu_texture_indices); // packed tile + bits (now only (1 << 7)
-extern "C"
+//extern "C"
 __global__ void mark_texture_neighbor_tiles(
 		struct tp_task   * gpu_tasks,
 		int                num_tiles,           // number of tiles in task list
 		int              * gpu_texture_indices, // packed tile + bits (now only (1 << 7)
 		int              * woi);                // x,y,width,height of the woi
-extern "C"
+//extern "C"
 __global__ void gen_texture_list(
 		struct tp_task   * gpu_tasks,
 		int                num_tiles,           // number of tiles in task list
@@ -861,51 +846,101 @@ __global__ void gen_texture_list(
 		int              * num_texture_tiles,  // number of texture tiles to process
 		int              * woi);                // x,y,width,height of the woi
 
-extern "C" __global__ void clear_texture_rbga(
+//extern "C"
+__global__ void clear_texture_rbga(
 		int               texture_width,
 		int               texture_slice_height,
 		const size_t      texture_rbga_stride,     // in floats 8*stride
 		float           * gpu_texture_tiles);  // (number of colors +1 + ?)*16*16 rgba texture tiles
-extern "C" __global__ void textures_accumulate(
-//		int               border_tile,        // if 1 - watch for border
-		int             * woi,                // x, y, width,height
+
+//extern "C"
+__global__ void index_direct(
+		struct tp_task   * gpu_tasks,
+		int                num_tiles,          // number of tiles in task
+		int *              active_tiles,       // pointer to the calculated number of non-zero tiles
+		int *              pnum_active_tiles); //  indices to gpu_tasks  // should be initialized to zero
+
+__global__ void index_correlate(
+		struct tp_task   * gpu_tasks,
+		int                num_tiles,         // number of tiles in task
+		int *              gpu_corr_indices,  // array of correlation tasks
+		int *              pnum_corr_tiles);  // pointer to the length of correlation tasks array
+
+//extern "C"
+__global__ void convert_correct_tiles(
+		float           ** gpu_kernel_offsets, // [NUM_CAMS],
+		float           ** gpu_kernels,        // [NUM_CAMS],
+		float           ** gpu_images,         // [NUM_CAMS],
+		struct tp_task   * gpu_tasks,
+		int              * gpu_active_tiles,   // indices in gpu_tasks to non-zero tiles
+		int                num_active_tiles,   // number of tiles in task
+		float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+		size_t             dstride,            // in floats (pixels)
+		//			int                num_tiles,          // number of tiles in task
+		int                lpf_mask,           // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green. Now - always 0 !
+		int                woi_width,
+		int                woi_height,
+		int                kernels_hor,
+		int                kernels_vert);
+
+extern "C" __global__ void correlate2D_inner(
 		float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
-		size_t            num_texture_tiles,  // number of texture tiles to process
-		int             * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
-		float           * gpu_port_offsets,       // relative ports x,y offsets - just to scale differences, may be approximate
 		int               colors,             // number of colors (3/1)
-		int               is_lwir,            // do not perform shot correction
-		float             min_shot,           // 10.0
-		float             scale_shot,         // 3.0
-		float             diff_sigma,         // pixel value/pixel change
-		float             diff_threshold,     // pixel value/pixel change
-		float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-		float             weight0,            // scale for R
-		float             weight1,            // scale for B
-		float             weight2,            // scale for G
-		int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
-		int               keep_weights,       // return channel weights after A in RGBA (was removed) (should be 0 if gpu_texture_rbg)?
-// combining both non-overlap and overlap (each calculated if pointer is not null )
-		size_t            texture_rbg_stride, // in floats
-		float           * gpu_texture_rbg,    // (number of colors +1 + ?)*16*16 rgba texture tiles
-		size_t            texture_stride,     // in floats (now 256*4 = 1024)
-		float           * gpu_texture_tiles); // (number of colors +1 + ?)*16*16 rgba texture tiles
+		float             scale0,             // scale for R
+		float             scale1,             // scale for B
+		float             scale2,             // scale for G
+		float             fat_zero,           // here - absolute
+		size_t            num_corr_tiles,     // number of correlation tiles to process
+		int             * gpu_corr_indices,   // packed tile+pair
+		const size_t      corr_stride,        // in floats
+		int               corr_radius,        // radius of the output correlation (7 for 15x15)
+		float           * gpu_corrs);          // correlation output data
 
-extern "C"
-__global__ void imclt_rbg(
-		float           * gpu_clt,            // [TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
-		float           * gpu_rbg,            // WIDTH, 3 * HEIGHT
-		int               apply_lpf,
-		int               mono,               // defines lpf filter
-		int               color,              // defines location of clt data
-		int               v_offset,
-		int               h_offset,
-		const size_t      dstride);            // in floats (pixels)
-//===========================
-#endif
+// ====== end of local declarations ====
 
-extern "C"
-__global__ void correlate2D(
+extern "C" __global__ void correlate2D(
+		float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+		int               colors,             // number of colors (3/1)
+		float             scale0,             // scale for R
+		float             scale1,             // scale for B
+		float             scale2,             // scale for G
+		float             fat_zero,           // here - absolute
+		struct tp_task  * gpu_tasks,          // array of per-tile tasks (now bits 4..9 - correlation pairs)
+		int               num_tiles,          // number of tiles in task
+		int             * gpu_corr_indices,   // packed tile+pair
+		int             * pnum_corr_tiles,    // pointer to a number of correlation tiles to process
+		const size_t      corr_stride,        // in floats
+		int               corr_radius,        // radius of the output correlation (7 for 15x15)
+		float           * gpu_corrs)          // correlation output data
+{
+	 dim3 threads0(CONVERT_DIRECT_INDEXING_THREADS, 1, 1);
+	 dim3 blocks0 ((num_tiles + CONVERT_DIRECT_INDEXING_THREADS -1) >> CONVERT_DIRECT_INDEXING_THREADS_LOG2,1, 1);
+	 if (threadIdx.x == 0) { // only 1 thread, 1 block
+		 *pnum_corr_tiles = 0;
+		 index_correlate<<<blocks0,threads0>>>(
+				 gpu_tasks,           // struct tp_task   * gpu_tasks,
+				 num_tiles,           // int                num_tiles,          // number of tiles in task
+				 gpu_corr_indices,    // int *              gpu_corr_indices,  // array of correlation tasks
+				 pnum_corr_tiles);    // int *              pnum_corr_tiles);   // pointer to the length of correlation tasks array
+		 cudaDeviceSynchronize();
+		    dim3 threads_corr(CORR_THREADS_PER_TILE, CORR_TILES_PER_BLOCK, 1);
+		    dim3 grid_corr((*pnum_corr_tiles + CORR_TILES_PER_BLOCK-1) / CORR_TILES_PER_BLOCK,1,1);
+		        correlate2D_inner<<<grid_corr,threads_corr>>>(
+		        		gpu_clt,            // float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+						colors,             // int               colors,             // number of colors (3/1)
+						scale0,             // float             scale0,             // scale for R
+						scale1,             // float             scale1,             // scale for B
+						scale2,             // float             scale2,             // scale for G
+						fat_zero,           // float             fat_zero,           // here - absolute
+		        		*pnum_corr_tiles,   // size_t            num_corr_tiles,     // number of correlation tiles to process
+		        		gpu_corr_indices,   //  int             * gpu_corr_indices,  // packed tile+pair
+						corr_stride,        // const size_t      corr_stride,        // in floats
+						corr_radius,        // int               corr_radius,        // radius of the output correlation (7 for 15x15)
+		        		gpu_corrs);         // float           * gpu_corrs);         // correlation output data
+	 }
+}
+
+extern "C" __global__ void correlate2D_inner(
 		float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 		int               colors,             // number of colors (3/1)
 		float             scale0,             // scale for R
@@ -1304,7 +1339,8 @@ __global__ void generate_RBGA(
 }
 
 // blockDim.x * gridDim.x >= width
-extern "C" __global__ void clear_texture_rbga(
+//extern "C"
+__global__ void clear_texture_rbga(
 		int               texture_width, // aligned to DTT_SIZE
 		int               texture_slice_height,
 		const size_t      texture_rbga_stride,     // in floats 8*stride
@@ -1329,7 +1365,7 @@ extern "C" __global__ void clear_texture_rbga(
  * prepare list of texture tiles, woi, and calculate orthogonal neighbors for tiles (in 4 bits of the task field
  * use 4x8=32 threads,
  */
-extern "C"
+//extern "C"
 __global__ void prepare_texture_list(
 			struct tp_task   * gpu_tasks,
 			int                num_tiles,          // number of tiles in task list
@@ -1402,7 +1438,7 @@ __global__ void prepare_texture_list(
 }
 
 // blockDim.x * gridDim.x >= width
-extern "C"
+//extern "C"
 __global__ void clear_texture_list(
 		int              * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
 		int                width,  // <= TILESX, use for faster processing of LWIR images
@@ -1417,7 +1453,7 @@ __global__ void clear_texture_list(
 }
 
 // treads (*,1,1), blocks = (*,1,1)
-extern "C"
+//extern "C"
 __global__ void mark_texture_tiles(
 		struct tp_task   * gpu_tasks,
 		int                num_tiles,           // number of tiles in task list
@@ -1437,7 +1473,7 @@ __global__ void mark_texture_tiles(
 
 
 // treads (*,1,1), blocks = (*,1,1)
-extern "C"
+//extern "C"
 __global__ void mark_texture_neighbor_tiles(
 		struct tp_task   * gpu_tasks,
 		int                num_tiles,           // number of tiles in task list
@@ -1471,7 +1507,7 @@ __global__ void mark_texture_neighbor_tiles(
 	gpu_tasks[task_num].task = ((task ^ d) & TASK_TEXTURE_BITS) ^ task;
 }
 
-extern "C"
+//extern "C"
 __global__ void gen_texture_list(
 		struct tp_task   * gpu_tasks,
 		int                num_tiles,            // number of tiles in task list
@@ -1543,32 +1579,50 @@ __global__ void gen_texture_list(
 
 #endif //#ifdef USE_CDP
 
-//#define CONVERT_DIRECT_INDEXING_THREADS_LOG2 5
-//#define CONVERT_DIRECT_INDEXING_THREADS (1 << CONVERT_DIRECT_INDEXING_THREADS_LOG2) // 32
-//#define CONVERT_DIRECT_NUM_CHUNKS  ((TILESY*TILESX+CONVERT_DIRECT_INDEXING_THREADS-1) >> CONVERT_DIRECT_INDEXING_THREADS_LOG2)
-//#define CONVERT_DIRECT_NUM_CHUNKS2 ((CONVERT_DIRECT_NUM_CHUNKS+CONVERT_DIRECT_INDEXING_THREADS-1) >> CONVERT_DIRECT_INDEXING_THREADS_LOG2)
-//__global__ int num_active_tiles;
-//__global__ int active_tiles        [TILESY*TILESX]; // indices of tiles in gpu_tasks that have non-zero correlations and/or textures
-//__device__ int num_acive_per_chunk [CONVERT_DIRECT_NUM_CHUNKS+1];
-//__device__ int num_acive_per_chunk2[CONVERT_DIRECT_NUM_CHUNKS2+1];
 
 // not maintaining order of the tiles to be processed
-extern "C" __global__ void index_direct(
+//extern "C"
+__global__ void index_direct(
 		struct tp_task   * gpu_tasks,
 		int                num_tiles,          // number of tiles in task
 		int *              active_tiles,      // pointer to the calculated number of non-zero tiles
-		int *              num_active_tiles)  //  indices to gpu_tasks  // should be initialized to zero
+		int *              pnum_active_tiles)  //  indices to gpu_tasks  // should be initialized to zero
 {
 	int num_tile = blockIdx.x * blockDim.x + threadIdx.x;
 	if (num_tile >= num_tiles){
 		return;
 	}
 	if (gpu_tasks[num_tile].task != 0) {
-		active_tiles[atomicAdd(num_active_tiles, 1)] = num_tile;
+		active_tiles[atomicAdd(pnum_active_tiles, 1)] = num_tile;
 	}
 }
 
-extern "C" __global__ void convert_direct( // called with a single block, CONVERT_DIRECT_INDEXING_THREADS threads
+__global__ void index_correlate(
+		struct tp_task   * gpu_tasks,
+		int                num_tiles,         // number of tiles in task
+		int *              gpu_corr_indices,  // array of correlation tasks
+		int *              pnum_corr_tiles)   // pointer to the length of correlation tasks array
+{
+	int num_tile = blockIdx.x * blockDim.x + threadIdx.x;
+	if (num_tile >= num_tiles){
+		return;
+	}
+	int cm = (gpu_tasks[num_tile].task >> TASK_CORR_BITS) & ((1 << NUM_PAIRS)-1);
+	if (cm != 0) {
+		int nb = __popc (cm); // number of non-zero bits
+		int indx = atomicAdd(pnum_corr_tiles, nb);
+		int txy = gpu_tasks[num_tile].txy;
+		int tx = txy & 0xffff;
+		int ty = txy >> 16;
+		int nt = ty * TILESX + tx;
+		for (int b = 0; b < NUM_PAIRS; b++) if ((cm & (1 << b)) != 0) {
+			gpu_corr_indices[indx++] = (nt << CORR_NTILE_SHIFT) | b;
+		}
+	}
+}
+
+
+extern "C" __global__ void convert_direct(  // called with a single block, single thread
 //		struct CltExtra ** gpu_kernel_offsets, // [NUM_CAMS], // changed for jcuda to avoid struct parameters
 			float           ** gpu_kernel_offsets, // [NUM_CAMS],
 			float           ** gpu_kernels,        // [NUM_CAMS],
@@ -1587,7 +1641,7 @@ extern "C" __global__ void convert_direct( // called with a single block, CONVER
 {
 	 dim3 threads0(CONVERT_DIRECT_INDEXING_THREADS, 1, 1);
 	 dim3 blocks0 ((num_tiles + CONVERT_DIRECT_INDEXING_THREADS -1) >> CONVERT_DIRECT_INDEXING_THREADS_LOG2,1, 1);
-	 if (threadIdx.x == 0) { // of CONVERT_DIRECT_INDEXING_THREADS
+	 if (threadIdx.x == 0) { // always 1
 		 *pnum_active_tiles = 0;
 		 index_direct<<<blocks0,threads0>>>(
 				 gpu_tasks,           // struct tp_task   * gpu_tasks,
@@ -1614,139 +1668,9 @@ extern "C" __global__ void convert_direct( // called with a single block, CONVER
 				 kernels_vert);      // int                kernels_vert);      // varaible to swict between EO and LWIR
 	 }
 }
-#if 0 // trying to keep the same order
-extern "C" __global__ void index_direct_init(
-		int                num_chunks,          // number of tiles in task
-		struct  convert_direct_tmp* tmp)
-{
-	int chunk_index = blockIdx.x * blockDim.x + threadIdx.x;
-	if (chunk_index <= num_chunks){
-		tmp->num_acive_per_chunk[chunk_index] = 0;
-	}
-}
-extern "C" __global__ void index_direct(
-		struct tp_task   * gpu_tasks,
-		int                num_tiles,          // number of tiles in task
-		struct  convert_direct_tmp* tmp)
-{
-	__shared__ int num_active;
-	if (threadIdx.x == 0) {
-		num_active = 0;
-	}
-	 __syncthreads();
-	 int num_tile = blockIdx.x * blockDim.x + threadIdx.x;
-	 if (num_tile < num_tiles) {
-		 if (gpu_tasks[num_tile].task){
-			 atomicAdd(&num_active, 1);
-		 }
-	 }
-	 __syncthreads();
-	 tmp -> num_acive_per_chunk[(num_tile >> CONVERT_DIRECT_INDEXING_THREADS_LOG2) + 1] = num_active; // skip [0]
-}
 
-extern "C" __global__ void build_index_direct(
-		struct tp_task   * gpu_tasks,
-		int                num_tiles,          // number of tiles in task
-		struct  convert_direct_tmp* tmp)
-{
-	__shared__ int num_active;
-	if (threadIdx.x == 0) {
-		num_active = 0;
-	}
-	 __syncthreads();
-	 int num_tile = blockIdx.x * blockDim.x + threadIdx.x;
-	 if (num_tile < num_tiles) {
-		 if (gpu_tasks[num_tile].task){
-			 atomicAdd(&num_active, 1);
-		 }
-	 }
-	 __syncthreads();
-	 tmp -> num_acive_per_chunk[(num_tile >> CONVERT_DIRECT_INDEXING_THREADS_LOG2) + 1] = num_active; // skip [0]
-}
-
-
-/**
- * Top level to call other kernel with CDP
- */
-extern "C" __global__ void convert_direct( // called with a single block, CONVERT_DIRECT_INDEXING_THREADS threads
-//		struct CltExtra ** gpu_kernel_offsets, // [NUM_CAMS], // changed for jcuda to avoid struct parameters
-			float           ** gpu_kernel_offsets, // [NUM_CAMS],
-			float           ** gpu_kernels,        // [NUM_CAMS],
-			float           ** gpu_images,         // [NUM_CAMS],
-			struct tp_task   * gpu_tasks,
-			float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
-			size_t             dstride,            // in floats (pixels)
-			int                num_tiles,          // number of tiles in task
-			int                lpf_mask,           // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green. Now - always 0 !
-			int                woi_width,
-			int                woi_height,
-			int                kernels_hor,
-			int                kernels_vert,
-			int *              num_active_tiles,
-			struct  convert_direct_tmp* tmp) // temporary storage - avoiding static data for future overlap of kernel execution
-{
-	 int num_chunks = (num_tiles + CONVERT_DIRECT_INDEXING_THREADS -1) >> CONVERT_DIRECT_INDEXING_THREADS_LOG2;
-	 int num_chunk_blocks = (num_chunks + CONVERT_DIRECT_INDEXING_THREADS -1) >> CONVERT_DIRECT_INDEXING_THREADS_LOG2;
-	 dim3 threads0(CONVERT_DIRECT_INDEXING_THREADS, 1, 1);
-	 dim3 blocks0 (num_chunk_blocks,1, 1);
-	 __shared__ int superchunks[CONVERT_DIRECT_INDEXING_THREADS + 1];
-	 if (threadIdx.x == 0) { // of CONVERT_DIRECT_INDEXING_THREADS
-
-		 index_direct_init<<<blocks0,threads0>>>(num_chunks, tmp); // zero num_acive_per_chunk[]
-
-		 cudaDeviceSynchronize(); // not needed yet, just for testing
-		 index_direct<<<blocks0,threads0>>>(
-				 gpu_tasks,  // struct tp_task   * gpu_tasks,
-				 num_tiles, // int                num_tiles)
-				 tmp);
-		 cudaDeviceSynchronize(); // not needed yet, just for testing
-		 // single-threaded - make cumulative
-//		 tmp-> num_acive_per_chunk2[0] = 0;
-		 superchunks[0] = 0;
-	 }
-	 __syncthreads();
-
-	 // calculate cumulative in 3 steps
-	 //1. num_acive_per_chunk2 with each element being a sum of CONVERT_DIRECT_INDEXING_THREADS (32) elements of num_acive_per_chunk
-	 int num_passes = (num_chunk_blocks + CONVERT_DIRECT_INDEXING_THREADS - 1) >> CONVERT_DIRECT_INDEXING_THREADS_LOG2;
-	 for (int pass = 0; pass < num_passes; pass++){
-		 int num_cluster2 = (pass << CONVERT_DIRECT_INDEXING_THREADS_LOG2) + threadIdx.x + 1; // skip 0
-		 if (num_cluster2 <= num_chunk_blocks){
-			 superchunks[threadIdx.x+1] = superchunks[0];
-			 int indx = num_cluster2 << CONVERT_DIRECT_INDEXING_THREADS_LOG2 + 1;
-			 for (int i = 0; i < CONVERT_DIRECT_INDEXING_THREADS; i++){
-				 if (indx <= num_chunks) {
-					 superchunks[threadIdx.x+1] += tmp -> num_acive_per_chunk[indx++];
-				 }
-			 }
-		 }
-		 __syncthreads();
-		 // make superchunks cumulative (single-threaded
-		 if (threadIdx.x == 0) { // of CONVERT_DIRECT_INDEXING_THREADS
-			 for (int i = 0; i < CONVERT_DIRECT_INDEXING_THREADS; i++){
-				 superchunks[i + 1] += superchunks[i];
-			 }
-		 }
-		 __syncthreads();
-		 // now update tmp -> num_acive_per_chunk[] by adding them together and adding the initial value
-
-		 if (num_cluster2 <= num_chunk_blocks){
-			 int indx = num_cluster2 << CONVERT_DIRECT_INDEXING_THREADS_LOG2 + 1;
-			 tmp -> num_acive_per_chunk[indx] += superchunks[threadIdx.x];
-			 for (int i = 0; i < CONVERT_DIRECT_INDEXING_THREADS; i++){
-				 int prev = tmp -> num_acive_per_chunk[indx++];
-				 if (indx <= num_chunks) {
-					 tmp -> num_acive_per_chunk[indx] += prev;
-				 }
-			 }
-		 }
-		 __syncthreads();
-	 }
-}
-#endif
-
-
-extern "C" __global__ void convert_correct_tiles(
+//extern "C"
+__global__ void convert_correct_tiles(
 			float           ** gpu_kernel_offsets, // [NUM_CAMS],
 			float           ** gpu_kernels,        // [NUM_CAMS],
 			float           ** gpu_images,         // [NUM_CAMS],

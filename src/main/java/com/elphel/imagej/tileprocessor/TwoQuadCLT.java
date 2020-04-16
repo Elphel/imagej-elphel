@@ -2078,10 +2078,10 @@ public class TwoQuadCLT {
 				use_aux); // boolean use_aux)
 
 
-		int [] corr_indices = gPUTileProcessor.getCorrTasks(
-				tp_tasks);
+//		int [] corr_indices = gPUTileProcessor.getCorrTasks(
+//				tp_tasks);
 		// corr_indices array of integers to be passed to GPU
-		gPUTileProcessor.setCorrIndices(corr_indices);
+//		gPUTileProcessor.setCorrIndices(corr_indices);
 
 		int [] texture_indices = gPUTileProcessor.getTextureTasks(
 				tp_tasks);
@@ -2119,7 +2119,7 @@ public class TwoQuadCLT {
 		long startDirectConvert=System.nanoTime();
 
 		for (int i = 0; i < NREPEAT; i++ ) {
-			gPUTileProcessor.execConverDirect();
+			gPUTileProcessor.execConvertDirect();
 		}
 
 // run imclt;
@@ -2221,6 +2221,7 @@ public class TwoQuadCLT {
 		int tilesY =  GPUTileProcessor.IMG_HEIGHT / GPUTileProcessor.DTT_SIZE;
 		int [] wh = new int[2];
 		if (clt_parameters.show_corr) {
+			int [] corr_indices = gPUTileProcessor.getCorrIndices();
 			float [][] corr2D = gPUTileProcessor.getCorr2D(
 					clt_parameters.gpu_corr_rad); //  int corr_rad);
 			// convert to 6-layer image		 using tasks

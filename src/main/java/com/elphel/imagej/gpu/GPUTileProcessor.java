@@ -190,6 +190,7 @@ public class GPUTileProcessor {
     private CUdeviceptr gpu_clt =                 new CUdeviceptr();
     private CUdeviceptr gpu_4_images =            new CUdeviceptr();
     private CUdeviceptr gpu_corr_indices =        new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.POINTER
+    private CUdeviceptr gpu_num_corr_tiles =      new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.POINTER
     private CUdeviceptr gpu_texture_indices =     new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.POINTER
     private CUdeviceptr gpu_port_offsets =        new CUdeviceptr(); //  allocate Quad * 2 * Sizeof.POINTER
     private CUdeviceptr gpu_woi =                 new CUdeviceptr(); //  4 integers (x, y, width, height) Rectangle - in tiles
@@ -575,8 +576,8 @@ public class GPUTileProcessor {
     	cuMemAlloc(gpu_tasks,      tilesX * tilesY * TPTASK_SIZE * Sizeof.FLOAT);
 //=========== Seems that in many places Sizeof.POINTER (==8) is used instead of Sizeof.FLOAT !!! ============
     	// Set corrs array
-///    	cuMemAlloc(gpu_corrs,       tilesX * tilesY * NUM_PAIRS * CORR_SIZE * Sizeof.POINTER);
-    	cuMemAlloc(gpu_corr_indices,   tilesX * tilesY * NUM_PAIRS * Sizeof.POINTER);
+    	cuMemAlloc(gpu_corr_indices,   tilesX * tilesY * NUM_PAIRS * Sizeof.FLOAT);
+    	cuMemAlloc(gpu_num_corr_tiles,                    1 * Sizeof.FLOAT);
 
     	//#define TILESYA       ((TILESY +3) & (~3))
     	int tilesYa = (tilesY + 3) & ~3;
@@ -1119,7 +1120,7 @@ public class GPUTileProcessor {
     	cuCtxSynchronize(); // remove later
     }
 
-    public void execConverDirect() {
+    public void execConvertDirect() {
         if (GPU_CONVERT_DIRECT_kernel == null)
         {
             IJ.showMessage("Error", "No GPU kernel: GPU_CONVERT_DIRECT_kernel");
@@ -1206,20 +1207,24 @@ public class GPUTileProcessor {
     	float fscale0 = (float) scales[0];
     	float fscale1 = (num_colors >1)?((float) scales[1]):0.0f;
     	float fscale2 = (num_colors >2)?((float) scales[2]):0.0f;
-		int [] GridFullWarps =    {(num_corr_tiles + CORR_TILES_PER_BLOCK-1) / CORR_TILES_PER_BLOCK,1,1};
-    	int [] ThreadsFullWarps = {CORR_THREADS_PER_TILE, CORR_TILES_PER_BLOCK, 1};
+//		int [] GridFullWarps =    {(num_corr_tiles + CORR_TILES_PER_BLOCK-1) / CORR_TILES_PER_BLOCK,1,1};
+//    	int [] ThreadsFullWarps = {CORR_THREADS_PER_TILE, CORR_TILES_PER_BLOCK, 1};
+		int [] GridFullWarps =    {1, 1, 1};
+    	int [] ThreadsFullWarps = {1, 1, 1};
     	Pointer kernelParameters = Pointer.to(
-    			Pointer.to(gpu_clt),
-    			Pointer.to(new int[] { num_colors }),
-    			Pointer.to(new float[] {fscale0  }),
-    			Pointer.to(new float[] {fscale1  }),
-    			Pointer.to(new float[] {fscale2  }),
-    			Pointer.to(new float[] {(float) fat_zero }),
-    			Pointer.to(new int[] { num_corr_tiles }), // lpf_mask
-    			Pointer.to(gpu_corr_indices),
-    			Pointer.to(new int[] { corr_stride }),
-    			Pointer.to(new int[] { corr_radius }),
-    			Pointer.to(gpu_corrs) // lpf_mask
+    			Pointer.to(gpu_clt),                        // float          ** gpu_clt,
+    			Pointer.to(new int[] { num_colors }),       // int               colors,             // number of colors (3/1)
+    			Pointer.to(new float[] {fscale0  }),        // float             scale0,             // scale for R
+    			Pointer.to(new float[] {fscale1  }),        // float             scale1,             // scale for B
+    			Pointer.to(new float[] {fscale2  }),        // float             scale2,             // scale for G
+    			Pointer.to(new float[] {(float) fat_zero }),// float             fat_zero,           // here - absolute
+        		Pointer.to(gpu_tasks),                      // struct tp_task  * gpu_tasks,
+        		Pointer.to(new int[] { num_task_tiles }),   // int               num_tiles           // number of tiles in task
+    			Pointer.to(gpu_corr_indices),               // int             * gpu_corr_indices,   // packed tile+pair
+    			Pointer.to(gpu_num_corr_tiles),             // int             * pnum_corr_tiles,    // pointer to a number of tiles to process
+    			Pointer.to(new int[] { corr_stride }),      // const size_t      corr_stride,        // in floats
+    			Pointer.to(new int[] { corr_radius }),      // int               corr_radius,        // radius of the output correlation (7 for 15x15)
+    			Pointer.to(gpu_corrs)                       // float           * gpu_corrs);         // correlation output data
     			);
     	cuCtxSynchronize();
     	// Call the kernel function
@@ -1394,6 +1399,20 @@ public class GPUTileProcessor {
         	System.arraycopy(cpu_corrs, ncorr*corr_size, corrs[ncorr], 0, corr_size);
         }
         return corrs;
+    }
+    public int [] getCorrIndices() {
+    	float [] fnum_corrs = new float[1];
+    	cuMemcpyDtoH(Pointer.to(fnum_corrs), gpu_num_corr_tiles,  1 * Sizeof.FLOAT);
+    	int num_corrs =      Float.floatToIntBits(fnum_corrs[0]);
+    	float [] fcorr_indices = new float [num_corrs];
+    	cuMemcpyDtoH(Pointer.to(fcorr_indices), gpu_corr_indices,  num_corrs * Sizeof.FLOAT);
+    	int [] corr_indices = new int [num_corrs];
+    	for (int i = 0; i < num_corrs; i++) {
+    		corr_indices[i] = Float.floatToIntBits(fcorr_indices[i]);
+    	}
+    	num_corr_tiles = num_corrs;
+    	return corr_indices;
+
     }
 
     /**
