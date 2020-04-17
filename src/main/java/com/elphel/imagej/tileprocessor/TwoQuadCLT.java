@@ -2092,13 +2092,13 @@ public class TwoQuadCLT {
 				false); // boolean use_java_rByRDist) { // false - use newer GPU execCalcReverseDistortions); // once
 		gPUTileProcessor.setExtrinsicsVector(quadCLT_main.getGeometryCorrection().getCorrVector()); // for each new image
 
-		// TODO: calculate from the camera geometry?
+/*		// TODO: calculate from the camera geometry?
 		double[][] port_offsets = { // used only in textures to scale differences
 				{-0.5, -0.5},
 				{ 0.5, -0.5},
 				{-0.5,  0.5},
 				{ 0.5,  0.5}};
-
+*/
 		// All set, run kernel (correct and convert)
 		int NREPEAT = 1; // 00;
 		System.out.println("\n------------ Running GPU "+NREPEAT+" times ----------------");
@@ -2139,7 +2139,6 @@ public class TwoQuadCLT {
 // run textures
 		long startTextures = System.nanoTime();   // System.nanoTime();
 		for (int i = 0; i < NREPEAT; i++ ) gPUTileProcessor.execTextures(
-/** remove when done **/				port_offsets,                  // double [][] port_offsets,
 				col_weights,                   // double [] color_weights,
 				quadCLT_main.isLwir(),         // boolean   is_lwir,
 				clt_parameters.min_shot,       // double    min_shot,           // 10.0

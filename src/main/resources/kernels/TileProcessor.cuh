@@ -1307,13 +1307,14 @@ __global__ void generate_RBGA(
 				printf("\n");
 #endif
 			    /* */
-			    textures_accumulate<<<grid_texture,threads_texture>>>(
+			    textures_accumulate <<<grid_texture,threads_texture>>>(
 			    		woi,                             // int             * woi,                // x, y, width,height
 						gpu_clt,                         // float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 						ntt,                             // size_t            num_texture_tiles,  // number of texture tiles to process
 						gpu_texture_indices + ti_offset, // int             * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
 //						gpu_port_offsets,                // float           * gpu_port_offsets,       // relative ports x,y offsets - just to scale differences, may be approximate
-						(float *) gpu_geometry_correction ->pXY0,
+						gpu_geometry_correction,         // struct gc       * gpu_geometry_correction,
+//						(float *) gpu_geometry_correction ->pXY0,
 						colors,                          // int               colors,             // number of colors (3/1)
 						is_lwir,                         // int               is_lwir,            // do not perform shot correction
 						min_shot,                        // float             min_shot,           // 10.0
@@ -1321,9 +1322,7 @@ __global__ void generate_RBGA(
 						diff_sigma,                      // float             diff_sigma,         // pixel value/pixel change
 						diff_threshold,                  // float             diff_threshold,     // pixel value/pixel change
 						min_agree,                       // float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-						weights[0],                      // float             weight0,            // scale for R
-						weights[1],                      // float             weight1,            // scale for B
-						weights[2],                      // float             weight2,            // scale for G
+						weights,                         // float             weights[3],         // scale for R,B,G
 						dust_remove,                     // int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
 			    		0,                               // int               keep_weights,       // return channel weights after A in RGBA (was removed) (should be 0 if gpu_texture_rbg)?
 			    // combining both non-overlap and overlap (each calculated if pointer is not null )
@@ -1774,7 +1773,7 @@ __global__ void textures_accumulate(
 		size_t            num_texture_tiles,  // number of texture tiles to process
 		int             * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
 		// TODO: use geometry_correction rXY !
-		float           * gpu_port_offsets,       // relative ports x,y offsets - just to scale differences, may be approximate
+		struct gc       * gpu_geometry_correction,
 		int               colors,             // number of colors (3/1)
 		int               is_lwir,            // do not perform shot correction
 		float             min_shot,           // 10.0
@@ -1782,9 +1781,7 @@ __global__ void textures_accumulate(
 		float             diff_sigma,         // pixel value/pixel change
 		float             diff_threshold,     // pixel value/pixel change
 		float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-		float             weight0,            // scale for R
-		float             weight1,            // scale for B
-		float             weight2,            // scale for G
+		float             weights[3],         // scale for R,B,G
 		int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
 		int               keep_weights,       // return channel weights after A in RGBA (was removed) (should be 0 if gpu_texture_rbg)?
 // combining both non-overlap and overlap (each calculated if pointer is not null )
@@ -1794,7 +1791,8 @@ __global__ void textures_accumulate(
 		float           * gpu_texture_tiles)  // (number of colors +1 + ?)*16*16 rgba texture tiles
 
 {
-	float weights[3] = {weight0, weight1, weight2};
+	//						(float *) gpu_geometry_correction ->pXY0,
+//	float weights[3] = {weight0, weight1, weight2};
 	// will process exactly 4 cameras in one block (so this number is not adjustable here NUM_CAMS should be == 4 !
 	int camera_num = threadIdx.y;
 	int tile_indx = blockIdx.x; //  * TEXTURE_TILES_PER_BLOCK + tile_in_block;
@@ -1825,7 +1823,8 @@ __global__ void textures_accumulate(
 	__shared__ float ports_rgb   [NUM_CAMS][NUM_COLORS]; // return to system memory (optionally pass null to skip calculation)
 	__shared__ float max_diff [NUM_CAMS]; // return to system memory (optionally pass null to skip calculation)
 	if (threadIdx.x < 2){
-		port_offsets[camera_num][threadIdx.x] = * (gpu_port_offsets + 2 * camera_num + threadIdx.x);
+//		port_offsets[camera_num][threadIdx.x] = * (gpu_port_offsets + 2 * camera_num + threadIdx.x);
+		port_offsets[camera_num][threadIdx.x] = gpu_geometry_correction->rXY[camera_num][threadIdx.x];
 	}
 
 

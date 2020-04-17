@@ -81,7 +81,7 @@ extern "C" __global__ void textures_accumulate(
 		size_t            num_texture_tiles,  // number of texture tiles to process
 		int             * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
 		// TODO: use geometry_correction rXY !
-		float           * gpu_port_offsets,   // relative ports x,y offsets - just to scale differences, may be approximate
+		struct gc       * gpu_geometry_correction,
 		int               colors,             // number of colors (3/1)
 		int               is_lwir,            // do not perform shot correction
 		float             min_shot,           // 10.0
@@ -89,16 +89,14 @@ extern "C" __global__ void textures_accumulate(
 		float             diff_sigma,         // pixel value/pixel change
 		float             diff_threshold,     // pixel value/pixel change
 		float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-		float             weight0,            // scale for R
-		float             weight1,            // scale for B
-		float             weight2,            // scale for G
+		float             weights[3],         // scale for R,B,G
 		int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
 		int               keep_weights,       // return channel weights after A in RGBA (was removed) (should be 0 if gpu_texture_rbg)?
-		// combining both non-overlap and overlap (each calculated if pointer is not null )
+// combining both non-overlap and overlap (each calculated if pointer is not null )
 		size_t            texture_rbg_stride, // in floats
 		float           * gpu_texture_rbg,    // (number of colors +1 + ?)*16*16 rgba texture tiles
 		size_t            texture_stride,     // in floats (now 256*4 = 1024)
-		float           * gpu_texture_tiles); // (number of colors +1 + ?)*16*16 rgba texture tiles
+		float           * gpu_texture_tiles);  // (number of colors +1 + ?)*16*16 rgba texture tiles
 
 extern "C"
 __global__ void imclt_rbg_all(
