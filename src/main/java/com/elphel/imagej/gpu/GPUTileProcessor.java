@@ -184,21 +184,22 @@ public class GPUTileProcessor {
     private CUdeviceptr gpu_kernels =             new CUdeviceptr();
     private CUdeviceptr gpu_kernel_offsets =      new CUdeviceptr();
     private CUdeviceptr gpu_bayer =               new CUdeviceptr();
-    private CUdeviceptr gpu_tasks =               new CUdeviceptr(); //  allocate tilesX * tilesY * TPTASK_SIZE * Sizeof.POINTER
-    private CUdeviceptr gpu_corrs =               new CUdeviceptr(); //  allocate tilesX * tilesY * NUM_PAIRS * CORR_SIZE * Sizeof.POINTER
-    private CUdeviceptr gpu_textures =            new CUdeviceptr(); //  allocate tilesX * tilesY * ? * 256 * Sizeof.POINTER
+    private CUdeviceptr gpu_tasks =               new CUdeviceptr(); //  allocate tilesX * tilesY * TPTASK_SIZE * Sizeof.FLOAT
+    private CUdeviceptr gpu_corrs =               new CUdeviceptr(); //  allocate tilesX * tilesY * NUM_PAIRS * CORR_SIZE * Sizeof.FLOAT
+    private CUdeviceptr gpu_textures =            new CUdeviceptr(); //  allocate tilesX * tilesY * ? * 256 * Sizeof.FLOAT
     private CUdeviceptr gpu_clt =                 new CUdeviceptr();
     private CUdeviceptr gpu_4_images =            new CUdeviceptr();
-    private CUdeviceptr gpu_corr_indices =        new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.POINTER
-    private CUdeviceptr gpu_num_corr_tiles =      new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.POINTER
-    private CUdeviceptr gpu_texture_indices =     new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.POINTER
+    private CUdeviceptr gpu_corr_indices =        new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.FLOAT
+    private CUdeviceptr gpu_num_corr_tiles =      new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.FLOAT
+    private CUdeviceptr gpu_texture_indices =     new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.FLOAT
+    private CUdeviceptr gpu_diff_rgb_combo =      new CUdeviceptr(); //  allocate tilesX * tilesY * NUM_CAMS* (NUM_COLORS + 1) * Sizeof.FLOAT
 
-//    private CUdeviceptr gpu_port_offsets =        new CUdeviceptr(); //  allocate Quad * 2 * Sizeof.POINTER
-    private CUdeviceptr gpu_color_weights =       new CUdeviceptr(); //  allocate Quad * 2 * Sizeof.POINTER
+//    private CUdeviceptr gpu_port_offsets =        new CUdeviceptr(); //  allocate Quad * 2 * Sizeof.FLOAT
+    private CUdeviceptr gpu_color_weights =       new CUdeviceptr(); //  allocate Quad * 2 * Sizeof.FLOAT
 
     private CUdeviceptr gpu_woi =                 new CUdeviceptr(); //  4 integers (x, y, width, height) Rectangle - in tiles
     private CUdeviceptr gpu_num_texture_tiles =   new CUdeviceptr(); //  8 ints
-    private CUdeviceptr gpu_textures_rgba =       new CUdeviceptr(); //  allocate tilesX * tilesY * ? * 256 * Sizeof.POINTER
+    private CUdeviceptr gpu_textures_rgba =       new CUdeviceptr(); //  allocate tilesX * tilesY * ? * 256 * Sizeof.FLOAT
 
     private CUdeviceptr gpu_correction_vector=    new CUdeviceptr();
     private CUdeviceptr gpu_rot_deriv=            new CUdeviceptr(); //  used internally by device, may be read to CPU for testing
@@ -562,7 +563,9 @@ public class GPUTileProcessor {
     	//#define TILESYA       ((TILESY +3) & (~3))
     	int tilesYa = (tilesY + 3) & ~3;
 //    	cuMemAlloc(gpu_texture_indices,tilesX * tilesY * Sizeof.POINTER);
-    	cuMemAlloc(gpu_texture_indices,tilesX * tilesYa * Sizeof.POINTER);
+    	cuMemAlloc(gpu_texture_indices,tilesX * tilesYa * Sizeof.FLOAT);
+
+    	cuMemAlloc(gpu_diff_rgb_combo, tilesX * tilesYa * NUM_CAMS* (NUM_COLORS + 1) *  Sizeof.FLOAT);
 
 //    	cuMemAlloc(gpu_port_offsets,   NUM_CAMS * 2 * Sizeof.FLOAT);
     	cuMemAlloc(gpu_color_weights,             3 * Sizeof.FLOAT);
@@ -1272,7 +1275,9 @@ public class GPUTileProcessor {
 	            Pointer.to(new int[]   { idust_remove }),        // int               dust_remove,        // Do not reduce average weight when only one image differes much from the average
 	            Pointer.to(new int[]   {0}),                     // int               keep_weights,       // return channel weights after A in RGBA
 	            Pointer.to(new int[]   { texture_stride_rgba }), // const size_t      texture_rbga_stride,     // in floats
-	            Pointer.to(gpu_textures_rgba));                  // float           * gpu_texture_tiles)    // (number of colors +1 + ?)*16*16 rgba texture tiles
+	            Pointer.to(gpu_textures_rgba),                   // float           * gpu_texture_tiles)    // (number of colors +1 + ?)*16*16 rgba texture tiles
+	            Pointer.to(gpu_diff_rgb_combo));                 // float           * gpu_diff_rgb_combo); // diff[NUM_CAMS], R[NUM_CAMS], B[NUM_CAMS],G[NUM_CAMS]
+
     	cuCtxSynchronize();
     	// Call the kernel function
     	cuLaunchKernel(GPU_RBGA_kernel,
@@ -1333,8 +1338,8 @@ public class GPUTileProcessor {
     			Pointer.to(new int[] {0}),//  0, // const size_t      texture_rbg_stride, // in floats - DISABLE GENERATION!
     			Pointer.to(new int[] {0}), // null, //  new Pointer(),  //Pointer.to(gpu_textures), // new Pointer(),  // Pointer.to(gpu_textures),
     			Pointer.to(new int[] { texture_stride }), // can be a null pointer - will not be used! float           * gpu_texture_rbg,     // (number of colors +1 + ?)*16*16 rgba texture tiles
-    			Pointer.to(gpu_textures)
-    			);
+    			Pointer.to(gpu_textures),
+	            Pointer.to(gpu_diff_rgb_combo));                 // float           * gpu_diff_rgb_combo); // diff[NUM_CAMS], R[NUM_CAMS], B[NUM_CAMS],G[NUM_CAMS]
     	cuCtxSynchronize();
     	// Call the kernel function
     	cuLaunchKernel(GPU_TEXTURES_kernel,
@@ -1574,7 +1579,7 @@ public class GPUTileProcessor {
 //    	for (String sourceCode: sourceCodeUnits) {
        	for (int cunit = 0; cunit < ptxDataUnits.length; cunit++) {
        		String sourceCode = sourceCodeUnits[cunit];
-       		//System.out.print(sourceCode);
+//       		System.out.print(sourceCode);
     		// Use the NVRTC to create a program by compiling the source code
     		nvrtcProgram program = new nvrtcProgram();
     		nvrtcCreateProgram(	program, sourceCode, null, 0, null, null);

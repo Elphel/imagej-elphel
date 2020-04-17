@@ -45,11 +45,11 @@ public class MacroCorrelation {
 			double trusted_correlation,
 	    	double     weight_var, //  = 1.0;   // weight of variance data (old, detects thin wires?)
 	    	double     weight_Y, //  =   1.0;     // weight of average intensity
-	    	double     weight_RBmG //  = 5.0;  // weight of average color difference (0.5*(R+B)-G), shoukld be ~5*weight_Y
+	    	double     weight_RBmG //  = 5.0;  // weight of average color difference (0.5*(R+B)-G), should be ~5*weight_Y
 			){
     	this.weight_var = weight_var;   // weight of variance data (old, detects thin wires?)
     	this.weight_Y = weight_Y;     // weight of average intensity
-    	this.weight_RBmG = weight_RBmG; //  = 5.0;  // weight of average color difference (0.5*(R+B)-G), shoukld be ~5*weight_Y
+    	this.weight_RBmG = weight_RBmG; //  = 5.0;  // weight of average color difference (0.5*(R+B)-G), should be ~5*weight_Y
 
 		this.tp = tp;
 		  final int pTilesX = tp.getTilesX();

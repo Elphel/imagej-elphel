@@ -1196,7 +1196,8 @@ __global__ void generate_RBGA(
 			int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
 			int               keep_weights,       // return channel weights after A in RGBA (was removed)
 			const size_t      texture_rbga_stride,     // in floats
-			float           * gpu_texture_tiles)  // (number of colors +1 + ?)*16*16 rgba texture tiles
+			float           * gpu_texture_tiles,  // (number of colors +1 + ?)*16*16 rgba texture tiles
+			float           * gpu_diff_rgb_combo) // diff[NUM_CAMS], R[NUM_CAMS], B[NUM_CAMS],G[NUM_CAMS]
 {
 // TODO use atomic_add to increment	num_texture_tiles
 // TODO calculate woi
@@ -1329,7 +1330,9 @@ __global__ void generate_RBGA(
 						texture_rbga_stride,             // size_t      texture_rbg_stride, // in floats
 						gpu_texture_tiles,               // float           * gpu_texture_rbg,     // (number of colors +1 + ?)*16*16 rgba texture tiles
 			    		0,                               // size_t      texture_stride,     // in floats (now 256*4 = 1024)
-						gpu_texture_tiles); // (float *) 0 );                   // float           * gpu_texture_tiles);  // (number of colors +1 + ?)*16*16 rgba texture tiles
+						gpu_texture_tiles, //(float *)0);// float           * gpu_texture_tiles);  // (number of colors +1 + ?)*16*16 rgba texture tiles
+						gpu_diff_rgb_combo);             // float           * gpu_diff_rgb_combo) // diff[NUM_CAMS], R[NUM_CAMS], B[NUM_CAMS],G[NUM_CAMS]
+
 				cudaDeviceSynchronize(); // not needed yet, just for testing
 				/* */
 			}
@@ -1788,8 +1791,8 @@ __global__ void textures_accumulate(
 		size_t            texture_rbg_stride, // in floats
 		float           * gpu_texture_rbg,    // (number of colors +1 + ?)*16*16 rgba texture tiles
 		size_t            texture_stride,     // in floats (now 256*4 = 1024)
-		float           * gpu_texture_tiles)  // (number of colors +1 + ?)*16*16 rgba texture tiles
-
+		float           * gpu_texture_tiles,  // (number of colors +1 + ?)*16*16 rgba texture tiles
+		float           * gpu_diff_rgb_combo) // diff[NUM_CAMS], R[NUM_CAMS], B[NUM_CAMS],G[NUM_CAMS]
 {
 	//						(float *) gpu_geometry_correction ->pXY0,
 //	float weights[3] = {weight0, weight1, weight2};
@@ -1997,8 +2000,8 @@ __global__ void textures_accumulate(
 			(float*) shr.mclt_debayer, // float * mclt_tile,     // debayer // has gaps to align with union !
 			(float*) mclt_tiles,       // float * rbg_tile,      // if not null - original (not-debayered) rbg tile to use for the output
 			(float *) shr1.rgbaw,      // float * rgba,          // result
-			(float * ) 0,              // float * ports_rgb,     // average values of R,G,B for each camera (R0,R1,...,B2,B3) // null
-			(float * ) 0,              // float * max_diff,      // maximal (weighted) deviation of each channel from the average /null
+			(float * ) ports_rgb,      // float * ports_rgb,     // average values of R,G,B for each camera (R0,R1,...,B2,B3) // null
+			(float * ) max_diff,       // float * max_diff,      // maximal (weighted) deviation of each channel from the average /null
 			(float *) port_offsets,    // float * port_offsets,  // [port]{x_off, y_off} - just to scale pixel value differences
 			diff_sigma,                // float   diff_sigma,     // pixel value/pixel change
 			diff_threshold,            // float   diff_threshold, // pixel value/pixel change
@@ -2013,8 +2016,8 @@ __global__ void textures_accumulate(
 			(float*) shr.mclt_debayer, // float * mclt_tile,     // debayer // has gaps to align with union !
 			(float*) mclt_tiles,       // float * rbg_tile,      // if not null - original (not-debayered) rbg tile to use for the output
 			(float *) shr1.rgbaw,      // float * rgba,          // result
-			(float * ) 0,              // float * ports_rgb,     // average values of R,G,B for each camera (R0,R1,...,B2,B3) // null
-			(float * ) 0,              // float * max_diff,      // maximal (weighted) deviation of each channel from the average /null
+			(float * ) ports_rgb,      // float * ports_rgb,     // average values of R,G,B for each camera (R0,R1,...,B2,B3) // null
+			(float * ) max_diff,       // float * max_diff,      // maximal (weighted) deviation of each channel from the average /null
 			(float *) port_offsets,    // float * port_offsets,  // [port]{x_off, y_off} - just to scale pixel value differences
 			diff_sigma,                // float   diff_sigma,     // pixel value/pixel change
 			diff_threshold,            // float   diff_threshold, // pixel value/pixel change

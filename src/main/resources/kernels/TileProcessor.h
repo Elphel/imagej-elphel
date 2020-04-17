@@ -96,7 +96,9 @@ extern "C" __global__ void textures_accumulate(
 		size_t            texture_rbg_stride, // in floats
 		float           * gpu_texture_rbg,    // (number of colors +1 + ?)*16*16 rgba texture tiles
 		size_t            texture_stride,     // in floats (now 256*4 = 1024)
-		float           * gpu_texture_tiles);  // (number of colors +1 + ?)*16*16 rgba texture tiles
+		float           * gpu_texture_tiles,  // (number of colors +1 + ?)*16*16 rgba texture tiles
+		float           * gpu_diff_rgb_combo); // diff[NUM_CAMS], R[NUM_CAMS], B[NUM_CAMS],G[NUM_CAMS]
+
 
 extern "C"
 __global__ void imclt_rbg_all(

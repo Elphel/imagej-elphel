@@ -702,9 +702,9 @@ private Panel panel1,
 			panelClt_GPU.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
 			addButton("JCUDA TEST",                 panelClt_GPU);
 			addButton("TF TEST",                    panelClt_GPU);
-			addButton("GPU files",                  panelClt_GPU, color_conf_process);
-			addButton("Rig8 gpu",                   panelClt_GPU, color_conf_process);
-			addButton("ShowGPU",                    panelClt_GPU, color_conf_process);
+			addButton("GPU simulate",                  panelClt_GPU, color_conf_process);
+			addButton("GPU RUN",                   panelClt_GPU, color_conf_process);
+//			addButton("ShowGPU",                    panelClt_GPU, color_conf_process);
 
 			addButton("LWIR_TEST",                  panelClt_GPU, color_conf_process);
 			addButton("LWIR_ACQUIRE",               panelClt_GPU, color_conf_process);
@@ -4915,13 +4915,13 @@ private Panel panel1,
     	getPairImages2();
     	return;
 /* ======================================================================== */
-    } else if (label.equals("GPU files")) {
+    } else if (label.equals("GPU simulate")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
     	generateGPUDebugFiles();
     	return;
 /* ======================================================================== */
-    } else if (label.equals("Rig8 gpu")) {
+    } else if (label.equals("GPU RUN")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
     	getPairImages2Gpu();
