@@ -2083,10 +2083,12 @@ public class TwoQuadCLT {
 		// corr_indices array of integers to be passed to GPU
 //		gPUTileProcessor.setCorrIndices(corr_indices);
 
+/*
 		int [] texture_indices = gPUTileProcessor.getTextureTasks(
 				tp_tasks);
 		gPUTileProcessor.setTextureIndices(
 				texture_indices);
+*/
 		gPUTileProcessor.setGeometryCorrection(
 				quadCLT_main.getGeometryCorrection(),
 				false); // boolean use_java_rByRDist) { // false - use newer GPU execCalcReverseDistortions); // once
@@ -2146,12 +2148,11 @@ public class TwoQuadCLT {
 				clt_parameters.diff_sigma,     // double    diff_sigma,         // pixel value/pixel change
 				clt_parameters.diff_threshold, // double    diff_threshold,     // pixel value/pixel change
 				clt_parameters.min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-				clt_parameters.dust_remove,    // boolean   dust_remove,
-				clt_parameters.keep_weights);  // boolean   keep_weights);
+				clt_parameters.dust_remove);     // boolean   dust_remove,
 		long endTextures = System.nanoTime();
-
 // run texturesRBGA
 		long startTexturesRBGA = System.nanoTime();   // System.nanoTime();
+
 		for (int i = 0; i < NREPEAT; i++ ) gPUTileProcessor.execRBGA(
 				col_weights,                   // double [] color_weights,
 				quadCLT_main.isLwir(),         // boolean   is_lwir,
@@ -2193,7 +2194,26 @@ public class TwoQuadCLT {
 
 		int out_width =  GPUTileProcessor.IMG_WIDTH +  GPUTileProcessor.DTT_SIZE;
 		int out_height = GPUTileProcessor.IMG_HEIGHT + GPUTileProcessor.DTT_SIZE;
-
+		int tilesX =  GPUTileProcessor.IMG_WIDTH / GPUTileProcessor.DTT_SIZE;
+		int tilesY =  GPUTileProcessor.IMG_HEIGHT / GPUTileProcessor.DTT_SIZE;
+		// show extra
+		/* */
+		String [] extra_group_titles = {"DIFF","Red","Blue","Green"};
+		String [] extra_titles = new String [extra_group_titles.length*GPUTileProcessor.NUM_CAMS];
+		for (int g = 0; g < extra_group_titles.length;g++) {
+			for (int ncam=0; ncam < GPUTileProcessor.NUM_CAMS;ncam++) {
+				extra_titles[g * GPUTileProcessor.NUM_CAMS+ncam]= extra_group_titles[g]+"-"+ncam;
+			}
+		}
+		float [][] extra = gPUTileProcessor.getExtra();
+		(new ShowDoubleFloatArrays()).showArrays(
+				extra,
+				tilesX,
+				tilesY,
+				true,
+				name+"-EXTRA-D"+clt_parameters.disparity,
+				extra_titles);
+		/* */
 		ImagePlus [] imps_RGB = new ImagePlus[iclt_fimg.length];
 		for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
 			String title=name+"-"+String.format("%02d", ncam);
@@ -2215,8 +2235,6 @@ public class TwoQuadCLT {
 
 		}
 		//show_corr
-		int tilesX =  GPUTileProcessor.IMG_WIDTH / GPUTileProcessor.DTT_SIZE;
-		int tilesY =  GPUTileProcessor.IMG_HEIGHT / GPUTileProcessor.DTT_SIZE;
 		int [] wh = new int[2];
 		if (clt_parameters.show_corr) {
 			int [] corr_indices = gPUTileProcessor.getCorrIndices();
@@ -2234,7 +2252,7 @@ public class TwoQuadCLT {
 					wh[0],
 					wh[1],
 					true,
-					"CORR2D",
+					name+"-CORR2D-D"+clt_parameters.disparity,
 					GPUTileProcessor.getCorrTitles());
 		}
 // convert to overlapping and show
@@ -2369,14 +2387,16 @@ public class TwoQuadCLT {
 		}
 
 		// convert textures to RGBA in Java
-		if (clt_parameters.show_rgba_color && (debugLevel > 0)) { // disabling
+		if (clt_parameters.show_rgba_color && (debugLevel > 100)) { // disabling
 			int numcol = quadCLT_main.isMonochrome()?1:3;
 			int ports = imp_quad_main.length;
+			int [] texture_indices = gPUTileProcessor.getTextureIndices();
 			int          num_src_slices = numcol + 1 + (clt_parameters.keep_weights?(ports + numcol + 1):0); // 12 ; // calculate
 //			float [][][] ftextures = gPUTileProcessor.getTextures(
 //		    		(is_mono?1:3), // int     num_colors,
 //		    		clt_parameters.keep_weights); // boolean keep_weights);
 			float [] flat_textures =  gPUTileProcessor.getFlatTextures(
+					texture_indices.length,
 		    		(is_mono?1:3), // int     num_colors,
 		    		clt_parameters.keep_weights); // boolean keep_weights);
 	    	int texture_slice_size = (2 * GPUTileProcessor.DTT_SIZE)* (2 * GPUTileProcessor.DTT_SIZE);

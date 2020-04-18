@@ -75,11 +75,13 @@ extern "C" __global__ void correlate2D(
 		float           * gpu_corrs);          // correlation output data
 
 
-extern "C" __global__ void textures_accumulate(
-		int             * woi,                // x, y, width,height
-		float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
-		size_t            num_texture_tiles,  // number of texture tiles to process
+extern "C" __global__ void textures_nonoverlap(
+		struct tp_task  * gpu_tasks,
+		int               num_tiles,          // number of tiles in task list
+// declare arrays in device code?
 		int             * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
+		int             * pnum_texture_tiles,  // returns total number of elements in gpu_texture_indices array
+		float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 		// TODO: use geometry_correction rXY !
 		struct gc       * gpu_geometry_correction,
 		int               colors,             // number of colors (3/1)
@@ -91,14 +93,11 @@ extern "C" __global__ void textures_accumulate(
 		float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 		float             weights[3],         // scale for R,B,G
 		int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
-		int               keep_weights,       // return channel weights after A in RGBA (was removed) (should be 0 if gpu_texture_rbg)?
+//		int               keep_weights,       // return channel weights after A in RGBA (was removed) (should be 0 if gpu_texture_rbg)?
 // combining both non-overlap and overlap (each calculated if pointer is not null )
-		size_t            texture_rbg_stride, // in floats
-		float           * gpu_texture_rbg,    // (number of colors +1 + ?)*16*16 rgba texture tiles
-		size_t            texture_stride,     // in floats (now 256*4 = 1024)
-		float           * gpu_texture_tiles,  // (number of colors +1 + ?)*16*16 rgba texture tiles
-		float           * gpu_diff_rgb_combo); // diff[NUM_CAMS], R[NUM_CAMS], B[NUM_CAMS],G[NUM_CAMS]
-
+		size_t            texture_stride,     // in floats (now 256*4 = 1024)  // may be 0 if not needed
+		float           * gpu_texture_tiles,  // (number of colors +1 + ?)*16*16 rgba texture tiles    // may be 0 if not needed
+		float           * gpu_diff_rgb_combo); // diff[NUM_CAMS], R[NUM_CAMS], B[NUM_CAMS],G[NUM_CAMS] // may be 0 if not needed
 
 extern "C"
 __global__ void imclt_rbg_all(
