@@ -363,8 +363,8 @@ extern "C" __global__ void get_tiles_offsets(
 			(extrinsic_corr.imu_move[0] != 0.0) ||
 			(extrinsic_corr.imu_move[1] != 0.0) ||
 			(extrinsic_corr.imu_move[2] != 0.0);
-
-
+// Temporary
+	imu_exists = 0;
 #ifdef DEBUG21
 	if ((ncam == DBG_CAM)  && (task_num == DBG_TILE)){
 		printf("\nTile = %d, camera= %d\n", task_num, ncam);
@@ -685,15 +685,15 @@ extern "C" __global__ void get_tiles_offsets(
 			pXY[1] +=  ers_Yci * rD2rND; // added correction to pixel Y
 
 #ifdef DEBUG210
-	if ((ncam == DBG_CAM)  && (task_num == DBG_TILE)){
-		printf("k = %f,  wdisparity = %f,  dwdisp_dz = %f\n", k, wdisparity, dwdisp_dz);
-		printf("dpXci_pYci_imu_lin[0][0] = %f,  dpXci_pYci_imu_lin[0][2] = %f\n", dpXci_pYci_imu_lin[0][0],dpXci_pYci_imu_lin[0][2]);
-		printf("dpXci_pYci_imu_lin[1][1] = %f,  dpXci_pYci_imu_lin[1][2] = %f\n", dpXci_pYci_imu_lin[1][1],dpXci_pYci_imu_lin[1][2]);
+			if ((ncam == DBG_CAM)  && (task_num == DBG_TILE)){
+				printf("k = %f,  wdisparity = %f,  dwdisp_dz = %f\n", k, wdisparity, dwdisp_dz);
+				printf("dpXci_pYci_imu_lin[0][0] = %f,  dpXci_pYci_imu_lin[0][2] = %f\n", dpXci_pYci_imu_lin[0][0],dpXci_pYci_imu_lin[0][2]);
+				printf("dpXci_pYci_imu_lin[1][1] = %f,  dpXci_pYci_imu_lin[1][2] = %f\n", dpXci_pYci_imu_lin[1][1],dpXci_pYci_imu_lin[1][2]);
 
-		printf("delta_t = %f,  ers_Xci = %f,  ers_Yci = %f\n", delta_t, ers_Xci, ers_Yci);
-		printf("pXY[0] = %f,  pXY[1] = %f\n", pXY[0], pXY[1]); // OK
-	}
-	__syncthreads();// __syncwarp();
+				printf("delta_t = %f,  ers_Xci = %f,  ers_Yci = %f\n", delta_t, ers_Xci, ers_Yci);
+				printf("pXY[0] = %f,  pXY[1] = %f\n", pXY[0], pXY[1]); // OK
+			}
+			__syncthreads();// __syncwarp();
 #endif // DEBUG21
 
 		}
@@ -733,7 +733,7 @@ extern "C" __global__ void calcReverseDistortionTable(
 		}
 		if (i == 0){
 			rByRDist[0]= (float) 1.0/d;
-			break;
+			continue;
 		}
 		double rDist = RBYRDIST_STEP * i;
 		double r = (p == 0) ? rDist : rPrev;

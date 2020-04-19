@@ -1501,9 +1501,9 @@ public class GPUTileProcessor {
     	for (int i = 0; i < texture_indices.length; i++) {
     		if (((texture_indices[i] >> CORR_TEXTURE_BIT) & 1) != 0) {
     			int ntile = texture_indices[i] >>  CORR_NTILE_SHIFT;
-        if (ntile == 22507) {
-        	System.out.println("i="+i+", ntile="+ntile);
-        }
+//        if (ntile == 22507) {
+//        	System.out.println("i="+i+", ntile="+ntile);
+//        }
 		    	for (int l = 0; l < num_tile_extra; l++) {
 		    		extra[l][ntile] = diff_rgb_combo[i * num_tile_extra + l];
 		    	}
