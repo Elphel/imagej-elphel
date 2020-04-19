@@ -3376,13 +3376,15 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		double ri_scale = 0.001 * this.pixelSize / this.distortionRadius;
 		System.out.println("fl_pix="+fl_pix+", ri_scale="+ri_scale);
 
-		double [] xyz = (disparity > 0) ? getWorldCoordinates(   // USED in lwir
+		double [] xyz = ((disparity > 0) ? getWorldCoordinates(   // USED in lwir
 				px,                                  // double px,
 				py,                                  // double py,
 				disparity,                           // double disparity,
-				true) : null;                               // boolean correctDistortions)
+				true) : null);                               // boolean correctDistortions)
 
-		System.out.println("xyz[0]="+xyz[0]+", xyz[1]="+xyz[1]+", xyz[2]="+xyz[2]);
+		if (xyz != null) {
+			System.out.println("xyz[0]="+xyz[0]+", xyz[1]="+xyz[1]+", xyz[2]="+xyz[2]);
+		}
 
 		for (int i = 0; i < numSensors; i++){
 			// non-distorted XY of the shifted location of the individual sensor

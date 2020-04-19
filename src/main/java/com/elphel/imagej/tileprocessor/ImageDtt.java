@@ -4071,6 +4071,32 @@ public class ImageDtt {
 				}
 			}
 		}
+		if (debug_gpu) {
+			System.out.println("--- color_avg  ---");
+			for (int ncol = 0; ncol < numcol; ncol++) if (iclt_tile[0][ncol] != null) {
+				System.out.println("\n --- color_avg ["+ncol+"] ---");
+				for (int ii = 0; ii < 2 * transform_size; ii++) {
+					for (int jj = 0; jj < 2 * transform_size; jj++) {
+						System.out.print(String.format("%10.4f ", color_avg[ncol][2* transform_size * ii + jj]));
+					}
+					System.out.println();
+				}
+				for (int ccam = 0; ccam < port_weights.length; ccam ++) {
+					System.out.println("--- max_diff ["+ccam+"] ---");
+					System.out.println("\n --- imclt ["+ccam+"]["+ncol+"] ---");
+					for (int ii = 0; ii < 2 * transform_size; ii++) {
+						for (int jj = 0; jj < 2 * transform_size; jj++) {
+							System.out.print(String.format("%10.4f ", iclt_tile[ccam][ncol][2* transform_size * ii + jj]));
+						}
+						System.out.println();
+					}
+				}
+			}
+			System.out.println("--- max_diff: "+max_diff[0]+","+max_diff[1]+","+max_diff[2]+","+max_diff[3]);
+			System.out.println("---        R: "+ports_rgb[ 0]+", "+ports_rgb[ 1]+", "+ports_rgb[ 2]+", "+ports_rgb[ 3]);
+			System.out.println("---        B: "+ports_rgb[ 4]+", "+ports_rgb[ 5]+", "+ports_rgb[ 6]+", "+ports_rgb[ 7]);
+			System.out.println("---        G: "+ports_rgb[ 8]+", "+ports_rgb[ 9]+", "+ports_rgb[10]+", "+ports_rgb[11]);
+		}
 		return rgba;
 	}
 
@@ -8973,6 +8999,8 @@ public class ImageDtt {
 			lpf_rgb[i] = filter;
 		}
 		generateTextureTiles(// not used in lwir
+				null, // final double []        ports_rgb,      // average values of R,G,B for each camera (R0,R1,...,B2,B3)
+				null, // final double []        max_diff,       // maximal (weighted) deviation of each channel from the average
 				clt_parameters,
 				extra_disparity,
 				quad,      // number of subcameras
@@ -8993,6 +9021,8 @@ public class ImageDtt {
 	}
 
 	public void generateTextureTiles(// not used in lwir
+			final double []        ports_rgb,      // average values of R,G,B for each camera (R0,R1,...,B2,B3)
+			final double []        max_diff,       // maximal (weighted) deviation of each channel from the average
 			final CLTParameters    clt_parameters,
 			final double           extra_disparity,
 			final int              quad,      // number of subcameras
@@ -9187,8 +9217,8 @@ public class ImageDtt {
 
 		texture_tiles[tileY][tileX] =  tile_combine_rgba(
 				tiles_debayered,                // iclt_tile,      // [port][numcol][256]
-				null,                           // double []     ports_rgb,      // average values of R,G,B for each camera (R0,R1,...,B2,B3)
-				null,                           // max_diff,        // maximal (weighted) deviation of each channel from the average
+				ports_rgb, // null,                           // double []     ports_rgb,      // average values of R,G,B for each camera (R0,R1,...,B2,B3)
+				max_diff,  // null,                           // max_diff,        // maximal (weighted) deviation of each channel from the average
 				lt_window2,                     // [256]
 				port_offsets,                   // [port]{x_off, y_off}
 				img_mask,                       // which port to use, 0xf - all 4 (will modify as local variable)
@@ -9454,6 +9484,9 @@ public class ImageDtt {
 			final double [][]         disparity_bimap, // [23][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
 			                                           // last 2 - contrast, avg/ "geometric average)
 			final double [][]         ml_data,         // data for ML - 18 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
+// added in debug version
+			final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+
 			final double [][][][]     texture_tiles_main, // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
 			final double [][][][]     texture_tiles_aux,  // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
 			final int                 width,           // may be not multiple of 8, same for the height
@@ -9476,6 +9509,7 @@ public class ImageDtt {
 		final int                 debug_tileY = clt_parameters.tileY;
 		final int quad_main = image_data_main.length;   // number of subcameras
 		final int quad_aux =  image_data_aux.length;   // number of subcameras
+		final int quad = 4;   // number of subcameras
 		final int numcol = 3; // number of colors
 		final int nChn = image_data_main[0].length;
 		final int height=image_data_main[0][0].length/width;
@@ -9540,6 +9574,27 @@ public class ImageDtt {
 				{ 0.5,  0.5}};
 		final double [] filter =  doubleGetCltLpfFd(clt_parameters.getCorrSigma(isMonochrome()));
 		dbg_filter_corr = filter;
+
+
+		// add optional initialization of debug layers here
+		if (disparity_map != null){
+			for (int i = 0; i<disparity_map.length;i++){
+				if (i < OVEREXPOSED) {
+					disparity_map[i] = new double [tilesY*tilesX];
+				} else if (i == OVEREXPOSED) {
+//					if (saturation_imp!= null) {
+//					disparity_map[i] = new double [tilesY*tilesX];
+//					}
+				} else if (i >= IMG_TONE_RGB) {
+//					if (texture_tiles != null) { // for now - enable 12 tone layers only together with texture tiles
+						disparity_map[i] = new double [tilesY*tilesX];
+//					}
+				}
+			}
+		}
+
+
+
 
 		final double [][] lpf_rgb = new double[isMonochrome()?1:3][];
 		if (isMonochrome()) {
@@ -10091,8 +10146,23 @@ public class ImageDtt {
 							}
 						}
 
+						double []     max_diff = null;
+						if ((disparity_map != null) && (disparity_map.length >= (IMG_DIFF0_INDEX + quad))){
+							max_diff = new double[quad];
+						}
+						double [] ports_rgb = null;
+
+						int ports_rgb_len = quad*numcol;  // 12
+						if ((disparity_map != null) && (disparity_map.length >= (IMG_TONE_RGB + ports_rgb_len))) {
+							ports_rgb = new double[ports_rgb_len];
+						}
+
+
+
 						if (texture_tiles_main !=null) {
 							generateTextureTiles (
+									ports_rgb,      //final double []        ports_rgb,      // average values of R,G,B for each camera (R0,R1,...,B2,B3)
+									max_diff,       // final double []        max_diff,       // maximal (weighted) deviation of each channel from the average
 									clt_parameters,        // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 									extra_disparity_main,  // final double           extra_disparity,
 									quad_main,                  // final int              quad,      // number of subcameras
@@ -10113,6 +10183,8 @@ public class ImageDtt {
 						}
 						if (texture_tiles_aux !=null) {
 							generateTextureTiles (
+									null,                  // final double []        ports_rgb,      // average values of R,G,B for each camera (R0,R1,...,B2,B3)
+									null,                  // final double []        max_diff,       // maximal (weighted) deviation of each channel from the average
 									clt_parameters,        // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 									extra_disparity_aux,   // final double           extra_disparity,
 									quad_aux,              // final int              quad,      // number of subcameras
@@ -10131,6 +10203,8 @@ public class ImageDtt {
 									tile_lma_debug_level,  // final int              debugLevel);
 									false); // debug_gpu); //boolean debug_gpu
 						}
+
+
 						if (debug_gpu) {
 							double [][] texture_tile = texture_tiles_main[clt_parameters.tileY][clt_parameters.tileX];
 							int tile = +clt_parameters.tileY * tilesX + +clt_parameters.tileX;
@@ -10148,8 +10222,16 @@ public class ImageDtt {
 			    			}
 						}
 
-
-
+						if ((disparity_map != null) && (disparity_map.length >= (IMG_DIFF0_INDEX + quad))){
+							for (int i = 0; i < max_diff.length; i++){
+								disparity_map[IMG_DIFF0_INDEX + i][tIndex] = max_diff[i];
+							}
+						}
+						if (ports_rgb != null) {
+							for (int i = 0; i < ports_rgb.length; i++){
+								disparity_map[IMG_TONE_RGB + i][tIndex] = ports_rgb[i];
+							}
+						}
 
 						// Save channel tiles to result
 						if (clt_bidata != null) {

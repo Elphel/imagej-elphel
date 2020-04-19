@@ -1390,6 +1390,7 @@ public class TwoQuadCLT {
 		double [][][]       port_xy_main_dbg = new double [tilesX*tilesY][][];
 		double [][][]       port_xy_aux_dbg =  new double [tilesX*tilesY][][];
 //		double [][][]       corr2ddata =       new double [1][][];
+		double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
 
 		final double [][][][][][][] clt_bidata = // new double[2][quad][nChn][tilesY][tilesX][][]; // first index - main/aux
 				image_dtt.clt_bi_quad_dbg (
@@ -1411,6 +1412,7 @@ public class TwoQuadCLT {
 						// types: 0 - selected correlation (product+offset), 1 - sum
 						disparity_bimap,                      // final double [][]    disparity_bimap, // [23][tilesY][tilesX]
 						ml_data,                              // 	final double [][]         ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
+						disparity_map,                        // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
 						texture_tiles_main,                   // final double [][][][]     texture_tiles_main, // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
 						texture_tiles_aux,                    // final double [][][][]     texture_tiles_aux,  // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
 						imp_quad_main[0].getWidth(),          // final int                 width,
@@ -1426,7 +1428,29 @@ public class TwoQuadCLT {
 						port_xy_main_dbg,                     // final double [][][]       port_xy_main_dbg, // for each tile/port save x,y pixel coordinates (gpu code development)
 						port_xy_aux_dbg);                      // final double [][][]       port_xy_aux_dbg) // for each tile/port save x,y pixel coordinates (gpu code development)
 
+/////		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
 
+		String [] sub_titles = new String [GPUTileProcessor.NUM_CAMS * (GPUTileProcessor.NUM_COLORS+1)];
+		double [][] sub_disparity_map = new double [sub_titles.length][];
+		for (int ncam = 0; ncam < GPUTileProcessor.NUM_CAMS; ncam++) {
+			sub_disparity_map[ncam] = disparity_map[ncam + ImageDtt.IMG_DIFF0_INDEX];
+			sub_titles[ncam] = ImageDtt.DISPARITY_TITLES[ncam + ImageDtt.IMG_DIFF0_INDEX];
+			for (int ncol = 0; ncol < GPUTileProcessor.NUM_COLORS; ncol++) {
+				sub_disparity_map[ncam + (ncol + 1)* GPUTileProcessor.NUM_CAMS] =
+						disparity_map[ncam +ncol* GPUTileProcessor.NUM_CAMS+ ImageDtt.IMG_TONE_RGB];
+				sub_titles[ncam + (ncol + 1)* GPUTileProcessor.NUM_CAMS] =
+						ImageDtt.DISPARITY_TITLES[ncam +ncol* GPUTileProcessor.NUM_CAMS+ ImageDtt.IMG_TONE_RGB];
+			}
+		}
+//		String [] sub_titles = {ImageDtt.DISPARITY_TITLES[ImageDtt.IMG_DIFF0_INDEX]
+
+		(new ShowDoubleFloatArrays()).showArrays(
+				sub_disparity_map,
+	    		tilesX,
+	    		tilesY,
+				true,
+				name + "-CPU-EXTRA-D"+clt_parameters.disparity,
+				sub_titles);
 		// Create list of all correlation pairs
 		double [][][][][][] clt_data = clt_bidata[0];
 		int numTiles = tilesX * tilesY;
@@ -1463,9 +1487,8 @@ public class TwoQuadCLT {
 				wh[0],
 				wh[1],
 				true,
-				"CORR2D_CPU",
+				name + "-CPU-CORR2D-D"+clt_parameters.disparity,
 				GPUTileProcessor.getCorrTitles());
-
 
 		if ((save_prefix != null) && (save_prefix != "")) {
 

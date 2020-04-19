@@ -389,6 +389,13 @@ extern "C" __global__ void get_tiles_offsets(
 	float disparity = gpu_tasks[task_num].target_disparity;
 	int tileX = (cxy & 0xffff);
 	int tileY = (cxy >> 16);
+#ifdef DEBUG23
+	if ((ncam == 0) && (tileX == DBG_TILE_X) && (tileY == DBG_TILE_Y)){
+	printf ("\n  get_tiles_offsets(): Debugging tileX=%d, tileY=%d, ncam = %d\n", tileX,tileY,ncam);
+	printf("\n");
+		__syncthreads();
+	}
+#endif //#ifdef DEBUG23
 	float px = tileX * DTT_SIZE + DTT_SIZE/2; //  - shiftX;
 	float py = tileY * DTT_SIZE + DTT_SIZE/2; //  - shiftY;
 
@@ -524,7 +531,7 @@ extern "C" __global__ void get_tiles_offsets(
 	float dpXci_droll =    drvi_drl[0] * norm_z - pXci * drvi_drl[2] / rvi[2];
 	float dpYci_droll =    drvi_drl[1] * norm_z - pYci * drvi_drl[2] / rvi[2];
 
-#ifdef DEBUG21
+#ifdef DEBUG210
 	if ((ncam == DBG_CAM)  && (task_num == DBG_TILE)){
 		printf("drvi_daz[0] = %f,  drvi_daz[1] = %f,  drvi_daz[2] = %f\n", drvi_daz[0], drvi_daz[1], drvi_daz[2]);
 		printf("drvi_dtl[0] = %f,  drvi_dtl[1] = %f,  drvi_dtl[2] = %f\n", drvi_dtl[0], drvi_dtl[1], drvi_dtl[2]);
@@ -554,7 +561,7 @@ extern "C" __global__ void get_tiles_offsets(
 	dd1[1][0] = (-rot_deriv.rots[ncam][1][0]*rXY[0] -rot_deriv.rots[ncam][1][1]*rXY[1])*norm_z;
 	dd1[1][1] = ( rot_deriv.rots[ncam][1][0]*rXY[1] -rot_deriv.rots[ncam][1][1]*rXY[0])*norm_z;
 
-#ifdef DEBUG21
+#ifdef DEBUG210
 	if ((ncam == DBG_CAM)  && (task_num == DBG_TILE)){
 		printf("dd1[0][0] = %f,  dd1[0][1] = %f\n",dd1[0][0],dd1[0][1]);
 		printf("dd1[1][0] = %f,  dd1[1][1] = %f\n",dd1[1][0],dd1[1][1]);
@@ -622,7 +629,7 @@ extern "C" __global__ void get_tiles_offsets(
 	disp_dist[2] =    s_dist * scale_distortXrot2Xdd1[0][0] + c_dist * scale_distortXrot2Xdd1[1][0];
 	disp_dist[3] =    s_dist * scale_distortXrot2Xdd1[0][1] + c_dist * scale_distortXrot2Xdd1[1][1];
 
-#ifdef DEBUG21
+#ifdef DEBUG210
 	if ((ncam == DBG_CAM)  && (task_num == DBG_TILE)){
 		printf("scale_distortXrot2Xdd1[0][0] = %f,  scale_distortXrot2Xdd1[0][1] = %f\n",scale_distortXrot2Xdd1[0][0],scale_distortXrot2Xdd1[0][1]);
 		printf("scale_distortXrot2Xdd1[1][0] = %f,  scale_distortXrot2Xdd1[1][1] = %f\n",scale_distortXrot2Xdd1[1][0],scale_distortXrot2Xdd1[1][1]);
@@ -654,7 +661,7 @@ extern "C" __global__ void get_tiles_offsets(
 				dpYci_dtilt * extrinsic_corr.imu_rot[0] +
 				dpYci_dazimuth * extrinsic_corr.imu_rot[1] +
 				dpYci_droll * extrinsic_corr.imu_rot[2]);
-#ifdef DEBUG21
+#ifdef DEBUG210
 		if ((ncam == DBG_CAM)  && (task_num == DBG_TILE)){
 			printf("delta_t = %f,  ers_Xci = %f,  ers_Yci = %f\n", delta_t, ers_Xci, ers_Yci);
 		}
@@ -677,7 +684,7 @@ extern "C" __global__ void get_tiles_offsets(
 			pXY[0] +=  ers_Xci * rD2rND; // added correction to pixel X
 			pXY[1] +=  ers_Yci * rD2rND; // added correction to pixel Y
 
-#ifdef DEBUG21
+#ifdef DEBUG210
 	if ((ncam == DBG_CAM)  && (task_num == DBG_TILE)){
 		printf("k = %f,  wdisparity = %f,  dwdisp_dz = %f\n", k, wdisparity, dwdisp_dz);
 		printf("dpXci_pYci_imu_lin[0][0] = %f,  dpXci_pYci_imu_lin[0][2] = %f\n", dpXci_pYci_imu_lin[0][0],dpXci_pYci_imu_lin[0][2]);

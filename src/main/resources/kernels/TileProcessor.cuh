@@ -2149,7 +2149,8 @@ __global__ void textures_accumulate( // (8,4,1) (N,1,1)
 			(float*) shr.mclt_debayer, // float * mclt_tile,     // debayer // has gaps to align with union !
 			(float*) mclt_tiles,       // float * rbg_tile,      // if not null - original (not-debayered) rbg tile to use for the output
 			(float *) shr1.rgbaw,      // float * rgba,
-			// result
+			// if calc_extra, rbg_tile will be ignored and output generated with blurred (debayered) data. Done so as debayered data is needed
+			// to calculate max_diff_shared
 			calc_extra, // int     calc_extra,    // 1 - calcualate ports_rgb, max_diff
 
 			ports_rgb_shared, // float ports_rgb_shared [NUM_COLORS][NUM_CAMS], // return to system memory (optionally pass null to skip calculation)
@@ -3512,7 +3513,7 @@ __device__ void tile_combine_rgba(
 		float * mclt_tile,     // debayer // has gaps to align with union !
 		float * rbg_tile,      // if not null - original (not-debayered) rbg tile to use for the output
 		float * rgba,          // result
-		int     calc_extra,    // 1 - calcualate ports_rgb, max_diff
+		int     calc_extra,    // 1 - calculate ports_rgb, max_diff (if not null - will ignore rbg_tile !)
 		float ports_rgb_shared [NUM_COLORS][NUM_CAMS], // return to system memory (optionally pass null to skip calculation)
 		float max_diff_shared  [NUM_CAMS], // return to system memory (optionally pass null to skip calculation)
 		float max_diff_tmp     [NUM_CAMS][TEXTURE_THREADS_PER_TILE],
@@ -3846,7 +3847,7 @@ __device__ void tile_combine_rgba(
 
 #endif // #ifdef DEBUG9
 		///
-		if (rbg_tile) {
+		if (rbg_tile && (calc_extra == 0)) { // will keep debayered if (calc_extra == 0)
 			float k = 0.0;
 			int rbga_offset = colors * (DTT_SIZE2*DTT_SIZE21); // padded in union !
 #pragma unroll
@@ -3923,12 +3924,12 @@ __device__ void tile_combine_rgba(
 			int row = (pass >> 1);
 			int col = ((pass & 1) << 3) + threadIdx.x;
 			int i = row * DTT_SIZE21 + col;
-			int row_sym = row ^ ((row & 8)? 0xf : 0);
-			int col_sym = col ^ ((col & 8)? 0xf : 0);
+///			int row_sym = row ^ ((row & 8)? 0xf : 0);
+///			int col_sym = col ^ ((col & 8)? 0xf : 0);
 
 			// Was it a bug?
 //			float wnd2 = HWINDOW_SQ[row_sym] * HWINDOW_SQi[col_sym];
-			float wnd2 = HWINDOW_SQ[row_sym] * HWINDOW_SQ[col_sym];
+///			float wnd2 = HWINDOW_SQ[row_sym] * HWINDOW_SQ[col_sym];
 			float * mclt_cam_i = mclt_tile +  colors_offset * cam + i;
 //			float * mclt_cam_i = rbg_tile +   colors_offset * cam + i;
 			//
@@ -3939,7 +3940,7 @@ __device__ void tile_combine_rgba(
 				float dc = *(mclt_cam_i + (DTT_SIZE2*(DTT_SIZE21 + 1)) * ncol) - *(rgba + (DTT_SIZE2*DTT_SIZE21) * ncol + i);
 				d2 += *(chn_weights + ncol) * dc * dc;
 			}
-//			d2 *= wnd2;
+///			d2 *= wnd2;
 			max_diff_tmp[cam][threadIdx.x] = fmaxf(max_diff_tmp[cam][threadIdx.x], d2);
 		}
 		__syncthreads();
@@ -3959,8 +3960,29 @@ __device__ void tile_combine_rgba(
 			for (int i = 0; i < TEXTURE_THREADS_PER_TILE; i++){
 				printf("tmp[%d] %f %f %f %f\n",i, max_diff_tmp[0][i],max_diff_tmp[1][i],max_diff_tmp[2][i],max_diff_tmp[3][i]);
 			}
+			for (int ncol = 0; ncol < colors; ncol++){
+				printf("\n average for color %d\n",ncol);
+				debug_print_mclt(
+						rgba + (DTT_SIZE2*DTT_SIZE21) * ncol,
+						-1);
+				for (int ncam = 0; ncam < NUM_CAMS;ncam ++){
+					printf("\n mclt for color %d, camera %d\n",ncol,ncam);
+					debug_print_mclt(
+							mclt_tile +  (DTT_SIZE2*(DTT_SIZE21 + 1)) * ncol +  colors_offset * ncam,
+							-1);
+#if 0
+					printf("\n rgb_tile for color %d, camera %d\n",ncol,ncam);
+					if (rgb_tile) {
+						debug_print_mclt(
+								rbg_tile +  (DTT_SIZE2*(DTT_SIZE21 + 1)) * ncol +  colors_offset * ncam,
+								-1);
+					}
+#endif
+				}
+			}
 		}
 		__syncthreads();// __syncwarp();
+
 #endif // #ifdef DEBUG22
 	}
 	if (calc_extra) {

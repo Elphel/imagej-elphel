@@ -116,7 +116,7 @@ public class GPUTileProcessor {
 	static int        THREADSX =                  DTT_SIZE;
 	public static int NUM_CAMS =                  4;
 	public static int NUM_PAIRS =                 6; // top hor, bottom hor, left vert, right vert, main diagonal, other diagonal
-	static int        NUM_COLORS =                3;
+	public static int NUM_COLORS =                3;
 	public static int IMG_WIDTH =              2592;
 	public static int IMG_HEIGHT =             1936;
 	static int        KERNELS_HOR =             164;
