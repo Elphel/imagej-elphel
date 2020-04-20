@@ -198,8 +198,8 @@ public class GPUTileProcessor {
     private CUdeviceptr gpu_texture_indices_len = new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.FLOAT
     private CUdeviceptr gpu_diff_rgb_combo =      new CUdeviceptr(); //  1 int
 
-//    private CUdeviceptr gpu_port_offsets =        new CUdeviceptr(); //  allocate Quad * 2 * Sizeof.FLOAT
-    private CUdeviceptr gpu_color_weights =       new CUdeviceptr(); //  allocate Quad * 2 * Sizeof.FLOAT
+    private CUdeviceptr gpu_color_weights =       new CUdeviceptr(); //  allocate 3 * Sizeof.FLOAT
+    private CUdeviceptr gpu_generate_RBGA_params =new CUdeviceptr(); //  allocate 5 * Sizeof.FLOAT
 
     private CUdeviceptr gpu_woi =                 new CUdeviceptr(); //  4 integers (x, y, width, height) Rectangle - in tiles
     private CUdeviceptr gpu_textures_rgba =       new CUdeviceptr(); //  allocate tilesX * tilesY * ? * 256 * Sizeof.FLOAT
@@ -570,8 +570,8 @@ public class GPUTileProcessor {
 
     	cuMemAlloc(gpu_diff_rgb_combo, tilesX * tilesYa * NUM_CAMS* (NUM_COLORS + 1) *  Sizeof.FLOAT);
 
-//    	cuMemAlloc(gpu_port_offsets,   NUM_CAMS * 2 * Sizeof.FLOAT);
     	cuMemAlloc(gpu_color_weights,             3 * Sizeof.FLOAT);
+    	cuMemAlloc(gpu_generate_RBGA_params,      5 * Sizeof.FLOAT);
 
 
     	cuMemAlloc(gpu_woi,                               4 * Sizeof.FLOAT);
@@ -1268,6 +1268,15 @@ public class GPUTileProcessor {
     	fcolor_weights[2] = (num_colors >2)?((float) color_weights[2]):0.0f;
         cuMemcpyHtoD(gpu_color_weights, Pointer.to(fcolor_weights),  fcolor_weights.length * Sizeof.FLOAT);
 
+        float [] generate_RBGA_params = {
+    			(float)             min_shot,           // 10.0
+    			(float)             scale_shot,         // 3.0
+    			(float)             diff_sigma,         // pixel value/pixel change
+    			(float)             diff_threshold,     // pixel value/pixel change
+    			(float)             min_agree          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+    	};
+        cuMemcpyHtoD(gpu_generate_RBGA_params, Pointer.to(generate_RBGA_params),  generate_RBGA_params.length * Sizeof.FLOAT);
+
     	int iis_lwir =      (is_lwir)? 1:0;
     	int idust_remove =  (dust_remove)? 1 : 0;
 
@@ -1290,18 +1299,17 @@ public class GPUTileProcessor {
         		Pointer.to(gpu_geometry_correction),             //	struct gc          * gpu_geometry_correction,
 	            Pointer.to(new int[]   {num_colors}),            // int               colors,             // number of colors (3/1)
 	            Pointer.to(new int[]   {iis_lwir}),              // int               is_lwir,            // do not perform shot correction
-	            Pointer.to(new float[] {(float) min_shot}),      // float             min_shot,           // 10.0
-	            Pointer.to(new float[] {(float) scale_shot}),    // float             scale_shot,         // 3.0
-	            Pointer.to(new float[] {(float) diff_sigma}),    // float             diff_sigma,         // pixel value/pixel change
-	            Pointer.to(new float[] {(float) diff_threshold}),// float             diff_threshold,     // pixel value/pixel change
-	            Pointer.to(new float[] {(float) min_agree}),     // float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+	            Pointer.to(gpu_generate_RBGA_params),            // float             generate_RBGA_params[5],
+//	            Pointer.to(new float[] {(float) min_shot}),      // float             min_shot,           // 10.0
+//	            Pointer.to(new float[] {(float) scale_shot}),    // float             scale_shot,         // 3.0
+//	            Pointer.to(new float[] {(float) diff_sigma}),    // float             diff_sigma,         // pixel value/pixel change
+//	            Pointer.to(new float[] {(float) diff_threshold}),// float             diff_threshold,     // pixel value/pixel change
+//	            Pointer.to(new float[] {(float) min_agree}),     // float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 	            Pointer.to(gpu_color_weights),                   // float             weights[3],         // scale for R,B,G
 	            Pointer.to(new int[]   { idust_remove }),        // int               dust_remove,        // Do not reduce average weight when only one image differes much from the average
 	            Pointer.to(new int[]   {0}),                     // int               keep_weights,       // return channel weights after A in RGBA
 	            Pointer.to(new int[]   { texture_stride_rgba }), // const size_t      texture_rbga_stride,     // in floats
-	            Pointer.to(gpu_textures_rgba),                   // float           * gpu_texture_tiles)    // (number of colors +1 + ?)*16*16 rgba texture tiles
-//	            Pointer.to(gpu_diff_rgb_combo));                 // float           * gpu_diff_rgb_combo); // diff[NUM_CAMS], R[NUM_CAMS], B[NUM_CAMS],G[NUM_CAMS]
-	            Pointer.to(new int[]   {0})); // gpu_diff_rgb_combo));                 // float           * gpu_diff_rgb_combo); // diff[NUM_CAMS], R[NUM_CAMS], B[NUM_CAMS],G[NUM_CAMS]
+	            Pointer.to(gpu_textures_rgba));                   // float           * gpu_texture_tiles)    // (number of colors +1 + ?)*16*16 rgba texture tiles
 
     	cuCtxSynchronize();
     	// Call the kernel function
@@ -1313,69 +1321,7 @@ public class GPUTileProcessor {
     	cuCtxSynchronize();
     }
 
-    public void execTextures_old( // old
-    		double [] color_weights,
-    		boolean   is_lwir,
-    		double    min_shot,           // 10.0
-    		double    scale_shot,         // 3.0
-    		double    diff_sigma,         // pixel value/pixel change
-    		double    diff_threshold,     // pixel value/pixel change
-    		double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-    		boolean   dust_remove,
-    		boolean   keep_weights) {
-    	if (GPU_TEXTURES_kernel == null)
-    	{
-    		IJ.showMessage("Error", "No GPU kernel: GPU_TEXTURES_kernel");
-    		return;
-    	}
-
-    	int num_colors = color_weights.length;
-    	if (num_colors > 3) num_colors = 3;
-    	float [] fcolor_weights = new float[3];
-    	fcolor_weights[0] = (float) color_weights[0];
-    	fcolor_weights[1] = (num_colors >1)?((float) color_weights[1]):0.0f;
-    	fcolor_weights[2] = (num_colors >2)?((float) color_weights[2]):0.0f;
-        cuMemcpyHtoD(gpu_color_weights, Pointer.to(fcolor_weights),  fcolor_weights.length * Sizeof.FLOAT);
-
-    	int iis_lwir =      (is_lwir)? 1:0;
-    	int idust_remove =  (dust_remove)? 1 : 0;
-    	int ikeep_weights = (keep_weights)? 1 : 0;
-
-		int [] GridFullWarps =    {(num_texture_tiles + TEXTURE_TILES_PER_BLOCK-1) / TEXTURE_TILES_PER_BLOCK,1,1};
-    	int [] ThreadsFullWarps = {TEXTURE_THREADS_PER_TILE, NUM_CAMS, 1};
-
-    	Pointer kernelParameters = Pointer.to(
-    			Pointer.to(new int[] {0}), //  int             * woi, - not used
-    			Pointer.to(gpu_clt),
-    			Pointer.to(new int[] { num_texture_tiles }),
-    			Pointer.to(gpu_texture_indices),
-        		Pointer.to(gpu_geometry_correction),     //	struct gc          * gpu_geometry_correction,
-    			Pointer.to(new int[] { num_colors }),
-    			Pointer.to(new int[] { iis_lwir }),
-    			Pointer.to(new float[] {(float) min_shot }),
-    			Pointer.to(new float[] {(float) scale_shot }),
-    			Pointer.to(new float[] {(float) diff_sigma }),
-    			Pointer.to(new float[] {(float) diff_threshold }),
-    			Pointer.to(new float[] {(float) min_agree }),
-	            Pointer.to(gpu_color_weights),                   // float             weights[3],         // scale for R,B,G
-    			Pointer.to(new int[] { idust_remove }),
-    			Pointer.to(new int[] { ikeep_weights }),
-    			Pointer.to(new int[] {0}),//  0, // const size_t      texture_rbg_stride, // in floats - DISABLE GENERATION!
-    			Pointer.to(new int[] {0}), // null, //  new Pointer(),  //Pointer.to(gpu_textures), // new Pointer(),  // Pointer.to(gpu_textures),
-    			Pointer.to(new int[] { texture_stride }), // can be a null pointer - will not be used! float           * gpu_texture_rbg,     // (number of colors +1 + ?)*16*16 rgba texture tiles
-    			Pointer.to(gpu_textures),
-	            Pointer.to(gpu_diff_rgb_combo));                 // float           * gpu_diff_rgb_combo); // diff[NUM_CAMS], R[NUM_CAMS], B[NUM_CAMS],G[NUM_CAMS]
-    	cuCtxSynchronize();
-    	// Call the kernel function
-    	cuLaunchKernel(GPU_TEXTURES_kernel,
-    			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
-    			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
-    			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
-    			kernelParameters, null);   // Kernel- and extra parameters
-    	cuCtxSynchronize();
-    }
-
-    public void execTextures(
+     public void execTextures(
     		double [] color_weights,
     		boolean   is_lwir,
     		double    min_shot,           // 10.0
@@ -1398,6 +1344,15 @@ public class GPUTileProcessor {
     	fcolor_weights[2] = (num_colors >2)?((float) color_weights[2]):0.0f;
         cuMemcpyHtoD(gpu_color_weights, Pointer.to(fcolor_weights),  fcolor_weights.length * Sizeof.FLOAT);
 
+        float [] generate_RBGA_params = {
+    			(float)             min_shot,           // 10.0
+    			(float)             scale_shot,         // 3.0
+    			(float)             diff_sigma,         // pixel value/pixel change
+    			(float)             diff_threshold,     // pixel value/pixel change
+    			(float)             min_agree           // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+    	};
+        cuMemcpyHtoD(gpu_generate_RBGA_params, Pointer.to(generate_RBGA_params),  generate_RBGA_params.length * Sizeof.FLOAT);
+
     	int iis_lwir =      (is_lwir)? 1:0;
     	int idust_remove =  (dust_remove)? 1 : 0;
 
@@ -1415,11 +1370,12 @@ public class GPUTileProcessor {
         		Pointer.to(gpu_geometry_correction),             //	struct gc          * gpu_geometry_correction,
     			Pointer.to(new int[] { num_colors }),
     			Pointer.to(new int[] { iis_lwir }),
-    			Pointer.to(new float[] {(float) min_shot }),
-    			Pointer.to(new float[] {(float) scale_shot }),
-    			Pointer.to(new float[] {(float) diff_sigma }),
-    			Pointer.to(new float[] {(float) diff_threshold }),
-    			Pointer.to(new float[] {(float) min_agree }),
+	            Pointer.to(gpu_generate_RBGA_params),            // float             generate_RBGA_params[5],
+//	            Pointer.to(new float[] {(float) min_shot}),      // float             min_shot,           // 10.0
+//	            Pointer.to(new float[] {(float) scale_shot}),    // float             scale_shot,         // 3.0
+//	            Pointer.to(new float[] {(float) diff_sigma}),    // float             diff_sigma,         // pixel value/pixel change
+//	            Pointer.to(new float[] {(float) diff_threshold}),// float             diff_threshold,     // pixel value/pixel change
+//	            Pointer.to(new float[] {(float) min_agree}),     // float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 	            Pointer.to(gpu_color_weights),                   // float             weights[3],         // scale for R,B,G
     			Pointer.to(new int[] { idust_remove }),
 //    			Pointer.to(new int[] { 0}), // texture_stride }),        // can be a null pointer - will not be used! float           * gpu_texture_rbg,     // (number of colors +1 + ?)*16*16 rgba texture tiles

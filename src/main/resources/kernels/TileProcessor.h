@@ -86,11 +86,12 @@ extern "C" __global__ void textures_nonoverlap(
 		struct gc       * gpu_geometry_correction,
 		int               colors,             // number of colors (3/1)
 		int               is_lwir,            // do not perform shot correction
-		float             min_shot,           // 10.0
-		float             scale_shot,         // 3.0
-		float             diff_sigma,         // pixel value/pixel change
-		float             diff_threshold,     // pixel value/pixel change
-		float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+		float             params[5],
+//		float             min_shot,           // 10.0
+//		float             scale_shot,         // 3.0
+//		float             diff_sigma,         // pixel value/pixel change
+//		float             diff_threshold,     // pixel value/pixel change
+//		float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 		float             weights[3],         // scale for R,B,G
 		int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
 //		int               keep_weights,       // return channel weights after A in RGBA (was removed) (should be 0 if gpu_texture_rbg)?
@@ -120,7 +121,7 @@ extern "C" __global__ void imclt_rbg(
 		int               woi_twidth,
 		int               woi_theight,
 		const size_t      dstride);            // in floats (pixels)
-/*
+
 extern "C" __global__ void generate_RBGA(
 		// Parameters to generate texture tasks
 		struct tp_task   * gpu_tasks,
@@ -135,19 +136,19 @@ extern "C" __global__ void generate_RBGA(
 		float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 		// TODO: use geometry_correction rXY !
 		struct gc       * gpu_geometry_correction,
-		float           * gpu_port_offsets,       // relative ports x,y offsets - just to scale differences, may be approximate
 		int               colors,             // number of colors (3/1)
 		int               is_lwir,            // do not perform shot correction
-		float             min_shot,           // 10.0
-		float             scale_shot,         // 3.0
-		float             diff_sigma,         // pixel value/pixel change
-		float             diff_threshold,     // pixel value/pixel change
-		float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-		float             weight0,            // scale for R
-		float             weight1,            // scale for B
-		float             weight2,            // scale for G
+		float             params[5],          // mitigating CUDA_ERROR_INVALID_PTX
+		/*
+			float             min_shot,           // 10.0
+			float             scale_shot,         // 3.0
+			float             diff_sigma,         // pixel value/pixel change
+			float             diff_threshold,     // pixel value/pixel change
+			float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+		 */
+		float             weights[3],         // scale for R,B,G
 		int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
 		int               keep_weights,       // return channel weights after A in RGBA (was removed)
 		const size_t      texture_rbga_stride,     // in floats
 		float           * gpu_texture_tiles);  // (number of colors +1 + ?)*16*16 rgba texture tiles
-*/
+
