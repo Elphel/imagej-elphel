@@ -131,7 +131,6 @@ extern "C" __global__ void calc_rot_deriv(
 		struct corr_vector * gpu_correction_vector,
 		trot_deriv   * gpu_rot_deriv)
 {
-//	__shared__ float zoom;
 	__shared__ float sincos  [4][2];    // {az,tilt,roll, d_az, d_tilt, d_roll, d_az}{cos,sin}
 	__shared__ float matrices[5 + 7 +4][3][3];
 	float angle;

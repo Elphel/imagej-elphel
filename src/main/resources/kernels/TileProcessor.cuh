@@ -34,7 +34,6 @@
 **************************************************************************
 * \file TileProcessor.cuh
 * \brief Top level of the Tile Processor for frequency domain
-
 */
 // Avoiding includes in jcuda, all source files will be merged
 #pragma once
@@ -106,10 +105,11 @@ GPU run time =523.451927ms, (direct conversion: 24.080189999999998ms, imclt: 17.
 #define TILESY        (IMG_HEIGHT / DTT_SIZE)
 #define CONVERT_DIRECT_INDEXING_THREADS_LOG2 5
 #define CONVERT_DIRECT_INDEXING_THREADS (1 << CONVERT_DIRECT_INDEXING_THREADS_LOG2) // 32
+
 // Make TILESYA >= TILESX and a multiple of 4
 #define TILESYA       ((TILESY +3) & (~3))
-// increase row length by 1 so vertical passes will use different ports
 
+// increase row length by 1 so vertical passes will use different ports
 #define MCLT_UNION_LEN   (DTT_SIZE2 * (DTT_SIZE2 + 2))
 
 struct CltExtra{
@@ -122,6 +122,7 @@ struct CltExtra{
 	float dyc_dx;
 	float dyc_dy;
 };
+
 /*
  Python code to generate constant coefficients:
 def setup_hwindow(n=8, l=4):
@@ -319,11 +320,7 @@ def printAlphaFade(transform_size):
             print("};")
         else:
             print(",")
-
-
 printAlphaFade(8)
-
-
 """
 */
 
@@ -345,11 +342,7 @@ __constant__ int fold_indx2[2][16] = {{0x24,0x25,0x26,0x27,0x27,0x26,0x25,0x24,0
 // addd to the current index and result should be AND-ed with 0x3f. inc_e is for even rows (0,2, ...) while inc_o - for odd ones (1,3,)
 __constant__ int fold_inc[]=          {0x02feee12, 0x021eeef2};
 
-//__constant__ int imclt_indx[16] = {0x24,0x2c,0x34,0x3c,0x3c,0x34,0x2c,0x24,0x1c,0x22,0x21,0x20,0x20,0x21,0x22,0x23};
-//__constant__ int imclt_indx9[16] = {0x28,0x31,0x3a,0x43,0x43,0x3a,0x31,0x28,0x1f,0x16,0x0d,0x04,0x04,0x0d,0x16,0x1f};
-
 // LPF for sigma 0.9 each color (modify through cudaMemcpyToSymbol() or similar in Driver API
-//#ifndef NOICLT
 __constant__ float lpf_data[4][64]={
 		{ // red
 				1.00000000f, 0.87041007f, 0.65943687f, 0.43487258f, 0.24970076f, 0.12518080f, 0.05616371f, 0.02728573f,
@@ -420,6 +413,7 @@ __constant__ int pairs[6][2]={
 		{2, 1}};
 
 __constant__ int alphaIndex[16] = {0, 1, 2, 5, 3, 0, 6, 0, 4, 7, 0, 0, 8, 0, 0, 0};
+
 __constant__ float alphaFade[9][256] = {
     {1.000000f, 1.000000f, 1.000000f, 1.000000f, 1.000000f, 1.000000f, 1.000000f, 1.000000f,
      1.000000f, 1.000000f, 1.000000f, 1.000000f, 1.000000f, 1.000000f, 1.000000f, 1.000000f,
@@ -710,7 +704,6 @@ __constant__ float alphaFade[9][256] = {
      0.997592f, 0.997592f, 0.997592f, 0.997592f, 0.997592f, 0.997592f, 0.997592f, 0.997592f,
      0.997592f, 0.997592f, 0.997592f, 0.997592f, 0.997592f, 0.997592f, 0.997592f, 0.997592f}};
 
-//#endif
 __device__ void convertCorrectTile(
 		struct CltExtra     * gpu_kernel_offsets, // [tileY][tileX][color]
 		float               * gpu_kernels,        // [tileY][tileX][color]
@@ -741,48 +734,53 @@ __device__ void debug_print_clt1(
 		float * clt_tile, //         [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
 		const int color,
 		int mask);
+
 __device__ void debug_print_clt_scaled(
 		float * clt_tile, //         [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
 		const int color,
 		int mask,
 		float scale); // scale printed results
+
 __device__ void debug_print_mclt(
 		float * mclt_tile, //         [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
 		const int color);
+
 __device__ void debug_print_corr_15x15(
 		int     corr_radius,
 		float * mclt_tile, //DTT_SIZE2M1 x DTT_SIZE2M1
 		const int color);
-// Fractional pixel shift (phase rotation), horizontal. In-place.
+
 __device__ void shiftTileHor( // implemented, used
 		float * clt_tile, //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
 		float residual_shift                         );
-// Fractional pixel shift (phase rotation), vertical. In-place.
+
 __device__ void shiftTileVert( // implemented, used
 		float *clt_tile, //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
 		float residual_shift                         );
+
 __device__ void convolveTiles( // implemented, used
 		float* clt_tile, //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
 		float* kernel); //      [4][DTT_SIZE][DTT_SIZE1]) // 4 quadrants of the CLT kernel (DTT3 converted)
+
 __device__ void correlateAccumulateTiles(
 		float  scale,      //    scale correlation
 		float* clt_tile1,  //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data 1, rows extended to optimize shared ports
 		float* clt_tile2,  //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data 2, rows extended to optimize shared ports
 		float* corr_tile); //    [4][DTT_SIZE][DTT_SIZE1]) // 4 quadrants of the correlation result
+
 __device__ void resetCorrelation(
 		float* corr_tile); //    [4][DTT_SIZE][DTT_SIZE1]) // 4 quadrants of the correlation result
+
 __device__ void normalizeTileAmplitude(
 		float * clt_tile, //       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
 		float fat_zero);  // fat zero is absolute, scale it outside
 
-//__device__ void imclt(  // for 16 threads implemented, used // why is it twice?
-//		float * clt_tile,   //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports [4][8][9]
-//		float * mclt_tile ); //           [2* DTT_SIZE][DTT_SIZE1+ DTT_SIZE], // +1 to alternate column ports[16][17]
 __device__ void imclt8threads(// for 8 threads
 		int     do_acc,     // 1 - add to previous value, 0 - overwrite
 		float * clt_tile,   //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports [4][8][9]
 		float * mclt_tile,  //           [2* DTT_SIZE][DTT_SIZE1+ DTT_SIZE], // +1 to alternate column ports[16][17]
 		int debug);
+
 __device__ void debayer(
 		const int rb_mode,   // 0 - green, 1 - r/b
 		float * mclt_src,  // [2* DTT_SIZE][DTT_SIZE1+ DTT_SIZE], // +1 to alternate column ports[16][17]
@@ -797,23 +795,7 @@ __device__ void debayer_shot(
 		float   * mclt_dst,  // [2* DTT_SIZE][DTT_SIZE1+ DTT_SIZE], // +1 to alternate column ports[16][17]
 		float   * mclt_tmp,
 		int       debug);
-/*
-__device__ void tile_combine_rgba(
-		int     colors,        // number of colors
-		float * mclt_tile,     // debayer
-		float * rbg_tile,      // if not null - original (not-debayered) rbg tile to use for the output
-		float * rgba,          // result
-		float * ports_rgb,     // average values of R,G,B for each camera (R0,R1,...,B2,B3) // null
-		float * max_diff,      // maximal (weighted) deviation of each channel from the average /null
-		float * port_offsets,  // [port]{x_off, y_off} - just to scale pixel value differences
-		float   diff_sigma,     // pixel value/pixel change
-		float   diff_threshold, // pixel value/pixel change
-		float   min_agree,      // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-		float * chn_weights,     // color channel weights, sum == 1.0
-		int     dust_remove,     // Do not reduce average weight when only one image differes much from the average
-		int     keep_weights,   // return channel weights after A in RGBA - ALWAYS
-		int     debug);
-*/
+
 __device__ void tile_combine_rgba(
 		int     colors,        // number of colors
 		float * mclt_tile,     // debayer // has gaps to align with union !
@@ -842,24 +824,22 @@ __device__ void imclt_plane( // not implemented, not used
 		float           * gpu_rbg,            // WIDTH, HEIGHT
 		const size_t      dstride);            // in floats (pixels)
 
-//extern "C"
 __global__ void clear_texture_list(
 		int              * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
 		int                width,  // <= TILESX, use for faster processing of LWIR images
 		int                height); // <= TILESY, use for faster processing of LWIR images
 
-//extern "C"
 __global__ void mark_texture_tiles(
 		struct tp_task   * gpu_tasks,
 		int                num_tiles,            // number of tiles in task list
 		int              * gpu_texture_indices); // packed tile + bits (now only (1 << 7)
-//extern "C"
+
 __global__ void mark_texture_neighbor_tiles(
 		struct tp_task   * gpu_tasks,
 		int                num_tiles,           // number of tiles in task list
 		int              * gpu_texture_indices, // packed tile + bits (now only (1 << 7)
 		int              * woi);                // x,y,width,height of the woi
-//extern "C"
+
 __global__ void gen_texture_list(
 		struct tp_task   * gpu_tasks,
 		int                num_tiles,           // number of tiles in task list
@@ -867,14 +847,12 @@ __global__ void gen_texture_list(
 		int              * num_texture_tiles,  // number of texture tiles to process
 		int              * woi);                // x,y,width,height of the woi
 
-//extern "C"
 __global__ void clear_texture_rbga(
 		int               texture_width,
 		int               texture_slice_height,
 		const size_t      texture_rbga_stride,     // in floats 8*stride
 		float           * gpu_texture_tiles);  // (number of colors +1 + ?)*16*16 rgba texture tiles
 
-//extern "C"
 __global__ void index_direct(
 		struct tp_task   * gpu_tasks,
 		int                num_tiles,          // number of tiles in task
@@ -886,12 +864,13 @@ __global__ void index_correlate(
 		int                num_tiles,         // number of tiles in task
 		int *              gpu_corr_indices,  // array of correlation tasks
 		int *              pnum_corr_tiles);  // pointer to the length of correlation tasks array
+
 __global__ void create_nonoverlap_list(
 		struct tp_task   * gpu_tasks,
 		int                num_tiles,           // number of tiles in task
 		int *              nonoverlap_list,     // pointer to the calculated number of non-zero tiles
 		int *              pnonoverlap_length);  //  indices to gpu_tasks  // should be initialized to zero
-//extern "C"
+
 __global__ void convert_correct_tiles(
 		float           ** gpu_kernel_offsets, // [NUM_CAMS],
 		float           ** gpu_kernels,        // [NUM_CAMS],
@@ -947,6 +926,24 @@ extern "C" __global__ void textures_accumulate(
 
 // ====== end of local declarations ====
 
+/**
+ * Calculate  2D phase correlation pairs from CLT representation. This is an outer kernel that calls other
+ * ones with CDP, this one should be configured as correlate2D<<<1,1>>>
+ *
+ * @param gpu_clt          array of NUM_CAMS pointers to the CLT (frequency domain) data [TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+ * @param colors           number of colors used:  3 for RGB or 1 for monochrome
+ * @param scale0           scale red (or mono) component before mixing
+ * @param scale1           scale blue (if colors = 3) component before mixing
+ * @param scale2           scale green (if colors = 3) component before mixing
+ * @param fat_zero         add this value squared to the sum of squared components before normalization
+ * @param gpu_tasks        array of per-tile tasks (now bits 4..9 - correlation pairs)
+ * @param num_tiles        number of tiles int gpu_tasks array prepared for processing
+ * @param gpu_corr_indices allocated array for per-tile correlation tasks (4 bytes per tile)
+ * @param pnum_corr_tiles  allocated space for pointer to a number of number of correlation tiles to process
+ * @param corr_stride,     stride (in floats) for correlation outputs.
+ * @param corr_radius,     radius of the output correlation (maximal 7 for 15x15)
+ * @param gpu_corrs)       allocated array for the correlation output data (each element stride, payload: (2*corr_radius+1)^2
+ */
 extern "C" __global__ void correlate2D(
 		float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 		int               colors,             // number of colors (3/1)
@@ -989,6 +986,22 @@ extern "C" __global__ void correlate2D(
 	 }
 }
 
+/**
+ * Calculate  2D phase correlation pairs from CLT representation. This is an inner kernel that is called
+ * from correlate2D. If called from the CPU: <<<ceil(number_of_tiles/32),32>>>
+ *
+ * @param gpu_clt          array of NUM_CAMS pointers to the CLT (frequency domain) data [TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+ * @param colors           number of colors used:  3 for RGB or 1 for monochrome
+ * @param scale0           scale red (or mono) component before mixing
+ * @param scale1           scale blue (if colors = 3) component before mixing
+ * @param scale2           scale green (if colors = 3) component before mixing
+ * @param fat_zero         add this value squared to the sum of squared components before normalization
+ * @param num_corr_tiles   number of correlation tiles to process
+ * @param gpu_corr_indices packed array (each element, integer contains tile+pair) of correlation tasks
+ * @param corr_stride,     stride (in floats) for correlation outputs.
+ * @param corr_radius,     radius of the output correlation (maximal 7 for 15x15)
+ * @param gpu_corrs)       allocated array for the correlation output data (each element stride, payload: (2*corr_radius+1)^2
+ */
 extern "C" __global__ void correlate2D_inner(
 		float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 		int               colors,             // number of colors (3/1)
@@ -1002,8 +1015,6 @@ extern "C" __global__ void correlate2D_inner(
 		int               corr_radius,        // radius of the output correlation (7 for 15x15)
 		float           * gpu_corrs)          // correlation output data
 {
-///	int thr3 =        threadIdx.x >> 3; // now zero?
-///	int column =      threadIdx.x; // modify to use 2 * 8 threads, if needed.
 	float scales[3] = {scale0, scale1, scale2};
 	int corr_in_block = threadIdx.y;
 	int corr_num = blockIdx.x * CORR_TILES_PER_BLOCK + corr_in_block;
@@ -1213,10 +1224,41 @@ extern "C" __global__ void correlate2D_inner(
      __syncthreads();// __syncwarp();
 #endif
 #endif
-
 }
-#define USE_CDP
-#ifdef USE_CDP
+
+/**
+ * Calculate texture as RGBA (or YA for mono) from the in-memory frequency domain representation
+ * and the per-tile task array (may be sparse).
+ * Determines WoI from min/max Y,X of the selected tiles, returns calculated WoI in woi parameter
+ * color is the outer index of the result, the image is moved to the top-left corner
+ * (woi.x -> 0, woi.y -> 0, packed texture_rbga_stride per line, number of output lines per slice
+ * is woi.height.
+ *
+ * This kernel launches others with CDP, from CPU it is just <<<1,1>>>
+ *
+ * @param gpu_tasks            array of per-tile tasks (struct tp_task)
+ * @param num_tiles            number of tiles int gpu_tasks array prepared for processing
+ * @param gpu_texture_indices  allocated array - 1 integer per tile to process
+ * @param num_texture_tiles    allocated array - 8 integers (may be reduced to 4 later)
+ * @param woi                  WoI for the output texture (x,y,width,height of the woi)
+ * @param width                full image width in tiles <= TILESX, use for faster processing of LWIR images (should be actual + 1)
+ * @param height               full image height in tiles <= TILESY, use for faster processing of LWIR images
+ * @param gpu_clt              array of NUM_CAMS pointers to the CLT (frequency domain) data [TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+ * @param gpu_geometry_correction geometry correction structure, used for rXY to determine pairs weight
+ * @param colors               number of colors used:  3 for RGB or 1 for monochrome
+ * @param is_lwir              do not perform shot correction
+ * @param params               array of 5 float parameters (mitigating CUDA_ERROR_INVALID_PTX):
+ *     	  min_shot             shot noise minimal value (10.0)
+ *   	  scale_shot           scale shot noise (3.0)
+ *   	  diff_sigma           pixel value/pixel change (1.5)
+ *   	  diff_threshold       pixel value/pixel change (10)
+ *   	  min_agree            minimal number of channels to agree on a point (real number to work with fuzzy averages) (3.0)
+ * @param weights              scales for R,B,G {0.294118, 0.117647, 0.588235}
+ * @param dust_remove          do not reduce average weight when only one image differs much from the average (true)
+ * @param keep_weights         return channel weights after A in RGBA (was removed)
+ * @param texture_rbga_stride  output stride (in floats)
+ * @param gpu_texture_tiles    output array (number of colors +1 + ?) * woi.height * output stride(first woi.width valid) float values
+ */
 extern "C" __global__ void generate_RBGA(
 		// Parameters to generate texture tasks
 		struct tp_task   * gpu_tasks,
@@ -1234,20 +1276,11 @@ extern "C" __global__ void generate_RBGA(
 		int               colors,             // number of colors (3/1)
 		int               is_lwir,            // do not perform shot correction
 		float             params[5],          // mitigating CUDA_ERROR_INVALID_PTX
-		/*
-			float             min_shot,           // 10.0
-			float             scale_shot,         // 3.0
-			float             diff_sigma,         // pixel value/pixel change
-			float             diff_threshold,     // pixel value/pixel change
-			float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-		 */
 		float             weights[3],         // scale for R,B,G
 		int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
 		int               keep_weights,       // return channel weights after A in RGBA (was removed)
 		const size_t      texture_rbga_stride,     // in floats
 		float           * gpu_texture_tiles)  // (number of colors +1 + ?)*16*16 rgba texture tiles
-//			float             aaaa)
-//			float           * gpu_diff_rgb_combo) // diff[NUM_CAMS], R[NUM_CAMS], B[NUM_CAMS],G[NUM_CAMS]
 {
 	float             min_shot = params[0];           // 10.0
 	float             scale_shot = params[1];         // 3.0
@@ -1255,10 +1288,7 @@ extern "C" __global__ void generate_RBGA(
 	float             diff_threshold = params[3];     // pixel value/pixel change
 	float             min_agree = params[4];          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 
-
-// TODO use atomic_add to increment	num_texture_tiles
-// TODO calculate woi
-dim3 threads0((1 << THREADS_DYNAMIC_BITS), 1, 1);
+	dim3 threads0((1 << THREADS_DYNAMIC_BITS), 1, 1);
     int blocks_x = (width + ((1 << THREADS_DYNAMIC_BITS) - 1)) >> THREADS_DYNAMIC_BITS;
     dim3 blocks0 (blocks_x, height, 1);
 
@@ -1287,14 +1317,6 @@ dim3 threads0((1 << THREADS_DYNAMIC_BITS), 1, 1);
 				num_tiles,           // number of tiles in task list
 				gpu_texture_indices, // packed tile + bits (now only (1 << 7)
 				woi);               // min_x, min_y, max_x, max_y
-// REMOVE when done!
-/*
-		*(woi + 0) -= 1;
-		*(woi + 1) -= 1;
-		*(woi + 2) += 1;
-		*(woi + 3) += 1;
-*/
-
 
 		cudaDeviceSynchronize();
 	    // Generate tile indices list, upper 24 bits - tile index, lower 4 bits: n/e/s/w neighbors, bit 7 - set to 1
@@ -1323,14 +1345,9 @@ dim3 threads0((1 << THREADS_DYNAMIC_BITS), 1, 1);
 // texture_rbga_stride
 	 int texture_width =        (*(woi + 2) + 1)* DTT_SIZE;
 	 int texture_tiles_height = (*(woi + 3) + 1) * DTT_SIZE;
-///	 int texture_height =       texture_tiles_height * DTT_SIZE;
 	 int texture_slices =       colors + 1;
 
 	 if (threadIdx.x == 0) {
-		 //DTT_SIZE_LOG2
-//		    dim3 threads2((1 << THREADS_DYNAMIC_BITS), 1, 1);
-//		    int blocks_x = (texture_width + ((1 << THREADS_DYNAMIC_BITS) - 1)) >> THREADS_DYNAMIC_BITS;
-//		    dim3 blocks2 (blocks_x, texture_tiles_height * texture_slices, 1); // each thread - 8 vertical
 
 		    dim3 threads2((1 << THREADS_DYNAMIC_BITS), 1, 1);
 		    int blocks_x = (texture_width + ((1 << (THREADS_DYNAMIC_BITS + DTT_SIZE_LOG2 )) - 1)) >> (THREADS_DYNAMIC_BITS + DTT_SIZE_LOG2);
@@ -1369,9 +1386,7 @@ dim3 threads0((1 << THREADS_DYNAMIC_BITS), 1, 1);
 						gpu_clt,                         // float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 						ntt,                             // size_t            num_texture_tiles,  // number of texture tiles to process
 						gpu_texture_indices + ti_offset, // int             * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
-//						gpu_port_offsets,                // float           * gpu_port_offsets,       // relative ports x,y offsets - just to scale differences, may be approximate
 						gpu_geometry_correction,         // struct gc       * gpu_geometry_correction,
-//						(float *) gpu_geometry_correction ->pXY0,
 						colors,                          // int               colors,             // number of colors (3/1)
 						is_lwir,                         // int               is_lwir,            // do not perform shot correction
 						min_shot,                        // float             min_shot,           // 10.0
@@ -1395,11 +1410,16 @@ dim3 threads0((1 << THREADS_DYNAMIC_BITS), 1, 1);
 
 	 }
 	 __syncthreads();
-
 }
 
+/**
+ * Helper kernel for generate_RBGA() - zeroes output array (next passes accumulate)
+ * @param  texture_width            texture width in pixels, aligned to DTT_SIZE
+ * @param  texture_slice_height     full number of output rows: texture height in pixels, multiplied by number of color slices
+ * @param  texture_rbga_stride      texture line  stride in floats
+ * @param  gpu_texture_tiles        pointer to the texture output
+ */
 // blockDim.x * gridDim.x >= width
-//extern "C"
 __global__ void clear_texture_rbga(
 		int               texture_width, // aligned to DTT_SIZE
 		int               texture_slice_height,
@@ -1418,27 +1438,29 @@ __global__ void clear_texture_rbga(
 	}
 }
 
-
-
-
 /**
- * prepare list of texture tiles, woi, and calculate orthogonal neighbors for tiles (in 4 bits of the task field
- * use 4x8=32 threads,
+ * Helper kernel for generate_RBGA() -  prepare list of texture tiles, woi, and calculate orthogonal
+ * neighbors for tiles (in 4 bits of the task field. Use 4x8=32 threads,
+ *
+ * @param gpu_tasks            array of per-tile tasks (struct tp_task)
+ * @param num_tiles            number of tiles int gpu_tasks array prepared for processing
+ * @param gpu_texture_indices  allocated array - 1 integer per tile to process
+ * @param num_texture_tiles    number of texture tiles to process (allocated 8-element integer array)
+ * @param woi                  4-element int array ( x,y,width,height of the woi, in tiles)
+ * @param width                full image width in tiles <= TILESX, use for faster processing of LWIR images (should be actual + 1)
+ * @param height               full image height in tiles <= TILESY, use for faster processing of LWIR images
  */
-//extern "C"
 __global__ void prepare_texture_list(
 			struct tp_task   * gpu_tasks,
 			int                num_tiles,          // number of tiles in task list
 			int              * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
 			// modified to have 8 length - split each subsequence into non-border/border tiles. Non-border will grow up,
 			// border - down from the sam3\e 1/4 of the buffer
-			int              * num_texture_tiles,  // number of texture tiles to process  (4 separate elements for accumulation)
+			int              * num_texture_tiles,  // number of texture tiles to process  (8 separate elements for accumulation)
 			int              * woi,                // x,y,width,height of the woi
 			int                width,  // <= TILESX, use for faster processing of LWIR images (should be actual + 1)
 			int                height) // <= TILESY, use for faster processing of LWIR images
 {
-// TODO use atomic_add to increment	num_texture_tiles
-// TODO calculate woi
 //	int task_num = blockIdx.x;
 //	int tid = threadIdx.x; // maybe it will be just <<<1,1>>>
     dim3 threads0((1 << THREADS_DYNAMIC_BITS), 1, 1);
@@ -1497,8 +1519,15 @@ __global__ void prepare_texture_list(
 	 __syncthreads();
 }
 
+/**
+ * Helper kernel for prepare_texture_list() (for generate_RBGA) - clear texture list
+ *
+ * @param gpu_texture_indices  allocated array - 1 integer per tile to process
+ * @param width                full image width in tiles <= TILESX, use for faster processing of LWIR images (should be actual + 1)
+ * @param height               full image height in tiles <= TILESY, use for faster processing of LWIR images
+ */
+
 // blockDim.x * gridDim.x >= width
-//extern "C"
 __global__ void clear_texture_list(
 		int              * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
 		int                width,  // <= TILESX, use for faster processing of LWIR images
@@ -1511,9 +1540,16 @@ __global__ void clear_texture_list(
 	}
 	*(gpu_texture_indices + col + row * TILESX) = 0;
 }
+/**
+ * Helper kernel for prepare_texture_list() (for generate_RBGA) - mark used tiles in
+ * gpu_texture_indices memory
+ *
+ * @param gpu_tasks            array of per-tile tasks (struct tp_task)
+ * @param num_tiles            number of tiles int gpu_tasks array prepared for processing
+ * @param gpu_texture_indices  allocated array - 1 integer per tile to process
+ */
 
 // treads (*,1,1), blocks = (*,1,1)
-//extern "C"
 __global__ void mark_texture_tiles(
 		struct tp_task   * gpu_tasks,
 		int                num_tiles,           // number of tiles in task list
@@ -1531,10 +1567,18 @@ __global__ void mark_texture_tiles(
 	*(gpu_texture_indices + (cxy & 0xffff) + (cxy >> 16) * TILESX) = 1;
 }
 
-
+/**
+ * Helper kernel for prepare_texture_list() (for generate_RBGA) - calculate and save
+ * bitmap of available neighbors in 4 directions (needed for alpha generation of
+ * the result textures to fade along the border.
+ *
+ * @param gpu_tasks            array of per-tile tasks (struct tp_task)
+ * @param num_tiles            number of tiles int gpu_tasks array prepared for processing
+ * @param gpu_texture_indices  allocated array - 1 integer per tile to process
+ * @param woi                  4-element int array ( x,y,width,height of the woi, in tiles)
+ */
 // treads (*,1,1), blocks = (*,1,1)
-//extern "C"
-__global__ void mark_texture_neighbor_tiles(
+__global__ void mark_texture_neighbor_tiles( // TODO: remove __global__?
 		struct tp_task   * gpu_tasks,
 		int                num_tiles,           // number of tiles in task list
 		int              * gpu_texture_indices, // packed tile + bits (now only (1 << 7)
@@ -1545,13 +1589,10 @@ __global__ void mark_texture_neighbor_tiles(
 	if (task_num >= num_tiles) {
 		return; // nothing to do
 	}
-//	struct tp_task  * gpu_task = &gpu_tasks[task_num];
-//	int task = gpu_task->task;
 	int task = gpu_tasks[task_num].task;
 	if (!(task & TASK_TEXTURE_BITS)){ // here any bit in TASK_TEXTURE_BITS is sufficient
 		return; // NOP tile
 	}
-//	int cxy = gpu_task->txy;
 	int cxy = gpu_tasks[task_num].txy;
 	int x = (cxy & 0xffff);
 	int y = (cxy >> 16);
@@ -1567,7 +1608,19 @@ __global__ void mark_texture_neighbor_tiles(
 	gpu_tasks[task_num].task = ((task ^ d) & TASK_TEXTURE_BITS) ^ task;
 }
 
-//extern "C"
+/**
+ * Helper kernel for prepare_texture_list() (for generate_RBGA) - generate
+ * list of tiles for texture calculation. As the tiles overlap, there are four lists
+ * of non-overlapping tiles (odd/even rows/columns). At first made 8 lists, with pairs of
+ * growing up and down for inner and border tiles, but now border attribute is not
+ * used anymore.
+ *
+ * @param gpu_tasks            array of per-tile tasks (struct tp_task)
+ * @param num_tiles            number of tiles int gpu_tasks array prepared for processing
+ * @param gpu_texture_indices  allocated array - 1 integer per tile to process
+ * @param num_texture_tiles    number of texture tiles to process (allocated 8-element integer array)
+ * @param woi                  4-element int array ( x,y,width,height of the woi, in tiles)
+ */
 __global__ void gen_texture_list(
 		struct tp_task   * gpu_tasks,
 		int                num_tiles,            // number of tiles in task list
@@ -1600,9 +1653,7 @@ __global__ void gen_texture_list(
 #endif // DEBUG12
 
 
-//	int is_border = (x == woi[0]) || (y == woi[1]) || (x == woi[2]) || (y == woi[3]);
 	// don't care if calculate extra pixels that still fit into memory
-//	int is_border = (x == woi[0]) || (y == woi[1]) || (x == (TILESX - 1)) || (y == (TILESY - 1));
 	int is_border = (x == woi[0]) || (y == woi[1]) || (x == (TILESX - 1)) || (y == woi[3]);
 	int buff_head = 0;
 	int num_offset = 0;
@@ -1620,7 +1671,7 @@ __global__ void gen_texture_list(
 	}
 	gpu_texture_indices += buff_head;
 	num_texture_tiles += num_offset;
-	// using atomic operation in global memory - slow, but as operations here are per-til, not per- pixel, it should be OK
+	// using atomic operation in global memory - slow, but as operations here are per-tile, not per- pixel, it should be OK
 	int buf_offset = atomicAdd(num_texture_tiles, 1);
 	if (is_border){
 		buf_offset = -buf_offset;
@@ -1637,11 +1688,15 @@ __global__ void gen_texture_list(
 	*(gpu_texture_indices + buf_offset) = task | ((x + y * TILESX) << CORR_NTILE_SHIFT) | (1 << LIST_TEXTURE_BIT);
 }
 
-#endif //#ifdef USE_CDP
-
-
-// not maintaining order of the tiles to be processed
-//extern "C"
+/**
+ * Helper kernel for convert_direct() - generates dense list of tiles for direct MCLT.
+ * Tile order from the original (sparse) list is not preserved
+ *
+ * @param gpu_tasks            array of per-tile tasks (struct tp_task)
+ * @param num_tiles            number of tiles int gpu_tasks array prepared for processing
+ * @param active_tiles         integer array to place the generated list
+ * @param pnum_active_tiles    single-element integer array return generated list length
+ */
 __global__ void index_direct(
 		struct tp_task   * gpu_tasks,
 		int                num_tiles,          // number of tiles in task
@@ -1656,6 +1711,16 @@ __global__ void index_direct(
 		active_tiles[atomicAdd(pnum_active_tiles, 1)] = num_tile;
 	}
 }
+
+/**
+ * Helper kernel for textures_nonoverlap() - generates dense list of tiles for non-overlap
+ * (i.e. colors x 16 x 16 per each tile in the list ) texture tile generation
+ *
+ * @param gpu_tasks            array of per-tile tasks (struct tp_task)
+ * @param num_tiles            number of tiles int gpu_tasks array prepared for processing
+ * @param nonoverlap_list      integer array to place the generated list
+ * @param pnonoverlap_length   single-element integer array return generated list length
+ */
 __global__ void create_nonoverlap_list(
 		struct tp_task   * gpu_tasks,
 		int                num_tiles,           // number of tiles in task
@@ -1676,6 +1741,15 @@ __global__ void create_nonoverlap_list(
 	}
 }
 
+/**
+ * Helper kernel for correlate2D() - generates dense list of correlation tasks.
+ * With the quad camera each tile may generate up to 6 pairs (int array elements)
+ *
+ * @param gpu_tasks            array of per-tile tasks (struct tp_task)
+ * @param num_tiles            number of tiles int gpu_tasks array prepared for processing
+ * @param gpu_corr_indices     integer array to place the generated list
+ * @param pnum_corr_tiles      single-element integer array return generated list length
+ */
 __global__ void index_correlate(
 		struct tp_task   * gpu_tasks,
 		int                num_tiles,         // number of tiles in task
@@ -1700,9 +1774,29 @@ __global__ void index_correlate(
 	}
 }
 
-
+/**
+ * Direct MCLT transform and aberration correction with space-variant deconvolution
+ * kernels. Results are used to output aberration-corrected images, textures and
+ * 2D phase correlations.
+ * This kernel is called from the CPU with <<<1,1>>>
+ *
+ * @param gpu_kernel_offsets   array of per-camera pointers to array of struct CltExtra (one element per kernel)
+ * @param gpu_kernels          array of per-camera pointers to array of kernels (clt representation)
+ * @param gpu_images           array of per-camera pointers to Bayer images
+ * @param gpu_tasks            array of per-tile tasks (struct tp_task)
+ * @param gpu_clt              output array of per-camera aberration-corrected transform-domain image representations
+ *                             [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+ * @param dstride              stride (in floats) for the input Bayer images
+ * @param num_tiles            number of tiles int gpu_tasks array prepared for processing
+ * @param lpf_mask             apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green. Now - always 0 !
+ * @param woi_width            image width (was constant IMG_WIDTH, now variable to use with EO+LWIR
+ * @param woi_height           image height (was constant IMG_HEIGHT, now variable to use with EO+LWIR
+ * @param kernels_hor          number of deconvolution kernels per image width
+ * @param kernels_vert         number of deconvolution kernels per image height
+ * @param gpu_active_tiles     pointer to the calculated list of tiles
+ * @param pnum_active_tiles    pointer to the number of active tiles
+ */
 extern "C" __global__ void convert_direct(  // called with a single block, single thread
-//		struct CltExtra ** gpu_kernel_offsets, // [NUM_CAMS], // changed for jcuda to avoid struct parameters
 			float           ** gpu_kernel_offsets, // [NUM_CAMS],
 			float           ** gpu_kernels,        // [NUM_CAMS],
 			float           ** gpu_images,         // [NUM_CAMS],
@@ -1715,8 +1809,8 @@ extern "C" __global__ void convert_direct(  // called with a single block, singl
 			int                woi_height,
 			int                kernels_hor,
 			int                kernels_vert,
-			int *              gpu_active_tiles,      // pointer to the calculated number of non-zero tiles
-			int *              pnum_active_tiles)  //  indices to gpu_tasks
+			int *              gpu_active_tiles,   // pointer to the calculated list of tiles
+			int *              pnum_active_tiles)  // pointer to the number of active tiles
 {
 	 dim3 threads0(CONVERT_DIRECT_INDEXING_THREADS, 1, 1);
 	 dim3 blocks0 ((num_tiles + CONVERT_DIRECT_INDEXING_THREADS -1) >> CONVERT_DIRECT_INDEXING_THREADS_LOG2,1, 1);
@@ -1748,7 +1842,23 @@ extern "C" __global__ void convert_direct(  // called with a single block, singl
 	 }
 }
 
-//extern "C"
+/**
+ * Helper kernel for convert_direct() - perform actual conversion.
+ *
+ * @param gpu_kernel_offsets   array of per-camera pointers to array of struct CltExtra (one element per kernel)
+ * @param gpu_kernels          array of per-camera pointers to array of kernels (clt representation)
+ * @param gpu_images           array of per-camera pointers to Bayer images
+ * @param gpu_tasks            array of per-tile tasks (struct tp_task)
+ * @param gpu_active_tiles     pointer to the calculated list of tiles
+ * @param num_active_tiles     number of active tiles
+ * @param gpu_clt              output array of per-camera aberration-corrected transform-domain image representations
+ * @param dstride              stride (in floats) for the input Bayer images
+ * @param lpf_mask             apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green. Now - always 0 !
+ * @param woi_width            image width (was constant IMG_WIDTH, now variable to use with EO+LWIR
+ * @param woi_height           image height (was constant IMG_HEIGHT, now variable to use with EO+LWIR
+ * @param kernels_hor          number of deconvolution kernels per image width
+ * @param kernels_vert         number of deconvolution kernels per image height
+ */
 __global__ void convert_correct_tiles(
 			float           ** gpu_kernel_offsets, // [NUM_CAMS],
 			float           ** gpu_kernels,        // [NUM_CAMS],
@@ -1758,7 +1868,6 @@ __global__ void convert_correct_tiles(
 			int                num_active_tiles,   // number of tiles in task
 			float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 			size_t             dstride,            // in floats (pixels)
-//			int                num_tiles,          // number of tiles in task
 			int                lpf_mask,           // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green. Now - always 0 !
 			int                woi_width,
 			int                woi_height,
@@ -1767,8 +1876,6 @@ __global__ void convert_correct_tiles(
 {
 	dim3 t = threadIdx;
 	int tile_in_block = threadIdx.y;
-//	int task_num = blockIdx.x * TILES_PER_BLOCK + tile_in_block;
-//	if (task_num >= num_tiles) return; // nothing to do
 	int task_indx = blockIdx.x * TILES_PER_BLOCK + tile_in_block;
 	if (task_indx >=  num_active_tiles){
 		return; // nothing to do
@@ -1843,6 +1950,36 @@ __global__ void convert_correct_tiles(
     }
 }
 
+/**
+ * Calculate texture tiles without combining in overlapping areas (16x16 for each 8x8 of the image)
+ * from the in-memory frequency domain representation and the per-tile task array (may be sparse).
+ * Determines WoI from min/max Y,X of the selected tiles, returns calculated WoI in woi parameter
+ * color is the outer index of the result, the image is moved to the top-left corner
+ * (woi.x -> 0, woi.y -> 0, packed texture_rbga_stride per line, number of output lines per slice
+ * is woi.height.
+ *
+ * This kernel launches others with CDP, from CPU it is just <<<1,1>>>
+ *
+ * @param gpu_tasks            array of per-tile tasks (struct tp_task)
+ * @param num_tiles            number of tiles int gpu_tasks array prepared for processing
+ * @param gpu_texture_indices  allocated array - 1 integer per tile to process
+ * @param num_texture_tiles    allocated array - 8 integers (may be reduced to 4 later)
+ * @param gpu_clt              array of NUM_CAMS pointers to the CLT (frequency domain) data [TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+ * @param gpu_geometry_correction geometry correction structure, used for rXY to determine pairs weight
+ * @param colors               number of colors used:  3 for RGB or 1 for monochrome
+ * @param is_lwir              do not perform shot correction
+ * @param params               array of 5 float parameters (mitigating CUDA_ERROR_INVALID_PTX):
+ *     	  min_shot             shot noise minimal value (10.0)
+ *   	  scale_shot           scale shot noise (3.0)
+ *   	  diff_sigma           pixel value/pixel change (1.5)
+ *   	  diff_threshold       pixel value/pixel change (10)
+ *   	  min_agree            minimal number of channels to agree on a point (real number to work with fuzzy averages) (3.0)
+ * @param weights              scales for R,B,G {0.294118, 0.117647, 0.588235}
+ * @param dust_remove          do not reduce average weight when only one image differs much from the average (true)
+ * @param texture_stride       output stride in floats (now 256*4 = 1024)
+ * @param gpu_texture_tiles    output array (number of colors +1 + ?)*16*16 rgba texture tiles) float values. Will not be calculated if null
+ * @param gpu_diff_rgb_combo   low-resolution output, with per-camera mismatch an each color average. Will not be calculated if null
+ */
 extern "C" __global__ void textures_nonoverlap(
 		struct tp_task  * gpu_tasks,
 		int               num_tiles,          // number of tiles in task list
@@ -1914,7 +2051,35 @@ extern "C" __global__ void textures_nonoverlap(
 }
 
 
-//#undef USE_textures_gen
+/**
+ * Helper for generate_RBGA() and textures_nonoverlap()
+ *
+ * Calculate texture as RGBA (or YA for mono) from the in-memory frequency domain representation
+ * and from the int array of texture indices.
+ * Output overlapped (if gpu_texture_rbg != 0 and texture_rbg_stride !=0),
+ *        non-overlapped (if gpu_texture_tiles != 0 and texture_stride !=0),
+ *        and low-resolution (1/8) gpu_diff_rgb_combo (if gpu_diff_rgb_combo !=0)
+ * @param woi                  WoI for the output texture (x,y,width,height of the woi), may be null if overlapped output is not used
+ * @param gpu_clt              array of NUM_CAMS pointers to the CLT (frequency domain) data [TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+ * @param num_texture_tiles    number of texture tiles to process
+ * @param gpu_texture_indices  array - 1 integer per tile to process
+ * @param gpu_geometry_correction geometry correction structure, used for rXY to determine pairs weight
+ * @param colors               number of colors used:  3 for RGB or 1 for monochrome
+ * @param is_lwir              do not perform shot correction
+ * @param min_shot             shot noise minimal value (10.0)
+ * @param scale_shot           scale shot noise (3.0)
+ * @param diff_sigma           pixel value/pixel change (1.5)
+ * @param diff_threshold       pixel value/pixel change (10)
+ * @param min_agree            minimal number of channels to agree on a point (real number to work with fuzzy averages) (3.0)
+ * @param weights              scales for R,B,G {0.294118, 0.117647, 0.588235}
+ * @param dust_remove          do not reduce average weight when only one image differs much from the average (true)
+ * @param keep_weights         return channel weights after A in RGBA (was removed)
+ * @param texture_rbg_stride   output stride for overlapped texture in floats, or 0 to skip
+ * @param gpu_texture_rbg      output array (number of colors +1 + ?) * woi.height * output stride(first woi.width valid) float values (or 0)
+ * @param texture_stride       output stride for non-overlapping texture tile output in floats (or 0 to skip)
+ * @param gpu_texture_tiles    output of the non-overlapping tiles (or 0 to skip)
+ * @param gpu_diff_rgb_combo   low-resolution output, with per-camera mismatch an each color average. Will not be calculated if null
+ */
 extern "C" __global__ void textures_accumulate( // (8,4,1) (N,1,1)
 		int             * woi,                // x, y, width,height
 		float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
@@ -2163,21 +2328,17 @@ extern "C" __global__ void textures_accumulate( // (8,4,1) (N,1,1)
 			(float *) shr1.rgbaw,      // float * rgba,
 			// if calc_extra, rbg_tile will be ignored and output generated with blurred (debayered) data. Done so as debayered data is needed
 			// to calculate max_diff_shared
-			calc_extra, // int     calc_extra,    // 1 - calcualate ports_rgb, max_diff
-
-			ports_rgb_shared, // float ports_rgb_shared [NUM_COLORS][NUM_CAMS], // return to system memory (optionally pass null to skip calculation)
-			max_diff_shared,  // float max_diff_shared  [NUM_CAMS], // return to system memory (optionally pass null to skip calculation)
-			max_diff_tmp,     //  float max_diff_tmp     [NUM_CAMS][TEXTURE_THREADS_PER_TILE],
-			ports_rgb_tmp,    // float ports_rgb_tmp    [NUM_COLORS][NUM_CAMS][TEXTURE_THREADS_PER_TILE], // [4*3][8]
-
-
-
+			calc_extra,                // int     calc_extra,    // 1 - calcualate ports_rgb, max_diff
+			ports_rgb_shared,          // float ports_rgb_shared [NUM_COLORS][NUM_CAMS], // return to system memory (optionally pass null to skip calculation)
+			max_diff_shared,           // float max_diff_shared  [NUM_CAMS], // return to system memory (optionally pass null to skip calculation)
+			max_diff_tmp,              //  float max_diff_tmp     [NUM_CAMS][TEXTURE_THREADS_PER_TILE],
+			ports_rgb_tmp,             // float ports_rgb_tmp    [NUM_COLORS][NUM_CAMS][TEXTURE_THREADS_PER_TILE], // [4*3][8]
 			(float *) port_offsets,    // float * port_offsets,  // [port]{x_off, y_off} - just to scale pixel value differences
 			diff_sigma,                // float   diff_sigma,     // pixel value/pixel change
 			diff_threshold,            // float   diff_threshold, // pixel value/pixel change
 			min_agree,                 // float   min_agree,   NOT USED?   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 			weights,                   // float * chn_weights,    // color channel weights, sum == 1.0
-			dust_remove,               // int     dust_remove,    // Do not reduce average weight when only one image differes much from the average
+			dust_remove,               // int     dust_remove,    // Do not reduce average weight when only one image differs much from the average
 			keep_weights,              // int     keep_weights,   // return channel weights and rms after A in RGBA (weight are always calculated)
 			debug );  // int     debug );
 
@@ -2385,11 +2546,23 @@ extern "C" __global__ void textures_accumulate( // (8,4,1) (N,1,1)
 
 
 
+/**
+ * Generate per-camera aberration-corrected images from the in-memory frequency domain representation.
+ * This kernel launches others with CDP, from CPU it is just <<<1,1>>>
+ *
+ * @param gpu_clt              array of NUM_CAMS pointers to the CLT (frequency domain) data [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+ * @param gpu_corr_images      array of NUM_CAMS pointers to the output images, [width, colors* height]. width height are from woi_twidth, woi_theight
+ * @param apply_lpf            TODO: now it is not used - restore after testing
+ * @param colors               number of colors used:  3 for RGB or 1 for monochrome
+ * @param woi_twidth           full image width in tiles
+ * @param woi_theight          full image height in tiles
+ * @param dstride              output images stride in floats
+ */
 extern "C"
 __global__ void imclt_rbg_all(
 		float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
-		float           ** gpu_corr_images,    // [NUM_CAMS][WIDTH, 3 * HEIGHT]
-		int                apply_lpf,
+		float           ** gpu_corr_images,    // [NUM_CAMS][width, colors* height]
+		int                apply_lpf,		   // TODO: now it is not used - restore?
 		int                colors,
 		int                woi_twidth,
 		int                woi_theight,
@@ -2426,6 +2599,21 @@ __global__ void imclt_rbg_all(
 }
 
 
+
+/**
+ * Helper kernel for imclt_rbg_all(), generate per-camera -per color image from the in-memory frequency domain representation.
+ *
+ * @param gpu_clt              array of NUM_CAMS pointers to the CLT (frequency domain) data [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+ * @param gpu_corr_images      array of NUM_CAMS pointers to the output images, [width, colors* height]. width height are from woi_twidth, woi_theight
+ * @param apply_lpf            TODO: now it is not used - restore after testing
+ * @param colors               number of colors used:  3 for RGB or 1 for monochrome
+ * @param color                color to process
+ * @param v_offset             vertical offset (0,1) for accumulating overlapping tiles
+ * @param h_offset             horizontal  offset (0,1) for accumulating overlapping tiles
+ * @param woi_twidth           full image width in tiles
+ * @param woi_theight          full image height in tiles
+ * @param dstride              output images stride in floats
+ */
 extern "C"
 __global__ void imclt_rbg(
 		float           * gpu_clt,            // [TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
@@ -2561,9 +2749,13 @@ __global__ void imclt_rbg(
 #endif //#ifdef DBG_MARK_DBG_TILE
 }
 
-
-
-// Fractional pixel shift (phase rotation), horizontal. In-place. uses 8 threads (.x)
+/**
+ * Fractional pixel shift (phase rotation), horizontal. In-place. uses 8 threads (.x)
+ * Used in convert_direct() -> convert_correct_tiles() -> convertCorrectTile
+ *
+ * @param clt_tile             transform domain representation of a tile: [4][8][8+1], // +1 to alternate column ports
+ * @param residual_shift       fractional pixel shift [-0.5, +0.5)
+ */
 __device__ void shiftTileHor(
 		float * clt_tile, //       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
 		float residual_shift )
@@ -2595,7 +2787,13 @@ __device__ void shiftTileHor(
 	}
 }
 
-
+/**
+ * Fractional pixel shift (phase rotation), vertical. In-place. uses 8 threads (.x)
+ * Used in convert_direct() -> convert_correct_tiles() -> convertCorrectTile
+ *
+ * @param clt_tile             transform domain representation of a tile: [4][8][8+1], // +1 to alternate column ports
+ * @param residual_shift       fractional pixel shift [-0.5, +0.5)
+ */
 __device__ void shiftTileVert(
 		float * clt_tile, //       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
 		float residual_shift)
@@ -2627,6 +2825,13 @@ __device__ void shiftTileVert(
 	}
 }
 
+/**
+ * Convolve image tile with the kernel tile in transform domain
+ * Used in convert_direct() -> convert_correct_tiles() -> convertCorrectTile
+ *
+ * @param clt_tile             transform domain representation of a tile [4][8][8+1], // +1 to alternate column ports
+ * @param kernel               transform domain representation of a kernel [4][8][8+1], // +1 to alternate column ports
+ */
 __device__ void convolveTiles(
 		float* clt_tile, //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
 		float* kernel) //      [4][DTT_SIZE][DTT_SIZE1]) // 4 quadrants of the CLT kernel (DTT3 converted)
@@ -2678,6 +2883,19 @@ __device__ void convolveTiles(
 	}
 }
 
+
+
+/**
+ * Calculate 2D correlation of a pair from CLT representation and accumulate with a specified color weight
+ * Called from correlate2D()->correlate2D_inner()
+ *
+ * @param scale                weight of the current component for accumulation.
+ * @param clt_tile1            transform domain representation of a tile [4][8][8+1], 4 quadrants of the clt data 1,
+ *                             rows extended to optimize shared ports
+ * @param clt_tile2            transform domain representation of a tile [4][8][8+1]
+ * @param corr_tile            result tile [4][8][8+1], should be initialized with resetCorrelation() before
+ *                             the first color component.
+ */
 __device__ void correlateAccumulateTiles(
 		float  scale,     // scale correlation
 		float* clt_tile1, //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data 1, rows extended to optimize shared ports
@@ -2741,6 +2959,12 @@ __device__ void correlateAccumulateTiles(
 	}
 }
 
+/**
+ * Initailize 2D correlation (CLT representation) before accumulating colors.
+ * Called from correlate2D()->correlate2D_inner()
+ *
+ * @param corr_tile            pointer to a tile [4][8][8+1] to be reset to all 0-s.
+ */
 __device__ void resetCorrelation(
 		float* corr_tile) //    [4][DTT_SIZE][DTT_SIZE1]) // 4 quadrants of the correlation result
 {
@@ -2764,9 +2988,17 @@ __device__ void resetCorrelation(
 	}
 }
 
+/**
+ * Normalize 2D correlation (CLT representation) to make it phase correlation.
+ * Called from correlate2D()->correlate2D_inner()
+ *
+ * @param clt_tile             pointer to a correlation result tile [4][8][8+1] to be normalized
+ * @param fat_zero             value to add to amplitudes for regularization. Absolute value,
+ *                             scale if needed outside.
+ */
 __device__ void normalizeTileAmplitude(
 		float * clt_tile, //       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
-		float fat_zero ) // fat zero is absolute, scale it outside
+		float fat_zero )  // fat zero is absolute, scale it outside
 {
 	int joffs = threadIdx.x * DTT_SIZE1;
 	float * clt_tile_j0 = clt_tile +    joffs;                // ==&clt_tile[0][j][0]
@@ -2797,102 +3029,32 @@ __device__ void normalizeTileAmplitude(
 	}
 }
 
-__device__ void debug_print_lpf(
-		float * lpf_tile)
-{
-#ifdef	HAS_PRINTF
-	for (int dbg_row = 0; dbg_row < DTT_SIZE; dbg_row++){
-		for (int dbg_col = 0; dbg_col < DTT_SIZE; dbg_col++){
-			printf ("%10.5f ", lpf_tile[dbg_row * DTT_SIZE + dbg_col]);
-		}
-		printf("\n");
-	}
-#endif
-}
 
-
-__device__ void debug_print_clt1(
-		float * clt_tile, //         [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
-		const int color,
-		int mask)
-{
-#ifdef	HAS_PRINTF
-	if (color >= 0) printf("----------- Color = %d -----------\n",color);
-	for (int dbg_quadrant = 0; dbg_quadrant < 4; dbg_quadrant++){
-		printf("----------- Quadrant (c(h)-c(v), s-c, c-s, s-s) = %d -----------\n",dbg_quadrant);
-		if ((mask >> dbg_quadrant) & 1) {
-			for (int dbg_row = 0; dbg_row < DTT_SIZE; dbg_row++){
-				for (int dbg_col = 0; dbg_col < DTT_SIZE; dbg_col++){
-					printf ("%10.5f ", clt_tile[(dbg_quadrant*DTT_SIZE + dbg_row)*DTT_SIZE1 + dbg_col]);
-				}
-				printf("\n");
-			}
-		}
-		printf("\n");
-	}
-#endif
-}
-__device__ void debug_print_clt_scaled(
-		float * clt_tile, //         [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
-		const int color,
-		int mask,
-		float scale)
-{
-#ifdef	HAS_PRINTF
-	if (color >= 0) printf("----------- Color = %d -----------\n",color);
-	for (int dbg_quadrant = 0; dbg_quadrant < 4; dbg_quadrant++){
-		printf("----------- Quadrant (c(h)-c(v), s-c, c-s, s-s) = %d -----------\n",dbg_quadrant);
-		if ((mask >> dbg_quadrant) & 1) {
-			for (int dbg_row = 0; dbg_row < DTT_SIZE; dbg_row++){
-				for (int dbg_col = 0; dbg_col < DTT_SIZE; dbg_col++){
-					printf ("%10.5f ", scale * clt_tile[(dbg_quadrant*DTT_SIZE + dbg_row)*DTT_SIZE1 + dbg_col]);
-				}
-				printf("\n");
-			}
-		}
-		printf("\n");
-	}
-#endif
-}
-
-
-
-__device__ void debug_print_mclt(
-		float * mclt_tile, //         [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
-		const int color)
-{
-#ifdef	HAS_PRINTF
-	if (color >= 0) printf("----------- Color = %d -----------\n",color);
-	for (int dbg_row = 0; dbg_row < DTT_SIZE2; dbg_row++){
-		for (int dbg_col = 0; dbg_col < DTT_SIZE2; dbg_col++){
-			printf ("%10.4f ", mclt_tile[dbg_row *DTT_SIZE21 + dbg_col]);
-		}
-		printf("\n");
-	}
-	printf("\n");
-#endif
-}
-
-__device__ void debug_print_corr_15x15(
-		int     corr_radius,
-		float * mclt_tile, //DTT_SIZE2M1 x DTT_SIZE2M1
-		const int color)
-{
-#ifdef	HAS_PRINTF
-	int size2r1 = 2 * corr_radius + 1;
-	if (color >= 0) printf("----------- Color = %d -----------\n",color);
-	for (int dbg_row = 0; dbg_row < size2r1; dbg_row++){
-		for (int dbg_col = 0; dbg_col < size2r1; dbg_col++){
-			printf ("%10.5f ", mclt_tile[dbg_row * size2r1 + dbg_col]);
-		}
-		printf("\n");
-	}
-	printf("\n");
-#endif
-}
-
-
-
+/**
+ * Used in convert_direct()->convert_correct_tiles() to convert/correct a single tile
+ *
+ * @param gpu_kernel_offsets   array of per-camera pointers to array of struct CltExtra (one element per kernel)
+ * @param gpu_kernels          array of per-camera pointers to array of kernels (clt representation)
+ * @param gpu_images           array of per-camera pointers to Bayer images
+ * @param gpu_clt              output array of per-camera aberration-corrected transform-domain image representations
+ * @param color                color component
+ * @param lpf_mask             apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green. Now - always 0 !
+ * @param centerX              full X-offset of the tile center, calculated from the geometry, distortions and disparity
+ * @param centerY              full Y-offset of the tile center
+ * @param txy                  integer value combining tile X (low 16 bits) and tile Y (high 16 bits)
+ * @param dstride              stride (in floats) for the input Bayer images
+ * @param clt_tile             image tile in shared memory [4][DTT_SIZE][DTT_SIZE1] (just allocated)
+ * @param clt_kernels          kernel tile in shared memory [4][DTT_SIZE][DTT_SIZE1] (just allocated)
+ * @param int_topleft          tile left and top, declared in shared memory (just allocated) [2]
+ * @param residual_shift       tile fractional pixel shift (x,y) in shared memory (just allocated) [2]
+ * @param window_hor_cos       array in shared memory for window horizontal cosine [2*DTT_SIZE]
+ * @param window_hor_sin       array in shared memory for window horizontal cosine [2*DTT_SIZE]
+ * @param window_vert_cos      array in shared memory for window horizontal cosine [2*DTT_SIZE]
+ * @param woi_width            image width (was constant IMG_WIDTH, now variable to use with EO+LWIR
+ * @param woi_height           image height (was constant IMG_HEIGHT, now variable to use with EO+LWIR
+ * @param kernels_hor          number of deconvolution kernels per image width
+ * @param kernels_vert         number of deconvolution kernels per image height
+ */
 __device__ void convertCorrectTile(
 		struct CltExtra     * gpu_kernel_offsets, // [tileY][tileX][color]
 		float               * gpu_kernels,        // [tileY][tileX][color]
@@ -3324,7 +3486,19 @@ __device__ void convertCorrectTile(
 
 
 
-
+/**
+ * Prepare for matching images to generate textures - measure difference in a noise-equivalent way,
+ * relative to the shot noise at that intensity value. Do not use it for the images that are not shot-noise limited
+ * Used in {generate_RBGA(), textures_nonoverlap()} -> textures_accumulate()
+ *
+ * @param rb_mode              color type: 0 - green, 1 - r/b
+ * @param min_shot             shot noise minimal value (10.0)
+ * @param scale_shot           scale shot noise (3.0)
+ * @param mclt_src             mclt source tile (from inverse transform) [2* DTT_SIZE][DTT_SIZE1+ DTT_SIZE]
+ * @param mclt_dst             mclt destination tile (from inverse transform) [2* DTT_SIZE][DTT_SIZE1+ DTT_SIZE]
+ * @param mclt_tmp             mclt tmp tile [2* DTT_SIZE][DTT_SIZE1+ DTT_SIZE]
+ * @param debug                debug if != 0
+ */
 __device__ void debayer_shot(
 		const int rb_mode,    // 0 - green, 1 - r/b
 		float     min_shot,   // 10.0
@@ -3463,8 +3637,17 @@ __device__ void debayer_shot(
 
 }
 
-// 8 threads
-__device__ void debayer(
+/**
+ * Simple de-Bayer LPF - convolution with color-variant 3x3 kernels. Input is RGB, not Bayer
+ * relative to the shot noise at that intensity value. Do not use it for the images that are not shot-noise limited
+ * Used in {generate_RBGA(), textures_nonoverlap()} -> textures_accumulate() -> debayer_shot()
+ *
+ * @param rb_mode              color type: 0 - green, 1 - r/b
+ * @param mclt_src             mclt source tile (from inverse transform) [2* DTT_SIZE][DTT_SIZE1+ DTT_SIZE]
+ * @param mclt_dst             mclt destination tile (from inverse transform) [2* DTT_SIZE][DTT_SIZE1+ DTT_SIZE]
+ * @param debug                debug if != 0
+ */
+__device__ void debayer( // 8 threads
 		const int rb_mode,   // 0 - green, 1 - r/b
 		float * mclt_src,  // [2* DTT_SIZE][DTT_SIZE1+ DTT_SIZE], // +1 to alternate column ports[16][17]
 		float * mclt_dst,  // [2* DTT_SIZE][DTT_SIZE1+ DTT_SIZE], // +1 to alternate column ports[16][17]
@@ -3519,6 +3702,31 @@ __device__ void debayer(
 	*(mclt_dst + offs) = *(mclt_src + offs);
 }
 
+
+/**
+ * Combines multi-camera rgba tiles
+ * Used in {generate_RBGA(), textures_nonoverlap()} -> textures_accumulate()
+ *
+ * @param colors               number of colors used:  3 for RGB or 1 for monochrome
+ * @param mclt_tile            tile after debayer (shared memory, has gaps to align with union !)
+ * @param rbg_tile             if not null (usually) - original (not-debayered) rbg tile to use for the output
+ * @param rgba                 result
+ * @param calc_extra           calculate ports_rgb, max_diff. If not null - will ignore rbg_tile, so this mode
+ *                             should not be combined with texture generation. It is intended to generate a
+ *                             lo-res (1/8) images for macro correlation
+ * @param ports_rgb_shared     shared memory data to be used to return lo-res images tile average color [NUM_COLORS][NUM_CAMS]
+ * @param max_diff_shared      shared memory data to be used to return lo-res images tile mismatch form average [NUM_CAMS]
+ * @param max_diff_tmp         shared memory to be used here for temporary storage [NUM_CAMS][TEXTURE_THREADS_PER_TILE]
+ * @param ports_rgb_tmp        shared memory to be used here for temporary storage [NUM_COLORS][NUM_CAMS][TEXTURE_THREADS_PER_TILE], [4*3][8]
+ * @param port_offsets         [port]{x_off, y_off} - just to scale pixel value differences (quad - {{-0.5, -0.5},{0.5,-0.5},{-0.5,0.5},{0.5,0.5}}
+ * @param diff_sigma           pixel value/pixel change (1.5)
+ * @param diff_threshold       pixel value/pixel change (10)
+ * @param min_agree            minimal number of channels to agree on a point (real number to work with fuzzy averages) (3.0)
+ * @param weights              scales for R,B,G {0.294118, 0.117647, 0.588235}
+ * @param dust_remove          do not reduce average weight when only one image differs much from the average (true)
+ * @param keep_weights         return channel weights after A in RGBA (weight are always calculated, not so for the crms)
+ * @param debug                debug if != 0
+ */
 //DTT_SIZE21
 __device__ void tile_combine_rgba(
 		int     colors,        // number of colors
@@ -3532,14 +3740,14 @@ __device__ void tile_combine_rgba(
 		float ports_rgb_tmp    [NUM_COLORS][NUM_CAMS][TEXTURE_THREADS_PER_TILE], // [4*3][8]
 		float * port_offsets,  // [port]{x_off, y_off} - just to scale pixel value differences
 		//		int           port_mask,      // which port to use, 0xf - all 4 (will modify as local variable)
-		float   diff_sigma,     // pixel value/pixel change
-		float   diff_threshold, // pixel value/pixel change
+		float   diff_sigma,    // pixel value/pixel change
+		float   diff_threshold,// pixel value/pixel change
 		// next not used
 		//		boolean       diff_gauss,     // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
-		float   min_agree,      // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-		float * chn_weights,     // color channel weights, sum == 1.0
-		int     dust_remove,     // Do not reduce average weight when only one image differes much from the average
-		int     keep_weights,   // eturn channel weights and rms after A in RGBA (weight are always calculated, not so for the crms)
+		float   min_agree,     // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+		float * chn_weights,   // color channel weights, sum == 1.0
+		int     dust_remove,   // Do not reduce average weight when only one image differs much from the average
+		int     keep_weights,  // return channel weights and rms after A in RGBA (weight are always calculated, not so for the crms)
 		int     debug)
 {
 	float * alpha =        rgba + (colors * (DTT_SIZE2*DTT_SIZE21));
@@ -4061,6 +4269,128 @@ __device__ void tile_combine_rgba(
 #endif // #ifdef DEBUG22
 
 	}
+
+}
+
+// ------------- Debugging functions, output compared against tested CPU/Java implementation ---
+
+/**
+ * Print LPF data (8x8)
+ * @param lpf_tile             LPF data to print
+ */
+__device__ void debug_print_lpf(
+		float * lpf_tile)
+{
+#ifdef	HAS_PRINTF
+	for (int dbg_row = 0; dbg_row < DTT_SIZE; dbg_row++){
+		for (int dbg_col = 0; dbg_col < DTT_SIZE; dbg_col++){
+			printf ("%10.5f ", lpf_tile[dbg_row * DTT_SIZE + dbg_col]);
+		}
+		printf("\n");
+	}
+#endif
+}
+
+/**
+ * Print CLT tile (4x8x8)
+ * @param clt_tile             CLT data to print [4][DTT_SIZE][DTT_SIZE + 1], // +1 to alternate column ports)
+ * @param color                print color if >=0, skip if negative
+ */
+__device__ void debug_print_clt1(
+		float * clt_tile, //         [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
+		const int color,
+		int mask)
+{
+#ifdef	HAS_PRINTF
+	if (color >= 0) printf("----------- Color = %d -----------\n",color);
+	for (int dbg_quadrant = 0; dbg_quadrant < 4; dbg_quadrant++){
+		printf("----------- Quadrant (c(h)-c(v), s-c, c-s, s-s) = %d -----------\n",dbg_quadrant);
+		if ((mask >> dbg_quadrant) & 1) {
+			for (int dbg_row = 0; dbg_row < DTT_SIZE; dbg_row++){
+				for (int dbg_col = 0; dbg_col < DTT_SIZE; dbg_col++){
+					printf ("%10.5f ", clt_tile[(dbg_quadrant*DTT_SIZE + dbg_row)*DTT_SIZE1 + dbg_col]);
+				}
+				printf("\n");
+			}
+		}
+		printf("\n");
+	}
+#endif
+}
+
+/**
+ * Print selected quadrants of CLT tile (4x8x8)
+ * @param clt_tile             CLT data to print [4][DTT_SIZE][DTT_SIZE + 1], // +1 to alternate column ports)
+ * @param color                print color if >=0, skip if negative
+ * @param mask                 bitmask of the quadrants to include in the output
+ * @param scale                scale all results by this value
+ */
+__device__ void debug_print_clt_scaled(
+		float * clt_tile, //         [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
+		const int color,
+		int mask,
+		float scale)
+{
+#ifdef	HAS_PRINTF
+	if (color >= 0) printf("----------- Color = %d -----------\n",color);
+	for (int dbg_quadrant = 0; dbg_quadrant < 4; dbg_quadrant++){
+		printf("----------- Quadrant (c(h)-c(v), s-c, c-s, s-s) = %d -----------\n",dbg_quadrant);
+		if ((mask >> dbg_quadrant) & 1) {
+			for (int dbg_row = 0; dbg_row < DTT_SIZE; dbg_row++){
+				for (int dbg_col = 0; dbg_col < DTT_SIZE; dbg_col++){
+					printf ("%10.5f ", scale * clt_tile[(dbg_quadrant*DTT_SIZE + dbg_row)*DTT_SIZE1 + dbg_col]);
+				}
+				printf("\n");
+			}
+		}
+		printf("\n");
+	}
+#endif
+}
+
+/**
+ * Print MCLT tile (16x16)
+ * @param mclt_tile            MCLT data to print [4][2*DTT_SIZE][2*DTT_SIZE + 1], // +1 to alternate column ports)
+ * @param color                print color if >=0, skip if negative
+ */
+__device__ void debug_print_mclt(
+		float * mclt_tile, //         [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
+		const int color)
+{
+#ifdef	HAS_PRINTF
+	if (color >= 0) printf("----------- Color = %d -----------\n",color);
+	for (int dbg_row = 0; dbg_row < DTT_SIZE2; dbg_row++){
+		for (int dbg_col = 0; dbg_col < DTT_SIZE2; dbg_col++){
+			printf ("%10.4f ", mclt_tile[dbg_row *DTT_SIZE21 + dbg_col]);
+		}
+		printf("\n");
+	}
+	printf("\n");
+#endif
+}
+
+/**
+ * Print 2D correlation tile (maximal 15x15 , ((2 * corr_radius + 1) * (2 * corr_radius + 1)) )
+ * @param corr_radius          correlation radius - reduces amount of correlation data by trimming outer elements
+ * @param mclt_tile            2D correlation tile in a line-scan order [(2 * corr_radius + 1) * (2 * corr_radius + 1)]
+ * @param color                print color if >=0, skip if negative
+ */
+__device__ void debug_print_corr_15x15(
+		int     corr_radius,
+		float * mclt_tile, //DTT_SIZE2M1 x DTT_SIZE2M1
+		const int color)
+{
+#ifdef	HAS_PRINTF
+	int size2r1 = 2 * corr_radius + 1;
+	if (color >= 0) printf("----------- Color = %d -----------\n",color);
+	for (int dbg_row = 0; dbg_row < size2r1; dbg_row++){
+		for (int dbg_col = 0; dbg_col < size2r1; dbg_col++){
+			printf ("%10.5f ", mclt_tile[dbg_row * size2r1 + dbg_col]);
+		}
+		printf("\n");
+	}
+	printf("\n");
+#endif
 }
 
 

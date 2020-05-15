@@ -1288,8 +1288,8 @@ public class GPUTileProcessor {
                 Pointer.to(gpu_tasks),                           // struct tp_task   * gpu_tasks,
                 Pointer.to(new int[] { num_task_tiles }),        // int                num_tiles,          // number of tiles in task list
             	// declare arrays in device code?
-                Pointer.to(gpu_texture_indices_ovlp),                 // int              * gpu_texture_indices_ovlp,// packed tile + bits (now only (1 << 7)
-    			Pointer.to(gpu_num_texture_ovlp),               // int              * num_texture_tiles,  // number of texture tiles to process (8 elements)
+                Pointer.to(gpu_texture_indices_ovlp),            // int              * gpu_texture_indices_ovlp,// packed tile + bits (now only (1 << 7)
+    			Pointer.to(gpu_num_texture_ovlp),                // int              * num_texture_tiles,  // number of texture tiles to process (8 elements)
     			Pointer.to(gpu_woi),                             // int              * woi,                // x,y,width,height of the woi
     			// set smaller for LWIR - it is used to reduce work aread
     			Pointer.to(new int[] {IMG_WIDTH / DTT_SIZE}),    // int                width,  // <= TILESX, use for faster processing of LWIR images (should be actual + 1)
