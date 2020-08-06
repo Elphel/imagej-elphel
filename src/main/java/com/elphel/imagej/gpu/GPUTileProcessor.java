@@ -625,10 +625,13 @@ public class GPUTileProcessor {
     }
 
    public class GpuQuad{ // quad camera description
-    	public final int IMG_WIDTH;
-    	public final int IMG_HEIGHT;
-    	public final int NUM_CAMS;
-    	public final int NUM_COLORS; // maybe should always be 3?
+    	public final int img_width;
+    	public final int img_height;
+    	public final int kernels_hor;        // int                kernels_hor,
+		public final int kernels_vert;       // int                kernels_vert);
+    	
+    	public final int num_cams;
+    	public final int num_colors; // maybe should always be 3?
 //    	public final GPUTileProcessor gPUTileProcessor;
         // CPU arrays of pointers to GPU memory
         // These arrays may go to methods, they are here just to be able to free GPU memory if needed
@@ -673,25 +676,27 @@ public class GPUTileProcessor {
         private int num_texture_tiles;
 
     	public GpuQuad(
-//    		final GPUTileProcessor gPUTileProcessor,	
    			final int img_width,
    			final int img_height,
+   	    	final int kernels_hor,
+   			final int kernels_vert,
    			final int num_cams,
    			final int num_colors
 ) {
-//    		this.gPUTileProcessor = gPUTileProcessor;
-        	IMG_WIDTH =  img_width;
-        	IMG_HEIGHT = img_height;
-        	NUM_CAMS =   num_cams;
-        	NUM_COLORS = num_colors; // maybe should always be 3?
+        	this.img_width =    img_width;
+        	this.img_height =   img_height;
+        	this.num_cams =     num_cams;
+        	this.num_colors =   num_colors; // maybe should always be 3?
+        	this.kernels_hor =  kernels_hor;
+        	this.kernels_vert = kernels_vert;
         	
             // CPU arrays of pointers to GPU memory
             // These arrays may go to methods, they are here just to be able to free GPU memory if needed
-            gpu_kernels_h =           new CUdeviceptr[NUM_CAMS];
-            gpu_kernel_offsets_h =    new CUdeviceptr[NUM_CAMS];
-            gpu_bayer_h =             new CUdeviceptr[NUM_CAMS];
-            gpu_clt_h =               new CUdeviceptr[NUM_CAMS];
-            gpu_corr_images_h=        new CUdeviceptr[NUM_CAMS];
+            gpu_kernels_h =           new CUdeviceptr[num_cams];
+            gpu_kernel_offsets_h =    new CUdeviceptr[num_cams];
+            gpu_bayer_h =             new CUdeviceptr[num_cams];
+            gpu_clt_h =               new CUdeviceptr[num_cams];
+            gpu_corr_images_h=        new CUdeviceptr[num_cams];
             // GPU pointers to array of GPU pointers
             gpu_kernels =             new CUdeviceptr();
             gpu_kernel_offsets =      new CUdeviceptr();
@@ -724,10 +729,10 @@ public class GPUTileProcessor {
             gpu_num_active_tiles =    new CUdeviceptr(); //  1 int
         	
             // Init data arrays for all kernels
-            int tilesX =  IMG_WIDTH / DTT_SIZE;
-            int tilesY =  IMG_HEIGHT / DTT_SIZE;
+            int tilesX =  img_width / DTT_SIZE;
+            int tilesY =  img_height / DTT_SIZE;
             long [] device_stride = new long [1];
-            for (int ncam = 0; ncam < NUM_CAMS; ncam++) {
+            for (int ncam = 0; ncam < num_cams; ncam++) {
             	gpu_kernels_h[ncam] =        new CUdeviceptr();
             	cuMemAlloc(gpu_kernels_h[ncam],KERN_SIZE * Sizeof.FLOAT ); //     public static int cuMemAlloc(CUdeviceptr dptr, long bytesize)
             	gpu_kernel_offsets_h[ncam] = new CUdeviceptr();
@@ -736,20 +741,20 @@ public class GPUTileProcessor {
                 cuMemAllocPitch (
                 		gpu_bayer_h[ncam],        // CUdeviceptr dptr,
                 		device_stride,            // long[] pPitch,
-                		IMG_WIDTH * Sizeof.FLOAT, // long WidthInBytes,
-                		IMG_HEIGHT,               // long Height,
+                		img_width * Sizeof.FLOAT, // long WidthInBytes,
+                		img_height,               // long Height,
                         Sizeof.FLOAT);            // int ElementSizeBytes)
                 mclt_stride = (int)(device_stride[0] / Sizeof.FLOAT);
                 gpu_corr_images_h[ncam] =  new CUdeviceptr();
                 cuMemAllocPitch (
                 		gpu_corr_images_h[ncam],               // CUdeviceptr dptr,
                 		device_stride,                         // long[] pPitch,
-                		(IMG_WIDTH + DTT_SIZE) * Sizeof.FLOAT, // long WidthInBytes,
-                		3*(IMG_HEIGHT + DTT_SIZE),// long Height,
+                		(img_width + DTT_SIZE) * Sizeof.FLOAT, // long WidthInBytes,
+                		3*(img_height + DTT_SIZE),// long Height,
                         Sizeof.FLOAT);            // int ElementSizeBytes)
                 imclt_stride = (int)(device_stride[0] / Sizeof.FLOAT);
                 gpu_clt_h[ncam] = new CUdeviceptr();
-            	cuMemAlloc(gpu_clt_h[ncam],tilesY * tilesX * NUM_COLORS * 4 * DTT_SIZE * DTT_SIZE * Sizeof.FLOAT ); //     public static int cuMemAlloc(CUdeviceptr dptr, long bytesize)
+            	cuMemAlloc(gpu_clt_h[ncam],tilesY * tilesX * num_colors * 4 * DTT_SIZE * DTT_SIZE * Sizeof.FLOAT ); //     public static int cuMemAlloc(CUdeviceptr dptr, long bytesize)
             }
             // now create device arrays pointers
             if (Sizeof.POINTER != Sizeof.LONG) {
@@ -757,37 +762,37 @@ public class GPUTileProcessor {
         		IJ.showMessage("Error",	msg);
         		new IllegalArgumentException (msg);
             }
-        	cuMemAlloc(gpu_kernels,        NUM_CAMS * Sizeof.POINTER);
-        	cuMemAlloc(gpu_kernel_offsets, NUM_CAMS * Sizeof.POINTER);
-        	cuMemAlloc(gpu_bayer,          NUM_CAMS * Sizeof.POINTER);
-        	cuMemAlloc(gpu_clt,            NUM_CAMS * Sizeof.POINTER);
-        	cuMemAlloc(gpu_4_images,       NUM_CAMS * Sizeof.POINTER);
+        	cuMemAlloc(gpu_kernels,        num_cams * Sizeof.POINTER);
+        	cuMemAlloc(gpu_kernel_offsets, num_cams * Sizeof.POINTER);
+        	cuMemAlloc(gpu_bayer,          num_cams * Sizeof.POINTER);
+        	cuMemAlloc(gpu_clt,            num_cams * Sizeof.POINTER);
+        	cuMemAlloc(gpu_4_images,       num_cams * Sizeof.POINTER);
 
-        	long [] gpu_kernels_l =        new long [NUM_CAMS];
-        	long [] gpu_kernel_offsets_l = new long [NUM_CAMS];
-        	long [] gpu_bayer_l =          new long [NUM_CAMS];
-        	long [] gpu_clt_l =            new long [NUM_CAMS];
-        	long [] gpu_4_images_l =       new long [NUM_CAMS];
+        	long [] gpu_kernels_l =        new long [num_cams];
+        	long [] gpu_kernel_offsets_l = new long [num_cams];
+        	long [] gpu_bayer_l =          new long [num_cams];
+        	long [] gpu_clt_l =            new long [num_cams];
+        	long [] gpu_4_images_l =       new long [num_cams];
 
-        	for (int ncam = 0; ncam < NUM_CAMS; ncam++) gpu_kernels_l[ncam] =        getPointerAddress(gpu_kernels_h[ncam]);
-            cuMemcpyHtoD(gpu_kernels, Pointer.to(gpu_kernels_l),                     NUM_CAMS * Sizeof.POINTER);
+        	for (int ncam = 0; ncam < num_cams; ncam++) gpu_kernels_l[ncam] =        getPointerAddress(gpu_kernels_h[ncam]);
+            cuMemcpyHtoD(gpu_kernels, Pointer.to(gpu_kernels_l),                     num_cams * Sizeof.POINTER);
 
-            for (int ncam = 0; ncam < NUM_CAMS; ncam++) gpu_kernel_offsets_l[ncam] = getPointerAddress(gpu_kernel_offsets_h[ncam]);
-            cuMemcpyHtoD(gpu_kernel_offsets, Pointer.to(gpu_kernel_offsets_l),       NUM_CAMS * Sizeof.POINTER);
+            for (int ncam = 0; ncam < num_cams; ncam++) gpu_kernel_offsets_l[ncam] = getPointerAddress(gpu_kernel_offsets_h[ncam]);
+            cuMemcpyHtoD(gpu_kernel_offsets, Pointer.to(gpu_kernel_offsets_l),       num_cams * Sizeof.POINTER);
 
-            for (int ncam = 0; ncam < NUM_CAMS; ncam++) gpu_bayer_l[ncam] =          getPointerAddress(gpu_bayer_h[ncam]);
-            cuMemcpyHtoD(gpu_bayer, Pointer.to(gpu_bayer_l),                         NUM_CAMS * Sizeof.POINTER);
+            for (int ncam = 0; ncam < num_cams; ncam++) gpu_bayer_l[ncam] =          getPointerAddress(gpu_bayer_h[ncam]);
+            cuMemcpyHtoD(gpu_bayer, Pointer.to(gpu_bayer_l),                         num_cams * Sizeof.POINTER);
 
-            for (int ncam = 0; ncam < NUM_CAMS; ncam++) gpu_clt_l[ncam] =            getPointerAddress(gpu_clt_h[ncam]);
-            cuMemcpyHtoD(gpu_clt, Pointer.to(gpu_clt_l),                             NUM_CAMS * Sizeof.POINTER);
+            for (int ncam = 0; ncam < num_cams; ncam++) gpu_clt_l[ncam] =            getPointerAddress(gpu_clt_h[ncam]);
+            cuMemcpyHtoD(gpu_clt, Pointer.to(gpu_clt_l),                             num_cams * Sizeof.POINTER);
 
-            for (int ncam = 0; ncam < NUM_CAMS; ncam++) gpu_4_images_l[ncam] =       getPointerAddress(gpu_corr_images_h[ncam]);
-            cuMemcpyHtoD(gpu_4_images, Pointer.to(gpu_4_images_l),                   NUM_CAMS * Sizeof.POINTER);
+            for (int ncam = 0; ncam < num_cams; ncam++) gpu_4_images_l[ncam] =       getPointerAddress(gpu_corr_images_h[ncam]);
+            cuMemcpyHtoD(gpu_4_images, Pointer.to(gpu_4_images_l),                   num_cams * Sizeof.POINTER);
 
             // Set GeometryCorrection data
-        	cuMemAlloc(gpu_geometry_correction,      GeometryCorrection.arrayLength(NUM_CAMS) * Sizeof.FLOAT);
+        	cuMemAlloc(gpu_geometry_correction,      GeometryCorrection.arrayLength(num_cams) * Sizeof.FLOAT);
         	cuMemAlloc(gpu_rByRDist,                 RBYRDIST_LEN *  Sizeof.FLOAT);
-        	cuMemAlloc(gpu_rot_deriv,                5*NUM_CAMS*3*3 * Sizeof.FLOAT);
+        	cuMemAlloc(gpu_rot_deriv,                5*num_cams*3*3 * Sizeof.FLOAT);
         	cuMemAlloc(gpu_correction_vector,        GeometryCorrection.CorrVector.LENGTH * Sizeof.FLOAT);
 
             // Set task array
@@ -802,7 +807,7 @@ public class GPUTileProcessor {
         	cuMemAlloc(gpu_texture_indices,     tilesX * tilesYa * Sizeof.FLOAT); // for non-overlap tiles
         	cuMemAlloc(gpu_texture_indices_ovlp,tilesX * tilesYa * Sizeof.FLOAT); // for overlapped tiles
 
-        	cuMemAlloc(gpu_diff_rgb_combo, tilesX * tilesYa * NUM_CAMS* (NUM_COLORS + 1) *  Sizeof.FLOAT);
+        	cuMemAlloc(gpu_diff_rgb_combo, tilesX * tilesYa * num_cams* (num_colors + 1) *  Sizeof.FLOAT);
 
         	cuMemAlloc(gpu_color_weights,             3 * Sizeof.FLOAT);
         	cuMemAlloc(gpu_generate_RBGA_params,      5 * Sizeof.FLOAT);
@@ -823,7 +828,7 @@ public class GPUTileProcessor {
             		NUM_PAIRS * tilesX * tilesY,             // long Height,
                     Sizeof.FLOAT);                         // int ElementSizeBytes)
             corr_stride = (int)(device_stride[0] / Sizeof.FLOAT);
-            int max_texture_size = (NUM_COLORS + 1 + (NUM_CAMS + NUM_COLORS + 1)) * (2 * DTT_SIZE)* (2 * DTT_SIZE);
+            int max_texture_size = (num_colors + 1 + (num_cams + num_colors + 1)) * (2 * DTT_SIZE)* (2 * DTT_SIZE);
             cuMemAllocPitch (
             		gpu_textures,                             // CUdeviceptr dptr,
             		device_stride,                         // long[] pPitch,
@@ -833,7 +838,7 @@ public class GPUTileProcessor {
             texture_stride = (int)(device_stride[0] / Sizeof.FLOAT);
             int max_rgba_width  =  (tilesX + 1) * DTT_SIZE;
             int max_rgba_height =  (tilesY + 1) * DTT_SIZE;
-            int max_rbga_slices =  NUM_COLORS + 1;
+            int max_rbga_slices =  num_colors + 1;
             cuMemAllocPitch (
             		gpu_textures_rgba,                     // CUdeviceptr dptr,
             		device_stride,                         // long[] pPitch,
@@ -855,7 +860,7 @@ public class GPUTileProcessor {
         		cuMemcpyHtoD(gpu_rByRDist,            Pointer.to(fFByRDist), fFByRDist.length * Sizeof.FLOAT);
         	}
         	cuMemcpyHtoD(gpu_geometry_correction, Pointer.to(fgc),       fgc.length * Sizeof.FLOAT);
-        	cuMemAlloc  (gpu_rot_deriv, 5 * NUM_CAMS *3 *3 * Sizeof.FLOAT); // NCAM of 3x3 rotation matrices, plus 4 derivative matrices for each camera
+        	cuMemAlloc  (gpu_rot_deriv, 5 * num_cams *3 *3 * Sizeof.FLOAT); // NCAM of 3x3 rotation matrices, plus 4 derivative matrices for each camera
         }
 
         public void setExtrinsicsVector(GeometryCorrection.CorrVector cv) {
@@ -983,12 +988,12 @@ public class GPUTileProcessor {
             CUDA_MEMCPY2D copyH2D =   new CUDA_MEMCPY2D();
             copyH2D.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
             copyH2D.srcHost =         Pointer.to(bayer_image);
-            copyH2D.srcPitch =        IMG_WIDTH*Sizeof.FLOAT; // width_in_bytes;
+            copyH2D.srcPitch =        img_width*Sizeof.FLOAT; // width_in_bytes;
             copyH2D.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
             copyH2D.dstDevice =       gpu_bayer_h[ncam]; // src_dpointer;
             copyH2D.dstPitch =        mclt_stride *Sizeof.FLOAT; // device_stride[0];
-            copyH2D.WidthInBytes =    IMG_WIDTH*Sizeof.FLOAT; // width_in_bytes;
-            copyH2D.Height =          IMG_HEIGHT; // /4;
+            copyH2D.WidthInBytes =    img_width*Sizeof.FLOAT; // width_in_bytes;
+            copyH2D.Height =          img_height; // /4;
             cuMemcpy2D(copyH2D);
         }
         // combines 3 bayer channels into one and transfers to GPU memory
@@ -1026,8 +1031,8 @@ public class GPUTileProcessor {
     			final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
     			final int                 threadsMax,  // maximal number of threads to launch
     			final int                 debugLevel) {
-            int tilesX =  IMG_WIDTH / DTT_SIZE;
-            int tilesY =  IMG_HEIGHT / DTT_SIZE;
+            int tilesX =  img_width / DTT_SIZE;
+            int tilesY =  img_height / DTT_SIZE;
         	float [] target_disparities = new float [tilesX * tilesY];
         	int [] out_images = new int [tilesX * tilesY];
         	int [] corr_masks = new int [tilesX * tilesY];
@@ -1069,8 +1074,8 @@ public class GPUTileProcessor {
     			final int                 threadsMax,  // maximal number of threads to launch
     			final int                 debugLevel)
         {
-            int tilesX =  IMG_WIDTH / DTT_SIZE;
-            int tilesY =  IMG_HEIGHT / DTT_SIZE;
+            int tilesX =  img_width / DTT_SIZE;
+            int tilesY =  img_height / DTT_SIZE;
             if (woi == null) {
             	woi = new Rectangle(0,0,tilesX,tilesY);
             }
@@ -1168,7 +1173,7 @@ public class GPUTileProcessor {
          */
         public int [] getCorrTasks(
         		TpTask [] tp_tasks) {
-        	int tilesX = IMG_WIDTH / DTT_SIZE;
+        	int tilesX = img_width / DTT_SIZE;
         	int num_corr = 0;
         	int task_mask = (1 << NUM_PAIRS) - 1;
         	for (TpTask tt: tp_tasks) {
@@ -1200,7 +1205,7 @@ public class GPUTileProcessor {
          */
         public int [] getTextureTasks(
         		TpTask [] tp_tasks) {
-        	int tilesX = IMG_WIDTH / DTT_SIZE;
+        	int tilesX = img_width / DTT_SIZE;
         	int num_textures = 0;
         	for (TpTask tt: tp_tasks) {
         		if ((tt.task & TASK_TEXTURE_BITS) !=0) {
@@ -1228,7 +1233,7 @@ public class GPUTileProcessor {
                 return;
             }
             // kernel parameters: pointer to pointers
-            int [] GridFullWarps =    {NUM_CAMS, 1, 1}; // round up
+            int [] GridFullWarps =    {num_cams, 1, 1}; // round up
             int [] ThreadsFullWarps = {3,        3, 3};
             Pointer kernelParameters = Pointer.to(
                 Pointer.to(gpu_correction_vector),
@@ -1252,7 +1257,7 @@ public class GPUTileProcessor {
                 return;
             }
             // kernel parameters: pointer to pointers
-            int [] GridFullWarps =    {NUM_CAMS, 1, 1}; // round up
+            int [] GridFullWarps =    {num_cams, 1, 1}; // round up
             int [] ThreadsFullWarps = {3,        3, 3};
             Pointer kernelParameters = Pointer.to(
             		Pointer.to(gpu_geometry_correction),     //	struct gc          * gpu_geometry_correction,
@@ -1275,7 +1280,7 @@ public class GPUTileProcessor {
             }
             // kernel parameters: pointer to pointers
             int [] GridFullWarps =    {(num_task_tiles + TILES_PER_BLOCK_GEOM - 1)/TILES_PER_BLOCK_GEOM, 1, 1}; // round up
-            int [] ThreadsFullWarps = {NUM_CAMS, TILES_PER_BLOCK_GEOM, 1}; // 4,8,1
+            int [] ThreadsFullWarps = {num_cams, TILES_PER_BLOCK_GEOM, 1}; // 4,8,1
             Pointer kernelParameters = Pointer.to(
             		Pointer.to(gpu_tasks),                   // struct tp_task     * gpu_tasks,
             		Pointer.to(new int[] { num_task_tiles }),// int                  num_tiles,          // number of tiles in task list
@@ -1311,10 +1316,10 @@ public class GPUTileProcessor {
             		Pointer.to(new int[] { num_task_tiles }),
             		// move lpf to 4-image generator kernel - DONE
             		Pointer.to(new int[] { 0 }), // lpf_mask
-            		Pointer.to(new int[] { IMG_WIDTH}),          // int                woi_width,
-            		Pointer.to(new int[] { IMG_HEIGHT}),         // int                woi_height,
-            		Pointer.to(new int[] { KERNELS_HOR}),        // int                kernels_hor,
-            		Pointer.to(new int[] { KERNELS_VERT}),       // int                kernels_vert);
+            		Pointer.to(new int[] { img_width}),          // int                woi_width,
+            		Pointer.to(new int[] { img_height}),         // int                woi_height,
+            		Pointer.to(new int[] { kernels_hor}),        // int                kernels_hor,
+            		Pointer.to(new int[] { kernels_vert}),       // int                kernels_vert);
             		Pointer.to(gpu_active_tiles),
             		Pointer.to(gpu_num_active_tiles)
             		);
@@ -1340,15 +1345,15 @@ public class GPUTileProcessor {
         		return;
         	}
         	int apply_lpf =  1;
-        	int tilesX =  IMG_WIDTH / DTT_SIZE;
-        	int tilesY =  IMG_HEIGHT / DTT_SIZE;
+        	int tilesX =  img_width / DTT_SIZE;
+        	int tilesY =  img_height / DTT_SIZE;
         	int [] ThreadsFullWarps = {1, 1, 1};
         	int [] GridFullWarps =    {1, 1, 1};
         	Pointer kernelParameters = Pointer.to(
-                    Pointer.to(gpu_clt),                                // float  ** gpu_clt, // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
-                    Pointer.to(gpu_4_images),                           // float           ** gpu_corr_images,    // [NUM_CAMS][WIDTH, 3 * HEIGHT]
+                    Pointer.to(gpu_clt),                                // float  ** gpu_clt, // [num_cams][TILESY][TILESX][num_colors][DTT_SIZE*DTT_SIZE]
+                    Pointer.to(gpu_4_images),                           // float           ** gpu_corr_images,    // [num_cams][WIDTH, 3 * HEIGHT]
         			Pointer.to(new int[] { apply_lpf }),                // int                apply_lpf,
-        			Pointer.to(new int[] { is_mono ? 1 : NUM_COLORS }), // int                colors,
+        			Pointer.to(new int[] { is_mono ? 1 : num_colors }), // int                colors,
         			Pointer.to(new int[] { tilesX }),                   // int                woi_twidth,
         			Pointer.to(new int[] { tilesY }),                   // int                woi_theight,
         			Pointer.to(new int[] { imclt_stride })              // const size_t       dstride);            // in floats (pixels)
@@ -1451,10 +1456,10 @@ public class GPUTileProcessor {
         			Pointer.to(gpu_num_texture_ovlp),                // int              * num_texture_tiles,  // number of texture tiles to process (8 elements)
         			Pointer.to(gpu_woi),                             // int              * woi,                // x,y,width,height of the woi
         			// set smaller for LWIR - it is used to reduce work aread
-        			Pointer.to(new int[] {IMG_WIDTH / DTT_SIZE}),    // int                width,  // <= TILESX, use for faster processing of LWIR images (should be actual + 1)
-        			Pointer.to(new int[] {IMG_HEIGHT / DTT_SIZE}),   // int                height); // <= TILESY, use for faster processing of LWIR images
+        			Pointer.to(new int[] {img_width / DTT_SIZE}),    // int                width,  // <= TILESX, use for faster processing of LWIR images (should be actual + 1)
+        			Pointer.to(new int[] {img_height / DTT_SIZE}),   // int                height); // <= TILESY, use for faster processing of LWIR images
         	    	// Parameters for the texture generation
-        			Pointer.to(gpu_clt),                             // float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+        			Pointer.to(gpu_clt),                             // float          ** gpu_clt,            // [num_cams] ->[TILESY][TILESX][num_colors][DTT_SIZE*DTT_SIZE]
             		Pointer.to(gpu_geometry_correction),             //	struct gc          * gpu_geometry_correction,
     	            Pointer.to(new int[]   {num_colors}),            // int               colors,             // number of colors (3/1)
     	            Pointer.to(new int[]   {iis_lwir}),              // int               is_lwir,            // do not perform shot correction
@@ -1520,7 +1525,7 @@ public class GPUTileProcessor {
                     Pointer.to(gpu_texture_indices),                 // int              * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
         			Pointer.to(gpu_texture_indices_len),
         	    	// Parameters for the texture generation
-        			Pointer.to(gpu_clt),                             // float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+        			Pointer.to(gpu_clt),                             // float          ** gpu_clt,            // [num_cams] ->[TILESY][TILESX][num_colors][DTT_SIZE*DTT_SIZE]
             		Pointer.to(gpu_geometry_correction),             //	struct gc          * gpu_geometry_correction,
         			Pointer.to(new int[] { num_colors }),
         			Pointer.to(new int[] { iis_lwir }),
@@ -1529,7 +1534,7 @@ public class GPUTileProcessor {
         			Pointer.to(new int[] { idust_remove }),
         			Pointer.to(new int[] {texture_stride}),        // can be a null pointer - will not be used! float           * gpu_texture_rbg,     // (number of colors +1 + ?)*16*16 rgba texture tiles
         			Pointer.to(gpu_textures),
-    	            Pointer.to(gpu_diff_rgb_combo));                 // float           * gpu_diff_rgb_combo); // diff[NUM_CAMS], R[NUM_CAMS], B[NUM_CAMS],G[NUM_CAMS]
+    	            Pointer.to(gpu_diff_rgb_combo));                 // float           * gpu_diff_rgb_combo); // diff[num_cams], R[num_cams], B[num_cams],G[num_cams]
         	cuCtxSynchronize();
         	// Call the kernel function
         	cuLaunchKernel(GPU_TEXTURES_kernel,
@@ -1582,11 +1587,11 @@ public class GPUTileProcessor {
 //	        read extra data for macro generation: 4 DIFFs, 4 of R,  4 of B, 4 of G
         public float [][] getExtra(){
     		int [] texture_indices = getTextureIndices();
-        	int num_tile_extra = NUM_CAMS*(NUM_COLORS+1);
+        	int num_tile_extra = num_cams*(num_colors+1);
         	float [] diff_rgb_combo = new float[texture_indices.length * num_tile_extra];
         	cuMemcpyDtoH(Pointer.to(diff_rgb_combo), gpu_diff_rgb_combo,  diff_rgb_combo.length * Sizeof.FLOAT);
-        	int tilesX =  IMG_WIDTH / DTT_SIZE;
-        	int tilesY =  IMG_HEIGHT / DTT_SIZE;
+        	int tilesX =  img_width / DTT_SIZE;
+        	int tilesY =  img_height / DTT_SIZE;
         	float [][] extra = new float[num_tile_extra][tilesX*tilesY];
         	for (int i = 0; i < texture_indices.length; i++) {
         		if (((texture_indices[i] >> CORR_TEXTURE_BIT) & 1) != 0) {
@@ -1645,7 +1650,7 @@ public class GPUTileProcessor {
         		int     num_colors,
         		boolean keep_weights){
 
-        	int texture_slices =     (num_colors + 1 + (keep_weights?(NUM_CAMS + num_colors + 1):0)); // number of texture slices
+        	int texture_slices =     (num_colors + 1 + (keep_weights?(num_cams + num_colors + 1):0)); // number of texture slices
         	int texture_slice_size = (2 * DTT_SIZE)* (2 * DTT_SIZE);        // number of (float) elements in a single slice of a tile
         	int texture_tile_size =  texture_slices * texture_slice_size;   // number of (float) elements in a multi-slice tile
         	int texture_size =       texture_tile_size * num_texture_tiles; // number of (float) elements in the whole texture
@@ -1671,7 +1676,7 @@ public class GPUTileProcessor {
         		int     num_colors,
         		boolean keep_weights){
 
-        	int texture_slices =     (num_colors + 1 + (keep_weights?(NUM_CAMS + num_colors + 1):0));
+        	int texture_slices =     (num_colors + 1 + (keep_weights?(num_cams + num_colors + 1):0));
         	int texture_slice_size = (2 * DTT_SIZE)* (2 * DTT_SIZE);
         	int texture_tile_size =  texture_slices * texture_slice_size;
 //	        	int texture_size =       texture_tile_size * num_texture_tiles;
@@ -1749,10 +1754,10 @@ public class GPUTileProcessor {
         }
 
         public float [][] getRBG (int ncam){
-            int height = (IMG_HEIGHT + DTT_SIZE);
-            int width =  (IMG_WIDTH + DTT_SIZE);
+            int height = (img_height + DTT_SIZE);
+            int width =  (img_width + DTT_SIZE);
             int rslt_img_size =      width * height;
-            float [] cpu_corr_image = new float [ NUM_COLORS * rslt_img_size];
+            float [] cpu_corr_image = new float [ num_colors * rslt_img_size];
             int width_in_bytes = width *Sizeof.FLOAT;
 
         	// for copying results to host
@@ -1770,8 +1775,8 @@ public class GPUTileProcessor {
 
             cuMemcpy2D(copyD2H); // run copy
 
-            float [][] fimg = new float [NUM_COLORS][ rslt_img_size];
-            for (int ncol = 0; ncol < NUM_COLORS; ncol++) {
+            float [][] fimg = new float [num_colors][ rslt_img_size];
+            for (int ncol = 0; ncol < num_colors; ncol++) {
             	System.arraycopy(cpu_corr_image, ncol*rslt_img_size, fimg[ncol], 0, rslt_img_size);
             }
             return fimg;
@@ -1785,8 +1790,8 @@ public class GPUTileProcessor {
     			final int                 threadsMax,  // maximal number of threads to launch
     			final int                 debugLevel)
     	{
-    		final int quad_main = (geometryCorrection_main != null)? NUM_CAMS:0;
-    		final int quad_aux =  (geometryCorrection_aux != null)? NUM_CAMS:0;
+    		final int quad_main = (geometryCorrection_main != null)? num_cams:0;
+    		final int quad_aux =  (geometryCorrection_aux != null)? num_cams:0;
 
 
     		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);

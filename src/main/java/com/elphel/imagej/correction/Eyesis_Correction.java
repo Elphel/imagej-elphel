@@ -5812,6 +5812,8 @@ private Panel panel1,
 				GPU_QUAD = GPU_TILE_PROCESSOR. new GpuQuad(
 						2592,
 						1936,
+						164,   // final int kernels_hor,
+			   			123,   // final int kernels_vert,
 						4,
 						3);
 			} catch (Exception e) {
