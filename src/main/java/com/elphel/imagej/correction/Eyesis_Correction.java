@@ -179,11 +179,14 @@ private Panel panel1,
 
    public static CLTParameters CLT_PARAMETERS = new CLTParameters();
 
-   public static EyesisDCT        EYESIS_DCT = null;
-   public static QuadCLT          QUAD_CLT =   null;
-   public static QuadCLT          QUAD_CLT_AUX =   null;
-   public static TwoQuadCLT       TWO_QUAD_CLT = null;
-   public static GPUTileProcessor GPU_TILE_PROCESSOR = null;
+   public static EyesisDCT        EYESIS_DCT =           null;
+   public static QuadCLT          QUAD_CLT =             null;
+   public static QuadCLT          QUAD_CLT_AUX =         null;
+   public static TwoQuadCLT       TWO_QUAD_CLT =         null;
+   public static GPUTileProcessor GPU_TILE_PROCESSOR =   null;
+   // Add macro for GPU_QUAD?
+   public static GPUTileProcessor.GpuQuad GPU_QUAD =     null;
+   public static GPUTileProcessor.GpuQuad GPU_QUAD_AUX = null;
    public static LwirReader       LWIR_READER = null;
 
    public static EyesisCorrectionParameters.DebayerParameters DEBAYER_PARAMETERS = new EyesisCorrectionParameters.DebayerParameters(
@@ -5803,12 +5806,31 @@ private Panel panel1,
 			} //final int        debugLevel);
 
 		}
+		
+		if (GPU_QUAD == null) {
+			try {
+				GPU_QUAD = GPU_TILE_PROCESSOR. new GpuQuad(
+						2592,
+						1936,
+						4,
+						3);
+			} catch (Exception e) {
+				System.out.println("Failed to initialize GpuQuad class");
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				return false;
+			} //final int        debugLevel);
+		}
+		// For now keep GPU_QUAD_AUX==null
+		
 		if (COLOR_PROC_PARAMETERS_AUX == null) {
 			COLOR_PROC_PARAMETERS_AUX = COLOR_PROC_PARAMETERS.clone();
 		}
 		try {
 			TWO_QUAD_CLT.processCLTQuadCorrPairsGpu(
-					GPU_TILE_PROCESSOR,
+//					GPU_TILE_PROCESSOR,
+					GPU_QUAD,     // GPUTileProcessor.GpuQuad                        gpuQuad_main,
+					GPU_QUAD_AUX, // GPUTileProcessor.GpuQuad                        gpuQuad_aux,
 					QUAD_CLT, // QuadCLT quadCLT_main,
 					QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
 					CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,

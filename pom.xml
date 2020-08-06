@@ -92,12 +92,36 @@
 				<artifactId>loci_tools</artifactId>
 				<version>6.1.0</version>
 			</dependency>
+<!-- 			
 			<dependency>
 			  <groupId>com.drewnoakes</groupId>
 			  <artifactId>metadata-extractor</artifactId>
 			  <version>2.11.0</version>
 			  <type>java-source</type>
+			</dependency> -->
+<!-- https://mvnrepository.com/artifact/com.drewnoakes/metadata-extractor -->
+			<dependency>
+			    <groupId>com.drewnoakes</groupId>
+			    <artifactId>metadata-extractor</artifactId>
+			    <version>2.11.0</version>
 			</dependency>
+			
+			<!-- https://mvnrepository.com/artifact/net.sf.ehcache/ehcache-core -->
+			<!-- 
+			<dependency>
+			    <groupId>net.sf.ehcache</groupId>
+			    <artifactId>ehcache-core</artifactId>
+			    <version>2.6.2</version>
+			</dependency>\
+			 -->
+			<!-- https://mvnrepository.com/artifact/org.slf4j/jcl-over-slf4j -->
+			<!--
+			<dependency>
+			    <groupId>org.slf4j</groupId>
+			    <artifactId>jcl-over-slf4j</artifactId>
+			    <version>1.7.5</version>
+			</dependency>
+		  -->
 			
 		</dependencies>
 

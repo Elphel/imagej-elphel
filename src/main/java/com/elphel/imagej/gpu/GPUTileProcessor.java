@@ -92,23 +92,15 @@ public class GPUTileProcessor {
 	static String GPU_RESOURCE_DIR =              "kernels";
 	static String [] GPU_KERNEL_FILES = {"dtt8x8.cuh","TileProcessor.cuh"};
 	// "*" - generated defines, first index - separately compiled unit
-/*	static String [][] GPU_SRC_FILES = {
-	{"*","dtt8x8.h","dtt8x8.cu"},
-	{"*","dtt8x8.h","geometry_correction.h","geometry_correction.cu","TileProcessor.h","TileProcessor.cuh"}};
-*/
 	static String [][] GPU_SRC_FILES = {{"*","dtt8x8.h","dtt8x8.cu","geometry_correction.h","geometry_correction.cu","TileProcessor.h","TileProcessor.cuh"}};
-//	static String [][] GPU_SRC_FILES = {{"*","dtt8x8.h","dtt8x8.cu","geometry_correction.h","TileProcessor.h","TileProcessor.cuh"}};
-	//	static String [][] GPU_SRC_FILES = {{"*","dtt8x8.cuh","TileProcessor.cuh"}};
 	static String GPU_CONVERT_DIRECT_NAME =        "convert_direct"; // name in C code
 	static String GPU_IMCLT_ALL_NAME =             "imclt_rbg_all";
 	static String GPU_CORRELATE2D_NAME =           "correlate2D"; // name in C code
-//	static String GPU_TEXTURES_NAME =              "textures_accumulate"; // name in C code
 	static String GPU_TEXTURES_NAME =              "textures_nonoverlap"; // name in C code
 	static String GPU_RBGA_NAME =                  "generate_RBGA"; // name in C code
 	static String GPU_ROT_DERIV =                  "calc_rot_deriv"; // calculate rotation matrices and derivatives
 	static String GPU_SET_TILES_OFFSETS =          "get_tiles_offsets"; // calculate pixel offsets and disparity distortions
 	static String GPU_CALC_REVERSE_DISTORTION =    "calcReverseDistortionTable"; // calculate reverse radial distortion table from gpu_geometry_correction
-
 
 //  pass some defines to gpu source code with #ifdef JCUDA
 	public static int DTT_SIZE_LOG2 =             3;
@@ -171,8 +163,11 @@ public class GPUTileProcessor {
     private CUfunction GPU_SET_TILES_OFFSETS_kernel =       null;
     private CUfunction GPU_CALC_REVERSE_DISTORTION_kernel = null;
 
-
+    CUmodule    module; // to access constants memory
+    
     // CPU arrays of pointers to GPU memory
+    // Moved to GpuQuad class
+/*    
     // These arrays may go to methods, they are here just to be able to free GPU memory if needed
     private CUdeviceptr [] gpu_kernels_h =        new CUdeviceptr[NUM_CAMS];
     private CUdeviceptr [] gpu_kernel_offsets_h = new CUdeviceptr[NUM_CAMS];
@@ -221,6 +216,10 @@ public class GPUTileProcessor {
     public int num_task_tiles;
     public int num_corr_tiles;
     public int num_texture_tiles;
+*/    
+//    public GpuQuad [][] gpuQuad; // array of GpuQuad instances 2x2? ({{rgb, rgb_macro}, {lwir, lwir_macro})
+    // initilize with 4 dimensions each
+    
     public class TpTask {
     	public int   task; // [0](+1) - generate 4 images, [4..9]+16..+512 - correlation pairs, 2 - generate texture tiles
     	public float target_disparity;
@@ -273,7 +272,8 @@ public class GPUTileProcessor {
     	}
     }
 
-    public class CltExtra{
+    /*
+    public class CltExtra{ // never used?
     	public float data_x;   // kernel data is relative to this displacement X (0.5 pixel increments)
     	public float data_y;   // kernel data is relative to this displacement Y (0.5 pixel increments)
     	public float center_x; // actual center X (use to find derivatives)
@@ -328,7 +328,8 @@ public class GPUTileProcessor {
     		flt[indx++] = this.dyc_dy;
     		return flt;
     	}
-    };
+    }
+    */
 
     private static long getPointerAddress(CUdeviceptr p)
 
@@ -451,7 +452,6 @@ public class GPUTileProcessor {
 
         // Create the kernel functions (first - just test)
         String [] func_names = {
-//        		GPU_CONVERT_CORRECT_TILES_NAME,
         		GPU_CONVERT_DIRECT_NAME,
         		GPU_IMCLT_ALL_NAME,
         		GPU_CORRELATE2D_NAME,
@@ -465,7 +465,6 @@ public class GPUTileProcessor {
         		                                 func_names,
         		                                 capability); // on my - 75
 
-//        GPU_CONVERT_CORRECT_TILES_kernel =   functions[0];
         GPU_CONVERT_DIRECT_kernel =          functions[0];
         GPU_IMCLT_ALL_kernel =               functions[1];
         GPU_CORRELATE2D_kernel =             functions[2];
@@ -476,7 +475,6 @@ public class GPUTileProcessor {
         GPU_CALC_REVERSE_DISTORTION_kernel = functions[7];
 
         System.out.println("GPU kernel functions initialized");
-//        System.out.println(GPU_CONVERT_CORRECT_TILES_kernel.toString());
         System.out.println(GPU_CONVERT_DIRECT_kernel.toString());
         System.out.println(GPU_IMCLT_ALL_kernel.toString());
         System.out.println(GPU_CORRELATE2D_kernel.toString());
@@ -485,521 +483,10 @@ public class GPUTileProcessor {
         System.out.println(GPU_ROT_DERIV_kernel.toString());
         System.out.println(GPU_SET_TILES_OFFSETS_kernel.toString());
         System.out.println(GPU_CALC_REVERSE_DISTORTION_kernel.toString());
-
-        // Init data arrays for all kernels
-        int tilesX =  IMG_WIDTH / DTT_SIZE;
-        int tilesY =  IMG_HEIGHT / DTT_SIZE;
-        long [] device_stride = new long [1];
-
-        for (int ncam = 0; ncam < NUM_CAMS; ncam++) {
-        	gpu_kernels_h[ncam] =        new CUdeviceptr();
-        	cuMemAlloc(gpu_kernels_h[ncam],KERN_SIZE * Sizeof.FLOAT ); //     public static int cuMemAlloc(CUdeviceptr dptr, long bytesize)
-        	gpu_kernel_offsets_h[ncam] = new CUdeviceptr();
-        	cuMemAlloc(gpu_kernel_offsets_h[ncam],KERN_TILES * CLTEXTRA_SIZE * Sizeof.FLOAT ); //     public static int cuMemAlloc(CUdeviceptr dptr, long bytesize)
-        	gpu_bayer_h[ncam] =          new CUdeviceptr();
-            cuMemAllocPitch (
-            		gpu_bayer_h[ncam],        // CUdeviceptr dptr,
-            		device_stride,            // long[] pPitch,
-            		IMG_WIDTH * Sizeof.FLOAT, // long WidthInBytes,
-            		IMG_HEIGHT,               // long Height,
-                    Sizeof.FLOAT);            // int ElementSizeBytes)
-            mclt_stride = (int)(device_stride[0] / Sizeof.FLOAT);
-
-            gpu_corr_images_h[ncam] =  new CUdeviceptr();
-            cuMemAllocPitch (
-            		gpu_corr_images_h[ncam],               // CUdeviceptr dptr,
-            		device_stride,                         // long[] pPitch,
-            		(IMG_WIDTH + DTT_SIZE) * Sizeof.FLOAT, // long WidthInBytes,
-            		3*(IMG_HEIGHT + DTT_SIZE),// long Height,
-                    Sizeof.FLOAT);            // int ElementSizeBytes)
-            imclt_stride = (int)(device_stride[0] / Sizeof.FLOAT);
-            gpu_clt_h[ncam] = new CUdeviceptr();
-        	cuMemAlloc(gpu_clt_h[ncam],tilesY * tilesX * NUM_COLORS * 4 * DTT_SIZE * DTT_SIZE * Sizeof.FLOAT ); //     public static int cuMemAlloc(CUdeviceptr dptr, long bytesize)
-
-        }
-        // now create device arrays pointers
-        if (Sizeof.POINTER != Sizeof.LONG) {
-    		String msg = "Sizeof.POINTER != Sizeof.LONG";
-    		IJ.showMessage("Error",	msg);
-    		new IllegalArgumentException (msg);
-        }
-    	cuMemAlloc(gpu_kernels,        NUM_CAMS * Sizeof.POINTER);
-    	cuMemAlloc(gpu_kernel_offsets, NUM_CAMS * Sizeof.POINTER);
-    	cuMemAlloc(gpu_bayer,          NUM_CAMS * Sizeof.POINTER);
-    	cuMemAlloc(gpu_clt,            NUM_CAMS * Sizeof.POINTER);
-    	cuMemAlloc(gpu_4_images,       NUM_CAMS * Sizeof.POINTER);
-
-    	long [] gpu_kernels_l =        new long [NUM_CAMS];
-    	long [] gpu_kernel_offsets_l = new long [NUM_CAMS];
-    	long [] gpu_bayer_l =          new long [NUM_CAMS];
-    	long [] gpu_clt_l =            new long [NUM_CAMS];
-    	long [] gpu_4_images_l =       new long [NUM_CAMS];
-
-    	for (int ncam = 0; ncam < NUM_CAMS; ncam++) gpu_kernels_l[ncam] =        getPointerAddress(gpu_kernels_h[ncam]);
-        cuMemcpyHtoD(gpu_kernels, Pointer.to(gpu_kernels_l),                     NUM_CAMS * Sizeof.POINTER);
-
-        for (int ncam = 0; ncam < NUM_CAMS; ncam++) gpu_kernel_offsets_l[ncam] = getPointerAddress(gpu_kernel_offsets_h[ncam]);
-        cuMemcpyHtoD(gpu_kernel_offsets, Pointer.to(gpu_kernel_offsets_l),       NUM_CAMS * Sizeof.POINTER);
-
-        for (int ncam = 0; ncam < NUM_CAMS; ncam++) gpu_bayer_l[ncam] =          getPointerAddress(gpu_bayer_h[ncam]);
-        cuMemcpyHtoD(gpu_bayer, Pointer.to(gpu_bayer_l),                         NUM_CAMS * Sizeof.POINTER);
-
-        for (int ncam = 0; ncam < NUM_CAMS; ncam++) gpu_clt_l[ncam] =            getPointerAddress(gpu_clt_h[ncam]);
-        cuMemcpyHtoD(gpu_clt, Pointer.to(gpu_clt_l),                             NUM_CAMS * Sizeof.POINTER);
-
-        for (int ncam = 0; ncam < NUM_CAMS; ncam++) gpu_4_images_l[ncam] =       getPointerAddress(gpu_corr_images_h[ncam]);
-        cuMemcpyHtoD(gpu_4_images, Pointer.to(gpu_4_images_l),                   NUM_CAMS * Sizeof.POINTER);
-
-        // Set GeometryCorrection data
-    	cuMemAlloc(gpu_geometry_correction,      GeometryCorrection.arrayLength(NUM_CAMS) * Sizeof.FLOAT);
-    	cuMemAlloc(gpu_rByRDist,                 RBYRDIST_LEN *  Sizeof.FLOAT);
-    	cuMemAlloc(gpu_rot_deriv,                5*NUM_CAMS*3*3 * Sizeof.FLOAT);
-    	cuMemAlloc(gpu_correction_vector,        GeometryCorrection.CorrVector.LENGTH * Sizeof.FLOAT);
-
-        // Set task array
-    	cuMemAlloc(gpu_tasks,      tilesX * tilesY * TPTASK_SIZE * Sizeof.FLOAT);
-//=========== Seems that in many places Sizeof.POINTER (==8) is used instead of Sizeof.FLOAT !!! ============
-    	// Set corrs array
-    	cuMemAlloc(gpu_corr_indices,   tilesX * tilesY * NUM_PAIRS * Sizeof.FLOAT);
-    	cuMemAlloc(gpu_num_corr_tiles,                    1 * Sizeof.FLOAT);
-
-    	//#define TILESYA       ((TILESY +3) & (~3))
-    	int tilesYa = (tilesY + 3) & ~3;
-    	cuMemAlloc(gpu_texture_indices,     tilesX * tilesYa * Sizeof.FLOAT); // for non-overlap tiles
-    	cuMemAlloc(gpu_texture_indices_ovlp,tilesX * tilesYa * Sizeof.FLOAT); // for overlapped tiles
-
-    	cuMemAlloc(gpu_diff_rgb_combo, tilesX * tilesYa * NUM_CAMS* (NUM_COLORS + 1) *  Sizeof.FLOAT);
-
-    	cuMemAlloc(gpu_color_weights,             3 * Sizeof.FLOAT);
-    	cuMemAlloc(gpu_generate_RBGA_params,      5 * Sizeof.FLOAT);
-
-
-    	cuMemAlloc(gpu_woi,                               4 * Sizeof.FLOAT);
-    	cuMemAlloc(gpu_num_texture_ovlp,                  8 * Sizeof.FLOAT);
-    	cuMemAlloc(gpu_texture_indices_len,               1 * Sizeof.FLOAT);
-
-
-    	cuMemAlloc(gpu_active_tiles,        tilesX * tilesY * Sizeof.FLOAT);
-    	cuMemAlloc(gpu_num_active_tiles,                  1 * Sizeof.FLOAT);
-
-        cuMemAllocPitch (
-        		gpu_corrs,                             // CUdeviceptr dptr,
-        		device_stride,                         // long[] pPitch,
-        		CORR_SIZE * Sizeof.FLOAT,              // long WidthInBytes,
-        		NUM_PAIRS * tilesX * tilesY,             // long Height,
-                Sizeof.FLOAT);                         // int ElementSizeBytes)
-        corr_stride = (int)(device_stride[0] / Sizeof.FLOAT);
-
-        int max_texture_size = (NUM_COLORS + 1 + (NUM_CAMS + NUM_COLORS + 1)) * (2 * DTT_SIZE)* (2 * DTT_SIZE);
-        cuMemAllocPitch (
-        		gpu_textures,                             // CUdeviceptr dptr,
-        		device_stride,                         // long[] pPitch,
-        		max_texture_size * Sizeof.FLOAT,              // long WidthInBytes,
-        		tilesX * tilesY,             // long Height,
-                Sizeof.FLOAT);                         // int ElementSizeBytes)
-        texture_stride = (int)(device_stride[0] / Sizeof.FLOAT);
-        int max_rgba_width  =  (tilesX + 1) * DTT_SIZE;
-        int max_rgba_height =  (tilesY + 1) * DTT_SIZE;
-        int max_rbga_slices =  NUM_COLORS + 1;
-
-        cuMemAllocPitch (
-        		gpu_textures_rgba,                     // CUdeviceptr dptr,
-        		device_stride,                         // long[] pPitch,
-        		max_rgba_width * Sizeof.FLOAT,         // long WidthInBytes,
-        		max_rgba_height * max_rbga_slices,     // long Height,
-                Sizeof.FLOAT);                         // int ElementSizeBytes)
-        texture_stride_rgba = (int)(device_stride[0] / Sizeof.FLOAT);
-
+        
+        // GPU data structures are now initialized through GpuQuad instances
     }
-
-    public void setGeometryCorrection(GeometryCorrection gc,
-    		boolean use_java_rByRDist) { // false - use newer GPU execCalcReverseDistortions
-    	float [] fgc = gc.toFloatArray();
-    	if (use_java_rByRDist) {
-    		double [] rByRDist = gc.getRByRDist();
-    		float [] fFByRDist = new float [rByRDist.length];
-    		for (int i = 0; i < rByRDist.length; i++) {
-    			fFByRDist[i] = (float) rByRDist[i];
-    		}
-    		cuMemcpyHtoD(gpu_rByRDist,            Pointer.to(fFByRDist), fFByRDist.length * Sizeof.FLOAT);
-    	}
-    	cuMemcpyHtoD(gpu_geometry_correction, Pointer.to(fgc),       fgc.length * Sizeof.FLOAT);
-    	cuMemAlloc  (gpu_rot_deriv, 5 * NUM_CAMS *3 *3 * Sizeof.FLOAT); // NCAM of 3x3 rotation matrices, plus 4 derivative matrices for each camera
-    }
-
-    public void setExtrinsicsVector(GeometryCorrection.CorrVector cv) {
-    	double [] dcv = cv.toFullRollArray();
-    	float []  fcv = new float [dcv.length];
-    	for (int i = 0; i < dcv.length; i++) {
-    		fcv[i] = (float) dcv[i];
-    	}
-    	cuMemcpyHtoD(gpu_correction_vector, Pointer.to(fcv), fcv.length * Sizeof.FLOAT);
-    }
-
-
-    public void setTasks(TpTask [] tile_tasks, boolean use_aux) // while is it in class member? - just to be able to free
-    {
-    	num_task_tiles = tile_tasks.length;
-    	float [] ftasks = new float [TPTASK_SIZE * num_task_tiles];
-    	for (int i = 0; i < num_task_tiles; i++) {
-    		tile_tasks[i].asFloatArray(ftasks, i* TPTASK_SIZE, use_aux);
-    	}
-        cuMemcpyHtoD(gpu_tasks, Pointer.to(ftasks), TPTASK_SIZE * num_task_tiles * Sizeof.FLOAT);
-    }
-
-    public void setCorrIndices(int [] corr_indices)
-    {
-    	num_corr_tiles = corr_indices.length;
-    	float [] fcorr_indices = new float [corr_indices.length];
-    	for (int i = 0; i < num_corr_tiles; i++) {
-    		fcorr_indices[i] = Float.intBitsToFloat(corr_indices[i]);
-    	}
-        cuMemcpyHtoD(gpu_corr_indices, Pointer.to(fcorr_indices),  num_corr_tiles * Sizeof.FLOAT);
-    }
-
-    public void setTextureIndices(int [] texture_indices)
-    {
-    	num_texture_tiles = texture_indices.length;
-    	float [] ftexture_indices = new float [texture_indices.length];
-    	for (int i = 0; i < num_texture_tiles; i++) {
-    		ftexture_indices[i] = Float.intBitsToFloat(texture_indices[i]);
-    	}
-        cuMemcpyHtoD(gpu_texture_indices, Pointer.to(ftexture_indices),  num_texture_tiles * Sizeof.FLOAT);
-    }
-
-    public int [] getTextureIndices()
-    {
-    	float [] ftexture_indices_len = new float[1];
-    	cuMemcpyDtoH(Pointer.to(ftexture_indices_len), gpu_texture_indices_len,  1 * Sizeof.FLOAT);
-    	int num_tiles =      Float.floatToIntBits(ftexture_indices_len[0]);
-    	float [] ftexture_indices = new float [num_tiles];
-    	cuMemcpyDtoH(Pointer.to(ftexture_indices), gpu_texture_indices,  num_tiles * Sizeof.FLOAT);
-    	int [] texture_indices = new int [num_tiles];
-    	for (int i = 0; i < num_tiles; i++) {
-    		texture_indices[i] = Float.floatToIntBits(ftexture_indices[i]);
-    	}
-    	return texture_indices;
-    }
-
-
-//texture_indices
-
-
-
-    public void setConvolutionKernel(
-    		float [] kernel,  // [tileY][tileX][color][..]
-    		float [] kernel_offsets,
-    		int ncam) {
-        cuMemcpyHtoD(gpu_kernels_h[ncam],        Pointer.to(kernel),         KERN_SIZE * Sizeof.FLOAT);
-        cuMemcpyHtoD(gpu_kernel_offsets_h[ncam], Pointer.to(kernel_offsets), KERN_TILES * CLTEXTRA_SIZE * Sizeof.FLOAT);
-    }
-
-    public void setConvolutionKernels(
-    		double [][][][][][] clt_kernels,
-    		boolean force)
-    {
-    	boolean transpose = true;
-    	if (kernels_set && ! force) {
-    		return;
-    	}
-    	int num_kernels =
-    			clt_kernels[0][0].length * //tilesY
-    			clt_kernels[0][0][0].length * //tilesX
-    			clt_kernels[0].length;  //colors
-    	int kernel_length =	num_kernels * 4 * DTT_SIZE * DTT_SIZE;
-
-    	float [] fkernel =  new float [kernel_length];
-    	float [] foffsets = new float [num_kernels * CLTEXTRA_SIZE];
-    	for (int ncam = 0; ncam < clt_kernels.length; ncam++) {
-    		int indx=0;
-    		for (int ty = 0; ty <  clt_kernels[ncam][0].length; ty++) {
-    			for (int tx = 0; tx <  clt_kernels[ncam][0][ty].length; tx++) {
-    				for (int col = 0; col <  clt_kernels[ncam].length; col++) {
-    					for (int p = 0; p < 4; p++) {
-    						double [] pa = clt_kernels[ncam][col][ty][tx][p];
-    						for (int i0 = 0; i0 < 64; i0++) {
-    							int i;
-    							if (transpose) {
-    								i = ((i0 & 7) << 3) + ((i0 >>3) & 7);
-    							} else {
-    								i = i0;
-    							}
-    							fkernel[indx++] = (float)pa[i];
-    						}
-    					}
-    				}
-    			}
-    		}
-    		indx = 0;
-    		for (int ty = 0; ty <  clt_kernels[ncam][0].length; ty++) {
-    			for (int tx = 0; tx <  clt_kernels[ncam][0][ty].length; tx++) {
-    				for (int col = 0; col <  clt_kernels[ncam].length; col++) {
-    					double [] pa = clt_kernels[ncam][col][ty][tx][4];
-    					for (int i = 0; i < pa.length; i++) {
-    						foffsets[indx++] = (float)pa[i];
-    					}
-    				}
-    			}
-    		}
-
-    		setConvolutionKernel(
-    				fkernel,    // float [] kernel,  // [tileY][tileX][color][..]
-    				foffsets,   // float [] kernel_offsets,
-    				ncam);      // int ncam)
-    	}
-    	kernels_set = true;
-    }
-
-    public void setBayerImage(
-    		float [] bayer_image,
-    		int ncam) {
-        CUDA_MEMCPY2D copyH2D =   new CUDA_MEMCPY2D();
-        copyH2D.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
-        copyH2D.srcHost =         Pointer.to(bayer_image);
-        copyH2D.srcPitch =        IMG_WIDTH*Sizeof.FLOAT; // width_in_bytes;
-        copyH2D.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
-        copyH2D.dstDevice =       gpu_bayer_h[ncam]; // src_dpointer;
-        copyH2D.dstPitch =        mclt_stride *Sizeof.FLOAT; // device_stride[0];
-        copyH2D.WidthInBytes =    IMG_WIDTH*Sizeof.FLOAT; // width_in_bytes;
-        copyH2D.Height =          IMG_HEIGHT; // /4;
-        cuMemcpy2D(copyH2D);
-    }
-    // combines 3 bayer channels into one and transfers to GPU memory
-    public void setBayerImages(
-			double [][][]       bayer_data,
-    		boolean                  force) {
-    	if (bayer_set && !force) {
-    		return;
-    	}
-    	float [] fbayer = new float [bayer_data[0][0].length];
-		for (int ncam = 0; ncam < bayer_data.length; ncam++) {
-			for (int i = 0; i <  bayer_data[ncam][0].length; i++) {
-				fbayer[i] = (float) (bayer_data[ncam][0][i] + bayer_data[ncam][1][i] + bayer_data[ncam][2][i]);
-			}
-		    setBayerImage(
-		    		fbayer, // float [] bayer_image,
-		    		ncam); // int ncam)
-		}
-		bayer_set = true;
-    }
-
-    // prepare tasks for full frame, same dispaity.
-    // need to run setTasks(TpTask [] tile_tasks, boolean use_aux) to format/transfer to GPU memory
-    public TpTask [] setFullFrameImages(
-			boolean                   calc_offsets, // old way, now not needed with GPU calculation
-    		Rectangle                 woi,
-    		boolean                   round_woi,
-    		float                     target_disparity, // apply same disparity to all tiles
-    		int                       out_image, // from which tiles to generate image (currently 0/1)
-    		int                       corr_mask,  // which correlation pairs to generate (maybe later - reduce size from 15x15)
-    		boolean                   use_master,
-    		boolean                   use_aux,
-			final GeometryCorrection  geometryCorrection_main,
-			final GeometryCorrection  geometryCorrection_aux, // if null, will only calculate offsets fro the main camera
-			final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
-			final int                 threadsMax,  // maximal number of threads to launch
-			final int                 debugLevel) {
-        int tilesX =  IMG_WIDTH / DTT_SIZE;
-        int tilesY =  IMG_HEIGHT / DTT_SIZE;
-    	float [] target_disparities = new float [tilesX * tilesY];
-    	int [] out_images = new int [tilesX * tilesY];
-    	int [] corr_masks = new int [tilesX * tilesY];
-    	if (target_disparity != 0.0) {
-    		for (int i = 0; i <target_disparities.length; i++ ) target_disparities[i] = target_disparity;
-    	}
-		for (int i = 0; i <out_images.length; i++ ) {
-			out_images[i] = out_image; //  0xf;  // all 4 images
-			corr_masks[i] = corr_mask; // 0x3f; // all 6 correlations
-		}
-    	return setFullFrameImages(
-    			calc_offsets,       // boolean                   calc_offsets, // old way, now not needed with GPU calculation
-    			woi,                // Rectangle                 woi,
-    			round_woi,          // boolean                   round_woi,
-        		target_disparities, // should be tilesX*tilesY long
-        		out_images,         // int   []                  out_images, // from which tiles to generate image (currently 0/1)
-        		corr_masks,         // int   []                  corr_mask,  // which correlation pairs to generate (maybe later - reduce size from 15x15)
-        		use_master,
-        		use_aux,
-    			geometryCorrection_main,
-    			geometryCorrection_aux, // if null, will only calculate offsets fro the main camera
-    			ers_delay,              // if not null - fill with tile center acquisition delay
-    			threadsMax,             // maximal number of threads to launch
-    			debugLevel);
-    }
-
-    public TpTask [] setFullFrameImages(
-			boolean                   calc_offsets, // old way, now not needed with GPU calculation
-    		Rectangle                 woi, // or null
-    		boolean                   round_woi,
-    		float []                  target_disparities, // should be tilesX*tilesY long
-    		int   []                  out_images, // from which tiles to generate image (currently 0/1)
-    		int   []                  corr_mask,  // which correlation pairs to generate (maybe later - reduce size from 15x15)
-    		boolean                   use_master,
-    		boolean                   use_aux,
-			final GeometryCorrection  geometryCorrection_main,
-			final GeometryCorrection  geometryCorrection_aux, // if null, will only calculate offsets fro the main camera
-			final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
-			final int                 threadsMax,  // maximal number of threads to launch
-			final int                 debugLevel)
-    {
-        int tilesX =  IMG_WIDTH / DTT_SIZE;
-        int tilesY =  IMG_HEIGHT / DTT_SIZE;
-        if (woi == null) {
-        	woi = new Rectangle(0,0,tilesX,tilesY);
-        }
-        if (woi.x < 0) woi.x = 0;
-        if (woi.y < 0) woi.y = 0;
-        if (woi.x > (tilesX - 2)) woi.x = tilesX - 2;
-        if (woi.y > (tilesY - 2)) woi.y = tilesY - 2;
-
-        if ((woi.x + woi.width)  > tilesX) woi.width =  tilesX - woi.x;
-        if ((woi.y + woi.height) > tilesY) woi.height = tilesY - woi.y;
-        double rx = 0.5*woi.width;
-        double ry = 0.5*woi.height;
-        double xc = woi.x + rx - 0.5;
-        double yc = woi.y + ry - 0.5;
-        boolean dbg1 = false; //  true;
-        double dbg_frac = 0.0; // 0.25;
-    	boolean [] mask = new boolean[tilesX*tilesY];
-    	int num_tiles = 0;
-    	for (int ty = woi.y; ty < (woi.y +woi.height); ty++) {
-    		double ry2 = (ty - yc) / ry;
-    		ry2*=ry2;
-        	for (int tx = woi.x; tx < (woi.x +woi.width); tx++) {
-        		double rx2 = (tx - xc) / rx;
-        		rx2*=rx2;
-        		if (!round_woi || ((rx2+ry2) < 1.0)) {
-        			mask[ty * tilesX + tx] = true;
-        			num_tiles ++;
-        		}
-        	}
-    	}
-    	if (dbg_frac > 0) {
-    		Random rnd = new Random(0);
-    		int num_final = (int) Math.round(num_tiles * (1.0 - dbg_frac));
-    		while (num_tiles > num_final) {
-    			int tx = woi.x + rnd.nextInt(woi.width);
-    			int ty = woi.y + rnd.nextInt(woi.height);
-    			int indx = ty * tilesX + tx;
-    			if (mask[indx]) {
-    				mask[indx] = false;
-    				num_tiles--;
-    			}
-    		}
-    		// filter out with no neighbors
-    		for (int indx = 0; indx < mask.length; indx++) if (mask[indx]) {
-    			int ix = indx % tilesX;
-    			int iy = indx / tilesX;
-    			int num_neib = 0;
-    			if ((ix > 0) && mask[indx-1]) num_neib++;
-    			if ((ix < (tilesX-1)) && mask[indx+1]) num_neib++;
-    			if ((iy > 0) && mask[indx-tilesX]) num_neib++;
-    			if ((iy < (tilesY-1)) && mask[indx+tilesX]) num_neib++;
-    			if (num_neib == 0) {
-    				mask[indx] = false;
-    				num_tiles--;
-    			}
-    		}
-//nextInt(int bound)
-    	}
-
-    	if (dbg1) {
-//    		mask[(woi.y-1) * tilesX + (woi.x-1)] = true;
-    		mask[(woi.y+woi.height) * tilesX + (woi.x+woi.width)] = true;
-			num_tiles += 1; // 2;
-
-    	}
-
-//    	TpTask [] tp_tasks = new TpTask[tilesX*tilesY];
-    	TpTask [] tp_tasks = new TpTask[num_tiles];
-
-    	int indx = 0;
-    	for (int ty = 0; ty < tilesY; ty++) {
-        	for (int tx = 0; tx < tilesX; tx++) if (mask[ty * tilesX + tx]) {
-
-//        		tp_tasks[indx] = new TpTask(tx,ty, target_disparities[indx], 1); // task == 1 for now
-// Only generate for non-empty tasks, use 1 empty empty as a terminator?
-        		tp_tasks[indx] = new TpTask(tx,ty, target_disparities[indx],
-        				((out_images[indx] & 0x0f) << 0) |
-        				((corr_mask [indx] & 0x3f) << 4)
-        				); // task == 1 for now
-
-        		indx++;
-        	}
-    	}
-    	if (calc_offsets) {
-    		getTileSubcamOffsets(
-    				tp_tasks,                                    // final TpTask[]            tp_tasks,        // will use // modify to have offsets for 8 cameras
-    				(use_master? geometryCorrection_main: null), // final GeometryCorrection  geometryCorrection_main,
-    				(use_aux?    geometryCorrection_aux: null),  // final GeometryCorrection  geometryCorrection_aux, // if null, will only calculate offsets fro the main camera
-    				ers_delay,                                   // final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
-    				threadsMax,                                  // final int                 threadsMax,  // maximal number of threads to launch
-    				debugLevel);                                 // final int                 debugLevel)
-    	}
-    	return tp_tasks;
-    }
-
-    /**
-     * Prepare contents pointers for calculation of the correlation pairs
-     * @param tp_tasks array of tasks that contain masks of the required pairs
-     * @return each element has (tile_number << 8) | (pair_number & 0xff)
-     */
-    public int [] getCorrTasks(
-    		TpTask [] tp_tasks) {
-    	int tilesX = IMG_WIDTH / DTT_SIZE;
-    	int num_corr = 0;
-    	int task_mask = (1 << NUM_PAIRS) - 1;
-    	for (TpTask tt: tp_tasks) {
-    		int pm = (tt.task >> TASK_CORR_BITS) & task_mask;
-    		if (pm != 0) {
-    			for (int b = 0; b < NUM_PAIRS; b++) if ((pm & (1 << b)) != 0) {
-    				num_corr++;    			}
-    		}
-    	}
-
-    	int [] iarr = new int[num_corr];
-    	num_corr = 0;
-    	for (TpTask tt: tp_tasks) {
-    		int pm = (tt.task >> TASK_CORR_BITS) & task_mask;
-    		if (pm != 0) {
-    			int tile = (tt.ty * tilesX +tt.tx);
-    			for (int b = 0; b < NUM_PAIRS; b++) if ((pm & (1 << b)) != 0) {
-    				iarr[num_corr++] = (tile << CORR_NTILE_SHIFT) | b;
-    			}
-    		}
-    	}
-    	return iarr;
-    }
-
-    /**
-     * Prepare contents pointers for calculation of the texture tiles (RGBA, 16x16)
-     * @param tp_tasks array of tasks that contain masks of the required pairs
-     * @return each element has (tile_number << 8) | (1 << LIST_TEXTURE_BIT)
-     */
-    public int [] getTextureTasks(
-    		TpTask [] tp_tasks) {
-    	int tilesX = IMG_WIDTH / DTT_SIZE;
-    	int num_textures = 0;
-    	for (TpTask tt: tp_tasks) {
-    		if ((tt.task & TASK_TEXTURE_BITS) !=0) {
-    			num_textures++;
-    		}
-    	}
-
-    	int [] iarr = new int[num_textures];
-    	num_textures = 0;
-    	int b = (1 << LIST_TEXTURE_BIT);
-    	for (TpTask tt: tp_tasks) {
-    		if ((tt.task & TASK_TEXTURE_BITS) !=0) {
-    			int tile = (tt.ty * tilesX +tt.tx);
-    			iarr[num_textures++] = (tile << CORR_NTILE_SHIFT) | b;
-    		}
-    	}
-    	return iarr;
-    }
-
-
-
+    
     public static String [] getCorrTitles() {
     	return new String []{"hor-top","hor-bottom","vert-left","vert-right","diag-main","diag-other"};
     }
@@ -1041,9 +528,9 @@ public class GPUTileProcessor {
 					//java.lang.ArrayIndexOutOfBoundsException: 20081634
 					int indx1 = (ty * (corr_size + 1) + i + 1) * width + (tx * (corr_size + 1) + j + 1);
 					int indx2 = i*corr_size+j;
-//					if ((indx1 > data[0].length) || (indx1 > data[0].length)){
-//						System.out.println("Bugggg!)");
-//					}
+//    					if ((indx1 > data[0].length) || (indx1 > data[0].length)){
+//    						System.out.println("Bugggg!)");
+//    					}
 					data[np][indx1] = corr2d[n][indx2];
 				}
 			}
@@ -1056,598 +543,6 @@ public class GPUTileProcessor {
     }
 
 
-// All data is already copied to GPU memory
-
-
-
-    public void execRotDerivs() {
-        if (GPU_ROT_DERIV_kernel == null)
-        {
-            IJ.showMessage("Error", "No GPU kernel: GPU_ROT_DERIV_kernel");
-            return;
-        }
-        // kernel parameters: pointer to pointers
-        int [] GridFullWarps =    {NUM_CAMS, 1, 1}; // round up
-        int [] ThreadsFullWarps = {3,        3, 3};
-        Pointer kernelParameters = Pointer.to(
-            Pointer.to(gpu_correction_vector),
-            Pointer.to(gpu_rot_deriv)
-        );
-
-        cuCtxSynchronize();
-        	// Call the kernel function
-    	cuLaunchKernel(GPU_ROT_DERIV_kernel,
-    			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
-    			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
-    			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
-    			kernelParameters, null);   // Kernel- and extra parameters
-    	cuCtxSynchronize(); // remove later
-    }
-    public void execCalcReverseDistortions() {
-        if (GPU_CALC_REVERSE_DISTORTION_kernel == null)
-        {
-            IJ.showMessage("Error", "No GPU kernel: GPU_CALC_REVERSE_DISTORTION_kernel");
-            return;
-        }
-        // kernel parameters: pointer to pointers
-        int [] GridFullWarps =    {NUM_CAMS, 1, 1}; // round up
-        int [] ThreadsFullWarps = {3,        3, 3};
-        Pointer kernelParameters = Pointer.to(
-        		Pointer.to(gpu_geometry_correction),     //	struct gc          * gpu_geometry_correction,
-        		Pointer.to(gpu_rByRDist));                //	float *              gpu_rByRDist)      // length should match RBYRDIST_LEN
-        cuCtxSynchronize();
-        	// Call the kernel function
-    	cuLaunchKernel(GPU_CALC_REVERSE_DISTORTION_kernel,
-    			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
-    			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
-    			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
-    			kernelParameters, null);   // Kernel- and extra parameters
-    	cuCtxSynchronize(); // remove later
-    }
-
-    public void execSetTilesOffsets() {
-        if (GPU_SET_TILES_OFFSETS_kernel == null)
-        {
-            IJ.showMessage("Error", "No GPU kernel: GPU_SET_TILES_OFFSETS_kernel");
-            return;
-        }
-        // kernel parameters: pointer to pointers
-        int [] GridFullWarps =    {(num_task_tiles + TILES_PER_BLOCK_GEOM - 1)/TILES_PER_BLOCK_GEOM, 1, 1}; // round up
-        int [] ThreadsFullWarps = {NUM_CAMS, TILES_PER_BLOCK_GEOM, 1}; // 4,8,1
-        Pointer kernelParameters = Pointer.to(
-        		Pointer.to(gpu_tasks),                   // struct tp_task     * gpu_tasks,
-        		Pointer.to(new int[] { num_task_tiles }),// int                  num_tiles,          // number of tiles in task list
-        		Pointer.to(gpu_geometry_correction),     //	struct gc          * gpu_geometry_correction,
-        		Pointer.to(gpu_correction_vector),       //	struct corr_vector * gpu_correction_vector,
-        		Pointer.to(gpu_rByRDist),                //	float *              gpu_rByRDist)      // length should match RBYRDIST_LEN
-        		Pointer.to(gpu_rot_deriv));              // trot_deriv         * gpu_rot_deriv);
-        cuCtxSynchronize();
-    	cuLaunchKernel(GPU_SET_TILES_OFFSETS_kernel,
-    			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
-    			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
-    			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
-    			kernelParameters, null);   // Kernel- and extra parameters
-    	cuCtxSynchronize(); // remove later
-    }
-
-    public void execConvertDirect() {
-        if (GPU_CONVERT_DIRECT_kernel == null)
-        {
-            IJ.showMessage("Error", "No GPU kernel: GPU_CONVERT_DIRECT_kernel");
-            return;
-        }
-        // kernel parameters: pointer to pointers
-        int [] GridFullWarps =    {1, 1, 1};
-        int [] ThreadsFullWarps = {1, 1, 1};
-        Pointer kernelParameters = Pointer.to(
-        		Pointer.to(gpu_kernel_offsets),
-        		Pointer.to(gpu_kernels),
-        		Pointer.to(gpu_bayer),
-        		Pointer.to(gpu_tasks),
-        		Pointer.to(gpu_clt),
-        		Pointer.to(new int[] { mclt_stride }),
-        		Pointer.to(new int[] { num_task_tiles }),
-        		// move lpf to 4-image generator kernel - DONE
-        		Pointer.to(new int[] { 0 }), // lpf_mask
-        		Pointer.to(new int[] { IMG_WIDTH}),          // int                woi_width,
-        		Pointer.to(new int[] { IMG_HEIGHT}),         // int                woi_height,
-        		Pointer.to(new int[] { KERNELS_HOR}),        // int                kernels_hor,
-        		Pointer.to(new int[] { KERNELS_VERT}),       // int                kernels_vert);
-        		Pointer.to(gpu_active_tiles),
-        		Pointer.to(gpu_num_active_tiles)
-        		);
-
-        cuCtxSynchronize();
-        	// Call the kernel function
-    	cuLaunchKernel(GPU_CONVERT_DIRECT_kernel,
-    			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
-    			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
-    			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
-    			kernelParameters, null);   // Kernel- and extra parameters
-    	cuCtxSynchronize(); // remove later
-    }
-
-
-
-    public void execImcltRbgAll(
-    		boolean is_mono
-    		) {
-    	if (GPU_IMCLT_ALL_kernel == null)
-    	{
-    		IJ.showMessage("Error", "No GPU kernel: GPU_IMCLT_ALL_kernel");
-    		return;
-    	}
-    	int apply_lpf =  1;
-    	int tilesX =  IMG_WIDTH / DTT_SIZE;
-    	int tilesY =  IMG_HEIGHT / DTT_SIZE;
-    	int [] ThreadsFullWarps = {1, 1, 1};
-    	int [] GridFullWarps =    {1, 1, 1};
-    	Pointer kernelParameters = Pointer.to(
-                Pointer.to(gpu_clt),                                // float  ** gpu_clt, // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
-                Pointer.to(gpu_4_images),                           // float           ** gpu_corr_images,    // [NUM_CAMS][WIDTH, 3 * HEIGHT]
-    			Pointer.to(new int[] { apply_lpf }),                // int                apply_lpf,
-    			Pointer.to(new int[] { is_mono ? 1 : NUM_COLORS }), // int                colors,
-    			Pointer.to(new int[] { tilesX }),                   // int                woi_twidth,
-    			Pointer.to(new int[] { tilesY }),                   // int                woi_theight,
-    			Pointer.to(new int[] { imclt_stride })              // const size_t       dstride);            // in floats (pixels)
-    			);
-    	cuCtxSynchronize();
-    	// Call the kernel function
-    	cuLaunchKernel(GPU_IMCLT_ALL_kernel,
-    			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
-    			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
-    			0, null,                   // Shared memory size and stream (shared - only dynamic, static is in code)
-    			kernelParameters, null);   // Kernel- and extra parameters
-    	cuCtxSynchronize();
-    }
-
-
-    public void execCorr2D(
-    		double [] scales,
-    		double fat_zero,
-    		int corr_radius) {
-    	if (GPU_CORRELATE2D_kernel == null)
-    	{
-    		IJ.showMessage("Error", "No GPU kernel: GPU_CORRELATE2D_kernel");
-    		return;
-    	}
-
-    	int num_colors = scales.length;
-    	if (num_colors > 3) num_colors = 3;
-    	float fscale0 = (float) scales[0];
-    	float fscale1 = (num_colors >1)?((float) scales[1]):0.0f;
-    	float fscale2 = (num_colors >2)?((float) scales[2]):0.0f;
-//		int [] GridFullWarps =    {(num_corr_tiles + CORR_TILES_PER_BLOCK-1) / CORR_TILES_PER_BLOCK,1,1};
-//    	int [] ThreadsFullWarps = {CORR_THREADS_PER_TILE, CORR_TILES_PER_BLOCK, 1};
-		int [] GridFullWarps =    {1, 1, 1};
-    	int [] ThreadsFullWarps = {1, 1, 1};
-    	Pointer kernelParameters = Pointer.to(
-    			Pointer.to(gpu_clt),                        // float          ** gpu_clt,
-    			Pointer.to(new int[] { num_colors }),       // int               colors,             // number of colors (3/1)
-    			Pointer.to(new float[] {fscale0  }),        // float             scale0,             // scale for R
-    			Pointer.to(new float[] {fscale1  }),        // float             scale1,             // scale for B
-    			Pointer.to(new float[] {fscale2  }),        // float             scale2,             // scale for G
-    			Pointer.to(new float[] {(float) fat_zero }),// float             fat_zero,           // here - absolute
-        		Pointer.to(gpu_tasks),                      // struct tp_task  * gpu_tasks,
-        		Pointer.to(new int[] { num_task_tiles }),   // int               num_tiles           // number of tiles in task
-    			Pointer.to(gpu_corr_indices),               // int             * gpu_corr_indices,   // packed tile+pair
-    			Pointer.to(gpu_num_corr_tiles),             // int             * pnum_corr_tiles,    // pointer to a number of tiles to process
-    			Pointer.to(new int[] { corr_stride }),      // const size_t      corr_stride,        // in floats
-    			Pointer.to(new int[] { corr_radius }),      // int               corr_radius,        // radius of the output correlation (7 for 15x15)
-    			Pointer.to(gpu_corrs)                       // float           * gpu_corrs);         // correlation output data
-    			);
-    	cuCtxSynchronize();
-    	// Call the kernel function
-    	cuLaunchKernel(GPU_CORRELATE2D_kernel,
-    			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
-    			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
-    			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
-    			kernelParameters, null);   // Kernel- and extra parameters
-    	cuCtxSynchronize();
-    }
-
-    public void execRBGA(
-    		double [] color_weights,
-    		boolean   is_lwir,
-    		double    min_shot,           // 10.0
-    		double    scale_shot,         // 3.0
-    		double    diff_sigma,         // pixel value/pixel change
-    		double    diff_threshold,     // pixel value/pixel change
-    		double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-    		boolean   dust_remove) {
-    	if (GPU_RBGA_kernel == null)
-    	{
-    		IJ.showMessage("Error", "No GPU kernel: GPU_TEXTURES_kernel");
-    		return;
-    	}
-    	int num_colors = color_weights.length;
-    	if (num_colors > 3) num_colors = 3;
-    	float [] fcolor_weights = new float[3];
-    	fcolor_weights[0] = (float) color_weights[0];
-    	fcolor_weights[1] = (num_colors >1)?((float) color_weights[1]):0.0f;
-    	fcolor_weights[2] = (num_colors >2)?((float) color_weights[2]):0.0f;
-        cuMemcpyHtoD(gpu_color_weights, Pointer.to(fcolor_weights),  fcolor_weights.length * Sizeof.FLOAT);
-
-        float [] generate_RBGA_params = {
-    			(float)             min_shot,           // 10.0
-    			(float)             scale_shot,         // 3.0
-    			(float)             diff_sigma,         // pixel value/pixel change
-    			(float)             diff_threshold,     // pixel value/pixel change
-    			(float)             min_agree          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-    	};
-        cuMemcpyHtoD(gpu_generate_RBGA_params, Pointer.to(generate_RBGA_params),  generate_RBGA_params.length * Sizeof.FLOAT);
-
-    	int iis_lwir =      (is_lwir)? 1:0;
-    	int idust_remove =  (dust_remove)? 1 : 0;
-
-    	// uses dynamic parallelization, top kernel is a single-thread one
-		int [] GridFullWarps =    {1, 1, 1};
-    	int [] ThreadsFullWarps = {1, 1, 1};
-
-    	Pointer kernelParameters = Pointer.to(
-                Pointer.to(gpu_tasks),                           // struct tp_task   * gpu_tasks,
-                Pointer.to(new int[] { num_task_tiles }),        // int                num_tiles,          // number of tiles in task list
-            	// declare arrays in device code?
-                Pointer.to(gpu_texture_indices_ovlp),            // int              * gpu_texture_indices_ovlp,// packed tile + bits (now only (1 << 7)
-    			Pointer.to(gpu_num_texture_ovlp),                // int              * num_texture_tiles,  // number of texture tiles to process (8 elements)
-    			Pointer.to(gpu_woi),                             // int              * woi,                // x,y,width,height of the woi
-    			// set smaller for LWIR - it is used to reduce work aread
-    			Pointer.to(new int[] {IMG_WIDTH / DTT_SIZE}),    // int                width,  // <= TILESX, use for faster processing of LWIR images (should be actual + 1)
-    			Pointer.to(new int[] {IMG_HEIGHT / DTT_SIZE}),   // int                height); // <= TILESY, use for faster processing of LWIR images
-    	    	// Parameters for the texture generation
-    			Pointer.to(gpu_clt),                             // float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
-        		Pointer.to(gpu_geometry_correction),             //	struct gc          * gpu_geometry_correction,
-	            Pointer.to(new int[]   {num_colors}),            // int               colors,             // number of colors (3/1)
-	            Pointer.to(new int[]   {iis_lwir}),              // int               is_lwir,            // do not perform shot correction
-	            Pointer.to(gpu_generate_RBGA_params),            // float             generate_RBGA_params[5],
-//	            Pointer.to(new float[] {(float) min_shot}),      // float             min_shot,           // 10.0
-//	            Pointer.to(new float[] {(float) scale_shot}),    // float             scale_shot,         // 3.0
-//	            Pointer.to(new float[] {(float) diff_sigma}),    // float             diff_sigma,         // pixel value/pixel change
-//	            Pointer.to(new float[] {(float) diff_threshold}),// float             diff_threshold,     // pixel value/pixel change
-//	            Pointer.to(new float[] {(float) min_agree}),     // float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-	            Pointer.to(gpu_color_weights),                   // float             weights[3],         // scale for R,B,G
-	            Pointer.to(new int[]   { idust_remove }),        // int               dust_remove,        // Do not reduce average weight when only one image differes much from the average
-	            Pointer.to(new int[]   {0}),                     // int               keep_weights,       // return channel weights after A in RGBA
-	            Pointer.to(new int[]   { texture_stride_rgba }), // const size_t      texture_rbga_stride,     // in floats
-	            Pointer.to(gpu_textures_rgba));                   // float           * gpu_texture_tiles)    // (number of colors +1 + ?)*16*16 rgba texture tiles
-
-    	cuCtxSynchronize();
-    	// Call the kernel function
-    	cuLaunchKernel(GPU_RBGA_kernel,
-    			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
-    			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
-    			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
-    			kernelParameters, null);   // Kernel- and extra parameters
-    	cuCtxSynchronize();
-    }
-
-     public void execTextures(
-    		double [] color_weights,
-    		boolean   is_lwir,
-    		double    min_shot,           // 10.0
-    		double    scale_shot,         // 3.0
-    		double    diff_sigma,         // pixel value/pixel change
-    		double    diff_threshold,     // pixel value/pixel change
-    		double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-    		boolean   dust_remove) {
-    	if (GPU_TEXTURES_kernel == null)
-    	{
-    		IJ.showMessage("Error", "No GPU kernel: GPU_TEXTURES_kernel");
-    		return;
-    	}
-
-    	int num_colors = color_weights.length;
-    	if (num_colors > 3) num_colors = 3;
-    	float [] fcolor_weights = new float[3];
-    	fcolor_weights[0] = (float) color_weights[0];
-    	fcolor_weights[1] = (num_colors >1)?((float) color_weights[1]):0.0f;
-    	fcolor_weights[2] = (num_colors >2)?((float) color_weights[2]):0.0f;
-        cuMemcpyHtoD(gpu_color_weights, Pointer.to(fcolor_weights),  fcolor_weights.length * Sizeof.FLOAT);
-
-        float [] generate_RBGA_params = {
-    			(float)             min_shot,           // 10.0
-    			(float)             scale_shot,         // 3.0
-    			(float)             diff_sigma,         // pixel value/pixel change
-    			(float)             diff_threshold,     // pixel value/pixel change
-    			(float)             min_agree           // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-    	};
-        cuMemcpyHtoD(gpu_generate_RBGA_params, Pointer.to(generate_RBGA_params),  generate_RBGA_params.length * Sizeof.FLOAT);
-
-    	int iis_lwir =      (is_lwir)? 1:0;
-    	int idust_remove =  (dust_remove)? 1 : 0;
-
-		int [] GridFullWarps =    {1, 1, 1};
-    	int [] ThreadsFullWarps = {1, 1, 1};
-
-    	Pointer kernelParameters = Pointer.to(
-                Pointer.to(gpu_tasks),                           // struct tp_task   * gpu_tasks,
-                Pointer.to(new int[] { num_task_tiles }),        // int                num_tiles,          // number of tiles in task list
-            	// declare arrays in device code?
-                Pointer.to(gpu_texture_indices),                 // int              * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
-    			Pointer.to(gpu_texture_indices_len),
-    	    	// Parameters for the texture generation
-    			Pointer.to(gpu_clt),                             // float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
-        		Pointer.to(gpu_geometry_correction),             //	struct gc          * gpu_geometry_correction,
-    			Pointer.to(new int[] { num_colors }),
-    			Pointer.to(new int[] { iis_lwir }),
-	            Pointer.to(gpu_generate_RBGA_params),            // float             generate_RBGA_params[5],
-//	            Pointer.to(new float[] {(float) min_shot}),      // float             min_shot,           // 10.0
-//	            Pointer.to(new float[] {(float) scale_shot}),    // float             scale_shot,         // 3.0
-//	            Pointer.to(new float[] {(float) diff_sigma}),    // float             diff_sigma,         // pixel value/pixel change
-//	            Pointer.to(new float[] {(float) diff_threshold}),// float             diff_threshold,     // pixel value/pixel change
-//	            Pointer.to(new float[] {(float) min_agree}),     // float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-	            Pointer.to(gpu_color_weights),                   // float             weights[3],         // scale for R,B,G
-    			Pointer.to(new int[] { idust_remove }),
-//    			Pointer.to(new int[] { 0}), // texture_stride }),        // can be a null pointer - will not be used! float           * gpu_texture_rbg,     // (number of colors +1 + ?)*16*16 rgba texture tiles
-//    			Pointer.to(new int[] {0}),  // gpu_textures),
-    			Pointer.to(new int[] {texture_stride}),        // can be a null pointer - will not be used! float           * gpu_texture_rbg,     // (number of colors +1 + ?)*16*16 rgba texture tiles
-    			Pointer.to(gpu_textures),
-	            Pointer.to(gpu_diff_rgb_combo));                 // float           * gpu_diff_rgb_combo); // diff[NUM_CAMS], R[NUM_CAMS], B[NUM_CAMS],G[NUM_CAMS]
-    	cuCtxSynchronize();
-    	// Call the kernel function
-    	cuLaunchKernel(GPU_TEXTURES_kernel,
-    			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
-    			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
-    			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
-    			kernelParameters, null);   // Kernel- and extra parameters
-    	cuCtxSynchronize();
-    }
-
-
-
-
-    public float [][] getCorr2D(int corr_rad){
-        int corr_size = (2 * corr_rad + 1) * (2 * corr_rad + 1);
-        float [] cpu_corrs = new float [ num_corr_tiles * corr_size];
-        CUDA_MEMCPY2D copyD2H =   new CUDA_MEMCPY2D();
-        copyD2H.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
-        copyD2H.srcDevice =       gpu_corrs;
-        copyD2H.srcPitch =        corr_stride * Sizeof.FLOAT;
-
-        copyD2H.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
-        copyD2H.dstHost =         Pointer.to(cpu_corrs);
-        copyD2H.dstPitch =        corr_size * Sizeof.FLOAT;
-
-        copyD2H.WidthInBytes =    corr_size * Sizeof.FLOAT;
-        copyD2H.Height =          num_corr_tiles;
-
-        cuMemcpy2D(copyD2H); // run copy
-
-        float [][] corrs = new float [num_corr_tiles][ corr_size];
-        for (int ncorr = 0; ncorr < num_corr_tiles; ncorr++) {
-        	System.arraycopy(cpu_corrs, ncorr*corr_size, corrs[ncorr], 0, corr_size);
-        }
-        return corrs;
-    }
-    public int [] getCorrIndices() {
-    	float [] fnum_corrs = new float[1];
-    	cuMemcpyDtoH(Pointer.to(fnum_corrs), gpu_num_corr_tiles,  1 * Sizeof.FLOAT);
-    	int num_corrs =      Float.floatToIntBits(fnum_corrs[0]);
-    	float [] fcorr_indices = new float [num_corrs];
-    	cuMemcpyDtoH(Pointer.to(fcorr_indices), gpu_corr_indices,  num_corrs * Sizeof.FLOAT);
-    	int [] corr_indices = new int [num_corrs];
-    	for (int i = 0; i < num_corrs; i++) {
-    		corr_indices[i] = Float.floatToIntBits(fcorr_indices[i]);
-    	}
-    	num_corr_tiles = num_corrs;
-    	return corr_indices;
-
-    }
-
-//    read extra data for macro generation: 4 DIFFs, 4 of R,  4 of B, 4 of G
-    public float [][] getExtra(){
-		int [] texture_indices = getTextureIndices();
-/*
-    	float [] fnum_tiles = new float[1];
-    	cuMemcpyDtoH(Pointer.to(fnum_tiles), gpu_num_texture_ovlp,  1 * Sizeof.FLOAT);
-    	int num_tiles =      Float.floatToIntBits(fnum_tiles[0]);
-    	float [] ftiles = new float[num_tiles];
-    	cuMemcpyDtoH(Pointer.to(fnum_tiles), gpu_texture_indices_ovlp,  num_tiles * Sizeof.FLOAT);
-    	int [] tiles = new int[num_tiles];
-    	for (int i = 0; i < num_tiles; i++) {
-    		tiles[i] = Float.floatToIntBits(ftiles[i]);
-    	}
-*/
-    	int num_tile_extra = NUM_CAMS*(NUM_COLORS+1);
-    	float [] diff_rgb_combo = new float[texture_indices.length * num_tile_extra];
-    	cuMemcpyDtoH(Pointer.to(diff_rgb_combo), gpu_diff_rgb_combo,  diff_rgb_combo.length * Sizeof.FLOAT);
-    	int tilesX =  IMG_WIDTH / DTT_SIZE;
-    	int tilesY =  IMG_HEIGHT / DTT_SIZE;
-    	float [][] extra = new float[num_tile_extra][tilesX*tilesY];
-    	for (int i = 0; i < texture_indices.length; i++) {
-    		if (((texture_indices[i] >> CORR_TEXTURE_BIT) & 1) != 0) {
-    			int ntile = texture_indices[i] >>  CORR_NTILE_SHIFT;
-//        if (ntile == 22507) {
-//        	System.out.println("i="+i+", ntile="+ntile);
-//        }
-		    	for (int l = 0; l < num_tile_extra; l++) {
-		    		extra[l][ntile] = diff_rgb_combo[i * num_tile_extra + l];
-		    	}
-    		}
-    	}
-    	return extra;
-    }
-
-
-    /**
-     * Get woi and RBGA image from the GPU after execRBGA call as 2/4 slices.
-     * device array has 4 pixels margins on each side, skip them here
-     * @param num_colors number of colors (1 or 3)
-     * @param woi should be initialized as Rectangle(). x,y,width, height will be populated (in pixels,)
-     * @return RBGA slices, last (alpha) in 0.0... 1.0 range, colors match input range
-     */
-    public float [][] getRBGA(
-    		int     num_colors,
-    		Rectangle woi) { // will update to woi
-    	// first - read woi
-    	float [] fwoi = new float[4];
-    	cuMemcpyDtoH(Pointer.to(fwoi), gpu_woi,  4 * Sizeof.FLOAT);
-    	woi.x =      Float.floatToIntBits(fwoi[0]) * DTT_SIZE;
-    	woi.y =      Float.floatToIntBits(fwoi[1]) * DTT_SIZE;
-    	woi.width =  Float.floatToIntBits(fwoi[2]) * DTT_SIZE;
-    	woi.height = Float.floatToIntBits(fwoi[3]) * DTT_SIZE;
-    	float [][] rslt = new float[num_colors + 1][woi.width * woi.height];
-        CUDA_MEMCPY2D copy_rbga =  new CUDA_MEMCPY2D();
-        copy_rbga.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
-        copy_rbga.srcDevice =       gpu_textures_rgba;
-        copy_rbga.srcPitch =        texture_stride_rgba * Sizeof.FLOAT;
-        copy_rbga.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
-//        copy_woi.dstHost =         Pointer.to(rslt);
-        copy_rbga.dstPitch =        woi.width * Sizeof.FLOAT;
-
-        copy_rbga.WidthInBytes =    woi.width * Sizeof.FLOAT;
-        copy_rbga.Height =          woi.height;
-        copy_rbga.srcXInBytes =     4 * Sizeof.FLOAT;
-
-        for (int ncol = 0; ncol<= num_colors; ncol++ ) {
-        	copy_rbga.dstHost =     Pointer.to(rslt[ncol]);
-            copy_rbga.srcY =        4 + (woi.height +DTT_SIZE) * ncol;
-            cuMemcpy2D(copy_rbga); // run copy
-        }
-        return rslt;
-    }
-
-    public float [] getFlatTextures(
-    		int     num_tiles,
-    		int     num_colors,
-    		boolean keep_weights){
-
-    	int texture_slices =     (num_colors + 1 + (keep_weights?(NUM_CAMS + num_colors + 1):0)); // number of texture slices
-    	int texture_slice_size = (2 * DTT_SIZE)* (2 * DTT_SIZE);        // number of (float) elements in a single slice of a tile
-    	int texture_tile_size =  texture_slices * texture_slice_size;   // number of (float) elements in a multi-slice tile
-    	int texture_size =       texture_tile_size * num_texture_tiles; // number of (float) elements in the whole texture
-//        float [] cpu_textures = new float [ num_texture_tiles * texture_size];
-        float [] cpu_textures = new float [texture_size];
-        CUDA_MEMCPY2D copyD2H =   new CUDA_MEMCPY2D();
-        copyD2H.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
-        copyD2H.srcDevice =       gpu_textures;
-        copyD2H.srcPitch =        texture_stride * Sizeof.FLOAT;
-
-        copyD2H.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
-        copyD2H.dstHost =         Pointer.to(cpu_textures);
-        copyD2H.dstPitch =        texture_tile_size * Sizeof.FLOAT;
-
-        copyD2H.WidthInBytes =    texture_tile_size * Sizeof.FLOAT;
-        copyD2H.Height =          num_tiles; // num_texture_tiles;
-
-        cuMemcpy2D(copyD2H); // run copy
-        return cpu_textures;
-    }
-
-    public float [][][] getTextures( // todo - get rid of copying by multiple CUDA_MEMCPY2D?
-    		int     num_tiles,
-    		int     num_colors,
-    		boolean keep_weights){
-
-    	int texture_slices =     (num_colors + 1 + (keep_weights?(NUM_CAMS + num_colors + 1):0));
-    	int texture_slice_size = (2 * DTT_SIZE)* (2 * DTT_SIZE);
-    	int texture_tile_size =  texture_slices * texture_slice_size;
-//    	int texture_size =       texture_tile_size * num_texture_tiles;
-        float [] cpu_textures = getFlatTextures(
-        		num_tiles,
-        		num_colors,
-        		keep_weights);
-
-        float [][][] textures = new float [num_texture_tiles][texture_slices][texture_tile_size];
-        for (int ntile = 0; ntile < num_texture_tiles; ntile++) {
-        	for (int slice = 0; slice < texture_slices; slice++) {
-        		System.arraycopy(
-        				cpu_textures,                                           // src
-        				ntile * texture_tile_size + slice * texture_slice_size, // src offset
-        				textures[ntile][slice],                                 // dst
-        				0,                                                      // dst offset
-        				texture_slice_size);                                    // length to copy
-        	}
-        }
-        return textures;
-    }
-
-    public double [][][][] doubleTextures(
-    		Rectangle    woi,
-    		int []       indices,
-    		float [][][] ftextures,
-    		int          full_width,
-    		int          num_slices
-    		){
-    	int texture_slice_size = (2 * DTT_SIZE)* (2 * DTT_SIZE);
-    	double [][][][] textures = new double [woi.height][woi.width][num_slices][texture_slice_size];
-    	for (int indx = 0; indx < indices.length; indx++) if ((indices[indx] & (1 << LIST_TEXTURE_BIT)) != 0){
-    		int tile = indices[indx] >> CORR_NTILE_SHIFT;
-    		int tileX = tile % full_width;
-    		int tileY = tile / full_width;
-    		int wtileX = tileX - woi.x;
-    		int wtileY = tileY - woi.y;
-    		if ((wtileX < woi.width) && (wtileY < woi.height)) {
-    			for (int slice = 0; slice < num_slices; slice++) {
-    				for (int i = 0; i < texture_slice_size; i++) {
-    					textures[wtileY][wtileX][slice][i] = ftextures[indx][slice][i];
-    				}
-    			}
-    		}
-    	}
-    	return textures;
-    }
-
-
-    public double [][][][] doubleTextures(
-    		Rectangle    woi,
-    		int []       indices,
-    		float []     ftextures,
-    		int          full_width,
-    		int          num_slices,
-    		int          num_src_slices
-    		){
-    	int texture_slice_size = (2 * DTT_SIZE)* (2 * DTT_SIZE);
-    	int texture_tile_size = texture_slice_size * num_src_slices ;
-    	double [][][][] textures = new double [woi.height][woi.width][num_slices][texture_slice_size];
-    	for (int indx = 0; indx < indices.length; indx++) if ((indices[indx] & (1 << LIST_TEXTURE_BIT)) != 0){
-    		int tile = indices[indx] >> CORR_NTILE_SHIFT;
-    		int tileX = tile % full_width;
-    		int tileY = tile / full_width;
-    		int wtileX = tileX - woi.x;
-    		int wtileY = tileY - woi.y;
-    		if ((wtileX < woi.width) && (wtileY < woi.height)) {
-    			for (int slice = 0; slice < num_slices; slice++) {
-    				for (int i = 0; i < texture_slice_size; i++) {
-    					textures[wtileY][wtileX][slice][i] = ftextures[indx * texture_tile_size + slice * texture_slice_size + i];
-    				}
-    			}
-    		}
-    	}
-    	return textures;
-    }
-
-
-
-
-    public float [][] getRBG (int ncam){
-        int height = (IMG_HEIGHT + DTT_SIZE);
-        int width =  (IMG_WIDTH + DTT_SIZE);
-        int rslt_img_size =      width * height;
-        float [] cpu_corr_image = new float [ NUM_COLORS * rslt_img_size];
-        int width_in_bytes = width *Sizeof.FLOAT;
-
-    	// for copying results to host
-        CUDA_MEMCPY2D copyD2H =   new CUDA_MEMCPY2D();
-        copyD2H.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
-        copyD2H.srcDevice =       gpu_corr_images_h[ncam]; // ((test & 1) ==0) ? src_dpointer : dst_dpointer; // copy same data
-        copyD2H.srcPitch =        imclt_stride*Sizeof.FLOAT;
-
-        copyD2H.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
-        copyD2H.dstHost =         Pointer.to(cpu_corr_image);
-        copyD2H.dstPitch =        width_in_bytes;
-
-        copyD2H.WidthInBytes =    width_in_bytes;
-        copyD2H.Height =          3 * height; // /2;
-
-        cuMemcpy2D(copyD2H); // run copy
-
-        float [][] fimg = new float [NUM_COLORS][ rslt_img_size];
-        for (int ncol = 0; ncol < NUM_COLORS; ncol++) {
-        	System.arraycopy(cpu_corr_image, ncol*rslt_img_size, fimg[ncol], 0, rslt_img_size);
-        }
-        return fimg;
-    }
 
 //    private static CUfunction [] createFunctions(
     private CUfunction [] createFunctions(
@@ -1659,10 +554,8 @@ public class GPUTileProcessor {
     	CUfunction [] functions = new CUfunction [kernelNames.length];
     	byte[][] ptxDataUnits = new byte [sourceCodeUnits.length][];
     	boolean OK = false;
-//    	for (String sourceCode: sourceCodeUnits) {
        	for (int cunit = 0; cunit < ptxDataUnits.length; cunit++) {
        		String sourceCode = sourceCodeUnits[cunit];
-//       		System.out.print(sourceCode);
     		// Use the NVRTC to create a program by compiling the source code
     		nvrtcProgram program = new nvrtcProgram();
     		nvrtcCreateProgram(	program, sourceCode, null, 0, null, null);
@@ -1690,10 +583,8 @@ public class GPUTileProcessor {
     		String[] ptx = new String[1];
     		nvrtcGetPTX(program, ptx);
     		nvrtcDestroyProgram(program);
-//    		byte[] ptxData = ptx[0].getBytes();
     		ptxDataUnits[cunit] = ptx[0].getBytes();
     		System.out.println("ptxDataUnits["+cunit+"].length="+ptxDataUnits[cunit].length);
-    		//    	System.out.println( ptx[0]);
     	}
     	JITOptions jitOptions = new JITOptions();
     	jitOptions.putInt(CU_JIT_LOG_VERBOSE, 1);
@@ -1702,21 +593,14 @@ public class GPUTileProcessor {
     	cuLinkAddFile(state, CU_JIT_INPUT_LIBRARY, LIBRARY_PATH, jitOptions);
 
        	for (int cunit = 0; cunit < ptxDataUnits.length; cunit++) {
-//	    	cuLinkAddData(state, CU_JIT_INPUT_PTX,     Pointer.to(ptxData), ptxData.length, "input.ptx", jitOptions); // CUDA_ERROR_INVALID_PTX
        		cuLinkAddData(state, CU_JIT_INPUT_PTX,     Pointer.to(ptxDataUnits[cunit]), ptxDataUnits[cunit].length, "input"+cunit+".ptx", jitOptions); // CUDA_ERROR_INVALID_PTX
-//       		cuLinkAddData(state, CU_JIT_INPUT_PTX,     Pointer.to(ptxDataUnits[cunit]), ptxDataUnits[cunit].length, "input.ptx", jitOptions); // CUDA_ERROR_INVALID_PTX
        	}
-//    	cuLinkAddFile(state, CU_JIT_INPUT_LIBRARY, LIBRARY_PATH, jitOptions);
-
     	long size[] = { 0 };
     	Pointer image = new Pointer();
     	JCudaDriver.setExceptionsEnabled(false);
     	int cuda_result = cuLinkComplete(state, image, size);
     	System.out.println("cuLinkComplete() -> "+cuda_result);
-
     	JCudaDriver.setExceptionsEnabled(true);
-
-
     	module = new CUmodule();
     	cuModuleLoadDataEx(module, image, 0, new int[0], Pointer.to(new int[0]));
     	cuLinkDestroy(state);
@@ -1726,7 +610,6 @@ public class GPUTileProcessor {
     		functions[i] = new CUfunction();
     		cuModuleGetFunction(functions[i] , module, kernelNames[i]);
     	}
-
     	return functions;
     }
 
@@ -1741,205 +624,1355 @@ public class GPUTileProcessor {
     	return new String(encoded, StandardCharsets.UTF_8);
     }
 
-	public void  getTileSubcamOffsets(
-			final TpTask[]            tp_tasks,        // will use // modify to have offsets for 8 cameras
-			final GeometryCorrection  geometryCorrection_main,
-			final GeometryCorrection  geometryCorrection_aux, // if null, will only calculate offsets from the main camera
-			final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
-			final int                 threadsMax,  // maximal number of threads to launch
-			final int                 debugLevel)
-	{
-		final int quad_main = (geometryCorrection_main != null)? NUM_CAMS:0;
-		final int quad_aux =  (geometryCorrection_aux != null)? NUM_CAMS:0;
+   public class GpuQuad{ // quad camera description
+    	public final int IMG_WIDTH;
+    	public final int IMG_HEIGHT;
+    	public final int NUM_CAMS;
+    	public final int NUM_COLORS; // maybe should always be 3?
+//    	public final GPUTileProcessor gPUTileProcessor;
+        // CPU arrays of pointers to GPU memory
+        // These arrays may go to methods, they are here just to be able to free GPU memory if needed
+        private CUdeviceptr [] gpu_kernels_h;
+        private CUdeviceptr [] gpu_kernel_offsets_h;
+        private CUdeviceptr [] gpu_bayer_h;
+        private CUdeviceptr [] gpu_clt_h;
+        private CUdeviceptr [] gpu_corr_images_h;
+        // GPU pointers to array of GPU pointers
+        private CUdeviceptr gpu_kernels;
+        private CUdeviceptr gpu_kernel_offsets;
+        private CUdeviceptr gpu_bayer;
+        private CUdeviceptr gpu_tasks;
+        private CUdeviceptr gpu_corrs;
+        private CUdeviceptr gpu_textures;
+        private CUdeviceptr gpu_clt;
+        private CUdeviceptr gpu_4_images;
+        private CUdeviceptr gpu_corr_indices;
+        private CUdeviceptr gpu_num_corr_tiles;
+        private CUdeviceptr gpu_texture_indices_ovlp;
+        private CUdeviceptr gpu_num_texture_ovlp;
+        private CUdeviceptr gpu_texture_indices;
+        private CUdeviceptr gpu_texture_indices_len;
+        private CUdeviceptr gpu_diff_rgb_combo;
+        private CUdeviceptr gpu_color_weights;
+        private CUdeviceptr gpu_generate_RBGA_params;
+        private CUdeviceptr gpu_woi;
+        private CUdeviceptr gpu_textures_rgba;
+        private CUdeviceptr gpu_correction_vector;
+        private CUdeviceptr gpu_rot_deriv;
+        private CUdeviceptr gpu_geometry_correction;
+        private CUdeviceptr gpu_rByRDist;
+        private CUdeviceptr gpu_active_tiles;
+        private CUdeviceptr gpu_num_active_tiles;
+        private int mclt_stride;
+        private int corr_stride;
+        private int imclt_stride;
+        private int texture_stride;
+        private int texture_stride_rgba;
+        private int num_task_tiles;
+        private int num_corr_tiles;
+        private int num_texture_tiles;
+
+    	public GpuQuad(
+//    		final GPUTileProcessor gPUTileProcessor,	
+   			final int img_width,
+   			final int img_height,
+   			final int num_cams,
+   			final int num_colors
+) {
+//    		this.gPUTileProcessor = gPUTileProcessor;
+        	IMG_WIDTH =  img_width;
+        	IMG_HEIGHT = img_height;
+        	NUM_CAMS =   num_cams;
+        	NUM_COLORS = num_colors; // maybe should always be 3?
+        	
+            // CPU arrays of pointers to GPU memory
+            // These arrays may go to methods, they are here just to be able to free GPU memory if needed
+            gpu_kernels_h =           new CUdeviceptr[NUM_CAMS];
+            gpu_kernel_offsets_h =    new CUdeviceptr[NUM_CAMS];
+            gpu_bayer_h =             new CUdeviceptr[NUM_CAMS];
+            gpu_clt_h =               new CUdeviceptr[NUM_CAMS];
+            gpu_corr_images_h=        new CUdeviceptr[NUM_CAMS];
+            // GPU pointers to array of GPU pointers
+            gpu_kernels =             new CUdeviceptr();
+            gpu_kernel_offsets =      new CUdeviceptr();
+            gpu_bayer =               new CUdeviceptr();
+            gpu_tasks =               new CUdeviceptr(); //  allocate tilesX * tilesY * TPTASK_SIZE * Sizeof.FLOAT
+            gpu_corrs =               new CUdeviceptr(); //  allocate tilesX * tilesY * NUM_PAIRS * CORR_SIZE * Sizeof.FLOAT
+            gpu_textures =            new CUdeviceptr(); //  allocate tilesX * tilesY * ? * 256 * Sizeof.FLOAT
+            gpu_clt =                 new CUdeviceptr();
+            gpu_4_images =            new CUdeviceptr();
+            gpu_corr_indices =        new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.FLOAT
+            gpu_num_corr_tiles =      new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.FLOAT
+            gpu_texture_indices_ovlp =new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.FLOAT
+            gpu_num_texture_ovlp =    new CUdeviceptr(); //  8 ints
+            gpu_texture_indices =     new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.FLOAT
+            gpu_texture_indices_len = new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.FLOAT
+            gpu_diff_rgb_combo =      new CUdeviceptr(); //  1 int
+
+            gpu_color_weights =       new CUdeviceptr(); //  allocate 3 * Sizeof.FLOAT
+            gpu_generate_RBGA_params =new CUdeviceptr(); //  allocate 5 * Sizeof.FLOAT
+
+            gpu_woi =                 new CUdeviceptr(); //  4 integers (x, y, width, height) Rectangle - in tiles
+            gpu_textures_rgba =       new CUdeviceptr(); //  allocate tilesX * tilesY * ? * 256 * Sizeof.FLOAT
+
+            gpu_correction_vector=    new CUdeviceptr();
+            gpu_rot_deriv=            new CUdeviceptr(); //  used internally by device, may be read to CPU for testing
+            gpu_geometry_correction=  new CUdeviceptr();
+            gpu_rByRDist=             new CUdeviceptr(); //  calculated once for the camera distortion model in CPU (move to GPU?)
+
+            gpu_active_tiles =        new CUdeviceptr(); //  TILESX*TILESY*sizeof(int)
+            gpu_num_active_tiles =    new CUdeviceptr(); //  1 int
+        	
+            // Init data arrays for all kernels
+            int tilesX =  IMG_WIDTH / DTT_SIZE;
+            int tilesY =  IMG_HEIGHT / DTT_SIZE;
+            long [] device_stride = new long [1];
+            for (int ncam = 0; ncam < NUM_CAMS; ncam++) {
+            	gpu_kernels_h[ncam] =        new CUdeviceptr();
+            	cuMemAlloc(gpu_kernels_h[ncam],KERN_SIZE * Sizeof.FLOAT ); //     public static int cuMemAlloc(CUdeviceptr dptr, long bytesize)
+            	gpu_kernel_offsets_h[ncam] = new CUdeviceptr();
+            	cuMemAlloc(gpu_kernel_offsets_h[ncam],KERN_TILES * CLTEXTRA_SIZE * Sizeof.FLOAT ); //     public static int cuMemAlloc(CUdeviceptr dptr, long bytesize)
+            	gpu_bayer_h[ncam] =          new CUdeviceptr();
+                cuMemAllocPitch (
+                		gpu_bayer_h[ncam],        // CUdeviceptr dptr,
+                		device_stride,            // long[] pPitch,
+                		IMG_WIDTH * Sizeof.FLOAT, // long WidthInBytes,
+                		IMG_HEIGHT,               // long Height,
+                        Sizeof.FLOAT);            // int ElementSizeBytes)
+                mclt_stride = (int)(device_stride[0] / Sizeof.FLOAT);
+                gpu_corr_images_h[ncam] =  new CUdeviceptr();
+                cuMemAllocPitch (
+                		gpu_corr_images_h[ncam],               // CUdeviceptr dptr,
+                		device_stride,                         // long[] pPitch,
+                		(IMG_WIDTH + DTT_SIZE) * Sizeof.FLOAT, // long WidthInBytes,
+                		3*(IMG_HEIGHT + DTT_SIZE),// long Height,
+                        Sizeof.FLOAT);            // int ElementSizeBytes)
+                imclt_stride = (int)(device_stride[0] / Sizeof.FLOAT);
+                gpu_clt_h[ncam] = new CUdeviceptr();
+            	cuMemAlloc(gpu_clt_h[ncam],tilesY * tilesX * NUM_COLORS * 4 * DTT_SIZE * DTT_SIZE * Sizeof.FLOAT ); //     public static int cuMemAlloc(CUdeviceptr dptr, long bytesize)
+            }
+            // now create device arrays pointers
+            if (Sizeof.POINTER != Sizeof.LONG) {
+        		String msg = "Sizeof.POINTER != Sizeof.LONG";
+        		IJ.showMessage("Error",	msg);
+        		new IllegalArgumentException (msg);
+            }
+        	cuMemAlloc(gpu_kernels,        NUM_CAMS * Sizeof.POINTER);
+        	cuMemAlloc(gpu_kernel_offsets, NUM_CAMS * Sizeof.POINTER);
+        	cuMemAlloc(gpu_bayer,          NUM_CAMS * Sizeof.POINTER);
+        	cuMemAlloc(gpu_clt,            NUM_CAMS * Sizeof.POINTER);
+        	cuMemAlloc(gpu_4_images,       NUM_CAMS * Sizeof.POINTER);
+
+        	long [] gpu_kernels_l =        new long [NUM_CAMS];
+        	long [] gpu_kernel_offsets_l = new long [NUM_CAMS];
+        	long [] gpu_bayer_l =          new long [NUM_CAMS];
+        	long [] gpu_clt_l =            new long [NUM_CAMS];
+        	long [] gpu_4_images_l =       new long [NUM_CAMS];
+
+        	for (int ncam = 0; ncam < NUM_CAMS; ncam++) gpu_kernels_l[ncam] =        getPointerAddress(gpu_kernels_h[ncam]);
+            cuMemcpyHtoD(gpu_kernels, Pointer.to(gpu_kernels_l),                     NUM_CAMS * Sizeof.POINTER);
+
+            for (int ncam = 0; ncam < NUM_CAMS; ncam++) gpu_kernel_offsets_l[ncam] = getPointerAddress(gpu_kernel_offsets_h[ncam]);
+            cuMemcpyHtoD(gpu_kernel_offsets, Pointer.to(gpu_kernel_offsets_l),       NUM_CAMS * Sizeof.POINTER);
+
+            for (int ncam = 0; ncam < NUM_CAMS; ncam++) gpu_bayer_l[ncam] =          getPointerAddress(gpu_bayer_h[ncam]);
+            cuMemcpyHtoD(gpu_bayer, Pointer.to(gpu_bayer_l),                         NUM_CAMS * Sizeof.POINTER);
+
+            for (int ncam = 0; ncam < NUM_CAMS; ncam++) gpu_clt_l[ncam] =            getPointerAddress(gpu_clt_h[ncam]);
+            cuMemcpyHtoD(gpu_clt, Pointer.to(gpu_clt_l),                             NUM_CAMS * Sizeof.POINTER);
+
+            for (int ncam = 0; ncam < NUM_CAMS; ncam++) gpu_4_images_l[ncam] =       getPointerAddress(gpu_corr_images_h[ncam]);
+            cuMemcpyHtoD(gpu_4_images, Pointer.to(gpu_4_images_l),                   NUM_CAMS * Sizeof.POINTER);
+
+            // Set GeometryCorrection data
+        	cuMemAlloc(gpu_geometry_correction,      GeometryCorrection.arrayLength(NUM_CAMS) * Sizeof.FLOAT);
+        	cuMemAlloc(gpu_rByRDist,                 RBYRDIST_LEN *  Sizeof.FLOAT);
+        	cuMemAlloc(gpu_rot_deriv,                5*NUM_CAMS*3*3 * Sizeof.FLOAT);
+        	cuMemAlloc(gpu_correction_vector,        GeometryCorrection.CorrVector.LENGTH * Sizeof.FLOAT);
+
+            // Set task array
+        	cuMemAlloc(gpu_tasks,      tilesX * tilesY * TPTASK_SIZE * Sizeof.FLOAT);
+    //=========== Seems that in many places Sizeof.POINTER (==8) is used instead of Sizeof.FLOAT !!! ============
+        	// Set corrs array
+        	cuMemAlloc(gpu_corr_indices,   tilesX * tilesY * NUM_PAIRS * Sizeof.FLOAT);
+        	cuMemAlloc(gpu_num_corr_tiles,                    1 * Sizeof.FLOAT);
+
+        	//#define TILESYA       ((TILESY +3) & (~3))
+        	int tilesYa = (tilesY + 3) & ~3;
+        	cuMemAlloc(gpu_texture_indices,     tilesX * tilesYa * Sizeof.FLOAT); // for non-overlap tiles
+        	cuMemAlloc(gpu_texture_indices_ovlp,tilesX * tilesYa * Sizeof.FLOAT); // for overlapped tiles
+
+        	cuMemAlloc(gpu_diff_rgb_combo, tilesX * tilesYa * NUM_CAMS* (NUM_COLORS + 1) *  Sizeof.FLOAT);
+
+        	cuMemAlloc(gpu_color_weights,             3 * Sizeof.FLOAT);
+        	cuMemAlloc(gpu_generate_RBGA_params,      5 * Sizeof.FLOAT);
 
 
-		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
-		final AtomicInteger ai = new AtomicInteger(0);
-		final Matrix [] corr_rots_main = geometryCorrection_main.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices
-		Matrix [] corr_rots_aux0 = null;
-		if (geometryCorrection_aux != null) {
-		    Matrix rigMatrix = geometryCorrection_aux.getRotMatrix(true);
-		    corr_rots_aux0 =  geometryCorrection_aux.getCorrVector().getRotMatrices(rigMatrix); // get array of per-sensor rotation matrices
-		}
-		final Matrix [] corr_rots_aux = corr_rots_aux0;
-		for (int ithread = 0; ithread < threads.length; ithread++) {
-			threads[ithread] = new Thread() {
-				@Override
-				public void run() {
-					int tileY,tileX; // , chn;
-					//						showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
-					double centerX; // center of aberration-corrected (common model) tile, X
-					double centerY; //
-					double disparity_main;
-					double disparity_aux = 0.0;
-
-					for (int nTile = ai.getAndIncrement(); nTile < tp_tasks.length; nTile = ai.getAndIncrement()) {
-
-						tileY = tp_tasks[nTile].ty;
-						tileX = tp_tasks[nTile].tx;
-						if (tp_tasks[nTile].task == 0) {
-							 continue; // nothing to do for this tile
-						}
-
-						centerX = tileX * DTT_SIZE + DTT_SIZE/2; //  - shiftX;
-						centerY = tileY * DTT_SIZE + DTT_SIZE/2; //  - shiftY;
-						disparity_main = tp_tasks[nTile].target_disparity;
-						if (geometryCorrection_aux != null) {
-							disparity_aux =  disparity_main * geometryCorrection_aux.getDisparityRadius()/geometryCorrection_main.getDisparityRadius();
-						}
-
-						// TODO: move port coordinates out of color channel loop
-						double [][] centersXY_main = null;
-						double [][] centersXY_aux =  null;
-						double [][] disp_dist_main = new double[quad_main][]; // used to correct 3D correlations
-						double [][] disp_dist_aux =  new double[quad_aux][]; // used to correct 3D correlations
-
-						if (geometryCorrection_main != null) {
-							centersXY_main = geometryCorrection_main.getPortsCoordinatesAndDerivatives(
-									geometryCorrection_main, //			GeometryCorrection gc_main,
-									false,          // boolean use_rig_offsets,
-									corr_rots_main, // Matrix []   rots,
-									null,           //  Matrix [][] deriv_rots,
-									null,           // double [][] pXYderiv, // if not null, should be double[8][]
-									disp_dist_main,       // used to correct 3D correlations
-									centerX,
-									centerY,
-									disparity_main); //  + disparity_corr);
-							tp_tasks[nTile].xy = new float [centersXY_main.length][2];
-							for (int i = 0; i < centersXY_main.length; i++) {
-								tp_tasks[nTile].xy[i][0] = (float) centersXY_main[i][0];
-								tp_tasks[nTile].xy[i][1] = (float) centersXY_main[i][1];
-							}
-						}
-						if (geometryCorrection_aux != null) {
-							centersXY_aux =  geometryCorrection_aux.getPortsCoordinatesAndDerivatives(
-									geometryCorrection_main, //			GeometryCorrection gc_main,
-									true,            // boolean use_rig_offsets,
-									corr_rots_aux,   // Matrix []   rots,
-									null,            //  Matrix [][] deriv_rots,
-									null,            // double [][] pXYderiv, // if not null, should be double[8][]
-									disp_dist_aux,   // used to correct 3D correlations
-									centerX,
-									centerY,
-									disparity_aux); //  + disparity_corr);
-							tp_tasks[nTile].xy_aux = new float [centersXY_aux.length][2];
-							for (int i = 0; i < centersXY_aux.length; i++) {
-								tp_tasks[nTile].xy_aux[i][0] = (float) centersXY_aux[i][0];
-								tp_tasks[nTile].xy_aux[i][1] = (float) centersXY_aux[i][1];
-							}
-						}
-						// acquisition time of the tiles centers in scanline times
-						if (ers_delay != null) {
-							for (int i = 0; i < quad_main; i++) ers_delay[0][i][nTile] = centersXY_main[i][1]-geometryCorrection_main.woi_tops[i];
-							for (int i = 0; i < quad_aux; i++)  ers_delay[1][i][nTile] = centersXY_aux[i][1]- geometryCorrection_aux.woi_tops[i];
-						}
-					}
-				}
-			};
-		}
-		ImageDtt.startAndJoin(threads);
-	}
-
-	public void setLpfRbg(
-			float [][] lpf_rbg) // 4 64-el. arrays: r,b,g,m
-	{
-
-		int l = lpf_rbg[0].length; // 64
-		float []   lpf_flat = new float [lpf_rbg.length * l];
-		for (int i = 0; i < lpf_rbg.length; i++) {
-			for (int j = 0; j < l; j++) {
-				lpf_flat[j + i * l] = lpf_rbg[i][j];
-			}
-		}
-
-		CUdeviceptr constantMemoryPointer = new CUdeviceptr();
-		long constantMemorySizeArray[] = { 0 };
-		cuModuleGetGlobal(constantMemoryPointer, constantMemorySizeArray,  module, "lpf_data");
-		int constantMemorySize = (int)constantMemorySizeArray[0];
-		System.out.println("constantMemoryPointer: " + constantMemoryPointer);
-		System.out.println("constantMemorySize: " + constantMemorySize);
-        cuMemcpyHtoD(constantMemoryPointer, Pointer.to(lpf_flat), constantMemorySize);
-		System.out.println();
-	}
-
-	public void setLpfCorr(
-			String const_name, // "lpf_corr"
-			float [] lpf_flat)
-	{
-		CUdeviceptr constantMemoryPointer = new CUdeviceptr();
-		long constantMemorySizeArray[] = { 0 };
-		cuModuleGetGlobal(constantMemoryPointer, constantMemorySizeArray,  module, const_name);
-		int constantMemorySize = (int)constantMemorySizeArray[0];
-		System.out.println("constantMemoryPointer: " + constantMemoryPointer);
-		System.out.println("constantMemorySize: " + constantMemorySize);
-        cuMemcpyHtoD(constantMemoryPointer, Pointer.to(lpf_flat), constantMemorySize);
-		System.out.println();
-	}
-
-	public float [] floatSetCltLpfFd(
-			double   sigma) {
-		int dct_size = DTT_SIZE;
-		DttRad2 dtt = new DttRad2(dct_size);
-		double [] clt_fd = dtt.dttt_iiie(setCltLpf(sigma));
-		int l = dct_size*dct_size;
-		float []   lpf_flat = new float [l];
-		for (int j = 0; j < l; j++) {
-			lpf_flat[j] = (float) (clt_fd[j]*2*dct_size);
-		}
-		return lpf_flat;
-	}
-
-	public double [] doubleSetCltLpfFd(
-			double   sigma) {
-		int dct_size = DTT_SIZE;
-		DttRad2 dtt = new DttRad2(dct_size);
-		double [] clt_fd = dtt.dttt_iiie(setCltLpf(sigma));
-		int l = dct_size*dct_size;
-		double []   lpf_flat = new double [l];
-		for (int j = 0; j < l; j++) {
-			lpf_flat[j] = (float) (clt_fd[j]*2*dct_size);
-		}
-		return lpf_flat;
-	}
-
-	public double [] setCltLpf(
-			double   sigma)
-	{
-		int dct_size = DTT_SIZE;
-		double [] lpf = new double [dct_size*dct_size];
-		int dct_len = dct_size * dct_size;
-		if (sigma == 0.0f) {
-			lpf[0] = 1.0f;
-			for (int i = 1; i < dct_len; i++){
-				lpf[i] = 0.0f;
-			}
-		} else {
-			for (int i = 0; i < dct_size; i++){
-				for (int j = 0; j < dct_size; j++){
-					lpf[i*dct_size+j] = (float) Math.exp(-(i*i+j*j)/(2*sigma));
-				}
-			}
-			// normalize
-			double sum = 0;
-			for (int i = 0; i < dct_size; i++){
-				for (int j = 0; j < dct_size; j++){
-					double d = 	lpf[i*dct_size+j];
-					d*=Math.cos(Math.PI*i/(2*dct_size))*Math.cos(Math.PI*j/(2*dct_size));
-					if (i > 0) d*= 2.0;
-					if (j > 0) d*= 2.0;
-					sum +=d;
-				}
-			}
-			for (int i = 0; i< dct_len; i++){
-				lpf[i] /= sum;
-			}
-		}
-		return lpf;
-	}
+        	cuMemAlloc(gpu_woi,                               4 * Sizeof.FLOAT);
+        	cuMemAlloc(gpu_num_texture_ovlp,                  8 * Sizeof.FLOAT);
+        	cuMemAlloc(gpu_texture_indices_len,               1 * Sizeof.FLOAT);
 
 
+        	cuMemAlloc(gpu_active_tiles,        tilesX * tilesY * Sizeof.FLOAT);
+        	cuMemAlloc(gpu_num_active_tiles,                  1 * Sizeof.FLOAT);
+
+            cuMemAllocPitch (
+            		gpu_corrs,                             // CUdeviceptr dptr,
+            		device_stride,                         // long[] pPitch,
+            		CORR_SIZE * Sizeof.FLOAT,              // long WidthInBytes,
+            		NUM_PAIRS * tilesX * tilesY,             // long Height,
+                    Sizeof.FLOAT);                         // int ElementSizeBytes)
+            corr_stride = (int)(device_stride[0] / Sizeof.FLOAT);
+            int max_texture_size = (NUM_COLORS + 1 + (NUM_CAMS + NUM_COLORS + 1)) * (2 * DTT_SIZE)* (2 * DTT_SIZE);
+            cuMemAllocPitch (
+            		gpu_textures,                             // CUdeviceptr dptr,
+            		device_stride,                         // long[] pPitch,
+            		max_texture_size * Sizeof.FLOAT,              // long WidthInBytes,
+            		tilesX * tilesY,             // long Height,
+                    Sizeof.FLOAT);                         // int ElementSizeBytes)
+            texture_stride = (int)(device_stride[0] / Sizeof.FLOAT);
+            int max_rgba_width  =  (tilesX + 1) * DTT_SIZE;
+            int max_rgba_height =  (tilesY + 1) * DTT_SIZE;
+            int max_rbga_slices =  NUM_COLORS + 1;
+            cuMemAllocPitch (
+            		gpu_textures_rgba,                     // CUdeviceptr dptr,
+            		device_stride,                         // long[] pPitch,
+            		max_rgba_width * Sizeof.FLOAT,         // long WidthInBytes,
+            		max_rgba_height * max_rbga_slices,     // long Height,
+                    Sizeof.FLOAT);                         // int ElementSizeBytes)
+            texture_stride_rgba = (int)(device_stride[0] / Sizeof.FLOAT);
+    	}
+    	
+        public void setGeometryCorrection(GeometryCorrection gc,
+        		boolean use_java_rByRDist) { // false - use newer GPU execCalcReverseDistortions
+        	float [] fgc = gc.toFloatArray();
+        	if (use_java_rByRDist) {
+        		double [] rByRDist = gc.getRByRDist();
+        		float [] fFByRDist = new float [rByRDist.length];
+        		for (int i = 0; i < rByRDist.length; i++) {
+        			fFByRDist[i] = (float) rByRDist[i];
+        		}
+        		cuMemcpyHtoD(gpu_rByRDist,            Pointer.to(fFByRDist), fFByRDist.length * Sizeof.FLOAT);
+        	}
+        	cuMemcpyHtoD(gpu_geometry_correction, Pointer.to(fgc),       fgc.length * Sizeof.FLOAT);
+        	cuMemAlloc  (gpu_rot_deriv, 5 * NUM_CAMS *3 *3 * Sizeof.FLOAT); // NCAM of 3x3 rotation matrices, plus 4 derivative matrices for each camera
+        }
+
+        public void setExtrinsicsVector(GeometryCorrection.CorrVector cv) {
+        	double [] dcv = cv.toFullRollArray();
+        	float []  fcv = new float [dcv.length];
+        	for (int i = 0; i < dcv.length; i++) {
+        		fcv[i] = (float) dcv[i];
+        	}
+        	cuMemcpyHtoD(gpu_correction_vector, Pointer.to(fcv), fcv.length * Sizeof.FLOAT);
+        }
+
+
+        public void setTasks(TpTask [] tile_tasks, boolean use_aux) // while is it in class member? - just to be able to free
+        {
+        	num_task_tiles = tile_tasks.length;
+        	float [] ftasks = new float [TPTASK_SIZE * num_task_tiles];
+        	for (int i = 0; i < num_task_tiles; i++) {
+        		tile_tasks[i].asFloatArray(ftasks, i* TPTASK_SIZE, use_aux);
+        	}
+            cuMemcpyHtoD(gpu_tasks, Pointer.to(ftasks), TPTASK_SIZE * num_task_tiles * Sizeof.FLOAT);
+        }
+
+        public void setCorrIndices(int [] corr_indices)
+        {
+        	num_corr_tiles = corr_indices.length;
+        	float [] fcorr_indices = new float [corr_indices.length];
+        	for (int i = 0; i < num_corr_tiles; i++) {
+        		fcorr_indices[i] = Float.intBitsToFloat(corr_indices[i]);
+        	}
+            cuMemcpyHtoD(gpu_corr_indices, Pointer.to(fcorr_indices),  num_corr_tiles * Sizeof.FLOAT);
+        }
+
+        public void setTextureIndices(int [] texture_indices)
+        {
+        	num_texture_tiles = texture_indices.length;
+        	float [] ftexture_indices = new float [texture_indices.length];
+        	for (int i = 0; i < num_texture_tiles; i++) {
+        		ftexture_indices[i] = Float.intBitsToFloat(texture_indices[i]);
+        	}
+            cuMemcpyHtoD(gpu_texture_indices, Pointer.to(ftexture_indices),  num_texture_tiles * Sizeof.FLOAT);
+        }
+
+        public int [] getTextureIndices()
+        {
+        	float [] ftexture_indices_len = new float[1];
+        	cuMemcpyDtoH(Pointer.to(ftexture_indices_len), gpu_texture_indices_len,  1 * Sizeof.FLOAT);
+        	int num_tiles =      Float.floatToIntBits(ftexture_indices_len[0]);
+        	float [] ftexture_indices = new float [num_tiles];
+        	cuMemcpyDtoH(Pointer.to(ftexture_indices), gpu_texture_indices,  num_tiles * Sizeof.FLOAT);
+        	int [] texture_indices = new int [num_tiles];
+        	for (int i = 0; i < num_tiles; i++) {
+        		texture_indices[i] = Float.floatToIntBits(ftexture_indices[i]);
+        	}
+        	return texture_indices;
+        }
+
+    //texture_indices
+        public void setConvolutionKernel(
+        		float [] kernel,  // [tileY][tileX][color][..]
+        		float [] kernel_offsets,
+        		int ncam) {
+            cuMemcpyHtoD(gpu_kernels_h[ncam],        Pointer.to(kernel),         KERN_SIZE * Sizeof.FLOAT);
+            cuMemcpyHtoD(gpu_kernel_offsets_h[ncam], Pointer.to(kernel_offsets), KERN_TILES * CLTEXTRA_SIZE * Sizeof.FLOAT);
+        }
+
+        public void setConvolutionKernels(
+        		double [][][][][][] clt_kernels,
+        		boolean force)
+        {
+        	boolean transpose = true;
+        	if (kernels_set && ! force) {
+        		return;
+        	}
+        	int num_kernels =
+        			clt_kernels[0][0].length * //tilesY
+        			clt_kernels[0][0][0].length * //tilesX
+        			clt_kernels[0].length;  //colors
+        	int kernel_length =	num_kernels * 4 * DTT_SIZE * DTT_SIZE;
+
+        	float [] fkernel =  new float [kernel_length];
+        	float [] foffsets = new float [num_kernels * CLTEXTRA_SIZE];
+        	for (int ncam = 0; ncam < clt_kernels.length; ncam++) {
+        		int indx=0;
+        		for (int ty = 0; ty <  clt_kernels[ncam][0].length; ty++) {
+        			for (int tx = 0; tx <  clt_kernels[ncam][0][ty].length; tx++) {
+        				for (int col = 0; col <  clt_kernels[ncam].length; col++) {
+        					for (int p = 0; p < 4; p++) {
+        						double [] pa = clt_kernels[ncam][col][ty][tx][p];
+        						for (int i0 = 0; i0 < 64; i0++) {
+        							int i;
+        							if (transpose) {
+        								i = ((i0 & 7) << 3) + ((i0 >>3) & 7);
+        							} else {
+        								i = i0;
+        							}
+        							fkernel[indx++] = (float)pa[i];
+        						}
+        					}
+        				}
+        			}
+        		}
+        		indx = 0;
+        		for (int ty = 0; ty <  clt_kernels[ncam][0].length; ty++) {
+        			for (int tx = 0; tx <  clt_kernels[ncam][0][ty].length; tx++) {
+        				for (int col = 0; col <  clt_kernels[ncam].length; col++) {
+        					double [] pa = clt_kernels[ncam][col][ty][tx][4];
+        					for (int i = 0; i < pa.length; i++) {
+        						foffsets[indx++] = (float)pa[i];
+        					}
+        				}
+        			}
+        		}
+
+        		setConvolutionKernel(
+        				fkernel,    // float [] kernel,  // [tileY][tileX][color][..]
+        				foffsets,   // float [] kernel_offsets,
+        				ncam);      // int ncam)
+        	}
+        	kernels_set = true;
+        }
+
+        public void setBayerImage(
+        		float [] bayer_image,
+        		int ncam) {
+            CUDA_MEMCPY2D copyH2D =   new CUDA_MEMCPY2D();
+            copyH2D.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
+            copyH2D.srcHost =         Pointer.to(bayer_image);
+            copyH2D.srcPitch =        IMG_WIDTH*Sizeof.FLOAT; // width_in_bytes;
+            copyH2D.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
+            copyH2D.dstDevice =       gpu_bayer_h[ncam]; // src_dpointer;
+            copyH2D.dstPitch =        mclt_stride *Sizeof.FLOAT; // device_stride[0];
+            copyH2D.WidthInBytes =    IMG_WIDTH*Sizeof.FLOAT; // width_in_bytes;
+            copyH2D.Height =          IMG_HEIGHT; // /4;
+            cuMemcpy2D(copyH2D);
+        }
+        // combines 3 bayer channels into one and transfers to GPU memory
+        public void setBayerImages(
+    			double [][][]       bayer_data,
+        		boolean                  force) {
+        	if (bayer_set && !force) {
+        		return;
+        	}
+        	float [] fbayer = new float [bayer_data[0][0].length];
+    		for (int ncam = 0; ncam < bayer_data.length; ncam++) {
+    			for (int i = 0; i <  bayer_data[ncam][0].length; i++) {
+    				fbayer[i] = (float) (bayer_data[ncam][0][i] + bayer_data[ncam][1][i] + bayer_data[ncam][2][i]);
+    			}
+    		    setBayerImage(
+    		    		fbayer, // float [] bayer_image,
+    		    		ncam); // int ncam)
+    		}
+    		bayer_set = true;
+        }
+
+        // prepare tasks for full frame, same dispaity.
+        // need to run setTasks(TpTask [] tile_tasks, boolean use_aux) to format/transfer to GPU memory
+        public TpTask [] setFullFrameImages(
+    			boolean                   calc_offsets, // old way, now not needed with GPU calculation
+        		Rectangle                 woi,
+        		boolean                   round_woi,
+        		float                     target_disparity, // apply same disparity to all tiles
+        		int                       out_image, // from which tiles to generate image (currently 0/1)
+        		int                       corr_mask,  // which correlation pairs to generate (maybe later - reduce size from 15x15)
+        		boolean                   use_master,
+        		boolean                   use_aux,
+    			final GeometryCorrection  geometryCorrection_main,
+    			final GeometryCorrection  geometryCorrection_aux, // if null, will only calculate offsets fro the main camera
+    			final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
+    			final int                 threadsMax,  // maximal number of threads to launch
+    			final int                 debugLevel) {
+            int tilesX =  IMG_WIDTH / DTT_SIZE;
+            int tilesY =  IMG_HEIGHT / DTT_SIZE;
+        	float [] target_disparities = new float [tilesX * tilesY];
+        	int [] out_images = new int [tilesX * tilesY];
+        	int [] corr_masks = new int [tilesX * tilesY];
+        	if (target_disparity != 0.0) {
+        		for (int i = 0; i <target_disparities.length; i++ ) target_disparities[i] = target_disparity;
+        	}
+    		for (int i = 0; i <out_images.length; i++ ) {
+    			out_images[i] = out_image; //  0xf;  // all 4 images
+    			corr_masks[i] = corr_mask; // 0x3f; // all 6 correlations
+    		}
+        	return setFullFrameImages(
+        			calc_offsets,       // boolean                   calc_offsets, // old way, now not needed with GPU calculation
+        			woi,                // Rectangle                 woi,
+        			round_woi,          // boolean                   round_woi,
+            		target_disparities, // should be tilesX*tilesY long
+            		out_images,         // int   []                  out_images, // from which tiles to generate image (currently 0/1)
+            		corr_masks,         // int   []                  corr_mask,  // which correlation pairs to generate (maybe later - reduce size from 15x15)
+            		use_master,
+            		use_aux,
+        			geometryCorrection_main,
+        			geometryCorrection_aux, // if null, will only calculate offsets fro the main camera
+        			ers_delay,              // if not null - fill with tile center acquisition delay
+        			threadsMax,             // maximal number of threads to launch
+        			debugLevel);
+        }
+
+        public TpTask [] setFullFrameImages(
+    			boolean                   calc_offsets, // old way, now not needed with GPU calculation
+        		Rectangle                 woi, // or null
+        		boolean                   round_woi,
+        		float []                  target_disparities, // should be tilesX*tilesY long
+        		int   []                  out_images, // from which tiles to generate image (currently 0/1)
+        		int   []                  corr_mask,  // which correlation pairs to generate (maybe later - reduce size from 15x15)
+        		boolean                   use_master,
+        		boolean                   use_aux,
+    			final GeometryCorrection  geometryCorrection_main,
+    			final GeometryCorrection  geometryCorrection_aux, // if null, will only calculate offsets fro the main camera
+    			final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
+    			final int                 threadsMax,  // maximal number of threads to launch
+    			final int                 debugLevel)
+        {
+            int tilesX =  IMG_WIDTH / DTT_SIZE;
+            int tilesY =  IMG_HEIGHT / DTT_SIZE;
+            if (woi == null) {
+            	woi = new Rectangle(0,0,tilesX,tilesY);
+            }
+            if (woi.x < 0) woi.x = 0;
+            if (woi.y < 0) woi.y = 0;
+            if (woi.x > (tilesX - 2)) woi.x = tilesX - 2;
+            if (woi.y > (tilesY - 2)) woi.y = tilesY - 2;
+
+            if ((woi.x + woi.width)  > tilesX) woi.width =  tilesX - woi.x;
+            if ((woi.y + woi.height) > tilesY) woi.height = tilesY - woi.y;
+            double rx = 0.5*woi.width;
+            double ry = 0.5*woi.height;
+            double xc = woi.x + rx - 0.5;
+            double yc = woi.y + ry - 0.5;
+            boolean dbg1 = false; //  true;
+            double dbg_frac = 0.0; // 0.25;
+        	boolean [] mask = new boolean[tilesX*tilesY];
+        	int num_tiles = 0;
+        	for (int ty = woi.y; ty < (woi.y +woi.height); ty++) {
+        		double ry2 = (ty - yc) / ry;
+        		ry2*=ry2;
+            	for (int tx = woi.x; tx < (woi.x +woi.width); tx++) {
+            		double rx2 = (tx - xc) / rx;
+            		rx2*=rx2;
+            		if (!round_woi || ((rx2+ry2) < 1.0)) {
+            			mask[ty * tilesX + tx] = true;
+            			num_tiles ++;
+            		}
+            	}
+        	}
+        	if (dbg_frac > 0) {
+        		Random rnd = new Random(0);
+        		int num_final = (int) Math.round(num_tiles * (1.0 - dbg_frac));
+        		while (num_tiles > num_final) {
+        			int tx = woi.x + rnd.nextInt(woi.width);
+        			int ty = woi.y + rnd.nextInt(woi.height);
+        			int indx = ty * tilesX + tx;
+        			if (mask[indx]) {
+        				mask[indx] = false;
+        				num_tiles--;
+        			}
+        		}
+        		// filter out with no neighbors
+        		for (int indx = 0; indx < mask.length; indx++) if (mask[indx]) {
+        			int ix = indx % tilesX;
+        			int iy = indx / tilesX;
+        			int num_neib = 0;
+        			if ((ix > 0) && mask[indx-1]) num_neib++;
+        			if ((ix < (tilesX-1)) && mask[indx+1]) num_neib++;
+        			if ((iy > 0) && mask[indx-tilesX]) num_neib++;
+        			if ((iy < (tilesY-1)) && mask[indx+tilesX]) num_neib++;
+        			if (num_neib == 0) {
+        				mask[indx] = false;
+        				num_tiles--;
+        			}
+        		}
+    //nextInt(int bound)
+        	}
+
+        	if (dbg1) {
+        		mask[(woi.y+woi.height) * tilesX + (woi.x+woi.width)] = true;
+    			num_tiles += 1; // 2;
+
+        	}
+
+        	TpTask [] tp_tasks = new TpTask[num_tiles];
+
+        	int indx = 0;
+        	for (int ty = 0; ty < tilesY; ty++) {
+            	for (int tx = 0; tx < tilesX; tx++) if (mask[ty * tilesX + tx]) {
+    // Only generate for non-empty tasks, use 1 empty empty as a terminator?
+            		tp_tasks[indx] = new TpTask(tx,ty, target_disparities[indx],
+            				((out_images[indx] & 0x0f) << 0) |
+            				((corr_mask [indx] & 0x3f) << 4)
+            				); // task == 1 for now
+            		indx++;
+            	}
+        	}
+        	if (calc_offsets) {
+        		getTileSubcamOffsets(
+        				tp_tasks,                                    // final TpTask[]            tp_tasks,        // will use // modify to have offsets for 8 cameras
+        				(use_master? geometryCorrection_main: null), // final GeometryCorrection  geometryCorrection_main,
+        				(use_aux?    geometryCorrection_aux: null),  // final GeometryCorrection  geometryCorrection_aux, // if null, will only calculate offsets fro the main camera
+        				ers_delay,                                   // final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
+        				threadsMax,                                  // final int                 threadsMax,  // maximal number of threads to launch
+        				debugLevel);                                 // final int                 debugLevel)
+        	}
+        	return tp_tasks;
+        }
+
+        /**
+         * Prepare contents pointers for calculation of the correlation pairs
+         * @param tp_tasks array of tasks that contain masks of the required pairs
+         * @return each element has (tile_number << 8) | (pair_number & 0xff)
+         */
+        public int [] getCorrTasks(
+        		TpTask [] tp_tasks) {
+        	int tilesX = IMG_WIDTH / DTT_SIZE;
+        	int num_corr = 0;
+        	int task_mask = (1 << NUM_PAIRS) - 1;
+        	for (TpTask tt: tp_tasks) {
+        		int pm = (tt.task >> TASK_CORR_BITS) & task_mask;
+        		if (pm != 0) {
+        			for (int b = 0; b < NUM_PAIRS; b++) if ((pm & (1 << b)) != 0) {
+        				num_corr++;    			}
+        		}
+        	}
+
+        	int [] iarr = new int[num_corr];
+        	num_corr = 0;
+        	for (TpTask tt: tp_tasks) {
+        		int pm = (tt.task >> TASK_CORR_BITS) & task_mask;
+        		if (pm != 0) {
+        			int tile = (tt.ty * tilesX +tt.tx);
+        			for (int b = 0; b < NUM_PAIRS; b++) if ((pm & (1 << b)) != 0) {
+        				iarr[num_corr++] = (tile << CORR_NTILE_SHIFT) | b;
+        			}
+        		}
+        	}
+        	return iarr;
+        }
+
+        /**
+         * Prepare contents pointers for calculation of the texture tiles (RGBA, 16x16)
+         * @param tp_tasks array of tasks that contain masks of the required pairs
+         * @return each element has (tile_number << 8) | (1 << LIST_TEXTURE_BIT)
+         */
+        public int [] getTextureTasks(
+        		TpTask [] tp_tasks) {
+        	int tilesX = IMG_WIDTH / DTT_SIZE;
+        	int num_textures = 0;
+        	for (TpTask tt: tp_tasks) {
+        		if ((tt.task & TASK_TEXTURE_BITS) !=0) {
+        			num_textures++;
+        		}
+        	}
+        	int [] iarr = new int[num_textures];
+        	num_textures = 0;
+        	int b = (1 << LIST_TEXTURE_BIT);
+        	for (TpTask tt: tp_tasks) {
+        		if ((tt.task & TASK_TEXTURE_BITS) !=0) {
+        			int tile = (tt.ty * tilesX +tt.tx);
+        			iarr[num_textures++] = (tile << CORR_NTILE_SHIFT) | b;
+        		}
+        	}
+        	return iarr;
+        }
+
+    // All data is already copied to GPU memory
+
+        public void execRotDerivs() {
+            if (GPU_ROT_DERIV_kernel == null)
+            {
+                IJ.showMessage("Error", "No GPU kernel: GPU_ROT_DERIV_kernel");
+                return;
+            }
+            // kernel parameters: pointer to pointers
+            int [] GridFullWarps =    {NUM_CAMS, 1, 1}; // round up
+            int [] ThreadsFullWarps = {3,        3, 3};
+            Pointer kernelParameters = Pointer.to(
+                Pointer.to(gpu_correction_vector),
+                Pointer.to(gpu_rot_deriv)
+            );
+
+            cuCtxSynchronize();
+            	// Call the kernel function
+        	cuLaunchKernel(GPU_ROT_DERIV_kernel,
+        			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
+        			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
+        			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
+        			kernelParameters, null);   // Kernel- and extra parameters
+        	cuCtxSynchronize(); // remove later
+        }
+        
+        public void execCalcReverseDistortions() {
+            if (GPU_CALC_REVERSE_DISTORTION_kernel == null)
+            {
+                IJ.showMessage("Error", "No GPU kernel: GPU_CALC_REVERSE_DISTORTION_kernel");
+                return;
+            }
+            // kernel parameters: pointer to pointers
+            int [] GridFullWarps =    {NUM_CAMS, 1, 1}; // round up
+            int [] ThreadsFullWarps = {3,        3, 3};
+            Pointer kernelParameters = Pointer.to(
+            		Pointer.to(gpu_geometry_correction),     //	struct gc          * gpu_geometry_correction,
+            		Pointer.to(gpu_rByRDist));                //	float *              gpu_rByRDist)      // length should match RBYRDIST_LEN
+            cuCtxSynchronize();
+            	// Call the kernel function
+        	cuLaunchKernel(GPU_CALC_REVERSE_DISTORTION_kernel,
+        			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
+        			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
+        			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
+        			kernelParameters, null);   // Kernel- and extra parameters
+        	cuCtxSynchronize(); // remove later
+        }
+
+        public void execSetTilesOffsets() {
+            if (GPU_SET_TILES_OFFSETS_kernel == null)
+            {
+                IJ.showMessage("Error", "No GPU kernel: GPU_SET_TILES_OFFSETS_kernel");
+                return;
+            }
+            // kernel parameters: pointer to pointers
+            int [] GridFullWarps =    {(num_task_tiles + TILES_PER_BLOCK_GEOM - 1)/TILES_PER_BLOCK_GEOM, 1, 1}; // round up
+            int [] ThreadsFullWarps = {NUM_CAMS, TILES_PER_BLOCK_GEOM, 1}; // 4,8,1
+            Pointer kernelParameters = Pointer.to(
+            		Pointer.to(gpu_tasks),                   // struct tp_task     * gpu_tasks,
+            		Pointer.to(new int[] { num_task_tiles }),// int                  num_tiles,          // number of tiles in task list
+            		Pointer.to(gpu_geometry_correction),     //	struct gc          * gpu_geometry_correction,
+            		Pointer.to(gpu_correction_vector),       //	struct corr_vector * gpu_correction_vector,
+            		Pointer.to(gpu_rByRDist),                //	float *              gpu_rByRDist)      // length should match RBYRDIST_LEN
+            		Pointer.to(gpu_rot_deriv));              // trot_deriv         * gpu_rot_deriv);
+            cuCtxSynchronize();
+        	cuLaunchKernel(GPU_SET_TILES_OFFSETS_kernel,
+        			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
+        			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
+        			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
+        			kernelParameters, null);   // Kernel- and extra parameters
+        	cuCtxSynchronize(); // remove later
+        }
+
+        public void execConvertDirect() {
+            if (GPU_CONVERT_DIRECT_kernel == null)
+            {
+                IJ.showMessage("Error", "No GPU kernel: GPU_CONVERT_DIRECT_kernel");
+                return;
+            }
+            // kernel parameters: pointer to pointers
+            int [] GridFullWarps =    {1, 1, 1};
+            int [] ThreadsFullWarps = {1, 1, 1};
+            Pointer kernelParameters = Pointer.to(
+            		Pointer.to(gpu_kernel_offsets),
+            		Pointer.to(gpu_kernels),
+            		Pointer.to(gpu_bayer),
+            		Pointer.to(gpu_tasks),
+            		Pointer.to(gpu_clt),
+            		Pointer.to(new int[] { mclt_stride }),
+            		Pointer.to(new int[] { num_task_tiles }),
+            		// move lpf to 4-image generator kernel - DONE
+            		Pointer.to(new int[] { 0 }), // lpf_mask
+            		Pointer.to(new int[] { IMG_WIDTH}),          // int                woi_width,
+            		Pointer.to(new int[] { IMG_HEIGHT}),         // int                woi_height,
+            		Pointer.to(new int[] { KERNELS_HOR}),        // int                kernels_hor,
+            		Pointer.to(new int[] { KERNELS_VERT}),       // int                kernels_vert);
+            		Pointer.to(gpu_active_tiles),
+            		Pointer.to(gpu_num_active_tiles)
+            		);
+
+            cuCtxSynchronize();
+            	// Call the kernel function
+        	cuLaunchKernel(GPU_CONVERT_DIRECT_kernel,
+        			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
+        			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
+        			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
+        			kernelParameters, null);   // Kernel- and extra parameters
+        	cuCtxSynchronize(); // remove later
+        }
 
 
 
+        public void execImcltRbgAll(
+        		boolean is_mono
+        		) {
+        	if (GPU_IMCLT_ALL_kernel == null)
+        	{
+        		IJ.showMessage("Error", "No GPU kernel: GPU_IMCLT_ALL_kernel");
+        		return;
+        	}
+        	int apply_lpf =  1;
+        	int tilesX =  IMG_WIDTH / DTT_SIZE;
+        	int tilesY =  IMG_HEIGHT / DTT_SIZE;
+        	int [] ThreadsFullWarps = {1, 1, 1};
+        	int [] GridFullWarps =    {1, 1, 1};
+        	Pointer kernelParameters = Pointer.to(
+                    Pointer.to(gpu_clt),                                // float  ** gpu_clt, // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+                    Pointer.to(gpu_4_images),                           // float           ** gpu_corr_images,    // [NUM_CAMS][WIDTH, 3 * HEIGHT]
+        			Pointer.to(new int[] { apply_lpf }),                // int                apply_lpf,
+        			Pointer.to(new int[] { is_mono ? 1 : NUM_COLORS }), // int                colors,
+        			Pointer.to(new int[] { tilesX }),                   // int                woi_twidth,
+        			Pointer.to(new int[] { tilesY }),                   // int                woi_theight,
+        			Pointer.to(new int[] { imclt_stride })              // const size_t       dstride);            // in floats (pixels)
+        			);
+        	cuCtxSynchronize();
+        	// Call the kernel function
+        	cuLaunchKernel(GPU_IMCLT_ALL_kernel,
+        			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
+        			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
+        			0, null,                   // Shared memory size and stream (shared - only dynamic, static is in code)
+        			kernelParameters, null);   // Kernel- and extra parameters
+        	cuCtxSynchronize();
+        }
 
-}
+        public void execCorr2D(
+        		double [] scales,
+        		double fat_zero,
+        		int corr_radius) {
+        	if (GPU_CORRELATE2D_kernel == null)
+        	{
+        		IJ.showMessage("Error", "No GPU kernel: GPU_CORRELATE2D_kernel");
+        		return;
+        	}
+
+        	int num_colors = scales.length;
+        	if (num_colors > 3) num_colors = 3;
+        	float fscale0 = (float) scales[0];
+        	float fscale1 = (num_colors >1)?((float) scales[1]):0.0f;
+        	float fscale2 = (num_colors >2)?((float) scales[2]):0.0f;
+    		int [] GridFullWarps =    {1, 1, 1};
+        	int [] ThreadsFullWarps = {1, 1, 1};
+        	Pointer kernelParameters = Pointer.to(
+        			Pointer.to(gpu_clt),                        // float          ** gpu_clt,
+        			Pointer.to(new int[] { num_colors }),       // int               colors,             // number of colors (3/1)
+        			Pointer.to(new float[] {fscale0  }),        // float             scale0,             // scale for R
+        			Pointer.to(new float[] {fscale1  }),        // float             scale1,             // scale for B
+        			Pointer.to(new float[] {fscale2  }),        // float             scale2,             // scale for G
+        			Pointer.to(new float[] {(float) fat_zero }),// float             fat_zero,           // here - absolute
+            		Pointer.to(gpu_tasks),                      // struct tp_task  * gpu_tasks,
+            		Pointer.to(new int[] { num_task_tiles }),   // int               num_tiles           // number of tiles in task
+        			Pointer.to(gpu_corr_indices),               // int             * gpu_corr_indices,   // packed tile+pair
+        			Pointer.to(gpu_num_corr_tiles),             // int             * pnum_corr_tiles,    // pointer to a number of tiles to process
+        			Pointer.to(new int[] { corr_stride }),      // const size_t      corr_stride,        // in floats
+        			Pointer.to(new int[] { corr_radius }),      // int               corr_radius,        // radius of the output correlation (7 for 15x15)
+        			Pointer.to(gpu_corrs)                       // float           * gpu_corrs);         // correlation output data
+        			);
+        	cuCtxSynchronize();
+        	// Call the kernel function
+        	cuLaunchKernel(GPU_CORRELATE2D_kernel,
+        			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
+        			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
+        			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
+        			kernelParameters, null);   // Kernel- and extra parameters
+        	cuCtxSynchronize();
+        }
+
+        public void execRBGA(
+        		double [] color_weights,
+        		boolean   is_lwir,
+        		double    min_shot,           // 10.0
+        		double    scale_shot,         // 3.0
+        		double    diff_sigma,         // pixel value/pixel change
+        		double    diff_threshold,     // pixel value/pixel change
+        		double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+        		boolean   dust_remove) {
+        	if (GPU_RBGA_kernel == null)
+        	{
+        		IJ.showMessage("Error", "No GPU kernel: GPU_TEXTURES_kernel");
+        		return;
+        	}
+        	int num_colors = color_weights.length;
+        	if (num_colors > 3) num_colors = 3;
+        	float [] fcolor_weights = new float[3];
+        	fcolor_weights[0] = (float) color_weights[0];
+        	fcolor_weights[1] = (num_colors >1)?((float) color_weights[1]):0.0f;
+        	fcolor_weights[2] = (num_colors >2)?((float) color_weights[2]):0.0f;
+            cuMemcpyHtoD(gpu_color_weights, Pointer.to(fcolor_weights),  fcolor_weights.length * Sizeof.FLOAT);
+
+            float [] generate_RBGA_params = {
+        			(float)             min_shot,           // 10.0
+        			(float)             scale_shot,         // 3.0
+        			(float)             diff_sigma,         // pixel value/pixel change
+        			(float)             diff_threshold,     // pixel value/pixel change
+        			(float)             min_agree          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+        	};
+            cuMemcpyHtoD(gpu_generate_RBGA_params, Pointer.to(generate_RBGA_params),  generate_RBGA_params.length * Sizeof.FLOAT);
+
+        	int iis_lwir =      (is_lwir)? 1:0;
+        	int idust_remove =  (dust_remove)? 1 : 0;
+
+        	// uses dynamic parallelization, top kernel is a single-thread one
+    		int [] GridFullWarps =    {1, 1, 1};
+        	int [] ThreadsFullWarps = {1, 1, 1};
+
+        	Pointer kernelParameters = Pointer.to(
+                    Pointer.to(gpu_tasks),                           // struct tp_task   * gpu_tasks,
+                    Pointer.to(new int[] { num_task_tiles }),        // int                num_tiles,          // number of tiles in task list
+                	// declare arrays in device code?
+                    Pointer.to(gpu_texture_indices_ovlp),            // int              * gpu_texture_indices_ovlp,// packed tile + bits (now only (1 << 7)
+        			Pointer.to(gpu_num_texture_ovlp),                // int              * num_texture_tiles,  // number of texture tiles to process (8 elements)
+        			Pointer.to(gpu_woi),                             // int              * woi,                // x,y,width,height of the woi
+        			// set smaller for LWIR - it is used to reduce work aread
+        			Pointer.to(new int[] {IMG_WIDTH / DTT_SIZE}),    // int                width,  // <= TILESX, use for faster processing of LWIR images (should be actual + 1)
+        			Pointer.to(new int[] {IMG_HEIGHT / DTT_SIZE}),   // int                height); // <= TILESY, use for faster processing of LWIR images
+        	    	// Parameters for the texture generation
+        			Pointer.to(gpu_clt),                             // float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+            		Pointer.to(gpu_geometry_correction),             //	struct gc          * gpu_geometry_correction,
+    	            Pointer.to(new int[]   {num_colors}),            // int               colors,             // number of colors (3/1)
+    	            Pointer.to(new int[]   {iis_lwir}),              // int               is_lwir,            // do not perform shot correction
+    	            Pointer.to(gpu_generate_RBGA_params),            // float             generate_RBGA_params[5],
+    	            Pointer.to(gpu_color_weights),                   // float             weights[3],         // scale for R,B,G
+    	            Pointer.to(new int[]   { idust_remove }),        // int               dust_remove,        // Do not reduce average weight when only one image differes much from the average
+    	            Pointer.to(new int[]   {0}),                     // int               keep_weights,       // return channel weights after A in RGBA
+    	            Pointer.to(new int[]   { texture_stride_rgba }), // const size_t      texture_rbga_stride,     // in floats
+    	            Pointer.to(gpu_textures_rgba));                   // float           * gpu_texture_tiles)    // (number of colors +1 + ?)*16*16 rgba texture tiles
+
+        	cuCtxSynchronize();
+        	// Call the kernel function
+        	cuLaunchKernel(GPU_RBGA_kernel,
+        			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
+        			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
+        			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
+        			kernelParameters, null);   // Kernel- and extra parameters
+        	cuCtxSynchronize();
+        }
+
+         public void execTextures(
+        		double [] color_weights,
+        		boolean   is_lwir,
+        		double    min_shot,           // 10.0
+        		double    scale_shot,         // 3.0
+        		double    diff_sigma,         // pixel value/pixel change
+        		double    diff_threshold,     // pixel value/pixel change
+        		double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+        		boolean   dust_remove) {
+        	if (GPU_TEXTURES_kernel == null)
+        	{
+        		IJ.showMessage("Error", "No GPU kernel: GPU_TEXTURES_kernel");
+        		return;
+        	}
+
+        	int num_colors = color_weights.length;
+        	if (num_colors > 3) num_colors = 3;
+        	float [] fcolor_weights = new float[3];
+        	fcolor_weights[0] = (float) color_weights[0];
+        	fcolor_weights[1] = (num_colors >1)?((float) color_weights[1]):0.0f;
+        	fcolor_weights[2] = (num_colors >2)?((float) color_weights[2]):0.0f;
+            cuMemcpyHtoD(gpu_color_weights, Pointer.to(fcolor_weights),  fcolor_weights.length * Sizeof.FLOAT);
+
+            float [] generate_RBGA_params = {
+        			(float)             min_shot,           // 10.0
+        			(float)             scale_shot,         // 3.0
+        			(float)             diff_sigma,         // pixel value/pixel change
+        			(float)             diff_threshold,     // pixel value/pixel change
+        			(float)             min_agree           // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+        	};
+            cuMemcpyHtoD(gpu_generate_RBGA_params, Pointer.to(generate_RBGA_params),  generate_RBGA_params.length * Sizeof.FLOAT);
+
+        	int iis_lwir =      (is_lwir)? 1:0;
+        	int idust_remove =  (dust_remove)? 1 : 0;
+
+    		int [] GridFullWarps =    {1, 1, 1};
+        	int [] ThreadsFullWarps = {1, 1, 1};
+
+        	Pointer kernelParameters = Pointer.to(
+                    Pointer.to(gpu_tasks),                           // struct tp_task   * gpu_tasks,
+                    Pointer.to(new int[] { num_task_tiles }),        // int                num_tiles,          // number of tiles in task list
+                	// declare arrays in device code?
+                    Pointer.to(gpu_texture_indices),                 // int              * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
+        			Pointer.to(gpu_texture_indices_len),
+        	    	// Parameters for the texture generation
+        			Pointer.to(gpu_clt),                             // float          ** gpu_clt,            // [NUM_CAMS] ->[TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
+            		Pointer.to(gpu_geometry_correction),             //	struct gc          * gpu_geometry_correction,
+        			Pointer.to(new int[] { num_colors }),
+        			Pointer.to(new int[] { iis_lwir }),
+    	            Pointer.to(gpu_generate_RBGA_params),            // float             generate_RBGA_params[5],
+    	            Pointer.to(gpu_color_weights),                   // float             weights[3],         // scale for R,B,G
+        			Pointer.to(new int[] { idust_remove }),
+        			Pointer.to(new int[] {texture_stride}),        // can be a null pointer - will not be used! float           * gpu_texture_rbg,     // (number of colors +1 + ?)*16*16 rgba texture tiles
+        			Pointer.to(gpu_textures),
+    	            Pointer.to(gpu_diff_rgb_combo));                 // float           * gpu_diff_rgb_combo); // diff[NUM_CAMS], R[NUM_CAMS], B[NUM_CAMS],G[NUM_CAMS]
+        	cuCtxSynchronize();
+        	// Call the kernel function
+        	cuLaunchKernel(GPU_TEXTURES_kernel,
+        			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
+        			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
+        			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
+        			kernelParameters, null);   // Kernel- and extra parameters
+        	cuCtxSynchronize();
+        }
+
+        public float [][] getCorr2D(int corr_rad){
+            int corr_size = (2 * corr_rad + 1) * (2 * corr_rad + 1);
+            float [] cpu_corrs = new float [ num_corr_tiles * corr_size];
+            CUDA_MEMCPY2D copyD2H =   new CUDA_MEMCPY2D();
+            copyD2H.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
+            copyD2H.srcDevice =       gpu_corrs;
+            copyD2H.srcPitch =        corr_stride * Sizeof.FLOAT;
+
+            copyD2H.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
+            copyD2H.dstHost =         Pointer.to(cpu_corrs);
+            copyD2H.dstPitch =        corr_size * Sizeof.FLOAT;
+
+            copyD2H.WidthInBytes =    corr_size * Sizeof.FLOAT;
+            copyD2H.Height =          num_corr_tiles;
+
+            cuMemcpy2D(copyD2H); // run copy
+
+            float [][] corrs = new float [num_corr_tiles][ corr_size];
+            for (int ncorr = 0; ncorr < num_corr_tiles; ncorr++) {
+            	System.arraycopy(cpu_corrs, ncorr*corr_size, corrs[ncorr], 0, corr_size);
+            }
+            return corrs;
+        }
+        
+        public int [] getCorrIndices() {
+        	float [] fnum_corrs = new float[1];
+        	cuMemcpyDtoH(Pointer.to(fnum_corrs), gpu_num_corr_tiles,  1 * Sizeof.FLOAT);
+        	int num_corrs =      Float.floatToIntBits(fnum_corrs[0]);
+        	float [] fcorr_indices = new float [num_corrs];
+        	cuMemcpyDtoH(Pointer.to(fcorr_indices), gpu_corr_indices,  num_corrs * Sizeof.FLOAT);
+        	int [] corr_indices = new int [num_corrs];
+        	for (int i = 0; i < num_corrs; i++) {
+        		corr_indices[i] = Float.floatToIntBits(fcorr_indices[i]);
+        	}
+        	num_corr_tiles = num_corrs;
+        	return corr_indices;
+
+        }
+
+//	        read extra data for macro generation: 4 DIFFs, 4 of R,  4 of B, 4 of G
+        public float [][] getExtra(){
+    		int [] texture_indices = getTextureIndices();
+        	int num_tile_extra = NUM_CAMS*(NUM_COLORS+1);
+        	float [] diff_rgb_combo = new float[texture_indices.length * num_tile_extra];
+        	cuMemcpyDtoH(Pointer.to(diff_rgb_combo), gpu_diff_rgb_combo,  diff_rgb_combo.length * Sizeof.FLOAT);
+        	int tilesX =  IMG_WIDTH / DTT_SIZE;
+        	int tilesY =  IMG_HEIGHT / DTT_SIZE;
+        	float [][] extra = new float[num_tile_extra][tilesX*tilesY];
+        	for (int i = 0; i < texture_indices.length; i++) {
+        		if (((texture_indices[i] >> CORR_TEXTURE_BIT) & 1) != 0) {
+        			int ntile = texture_indices[i] >>  CORR_NTILE_SHIFT;
+//	            if (ntile == 22507) {
+//	            	System.out.println("i="+i+", ntile="+ntile);
+//	            }
+    		    	for (int l = 0; l < num_tile_extra; l++) {
+    		    		extra[l][ntile] = diff_rgb_combo[i * num_tile_extra + l];
+    		    	}
+        		}
+        	}
+        	return extra;
+        }
+
+
+        /**
+         * Get woi and RBGA image from the GPU after execRBGA call as 2/4 slices.
+         * device array has 4 pixels margins on each side, skip them here
+         * @param num_colors number of colors (1 or 3)
+         * @param woi should be initialized as Rectangle(). x,y,width, height will be populated (in pixels,)
+         * @return RBGA slices, last (alpha) in 0.0... 1.0 range, colors match input range
+         */
+        public float [][] getRBGA(
+        		int     num_colors,
+        		Rectangle woi) { // will update to woi
+        	// first - read woi
+        	float [] fwoi = new float[4];
+        	cuMemcpyDtoH(Pointer.to(fwoi), gpu_woi,  4 * Sizeof.FLOAT);
+        	woi.x =      Float.floatToIntBits(fwoi[0]) * DTT_SIZE;
+        	woi.y =      Float.floatToIntBits(fwoi[1]) * DTT_SIZE;
+        	woi.width =  Float.floatToIntBits(fwoi[2]) * DTT_SIZE;
+        	woi.height = Float.floatToIntBits(fwoi[3]) * DTT_SIZE;
+        	float [][] rslt = new float[num_colors + 1][woi.width * woi.height];
+            CUDA_MEMCPY2D copy_rbga =  new CUDA_MEMCPY2D();
+            copy_rbga.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
+            copy_rbga.srcDevice =       gpu_textures_rgba;
+            copy_rbga.srcPitch =        texture_stride_rgba * Sizeof.FLOAT;
+            copy_rbga.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
+            copy_rbga.dstPitch =        woi.width * Sizeof.FLOAT;
+
+            copy_rbga.WidthInBytes =    woi.width * Sizeof.FLOAT;
+            copy_rbga.Height =          woi.height;
+            copy_rbga.srcXInBytes =     4 * Sizeof.FLOAT;
+
+            for (int ncol = 0; ncol<= num_colors; ncol++ ) {
+            	copy_rbga.dstHost =     Pointer.to(rslt[ncol]);
+                copy_rbga.srcY =        4 + (woi.height +DTT_SIZE) * ncol;
+                cuMemcpy2D(copy_rbga); // run copy
+            }
+            return rslt;
+        }
+
+        public float [] getFlatTextures(
+        		int     num_tiles,
+        		int     num_colors,
+        		boolean keep_weights){
+
+        	int texture_slices =     (num_colors + 1 + (keep_weights?(NUM_CAMS + num_colors + 1):0)); // number of texture slices
+        	int texture_slice_size = (2 * DTT_SIZE)* (2 * DTT_SIZE);        // number of (float) elements in a single slice of a tile
+        	int texture_tile_size =  texture_slices * texture_slice_size;   // number of (float) elements in a multi-slice tile
+        	int texture_size =       texture_tile_size * num_texture_tiles; // number of (float) elements in the whole texture
+            float [] cpu_textures = new float [texture_size];
+            CUDA_MEMCPY2D copyD2H =   new CUDA_MEMCPY2D();
+            copyD2H.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
+            copyD2H.srcDevice =       gpu_textures;
+            copyD2H.srcPitch =        texture_stride * Sizeof.FLOAT;
+
+            copyD2H.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
+            copyD2H.dstHost =         Pointer.to(cpu_textures);
+            copyD2H.dstPitch =        texture_tile_size * Sizeof.FLOAT;
+
+            copyD2H.WidthInBytes =    texture_tile_size * Sizeof.FLOAT;
+            copyD2H.Height =          num_tiles; // num_texture_tiles;
+
+            cuMemcpy2D(copyD2H); // run copy
+            return cpu_textures;
+        }
+
+        public float [][][] getTextures( // todo - get rid of copying by multiple CUDA_MEMCPY2D?
+        		int     num_tiles,
+        		int     num_colors,
+        		boolean keep_weights){
+
+        	int texture_slices =     (num_colors + 1 + (keep_weights?(NUM_CAMS + num_colors + 1):0));
+        	int texture_slice_size = (2 * DTT_SIZE)* (2 * DTT_SIZE);
+        	int texture_tile_size =  texture_slices * texture_slice_size;
+//	        	int texture_size =       texture_tile_size * num_texture_tiles;
+            float [] cpu_textures = getFlatTextures(
+            		num_tiles,
+            		num_colors,
+            		keep_weights);
+
+            float [][][] textures = new float [num_texture_tiles][texture_slices][texture_tile_size];
+            for (int ntile = 0; ntile < num_texture_tiles; ntile++) {
+            	for (int slice = 0; slice < texture_slices; slice++) {
+            		System.arraycopy(
+            				cpu_textures,                                           // src
+            				ntile * texture_tile_size + slice * texture_slice_size, // src offset
+            				textures[ntile][slice],                                 // dst
+            				0,                                                      // dst offset
+            				texture_slice_size);                                    // length to copy
+            	}
+            }
+            return textures;
+        }
+
+        public double [][][][] doubleTextures(
+        		Rectangle    woi,
+        		int []       indices,
+        		float [][][] ftextures,
+        		int          full_width,
+        		int          num_slices
+        		){
+        	int texture_slice_size = (2 * DTT_SIZE)* (2 * DTT_SIZE);
+        	double [][][][] textures = new double [woi.height][woi.width][num_slices][texture_slice_size];
+        	for (int indx = 0; indx < indices.length; indx++) if ((indices[indx] & (1 << LIST_TEXTURE_BIT)) != 0){
+        		int tile = indices[indx] >> CORR_NTILE_SHIFT;
+        		int tileX = tile % full_width;
+        		int tileY = tile / full_width;
+        		int wtileX = tileX - woi.x;
+        		int wtileY = tileY - woi.y;
+        		if ((wtileX < woi.width) && (wtileY < woi.height)) {
+        			for (int slice = 0; slice < num_slices; slice++) {
+        				for (int i = 0; i < texture_slice_size; i++) {
+        					textures[wtileY][wtileX][slice][i] = ftextures[indx][slice][i];
+        				}
+        			}
+        		}
+        	}
+        	return textures;
+        }
+
+        public double [][][][] doubleTextures(
+        		Rectangle    woi,
+        		int []       indices,
+        		float []     ftextures,
+        		int          full_width,
+        		int          num_slices,
+        		int          num_src_slices
+        		){
+        	int texture_slice_size = (2 * DTT_SIZE)* (2 * DTT_SIZE);
+        	int texture_tile_size = texture_slice_size * num_src_slices ;
+        	double [][][][] textures = new double [woi.height][woi.width][num_slices][texture_slice_size];
+        	for (int indx = 0; indx < indices.length; indx++) if ((indices[indx] & (1 << LIST_TEXTURE_BIT)) != 0){
+        		int tile = indices[indx] >> CORR_NTILE_SHIFT;
+        		int tileX = tile % full_width;
+        		int tileY = tile / full_width;
+        		int wtileX = tileX - woi.x;
+        		int wtileY = tileY - woi.y;
+        		if ((wtileX < woi.width) && (wtileY < woi.height)) {
+        			for (int slice = 0; slice < num_slices; slice++) {
+        				for (int i = 0; i < texture_slice_size; i++) {
+        					textures[wtileY][wtileX][slice][i] = ftextures[indx * texture_tile_size + slice * texture_slice_size + i];
+        				}
+        			}
+        		}
+        	}
+        	return textures;
+        }
+
+        public float [][] getRBG (int ncam){
+            int height = (IMG_HEIGHT + DTT_SIZE);
+            int width =  (IMG_WIDTH + DTT_SIZE);
+            int rslt_img_size =      width * height;
+            float [] cpu_corr_image = new float [ NUM_COLORS * rslt_img_size];
+            int width_in_bytes = width *Sizeof.FLOAT;
+
+        	// for copying results to host
+            CUDA_MEMCPY2D copyD2H =   new CUDA_MEMCPY2D();
+            copyD2H.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
+            copyD2H.srcDevice =       gpu_corr_images_h[ncam]; // ((test & 1) ==0) ? src_dpointer : dst_dpointer; // copy same data
+            copyD2H.srcPitch =        imclt_stride*Sizeof.FLOAT;
+
+            copyD2H.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
+            copyD2H.dstHost =         Pointer.to(cpu_corr_image);
+            copyD2H.dstPitch =        width_in_bytes;
+
+            copyD2H.WidthInBytes =    width_in_bytes;
+            copyD2H.Height =          3 * height; // /2;
+
+            cuMemcpy2D(copyD2H); // run copy
+
+            float [][] fimg = new float [NUM_COLORS][ rslt_img_size];
+            for (int ncol = 0; ncol < NUM_COLORS; ncol++) {
+            	System.arraycopy(cpu_corr_image, ncol*rslt_img_size, fimg[ncol], 0, rslt_img_size);
+            }
+            return fimg;
+        }
+        
+    	public void  getTileSubcamOffsets(
+    			final TpTask[]            tp_tasks,        // will use // modify to have offsets for 8 cameras
+    			final GeometryCorrection  geometryCorrection_main,
+    			final GeometryCorrection  geometryCorrection_aux, // if null, will only calculate offsets from the main camera
+    			final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
+    			final int                 threadsMax,  // maximal number of threads to launch
+    			final int                 debugLevel)
+    	{
+    		final int quad_main = (geometryCorrection_main != null)? NUM_CAMS:0;
+    		final int quad_aux =  (geometryCorrection_aux != null)? NUM_CAMS:0;
+
+
+    		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+    		final AtomicInteger ai = new AtomicInteger(0);
+    		final Matrix [] corr_rots_main = geometryCorrection_main.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices
+    		Matrix [] corr_rots_aux0 = null;
+    		if (geometryCorrection_aux != null) {
+    		    Matrix rigMatrix = geometryCorrection_aux.getRotMatrix(true);
+    		    corr_rots_aux0 =  geometryCorrection_aux.getCorrVector().getRotMatrices(rigMatrix); // get array of per-sensor rotation matrices
+    		}
+    		final Matrix [] corr_rots_aux = corr_rots_aux0;
+    		for (int ithread = 0; ithread < threads.length; ithread++) {
+    			threads[ithread] = new Thread() {
+    				@Override
+    				public void run() {
+    					int tileY,tileX; // , chn;
+    					//						showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+    					double centerX; // center of aberration-corrected (common model) tile, X
+    					double centerY; //
+    					double disparity_main;
+    					double disparity_aux = 0.0;
+
+    					for (int nTile = ai.getAndIncrement(); nTile < tp_tasks.length; nTile = ai.getAndIncrement()) {
+
+    						tileY = tp_tasks[nTile].ty;
+    						tileX = tp_tasks[nTile].tx;
+    						if (tp_tasks[nTile].task == 0) {
+    							 continue; // nothing to do for this tile
+    						}
+
+    						centerX = tileX * DTT_SIZE + DTT_SIZE/2; //  - shiftX;
+    						centerY = tileY * DTT_SIZE + DTT_SIZE/2; //  - shiftY;
+    						disparity_main = tp_tasks[nTile].target_disparity;
+    						if (geometryCorrection_aux != null) {
+    							disparity_aux =  disparity_main * geometryCorrection_aux.getDisparityRadius()/geometryCorrection_main.getDisparityRadius();
+    						}
+
+    						// TODO: move port coordinates out of color channel loop
+    						double [][] centersXY_main = null;
+    						double [][] centersXY_aux =  null;
+    						double [][] disp_dist_main = new double[quad_main][]; // used to correct 3D correlations
+    						double [][] disp_dist_aux =  new double[quad_aux][]; // used to correct 3D correlations
+
+    						if (geometryCorrection_main != null) {
+    							centersXY_main = geometryCorrection_main.getPortsCoordinatesAndDerivatives(
+    									geometryCorrection_main, //			GeometryCorrection gc_main,
+    									false,          // boolean use_rig_offsets,
+    									corr_rots_main, // Matrix []   rots,
+    									null,           //  Matrix [][] deriv_rots,
+    									null,           // double [][] pXYderiv, // if not null, should be double[8][]
+    									disp_dist_main,       // used to correct 3D correlations
+    									centerX,
+    									centerY,
+    									disparity_main); //  + disparity_corr);
+    							tp_tasks[nTile].xy = new float [centersXY_main.length][2];
+    							for (int i = 0; i < centersXY_main.length; i++) {
+    								tp_tasks[nTile].xy[i][0] = (float) centersXY_main[i][0];
+    								tp_tasks[nTile].xy[i][1] = (float) centersXY_main[i][1];
+    							}
+    						}
+    						if (geometryCorrection_aux != null) {
+    							centersXY_aux =  geometryCorrection_aux.getPortsCoordinatesAndDerivatives(
+    									geometryCorrection_main, //			GeometryCorrection gc_main,
+    									true,            // boolean use_rig_offsets,
+    									corr_rots_aux,   // Matrix []   rots,
+    									null,            //  Matrix [][] deriv_rots,
+    									null,            // double [][] pXYderiv, // if not null, should be double[8][]
+    									disp_dist_aux,   // used to correct 3D correlations
+    									centerX,
+    									centerY,
+    									disparity_aux); //  + disparity_corr);
+    							tp_tasks[nTile].xy_aux = new float [centersXY_aux.length][2];
+    							for (int i = 0; i < centersXY_aux.length; i++) {
+    								tp_tasks[nTile].xy_aux[i][0] = (float) centersXY_aux[i][0];
+    								tp_tasks[nTile].xy_aux[i][1] = (float) centersXY_aux[i][1];
+    							}
+    						}
+    						// acquisition time of the tiles centers in scanline times
+    						if (ers_delay != null) {
+    							for (int i = 0; i < quad_main; i++) ers_delay[0][i][nTile] = centersXY_main[i][1]-geometryCorrection_main.woi_tops[i];
+    							for (int i = 0; i < quad_aux; i++)  ers_delay[1][i][nTile] = centersXY_aux[i][1]- geometryCorrection_aux.woi_tops[i];
+    						}
+    					}
+    				}
+    			};
+    		}
+    		ImageDtt.startAndJoin(threads);
+    	}
+
+    	public void setLpfRbg(
+    			float [][] lpf_rbg) // 4 64-el. arrays: r,b,g,m
+    	{
+
+    		int l = lpf_rbg[0].length; // 64
+    		float []   lpf_flat = new float [lpf_rbg.length * l];
+    		for (int i = 0; i < lpf_rbg.length; i++) {
+    			for (int j = 0; j < l; j++) {
+    				lpf_flat[j + i * l] = lpf_rbg[i][j];
+    			}
+    		}
+
+    		CUdeviceptr constantMemoryPointer = new CUdeviceptr();
+    		long constantMemorySizeArray[] = { 0 };
+    		cuModuleGetGlobal(constantMemoryPointer, constantMemorySizeArray,  module, "lpf_data");
+    		int constantMemorySize = (int)constantMemorySizeArray[0];
+    		System.out.println("constantMemoryPointer: " + constantMemoryPointer);
+    		System.out.println("constantMemorySize: " + constantMemorySize);
+            cuMemcpyHtoD(constantMemoryPointer, Pointer.to(lpf_flat), constantMemorySize);
+    		System.out.println();
+    	}
+
+    	public void setLpfCorr(
+    			String const_name, // "lpf_corr"
+    			float [] lpf_flat)
+    	{
+    		CUdeviceptr constantMemoryPointer = new CUdeviceptr();
+    		long constantMemorySizeArray[] = { 0 };
+    		cuModuleGetGlobal(constantMemoryPointer, constantMemorySizeArray,  module, const_name);
+    		int constantMemorySize = (int)constantMemorySizeArray[0];
+    		System.out.println("constantMemoryPointer: " + constantMemoryPointer);
+    		System.out.println("constantMemorySize: " + constantMemorySize);
+            cuMemcpyHtoD(constantMemoryPointer, Pointer.to(lpf_flat), constantMemorySize);
+    		System.out.println();
+    	}
+
+    	public float [] floatSetCltLpfFd(
+    			double   sigma) {
+    		int dct_size = DTT_SIZE;
+    		DttRad2 dtt = new DttRad2(dct_size);
+    		double [] clt_fd = dtt.dttt_iiie(setCltLpf(sigma));
+    		int l = dct_size*dct_size;
+    		float []   lpf_flat = new float [l];
+    		for (int j = 0; j < l; j++) {
+    			lpf_flat[j] = (float) (clt_fd[j]*2*dct_size);
+    		}
+    		return lpf_flat;
+    	}
+
+    	public double [] doubleSetCltLpfFd(
+    			double   sigma) {
+    		int dct_size = DTT_SIZE;
+    		DttRad2 dtt = new DttRad2(dct_size);
+    		double [] clt_fd = dtt.dttt_iiie(setCltLpf(sigma));
+    		int l = dct_size*dct_size;
+    		double []   lpf_flat = new double [l];
+    		for (int j = 0; j < l; j++) {
+    			lpf_flat[j] = (float) (clt_fd[j]*2*dct_size);
+    		}
+    		return lpf_flat;
+    	}
+
+    	public double [] setCltLpf(
+    			double   sigma)
+    	{
+    		int dct_size = DTT_SIZE;
+    		double [] lpf = new double [dct_size*dct_size];
+    		int dct_len = dct_size * dct_size;
+    		if (sigma == 0.0f) {
+    			lpf[0] = 1.0f;
+    			for (int i = 1; i < dct_len; i++){
+    				lpf[i] = 0.0f;
+    			}
+    		} else {
+    			for (int i = 0; i < dct_size; i++){
+    				for (int j = 0; j < dct_size; j++){
+    					lpf[i*dct_size+j] = (float) Math.exp(-(i*i+j*j)/(2*sigma));
+    				}
+    			}
+    			// normalize
+    			double sum = 0;
+    			for (int i = 0; i < dct_size; i++){
+    				for (int j = 0; j < dct_size; j++){
+    					double d = 	lpf[i*dct_size+j];
+    					d*=Math.cos(Math.PI*i/(2*dct_size))*Math.cos(Math.PI*j/(2*dct_size));
+    					if (i > 0) d*= 2.0;
+    					if (j > 0) d*= 2.0;
+    					sum +=d;
+    				}
+    			}
+    			for (int i = 0; i< dct_len; i++){
+    				lpf[i] /= sum;
+    			}
+    		}
+    		return lpf;
+    	}
+        
+    } // end of public class GpuQuad
+
+} // end of public class GPUTileProcessor

@@ -452,7 +452,9 @@ public class TwoQuadCLT {
 	}
 
 	public void processCLTQuadCorrPairsGpu(
-			GPUTileProcessor                                gPUTileProcessor,
+//			GPUTileProcessor                                gPUTileProcessor,
+			GPUTileProcessor.GpuQuad                        gpuQuad_main,
+			GPUTileProcessor.GpuQuad                        gpuQuad_aux,
 			QuadCLT                                         quadCLT_main,
 			QuadCLT                                         quadCLT_aux,
 			CLTParameters       clt_parameters,
@@ -516,7 +518,9 @@ public class TwoQuadCLT {
 
 			// Tempporarily processing individaully with the old code
 			processCLTQuadCorrPairGpu(
-					gPUTileProcessor,           // GPUTileProcessor                               gPUTileProcessor,
+//					gPUTileProcessor,           // GPUTileProcessor                               gPUTileProcessor,
+					gpuQuad_main,               // GPUTileProcessor.GpuQuad                       gpuQuad_main,
+					gpuQuad_aux,                // GPUTileProcessor.GpuQuad                       gpuQuad_aux,
 					quadCLT_main,               // QuadCLT                                        quadCLT_main,
 					quadCLT_aux,                // QuadCLT                                        quadCLT_aux,
 					imp_srcs_main,              // ImagePlus []                                   imp_quad_main,
@@ -1934,7 +1938,9 @@ public class TwoQuadCLT {
 	}
 
 	public ImagePlus [] processCLTQuadCorrPairGpu(
-			GPUTileProcessor                                gPUTileProcessor,
+//			GPUTileProcessor                                gPUTileProcessor,
+			GPUTileProcessor.GpuQuad                        gpuQuad_main,
+			GPUTileProcessor.GpuQuad                        gpuQuad_aux,
 			QuadCLT                                         quadCLT_main,
 			QuadCLT                                         quadCLT_aux,
 			ImagePlus []                                    imp_quad_main,
@@ -1980,17 +1986,17 @@ public class TwoQuadCLT {
 			image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_g),
 			image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_m)
 		};
-		gPUTileProcessor.setLpfRbg(
+		gpuQuad_main.setLpfRbg(
 				lpf_rgb);
 
 		float [] lpf_flat = image_dtt.floatGetCltLpfFd(clt_parameters.getGpuCorrSigma(is_mono));
 
-		gPUTileProcessor.setLpfCorr(
+		gpuQuad_main.setLpfCorr(
 				"lpf_corr", // String const_name, // "lpf_corr"
 				lpf_flat);
 
 		float [] lpf_rb_flat = image_dtt.floatGetCltLpfFd(clt_parameters.getGpuCorrRBSigma(is_mono));
-		gPUTileProcessor.setLpfCorr(
+		gpuQuad_main.setLpfCorr(
 				"lpf_rb_corr", // String const_name, // "lpf_corr"
 				lpf_rb_flat);
 
@@ -2026,11 +2032,11 @@ public class TwoQuadCLT {
 				debugLevel);     // final int        debugLevel);
 
 
-		gPUTileProcessor.setConvolutionKernels(
+		gpuQuad_main.setConvolutionKernels(
 				(use_aux?quadCLT_aux.getCLTKernels() : quadCLT_main.getCLTKernels()), // double [][][][][][] clt_kernels,
 	    		false); // boolean force)
 
-		gPUTileProcessor.setBayerImages(
+		gpuQuad_main.setBayerImages(
 				(use_aux? quadCLT_aux.image_data: quadCLT_main.image_data), // double [][][]       bayer_data,
 	    		true); // boolean                  force);
 
@@ -2040,7 +2046,7 @@ public class TwoQuadCLT {
 				clt_parameters.gpu_woi_ty,
 				clt_parameters.gpu_woi_twidth,
 				clt_parameters.gpu_woi_theight);
-		GPUTileProcessor.TpTask [] tp_tasks  = gPUTileProcessor.setFullFrameImages(
+		GPUTileProcessor.TpTask [] tp_tasks  = gpuQuad_main.setFullFrameImages(
 				false,                                // boolean                   calc_offsets, // old way, now not needed with GPU calculation
 				twoi,                                 // Rectangle                 woi,
 				clt_parameters.gpu_woi_round,         // boolean                   round_woi,
@@ -2096,26 +2102,14 @@ public class TwoQuadCLT {
 			}
 		}
 
-		gPUTileProcessor.setTasks(
+		gpuQuad_main.setTasks(
 				tp_tasks, // TpTask [] tile_tasks,
 				use_aux); // boolean use_aux)
 
-
-//		int [] corr_indices = gPUTileProcessor.getCorrTasks(
-//				tp_tasks);
-		// corr_indices array of integers to be passed to GPU
-//		gPUTileProcessor.setCorrIndices(corr_indices);
-
-/*
-		int [] texture_indices = gPUTileProcessor.getTextureTasks(
-				tp_tasks);
-		gPUTileProcessor.setTextureIndices(
-				texture_indices);
-*/
-		gPUTileProcessor.setGeometryCorrection(
+		gpuQuad_main.setGeometryCorrection(
 				quadCLT_main.getGeometryCorrection(),
 				false); // boolean use_java_rByRDist) { // false - use newer GPU execCalcReverseDistortions); // once
-		gPUTileProcessor.setExtrinsicsVector(quadCLT_main.getGeometryCorrection().getCorrVector()); // for each new image
+		gpuQuad_main.setExtrinsicsVector(quadCLT_main.getGeometryCorrection().getCorrVector()); // for each new image
 
 /*		// TODO: calculate from the camera geometry?
 		double[][] port_offsets = { // used only in textures to scale differences
@@ -2129,33 +2123,33 @@ public class TwoQuadCLT {
 		System.out.println("\n------------ Running GPU "+NREPEAT+" times ----------------");
 		long startGPU=System.nanoTime();
 		for (int i = 0; i < NREPEAT; i++ ) {
-			gPUTileProcessor.execCalcReverseDistortions();
+			gpuQuad_main.execCalcReverseDistortions();
 		}
 		long startRotDerivs=System.nanoTime();
 		for (int i = 0; i < NREPEAT; i++ ) {
-			gPUTileProcessor.execRotDerivs();
+			gpuQuad_main.execRotDerivs();
 		}
 
 		long startTasksSetup=System.nanoTime();
 		for (int i = 0; i < NREPEAT; i++ ) {
-			gPUTileProcessor.execSetTilesOffsets();
+			gpuQuad_main.execSetTilesOffsets();
 		}
 
 		long startDirectConvert=System.nanoTime();
 
 		for (int i = 0; i < NREPEAT; i++ ) {
-			gPUTileProcessor.execConvertDirect();
+			gpuQuad_main.execConvertDirect();
 		}
 
 // run imclt;
 		long startIMCLT=System.nanoTime();
 		for (int i = 0; i < NREPEAT; i++ ) {
-			gPUTileProcessor.execImcltRbgAll(quadCLT_main.isMonochrome());
+			gpuQuad_main.execImcltRbgAll(quadCLT_main.isMonochrome());
 		}
 		long endImcltTime = System.nanoTime();
 // run correlation
 		long startCorr2d=System.nanoTime();   // System.nanoTime();
-		for (int i = 0; i < NREPEAT; i++ ) gPUTileProcessor.execCorr2D(
+		for (int i = 0; i < NREPEAT; i++ ) gpuQuad_main.execCorr2D(
 	    		scales,// double [] scales,
 	    		fat_zero, // double fat_zero);
 	    		clt_parameters.gpu_corr_rad); // int corr_radius
@@ -2163,7 +2157,7 @@ public class TwoQuadCLT {
 		long endCorr2d = System.nanoTime();
 // run textures
 		long startTextures = System.nanoTime();   // System.nanoTime();
-		for (int i = 0; i < NREPEAT; i++ ) gPUTileProcessor.execTextures(
+		for (int i = 0; i < NREPEAT; i++ ) gpuQuad_main.execTextures(
 				col_weights,                   // double [] color_weights,
 				quadCLT_main.isLwir(),         // boolean   is_lwir,
 				clt_parameters.min_shot,       // double    min_shot,           // 10.0
@@ -2176,7 +2170,7 @@ public class TwoQuadCLT {
 // run texturesRBGA
 		long startTexturesRBGA = System.nanoTime();   // System.nanoTime();
 
-		for (int i = 0; i < NREPEAT; i++ ) gPUTileProcessor.execRBGA(
+		for (int i = 0; i < NREPEAT; i++ ) gpuQuad_main.execRBGA(
 				col_weights,                   // double [] color_weights,
 				quadCLT_main.isLwir(),         // boolean   is_lwir,
 				clt_parameters.min_shot,       // double    min_shot,           // 10.0
@@ -2212,7 +2206,7 @@ public class TwoQuadCLT {
 		// get data back from GPU
 		float [][][] iclt_fimg = new float [GPUTileProcessor.NUM_CAMS][][];
 		for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
-			iclt_fimg[ncam] = gPUTileProcessor.getRBG(ncam);
+			iclt_fimg[ncam] = gpuQuad_main.getRBG(ncam);
 		}
 
 		int out_width =  GPUTileProcessor.IMG_WIDTH +  GPUTileProcessor.DTT_SIZE;
@@ -2228,7 +2222,7 @@ public class TwoQuadCLT {
 				extra_titles[g * GPUTileProcessor.NUM_CAMS+ncam]= extra_group_titles[g]+"-"+ncam;
 			}
 		}
-		float [][] extra = gPUTileProcessor.getExtra();
+		float [][] extra = gpuQuad_main.getExtra();
 		(new ShowDoubleFloatArrays()).showArrays(
 				extra,
 				tilesX,
@@ -2260,8 +2254,8 @@ public class TwoQuadCLT {
 		//show_corr
 		int [] wh = new int[2];
 		if (clt_parameters.show_corr) {
-			int [] corr_indices = gPUTileProcessor.getCorrIndices();
-			float [][] corr2D = gPUTileProcessor.getCorr2D(
+			int [] corr_indices = gpuQuad_main.getCorrIndices();
+			float [][] corr2D = gpuQuad_main.getCorr2D(
 					clt_parameters.gpu_corr_rad); //  int corr_rad);
 			// convert to 6-layer image		 using tasks
 			double [][] dbg_corr = GPUTileProcessor.getCorr2DView(
@@ -2344,7 +2338,7 @@ public class TwoQuadCLT {
 		// Use GPU prepared RBGA
 		if (clt_parameters.show_rgba_color) {
 			Rectangle woi = new Rectangle();
-			float [][] rbga = gPUTileProcessor.getRBGA(
+			float [][] rbga = gpuQuad_main.getRBGA(
 					(is_mono?1:3), // int     num_colors,
 					woi);
 			(new ShowDoubleFloatArrays()).showArrays(
@@ -2413,12 +2407,12 @@ public class TwoQuadCLT {
 		if (clt_parameters.show_rgba_color && (debugLevel > 100)) { // disabling
 			int numcol = quadCLT_main.isMonochrome()?1:3;
 			int ports = imp_quad_main.length;
-			int [] texture_indices = gPUTileProcessor.getTextureIndices();
+			int [] texture_indices = gpuQuad_main.getTextureIndices();
 			int          num_src_slices = numcol + 1 + (clt_parameters.keep_weights?(ports + numcol + 1):0); // 12 ; // calculate
 //			float [][][] ftextures = gPUTileProcessor.getTextures(
 //		    		(is_mono?1:3), // int     num_colors,
 //		    		clt_parameters.keep_weights); // boolean keep_weights);
-			float [] flat_textures =  gPUTileProcessor.getFlatTextures(
+			float [] flat_textures =  gpuQuad_main.getFlatTextures(
 					texture_indices.length,
 		    		(is_mono?1:3), // int     num_colors,
 		    		clt_parameters.keep_weights); // boolean keep_weights);
@@ -2447,7 +2441,7 @@ public class TwoQuadCLT {
 		    		}
 		    	}
 			}
-			double [][][][] texture_tiles =     gPUTileProcessor.doubleTextures(
+			double [][][][] texture_tiles =     gpuQuad_main.doubleTextures(
 		    		new Rectangle(0, 0, tilesX, tilesY), // Rectangle    woi,
 		    		texture_indices,                  // int []       indices,
 		    		flat_textures,                    // float [][][] ftextures,
