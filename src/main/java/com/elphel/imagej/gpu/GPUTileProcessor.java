@@ -1377,7 +1377,7 @@ public class GPUTileProcessor {
         		IJ.showMessage("Error", "No GPU kernel: GPU_CORRELATE2D_kernel");
         		return;
         	}
-
+            int tilesX =  img_width / DTT_SIZE;
         	int num_colors = scales.length;
         	if (num_colors > 3) num_colors = 3;
         	float fscale0 = (float) scales[0];
@@ -1394,6 +1394,7 @@ public class GPUTileProcessor {
         			Pointer.to(new float[] {(float) fat_zero }),// float             fat_zero,           // here - absolute
             		Pointer.to(gpu_tasks),                      // struct tp_task  * gpu_tasks,
             		Pointer.to(new int[] { num_task_tiles }),   // int               num_tiles           // number of tiles in task
+            		Pointer.to(new int[] { tilesX }),           // int               tilesx,             // number of tile rows
         			Pointer.to(gpu_corr_indices),               // int             * gpu_corr_indices,   // packed tile+pair
         			Pointer.to(gpu_num_corr_tiles),             // int             * pnum_corr_tiles,    // pointer to a number of tiles to process
         			Pointer.to(new int[] { corr_stride }),      // const size_t      corr_stride,        // in floats
