@@ -2204,22 +2204,22 @@ public class TwoQuadCLT {
 		System.out.println(" - textures:           "+(runTexturesTime*1.0e-6)+"ms");
 		System.out.println(" - RGBA:               "+(runTexturesRBGATime*1.0e-6)+"ms");
 		// get data back from GPU
-		float [][][] iclt_fimg = new float [GPUTileProcessor.NUM_CAMS][][];
+		float [][][] iclt_fimg = new float [gpuQuad_main.getNumCams()][][];
 		for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
 			iclt_fimg[ncam] = gpuQuad_main.getRBG(ncam);
 		}
-
-		int out_width =  GPUTileProcessor.IMG_WIDTH +  GPUTileProcessor.DTT_SIZE;
-		int out_height = GPUTileProcessor.IMG_HEIGHT + GPUTileProcessor.DTT_SIZE;
-		int tilesX =  GPUTileProcessor.IMG_WIDTH / GPUTileProcessor.DTT_SIZE;
-		int tilesY =  GPUTileProcessor.IMG_HEIGHT / GPUTileProcessor.DTT_SIZE;
+//		gpuQuad_main
+		int out_width =  gpuQuad_main.getImageWidth()  + gpuQuad_main.getDttSize();
+		int out_height = gpuQuad_main.getImageHeight() + gpuQuad_main.getDttSize();
+		int tilesX =     gpuQuad_main.getImageWidth()  / gpuQuad_main.getDttSize();
+		int tilesY =     gpuQuad_main.getImageHeight() / gpuQuad_main.getDttSize();
 		// show extra
 		/* */
 		String [] extra_group_titles = {"DIFF","Red","Blue","Green"};
-		String [] extra_titles = new String [extra_group_titles.length*GPUTileProcessor.NUM_CAMS];
+		String [] extra_titles = new String [extra_group_titles.length*gpuQuad_main.getNumCams()];
 		for (int g = 0; g < extra_group_titles.length;g++) {
-			for (int ncam=0; ncam < GPUTileProcessor.NUM_CAMS;ncam++) {
-				extra_titles[g * GPUTileProcessor.NUM_CAMS+ncam]= extra_group_titles[g]+"-"+ncam;
+			for (int ncam=0; ncam < gpuQuad_main.getNumCams();ncam++) {
+				extra_titles[g * gpuQuad_main.getNumCams() + ncam]= extra_group_titles[g]+"-"+ncam;
 			}
 		}
 		float [][] extra = gpuQuad_main.getExtra();
@@ -2416,7 +2416,7 @@ public class TwoQuadCLT {
 					texture_indices.length,
 		    		(is_mono?1:3), // int     num_colors,
 		    		clt_parameters.keep_weights); // boolean keep_weights);
-	    	int texture_slice_size = (2 * GPUTileProcessor.DTT_SIZE)* (2 * GPUTileProcessor.DTT_SIZE);
+	    	int texture_slice_size = (2 * gpuQuad_main.getDttSize())* (2 * gpuQuad_main.getDttSize());
 	    	int texture_tile_size = texture_slice_size * num_src_slices ;
 
 			if (debugLevel > -1) {
@@ -2430,10 +2430,10 @@ public class TwoQuadCLT {
 
 		    			for (int slice =0; slice < num_src_slices; slice++) {
 		    				System.out.println("=== Slice="+slice+" ===");
-		    				for (int i = 0; i < 2 * GPUTileProcessor.DTT_SIZE; i++) {
-		    					for (int j = 0; j < 2 * GPUTileProcessor.DTT_SIZE; j++) {
+		    				for (int i = 0; i < 2 * gpuQuad_main.getDttSize(); i++) {
+		    					for (int j = 0; j < 2 * gpuQuad_main.getDttSize(); j++) {
 		    						System.out.print(String.format("%10.4f ",
-		    								flat_textures[indx*texture_tile_size + slice* texture_slice_size + 2 * GPUTileProcessor.DTT_SIZE * i + j]));
+		    								flat_textures[indx*texture_tile_size + slice* texture_slice_size + 2 * gpuQuad_main.getDttSize() * i + j]));
 		    					}
 		    					System.out.println();
 		    				}
@@ -2459,10 +2459,10 @@ public class TwoQuadCLT {
 
     			for (int slice =0; slice < texture_tile.length; slice++) {
     				System.out.println("\n=== Slice="+slice+" ===");
-    				for (int i = 0; i < 2 * GPUTileProcessor.DTT_SIZE; i++) {
-    					for (int j = 0; j < 2 * GPUTileProcessor.DTT_SIZE; j++) {
+    				for (int i = 0; i < 2 * gpuQuad_main.getDttSize(); i++) {
+    					for (int j = 0; j < 2 * gpuQuad_main.getDttSize(); j++) {
     						System.out.print(String.format("%10.4f ",
-    								texture_tile[slice][2 * GPUTileProcessor.DTT_SIZE * i + j]));
+    								texture_tile[slice][2 * gpuQuad_main.getDttSize() * i + j]));
     					}
     					System.out.println();
     				}

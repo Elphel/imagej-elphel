@@ -109,8 +109,8 @@ public class GPUTileProcessor {
 	public static int NUM_CAMS =                  4;
 	public static int NUM_PAIRS =                 6; // top hor, bottom hor, left vert, right vert, main diagonal, other diagonal
 	public static int NUM_COLORS =                3;
-	public static int IMG_WIDTH =              2592;
-	public static int IMG_HEIGHT =             1936;
+//	public static int IMG_WIDTH =              2592;
+//	public static int IMG_HEIGHT =             1936;
 	static int        KERNELS_HOR =             164;
 	static int        KERNELS_VERT =            123;
 	static int        KERNELS_LSTEP =             4;
@@ -124,8 +124,6 @@ public class GPUTileProcessor {
 	static int        IMCLT_TILES_PER_BLOCK =     4;
 	static int        TPTASK_SIZE =                 1+ 1+ NUM_CAMS * 2 + 1 + NUM_CAMS * 4 ; // tp_task structure size in floats
 	static int        CLTEXTRA_SIZE =               8;
-	static int        KERN_TILES =                  KERNELS_HOR *  KERNELS_VERT * NUM_COLORS;
-	static int        KERN_SIZE =                   KERN_TILES * 4 * 64;
 	static int        CORR_SIZE =                   (2* DTT_SIZE - 1) * (2* DTT_SIZE - 1); // 15x15
 	public static int CORR_NTILE_SHIFT =          8;  // also for texture tiles list
 	public static int CORR_PAIRS_MASK =        0x3f;  // lower bits used to address correlation pair for the selected tile
@@ -164,61 +162,6 @@ public class GPUTileProcessor {
     private CUfunction GPU_CALC_REVERSE_DISTORTION_kernel = null;
 
     CUmodule    module; // to access constants memory
-    
-    // CPU arrays of pointers to GPU memory
-    // Moved to GpuQuad class
-/*    
-    // These arrays may go to methods, they are here just to be able to free GPU memory if needed
-    private CUdeviceptr [] gpu_kernels_h =        new CUdeviceptr[NUM_CAMS];
-    private CUdeviceptr [] gpu_kernel_offsets_h = new CUdeviceptr[NUM_CAMS];
-    private CUdeviceptr [] gpu_bayer_h =          new CUdeviceptr[NUM_CAMS];
-    private CUdeviceptr [] gpu_clt_h =            new CUdeviceptr[NUM_CAMS];
-    private CUdeviceptr [] gpu_corr_images_h=     new CUdeviceptr[NUM_CAMS];
-
-
-    // GPU pointers to array of GPU pointers
-    private CUdeviceptr gpu_kernels =             new CUdeviceptr();
-    private CUdeviceptr gpu_kernel_offsets =      new CUdeviceptr();
-    private CUdeviceptr gpu_bayer =               new CUdeviceptr();
-    private CUdeviceptr gpu_tasks =               new CUdeviceptr(); //  allocate tilesX * tilesY * TPTASK_SIZE * Sizeof.FLOAT
-    private CUdeviceptr gpu_corrs =               new CUdeviceptr(); //  allocate tilesX * tilesY * NUM_PAIRS * CORR_SIZE * Sizeof.FLOAT
-    private CUdeviceptr gpu_textures =            new CUdeviceptr(); //  allocate tilesX * tilesY * ? * 256 * Sizeof.FLOAT
-    private CUdeviceptr gpu_clt =                 new CUdeviceptr();
-    private CUdeviceptr gpu_4_images =            new CUdeviceptr();
-    private CUdeviceptr gpu_corr_indices =        new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.FLOAT
-    private CUdeviceptr gpu_num_corr_tiles =      new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.FLOAT
-    private CUdeviceptr gpu_texture_indices_ovlp =new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.FLOAT
-    private CUdeviceptr gpu_num_texture_ovlp =    new CUdeviceptr(); //  8 ints
-    private CUdeviceptr gpu_texture_indices =     new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.FLOAT
-    private CUdeviceptr gpu_texture_indices_len = new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.FLOAT
-    private CUdeviceptr gpu_diff_rgb_combo =      new CUdeviceptr(); //  1 int
-
-    private CUdeviceptr gpu_color_weights =       new CUdeviceptr(); //  allocate 3 * Sizeof.FLOAT
-    private CUdeviceptr gpu_generate_RBGA_params =new CUdeviceptr(); //  allocate 5 * Sizeof.FLOAT
-
-    private CUdeviceptr gpu_woi =                 new CUdeviceptr(); //  4 integers (x, y, width, height) Rectangle - in tiles
-    private CUdeviceptr gpu_textures_rgba =       new CUdeviceptr(); //  allocate tilesX * tilesY * ? * 256 * Sizeof.FLOAT
-
-    private CUdeviceptr gpu_correction_vector=    new CUdeviceptr();
-    private CUdeviceptr gpu_rot_deriv=            new CUdeviceptr(); //  used internally by device, may be read to CPU for testing
-    private CUdeviceptr gpu_geometry_correction=  new CUdeviceptr();
-    private CUdeviceptr gpu_rByRDist=             new CUdeviceptr(); //  calculated once for the camera distortion model in CPU (move to GPU?)
-
-    private CUdeviceptr gpu_active_tiles =        new CUdeviceptr(); //  TILESX*TILESY*sizeof(int)
-    private CUdeviceptr gpu_num_active_tiles =    new CUdeviceptr(); //  1 int
-
-    CUmodule    module; // to access constants memory
-    private int mclt_stride;
-    private int corr_stride;
-    private int imclt_stride;
-    private int texture_stride;
-    private int texture_stride_rgba;
-    public int num_task_tiles;
-    public int num_corr_tiles;
-    public int num_texture_tiles;
-*/    
-//    public GpuQuad [][] gpuQuad; // array of GpuQuad instances 2x2? ({{rgb, rgb_macro}, {lwir, lwir_macro})
-    // initilize with 4 dimensions each
     
     public class TpTask {
     	public int   task; // [0](+1) - generate 4 images, [4..9]+16..+512 - correlation pairs, 2 - generate texture tiles
@@ -356,10 +299,10 @@ public class GPUTileProcessor {
         				"#define NUM_CAMS " +                 NUM_CAMS+"\n"+
         				"#define NUM_PAIRS " +                NUM_PAIRS+"\n"+
         				"#define NUM_COLORS " +               NUM_COLORS+"\n"+
-        				"#define IMG_WIDTH " +                IMG_WIDTH+"\n"+
-        				"#define IMG_HEIGHT " +               IMG_HEIGHT+"\n"+
-        				"#define KERNELS_HOR " +              KERNELS_HOR+"\n"+
-        				"#define KERNELS_VERT " +             KERNELS_VERT+"\n"+
+//        				"#define IMG_WIDTH " +                IMG_WIDTH+"\n"+
+//        				"#define IMG_HEIGHT " +               IMG_HEIGHT+"\n"+
+//        				"#define KERNELS_HOR " +              KERNELS_HOR+"\n"+
+//        				"#define KERNELS_VERT " +             KERNELS_VERT+"\n"+
         				"#define KERNELS_LSTEP " +            KERNELS_LSTEP+"\n"+
         				"#define THREADS_PER_TILE " +         THREADS_PER_TILE+"\n"+
         				"#define TILES_PER_BLOCK " +          TILES_PER_BLOCK+"\n"+
@@ -449,7 +392,6 @@ public class GPUTileProcessor {
             	}
             }
         }
-
         // Create the kernel functions (first - just test)
         String [] func_names = {
         		GPU_CONVERT_DIRECT_NAME,
@@ -487,6 +429,7 @@ public class GPUTileProcessor {
         // GPU data structures are now initialized through GpuQuad instances
     }
     
+
     public static String [] getCorrTitles() {
     	return new String []{"hor-top","hor-bottom","vert-left","vert-right","diag-main","diag-other"};
     }
@@ -632,6 +575,9 @@ public class GPUTileProcessor {
     	
     	public final int num_cams;
     	public final int num_colors; // maybe should always be 3?
+    	public final int kern_tiles;
+    	public final int kern_size;
+    	
 //    	public final GPUTileProcessor gPUTileProcessor;
         // CPU arrays of pointers to GPU memory
         // These arrays may go to methods, they are here just to be able to free GPU memory if needed
@@ -689,6 +635,9 @@ public class GPUTileProcessor {
         	this.num_colors =   num_colors; // maybe should always be 3?
         	this.kernels_hor =  kernels_hor;
         	this.kernels_vert = kernels_vert;
+        	this.kern_tiles =   kernels_hor *  kernels_vert * num_colors;
+        	this.kern_size =    kern_tiles * 4 * 64;
+        	
         	
             // CPU arrays of pointers to GPU memory
             // These arrays may go to methods, they are here just to be able to free GPU memory if needed
@@ -734,9 +683,9 @@ public class GPUTileProcessor {
             long [] device_stride = new long [1];
             for (int ncam = 0; ncam < num_cams; ncam++) {
             	gpu_kernels_h[ncam] =        new CUdeviceptr();
-            	cuMemAlloc(gpu_kernels_h[ncam],KERN_SIZE * Sizeof.FLOAT ); //     public static int cuMemAlloc(CUdeviceptr dptr, long bytesize)
+            	cuMemAlloc(gpu_kernels_h[ncam],kern_size * Sizeof.FLOAT ); //     public static int cuMemAlloc(CUdeviceptr dptr, long bytesize)
             	gpu_kernel_offsets_h[ncam] = new CUdeviceptr();
-            	cuMemAlloc(gpu_kernel_offsets_h[ncam],KERN_TILES * CLTEXTRA_SIZE * Sizeof.FLOAT ); //     public static int cuMemAlloc(CUdeviceptr dptr, long bytesize)
+            	cuMemAlloc(gpu_kernel_offsets_h[ncam],kern_tiles * CLTEXTRA_SIZE * Sizeof.FLOAT ); //     public static int cuMemAlloc(CUdeviceptr dptr, long bytesize)
             	gpu_bayer_h[ncam] =          new CUdeviceptr();
                 cuMemAllocPitch (
                 		gpu_bayer_h[ncam],        // CUdeviceptr dptr,
@@ -848,6 +797,11 @@ public class GPUTileProcessor {
             texture_stride_rgba = (int)(device_stride[0] / Sizeof.FLOAT);
     	}
     	
+    	public int getImageWidth()  {return this.img_width;}
+    	public int getImageHeight() {return this.img_height;}
+        public int getDttSize()     {return DTT_SIZE;}
+        public int getNumCams()     {return NUM_CAMS;}
+    	
         public void setGeometryCorrection(GeometryCorrection gc,
         		boolean use_java_rByRDist) { // false - use newer GPU execCalcReverseDistortions
         	float [] fgc = gc.toFloatArray();
@@ -922,8 +876,8 @@ public class GPUTileProcessor {
         		float [] kernel,  // [tileY][tileX][color][..]
         		float [] kernel_offsets,
         		int ncam) {
-            cuMemcpyHtoD(gpu_kernels_h[ncam],        Pointer.to(kernel),         KERN_SIZE * Sizeof.FLOAT);
-            cuMemcpyHtoD(gpu_kernel_offsets_h[ncam], Pointer.to(kernel_offsets), KERN_TILES * CLTEXTRA_SIZE * Sizeof.FLOAT);
+            cuMemcpyHtoD(gpu_kernels_h[ncam],        Pointer.to(kernel),         kern_size * Sizeof.FLOAT);
+            cuMemcpyHtoD(gpu_kernel_offsets_h[ncam], Pointer.to(kernel_offsets), kern_tiles * CLTEXTRA_SIZE * Sizeof.FLOAT);
         }
 
         public void setConvolutionKernels(
@@ -1304,6 +1258,7 @@ public class GPUTileProcessor {
                 return;
             }
             // kernel parameters: pointer to pointers
+        	int tilesX =  img_width / DTT_SIZE;
             int [] GridFullWarps =    {1, 1, 1};
             int [] ThreadsFullWarps = {1, 1, 1};
             Pointer kernelParameters = Pointer.to(
@@ -1321,7 +1276,8 @@ public class GPUTileProcessor {
             		Pointer.to(new int[] { kernels_hor}),        // int                kernels_hor,
             		Pointer.to(new int[] { kernels_vert}),       // int                kernels_vert);
             		Pointer.to(gpu_active_tiles),
-            		Pointer.to(gpu_num_active_tiles)
+            		Pointer.to(gpu_num_active_tiles),
+            		Pointer.to(new int[] { tilesX })
             		);
 
             cuCtxSynchronize();
