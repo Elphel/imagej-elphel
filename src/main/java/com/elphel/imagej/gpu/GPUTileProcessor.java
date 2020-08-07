@@ -1495,7 +1495,7 @@ public class GPUTileProcessor {
         		IJ.showMessage("Error", "No GPU kernel: GPU_TEXTURES_kernel");
         		return;
         	}
-
+        	int tilesX =  img_width / DTT_SIZE;
         	int num_colors = color_weights.length;
         	if (num_colors > 3) num_colors = 3;
         	float [] fcolor_weights = new float[3];
@@ -1535,7 +1535,8 @@ public class GPUTileProcessor {
         			Pointer.to(new int[] { idust_remove }),
         			Pointer.to(new int[] {texture_stride}),        // can be a null pointer - will not be used! float           * gpu_texture_rbg,     // (number of colors +1 + ?)*16*16 rgba texture tiles
         			Pointer.to(gpu_textures),
-    	            Pointer.to(gpu_diff_rgb_combo));                 // float           * gpu_diff_rgb_combo); // diff[num_cams], R[num_cams], B[num_cams],G[num_cams]
+    	            Pointer.to(gpu_diff_rgb_combo), // );                 // float           * gpu_diff_rgb_combo); // diff[num_cams], R[num_cams], B[num_cams],G[num_cams]
+    	            Pointer.to(new int[] { tilesX }));
         	cuCtxSynchronize();
         	// Call the kernel function
         	cuLaunchKernel(GPU_TEXTURES_kernel,
@@ -1650,7 +1651,6 @@ public class GPUTileProcessor {
         		int     num_tiles,
         		int     num_colors,
         		boolean keep_weights){
-
         	int texture_slices =     (num_colors + 1 + (keep_weights?(num_cams + num_colors + 1):0)); // number of texture slices
         	int texture_slice_size = (2 * DTT_SIZE)* (2 * DTT_SIZE);        // number of (float) elements in a single slice of a tile
         	int texture_tile_size =  texture_slices * texture_slice_size;   // number of (float) elements in a multi-slice tile
