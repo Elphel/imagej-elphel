@@ -30,14 +30,14 @@ import com.elphel.imagej.common.GenericJTabbedDialog;
 public class ImageDttParameters {
 	public boolean corr_mode_debug =        true;
 	public boolean mix_corr_poly =          true;
-	public double  min_poly_strength =      0.2;
+	public double  min_poly_strength =      0.2; /// 0.1
 	public double  max_poly_hwidth =        2.5; // Maximal polynomial approximation half-width (in both directions)
-	public double  poly_corr_scale =        2.0; // Shift value if correlation maximum is wide in X than in Y to detect near objects (negative - far ones)
+	public double  poly_corr_scale =        2.0; /// 0.0 // Shift value if correlation maximum is wide in X than in Y to detect near objects (negative - far ones)
 
 	public double  poly_pwr =               1.0;
 	public double  poly_vasw_pwr =          2.0; // raise value to this power and apply as weight (0 - disable)
-	public double  corr_magic_scale_cm =    1.0; //0.85;  // reported correlation offset vs. actual one (not yet understood)
-	public double  corr_magic_scale_poly =  1.0; // 0.95;  // reported correlation offset vs. actual one (not yet understood)
+	public double  corr_magic_scale_cm =    1.0; /// 1.0 //0.85;  // reported correlation offset vs. actual one (not yet understood)
+	public double  corr_magic_scale_poly =  1.0; /// 1.0 // 0.95;  // reported correlation offset vs. actual one (not yet understood)
 
 	public int     ortho_height =             7;   // height of non-zero weights for hor/vert correlation to compensate borders
 	public double  ortho_eff_height =         2.58; // effective correlation stripe height to match strengths
@@ -50,7 +50,7 @@ public class ImageDttParameters {
 	private double  enhortho_scale =        0.0; // 0.2;  // multiply center correlation pixels (inside enhortho_width)
 	private double  enhortho_scale_aux =    0.0; // 0.2;  // multiply center correlation pixels (inside enhortho_width)
 	public boolean ly_poly =                false; // Use polynomial when measuring mismatch (false - use center of mass)
-	public double  ly_crazy_poly =          1.0;  // Maximal allowed mismatch difference calculated as polynomial maximum
+	public double  ly_crazy_poly =          1.0; ///2.0  // Maximal allowed mismatch difference calculated as polynomial maximum
 	public boolean ly_poly_backup =         true; // Use CM offset measuremets if poly failed
 
 	public boolean fo_correct =             true; // correct far objects by comparing orthogonal correlations
@@ -111,7 +111,7 @@ public class ImageDttParameters {
 
 	public double  lmas_lambda_initial =     0.03;   //
 	public double  lmas_rms_diff =           0.0003; //
-	public int     lmas_num_iter =          20;     //
+	public int     lmas_num_iter =          20;     ///10
 	// Filtering and strength calculation
 	public double  lmas_max_rel_rms =        0.3;   // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 	public double  lmas_min_strength =       0.7;   // minimal composite strength (sqrt(average amp squared over absolute RMS)
@@ -141,8 +141,8 @@ public class ImageDttParameters {
 
 
 	public double  lma_half_width =         2.0;   //
-	public double  lma_cost_wy =            0.0; // cost of parallel-to-disparity correction
-	public double  lma_cost_wxy =           0.0; // cost of ortho-to-disparity correction
+	public double  lma_cost_wy =            0.0;  /// 0.00050 // cost of parallel-to-disparity correction
+	public double  lma_cost_wxy =           0.0;  /// 0.00100 // cost of ortho-to-disparity correction
 
 	public double  lma_lambda_initial =     0.03;   //
 	public double  lma_lambda_scale_good =  0.5;   //

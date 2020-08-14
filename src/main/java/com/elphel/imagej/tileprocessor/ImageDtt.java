@@ -2364,7 +2364,6 @@ public class ImageDtt {
 			final double [][][][]     clt_corr_combo,  // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 			                                           // [type][tilesY][tilesX] should be set by caller
 													   // types: 0 - selected correlation (product+offset), 1 - sum
-
 			final double [][][][][]   clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
                                                        // [tilesY][tilesX] should be set by caller
 			// When clt_mismatch is non-zero, no far objects extraction will be attempted
@@ -2374,7 +2373,6 @@ public class ImageDtt {
 			final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
 			                                           // last 2 - contrast, avg/ "geometric average)
 			final double [][][][]     texture_tiles,   // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
-
 			final int                 width,
 			final double              corr_fat_zero,    // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
 			final boolean             corr_sym,
@@ -3230,7 +3228,7 @@ public class ImageDtt {
 										disparity_map[DISPARITY_INDEX_POLY]         [tIndex] = lma_disparity_strength[0];
 
 										// if enabled overwrite - replace  DISPARITY_INDEX_CM and DISPARITY_STRENGTH_INDEX
-										if (imgdtt_params.mix_corr_poly) {
+										if (imgdtt_params.mix_corr_poly) { //true
 											disp_str[0] =  lma_disparity_strength[0];
 											disp_str[1] =  lma_disparity_strength[1];
 											disparity_map[DISPARITY_INDEX_CM]       [tIndex] = disp_str[0];

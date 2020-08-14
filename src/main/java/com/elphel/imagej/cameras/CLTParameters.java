@@ -779,11 +779,22 @@ public class CLTParameters {
 	public double     gpu_fatz =          30.0;
 	public double     gpu_fatz_m =        30.0;
 
-	public int        gpu_woi_tx =          0;
-	public int        gpu_woi_ty =          0;
-	public int        gpu_woi_twidth =    324;
-	public int        gpu_woi_theight =   242;
-	public boolean    gpu_woi_round =   false;
+	public boolean    gpu_woi =             false; // if true - use gpu_woi_tx, ...
+	public int        gpu_woi_tx =              0;
+	public int        gpu_woi_ty =              0;
+	public int        gpu_woi_twidth =        324;
+	public int        gpu_woi_theight =       242;
+	public boolean    gpu_woi_round =       false;
+	public boolean    gpu_save_ports_xy =   false; // debug feature - save calculated ports X,Y to compare with Java-generated
+	public boolean    gpu_show_jtextures =  true;  // debug feature - show Java-generated textures from non-overlapping in GPU (will not generate if false)
+	public boolean    gpu_show_extra =      true;  // show low-res data for macro
+	
+	public boolean    gpu_use_main =        false; // accelerate tile processor for the main quad camera
+	public boolean    gpu_use_main_macro =  false; // accelerate tile processor for the main quad camera in macro mode
+	public boolean    gpu_use_main_adjust = false; // accelerate tile processor for the main quad camera for field calibration
+	public boolean    gpu_use_aux =         false; // accelerate tile processor for the aux (lwir) quad camera
+	public boolean    gpu_use_aux_macro =   false; // accelerate tile processor for the aux (lwir) quad camera in macro mode
+	public boolean    gpu_use_aux_adjust =  false; // accelerate tile processor for the aux (lwir) quad camera for field calibration
 
 	public boolean    replaceWeakOutliers =   true; // false;
 
@@ -830,6 +841,17 @@ public class CLTParameters {
 
 	public boolean   batch_run =               false; // turned on only while running in batch mode
 
+	public boolean useGPU() {
+		return  useGPU(false) || useGPU(true);
+	
+	}
+	public boolean useGPU(boolean aux) {
+		return  aux? (gpu_use_aux  || gpu_use_aux_macro || gpu_use_aux_adjust)
+				: (gpu_use_main || gpu_use_main_macro || gpu_use_main_adjust);
+	}
+
+	
+	
 	public double getCorrSigma(boolean monochrome) {
 		return monochrome ? corr_sigma_mono : corr_sigma;
 	}
@@ -1558,14 +1580,25 @@ public class CLTParameters {
 		properties.setProperty(prefix+"gpu_fatz",                   this.gpu_fatz +"");
 		properties.setProperty(prefix+"gpu_fatz_m",                 this.gpu_fatz_m +"");
 
+		properties.setProperty(prefix+"gpu_woi",                    this.gpu_woi +"");
 		properties.setProperty(prefix+"gpu_woi_tx",                 this.gpu_woi_tx +"");
 		properties.setProperty(prefix+"gpu_woi_ty",                 this.gpu_woi_ty +"");
 		properties.setProperty(prefix+"gpu_woi_twidth",             this.gpu_woi_twidth +"");
 		properties.setProperty(prefix+"gpu_woi_theight",            this.gpu_woi_theight +"");
 		properties.setProperty(prefix+"gpu_woi_round",              this.gpu_woi_round +"");
+		properties.setProperty(prefix+"gpu_save_ports_xy",          this.gpu_save_ports_xy +"");
+		properties.setProperty(prefix+"gpu_show_jtextures",         this.gpu_show_jtextures +"");
+		properties.setProperty(prefix+"gpu_show_extra",             this.gpu_show_extra +"");
 
-		properties.setProperty(prefix+"debug_initial_discriminate",           this.debug_initial_discriminate+"");
-		properties.setProperty(prefix+"dbg_migrate",                          this.dbg_migrate+"");
+		properties.setProperty(prefix+"gpu_use_main",               this.gpu_use_main +"");
+		properties.setProperty(prefix+"gpu_use_main_macro",         this.gpu_use_main_macro +"");
+		properties.setProperty(prefix+"gpu_use_main_adjust",        this.gpu_use_main_adjust +"");
+		properties.setProperty(prefix+"gpu_use_aux",                this.gpu_use_aux +"");
+		properties.setProperty(prefix+"gpu_use_aux_macro",          this.gpu_use_aux_macro +"");
+		properties.setProperty(prefix+"gpu_use_aux_adjust",         this.gpu_use_aux_adjust +"");
+		
+		properties.setProperty(prefix+"debug_initial_discriminate",       this.debug_initial_discriminate+"");
+		properties.setProperty(prefix+"dbg_migrate",                      this.dbg_migrate+"");
 
 		properties.setProperty(prefix+"dbg_early_exit",                   this.dbg_early_exit+"");
 		properties.setProperty(prefix+"show_first_bg",                    this.show_first_bg+"");
@@ -2332,14 +2365,25 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"gpu_fatz")!=null)                    this.gpu_fatz=Double.parseDouble(properties.getProperty(prefix+"gpu_fatz"));
 		if (properties.getProperty(prefix+"gpu_fatz_m")!=null)                  this.gpu_fatz_m=Double.parseDouble(properties.getProperty(prefix+"gpu_fatz_m"));
 
+		if (properties.getProperty(prefix+"gpu_woi")!=null)                     this.gpu_woi=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_woi"));
 		if (properties.getProperty(prefix+"gpu_woi_tx")!=null)                  this.gpu_woi_tx=Integer.parseInt(properties.getProperty(prefix+"gpu_woi_tx"));
 		if (properties.getProperty(prefix+"gpu_woi_ty")!=null)                  this.gpu_woi_ty=Integer.parseInt(properties.getProperty(prefix+"gpu_woi_ty"));
 		if (properties.getProperty(prefix+"gpu_woi_twidth")!=null)              this.gpu_woi_twidth=Integer.parseInt(properties.getProperty(prefix+"gpu_woi_twidth"));
 		if (properties.getProperty(prefix+"gpu_woi_theight")!=null)             this.gpu_woi_theight=Integer.parseInt(properties.getProperty(prefix+"gpu_woi_theight"));
 		if (properties.getProperty(prefix+"gpu_woi_round")!=null)               this.gpu_woi_round=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_woi_round"));
+		if (properties.getProperty(prefix+"gpu_save_ports_xy")!=null)           this.gpu_save_ports_xy=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_save_ports_xy"));
+		if (properties.getProperty(prefix+"gpu_show_jtextures")!=null)          this.gpu_show_jtextures=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_show_jtextures"));
+		if (properties.getProperty(prefix+"gpu_show_extra")!=null)              this.gpu_show_extra=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_show_extra"));
+		
+		if (properties.getProperty(prefix+"gpu_use_main")!=null)                this.gpu_use_main=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_use_main"));
+		if (properties.getProperty(prefix+"gpu_use_main_macro")!=null)          this.gpu_use_main_macro=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_use_main_macro"));
+		if (properties.getProperty(prefix+"gpu_use_main_adjust")!=null)         this.gpu_use_main_adjust=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_use_main_adjust"));
+		if (properties.getProperty(prefix+"gpu_use_aux")!=null)                 this.gpu_use_aux=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_use_aux"));
+		if (properties.getProperty(prefix+"gpu_use_aux_macro")!=null)           this.gpu_use_aux_macro=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_use_aux_macro"));
+		if (properties.getProperty(prefix+"gpu_use_aux_adjust")!=null)          this.gpu_use_aux_adjust=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_use_aux_adjust"));
 
-		if (properties.getProperty(prefix+"debug_initial_discriminate")!=null)           this.debug_initial_discriminate=Boolean.parseBoolean(properties.getProperty(prefix+"debug_initial_discriminate"));
-		if (properties.getProperty(prefix+"dbg_migrate")!=null)                          this.dbg_migrate=Boolean.parseBoolean(properties.getProperty(prefix+"dbg_migrate"));
+		if (properties.getProperty(prefix+"debug_initial_discriminate")!=null)       this.debug_initial_discriminate=Boolean.parseBoolean(properties.getProperty(prefix+"debug_initial_discriminate"));
+		if (properties.getProperty(prefix+"dbg_migrate")!=null)                      this.dbg_migrate=Boolean.parseBoolean(properties.getProperty(prefix+"dbg_migrate"));
 
 		if (properties.getProperty(prefix+"dbg_early_exit")!=null)                   this.dbg_early_exit=Integer.parseInt(properties.getProperty(prefix+"dbg_early_exit"));
 		if (properties.getProperty(prefix+"show_first_bg")!=null)                    this.show_first_bg=Boolean.parseBoolean(properties.getProperty(prefix+"show_first_bg"));
@@ -3263,6 +3307,8 @@ public class CLTParameters {
 				"Add squared fat zero to the sum of squared amplitudes, monochrome images");
 		gd.addMessage     ("--- GPU WOI selection ---");
 
+		gd.addCheckbox    ("Use following WOI for GPU processing (unchecked - ignore WOI dimensions)",                  this.gpu_woi);
+
 		gd.addNumericField("WOI left",                                                                                  this.gpu_woi_tx, 0, 6,"tiles",
 				"Left WOI margin, in tiles (0..323");
 		gd.addNumericField("WOI top",                                                                                   this.gpu_woi_ty, 0, 6,"tiles",
@@ -3271,8 +3317,18 @@ public class CLTParameters {
 				"WOI width, in tiles (1..324");
 		gd.addNumericField("WOI height",                                                                                this.gpu_woi_theight, 0, 6,"tiles",
 				"WOI height, in tiles (1..242");
-		gd.addCheckbox    ("Select circle/ellipse within the rectanghular WOI ",                                        this.gpu_woi_round);
+		gd.addCheckbox    ("Select circle/ellipse within the rectanghular WOI",                                         this.gpu_woi_round);
+		gd.addCheckbox    ("Debug feature - save calculated ports X,Y to compare with Java-generated",                  this.gpu_save_ports_xy);
+		gd.addCheckbox    ("Show Java-generated textures from non-overlapping in GPU (will not generate if false)",     this.gpu_show_jtextures);
+		gd.addCheckbox    ("Show low-res data for macro (will not generate if false)",                                  this.gpu_show_extra);
 
+		gd.addCheckbox    ("Accelerate tile processor for the main quad camera",                                        this.gpu_use_main);
+		gd.addCheckbox    ("Accelerate tile processor for the main quad camera in macro mode",                          this.gpu_use_main_macro);
+		gd.addCheckbox    ("Accelerate tile processor for the main quad camera for field calibration",                  this.gpu_use_main_adjust);
+		gd.addCheckbox    ("Accelerate tile processor for the aux (lwir) quad camera",                                  this.gpu_use_aux);
+		gd.addCheckbox    ("Accelerate tile processor for the aux (lwir) quad camera in macro mode",                    this.gpu_use_aux_macro);
+		gd.addCheckbox    ("Accelerate tile processor for the aux (lwir) quad camera for field calibration",            this.gpu_use_aux_adjust);
+		
 		gd.addTab         ("LWIR", "parameters for LWIR/EO 8-camera rig");
 		this.lwir.dialogQuestions(gd);
 		gd.addTab         ("Debug", "Other debug images");
@@ -4014,12 +4070,23 @@ public class CLTParameters {
 		this.gpu_fatz =             gd.getNextNumber();
 		this.gpu_fatz_m =           gd.getNextNumber();
 
+		this.gpu_woi=               gd.getNextBoolean();
 		this.gpu_woi_tx =     (int) gd.getNextNumber();
 		this.gpu_woi_ty =     (int) gd.getNextNumber();
 		this.gpu_woi_twidth = (int) gd.getNextNumber();
 		this.gpu_woi_theight =(int) gd.getNextNumber();
 		this.gpu_woi_round=         gd.getNextBoolean();
+		this.gpu_save_ports_xy=     gd.getNextBoolean();
+		this.gpu_show_jtextures=    gd.getNextBoolean();
+		this.gpu_show_extra=        gd.getNextBoolean();
 
+		this.gpu_use_main=          gd.getNextBoolean();
+		this.gpu_use_main_macro=    gd.getNextBoolean();
+		this.gpu_use_main_adjust=   gd.getNextBoolean();
+		this.gpu_use_aux=           gd.getNextBoolean();
+		this.gpu_use_aux_macro=     gd.getNextBoolean();
+		this.gpu_use_aux_adjust=    gd.getNextBoolean();
+		
 		this.lwir.dialogAnswers(gd);
 
 		this.debug_initial_discriminate= gd.getNextBoolean();

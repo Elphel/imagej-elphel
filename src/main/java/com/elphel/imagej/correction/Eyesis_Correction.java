@@ -4906,7 +4906,7 @@ private Panel panel1,
     	importAux();
     	return;
 /* ======================================================================== */
-    } else if (label.equals("CLT 2*4 images")) {
+    } else if (label.equals("CLT 2*4 images")) { // never used 
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
     	getPairImages();
@@ -5416,7 +5416,7 @@ private Panel panel1,
 		return true;
 	}
 
-	public boolean getPairImages() {
+	public boolean getPairImages() { // Never Used
         if (QUAD_CLT == null){
         	QUAD_CLT = new  QuadCLT (
         			QuadCLT.PREFIX,
@@ -5810,10 +5810,7 @@ private Panel panel1,
 		if (GPU_QUAD == null) {
 			try {
 				GPU_QUAD = GPU_TILE_PROCESSOR. new GpuQuad(
-						2592,
-						1936,
-						164,   // final int kernels_hor,
-			   			123,   // final int kernels_vert,
+						QUAD_CLT,
 						4,
 						3);
 			} catch (Exception e) {
@@ -5822,6 +5819,7 @@ private Panel panel1,
 				e.printStackTrace();
 				return false;
 			} //final int        debugLevel);
+			QUAD_CLT.setGPU(GPU_QUAD);
 		}
 		// For now keep GPU_QUAD_AUX==null
 		
@@ -6266,6 +6264,8 @@ private Panel panel1,
 
 	public boolean batchLwir() {
 		long startTime=System.nanoTime();
+		
+		
 		// load needed sensor and kernels files
 		if (!prepareRigImages()) return false;
 		String configPath=getSaveCongigPath();
@@ -6278,8 +6278,52 @@ private Panel panel1,
 ///		if (COLOR_PROC_PARAMETERS_AUX == null) {
 ///			COLOR_PROC_PARAMETERS_AUX = COLOR_PROC_PARAMETERS.clone();
 ///		}
+		
+		if (CLT_PARAMETERS.useGPU()) { // only init GPU instances if it is used
+			if (GPU_TILE_PROCESSOR == null) {
+				try {
+					GPU_TILE_PROCESSOR = new GPUTileProcessor(CORRECTION_PARAMETERS.tile_processor_gpu);
+				} catch (Exception e) {
+					System.out.println("Failed to initialize GPU class");
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					return false;
+				} //final int        debugLevel);
+			}
+			if (CLT_PARAMETERS.useGPU(false) && (QUAD_CLT != null) && (GPU_QUAD == null)) { // if GPU main is needed
+				try {
+					GPU_QUAD = GPU_TILE_PROCESSOR.new GpuQuad(
+							QUAD_CLT,
+							4,
+							3);
+				} catch (Exception e) {
+					System.out.println("Failed to initialize GpuQuad class");
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					return false;
+				} //final int        debugLevel);
+				QUAD_CLT.setGPU(GPU_QUAD);
+			}
+			if (CLT_PARAMETERS.useGPU(true) && (QUAD_CLT_AUX != null) && (GPU_QUAD_AUX == null)) { // if GPU AUX is needed
+				try {
+					GPU_QUAD_AUX = GPU_TILE_PROCESSOR. new GpuQuad(//
+							QUAD_CLT_AUX,
+							4,
+							3);
+				} catch (Exception e) {
+					System.out.println("Failed to initialize GpuQuad class");
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					return false;
+				} //final int        debugLevel);
+				QUAD_CLT_AUX.setGPU(GPU_QUAD_AUX);
+			}
+		}
+		
 		try {
 			TWO_QUAD_CLT.batchLwirRig(
+//					GPU_QUAD,     // GPUTileProcessor.GpuQuad gpuQuad_main, // may be null if GPU for MAIN is not use3d
+//					GPU_QUAD_AUX, // GPUTileProcessor.GpuQuad gpuQuad_aux,  // may be null if GPU for AUX is not use3d
 					QUAD_CLT, // QuadCLT quadCLT_main,
 					QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
 					CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,

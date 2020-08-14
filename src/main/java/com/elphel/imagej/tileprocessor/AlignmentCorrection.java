@@ -48,7 +48,8 @@ public class AlignmentCorrection {
 	static final int    INDEX_14_DISPARITY = 0;
 	static final double DISP_SCALE = 2.0;
 
-	QuadCLT qc;
+	QuadCLT    qc_gpu; // maybe will be used later?
+	QuadCLTCPU qc;
 
 	public class Sample{
 		public int series;
@@ -265,8 +266,11 @@ public class AlignmentCorrection {
 	}
 
 	//System.arraycopy(dpixels, (tileY*width+tileX)*dct_size + i*width, tile_in, i*n2, n2);
-	AlignmentCorrection (QuadCLT qc){
+	AlignmentCorrection (QuadCLTCPU qc){
 		this.qc = qc;
+	}
+	AlignmentCorrection (QuadCLT qc){
+		this.qc_gpu = qc;
 	}
 
 	public double [][][] infinityCorrection(
