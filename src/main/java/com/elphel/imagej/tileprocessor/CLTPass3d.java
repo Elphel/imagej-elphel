@@ -60,6 +60,9 @@ public class CLTPass3d{
 		public  boolean []      border_tiles =         null; // these are border tiles, zero out alpha
 		public  boolean []      selected =             null; // which tiles are selected for this layer
 		public  double [][][][] texture_tiles;
+		public  float  [][]     texture_img =          null; // [3][] (RGB) or [4][] RGBA
+		public  Rectangle       texture_woi =          null; // null or generated texture location/size
+				
 		public  double [][]      max_tried_disparity =  null; //[ty][tx] used for combined passes, shows maximal disparity for this tile, regardless of results
 		public  boolean         is_combo =             false;
 		public  boolean         is_measured =          false;
@@ -96,13 +99,27 @@ public class CLTPass3d{
 		{
 			return 	texture_tiles;
 		}
+
+		public float [][] getTextureImages()
+		{
+			return 	texture_img;
+		}
+
+		public Rectangle getTextureWoi()
+		{
+			return 	texture_woi;
+		}
+		
 		public double [][] getMaxTriedDisparity()
 		{
 			return max_tried_disparity;
 		}
 		public double [][] getTileRBGA(
-				int num_layers)
+				int num_layers) // 4 or 12
 		{
+			if (texture_img != null) {
+				System.out.println("FIXME: implement replacement for the GPU-generated textures (using macro mode?)");
+			}
 			if (texture_tiles == null) return null;
 			int tilesY = texture_tiles.length;
 			int tilesX = 0;
@@ -163,15 +180,32 @@ public class CLTPass3d{
 			int tilesY = tileProcessor.getTilesY();
 			selected = new boolean[tilesY*tilesX];
 			int minX = tilesX, minY = tilesY, maxX = -1, maxY = -1;
-			for (int ty = 0; ty < tilesY; ty++) for (int tx = 0; tx < tilesX; tx++){
-				if (texture_tiles[ty][tx] != null) {
-					selected[ty * tilesX + tx] = true;
-					if (maxX < tx) maxX  = tx;
-					if (minX > tx) minX  = tx;
-					if (maxY < ty) maxY  = ty;
-					if (minY > ty) minY  = ty;
-				} else {
-					selected[ty * tilesX + tx] = false; // may be omitted
+			if (texture_img != null) { // using GPU output
+//tileProcessor.getTileSize()
+				if (texture_woi != null) {
+					int tile_size = tileProcessor.getTileSize();
+					texture_bounds = new Rectangle(
+							texture_woi.x/tile_size, texture_woi.y/tile_size, texture_woi.width/tile_size, texture_woi.height/tile_size);
+					// setting full rectangle as selected, not just textures? Use some other method?
+					for (int ty = texture_bounds.y; ty < (texture_bounds.y + texture_bounds.height); ty++) {
+						for (int tx = texture_bounds.x; tx < (texture_bounds.x + texture_bounds.width); tx++) {
+							selected[ty*tilesX+tx] = true;
+						}
+					}
+					return;
+				}
+			}
+			if (texture_tiles != null) {
+				for (int ty = 0; ty < tilesY; ty++) for (int tx = 0; tx < tilesX; tx++){
+					if (texture_tiles[ty][tx] != null) {
+						selected[ty * tilesX + tx] = true;
+						if (maxX < tx) maxX  = tx;
+						if (minX > tx) minX  = tx;
+						if (maxY < ty) maxY  = ty;
+						if (minY > ty) minY  = ty;
+					} else {
+						selected[ty * tilesX + tx] = false; // may be omitted
+					}
 				}
 			}
 			if (maxX < 0) {

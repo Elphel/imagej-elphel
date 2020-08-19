@@ -63,7 +63,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.Random;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.elphel.imagej.tileprocessor.DttRad2;
@@ -739,6 +742,13 @@ public class GPUTileProcessor {
                     Sizeof.FLOAT);                         // int ElementSizeBytes)
             texture_stride_rgba = (int)(device_stride[0] / Sizeof.FLOAT);
     	}
+    	public int getTilesX() {
+            return img_width / DTT_SIZE;
+    	}
+
+    	public int getTilesY() {
+            return img_height / DTT_SIZE;
+    	}
     	
     	public void resetGeometryCorrection() {
     		geometry_correction_set = false;
@@ -760,7 +770,6 @@ public class GPUTileProcessor {
     	}
 
     	public void setGeometryCorrectionVector() { // will reset geometry_correction_vector_set when running GPU kernel
-//    		if (geometry_correction_vector_set) return;
     		setExtrinsicsVector(
     				quadCLT.getGeometryCorrection().getCorrVector());
     	}
@@ -1210,6 +1219,63 @@ public class GPUTileProcessor {
         	}
         	return tp_tasks;
         }
+       
+    	public GPUTileProcessor.TpTask[]  setTpTask(
+//    			final GPUTileProcessor.GpuQuad gpuQuad,
+    			final double [][]	           disparity_array,  // [tilesY][tilesX] - individual per-tile expected disparity
+    			final double                   disparity_corr,
+    			final boolean []               need_corrs,       // should be initialized to boolean[1] or null
+    			final int [][]                 tile_op,          // [tilesY][tilesX] - what to do - 0 - nothing for this tile
+    			final int                      corr_mask,        // <0 - use corr mask from the tile tile_op, >=0 - overwrite all with non-zero corr_mask_tp
+    			final int                      threadsMax)       // maximal number of threads to launch
+    	{
+    		final int tilesX = getTilesX();
+    		final int tilesY = getTilesY();
+    		final AtomicInteger ai =            new AtomicInteger(0);
+    		final AtomicBoolean acorrs =        new AtomicBoolean(false);
+    		final List<GPUTileProcessor.TpTask> task_list = new CopyOnWriteArrayList<GPUTileProcessor.TpTask>();
+    		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+    		for (int ithread = 0; ithread < threads.length; ithread++) {
+    			threads[ithread] = new Thread() {
+    				@Override
+    				public void run() {
+    					for (int nTile = ai.getAndIncrement(); nTile < tilesX * tilesY; nTile = ai.getAndIncrement()) {
+    						int tileY = nTile /tilesX;
+    						int tileX = nTile % tilesX;
+    						//						tIndex = tileY * tilesX + tileX;
+    						if (tile_op[tileY][tileX] == 0) continue; // nothing to do for this tile
+    				        // which images to use
+    						int img_mask =  ImageDtt.getImgMask(tile_op[tileY][tileX]);
+    					    // which pairs to combine in the combo:  1 - top, 2 bottom, 4 - left, 8 - right
+    						int corr_mask_tp = ImageDtt.getPairMask(tile_op[tileY][tileX]); // limited to 4 bits only!
+    						if (corr_mask_tp != 0) {
+    							if (corr_mask >=0) {
+    								corr_mask_tp = corr_mask; 	
+    							}
+    							if (corr_mask_tp != 0) {
+    								acorrs.set(true);
+    							}
+    						}
+    						task_list.add(new GPUTileProcessor.TpTask(
+    								tileX,
+    								tileY,
+    								(float) (disparity_array[tileY][tileX] + disparity_corr),
+    								((img_mask  & 0x0f) << 0) |
+    								((corr_mask_tp & 0x3f) << 4)
+    								)); // task == 1 for now
+    						// mask out pairs that use missing channels
+    					}
+
+    				}
+    			};
+    		}
+    		ImageDtt.startAndJoin(threads);
+    		if (need_corrs != null) {
+    			need_corrs[0] = acorrs.get();
+    		}
+    		return task_list.toArray(new GPUTileProcessor.TpTask[task_list.size()]);		
+    	}
+
         
         
         /**
@@ -1653,6 +1719,21 @@ public class GPUTileProcessor {
         	cuCtxSynchronize();
         }
 
+        public int [] getCorrIndices() {
+        	float [] fnum_corrs = new float[1];
+        	cuMemcpyDtoH(Pointer.to(fnum_corrs), gpu_num_corr_tiles,  1 * Sizeof.FLOAT);
+        	int num_corrs =      Float.floatToIntBits(fnum_corrs[0]);
+        	float [] fcorr_indices = new float [num_corrs];
+        	cuMemcpyDtoH(Pointer.to(fcorr_indices), gpu_corr_indices,  num_corrs * Sizeof.FLOAT);
+        	int [] corr_indices = new int [num_corrs];
+        	for (int i = 0; i < num_corrs; i++) {
+        		corr_indices[i] = Float.floatToIntBits(fcorr_indices[i]);
+        	}
+        	num_corr_tiles = num_corrs;
+        	return corr_indices;
+
+        }
+
         public float [][] getCorr2D(int corr_rad){
         	int corr_size = (2 * corr_rad + 1) * (2 * corr_rad + 1);
         	float [] cpu_corrs = new float [ num_corr_tiles * corr_size];
@@ -1677,20 +1758,6 @@ public class GPUTileProcessor {
         	return corrs;
         }
 
-        public int [] getCorrIndices() {
-        	float [] fnum_corrs = new float[1];
-        	cuMemcpyDtoH(Pointer.to(fnum_corrs), gpu_num_corr_tiles,  1 * Sizeof.FLOAT);
-        	int num_corrs =      Float.floatToIntBits(fnum_corrs[0]);
-        	float [] fcorr_indices = new float [num_corrs];
-        	cuMemcpyDtoH(Pointer.to(fcorr_indices), gpu_corr_indices,  num_corrs * Sizeof.FLOAT);
-        	int [] corr_indices = new int [num_corrs];
-        	for (int i = 0; i < num_corrs; i++) {
-        		corr_indices[i] = Float.floatToIntBits(fcorr_indices[i]);
-        	}
-        	num_corr_tiles = num_corrs;
-        	return corr_indices;
-
-        }
 
 //	        
 /**

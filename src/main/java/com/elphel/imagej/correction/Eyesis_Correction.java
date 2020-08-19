@@ -705,8 +705,8 @@ private Panel panel1,
 			panelClt_GPU.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
 			addButton("JCUDA TEST",                 panelClt_GPU);
 			addButton("TF TEST",                    panelClt_GPU);
-			addButton("GPU simulate",                  panelClt_GPU, color_conf_process);
-			addButton("GPU RUN",                   panelClt_GPU, color_conf_process);
+			addButton("GPU simulate",               panelClt_GPU, color_conf_process);
+			addButton("GPU RUN",                    panelClt_GPU, color_conf_process);
 //			addButton("ShowGPU",                    panelClt_GPU, color_conf_process);
 
 			addButton("LWIR_TEST",                  panelClt_GPU, color_conf_process);

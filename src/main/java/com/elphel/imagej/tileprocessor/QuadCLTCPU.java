@@ -51,7 +51,6 @@ import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.correction.CorrectionColorProc;
 import com.elphel.imagej.correction.EyesisCorrections;
-import com.elphel.imagej.gpu.GPUTileProcessor;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 import com.elphel.imagej.tileprocessor.GeometryCorrection.CorrVector;
 import com.elphel.imagej.x3d.export.WavefrontExport;
@@ -7145,7 +7144,8 @@ public class QuadCLTCPU {
 				  debugLevel);
 		  tp.clt_3d_passes.add(bgnd_data);
 		  //    	  if (show_init_refine)
-		  if ((debugLevel > -2) && clt_parameters.show_first_bg) {
+//		  if ((debugLevel > -2) && clt_parameters.show_first_bg) {
+		  if ((debugLevel > -3) && clt_parameters.show_first_bg) {
 			  tp.showScan(
 					  tp.clt_3d_passes.get(0), // CLTPass3d   scan,
 					  "bgnd_data-"+tp.clt_3d_passes.size());
@@ -9412,14 +9412,14 @@ public class QuadCLTCPU {
 			  )
 	  {
 		  final boolean new_mode = false;
-
+		  boolean dbg_gpu_transition = true;
 
 
 		  final int tilesX = tp.getTilesX();
 		  final int tilesY = tp.getTilesY();
 		  ShowDoubleFloatArrays sdfa_instance = null;
 
-		  if (clt_parameters.debug_filters && (debugLevel > -1))
+		  if ((clt_parameters.debug_filters && (debugLevel > -1)) || dbg_gpu_transition)
 //		  if ((debugLevel > -1))
 			  sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
@@ -9514,7 +9514,7 @@ public class QuadCLTCPU {
 			  for (int tileY = 0; tileY < tilesY; tileY++){
 				  for (int tileX = 0; tileX < tilesX; tileX++){
 					  texture_tiles_bgnd[tileY][tileX]= null;
-					  if ((texture_tiles[tileY][tileX] != null) &&
+					  if ((texture_tiles[tileY][tileX] != null) && // null pointer
 							  bgnd_tiles[tileY * tilesX + tileX]) {
 						  if (bgnd_tiles_grown2[tileY * tilesX + tileX]) {
 							  texture_tiles_bgnd[tileY][tileX]= texture_tiles[tileY][tileX];
@@ -9628,6 +9628,7 @@ public class QuadCLTCPU {
 		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
 		  boolean [] borderTiles = scan.border_tiles;
 		  double [][][][] texture_tiles = scan.texture_tiles;
+		  // only place that uses updateSelection()
 		  scan.updateSelection(); // update .selected field (all selected, including border) and Rectangle bounds
 		  if (scan.getTextureBounds() == null) { // not used in lwir
 			  System.out.println("getPassImage(): Empty image!");
@@ -9857,6 +9858,17 @@ public class QuadCLTCPU {
 			  z_correction +=clt_parameters.z_corr_map.get(image_name);
 		  }
 		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
+		  
+		  double [][][][][] clt_corr_partial = null;
+		  if (clt_parameters.img_dtt.gpu_mode_debug) {
+			  clt_corr_combo = null;
+			  clt_corr_partial = new double [tilesY][tilesX][][][];
+			  for (int i = 0; i < tilesY; i++){
+				  for (int j = 0; j < tilesX; j++){
+					  clt_corr_partial[i][j] = null;
+				  }
+			  }
+		  }
 
 		  image_dtt.clt_aberrations_quad_corr(
 				  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
@@ -9867,7 +9879,7 @@ public class QuadCLTCPU {
 				  saturation_imp,               // boolean [][] saturation_imp, // (near) saturated pixels or null
 				  // correlation results - final and partial
 				  clt_corr_combo,               // [tp.tilesY][tp.tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
-				  null, // clt_corr_partial,    // [tp.tilesY][tp.tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+				  clt_corr_partial, // null, // clt_corr_partial,    // [tp.tilesY][tp.tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 				  null,    // [tp.tilesY][tp.tilesX][pair]{dx,dy,weight}[(2*transform_size-1)*(2*transform_size-1)] // transpose unapplied. null - do not calculate
 				  //	Use it with disparity_maps[scan_step]?		  clt_mismatch,    // [tp.tilesY][tp.tilesX][pair]{dx,dy,weight}[(2*transform_size-1)*(2*transform_size-1)] // transpose unapplied. null - do not calculate
 				  disparity_map,    // [12][tp.tilesY * tp.tilesX]
@@ -9897,7 +9909,7 @@ public class QuadCLTCPU {
 				  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 				  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 				  clt_parameters.kernel_step,
-///				  image_dtt.transform_size,
+				  ///				  image_dtt.transform_size,
 				  clt_parameters.clt_window,
 				  shiftXY, //
 				  disparity_corr, // final double              disparity_corr, // disparity at infinity
@@ -9920,6 +9932,32 @@ public class QuadCLTCPU {
 		  scan_rslt.is_measured =   true;
 		  scan_rslt.is_combo =      false;
 		  scan_rslt.resetProcessed();
+		  if (clt_corr_partial!=null){ // only to debug matching gpu/cpu
+			  if (debugLevel > -3){ // -1
+				  String [] allColorNames = {"red","blue","green","combo"};
+				  String [] titles = new String[clt_corr_partial.length];
+				  for (int i = 0; i < titles.length; i++){
+					  titles[i]=allColorNames[i % allColorNames.length]+"_"+(i / allColorNames.length);
+				  }
+				  double [][] corr_rslt_partial = image_dtt.corr_partial_dbg(
+						  clt_corr_partial,
+						  2*image_dtt.transform_size - 1,	//final int corr_size,
+						  4,	// final int pairs,
+						  4,    // final int colors,
+						  clt_parameters.corr_border_contrast,
+						  threadsMax,
+						  debugLevel);
+				  // titles.length = 15, corr_rslt_partial.length=16!
+				  System.out.println("corr_rslt_partial.length = "+corr_rslt_partial.length+", titles.length = "+titles.length);
+				  (new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+						  corr_rslt_partial,
+						  tilesX*(2*image_dtt.transform_size),
+						  tilesY*(2*image_dtt.transform_size),
+						  true,
+						  image_name+sAux()+"-PART_CORR-GPU-D"+clt_parameters.disparity);
+			  }
+		  }
+
 		  return scan_rslt;
 	  }
 	  

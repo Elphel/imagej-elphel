@@ -28,6 +28,7 @@ import java.util.Properties;
 import com.elphel.imagej.common.GenericJTabbedDialog;
 
 public class ImageDttParameters {
+	public boolean gpu_mode_debug =         true;
 	public boolean corr_mode_debug =        true;
 	public boolean mix_corr_poly =          true;
 	public double  min_poly_strength =      0.2; /// 0.1
@@ -191,6 +192,9 @@ public class ImageDttParameters {
 
 
 	public void dialogQuestions(GenericJTabbedDialog gd) {
+		
+		    gd.addCheckbox    ("Debug CPU->GPU matching",                                         this.gpu_mode_debug,
+				"output clt_corr_partial");
 			gd.addCheckbox    ("Enable ImageDtt correlation debug layers",                        this.corr_mode_debug,
 					"false - return (old) per-coord correlations, true - replace them with more pairs correlation (new)");
 			gd.addCheckbox    ("Replace CM layer with mixed/new poly one",                        this.mix_corr_poly);
@@ -467,6 +471,7 @@ public class ImageDttParameters {
 
 	}
 	public void dialogAnswers(GenericJTabbedDialog gd) {
+			this.gpu_mode_debug =        gd.getNextBoolean();
 			this.corr_mode_debug=        gd.getNextBoolean();
 			this.mix_corr_poly=          gd.getNextBoolean();
 			this.min_poly_strength=      gd.getNextNumber();
@@ -608,6 +613,7 @@ public class ImageDttParameters {
 
 
 	public void setProperties(String prefix,Properties properties){
+		properties.setProperty(prefix+"gpu_mode_debug",       this.gpu_mode_debug+"");
 		properties.setProperty(prefix+"corr_mode_debug",      this.corr_mode_debug+"");
 		properties.setProperty(prefix+"mix_corr_poly",        this.mix_corr_poly+"");
 		properties.setProperty(prefix+"min_poly_strength",    this.min_poly_strength+"");
@@ -749,6 +755,7 @@ public class ImageDttParameters {
 	}
 
 	public void getProperties(String prefix,Properties properties){
+		if (properties.getProperty(prefix+"gpu_mode_debug")!=null)        this.gpu_mode_debug=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_mode_debug"));
 		if (properties.getProperty(prefix+"corr_mode_debug")!=null)       this.corr_mode_debug=Boolean.parseBoolean(properties.getProperty(prefix+"corr_mode_debug"));
 		if (properties.getProperty(prefix+"mix_corr_poly")!=null)         this.mix_corr_poly=Boolean.parseBoolean(properties.getProperty(prefix+"mix_corr_poly"));
 		if (properties.getProperty(prefix+"min_poly_strength")!=null)     this.min_poly_strength=Double.parseDouble(properties.getProperty(prefix+"min_poly_strength"));
@@ -890,6 +897,7 @@ public class ImageDttParameters {
 	@Override
 	public ImageDttParameters clone() throws CloneNotSupportedException {
         ImageDttParameters idp =     new ImageDttParameters();
+		idp.gpu_mode_debug =         this.gpu_mode_debug;
 		idp.corr_mode_debug =        this.corr_mode_debug;
 		idp.mix_corr_poly =          this.mix_corr_poly;
 		idp.min_poly_strength =      this.min_poly_strength;
