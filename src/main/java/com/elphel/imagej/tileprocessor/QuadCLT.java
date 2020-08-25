@@ -277,7 +277,7 @@ public class QuadCLT extends QuadCLTCPU {
 		};
 		gpuQuad.setLpfRbg( // constants memory - same for all cameras
 				lpf_rgb,
-				!batch_mode);
+				true); // !batch_mode);
 
 		float [] lpf_flat = image_dtt.floatGetCltLpfFd(clt_parameters.getGpuCorrSigma(is_mono));
 
@@ -499,10 +499,20 @@ public class QuadCLT extends QuadCLTCPU {
 		boolean is_lwir = quadCLT_main.isLwir();
 
 		double    fat_zero = clt_parameters.getGpuFatZero(is_mono); //   30.0;
+/*		
 		double [] scales = (is_mono) ? (new double [] {1.0}) :(new double [] {
 				clt_parameters.gpu_weight_r, // 0.25
 				clt_parameters.gpu_weight_b, // 0.25
 				1.0 - clt_parameters.gpu_weight_r - clt_parameters.gpu_weight_b}); // 0.5
+*/
+		double corr_green = 1.0/(1.0 + clt_parameters.gpu_weight_r + clt_parameters.gpu_weight_b);    // green color
+		// the same, as col_weights, for separate debugging
+		double [] scales= (is_mono) ? (new double [] {1.0}) :(new double [] {
+				clt_parameters.gpu_weight_r *  corr_green,
+				clt_parameters.gpu_weight_b * corr_green,
+				corr_green});
+		
+		
 		double cwgreen = 1.0/(1.0 + clt_parameters.corr_red + clt_parameters.corr_blue);    // green color
 		double [] col_weights= (is_mono) ? (new double [] {1.0}) :(new double [] {
 				clt_parameters.corr_red *  cwgreen,
@@ -522,20 +532,20 @@ public class QuadCLT extends QuadCLTCPU {
 		};
 		quadCLT_main.getGPU().setLpfRbg( // constants memory - same for all cameras
 				lpf_rgb,
-				debugLevel > -1);
+				debugLevel > -1); // -3
 
 		float [] lpf_flat = image_dtt.floatGetCltLpfFd(clt_parameters.getGpuCorrSigma(is_mono));
 
 		quadCLT_main.getGPU().setLpfCorr(// constants memory - same for all cameras
 				"lpf_corr", // String const_name, // "lpf_corr"
 				lpf_flat,
-				debugLevel > -1);
+				debugLevel > -1); // -3
 
 		float [] lpf_rb_flat = image_dtt.floatGetCltLpfFd(clt_parameters.getGpuCorrRBSigma(is_mono));
 		quadCLT_main.getGPU().setLpfCorr(// constants memory - same for all cameras
 				"lpf_rb_corr", // String const_name, // "lpf_corr"
 				lpf_rb_flat,
-				debugLevel > -1);
+				debugLevel > -1); // -3
 
 		final boolean use_aux = false; // currently GPU is configured for a single quad camera
 
@@ -1171,7 +1181,9 @@ public class QuadCLT extends QuadCLTCPU {
 				  texture_woi,                   // texture_woi,     // null or generated texture location/size
 				  null,                          //  iclt_fimg,       // will return quad images or null to skip, use quadCLT.linearStackToColor 
 					// new parameters, will replace some other?
-				  clt_parameters.getFatZero(isMonochrome()),      // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0
+//				  clt_parameters.getFatZero(isMonochrome()),      // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
+				  clt_parameters.gpu_corr_scale, //  gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
+				  clt_parameters.getGpuFatZero(isMonochrome()), // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
 				  clt_parameters.gpu_sigma_r,    // 0.9, 1.1
 				  clt_parameters.gpu_sigma_b,    // 0.9, 1.1
 				  clt_parameters.gpu_sigma_g,    // 0.6, 0.7

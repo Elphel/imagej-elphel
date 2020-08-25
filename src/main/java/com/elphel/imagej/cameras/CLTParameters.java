@@ -32,7 +32,7 @@ public class CLTParameters {
 	public int        ishift_y =            0;  // debug feature - shift source image by this pixels down
 
 	private double    fat_zero =          0.05; // modify phase correlation to prevent division by very small numbers
-	private double    fat_zero_mono =     0.1;  // modify phase correlation to prevent division by very small numbers
+	private double    fat_zero_mono =     0.03;  // modify phase correlation to prevent division by very small numbers
 	private double    corr_sigma =        0.8;  // LPF correlation sigma
 	private double    corr_sigma_mono =   0.1;  // LPF correlation sigma for monochrome images
 	private double    scale_strength_main = 1.0; // leave as is
@@ -766,9 +766,10 @@ public class CLTParameters {
 	public boolean    taEnMismatch         = false;  // Enable cost of a measurement layer not having same layer in the same location or near
 
 // gpu processing parameters
+	public double     gpu_corr_scale =    0.75; // reduce GPU-generated correlation values
 	public int        gpu_corr_rad =        7;  // size of the correlation to save - initially only 15x15
-	public double     gpu_weight_r =      0.25;
-	public double     gpu_weight_b =      0.25; // weight g = 1.0 - gpu_weight_r - gpu_weight_b
+	public double     gpu_weight_r =      0.5; // 25;
+	public double     gpu_weight_b =      0.2; // 0.25; // weight g = 1.0 - gpu_weight_r - gpu_weight_b
 	public double     gpu_sigma_r =       0.9; // 1.1;
 	public double     gpu_sigma_b =       0.9; // 1.1;
 	public double     gpu_sigma_g =       0.6; // 0.7;
@@ -1567,6 +1568,7 @@ public class CLTParameters {
 		properties.setProperty(prefix+"taEnMismatch",               this.taEnMismatch +"");
 
 
+		properties.setProperty(prefix+"gpu_corr_scale",             this.gpu_corr_scale +"");
 		properties.setProperty(prefix+"gpu_corr_rad",               this.gpu_corr_rad +"");
 		properties.setProperty(prefix+"gpu_weight_r",               this.gpu_weight_r +"");
 		properties.setProperty(prefix+"gpu_weight_b",               this.gpu_weight_b +"");
@@ -2352,6 +2354,7 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"taEnFlaps")!=null)                   this.taEnFlaps=Boolean.parseBoolean(properties.getProperty(prefix+"taEnFlaps"));
 		if (properties.getProperty(prefix+"taEnMismatch")!=null)                this.taEnMismatch=Boolean.parseBoolean(properties.getProperty(prefix+"taEnMismatch"));
 
+		if (properties.getProperty(prefix+"gpu_corr_scale")!=null)              this.gpu_corr_scale=Double.parseDouble(properties.getProperty(prefix+"gpu_corr_scale"));
 		if (properties.getProperty(prefix+"gpu_corr_rad")!=null)                this.gpu_corr_rad=Integer.parseInt(properties.getProperty(prefix+"gpu_corr_rad"));
 		if (properties.getProperty(prefix+"gpu_weight_r")!=null)                this.gpu_weight_r=Double.parseDouble(properties.getProperty(prefix+"gpu_weight_r"));
 		if (properties.getProperty(prefix+"gpu_weight_b")!=null)                this.gpu_weight_b=Double.parseDouble(properties.getProperty(prefix+"gpu_weight_b"));
@@ -3279,6 +3282,8 @@ public class CLTParameters {
 
 		gd.addTab         ("GPU", "Parameters for GPU development");
 		gd.addMessage     ("--- GPU processing parameters ---");
+		gd.addNumericField("GPU 2D correlation scale",                                                                  this.gpu_corr_scale, 4, 6,"",
+				"Reduce GPU-generated correlation values to approximately match CPU-generated ones");
 		gd.addNumericField("Correlation radius",                                                                        this.gpu_corr_rad, 0, 6,"pix",
 				"Size of the 2D correlation - maximal radius = 7 corresponds to full 15x15 pixel tile");
 		gd.addNumericField("Correlation weight R",                                                                      this.gpu_weight_r, 4, 6,"",
@@ -4057,6 +4062,7 @@ public class CLTParameters {
 		this.taEnFlaps=             gd.getNextBoolean();
 		this.taEnMismatch=          gd.getNextBoolean();
 
+		this.gpu_corr_scale =       gd.getNextNumber();
 		this.gpu_corr_rad =   (int) gd.getNextNumber();
 		this.gpu_weight_r =         gd.getNextNumber();
 		this.gpu_weight_b =         gd.getNextNumber();

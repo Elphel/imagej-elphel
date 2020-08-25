@@ -9954,7 +9954,7 @@ public class QuadCLTCPU {
 						  tilesX*(2*image_dtt.transform_size),
 						  tilesY*(2*image_dtt.transform_size),
 						  true,
-						  image_name+sAux()+"-PART_CORR-GPU-D"+clt_parameters.disparity);
+						  image_name+sAux()+"-PART_CORR-CPU-D"+clt_parameters.disparity);
 			  }
 		  }
 

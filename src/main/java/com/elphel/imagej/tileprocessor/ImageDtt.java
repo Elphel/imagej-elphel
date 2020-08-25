@@ -72,6 +72,7 @@ public class ImageDtt extends ImageDttCPU {
 			final float [][][]        iclt_fimg,       // will return quad images or null to skip, use quadCLT.linearStackToColor 
 ////		final int                 width,
 			// new parameters, will replace some other?
+			final double              gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
 			final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0
 			final double              gpu_sigma_r,     // 0.9, 1.1
 			final double              gpu_sigma_b,     // 0.9, 1.1
@@ -163,6 +164,7 @@ public class ImageDtt extends ImageDttCPU {
 		}
 */
 		// keep for now for mono, find out  what do they mean for macro mode
+		
 		if (macro_mode) { // all the same as they now mean different
 			//compensating Bayer correction
 			col_weights[0] = 0.25; //  1.0/3;
@@ -179,7 +181,7 @@ public class ImageDtt extends ImageDttCPU {
 				col_weights[1] = corr_blue * col_weights[2];
 			}
 		}
-
+/*
 		double [] scales = isMonochrome() ?
 				(new double [] {1.0}) :
 					(macro_mode?
@@ -189,13 +191,14 @@ public class ImageDtt extends ImageDttCPU {
 										corr_blue, // 0.25
 										1.0 - corr_red - corr_blue})); // 0.5
 		
-		
+*/		
 		final int corr_size = transform_size * 2 - 1;
-		final int [][] transpose_indices = new int [corr_size*(corr_size-1)/2][2];
+//		final int [][] transpose_indices = new int [corr_size*(corr_size-1)/2][2];
 		
 		if ((globalDebugLevel > -10) && (disparity_corr != 0.0)){
 			System.out.println(String.format("Using manual infinity disparity correction of %8.5f pixels",disparity_corr));
 		}
+/*		
 		{ int indx = 0;
 		for (int i =0; i < corr_size-1; i++){
 			for (int j = i+1; j < corr_size; j++){
@@ -204,7 +207,7 @@ public class ImageDtt extends ImageDttCPU {
 			}
 		}
 		}
-
+*/
 
 ////		final int first_color = isMonochrome()? MONO_CHN : 0; // color that is non-zero
 
@@ -316,8 +319,8 @@ public class ImageDtt extends ImageDttCPU {
 
 		DttRad2 dtt = new DttRad2(transform_size);
 		dtt.set_window(window_type);
-		final double [] lt_window = dtt.getWin2d();	// [256]
-		final double [] lt_window2 = new double [lt_window.length]; // squared
+		final double [] lt_window = dtt.getWin2d();	// [256] - never used
+		final double [] lt_window2 = new double [lt_window.length]; // squared - never used
 
 		for (int i = 0; i < lt_window.length; i++) lt_window2[i] = lt_window[i] * lt_window[i];
 
@@ -356,20 +359,20 @@ public class ImageDtt extends ImageDttCPU {
 		};
 		gpuQuad.setLpfRbg( // constants memory - same for all cameras
 				lpf_rgb,
-				false); // !batch_mode);
+				globalDebugLevel > -1);
 
 		final float [] lpf_flat = floatGetCltLpfFd(gpu_sigma_corr);
 
 		gpuQuad.setLpfCorr(// constants memory - same for all cameras
 				"lpf_corr", // String const_name, // "lpf_corr"
 				lpf_flat,
-				false); // !batch_mode);
+				globalDebugLevel > -1);
 
 		final float [] lpf_rb_flat = floatGetCltLpfFd(gpu_sigma_rb_corr);
 		gpuQuad.setLpfCorr(// constants memory - same for all cameras
 				"lpf_rb_corr", // String const_name, // "lpf_corr"
 				lpf_rb_flat,
-				false); // !batch_mode);
+				globalDebugLevel > -1);
 
 		gpuQuad.setTasks( // copy tp_tasks to the GPU memory
 				tp_tasks, // TpTask [] tile_tasks,
@@ -382,7 +385,7 @@ public class ImageDtt extends ImageDttCPU {
 			for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
 				iclt_fimg[ncam] = gpuQuad.getRBG(ncam); // retrieve data from GPU
 			}
-		}
+		} else {gpuQuad.execImcltRbgAll(isMonochrome());} // just for testing
 		// does it need texture tiles to be output?
 		if (texture_img != null) {
 			Rectangle woi = new Rectangle(); // will be filled out to match actual available image
@@ -443,7 +446,7 @@ public class ImageDtt extends ImageDttCPU {
 		if (fneed_corr) {
 			//Generate 2D phase correlations from the CLT representation
 			gpuQuad.execCorr2D(
-					scales,// double [] scales,
+					col_weights, // scales,// double [] scales,
 					gpu_fat_zero, // double fat_zero);
 					gpu_corr_rad); // int corr_radius
 			//Show 2D correlations
@@ -452,6 +455,24 @@ public class ImageDtt extends ImageDttCPU {
 			final float [][] fcorr2D = gpuQuad.getCorr2D(
 					gpu_corr_rad); //  int corr_rad);
 			if (corr_indices.length > 0) {
+				if (true) {
+					int [] wh = new int[2];
+					double [][] dbg_corr = GPUTileProcessor.getCorr2DView(
+							tilesX,
+							tilesY,
+							corr_indices,
+							fcorr2D,
+							wh);
+					(new ShowDoubleFloatArrays()).showArrays(
+							dbg_corr,
+							wh[0],
+							wh[1],
+							true,
+							"dbg-corr2D", // name+"-CORR2D-D"+clt_parameters.disparity,
+							GPUTileProcessor.getCorrTitles());
+				}
+				
+				
 				final int corr_length = fcorr2D[0].length;// all correlation tiles have the same size
 				// assuming that the correlation pairs sets are the same for each tile that has correlations
 				// find this number
@@ -464,62 +485,13 @@ public class ImageDtt extends ImageDttCPU {
 				final int num_tiles = corr_indices.length / num_tile_corr; 
 				
 
-				/*
-
-			// convert to 6-layer image		 using tasks
-			double [][] dbg_corr = GPUTileProcessor.getCorr2DView(
-					tilesX,
-					tilesY,
-					corr_indices,
-					corr2D,
-					wh);
-				(new ShowDoubleFloatArrays()).showArrays(
-						dbg_corr,
-						wh[0],
-						wh[1],
-						true,
-						name+"-CORR2D-D"+clt_parameters.disparity,
-						GPUTileProcessor.getCorrTitles());
-				 */
-
 				for (int ithread = 0; ithread < threads.length; ithread++) {
 					threads[ithread] = new Thread() {
 						@Override
 						public void run() {
 							//							int tileY,tileX,tIndex;
-							double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS][corr_length]; // 225-long (15x15)
+//							double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS][corr_length]; // 225-long (15x15)
 							
-/*
-					DttRad2 dtt = new DttRad2(transform_size);
-					dtt.set_window(window_type);
-					int tileY,tileX,tIndex; // , chn;
-					//						showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
-					double centerX; // center of aberration-corrected (common model) tile, X
-					double centerY; //
-					double [][] fract_shiftsXY = new double[quad][];
-					double [][]     tcorr_combo =    null; // [15*15] pixel space
-					double [][][]   tcorr_partial =  null; // [quad][numcol+1][15*15]
-					double [][][][] tcorr_tpartial = null; // [quad][numcol+1][4][8*8]
-					double [] ports_rgb = null;
-					double [][] rXY;
-
-					if (use_main) {
-						rXY = geometryCorrection.getRXY(true); // boolean use_rig_offsets,
-					} else  {
-						rXY = geometryCorrection.getRXY(false); // boolean use_rig_offsets,
-					}
-					Correlation2d corr2d = new Correlation2d(
-							imgdtt_params,              // ImageDttParameters  imgdtt_params,
-							transform_size,             // int transform_size,
-							2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
-							isMonochrome(), // boolean monochrome,
-							(globalDebugLevel > -1));   //   boolean debug)
-					corr2d.createOrtoNotch(
-							imgdtt_params.getEnhOrthoWidth(isAux()), // double getEnhOrthoWidth(isAux()),
-							imgdtt_params.getEnhOrthoScale(isAux()), //double getEnhOrthoScale(isAux()),
-							(imgdtt_params.lma_debug_level > 1)); // boolean debug);
-							
- */
 							Correlation2d corr2d = new Correlation2d(
 									imgdtt_params,              // ImageDttParameters  imgdtt_params,
 									transform_size,             // int transform_size,
@@ -532,6 +504,7 @@ public class ImageDtt extends ImageDttCPU {
 									(imgdtt_params.lma_debug_level > 1)); // boolean debug);
 
 							for (int indx_tile = ai.getAndIncrement(); indx_tile < num_tiles; indx_tile = ai.getAndIncrement()) {
+								double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS][corr_length]; // 225-long (15x15)
 								int indx_corr = indx_tile * num_tile_corr;
 								int nt = (corr_indices[indx_corr] >> GPUTileProcessor.CORR_NTILE_SHIFT);
 								int tileX = nt % tilesX;
@@ -543,7 +516,7 @@ public class ImageDtt extends ImageDttCPU {
 									assert pair < GPUTileProcessor.NUM_PAIRS : "invalid correllation pair";
 									pair_mask |= (1 << pair);
 									for (int i = 0; i < corr_length; i++) {
-										corrs[pair][i] = fcorr2D[indx_corr][i]; // from float do double
+										corrs[pair][i] = gpu_corr_scale * fcorr2D[indx_corr][i]; // from float to double
 									}
 									indx_corr++; 
 								}
@@ -933,6 +906,14 @@ public class ImageDtt extends ImageDttCPU {
 														clt_mismatch[3 * np + 2 ][tIndex] = mismatch_result[3 * np + 2 ];
 													}
 												}
+											}
+										} else { // if (lma != null)
+											if (imgdtt_params.corr_poly_only) { // discard tile if LMA failed
+											    disp_str[0] =  Double.NaN;
+											    disp_str[1] =  0.0;
+											    disparity_map[DISPARITY_INDEX_CM]       [tIndex] = disp_str[0];
+											    disparity_map[DISPARITY_STRENGTH_INDEX] [tIndex] = disp_str[1];
+												
 											}
 										}
 									}

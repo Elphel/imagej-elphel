@@ -399,6 +399,7 @@ public class Correlation2d {
 		return tcorr;
     }
 
+    
     /**
      * Calculate color channels FD phase correlations, mix results with weights, apply optional low-pass filter
      * and convert to the pixel domain  as [(2*transform_size-1) * (2*transform_size-1)] tiles (15x15)
@@ -482,12 +483,270 @@ public class Correlation2d {
     	double [] corr_pd =  dtt.corr_unfold_tile(tcorr[first_col],	transform_size);
     	return corr_pd;
     }
+    
+    
+    /**
+     * Combine compatible correlations in TD (for 6 pairs requires 2 calls): vertical will be transposed,
+     * (all quadrants transposed, quadrants 1 and 2 - swapped), "diagonal other" (#5) will be flipped
+     * vertically (quadrants 2 and 3 - negated) 
+     * @param corr_combo_td per-pair array of the TD representation of correlation pairs, mixed color components
+     * @param pairs_mask bitmask of the pairs to combinde
+     * @return TD representation of the combined 2D correlation
+     */
+    public double [][] combineCorrelationsTD(
+    		double [][][] corr_combo_td, // vertical will be transposed, other diagonal flipped vertically (should be separate)
+    		int           pairs_mask // vertical
+    		) {
+    	if (corr_combo_td != null) {
+    		double [][]tcorr = new double [4][transform_len];
+    		int num_combined = 0;
+    		for (int npair = 0; npair < corr_combo_td.length; npair++) if ((((pairs_mask >> npair) & 1) != 0 ) && (corr_combo_td[npair] !=null)) {
+    			if (isHorizontalPair(npair) || isDiagonalMainPair(npair)) {
+    				for (int q = 0; q < 4; q++) {
+    					for (int i = 0; i < transform_len; i++) {
+    						tcorr[q][i] += corr_combo_td[npair][q][i];
+    					}
+    				}
+    				num_combined++;
+    			} else if (isVerticalPair(npair)) {
+    				for (int q = 0; q < 4; q++) {
+    					int qr = ((q & 1) << 1) | ((q >> 1) & 1);
+    					int i = 0;
+    					for (int iy = 0; iy < transform_size; iy++ ) {
+        					for (int ix = 0; ix < transform_size; ix++ ) {
+        						int ir = ix*transform_size + iy;
+        						tcorr[qr][ir] += corr_combo_td[npair][q][i];
+        						i++;
+        					}
+    					}
+    				}
+    				num_combined++;
+    			} else if (isDiagonalOtherPair(npair)) {
+    				for (int q = 0; q < 2; q++) {
+    					for (int i = 0; i < transform_len; i++) {
+    						tcorr[q][i] += corr_combo_td[npair][q][i];
+    					}
+    				}
+    				for (int q = 2; q < 4; q++) {
+    					for (int i = 0; i < transform_len; i++) {
+    						tcorr[q][i] -= corr_combo_td[npair][q][i];
+    					}
+    				}
+    				num_combined++;
+    			}
+    		}
+    		if (num_combined > 0) {
+				for (int q = 0; q < 4; q++) {
+					for (int i = 0; i < transform_len; i++) {
+						tcorr[q][i] /= num_combined;
+					}
+				}
+    			return tcorr;
+    		}
+    	}
+    	return null;
+    }
+    
+/**
+ * Normalize TD tile (before converting to pixel domain as a phase correlation result and optionally LOF
+ * @param td 4-quadrant TD tile, will be normalized in-place
+ * @param lpf optional low-pass filter (or null)
+ * @param fat_zero relative fat zero to apply during normalization
+ */
+    public void normalize_TD(
+    		double [][] td,
+    		double []   lpf, // or null
+    		double      fat_zero) {
+    	if (td == null)    		return;
+    	double [] a2 = new double[transform_len];
+    	double sa2 = 0.0;
+		for (int i = 0; i < transform_len; i++) {
+			double s1 = 0.0;
+			for (int n = 0; n< 4; n++){
+				s1+=td[n][i] * td[n][i];
+			}
+			a2[i] = Math.sqrt(s1);
+			sa2 += a2[i];
+		}
+		double fz2 = sa2/transform_len * fat_zero * fat_zero; // fat_zero squared to match units
+		for (int i = 0; i < transform_len; i++) {
+			double scale = 1.0 / (a2[i] + fz2);
+			for (int n = 0; n<4; n++){
+				td[n][i] *= scale;
+			}
+		}
+    	if (lpf != null) {
+    		for (int n = 0; n<4; n++) {
+    			for (int i = 0; i < transform_len; i++) {
+    				td[n][i] *= lpf[i];
+    			}
+    		}
+    	}
+    }
+    
+    /**
+     * Convert 2D correlation tile from the TD to pixel domain
+     * @param td 4-quadrant TD representation of the tile
+     * @return normally a 15x15 pixel 2D correlation
+     */
+    public double [] convertCorrToPD(
+    		double [][] td) {
+    	if (td == null)	return null;
+    	for (int quadrant = 0; quadrant < 4; quadrant++){
+    		int mode = ((quadrant << 1) & 2) | ((quadrant >> 1) & 1); // transpose
+    		td[quadrant] = dtt.dttt_iie(td[quadrant], mode, transform_size);
+    	}
+		// convert from 4 quadrants to 15x15 centered tiles (only composite)
+    	double [] corr_pd =  dtt.corr_unfold_tile(td,	transform_size);
+    	return corr_pd;
+    }
+    
+    
+    /**
+     * Calculate all required image pairs phase correlation, stay in Transform Domain
+     * @param clt_data aberration-corrected FD CLT data [camera][color][tileY][tileX][quadrant][index]
+     * @param tileX tile to extract X index
+     * @param tileY tile to extract Y index
+     * @param pairs_mask bimask of required pairs
+     * @param lpf_rb optional low-pass filter - extra LPF for red and blue
+     * @param scale_value   scale correlation results to compensate for lpf changes and other factors
+     * @param col_weights RBG color weights
+     * @return [pair][quadrant][index]
+     */
+    public double [][][]  correlateCompositeTD(
+    		double [][][][][][] clt_data,
+    		int                 tileX,
+    		int                 tileY,
+    		int                 pairs_mask,
+    		double []           lpf_rb, // extra lpf for red and blue (unused for mono) or null
+    		double              scale_value, // scale correlation value
+    		double []           col_weights) {
+    	double [][][][]     clt_data_tile = new double[clt_data.length][][][]; // [camera][color][quadrant][index]
+    	for (int ncam = 0; ncam < clt_data.length; ncam++) if (clt_data[ncam] != null){
+    		clt_data_tile[ncam] = new double[clt_data[ncam].length][][];
+        	for (int ncol = 0; ncol < clt_data[ncam].length; ncol++) if ((clt_data[ncam][ncol] != null) && (clt_data[ncam][ncol][tileY] != null)){
+        		clt_data_tile[ncam][ncol] = clt_data[ncam][ncol][tileY][tileX];
+        	}
+    	}
+    	return correlateCompositeTD(
+    		    		clt_data_tile,
+    		    		pairs_mask, // already decoded so bit 0 - pair 0
+    		    		lpf_rb,
+    		    		scale_value,
+    		    		col_weights);
+    }
+
+    /**
+     * Calculate all required image pairs phase correlation, stay in Transform Domain
+     * @param clt_data_tile aberration-corrected FD CLT data for one tile [camera][color][quadrant][index]
+     * @param pairs_mask bimask of required pairs
+     * @param lpf optional final low-pass filter 
+     * @param lpf_rb optional low-pass filter (extra) for R,B components
+     * @param scale_value   scale correlation results to compensate for lpf changes and other factors
+     * @param col_weights RBG color weights
+     * @return [pair][quadrant][index]
+     */
+    public double [][][]  correlateCompositeTD(
+    		double [][][][]     clt_data_tile,
+    		int                 pairs_mask, // already decoded so bit 0 - pair 0
+    		double []           lpf_rb, // extra lpf for red and blue (unused for mono) or null
+    		double              scale_value, // scale correlation value
+    		double []           col_weights) {
+    	if (clt_data_tile == null) return null;
+    	double [][][] pairs_corr = new double [PAIRS.length][][];
+    	for (int npair = 0; npair < pairs_corr.length; npair++) if (((pairs_mask >> npair) & 1) != 0 ) {
+    		int ncam1 = PAIRS[npair][0];
+    		int ncam2 = PAIRS[npair][1];
+    		if ((ncam1 < clt_data_tile.length) && (clt_data_tile[ncam1] != null) && (ncam2 < clt_data_tile.length) && (clt_data_tile[ncam2] != null)) {
+    			pairs_corr[npair] =  correlateCompositeTD(
+    					clt_data_tile[ncam1], // double [][][] clt_data1,
+    					clt_data_tile[ncam2], // double [][][] clt_data2,
+    		    		lpf_rb,               // double []     lpf_rb,
+    		    		scale_value,
+    		    		col_weights);         // double []     col_weights,
+    		}
+    	}
+    	return pairs_corr;
+    }
+
+    /**
+     * Calculate color channels FD phase correlations, mix results with weights, apply optional low-pass filter
+     * No transposing or rotation
+     * @param clt_data1 [3][4][transform_len] first operand data. First index - RBG color
+     * @param clt_data2 [3][4][transform_len] first operand data. First index - RBG color
+     * @param lpf optional final low-pass filter applied to mixed colors
+     * @param lpf_rb optional low-pass filter (extra) for R,B components only
+     * @param scale_value scale correlation results to compensate for lpf changes and other factors
+     * @param col_weights [3] - color weights {R, B, G} - green is last, normalized to sum =1.0
+     * @return correlation result (Transform Domain) [quadrant][index]
+     */
+    public double[][]   correlateCompositeTD(
+    		double [][][] clt_data1,
+    		double [][][] clt_data2,
+    		double []     lpf_rb, // extra lpf for red and blue (unused for mono) or null
+    		double        scale_value, // scale correlation value
+    		double []     col_weights_in){ // should have the same dimension as clt_data1 and clt_data2
+    	double [] col_weights = col_weights_in.clone();
+    	double s = 0.0;
+    	for (int i = 0; i < col_weights.length; i++) {
+    		if ((clt_data1[i] == null) || (clt_data2[i] == null)) {
+    			col_weights[i]= 0.0;
+    		}
+    		s+=col_weights[i];
+    	}
+    	for (int i = 0; i < col_weights.length; i++) {
+    		if (col_weights[i] != 0.0) col_weights[i] *= scale_value;
+    	}
+
+    	if (clt_data1.length == 1) { // monochrome  // not used in lwir
+    		col_weights = new double[1];
+    		col_weights[0] = 1.0;
+    	}
+    	for (int i = 0; i < col_weights.length; i++) {
+    		if (col_weights[i] != 0.0) col_weights[i]/=s; // will have 1.0 for the single color
+    	}
+
+
+    	double [][][]tcorr = new double [clt_data1.length][4][transform_len];
+    	int first_col = -1;
+    	for (int col = 0; col < tcorr.length; col++) if (col_weights[col] > 0.0 ) {
+    		 correlateSingleColorFD( // no amplitude normalization
+    		    		clt_data1[col],
+    		    		clt_data2[col],
+    		    		tcorr[col]);
+
+    		 if (first_col < 0) {// accumulate all channels in first non-null color ( 0 for color, 2 for mono?)
+    			 first_col = col; // first non-empty color (2, green) or 0 for color images
+    			 for (int n = 0; n < 4; n++) {
+    				 for (int i = 0; i < transform_len; i++) {
+    					 tcorr[first_col][n][i] *= col_weights[col];
+    				 }
+    			 }
+    		 } else {
+    			 for (int n = 0; n < 4; n++) {
+    				 for (int i = 0; i < transform_len; i++) {
+    					 tcorr[first_col][n][i] += tcorr[col][n][i] * col_weights[col];
+    				 }
+    			 }
+    			 if (col == 1) { // after blue, before red
+    				 if (lpf_rb != null) {
+    					 for (int n = 0; n<4; n++) {
+    						 for (int i = 0; i < transform_len; i++) {
+    							 tcorr[first_col][n][i] *= lpf_rb[i];
+    						 }
+    					 }
+    				 }
+    			 }
+    		 }
+    	}
+    	return tcorr[first_col];
+    }
+    
     /**
      * Calculate all required image pairs phase correlation
      * @param clt_data aberration-corrected FD CLT data [camera][color][tileY][tileX][quadrant][index]
      * @param tileX tile to extract X index
      * @param tileY tile to extract Y index
-     * @param pairs_mask bimask of required pairs
      * @param lpf optional low-pass filter
      * @param scale_value   scale correlation results to compensate for lpf changes and other factors
      * @param col_weights RBG color weights

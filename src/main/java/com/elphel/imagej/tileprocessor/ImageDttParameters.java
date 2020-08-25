@@ -31,6 +31,7 @@ public class ImageDttParameters {
 	public boolean gpu_mode_debug =         true;
 	public boolean corr_mode_debug =        true;
 	public boolean mix_corr_poly =          true;
+	public boolean corr_poly_only =         false; // if LMA fails, discard tile
 	public double  min_poly_strength =      0.2; /// 0.1
 	public double  max_poly_hwidth =        2.5; // Maximal polynomial approximation half-width (in both directions)
 	public double  poly_corr_scale =        2.0; /// 0.0 // Shift value if correlation maximum is wide in X than in Y to detect near objects (negative - far ones)
@@ -98,6 +99,14 @@ public class ImageDttParameters {
 	public int     corr_wndx_size =         9;     // half number of columns to calculate CM disparity (each row has only odd/even columns, so disparity range is smaller
 	public double  corr_wndx_hwidth =       6.0;   // 50% window cutoff width
 	public double  corr_wndx_blur =         5.0;   // 100% to 0 % vertical transition range
+	
+	public double  pcorr_sigma_mono =       0.15; // correlation sigma for monochrome images  (after normalization)
+	public double  pcorr_sigma =            0.8;  // correlation sigma for Bayder images  (after normalization)
+	public double  pcorr_sigma_rb =         0.5;  // correlation sigma extra for R and B (before normalization)
+	public double  pcorr_fat_zero =         0.05; // correlation relative fat zero for Bayer images
+	public double  pcorr_fat_zero_mono =    0.03; // correlation relative fat zero for monochrome images
+	public double  pcorr_dbg_offsx =        0.0;  // X-offset correlation in TD
+	public double  pcorr_dbg_offsy =        0.0;  // Y-offset correlation in TD
 
 // LMA parameters
 	public double  lma_disp_range =          5.0;   // disparity range to combine in one cluster (to mitigate ERS
@@ -174,6 +183,13 @@ public class ImageDttParameters {
 	public double  lma_dbg_scale =          0.0;  // scale lma_dbg_offset
 	public double  [][] lma_dbg_offset =    {{ 1.0, 0.0},{ -1.0, 0.0},{-1.0, 0.0},{ 1.0, 0.0}}; //  new double [4][2];
 
+	public double getCorrSigma(boolean monochrome) {
+		return monochrome ? pcorr_sigma_mono : pcorr_sigma;
+	}
+	public double getFatZero(boolean monochrome) {
+		return monochrome ? pcorr_fat_zero_mono : pcorr_fat_zero;
+	}
+	
 	public int getEnhOrthoWidth(boolean aux) {
 		return aux ? enhortho_width_aux : enhortho_width;
 	}
@@ -198,6 +214,7 @@ public class ImageDttParameters {
 			gd.addCheckbox    ("Enable ImageDtt correlation debug layers",                        this.corr_mode_debug,
 					"false - return (old) per-coord correlations, true - replace them with more pairs correlation (new)");
 			gd.addCheckbox    ("Replace CM layer with mixed/new poly one",                        this.mix_corr_poly);
+			gd.addCheckbox    ("If LMA fails, discard tile",                                      this.corr_poly_only);
 			gd.addNumericField("Use poly mode if strength is greater than",                       this.min_poly_strength,  3,6,"", "AND condition");
 			gd.addNumericField("Maximal polynomial approximation half-width",                     this.max_poly_hwidth,  3,6,"pix", "Maximal polynomial approximation half-width (in both directions), Most now are ~2.0");
 			gd.addNumericField("Polynomial argmax correction (positive - near, negative - far)",  this.poly_corr_scale,  3,6,"×", "Shift value if correlation maximum is wide in X than in Y to detect near objects (negative - far ones)");
@@ -316,12 +333,26 @@ public class ImageDttParameters {
 			gd.addNumericField("100% to 0 % correlation horizontal window transition range",      this.corr_wndx_blur,  3, 6, "",
 					"Transition range, shifted sine is used");
 
+			gd.addTab("Corr Intra","Parameters Group 2D Phase correlation");
+			gd.addNumericField("Correlation sigma for monochrome images",                         this.pcorr_sigma_mono,  3, 6, "pix",
+					"after normalization");
+			gd.addNumericField("Correlation sigma for Bayer images",                              this.pcorr_sigma,  3, 6, "pix",
+					"after normalization");
+			gd.addNumericField("Extra correlation sigma for red and blue",                        this.pcorr_sigma_rb,  3, 6, "pix",
+					"before normalization");
+			gd.addNumericField("Correlation relative fat zero for Bayer images",                  this.pcorr_fat_zero,  3, 6, "",
+					"Normalized to average correlation absolute value");
+			gd.addNumericField("Correlation relative fat zero for monochrome images",             this.pcorr_fat_zero_mono,  3, 6, "",
+					"Normalized to average correlation absolute value");
+			gd.addNumericField("Debug feature - shift correlation result X",                      this.pcorr_dbg_offsx,  3, 6, "",
+					"Rotate in Transform Domain");
+			gd.addNumericField("Debug feature - shift correlation result Y",                      this.pcorr_dbg_offsy,  3, 6, "",
+					"Rotate in Transform Domain");
+			
 			gd.addTab("Corr LMA","Parameters for LMA fitting of the correlation maximum parameters");
+			gd.addMessage("Single-tile (no lazy eye) only parameters (some are common");
 			gd.addNumericField("Cluster disparity range",                                         this.lma_disp_range,  3, 6, "pix",
 					"Disparity range to combine in one cluster (to mitigate ERS");
-
-			gd.addMessage("Single-tile (no lazy eye) only parameters (some are common");
-
 			gd.addCheckbox    ("Correlation maximum as gaussian",                                 this.lmas_gaussian,
 					"Model correlation maximum as a Gaussian exp(-r^2)  (false - as a parabola - 1-r^2)");
 			gd.addCheckbox    ("Fit correlation defined half-width",                              this.lmas_adjust_wm,
@@ -474,6 +505,7 @@ public class ImageDttParameters {
 			this.gpu_mode_debug =        gd.getNextBoolean();
 			this.corr_mode_debug=        gd.getNextBoolean();
 			this.mix_corr_poly=          gd.getNextBoolean();
+			this.corr_poly_only=         gd.getNextBoolean();
 			this.min_poly_strength=      gd.getNextNumber();
 			this.max_poly_hwidth=        gd.getNextNumber();
 			this.poly_corr_scale=        gd.getNextNumber();
@@ -541,6 +573,13 @@ public class ImageDttParameters {
 			this.corr_wndx_hwidth =      gd.getNextNumber();
 			this.corr_wndx_blur =        gd.getNextNumber();
 
+			this.pcorr_sigma_mono =      gd.getNextNumber();
+			this.pcorr_sigma =           gd.getNextNumber();
+			this.pcorr_sigma_rb =        gd.getNextNumber();
+			this.pcorr_fat_zero =        gd.getNextNumber();
+			this.pcorr_fat_zero_mono =   gd.getNextNumber();
+			this.pcorr_dbg_offsx =       gd.getNextNumber();
+			this.pcorr_dbg_offsy =       gd.getNextNumber();
 //LMA tab
 			this.lma_disp_range =        gd.getNextNumber();
 			this.lmas_gaussian=          gd.getNextBoolean();
@@ -616,6 +655,7 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"gpu_mode_debug",       this.gpu_mode_debug+"");
 		properties.setProperty(prefix+"corr_mode_debug",      this.corr_mode_debug+"");
 		properties.setProperty(prefix+"mix_corr_poly",        this.mix_corr_poly+"");
+		properties.setProperty(prefix+"corr_poly_only",       this.corr_poly_only+"");
 		properties.setProperty(prefix+"min_poly_strength",    this.min_poly_strength+"");
 		properties.setProperty(prefix+"max_poly_hwidth",      this.max_poly_hwidth+"");
 		properties.setProperty(prefix+"poly_corr_scale",      this.poly_corr_scale+"");
@@ -680,6 +720,13 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"corr_wndx_hwidth",     this.corr_wndx_hwidth +"");
 		properties.setProperty(prefix+"corr_wndx_blur",       this.corr_wndx_blur +"");
 
+		properties.setProperty(prefix+"pcorr_sigma_mono",     this.pcorr_sigma_mono +"");
+		properties.setProperty(prefix+"pcorr_sigma",          this.pcorr_sigma +"");
+		properties.setProperty(prefix+"pcorr_sigma_rb",       this.pcorr_sigma_rb +"");
+		properties.setProperty(prefix+"pcorr_fat_zero",       this.pcorr_fat_zero +"");
+		properties.setProperty(prefix+"pcorr_fat_zero_mono",  this.pcorr_fat_zero_mono +"");
+		properties.setProperty(prefix+"pcorr_dbg_offsx",      this.pcorr_dbg_offsx +"");
+		properties.setProperty(prefix+"pcorr_dbg_offsy",      this.pcorr_dbg_offsy +"");
 
 		properties.setProperty(prefix+"lma_disp_range",       this.lma_disp_range +"");
 		properties.setProperty(prefix+"lmas_gaussian",        this.lmas_gaussian +"");
@@ -758,6 +805,7 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"gpu_mode_debug")!=null)        this.gpu_mode_debug=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_mode_debug"));
 		if (properties.getProperty(prefix+"corr_mode_debug")!=null)       this.corr_mode_debug=Boolean.parseBoolean(properties.getProperty(prefix+"corr_mode_debug"));
 		if (properties.getProperty(prefix+"mix_corr_poly")!=null)         this.mix_corr_poly=Boolean.parseBoolean(properties.getProperty(prefix+"mix_corr_poly"));
+		if (properties.getProperty(prefix+"corr_poly_only")!=null)        this.corr_poly_only=Boolean.parseBoolean(properties.getProperty(prefix+"corr_poly_only"));
 		if (properties.getProperty(prefix+"min_poly_strength")!=null)     this.min_poly_strength=Double.parseDouble(properties.getProperty(prefix+"min_poly_strength"));
 		if (properties.getProperty(prefix+"max_poly_hwidth")!=null)       this.max_poly_hwidth=Double.parseDouble(properties.getProperty(prefix+"max_poly_hwidth"));
 		if (properties.getProperty(prefix+"poly_corr_scale")!=null)       this.poly_corr_scale=Double.parseDouble(properties.getProperty(prefix+"poly_corr_scale"));
@@ -825,6 +873,13 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"corr_wndx_hwidth")!=null)     this.corr_wndx_hwidth=Double.parseDouble(properties.getProperty(prefix+"corr_wndx_hwidth"));
 		if (properties.getProperty(prefix+"corr_wndx_blur")!=null)       this.corr_wndx_blur=Double.parseDouble(properties.getProperty(prefix+"corr_wndx_blur"));
 
+		if (properties.getProperty(prefix+"pcorr_sigma_mono")!=null)     this.pcorr_sigma_mono=Double.parseDouble(properties.getProperty(prefix+"pcorr_sigma_mono"));
+		if (properties.getProperty(prefix+"pcorr_sigma")!=null)          this.pcorr_sigma=Double.parseDouble(properties.getProperty(prefix+"pcorr_sigma"));
+		if (properties.getProperty(prefix+"pcorr_sigma_rb")!=null)       this.pcorr_sigma_rb=Double.parseDouble(properties.getProperty(prefix+"pcorr_sigma_rb"));
+		if (properties.getProperty(prefix+"pcorr_fat_zero")!=null)       this.pcorr_fat_zero=Double.parseDouble(properties.getProperty(prefix+"pcorr_fat_zero"));
+		if (properties.getProperty(prefix+"pcorr_fat_zero_mono")!=null)  this.pcorr_fat_zero_mono=Double.parseDouble(properties.getProperty(prefix+"pcorr_fat_zero_mono"));
+		if (properties.getProperty(prefix+"pcorr_dbg_offsx")!=null)      this.pcorr_dbg_offsx=Double.parseDouble(properties.getProperty(prefix+"pcorr_dbg_offsx"));
+		if (properties.getProperty(prefix+"pcorr_dbg_offsy")!=null)      this.pcorr_dbg_offsy=Double.parseDouble(properties.getProperty(prefix+"pcorr_dbg_offsy"));
 
 		if (properties.getProperty(prefix+"lma_disp_range")!=null)       this.lma_disp_range=Double.parseDouble(properties.getProperty(prefix+"lma_disp_range"));
 		if (properties.getProperty(prefix+"lmas_gaussian")!=null)        this.lmas_gaussian=Boolean.parseBoolean(properties.getProperty(prefix+"lmas_gaussian"));
@@ -900,6 +955,7 @@ public class ImageDttParameters {
 		idp.gpu_mode_debug =         this.gpu_mode_debug;
 		idp.corr_mode_debug =        this.corr_mode_debug;
 		idp.mix_corr_poly =          this.mix_corr_poly;
+		idp.corr_poly_only =         this.corr_poly_only;
 		idp.min_poly_strength =      this.min_poly_strength;
 		idp.max_poly_hwidth =        this.max_poly_hwidth;
 		idp.poly_corr_scale =        this.poly_corr_scale;
@@ -964,6 +1020,14 @@ public class ImageDttParameters {
 
 		idp.corr_wndx_hwidth =       this.corr_wndx_hwidth;
 		idp.corr_wndx_blur =         this.corr_wndx_blur;
+
+		idp.pcorr_sigma_mono =       this.pcorr_sigma_mono;
+		idp.pcorr_sigma =            this.pcorr_sigma;
+		idp.pcorr_sigma_rb =         this.pcorr_sigma_rb;
+		idp.pcorr_fat_zero =         this.pcorr_fat_zero;
+		idp.pcorr_fat_zero_mono =    this.pcorr_fat_zero_mono;
+		idp.pcorr_dbg_offsx =        this.pcorr_dbg_offsx;
+		idp.pcorr_dbg_offsy =        this.pcorr_dbg_offsy;
 
 		idp.lma_disp_range=          this.lma_disp_range;
 		idp.lmas_gaussian =          this.lmas_gaussian;

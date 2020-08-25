@@ -803,7 +803,7 @@ public class GPUTileProcessor {
 
 /**
  * Copy array of CPU-prepared tasks to the GPU memory
- * @param tile_tasks array of TpTask prepared by the CPU (before geometry correction is appllied)
+ * @param tile_tasks array of TpTask prepared by the CPU (before geometry correction is applied)
  * @param use_aux Use second (aux) camera
  */
         public void setTasks(TpTask [] tile_tasks, boolean use_aux) // while is it in class member? - just to be able to free
@@ -2078,6 +2078,16 @@ public class GPUTileProcessor {
     		if (debug) System.out.println("constantMemorySize: " + constantMemorySize);
             cuMemcpyHtoD(constantMemoryPointer, Pointer.to(lpf_flat), constantMemorySize);
             if (debug) System.out.println();
+            /*
+            if (debug) {
+        		for (int i = 0; i < lpf_flat.length; i++) {
+        			System.out.print(String.format("%8.5f", lpf_flat[i]));
+        			if (((i+1) % 16) == 0) {
+        				System.out.println();
+        			}
+        		}
+            }
+            */
     	}
 
     	public void setLpfCorr(
@@ -2094,6 +2104,16 @@ public class GPUTileProcessor {
     		if (debug) System.out.println("constantMemorySize: " + constantMemorySize);
             cuMemcpyHtoD(constantMemoryPointer, Pointer.to(lpf_flat), constantMemorySize);
             if (debug) System.out.println();
+            /*
+            if (debug) {
+        		for (int i = 0; i < lpf_flat.length; i++) {
+        			System.out.print(String.format("%8.5f", lpf_flat[i]));
+        			if (((i+1) % 16) == 0) {
+        				System.out.println();
+        			}
+        		}
+            }
+            */
     	}
 
     	public float [] floatSetCltLpfFd(
