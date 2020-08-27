@@ -657,6 +657,30 @@ public class QuadCLT extends QuadCLTCPU {
 	    		clt_parameters.gpu_corr_rad); // int corr_radius
 
 		long endCorr2d = System.nanoTime();
+
+		
+		// SHould be done before execCorr2D_TD as corr_indices are shared to save memory
+		int [] corr_indices = quadCLT_main.getGPU().getCorrIndices();
+		// the following is not yet shared
+		float [][] corr2D = quadCLT_main.getGPU().getCorr2D(
+				clt_parameters.gpu_corr_rad); //  int corr_rad);
+		
+		
+		
+// calculate correlations, keep TD
+		quadCLT_main.getGPU().execCorr2D_TD(
+	    		scales);// double [] scales,
+		
+		quadCLT_main.getGPU().execCorr2D_combine( // calculate cross pairs
+		        true, // boolean init_corr,    // initialize output tiles (false - add to current)
+		        6,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
+		        0x0f); // int     pairs_mask    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
+		
+		quadCLT_main.getGPU().execCorr2D_normalize(
+	    		fat_zero, // double fat_zero);
+	    		clt_parameters.gpu_corr_rad); // int corr_radius
+		
+		
 // run textures
 		long startTextures = System.nanoTime();   // System.nanoTime();
 		boolean   calc_textures = clt_parameters.gpu_show_jtextures; //  true;
@@ -770,16 +794,52 @@ public class QuadCLT extends QuadCLTCPU {
 		//Show 2D correlations
 		int [] wh = new int[2];
 		if (clt_parameters.show_corr) {
-			int [] corr_indices = quadCLT_main.getGPU().getCorrIndices();
-			float [][] corr2D = quadCLT_main.getGPU().getCorr2D(
-					clt_parameters.gpu_corr_rad); //  int corr_rad);
-			// convert to 6-layer image		 using tasks
-			double [][] dbg_corr = GPUTileProcessor.getCorr2DView(
+			int [] corr_quad_indices = quadCLT_main.getGPU().getCorrComboIndices(); // get quad
+			float [][] corr2D_quad = quadCLT_main.getGPU().getCorr2DCombo(clt_parameters.gpu_corr_rad);
+// calculate and get cross here!			
+			quadCLT_main.getGPU().execCorr2D_combine( // calculate cross pairs
+			        true, // boolean init_corr,    // initialize output tiles (false - add to current)
+			        6,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
+			        0x30); // int     pairs_mask    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
+			
+			quadCLT_main.getGPU().execCorr2D_normalize(
+		    		fat_zero, // double fat_zero);
+		    		clt_parameters.gpu_corr_rad); // int corr_radius
+			
+			int [] corr_cross_indices = quadCLT_main.getGPU().getCorrComboIndices(); // get quad
+			float [][] corr2D_cross = quadCLT_main.getGPU().getCorr2DCombo(clt_parameters.gpu_corr_rad);
+			
+			double [][] dbg_corr_pairs = GPUTileProcessor.getCorr2DView(
 					tilesX,
 					tilesY,
 					corr_indices,
 					corr2D,
 					wh);
+			double [][] dbg_corr_quad = GPUTileProcessor.getCorr2DView(
+					tilesX,
+					tilesY,
+					corr_quad_indices,
+					corr2D_quad,
+					wh);
+
+			double [][] dbg_corr_cross = GPUTileProcessor.getCorr2DView(
+					tilesX,
+					tilesY,
+					corr_cross_indices,
+					corr2D_cross,
+					wh);
+			
+			double [][] dbg_corr = {
+					dbg_corr_pairs[0],
+					dbg_corr_pairs[1],
+					dbg_corr_pairs[2],
+					dbg_corr_pairs[3],
+					dbg_corr_pairs[4],
+					dbg_corr_pairs[5],
+					dbg_corr_quad[15],
+					dbg_corr_cross[48]
+			};
+
 			(new ShowDoubleFloatArrays()).showArrays(
 					dbg_corr,
 					wh[0],
@@ -788,6 +848,7 @@ public class QuadCLT extends QuadCLTCPU {
 					name+"-CORR2D-D"+clt_parameters.disparity,
 					GPUTileProcessor.getCorrTitles());
 		}
+		
 // convert to overlapping and show
 		if (clt_parameters.gen_chn_img) { // save and show 4-slice image
 			// combine to a sliced color image
