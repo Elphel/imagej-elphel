@@ -896,7 +896,7 @@ public class GPUTileProcessor {
         	}
             cuMemcpyHtoD(gpu_tasks, Pointer.to(ftasks), TPTASK_SIZE * num_task_tiles * Sizeof.FLOAT);
         }
-
+/*
         public void setCorrIndices(int [] corr_indices)
         {
         	num_corr_tiles = corr_indices.length;
@@ -906,7 +906,6 @@ public class GPUTileProcessor {
         	}
             cuMemcpyHtoD(gpu_corr_indices, Pointer.to(fcorr_indices),  num_corr_tiles * Sizeof.FLOAT);
         }
-
         public void setTextureIndices(int [] texture_indices) // never used
         {
         	num_texture_tiles = texture_indices.length;
@@ -916,6 +915,7 @@ public class GPUTileProcessor {
         	}
             cuMemcpyHtoD(gpu_texture_indices, Pointer.to(ftexture_indices),  num_texture_tiles * Sizeof.FLOAT);
         }
+*/
 
         public int [] getTextureIndices()
         {
@@ -1733,6 +1733,7 @@ public class GPUTileProcessor {
          */
 
         public void execCorr2D_normalize(
+        		boolean combo, // normalize combo correlations (false - per-pair ones) 
         		double fat_zero,
         		int corr_radius) {
         	if (GPU_CORR2D_NORMALIZE_kernel == null)
@@ -1740,20 +1741,29 @@ public class GPUTileProcessor {
         		IJ.showMessage("Error", "No GPU kernel: GPU_CORR2D_NORMALIZE_kernel");
         		return;
         	}
-//        	float [] fnum_corrs = new float[1];
-//        	cuMemcpyDtoH(Pointer.to(fnum_corrs), gpu_num_corr_tiles,  1 * Sizeof.FLOAT);
-//        	int num_tiles =      Float.floatToIntBits(fnum_corrs[0])/num_pairs; // number of correlation tiles calculated
         	
     		int [] GridFullWarps =    {1, 1, 1};
         	int [] ThreadsFullWarps = {1, 1, 1};
-        	Pointer kernelParameters = Pointer.to(
-            		Pointer.to(new int[] { num_corr_combo_tiles }), // num_task_tiles }), // int   num_corr_tiles,     // number of correlation tiles to process
-        			Pointer.to(new int[] { corr_stride_combo_td }),// const size_t      corr_stride_td,     // in floats
-        			Pointer.to(gpu_corrs_combo_td),                // float           * gpu_corrs_combo);   // combined correlation output (one per tile)
-        			Pointer.to(new int[] { corr_stride_combo }),   // const size_t      corr_stride,        // in floats
-        			Pointer.to(gpu_corrs_combo),                   // float           * gpu_corrs,          // correlation output data (pixel domain)
-        			Pointer.to(new float[] {(float) fat_zero }),   // float             fat_zero,           // here - absolute
-        			Pointer.to(new int[] { corr_radius }));        // int               corr_radius,        // radius of the output correlation (7 for 15x15)
+        	Pointer kernelParameters;
+        	if (combo) {
+        		kernelParameters = Pointer.to(
+        				Pointer.to(new int[] { num_corr_combo_tiles }), // num_task_tiles }), // int   num_corr_tiles,     // number of correlation tiles to process
+        				Pointer.to(new int[] { corr_stride_combo_td }),// const size_t      corr_stride_td,     // in floats
+        				Pointer.to(gpu_corrs_combo_td),                // float           * gpu_corrs_combo);   // combined correlation output (one per tile)
+        				Pointer.to(new int[] { corr_stride_combo }),   // const size_t      corr_stride,        // in floats
+        				Pointer.to(gpu_corrs_combo),                   // float           * gpu_corrs,          // correlation output data (pixel domain)
+        				Pointer.to(new float[] {(float) fat_zero }),   // float             fat_zero,           // here - absolute
+        				Pointer.to(new int[] { corr_radius }));        // int               corr_radius,        // radius of the output correlation (7 for 15x15)
+        	} else {
+        		kernelParameters = Pointer.to(
+        				Pointer.to(new int[] { num_corr_tiles }), // num_task_tiles }), // int   num_corr_tiles,     // number of correlation tiles to process
+        				Pointer.to(new int[] { corr_stride_td }),// const size_t      corr_stride_td,     // in floats
+        				Pointer.to(gpu_corrs_td),                // float           * gpu_corrs_combo);   // combined correlation output (one per tile)
+        				Pointer.to(new int[] { corr_stride }),   // const size_t      corr_stride,        // in floats
+        				Pointer.to(gpu_corrs),                   // float           * gpu_corrs,          // correlation output data (pixel domain)
+        				Pointer.to(new float[] {(float) fat_zero }),   // float             fat_zero,           // here - absolute
+        				Pointer.to(new int[] { corr_radius }));        // int               corr_radius,        // radius of the output correlation (7 for 15x15)
+        	}
 
         	cuCtxSynchronize();
         	// Call the kernel function

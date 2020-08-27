@@ -258,40 +258,7 @@ public class ImageDtt extends ImageDttCPU {
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
 		
-// TODO: Remove unused		
-/**		
-		final int [][] zi =
-			{{ 0,  1,  2,  3},
-			 {-1,  0, -3,  2},
-			 {-2, -3,  0,  1},
-			 { 3, -2, -1,  0}};
-		final int [][] corr_pairs ={ // {first, second, rot} rot: 0 - as is, 1 - swap y,x  // not used in lwir
-				{0,1,0},
-				{2,3,0},
-				{0,2,1},
-				{1,3,1}};
-
-		final double[][] port_offsets = { // lwir: used only in textures to scale differences
-				{-0.5, -0.5},
-				{ 0.5, -0.5},
-				{-0.5,  0.5},
-				{ 0.5,  0.5}};
-		final int transform_len = transform_size * transform_size;
-		final double [] filter =  doubleGetCltLpfFd(corr_sigma);
-*/
-		// prepare disparity maps and weights
-////		final int max_search_radius = (int) Math.abs(max_corr_radius); // use negative max_corr_radius for squares instead of circles?
-////		final int max_search_radius_poly = 1;
-		/**
-		if (globalDebugLevel > 0){
-			System.out.println("max_corr_radius=       "+max_corr_radius);
-			System.out.println("max_search_radius=     "+max_search_radius);
-			System.out.println("max_search_radius_poly="+max_search_radius_poly);
-			System.out.println("gpu_fat_zero=          "+gpu_fat_zero);
-			System.out.println("disparity_array[0][0]= "+disparity_array[0][0]);
-		}
-		*/
-		
+	
 		// add optional initialization of debug layers here
 		boolean need_macro = false;
 		boolean need_corr = (clt_mismatch != null);
@@ -445,17 +412,52 @@ public class ImageDtt extends ImageDttCPU {
 		// does it need correlations?
 		if (fneed_corr) {
 			//Generate 2D phase correlations from the CLT representation
+			/*
 			gpuQuad.execCorr2D(
 					col_weights, // scales,// double [] scales,
 					gpu_fat_zero, // double fat_zero);
 					gpu_corr_rad); // int corr_radius
-			//Show 2D correlations
-//			int [] wh = new int[2];
 			final int [] corr_indices = gpuQuad.getCorrIndices();
-			final float [][] fcorr2D = gpuQuad.getCorr2D(
-					gpu_corr_rad); //  int corr_rad);
+			final float [][] fcorr2D = gpuQuad.getCorr2D(gpu_corr_rad); //  int corr_rad);
+			*/
+			gpuQuad.execCorr2D_TD(col_weights); // Get TD version of correlations (may be read out and saved) 
+			final int [] corr_indices = gpuQuad.getCorrIndices();
+			gpuQuad.execCorr2D_normalize(
+	        		false, // boolean combo, // normalize combo correlations (false - per-pair ones) 
+					gpu_fat_zero, // double fat_zero);
+		    		gpu_corr_rad); // int corr_radius
+			final float [][] fcorr2D = gpuQuad.getCorr2D(gpu_corr_rad); //  int corr_rad);
+			// calculate combine quad correlation
+			gpuQuad.execCorr2D_combine( // calculate cross pairs
+			        true, // boolean init_corr,    // initialize output tiles (false - add to current)
+			        GPUTileProcessor.NUM_PAIRS,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
+			        0x0f); // int     pairs_mask    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
+			// normalize and convert to pixel domain
+			gpuQuad.execCorr2D_normalize(
+	        		true, // boolean combo, // normalize combo correlations (false - per-pair ones) 
+					gpu_fat_zero, // double fat_zero);
+		    		gpu_corr_rad); // int corr_radius
+			
+			final int [] corr_quad_indices = gpuQuad.getCorrComboIndices(); // get quad
+			final float [][] fcorr2D_quad =   gpuQuad.getCorr2DCombo(gpu_corr_rad);
+			// calculate and get cross here			
+			gpuQuad.execCorr2D_combine( // calculate cross pairs
+			        true, // boolean init_corr,    // initialize output tiles (false - add to current)
+			        GPUTileProcessor.NUM_PAIRS,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
+			        0x30); // int     pairs_mask    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
+			
+			gpuQuad.execCorr2D_normalize(
+	        		true, // boolean combo, // normalize combo correlations (false - per-pair ones) 
+					gpu_fat_zero, // double fat_zero);
+		    		gpu_corr_rad); // int corr_radius
+			
+//			final int [] corr_cross_indices = gpuQuad.getCorrComboIndices(); // cross indices are the quad
+			final float [][] fcorr2D_cross =   gpuQuad.getCorr2DCombo(gpu_corr_rad);
+			
+			
 			if (corr_indices.length > 0) {
-				if (true) {
+				/*
+				if (true) { // debugging only
 					int [] wh = new int[2];
 					double [][] dbg_corr = GPUTileProcessor.getCorr2DView(
 							tilesX,
@@ -471,7 +473,7 @@ public class ImageDtt extends ImageDttCPU {
 							"dbg-corr2D", // name+"-CORR2D-D"+clt_parameters.disparity,
 							GPUTileProcessor.getCorrTitles());
 				}
-				
+				*/
 				
 				final int corr_length = fcorr2D[0].length;// all correlation tiles have the same size
 				// assuming that the correlation pairs sets are the same for each tile that has correlations
@@ -481,7 +483,7 @@ public class ImageDtt extends ImageDttCPU {
 				for (int i = 1; (i < corr_indices.length) && ((corr_indices[i] >> GPUTileProcessor.CORR_NTILE_SHIFT) == nt0) ; i++) {
 					nc0++;
 				}
-				final int num_tile_corr = nc0;
+				final int num_tile_corr = nc0; // normally 6
 				final int num_tiles = corr_indices.length / num_tile_corr; 
 				
 
@@ -504,7 +506,9 @@ public class ImageDtt extends ImageDttCPU {
 									(imgdtt_params.lma_debug_level > 1)); // boolean debug);
 
 							for (int indx_tile = ai.getAndIncrement(); indx_tile < num_tiles; indx_tile = ai.getAndIncrement()) {
-								double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS][corr_length]; // 225-long (15x15)
+								// double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS][corr_length]; // 225-long (15x15)
+								// added quad and cross combos
+								double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS + 2][corr_length]; // 225-long (15x15)
 								int indx_corr = indx_tile * num_tile_corr;
 								int nt = (corr_indices[indx_corr] >> GPUTileProcessor.CORR_NTILE_SHIFT);
 								int tileX = nt % tilesX;
@@ -520,11 +524,25 @@ public class ImageDtt extends ImageDttCPU {
 									}
 									indx_corr++; 
 								}
+								// add 2 combo layers
+								int pair = GPUTileProcessor.NUM_PAIRS; // 6
+								nt = (corr_quad_indices[indx_tile] >> GPUTileProcessor.CORR_NTILE_SHIFT); // corr_quad_indices - different sequence
+								for (int i = 0; i < corr_length; i++) {
+									corrs[pair][i] = gpu_corr_scale * fcorr2D_quad[indx_tile][i]; // from float to double
+								}
+								// indices for cross are the same as for quad
+								pair++;
+								for (int i = 0; i < corr_length; i++) {
+									corrs[pair][i] = gpu_corr_scale * fcorr2D_cross[indx_tile][i]; // from float to double
+								}
+								
+								// does not include combo
 								int used_pairs = pair_mask; // imgdtt_params.dbg_pair_mask; //TODO: use tile tasks
+								
 								int tile_lma_debug_level =  ((tileX == debug_tileX) && (tileY == debug_tileY))? (imgdtt_params.lma_debug_level-1) : -2;
 								boolean debugTile =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -1);
 								
-							// non-GPU initializaqtion of the data structures
+								// non-GPU initializaqtion of the data structures
 								final int [] overexp_all = (saturation_imp != null) ? ( new int [2]): null;
 								for (int i = 0; i < disparity_map.length; i++) {
 									if (disparity_map[i] != null) {
@@ -611,8 +629,10 @@ public class ImageDtt extends ImageDttCPU {
 									clt_corr_partial[tileY][tileX][0][3] = corrs[3];                        // 4
 									clt_corr_partial[tileY][tileX][1][0] = corrs[4];                        // 5
 									clt_corr_partial[tileY][tileX][1][1] = corrs[5];                        // 6
-									clt_corr_partial[tileY][tileX][1][2] = corr2d.debugStrip(strip_hor);    // 7
-									clt_corr_partial[tileY][tileX][1][3] = corr2d.debugStrip(strip_vert);   // 8
+									clt_corr_partial[tileY][tileX][1][2] = corrs[6];                        // 5
+									clt_corr_partial[tileY][tileX][1][3] = corrs[7];                        // 6
+//									clt_corr_partial[tileY][tileX][1][2] = corr2d.debugStrip(strip_hor);    // 7
+//									clt_corr_partial[tileY][tileX][1][3] = corr2d.debugStrip(strip_vert);   // 8
 									clt_corr_partial[tileY][tileX][2][0] = corr2d.debugStrip(strips[4]);    // 9
 									clt_corr_partial[tileY][tileX][2][1] = corr2d.debugStrip(strips[5]);    // 10
 									clt_corr_partial[tileY][tileX][2][2] = corr2d.debugStrip2(strip_hor);   // 11

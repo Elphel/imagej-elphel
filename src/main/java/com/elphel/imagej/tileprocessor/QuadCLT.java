@@ -677,6 +677,7 @@ public class QuadCLT extends QuadCLTCPU {
 		        0x0f); // int     pairs_mask    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
 		
 		quadCLT_main.getGPU().execCorr2D_normalize(
+        		true, // boolean combo, // normalize combo correlations (false - per-pair ones) 
 	    		fat_zero, // double fat_zero);
 	    		clt_parameters.gpu_corr_rad); // int corr_radius
 		
@@ -803,6 +804,7 @@ public class QuadCLT extends QuadCLTCPU {
 			        0x30); // int     pairs_mask    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
 			
 			quadCLT_main.getGPU().execCorr2D_normalize(
+	        		true, // boolean combo, // normalize combo correlations (false - per-pair ones) 
 		    		fat_zero, // double fat_zero);
 		    		clt_parameters.gpu_corr_rad); // int corr_radius
 			
