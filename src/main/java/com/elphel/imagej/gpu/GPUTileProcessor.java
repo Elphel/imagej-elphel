@@ -190,6 +190,38 @@ public class GPUTileProcessor {
     		this.task = task;
     		this.disp_dist = new float [NUM_CAMS][4];
     	}
+    	/**
+    	 * Initialize from the float array (read from the GPU)
+    	 * @param flt float array containig tasks data
+    	 * @param indx task number to use
+    	 */
+    	public TpTask(float [] flt, int indx, boolean use_aux)
+    	{
+    		task =    Float.floatToIntBits(flt[indx++]);
+    		int txy = Float.floatToIntBits(flt[indx++]);
+    		ty = txy >> 16;
+    		tx = txy & 0xffff;
+    		if (use_aux) {
+    			xy_aux = new float[NUM_CAMS][2];
+        		for (int i = 0; i < NUM_CAMS; i++) {
+        			xy_aux[i][0] = flt[indx++];
+        			xy_aux[i][1] = flt[indx++];
+        		}
+    		} else {
+    			xy = new float[NUM_CAMS][2];
+        		for (int i = 0; i < NUM_CAMS; i++) {
+        			xy[i][0] = flt[indx++];
+        			xy[i][1] = flt[indx++];
+        		}
+    		}
+    		target_disparity = flt[indx++];
+    		disp_dist = new float [NUM_CAMS][4];
+    		for (int i = 0; i < NUM_CAMS; i++) {
+    			for (int j = 0; j < 4; j++) {
+    				disp_dist[i][j] = flt[indx++];
+    			}
+    		}
+    	}
 
     	// convert this class instance to float array to match layout of the C struct
     	public float [] asFloatArray(boolean use_aux) {
@@ -896,6 +928,19 @@ public class GPUTileProcessor {
         	}
             cuMemcpyHtoD(gpu_tasks, Pointer.to(ftasks), TPTASK_SIZE * num_task_tiles * Sizeof.FLOAT);
         }
+        
+        public TpTask [] getTasks (boolean use_aux)
+        {
+        	float [] ftasks = new float [TPTASK_SIZE * num_task_tiles];
+        	cuMemcpyDtoH(Pointer.to(ftasks), gpu_tasks, TPTASK_SIZE * num_task_tiles * Sizeof.FLOAT);
+        	TpTask [] tile_tasks = new TpTask[num_task_tiles];
+        	for (int i = 0; i < num_task_tiles; i++) {
+        		tile_tasks[i] = new TpTask(ftasks, i* TPTASK_SIZE, use_aux);
+        	}
+        	return tile_tasks;
+        }
+        
+        
 /*
         public void setCorrIndices(int [] corr_indices)
         {
@@ -1364,6 +1409,7 @@ public class GPUTileProcessor {
          * @param tp_tasks array of tasks that contain masks of the required pairs
          * @return each element has (tile_number << 8) | (pair_number & 0xff)
          */
+    	@Deprecated
         public int [] getCorrTasks(
         		TpTask [] tp_tasks) {
         	int tilesX = img_width / DTT_SIZE;
@@ -1390,12 +1436,12 @@ public class GPUTileProcessor {
         	}
         	return iarr;
         }
-
         /**
          * Prepare contents pointers for calculation of the texture tiles (RGBA, 16x16)
          * @param tp_tasks array of tasks that contain masks of the required pairs
          * @return each element has (tile_number << 8) | (1 << LIST_TEXTURE_BIT)
          */
+    	@Deprecated
         public int [] getTextureTasks(
         		TpTask [] tp_tasks) {
         	int tilesX = img_width / DTT_SIZE;
@@ -2214,7 +2260,8 @@ public class GPUTileProcessor {
             }
             return fimg;
         }
-        
+
+        @Deprecated
     	public void  getTileSubcamOffsets(
     			final TpTask[]            tp_tasks,        // will use // modify to have offsets for 8 cameras
     			final GeometryCorrection  geometryCorrection_main,

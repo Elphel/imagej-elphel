@@ -789,6 +789,7 @@ public class CLTParameters {
 	public boolean    gpu_save_ports_xy =   false; // debug feature - save calculated ports X,Y to compare with Java-generated
 	public boolean    gpu_show_jtextures =  true;  // debug feature - show Java-generated textures from non-overlapping in GPU (will not generate if false)
 	public boolean    gpu_show_extra =      true;  // show low-res data for macro
+	public boolean    gpu_show_geometry =   true;  // show geometry correction 
 	
 	public boolean    gpu_use_main =        false; // accelerate tile processor for the main quad camera
 	public boolean    gpu_use_main_macro =  false; // accelerate tile processor for the main quad camera in macro mode
@@ -1591,6 +1592,7 @@ public class CLTParameters {
 		properties.setProperty(prefix+"gpu_save_ports_xy",          this.gpu_save_ports_xy +"");
 		properties.setProperty(prefix+"gpu_show_jtextures",         this.gpu_show_jtextures +"");
 		properties.setProperty(prefix+"gpu_show_extra",             this.gpu_show_extra +"");
+		properties.setProperty(prefix+"gpu_show_geometry",          this.gpu_show_geometry +"");
 
 		properties.setProperty(prefix+"gpu_use_main",               this.gpu_use_main +"");
 		properties.setProperty(prefix+"gpu_use_main_macro",         this.gpu_use_main_macro +"");
@@ -2377,6 +2379,7 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"gpu_save_ports_xy")!=null)           this.gpu_save_ports_xy=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_save_ports_xy"));
 		if (properties.getProperty(prefix+"gpu_show_jtextures")!=null)          this.gpu_show_jtextures=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_show_jtextures"));
 		if (properties.getProperty(prefix+"gpu_show_extra")!=null)              this.gpu_show_extra=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_show_extra"));
+		if (properties.getProperty(prefix+"gpu_show_geometry")!=null)           this.gpu_show_geometry=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_show_geometry"));
 		
 		if (properties.getProperty(prefix+"gpu_use_main")!=null)                this.gpu_use_main=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_use_main"));
 		if (properties.getProperty(prefix+"gpu_use_main_macro")!=null)          this.gpu_use_main_macro=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_use_main_macro"));
@@ -3326,6 +3329,7 @@ public class CLTParameters {
 		gd.addCheckbox    ("Debug feature - save calculated ports X,Y to compare with Java-generated",                  this.gpu_save_ports_xy);
 		gd.addCheckbox    ("Show Java-generated textures from non-overlapping in GPU (will not generate if false)",     this.gpu_show_jtextures);
 		gd.addCheckbox    ("Show low-res data for macro (will not generate if false)",                                  this.gpu_show_extra);
+		gd.addCheckbox    ("Show per-tile geometry corrected tile coordinates and disparity derivatives",               this.gpu_show_geometry);
 
 		gd.addCheckbox    ("Accelerate tile processor for the main quad camera",                                        this.gpu_use_main);
 		gd.addCheckbox    ("Accelerate tile processor for the main quad camera in macro mode",                          this.gpu_use_main_macro);
@@ -4085,6 +4089,7 @@ public class CLTParameters {
 		this.gpu_save_ports_xy=     gd.getNextBoolean();
 		this.gpu_show_jtextures=    gd.getNextBoolean();
 		this.gpu_show_extra=        gd.getNextBoolean();
+		this.gpu_show_geometry=     gd.getNextBoolean();
 
 		this.gpu_use_main=          gd.getNextBoolean();
 		this.gpu_use_main_macro=    gd.getNextBoolean();

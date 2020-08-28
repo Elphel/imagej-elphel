@@ -3052,21 +3052,13 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
  * 5) return port center X and Y
  * line_time
  */
-
 		double [] imu =  null;
 		if (disp_dist != null) {
 			imu =  extrinsic_corr.getIMU(); // currently it is common for all channels
 			if ((deriv_rots == null) &&  ((imu[0] != 0.0) || (imu[1] != 0.0) ||(imu[2] != 0.0))){
-				// get deriv_rots - they are needed
-//				if (use_rig_offsets) {
-//					deriv_rots = extrinsic_corr.getRotDeriveMatrices(getRigMatrix);
-//				} else {
-					deriv_rots = extrinsic_corr.getRotDeriveMatrices();
-//				}
+				deriv_rots = extrinsic_corr.getRotDeriveMatrices();
 			}
 		}
-
-
 		if ((disp_dist == null) && (pXYderiv != null)) {
 			disp_dist = new double [numSensors][4];
 		}
@@ -3097,7 +3089,6 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			double pYci0 = pYc - disparity *  rXY[i][1];
 			// rectilinear, end of dealing with possibly other (master) camera, below all is for this camera distortions
 
-
 			// Convert a 2-d non-distorted vector to 3d at fl_pix distance in z direction
 			double [][] avi = {{pXci0}, {pYci0},{fl_pix}};
 			Matrix vi = new Matrix(avi); // non-distorted sensor channel view vector in pixels (z -along the common axis)
@@ -3111,20 +3102,10 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			double pXci =  rvi.get(0, 0) * norm_z;
 			double pYci =  rvi.get(1, 0) * norm_z;
 
-			// debug
-			double norm_z_dbg = fl_pix/vi.get(2, 0);
-			double pXci_dbg =  vi.get(0, 0) * norm_z_dbg;
-			double pYci_dbg =  vi.get(1, 0) * norm_z_dbg;
-
 			// Re-apply distortion
 			double rNDi = Math.sqrt(pXci*pXci + pYci*pYci); // in pixels
 			//		Rdist/R=A8*R^7+A7*R^6+A6*R^5+A5*R^4+A*R^3+B*R^2+C*R+(1-A6-A7-A6-A5-A-B-C)");
 			double ri = rNDi* ri_scale; // relative to distortion radius
-			//    		double rD2rND = (1.0 - distortionA8 - distortionA7 - distortionA6 - distortionA5 - distortionA - distortionB - distortionC);
-
-			double rNDi_dbg = Math.sqrt(pXci_dbg*pXci_dbg + pYci_dbg*pYci_dbg); // in pixels
-			double ri_dbg = rNDi_dbg* ri_scale; // relative to distortion radius
-
 
 			double rD2rND = 1.0;
 			double rri = 1.0;
@@ -3136,7 +3117,6 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			// Get port pixel coordinates by scaling the 2d vector with Rdistorted/Dnondistorted coefficient)
 			double pXid = pXci * rD2rND;
 			double pYid = pYci * rD2rND;
-
 
 			pXY[i][0] =  pXid + this.pXY0[i][0];
 			pXY[i][1] =  pYid + this.pXY0[i][1];
@@ -3173,7 +3153,6 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				}
 			}
 			double delta_t = 0.0;
-//			double [] imu =  null;
 			double [][] dpXci_pYci_imu_lin = new double[2][3]; // null
 			if (disp_dist != null) {
 				disp_dist[i] =   new double [4]; // dx/d_disp, dx_d_ccw_disp
@@ -3184,7 +3163,6 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 						{ 0.0,                     0.0,                    0.0}}; // what is last element???
 				Matrix dd0 = new Matrix(add0);
 				Matrix dd1 = rots[i].times(dd0).getMatrix(0, 1,0,1).times(norm_z); // get top left 2x2 sub-matrix
-////				Matrix dd1 = dd0.getMatrix(0, 1,0,1); // get top left 2x2 sub-matrix
 				// now first column of 2x2 dd1 - x, y components of derivatives by disparity, second column - derivatives by ortho to disparity (~Y in 2d correlation)
 				// unity vector in the direction of radius
 				double c_dist = pXci/rNDi;
@@ -3206,12 +3184,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				disp_dist[i][1] =   dd2.get(0, 1);
 				disp_dist[i][2] =   dd2.get(1, 0); // d_py/d_disp
 				disp_dist[i][3] =   dd2.get(1, 1);
-
-//				imu =  extrinsic_corr.getIMU(i); // currently it is common for all channels
-
 				// ERS linear does not yet use per-port rotations, probably not needed
-
-//				double [][] dpXci_pYci_imu_lin = new double[2][3]; // null
 				if ((imu != null) &&((imu[0] != 0.0) || (imu[1] != 0.0) ||(imu[2] != 0.0) ||(imu[3] != 0.0) ||(imu[4] != 0.0) ||(imu[5] != 0.0))) {
 					delta_t = dd2.get(1, 0) * disparity * line_time; // positive for top cameras, negative - for bottom
 					double ers_Xci = delta_t* (dpXci_dtilt * imu[0] + dpXci_dazimuth * imu[1]  + dpXci_droll * imu[2]);
@@ -3229,15 +3202,11 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 					}
 					pXY[i][0] +=  ers_Xci * rD2rND; // added correction to pixel X
 					pXY[i][1] +=  ers_Yci * rD2rND; // added correction to pixel Y
-
-
 				} else {
 					imu = null;
 				}
 // TODO: calculate derivatives of pX, pY by 3 imu omegas
 			}
-
-
 
 			if (pXYderiv != null) {
 				pXYderiv[2 * i] =   new double [CorrVector.LENGTH];
@@ -3272,8 +3241,6 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				// assuming drD2rND_imu* is zero (rD2rND does not depend on imu_*
 				// hope it will not be needed, as derivatives are used only for filed calibration, handled differently
 				if (imu != null) {
-//  dpX_d = delta_t * rD2rND * (dpXci_dtilt * imu[0] + dpXci_dazimuth * imu[1]  + dpXci_droll * imu[2]);
-//	dpX_d = delta_t * rD2rND * (dpYci_dtilt * imu[0] + dpYci_dazimuth * imu[1]  + dpYci_droll * imu[2]);
 					pXYderiv[2 * i + 0][CorrVector.IMU_INDEX+0] = delta_t * rD2rND * dpXci_dtilt; // *    imu[0];
 					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+0] = delta_t * rD2rND * dpYci_dtilt; // *    imu[0];
 					pXYderiv[2 * i + 0][CorrVector.IMU_INDEX+1] = delta_t * rD2rND * dpXci_dazimuth; // * imu[1];
@@ -3285,9 +3252,6 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+4] = delta_t * rD2rND * dpXci_pYci_imu_lin[1][1]; // * 	imu[5];
 					pXYderiv[2 * i + 0][CorrVector.IMU_INDEX+5] = delta_t * rD2rND * dpXci_pYci_imu_lin[0][2]; // *    imu[5];
 					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+5] = delta_t * rD2rND * dpXci_pYci_imu_lin[1][2]; // *    imu[5];
-
-					// TODO: Add linear egomotion
-
 				}
 
 				// verify that d/dsym are well, symmetrical

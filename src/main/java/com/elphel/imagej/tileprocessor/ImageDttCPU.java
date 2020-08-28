@@ -191,6 +191,13 @@ public class ImageDttCPU {
 			  "top-aux",  "bottom-aux",  "left_aux",  "right-aux",  "diagm-aux",  "diago-aux", "hor-aux",  "vert-aux",
 			  "inter", "other", "dbg1"};
 
+	  static String [] GEOM_TITLES_DBG ={
+			  "px0","py0","px1","py1","px2","py2","px3","py3",
+			  "dd0-0","dd0-1","dd0-2","dd0-3",
+			  "dd1-0","dd1-1","dd1-2","dd1-3",
+			  "dd2-0","dd2-1","dd2-2","dd2-3",
+			  "dd3-0","dd3-1","dd3-2","dd3-3"};
+	  
 	  public static int  ML_OTHER_TARGET =            0;  // Offset to target disparity data in  ML_OTHER_INDEX layer tile
 	  public static int  ML_OTHER_GTRUTH =            2;  // Offset to ground truth disparity data in ML_OTHER_INDEX layer tile
 	  public static int  ML_OTHER_GTRUTH_STRENGTH =   4;  // Offset to ground truth confidence data in  ML_OTHER_INDEX layer tile
@@ -9596,6 +9603,7 @@ public class ImageDttCPU {
 		final int tilesX=width/transform_size;
 		final int tilesY=height/transform_size;
 		final int nTilesInChn=tilesX*tilesY;
+		final double [][] geom_dbg = new double [24][nTilesInChn];
 		// clt_data does not need to be for the whole image (no, it is used for textures)
 		final double [][][][][][][] clt_bidata = (keep_clt_data)? (new double[2][][][][][][]):null;
 		if (clt_bidata != null) {
@@ -9829,7 +9837,15 @@ public class ImageDttCPU {
 								centerX,
 								centerY,
 								disparity_main); //  + disparity_corr);
-
+						if (geom_dbg != null) {
+							for (int i = 0; i < quad_main; i++) {
+								geom_dbg[2 * i + 0][nTile] = centersXY_main[i][0]; // x
+								geom_dbg[2 * i + 1][nTile] = centersXY_main[i][1]; // y
+								for (int j = 0; j < 4; j++) {
+									geom_dbg[2 * quad_main + 4 * i + j][nTile] = disp_dist_main[i][j];
+								}
+							}
+						}
 						centersXY_aux =  geometryCorrection_aux.getPortsCoordinatesAndDerivatives(
 								geometryCorrection_main, //			GeometryCorrection gc_main,
 								true,            // boolean use_rig_offsets,
@@ -10327,7 +10343,16 @@ public class ImageDttCPU {
 			};
 		}
 		startAndJoin(threads);
-
+		if (geom_dbg != null) {
+			(new ShowDoubleFloatArrays()).showArrays(
+					geom_dbg,
+					tilesX,
+					tilesY,
+					true,
+					"geom_dbg",
+					GEOM_TITLES_DBG);
+		}
+		
 // If it was low-texture mode, 	use lt_corr to average bi-quad inter-correlation between neighbor tiles and then calculate disparity/strength
 		if (lt_corr != null) {
 			//notch_mode

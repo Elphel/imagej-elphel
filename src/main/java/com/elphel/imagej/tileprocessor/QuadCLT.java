@@ -24,6 +24,8 @@ package com.elphel.imagej.tileprocessor;
  **
  */
 
+import static jcuda.driver.JCudaDriver.cuMemcpyDtoH;
+
 import java.awt.Rectangle;
 import java.io.DataOutputStream;
 import java.io.FileNotFoundException;
@@ -42,9 +44,12 @@ import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.correction.CorrectionColorProc;
 import com.elphel.imagej.correction.EyesisCorrections;
 import com.elphel.imagej.gpu.GPUTileProcessor;
+import com.elphel.imagej.gpu.GPUTileProcessor.TpTask;
 
 import ij.ImagePlus;
 import ij.ImageStack;
+import jcuda.Pointer;
+import jcuda.Sizeof;
 
 public class QuadCLT extends QuadCLTCPU {
 	private GPUTileProcessor.GpuQuad gpuQuad =              null;	
@@ -749,6 +754,46 @@ public class QuadCLT extends QuadCLTCPU {
 		int out_height = quadCLT_main.getGPU().getImageHeight() + quadCLT_main.getGPU().getDttSize();
 		int tilesX =     quadCLT_main.getGPU().getImageWidth()  / quadCLT_main.getGPU().getDttSize();
 		int tilesY =     quadCLT_main.getGPU().getImageHeight() / quadCLT_main.getGPU().getDttSize();
+		
+		if (clt_parameters.gpu_show_geometry) {
+			//			GPUTileProcessor.TpTask []
+			tp_tasks = quadCLT_main.getGPU().getTasks (false); // boolean use_aux)
+			double [][] geom_dbg = new double [ImageDtt.GEOM_TITLES_DBG.length][tilesX*tilesY];
+			int num_cams =GPUTileProcessor.NUM_CAMS;
+			for (int nt = 0; nt < tp_tasks.length; nt++) {
+				for (int i = 0; i < num_cams; i++) {
+					GPUTileProcessor.TpTask task = tp_tasks[nt];
+					int nTile = task.ty * tilesX + task.tx;
+					geom_dbg[2 * i + 0][nTile] = task.xy[i][0]; // x
+					geom_dbg[2 * i + 1][nTile] = task.xy[i][1]; // y
+					for (int j = 0; j < 4; j++) {
+						geom_dbg[2 * num_cams + 4 * i + j][nTile] = task.disp_dist[i][j];
+					}
+				}
+			}
+		    (new ShowDoubleFloatArrays()).showArrays(
+		            geom_dbg,
+		            tilesX,
+		            tilesY,
+		            true,
+		            name+"-GEOM-DBG-D"+clt_parameters.disparity,
+		            ImageDtt.GEOM_TITLES_DBG);
+			
+		}
+
+		/*
+        public TpTask [] getTasks (boolean use_aux)
+        {
+        	float [] ftasks = new float [TPTASK_SIZE * num_task_tiles];
+        	cuMemcpyDtoH(Pointer.to(ftasks), gpu_tasks, TPTASK_SIZE * num_task_tiles * Sizeof.FLOAT);
+        	TpTask [] tile_tasks = new TpTask[num_task_tiles];
+        	for (int i = 0; i < num_task_tiles; i++) {
+        		tile_tasks[i] = new TpTask(ftasks, i* TPTASK_SIZE, use_aux);
+        	}
+        	return tile_tasks;
+        }
+
+		 */
 		
 		
 		// Read extra data for macro generation: 4 DIFFs, 4 of R,  4 of B, 4 of G
