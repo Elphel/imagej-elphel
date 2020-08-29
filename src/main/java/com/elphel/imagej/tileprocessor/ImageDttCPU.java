@@ -22,6 +22,8 @@ package com.elphel.imagej.tileprocessor;
  ** -----------------------------------------------------------------------------**
  **
  */
+// ← → ↑ ↓ ⇖ ⇗ ⇘ ⇙ ↔ ↕ 
+
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.elphel.imagej.cameras.CLTParameters;
@@ -3035,7 +3037,7 @@ public class ImageDttCPU {
 							// calculate all selected pairs correlations
 							int all_pairs = imgdtt_params.dbg_pair_mask; //TODO: use tile tasks
 
-							double [][]  corrs = corr2d.correlateCompositeFD( // now works with nulls for some clt_data colors
+							double [][]  corrs6 = corr2d.correlateCompositeFD( // now works with nulls for some clt_data colors
 						    		clt_data,        // double [][][][][][] clt_data,
 						    		tileX,           // int                 tileX,
 						    		tileY,           // int                 tileY,
@@ -3044,7 +3046,7 @@ public class ImageDttCPU {
 						    		getScaleStrengths(), // double              scale_value, // scale correlation value
 						    		col_weights,     // double []           col_weights,
 						    		corr_fat_zero);  // double              fat_zero)
-
+							double [][]  corrs = {corrs6[0],corrs6[1],corrs6[2],corrs6[3],corrs6[4],corrs6[5],null,null,null,null};
 
 						    // calculate interpolated "strips" to match different scales and orientations (ortho/diagonal) on the
 						    // fine (0.5 pix) grid. ortho for scale == 1 provide even/even samples (1/4 of all), diagonal ones -
@@ -3067,60 +3069,109 @@ public class ImageDttCPU {
 
 						    // Debug feature - only calculated if requested
 //						    if ((clt_corr_partial != null) && imgdtt_params.corr_mode_debug) {
+//						    if ((clt_corr_partial != null) && (imgdtt_params.corr_mode_debug || imgdtt_params.gpu_mode_debug)) {
+						    if (debugTile0) {
+						    	System.out.println("Debugging tileY = "+tileY+"  tileX = " + tileX);
+						    	System.out.println("Debugging tileY = "+tileY+"  tileX = " + tileX);
+						    	System.out.println("Debugging tileY = "+tileY+"  tileX = " + tileX);
+						    }
+
+						    double [][][] corr_pairs_td = corr2d.correlateCompositeTD(
+						    		clt_data,            // double [][][][][][] clt_data,
+						    		tileX,               // int                 tileX,
+						    		tileY,               // int                 tileY,
+						    		0x3f,                // int                 pairs_mask,
+						    		filter_rb,           // double []           lpf_rb, // extra lpf for red and blue (unused for mono) or null
+						    		getScaleStrengths(), // double              scale_value, // scale correlation value
+						    		col_weights);        // double []           col_weights);
+
+						    double [][] corrs_ortho_td = corr2d.combineCorrelationsTD(
+						    		corr_pairs_td,       // double [][][] corr_combo_td, // vertical will be transposed, other diagonal flipped vertically (should be separate)
+						    		0x0f);               // int           pairs_mask); // vertical
+						    if (dbg_corr_shift!= null) {
+						    	fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations // USED in lwir
+						    			corrs_ortho_td, // double  [][]  clt_tile,
+						    			dbg_corr_shift[0], // double        shiftX,
+						    			dbg_corr_shift[1], // double        shiftY,
+						    			false); // boolean       bdebug);
+						    }
+
+						    corr2d.normalize_TD(
+						    		corrs_ortho_td,      // double [][] td,
+						    		filter_common,       // double []   lpf, // or null
+						    		pcorr_fat_zero);     // double      fat_zero);
+
+						    //						    	double [] corrs_ortho = corr2d.convertCorrToPD(
+						    corrs[6] = corr2d.convertCorrToPD(
+						    		corrs_ortho_td);     // double [][] td);
+
+						    double [][] corrs_cross_td = corr2d.combineCorrelationsTD(
+						    		corr_pairs_td,       // double [][][] corr_combo_td, // vertical will be transposed, other diagonal flipped vertically (should be separate)
+						    		0x30);               // int           pairs_mask); // vertical
+						    if (dbg_corr_shift!= null) {
+						    	fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations // USED in lwir
+						    			corrs_cross_td, // double  [][]  clt_tile,
+						    			dbg_corr_shift[0], // double        shiftX,
+						    			dbg_corr_shift[1], // double        shiftY,
+						    			false); // boolean       bdebug);
+						    }
+
+						    corr2d.normalize_TD(
+						    		corrs_cross_td,      // double [][] td,
+						    		filter_common,       // double []   lpf, // or null
+						    		pcorr_fat_zero);     // double      fat_zero);
+
+						    //						    	double [] corrs_cross = corr2d.convertCorrToPD(
+						    corrs[7] = corr2d.convertCorrToPD(
+						    		corrs_cross_td);     // double [][] td);
+						    
+						    double [][] corrs_hor_td = corr2d.combineCorrelationsTD(
+						    		corr_pairs_td,       // double [][][] corr_combo_td, // vertical will be transposed, other diagonal flipped vertically (should be separate)
+						    		0x03);               // int           pairs_mask); // horizontal
+						    corr2d.normalize_TD(
+						    		corrs_hor_td,      // double [][] td,
+						    		filter_common,       // double []   lpf, // or null
+						    		pcorr_fat_zero);     // double      fat_zero);
+						    corrs[8] = corr2d.convertCorrToPD(
+						    		corrs_hor_td);     // double [][] td);
+						    
+
+						    double [][] corrs_vert_td = corr2d.combineCorrelationsTD(
+						    		corr_pairs_td,       // double [][][] corr_combo_td, // vertical will be transposed, other diagonal flipped vertically (should be separate)
+						    		0x0c);               // int           pairs_mask); // horizontal
+						    corr2d.normalize_TD(
+						    		corrs_vert_td,      // double [][] td,
+						    		filter_common,       // double []   lpf, // or null
+						    		pcorr_fat_zero);     // double      fat_zero);
+						    corrs[9] = corr2d.convertCorrToPD(
+						    		corrs_vert_td);     // double [][] td);
+						    
+						    
+						    
+						    double [][] strips_intra = new double[2][];
+						    strips_intra[0] = corr2d.scaleRotateInterpoateSingleCorrelation(
+						    		corrs[6], // double []   corr,  // quad 
+						    		imgdtt_params.corr_strip_hight, // int         hwidth,
+						    		Correlation2d.PAIR_HORIZONTAL,  // int         dir, // 0 - hor, 1 - vert, 2 - parallel to row = col (main) diagonal (0->3), 3 -2->1
+						    		1,                              // int         ss, // 1
+						    		false // boolean     debug
+						    		); 
+						    strips_intra[1] = corr2d.scaleRotateInterpoateSingleCorrelation(
+						    		corrs[7], // double []   corr,  // quad 
+						    		imgdtt_params.corr_strip_hight, // int         hwidth,
+						    		Correlation2d.PAIR_DIAGONAL_MAIN,  // int         dir, // 0 - hor, 1 - vert, 2 - parallel to row = col (main) diagonal (0->3), 3 -2->1
+						    		1,                              // int         ss, // 1
+						    		false // boolean     debug
+						    		); 
+						    double [] strip_combo_intra = corr2d.combineInterpolatedCorrelations(
+						    		strips_intra,                  // double [][] strips,
+						    		3,                     // int         pairs_mask,
+						    		imgdtt_params.corr_offset,     // double      offset);
+						    		imgdtt_params.twice_diagonal); //    		boolean     twice_diagonal)
+						    
+						    
 						    if ((clt_corr_partial != null) && (imgdtt_params.corr_mode_debug || imgdtt_params.gpu_mode_debug)) {
-						    	if (debugTile0) {
-						    		System.out.println("Debugging tileY = "+tileY+"  tileX = " + tileX);
-						    		System.out.println("Debugging tileY = "+tileY+"  tileX = " + tileX);
-						    		System.out.println("Debugging tileY = "+tileY+"  tileX = " + tileX);
-						    	}
-						    	
-						    	double [][][] corr_pairs_td = corr2d.correlateCompositeTD(
-						    			clt_data,            // double [][][][][][] clt_data,
-						    			tileX,               // int                 tileX,
-						    			tileY,               // int                 tileY,
-						        		0x3f,                // int                 pairs_mask,
-						        		filter_rb,           // double []           lpf_rb, // extra lpf for red and blue (unused for mono) or null
-						        		getScaleStrengths(), // double              scale_value, // scale correlation value
-						        		col_weights);        // double []           col_weights);
 
-						    	double [][] corrs_ortho_td = corr2d.combineCorrelationsTD(
-						        		corr_pairs_td,       // double [][][] corr_combo_td, // vertical will be transposed, other diagonal flipped vertically (should be separate)
-						        		0x0f);               // int           pairs_mask); // vertical
-						    	if (dbg_corr_shift!= null) {
-						    		fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations // USED in lwir
-						    				corrs_ortho_td, // double  [][]  clt_tile,
-						    				dbg_corr_shift[0], // double        shiftX,
-						    				dbg_corr_shift[1], // double        shiftY,
-						    				false); // boolean       bdebug);
-						    	}
-						    	
-						    	corr2d.normalize_TD(
-						    			corrs_ortho_td,      // double [][] td,
-						    			filter_common,       // double []   lpf, // or null
-						    			pcorr_fat_zero);     // double      fat_zero);
-						    	
-						    	double [] corrs_ortho = corr2d.convertCorrToPD(
-						    			corrs_ortho_td);     // double [][] td);
-
-						    	double [][] corrs_cross_td = corr2d.combineCorrelationsTD(
-						        		corr_pairs_td,       // double [][][] corr_combo_td, // vertical will be transposed, other diagonal flipped vertically (should be separate)
-						        		0x30);               // int           pairs_mask); // vertical
-						    	if (dbg_corr_shift!= null) {
-						    		fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations // USED in lwir
-						    				corrs_cross_td, // double  [][]  clt_tile,
-						    				dbg_corr_shift[0], // double        shiftX,
-						    				dbg_corr_shift[1], // double        shiftY,
-						    				false); // boolean       bdebug);
-						    	}
-
-						    	corr2d.normalize_TD(
-						    			corrs_cross_td,      // double [][] td,
-						    			filter_common,       // double []   lpf, // or null
-						    			pcorr_fat_zero);     // double      fat_zero);
-						    	
-						    	double [] corrs_cross = corr2d.convertCorrToPD(
-						    			corrs_cross_td);     // double [][] td);
-						    	
 							    double [] strip_ortho = corr2d.combineInterpolatedCorrelations(
 							    		strips,                         // double [][] strips,
 							    		0x0f,                           // int         pairs_mask,
@@ -3159,18 +3210,29 @@ public class ImageDttCPU {
 						    	clt_corr_partial[tileY][tileX][0][3] = corrs[3];                        // 4
 						    	clt_corr_partial[tileY][tileX][1][0] = corrs[4];                        // 5
 						    	clt_corr_partial[tileY][tileX][1][1] = corrs[5];                        // 6
-						    	clt_corr_partial[tileY][tileX][1][2] = corrs_ortho;                     // 7
-						    	clt_corr_partial[tileY][tileX][1][3] = corrs_cross;                     // 8
+						    	clt_corr_partial[tileY][tileX][1][2] = corrs[6];                        // 7
+						    	clt_corr_partial[tileY][tileX][1][3] = corrs[7];                        // 8
+//						    	clt_corr_partial[tileY][tileX][1][2] = corrs_ortho;                     // 7
+//						    	clt_corr_partial[tileY][tileX][1][3] = corrs_cross;                     // 8
 //						    	clt_corr_partial[tileY][tileX][1][2] = corr2d.debugStrip(strip_hor);    // 7
 //						    	clt_corr_partial[tileY][tileX][1][3] = corr2d.debugStrip(strip_vert);   // 8
-						    	clt_corr_partial[tileY][tileX][2][0] = corr2d.debugStrip(strips[4]);    // 9
-						    	clt_corr_partial[tileY][tileX][2][1] = corr2d.debugStrip(strips[5]);    // 10
+//strip_combo_intra						    	
+						    	clt_corr_partial[tileY][tileX][2][0] = corrs[8];                        // 9
+						    	clt_corr_partial[tileY][tileX][2][1] = corrs[9];                        // 10
+//						    	clt_corr_partial[tileY][tileX][2][0] = corr2d.debugStrip(strips[4]);    // 9
+//						    	clt_corr_partial[tileY][tileX][2][1] = corr2d.debugStrip(strips[5]);    // 10
 						    	clt_corr_partial[tileY][tileX][2][2] = corr2d.debugStrip2(strip_hor);   // 11
 						    	clt_corr_partial[tileY][tileX][2][3] = corr2d.debugStrip2(strip_vert);  // 12
-						    	clt_corr_partial[tileY][tileX][3][0] = corr2d.debugStrip2(strip_ortho); // 13
-						    	clt_corr_partial[tileY][tileX][3][1] = corr2d.debugStrip2(strip_diag);  // 14
-						    	clt_corr_partial[tileY][tileX][3][2] = corr2d.debugStrip(strip_all);    // 15
+						    	clt_corr_partial[tileY][tileX][3][0] = corr2d.debugStrip2(strips_intra[0]); // 13
+						    	clt_corr_partial[tileY][tileX][3][1] = corr2d.debugStrip2(strips_intra[1]);  // 14
+//						    	clt_corr_partial[tileY][tileX][3][0] = corr2d.debugStrip2(strip_ortho); // 13
+//						    	clt_corr_partial[tileY][tileX][3][1] = corr2d.debugStrip2(strip_diag);  // 14
+						    	clt_corr_partial[tileY][tileX][3][2] = corr2d.debugStrip2(strip_combo_intra);    // 15
+//						    	clt_corr_partial[tileY][tileX][3][2] = corr2d.debugStrip(strip_all);    // 15
 						    	clt_corr_partial[tileY][tileX][3][3] = corr2d.debugStrip2(strip_combo); // 16
+						    }
+						    if (imgdtt_params.pcorr_use) {
+						    	strip_combo = strip_combo_intra;
 						    }
 						    if ((clt_corr_combo != null) && imgdtt_params.corr_mode_debug) {
 						    	// reuse it too?
@@ -3192,7 +3254,7 @@ public class ImageDttCPU {
 //							double strength = 0.0;
 //							double disparity = 0.0;
 							double [] disp_str = new double[2];
-							if (ixy != null) {
+							if (ixy != null) { //TODO - for CM use magic!
 								disp_str[1] = strip_combo[ixy[0]+transform_size-1]; // strength at integer max on axis
 								disparity_map[DISPARITY_INDEX_INT][tIndex] =      -ixy[0];
 //								disparity_map[DISPARITY_INDEX_INT + 1][tIndex] =
@@ -3207,30 +3269,57 @@ public class ImageDttCPU {
 										// corr_wndx,                        // double [] window_x,  // half of a window function in x (disparity) direction
 										(tile_lma_debug_level > 0)); // boolean   debug);
 							}
+							
+							if (imgdtt_params.pcorr_use) {
+								// for compatibility with old code executed unconditionally. TODO: Move to if (corr_stat != null) ... condition below
+								double [] hor_pair1 = corr2d.getMaxXSOrtho(
+										corrs,                              // double [][] correlations,
+										0x100, //  corrs[8] Correlation2d.getMaskHorizontal(1), // int         pairs_mask,
+										imgdtt_params.corr_offset,          // double      corr_offset,
+										true,                               // boolean     symmetric,   // for comparing with old implementation average with symmetrical before multiplication
+										false,                              // boolean     is_vert,      // transpose X/Y
+										tile_lma_debug_level > 0);          // boolean   debug);
+								if (hor_pair1 != null) {
+									disparity_map[DISPARITY_INDEX_HOR][tIndex] =          -hor_pair1[0];
+									disparity_map[DISPARITY_INDEX_HOR_STRENGTH][tIndex] =  hor_pair1[1];
+								}
 
-							// for compatibility with old code executed unconditionally. TODO: Move to if (corr_stat != null) ... condition below
-							double [] hor_pair1 = corr2d.getMaxXSOrtho(
-									corrs,                              // double [][] correlations,
-									Correlation2d.getMaskHorizontal(1), // int         pairs_mask,
-									imgdtt_params.corr_offset,          // double      corr_offset,
-									true,                               // boolean     symmetric,   // for comparing with old implementation average with symmetrical before multiplication
-									false,                              // boolean     is_vert,      // transpose X/Y
-									tile_lma_debug_level > 0);          // boolean   debug);
-							if (hor_pair1 != null) {
-								disparity_map[DISPARITY_INDEX_HOR][tIndex] =          -hor_pair1[0];
-								disparity_map[DISPARITY_INDEX_HOR_STRENGTH][tIndex] =  hor_pair1[1];
-							}
+								double [] vert_pair1 = corr2d.getMaxXSOrtho(
+										corrs,                              // double [][] correlations,
+										0x200, // corrs[9] Correlation2d.getMaskVertical(1), // int         pairs_mask,
+										imgdtt_params.corr_offset,        // double      corr_offset,
+										true,                             // boolean     symmetric,   // for comparing with old implementation average with symmetrical before multiplication
+										false, // already transposed  // true,                             // boolean     is_vert,      // transpose X/Y
+										tile_lma_debug_level > 0); // boolean   debug);
+								if (vert_pair1 != null) {
+									disparity_map[DISPARITY_INDEX_VERT][tIndex] =         -vert_pair1[0];
+									disparity_map[DISPARITY_INDEX_VERT_STRENGTH][tIndex] = vert_pair1[1];
+								}
+							} else {
+								// for compatibility with old code executed unconditionally. TODO: Move to if (corr_stat != null) ... condition below
+								double [] hor_pair1 = corr2d.getMaxXSOrtho(
+										corrs,                              // double [][] correlations,
+										Correlation2d.getMaskHorizontal(1), // int         pairs_mask,
+										imgdtt_params.corr_offset,          // double      corr_offset,
+										true,                               // boolean     symmetric,   // for comparing with old implementation average with symmetrical before multiplication
+										false,                              // boolean     is_vert,      // transpose X/Y
+										tile_lma_debug_level > 0);          // boolean   debug);
+								if (hor_pair1 != null) {
+									disparity_map[DISPARITY_INDEX_HOR][tIndex] =          -hor_pair1[0];
+									disparity_map[DISPARITY_INDEX_HOR_STRENGTH][tIndex] =  hor_pair1[1];
+								}
 
-							double [] vert_pair1 = corr2d.getMaxXSOrtho(
-									corrs,                              // double [][] correlations,
-									Correlation2d.getMaskVertical(1), // int         pairs_mask,
-									imgdtt_params.corr_offset,        // double      corr_offset,
-									true,                             // boolean     symmetric,   // for comparing with old implementation average with symmetrical before multiplication
-									true,                             // boolean     is_vert,      // transpose X/Y
-									tile_lma_debug_level > 0); // boolean   debug);
-							if (vert_pair1 != null) {
-								disparity_map[DISPARITY_INDEX_VERT][tIndex] =         -vert_pair1[0];
-								disparity_map[DISPARITY_INDEX_VERT_STRENGTH][tIndex] = vert_pair1[1];
+								double [] vert_pair1 = corr2d.getMaxXSOrtho(
+										corrs,                              // double [][] correlations,
+										Correlation2d.getMaskVertical(1), // int         pairs_mask,
+										imgdtt_params.corr_offset,        // double      corr_offset,
+										true,                             // boolean     symmetric,   // for comparing with old implementation average with symmetrical before multiplication
+										true,                             // boolean     is_vert,      // transpose X/Y
+										tile_lma_debug_level > 0); // boolean   debug);
+								if (vert_pair1 != null) {
+									disparity_map[DISPARITY_INDEX_VERT][tIndex] =         -vert_pair1[0];
+									disparity_map[DISPARITY_INDEX_VERT_STRENGTH][tIndex] = vert_pair1[1];
+								}
 							}
 
 
@@ -3284,16 +3373,34 @@ public class ImageDttCPU {
 								if (disp_str[1] > imgdtt_params.min_poly_strength) {
 									// create LMA instance, calculate LMA composite argmax
 							    	// Create 2 groups: ortho & diag
-							    	Correlations2dLMA lma = corr2d.corrLMA(
-							    			imgdtt_params,                // ImageDttParameters  imgdtt_params,
-							    			corrs,                        // double [][]         corrs,
-							    			imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
-							        		false,                        // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
-							    			corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
-							    			imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
-							    			tile_lma_debug_level,         // int                 debug_level,
-							        		tileX,                        // int                 tileX, // just for debug output
-							        		tileY );                      // int                 tileY
+									Correlations2dLMA lma;
+									if (imgdtt_params.pcorr_use) {
+										double [][] fake_corrs = {corrs[6],null,null,null,corrs[7],null};
+										lma = corr2d.corrLMA(
+								    			imgdtt_params,                // ImageDttParameters  imgdtt_params,
+								    			fake_corrs,                   // double [][]         corrs,
+								    			0x11, // imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
+								        		false,                        // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
+								    			corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
+								    			imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
+								    			tile_lma_debug_level,         // int                 debug_level,
+								        		tileX,                        // int                 tileX, // just for debug output
+								        		tileY );                      // int                 tileY
+										
+									} else {
+										lma = corr2d.corrLMA(
+								    			imgdtt_params,                // ImageDttParameters  imgdtt_params,
+								    			corrs,                        // double [][]         corrs,
+								    			imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
+								        		false,                        // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
+								    			corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
+								    			imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
+								    			tile_lma_debug_level,         // int                 debug_level,
+								        		tileX,                        // int                 tileX, // just for debug output
+								        		tileY );                      // int                 tileY
+									}
+									
+							    	
 							    	double [] lma_disparity_strength = null;
 							    	double max_disp_diff_lma = 3.0;
 							    	if (lma != null) {
@@ -3347,7 +3454,7 @@ public class ImageDttCPU {
 								    			for (int ii = 0; ii < dir_corr_strength.length; ii++) {
 								    				if (dir_corr_strength[ii] == null) dir_corr_strength[ii] = nan2;
 								    			}
-								    			System.out.println(String.format("corr4dirsLMA -> ↔: %7.4f (%7.4f) ↕:%7.4f (%7.4f) ⤡:%7.4f (%7.4f) ⤢:%7.4f (%7.4f)",
+								    			System.out.println(String.format("corr4dirsLMA -> ↔: %7.4f (%7.4f) ↕:%7.4f (%7.4f) ⇖:%7.4f (%7.4f) ⇗:%7.4f (%7.4f)",
 								    					dir_corr_strength[0][0],dir_corr_strength[0][1],dir_corr_strength[1][0],dir_corr_strength[1][1],
 								    					dir_corr_strength[2][0],dir_corr_strength[2][1],dir_corr_strength[3][0],dir_corr_strength[3][1]));
 								    		}
@@ -8997,7 +9104,7 @@ public class ImageDttCPU {
 			    			for (int ii = 0; ii < dir_corr_strength.length; ii++) {
 			    				if (dir_corr_strength[ii] == null) dir_corr_strength[ii] = nan2;
 			    			}
-			    			System.out.println(String.format("corr4dirsLMA -> ↔: %7.4f (%7.4f) ↕:%7.4f (%7.4f) ⤡:%7.4f (%7.4f) ⤢:%7.4f (%7.4f)",
+			    			System.out.println(String.format("corr4dirsLMA -> ↔: %7.4f (%7.4f) ↕:%7.4f (%7.4f) ⇖:%7.4f (%7.4f) ⇗:%7.4f (%7.4f)",
 			    					dir_corr_strength[0][0],dir_corr_strength[0][1],dir_corr_strength[1][0],dir_corr_strength[1][1],
 			    					dir_corr_strength[2][0],dir_corr_strength[2][1],dir_corr_strength[3][0],dir_corr_strength[3][1]));
 			    		}

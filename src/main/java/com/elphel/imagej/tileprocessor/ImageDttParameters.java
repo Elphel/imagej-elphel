@@ -100,7 +100,8 @@ public class ImageDttParameters {
 	public double  corr_wndx_hwidth =       6.0;   // 50% window cutoff width
 	public double  corr_wndx_blur =         5.0;   // 100% to 0 % vertical transition range
 	
-	public double  pcorr_sigma_mono =       0.15; // correlation sigma for monochrome images  (after normalization)
+	public boolean pcorr_use =              false; // use group phase correlation for disparity calculation in existing code
+	public double  pcorr_sigma_mono =       0.15;  // correlation sigma for monochrome images  (after normalization)
 	public double  pcorr_sigma =            0.8;  // correlation sigma for Bayder images  (after normalization)
 	public double  pcorr_sigma_rb =         0.5;  // correlation sigma extra for R and B (before normalization)
 	public double  pcorr_fat_zero =         0.05; // correlation relative fat zero for Bayer images
@@ -334,6 +335,9 @@ public class ImageDttParameters {
 					"Transition range, shifted sine is used");
 
 			gd.addTab("Corr Intra","Parameters Group 2D Phase correlation");
+
+			gd.addCheckbox    ("Use group phase correlation for disparity calculation",           this.pcorr_use,
+					"Default false, for compatibility with existing code/ old configs");
 			gd.addNumericField("Correlation sigma for monochrome images",                         this.pcorr_sigma_mono,  3, 6, "pix",
 					"after normalization");
 			gd.addNumericField("Correlation sigma for Bayer images",                              this.pcorr_sigma,  3, 6, "pix",
@@ -573,6 +577,7 @@ public class ImageDttParameters {
 			this.corr_wndx_hwidth =      gd.getNextNumber();
 			this.corr_wndx_blur =        gd.getNextNumber();
 
+			this.pcorr_use=              gd.getNextBoolean();
 			this.pcorr_sigma_mono =      gd.getNextNumber();
 			this.pcorr_sigma =           gd.getNextNumber();
 			this.pcorr_sigma_rb =        gd.getNextNumber();
@@ -720,6 +725,7 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"corr_wndx_hwidth",     this.corr_wndx_hwidth +"");
 		properties.setProperty(prefix+"corr_wndx_blur",       this.corr_wndx_blur +"");
 
+		properties.setProperty(prefix+"pcorr_use",            this.pcorr_use +"");
 		properties.setProperty(prefix+"pcorr_sigma_mono",     this.pcorr_sigma_mono +"");
 		properties.setProperty(prefix+"pcorr_sigma",          this.pcorr_sigma +"");
 		properties.setProperty(prefix+"pcorr_sigma_rb",       this.pcorr_sigma_rb +"");
@@ -873,6 +879,7 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"corr_wndx_hwidth")!=null)     this.corr_wndx_hwidth=Double.parseDouble(properties.getProperty(prefix+"corr_wndx_hwidth"));
 		if (properties.getProperty(prefix+"corr_wndx_blur")!=null)       this.corr_wndx_blur=Double.parseDouble(properties.getProperty(prefix+"corr_wndx_blur"));
 
+		if (properties.getProperty(prefix+"pcorr_use")!=null)            this.pcorr_use=Boolean.parseBoolean(properties.getProperty(prefix+"pcorr_use"));
 		if (properties.getProperty(prefix+"pcorr_sigma_mono")!=null)     this.pcorr_sigma_mono=Double.parseDouble(properties.getProperty(prefix+"pcorr_sigma_mono"));
 		if (properties.getProperty(prefix+"pcorr_sigma")!=null)          this.pcorr_sigma=Double.parseDouble(properties.getProperty(prefix+"pcorr_sigma"));
 		if (properties.getProperty(prefix+"pcorr_sigma_rb")!=null)       this.pcorr_sigma_rb=Double.parseDouble(properties.getProperty(prefix+"pcorr_sigma_rb"));
@@ -1021,6 +1028,7 @@ public class ImageDttParameters {
 		idp.corr_wndx_hwidth =       this.corr_wndx_hwidth;
 		idp.corr_wndx_blur =         this.corr_wndx_blur;
 
+		idp.pcorr_use =              this.pcorr_use;
 		idp.pcorr_sigma_mono =       this.pcorr_sigma_mono;
 		idp.pcorr_sigma =            this.pcorr_sigma;
 		idp.pcorr_sigma_rb =         this.pcorr_sigma_rb;

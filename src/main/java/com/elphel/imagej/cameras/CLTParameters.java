@@ -774,11 +774,11 @@ public class CLTParameters {
 	public double     gpu_sigma_b =       0.9; // 1.1;
 	public double     gpu_sigma_g =       0.6; // 0.7;
 	public double     gpu_sigma_m =       0.4; // 0.7;
-	public double     gpu_sigma_rb_corr = 0.5; // apply LPF after accumulating R and B correlation before G,
-	public double     gpu_sigma_corr =    0.9;
+	public double     gpu_sigma_rb_corr = 0.3; // apply LPF after accumulating R and B correlation before G,
+	public double     gpu_sigma_corr =    0.8;
 	public double     gpu_sigma_corr_m =  0.15;
-	public double     gpu_fatz =          30.0;
-	public double     gpu_fatz_m =        30.0;
+	public double     gpu_fatz =          500.0; // was 30
+	public double     gpu_fatz_m =        500.0; // was 30
 
 	public boolean    gpu_woi =             false; // if true - use gpu_woi_tx, ...
 	public int        gpu_woi_tx =              0;

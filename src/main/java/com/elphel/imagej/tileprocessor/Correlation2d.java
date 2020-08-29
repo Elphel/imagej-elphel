@@ -990,7 +990,6 @@ public class Correlation2d {
     public double [][] scaleRotateInterpoateCorrelations(// USED in lwir
     		double [][] correlations,
     		int         pairs_mask,
-//    		int         sub_sampling,
     		int         hwidth,
     		int         debug_mask
     		) {
