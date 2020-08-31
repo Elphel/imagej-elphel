@@ -269,6 +269,7 @@ public class TileProcessor {
 	 * @param debugLevel debug level
 	 * @return combined pass, contains same data as after the measurement of the actual one
 	 */
+	/*
 	public CLTPass3d combinePasses_old(
 			 final ArrayList <CLTPass3d> passes,
 			 final int                   firstPass,
@@ -415,6 +416,7 @@ public class TileProcessor {
 		}
 		return combo_pass;
 	}
+	*/
 
 	/**
 	 * When expanding over previously identified background (may be in error) remove tiles from the
@@ -1293,7 +1295,11 @@ public class TileProcessor {
 					combo_pass.calc_disparity[nt] =         pass.disparity_map[disparity_index][nt]/corr_magic_scale +  pass.disparity[ty][tx];
 					combo_pass.strength[nt] =               pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nt];
 					// Only copy for full disparity
-					for (int i = 0; i< ImageDtt.QUAD; i++)  combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt];
+					for (int i = 0; i< ImageDtt.QUAD; i++) {
+						if (pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i]!= null) {// do not copy empty
+							combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt];
+						}
+					}
 
 					if (copyDebug){
 						combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nt] =            pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nt];
@@ -3419,9 +3425,7 @@ public class TileProcessor {
 		if (debugLevel > -1)
 			sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
-		//		  boolean [] new_tiles =        new boolean [tilesY * tilesX]; // grow selection by 1 tile over non-background?
 		CLTPass3d bgnd_data = clt_3d_passes.get(0);
-		//		  double [][][][] texture_tiles = bgnd_data.texture_tiles;
 		double [][]     disparity_map=  bgnd_data.disparity_map;
 		for (int tileY = 0; tileY < tilesY; tileY++){
 			for (int tileX = 0; tileX < tilesX; tileX++){
@@ -5809,7 +5813,7 @@ public class TileProcessor {
 		}
 		// show testure_tiles
 
-		double [][][][] texture_tiles = scan_prev.getTextureTiles();
+		double [][][][] texture_tiles = scan_prev.getTextureTiles(); // each is null, manually set texture_tiles - null
 		ImageDtt image_dtt = new ImageDtt(
 				clt_parameters.transform_size,
 				isMonochrome(),
@@ -5831,9 +5835,9 @@ public class TileProcessor {
 			String [] rgba_weights_titles = {"red","blue","green","alpha","port0","port1","port2","port3","r-rms","b-rms","g-rms","w-rms"};
 			String name = scan_prev.getTextureName();
 
-			boolean show_nonoverlap = false; // true; // clt_parameters.show_nonoverlap
-			boolean show_overlap =    false; //true; // clt_parameters.show_overlap
-			boolean show_rgba_color = false; //true; // clt_parameters.show_rgba_color
+			boolean show_nonoverlap = true; //false; // true; // clt_parameters.show_nonoverlap
+			boolean show_overlap =    true; //false; //true; // clt_parameters.show_overlap
+			boolean show_rgba_color = true; //false; //true; // clt_parameters.show_rgba_color
 
 			if (!batch_mode && show_nonoverlap){
 				texture_nonoverlap = image_dtt.combineRBGATiles(
@@ -5883,7 +5887,7 @@ public class TileProcessor {
 							(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
 				}
 			}
-			if (!batch_mode && (debugLevel > -1)) {
+			if (!batch_mode && (debugLevel > -3)) {
 				double [][] tiles_tone = scan_prev.getTileRBGA(
 						12); // int num_layers);
 				sdfa_instance.showArrays(
@@ -7581,7 +7585,7 @@ public class TileProcessor {
 		int num_surf = tileSurface.getSurfaceDataLength();
 		if (num_surf_proc > num_surf) num_surf_proc = num_surf;
 		int op = ImageDtt.setImgMask(0, 0xf);
-		op =     ImageDtt.setPairMask(op,0xf);
+///		op =     ImageDtt.setPairMask(op,0xf); // 2020 no need for correlations, just textures?
 		op =     ImageDtt.setForcedDisparity(op,true);
 		int numClusters = 0; // needed?
 		for (int ns = 0 ; ns < num_surf_proc; ns ++){

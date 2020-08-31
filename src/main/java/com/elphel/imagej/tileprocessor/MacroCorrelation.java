@@ -283,9 +283,10 @@ public class MacroCorrelation {
 
 		double [][] shiftXY = {{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0}};
 
-		double [][][][] clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][mTilesY][mTilesX][]; // needed always
+		double [][][][] clt_corr_combo = null; //    new double [ImageDtt.TCORR_TITLES.length][mTilesY][mTilesX][]; // needed always
 		double [][][][][]   clt_corr_partial = null; // [tp.tilesY][tp.tilesX][pair][color][(2*transform_size-1)*(2*transform_size-1)]
 
+		/*
 		if (show_corr_partial) {
 			clt_corr_partial = new double [mTilesY][mTilesX][][][];
 			for (int i = 0; i < mTilesY; i++){
@@ -296,6 +297,7 @@ public class MacroCorrelation {
 		}
 
 		if (show_corr_combo) {
+			clt_corr_combo =  new double [ImageDtt.TCORR_TITLES.length][mTilesY][mTilesX][]; // needed always
 			for (int i = 0; i < mTilesY; i++){
 				for (int j = 0; j < mTilesX; j++){
 					for (int k = 0; k<clt_corr_combo.length; k++){
@@ -304,9 +306,8 @@ public class MacroCorrelation {
 				}
 			}
 		}
-
-
-		//		  double [][][][] texture_tiles =   save_textures ? new double [tilesY][tilesX][][] : null; // ["RGBA".length()][];
+		*/
+		
 		ImageDtt image_dtt = new ImageDtt(
 				clt_parameters.transform_size,
 				this.mtp.isMonochrome(),

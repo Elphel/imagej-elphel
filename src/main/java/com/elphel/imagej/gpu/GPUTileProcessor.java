@@ -918,9 +918,15 @@ public class GPUTileProcessor {
  * Copy array of CPU-prepared tasks to the GPU memory
  * @param tile_tasks array of TpTask prepared by the CPU (before geometry correction is applied)
  * @param use_aux Use second (aux) camera
+ * @param verify correct data
  */
-        public void setTasks(TpTask [] tile_tasks, boolean use_aux) // while is it in class member? - just to be able to free
+        public void setTasks(
+        		TpTask [] tile_tasks,
+        		boolean use_aux,  // while is it in class member? - just to be able to free
+        		boolean verify
+        		)
         {
+        	if (verify) checkTasks(tile_tasks);
         	num_task_tiles = tile_tasks.length;
         	float [] ftasks = new float [TPTASK_SIZE * num_task_tiles];
         	for (int i = 0; i < num_task_tiles; i++) {
@@ -928,6 +934,40 @@ public class GPUTileProcessor {
         	}
             cuMemcpyHtoD(gpu_tasks, Pointer.to(ftasks), TPTASK_SIZE * num_task_tiles * Sizeof.FLOAT);
         }
+        
+        void checkTasks (TpTask [] tile_tasks) {
+        	float min_disp = tile_tasks[0].target_disparity;
+        	float max_disp = min_disp; 
+        	int min_ty =  tile_tasks[0].ty;
+        	int min_tx =  tile_tasks[0].tx;
+        	int max_ty = min_ty;
+        	int max_tx = min_tx;
+        	int   max_task = 0;
+        	for (int i = 0; i < tile_tasks.length; i++) {
+        		if (Float.isNaN(tile_tasks[i].target_disparity)) {
+        			System.out.println(String.format("Disparity=NaN for tY=%d, tX=%d, task = 0x%x", tile_tasks[i].ty, tile_tasks[i].tx, tile_tasks[i].task));
+        			System.out.println("Setting disparity and tas to 0");
+        			tile_tasks[i].target_disparity = 0f;
+        			tile_tasks[i].task = 0;
+        		}
+        		if (tile_tasks[i].task != 0) {
+        			if (tile_tasks[i].target_disparity < min_disp ) min_disp = tile_tasks[i].target_disparity; 
+        			if (tile_tasks[i].target_disparity > max_disp ) max_disp = tile_tasks[i].target_disparity; 
+        			if (tile_tasks[i].task > max_task )             max_task = tile_tasks[i].task; 
+
+        			if (tile_tasks[i].ty < min_ty ) min_ty = tile_tasks[i].ty; 
+        			if (tile_tasks[i].ty > max_ty ) max_ty = tile_tasks[i].ty; 
+        		
+        			if (tile_tasks[i].tx < min_tx ) min_tx = tile_tasks[i].tx; 
+        			if (tile_tasks[i].tx > max_tx ) max_tx = tile_tasks[i].tx; 
+        		}
+        	}
+        	
+        	System.out.println(String.format("---Disparity=[%f..%f] task=[0..0x%x] ty=[%d..%d]  tx=[%d..%d] ---",
+        			min_disp,max_disp, max_task, min_ty, max_ty, min_tx, max_tx));
+        }
+        
+        
         
         public TpTask [] getTasks (boolean use_aux)
         {
@@ -1926,6 +1966,7 @@ public class GPUTileProcessor {
         		boolean   calc_textures,
         		boolean   calc_extra)
         {
+        	execCalcReverseDistortions(); // will check if it is needed first
         	if (GPU_TEXTURES_kernel == null)
         	{
         		IJ.showMessage("Error", "No GPU kernel: GPU_TEXTURES_kernel");
@@ -2204,8 +2245,9 @@ public class GPUTileProcessor {
         	return textures;
         }
 
-        public double [][][][] doubleTextures(
-        		Rectangle    woi,
+        public double [][][][] doubleTextures( // may be accelerated with multithreading if needed.
+        		Rectangle    woi, // null or width and height match texture_tiles
+        		double [][][][] texture_tiles, // null or [tilesY][tilesX]
         		int []       indices,
         		float []     ftextures,
         		int          full_width,
@@ -2214,22 +2256,34 @@ public class GPUTileProcessor {
         		){
         	int texture_slice_size = (2 * DTT_SIZE)* (2 * DTT_SIZE);
         	int texture_tile_size = texture_slice_size * num_src_slices ;
-        	double [][][][] textures = new double [woi.height][woi.width][num_slices][texture_slice_size];
+        	if ((woi == null) && (texture_tiles==null)) {
+        		System.out.println("doubleTextures(): woi and texture_tiles can not be simultaneously null");
+        		return null;
+        	}
+        	if (texture_tiles == null) {
+        		texture_tiles = new double [woi.height][woi.width][][];
+        	} else {
+        		woi.height = texture_tiles.length;
+        		woi.width = texture_tiles[0].length;
+        	}
+        	
+//        	double [][][][] textures = new double [woi.height][woi.width][num_slices][texture_slice_size];
         	for (int indx = 0; indx < indices.length; indx++) if ((indices[indx] & (1 << LIST_TEXTURE_BIT)) != 0){
         		int tile = indices[indx] >> CORR_NTILE_SHIFT;
         		int tileX = tile % full_width;
         		int tileY = tile / full_width;
         		int wtileX = tileX - woi.x;
         		int wtileY = tileY - woi.y;
-        		if ((wtileX < woi.width) && (wtileY < woi.height)) {
+        		texture_tiles[tileY][tileX] = new double [num_slices][texture_slice_size];
+        		if ((wtileX >=0 ) && (wtileX < woi.width) && (wtileY >= 0) && (wtileY < woi.height)) {
         			for (int slice = 0; slice < num_slices; slice++) {
         				for (int i = 0; i < texture_slice_size; i++) {
-        					textures[wtileY][wtileX][slice][i] = ftextures[indx * texture_tile_size + slice * texture_slice_size + i];
+        					texture_tiles[wtileY][wtileX][slice][i] = ftextures[indx * texture_tile_size + slice * texture_slice_size + i];
         				}
         			}
         		}
         	}
-        	return textures;
+        	return texture_tiles;
         }
 
         public float [][] getRBG (int ncam){

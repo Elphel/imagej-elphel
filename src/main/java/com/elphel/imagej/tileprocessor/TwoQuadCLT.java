@@ -3054,7 +3054,7 @@ if (debugLevel > -100) return true; // temporarily !
 		return occl_sel;
 	}
 
-	public double [][][][][] getRigTextures(
+	public double [][][][][] getRigTextures( // never used
 			boolean                                  need_master,
 			boolean                                  need_aux,
 			double []                                disparity, // non-nan - measure
@@ -8101,6 +8101,13 @@ if (debugLevel > -100) return true; // temporarily !
 
 			if (quadCLT_main.correctionsParameters.clt_batch_assign) {
 				if (updateStatus) IJ.showStatus("Assigning tiles to candidate surfaces "+quadCLT_main.image_name);
+				// prepare average RGBA for the last scan
+				quadCLT_main.setPassAvgRBGA(                      // get image from a single pass, return relative path for x3d // USED in lwir
+						clt_parameters,                           // CLTParameters           clt_parameters,
+						quadCLT_main.tp.clt_3d_passes.size() - 1, // int        scanIndex,
+						threadsMax,                               // int        threadsMax,  // maximal number of threads to launch
+						updateStatus,                             // boolean    updateStatus,
+						debugLevelInner);                         // int        debugLevel)
 				double [][] assignments_dbg = quadCLT_main.tp.assignTilesToSurfaces(
 						clt_parameters,
 						quadCLT_main.geometryCorrection,
@@ -8392,6 +8399,13 @@ if (debugLevel > -100) return true; // temporarily !
 
 					if (quadCLT_main.correctionsParameters.clt_batch_assign) {
 						if (updateStatus) IJ.showStatus("Assigning tiles to candidate surfaces "+quadCLT_main.image_name);
+						// prepare average RGBA for the last scan
+						quadCLT_main.setPassAvgRBGA(                      // get image from a single pass, return relative path for x3d // USED in lwir
+								clt_parameters,                           // CLTParameters           clt_parameters,
+								quadCLT_main.tp.clt_3d_passes.size() - 1, // int        scanIndex,
+								threadsMax,                               // int        threadsMax,  // maximal number of threads to launch
+								updateStatus,                             // boolean    updateStatus,
+								debugLevelInner);                         // int        debugLevel)
 						double [][] assignments_dbg = quadCLT_main.tp.assignTilesToSurfaces(
 								clt_parameters,
 								quadCLT_main.geometryCorrection,

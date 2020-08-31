@@ -4215,7 +4215,7 @@ public class TilePlanes {
 			if (world_xyz != null) {
 				double l2 = world_xyz[0]*world_xyz[0] + world_xyz[1]*world_xyz[1]+world_xyz[2]*world_xyz[2];
 				if (l2 < 0.5) {
-					if (debugLevel > -1) {
+					if (debugLevel > 0) { // -1
 						System.out.println("getWorldXYZ(): l2="+l2); // +" this=\n"+this.toString());
 					}
 					world_xyz = null;
@@ -4317,7 +4317,7 @@ public class TilePlanes {
 			world_xyz = norm_xyz.times((xyz.transpose().times(norm_xyz).get(0,0))).getColumnPackedCopy();
 			double l2 = world_xyz[0]*world_xyz[0] + world_xyz[1]*world_xyz[1]+world_xyz[2]*world_xyz[2];
 			if (l2 < 0.5) {
-				if (debugLevel > -1) {
+				if (debugLevel > 0) { // -1
 					System.out.println("getWorldXYZ(): l2="+l2); // +" this=\n"+this.toString());
 				}
 			}

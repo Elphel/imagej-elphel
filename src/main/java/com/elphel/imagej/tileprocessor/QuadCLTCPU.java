@@ -1574,7 +1574,6 @@ public class QuadCLTCPU {
 				  if (equirectangularParameters.clearAllMaps) eyesisCorrections.pixelMapping.deleteEquirectangularMapAll(srcChannel); // save memory? //removeUnusedSensorData - no, use equirectangular specific settings
 			  }
 			  //pixelMapping
-//			  Runtime.getRuntime().gc();
 			  if (debugLevel >-1) System.out.println("Processing image "+(iImage+1)+" (of "+fileIndices.length+") finished at "+
 					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
@@ -2262,7 +2261,6 @@ public class QuadCLTCPU {
 						  if (equirectangularParameters.clearAllMaps) eyesisCorrections.pixelMapping.deleteEquirectangularMapAll(srcChannel); // save memory? //removeUnusedSensorData - no, use equirectangular specific settings
 					  }
 					  //pixelMapping
-//					  Runtime.getRuntime().gc();
 					  if (debugLevel >-1) System.out.println("Processing image "+(iImage+1)+" (of "+fileIndices.length+") finished at "+
 							  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 					  if (eyesisCorrections.stopRequested.get()>0) {
@@ -2863,7 +2861,6 @@ public class QuadCLTCPU {
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
 					  debugLevel);
-			  // Runtime.getRuntime().gc();
 			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+setNames.size()+") finished at "+
 					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
@@ -3688,7 +3685,6 @@ public class QuadCLTCPU {
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
 					  debugLevel);
-			  //Runtime.getRuntime().gc();
 			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels.length+") finished at "+
 					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
@@ -3770,7 +3766,6 @@ public class QuadCLTCPU {
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
 					  debugLevel);
-			  //Runtime.getRuntime().gc();
 			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels.length+") finished at "+
 					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
@@ -3851,7 +3846,6 @@ public class QuadCLTCPU {
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
 					  debugLevel);
-			  //Runtime.getRuntime().gc();
 			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels.length+") finished at "+
 					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
@@ -4221,7 +4215,7 @@ public class QuadCLTCPU {
 		  final int tilesY = tp.getTilesY();
 
 		  if (clt_parameters.correlate){ // true
-			  clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][];
+			  clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][]; // will it work???
 			  texture_tiles =     new double [tilesY][tilesX][][]; // ["RGBA".length()][];
 			  for (int i = 0; i < tilesY; i++){
 				  for (int j = 0; j < tilesX; j++){
@@ -6132,7 +6126,6 @@ public class QuadCLTCPU {
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
 					  debugLevel);
-			  //Runtime.getRuntime().gc();
 			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+fileIndices.length+") finished at "+
 					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
@@ -6732,6 +6725,13 @@ public class QuadCLTCPU {
 		  		return null;
 		  	}
 		  	this.startStepTime=System.nanoTime();
+			setPassAvgRBGA(                      // get image from a single pass, return relative path for x3d // USED in lwir
+					clt_parameters,                           // CLTParameters           clt_parameters,
+					tp.clt_3d_passes.size() - 1, // int        scanIndex,
+					threadsMax,                               // int        threadsMax,  // maximal number of threads to launch
+					updateStatus,                             // boolean    updateStatus,
+					debugLevel);                         // int        debugLevel)
+		  	
 		  	double [][] assign_dbg = tp.assignTilesToSurfaces(
 		  			clt_parameters,
 		  			geometryCorrection,
@@ -7136,26 +7136,34 @@ public class QuadCLTCPU {
 
 		  //max_expand
 		  String name = (String) imp_quad[0].getProperty("name");
-
-		  CLTPass3d bgnd_data = CLTBackgroundMeas( // measure background
+		  // should create data for the macro! (diff, rgb)
+		  CLTPass3d bgnd_data = CLTBackgroundMeas( // measure background - both CPU and GPU (remove textures from GPU)
 				  clt_parameters,
 				  threadsMax,  // maximal number of threads to launch
 				  updateStatus,
 				  debugLevel);
 		  tp.clt_3d_passes.add(bgnd_data);
 		  //    	  if (show_init_refine)
-//		  if ((debugLevel > -2) && clt_parameters.show_first_bg) {
-		  if ((debugLevel > -3) && clt_parameters.show_first_bg) {
+		  if ((debugLevel > -2) && clt_parameters.show_first_bg) {
+//		  if ((debugLevel > -3) && clt_parameters.show_first_bg) {
 			  tp.showScan(
 					  tp.clt_3d_passes.get(0), // CLTPass3d   scan,
 					  "bgnd_data-"+tp.clt_3d_passes.size());
 		  }
 
 		  //TODO: Move away from here?
-		  boolean no_image_save = true;
+		  boolean no_image_save = false; // Restore? true;
 
-    	  ImagePlus imp_bgnd = getBackgroundImage(
-    			  no_image_save, // boolean no_image,
+		  boolean [] bgmask = getBackgroundImageMasks(
+    			  clt_parameters,
+    			  name,               // .getTitle(), //String name=(String) imp_src.getProperty("name");
+    			  ImageDtt.DISPARITY_INDEX_CM, // index of disparity value in disparity_map == 2 (0,2 or 4)
+    			  threadsMax,  // maximal number of threads to launch
+    			  updateStatus,
+    			  debugLevel);
+		  
+    	  ImagePlus imp_bgnd_int = getBackgroundImage(
+    			  bgmask, // boolean []                                bgnd_tiles, 
     			  clt_parameters,
     			  colorProcParameters,
     			  rgbParameters,
@@ -7164,11 +7172,23 @@ public class QuadCLTCPU {
     			  threadsMax,  // maximal number of threads to launch
     			  updateStatus,
     			  debugLevel);
+		  
+//    	  imp_bgnd_int.show();
+		  
 //		  if (debugLevel > -100) {
 //			  return null;
 //		  }
+		  // resize for backdrop here!
 
+    	  ImagePlus imp_bgnd = finalizeBackgroundImage( // USED in lwir
+    			  imp_bgnd_int,   //  ImagePlus imp_texture_bgnd,
+    			  no_image_save,  // boolean    no_image_save,
+    			  clt_parameters, // CLTParameters           clt_parameters,
+    			  name,           // String     name,
+    			  debugLevel);    // int        debugLevel)
 
+//    	  imp_bgnd.show();
+    	  
     	  bgnd_data.texture = (imp_bgnd == null)? null: ( imp_bgnd.getTitle()+ (clt_parameters.black_back? ".jpeg" : ".png"));
 
     	  // create x3d file
@@ -7301,7 +7321,6 @@ public class QuadCLTCPU {
     					  "macro_combo-"+mtp.clt_3d_passes.size());
     		  }
 
-
     		  //    	  ArrayList <CLTPass3d>
     		  new_meas = mc.prepareMeasurementsFromMacro(
     				  mtp.clt_3d_passes, // final ArrayList <CLTPass3d> macro_passes, // macro correlation measurements
@@ -7384,7 +7403,7 @@ public class QuadCLTCPU {
     					  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
     					  "after_refinePassSetup-"+tp.clt_3d_passes.size());
 
-    			  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
+    			  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity
 //    					  image_data, // first index - number of image in a quad
 //    					  saturation_imp, //final boolean [][]  saturation_imp, // (near) saturated pixels or null
     					  clt_parameters,
@@ -7431,7 +7450,7 @@ public class QuadCLTCPU {
     		  }
     		  // add new scan from macro
     		  tp.clt_3d_passes.add(from_macro_pass);
-			  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
+    		  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity
 //					  image_data, // first index - number of image in a quad
 //					  saturation_imp, //final boolean [][]  saturation_imp, // (near) saturated pixels or null
 					  clt_parameters,
@@ -7502,7 +7521,7 @@ public class QuadCLTCPU {
 					  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
 					  "after_refinePassSetup-"+tp.clt_3d_passes.size());
 
-			  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
+			  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity
 //					  image_data, // first index - number of image in a quad
 //					  saturation_imp, //final boolean [][]  saturation_imp, // (near) saturated pixels or null
 					  clt_parameters,
@@ -8927,7 +8946,7 @@ public class QuadCLTCPU {
 
 //    	  num_extended = numLeftRemoved[0];
 
-    	  CLTMeasure( // perform single pass according to prepared tiles operations and disparity  BUG: gets with .disparity==null
+		  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity  BUG: gets with .disparity==null
 //    			  image_data, // first index - number of image in a quad
 //				  saturation_imp, //final boolean [][]  saturation_imp, // (near) saturated pixels or null
     			  clt_parameters,
@@ -9124,6 +9143,8 @@ public class QuadCLTCPU {
 //		  for (int i = 0; i < bgnd_sel.length; i++) if (bgnd_sel[i]) num_bgnd++;
 //		  if (num_bgnd >= clt_parameters.min_bgnd_tiles) { // TODO: same for the backdrop too
 //		  double infinity_disparity = 	geometryCorrection.getDisparityFromZ(clt_parameters.infinityDistance);
+//TODO make it w/o need for  bgndScan.texture as GPU will calculate texture right before output
+//use selection? or texture_selection instead?		  
 		  if (bgndScan.texture != null) { // TODO: same for the backdrop too
 			  if (clt_parameters.infinityDistance > 0.0){ // generate background as a billboard
 				  // grow selection, then grow once more and create border_tiles
@@ -9131,32 +9152,38 @@ public class QuadCLTCPU {
 				  boolean [] bg_sel_backup = bgndScan.getSelected().clone();
 				  boolean [] bg_border_backup = (bgndScan.getBorderTiles() == null) ? null: bgndScan.getBorderTiles().clone();
 				  boolean [] bg_selected = bgndScan.getSelected();
-				  // 			  tp.growTiles(
-				  // 					  2,                   // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
-				  // 					 bg_selected,
-				  // 					  null); // prohibit
 				  boolean [] border_tiles = bg_selected.clone();
 				  tp.growTiles(
 						  2,                   // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 						  bg_selected,
 						  null); // prohibit
-				  // 			  for (int)
 
 				  for (int i = 0; i < border_tiles.length; i++){
 					  border_tiles[i] = !border_tiles[i] && bg_selected[i];
 				  }
 				  // update texture_tiles (remove what is known not to be background
-				  for (int ty = 0; ty < tilesY; ty++){
-					  for (int tx = 0; tx < tilesX; tx++){
-						  if (!bg_selected[tx + tilesX*ty]){
-							  bgndScan.texture_tiles[ty][tx] = null;
+				  if (bgndScan.texture_tiles != null) { // for CPU
+					  for (int ty = 0; ty < tilesY; ty++){
+						  for (int tx = 0; tx < tilesX; tx++){
+							  if (!bg_selected[tx + tilesX*ty]){
+								  bgndScan.texture_tiles[ty][tx] = null; //
+							  }
+
+						  }
+					  }
+				  } else {//  for GPU
+					  for (int i = 0; i < bg_selected.length; i++) {
+						  if (!bg_selected[i]) {
+							  bgndScan.setTextureSelection(i,false);
 						  }
 					  }
 				  }
-
+				  
+//TODO2020: set texture_selection
 				  bgndScan.setBorderTiles(border_tiles);
+				  // limit tile_op to selection?
 				  // updates selection from non-null texture tiles
-				  String texturePath = getPassImage( // get image from a single pass
+				  String texturePath = getPassImage( // get image from a single pass - both CPU and GPU
 						  clt_parameters,
 						  colorProcParameters,
 						  rgbParameters,
@@ -9205,18 +9232,24 @@ public class QuadCLTCPU {
 			  }
 		  }
 
-
+		  // With GPU - do nothing here or copy selected -> texture_selection?
 		  for (int scanIndex = next_pass; scanIndex < tp.clt_3d_passes.size(); scanIndex++){
 			  if (debugLevel > 0){
 				  System.out.println("FPGA processing scan #"+scanIndex);
 			  }
-///			  CLTPass3d scan =
-					  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
-//					  image_data, // first index - number of image in a quad
+			  /*
+			  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
 					  clt_parameters,
 					  scanIndex,
-    				  true,  // final boolean     save_textures,
-    				  false, // final boolean     save_corr,
+					  true,  // final boolean     save_textures,
+					  false, // final boolean     save_corr,
+					  threadsMax,  // maximal number of threads to launch
+					  updateStatus,
+					  batch_mode ? -5: debugLevel);
+		*/
+			  CLTMeasureTextures( // has GPU version - will just copy selection
+					  clt_parameters,
+					  scanIndex,
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
 					  batch_mode ? -5: debugLevel);
@@ -9398,20 +9431,20 @@ public class QuadCLTCPU {
 	  }
 
 
-	  public ImagePlus getBackgroundImage( // USED in lwir
-			  boolean    no_image_save,
+//	  public ImagePlus getBackgroundImage( // USED in lwir
+	  public boolean[] getBackgroundImageMasks( // USED in lwir
+//			  boolean    no_image_save,
 			  CLTParameters           clt_parameters,
-			  ColorProcParameters colorProcParameters,
-			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
+//			  ColorProcParameters colorProcParameters,
+//			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  String     name,
 			  int        disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
-//			  int        strength_index, // index of strength data in disparity map ==6
 			  int        threadsMax,  // maximal number of threads to launch
 			  boolean    updateStatus,
 			  int        debugLevel
 			  )
 	  {
-		  final boolean new_mode = false;
+//		  final boolean new_mode = false;
 		  boolean dbg_gpu_transition = true;
 
 
@@ -9420,11 +9453,11 @@ public class QuadCLTCPU {
 		  ShowDoubleFloatArrays sdfa_instance = null;
 
 		  if ((clt_parameters.debug_filters && (debugLevel > -1)) || dbg_gpu_transition)
-//		  if ((debugLevel > -1))
+		  if ((debugLevel > -1))
 			  sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
 		  CLTPass3d bgnd_data = tp.clt_3d_passes.get(0);
-		  double [][][][] texture_tiles = bgnd_data.texture_tiles;
+//		  double [][][][] texture_tiles = bgnd_data.texture_tiles;
 
 		  boolean [] bgnd_tiles =   tp.getBackgroundMask( // which tiles do belong to the background
 				  clt_parameters.bgnd_range,     // disparity range to be considered background
@@ -9468,9 +9501,9 @@ public class QuadCLTCPU {
 				  null); // prohibit
 
 // hacking - grow bgnd texture even more, without changing selection
-		  boolean [] bgnd_tiles_grown2 = bgnd_tiles_grown.clone(); // only these have non 0 alpha
 
 		  bgnd_data.selected = bgnd_tiles_grown; // selected for background w/o extra transparent layer
+		  boolean [] bgnd_tiles_grown2 = bgnd_tiles_grown.clone(); // only these have non 0 alpha
 		  tp.growTiles(
 				  2,      // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 				  bgnd_tiles_grown2,
@@ -9488,13 +9521,48 @@ public class QuadCLTCPU {
 			  }
 			sdfa_instance.showArrays(dbg_img,  tilesX, tilesY, true, "strict_grown",titles);
 		  }
-
+		  // not here - will be set/calculated for GPU only
+///		  bgnd_data.setTextureSelection(bgnd_tiles_grown2); // selected for background w/o extra transparent layer
+		  return bgnd_tiles ;
+	  }
+	  
+	  
+	  public ImagePlus getBackgroundImage( // USED in lwir
+			  boolean []                                bgnd_tiles, 
+			  CLTParameters                             clt_parameters,
+			  ColorProcParameters                       colorProcParameters,
+			  EyesisCorrectionParameters.RGBParameters  rgbParameters,
+			  String     name,
+			  int        disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
+			  int        threadsMax,  // maximal number of threads to launch
+			  boolean    updateStatus,
+			  int        debugLevel
+			  ) {
+		  final int tilesX = tp.getTilesX();
+		  final int tilesY = tp.getTilesY();
+		  final boolean new_mode = false;
 		  int num_bgnd = 0;
+
+		  CLTPass3d bgnd_data = tp.clt_3d_passes.get(0);
+		  double [][][][] texture_tiles = bgnd_data.texture_tiles;
 		  double [][][][] texture_tiles_bgnd = new double[tilesY][tilesX][][];
 		  double [] alpha_zero = new double [4*clt_parameters.transform_size*clt_parameters.transform_size];
 		  int alpha_index = 3;
+		  boolean [] bgnd_tiles_grown = bgnd_tiles.clone(); // only these have non 0 alpha
+		  tp.growTiles(
+				  2,      // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				  bgnd_tiles,
+				  null); // prohibit
+		  boolean [] bgnd_tiles_grown2 = bgnd_tiles_grown.clone(); // only these have non 0 alpha
+		  tp.growTiles(
+				  2,      // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				  bgnd_tiles_grown2,
+				  null); // prohibit
+		  
 		  for (int i = 0; i < alpha_zero.length; i++) alpha_zero[i]=0.0;
-		  if (new_mode) {
+		  // Seems to be wrong for the second?
+		  
+		  if (new_mode) { // not used
 			  for (int tileY = 0; tileY < tilesY; tileY++){
 				  for (int tileX = 0; tileX < tilesX; tileX++){
 					  texture_tiles_bgnd[tileY][tileX]= null;
@@ -9531,6 +9599,8 @@ public class QuadCLTCPU {
 		  if (num_bgnd < clt_parameters.min_bgnd_tiles){
 			  return null; // no background to generate // not used in lwir
 		  }
+		  
+		  
 		  ImageDtt image_dtt = new ImageDtt(
 				  clt_parameters.transform_size,
 				  isMonochrome(),
@@ -9575,6 +9645,18 @@ public class QuadCLTCPU {
 				  debugLevel);
 		  // resize for backdrop here!
 //	public double getFOVPix(){ // get ratio of 1 pixel X/Y to Z (distance to object)
+		  return imp_texture_bgnd;
+
+	  }
+	  
+	  
+	  public ImagePlus finalizeBackgroundImage( // USED in lwir
+			  ImagePlus imp_texture_bgnd,
+			  boolean    no_image_save,
+			  CLTParameters           clt_parameters,
+			  String     name,
+			  int        debugLevel) {
+		  
 		  ImagePlus imp_texture_bgnd_ext = resizeForBackdrop(
 				  imp_texture_bgnd,
 				  clt_parameters.black_back, //  boolean fillBlack,
@@ -9584,7 +9666,6 @@ public class QuadCLTCPU {
 				  //TODO: Which one to use - name or this.image_name ?
  				  correctionsParameters.getModelName(this.image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
  				  correctionsParameters.x3dModelVersion,
-// 				  name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
 				  true,  // smart,
 				  true);  //newAllowed, // save
 		  // only show/save original size if debug or debug_filters)
@@ -9610,7 +9691,7 @@ public class QuadCLTCPU {
 
 
 
-	 public String getPassImage( // get image form a single pass, return relative path for x3d // USED in lwir
+	 public String getPassImage( // get image from a single pass, return relative path for x3d // USED in lwir
 			  CLTParameters           clt_parameters,
 			  ColorProcParameters colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
@@ -9813,6 +9894,68 @@ public class QuadCLTCPU {
 		  return imp_ext;
 	  }
 
+	  
+	  
+	  public ImagePlus resizeToFull(
+			  int       out_width,
+			  int       out_height,
+			  int       x0, // image offset-x pixels
+			  int       y0, // image offset-y pixels
+			  ImagePlus imp,
+			  boolean   fillBlack,
+			  boolean noalpha, // only with fillBlack, otherwise ignored
+			  int debugLevel)
+	  {
+		  int width = imp.getWidth();
+		  int height = imp.getHeight();
+//		  int h_margin = (int) Math.round((backdropPixels - width)/2);
+//		  int v_margin = (int) Math.round((backdropPixels - height)/2);
+//		  int width2 =  width +  2 * h_margin;
+//		  int height2 = height + 2 * v_margin;
+		  int [] src_pixels = (int []) imp.getProcessor().getPixels();
+		  int [] pixels = new int [out_width * out_height];
+		  int black = noalpha ? 0 :        0xff000000;
+		  int mask =  noalpha ? 0xffffff : 0xffffffff;
+		  if (fillBlack) {
+			  for (int i = 0; i < pixels.length; i++){
+				  pixels[i] = black;
+			  }
+		  }
+		  int indx = 0;
+		  int offset = y0 * out_width + x0; // v_margin *  width2 + h_margin;
+		  if (fillBlack) {
+			  for (int i = 0; i < height; i++){
+				  for (int j = 0; j < width; j++){
+					  int a =  (src_pixels[indx] >> 24) & 0xff;
+					  if (a == 255) {
+						  pixels[offset+ i * out_width + j] = src_pixels[indx] & mask;
+					  } else if (a == 0) {
+						  pixels[offset+ i * out_width + j] = black;
+					  } else  {
+						  int r = (src_pixels[indx] >> 16) & 0xff; //' maybe - swap with b?
+						  int g = (src_pixels[indx] >>  8) & 0xff;
+						  int b = (src_pixels[indx] >>  0) & 0xff;
+						  r = (r * a) / 255;
+						  g = (g * a) / 255;
+						  b = (b * a) / 255;
+						  pixels[offset+ i * out_width + j] = black | (r << 16) | (g << 8) | b;
+					  }
+					  indx++;
+				  }
+			  }
+		  } else { // not used in lwir
+			  for (int i = 0; i < height; i++){
+				  for (int j = 0; j < width; j++){
+					  pixels[offset+ i * out_width + j] = src_pixels[indx++];
+				  }
+			  }
+		  }
+		  ColorProcessor cp=new ColorProcessor(out_width,out_height);
+		  cp.setPixels(pixels);
+		  ImagePlus imp_ext=new ImagePlus(imp.getTitle()+"-ext",cp);
+		  return imp_ext;
+	  }
+	  
 //[tp.tilesY][tp.tilesX]["RGBA".length()][]
 //linearStackToColor
 
@@ -9869,7 +10012,7 @@ public class QuadCLTCPU {
 				  }
 			  }
 		  }
-
+		  clt_corr_combo = null; // Something is broke in old code, tries to use color==3 ==colors.weights.length
 		  image_dtt.clt_aberrations_quad_corr(
 				  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 				  1,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
@@ -9961,6 +10104,23 @@ public class QuadCLTCPU {
 		  return scan_rslt;
 	  }
 	  
+	  public CLTPass3d  CLTMeasureTextures( // perform single pass according to prepared tiles operations and disparity // not used in lwir
+			  CLTParameters           clt_parameters,
+			  final int         scanIndex,
+			  final int         threadsMax,  // maximal number of threads to launch
+			  final boolean     updateStatus,
+			  final int         debugLevel)
+	  {
+		  return CLTMeasure( // measure background // USED in lwir
+				  clt_parameters,
+				  scanIndex,
+				  true, // save_textures,
+				  false, // save_corr,
+				  threadsMax,  // maximal number of threads to launch
+				  updateStatus,
+				  debugLevel);
+	  }
+	  
 	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity // not used in lwir
 			  CLTParameters           clt_parameters,
 			  final int         scanIndex,
@@ -9980,7 +10140,7 @@ public class QuadCLTCPU {
 				  updateStatus,   // final boolean     updateStatus,
 				  debugLevel);    // final int         debugLevel);
 	  }
-	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity // not used in lwir
+	  public CLTPass3d  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity // not used in lwir
 			  CLTParameters           clt_parameters,
 			  final int         scanIndex,
 			  final boolean     save_textures,
@@ -9992,7 +10152,7 @@ public class QuadCLTCPU {
 				  clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 				  scanIndex,      // final int         scanIndex,
 				  save_textures,  // final boolean     save_textures,
-				  true,      // final boolean       save_corr,
+				  true,           // final boolean       save_corr,
 				  null,           // final double [][] mismatch,    // null or double [12][]
 				  threadsMax,     // final int         threadsMax,  // maximal number of threads to launch
 				  updateStatus,   // final boolean     updateStatus,
@@ -10040,7 +10200,8 @@ public class QuadCLTCPU {
 		  }
 
 		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
-		  double [][][][]     clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][]; // will only be used inside?
+		  double [][][][]     clt_corr_combo = null; //    new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][]; // will only be used inside?
+		  // broken clt_aberrations_quad_corr_new
 		  if (debugLevel > -1){
 			  int numTiles = 0;
 			  for (int ty = 0; ty < tile_op.length; ty ++) for (int tx = 0; tx < tile_op[ty].length; tx ++){
@@ -10176,7 +10337,7 @@ public class QuadCLTCPU {
 		  int [][]     tile_op =         scan.tile_op;
 		  double [][]  disparity_array = scan.disparity;
 		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
-		  double [][][][]     clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][]; // will only be used inside?
+		  double [][][][]     clt_corr_combo =    null; // new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][]; // will only be used inside?
 		  if (debugLevel > -1){
 			  int numTiles = 0;
 			  for (int ty = 0; ty < tile_op.length; ty ++) for (int tx = 0; tx < tile_op[ty].length; tx ++){
@@ -10904,6 +11065,14 @@ public class QuadCLTCPU {
 			  } else continue; // if (correctionsParameters.clt_batch_surf)
 
 			  if (correctionsParameters.clt_batch_assign) {
+					// prepare average RGBA for the last scan
+					setPassAvgRBGA(                      // get image from a single pass, return relative path for x3d // USED in lwir
+							clt_parameters,                           // CLTParameters           clt_parameters,
+							tp.clt_3d_passes.size() - 1, // int        scanIndex,
+							threadsMax,                               // int        threadsMax,  // maximal number of threads to launch
+							updateStatus,                             // boolean    updateStatus,
+							debugLevelInner);                         // int        debugLevel)
+				  
 				  double [][] assign_dbg = tp.assignTilesToSurfaces(
 						  clt_parameters,
 						  geometryCorrection,
@@ -11095,5 +11264,57 @@ public class QuadCLTCPU {
 			  return false;
 		  }
 		  return true;
+	  }
+	  
+	  public void setPassAvgRBGA( // get image from a single pass, return relative path for x3d // USED in lwir
+			  CLTParameters           clt_parameters,
+			  int        scanIndex,
+			  int        threadsMax,  // maximal number of threads to launch
+			  boolean    updateStatus,
+			  int        debugLevel)
+	  {
+		  final int tilesX = tp.getTilesX();
+		  final int tilesY = tp.getTilesY();
+//		  final int transform_size =clt_parameters.transform_size;
+		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
+		  double [][][][] texture_tiles = scan.texture_tiles; 
+		  if (texture_tiles == null) return;
+		  int num_layers = 0;
+		  for (int ty = 0; ty < tilesY; ty++){
+			  if (texture_tiles[ty] != null){
+				  for (int tx = 0; tx < tilesX; tx++){
+					  if (texture_tiles[ty][tx] != null){
+						  num_layers = texture_tiles[ty][tx].length;
+						  break;
+					  }
+				  }
+				  if (num_layers > 0) break;
+			  }
+			  if (num_layers > 0) break;
+		  }
+		  int numTiles = tilesX * tilesY;
+		  double [] scales = new double [num_layers];
+		  for (int n = 0; n < num_layers; n++){
+			  if       (n < 3)  scales[n] = 1.0/255.0; // R,B,G
+			  else if  (n == 3) scales[n] = 1.0; //alpha
+			  else if  (n < 8)  scales[n] = 1.0; // ports 0..3
+			  else              scales[n] = 1.0/255.0; // RBG rms, in 1/255 units, but small
+		  }
+		  double [][] tileTones = new double [num_layers][numTiles];
+		  for (int ty = 0; ty < tilesY; ty++ ) if (texture_tiles[ty] != null){
+			  for (int tx = 0; tx < tilesX; tx++ ) if (texture_tiles[ty][tx] != null) {
+				  int indx = ty * tilesX + tx;
+				  for (int n = 0; n < num_layers; n++) if (texture_tiles[ty][tx][n] != null){
+					  double s = 0.0;
+					  for (int i = 0; i < texture_tiles[ty][tx][n].length; i++){
+						  s += texture_tiles[ty][tx][n][i];
+					  }
+					  s /= (texture_tiles[ty][tx][n].length/4); // overlapping tiles
+					  s *= scales[n];
+					  tileTones[n][indx] = s;
+				  }
+			  }
+		  }
+		  scan.setTilesRBGA(tileTones); 
 	  }
 }

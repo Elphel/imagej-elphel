@@ -60,16 +60,17 @@ public class CLTPass3d{
 		public  boolean []      border_tiles =         null; // these are border tiles, zero out alpha
 		public  boolean []      selected =             null; // which tiles are selected for this layer
 		public  double [][][][] texture_tiles;
-		public  float  [][]     texture_img =          null; // [3][] (RGB) or [4][] RGBA
-		public  Rectangle       texture_woi =          null; // null or generated texture location/size
+		// texture_selection is only used for the GPU and if not null means it is for the GPU
+		public boolean []       texture_selection =    null; // use by the GPU to set texture to generate
 				
 		public  double [][]      max_tried_disparity =  null; //[ty][tx] used for combined passes, shows maximal disparity for this tile, regardless of results
 		public  boolean         is_combo =             false;
 		public  boolean         is_measured =          false;
 		public  String          texture = null; // relative (to x3d) path
-		public  Rectangle       texture_bounds;
+		public  Rectangle       texture_bounds; // in tiles, not pixels !
 		public  int             dbg_index;
 		public  int             disparity_index = ImageDtt.DISPARITY_INDEX_CM; // may also be ImageDtt.DISPARITY_INDEX_POLY
+		public double [][]      tiles_RBGA =           null;
 
 		SuperTiles              superTiles = null;
 		TileProcessor           tileProcessor;
@@ -99,7 +100,31 @@ public class CLTPass3d{
 		{
 			return 	texture_tiles;
 		}
+		// texture_selection is only used for the GPU and if not null means it is for the GPU
+		public boolean [] getTextureSelection()
+		{
+			return texture_selection;
+		}
+		
+		public void setTextureSelection(boolean [] selection) {
+			texture_selection = selection;
+		}
 
+		public void setTextureSelection(int indx, boolean sel) {
+			texture_selection[indx] = sel;
+		}
+
+		public double [][] getTilesRBGA()
+		{
+			return tiles_RBGA;
+		}
+
+		public void setTilesRBGA(double [][] rgba)
+		{
+			tiles_RBGA = rgba;
+		}
+		
+		/*
 		public float [][] getTextureImages()
 		{
 			return 	texture_img;
@@ -109,17 +134,35 @@ public class CLTPass3d{
 		{
 			return 	texture_woi;
 		}
+		*/
 		
 		public double [][] getMaxTriedDisparity()
 		{
 			return max_tried_disparity;
 		}
+		
+		
 		public double [][] getTileRBGA(
 				int num_layers) // 4 or 12
 		{
-			if (texture_img != null) {
-				System.out.println("FIXME: implement replacement for the GPU-generated textures (using macro mode?)");
+//			if (texture_img != null) {
+//				System.out.println("FIXME: implement replacement for the GPU-generated textures (using macro mode?)");
+//			}
+			double [][] tones = getTilesRBGA();
+			if (tones != null) {
+				int nl = tones.length;
+				if (nl > num_layers) {
+					double [][] tones1 = new double [num_layers][tones[0].length];
+					for (int n = 0; n < num_layers; n++) {
+						tones1[n] = tones[n];
+					}
+					return tones1;
+				} else {
+					return tones;
+				}
 			}
+			System.out.println("FIXME: should not get here, tones should be calculated earlier");
+			
 			if (texture_tiles == null) return null;
 			int tilesY = texture_tiles.length;
 			int tilesX = 0;
@@ -175,11 +218,12 @@ public class CLTPass3d{
 
 
 		// Will not work if texture is disabled
-		public  void            updateSelection(){ // add updating border tiles?
+		public  void            updateSelection(){ // add updating border tiles? -- only for CPU!
 			int tilesX = tileProcessor.getTilesX();
 			int tilesY = tileProcessor.getTilesY();
 			selected = new boolean[tilesY*tilesX];
 			int minX = tilesX, minY = tilesY, maxX = -1, maxY = -1;
+			/*
 			if (texture_img != null) { // using GPU output
 //tileProcessor.getTileSize()
 				if (texture_woi != null) {
@@ -195,6 +239,7 @@ public class CLTPass3d{
 					return;
 				}
 			}
+			*/
 			if (texture_tiles != null) {
 				for (int ty = 0; ty < tilesY; ty++) for (int tx = 0; tx < tilesX; tx++){
 					if (texture_tiles[ty][tx] != null) {
@@ -214,7 +259,6 @@ public class CLTPass3d{
 				texture_bounds = new Rectangle(minX, minY, maxX - minX +1, maxY - minY +1 );
 			}
 		}
-
 		public  Rectangle  getTextureBounds(){
 			return texture_bounds;
 		}
@@ -247,10 +291,10 @@ public class CLTPass3d{
 			strength_vert =        null; // updated hor strength, initially uses a copy of raw measured
 			bgTileDisparity =      null;
 			bgTileStrength =       null;
-//			border_tiles =         null;      // these are border tiles, zero out alpha
-//			selected =             null;          // which tiles are selected for this layer
+//			border_tiles =         null; // these are border tiles, zero out alpha
+//			selected =             null; // which tiles are selected for this layer
 			superTiles =           null;
-
+			setTilesRBGA(null);
 
 		}
 		/**

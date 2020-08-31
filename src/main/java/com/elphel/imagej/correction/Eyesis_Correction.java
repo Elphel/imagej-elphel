@@ -6264,8 +6264,6 @@ private Panel panel1,
 
 	public boolean batchLwir() {
 		long startTime=System.nanoTime();
-		
-		
 		// load needed sensor and kernels files
 		if (!prepareRigImages()) return false;
 		String configPath=getSaveCongigPath();

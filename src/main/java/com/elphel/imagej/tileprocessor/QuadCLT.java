@@ -24,7 +24,7 @@ package com.elphel.imagej.tileprocessor;
  **
  */
 
-import static jcuda.driver.JCudaDriver.cuMemcpyDtoH;
+//import static jcuda.driver.JCudaDriver.cuMemcpyDtoH;
 
 import java.awt.Rectangle;
 import java.io.DataOutputStream;
@@ -44,12 +44,9 @@ import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.correction.CorrectionColorProc;
 import com.elphel.imagej.correction.EyesisCorrections;
 import com.elphel.imagej.gpu.GPUTileProcessor;
-import com.elphel.imagej.gpu.GPUTileProcessor.TpTask;
 
 import ij.ImagePlus;
 import ij.ImageStack;
-import jcuda.Pointer;
-import jcuda.Sizeof;
 
 public class QuadCLT extends QuadCLTCPU {
 	private GPUTileProcessor.GpuQuad gpuQuad =              null;	
@@ -330,10 +327,15 @@ public class QuadCLT extends QuadCLTCPU {
 	    		0xf,                                  // int                       out_image, // from which tiles to generate image (currently 0/1)
 	    		0x3f,                                 // int                       corr_mask,  // which correlation pairs to generate (maybe later - reduce size from 15x15)
 	    		debugLevel);                          // final int                 debugLevel) - not yet used
+		if (tp_tasks.length == 0) {
+			System.out.println("Empty tasks - nothing to do");
+			return;
+		}
 
 		gpuQuad.setTasks( // copy tp_tasks to the GPU memory
 				tp_tasks, // TpTask [] tile_tasks,
-				use_aux); // boolean use_aux)
+				use_aux, // boolean use_aux)
+				clt_parameters.img_dtt.gpu_verify); // boolean verify
 
 		gpuQuad.execSetTilesOffsets();
 		gpuQuad.execConvertDirect();
@@ -596,10 +598,16 @@ public class QuadCLT extends QuadCLTCPU {
 	    		0xf,                                  // int                       out_image, // from which tiles to generate image (currently 0/1)
 	    		0x3f,                                 // int                       corr_mask,  // which correlation pairs to generate (maybe later - reduce size from 15x15)
 	    		debugLevel);                          // final int                 debugLevel) - not yet used
+		if (tp_tasks.length == 0) {
+			System.out.println("--- Empty tasks - nothing to do ---");
+			return null;
+		}
 
 		quadCLT_main.getGPU().setTasks( // copy tp_tasks to the GPU memory
 				tp_tasks, // TpTask [] tile_tasks,
-				use_aux); // boolean use_aux)
+				use_aux, // boolean use_aux)
+				clt_parameters.img_dtt.gpu_verify); // boolean verify
+				
 /*
 		quadCLT_main.getGPU().setGeometryCorrection( // copy Geometry correction data to the GPU memory (once per camera group?), allocate GPU memory for the rotation/deriv. matrices
 				quadCLT_main.getGeometryCorrection(),
@@ -1056,13 +1064,15 @@ public class QuadCLT extends QuadCLTCPU {
 		    		}
 		    	}
 			}
-			double [][][][] texture_tiles =     quadCLT_main.getGPU().doubleTextures(
+			double [][][][] texture_tiles = new double [tilesY][tilesX][][];
+			quadCLT_main.getGPU().doubleTextures(
 		    		new Rectangle(0, 0, tilesX, tilesY), // Rectangle    woi,
-		    		texture_indices,                  // int []       indices,
-		    		flat_textures,                    // float [][][] ftextures,
-		    		tilesX,                           // int          full_width,
-		    		4, // rbga only /int          num_slices
-		    		num_src_slices // int          num_src_slices
+		    		texture_tiles,                       // double [][][][] texture_tiles, // null or [tilesY][tilesX]
+		    		texture_indices,                     // int []       indices,
+		    		flat_textures,                       // float [][][] ftextures,
+		    		tilesX,                              // int          full_width,
+		    		4,                                   // rbga only /int          num_slices
+		    		num_src_slices                       // int          num_src_slices
 		    		);
 
 			if ((debugLevel > -1) && (clt_parameters.tileX >= 0) && (clt_parameters.tileY >= 0) && (clt_parameters.tileX < tilesX) && (clt_parameters.tileY < tilesY)) {
@@ -1219,9 +1229,9 @@ public class QuadCLT extends QuadCLTCPU {
 		  double [][][][]     clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][]; // will only be used inside?
 
 //		  double min_corr_selected = clt_parameters.min_corr; // 0.02 was not used !
-
+		  // yes, needed  (for macro)
 		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
-
+//if ((i >= IMG_TONE_RGB) || ((i >= IMG_DIFF0_INDEX) && (i < (IMG_DIFF0_INDEX + 4)))) {
 		  /*
 		  double [][] shiftXY = new double [4][2];
 		  // not used
@@ -1264,8 +1274,8 @@ public class QuadCLT extends QuadCLTCPU {
 			  }
 		  }
 		  
-		  float [][] texture_img = new float [isMonochrome()?2:4][];
-		  Rectangle  texture_woi = new Rectangle();
+//		  float [][] texture_img = new float [isMonochrome()?2:4][];
+//		  Rectangle  texture_woi = new Rectangle();
 		  image_dtt.clt_aberrations_quad_corr_GPU( // USED in LWIR
 				  clt_parameters.img_dtt,        // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 				  1,                             // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
@@ -1285,8 +1295,9 @@ public class QuadCLT extends QuadCLTCPU {
 				                                 // last 2 - contrast, avg/ "geometric average)
 				  disparity_modes,               // disparity_modes, // bit mask of disparity_map slices to calculate/return
 					
-				  texture_img,                   // texture_img,     // null or [3][] (RGB) or [4][] RGBA
-				  texture_woi,                   // texture_woi,     // null or generated texture location/size
+				  null,                          // 	final double [][][][]     texture_tiles,   // compatible with the CPU ones      
+				  null, // texture_img,                   // texture_img,     // null or [3][] (RGB) or [4][] RGBA
+				  null, // texture_woi,                   // texture_woi,     // null or generated texture location/size
 				  null,                          //  iclt_fimg,       // will return quad images or null to skip, use quadCLT.linearStackToColor 
 					// new parameters, will replace some other?
 //				  clt_parameters.getFatZero(isMonochrome()),      // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
@@ -1323,8 +1334,8 @@ public class QuadCLT extends QuadCLTCPU {
 		  scan_rslt.tile_op =       tile_op;
 		  scan_rslt.disparity_map = disparity_map;
 		  scan_rslt.texture_tiles = null; // texture_tiles;
-		  scan_rslt.texture_img =   texture_img;
-		  scan_rslt.texture_woi =   texture_woi;
+//		  scan_rslt.texture_img =   texture_img;
+//		  scan_rslt.texture_woi =   texture_woi;
 		  scan_rslt.is_measured =   true;
 		  scan_rslt.is_combo =      false;
 		  scan_rslt.resetProcessed();
@@ -1356,9 +1367,675 @@ public class QuadCLT extends QuadCLTCPU {
 		  
 		  return scan_rslt;
 	  }
+
+	  public ImagePlus getBackgroundImage(
+			  boolean []                                bgnd_tiles, 
+			  CLTParameters                             clt_parameters,
+			  ColorProcParameters                       colorProcParameters,
+			  EyesisCorrectionParameters.RGBParameters  rgbParameters,
+			  String     name,
+			  int        disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
+			  int        threadsMax,  // maximal number of threads to launch
+			  boolean    updateStatus,
+			  int        debugLevel
+			  ) {
+		  if ((gpuQuad == null) || !(isAux()?clt_parameters.gpu_use_aux : clt_parameters.gpu_use_main)) {
+			  return super.getBackgroundImage( // measure background // USED in lwir
+					  bgnd_tiles, 
+					  clt_parameters,
+					  colorProcParameters,
+					  rgbParameters,
+					  name,
+					  disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
+					  threadsMax,  // maximal number of threads to launch
+					  updateStatus,
+					  debugLevel);
+		  }
+		  
+		  final int tilesX = tp.getTilesX();
+		  final int tilesY = tp.getTilesY();
+		  CLTPass3d bgnd_data = tp.clt_3d_passes.get(0);
+		  boolean [] bgnd_tiles_grown2 = bgnd_data.selected.clone(); // only these have non 0 alpha
+		  tp.growTiles(
+				  2,      // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				  bgnd_tiles_grown2,
+				  null); // prohibit
+		  //				  bgnd_data.getTextureSelection()
+		  bgnd_data.setTextureSelection(bgnd_tiles_grown2);
+		  Rectangle  texture_woi_pix = new Rectangle(); // in pixels
+		  float [][] texture_img = GetTextureGPU( // returns texture
+				  clt_parameters,      // CLTParameters       clt_parameters,
+				  texture_woi_pix,         // Rectangle  texture_woi, // = new Rectangle();
+				  bgnd_data.disparity, // double [][]         disparity_array, // [tilesY][tilesX]
+				  bgnd_tiles_grown2,   // bgnd_tiles_grown2,   // boolean []          selection,
+				  threadsMax,          // final int           threadsMax,  // maximal number of threads to launch
+				  updateStatus,        // final boolean       updateStatus,
+				  debugLevel);         // final int           debugLevel);
+
+		  // for now - use just RGB. Later add option for RGBA
+		  float [][] texture_rgb = {texture_img[0],texture_img[1],texture_img[2]};
+		  float [][] texture_rgba = {texture_img[0],texture_img[1],texture_img[2],texture_img[3]};
+
+		  int out_width =  tilesX *  clt_parameters.transform_size;
+		  int out_height = tilesY *  clt_parameters.transform_size;
+			
+		  ImagePlus imp_texture_bgnd = linearStackToColor(
+				  clt_parameters,
+				  colorProcParameters,
+				  rgbParameters,
+				  name+"-texture-bgnd", // String name,
+				  "", //String suffix, // such as disparity=...
+				  true, // toRGB,
+				  !this.correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
+				  true, // boolean saveShowIntermediate, // save/show if set globally
+				  false, //true, // boolean saveShowFinal,        // save/show result (color image?)
+				  ((clt_parameters.alpha1 > 0)? texture_rgba: texture_rgb),
+				  texture_woi_pix.width, // tilesX *  clt_parameters.transform_size,
+				  texture_woi_pix.height, // tilesY *  clt_parameters.transform_size,
+				  1.0,         // double scaleExposure, // is it needed?
+				  debugLevel);
+//		  imp_texture_bgnd.show();
+		  // resize for backdrop here!
+//	public double getFOVPix(){ // get ratio of 1 pixel X/Y to Z (distance to object)
+		  ImagePlus imp_texture_full = resizeToFull(
+				  out_width, // int       out_width,
+				  out_height, // int       out_height,
+				  texture_woi_pix.x, // int       x0, // image offset-x 
+				  texture_woi_pix.y, // int       y0, // image offset-y
+				  imp_texture_bgnd, // ImagePlus imp_texture_bgnd,
+				  false, // boolean   fillBlack,
+				  false, // boolean noalpha, // only with fillBlack, otherwise ignored
+				  debugLevel);
+//		  imp_texture_full.show();
+		  return imp_texture_full;
+
+	  }
 	  
-	
-	
+	  public CLTPass3d  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity // not used in lwir
+			  CLTParameters     clt_parameters,
+			  final int         scanIndex,
+			  final boolean     save_textures,
+			  final int         threadsMax,  // maximal number of threads to launch
+			  final boolean     updateStatus,
+			  final int         debugLevel)
+	  {
+		  if ((gpuQuad == null) || !(isAux()?clt_parameters.gpu_use_aux : clt_parameters.gpu_use_main)) {
+			  return super.CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity
+					  clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
+					  scanIndex,      // final int         scanIndex,
+					  save_textures,  // final boolean     save_textures,
+					  threadsMax,     // final int         threadsMax,  // maximal number of threads to launch
+					  updateStatus,   // final boolean     updateStatus,
+					  debugLevel);    // final int         debugLevel);
+		  }
+		  // GPU will not use textures. Maybe set texture_selection instead?
+//		  final int transform_size =clt_parameters.transform_size;
+		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
+		  final int tilesX = tp.getTilesX();
+		  final int tilesY = tp.getTilesY();
+		  int [][]     tile_op =         scan.tile_op;
+		  double [][]  disparity_array = scan.disparity;
+		  boolean [] tex_sel = null;
+		  if (save_textures) {
+			  tex_sel = new boolean [tilesY*tilesX];
+			  for (int ty = 0; ty < tilesY; ty++) {
+				  for (int tx = 0; tx < tilesX; tx++) {
+					  if (tile_op[ty][tx] != 0){
+						  tex_sel[ty * tilesX + tx] = true;
+					  }
+				  }
+			  }
+		  }
+		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
+		  /*
+		  double [][] shiftXY = new double [4][2];
+		  // not used
+		  if (!clt_parameters.fine_corr_ignore) {
+			  double [][] shiftXY0 = {
+					  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
+					  {clt_parameters.fine_corr_x_1,clt_parameters.fine_corr_y_1},
+					  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
+					  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
+			  shiftXY = shiftXY0;
+		  }
+          */
+		  ImageDtt image_dtt = new ImageDtt(
+				  clt_parameters.transform_size,
+				  isMonochrome(),
+				  isLwir(),
+				  clt_parameters.getScaleStrength(isAux()),
+				  gpuQuad);
+		  double z_correction =  clt_parameters.z_correction;
+		  if (clt_parameters.z_corr_map.containsKey(image_name)){ // not used in lwir
+			  z_correction +=clt_parameters.z_corr_map.get(image_name);
+		  }
+		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
+
+		  // TODO: find where BITS_ALL_DIFFS is not needed and remove - it takes much longer than correlation in the GPU
+		  int disparity_modes = 
+				  ImageDtt.BITS_ALL_DISPARITIES |
+				  ImageDtt.BITS_ALL_DIFFS | // needs max_diff?
+				  ImageDtt.BITS_OVEREXPOSED; //  |
+//				  ImageDtt.BITS_TONE_RGB;
+
+		  image_dtt.clt_aberrations_quad_corr_GPU( // USED in LWIR
+				  clt_parameters.img_dtt,        // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+				  1,                             // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
+				  tile_op,                       // per-tile operation bit codes
+				  disparity_array,               // clt_parameters.disparity,     // final double            disparity,
+				  //// Uses quadCLT from gpuQuad			
+				                                 // correlation results - final and partial
+				  null,                          // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+				                                 // [type][tilesY][tilesX] should be set by caller
+				                                 // types: 0 - selected correlation (product+offset), 1 - sum
+				  null,                          // clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+				                                 // [tilesY][tilesX] should be set by caller
+				                                 // When clt_mismatch is non-zero, no far objects extraction will be attempted
+				  null,                          // clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
+				                                 // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
+				  disparity_map,                 // disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+				                                 // last 2 - contrast, avg/ "geometric average)
+				  disparity_modes,               // disparity_modes, // bit mask of disparity_map slices to calculate/return
+					
+				  null,                          // 	final double [][][][]     texture_tiles,   // compatible with the CPU ones      
+				  null, // texture_img,          // texture_img,     // null or [3][] (RGB) or [4][] RGBA
+				  null, // texture_woi,          // texture_woi,     // null or generated texture location/size
+				  null,                          //  iclt_fimg,       // will return quad images or null to skip, use quadCLT.linearStackToColor 
+					// new parameters, will replace some other?
+//				  clt_parameters.getFatZero(isMonochrome()),      // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
+				  clt_parameters.gpu_corr_scale, //  gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
+				  clt_parameters.getGpuFatZero(isMonochrome()), // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
+				  clt_parameters.gpu_sigma_r,    // 0.9, 1.1
+				  clt_parameters.gpu_sigma_b,    // 0.9, 1.1
+				  clt_parameters.gpu_sigma_g,    // 0.6, 0.7
+				  clt_parameters.gpu_sigma_m,    //  =       0.4; // 0.7;
+				  (isMonochrome()? 1.0 : clt_parameters.gpu_sigma_rb_corr), // final double              gpu_sigma_rb_corr, //  = 0.5; // apply LPF after accumulating R and B correlation before G, monochrome ? 1.0 : gpu_sigma_rb_corr;
+				  clt_parameters.gpu_sigma_corr, //  =    0.9;gpu_sigma_corr_m
+				  image_dtt.transform_size - 1, // clt_parameters.gpu_corr_rad,   // = transform_size - 1 ?
+				  clt_parameters.corr_red,       // +used
+				  clt_parameters.corr_blue,      // +used
+				  clt_parameters.max_corr_radius,// 3.9;
+				  clt_parameters.corr_mode,      // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
+				  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
+				  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
+				  clt_parameters.diff_sigma,     // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
+				  clt_parameters.diff_threshold, // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
+				  clt_parameters.diff_gauss,     // true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
+				  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+				  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
+				  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
+				  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
+				  clt_parameters.clt_window,
+				  disparity_corr,                // final double              disparity_corr, // disparity at infinity
+				  clt_parameters.tileX,          // final int               debug_tileX,
+				  clt_parameters.tileY,          // final int               debug_tileY,
+				  threadsMax,
+				  debugLevel);
+		  
+ 		  scan.disparity_map = disparity_map;
+		  scan.texture_tiles = null;
+		  scan.setTextureSelection(tex_sel);
+		  scan.is_measured =   true; // but no disparity map/textures
+		  scan.is_combo =      false;
+		  scan.resetProcessed();
+		  return scan;
+	  }
+
+	  
+	  public String getPassImage( // get image from a single pass, return relative path for x3d // USED in lwir
+			  CLTParameters           clt_parameters,
+			  ColorProcParameters colorProcParameters,
+			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
+			  String     name,
+			  int        scanIndex,
+			  int        threadsMax,  // maximal number of threads to launch
+			  boolean    updateStatus,
+			  int        debugLevel)
+	  {
+		  if ((gpuQuad == null) || !(isAux()?clt_parameters.gpu_use_aux : clt_parameters.gpu_use_main)) {
+			  return super.getPassImage( // get image from a single pass, return relative path for x3d // USED in lwir
+					  clt_parameters,
+					  colorProcParameters,
+					  rgbParameters,
+					  name,
+					  scanIndex,
+					  threadsMax,  // maximal number of threads to launch
+					  updateStatus,
+					  debugLevel);
+		  }
+
+		  //		  final int tilesX = tp.getTilesX();
+		  //		  final int tilesY = tp.getTilesY();
+		  final int transform_size =clt_parameters.transform_size;
+		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
+		  Rectangle  texture_woi_pix = new Rectangle(); // in pixels
+		  float [][] texture_img = GetTextureGPU( // returns texture
+				  clt_parameters,             // CLTParameters       clt_parameters,
+				  texture_woi_pix,                // Rectangle  texture_woi, // = new Rectangle();
+				  scan.disparity,             // double [][]         disparity_array, // [tilesY][tilesX]
+				  scan.getTextureSelection(), // bgnd_tiles_grown2,   // boolean []          selection,
+				  threadsMax,                 // final int           threadsMax,  // maximal number of threads to launch
+				  updateStatus,               // final boolean       updateStatus,
+				  debugLevel);                // final int           debugLevel);
+
+		  // for now - use just RGB. Later add option for RGBA
+		  float [][] texture_rgb = {texture_img[0],texture_img[1],texture_img[2]};
+		  float [][] texture_rgba = {texture_img[0],texture_img[1],texture_img[2],texture_img[3]};
+		  float [][] texture_rgbx = ((clt_parameters.alpha1 > 0)? texture_rgba: texture_rgb);
+		  scan.texture_bounds = new Rectangle(
+				  texture_woi_pix.x/transform_size,
+				  texture_woi_pix.y/transform_size,
+				  texture_woi_pix.width/transform_size,
+				  texture_woi_pix.height/transform_size);
+		  scan.selected = scan.getTextureSelection().clone(); // null
+		  ImagePlus imp_texture_cluster = linearStackToColor(
+				  clt_parameters,
+				  colorProcParameters,
+				  rgbParameters,
+				  name+"-texture", // String name,
+				  "", //String suffix, // such as disparity=...
+				  true, // toRGB,
+				  !this.correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
+				  true, // boolean saveShowIntermediate, // save/show if set globally
+				  false, //true, // boolean saveShowFinal,        // save/show result (color image?)
+				  texture_rgbx,
+				  scan.texture_bounds.width * transform_size, // tilesX *  clt_parameters.transform_size,
+				  scan.texture_bounds.height * transform_size, // tilesY *  clt_parameters.transform_size,
+				  1.0,         // double scaleExposure, // is it needed?
+				  debugLevel);
+
+		  String path= correctionsParameters.selectX3dDirectory(
+				  //TODO: Which one to use - name or this.image_name ?
+				  correctionsParameters.getModelName(this.image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+				  correctionsParameters.x3dModelVersion,
+				  true,  // smart,
+				  true);  //newAllowed, // save
+		  // only show/save original size if debug or debug_filters)
+		  eyesisCorrections.saveAndShow(
+				  imp_texture_cluster,
+				  path,
+				  correctionsParameters.png,
+				  clt_parameters.show_textures,
+				  -1); // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+		  
+		  scan.is_measured =   true; // should it be here?
+		  scan.is_combo =      false;
+		  return imp_texture_cluster.getTitle()+".png"; // imp_texture_cluster;
+	  }	
+
+	  public void setPassAvgRBGA( // get image from a single pass, return relative path for x3d // USED in lwir
+			  CLTParameters           clt_parameters,
+			  int        scanIndex,
+			  int        threadsMax,  // maximal number of threads to launch
+			  boolean    updateStatus,
+			  int        debugLevel)
+	  {
+		  if ((gpuQuad != null) && (isAux()?clt_parameters.gpu_use_aux : clt_parameters.gpu_use_main)) {
+			  final int tilesX = tp.getTilesX();
+			  final int tilesY = tp.getTilesY();
+			  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
+			  double [] disparity = scan.getDisparity();
+			  double [] strength =  scan.getStrength();
+			  boolean [] selection = null; // scan.getSelected();
+			  if (selection == null) {
+				  selection = new boolean[tilesX*tilesY];
+				  for (int nTile = 0; nTile < selection.length; nTile++) {
+					  selection[nTile] = !Double.isNaN(disparity[nTile]) && (strength[nTile] > 0.0);
+				  }
+				  scan.setSelected(selection);
+			  }
+			  if ((scan.disparity == null) || (scan.tile_op == null)) {
+				  int d = ImageDtt.setImgMask(0, 0xf); // no correlations
+				  d =     ImageDtt.setForcedDisparity(d,true);
+				  scan.setTileOpDisparity(
+						  d,
+						  scan.getSelected(), // boolean [] selection,
+						  scan.getDisparity()); // double []  disparity)
+			  }
+			  
+			  
+			  scan.texture_tiles = getTextureTilesGPU( // returns texture tiles, as with CPU
+					  clt_parameters,     // CLTParameters       clt_parameters,
+					  scan.tile_op,       // int [][]            tile_op,
+					  scan.disparity,             // double [][]         disparity_array, // [tilesY][tilesX]
+					  threadsMax,                 // final int           threadsMax,  // maximal number of threads to launch
+					  updateStatus,               // final boolean       updateStatus,
+					  debugLevel);                // final int           debugLevel);
+		  }
+		  super.setPassAvgRBGA( // get image from a single pass, return relative path for x3d // USED in lwir
+				  clt_parameters,
+				  scanIndex,
+				  threadsMax,  // maximal number of threads to launch
+				  updateStatus,
+				  debugLevel);
+	  }
+	  
+			  /*
+		  final int tilesX = tp.getTilesX();
+		  final int tilesY = tp.getTilesY();
+		  final int transform_size =clt_parameters.transform_size;
+		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
+		  Rectangle  texture_woi = new Rectangle();
+// need	to set tasks first!	  
+		  float [][] texture_img = GetTextureGPU( // returns texture 
+				  clt_parameters,             // CLTParameters       clt_parameters,
+				  texture_woi,                // Rectangle  texture_woi, // = new Rectangle();
+				  scan.disparity,             // double [][]         disparity_array, // [tilesY][tilesX]
+				  scan.getTextureSelection(), // bgnd_tiles_grown2,   // boolean []          selection,
+				  threadsMax,                 // final int           threadsMax,  // maximal number of threads to launch
+				  updateStatus,               // final boolean       updateStatus,
+				  debugLevel);                // final int           debugLevel);
+
+		  // for now - use just RGB. Later add option for RGBA
+		  float [][] texture_rgb = {texture_img[0],texture_img[1],texture_img[2]};
+		  float [][] texture_rgba = {texture_img[0],texture_img[1],texture_img[2],texture_img[3]};
+		  float [][] texture_rgbx = ((clt_parameters.alpha1 > 0)? texture_rgba: texture_rgb);
+		  scan.texture_bounds = new Rectangle(
+				  texture_woi.x * transform_size,
+				  texture_woi.y * transform_size,
+				  texture_woi.width * transform_size,
+				  texture_woi.height * transform_size);
+		  scan.selected = scan.getTextureSelection().clone();
+		  int numTiles = tilesX * tilesY; 
+		  int num_layers = texture_rgbx.length; // here only 3/4
+		  double [][] tileTones = new double [num_layers][numTiles];
+		  double [] scales = new double [num_layers];
+		  for (int n = 0; n < num_layers; n++){
+			  if       (n < 3)  scales[n] = 1.0/255.0; // R,B,G
+			  else if  (n == 3) scales[n] = 1.0; //alpha
+			  else if  (n < 8)  scales[n] = 1.0; // ports 0..3
+			  else              scales[n] = 1.0/255.0; // RBG rms, in 1/255 units, but small
+		  }
+		  int tx0 = scan.texture_bounds.x;
+		  int ty0 = scan.texture_bounds.y;
+		  int tw =  scan.texture_bounds.width;
+		  int th =  scan.texture_bounds.height;
+		  int text_step = transform_size * tw;
+		  for (int ty = ty0; ty < (ty0 + th); ty++) {
+			  for (int tx = tx0; tx < (tx0 + tw); tx++) {
+				  int text_start = ((ty - ty0) * transform_size * tw  + (tx-tx0)) * transform_size;
+				  double s = 0.0;
+				  for (int n = 0; n < num_layers; n++) {
+					  for (int i = 0; i < transform_size; i++) {
+						  for (int j = 0; j < transform_size; j++) {
+							 s += texture_rgbx[n][text_start + i * text_step + j]; 
+						  }
+					  }
+					  tileTones[n][ty * tilesX + tx] = s * scales[n] /(transform_size * transform_size);
+				  }
+			  }
+		  }
+		  scan.setTilesRBGA(tileTones); 
+		  (new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+				  tileTones,
+				  tilesX,
+				  tilesY,
+				  true,
+				  image_name+sAux()+"-TileTones");
+	  }			  
+*/
+
+
+	  
+	  public float [][] GetTextureGPU( // returns texture
+			  CLTParameters       clt_parameters,
+			  Rectangle           texture_woi_pix, // = new Rectangle(); in pixels!
+			  double [][]         disparity_array, // [tilesY][tilesX]
+			  boolean []          selection,
+			  final int           threadsMax,  // maximal number of threads to launch
+			  final boolean       updateStatus,
+			  final int           debugLevel)
+	  {
+			  
+		  final int tilesX = tp.getTilesX();
+		  final int tilesY = tp.getTilesY();
+		  int d = ImageDtt.setImgMask(0, 0xf);
+		  d =     ImageDtt.setForcedDisparity(d,true);
+		  int [][] tile_op = new int [tilesY][tilesX];
+		  int indx = 0;
+		  if (selection != null) {
+			  for (int ty = 0; ty < tilesY; ty++) {
+				  for (int tx = 0; tx < tilesX; tx++) {
+					  if (selection[indx++]) {
+						  tile_op[ty][tx] = d;
+					  }
+				  }
+			  }
+		  } else {
+			  for (int ty = 0; ty < tilesY; ty++) {
+				  for (int tx = 0; tx < tilesX; tx++) {
+					  tile_op[ty][tx] = d;
+				  }
+			  }
+		  }
+
+		  /*
+		  double [][] shiftXY = new double [4][2];
+		  // not used
+		  if (!clt_parameters.fine_corr_ignore) {
+			  double [][] shiftXY0 = {
+					  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
+					  {clt_parameters.fine_corr_x_1,clt_parameters.fine_corr_y_1},
+					  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
+					  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
+			  shiftXY = shiftXY0;
+		  }
+          */
+		  ImageDtt image_dtt = new ImageDtt(
+				  clt_parameters.transform_size,
+				  isMonochrome(),
+				  isLwir(),
+				  clt_parameters.getScaleStrength(isAux()),
+				  gpuQuad);
+		  double z_correction =  clt_parameters.z_correction;
+		  if (clt_parameters.z_corr_map.containsKey(image_name)){ // not used in lwir
+			  z_correction +=clt_parameters.z_corr_map.get(image_name);
+		  }
+		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
+		  float [][] texture_img = new float [isMonochrome()?2:4][];
+		  image_dtt.clt_aberrations_quad_corr_GPU( // USED in LWIR
+				  clt_parameters.img_dtt,        // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+				  1,                             // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
+				  tile_op,                       // per-tile operation bit codes
+				  disparity_array,               // clt_parameters.disparity,     // final double            disparity,
+				  //// Uses quadCLT from gpuQuad			
+				                                 // correlation results - final and partial
+				  null,                          // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+				                                 // [type][tilesY][tilesX] should be set by caller
+				                                 // types: 0 - selected correlation (product+offset), 1 - sum
+				  null,                          // clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+				                                 // [tilesY][tilesX] should be set by caller
+				                                 // When clt_mismatch is non-zero, no far objects extraction will be attempted
+				  null,                          // clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
+				                                 // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
+				  null,                          // disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+				                                 // last 2 - contrast, avg/ "geometric average)
+				  0,                             // disparity_modes, // bit mask of disparity_map slices to calculate/return
+				  null,                          // 	final double [][][][]     texture_tiles,   // compatible with the CPU ones      
+				  texture_img,                   // texture_img,     // null or [3][] (RGB) or [4][] RGBA
+				  texture_woi_pix,               // texture_woi_pix,     // null or generated texture location/size
+				  null,                          //  iclt_fimg,       // will return quad images or null to skip, use quadCLT.linearStackToColor 
+					// new parameters, will replace some other?
+//				  clt_parameters.getFatZero(isMonochrome()),      // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
+				  clt_parameters.gpu_corr_scale, //  gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
+				  clt_parameters.getGpuFatZero(isMonochrome()), // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
+				  clt_parameters.gpu_sigma_r,    // 0.9, 1.1
+				  clt_parameters.gpu_sigma_b,    // 0.9, 1.1
+				  clt_parameters.gpu_sigma_g,    // 0.6, 0.7
+				  clt_parameters.gpu_sigma_m,    //  =       0.4; // 0.7;
+				  (isMonochrome()? 1.0 : clt_parameters.gpu_sigma_rb_corr), // final double              gpu_sigma_rb_corr, //  = 0.5; // apply LPF after accumulating R and B correlation before G, monochrome ? 1.0 : gpu_sigma_rb_corr;
+				  clt_parameters.gpu_sigma_corr, //  =    0.9;gpu_sigma_corr_m
+				  image_dtt.transform_size - 1, // clt_parameters.gpu_corr_rad,   // = transform_size - 1 ?
+				  clt_parameters.corr_red,       // +used
+				  clt_parameters.corr_blue,      // +used
+				  clt_parameters.max_corr_radius,// 3.9;
+				  clt_parameters.corr_mode,      // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
+				  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
+				  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
+				  clt_parameters.diff_sigma,     // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
+				  clt_parameters.diff_threshold, // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
+				  clt_parameters.diff_gauss,     // true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
+				  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+				  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
+				  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
+				  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
+				  clt_parameters.clt_window,
+				  disparity_corr,                // final double              disparity_corr, // disparity at infinity
+				  clt_parameters.tileX,          // final int               debug_tileX,
+				  clt_parameters.tileY,          // final int               debug_tileY,
+				  threadsMax,
+				  debugLevel);
+		  
+		  return texture_img;
+	  }
+	  
+	  public double [][][][] getTextureTilesGPU( // returns texture tiles, as with CPU
+			  CLTParameters       clt_parameters,
+			  int [][]            tile_op,
+			  double [][]         disparity_array, // [tilesY][tilesX]
+//			  boolean []          selection,       // null - all
+			  final int           threadsMax,      // maximal number of threads to launch
+			  final boolean       updateStatus,
+			  final int           debugLevel)
+	  {
+			  
+		  final int tilesX = tp.getTilesX();
+		  final int tilesY = tp.getTilesY();
+		  /*
+		  int d = ImageDtt.setImgMask(0, 0xf);
+		  d =     ImageDtt.setForcedDisparity(d,true);
+		  int [][] tile_op = new int [tilesY][tilesX];
+		  int indx = 0;
+		  if (selection != null) {
+			  for (int ty = 0; ty < tilesY; ty++) {
+				  for (int tx = 0; tx < tilesX; tx++) {
+					  if (selection[indx++]) {
+						  tile_op[ty][tx] = d;
+					  }
+				  }
+			  }
+		  } else {
+			  for (int ty = 0; ty < tilesY; ty++) {
+				  for (int tx = 0; tx < tilesX; tx++) {
+					  tile_op[ty][tx] = d;
+				  }
+			  }
+		  }
+         */
+		  /*
+		  double [][] shiftXY = new double [4][2];
+		  // not used
+		  if (!clt_parameters.fine_corr_ignore) {
+			  double [][] shiftXY0 = {
+					  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
+					  {clt_parameters.fine_corr_x_1,clt_parameters.fine_corr_y_1},
+					  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
+					  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
+			  shiftXY = shiftXY0;
+		  }
+          */
+		  ImageDtt image_dtt = new ImageDtt(
+				  clt_parameters.transform_size,
+				  isMonochrome(),
+				  isLwir(),
+				  clt_parameters.getScaleStrength(isAux()),
+				  gpuQuad);
+		  double z_correction =  clt_parameters.z_correction;
+		  if (clt_parameters.z_corr_map.containsKey(image_name)){ // not used in lwir
+			  z_correction +=clt_parameters.z_corr_map.get(image_name);
+		  }
+		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
+		  double [][][][] texture_tiles = new double [tilesY][tilesX][][];
+		  image_dtt.clt_aberrations_quad_corr_GPU( // USED in LWIR
+				  clt_parameters.img_dtt,        // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+				  1,                             // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
+				  tile_op,                       // per-tile operation bit codes
+				  disparity_array,               // clt_parameters.disparity,     // final double            disparity,
+				  //// Uses quadCLT from gpuQuad			
+				                                 // correlation results - final and partial
+				  null,                          // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+				                                 // [type][tilesY][tilesX] should be set by caller
+				                                 // types: 0 - selected correlation (product+offset), 1 - sum
+				  null,                          // clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+				                                 // [tilesY][tilesX] should be set by caller
+				                                 // When clt_mismatch is non-zero, no far objects extraction will be attempted
+				  null,                          // clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
+				                                 // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
+				  null,                          // disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+				                                 // last 2 - contrast, avg/ "geometric average)
+				  0,                             // disparity_modes, // bit mask of disparity_map slices to calculate/return
+				  texture_tiles,                 // 	final double [][][][]     texture_tiles,   // compatible with the CPU ones      
+				  null,                          // texture_img,     // null or [3][] (RGB) or [4][] RGBA
+				  null,                          // texture_woi,     // null or generated texture location/size
+				  null,                          //  iclt_fimg,       // will return quad images or null to skip, use quadCLT.linearStackToColor 
+					// new parameters, will replace some other?
+//				  clt_parameters.getFatZero(isMonochrome()),      // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
+				  clt_parameters.gpu_corr_scale, //  gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
+				  clt_parameters.getGpuFatZero(isMonochrome()), // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
+				  clt_parameters.gpu_sigma_r,    // 0.9, 1.1
+				  clt_parameters.gpu_sigma_b,    // 0.9, 1.1
+				  clt_parameters.gpu_sigma_g,    // 0.6, 0.7
+				  clt_parameters.gpu_sigma_m,    //  =       0.4; // 0.7;
+				  (isMonochrome()? 1.0 : clt_parameters.gpu_sigma_rb_corr), // final double              gpu_sigma_rb_corr, //  = 0.5; // apply LPF after accumulating R and B correlation before G, monochrome ? 1.0 : gpu_sigma_rb_corr;
+				  clt_parameters.gpu_sigma_corr, //  =    0.9;gpu_sigma_corr_m
+				  image_dtt.transform_size - 1, // clt_parameters.gpu_corr_rad,   // = transform_size - 1 ?
+				  clt_parameters.corr_red,       // +used
+				  clt_parameters.corr_blue,      // +used
+				  clt_parameters.max_corr_radius,// 3.9;
+				  clt_parameters.corr_mode,      // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
+				  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
+				  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
+				  clt_parameters.diff_sigma,     // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
+				  clt_parameters.diff_threshold, // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
+				  clt_parameters.diff_gauss,     // true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
+				  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+				  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
+				  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
+				  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
+				  clt_parameters.clt_window,
+				  disparity_corr,                // final double              disparity_corr, // disparity at infinity
+				  clt_parameters.tileX,          // final int               debug_tileX,
+				  clt_parameters.tileY,          // final int               debug_tileY,
+				  threadsMax,
+				  debugLevel);
+		  
+		  return texture_tiles;
+	  }
+
+	  
+	  public CLTPass3d  CLTMeasureTextures( // perform single pass according to prepared tiles operations and disparity // not used in lwir
+			  CLTParameters           clt_parameters,
+			  final int         scanIndex,
+			  final int         threadsMax,  // maximal number of threads to launch
+			  final boolean     updateStatus,
+			  final int         debugLevel)
+	  {
+		  if ((gpuQuad == null) || !(isAux()?clt_parameters.gpu_use_aux : clt_parameters.gpu_use_main)) {
+			  return super.CLTMeasureTextures( // measure background // USED in lwir
+					  clt_parameters,
+					  scanIndex,
+					  threadsMax,  // maximal number of threads to launch
+					  updateStatus,
+					  debugLevel);
+		  }
+		  final int tilesX = tp.getTilesX();
+		  final int tilesY = tp.getTilesY();
+
+		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
+		  // maybe just rely on tile_op ?
+		  boolean [] text_sel = new boolean [tilesX * tilesY];
+		  for (int ty = 0; ty < tilesY; ty++) {
+			  for (int tx = 0; tx < tilesX; tx++) {
+				  text_sel[ty*tilesX + tx] =  scan.tile_op[ty][tx] != 0;
+			  }
+		  }
+//		  scan.setTextureSelection(scan.selected); // .clone(); GPU will measure when the texture will be requested
+		  scan.setTextureSelection(text_sel); // .clone(); GPU will measure when the texture will be requested
+//		  scan.is_measured =   true; // but no disparity map/textures
+		  scan.is_combo =      false;
+		  return scan; // what about processed and other attributes?
+		  
+	  }
 	
 	
 }

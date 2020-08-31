@@ -50,10 +50,6 @@ public class ImageDtt extends ImageDttCPU {
 			final int                 macro_scale,     // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 			final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
-//// Uses quadCLT from gpuQuad			
-////		final double [][][]       image_data,      // first index - number of image in a quad
-////		    final boolean [][]        saturation_imp,  // (near) saturated pixels or null
-			 // correlation results - final and partial
 			final double [][][][]     clt_corr_combo,  // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 			                                           // [type][tilesY][tilesX] should be set by caller
 													   // types: 0 - selected correlation (product+offset), 1 - sum
@@ -65,12 +61,10 @@ public class ImageDtt extends ImageDttCPU {
 			final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
 			                                           // last 2 - contrast, avg/ "geometric average)
 			final int                 disparity_modes, // bit mask of disparity_map slices to calculate/return
-			
+			final double [][][][]     texture_tiles,   // compatible with the CPU ones      
 			final float [][]          texture_img,     // null or [3][] (RGB) or [4][] RGBA
-			final Rectangle           texture_woi,     // null or generated texture location/size
-////		final double [][][][]     texture_tiles,   // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
+			final Rectangle           texture_woi_pix, // null or generated texture location/size in pixels
 			final float [][][]        iclt_fimg,       // will return quad images or null to skip, use quadCLT.linearStackToColor 
-////		final int                 width,
 			// new parameters, will replace some other?
 			final double              gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
 			final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0
@@ -81,17 +75,9 @@ public class ImageDtt extends ImageDttCPU {
 			final double              gpu_sigma_rb_corr, //  = 0.5; // apply LPF after accumulating R and B correlation before G, monochrome ? 1.0 : gpu_sigma_rb_corr;
 			final double              gpu_sigma_corr,   //  =    0.9;gpu_sigma_corr_m
 			final int                 gpu_corr_rad,     // = transform_size - 1 ?
-////			final double              corr_fat_zero,    // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum (use for absolute)
-////			final boolean             corr_sym,
-////			final double              corr_offset,
 			final double              corr_red, // +used
 			final double              corr_blue,// +used
-////			final double              corr_sigma,
-////			final boolean             corr_normalize,  // normalize correlation results by rms
-////	  		final double              min_corr,        // 0.02; // minimal correlation value to consider valid
-////			final double              max_corr_sigma,  // 1.2;  // weights of points around global max to find fractional
 			final double              max_corr_radius, // 3.9;
-////			final boolean 			  max_corr_double, //"Double pass when masking center of mass to reduce preference for integer values
 			final int                 corr_mode, // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
 			
 			final double              min_shot,        // +10.0;  // Do not adjust for shot noise if lower than
@@ -101,23 +87,12 @@ public class ImageDtt extends ImageDttCPU {
 			final boolean             diff_gauss,      // true;  // when averaging images, use Gaussian around average as weight (false - sharp all/nothing)
 			final double              min_agree,       // +3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 			final boolean             dust_remove,     // +Do not reduce average weight when only one image differs much from the average
-////			final boolean             keep_weights,    // Add port weights to RGBA stack (debug feature)
 			final GeometryCorrection  geometryCorrection, // for GPU TODO: combine geometry corrections if geometryCorrection_main is not null
 			final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
-////		using quadCLT instance
-////			final double [][][][][][] clt_kernels,    // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-////			final int                 kernel_step,
 			final int                 window_type,    // GPU: will not be used
-////			final double [][]         shiftXY,        // [port]{shiftX,shiftY} // GPU: will not be used
 			final double              disparity_corr, // disparity at infinity
-////			final double [][][]       fine_corr, // quadratic coefficients for fine correction (or null) // GPU: will not be used
-////			final double              corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
-////			final double              shiftX, // shift image horizontally (positive - right) - just for testing // GPU: will not be used
-////			final double              shiftY, // shift image vertically (positive - down)                       // GPU: will not be used
 			final int                 debug_tileX,
 			final int                 debug_tileY,
-//			final boolean             no_fract_shift,   // GPU: will not be used
-//			final boolean             no_deconvolution, // GPU: will not be used
 			final int                 threadsMax,       // maximal number of threads to launch
 			final int                 globalDebugLevel)
 	{
@@ -137,7 +112,9 @@ public class ImageDtt extends ImageDttCPU {
 
 		final boolean macro_mode = macro_scale != 1;      // correlate tile data instead of the pixel data
 		final int quad = 4;   // number of subcameras
-		final int numcol = 3; // number of colors // keep the same, just do not use [0] and [1], [2] - green
+//		final int numcol = 3; // number of colors // keep the same, just do not use [0] and [1], [2] - green
+		final int numcol = isMonochrome()?1:3;
+
 		final int width =  gpuQuad.getImageWidth();
 		final int height = gpuQuad.getImageHeight();
 		final int tilesX=gpuQuad.getTilesX(); // width/transform_size;
@@ -251,8 +228,6 @@ public class ImageDtt extends ImageDttCPU {
 		}
 
 
-
-
 		if (globalDebugLevel > 0) {
 			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
@@ -315,6 +290,12 @@ public class ImageDtt extends ImageDttCPU {
 				tile_op,         // final int [][]     tile_op,          // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 				all_pairs,       // final int                      corr_mask,        // <0 - use corr mask from the tile tile_op, >=0 - overwrite all with non-zero corr_mask_tp
 				threadsMax);     // final int          threadsMax,       // maximal number of threads to launch
+		
+		if (tp_tasks.length == 0) {
+			System.out.println("Empty tasks - nothing to do");
+			return;
+		}
+		//texture_tiles
 		final boolean fneed_macro = need_macro;
 		final boolean fneed_corr =  need_corr && used_corrs[0];
 
@@ -341,9 +322,10 @@ public class ImageDtt extends ImageDttCPU {
 				lpf_rb_flat,
 				globalDebugLevel > -1);
 
-		gpuQuad.setTasks( // copy tp_tasks to the GPU memory
-				tp_tasks, // TpTask [] tile_tasks,
-				use_main); // use_aux); // boolean use_aux)
+		gpuQuad.setTasks(                  // copy tp_tasks to the GPU memory
+				tp_tasks,                  // TpTask [] tile_tasks,
+				use_main,                  // use_aux); // boolean use_aux)
+				imgdtt_params.gpu_verify); // boolean verify
 
 		gpuQuad.execSetTilesOffsets(); // prepare tiles offsets in GPU memory
 		gpuQuad.execConvertDirect();
@@ -367,7 +349,7 @@ public class ImageDtt extends ImageDttCPU {
 					dust_remove);   // boolean   dust_remove,
 			float [][] rbga = gpuQuad.getRBGA(
 					(isMonochrome() ? 1 : 3), // int     num_colors,
-					(texture_woi != null)? texture_woi : woi);
+					(texture_woi_pix != null)? texture_woi_pix : woi);
 			for (int ncol = 0; ncol < texture_img.length; ncol++) if (ncol < rbga.length) {
 				texture_img[ncol] = rbga[ncol];
 			}
@@ -407,8 +389,45 @@ public class ImageDtt extends ImageDttCPU {
 					}
 				}
 			}			
-			
 		}
+		// does it need non-overlapping texture tiles
+		if (texture_tiles != null) {   // compatible with the CPU ones
+			//Generate non-overlapping (16x16) texture tiles, prepare 
+			gpuQuad.execTextures(
+				col_weights,                   // double [] color_weights,
+				isLwir(),         // boolean   is_lwir,
+				min_shot,       // double    min_shot,           // 10.0
+				scale_shot,     // double    scale_shot,         // 3.0
+				diff_sigma,     // double    diff_sigma,         // pixel value/pixel change
+				diff_threshold, // double    diff_threshold,     // pixel value/pixel change - never used in GPU ?
+				min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+				dust_remove,    // boolean   dust_remove,        // Do not reduce average weight when only one image differs much from the average
+				true,           // boolean   calc_textures,
+				false);         // boolean   calc_extra)
+
+//			int numcol = quadCLT_main.isMonochrome()?1:3;
+//			int ports = imp_quad_main.length; // quad
+			int [] texture_indices = gpuQuad.getTextureIndices();
+			int          num_src_slices = numcol + 1; //  + (clt_parameters.keep_weights?(ports + numcol + 1):0); // 12 ; // calculate
+			float [] flat_textures =  gpuQuad.getFlatTextures( // fatal error has been detected by the Java Runtime Environment:
+					texture_indices.length,
+					numcol, // int     num_colors,
+		    		false); // clt_parameters.keep_weights); // boolean keep_weights);
+//	    	int texture_slice_size = (2 * gpuQuad.getDttSize())* (2 * gpuQuad.getDttSize());
+//	    	int texture_tile_size = texture_slice_size * num_src_slices ;
+//	    	double [][][][] texture_tiles = new double [tilesY][tilesX][][];
+	    	gpuQuad.doubleTextures(
+		    		new Rectangle(0, 0, tilesX, tilesY), // Rectangle    woi,
+		    		texture_tiles,                       // double [][][][] texture_tiles, // null or [tilesY][tilesX]
+		    		texture_indices,                     // int []       indices,
+		    		flat_textures,                       // float [][][] ftextures,
+		    		tilesX,                              // int          full_width,
+		    		4,                                   // rbga only /int          num_slices
+		    		num_src_slices                       // int          num_src_slices
+		    		);
+		}
+		
+		
 		// does it need correlations?
 		if (fneed_corr) {
 			//Generate 2D phase correlations from the CLT representation
@@ -918,7 +937,7 @@ public class ImageDtt extends ImageDttCPU {
 													for (int ii = 0; ii < dir_corr_strength.length; ii++) {
 														if (dir_corr_strength[ii] == null) dir_corr_strength[ii] = nan2;
 													}
-													System.out.println(String.format("corr4dirsLMA -> ↔: %7.4f (%7.4f) ↕:%7.4f (%7.4f) ⤡:%7.4f (%7.4f) ⤢:%7.4f (%7.4f)",
+									    			System.out.println(String.format("corr4dirsLMA -> ↔: %7.4f (%7.4f) ↕:%7.4f (%7.4f) ⇖:%7.4f (%7.4f) ⇗:%7.4f (%7.4f)",
 															dir_corr_strength[0][0],dir_corr_strength[0][1],dir_corr_strength[1][0],dir_corr_strength[1][1],
 															dir_corr_strength[2][0],dir_corr_strength[2][1],dir_corr_strength[3][0],dir_corr_strength[3][1]));
 												}

@@ -1511,64 +1511,36 @@ public class ImageDttCPU {
 // removing macro and FPGA modes
 	public double [][] cltMeasureLazyEye ( // returns d,s lazy eye parameters
 			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
-//			final int                 macro_scale,     // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 			final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
 			final double [][][]       image_data, // first index - number of image in a quad
 		    final boolean [][]        saturation_imp, // (near) saturated pixels or null
 			 // correlation results - final and partial
-//			final double [][][][]     clt_corr_combo,  // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
-			                                           // [type][tilesY][tilesX] should be set by caller
-													   // types: 0 - selected correlation (product+offset), 1 - sum
-
-//			final double [][][][][]   clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
-                                                       // [tilesY][tilesX] should be set by caller
 			// When clt_mismatch is non-zero, no far objects extraction will be attempted
 			final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
 			                                           // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
 
 			final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
 			                                           // last 2 - contrast, avg/ "geometric average)
-//			final double [][][][]     texture_tiles,   // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
 
 			final int                 width,
 			final double              corr_fat_zero,    // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
-//			final boolean             corr_sym,
-//			final double              corr_offset,
 			final double              corr_red,
 			final double              corr_blue,
 			final double              corr_sigma,
-//			final boolean             corr_normalize,  // normalize correlation results by rms
 	  		final double              min_corr,        // 0.02; // minimal correlation value to consider valid
-//			final double              max_corr_sigma,  // 1.2;  // weights of points around global max to find fractional
-//			final double              max_corr_radius, // 3.9;
-//			final boolean 			  max_corr_double, //"Double pass when masking center of mass to reduce preference for integer values
-//			final int                 corr_mode, // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
-//			final double              min_shot,        // 10.0;  // Do not adjust for shot noise if lower than
-//			final double              scale_shot,      // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
-//			final double              diff_sigma,      // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
-//			final double              diff_threshold,  // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
-//			final boolean             diff_gauss,      // true;  // when averaging images, use Gaussian around average as weight (false - sharp all/nothing)
-//			final double              min_agree,       // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-//			final boolean             dust_remove,     // Do not reduce average weight when only one image differs much from the average
-//			final boolean             keep_weights,    // Add port weights to RGBA stack (debug feature)
 			final GeometryCorrection  geometryCorrection,
 			final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 			final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 			final int                 kernel_step,
-//			final int                 transform_size,
 			final int                 window_type,
 			final double [][]         shiftXY, // [port]{shiftX,shiftY}
 			final double              disparity_corr, // disparity at infinity
-//			final double [][][]       fine_corr, // quadratic coefficients for fine correction (or null)
-//			final double              corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
 			final double              shiftX, // shift image horizontally (positive - right) - just for testing
 			final double              shiftY, // shift image vertically (positive - down)
 			final int                 tileStep, // process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters
 			final int                 debug_tileX,
 			final int                 debug_tileY,
-//			final boolean             no_fract_shift,
-//			final boolean             no_deconvolution,
 			final int                 threadsMax,  // maximal number of threads to launch
 			final int                 globalDebugLevel)
 	{
@@ -2390,7 +2362,7 @@ public class ImageDttCPU {
 			final double [][][]       image_data, // first index - number of image in a quad
 		    final boolean [][]        saturation_imp, // (near) saturated pixels or null
 			 // correlation results - final and partial
-			final double [][][][]     clt_corr_combo,  // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+			final double [][][][]     clt_corr_combo_in,  // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 			                                           // [type][tilesY][tilesX] should be set by caller
 													   // types: 0 - selected correlation (product+offset), 1 - sum
 			final double [][][][][]   clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
@@ -2442,6 +2414,14 @@ public class ImageDttCPU {
 			final int                 threadsMax,  // maximal number of threads to launch
 			final int                 globalDebugLevel)
 	{
+		// ****** FIXME tries to use color == 3, should be disabled!
+		if (clt_corr_combo_in != null) {
+			System.out.println("clt_corr_combo != null");
+			System.out.println("clt_corr_combo != null");
+			System.out.println("clt_corr_combo != null");
+		}
+		final double [][][][]     clt_corr_combo = (globalDebugLevel >-10000)?null:clt_corr_combo_in;
+		
 		final boolean debug_distort= globalDebugLevel > 0; ///false; // true;
 
 		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
@@ -3072,8 +3052,8 @@ public class ImageDttCPU {
 //						    if ((clt_corr_partial != null) && (imgdtt_params.corr_mode_debug || imgdtt_params.gpu_mode_debug)) {
 						    if (debugTile0) {
 						    	System.out.println("Debugging tileY = "+tileY+"  tileX = " + tileX);
-						    	System.out.println("Debugging tileY = "+tileY+"  tileX = " + tileX);
-						    	System.out.println("Debugging tileY = "+tileY+"  tileX = " + tileX);
+//						    	System.out.println("Debugging tileY = "+tileY+"  tileX = " + tileX);
+//						    	System.out.println("Debugging tileY = "+tileY+"  tileX = " + tileX);
 						    }
 
 						    double [][][] corr_pairs_td = corr2d.correlateCompositeTD(
@@ -3577,6 +3557,7 @@ public class ImageDttCPU {
 						} // if (disparity_map != null){ // not null - calculate correlations
 						// only debug is left
 						// old (per-color correlation)
+						// ****** FIXME tries to use color == 3, should be disabled!
 						if ((clt_corr_combo != null)  && !imgdtt_params.corr_mode_debug){ // not null - calculate correlations  // not used in lwir
 							tcorr_tpartial=  new double[corr_pairs.length][numcol+1][4][transform_len];
 							tcorr_partial =  new double[quad][numcol+1][];
@@ -3623,7 +3604,7 @@ public class ImageDttCPU {
 								for (int i = 0; i < transform_len; i++) {
 									for (int n = 0; n<4; n++) {
 										tcorr_tpartial[pair][numcol][n][i] = 0.0;
-										for (int ncol= 0; ncol < tcorr_tpartial[pair].length; ncol++) {
+										for (int ncol= 0; ncol < tcorr_tpartial[pair].length; ncol++) { // tcorr_tpartial[pair].length = 4 > colors
 											if (tcorr_tpartial[pair][ncol] != null) {
 												tcorr_tpartial[pair][numcol][n][i] += col_weights[ncol] * tcorr_tpartial[pair][0][n][i];
 											}
@@ -5197,7 +5178,6 @@ public class ImageDttCPU {
 // in monochrome mode only MONO_CHN == GREEN_CHN is used, R and B are null
 	public double [][] combineRBGATiles(  // USED in lwir
 			final double [][][][] texture_tiles,  // array [tilesY][tilesX][4][4*transform_size] or [tilesY][tilesX]{null}
-//			final int             transform_size,
 			final boolean         overlap,    // when false - output each tile as 16x16, true - overlap to make 8x8
 			final boolean         sharp_alpha, // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 			final int             threadsMax,  // maximal number of threads to launch
@@ -5227,7 +5207,6 @@ public class ImageDttCPU {
 			}
 		}
 
-//		final double [][] dpixels = new double["RGBA".length()+(has_weights? 4: 0)][width*height]; // assuming java initializes them to 0
 		final double [][] dpixels = new double["RGBA".length()+(has_weights? 8: 0)][width*height]; // assuming java initializes them to 0
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
