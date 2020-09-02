@@ -1281,6 +1281,9 @@ public class QuadCLT extends QuadCLTCPU {
 				  1,                             // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 				  tile_op,                       // per-tile operation bit codes
 				  disparity_array,               // clt_parameters.disparity,     // final double            disparity,
+				  null,							 // final float  [][][][]     corr_td,         // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
+				  null, 						 //	final float  [][][][]     corr_combo_td,   // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: qud, cross, hor,vert
+					                             // each of the top elements may be null to skip particular combo type
 				  //// Uses quadCLT from gpuQuad			
 				                                 // correlation results - final and partial
 				  clt_corr_combo,                // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
@@ -1523,6 +1526,9 @@ public class QuadCLT extends QuadCLTCPU {
 				  1,                             // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 				  tile_op,                       // per-tile operation bit codes
 				  disparity_array,               // clt_parameters.disparity,     // final double            disparity,
+				  null,							 // final float  [][][][]     corr_td,         // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
+				  null, 						 //	final float  [][][][]     corr_combo_td,   // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: qud, cross, hor,vert
+					                             // each of the top elements may be null to skip particular combo type
 				  //// Uses quadCLT from gpuQuad			
 				                                 // correlation results - final and partial
 				  null,                          // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
@@ -1838,6 +1844,9 @@ public class QuadCLT extends QuadCLTCPU {
 				  1,                             // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 				  tile_op,                       // per-tile operation bit codes
 				  disparity_array,               // clt_parameters.disparity,     // final double            disparity,
+				  null,							 // final float  [][][][]     corr_td,         // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
+				  null, 						 //	final float  [][][][]     corr_combo_td,   // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: qud, cross, hor,vert
+					                             // each of the top elements may be null to skip particular combo type
 				  //// Uses quadCLT from gpuQuad			
 				                                 // correlation results - final and partial
 				  null,                          // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
@@ -1951,6 +1960,9 @@ public class QuadCLT extends QuadCLTCPU {
 				  1,                             // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 				  tile_op,                       // per-tile operation bit codes
 				  disparity_array,               // clt_parameters.disparity,     // final double            disparity,
+				  null,							 // final float  [][][][]     corr_td,         // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
+				  null, 						 //	final float  [][][][]     corr_combo_td,   // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: qud, cross, hor,vert
+					                             // each of the top elements may be null to skip particular combo type
 				  //// Uses quadCLT from gpuQuad			
 				                                 // correlation results - final and partial
 				  null,                          // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate

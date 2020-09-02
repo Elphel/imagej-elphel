@@ -8303,6 +8303,19 @@ if (debugLevel > -100) return true; // temporarily !
 					System.out.println("Adjusting main camera image set for "+quadCLT_main.image_name+
 							", pass "+(num_adjust_main+1)+" of "+adjust_main);
 				}
+				if (debugLevel > -5){
+					int scan_index =  quadCLT_main.tp.clt_3d_passes.size() -1;
+					quadCLT_main.tp.showScan(
+							quadCLT_main.tp.clt_3d_passes.get(scan_index),   // CLTPass3d   scan,
+							"pre-adjust-extrinsic-scan-"+scan_index); //String title)
+					for (int s = 0; (s < 5) && (s < scan_index); s++) {
+						quadCLT_main.tp.showScan(
+								quadCLT_main.tp.clt_3d_passes.get(s),   // CLTPass3d   scan,
+								"pre-adjust-extrinsic-scan-"+s); //String title)
+					}
+				}
+				
+				/*
 				boolean ok = quadCLT_main.extrinsicsCLT(
 						clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 						false, // adjust_poly,
@@ -8312,6 +8325,7 @@ if (debugLevel > -100) return true; // temporarily !
 // clear memory for main
 				quadCLT_main.tp.resetCLTPasses();
 				if (!ok) break;
+				*/
 
 			}
 			// Generate 4 main camera images and thumbnail
@@ -8378,6 +8392,15 @@ if (debugLevel > -100) return true; // temporarily !
 						quadCLT_main.tp.clt_3d_passes.get( quadCLT_main.tp.clt_3d_passes.size() -1),
 						false); // boolean force_final);
 
+				  if (debugLevel > -5){
+					  int scan_index =  quadCLT_main.tp.clt_3d_passes.size() -1;
+					  quadCLT_main.tp.showScan(
+							  quadCLT_main.tp.clt_3d_passes.get(scan_index),   // CLTPass3d   scan,
+							  "test_pre-after-"+scan_index); //String title)
+				  }
+
+				
+				
 				dsi[DSI_DISPARITY_MAIN] = main_last_scan[0];
 				dsi[DSI_STRENGTH_MAIN] =  main_last_scan[1];
 				if (quadCLT_main.correctionsParameters.clt_batch_dsi) { // Should be always enabled ?
@@ -8479,6 +8502,16 @@ if (debugLevel > -100) return true; // temporarily !
 			// 2) Prepare full D/S and FG/BG data to be embedded within the ML files
 			double [][] main_ds = {dsi[DSI_DISPARITY_MAIN], dsi[DSI_STRENGTH_MAIN]};
 
+			if ((adjust_aux == 0) &&
+					!quadCLT_main.correctionsParameters.clt_batch_4img_aux &&
+					!quadCLT_main.correctionsParameters.clt_batch_dsi_aux &&
+					!quadCLT_main.correctionsParameters.clt_batch_genMl &&
+					!quadCLT_main.correctionsParameters.clt_batch_save_extrinsics &&
+					!quadCLT_main.correctionsParameters.clt_batch_save_all) {
+				continue; 
+			}
+			
+			
 			quadCLT_aux.ds_from_main = quadCLT_aux.depthMapMainToAux( // only 2 layers for adjustments
 					main_ds, // double [][] ds,
 					quadCLT_main.getGeometryCorrection(), //  GeometryCorrection geometryCorrection_main,

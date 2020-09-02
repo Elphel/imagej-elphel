@@ -633,9 +633,9 @@ public class GPUTileProcessor {
         private int texture_stride_rgba;
         private int num_task_tiles;
         private int num_corr_tiles;
-        private int num_texture_tiles;
-        private int num_pairs = 6; // number of correlation pairs per tile (should match tsaks)
+        private int num_pairs = 6; // number of correlation pairs per tile (should match tasks)
         private int num_corr_combo_tiles;
+        private int num_texture_tiles;
         
         private boolean geometry_correction_set = false;
         private boolean geometry_correction_vector_set = false;
@@ -980,17 +980,9 @@ public class GPUTileProcessor {
         	return tile_tasks;
         }
         
+       
         
 /*
-        public void setCorrIndices(int [] corr_indices)
-        {
-        	num_corr_tiles = corr_indices.length;
-        	float [] fcorr_indices = new float [corr_indices.length];
-        	for (int i = 0; i < num_corr_tiles; i++) {
-        		fcorr_indices[i] = Float.intBitsToFloat(corr_indices[i]);
-        	}
-            cuMemcpyHtoD(gpu_corr_indices, Pointer.to(fcorr_indices),  num_corr_tiles * Sizeof.FLOAT);
-        }
         public void setTextureIndices(int [] texture_indices) // never used
         {
         	num_texture_tiles = texture_indices.length;
@@ -1017,7 +1009,7 @@ public class GPUTileProcessor {
         	return texture_indices;
         }
 
-    //texture_indices
+ 
         public void setConvolutionKernel(
         		float [] kernel,  // [tileY][tileX][color][..]
         		float [] kernel_offsets,
@@ -2025,6 +2017,151 @@ public class GPUTileProcessor {
         	cuCtxSynchronize();
         }
 
+        public int getNumPairs() {return num_pairs;}
+        
+        public int [] setCorrTilesTd(
+        		final float [][][][] corr_tiles, // [tileY][tileX][pair][4*64]
+        		int [][] pairs_map) // typically {{0,0},{1,1},{2,2},{3,3},{4,4},{5,5} [0] - 3rd index in corr_tiles, [1] - 
+        {
+        	int corr_size_td = 4 * DTT_SIZE * DTT_SIZE;
+            num_pairs = pairs_map.length; // set global num_pairs
+            int tilesX = corr_tiles[0].length;
+            int tilesY = corr_tiles.length;
+        	int [] indices = new int [tilesY * tilesX * num_pairs];  // as if all tiles are not null
+            float [] fdata = new float [tilesY * tilesX * corr_size_td* num_pairs]; // as if all tiles are not null
+        	int ntile = 0;
+        	for (int ty = 0; ty < corr_tiles.length; ty++) {
+            	for (int tx = 0; tx < corr_tiles[0].length; tx++) {
+            		if (corr_tiles[ty][tx]!= null) {
+            			for (int pair = 0; pair < num_pairs; pair++) {
+            				indices[ntile * num_pairs + pair] = ((ty * tilesX + tx) << GPUTileProcessor.CORR_NTILE_SHIFT) + pairs_map[pair][1];
+                    		System.arraycopy(corr_tiles[ty][tx][pairs_map[pair][0]], 0, fdata, (ntile*num_pairs + pair) * corr_size_td, corr_size_td);
+            			}
+            			ntile++;
+            		}
+            		
+            	}
+        	}
+        	setCorrIndicesTdData(
+        			ntile,   // int    num_tiles,  // corr_indices, fdata may be longer than needed
+        			indices, // int [] corr_indices,
+            		fdata);  // float [] fdata);
+        	return indices;
+        }
+        
+        public float [][][][] getCorrTilesTd() // [tileY][tileX][pair][4*64] , read all available pairs
+        {
+        	int tilesX =     img_width / DTT_SIZE;
+        	int tilesY =     img_height / DTT_SIZE;
+        	float [][][][] corr_tiles = new float[tilesY][tilesX][][]; // num_pairs
+        	return getCorrTilesTd(corr_tiles);
+        }
+
+        public float [][][][] getCorrTilesTd( // [tileY][tileX][pair][4*64] , read all available pairs
+        		float [][][][] corr_tiles)
+        {
+        	final int corr_size_td = 4 * DTT_SIZE * DTT_SIZE;
+        	int [] indices = getCorrIndices(); // also sets num_corr_tiles
+        	float [] fdata = getCorrTdData();
+        	int num_tiles = num_corr_tiles / num_pairs;
+        	int width = corr_tiles[0].length;
+        	for (int nt = 0; nt < num_tiles; nt++ ) {
+        		int nTile = (indices[nt * num_pairs] >> GPUTileProcessor.CORR_NTILE_SHIFT);
+        		int ty = nTile / width;
+        		int tx = nTile % width;
+        				
+        		corr_tiles[ty][tx] = new float [num_pairs][corr_size_td];
+        		for (int pair = 0; pair < num_pairs; pair++) {
+            		System.arraycopy(fdata, (nt * num_pairs + pair) * corr_size_td, corr_tiles[ty][tx][pair], 0, corr_size_td);
+        		}
+        	}
+        	return corr_tiles;
+        }
+        
+        
+        
+        public int [] setCorrTilesComboTd(
+        		final float [][][] corr_tiles, // [tileY][tileX][4*64]
+        		int ipair) // just to set in the index low bits
+        {
+        	int corr_size_td = 4 * DTT_SIZE * DTT_SIZE;
+            int tilesX = corr_tiles[0].length;
+            int tilesY = corr_tiles.length;
+        	int [] indices = new int [tilesY * tilesX];  // as if all tiles are not null
+            float [] fdata = new float [tilesY * tilesX * corr_size_td];  // as if all tiles are not null
+        	int ntile = 0;
+        	for (int ty = 0; ty < corr_tiles.length; ty++) {
+            	for (int tx = 0; tx < corr_tiles[0].length; tx++) {
+            		if (corr_tiles[ty][tx]!= null) {
+            			indices[ntile] = ((ty * tilesX + tx) << GPUTileProcessor.CORR_NTILE_SHIFT) + ipair;
+            			System.arraycopy(corr_tiles[ty][tx], 0, fdata, ntile * corr_size_td, corr_size_td);
+            			ntile++;
+            		}
+            		
+            	}
+        	}
+        	setCorrComboIndicesTdData(
+        			ntile,   // int    num_tiles,  // corr_indices, fdata may be longer than needed
+        			indices, // int [] corr_indices,
+            		fdata);  // float [] fdata);
+        	return indices;
+        }
+        
+        public float [][][] getCorrTilesComboTd() // [tileY][tileX][4*64] , read all available pairs
+        {
+        	int tilesX =     img_width / DTT_SIZE;
+        	int tilesY =     img_height / DTT_SIZE;
+        	float [][][] corr_tiles = new float[tilesY][tilesX][]; // num_pairs
+        	return getCorrTilesComboTd(corr_tiles);
+        }
+        
+        public float [][][] getCorrTilesComboTd( // [tileY][tileX][4*64] , read all available pairs
+        		float [][][] corr_tiles // should be initialized as [tilesX][tilesY][]
+        		)
+        {
+        	final int corr_size_td = 4 * DTT_SIZE * DTT_SIZE;
+        	int [] indices = getCorrComboIndices(); // num_corr_combo_tiles should be set earlier (from setCorrTilesComboTd or)
+        	float [] fdata = getCorrComboTdData();
+        	int width = corr_tiles[0].length;
+        	for (int nt = 0; nt < num_corr_combo_tiles; nt++ ) {
+        		int nTile = (indices[nt] >> GPUTileProcessor.CORR_NTILE_SHIFT);
+        		int ty = nTile / width;
+        		int tx = nTile % width;
+        		corr_tiles[ty][tx] = new float[corr_size_td];
+        		System.arraycopy(fdata, nt * corr_size_td, corr_tiles[ty][tx], 0, corr_size_td);
+        	}
+        	return corr_tiles;
+        }
+        
+        
+        
+        public void setCorrIndicesTdData(
+        		int    num_tiles,  // corr_indices, fdata may be longer than needed
+        		int [] corr_indices,
+        		float [] fdata)
+        {
+        	num_corr_tiles = num_tiles; // corr_indices.length;
+        	float [] fcorr_indices = new float [num_corr_tiles];
+        	for (int i = 0; i < num_corr_tiles; i++) {
+        		fcorr_indices[i] = Float.intBitsToFloat(corr_indices[i]);
+        	}
+            cuMemcpyHtoD(gpu_corr_indices,   Pointer.to(fcorr_indices),  num_corr_tiles * Sizeof.FLOAT);
+        	float [] fnum_corr_tiles = {(float) num_corr_tiles};
+        	cuMemcpyHtoD(gpu_num_corr_tiles, Pointer.to(fnum_corr_tiles), 1 * Sizeof.FLOAT);
+        	// copy the correlation data
+        	int corr_size_td = 4 * DTT_SIZE * DTT_SIZE;
+            CUDA_MEMCPY2D copyH2D =   new CUDA_MEMCPY2D();
+            copyH2D.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
+            copyH2D.srcHost =         Pointer.to(fdata);
+            copyH2D.srcPitch =        corr_size_td*Sizeof.FLOAT; // width_in_bytes;
+            copyH2D.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
+            copyH2D.dstDevice =       gpu_corrs_td; // src_dpointer;
+            copyH2D.dstPitch =        corr_stride_td *Sizeof.FLOAT; // device_stride[0];
+            copyH2D.WidthInBytes =    corr_size_td*Sizeof.FLOAT; // width_in_bytes;
+            copyH2D.Height =          num_corr_tiles; // /4;
+            cuMemcpy2D(copyH2D);
+        }
+
         public int [] getCorrIndices() {
         	float [] fnum_corrs = new float[1];
         	cuMemcpyDtoH(Pointer.to(fnum_corrs), gpu_num_corr_tiles,  1 * Sizeof.FLOAT);
@@ -2037,9 +2174,54 @@ public class GPUTileProcessor {
         	}
         	num_corr_tiles = num_corrs;
         	return corr_indices;
-
         }
+        
+        public float [] getCorrTdData(){
+        	int corr_size_td = 4 * DTT_SIZE * DTT_SIZE;
+        	float [] cpu_corrs = new float [ num_corr_tiles * corr_size_td];
+        	CUDA_MEMCPY2D copyD2H =   new CUDA_MEMCPY2D();
+        	copyD2H.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
+        	copyD2H.srcDevice =       gpu_corrs_td;
+        	copyD2H.srcPitch =        corr_stride_td * Sizeof.FLOAT;
+        	copyD2H.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
+        	copyD2H.dstHost =         Pointer.to(cpu_corrs);
+        	copyD2H.dstPitch =        corr_size_td * Sizeof.FLOAT;
+        	copyD2H.WidthInBytes =    corr_size_td * Sizeof.FLOAT;
+        	copyD2H.Height =          num_corr_tiles;
+        	cuMemcpy2D(copyD2H); // run copy
+        	return cpu_corrs;
+        }
+        
 
+        public void setCorrComboIndicesTdData(
+        		int    num_tiles,  // corr_combo_indices, fdata may be longer than needed
+        		int [] corr_combo_indices,
+        		float [] fdata)
+        {
+        	num_corr_combo_tiles = num_tiles; // corr_combo_indices.length;
+        	float [] fcorr_combo_indices = new float [num_corr_combo_tiles];
+        	for (int i = 0; i < num_corr_combo_tiles; i++) {
+        		fcorr_combo_indices[i] = Float.intBitsToFloat(corr_combo_indices[i]);
+        	}
+            cuMemcpyHtoD(gpu_corr_indices,   Pointer.to(fcorr_combo_indices),  num_corr_combo_tiles * Sizeof.FLOAT);
+//        	float [] fnum_corr_tiles = {(float) num_corr_tiles};
+//        	cuMemcpyHtoD(gpu_num_corr_tiles, Pointer.to(fnum_corr_tiles), 1 * Sizeof.FLOAT);
+        	// copy the correlation data
+        	int corr_size_td = 4 * DTT_SIZE * DTT_SIZE;
+            CUDA_MEMCPY2D copyH2D =   new CUDA_MEMCPY2D();
+            copyH2D.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
+            copyH2D.srcHost =         Pointer.to(fdata);
+            copyH2D.srcPitch =        corr_size_td*Sizeof.FLOAT; // width_in_bytes;
+            copyH2D.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
+            copyH2D.dstDevice =       gpu_corrs_combo_td; // src_dpointer;
+            copyH2D.dstPitch =        corr_stride_combo_td *Sizeof.FLOAT; // device_stride[0];
+            copyH2D.WidthInBytes =    corr_size_td*Sizeof.FLOAT; // width_in_bytes;
+            copyH2D.Height =          num_corr_combo_tiles; // /4;
+            cuMemcpy2D(copyH2D);
+        }
+        
+        
+        
         public int [] getCorrComboIndices() {
 //        	float [] fnum_corrs = new float[1];
 //        	cuMemcpyDtoH(Pointer.to(fnum_corrs), gpu_num_corr_tiles,  1 * Sizeof.FLOAT);
@@ -2051,7 +2233,22 @@ public class GPUTileProcessor {
         		corr_combo_indices[i] = Float.floatToIntBits(fcorr_combo_indices[i]);
         	}
         	return corr_combo_indices;
-
+        }
+        
+        public float [] getCorrComboTdData(){
+        	int corr_size_td = 4 * DTT_SIZE * DTT_SIZE;
+        	float [] cpu_corrs = new float [ num_corr_combo_tiles * corr_size_td];
+        	CUDA_MEMCPY2D copyD2H =   new CUDA_MEMCPY2D();
+        	copyD2H.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
+        	copyD2H.srcDevice =       gpu_corrs_combo_td;
+        	copyD2H.srcPitch =        corr_stride_combo_td * Sizeof.FLOAT;
+        	copyD2H.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
+        	copyD2H.dstHost =         Pointer.to(cpu_corrs);
+        	copyD2H.dstPitch =        corr_size_td * Sizeof.FLOAT;
+        	copyD2H.WidthInBytes =    corr_size_td * Sizeof.FLOAT;
+        	copyD2H.Height =          num_corr_combo_tiles;
+        	cuMemcpy2D(copyD2H); // run copy
+        	return cpu_corrs;
         }
 
         public float [][] getCorr2D(int corr_rad){
