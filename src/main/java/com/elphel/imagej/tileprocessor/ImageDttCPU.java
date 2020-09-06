@@ -1509,7 +1509,7 @@ public class ImageDttCPU {
 	}
 
 // removing macro and FPGA modes
-	public double [][] cltMeasureLazyEye ( // returns d,s lazy eye parameters
+	public double[][] cltMeasureLazyEye ( // returns d,s lazy eye parameters
 			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 			final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
@@ -1753,6 +1753,7 @@ public class ImageDttCPU {
 // filter only tiles with similar disparity to enable lazy eye for the ERS.
 						int num_good_tiles = 0;
 						while (true) {
+//							num_good_tiles = 0; // FIXME: Was missing - uncomment?
 							int mnTx = -1, mnTy = -1, mxTx = -1, mxTy = -1;
 							double mn = Double.NaN;
 							double mx = Double.NaN;
@@ -2148,7 +2149,7 @@ public class ImageDttCPU {
 														imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 														imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 														imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
-														imgdtt_params.lmas_max_area,     //double  lma_max_area,     // maximal half-area (if > 0.0)
+														imgdtt_params.lmas_max_area,     // double  lma_max_area,     // maximal half-area (if > 0.0)
 														imgdtt_params.lma_str_scale,     // convert lma-generated strength to match previous ones - scale
 														imgdtt_params.lma_str_offset     // convert lma-generated strength to match previous ones - add to result
 														)[0];

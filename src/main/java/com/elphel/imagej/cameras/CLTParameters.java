@@ -167,7 +167,7 @@ public class CLTParameters {
 	public boolean    inf_restore_disp = true;   // Add disparity back to d{x,y}[i] (debug feature)
 	// Lazy eye parameters
 
-	public boolean    ly_lma_ers =      true;    // Use 2020 LMA-based measurement of mismatch
+	public boolean    ly_lma_ers =      true;    // Use 2020 LMA-based measurement of mismatch (GPU-supported)
 	public double     ly_gt_strength =  0.18;    // use some configurable parameters
 	public boolean    ly_gt_use_wnd =   true;    //
 	public double     ly_gt_rms =       0.2;     // split small source samples to FG/BG if all aux tile RMS exceeds this value
@@ -797,6 +797,7 @@ public class CLTParameters {
 	public boolean    gpu_use_aux =         false; // accelerate tile processor for the aux (lwir) quad camera
 	public boolean    gpu_use_aux_macro =   false; // accelerate tile processor for the aux (lwir) quad camera in macro mode
 	public boolean    gpu_use_aux_adjust =  false; // accelerate tile processor for the aux (lwir) quad camera for field calibration
+	public boolean    gpu_debug_accum =     false; // debug multi-tile TD accumulation
 
 	public boolean    replaceWeakOutliers =   true; // false;
 
@@ -1600,6 +1601,7 @@ public class CLTParameters {
 		properties.setProperty(prefix+"gpu_use_aux",                this.gpu_use_aux +"");
 		properties.setProperty(prefix+"gpu_use_aux_macro",          this.gpu_use_aux_macro +"");
 		properties.setProperty(prefix+"gpu_use_aux_adjust",         this.gpu_use_aux_adjust +"");
+		properties.setProperty(prefix+"gpu_debug_accum",            this.gpu_debug_accum +"");
 		
 		properties.setProperty(prefix+"debug_initial_discriminate",       this.debug_initial_discriminate+"");
 		properties.setProperty(prefix+"dbg_migrate",                      this.dbg_migrate+"");
@@ -2387,6 +2389,7 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"gpu_use_aux")!=null)                 this.gpu_use_aux=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_use_aux"));
 		if (properties.getProperty(prefix+"gpu_use_aux_macro")!=null)           this.gpu_use_aux_macro=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_use_aux_macro"));
 		if (properties.getProperty(prefix+"gpu_use_aux_adjust")!=null)          this.gpu_use_aux_adjust=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_use_aux_adjust"));
+		if (properties.getProperty(prefix+"gpu_debug_accum")!=null)             this.gpu_debug_accum=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_debug_accum"));
 
 		if (properties.getProperty(prefix+"debug_initial_discriminate")!=null)       this.debug_initial_discriminate=Boolean.parseBoolean(properties.getProperty(prefix+"debug_initial_discriminate"));
 		if (properties.getProperty(prefix+"dbg_migrate")!=null)                      this.dbg_migrate=Boolean.parseBoolean(properties.getProperty(prefix+"dbg_migrate"));
@@ -2612,7 +2615,7 @@ public class CLTParameters {
 
 		gd.addTab         ("Lazy eye", "Lazy eye parameters");
 
-		gd.addCheckbox    ("Use 2020 LMA-based measurement of mismatch",                                        this.ly_lma_ers);
+		gd.addCheckbox    ("Use 2020 LMA-based measurement of mismatch (GPU-supported)",                        this.ly_lma_ers);
 		gd.addMessage     ("--- main-to-aux depth map parameters ---");
 		gd.addNumericField("Minimal reference (main) channel correlation strength",                             this.ly_gt_strength,        3);
 		gd.addCheckbox    ("Use window for AUX tiles to reduce weight of the hi-res tiles near low-res tile boundaries", this.ly_gt_use_wnd);
@@ -3337,6 +3340,7 @@ public class CLTParameters {
 		gd.addCheckbox    ("Accelerate tile processor for the aux (lwir) quad camera",                                  this.gpu_use_aux);
 		gd.addCheckbox    ("Accelerate tile processor for the aux (lwir) quad camera in macro mode",                    this.gpu_use_aux_macro);
 		gd.addCheckbox    ("Accelerate tile processor for the aux (lwir) quad camera for field calibration",            this.gpu_use_aux_adjust);
+		gd.addCheckbox    ("Debug multi-tile TD accumulation",                                                          this.gpu_debug_accum);
 		
 		gd.addTab         ("LWIR", "parameters for LWIR/EO 8-camera rig");
 		this.lwir.dialogQuestions(gd);
@@ -4097,6 +4101,7 @@ public class CLTParameters {
 		this.gpu_use_aux=           gd.getNextBoolean();
 		this.gpu_use_aux_macro=     gd.getNextBoolean();
 		this.gpu_use_aux_adjust=    gd.getNextBoolean();
+		this.gpu_debug_accum=       gd.getNextBoolean();
 		
 		this.lwir.dialogAnswers(gd);
 

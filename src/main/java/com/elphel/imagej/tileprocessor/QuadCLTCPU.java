@@ -7403,17 +7403,37 @@ public class QuadCLTCPU {
     					  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
     					  "after_refinePassSetup-"+tp.clt_3d_passes.size());
 
+    			  // Just debugging
+    			  if (clt_parameters.gpu_debug_accum) {
+    				  CLTMeasureCorrTesting( // perform single pass according to prepared tiles operations and disparity
+    						  clt_parameters,
+    						  0,
+    						  false, // true, // final boolean     save_textures,
+    						  threadsMax,  // maximal number of threads to launch
+    						  updateStatus,
+    						  debugLevel);
+
+    				  CLTMeasureCorrTesting( // perform single pass according to prepared tiles operations and disparity
+    						  clt_parameters,
+    						  refine_pass,
+    						  false, // true, // final boolean     save_textures,
+    						  threadsMax,  // maximal number of threads to launch
+    						  updateStatus,
+    						  debugLevel);
+    			  }
+      			  // End of just debugging
+    			  
     			  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity
-//    					  image_data, // first index - number of image in a quad
-//    					  saturation_imp, //final boolean [][]  saturation_imp, // (near) saturated pixels or null
     					  clt_parameters,
     					  refine_pass,
     					  false, // true, // final boolean     save_textures,
     					  threadsMax,  // maximal number of threads to launch
     					  updateStatus,
     					  debugLevel);
-    			  if (debugLevel > -1){
-    				  System.out.println("CLTMeasure("+refine_pass+")");
+    			  
+    			  
+    			  if (debugLevel > -3){
+    				  System.out.println("CLTMeasure("+refine_pass+")-*");
     			  }
     			  if (show_init_refine) tp.showScan(
     					  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
@@ -7664,11 +7684,27 @@ public class QuadCLTCPU {
 		  for (int  nTile = 0 ; nTile < bg_use.length; nTile++) {
 			  if (bg_sel[nTile] &&
 					  (filtered_bgnd_disp_strength[1][nTile] > 0.0) &&
-					  (bg_str[nTile] > clt_parameters.fcorr_inf_strength) &&
-					  ((bg_overexp == null) || (bg_overexp[nTile] < clt_parameters.lym_overexp))
+					  (bg_str[nTile] > clt_parameters.fcorr_inf_strength) && // 0.13
+					  ((bg_overexp == null) || (bg_overexp[nTile] < clt_parameters.lym_overexp)) //1e-4
 					  ){
 				  bg_use[nTile] = true;
 			  }
+		  }
+		  if (true) {
+			  String [] dbg_titles = {"fdisp", "fstr", "disp", "str", "overexp","sel","use"};
+			  double [][] ddd = {filtered_bgnd_disp_strength[0],filtered_bgnd_disp_strength[1],null,bg_str,bg_overexp, null, null};
+			  ddd[5] = new double [bg_sel.length];
+			  ddd[6] = new double [bg_sel.length];
+			  for (int  nTile = 0 ; nTile < bg_use.length; nTile++) {
+				  ddd[5][nTile] = bg_sel[nTile]?1.0:0.0;
+				  ddd[6][nTile] = bg_use[nTile]?1.0:0.0;
+			  }
+			  (new ShowDoubleFloatArrays()).showArrays(
+				  ddd,
+				  tp.getTilesX(),
+				  tp.getTilesY(),
+				  true,
+				  "filtered_bgnd_disp_strength",dbg_titles);
 		  }
 		  int num_bg = tp.clt_3d_passes.get(bg_scan).setTileOpDisparity( // other minimal strength?
 				  bg_use, // boolean [] selection,
@@ -7694,12 +7730,8 @@ public class QuadCLTCPU {
 			  System.out.println("Number of background tiles = " + num_bg+", number of lazy eye tiles = " + num_combo);
 		  }
 		  // measure combo
-
-
-
-		  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
-//				  image_data, // first index - number of image in a quad
-//				  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
+/*
+		  CLTMeasure( // perform single pass according to prepared tiles operations and disparity **** CPU?
 				  clt_parameters,
 				  combo_scan,
 				  false, // final boolean     save_textures,
@@ -7708,9 +7740,18 @@ public class QuadCLTCPU {
 				  tp.threadsMax,  // maximal number of threads to launch
 				  false, // updateStatus,
 				  debugLevelInner - 1);
-		  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) {
+
+ */
+		  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity **** CPU?
+				  clt_parameters,
+				  combo_scan,
+				  false, // final boolean     save_textures,
+				  tp.threadsMax,  // maximal number of threads to launch
+				  false, // updateStatus,
+				  debugLevelInner - 1);
+		  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-3)) {
 			  tp.showScan(
-					  tp.clt_3d_passes.get(bg_scan),   // CLTPass3d   scan,
+					  tp.clt_3d_passes.get(bg_scan),   // CLTPass3d   scan, badly filtered?
 					  "bg_scan_post"); //String title)
 			  tp.showScan(
 					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
@@ -7755,7 +7796,25 @@ public class QuadCLTCPU {
 				  combo_use[nTile] = true;
 			  }
 		  }
-		  int num_combo1 = tp.clt_3d_passes.get(combo_scan).setTileOpDisparity(
+		  if (true) {
+			  String [] dbg_titles = {"fdisp", "fstr", "disp", "str", "overexp","sel","use"};
+			  double [][] ddd = {filtered_combo_scand_isp_strength[0],filtered_combo_scand_isp_strength[1],combo_disp,combo_str,combo_overexp, null, null};
+			  ddd[5] = new double [combo_use.length];
+			  ddd[6] = new double [combo_use.length];
+			  for (int  nTile = 0 ; nTile < combo_use.length; nTile++) {
+				  //ddd[5][nTile] = bg_sel[nTile]?1.0:0.0;
+				  ddd[6][nTile] = combo_use[nTile]?1.0:0.0;
+			  }
+			  (new ShowDoubleFloatArrays()).showArrays(
+					  ddd,
+					  tp.getTilesX(),
+					  tp.getTilesY(),
+					  true,
+					  "filtered_combo_scand_isp_strength",dbg_titles);
+		  }
+		  
+		  
+		  int num_combo1 = tp.clt_3d_passes.get(combo_scan).setTileOpDisparity( // GPU ==0 !
 				  combo_use, // boolean [] selection,
 				  combo_disp); // double []  disparity);
 		  if (debugLevel > -1) {
@@ -7772,7 +7831,7 @@ public class QuadCLTCPU {
 				  dbg_bg_use[i] =    bg_use[i]? 1.0:0.0;
 				  dbg_combo_use[i] = combo_use[i]? 1.0:0.0;
 			  }
-			  double [][]dbg_img = {
+			  double [][]dbg_img = { // bg_use - all 0? (never assigned)?
 					  filtered_bgnd_disp_strength[0],
 					  filtered_bgnd_disp_strength[1],
 					  filtered_combo_scand_isp_strength[0],
@@ -7816,9 +7875,9 @@ public class QuadCLTCPU {
 						  false, // updateStatus,
 						  debugLevelInner -1); // - 1); // -5-1
 				  if (debugLevel > -2) {
-				  tp.showScan(
-						  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
-						  "LY_combo_scan-"+combo_scan+"_post"); //String title)
+					  tp.showScan(
+							  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
+							  "LY_combo_scan-"+combo_scan+"_post"); //String title)
 				  }
 
 				  int tilesX = tp.getTilesX();
@@ -7913,9 +7972,8 @@ public class QuadCLTCPU {
 					  break;
 				  }
 				  if (update_disp_from_latest) {
+/*					  
 					  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
-//							  image_data,       // first index - number of image in a quad
-//							  saturation_imp,   // boolean [][] saturation_imp, // (near) saturated pixels or null
 							  clt_parameters,
 							  combo_scan,
 							  false,             // final boolean     save_textures,
@@ -7924,14 +7982,20 @@ public class QuadCLTCPU {
 							  tp.threadsMax,     // maximal number of threads to launch
 							  false,             // updateStatus,
 							  debugLevelInner - 1);
+*/							  
+					  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity
+							  clt_parameters,
+							  combo_scan,
+							  false,             // final boolean     save_textures,
+							  tp.threadsMax,     // maximal number of threads to launch
+							  false,             // updateStatus,
+							  debugLevelInner - 1);
 				  }
 
-			  } else {
+			  } else { // Old, no-GPU
 				  double [][] bg_mismatch = new double[12][];
 				  double [][] combo_mismatch = new double[12][];
 				  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
-//						  image_data, // first index - number of image in a quad
-//						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						  clt_parameters,
 						  bg_scan,
 						  false,             // final boolean     save_textures,
@@ -7941,8 +8005,6 @@ public class QuadCLTCPU {
 						  false, // updateStatus,
 						  debugLevelInner - 1);
 				  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
-//						  image_data, // first index - number of image in a quad
-//						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						  clt_parameters,
 						  combo_scan,
 						  false,             // final boolean     save_textures,
@@ -11316,5 +11378,22 @@ public class QuadCLTCPU {
 			  }
 		  }
 		  scan.setTilesRBGA(tileTones); 
+	  }
+	  // non-trivial in QuadCLT (for the GPU)
+	  public CLTPass3d  CLTMeasureCorrTesting( // perform single pass according to prepared tiles operations and disparity // not used in lwir
+			  CLTParameters     clt_parameters,
+			  final int         scanIndex,
+			  final boolean     save_textures,
+			  final int         threadsMax,  // maximal number of threads to launch
+			  final boolean     updateStatus,
+			  final int         debugLevel)
+	  {
+		 return CLTMeasureCorrTesting( // perform single pass according to prepared tiles operations and disparity // not used in lwir
+				  clt_parameters,
+				  scanIndex,
+				  save_textures,
+				  threadsMax,  // maximal number of threads to launch
+				  updateStatus,
+				  debugLevel); 
 	  }
 }

@@ -8315,7 +8315,6 @@ if (debugLevel > -100) return true; // temporarily !
 					}
 				}
 				
-				/*
 				boolean ok = quadCLT_main.extrinsicsCLT(
 						clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 						false, // adjust_poly,
@@ -8325,8 +8324,6 @@ if (debugLevel > -100) return true; // temporarily !
 // clear memory for main
 				quadCLT_main.tp.resetCLTPasses();
 				if (!ok) break;
-				*/
-
 			}
 			// Generate 4 main camera images and thumbnail
 			if (quadCLT_main.correctionsParameters.clt_batch_4img){

@@ -222,6 +222,18 @@ public class GPUTileProcessor {
     			}
     		}
     	}
+    	public float [][] getDispDist(){
+    		return disp_dist;
+    	}
+    	public float [][] getXY(boolean use_aux){
+    		return use_aux? xy_aux : xy;
+    	}
+    	public int getTileY(){
+    		return ty;
+    	}
+    	public int getTileX(){
+    		return tx;
+    	}
 
     	// convert this class instance to float array to match layout of the C struct
     	public float [] asFloatArray(boolean use_aux) {
@@ -2043,10 +2055,13 @@ public class GPUTileProcessor {
             	}
         	}
         	setCorrIndicesTdData(
-        			ntile,   // int    num_tiles,  // corr_indices, fdata may be longer than needed
+        			ntile * num_pairs,   // int    num_tiles,  // corr_indices, fdata may be longer than needed
         			indices, // int [] corr_indices,
             		fdata);  // float [] fdata);
-        	return indices;
+        	// trim indices
+        	int [] indices_trim = new int [ntile * num_pairs];
+        	System.arraycopy(indices, 0, indices_trim, 0 , indices_trim.length);        	
+        	return indices_trim;
         }
         
         public float [][][][] getCorrTilesTd() // [tileY][tileX][pair][4*64] , read all available pairs
@@ -2104,7 +2119,9 @@ public class GPUTileProcessor {
         			ntile,   // int    num_tiles,  // corr_indices, fdata may be longer than needed
         			indices, // int [] corr_indices,
             		fdata);  // float [] fdata);
-        	return indices;
+        	int [] indices_trim = new int [ntile];
+        	System.arraycopy(indices, 0, indices_trim, 0 , indices_trim.length);        	
+        	return indices_trim;
         }
         
         public float [][][] getCorrTilesComboTd() // [tileY][tileX][4*64] , read all available pairs
