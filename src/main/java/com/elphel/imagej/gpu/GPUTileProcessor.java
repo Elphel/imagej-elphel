@@ -651,6 +651,7 @@ public class GPUTileProcessor {
         
         private boolean geometry_correction_set = false;
         private boolean geometry_correction_vector_set = false;
+        public  int gpu_debug_level = 1;
     	public GpuQuad(
         	final QuadCLT quadCLT,    			
 //   			final int img_width,
@@ -878,9 +879,16 @@ public class GPUTileProcessor {
     	public void resetGeometryCorrection() {
     		geometry_correction_set = false;
     		geometry_correction_vector_set = false;
+    		if (gpu_debug_level > -1) {
+    			System.out.println("======resetGeometryCorrection()");
+    		}
+    		
     	}
     	public void resetGeometryCorrectionVector() {
     		geometry_correction_vector_set = false;
+    		if (gpu_debug_level > -1) {
+    			System.out.println("======resetGeometryCorrectionVector()");
+    		}
     	}
     	public int getImageWidth()  {return this.img_width;}
     	public int getImageHeight() {return this.img_height;}
@@ -897,6 +905,9 @@ public class GPUTileProcessor {
     	public void setGeometryCorrectionVector() { // will reset geometry_correction_vector_set when running GPU kernel
     		setExtrinsicsVector(
     				quadCLT.getGeometryCorrection().getCorrVector());
+    		if (gpu_debug_level > -1) {
+    			System.out.println("======setGeometryCorrectionVector()");
+    		}
     	}
     	
         public void setGeometryCorrection(GeometryCorrection gc,
@@ -912,6 +923,9 @@ public class GPUTileProcessor {
         	}
         	cuMemcpyHtoD(gpu_geometry_correction, Pointer.to(fgc),       fgc.length * Sizeof.FLOAT);
         	cuMemAlloc  (gpu_rot_deriv, 5 * num_cams *3 *3 * Sizeof.FLOAT); // NCAM of 3x3 rotation matrices, plus 4 derivative matrices for each camera
+    		if (gpu_debug_level > -1) {
+    			System.out.println("======setGeometryCorrection()");
+    		}
         }
 /**
  * Copy extrinsic correction vector to the GPU memory
@@ -924,6 +938,9 @@ public class GPUTileProcessor {
         		fcv[i] = (float) dcv[i];
         	}
         	cuMemcpyHtoD(gpu_correction_vector, Pointer.to(fcv), fcv.length * Sizeof.FLOAT);
+    		if (gpu_debug_level > -1) {
+    			System.out.println("======setExtrinsicsVector()");
+    		}
         }
 
 /**
@@ -945,6 +962,10 @@ public class GPUTileProcessor {
         		tile_tasks[i].asFloatArray(ftasks, i* TPTASK_SIZE, use_aux);
         	}
             cuMemcpyHtoD(gpu_tasks, Pointer.to(ftasks), TPTASK_SIZE * num_task_tiles * Sizeof.FLOAT);
+    		if (gpu_debug_level > -1) {
+    			System.out.println("======setTasks()");
+    		}
+
         }
         
         void checkTasks (TpTask [] tile_tasks) {
@@ -1103,6 +1124,9 @@ public class GPUTileProcessor {
         				ncam);      // int ncam)
         	}
         	kernels_set = true;
+    		if (gpu_debug_level > -1) {
+    			System.out.println("======setConvolutionKernels()");
+    		}
         }
 
         public void setBayerImage(
@@ -1160,6 +1184,9 @@ public class GPUTileProcessor {
     		    		ncam); // int ncam)
     		}
     		bayer_set = true;
+    		if (gpu_debug_level > -1) {
+    			System.out.println("======setBayerImages()");
+    		}
         }
 
         // prepare tasks for full frame, same dispaity.
@@ -1536,6 +1563,9 @@ public class GPUTileProcessor {
         			kernelParameters, null);   // Kernel- and extra parameters
         	cuCtxSynchronize(); // remove later
         	geometry_correction_vector_set = true;
+    		if (gpu_debug_level > -1) {
+    			System.out.println("======execRotDerivs()");
+    		}
         }
         
 /**
@@ -1565,6 +1595,9 @@ public class GPUTileProcessor {
         			kernelParameters, null);   // Kernel- and extra parameters
         	cuCtxSynchronize(); // remove later
         	geometry_correction_set = true;
+    		if (gpu_debug_level > -1) {
+    			System.out.println("======execCalcReverseDistortions()");
+    		}
         }
         
 /**
@@ -1595,6 +1628,9 @@ public class GPUTileProcessor {
         			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
         			kernelParameters, null);   // Kernel- and extra parameters
         	cuCtxSynchronize(); // remove later
+    		if (gpu_debug_level > -1) {
+    			System.out.println("======execSetTilesOffsets()");
+    		}
         }
 
 /**
@@ -1639,6 +1675,9 @@ public class GPUTileProcessor {
         			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
         			kernelParameters, null);   // Kernel- and extra parameters
         	cuCtxSynchronize(); // remove later
+    		if (gpu_debug_level > -1) {
+    			System.out.println("======execConvertDirect()");
+    		}
         }
 
 

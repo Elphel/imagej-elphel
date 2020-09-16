@@ -39,7 +39,7 @@ import ij.IJ;
  ** -----------------------------------------------------------------------------**
  **
  */
-
+//← → ↑ ↓ ⇖ ⇗ ⇘ ⇙ ↔ ↕ 
 public class GeometryCorrection {
 //	static final double FOCAL_LENGTH = 4.5; // nominal focal length - used as default and to convert editable parameters to pixels
 //	static final double DISTORTION_RADIUS = 2.8512; // nominal distortion radius - half width of the sensor
@@ -110,7 +110,7 @@ public class GeometryCorrection {
 	public  CorrVector extrinsic_corr;
 
 	public RigOffset   rigOffset =    null;
-	public int []      woi_tops; // used to calculate scanline timing
+	public int []      woi_tops =     null; // used to calculate scanline timing
 
 
 	public float [] toFloatArray() { // for GPU comparison
@@ -152,12 +152,15 @@ public class GeometryCorrection {
 				(float) rXY[3][0], (float) rXY[3][1],
 //				(float) [][] rXY_ideal = {{-0.5, -0.5}, {0.5,-0.5}, {-0.5, 0.5}, {0.5,0.5}};
 			// only used for the multi-quad systems
-				(float) cameraRadius,     // average distance from the "mass center" of the sensors to the sensors
-				(float) disparityRadius   //=150.0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad
+				(float) cameraRadius,      // average distance from the "mass center" of the sensors to the sensors
+				(float) disparityRadius,   //=150.0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad
+				woi_tops[0],woi_tops[1],woi_tops[2],woi_tops[3]
 		};
 	}
 	public static int arrayLength(int ncam) {
-		return 21+8*ncam;
+//		return 21+8*ncam;
+//		return 25+8*ncam;
+		return (new GeometryCorrection(ncam)).toDoubleArray().length;
 	}
 
 
@@ -193,8 +196,9 @@ public class GeometryCorrection {
 				rXY[1][0],  rXY[1][1],
 				rXY[2][0],  rXY[2][1],
 				rXY[3][0],  rXY[3][1],
-cameraRadius,     // average distance from the "mass center" of the sensors to the sensors
-				disparityRadius   //=150.0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad
+				cameraRadius,     // average distance from the "mass center" of the sensors to the sensors
+				disparityRadius,   //=150.0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad
+				woi_tops[0],woi_tops[1],woi_tops[2],woi_tops[3]
 		};
 	}
 
@@ -202,6 +206,9 @@ cameraRadius,     // average distance from the "mass center" of the sensors to t
 		return woi_tops;
 	}
 
+	public double [][] getPXY0(){
+		return this.pXY0;
+	}
 	public double [] getRByRDist() {
 		return this.rByRDist;
 	}
@@ -332,6 +339,19 @@ cameraRadius,     // average distance from the "mass center" of the sensors to t
 		resetCorrVector();
 	}
 
+	public GeometryCorrection(int num_cams) {
+		// just to get the length of toFloatArray()
+		numSensors = num_cams;
+		forward = new double [numSensors];
+		right =   new double [numSensors];
+		height =  new double [numSensors];
+		roll =    new double [numSensors];
+		pXY0 =    new double [numSensors][2];
+		rXY =     new double [numSensors][2];
+		woi_tops = new int   [numSensors];
+		resetCorrVector();
+	}
+	
 	public GeometryCorrection(double [] extrinsic_corr)
 	{
 		this.extrinsic_corr = 	new CorrVector(extrinsic_corr);
@@ -345,7 +365,7 @@ cameraRadius,     // average distance from the "mass center" of the sensors to t
 	public double [][] getRXY(boolean use_rig){
 		return (use_rig && (rigOffset != null)) ? rigOffset.rXY_aux: rXY ;
 	}
-	public void initPrePostMatrices(boolean invert) {
+	public void initPrePostMatrices(boolean invert) { // ran with true
 		double [][] a_balance_xy = new double [2*numSensors][2*numSensors];
 		double [][] a_balance_dd = new double [2*numSensors+1][2*numSensors];
 		double wsame =   (numSensors - 1.0)/numSensors;
@@ -1880,14 +1900,14 @@ cameraRadius,     // average distance from the "mass center" of the sensors to t
 				v[i] = vector[i] *1000.0; // *distortionRadius/pixelSize;    // movement mm/s
 				sv[i] = sym_vect[i]*1000.0; // *distortionRadius/pixelSize; // movement mm/s
 			}
-
+			// ← → ↑ ↓ ⇖ ⇗ ⇘ ⇙ ↔ ↕ 
 			s  = String.format("tilt    (up):    %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift of the image center)\n" , v[0], v[1], v[2], -(v[0] + v[1] + v[2]) );
 			s += String.format("azimuth (right): %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift of the image center)\n" , v[3], v[4], v[5], -(v[3] + v[4] + v[5]) );
 			s += String.format("roll    (CW):    %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift at the image half-width from the center)\n" , v[6], v[7], v[8], v[9] );
 			s += String.format("diff zoom (in):  %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift at the image half-width from the center)\n" , v[10], v[11],  v[12], -(v[10] + v[11] + v[12]) );
 			s += "Symmetrical vector:\n";
-			s += "    |↘ ↙|     |↘ ↗|     |↗ ↘|     |↙ ↘|      |↙ ↗|     |↖  ↘| 6: common roll 7:(r0-r3)/2,           |- +|     |- -|     |- +|\n";
-			s += " 0: |↗ ↖|  1: |↙ ↖|  2: |↖ ↙|  3: |↖ ↗|  4:  |↗ ↙|  5: |↘  ↖| 8:(r1-r2)/2    9:(r0+r3-r1-r2)/4  10: |- +| 11: |+ +| 12: |+ -|\n";
+			s += "    |⇘ ⇙|     |⇘ ⇗|     |⇗ ⇘|     |⇙ ⇘|      |⇙ ⇗|     |⇖  ⇘| 6: common roll 7:(r0-r3)/2,           |- +|     |- -|     |- +|\n";
+			s += " 0: |⇗ ⇖|  1: |⇙ ⇖|  2: |⇖ ⇙|  3: |⇖ ⇗|  4:  |⇗ ⇙|  5: |⇘  ⇖| 8:(r1-r2)/2    9:(r0+r3-r1-r2)/4  10: |- +| 11: |+ +| 12: |+ -|\n";
 
 			s += String.format(" 0:%9.6fpx 1:%8.5fpx 2:%8.5fpx 3:%8.5fpx 4:%8.5fpx 5:%8.5fpx 6:%8.5fpx 7:%8.5fpx 8:%8.5fpx 9:%8.5fpx 10: %8.5fpx 11:%8.5fpx 12:%8.5fpx\n" ,
 					sv[0], sv[1], sv[2], sv[3], sv[4], sv[5], sv[6], sv[7], sv[8], sv[9], sv[10], sv[11], sv[12] );
@@ -1990,8 +2010,8 @@ cameraRadius,     // average distance from the "mass center" of the sensors to t
 			s += String.format("roll    (CW):    %8.5f° %8.5f° %8.5f° %8.5f°\n" , v[6], v[7], v[8], v[9] );
 			s += String.format("diff zoom (in):  %8.5f‰ %8.5f‰ %8.5f‰ %8.5f‰\n" , 1000*v[10],1000*v[11],1000*v[12], -1000*(v[10] + v[11] + v[12]) );
 			s += "Symmetrical vector:\n";
-			s += "    |↘ ↙|     |↘ ↗|     |↗ ↘|     |↙ ↘|      |↙ ↗|     |↖  ↘| 6: common roll 7:(r0-r3)/2,           |- +|     |- -|     |- +|\n";
-			s += " 0: |↗ ↖|  1: |↙ ↖|  2: |↖ ↙|  3: |↖ ↗|  4:  |↗ ↙|  5: |↘  ↖| 8:(r1-r2)/2    9:(r0+r3-r1-r2)/4  10: |- +| 11: |+ +| 12: |+ -|\n";
+			s += "    |⇘ ⇙|     |⇘ ⇗|     |⇗ ⇘|     |⇙ ⇘|      |⇙ ⇗|     |⇖  ⇘| 6: common roll 7:(r0-r3)/2,           |- +|     |- -|     |- +|\n";
+			s += " 0: |⇗ ⇖|  1: |⇙ ⇖|  2: |⇖ ⇙|  3: |⇖ ⇗|  4:  |⇗ ⇙|  5: |⇘  ⇖| 8:(r1-r2)/2    9:(r0+r3-r1-r2)/4  10: |- +| 11: |+ +| 12: |+ -|\n";
 
 			s += String.format(" 0:%9.6f° 1:%8.5f° 2:%8.5f° 3:%8.5f° 4:%8.5f° 5:%8.5f° 6:%8.5f° 7:%8.5f° 8:%8.5f° 9:%8.5f° 10: %8.5f‰ 11:%8.5f‰ 12:%8.5f‰\n" ,
 					sv[0], sv[1], sv[2], sv[3], sv[4], sv[5], sv[6], sv[7], sv[8], sv[9], 1000*sv[10], 1000*sv[11], 1000*sv[12] );
@@ -2064,7 +2084,14 @@ cameraRadius,     // average distance from the "mass center" of the sensors to t
 		public double getNorm() {
 			double s2 = 0;
 			for (int i = 0; i < vector.length; i++) {
-				s2 += vector[i]*vector[i];
+				double v = vector[i];
+				// manually reducing weights of ERS parameters
+				if (i >= (IMU_INDEX+3)) { 
+					v *= 0.001; // imu mm/s
+				} else if (i >= IMU_INDEX) {
+					v *= 0.01; // imu mm/s
+				}  
+				s2 += v*v;
 			}
 			return Math.sqrt(s2); // add weights to compare apples and oranges?
 		}
@@ -2098,8 +2125,8 @@ cameraRadius,     // average distance from the "mass center" of the sensors to t
 		 * Get conversion matrix from symmetrical coordinates
 		 * @return
 		 *
-		 *     |↘ ↙|     |↘ ↗|     |↗ ↘|     |↙ ↘|      |↙ ↗|     |↖  ↘|
-		 *  0: |↗ ↖|  1: |↙ ↖|  2: |↖ ↙|  3: |↖ ↗|  4:  |↗ ↙|  5: |↘  ↖|
+		 *     |⇘ ⇙|     |⇘ ⇗|     |⇗ ⇘|     |⇙ ⇘|      |⇙ ⇗|     |⇖  ⇘|
+		 *  0: |⇗ ⇖|  1: |⇙ ⇖|  2: |⇖ ⇙|  3: |⇖ ⇗|  4:  |⇗ ⇙|  5: |⇘  ⇖|
 		 *
 		 */
 		public double [][] dSym_j_dTar_i() // USED in lwir
@@ -2271,8 +2298,8 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		 * here are symmetrical, 0 is disparity-related (all to the center), remaining 9 preserve disparity and
 		 * are only responsible for the "lazy eye" (last 4  were roll, now differential zooms are added):
 		 *
-		 *     |↘ ↙|     |↘ ↗|     |↗ ↘|     |↙ ↘|      |↙ ↗|     |↖  ↘|
-		 *  0: |↗ ↖|  1: |↙ ↖|  2: |↖ ↙|  3: |↖ ↗|  4:  |↗ ↙|  5: |↘  ↖|
+		 *     |⇘ ⇙|     |⇘ ⇗|     |⇗ ⇘|     |⇙ ⇘|      |⇙ ⇗|     |⇖  ⇘|
+		 *  0: |⇗ ⇖|  1: |⇙ ⇖|  2: |⇖ ⇙|  3: |⇖ ⇗|  4:  |⇗ ⇙|  5: |⇘  ⇖|
 		 *
 		 * @param port_coord_deriv result of getPortsCoordinatesAndDerivatives: first index: port0x, port0y... port3y,
 		 *                         second index - parameters [tilt0, tilt1, ..., roll3]
@@ -3027,12 +3054,305 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 * @param deriv_rots derivatives by d_az, f_elev, d_rot, d_zoom
 	 * @param pXYderiv - null or double[2 * number_of_cameras][] array to accommodate derivatives of px, py by each of the parameters
 	 * @param disp_dist - null or double[number_of_cameras][4] array to accommodate X,Y (rows) derivatives by disp and CCW90 of disp (cols)
+	 *                    {d_px/d_disp, d_px/d_ndisp, d_py/d_disp, d_py/d_ndisp}  
 	 * @param px pixel X coordinate
 	 * @param py pixel Y coordinate
 	 * @param disparity disparity (for non-distorted image space)
 	 * @return array of per port pairs of pixel shifts
 	 */
 	public double [][] getPortsCoordinatesAndDerivatives( // USED in lwir
+			GeometryCorrection gc_main,
+			boolean     use_rig_offsets,
+			Matrix []   rots,
+			Matrix [][] deriv_rots,
+			double [][] pXYderiv, // if not null, should be double[8][]
+			double [][] disp_dist, //
+			double px,
+			double py,
+			double disparity)
+	{
+//		String dbg_s = corr_vector.toString();
+/* Starting with required tile center X, Y and nominal distortion, for each sensor port:
+ * 1) unapply common distortion (maybe for different - master camera)
+ * 2) apply disparity
+ * 3) apply rotations and zoom
+ * 4) re-apply distortion
+ * 5) return port center X and Y
+ * line_time
+ */
+		double [] imu =  null;
+		if (disp_dist != null) {
+			imu =  extrinsic_corr.getIMU(); // currently it is common for all channels
+			if ((deriv_rots == null) &&  ((imu[0] != 0.0) || (imu[1] != 0.0) ||(imu[2] != 0.0))){
+				deriv_rots = extrinsic_corr.getRotDeriveMatrices();
+			}
+		}
+		if ((disp_dist == null) && (pXYderiv != null)) {
+			disp_dist = new double [numSensors][4];
+		}
+
+		double [][] rXY = getRXY(use_rig_offsets); // may include rig offsets
+
+		double [][] pXY = new double [numSensors][2];
+
+		double pXcd = px - 0.5 * gc_main.pixelCorrectionWidth;
+		double pYcd = py - 0.5 * gc_main.pixelCorrectionHeight;
+		double rD = Math.sqrt(pXcd*pXcd + pYcd*pYcd)*0.001*gc_main.pixelSize; // distorted radius in a virtual center camera
+		double rND2R=gc_main.getRByRDist(rD/gc_main.distortionRadius, (debugLevel > -1));
+		double pXc = pXcd * rND2R; // non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
+		double pYc = pYcd * rND2R; // in pixels
+		// next radial distortion coefficients are for this, not master camera (may be the same)
+		double [] rad_coeff={this.distortionC,this.distortionB,this.distortionA,this.distortionA5,this.distortionA6,this.distortionA7,this.distortionA8};
+		double fl_pix = focalLength/(0.001*pixelSize); // focal length in pixels - this camera
+		double  ri_scale = 0.001 * this.pixelSize / this.distortionRadius;
+		double [] xyz = (disparity > 0) ? getWorldCoordinates(   // USED in lwir
+				px,                                  // double px,
+				py,                                  // double py,
+				disparity,                           // double disparity,
+				true) : null;                               // boolean correctDistortions)
+		// new:
+		double [] ri =       new double [numSensors];		
+		double [] norm_zs =  new double [numSensors];		
+		Matrix [] vis =      new Matrix[numSensors]; // non-distorted sensor channel view vector in pixels (z -along the common axis)
+		Matrix [] rvis =     new Matrix[numSensors]; // non-distorted sensor channel view vector in pixels (z -along the common axis)
+		double [][] pXYid =  new double [numSensors][2];	
+		double [] rNDis =    new double [numSensors];
+		double [] rD2rNDs =  new double [numSensors];
+		double lines_avg =   0.0; // to calculate average line number for ERS
+		double [] pY_offset = new double [numSensors];
+		for (int i = 0; i < numSensors; i++){
+			// non-distorted XY of the shifted location of the individual sensor
+			double pXci0 = pXc - disparity *  rXY[i][0]; // in pixels
+			double pYci0 = pYc - disparity *  rXY[i][1];
+			// rectilinear, end of dealing with possibly other (master) camera, below all is for this camera distortions
+
+			// Convert a 2-d non-distorted vector to 3d at fl_pix distance in z direction
+			double [][] avi = {{pXci0}, {pYci0},{fl_pix}};
+//			Matrix vi = new Matrix(avi); // non-distorted sensor channel view vector in pixels (z -along the common axis)
+			vis[i] = new Matrix(avi); // non-distorted sensor channel view vector in pixels (z -along the common axis)
+
+			// Apply port-individual combined rotation/zoom matrix
+
+//			Matrix rvi = rots[i].times(vi);
+			rvis[i] = rots[i].times(vis[i]);
+			Matrix rvi = rvis[i]; 
+			// get back to the projection plane by normalizing vector
+			double norm_z = fl_pix/rvi.get(2, 0);
+			double pXci =  rvi.get(0, 0) * norm_z;
+			double pYci =  rvi.get(1, 0) * norm_z;
+			
+			norm_zs[i] = norm_z;
+			pXYid[i][0] = pXci;
+			pXYid[i][1] = pYci;
+			
+			// Re-apply distortion
+			double rNDi = Math.sqrt(pXci*pXci + pYci*pYci); // in pixels
+			rNDis[i] = rNDi; 
+			
+			//double ri = rNDi* ri_scale; // relative to distortion radius
+			ri[i] = rNDi* ri_scale; // relative to distortion radius
+
+			double rD2rND = 1.0;
+			double rri = 1.0;
+			for (int j = 0; j < rad_coeff.length; j++){
+//				rri *= ri;
+				rri *= ri[i];
+				rD2rND += rad_coeff[j]*(rri - 1.0); // Fixed
+			}
+			rD2rNDs[i] = rD2rND;
+			// Get port pixel coordinates by scaling the 2d vector with Rdistorted/Dnondistorted coefficient)
+			double pXid = pXci * rD2rND;
+			double pYid = pYci * rD2rND;
+			pXY[i][0] =  pXid + this.pXY0[i][0];
+			pXY[i][1] =  pYid + this.pXY0[i][1];
+			pY_offset[i] = pXY[i][1] - woi_tops[i]; // time (scanlines) since frame start
+			lines_avg += pY_offset[i];
+		}
+		lines_avg /= numSensors;
+		
+		for (int i = 0; i < numSensors; i++){
+			// used when calculating derivatives, TODO: combine calculations !
+			pY_offset[i] -= lines_avg; // lines since channel average (negative - earlier)
+			double drD2rND_dri = 0.0;
+			Matrix drvi_daz = null;
+			Matrix drvi_dtl = null;
+			Matrix drvi_drl = null;
+			double dpXci_dazimuth = 0.0;
+			double dpYci_dazimuth = 0.0;
+			double dpXci_dtilt =    0.0;
+			double dpYci_dtilt =    0.0;
+			double dpXci_droll =    0.0;
+			double dpYci_droll =    0.0;
+			Matrix vi = vis[i];
+			Matrix rvi = rvis[i];
+			double norm_z = norm_zs[i];
+			double pXci = pXYid[i][0];
+			double pYci = pXYid[i][1];
+			double rNDi = rNDis[i]; 
+			double rD2rND = rD2rNDs[i];
+
+			if ((disp_dist != null) || (pXYderiv != null)) {
+				double rri = 1.0;
+				for (int j = 0; j < rad_coeff.length; j++){
+					drD2rND_dri += rad_coeff[j] * (j+1) * rri;
+//					rri *= ri;
+					rri *= ri[i];
+				}
+				if (deriv_rots != null) {
+					// needed for derivatives and IMU
+					drvi_daz = deriv_rots[i][0].times(vi);
+					drvi_dtl = deriv_rots[i][1].times(vi);
+					drvi_drl = deriv_rots[i][2].times(vi);
+					dpXci_dazimuth = drvi_daz.get(0, 0) * norm_z - pXci * drvi_daz.get(2, 0) / rvi.get(2, 0);
+					dpYci_dazimuth = drvi_daz.get(1, 0) * norm_z - pYci * drvi_daz.get(2, 0) / rvi.get(2, 0);
+					dpXci_dtilt =    drvi_dtl.get(0, 0) * norm_z - pXci * drvi_dtl.get(2, 0) / rvi.get(2, 0);
+					dpYci_dtilt =    drvi_dtl.get(1, 0) * norm_z - pYci * drvi_dtl.get(2, 0) / rvi.get(2, 0);
+					dpXci_droll =    drvi_drl.get(0, 0) * norm_z - pXci * drvi_drl.get(2, 0) / rvi.get(2, 0);
+					dpYci_droll =    drvi_drl.get(1, 0) * norm_z - pYci * drvi_drl.get(2, 0) / rvi.get(2, 0);
+				}
+			}
+			double delta_t = 0.0;
+			double [][] dpXci_pYci_imu_lin = new double[2][3]; // null
+			if (disp_dist != null) {
+				disp_dist[i] =   new double [4]; // dx/d_disp, dx_d_ccw_disp
+				// Not clear - what should be in Z direction before rotation here?
+				double [][] add0 = {
+						{-rXY[i][0],  rXY[i][1], 0.0},
+						{-rXY[i][1], -rXY[i][0], 0.0},
+						{ 0.0,                     0.0,                    0.0}}; // what is last element???
+				Matrix dd0 = new Matrix(add0);
+				Matrix dd1 = rots[i].times(dd0).getMatrix(0, 1,0,1).times(norm_z); // get top left 2x2 sub-matrix
+				// now first column of 2x2 dd1 - x, y components of derivatives by disparity, second column - derivatives by ortho to disparity (~Y in 2d correlation)
+				// unity vector in the direction of radius
+				double c_dist = pXci/rNDi;
+				double s_dist = pYci/rNDi;
+				double [][] arot2= {
+						{c_dist, s_dist},
+						{-s_dist, c_dist}};
+				Matrix rot2 = new Matrix(arot2); // convert from non-distorted X,Y to parallel and perpendicular (CCW) to the radius
+
+				double [][] ascale_distort = {
+						{rD2rND + ri[i]* drD2rND_dri, 0     },
+						{0,                           rD2rND}};
+				Matrix scale_distort = new Matrix(ascale_distort); // scale component parallel to radius as distortion derivative, perpendicular - as distortion
+
+				Matrix dd2 = rot2.transpose().times(scale_distort).times(rot2).times(dd1);
+
+				disp_dist[i][0] =   dd2.get(0, 0);
+				disp_dist[i][1] =   dd2.get(0, 1);
+				disp_dist[i][2] =   dd2.get(1, 0); // d_py/d_disp
+				disp_dist[i][3] =   dd2.get(1, 1);
+				// ERS linear does not yet use per-port rotations, probably not needed
+				if ((imu != null) &&((imu[0] != 0.0) || (imu[1] != 0.0) ||(imu[2] != 0.0) ||(imu[3] != 0.0) ||(imu[4] != 0.0) ||(imu[5] != 0.0))) {
+///					delta_t = dd2.get(1, 0) * disparity * line_time; // positive for top cameras, negative - for bottom
+///					double ers_Xci = delta_t* (dpXci_dtilt * imu[0] + dpXci_dazimuth * imu[1]  + dpXci_droll * imu[2]);
+///					double ers_Yci = delta_t* (dpYci_dtilt * imu[0] + dpYci_dazimuth * imu[1]  + dpYci_droll * imu[2]);
+					
+					double ers_x = dpXci_dtilt * imu[0] + dpXci_dazimuth * imu[1]  + dpXci_droll * imu[2]; // per unit time
+					double ers_y = dpYci_dtilt * imu[0] + dpYci_dazimuth * imu[1]  + dpYci_droll * imu[2]; // per unit time
+					
+					if (xyz != null) {
+						double k = SCENE_UNITS_SCALE * this.disparityRadius;
+						double wdisparity = disparity;
+						double dwdisp_dz = (k * this.focalLength / (0.001*this.pixelSize)) / (xyz[2] * xyz[2]);
+						dpXci_pYci_imu_lin[0][0] = -wdisparity / k; // dpx/ dworld_X
+						dpXci_pYci_imu_lin[1][1] =  wdisparity / k; // dpy/ dworld_Y
+						dpXci_pYci_imu_lin[0][2] =  (xyz[0] / k) * dwdisp_dz; // dpx/ dworld_Z
+						dpXci_pYci_imu_lin[1][2] =  (xyz[1] / k) * dwdisp_dz; // dpy/ dworld_Z
+///						ers_Xci += delta_t* (dpXci_pYci_imu_lin[0][0] * imu[3] + dpXci_pYci_imu_lin[0][2] * imu[5]);
+///						ers_Yci += delta_t* (dpXci_pYci_imu_lin[1][1] * imu[4] + dpXci_pYci_imu_lin[1][2] * imu[5]);
+						ers_x += dpXci_pYci_imu_lin[0][0] * imu[3] + dpXci_pYci_imu_lin[0][2] * imu[5];
+						ers_y += dpXci_pYci_imu_lin[1][1] * imu[4] + dpXci_pYci_imu_lin[1][2] * imu[5];
+					}
+///					pXY[i][0] +=  ers_Xci * rD2rND; // added correction to pixel X
+///					pXY[i][1] +=  ers_Yci * rD2rND; // added correction to pixel Y
+					///delta_t = (delta_y0 / (1.0 - line_time * ers_y)) * line_time;
+					/// delta_y0 = pY_offset[i]
+					delta_t = (pY_offset[i] / (1.0 - line_time * ers_y)) * line_time;
+					pXY[i][0] += delta_t * ers_x * rD2rND; // added correction to pixel X
+					pXY[i][1] += delta_t * ers_y * rD2rND; // added correction to pixel Y
+					
+				} else {
+					imu = null;
+				}
+// TODO: calculate derivatives of pX, pY by 3 imu omegas
+			}
+
+			if (pXYderiv != null) {
+				pXYderiv[2 * i] =   new double [CorrVector.LENGTH];
+				pXYderiv[2 * i+1] = new double [CorrVector.LENGTH];
+				Matrix drvi_dzm = deriv_rots[i][3].times(vi);
+
+				double dpXci_dzoom =    drvi_dzm.get(0, 0) * norm_z - pXci * drvi_dzm.get(2, 0) / rvi.get(2, 0);
+				double dpYci_dzoom =    drvi_dzm.get(1, 0) * norm_z - pYci * drvi_dzm.get(2, 0) / rvi.get(2, 0);
+
+				double dri_dazimuth =  ri_scale / rNDi* (pXci * dpXci_dazimuth +  pYci * dpYci_dazimuth);
+				double dri_dtilt =     ri_scale / rNDi* (pXci * dpXci_dtilt +     pYci * dpYci_dtilt);
+
+				double dri_dzoom =     ri_scale / rNDi* (pXci * dpXci_dzoom +     pYci * dpYci_dzoom);
+
+				double drD2rND_dazimuth = drD2rND_dri * dri_dazimuth;
+				double drD2rND_dtilt =    drD2rND_dri * dri_dtilt;
+
+				double drD2rND_dzoom =    drD2rND_dri * dri_dzoom; // new
+
+				double dpXid_dazimuth = dpXci_dazimuth * rD2rND + pXci * drD2rND_dazimuth;
+				double dpYid_dazimuth = dpYci_dazimuth * rD2rND + pYci * drD2rND_dazimuth;
+				double dpXid_dtilt =    dpXci_dtilt    * rD2rND + pXci * drD2rND_dtilt;
+				double dpYid_dtilt =    dpYci_dtilt    * rD2rND + pYci * drD2rND_dtilt;
+
+
+				double dpXid_droll =    dpXci_droll    * rD2rND;
+				double dpYid_droll =    dpYci_droll    * rD2rND;
+
+				double dpXid_dzoom =    dpXci_dzoom    * rD2rND + pXci * drD2rND_dzoom; // new second term
+				double dpYid_dzoom =    dpYci_dzoom    * rD2rND + pYci * drD2rND_dzoom; // new second term
+
+				// assuming drD2rND_imu* is zero (rD2rND does not depend on imu_*
+				// hope it will not be needed, as derivatives are used only for filed calibration, handled differently
+				if (imu != null) {
+					pXYderiv[2 * i + 0][CorrVector.IMU_INDEX+0] = delta_t * rD2rND * dpXci_dtilt; // *    imu[0];
+					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+0] = delta_t * rD2rND * dpYci_dtilt; // *    imu[0];
+					pXYderiv[2 * i + 0][CorrVector.IMU_INDEX+1] = delta_t * rD2rND * dpXci_dazimuth; // * imu[1];
+					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+1] = delta_t * rD2rND * dpYci_dazimuth; // * imu[1];
+					pXYderiv[2 * i + 0][CorrVector.IMU_INDEX+2] = delta_t * rD2rND * dpYci_droll; //  *    imu[2];
+					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+2] = delta_t * rD2rND * dpYci_droll; // *    imu[2];
+
+					pXYderiv[2 * i + 0][CorrVector.IMU_INDEX+3] = delta_t * rD2rND * dpXci_pYci_imu_lin[0][0]; // *    imu[3];
+					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+4] = delta_t * rD2rND * dpXci_pYci_imu_lin[1][1]; // * 	imu[5];
+					pXYderiv[2 * i + 0][CorrVector.IMU_INDEX+5] = delta_t * rD2rND * dpXci_pYci_imu_lin[0][2]; // *    imu[5];
+					pXYderiv[2 * i + 1][CorrVector.IMU_INDEX+5] = delta_t * rD2rND * dpXci_pYci_imu_lin[1][2]; // *    imu[5];
+				}
+
+				// verify that d/dsym are well, symmetrical
+				if (i < (numSensors - 1)){
+					pXYderiv[2 * i + 0][CorrVector.TILT_INDEX+i] =         dpXid_dtilt;
+					pXYderiv[2 * i + 1][CorrVector.TILT_INDEX+i] =         dpYid_dtilt;
+					pXYderiv[2 * i + 0][CorrVector.AZIMUTH_INDEX+i] =      dpXid_dazimuth;
+					pXYderiv[2 * i + 1][CorrVector.AZIMUTH_INDEX+i] =      dpYid_dazimuth;
+
+					pXYderiv[2 * i + 0][CorrVector.ZOOM_INDEX+i] =         dpXid_dzoom;
+					pXYderiv[2 * i + 1][CorrVector.ZOOM_INDEX+i] =         dpYid_dzoom;
+				} else {
+					for (int j = 0; j < (numSensors - 1); j++){
+						pXYderiv[2 * i + 0][CorrVector.TILT_INDEX+j] =    -dpXid_dtilt;
+						pXYderiv[2 * i + 1][CorrVector.TILT_INDEX+j] =    -dpYid_dtilt;
+						pXYderiv[2 * i + 0][CorrVector.AZIMUTH_INDEX+j] = -dpXid_dazimuth;
+						pXYderiv[2 * i + 1][CorrVector.AZIMUTH_INDEX+j] = -dpYid_dazimuth;
+
+						pXYderiv[2 * i + 0][CorrVector.ZOOM_INDEX+j] =    -dpXid_dzoom;
+						pXYderiv[2 * i + 1][CorrVector.ZOOM_INDEX+j] =    -dpYid_dzoom;
+					}
+				}
+				pXYderiv[2 * i + 0][CorrVector.ROLL_INDEX+i] = dpXid_droll;
+				pXYderiv[2 * i + 1][CorrVector.ROLL_INDEX+i] = dpYid_droll;
+			}
+		}
+		return pXY;
+	}
+
+
+	public double [][] getPortsCoordinatesAndDerivativesOld( // USED in lwir
 			GeometryCorrection gc_main,
 			boolean     use_rig_offsets,
 			Matrix []   rots,
@@ -3120,7 +3440,6 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 
 			pXY[i][0] =  pXid + this.pXY0[i][0];
 			pXY[i][1] =  pYid + this.pXY0[i][1];
-
 			// used when calculating derivatives, TODO: combine calculations !
 			double drD2rND_dri = 0.0;
 			Matrix drvi_daz = null;
@@ -3281,12 +3600,14 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		return pXY;
 	}
 
-	public double [][] getPortsCoordinatesAndDerivativesDbg( // To print intermediate results for comparison with the GPU
+
+
+	public double [][] getPortsCoordinatesAndDerivativesDbg( // USED in lwir
 			GeometryCorrection gc_main,
 			boolean     use_rig_offsets,
 			Matrix []   rots,
 			Matrix [][] deriv_rots,
-			double [][] pXYderiv, // if not null, should be double[8][] - not used here
+			double [][] pXYderiv, // if not null, should be double[8][]
 			double [][] disp_dist, //
 			double px,
 			double py,
@@ -3301,24 +3622,16 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
  * 5) return port center X and Y
  * line_time
  */
-
-// moved here so disp_dist and imu will always be created
-		if (disp_dist == null) {
-			disp_dist = new double [numSensors][4];
-		}
-
 		double [] imu =  null;
 		if (disp_dist != null) {
 			imu =  extrinsic_corr.getIMU(); // currently it is common for all channels
 			if ((deriv_rots == null) &&  ((imu[0] != 0.0) || (imu[1] != 0.0) ||(imu[2] != 0.0))){
-					deriv_rots = extrinsic_corr.getRotDeriveMatrices();
+				deriv_rots = extrinsic_corr.getRotDeriveMatrices();
 			}
 		}
-
-
-///		if ((disp_dist == null) && (pXYderiv != null)) {
-///			disp_dist = new double [numSensors][4];
-///		}
+		if ((disp_dist == null) && (pXYderiv != null)) {
+			disp_dist = new double [numSensors][4];
+		}
 
 		double [][] rXY = getRXY(use_rig_offsets); // may include rig offsets
 
@@ -3337,9 +3650,8 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		// next radial distortion coefficients are for this, not master camera (may be the same)
 		double [] rad_coeff={this.distortionC,this.distortionB,this.distortionA,this.distortionA5,this.distortionA6,this.distortionA7,this.distortionA8};
 		double fl_pix = focalLength/(0.001*pixelSize); // focal length in pixels - this camera
-		double ri_scale = 0.001 * this.pixelSize / this.distortionRadius;
+		double  ri_scale = 0.001 * this.pixelSize / this.distortionRadius;
 		System.out.println("fl_pix="+fl_pix+", ri_scale="+ri_scale);
-
 		double [] xyz = ((disparity > 0) ? getWorldCoordinates(   // USED in lwir
 				px,                                  // double px,
 				py,                                  // double py,
@@ -3349,48 +3661,63 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		if (xyz != null) {
 			System.out.println("xyz[0]="+xyz[0]+", xyz[1]="+xyz[1]+", xyz[2]="+xyz[2]);
 		}
-
+		// new:
+		double [] ri =       new double [numSensors];		
+		double [] norm_zs =  new double [numSensors];		
+		Matrix [] vis =      new Matrix[numSensors]; // non-distorted sensor channel view vector in pixels (z -along the common axis)
+		Matrix [] rvis =     new Matrix[numSensors]; // non-distorted sensor channel view vector in pixels (z -along the common axis)
+		double [][] pXYid =  new double [numSensors][2];	
+		double [] rNDis =    new double [numSensors];
+		double [] rD2rNDs =  new double [numSensors];
+		double lines_avg =   0.0; // to calculate average line number for ERS
+		double [] pY_offset = new double [numSensors];
 		for (int i = 0; i < numSensors; i++){
 			// non-distorted XY of the shifted location of the individual sensor
 			double pXci0 = pXc - disparity *  rXY[i][0]; // in pixels
 			double pYci0 = pYc - disparity *  rXY[i][1];
 			// rectilinear, end of dealing with possibly other (master) camera, below all is for this camera distortions
-
 			System.out.println("ncam="+i+": pXci0="+pXci0+", pYci0="+pYci0);
 
 			// Convert a 2-d non-distorted vector to 3d at fl_pix distance in z direction
 			double [][] avi = {{pXci0}, {pYci0},{fl_pix}};
-			Matrix vi = new Matrix(avi); // non-distorted sensor channel view vector in pixels (z -along the common axis)
+//			Matrix vi = new Matrix(avi); // non-distorted sensor channel view vector in pixels (z -along the common axis)
+			vis[i] = new Matrix(avi); // non-distorted sensor channel view vector in pixels (z -along the common axis)
 			System.out.println("ncam="+i+": vi=");
-			vi.print(10, 5);
+			vis[i].print(10, 5);
 
 			// Apply port-individual combined rotation/zoom matrix
 
-			Matrix rvi = rots[i].times(vi);
+//			Matrix rvi = rots[i].times(vi);
+			rvis[i] = rots[i].times(vis[i]);
+			Matrix rvi = rvis[i];
 			System.out.println("ncam="+i+": rvi="); rvi.print(10, 5);
-
+			
 			// get back to the projection plane by normalizing vector
 			double norm_z = fl_pix/rvi.get(2, 0);
 			double pXci =  rvi.get(0, 0) * norm_z;
 			double pYci =  rvi.get(1, 0) * norm_z;
+			
+			norm_zs[i] = norm_z;
+			pXYid[i][0] = pXci;
+			pXYid[i][1] = pYci;
 			System.out.println("ncam="+i+": norm_z="+norm_z+", pXci="+pXci+", pYci="+pYci);
-
-
+			
 			// Re-apply distortion
 			double rNDi = Math.sqrt(pXci*pXci + pYci*pYci); // in pixels
-			//		Rdist/R=A8*R^7+A7*R^6+A6*R^5+A5*R^4+A*R^3+B*R^2+C*R+(1-A6-A7-A6-A5-A-B-C)");
-			double ri = rNDi* ri_scale; // relative to distortion radius
-			//    		double rD2rND = (1.0 - distortionA8 - distortionA7 - distortionA6 - distortionA5 - distortionA - distortionB - distortionC);
-			System.out.println("ncam="+i+": rNDi="+rNDi+", ri="+ri);
-
+			rNDis[i] = rNDi; 
+			
+			//double ri = rNDi* ri_scale; // relative to distortion radius
+			ri[i] = rNDi* ri_scale; // relative to distortion radius
+			System.out.println("ncam="+i+": rNDi="+rNDi+", ri="+ri[i]);
 			double rD2rND = 1.0;
 			double rri = 1.0;
 			for (int j = 0; j < rad_coeff.length; j++){
-				rri *= ri;
+//				rri *= ri;
+				rri *= ri[i];
 				rD2rND += rad_coeff[j]*(rri - 1.0); // Fixed
 			}
+			rD2rNDs[i] = rD2rND;
 			System.out.println("ncam="+i+": rri="+rri+", rD2rND="+rD2rND);
-
 			// Get port pixel coordinates by scaling the 2d vector with Rdistorted/Dnondistorted coefficient)
 			double pXid = pXci * rD2rND;
 			double pYid = pYci * rD2rND;
@@ -3398,7 +3725,16 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			pXY[i][0] =  pXid + this.pXY0[i][0];
 			pXY[i][1] =  pYid + this.pXY0[i][1];
 			System.out.println("pXY["+i+"][0]="+pXY[i][0]+", pXY["+i+"][1]="+pXY[i][1]);
+			pY_offset[i] = pXY[i][1] - woi_tops[i]; // time (scanlines) since frame start
+			lines_avg += pY_offset[i];
+		}
+		lines_avg /= numSensors;
+		System.out.println("lines_avg="+lines_avg);
+		
+		for (int i = 0; i < numSensors; i++){
 			// used when calculating derivatives, TODO: combine calculations !
+			pY_offset[i] -= lines_avg; // lines since channel average (negative - earlier)
+			System.out.println("pY_offset["+i+"]="+pY_offset[i]);
 			double drD2rND_dri = 0.0;
 			Matrix drvi_daz = null;
 			Matrix drvi_dtl = null;
@@ -3409,12 +3745,20 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			double dpYci_dtilt =    0.0;
 			double dpXci_droll =    0.0;
 			double dpYci_droll =    0.0;
+			Matrix vi = vis[i];
+			Matrix rvi = rvis[i];
+			double norm_z = norm_zs[i];
+			double pXci = pXYid[i][0];
+			double pYci = pXYid[i][1];
+			double rNDi = rNDis[i]; 
+			double rD2rND = rD2rNDs[i];
 
 			if ((disp_dist != null) || (pXYderiv != null)) {
-				rri = 1.0;
+				double rri = 1.0;
 				for (int j = 0; j < rad_coeff.length; j++){
 					drD2rND_dri += rad_coeff[j] * (j+1) * rri;
-					rri *= ri;
+//					rri *= ri;
+					rri *= ri[i];
 				}
 				if (deriv_rots != null) {
 					// needed for derivatives and IMU
@@ -3436,7 +3780,6 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				}
 			}
 			double delta_t = 0.0;
-//			double [] imu =  null;
 			double [][] dpXci_pYci_imu_lin = new double[2][3]; // null
 			if (disp_dist != null) {
 				disp_dist[i] =   new double [4]; // dx/d_disp, dx_d_ccw_disp
@@ -3447,13 +3790,11 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 						{ 0.0,                     0.0,                    0.0}}; // what is last element???
 				Matrix dd0 = new Matrix(add0);
 				Matrix dd1 = rots[i].times(dd0).getMatrix(0, 1,0,1).times(norm_z); // get top left 2x2 sub-matrix
-////				Matrix dd1 = dd0.getMatrix(0, 1,0,1); // get top left 2x2 sub-matrix
 				// now first column of 2x2 dd1 - x, y components of derivatives by disparity, second column - derivatives by ortho to disparity (~Y in 2d correlation)
 				// unity vector in the direction of radius
 				System.out.println("ncam="+i+": dd1="); dd1.print(10, 5);
 				double c_dist = pXci/rNDi;
 				double s_dist = pYci/rNDi;
-
 				double [][] arot2= {
 						{c_dist, s_dist},
 						{-s_dist, c_dist}};
@@ -3461,14 +3802,12 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				System.out.println("ncam="+i+": rot2="); rot2.print(10, 5);
 
 				double [][] ascale_distort = {
-						{rD2rND + ri* drD2rND_dri, 0     },
-						{0,                       rD2rND}};
+						{rD2rND + ri[i]* drD2rND_dri, 0     },
+						{0,                           rD2rND}};
 				Matrix scale_distort = new Matrix(ascale_distort); // scale component parallel to radius as distortion derivative, perpendicular - as distortion
 
 				Matrix dd2 = rot2.transpose().times(scale_distort).times(rot2).times(dd1);
-
 				System.out.println("ncam="+i+": scale_distortXrot2Xdd1="); scale_distort.times(rot2).times(dd1).print(10, 5);
-
 				System.out.println("ncam="+i+": dd2="); dd2.print(10, 5);
 
 				disp_dist[i][0] =   dd2.get(0, 0);
@@ -3479,40 +3818,44 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				System.out.println("disp_dist["+i+"][1]="+   disp_dist[i][1]);
 				System.out.println("disp_dist["+i+"][2]="+   disp_dist[i][2]);
 				System.out.println("disp_dist["+i+"][3]="+   disp_dist[i][3]);
-
-//				imu =  extrinsic_corr.getIMU(i); // currently it is common for all channels
-
 				// ERS linear does not yet use per-port rotations, probably not needed
-
-//				double [][] dpXci_pYci_imu_lin = new double[2][3]; // null
 				if ((imu != null) &&((imu[0] != 0.0) || (imu[1] != 0.0) ||(imu[2] != 0.0) ||(imu[3] != 0.0) ||(imu[4] != 0.0) ||(imu[5] != 0.0))) {
-					delta_t = dd2.get(1, 0) * disparity * line_time; // positive for top cameras, negative - for bottom
-					double ers_Xci = delta_t* (dpXci_dtilt * imu[0] + dpXci_dazimuth * imu[1]  + dpXci_droll * imu[2]);
-					double ers_Yci = delta_t* (dpYci_dtilt * imu[0] + dpYci_dazimuth * imu[1]  + dpYci_droll * imu[2]);
+///					delta_t = dd2.get(1, 0) * disparity * line_time; // positive for top cameras, negative - for bottom
+///					double ers_Xci = delta_t* (dpXci_dtilt * imu[0] + dpXci_dazimuth * imu[1]  + dpXci_droll * imu[2]);
+///					double ers_Yci = delta_t* (dpYci_dtilt * imu[0] + dpYci_dazimuth * imu[1]  + dpYci_droll * imu[2]);
+					
+					double ers_x = dpXci_dtilt * imu[0] + dpXci_dazimuth * imu[1]  + dpXci_droll * imu[2]; // per unit time
+					double ers_y = dpYci_dtilt * imu[0] + dpYci_dazimuth * imu[1]  + dpYci_droll * imu[2]; // per unit time
+					System.out.println("ers_x="+  ers_x + "ers_y="+  ers_y);
 					if (xyz != null) {
 						double k = SCENE_UNITS_SCALE * this.disparityRadius;
 						double wdisparity = disparity;
 						double dwdisp_dz = (k * this.focalLength / (0.001*this.pixelSize)) / (xyz[2] * xyz[2]);
 						System.out.println("ncam="+i+":  k="+k+", wdisparity="+wdisparity+", dwdisp_dz="+dwdisp_dz);
-
 						dpXci_pYci_imu_lin[0][0] = -wdisparity / k; // dpx/ dworld_X
 						dpXci_pYci_imu_lin[1][1] =  wdisparity / k; // dpy/ dworld_Y
 						dpXci_pYci_imu_lin[0][2] =  (xyz[0] / k) * dwdisp_dz; // dpx/ dworld_Z
 						dpXci_pYci_imu_lin[1][2] =  (xyz[1] / k) * dwdisp_dz; // dpy/ dworld_Z
-
+///						ers_Xci += delta_t* (dpXci_pYci_imu_lin[0][0] * imu[3] + dpXci_pYci_imu_lin[0][2] * imu[5]);
+///						ers_Yci += delta_t* (dpXci_pYci_imu_lin[1][1] * imu[4] + dpXci_pYci_imu_lin[1][2] * imu[5]);
 						System.out.println("ncam="+i+
 								":  dpXci_pYci_imu_lin[0][0]="+dpXci_pYci_imu_lin[0][0]+
 								", dpXci_pYci_imu_lin[0][2]="+dpXci_pYci_imu_lin[0][2]);
 						System.out.println("ncam="+i+
 								": dpXci_pYci_imu_lin[1][1]="+dpXci_pYci_imu_lin[1][1]+
 								", dpXci_pYci_imu_lin[1][2]="+dpXci_pYci_imu_lin[1][2]);
-						ers_Xci += delta_t* (dpXci_pYci_imu_lin[0][0] * imu[3] + dpXci_pYci_imu_lin[0][2] * imu[5]);
-						ers_Yci += delta_t* (dpXci_pYci_imu_lin[1][1] * imu[4] + dpXci_pYci_imu_lin[1][2] * imu[5]);
-						System.out.println("ncam="+i+":  ers_Xci="+ers_Xci+", ers_Yci="+ers_Yci);
-
+						ers_x += dpXci_pYci_imu_lin[0][0] * imu[3] + dpXci_pYci_imu_lin[0][2] * imu[5];
+						ers_y += dpXci_pYci_imu_lin[1][1] * imu[4] + dpXci_pYci_imu_lin[1][2] * imu[5];
+						System.out.println("ncam="+i+":  ers_x="+ers_x+", ers_y="+ers_y);
+						
 					}
-					pXY[i][0] +=  ers_Xci * rD2rND; // added correction to pixel X
-					pXY[i][1] +=  ers_Yci * rD2rND; // added correction to pixel Y
+///					pXY[i][0] +=  ers_Xci * rD2rND; // added correction to pixel X
+///					pXY[i][1] +=  ers_Yci * rD2rND; // added correction to pixel Y
+					///delta_t = (delta_y0 / (1.0 - line_time * ers_y)) * line_time;
+					/// delta_y0 = pY_offset[i]
+					delta_t = (pY_offset[i] / (1.0 - line_time * ers_y)) * line_time;
+					pXY[i][0] += delta_t * ers_x * rD2rND; // added correction to pixel X
+					pXY[i][1] += delta_t * ers_y * rD2rND; // added correction to pixel Y
 					System.out.println("pXY["+i+"][0]="+pXY[i][0]+", pXY["+i+"][1]="+pXY[i][1]);
 				} else {
 					imu = null;
@@ -3528,13 +3871,13 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 
 	// calculate non-distorted x/y pairs (relative to optical centers) for each port and derivatives
 
-	public double [] getPortsDDNDAndDerivatives( // USED in lwir
+	public double [] getPortsDDNDAndDerivativesNew( // USED in lwir
 			GeometryCorrection gc_main,
 			boolean     use_rig_offsets,
 			Matrix []   rots,
 			Matrix [][] deriv_rots,
 			double [][] DDNDderiv,     // if not null, should be double[8][]
-			double []   dy_ddisparity,   // double [][] disp_dist, //disp_dist[i][2] or null
+			double []   py_offset,  // array of per-port average pY offset from the center (to correct ERS) or null (for no ERS)
 			double []   imu,
 			double []   pXYND0,        // per-port non-distorted coordinates corresponding to the correlation measurements
 			double []   xyz, // world XYZ for ERS correction
@@ -3545,13 +3888,13 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		// make sure initPrePostMatrices(true) already ran (in constructor). (true) means that minus sign is already incorporated
 		Matrix m_xy_ddnd = xyToDdnd(use_rig_offsets);
 		double [][] pXYNDderiv = (DDNDderiv == null)? null: new double [DDNDderiv.length][];
-		double [] pXYND = getPortsNonDistortedCoordinatesAndDerivatives( // USED in lwir
+		double [] pXYND = getPortsNonDistortedCoordinatesAndDerivativesNew( // USED in lwir
 				gc_main,
 				use_rig_offsets,
 				rots,
 				deriv_rots,
 				pXYNDderiv, // if not null, should be double[8][]
-				dy_ddisparity,   // double [][] disp_dist, //disp_dist[i][2] or null
+				py_offset,   //  // array of per-port average pY offset from the center (to correct ERS) or null (for no ERS)
 				imu,
 				xyz,
 				px,
@@ -3572,12 +3915,12 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	}
 
 	// only derivatives
-	public double [][] getPortsDDNDDerivatives( // USED in lwir
+	public double [][] getPortsDDNDDerivativesNew( // USED in lwir
 			GeometryCorrection gc_main,
 			boolean     use_rig_offsets,
 			Matrix []   rots,
 			Matrix [][] deriv_rots,
-			double []   dy_ddisparity,   // double [][] disp_dist, //disp_dist[i][2] or null
+			double []   py_offset,  // array of per-port average pY offset from the center (to correct ERS) or null (for no ERS)
 			double []   imu, // may be null
 			double []   xyz, // world XYZ for ERS correction
 			double      px,
@@ -3587,13 +3930,13 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		// make sure initPrePostMatrices(true) already ran (in constructor). (true) means that minus sign is already incorporated
 		Matrix m_xy_ddnd = xyToDdnd(use_rig_offsets);
 		double [][] pXYNDderiv = new double [2*numSensors][]; // CorrVector.LENGTH][];
-		getPortsNonDistortedCoordinatesAndDerivatives( // USED in lwir
+		getPortsNonDistortedCoordinatesAndDerivativesNew( // USED in lwir
 				gc_main,
 				use_rig_offsets,
 				rots,
 				deriv_rots,
 				pXYNDderiv, // if not null, should be double[8][]
-				dy_ddisparity,   // double [][] disp_dist, //disp_dist[i][2] or null
+				py_offset,   //  // array of per-port average pY offset from the center (to correct ERS) or null (for no ERS)
 				imu,
 				xyz,
 				px,
@@ -3609,21 +3952,171 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 
 	/**
 	 * Calculate non-distorted x/y pairs (relative to optical centers) for each port and derivatives
-	 * Requires array of derivatives of sesnor y by disparity (	calculated as disp_dist[i][2] by getPortsCoordinatesAndDerivatives())
+	 * Requires array of derivatives of sensor y by disparity (	calculated as disp_dist[i][2] by getPortsCoordinatesAndDerivatives())
 	 * @param gc_main - GeometryCorrection instance for the main camera, for which px,py are specified
 	 * @param use_rig_offsets - for the auxiliary camera - use offsets from the main one
 	 * @param rots misalignment correction (now includes zoom in addition to rotations
 	 * @param deriv_rots derivatives by d_az, f_elev, d_rot, d_zoom
 	 * @param pXYNDderiv null or double[2 * number_of_cameras][] array to accommodate derivatives of px, py by each of the parameters
-	 * @param dy_ddisparity - array of per-port derivatives of sensor pY by disparity (to correct ERS) or null (if no ERS correction needed)
-	 * @param imu - 6 components od the egomotion - 3 rotations and 3 linear velocities
+	 * @param py_offset - array of per-port average pY offset from the center (to correct ERS) or null (if no ERS correction needed)
+	 * @param imu - 6 components of the egomotion - 3 rotations and 3 linear velocities
 	 * $param xyz - world coordinates for linear motion ERS correction
 	 * @param px pixel X coordinate
 	 * @param py pixel Y coordinate
 	 * @param disparity disparity (for non-distorted image space)
 	 * @return array of per port pairs of pixel shifts, non-distorted, relative to lens optical centers
 	 */
-	public double [] getPortsNonDistortedCoordinatesAndDerivatives( // USED in lwir
+	public double [] getPortsNonDistortedCoordinatesAndDerivativesNew( // USED in lwir
+			GeometryCorrection gc_main,
+			boolean     use_rig_offsets,
+			Matrix []   rots,
+			Matrix [][] deriv_rots,
+			double [][] pXYNDderiv, // if not null, should be double[8][]
+			double []   py_offset,  // array of per-port average pY offset from the center (to correct ERS) or null (for no ERS)
+			double []   imu,
+			double []   xyz, // world XYZ for ERS correction
+			double px,
+			double py,
+			double disparity)
+	{
+		double [][] rXY =   getRXY(use_rig_offsets); // may include rig offsets
+		double [] pXYND = new double [numSensors * 2];
+		double pXcd = px - 0.5 * gc_main.pixelCorrectionWidth;
+		double pYcd = py - 0.5 * gc_main.pixelCorrectionHeight;
+		double rD = Math.sqrt(pXcd*pXcd + pYcd*pYcd)*0.001*gc_main.pixelSize; // distorted radius in a virtual center camera
+		double rND2R=gc_main.getRByRDist(rD/gc_main.distortionRadius, (debugLevel > -1));
+		double pXc = pXcd * rND2R; // non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
+		double pYc = pYcd * rND2R; // in pixels
+		// next radial distortion coefficients are for this, not master camera (may be the same)
+		//		double [] rad_coeff={this.distortionC,this.distortionB,this.distortionA,this.distortionA5,this.distortionA6,this.distortionA7,this.distortionA8};
+		double fl_pix = focalLength/(0.001*pixelSize); // focal length in pixels - this camera
+		//		double  ri_scale = 0.001 * this.pixelSize / this.distortionRadius;
+
+		for (int i = 0; i < numSensors; i++){
+			// non-distorted XY of the shifted location of the individual sensor
+			double pXci0 = pXc - disparity *  rXY[i][0]; // in pixels
+			double pYci0 = pYc - disparity *  rXY[i][1];
+			// rectilinear, end of dealing with possibly other (master) camera, below all is for this camera distortions
+			// Convert a 2-d non-distorted vector to 3d at fl_pix distance in z direction
+			double [][] avi = {{pXci0}, {pYci0},{fl_pix}};
+			Matrix vi = new Matrix(avi); // non-distorted sensor channel view vector in pixels (z -along the common axis)
+			// Apply port-individual combined rotation/zoom matrix
+			Matrix rvi = rots[i].times(vi); // includes zoom
+			// get back to the projection plane by normalizing vector
+			double norm_z = fl_pix/rvi.get(2, 0);
+
+			double pXci =  rvi.get(0, 0) * norm_z;
+			double pYci =  rvi.get(1, 0) * norm_z;
+
+			pXYND[2 * i + 0] =  pXci;
+			pXYND[2 * i + 1] =  pYci;
+
+			// used when calculating derivatives, TODO: combine calculations !
+			//			double drD2rND_dri = 0.0;
+			Matrix drvi_daz = null;
+			Matrix drvi_dtl = null;
+			Matrix drvi_drl = null;
+			double dpXci_dazimuth = 0.0;
+			double dpYci_dazimuth = 0.0;
+			double dpXci_dtilt =    0.0;
+			double dpYci_dtilt =    0.0;
+			double dpXci_droll =    0.0;
+			double dpYci_droll =    0.0;
+			if (deriv_rots != null) {
+				// needed for derivatives and IMU
+				drvi_daz = deriv_rots[i][0].times(vi);
+				drvi_dtl = deriv_rots[i][1].times(vi);
+				drvi_drl = deriv_rots[i][2].times(vi);
+				dpXci_dazimuth = drvi_daz.get(0, 0) * norm_z - pXci * drvi_daz.get(2, 0) / rvi.get(2, 0);
+				dpYci_dazimuth = drvi_daz.get(1, 0) * norm_z - pYci * drvi_daz.get(2, 0) / rvi.get(2, 0);
+				dpXci_dtilt =    drvi_dtl.get(0, 0) * norm_z - pXci * drvi_dtl.get(2, 0) / rvi.get(2, 0);
+				dpYci_dtilt =    drvi_dtl.get(1, 0) * norm_z - pYci * drvi_dtl.get(2, 0) / rvi.get(2, 0);
+				dpXci_droll =    drvi_drl.get(0, 0) * norm_z - pXci * drvi_drl.get(2, 0) / rvi.get(2, 0);
+				dpYci_droll =    drvi_drl.get(1, 0) * norm_z - pYci * drvi_drl.get(2, 0) / rvi.get(2, 0);
+			}
+			double [][] dpXci_pYci_imu_lin = new double[2][3]; // null
+			if (xyz != null) { // verify by delta? common for all channels
+				// restore disparity back from the world coordinates to make it a constant
+				double k = SCENE_UNITS_SCALE * this.disparityRadius;
+				double wdisparity = -(k * this.focalLength / (0.001*this.pixelSize)) / xyz[2];
+				double dwdisp_dz = (k * this.focalLength / (0.001*this.pixelSize)) / (xyz[2] * xyz[2]);
+				//				double wpXc = xyz[0] * wdisparity / k; // pixels
+				//				double wpYc =-xyz[1] * wdisparity / k; // pixels
+				dpXci_pYci_imu_lin[0][0] = -wdisparity / k; // dpx/ dworld_X // TODO: Change sign - here and in the other similar place!
+				dpXci_pYci_imu_lin[1][1] = wdisparity / k; // dpy/ dworld_Y
+				dpXci_pYci_imu_lin[0][2] = (xyz[0] / k) * dwdisp_dz; // dpx/ dworld_Z
+				dpXci_pYci_imu_lin[1][2] = (xyz[1] / k) * dwdisp_dz; // dpy/ dworld_Z
+			}
+			double delta_t = 0.0;
+			// TODO: ignoring rotations - add it?
+			if ((py_offset != null) && (imu != null)) {
+				delta_t = py_offset[i] * line_time; // positive for top cameras, negative - for bottom
+				double ers_Xci = delta_t* (dpXci_dtilt * imu[0] + dpXci_dazimuth * imu[1]  + dpXci_droll * imu[2] +
+						dpXci_pYci_imu_lin[0][0] * imu[3] + dpXci_pYci_imu_lin[0][2] * imu[5]);
+				double ers_Yci = delta_t* (dpYci_dtilt * imu[0] + dpYci_dazimuth * imu[1]  + dpYci_droll * imu[2]+
+						dpXci_pYci_imu_lin[1][1] * imu[4] + dpXci_pYci_imu_lin[1][2] * imu[5]);
+				pXYND[2 * i + 0] +=  ers_Xci; // added correction to pixel X
+				pXYND[2 * i + 1] +=  ers_Yci; // added correction to pixel Y
+				// does not account on {dpXci_dazimuth, dpYci_dazimuth, dpXci_dtilt, dpYci_dtilt, dpXci_droll, 	dpYci_droll}
+				//				/{d_azimuth, d_tilt, d_roll} when calculating derivatives in the presence of the ERS		
+			}
+
+			if (pXYNDderiv != null) {
+				pXYNDderiv[2 * i] =   new double [CorrVector.LENGTH];
+				pXYNDderiv[2 * i+1] = new double [CorrVector.LENGTH];
+				Matrix drvi_dzm = deriv_rots[i][3].times(vi);
+				double dpXci_dzoom =    drvi_dzm.get(0, 0) * norm_z - pXci * drvi_dzm.get(2, 0) / rvi.get(2, 0);
+				double dpYci_dzoom =    drvi_dzm.get(1, 0) * norm_z - pYci * drvi_dzm.get(2, 0) / rvi.get(2, 0);
+				if (imu != null) {
+					pXYNDderiv[2 * i + 0][CorrVector.IMU_INDEX+0] = delta_t * dpXci_dtilt; // *    imu[0];
+					pXYNDderiv[2 * i + 1][CorrVector.IMU_INDEX+0] = delta_t * dpYci_dtilt; // *    imu[0];
+					pXYNDderiv[2 * i + 0][CorrVector.IMU_INDEX+1] = delta_t * dpXci_dazimuth; // * imu[1];
+					pXYNDderiv[2 * i + 1][CorrVector.IMU_INDEX+1] = delta_t * dpYci_dazimuth; // * imu[1];
+					pXYNDderiv[2 * i + 0][CorrVector.IMU_INDEX+2] = delta_t * dpXci_droll; // *    imu[2];
+					pXYNDderiv[2 * i + 1][CorrVector.IMU_INDEX+2] = delta_t * dpYci_droll; // *    imu[2];
+
+
+					pXYNDderiv[2 * i + 0][CorrVector.IMU_INDEX+3] = delta_t * dpXci_pYci_imu_lin[0][0]; // *    imu[3];
+					//					pXYNDderiv[2 * i + 1][CorrVector.IMU_INDEX+3] = delta_t * dpXci_pYci_imu_lin[1][0]; // *    imu[3]; // 0
+					//					pXYNDderiv[2 * i + 0][CorrVector.IMU_INDEX+4] = delta_t * dpXci_pYci_imu_lin[0][1]; // *    imu[4]; // 0
+					pXYNDderiv[2 * i + 1][CorrVector.IMU_INDEX+4] = delta_t * dpXci_pYci_imu_lin[1][1]; // * 	imu[5];
+					pXYNDderiv[2 * i + 0][CorrVector.IMU_INDEX+5] = delta_t * dpXci_pYci_imu_lin[0][2]; // *    imu[5];
+					pXYNDderiv[2 * i + 1][CorrVector.IMU_INDEX+5] = delta_t * dpXci_pYci_imu_lin[1][2]; // *    imu[5];
+
+				}
+
+				// verify that d/dsym are well, symmetrical
+				if (i < (numSensors - 1)){
+					pXYNDderiv[2 * i + 0][CorrVector.TILT_INDEX+i] =         dpXci_dtilt;
+					pXYNDderiv[2 * i + 1][CorrVector.TILT_INDEX+i] =         dpYci_dtilt;
+					pXYNDderiv[2 * i + 0][CorrVector.AZIMUTH_INDEX+i] =      dpXci_dazimuth;
+					pXYNDderiv[2 * i + 1][CorrVector.AZIMUTH_INDEX+i] =      dpYci_dazimuth;
+
+					pXYNDderiv[2 * i + 0][CorrVector.ZOOM_INDEX+i] =         dpXci_dzoom;
+					pXYNDderiv[2 * i + 1][CorrVector.ZOOM_INDEX+i] =         dpYci_dzoom;
+				} else {
+					for (int j = 0; j < (numSensors - 1); j++){
+						pXYNDderiv[2 * i + 0][CorrVector.TILT_INDEX+j] =    -dpXci_dtilt;
+						pXYNDderiv[2 * i + 1][CorrVector.TILT_INDEX+j] =    -dpYci_dtilt;
+						pXYNDderiv[2 * i + 0][CorrVector.AZIMUTH_INDEX+j] = -dpXci_dazimuth;
+						pXYNDderiv[2 * i + 1][CorrVector.AZIMUTH_INDEX+j] = -dpYci_dazimuth;
+
+						pXYNDderiv[2 * i + 0][CorrVector.ZOOM_INDEX+j] =    -dpXci_dzoom;
+						pXYNDderiv[2 * i + 1][CorrVector.ZOOM_INDEX+j] =    -dpYci_dzoom;
+					}
+				}
+				pXYNDderiv[2 * i + 0][CorrVector.ROLL_INDEX+i] = dpXci_droll;
+				pXYNDderiv[2 * i + 1][CorrVector.ROLL_INDEX+i] = dpYci_droll;
+			}
+		}
+		return pXYND;
+	}
+
+
+
+/*
+// Does not account for rotated camera when calculating delta_t
+	public double [] getPortsNonDistortedCoordinatesAndDerivativesOld( // USED in lwir
 			GeometryCorrection gc_main,
 			boolean     use_rig_offsets,
 			Matrix []   rots,
@@ -3692,7 +4185,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 					dpYci_droll =    drvi_drl.get(1, 0) * norm_z - pYci * drvi_drl.get(2, 0) / rvi.get(2, 0);
 				}
 			double [][] dpXci_pYci_imu_lin = new double[2][3]; // null
-			if (xyz != null) {
+			if (xyz != null) { // verify by delta? common for all channels
 				// restore disparity back from the world coordinates to make it a constant
 				double k = SCENE_UNITS_SCALE * this.disparityRadius;
 				double wdisparity = -(k * this.focalLength / (0.001*this.pixelSize)) / xyz[2];
@@ -3715,8 +4208,13 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 						dpXci_pYci_imu_lin[1][1] * imu[4] + dpXci_pYci_imu_lin[1][2] * imu[5]);
 				pXYND[2 * i + 0] +=  ers_Xci; // added correction to pixel X
 				pXYND[2 * i + 1] +=  ers_Yci; // added correction to pixel Y
+// does not account on {dpXci_dazimuth, dpYci_dazimuth, dpXci_dtilt, dpYci_dtilt, dpXci_droll, 	dpYci_droll}
+//				/{d_azimuth, d_tilt, d_roll} when calculating derivatives in the presence of the ERS		
+				
 			}
 
+			
+			
 			if (pXYNDderiv != null) {
 				pXYNDderiv[2 * i] =   new double [CorrVector.LENGTH];
 				pXYNDderiv[2 * i+1] = new double [CorrVector.LENGTH];
@@ -3768,12 +4266,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		return pXYND;
 	}
 
-
-
-
-
-
-
+*/
 
 	/**
 	 * Calculate pixel common "idealized" coordinates of the auxiliary camera image tile matching  the specified tile (px,py) of the idealized

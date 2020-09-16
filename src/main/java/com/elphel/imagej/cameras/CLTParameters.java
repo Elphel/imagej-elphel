@@ -135,7 +135,7 @@ public class CLTParameters {
 	public double     fcorr_disp_diff =   1.5;   // consider only tiles with absolute residual disparity lower than
 	public boolean    fcorr_quadratic =   true;  // Use quadratic polynomial for fine correction (false - only linear)
 	public boolean    fcorr_ignore =      false; // Ignore currently calculated fine correction
-	public double     fcorr_inf_strength = 0.20 ; // Minimal correlation strength to use for infinity correction
+	public double     fcorr_inf_strength = 0.15 ; // Minimal correlation strength to use for infinity correction
 	public double     fcorr_inf_diff =    0.2;   // Disparity half-range for infinity
 	public boolean    fcorr_inf_quad =    true;  // Use quadratic polynomial for infinity correction (false - only linear)
 	public boolean    fcorr_inf_vert =    false; // Correct infinity in vertical direction (false - only horizontal)

@@ -348,8 +348,8 @@ public class QuadCLT extends QuadCLTCPU {
 		}
 
 		if (resetEV) {
-			if (quadCLT_main.getGPU() != null) quadCLT_main.getGPU().resetGeometryCorrectionVector();
-			if (quadCLT_aux.getGPU() != null)  quadCLT_aux.getGPU().resetGeometryCorrectionVector();
+			if (quadCLT_main.getGPU() != null) quadCLT_main.gpuResetCorrVector(); // getGPU().resetGeometryCorrectionVector();
+			if (quadCLT_aux.getGPU() != null)  quadCLT_aux.gpuResetCorrVector();   // .getGPU().resetGeometryCorrectionVector();
 		}
 		
 // get fat_zero (absolute) and color scales
@@ -2328,7 +2328,7 @@ public class QuadCLT extends QuadCLTCPU {
 					  null,			  				 //	final float  [][][][]     corr_combo_td,   // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: qud, cross, hor,vert
 						                             // each of the top elements may be null to skip particular combo type
 					  fdisp_dist,                    // final float  [][][][]     fdisp_dist,      // [tilesY][tilesX][cams][4], // disparity derivatives vectors or null
-					  fpxpy,	                     //	final float  [][][][]     fdisp_dist,           // [tilesY][tilesX][cams][2], tile {pX,pY}
+					  fpxpy,	                     //	final float  [][][][]     fpxpy,           // [tilesY][tilesX][cams][2], tile {pX,pY}
 					  //// Uses quadCLT from gpuQuad			
 					                                 // correlation results - final and partial
 					  null,                          // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
@@ -2380,7 +2380,7 @@ public class QuadCLT extends QuadCLTCPU {
 					  disparity_array,               // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
 					  fcorr_td,                      // final float  [][][][]     fcorr_td,        // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr
 					  fdisp_dist,                    // final float  [][][][]     fdisp_dist,      // [tilesY][tilesX][cams][4], // disparity derivatives vectors or null
-					  fpxpy,                         // 						final float  [][][][]     fpxpy,           // [tilesY][tilesX][cams][2], tile {pX,pY}
+					  fpxpy,                         // 						  final float  [][][][]     fpxpy,           // [tilesY][tilesX][cams][2], tile {pX,pY}
 					  clt_parameters.gpu_corr_scale, // gpu_corr_scale,  //  final double              gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
 					  gpu_fat_zero,                  // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
 					  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
@@ -2399,4 +2399,16 @@ public class QuadCLT extends QuadCLTCPU {
 		  scan.resetProcessed();
 		  return scan;
 	  }
+	  public void gpuResetCorrVector() {
+		  if (getGPU() != null) {
+			  getGPU().resetGeometryCorrectionVector();
+			  getGPU().resetGeometryCorrection(); // testing, just in case, should be removed
+		  }
+	  }
+	  public void gpuResetGeometryCorrection() {
+		  if (getGPU() != null) {
+			  getGPU().resetGeometryCorrection();
+		  }
+	  }
+	  
 }

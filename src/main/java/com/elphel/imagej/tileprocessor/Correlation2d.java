@@ -2222,7 +2222,7 @@ public class Correlation2d {
     	return mosaic;
     }
 
-    public Corr2dLMA corrLMA2( // multi-tile
+    public Corr2dLMA corrLMA2Multi( // multi-tile
     		ImageDttParameters  imgdtt_params,
     		int                 clust_width,
     		double [][]         corr_wnd, // correlation window to save on re-calculation of the window
@@ -2453,7 +2453,7 @@ public class Correlation2d {
     				imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
     				imgdtt_params.lma_str_offset    // convert lma-generated strength to match previous ones - add to result
     				);
-    		if (debug_level > -1) lma.printStats(ds,clust_width);
+    		if (debug_level > 0) lma.printStats(ds,clust_width);
 
 
     		if (debug_level > 1) {
@@ -2551,7 +2551,7 @@ public class Correlation2d {
     						imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
     						imgdtt_params.lma_str_offset    // convert lma-generated strength to match previous ones - add to result
     						);
-    				if (debug_level > -2) {
+    				if (debug_level > 0) { // -2) {
     					lma.printStats(ds,clust_width);
     				}
     			}
@@ -2619,8 +2619,9 @@ public class Correlation2d {
     	return lmaSuccess? lma: null;
     }
 
-    public Corr2dLMA corrLMA2( // single tile
+    public Corr2dLMA corrLMA2Single( // single tile
     		ImageDttParameters  imgdtt_params,
+    		boolean             adjust_ly, // adjust Lazy Eye
     		double [][]         corr_wnd, // correlation window to save on re-calculation of the window
     		double []           corr_wnd_inv_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
     		double [][]         corrs,
@@ -2758,12 +2759,12 @@ public class Correlation2d {
     				imgdtt_params.lmas_adjust_wm,  // boolean adjust_width,     // adjust width of the maximum - lma_adjust_wm
     				imgdtt_params.lmas_adjust_ag,  // boolean adjust_scales,    // adjust 2D correlation scales - lma_adjust_ag
     				imgdtt_params.lmas_adjust_wy,  // boolean adjust_ellipse,   // allow non-circular correlation maximums lma_adjust_wy
-    				false, //imgdtt_params.lma_adjust_wxy, // boolean adjust_lazyeye_par,   // adjust disparity corrections parallel to disparities  lma_adjust_wxy
-    				false, // imgdtt_params.lma_adjust_ly1, // boolean adjust_lazyeye_ortho, // adjust disparity corrections orthogonal to disparities lma_adjust_ly1
+    				(adjust_ly ? imgdtt_params.lma_adjust_wxy : false), //imgdtt_params.lma_adjust_wxy, // boolean adjust_lazyeye_par,   // adjust disparity corrections parallel to disparities  lma_adjust_wxy
+    				(adjust_ly ? imgdtt_params.lma_adjust_ly1: false), // imgdtt_params.lma_adjust_ly1, // boolean adjust_lazyeye_ortho, // adjust disparity corrections orthogonal to disparities lma_adjust_ly1
     				disp_str2, // xcenter,                      // double  disp0,            // initial value of disparity
     				imgdtt_params.lma_half_width, // double  half_width,       // A=1/(half_widh)^2   lma_half_width
-    				0.0, // imgdtt_params.lma_cost_wy,     // double  cost_lazyeye_par,     // cost for each of the non-zero disparity corrections        lma_cost_wy
-    				0.0 //imgdtt_params.lma_cost_wxy     // double  cost_lazyeye_odtho    // cost for each of the non-zero ortho disparity corrections  lma_cost_wxy
+    				(adjust_ly ? imgdtt_params.lma_cost_wy : 0.0), // imgdtt_params.lma_cost_wy,     // double  cost_lazyeye_par,     // cost for each of the non-zero disparity corrections        lma_cost_wy
+    				(adjust_ly ? imgdtt_params.lma_cost_wxy : 0.0) //imgdtt_params.lma_cost_wxy     // double  cost_lazyeye_odtho    // cost for each of the non-zero ortho disparity corrections  lma_cost_wxy
     				);
     		lma.setMatrices(disp_dist);
     		lma.initMatrices(); // should be called after initVector and after setMatrices

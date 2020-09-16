@@ -516,7 +516,8 @@ public class AlignmentCorrection {
 			for (int nTile = 0; nTile < numTiles; nTile++) if (center_mask[nTile]){
 				if (disp_strength[str_index][nTile] > min_strength) {
 					//clt_parameters.fcorr_inf_diff
-					if (Math.abs(disp_strength[disp_index][nTile]) <= max_diff) {
+//					if (Math.abs(disp_strength[disp_index][nTile]) <= max_diff) {
+					if ((disp_strength[disp_index][nTile] <= max_diff) && (disp_strength[disp_index][nTile] >= 5* max_diff)) { // asymmetry
 						double weight= disp_strength[str_index][nTile];
 						sdw += weight * disp_strength[disp_index][nTile];
 						sw +=  weight;
@@ -2176,7 +2177,7 @@ B = |+dy0   -dy1      -2*dy3 |
 					magic_coeff, // magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5
 					debugLevel);
 
-			if (debugLevel > -1) {
+			if (debugLevel > -3) { // -1
 				double inf_weight = 0.0;
 				for (Sample s: inf_samples_list) {
 					inf_weight += s.weight;

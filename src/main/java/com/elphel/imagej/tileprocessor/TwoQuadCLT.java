@@ -7758,6 +7758,8 @@ if (debugLevel > -100) return true; // temporarily !
 				boolean ok = quadCLT_main.extrinsicsCLT(
 						clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 						false, // adjust_poly,
+						  -1.0, // double inf_min,
+						  1.0,  // double inf_max,
 						threadsMax,  //final int        threadsMax,  // maximal number of threads to launch
 						updateStatus,// final boolean    updateStatus,
 						debugLevelInner); // final int        debugLevel)
@@ -7791,9 +7793,18 @@ if (debugLevel > -100) return true; // temporarily !
 					System.out.println("Adjusting aux camera image set for "+quadCLT_main.image_name+
 							" (w/o rig), pass "+(num_adjust_aux+1)+" of "+quadCLT_main.correctionsParameters.rig_batch_adjust_aux);
 				}
+			    double inf_min = -1.0;
+			    double inf_max =  1.0;
+			    if (num_adjust_aux >= (quadCLT_main.correctionsParameters.rig_batch_adjust_aux/2)) {
+			        inf_min = -0.2;
+			        inf_max = 0.05;
+			    }
+				
 				boolean ok = quadCLT_aux.extrinsicsCLT(
 						clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 						false,          // adjust_poly,
+			            inf_min, // double inf_min,
+			            inf_max,  // double inf_max,
 						threadsMax,     //final int        threadsMax,  // maximal number of threads to launch
 						updateStatus,   // final boolean    updateStatus,
 						debugLevelInner);    // final int        debugLevel)
@@ -8214,11 +8225,11 @@ if (debugLevel > -100) return true; // temporarily !
 	{
 		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
 			quadCLT_main.getGPU().resetGeometryCorrection();
-			quadCLT_main.getGPU().resetGeometryCorrectionVector();
+			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
 		}
 		if ((quadCLT_aux != null) && (quadCLT_aux.getGPU() != null)) {
 			quadCLT_aux.getGPU().resetGeometryCorrection();
-			quadCLT_aux.getGPU().resetGeometryCorrectionVector();
+			quadCLT_aux.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
 		}
 
 		// final boolean    batch_mode = clt_parameters.batch_run;
@@ -8303,7 +8314,7 @@ if (debugLevel > -100) return true; // temporarily !
 					System.out.println("Adjusting main camera image set for "+quadCLT_main.image_name+
 							", pass "+(num_adjust_main+1)+" of "+adjust_main);
 				}
-				if (debugLevel > -5){
+				if (debugLevel > -1){
 					int scan_index =  quadCLT_main.tp.clt_3d_passes.size() -1;
 					quadCLT_main.tp.showScan(
 							quadCLT_main.tp.clt_3d_passes.get(scan_index),   // CLTPass3d   scan,
@@ -8314,10 +8325,17 @@ if (debugLevel > -100) return true; // temporarily !
 								"pre-adjust-extrinsic-scan-"+s); //String title)
 					}
 				}
-				
+			    double inf_min = -1.0;
+			    double inf_max =  1.0;
+			    if (num_adjust_main >= (adjust_main/2)) {
+			        inf_min = -0.2;
+			        inf_max = 0.05;
+			    }
 				boolean ok = quadCLT_main.extrinsicsCLT(
 						clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 						false, // adjust_poly,
+						inf_min, // double inf_min,
+						inf_max,  // double inf_max,
 						threadsMax,  //final int        threadsMax,  // maximal number of threads to launch
 						updateStatus,// final boolean    updateStatus,
 						debugLevelInner); // final int        debugLevel)
@@ -8567,10 +8585,18 @@ if (debugLevel > -100) return true; // temporarily !
 				}
 				if (quadCLT_aux.ds_from_main == null) {
 					System.out.println("BUG: quadCLT_aux.ds_from_main should be not null here!");
+				    double inf_min = -1.0;
+				    double inf_max =  1.0;
+				    if (num_adjust_aux >= (adjust_aux/2)) {
+				        inf_min = -0.2;
+				        inf_max = 0.05;
+				    }
 					// adjust w/o main camera - maybe will be used in the future
 					boolean ok = quadCLT_aux.extrinsicsCLT(
 							clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 							false, // adjust_poly,
+				            inf_min, // double inf_min,
+				            inf_max,  // double inf_max,
 							threadsMax,  //final int        threadsMax,  // maximal number of threads to launch
 							updateStatus,// final boolean    updateStatus,
 							debugLevelInner); // final int        debugLevel)

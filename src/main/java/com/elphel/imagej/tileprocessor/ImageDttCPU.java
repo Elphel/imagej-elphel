@@ -1743,6 +1743,7 @@ public class ImageDttCPU {
 						double [][]   disp_str =  new double [clustSize][];
 ///						double [][]   dY_dD =     new double [clustSize][quad];
 						double [][]   pxpy =      new double [clustSize][2];
+//						double [][]   pYdist=     new double [clustSize][quad]; // average pY for ERS calculation
 
 						boolean debugCluster =  (clustX == debug_clustX) && (clustY == debug_clustY);
 ///						boolean debugCluster1 = (Math.abs(clustX - debug_clustX) < 10) && (Math.abs(clustY - debug_clustY) < 10);
@@ -2125,8 +2126,9 @@ public class ImageDttCPU {
 												System.out.println("Will run new LMA for tileX="+tileX+", tileY="+tileY);
 											}
 											double [] poly_disp = {Double.NaN, 0.0};
-											Corr2dLMA lma2 = corr2d.corrLMA2(
+											Corr2dLMA lma2 = corr2d.corrLMA2Single(
 													imgdtt_params,                // ImageDttParameters  imgdtt_params,
+										    		false,                        // boolean             adjust_ly, // adjust Lazy Eye
 													corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
 													corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
 													corrs[cTile],                        // double [][]         corrs,
@@ -2179,7 +2181,7 @@ public class ImageDttCPU {
 								System.out.println("Will run new LMA for clustX="+clustX+", clustY="+clustY);
 							}
 
-							Corr2dLMA lma2 = corr2d.corrLMA2(
+							Corr2dLMA lma2 = corr2d.corrLMA2Multi(
 									imgdtt_params,                // ImageDttParameters  imgdtt_params,
 									tileStep,                     // int                 clust_width,
 									corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
@@ -2225,6 +2227,7 @@ public class ImageDttCPU {
 													lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PX + 1] += pxpy[cTile][1] * w;
 													for (int cam = 0; cam < quad; cam++) {
 														lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_DYDDISP0 + cam] += disp_dist[cTile][cam][2] * w;
+														lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PYDIST + cam] += centersXY[cTile][cam][1] * w;
 													}
 													sum_w += w;
 												}
@@ -2241,6 +2244,7 @@ public class ImageDttCPU {
 									lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PX + 1] /= sum_w;
 									for (int cam = 0; cam < quad; cam++) {
 										lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_DYDDISP0 + cam] /= sum_w;
+										lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PYDIST +   cam] /= sum_w;
 									}
 
 									for (int cam = 0; cam < ddnd.length; cam++) {
@@ -3318,8 +3322,9 @@ public class ImageDttCPU {
 									System.out.println("Will run new LMA for tileX="+tileX+", tileY="+tileY);
 
 									double [] poly_disp = {Double.NaN, 0.0};
-							    	Corr2dLMA lma2 = corr2d.corrLMA2(
+							    	Corr2dLMA lma2 = corr2d.corrLMA2Single(
 							    			imgdtt_params,                // ImageDttParameters  imgdtt_params,
+								    		false,                        // boolean             adjust_ly, // adjust Lazy Eye
 							    			corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
 							    			corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
 							    			corrs,                        // double [][]         corrs,

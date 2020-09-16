@@ -1678,11 +1678,13 @@ public class ImageDtt extends ImageDttCPU {
 		final float  [][][][]     fcorr_td_centers = new float [tilesY][tilesX][][]; // sparse, only in cluster centers
 		final int    [][]         num_in_cluster = new int [clustersY][clustersX];  // only in cluster centers
 		final double [][][][]     disp_dist = new double [clustersY][clustersX][][];
-		final double [][][][]     pxpy = new double [clustersY][clustersX][][];
+		final double [][][]       clust_pY =  new double  [clustersY][clustersX][];
+		final double [][][]       pxpy = new double [clustersY][clustersX][];
 		final double [][]         disparity_array_center = new double [clustersY][clustersX];
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
-		
+		final double shiftX = 0.0;
+		final double shiftY = 0.0;
 		// TODO: Maybe calculate full energy in each TD tile for normalization
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
@@ -1701,7 +1703,7 @@ public class ImageDtt extends ImageDttCPU {
 						boolean debugCluster =  (clustX == debug_clustX) && (clustY == debug_clustY);
 						///						boolean debugCluster1 = (Math.abs(clustX - debug_clustX) < 10) && (Math.abs(clustY - debug_clustY) < 10);
 						if (debugCluster) {
-							System.out.println("debugCluster");
+							System.out.println("debugCluster1");
 						}
 ///						int clust_lma_debug_level =  debugCluster? imgdtt_params.lma_debug_level : -5;
 // filter only tiles with similar disparity to enable lazy eye for the ERS.
@@ -1738,13 +1740,13 @@ public class ImageDtt extends ImageDttCPU {
 									}
 								}
 							}
+							avg /= num_good_tiles;
 							if (num_good_tiles ==0) {
 								break;
 							}
 							if ((mx-mn) <= imgdtt_params.lma_disp_range ) {
 								break;
 							}
-							avg /= num_good_tiles;
 							if ((mx-avg) > (avg-mn)) {
 								fcorr_td[mxTy][mxTx] = null;
 							} else {
@@ -1758,9 +1760,13 @@ public class ImageDtt extends ImageDttCPU {
 						float [][] ftd = new float [num_pairs][4* transform_size * transform_size];
 						if (num_good_tiles > 0) {
 							double dscale = 1.0/num_good_tiles;
+							
 							// average fdisp_dist and fpxpy over remaining tiles 
+							//fpxpy
+							double []   avg_py = new double [quad]; 
 							double [][] avg_disp_dist = new double [quad][4]; 
-							double [][] avg_pxpy = new double [quad][2];
+//							double [][] avg_pxpy = new double [quad][2];
+							double [] avg_pxpy = new double [2];
 							for (int cTileY = 0; cTileY < tileStep; cTileY++) {
 								int tileY = clustY * tileStep + cTileY ;
 								if (tileY < tilesY) {
@@ -1771,10 +1777,12 @@ public class ImageDtt extends ImageDttCPU {
 												for (int i = 0; i < 4; i++) {
 													avg_disp_dist[nc][i] += fdisp_dist[tileY][tileX][nc][i];
 												}
-												for (int i = 0; i < 2; i++) {
-													avg_pxpy[nc][i] += fpxpy[tileY][tileX][nc][i];
-												}
+												avg_py[nc] += fpxpy[tileY][tileX][nc][1]; // averaging some tiles, but it will be the same for all channels
 											}
+											double centerX = tileX * transform_size + transform_size/2 - shiftX;
+											double centerY = tileY * transform_size + transform_size/2 - shiftY;
+											avg_pxpy[0] += centerX;
+											avg_pxpy[1] += centerY;
 										}
 									}
 								}
@@ -1796,12 +1804,15 @@ public class ImageDtt extends ImageDttCPU {
 								for (int i = 0; i < 4; i++) {
 									avg_disp_dist[nc][i] *= dscale;
 								}
-								for (int i = 0; i < 2; i++) {
-									avg_pxpy[nc][i] *= dscale;
-								}
+								avg_py[nc] *= dscale;
 							}
+							for (int i = 0; i < 2; i++) {
+								avg_pxpy[i] *= dscale;
+							}
+							
 							disp_dist[clustY][clustX] = avg_disp_dist;
 							pxpy     [clustY][clustX] = avg_pxpy;
+							clust_pY [clustY][clustX] = avg_py; // to use for ERS
 							// accumulate TD tiles
 							// If needed - save average
 							for (int cTileY = 0; cTileY < tileStep; cTileY++) {
@@ -1881,6 +1892,7 @@ public class ImageDtt extends ImageDttCPU {
 						int tileY = nt / tilesX;
 						int clustX = tileX/tileStep;
 						int clustY = tileY/tileStep;
+						///						boolean debugCluster1 = (Math.abs(clustX - debug_clustX) < 10) && (Math.abs(clustY - debug_clustY) < 10);
 						double []  disp_str =  null;
 
 						for (int indx_pair = 0; indx_pair < num_pairs; indx_pair++) {
@@ -1905,14 +1917,18 @@ public class ImageDtt extends ImageDttCPU {
 						
 						// debug new LMA correlations
 						boolean debugCluster =  (clustX == debug_clustX) && (clustY == debug_clustY);
+						if (debugCluster) {
+							System.out.println("debugCluster2");
+						}
 						int tile_lma_debug_level =  ((tileX == debug_tileX) && (tileY == debug_tileY))? imgdtt_params.lma_debug_level : -1;
 						int tdl = debugCluster ? tile_lma_debug_level : -3;
 						if (debugCluster && (globalDebugLevel > -1)) { // -2)) {
 							System.out.println("Will run new LMA for tileX="+tileX+", tileY="+tileY);
 						}
 						double [] poly_disp = {Double.NaN, 0.0};
-						Corr2dLMA lma2 = corr2d.corrLMA2( // num_tiles == 1
+						Corr2dLMA lma2 = corr2d.corrLMA2Single( // multitile num_tiles == 1
 								imgdtt_params,                // ImageDttParameters  imgdtt_params,
+					    		true,                         // boolean             adjust_ly, // adjust Lazy Eye
 								corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
 								corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
 								corrs,                        // double [][]         corrs,
@@ -1926,6 +1942,28 @@ public class ImageDtt extends ImageDttCPU {
 								tileX,                        // int                 tileX, // just for debug output
 								tileY);                       // int                 tileY
 						
+						
+						/*
+						double [][] poly_disp2 = {{Double.NaN, 0.0}};
+						double [][][] corrs2 = {corrs};
+						double [][][] tile_disp_dist2 = {tile_disp_dist};
+						// TODO: maybe use corrLMA2Single again, but take care of initVector!
+						Corr2dLMA lma2 = corr2d.corrLMA2Multi( // multitile num_tiles == 1
+								imgdtt_params,                // ImageDttParameters  imgdtt_params,
+								1,                            // int                 clust_width,
+								corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
+								corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
+								corrs2, // corrs,                        // double [][]         corrs,
+								tile_disp_dist2,
+								rXY,                          // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
+								imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
+//								null,                         // disp_str[cTile],  //corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
+								poly_disp2,                    // double[]            poly_ds,    // null or pair of disparity/strength
+								imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
+								tdl, // tile_lma_debug_level, //+2,         // int                 debug_level,
+								tileX,                        // int                 tileX, // just for debug output
+								tileY);                       // int                 tileY
+						*/
 						if (lma2 != null) {
 							// was for single tile
 							disp_str = lma2.lmaDisparityStrength(
@@ -1966,15 +2004,19 @@ public class ImageDtt extends ImageDttCPU {
 								lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_DISP] += (lma_ds[0][0] + disparity_array_center[clustY][clustX] + disparity_corr) * w;
 								lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_TARGET] += (disparity_array_center[clustY][clustX] + disparity_corr) * w;
 								lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_DIFF] += lma_ds[0][0] * w;
-								lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PX + 0] += pxpy[clustY][clustX][0][0] * w;
-								lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PX + 1] += pxpy[clustY][clustX][0][1] * w;
+								lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PX + 0] += pxpy[clustY][clustX][0] * w;
+								lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PX + 1] += pxpy[clustY][clustX][1] * w;
 								for (int cam = 0; cam < quad; cam++) {
 									lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_DYDDISP0 + cam] += tile_disp_dist[cam][2] * w;
+									lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PYDIST + cam] += clust_pY [clustY][clustX][cam] * w;
+									
 								}
 								sum_w += w;
 							}
 							if (sum_w > 0.0) { // may be simplified as there is only one tile now
-								lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_STRENGTH] = stats[0];
+								double strengh_k = 0.2*Math.sqrt(num_in_cluster[clustY][clustX]); // approximately matching old/multitile
+								lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_STRENGTH] =
+										stats[0] * num_in_cluster[clustY][clustX] * strengh_k;
 								lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_DISP]   /= sum_w;
 								lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_TARGET] /= sum_w;
 								lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_DIFF]   /= sum_w;
@@ -1982,6 +2024,7 @@ public class ImageDtt extends ImageDttCPU {
 								lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PX + 1] /= sum_w;
 								for (int cam = 0; cam < quad; cam++) {
 									lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_DYDDISP0 + cam] /= sum_w;
+									lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PYDIST + cam] /= sum_w;
 								}
 
 								for (int cam = 0; cam < ddnd.length; cam++) {
