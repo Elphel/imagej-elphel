@@ -138,6 +138,7 @@ struct gc {
 // only used for the multi-quad systems
 	float cameraRadius; // =0; // average distance from the "mass center" of the sensors to the sensors
 	float disparityRadius; // =150.0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad
+	float woi_tops   [NUM_CAMS]; // used to calculate scanline timing
 };
 #define RAD_COEFF_LEN 7
 extern "C" __global__ void get_tiles_offsets(
