@@ -513,4 +513,41 @@ public class TileNeibs{
 
 		return num_total_removed;
 	}
+	
+	public boolean [] fillConcave(
+			boolean [] tiles // should be the same size
+			) {
+		boolean [] filled = tiles.clone();
+		int min_neibs = 4;
+		ArrayList<Integer> front = new ArrayList<Integer>();
+		for (int start_indx = 0; start_indx < tiles.length; start_indx++) if (!filled[start_indx]) {
+			int nneib = 0;
+			for (int dir = 0; dir < dirs; dir++) {
+				int id = getNeibIndex(start_indx, dir);
+				if ((id >= 0) && filled[id]) nneib++;
+			}
+			if (nneib >= min_neibs) {
+				front.add(start_indx); // do not mark yet
+				filled[start_indx] = true;
+				while (!front.isEmpty()) {
+					int seed = front.remove(0);// get oldest element
+					for (int d = 0; d < dirs; d++){
+						int indx = 	getNeibIndex(seed, d);
+						if ((indx >=0) && !filled[indx]) {
+							nneib = 0;
+							for (int dir = 0; dir < dirs; dir++) {
+								int id = getNeibIndex(indx, dir);
+								if ((id >= 0) && filled[id]) nneib++;
+							}
+							if (nneib >= min_neibs) {
+								front.add(indx); // do not mark yet
+								filled[indx] = true;
+							}
+						}
+					}
+				}				
+			}
+		}
+		return filled;
+	}
 }

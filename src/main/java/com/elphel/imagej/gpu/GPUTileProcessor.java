@@ -106,6 +106,7 @@ public class GPUTileProcessor {
 	static String GPU_RBGA_NAME =                  "generate_RBGA";       // name in C code
 	static String GPU_ROT_DERIV =                  "calc_rot_deriv";      // calculate rotation matrices and derivatives
 	static String GPU_SET_TILES_OFFSETS =          "get_tiles_offsets";   // calculate pixel offsets and disparity distortions
+	static String GPU_CALCULATE_TILES_OFFSETS =    "calculate_tiles_offsets";   // calculate pixel offsets and disparity distortions
 	static String GPU_CALC_REVERSE_DISTORTION =    "calcReverseDistortionTable"; // calculate reverse radial distortion table from gpu_geometry_correction
 
 //  pass some defines to gpu source code with #ifdef JCUDA
@@ -168,7 +169,8 @@ public class GPUTileProcessor {
     private CUfunction GPU_TEXTURES_kernel =                null;
     private CUfunction GPU_RBGA_kernel =                    null;
     private CUfunction GPU_ROT_DERIV_kernel =               null;
-    private CUfunction GPU_SET_TILES_OFFSETS_kernel =       null;
+//    private CUfunction GPU_SET_TILES_OFFSETS_kernel =       null;
+    private CUfunction GPU_CALCULATE_TILES_OFFSETS_kernel = null;
     private CUfunction GPU_CALC_REVERSE_DISTORTION_kernel = null;
 
     CUmodule    module; // to access constants memory
@@ -393,7 +395,8 @@ public class GPUTileProcessor {
         		GPU_TEXTURES_NAME,
         		GPU_RBGA_NAME,
         		GPU_ROT_DERIV,
-        		GPU_SET_TILES_OFFSETS,
+//        		GPU_SET_TILES_OFFSETS,
+        		GPU_CALCULATE_TILES_OFFSETS,
         		GPU_CALC_REVERSE_DISTORTION
         };
         CUfunction[] functions = createFunctions(kernelSources,
@@ -408,7 +411,8 @@ public class GPUTileProcessor {
         GPU_TEXTURES_kernel=                 functions[5];
         GPU_RBGA_kernel=                     functions[6];
         GPU_ROT_DERIV_kernel =               functions[7];
-        GPU_SET_TILES_OFFSETS_kernel =       functions[8];
+//        GPU_SET_TILES_OFFSETS_kernel =       functions[8];
+        GPU_CALCULATE_TILES_OFFSETS_kernel = functions[8];
         GPU_CALC_REVERSE_DISTORTION_kernel = functions[9];
 
         System.out.println("GPU kernel functions initialized");
@@ -420,7 +424,8 @@ public class GPUTileProcessor {
         System.out.println(GPU_TEXTURES_kernel.toString());
         System.out.println(GPU_RBGA_kernel.toString());
         System.out.println(GPU_ROT_DERIV_kernel.toString());
-        System.out.println(GPU_SET_TILES_OFFSETS_kernel.toString());
+//        System.out.println(GPU_SET_TILES_OFFSETS_kernel.toString());
+        System.out.println(GPU_CALCULATE_TILES_OFFSETS_kernel.toString());
         System.out.println(GPU_CALC_REVERSE_DISTORTION_kernel.toString());
         
         // GPU data structures are now initialized through GpuQuad instances
@@ -1603,7 +1608,8 @@ public class GPUTileProcessor {
 /**
  * Calculate tiles offsets (before each direct conversion run)
  */
-        public void execSetTilesOffsets() {
+        /*
+        public void execSetTilesOffsetsOld() {
         	execCalcReverseDistortions(); // will check if it is needed first
         	execRotDerivs();              // will check if it is needed first
             if (GPU_SET_TILES_OFFSETS_kernel == null)
@@ -1612,7 +1618,7 @@ public class GPUTileProcessor {
                 return;
             }
             // kernel parameters: pointer to pointers
-            int [] GridFullWarps =    {(num_task_tiles + TILES_PER_BLOCK_GEOM - 1)/TILES_PER_BLOCK_GEOM, 1, 1}; // round up
+            int [] GridFullWarps =    {(num_task_tiles + 2 * TILES_PER_BLOCK_GEOM - 1)/TILES_PER_BLOCK_GEOM, 1, 1}; // round up
             int [] ThreadsFullWarps = {num_cams, TILES_PER_BLOCK_GEOM, 1}; // 4,8,1
             Pointer kernelParameters = Pointer.to(
             		Pointer.to(gpu_tasks),                   // struct tp_task     * gpu_tasks,
@@ -1623,6 +1629,42 @@ public class GPUTileProcessor {
             		Pointer.to(gpu_rot_deriv));              // trot_deriv         * gpu_rot_deriv);
             cuCtxSynchronize();
         	cuLaunchKernel(GPU_SET_TILES_OFFSETS_kernel,
+        			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
+        			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
+        			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
+        			kernelParameters, null);   // Kernel- and extra parameters
+        	cuCtxSynchronize(); // remove later
+    		if (gpu_debug_level > -1) {
+    			System.out.println("======execSetTilesOffsets()");
+    		}
+        }
+*/        
+        public void execSetTilesOffsets() {
+        	execCalcReverseDistortions(); // will check if it is needed first
+        	execRotDerivs();              // will check if it is needed first
+            if (GPU_CALCULATE_TILES_OFFSETS_kernel == null)
+            {
+                IJ.showMessage("Error", "No GPU kernel: GPU_CALCULATE_TILES_OFFSETS_kernel");
+                return;
+            }
+    		if (gpu_debug_level > -1) {
+    			System.out.println("num_task_tiles="+num_task_tiles);
+    		}
+
+            // kernel parameters: pointer to pointers
+//            int [] GridFullWarps =    {(num_task_tiles + 2 * TILES_PER_BLOCK_GEOM - 1)/TILES_PER_BLOCK_GEOM, 1, 1}; // round up
+//            int [] ThreadsFullWarps = {num_cams, TILES_PER_BLOCK_GEOM, 1}; // 4,8,1
+            int [] GridFullWarps =    {1, 1, 1}; // round up
+            int [] ThreadsFullWarps = {1, 1, 1}; // 4,8,1
+            Pointer kernelParameters = Pointer.to(
+            		Pointer.to(gpu_tasks),                   // struct tp_task     * gpu_tasks,
+            		Pointer.to(new int[] { num_task_tiles }),// int                  num_tiles,          // number of tiles in task list
+            		Pointer.to(gpu_geometry_correction),     //	struct gc          * gpu_geometry_correction,
+            		Pointer.to(gpu_correction_vector),       //	struct corr_vector * gpu_correction_vector,
+            		Pointer.to(gpu_rByRDist),                //	float *              gpu_rByRDist)      // length should match RBYRDIST_LEN
+            		Pointer.to(gpu_rot_deriv));              // trot_deriv         * gpu_rot_deriv);
+            cuCtxSynchronize();
+        	cuLaunchKernel(GPU_CALCULATE_TILES_OFFSETS_kernel,
         			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
         			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
         			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)

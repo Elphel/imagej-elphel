@@ -7904,7 +7904,7 @@ public class QuadCLTCPU {
 				  CLTPass3d   scan = tp.clt_3d_passes.get(combo_scan);
 				  // for the second half of runs (always for single run) - limit infinity min/max
 				  
-				  boolean debug_actual_LY_derivs = true; // debugLevel > 9;
+				  boolean debug_actual_LY_derivs =  debugLevel > 9; // true
 				  
 				  if (debug_actual_LY_derivs) {
 					  debugLYDerivatives(

@@ -48,6 +48,7 @@ import com.elphel.imagej.gpu.GPUTileProcessor;
 import ij.ImagePlus;
 import ij.ImageStack;
 public class QuadCLT extends QuadCLTCPU {
+	int dbg_lev = 1;
 	private GPUTileProcessor.GpuQuad gpuQuad =              null;	
 	public QuadCLT(
 			String                                          prefix,
@@ -2314,33 +2315,38 @@ public class QuadCLT extends QuadCLTCPU {
 					  threadsMax,
 					  debugLevel - 2);
 		  } else {// GPU
-// First - measure and get 	fcorr_td, fdisp_dist, fpxpy
+			  // First - measure and get 	fcorr_td, fdisp_dist, fpxpy
 			  float  [][][][]     fcorr_td =   new float[tilesY][tilesX][][];
 			  float  [][][][]     fdisp_dist = new float[tilesY][tilesX][][];
 			  float  [][][][]     fpxpy =      new float[tilesY][tilesX][][];
+			  float  [][][][]     fpxpy_test = new float[tilesY][tilesX][][];
+			  float  [][][][]     fpxpy_test1 = new float[tilesY][tilesX][][];
+			  float  [][][][]     fpxpy_test2 = new float[tilesY][tilesX][][];
 			  final double        gpu_fat_zero = clt_parameters.getGpuFatZero(isMonochrome()); 
-			  image_dtt.clt_aberrations_quad_corr_GPU( // USED in LWIR
+			  
+			  GPUTileProcessor.TpTask[][] test_tasks0 = image_dtt.clt_aberrations_quad_corr_GPU_test( // USED in LWIR
 					  clt_parameters.img_dtt,        // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 					  1,                             // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 					  tile_op,                       // per-tile operation bit codes
 					  disparity_array,               // clt_parameters.disparity,     // final double            disparity,
 					  fcorr_td,				 		 // final float  [][][][]     corr_td,         // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
 					  null,			  				 //	final float  [][][][]     corr_combo_td,   // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: qud, cross, hor,vert
-						                             // each of the top elements may be null to skip particular combo type
+					  // each of the top elements may be null to skip particular combo type
 					  fdisp_dist,                    // final float  [][][][]     fdisp_dist,      // [tilesY][tilesX][cams][4], // disparity derivatives vectors or null
-					  fpxpy,	                     //	final float  [][][][]     fpxpy,           // [tilesY][tilesX][cams][2], tile {pX,pY}
+					  fpxpy_test,	                     //	final float  [][][][]     fpxpy,           // [tilesY][tilesX][cams][2], tile {pX,pY}
+					  fpxpy_test1,	                     //	final float  [][][][]     fpxpy,           // [tilesY][tilesX][cams][2], tile {pX,pY}
 					  //// Uses quadCLT from gpuQuad			
-					                                 // correlation results - final and partial
+					  // correlation results - final and partial
 					  null,                          // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
-					                                 // [type][tilesY][tilesX] should be set by caller
-					                                 // types: 0 - selected correlation (product+offset), 1 - sum
+					  // [type][tilesY][tilesX] should be set by caller
+					  // types: 0 - selected correlation (product+offset), 1 - sum
 					  null,     			         // clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
-					                                 // [tilesY][tilesX] should be set by caller
-					                                 // When clt_mismatch is non-zero, no far objects extraction will be attempted
+					  // [tilesY][tilesX] should be set by caller
+					  // When clt_mismatch is non-zero, no far objects extraction will be attempted
 					  null,                          // clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
-					                                 // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
+					  // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
 					  null,              			 // disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
-					                                 // last 2 - contrast, avg/ "geometric average)
+					  // last 2 - contrast, avg/ "geometric average)
 					  0, // disparity_modes,         // disparity_modes, // bit mask of disparity_map slices to calculate/return
 					  null,                          // 	final double [][][][]     texture_tiles,   // compatible with the CPU ones      
 					  null, // texture_img,          // texture_img,     // null or [3][] (RGB) or [4][] RGBA
@@ -2375,6 +2381,212 @@ public class QuadCLT extends QuadCLTCPU {
 					  threadsMax,
 					  debugLevel);
 			  
+			  
+			  
+			  GPUTileProcessor.TpTask[][] test_tasks1 = image_dtt.clt_aberrations_quad_corr_GPU_test( // USED in LWIR
+					  clt_parameters.img_dtt,        // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+					  1,                             // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
+					  tile_op,                       // per-tile operation bit codes
+					  disparity_array,               // clt_parameters.disparity,     // final double            disparity,
+					  fcorr_td,				 		 // final float  [][][][]     corr_td,         // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
+					  null,			  				 //	final float  [][][][]     corr_combo_td,   // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: qud, cross, hor,vert
+					  // each of the top elements may be null to skip particular combo type
+					  fdisp_dist,                    // final float  [][][][]     fdisp_dist,      // [tilesY][tilesX][cams][4], // disparity derivatives vectors or null
+					  fpxpy,	                     //	final float  [][][][]     fpxpy,           // [tilesY][tilesX][cams][2], tile {pX,pY}
+					  fpxpy_test2,                    //	final float  [][][][]     fpxpy_test,           // [tilesY][tilesX][cams][2], tile {pX,pY}
+					  //// Uses quadCLT from gpuQuad			
+					  // correlation results - final and partial
+					  null,                          // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					  // [type][tilesY][tilesX] should be set by caller
+					  // types: 0 - selected correlation (product+offset), 1 - sum
+					  null,     			         // clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					  // [tilesY][tilesX] should be set by caller
+					  // When clt_mismatch is non-zero, no far objects extraction will be attempted
+					  null,                          // clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
+					  // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
+					  null,              			 // disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+					  // last 2 - contrast, avg/ "geometric average)
+					  0, // disparity_modes,         // disparity_modes, // bit mask of disparity_map slices to calculate/return
+					  null,                          // 	final double [][][][]     texture_tiles,   // compatible with the CPU ones      
+					  null, // texture_img,          // texture_img,     // null or [3][] (RGB) or [4][] RGBA
+					  null, // texture_woi,          // texture_woi,     // null or generated texture location/size
+					  null,                          //  iclt_fimg,       // will return quad images or null to skip, use quadCLT.linearStackToColor 
+					  clt_parameters.gpu_corr_scale, //.gpu_corr_scale, //  gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
+					  gpu_fat_zero, // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
+					  clt_parameters.gpu_sigma_r,    // 0.9, 1.1
+					  clt_parameters.gpu_sigma_b,    // 0.9, 1.1
+					  clt_parameters.gpu_sigma_g,    // 0.6, 0.7
+					  clt_parameters.gpu_sigma_m,    //  =       0.4; // 0.7;
+					  (isMonochrome()? 1.0 : clt_parameters.gpu_sigma_rb_corr), // final double              gpu_sigma_rb_corr, //  = 0.5; // apply LPF after accumulating R and B correlation before G, monochrome ? 1.0 : gpu_sigma_rb_corr;
+					  clt_parameters.gpu_sigma_corr, //  =    0.9;gpu_sigma_corr_m
+					  image_dtt.transform_size - 1, // clt_parameters.gpu_corr_rad,   // = transform_size - 1 ?
+					  clt_parameters.corr_red,       // +used
+					  clt_parameters.corr_blue,      // +used
+					  clt_parameters.max_corr_radius,// 3.9;
+					  clt_parameters.corr_mode,      // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
+					  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
+					  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
+					  clt_parameters.diff_sigma,     // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
+					  clt_parameters.diff_threshold, // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
+					  clt_parameters.diff_gauss,     // true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
+					  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+					  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
+					  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
+					  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
+					  clt_parameters.clt_window,
+					  disparity_corr,                // final double              disparity_corr, // disparity at infinity
+					  clt_parameters.tileX,          // final int               debug_tileX,
+					  clt_parameters.tileY,          // final int               debug_tileY,
+					  threadsMax,
+					  debugLevel);
+			  if (dbg_lev > 0) {
+				  double [][] dbg_disp = new double [16][tilesX*tilesY]; 
+				  double [][] dbg_pxy =  new double [8] [tilesX*tilesY];
+				  double [][] dbg_pxy_test =  new double [8] [tilesX*tilesY];
+				  double [][] dbg_pxy_diff =  new double [8] [tilesX*tilesY];
+				  for (int tY = 0; tY<tilesY; tY++) {
+					  for (int tX = 0; tX<tilesX; tX++) {
+						  int indx = tY * tilesX + tX;
+						  if (fdisp_dist[tY][tX] != null) {
+							  for (int ncam = 0; ncam < 4; ncam++) {
+								  for (int i = 0; i < 4; i++) {
+									  dbg_disp[ncam * 4 + i][indx] = fdisp_dist[tY][tX][ncam][i];
+								  }
+								  for (int i = 0; i < 2; i++) {
+									  dbg_pxy[ncam * 2 + i][indx] = fpxpy[tY][tX][ncam][i];
+								  }
+							  }
+						  } else {
+							  for (int ncam = 0; ncam < 4; ncam++) {
+								  for (int i = 0; i < 4; i++) {
+									  dbg_disp[ncam * 4 + i][indx] = Double.NaN;
+								  }
+								  for (int i = 0; i < 2; i++) {
+									  dbg_pxy[ncam * 2 + i][indx] = Double.NaN;
+								  }
+							  }
+						  }
+						  
+						  if (fpxpy_test[tY][tX] != null) {
+							  for (int ncam = 0; ncam < 4; ncam++) {
+								  for (int i = 0; i < 2; i++) {
+									  dbg_pxy_test[ncam * 2 + i][indx] = fpxpy_test[tY][tX][ncam][i];
+								  }
+							  }
+						  } else {
+							  for (int ncam = 0; ncam < 4; ncam++) {
+								  for (int i = 0; i < 2; i++) {
+									  dbg_pxy_test[ncam * 2 + i][indx] = Double.NaN;
+								  }
+							  }
+						  }
+						  
+					  }
+				  }
+				  double d2 = 0.0;
+				  for (int n = 0; n < dbg_pxy_diff.length; n++) {
+					  for (int i = 0; i < dbg_pxy_diff[n].length; i++) {
+						  dbg_pxy_diff[n][i] = dbg_pxy[n][i] - dbg_pxy_test[n][i];
+						  if (!Double.isNaN(dbg_pxy_diff[n][i])) {
+							  d2+=dbg_pxy_diff[n][i]*dbg_pxy_diff[n][i];
+							  if (dbg_pxy_diff[n][i] != 0.0) {
+								  System.out.println("dbg_pxy - dbg_pxy_test mismatch @ n ="+n+" tile="+i);
+								  // find tasks
+								  int ty = i / tilesX;
+								  int tx = i % tilesX;
+								  System.out.println("tx= "+tx+", ty = "+ty);
+								  // find index in test_tasks0[0]
+								  int t0_indx = -1;
+								  for (int ti = 0; ti < test_tasks0[0].length; ti++) {
+									  GPUTileProcessor.TpTask t0 = test_tasks0[0][ti];
+									  if ((t0.tx == tx) && (t0.ty == ty)) {
+										  t0_indx = ti;
+										  break;
+									  }
+								  }
+								  int t1_indx = -1;
+								  for (int ti = 0; ti < test_tasks1[0].length; ti++) {
+									  GPUTileProcessor.TpTask t1 = test_tasks1[0][ti];
+									  if ((t1.tx == tx) && (t1.ty == ty)) {
+										  t1_indx = ti;
+										  break;
+									  }
+								  }
+								  System.out.println("tx= "+tx+", ty = "+ty+ " t0_indx="+t0_indx+ " t1_indx="+t1_indx);
+								  System.out.print("");
+							  }
+						  }
+						  
+					  }
+				  }
+				  System.out.println("(dbg_pxy - dbg_pxy_test) squared = "+d2);
+				  
+				  d2 = 0.0;
+				  for (int tY = 0; tY<tilesY; tY++) {
+					  for (int tX = 0; tX<tilesX; tX++) {
+						  int indx = tY * tilesX + tX;
+						  if (fpxpy[tY][tX] != null) {
+							  for (int ncam = 0; ncam < 4; ncam++) {
+								  for (int i = 0; i < 2; i++) {
+									  double diff = fpxpy[tY][tX][ncam][i] - fpxpy_test2[tY][tX][ncam][i];
+									  if (diff != 0.0) {
+										  System.out.println("fpxpy - fpxpy_test2 mismatch @ tile="+indx+" n ="+ncam+" i="+i);
+										  System.out.print("");
+									  }
+									  d2 += diff*diff;
+								  }
+							  }
+						  }
+					  }
+				  }
+				  System.out.println("(fpxpy - fpxpy_test2) squared = "+d2);
+
+				  d2 = 0.0;
+				  for (int tY = 0; tY<tilesY; tY++) {
+					  for (int tX = 0; tX<tilesX; tX++) {
+						  int indx = tY * tilesX + tX;
+						  if (fpxpy[tY][tX] != null) {
+							  for (int ncam = 0; ncam < 4; ncam++) {
+								  for (int i = 0; i < 2; i++) {
+									  double diff = fpxpy_test[tY][tX][ncam][i] - fpxpy_test1[tY][tX][ncam][i];
+									  if (diff != 0.0) {
+										  System.out.println("fpxpy_test - fpxpy_test1 mismatch @ tile="+indx+" n ="+ncam+" i="+i);
+										  System.out.print("");
+									  }
+									  d2 += diff*diff;
+								  }
+							  }
+						  }
+					  }
+				  }
+				  System.out.println("(fpxpy_test - fpxpy_test1) squared = "+d2);
+				  
+				  (new ShowDoubleFloatArrays()).showArrays(
+						  dbg_pxy,
+						  tilesX,
+						  tilesY,
+						  true,
+						  "fpxpy");
+				  (new ShowDoubleFloatArrays()).showArrays(
+						  dbg_pxy_test,
+						  tilesX,
+						  tilesY,
+						  true,
+						  "fpxpy_test");
+				  (new ShowDoubleFloatArrays()).showArrays(
+						  dbg_pxy_diff,
+						  tilesX,
+						  tilesY,
+						  true,
+						  "fpxpy_diff");
+				  (new ShowDoubleFloatArrays()).showArrays(
+						  dbg_disp,
+						  tilesX,
+						  tilesY,
+						  true,
+						  "fdisp_dist");
+			  }
+
 			  lazy_eye_data = image_dtt.cltMeasureLazyEyeGPU ( // returns d,s lazy eye parameters
 					  clt_parameters.img_dtt,        // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 					  disparity_array,               // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
@@ -2391,6 +2603,51 @@ public class QuadCLT extends QuadCLTCPU {
 					  clt_parameters.tileY,          // final int               debug_tileY,
 					  threadsMax,
 					  debugLevel);
+
+			  if (dbg_lev > 0) {
+				  double [][] dbg_disp = new double [16][tilesX*tilesY]; 
+				  double [][] dbg_pxy =  new double [8] [tilesX*tilesY];
+				  for (int tY = 0; tY<tilesY; tY++) {
+					  for (int tX = 0; tX<tilesX; tX++) {
+						  int indx = tY * tilesX + tX;
+						  if (fdisp_dist[tY][tX] != null) {
+							  for (int ncam = 0; ncam < 4; ncam++) {
+								  for (int i = 0; i < 4; i++) {
+									  dbg_disp[ncam * 4 + i][indx] = fdisp_dist[tY][tX][ncam][i];
+								  }
+								  for (int i = 0; i < 2; i++) {
+									  dbg_pxy[ncam * 2 + i][indx] = fpxpy[tY][tX][ncam][i];
+								  }
+							  }
+						  } else {
+							  for (int ncam = 0; ncam < 4; ncam++) {
+								  for (int i = 0; i < 4; i++) {
+									  dbg_disp[ncam * 4 + i][indx] = Double.NaN;
+								  }
+								  for (int i = 0; i < 2; i++) {
+									  dbg_pxy[ncam * 2 + i][indx] = Double.NaN;
+								  }
+							  }
+						  }
+					  }
+				  }
+				  (new ShowDoubleFloatArrays()).showArrays(
+						  dbg_disp,
+						  tilesX,
+						  tilesY,
+						  true,
+						  "fdisp_dist-after");
+
+				  (new ShowDoubleFloatArrays()).showArrays(
+						  dbg_pxy,
+						  tilesX,
+						  tilesY,
+						  true,
+						  "fpxpy-after");
+			  }
+
+		  
+		  
 		  }
 
 		  scan.setLazyEyeData(lazy_eye_data);
@@ -2399,6 +2656,7 @@ public class QuadCLT extends QuadCLTCPU {
 		  scan.resetProcessed();
 		  return scan;
 	  }
+	  
 	  public void gpuResetCorrVector() {
 		  if (getGPU() != null) {
 			  getGPU().resetGeometryCorrectionVector();

@@ -1,5 +1,6 @@
 package com.elphel.imagej.tileprocessor;
 
+import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 import Jama.Matrix;
@@ -81,7 +82,7 @@ public class ExtrinsicAdjustment {
 	public int clustersX;
 	public int clustersY;
 	
-	public double dbg_delta = 1.0E-5; // if not null - use delta instead of the derivatives in getJacobianTransposed
+	public double dbg_delta = 0; // 1.0E-5; // if not 0 - use delta instead of the derivatives in getJacobianTransposed
 
 	public double [] getOldNewRMS() {
 		double [] on_rms = new double[2];
@@ -272,7 +273,7 @@ public class ExtrinsicAdjustment {
 		 double min_fg_disp = 0.0; //  25.0; // minimal disparity to boost foreground objects
 		 double min_rel_over = 0.25; // minimal relative disparity over average for a row to boost foreground objects
 		 int min_num_fg =      min_num_forced;
-		 double fb_boost_fraction = 0.5; 
+		 double fg_boost_fraction = 0.5; 
 		 if (min_fg_disp > 0.0) {
 			 boolean [] select_ers = selectERS(
 					 measured_dsxy, // double  [][] measured_dsxy,
@@ -283,10 +284,62 @@ public class ExtrinsicAdjustment {
 					 this.weights, // double []    weights, // will be updated
 					 select_ers, // boolean []   fg,
 					 min_num_fg, // int          min_num_fg,
-					 fb_boost_fraction); // double       fg_boost_fraction)
+					 fg_boost_fraction); // double       fg_boost_fraction)
 		 }
-		 
-		 
+		 double max_ers_disparity = 175.0;
+		 limitDisparity(
+				 measured_dsxy, // double  [][] measured_dsxy,
+				 this.weights, // double []    weights, // will be updated 
+				 max_ers_disparity); // double max_disparity
+		 // remove moving objects here		 
+		 if (debugLevel > -10) { // temporary
+			 dbgYminusFxWeight(
+					 this.last_ymfx,
+					 this.weights, // will use current weights
+					 "Initial y-fX");
+			 double [][] ers_tilt_az = getMovingObjects(
+					 corr_vector, // GeometryCorrection.CorrVector corr_vector,
+					 null ); // double [] fx
+			 showMovingObjects(
+					 "Moving_objects", // String      title,
+					 ers_tilt_az);
+			 double moving_sigma = 1.0;
+
+			 double [] ers_blured = showMovingObjects(
+					 "Moving_objects_sigma"+moving_sigma, // String      title,
+					 ers_tilt_az,
+					 moving_sigma, // double sigmaX,
+					 0.01); // double accuracy
+			 System.out.println("Moving objects");
+
+			 double mov_avg = 0.0;
+			 int clusters = clustersX * clustersY;
+			 for (int cluster = 0; cluster < clusters; cluster++) {
+				 if (!Double.isNaN(ers_blured[cluster])) mov_avg += ers_blured[cluster];
+			 }
+			 mov_avg /= clusters;
+			 System.out.println("Average moving object detection value = "+mov_avg+
+					 " (use to abandon detection if too high?");
+//			 double min_l2 = 1.0 * mov_avg; 
+			 double min_l2 = 1.0 * mov_avg; 
+			 boolean [] moving_maybe =  extractMovingObjects(
+					 "Moving_objects_filtering", //  String    title,
+					 ers_blured, //double [] ers_blured, // has NaNs
+					 min_l2, // double min_l2); // minimal value (can use average or fraction of it?
+					 4, // int       shrink, // prevents growing outer border (==4)
+					 2); // int       grow) { // located moving areas
+
+			 int num_moving = 0;
+			 for (int cluster = 0; cluster < clusters; cluster++) {
+				 if (moving_maybe[cluster]) num_moving++;
+			 }
+			 System.out.println("Number of clusters to remove from LMA fitting = "+num_moving);
+			 System.out.println();
+			 blockSelectedClusters(
+					 measured_dsxy, // double  [][] measured_dsxy,
+					 this.weights, // double []    weights, // will be updated
+					 moving_maybe); // 	boolean []   prohibit
+		 }
 
 		 double lambda = 0.1;
 		 double lambda_scale_good = 0.5;
@@ -606,6 +659,78 @@ public class ExtrinsicAdjustment {
 		return;
 	}
 	
+	private void limitDisparity(
+			double  [][] measured_dsxy,
+			double []    weights,
+			double max_disparity
+			) {
+		double sw =  0.0;
+		double sw_near = 0.0;
+		int clusters = clustersX * clustersY;
+		for (int cluster = 0; cluster < clusters; cluster++) if (measured_dsxy[cluster] != null){
+			double disparity = measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DISP];
+			if (disparity <= max_disparity) {
+				for (int i = 0; i < POINTS_SAMPLE; i++) {
+					sw_near += weights[cluster * POINTS_SAMPLE + i];
+				}
+			}
+			for (int i = 0; i < POINTS_SAMPLE; i++) {
+				sw += weights[cluster * POINTS_SAMPLE + i];
+			}
+		}
+		
+		if (sw_near > 0.0) {
+			double wboost = sw/sw_near;
+			for (int cluster = 0; cluster < clusters; cluster++) if (measured_dsxy[cluster] != null){
+				double disparity = measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DISP];
+				if (disparity <= max_disparity) {
+					for (int i = 0; i < POINTS_SAMPLE; i++) {
+						weights[cluster * POINTS_SAMPLE + i] *= wboost;
+					}
+				} else {
+					for (int i = 0; i < POINTS_SAMPLE; i++) {
+						weights[cluster * POINTS_SAMPLE + i] = 0;
+					}
+				}
+			}
+		}
+	}
+	
+	private void blockSelectedClusters(
+			double  [][] measured_dsxy,
+			double  []   weights,
+			boolean []   prohibit
+			) {
+		double sw =  0.0;
+		double sw_en = 0.0;
+		int clusters = clustersX * clustersY;
+		for (int cluster = 0; cluster < clusters; cluster++) if (measured_dsxy[cluster] != null){
+			if (!prohibit[cluster]) {
+				for (int i = 0; i < POINTS_SAMPLE; i++) {
+					sw_en += weights[cluster * POINTS_SAMPLE + i];
+				}
+			}
+			for (int i = 0; i < POINTS_SAMPLE; i++) {
+				sw += weights[cluster * POINTS_SAMPLE + i];
+			}
+		}
+		
+		if (sw_en > 0.0) {
+			double wboost = sw/sw_en;
+			for (int cluster = 0; cluster < clusters; cluster++) if (measured_dsxy[cluster] != null){
+				if (!prohibit[cluster]) {
+					for (int i = 0; i < POINTS_SAMPLE; i++) {
+						weights[cluster * POINTS_SAMPLE + i] *= wboost;
+					}
+				} else {
+					for (int i = 0; i < POINTS_SAMPLE; i++) {
+						weights[cluster * POINTS_SAMPLE + i] = 0;
+					}
+				}
+			}
+		}
+
+	}
 	
 	
 	private double [] getWeights(
@@ -683,31 +808,36 @@ public class ExtrinsicAdjustment {
 		Matrix [][] deriv_rots = corr_vector.getRotDeriveMatrices();
 		double [] imu = corr_vector.getIMU(); // i)
 		double [] y_minus_fx = new double  [clusters * POINTS_SAMPLE];
-		for (int cluster = 0; cluster < clusters;  cluster++) if (measured_dsxy[cluster] != null){
-			if ((cluster == 1735 ) || (cluster==1736)){
-				System.out.print("");
+		for (int cluster = 0; cluster < clusters;  cluster++) {
+//			if ((cluster == 1892) || (cluster == 1894) ||(cluster == 3205)) {
+//				System.out.println("getFx() cluster="+cluster);
+//			}
+			if (measured_dsxy[cluster] != null){
+//				if ((cluster == 1735 ) || (cluster==1736)){
+//					System.out.print("");
+//				}
+				double [] ddnd = geometryCorrection.getPortsDDNDAndDerivativesNew( // USED in lwir
+						geometryCorrection,     // GeometryCorrection gc_main,
+						use_rig_offsets,        // boolean     use_rig_offsets,
+						corr_rots,              // Matrix []   rots,
+						deriv_rots,             // Matrix [][] deriv_rots,
+						null,                   // double [][] DDNDderiv,     // if not null, should be double[8][]
+						pY_offset[cluster],     // double []   py_offset,  // array of per-port average pY offset from the center (to correct ERS) or null (for no ERS)
+						imu,                    // double []   imu,
+						x0y0[cluster],          // double []   pXYND0,        // per-port non-distorted coordinates corresponding to the correlation measurements
+						world_xyz[cluster],     // double []   xyz, // world XYZ for ERS correction
+						measured_dsxy[cluster][ExtrinsicAdjustment.INDX_PX + 0],  // double      px,
+						measured_dsxy[cluster][ExtrinsicAdjustment.INDX_PX + 1],  // double      py,
+						measured_dsxy[cluster][ExtrinsicAdjustment.INDX_TARGET]); // double      disparity);
+				//arraycopy(Object src, int srcPos, Object dest, int destPos, int length)
+				//		    System.arraycopy(src_pixels, 0, dst_pixels, 0, src_pixels.length); /* for the borders closer to 1/2 kernel size*/
+				ddnd[0] = ddnd[0]; // ?
+				for (int i = 0; i < NUM_SENSORS; i++) {
+					ddnd[i + 1] = ddnd[i + 1];
+					ddnd[i + 5] = ddnd[i + 5];
+				}
+				System.arraycopy(ddnd, 0, y_minus_fx, cluster*POINTS_SAMPLE, POINTS_SAMPLE);
 			}
-			double [] ddnd = geometryCorrection.getPortsDDNDAndDerivativesNew( // USED in lwir
-					geometryCorrection,     // GeometryCorrection gc_main,
-					use_rig_offsets,        // boolean     use_rig_offsets,
-					corr_rots,              // Matrix []   rots,
-					deriv_rots,             // Matrix [][] deriv_rots,
-					null,                   // double [][] DDNDderiv,     // if not null, should be double[8][]
-					pY_offset[cluster],     // double []   py_offset,  // array of per-port average pY offset from the center (to correct ERS) or null (for no ERS)
-					imu,                    // double []   imu,
-					x0y0[cluster],          // double []   pXYND0,        // per-port non-distorted coordinates corresponding to the correlation measurements
-					world_xyz[cluster],     // double []   xyz, // world XYZ for ERS correction
-					measured_dsxy[cluster][ExtrinsicAdjustment.INDX_PX + 0],  // double      px,
-					measured_dsxy[cluster][ExtrinsicAdjustment.INDX_PX + 1],  // double      py,
-					measured_dsxy[cluster][ExtrinsicAdjustment.INDX_TARGET]); // double      disparity);
-			//arraycopy(Object src, int srcPos, Object dest, int destPos, int length)
-            //		    System.arraycopy(src_pixels, 0, dst_pixels, 0, src_pixels.length); /* for the borders closer to 1/2 kernel size*/
-			ddnd[0] = ddnd[0]; // ?
-			for (int i = 0; i < NUM_SENSORS; i++) {
-				ddnd[i + 1] = ddnd[i + 1];
-				ddnd[i + 5] = ddnd[i + 5];
-			}
-			System.arraycopy(ddnd, 0, y_minus_fx, cluster*POINTS_SAMPLE, POINTS_SAMPLE);
 		}
 		return y_minus_fx;
 	}
@@ -751,7 +881,7 @@ public class ExtrinsicAdjustment {
 			double delta,
 			boolean graphic) {
 //		delta *= 0.1;
-		int gap = 10; //pix
+		int gap = 10+0; //pix
 		int clusters = clustersX * clustersY;
 		int num_pars = getNumPars();
 		String [] titles = getSymNames();
@@ -902,10 +1032,168 @@ public class ExtrinsicAdjustment {
 				titles);
 	}
 
+	private double [][] getMovingObjects(
+			GeometryCorrection.CorrVector corr_vector,
+			double [] fx // or null;
+			) {
+		int ers_tilt_index =    GeometryCorrection.CorrVector.IMU_INDEX;
+		int ers_azimuth_index = GeometryCorrection.CorrVector.IMU_INDEX + 1;
+		int clusters = clustersX * clustersY;
+		double [][] ers_tilt_az = new double [clusters][];
+		double [][] jt = getJacobianTransposed(corr_vector);
+		for (int cluster = 0; cluster < clusters; cluster++) if ( measured_dsxy[cluster] != null) {
+			ers_tilt_az[cluster] = new double [2];
+			for (int i = 0; i < (POINTS_SAMPLE-1); i++) {
+				int indx = cluster * POINTS_SAMPLE + i + 1; // skipping disparity
+				double d = measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + i];
+				if (fx != null) {
+					d += fx[indx];
+				}
+				ers_tilt_az[cluster][0] += d * jt[ers_tilt_index][indx];
+				ers_tilt_az[cluster][1] += d * jt[ers_azimuth_index][indx];
+			}
+		}
+		return ers_tilt_az;
+	}
+
+	private void showMovingObjects(
+			String      title,
+			double [][] ers_tilt_az) {
+		showMovingObjects(
+				title,
+				ers_tilt_az,
+				0, // double sigma,
+				0);
+	}
+
+	private double [] showMovingObjects(
+			String      title,
+			double [][] ers_tilt_az,
+			double sigma,
+			double accuracy
+			)
+	{
+		int clusters = clustersX * clustersY;
+		
+		String [] titles = {"vert", "hor", "amplitude"};
+		double [][] dbg_img = new double [titles.length][clusters];
+		double max_reasonable = 100.0;
+		for (int cluster = 0; cluster < clusters; cluster++) {
+			if (ers_tilt_az[cluster] != null) {
+				dbg_img[0][cluster] = ers_tilt_az[cluster][0];
+				dbg_img[1][cluster] = ers_tilt_az[cluster][1];
+				dbg_img[2][cluster] = Math.sqrt(0.5*(ers_tilt_az[cluster][0]*ers_tilt_az[cluster][0] + ers_tilt_az[cluster][1]*ers_tilt_az[cluster][1]));
+				if (dbg_img[2][cluster] > max_reasonable) {
+					dbg_img[0][cluster] = Double.NaN;
+					dbg_img[1][cluster] = Double.NaN;
+					dbg_img[2][cluster] = Double.NaN;
+				}
+			} else {
+				dbg_img[0][cluster] = Double.NaN;
+				dbg_img[1][cluster] = Double.NaN;
+				dbg_img[2][cluster] = Double.NaN;
+			}
+		}
+		
+		if (sigma > 0.0){
+			double [] cluster_weights = new double [clusters];
+			for (int cluster = 0; cluster < clusters; cluster++) {
+				for (int i = 0; i < POINTS_SAMPLE; i++) {
+					cluster_weights[cluster] += this.weights[cluster * POINTS_SAMPLE + i];
+				}
+			}
+			for (int i = 0; i < dbg_img.length; i++) {
+				dbg_img[i] = (new DoubleGaussianBlur()).blurWithNaN(
+						dbg_img[i], // double[] pixels,
+						cluster_weights, // null, // double [] in_weight, // or null
+						clustersX,// int width,
+						clustersY,// int height,
+						sigma, // double sigmaX,
+						sigma, // double sigmaY,
+						0.01); // double accuracy
+			}
+		}
+		
+		(new ShowDoubleFloatArrays()).showArrays(
+				dbg_img,
+				clustersX,
+				clustersY,
+				true,
+				title,
+				titles);
+		return dbg_img[2]; 
+
+	}
+	
+	public boolean [] extractMovingObjects(
+			String    title,
+			double [] ers_blured, // has NaNs
+			double    min_l2, // minimal value (can use average or fraction of it?
+			int       shrink, // prevents growing outer border (==4)
+			int       grow) { // located moving areas
+		int clusters = clustersX * clustersY;
+		TileNeibs tn = new TileNeibs(clustersX, clustersY);
+		boolean [] terrain = new boolean[clusters];
+		for (int i = 0; i < clusters; i++) {
+			terrain[i] = ers_blured[i] <= min_l2; // NaNs not included
+		}
+		// find largest terrain area
+		int [] iterrains = tn. enumerateClusters(
+				terrain, // boolean [] tiles,
+				true); //boolean ordered)
+		boolean [] terrain_main = new boolean[clusters];
+		for (int i = 0; i < clusters; i++) {
+			terrain_main[i] = (iterrains[i] == 1); // largest cluster
+		}
+		
+		boolean [] filled = tn.fillConcave(terrain_main);
+		
+		tn.shrinkSelection(
+				 shrink, // int        shrink,
+					filled, // boolean [] tiles,
+					null); // boolean [] prohibit)
+		boolean [] moving = filled.clone();
+		for (int i = 0; i < clusters; i++) {
+			moving[i] &= !terrain_main[i]; 
+		}
+		boolean [] grown = moving.clone();
+		tn.growSelection(
+				grow, // int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				grown, // boolean [] tiles,
+				null); // boolean [] prohibit)
+		if (title != null) {
+			String [] titles = {"terrain","clusters","main_terrain","filled","moving","grown"};
+			double [][] dbg_img = new double [titles.length][clusters];
+			for (int cluster = 0; cluster < clusters; cluster++) {
+				dbg_img[0][cluster] = terrain[cluster]? 1.0 : 0.0;
+				dbg_img[1][cluster] = iterrains[cluster];
+				dbg_img[2][cluster] = terrain_main[cluster]? 1.0 : 0.0;
+				dbg_img[3][cluster] = filled[cluster]? 1.0 : 0.0;
+				dbg_img[4][cluster] = moving[cluster]? 1.0 : 0.0;
+				dbg_img[5][cluster] = grown[cluster]? 1.0 : 0.0;
+			}
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_img,
+					clustersX,
+					clustersY,
+					true,
+					title,
+					titles);
+		}
+		return grown;
+	}
+	
+	
+	
+	
+	
 	private void dbgYminusFxWeight(
 			double []   fx,
 			double []   weights,
 			String title) {
+		if (fx == null) {
+			fx = new double [weights.length];
+		}
 		int gap = 10; //pix
 		int clusters = clustersX * clustersY;
 		String [] titles = {"Y", "-fX", "Y+fx", "Weight", "W*(Y+fx)", "Masked Y+fx"};
@@ -979,23 +1267,33 @@ public class ExtrinsicAdjustment {
 		double [][] xy = getXYNondistorted(corr_vector, false);
 
 		double [][] dbg_img = new double [3][width*height];
-		for (int mode = 0; mode < 2 * NUM_SENSORS; mode++) {
+		double [][] moving_objects = new double [3][clusters];
+		for (int mode = 0; mode < 2 * NUM_SENSORS + 1; mode++) {
 			int x0 = (mode % 3) * (clustersX + gap);
 			int y0 = (mode / 3) * (clustersY + gap);
 			for (int cluster = 0; cluster < clusters;  cluster++) {
 				int x = x0 + (cluster % clustersX);
 				int y = y0 + (cluster / clustersX);
 				int pix = x + y * width;
-//				int indx = cluster * POINTS_SAMPLE + mode;
 				if (measured_dsxy[cluster] != null){
+					if (mode < (2 * NUM_SENSORS)) {
 						dbg_img[0][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_X0+mode];
 						dbg_img[1][pix] =  xy[cluster][mode] - x0y0[cluster][mode];
-						dbg_img[2][pix] =  xy[cluster][mode] - x0y0[cluster][mode] - measured_dsxy[cluster][ExtrinsicAdjustment.INDX_X0+mode];
+						dbg_img[2][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_X0+mode] - (xy[cluster][mode] - x0y0[cluster][mode]);
+						moving_objects[0][cluster] += dbg_img[0][pix]*dbg_img[0][pix];
+						moving_objects[1][cluster] += dbg_img[1][pix]*dbg_img[0][pix];
+						moving_objects[2][cluster] += dbg_img[2][pix]*dbg_img[0][pix];
+					} else {
+						dbg_img[0][pix] = Math.sqrt(moving_objects[0][cluster]/(2 * NUM_SENSORS));
+						dbg_img[1][pix] = Math.sqrt(moving_objects[0][cluster]/(2 * NUM_SENSORS));
+						dbg_img[2][pix] = Math.sqrt(moving_objects[0][cluster]/(2 * NUM_SENSORS));
+					}
 				} else {
 					dbg_img[ 0][pix] =  Double.NaN;
 					dbg_img[ 1][pix] =  Double.NaN;
 					dbg_img[ 2][pix] =  Double.NaN;
 				}
+
 			}
 		}
 		(new ShowDoubleFloatArrays()).showArrays(
@@ -1005,6 +1303,7 @@ public class ExtrinsicAdjustment {
 				true,
 				title,
 				titles);
+		System.out.println("dbgXY() DONE");
 	}
 
 
@@ -1176,15 +1475,53 @@ public class ExtrinsicAdjustment {
 //					this.last_jt); // double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
 			this.last_jt =  getJacobianTransposed(corr_vector); // new double [num_pars][num_points];
 			this.last_ymfx = getFx(corr_vector);
-
-			if (debug_level > 2) {
+			if (debug_level > -10) { // temporary
 				dbgYminusFxWeight(
 						this.last_ymfx,
 						this.weights,
-						"Initial y-fX");
-//				dbgYminusFx(this.last_ymfx, "Initial y-fX");
-			}
+						"Initial_y-fX_after_moving_objects");
+				
+				/*
+				double [][] ers_tilt_az = getMovingObjects(
+						corr_vector, // GeometryCorrection.CorrVector corr_vector,
+						null ); // double [] fx
+				showMovingObjects(
+						"Moving_objects", // String      title,
+						ers_tilt_az);
+				double moving_sigma = 1.0;
+				
+				double [] ers_blured = showMovingObjects(
+						"Moving_objects_sigma"+moving_sigma, // String      title,
+						ers_tilt_az,
+						moving_sigma, // double sigmaX,
+						0.01); // double accuracy
+				System.out.println("Moving objects");
+				
+				double mov_avg = 0.0;
+				int clusters = clustersX * clustersY;
+				for (int cluster = 0; cluster < clusters; cluster++) {
+					if (!Double.isNaN(ers_blured[cluster])) mov_avg += ers_blured[cluster];
+				}
+				mov_avg /= clusters;
+				System.out.println("Average moving object detection value = "+mov_avg+
+						" (use to abandon detection if too high?");
+				double min_l2 = 1.0 * mov_avg; 
+				boolean [] moving_maybe =  extractMovingObjects(
+						"Moving_objects_filtering", //  String    title,
+						ers_blured, //double [] ers_blured, // has NaNs
+						min_l2, // double min_l2); // minimal value (can use average or fraction of it?
+						4, // int       shrink, // prevents growing outer border (==4)
+						2); // int       grow) { // located moving areas
 
+				int num_moving = 0;
+				for (int cluster = 0; cluster < clusters; cluster++) {
+					if (moving_maybe[cluster]) num_moving++;
+				}
+				System.out.println("Number of clusters to remove from LMA fitting = "+num_moving);
+				System.out.println();
+				*/
+				
+			}
 
 			if (last_ymfx == null) {
 				return null; // need to re-init/restart LMA
