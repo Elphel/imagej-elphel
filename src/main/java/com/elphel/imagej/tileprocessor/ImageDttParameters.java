@@ -128,6 +128,7 @@ public class ImageDttParameters {
 	public double  lmas_max_rel_rms =        0.3;   // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 	public double  lmas_min_strength =       0.7;   // minimal composite strength (sqrt(average amp squared over absolute RMS)
 	public double  lmas_min_ac =             0.02;  // minimal of a and C coefficients maximum (measures sharpest point/line)
+	public double  lmas_min_min_ac =         0.007; // minimal of a and C coefficients minimum (measures sharpest point)
 	public double  lmas_max_area =           0.0;  // maximal half-area (if > 0.0)
 
 	public boolean lma_gaussian =           false; // model correlation maximum as a Gaussian (false - as a parabola)
@@ -163,10 +164,11 @@ public class ImageDttParameters {
 	public double  lma_rms_diff =           0.003; //
 	public int     lma_num_iter =          10;     //
 	// Filtering and strength calculation
-	public double  lma_max_rel_rms =        0.2;  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
-	public double  lma_min_strength =       1.0;  // minimal composite strength (sqrt(average amp squared over absolute RMS)
+	public double  lma_max_rel_rms =        0.25;  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
+	public double  lma_min_strength =       1.0;   // minimal composite strength (sqrt(average amp squared over absolute RMS)
 	public double  lma_min_ac =             0.05;  // minimal of a and C coefficients maximum (measures sharpest point/line)
-	public double  lma_max_area =           45.0;  // maximal half-area (if > 0.0)
+	public double  lma_min_min_ac =         0.015; // minimal of a and C coefficients minimum (measures sharpest point)
+	public double  lma_max_area =           30.0;  //45.0;  // maximal half-area (if > 0.0)
 
 	public double  lma_str_scale =          0.2;   // convert lma-generated strength to match previous ones - scale
 	public double  lma_str_offset =         0.05;  // convert lma-generated strength to match previous ones - add to result
@@ -388,6 +390,8 @@ public class ImageDttParameters {
 		            "Discard tile if composite strength (average amplitude over SQRT of RMS) is below");
 		    gd.addNumericField("Minimal max (A,C)",                                               this.lmas_min_ac,  6, 8, "",
 		            "Minimal value of max (A,C) coefficients to keep the tile (measures sharpest point/line correlation maximum)");
+			gd.addNumericField("Minimal min (A,C)",                                               this.lmas_min_min_ac,  6, 8, "",
+					"Minimal value of min (A,C) coefficients to keep the tile (measures sharpest point correlation maximum)");
 		    gd.addNumericField("Maximal area",                                                    this.lmas_max_area,  6, 8, "sq.pix",
 		            "Maximal product of maximum half-width by half-height, ignore check if <=0");
 
@@ -453,6 +457,8 @@ public class ImageDttParameters {
 					"Discard tile if composite strength (average amplitude over SQRT of RMS) is below");
 			gd.addNumericField("Minimal max (A,C)",                                               this.lma_min_ac,  6, 8, "",
 					"Minimal value of max (A,C) coefficients to keep the tile (measures sharpest point/line correlation maximum)");
+			gd.addNumericField("Minimal min (A,C)",                                               this.lma_min_min_ac,  6, 8, "",
+					"Minimal value of min (A,C) coefficients to keep the tile (measures sharpest point correlation maximum)");
 			gd.addNumericField("Maximal area",                                                    this.lma_max_area,  6, 8, "sq.pix",
 					"Maximal product of maximum half-width by half-height, ignore check if <=0");
 
@@ -605,6 +611,7 @@ public class ImageDttParameters {
 			this.lmas_max_rel_rms =      gd.getNextNumber();
 			this.lmas_min_strength =     gd.getNextNumber();
 			this.lmas_min_ac =           gd.getNextNumber();
+			this.lmas_min_min_ac =           gd.getNextNumber();
 			this.lmas_max_area =         gd.getNextNumber();
 
 			this.lma_gaussian=           gd.getNextBoolean();
@@ -638,6 +645,7 @@ public class ImageDttParameters {
 			this.lma_max_rel_rms =       gd.getNextNumber();
 			this.lma_min_strength =      gd.getNextNumber();
 			this.lma_min_ac =            gd.getNextNumber();
+			this.lma_min_min_ac =        gd.getNextNumber();
 			this.lma_max_area =          gd.getNextNumber();
 
 			this.lma_str_scale =         gd.getNextNumber();
@@ -754,6 +762,7 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"lmas_max_rel_rms",     this.lmas_max_rel_rms +"");
 		properties.setProperty(prefix+"lmas_min_strength",    this.lmas_min_strength +"");
 		properties.setProperty(prefix+"lmas_min_ac",          this.lmas_min_ac +"");
+		properties.setProperty(prefix+"lmas_min_min_ac",      this.lmas_min_min_ac +"");
 		properties.setProperty(prefix+"lmas_max_area",        this.lmas_max_area +"");
 
 		properties.setProperty(prefix+"lma_gaussian",         this.lma_gaussian +"");
@@ -788,6 +797,7 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"lma_max_rel_rms",      this.lma_max_rel_rms +"");
 		properties.setProperty(prefix+"lma_min_strength",     this.lma_min_strength +"");
 		properties.setProperty(prefix+"lma_min_ac",           this.lma_min_ac +"");
+		properties.setProperty(prefix+"lma_min_min_ac",       this.lma_min_min_ac +"");
 		properties.setProperty(prefix+"lma_max_area",         this.lma_max_area +"");
 		properties.setProperty(prefix+"lma_str_scale",        this.lma_str_scale +"");
 		properties.setProperty(prefix+"lma_str_offset",       this.lma_str_offset +"");
@@ -909,6 +919,7 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"lmas_max_rel_rms")!=null)     this.lmas_max_rel_rms=Double.parseDouble(properties.getProperty(prefix+"lmas_max_rel_rms"));
 		if (properties.getProperty(prefix+"lmas_min_strength")!=null)    this.lmas_min_strength=Double.parseDouble(properties.getProperty(prefix+"lmas_min_strength"));
 		if (properties.getProperty(prefix+"lmas_min_ac")!=null)          this.lmas_min_ac=Double.parseDouble(properties.getProperty(prefix+"lmas_min_ac"));
+		if (properties.getProperty(prefix+"lmas_min_min_ac")!=null)      this.lmas_min_min_ac=Double.parseDouble(properties.getProperty(prefix+"lmas_min_min_ac"));
 		if (properties.getProperty(prefix+"lmas_max_area")!=null)        this.lmas_max_area=Double.parseDouble(properties.getProperty(prefix+"lmas_max_area"));
 
 		if (properties.getProperty(prefix+"lma_gaussian")!=null)         this.lma_gaussian=Boolean.parseBoolean(properties.getProperty(prefix+"lma_gaussian"));
@@ -941,6 +952,7 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"lma_max_rel_rms")!=null)      this.lma_max_rel_rms=Double.parseDouble(properties.getProperty(prefix+"lma_max_rel_rms"));
 		if (properties.getProperty(prefix+"lma_min_strength")!=null)     this.lma_min_strength=Double.parseDouble(properties.getProperty(prefix+"lma_min_strength"));
 		if (properties.getProperty(prefix+"lma_min_ac")!=null)           this.lma_min_ac=Double.parseDouble(properties.getProperty(prefix+"lma_min_ac"));
+		if (properties.getProperty(prefix+"lma_min_min_ac")!=null)       this.lma_min_min_ac=Double.parseDouble(properties.getProperty(prefix+"lma_min_min_ac"));
 		if (properties.getProperty(prefix+"lma_max_area")!=null)         this.lma_max_area=Double.parseDouble(properties.getProperty(prefix+"lma_max_area"));
 		if (properties.getProperty(prefix+"lma_str_scale")!=null)        this.lma_str_scale=Double.parseDouble(properties.getProperty(prefix+"lma_str_scale"));
 		if (properties.getProperty(prefix+"lma_str_offset")!=null)       this.lma_str_offset=Double.parseDouble(properties.getProperty(prefix+"lma_str_offset"));
@@ -1059,6 +1071,7 @@ public class ImageDttParameters {
 		idp.lmas_max_rel_rms=        this.lmas_max_rel_rms;
 		idp.lmas_min_strength=       this.lmas_min_strength;
 		idp.lmas_min_ac=             this.lmas_min_ac;
+		idp.lmas_min_min_ac=         this.lmas_min_min_ac;
 		idp.lmas_max_area=           this.lmas_max_area;
 
 		idp.lma_gaussian =           this.lma_gaussian;
@@ -1091,6 +1104,7 @@ public class ImageDttParameters {
 		idp.lma_max_rel_rms=         this.lma_max_rel_rms;
 		idp.lma_min_strength=        this.lma_min_strength;
 		idp.lma_min_ac=              this.lma_min_ac;
+		idp.lma_min_min_ac=          this.lma_min_min_ac;
 		idp.lma_max_area=            this.lma_max_area;
 		idp.lma_str_scale=           this.lma_str_scale;
 		idp.lma_str_offset=          this.lma_str_offset;

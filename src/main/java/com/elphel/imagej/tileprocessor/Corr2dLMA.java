@@ -1460,10 +1460,12 @@ public class Corr2dLMA {
 		return rslt;
 	}
 
-	public double [][] lmaDisparityStrength(
+	
+	public double [][] lmaDisparityStrength( // restored from git
 			double  lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 			double  lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 			double  lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+			double  lma_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
 			double  lma_max_area,     // maximal half-area (if > 0.0)
 			double  lma_str_scale,    // convert lma-generated strength to match previous ones - scale
 			double  lma_str_offset    // convert lma-generated strength to match previous ones - add to result
@@ -1505,6 +1507,179 @@ public class Corr2dLMA {
 		}
 		return ds;
 	}
+
+
+	
+	public double [][] lmaDisparityStrength0(
+			double  lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
+			double  lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
+			double  lma_min_max_ac,   // minimal of A and C coefficients maximum (measures sharpest point/line)
+			double  lma_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
+			double  lma_max_area,     // maximal half-area (if > 0.0)
+			double  lma_str_scale,    // convert lma-generated strength to match previous ones - scale
+			double  lma_str_offset    // convert lma-generated strength to match previous ones - add to result
+			){
+		double [][] ds =         new double[numTiles][2];
+		double []   rms =        getRmsTile();
+		double [][] maxmin_amp = getMaxMinAmpTile();
+		double [][] abc =        getABCTile();
+		for (int tile = 0; tile < numTiles; tile++) {
+			ds[tile][0] = Double.NaN;
+			if (Double.isNaN(maxmin_amp[tile][0])) {
+				continue;
+			}
+			double avg = 0.5*(maxmin_amp[tile][0]+maxmin_amp[tile][1]);
+			double rrms = rms[tile]/avg;
+			if (((lma_max_rel_rms > 0.0) && (rrms > lma_max_rel_rms)) ||
+					(Math.max(abc[tile][0], abc[tile][2]) < lma_min_max_ac)
+//					|| (Math.min(abc[tile][0], abc[tile][2]) < lma_min_min_ac)
+					) {
+				continue;
+			}
+			if (lma_max_area > 0) {
+				if ((abc[tile][0] > 0.0) && (abc[tile][2] > 0.0)) {
+//					double area_old = 1.0/abc[tile][0] + 1.0/abc[tile][2]; // area of a maximum
+					double area =  1.0/Math.sqrt(abc[tile][0] * abc[tile][2]);
+					if (area > lma_max_area) {
+						continue; // too wide maximum
+					}
+				} else {
+					continue; // not a maximum
+				}
+
+
+			}
+			double strength = Math.sqrt(avg/rrms);
+			double disparity = -all_pars[DISP_INDEX + tile*TILE_PARAMS];
+			if ((strength < lma_min_strength) || Double.isNaN(disparity)) {
+				continue;
+			}
+//			strength = Math.sqrt(strength * Math.sqrt(abc[tile][0] * abc[tile][2])); // / area ); // new strength
+			ds[tile][0] = disparity;
+			ds[tile][1] = (strength * lma_str_scale) + lma_str_offset;
+		}
+		return ds;
+	}
+	
+	public double [][] lmaDisparityStrengthLY(
+			double  lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
+			double  lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
+			double  lma_min_max_ac,   // minimal of A and C coefficients maximum (measures sharpest point/line)
+			double  lma_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
+			double  lma_max_area,     // maximal half-area (if > 0.0)
+			double  lma_str_scale,    // convert lma-generated strength to match previous ones - scale
+			double  lma_str_offset    // convert lma-generated strength to match previous ones - add to result
+			){
+		double [][] ds =         new double[numTiles][2];
+		double []   rms =        getRmsTile();
+		double [][] maxmin_amp = getMaxMinAmpTile();
+		double [][] abc =        getABCTile();
+		for (int tile = 0; tile < numTiles; tile++) {
+			ds[tile][0] = Double.NaN;
+			if (Double.isNaN(maxmin_amp[tile][0])) {
+				continue;
+			}
+			double avg = 0.5*(maxmin_amp[tile][0]+maxmin_amp[tile][1]);
+			double rrms = rms[tile]/avg;
+			if (((lma_max_rel_rms > 0.0) && (rrms > lma_max_rel_rms)) ||
+					(Math.max(abc[tile][0], abc[tile][2]) < lma_min_max_ac) ||
+					(Math.min(abc[tile][0], abc[tile][2]) < lma_min_min_ac)) {
+				continue;
+			}
+			if (lma_max_area > 0) {
+				if ((abc[tile][0] > 0.0) && (abc[tile][2] > 0.0)) {
+//					double area_old = 1.0/abc[tile][0] + 1.0/abc[tile][2]; // area of a maximum
+					double area =  1.0/Math.sqrt(abc[tile][0] * abc[tile][2]);
+					if (area > lma_max_area) {
+						continue; // too wide maximum
+					}
+				} else {
+					continue; // not a maximum
+				}
+
+
+			}
+			double strength = Math.sqrt(avg/rrms);
+			double disparity = -all_pars[DISP_INDEX + tile*TILE_PARAMS];
+			if ((strength < lma_min_strength) || Double.isNaN(disparity)) {
+				continue;
+			}
+			strength = Math.sqrt(strength * Math.sqrt(abc[tile][0] * abc[tile][2])); // / area ); // new strength
+			ds[tile][0] = disparity;
+			ds[tile][1] = (strength * lma_str_scale) + lma_str_offset;
+		}
+		return ds;
+	}
+	
+	
+	
+	public double [][] lmaGetExtendedStats(
+			double  lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
+			double  lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
+			double  lma_min_max_ac,   // minimal of A and C coefficients maximum (measures sharpest point/line)
+			double  lma_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
+			double  lma_max_area,     // maximal half-area (if > 0.0)
+			double  lma_str_scale,    // convert lma-generated strength to match previous ones - scale
+			double  lma_str_offset    // convert lma-generated strength to match previous ones - add to result
+			){
+//		double [][] ds =         new double[numTiles][2];
+		double [][] ext_stats =  new double[numTiles][11];
+		double []   rms =        getRmsTile();
+		double [][] maxmin_amp = getMaxMinAmpTile();
+		double [][] abc =        getABCTile();
+		for (int tile = 0; tile < numTiles; tile++) {
+			if (Double.isNaN(maxmin_amp[tile][0])) {
+				if (ext_stats[tile][10] == 0) ext_stats[tile][10] = 1;
+			}
+			ext_stats[tile][0] = maxmin_amp[tile][0];
+
+			double avg = 0.5*(maxmin_amp[tile][0]+maxmin_amp[tile][1]);
+			double rrms = rms[tile]/avg;
+			ext_stats[tile][1] = avg;
+			ext_stats[tile][2] = rrms; // -lma_max_rel_rms;
+//			ext_stats[tile][3] = Math.max(abc[tile][0], abc[tile][2])-lma_min_ac;
+			
+			if (((lma_max_rel_rms > 0.0) && (rrms > lma_max_rel_rms)) ||
+					(Math.max(abc[tile][0], abc[tile][2]) < lma_min_max_ac) ||
+					(Math.min(abc[tile][0], abc[tile][2]) < lma_min_min_ac)) {
+				if (ext_stats[tile][10] == 0) ext_stats[tile][10] = 2;
+//				continue;
+			}
+			double area =  Double.NaN;
+			double area_old = Double.NaN;
+			if (lma_max_area > 0) {
+				ext_stats[tile][5] = abc[tile][0];
+				ext_stats[tile][6] = abc[tile][2];
+
+				if ((abc[tile][0] > 0.0) && (abc[tile][2] > 0.0)) {
+					area_old = 1.0/abc[tile][0] + 1.0/abc[tile][2]; // area of a maximum
+					area =  1.0/Math.sqrt(abc[tile][0] * abc[tile][2]);
+					if (area > lma_max_area) {
+						if (ext_stats[tile][10] == 0) ext_stats[tile][10] = 3;
+//						continue; // too wide maximum
+					}
+				} else {
+					if (ext_stats[tile][10] == 0) ext_stats[tile][10] = 4;
+//					continue; // not a maximum
+				}
+				ext_stats[tile][7] = 1.0/area; // area-lma_max_area;
+				ext_stats[tile][4] = 1.0/area_old;
+			}
+			double strength = Math.sqrt(avg/rrms);
+			ext_stats[tile][9] = (strength * lma_str_scale) + lma_str_offset;
+			ext_stats[tile][3] = Math.sqrt(strength / area ); // new strength
+			double disparity = -all_pars[DISP_INDEX + tile*TILE_PARAMS];
+			if ((strength < lma_min_strength) || Double.isNaN(disparity)) {
+				if (ext_stats[tile][10] == 0) ext_stats[tile][10] = 5;
+				continue;
+			}
+			
+			ext_stats[tile][8] = -all_pars[DISP_INDEX + tile*TILE_PARAMS];
+			if (ext_stats[tile][10] == 0) ext_stats[tile][10] = 6;
+		}
+		return ext_stats;
+	}
+//			ext_stats[tile][3] = Math.max(abc[tile][0], abc[tile][2])-lma_min_ac;
 
 	public double [][] getDdNd(){ // this.all_pars should be current
 		double [][] ddnd = new double [NUM_CAMS][2];

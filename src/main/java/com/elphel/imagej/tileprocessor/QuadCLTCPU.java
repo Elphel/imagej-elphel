@@ -5894,14 +5894,21 @@ public class QuadCLTCPU {
 	  public void resetExtrinsicCorr( // not used in lwir
 			  CLTParameters           clt_parameters)
 	  {
-//		  this.extrinsic_vect = new double [GeometryCorrection.CORR_NAMES.length];
-		  this.extrinsic_vect = null;
+		  if (extrinsic_vect != null) {
+			  extrinsic_vect [GeometryCorrection.CorrVector.IMU_INDEX + 0] = 0.0;
+			  extrinsic_vect [GeometryCorrection.CorrVector.IMU_INDEX + 1] = 0.0;
+			  extrinsic_vect [GeometryCorrection.CorrVector.IMU_INDEX + 2] = 0.0;
+			  extrinsic_vect [GeometryCorrection.CorrVector.IMU_INDEX + 3] = 0.0;
+			  extrinsic_vect [GeometryCorrection.CorrVector.IMU_INDEX + 4] = 0.0;
+			  extrinsic_vect [GeometryCorrection.CorrVector.IMU_INDEX + 5] = 0.0;
+		  }
 		  if (geometryCorrection != null){
-			  geometryCorrection.resetCorrVector();
+			  geometryCorrection.resetCorrVectorERS();
 		  }
 		  if (clt_parameters.fine_corr_apply){
 			  clt_parameters.fine_corr_ignore = false;
 		  }
+		  gpuResetCorrVector();
 	  }
 
 	  public void cltDisparityScans( // not used in lwir
@@ -7650,6 +7657,11 @@ public class QuadCLTCPU {
 					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
 					  "combo_scan-"+combo_scan); //String title)
 		  }
+		  
+/*		  tp.showScan(
+				  tp.clt_3d_passes.get(bg_scan),   // CLTPass3d   scan,
+				  "bg_scan"); //String title)
+*/		  
 // combo_scan: normStrength - junk. Is it used?
 		  boolean [] bg_sel = null;
 		  boolean [] bg_use = null;
@@ -7657,7 +7669,7 @@ public class QuadCLTCPU {
 		  double [] combo_str = null;
 		  boolean [] combo_use = null;
 		  double [] combo_overexp = null;
-		  int num_combo = 0;
+		  int num_combo = 0+0 ;
 		  double [][] filtered_bgnd_disp_strength = tp.getFilteredDisparityStrength(
 				  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,// List, first, last - to search for the already tried disparity
 				  bg_scan,          // final int        measured_scan_index, // will not look at higher scans
@@ -7669,7 +7681,7 @@ public class QuadCLTCPU {
 				  ImageDtt.DISPARITY_STRENGTH_INDEX, // final int        str_index,
 				  null,                    // final double []  tiltXY,    // null - free with limit on both absolute (2.0?) and relative (0.2) values
 				  0.5, // clt_parameters.fcorr_inf_diff, // tp.getTrustedCorrelation(),//	final double     trustedCorrelation,
-				  clt_parameters.fcorr_inf_strength,     //	final double     strength_floor,
+				  clt_parameters.fcorr_inf_strength,     //	final double     strength_floor, 0.12
 				  clt_parameters.inf_str_pow,       // final double     strength_pow,
 				  clt_parameters.ly_smpl_side,           // final int        smplSide, //        = 2;      // Sample size (side of a square)
 				  clt_parameters.ly_smpl_num,            // final int        smplNum, //         = 3;      // Number after removing worst (should be >1)
@@ -7690,6 +7702,7 @@ public class QuadCLTCPU {
 		  double [] bg_overexp = tp.clt_3d_passes.get(bg_scan).getOverexposedFraction();
 		  for (int  nTile = 0 ; nTile < bg_use.length; nTile++) {
 			  if (bg_sel[nTile] &&
+////					  ((filtered_bgnd_disp_strength[1][nTile] > 0.0) || (bg_str[nTile] > 1.25 * clt_parameters.fcorr_inf_strength)) &&
 					  (filtered_bgnd_disp_strength[1][nTile] > 0.0) &&
 					  (bg_str[nTile] > clt_parameters.fcorr_inf_strength) && // 0.13
 					  ((bg_overexp == null) || (bg_overexp[nTile] < clt_parameters.lym_overexp)) //1e-4
@@ -7697,6 +7710,17 @@ public class QuadCLTCPU {
 				  bg_use[nTile] = true;
 			  }
 		  }
+		  /*
+		  // grow bg_use, but inside bg_sel;
+		  int bg_grow = 9; //2*2;
+		  tp.growTiles(
+				  bg_grow,          // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				  bg_use,      // boolean [] tiles,
+				  null);     // boolean [] prohibit)
+		  for (int  nTile = 0 ; nTile < bg_use.length; nTile++) {
+			  bg_use[nTile] &= bg_sel[nTile];
+		  }
+		  */
 		  if (true) { //!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) {
 			  String [] dbg_titles = {"fdisp", "fstr", "disp", "str", "overexp","sel","use"};
 			  double [][] ddd = {filtered_bgnd_disp_strength[0],filtered_bgnd_disp_strength[1],null,bg_str,bg_overexp, null, null};
@@ -7714,7 +7738,7 @@ public class QuadCLTCPU {
 				  "filtered_bgnd_disp_strength",dbg_titles);
 		  }
 		  int num_bg = tp.clt_3d_passes.get(bg_scan).setTileOpDisparity( // other minimal strength?
-				  bg_use, // boolean [] selection,
+				  bg_use, // bg_sel, // bg_use, // boolean [] selection, measure all that can be bg
 				  null); // double []  disparity); // null for 0
 
 		  // Prepare measurement of combo-scan - remove low strength and what was used for background
@@ -7756,7 +7780,8 @@ public class QuadCLTCPU {
 				  tp.threadsMax,  // maximal number of threads to launch
 				  false, // updateStatus,
 				  debugLevelInner - 1);
-		  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-3)) {
+////		  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-3))
+		  {
 			  tp.showScan(
 					  tp.clt_3d_passes.get(bg_scan),   // CLTPass3d   scan, badly filtered?
 					  "bg_scan_post"); //String title)
@@ -7853,8 +7878,8 @@ public class QuadCLTCPU {
 			  ac = new AlignmentCorrection(this);
 		  }
 		  // iteration steps
-		  // if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) {
-		  if (clt_parameters.show_extrinsic && (debugLevel > -1)) { // temporary
+		  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) {
+		  //if (clt_parameters.show_extrinsic && (debugLevel > -1)) { // temporary
 			  tp.showScan(
 					  tp.clt_3d_passes.get(bg_scan),   // CLTPass3d   scan,
 					  "bg_scan_post"); //String title)
@@ -7862,6 +7887,9 @@ public class QuadCLTCPU {
 					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
 					  "combo_scan-"+combo_scan+"_post"); //String title)
 		  }
+//		  tp.showScan(
+//				  tp.clt_3d_passes.get(bg_scan),   // CLTPass3d   scan,
+//				  "bg_scan_post"); //String title)
 
 
 		  double comp_diff = min_sym_update + 1; // (> min_sym_update)
@@ -7903,6 +7931,7 @@ public class QuadCLTCPU {
 				  boolean apply_extrinsic = (clt_parameters.ly_corr_scale != 0.0);
 				  CLTPass3d   scan = tp.clt_3d_passes.get(combo_scan);
 				  // for the second half of runs (always for single run) - limit infinity min/max
+				  ea.showInput(scan.getLazyEyeData(),"first_data");
 				  
 				  boolean debug_actual_LY_derivs =  debugLevel > 9; // true
 				  
@@ -7997,7 +8026,7 @@ public class QuadCLTCPU {
 					  break;
 				  }
 				  if (update_disp_from_latest) { // true
-/*					  
+/**/					  
 					  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
 							  clt_parameters,
 							  combo_scan,
@@ -8007,7 +8036,7 @@ public class QuadCLTCPU {
 							  tp.threadsMax,     // maximal number of threads to launch
 							  false,             // updateStatus,
 							  debugLevelInner - 1);
-*/							  
+/**/							  
 					  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity
 							  clt_parameters,
 							  combo_scan,
@@ -11448,26 +11477,27 @@ public class QuadCLTCPU {
 			  final int               debugLevel)
 	  {
 		  double [] parameter_scales = { // multiply delay for each parameter
-				  0.014793657667505566, // 00 10
-				  0.015484017460841183, // 01 10
-				  0.02546712771769517,  // 02 10
-				  0.02071573747995167,  // 03 10
-				  0.026584237444512468, // 04 10
-				  0.014168012698804967, // 05 10
-				  1.8554483718240792E-4, // 06
-				  2.3170738149889717E-4, // 07
-				  3.713239026512266E-4,  // 08
-				  2.544834643007531E-4,  // 09
-				  2.5535557646736286E-4, // 10 
-				  1.98531249109261E-4,   // 11
-				  2.1802727086879284E-4, // 12
-				  8.814346720176489E-1,  // 5,  // 13 10000x
-				  7.071297501674136E-1,  // 5,  // 14 10000x
-				  1.306306793587865E-0,  // 4,  // 15 10000x
-				  2.8929916645453735E-0, // 4, // 16 10000x
-				  2.943408022525927E-0,  // 4,  // 17 10000x
-				  390.6185365641268};    //4};  // 18 100000x
-//		  delta = 0.01;
+				  0.3,  // 0.014793657667505566, // 00 10
+				  0.3,  // 0.015484017460841183, // 01 10
+				  0.3,  // 0.02546712771769517,  // 02 10
+				  0.3,  // 0.02071573747995167,  // 03 10
+				  0.3,  // 0.026584237444512468, // 04 10
+				  0.3,  // 0.014168012698804967, // 05 10
+				  2.0,  // 1.8554483718240792E-4, // 06
+				  0.3, //2.3170738149889717E-4, // 07
+				  0.3, //3.713239026512266E-4,  // 08
+				  0.3, //2.544834643007531E-4,  // 09
+				  0.3, // 2.5535557646736286E-4, // 10 
+				  0.3, // 1.98531249109261E-4,   // 11
+				  0.3, // 2.1802727086879284E-4, // 12
+				  150, // 8.814346720176489E-1,  // 5,  // 13 10000x
+				  150, // 7.071297501674136E-1,  // 5,  // 14 10000x
+				  150, // 1.306306793587865E-0,  // 4,  // 15 10000x
+				  300, // 2.8929916645453735E-0, // 4, // 16 10000x
+				  300, // 2.943408022525927E-0,  // 4,  // 17 10000x
+				  500.0}; // 390.6185365641268};    //4};  // 18 100000x 
+//		  delta = 0.001; // should be 0.001
+		  boolean debug_img = false;
 		  int debugLevelInner = -5;
 		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
 		  GeometryCorrection.CorrVector corr_vector = geometryCorrection.getCorrVector().clone();
@@ -11490,7 +11520,12 @@ public class QuadCLTCPU {
 			  ly_initial[cluster] = ly[cluster].clone();
 		  }
 		  System.out.println(geometryCorrection.getCorrVector().toString());
-		  
+		  if (debug_img) {
+			  ea.showInput(
+					  ly_initial, // double[][] data,
+					  "drv_reference");// String title);
+		  }
+
 		  for (int npar = 0; npar < num_pars; npar++) {
 			  // perform asymmetric delta
 			  double [] par_inc = new double [num_pars];
@@ -11521,6 +11556,26 @@ public class QuadCLTCPU {
 					  false, // updateStatus,
 					  debugLevelInner -1); // - 1); // -5-1
 			  ly = scan.getLazyEyeData();
+			  if (debug_img) {
+				  ea.showInput(
+						  ly, // double[][] data,
+						  "drv_par"+npar);// String title);
+			  }
+			  /* Tested - no difference
+			  CLTMeasureLY( // perform single pass according to prepared tiles operations and disparity // USED in lwir
+					  clt_parameters,
+					  scanIndex,     // final int           scanIndex,
+					  // only combine and calculate once, next passes keep
+					  // remeasure each pass - target disparity is the same, but vector changes
+					  0, // bg_scan, // (num_iter >0)? -1: bg_scan,        // final int           bgIndex, // combine, if >=0
+					  tp.threadsMax,  // maximal number of threads to launch
+					  false, // updateStatus,
+					  debugLevelInner -1); // - 1); // -5-1
+			  ly = scan.getLazyEyeData();
+			  ea.showInput(
+					  ly, // double[][] data,
+					  "drv_par"+npar+"-B");// String title);
+			*/  
 			  for (int cluster = 0; cluster < clusters; cluster++) if ((ly_initial[cluster] != null) && (ly[cluster]!=null)){
 				  for (int nl = 0; nl < ly_initial[cluster].length; nl++) {
 					  ly_diff[npar][nl][cluster] =  rdelta * (ly[cluster][nl] - ly_initial[cluster][nl]); 

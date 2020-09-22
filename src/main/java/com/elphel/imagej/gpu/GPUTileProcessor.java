@@ -1647,14 +1647,7 @@ public class GPUTileProcessor {
                 IJ.showMessage("Error", "No GPU kernel: GPU_CALCULATE_TILES_OFFSETS_kernel");
                 return;
             }
-    		if (gpu_debug_level > -1) {
-    			System.out.println("num_task_tiles="+num_task_tiles);
-    		}
-
-            // kernel parameters: pointer to pointers
-//            int [] GridFullWarps =    {(num_task_tiles + 2 * TILES_PER_BLOCK_GEOM - 1)/TILES_PER_BLOCK_GEOM, 1, 1}; // round up
-//            int [] ThreadsFullWarps = {num_cams, TILES_PER_BLOCK_GEOM, 1}; // 4,8,1
-            int [] GridFullWarps =    {1, 1, 1}; // round up
+            int [] GridFullWarps =    {1, 1, 1}; 
             int [] ThreadsFullWarps = {1, 1, 1}; // 4,8,1
             Pointer kernelParameters = Pointer.to(
             		Pointer.to(gpu_tasks),                   // struct tp_task     * gpu_tasks,
@@ -1671,7 +1664,7 @@ public class GPUTileProcessor {
         			kernelParameters, null);   // Kernel- and extra parameters
         	cuCtxSynchronize(); // remove later
     		if (gpu_debug_level > -1) {
-    			System.out.println("======execSetTilesOffsets()");
+    			System.out.println("======execSetTilesOffsets(), num_task_tiles="+num_task_tiles);
     		}
         }
 

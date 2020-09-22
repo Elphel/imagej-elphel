@@ -552,6 +552,11 @@ public class GeometryCorrection {
 		extrinsic_corr = new CorrVector();
 	}
 
+	public void resetCorrVectorERS(){// not used in lwir
+		extrinsic_corr.setIMU(new double[6]);
+	}
+
+	
 	public boolean [] getParMask( // for compatibility with old
 //			boolean disparity_only,
 //			boolean use_disparity,

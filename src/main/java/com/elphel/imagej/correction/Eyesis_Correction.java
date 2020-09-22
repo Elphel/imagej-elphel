@@ -631,6 +631,7 @@ private Panel panel1,
 			addButton("CLT disparity scan",        panelClt2, color_conf_process);
 			addButton("CLT reset fine corr",       panelClt2, color_stop);
 			addButton("CLT reset extrinsic corr",  panelClt2, color_stop);
+			addButton("ERS reset",      panelClt2, color_stop);
 			addButton("CLT show geometry",         panelClt2, color_configure);
 			addButton("CLT show fine corr",        panelClt2, color_report);
 			addButton("CLT apply fine corr",       panelClt2, color_process);
@@ -711,6 +712,7 @@ private Panel panel1,
 
 			addButton("LWIR_TEST",                  panelClt_GPU, color_conf_process);
 			addButton("LWIR_ACQUIRE",               panelClt_GPU, color_conf_process);
+			addButton("ERS reset",      panelClt2, color_stop);
 			addButton("IMU main",                   panelClt_GPU, color_conf_process);
 			addButton("ERS main",                   panelClt_GPU, color_process);
 			addButton("IMU aux",                    panelClt_GPU, color_conf_process_aux);
@@ -4559,6 +4561,21 @@ private Panel panel1,
         }
         QUAD_CLT.resetExtrinsicCorr(CLT_PARAMETERS);
         return;
+    } else if (label.equals("ERS reset")) {
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+        QUAD_CLT.resetExtrinsicCorr(CLT_PARAMETERS);
+        return;
+        
+        
     } else if (label.equals("CLT show geometry")) {
         if (QUAD_CLT == null){
         	QUAD_CLT = new  QuadCLT (

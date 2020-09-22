@@ -24,6 +24,7 @@ public class CLTParameters {
 	public double     shift_x =           0.0;
 	public double     shift_y =           0.0;
 	public int        tileStep =            4;  // process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters
+	public int        super_radius =        2;  // Consolidate multiple clusterts for low-contrast infinity (clouds in the sky) 0 - none, 1 - 3x3, 2 - 5x5,
 	public int        iclt_mask =          15;  // which transforms to combine
 	public int        tileX =            -258;  // number of kernel tile (0..163)
 	public int        tileY =             133;  // number of kernel tile (0..122)
@@ -899,6 +900,7 @@ public class CLTParameters {
 		properties.setProperty(prefix+"shift_x",                    this.shift_x+"");
 		properties.setProperty(prefix+"shift_y",                    this.shift_y+"");
 		properties.setProperty(prefix+"tileStep",                   this.tileStep+"");
+		properties.setProperty(prefix+"tileSizeBg",                 this.super_radius+"");
 		properties.setProperty(prefix+"iclt_mask",                  this.iclt_mask+"");
 		properties.setProperty(prefix+"tileX",                      this.tileX+"");
 		properties.setProperty(prefix+"tileY",                      this.tileY+"");
@@ -1668,6 +1670,7 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"shift_y")!=null)                       this.shift_y=Double.parseDouble(properties.getProperty(prefix+"shift_y"));
 
 		if (properties.getProperty(prefix+"tileStep")!=null)                      this.tileStep=Integer.parseInt(properties.getProperty(prefix+"tileStep"));
+		if (properties.getProperty(prefix+"tileSizeBg")!=null)                    this.super_radius=Integer.parseInt(properties.getProperty(prefix+"tileSizeBg"));
 		if (properties.getProperty(prefix+"iclt_mask")!=null)                     this.iclt_mask=Integer.parseInt(properties.getProperty(prefix+"iclt_mask"));
 		if (properties.getProperty(prefix+"tileX")!=null)                         this.tileX=Integer.parseInt(properties.getProperty(prefix+"tileX"));
 		if (properties.getProperty(prefix+"tileY")!=null)                         this.tileY=Integer.parseInt(properties.getProperty(prefix+"tileY"));
@@ -2456,6 +2459,8 @@ public class CLTParameters {
 
 		gd.addNumericField("Lazy eye cluster size",                                                             this.tileStep,                  0, 6, "tiles",
 				"Process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters");
+		gd.addNumericField("Consolidate multiple clusterts around given for low-contrast infinity",             this.super_radius,              0, 6, "clusters",
+				"e.g. for clouds in tghe sky  0 - none, 1 - 3x3, 2 - 5x5");
 		gd.addNumericField("Bit mask - which of 4 transforms to combine after iclt",                            this.iclt_mask,                 0);
 		gd.addNumericField("Tile X to extract (0..163)",                                                        this.tileX,                     0);
 		gd.addNumericField("Tile Y to extract (0..122)",                                                        this.tileY,                     0);
@@ -3392,6 +3397,7 @@ public class CLTParameters {
 		this.shift_y =              gd.getNextNumber();
 
 		this.tileStep=        (int) gd.getNextNumber();
+		this.super_radius=    (int) gd.getNextNumber();
 		this.iclt_mask=       (int) gd.getNextNumber();
 		this.tileX=           (int) gd.getNextNumber();
 		this.tileY=           (int) gd.getNextNumber();

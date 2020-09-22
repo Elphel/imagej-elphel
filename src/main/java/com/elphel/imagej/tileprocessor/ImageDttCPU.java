@@ -2151,6 +2151,7 @@ public class ImageDttCPU {
 														imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 														imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 														imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+														imgdtt_params.lmas_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
 														imgdtt_params.lmas_max_area,     // double  lma_max_area,     // maximal half-area (if > 0.0)
 														imgdtt_params.lma_str_scale,     // convert lma-generated strength to match previous ones - scale
 														imgdtt_params.lma_str_offset     // convert lma-generated strength to match previous ones - add to result
@@ -2202,6 +2203,7 @@ public class ImageDttCPU {
 					    				imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 					    				imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 					    				imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+										imgdtt_params.lma_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
 					    				imgdtt_params.lma_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
 					    				1.0, // imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
 					    				0.0); // imgdtt_params.lma_str_offset);  // convert lma-generated strength to match previous ones - add to result
@@ -2269,6 +2271,7 @@ public class ImageDttCPU {
 											imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 											imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 											imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+											imgdtt_params.lma_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
 											imgdtt_params.lma_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
 											imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
 											imgdtt_params.lma_str_offset);  // convert lma-generated strength to match previous ones - add to result
@@ -3343,6 +3346,7 @@ public class ImageDttCPU {
 							    				imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 							    				imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 							    				imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+												imgdtt_params.lmas_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
 							    				imgdtt_params.lmas_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
 							    				imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
 							    				imgdtt_params.lma_str_offset    // convert lma-generated strength to match previous ones - add to result
