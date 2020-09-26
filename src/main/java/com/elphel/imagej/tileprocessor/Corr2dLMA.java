@@ -1461,7 +1461,7 @@ public class Corr2dLMA {
 	}
 
 	
-	public double [][] lmaDisparityStrength( // restored from git
+	public double [][] lmaDisparityStrength1( // restored from git
 			double  lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 			double  lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 			double  lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
@@ -1510,7 +1510,7 @@ public class Corr2dLMA {
 
 
 	
-	public double [][] lmaDisparityStrength0(
+	public double [][] lmaDisparityStrength(
 			double  lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 			double  lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 			double  lma_min_max_ac,   // minimal of A and C coefficients maximum (measures sharpest point/line)
@@ -1554,7 +1554,7 @@ public class Corr2dLMA {
 			if ((strength < lma_min_strength) || Double.isNaN(disparity)) {
 				continue;
 			}
-//			strength = Math.sqrt(strength * Math.sqrt(abc[tile][0] * abc[tile][2])); // / area ); // new strength
+			strength = Math.sqrt(strength * Math.sqrt(abc[tile][0] * abc[tile][2])); // / area ); // new strength
 			ds[tile][0] = disparity;
 			ds[tile][1] = (strength * lma_str_scale) + lma_str_offset;
 		}

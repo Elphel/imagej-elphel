@@ -220,12 +220,14 @@ public class ExtrinsicAdjustment {
 	public GeometryCorrection.CorrVector  solveCorr (
 			double      marg_fract,        // part of half-width, and half-height to reduce weights
 			boolean     use_disparity,     // adjust disparity-related extrinsics
-			double      inf_min_disparity, // minimal disparity for infinity 
-			double      inf_max_disparity, // minimal disparity for infinity 
+			double      inf_min_disparity, // minimal disparity for infinity (from average, possibly tilted) 
+			double      inf_max_disparity, // maximal disparity for infinity (from average, possibly tilted) 
+			double      inf_min_disp_abs,  // minimal disparity for infinity (absolute) 
+			double      inf_max_disp_abs,  // maximal disparity for infinity (absolute) 
+			boolean     en_infinity_tilt,  // select infinity tiles form right/left tilted (false - from average)  
+			boolean     infinity_right_left, // balance weights between right and left halves of infinity
 			boolean     use_aztilts,       // Adjust azimuths and tilts excluding disparity
 			boolean     use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
-//			boolean     force_convergence, // if true try to adjust convergence (disparity, symmetrical parameter 0) even with no disparity
-//			                               // data, using just radial distortions
 			int         min_num_forced,    // minimal number of clusters with forced disparity to use it
 	  		boolean     common_roll,       // Enable common roll (valid for high disparity range only)
 			boolean     corr_focalLength,  // Correct scales (focal length temperature? variations)
@@ -234,12 +236,25 @@ public class ExtrinsicAdjustment {
 			boolean     ers_side,          // Enable ERS correction of the camera linear movement in x direction
 			boolean     ers_vert,          // Enable ERS correction of the camera linear movement in y direction
 			// add balancing-related here?
-	  		int         manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
-			double      weight_disparity,
-			double      weight_lazyeye,
+	  		int         manual_par_sel,      // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
+			double      weight_infinity,     // 0.3, total weight of infinity tiles fraction (0.0 - 1.0) 
+			double      weight_disparity,    // 0.0 disparity weight relative to the sum of 8 lazy eye values of the same tile 
+			double      weight_disparity_inf,// 0.5 disparity weight relative to the sum of 8 lazy eye values of the same tile for infinity 
+			double      max_disparity_far,   // 5.0 reduce weights of near tiles proportional to sqrt(max_disparity_far/disparity) 
+			double      max_disparity_use,   // 5.0 (default 1000)disable near objects completely - use to avoid ERS
+			double      min_dfe, // = 1.75;
+			double      max_dfe, // = 5.0; // <=0 - disable feature
+			// moving objects filtering
+			boolean     moving_en,         // enable filtering areas with potentially moving objects 
+			boolean     moving_apply,      // apply filtering areas with potentially moving objects 
+			double      moving_sigma,      // blurring sigma for moving objects = 1.0;
+			double      max_mov_disparity, // disparity limit for moving objects detection = 75.0;
+			double      rad_to_hdiag_mov,  // radius to half-diagonal ratio to remove high-distortion corners = 0.7 ; // 0.8
+			double      max_mov_average,   // do not attempt to detect moving objects if ERS is not accurate for terrain = .25;
+			double      mov_min_L2,        // threshold for moving objects = 0.75;
+			
 	  		double [][] measured_dsxy_in,     //
 	  		boolean [] force_disparity_in,    // boolean [] force_disparity,
-//			GeometryCorrection geometryCorrection,
 	  		boolean     use_main,          // corr_rots_aux != null;
 			GeometryCorrection.CorrVector corr_vector_meas,
 			double []   old_new_rms,       // should be double[2]
@@ -254,15 +269,14 @@ public class ExtrinsicAdjustment {
 			this.measured_dsxy[i][INDX_DIFF] = -this.measured_dsxy[i][INDX_DIFF]; // invert disparity sign 
 		}
 		
-		
 		this.force_disparity = force_disparity_in;
-		boolean dbg_images = debugLevel > 0; // 2; // -3; // 2; // 1;
+		boolean dbg_images = debugLevel > 0; // 2; // -3; // 2; // 1; manually set here
 		double rad_to_hdiag = 0.8;
 		weight_window = getWeightWindow(
 				marg_fract,
 				rad_to_hdiag); // limit corners 
 
-		if (dbg_images) {
+		if (dbg_images  && (debugLevel > 0)) { // disabled
 			 (new ShowDoubleFloatArrays()).showArrays(
 					 weight_window,
 					 clustersX,
@@ -280,11 +294,95 @@ public class ExtrinsicAdjustment {
 				corr_vector,
 				true); // boolean set_dydisp)
 
-		if (dbg_images) {
+		if (dbg_images && (debugLevel > 0)) { // disabled
 			showX0Y0(
 					x0y0, // double[][] data,
 					"nondistorted X0Y0");// String title);
 		}
+/*
+		this.par_mask = geometryCorrection.getParMask(
+				use_disparity, // has_disparity, // boolean use_disparity,
+				use_aztilts,       // Adjust azimuths and tilts excluding disparity
+				use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
+				common_roll,// boolean common_roll,
+				corr_focalLength,  // boolean corr_focalLength);
+				ers_rot,           // boolean ers_rot,           // Enable ERS correction of the camera rotation
+				ers_forw,          // Enable ERS correction of the camera linear movement in z direction
+				ers_side,          // Enable ERS correction of the camera linear movement in x direction
+				ers_vert,          // Enable ERS correction of the camera linear movement in y direction
+		  		manual_par_sel);   // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
+*/		  		
+		boolean [] filtered_infinity = null;
+		
+		double [] dfe = null;
+		if (max_dfe > 0) {
+			dfe = distanceFromEdge (
+					force_disparity,
+					measured_dsxy,
+					min_dfe, // 1.75
+					max_dfe, // 5.0
+					dbg_images  && (debugLevel > 0));  // disabled
+		}
+//		boolean en_tilt =            true;
+//		double min_infinity_abs =    -1.0;
+//		double max_infinity_abs =     0.5;
+		if (use_disparity) {
+			filtered_infinity = filterInfinity(
+					measured_dsxy,      // double  [][] measured_dsxy,
+					force_disparity,    // boolean [] force_disparity, // same dimension as dsdn, true if disparity should be controlled
+					dfe,                // double [] distance_from_edge,
+					en_infinity_tilt,   // boolean en_tilt,  // consider right/left infinity tilt (will be disabled if more than *abs difference over width)
+					min_num_forced,     // int min_in_half,
+					inf_min_disp_abs,   // double min_infinity_abs,
+					inf_max_disp_abs,   // double max_infinity_abs,
+					inf_min_disparity,  // double min_infinity,
+					inf_max_disparity); // double max_infinity
+		 }
+/*
+		this.weights = getWeights( // will ignore window for infinity (already used for selection)
+				 measured_dsxy,        // double  [][] measured_dsxy,
+				 (use_disparity? force_disparity: null),   // boolean [] force_disparity, // same dimension as dsdn, true if disparity should be controlled
+				 filtered_infinity,    // boolean [] filtered_infinity,
+				 dfe, // 	double  []  distance_from_edge,// to reduce weight of the mountain ridge, increase clouds (or null)
+				 min_num_forced,       //				int min_num_forced,
+				 infinity_right_left, //	boolean infinity_right_left,  // each halve should have > min_num_forced, will calculate separate average
+				 weight_infinity,      // double weight_infinity,       // total weight of infinity tiles fraction (0.0 - 1.0) 
+				 weight_disparity,     // double weight_disparity,      // disparity weight relative to the sum of 8 lazy eye values of the same tile 
+				 weight_disparity_inf, // double weight_disparity_inf,  // disparity weight relative to the sum of 8 lazy eye values of the same tile for infinity 
+				 max_disparity_far,   // 					double max_disparity_far)     // reduce weights of near tiles proportional to sqrt(max_disparity_far/disparity)
+				 max_disparity_use);
+*/		
+		int [] inf_stat = setWeights( // number right, number left
+				 measured_dsxy,        // double  [][] measured_dsxy,
+				 (use_disparity? force_disparity: null),   // boolean [] force_disparity, // same dimension as dsdn, true if disparity should be controlled
+				 filtered_infinity,    // boolean [] filtered_infinity,
+				 dfe, // 	double  []  distance_from_edge,// to reduce weight of the mountain ridge, increase clouds (or null)
+				 min_num_forced,       //				int min_num_forced,
+				 infinity_right_left, // boolean infinity_right_left,  // each halve should have > min_num_forced, will calculate separate average
+				 weight_infinity,      // double weight_infinity,       // total weight of infinity tiles fraction (0.0 - 1.0) 
+				 weight_disparity,     // double weight_disparity,      // disparity weight relative to the sum of 8 lazy eye values of the same tile 
+				 weight_disparity_inf, // double weight_disparity_inf,  // disparity weight relative to the sum of 8 lazy eye values of the same tile for infinity 
+				 max_disparity_far,   // 					double max_disparity_far)     // reduce weights of near tiles proportional to sqrt(max_disparity_far/disparity)
+				 max_disparity_use);
+		if (use_disparity) {
+			if (inf_stat[0] < min_num_forced) {
+				System.out.println("Too few infinity tiles ("+inf_stat[0]+"<"+(min_num_forced)+") to adjust disparity");
+				// disable parameters...all extrinsic
+				use_disparity =    false;
+				use_aztilts =      false;
+				use_diff_rolls =   false;
+				common_roll =      false;
+				corr_focalLength = false;
+			} else if (inf_stat[1] < min_num_forced/2) {
+				System.out.println("Too few infinity tiles ("+inf_stat[1]+"<"+(min_num_forced/2)+") in one half to balance right/left");
+				// disable parameters: all extrinsic but disparity (S0)
+				use_aztilts =      false;
+				use_diff_rolls =   false;
+				common_roll =      false;
+				corr_focalLength = false;
+			}
+		}
+		// verify some parameters still remain?
 
 		this.par_mask = geometryCorrection.getParMask(
 				use_disparity, // has_disparity, // boolean use_disparity,
@@ -297,141 +395,42 @@ public class ExtrinsicAdjustment {
 				ers_side,          // Enable ERS correction of the camera linear movement in x direction
 				ers_vert,          // Enable ERS correction of the camera linear movement in y direction
 		  		manual_par_sel);   // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
-		 boolean [] filtered_infinity = null;
-		 if (use_disparity) {
-			 filtered_infinity = filterInfinity(
-					 measured_dsxy, // double  [][] measured_dsxy,
-					 force_disparity, // boolean [] force_disparity, // same dimension as dsdn, true if disparity should be controlled
-					 inf_min_disparity, // double min_infinity,
-					 inf_max_disparity); // double max_infinity
+		 if (this.par_mask == null) {
+				System.out.println("All parameters disabled, nothing to adjust");
+				return null;
 		 }
-		 /*		
-		 this.weights = getWeights(
-				 measured_dsxy,     // double  [][] measured_dsxy,
-				 (use_disparity? force_disparity: null),   // boolean [] force_disparity, // same dimension as dsdn, true if disparity should be controlled
-				 filtered_infinity, // boolean [] filtered_infinity,
-				 min_num_forced,    //				int min_num_forced,
-				 weight_disparity,  // double weight_disparity,
-				 weight_lazyeye);   // double weight_lazyeye);
-		  */		 
-		 double weight_infinity =      0.3; //       // total weight of infinity tiles fraction (0.0 - 1.0) 
-		 weight_disparity =            0.0;       // disparity weight relative to the sum of 8 lazy eye values of the same tile 
-		 double weight_disparity_inf = 0.5;  // disparity weight relative to the sum of 8 lazy eye values of the same tile for infinity 
-		 double max_disparity_far =    5.0;     // reduce weights of near tiles proportional to sqrt(max_disparity_far/disparity) 
-		 double max_disparity_use =    5.0 ;     // temporarily to avoid ERS - disable near objects completely
-		 
-		 double [][] clouds = detectClouds(
-				 measured_dsxy,
-				 force_disparity);   // same dimension as dsdn, true if disparity should be controlled
-		 String [] dbg_titles = {"clouds", "disparity","strength"};
-			(new ShowDoubleFloatArrays()).showArrays(
-					clouds,
-					clustersX,
-					clustersY,
-					true,
-					"clouds",
-					dbg_titles);
-
-
-
-		 this.weights = getWeights( // will ignore window for infinity (already used for selection)
-				 measured_dsxy,        // double  [][] measured_dsxy,
-				 (use_disparity? force_disparity: null),   // boolean [] force_disparity, // same dimension as dsdn, true if disparity should be controlled
-				 filtered_infinity,    // boolean [] filtered_infinity,
-				 min_num_forced,       //				int min_num_forced,
-				 weight_infinity,      // double weight_infinity,       // total weight of infinity tiles fraction (0.0 - 1.0) 
-				 weight_disparity,     // double weight_disparity,      // disparity weight relative to the sum of 8 lazy eye values of the same tile 
-				 weight_disparity_inf, // double weight_disparity_inf,  // disparity weight relative to the sum of 8 lazy eye values of the same tile for infinity 
-				 max_disparity_far,   // 					double max_disparity_far)     // reduce weights of near tiles proportional to sqrt(max_disparity_far/disparity)
-				 max_disparity_use);
-		 
-		 double min_fg_disp = 0.00; //  25.0; // minimal disparity to boost foreground objects
-		 double min_rel_over = 0.25; // minimal relative disparity over average for a row to boost foreground objects
-		 int min_num_fg =      min_num_forced;
-		 double fg_boost_fraction = 0.5; 
-		 if (min_fg_disp > 0.0) { // not needed
-			 boolean [] select_ers = selectERS(
-					 measured_dsxy, // double  [][] measured_dsxy,
-					 null,          // boolean [] selection, // or null
-					 min_fg_disp,   // double min_fg_disp,
-					 min_rel_over); // double min_rel_over)
-			 boostERS(
-					 this.weights, // double []    weights, // will be updated
-					 select_ers, // boolean []   fg,
-					 min_num_fg, // int          min_num_fg,
-					 fg_boost_fraction); // double       fg_boost_fraction)
-		 }
-		 double max_ers_disparity = 175.0;
-		 limitDisparity(
-				 measured_dsxy, // double  [][] measured_dsxy,
-				 this.weights, // double []    weights, // will be updated 
-				 max_ers_disparity); // double max_disparity
-		 // remove moving objects here		 
-		 if (debugLevel > -10) { // temporary
-			 dbgYminusFxWeight(
-					 this.last_ymfx,
-					 this.weights, // will use current weights
-					 "Initial y-fX");
-			 double [][] ers_tilt_az = getMovingObjects(
-					 corr_vector, // GeometryCorrection.CorrVector corr_vector,
-					 null ); // double [] fx
-			 if (ers_tilt_az != null) {
-				 showMovingObjects(
-						 "Moving_objects", // String      title,
-						 ers_tilt_az);
-				 double moving_sigma = 1.0;
-
-				 double [] ers_blured = showMovingObjects( // uses weights for bluring
-						 "Moving_objects_sigma"+moving_sigma, // String      title,
-						 ers_tilt_az,
-						 moving_sigma, // double sigmaX,
-						 0.01); // double accuracy
-				 System.out.println("Moving objects");
-
-				 double [] cluster_weight = getClusterWeight();
-				 double max_mov_disparity = 75.0;
-				 double rad_to_hdiag_mov = 0.7 ; // 0.8
-				 boolean [] moving_en= getMovingObjectsSel(
-						 measured_dsxy, // to use target_disparity
-						 cluster_weight,
-						 max_mov_disparity, // disable higher disparity
-						 rad_to_hdiag_mov); // 0.8 limit by radius too (1.0 - radius is half diagonal, same margins, use min)
-
-				 int clusters = clustersX * clustersY;
-				 double sw = 0.0;
-				 double mov_avg = 0.0;
-				 for (int cluster = 0; cluster < clusters; cluster++) {
-					 if (moving_en[cluster] && !Double.isNaN(ers_blured[cluster])) {
-						 mov_avg += ers_blured[cluster] * cluster_weight[cluster];
-						 sw += cluster_weight[cluster];
-					 }
-				 }
-				 mov_avg /= sw; // clusters;
-				 System.out.println("Average moving object detection value = "+mov_avg+
-						 " (use to abandon detection if too high?");
-				 //			 double min_l2 = 1.0 * mov_avg; 
-				 double min_l2 = 2.50 * mov_avg; // 1.5 * mov_avg; 
-				 boolean [] moving_maybe =  extractMovingObjects(
-						 "Moving_objects_filtering", //  String    title,
-						 ers_blured,  //double [] ers_blured, // has NaNs
-						 moving_en,   // boolean [] moving_en
-						 min_l2,      // double min_l2); // minimal value (can use average or fraction of it?
-						 4,           // int       shrink, // prevents growing outer border (==4)
-						 2);          // int       grow) { // located moving areas
-
-				 int num_moving = 0;
-				 for (int cluster = 0; cluster < clusters; cluster++) {
-					 if (moving_maybe[cluster]) num_moving++;
-				 }
-				 System.out.println("Number of clusters to remove from LMA fitting = "+num_moving);
-				 System.out.println();
-				 blockSelectedClusters(
+		
+		 if (moving_en) { // debugLevel > -10) { // temporary
+			 String title_moving =       (debugLevel > -3) ? "Moving_objects": null;
+			 String title_moving_extra = (debugLevel > -2) ? "Moving_objects_filtering" : null;
+			 boolean debug_text =        (debugLevel > -3);
+			 
+			 boolean [] moving_maybe = selectMovingObjects(
+					 moving_sigma,              // double sigma,             //  = 1.0;
+					 max_mov_disparity,  // double max_mov_disparity, //  = 75.0;
+					 rad_to_hdiag_mov,   // double rad_to_hdiag_mov,  //  = 0.7 ; // 0.8
+					 max_mov_average,    // double max_mov_average,   //  = .25;
+					 mov_min_L2,             // double min_l2,            //  = 0.75;
+					 title_moving,       // String title,             // "Moving_objects"
+					 title_moving_extra, // String title_extra,       // "Moving_objects_filtering"
+					 debug_text          // boolean debug_text
+					);
+			 
+			 if (moving_apply) {
+				 blockSelectedClusters( // will do nothing for null
 						 measured_dsxy, // double  [][] measured_dsxy,
 						 this.weights, // double []    weights, // will be updated
 						 moving_maybe); // 	boolean []   prohibit
 			 }
-		 }
+		 }		
 
+		 if (dbg_images) { // temporary
+			 dbgYminusFxWeight(
+					 this.last_ymfx,
+					 this.weights,
+					 "Initial_y-fX_after_moving_objects");
+		 }
+		 
 		 double lambda = 0.1;
 		 double lambda_scale_good = 0.5;
 		 double lambda_scale_bad =  8.0;
@@ -455,6 +454,7 @@ public class ExtrinsicAdjustment {
 		 return lma_OK? corr_vector : null;
 	}
 
+	
 	private double [][] getXYNondistorted(
 			GeometryCorrection.CorrVector corr_vector,
 			boolean set_dydisp){
@@ -721,29 +721,102 @@ public class ExtrinsicAdjustment {
 	
 	
 	// Make total weight of disparity (forced) samples - weight_disparity, weight of all others (8 per cluster) weight_lazyeye;
+	private double []  distanceFromEdge (
+			boolean []  force_disparity,
+			double [][] measured_dsxy,
+			double      min_dfe,
+			double      max_dfe,
+			boolean     debug) {
+		TileNeibs tn = new TileNeibs(clustersX, clustersY);
+		int [] idfe = tn.distanceFromEdge(force_disparity);
+		double [] dfe = new double [idfe.length];
+		int nft = 0;
+		double aw = 0.0;
+		for (int i = 0; i < idfe.length; i++) if ((idfe[i] > min_dfe) && (measured_dsxy[i]!= null)){
+			nft++;
+			double d = Math.min(idfe[i] - min_dfe, max_dfe); // max_dfe
+			aw += d;
+		}
+		if (nft > 0) {
+			aw /= nft;
+			for (int i = 0; i < idfe.length; i++) if ((idfe[i] > min_dfe) && (measured_dsxy[i]!= null)){
+				double d = Math.min(idfe[i] - min_dfe, max_dfe); // max_dfe
+				dfe[i] = d / aw;
+			}
+			if (debug) {
+			 (new ShowDoubleFloatArrays()).showArrays(
+					 dfe,
+					 clustersX,
+					 clustersY,
+					 "dist_from_edge_"+min_dfe+"-"+max_dfe);
+			}
+			
+		}
+		return dfe;
+	}
+	
+	
 	
 	private boolean [] filterInfinity(
 			double  [][] measured_dsxy,
 			boolean [] force_disparity, // same dimension as dsdn, true if disparity should be controlled
+			double [] distance_from_edge,
+			boolean en_tilt,  // consider right/left infinity tilt (will be disabled if more than *abs difference over width)
+			int min_in_half,
+			double min_infinity_abs,
+			double max_infinity_abs,
 			double min_infinity,
 			double max_infinity
 			) {
 		int clusters = clustersX * clustersY;
+	    double half_width = 0.5 * clustersX;
 		boolean [] true_infinity = new boolean[clusters];
-		double sw = 0.0;
-		double swd = 0.0;
+		double s0 = 0.0;
+		double sx = 0.0;
+		double sx2 = 0.0;
+		double sy = 0.0;
+		double sxy= 0.0;
+		int nright = 0;
+		int nleft = 0;
 		for (int cluster = 0; cluster < clusters;  cluster++) if ((measured_dsxy[cluster] != null) && force_disparity[cluster]){
 			double s = measured_dsxy[cluster][ExtrinsicAdjustment.INDX_STRENGTH] * weight_window[cluster]; // cluster weight
-			sw += s;
-			swd += s * measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DIFF];
-		}
-		if (sw > 0.0) {
-			swd /= sw; // average value
-			min_infinity += swd;
-			max_infinity += swd;
-			for (int cluster = 0; cluster < clusters;  cluster++) if ((measured_dsxy[cluster] != null) && force_disparity[cluster]){
+			if (distance_from_edge != null) {
+				s *= distance_from_edge[cluster];
+			}
+			if (s > 0.0) {
 				double d = measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DIFF];
-				true_infinity[cluster] =  (d >= min_infinity) && (d <= max_infinity);
+				if (( d >= min_infinity_abs) && ( d <= max_infinity_abs)) {
+					double x = cluster % clustersX;
+					s0 +=  s;
+					sx +=  s * x;
+					sx2 += s * x * x;
+					sy +=  s * d;
+					sxy += s *x * d;
+					if (x >= half_width)  nright ++;
+					else nleft ++;
+				}
+			}
+		}
+		if (s0 > 0.0) {
+			double dnm = s0 * sx2 - sx*sx;
+			double a = 0.0;
+			double b = sy/s0;
+			if (en_tilt && (nright >= min_in_half) && (nleft >= min_in_half)) {
+				a = (sxy * s0 - sy * sx) / dnm;
+				b = (sy * sx2 - sxy * sx) / dnm;
+				if ((Math.abs(a) * clustersX) > (max_infinity_abs - min_infinity_abs)/2) {
+					System.out.println("Infinity tilt too high ("+a+" > "+((max_infinity_abs - min_infinity_abs)/2)+
+							"), disabling tilt");
+					a = 0.0;
+					b = sy/s0;
+				}
+			}
+			for (int cluster = 0; cluster < clusters;  cluster++) if ((measured_dsxy[cluster] != null) && force_disparity[cluster]){
+				if ((distance_from_edge == null) || (distance_from_edge[cluster] > 0.0)) {
+					double x = cluster % clustersX;
+					double d = measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DIFF] - (a * x + b) ;
+					true_infinity[cluster] =  (d >= min_infinity) && (d <= max_infinity);
+				}
 			}		
 		}
 		return true_infinity;
@@ -856,6 +929,8 @@ public class ExtrinsicAdjustment {
 		}
 	}
 	
+	
+	// Create mask so that moving objects are only allowed inside permitted area
 	private boolean [] getMovingObjectsSel(
 			double [][] measured_dsxy, // to use target_disparity
 			double []   cluster_weights,
@@ -904,6 +979,9 @@ public class ExtrinsicAdjustment {
 			double  []   weights,
 			boolean []   prohibit
 			) {
+		if (prohibit == null) {
+			return;
+		}
 		double sw =  0.0;
 		double sw_en = 0.0;
 		int clusters = clustersX * clustersY;
@@ -1047,22 +1125,23 @@ public class ExtrinsicAdjustment {
 		}
 		return clouds;
 	}
-	
+
 	private double [] getWeights(
 			double  [][] measured_dsxy,
 			boolean [] force_disparity,   // same dimension as dsdn, true if disparity should be controlled
 			boolean [] filtered_infinity, // tiles known to be infinity
+			double  []  distance_from_edge,// to reduce weight of the mountain ridge, increase clouds (or null)
 			int min_num_forced,           // if number of forced samples exceeds this, zero out weights of non-forced
+			boolean infinity_right_left,  // each halve should have > min_num_forced, will calculate separate average
 			double weight_infinity,       // total weight of infinity tiles fraction (0.0 - 1.0) 
 			double weight_disparity,      // disparity weight relative to the sum of 8 lazy eye values of the same tile 
 			double weight_disparity_inf,  // disparity weight relative to the sum of 8 lazy eye values of the same tile for infinity 
 			double max_disparity_far,     // reduce weights of near tiles proportional to sqrt(max_disparity_far/disparity)
 			double max_disparity_use) // do not process near objects to avoid ERS
 	{
-//		weight_disparity =.5; // FIXME: Fix!
 		int clusters = clustersX * clustersY;
 		double [] weights = new double  [clusters * POINTS_SAMPLE];
-		double [] strength = new double [clusters];
+		double [][] strength = new double [2][clusters]; // 0 - for disparity, 1 - for ly
 		boolean [] disable = new boolean [clusters];
 		if (filtered_infinity != null) {
 			for (int cluster = 0; cluster < clusters;  cluster++)	{
@@ -1072,21 +1151,25 @@ public class ExtrinsicAdjustment {
 		double sw = 0.0;
 		double swf = 0.0;
 		int num_forced = 0;
-//		if (force_disparity != null) for (int cluster = 0; cluster < clusters;  cluster++) if (force_disparity[cluster])num_forced ++;
-//		boolean use_forced = num_forced >= min_num_forced;
 		for (int cluster = 0; cluster < clusters;  cluster++) if ((measured_dsxy[cluster] != null) && !disable[cluster]){
-			double s =getClustWeight(
+			double [] sdl =getClustWeight(
 					cluster,
 					measured_dsxy,
 					force_disparity,   // same dimension as dsdn, true if disparity should be controlled
+					distance_from_edge,
 					max_disparity_far,     // reduce weights of near tiles proportional to sqrt(max_disparity_far/disparity)
 					max_disparity_use);
-			strength[cluster] = s;
 			if ((force_disparity != null) && (force_disparity[cluster])) {
-				swf += s;
+				strength[0][cluster] = weight_disparity_inf * sdl[0];
+				strength[1][cluster] = (1.0 - weight_disparity_inf) * sdl[1];
+				swf += strength[0][cluster] + strength[1][cluster];
 				num_forced++;
+			} else {
+				strength[0][cluster] = weight_disparity * sdl[0];
+				strength[1][cluster] = (1.0 - weight_disparity) * sdl[1];
 			}
-			sw += s;
+			
+			sw += strength[0][cluster] + strength[1][cluster];
 		}
 		if (sw <= 0.0) {
 			return null;
@@ -1097,47 +1180,198 @@ public class ExtrinsicAdjustment {
 			use_forced = false;
 		}
 		if (use_forced) {
-			// disparity weight non-zero only for infinity, non-disparity - equal scale for all
-			k_inf_disp = weight_disparity_inf * weight_infinity / swf;
-			k_inf_ly = (1.0 - weight_disparity_inf) * weight_infinity / swf / (POINTS_SAMPLE - 1);
-			k_other_disp = weight_disparity * (1.0 - weight_infinity) / (sw - swf);
-			k_other_ly = (1.0 - weight_disparity) * (1.0 - weight_infinity) / (sw - swf) / (POINTS_SAMPLE - 1);
+			k_inf_disp =   weight_infinity / swf;
+			k_inf_ly =     weight_infinity / swf / (POINTS_SAMPLE - 1);
+			k_other_disp = (1.0 - weight_infinity) / (sw - swf);
+			k_other_ly =   (1.0 - weight_infinity) / (sw - swf) / (POINTS_SAMPLE - 1);
+			
 		} else {
-			k_other_disp = weight_disparity  / sw;
-			k_other_ly = (1.0 - weight_disparity) / sw / (POINTS_SAMPLE - 1);
-			k_inf_disp = k_other_disp; 
-			k_inf_ly = k_other_ly;
+			k_other_disp = 1.0  / sw;
+			k_other_ly =   1.0 / sw / (POINTS_SAMPLE - 1);
+			k_inf_disp =   k_other_disp; 
+			k_inf_ly =     k_other_ly;
 		}
-		
+
 		for (int cluster = 0; cluster < clusters;  cluster++) if ((measured_dsxy[cluster] != null) && !disable[cluster]){
-			double s =strength[cluster];
+			double sd = strength[0][cluster];
+			double sly =strength[1][cluster];
 			if ((force_disparity != null) && force_disparity[cluster]) {
-				weights[cluster * POINTS_SAMPLE + 0] = s * k_inf_disp;
+				weights[cluster * POINTS_SAMPLE + 0] = sd * k_inf_disp;
 				for (int i = 1; i < POINTS_SAMPLE; i++) {
-					weights[cluster * POINTS_SAMPLE + i] = s * k_inf_ly;
+					weights[cluster * POINTS_SAMPLE + i] = sly * k_inf_ly;
 				}
 			} else {
-				weights[cluster * POINTS_SAMPLE + 0] = s * k_other_disp;
+				weights[cluster * POINTS_SAMPLE + 0] = sd * k_other_disp;
 				for (int i = 1; i < POINTS_SAMPLE; i++) {
-					weights[cluster * POINTS_SAMPLE + i] = s * k_other_ly;
+					weights[cluster * POINTS_SAMPLE + i] = sly * k_other_ly;
 				}
 			}
 		}		
 		this.pure_weight = 1.0;
 		return weights;
 	}
-	private double getClustWeight(
+	
+	private int [] setWeights( // number right, number left
+			double  [][] measured_dsxy,
+			boolean [] force_disparity,   // same dimension as dsdn, true if disparity should be controlled
+			boolean [] filtered_infinity, // tiles known to be infinity
+			double  []  distance_from_edge,// to reduce weight of the mountain ridge, increase clouds (or null)
+			int min_num_forced,           // if number of forced samples exceeds this, zero out weights of non-forced
+			boolean infinity_right_left,  // each halve should have > min_num_forced, will calculate separate average
+			double weight_infinity,       // total weight of infinity tiles fraction (0.0 - 1.0) 
+			double weight_disparity,      // disparity weight relative to the sum of 8 lazy eye values of the same tile 
+			double weight_disparity_inf,  // disparity weight relative to the sum of 8 lazy eye values of the same tile for infinity 
+			double max_disparity_far,     // reduce weights of near tiles proportional to sqrt(max_disparity_far/disparity)
+			double max_disparity_use) // do not process near objects to avoid ERS
+	{
+		int clusters = clustersX * clustersY;
+	    double half_width = 0.5 * clustersX;
+		double [] weights = new double  [clusters * POINTS_SAMPLE];
+		double [][] strength = new double [2][clusters]; // 0 - for disparity, 1 - for ly
+		boolean [] disable = new boolean [clusters];
+		if (filtered_infinity != null) {
+			for (int cluster = 0; cluster < clusters;  cluster++)	{
+				disable[cluster] = force_disparity[cluster] && !filtered_infinity[cluster];
+			}
+		}
+		double sw = 0.0;
+		double swf = 0.0;
+		int num_forced_right = 0;
+		int num_forced_left = 0;
+		for (int cluster = 0; cluster < clusters;  cluster++) if ((measured_dsxy[cluster] != null) && !disable[cluster]){
+			double [] sdl =getClustWeight(
+					cluster,
+					measured_dsxy,
+					force_disparity,   // same dimension as dsdn, true if disparity should be controlled
+					distance_from_edge,
+					max_disparity_far,     // reduce weights of near tiles proportional to sqrt(max_disparity_far/disparity)
+					max_disparity_use);
+			if ((force_disparity != null) && (force_disparity[cluster])) {
+				strength[0][cluster] = weight_disparity_inf * sdl[0];
+				strength[1][cluster] = (1.0 - weight_disparity_inf) * sdl[1];
+				swf += strength[0][cluster] + strength[1][cluster];
+				double x = cluster % clustersX;
+				if (x >= half_width)  num_forced_right ++;
+				else                  num_forced_left ++;
+			} else {
+				strength[0][cluster] = weight_disparity * sdl[0];
+				strength[1][cluster] = (1.0 - weight_disparity) * sdl[1];
+			}
+			
+			sw += strength[0][cluster] + strength[1][cluster];
+		}
+		int num_forced =     num_forced_right + num_forced_left;
+		int num_forced_min = (num_forced_right > num_forced_left) ? num_forced_left : num_forced_right;
+		if (sw <= 0.0) {
+			return null;
+		}
+		boolean use_forced = num_forced >= min_num_forced;
+		infinity_right_left &= (num_forced_min > (min_num_forced/2)); // do not try to balance if at least one half has too few
+		double k_inf_disp, k_inf_ly, k_other_disp, k_other_ly;
+		if (sw <= swf) {
+			use_forced = false;
+		}
+		if (use_forced) {
+			k_inf_disp =   weight_infinity / swf;
+			k_inf_ly =     weight_infinity / swf / (POINTS_SAMPLE - 1);
+			k_other_disp = (1.0 - weight_infinity) / (sw - swf);
+			k_other_ly =   (1.0 - weight_infinity) / (sw - swf) / (POINTS_SAMPLE - 1);
+			
+		} else {
+			k_other_disp = 1.0  / sw;
+			k_other_ly =   1.0 / sw / (POINTS_SAMPLE - 1);
+			k_inf_disp =   k_other_disp; 
+			k_inf_ly =     k_other_ly;
+		}
+
+		for (int cluster = 0; cluster < clusters;  cluster++) if ((measured_dsxy[cluster] != null) && !disable[cluster]){
+			double sd = strength[0][cluster];
+			double sly =strength[1][cluster];
+			if ((force_disparity != null) && force_disparity[cluster]) {
+				weights[cluster * POINTS_SAMPLE + 0] = sd * k_inf_disp;
+				for (int i = 1; i < POINTS_SAMPLE; i++) {
+					weights[cluster * POINTS_SAMPLE + i] = sly * k_inf_ly;
+				}
+			} else {
+				weights[cluster * POINTS_SAMPLE + 0] = sd * k_other_disp;
+				for (int i = 1; i < POINTS_SAMPLE; i++) {
+					weights[cluster * POINTS_SAMPLE + i] = sly * k_other_ly;
+				}
+			}
+		}
+		// optionally balance right/left for the infinity
+		if (infinity_right_left && (force_disparity != null)) {
+			double swdr = 0.0;
+			double swdl = 0.0;
+			double swlyr = 0.0;
+			double swlyl = 0.0;
+			for (int cluster = 0; cluster < clusters;  cluster++) {
+				if ((measured_dsxy[cluster] != null) && force_disparity[cluster] && !disable[cluster]){
+					double x = cluster % clustersX;
+					double wd = weights[cluster * POINTS_SAMPLE + 0];
+					double wly = 0;
+					for (int i = 1; i < POINTS_SAMPLE; i++) {
+						wly += weights[cluster * POINTS_SAMPLE + i];
+					}
+					if (x >= half_width) {
+						swdr += wd;
+						swlyr += wly;
+					} else {
+						swdl += wd;
+						swlyl += wly;
+					}
+				}
+			}
+			double kwdr = (swdr+swdl)/(2*swdr);
+			double kwdl = (swdr+swdl)/(2*swdl);
+			double kwlyr = (swlyr+swlyl)/(2*swlyr);
+			double kwlyl = (swlyr+swlyl)/(2*swlyl);
+			for (int cluster = 0; cluster < clusters;  cluster++) {
+				if ((measured_dsxy[cluster] != null) && force_disparity[cluster] && !disable[cluster]){
+					double x = cluster % clustersX;
+					if (x >= half_width) {
+						weights[cluster * POINTS_SAMPLE + 0] *= kwdr;
+						for (int i = 1; i < POINTS_SAMPLE; i++) {
+							weights[cluster * POINTS_SAMPLE + i] *= kwlyr;
+						}
+					} else {
+						weights[cluster * POINTS_SAMPLE + 0] *= kwdl;
+						for (int i = 1; i < POINTS_SAMPLE; i++) {
+							weights[cluster * POINTS_SAMPLE + i] *= kwlyl;
+						}
+					}
+				}
+			}
+		}
+		this.pure_weight = 1.0;
+		this.weights = weights;
+		return new int [] {num_forced, num_forced_min};
+	}
+
+	
+	
+	
+	private double []  getClustWeight( // {weight for disparity, weight for ly}
 			int cluster,
 			double  [][] measured_dsxy,
 			boolean [] force_disparity,   // same dimension as dsdn, true if disparity should be controlled
+			double [] distance_from_edge,
 			double max_disparity_far,     // reduce weights of near tiles proportional to sqrt(max_disparity_far/disparity)
 			double max_disparity_use) // do not process near objects to avoid ERS
 		{
 		double s = measured_dsxy[cluster][ExtrinsicAdjustment.INDX_STRENGTH];
-		if ((force_disparity == null) || (!force_disparity[cluster])) {
+		double s1 = Double.NaN;
+		if (distance_from_edge != null) { // use vignetting for infinity too
 			s *= weight_window[cluster];
+			if ((force_disparity != null) && force_disparity[cluster]) {
+				s1 = s;
+				s *= distance_from_edge[cluster];
+			} 
+		} else { // do not use vignetting for infinity ?
+			if ((force_disparity == null) || (!force_disparity[cluster])) {
+				s *= weight_window[cluster];
+			} 
 		}
-
 		double d = measured_dsxy[cluster][ExtrinsicAdjustment.INDX_TARGET];
 		if (d > max_disparity_far) {
 			s *= Math.sqrt(max_disparity_far/d);
@@ -1145,7 +1379,10 @@ public class ExtrinsicAdjustment {
 		if (d > max_disparity_use) {
 			s = 0.0;
 		}
-		return s;
+		if (Double.isNaN(s1)) {
+			s1 = s;
+		}
+		return new double[] {s,s1};
 		
 	}
 
@@ -1404,6 +1641,126 @@ public class ExtrinsicAdjustment {
 				titles);
 	}
 
+	private boolean [] selectMovingObjects(
+			 double sigma,             //  = 1.0;
+			 double max_mov_disparity, //  = 75.0;
+			 double rad_to_hdiag_mov,  //  = 0.7 ; // 0.8
+			 double max_mov_average,   //  = .25;
+			 double min_l2,            //  = 0.75;
+			 String title,             // "Moving_objects"
+			 String title_extra,       // "Moving_objects_filtering"
+			 boolean debug_text
+			) {
+		int clusters = clustersX * clustersY;
+		double max_reasonable = 100.0;
+		
+		 double [][] ers_tilt_az = getMovingObjects( // will output null if ERS tilt or roll are disabled
+				 corr_vector, // GeometryCorrection.CorrVector corr_vector,
+				 null ); // double [] fx
+		 boolean [] moving_maybe = null;
+		 if (ers_tilt_az != null) {
+			 double [] l2_moving = new double [clusters];
+			 for (int cluster = 0; cluster < clusters; cluster++) {
+				 if (ers_tilt_az[cluster] != null) {
+					 l2_moving[cluster] = Math.sqrt(0.5*(ers_tilt_az[cluster][0]*ers_tilt_az[cluster][0] + ers_tilt_az[cluster][1]*ers_tilt_az[cluster][1]));
+					 if (l2_moving[cluster] > max_reasonable) {
+						 l2_moving[cluster] = Double.NaN;
+					 }
+				 } else {
+					 l2_moving[cluster] = Double.NaN;
+				 }
+			 }
+			 double [] ers_blured = l2_moving.clone();
+			 double [] cluster_weights = getClusterWeight();
+			 if (sigma > 0.0){
+				 ers_blured = (new DoubleGaussianBlur()).blurWithNaN(
+						 ers_blured, // double[] pixels,
+						 cluster_weights, // null, // double [] in_weight, // or null
+						 clustersX,// int width,
+						 clustersY,// int height,
+						 sigma, // double sigmaX,
+						 sigma, // double sigmaY,
+						 0.01); // double accuracy
+			 }
+			 // get area permitted for moving objects (not too close to the edges)
+			 boolean [] moving_en= getMovingObjectsSel(
+					 measured_dsxy, // to use target_disparity
+					 cluster_weights,
+					 max_mov_disparity, // disable higher disparity
+					 rad_to_hdiag_mov); // 0.8 limit by radius too (1.0 - radius is half diagonal, same margins, use min)
+			 double sw = 0.0;
+			 double mov_avg = 0.0;
+			 for (int cluster = 0; cluster < clusters; cluster++) {
+				 if (moving_en[cluster] && !Double.isNaN(ers_blured[cluster])) {
+					 mov_avg += ers_blured[cluster] * cluster_weights[cluster];
+					 sw += cluster_weights[cluster];
+				 }
+			 }
+			 mov_avg /= sw; // clusters;
+			 if (debug_text ) {
+				 System.out.println("Average moving object detection value = "+mov_avg+
+						 ",  max_mov_average ="+ max_mov_average);
+			 }
+			 if (mov_avg <= max_mov_average) {
+				 //			 double min_l2 = 1.0 * mov_avg; 
+				 //				 double min_l2 = 5.0 * mov_avg; //4.0 * mov_avg; //3.50 * mov_avg; // 2.50 * mov_avg; // 1.5 * mov_avg; // make absolute?
+				 moving_maybe =  extractMovingObjects(
+						 title_extra, //  String    title,
+						 ers_blured,  //double [] ers_blured, // has NaNs
+						 moving_en,   // boolean [] moving_en
+						 min_l2,      // double min_l2); // minimal value (can use average or fraction of it?
+						 4,           // int       shrink, // prevents growing outer border (==4)
+						 2);          // int       grow) { // located moving areas
+
+				 int num_moving = 0;
+				 for (int cluster = 0; cluster < clusters; cluster++) {
+					 if (moving_maybe[cluster]) num_moving++;
+				 }
+				 if (debug_text ) {
+					 System.out.println("Number of clusters to remove from LMA fitting = "+num_moving);
+				 }
+			 }
+			 if (title != null) {
+				 String [] titles = {"vert", "hor", "amplitude", "blured", "mask","maybe"};
+				 double [][] dbg_img = new double [titles.length][] ; // [clusters];
+				 dbg_img[0] = new double [clusters];
+				 dbg_img[1] = new double [clusters];
+				 dbg_img[2] = new double [clusters];
+				 for (int cluster = 0; cluster < clusters; cluster++) {
+					 if (ers_tilt_az[cluster] != null) {
+							dbg_img[0][cluster] = ers_tilt_az[cluster][0];
+							dbg_img[1][cluster] = ers_tilt_az[cluster][1];
+							dbg_img[2][cluster] = l2_moving[cluster];
+					 } else {
+							dbg_img[0][cluster] = Double.NaN;
+							dbg_img[1][cluster] = Double.NaN;
+							dbg_img[2][cluster] = Double.NaN;
+					 }
+				 }
+				 dbg_img[3] = ers_blured;
+				 dbg_img[4] = new double [clusters];
+				 for (int cluster = 0; cluster < clusters; cluster++) {
+					 dbg_img[4][cluster] = moving_en[cluster] ? 1.0:0.0;
+				 }
+				 if (moving_maybe != null) {
+					 dbg_img[5] = new double [clusters];
+					 for (int cluster = 0; cluster < clusters; cluster++) {
+						 dbg_img[5][cluster] = moving_maybe[cluster] ? 1.0:0.0;
+					 }
+				 }
+				 (new ShowDoubleFloatArrays()).showArrays(
+						 dbg_img,
+						 clustersX,
+						 clustersY,
+						 true,
+						 title,
+						 titles);
+			 }
+		 }
+		 return moving_maybe;
+	}
+	
+	
 	private double [][] getMovingObjects(
 			GeometryCorrection.CorrVector corr_vector,
 			double [] fx // or null;
@@ -1431,15 +1788,6 @@ public class ExtrinsicAdjustment {
 		return ers_tilt_az;
 	}
 
-	private void showMovingObjects(
-			String      title,
-			double [][] ers_tilt_az) {
-		showMovingObjects(
-				title,
-				ers_tilt_az,
-				0, // double sigma,
-				0);
-	}
 
 	private double [] getClusterWeight() { // sum == 1.0;
 		int clusters = clustersX * clustersY;
@@ -1460,11 +1808,24 @@ public class ExtrinsicAdjustment {
 		return cluster_weights;
 		
 	}
+	
+	private void showMovingObjects(
+			String      title,
+			double [][] ers_tilt_az) {
+		showMovingObjects(
+				title,
+				ers_tilt_az,
+				0, // double sigma,
+				0,
+				true);
+	}
+
 	private double [] showMovingObjects(
 			String      title,
 			double [][] ers_tilt_az,
 			double sigma,
-			double accuracy
+			double accuracy,
+			boolean debug
 			)
 	{
 		int clusters = clustersX * clustersY;
@@ -1868,52 +2229,11 @@ public class ExtrinsicAdjustment {
 //					this.last_jt); // double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
 			this.last_jt =  getJacobianTransposed(corr_vector); // new double [num_pars][num_points];
 			this.last_ymfx = getFx(corr_vector);
-			if (debug_level > -10) { // temporary
+			if (debug_level > -1) { // temporary
 				dbgYminusFxWeight(
 						this.last_ymfx,
 						this.weights,
 						"Initial_y-fX_after_moving_objects");
-				
-				/*
-				double [][] ers_tilt_az = getMovingObjects(
-						corr_vector, // GeometryCorrection.CorrVector corr_vector,
-						null ); // double [] fx
-				showMovingObjects(
-						"Moving_objects", // String      title,
-						ers_tilt_az);
-				double moving_sigma = 1.0;
-				
-				double [] ers_blured = showMovingObjects(
-						"Moving_objects_sigma"+moving_sigma, // String      title,
-						ers_tilt_az,
-						moving_sigma, // double sigmaX,
-						0.01); // double accuracy
-				System.out.println("Moving objects");
-				
-				double mov_avg = 0.0;
-				int clusters = clustersX * clustersY;
-				for (int cluster = 0; cluster < clusters; cluster++) {
-					if (!Double.isNaN(ers_blured[cluster])) mov_avg += ers_blured[cluster];
-				}
-				mov_avg /= clusters;
-				System.out.println("Average moving object detection value = "+mov_avg+
-						" (use to abandon detection if too high?");
-				double min_l2 = 1.0 * mov_avg; 
-				boolean [] moving_maybe =  extractMovingObjects(
-						"Moving_objects_filtering", //  String    title,
-						ers_blured, //double [] ers_blured, // has NaNs
-						min_l2, // double min_l2); // minimal value (can use average or fraction of it?
-						4, // int       shrink, // prevents growing outer border (==4)
-						2); // int       grow) { // located moving areas
-
-				int num_moving = 0;
-				for (int cluster = 0; cluster < clusters; cluster++) {
-					if (moving_maybe[cluster]) num_moving++;
-				}
-				System.out.println("Number of clusters to remove from LMA fitting = "+num_moving);
-				System.out.println();
-				*/
-				
 			}
 
 			if (last_ymfx == null) {
@@ -2017,7 +2337,8 @@ public class ExtrinsicAdjustment {
 
 			this.corr_vector = new_vector.clone();
 			if (debug_level > 2) {
-				System.out.print("New vector: "+new_vector.toString());
+				System.out.print("delta: "+corr_delta.toString()+"\n");
+				System.out.print("New vector: "+new_vector.toString()+"\n");
 ///				for (int np = 0; np < vector.length; np++) {
 ///					System.out.print(this.vector[np]+" ");
 ///				}

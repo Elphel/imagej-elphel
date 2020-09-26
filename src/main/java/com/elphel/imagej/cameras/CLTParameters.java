@@ -181,7 +181,8 @@ public class CLTParameters {
 	public boolean    lylw_com_roll=      false;   // Enable common roll (valid for high disparity range only)
 	public int        lylw_par_sel   =    0;       // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use checkbox selections above)
 
-	public double     ly_marg_fract =   0.2;     // part of half-width, and half-height to reduce weights
+	public double     ly_marg_fract =    0.2;    // part of half-width, and half-height to reduce weights
+	public double     ly_rad_to_hdiag =  0.8;    // Limit by radius too (1.0 - radius is half diagonal, same margins, use min)
 	public boolean    ly_on_scan =      true;    // Calculate and apply lazy eye correction after disparity scan (poly or extrinsic)
 	public boolean    ly_inf_en =       true;    // Simultaneously correct disparity at infinity (both poly and extrinsic)
 	public int        ly_min_forced =     20;    // Minimal number of clusters with forced disparity to use it
@@ -193,13 +194,35 @@ public class CLTParameters {
 	public boolean    ly_ers_forw=      true;    // Enable ERS correction of the camera linear movement in z direction
 	public boolean    ly_ers_side=      false;   // true;    // Enable ERS correction of the camera linear movement in x direction
 	public boolean    ly_ers_vert=      false;   // true;    // Enable ERS correction of the camera linear movement in y direction
-
 	public int        ly_par_sel   =    0;       // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use checkbox selections above)
+
+	public  double    ly_weight_infinity =      0.3; // Total weight of infinity tiles fraction (0.0 - 1.0) 
+	public  double    ly_weight_disparity =     0.0; // Disparity weight relative to the sum of 8 lazy eye values of the same tile 
+	public  double    ly_weight_disparity_inf = 0.5; // Disparity weight relative to the sum of 8 lazy eye values of the same tile for infinity 
+	public  double    ly_max_disparity_far =    5.0; // Reduce weights of near tiles proportional to sqrt(max_disparity_far/disparity) 
+	public  double    ly_max_disparity_use = 1000.0; // Disregard near objects (default 1000) for LY adjustment to avoid ERS influence
+	
+	public  double    ly_inf_min_dfe =         1.75; // Clouds detection: minimal distance from bg_sel edge for non-zero weight 
+	public  double    ly_inf_max_dfe =         5.0;  // Clouds detection: saturation level for distance from bg_sel edge (<=0 - disable feature) 
+	
+	public  boolean   ly_inf_force_fine =    false;  // Use fine settings even for early adjustment cycles 
+	public  double    ly_inf_min_broad =      -1.0;  // Minimal infinity disparity during early LY adjustments (broad) 
+	public  double    ly_inf_max_broad =       0.5;  // Maximal infinity disparity during early LY adjustments (broad) 
+	public  double    ly_inf_min_narrow =     -0.2;  // Minimal infinity disparity during late LY adjustments (narrow) 
+	public  double    ly_inf_max_narrow =      0.05; // Maximal infinity disparity during late LY adjustments (narrow 
+
+	public  boolean   ly_moving_en =           false;  // enable filtering areas with potentially moving objects 
+	public  boolean   ly_moving_apply =        false;  // apply filtering areas with potentially moving objects 
+	public  double    ly_moving_sigma =          1.0;  // blurring sigma for moving objects = 1.0;
+	public  double    ly_max_mov_disparity =    75.0;  // disparity limit for moving objects detection = 75.0;
+	public  double    ly_rad_to_hdiag_mov =      0.7;  // radius to half-diagonal ratio to remove high-distortion corners = 0.7 ; // 0.8
+	public  double    ly_max_mov_average =       0.2;  // do not attempt to detect moving objects if ERS is not accurate for terrain = .25;
+	public  double    ly_mov_min_L2 =            0.75; // threshold for moving objects = 0.75;
 
 	public int        ly_debug_level =  0;       // LY debug level
 
 	public boolean    ly_right_left=    true;    // equalize weights of right/left FoV (use with horizon in both halves and gross infinity correction)
-
+	public boolean    ly_inf_tilt=      true;    // select infinity tiles form right/left tilted (false - from average)  
 	public int        ly_per_quad =     10;      // minimal tiles per quadrant (not counting the worst) tp proceed
 	public double     ly_per_quad_r =   0.003;    // minimal relative tiles per quadrant (not counting the worst) tp proceed
 	public int        ly_inf =          10;      // minimal number of tiles at infinity to proceed
@@ -231,7 +254,7 @@ public class CLTParameters {
 	public double     lym_overexp     = 0.0001;  // Any (near) saturated pixels - discard tile (see sat_level also)
 	public boolean    lym_update_disp = true;    // Update target disparity after each step
 	public int        lym_iter =        25;      // Maximal number of iterations
-	private double    lym_change =      0.5e-5;    // Parameter vector difference to exit 4e-6 - OK
+	private double    lym_change =      5e-5;    // Parameter vector difference to exit 4e-6 - OK
 	private double    lym_change_aux =  1e-4;    // same for aux camera (currntly)lwir
 	public double     lym_poly_change = 0.002;   // Parameter vector difference to exit from polynomial correction
 
@@ -1043,6 +1066,8 @@ public class CLTParameters {
 		properties.setProperty(prefix+"lylw_par_sel",                 this.lylw_par_sel+"");
 
 		properties.setProperty(prefix+"ly_marg_fract",              this.ly_marg_fract+"");
+		properties.setProperty(prefix+"ly_rad_to_hdiag",            this.ly_rad_to_hdiag+"");
+		
 		properties.setProperty(prefix+"ly_on_scan",                 this.ly_on_scan+"");
 		properties.setProperty(prefix+"ly_inf_en",                  this.ly_inf_en+"");
 		properties.setProperty(prefix+"ly_min_forced",              this.ly_min_forced+"");
@@ -1054,14 +1079,34 @@ public class CLTParameters {
 		properties.setProperty(prefix+"ly_ers_forw",                this.ly_ers_forw+"");
 		properties.setProperty(prefix+"ly_ers_side",                this.ly_ers_side+"");
 		properties.setProperty(prefix+"ly_ers_vert",                this.ly_ers_vert+"");
-
-
-
 		properties.setProperty(prefix+"ly_par_sel",                 this.ly_par_sel+"");
+
+		properties.setProperty(prefix+"ly_weight_infinity",         this.ly_weight_infinity+"");
+		properties.setProperty(prefix+"ly_weight_disparity",        this.ly_weight_disparity+"");
+		properties.setProperty(prefix+"ly_weight_disparity_inf",    this.ly_weight_disparity_inf+"");
+		properties.setProperty(prefix+"ly_max_disparity_far",       this.ly_max_disparity_far+"");
+		properties.setProperty(prefix+"ly_max_disparity_use",       this.ly_max_disparity_use+"");
+
+		properties.setProperty(prefix+"ly_inf_min_dfe",             this.ly_inf_min_dfe+"");
+		properties.setProperty(prefix+"ly_inf_max_dfe",             this.ly_inf_max_dfe+"");
+
+		properties.setProperty(prefix+"ly_inf_force_fine",          this.ly_inf_force_fine+"");
+		properties.setProperty(prefix+"ly_inf_min_broad",           this.ly_inf_min_broad+"");
+		properties.setProperty(prefix+"ly_inf_max_broad",           this.ly_inf_max_broad+"");
+		properties.setProperty(prefix+"ly_inf_min_narrow",          this.ly_inf_min_narrow+"");
+		properties.setProperty(prefix+"ly_inf_max_narrow",          this.ly_inf_max_narrow+"");
+		
+		properties.setProperty(prefix+"ly_moving_en",               this.ly_moving_en+"");
+		properties.setProperty(prefix+"ly_moving_apply",            this.ly_moving_apply+"");
+		properties.setProperty(prefix+"ly_moving_sigma",            this.ly_moving_sigma+"");
+		properties.setProperty(prefix+"ly_max_mov_disparity",       this.ly_max_mov_disparity+"");
+		properties.setProperty(prefix+"ly_rad_to_hdiag_mov",        this.ly_rad_to_hdiag_mov+"");
+		properties.setProperty(prefix+"ly_max_mov_average",         this.ly_max_mov_average+"");
+		properties.setProperty(prefix+"ly_mov_min_L2",              this.ly_mov_min_L2+"");
+
 		properties.setProperty(prefix+"ly_debug_level",             this.ly_debug_level+"");
-
-
 		properties.setProperty(prefix+"ly_right_left",              this.ly_right_left+"");
+		properties.setProperty(prefix+"ly_inf_tilt",                this.ly_inf_tilt+"");
 
 		properties.setProperty(prefix+"ly_per_quad",                this.ly_per_quad +"");
 		properties.setProperty(prefix+"ly_per_quad_r",              this.ly_per_quad_r +"");
@@ -1816,6 +1861,7 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"lylw_par_sel")!=null)                    this.lylw_par_sel=Integer.parseInt(properties.getProperty(prefix+"lylw_par_sel"));
 
 		if (properties.getProperty(prefix+"ly_marg_fract")!=null)                 this.ly_marg_fract=Double.parseDouble(properties.getProperty(prefix+"ly_marg_fract"));
+		if (properties.getProperty(prefix+"ly_rad_to_hdiag")!=null)               this.ly_rad_to_hdiag=Double.parseDouble(properties.getProperty(prefix+"ly_rad_to_hdiag"));
 		if (properties.getProperty(prefix+"ly_on_scan")!=null)                    this.ly_on_scan=Boolean.parseBoolean(properties.getProperty(prefix+"ly_on_scan"));
 		if (properties.getProperty(prefix+"ly_inf_en")!=null)                     this.ly_inf_en=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_en"));
 		if (properties.getProperty(prefix+"ly_min_forced")!=null)                 this.ly_min_forced=Integer.parseInt(properties.getProperty(prefix+"ly_min_forced"));
@@ -1827,13 +1873,34 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"ly_ers_forw")!=null)                   this.ly_ers_forw=Boolean.parseBoolean(properties.getProperty(prefix+"ly_ers_forw"));
 		if (properties.getProperty(prefix+"ly_ers_side")!=null)                   this.ly_ers_side=Boolean.parseBoolean(properties.getProperty(prefix+"ly_ers_side"));
 		if (properties.getProperty(prefix+"ly_ers_vert")!=null)                   this.ly_ers_vert=Boolean.parseBoolean(properties.getProperty(prefix+"ly_ers_vert"));
-
-
-
 		if (properties.getProperty(prefix+"ly_par_sel")!=null)                    this.ly_par_sel=Integer.parseInt(properties.getProperty(prefix+"ly_par_sel"));
-		if (properties.getProperty(prefix+"ly_debug_level")!=null)                this.ly_debug_level=Integer.parseInt(properties.getProperty(prefix+"ly_debug_level"));
 
+		if (properties.getProperty(prefix+"ly_weight_infinity")!=null)            this.ly_weight_infinity=Double.parseDouble(properties.getProperty(prefix+"ly_weight_infinity"));
+		if (properties.getProperty(prefix+"ly_weight_disparity")!=null)           this.ly_weight_disparity=Double.parseDouble(properties.getProperty(prefix+"ly_weight_disparity"));
+		if (properties.getProperty(prefix+"ly_weight_disparity_inf")!=null)       this.ly_weight_disparity_inf=Double.parseDouble(properties.getProperty(prefix+"ly_weight_disparity_inf"));
+		if (properties.getProperty(prefix+"ly_max_disparity_far")!=null)          this.ly_max_disparity_far=Double.parseDouble(properties.getProperty(prefix+"ly_max_disparity_far"));
+		if (properties.getProperty(prefix+"ly_max_disparity_use")!=null)          this.ly_max_disparity_use=Double.parseDouble(properties.getProperty(prefix+"ly_max_disparity_use"));
+
+		if (properties.getProperty(prefix+"ly_inf_min_dfe")!=null)                this.ly_inf_min_dfe=Double.parseDouble(properties.getProperty(prefix+"ly_inf_min_dfe"));
+		if (properties.getProperty(prefix+"ly_inf_max_dfe")!=null)                this.ly_inf_max_dfe=Double.parseDouble(properties.getProperty(prefix+"ly_inf_max_dfe"));
+
+		if (properties.getProperty(prefix+"ly_inf_force_fine")!=null)             this.ly_inf_force_fine=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_force_fine"));
+		if (properties.getProperty(prefix+"ly_inf_min_broad")!=null)              this.ly_inf_min_broad=Double.parseDouble(properties.getProperty(prefix+"ly_inf_min_broad"));
+		if (properties.getProperty(prefix+"ly_inf_max_broad")!=null)              this.ly_inf_max_broad=Double.parseDouble(properties.getProperty(prefix+"ly_inf_max_broad"));
+		if (properties.getProperty(prefix+"ly_inf_min_narrow")!=null)             this.ly_inf_min_narrow=Double.parseDouble(properties.getProperty(prefix+"ly_inf_min_narrow"));
+		if (properties.getProperty(prefix+"ly_inf_max_narrow")!=null)             this.ly_inf_max_narrow=Double.parseDouble(properties.getProperty(prefix+"ly_inf_max_narrow"));
+		
+		if (properties.getProperty(prefix+"ly_moving_en")!=null)                  this.ly_moving_en=Boolean.parseBoolean(properties.getProperty(prefix+"ly_moving_en"));
+		if (properties.getProperty(prefix+"ly_moving_apply")!=null)               this.ly_moving_apply=Boolean.parseBoolean(properties.getProperty(prefix+"ly_moving_apply"));
+		if (properties.getProperty(prefix+"ly_moving_sigma")!=null)               this.ly_moving_sigma=Double.parseDouble(properties.getProperty(prefix+"ly_moving_sigma"));
+		if (properties.getProperty(prefix+"ly_max_mov_disparity")!=null)          this.ly_max_mov_disparity=Double.parseDouble(properties.getProperty(prefix+"ly_max_mov_disparity"));
+		if (properties.getProperty(prefix+"ly_rad_to_hdiag_mov")!=null)           this.ly_rad_to_hdiag_mov=Double.parseDouble(properties.getProperty(prefix+"ly_rad_to_hdiag_mov"));
+		if (properties.getProperty(prefix+"ly_max_mov_average")!=null)            this.ly_max_mov_average=Double.parseDouble(properties.getProperty(prefix+"ly_max_mov_average"));
+		if (properties.getProperty(prefix+"ly_mov_min_L2")!=null)                 this.ly_mov_min_L2=Double.parseDouble(properties.getProperty(prefix+"ly_mov_min_L2"));
+		
+		if (properties.getProperty(prefix+"ly_debug_level")!=null)                this.ly_debug_level=Integer.parseInt(properties.getProperty(prefix+"ly_debug_level"));
 		if (properties.getProperty(prefix+"ly_right_left")!=null)                 this.ly_right_left=Boolean.parseBoolean(properties.getProperty(prefix+"ly_right_left"));
+		if (properties.getProperty(prefix+"ly_inf_tilt")!=null)                   this.ly_inf_tilt=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_tilt"));
 
 		if (properties.getProperty(prefix+"ly_per_quad")!=null)                   this.ly_per_quad=Integer.parseInt(properties.getProperty(prefix+"ly_per_quad"));
 		if (properties.getProperty(prefix+"ly_per_quad_r")!=null)                 this.ly_per_quad_r=Double.parseDouble(properties.getProperty(prefix+"ly_per_quad_r"));
@@ -2637,8 +2704,8 @@ public class CLTParameters {
 
 		gd.addMessage     ("--- other LMA parameters ---");
 
-		gd.addNumericField("Relative weight margins (0.0 - all 1.0, 1.0 sin^2",                                 this.ly_marg_fract,  8,3,"",
-				"Reduce weigt of peripheral tiles");
+		gd.addNumericField("Relative weight margins (0.0 - all 1.0, 1.0 sin^2)",                                this.ly_marg_fract,  3,5,"","Reduce weigt of peripheral tiles");
+		gd.addNumericField("Vignette corners (relative to diagonal), same fading as margins above",             this.ly_rad_to_hdiag,  3,5,"","1.0 - half diagonal, 0.8 - half width");
 
 		gd.addCheckbox    ("Calculate and apply lazy eye correction after disparity scan (poly or extrinsic), may repeat", this.ly_on_scan);
 		gd.addCheckbox    ("Adjust disparity using objects at infinity by changing individual tilt and azimuth ",          this.ly_inf_en," disable if there are no really far objects in the scene");
@@ -2653,14 +2720,60 @@ public class CLTParameters {
 		gd.addCheckbox    ("Enable ERS correction of the camera vertical motion",                               this.ly_ers_vert);
 		gd.addNumericField("Manual parameter mask selection (0 use checkboxes above)",                          this.ly_par_sel,  0, 5,"",
 				"bit 0 - sym0, bit1 - sym1, ...");
+		gd.addMessage     ("--- Relarive weights for LY samples (infinity/near, disparity/lazy eye, ...)---");
+		gd.addNumericField("Total weight of infinity tiles fraction (0.0 - 1.0)",                                        this.ly_weight_infinity,  3,5,"pix",
+				"The remaining weight goes to all objects and finate distance");
+		gd.addNumericField("Disparity weight relative to the sum of 8 lazy eye values of the same tile for near object", this.ly_weight_disparity,  3,5,"pix",
+				"Should probably be zero");
+		gd.addNumericField("Disparity weight relative to the sum of 8 lazy eye values of the same tile for infinity",    this.ly_weight_disparity_inf,  3,5,"pix",
+				"Now 0.5");
+		gd.addNumericField("Disparity threshold to reduce weights of near tiles",                                        this.ly_max_disparity_far,  1,5,"pix",
+				"Near objects' (disparity > max_disparity_far) weights are scaled by sqrt(max_disparity_far/disparity)");
+		gd.addNumericField("Disregard near objects (default 1000) for LY adjustment to avoid ERS influence",             this.ly_max_disparity_use,  1,5,"pix",
+				"Testing extrinsic (no ERS) adjustment only");
+
+		gd.addMessage     ("--- Clouds in the sky detection (reduces weights for far objects, such as mountain ridges) ---");
+		gd.addNumericField("Minimal distance from background selection edge for positive weighths",                      this.ly_inf_min_dfe,  3,5,"clusters",
+				"Values close to the larger integer cause first positive value smaller than next increments");
+		gd.addNumericField("Maximal (saturation) distance from background selection edge (0.0 - disable clouds)",        this.ly_inf_max_dfe,  3,5,"clusters",
+				"Cluters farther from the edge will have the same weight. If <= 0 - disable clouds in the sky boosting.");
+
+		gd.addMessage     ("--- Early/late lazy eye adjustments infinity margins ---");
+		gd.addCheckbox    ("Use narrow-band settings even for early adjustment cycles",                          this.ly_inf_force_fine,
+				"Unchecked - start with broad range, switch to narrow in later cysles");
+		gd.addNumericField("Low disaprity limit for infinity during early passes (broad)",                       this.ly_inf_min_broad,  3,5,"pix",
+				"Early adjustment passes should tolerate large disp[arity tilts");
+		gd.addNumericField("High disaprity limit for infinity during early passes (broad)",                      this.ly_inf_max_broad,  3,5,"pix",
+				"Early adjustment passes should tolerate large disp[arity tilts");
+		gd.addNumericField("Low disaprity limit for infinity during late passes (narrow)",                       this.ly_inf_min_narrow,  3,5,"pix",
+				"Late adjustments should have tighter margins, and the negative (this) should be more tolerant than the positive one");
+		gd.addNumericField("High disaprity limit for infinity during late passes (narrow)",                      this.ly_inf_max_narrow,  3,5,"pix",
+				"Late adjustments should have tighter margins, and the positive (this) should be more tighter than the negatgive one");
+
+		gd.addMessage     ("--- Detection and removal of potentially moving objects from adjustment data set ---");
+		gd.addCheckbox    ("Enable moving object detection",                                                     this.ly_moving_en,
+				"Should be enabled when camera egomotion is approximately determined");
+		gd.addCheckbox    ("Apply detected moving objects",                                                      this.ly_moving_apply,
+				"Uncheck for dry-run");
+		gd.addNumericField("Low-pass sigma to blur moving objects detection",                                    this.ly_moving_sigma,  3,5,"pix",
+				"1.0 seems to be a good value");
+		gd.addNumericField("Do not detect very close objects",                                                   this.ly_max_mov_disparity,  3,5,"pix",
+				"More tests are needed with close objects");
+		gd.addNumericField("Do not detect objects in peripheral (high lens distortion) areas",                   this.ly_rad_to_hdiag_mov,  3,5,"",
+				"As a ratio to half diagonal. 0.8 corresponds to half-width");
+		gd.addNumericField("Do not try to detect until the camera egomotion is determoined",                     this.ly_max_mov_average,  3,5,"",
+				"After adjustment the evatage value is about 1.1");
+		gd.addNumericField("Threshold value for potentially moving objects (lower - terrain)",                   this.ly_mov_min_L2,  3,5,"",
+				"0.5 .. 0.75, needs more testing");
+		
+		gd.addMessage     ("---");
 		gd.addNumericField("Debug level for lazy eye/ers processing",                                           this.ly_debug_level,  0, 5,"",
 				"Active when global debug level > -1, 1 - min, 2 - lma steps, 3 - images");
 
-
-
-		gd.addCheckbox    ("Equalize weights of right/left FoV",           this.ly_right_left,
+		gd.addCheckbox    ("Equalize weights of right/left FoV",                                                this.ly_right_left,
 				"Use this mode use with horizon visible in both FoV halves when gross infinity correction is needed");
-
+		gd.addCheckbox    ("Compensate for right/left tilt at infinity",                                        this.ly_inf_tilt,
+				"When selectig true infinity tiles, compare to tilted avarage (false use average of all infinity tiles)");
 
 		gd.addNumericField("Minimal tiles per quadrant (not counting the worst) tp proceed",                         this.ly_per_quad,  0);
 		gd.addNumericField("Minimal tiles per quadrant (not counting the worst) tp proceed - fraction of all tiles", this.ly_per_quad_r,  3);
@@ -2671,7 +2784,7 @@ public class CLTParameters {
 
 		gd.addNumericField("Relative weight of infinity calibration data",                                           this.ly_inf_frac,  3);
 
-		gd.addNumericField("Maximal disparity to be treated as infinity when adjusting with the rig data",           this.ly_inf_max_disparity,  8,3,"pix",
+		gd.addNumericField("Maximal disparity to be treated as infinity when adjusting with the rig data",           this.ly_inf_max_disparity,  3,5,"pix",
 				"Only used in guided (by rig data) mode");
 
 		gd.addCheckbox    ("Correct disparity for infinity tiles )has to disable until code fixed)",                 this.ly_inf_disp);
@@ -2683,22 +2796,22 @@ public class CLTParameters {
 		gd.addNumericField("Number after removing worst (should be >1)",                                        this.ly_smpl_num,  0);
 		gd.addMessage     ("Maximal measured relative disparity = "+ (0.8*disp_scan_step)+" (0.8 * disp_scan_step)");
 		//			gd.addNumericField("Maximal measured relative disparity",                                               this.ly_meas_disp,  3);
-		gd.addNumericField("Maximal RMS of the remaining tiles in a sample",                                    this.ly_smpl_rms,  5);
-		gd.addNumericField("Maximal full disparity difference to 8 neighbors",                                  this.ly_disp_var, 8,5,"pix",
+		gd.addNumericField("Maximal RMS of the remaining tiles in a sample",                                    this.ly_smpl_rms,  5,8,"");
+		gd.addNumericField("Maximal full disparity difference to 8 neighbors",                                  this.ly_disp_var, 5,8,"pix",
 				"Full allowed mismatch is a sum of absolute and disparity times relative");
-		gd.addNumericField("Maximal relative full disparity difference to 8 neighbors",                         this.ly_disp_rvar, 8,5,"",
+		gd.addNumericField("Maximal relative full disparity difference to 8 neighbors",                         this.ly_disp_rvar, 5,8,"",
 				"Full allowed mismatch is a sum of absolute and disparity times relative");
-		gd.addNumericField("Maximal full disparity difference to 8 neighbors with GT",                          this.ly_disp_var_gt, 8,5,"pix",
+		gd.addNumericField("Maximal full disparity difference to 8 neighbors with GT",                          this.ly_disp_var_gt, 5,8,"pix",
 				"Full allowed mismatch is a sum of absolute and disparity times relative (relaxed when ground truth is available)");
-		gd.addNumericField("Maximal relative full disparity difference to 8 neighbors with GT",                 this.ly_disp_rvar_gt, 8,5,"",
+		gd.addNumericField("Maximal relative full disparity difference to 8 neighbors with GT",                 this.ly_disp_rvar_gt, 5,8,"",
 				"Full allowed mismatch is a sum of absolute and disparity times relative (relaxed when ground truth is available)");
-		gd.addNumericField("Reduce weight of higher disparity tiles",                                           this.ly_norm_disp, 5);
+		gd.addNumericField("Reduce weight of higher disparity tiles",                                           this.ly_norm_disp, 5,8,"");
 		gd.addMessage     ("--- Lazy eye multi-step fitting ---");
-		gd.addNumericField("Any (near) saturated pixels - discard tile (see sat_level also)",                   this.lym_overexp,  10);
+		gd.addNumericField("Any (near) saturated pixels - discard tile (see sat_level also)",                   this.lym_overexp,  10,12,"");
 		gd.addCheckbox    ("Update target disparity after each step",                                           this.lym_update_disp);
 		gd.addNumericField("Maximal number of iterations",                                                      this.lym_iter,  0);
-		gd.addNumericField("Parameter vector difference to exit (main camera)",                                 this.lym_change,  10);
-		gd.addNumericField("Parameter vector difference to exit (aux camera)",                                  this.lym_change_aux,  10);
+		gd.addNumericField("Parameter vector difference to exit (main camera)",                                 this.lym_change,  10,12,"");
+		gd.addNumericField("Parameter vector difference to exit (aux camera)",                                  this.lym_change_aux,  10,12,"");
 
 		gd.addNumericField("Parameter vector difference to exit from polynomial correction",                    this.lym_poly_change,  10);
 
@@ -3544,6 +3657,7 @@ public class CLTParameters {
 		this.lylw_par_sel=    (int) gd.getNextNumber();
 
 		this.ly_marg_fract=         gd.getNextNumber();
+		this.ly_rad_to_hdiag=       gd.getNextNumber();
 		this.ly_on_scan=            gd.getNextBoolean();
 		this.ly_inf_en=             gd.getNextBoolean();
 		this.ly_min_forced=   (int) gd.getNextNumber();
@@ -3556,9 +3670,33 @@ public class CLTParameters {
 		this.ly_ers_side=           gd.getNextBoolean();
 		this.ly_ers_vert=           gd.getNextBoolean();
 		this.ly_par_sel=      (int) gd.getNextNumber();
+		
+		this.ly_weight_infinity=     gd.getNextNumber();
+		this.ly_weight_disparity=    gd.getNextNumber();
+		this.ly_weight_disparity_inf=gd.getNextNumber();
+		this.ly_max_disparity_far=   gd.getNextNumber();
+		this.ly_max_disparity_use=   gd.getNextNumber();
+		
+		this.ly_inf_min_dfe=         gd.getNextNumber();
+		this.ly_inf_max_dfe=         gd.getNextNumber();
+		this.ly_inf_force_fine=      gd.getNextBoolean();
+		this.ly_inf_min_broad=       gd.getNextNumber();
+		this.ly_inf_max_broad=       gd.getNextNumber();
+		this.ly_inf_min_narrow=      gd.getNextNumber();
+		this.ly_inf_max_narrow=      gd.getNextNumber();
+		
+		this.ly_moving_en=           gd.getNextBoolean();
+		this.ly_moving_apply=        gd.getNextBoolean();
+		this.ly_moving_sigma=        gd.getNextNumber();
+		this.ly_max_mov_disparity=   gd.getNextNumber();
+		this.ly_rad_to_hdiag_mov=    gd.getNextNumber();
+		this.ly_max_mov_average=     gd.getNextNumber();
+		this.ly_mov_min_L2=          gd.getNextNumber();
+		
 		this.ly_debug_level=  (int) gd.getNextNumber();
 
 		this.ly_right_left=         gd.getNextBoolean();
+		this.ly_inf_tilt=           gd.getNextBoolean();
 
 		this.ly_per_quad=     (int) gd.getNextNumber();
 		this.ly_per_quad_r=         gd.getNextNumber();

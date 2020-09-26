@@ -8325,11 +8325,14 @@ if (debugLevel > -100) return true; // temporarily !
 								"pre-adjust-extrinsic-scan-"+s); //String title)
 					}
 				}
-			    double inf_min = -1.0;
-			    double inf_max =  1.0;
-			    if (num_adjust_main >= (adjust_main/2)) {
-			        inf_min = -0.2;
-			        inf_max = 0.05;
+			    double inf_min = clt_parameters.ly_inf_min_broad; // -0.5;
+			    double inf_max = clt_parameters.ly_inf_max_broad; // 0.5;
+			    if (clt_parameters.ly_inf_force_fine || (num_adjust_main >= (adjust_main/2))) {
+			        inf_min = clt_parameters.ly_inf_min_narrow; // -0.2;
+			        inf_max = clt_parameters.ly_inf_max_narrow; // 0.05;
+			        System.out.println("Late adjustment, using narrow band infinity detection, inf_min="+inf_min+", inf_max="+inf_max);
+			    } else {
+			        System.out.println("Early adjustment, using wide band infinity detection, inf_min="+inf_min+", inf_max="+inf_max);
 			    }
 				boolean ok = quadCLT_main.extrinsicsCLT(
 						clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
@@ -8407,7 +8410,7 @@ if (debugLevel > -100) return true; // temporarily !
 						quadCLT_main.tp.clt_3d_passes.get( quadCLT_main.tp.clt_3d_passes.size() -1),
 						false); // boolean force_final);
 
-				  if (debugLevel > -5){
+				  if (debugLevel > -1) { //-5){
 					  int scan_index =  quadCLT_main.tp.clt_3d_passes.size() -1;
 					  quadCLT_main.tp.showScan(
 							  quadCLT_main.tp.clt_3d_passes.get(scan_index),   // CLTPass3d   scan,
@@ -8508,6 +8511,18 @@ if (debugLevel > -100) return true; // temporarily !
 				}
 				if (num_restored < 2) {
 					System.out.println("No DSI from the main camera is available. Please re-run with 'clt_batch_explore' enabled to generate it");
+					if (quadCLT_main.correctionsParameters.clt_batch_save_extrinsics) {
+						saveProperties(
+								null,        // String path,                // full name with extension or w/o path to use x3d directory
+								null,        // Properties properties,      // if null - will only save extrinsics)
+								debugLevel);
+					}
+					if (quadCLT_main.correctionsParameters.clt_batch_save_all) {
+						saveProperties(
+								null,        // String path,                // full name with extension or w/o path to use x3d directory
+								properties,  // Properties properties,    // if null - will only save extrinsics)
+								debugLevel);
+					}
 					continue; // skipping to the next file
 				}
 			}
@@ -8681,6 +8696,8 @@ if (debugLevel > -100) return true; // temporarily !
 						updateStatus,   // final boolean                            updateStatus,
 						debugLevel);    // final int                                debugLevel)
 			}
+			
+			
 
 			if (quadCLT_main.correctionsParameters.clt_batch_save_extrinsics) {
 				saveProperties(

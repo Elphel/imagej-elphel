@@ -9,7 +9,7 @@ import com.elphel.imagej.gpu.GPUTileProcessor;
 //import Jama.Matrix;
 
 public class ImageDtt extends ImageDttCPU {
-	
+	public boolean debug_strengths = false; // true;
 	private final GPUTileProcessor.GpuQuad gpuQuad;
 
 	public ImageDtt(
@@ -2303,11 +2303,9 @@ public class ImageDtt extends ImageDttCPU {
 		final double [][] lazy_eye_data = new double [clustersY*clustersX][];
 		final int         gpu_corr_rad = transform_size - 1;
 		final int nClustersInChn=clustersX * clustersY;
-///		final int clustSize = tileStep*tileStep;
 
 		final int debug_clustX = debug_tileX / tileStep;
 		final int debug_clustY = debug_tileY / tileStep;
-///		final int bg_extra = (tileSizeBg - tileStep + 1) / 2; // add overlap around each bg cluster
 		
 		// calculate which tiles to use for each cluster
 		// will generate sparse array for cluster central tiles to match CPU software
@@ -2322,7 +2320,6 @@ public class ImageDtt extends ImageDttCPU {
 		final AtomicInteger ai = new AtomicInteger(0);
 		final double shiftX = 0.0;
 		final double shiftY = 0.0;
-//		final int super_radius = tileSizeBg; // rename? 0 - none, 1 - 3x3, 2 - 5x5, ...
 		// TODO: Maybe calculate full energy in each TD tile for normalization
 		// First pass merge correlation result for each cluster
 		for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -2439,7 +2436,6 @@ public class ImageDtt extends ImageDttCPU {
 								}
 							}
 
-							//							tile_op[centerY][centerX] =                task_val;
 							num_in_cluster        [clustY][clustX] = num_good_tiles;
 							disparity_array_center[clustY][clustX] = avg;
 
@@ -2523,7 +2519,7 @@ public class ImageDtt extends ImageDttCPU {
 				}
 			}
 		}
-		final double [][] dbg_img = new double[19][clustersX*clustersY];
+		final double [][] dbg_img = debug_strengths? (new double[19][clustersX*clustersY]):null;
 		// Second pass - process normalized per-cluster correlations
 		ai.set(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -2549,8 +2545,7 @@ public class ImageDtt extends ImageDttCPU {
 						int clustX = tileX/tileStep;
 						int clustY = tileY/tileStep;
 						int nclust = clustX + clustY * clustersX;
-						dbg_img[0][nclust] = 1.0;
-						///						boolean debugCluster1 = (Math.abs(clustX - debug_clustX) < 10) && (Math.abs(clustY - debug_clustY) < 10);
+						if (dbg_img != null) dbg_img[0][nclust] = 1.0;
 						double []  disp_str =  null;
 
 						for (int indx_pair = 0; indx_pair < num_pairs; indx_pair++) {
@@ -2614,7 +2609,7 @@ public class ImageDtt extends ImageDttCPU {
 								tileY);                       // int                 tileY
 						*/
 						if (lma2 != null) {
-							dbg_img[1][nclust] = 1.0;
+							if (dbg_img != null) dbg_img[1][nclust] = 1.0;
 							// was for single tile
 							disp_str = lma2.lmaDisparityStrength(
 									imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
@@ -2629,14 +2624,13 @@ public class ImageDtt extends ImageDttCPU {
 								double [][] ds_dbg = {disp_str};
 								lma2.printStats(ds_dbg,1);
 							}
-							//was for multi-tile
-//							int nCluster = 	clustY * clustersX + clustX;
 							double [][] ddnd = lma2.getDdNd();
-//							double [] stats  = lma2.getStats (1); // num_in_cluster[clustY][clustX]);
 							double [] stats  = lma2.getStats (num_in_cluster[clustY][clustX]);
-							dbg_img[2][nclust] = stats[0];
-							dbg_img[3][nclust] = stats[1];
-							dbg_img[4][nclust] = stats[2];
+							if (dbg_img != null) {
+								dbg_img[2][nclust] = stats[0];
+								dbg_img[3][nclust] = stats[1];
+								dbg_img[4][nclust] = stats[2];
+							}
 
 		    				double [][] lma_ds = lma2.lmaDisparityStrengthLY( // [1][2]
 		    						imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
@@ -2647,21 +2641,23 @@ public class ImageDtt extends ImageDttCPU {
 				    				1.0, // imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
 				    				0.0); // imgdtt_params.lma_str_offset);  // convert lma-generated strength to match previous ones - add to result
 							
-							double [][] dbg_ext_stat = lma2.lmaGetExtendedStats(
-									imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
-									imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
-									imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
-									imgdtt_params.lma_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
-									imgdtt_params.lma_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
-				    				1.0, // imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
-				    				0.0); // imgdtt_params.lma_str_offset);  // convert lma-generated strength to match previous ones - add to result
-							for (int ii = 0; ii < dbg_ext_stat[0].length; ii++) {
-								dbg_img[5+ii][nclust] = dbg_ext_stat[0][ii];
-							}
-							dbg_img[16][nclust] = num_in_cluster[clustY][clustX];
 							double strengh_k = 1.0; // 0.2*Math.sqrt(num_in_cluster[clustY][clustX]); // approximately matching old/multitile
-							dbg_img[17][nclust] = strengh_k * lma_ds[0][1]  * num_in_cluster[clustY][clustX]; 
-							dbg_img[18][nclust] = lma_ds[0][0] + disparity_array_center[clustY][clustX] + disparity_corr; 
+							if (dbg_img != null) {
+								double [][] dbg_ext_stat = lma2.lmaGetExtendedStats(
+										imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
+										imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
+										imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+										imgdtt_params.lma_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
+										imgdtt_params.lma_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
+										1.0, // imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
+										0.0); // imgdtt_params.lma_str_offset);  // convert lma-generated strength to match previous ones - add to result
+								for (int ii = 0; ii < dbg_ext_stat[0].length; ii++) {
+									dbg_img[5+ii][nclust] = dbg_ext_stat[0][ii];
+								}
+								dbg_img[16][nclust] = num_in_cluster[clustY][clustX];
+								dbg_img[17][nclust] = strengh_k * lma_ds[0][1]  * num_in_cluster[clustY][clustX]; 
+								dbg_img[18][nclust] = lma_ds[0][0] + disparity_array_center[clustY][clustX] + disparity_corr; 
+							}
 							if ((lma_ds[0] != null) && (lma_ds[0][1]> 0.0)) {
 								lazy_eye_data[nclust] = new double [ExtrinsicAdjustment.INDX_LENGTH];
 								lazy_eye_data[nclust][ExtrinsicAdjustment.INDX_STRENGTH] =           strengh_k * lma_ds[0][1]  * num_in_cluster[clustY][clustX]; 
@@ -2695,12 +2691,15 @@ public class ImageDtt extends ImageDttCPU {
 			};
 		}
 		startAndJoin(threads);
-		(new ShowDoubleFloatArrays()).showArrays(
-				dbg_img,
-				clustersX,
-				clustersY,
-				true,
-				"ly_dbg"); // name+"-CORR2D-D"+clt_parameters.disparity,
+		
+		if (dbg_img != null) {
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_img,
+					clustersX,
+					clustersY,
+					true,
+					"ly_dbg"); // name+"-CORR2D-D"+clt_parameters.disparity,
+		}
 		if (super_radius == 0) {
 			return lazy_eye_data; // no processing of clouds in the sky
 		}
@@ -2708,7 +2707,6 @@ public class ImageDtt extends ImageDttCPU {
 		final double [][]         lazy_eye_data_final = new double [clustersY*clustersX][];
 		final int    [][]         num_in_cluster_final = new int [clustersY][clustersX];  // only in cluster centers
 		final float  [][][][]     fcorr_td_super = new float [tilesY][tilesX][][]; // sparse, only in cluster centers
-		//				final float  [][][][]     fcorr_td_centers = new float [tilesY][tilesX][][]; // sparse, only in cluster centers
 		final double [][][][]     disp_dist_super = new double [clustersY][clustersX][][];
 		final double [][][]       clust_pY_super =  new double  [clustersY][clustersX][];
 		final double [][][]       pxpy_super = new double [clustersY][clustersX][];
@@ -2833,25 +2831,8 @@ public class ImageDtt extends ImageDttCPU {
 		final float [][] fcorr2D_super = gpuQuad.getCorr2D(gpu_corr_rad); //  int corr_rad);
 		final int corr_length_super = fcorr2D_super[0].length + 0;// all correlation tiles have the same size
 		final int num_tiles_super = corr_indices_super.length / num_pairs; 
-/* Reuse same as already calculated
-		final double [][] corr_wnd = Corr2dLMA.getCorrWnd(
-				transform_size,
-				imgdtt_params.lma_wnd);
-		final double [] corr_wnd_inv_limited = (imgdtt_params.lma_min_wnd <= 1.0)?  new double [corr_wnd.length * corr_wnd[0].length]: null;
-		if (corr_wnd_inv_limited != null) {
-			double inv_pwr = imgdtt_params.lma_wnd_pwr - (imgdtt_params.lma_wnd - 1.0); // compensate for lma_wnd
-			for (int i = imgdtt_params.lma_hard_marg; i < (corr_wnd.length - imgdtt_params.lma_hard_marg); i++) {
-				for (int j = imgdtt_params.lma_hard_marg; j < (corr_wnd.length - imgdtt_params.lma_hard_marg); j++) {
-					corr_wnd_inv_limited[i * (corr_wnd.length) + j] = 1.0/Math.max(Math.pow(corr_wnd[i][j],
-							inv_pwr),
-							imgdtt_params.lma_min_wnd);
-				}
-			}
-		}
- */
-		
+		final double [][] dbg_img2 = debug_strengths? (new double[19][clustersX*clustersY]):null;
 
-		final double [][] dbg_img2 = new double[19][clustersX*clustersY];
 		// Fourth pass - process normalized per-cluster correlations for low-contrast infinity tiles (clouds in the sky)
 		ai.set(0);
 // TODO: 	2) calculate lazy_eye_data_final 
@@ -2879,7 +2860,9 @@ public class ImageDtt extends ImageDttCPU {
 						int clustX = tileX/tileStep;
 						int clustY = tileY/tileStep;
 						int nclust = clustX + clustY * clustersX;
-						dbg_img2[0][nclust] = 1.0;
+						if (dbg_img2 != null) {
+							dbg_img2[0][nclust] = 1.0;
+						}
 						double []  disp_str =  null;
 
 						for (int indx_pair = 0; indx_pair < num_pairs; indx_pair++) {
@@ -2943,7 +2926,6 @@ public class ImageDtt extends ImageDttCPU {
 								tileY);                       // int                 tileY
 						*/
 						if (lma2 != null) {
-							dbg_img2[1][nclust] = 1.0;
 							// was for single tile
 							disp_str = lma2.lmaDisparityStrength(
 									imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
@@ -2958,14 +2940,8 @@ public class ImageDtt extends ImageDttCPU {
 								double [][] ds_dbg = {disp_str};
 								lma2.printStats(ds_dbg,1);
 							}
-							//was for multi-tile
-//							int nCluster = 	clustY * clustersX + clustX;
 							double [][] ddnd = lma2.getDdNd();
-//							double [] stats  = lma2.getStats (1); // num_in_cluster_final[clustY][clustX]);
 							double [] stats  = lma2.getStats (num_in_cluster_final[clustY][clustX]);
-							dbg_img2[2][nclust] = stats[0];
-							dbg_img2[3][nclust] = stats[1];
-							dbg_img2[4][nclust] = stats[2];
 							double k = 2.5;
 		    				double [][] lma_ds = lma2.lmaDisparityStrengthLY( // [1][2]
 		    						imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
@@ -2975,23 +2951,29 @@ public class ImageDtt extends ImageDttCPU {
 									k* imgdtt_params.lma_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
 				    				1.0, // imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
 				    				0.0); // imgdtt_params.lma_str_offset);  // convert lma-generated strength to match previous ones - add to result
-							
-							double [][] dbg_ext_stat = lma2.lmaGetExtendedStats(
-									imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
-									imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
-									(1/k)*imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
-									(1/k)*imgdtt_params.lma_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
-									k* imgdtt_params.lma_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
-				    				1.0, // imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
-				    				0.0); // imgdtt_params.lma_str_offset);  // convert lma-generated strength to match previous ones - add to result
-							for (int ii = 0; ii < dbg_ext_stat[0].length; ii++) {
-								dbg_img2[5+ii][nclust] = dbg_ext_stat[0][ii];
-							}
 							double strengh_k = 1.0; // 0.2*Math.sqrt(num_in_cluster[clustY][clustX]); // approximately matching old/multitile
 							strengh_k /= (2 * super_radius + 1)*(2 * super_radius + 1);
-							dbg_img2[16][nclust] = num_in_cluster_final[clustY][clustX];
-							dbg_img2[17][nclust] = strengh_k * lma_ds[0][1]  * num_in_cluster_final[clustY][clustX]; 
-							dbg_img2[18][nclust] = lma_ds[0][0] + disparity_array_center[clustY][clustX] + disparity_corr;
+		    				if (dbg_img2 != null) {
+		    					dbg_img2[1][nclust] = 1.0;
+		    					dbg_img2[2][nclust] = stats[0];
+		    					dbg_img2[3][nclust] = stats[1];
+		    					dbg_img2[4][nclust] = stats[2];
+
+		    					double [][] dbg_ext_stat = lma2.lmaGetExtendedStats(
+		    							imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
+		    							imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
+		    							(1/k)*imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+		    							(1/k)*imgdtt_params.lma_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
+		    							k* imgdtt_params.lma_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
+		    							1.0, // imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
+		    							0.0); // imgdtt_params.lma_str_offset);  // convert lma-generated strength to match previous ones - add to result
+		    					for (int ii = 0; ii < dbg_ext_stat[0].length; ii++) {
+		    						dbg_img2[5+ii][nclust] = dbg_ext_stat[0][ii];
+		    					}
+		    					dbg_img2[16][nclust] = num_in_cluster_final[clustY][clustX];
+		    					dbg_img2[17][nclust] = strengh_k * lma_ds[0][1]  * num_in_cluster_final[clustY][clustX]; 
+		    					dbg_img2[18][nclust] = lma_ds[0][0] + disparity_array_center[clustY][clustX] + disparity_corr;
+		    				}
 
 							if ((lma_ds[0] != null) && (lma_ds[0][1]> 0.0)) {
 								lazy_eye_data_final[nclust] = new double [ExtrinsicAdjustment.INDX_LENGTH];
@@ -3025,31 +3007,31 @@ public class ImageDtt extends ImageDttCPU {
 			};
 		}
 		startAndJoin(threads);
-		(new ShowDoubleFloatArrays()).showArrays(
-				dbg_img2,
-				clustersX,
-				clustersY,
-				true,
-				"ly_dbg_clouds"); // name+"-CORR2D-D"+clt_parameters.disparity,
-		
-		double[][] dbg_img_combo = new double [dbg_img.length][clustersX*clustersY];
-		int dbg_w_indx = 16;
-		for (int i = 0; i <  dbg_img_combo.length; i++) {
-			dbg_img_combo[i] = dbg_img[i].clone();
-			for (int j = 0; j < dbg_img[i].length; j++) {
-				if (dbg_img2[dbg_w_indx][j] > 0.0) {
-					dbg_img_combo[i][j] = dbg_img2[i][j]; 					
+		if (dbg_img2 != null) {									
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_img2,
+					clustersX,
+					clustersY,
+					true,
+					"ly_dbg_clouds"); // name+"-CORR2D-D"+clt_parameters.disparity,
+
+			double[][] dbg_img_combo = new double [dbg_img.length][clustersX*clustersY];
+			int dbg_w_indx = 16;
+			for (int i = 0; i <  dbg_img_combo.length; i++) {
+				dbg_img_combo[i] = dbg_img[i].clone();
+				for (int j = 0; j < dbg_img[i].length; j++) {
+					if (dbg_img2[dbg_w_indx][j] > 0.0) {
+						dbg_img_combo[i][j] = dbg_img2[i][j]; 					
+					}
 				}
 			}
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_img_combo,
+					clustersX,
+					clustersY,
+					true,
+					"ly_dbg_combo");
 		}
-		(new ShowDoubleFloatArrays()).showArrays(
-				dbg_img_combo,
-				clustersX,
-				clustersY,
-				true,
-				"ly_dbg_combo");
-		
-		
 		return lazy_eye_data_final;
 	}	
 

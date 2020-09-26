@@ -386,14 +386,60 @@ public class TileNeibs{
 	}
 
 
+	public int [] distanceFromEdge(
+			boolean [] tiles) {
+		int [] dfe = new int [tiles.length];
+		for (int i = 0; i < tiles.length; i++) dfe[i] = tiles[i] ? -1 : 0;
+		ArrayList<Integer> front = new ArrayList<Integer>();
+		int dist = 0;
+		for (boolean has_empty = true; has_empty;) {
+			has_empty = false;
+			for (int start_indx = 0; start_indx < tiles.length; start_indx++) if (dfe[start_indx] < 0){
+				has_empty = true;
+				// see if it has wave front around
+				boolean has_front_near = false;
+				for (int d = 0; (d < dirs) && !has_front_near; d++){
+					int ipx1 = 	getNeibIndex(start_indx, d);
+					if ((ipx1 >= 0) && (dfe[ipx1] == dist)) {
+						has_front_near = true;
+					}
+				}
+				if (has_front_near) {
+					dfe[start_indx] = dist+1;
+					front.add(start_indx);
+					// build wave front (may be several)
+					while (!front.isEmpty()) {
+						int ipx = front.remove(0);// get oldest element
+						for (int d = 0; (d < dirs) && !has_front_near; d++){
+							int ipx1 = 	getNeibIndex(ipx, d);
+							if ((ipx1 >= 0) && (dfe[ipx1] < 0)) { // fresh cell
+								// does it has front neighbor?
+
+								for (int d1 = 0; (d1 < dirs) && !has_front_near; d1++){
+									int ipx2 = 	getNeibIndex(ipx1, d1);
+									if ((ipx2 >= 0) && (dfe[ipx2] == dist)) { // old front cell
+										dfe[ipx1] = dist+1;
+										front.add(ipx1);
+										break;
+									}
+								}
+							}
+						}
+					}		
+
+				}
+			}
+			dist++; 
+		}
+		return dfe;
+	}
+	
 	/**
 	 * Enumerate clusters on rectangular area
 	 * @param tiles   selected tiles, size should be sizeX * sizeY
 	 * @param ordered if true, order tiles from largest to smallest5
 	 * @return integer array, where 0 is unused, 1+ cluster it belongs to
 	 */
-
-
 	public int [] enumerateClusters(
 			boolean [] tiles,
 			boolean ordered)

@@ -45,6 +45,7 @@ import com.elphel.imagej.cameras.ColorProcParameters;
 import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
+import com.elphel.imagej.correction.EyesisCorrections;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 import ij.IJ;
@@ -555,18 +556,23 @@ public class MLStats {
 	}
 
 
-	public static boolean listExtrinsics(String dir) // , String mask)
+	public static boolean listExtrinsics(
+			String dir, //) // , String mask)
+			EyesisCorrections eyesis_corrections_main,
+			EyesisCorrections eyesis_corrections_aux)
 	{
 		Path path= Paths.get(dir);
 		boolean inPixels =        true;
 		boolean inMrad =          false;
 		boolean showATR =         true;
 		boolean showZooms =       true;
+		boolean showERS =         true;
 		boolean showSym =         true;
 		boolean showRigATR =      true;
 		boolean showRigZoom =     true;
 		boolean showRigAngle =    true;
 		boolean showRigBaseline = false;
+		boolean showAux =         true;
 		String mask = ".*EXTRINSICS\\.corr-xml";
 
 		GenericDialog gd = new GenericDialog("Select file mask and output format");
@@ -575,11 +581,13 @@ public class MLStats {
 		gd.addCheckbox("Show results in mrad (false in arcseconds)",     inMrad);
 		gd.addCheckbox("Show azimuths, tilts, rolls",                    showATR);
 		gd.addCheckbox("Show zooms",                                     showZooms);
+		gd.addCheckbox("Show ERS",                                       showERS);
 		gd.addCheckbox("Show symmetric angles",                          showSym);
 		gd.addCheckbox("Show rig azimuth, tilt, roll",                   showRigATR);
 		gd.addCheckbox("Show rig zoom",                                  showRigZoom);
 		gd.addCheckbox("Show rig angle",                                 showRigAngle);
 		gd.addCheckbox("Show rig baseline",                              showRigBaseline);
+		gd.addCheckbox("Show aux camera and rig",                        showAux);
 		gd.showDialog ();
 		if (gd.wasCanceled()) return false;
 		mask =             gd.getNextString();
@@ -587,19 +595,30 @@ public class MLStats {
 		inMrad =           gd.getNextBoolean();
 		showATR =          gd.getNextBoolean();
 		showZooms =        gd.getNextBoolean();
+		showERS =          gd.getNextBoolean();
 		showSym =          gd.getNextBoolean();
 		showRigATR =       gd.getNextBoolean();
 		showRigZoom =      gd.getNextBoolean();
 		showRigAngle =     gd.getNextBoolean();
 		showRigBaseline =  gd.getNextBoolean();
+		showAux =          gd.getNextBoolean();
+		if (!showAux) {
+			showRigATR =      false;
+			showRigZoom =     false;
+			showRigAngle =    false;
+			showRigBaseline = false;
+		}
 
 		String units =  inPixels ? "pix":(inMrad?"mil":"\"");
 		String zunits = inPixels ? "pix":(inMrad?"mil":"\"");
+		String ers_lin_units = inPixels ? "mm/s":"m/s";
 		double scale = inPixels ? 1.0 : (inMrad?1000.0:(180.0/Math.PI*60*60)); //leave pixels as is, convert radians to arc-sec
 		String fmt =  "\t"+(inPixels ? "%8.4f":(inMrad?"%8.4f":"%8.2f"));
 		String fmt_angle =  "\t%8.3f";
 		String fmt_len =    "\t%8.3f";
-		int num_sym = showZooms? GeometryCorrection.CorrVector.LENGTH:GeometryCorrection.CorrVector.ZOOM_INDEX;
+		int num_sym = showZooms? GeometryCorrection.CorrVector.IMU_INDEX:GeometryCorrection.CorrVector.ZOOM_INDEX; // update
+		if (showERS) num_sym =  GeometryCorrection.CorrVector.LENGTH;
+		
 		class ModVerString{
 			String model;
 			String version;
@@ -632,6 +651,12 @@ public class MLStats {
 			num_col+=4;
 		}
 
+		if (showERS) {
+			header+=String.format("\ters tilt (%s/s)\ters az (%s/s)\ters roll (%s/s)", units, units, units);
+			header+=String.format("\ters Vx (%s)\ters Vy (%s)\ters Vz (%s)", ers_lin_units, ers_lin_units, ers_lin_units);
+			num_col+=6;
+		}
+		
 		if (showSym) {
 			for (int i = 0; i < num_sym; i++) {
 				header+=String.format("\tsym%02d-m", i);
@@ -639,23 +664,29 @@ public class MLStats {
 			num_col+=num_sym;
 
 		}
-
-		if (showATR) {
-			header+=String.format("\taz a0 (%s)\taz a1 (%s)\taz a2 (%s)\taz a3 (%s)"+
-					"\ttl a0 (%s)\ttl  a1 (%s) \ttl a2 (%s)\ttl a3 (%s)"+
-					"\trl a0 (%s)\trl  a1 (%s) \trl a2 (%s)\trl a3 (%s)",
-					units,units,units,units,units,units,units,units,units,units,units,units);
-			num_col+=12;
-		}
-		if (showZooms) {
-			header+=String.format("\tzm a0 (%s)\tzm a1 (%s)\tzm a2 (%s)\tzm a3 (%s)", zunits, zunits, zunits, zunits);
-			num_col+=4;
-		}
-		if (showSym) {
-			for (int i = 0; i < num_sym; i++) {
-				header+=String.format("\tsym%02d-a", i);
+		if (showAux) {
+			if (showATR) {
+				header+=String.format("\taz a0 (%s)\taz a1 (%s)\taz a2 (%s)\taz a3 (%s)"+
+						"\ttl a0 (%s)\ttl  a1 (%s) \ttl a2 (%s)\ttl a3 (%s)"+
+						"\trl a0 (%s)\trl  a1 (%s) \trl a2 (%s)\trl a3 (%s)",
+						units,units,units,units,units,units,units,units,units,units,units,units);
+				num_col+=12;
 			}
-			num_col+=num_sym;
+			if (showZooms) {
+				header+=String.format("\tzm a0 (%s)\tzm a1 (%s)\tzm a2 (%s)\tzm a3 (%s)", zunits, zunits, zunits, zunits);
+				num_col+=4;
+			}
+			if (showERS) {
+				header+=String.format("\ters tilt (%s/s) a\ters az (%s/s) a\ters roll (%s/s) a", units, units, units);
+				header+=String.format("\ters Vx (%s)\ters Vy (%s)\ters Vz (%s)", ers_lin_units, ers_lin_units, ers_lin_units);
+				num_col+=6;
+			}
+			if (showSym) {
+				for (int i = 0; i < num_sym; i++) {
+					header+=String.format("\tsym%02d-a", i);
+				}
+				num_col+=num_sym;
+			}
 		}
 		if (showRigATR) {
 			header+=String.format("\trig azmth (%s)\trig tilt(%s)\trig roll (%s)", units, units, units);
@@ -712,13 +743,13 @@ public class MLStats {
 				QuadCLT qcm = new QuadCLT(
 						QuadCLT.PREFIX, // String                                          prefix,
 						properties, // Properties                                      properties,
-						null, // EyesisCorrections                               eyesisCorrections,
+						eyesis_corrections_main, // null, // EyesisCorrections                               eyesisCorrections,
 						null // EyesisCorrectionParameters.CorrectionParameters correctionsParameters
 						);
 				QuadCLT qca = new QuadCLT(
 						QuadCLT.PREFIX_AUX, // String                                          prefix,
 						properties, // Properties                                      properties,
-						null, // EyesisCorrections                               eyesisCorrections,
+						eyesis_corrections_aux, //null, // EyesisCorrections                               eyesisCorrections,
 						null // EyesisCorrectionParameters.CorrectionParameters correctionsParameters
 						);
 				System.out.println(indx+": model:"+model+", version:"+version+", name: "+name);
@@ -778,6 +809,17 @@ public class MLStats {
 					}
 				}
 
+				if (showERS) { // main camera
+					double [] v = new double[6];
+					for (int i = 0; i < v.length ; i++) {
+						v[i] =  scale * cvm.getExtrinsicParameterValue(i+GeometryCorrection.CorrVector.IMU_INDEX, inPixels);
+						sb.append(String.format(fmt,v[i])); // zooms
+						fmts [ncol] = fmt;
+						stats[ncol  ][0]+=v[i];
+						stats[ncol++][1]+=v[i]*v[i];
+					}
+				}
+				
 				if (showSym) {
 					for (int i = 0; i < num_sym; i++) {
 						double v =  scale * cvm.getExtrinsicSymParameterValue(i, inPixels);
@@ -788,62 +830,74 @@ public class MLStats {
 					}
 				}
 
+				if (showAux) {
+					if (showATR) { // aux camera
+						double [] v = new double[4];
+						for (int i = 0; i <4; i++) {
+							if (i < 3) {
+								v[i] =  scale * cva.getExtrinsicParameterValue(i+GeometryCorrection.CorrVector.AZIMUTH_INDEX, inPixels);
+								v[3] -= v[i];
+							}
+							sb.append(String.format(fmt,v[i])); // azimuths
+							fmts [ncol] = fmt;
+							stats[ncol  ][0]+=v[i];
+							stats[ncol++][1]+=v[i]*v[i];
+						}
+						v = new double[4];
+						for (int i = 0; i <4; i++) {
+							if (i < 3) {
+								v[i] =  scale * cva.getExtrinsicParameterValue(i+GeometryCorrection.CorrVector.TILT_INDEX, inPixels);
+								v[3] -= v[i];
+							}
+							sb.append(String.format(fmt,v[i])); // tilts
+							fmts [ncol] = fmt;
+							stats[ncol  ][0]+=v[i];
+							stats[ncol++][1]+=v[i]*v[i];
+						}
+						v = new double[4];
+						for (int i = 0; i <4; i++) {
+							if (i < 3) {
+								v[i] =  scale * cva.getExtrinsicParameterValue(i+GeometryCorrection.CorrVector.ROLL_INDEX, inPixels);
+								v[3] -= v[i];
+							}
+							sb.append(String.format(fmt,v[i])); // rolls
+							fmts [ncol] = fmt;
+							stats[ncol  ][0]+=v[i];
+							stats[ncol++][1]+=v[i]*v[i];
+						}
+					}
+					if (showZooms) { // aux camera
+						double [] v = new double[4];
+						for (int i = 0; i <4; i++) {
+							if (i < 3) {
+								v[i] =  scale * cva.getExtrinsicParameterValue(i+GeometryCorrection.CorrVector.ZOOM_INDEX, inPixels);
+								v[3] -= v[i];
+							}
+							sb.append(String.format(fmt,v[i])); // zooms
+							fmts [ncol] = fmt;
+							stats[ncol  ][0]+=v[i];
+							stats[ncol++][1]+=v[i]*v[i];
+						}
+					}
+					if (showERS) { // main camera
+						double [] v = new double[6];
+						for (int i = 0; i < v.length ; i++) {
+							v[i] =  scale * cva.getExtrinsicParameterValue(i+GeometryCorrection.CorrVector.IMU_INDEX, inPixels);
+							sb.append(String.format(fmt,v[i])); // zooms
+							fmts [ncol] = fmt;
+							stats[ncol  ][0]+=v[i];
+							stats[ncol++][1]+=v[i]*v[i];
+						}
+					}
 
-				if (showATR) { // aux camera
-					double [] v = new double[4];
-					for (int i = 0; i <4; i++) {
-						if (i < 3) {
-							v[i] =  scale * cva.getExtrinsicParameterValue(i+GeometryCorrection.CorrVector.AZIMUTH_INDEX, inPixels);
-							v[3] -= v[i];
+					if (showSym) {
+						for (int i = 0; i < num_sym; i++) {
+							double v =  scale * cva.getExtrinsicSymParameterValue(i, inPixels);
+							sb.append(String.format(fmt,v)); // sym parameters
+							fmts [ncol] = fmt;
+							stats[ncol  ][0]+=v;
+							stats[ncol++][1]+=v*v;
 						}
-						sb.append(String.format(fmt,v[i])); // azimuths
-						fmts [ncol] = fmt;
-						stats[ncol  ][0]+=v[i];
-						stats[ncol++][1]+=v[i]*v[i];
-					}
-					v = new double[4];
-					for (int i = 0; i <4; i++) {
-						if (i < 3) {
-							v[i] =  scale * cva.getExtrinsicParameterValue(i+GeometryCorrection.CorrVector.TILT_INDEX, inPixels);
-							v[3] -= v[i];
-						}
-						sb.append(String.format(fmt,v[i])); // tilts
-						fmts [ncol] = fmt;
-						stats[ncol  ][0]+=v[i];
-						stats[ncol++][1]+=v[i]*v[i];
-					}
-					v = new double[4];
-					for (int i = 0; i <4; i++) {
-						if (i < 3) {
-							v[i] =  scale * cva.getExtrinsicParameterValue(i+GeometryCorrection.CorrVector.ROLL_INDEX, inPixels);
-							v[3] -= v[i];
-						}
-						sb.append(String.format(fmt,v[i])); // rolls
-						fmts [ncol] = fmt;
-						stats[ncol  ][0]+=v[i];
-						stats[ncol++][1]+=v[i]*v[i];
-					}
-				}
-				if (showZooms) { // aux camera
-					double [] v = new double[4];
-					for (int i = 0; i <4; i++) {
-						if (i < 3) {
-							v[i] =  scale * cva.getExtrinsicParameterValue(i+GeometryCorrection.CorrVector.ZOOM_INDEX, inPixels);
-							v[3] -= v[i];
-						}
-						sb.append(String.format(fmt,v[i])); // zooms
-						fmts [ncol] = fmt;
-						stats[ncol  ][0]+=v[i];
-						stats[ncol++][1]+=v[i]*v[i];
-					}
-				}
-				if (showSym) {
-					for (int i = 0; i < num_sym; i++) {
-						double v =  scale * cva.getExtrinsicSymParameterValue(i, inPixels);
-						sb.append(String.format(fmt,v)); // sym parameters
-						fmts [ncol] = fmt;
-						stats[ncol  ][0]+=v;
-						stats[ncol++][1]+=v*v;
 					}
 				}
 				if (showRigATR) {

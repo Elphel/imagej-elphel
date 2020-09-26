@@ -4836,16 +4836,20 @@ public class QuadCLTCPU {
 
 		  double [] old_new_rms = new double[2];
 		  boolean apply_extrinsic = (clt_parameters.ly_corr_scale != 0.0);
-
+		  double      inf_min_disparity = clt_parameters.ly_inf_force_fine? clt_parameters.ly_inf_min_narrow :clt_parameters.ly_inf_min_broad; 
+		  double      inf_max_disparity = clt_parameters.ly_inf_force_fine? clt_parameters.ly_inf_max_narrow :clt_parameters.ly_inf_max_broad; 
 		  GeometryCorrection.CorrVector corr_vector =   ea.solveCorr (
 				  clt_parameters.ly_marg_fract, 	// double      marg_fract,        // part of half-width, and half-height to reduce weights
 				  clt_parameters.ly_inf_en,      // boolean     use_disparity,     // adjust disparity-related extrinsics
 				  // 1.0 - to skip filtering infinity
-				  -1.0, //double      inf_min_disparity, // minimal disparity for infinity 
-				  1.0, // double      inf_max_disparity, // minimal disparity for infinity 
+				  inf_min_disparity,             // -0.5, // -1.0, //double      inf_min_disparity, // minimal disparity for infinity 
+				  inf_max_disparity,             // 0.05, // 1.0, // double      inf_max_disparity, // minimal disparity for infinity
+				  clt_parameters.ly_inf_min_broad, // inf_min_disp_abs,  // minimal disparity for infinity (absolute) 
+				  clt_parameters.ly_inf_max_broad, // maximal disparity for infinity (absolute)
+				  clt_parameters.ly_inf_tilt,      //   boolean     en_infinity_tilt,  // select infinity tiles form right/left tilted (false - from average)  
+				  clt_parameters.ly_right_left,    //   boolean     infinity_right_left, // balance weights between right and left halves of infinity
 				  clt_parameters.ly_aztilt_en,   // boolean     use_aztilts,       // Adjust azimuths and tilts excluding disparity
 				  clt_parameters.ly_diff_roll_en,//boolean     use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
-//				  clt_parameters.ly_inf_force,   //	boolean     force_convergence, // if true try to adjust convergence (disparity, symmetrical parameter 0) even with no disparity
 				  clt_parameters.ly_min_forced,  //	int         min_num_forced,    // minimal number of clusters with forced disparity to use it
 				  // data, using just radial distortions
 				  clt_parameters.ly_com_roll,    //boolean     common_roll,       // Enable common roll (valid for high disparity range only)
@@ -4856,8 +4860,24 @@ public class QuadCLTCPU {
 				  clt_parameters.ly_ers_vert,    //	boolean     ers_vert,          // Enable ERS correction of the camera linear movement in y direction
 				  // add balancing-related here?
 				  clt_parameters.ly_par_sel, // 	int         manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
-				  1.0, // 	double      weight_disparity,
-				  1.0, // 	double      weight_lazyeye,
+				  clt_parameters.ly_weight_infinity,     //0.3, // double      weight_infinity,     // 0.3, total weight of infinity tiles fraction (0.0 - 1.0) 
+				  clt_parameters.ly_weight_disparity,    //0.0, // double      weight_disparity,    // 0.0 disparity weight relative to the sum of 8 lazy eye values of the same tile 
+				  clt_parameters.ly_weight_disparity_inf,//0.5, // double      weight_disparity_inf,// 0.5 disparity weight relative to the sum of 8 lazy eye values of the same tile for infinity 
+				  clt_parameters.ly_max_disparity_far,   //5.0, // double      max_disparity_far,   // 5.0 reduce weights of near tiles proportional to sqrt(max_disparity_far/disparity) 
+				  clt_parameters.ly_max_disparity_use,   //5.0, // double      max_disparity_use,   // 5.0 (default 1000)disable near objects completely - use to avoid ERS
+
+				  clt_parameters.ly_inf_min_dfe,         //1.75,// double      min_dfe, // = 1.75;
+				  clt_parameters.ly_inf_max_dfe,         //5.0, // double      max_dfe, // = 5.0; // <=0 - disable feature
+
+				  // moving objects filtering
+				  clt_parameters.ly_moving_en,  // 	boolean     moving_en,         // enable filtering areas with potentially moving objects 
+				  clt_parameters.ly_moving_apply,  // 	boolean     moving_apply,      // apply filtering areas with potentially moving objects 
+				  clt_parameters.ly_moving_sigma,   // 	double      moving_sigma,      // blurring sigma for moving objects = 1.0;
+				  clt_parameters.ly_max_mov_disparity,  //		double      max_mov_disparity, // disparity limit for moving objects detection = 75.0;
+				  clt_parameters.ly_rad_to_hdiag_mov,   // 	double      rad_to_hdiag_mov,  // radius to half-diagonal ratio to remove high-distortion corners = 0.7 ; // 0.8
+				  clt_parameters.ly_max_mov_average,   //		double      max_mov_average,   // do not attempt to detect moving objects if ERS is not accurate for terrain = .25;
+				  clt_parameters.ly_mov_min_L2,  // 	double      mov_min_L2,        // threshold for moving objects = 0.75;
+				  
 				  dsxy, // double [][] measured_dsxy,
 				  null, //	boolean [] force_disparity,    // boolean [] force_disparity,
 				  false, // 	boolean     use_main, // corr_rots_aux != null;
@@ -7710,18 +7730,7 @@ public class QuadCLTCPU {
 				  bg_use[nTile] = true;
 			  }
 		  }
-		  /*
-		  // grow bg_use, but inside bg_sel;
-		  int bg_grow = 9; //2*2;
-		  tp.growTiles(
-				  bg_grow,          // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
-				  bg_use,      // boolean [] tiles,
-				  null);     // boolean [] prohibit)
-		  for (int  nTile = 0 ; nTile < bg_use.length; nTile++) {
-			  bg_use[nTile] &= bg_sel[nTile];
-		  }
-		  */
-		  if (true) { //!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) {
+		  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) { // if (true) 
 			  String [] dbg_titles = {"fdisp", "fstr", "disp", "str", "overexp","sel","use"};
 			  double [][] ddd = {filtered_bgnd_disp_strength[0],filtered_bgnd_disp_strength[1],null,bg_str,bg_overexp, null, null};
 			  ddd[5] = new double [bg_sel.length];
@@ -7738,7 +7747,7 @@ public class QuadCLTCPU {
 				  "filtered_bgnd_disp_strength",dbg_titles);
 		  }
 		  int num_bg = tp.clt_3d_passes.get(bg_scan).setTileOpDisparity( // other minimal strength?
-				  bg_use, // bg_sel, // bg_use, // boolean [] selection, measure all that can be bg
+				  bg_sel, // bg_use, // bg_sel, // bg_use, // boolean [] selection, measure all that can be bg
 				  null); // double []  disparity); // null for 0
 
 		  // Prepare measurement of combo-scan - remove low strength and what was used for background
@@ -7780,8 +7789,7 @@ public class QuadCLTCPU {
 				  tp.threadsMax,  // maximal number of threads to launch
 				  false, // updateStatus,
 				  debugLevelInner - 1);
-////		  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-3))
-		  {
+		  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-3))  {
 			  tp.showScan(
 					  tp.clt_3d_passes.get(bg_scan),   // CLTPass3d   scan, badly filtered?
 					  "bg_scan_post"); //String title)
@@ -7828,7 +7836,7 @@ public class QuadCLTCPU {
 				  combo_use[nTile] = true;
 			  }
 		  }
-		  if (true) { // !batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) {
+		  if ( !batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) { // true
 			  String [] dbg_titles = {"fdisp", "fstr", "disp", "str", "overexp","sel","use"};
 			  double [][] ddd = {filtered_combo_scand_isp_strength[0],filtered_combo_scand_isp_strength[1],combo_disp,combo_str,combo_overexp, null, null};
 			  ddd[5] = new double [combo_use.length];
@@ -7852,8 +7860,8 @@ public class QuadCLTCPU {
 		  if (debugLevel > -3) { // -1
 			  System.out.println("Updated number of lazy eye tiles = " + num_combo1+" (was "+num_combo+")");
 		  }
-//		  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) {
-		  if (clt_parameters.show_extrinsic && (debugLevel >-3)) {
+		  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) {
+////		  if (clt_parameters.show_extrinsic && (debugLevel >-3)) {
 			  String [] titles = {"bgnd_disp","bgnd_str","combo_disp","combo_str","bg_sel","bg_use","combo_use"};
 			  double [] dbg_bg_sel = new double [bg_sel.length];
 			  double [] dbg_bg_use =   new double [bg_sel.length];
@@ -7931,7 +7939,9 @@ public class QuadCLTCPU {
 				  boolean apply_extrinsic = (clt_parameters.ly_corr_scale != 0.0);
 				  CLTPass3d   scan = tp.clt_3d_passes.get(combo_scan);
 				  // for the second half of runs (always for single run) - limit infinity min/max
-				  ea.showInput(scan.getLazyEyeData(),"first_data");
+				  if (debugLevel > 9) {
+					  ea.showInput(scan.getLazyEyeData(),"first_data");
+				  }
 				  
 				  boolean debug_actual_LY_derivs =  debugLevel > 9; // true
 				  
@@ -7952,7 +7962,12 @@ public class QuadCLTCPU {
 						  clt_parameters.ly_inf_en,           // boolean     use_disparity,     // adjust disparity-related extrinsics
 						  // 1.0 - to skip filtering infinity
 						  inf_min, //double      inf_min_disparity, // minimal disparity for infinity 
-						  inf_max, // double      inf_max_disparity, // minimal disparity for infinity 
+						  inf_max, // double      inf_max_disparity, // minimal disparity for infinity
+						  clt_parameters.ly_inf_min_broad, // inf_min_disp_abs,  // minimal disparity for infinity (absolute) 
+						  clt_parameters.ly_inf_max_broad, // maximal disparity for infinity (absolute)
+						  clt_parameters.ly_inf_tilt,      //   boolean     en_infinity_tilt,  // select infinity tiles form right/left tilted (false - from average)  
+						  clt_parameters.ly_right_left,    //   boolean     infinity_right_left, // balance weights between right and left halves of infinity
+						  
 						  clt_parameters.ly_aztilt_en,        // boolean     use_aztilts,       // Adjust azimuths and tilts excluding disparity
 						  clt_parameters.ly_diff_roll_en,     // boolean     use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
 //						  clt_parameters.ly_inf_force,        // boolean     force_convergence, // if true try to adjust convergence (disparity, symmetrical parameter 0) even with no disparity
@@ -7966,8 +7981,23 @@ public class QuadCLTCPU {
 						  clt_parameters.ly_ers_vert,         // boolean     ers_vert,          // Enable ERS correction of the camera linear movement in y direction
 						  // add balancing-related here?
 						  clt_parameters.ly_par_sel,          // 	int         manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
-						  0.5,                                // 	double      weight_disparity,
-						  1.0,                                // 	double      weight_lazyeye,
+						  clt_parameters.ly_weight_infinity,     //0.3, // double      weight_infinity,     // 0.3, total weight of infinity tiles fraction (0.0 - 1.0) 
+						  clt_parameters.ly_weight_disparity,    //0.0, // double      weight_disparity,    // 0.0 disparity weight relative to the sum of 8 lazy eye values of the same tile 
+						  clt_parameters.ly_weight_disparity_inf,//0.5, // double      weight_disparity_inf,// 0.5 disparity weight relative to the sum of 8 lazy eye values of the same tile for infinity 
+						  clt_parameters.ly_max_disparity_far,   //5.0, // double      max_disparity_far,   // 5.0 reduce weights of near tiles proportional to sqrt(max_disparity_far/disparity) 
+						  clt_parameters.ly_max_disparity_use,   //5.0, // double      max_disparity_use,   // 5.0 (default 1000)disable near objects completely - use to avoid ERS
+						  clt_parameters.ly_inf_min_dfe,         //1.75,// double      min_dfe, // = 1.75;
+						  clt_parameters.ly_inf_max_dfe,         //5.0, // double      max_dfe, // = 5.0; // <=0 - disable feature
+
+						  // moving objects filtering
+						  clt_parameters.ly_moving_en,  // 	boolean     moving_en,         // enable filtering areas with potentially moving objects 
+						  clt_parameters.ly_moving_apply,  // 	boolean     moving_apply,      // apply filtering areas with potentially moving objects 
+						  clt_parameters.ly_moving_sigma,   // 	double      moving_sigma,      // blurring sigma for moving objects = 1.0;
+						  clt_parameters.ly_max_mov_disparity,  //		double      max_mov_disparity, // disparity limit for moving objects detection = 75.0;
+						  clt_parameters.ly_rad_to_hdiag_mov,   // 	double      rad_to_hdiag_mov,  // radius to half-diagonal ratio to remove high-distortion corners = 0.7 ; // 0.8
+						  clt_parameters.ly_max_mov_average,   //		double      max_mov_average,   // do not attempt to detect moving objects if ERS is not accurate for terrain = .25;
+						  clt_parameters.ly_mov_min_L2,  // 	double      mov_min_L2,        // threshold for moving objects = 0.75;
+
 						  scan.getLazyEyeData(),              // dsxy, // double [][] measured_dsxy,
 						  scan.getLazyEyeForceDisparity(),    // null, //	boolean [] force_disparity,    // boolean [] force_disparity,
 						  false, // 	boolean     use_main, // corr_rots_aux != null;

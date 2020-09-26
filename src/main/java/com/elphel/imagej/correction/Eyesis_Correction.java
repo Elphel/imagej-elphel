@@ -5010,6 +5010,9 @@ private Panel panel1,
     } else if (label.equals("LIST extrinsics")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+    	if (EYESIS_CORRECTIONS_AUX == null) {
+    		EYESIS_CORRECTIONS_AUX = new EyesisCorrections(SYNC_COMMAND.stopRequested,CORRECTION_PARAMETERS.getAux());
+    	}
     	listExtrinsics();
     	return;
 /* ======================================================================== */
@@ -6531,7 +6534,10 @@ private Panel panel1,
 		if (dir!=null) {
 			System.out.println("top directory = "+dir);
 		}
-		return MLStats.listExtrinsics(dir); // , mask);
+		return MLStats.listExtrinsics(
+				dir, // ); // , mask);
+				EYESIS_CORRECTIONS,
+				EYESIS_CORRECTIONS_AUX);
 	}
 
 	public boolean mlRecalc() {
