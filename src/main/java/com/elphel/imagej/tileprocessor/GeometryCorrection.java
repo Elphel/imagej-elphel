@@ -80,30 +80,30 @@ public class GeometryCorrection {
 	public double    heading  =  0.0;  // degrees, CW (from top) - positive
 
 	public int       numSensors = 4;
-	private double [] forward =   null;
-	private double [] right =     null;
-	private double [] height =    null;
-	private double [] roll  =     null;  // degrees, CW (to target) - positive
+	protected double [] forward =   null;
+	protected double [] right =     null;
+	protected double [] height =    null;
+	protected double [] roll  =     null;  // degrees, CW (to target) - positive
 	public  double [][] pXY0 =    null;  // sensor center XY in pixels
 
-	private double common_right;    // mm right, camera center
-	private double common_forward;  // mm forward (to target), camera center
-	private double common_height;   // mm up, camera center
-	private double common_roll;     // degrees CW (to target) camera as a whole
-	private double [][] XYZ_he;     // all cameras coordinates transformed to eliminate heading and elevation (rolls preserved)
-	private double [][] XYZ_her = null; // XYZ of the lenses in a corrected CCS (adjusted for to elevation, heading,  common_roll)
-	private double [][] rXY =     null; // XY pairs of the in a normal plane, relative to disparityRadius
-	private double [][] rXY_ideal = {{-0.5, -0.5}, {0.5,-0.5}, {-0.5, 0.5}, {0.5,0.5}};
+	protected double common_right;    // mm right, camera center
+	protected double common_forward;  // mm forward (to target), camera center
+	protected double common_height;   // mm up, camera center
+	protected double common_roll;     // degrees CW (to target) camera as a whole
+	protected double [][] XYZ_he;     // all cameras coordinates transformed to eliminate heading and elevation (rolls preserved)
+	protected double [][] XYZ_her = null; // XYZ of the lenses in a corrected CCS (adjusted for to elevation, heading,  common_roll)
+	protected double [][] rXY =     null; // XY pairs of the in a normal plane, relative to disparityRadius
+	protected double [][] rXY_ideal = {{-0.5, -0.5}, {0.5,-0.5}, {-0.5, 0.5}, {0.5,0.5}};
 
 	public double cameraRadius=0; // average distance from the "mass center" of the sensors to the sensors
 	public double disparityRadius=150.0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad camera (~=150mm)?
 
-	private double [] rByRDist=null;
-	private double    stepR=0.0004; // 0004 - double, 0.0002 - float to fit into GPU shared memory (was 0.001);
-	private double    maxR=2.0; // calculate up to this*distortionRadius
+	protected double [] rByRDist=null;
+	protected double    stepR=0.0004; // 0004 - double, 0.0002 - float to fit into GPU shared memory (was 0.001);
+	protected double    maxR=2.0; // calculate up to this*distortionRadius
 
-	private Matrix m_balance_xy = null; // [2*numSensors][2*numSensors] 8x8 matrix to make XY ports correction to have average == 0
-	private Matrix m_balance_dd = null; // [2*numSensors+1)][2*numSensors] 9x8 matrix to extract disparity from dd
+	protected Matrix m_balance_xy = null; // [2*numSensors][2*numSensors] 8x8 matrix to make XY ports correction to have average == 0
+	protected Matrix m_balance_dd = null; // [2*numSensors+1)][2*numSensors] 9x8 matrix to extract disparity from dd
 
 
 
@@ -3630,9 +3630,6 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		}
 		return pXY;
 	}
-
-//	private Matrix m_balance_xy = null; // [2*numSensors][2*numSensors] 8x8 matrix to make XY ports correction to have average == 0
-//	private Matrix m_balance_dd = null; // [2*numSensors+1)][2*numSensors] 9x8 matrix to extract disparity from dd
 
 	// calculate non-distorted x/y pairs (relative to optical centers) for each port and derivatives
 

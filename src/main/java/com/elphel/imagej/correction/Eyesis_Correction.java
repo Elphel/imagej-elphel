@@ -88,6 +88,7 @@ import com.elphel.imagej.lwir.LwirReader;
 import com.elphel.imagej.readers.EyesisTiff;
 import com.elphel.imagej.tensorflow.TensorflowInferModel;
 import com.elphel.imagej.tileprocessor.DttRad2;
+import com.elphel.imagej.tileprocessor.ErsCorrection;
 import com.elphel.imagej.tileprocessor.ImageDtt;
 import com.elphel.imagej.tileprocessor.MLStats;
 import com.elphel.imagej.tileprocessor.QuadCLT;
@@ -718,6 +719,8 @@ private Panel panel1,
 			addButton("IMU aux",                    panelClt_GPU, color_conf_process_aux);
 			addButton("ERS aux",                    panelClt_GPU, color_process_aux);
 
+			addButton("Rotations_test",             panelClt_GPU, color_stop);
+			
 			plugInFrame.add(panelClt_GPU);
 		}
 		if (LWIR_MODE) {
@@ -5193,7 +5196,9 @@ private Panel panel1,
 ///				imp.show();
 ///			}
 		}
-
+		/* ======================================================================== */
+    } else if (label.equals("Rotations_test")) {
+    	ErsCorrection.test_rotations();
 //JTabbedTest
 // End of buttons code
     }
