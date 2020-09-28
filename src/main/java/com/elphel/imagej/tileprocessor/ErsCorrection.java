@@ -183,7 +183,6 @@ public class ErsCorrection extends GeometryCorrection {
 		
 	}
 
-	
 	/**
 	 * Get real world coordinates from pixel coordinates and nominal disparity
 	 * @param px horizontal pixel coordinate (right)
@@ -192,7 +191,7 @@ public class ErsCorrection extends GeometryCorrection {
 	 * @param correctDistortions true: correct lens distortions, false - no lens distortions
 	 * @param camera_xyz camera lens position during centerline acquisition in world coordinates
 	 * @param camera_atr camera orientation during centerline acquisition in world frame
-	 * @return a vector {x, y, z} in meters. For infinity : {x, y, Double.POSITIVE_INFINITY} 
+	 * @return a vector {x, y, z, 1.0 } in meters. For infinity : {x, y, z, 0} 
 	 */
 	public double [] getWorldCoordinatesERS( // USED in lwir
 			double px,
@@ -200,8 +199,7 @@ public class ErsCorrection extends GeometryCorrection {
 			double disparity,
 			boolean correctDistortions,// correct distortion (will need corrected background too !)
 			double [] camera_xyz, // camera center in world coordinates
-			double [] camera_atr  // camera orientation relative to world frame
-			)
+			double [] camera_atr)  // camera orientation relative to world frame
 	{
 		double pXcd = px - 0.5 * this.pixelCorrectionWidth;
 		double pYcd = py - 0.5 * this.pixelCorrectionHeight;
@@ -244,11 +242,73 @@ public class ErsCorrection extends GeometryCorrection {
 		// convert to the real world coordinates
 		world_xyz =   (is_infinity) ? cam_center_world : cam_center_world.add(new Vector3D(camera_xyz));
 		double [] wxyz = world_xyz.toArray();
-		//camera_xyz
+		double [] wxyz4 = {wxyz[0],wxyz[1],wxyz[2], 1.0};
 		if (is_infinity) {
-			wxyz[2] = Double.POSITIVE_INFINITY;
+			wxyz4[3] = 0.0;
 		}
-		return wxyz;
+		return wxyz4;
+	}
+	
+	/**
+	 * Get pixel disparity and coordinates from the real world coordinates (in meters)
+	 * @param xyzw real world coordinates {x, y, z, w} in meters (right up, towards camera)
+	 * @param correctDistortions true: correct lens distortions, false - no lens distortions
+	 * @param camera_xyz camera lens position during centerline acquisition in world coordinates
+	 * @param camera_atr camera orientation during centerline acquisition in world frame
+	 * @param line_err iterate until the line (pY) correction is below this value
+	 * @return {disparity, px, py} (right, down)
+	 */
+	public double [] getImageCoordinatesERS( // USED in lwir
+			double [] xyzw,
+			boolean correctDistortions, // correct distortion (will need corrected background too !)
+			double [] camera_xyz, // camera center in world coordinates
+			double [] camera_atr,  // camera orientation relative to world frame
+			double    line_err) // threshold error in scan lines (1.0)
+	{
+		boolean is_infinity = xyzw[3] == 0;
+		Vector3D world_xyz = new Vector3D(xyzw[0],xyzw[1],xyzw[2]);
+		if (!is_infinity) {
+			world_xyz.scalarMultiply(1.0/xyzw[3]);
+		}
+		// convert to camera-centered, world-parallel coordinates 
+		Vector3D cam_center_world = (is_infinity) ? world_xyz : world_xyz.subtract(new Vector3D(camera_xyz));
+		// rotate to match camera coordinates when scanning the center line
+		Rotation   cam_orient_center= new Rotation(RotationOrder.YXZ, ROT_CONV, camera_atr[0],camera_atr[1],camera_atr[2]);
+		Vector3D cam_center_local = cam_orient_center.applyTo(cam_center_world);
+		int line = pixelCorrectionHeight / 2;
+		double err = pixelCorrectionHeight / 2;
+		double [] dxy = null;
+		// multiple iterations starting with no ERS distortions
+		while (err > line_err) {
+			// current camera offset in the centerline camera frame 
+			Vector3D cam_now_local = new Vector3D(ers_xyz[line]);  
+			Vector3D cam_center_now_local = (is_infinity) ? cam_center_local :  cam_center_local.subtract(cam_now_local); // skip translation for infinity
+			Quaternion qpix = ers_quaternion[line];
+			Rotation cam_orient_now_local = new Rotation(qpix.getQ0(), qpix.getQ1(), qpix.getQ2(),qpix.getQ3(), true); // boolean 			
+			Vector3D v3 = cam_orient_now_local.applyTo(cam_center_now_local);
+			double [] xyz = v3.toArray();
+			if (Math.abs(xyz[2]) < THRESHOLD) {
+				return null; // object too close to the lens
+			}
+			double pXc =       -(1000.0*focalLength / pixelSize) * xyz[0] / xyz[2];
+			double pYc =        (1000.0*focalLength / pixelSize) * xyz[1] / xyz[2];
+			double disparity = is_infinity ? 0.0 : (-(1000.0*focalLength / pixelSize)          / xyz[2] * SCENE_UNITS_SCALE * disparityRadius);
+			double rND = Math.sqrt(pXc*pXc + pYc*pYc)*0.001*this.pixelSize; // mm
+
+			double rD2RND = correctDistortions?getRDistByR(rND/this.distortionRadius):1.0;
+			double px = pXc * rD2RND + 0.5 * this.pixelCorrectionWidth;  // distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
+			double py = pYc * rD2RND + 0.5 * this.pixelCorrectionHeight; // in pixels
+			dxy = new double [] {disparity, px, py};
+			int line1 = (int) Math.round(py);
+			if (line1 < 0) {
+				line1 = 0;
+			} else if (line1 >= pixelCorrectionHeight) {
+				line1 = pixelCorrectionHeight - 1;
+			}
+			err = Math.abs(line1 - line);
+			line = line1;
+		}
+		return dxy;
 	}
 	
 	
