@@ -7639,19 +7639,9 @@ public class QuadCLTCPU {
 		  }
 		  return measurements;
 	  }
-	  
-	  /**
-	   *
-	   * @param clt_parameters
-	   * @param adjust_poly
-	   * @param threadsMax
-	   * @param updateStatus
-	   * @param debugLevel
-	   * @return true on success, false - on failure
-	   */
-	  public boolean extrinsicsCLT( // USED in lwir TODO: provide boolean 
+	
+	  public void extrinsics_prepare( // USED in lwir TODO: provide boolean 
 			  CLTParameters           clt_parameters,
-			  boolean 		   adjust_poly,
 			  double inf_min, //  = -1.0;
 			  double inf_max, //  =  1.0;
 			  final int        threadsMax,  // maximal number of threads to launch
@@ -7660,10 +7650,6 @@ public class QuadCLTCPU {
 	  {
 		  final boolean    batch_mode = clt_parameters.batch_run;
 		  int debugLevelInner =  batch_mode ? -5: debugLevel;
-		  boolean update_disp_from_latest = clt_parameters.lym_update_disp ; // true;
-		  int max_tries =                   clt_parameters.lym_iter; // 25;
-		  double min_sym_update =           clt_parameters.getLymChange(is_aux); //  4e-6; // stop iterations if no angle changes more than this
-		  double min_poly_update =          clt_parameters.lym_poly_change; //  Parameter vector difference to exit from polynomial correction
 		  int bg_scan = 0;
 		  int combo_scan= tp.clt_3d_passes.size()-1;
 
@@ -7769,19 +7755,7 @@ public class QuadCLTCPU {
 		  if (debugLevel > -3) { // -1
 			  System.out.println("Number of background tiles = " + num_bg+", number of lazy eye tiles = " + num_combo);
 		  }
-		  // measure combo
-/*
-		  CLTMeasure( // perform single pass according to prepared tiles operations and disparity **** CPU?
-				  clt_parameters,
-				  combo_scan,
-				  false, // final boolean     save_textures,
-				  true,  // final boolean     save_corr,
-				  null,           // final double [][] mismatch,    // null or double [12][]
-				  tp.threadsMax,  // maximal number of threads to launch
-				  false, // updateStatus,
-				  debugLevelInner - 1);
 
- */
 		  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity
 				  clt_parameters,
 				  combo_scan,
@@ -7796,6 +7770,10 @@ public class QuadCLTCPU {
 			  tp.showScan(
 					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
 					  "combo_scan-"+combo_scan+"_post"); //String title)
+			  tp.showScan(
+					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
+					  "combo_measured_scan-"+combo_scan+"_post", //String title)
+					  true); // measured only
 		  }
 
 		  double [][] filtered_combo_scand_isp_strength = tp.getFilteredDisparityStrength(
@@ -7881,6 +7859,46 @@ public class QuadCLTCPU {
 					  dbg_combo_use};
 			  (new ShowDoubleFloatArrays()).showArrays(dbg_img,  tp.getTilesX(), tp.getTilesY(), true, "extrinsics_bgnd_combo",titles);
 		  }
+	  }	  
+	  
+	  
+	  
+	  /**
+	   *
+	   * @param clt_parameters
+	   * @param adjust_poly
+	   * @param threadsMax
+	   * @param updateStatus
+	   * @param debugLevel
+	   * @return true on success, false - on failure
+	   */
+	  public boolean extrinsicsCLT( // USED in lwir TODO: provide boolean 
+			  CLTParameters           clt_parameters,
+			  boolean 		   adjust_poly,
+			  double inf_min, //  = -1.0;
+			  double inf_max, //  =  1.0;
+			  final int        threadsMax,  // maximal number of threads to launch
+			  final boolean    updateStatus,
+			  final int        debugLevel)
+	  {
+		  extrinsics_prepare( 
+				  clt_parameters,
+				  inf_min, //  = -1.0;
+				  inf_max, //  =  1.0;
+				  threadsMax,  // maximal number of threads to launch
+				  updateStatus,
+				  debugLevel);
+		  
+		  
+		  final boolean    batch_mode = clt_parameters.batch_run;
+		  int debugLevelInner =  batch_mode ? -5: debugLevel;
+		  boolean update_disp_from_latest = clt_parameters.lym_update_disp ; // true;
+		  int max_tries =                   clt_parameters.lym_iter; // 25;
+		  double min_sym_update =           clt_parameters.getLymChange(is_aux); //  4e-6; // stop iterations if no angle changes more than this
+		  double min_poly_update =          clt_parameters.lym_poly_change; //  Parameter vector difference to exit from polynomial correction
+		  int bg_scan = 0;
+		  int combo_scan= tp.clt_3d_passes.size()-1;
+		  
 		  AlignmentCorrection ac = null;
 		  if (!clt_parameters.ly_lma_ers ) {
 			  ac = new AlignmentCorrection(this);
@@ -7894,14 +7912,13 @@ public class QuadCLTCPU {
 			  tp.showScan(
 					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
 					  "combo_scan-"+combo_scan+"_post"); //String title)
+			  tp.showScan(
+					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
+					  "combo_measured_scan-"+combo_scan+"_post"); //String title)
 		  }
-//		  tp.showScan(
-//				  tp.clt_3d_passes.get(bg_scan),   // CLTPass3d   scan,
-//				  "bg_scan_post"); //String title)
-
 
 		  double comp_diff = min_sym_update + 1; // (> min_sym_update)
-
+		  
 		  for (int num_iter = 0; num_iter < max_tries; num_iter++){
 			  if (update_disp_from_latest) {
 				  tp.clt_3d_passes.get(combo_scan).updateDisparity();
@@ -7916,10 +7933,15 @@ public class QuadCLTCPU {
 						  tp.threadsMax,  // maximal number of threads to launch
 						  false, // updateStatus,
 						  debugLevelInner -1); // - 1); // -5-1
-				  if (debugLevel > -2) {
+///				  if (debugLevel > -2){
+				  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-2)) {
 					  tp.showScan(
 							  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
 							  "LY_combo_scan-"+combo_scan+"_post"); //String title)
+					  tp.showScan(
+							  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
+							  "LY_measured_combo_scan-"+combo_scan+"_post", //String title)
+							  true);
 				  }
 
 				  int tilesX = tp.getTilesX();
@@ -7939,7 +7961,7 @@ public class QuadCLTCPU {
 				  boolean apply_extrinsic = (clt_parameters.ly_corr_scale != 0.0);
 				  CLTPass3d   scan = tp.clt_3d_passes.get(combo_scan);
 				  // for the second half of runs (always for single run) - limit infinity min/max
-				  if (debugLevel > 9) {
+				  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) {
 					  ea.showInput(scan.getLazyEyeData(),"first_data");
 				  }
 				  
@@ -8227,6 +8249,377 @@ public class QuadCLTCPU {
 		  return true; // (comp_diff < (adjust_poly ? min_poly_update : min_sym_update));
 	  }
 
+
+	  
+	  public double [][] filterByLY( 
+			  CLTParameters           clt_parameters,
+			  double inf_min, //  = -1.0;
+			  double inf_max, //  =  1.0;
+			  final int        threadsMax,  // maximal number of threads to launch
+			  final boolean    updateStatus,
+			  final int        debugLevel)
+	  {
+		  extrinsics_prepare( 
+				  clt_parameters,
+				  inf_min, //  = -1.0;
+				  inf_max, //  =  1.0;
+				  threadsMax,  // maximal number of threads to launch
+				  updateStatus,
+				  debugLevel);
+		  // FIXME: Cleanup - reduce number of measurements (when using neighbors, there are many duplicates.
+		  // Use existing multi-pass refinement (now unconditionally two times after calculated)
+		  // Other cleanup to match older code
+		  // Implement dedicated flexible multi-tile consolidation similar to infinity in LY
+		  
+		  final boolean    batch_mode = clt_parameters.batch_run;
+		  int debugLevelInner =  batch_mode ? -5: debugLevel;
+		  boolean update_disp_from_latest = clt_parameters.lym_update_disp ; // true;
+		  int bg_scan = 0 ;
+		  int combo_scan= tp.clt_3d_passes.size()-1;
+		  // iteration steps
+//		  if (true) { // !batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) {
+		  if (!batch_mode && clt_parameters.show_filter_ly && (debugLevel >-1)) {
+			  tp.showScan(
+					  tp.clt_3d_passes.get(bg_scan),   // CLTPass3d   scan,
+					  "bg_scan_post"); //String title)
+			  tp.showScan(
+					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
+					  "combo_scan-"+combo_scan+"_post"); //String title)
+			  tp.showScan(
+					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
+					  "combo_measured_scan-"+combo_scan+"_post"); //String title)
+		  }
+
+
+		  if (update_disp_from_latest) {
+			  tp.clt_3d_passes.get(combo_scan).updateDisparity(); // tile_op from disparity 
+		  }
+		  CLTPass3d   scan = tp.clt_3d_passes.get(combo_scan);
+		  // before CLTMeasureLY that assignes clusters wityh BG to BG
+		  double [] disparity =          scan.getDisparity().clone();
+		  double [] strength =           scan.getStrength().clone();
+		  
+		  CLTMeasureLY( // perform single pass according to prepared tiles operations and disparity // USED in lwir
+				  clt_parameters,
+				  combo_scan,     // final int           scanIndex,
+				  // only combine and calculate once, next passes keep
+				  // remeasure each pass - target disparity is the same, but vector changes
+				  bg_scan, // (num_iter >0)? -1: bg_scan,        // final int           bgIndex, // combine, if >=0
+				  tp.threadsMax,  // maximal number of threads to launch
+				  false, // updateStatus,
+				  debugLevelInner -1); // - 1); // -5-1
+		  if (!batch_mode && clt_parameters.show_filter_ly && (debugLevel >-1)) {
+//		  if (debugLevel > -3){
+			  tp.showScan(
+					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
+					  "LY_combo_scan-"+combo_scan+"_post"); //String title)
+			  tp.showScan(
+					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
+					  "LY_measured_combo_scan-"+combo_scan+"_post", //String title)
+					  true);
+		  }
+		  // temporarily:
+		  final int tilesX =       tp.getTilesX();
+		  final int tilesY =       tp.getTilesY();
+		  int cluster_size =       clt_parameters.tileStep;
+		  final int clustersX=     (tilesX + cluster_size - 1) / cluster_size;
+		  final int clustersY=     (tilesY + cluster_size - 1) / cluster_size;
+//		  if (true) {
+		  if (!batch_mode && clt_parameters.show_filter_ly && (debugLevel >-1)) {
+			  ExtrinsicAdjustment ea = new ExtrinsicAdjustment(
+					  geometryCorrection, // GeometryCorrection gc,
+					  clt_parameters.tileStep,   // int         clusterSize,
+					  clustersX, // 	int         clustersX,
+					  clustersY); // int         clustersY);
+			  ea.showInput(scan.getLazyEyeData(),"first_data");
+		  }
+		  
+		  int    [][][] tile_ops =       new int [9][][]; 
+		  double [][][] disparity_maps = new double [9][][]; 
+		  double [][] ly =               scan.getLazyEyeData();
+		  int op = ImageDtt.setImgMask(0, 0xf);
+		  op =     ImageDtt.setPairMask(op,0xf);
+		  op =     ImageDtt.setForcedDisparity(op,true);
+		  double [][] ds_orig = {disparity.clone(),strength.clone()};
+		  int num_meas = remeasureFromLY( // now - always 9, last is center
+				  clt_parameters.intra_keep_strength,                // final double        keep_strength,                // do not remeasure if stronger than
+				  clt_parameters.intra_keep_conditional_strength,    // final double        keep_conditional_strength,    // keep if has a close neighbor in clusters
+				  clt_parameters.intra_absolute_disparity_tolerance, // final double        absolute_disparity_tolerance, // 
+				  clt_parameters.intra_relative_disparity_tolerance, // final double        relative_disparity_tolerance, // 
+				  clt_parameters.intra_cluster_size,                 // final int           cluster_size,  // 4
+				  ly,                     // final double [][]   lazy_eye_data, // measured by cltMeasureLazyEyeGPU
+				  disparity,              // final double []     disparity, modified!
+				  strength,               // final double []     strength, modified!
+				  disparity_maps,         // final double [][][] disparity_map, // should be [9][][]
+				  tile_ops,               // final int    [][][] tile_op,       // should be [9][][]
+				  op,                     // final int           tile_op_value,
+				  threadsMax,
+				  updateStatus,
+				  debugLevel);
+		  if (debugLevel >-1) {
+			  System.out.println("remeasureFromLY Done");
+		  }
+
+		  for (int nm = 0; nm < num_meas; nm++) {
+			  CLTPass3d pass = new CLTPass3d(tp);
+			  pass.tile_op =       tile_ops[nm];
+			  pass.disparity =     disparity_maps[nm];
+			  tp.clt_3d_passes.add(pass);
+		  }
+		  if (debugLevel >-1) {
+			  System.out.println("Preparation Done");
+		  }
+
+		  // measure prepared:
+		  for (int nm = 0; nm < num_meas; nm++) {
+			  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity
+					  clt_parameters,
+					  combo_scan + 1 + nm,
+					  false, // true, // final boolean     save_textures,
+					  threadsMax,  // maximal number of threads to launch
+					  updateStatus,
+					  debugLevel);
+		  }
+		  if (debugLevel >-1) {
+			  System.out.println("Measurements Done");
+		  }
+		  double [][] disparities = new double[num_meas+2][]; //  y =          scan.getDisparity();
+		  double [][] strengths =   new double[num_meas+2][]; //         scan.getStrength(); // has NaN!
+		  for (int nm = 0; nm < num_meas; nm++) {
+			  disparities[nm+2] = tp.clt_3d_passes.get(combo_scan + 1 + nm).getDisparity();
+			  strengths  [nm+2] = tp.clt_3d_passes.get(combo_scan + 1 + nm).getStrength();
+		  }
+
+		  disparities[0] =         ds_orig[0]; // scan.getDisparity().clone();
+		  strengths[0] =           ds_orig[1]; // scan.getStrength().clone();
+		  disparities[1] =         disparity; // modified by remeasureFromLY()
+		  strengths[1] =           strength;  // modified by remeasureFromLY()
+		  double [] disparity_combo = disparities[1];
+		  double [] strength_combo =  strengths[1];
+		  for (int nt = 0; nt < disparity_combo.length; nt++) {
+///			  if (nt == 11764) {
+///				  System.out.println("Debug1");
+///			  }
+			  for (int nm = 0; nm < num_meas; nm++) {
+				  if (strengths[nm+2][nt] > strength_combo[nt]) {
+					  strength_combo[nt] = strengths[nm+2][nt];
+					  disparity_combo[nt] = disparities[nm+2][nt];
+				  }
+			  }
+		  }
+		  // FIXME: probably a wrong way to set
+		  scan.calc_disparity_combo = disparity_combo;
+		  scan.strength =      strength_combo;
+		  scan.is_combo =      true;//?
+		  int [][] tile_ops_combo = new int[tilesY][tilesX];
+		  double [][] disparity_map_combo = new double[tilesY][tilesX];
+		  for (int nm = 0; nm < num_meas; nm++) {
+			  for (int ty = 0; ty < tilesY; ty++) {
+				  for (int tx = 0; tx < tilesX; tx++) {
+					  tile_ops_combo[ty][tx] |= tile_ops[nm][ty][tx];
+					  disparity_map_combo[ty][tx] = disparity_combo[ty*tilesX + tx];
+				  }
+			  }
+		  }
+		  if (!batch_mode && clt_parameters.show_filter_ly && (debugLevel >-1)) {
+//		  if (debugLevel >-10) {
+
+			  /*
+		  for (int nm = 0; nm < num_meas; nm++) {
+			  tp.showScan(
+					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
+					  "refine_from_LY-"+(combo_scan + 1 + nm)); //String title)
+		  }
+			   */		   
+			  tp.showScan(
+					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
+					  "refined_from_LY-"+combo_scan); //String title)
+
+
+			  (new ShowDoubleFloatArrays()).showArrays(
+					  disparities,
+					  tilesX,
+					  tilesY,
+					  true, "disparities"); //  , titles);
+			  (new ShowDoubleFloatArrays()).showArrays(
+					  strengths,
+					  tilesX,
+					  tilesY,
+					  true, "strengths"); //  , titles);
+		  }
+		  CLTPass3d pass = new CLTPass3d(tp);
+		  pass.tile_op =       tile_ops_combo;
+		  pass.disparity =     disparity_map_combo;
+		  tp.clt_3d_passes.add(pass);
+		  int last_scan = tp.clt_3d_passes.size()-1;
+		  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity
+				  clt_parameters,
+				  last_scan,
+				  false, // true, // final boolean     save_textures,
+				  threadsMax,  // maximal number of threads to launch
+				  updateStatus,
+				  debugLevel);
+		  double [] disparity2 = tp.clt_3d_passes.get(last_scan).getDisparity();
+		  double [] strength2  = tp.clt_3d_passes.get(last_scan).getStrength();
+		  
+		  //strength_combo
+		  // combine
+		  for (int tl = 0; tl < strength2.length; tl++) {
+			  if (strength2[tl] <= 0.0) {
+				  strength2[tl] = strength_combo[tl];
+			  }
+		  }
+		  if (!batch_mode && clt_parameters.show_filter_ly && (debugLevel >-1)) {
+			  tp.showScan(
+					  tp.clt_3d_passes.get(last_scan),   // CLTPass3d   scan,
+					  "refined_twice-"+last_scan); //String title)
+		  }
+//----------------
+		  double [][] disparity_map_combo2 = new double[tilesY][tilesX];
+		  for (int nm = 0; nm < num_meas; nm++) {
+			  for (int ty = 0; ty < tilesY; ty++) {
+				  for (int tx = 0; tx < tilesX; tx++) {
+					  disparity_map_combo2[ty][tx] = disparity2[ty*tilesX + tx];
+				  }
+			  }
+		  }
+		  
+		  CLTPass3d pass2 = new CLTPass3d(tp);
+		  pass2.tile_op =       tile_ops_combo;
+		  pass2.disparity =     disparity_map_combo2;
+		  tp.clt_3d_passes.add(pass);
+		  int last_scan2 = tp.clt_3d_passes.size()-1;
+		  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity
+				  clt_parameters,
+				  last_scan2,
+				  false, // true, // final boolean     save_textures,
+				  threadsMax,  // maximal number of threads to launch
+				  updateStatus,
+				  debugLevel);
+		  double [] disparity3 = tp.clt_3d_passes.get(last_scan).getDisparity();
+		  double [] strength3  = tp.clt_3d_passes.get(last_scan).getStrength();
+		  // combine
+		  for (int tl = 0; tl < strength3.length; tl++) {
+			  if (strength3[tl] <= 0.0) {
+				  strength3[tl] = strength2[tl];
+			  }
+		  }
+//		  if (debugLevel >-10) {
+		  if (!batch_mode && clt_parameters.show_filter_ly && (debugLevel >-1)) {
+			  tp.showScan(
+					  tp.clt_3d_passes.get(last_scan2),   // CLTPass3d   scan,
+					  "refined_three-"+last_scan2); //String title)
+
+		  }
+
+		  if (debugLevel >-3) {
+			  System.out.println("Done");
+		  }
+		  
+		  double [][] enhanced_dsi = {disparity3, strength3};
+		  return enhanced_dsi;
+	  }
+	  
+//double [][]         lazy_eye_data_final = new double [clustersY*clustersX][]	  
+	  int remeasureFromLY(
+			  final double        keep_strength,                // do not remeasure if stronger than
+			  final double        keep_conditional_strength,    // keep if has a close neighbor in clusters
+			  final double        absolute_disparity_tolerance, // 
+			  final double        relative_disparity_tolerance, // 
+			  final int           cluster_size,  // 4
+			  final double [][]   lazy_eye_data, // measured by cltMeasureLazyEyeGPU
+			  final double []     disparity, // will be modified
+			  final double []     strength,  // will be modified
+			  final double [][][] disparity_map, // should be [9][][]
+			  final int    [][][] tile_op,       // should be [9][][]
+			  final int           tile_op_value,
+			  final int           threadsMax,  // maximal number of threads to launch
+			  final boolean       updateStatus,
+			  final int           debugLevel)
+	  {
+		  final int tilesX =       tp.getTilesX();
+		  final int tilesY =       tp.getTilesY();
+		  final int clustersX=     (tilesX + cluster_size - 1) / cluster_size;
+		  final int clustersY=     (tilesY + cluster_size - 1) / cluster_size;
+		  final int numTiles =     tilesX*tilesY;
+		  final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		  final AtomicInteger ai = new AtomicInteger(0);
+		  for (int i = 0; i < disparity_map.length; i++) {
+			  disparity_map[i] = new double [tilesY][tilesX];
+			  tile_op[i] =       new int [tilesY][tilesX];
+		  }
+
+		  for (int ithread = 0; ithread < threads.length; ithread++) {
+			  threads[ithread] = new Thread() {
+				  @Override
+				  public void run() {
+					  TileNeibs tn = new TileNeibs(clustersX,clustersY);
+					  double [] neibs_disp =    new double [9];
+					  double [] neibs_ordered;
+					  for (int indx_tile = ai.getAndIncrement(); indx_tile < numTiles; indx_tile = ai.getAndIncrement()) {
+						  if (indx_tile == 11764) {
+							  System.out.println("DEBUG");
+						  }
+						  if (strength[indx_tile] >= keep_strength) { // already strong enough
+							  continue;
+						  }
+						  // get cluster disparities around this cluster
+						  int tileX = indx_tile % tilesX;
+						  int tileY = indx_tile / tilesX;
+						  int clusterX = tileX / cluster_size;
+						  int clusterY = tileY / cluster_size;
+						  int cluster = clusterX+ clustersX*clusterY;
+						  for (int dir = 0; dir < 9; dir++) {
+							  neibs_disp[dir] = Double.NaN;
+							  int icl = tn.getNeibIndex(cluster, dir);
+							  if (icl >= 0) {
+								  if (lazy_eye_data[icl] != null) {
+									  neibs_disp[dir] = lazy_eye_data[icl][ExtrinsicAdjustment.INDX_DISP];
+								  }
+							  }
+						  }
+						  boolean keep = false;
+						  if (strength[indx_tile] >= keep_conditional_strength) {// See if any of the cluster disparities is within range
+							  for (int dir = 0; dir < 9; dir++) if (!Double.isNaN(neibs_disp[dir])){
+								  double maxdiff = absolute_disparity_tolerance + Math.abs(neibs_disp[dir]) * relative_disparity_tolerance;
+								  if (Math.abs(neibs_disp[dir] - disparity[indx_tile]) <= maxdiff) {
+									  keep = true;
+									  break;
+								  }
+							  }							  
+						  }
+						  if (keep) {
+							  continue;
+						  }
+						  // Compact and order neighbors and
+						  int nneibs = 0;
+						  for (int dir = 0; dir < 9; dir++) if (!Double.isNaN(neibs_disp[dir])){
+							  nneibs++;
+						  }
+						  
+						  if (nneibs == 0) {
+							  disparity[indx_tile] = Double.NaN;
+							  strength[indx_tile] = 0.0;
+							  continue;
+						  }
+						  for (int i = 0; i < neibs_disp.length; i++) if (!Double.isNaN(neibs_disp[i])){
+							  disparity_map[i][tileY][tileX] = neibs_disp[i];
+							  tile_op[i][tileY][tileX] = tile_op_value;
+						  }
+						  if (!Double.isNaN(neibs_disp[8])) { // center, where this tile is
+							  disparity[indx_tile] = neibs_disp[8]; // if that tile original strength will win, use LY disparity 
+						  } else {
+							  // Maybe improve - 
+							  disparity[indx_tile] = Double.NaN;
+							  strength[indx_tile] = 0.0;
+						  }
+					  } // end of tile
+				  }
+			  };
+		  }
+		  ImageDtt.startAndJoin(threads);
+		  return 9;
+	  }
 
 	  public double [][] getRigDSFromTwoQuadCL( // not used in lwir
 			  TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth

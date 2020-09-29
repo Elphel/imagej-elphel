@@ -142,10 +142,12 @@ public class EyesisCorrectionParameters {
     	public int     rig_batch_adjust_aux =  0;
     	public int     rig_batch_adjust_rig =  0;
 
+    	
     	public int     rig_batch_adjust_main_gt = 0; // adjust main camera using rig disparity as ground truth
     	public int     rig_batch_adjust_aux_gt =  0; // adjust aux camera using rig disparity as ground truth (TODO: finish geometry in derivatives)
     	public int     rig_batch_adjust_rig_gt =  0; // adjust rig after main and aux are adjusted with rig GT (late rig adjustment)
 
+    	public boolean clt_batch_dsi1 =       true; // experimental for interscene
   		public boolean clt_batch_apply_man =  false;  // Apply (and disable) manual pixel shift
   		public boolean clt_batch_extrinsic =  false; // Calibrate extrinsic parameters for each set
   		public boolean clt_batch_poly =       false; // Calculate fine polynomial correction for each set
@@ -285,6 +287,7 @@ public class EyesisCorrectionParameters {
   			cp.rig_batch_adjust_aux_gt =  this.rig_batch_adjust_aux_gt;
   			cp.rig_batch_adjust_rig_gt =  this.rig_batch_adjust_rig_gt;
 
+  			cp.clt_batch_dsi1=		    this.clt_batch_dsi1;
   			cp.clt_batch_apply_man=		this.clt_batch_apply_man;
   			cp.clt_batch_extrinsic=		this.clt_batch_extrinsic;
   			cp.clt_batch_poly=    		this.clt_batch_poly;
@@ -463,6 +466,7 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"rig_batch_adjust_aux_gt",  this.rig_batch_adjust_aux_gt+"");
     		properties.setProperty(prefix+"rig_batch_adjust_rig_gt",  this.rig_batch_adjust_rig_gt+"");
 
+    		properties.setProperty(prefix+"clt_batch_dsi1",        this.clt_batch_dsi1+"");
     		properties.setProperty(prefix+"clt_batch_apply_man",   this.clt_batch_apply_man+"");
     		properties.setProperty(prefix+"clt_batch_extrinsic",   this.clt_batch_extrinsic+"");
     		properties.setProperty(prefix+"clt_batch_poly",        this.clt_batch_poly+"");
@@ -620,6 +624,7 @@ public class EyesisCorrectionParameters {
   		    if (properties.getProperty(prefix+"rig_batch_adjust_aux_gt")!=null)  this.rig_batch_adjust_aux_gt=Integer.parseInt(properties.getProperty(prefix+"rig_batch_adjust_aux_gt"));
   		    if (properties.getProperty(prefix+"rig_batch_adjust_rig_gt")!=null)  this.rig_batch_adjust_rig_gt=Integer.parseInt(properties.getProperty(prefix+"rig_batch_adjust_rig_gt"));
 
+			if (properties.getProperty(prefix+"clt_batch_dsi1")!= null)      this.clt_batch_dsi1=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_dsi1"));
 			if (properties.getProperty(prefix+"clt_batch_apply_man")!= null) this.clt_batch_apply_man=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_apply_man"));
 			if (properties.getProperty(prefix+"clt_batch_extrinsic")!= null) this.clt_batch_extrinsic=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_extrinsic"));
 			if (properties.getProperty(prefix+"clt_batch_poly")!= null)      this.clt_batch_poly=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_poly"));
@@ -991,6 +996,7 @@ public class EyesisCorrectionParameters {
 			gd.addNumericField("Repeat aux camera field adjustment (late, with GT disparity from rig)",    this.rig_batch_adjust_aux_gt,   0);
 			gd.addNumericField("Repeat 2-quad camera rig field adjustment (late, after all others)",       this.rig_batch_adjust_rig_gt,   0);
 
+    		gd.addCheckbox    ("Experimental DSI",                                                   this.clt_batch_dsi1); // 21
     		gd.addCheckbox    ("Apply (and disable) manual pixel shift",                             this.clt_batch_apply_man); // 21
     		gd.addCheckbox    ("Calibrate extrinsic parameters for each set",                        this.clt_batch_extrinsic); // 22
     		gd.addCheckbox    ("Calculate fine polynomial correction for each set",                  this.clt_batch_poly);      // 23
@@ -1083,6 +1089,7 @@ public class EyesisCorrectionParameters {
 			this.rig_batch_adjust_aux_gt =    (int) gd.getNextNumber();
 			this.rig_batch_adjust_rig_gt =    (int) gd.getNextNumber();
 
+    		this.clt_batch_dsi1=         gd.getNextBoolean(); // 21
     		this.clt_batch_apply_man=    gd.getNextBoolean(); // 21
     		this.clt_batch_extrinsic=    gd.getNextBoolean(); // 22
     		this.clt_batch_poly=         gd.getNextBoolean(); // 23

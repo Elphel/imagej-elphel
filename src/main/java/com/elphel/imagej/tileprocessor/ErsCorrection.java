@@ -24,6 +24,9 @@
 
 package com.elphel.imagej.tileprocessor;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+
 import org.apache.commons.math3.complex.Quaternion;
 import org.apache.commons.math3.geometry.euclidean.threed.Rotation;
 import org.apache.commons.math3.geometry.euclidean.threed.RotationConvention;
@@ -43,6 +46,51 @@ public class ErsCorrection extends GeometryCorrection {
 	Quaternion[] ers_quaternion_dt; // per scan line
 	double [][]  ers_atr;           // azimuth-tilt-roll per scan line
 	double [][]  ers_atr_dt;        // angular velocities per scan line
+	/**
+	 * Position+orientation (world XYZ, Azimuth, Tilt, Roll) of other scenes relative to the position of this camera.
+	 * Positions/orientations are sampled during scanning of the center line 
+	 */
+	HashMap <String, XyzAtr> scenes_poses = null;
+	public class XyzAtr {
+		double [] xyz;
+		double [] atr;
+		public XyzAtr() {
+			xyz = new double[3];
+			atr = new double[3];
+		}
+		public XyzAtr(String s) {
+			ArrayList<Double> lxyzatr = new ArrayList<Double>();
+			for (String snumber : s.split(","))
+				lxyzatr.add(Double.parseDouble(snumber));
+			Double [] xyzatr = new Double[6];
+			xyzatr = lxyzatr.toArray(xyzatr);
+			xyz = new double [] {xyzatr[0],xyzatr[1],xyzatr[2]};
+			atr = new double [] {xyzatr[3],xyzatr[4],xyzatr[5]};
+		}
+		
+		public String toString() {
+			return String.format("%f,  %f, %f, %f, %f, %f",xyz[0],xyz[1],xyz[2],atr[0],atr[1],atr[2]);
+		}
+		public double [] getXYZ() {
+			return xyz;
+		}
+		public double [] getATR() {
+			return atr;
+		}
+		public void setXYZ(double [] d) {
+			xyz[0] = d[0];
+			xyz[1] = d[1];
+			xyz[2] = d[2];
+		}
+		public void setATR(double [] d) {
+			atr[0] = d[0];
+			atr[1] = d[1];
+			atr[2] = d[2];
+		}
+		
+	}
+	
+	
 	public ErsCorrection(GeometryCorrection gc) {
 		debugLevel =           gc.debugLevel;
 		line_time =            gc.line_time;            // 26.5E-6; // duration of sensor scan line (for ERS)

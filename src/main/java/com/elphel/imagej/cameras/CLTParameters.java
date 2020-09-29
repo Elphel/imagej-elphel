@@ -166,6 +166,14 @@ public class CLTParameters {
 	public int        ih_min_samples =  10;      // Minimal number of remaining samples
 	public boolean    ih_norm_center =  true;    // Replace samples with a single average with equal weight
 	public boolean    inf_restore_disp = true;   // Add disparity back to d{x,y}[i] (debug feature)
+	
+	// intraframe filtering, reusing LY clusters
+	public double     intra_keep_strength = 0.4;           // do not remeasure if stronger than
+	public double     intra_keep_conditional_strength = 0.3;    // keep if has a close neighbor in clusters
+	public double     intra_absolute_disparity_tolerance = 1.0; //
+	public double     intra_relative_disparity_tolerance = 0.1; // 
+	public int        intra_cluster_size = 4;
+	
 	// Lazy eye parameters
 
 	public boolean    ly_lma_ers =      true;    // Use 2020 LMA-based measurement of mismatch (GPU-supported)
@@ -833,6 +841,8 @@ public class CLTParameters {
 	public int        dbg_early_exit =         0;     // Exit from early stages
 	public boolean    show_first_bg =          false; // show extrinsic adjustment differences
 
+	public boolean    show_interframe =        false; // show interframe processing
+	public boolean    show_filter_ly =         false; // show dsi filtering by LY clusters
 	public boolean    show_extrinsic =         false; // show extrinsic adjustment differences
 	public boolean    show_ortho_combine =     false; // Show 'ortho_combine'
 	public boolean    show_refine_supertiles = false; // show 'refine_disparity_supertiles'
@@ -1030,7 +1040,7 @@ public class CLTParameters {
 		properties.setProperty(prefix+"fcorr_inf_diff",             this.fcorr_inf_diff +"");
 		properties.setProperty(prefix+"fcorr_inf_quad",             this.fcorr_inf_quad+"");
 		properties.setProperty(prefix+"fcorr_inf_vert",             this.fcorr_inf_vert+"");
-
+		
 		properties.setProperty(prefix+"inf_disp_apply",             this.inf_disp_apply+"");
 		properties.setProperty(prefix+"inf_repeat",                 this.inf_repeat+"");
 
@@ -1052,6 +1062,12 @@ public class CLTParameters {
 		properties.setProperty(prefix+"ih_min_samples",             this.ih_min_samples+"");
 		properties.setProperty(prefix+"ih_norm_center",             this.ih_norm_center+"");
 		properties.setProperty(prefix+"inf_restore_disp",           this.inf_restore_disp+"");
+		
+		properties.setProperty(prefix+"intra_keep_strength",                this.intra_keep_strength+"");
+		properties.setProperty(prefix+"intra_keep_conditional_strength",    this.intra_keep_conditional_strength+"");
+		properties.setProperty(prefix+"intra_absolute_disparity_tolerance", this.intra_absolute_disparity_tolerance+"");
+		properties.setProperty(prefix+"intra_relative_disparity_tolerance", this.intra_relative_disparity_tolerance+"");
+		properties.setProperty(prefix+"intra_cluster_size",                 this.intra_cluster_size+"");
 
 		properties.setProperty(prefix+"ly_lma_ers",                 this.ly_lma_ers+"");
 		properties.setProperty(prefix+"ly_gt_strength",             this.ly_gt_strength+"");
@@ -1656,6 +1672,8 @@ public class CLTParameters {
 		properties.setProperty(prefix+"dbg_early_exit",                   this.dbg_early_exit+"");
 		properties.setProperty(prefix+"show_first_bg",                    this.show_first_bg+"");
 
+		properties.setProperty(prefix+"show_interframe",                  this.show_interframe+"");
+		properties.setProperty(prefix+"show_filter_ly",                   this.show_filter_ly+"");
 		properties.setProperty(prefix+"show_extrinsic",                   this.show_extrinsic+"");
 		properties.setProperty(prefix+"show_ortho_combine",               this.show_ortho_combine+"");
 		properties.setProperty(prefix+"show_refine_supertiles",           this.show_refine_supertiles+"");
@@ -1823,8 +1841,6 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"fcorr_inf_quad")!=null)                this.fcorr_inf_quad=Boolean.parseBoolean(properties.getProperty(prefix+"fcorr_inf_quad"));
 		if (properties.getProperty(prefix+"fcorr_inf_vert")!=null)                this.fcorr_inf_vert=Boolean.parseBoolean(properties.getProperty(prefix+"fcorr_inf_vert"));
 
-
-
 		if (properties.getProperty(prefix+"inf_disp_apply")!=null)                this.inf_disp_apply=Boolean.parseBoolean(properties.getProperty(prefix+"inf_disp_apply"));
 		if (properties.getProperty(prefix+"inf_repeat")!=null)                    this.inf_repeat=Integer.parseInt(properties.getProperty(prefix+"inf_repeat"));
 		//  			if (properties.getProperty(prefix+"inf_mism_apply")!=null)              this.inf_mism_apply=Boolean.parseBoolean(properties.getProperty(prefix+"inf_mism_apply"));
@@ -1847,6 +1863,12 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"ih_min_samples")!=null)                this.ih_min_samples=Integer.parseInt(properties.getProperty(prefix+"ih_min_samples"));
 		if (properties.getProperty(prefix+"ih_norm_center")!=null)                this.ih_norm_center=Boolean.parseBoolean(properties.getProperty(prefix+"ih_norm_center"));
 		if (properties.getProperty(prefix+"inf_restore_disp")!=null)              this.inf_restore_disp=Boolean.parseBoolean(properties.getProperty(prefix+"inf_restore_disp"));
+
+		if (properties.getProperty(prefix+"intra_keep_strength")!=null)                this.intra_keep_strength=Double.parseDouble(properties.getProperty(prefix+"intra_keep_strength"));
+		if (properties.getProperty(prefix+"intra_keep_conditional_strength")!=null)    this.intra_keep_conditional_strength=Double.parseDouble(properties.getProperty(prefix+"intra_keep_conditional_strength"));
+		if (properties.getProperty(prefix+"intra_absolute_disparity_tolerance")!=null) this.intra_absolute_disparity_tolerance=Double.parseDouble(properties.getProperty(prefix+"intra_absolute_disparity_tolerance"));
+		if (properties.getProperty(prefix+"intra_relative_disparity_tolerance")!=null) this.intra_relative_disparity_tolerance=Double.parseDouble(properties.getProperty(prefix+"intra_relative_disparity_tolerance"));
+		if (properties.getProperty(prefix+"intra_cluster_size")!=null)                 this.intra_cluster_size=Integer.parseInt(properties.getProperty(prefix+"intra_cluster_size"));
 
 		if (properties.getProperty(prefix+"ly_lma_ers")!=null)                    this.ly_lma_ers=Boolean.parseBoolean(properties.getProperty(prefix+"ly_lma_ers"));
 		if (properties.getProperty(prefix+"ly_gt_strength")!=null)                this.ly_gt_strength=Double.parseDouble(properties.getProperty(prefix+"ly_gt_strength"));
@@ -2467,6 +2489,8 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"dbg_early_exit")!=null)                   this.dbg_early_exit=Integer.parseInt(properties.getProperty(prefix+"dbg_early_exit"));
 		if (properties.getProperty(prefix+"show_first_bg")!=null)                    this.show_first_bg=Boolean.parseBoolean(properties.getProperty(prefix+"show_first_bg"));
 
+		if (properties.getProperty(prefix+"show_interframe")!=null)                  this.show_interframe=Boolean.parseBoolean(properties.getProperty(prefix+"show_interframe"));
+		if (properties.getProperty(prefix+"show_filter_ly")!=null)                   this.show_filter_ly=Boolean.parseBoolean(properties.getProperty(prefix+"show_filter_ly"));
 		if (properties.getProperty(prefix+"show_extrinsic")!=null)                   this.show_extrinsic=Boolean.parseBoolean(properties.getProperty(prefix+"show_extrinsic"));
 		if (properties.getProperty(prefix+"show_ortho_combine")!=null)               this.show_ortho_combine=Boolean.parseBoolean(properties.getProperty(prefix+"show_ortho_combine"));
 		if (properties.getProperty(prefix+"show_refine_supertiles")!=null)           this.show_refine_supertiles=Boolean.parseBoolean(properties.getProperty(prefix+"show_refine_supertiles"));
@@ -2684,7 +2708,19 @@ public class CLTParameters {
 		gd.addCheckbox    ("Replace samples with a single average with equal weight",                           this.ih_norm_center);
 		gd.addCheckbox    ("Add disparity back to d{x,y}[i] (debug feature)",                                   this.inf_restore_disp);
 
-
+		gd.addTab         ("Intra", "Intrascene DSI filtering");
+		gd.addNumericField("Keep tile if it is stronger than", this.intra_keep_strength,  3,5,"",
+				"Regardless of the clustered (4x4 typical) average value");
+		gd.addNumericField("Keep tile conditionally if it is stonger than", this.intra_keep_conditional_strength,  3,5,"",
+				"Keep tile disparity if it has close disparity among 9 neighbor clusters");
+		gd.addNumericField("Absolute disparity tolearance", this.intra_absolute_disparity_tolerance,  3,5,"pix",
+				"Use when comparing with neighbor clusters");
+		gd.addNumericField("Relative disparity tolearance", this.intra_relative_disparity_tolerance,  3,5,"pix/pix",
+				"Add to absolute disparity tolerance, multiply by disparity (relaxes for near tiles)");
+		gd.addNumericField("Cluster size for consolidation",                                                    this.intra_cluster_size,  0, 5,"",
+				"Typically 4 for 4x4 clusters");
+		
+		
 		gd.addTab         ("Lazy eye", "Lazy eye parameters");
 
 		gd.addCheckbox    ("Use 2020 LMA-based measurement of mismatch (GPU-supported)",                        this.ly_lma_ers);
@@ -3471,6 +3507,8 @@ public class CLTParameters {
 		gd.addNumericField("Temporay exit stage (0- normal execution)",                                              this.dbg_early_exit,  0,6,"","Temporary exit at intermediate stage (0 - normal)");
 		gd.addCheckbox    ("Show first infinity scan",                                                               this.show_first_bg, "Show results of the first calculated background scan");
 
+		gd.addCheckbox    ("Show interframe processing",                                                             this.show_interframe, "Debugging interframe functionality");
+		gd.addCheckbox    ("Show DSI filtering by LY clusters",                                                      this.show_filter_ly, "Filtering DSI by comparing with clusters prepared for LY adjustment");
 		gd.addCheckbox    ("Show extrinsic adjustment differences",                                                  this.show_extrinsic);
 		gd.addCheckbox    ("Show 'ortho_combine'",                                                                   this.show_ortho_combine);
 		gd.addCheckbox    ("Show 'refine_disparity_supertiles'",                                                     this.show_refine_supertiles);
@@ -3643,6 +3681,12 @@ public class CLTParameters {
 		this.ih_min_samples=  (int) gd.getNextNumber();
 		this.ih_norm_center=        gd.getNextBoolean();
 		this.inf_restore_disp=      gd.getNextBoolean();
+		
+		this.intra_keep_strength=                gd.getNextNumber();
+		this.intra_keep_conditional_strength=    gd.getNextNumber();
+		this.intra_absolute_disparity_tolerance= gd.getNextNumber();
+		this.intra_relative_disparity_tolerance= gd.getNextNumber();
+		this.intra_cluster_size=           (int) gd.getNextNumber();
 
 		this.ly_lma_ers =           gd.getNextBoolean();
 		this.ly_gt_strength=        gd.getNextNumber();
@@ -4255,6 +4299,8 @@ public class CLTParameters {
 		this.dbg_early_exit = (int) gd.getNextNumber();
 		this.show_first_bg=         gd.getNextBoolean();
 
+		this.show_interframe=       gd.getNextBoolean();
+		this.show_filter_ly=        gd.getNextBoolean();
 		this.show_extrinsic=        gd.getNextBoolean();
 		this.show_ortho_combine=    gd.getNextBoolean();
 		this.show_refine_supertiles=gd.getNextBoolean();

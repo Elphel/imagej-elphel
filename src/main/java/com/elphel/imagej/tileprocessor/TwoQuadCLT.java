@@ -8346,6 +8346,46 @@ if (debugLevel > -100) return true; // temporarily !
 				quadCLT_main.tp.resetCLTPasses();
 				if (!ok) break;
 			}
+			if (quadCLT_main.correctionsParameters.clt_batch_dsi1){
+		        System.out.println("Trying experimental features DSI/ERS");
+				quadCLT_main.preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
+						imp_srcs_main, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+						saturation_imp_main, // boolean [][] saturation_imp, // (near) saturated pixels or null
+						clt_parameters,
+						debayerParameters,
+						colorProcParameters,
+						rgbParameters,
+						threadsMax,  // maximal number of threads to launch
+						updateStatus,
+						debugLevelInner);
+				
+				double [][] dsi_ly = quadCLT_main.filterByLY(
+						clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
+				        clt_parameters.ly_inf_min_narrow, // double inf_min,
+				        clt_parameters.ly_inf_max_narrow,  // double inf_max,
+						threadsMax,  //final int        threadsMax,  // maximal number of threads to launch
+						updateStatus,// final boolean    updateStatus,
+						debugLevelInner); // final int        debugLevel)				
+				dsi[DSI_DISPARITY_MAIN] = dsi_ly[0];
+				dsi[DSI_STRENGTH_MAIN] =  dsi_ly[1];
+//				if (quadCLT_main.correctionsParameters.clt_batch_dsi) { // Should be always enabled ?
+				saveDSIMain ();
+//				}
+				// clear memory for main
+				quadCLT_main.tp.resetCLTPasses();
+				// copy regardless of ML generation
+				// See if it will copy all files, not just the main camera ones
+
+				if (clt_parameters.rig.ml_copyJP4) {
+					copyJP4src(
+							quadCLT_main,   // QuadCLT                                  quadCLT_main,  // tiles should be set
+							quadCLT_aux,    // QuadCLT                                  quadCLT_aux,
+							clt_parameters, // EyesisCorrectionParameters.CLTParameters clt_parameters,
+							debugLevel);    // final int                                debugLevel)
+				}
+			}			
+			
+			
 			// Generate 4 main camera images and thumbnail
 			if (quadCLT_main.correctionsParameters.clt_batch_4img){
 				if (clt_parameters.gpu_use_main) {

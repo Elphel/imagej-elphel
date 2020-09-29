@@ -3483,7 +3483,7 @@ ImageDtt.startAndJoin(threads);
 				if (scan.isProcessed())           titles[nscan] += "+P"; else titles[nscan]+="-P";
 				if (scan.isCombo())               titles[nscan] += "+C"; else titles[nscan]+="-C";
 				if (scan.getTextureTiles()!=null) titles[nscan] += "+T"; else titles[nscan]+="-T";
-				dbg_img[nscan] = getShowScan(scan)[slice];
+				dbg_img[nscan] = getShowScan(scan, false)[slice];
 				if (dbg_img[nscan] != null) num_slices++;
 			}
 		}
@@ -3502,10 +3502,21 @@ ImageDtt.startAndJoin(threads);
 		return ds_only ? SCAN_TITLES_DS : SCAN_TITLES;
 	}
 
-
 	public void showScan(
 			CLTPass3d   scan,
 			String in_title)
+	{
+		showScan(
+				scan,
+				in_title,
+				false);
+	}
+
+	
+	public void showScan(
+			CLTPass3d   scan,
+			String in_title,
+			boolean measured_only)
 	{
 		String [] titles = getScanTitles();
 		String title=in_title;
@@ -3514,7 +3525,7 @@ ImageDtt.startAndJoin(threads);
 		if (scan.isCombo())               title+="+C"; else title+="-C";
 		if (scan.getTextureTiles()!=null) title+="+T"; else title+="-T";
 
-		double [][] dbg_img = getShowScan(scan);
+		double [][] dbg_img = getShowScan(scan, measured_only);
 				(new ShowDoubleFloatArrays()).showArrays(
 						dbg_img,
 						tilesX,
@@ -3646,7 +3657,7 @@ ImageDtt.startAndJoin(threads);
 			CLTPass3d   scan,
 			boolean force_final)
 	{
-		double [][] dbg_img = getShowScan(scan);
+		double [][] dbg_img = getShowScan(scan, false);
 		double [][] ds = new double [2][];
 		if (!force_final && (dbg_img[2] != null)) {
 			ds[0] = dbg_img[2]; // disparity
@@ -3662,7 +3673,8 @@ ImageDtt.startAndJoin(threads);
 	}
 
 	public double [][] getShowScan(
-			CLTPass3d   scan)
+			CLTPass3d   scan,
+			boolean measured_only)
 	{
 		int NUM_SLICES=getScanTitles().length;
 		int this_IMG_TONE_RGB = 21;
@@ -3682,6 +3694,8 @@ ImageDtt.startAndJoin(threads);
 //		boolean [] ly_force = scan.getLazyEyeForceDisparity();
 
 		int tlen = tilesX*tilesY;
+		if (scan.tile_op == null) measured_only = false;
+		boolean [] measured = new boolean [tlen]; 
 		double [][] dbg_img = new double[NUM_SLICES][];
 		if (scan.tile_op != null)              dbg_img[ 0] = new double[tlen];
 		if (scan.disparity !=  null)           dbg_img[ 2] = new double[tlen];
@@ -3693,7 +3707,10 @@ ImageDtt.startAndJoin(threads);
 
 		for (int ty = 0; ty < tilesY; ty++) for (int tx = 0; tx < tilesX; tx++){
 			int nt = ty*tilesX + tx;
-			if (scan.tile_op != null)              dbg_img[ 0][nt] = scan.tile_op[ty][tx];
+			if (scan.tile_op != null) {
+				dbg_img[ 0][nt] = scan.tile_op[ty][tx];
+				measured[nt] = scan.tile_op[ty][tx] > 0;
+			}
 			if (scan.disparity !=  null)           dbg_img[ 2][nt] = scan.disparity[ty][tx];
 			if (scan.selected != null)             dbg_img[10][nt] = scan.selected[nt]? 1.0:0.0;
 			if (scan.border_tiles != null)         dbg_img[11][nt] = scan.border_tiles[nt]? 1.0:0.0;
@@ -3748,6 +3765,14 @@ ImageDtt.startAndJoin(threads);
 								scale_diff* 0.5 * dbg_img[this_IMG_TONE_RGB_B + np][i] -
 								scale_diff* 1.0 * dbg_img[this_IMG_TONE_RGB_G + np][i];
 					}
+				}
+			}
+		}
+		if (measured_only) {
+			for (int n = 0; n < dbg_img.length; n++) if (dbg_img[n] != null) {
+				dbg_img[n] = dbg_img[n].clone(); // prevent modifications of the original data ! 
+				for (int i = 0; i < tlen; i++) if (!measured[i]){
+					dbg_img[n][i] = Double.NaN;
 				}
 			}
 		}
