@@ -415,7 +415,7 @@ public class QuadCLT extends QuadCLTCPU {
 			double [] camera_atr, // camera orientation relative to world frame
 			int       iscale)
 	{
-		double    line_err = 10.0; // 0.1; // BUG
+		double    line_err = 0.1; // 10.0; // 0.1; // BUG
 		int tilesX = tp.getTilesX();
 		int tilesY = tp.getTilesY();
 		int tiles = tilesX*tilesY;

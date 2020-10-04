@@ -685,15 +685,26 @@ public class ErsCorrection extends GeometryCorrection {
 		// rotate to match camera coordinates when scanning the center line
 		Rotation   cam_orient_center= new Rotation(RotationOrder.YXZ, ROT_CONV, camera_atr[0],camera_atr[1],camera_atr[2]);
 		Vector3D cam_center_local = cam_orient_center.applyTo(cam_center_world);
-		int line = pixelCorrectionHeight / 2;
+		double line = pixelCorrectionHeight / 2;
 		double err = pixelCorrectionHeight / 2;
 		double [] dxy = null;
 		// multiple iterations starting with no ERS distortions
 		for (int ntry = 0; (ntry < 100) && (err > line_err); ntry++) {
-			// current camera offset in the centerline camera frame 
-			Vector3D cam_now_local = new Vector3D(ers_xyz[line]);  
+			// current camera offset in the centerline camera frame
+			int iline0 = (int) Math.floor(line);
+			double fline = line-iline0;
+			int iline1 = iline0+1;
+			if (iline1 >= pixelCorrectionHeight) {
+				iline1 = pixelCorrectionHeight-1;
+			}
+			Vector3D cam_now_local0 = new Vector3D(ers_xyz[iline0]);
+			Vector3D cam_now_local1 = new Vector3D(ers_xyz[iline1]);
+			Vector3D cam_now_local = cam_now_local0.scalarMultiply(1.0 - fline).add(fline,cam_now_local1); 
+			
 			Vector3D cam_center_now_local = (is_infinity) ? cam_center_local :  cam_center_local.subtract(cam_now_local); // skip translation for infinity
-			Quaternion qpix = ers_quaternion[line];
+			Quaternion qpix0 = ers_quaternion[iline0];
+			Quaternion qpix1 = ers_quaternion[iline1];
+			Quaternion qpix= (qpix0.multiply(1.0-fline)).add(qpix1.multiply(fline));
 			Rotation cam_orient_now_local = new Rotation(qpix.getQ0(), qpix.getQ1(), qpix.getQ2(),qpix.getQ3(), true); // boolean 			
 			Vector3D v3 = cam_orient_now_local.applyTo(cam_center_now_local);
 			double [] xyz = v3.toArray();
@@ -709,11 +720,11 @@ public class ErsCorrection extends GeometryCorrection {
 			double px = pXc * rD2RND + 0.5 * this.pixelCorrectionWidth;  // distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
 			double py = pYc * rD2RND + 0.5 * this.pixelCorrectionHeight; // in pixels
 			dxy = new double [] {px, py, disparity};
-			int line1 = (int) Math.round(py);
-			if (line1 < 0) {
-				line1 = 0;
-			} else if (line1 >= pixelCorrectionHeight) {
-				line1 = pixelCorrectionHeight - 1;
+			double line1 = py;
+			if (line1 < 0.0) {
+				line1 = 0.0;
+			} else if (line1 > (pixelCorrectionHeight-1)) {
+				line1 = pixelCorrectionHeight -1;
 			}
 			err = Math.abs(line1 - line);
 			line = line1;

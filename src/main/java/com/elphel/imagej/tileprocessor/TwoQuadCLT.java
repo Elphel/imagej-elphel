@@ -8258,8 +8258,8 @@ if (debugLevel > -100) return true; // temporarily !
 		double k_prev = 0.75;
 		
 		double corr_scale = 0.75;
-		for (int i = 0; i < quadCLTs.length; i++) {
-//		for (int i = 1; i < quadCLTs.length; i++) {
+///		for (int i = 0; i < quadCLTs.length; i++) {
+		for (int i = 1; i < quadCLTs.length; i++) {
 			QuadCLT qPrev = (i > 0) ? quadCLTs[i - 1] : null;
 
 			double [][][] pair_sets = quadCLTs[i].get_pair(
