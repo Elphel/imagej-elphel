@@ -1347,7 +1347,38 @@ public class EyesisCorrectionParameters {
     		return true;
     	}
 
+// get list of source files in a directory
+    	public String[]  selectSourceFileInSet(String setdir, int debugLevel) {
+    		int num_chn_main = numSubCameras;
+    		int num_chn_aux =  ((aux_camera != null)? aux_camera.numSubCameras : 0);
+    		int num_chn_files = num_chn_main + num_chn_aux;
+    		String [] extensions = getSourceSuffixes();//    		={this.sourceSuffix};
+    		String [] prefixes = getSourcePrefixes();
+    		extensions[0] = sourceSuffix;
+    		prefixes[0] =   sourcePrefix;
+			MultipleExtensionsFileFilter setFilter = new MultipleExtensionsFileFilter(prefixes,extensions,"Image sets");
+	    	File fsetdir = new File(setdir);
+	    	ArrayList<File>  setFilesList = new ArrayList<File>(); // list of set files
+	    	File [] setChnFiles = fsetdir.listFiles(setFilter);
+	    	int num_match = setChnFiles.length;
+	    	if (    (num_match == num_chn_files) || // all files for main and aux
+	    			(num_match == num_chn_main) || // only main camera files
+	    			(num_match == num_chn_aux))   // only aux camera files
+	    	{ // only use sets of exact number of files
+	    		for (File f: setChnFiles) {
+	    			setFilesList.add(f);
+	    		}
+	    	}
 
+	    	String [] sourcePaths = new String[setFilesList.size()];
+	    	for (int nFile = 0; nFile < sourcePaths.length; nFile++) {
+	    		sourcePaths[nFile]= setFilesList.get(nFile).getPath();
+	    	}
+    		return sourcePaths;
+    	}
+    	
+    	
+    	
 
     	public boolean selectSourceFiles(boolean allFiles) {
     		return selectSourceFiles(allFiles, 1); // debug level 1 - modify here

@@ -614,6 +614,15 @@ public class CLTPass3d{
 			}
 			calc_disparity_combo = calc_disparity.clone(); // for now - just clone, can be modified separately and combined with hor/vert
 		}
+		
+		// bypassing calculations
+		public void setCalcDisparityStrength(
+				double [] disparity,
+				double [] strength) {
+			this.calc_disparity = disparity;
+			this.strength =       strength;
+			calc_disparity_combo = calc_disparity.clone();
+		}
 
 		/**
 		 * Replaces current combo disparity for tiles that are weak and do not have any neighbor within disparity range from this one

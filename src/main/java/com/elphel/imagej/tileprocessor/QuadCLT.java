@@ -40,6 +40,7 @@ import java.util.Properties;
 import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.cameras.ColorProcParameters;
 import com.elphel.imagej.cameras.EyesisCorrectionParameters;
+import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.correction.CorrectionColorProc;
 import com.elphel.imagej.correction.EyesisCorrections;
@@ -62,6 +63,1436 @@ public class QuadCLT extends QuadCLTCPU {
 				correctionsParameters
 				);
 	}
+	
+	public QuadCLT(QuadCLTCPU pq, String name) {
+		super (pq, name);
+		if (pq instanceof QuadCLT) {
+			this.gpuQuad = ((QuadCLT) pq).gpuQuad; //  careful when switching - reset Geometry, vectors, bayer images. Kernels should be the same
+		}
+	}
+	
+	public QuadCLT restoreFromModel(
+			CLTParameters  clt_parameters,
+			ColorProcParameters                       colorProcParameters, //
+			int                                       threadsMax,
+			int                                       debugLevel)
+
+	{
+		final int        debugLevelInner=clt_parameters.batch_run? -2: debugLevel;
+//		String set_name = image_name; // prevent from being overwritten?
+		String jp4_copy_path= correctionsParameters.selectX3dDirectory(
+				this.image_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+				correctionsParameters.jp4SubDir,
+				true,  // smart,
+				true);  //newAllowed, // save
+		String [] sourceFiles = correctionsParameters.selectSourceFileInSet(jp4_copy_path, debugLevel);
+		SetChannels [] set_channels=setChannels(
+				null, // single set name
+				sourceFiles,
+				debugLevel);
+		// sets set name to jp4, overwrite
+		set_channels[0].set_name = this.image_name; // set_name;
+		double [] referenceExposures = null;
+		if (!colorProcParameters.lwir_islwir) {
+			referenceExposures = eyesisCorrections.calcReferenceExposures(sourceFiles, debugLevel);
+		}
+		int [] channelFiles = set_channels[0].fileNumber();		
+		boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
+		double []    scaleExposures = new double[channelFiles.length];
+		ImagePlus [] imp_srcs = conditionImageSet(
+				clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+				colorProcParameters,            //  ColorProcParameters                       colorProcParameters, //
+				sourceFiles,                    // String []                                 sourceFiles,
+				this.image_name,                       // String                                    set_name,
+				referenceExposures,             // double []                                 referenceExposures,
+				channelFiles,                   // int []                                    channelFiles,
+				scaleExposures,                 // output  // double [] scaleExposures
+				saturation_imp,                 // output  // boolean [][]                              saturation_imp,
+				threadsMax,                     // int                                       threadsMax,
+				debugLevelInner);               // int                                       debugLevel);
+		restoreDSI("-DSI_MAIN"); // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
+		restoreInterProperties( // restore properties for interscene processing (extrinsics, ers, ...)
+				null, // String path,             // full name with extension or null to use x3d directory
+//				null, // Properties properties,   // if null - will only save extrinsics)
+				debugLevel);
+//		showDSIMain();
+		return this; //  can only be QuadCLT instance
+	}
+
+
+    public double [][]  getDSRBG (){
+    	return dsrbg;
+    }
+
+    public void setDSRBG(
+			CLTParameters  clt_parameters,
+			int            threadsMax,  // maximal number of threads to launch
+			boolean        updateStatus,
+			int            debugLevel)
+    {
+    	setDSRBG(
+    			this.dsi[TwoQuadCLT.DSI_DISPARITY_MAIN],
+    			this.dsi[TwoQuadCLT.DSI_STRENGTH_MAIN],
+    			clt_parameters,
+    			threadsMax,
+    	        updateStatus,
+    			debugLevel);
+    }
+    public void setDSRBG(
+    		double [] disparity,
+    		double [] strength,
+			CLTParameters  clt_parameters,
+			int            threadsMax,  // maximal number of threads to launch
+			boolean        updateStatus,
+			int            debugLevel)
+    {
+    	double[][] rbg = getTileRBG(
+    			clt_parameters,
+    			disparity,
+    			strength,
+    			threadsMax,  // maximal number of threads to launch
+    			updateStatus,
+    			debugLevel);
+    	double [][] dsrbg = {
+    			disparity,
+    			strength,
+    			rbg[0],rbg[1],rbg[2]};
+    	this.dsrbg = dsrbg;
+    }
+	
+	public double[][] getTileRBG(
+			CLTParameters  clt_parameters,
+			double []      disparity,
+			double []      strength,
+			int            threadsMax,  // maximal number of threads to launch
+			boolean        updateStatus,
+			int            debugLevel)
+	{
+		CLTPass3d scan = new CLTPass3d(tp);
+		scan.setCalcDisparityStrength(
+				disparity,
+				strength);
+		boolean [] selection = new boolean [disparity.length];
+		for (int i = 0; i < disparity.length; i++) {
+			selection[i] = (!Double.isNaN(disparity[i]) && ((strength == null) || (strength[i] > 0)));
+		}
+		scan.setTileOpDisparity(selection, disparity);
+		// will work only with GPU
+		// reset bayer source, geometry correction/vector
+		//this.new_image_data =     true;
+		QuadCLT savedQuadClt =  gpuQuad.getQuadCLT();
+		if (savedQuadClt != this) {
+			gpuQuad.updateQuadCLT(this);
+		} else {
+			savedQuadClt = null;
+		}
+		setPassAvgRBGA( // get image from a single pass, return relative path for x3d // USED in lwir
+				clt_parameters, // CLTParameters           CLTParameters           clt_parameters,,
+				scan,
+				threadsMax,  // maximal number of threads to launch
+				updateStatus,
+				debugLevel);
+		double [][] rgba = scan.getTilesRBGA();
+		if (debugLevel > -1) { // -2) {
+			String title = image_name+"-RBGA";
+			String [] titles = {"R","B","G","A"};
+			(new ShowDoubleFloatArrays()).showArrays(
+					rgba,
+					tp.getTilesX(),
+					tp.getTilesY(),
+					true,
+					title,
+					titles);
+		}
+        // Maybe resotore y caller?
+		if (savedQuadClt !=  null) {
+			gpuQuad.updateQuadCLT(savedQuadClt);
+		}
+		return rgba;
+	}
+	
+	
+	
+	
+	
+	public double [][] getOpticalFlow(
+			double disparity_min,
+			double disparity_max,
+			double [][] ds0,
+			double [][] ds1,
+			int debugLevel){
+//		double sigma = .3;
+		int rel_num_passes = 10;
+		int  n = 2* tp.getTileSize();
+		double [][] ds0f = new double[2][];
+		double [][] ds1f = new double[2][];
+		for (int i = 0; i < 2; i++) {
+//			ds0f[i] = fillNaNGaps(ds0[i], n,sigma);
+//			ds1f[i] = fillNaNGaps(ds1[i], n,sigma);
+
+			ds0f[i] = fillNaNGaps(ds0[i], n, rel_num_passes, 100);
+			ds1f[i] = fillNaNGaps(ds1[i], n, rel_num_passes, 100);
+		}
+		for (int tile = 0; tile < ds0f[0].length; tile++) {
+			double d = ds0f[0][tile];
+			if ((d < disparity_min) || (d > disparity_max)) {
+				ds0f[0][tile] = Double.NaN;
+				ds0f[1][tile] = Double.NaN;
+			}
+			d = ds1f[0][tile];
+			if ((d < disparity_min) || (d > disparity_max)) {
+				ds1f[0][tile] = Double.NaN;
+				ds1f[1][tile] = Double.NaN;
+			}
+		}
+		double [][] ds0ff = new double[2][];
+		double [][] ds1ff = new double[2][];
+		for (int i = 0; i < 2; i++) {
+//			ds0ff[i] = fillNaNGaps(ds0f[i], n,sigma);
+//			ds1ff[i] = fillNaNGaps(ds1f[i], n,sigma);
+			ds0ff[i] = fillNaNGaps(ds0f[i], n, rel_num_passes, 100);
+			ds1ff[i] = fillNaNGaps(ds1f[i], n, rel_num_passes, 100);
+		}
+		
+		
+		if (debugLevel > 0) {
+			double [][] dbg_img = {
+//					ds0[1],ds0f[1],ds0ff[1],ds1[1],ds1f[1],ds1ff[1],
+//					ds0[0],ds0f[0],ds0ff[0],ds1[0],ds1f[0],ds1ff[0]};
+					ds0[1],ds1[1],ds0f[1],ds1f[1],ds0ff[1],ds1ff[1],
+					ds0[0],ds1[0],ds0f[0],ds1f[0],ds0ff[0],ds1ff[0]};
+			String title = "filled_nan_gaps";
+//			String [] titles = {
+//					"ds0[1]","ds0f[1]","ds0ff[1]","ds1[1]","ds1f[1]","ds1ff[1]",
+//					"ds0[0]","ds0f[0]","ds0ff[0]","ds1[0]","ds1f[0]","ds1ff[0]"};
+			String [] titles = {
+					"ds0[1]","ds1[1]","ds0f[1]","ds1f[1]","ds0ff[1]","ds1ff[1]",
+					"ds0[0]","ds1[0]","ds0f[0]","ds1f[0]","ds0ff[0]","ds1ff[0]"};
+
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_img,
+					tp.getTilesX(),
+					tp.getTilesY(),
+					true,
+					title,
+					titles);
+		}
+
+		
+		
+		return null;
+	}
+	
+	public double[] fillNaNGapsOld(
+			double [] data,
+			int       n,
+			double sigma) {
+		double [] d = data.clone();
+		for (int i = 0; i < n; i++) { 
+			d =   (new DoubleGaussianBlur()).blurWithNaN(
+					d, // double[] pixels,
+					null,  // double [] in_weight, // or null
+					tp.getTilesX(), // int width,
+					tp.getTilesY(), // int height,
+					sigma, // double sigmaX,
+					sigma, // double sigmaY,
+					0.00001); // double accuracy);
+		}
+		for (int i = 0; i < data.length; i++) {
+			if (!Double.isNaN(data[i])) {
+				d[i] = data[i];
+			}
+		}
+		return d;
+	}
+	public double[] fillNaNGaps(
+			double [] data,
+			int       n,
+			int       rel_num_passes,
+			int       threadsMax)
+	{
+		int num_passes = n * rel_num_passes;
+		
+		return tp.fillNaNs(
+				data,                 // double [] data,
+				tp.getTilesX(),       //int       width, 
+				2 * n,                // int       grow,
+				0.5 * Math.sqrt(2.0), // double    diagonal_weight, // relative to ortho
+				num_passes,           // int       num_passes,
+				threadsMax); // final int threadsMax)      // maximal number of threads to launch                         
+	}
+	
+	public double[][][]  get_pair(
+			double k_prev,
+			QuadCLT qprev,
+			double corr_scale, //  = 0.75
+			int debug_level)
+	{
+		final int iscale = 8;
+		double ts =     getTimeStamp();
+		double ts_prev =   ts;
+		double [] zero3 =  {0.0,0.0,0.0};	
+		double [] camera_xyz0 = zero3.clone();
+		double [] camera_atr0 = zero3.clone();
+		
+		ErsCorrection ersCorrection = (ErsCorrection) geometryCorrection;
+		
+		System.out.println("\n"+image_name+":\n"+ersCorrection.extrinsic_corr.toString());
+		System.out.println(String.format("%s: ers_wxyz_center=     %f, %f, %f", image_name,
+				ersCorrection.ers_wxyz_center[0], ersCorrection.ers_wxyz_center[1],ersCorrection.ers_wxyz_center[2] ));
+		System.out.println(String.format("%s: ers_wxyz_center_dt=  %f, %f, %f",	image_name,
+				ersCorrection.ers_wxyz_center_dt[0], ersCorrection.ers_wxyz_center_dt[1],ersCorrection.ers_wxyz_center_dt[2] ));
+		System.out.println(String.format("%s: ers_wxyz_center_d2t= %f, %f, %f", image_name,
+				ersCorrection.ers_wxyz_center_d2t[0], ersCorrection.ers_wxyz_center_d2t[1],ersCorrection.ers_wxyz_center_d2t[2] ));
+		System.out.println(String.format("%s: ers_watr_center_dt=  %f, %f, %f", image_name,
+				ersCorrection.ers_watr_center_dt[0], ersCorrection.ers_watr_center_dt[1],ersCorrection.ers_watr_center_dt[2] ));
+		System.out.println(String.format("%s: ers_watr_center_d2t= %f, %f, %f", image_name,
+				ersCorrection.ers_watr_center_d2t[0], ersCorrection.ers_watr_center_d2t[1],ersCorrection.ers_watr_center_d2t[2] ));
+		
+		double dt = 0.0;
+		if (qprev == null) {
+			qprev = this;
+		}
+		if (qprev != null) {
+			ts_prev = qprev.getTimeStamp();
+			dt = ts-ts_prev;
+			if (dt < 0) {
+				k_prev = (1.0-k_prev);
+			}
+			if (Math.abs(dt) > 0.15) { // at least two frames TODO: use number of lines* line_time * ...? 
+				k_prev = 0.5;
+				System.out.println("Non-consecutive frames, dt = "+dt);
+			}
+			ErsCorrection ersCorrectionPrev = (ErsCorrection) (qprev.geometryCorrection);
+			double [] wxyz_center_dt_prev =   ersCorrectionPrev.ers_wxyz_center_dt;
+			double [] watr_center_dt_prev =   ersCorrectionPrev.ers_watr_center_dt;
+			double [] wxyz_delta = new double[3];
+			double [] watr_delta = new double[3];
+			for (int i = 0; i <3; i++) {
+				wxyz_delta[i] = - corr_scale * dt * (k_prev * wxyz_center_dt_prev[i] + (1.0-k_prev) * ersCorrection.ers_wxyz_center_dt[i]);
+				watr_delta[i] = - corr_scale * dt * (k_prev * watr_center_dt_prev[i] + (1.0-k_prev) * ersCorrection.ers_watr_center_dt[i]);
+			}
+			camera_xyz0 = wxyz_delta;
+			camera_atr0 = watr_delta;
+		}
+		
+		int tilesX = tp.getTilesX();
+		int tilesY = tp.getTilesY();
+		String [] dsrbg_titles = {"d", "s", "r", "b", "g"};
+		
+		double [][] dsrbg = this.transformCameraVew(
+				qprev,       // QuadCLT   camera_QuadClt,
+				camera_xyz0, // double [] camera_xyz, // camera center in world coordinates
+				camera_atr0, //double [] camera_atr, // camera orientation relative to world frame
+				iscale);
+		double [][][] pair = {getDSRBG(),dsrbg};
+		
+		// combine this scene with warped previous one
+		if (debug_level > 0) {
+			String [] rtitles = new String[2* dsrbg_titles.length];
+			double [][] dbg_rslt = new double [rtitles.length][];
+			for (int i = 0; i < dsrbg_titles.length; i++) {
+				rtitles[2*i] =    dsrbg_titles[i]+"0";
+				rtitles[2*i+1] =  dsrbg_titles[i];
+				dbg_rslt[2*i] =   pair[0][i];
+				dbg_rslt[2*i+1] = pair[1][i];
+			}
+			String title = image_name+"-"+qprev.image_name+"-dt"+dt;
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_rslt,
+					tilesX,
+					tilesY,
+					true,
+					title,
+					rtitles);
+		}		
+		return pair;
+	}
+	
+	public double [][] transformCameraVew(
+			QuadCLT   camera_QuadClt,
+			double [] camera_xyz, // camera center in world coordinates
+			double [] camera_atr, // camera orientation relative to world frame
+			int       iscale)
+	{
+		double    line_err = 10.0; // 0.1; // BUG
+		int tilesX = tp.getTilesX();
+		int tilesY = tp.getTilesY();
+		int tiles = tilesX*tilesY;
+		int transform_size = tp.getTileSize();
+		int rel_num_passes = 10;
+		int num_passes =    transform_size; // * 2;
+
+		double [] zero3 =               {0.0,0.0,0.0};	
+		int stilesX = iscale*tilesX; 
+		int stilesY = iscale*tilesY;
+		int stiles = stilesX*stilesY;
+		double sigma = 0.5 * iscale;
+		double scale =  1.0 * iscale/transform_size;
+		double [][] dsrbg_camera = camera_QuadClt.getDSRBG();
+		double [][] ds =        new double [dsrbg_camera.length][stiles];
+		for (int i = 0; i <ds.length; i++) {
+			for (int j = 0; j <ds[i].length; j++) {
+				ds[i][j] = Double.NaN;
+			}
+		}
+		
+		ErsCorrection ersCorrection = getErsCorrection();
+		ersCorrection.setupERS(); // just in case - setUP using instance paRAMETERS
+		double [] zbuffer = new double [tiles];
+		for (int tileY = 0; tileY < tilesY; tileY++) {
+			int stileY = iscale * tileY + iscale/2;
+			for (int tileX = 0; tileX < tilesX; tileX++) {
+				int stileX = iscale * tileX + iscale/2;
+				int nTile = tileX + tileY * tilesX;
+				double centerX = tileX * transform_size + transform_size/2; //  - shiftX;
+				double centerY = tileY * transform_size + transform_size/2; //  - shiftY;
+				double disparity = dsrbg_camera[DSRBG_DISPARITY][nTile];
+				if (disparity < 0) {
+					disparity = 0.0;
+				}
+				// found that there are tiles with strength == 0.0, while disparity is not NaN
+				if (!Double.isNaN(disparity) && (dsrbg_camera[DSRBG_STRENGTH][nTile] > 0.0)) {
+					double [] pXpYD = ersCorrection.getImageCoordinatesERS(
+							camera_QuadClt, // QuadCLT cameraQuadCLT, // camera station that got image to be to be matched 
+							centerX,        // double px,                // pixel coordinate X in this camera view
+							centerY,        //double py,                // pixel coordinate Y in this camera view
+							disparity,      // double disparity,         // this view disparity 
+							true,           // boolean distortedView,    // This camera view is distorted (diff.rect), false - rectilinear
+							zero3,          // double [] reference_xyz,  // this view position in world coordinates (typically zero3)
+							zero3,          // double [] reference_atr,  // this view orientation relative to world frame  (typically zero3)
+							true,           // boolean distortedCamera,  // camera view is distorted (false - rectilinear)
+							camera_xyz,     // double [] camera_xyz,     // camera center in world coordinates
+							camera_atr,     // double [] camera_atr,     // camera orientation relative to world frame
+							line_err);       // double    line_err)       // threshold error in scan lines (1.0)
+					if (pXpYD != null) {
+						int px = (int) Math.round(pXpYD[0]/transform_size);
+						int py = (int) Math.round(pXpYD[1]/transform_size);
+						int spx = (int) Math.round(pXpYD[0]*scale);
+						int spy = (int) Math.round(pXpYD[1]*scale);
+						if ((px >= 0) && (py >= 0) && (px < tilesX) & (py < tilesY)) {
+							//Z-buffer
+							if (!(pXpYD[2] < zbuffer[px + py* tilesX])) {
+								zbuffer[px + py* tilesX] = pXpYD[2];
+								if ((spx >= 0) && (spy >= 0) && (spx < stilesX) & (spy < stilesY)) {
+									int sTile = spx + spy* stilesX;
+									ds[DSRBG_DISPARITY][sTile] = pXpYD[2]; //reduce*
+									for (int i = DSRBG_STRENGTH; i < dsrbg_camera.length; i++) {
+										ds[i][sTile] = dsrbg_camera[i][nTile]; // reduce * 
+									}
+								}								
+							}
+						}
+					}
+				}
+			}
+		}
+		
+		//dsrbg_out[DSRBG_DISPARITY]
+		for (int i = 0; i < ds.length; i++) {
+			ds[i] = (new DoubleGaussianBlur()).blurWithNaN(
+					ds[i], // double[] pixels,
+					null,  // double [] in_weight, // or null
+					stilesX, // int width,
+					stilesY, // int height,
+					sigma, // double sigmaX,
+					sigma, // double sigmaY,
+					0.01); // double accuracy);
+		}
+		double [][] dsrbg_out = new double [dsrbg_camera.length][tiles];
+		int [][] num_non_nan = new int [dsrbg_out.length] [tiles];
+		
+		for (int stileY = 0; stileY < stilesY; stileY++) {
+			int tileY = stileY / iscale; 
+			for (int stileX = 0; stileX < stilesX; stileX++) {
+				int tileX = stileX / iscale;
+				int stile = stileX + stileY * stilesX;
+				int tile =  tileX +  tileY *  tilesX;
+				for (int i = 0; i < dsrbg_out.length; i++) {
+					double d = ds[i][stile];
+					if (!Double.isNaN(d)) {
+						num_non_nan[i][tile] ++;
+						dsrbg_out[i][tile] += d;
+					}	
+				}
+			}
+		}
+		for (int i = 0; i < dsrbg_out.length; i++) {
+			for (int j = 0; j < tiles; j++) {
+				if (num_non_nan[i][j] == 0) {
+					dsrbg_out[i][j] = Double.NaN;
+				} else {
+					dsrbg_out[i][j]/=num_non_nan[i][j];
+				}
+			}
+		}
+
+		if (num_passes > 0) {
+			for (int i = 0; i < dsrbg_out.length; i++) {
+				dsrbg_out[i] = fillNaNGaps(dsrbg_out[i], num_passes, rel_num_passes, 100); // threadsMax);
+			}
+		}
+		return dsrbg_out;
+	}
+	@Deprecated
+	public double[][][]  get_pair_old(
+			double k_prev,
+			QuadCLT qprev,
+			double corr_scale, //  = 0.75
+			int debug_level)
+	{
+		final int iscale = 8;
+		double ts =     getTimeStamp();
+		double ts_prev =   ts;
+		double [] zero3 =  {0.0,0.0,0.0};	
+		double [] camera_xyz0 = zero3.clone();
+		double [] camera_atr0 = zero3.clone();
+		
+		ErsCorrection ersCorrection = (ErsCorrection) geometryCorrection;
+		
+		System.out.println("\n"+image_name+":\n"+ersCorrection.extrinsic_corr.toString());
+		System.out.println(String.format("%s: ers_wxyz_center=     %f, %f, %f", image_name,
+				ersCorrection.ers_wxyz_center[0], ersCorrection.ers_wxyz_center[1],ersCorrection.ers_wxyz_center[2] ));
+		System.out.println(String.format("%s: ers_wxyz_center_dt=  %f, %f, %f",	image_name,
+				ersCorrection.ers_wxyz_center_dt[0], ersCorrection.ers_wxyz_center_dt[1],ersCorrection.ers_wxyz_center_dt[2] ));
+		System.out.println(String.format("%s: ers_wxyz_center_d2t= %f, %f, %f", image_name,
+				ersCorrection.ers_wxyz_center_d2t[0], ersCorrection.ers_wxyz_center_d2t[1],ersCorrection.ers_wxyz_center_d2t[2] ));
+		System.out.println(String.format("%s: ers_watr_center_dt=  %f, %f, %f", image_name,
+				ersCorrection.ers_watr_center_dt[0], ersCorrection.ers_watr_center_dt[1],ersCorrection.ers_watr_center_dt[2] ));
+		System.out.println(String.format("%s: ers_watr_center_d2t= %f, %f, %f", image_name,
+				ersCorrection.ers_watr_center_d2t[0], ersCorrection.ers_watr_center_d2t[1],ersCorrection.ers_watr_center_d2t[2] ));
+		
+		double dt = 0.0;
+		if (qprev == null) {
+			qprev = this;
+		}
+		if (qprev != null) {
+			ts_prev = qprev.getTimeStamp();
+			dt = ts-ts_prev;
+			if (dt < 0) {
+				k_prev = (1.0-k_prev);
+			}
+			if (Math.abs(dt) > 0.15) { // at least two frames TODO: use number of lines* line_time * ...? 
+				k_prev = 0.5;
+				System.out.println("Non-consecutive frames, dt = "+dt);
+			}
+			ErsCorrection ersCorrectionPrev = (ErsCorrection) (qprev.geometryCorrection);
+			double [] wxyz_center_dt_prev =   ersCorrectionPrev.ers_wxyz_center_dt;
+			double [] watr_center_dt_prev =   ersCorrectionPrev.ers_watr_center_dt;
+			double [] wxyz_delta = new double[3];
+			double [] watr_delta = new double[3];
+			for (int i = 0; i <3; i++) {
+				wxyz_delta[i] = - corr_scale * dt * (k_prev * wxyz_center_dt_prev[i] + (1.0-k_prev) * ersCorrection.ers_wxyz_center_dt[i]);
+				watr_delta[i] = - corr_scale * dt * (k_prev * watr_center_dt_prev[i] + (1.0-k_prev) * ersCorrection.ers_watr_center_dt[i]);
+			}
+			camera_xyz0 = wxyz_delta;
+			camera_atr0 = watr_delta;
+		}
+		
+		int tilesX = tp.getTilesX();
+		int tilesY = tp.getTilesY();
+		String [] dsrbg_titles = {"d", "s", "r", "b", "g"};
+		
+		double [][] dsrbg0 = qprev.transformCameraVew( // previous camera view, ers only 
+				zero3,       // double [] camera_xyz, // camera center in world coordinates
+				zero3,       // double [] camera_atr,  // camera orientation relative to world frame
+				iscale);
+
+		if (debug_level > 1) {
+			String title0 = String.format("%s_DSRBG_ers-only",qprev.image_name); // previous frame, ERS-corrected only, no shift/rot
+			(new ShowDoubleFloatArrays()).showArrays(
+					dsrbg0,
+					tilesX,
+					tilesY,
+					true,
+					title0,
+					dsrbg_titles);
+		}
+		double [][] dsrbg = transformCameraVew(
+				camera_xyz0, // double [] camera_xyz, // camera center in world coordinates
+				camera_atr0, //double [] camera_atr,  // camera orientation relative to world frame
+				iscale);      // 
+		if (debug_level > 1) {
+			String title = String.format("%s_%f:%f:%f_%f:%f:%f",image_name,
+					camera_xyz0[0],camera_xyz0[1],camera_xyz0[2],camera_atr0[0],camera_atr0[1],camera_atr0[2]);
+			(new ShowDoubleFloatArrays()).showArrays(
+					dsrbg,
+					tilesX,
+					tilesY,
+					true,
+					title,
+					dsrbg_titles);
+		}
+		
+		double [][] dsrbg1 = this.transformCameraVew(
+				qprev,       // QuadCLT   camera_QuadClt,
+				camera_xyz0, // double [] camera_xyz, // camera center in world coordinates
+				camera_atr0, //double [] camera_atr, // camera orientation relative to world frame
+				iscale);
+///		double [][][] pair = {dsrbg0,dsrbg};
+///		double [][][] pair = {qprev.getDSRBG(),dsrbg};
+///		double [][][] pair = {qprev.getDSRBG(),dsrbg1};
+		double [][][] pair = {getDSRBG(),dsrbg1};
+		
+		// combine previous frame with this one
+		if (debug_level > 0) {
+			String [] rtitles = new String[2* dsrbg_titles.length];
+			double [][] dbg_rslt = new double [rtitles.length][];
+			for (int i = 0; i < dsrbg_titles.length; i++) {
+				rtitles[2*i] =    dsrbg_titles[i]+"0";
+				rtitles[2*i+1] =  dsrbg_titles[i];
+				dbg_rslt[2*i] =   pair[0][i];
+				dbg_rslt[2*i+1] = pair[1][i];
+			}
+			String title = image_name+"-"+qprev.image_name+"-dt"+dt;
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_rslt,
+					tilesX,
+					tilesY,
+					true,
+					title,
+					rtitles);
+		}		
+		return pair;
+	}
+	
+	
+	@Deprecated
+	public double [][] transformCameraVew(
+			double [] camera_xyz, // camera center in world coordinates
+			double [] camera_atr, // camera orientation relative to world frame
+			int       iscale)
+	{
+		double [][] dsrbg =   getDSRBG(); 
+		return transformCameraVew(
+				dsrbg,      // double [][] dsi, // 
+				camera_xyz,  // double [] camera_xyz, // camera center in world coordinates
+				camera_atr,  // double [] camera_atr,  // camera orientation relative to world frame
+				iscale,
+	// normally all 0; 			
+				null, // double [] wxyz_center,     // world camera XYZ (meters) for the frame center
+				null, // double [] wxyz_center_dt,  // world camera Vx, Vy, Vz (m/s)
+				null, // double [] wxyz_center_d2t, // world camera Vx, Vy, Vz (m/s^2)
+				null, // double [] watr_center_dt,  // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+				null); // double [] watr_center_d2t) // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+	}
+	
+	@Deprecated
+	public double [][] transformCameraVew(
+			double [][] dsrbg, // 
+			double []   camera_xyz, // camera center in world coordinates
+			double []   camera_atr,  // camera orientation relative to world frame
+			final int   iscale,     // 8 
+// normally all 0; 			
+			double [] wxyz_center,     // world camera XYZ (meters) for the frame center
+			double [] wxyz_center_dt,  // world camera Vx, Vy, Vz (m/s)
+			double [] wxyz_center_d2t, // world camera Vx, Vy, Vz (m/s^2)
+			double [] watr_center_dt,  // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+			double [] watr_center_d2t) // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+	{
+		double    line_err = 10.0; // 0.1; // BUG
+		int tilesX = tp.getTilesX();
+		int tilesY = tp.getTilesY();
+		int tiles = tilesX*tilesY;
+		int transform_size = tp.getTileSize();
+		int rel_num_passes = 10;
+		int num_passes =    transform_size; // * 2;
+
+		double [] zero3 =               {0.0,0.0,0.0};	
+		int stilesX = iscale*tilesX; 
+		int stilesY = iscale*tilesY;
+		int stiles = stilesX*stilesY;
+		double sigma = 0.5 * iscale;
+		double scale =  1.0 * iscale/transform_size;
+//		double reduce = 1.0 / iscale/iscale;
+		double [][] ds =        new double [dsrbg.length][stiles];
+		for (int i = 0; i <ds.length; i++) {
+			for (int j = 0; j <ds[i].length; j++) {
+				ds[i][j] = Double.NaN;
+			}
+		}
+
+		ErsCorrection ersCorrection = (ErsCorrection) geometryCorrection;
+		// save original
+		double [] saved_ers_wxyz_center =     ersCorrection.ers_wxyz_center;
+		double [] saved_ers_wxyz_center_dt =  ersCorrection.ers_wxyz_center_dt;
+		double [] saved_ers_wxyz_center_d2t = ersCorrection.ers_wxyz_center_d2t;
+		double [] saved_ers_watr_center_dt =  ersCorrection.ers_watr_center_dt;
+		double [] saved_ers_watr_center_d2t = ersCorrection.ers_watr_center_d2t;
+		
+		if (wxyz_center ==     null) wxyz_center =     ersCorrection.ers_wxyz_center;
+		if (wxyz_center_dt ==  null) wxyz_center_dt =  ersCorrection.ers_wxyz_center_dt;
+		if (wxyz_center_d2t == null) wxyz_center_d2t = ersCorrection.ers_wxyz_center_d2t;
+		if (watr_center_dt ==  null) watr_center_dt =  ersCorrection.ers_watr_center_dt;
+		if (watr_center_d2t == null) watr_center_d2t = ersCorrection.ers_watr_center_d2t;
+		
+		ersCorrection.setupERS(
+				wxyz_center,      // double [] wxyz_center,     // world camera XYZ (meters) for the frame center
+				wxyz_center_dt,   // double [] wxyz_center_dt,  // world camera Vx, Vy, Vz (m/s)
+				wxyz_center_d2t,  // double [] wxyz_center_d2t, // world camera Vx, Vy, Vz (m/s^2)
+				watr_center_dt,   // double [] watr_center_dt,  // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+				watr_center_d2t); // double [] watr_center_d2t); // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+		double [][] wxyz = new double [tiles][];
+		for (int tileY = 0; tileY < tilesY; tileY++) {
+//			int stileY = iscale * tileY + iscale/2;
+			for (int tileX = 0; tileX < tilesX; tileX++) {
+//				int stileX = iscale * tileX + iscale/2;
+//				int stile = stileX + stilesX * stileY;
+				int nTile = tileX + tileY * tilesX;
+				double centerX = tileX * transform_size + transform_size/2; //  - shiftX;
+				double centerY = tileY * transform_size + transform_size/2; //  - shiftY;
+				double disparity = dsrbg[DSRBG_DISPARITY][nTile];
+				if (disparity < 0) {
+					disparity = 0.0;
+				}
+				// found that there are tiles with strength == 0.0, while disparity is not NaN
+				if (!Double.isNaN(disparity) && (dsrbg[DSRBG_STRENGTH][nTile] > 0.0)) {
+					wxyz[nTile] = ersCorrection.getWorldCoordinatesERS(
+							centerX,                                        // double px,
+							centerY,                                        // double py,
+							disparity, // double disparity,
+							true,                                           // boolean correctDistortions,// correct distortion (will need corrected background too !)
+							camera_xyz,  // double [] camera_xyz, // camera center in world coordinates
+							camera_atr); // double [] camera_atr)  // camera orientation relative to world frame
+				}
+			}
+		}
+		
+		ersCorrection.setupERS(
+		zero3,   // double [] wxyz_center,     // world camera XYZ (meters) for the frame center
+		zero3,   // double [] wxyz_center_dt,  // world camera Vx, Vy, Vz (m/s)
+		zero3,   // double [] wxyz_center_d2t, // world camera Vx, Vy, Vz (m/s^2)
+		zero3,   // double [] watr_center_dt,  // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+		zero3);  // double [] watr_center_d2t); // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+		double [] zbuffer = new double [tiles];
+		for (int tileY = 0; tileY < tilesY; tileY++) {
+			for (int tileX = 0; tileX < tilesX; tileX++) {
+				int nTile = tileX + tileY * tilesX;
+//				if (!Double.isNaN(dbg_img[indx_xyz][nTile])) {
+				if (wxyz[nTile] != null) {
+					double [] pXpYD = ersCorrection.getImageCoordinatesERS(
+							wxyz[nTile], // double [] wxyz, 
+							true,                                           // boolean correctDistortions,// correct distortion (will need corrected background too !)
+							zero3,       // double [] camera_xyz, // camera center in world coordinates
+							zero3,       // double [] camera_atr)  // camera orientation relative to world frame
+							line_err);   // double    line_err) // threshold error in scan lines (1.0)
+					if (pXpYD != null) {
+						int px = (int) Math.round(pXpYD[0]/transform_size);
+						int py = (int) Math.round(pXpYD[1]/transform_size);
+						int spx = (int) Math.round(pXpYD[0]*scale);
+						int spy = (int) Math.round(pXpYD[1]*scale);
+						if ((px >= 0) && (py >= 0) && (px < tilesX) & (py < tilesY)) {
+							//Z-buffer
+							if (!(pXpYD[2] < zbuffer[px + py* tilesX])) {
+								zbuffer[px + py* tilesX] = pXpYD[2];
+								if ((spx >= 0) && (spy >= 0) && (spx < stilesX) & (spy < stilesY)) {
+									int sTile = spx + spy* stilesX;
+									ds[DSRBG_DISPARITY][sTile] = pXpYD[2]; //reduce*
+									for (int i = DSRBG_STRENGTH; i < dsrbg.length; i++) {
+										ds[i][sTile] = dsrbg[i][nTile]; // reduce * 
+									}
+								}								
+							}
+						}
+					}
+				}
+			}
+		}
+		
+		//dsrbg_out[DSRBG_DISPARITY]
+		for (int i = 0; i < ds.length; i++) {
+//			int rel_num_passes = 10;
+//			int num_passes =  2 * transform_size;
+//			ds[i] = fillNaNGaps(ds[i], num_passes, rel_num_passes, 100); // threadsMax);
+			/* */
+			ds[i] = (new DoubleGaussianBlur()).blurWithNaN(
+					ds[i], // double[] pixels,
+					null,  // double [] in_weight, // or null
+					stilesX, // int width,
+					stilesY, // int height,
+					sigma, // double sigmaX,
+					sigma, // double sigmaY,
+					0.01); // double accuracy);
+				/*	*/
+		}
+		double [][] dsrbg_out = new double [dsrbg.length][tiles];
+		int [][] num_non_nan = new int [dsrbg_out.length] [tiles];
+		
+		for (int stileY = 0; stileY < stilesY; stileY++) {
+			int tileY = stileY / iscale; 
+			for (int stileX = 0; stileX < stilesX; stileX++) {
+				int tileX = stileX / iscale;
+				int stile = stileX + stileY * stilesX;
+				int tile =  tileX +  tileY *  tilesX;
+				for (int i = 0; i < dsrbg_out.length; i++) {
+					double d = ds[i][stile];
+					if (!Double.isNaN(d)) {
+						num_non_nan[i][tile] ++;
+						dsrbg_out[i][tile] += d;
+					}	
+				}
+			}
+		}
+		for (int i = 0; i < dsrbg_out.length; i++) {
+			for (int j = 0; j < tiles; j++) {
+				if (num_non_nan[i][j] == 0) {
+					dsrbg_out[i][j] = Double.NaN;
+				} else {
+					dsrbg_out[i][j]/=num_non_nan[i][j];
+				}
+			}
+		}
+
+		if (num_passes > 0) {
+			for (int i = 0; i < dsrbg_out.length; i++) {
+				dsrbg_out[i] = fillNaNGaps(dsrbg_out[i], num_passes, rel_num_passes, 100); // threadsMax);
+			}
+		}
+		
+		// restore original
+		ersCorrection.setupERS(
+				saved_ers_wxyz_center,      // double [] wxyz_center,      // world camera XYZ (meters) for the frame center
+				saved_ers_wxyz_center_dt,   // double [] wxyz_center_dt,   // world camera Vx, Vy, Vz (m/s)
+				saved_ers_wxyz_center_d2t,  // double [] wxyz_center_d2t,  // world camera Vx, Vy, Vz (m/s^2)
+				saved_ers_watr_center_dt,   // double [] watr_center_dt,   // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+				saved_ers_watr_center_d2t); // double [] watr_center_d2t); // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+		return dsrbg_out;
+	}
+	
+	@Deprecated
+	public double[][]  test_back_forth_debug(
+			double k_prev,
+			QuadCLT qprev,
+			double corr_scale, //  = 0.75
+			int debug_level)
+	{
+		double ts =     getTimeStamp();
+		double ts_prev = ts;
+		boolean force_manual = false;
+		double [] zero3 =               {0.0,0.0,0.0};	
+		double [] camera_xyz0 = {0.0,0.0,0.0};
+		double [] camera_atr0 = {0.0,0.0,0.0};
+
+		double [] watr_center_dt =  {0.0, 0.0, 0.0};
+		double [] watr_center_d2t = {0.0, 0.0, 0.0};
+		double [] wxyz_center =     {0.0, 0.0, 0.0};	
+		double [] wxyz_center_dt =  {0.0, 0.0, 0.0};	
+		double [] wxyz_center_d2t = {0.0, 0.0, 0.0};	
+		
+		ErsCorrection ersCorrection = (ErsCorrection) geometryCorrection;
+		// save original
+		double [] saved_ers_wxyz_center =     ersCorrection.ers_wxyz_center;
+		double [] saved_ers_wxyz_center_dt =  ersCorrection.ers_wxyz_center_dt;
+		double [] saved_ers_wxyz_center_d2t = ersCorrection.ers_wxyz_center_d2t;
+		double [] saved_ers_watr_center_dt =  ersCorrection.ers_watr_center_dt;
+		double [] saved_ers_watr_center_d2t = ersCorrection.ers_watr_center_d2t;
+		
+		System.out.println("\n"+image_name+":\n"+ersCorrection.extrinsic_corr.toString());
+		System.out.println(String.format("%s: ers_wxyz_center=     %f, %f, %f", image_name,saved_ers_wxyz_center[0], saved_ers_wxyz_center[1],saved_ers_wxyz_center[2] ));
+		System.out.println(String.format("%s: ers_wxyz_center_dt=  %f, %f, %f", image_name,saved_ers_wxyz_center_dt[0], saved_ers_wxyz_center_dt[1],saved_ers_wxyz_center_dt[2] ));
+		System.out.println(String.format("%s: ers_wxyz_center_d2t= %f, %f, %f", image_name,saved_ers_wxyz_center_d2t[0], saved_ers_wxyz_center_d2t[1],saved_ers_wxyz_center_d2t[2] ));
+		System.out.println(String.format("%s: ers_watr_center_dt=  %f, %f, %f", image_name,saved_ers_watr_center_dt[0], saved_ers_watr_center_dt[1],saved_ers_watr_center_dt[2] ));
+		System.out.println(String.format("%s: ers_watr_center_d2t= %f, %f, %f", image_name,saved_ers_watr_center_d2t[0], saved_ers_watr_center_d2t[1],saved_ers_watr_center_d2t[2] ));
+
+		// Comment out to use manual values
+		
+		if (force_manual) {
+			System.out.println("\nUsing manually set values:");
+			System.out.println(String.format("%s: wxyz_center=     %f, %f, %f",     image_name,wxyz_center[0], wxyz_center[1],wxyz_center[2] ));
+			System.out.println(String.format("%s: wxyz_center_dt=  %f, %f, %f",  image_name,wxyz_center_dt[0], wxyz_center_dt[1],wxyz_center_dt[2] ));
+			System.out.println(String.format("%s: wxyz_center_d2t= %f, %f, %f", image_name,wxyz_center_d2t[0], wxyz_center_d2t[1],wxyz_center_d2t[2] ));
+			System.out.println(String.format("%s: watr_center_dt=  %f, %f, %f",  image_name,watr_center_dt[0], watr_center_dt[1],watr_center_dt[2] ));
+			System.out.println(String.format("%s: watr_center_d2t= %f, %f, %f", image_name,watr_center_d2t[0], watr_center_d2t[1],watr_center_d2t[2] ));
+		}else {
+			wxyz_center =     saved_ers_wxyz_center;
+			wxyz_center_dt =  saved_ers_wxyz_center_dt;
+			wxyz_center_d2t = saved_ers_wxyz_center_d2t;  // double [] wxyz_center_d2t, // world camera Vx, Vy, Vz (m/s^2)
+			watr_center_dt =  saved_ers_watr_center_dt;
+			watr_center_d2t = saved_ers_watr_center_d2t;
+		}
+		
+		
+		double dt = 0.0;
+		if (qprev == null) {
+			qprev = this;
+		}
+		if (qprev != null) {
+			ts_prev = qprev.getTimeStamp();
+			dt = ts-ts_prev;
+			if (dt < 0) {
+				k_prev = (1.0-k_prev);
+			}
+			if (Math.abs(dt) > 0.15) { // at least two frames TODO: use number of lines* line_time * ...? 
+				k_prev = 0.5;
+				System.out.println("Non-consecutive frames, dt = "+dt);
+			}
+			ErsCorrection ersCorrectionPrev = (ErsCorrection) (qprev.geometryCorrection);
+			double [] wxyz_center_dt_prev =   ersCorrectionPrev.ers_wxyz_center_dt;
+			double [] watr_center_dt_prev =   ersCorrectionPrev.ers_watr_center_dt;
+			double [] wxyz_delta = new double[3];
+			double [] watr_delta = new double[3];
+			for (int i = 0; i <3; i++) {
+				wxyz_delta[i] = - corr_scale * dt * (k_prev * wxyz_center_dt_prev[i] + (1.0-k_prev) * saved_ers_wxyz_center_dt[i]);
+				watr_delta[i] = - corr_scale * dt * (k_prev * watr_center_dt_prev[i] + (1.0-k_prev) * saved_ers_watr_center_dt[i]);
+			}
+			camera_xyz0 = wxyz_delta;
+			camera_atr0 = watr_delta;
+		}
+		
+		int tilesX = tp.getTilesX();
+		int tilesY = tp.getTilesY();
+		String [] titles = {"s0", "s1", "d0", "d1", "pX0","pX", "pY0","pY", "x","y","z","w"};
+		double [][] dsi = {this.dsi[TwoQuadCLT.DSI_DISPARITY_MAIN], this.dsi[TwoQuadCLT.DSI_STRENGTH_MAIN]};
+		double [][] dbg_img0 = new double [titles.length][]; // null; // previous camera view, ers only 
+		double [][] dbg_img1 = new double [titles.length][]; // null; // this camera view, ers only
+		
+		if (!force_manual) { 
+			dbg_img0 = qprev.transformCameraVewDebug( // previous camera view, ers only 
+					zero3,       // double [] camera_xyz, // camera center in world coordinates
+					zero3);       // double [] camera_atr,  // camera orientation relative to world frame
+			dbg_img1 = transformCameraVewDebug(     // this camera view, ers only
+					zero3,       // double [] camera_xyz, // camera center in world coordinates
+					zero3);       // double [] camera_atr,  // camera orientation relative to world frame
+
+			if (debug_level > 1) {
+				String title0 = String.format("%s_ers_only",qprev.image_name); // previous frame, ERS-corrected only, no shift/rot
+				(new ShowDoubleFloatArrays()).showArrays(
+						dbg_img0,
+						tilesX,
+						tilesY,
+						true,
+						title0,
+						titles);
+			}
+		}
+		double [][] dbg_img = transformCameraVewDebug(
+				dsi,         // 
+				camera_xyz0, // double [] camera_xyz, // camera center in world coordinates
+				camera_atr0, //double [] camera_atr,  // camera orientation relative to world frame
+				wxyz_center,      // double [] wxyz_center,     // world camera XYZ (meters) for the frame center
+				wxyz_center_dt,   // double [] wxyz_center_dt,  // world camera Vx, Vy, Vz (m/s)
+				wxyz_center_d2t,  // double [] wxyz_center_d2t, // world camera Vx, Vy, Vz (m/s^2)
+				watr_center_dt,   // double [] watr_center_dt,  // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+				watr_center_d2t); // double [] watr_center_d2t); // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+		if (debug_level > 1) {
+			String title = String.format("%s_%f:%f:%f_%f:%f:%f",image_name,
+					camera_xyz0[0],camera_xyz0[1],camera_xyz0[2],camera_atr0[0],camera_atr0[1],camera_atr0[2]);
+			if (!force_manual) {
+				title += String.format ("_ers_%f:%f:%f_%f:%f:%f",wxyz_center_dt[0],wxyz_center_dt[1],wxyz_center_dt[2],
+						watr_center_dt[0],watr_center_dt[1],watr_center_dt[2]);
+			}
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_img,
+					tilesX,
+					tilesY,
+					true,
+					title,
+					titles);
+		}
+		int indx_s0 =  0;
+		int indx_s1 =  1;
+		int indx_d0 =  2;
+		int indx_d1 =  3;
+		// combine previous frame with this one
+		String [] rtitles = {"s","s_ers", "s_prev","s_this",
+				            "d","d_ers", "d_prev","d_this"};
+		double [][] rslt = {
+				dbg_img1[indx_s0], // this strength as is
+				dbg_img1[indx_s1], // this strength - ers only
+				dbg_img0[indx_s1], // previous strength - ers only to match to
+				dbg_img [indx_s1], // this strength - ers and shift/rot
+				dbg_img1[indx_d0], // this disparity as is
+				dbg_img1[indx_d1], // this disparity - ers only
+				dbg_img0[indx_d1], // previous disparity - ers only to match to
+				dbg_img [indx_d1]};// this disparity - ers and shift/rot
+		if (debug_level > 0) {
+			String title = image_name+"-"+qprev.image_name+"-dt"+dt;
+			(new ShowDoubleFloatArrays()).showArrays(
+					rslt,
+					tilesX,
+					tilesY,
+					true,
+					title,
+					rtitles);
+		}		
+		return rslt;
+	}
+	
+	@Deprecated
+	public double [][] transformCameraVewDebug(
+			double [] camera_xyz, // camera center in world coordinates
+			double [] camera_atr)  // camera orientation relative to world frame
+	{
+		
+		double [][] dsi = {this.dsi[TwoQuadCLT.DSI_DISPARITY_MAIN], this.dsi[TwoQuadCLT.DSI_STRENGTH_MAIN]};
+
+		return transformCameraVewDebug(
+				dsi, // 
+				camera_xyz, // camera center in world coordinates
+				camera_atr,  // camera orientation relative to world frame
+	// normally all 0; 			
+				null, // double [] wxyz_center,     // world camera XYZ (meters) for the frame center
+				null, // double [] wxyz_center_dt,  // world camera Vx, Vy, Vz (m/s)
+				null, // double [] wxyz_center_d2t, // world camera Vx, Vy, Vz (m/s^2)
+				null, // double [] watr_center_dt,  // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+				null); // double [] watr_center_d2t) // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+	}
+
+	@Deprecated
+	public double [][] transformCameraVewDebug(
+			double [][] dsi, // 
+			double [] camera_xyz, // camera center in world coordinates
+			double [] camera_atr,  // camera orientation relative to world frame
+			
+// normally all 0; 			
+			double [] wxyz_center,     // world camera XYZ (meters) for the frame center
+			double [] wxyz_center_dt,  // world camera Vx, Vy, Vz (m/s)
+			double [] wxyz_center_d2t, // world camera Vx, Vy, Vz (m/s^2)
+			double [] watr_center_dt,  // camera rotations (az, tilt, roll in radians/s, corresponding to the frame center)
+			double [] watr_center_d2t) // camera rotations (az, tilt, roll in radians/s, corresponding to the frame center)
+	{
+		double    line_err = 10.0; // 0.1; // bug
+		int tilesX = tp.getTilesX();
+		int tilesY = tp.getTilesY();
+		int tiles = tilesX*tilesY;
+		int transform_size = tp.getTileSize();
+//		double [] ers_watr_center_dt =  {0.168792, 0.037145, -0.060279};
+		double [] zero3 =               {0.0,0.0,0.0};	
+		int indx_s0 =  0;
+		int indx_s1 =  1;
+		int indx_d0 =  2;
+		int indx_d1 =  3;
+///		int indx_pX0 = 4;
+		int indx_pX =  5;
+///		int indx_pY0 = 6;
+		int indx_pY =  7;
+		int indx_xyz = 8;
+		double [][] dbg_img = new double [12][tiles];
+		for (int i = 0; i <dbg_img.length; i++) {
+			for (int j = 0; j <dbg_img[i].length; j++) {
+				dbg_img[i][j] = Double.NaN;
+			}
+		}
+		final int iscale = 8;
+		int stilesX = iscale*tilesX; 
+		int stilesY = iscale*tilesY;
+		int stiles = stilesX*stilesY;
+		double sigma = 0.5 * iscale;
+		double scale = 1.0*iscale/transform_size;
+		double reduce = 1.0/iscale/iscale;
+		double [][] ds = new double [2][stiles];
+		double [][] ds0 = new double [2][stiles];
+		for (int i = 0; i <ds.length; i++) {
+			for (int j = 0; j <ds[i].length; j++) {
+				ds[i][j] = Double.NaN;
+				ds0[i][j] = Double.NaN;
+			}
+		}
+		
+		dbg_img [indx_d0] = dsi[0];
+		dbg_img [indx_s0] = dsi[1];
+
+		ErsCorrection ersCorrection = (ErsCorrection) geometryCorrection;
+		// save original
+		double [] saved_ers_wxyz_center =     ersCorrection.ers_wxyz_center;
+		double [] saved_ers_wxyz_center_dt =  ersCorrection.ers_wxyz_center_dt;
+		double [] saved_ers_wxyz_center_d2t = ersCorrection.ers_wxyz_center_d2t;
+		double [] saved_ers_watr_center_dt =  ersCorrection.ers_watr_center_dt;
+		double [] saved_ers_watr_center_d2t = ersCorrection.ers_watr_center_d2t;
+		
+		if (wxyz_center ==     null) wxyz_center =     ersCorrection.ers_wxyz_center;
+		if (wxyz_center_dt ==  null) wxyz_center_dt =  ersCorrection.ers_wxyz_center_dt;
+		if (wxyz_center_d2t == null) wxyz_center_d2t = ersCorrection.ers_wxyz_center_d2t;
+		if (watr_center_dt ==  null) watr_center_dt =  ersCorrection.ers_watr_center_dt;
+		if (watr_center_d2t == null) watr_center_d2t = ersCorrection.ers_watr_center_d2t;
+		
+		
+		ersCorrection.setupERS(
+				wxyz_center,      // double [] wxyz_center,     // world camera XYZ (meters) for the frame center
+				wxyz_center_dt,   // double [] wxyz_center_dt,  // world camera Vx, Vy, Vz (m/s)
+				wxyz_center_d2t,  // double [] wxyz_center_d2t, // world camera Vx, Vy, Vz (m/s^2)
+				watr_center_dt,   // double [] watr_center_dt,  // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+				watr_center_d2t); // double [] watr_center_d2t); // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+		
+		for (int tileY = 0; tileY < tilesY; tileY++) {
+			int stileY = iscale * tileY + iscale/2;
+			for (int tileX = 0; tileX < tilesX; tileX++) {
+				int stileX = iscale * tileX + iscale/2;
+				int stile = stileX + stilesX * stileY;
+				int nTile = tileX + tileY * tilesX;
+				double centerX = tileX * transform_size + transform_size/2; //  - shiftX;
+				double centerY = tileY * transform_size + transform_size/2; //  - shiftY;
+				ds0[0][stile] = reduce* dbg_img [indx_d0][nTile]; //  this.dsi[TwoQuadCLT.DSI_DISPARITY_MAIN][nTile];
+				ds0[1][stile] = reduce* dbg_img [indx_s0][nTile]; // this.dsi[TwoQuadCLT.DSI_STRENGTH_MAIN][nTile];
+				
+				double [] wxyz = ersCorrection.getWorldCoordinatesERS(
+						centerX,                                        // double px,
+						centerY,                                        // double py,
+						dsi[0][nTile], // double disparity,
+						true,                                           // boolean correctDistortions,// correct distortion (will need corrected background too !)
+						camera_xyz,  // double [] camera_xyz, // camera center in world coordinates
+						camera_atr); // double [] camera_atr)  // camera orientation relative to world frame
+				if ((wxyz != null) && (wxyz[2] < 0.0)) {
+					for (int i = 0; i < 4; i ++) {
+						dbg_img[indx_xyz+i][nTile] = wxyz[i]; 
+					}
+				}
+			}
+		}
+		
+		ersCorrection.setupERS(
+		zero3,   // double [] wxyz_center,     // world camera XYZ (meters) for the frame center
+		zero3,   // double [] wxyz_center_dt,  // world camera Vx, Vy, Vz (m/s)
+		zero3,   // double [] wxyz_center_d2t, // world camera Vx, Vy, Vz (m/s^2)
+		zero3,   // double [] watr_center_dt,  // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+		zero3);  // double [] watr_center_d2t); // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+		
+		for (int tileY = 0; tileY < tilesY; tileY++) {
+			for (int tileX = 0; tileX < tilesX; tileX++) {
+				int nTile = tileX + tileY * tilesX;
+				if (!Double.isNaN(dbg_img[indx_xyz][nTile])) {
+					double [] wxyz = {
+							dbg_img[indx_xyz][nTile],
+							dbg_img[indx_xyz+1][nTile],
+							dbg_img[indx_xyz+2][nTile],
+							dbg_img[indx_xyz+3][nTile]};
+					double [] pXpYD = ersCorrection.getImageCoordinatesERS(
+							wxyz, // double [] wxyz, 
+							true,                                           // boolean correctDistortions,// correct distortion (will need corrected background too !)
+							zero3,  // double [] camera_xyz, // camera center in world coordinates
+							zero3,  // double [] camera_atr)  // camera orientation relative to world frame
+							line_err);   // double    line_err) // threshold error in scan lines (1.0)
+					if (pXpYD != null) {
+						dbg_img[indx_pX][nTile] = pXpYD[0];
+						dbg_img[indx_pY][nTile] = pXpYD[1];
+						
+						int px = (int) Math.round(pXpYD[0]/transform_size);
+						int py = (int) Math.round(pXpYD[1]/transform_size);
+						int spx = (int) Math.round(pXpYD[0]*scale);
+						int spy = (int) Math.round(pXpYD[1]*scale);
+						if ((px >= 0) && (py >= 0) && (px < tilesX) & (py < tilesY)) {
+							if (!(pXpYD[2] < dbg_img[indx_d1][px + py* tilesX])) {
+								dbg_img[indx_s1][px + py* tilesX] = dbg_img[indx_s0][nTile];
+								dbg_img[indx_d1][px + py* tilesX] = pXpYD[2];
+								if ((spx >= 0) && (spy >= 0) && (spx < stilesX) & (spy < stilesY)) {
+									ds[1][spx + spy* stilesX] = reduce*dbg_img[indx_s0][nTile];
+									ds[0][spx + spy* stilesX] = reduce*pXpYD[2];
+								}								
+							}
+						}
+					}
+				}
+			}
+		}
+		ds[0] = (new DoubleGaussianBlur()).blurWithNaN(
+				ds[0], // double[] pixels,
+				null,  // double [] in_weight, // or null
+				stilesX, // int width,
+				stilesY, // int height,
+				sigma, // double sigmaX,
+				sigma, // double sigmaY,
+				0.01); // double accuracy);
+		ds[1] = (new DoubleGaussianBlur()).blurWithNaN(
+				ds[1], // double[] pixels,
+				null,  // double [] in_weight, // or null
+				stilesX, // int width,
+				stilesY, // int height,
+				sigma, // double sigmaX,
+				sigma, // double sigmaY,
+				0.01); // double accuracy);
+		ds0[0] = (new DoubleGaussianBlur()).blurWithNaN(
+				ds0[0], // double[] pixels,
+				null,  // double [] in_weight, // or null
+				stilesX, // int width,
+				stilesY, // int height,
+				sigma, // double sigmaX,
+				sigma, // double sigmaY,
+				0.01); // double accuracy);
+		ds0[1] = (new DoubleGaussianBlur()).blurWithNaN(
+				ds0[1], // double[] pixels,
+				null,  // double [] in_weight, // or null
+				stilesX, // int width,
+				stilesY, // int height,
+				sigma, // double sigmaX,
+				sigma, // double sigmaY,
+				0.01); // double accuracy);
+		dbg_img[indx_s1] = new double[tiles];
+		dbg_img[indx_d1] = new double[tiles];
+		dbg_img[indx_s0] = new double[tiles];
+		dbg_img[indx_d0] = new double[tiles];
+		for (int stileY = 0; stileY < stilesY; stileY++) {
+			int tileY = stileY / iscale; 
+			for (int stileX = 0; stileX < stilesX; stileX++) {
+				int tileX = stileX / iscale;
+				int stile = stileX + stileY * stilesX;
+				int tile =  tileX +  tileY *  tilesX;
+				dbg_img[indx_s1][tile] += ds[1][stile];
+				dbg_img[indx_d1][tile] += ds[0][stile];
+				dbg_img[indx_s0][tile] += ds0[1][stile];
+				dbg_img[indx_d0][tile] += ds0[0][stile];
+			}
+		}
+		
+		// restore original
+		ersCorrection.setupERS(
+				saved_ers_wxyz_center,      // double [] wxyz_center,     // world camera XYZ (meters) for the frame center
+				saved_ers_wxyz_center_dt,   // double [] wxyz_center_dt,  // world camera Vx, Vy, Vz (m/s)
+				saved_ers_wxyz_center_d2t,  // double [] wxyz_center_d2t, // world camera Vx, Vy, Vz (m/s^2)
+				saved_ers_watr_center_dt,   // double [] watr_center_dt,  // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+				saved_ers_watr_center_d2t); // double [] watr_center_d2t); // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+		return dbg_img;
+		
+		
+	}
+	
+	@Deprecated	
+	public double[][]  test_back_forth0(
+			double [] camera_xyz,
+			double [] camera_atr)
+	{
+		camera_atr[0] = 1.0;
+		
+		double [] camera_xyz0 = {0.0,0.0,0.0};
+		double [] camera_atr0 = {0.0,0.0,0.0};
+		double [] camera_xyz1 = {0.0,0.0,0.0};
+		double [] camera_atr1 = {0.0,0.0,0.0};
+
+		double    line_err = 10.0; // 0.1; // bug
+		int tilesX = tp.getTilesX();
+		int tilesY = tp.getTilesY();
+		int tiles = tilesX*tilesY;
+		int transform_size = tp.getTileSize();
+		String [] titles = {"s0", "s1", "d0", "d1", "pX0","pX", "pY0","pY", "x","y","z","w"};
+//		double [] ers_watr_center_dt =  {0.168792, 0.037145, -0.060279};
+		double [] zero3 =               {0.0,0.0,0.0};	
+//		double [] watr_center_dt =  {0.168792, 0.037145, -0.060279};
+		double [] watr_center_dt =  {0.0, 0.0, 0.0};
+		double [] watr_center_d2t = {0.0, 0.0, 0.0};
+		double [] wxyz_center =     {0.0, 0.0, 0.0};	
+		double [] wxyz_center_dt =  {0.0, 0.0, 0.0};	
+		double [] wxyz_center_d2t = {0.0, 0.0, 0.0};	
+		boolean force_manual = false; // true;
+		
+		int indx_s0 =  0;
+		int indx_s1 =  1;
+		int indx_d0 =  2;
+		int indx_d1 =  3;
+		int indx_pX0 = 4;
+		int indx_pX =  5;
+		int indx_pY0 = 6;
+		int indx_pY =  7;
+		int indx_xyz = 8;
+		double [][] dbg_img = new double [titles.length][tiles];
+		for (int i = 0; i <dbg_img.length; i++) {
+			for (int j = 0; j <dbg_img[i].length; j++) {
+				dbg_img[i][j] = Double.NaN;
+			}
+		}
+		final int iscale = 8;
+		int stilesX = iscale*tilesX; 
+		int stilesY = iscale*tilesY;
+		int stiles = stilesX*stilesY;
+		double sigma = 0.5 * iscale;
+		double scale = 1.0*iscale/transform_size;
+		double reduce = 1.0/iscale/iscale;
+		double [][] ds = new double [2][stiles];
+		double [][] ds0 = new double [2][stiles];
+		for (int i = 0; i <ds.length; i++) {
+			for (int j = 0; j <ds[i].length; j++) {
+				ds[i][j] = Double.NaN;
+				ds0[i][j] = Double.NaN;
+			}
+		}
+
+		dbg_img [indx_d0] = this.dsi[TwoQuadCLT.DSI_DISPARITY_MAIN];
+		dbg_img [indx_s0] = this.dsi[TwoQuadCLT.DSI_STRENGTH_MAIN];
+		ErsCorrection ersCorrection = (ErsCorrection) geometryCorrection;
+		
+		// save original
+		double [] saved_ers_wxyz_center =     ersCorrection.ers_wxyz_center;
+		double [] saved_ers_wxyz_center_dt =  ersCorrection.ers_wxyz_center_dt;
+		double [] saved_ers_wxyz_center_d2t = ersCorrection.ers_wxyz_center_d2t;
+		double [] saved_ers_watr_center_dt =  ersCorrection.ers_watr_center_dt;
+		double [] saved_ers_watr_center_d2t = ersCorrection.ers_watr_center_d2t;
+		System.out.println("\n"+image_name+":\n"+ersCorrection.extrinsic_corr.toString());
+		System.out.println(String.format("%s: ers_wxyz_center=     %f, %f, %f", image_name,saved_ers_wxyz_center[0], saved_ers_wxyz_center[1],saved_ers_wxyz_center[2] ));
+		System.out.println(String.format("%s: ers_wxyz_center_dt=  %f, %f, %f", image_name,saved_ers_wxyz_center_dt[0], saved_ers_wxyz_center_dt[1],saved_ers_wxyz_center_dt[2] ));
+		System.out.println(String.format("%s: ers_wxyz_center_d2t= %f, %f, %f", image_name,saved_ers_wxyz_center_d2t[0], saved_ers_wxyz_center_d2t[1],saved_ers_wxyz_center_d2t[2] ));
+		System.out.println(String.format("%s: ers_watr_center_dt=  %f, %f, %f", image_name,saved_ers_watr_center_dt[0], saved_ers_watr_center_dt[1],saved_ers_watr_center_dt[2] ));
+		System.out.println(String.format("%s: ers_watr_center_d2t= %f, %f, %f", image_name,saved_ers_watr_center_d2t[0], saved_ers_watr_center_d2t[1],saved_ers_watr_center_d2t[2] ));
+
+		// Comment out to use manual values
+		
+		if (force_manual) {
+			System.out.println("\nUsing manually set values:");
+			System.out.println(String.format("%s: wxyz_center=     %f, %f, %f",     image_name,wxyz_center[0], wxyz_center[1],wxyz_center[2] ));
+			System.out.println(String.format("%s: wxyz_center_dt=  %f, %f, %f",  image_name,wxyz_center_dt[0], wxyz_center_dt[1],wxyz_center_dt[2] ));
+			System.out.println(String.format("%s: wxyz_center_d2t= %f, %f, %f", image_name,wxyz_center_d2t[0], wxyz_center_d2t[1],wxyz_center_d2t[2] ));
+			System.out.println(String.format("%s: watr_center_dt=  %f, %f, %f",  image_name,watr_center_dt[0], watr_center_dt[1],watr_center_dt[2] ));
+			System.out.println(String.format("%s: watr_center_d2t= %f, %f, %f", image_name,watr_center_d2t[0], watr_center_d2t[1],watr_center_d2t[2] ));
+		}else {
+			wxyz_center =     saved_ers_wxyz_center;
+			wxyz_center_dt =  saved_ers_wxyz_center_dt;
+			wxyz_center_d2t = saved_ers_wxyz_center_d2t;  // double [] wxyz_center_d2t, // world camera Vx, Vy, Vz (m/s^2)
+			watr_center_dt =  saved_ers_watr_center_dt;
+			watr_center_d2t = saved_ers_watr_center_d2t;
+		}
+		
+		ersCorrection.setupERS(
+				zero3,            // double [] wxyz_center,     // world camera XYZ (meters) for the frame center
+				wxyz_center_dt,   // double [] wxyz_center_dt,  // world camera Vx, Vy, Vz (m/s)
+				wxyz_center_d2t,  // double [] wxyz_center_d2t, // world camera Vx, Vy, Vz (m/s^2)
+				watr_center_dt,   // double [] watr_center_dt,  // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+				watr_center_d2t); // double [] watr_center_d2t); // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+		
+		for (int tileY = 0; tileY < tilesY; tileY++) {
+			int stileY = iscale * tileY + iscale/2;
+			for (int tileX = 0; tileX < tilesX; tileX++) {
+				int stileX = iscale * tileX + iscale/2;
+				int stile = stileX + stilesX * stileY;
+				int nTile = tileX + tileY * tilesX;
+				double centerX = tileX * transform_size + transform_size/2; //  - shiftX;
+				double centerY = tileY * transform_size + transform_size/2; //  - shiftY;
+				ds0[0][stile] = reduce* dbg_img [indx_d0][nTile]; //  this.dsi[TwoQuadCLT.DSI_DISPARITY_MAIN][nTile];
+				ds0[1][stile] = reduce* dbg_img [indx_s0][nTile]; // this.dsi[TwoQuadCLT.DSI_STRENGTH_MAIN][nTile];
+				
+				dbg_img[indx_pX0][nTile] = centerX;
+				dbg_img[indx_pY0][nTile] = centerY;
+				double [] wxyz = ersCorrection.getWorldCoordinatesERS(
+						centerX,                                        // double px,
+						centerY,                                        // double py,
+						this.dsi[TwoQuadCLT.DSI_DISPARITY_MAIN][nTile], // double disparity,
+						true,                                           // boolean correctDistortions,// correct distortion (will need corrected background too !)
+						camera_xyz0,  // double [] camera_xyz, // camera center in world coordinates
+						camera_atr0); // double [] camera_atr)  // camera orientation relative to world frame
+				if ((wxyz != null) && (wxyz[2] < 0.0)) {
+					for (int i = 0; i < 4; i ++) {
+						dbg_img[indx_xyz+i][nTile] = wxyz[i]; 
+					}
+				}
+			}
+		}
+		
+		ersCorrection.setupERS(
+		zero3,   // double [] wxyz_center,     // world camera XYZ (meters) for the frame center
+		zero3,   // double [] wxyz_center_dt,  // world camera Vx, Vy, Vz (m/s)
+		zero3,   // double [] wxyz_center_d2t, // world camera Vx, Vy, Vz (m/s^2)
+		zero3,   // double [] watr_center_dt,  // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+		zero3);  // double [] watr_center_d2t); // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+		
+		for (int tileY = 0; tileY < tilesY; tileY++) {
+			for (int tileX = 0; tileX < tilesX; tileX++) {
+				int nTile = tileX + tileY * tilesX;
+				if (!Double.isNaN(dbg_img[indx_xyz][nTile])) {
+					double [] wxyz = {
+							dbg_img[indx_xyz][nTile],
+							dbg_img[indx_xyz+1][nTile],
+							dbg_img[indx_xyz+2][nTile],
+							dbg_img[indx_xyz+3][nTile]};
+					double [] pXpYD = ersCorrection.getImageCoordinatesERS(
+							wxyz, // double [] wxyz, 
+							true,                                           // boolean correctDistortions,// correct distortion (will need corrected background too !)
+							camera_xyz1,  // double [] camera_xyz, // camera center in world coordinates
+							camera_atr1,  // double [] camera_atr)  // camera orientation relative to world frame
+							line_err);   // double    line_err) // threshold error in scan lines (1.0)
+					if (pXpYD != null) {
+						dbg_img[indx_pX][nTile] = pXpYD[0];
+						dbg_img[indx_pY][nTile] = pXpYD[1];
+						
+						int px = (int) Math.round(pXpYD[0]/transform_size);
+						int py = (int) Math.round(pXpYD[1]/transform_size);
+						int spx = (int) Math.round(pXpYD[0]*scale);
+						int spy = (int) Math.round(pXpYD[1]*scale);
+						if ((px >= 0) && (py >= 0) && (px < tilesX) & (py < tilesY)) {
+							if (!(pXpYD[2] < dbg_img[indx_d1][px + py* tilesX])) {
+								dbg_img[indx_s1][px + py* tilesX] = dbg_img[indx_s0][nTile];
+								dbg_img[indx_d1][px + py* tilesX] = pXpYD[2];
+								if ((spx >= 0) && (spy >= 0) && (spx < stilesX) & (spy < stilesY)) {
+									ds[1][spx + spy* stilesX] = reduce*dbg_img[indx_s0][nTile];
+									ds[0][spx + spy* stilesX] = reduce*pXpYD[2];
+								}								
+							}
+						}
+					}
+				}
+			}
+		}
+		ds[0] = (new DoubleGaussianBlur()).blurWithNaN(
+				ds[0], // double[] pixels,
+				null,  // double [] in_weight, // or null
+				stilesX, // int width,
+				stilesY, // int height,
+				sigma, // double sigmaX,
+				sigma, // double sigmaY,
+				0.01); // double accuracy);
+		ds[1] = (new DoubleGaussianBlur()).blurWithNaN(
+				ds[1], // double[] pixels,
+				null,  // double [] in_weight, // or null
+				stilesX, // int width,
+				stilesY, // int height,
+				sigma, // double sigmaX,
+				sigma, // double sigmaY,
+				0.01); // double accuracy);
+		ds0[0] = (new DoubleGaussianBlur()).blurWithNaN(
+				ds0[0], // double[] pixels,
+				null,  // double [] in_weight, // or null
+				stilesX, // int width,
+				stilesY, // int height,
+				sigma, // double sigmaX,
+				sigma, // double sigmaY,
+				0.01); // double accuracy);
+		ds0[1] = (new DoubleGaussianBlur()).blurWithNaN(
+				ds0[1], // double[] pixels,
+				null,  // double [] in_weight, // or null
+				stilesX, // int width,
+				stilesY, // int height,
+				sigma, // double sigmaX,
+				sigma, // double sigmaY,
+				0.01); // double accuracy);
+		dbg_img[indx_s1] = new double[tiles];
+		dbg_img[indx_d1] = new double[tiles];
+		dbg_img[indx_s0] = new double[tiles];
+		dbg_img[indx_d0] = new double[tiles];
+		for (int stileY = 0; stileY < stilesY; stileY++) {
+			int tileY = stileY / iscale; 
+			for (int stileX = 0; stileX < stilesX; stileX++) {
+				int tileX = stileX / iscale;
+				int stile = stileX + stileY * stilesX;
+				int tile =  tileX +  tileY *  tilesX;
+				dbg_img[indx_s1][tile] += ds[1][stile];
+				dbg_img[indx_d1][tile] += ds[0][stile];
+				dbg_img[indx_s0][tile] += ds0[1][stile];
+				dbg_img[indx_d0][tile] += ds0[0][stile];
+			}
+		}
+		
+		String title = String.format("%s_%f:%f:%f_%f:%f:%f",image_name,
+				camera_xyz0[0],camera_xyz0[1],camera_xyz0[2],camera_atr0[0],camera_atr0[1],camera_atr0[2]);
+		
+		
+		title += String.format ("_ers_%f:%f:%f_%f:%f:%f",wxyz_center_dt[0],wxyz_center_dt[1],wxyz_center_dt[2],
+				watr_center_dt[0],watr_center_dt[1],watr_center_dt[2]);
+		(new ShowDoubleFloatArrays()).showArrays(
+				dbg_img,
+				 tilesX,
+				 tilesY,
+				 true,
+				 title,
+				 titles);
+		// restore original
+		ersCorrection.setupERS(
+				saved_ers_wxyz_center,      // double [] wxyz_center,     // world camera XYZ (meters) for the frame center
+				saved_ers_wxyz_center_dt,   // double [] wxyz_center_dt,  // world camera Vx, Vy, Vz (m/s)
+				saved_ers_wxyz_center_d2t,  // double [] wxyz_center_d2t, // world camera Vx, Vy, Vz (m/s^2)
+				saved_ers_watr_center_dt,   // double [] watr_center_dt,  // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+				saved_ers_watr_center_d2t); // double [] watr_center_d2t); // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+		
+		return dbg_img;
+		
+		
+	}
+	
+	
 	public void setGPU(GPUTileProcessor.GpuQuad gpuQuad) {
 		this.gpuQuad = gpuQuad;
 	}
@@ -1783,15 +3214,20 @@ public class QuadCLT extends QuadCLTCPU {
 
 	  public void setPassAvgRBGA( // get image from a single pass, return relative path for x3d // USED in lwir
 			  CLTParameters           clt_parameters,
-			  int        scanIndex,
+//			  int        scanIndex,
+			  CLTPass3d  scan,			  
 			  int        threadsMax,  // maximal number of threads to launch
 			  boolean    updateStatus,
 			  int        debugLevel)
 	  {
 		  if ((gpuQuad != null) && (isAux()?clt_parameters.gpu_use_aux : clt_parameters.gpu_use_main)) {
-			  final int tilesX = tp.getTilesX();
-			  final int tilesY = tp.getTilesY();
-			  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
+//			  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
+//			  final int tilesX = tp.getTilesX();
+//			  final int tilesY = tp.getTilesY();
+			  final int tilesX = scan.getTileProcessor().getTilesX();
+			  final int tilesY = scan.getTileProcessor().getTilesY();
+			  
+			  
 			  double [] disparity = scan.getDisparity();
 			  double [] strength =  scan.getStrength();
 			  boolean [] selection = null; // scan.getSelected();
@@ -1822,8 +3258,8 @@ public class QuadCLT extends QuadCLTCPU {
 		  }
 		  super.setPassAvgRBGA( // get image from a single pass, return relative path for x3d // USED in lwir
 				  clt_parameters,
-				  scanIndex,
-				  threadsMax,  // maximal number of threads to launch
+				  scan,         // scanIndex,
+				  threadsMax,   // maximal number of threads to launch
 				  updateStatus,
 				  debugLevel);
 	  }
@@ -2321,7 +3757,7 @@ public class QuadCLT extends QuadCLTCPU {
 			  float  [][][][]     fpxpy =      new float[tilesY][tilesX][][];
 			  final double        gpu_fat_zero = clt_parameters.getGpuFatZero(isMonochrome()); 
 			  
-			  image_dtt.clt_aberrations_quad_corr_GPU( // USED in LWIR
+			  image_dtt.clt_aberrations_quad_corr_GPU( 
 					  clt_parameters.img_dtt,        // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 					  1,                             // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 					  tile_op,                       // per-tile operation bit codes

@@ -8173,9 +8173,8 @@ if (debugLevel > -100) return true; // temporarily !
 
 
 			if (quadCLT_main.correctionsParameters.clt_batch_dsi) {
-				saveDSI (
-						//clt_parameters
-						);
+				quadCLT_main.saveDSI (
+						dsi);
 			}
 
 			if (quadCLT_main.correctionsParameters.clt_batch_save_extrinsics) {
@@ -8206,9 +8205,116 @@ if (debugLevel > -100) return true; // temporarily !
 
 	}
 
+	public void TestInterScene(
+			QuadCLT                                              quadCLT_main, // tiles should be set
+//			QuadCLT                                              quadCLT_aux,
+			CLTParameters             clt_parameters,
+			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
+			ColorProcParameters                                  colorProcParameters,
+			ColorProcParameters                                  colorProcParameters_aux,
+			CorrectionColorProc.ColorGainsParameters             channelGainParameters,
+			EyesisCorrectionParameters.RGBParameters             rgbParameters,
+			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+			Properties                                           properties,
+			final int        threadsMax,  // maximal number of threads to launch
+			final boolean    updateStatus,
+			final int        debugLevel)  throws Exception
+	{
+		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
+			quadCLT_main.getGPU().resetGeometryCorrection();
+			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
+		}
+		// final boolean    batch_mode = clt_parameters.batch_run;
+		this.startTime=System.nanoTime();
+		String [] sourceFiles0=quadCLT_main.correctionsParameters.getSourcePaths();
+		QuadCLT.SetChannels [] set_channels_main = quadCLT_main.setChannels(debugLevel);
+		if ((set_channels_main == null) || (set_channels_main.length==0)) {
+			System.out.println("No files to process (of "+sourceFiles0.length+")");
+			return;
+		}
+		QuadCLT.SetChannels [] set_channels=quadCLT_main.setChannels(debugLevel);
+//		String set_name = set_channels[0].set_name;
+		
+		QuadCLT [] quadCLTs = new QuadCLT [set_channels.length]; 
+		for (int i = 0; i < quadCLTs.length; i++) {
+			quadCLTs[i] = quadCLT_main.spawnQuadCLT(
+					set_channels[i].set_name,
+					clt_parameters,
+					colorProcParameters, //
+					threadsMax,
+					debugLevel);
+			// temporarily fix wrong sign:
+			ErsCorrection ers = (ErsCorrection) (quadCLTs[i].getGeometryCorrection());
+			ers.setupERSfromExtrinsics();			
+			quadCLTs[i].setDSRBG(
+					clt_parameters, // CLTParameters  clt_parameters,
+					threadsMax,     // int            threadsMax,  // maximal number of threads to launch
+					updateStatus,   // boolean        updateStatus,
+					debugLevel);    // int            debugLevel)
+///			quadCLTs[i].showDSIMain();
+		}
+		
+		
+		double k_prev = 0.75;
+		
+		double corr_scale = 0.75;
+		for (int i = 0; i < quadCLTs.length; i++) {
+//		for (int i = 1; i < quadCLTs.length; i++) {
+			QuadCLT qPrev = (i > 0) ? quadCLTs[i - 1] : null;
+
+			double [][][] pair_sets = quadCLTs[i].get_pair(
+					k_prev,
+					qPrev,
+					corr_scale,
+					1); // -1); // int debug_level);
+
+			// old code
+			/*		
+			double [][] dbg_img = quadCLTs[i].test_back_forth_debug(
+					k_prev,
+					qPrev,
+					corr_scale,
+					1); // -1); // int debug_level);
+			double [][] ds0 = {dbg_img[6],dbg_img[2]};
+			double [][] ds1 = {dbg_img[7],dbg_img[3]};
+
+
+			double [] disparity = quadCLTs[i].dsi[TwoQuadCLT.DSI_DISPARITY_MAIN]; 
+			double [] strength = quadCLTs[i].dsi[TwoQuadCLT.DSI_STRENGTH_MAIN]; 
+			double disparity_min = -1.0;
+			double disparity_max =  1.0;
+			quadCLTs[i].getOpticalFlow(
+					disparity_min,
+					disparity_max,
+					ds0,
+					ds1,
+					1); // int debugLevel)
+			*/
+
+
+		}
+
+		/*
+		for (int i = 0; i < quadCLTs.length; i++) {
+			quadCLTs[i].saveInterProperties(// save properties for interscene processing (extrinsics, ers, ...)
+					null, // String path,             // full name with extension or w/o path to use x3d directory
+					debugLevel);
+		}		
+		 */
+
+		System.out.println("End of test");
+
+
+	}
+/*
+ * 		    public double [][]  getDSRBG (){
+		    	return dsrbg;
+		    }
+
+
+ */
+	
 	public void batchLwirRig(
-//			GPUTileProcessor.GpuQuad                             gpuQuad_main, // may be null if GPU for MAIN is not use3d
-//			GPUTileProcessor.GpuQuad                             gpuQuad_aux,  // may be null if GPU for AUX is not use3d
 			QuadCLT                                              quadCLT_main, // tiles should be set
 			QuadCLT                                              quadCLT_aux,
 			CLTParameters             clt_parameters,
@@ -8295,7 +8401,7 @@ if (debugLevel > -100) return true; // temporarily !
 					System.out.println("Building basic  DSI for the main camera image set "+quadCLT_main.image_name+
 							", pass "+(num_adjust_main+1)+" of "+adjust_main);
 				}
-
+//Generates background image in model tree - should be done later, after adjustment (It is overwritten later, so OK)
 				quadCLT_main.preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
 						imp_srcs_main, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
 						saturation_imp_main, // boolean [][] saturation_imp, // (near) saturated pixels or null
@@ -8369,7 +8475,7 @@ if (debugLevel > -100) return true; // temporarily !
 				dsi[DSI_DISPARITY_MAIN] = dsi_ly[0];
 				dsi[DSI_STRENGTH_MAIN] =  dsi_ly[1];
 //				if (quadCLT_main.correctionsParameters.clt_batch_dsi) { // Should be always enabled ?
-				saveDSIMain ();
+				quadCLT_main.saveDSIMain (dsi);
 //				}
 				// clear memory for main
 				quadCLT_main.tp.resetCLTPasses();
@@ -8462,7 +8568,8 @@ if (debugLevel > -100) return true; // temporarily !
 				dsi[DSI_DISPARITY_MAIN] = main_last_scan[0];
 				dsi[DSI_STRENGTH_MAIN] =  main_last_scan[1];
 				if (quadCLT_main.correctionsParameters.clt_batch_dsi) { // Should be always enabled ?
-					saveDSIMain ();
+					quadCLT_main.saveDSIMain (
+							dsi);
 				}
 
 
@@ -8535,9 +8642,8 @@ if (debugLevel > -100) return true; // temporarily !
 						}
 						// save assigned disparity also? - with "-DSI_COMBO" suffix
 						if (quadCLT_main.correctionsParameters.clt_batch_dsi) {
-							saveDSI (
-									//clt_parameters
-									);
+							quadCLT_main.saveDSI (
+									dsi);
 						}
 
 					}
@@ -8545,7 +8651,9 @@ if (debugLevel > -100) return true; // temporarily !
 			} else { // if (quadCLT_main.correctionsParameters.clt_batch_explore) {
 				int num_restored =  0;
 				try {
-					num_restored =  restoreDSI(DSI_MAIN_SUFFIX); // "-DSI_COMBO", "-DSI_MAIN"
+					num_restored =  quadCLT_main.restoreDSI(DSI_MAIN_SUFFIX, // "-DSI_COMBO", "-DSI_MAIN"
+							dsi);
+							
 				} catch (Exception e) {
 
 				}
@@ -8556,7 +8664,15 @@ if (debugLevel > -100) return true; // temporarily !
 								null,        // String path,                // full name with extension or w/o path to use x3d directory
 								null,        // Properties properties,      // if null - will only save extrinsics)
 								debugLevel);
+						
+						quadCLT_main.saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
+								null, // String path,             // full name with extension or w/o path to use x3d directory
+//								null, // Properties properties,   // if null - will only save extrinsics)
+								debugLevel);
 					}
+					
+					
+					
 					if (quadCLT_main.correctionsParameters.clt_batch_save_all) {
 						saveProperties(
 								null,        // String path,                // full name with extension or w/o path to use x3d directory
@@ -8721,7 +8837,9 @@ if (debugLevel > -100) return true; // temporarily !
 //				dsi[DSI_STRENGTH_AUX] =  aux_last_scan[1]; // incompatible dimensions
 				dsi_aux_from_main[QuadCLT.FGBG_AUX_DISP] = aux_last_scan[0];
 				dsi_aux_from_main[QuadCLT.FGBG_AUX_STR] =  aux_last_scan[1];
-				saveDSIGTAux(); // GT from main and AUX DS
+				quadCLT_main.saveDSIGTAux( // GT from main and AUX DS
+						quadCLT_aux,
+						dsi_aux_from_main);
 				quadCLT_aux.tp.resetCLTPasses();
 			}
 			//
@@ -8740,10 +8858,15 @@ if (debugLevel > -100) return true; // temporarily !
 			
 
 			if (quadCLT_main.correctionsParameters.clt_batch_save_extrinsics) {
-				saveProperties(
+				saveProperties( // uses global quadCLT_main
 						null,        // String path,                // full name with extension or w/o path to use x3d directory
 						null,        // Properties properties,      // if null - will only save extrinsics)
 						debugLevel);
+				quadCLT_main.saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
+						null, // String path,             // full name with extension or w/o path to use x3d directory
+//						null, // Properties properties,   // if null - will only save extrinsics)
+						debugLevel);
+				
 			}
 			if (quadCLT_main.correctionsParameters.clt_batch_save_all) {
 				saveProperties(
@@ -8767,45 +8890,27 @@ if (debugLevel > -100) return true; // temporarily !
 				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	}
 
-
-	public void saveDSI(
-//			CLTParameters           clt_parameters
-			)
-	{
-		  String x3d_path= quadCLT_main.correctionsParameters.selectX3dDirectory( // for x3d and obj
-				  quadCLT_main.correctionsParameters.getModelName(quadCLT_main.image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-				  quadCLT_main.correctionsParameters.x3dModelVersion,
-					  true,  // smart,
-					  true);  //newAllowed, // save
-		  String title = quadCLT_main.image_name+DSI_COMBO_SUFFIX;
-		  ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(dsi,quadCLT_main.tp.getTilesX(), quadCLT_main.tp.getTilesY(),  title, DSI_SLICES);
-			quadCLT_main.eyesisCorrections.saveAndShow(
-					   imp,      // ImagePlus             imp,
-					   x3d_path, // String                path,
-					   false,    // boolean               png,
-					   false,    // boolean               show,
-					   0);       // int                   jpegQuality)
-	}
 	public void showDSI()
 	{
-		  String title = quadCLT_main.image_name+DSI_COMBO_SUFFIX;
-		  (new ShowDoubleFloatArrays()).showArrays(dsi,quadCLT_main.tp.getTilesX(), quadCLT_main.tp.getTilesY(), true, title, DSI_SLICES);
+		  quadCLT_main.showDSI(dsi);
 	}
 
+/*
 	public void saveDSIMain(
-			)
+			QuadCLT quadCLT,
+			double [][] dsi) // DSI_SLICES.length
 	{
-		String x3d_path= quadCLT_main.correctionsParameters.selectX3dDirectory( // for x3d and obj
-				quadCLT_main.correctionsParameters.getModelName(quadCLT_main.image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-				quadCLT_main.correctionsParameters.x3dModelVersion,
+		String x3d_path= quadCLT.correctionsParameters.selectX3dDirectory( // for x3d and obj
+				quadCLT.correctionsParameters.getModelName(quadCLT.image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+				quadCLT.correctionsParameters.x3dModelVersion,
 				true,  // smart,
 				true);  //newAllowed, // save
-		String title = quadCLT_main.image_name+"-DSI_MAIN";
+		String title = quadCLT.image_name+"-DSI_MAIN";
 		String []   titles =   {DSI_SLICES[DSI_DISPARITY_MAIN], DSI_SLICES[DSI_STRENGTH_MAIN]};
 		double [][] dsi_main = {dsi[DSI_DISPARITY_MAIN],        dsi[DSI_STRENGTH_MAIN]};
 
-		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(dsi_main,quadCLT_main.tp.getTilesX(), quadCLT_main.tp.getTilesY(),  title, titles);
-		quadCLT_main.eyesisCorrections.saveAndShow(
+		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(dsi_main,quadCLT.tp.getTilesX(), quadCLT.tp.getTilesY(),  title, titles);
+		quadCLT.eyesisCorrections.saveAndShow(
 				imp,      // ImagePlus             imp,
 				x3d_path, // String                path,
 				false,    // boolean               png,
@@ -8813,8 +8918,12 @@ if (debugLevel > -100) return true; // temporarily !
 				0);       // int                   jpegQuality)
 	}
 
+
 	// Save GT from main and AUX calculated DS
-	public void saveDSIGTAux()
+	public void saveDSIGTAux(
+			QuadCLT quadCLT_main,
+			QuadCLT quadCLT_aux,
+			double [][] dsi_aux_from_main)
 	{
 		String x3d_path= quadCLT_main.correctionsParameters.selectX3dDirectory( // for x3d and obj
 				quadCLT_main.correctionsParameters.getModelName(quadCLT_main.image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
@@ -8826,7 +8935,7 @@ if (debugLevel > -100) return true; // temporarily !
 //		double [][] dsi_main = {dsi[DSI_DISPARITY_MAIN],        dsi[DSI_STRENGTH_MAIN]};
 
 		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(
-				this.dsi_aux_from_main, // dsi_main,
+				dsi_aux_from_main, // dsi_main,
 				quadCLT_aux.tp.getTilesX(),
 				quadCLT_aux.tp.getTilesY(),
 				title,
@@ -8839,44 +8948,9 @@ if (debugLevel > -100) return true; // temporarily !
 				0);       // int                   jpegQuality)
 	}
 
-
-	public int restoreDSI(String suffix){ // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
-		String x3d_path= quadCLT_main.correctionsParameters.selectX3dDirectory( // for x3d and obj
-				quadCLT_main.correctionsParameters.getModelName(quadCLT_main.image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-				quadCLT_main.correctionsParameters.x3dModelVersion,
-				true,  // smart,
-				true);  //newAllowed, // save
-		String file_path = x3d_path + Prefs.getFileSeparator() + quadCLT_main.image_name + suffix + ".tiff";
-		ImagePlus imp = null;
-		try {
-			imp = new ImagePlus(file_path);
-		} catch (Exception e) {
-			System.out.println ("Failed to open "+file_path);
-			return -1;
-		}
-		System.out.println("restoreDSI(): got "+imp.getStackSize()+" slices");
-		if (imp.getStackSize() < 2) {
-			System.out.println ("Failed to read "+file_path);
-			return -1;
-		}
-		int num_slices_read = 0;
-		ImageStack dsi_stack = imp.getStack();
-		for (int nl = 0; nl < imp.getStackSize(); nl++) {
-			for (int n = 0; n < DSI_SLICES.length; n++)
-				if (TwoQuadCLT.DSI_SLICES[n].equals(dsi_stack.getSliceLabel(nl + 1))) {
-					float [] fpixels = (float[]) dsi_stack.getPixels(nl + 1);
-					dsi[n] = new double [fpixels.length];
-					for (int i = 0; i < fpixels.length; i++) {
-						dsi[n][i] = fpixels[i];
-					}
-					num_slices_read ++;
-					break;
-				}
-		}
-		return num_slices_read;
-	}
-
-	public void showDSIMain()
+	public void showDSIMain(
+			QuadCLT quadCLT_main,
+			double [][] dsi)
 	{
 		  String title = quadCLT_main.image_name+"-DSI_MAIN";
 		  String []   titles =   {DSI_SLICES[DSI_DISPARITY_MAIN], DSI_SLICES[DSI_STRENGTH_MAIN]};
@@ -8884,6 +8958,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 		  (new ShowDoubleFloatArrays()).showArrays(dsi_main,quadCLT_main.tp.getTilesX(), quadCLT_main.tp.getTilesY(), true, title, titles);
 	}
+*/
 
 
 	public double [][] getRigDSI(

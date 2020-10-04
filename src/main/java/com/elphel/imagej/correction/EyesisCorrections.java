@@ -294,6 +294,11 @@ public class EyesisCorrections {
 	// FIXME: Use only this PixelMappings's channels, do not mix exposures from main/aux!
 	public double [] calcReferenceExposures(int debugLevel){
 		String [] paths=this.correctionsParameters.getSourcePaths();
+		return calcReferenceExposures(paths, debugLevel);
+	}
+
+	public double [] calcReferenceExposures(String [] paths,int debugLevel){
+//		String [] paths=this.correctionsParameters.getSourcePaths();
 		double [] exposures=new double [paths.length];
 		if (this.correctionsParameters.exposureCorrectionMode<2){
 			for (int nFile=0;nFile<paths.length;nFile++) {

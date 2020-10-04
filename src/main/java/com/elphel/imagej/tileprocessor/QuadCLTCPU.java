@@ -27,7 +27,12 @@ package com.elphel.imagej.tileprocessor;
 //import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,6 +42,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
@@ -84,6 +90,13 @@ public class QuadCLTCPU {
 	public static final int       FGBG_AUX_DISP =  8; // AUX calculated disparity
 	public static final int       FGBG_AUX_STR =   9; // AUX calculated strength
 
+	public static final int       DSRBG_DISPARITY = 0;
+	public static final int       DSRBG_STRENGTH =  1;
+	public static final int       DSRBG_RED =       2;
+	public static final int       DSRBG_BLUE =      3;
+	public static final int       DSRBG_GREEN =     4;
+	
+
 //	public GPUTileProcessor.GpuQuad gpuQuad =      null;
 
 	static String []                                       fine_corr_coeff_names = {"A","B","C","D","E","F"};
@@ -91,8 +104,8 @@ public class QuadCLTCPU {
 	public static String                                   PREFIX =     "EYESIS_DCT.";    // change later (first on save)
 	public static String                                   PREFIX_AUX = "EYESIS_DCT_AUX."; // change later (first on save)
 	static int                                             QUAD =  4; // number of cameras
+
 	public Properties                                      properties = null;
-//	public String                                          properties_prefix = "EYESIS_DCT.";
 	public EyesisCorrections                               eyesisCorrections = null;
 	public EyesisCorrectionParameters.CorrectionParameters correctionsParameters=null;
 	double [][][][][][]                                    clt_kernels = null; // can be used to determine monochrome too?
@@ -124,7 +137,334 @@ public class QuadCLTCPU {
     double []                                              lwir_cold_hot = null;
 //    int []                                                 woi_tops; // used to calculate scanline timing
 // just for debugging with the use of intermediate image
+    public double [][]                                     dsi = null; // DSI to be saved/restored in the model
     public double [][]                                     ds_from_main = null;
+    public double [][]                                     dsrbg = null; // D, S, R,B,G
+    
+    
+	public QuadCLTCPU(
+			QuadCLTCPU  qParent,
+			String      name
+		){
+		// create from existing instance
+		this.properties =      new Properties(); // properties will be different
+		// is it needed at all?
+		for (Enumeration<?> e = qParent.properties.propertyNames(); e.hasMoreElements();) {
+			String key = (String) e.nextElement();
+			this.properties.setProperty(key, qParent.properties.getProperty(key));
+		}
+		
+		this.properties.putAll(qParent.properties);
+		this.eyesisCorrections=      qParent.eyesisCorrections;
+		this.correctionsParameters = qParent.correctionsParameters;
+		this.clt_kernels =           qParent.clt_kernels;
+		if (qParent.geometryCorrection != null) {
+			this.geometryCorrection = new ErsCorrection(qParent.geometryCorrection, true);
+		}
+		this.extrinsic_vect =        qParent.extrinsic_vect.clone();
+		this.extra_items =           qParent.extra_items;
+		this.eyesisKernelImage =     qParent.eyesisKernelImage; // most likely not needed
+		
+		this.startTime =             qParent.startTime;     // start of batch processing
+		this.startSetTime =          qParent.startSetTime;  // start of set processing
+		this.startStepTime =         qParent.startStepTime; // start of step processing
+		this.fine_corr =             ErsCorrection.clone3d(qParent.fine_corr);
+		
+		///tp will have only needed data, large array will be nulls, same with clt_3d_passes
+		if (qParent.tp != null) {
+			this.tp =                     new TileProcessor(qParent.tp);
+		}
+		this.image_name =             name; // qParent.image_name;
+		this.image_path =             qParent.image_path;
+		this.gps_lla =                ErsCorrection.clone1d(qParent.gps_lla);
+		if (qParent.image_data != null) this.image_data = qParent.image_data.clone(); // each camera will be re-written, not just modified, so shallow copy 
+		this.new_image_data =         qParent.new_image_data;
+		if (qParent.saturation_imp != null) this.saturation_imp = qParent.saturation_imp.clone(); // each camera will be re-written, not just modified, so shallow copy 
+		this.is_aux =                 qParent.is_aux;
+		this.is_aux =                 qParent.is_mono;
+		this.lwir_offsets =           ErsCorrection.clone1d(qParent.lwir_offsets);
+		this.lwir_offset =            qParent.lwir_offset;
+		this.lwir_cold_hot =          ErsCorrection.clone1d(qParent.lwir_cold_hot);
+		this.ds_from_main =           ErsCorrection.clone2d(qParent.ds_from_main);
+		this.tp =                     qParent.tp;
+	}
+
+    
+	public QuadCLT spawnQuadCLT(
+//			QuadCLTCPU quadCLT_master,
+			String set_name,
+			CLTParameters  clt_parameters,
+			ColorProcParameters                       colorProcParameters, //
+//			  String []                                 sourceFiles,
+//			  String                                    set_name,
+//			  double []                                 referenceExposures,
+//			  int []                                    channelFiles,
+//			  double []                                 scaleExposures,
+//			  boolean [][]                              saturation_imp,
+			int                                       threadsMax,
+			int                                       debugLevel)
+	{
+		QuadCLT quadCLT = new QuadCLT(this, set_name);
+		
+		quadCLT.restoreFromModel(
+				clt_parameters,
+				colorProcParameters,
+				threadsMax,
+				debugLevel);
+		
+//		quadCLT.showDSIMain();
+//		System.out.println("\n image_name="+(quadCLT.image_name)+"\n"+quadCLT.geometryCorrection.getCorrVector().toString());
+		// add to generator ?
+		/*
+		quadCLT.saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
+				null, // String path,             // full name with extension or w/o path to use x3d directory
+				-2); // int debugLevel)
+		*/
+		return quadCLT;
+	}
+	public double getTimeStamp() {
+		return Double.parseDouble(image_name.replace("_", "."));
+	}
+    
+	public int restoreDSI(String suffix) // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
+	{
+		this.dsi = new double [TwoQuadCLT.DSI_SLICES.length][];
+		return restoreDSI(suffix,dsi);
+	}
+	
+	public int restoreDSI(String suffix, // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
+			double [][] dsi) {
+		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
+				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+				correctionsParameters.x3dModelVersion,
+				true,  // smart,
+				true);  //newAllowed, // save
+		String file_path = x3d_path + Prefs.getFileSeparator() + image_name + suffix + ".tiff";
+		ImagePlus imp = null;
+		try {
+			imp = new ImagePlus(file_path);
+		} catch (Exception e) {
+			System.out.println ("Failed to open "+file_path);
+			return -1;
+		}
+		System.out.println("restoreDSI(): got "+imp.getStackSize()+" slices");
+		if (imp.getStackSize() < 2) {
+			System.out.println ("Failed to read "+file_path);
+			return -1;
+		}
+		int num_slices_read = 0;
+		ImageStack dsi_stack = imp.getStack();
+		for (int nl = 0; nl < imp.getStackSize(); nl++) {
+			for (int n = 0; n < TwoQuadCLT.DSI_SLICES.length; n++)
+				if (TwoQuadCLT.DSI_SLICES[n].equals(dsi_stack.getSliceLabel(nl + 1))) {
+					float [] fpixels = (float[]) dsi_stack.getPixels(nl + 1);
+					dsi[n] = new double [fpixels.length];
+					for (int i = 0; i < fpixels.length; i++) {
+						dsi[n][i] = fpixels[i];
+					}
+					num_slices_read ++;
+					break;
+				}
+		}
+		return num_slices_read;
+	}
+	
+	public void saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
+			String path,             // full name with extension or w/o path to use x3d directory
+//			Properties properties,   // if null - will only save extrinsics)
+			int debugLevel)
+	{
+		// upggrade to ErsCorrection (including setting initial velocities and angular velocities, resets accelerations, resets scenes
+		if (!(geometryCorrection instanceof ErsCorrection)) {
+			geometryCorrection = new ErsCorrection(geometryCorrection, false); // no need to copy just created gc
+		}
+		// update properties from potentially modified parameters (others should be updated
+		if (path == null) {
+			path = image_name + "-INTERFRAME"+".corr-xml";
+
+		}
+		if (!path.contains(Prefs.getFileSeparator())) {
+			  String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
+					  correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+					  correctionsParameters.x3dModelVersion,
+						  true,  // smart,
+						  true);  //newAllowed, // save
+			  path = x3d_path+Prefs.getFileSeparator()+path;
+		}
+		Properties	inter_properties = new Properties();
+		setProperties(QuadCLT.PREFIX,inter_properties);
+//		quadCLT_aux.setProperties(QuadCLT.PREFIX_AUX,properties);
+		OutputStream os;
+		try {
+			os = new FileOutputStream(path);
+		} catch (FileNotFoundException e1) {
+			// missing config directory
+			File dir = (new File(path)).getParentFile();
+			if (!dir.exists()){
+				dir.mkdirs();
+				try {
+					os = new FileOutputStream(path);
+				} catch (FileNotFoundException e2) {
+					IJ.showMessage("Error","Failed to create directory "+dir.getName()+" to save configuration file: "+path);
+					return;
+				}
+			} else {
+				IJ.showMessage("Error","Failed to open configuration file: "+path);
+				return;
+			}
+		}
+		try {
+			inter_properties.storeToXML(os,
+					"last updated " + new java.util.Date(), "UTF8");
+
+		} catch (IOException e) {
+			IJ.showMessage("Error","Failed to write XML configuration file: "+path);
+			return;
+		}
+		try {
+			os.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		if (debugLevel> -3) {
+			System.out.println("Configuration parameters are saved to "+path);
+		}
+	}
+	
+	public Properties restoreInterProperties( // restore properties for interscene processing (extrinsics, ers, ...)
+			String path,             // full name with extension or null to use x3d directory
+//			Properties properties,   // if null - will only save extrinsics)
+			int debugLevel)
+	{
+		if (path == null) {
+			path = image_name + ((properties == null) ? "-INTERFRAME":"")+".corr-xml";
+
+		}
+		if (!path.contains(Prefs.getFileSeparator())) {
+			  String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
+					  correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+					  correctionsParameters.x3dModelVersion,
+						  true,  // smart,
+						  true);  //newAllowed, // save
+			  path = x3d_path+Prefs.getFileSeparator()+path;
+		}
+		properties = loadProperties(
+				path, // String path,
+				properties); // Properties properties)
+//		if (properties == null) {
+//			properties = new Properties();
+//		}
+		String prefix = is_aux?PREFIX_AUX:PREFIX; 
+		getProperties(prefix); // will set Geometry correction non-null
+		if (!(geometryCorrection instanceof ErsCorrection)) { // should only be for the new GeometryCorrection created in getProperties
+			geometryCorrection = new ErsCorrection(geometryCorrection, false); // no need to copy just created gc
+		}
+		ErsCorrection ers = (ErsCorrection) geometryCorrection;
+		ers.getPropertiesPose(prefix,   properties);
+		ers.getPropertiesERS(prefix,    properties);
+		ers.getPropertiesScenes(prefix, properties);
+		return properties;
+		
+	}
+	
+	
+	
+
+	public void saveDSI() { saveDSI(this.dsi);}
+	public void saveDSI(
+			double [][] dsi
+			)
+	{
+		  String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
+				  correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+				  correctionsParameters.x3dModelVersion,
+					  true,  // smart,
+					  true);  //newAllowed, // save
+		  String title = image_name+TwoQuadCLT.DSI_COMBO_SUFFIX;
+		  ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(dsi,tp.getTilesX(), tp.getTilesY(),  title, TwoQuadCLT.DSI_SLICES);
+			eyesisCorrections.saveAndShow(
+					   imp,      // ImagePlus             imp,
+					   x3d_path, // String                path,
+					   false,    // boolean               png,
+					   false,    // boolean               show,
+					   0);       // int                   jpegQuality)
+	}
+
+	public void showDSI(){ showDSI(this.dsi);}
+	public void showDSI(double [][] dsi)
+	{
+		  String title = image_name + TwoQuadCLT.DSI_COMBO_SUFFIX;
+		  (new ShowDoubleFloatArrays()).showArrays(dsi, tp.getTilesX(), tp.getTilesY(), true, title, TwoQuadCLT.DSI_SLICES);
+	}
+
+	public void saveDSIMain(){saveDSIMain(this.dsi);}
+	public void saveDSIMain(
+			double [][] dsi) // DSI_SLICES.length
+	{
+		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
+				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+				correctionsParameters.x3dModelVersion,
+				true,  // smart,
+				true);  //newAllowed, // save
+		String title = image_name+"-DSI_MAIN";
+		String []   titles =   {TwoQuadCLT.DSI_SLICES[TwoQuadCLT.DSI_DISPARITY_MAIN], TwoQuadCLT.DSI_SLICES[TwoQuadCLT.DSI_STRENGTH_MAIN]};
+		double [][] dsi_main = {dsi[TwoQuadCLT.DSI_DISPARITY_MAIN],        dsi[TwoQuadCLT.DSI_STRENGTH_MAIN]};
+
+		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(dsi_main, tp.getTilesX(), tp.getTilesY(),  title, titles);
+		eyesisCorrections.saveAndShow(
+				imp,      // ImagePlus             imp,
+				x3d_path, // String                path,
+				false,    // boolean               png,
+				false,    // boolean               show,
+				0);       // int                   jpegQuality)
+	}
+
+
+	// Save GT from main and AUX calculated DS
+	public void saveDSIGTAux(
+			QuadCLT quadCLT_aux,
+			double [][] dsi_aux_from_main)
+	{
+		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
+				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+				correctionsParameters.x3dModelVersion,
+				true,  // smart,
+				true);  //newAllowed, // save
+		String title = quadCLT_aux.image_name+"-DSI_GT-AUX";
+//		String []   titles =   {DSI_SLICES[DSI_DISPARITY_MAIN], DSI_SLICES[DSI_STRENGTH_MAIN]};
+//		double [][] dsi_main = {dsi[DSI_DISPARITY_MAIN],        dsi[DSI_STRENGTH_MAIN]};
+
+		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(
+				dsi_aux_from_main, // dsi_main,
+				quadCLT_aux.tp.getTilesX(),
+				quadCLT_aux.tp.getTilesY(),
+				title,
+				QuadCLT.FGBG_TITLES_AUX); // titles);
+		eyesisCorrections.saveAndShow(
+				imp,      // ImagePlus             imp,
+				x3d_path, // String                path,
+				false,    // boolean               png,
+				false,    // boolean               show,
+				0);       // int                   jpegQuality)
+	}
+	public void showDSIMain() {
+		showDSIMain(this.dsi);
+	}
+	
+	public void showDSIMain(
+			double [][] dsi)
+	{
+		  String title = image_name+"-DSI_MAIN";
+		  String []   titles =   {TwoQuadCLT.DSI_SLICES[TwoQuadCLT.DSI_DISPARITY_MAIN], TwoQuadCLT.DSI_SLICES[TwoQuadCLT.DSI_STRENGTH_MAIN]};
+		  double [][] dsi_main = {dsi[TwoQuadCLT.DSI_DISPARITY_MAIN],        dsi[TwoQuadCLT.DSI_STRENGTH_MAIN]};
+
+		  (new ShowDoubleFloatArrays()).showArrays(dsi_main,tp.getTilesX(), tp.getTilesY(), true, title, titles);
+	}
+	
+	
+	
+    
     public boolean hasNewImageData() {
     	return new_image_data;
     }
@@ -262,16 +602,40 @@ public class QuadCLTCPU {
 		this.correctionsParameters = correctionsParameters;
 		this.properties =            properties;
 		is_aux =                     prefix.equals(PREFIX_AUX);
-//		this.properties_prefix =     prefix;
-//		System.out.println("new QuadCLTCPU(), prefix = "+prefix);
 		getProperties(prefix);
 	}
 
-	// TODO:Add saving just calibration
+	public static Properties loadProperties(
+			String path,
+			Properties properties){
+		if (properties == null) {
+			properties = new Properties();
+		}
+		InputStream is;
+		try {
+			is = new FileInputStream(path);
+		} catch (FileNotFoundException e) {
+			IJ.showMessage("Error","Failed to open configuration file: "+path);
+			return null;
+		}
+		try {
+			properties.loadFromXML(is);
 
-//	public void setProperties(){
-//		setProperties(this.properties_prefix);
-//	}
+		} catch (IOException e) {
+			IJ.showMessage("Error","Failed to read XML configuration file: "+path);
+			return null;
+		}
+		try {
+			is.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return properties;
+		//	     getAllProperties(properties);
+		//		 if (DEBUG_LEVEL>0) System.out.println("Configuration parameters are restored from "+path);
+	}
+
 	public void setProperties(String prefix, Properties properties){ // save // USED in lwir
 		if (properties == null) {
 			properties = this.properties;
@@ -295,6 +659,12 @@ public class QuadCLTCPU {
 		}
 		if (is_aux && (gc.rigOffset != null)) {
 			gc.rigOffset.setProperties(prefix,properties);
+		}
+		if (gc instanceof ErsCorrection) {
+			ErsCorrection ers = (ErsCorrection) gc;
+			ers.setPropertiesPose(prefix, properties);
+			ers.setPropertiesERS(prefix, properties);
+			ers.setPropertiesScenes(prefix, properties);
 		}
 	}
 
@@ -335,6 +705,16 @@ public class QuadCLTCPU {
 	public GeometryCorrection  getGeometryCorrection() { // USED in lwir
 		return geometryCorrection;
 	}
+	
+	public ErsCorrection getErsCorrection() { // USED in lwir
+		if (geometryCorrection instanceof ErsCorrection) {
+			return (ErsCorrection) geometryCorrection;
+		} else {
+			return new ErsCorrection (geometryCorrection, false); // just upgrade
+		}
+	}
+	
+	
 	public double [][][][][][] getCLTKernels(){ // USED in lwir
 		return clt_kernels;
 	}
@@ -379,6 +759,7 @@ public class QuadCLTCPU {
 //		if (is_aux && (geometryCorrection != null)) {
 //			geometryCorrection.setRigOffsetFromProperies(prefix, properties);
 //		}
+		
 		if (geometryCorrection == null) {
 			double [] extrinsic_vect_saved = this.extrinsic_vect.clone();
 			boolean OK = initGeometryCorrection(0); // int debugLevel);
@@ -395,6 +776,8 @@ public class QuadCLTCPU {
 		if (is_aux) {
 			geometryCorrection.setRigOffsetFromProperies(prefix, properties);
 		}
+		// inter-frame properties only make sense for, well, scenes. So they will only be read 
+		
 	}
 
 	public void setKernelImageFile(ImagePlus img_kernels){ // not used in lwir
@@ -3223,6 +3606,17 @@ public class QuadCLTCPU {
 			  String single_set_name, // process only files that contain specified series (timestamp) in the name
 			  int debugLevel) {
 		  String [] sourceFiles=correctionsParameters.getSourcePaths();
+		  return setChannels( // USED in lwir
+				  single_set_name, // process only files that contain specified series (timestamp) in the name
+				  sourceFiles,
+				  debugLevel);
+	  }
+	  
+	  SetChannels [] setChannels( // USED in lwir
+			  String single_set_name, // process only files that contain specified series (timestamp) in the name
+			  String [] sourceFiles,
+			  int debugLevel) {
+//		  String [] sourceFiles=correctionsParameters.getSourcePaths();
 		  boolean [] enabledFiles=new boolean[sourceFiles.length];
 		  for (int i=0;i<enabledFiles.length;i++) enabledFiles[i]=false;
 		  int numFilesToProcess=0;
@@ -3349,7 +3743,11 @@ public class QuadCLTCPU {
 								  ", EXPOSURE = "+imp_srcs[srcChannel].getProperty("EXPOSURE"));
 					  }
 				  }
-				  imp_srcs[srcChannel].setProperty("name",    correctionsParameters.getNameFromSourceTiff(sourceFiles[nFile]));
+				  String name_from_dir = correctionsParameters.getNameFromSourceTiff(sourceFiles[nFile]);
+				  if (name_from_dir.equals("jp4")) {
+					  name_from_dir = set_name; // to fix save source files copy in the model/jp4
+				  }
+				  imp_srcs[srcChannel].setProperty("name",    name_from_dir);
 				  imp_srcs[srcChannel].setProperty("channel", srcChannel); // it may already have channel
 				  imp_srcs[srcChannel].setProperty("path",    sourceFiles[nFile]); // it may already have channel
 
@@ -3378,7 +3776,9 @@ public class QuadCLTCPU {
 							  if (pixels[y*width+x+width+1] > max_pix[3])  max_pix[3] = pixels[y*width+x+width+1];
 						  }
 					  }
-					  System.out.println(String.format("channel %d max_pix[] = %6.2f %6.2f %6.2f %6.2f", srcChannel, max_pix[0], max_pix[1], max_pix[2], max_pix[3]));
+					  if (debugLevel > -2) {
+						  System.out.println(String.format("channel %d max_pix[] = %6.2f %6.2f %6.2f %6.2f", srcChannel, max_pix[0], max_pix[1], max_pix[2], max_pix[3]));
+					  }
 					  dbg_dpixels[srcChannel] = new double [pixels.length];
 					  for (int i = 0; i < pixels.length; i++) dbg_dpixels[srcChannel][i] = pixels[i];
 					  //						  imp_srcs[srcChannel].show();
@@ -3391,8 +3791,10 @@ public class QuadCLTCPU {
 								  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_0")),
 								  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_3")),
 								  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_2"))};
-						  System.out.println(String.format("channel %d saturations = %6.2f %6.2f %6.2f %6.2f", srcChannel,
+						  if (debugLevel > -2) {
+							  System.out.println(String.format("channel %d saturations = %6.2f %6.2f %6.2f %6.2f", srcChannel,
 								  saturations[0],saturations[1],saturations[2],saturations[3]));
+						  }
 						  double [] scaled_saturations = new double [saturations.length];
 						  for (int i = 0; i < scaled_saturations.length; i++){
 							  scaled_saturations[i] = saturations[i] * clt_parameters.sat_level;
@@ -3411,7 +3813,9 @@ public class QuadCLTCPU {
 				  if (!is_lwir) { // no vigneting correction and no color scaling
 					  if (this.correctionsParameters.vignetting && correct_vignetting){
 						  if ((eyesisCorrections.channelVignettingCorrection==null) || (srcChannel<0) || (srcChannel>=eyesisCorrections.channelVignettingCorrection.length) || (eyesisCorrections.channelVignettingCorrection[srcChannel]==null)){
-							  System.out.println("No vignetting data for channel "+srcChannel);
+							  if (debugLevel > -3) {
+								  System.out.println("No vignetting data for channel "+srcChannel);
+							  }
 							  return null; // not used in lwir
 						  }
 						  ///						  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
@@ -3467,8 +3871,9 @@ public class QuadCLTCPU {
 							  }
 						  }
 						  double max_vign_corr = clt_parameters.vignetting_range*min_non_zero;
-
-						  System.out.println("Vignetting data: channel="+srcChannel+", min = "+min_non_zero);
+						  if (debugLevel > -2) {
+							  System.out.println("Vignetting data: channel="+srcChannel+", min = "+min_non_zero);
+						  }
 						  for (int i=0;i<pixels.length;i++){
 							  double d = vign_pixels[i];
 							  if (d > max_vign_corr) d = max_vign_corr;
@@ -3487,8 +3892,11 @@ public class QuadCLTCPU {
 						  }
 
 					  } else { // assuming GR/BG pattern // not used in lwir
-						  System.out.println("Applying fixed color gain correction parameters: Gr="+
-								  clt_parameters.novignetting_r+", Gg="+clt_parameters.novignetting_g+", Gb="+clt_parameters.novignetting_b);
+						  if (debugLevel > -2) {
+
+							  System.out.println("Applying fixed color gain correction parameters: Gr="+
+									  clt_parameters.novignetting_r+", Gg="+clt_parameters.novignetting_g+", Gb="+clt_parameters.novignetting_b);
+						  }
 						  ///						  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
 						  ///						  int width =  imp_srcs[srcChannel].getWidth();
 						  ///						  int height = imp_srcs[srcChannel].getHeight();
@@ -3508,7 +3916,9 @@ public class QuadCLTCPU {
 			  }
 		  }
 		  // temporary applying scaleExposures[srcChannel] here, setting it to all 1.0
-		  System.out.println("Temporarily applying scaleExposures[] here - 1" );
+		  if (debugLevel > -2) {
+			  System.out.println("Temporarily applying scaleExposures[] here - 1" );
+		  }
 		  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
 			  if (!is_lwir) {
 				  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
@@ -8246,6 +8656,10 @@ public class QuadCLTCPU {
 				  }
 			  }
 		  }
+		  if (geometryCorrection instanceof ErsCorrection) {
+			  ((ErsCorrection) geometryCorrection).setupERSfromExtrinsics();
+		  }
+
 		  return true; // (comp_diff < (adjust_poly ? min_poly_update : min_sym_update));
 	  }
 
@@ -11817,10 +12231,31 @@ public class QuadCLTCPU {
 			  boolean    updateStatus,
 			  int        debugLevel)
 	  {
-		  final int tilesX = tp.getTilesX();
-		  final int tilesY = tp.getTilesY();
-//		  final int transform_size =clt_parameters.transform_size;
 		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
+		  setPassAvgRBGA( // get image from a single pass, return relative path for x3d // USED in lwir
+				  clt_parameters,
+				  scan,
+				  threadsMax,  // maximal number of threads to launch
+				  updateStatus,
+				  debugLevel);
+	  }
+	  
+	  
+	  public void setPassAvgRBGA( // get image from a single pass, return relative path for x3d // USED in lwir
+			  CLTParameters           clt_parameters,
+//			  int        scanIndex,
+			  CLTPass3d  scan,			  
+			  int        threadsMax,  // maximal number of threads to launch
+			  boolean    updateStatus,
+			  int        debugLevel)
+	  {
+//		  final int tilesX = tp.getTilesX();
+//		  final int tilesY = tp.getTilesY();
+		  final int tilesX = scan.getTileProcessor().getTilesX();
+		  final int tilesY = scan.getTileProcessor().getTilesY();
+		  
+//		  final int transform_size =clt_parameters.transform_size;
+//		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
 		  double [][][][] texture_tiles = scan.texture_tiles; 
 		  if (texture_tiles == null) return;
 		  int num_layers = 0;

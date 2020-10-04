@@ -80,30 +80,22 @@ public class TileProcessor {
 	public boolean []  rig_post_poles_sel =      null; // Rig tile selection after processing poles
 	public double [][] main_ds_ml =              null; // main camera DSI restored from the COMBO-DSI file to generate ML test files
 
-	public boolean   monochrome =                false;   // these are monochrome images
-	public boolean   lwir =                      false;   // all monochrome are lwir
-	private boolean  is_aux =                    false;   // this camera is aux
-	public int       clt_3d_passes_size =     0; //clt_3d_passes size after initial processing
-	public int       clt_3d_passes_rig_size = 0; //clt_3d_passes size after initial processing and rig processing
-	private int      tilesX;
-	private int      tilesY;
-	private double   corr_magic_scale =    0.85;  // reported correlation offset vs. actual one (not yet understood)
-	private double   trustedCorrelation =  4.0;   // trusted measured disparity difference (before scaling)
-	private double   maxOverexposure =     0.5;
-	private int      tileSize =            8; // number of linear pixels in a tile (tile is  square tileSize*tileSize)
-	int              superTileSize =      8; // number of linear tiles in a super-tile (supertile is  square superTileSize*superTileSize tiles
-	                                        // or (superTileSize*tileSize) * (superTileSize*tileSize) pixels, currently 64x64 pixels)
-    double [][]      periodics = null;
-
-	public int       threadsMax =       100; // maximal number of frames to run
-	public int       globalDebugLevel = 0;
-
+	public boolean     monochrome =                false;   // these are monochrome images
+	public boolean     lwir =                      false;   // all monochrome are lwir
+	private boolean    is_aux =                    false;   // this camera is aux
+	public int         clt_3d_passes_size =     0; //clt_3d_passes size after initial processing
+	public int         clt_3d_passes_rig_size = 0; //clt_3d_passes size after initial processing and rig processing
+	private int        tilesX;
+	private int        tilesY;
+	private double     corr_magic_scale =    0.85;  // reported correlation offset vs. actual one (not yet understood)
+	private double     trustedCorrelation =  4.0;   // trusted measured disparity difference (before scaling)
+	private double     maxOverexposure =     0.5;
+	private int        tileSize =            8; // number of linear pixels in a tile (tile is  square tileSize*tileSize)
+	int                superTileSize =      8; // number of linear tiles in a super-tile (supertile is  square superTileSize*superTileSize tiles
+    double [][]        periodics = null;
+	public int         threadsMax =       100; // maximal number of frames to run
+	public int         globalDebugLevel = 0;
 	public double [][] dbg_filtered_disp_strength;
-
-	public double [][] getPeriodcs(){
-		// todo: add calculation (if null) and reset
-		return this.periodics;
-	}
 	// All parameters are set only once, during instantiation
 
 	public TileProcessor(
@@ -131,6 +123,43 @@ public class TileProcessor {
 		this.maxOverexposure =      maxOverexposure;
 		this.threadsMax = threadsMax;
 	}
+	public TileProcessor(TileProcessor tp) {
+		this.tilesX =             tp.tilesX;
+		this.tilesY =             tp.tilesY;
+		this.tileSize =           tp.tileSize;
+		this.superTileSize =      tp.superTileSize;
+		this.monochrome =         tp.monochrome;
+		this.lwir =               tp.lwir;
+		this.is_aux =             tp.is_aux;
+		this.corr_magic_scale =   tp.corr_magic_scale;
+		this.trustedCorrelation = tp.trustedCorrelation;
+		this.maxOverexposure =    tp.maxOverexposure;
+		this.threadsMax =         tp.threadsMax;
+		this.globalDebugLevel =   tp.globalDebugLevel;
+		
+		// next should not be needed for new instance
+		/*
+		this.periodics =                  ErsCorrection.clone2d(tp.periodics); not needed
+		this.dbg_filtered_disp_strength = tp.dbg_filtered_disp_strength;
+	public ArrayList <CLTPass3d> clt_3d_passes = null;
+	public double [][] rig_disparity_strength =  null; // Disparity and strength created by a two-camera rig, with disparity scale and distortions of the main camera
+	public double [][] rig_pre_poles_ds =        null; // Rig disparity and strength before processing poles
+	public double [][] rig_post_poles_ds =       null; // Rig disparity and strength after processing poles
+	public boolean []  rig_pre_poles_sel =       null; // Rig tile selection before processing poles
+	public boolean []  rig_post_poles_sel =      null; // Rig tile selection after processing poles
+	public double [][] main_ds_ml =              null; // main camera DSI restored from the COMBO-DSI file to generate ML test files
+		
+	public int         clt_3d_passes_size =     0; //clt_3d_passes size after initial processing
+	public int         clt_3d_passes_rig_size = 0; //clt_3d_passes size after initial processing and rig processing
+		
+		*/
+	}
+	
+	public double [][] getPeriodcs(){
+		// todo: add calculation (if null) and reset
+		return this.periodics;
+	}
+	
 	public boolean isMonochrome() {return monochrome;}
 	public boolean isLwir()       {return lwir;}
 	public boolean isAux()        {return is_aux;}
@@ -8697,6 +8726,151 @@ ImageDtt.startAndJoin(threads);
 				titles);
 	}
 
+	
+	public double [] fillNaNs(
+			final double [] data,
+			int       width,
+			final int grow,
+			double    diagonal_weight, // relative to ortho
+			int       num_passes,
+			final int threadsMax)      // maximal number of threads to launch                         
+	{
+		final int scan0 = ( 3* grow) / 2;
+		int height = data.length/width;
+		double wdiag = 0.25 *diagonal_weight / (diagonal_weight + 1.0);
+		double wortho = 0.25 / (diagonal_weight + 1.0);
+		final double [] neibw = {wortho, wdiag, wortho, wdiag, wortho, wdiag, wortho, wdiag}; 
+		final int tiles = width * height;
+		final boolean [] fixed = new boolean [tiles];
+		int num_fixed = 0;
+		double davg = 0.0;
+		for (int i = 0; i < tiles; i++)	{
+			if (!Double.isNaN(data[i])) {
+				fixed[i] = true;
+				num_fixed ++;
+				davg+= data[i];
+			}
+		}
+		if (num_fixed > 0) {
+			davg /= num_fixed;
+		} else {
+			return null;
+		}
+		final double fdavg = davg;
+		final boolean [] grown = fixed.clone();
+		final TileNeibs tn = new TileNeibs(width, height);
+		
+		growTiles(
+				grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				grown,
+				null,
+				width,
+				height);
+		int num_active = 0;
+		for (int i = 0; i < tiles; i++) {
+			if (grown[i] && !fixed[i]) num_active++;
+		}
+		if (num_active == 0) {
+			return data.clone();
+		}
+		final int [] active = new int [num_active];
+		final double [] data_in = data.clone();
+		final double [] data_out = new double [tiles];
+				
+		num_active = 0;
+		for (int i = 0; i < tiles; i++) {
+			if (grown[i] && !fixed[i]) {
+				active [num_active++] = i;
+				data_in[i] = davg; // initial value
+			}
+		}
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+//		final int numThreads = threads.length;
+		final AtomicInteger ai = new AtomicInteger(0);
+//Set initial values		
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int iTile = ai.getAndIncrement(); iTile < active.length; iTile = ai.getAndIncrement()) {
+						int nt = active[iTile];
+						double s = 0.0;
+						int n = 0;
+						for (int dy = -scan0; dy <= scan0; dy++) {
+							for (int dx = -scan0; dx <= scan0; dx++) {
+								int nt1 = tn.getNeibIndex(nt, dx, dy);
+								if ((nt1 >=0) && fixed[nt1]) {
+									s += data[nt1];
+									n++;
+								}
+							}
+						}
+						if (n > 0) {
+							data_in[nt] = s/n;
+						} else {
+							data_in[nt] = fdavg;
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+
+		for (int pass = 0; pass < num_passes; pass ++) {
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int iTile = ai.getAndIncrement(); iTile < active.length; iTile = ai.getAndIncrement()) {
+							int nt = active[iTile];
+							double s = 0.0;
+							double sw = 0.0;
+							for (int dir = 0; dir < 8; dir++) {
+								int nt1 = tn.getNeibIndex(nt, dir);
+								if ((nt1 >=0) && grown[nt1]) {
+									if (fixed[nt1]) {
+										s += data[nt1] * neibw[dir];
+									} else {
+										s += data_in[nt1] * neibw[dir];
+									}
+									sw += neibw[dir];
+								}
+							}
+							// sw should never be 0;
+							s /= sw;
+							data_out[nt] = s;
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			if (pass < (num_passes - 1)) {
+				System.arraycopy(data_out,0,data_in,0,tiles);
+			}
+		}
+		for (int i = 0; i < tiles; i++) if (fixed[i]) {
+			data_out[i] = data[i];
+		}
+/*		
+		double [][] dbg_img = new double [4][tiles];
+		String [] titles = {"data", "data_out", "fixed", "grown"};
+		dbg_img[0] = data;
+		dbg_img[1] = data_out;
+		for (int i = 0; i < tiles; i++) {
+			dbg_img[2][i] = fixed[i] ? 1.0 : 0.0;
+			dbg_img[3][i] = grown[i] ? 1.0 : 0.0;
+		}
+		(new ShowDoubleFloatArrays()).showArrays(
+				dbg_img,
+				tilesX,
+				tilesY,
+				true,
+				"filled_NaNs",
+				titles);
+*/
+		return data_out;
+	}
+
+	
 
 
 	/* Create a Thread[] array as large as the number of processors available.

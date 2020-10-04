@@ -590,7 +590,7 @@ public class GPUTileProcessor {
     }
 
    public class GpuQuad{ // quad camera description
-        public final QuadCLT quadCLT;
+        public           QuadCLT quadCLT;
     	public final int img_width;
     	public final int img_height;
     	public final int kernels_hor;        // int                kernels_hor,
@@ -657,6 +657,16 @@ public class GPUTileProcessor {
         private boolean geometry_correction_set = false;
         private boolean geometry_correction_vector_set = false;
         public  int gpu_debug_level = 1;
+        // should only be updated with the same cameras instance
+        public void updateQuadCLT(final QuadCLT quadCLT) {
+        	this.quadCLT =      quadCLT;
+    		resetGeometryCorrection();
+    		resetGeometryCorrectionVector();
+    		bayer_set =        false;
+        }
+        public QuadCLT getQuadCLT( ) {
+        	return this.quadCLT;
+        }
     	public GpuQuad(
         	final QuadCLT quadCLT,    			
 //   			final int img_width,
