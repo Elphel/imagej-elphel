@@ -214,7 +214,7 @@ public class QuadCLT extends QuadCLTCPU {
 	
 	
 	
-	
+	@Deprecated
 	public double [][] getOpticalFlow(
 			double disparity_min,
 			double disparity_max,
@@ -282,7 +282,8 @@ public class QuadCLT extends QuadCLTCPU {
 		
 		return null;
 	}
-	
+
+	@Deprecated
 	public double[] fillNaNGapsOld(
 			double [] data,
 			int       n,
@@ -305,6 +306,7 @@ public class QuadCLT extends QuadCLTCPU {
 		}
 		return d;
 	}
+	@Deprecated	
 	public double[] fillNaNGaps(
 			double [] data,
 			int       n,
@@ -322,6 +324,7 @@ public class QuadCLT extends QuadCLTCPU {
 				threadsMax); // final int threadsMax)      // maximal number of threads to launch                         
 	}
 	
+	@Deprecated
 	public double[][][]  get_pair(
 			double k_prev,
 			QuadCLT qprev,
@@ -408,7 +411,8 @@ public class QuadCLT extends QuadCLTCPU {
 		}		
 		return pair;
 	}
-	
+
+	@Deprecated
 	public double [][] transformCameraVew(
 			QuadCLT   camera_QuadClt,
 			double [] camera_xyz, // camera center in world coordinates

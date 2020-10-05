@@ -141,6 +141,9 @@ public class QuadCLTCPU {
     public double [][]                                     ds_from_main = null;
     public double [][]                                     dsrbg = null; // D, S, R,B,G
     
+    public TileProcessor getTileProcessor() {
+    	return tp;
+    }
     
 	public QuadCLTCPU(
 			QuadCLTCPU  qParent,
@@ -224,6 +227,9 @@ public class QuadCLTCPU {
 	}
 	public double getTimeStamp() {
 		return Double.parseDouble(image_name.replace("_", "."));
+	}
+	public String getImageName() {
+		return image_name;
 	}
     
 	public int restoreDSI(String suffix) // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
