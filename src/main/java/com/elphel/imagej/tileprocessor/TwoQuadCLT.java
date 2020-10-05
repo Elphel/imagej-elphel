@@ -8262,17 +8262,20 @@ if (debugLevel > -100) return true; // temporarily !
 		OpticalFlow opticalFlow = new OpticalFlow(
 				threadsMax, // int            threadsMax,  // maximal number of threads to launch
 				updateStatus); // boolean        updateStatus);
-		int         margin = 4; //  extra margins over 16x16 tiles to accommodate distorted destination tiles
+//		int         margin = 4; //  extra margins over 16x16 tiles to accommodate distorted destination tiles
+		/*
+		
 		double      tolerance_absolute = 0.25; // absolute disparity half-range in each tile
 		double      tolerance_relative = 0.2; // relative disparity half-range in each tile
 		double      center_occupancy =   0.25;   // fraction of remaining  tiles in the center 8x8 area (<1.0)
 
 		int         num_passes = 100;
 		double      max_change = 0.005 ;
+		*/
 		
 		for (int i = 1; i < quadCLTs.length; i++) {
 			QuadCLT qPrev = (i > 0) ? quadCLTs[i - 1] : null;
-			
+/*			
 			double [][][] source_tiles = opticalFlow.prepareReferenceTiles(
 					quadCLTs[i],        // final QuadCLT     qthis,
 //					margin,             // final int         margin, // extra margins over 16x16 tiles to accommodate distorted destination tiles
@@ -8289,7 +8292,7 @@ if (debugLevel > -100) return true; // temporarily !
 					num_passes,            // final int         num_passes,
 					max_change,            // final double      max_change,
 					2);                    // final int         debug_level)
-			
+			*/
 			
 
 			double [][][] pair_sets =

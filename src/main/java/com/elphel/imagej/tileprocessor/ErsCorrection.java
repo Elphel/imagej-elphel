@@ -397,6 +397,8 @@ public class ErsCorrection extends GeometryCorrection {
 	
 	public void setupERS()
 	{
+		double ers_sign =      1.0; // -1.0; // invert all corrections to opposite? 
+		
 		ers_xyz=            new double [pixelCorrectionHeight][3];
 		ers_xyz_dt=         new double [pixelCorrectionHeight][3];
 		ers_quaternion =    new Quaternion [pixelCorrectionHeight];
@@ -414,12 +416,12 @@ public class ErsCorrection extends GeometryCorrection {
 		Quaternion quat_center2 = new Quaternion (0.0,ers_watr_center_d2t[1],  ers_watr_center_d2t[0],  ers_watr_center_d2t[2]); // angular velocity 1/s :tilt, az, roll
 		
 		// integration to the bottom of the image
-		double dt = line_time; 
+		double dt = ers_sign*line_time; 
 		double [] wxy0 = ers_wxyz_center.clone();
 		double [] wxy1 = ers_wxyz_center_dt.clone();
 		double [] wxy2 = ers_wxyz_center_d2t.clone();
 		// bottom half rotations
-		dt =  line_time; 
+		dt =  ers_sign*line_time; 
 		Quaternion q0 = quat_center0.multiply(1.0); // clone() orientation
 		Quaternion q1 = quat_center1.multiply(1.0); // clone() angular velocity (pure)
 		Quaternion q2 = quat_center2.multiply(1.0); // clone() angular accelerations (pure)
@@ -432,7 +434,7 @@ public class ErsCorrection extends GeometryCorrection {
 			q1 = q1_next;
 		}
 		// top half-frame rotations
-		dt =  -line_time; 
+		dt =  -ers_sign*line_time; 
 		q0 = quat_center0.multiply(1.0); // clone() orientation
 		q1 = quat_center1.multiply(1.0); // clone() angular velocity (pure)
 		q2 = quat_center2.multiply(1.0); // clone() angular accelerations (pure)
@@ -470,7 +472,7 @@ public class ErsCorrection extends GeometryCorrection {
 				wxy1[i] = wxy1_next;
 			}
 		}
-		dt = -line_time; 
+		dt = -ers_sign*line_time; 
 		wxy0 = ers_wxyz_center.clone();
 		wxy1 = ers_wxyz_center_dt.clone();
 		for (int h = cent_h; h >= 0; h--) {
@@ -502,10 +504,9 @@ public class ErsCorrection extends GeometryCorrection {
 	
 	public double [] getImageCoordinatesERS(
 			QuadCLT cameraQuadCLT, // camera station that got image to be to be matched 
-			
-			double px,                // pixel coordinate X in this camera view
-			double py,                // pixel coordinate Y in this camera view
-			double disparity,         // this view disparity 
+			double px,                // pixel coordinate X in the reference view
+			double py,                // pixel coordinate Y in the reference view
+			double disparity,         // this reference disparity 
 			boolean distortedView,    // This camera view is distorted (diff.rect), false - rectilinear
 			double [] reference_xyz,  // this view position in world coordinates (typically zero3)
 			double [] reference_atr,  // this view orientation relative to world frame  (typically zero3)
@@ -540,14 +541,14 @@ public class ErsCorrection extends GeometryCorrection {
 			if (xyzw[2] > 0) {
 				return null; // can not match object behind the camera
 			}
-			ErsCorrection ers_other = this;
+			ErsCorrection ers_camera = this;
 			if (cameraQuadCLT != null) {
-				ers_other = cameraQuadCLT.getErsCorrection();
+				ers_camera = cameraQuadCLT.getErsCorrection();
 			}
-			if (camera_xyz == null)	camera_xyz = ers_other.camera_xyz;
-			if (camera_atr == null)	camera_atr = ers_other.camera_atr;
+			if (camera_xyz == null)	camera_xyz = ers_camera.camera_xyz;
+			if (camera_atr == null)	camera_atr = ers_camera.camera_atr;
 			
-			double [] pXpYD = ers_other.getImageCoordinatesERS( // USED in lwir
+			double [] pXpYD = ers_camera.getImageCoordinatesERS( // USED in lwir
 					xyzw,
 					distortedCamera,
 					camera_xyz,  // camera center in world coordinates
@@ -556,6 +557,63 @@ public class ErsCorrection extends GeometryCorrection {
 			
 			return pXpYD;
 	}
+	
+	public double [] getImageCoordinatesReferenceERS(
+			QuadCLT cameraQuadCLT, // camera station that got image to be to be matched 
+			double px,                // pixel coordinate X in this camera view
+			double py,                // pixel coordinate Y in this camera view
+			double disparity,         // this view disparity 
+			boolean distortedView,    // This camera view is distorted (diff.rect), false - rectilinear
+			double [] reference_xyz,  // this view position in world coordinates (typically zero3)
+			double [] reference_atr,  // this view orientation relative to world frame  (typically zero3)
+			boolean distortedCamera,  // camera view is distorted (false - rectilinear)
+			double [] camera_xyz,     // camera center in world coordinates
+			double [] camera_atr,     // camera orientation relative to world frame
+			double    line_err)       // threshold error in scan lines (1.0)
+	{
+		if (reference_xyz == null)	reference_xyz = this.camera_xyz;
+		if (reference_atr == null)	reference_atr = this.camera_atr;
+		ErsCorrection ers_camera = this;
+		if (cameraQuadCLT != null) {
+			ers_camera = cameraQuadCLT.getErsCorrection();
+		}
+		if (camera_xyz == null)	camera_xyz = ers_camera.camera_xyz;
+		if (camera_atr == null)	camera_atr = ers_camera.camera_atr;
+
+		// Find world coordinates of the camera pixel
+		double [] xyzw = ers_camera.getWorldCoordinatesERS( // {x - left,y - up, z (0 at camera, negative away), 1} for real, {x,y,z,0} - for infinity
+				px,
+				py,
+				disparity,
+				distortedView,   // correct distortion (will need corrected background too !)
+				camera_xyz,      // camera center in world coordinates
+				camera_atr);     // camera orientation relative to world frame
+			if (xyzw == null) {
+				return null;
+			}
+			if (xyzw[3] == 0.0) { // infinity
+			/*
+				if (xyzw[2] > 0) {
+					for (int i = 0; i < 3; i++) {
+						xyzw[i] = -xyzw[i];	
+					}
+				}
+				*/
+			}
+			if (xyzw[2] > 0) {
+				return null; // can not match object behind the camera
+			}
+			
+			double [] pXpYD = ers_camera.getImageCoordinatesERS( // USED in lwir
+					xyzw,
+					distortedCamera,
+					reference_xyz,  // camera center in world coordinates
+					reference_atr,  // camera orientation relative to world frame
+					line_err);             // threshold error in scan lines (1.0)
+			
+			return pXpYD;
+	}
+
 	
 	
 	/**
