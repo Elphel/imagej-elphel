@@ -361,7 +361,7 @@ public class Correlation2d {
      * @param fat_zero add to normalization amplitude
      * @return [4][transform_len] FD CLT data
      */
-    public double[][] correlateSingleColorFD( // USED in lwir
+	public double[][] correlateSingleColorFD( // USED in lwir
     		double [][] clt_data1,
     		double [][] clt_data2,
     		double [][] tcorr, // null or initialized to [4][transform_len]
@@ -452,7 +452,7 @@ public class Correlation2d {
     		    		tcorr[col],
     		    		fat_zero/scale_value);
 
-    		 if (first_col < 0) {// accummulate all channels in first non-null color ( 0 for color, 2 for mono?)
+    		 if (first_col < 0) {// accumulate all channels in first non-null color ( 0 for color, 2 for mono?)
     			 first_col = col; // first non-empty color (2, green) or 0 for color images
     			 for (int n = 0; n < 4; n++) {
     				 for (int i = 0; i < transform_len; i++) {

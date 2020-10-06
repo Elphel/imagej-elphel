@@ -43,6 +43,24 @@ public class ImageDttCPU {
 	  static int     FPGA_WND_BITS =   17; // bits to represent mclt window (positive for 18-bit signed mpy input)
 	  static int     FPGA_DTT_IN =     22; // bits to represent maximal value after folding (input to DTT)
 	  static int     FPGA_TILE_SIZE =  22; // size of square side for the composite colors tile (16..22)
+	public static  int [][] ZI =
+			{{ 0,  1,  2,  3},
+			 {-1,  0, -3,  2},
+			 {-2, -3,  0,  1},
+			 { 3, -2, -1,  0}};
+	  
+	public static int [][] CORR_PAIRS ={ // {first, second, rot} rot: 0 - as is, 1 - swap y,x
+			{0,1,0},
+			{2,3,0},
+			{0,2,1},
+			{1,3,1}};
+
+	public static double[][] PORT_OFFSETS = {
+			{-0.5, -0.5},
+			{ 0.5, -0.5},
+			{-0.5,  0.5},
+			{ 0.5,  0.5}};
+
 	  // kernels ar designed to have sum = 1.0 and completely reject Bayer modulation for each color
 	  static double [] kern_g={
 			  0.0,   0.125,  0.0  ,
@@ -2547,22 +2565,6 @@ public class ImageDttCPU {
 			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
-		final int [][] zi =
-			{{ 0,  1,  2,  3},
-			 {-1,  0, -3,  2},
-			 {-2, -3,  0,  1},
-			 { 3, -2, -1,  0}};
-		final int [][] corr_pairs ={ // {first, second, rot} rot: 0 - as is, 1 - swap y,x  // not used in lwir
-				{0,1,0},
-				{2,3,0},
-				{0,2,1},
-				{1,3,1}};
-
-		final double[][] port_offsets = { // lwir: used only in textures to scale differences
-				{-0.5, -0.5},
-				{ 0.5, -0.5},
-				{-0.5,  0.5},
-				{ 0.5,  0.5}};
 		final int transform_len = transform_size * transform_size;
 
 		final double [] filter =     doubleGetCltLpfFd(corr_sigma);
@@ -2669,8 +2671,8 @@ public class ImageDttCPU {
 						int                 img_mask =  getImgMask(tile_op[tileY][tileX]);         // which images to use
 						int                 corr_mask = getPairMask(tile_op[tileY][tileX]);       // which pairs to combine in the combo:  1 - top, 2 bottom, 4 - left, 8 - right
 						// mask out pairs that use missing channels
-						for (int i = 0; i< corr_pairs.length; i++){
-							if ((((1 << corr_pairs[i][0]) & img_mask) == 0) || (((1 << corr_pairs[i][1]) & img_mask) == 0)) {
+						for (int i = 0; i< CORR_PAIRS.length; i++){
+							if ((((1 << CORR_PAIRS[i][0]) & img_mask) == 0) || (((1 << CORR_PAIRS[i][1]) & img_mask) == 0)) {
 								corr_mask &= ~ (1 << i);
 							}
 						}
@@ -3569,13 +3571,13 @@ public class ImageDttCPU {
 						// old (per-color correlation)
 						// ****** FIXME tries to use color == 3, should be disabled!
 						if ((clt_corr_combo != null)  && !imgdtt_params.corr_mode_debug){ // not null - calculate correlations  // not used in lwir
-							tcorr_tpartial=  new double[corr_pairs.length][numcol+1][4][transform_len];
+							tcorr_tpartial=  new double[CORR_PAIRS.length][numcol+1][4][transform_len];
 							tcorr_partial =  new double[quad][numcol+1][];
 
-							for (int pair = 0; pair < corr_pairs.length; pair++){
+							for (int pair = 0; pair < CORR_PAIRS.length; pair++){
 								for (int ncol = 0; ncol <numcol; ncol++) if (clt_data[ncol] != null){
-									double [][] data1 = clt_data[corr_pairs[pair][0]][ncol][tileY][tileX];
-									double [][] data2 = clt_data[corr_pairs[pair][1]][ncol][tileY][tileX];
+									double [][] data1 = clt_data[CORR_PAIRS[pair][0]][ncol][tileY][tileX];
+									double [][] data2 = clt_data[CORR_PAIRS[pair][1]][ncol][tileY][tileX];
 									if ((data1 != null) && (data2 != null)) {
 
 										double [] a2 = new double[transform_len];
@@ -3595,12 +3597,12 @@ public class ImageDttCPU {
 											for (int n = 0; n<4; n++){
 												tcorr_tpartial[pair][ncol][n][i] = 0;
 												for (int k=0; k<4; k++){
-													if (zi[n][k] < 0)
+													if (ZI[n][k] < 0)
 														tcorr_tpartial[pair][ncol][n][i] -=
-														data1[-zi[n][k]][i] * data2[k][i];
+														data1[-ZI[n][k]][i] * data2[k][i];
 													else
 														tcorr_tpartial[pair][ncol][n][i] +=
-														data1[zi[n][k]][i] * data2[k][i];
+														data1[ZI[n][k]][i] * data2[k][i];
 												}
 												tcorr_tpartial[pair][ncol][n][i] *= scale;
 											}
@@ -3647,7 +3649,7 @@ public class ImageDttCPU {
 											transform_size);
 								}
 								// transpose vertical pairs
-								if (corr_pairs[pair][2] != 0) {
+								if (CORR_PAIRS[pair][2] != 0) {
 									for (int ncol = firstColor; ncol <= numcol; ncol++) if (tcorr_tpartial[pair][ncol] != null) {
 										for (int i = 0; i < transpose_indices.length; i++) {
 											double d = tcorr_partial[pair][ncol][transpose_indices[i][0]];
@@ -3680,9 +3682,9 @@ public class ImageDttCPU {
 							tcorr_combo = new double [TCORR_TITLES.length][corr_size * corr_size];
 
 							int numPairs = 	0, numPairsHor = 0, numPairsVert = 0;
-							for (int pair = 0; pair < corr_pairs.length; pair++) if (((corr_mask >> pair) & 1) != 0){
+							for (int pair = 0; pair < CORR_PAIRS.length; pair++) if (((corr_mask >> pair) & 1) != 0){
 								numPairs++;
-								if (corr_pairs[pair][2] == 0) { // horizontal pair)
+								if (CORR_PAIRS[pair][2] == 0) { // horizontal pair)
 									numPairsHor++;
 								} else {
 									numPairsVert++;
@@ -3702,9 +3704,9 @@ public class ImageDttCPU {
 										tcorr_combo[TCORR_COMBO_RSLT][i] = 0.0;
 										tcorr_combo[TCORR_COMBO_HOR][i] = 0.0;
 										tcorr_combo[TCORR_COMBO_VERT][i] = 0.0;
-										for (int pair = 0; pair < corr_pairs.length; pair++) if (((corr_mask >> pair) & 1) != 0){
+										for (int pair = 0; pair < CORR_PAIRS.length; pair++) if (((corr_mask >> pair) & 1) != 0){
 											tcorr_combo[TCORR_COMBO_RSLT][i] += avScale*tcorr_partial[pair][numcol][i]; // only composite color channel
-											if (corr_pairs[pair][2] == 0) { // horizontal pair
+											if (CORR_PAIRS[pair][2] == 0) { // horizontal pair
 												tcorr_combo[TCORR_COMBO_HOR][i] +=  avScaleHor*tcorr_partial[pair][numcol][i]; // only composite color channel
 											} else { //vertical pair
 												tcorr_combo[TCORR_COMBO_VERT][i] += avScaleVert*tcorr_partial[pair][numcol][i]; // only composite color channel
@@ -3719,9 +3721,9 @@ public class ImageDttCPU {
 										tcorr_combo[TCORR_COMBO_RSLT][i] = 1.0;
 										tcorr_combo[TCORR_COMBO_HOR][i] =  1.0;
 										tcorr_combo[TCORR_COMBO_VERT][i] = 1.0;
-										for (int pair = 0; pair < corr_pairs.length; pair++) if (((corr_mask >> pair) & 1) != 0){
+										for (int pair = 0; pair < CORR_PAIRS.length; pair++) if (((corr_mask >> pair) & 1) != 0){
 											tcorr_combo[TCORR_COMBO_RSLT][i] *= (tcorr_partial[pair][numcol][i] + corr_offset); // only composite color channel
-											if (corr_pairs[pair][2] == 0) { // horizontal pair
+											if (CORR_PAIRS[pair][2] == 0) { // horizontal pair
 												tcorr_combo[TCORR_COMBO_HOR][i] *= (tcorr_partial[pair][numcol][i] + corr_offset); // only composite color channel
 											} else { //vertical pair
 												tcorr_combo[TCORR_COMBO_VERT][i] *= (tcorr_partial[pair][numcol][i] + corr_offset); // only composite color channel
@@ -3754,7 +3756,7 @@ public class ImageDttCPU {
 								// calculate sum also
 								for (int i = 0; i < tcorr_combo[TCORR_COMBO_SUM].length; i++){
 									tcorr_combo[TCORR_COMBO_SUM][i] = 0.0;
-									for (int pair = 0; pair < corr_pairs.length; pair++) if (((corr_mask >> pair) & 1) != 0){
+									for (int pair = 0; pair < CORR_PAIRS.length; pair++) if (((corr_mask >> pair) & 1) != 0){
 										tcorr_combo[TCORR_COMBO_SUM][i] += avScale*tcorr_partial[pair][numcol][i]; // only composite color channel
 										if (debugMax) {
 											System.out.println("tcorr_combo[TCORR_COMBO_SUM]["+i+"]="+tcorr_combo[TCORR_COMBO_SUM][i]+" tcorr_partial["+pair+"]["+numcol+"]["+i+"]="+tcorr_partial[pair][numcol][i]);
@@ -3785,8 +3787,8 @@ public class ImageDttCPU {
 											fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
 													clt_data[i][ncol][tileY][tileX], // double  [][]  clt_tile,
 //													transform_size,
-													extra_disparity * port_offsets[i][0] / corr_magic_scale,     // double        shiftX,
-													extra_disparity * port_offsets[i][1] / corr_magic_scale,     // double        shiftY,
+													extra_disparity * PORT_OFFSETS[i][0] / corr_magic_scale,     // double        shiftX,
+													extra_disparity * PORT_OFFSETS[i][1] / corr_magic_scale,     // double        shiftY,
 													//									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
 													((globalDebugLevel > 0) && (ncol==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
 															(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
@@ -3902,7 +3904,7 @@ public class ImageDttCPU {
 									ports_rgb, // double []     ports_rgb,      // average values of R,G,B for each camera (R0,R1,...,B2,B3)
 									max_diff,        // maximal (weighted) deviation of each channel from the average
 									lt_window2,      // [256]
-									port_offsets,    // [port]{x_off, y_off}
+									PORT_OFFSETS,    // [port]{x_off, y_off}
 									img_mask,        // which port to use, 0xf - all 4 (will modify as local variable)
 									diff_sigma,      // pixel value/pixel change
 									diff_threshold,  // pixel value/pixel change
@@ -5453,19 +5455,6 @@ public class ImageDttCPU {
 		 *
 		 * T= transp({cc, sc, cs, ss})
 		 */
-		/*
-		final int [][] zi =
-			{{ 0, -1, -2,  3},
-			 { 1,  0, -3, -2},
-			 { 2, -3,  0, -1},
-			 { 3,  2,  1,  0}};
-		*/
-		final int [][] zi =
-			{{ 0,  1,  2,  3},
-			 {-1,  0, -3,  2},
-			 {-2, -3,  0,  1},
-			 { 3, -2, -1,  0}};
-
 		final int dct_len = transform_size * transform_size;
 		final double [][][][] rslt = new double[tilesY][tilesX][4][dct_len];
 		final Thread[] threads = newThreadArray(threadsMax);
@@ -5488,12 +5477,12 @@ public class ImageDttCPU {
 							for (int n = 0; n<4; n++){
 								rslt[tileY][tileX][n][i] = 0;
 								for (int k=0; k<4; k++){
-									if (zi[n][k] < 0)
+									if (ZI[n][k] < 0)
 										rslt[tileY][tileX][n][i] -=
-											data1[tileY][tileX][-zi[n][k]][i] * data2[tileY][tileX][k][i];
+											data1[tileY][tileX][-ZI[n][k]][i] * data2[tileY][tileX][k][i];
 									else
 										rslt[tileY][tileX][n][i] +=
-										data1[tileY][tileX][zi[n][k]][i] * data2[tileY][tileX][k][i];
+										data1[tileY][tileX][ZI[n][k]][i] * data2[tileY][tileX][k][i];
 								}
 								rslt[tileY][tileX][n][i] *= scale;
 							}
@@ -6850,24 +6839,6 @@ public class ImageDttCPU {
 		 *
 		 * T= transp({cc, sc, cs, ss})
 		 */
-		/*
-		final int [][] zi =
-			{{ 0, -1, -2,  3},
-			 { 1,  0, -3, -2},
-			 { 2, -3,  0, -1},
-			 { 3,  2,  1,  0}};
-		final int [][] zi =
-			{{ 0,  1,  2,  3},
-			 {-1,  0, -3,  2},
-			 {-2, -3,  0,  1},
-			 { 3, -2, -1,  0}};
-		 */
-		// opposite sign from correlation
-		final int [][] zi =	{ //
-				{ 0, -1, -2,  3},
-				{ 1,  0, -3, -2},
-				{ 2, -3,  0, -1},
-				{ 3,  2,  1,  0}};
 
 		final int transform_len = transform_size * transform_size;
 		final double [][] rslt = new double[4][transform_len];
@@ -6875,10 +6846,10 @@ public class ImageDttCPU {
 			for (int n = 0; n<4; n++){
 				rslt[n][i] = 0;
 				for (int k=0; k<4; k++){
-					if (zi[n][k] < 0)
-						rslt[n][i] -= data[-zi[n][k]][i] * kernel[k][i];
+					if (ZI[n][k] < 0)
+						rslt[n][i] -= data[-ZI[n][k]][i] * kernel[k][i];
 					else
-						rslt[n][i] += data[ zi[n][k]][i] * kernel[k][i];
+						rslt[n][i] += data[ ZI[n][k]][i] * kernel[k][i];
 				}
 			}
 		}
@@ -7613,25 +7584,7 @@ public class ImageDttCPU {
 			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
-		final int [][] zi =
-			{{ 0,  1,  2,  3},
-			 {-1,  0, -3,  2},
-			 {-2, -3,  0,  1},
-			 { 3, -2, -1,  0}};
-		final int [][] corr_pairs ={ // {first, second, rot} rot: 0 - as is, 1 - swap y,x
-				{0,1,0},
-				{2,3,0},
-				{0,2,1},
-				{1,3,1}};
-
-		final double[][] port_offsets = {
-				{-0.5, -0.5},
-				{ 0.5, -0.5},
-				{-0.5,  0.5},
-				{ 0.5,  0.5}};
 		final int transform_len = transform_size * transform_size;
-
-
 		/*
 		final double [] filter_direct= new double[transform_len];
 		if (corr_sigma == 0) {
@@ -7749,8 +7702,8 @@ public class ImageDttCPU {
 						int                 img_mask = getImgMask(tile_op[tileY][tileX]);         // which images to use
 						int                 corr_mask = getPairMask(tile_op[tileY][tileX]);       // which pairs to combine in the combo:  1 - top, 2 bottom, 4 - left, 8 - right
 						// mask out pairs that use missing channels
-						for (int i = 0; i< corr_pairs.length; i++){
-							if ((((1 << corr_pairs[i][0]) & img_mask) == 0) || (((1 << corr_pairs[i][1]) & img_mask) == 0)) {
+						for (int i = 0; i< CORR_PAIRS.length; i++){
+							if ((((1 << CORR_PAIRS[i][0]) & img_mask) == 0) || (((1 << CORR_PAIRS[i][1]) & img_mask) == 0)) {
 								corr_mask &= ~ (1 << i);
 							}
 						}
@@ -8032,13 +7985,13 @@ public class ImageDttCPU {
 						double extra_disparity = 0.0; // if allowed, shift images extra before trying to combine
 						if (clt_corr_combo != null){ // not null - calculate correlations
 
-							tcorr_tpartial=new double[corr_pairs.length][numcol+1][4][transform_len];
+							tcorr_tpartial=new double[CORR_PAIRS.length][numcol+1][4][transform_len];
 							tcorr_partial =  new double[quad][numcol+1][];
 
-							for (int pair = 0; pair < corr_pairs.length; pair++){
+							for (int pair = 0; pair < CORR_PAIRS.length; pair++){
 								for (int chn = 0; chn <numcol; chn++){
-									double [][] data1 = clt_data[corr_pairs[pair][0]][chn][tileY][tileX];
-									double [][] data2 = clt_data[corr_pairs[pair][1]][chn][tileY][tileX];
+									double [][] data1 = clt_data[CORR_PAIRS[pair][0]][chn][tileY][tileX];
+									double [][] data2 = clt_data[CORR_PAIRS[pair][1]][chn][tileY][tileX];
 									/* for (int i = 0; i < transform_len; i++) {
 									double s1 = 0.0, s2=0.0;
 									for (int n = 0; n< 4; n++){
@@ -8049,12 +8002,12 @@ public class ImageDttCPU {
 									for (int n = 0; n<4; n++){
 										tcorr_tpartial[pair][chn][n][i] = 0;
 										for (int k=0; k<4; k++){
-											if (zi[n][k] < 0)
+											if (ZI[n][k] < 0)
 												tcorr_tpartial[pair][chn][n][i] -=
-														data1[-zi[n][k]][i] * data2[k][i];
+														data1[-ZI[n][k]][i] * data2[k][i];
 											else
 												tcorr_tpartial[pair][chn][n][i] +=
-												data1[zi[n][k]][i] * data2[k][i];
+												data1[ZI[n][k]][i] * data2[k][i];
 										}
 										tcorr_tpartial[pair][chn][n][i] *= scale;
 									}
@@ -8078,12 +8031,12 @@ public class ImageDttCPU {
 									for (int n = 0; n<4; n++){
 										tcorr_tpartial[pair][chn][n][i] = 0;
 										for (int k=0; k<4; k++){
-											if (zi[n][k] < 0)
+											if (ZI[n][k] < 0)
 												tcorr_tpartial[pair][chn][n][i] -=
-														data1[-zi[n][k]][i] * data2[k][i];
+														data1[-ZI[n][k]][i] * data2[k][i];
 											else
 												tcorr_tpartial[pair][chn][n][i] +=
-												data1[zi[n][k]][i] * data2[k][i];
+												data1[ZI[n][k]][i] * data2[k][i];
 										}
 										tcorr_tpartial[pair][chn][n][i] *= scale;
 									}
@@ -8126,7 +8079,7 @@ public class ImageDttCPU {
 											transform_size);
 								}
 								// transpose vertical pairs
-								if (corr_pairs[pair][2] != 0) {
+								if (CORR_PAIRS[pair][2] != 0) {
 									for (int chn = firstColor; chn <= numcol; chn++){
 										for (int i = 0; i < transpose_indices.length; i++) {
 											double d = tcorr_partial[pair][chn][transpose_indices[i][0]];
@@ -8157,9 +8110,9 @@ public class ImageDttCPU {
 							tcorr_combo = new double [TCORR_TITLES.length][corr_size * corr_size];
 
 							int numPairs = 	0, numPairsHor = 0, numPairsVert = 0;
-							for (int pair = 0; pair < corr_pairs.length; pair++) if (((corr_mask >> pair) & 1) != 0){
+							for (int pair = 0; pair < CORR_PAIRS.length; pair++) if (((corr_mask >> pair) & 1) != 0){
 								numPairs++;
-								if (corr_pairs[pair][2] == 0) { // horizontal pair)
+								if (CORR_PAIRS[pair][2] == 0) { // horizontal pair)
 									numPairsHor++;
 								} else {
 									numPairsVert++;
@@ -8168,7 +8121,7 @@ public class ImageDttCPU {
 							double avScale = 0.0, avScaleHor = 0.0, avScaleVert = 0.0;
 							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY)){
 								System.out.println ("Before combining tiles, numcol="+numcol);
-								for (int pair = 0; pair < corr_pairs.length; pair++) if (((corr_mask >> pair) & 1) != 0){
+								for (int pair = 0; pair < CORR_PAIRS.length; pair++) if (((corr_mask >> pair) & 1) != 0){
 									System.out.println("pair # "+pair);
 									for (int i = 0; i < corr_size; i++) {
 										System.out.print(String.format("%2d:", i));
@@ -8194,9 +8147,9 @@ public class ImageDttCPU {
 										tcorr_combo[TCORR_COMBO_RSLT][i] = 0.0;
 										tcorr_combo[TCORR_COMBO_HOR][i] = 0.0;
 										tcorr_combo[TCORR_COMBO_VERT][i] = 0.0;
-										for (int pair = 0; pair < corr_pairs.length; pair++) if (((corr_mask >> pair) & 1) != 0){
+										for (int pair = 0; pair < CORR_PAIRS.length; pair++) if (((corr_mask >> pair) & 1) != 0){
 											tcorr_combo[TCORR_COMBO_RSLT][i] += avScale*tcorr_partial[pair][numcol][i]; // only composite color channel
-											if (corr_pairs[pair][2] == 0) { // horizontal pair
+											if (CORR_PAIRS[pair][2] == 0) { // horizontal pair
 												tcorr_combo[TCORR_COMBO_HOR][i] +=  avScaleHor*tcorr_partial[pair][numcol][i]; // only composite color channel
 											} else { //vertical pair
 												tcorr_combo[TCORR_COMBO_VERT][i] += avScaleVert*tcorr_partial[pair][numcol][i]; // only composite color channel
@@ -8213,9 +8166,9 @@ public class ImageDttCPU {
 										tcorr_combo[TCORR_COMBO_RSLT][i] = 1.0;
 										tcorr_combo[TCORR_COMBO_HOR][i] =  1.0;
 										tcorr_combo[TCORR_COMBO_VERT][i] = 1.0;
-										for (int pair = 0; pair < corr_pairs.length; pair++) if (((corr_mask >> pair) & 1) != 0){
+										for (int pair = 0; pair < CORR_PAIRS.length; pair++) if (((corr_mask >> pair) & 1) != 0){
 											tcorr_combo[TCORR_COMBO_RSLT][i] *= (tcorr_partial[pair][numcol][i] + corr_offset); // only composite color channel
-											if (corr_pairs[pair][2] == 0) { // horizontal pair
+											if (CORR_PAIRS[pair][2] == 0) { // horizontal pair
 												tcorr_combo[TCORR_COMBO_HOR][i] *= (tcorr_partial[pair][numcol][i] + corr_offset); // only composite color channel
 											} else { //vertical pair
 												tcorr_combo[TCORR_COMBO_VERT][i] *= (tcorr_partial[pair][numcol][i] + corr_offset); // only composite color channel
@@ -8264,7 +8217,7 @@ public class ImageDttCPU {
 								// calculate sum also
 								for (int i = 0; i < tcorr_combo[TCORR_COMBO_SUM].length; i++){
 									tcorr_combo[TCORR_COMBO_SUM][i] = 0.0;
-									for (int pair = 0; pair < corr_pairs.length; pair++) if (((corr_mask >> pair) & 1) != 0){
+									for (int pair = 0; pair < CORR_PAIRS.length; pair++) if (((corr_mask >> pair) & 1) != 0){
 										tcorr_combo[TCORR_COMBO_SUM][i] += avScale*tcorr_partial[pair][numcol][i]; // only composite color channel
 										if (debugMax) {
 											System.out.println("tcorr_combo[TCORR_COMBO_SUM]["+i+"]="+tcorr_combo[TCORR_COMBO_SUM][i]+" tcorr_partial["+pair+"]["+numcol+"]["+i+"]="+tcorr_partial[pair][numcol][i]);
@@ -8316,7 +8269,7 @@ public class ImageDttCPU {
 										disparity_map[DISPARITY_INDEX_POLY]         [tIndex] = Double.NaN;
 										disparity_map[DISPARITY_INDEX_POLY+1]       [tIndex] = Double.NaN;
 										if (clt_mismatch != null){
-											for (int pair = 0; pair < corr_pairs.length; pair++) if (((corr_mask >> pair) & 1) != 0){
+											for (int pair = 0; pair < CORR_PAIRS.length; pair++) if (((corr_mask >> pair) & 1) != 0){
 												clt_mismatch[3*pair + 0 ][tIndex] = Double.NaN;
 												clt_mismatch[3*pair + 1 ][tIndex] = Double.NaN;
 												clt_mismatch[3*pair + 2 ][tIndex] = Double.NaN;
@@ -8488,7 +8441,7 @@ public class ImageDttCPU {
 										if (Double.isNaN(extra_disparity)) extra_disparity = 0;
 
 										if (clt_mismatch != null){
-											for (int pair = 0; pair < corr_pairs.length; pair++) if (((corr_mask >> pair) & 1) != 0){
+											for (int pair = 0; pair < CORR_PAIRS.length; pair++) if (((corr_mask >> pair) & 1) != 0){
 												icorr_max =getMaxXYInt( // find integer pair or null if below threshold
 														tcorr_partial[pair][numcol],      // [data_size * data_size]
 														corr_size,
@@ -8508,7 +8461,7 @@ public class ImageDttCPU {
 															debugMax); // should never return null
 													// Only use Y components for pairs 0,1 and X components - for pairs 2,3
 													double yp,xp;
-													if (corr_pairs[pair][2] > 0){ // transpose - switch x <-> y
+													if (CORR_PAIRS[pair][2] > 0){ // transpose - switch x <-> y
 														yp = transform_size - 1 -corr_max_XYmp[0] - disparity_map[DISPARITY_INDEX_CM][tIndex];
 														xp = transform_size - 1 -corr_max_XYmp[1]; // do not compare to average - it should be 0 anyway
 
@@ -8539,8 +8492,8 @@ public class ImageDttCPU {
 										fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
 												clt_data[i][chn][tileY][tileX], // double  [][]  clt_tile,
 //												transform_size,
-												extra_disparity * port_offsets[i][0] / corr_magic_scale,     // double        shiftX,
-												extra_disparity * port_offsets[i][1] / corr_magic_scale,     // double        shiftY,
+												extra_disparity * PORT_OFFSETS[i][0] / corr_magic_scale,     // double        shiftX,
+												extra_disparity * PORT_OFFSETS[i][1] / corr_magic_scale,     // double        shiftY,
 												//									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
 												((globalDebugLevel > 0) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
 														(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
@@ -8632,7 +8585,7 @@ public class ImageDttCPU {
 
 									max_diff,        // maximal (weighted) deviation of each channel from the average
 									lt_window2,      // [256]
-									port_offsets,    // [port]{x_off, y_off}
+									PORT_OFFSETS,    // [port]{x_off, y_off}
 									img_mask,        // which port to use, 0xf - all 4 (will modify as local variable)
 									diff_sigma,      // pixel value/pixel change
 									diff_threshold,  // pixel value/pixel change
@@ -9751,11 +9704,6 @@ public class ImageDttCPU {
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
 
-		final double[][] port_offsets = { // What are these (for textures)
-				{-0.5, -0.5},
-				{ 0.5, -0.5},
-				{-0.5,  0.5},
-				{ 0.5,  0.5}};
 		final double [] filter =  doubleGetCltLpfFd(clt_parameters.getCorrSigma(isMonochrome()));
 		dbg_filter_corr = filter;
 
@@ -10365,7 +10313,7 @@ public class ImageDttCPU {
 									texture_tiles_main,    // final double [][][][]  texture_tiles,   // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
 									lpf_rgb, //null, // filter, //null               // final double []        filter,
 									lt_window2,            // final double []        lt_window2,
-									port_offsets,          // final double[][]       port_offsets,
+									PORT_OFFSETS,          // final double[][]       port_offsets,
 									col_weights,           // final double []        col_weights,
 									dtt,                   // final DttRad2          dtt,
 									tileX,                 // final int              tileX, // only used in debug output
@@ -10387,7 +10335,7 @@ public class ImageDttCPU {
 									texture_tiles_aux,    // final double [][][][]  texture_tiles,   // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
 									lpf_rgb, //  null, // filter,                // final double []        filter,
 									lt_window2,            // final double []        lt_window2,
-									port_offsets,          // final double[][]       port_offsets,
+									PORT_OFFSETS,          // final double[][]       port_offsets,
 									col_weights,           // final double []        col_weights,
 									dtt,                   // final DttRad2          dtt,
 									tileX,                 // final int              tileX, // only used in debug output

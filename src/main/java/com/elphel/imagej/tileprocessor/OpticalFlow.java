@@ -27,6 +27,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
@@ -98,12 +99,353 @@ public class OpticalFlow {
 	}
 
 
+	public double [][] correlation2DToVectors_CM(
+			final double [][] corr2d_tiles, // per 2d calibration tiles (or nulls)
+			final int         transform_size,
+			final int         iradius,      // half-size of the square to process 
+			final double      dradius,      // weight calculation (1/(r/dradius)^2 + 1)
+			final int         refine_num,   // number of iterations to apply weights around new center
+			final int         debug_level)
+	{
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final double [][]   vectors_xys =    new double [corr2d_tiles.length][];
+		final int dbg_mtile = 620; // 453; // 500;
+
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int iMTile = ai.getAndIncrement(); iMTile < corr2d_tiles.length; iMTile = ai.getAndIncrement()) if (corr2d_tiles[iMTile] != null) {
+  						if (iMTile == dbg_mtile) {
+							System.out.println("iMTile = "+iMTile);
+						}
+						vectors_xys[iMTile] = getCorrCenterXYS_CM(
+								corr2d_tiles[iMTile], // double []   corr2d_tile,
+								transform_size,       // int         transform_size,
+								iradius,              // int         iradius,
+								dradius,              // double      dradius,
+								refine_num);          // int         refine_num); 
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return vectors_xys;
+	}
+	
+	public double [] getCorrCenterXYS_CM(
+			double []   corr2d_tile,
+			int         transform_size,
+			int         iradius,
+			double      dradius,
+			int         refine_num) // [2 * iradius + 1][2 * iradius + 1] 
+	{
+		// strength - (maximum - average)/stdev?
+		int corr_size = 2* transform_size - 1;
+		int imax = 0;
+		for (int i = 1; i < corr2d_tile.length; i++) {
+			if (corr2d_tile[i] > corr2d_tile[imax]) {
+				imax = i;
+			}
+		}
+		double xMax = imax % corr_size;
+		double yMax = imax / corr_size;
+		double k2 = 1.0/dradius*dradius;
+		for (int pass = 0; pass < refine_num; pass ++) {
+			int iXMax = (int) Math.floor(xMax);
+			int iYMax = (int) Math.floor(yMax);
+			int iY0 = iYMax - iradius;     if (iY0 < 0) iY0 = 0;
+			int iY1 = iYMax + iradius + 1; if (iY1 >= corr_size) iY1 = corr_size -1;
+			int iX0 = iXMax - iradius;     if (iX0 < 0) iX0 = 0;
+			int iX1 = iXMax + iradius + 1; if (iX1 >= corr_size) iX1 = corr_size -1;
+			double s = 0.0, sx = 0.0, sy = 0.0;
+			for (int iy =  iY0; iy <= iY1; iy++) {
+				double r2y = (iy - yMax)*(iy - yMax); 
+				for (int ix =  iX0; ix <= iX1; ix++) {
+					double d = corr2d_tile[ix + iy * corr_size];
+					double r2 = r2y + (ix - xMax)*(ix - xMax);
+					double w = 1.0/(k2*r2 + 1);
+					double wd = w * d;
+					s += wd;
+					sx += wd * ix;
+					sy += wd * iy;
+				}
+			}
+			xMax = sx/s;
+			yMax = sy/s;
+		}
+		int iYMmax = (int) Math.round(yMax); 
+		int iXMmax = (int) Math.round(xMax); 
+		double dMax = corr2d_tile[iYMmax * corr_size + iXMmax]; // negative
+		double s1=0.0, s2 =0.0;
+		for (int i = 0; i < corr2d_tile.length; i++) {
+			s1 += corr2d_tile[i];
+			s2 += corr2d_tile[i] * corr2d_tile[i];
+		}
+		double avg = s1/corr2d_tile.length;
+		double sd = Math.sqrt(corr2d_tile.length * s2 - s1*s1)/corr2d_tile.length;
+		double strength = (dMax - avg)/sd;
+		
+		return new double [] {xMax - transform_size +1, yMax - transform_size +1, strength};
+	}
+	
+	
+	public double [][] correlate2DSceneToReference(// to match to reference
+			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+			final QuadCLT     scene_QuadClt,
+			final QuadCLT     reference_QuadClt,
+			final double [][][] scene_tiles,     // prepared with prepareSceneTiles()
+			final double [][][] reference_tiles, // prepared with prepareReferenceTiles() + fillTilesNans(); - combine?
+//			final double [][] flowXY,      // per macro tile {mismatch in IMAGE_PIXELS in X and Y directions (pre-shift)
+//			final int combine
+			final double [][] flowXY_frac, // X, YH fractional shift [-0.5,0.5) to implement with FD rotations
+			final double []   chn_weights, // absolute, starting from strength (strength,r,b,g)
+			final double      corr_sigma,
+			final double      fat_zero,
+			final boolean     late_normalize,
+			final double      combine_dradius, // 1 - 3x3, 2 - 5x5
+			final double      tolerance_absolute, // absolute disparity half-range to consolidate tiles
+			final double      tolerance_relative, // relative disparity half-range to consolidate tiles
+			final int         debug_level)
+	// returns per-tile 2-d correlations (15x15)
+	{
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final TileProcessor tp =         reference_QuadClt.getTileProcessor();
+		final int tilesX =               tp.getTilesX();
+		final int tilesY =               tp.getTilesY();
+		final int transform_size =       tp.getTileSize();
+		final int tile_length =          transform_size * transform_size;
+		final int macroTilesX =          tilesX/transform_size;
+		final int macroTilesY =          tilesY/transform_size;
+		final int macroTiles =           macroTilesX * macroTilesY; 
+		
+		final double [][]   corr_tiles =    new double [macroTiles][];
+		final double [][][] corr_tiles_TD = new double [macroTiles][][];
+		
+		final int dbg_mtile = 0; // 203;
+		final int num_channels = chn_weights.length;
+		final int chn_offset = QuadCLT.DSRBG_STRENGTH; // start scene_tiles, reference tiles with this 2-nd index
+		
+//		final int corr_size = transform_size * 2 -1;
+		final ImageDtt image_dtt = new ImageDtt(
+				transform_size,
+				false,
+				false,
+				1.0);
+
+		final double [] filter =     image_dtt.doubleGetCltLpfFd(corr_sigma);
+		final int      combine_radius = (int) Math.floor(combine_dradius); // 1 - 3x3, 2 - 5x5
+		final double [][] rad_weights = new double [2 * combine_radius + 1][2 * combine_radius + 1];
+		for (int dY = -combine_radius; dY <= combine_radius; dY ++) {
+			for (int dX = -combine_radius; dX <= combine_radius; dX ++) {
+				rad_weights[dY + combine_radius][dX + combine_radius] =
+						Math.cos(0.5 * Math.PI * dY / combine_dradius) *
+						Math.cos(0.5 * Math.PI * dX / combine_dradius);
+			}
+		}
+		final double [] avg_disparity_ref =   new double [macroTiles];
+		final double [] avg_disparity_scene = new double [macroTiles];
+		
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					DttRad2 dtt = new DttRad2(transform_size);
+					dtt.set_window(1);
+					double [][][] clt_tiles_ref =   new double [num_channels][4][];
+					double [][][] clt_tiles_scene = new double [num_channels][4][];
+					
+					Correlation2d corr2d = new Correlation2d(
+							imgdtt_params,              // ImageDttParameters  imgdtt_params,
+							transform_size,             // int transform_size,
+							2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
+							false,                      // boolean monochrome,
+							false);                     //   boolean debug)
+					
+					for (int iMTile = ai.getAndIncrement(); iMTile < macroTiles; iMTile = ai.getAndIncrement()) {
+						if (reference_tiles[iMTile] != null) { // to calculate average reference disparity
+							double sw = 0.0, sdw=0.0;
+							double [] disparity = reference_tiles[iMTile][QuadCLT.DSRBG_DISPARITY]; 
+							double [] strength =  reference_tiles[iMTile][QuadCLT.DSRBG_STRENGTH]; 
+							for (int i = 0; i < strength.length; i++) {
+								if (!Double.isNaN(disparity[i]) && (strength[i] > 0.0)) {
+									sw += strength[i];
+									sdw += strength[i]*(disparity[i]);
+								}
+							}
+							if (sw > 0.0) avg_disparity_ref[iMTile] = sdw/sw;
+						}
+						if (scene_tiles[iMTile] != null) { // to calculate average scene disparity
+							double sw = 0.0, sdw=0.0;
+							double [] disparity = scene_tiles[iMTile][QuadCLT.DSRBG_DISPARITY]; 
+							double [] strength =  scene_tiles[iMTile][QuadCLT.DSRBG_STRENGTH]; 
+							for (int i = 0; i < strength.length; i++) {
+								if (!Double.isNaN(disparity[i]) && (strength[i] > 0.0)) {
+									sw += strength[i];
+									sdw += strength[i]*(disparity[i]);
+								}
+							}
+							if (sw > 0.0) avg_disparity_scene[iMTile] = sdw/sw;
+						}
+						if ((scene_tiles[iMTile] != null) && (reference_tiles[iMTile] != null)) {
+							if (iMTile == dbg_mtile) {
+								System.out.println("iMTile = "+iMTile);
+							}
+							// convert reference tile
+							double [][][] fold_coeff_ref = dtt.get_shifted_fold_2d ( // get_shifted_fold_2d(
+									transform_size,
+									0.0,
+									0.0,
+									0); // debug level
+							double [][][] fold_coeff_scene = dtt.get_shifted_fold_2d ( // get_shifted_fold_2d(
+									transform_size,
+									flowXY_frac[iMTile][0],
+									flowXY_frac[iMTile][1],
+									0); // debug level
+							for (int chn = 0; chn < num_channels; chn++) {
+								double [] tile_in_ref =   reference_tiles[iMTile][chn + chn_offset];
+								double [] tile_in_scene = scene_tiles[iMTile][chn + chn_offset];
+								// unfold and convert both reference and scene
+								for (int dct_mode = 0; dct_mode < 4; dct_mode++) {
+									clt_tiles_ref[chn][dct_mode] = dtt.fold_tile (tile_in_ref, transform_size, dct_mode, fold_coeff_ref);
+									clt_tiles_ref[chn][dct_mode] = dtt.dttt_iv   (clt_tiles_ref[chn][dct_mode], dct_mode, transform_size);
+									clt_tiles_scene[chn][dct_mode] = dtt.fold_tile (tile_in_scene, transform_size, dct_mode, fold_coeff_scene);
+									clt_tiles_scene[chn][dct_mode] = dtt.dttt_iv   (clt_tiles_scene[chn][dct_mode], dct_mode, transform_size);
+								}
+								// Apply shift to scene only (reference is not shifted)
+						        image_dtt.fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
+						        		clt_tiles_scene[chn], // double  [][]  clt_tile,
+						        		flowXY_frac[iMTile][0],            // double        shiftX,
+						        		flowXY_frac[iMTile][1],            // double        shiftY,
+						                false); // debug);
+							}
+							if (late_normalize) {
+								corr_tiles_TD[iMTile] = corr2d.correlateCompositeTD( // correlate, do not normalize, stay in TD
+										clt_tiles_ref,   // double [][][] clt_data1,
+										clt_tiles_scene, // double [][][] clt_data2,
+										null,            // double []     lpf,
+										1.0,             // double        scale_value, // scale correlation value
+										chn_weights);    // double []     col_weights_in, // should have the same dimension as clt_data1 and clt_data2
+/*
+								corr2d.normalize_TD(
+										corr_tiles_TD[iMTile],         // double [][] td,
+										filter,          // double []   lpf, // or null
+										fat_zero);       // double      fat_zero);
+
+								//						    	double [] corrs_ortho = corr2d.convertCorrToPD(
+								corr_tiles[iMTile] = corr2d.convertCorrToPD(
+										corr_tiles_TD[iMTile]);     // double [][] td);
+*/										
+							} else {
+								corr_tiles[iMTile] = corr2d.correlateCompositeFD( // 
+										clt_tiles_ref,   // double [][][] clt_data1,
+										clt_tiles_scene, // double [][][] clt_data2,
+										filter,          // double []     lpf,
+										1.0,             // double        scale_value, // scale correlation value
+										chn_weights,     // double []     col_weights_in, // should have the same dimension as clt_data1 and clt_data2
+										fat_zero);       // double        fat_zero)
+
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		
+		if (late_normalize) {
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+//						DttRad2 dtt = new DttRad2(transform_size);
+//						dtt.set_window(1);
+						final TileNeibs tn =  new TileNeibs(macroTilesX, macroTilesY);
+
+						double [][] corr_tile_2D = new double [4][tile_length];
+						Correlation2d corr2d = new Correlation2d(
+								imgdtt_params,              // ImageDttParameters  imgdtt_params,
+								transform_size,             // int transform_size,
+								2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
+								false,                      // boolean monochrome,
+								false);                     //   boolean debug)
+						
+						for (int iMTile = ai.getAndIncrement(); iMTile < macroTiles; iMTile = ai.getAndIncrement()) {
+//							if (((scene_tiles[iMTile] != null) && (reference_tiles[iMTile] != null)) || (combine_radius > 0)) {
+							if ((scene_tiles[iMTile] != null) && (reference_tiles[iMTile] != null)) {
+								if (iMTile == dbg_mtile) {
+									System.out.println("iMTile = "+iMTile);
+								}
+								/*
+								if ((scene_tiles[iMTile] != null) && (reference_tiles[iMTile] != null)) {
+									for (int i = 0; i< 4; i++) {
+										System.arraycopy(corr_tiles_TD[iMTile][i], 0, corr_tile_2D[i], 0, tile_length);
+									}
+									num_tiles
+								}
+								*/
+								if (combine_radius > 0) {
+									for (int q = 0; q< 4; q++) {
+										Arrays.fill(corr_tile_2D[q], 0.0);
+									}
+									double disp_tol = tolerance_absolute + tolerance_relative * avg_disparity_ref[iMTile];
+									double sw = 0;
+//									int num_tiles = 0;
+									int iMX = iMTile % macroTilesX;
+									int iMY = iMTile / macroTilesX;
+									for (int dY = -combine_radius; dY <= combine_radius; dY ++) {
+										for (int dX = -combine_radius; dX <= combine_radius; dX ++) {
+											int indx = tn.getIndex(iMX+dX, iMY + dY);
+											if ((indx >= 0) && (corr_tiles_TD[indx] != null)) {
+												if ((Math.abs(avg_disparity_scene[iMTile] - avg_disparity_ref[iMTile])) <= disp_tol) {
+													double w = rad_weights[dY + combine_radius][dX + combine_radius];
+													for (int q = 0; q < 4; q++) {
+														for (int i = 0; i < tile_length; i++) {
+															corr_tile_2D[q][i] += w * corr_tiles_TD[indx][q][i];
+														}
+													}
+													sw+= w;
+												}
+											}
+										}
+									}
+									if (sw  <= 0.0) {
+										continue; // no non-null tiles around
+									}
+									double a = 1.0/sw;
+									for (int q = 0; q < 4; q++) {
+										for (int i = 0; i < tile_length; i++) {
+											corr_tile_2D[q][i] *= a;
+										}
+									}
+								} else {
+									corr_tile_2D = corr_tiles_TD[iMTile]; // no need to clone, reference OK
+								}
+								corr2d.normalize_TD(
+										corr_tile_2D,         // double [][] td,
+										filter,          // double []   lpf, // or null
+										fat_zero);       // double      fat_zero);
+
+								//						    	double [] corrs_ortho = corr2d.convertCorrToPD(
+								corr_tiles[iMTile] = corr2d.convertCorrToPD(
+										corr_tile_2D);     // double [][] td);
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}
+		
+		return corr_tiles;
+	}
+	
+	
+	
 	public double [][][] prepareSceneTiles(// to match to reference
 			// null for {scene,reference}{xyz,atr} uses instances globals 
 			final double []   scene_xyz,     // camera center in world coordinates
 			final double []   scene_atr,     // camera orientation relative to world frame
-//			final double []   reference_xyz, // camera center in world coordinates
-//			final double []   reference_atr, // camera orientation relative to world frame
 			final QuadCLT     scene_QuadClt,
 			final QuadCLT     reference_QuadClt,
 			final double [][][] reference_tiles, // prepared with prepareReferenceTiles() + fillTilesNans();
@@ -274,7 +616,7 @@ public class OpticalFlow {
 						// use offsX, offsY as fractional shift and for data interpolation
 						if (offsX >= .5) offsX -= 1.0;
 						if (offsY >= .5) offsY -= 1.0;
-						flowXY_frac[iMTile] = new double [] {offsX, offsY};
+						flowXY_frac[iMTile] = new double [] {-offsX, -offsY};
 						double min_tX = Double.NaN, max_tX = Double.NaN, min_tY = Double.NaN, max_tY = Double.NaN;
 						for (int iY = 0; iY < fullTileSize; iY++) {
 							for (int iX = 0; iX < fullTileSize; iX++) {
@@ -534,7 +876,7 @@ public class OpticalFlow {
 			
 			
 			String [] dbg_titles= {"dX","dY"};
-			String dbg_title= "flowXY_frac";
+			String dbg_title= "flowXY_frac"; // TODO: Visualize RMS of individual tiles fitting
 			double [][] dbg_img = new double [2][macroTilesX*macroTilesY];
 			for (int nt =0; nt < flowXY_frac.length; nt++) {
 				if(flowXY_frac[nt] != null) {
@@ -900,25 +1242,61 @@ public class OpticalFlow {
 		
 	}
 	
+	public void showCorrTiles(
+			String title,
+			double [][][] source_tiles,
+			int           tilesX,
+			int           tile_width,
+			int           tile_height) // extra margins over 16x16 tiles to accommodate distorted destination tiles
+	{
+		// show debug image
+		final int dbg_with =   tilesX * (tile_width +1) - 1;
+		final int dbg_height = (source_tiles[0].length / tilesX) * (tile_height +1) - 1;
+		final double [][] dbg_img = new double [source_tiles.length][dbg_with * dbg_height];
+		for (int l = 0; l < dbg_img.length; l++) {
+			Arrays.fill(dbg_img[l],  Double.NaN);
+		}
+		for (int slice = 0; slice < source_tiles.length; slice++) {
+			for (int mtile = 0; mtile < source_tiles[slice].length; mtile++) if (source_tiles[slice][mtile] != null){
+				int mTileY = mtile / tilesX;
+				int mTileX = mtile % tilesX;
+				for (int iY = 0; iY < tile_height; iY++) {
+					int tileY = (tile_height +1) * mTileY + iY;
+					for (int iX = 0; iX < tile_width; iX++) {
+						int tileX = (tile_width +1) * mTileX + iX;
+						dbg_img[slice][tileY * dbg_with + tileX] = source_tiles[slice][mtile][iY * tile_width + iX];
+					}
+				}
+			}
+		}
+//		String [] dsrbg_titles = {"d", "s", "r", "b", "g"};
+		(new ShowDoubleFloatArrays()).showArrays(
+				dbg_img,
+				dbg_with+0,
+				dbg_height,
+				true,
+				title); //	dsrbg_titles);
+	}
 	
 	
 	
 	public double[][][]  get_pair(
+			CLTParameters  clt_parameters,			
 			double k_prev,
-			QuadCLT qthis,
-			QuadCLT qprev,
+			QuadCLT reference_QuadCLT,
+			QuadCLT scene_QuadCLT,
 			double corr_scale, //  = 0.75
 			int debug_level)
 	{
-		TileProcessor tp = qthis.getTileProcessor();
+		TileProcessor tp = reference_QuadCLT.getTileProcessor();
 		final int iscale = 8;
-		double ts =        qthis.getTimeStamp();
+		double ts =        reference_QuadCLT.getTimeStamp();
 		double ts_prev =   ts;
 		double [] camera_xyz0 = ZERO3.clone();
 		double [] camera_atr0 = ZERO3.clone();
 		
-		ErsCorrection ersCorrection = qthis.getErsCorrection();
-		String this_image_name = qthis.getImageName();
+		ErsCorrection ersCorrection = reference_QuadCLT.getErsCorrection();
+		String this_image_name = reference_QuadCLT.getImageName();
 		
 		System.out.println("\n"+this_image_name+":\n"+ersCorrection.extrinsic_corr.toString());
 		System.out.println(String.format("%s: ers_wxyz_center=     %f, %f, %f", this_image_name,
@@ -933,11 +1311,11 @@ public class OpticalFlow {
 				ersCorrection.ers_watr_center_d2t[0], ersCorrection.ers_watr_center_d2t[1],ersCorrection.ers_watr_center_d2t[2] ));
 		
 		double dt = 0.0;
-		if (qprev == null) {
-			qprev = qthis;
+		if (scene_QuadCLT == null) {
+			scene_QuadCLT = reference_QuadCLT;
 		}
-		if (qprev != null) {
-			ts_prev = qprev.getTimeStamp();
+		if (scene_QuadCLT != null) {
+			ts_prev = scene_QuadCLT.getTimeStamp();
 			dt = ts-ts_prev;
 			if (dt < 0) {
 				k_prev = (1.0-k_prev);
@@ -946,7 +1324,7 @@ public class OpticalFlow {
 				k_prev = 0.5;
 				System.out.println("Non-consecutive frames, dt = "+dt);
 			}
-			ErsCorrection ersCorrectionPrev = (ErsCorrection) (qprev.geometryCorrection);
+			ErsCorrection ersCorrectionPrev = (ErsCorrection) (scene_QuadCLT.geometryCorrection);
 			double [] wxyz_center_dt_prev =   ersCorrectionPrev.ers_wxyz_center_dt;
 			double [] watr_center_dt_prev =   ersCorrectionPrev.ers_watr_center_dt;
 			double [] wxyz_delta = new double[3];
@@ -964,12 +1342,12 @@ public class OpticalFlow {
 		String [] dsrbg_titles = {"d", "s", "r", "b", "g"};
 		
 		double [][] dsrbg = transformCameraVew( // shifts previous image correctly (right)
-				qthis,       // reference
-				qprev,       // QuadCLT   camera_QuadClt,
+				reference_QuadCLT,       // reference
+				scene_QuadCLT,       // QuadCLT   camera_QuadClt,
 				camera_xyz0, // double [] camera_xyz, // camera center in world coordinates
 				camera_atr0, //double [] camera_atr, // camera orientation relative to world frame
 				iscale);
-		double [][][] pair = {qthis.getDSRBG(),dsrbg};
+		double [][][] pair = {reference_QuadCLT.getDSRBG(),dsrbg};
 		
 		// combine this scene with warped previous one
 		if (debug_level > 0) {
@@ -981,7 +1359,7 @@ public class OpticalFlow {
 				dbg_rslt[2*i] =   pair[0][i];
 				dbg_rslt[2*i+1] = pair[1][i];
 			}
-			String title = this_image_name+"-"+qprev.image_name+"-dt"+dt;
+			String title = this_image_name+"-"+scene_QuadCLT.image_name+"-dt"+dt;
 			(new ShowDoubleFloatArrays()).showArrays(
 					dbg_rslt,
 					tilesX,
@@ -1001,30 +1379,41 @@ public class OpticalFlow {
 		double      tolerance_relative_inter = 0.2; // relative disparity half-range in each tile
 		double      occupancy_inter =         0.25;   // fraction of remaining  tiles in the center 8x8 area (<1.0)
 
-		
+		// Add limitations on disparity ? To be used with multi-tile consolidation
+		// Check with walkingh, not only rotating
 		double [][][] reference_tiles = prepareReferenceTiles(
-				qthis,        // final QuadCLT     qthis,
+				reference_QuadCLT,        // final QuadCLT     qthis,
 				tolerance_absolute, // final double      tolerance_absolute, // absolute disparity half-range in each tile
 				tolerance_relative, // final double      tolerance_relative, // relative disparity half-range in each tile
 				center_occupancy,   // final double      center_occupancy,   // fraction of remaining  tiles in the center 8x8 area (<1.0)
-				2); // final int         debug_level)
+				1); // -1); // 2); // final int         debug_level)
 		
 		fillTilesNans(
 				reference_tiles,          // final double [][][] nan_tiles,
-				qthis,                 // final QuadCLT     qthis,
+				reference_QuadCLT,                 // final QuadCLT     qthis,
 				num_passes,            // final int         num_passes,
 				max_change,            // final double      max_change,
-				2);                    // final int         debug_level)
+				1); //-1); // 2);                    // final int         debug_level)
 		
 		double [][] flowXY = new double [reference_tiles.length][2]; // zero pre-shifts
 		double [][] flowXY_frac = new double [reference_tiles.length][]; // Will contain fractional X/Y shift for CLT
+		double []   chn_weights = {1.0,1.0,1.0,1.0}; // strength, r,b,g
+		double      corr_sigma = 0.5;
+		double      fat_zero =   0.05;
+		double      frac_radius = 0.9;  // add to integer radius for window calculation
+		double      tolerance_absolute_inter_macro = 0.25; // absolute disparity half-range to consolidate macro tiles
+		double      tolerance_relative_inter_macro = 0.2;  // relative disparity half-range to consolidate macro tiles
+		int         iradius =    3;      // half-size of the square to process 
+		double      dradius =    1.5;      // weight calculation (1/(r/dradius)^2 + 1)
+		int         refine_num = 5;   // number of iterations to apply weights around new center
+
 		
 		double [][][] scene_tiles = prepareSceneTiles(// to match to reference
 				// null for {scene,reference}{xyz,atr} uses instances globals 
 				camera_xyz0,              // final double []   scene_xyz,     // camera center in world coordinates
 				camera_atr0,              // final double []   scene_atr,     // camera orientation relative to world frame
-				qprev,                    // final QuadCLT     scene_QuadClt,
-				qthis,                    // final QuadCLT     reference_QuadClt,
+				scene_QuadCLT,                    // final QuadCLT     scene_QuadClt,
+				reference_QuadCLT,                    // final QuadCLT     reference_QuadClt,
 				reference_tiles,          // final double [][][] reference_tiles, // prepared with prepareReferenceTiles() + fillTilesNans();
 				flowXY,                   // final double [][] flowXY, // per macro tile {mismatch in image pixels in X and Y directions
 				flowXY_frac,              // final double [][] flowXY_frac, // should be initialized as [number of macro tiles][] - returns fractional shifts [-0.5, 0.5)
@@ -1033,8 +1422,99 @@ public class OpticalFlow {
 				occupancy_inter,          // final double      occupancy,          // fraction of remaining  tiles (<1.0)
 				num_passes,               // final int         num_passes,
 				max_change,               // final double      max_change,
-				2);                       // final int         debug_level)
+				1); //-1); // 1); // 2);                       // final int         debug_level)
 		/* */
+		int max_rad = 3;
+		double [][][] corr2dscene_ref_multi = new double [max_rad + 2][][]; 
+//		double [][] corr2dscene_ref_0
+		
+		
+		corr2dscene_ref_multi[0] = correlate2DSceneToReference(// to match to reference
+				clt_parameters.img_dtt, // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+				scene_QuadCLT,          // final QuadCLT     scene_QuadClt,
+				reference_QuadCLT,      // final QuadCLT     reference_QuadClt,
+				scene_tiles,            // final double [][][] scene_tiles,     // prepared with prepareSceneTiles()
+				reference_tiles,        // final double [][][] reference_tiles, // prepared with prepareReferenceTiles() + fillTilesNans(); - combine?
+//				final double [][] flowXY,      // per macro tile {mismatch in IMAGE_PIXELS in X and Y directions (pre-shift)
+				flowXY_frac,            // final double [][] flowXY_frac, // X, YH fractional shift [-0.5,0.5) to implement with FD rotations
+				chn_weights,            // final double []   chn_weights, // absolute, starting from strength (strength,r,b,g)
+				corr_sigma,             // final double      corr_sigma,
+				fat_zero,               //  final double      fat_zero,
+				false, // final boolean     late_normalize,
+				0.0,     // final double      combine_dradius
+				tolerance_absolute_inter_macro, // final double      tolerance_absolute, // absolute disparity half-range to consolidate tiles
+				tolerance_relative_inter_macro, // final double      tolerance_relative, // relative disparity half-range to consolidate tiles
+				-1); // 1); // final int         debug_level)
+		for (int irad = 0; irad <= 3; irad++) {
+//		double [][] corr2dscene_ref_1
+			corr2dscene_ref_multi[irad+1]= correlate2DSceneToReference(// to match to reference
+				clt_parameters.img_dtt, // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+				scene_QuadCLT,          // final QuadCLT     scene_QuadClt,
+				reference_QuadCLT,      // final QuadCLT     reference_QuadClt,
+				scene_tiles,            // final double [][][] scene_tiles,     // prepared with prepareSceneTiles()
+				reference_tiles,        // final double [][][] reference_tiles, // prepared with prepareReferenceTiles() + fillTilesNans(); - combine?
+//				final double [][] flowXY,      // per macro tile {mismatch in IMAGE_PIXELS in X and Y directions (pre-shift)
+				flowXY_frac,            // final double [][] flowXY_frac, // X, YH fractional shift [-0.5,0.5) to implement with FD rotations
+				chn_weights,            // final double []   chn_weights, // absolute, starting from strength (strength,r,b,g)
+				corr_sigma,             // final double      corr_sigma,
+				fat_zero,               //  final double      fat_zero,
+				true, // final boolean     late_normalize,
+				irad + frac_radius,     // final double      combine_dradius
+				tolerance_absolute_inter_macro, // final double      tolerance_absolute, // absolute disparity half-range to consolidate tiles
+				tolerance_relative_inter_macro, // final double      tolerance_relative, // relative disparity half-range to consolidate tiles
+				-1); // 1); // final int         debug_level)
+		}
+		int transform_size = tp.getTileSize();
+		int macroTilesX =          tilesX/transform_size;
+		int macroTilesY =          tilesY/transform_size;
+		
+//		double [][][] multicorrs = new double[][][] {corr2dscene_ref_0, corr2dscene_ref_1};
+		
+		showCorrTiles(
+				"scene:"+scene_QuadCLT.getImageName()+"-ref"+reference_QuadCLT.getImageName(),  //  String title,
+				corr2dscene_ref_multi,           // double [][] source_tiles,
+				tilesX/transform_size,     // int         tilesX,
+				(2 * transform_size - 1),  // int         tile_width,
+				(2 * transform_size - 1)); // int         tile_height) // extra margins over 16x16 tiles to accommodate distorted destination tiles
+		
+		double [][][] vectorsXYS = new double [corr2dscene_ref_multi.length][][];
+		for (int i = 0; i < vectorsXYS.length; i++) {
+			vectorsXYS[i] = correlation2DToVectors_CM(
+					corr2dscene_ref_multi[i], // final double [][] corr2d_tiles, // per 2d calibration tiles (or nulls)
+					transform_size, // final int         transform_size,
+					iradius, // final int         iradius,      // half-size of the square to process 
+					dradius,      // final double      dradius,      // weight calculation (1/(r/dradius)^2 + 1)
+					refine_num,   // final int         refine_num,   // number of iterations to apply weights around new center
+					1); //final int         debug_level)
+		}
+		if (debug_level > -1) {
+			String dbg_title = "dXdYS-"+scene_QuadCLT.getImageName()+"-"+reference_QuadCLT.getImageName();
+			int slices = vectorsXYS.length;
+			String [] dbg_titles = new String[slices * 3];
+			double [][] dbg_img = new double [dbg_titles.length][macroTilesX*macroTilesY];
+			for (int slice = 0; slice < vectorsXYS.length; slice++) {
+				dbg_titles[slice + 0 * slices] = "dX"+slice;
+				dbg_titles[slice + 1 * slices] = "dY"+slice;
+				dbg_titles[slice + 2 * slices] = "S"+slice;
+				Arrays.fill(dbg_img[slice + slices * 0], Double.NaN);
+				Arrays.fill(dbg_img[slice + slices * 1], Double.NaN);
+				Arrays.fill(dbg_img[slice + slices * 2], Double.NaN);
+				for (int i = 0; i < vectorsXYS[slice].length; i++) if (vectorsXYS[slice][i] != null){
+					dbg_img[slice + 0 * slices][i] = vectorsXYS[slice][i][0];
+					dbg_img[slice + 1 * slices][i] = vectorsXYS[slice][i][1];
+					dbg_img[slice + 2 * slices][i] = vectorsXYS[slice][i][2];
+				}
+			}
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_img,
+					macroTilesX,
+					macroTilesY,
+					true,
+					dbg_title,
+					dbg_titles);
+			
+			
+		}
 		return pair;
 	}
 
@@ -1192,6 +1672,7 @@ public class OpticalFlow {
 		}
 		return dsrbg_out;
 	}
+	
 	
 
 }

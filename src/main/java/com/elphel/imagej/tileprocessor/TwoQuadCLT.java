@@ -8297,11 +8297,12 @@ if (debugLevel > -100) return true; // temporarily !
 
 			double [][][] pair_sets =
 					opticalFlow.get_pair(
-					k_prev,
-					quadCLTs[i],
-					qPrev,
-					corr_scale,
-					1); // -1); // int debug_level);
+							clt_parameters, // CLTParameters  clt_parameters,
+							k_prev,
+							quadCLTs[i],
+							qPrev,
+							corr_scale,
+							1); // -1); // int debug_level);
 		}
 
 		/*
