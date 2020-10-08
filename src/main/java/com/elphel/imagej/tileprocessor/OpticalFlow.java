@@ -98,7 +98,206 @@ public class OpticalFlow {
 		System.out.println("fillTilesNans() DONE.");
 	}
 
+	public double [][] correlate2DIterate( // returns optical flow and confidence
+			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+			// for prepareSceneTiles()			
+			final double []   scene_xyz,     // camera center in world coordinates
+			final double []   scene_atr,     // camera orientation relative to world frame
+			final QuadCLT     scene_QuadClt,
+			final QuadCLT     reference_QuadClt,
+			final double [][][] reference_tiles, // prepared with prepareReferenceTiles() + fillTilesNans();
+			// flowXY should be initialized to all pairs of zeros (or deliberate pixel offset pairs if initial error is too high, will be modified with each iteration
+			final double [][] flowXY, // per macro tile {mismatch in image pixels in X and Y directions // initialize to [reference_tiles.length][2]
+			final double      tolerance_absolute, // absolute disparity half-range in each tile
+			final double      tolerance_relative, // relative disparity half-range in each tile
+			final double      occupancy,          // fraction of remaining  tiles (<1.0)
+			final int         num_passes,
+			final double      max_change,
+			// for correlate2DSceneToReference ()
+			final double []   chn_weights, // absolute, starting from strength (strength,r,b,g)
+			final double      corr_sigma,
+			final double      fat_zero,
+			final boolean     late_normalize,
+			// for correlation2DToVectors_CM()
+			final int         iradius,      // half-size of the square to process 
+			final double      dradius,      // weight calculation (1/(r/dradius)^2 + 1)
+			final int         refine_num,   // number of iterations to apply weights around new center
+			
+			final int         num_run_all, // run all tiles for few iterations before filtering
+			final int         max_tries,
+			
+			// for recalculateFlowXY()
+			final double      magic_scale, // 0.85 for CM
+			final double      min_change,
+			
+			final int         debug_level)
+	{
+		final TileProcessor tp =         reference_QuadClt.getTileProcessor();
+		final int transform_size =       tp.getTileSize();
+		final double [][] flowXY_frac = new double [reference_tiles.length][]; // Will contain fractional X/Y shift for CLT
+		double [][] flowXY_run = flowXY; // only non-nulls for the tiles to correlate
+		final double []   abs_change = new double [reference_tiles.length]; // updated 
+		Arrays.fill(abs_change, Double.NaN);
+		for (int ntry = 0; ntry < max_tries; ntry++) {
+			double [][][] scene_tiles = prepareSceneTiles(// to match to reference
+					// null for {scene,reference}{xyz,atr} uses instances globals 
+					scene_xyz,                // final double []   scene_xyz,     // camera center in world coordinates
+					scene_atr,                // final double []   scene_atr,     // camera orientation relative to world frame
+					scene_QuadClt,            // final QuadCLT     scene_QuadClt,
+					reference_QuadClt,        // final QuadCLT     reference_QuadClt,
+					reference_tiles,          // final double [][][] reference_tiles, // prepared with prepareReferenceTiles() + fillTilesNans();
+					flowXY_run,               // final double [][] flowXY, // per macro tile {mismatch in image pixels in X and Y directions
+					flowXY_frac,              // final double [][] flowXY_frac, // should be initialized as [number of macro tiles][] - returns fractional shifts [-0.5, 0.5)
+					tolerance_absolute,       // final double      tolerance_absolute, // absolute disparity half-range in each tile
+					tolerance_absolute,       // final double      tolerance_relative, // relative disparity half-range in each tile
+					tolerance_relative,       // final double      occupancy,          // fraction of remaining  tiles (<1.0)
+					num_passes,               // final int         num_passes,
+					max_change,               // final double      max_change,
+					-1); //-1); // 1); // 2);                       // final int         debug_level)
+			double [][] corr2dscene_ref = correlate2DSceneToReference(// to match to reference
+					imgdtt_params, // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+					scene_QuadClt,          // final QuadCLT     scene_QuadClt,
+					reference_QuadClt,      // final QuadCLT     reference_QuadClt,
+					scene_tiles,            // final double [][][] scene_tiles,     // prepared with prepareSceneTiles()
+					reference_tiles,        // final double [][][] reference_tiles, // prepared with prepareReferenceTiles() + fillTilesNans(); - combine?
+					flowXY_frac,            // final double [][] flowXY_frac, // X, YH fractional shift [-0.5,0.5) to implement with FD rotations
+					chn_weights,            // final double []   chn_weights, // absolute, starting from strength (strength,r,b,g)
+					corr_sigma,             // final double      corr_sigma,
+					fat_zero,               // final double      fat_zero,
+					late_normalize,         // final boolean     late_normalize,
+					false,                  // final boolean     combine_empty_only, // only use neighbor correlations for empty tiles (false - any)
+					0.0,                    // final double      combine_dradius
+					0.0,                    // final double      tolerance_absolute, // absolute disparity half-range to consolidate tiles
+					0.0,                    // final double      tolerance_relative, // relative disparity half-range to consolidate tiles
+					-1); // 1); // final int         debug_level)
+			double [][] vectorsXYS = correlation2DToVectors_CM(
+					corr2dscene_ref,        // final double [][] corr2d_tiles, // per 2d calibration tiles (or nulls)
+					transform_size,         // final int         transform_size,
+					iradius,                // final int         iradius,      // half-size of the square to process 
+					dradius,                // final double      dradius,      // weight calculation (1/(r/dradius)^2 + 1)
+					refine_num,             // final int         refine_num,   // number of iterations to apply weights around new center
+					-1);                    //final int         debug_level)			
+			flowXY_run = recalculateFlowXY(
+					flowXY,                     // final double [][] flowXY, // will update
+					vectorsXYS,                 // final double [][] corr_vectorsXY,
+					abs_change,                 // final double []   abs_change, // updated 
+					magic_scale/transform_size, // final double      magic_scale, // 0.85 for CM
+					((ntry < num_run_all)? 0.0: min_change), // final double      min_change,
+					1);                         // final int         debug_level);
+			if (flowXY_run == null) { // nothing to do left
+				break; 
+			}
+		}
+		return flowXY; // it is also in input arguments
+	}
+	
+	
+	
+	
+	double [][] recalculateFlowXY(
+			final double [][] currentFlowXY,
+			final double [][] corr_vectorsXY,
+			final double      magic_scale) // 0.85 for CM
+	{
+		
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final double [][]   flowXY =  new double [currentFlowXY.length][];
+		final int dbg_mtile = 620; // 453; // 500;
+		final double rmagic_scale = 1.0/magic_scale;
 
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int iMTile = ai.getAndIncrement(); iMTile < currentFlowXY.length; iMTile = ai.getAndIncrement())
+						if ((currentFlowXY[iMTile] != null) && (corr_vectorsXY[iMTile] != null)){
+  						if (iMTile == dbg_mtile) {
+							System.out.println("iMTile = "+iMTile);
+						}
+  						flowXY[iMTile]= new double[] {
+  								currentFlowXY[iMTile][0] + rmagic_scale * corr_vectorsXY[iMTile][0],
+  								currentFlowXY[iMTile][1] + rmagic_scale * corr_vectorsXY[iMTile][1]};
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return flowXY;
+	}
+	/**
+	 * Recalculate optical flow vector (in image pixels)
+	 * @param flowXY current per-tile vectors (null for undefined), updated
+	 * @param corr_vectorsXY correction vector from correlation to apply
+	 * @param abs_change absolute value of last coordinate change for each tile
+	 * @param magic_scale divide correlation vector (typically 0.85/8 for CM argmax) 
+	 * @param min_change minimal vector coordinate difference to repeat correlations
+	 * @param debug_level if > 0; print number of tiles to correlate
+	 * @return flowXY vectors only for tiles to be updated or null if no tiles left
+	 */
+	double [][] recalculateFlowXY(
+			final double [][] flowXY, // will update
+			final double [][] corr_vectorsXY,
+			final double []   abs_change, // updated 
+			final double      magic_scale, // 0.85 for CM
+			final double      min_change,
+			final int         debug_level)  
+	{
+		
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final double [][]   flowXY_task =  new double [flowXY.length][];
+		final int dbg_mtile = 620; // 453; // 500;
+		final double rmagic_scale = 1.0/magic_scale;
+		final AtomicInteger aupdate = new AtomicInteger(0); //number of tiles to recalculate 
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int iMTile = ai.getAndIncrement(); iMTile < flowXY.length; iMTile = ai.getAndIncrement()) {
+  						if (iMTile == dbg_mtile) {
+							System.out.println("iMTile = "+iMTile);
+						}
+  						if (flowXY[iMTile] != null){
+  							if (corr_vectorsXY[iMTile] == null) {
+  								if (min_change <= 0.0) {
+  									flowXY_task[iMTile] = flowXY[iMTile];
+  									abs_change[iMTile] = Double.NaN;
+  									aupdate.getAndIncrement();
+  								}
+  							} else { // if (corr_vectorsXY[iMTile] == null)
+  								double dx = rmagic_scale * corr_vectorsXY[iMTile][0];
+  								double dy = rmagic_scale * corr_vectorsXY[iMTile][1];
+  								// apply correction in any case
+  								flowXY[iMTile][0] += dx;
+  								flowXY[iMTile][1] += dy;
+  								
+  								double new_diff = Math.sqrt(dx*dx + dy*dy);
+  								double last_change = abs_change[iMTile]; // may be NaN;
+  								abs_change[iMTile] = new_diff; 
+  								if (!(new_diff > last_change) && (new_diff > min_change)) { // not worse (any value are not worse than NaN) and larger than threshold
+  									flowXY_task[iMTile] = flowXY[iMTile]; // set to measure
+  									aupdate.getAndIncrement();
+  								}
+  							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		if (debug_level > 0) {
+			System.out.println("recalculateFlowXY(): tiles to correlate: "+aupdate.get());
+		}
+		if (aupdate.get() > 0) {
+			return flowXY_task;
+		} else {
+			return null; // nothing to measure left
+		}
+	}
+	
+	
+	
+	
+	
 	public double [][] correlation2DToVectors_CM(
 			final double [][] corr2d_tiles, // per 2d calibration tiles (or nulls)
 			final int         transform_size,
@@ -196,13 +395,13 @@ public class OpticalFlow {
 			final QuadCLT     reference_QuadClt,
 			final double [][][] scene_tiles,     // prepared with prepareSceneTiles()
 			final double [][][] reference_tiles, // prepared with prepareReferenceTiles() + fillTilesNans(); - combine?
-//			final double [][] flowXY,      // per macro tile {mismatch in IMAGE_PIXELS in X and Y directions (pre-shift)
-//			final int combine
 			final double [][] flowXY_frac, // X, YH fractional shift [-0.5,0.5) to implement with FD rotations
 			final double []   chn_weights, // absolute, starting from strength (strength,r,b,g)
 			final double      corr_sigma,
 			final double      fat_zero,
 			final boolean     late_normalize,
+			final boolean     combine_empty_only, // only use neighbor correlations for empty corr tiles (false - any)
+			// reference tile should still be defined
 			final double      combine_dradius, // 1 - 3x3, 2 - 5x5
 			final double      tolerance_absolute, // absolute disparity half-range to consolidate tiles
 			final double      tolerance_relative, // relative disparity half-range to consolidate tiles
@@ -369,22 +568,15 @@ public class OpticalFlow {
 								2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
 								false,                      // boolean monochrome,
 								false);                     //   boolean debug)
-						
-						for (int iMTile = ai.getAndIncrement(); iMTile < macroTiles; iMTile = ai.getAndIncrement()) {
+						// reference tile should not be null, scene = may be
+						for (int iMTile = ai.getAndIncrement(); iMTile < macroTiles; iMTile = ai.getAndIncrement()) if (reference_tiles[iMTile] != null){ 
 //							if (((scene_tiles[iMTile] != null) && (reference_tiles[iMTile] != null)) || (combine_radius > 0)) {
-							if ((scene_tiles[iMTile] != null) && (reference_tiles[iMTile] != null)) {
+//							if ((scene_tiles[iMTile] != null) && (reference_tiles[iMTile] != null)) {
+							if (true) { // !combine_empty_only  || (corr_tiles_TD[iMTile] == null)) {
 								if (iMTile == dbg_mtile) {
 									System.out.println("iMTile = "+iMTile);
 								}
-								/*
-								if ((scene_tiles[iMTile] != null) && (reference_tiles[iMTile] != null)) {
-									for (int i = 0; i< 4; i++) {
-										System.arraycopy(corr_tiles_TD[iMTile][i], 0, corr_tile_2D[i], 0, tile_length);
-									}
-									num_tiles
-								}
-								*/
-								if (combine_radius > 0) {
+								if ((combine_radius > 0) && (!combine_empty_only  || (corr_tiles_TD[iMTile] == null))) { // 
 									for (int q = 0; q< 4; q++) {
 										Arrays.fill(corr_tile_2D[q], 0.0);
 									}
@@ -488,364 +680,346 @@ public class OpticalFlow {
 		double wdiag = 0.25 *diagonal_weight / (diagonal_weight + 1.0);
 		double wortho = 0.25 / (diagonal_weight + 1.0);
 		final double [] neibw = {wortho, wdiag, wortho, wdiag, wortho, wdiag, wortho, wdiag}; 
-		final int dbg_mtile = 453; // 500;
+		final int dbg_mtile = 54; // 453; // 500;
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				public void run() {
-//					double [][] pXpYD = new double [fullTileLen][];
+					//					double [][] pXpYD = new double [fullTileLen][];
 					double [][] tXtYD = new double [fullTileLen][]; // measured in tiles, not pixels (disparity - still pixels)
-					for (int iMTile = ai.getAndIncrement(); iMTile < reference_tiles.length; iMTile = ai.getAndIncrement()) if (reference_tiles[iMTile] != null){
-						if (iMTile == dbg_mtile) {
-							System.out.println("iMTile = "+iMTile);
-						}
-						int mtileY = iMTile / macroTilesX; 
-						int mtileX = iMTile % macroTilesX;
-						int tY0 = mtileY * transform_size + macroY0 -transform_size/2 - margin;
-						int tX0 = mtileX * transform_size + macroX0 -transform_size/2 - margin;
-//						Arrays.fill(pXpYD, null);
-						Arrays.fill(tXtYD, null);
-						for (int iY = 0; iY < fullTileSize; iY++) {
-							int tileY = tY0 + iY;
-							if ((tileY >= 0) && (tileY < tilesY)) {
-								for (int iX = 0; iX < fullTileSize; iX++) {
-									int tileX = tX0 + iX;
-									if ((tileX >= 0) && (tileX < tilesX)) {
-//										int nTile = tileX + tileY * tilesX;
-										int iTile = iX + iY * fullTileSize;
-										
-										double disparity = reference_tiles[iMTile][QuadCLT.DSRBG_DISPARITY][iTile];
-										if (disparity < 0) {
-											disparity = 0.0; // is it needed or should it work with negative too?
-										}
-										double centerX = tileX * transform_size + transform_size/2; //  - shiftX;
-										double centerY = tileY * transform_size + transform_size/2; //  - shiftY;
-										if (!Double.isNaN(disparity)) {
-											double [] xyd = ers_reference.getImageCoordinatesERS(
-													scene_QuadClt, // QuadCLT cameraQuadCLT, // camera station that got image to be to be matched 
-													centerX,        // double px,                // pixel coordinate X in this camera view
-													centerY,        //double py,                // pixel coordinate Y in this camera view
-													disparity,      // double disparity,         // this view disparity 
-													true,           // boolean distortedView,    // This camera view is distorted (diff.rect), false - rectilinear
-													ZERO3,          // double [] reference_xyz,  // this view position in world coordinates (typically ZERO3)
-													ZERO3,          // double [] reference_atr,  // this view orientation relative to world frame  (typically ZERO3)
-													true,           // boolean distortedCamera,  // camera view is distorted (false - rectilinear)
-													scene_xyz,     // double [] camera_xyz,     // camera center in world coordinates
-													scene_atr,     // double [] camera_atr,     // camera orientation relative to world frame
-													LINE_ERR);       // double    LINE_ERR)       // threshold error in scan lines (1.0)
-											if (xyd != null) {
-												tXtYD[iTile] = new double [] {
-														((xyd[0] + flowXY[iMTile][0])/transform_size),
-														((xyd[1] + flowXY[iMTile][0])/transform_size),
-														xyd[2]};
+					for (int iMTile = ai.getAndIncrement(); iMTile < reference_tiles.length; iMTile = ai.getAndIncrement())
+						if ((reference_tiles[iMTile] != null) && (flowXY[iMTile] != null)){
+							if (iMTile == dbg_mtile) {
+								System.out.println("iMTile = "+iMTile);
+							}
+							int mtileY = iMTile / macroTilesX; 
+							int mtileX = iMTile % macroTilesX;
+							int tY0 = mtileY * transform_size + macroY0 -transform_size/2 - margin;
+							int tX0 = mtileX * transform_size + macroX0 -transform_size/2 - margin;
+							//						Arrays.fill(pXpYD, null);
+							Arrays.fill(tXtYD, null);
+							for (int iY = 0; iY < fullTileSize; iY++) {
+								int tileY = tY0 + iY;
+								if ((tileY >= 0) && (tileY < tilesY)) {
+									for (int iX = 0; iX < fullTileSize; iX++) {
+										int tileX = tX0 + iX;
+										if ((tileX >= 0) && (tileX < tilesX)) {
+											//										int nTile = tileX + tileY * tilesX;
+											int iTile = iX + iY * fullTileSize;
+
+											double disparity = reference_tiles[iMTile][QuadCLT.DSRBG_DISPARITY][iTile];
+											if (disparity < 0) {
+												disparity = 0.0; // is it needed or should it work with negative too?
+											}
+											double centerX = tileX * transform_size + transform_size/2; //  - shiftX;
+											double centerY = tileY * transform_size + transform_size/2; //  - shiftY;
+											if (!Double.isNaN(disparity)) {
+												double [] xyd = ers_reference.getImageCoordinatesERS(
+														scene_QuadClt, // QuadCLT cameraQuadCLT, // camera station that got image to be to be matched 
+														centerX,        // double px,                // pixel coordinate X in this camera view
+														centerY,        //double py,                // pixel coordinate Y in this camera view
+														disparity,      // double disparity,         // this view disparity 
+														true,           // boolean distortedView,    // This camera view is distorted (diff.rect), false - rectilinear
+														ZERO3,          // double [] reference_xyz,  // this view position in world coordinates (typically ZERO3)
+														ZERO3,          // double [] reference_atr,  // this view orientation relative to world frame  (typically ZERO3)
+														true,           // boolean distortedCamera,  // camera view is distorted (false - rectilinear)
+														scene_xyz,     // double [] camera_xyz,     // camera center in world coordinates
+														scene_atr,     // double [] camera_atr,     // camera orientation relative to world frame
+														LINE_ERR);       // double    LINE_ERR)       // threshold error in scan lines (1.0)
+												if (xyd != null) {
+													tXtYD[iTile] = new double [] {
+															((xyd[0] + flowXY[iMTile][0])/transform_size),
+															((xyd[1] + flowXY[iMTile][1])/transform_size),
+															xyd[2]};
+												} else {
+													tXtYD[iTile] = null;
+												}
 											} else {
 												tXtYD[iTile] = null;
 											}
-										} else {
-											tXtYD[iTile] = null;
 										}
 									}
 								}
 							}
-						}
-						if ((debug_level>1) && (iMTile == dbg_mtile)) {
-							String [] dbg_titles= {"tX","tY","disp"};
-							String dbg_title= "tXtYD-MX"+mtileX+"_MY"+mtileY;
-							double [][] dbg_img = new double [3][fullTileLen];
-							for (int nt =0; nt < fullTileLen; nt++) {
-								if(tXtYD[nt] != null) {
-									for (int i=0; i < dbg_img.length; i++) dbg_img[i][nt] = tXtYD[nt][i];
-								} else {
-									for (int i=0; i < dbg_img.length; i++) dbg_img[i][nt] = Double.NaN;
-								}
-							}
-							(new ShowDoubleFloatArrays()).showArrays(
-									dbg_img,
-									fullTileSize,
-									fullTileSize,
-									true,
-									dbg_title,
-									dbg_titles);
-						}
-						
-						// Find best fractional pixel offset
-						double [] hist_fx = new double [hist_len];
-						double [] hist_fy = new double [hist_len];
-						for (int iY = 0; iY < fullTileSize; iY++) if (hist_weights[iY] > 0.0){
-							for (int iX = 0; iX < fullTileSize; iX++) if (hist_weights[iX] > 0.0){
-								int iTile = iX + iY * fullTileSize;
-								if (tXtYD[iTile] != null) {
-									int hidx = (int) Math.floor((tXtYD[iTile][0] - Math.floor(tXtYD[iTile][0])) * hist_len);
-									if (hidx < 0) hidx = 0; 
-									else if (hidx >= hist_len) hidx = hist_len - 1;
-									hist_fx[hidx] += hist_weights[iX];
-									int hidy = (int) Math.floor((tXtYD[iTile][1] - Math.floor(tXtYD[iTile][1])) * hist_len);
-									if (hidy < 0) hidy = 0; 
-									else if (hidy >= hist_len) hidy = hist_len - 1;
-									hist_fy[hidy] += hist_weights[iY];
-								}
-							}
-						}
-						int hist_fx_mx = 0;
-						int hist_fy_mx = 0;
-						for (int i = 1; i < hist_len; i++) {
-							if (hist_fx[i] > hist_fx[hist_fx_mx]) hist_fx_mx = i;
-							if (hist_fy[i] > hist_fy[hist_fy_mx]) hist_fy_mx = i;
-						}
-						double offsX = (0.5 + hist_fx_mx) / hist_len;
-						double offsY = (0.5 + hist_fy_mx) / hist_len;
-						double swx = 0.0, swy = 0.0, sx =  0.0, sy = 0.0;
-						for (int iY = 0; iY < fullTileSize; iY++) {
-							for (int iX = 0; iX < fullTileSize; iX++) {
-								int iTile = iX + iY * fullTileSize;
-								if (tXtYD[iTile] != null) {
-									double wx = hist_weights[iX];
-									double wy = hist_weights[iX];
-									double dx = tXtYD[iTile][0] - offsX;
-									double dy = tXtYD[iTile][1] - offsY;
-									dx = dx - Math.round(dx);
-									dy = dy - Math.round(dy);
-									swx += wx;
-									swy += wy;
-									sx += wx * dx;
-									sy += wy * dy;
-								}
-							}
-						}
-						offsX += sx/swx;
-						offsY += sy/swy;
-						// use offsX, offsY as fractional shift and for data interpolation
-						if (offsX >= .5) offsX -= 1.0;
-						if (offsY >= .5) offsY -= 1.0;
-						flowXY_frac[iMTile] = new double [] {-offsX, -offsY};
-						double min_tX = Double.NaN, max_tX = Double.NaN, min_tY = Double.NaN, max_tY = Double.NaN;
-						for (int iY = 0; iY < fullTileSize; iY++) {
-							for (int iX = 0; iX < fullTileSize; iX++) {
-								int iTile = iX + iY * fullTileSize;
-								if (tXtYD[iTile] != null) {
-									tXtYD[iTile][0]-=offsX;
-									tXtYD[iTile][1]-=offsY;
-									if (Double.isNaN(min_tX)) {
-										min_tX =tXtYD[iTile][0]; 
-										min_tY =tXtYD[iTile][1];
-										max_tX = min_tX;
-										max_tY = min_tY;
+							if ((debug_level>1) && (iMTile == dbg_mtile)) {
+								String [] dbg_titles= {"tX","tY","disp"};
+								String dbg_title= "tXtYD-MX"+mtileX+"_MY"+mtileY;
+								double [][] dbg_img = new double [3][fullTileLen];
+								for (int nt =0; nt < fullTileLen; nt++) {
+									if(tXtYD[nt] != null) {
+										for (int i=0; i < dbg_img.length; i++) dbg_img[i][nt] = tXtYD[nt][i];
+									} else {
+										for (int i=0; i < dbg_img.length; i++) dbg_img[i][nt] = Double.NaN;
 									}
-									if (min_tX > tXtYD[iTile][0]) min_tX = tXtYD[iTile][0];
-									if (min_tY > tXtYD[iTile][1]) min_tY = tXtYD[iTile][1];
-									if (max_tX < tXtYD[iTile][0]) max_tX = tXtYD[iTile][0];
-									if (max_tY < tXtYD[iTile][1]) max_tY = tXtYD[iTile][1];
+								}
+								(new ShowDoubleFloatArrays()).showArrays(
+										dbg_img,
+										fullTileSize,
+										fullTileSize,
+										true,
+										dbg_title,
+										dbg_titles);
+							}
+
+							// Find best fractional pixel offset
+							double [] hist_fx = new double [hist_len];
+							double [] hist_fy = new double [hist_len];
+							for (int iY = 0; iY < fullTileSize; iY++) if (hist_weights[iY] > 0.0){
+								for (int iX = 0; iX < fullTileSize; iX++) if (hist_weights[iX] > 0.0){
+									int iTile = iX + iY * fullTileSize;
+									if (tXtYD[iTile] != null) {
+										int hidx = (int) Math.floor((tXtYD[iTile][0] - Math.floor(tXtYD[iTile][0])) * hist_len);
+										if (hidx < 0) hidx = 0; 
+										else if (hidx >= hist_len) hidx = hist_len - 1;
+										hist_fx[hidx] += hist_weights[iX];
+										int hidy = (int) Math.floor((tXtYD[iTile][1] - Math.floor(tXtYD[iTile][1])) * hist_len);
+										if (hidy < 0) hidy = 0; 
+										else if (hidy >= hist_len) hidy = hist_len - 1;
+										hist_fy[hidy] += hist_weights[iY];
+									}
 								}
 							}
-						}
-						int imin_tX = (int) Math.floor(min_tX);
-						int imin_tY = (int) Math.floor(min_tY);
-						int imax_tX = (int) Math.ceil (max_tX);
-						int imax_tY = (int) Math.ceil (max_tY);
-						// See if at least some of fits into the frame
-						if ((imin_tX >= tilesX) || (imin_tY >= tilesY) || (imax_tX < 0)  || (imax_tX < 0)) {
-							continue; // no overlap at all
-						}
-						int iwidth =  imax_tX - imin_tX + 1;
-						int iheight = imax_tY - imin_tY + 1;
-						double [][] scene_slices = new double [dsrbg_scene.length][iwidth*iheight];
-						for (int iY = 0; iY < iheight; iY++) {
-							int tY = imin_tY + iY;
-							if ((tY >= 0) && (tY < tilesY)) {
-								for (int iX = 0; iX < iwidth; iX++) {
-									int tX = imin_tX + iX;
-									if ((tX >= 0) && (tX < tilesX)) {
-										int iTile = iX + iY * iwidth;
-										int tile = tX + tilesX * tY;
-										if (dsrbg_scene[QuadCLT.DSRBG_STRENGTH][tile] > 0.0) {
-											double d = dsrbg_scene[QuadCLT.DSRBG_DISPARITY][tile];
-											scene_slices[QuadCLT.DSRBG_DISPARITY][iTile] = d;
-											if (!Double.isNaN(d)) {
-												scene_slices[QuadCLT.DSRBG_STRENGTH][iTile] = dsrbg_scene[QuadCLT.DSRBG_STRENGTH][tile];
-											}
+							int hist_fx_mx = 0;
+							int hist_fy_mx = 0;
+							for (int i = 1; i < hist_len; i++) {
+								if (hist_fx[i] > hist_fx[hist_fx_mx]) hist_fx_mx = i;
+								if (hist_fy[i] > hist_fy[hist_fy_mx]) hist_fy_mx = i;
+							}
+							double offsX = (0.5 + hist_fx_mx) / hist_len;
+							double offsY = (0.5 + hist_fy_mx) / hist_len;
+							double swx = 0.0, swy = 0.0, sx =  0.0, sy = 0.0;
+							for (int iY = 0; iY < fullTileSize; iY++) {
+								for (int iX = 0; iX < fullTileSize; iX++) {
+									int iTile = iX + iY * fullTileSize;
+									if (tXtYD[iTile] != null) {
+										double wx = hist_weights[iX];
+										double wy = hist_weights[iX];
+										double dx = tXtYD[iTile][0] - offsX;
+										double dy = tXtYD[iTile][1] - offsY;
+										dx = dx - Math.round(dx);
+										dy = dy - Math.round(dy);
+										swx += wx;
+										swy += wy;
+										sx += wx * dx;
+										sy += wy * dy;
+									}
+								}
+							}
+							offsX += sx/swx;
+							offsY += sy/swy;
+							// use offsX, offsY as fractional shift and for data interpolation
+							if (offsX >= .5) offsX -= 1.0;
+							if (offsY >= .5) offsY -= 1.0;
+							flowXY_frac[iMTile] = new double [] {-offsX, -offsY};
+							double min_tX = Double.NaN, max_tX = Double.NaN, min_tY = Double.NaN, max_tY = Double.NaN;
+							for (int iY = 0; iY < fullTileSize; iY++) {
+								for (int iX = 0; iX < fullTileSize; iX++) {
+									int iTile = iX + iY * fullTileSize;
+									if (tXtYD[iTile] != null) {
+										tXtYD[iTile][0]-=offsX;
+										tXtYD[iTile][1]-=offsY;
+										if (Double.isNaN(min_tX)) {
+											min_tX =tXtYD[iTile][0]; 
+											min_tY =tXtYD[iTile][1];
+											max_tX = min_tX;
+											max_tY = min_tY;
 										}
+										if (min_tX > tXtYD[iTile][0]) min_tX = tXtYD[iTile][0];
+										if (min_tY > tXtYD[iTile][1]) min_tY = tXtYD[iTile][1];
+										if (max_tX < tXtYD[iTile][0]) max_tX = tXtYD[iTile][0];
+										if (max_tY < tXtYD[iTile][1]) max_tY = tXtYD[iTile][1];
 									}
 								}
 							}
-						}
-						if ((debug_level>1) && (iMTile == dbg_mtile)) {
-							String [] dbg_titles= {"d","s","r","b","g"};
-							String dbg_title= "before_disparity-MX"+mtileX+"_MY"+mtileY;
-							(new ShowDoubleFloatArrays()).showArrays(
-									scene_slices,
-									iwidth,
-									iheight,
-									true,
-									dbg_title,
-									dbg_titles);
-						}
-						// filter by disparity - 1 tile around rounded
-						final TileNeibs tn =  new TileNeibs(iwidth, iheight);
-						for (int iY = 0; iY < fullTileSize; iY++) {
-							for (int iX = 0; iX < fullTileSize; iX++) {
-								int iTile = iX + iY * fullTileSize;
-								if (tXtYD[iTile] != null) {
-									double disp_tolerance = tolerance_absolute + tXtYD[iTile][2] * tolerance_relative;
-									double disp_min = tXtYD[iTile][2] - disp_tolerance;
-									double disp_max = tXtYD[iTile][2] + disp_tolerance;
-									int nt = tn.getIndex(
-											(int) Math.round(tXtYD[iTile][0]) - imin_tX,
-											(int) Math.round(tXtYD[iTile][1]) - imin_tY);
-									if (nt >= 0) { // should always be
-										for (int dir = 0; dir <9; dir++) {
-											int nt1 = tn.getNeibIndex(nt, dir);
-											if ((nt1 >= 0) && (scene_slices[QuadCLT.DSRBG_STRENGTH][nt1] > 0.0)) {
-												if (    (scene_slices[QuadCLT.DSRBG_DISPARITY][nt1] < disp_min) ||
-														(scene_slices[QuadCLT.DSRBG_DISPARITY][nt1] > disp_max)) {
-													scene_slices[QuadCLT.DSRBG_STRENGTH][nt1] = 0.0; // disable tile
+							int imin_tX = (int) Math.floor(min_tX);
+							int imin_tY = (int) Math.floor(min_tY);
+							int imax_tX = (int) Math.ceil (max_tX);
+							int imax_tY = (int) Math.ceil (max_tY);
+							// See if at least some of fits into the frame
+							if ((imin_tX >= tilesX) || (imin_tY >= tilesY) || (imax_tX < 0)  || (imax_tX < 0)) {
+								continue; // no overlap at all
+							}
+							int iwidth =  imax_tX - imin_tX + 1;
+							int iheight = imax_tY - imin_tY + 1;
+							double [][] scene_slices = new double [dsrbg_scene.length][iwidth*iheight];
+							for (int iY = 0; iY < iheight; iY++) {
+								int tY = imin_tY + iY;
+								if ((tY >= 0) && (tY < tilesY)) {
+									for (int iX = 0; iX < iwidth; iX++) {
+										int tX = imin_tX + iX;
+										if ((tX >= 0) && (tX < tilesX)) {
+											int iTile = iX + iY * iwidth;
+											int tile = tX + tilesX * tY;
+											if (dsrbg_scene[QuadCLT.DSRBG_STRENGTH][tile] > 0.0) {
+												double d = dsrbg_scene[QuadCLT.DSRBG_DISPARITY][tile];
+												scene_slices[QuadCLT.DSRBG_DISPARITY][iTile] = d;
+												if (!Double.isNaN(d)) {
+													scene_slices[QuadCLT.DSRBG_STRENGTH][iTile] = dsrbg_scene[QuadCLT.DSRBG_STRENGTH][tile];
 												}
 											}
 										}
 									}
 								}
 							}
-						}
-						if ((debug_level>1) && (iMTile == dbg_mtile)) {
-							String [] dbg_titles= {"d","s","r","b","g"};
-							String dbg_title= "after_disparity-MX"+mtileX+"_MY"+mtileY;
-							(new ShowDoubleFloatArrays()).showArrays(
-									scene_slices,
-									iwidth,
-									iheight,
-									true,
-									dbg_title,
-									dbg_titles);
-						}
-						
-						// copy rest of the data (all but strength) where strength > 0
-						for (int iY = 0; iY < iheight; iY++) {
-							int tY = imin_tY + iY;
-							if ((tY >= 0) && (tY < tilesY)) {
-								for (int iX = 0; iX < iwidth; iX++) {
-									int tX = imin_tX + iX;
-									if ((tX >= 0) && (tX < tilesX)) {
-										int iTile = iX + iY * iwidth;
-										int tile = tX + tilesX * tY;
-										if (scene_slices[QuadCLT.DSRBG_STRENGTH][iTile] > 0.0) {
-											for (int i = 0; i < scene_slices.length; i++) if (i != QuadCLT.DSRBG_STRENGTH) {
-												scene_slices[i][iTile] = dsrbg_scene[i][tile];
+							if ((debug_level>1) && (iMTile == dbg_mtile)) {
+								String [] dbg_titles= {"d","s","r","b","g"};
+								String dbg_title= "before_disparity-MX"+mtileX+"_MY"+mtileY;
+								(new ShowDoubleFloatArrays()).showArrays(
+										scene_slices,
+										iwidth,
+										iheight,
+										true,
+										dbg_title,
+										dbg_titles);
+							}
+							// filter by disparity - 1 tile around rounded
+							final TileNeibs tn =  new TileNeibs(iwidth, iheight);
+							for (int iY = 0; iY < fullTileSize; iY++) {
+								for (int iX = 0; iX < fullTileSize; iX++) {
+									int iTile = iX + iY * fullTileSize;
+									if (tXtYD[iTile] != null) {
+										double disp_tolerance = tolerance_absolute + tXtYD[iTile][2] * tolerance_relative;
+										double disp_min = tXtYD[iTile][2] - disp_tolerance;
+										double disp_max = tXtYD[iTile][2] + disp_tolerance;
+										int nt = tn.getIndex(
+												(int) Math.round(tXtYD[iTile][0]) - imin_tX,
+												(int) Math.round(tXtYD[iTile][1]) - imin_tY);
+										if (nt >= 0) { // should always be
+											for (int dir = 0; dir <9; dir++) {
+												int nt1 = tn.getNeibIndex(nt, dir);
+												if ((nt1 >= 0) && (scene_slices[QuadCLT.DSRBG_STRENGTH][nt1] > 0.0)) {
+													if (    (scene_slices[QuadCLT.DSRBG_DISPARITY][nt1] < disp_min) ||
+															(scene_slices[QuadCLT.DSRBG_DISPARITY][nt1] > disp_max)) {
+														scene_slices[QuadCLT.DSRBG_STRENGTH][nt1] = 0.0; // disable tile
+													}
+												}
 											}
 										}
 									}
 								}
 							}
-						}
-						if ((debug_level>1) && (iMTile == dbg_mtile)) {
-							String [] dbg_titles= {"d","s","r","b","g"};
-							String dbg_title= "scene1-MX"+mtileX+"_MY"+mtileY;
-							(new ShowDoubleFloatArrays()).showArrays(
-									scene_slices,
-									iwidth,
-									iheight,
-									true,
-									dbg_title,
-									dbg_titles);
-						}
-						
-						// set NAN everywhere where strength is 0 (including border tiles
-						int num_dead = 0;
-						for (int iTile = 0; iTile < scene_slices[0].length; iTile++) {
-							if (scene_slices[QuadCLT.DSRBG_STRENGTH][iTile] <=0.0) {
-								for (int i = 0; i < scene_slices.length; i++) {
-									scene_slices[i][iTile] = Double.NaN;
-								}
-								num_dead++;
-							}
-						}
-						if ((debug_level>1) && (iMTile == dbg_mtile)) {
-							System.out.println("scene2-MX"+mtileX+"_MY"+mtileY+" num_dead="+num_dead);
-							String [] dbg_titles= {"d","s","r","b","g"};
-							String dbg_title= "scene2-MX"+mtileX+"_MY"+mtileY;
-							(new ShowDoubleFloatArrays()).showArrays(
-									scene_slices,
-									iwidth,
-									iheight,
-									true,
-									dbg_title,
-									dbg_titles);
-						}
-						
-						
-						//center_occupancy -> all occupancy						
-						double fract_active = 1.0*(scene_slices[0].length - num_dead)/scene_slices[0].length; // all tiles, not center
-						if (fract_active < occupancy) {
-							flowXY_frac[iMTile] = null;
-							continue;
-						}
-						// Here need to fill NaNs, then
-						
-						tilesFillNaN(
-								neibw,        // final double []   neibw,
-								scene_slices, // final double [][] slices,
-								num_passes,   // final int         num_passes,
-								max_change,   // final double      max_change,
-								iwidth);      // final int         width
-						
-						if ((debug_level>1) && (iMTile == dbg_mtile)) {
-							String [] dbg_titles= {"d","s","r","b","g"};
-							String dbg_title= "scene3NaN-MX"+mtileX+"_MY"+mtileY;
-							(new ShowDoubleFloatArrays()).showArrays(
-									scene_slices,
-									iwidth,
-									iheight,
-									true,
-									dbg_title,
-									dbg_titles);
-						}
-						
-// bi-linear interpolate						
-						double [][] scene_mapped = new double [dsrbg_scene.length][fullTileLen];
-						boolean need_nan_filter = false;;
-						for (int iY = 0; iY < fullTileSize; iY++) {
-							for (int iX = 0; iX < fullTileSize; iX++) {
-								int iTile = iX + iY * fullTileSize;
-								if (tXtYD[iTile] != null) {
-									int itX = (int) Math.floor(tXtYD[iTile][0]);
-									int itY = (int) Math.floor(tXtYD[iTile][1]);
-									double kX = tXtYD[iTile][0]-itX;
-									double kY = tXtYD[iTile][1]-itY;
-									itX -= imin_tX; // relative to scene_slices = new double [dsrbg_scene.length][iwidth*iheight];
-									itY -= imin_tY; // relative to scene_slices = new double [dsrbg_scene.length][iwidth*iheight];
-									int indx = itX + itY * iwidth; 
-									for (int i = 0; i < scene_mapped.length; i++) {
-										scene_mapped[i][iTile] = 
-												(1.0 - kY) * ((1.0-kX) * scene_slices[i][indx] +          kX * scene_slices[i][indx +          1])+
-												(      kY) * ((1.0-kX) * scene_slices[i][indx + iwidth] + kX * scene_slices[i][indx + iwidth + 1]);
-									}									
-								} else {
-									for (int i = 0; i < scene_mapped.length; i++) {
-										scene_mapped[i][iTile] = Double.NaN; // will need to filter?
-									}
-									need_nan_filter=true;
-								}
-							}
-						}
-						if ((debug_level>1) && (iMTile == dbg_mtile)) {
-							String [] dbg_titles= {"d","s","r","b","g"};
-							String dbg_title= "mapped-MX"+mtileX+"_MY"+mtileY;
-							(new ShowDoubleFloatArrays()).showArrays(
-									scene_mapped,
-									fullTileSize,
-									fullTileSize,
-									true,
-									dbg_title,
-									dbg_titles);
-						}
-						
-						if (need_nan_filter) {
-							tilesFillNaN(
-									neibw,         // final double []   neibw,
-									scene_mapped,  // final double [][] slices,
-									num_passes,    // final int         num_passes,
-									max_change,    // final double      max_change,
-									fullTileSize); // final int         width
 							if ((debug_level>1) && (iMTile == dbg_mtile)) {
 								String [] dbg_titles= {"d","s","r","b","g"};
-								String dbg_title= "mappedNaN-MX"+mtileX+"_MY"+mtileY;
+								String dbg_title= "after_disparity-MX"+mtileX+"_MY"+mtileY;
+								(new ShowDoubleFloatArrays()).showArrays(
+										scene_slices,
+										iwidth,
+										iheight,
+										true,
+										dbg_title,
+										dbg_titles);
+							}
+
+							// copy rest of the data (all but strength) where strength > 0
+							for (int iY = 0; iY < iheight; iY++) {
+								int tY = imin_tY + iY;
+								if ((tY >= 0) && (tY < tilesY)) {
+									for (int iX = 0; iX < iwidth; iX++) {
+										int tX = imin_tX + iX;
+										if ((tX >= 0) && (tX < tilesX)) {
+											int iTile = iX + iY * iwidth;
+											int tile = tX + tilesX * tY;
+											if (scene_slices[QuadCLT.DSRBG_STRENGTH][iTile] > 0.0) {
+												for (int i = 0; i < scene_slices.length; i++) if (i != QuadCLT.DSRBG_STRENGTH) {
+													scene_slices[i][iTile] = dsrbg_scene[i][tile];
+												}
+											}
+										}
+									}
+								}
+							}
+							if ((debug_level>1) && (iMTile == dbg_mtile)) {
+								String [] dbg_titles= {"d","s","r","b","g"};
+								String dbg_title= "scene1-MX"+mtileX+"_MY"+mtileY;
+								(new ShowDoubleFloatArrays()).showArrays(
+										scene_slices,
+										iwidth,
+										iheight,
+										true,
+										dbg_title,
+										dbg_titles);
+							}
+
+							// set NAN everywhere where strength is 0 (including border tiles
+							int num_dead = 0;
+							for (int iTile = 0; iTile < scene_slices[0].length; iTile++) {
+								if (scene_slices[QuadCLT.DSRBG_STRENGTH][iTile] <=0.0) {
+									for (int i = 0; i < scene_slices.length; i++) {
+										scene_slices[i][iTile] = Double.NaN;
+									}
+									num_dead++;
+								}
+							}
+							if ((debug_level>1) && (iMTile == dbg_mtile)) {
+								System.out.println("scene2-MX"+mtileX+"_MY"+mtileY+" num_dead="+num_dead);
+								String [] dbg_titles= {"d","s","r","b","g"};
+								String dbg_title= "scene2-MX"+mtileX+"_MY"+mtileY;
+								(new ShowDoubleFloatArrays()).showArrays(
+										scene_slices,
+										iwidth,
+										iheight,
+										true,
+										dbg_title,
+										dbg_titles);
+							}
+
+
+							//center_occupancy -> all occupancy						
+							double fract_active = 1.0*(scene_slices[0].length - num_dead)/scene_slices[0].length; // all tiles, not center
+							if (fract_active < occupancy) {
+								flowXY_frac[iMTile] = null;
+								continue;
+							}
+							// Here need to fill NaNs, then
+
+							tilesFillNaN(
+									neibw,        // final double []   neibw,
+									scene_slices, // final double [][] slices,
+									num_passes,   // final int         num_passes,
+									max_change,   // final double      max_change,
+									iwidth);      // final int         width
+
+							if ((debug_level>1) && (iMTile == dbg_mtile)) {
+								String [] dbg_titles= {"d","s","r","b","g"};
+								String dbg_title= "scene3NaN-MX"+mtileX+"_MY"+mtileY;
+								(new ShowDoubleFloatArrays()).showArrays(
+										scene_slices,
+										iwidth,
+										iheight,
+										true,
+										dbg_title,
+										dbg_titles);
+							}
+
+							// bi-linear interpolate						
+							double [][] scene_mapped = new double [dsrbg_scene.length][fullTileLen];
+							boolean need_nan_filter = false;;
+							for (int iY = 0; iY < fullTileSize; iY++) {
+								for (int iX = 0; iX < fullTileSize; iX++) {
+									int iTile = iX + iY * fullTileSize;
+									if (tXtYD[iTile] != null) {
+										int itX = (int) Math.floor(tXtYD[iTile][0]);
+										int itY = (int) Math.floor(tXtYD[iTile][1]);
+										double kX = tXtYD[iTile][0]-itX;
+										double kY = tXtYD[iTile][1]-itY;
+										itX -= imin_tX; // relative to scene_slices = new double [dsrbg_scene.length][iwidth*iheight];
+										itY -= imin_tY; // relative to scene_slices = new double [dsrbg_scene.length][iwidth*iheight];
+										int indx = itX + itY * iwidth; 
+										for (int i = 0; i < scene_mapped.length; i++) {
+											scene_mapped[i][iTile] = 
+													(1.0 - kY) * ((1.0-kX) * scene_slices[i][indx] +          kX * scene_slices[i][indx +          1])+
+													(      kY) * ((1.0-kX) * scene_slices[i][indx + iwidth] + kX * scene_slices[i][indx + iwidth + 1]);
+										}									
+									} else {
+										for (int i = 0; i < scene_mapped.length; i++) {
+											scene_mapped[i][iTile] = Double.NaN; // will need to filter?
+										}
+										need_nan_filter=true;
+									}
+								}
+							}
+							if ((debug_level>1) && (iMTile == dbg_mtile)) {
+								String [] dbg_titles= {"d","s","r","b","g"};
+								String dbg_title= "mapped-MX"+mtileX+"_MY"+mtileY;
 								(new ShowDoubleFloatArrays()).showArrays(
 										scene_mapped,
 										fullTileSize,
@@ -854,10 +1028,29 @@ public class OpticalFlow {
 										dbg_title,
 										dbg_titles);
 							}
-							
+
+							if (need_nan_filter) {
+								tilesFillNaN(
+										neibw,         // final double []   neibw,
+										scene_mapped,  // final double [][] slices,
+										num_passes,    // final int         num_passes,
+										max_change,    // final double      max_change,
+										fullTileSize); // final int         width
+								if ((debug_level>1) && (iMTile == dbg_mtile)) {
+									String [] dbg_titles= {"d","s","r","b","g"};
+									String dbg_title= "mappedNaN-MX"+mtileX+"_MY"+mtileY;
+									(new ShowDoubleFloatArrays()).showArrays(
+											scene_mapped,
+											fullTileSize,
+											fullTileSize,
+											true,
+											dbg_title,
+											dbg_titles);
+								}
+
+							}
+							scene_tiles[iMTile] = scene_mapped;
 						}
-						scene_tiles[iMTile] = scene_mapped;
-					}
 				}
 			};
 		}		      
@@ -1398,6 +1591,9 @@ public class OpticalFlow {
 		double [][] flowXY = new double [reference_tiles.length][2]; // zero pre-shifts
 		double [][] flowXY_frac = new double [reference_tiles.length][]; // Will contain fractional X/Y shift for CLT
 		double []   chn_weights = {1.0,1.0,1.0,1.0}; // strength, r,b,g
+//		double []   chn_weights = {1.0,0.0,0.0,0.0}; // strength, r,b,g
+//		double []   chn_weights = {0.0,1.0,1.0,1.0}; // strength, r,b,g
+		// Apply DOG to colors, normalize by standard deviation?
 		double      corr_sigma = 0.5;
 		double      fat_zero =   0.05;
 		double      frac_radius = 0.9;  // add to integer radius for window calculation
@@ -1406,7 +1602,78 @@ public class OpticalFlow {
 		int         iradius =    3;      // half-size of the square to process 
 		double      dradius =    1.5;      // weight calculation (1/(r/dradius)^2 + 1)
 		int         refine_num = 5;   // number of iterations to apply weights around new center
+		int max_rad = 3;
+		boolean combine_empty_only = true; // false;
+		double magic_scale = 0.85;
 
+		boolean late_normalize_iterate = true;
+		
+		int          num_run_all = 2; // run all tiles for few iterations before filtering
+		int          max_tries =  100;
+		
+		// for recalculateFlowXY()
+		double      min_change = 0.001;//   sqrt (dx*dx + dy*dy) for correction (int tiles)
+		
+//		double []   abs_change = new double [reference_tiles.length]; // updated 
+		int         debug_level_iterate = 1;
+
+		int transform_size = tp.getTileSize();
+		int macroTilesX =          tilesX/transform_size;
+		int macroTilesY =          tilesY/transform_size;
+		
+//		public double [][] 
+		correlate2DIterate( // returns optical flow and confidence
+				clt_parameters.img_dtt, // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+				// for prepareSceneTiles()			
+				camera_xyz0,              // final double []   scene_xyz,     // camera center in world coordinates
+				camera_atr0,              // final double []   scene_atr,     // camera orientation relative to world frame
+				scene_QuadCLT,                    // final QuadCLT     scene_QuadClt,
+				reference_QuadCLT,                    // final QuadCLT     reference_QuadClt,
+				reference_tiles,          // final double [][][] reference_tiles, // prepared with prepareReferenceTiles() + fillTilesNans();
+				// flowXY should be initialized to all pairs of zeros (or deliberate pixel offset pairs if initial error is too high, will be modified with each iteration
+				flowXY,                   // final double [][] flowXY, // per macro tile {mismatch in image pixels in X and Y directions // initialize to [reference_tiles.length][2]
+				tolerance_absolute_inter, // final double      tolerance_absolute, // absolute disparity half-range in each tile
+				tolerance_relative_inter, // final double      tolerance_relative, // relative disparity half-range in each tile
+				occupancy_inter,          // final double      occupancy,          // fraction of remaining  tiles (<1.0)
+				num_passes,               // final int         num_passes,
+				max_change,               // final double      max_change,
+				// for correlate2DSceneToReference ()
+				chn_weights,              // final double []   chn_weights, // absolute, starting from strength (strength,r,b,g)
+				corr_sigma,               // final double      corr_sigma,
+				fat_zero,                 //  final double      fat_zero,
+				late_normalize_iterate,   // final boolean     late_normalize,
+				// for correlation2DToVectors_CM()
+				iradius,                  // final int         iradius,      // half-size of the square to process 
+				dradius,                  // final double      dradius,      // weight calculation (1/(r/dradius)^2 + 1)
+				refine_num,               // final int         refine_num,   // number of iterations to apply weights around new center
+				num_run_all,              // final int         num_run_all, // run all tiles for few iterations before filtering
+				max_tries,                // final int         max_tries,
+				// for recalculateFlowXY()
+//				abs_change,               // final double []   abs_change, // updated 
+				magic_scale,              // final double      magic_scale, // 0.85 for CM
+				min_change,               // final double      min_change,
+				debug_level_iterate);     // final int         debug_level)
+		
+		if (debug_level > -1) {
+			String dbg_title = "dXdY-"+scene_QuadCLT.getImageName()+"-"+reference_QuadCLT.getImageName();
+			String [] dbg_titles = {"dpX", "dpY"};
+			double [][] dbg_img = new double [dbg_titles.length][macroTilesX*macroTilesY];
+				Arrays.fill(dbg_img[0], Double.NaN);
+				Arrays.fill(dbg_img[1], Double.NaN);
+				for (int i = 0; i < flowXY.length; i++) if (flowXY[i] != null){
+					dbg_img[0][i] = flowXY[i][0];
+					dbg_img[1][i] = flowXY[i][1];
+				}
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_img,
+					macroTilesX,
+					macroTilesY,
+					true,
+					dbg_title,
+					dbg_titles);
+		}
+		
+		
 		
 		double [][][] scene_tiles = prepareSceneTiles(// to match to reference
 				// null for {scene,reference}{xyz,atr} uses instances globals 
@@ -1424,10 +1691,7 @@ public class OpticalFlow {
 				max_change,               // final double      max_change,
 				1); //-1); // 1); // 2);                       // final int         debug_level)
 		/* */
-		int max_rad = 3;
 		double [][][] corr2dscene_ref_multi = new double [max_rad + 2][][]; 
-//		double [][] corr2dscene_ref_0
-		
 		
 		corr2dscene_ref_multi[0] = correlate2DSceneToReference(// to match to reference
 				clt_parameters.img_dtt, // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
@@ -1440,35 +1704,31 @@ public class OpticalFlow {
 				chn_weights,            // final double []   chn_weights, // absolute, starting from strength (strength,r,b,g)
 				corr_sigma,             // final double      corr_sigma,
 				fat_zero,               //  final double      fat_zero,
-				false, // final boolean     late_normalize,
+				false,                  // final boolean     late_normalize,
+				combine_empty_only,     //  final boolean     combine_empty_only, // only use neighbor correlations for empty tiles (false - any)
 				0.0,     // final double      combine_dradius
 				tolerance_absolute_inter_macro, // final double      tolerance_absolute, // absolute disparity half-range to consolidate tiles
 				tolerance_relative_inter_macro, // final double      tolerance_relative, // relative disparity half-range to consolidate tiles
 				-1); // 1); // final int         debug_level)
+
 		for (int irad = 0; irad <= 3; irad++) {
-//		double [][] corr2dscene_ref_1
 			corr2dscene_ref_multi[irad+1]= correlate2DSceneToReference(// to match to reference
 				clt_parameters.img_dtt, // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 				scene_QuadCLT,          // final QuadCLT     scene_QuadClt,
 				reference_QuadCLT,      // final QuadCLT     reference_QuadClt,
 				scene_tiles,            // final double [][][] scene_tiles,     // prepared with prepareSceneTiles()
 				reference_tiles,        // final double [][][] reference_tiles, // prepared with prepareReferenceTiles() + fillTilesNans(); - combine?
-//				final double [][] flowXY,      // per macro tile {mismatch in IMAGE_PIXELS in X and Y directions (pre-shift)
 				flowXY_frac,            // final double [][] flowXY_frac, // X, YH fractional shift [-0.5,0.5) to implement with FD rotations
 				chn_weights,            // final double []   chn_weights, // absolute, starting from strength (strength,r,b,g)
 				corr_sigma,             // final double      corr_sigma,
 				fat_zero,               //  final double      fat_zero,
-				true, // final boolean     late_normalize,
+				true,                   // final boolean     late_normalize,
+				combine_empty_only,     //  final boolean     combine_empty_only, // only use neighbor correlations for empty tiles (false - any)
 				irad + frac_radius,     // final double      combine_dradius
 				tolerance_absolute_inter_macro, // final double      tolerance_absolute, // absolute disparity half-range to consolidate tiles
 				tolerance_relative_inter_macro, // final double      tolerance_relative, // relative disparity half-range to consolidate tiles
 				-1); // 1); // final int         debug_level)
 		}
-		int transform_size = tp.getTileSize();
-		int macroTilesX =          tilesX/transform_size;
-		int macroTilesY =          tilesY/transform_size;
-		
-//		double [][][] multicorrs = new double[][][] {corr2dscene_ref_0, corr2dscene_ref_1};
 		
 		showCorrTiles(
 				"scene:"+scene_QuadCLT.getImageName()+"-ref"+reference_QuadCLT.getImageName(),  //  String title,
@@ -1477,44 +1737,173 @@ public class OpticalFlow {
 				(2 * transform_size - 1),  // int         tile_width,
 				(2 * transform_size - 1)); // int         tile_height) // extra margins over 16x16 tiles to accommodate distorted destination tiles
 		
-		double [][][] vectorsXYS = new double [corr2dscene_ref_multi.length][][];
-		for (int i = 0; i < vectorsXYS.length; i++) {
-			vectorsXYS[i] = correlation2DToVectors_CM(
-					corr2dscene_ref_multi[i], // final double [][] corr2d_tiles, // per 2d calibration tiles (or nulls)
-					transform_size, // final int         transform_size,
-					iradius, // final int         iradius,      // half-size of the square to process 
-					dradius,      // final double      dradius,      // weight calculation (1/(r/dradius)^2 + 1)
-					refine_num,   // final int         refine_num,   // number of iterations to apply weights around new center
-					1); //final int         debug_level)
-		}
-		if (debug_level > -1) {
-			String dbg_title = "dXdYS-"+scene_QuadCLT.getImageName()+"-"+reference_QuadCLT.getImageName();
-			int slices = vectorsXYS.length;
-			String [] dbg_titles = new String[slices * 3];
-			double [][] dbg_img = new double [dbg_titles.length][macroTilesX*macroTilesY];
-			for (int slice = 0; slice < vectorsXYS.length; slice++) {
-				dbg_titles[slice + 0 * slices] = "dX"+slice;
-				dbg_titles[slice + 1 * slices] = "dY"+slice;
-				dbg_titles[slice + 2 * slices] = "S"+slice;
-				Arrays.fill(dbg_img[slice + slices * 0], Double.NaN);
-				Arrays.fill(dbg_img[slice + slices * 1], Double.NaN);
-				Arrays.fill(dbg_img[slice + slices * 2], Double.NaN);
-				for (int i = 0; i < vectorsXYS[slice].length; i++) if (vectorsXYS[slice][i] != null){
-					dbg_img[slice + 0 * slices][i] = vectorsXYS[slice][i][0];
-					dbg_img[slice + 1 * slices][i] = vectorsXYS[slice][i][1];
-					dbg_img[slice + 2 * slices][i] = vectorsXYS[slice][i][2];
-				}
+		
+		if (debug_level > 100) {
+			double [][][] vectorsXYS = new double [corr2dscene_ref_multi.length][][];
+			for (int i = 0; i < vectorsXYS.length; i++) {
+				vectorsXYS[i] = correlation2DToVectors_CM(
+						corr2dscene_ref_multi[i], // final double [][] corr2d_tiles, // per 2d calibration tiles (or nulls)
+						transform_size, // final int         transform_size,
+						iradius, // final int         iradius,      // half-size of the square to process 
+						dradius,      // final double      dradius,      // weight calculation (1/(r/dradius)^2 + 1)
+						refine_num,   // final int         refine_num,   // number of iterations to apply weights around new center
+						1); //final int         debug_level)
 			}
-			(new ShowDoubleFloatArrays()).showArrays(
-					dbg_img,
-					macroTilesX,
-					macroTilesY,
-					true,
-					dbg_title,
-					dbg_titles);
-			
-			
+			if (debug_level > -1) {
+				String dbg_title = "dXdYS-"+scene_QuadCLT.getImageName()+"-"+reference_QuadCLT.getImageName();
+				int slices = vectorsXYS.length;
+				String [] dbg_titles = new String[slices * 3];
+				double [][] dbg_img = new double [dbg_titles.length][macroTilesX*macroTilesY];
+				for (int slice = 0; slice < vectorsXYS.length; slice++) {
+					dbg_titles[slice + 0 * slices] = "dX"+slice;
+					dbg_titles[slice + 1 * slices] = "dY"+slice;
+					dbg_titles[slice + 2 * slices] = "S"+slice;
+					Arrays.fill(dbg_img[slice + slices * 0], Double.NaN);
+					Arrays.fill(dbg_img[slice + slices * 1], Double.NaN);
+					Arrays.fill(dbg_img[slice + slices * 2], Double.NaN);
+					for (int i = 0; i < vectorsXYS[slice].length; i++) if (vectorsXYS[slice][i] != null){
+						dbg_img[slice + 0 * slices][i] = vectorsXYS[slice][i][0];
+						dbg_img[slice + 1 * slices][i] = vectorsXYS[slice][i][1];
+						dbg_img[slice + 2 * slices][i] = vectorsXYS[slice][i][2];
+					}
+				}
+				(new ShowDoubleFloatArrays()).showArrays(
+						dbg_img,
+						macroTilesX,
+						macroTilesY,
+						true,
+						dbg_title,
+						dbg_titles);
+
+
+			}
+			int selected_index = 1; // single, post-norm
+			double [][] flowXY1 = recalculateFlowXY(
+					flowXY, // final double [][] currentFlowXY,
+					vectorsXYS[selected_index], // final double [][] corr_vectorsXY,
+					magic_scale/transform_size); // final double      magic_scale) // 0.85 for CM
+
+			double [][][] scene_tiles1 = prepareSceneTiles(// to match to reference
+					// null for {scene,reference}{xyz,atr} uses instances globals 
+					camera_xyz0,              // final double []   scene_xyz,     // camera center in world coordinates
+					camera_atr0,              // final double []   scene_atr,     // camera orientation relative to world frame
+					scene_QuadCLT,                    // final QuadCLT     scene_QuadClt,
+					reference_QuadCLT,                    // final QuadCLT     reference_QuadClt,
+					reference_tiles,          // final double [][][] reference_tiles, // prepared with prepareReferenceTiles() + fillTilesNans();
+					flowXY1,                  // final double [][] flowXY, // per macro tile {mismatch in image pixels in X and Y directions
+					flowXY_frac,              // final double [][] flowXY_frac, // should be initialized as [number of macro tiles][] - returns fractional shifts [-0.5, 0.5)
+					tolerance_absolute_inter, // final double      tolerance_absolute, // absolute disparity half-range in each tile
+					tolerance_relative_inter, // final double      tolerance_relative, // relative disparity half-range in each tile
+					occupancy_inter,          // final double      occupancy,          // fraction of remaining  tiles (<1.0)
+					num_passes,               // final int         num_passes,
+					max_change,               // final double      max_change,
+					1); //-1); // 1); // 2);                       // final int         debug_level)
+
+			// single, late
+			corr2dscene_ref_multi[0] = correlate2DSceneToReference(// to match to reference
+					clt_parameters.img_dtt, // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+					scene_QuadCLT,          // final QuadCLT     scene_QuadClt,
+					reference_QuadCLT,      // final QuadCLT     reference_QuadClt,
+					scene_tiles1,            // final double [][][] scene_tiles,     // prepared with prepareSceneTiles()
+					reference_tiles,        // final double [][][] reference_tiles, // prepared with prepareReferenceTiles() + fillTilesNans(); - combine?
+					flowXY_frac,            // final double [][] flowXY_frac, // X, YH fractional shift [-0.5,0.5) to implement with FD rotations
+					chn_weights,            // final double []   chn_weights, // absolute, starting from strength (strength,r,b,g)
+					corr_sigma,             // final double      corr_sigma,
+					fat_zero,               //  final double      fat_zero,
+					false,                  // final boolean     late_normalize,
+					combine_empty_only,     //  final boolean     combine_empty_only, // only use neighbor correlations for empty tiles (false - any)
+					0.0,                    // final double      combine_dradius
+					tolerance_absolute_inter_macro, // final double      tolerance_absolute, // absolute disparity half-range to consolidate tiles
+					tolerance_relative_inter_macro, // final double      tolerance_relative, // relative disparity half-range to consolidate tiles
+					-1); // 1); // final int         debug_level)
+
+			for (int irad = 0; irad <= 3; irad++) {
+				corr2dscene_ref_multi[irad+1]= correlate2DSceneToReference(// to match to reference
+						clt_parameters.img_dtt, // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+						scene_QuadCLT,          // final QuadCLT     scene_QuadClt,
+						reference_QuadCLT,      // final QuadCLT     reference_QuadClt,
+						scene_tiles1,           // final double [][][] scene_tiles,     // prepared with prepareSceneTiles()
+						reference_tiles,        // final double [][][] reference_tiles, // prepared with prepareReferenceTiles() + fillTilesNans(); - combine?
+						flowXY_frac,            // final double [][] flowXY_frac, // X, YH fractional shift [-0.5,0.5) to implement with FD rotations
+						chn_weights,            // final double []   chn_weights, // absolute, starting from strength (strength,r,b,g)
+						corr_sigma,             // final double      corr_sigma,
+						fat_zero,               //  final double      fat_zero,
+						true, // final boolean     late_normalize,
+						combine_empty_only,     //  final boolean     combine_empty_only, // only use neighbor correlations for empty tiles (false - any)
+						irad + frac_radius,     // final double      combine_dradius
+						tolerance_absolute_inter_macro, // final double      tolerance_absolute, // absolute disparity half-range to consolidate tiles
+						tolerance_relative_inter_macro, // final double      tolerance_relative, // relative disparity half-range to consolidate tiles
+						-1); // 1); // final int         debug_level)
+			}
+
+
+			showCorrTiles(
+					"scene:"+scene_QuadCLT.getImageName()+"-ref"+reference_QuadCLT.getImageName(),  //  String title,
+					corr2dscene_ref_multi,           // double [][] source_tiles,
+					tilesX/transform_size,     // int         tilesX,
+					(2 * transform_size - 1),  // int         tile_width,
+					(2 * transform_size - 1)); // int         tile_height) // extra margins over 16x16 tiles to accommodate distorted destination tiles
+
+			double [][][] vectorsXYS1 = new double [corr2dscene_ref_multi.length][][];
+			for (int i = 0; i < vectorsXYS1.length; i++) {
+				vectorsXYS1[i] = correlation2DToVectors_CM(
+						corr2dscene_ref_multi[i], // final double [][] corr2d_tiles, // per 2d calibration tiles (or nulls)
+						transform_size, // final int         transform_size,
+						iradius, // final int         iradius,      // half-size of the square to process 
+						dradius,      // final double      dradius,      // weight calculation (1/(r/dradius)^2 + 1)
+						refine_num,   // final int         refine_num,   // number of iterations to apply weights around new center
+						1); //final int         debug_level)
+			}
+			if (debug_level > -1) {
+				String dbg_title = "dXdYS1-"+scene_QuadCLT.getImageName()+"-"+reference_QuadCLT.getImageName();
+				int slices = vectorsXYS1.length;
+				String [] dbg_titles = new String[slices * 3];
+				double [][] dbg_img = new double [dbg_titles.length][macroTilesX*macroTilesY];
+				for (int slice = 0; slice < vectorsXYS1.length; slice++) {
+					dbg_titles[slice + 0 * slices] = "dX"+slice;
+					dbg_titles[slice + 1 * slices] = "dY"+slice;
+					dbg_titles[slice + 2 * slices] = "S"+slice;
+					Arrays.fill(dbg_img[slice + slices * 0], Double.NaN);
+					Arrays.fill(dbg_img[slice + slices * 1], Double.NaN);
+					Arrays.fill(dbg_img[slice + slices * 2], Double.NaN);
+					for (int i = 0; i < vectorsXYS1[slice].length; i++) if (vectorsXYS1[slice][i] != null){
+						dbg_img[slice + 0 * slices][i] = vectorsXYS1[slice][i][0];
+						dbg_img[slice + 1 * slices][i] = vectorsXYS1[slice][i][1];
+						dbg_img[slice + 2 * slices][i] = vectorsXYS1[slice][i][2];
+					}
+				}
+				(new ShowDoubleFloatArrays()).showArrays(
+						dbg_img,
+						macroTilesX,
+						macroTilesY,
+						true,
+						dbg_title,
+						dbg_titles);
+
+
+			}
+			double [][] flowXY2 = recalculateFlowXY(
+					flowXY1, // final double [][] currentFlowXY,
+					vectorsXYS1[selected_index], // final double [][] corr_vectorsXY,
+					magic_scale/transform_size); // final double      magic_scale) // 0.85 for CM
+
+			double [][][] scene_tiles2 = prepareSceneTiles(// to match to reference
+					// null for {scene,reference}{xyz,atr} uses instances globals 
+					camera_xyz0,              // final double []   scene_xyz,     // camera center in world coordinates
+					camera_atr0,              // final double []   scene_atr,     // camera orientation relative to world frame
+					scene_QuadCLT,                    // final QuadCLT     scene_QuadClt,
+					reference_QuadCLT,                    // final QuadCLT     reference_QuadClt,
+					reference_tiles,          // final double [][][] reference_tiles, // prepared with prepareReferenceTiles() + fillTilesNans();
+					flowXY2,                  // final double [][] flowXY, // per macro tile {mismatch in image pixels in X and Y directions
+					flowXY_frac,              // final double [][] flowXY_frac, // should be initialized as [number of macro tiles][] - returns fractional shifts [-0.5, 0.5)
+					tolerance_absolute_inter, // final double      tolerance_absolute, // absolute disparity half-range in each tile
+					tolerance_relative_inter, // final double      tolerance_relative, // relative disparity half-range in each tile
+					occupancy_inter,          // final double      occupancy,          // fraction of remaining  tiles (<1.0)
+					num_passes,               // final int         num_passes,
+					max_change,               // final double      max_change,
+					1); //-1); // 1); // 2);                       // final int         debug_level)
 		}
+		
 		return pair;
 	}
 
