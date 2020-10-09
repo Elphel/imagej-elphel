@@ -70,7 +70,7 @@ public class OpticalFlow {
 				public void run() {
 					for (int iMTile = ai.getAndIncrement(); iMTile < nan_tiles.length; iMTile = ai.getAndIncrement()) {
 						if (iMTile == dbg_mtile) {
-							System.out.println("iMTile = "+iMTile);
+//							System.out.println("iMTile = "+iMTile);
 						}
 						if (nan_tiles[iMTile] != null) {
 							tilesFillNaN(
@@ -95,7 +95,7 @@ public class OpticalFlow {
 					qthis,        // final QuadCLT qthis,
 					margin);      // final int     margin); // extra margins over 16x16 tiles to accommodate distorted destination tiles
 		}
-		System.out.println("fillTilesNans() DONE.");
+//		System.out.println("fillTilesNans() DONE.");
 	}
 
 	public double [][] correlate2DIterate( // returns optical flow and confidence
@@ -138,6 +138,11 @@ public class OpticalFlow {
 		double [][] flowXY_run = flowXY; // only non-nulls for the tiles to correlate
 		final double []   abs_change = new double [reference_tiles.length]; // updated 
 		Arrays.fill(abs_change, Double.NaN);
+		final double [] step_scale =  new double [reference_tiles.length]; // multiply increment if change exceeds previous
+		Arrays.fill(step_scale, 1.0);
+		final double [][] flowXY_prev =  new double [reference_tiles.length][]; // multiply increment if change exceeds previous
+
+		
 		for (int ntry = 0; ntry < max_tries; ntry++) {
 			double [][][] scene_tiles = prepareSceneTiles(// to match to reference
 					// null for {scene,reference}{xyz,atr} uses instances globals 
@@ -176,14 +181,22 @@ public class OpticalFlow {
 					iradius,                // final int         iradius,      // half-size of the square to process 
 					dradius,                // final double      dradius,      // weight calculation (1/(r/dradius)^2 + 1)
 					refine_num,             // final int         refine_num,   // number of iterations to apply weights around new center
-					-1);                    //final int         debug_level)			
+					-1);                    //final int         debug_level)
+			double      this_min_change = (ntry < num_run_all)? 0.0: min_change;
+			boolean     ignore_worsening = ntry < (num_run_all + 10);
+			if (debug_level > 0) {
+				System.out.println("======== NTRY "+ntry +" ========");
+			}
 			flowXY_run = recalculateFlowXY(
 					flowXY,                     // final double [][] flowXY, // will update
+					flowXY_prev,                // final double [][] flowXY_prev, // previous flowXY (may be null for tiles)   
 					vectorsXYS,                 // final double [][] corr_vectorsXY,
-					abs_change,                 // final double []   abs_change, // updated 
+					abs_change,                 // final double []   abs_change, // updated
+					step_scale,                 // final double []   step_scale, // multiply increment if change exceeds previous
+					ignore_worsening,           // final boolean     boolean     ignore_worsening 
 					magic_scale/transform_size, // final double      magic_scale, // 0.85 for CM
-					((ntry < num_run_all)? 0.0: min_change), // final double      min_change,
-					1);                         // final int         debug_level);
+					this_min_change,            // final double      min_change,
+					2);                         // final int         debug_level);
 			if (flowXY_run == null) { // nothing to do left
 				break; 
 			}
@@ -212,7 +225,7 @@ public class OpticalFlow {
 					for (int iMTile = ai.getAndIncrement(); iMTile < currentFlowXY.length; iMTile = ai.getAndIncrement())
 						if ((currentFlowXY[iMTile] != null) && (corr_vectorsXY[iMTile] != null)){
   						if (iMTile == dbg_mtile) {
-							System.out.println("iMTile = "+iMTile);
+//							System.out.println("iMTile = "+iMTile);
 						}
   						flowXY[iMTile]= new double[] {
   								currentFlowXY[iMTile][0] + rmagic_scale * corr_vectorsXY[iMTile][0],
@@ -227,8 +240,10 @@ public class OpticalFlow {
 	/**
 	 * Recalculate optical flow vector (in image pixels)
 	 * @param flowXY current per-tile vectors (null for undefined), updated
+	 * @param flowXY_prev  previous flowXY (may be null for tiles) 
 	 * @param corr_vectorsXY correction vector from correlation to apply
 	 * @param abs_change absolute value of last coordinate change for each tile
+	 * @param ignore_worsening continue even if the change exceeds previous
 	 * @param magic_scale divide correlation vector (typically 0.85/8 for CM argmax) 
 	 * @param min_change minimal vector coordinate difference to repeat correlations
 	 * @param debug_level if > 0; print number of tiles to correlate
@@ -236,8 +251,11 @@ public class OpticalFlow {
 	 */
 	double [][] recalculateFlowXY(
 			final double [][] flowXY, // will update
+			final double [][] flowXY_prev, // previous flowXY (may be null for tiles)   
 			final double [][] corr_vectorsXY,
-			final double []   abs_change, // updated 
+			final double []   abs_change, // updated
+			final double []   step_scale, // multiply increment if change exceeds previous
+			final boolean     ignore_worsening, 
 			final double      magic_scale, // 0.85 for CM
 			final double      min_change,
 			final int         debug_level)  
@@ -246,36 +264,104 @@ public class OpticalFlow {
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final double [][]   flowXY_task =  new double [flowXY.length][];
-		final int dbg_mtile = 620; // 453; // 500;
+		final int dbg_mtile = 473; // 295; // 15/7 620; // 453; // 500;
 		final double rmagic_scale = 1.0/magic_scale;
-		final AtomicInteger aupdate = new AtomicInteger(0); //number of tiles to recalculate 
+		final AtomicInteger aupdate = new AtomicInteger(0); //number of tiles to recalculate
+		final double reduce_step = 0.5; //multiply step if calculated difference is larger thart the previous
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				public void run() {
 					for (int iMTile = ai.getAndIncrement(); iMTile < flowXY.length; iMTile = ai.getAndIncrement()) {
   						if (iMTile == dbg_mtile) {
-							System.out.println("iMTile = "+iMTile);
+//							System.out.println("iMTile = "+iMTile);
 						}
   						if (flowXY[iMTile] != null){
   							if (corr_vectorsXY[iMTile] == null) {
   								if (min_change <= 0.0) {
+  									if (flowXY_prev[iMTile] != null) {
+  										flowXY_prev[iMTile][0] = flowXY[iMTile][0];
+  										flowXY_prev[iMTile][1] = flowXY[iMTile][1];
+  									} else {
+  										flowXY_prev[iMTile] = flowXY[iMTile].clone();
+  									}
   									flowXY_task[iMTile] = flowXY[iMTile];
   									abs_change[iMTile] = Double.NaN;
   									aupdate.getAndIncrement();
   								}
   							} else { // if (corr_vectorsXY[iMTile] == null)
-  								double dx = rmagic_scale * corr_vectorsXY[iMTile][0];
-  								double dy = rmagic_scale * corr_vectorsXY[iMTile][1];
+  								double dx = step_scale[iMTile] * rmagic_scale * corr_vectorsXY[iMTile][0];
+  								double dy = step_scale[iMTile] * rmagic_scale * corr_vectorsXY[iMTile][1];
   								// apply correction in any case
-  								flowXY[iMTile][0] += dx;
-  								flowXY[iMTile][1] += dy;
-  								
+//  								flowXY[iMTile][0] += dx;
+//  								flowXY[iMTile][1] += dy;
   								double new_diff = Math.sqrt(dx*dx + dy*dy);
+//  		  						if ((debug_level > 0) && (iMTile == dbg_mtile)) {
+//  									System.out.print(String.format("iMTile = %4d (%2d / %2d) flowXY = [%8.6f/%8.6f] dx = %8.6f dy =  %8.6f  abs= %8.6f ",
+//  											iMTile,  (iMTile %40), (iMTile / 40), flowXY[iMTile][0], flowXY[iMTile][1], dx,dy,new_diff));
+//  								}
+  								
   								double last_change = abs_change[iMTile]; // may be NaN;
-  								abs_change[iMTile] = new_diff; 
-  								if (!(new_diff > last_change) && (new_diff > min_change)) { // not worse (any value are not worse than NaN) and larger than threshold
-  									flowXY_task[iMTile] = flowXY[iMTile]; // set to measure
-  									aupdate.getAndIncrement();
+  								abs_change[iMTile] = new_diff;
+  								
+  								if ((debug_level >2) && (new_diff > last_change) && (min_change > 0.0)) {
+  									System.out.println("iMTile="+iMTile+", new_diff="+ new_diff+", last_change="+last_change);
+  								}
+//  								if ((new_diff > min_change) || (min_change <= 0.0)) { // not worse (any value are not worse than NaN) and larger than threshold
+  								if (new_diff < min_change) {
+  									if (flowXY_prev[iMTile] != null) {
+  										flowXY_prev[iMTile][0] = flowXY[iMTile][0];
+  										flowXY_prev[iMTile][1] = flowXY[iMTile][1];
+  									} else {
+  										flowXY_prev[iMTile] = flowXY[iMTile].clone();
+  									}
+  									flowXY[iMTile][0] += dx;
+  									flowXY[iMTile][1] += dy;
+  								} else {
+  									if (ignore_worsening || !(new_diff >= last_change)) { // better or ignore - continue iterations
+  										//
+  										if ((debug_level > 0) && (iMTile == dbg_mtile))  {
+  											System.out.println(String.format("iMTile = %4d (%2d / %2d) flowXY = [%8.6f/%8.6f] step_scale = %8.6f dx = %8.6f dy =  %8.6f  abs= %8.6f previous = %8.6f CONTINUE",
+  													iMTile, (iMTile %40), (iMTile / 40), flowXY[iMTile][0], flowXY[iMTile][1], step_scale[iMTile], dx,dy,new_diff, last_change));
+  										}
+  	  									if (flowXY_prev[iMTile] != null) {
+  	  										flowXY_prev[iMTile][0] = flowXY[iMTile][0];
+  	  										flowXY_prev[iMTile][1] = flowXY[iMTile][1];
+  	  									} else {
+  	  										flowXY_prev[iMTile] = flowXY[iMTile].clone();
+  	  									}
+  										flowXY[iMTile][0] += dx;
+  										flowXY[iMTile][1] += dy;
+  										flowXY_task[iMTile] = flowXY[iMTile]; // set to measure
+  										abs_change[iMTile] = new_diff;
+  										aupdate.getAndIncrement();
+  									} else if ((new_diff >= last_change) && (min_change > 0)) { // worse - reduce step, but still apply
+   										if (debug_level > 1) {
+   											System.out.println(String.format("iMTile = %4d (%2d / %2d) flowXY = [%8.6f/%8.6f] step_scale = %8.6f dx = %8.6f dy =  %8.6f  abs= %8.6f previous = %8.6f REDUCED STEP",
+   													iMTile, (iMTile %40), (iMTile / 40), flowXY[iMTile][0], flowXY[iMTile][1], step_scale[iMTile], dx,dy,new_diff, last_change));
+   										}
+   										// do not update previous (it should be not null
+  	  									if (flowXY_prev[iMTile] == null) { // should not happen
+  	  										System.out.println("BUG!");
+  	  										flowXY_prev[iMTile] = flowXY[iMTile].clone();
+  	  									}
+  	  									dx = flowXY[iMTile][0] - flowXY_prev[iMTile][0];
+  	  									dy = flowXY[iMTile][1] - flowXY_prev[iMTile][1];
+  	  									flowXY[iMTile][0] = flowXY_prev[iMTile][0];
+  	  									flowXY[iMTile][1] = flowXY_prev[iMTile][1];
+   										
+  	  									step_scale[iMTile] *= reduce_step;
+   										dx *= reduce_step;
+   										dx *= reduce_step;
+   										
+   										flowXY[iMTile][0] += dx;
+   										flowXY[iMTile][1] += dy;
+   										flowXY_task[iMTile] = flowXY[iMTile]; // set to measure
+   										abs_change[iMTile] = last_change; // restore previous step
+   										aupdate.getAndIncrement();
+//   									} else if (debug_level > 1) {
+//	  									System.out.println(String.format("iMTile = %4d (%2d / %2d) dx = %8.6f dy =  %8.6f  abs= %8.6f previous = %8.6f",
+//  	  											iMTile, (iMTile %40), (iMTile / 40), dx,dy,new_diff, last_change));
+  									}
   								}
   							}
 						}
@@ -285,7 +371,7 @@ public class OpticalFlow {
 		}		      
 		ImageDtt.startAndJoin(threads);
 		if (debug_level > 0) {
-			System.out.println("recalculateFlowXY(): tiles to correlate: "+aupdate.get());
+			System.out.println("  recalculateFlowXY(): tiles to correlate: "+aupdate.get());
 		}
 		if (aupdate.get() > 0) {
 			return flowXY_task;
@@ -316,7 +402,7 @@ public class OpticalFlow {
 				public void run() {
 					for (int iMTile = ai.getAndIncrement(); iMTile < corr2d_tiles.length; iMTile = ai.getAndIncrement()) if (corr2d_tiles[iMTile] != null) {
   						if (iMTile == dbg_mtile) {
-							System.out.println("iMTile = "+iMTile);
+//							System.out.println("iMTile = "+iMTile);
 						}
 						vectors_xys[iMTile] = getCorrCenterXYS_CM(
 								corr2d_tiles[iMTile], // double []   corr2d_tile,
@@ -375,6 +461,12 @@ public class OpticalFlow {
 		}
 		int iYMmax = (int) Math.round(yMax); 
 		int iXMmax = (int) Math.round(xMax); 
+		if (iYMmax >= transform_size) {
+			iYMmax = transform_size -1;
+		}
+		if (iYMmax >= transform_size) {
+			iXMmax = transform_size -1;
+		}
 		double dMax = corr2d_tile[iYMmax * corr_size + iXMmax]; // negative
 		double s1=0.0, s2 =0.0;
 		for (int i = 0; i < corr2d_tile.length; i++) {
@@ -488,7 +580,7 @@ public class OpticalFlow {
 						}
 						if ((scene_tiles[iMTile] != null) && (reference_tiles[iMTile] != null)) {
 							if (iMTile == dbg_mtile) {
-								System.out.println("iMTile = "+iMTile);
+//								System.out.println("iMTile = "+iMTile);
 							}
 							// convert reference tile
 							double [][][] fold_coeff_ref = dtt.get_shifted_fold_2d ( // get_shifted_fold_2d(
@@ -574,7 +666,7 @@ public class OpticalFlow {
 //							if ((scene_tiles[iMTile] != null) && (reference_tiles[iMTile] != null)) {
 							if (true) { // !combine_empty_only  || (corr_tiles_TD[iMTile] == null)) {
 								if (iMTile == dbg_mtile) {
-									System.out.println("iMTile = "+iMTile);
+//									System.out.println("iMTile = "+iMTile);
 								}
 								if ((combine_radius > 0) && (!combine_empty_only  || (corr_tiles_TD[iMTile] == null))) { // 
 									for (int q = 0; q< 4; q++) {
@@ -689,7 +781,7 @@ public class OpticalFlow {
 					for (int iMTile = ai.getAndIncrement(); iMTile < reference_tiles.length; iMTile = ai.getAndIncrement())
 						if ((reference_tiles[iMTile] != null) && (flowXY[iMTile] != null)){
 							if (iMTile == dbg_mtile) {
-								System.out.println("iMTile = "+iMTile);
+//								System.out.println("iMTile = "+iMTile);
 							}
 							int mtileY = iMTile / macroTilesX; 
 							int mtileX = iMTile % macroTilesX;
@@ -809,6 +901,7 @@ public class OpticalFlow {
 							// use offsX, offsY as fractional shift and for data interpolation
 							if (offsX >= .5) offsX -= 1.0;
 							if (offsY >= .5) offsY -= 1.0;
+//							flowXY_frac[iMTile] = new double [] {offsX, offsY};
 							flowXY_frac[iMTile] = new double [] {-offsX, -offsY};
 							double min_tX = Double.NaN, max_tX = Double.NaN, min_tY = Double.NaN, max_tY = Double.NaN;
 							for (int iY = 0; iY < fullTileSize; iY++) {
@@ -1090,7 +1183,7 @@ public class OpticalFlow {
 			
 			
 		}
-		System.out.println("fillTilesNans() DONE.");
+//		System.out.println("fillTilesNans() DONE.");
 		return scene_tiles;
 		
 	}
@@ -1434,6 +1527,64 @@ public class OpticalFlow {
 				dsrbg_titles);
 		
 	}
+
+	public void showMacroTiles(
+			String title,
+			double [][][][] source_tiles_sets,
+			final QuadCLT qthis,
+			final int     margin) // extra margins over 16x16 tiles to accommodate distorted destination tiles
+	{
+		final TileProcessor tp =         qthis.getTileProcessor();
+		final double [][] dsrbg =        qthis.getDSRBG();
+		final int tilesX =               tp.getTilesX();
+		final int tilesY =               tp.getTilesY();
+		final int transform_size =       tp.getTileSize();
+		final int macroTilesX =          tilesX/transform_size;
+		final int macroTilesY =          tilesY/transform_size;
+		final int fullTileSize =         2 * (transform_size + margin);
+		
+		// show debug image
+		final int dbg_with =   macroTilesX * (fullTileSize +1) - 1;
+		final int dbg_height = macroTilesY * (fullTileSize +1) - 1;
+		final double [][] dbg_img = new double [dsrbg.length * source_tiles_sets.length][dbg_with * dbg_height];
+		for (int l = 0; l < dbg_img.length; l++) {
+			Arrays.fill(dbg_img[l],  Double.NaN);
+		}
+		String [] titles = {"d", "s", "r", "b", "g"};
+		String [] dsrbg_titles = new String [titles.length * source_tiles_sets.length ]; 
+		
+		for (int iset = 0; iset < source_tiles_sets.length; iset ++) {
+			for (int l = 0; l < titles.length; l++) {
+				dsrbg_titles[l * source_tiles_sets.length + iset] = titles[l]+"-"+iset;
+			}
+			double [][][] source_tiles = source_tiles_sets[iset];
+			for (int mtile = 0; mtile < source_tiles.length; mtile++) if (source_tiles[mtile] != null){
+				int mTileY = mtile / macroTilesX;
+				int mTileX = mtile % macroTilesX;
+				for (int iY = 0; iY < fullTileSize; iY++) {
+					int tileY = (fullTileSize +1) * mTileY + iY;
+					for (int iX = 0; iX < fullTileSize; iX++) {
+						int tileX = (fullTileSize +1) * mTileX + iX;
+						for (int l = 0; l < titles.length; l++) {
+							dbg_img[l*source_tiles_sets.length + iset][tileY * dbg_with + tileX] = source_tiles[mtile][l][iY * fullTileSize + iX];
+						}							
+					}
+				}
+			}
+		}
+//		String [] dsrbg_titles = {"d", "s", "r", "b", "g"};
+		(new ShowDoubleFloatArrays()).showArrays(
+				dbg_img,
+				dbg_with,
+				dbg_height,
+				true,
+				title,
+				dsrbg_titles);
+		
+	}
+	
+	
+	
 	
 	public void showCorrTiles(
 			String title,
@@ -1579,19 +1730,19 @@ public class OpticalFlow {
 				tolerance_absolute, // final double      tolerance_absolute, // absolute disparity half-range in each tile
 				tolerance_relative, // final double      tolerance_relative, // relative disparity half-range in each tile
 				center_occupancy,   // final double      center_occupancy,   // fraction of remaining  tiles in the center 8x8 area (<1.0)
-				1); // -1); // 2); // final int         debug_level)
+				-1); // -1); // 2); // final int         debug_level)
 		
 		fillTilesNans(
 				reference_tiles,          // final double [][][] nan_tiles,
 				reference_QuadCLT,                 // final QuadCLT     qthis,
 				num_passes,            // final int         num_passes,
 				max_change,            // final double      max_change,
-				1); //-1); // 2);                    // final int         debug_level)
+				-1); //-1); // 2);                    // final int         debug_level)
 		
 		double [][] flowXY = new double [reference_tiles.length][2]; // zero pre-shifts
 		double [][] flowXY_frac = new double [reference_tiles.length][]; // Will contain fractional X/Y shift for CLT
-		double []   chn_weights = {1.0,1.0,1.0,1.0}; // strength, r,b,g
-//		double []   chn_weights = {1.0,0.0,0.0,0.0}; // strength, r,b,g
+//		double []   chn_weights = {1.0,1.0,1.0,1.0}; // strength, r,b,g
+		double []   chn_weights = {1.0,0.0,0.0,0.0}; // strength, r,b,g
 //		double []   chn_weights = {0.0,1.0,1.0,1.0}; // strength, r,b,g
 		// Apply DOG to colors, normalize by standard deviation?
 		double      corr_sigma = 0.5;
@@ -1603,16 +1754,17 @@ public class OpticalFlow {
 		double      dradius =    1.5;      // weight calculation (1/(r/dradius)^2 + 1)
 		int         refine_num = 5;   // number of iterations to apply weights around new center
 		int max_rad = 3;
+		
 		boolean combine_empty_only = true; // false;
-		double magic_scale = 0.85;
+		double magic_scale = 0.85; // 2.0 * 0.85;
 
 		boolean late_normalize_iterate = true;
 		
-		int          num_run_all = 2; // run all tiles for few iterations before filtering
-		int          max_tries =  100;
+		int          num_run_all = 10; // 5; // run all tiles for few iterations before filtering
+		int          max_tries =   50; // 100;
 		
 		// for recalculateFlowXY()
-		double      min_change = 0.001;//   sqrt (dx*dx + dy*dy) for correction (int tiles)
+		double      min_change = 0.01;//   sqrt (dx*dx + dy*dy) for correction (int tiles) in pixels
 		
 //		double []   abs_change = new double [reference_tiles.length]; // updated 
 		int         debug_level_iterate = 1;
@@ -1689,7 +1841,28 @@ public class OpticalFlow {
 				occupancy_inter,          // final double      occupancy,          // fraction of remaining  tiles (<1.0)
 				num_passes,               // final int         num_passes,
 				max_change,               // final double      max_change,
-				1); //-1); // 1); // 2);                       // final int         debug_level)
+				-1); //-1); // 1); // 2);                       // final int         debug_level)
+
+		if (debug_level > -1) {
+			String dbg_title = "flowXY_frac-"+scene_QuadCLT.getImageName()+"-"+reference_QuadCLT.getImageName();
+			String [] dbg_titles = {"dpX", "dpY"};
+			double [][] dbg_img = new double [dbg_titles.length][macroTilesX*macroTilesY];
+				Arrays.fill(dbg_img[0], Double.NaN);
+				Arrays.fill(dbg_img[1], Double.NaN);
+				for (int i = 0; i < flowXY_frac.length; i++) if (flowXY_frac[i] != null){
+					dbg_img[0][i] = flowXY_frac[i][0];
+					dbg_img[1][i] = flowXY_frac[i][1];
+				}
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_img,
+					macroTilesX,
+					macroTilesY,
+					true,
+					dbg_title,
+					dbg_titles);
+		}
+
+		
 		/* */
 		double [][][] corr2dscene_ref_multi = new double [max_rad + 2][][]; 
 		
@@ -1736,6 +1909,15 @@ public class OpticalFlow {
 				tilesX/transform_size,     // int         tilesX,
 				(2 * transform_size - 1),  // int         tile_width,
 				(2 * transform_size - 1)); // int         tile_height) // extra margins over 16x16 tiles to accommodate distorted destination tiles
+		//reference_tiles
+		//double [][][] scene_tiles			
+		double [][][][] scene_to_ref = {reference_tiles, scene_tiles};
+		showMacroTiles(
+				"tiles_scene-"+scene_QuadCLT.getImageName()+"-ref"+reference_QuadCLT.getImageName(),// String title,
+				scene_to_ref,      // double [][][][] source_tiles_sets,
+				reference_QuadCLT, // final QuadCLT qthis,
+				0);                // final int     margin) // extra margins over 16x16 tiles to accommodate distorted destination tiles
+		
 		
 		
 		if (debug_level > 100) {
@@ -1903,6 +2085,9 @@ public class OpticalFlow {
 					max_change,               // final double      max_change,
 					1); //-1); // 1); // 2);                       // final int         debug_level)
 		}
+		
+		
+		
 		
 		return pair;
 	}
