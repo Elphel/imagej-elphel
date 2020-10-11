@@ -166,7 +166,24 @@ public class Correlation2d {
 				wndx_scale);                     // double  scale);
       }
 
-
+    public Correlation2d ( // USED in lwir
+    		int transform_size,
+    		boolean monochrome,
+    		boolean debug) {
+    	this.monochrome = monochrome;
+    	this.dtt = new DttRad2(transform_size);
+    	this.transform_size = transform_size;
+    	this.transform_len = transform_size * transform_size;
+    	this.corr_size = transform_size * 2 -1;
+    	// not initialized until needed
+    	this.transpose_all_ortho =     new int [corr_size*corr_size];
+    	this.transpose_all_diagonal =  new int [corr_size*corr_size];
+    	this.ortho_notch_filter =      new double [corr_size];
+    	this.corr_wndy =               null; // will not be used
+    	this.corr_wndx =               null; // will not be used
+    	this.corr_wndy_notch =         null; // will not be used
+    }
+    
       public int [] getTransposeAll(boolean diagonal){ // USED in lwir
     	  if (diagonal) return getTransposeAllDiagonal();
     	  else          return getTransposeAllOrtho();

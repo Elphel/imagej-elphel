@@ -8255,75 +8255,31 @@ if (debugLevel > -100) return true; // temporarily !
 		}
 		
 		
-		double k_prev = 0.75;
-		
-		double corr_scale = 0.75;
-///		for (int i = 0; i < quadCLTs.length; i++) {
+///		double k_prev = 0.75;
+///		double corr_scale = 0.75;
 		OpticalFlow opticalFlow = new OpticalFlow(
 				threadsMax, // int            threadsMax,  // maximal number of threads to launch
 				updateStatus); // boolean        updateStatus);
-//		int         margin = 4; //  extra margins over 16x16 tiles to accommodate distorted destination tiles
-		/*
-		
-		double      tolerance_absolute = 0.25; // absolute disparity half-range in each tile
-		double      tolerance_relative = 0.2; // relative disparity half-range in each tile
-		double      center_occupancy =   0.25;   // fraction of remaining  tiles in the center 8x8 area (<1.0)
-
-		int         num_passes = 100;
-		double      max_change = 0.005 ;
-		*/
 		
 		for (int i = 1; i < quadCLTs.length; i++) {
 			QuadCLT qPrev = (i > 0) ? quadCLTs[i - 1] : null;
-/*			
-			double [][][] source_tiles = opticalFlow.prepareReferenceTiles(
-					quadCLTs[i],        // final QuadCLT     qthis,
-//					margin,             // final int         margin, // extra margins over 16x16 tiles to accommodate distorted destination tiles
-					tolerance_absolute, // final double      tolerance_absolute, // absolute disparity half-range in each tile
-					tolerance_relative, // final double      tolerance_relative, // relative disparity half-range in each tile
-					center_occupancy,   // final double      center_occupancy,   // fraction of remaining  tiles in the center 8x8 area (<1.0)
-					2); // final int         debug_level)
-			
-			opticalFlow.fillTilesNans(
-					source_tiles,          // final double [][][] nan_tiles,
-					quadCLTs[i],           // final QuadCLT     qthis,
-//					margin,                // final int         margin, // extra margins over 16x16 tiles to accommodate distorted destination tiles
-//					0.5 * Math.sqrt(2.0),  // double    diagonal_weight, // relative to ortho
-					num_passes,            // final int         num_passes,
-					max_change,            // final double      max_change,
-					2);                    // final int         debug_level)
-			*/
-			
 
-			double [][][] pair_sets =
-					opticalFlow.get_pair(
-							clt_parameters, // CLTParameters  clt_parameters,
-							k_prev,
-							quadCLTs[i],
-							qPrev,
-							corr_scale,
-							1); // -1); // int debug_level);
+
+			//			double [][][] pair_sets =
+			opticalFlow.get_pair(
+					clt_parameters, // CLTParameters  clt_parameters,
+					clt_parameters.ofp.k_prev, // k_prev,
+					quadCLTs[i],
+					qPrev,
+					clt_parameters.ofp.ers_to_pose_scale, // corr_scale,
+					clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
 		}
 
-		/*
-		for (int i = 0; i < quadCLTs.length; i++) {
-			quadCLTs[i].saveInterProperties(// save properties for interscene processing (extrinsics, ers, ...)
-					null, // String path,             // full name with extension or w/o path to use x3d directory
-					debugLevel);
-		}		
-		 */
 
 		System.out.println("End of test");
 
 
 	}
-/*
- * 		    public double [][]  getDSRBG (){
-		    	return dsrbg;
-		    }
-
-
- */
 	
 	public void batchLwirRig(
 			QuadCLT                                              quadCLT_main, // tiles should be set

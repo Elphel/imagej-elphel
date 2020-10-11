@@ -14,6 +14,7 @@ import com.elphel.imagej.tileprocessor.BiQuadParameters;
 import com.elphel.imagej.tileprocessor.ImageDtt;
 import com.elphel.imagej.tileprocessor.ImageDttParameters;
 import com.elphel.imagej.tileprocessor.MeasuredLayersFilterParameters;
+import com.elphel.imagej.tileprocessor.OpticalFlowParameters;
 import com.elphel.imagej.tileprocessor.PoleProcessorParameters;
 
 import ij.gui.GenericDialog;
@@ -869,6 +870,7 @@ public class CLTParameters {
 	public PoleProcessorParameters        poles =   new PoleProcessorParameters();
 	public MeasuredLayersFilterParameters mlfp =    new MeasuredLayersFilterParameters();
 	public LwirReaderParameters           lwir =    new LwirReaderParameters();
+	public OpticalFlowParameters          ofp =     new OpticalFlowParameters();
 
 
 	public HashMap<String,Double> z_corr_map = new HashMap<String,Double>(); //old one
@@ -1715,6 +1717,8 @@ public class CLTParameters {
 		rig.setProperties     (prefix+"_rig",     properties);
 		poles.setProperties   (prefix+"_poles",   properties);
 		lwir.setProperties    (prefix+"_lwir",   properties);
+		ofp.setProperties     (prefix+"_ofp_",   properties);
+
 	}
 
 	public void setPropertiesInfinityDistance(String prefix,Properties properties){
@@ -2534,7 +2538,8 @@ public class CLTParameters {
 		mlfp.getProperties    (prefix+"_mlfp",    properties);
 		rig.getProperties     (prefix+"_rig",     properties);
 		poles.getProperties   (prefix+"_poles",   properties);
-		lwir.getProperties    (prefix+"_lwir",   properties);
+		lwir.getProperties    (prefix+"_lwir",    properties);
+		ofp.getProperties     (prefix+"_ofp_",    properties);
 	}
 
 	public boolean showJDialog() {
@@ -3498,6 +3503,12 @@ public class CLTParameters {
 		
 		gd.addTab         ("LWIR", "parameters for LWIR/EO 8-camera rig");
 		this.lwir.dialogQuestions(gd);
+		
+		
+		gd.addTab         ("O-Flow", "parameters for the interscene Optical FLow calculations");
+		this.ofp.dialogQuestions(gd);
+		
+		
 		gd.addTab         ("Debug", "Other debug images");
 		gd.addMessage     ("--- Other debug images ---");
 		//	clt_parameters.debug_initial_discriminate, // final boolean    debug_initial_discriminate,
@@ -4292,6 +4303,7 @@ public class CLTParameters {
 		this.gpu_debug_accum=       gd.getNextBoolean();
 		
 		this.lwir.dialogAnswers(gd);
+		this.ofp.dialogAnswers(gd);
 
 		this.debug_initial_discriminate= gd.getNextBoolean();
 		this.dbg_migrate=                gd.getNextBoolean();
