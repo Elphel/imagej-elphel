@@ -2166,6 +2166,15 @@ public class OpticalFlow {
 				iscale);
 		double [][][] pair = {reference_QuadCLT.getDSRBG(),dsrbg};
 		
+		reference_QuadCLT.getErsCorrection().compareDSItoWorldDerivatives(
+				reference_QuadCLT, // QuadCLT   scene_QuadClt,
+				0.03,              // double    max_inf_disparity, // absolute value
+				1);                // int       debug_level);
+		
+		if (debug_level > -100) {
+			return pair;
+		}
+		
 		// combine this scene with warped previous one
 		if (debug_level > -2) {
 			String [] rtitles = new String[2* dsrbg_titles.length];

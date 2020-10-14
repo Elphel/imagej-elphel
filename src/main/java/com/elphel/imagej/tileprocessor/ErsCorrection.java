@@ -25,6 +25,7 @@
 package com.elphel.imagej.tileprocessor;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Properties;
@@ -35,14 +36,21 @@ import org.apache.commons.math3.geometry.euclidean.threed.RotationConvention;
 import org.apache.commons.math3.geometry.euclidean.threed.RotationOrder;
 import org.apache.commons.math3.geometry.euclidean.threed.Vector3D;
 
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
+
 import Jama.Matrix;
 
 public class ErsCorrection extends GeometryCorrection {
+	static final double INTER_ROT_AZ_SGN = -1.0; // sign of first sin for azimuth rotation
+	static final double INTER_ROT_TL_SGN =  1.0; // sign of first sin for tilt rotation
+	static final double INTER_ROT_RL_SGN =  1.0; // sign of first sin for roll rotation
+
+	
 	static final String XYZ_PREFIX =    "xyz";
 	static final String ATR_PREFIX =    "atr";
 	static final String ERS_PREFIX =    "ers";
 	static final String SCENES_PREFIX = "scenes";
-
+	
 	static final String ERS_XYZ_PREFIX =     ERS_PREFIX + "_xyz";
 	static final String ERS_XYZ_DT_PREFIX =  ERS_PREFIX + "_xyz_dt";
 	static final String ERS_XYZ_D2T_PREFIX = ERS_PREFIX + "_xyz_d2t";
@@ -70,7 +78,7 @@ public class ErsCorrection extends GeometryCorrection {
 	
 //	Rotation rotation; // (double[][] m, double THRESHOLD)
 	private double [][]  ers_xyz;           // per scan line
-	private double [][]  ers_xyz_dt;        // linear velocitiesper scan line
+	private double [][]  ers_xyz_dt;        // linear velocities per scan line
 	private Quaternion[] ers_quaternion;    // per scan line
 	private Quaternion[] ers_quaternion_dt; // per scan line
 	private double [][]  ers_atr;           // azimuth-tilt-roll per scan line
@@ -248,6 +256,71 @@ public class ErsCorrection extends GeometryCorrection {
 		
 	}
 	
+	/**
+	 * Calculate rotational matrix and its derivatives by az, tl and rl
+	 * @param atr
+	 * @return
+	 */
+	public Matrix [] getInterRotDeriveMatrices(
+			double [] atr,
+			boolean invert){
+		double ca = Math.cos(atr[0]); // azimuth
+		double sa = Math.sin(atr[0]);
+		double ct = Math.cos(atr[1]);
+		double st = Math.sin(atr[1]);
+		double cr = Math.cos(atr[2]);
+		double sr = Math.sin(atr[2]);
+		double rot_az_sign = invert ? -INTER_ROT_AZ_SGN : INTER_ROT_AZ_SGN; 
+		double rot_tl_sign = invert ? -INTER_ROT_TL_SGN : INTER_ROT_TL_SGN; 
+		double rot_rl_sign = invert ? -INTER_ROT_RL_SGN : INTER_ROT_RL_SGN; 
+		Matrix m_az = new Matrix(new double[][]{
+			{  ca,                     0.0,                     sa * rot_az_sign },
+			{  0.0,                    1.0,                     0.0},
+			{ -sa* rot_az_sign,        0.0,                     ca}});
+
+		Matrix m_tl = new Matrix(new double[][]  {
+			{  1.0,                    0.0,                     0.0},
+			{  0.0,                    ct,                      st * rot_tl_sign},
+			{  0.0,                   -st * rot_tl_sign,   ct}});
+
+		Matrix m_rl = new Matrix(new double[][]  {
+			{  cr,                     sr * rot_rl_sign,        0.0},
+			{ -sr * rot_rl_sign,       cr,                      0.0},
+			{  0.0,                    0.0,                     1.0}});
+
+		Matrix m_daz = new Matrix(new double[][] {
+			{ -sa,                     0.0,                     ca * rot_az_sign },
+			{  0.0,                    0.0,                     0.0},
+			{ -ca* rot_az_sign,        0.0,                    -sa}});
+
+		Matrix m_dtl = new Matrix(new double[][] { // inverted - OK
+			{ 0.0,                     0.0,                     0.0},
+			{ 0.0,                    -st,                      ct * rot_tl_sign},
+			{ 0.0,                    -ct * rot_tl_sign,       -st}});
+
+		Matrix m_drl = new Matrix(new double[][] { // inverted OK
+			{ -sr,                     cr * rot_rl_sign,        0.0},
+			{ -cr *rot_rl_sign,       -sr,                      0.0},
+			{ 0.0,                     0.0,                     0.0}});
+		if (invert) {
+			return new Matrix[] {
+					m_az.times (m_tl.times (m_rl)),
+					m_daz.times(m_tl.times (m_rl)),
+					m_az.times (m_dtl.times(m_rl)),
+					m_az.times (m_tl.times (m_drl))};
+		} else {
+			return new Matrix[] {
+					m_rl.times (m_tl.times (m_az)),
+					m_rl.times (m_tl.times (m_daz)),
+					m_rl.times (m_dtl.times(m_az)),
+					m_drl.times(m_tl.times (m_az))};
+		}
+	}
+	
+	Vector3D matrixTimesVector(Matrix m, Vector3D v3) {
+		return new Vector3D(m.times(new Matrix(v3.toArray(),3)).getColumnPackedCopy());
+	}
+	
 	// use deep=true for the independent instance (clone), false - to "upgrade" GeometryCorrection to ErsCorrection
 	public ErsCorrection(GeometryCorrection gc, boolean deep) {
 		debugLevel =           gc.debugLevel;
@@ -415,6 +488,9 @@ public class ErsCorrection extends GeometryCorrection {
 		Quaternion quat_center1 = new Quaternion (0.0,ers_watr_center_dt[1],   ers_watr_center_dt[0],   ers_watr_center_dt[2]); // angular velocity 1/s :tilt, az, roll
 		Quaternion quat_center2 = new Quaternion (0.0,ers_watr_center_d2t[1],  ers_watr_center_d2t[0],  ers_watr_center_d2t[2]); // angular velocity 1/s :tilt, az, roll
 		
+//		Quaternion dbg_quat_center0 = quat_center0.normalize();
+//		Quaternion dbg_quat_center1 = quat_center1.normalize();
+//		Quaternion dbg_quat_center2 = quat_center2.normalize(); // not a rotation, can not be normalized
 		// integration to the bottom of the image
 		double dt = ers_sign*line_time; 
 		double [] wxy0 = ers_wxyz_center.clone();
@@ -463,6 +539,7 @@ public class ErsCorrection extends GeometryCorrection {
 		}
 		// TODO: Make linear integration along the camera local axes, coordinates relative to the 
 		// Integrate linear velocities/accelerations
+		dt = ers_sign*line_time; 
 		for (int h = cent_h; h < pixelCorrectionHeight; h ++) {
 			for (int i = 0; i < 3; i++) {
 				ers_xyz[h][i] =    wxy0[i];
@@ -677,7 +754,7 @@ public class ErsCorrection extends GeometryCorrection {
 		// camera orientation during pixel acquisition :
 		Quaternion qpix = ers_quaternion[line];
 		Rotation cam_orient_now_local = new Rotation(qpix.getQ0(), qpix.getQ1(), qpix.getQ2(),qpix.getQ3(), true); // boolean needsNormalization)
-		boolean is_infinity = Math.abs(disparity) < THRESHOLD;
+		boolean is_infinity = Math.abs(disparity) < THRESHOLD; // Maybe all negative - too?
 		if (!is_infinity) {
 			for (int i = 0; i < 3; i++) {
 				xyz[i] /= disparity;
@@ -726,7 +803,345 @@ public class ErsCorrection extends GeometryCorrection {
 				line_err); // threshold error in scan lines (1.0)
 	}
 	
-	public double [] getImageCoordinatesERS( // USED in lwir
+	
+	public void compareDSItoWorldDerivatives(
+			QuadCLT   scene_QuadClt,
+			double    max_inf_disparity, // absolute value
+			int       debug_level
+			)
+	{
+		double [] deltas0 = {
+				2.0,  // dw_dpX,  (pix)     0
+				2.0,  // dw_dpY   (pix)     1
+				0.1,  // dw_dd,   (pix)     2
+				0.2,  // dw_dvaz, (rad/sec) 3
+				0.2,  // dw_dvtl, (rad/sec) 4
+				0.2,  // dw_dvrl, (rad/sec) 5
+				0.1,  // dw_dvx,  (m/s)     6
+				0.1,  // dw_dvy,  (m/s)     7
+				0.1,  // dw_dvz,  (m/s)     8
+				0.01, // dw_daz,  (rad)     9
+				0.01, // dw_dtl,  (rad)    10
+				0.01, // dw_drl,  (rad)    11
+				0.1,  // dw_dx,   (m)      12
+				0.1,  // dw_dy,   (m)	   13
+				0.1}; // dw_dz};  (m)      14
+		String [] deriv_names = {
+				"dw_dpX", //  (pix)     0
+				"w_dpY",  // (pix)     1
+				"w_dd",   // (pix)     2
+				"w_dvaz", // (rad/sec) 3
+				"w_dvtl", // (rad/sec) 4
+				"w_dvrl", // (rad/sec) 5
+				"w_dvx",  // (m/s)     6
+				"w_dvy",  // (m/s)     7
+				"w_dvz",  // (m/s)     8
+				"w_daz",  // (rad)     9
+				"w_dtl",  // (rad)    10
+				"w_drl",  // (rad)    11
+				"w_dx",   // (m)      12
+				"w_dy",   // (m)	   13
+				"w_dz"};  // (m)      14
+		
+		int DP_DPX =  0; // dw_dpX,  (pix)
+		int DP_DPY =  1; // dw_dpY   (pix)
+	    int DP_DD =   2; // dw_dd,   (pix)
+	    int DP_DVAZ = 3; // dw_dvaz, (rad/sec)
+	    int DP_DVTL = 4; // dw_dvtl, (rad/sec)
+	    int DP_DVRL = 5; // dw_dvrl, (rad/sec)
+	    int DP_DVX =  6; // dw_dvx,  (m/s)
+	    int DP_DVY =  7; // dw_dvy,  (m/s)
+	    int DP_DVZ =  8; // dw_dvz,  (m/s)
+	    int DP_DAZ =  9; // dw_daz,  (rad)
+	    int DP_DTL = 10; // dw_dtl,  (rad)
+	    int DP_DRL = 11; // dw_drl,  (rad)
+	    int DP_DX =  12; // dw_dx,   (m)
+	    int DP_DY =  13; // dw_dy,   (m)
+	    int DP_DZ =  14; // dw_dz};  (m)
+		double scale_delta = 0.1; // 0.5;
+		double [] deltas = deltas0.clone();
+		for (int i = 0; i < deltas.length; i++) deltas[i] *= scale_delta;
+	    int dbg_tile = 16629;
+		TileProcessor tp = scene_QuadClt.getTileProcessor();
+		int tilesX = tp.getTilesX();
+		int tilesY = tp.getTilesY();
+		int tiles = tilesX*tilesY;
+		int transform_size = tp.getTileSize();
+		double [][] dsrbg_camera =    scene_QuadClt.getDSRBG();
+		double [][][] derivs_delta = new double [deltas.length][tiles][];
+		double [][][] derivs_true = new double [deltas.length][tiles][];
+		double [][]  pXpYD_original = new double [tiles][];
+		double [][]  pXpYD_test =     new double [tiles][];
+		double [][]  wxyz = new double[tiles][];
+		boolean zero_ers = false; // true
+		boolean fake_linear_ers = true;
+		
+		double [] camera_xyz = new double [] {1.0, 0.3, -5.0}; // camera center in world coordinates
+		double [] camera_atr = new double [] {.1, .15,   0.2};  // camera orientation relative to world frame
+//		double [] camera_atr = new double [] {.2, 0.0,   0.0};  // camera orientation relative to world frame
+//		double [] camera_atr = new double [] {0.0, 0.2,  0.0};  // camera orientation relative to world frame
+//		double [] camera_atr = new double [] {0.0, 0.0,  0.2};  // camera orientation relative to world frame
+
+		System.out.println(String.format("ers_wxyz_center_dt= {%8f, %8f, %8f}",ers_wxyz_center_dt[0],ers_wxyz_center_dt[1],ers_wxyz_center_dt[2]));
+		System.out.println(String.format("ers_watr_center_dt= {%8f, %8f, %8f}",ers_watr_center_dt[0],ers_watr_center_dt[1],ers_watr_center_dt[2]));
+		if (zero_ers) {
+			ers_wxyz_center_dt=new double[3];
+			ers_watr_center_dt=new double[3];
+			System.out.println("Updated:");
+			System.out.println(String.format("ers_wxyz_center_dt= {%8f, %8f, %8f}",ers_wxyz_center_dt[0],ers_wxyz_center_dt[1],ers_wxyz_center_dt[2]));
+			System.out.println(String.format("ers_watr_center_dt= {%8f, %8f, %8f}",ers_watr_center_dt[0],ers_watr_center_dt[1],ers_watr_center_dt[2]));
+		}
+		if (fake_linear_ers) {
+			ers_wxyz_center_dt=new double[] {1.0, 0.25, -2.0}; ers_watr_center_dt.clone(); // new double[3];
+//			ers_watr_center_dt=new double[3];
+			System.out.println("Updated:");
+			System.out.println(String.format("ers_wxyz_center_dt= {%8f, %8f, %8f}",ers_wxyz_center_dt[0],ers_wxyz_center_dt[1],ers_wxyz_center_dt[2]));
+			System.out.println(String.format("ers_watr_center_dt= {%8f, %8f, %8f}",ers_watr_center_dt[0],ers_watr_center_dt[1],ers_watr_center_dt[2]));
+		}
+
+		
+		Matrix [] rot_deriv_matrices = getInterRotDeriveMatrices(
+				camera_atr, // double [] atr);
+				true); // boolean invert));
+
+		
+		setupERS(); // just in case - setup using instance parameters
+		// measure derivatives by px,py,disparity
+		for (int tileY = 0; tileY < tilesY; tileY++) {
+			for (int tileX = 0; tileX < tilesX; tileX++) {
+				int nTile = tileX + tileY * tilesX;
+				double centerX = tileX * transform_size + transform_size/2; //  - shiftX;
+				double centerY = tileY * transform_size + transform_size/2; //  - shiftY;
+				double disparity = dsrbg_camera[QuadCLT.DSRBG_DISPARITY][nTile];
+				if (disparity < max_inf_disparity) { // or only for abs() ?
+					disparity = 0.0;
+				}
+				
+				pXpYD_original[nTile] = new double[] {centerX, centerY,disparity};
+				// find derivatives by pX, pY, pZ
+				double [][][] xyz_pm = {
+						{	getWorldCoordinatesERS(centerX + deltas[DP_DPX], centerY, disparity, true),
+							getWorldCoordinatesERS(centerX - deltas[DP_DPX], centerY, disparity, true)
+						},{ getWorldCoordinatesERS(centerX, centerY + deltas[DP_DPY], disparity, true),
+							getWorldCoordinatesERS(centerX,	centerY - deltas[DP_DPY], disparity, true)
+						},{ getWorldCoordinatesERS(centerX, centerY, disparity + deltas[DP_DD],	 true),
+							getWorldCoordinatesERS(centerX, centerY, disparity - deltas[DP_DD],	 true)}};
+				for (int n = 0; n < 3; n++) {
+					int par_index =DP_DPX + n;
+					if ((xyz_pm[n][0] != null) && (xyz_pm[n][1] != null)) {
+						derivs_delta[par_index][nTile] = new double[3];
+						for (int i = 0; i < 3; i++) {
+							derivs_delta[par_index][nTile][i] = (xyz_pm[n][0][i] - xyz_pm[n][1][i]) / (2.0 * deltas[par_index]); 
+						}
+					}
+				}
+				// find derivatives by 	camera_xyz,	camera_atr); that do not require re-programming of the ERS arrays
+				double [][][] atrxyz_pm = new double [6][2][];
+				for (int n = 0; n < 3; n++ ){
+					int par_index =DP_DAZ + n;
+					double [] cam_atr = camera_atr.clone();
+					cam_atr[n] = camera_atr[n] + deltas[par_index];
+					atrxyz_pm[n][0] = getWorldCoordinatesERS(centerX, centerY, disparity, true, camera_xyz, cam_atr);
+					cam_atr[n] = camera_atr[n] - deltas[par_index];
+					atrxyz_pm[n][1] = getWorldCoordinatesERS(centerX, centerY, disparity, true, camera_xyz, cam_atr);
+					par_index =DP_DX + n;
+					double [] cam_xyz = camera_xyz.clone();
+					cam_xyz[n] = camera_xyz[n] + deltas[par_index];
+					atrxyz_pm[n+3][0] = getWorldCoordinatesERS(centerX, centerY, disparity, true, cam_xyz, camera_atr);
+					cam_xyz[n] = camera_xyz[n] - deltas[par_index];
+					atrxyz_pm[n+3][1] = getWorldCoordinatesERS(centerX, centerY, disparity, true, cam_xyz, camera_atr);
+				}
+				for (int n = 0; n < 6; n++ ){
+					int par_index =DP_DAZ + n;
+					if ((atrxyz_pm[n][0] != null) && (atrxyz_pm[n][1] != null)) {
+						derivs_delta[par_index][nTile] = new double[3];
+						for (int i = 0; i < 3; i++) {
+							derivs_delta[par_index][nTile][i] = (atrxyz_pm[n][0][i] - atrxyz_pm[n][1][i]) / (2.0 * deltas[par_index]); 
+						}
+					}
+				}					
+			}
+		}
+		double [][][][] ers_pm = new double [6][2][tiles][];
+		double [] ers_watr_center_dt_original = ers_watr_center_dt.clone();
+		double [] ers_wxyz_center_dt_original = ers_wxyz_center_dt.clone();
+		for (int nf = 0; nf < 12; nf++) {
+			int n = nf/2;
+			int sign =   ((nf & 1) != 0) ? -1 : 1;
+			int sign01 = ((nf & 1) != 0) ?  1 : 0;
+			boolean lin_not_ang = n >= 3;
+			int component = n % 3;
+			int par_index =DP_DVAZ + n;
+			ers_watr_center_dt = ers_watr_center_dt_original.clone();
+			ers_wxyz_center_dt = ers_wxyz_center_dt_original.clone();
+			if (lin_not_ang) {
+				ers_wxyz_center_dt[component] = ers_wxyz_center_dt_original[component] + sign * deltas[par_index];
+			} else {
+				ers_watr_center_dt[component] = ers_watr_center_dt_original[component] + sign * deltas[par_index];
+			}
+			setupERS();
+			for (int tileY = 0; tileY < tilesY; tileY++) {
+				for (int tileX = 0; tileX < tilesX; tileX++) {
+					int nTile = tileX + tileY * tilesX;
+					double centerX = tileX * transform_size + transform_size/2; //  - shiftX;
+					double centerY = tileY * transform_size + transform_size/2; //  - shiftY;
+					double disparity = dsrbg_camera[QuadCLT.DSRBG_DISPARITY][nTile];
+					if (disparity < max_inf_disparity) { // or only for abs() ?
+						disparity = 0.0;
+					}
+					ers_pm[n][sign01][nTile]=  getWorldCoordinatesERS(centerX, centerY, disparity, true);
+				}
+			}
+		}
+		// restore original ERS data
+		ers_watr_center_dt = ers_watr_center_dt_original.clone();
+		ers_wxyz_center_dt = ers_wxyz_center_dt_original.clone();
+		setupERS();
+		
+		for (int n = 0; n < 6; n++) {
+			int par_index =DP_DVAZ + n;
+			for (int nTile = 0; nTile < tiles; nTile++) {
+				if ((ers_pm[n][0][nTile] != null) && (ers_pm[n][1][nTile] != null)) {
+					derivs_delta[par_index][nTile] = new double[3];
+					for (int i = 0; i <3; i++) {
+						derivs_delta[par_index][nTile][i] = (ers_pm[n][0][nTile][i] - ers_pm[n][1][nTile][i]) / (2.0 * deltas[par_index]);
+					}
+				}
+			}
+		}
+
+		
+		for (int tileY = 0; tileY < tilesY; tileY++) {
+			for (int tileX = 0; tileX < tilesX; tileX++) {
+				int nTile = tileX + tileY * tilesX;
+				double centerX = tileX * transform_size + transform_size/2; //  - shiftX;
+				double centerY = tileY * transform_size + transform_size/2; //  - shiftY;
+				double disparity = dsrbg_camera[QuadCLT.DSRBG_DISPARITY][nTile];
+				if (disparity < max_inf_disparity) { // or only for abs() ?
+					disparity = 0.0;
+				}
+				boolean is_infinity = (disparity == 0.0);
+				if (nTile == dbg_tile) {
+					System.out.println("compareDSItoWorldDerivatives(): nTile = "+nTile+" ("+tileX+"/"+tileY+")");
+				}
+				Vector3D[] wxyz_derivs = getDWorldDPixels(
+						true,           // boolean correctDistortions,
+						is_infinity,    // boolean is_infinity,
+						new double[] {centerX, centerY, disparity}, //  double [] pXpYD)
+						camera_xyz,     // double [] camera_xyz, // camera center in world coordinates
+						camera_atr,    // double [] camera_atr);  // camera orientation relative to world frame
+						rot_deriv_matrices,
+						(nTile == dbg_tile)? 2:0);
+				if (wxyz_derivs != null) {
+					if (wxyz_derivs[0] != null) {
+						wxyz[nTile] = wxyz_derivs[0].toArray();
+						double [] wxyz4 = {wxyz[nTile][0],wxyz[nTile][1],wxyz[nTile][2], is_infinity? 0.0: 1.0};
+						pXpYD_test[nTile] = getImageCoordinatesERS(
+								wxyz4, // double [] xyzw,
+								true, // boolean correctDistortions, // correct distortion (will need corrected background too !)
+								camera_xyz,     // double [] camera_xyz, // camera center in world coordinates
+								camera_atr,    // double [] camera_atr);  // camera orientation relative to world frame
+								0.1); // double    line_err) // threshold error in scan lines (1.0)
+					}
+					for (int i = 0; i < derivs_true.length; i++) {
+						if (wxyz_derivs[i+1] != null) {
+							derivs_true[i][nTile] = wxyz_derivs[i+1].toArray();
+						}
+					}
+				}
+			}
+		}
+		int show_gap_h = 6; // 324+6 = 330 
+		int show_gap_v = 8; // 242 + 8 = 250
+		int tilesX1 = tilesX + show_gap_h; 
+		int tilesY1 = tilesY + show_gap_v;
+		int tilesX2 = 2*tilesX + show_gap_h; 
+		int tilesY2 = 2*tilesY + show_gap_v;
+		int tiles2 = tilesX2 * tilesY2; 
+		
+		if (debug_level > 0) {
+			String title3 =     scene_QuadClt.getImageName()+"-pXpYD_comprison";
+			String [] titles3 = {"orig","restored","diff"};
+			double [][] dbg_img3 = new double [titles3.length][tiles2];
+			for (int i = 0; i < dbg_img3.length; i++) {
+				Arrays.fill(dbg_img3[i], Double.NaN);
+			}
+
+			for (int tileY = 0; tileY < tilesY; tileY++) {
+				for (int tileX = 0; tileX < tilesX; tileX++) {
+					int nTile = tileX + tileY * tilesX;
+					if (pXpYD_original[nTile] != null) {
+						dbg_img3[0][tileX + 0 * tilesX1 + tilesX2 *(tileY + 0 * tilesY1)] = pXpYD_original[nTile][0];
+						dbg_img3[0][tileX + 1 * tilesX1 + tilesX2 *(tileY + 0 * tilesY1)] = pXpYD_original[nTile][1];
+						dbg_img3[0][tileX + 0 * tilesX1 + tilesX2 *(tileY + 1 * tilesY1)] = pXpYD_original[nTile][2];
+						if (pXpYD_test[nTile] != null) {
+							dbg_img3[1][tileX + 0 * tilesX1 + tilesX2 *(tileY + 0 * tilesY1)] = pXpYD_test[nTile][0];
+							dbg_img3[1][tileX + 1 * tilesX1 + tilesX2 *(tileY + 0 * tilesY1)] = pXpYD_test[nTile][1];
+							dbg_img3[1][tileX + 0 * tilesX1 + tilesX2 *(tileY + 1 * tilesY1)] = pXpYD_test[nTile][2];
+
+							dbg_img3[2][tileX + 0 * tilesX1 + tilesX2 *(tileY + 0 * tilesY1)] = pXpYD_test[nTile][0] - pXpYD_original[nTile][0];
+							dbg_img3[2][tileX + 1 * tilesX1 + tilesX2 *(tileY + 0 * tilesY1)] = pXpYD_test[nTile][1] - pXpYD_original[nTile][1];
+							dbg_img3[2][tileX + 0 * tilesX1 + tilesX2 *(tileY + 1 * tilesY1)] = pXpYD_test[nTile][2] - pXpYD_original[nTile][2];
+						}
+					}
+				}
+			}
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_img3,
+					tilesX2,
+					tilesY2,
+					true,
+					title3,
+					titles3);
+		}
+		if (debug_level > 0) {
+			String title_deriv =     scene_QuadClt.getImageName()+"-derivatives_comprison";
+			String [] titles_deriv = new String [3 * deriv_names.length];
+			for (int i = 0; i < deriv_names.length; i++) {
+				titles_deriv[3 * i + 0] = deriv_names[i]+"-deriv";
+				titles_deriv[3 * i + 1] = deriv_names[i]+"-delta";
+				titles_deriv[3 * i + 2] = deriv_names[i]+"-diff";
+			}
+			double [][] dbg_img = new double [titles_deriv.length][tiles2];
+			for (int i = 0; i < dbg_img.length; i++) {
+				Arrays.fill(dbg_img[i], Double.NaN);
+			}
+			for (int tileY = 0; tileY < tilesY; tileY++) {
+				for (int tileX = 0; tileX < tilesX; tileX++) {
+					int nTile = tileX + tileY * tilesX;
+					for (int n = 0; n < deriv_names.length; n++) {
+						if (derivs_true[n][nTile] != null) {
+							dbg_img[3 * n + 0][tileX + 0 * tilesX1 + tilesX2 *(tileY + 0 * tilesY1)] = derivs_true[n][nTile][0];
+							dbg_img[3 * n + 0][tileX + 1 * tilesX1 + tilesX2 *(tileY + 0 * tilesY1)] = derivs_true[n][nTile][1];
+							dbg_img[3 * n + 0][tileX + 0 * tilesX1 + tilesX2 *(tileY + 1 * tilesY1)] = derivs_true[n][nTile][2];
+						}
+						if (derivs_delta[n][nTile] != null) {
+							dbg_img[3 * n + 1][tileX + 0 * tilesX1 + tilesX2 *(tileY + 0 * tilesY1)] = derivs_delta[n][nTile][0];
+							dbg_img[3 * n + 1][tileX + 1 * tilesX1 + tilesX2 *(tileY + 0 * tilesY1)] = derivs_delta[n][nTile][1];
+							dbg_img[3 * n + 1][tileX + 0 * tilesX1 + tilesX2 *(tileY + 1 * tilesY1)] = derivs_delta[n][nTile][2];
+						}
+						if ((derivs_true[n][nTile] != null) && (derivs_delta[n][nTile] != null)) {
+							dbg_img[3 * n + 2][tileX + 0 * tilesX1 + tilesX2 *(tileY + 0 * tilesY1)] = derivs_true[n][nTile][0] - derivs_delta[n][nTile][0];
+							dbg_img[3 * n + 2][tileX + 1 * tilesX1 + tilesX2 *(tileY + 0 * tilesY1)] = derivs_true[n][nTile][1] - derivs_delta[n][nTile][1];
+							dbg_img[3 * n + 2][tileX + 0 * tilesX1 + tilesX2 *(tileY + 1 * tilesY1)] = derivs_true[n][nTile][2] - derivs_delta[n][nTile][2];
+						}
+					}
+				}
+			}
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_img,
+					tilesX2,
+					tilesY2,
+					true,
+					title_deriv,
+					titles_deriv);
+			System.out.println("compareDSItoWorldDerivatives() DONE.");
+			
+		}
+	}
+	
+	
+	public double [] getImageCoordinatesERS(
 			double [] xyzw,
 			boolean correctDistortions, // correct distortion (will need corrected background too !)
 			double [] camera_xyz, // camera center in world coordinates
@@ -790,6 +1205,231 @@ public class ErsCorrection extends GeometryCorrection {
 		return dxy;
 	}
 	
+	// Derivatives section
+	/**
+	 * Get Derivatives of World X (right), Y (up) and Z (to the camera) by image pX, pY, disparity
+	 * Both image coordinates (pX, pY, disparity) and world ones (homogeneous 4-vector) should be known
+	 * e.g. calculated with getWorldCoordinatesERS() or getImageCoordinatesERS() methods
+	 * @param pXpYD Pixel coordinates (pX, pY, disparity)
+	 * @param camera_xyz Camera center offset in world coordinates
+	 * @param camera_atr Camera orientation in world coordinates
+	 * @return Vector3D[] for XYZ and derivatives
+	 * 
+	 * TODO: while debugging, use getImageCoordinatesERS() to verify. Use manual vector for deltas to compare derivatives
+	 */
+	Vector3D[] getDWorldDPixels(
+			boolean correctDistortions,
+			boolean is_infinity,
+			double [] pXpYD,
+			double [] camera_xyz, // camera center in world coordinates
+			double [] camera_atr,  // camera orientation relative to world frame
+			Matrix [] rot_deriv_matrices,
+			int debug_level)
+			{
+		if (Double.isNaN(pXpYD[2])) {
+			return null;
+		}
+//		boolean is_infinity = Math.abs(pXpYD[2]) < THRESHOLD; // Maybe all negative - too?
+		int line = (int) Math.round(pXpYD[1]);
+		if (line < 0) {
+			line = 0;
+		} else if (line >= pixelCorrectionHeight) {
+			line = pixelCorrectionHeight - 1;
+		}
+		double pXcd = pXpYD[0] - 0.5 * this.pixelCorrectionWidth;
+		double pYcd = pXpYD[1] - 0.5 * this.pixelCorrectionHeight;
+		double r_scale = 0.001 * this.pixelSize / this.distortionRadius;
+		double rDn =    Math.sqrt(pXcd*pXcd + pYcd*pYcd) * r_scale; // relative to distortion radius
+		double rND2RD = correctDistortions?(getRByRDist(rDn, false)): 1.0;
+		// rD - in mm
+//		double rD = rDn * this.distortionRadius; // Math.sqrt(pXcd*pXcd + pYcd*pYcd)*0.001*this.pixelSize; // distorted radius in a virtual center camera
+		// pXc, pYc - in pixels
+		double pXc = pXcd * rND2RD; // non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
+		double pYc = pYcd * rND2RD; // in pixels
+		double rn =  rDn *  rND2RD; // normalized to distortion radius
+		// Calculating derivative drD2rND_drn
+		double []  rad_coeff={this.distortionC,this.distortionB,this.distortionA,this.distortionA5,this.distortionA6,this.distortionA7,this.distortionA8};
+		double drD2rND_drn = 0.0; // derivative of (rD/rND) over d_rn; where rn = rND * ri_scale; // relative to distortion radius
+	    double rr = 1.0;
+	    for (int j = 0; j < rad_coeff.length; j++){
+	        drD2rND_drn += rad_coeff[j] * (j+1) * rr;
+	        rr *= rn;
+	    }
+	    // inverting, for rNDn = rND2RD * rDn calculating d_rND2RD_d_rDn
+	    double rD2rND = 1.0/rND2RD;
+	    double rNDn = rDn * rND2RD; 
+	    double d_rND2rD_d_rDn = -drD2rND_drn / ((rD2rND * rD2rND) * (drD2rND_drn * rNDn + rD2rND));    
+	    
+	    double d_rDn_d_pX = pXcd * (r_scale * r_scale) / rDn;
+		double d_rDn_d_pY = pYcd * (r_scale * r_scale) / rDn;
+// 		double d_rDn_d_disparity= 0.0;
+		
+//		double pXc = pXcd * rND2RD;
+ 		double d_pXc_d_pX = rND2RD + pXcd * d_rND2rD_d_rDn * d_rDn_d_pX; 	    
+ 		double d_pXc_d_pY =          pXcd * d_rND2rD_d_rDn * d_rDn_d_pY; 	    
+//		double pYc = pYcd * rND2RD;
+ 		double d_pYc_d_pX =          pYcd * d_rND2rD_d_rDn * d_rDn_d_pX; 	    
+ 		double d_pYc_d_pY = rND2RD + pYcd * d_rND2rD_d_rDn * d_rDn_d_pY; 
+
+		double zh = -SCENE_UNITS_SCALE * this.focalLength * this.disparityRadius / (0.001*this.pixelSize); // "+" - near, "-" far
+		double xh =  SCENE_UNITS_SCALE * pXc * this.disparityRadius;
+		double yh = -SCENE_UNITS_SCALE * pYc * this.disparityRadius;
+		
+		double d_xh_d_px =  SCENE_UNITS_SCALE * d_pXc_d_pX * this.disparityRadius;
+		double d_xh_d_py =  SCENE_UNITS_SCALE * d_pXc_d_pY * this.disparityRadius;
+		double d_yh_d_px = -SCENE_UNITS_SCALE * d_pYc_d_pX * this.disparityRadius;
+		double d_yh_d_py = -SCENE_UNITS_SCALE * d_pYc_d_pY * this.disparityRadius;
+		double [] xyz = {xh, yh, zh};
+		
+//		Matrix dWdP;
+		Vector3D [] dWdP= new Vector3D[3];
+		
+		if (is_infinity) {
+			dWdP[0] = new Vector3D(new double [] {d_xh_d_px, d_yh_d_px, 0.0});
+			dWdP[1] = new Vector3D(new double [] {d_xh_d_py, d_yh_d_py, 0.0});
+			dWdP[2] = new Vector3D(new double [] {0.0,       0.0,       0.0});
+		} else { // not infinity
+			for (int i = 0; i < 3; i++) {
+				xyz[i] /= pXpYD[2];
+			}
+			dWdP[0] = new Vector3D(new double [] {d_xh_d_px / pXpYD[2], d_yh_d_px / pXpYD[2], 0.0});
+			dWdP[1] = new Vector3D(new double [] {d_xh_d_py / pXpYD[2], d_yh_d_py / pXpYD[2], 0.0});
+			dWdP[2] = new Vector3D(new double [] {-xyz[0] /   pXpYD[2],-xyz[1] / pXpYD[2],   -xyz[2] / pXpYD[2]});
+		}
+		
+		
+		// 1) Apply rotations to 3 derivative vectors d/dpx, d/dpy, d/ddisparity
+		Vector3D cam_now_local = new Vector3D(ers_xyz[line]); 
+		// camera orientation during pixel acquisition :
+		Quaternion qpix = ers_quaternion[line];
+		Rotation cam_orient_now_local = new Rotation(qpix.getQ0(), qpix.getQ1(), qpix.getQ2(),qpix.getQ3(), true); // boolean needsNormalization)
+		Vector3D dw_dpX = cam_orient_now_local.applyInverseTo(dWdP[0]);
+		Vector3D dw_dpY = cam_orient_now_local.applyInverseTo(dWdP[1]);
+		Vector3D dw_dd = cam_orient_now_local.applyInverseTo(dWdP[2]);
+
+		Vector3D v3= new Vector3D(xyz);
+		Vector3D cam_center_now_local = cam_orient_now_local.applyInverseTo(v3); // undone rotation relative to center
+
+		// 2) add rotation and displacement by dt proportional to dpY to the second vector
+
+		double d_t_d_pY = line_time; // difference in pY modifies world coordinates using linear and angular velocities
+		Quaternion qpix_dt = ers_quaternion_dt[line]; // .multiply(d_t_d_pY); // rotation // ers_quaternion_dt is actually omega
+		Vector3D local_omega = new Vector3D(qpix_dt.getVectorPart());
+		Vector3D dw_dt = Vector3D.crossProduct(local_omega,cam_center_now_local);
+		// maybe temporarily disable this term
+		
+		/** */
+		dw_dpY = dw_dpY.add(d_t_d_pY, dw_dt); // add scaled
+		if (!is_infinity) {
+			dw_dpY = dw_dpY.add(d_t_d_pY, new Vector3D(ers_xyz_dt[line]));
+		}
+		/** */
+		Vector3D cam_center_local = (is_infinity) ? cam_center_now_local :  cam_center_now_local.add(cam_now_local); // skip translation for infinity
+
+		// undo camera rotation during acquisition of the center line. 
+		Rotation   cam_orient_center= new Rotation(RotationOrder.YXZ, ROT_CONV, camera_atr[0],camera_atr[1],camera_atr[2]);
+		Vector3D cam_center_world0 = cam_orient_center.applyInverseTo(cam_center_local);
+		Vector3D cam_center_world = matrixTimesVector(rot_deriv_matrices[0], cam_center_local);
+		if (debug_level > 1) {
+			System.out.println("\nrot_deriv_matrices[0]:"); rot_deriv_matrices[0].print(8,6);
+			System.out.println("\nrot_deriv_matrices[1]:"); rot_deriv_matrices[1].print(8,6);
+			System.out.println("\nrot_deriv_matrices[2]:"); rot_deriv_matrices[2].print(8,6);
+			System.out.println("\nrot_deriv_matrices[3]:"); rot_deriv_matrices[3].print(8,6);
+
+			Matrix rotation_matrix = new Matrix(cam_orient_center.getMatrix());
+
+			System.out.println("\nrotation_matrix:"); rotation_matrix.print(8,6);
+			System.out.println("\nrotation_matrix.inverse():"); rotation_matrix.inverse().print(8,6);
+//			Vector3D v1 = matrixTimesVector(rotation_matrix, cam_center_local);
+//			Vector3D v1i = matrixTimesVector(rotation_matrix.inverse(), cam_center_local);
+			System.out.println("cam_center_world0="+cam_center_world0.toString());
+//			System.out.println("v1="+v1.toString());
+//			System.out.println("v1i="+v1i.toString());
+//			Vector3D v2 = matrixTimesVector(rot_deriv_matrices[0], cam_center_local);
+			System.out.println("cam_center_world="+cam_center_world.toString());
+		}
+		
+//		double [] dbg_angles = cam_orient_center.getAngles(RotationOrder.YXZ, ROT_CONV);
+
+// Apply same rotation to the d_d* vectors
+		dw_dpX = cam_orient_center.applyInverseTo(dw_dpX);
+		dw_dpY = cam_orient_center.applyInverseTo(dw_dpY);
+		dw_dd =  cam_orient_center.applyInverseTo(dw_dd);
+		
+		// convert coordinates to the real world coordinates
+		Vector3D world_xyz = (is_infinity) ? cam_center_world : cam_center_world.add(new Vector3D(camera_xyz));
+		double [] wxyz = world_xyz.toArray();
+		double [] wxyz4 = {wxyz[0],wxyz[1],wxyz[2], 1.0};
+		if (Double.isNaN(wxyz4[0])) {
+			wxyz4[0] = Double.NaN;
+		}
+		if (is_infinity) {
+			wxyz4[3] = 0.0;
+		}
+
+// calculate other derivatives: dw_d_xyz, dw_dvxyz, dw_datr, dw_dvatr
+// dw_dvatr
+		double delta_t =     line_time*(line - pixelCorrectionHeight/2);
+		double delta_t_xyz = (is_infinity)? 0.0: delta_t;
+
+		Vector3D d_vaz = new Vector3D(0.0,        delta_t,     0.0);       // is that correct?
+		Vector3D d_vtl = new Vector3D(delta_t,    0.0,         0.0);       // is that correct?
+		Vector3D d_vrl = new Vector3D(0.0,        0.0,         delta_t);
+		
+		Vector3D d_vx = new Vector3D(delta_t_xyz, 0.0,         0.0);
+		Vector3D d_vy = new Vector3D(0.0,         delta_t_xyz, 0.0);
+		Vector3D d_vz = new Vector3D(0.0,         0.0,         delta_t_xyz);
+		
+		Vector3D dw_dvaz = cam_orient_center.applyInverseTo(Vector3D.crossProduct(d_vaz, cam_center_now_local));
+		Vector3D dw_dvtl = cam_orient_center.applyInverseTo(Vector3D.crossProduct(d_vtl, cam_center_now_local));
+		Vector3D dw_dvrl = cam_orient_center.applyInverseTo(Vector3D.crossProduct(d_vrl, cam_center_now_local));
+		
+		Vector3D dw_dvx =  cam_orient_center.applyInverseTo(d_vx);
+		Vector3D dw_dvy =  cam_orient_center.applyInverseTo(d_vy);
+		Vector3D dw_dvz =  cam_orient_center.applyInverseTo(d_vz);
+
+		// overall rotations and offsets		
+		Vector3D dw_daz0 = cam_orient_center.applyInverseTo(Vector3D.crossProduct((new Vector3D(0.0, 1.0, 0.0)), cam_center_world));
+		Vector3D dw_dtl0 = cam_orient_center.applyInverseTo(Vector3D.crossProduct((new Vector3D(1.0, 0.0, 0.0)), cam_center_world));
+		Vector3D dw_drl0 = cam_orient_center.applyInverseTo(Vector3D.crossProduct((new Vector3D(0.0, 0.0, 1.0)), cam_center_world));
+		/*
+		Vector3D dw_daz = cam_orient_center.applyInverseTo(Vector3D.crossProduct((new Vector3D(1.0, 0.0, 0.0)), cam_center_world));
+		Vector3D dw_dtl = cam_orient_center.applyInverseTo(Vector3D.crossProduct((new Vector3D(0.0, 1.0, 0.0)), cam_center_world));
+		Vector3D dw_drl = cam_orient_center.applyInverseTo(Vector3D.crossProduct((new Vector3D(0.0, 0.0, 1.0)), cam_center_world));
+		*/
+		
+		Vector3D dw_daz = matrixTimesVector(rot_deriv_matrices[1], cam_center_local);
+		Vector3D dw_dtl = matrixTimesVector(rot_deriv_matrices[2], cam_center_local);
+		Vector3D dw_drl = matrixTimesVector(rot_deriv_matrices[3], cam_center_local);
+
+		if (debug_level > 1) {
+			System.out.println("dw_daz0="+dw_daz0.toString());
+			System.out.println("dw_dtl0="+dw_dtl0.toString());
+			System.out.println("dw_drl0="+dw_drl0.toString());
+			
+
+			System.out.println("dw_daz="+dw_daz.toString());
+			System.out.println("dw_dtl="+dw_dtl.toString());
+			System.out.println("dw_drl="+dw_drl.toString());
+		}
+		
+		
+		
+		Vector3D dw_dx = is_infinity ? Vector3D.ZERO : Vector3D.PLUS_I;
+		Vector3D dw_dy = is_infinity ? Vector3D.ZERO : Vector3D.PLUS_J;
+		Vector3D dw_dz = is_infinity ? Vector3D.ZERO : Vector3D.PLUS_K;
+		
+		Vector3D [] result = {
+				world_xyz, dw_dpX,  dw_dpY, dw_dd,
+				dw_dvaz,   dw_dvtl, dw_dvrl,
+				dw_dvx,    dw_dvy,  dw_dvz,
+				dw_daz,    dw_dtl,  dw_drl,
+				dw_dx,     dw_dy,   dw_dz};
+		return result;
+	}
+	
+	
+			
 	
 	
 	public static void test_rotations() {
