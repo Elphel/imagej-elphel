@@ -858,7 +858,7 @@ public class ErsCorrection extends GeometryCorrection {
 	    int DP_DX =  12; // dw_dx,   (m)
 	    int DP_DY =  13; // dw_dy,   (m)
 	    int DP_DZ =  14; // dw_dz};  (m)
-		double scale_delta = 0.1; // 0.5;
+		double scale_delta = 1.0; // 0.1; // 0.5;
 		double [] deltas = deltas0.clone();
 		for (int i = 0; i < deltas.length; i++) deltas[i] *= scale_delta;
 	    int dbg_tile = 16629;
@@ -919,13 +919,17 @@ public class ErsCorrection extends GeometryCorrection {
 				
 				pXpYD_original[nTile] = new double[] {centerX, centerY,disparity};
 				// find derivatives by pX, pY, pZ
+				if (nTile == dbg_tile) {
+					System.out.println("compareDSItoWorldDerivatives()_0: nTile = "+nTile+" ("+tileX+"/"+tileY+")");
+				}
+
 				double [][][] xyz_pm = {
-						{	getWorldCoordinatesERS(centerX + deltas[DP_DPX], centerY, disparity, true),
-							getWorldCoordinatesERS(centerX - deltas[DP_DPX], centerY, disparity, true)
-						},{ getWorldCoordinatesERS(centerX, centerY + deltas[DP_DPY], disparity, true),
-							getWorldCoordinatesERS(centerX,	centerY - deltas[DP_DPY], disparity, true)
-						},{ getWorldCoordinatesERS(centerX, centerY, disparity + deltas[DP_DD],	 true),
-							getWorldCoordinatesERS(centerX, centerY, disparity - deltas[DP_DD],	 true)}};
+						{	getWorldCoordinatesERS(centerX + deltas[DP_DPX], centerY, disparity, true, camera_xyz, camera_atr),
+							getWorldCoordinatesERS(centerX - deltas[DP_DPX], centerY, disparity, true, camera_xyz, camera_atr)
+						},{ getWorldCoordinatesERS(centerX, centerY + deltas[DP_DPY], disparity, true, camera_xyz, camera_atr),
+							getWorldCoordinatesERS(centerX,	centerY - deltas[DP_DPY], disparity, true, camera_xyz, camera_atr)
+						},{ getWorldCoordinatesERS(centerX, centerY, disparity + deltas[DP_DD],	 true, camera_xyz, camera_atr),
+							getWorldCoordinatesERS(centerX, centerY, disparity - deltas[DP_DD],	 true, camera_xyz, camera_atr)}};
 				for (int n = 0; n < 3; n++) {
 					int par_index =DP_DPX + n;
 					if ((xyz_pm[n][0] != null) && (xyz_pm[n][1] != null)) {
@@ -989,7 +993,7 @@ public class ErsCorrection extends GeometryCorrection {
 					if (disparity < max_inf_disparity) { // or only for abs() ?
 						disparity = 0.0;
 					}
-					ers_pm[n][sign01][nTile]=  getWorldCoordinatesERS(centerX, centerY, disparity, true);
+					ers_pm[n][sign01][nTile]=  getWorldCoordinatesERS(centerX, centerY, disparity, true, camera_xyz, camera_atr);
 				}
 			}
 		}
@@ -1229,7 +1233,6 @@ public class ErsCorrection extends GeometryCorrection {
 		if (Double.isNaN(pXpYD[2])) {
 			return null;
 		}
-//		boolean is_infinity = Math.abs(pXpYD[2]) < THRESHOLD; // Maybe all negative - too?
 		int line = (int) Math.round(pXpYD[1]);
 		if (line < 0) {
 			line = 0;
@@ -1262,12 +1265,9 @@ public class ErsCorrection extends GeometryCorrection {
 	    
 	    double d_rDn_d_pX = pXcd * (r_scale * r_scale) / rDn;
 		double d_rDn_d_pY = pYcd * (r_scale * r_scale) / rDn;
-// 		double d_rDn_d_disparity= 0.0;
 		
-//		double pXc = pXcd * rND2RD;
  		double d_pXc_d_pX = rND2RD + pXcd * d_rND2rD_d_rDn * d_rDn_d_pX; 	    
  		double d_pXc_d_pY =          pXcd * d_rND2rD_d_rDn * d_rDn_d_pY; 	    
-//		double pYc = pYcd * rND2RD;
  		double d_pYc_d_pX =          pYcd * d_rND2rD_d_rDn * d_rDn_d_pX; 	    
  		double d_pYc_d_pY = rND2RD + pYcd * d_rND2rD_d_rDn * d_rDn_d_pY; 
 
@@ -1281,9 +1281,7 @@ public class ErsCorrection extends GeometryCorrection {
 		double d_yh_d_py = -SCENE_UNITS_SCALE * d_pYc_d_pY * this.disparityRadius;
 		double [] xyz = {xh, yh, zh};
 		
-//		Matrix dWdP;
 		Vector3D [] dWdP= new Vector3D[3];
-		
 		if (is_infinity) {
 			dWdP[0] = new Vector3D(new double [] {d_xh_d_px, d_yh_d_px, 0.0});
 			dWdP[1] = new Vector3D(new double [] {d_xh_d_py, d_yh_d_py, 0.0});
@@ -1305,7 +1303,7 @@ public class ErsCorrection extends GeometryCorrection {
 		Rotation cam_orient_now_local = new Rotation(qpix.getQ0(), qpix.getQ1(), qpix.getQ2(),qpix.getQ3(), true); // boolean needsNormalization)
 		Vector3D dw_dpX = cam_orient_now_local.applyInverseTo(dWdP[0]);
 		Vector3D dw_dpY = cam_orient_now_local.applyInverseTo(dWdP[1]);
-		Vector3D dw_dd = cam_orient_now_local.applyInverseTo(dWdP[2]);
+		Vector3D dw_dd =  cam_orient_now_local.applyInverseTo(dWdP[2]);
 
 		Vector3D v3= new Vector3D(xyz);
 		Vector3D cam_center_now_local = cam_orient_now_local.applyInverseTo(v3); // undone rotation relative to center
@@ -1327,35 +1325,19 @@ public class ErsCorrection extends GeometryCorrection {
 		Vector3D cam_center_local = (is_infinity) ? cam_center_now_local :  cam_center_now_local.add(cam_now_local); // skip translation for infinity
 
 		// undo camera rotation during acquisition of the center line. 
-		Rotation   cam_orient_center= new Rotation(RotationOrder.YXZ, ROT_CONV, camera_atr[0],camera_atr[1],camera_atr[2]);
-		Vector3D cam_center_world0 = cam_orient_center.applyInverseTo(cam_center_local);
+		Rotation cam_orient_center= new Rotation(RotationOrder.YXZ, ROT_CONV, camera_atr[0],camera_atr[1],camera_atr[2]);
 		Vector3D cam_center_world = matrixTimesVector(rot_deriv_matrices[0], cam_center_local);
-		if (debug_level > 1) {
-			System.out.println("\nrot_deriv_matrices[0]:"); rot_deriv_matrices[0].print(8,6);
-			System.out.println("\nrot_deriv_matrices[1]:"); rot_deriv_matrices[1].print(8,6);
-			System.out.println("\nrot_deriv_matrices[2]:"); rot_deriv_matrices[2].print(8,6);
-			System.out.println("\nrot_deriv_matrices[3]:"); rot_deriv_matrices[3].print(8,6);
-
-			Matrix rotation_matrix = new Matrix(cam_orient_center.getMatrix());
-
-			System.out.println("\nrotation_matrix:"); rotation_matrix.print(8,6);
-			System.out.println("\nrotation_matrix.inverse():"); rotation_matrix.inverse().print(8,6);
-//			Vector3D v1 = matrixTimesVector(rotation_matrix, cam_center_local);
-//			Vector3D v1i = matrixTimesVector(rotation_matrix.inverse(), cam_center_local);
-			System.out.println("cam_center_world0="+cam_center_world0.toString());
-//			System.out.println("v1="+v1.toString());
-//			System.out.println("v1i="+v1i.toString());
-//			Vector3D v2 = matrixTimesVector(rot_deriv_matrices[0], cam_center_local);
-			System.out.println("cam_center_world="+cam_center_world.toString());
-		}
-		
-//		double [] dbg_angles = cam_orient_center.getAngles(RotationOrder.YXZ, ROT_CONV);
-
 // Apply same rotation to the d_d* vectors
+/**/		
+		Vector3D dw_dpX0 = matrixTimesVector(rot_deriv_matrices[0], dw_dpX);
+		Vector3D dw_dpY0 = matrixTimesVector(rot_deriv_matrices[0], dw_dpY);
+		Vector3D dw_dd0 =  matrixTimesVector(rot_deriv_matrices[0], dw_dd);
+/* */		
+/* */		
 		dw_dpX = cam_orient_center.applyInverseTo(dw_dpX);
 		dw_dpY = cam_orient_center.applyInverseTo(dw_dpY);
 		dw_dd =  cam_orient_center.applyInverseTo(dw_dd);
-		
+/* */		
 		// convert coordinates to the real world coordinates
 		Vector3D world_xyz = (is_infinity) ? cam_center_world : cam_center_world.add(new Vector3D(camera_xyz));
 		double [] wxyz = world_xyz.toArray();
@@ -1380,6 +1362,7 @@ public class ErsCorrection extends GeometryCorrection {
 		Vector3D d_vy = new Vector3D(0.0,         delta_t_xyz, 0.0);
 		Vector3D d_vz = new Vector3D(0.0,         0.0,         delta_t_xyz);
 		
+		/* */
 		Vector3D dw_dvaz = cam_orient_center.applyInverseTo(Vector3D.crossProduct(d_vaz, cam_center_now_local));
 		Vector3D dw_dvtl = cam_orient_center.applyInverseTo(Vector3D.crossProduct(d_vtl, cam_center_now_local));
 		Vector3D dw_dvrl = cam_orient_center.applyInverseTo(Vector3D.crossProduct(d_vrl, cam_center_now_local));
@@ -1387,33 +1370,20 @@ public class ErsCorrection extends GeometryCorrection {
 		Vector3D dw_dvx =  cam_orient_center.applyInverseTo(d_vx);
 		Vector3D dw_dvy =  cam_orient_center.applyInverseTo(d_vy);
 		Vector3D dw_dvz =  cam_orient_center.applyInverseTo(d_vz);
-
+		/* */
+		Vector3D dw_dvaz0 = matrixTimesVector(rot_deriv_matrices[0], Vector3D.crossProduct(d_vaz, cam_center_now_local));
+		Vector3D dw_dvtl0 = matrixTimesVector(rot_deriv_matrices[0], Vector3D.crossProduct(d_vtl, cam_center_now_local));
+		Vector3D dw_dvrl0 = matrixTimesVector(rot_deriv_matrices[0], Vector3D.crossProduct(d_vrl, cam_center_now_local));
+		
+		Vector3D dw_dvx0 =  matrixTimesVector(rot_deriv_matrices[0], d_vx);
+		Vector3D dw_dvy0 =  matrixTimesVector(rot_deriv_matrices[0], d_vy);
+		Vector3D dw_dvz0 =  matrixTimesVector(rot_deriv_matrices[0], d_vz);
+		
 		// overall rotations and offsets		
-		Vector3D dw_daz0 = cam_orient_center.applyInverseTo(Vector3D.crossProduct((new Vector3D(0.0, 1.0, 0.0)), cam_center_world));
-		Vector3D dw_dtl0 = cam_orient_center.applyInverseTo(Vector3D.crossProduct((new Vector3D(1.0, 0.0, 0.0)), cam_center_world));
-		Vector3D dw_drl0 = cam_orient_center.applyInverseTo(Vector3D.crossProduct((new Vector3D(0.0, 0.0, 1.0)), cam_center_world));
-		/*
-		Vector3D dw_daz = cam_orient_center.applyInverseTo(Vector3D.crossProduct((new Vector3D(1.0, 0.0, 0.0)), cam_center_world));
-		Vector3D dw_dtl = cam_orient_center.applyInverseTo(Vector3D.crossProduct((new Vector3D(0.0, 1.0, 0.0)), cam_center_world));
-		Vector3D dw_drl = cam_orient_center.applyInverseTo(Vector3D.crossProduct((new Vector3D(0.0, 0.0, 1.0)), cam_center_world));
-		*/
 		
 		Vector3D dw_daz = matrixTimesVector(rot_deriv_matrices[1], cam_center_local);
 		Vector3D dw_dtl = matrixTimesVector(rot_deriv_matrices[2], cam_center_local);
 		Vector3D dw_drl = matrixTimesVector(rot_deriv_matrices[3], cam_center_local);
-
-		if (debug_level > 1) {
-			System.out.println("dw_daz0="+dw_daz0.toString());
-			System.out.println("dw_dtl0="+dw_dtl0.toString());
-			System.out.println("dw_drl0="+dw_drl0.toString());
-			
-
-			System.out.println("dw_daz="+dw_daz.toString());
-			System.out.println("dw_dtl="+dw_dtl.toString());
-			System.out.println("dw_drl="+dw_drl.toString());
-		}
-		
-		
 		
 		Vector3D dw_dx = is_infinity ? Vector3D.ZERO : Vector3D.PLUS_I;
 		Vector3D dw_dy = is_infinity ? Vector3D.ZERO : Vector3D.PLUS_J;
