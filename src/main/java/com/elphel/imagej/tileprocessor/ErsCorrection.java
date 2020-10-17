@@ -960,11 +960,11 @@ public class ErsCorrection extends GeometryCorrection {
 //		double [] scene_xyz =     new double [] {-.3,-0.2,  2.0}; // scene center in world coordinates
 //		double [] scene_atr =     new double [] {0.05, -0.03,  0.05}; // scene orientation relative to world frame
 
-//		double [] reference_xyz = new double [] {0.5, 0.2,-3.0}; // reference center in world coordinates
-		double [] reference_xyz = new double [3]; // reference center in world coordinates
-		double [] reference_atr = new double [] {0.1, 0.05,  0.15}; // reference orientation relative to world frame
-		double [] scene_xyz =     reference_xyz.clone(); //new double[3]; // 
-		double [] scene_atr =     new double[3]; // reference_atr.clone();
+		double [] reference_xyz = new double [] {0.5, 0.2,-3.0}; // reference center in world coordinates
+//		double [] reference_xyz = new double [3]; // reference center in world coordinates
+		double [] reference_atr = new double [] {0.1, 0.05,   0.15}; // reference orientation relative to world frame
+		double [] scene_xyz =     new double [] {0.2, -0.1,  -2.0}; // reference_xyz.clone(); //new double[3]; // 
+		double [] scene_atr =     new double [] {0.05, 0.15, -0.05}; // new double[3]; // reference_atr.clone();
 		System.out.println(String.format("reference_xyz= {%8f, %8f, %8f}",reference_xyz[0],reference_xyz[1],reference_xyz[2]));
 		System.out.println(String.format("reference_atr= {%8f, %8f, %8f}",reference_atr[0],reference_atr[1],reference_atr[2]));
 		System.out.println(String.format("scene_xyz=     {%8f, %8f, %8f}",scene_xyz[0],scene_xyz[1],scene_xyz[2]));
@@ -986,10 +986,10 @@ public class ErsCorrection extends GeometryCorrection {
 			System.out.println(String.format("Scene     ers_watr_center_dt= {%8f, %8f, %8f}",scene_ers.ers_watr_center_dt[0],scene_ers.ers_watr_center_dt[1],scene_ers.ers_watr_center_dt[2]));
 		}
 		if (fake_linear_ers) {
-//			this.ers_wxyz_center_dt=      new double[] { 1.0, 0.25, -2.0}; // this.ers_watr_center_dt.clone(); // new double[3];
-//			scene_ers.ers_wxyz_center_dt= new double[] { 0.5, 0.3,  -1.5}; // new double[3];
-			this.ers_wxyz_center_dt=      new double[3];// { 1.0, 0.25, -2.0}; // this.ers_watr_center_dt.clone(); // new double[3];
-			scene_ers.ers_wxyz_center_dt= new double[3];// { 0.5, 0.3,  -1.5}; // new double[3];
+			this.ers_wxyz_center_dt=      new double[] { 1.0, 0.25, -2.0}; // this.ers_watr_center_dt.clone(); // new double[3];
+			scene_ers.ers_wxyz_center_dt= new double[] { 0.5, 0.3,  -1.5}; // new double[3];
+//			this.ers_wxyz_center_dt=      new double[3];// { 1.0, 0.25, -2.0}; // this.ers_watr_center_dt.clone(); // new double[3];
+//			scene_ers.ers_wxyz_center_dt= new double[3];// { 0.5, 0.3,  -1.5}; // new double[3];
 			System.out.println("Updated2:");
 			System.out.println(String.format("Reference ers_wxyz_center_dt= {%8f, %8f, %8f}",this.ers_wxyz_center_dt[0],this.ers_wxyz_center_dt[1],this.ers_wxyz_center_dt[2]));
 			System.out.println(String.format("Reference ers_watr_center_dt= {%8f, %8f, %8f}",this.ers_watr_center_dt[0],this.ers_watr_center_dt[1],this.ers_watr_center_dt[2]));
@@ -1974,10 +1974,16 @@ public class ErsCorrection extends GeometryCorrection {
 			scene_vectors[DW_DPX + 1].toArray(),
 			scene_vectors[DW_DPY + 1].toArray(),
 			scene_vectors[DW_DD +  1].toArray()}).transpose();
-		double x = xyz4[0];
-		double y = xyz4[1];
-		double z = xyz4[2];
-		double z2 = z * z; 
+		// next variables are {x,y,z} * disparity
+		double xref = xyz4[0];
+		double yref = xyz4[1];
+		double zref = xyz4[2];
+		double z2ref = zref * zref;
+		double xscene = scene_vectors[0].getX();
+		double yscene = scene_vectors[0].getY();
+		double zscene = scene_vectors[0].getZ();
+		double z2scene = zscene * zscene;
+		
 		if (is_infinity) {
 			// dividing X, Y by Z, getting 2x2 Matrix
 			/*
@@ -1989,10 +1995,10 @@ public class ErsCorrection extends GeometryCorrection {
 			 * dV/dpX = 1/z * (dy/dpX) - y/z^2 * (dz/dpX)
 			 * dV/dpY = 1/z * (dy/dpY) - y/z^2 * (dz/dpY)  
 			 */
-			double dU_dpX = dx_dpscene.get(0, 0) / z - x * dx_dpscene.get(2, 0) / z2;
-			double dU_dpY = dx_dpscene.get(0, 1) / z - x * dx_dpscene.get(2, 1) / z2;
-			double dV_dpX = dx_dpscene.get(1, 0) / z - y * dx_dpscene.get(2, 0) / z2;
-			double dV_dpY = dx_dpscene.get(1, 1) / z - y * dx_dpscene.get(2, 1) / z2;  
+			double dU_dpX = dx_dpscene.get(0, 0) / zscene - xscene * dx_dpscene.get(2, 0) / z2scene;
+			double dU_dpY = dx_dpscene.get(0, 1) / zscene - xscene * dx_dpscene.get(2, 1) / z2scene;
+			double dV_dpX = dx_dpscene.get(1, 0) / zscene - yscene * dx_dpscene.get(2, 0) / z2scene;
+			double dV_dpY = dx_dpscene.get(1, 1) / zscene - yscene * dx_dpscene.get(2, 1) / z2scene;  
 			dx_dpscene = new Matrix (new double[][] {
 				{ dU_dpX, dU_dpY, 0.0},
 				{ dV_dpX, dV_dpY, 0.0},
@@ -2012,8 +2018,8 @@ public class ErsCorrection extends GeometryCorrection {
 			int vindx = indx+1;
 			if (is_infinity) {
 				Vector3D dw_dp = new Vector3D(
-						reference_vectors[vindx].getX()/z - x*reference_vectors[vindx].getZ()/z2,
-						reference_vectors[vindx].getY()/z - y*reference_vectors[vindx].getZ()/z2,
+						reference_vectors[vindx].getX()/zref - xref * reference_vectors[vindx].getZ() / z2ref,
+						reference_vectors[vindx].getY()/zref - yref * reference_vectors[vindx].getZ() / z2ref,
 						0.0);
 				derivatives[vindx] = matrixTimesVector(dpscene_dxyz, dw_dp).toArray();
 			} else {
@@ -2025,8 +2031,8 @@ public class ErsCorrection extends GeometryCorrection {
 			int indx_in =  indx_out - DP_DSVAZ + DW_DVAZ; // 4, 5, ...
 			if (is_infinity) {
 				Vector3D dw_dp = new Vector3D(
-						scene_vectors[indx_in].getX()/z - x*scene_vectors[indx_in].getZ()/z2,
-						scene_vectors[indx_in].getY()/z - y*scene_vectors[indx_in].getZ()/z2,
+						scene_vectors[indx_in].getX()/zscene - xscene * scene_vectors[indx_in].getZ() / z2scene,
+						scene_vectors[indx_in].getY()/zscene - yscene * scene_vectors[indx_in].getZ() / z2scene,
 						0.0);
 				derivatives[indx_out] = matrixTimesVector(dpscene_dxyz_minus, dw_dp).toArray();
 			} else {
