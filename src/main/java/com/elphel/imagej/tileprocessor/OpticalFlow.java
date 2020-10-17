@@ -2166,10 +2166,18 @@ public class OpticalFlow {
 				iscale);
 		double [][][] pair = {reference_QuadCLT.getDSRBG(),dsrbg};
 		
+		/*
 		reference_QuadCLT.getErsCorrection().compareDSItoWorldDerivatives(
 				reference_QuadCLT, // QuadCLT   scene_QuadClt,
 				0.03,              // double    max_inf_disparity, // absolute value
 				1);                // int       debug_level);
+		*/
+		reference_QuadCLT.getErsCorrection().comparePXYD_Derivatives(
+				scene_QuadCLT,     // QuadCLT   scene_QuadClt,
+				reference_QuadCLT, // QuadCLT   reference_QuadClt,
+				0.03, // double    max_inf_disparity, // absolute value
+				1); // int       debug_level
+		
 		
 		if (debug_level > -100) {
 			return pair;
