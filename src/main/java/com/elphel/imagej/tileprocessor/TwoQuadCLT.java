@@ -8280,6 +8280,86 @@ if (debugLevel > -100) return true; // temporarily !
 
 
 	}
+
+	public void TestInterLMA(
+			QuadCLT                                              quadCLT_main, // tiles should be set
+			CLTParameters             clt_parameters,
+			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
+			ColorProcParameters                                  colorProcParameters,
+			ColorProcParameters                                  colorProcParameters_aux,
+			CorrectionColorProc.ColorGainsParameters             channelGainParameters,
+			EyesisCorrectionParameters.RGBParameters             rgbParameters,
+			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+			Properties                                           properties,
+			final int        threadsMax,  // maximal number of threads to launch
+			final boolean    updateStatus,
+			final int        debugLevel)  throws Exception
+	{
+		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
+			quadCLT_main.getGPU().resetGeometryCorrection();
+			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
+		}
+		// final boolean    batch_mode = clt_parameters.batch_run;
+		this.startTime=System.nanoTime();
+		String [] sourceFiles0=quadCLT_main.correctionsParameters.getSourcePaths();
+		QuadCLT.SetChannels [] set_channels_main = quadCLT_main.setChannels(debugLevel);
+		if ((set_channels_main == null) || (set_channels_main.length==0)) {
+			System.out.println("No files to process (of "+sourceFiles0.length+")");
+			return;
+		}
+		QuadCLT.SetChannels [] set_channels=quadCLT_main.setChannels(debugLevel);
+//		String set_name = set_channels[0].set_name;
+		
+		QuadCLT [] quadCLTs = new QuadCLT [set_channels.length]; 
+		for (int i = 0; i < quadCLTs.length; i++) {
+			quadCLTs[i] = quadCLT_main.spawnQuadCLT(
+					set_channels[i].set_name,
+					clt_parameters,
+					colorProcParameters, //
+					threadsMax,
+					debugLevel);
+			// temporarily fix wrong sign:
+			ErsCorrection ers = (ErsCorrection) (quadCLTs[i].getGeometryCorrection());
+			ers.setupERSfromExtrinsics();			
+			quadCLTs[i].setDSRBG(
+					clt_parameters, // CLTParameters  clt_parameters,
+					threadsMax,     // int            threadsMax,  // maximal number of threads to launch
+					updateStatus,   // boolean        updateStatus,
+					debugLevel);    // int            debugLevel)
+///			quadCLTs[i].showDSIMain();
+		}
+		
+		
+		OpticalFlow opticalFlow = new OpticalFlow(
+				threadsMax, // int            threadsMax,  // maximal number of threads to launch
+				updateStatus); // boolean        updateStatus);
+		
+		for (int i = 1; i < quadCLTs.length; i++) {
+			QuadCLT qPrev = (i > 0) ? quadCLTs[i - 1] : null;
+			//			double [][][] pair_sets =
+			/*
+			opticalFlow.test_LMA(
+					clt_parameters, // CLTParameters  clt_parameters,
+					clt_parameters.ofp.k_prev, // k_prev,
+					quadCLTs[i],
+					qPrev,
+					clt_parameters.ofp.ers_to_pose_scale, // corr_scale,
+					clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
+					*/
+			opticalFlow.test_LMA(
+					clt_parameters, // CLTParameters  clt_parameters,
+					clt_parameters.ofp.k_prev, // k_prev,
+					qPrev,
+					quadCLTs[i],
+					clt_parameters.ofp.ers_to_pose_scale, // corr_scale,
+					clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
+		}
+
+
+		System.out.println("End of test");
+
+
+	}
 	
 	public void batchLwirRig(
 			QuadCLT                                              quadCLT_main, // tiles should be set

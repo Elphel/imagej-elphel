@@ -535,46 +535,6 @@ public class ExtrinsicAdjustment {
 	}
 
 
-
-
-/*
-	private double [] getYminusFx(
-			GeometryCorrection.CorrVector corr_vector)
-	{
-		int clusters = clustersX * clustersY;
-		Matrix []   corr_rots =  corr_vector.getRotMatrices(); // get array of per-sensor rotation matrices
-		Matrix [][] deriv_rots = corr_vector.getRotDeriveMatrices();
-		double [] y_minus_fx = new double  [clusters * POINTS_SAMPLE];
-		double [] imu = corr_vector.getIMU(); // i)
-		for (int cluster = 0; cluster < clusters;  cluster++) if (measured_dsxy[cluster] != null){
-			double [] ddnd = geometryCorrection.getPortsDDNDAndDerivatives( // USED in lwir
-					geometryCorrection,     // GeometryCorrection gc_main,
-					use_rig_offsets,        // boolean     use_rig_offsets,
-					corr_rots,              // Matrix []   rots,
-					deriv_rots,             // Matrix [][] deriv_rots,
-					null,                   // double [][] DDNDderiv,     // if not null, should be double[8][]
-					dy_ddisparity[cluster], // double []   dy_ddisparity,   // double [][] disp_dist, //disp_dist[i][2] or null
-					imu,                    // double []   imu,
-					x0y0[cluster],          // double []   pXYND0,        // per-port non-distorted coordinates corresponding to the correlation measurements
-					world_xyz[cluster],     // double []   xyz, // world XYZ for ERS correction
-					measured_dsxy[cluster][ExtrinsicAdjustment.INDX_PX + 0],  // double      px,
-					measured_dsxy[cluster][ExtrinsicAdjustment.INDX_PX + 1],  // double      py,
-					measured_dsxy[cluster][ExtrinsicAdjustment.INDX_TARGET]); // double      disparity);
-			//arraycopy(Object src, int srcPos, Object dest, int destPos, int length)
-			ddnd[0] = -ddnd[0];
-			if ((force_disparity != null) && force_disparity[cluster]) {
-				ddnd[0] -= measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DIFF];
-			}
-///			ddnd[0] = -measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DIFF] - ddnd[0];
-			for (int i = 0; i < NUM_SENSORS; i++) {
-				ddnd[i + 1] = -measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + i] - ddnd[i + 1];
-				ddnd[i + 5] = -measured_dsxy[cluster][ExtrinsicAdjustment.INDX_ND0 + i] - ddnd[i + 5];
-			}
-			System.arraycopy(ddnd, 0, y_minus_fx, cluster * POINTS_SAMPLE, POINTS_SAMPLE);
-		}
-		return y_minus_fx;
-	}
-*/
 	private double [] getWYmFxRms( // USED in lwir
 			double []   fx) {
 		int clusters = clustersX * clustersY;
@@ -1125,7 +1085,7 @@ public class ExtrinsicAdjustment {
 		}
 		return clouds;
 	}
-
+	@Deprecated
 	private double [] getWeights(
 			double  [][] measured_dsxy,
 			boolean [] force_disparity,   // same dimension as dsdn, true if disparity should be controlled
@@ -1395,13 +1355,7 @@ public class ExtrinsicAdjustment {
 		double [] imu = corr_vector.getIMU(); // i)
 		double [] y_minus_fx = new double  [clusters * POINTS_SAMPLE];
 		for (int cluster = 0; cluster < clusters;  cluster++) {
-//			if ((cluster == 1892) || (cluster == 1894) ||(cluster == 3205)) {
-//				System.out.println("getFx() cluster="+cluster);
-//			}
 			if (measured_dsxy[cluster] != null){
-//				if ((cluster == 1735 ) || (cluster==1736)){
-//					System.out.print("");
-//				}
 				double [] ddnd = geometryCorrection.getPortsDDNDAndDerivativesNew( // USED in lwir
 						geometryCorrection,     // GeometryCorrection gc_main,
 						use_rig_offsets,        // boolean     use_rig_offsets,
@@ -2220,13 +2174,8 @@ public class ExtrinsicAdjustment {
 			double lambda,
 			double rms_diff,
 			int debug_level) {
-//		int num_points = this.weights.length; // includes 2 extra for regularization
-//		int num_pars = getNumPars();
 		boolean [] rslt = {false,false};
 		if (this.last_rms == null) { //first time, need to calculate all (vector is valid)
-//			this.last_ymfx = getFxJt(
-//					this.vector, // double []   vector,
-//					this.last_jt); // double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
 			this.last_jt =  getJacobianTransposed(corr_vector); // new double [num_pars][num_points];
 			this.last_ymfx = getFx(corr_vector);
 			if (debug_level > -1) { // temporary
@@ -2304,19 +2253,10 @@ public class ExtrinsicAdjustment {
 		double []  delta = mdelta.getColumnPackedCopy();
 		GeometryCorrection.CorrVector corr_delta = geometryCorrection.getCorrVector(delta, par_mask);
 
-///		double [] new_vector = this.vector.clone();
 		GeometryCorrection.CorrVector new_vector = this.corr_vector.clone();
 		double scale = 1.0;
-//		boolean ok =
 		new_vector.incrementVector(corr_delta, scale); // ok = false if there are nay NaN-s
 
-///		for (int i = 0; i < num_pars; i++) new_vector[i]+= delta[i];
-		// being optimistic, modify jt and last_ymfx in place, restore if failed
-
-
-///		this.last_ymfx = getFxJt(
-///				new_vector, // double []   vector,
-///				this.last_jt); // double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
 		this.last_jt =  getJacobianTransposed(new_vector); // new double [num_pars][num_points];
 		this.last_ymfx = getFx(new_vector);
 		if (debug_level > 2) {
@@ -2339,18 +2279,12 @@ public class ExtrinsicAdjustment {
 			if (debug_level > 2) {
 				System.out.print("delta: "+corr_delta.toString()+"\n");
 				System.out.print("New vector: "+new_vector.toString()+"\n");
-///				for (int np = 0; np < vector.length; np++) {
-///					System.out.print(this.vector[np]+" ");
-///				}
 				System.out.println();
 			}
 		} else { // worsened
 			rslt[0] = false;
 			rslt[1] = false; // do not know, caller will decide
 			// restore state
-///			this.last_ymfx = getFxJt( // recalculate fx
-///					this.vector, // double []   vector,
-///					this.last_jt); // double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
 			this.last_jt =  getJacobianTransposed(corr_vector); // new double [num_pars][num_points];
 			this.last_ymfx = getFx(corr_vector);
 

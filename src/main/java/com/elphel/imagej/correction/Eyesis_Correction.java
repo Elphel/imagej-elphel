@@ -699,7 +699,8 @@ private Panel panel1,
 			addButton("LIST extrinsics",            panelClt5, color_report);
 			addButton("DSI histogram",              panelClt5, color_report);
 			addButton("ML recalc",                  panelClt5, color_process);
-			addButton("Inter Test",                  panelClt5, color_stop);
+			addButton("Inter Test",                 panelClt5, color_stop);
+			addButton("Inter LMA",                  panelClt5, color_stop);
 			plugInFrame.add(panelClt5);
 		}
 
@@ -5107,6 +5108,13 @@ private Panel panel1,
         CLT_PARAMETERS.batch_run = true;
         testInterScene();
     	return;
+/* ======================================================================== */
+    } else if (label.equals("Inter LMA")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        CLT_PARAMETERS.batch_run = true;
+        testInterLMA();
+    	return;
     	
 /* ======================================================================== */
     } else if (label.equals("CLT rig edit")) {
@@ -6475,6 +6483,75 @@ private Panel panel1,
 	}
 
 	
+	public boolean testInterLMA() {
+		long startTime=System.nanoTime();
+		// load needed sensor and kernels files
+		if (!prepareRigImages()) return false;
+		String configPath=getSaveCongigPath();
+		if (configPath.equals("ABORT")) return false;
+		setAllProperties(PROPERTIES); // batchRig may save properties with the model. Extrinsics will be updated, others should be set here
+		if (DEBUG_LEVEL > -2){
+			System.out.println("++++++++++++++ Testing Interscene processing ++++++++++++++");
+		}
+		
+		if (CLT_PARAMETERS.useGPU()) { // only init GPU instances if it is used
+			if (GPU_TILE_PROCESSOR == null) {
+				try {
+					GPU_TILE_PROCESSOR = new GPUTileProcessor(CORRECTION_PARAMETERS.tile_processor_gpu);
+				} catch (Exception e) {
+					System.out.println("Failed to initialize GPU class");
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					return false;
+				} //final int        debugLevel);
+			}
+			if (CLT_PARAMETERS.useGPU(false) && (QUAD_CLT != null) && (GPU_QUAD == null)) { // if GPU main is needed
+				try {
+					GPU_QUAD = GPU_TILE_PROCESSOR.new GpuQuad(
+							QUAD_CLT,
+							4,
+							3);
+				} catch (Exception e) {
+					System.out.println("Failed to initialize GpuQuad class");
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					return false;
+				} //final int        debugLevel);
+				QUAD_CLT.setGPU(GPU_QUAD);
+			}
+		}
+		
+		try {
+			TWO_QUAD_CLT.TestInterLMA(
+					QUAD_CLT, // QuadCLT quadCLT_main,
+//					QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
+					CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+					DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+					COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+					COLOR_PROC_PARAMETERS_AUX, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters_aux,
+					CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+					RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+					EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+					PROPERTIES,  // Properties                                           properties,
+					THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+					UPDATE_STATUS, //final boolean    updateStatus,
+					DEBUG_LEVEL);
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} //final int        debugLevel);
+		if (configPath!=null) {
+			saveTimestampedProperties( // save config again
+					configPath,      // full path or null
+					null, // use as default directory if path==null
+					true,
+					PROPERTIES);
+		}
+		System.out.println("batchRig(): Processing finished at "+
+				IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec, --- Free memory="+
+				Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+		return true;
+	}
 	
 	
 	

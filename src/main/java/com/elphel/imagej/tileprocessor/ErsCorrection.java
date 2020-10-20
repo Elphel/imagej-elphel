@@ -92,33 +92,33 @@ public class ErsCorrection extends GeometryCorrection {
 	static final int DW_DZ =  14; // dw_dz};  (m)
 
 	static final String [] DP_DERIV_NAMES = {
-			"dp_dpX",   // (pix)     0
-			"dp_dpY",   // (pix)     1
-			"dp_dd",    // (pix)     2
-			"dp_dvaz",  // (rad/sec) 3
-			"dp_dvtl",  // (rad/sec) 4
-			"dp_dvrl",  // (rad/sec) 5
-			"dp_dvx",   // (m/s)     6
-			"dp_dvy",   // (m/s)     7
-			"dp_dvz",   // (m/s)     8
-			"dp_daz",   // (rad)     9
-			"dp_dtl",   // (rad)    10
-			"dp_drl",   // (rad)    11
-			"dp_dx",    // (m)      12
-			"dp_dy",    // (m)	    13
-			"dp_dz",    // (m)      14
-			"dp_dsvaz", // (rad/sec)15
-			"dp_dsvtl", // (rad/sec)16
-			"dp_dsvrl", // (rad/sec)17
-			"dp_dsvx",  // (m/s)    18
-			"dp_dsvy",  // (m/s)    19
-			"dp_dsvz",  // (m/s)    20
-			"dp_dsaz",  // (rad)    21
-			"dp_dstl",  // (rad)    22
-			"dp_dsrl",  // (rad)    23
-			"dp_dsx",   // (m)      24
-			"dp_dsy",   // (m)	    25
-			"dp_dsz"};  // (m)      26
+			"pX",            // (pix)     0
+			"pY",            // (pix)     1
+			"disp",          // (pix)     2
+			"ers_vaz_ref",   // (rad/sec) 3
+			"ers_vtl_ref",   // (rad/sec) 4
+			"ers_vrl_ref",   // (rad/sec) 5
+			"ers_dvx_ref",   // (m/s)     6
+			"ers_dvy_ref",   // (m/s)     7
+			"ers_dvz_ref",   // (m/s)     8
+			"azimuth_ref",   // (rad)     9
+			"tilt_ref",      // (rad)    10
+			"roll_ref",      // (rad)    11
+			"X_ref",         // (m)      12
+			"Y_ref",         // (m)	    13
+			"Z_ref",         // (m)      14
+			"ers_vaz_scene", // (rad/sec)15
+			"ers_vtl_scene", // (rad/sec)16
+			"ers_vrl_scene", // (rad/sec)17
+			"ers_dvx_scene", // (m/s)    18
+			"ers_dvy_scene", // (m/s)    19
+			"ers_dvz_scene", // (m/s)    20
+			"azimuth_scene", // (rad)    21
+			"tilt_scene",    // (rad)    22
+			"Roll_scene",    // (rad)    23
+			"X_scene",       // (m)      24
+			"Y_scene",       // (m)	     25
+			"Z_scene"};      // (m)      26
 	
 	// returned arrays have the zero element with coordinates, not derivatives
 	// Reference parameters
@@ -150,6 +150,7 @@ public class ErsCorrection extends GeometryCorrection {
 	static final int DP_DSX =  24; // dw_dx,   (m)
 	static final int DP_DSY =  25; // dw_dy,   (m)
 	static final int DP_DSZ =  26; // dw_dz};  (m)
+	static final int DP_NUM_PARS = DP_DSZ+1; 
 	
 	static final RotationConvention ROT_CONV = RotationConvention.FRAME_TRANSFORM;
 	static final double THRESHOLD = 1E-10;
@@ -922,7 +923,7 @@ public class ErsCorrection extends GeometryCorrection {
 				0.002}; // dw_dz};  (m)      14 was 0.1
 		double scale_delta = 1.0; // 0.1; // 1.0; // 0.1; // 0.5;
 //		double [] deltas = deltas0.clone();
-		double [] deltas = new double [DP_DSZ + 1];
+		double [] deltas = new double [DP_NUM_PARS];
 		System.arraycopy(deltas0, 0, deltas, 0,              deltas0.length);
 		System.arraycopy(deltas0, 3, deltas, deltas0.length, deltas0.length - 3);
 		for (int i = 0; i < deltas.length; i++) deltas[i] *= scale_delta;
@@ -2010,7 +2011,7 @@ public class ErsCorrection extends GeometryCorrection {
 		
 		Matrix dpscene_dxyz = dx_dpscene.inverse();
 		Matrix dpscene_dxyz_minus = dpscene_dxyz.times(-1.0); // negated to calculate /d{pX,pY,D) for the scene parameters
-		double[][] derivatives = new double[DP_DSZ+2][]; // includes [0] - pXpYD vector
+		double[][] derivatives = new double[DP_NUM_PARS+1][]; // includes [0] - pXpYD vector
 		// scene pX, pY, Disparity
 		derivatives[0] = pXpYD_scene;
 		// derivatives by the reference parameters, starting with /dpX, /dpY, /dd
@@ -2026,7 +2027,7 @@ public class ErsCorrection extends GeometryCorrection {
 				derivatives[vindx] = matrixTimesVector(dpscene_dxyz, reference_vectors[vindx]).toArray();
 			}
 		}
-		for (int indx = DP_DSVAZ; indx <= DP_DSZ; indx++) { // 15,16, ...
+		for (int indx = DP_DSVAZ; indx < DP_NUM_PARS; indx++) { // 15,16, ...
 			int indx_out = indx+1; // 16, 17,
 			int indx_in =  indx_out - DP_DSVAZ + DW_DVAZ; // 4, 5, ...
 			if (is_infinity) {

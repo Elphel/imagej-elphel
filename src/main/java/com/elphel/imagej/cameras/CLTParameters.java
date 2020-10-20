@@ -13,6 +13,7 @@ import com.elphel.imagej.lwir.LwirReaderParameters;
 import com.elphel.imagej.tileprocessor.BiQuadParameters;
 import com.elphel.imagej.tileprocessor.ImageDtt;
 import com.elphel.imagej.tileprocessor.ImageDttParameters;
+import com.elphel.imagej.tileprocessor.IntersceneLmaParameters;
 import com.elphel.imagej.tileprocessor.MeasuredLayersFilterParameters;
 import com.elphel.imagej.tileprocessor.OpticalFlowParameters;
 import com.elphel.imagej.tileprocessor.PoleProcessorParameters;
@@ -871,6 +872,7 @@ public class CLTParameters {
 	public MeasuredLayersFilterParameters mlfp =    new MeasuredLayersFilterParameters();
 	public LwirReaderParameters           lwir =    new LwirReaderParameters();
 	public OpticalFlowParameters          ofp =     new OpticalFlowParameters();
+	public IntersceneLmaParameters        ilp =     new IntersceneLmaParameters();
 
 
 	public HashMap<String,Double> z_corr_map = new HashMap<String,Double>(); //old one
@@ -1716,8 +1718,9 @@ public class CLTParameters {
 		mlfp.setProperties    (prefix+"_mlfp",    properties);
 		rig.setProperties     (prefix+"_rig",     properties);
 		poles.setProperties   (prefix+"_poles",   properties);
-		lwir.setProperties    (prefix+"_lwir",   properties);
-		ofp.setProperties     (prefix+"_ofp_",   properties);
+		lwir.setProperties    (prefix+"_lwir",    properties);
+		ofp.setProperties     (prefix+"_ofp_",    properties);
+		ilp.setProperties     (prefix+"_ilp_",    properties);
 
 	}
 
@@ -2540,6 +2543,7 @@ public class CLTParameters {
 		poles.getProperties   (prefix+"_poles",   properties);
 		lwir.getProperties    (prefix+"_lwir",    properties);
 		ofp.getProperties     (prefix+"_ofp_",    properties);
+		ilp.getProperties     (prefix+"_ilp_",    properties);
 	}
 
 	public boolean showJDialog() {
@@ -3507,6 +3511,9 @@ public class CLTParameters {
 		
 		gd.addTab         ("O-Flow", "parameters for the interscene Optical FLow calculations");
 		this.ofp.dialogQuestions(gd);
+
+		gd.addTab         ("Intra-LMA", "parameters for the interscene LMA fitting");
+		this.ilp.dialogQuestions(gd);
 		
 		
 		gd.addTab         ("Debug", "Other debug images");
@@ -4304,6 +4311,7 @@ public class CLTParameters {
 		
 		this.lwir.dialogAnswers(gd);
 		this.ofp.dialogAnswers(gd);
+		this.ilp.dialogAnswers(gd);
 
 		this.debug_initial_discriminate= gd.getNextBoolean();
 		this.dbg_migrate=                gd.getNextBoolean();
