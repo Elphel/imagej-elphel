@@ -113,7 +113,7 @@ public class QuadCLT extends QuadCLTCPU {
 		restoreDSI("-DSI_MAIN"); // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
 		restoreInterProperties( // restore properties for interscene processing (extrinsics, ers, ...)
 				null, // String path,             // full name with extension or null to use x3d directory
-//				null, // Properties properties,   // if null - will only save extrinsics)
+				false, // boolean all_properties,//				null, // Properties properties,   // if null - will only save extrinsics)
 				debugLevel);
 //		showDSIMain();
 		return this; //  can only be QuadCLT instance

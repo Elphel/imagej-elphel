@@ -13,15 +13,59 @@ public class IntersceneLmaParameters {
 	public double     ilma_lambda_max =      100;
 	public double     ilma_rms_diff =          0.001;
 	public int        ilma_num_iter =          20;
+	public int        ilma_num_corr =          10; // maximal number of full correlatiobn+LMA cycles
 	public int        ilma_debug_level =       1;
 
 	public IntersceneLmaParameters() {
-		ilma_lma_select[ErsCorrection.DP_DSAZ]= true;
-		ilma_lma_select[ErsCorrection.DP_DSTL]= true;
-		ilma_lma_select[ErsCorrection.DP_DSRL]= true;
-		ilma_lma_select[ErsCorrection.DP_DSX]=  true;
-		ilma_lma_select[ErsCorrection.DP_DSY]=  true;
-		ilma_lma_select[ErsCorrection.DP_DSZ]=  true;
+		ilma_lma_select[ErsCorrection.DP_DVAZ]=  true;
+		ilma_lma_select[ErsCorrection.DP_DVTL]=  true;
+		ilma_lma_select[ErsCorrection.DP_DVRL]=  true;
+		ilma_lma_select[ErsCorrection.DP_DVX]=   true;
+		ilma_lma_select[ErsCorrection.DP_DVY]=   true;
+		ilma_lma_select[ErsCorrection.DP_DVZ]=   true;
+		ilma_lma_select[ErsCorrection.DP_DAZ]=   false;
+		ilma_lma_select[ErsCorrection.DP_DTL]=   false;
+		ilma_lma_select[ErsCorrection.DP_DRL]=   false;
+		ilma_lma_select[ErsCorrection.DP_DX]=    false;
+		ilma_lma_select[ErsCorrection.DP_DY]=    false;
+		ilma_lma_select[ErsCorrection.DP_DZ]=    false;
+		ilma_lma_select[ErsCorrection.DP_DSVAZ]= true;
+		ilma_lma_select[ErsCorrection.DP_DSVTL]= true;
+		ilma_lma_select[ErsCorrection.DP_DSVRL]= true;
+		ilma_lma_select[ErsCorrection.DP_DSVX]=  true;
+		ilma_lma_select[ErsCorrection.DP_DSVY]=  true;
+		ilma_lma_select[ErsCorrection.DP_DSVZ]=  true;
+		ilma_lma_select[ErsCorrection.DP_DSAZ]=  true;
+		ilma_lma_select[ErsCorrection.DP_DSTL]=  true;
+		ilma_lma_select[ErsCorrection.DP_DSRL]=  true;
+		ilma_lma_select[ErsCorrection.DP_DSX]=   true;
+		ilma_lma_select[ErsCorrection.DP_DSY]=   true;
+		ilma_lma_select[ErsCorrection.DP_DSZ]=   true;
+		
+		ilma_regularization_weights[ErsCorrection.DP_DVAZ]=  0.001;
+		ilma_regularization_weights[ErsCorrection.DP_DVTL]=  0.001;
+		ilma_regularization_weights[ErsCorrection.DP_DVRL]=  0.001;
+		ilma_regularization_weights[ErsCorrection.DP_DVX]=   0.001;
+		ilma_regularization_weights[ErsCorrection.DP_DVY]=   0.001;
+		ilma_regularization_weights[ErsCorrection.DP_DVZ]=   0.001;
+		ilma_regularization_weights[ErsCorrection.DP_DAZ]=   0.0;
+		ilma_regularization_weights[ErsCorrection.DP_DTL]=   0.0;
+		ilma_regularization_weights[ErsCorrection.DP_DRL]=   0.0;
+		ilma_regularization_weights[ErsCorrection.DP_DX]=    0.0;
+		ilma_regularization_weights[ErsCorrection.DP_DY]=    0.0;
+		ilma_regularization_weights[ErsCorrection.DP_DZ]=    0.0;
+		ilma_regularization_weights[ErsCorrection.DP_DSVAZ]= 0.001;
+		ilma_regularization_weights[ErsCorrection.DP_DSVTL]= 0.001;
+		ilma_regularization_weights[ErsCorrection.DP_DSVRL]= 0.001;
+		ilma_regularization_weights[ErsCorrection.DP_DSVX]=  0.001;
+		ilma_regularization_weights[ErsCorrection.DP_DSVY]=  0.001;
+		ilma_regularization_weights[ErsCorrection.DP_DSVZ]=  0.001;
+		ilma_regularization_weights[ErsCorrection.DP_DSAZ]=  0.0;
+		ilma_regularization_weights[ErsCorrection.DP_DSTL]=  0.0;
+		ilma_regularization_weights[ErsCorrection.DP_DSRL]=  0.0;
+		ilma_regularization_weights[ErsCorrection.DP_DSX]=   0.0;
+		ilma_regularization_weights[ErsCorrection.DP_DSY]=   0.0;
+		ilma_regularization_weights[ErsCorrection.DP_DSZ]=   0.0;
 	}
 	
 	public void dialogQuestions(GenericJTabbedDialog gd) {
@@ -49,6 +93,10 @@ public class IntersceneLmaParameters {
 				"Exit LMA iterations if relative RMSE improvement drops below this value.");
 		gd.addNumericField("Maximal number of LMA iterations",            this.ilma_num_iter, 0,3,"",
 				"A hard limit on LMA iterations.");
+		gd.addNumericField("Maximal number of correlation +LMA iterations",this.ilma_num_corr, 0,3,"",
+				"Outer cycle (recalculate correlations + lma). Otherwise exits if LMA exits at first iteration.");
+		
+		
 		gd.addNumericField("Debug level",                                 this.ilma_debug_level, 0,3,"",
 				"Debug level of interscene LMA operation.");
 	}
@@ -65,6 +113,7 @@ public class IntersceneLmaParameters {
 		this.ilma_lambda_max =                    gd.getNextNumber();
 		this.ilma_rms_diff =                      gd.getNextNumber();
 		this.ilma_num_iter =                (int) gd.getNextNumber();
+		this.ilma_num_corr =                (int) gd.getNextNumber();
 		this.ilma_debug_level =             (int) gd.getNextNumber();
 	}
 	public void setProperties(String prefix,Properties properties){
@@ -78,6 +127,7 @@ public class IntersceneLmaParameters {
 		properties.setProperty(prefix+"ilma_lambda_max",        this.ilma_lambda_max+"");	
 		properties.setProperty(prefix+"ilma_rms_diff",          this.ilma_rms_diff+"");	
 		properties.setProperty(prefix+"ilma_num_iter",          this.ilma_num_iter+"");	
+		properties.setProperty(prefix+"ilma_num_corr",          this.ilma_num_corr+"");	
 		properties.setProperty(prefix+"ilma_debug_level",       this.ilma_debug_level+"");	
 	}
 	public void getProperties(String prefix,Properties properties){
@@ -94,6 +144,7 @@ public class IntersceneLmaParameters {
 		if (properties.getProperty(prefix+"ilma_lambda_max")!=null)        this.ilma_lambda_max=Double.parseDouble(properties.getProperty(prefix+"ilma_lambda_max"));
 		if (properties.getProperty(prefix+"ilma_rms_diff")!=null)          this.ilma_rms_diff=Double.parseDouble(properties.getProperty(prefix+"ilma_rms_diff"));
 		if (properties.getProperty(prefix+"ilma_num_iter")!=null)          this.ilma_num_iter=Integer.parseInt(properties.getProperty(prefix+"ilma_num_iter"));
+		if (properties.getProperty(prefix+"ilma_num_corr")!=null)          this.ilma_num_corr=Integer.parseInt(properties.getProperty(prefix+"ilma_num_corr"));
 		if (properties.getProperty(prefix+"ilma_debug_level")!=null)       this.ilma_debug_level=Integer.parseInt(properties.getProperty(prefix+"ilma_debug_level"));
 	}
 	
@@ -108,6 +159,7 @@ public class IntersceneLmaParameters {
 		ilp.ilma_lambda_max =        this.ilma_lambda_max;
 		ilp.ilma_rms_diff =          this.ilma_rms_diff;
 		ilp.ilma_num_iter =          this.ilma_num_iter;
+		ilp.ilma_num_corr =          this.ilma_num_corr;
 		ilp.ilma_debug_level =       this.ilma_debug_level;
 		return ilp;
 	}	

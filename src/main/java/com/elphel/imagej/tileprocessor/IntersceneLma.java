@@ -1,5 +1,6 @@
 package com.elphel.imagej.tileprocessor;
 
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.DoubleAdder;
 
@@ -19,9 +20,10 @@ public class IntersceneLma {
 	private double            pure_weight; // weight of samples only
 	private boolean []        par_mask =        null;
 	private int []            par_indices =     null;
-	private double  []        backup_parameters_full = null; // indices match DP_DPX...DP_DSZ (first 3 are not used) 
+	private double  []        parameters_full = null; // full parameters vector for the currenl LMA run
+	private double  []        backup_parameters_full = null; // full parameters vector before first LMA run
 	private double  []        parameters_vector = null; 
-	private double  []        parameters_initial = null;  // (will be used to pull for regularization)
+//	private double  []        parameters_initial = null;  // (will be used to pull for regularization)
 	private double  [][]      macrotile_centers = null;  // (will be used to pull for regularization)
 	private double            infinity_disparity = 0.1;  // treat lower as infinity
 	private int               num_samples = 0;
@@ -31,48 +33,91 @@ public class IntersceneLma {
 		this.opticalFlow = opticalFlow;
 	}
 	
-	public double [] getSceneXYZ() {
-		double [] full_vector = getFullVector(parameters_vector);
+	public double [] getSceneXYZ(boolean initial) {
+		double [] full_vector = initial? backup_parameters_full: getFullVector(parameters_vector);
 		return new double[] {
 				full_vector[ErsCorrection.DP_DSX],full_vector[ErsCorrection.DP_DSY],full_vector[ErsCorrection.DP_DSZ]};
 	}
-	public double [] getSceneATR() {
-		double [] full_vector = getFullVector(parameters_vector);
+	public double [] getSceneATR(boolean initial) {
+		double [] full_vector = initial? backup_parameters_full: getFullVector(parameters_vector);
 		return new double[] {
 				full_vector[ErsCorrection.DP_DSAZ],full_vector[ErsCorrection.DP_DSTL],full_vector[ErsCorrection.DP_DSRL]};
 	}
-	public double [] getReferenceXYZ() {
-		double [] full_vector = getFullVector(parameters_vector);
+	public double [] getReferenceXYZ(boolean initial) {
+		double [] full_vector = initial? backup_parameters_full: getFullVector(parameters_vector);
 		return new double[] {
 				full_vector[ErsCorrection.DP_DX],full_vector[ErsCorrection.DP_DY],full_vector[ErsCorrection.DP_DZ]};
 	}
-	public double [] getReferenceATR() {
-		double [] full_vector = getFullVector(parameters_vector);
+	public double [] getReferenceATR(boolean initial) {
+		double [] full_vector = initial? backup_parameters_full: getFullVector(parameters_vector);
 		return new double[] {
 				full_vector[ErsCorrection.DP_DAZ],full_vector[ErsCorrection.DP_DTL],full_vector[ErsCorrection.DP_DRL]};
 	}
 
-	public double [] getSceneERSXYZ() {
-		double [] full_vector = getFullVector(parameters_vector);
+	public double [] getSceneERSXYZ(boolean initial) {
+		double [] full_vector = initial? backup_parameters_full: getFullVector(parameters_vector);
 		return new double[] {
 				full_vector[ErsCorrection.DP_DSVX],full_vector[ErsCorrection.DP_DSVY],full_vector[ErsCorrection.DP_DSVZ]};
 	}
-	public double [] getSceneERSATR() {
-		double [] full_vector = getFullVector(parameters_vector);
+	public double [] getSceneERSATR(boolean initial) {
+		double [] full_vector = initial? backup_parameters_full: getFullVector(parameters_vector);
 		return new double[] {
 				full_vector[ErsCorrection.DP_DSVAZ],full_vector[ErsCorrection.DP_DSVTL],full_vector[ErsCorrection.DP_DSVRL]};
 	}
-	public double [] getReferenceERSXYZ() {
-		double [] full_vector = getFullVector(parameters_vector);
+	public double [] getReferenceERSXYZ(boolean initial) {
+		double [] full_vector = initial? backup_parameters_full: getFullVector(parameters_vector);
 		return new double[] {
 				full_vector[ErsCorrection.DP_DSVX],full_vector[ErsCorrection.DP_DSVY],full_vector[ErsCorrection.DP_DSVZ]};
 	}
-	public double [] getReferenceERSATR() {
-		double [] full_vector = getFullVector(parameters_vector);
+	public double [] getReferenceERSATR(boolean initial) {
+		double [] full_vector = initial? backup_parameters_full: getFullVector(parameters_vector);
 		return new double[] {
 				full_vector[ErsCorrection.DP_DSVAZ],full_vector[ErsCorrection.DP_DSVTL],full_vector[ErsCorrection.DP_DSVRL]};
 	}
 
+	public String [] printOldNew(boolean allvectors) {
+		return printOldNew(allvectors, 8, 5);
+	}
+
+	public String [] printOldNew(boolean allvectors, int w, int d) {
+		ArrayList<String> lines = new ArrayList<String>();
+		for (int n = ErsCorrection.DP_DVAZ; n < ErsCorrection.DP_NUM_PARS; n+=3) {
+			boolean adj = false;
+			for (int i = 0; i <3; i++) adj |= par_mask[n+i];
+			if (allvectors || adj) {
+				String line = printNameV3(n, false, w,d)+"  (was "+printNameV3(n, true, w,d)+")";
+				lines.add(line);
+			}
+		}
+		return lines.toArray(new String[lines.size()]);
+	}
+	
+	public String printNameV3(int indx, boolean initial, int w, int d) {
+		double [] full_vector = initial? backup_parameters_full: getFullVector(parameters_vector);
+		double [] vector = new double[3];
+		for (int i = 0; i <3; i++) {
+			vector[i] = full_vector[indx + i];
+		}
+		String name = ErsCorrection.DP_VECTORS_NAMES[indx];
+		return printNameV3(name, vector, w, d);
+	}
+	
+	public static String printNameV3(String name, double[] vector) {
+		return printNameV3(name, vector, 8, 5);
+	}
+	
+	public static String printNameV3(String name, double[] vector, int w, int d) {
+		return String.format("%14s: %s", name, printV3(vector, w, d));
+	}
+
+	
+	public static String printV3(double[] vector) {
+		return printV3(vector, 8, 5);
+	}
+	public static String printV3(double[] vector, int w, int d) {
+		String fmt = String.format("[%%%d.%df, %%%d.%df, %%%d.%df]", w,d,w,d,w,d);
+		return String.format(fmt, vector[0], vector[1], vector[2]);
+	}
 	
 	
 	public void prepareLMA(
@@ -85,6 +130,7 @@ public class IntersceneLma {
 			final double []   param_regweights,
 			final double [][] vector_XYS, // optical flow X,Y, confidence obtained from the correlate2DIterate()
 			final double [][] centers,    // macrotile centers (in pixels and average disparities
+			boolean           first_run,
 			final int         debug_level)
 	{
 		scenesCLT = new QuadCLT [] {reference_QuadClt, scene_QuadClt};
@@ -108,7 +154,10 @@ public class IntersceneLma {
 				ers_scene.ers_wxyz_center_dt[0], ers_scene.ers_wxyz_center_dt[1], ers_scene.ers_wxyz_center_dt[2],
 				scene_atr[0],                    scene_atr[1],                    scene_atr[2],
 				scene_xyz[0],                    scene_xyz[1],                    scene_xyz[2]};
-		backup_parameters_full = full_parameters_vector.clone();
+		parameters_full = full_parameters_vector.clone();
+		if (first_run || (backup_parameters_full == null)) {
+			backup_parameters_full = full_parameters_vector.clone();
+		}
 		int num_pars = 0;
 		for (int i = 0; i < par_mask.length; i++) if (par_mask[i]) num_pars++;
 		par_indices = new int [num_pars];
@@ -116,7 +165,7 @@ public class IntersceneLma {
 		for (int i = 0; i < par_mask.length; i++) if (par_mask[i]) par_indices[num_pars++] = i;
 		parameters_vector = new double [par_indices.length];
 		for (int i = 0; i < par_indices.length; i++) parameters_vector[i] = full_parameters_vector[par_indices[i]];
-		parameters_initial = parameters_vector.clone();
+//		parameters_initial = parameters_vector.clone();
 		
 		setSamplesWeights(vector_XYS);  // not regularization yet !
 
@@ -158,13 +207,14 @@ public class IntersceneLma {
 		good_or_bad_rms = this.last_rms.clone();
 	}
 	
-	public boolean runLma(
+	public int runLma( // <0 - failed, >=0 iteration number (1 - immediately)
 			double lambda,           // 0.1
 			double lambda_scale_good,// 0.5
 			double lambda_scale_bad, // 8.0
 			double lambda_max,       // 100
 			double rms_diff,         // 0.001
 			int    num_iter,         // 20
+			boolean last_run,
 			int    debug_level)
 	{
 		boolean [] rslt = {false,false};
@@ -176,7 +226,7 @@ public class IntersceneLma {
 					rms_diff,
 					debug_level);
 			if (rslt == null) {
-				return false; // need to check
+				return -1; // false; // need to check
 			}
 			if (debug_level > 1) {
 				System.out.println("LMA step "+iter+": {"+rslt[0]+","+rslt[1]+"} full RMS= "+good_or_bad_rms[0]+
@@ -212,7 +262,16 @@ public class IntersceneLma {
 		if (debug_level > 0) {
 			System.out.println("LMA: full RMS="+last_rms[0]+" ("+initial_rms[0]+"), pure RMS="+last_rms[1]+" ("+initial_rms[1]+") + lambda="+lambda);
 		}
-		return rslt[0];
+		if (debug_level > 0) {
+			if ((debug_level > 1) || (iter == 1) || last_run) {
+				String [] lines = printOldNew(false); // boolean allvectors)
+				for (String line : lines) {
+					System.out.println(line);
+				}
+			}
+		}
+
+		return rslt[0]? iter : -1;
 	}
 	
 	private boolean [] lmaStep(
@@ -445,7 +504,7 @@ public class IntersceneLma {
 	
 	
 	private double [] getFullVector(double [] vector) {
-		double [] full_vector = backup_parameters_full.clone();
+		double [] full_vector = parameters_full.clone();
 		for (int i = 0; i < par_indices.length; i++) {
 			full_vector[par_indices[i]] = vector[i];
 		}

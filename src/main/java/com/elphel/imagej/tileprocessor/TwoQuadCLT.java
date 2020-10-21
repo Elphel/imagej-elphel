@@ -8280,6 +8280,117 @@ if (debugLevel > -100) return true; // temporarily !
 
 
 	}
+	
+	public void interPairsLMA(
+			QuadCLT                                              quadCLT_main, // tiles should be set
+			CLTParameters             clt_parameters,
+			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
+			ColorProcParameters                                  colorProcParameters,
+			ColorProcParameters                                  colorProcParameters_aux,
+			CorrectionColorProc.ColorGainsParameters             channelGainParameters,
+			EyesisCorrectionParameters.RGBParameters             rgbParameters,
+			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+			Properties                                           properties,
+			boolean                                              reset_from_extrinsics,
+			final int        threadsMax,  // maximal number of threads to launch
+			final boolean    updateStatus,
+			final int        debugLevel)  throws Exception
+	{
+		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
+			quadCLT_main.getGPU().resetGeometryCorrection();
+			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
+		}
+		// final boolean    batch_mode = clt_parameters.batch_run;
+		this.startTime=System.nanoTime();
+		String [] sourceFiles0=quadCLT_main.correctionsParameters.getSourcePaths();
+		QuadCLT.SetChannels [] set_channels_main = quadCLT_main.setChannels(debugLevel);
+		if ((set_channels_main == null) || (set_channels_main.length==0)) {
+			System.out.println("No files to process (of "+sourceFiles0.length+")");
+			return;
+		}
+		QuadCLT.SetChannels [] set_channels=quadCLT_main.setChannels(debugLevel);
+//		String set_name = set_channels[0].set_name;
+		
+		QuadCLT [] quadCLTs = new QuadCLT [set_channels.length]; 
+		for (int i = 0; i < quadCLTs.length; i++) {
+			quadCLTs[i] = quadCLT_main.spawnQuadCLT(
+					set_channels[i].set_name,
+					clt_parameters,
+					colorProcParameters, //
+					threadsMax,
+					debugLevel);
+			// temporarily fix wrong sign:
+//			ErsCorrection ers = (ErsCorrection) (quadCLTs[i].getGeometryCorrection());
+			ErsCorrection ers = quadCLTs[i].getErsCorrection();
+			if (reset_from_extrinsics) {
+				System.out.println("Reset ERS parameters from intraframe extrinsics");
+				ers.setupERSfromExtrinsics();
+			}
+			quadCLTs[i].setDSRBG(
+					clt_parameters, // CLTParameters  clt_parameters,
+					threadsMax,     // int            threadsMax,  // maximal number of threads to launch
+					updateStatus,   // boolean        updateStatus,
+					debugLevel);    // int            debugLevel)
+///			quadCLTs[i].showDSIMain();
+		}
+		
+		
+		OpticalFlow opticalFlow = new OpticalFlow(
+				threadsMax, // int            threadsMax,  // maximal number of threads to launch
+				updateStatus); // boolean        updateStatus);
+		
+		for (int i = 1; i < quadCLTs.length; i++) {
+			QuadCLT qPrev = (i > 0) ? quadCLTs[i - 1] : null;
+			//			double [][][] pair_sets =
+			double [][] pose = 	opticalFlow.getPoseFromErs(
+					clt_parameters.ofp.k_prev, // k_prev,
+					quadCLTs[i],
+					qPrev,
+					clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
+			// how was it working before? qPrev.getErsCorrection() shoud remain what was set in the previous adjustment 
+			quadCLTs[i].getErsCorrection().setupERSfromExtrinsics();
+			qPrev.getErsCorrection().setupERSfromExtrinsics();
+			
+			opticalFlow.adjustPairsLMA(
+					clt_parameters, // CLTParameters  clt_parameters,
+//					clt_parameters.ofp.k_prev, // k_prev,
+					quadCLTs[i],
+					qPrev,
+					pose[0], // xyz
+					pose[1], // atr
+					clt_parameters.ilp.ilma_lma_select,             // final boolean[]   param_select,
+					clt_parameters.ilp.ilma_regularization_weights, //  final double []   param_regweights,
+//					clt_parameters.ofp.ers_to_pose_scale, // corr_scale,
+					clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
+			/*
+			scenes_xyzatr[i] = adjustPairsLMA(
+					clt_parameters,     // CLTParameters  clt_parameters,			
+					reference_QuadClt, // QuadCLT reference_QuadCLT,
+					scene_QuadClt, // QuadCLT scene_QuadCLT,
+					pose[0], // xyz
+					pose[1], // atr
+					clt_parameters.ilp.ilma_lma_select,             // final boolean[]   param_select,
+					clt_parameters.ilp.ilma_regularization_weights, //  final double []   param_regweights,
+					debug_level); // int debug_level)
+			 * 
+			 *  
+			 *  reversed
+			opticalFlow.test_LMA(
+					clt_parameters, // CLTParameters  clt_parameters,
+					clt_parameters.ofp.k_prev, // k_prev,
+					qPrev,
+					quadCLTs[i],
+					clt_parameters.ofp.ers_to_pose_scale, // corr_scale,
+					clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
+			 */
+		}
+
+
+		System.out.println("End of test");
+
+
+	}
+	
 
 	public void TestInterLMA(
 			QuadCLT                                              quadCLT_main, // tiles should be set
@@ -8291,6 +8402,7 @@ if (debugLevel > -100) return true; // temporarily !
 			EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
 			Properties                                           properties,
+			boolean                                              reset_from_extrinsics,
 			final int        threadsMax,  // maximal number of threads to launch
 			final boolean    updateStatus,
 			final int        debugLevel)  throws Exception
@@ -8320,7 +8432,10 @@ if (debugLevel > -100) return true; // temporarily !
 					debugLevel);
 			// temporarily fix wrong sign:
 			ErsCorrection ers = (ErsCorrection) (quadCLTs[i].getGeometryCorrection());
-			ers.setupERSfromExtrinsics();			
+			if (reset_from_extrinsics) {
+				System.out.println("Reset ERS parameters from intraframe extrinsics");
+				ers.setupERSfromExtrinsics();
+			}
 			quadCLTs[i].setDSRBG(
 					clt_parameters, // CLTParameters  clt_parameters,
 					threadsMax,     // int            threadsMax,  // maximal number of threads to launch
@@ -8334,10 +8449,17 @@ if (debugLevel > -100) return true; // temporarily !
 				threadsMax, // int            threadsMax,  // maximal number of threads to launch
 				updateStatus); // boolean        updateStatus);
 		
+		opticalFlow.adjustPairsDualPass(
+				clt_parameters, // CLTParameters  clt_parameters,			
+				clt_parameters.ofp.k_prev, // k_prev,
+				quadCLTs, // QuadCLT [] scenes, // ordered by increasing timestamps
+				clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
+		
+		/*
+		
 		for (int i = 1; i < quadCLTs.length; i++) {
 			QuadCLT qPrev = (i > 0) ? quadCLTs[i - 1] : null;
 			//			double [][][] pair_sets =
-			/*
 			opticalFlow.test_LMA(
 					clt_parameters, // CLTParameters  clt_parameters,
 					clt_parameters.ofp.k_prev, // k_prev,
@@ -8346,6 +8468,7 @@ if (debugLevel > -100) return true; // temporarily !
 					clt_parameters.ofp.ers_to_pose_scale, // corr_scale,
 					clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
 					*/
+			/* reversed
 			opticalFlow.test_LMA(
 					clt_parameters, // CLTParameters  clt_parameters,
 					clt_parameters.ofp.k_prev, // k_prev,
@@ -8353,8 +8476,10 @@ if (debugLevel > -100) return true; // temporarily !
 					quadCLTs[i],
 					clt_parameters.ofp.ers_to_pose_scale, // corr_scale,
 					clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
+			 */
+		/*
 		}
-
+       */
 
 		System.out.println("End of test");
 

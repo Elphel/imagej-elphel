@@ -57,7 +57,7 @@ public class GeometryCorrection {
 			"velocity_x", "velocity_y", "velocity_z"};
 
 	public int    debugLevel = 0;
-	public double line_time =  26.5E-6; // duration of sensor scan line (for ERS)
+	public double line_time =  26.5E-6; // duration of sensor scan line (for ERS) Wrong, 36.38us (change and re-run ERS
 
 	public int    pixelCorrectionWidth=2592;   // virtual camera center is at (pixelCorrectionWidth/2, pixelCorrectionHeight/2)
 	public int    pixelCorrectionHeight=1936;

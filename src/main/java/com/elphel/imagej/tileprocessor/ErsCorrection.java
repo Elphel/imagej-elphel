@@ -119,6 +119,35 @@ public class ErsCorrection extends GeometryCorrection {
 			"X_scene",       // (m)      24
 			"Y_scene",       // (m)	     25
 			"Z_scene"};      // (m)      26
+
+	static final String [] DP_VECTORS_NAMES = {
+			"pXpYD",          // (pix)     0
+			null,             // (pix)     1
+			null,             // (pix)     2
+			"ERS_VATR_REF",   // (rad/sec) 3
+			null,             // (rad/sec) 4
+			null,             // (rad/sec) 5
+			"ERS_VXYZ_REF",   // (m/s)     6
+			null,             // (m/s)     7
+			null,             // (m/s)     8
+			"ATR_REF",        // (rad)     9
+			null,             // (rad)    10
+			null,             // (rad)    11
+			"XYZ_REF",        // (m)      12
+			null,             // (m)	    13
+			null,             // (m)      14
+			"ERS_VATR_SCENE", // (rad/sec)15
+			null,             // (rad/sec)16
+			null,             // (rad/sec)17
+			"ERS_VXYZ_SCENE", // (m/s)    18
+			null,             // (m/s)    19
+			null,             // (m/s)    20
+			"ATR_SCENE",      // (rad)    21
+			null,             // (rad)    22
+			null,             // (rad)    23
+			"XYZ_SCENE",      // (m)      24
+			null,             // (m)	     25
+			null};            // (m)      26
 	
 	// returned arrays have the zero element with coordinates, not derivatives
 	// Reference parameters
@@ -177,7 +206,7 @@ public class ErsCorrection extends GeometryCorrection {
 	private Quaternion[] ers_quaternion;    // per scan line
 	private Quaternion[] ers_quaternion_dt; // per scan line
 	private double [][]  ers_atr;           // azimuth-tilt-roll per scan line
-	private double [][]  ers_atr_dt;        // angular velocities per scan line
+	private double [][]  ers_atr_dt;        // angular velocities per scan line. It is now actually 2*omega!
 	
 	public void setPose(
 			double []    camera_xyz,
@@ -191,6 +220,21 @@ public class ErsCorrection extends GeometryCorrection {
 	public double [] getCameraATR() {
 		return camera_atr;
 	}
+	public double [] getErsXYZ_dt() {
+		return ers_wxyz_center_dt;
+	}
+	public double [] getErsATR_dt() {
+		return ers_watr_center_dt;
+	}
+	public double [] getErsXYZ_d2t() {
+		return ers_wxyz_center_d2t;
+	}
+	public double [] getErsATR_d2t() {
+		return ers_watr_center_d2t;
+	}
+	
+	
+	
 	
 	public void setPropertiesPose(String prefix, Properties properties){
 		properties.setProperty(prefix+XYZ_PREFIX, String.format("%f, %f, %f", camera_xyz[0], camera_xyz[1], camera_xyz[2]));
@@ -214,9 +258,9 @@ public class ErsCorrection extends GeometryCorrection {
 
 	public boolean getPropertiesERS(String prefix,Properties properties){
 		boolean got_data = false;
-		if (properties.getProperty(prefix+ERS_XYZ_PREFIX)!=null)     {ers_wxyz_center =     parseDoublesCSV(properties.getProperty(prefix+XYZ_PREFIX)); got_data=true;}
-		if (properties.getProperty(prefix+ERS_XYZ_DT_PREFIX)!=null)  {ers_wxyz_center_dt =  parseDoublesCSV(properties.getProperty(prefix+ATR_PREFIX)); got_data=true;}
-		if (properties.getProperty(prefix+ERS_XYZ_D2T_PREFIX)!=null) {ers_wxyz_center_d2t = parseDoublesCSV(properties.getProperty(prefix+ATR_PREFIX)); got_data=true;}
+		if (properties.getProperty(prefix+ERS_XYZ_PREFIX)!=null)     {ers_wxyz_center =     parseDoublesCSV(properties.getProperty(prefix+ERS_XYZ_PREFIX)); got_data=true;}
+		if (properties.getProperty(prefix+ERS_XYZ_DT_PREFIX)!=null)  {ers_wxyz_center_dt =  parseDoublesCSV(properties.getProperty(prefix+ERS_XYZ_DT_PREFIX)); got_data=true;}
+		if (properties.getProperty(prefix+ERS_XYZ_D2T_PREFIX)!=null) {ers_wxyz_center_d2t = parseDoublesCSV(properties.getProperty(prefix+ERS_XYZ_D2T_PREFIX)); got_data=true;}
 		if (properties.getProperty(prefix+ERS_ATR_DT_PREFIX)!=null)  {ers_watr_center_dt =  parseDoublesCSV(properties.getProperty(prefix+ERS_ATR_DT_PREFIX)); got_data=true;}
 		if (properties.getProperty(prefix+ERS_ATR_D2T_PREFIX)!=null) {ers_watr_center_d2t = parseDoublesCSV(properties.getProperty(prefix+ERS_ATR_D2T_PREFIX)); got_data=true;}
 		if (got_data) {
@@ -227,7 +271,11 @@ public class ErsCorrection extends GeometryCorrection {
 	public void setPropertiesScenes(String prefix, Properties properties){
 		String [] timestamps = getScenes();
 		for (String k : timestamps) {
-			properties.setProperty(prefix+SCENES_PREFIX+"_"+k, getScene(k).toString());
+			String [] s_scenes = getScene(k).toStrings();
+			properties.setProperty(prefix+SCENES_PREFIX+"_"+k,        s_scenes[0]);
+			properties.setProperty(prefix+SCENES_PREFIX+"_"+k+"_dt",  s_scenes[1]);
+			properties.setProperty(prefix+SCENES_PREFIX+"_"+k+"_d2t", s_scenes[2]);
+//			properties.setProperty(prefix+SCENES_PREFIX+"_"+k, getScene(k).toString());
 		}
 	}
 	
@@ -245,7 +293,11 @@ public class ErsCorrection extends GeometryCorrection {
 		if (!timestamps.isEmpty()) {
 			got_data = true;
 			for (String ts:timestamps) {
-				addScene(ts, new XyzAtr(properties.getProperty(prefix+ts)));
+				String pose =    properties.getProperty(prefix+ts);
+				String ers_dt =  properties.getProperty(prefix+ts+"_dt");
+				String ers_d2t = properties.getProperty(prefix+ts+"_d2t");
+//				addScene(ts, new XyzAtr(properties.getProperty(prefix+ts)));
+				addScene(ts, new XyzAtr(new String [] {pose, ers_dt, ers_d2t}));
 			}
 		}
 		return got_data;
@@ -289,6 +341,14 @@ public class ErsCorrection extends GeometryCorrection {
 		scenes_poses.put(timestamp, new XyzAtr(xyz, atr));
 	}
 	
+	public void addScene(String timestamp, double [] xyz, double [] atr, double [] ers_xyz_dt, double [] ers_atr_dt) {
+		scenes_poses.put(timestamp, new XyzAtr(xyz, atr, ers_xyz_dt, ers_atr_dt));
+	}
+	
+	public void addScene(String timestamp, double [] xyz, double [] atr, double [] ers_xyz_dt, double [] ers_atr_dt, double [] ers_xyz_d2t, double [] ers_atr_d2t) {
+		scenes_poses.put(timestamp, new XyzAtr(xyz, atr, ers_xyz_dt, ers_atr_dt, ers_xyz_d2t, ers_atr_d2t));
+	}
+	
 	public XyzAtr getScene(String timestamp) { // null if not found
 		return scenes_poses.get(timestamp);
 	}
@@ -303,6 +363,26 @@ public class ErsCorrection extends GeometryCorrection {
 		if (scene == null) return null;
 		return scene.getATR();
 	}
+	public double[] getSceneErsXYZ_dt(String timestamp) {
+		XyzAtr scene = scenes_poses.get(timestamp);
+		if (scene == null) return null;
+		return scene.getErsXYZ_dt();
+	}
+	public double[] getSceneErsATR_dt(String timestamp) {
+		XyzAtr scene = scenes_poses.get(timestamp);
+		if (scene == null) return null;
+		return scene.getErsATR_dt();
+	}
+	public double[] getSceneErsXYZ_d2t(String timestamp) {
+		XyzAtr scene = scenes_poses.get(timestamp);
+		if (scene == null) return null;
+		return scene.getErsXYZ_d2t();
+	}
+	public double[] getSceneErsATR_d2t(String timestamp) {
+		XyzAtr scene = scenes_poses.get(timestamp);
+		if (scene == null) return null;
+		return scene.getErsATR_d2t();
+	}
 	
 	
 	
@@ -313,6 +393,12 @@ public class ErsCorrection extends GeometryCorrection {
 	public class XyzAtr {
 		double [] xyz;
 		double [] atr;
+		
+		double [] ers_xyz_dt;  // world camera Vx, Vy, Vz (m/s)
+		double [] ers_atr_dt;  // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+		double [] ers_atr_d2t; // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+		double [] ers_xyz_d2t; // world camera Vx, Vy, Vz (m/s^2)
+		
 		public XyzAtr() {
 			xyz = new double[3];
 			atr = new double[3];
@@ -321,17 +407,88 @@ public class ErsCorrection extends GeometryCorrection {
 		public XyzAtr(double [] xyz, double [] atr) {
 			this.xyz = xyz;
 			this.atr = atr;
+			this.ers_xyz_dt =  new double[3];
+			this.ers_atr_dt =  new double[3];
+			this.ers_xyz_d2t = new double[3];
+			this.ers_atr_d2t = new double[3];
 		}
 
+		public XyzAtr(
+				double [] xyz,
+				double [] atr,
+				double [] ers_xyz_dt,
+				double [] ers_atr_dt) {
+			this.xyz = xyz;
+			this.atr = atr;
+			this.ers_xyz_dt = ers_xyz_dt;
+			this.ers_atr_dt = ers_xyz_dt;
+			this.ers_xyz_d2t = new double[3];
+			this.ers_atr_d2t = new double[3];
+		}
+
+		public XyzAtr(
+				double [] xyz,
+				double [] atr,
+				double [] ers_xyz_dt,
+				double [] ers_atr_dt,
+				double [] ers_xyz_d2t,
+				double [] ers_atr_d2t
+				) {
+			this.xyz = xyz;
+			this.atr = atr;
+			this.ers_xyz_dt = ers_xyz_dt;
+			this.ers_atr_dt = ers_xyz_dt;
+			this.ers_xyz_d2t = ers_xyz_d2t;
+			this.ers_atr_d2t = ers_xyz_d2t;
+		}
+		
+		
+		
+		
 		public XyzAtr(String s) {
 			double [] d = parseDoublesCSV(s);
 			xyz = new double [] {d[0], d[1], d[2]};
 			atr = new double [] {d[3], d[4], d[5]};
 		}
+
+		public XyzAtr(String [] ss) {
+			if (ss[0] != null) {
+				double [] d = parseDoublesCSV(ss[0]);
+				xyz = new double [] {d[0], d[1], d[2]};
+				atr = new double [] {d[3], d[4], d[5]};
+				this.ers_xyz_dt =  new double[3];
+				this.ers_atr_dt =  new double[3];
+				this.ers_xyz_d2t = new double[3];
+				this.ers_atr_d2t = new double[3];
+				if (ss.length > 1) {
+					if (ss[1] != null) {
+						d = parseDoublesCSV(ss[1]);
+						ers_xyz_dt = new double [] {d[0], d[1], d[2]};
+						ers_atr_dt = new double [] {d[3], d[4], d[5]};
+					}
+					if (ss.length > 2) {
+						if (ss[2] != null) {
+							d = parseDoublesCSV(ss[2]);
+							ers_xyz_d2t = new double [] {d[0], d[1], d[2]};
+							ers_atr_d2t = new double [] {d[3], d[4], d[5]};
+						}
+					}
+				} 
+			}
+		}
 		
 		public String toString() {
 			return String.format("%f,  %f, %f, %f, %f, %f",xyz[0],xyz[1],xyz[2],atr[0],atr[1],atr[2]);
 		}
+		
+		public String [] toStrings() {
+			return new String[] {
+					String.format("%f,  %f, %f, %f, %f, %f",xyz[0],         xyz[1],         xyz[2],         atr[0],         atr[1],         atr[2]),
+					String.format("%f,  %f, %f, %f, %f, %f",ers_xyz_dt[0],  ers_xyz_dt[1],  ers_xyz_dt[2],  ers_atr_dt[0],  ers_atr_dt[1],  ers_atr_dt[2]),
+					String.format("%f,  %f, %f, %f, %f, %f",ers_xyz_d2t[0], ers_xyz_d2t[1], ers_xyz_d2t[2], ers_atr_d2t[0], ers_atr_d2t[1], ers_atr_d2t[2])};
+		}
+		
+		
 		public double [] getXYZ() {
 			return xyz;
 		}
@@ -348,6 +505,41 @@ public class ErsCorrection extends GeometryCorrection {
 			atr[1] = d[1];
 			atr[2] = d[2];
 		}
+		
+		public double [] getErsXYZ_dt() {
+			return ers_xyz_dt;
+		}
+		public double [] getErsATR_dt() {
+			return ers_atr_dt;
+		}
+		public double [] getErsXYZ_d2t() {
+			return ers_xyz_d2t;
+		}
+		public double [] getErsATR_d2t() {
+			return ers_atr_d2t;
+		}
+		public void setErsXYZ_dt(double [] d) {
+			ers_xyz_dt[0] = d[0];
+			ers_xyz_dt[1] = d[1];
+			ers_xyz_dt[2] = d[2];
+		}
+		public void setErsATR_dt(double [] d) {
+			ers_atr_dt[0] = d[0];
+			ers_atr_dt[1] = d[1];
+			ers_atr_dt[2] = d[2];
+		}
+		public void setErsXYZ_d2t(double [] d) {
+			ers_xyz_d2t[0] = d[0];
+			ers_xyz_d2t[1] = d[1];
+			ers_xyz_d2t[2] = d[2];
+		}
+		public void setErsATR_d2t(double [] d) {
+			ers_atr_d2t[0] = d[0];
+			ers_atr_d2t[1] = d[1];
+			ers_atr_d2t[2] = d[2];
+		}
+		
+		
 		
 	}
 	
@@ -419,7 +611,7 @@ public class ErsCorrection extends GeometryCorrection {
 	// use deep=true for the independent instance (clone), false - to "upgrade" GeometryCorrection to ErsCorrection
 	public ErsCorrection(GeometryCorrection gc, boolean deep) {
 		debugLevel =           gc.debugLevel;
-		line_time =            gc.line_time;            // 26.5E-6; // duration of sensor scan line (for ERS)
+		line_time =            gc.line_time;            // 36.38! //26.5E-6; // duration of sensor scan line (for ERS)
 		pixelCorrectionWidth=  gc.pixelCorrectionWidth; // 2592;   // virtual camera center is at (pixelCorrectionWidth/2, pixelCorrectionHeight/2)
 		pixelCorrectionHeight= gc.pixelCorrectionHeight; // 1936;
 		focalLength =          gc.focalLength; // =FOCAL_LENGTH;
@@ -534,15 +726,21 @@ public class ErsCorrection extends GeometryCorrection {
 	// setup from extrinsics vector
 	public void setupERSfromExtrinsics()
 	{
+		double BUGS = 26.5/36.38; // tempoorary correction for the wrong scan line time!
 		double [] ersv = getCorrVector().getIMU();
 		setupERS(
 				new double [3],                            // double [] wxyz_center,     // world camera XYZ (meters) for the frame center
-				new double [] {ersv[3], ersv[4], ersv[5]}, // double [] wxyz_center_dt,  // world camera Vx, Vy, Vz (m/s)
+				new double [] {BUGS*ersv[3], BUGS*ersv[4], BUGS*ersv[5]}, // double [] wxyz_center_dt,  // world camera Vx, Vy, Vz (m/s)
 				new double [3],                            // double [] wxyz_center_d2t, // world camera Vx, Vy, Vz (m/s^2)
 //				double [] watr_center,     // camera orientation (az, tilt, roll in radians, corresponding to the frame center)
 //				new double [] {ersv[1], ersv[0], ersv[2]}, // double [] watr_center_dt,  // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
 				// REVERSING tilt sign !
-				new double [] {ersv[1], -ersv[0], ersv[2]}, // double [] watr_center_dt,  // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+///				new double [] {ersv[1], -ersv[0], ersv[2]}, // double [] watr_center_dt,  // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+////				new double [] {-ersv[1], -ersv[0], ersv[2]}, // double [] watr_center_dt,  // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+				
+				// 2* - because watr_center_dt is now 2 * omega!
+//				new double [] {-2*BUGS*ersv[1], -2*BUGS*ersv[0], 2*BUGS*ersv[2]}, // double [] watr_center_dt,  // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
+				new double [] {-2*BUGS*ersv[1], -2*BUGS*ersv[0], -2*BUGS*ersv[2]}, // double [] watr_center_dt,  // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
 				new double [3]);                           // double [] watr_center_d2t) // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
 	
 	}
@@ -729,64 +927,6 @@ public class ErsCorrection extends GeometryCorrection {
 			
 			return pXpYD;
 	}
-	
-	public double [] getImageCoordinatesReferenceERS(
-			QuadCLT cameraQuadCLT, // camera station that got image to be to be matched 
-			double px,                // pixel coordinate X in this camera view
-			double py,                // pixel coordinate Y in this camera view
-			double disparity,         // this view disparity 
-			boolean distortedView,    // This camera view is distorted (diff.rect), false - rectilinear
-			double [] reference_xyz,  // this view position in world coordinates (typically zero3)
-			double [] reference_atr,  // this view orientation relative to world frame  (typically zero3)
-			boolean distortedCamera,  // camera view is distorted (false - rectilinear)
-			double [] camera_xyz,     // camera center in world coordinates
-			double [] camera_atr,     // camera orientation relative to world frame
-			double    line_err)       // threshold error in scan lines (1.0)
-	{
-		if (reference_xyz == null)	reference_xyz = this.camera_xyz;
-		if (reference_atr == null)	reference_atr = this.camera_atr;
-		ErsCorrection ers_camera = this;
-		if (cameraQuadCLT != null) {
-			ers_camera = cameraQuadCLT.getErsCorrection();
-		}
-		if (camera_xyz == null)	camera_xyz = ers_camera.camera_xyz;
-		if (camera_atr == null)	camera_atr = ers_camera.camera_atr;
-
-		// Find world coordinates of the camera pixel
-		double [] xyzw = ers_camera.getWorldCoordinatesERS( // {x - left,y - up, z (0 at camera, negative away), 1} for real, {x,y,z,0} - for infinity
-				px,
-				py,
-				disparity,
-				distortedView,   // correct distortion (will need corrected background too !)
-				camera_xyz,      // camera center in world coordinates
-				camera_atr);     // camera orientation relative to world frame
-			if (xyzw == null) {
-				return null;
-			}
-			if (xyzw[3] == 0.0) { // infinity
-			/*
-				if (xyzw[2] > 0) {
-					for (int i = 0; i < 3; i++) {
-						xyzw[i] = -xyzw[i];	
-					}
-				}
-				*/
-			}
-			if (xyzw[2] > 0) {
-				return null; // can not match object behind the camera
-			}
-			
-			double [] pXpYD = ers_camera.getImageCoordinatesERS( // USED in lwir
-					xyzw,
-					distortedCamera,
-					reference_xyz,  // camera center in world coordinates
-					reference_atr,  // camera orientation relative to world frame
-					line_err);             // threshold error in scan lines (1.0)
-			
-			return pXpYD;
-	}
-
-	
 	
 	/**
 	 * Get real world coordinates from pixel coordinates and nominal disparity
@@ -1297,7 +1437,8 @@ public class ErsCorrection extends GeometryCorrection {
 				}
 				if (nTile == dbg_tile) {
 					System.out.println("comparePXYD_Derivatives(): nTile = "+nTile+" ("+tileX+"/"+tileY+"), is_infinity="+is_infinity[nTile]);
-					double [][] deriv_params = getDPxSceneDParameters(
+//					double [][] deriv_params = 
+					getDPxSceneDParameters(
 							scene_ers,                                  // ErsCorrection    ers_scene,
 							true,                                       // boolean correctDistortions,
 							!is_infinity [nTile],                        // boolean is_infinity,

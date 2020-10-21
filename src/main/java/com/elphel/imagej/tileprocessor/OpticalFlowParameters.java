@@ -39,6 +39,8 @@ public class OpticalFlowParameters {
 	public double      tolerance_relative_inter = 0.2; // relative disparity half-range in each tile
 	public double      occupancy_inter =         0.25;   // fraction of remaining  tiles in the center 8x8 area (<1.0)
 
+	public double      nsigma =                   1.5; // Remove outliers by more that this scaled sigma
+	public double      nsigma2 =                  2.0; // Second time  outlier filter (<0 - disable)
 	public double []   chn_weights = {1.0,1.0,1.0,1.0}; // strength, r,b,g
 //	double []   chn_weights = {1.0,0.0,0.0,0.0}; // strength, r,b,g
 //	double []   chn_weights = {0.0,1.0,1.0,1.0}; // strength, r,b,g
@@ -63,6 +65,7 @@ public class OpticalFlowParameters {
 	public boolean     combine_empty_only =       true; // false;
 
 	public boolean     late_normalize_iterate =   true;
+	
 	public int         test_corr_rad_max =        3;
 	
 	// for recalculateFlowXY()
@@ -97,6 +100,10 @@ public class OpticalFlowParameters {
 
 		
 		gd.addMessage("Interscene 2D correlation");
+		gd.addNumericField("Remove outliers (relative to sigma)",                             this.nsigma,  3,6,"",
+				"Remove optical flow macrotiles that differ from weighted average by more that this factor scaled standard deviation");
+		gd.addNumericField("Remove outliers (relative to sigma), second pass (-1 disable)",   this.nsigma2,  3,6,"",
+				"Second pass of outlier removal (with new sigma). Set to -1 to disable second pass");
 		gd.addNumericField("Correlation weight of the intrascene strength channel",           this.chn_weights[0],  3,6,"",
 				"Weight of the intrascene correlation strength in interscene macrotile correlation (will be normalized)");
 		gd.addNumericField("Correlation weight of the intrascene red channel",                this.chn_weights[1],  3,6,"",
@@ -166,6 +173,8 @@ public class OpticalFlowParameters {
 		this.tolerance_absolute_inter =     gd.getNextNumber();
 		this.tolerance_relative_inter =     gd.getNextNumber();
 		this.occupancy_inter =              gd.getNextNumber();
+		this.nsigma =                       gd.getNextNumber();
+		this.nsigma2 =                      gd.getNextNumber();
 		this.chn_weights[0] =               gd.getNextNumber(); 
 		this.chn_weights[1] =               gd.getNextNumber(); 
 		this.chn_weights[2] =               gd.getNextNumber(); 
@@ -207,6 +216,8 @@ public class OpticalFlowParameters {
 		properties.setProperty(prefix+"tolerance_absolute_inter", this.tolerance_absolute_inter+"");
 		properties.setProperty(prefix+"tolerance_relative_inter", this.tolerance_relative_inter+"");
 		properties.setProperty(prefix+"occupancy_inter",          this.occupancy_inter+"");
+		properties.setProperty(prefix+"nsigma",                   this.nsigma+"");
+		properties.setProperty(prefix+"nsigma2",                  this.nsigma2+"");
 		for (int i = 0; i < chn_weights.length; i++) {
 			properties.setProperty(prefix+"chn_weights_"+i,       this.chn_weights[i]+"");
 		}
@@ -246,6 +257,8 @@ public class OpticalFlowParameters {
 		if (properties.getProperty(prefix+"tolerance_absolute_inter")!=null) this.tolerance_absolute_inter=Double.parseDouble(properties.getProperty(prefix+"tolerance_absolute_inter"));
 		if (properties.getProperty(prefix+"tolerance_relative_inter")!=null) this.tolerance_relative_inter=Double.parseDouble(properties.getProperty(prefix+"tolerance_relative_inter"));
 		if (properties.getProperty(prefix+"occupancy_inter")!=null)          this.occupancy_inter=Double.parseDouble(properties.getProperty(prefix+"occupancy_inter"));
+		if (properties.getProperty(prefix+"nsigma")!=null)                   this.nsigma=Double.parseDouble(properties.getProperty(prefix+"nsigma"));
+		if (properties.getProperty(prefix+"nsigma2")!=null)                  this.nsigma2=Double.parseDouble(properties.getProperty(prefix+"nsigma2"));
 		for (int i = 0; i < chn_weights.length; i++) {
 			String s_chn_weight = "chn_weights_"+i;
 			if (properties.getProperty(prefix+s_chn_weight)!=null)           this.chn_weights[i]=Double.parseDouble(properties.getProperty(prefix+s_chn_weight));
@@ -287,6 +300,8 @@ public class OpticalFlowParameters {
 		ofp.tolerance_absolute_inter =      this.tolerance_absolute_inter;
 		ofp.tolerance_relative_inter =      this.tolerance_relative_inter;
 		ofp.occupancy_inter =               this.occupancy_inter;
+		ofp.nsigma =                        this.nsigma;
+		ofp.nsigma2 =                       this.nsigma2;
 		ofp.chn_weights =                   this.chn_weights.clone();
 		ofp.corr_sigma =                    this.corr_sigma;
 		ofp.fat_zero =                      this.fat_zero;

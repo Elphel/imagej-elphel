@@ -340,11 +340,12 @@ public class QuadCLTCPU {
 	
 	public Properties restoreInterProperties( // restore properties for interscene processing (extrinsics, ers, ...)
 			String path,             // full name with extension or null to use x3d directory
-//			Properties properties,   // if null - will only save extrinsics)
+			boolean all_properties,
 			int debugLevel)
 	{
 		if (path == null) {
-			path = image_name + ((properties == null) ? "-INTERFRAME":"")+".corr-xml";
+//			path = image_name + ((properties == null) ? "-INTERFRAME":"")+".corr-xml";
+			path = image_name + (all_properties? "": "-INTERFRAME")+".corr-xml";
 
 		}
 		if (!path.contains(Prefs.getFileSeparator())) {
