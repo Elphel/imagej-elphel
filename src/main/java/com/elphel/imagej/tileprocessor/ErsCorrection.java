@@ -232,7 +232,20 @@ public class ErsCorrection extends GeometryCorrection {
 	public double [] getErsATR_d2t() {
 		return ers_watr_center_d2t;
 	}
-	
+
+	public void setErsDt(
+			double []    ers_xyz_dt,
+			double []    ers_atr_dt) {
+		this.ers_wxyz_center_dt = ers_xyz_dt;
+		this.ers_watr_center_dt = ers_atr_dt;
+	}
+	public void setErsD2t(
+			double []    ers_xyz_d2t,
+			double []    ers_atr_d2t) {
+		this.ers_wxyz_center_d2t = ers_xyz_d2t;
+		this.ers_watr_center_d2t = ers_atr_d2t;
+	}
+
 	
 	
 	
@@ -286,7 +299,7 @@ public class ErsCorrection extends GeometryCorrection {
 		String prefix = parent_prefix+SCENES_PREFIX+"_"; 
 		for (Enumeration<?> e = properties.propertyNames(); e.hasMoreElements();) {
 			String key = (String) e.nextElement();
-			if (key.startsWith(prefix)) {
+			if (key.startsWith(prefix) && !key.endsWith("t")) { // _dt, _d2t
 				timestamps.add(key.substring(prefix.length()));
 			}
 		}
@@ -898,15 +911,6 @@ public class ErsCorrection extends GeometryCorrection {
 				reference_atr);  // camera orientation relative to world frame
 			if (xyzw == null) {
 				return null;
-			}
-			if (xyzw[3] == 0.0) { // infinity
-			/*
-				if (xyzw[2] > 0) {
-					for (int i = 0; i < 3; i++) {
-						xyzw[i] = -xyzw[i];	
-					}
-				}
-				*/
 			}
 			if (xyzw[2] > 0) {
 				return null; // can not match object behind the camera
@@ -1914,6 +1918,23 @@ public class ErsCorrection extends GeometryCorrection {
 		}
 	}
 	
+	public static double [][] combineXYZATR(
+			double [] reference_xyz,
+			double [] reference_atr,
+			double [] scene_xyz,
+			double [] scene_atr)
+	{
+		Rotation   ref_rotation=   new Rotation(RotationOrder.YXZ, ROT_CONV, reference_atr[0],reference_atr[1],reference_atr[2]);
+		Rotation   scene_rotation= new Rotation(RotationOrder.YXZ, ROT_CONV, scene_atr[0],    scene_atr[1],    scene_atr[2]);
+		Vector3D   ref_offset =    new Vector3D(reference_xyz);
+		Vector3D   scene_offset =  new Vector3D(scene_xyz);
+		Vector3D   offset = ref_offset.add(ref_rotation.applyTo(scene_offset));
+		Rotation   rotation = ref_rotation.applyTo(scene_rotation);
+		double []  angles = rotation.getAngles(RotationOrder.YXZ, ROT_CONV);
+		double []  xyz = offset.toArray();
+		return new double[][] {xyz,angles};
+		
+	}
 	
 	public double [] getImageCoordinatesERS(
 			double [] xyzw,
@@ -2155,6 +2176,9 @@ public class ErsCorrection extends GeometryCorrection {
 		double[][] derivatives = new double[DP_NUM_PARS+1][]; // includes [0] - pXpYD vector
 		// scene pX, pY, Disparity
 		derivatives[0] = pXpYD_scene;
+		if (Double.isNaN(pXpYD_scene[0]) || Double.isNaN(pXpYD_scene[1]) || Double.isNaN(pXpYD_scene[2])) {
+			return null;
+		}
 		// derivatives by the reference parameters, starting with /dpX, /dpY, /dd
 		for (int indx = DW_DPX; indx <= DW_DZ; indx++) {
 			int vindx = indx+1;
@@ -2166,6 +2190,9 @@ public class ErsCorrection extends GeometryCorrection {
 				derivatives[vindx] = matrixTimesVector(dpscene_dxyz, dw_dp).toArray();
 			} else {
 				derivatives[vindx] = matrixTimesVector(dpscene_dxyz, reference_vectors[vindx]).toArray();
+			}
+			if (Double.isNaN(derivatives[vindx][0]) || Double.isNaN(derivatives[vindx][1]) || Double.isNaN(derivatives[vindx][2])) {
+				return null;
 			}
 		}
 		for (int indx = DP_DSVAZ; indx < DP_NUM_PARS; indx++) { // 15,16, ...
@@ -2216,7 +2243,7 @@ public class ErsCorrection extends GeometryCorrection {
 		double pYcd = pXpYD[1] - 0.5 * this.pixelCorrectionHeight;
 		double r_scale = 0.001 * this.pixelSize / this.distortionRadius;
 		double rDn =    Math.sqrt(pXcd*pXcd + pYcd*pYcd) * r_scale; // relative to distortion radius
-		double rND2RD = correctDistortions?(getRByRDist(rDn, false)): 1.0;
+		double rND2RD = correctDistortions?(getRByRDist(rDn, false)): 1.0; // NaN
 		// rD - in mm
 //		double rD = rDn * this.distortionRadius; // Math.sqrt(pXcd*pXcd + pYcd*pYcd)*0.001*this.pixelSize; // distorted radius in a virtual center camera
 		// pXc, pYc - in pixels

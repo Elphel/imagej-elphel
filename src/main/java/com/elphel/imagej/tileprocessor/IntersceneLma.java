@@ -176,7 +176,7 @@ public class IntersceneLma {
 				scenesCLT[1],      // final QuadCLT     scene_QuadClt,
 				scenesCLT[0],      // final QuadCLT     reference_QuadClt,
 				debug_level);      // final int         debug_level)
-		double [][] wjtj = getWJtJlambda( // USED in lwir
+		double [][] wjtj = getWJtJlambda( // USED in lwir all NAN
 				0.0,               // final double      lambda,
 				last_jt);               // final double [][] jt)
 		for (int i = 0; i < parameters_vector.length; i++) {
@@ -252,7 +252,7 @@ public class IntersceneLma {
 			}
 
 		} else { // improved over initial ?
-			if (last_rms[0] < initial_rms[0]) {
+			if (last_rms[0] < initial_rms[0]) { // NaN
 				rslt[0] = true;
 				if (debug_level > 0) System.out.println("Step "+iter+": Failed to converge, but result improved over initial");
 			} else {
@@ -269,6 +269,16 @@ public class IntersceneLma {
 					System.out.println(line);
 				}
 			}
+		}
+		if ((debug_level > -2) && !rslt[0]) { // failed
+			if ((debug_level > 1) || (iter == 1) || last_run) {
+				System.out.println("LMA failed on iteration = "+iter);
+				String [] lines = printOldNew(true); // boolean allvectors)
+				for (String line : lines) {
+					System.out.println(line);
+				}
+			}
+			System.out.println();
 		}
 
 		return rslt[0]? iter : -1;
@@ -487,6 +497,9 @@ public class IntersceneLma {
 		double full_weight = asum_weight.sum();
 		pure_weight = s_pure/full_weight;
 		final double s = 1.0/asum_weight.sum();
+		if (Double.isNaN(s)) {
+			System.out.println("normalizeWeights(): s == NaN");
+		}
 		ai.set(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
@@ -578,13 +591,16 @@ public class IntersceneLma {
 									scene_rot_matrix,            // Matrix    scene_rot_matrix,        // single rotation (direct) matrix for the scene
 									debug_level);                // int debug_level);
 							if (deriv_params!= null) {
-								fx[2 * iMTile + 0] = deriv_params[0][0]; // pX
-								fx[2 * iMTile + 1] = deriv_params[0][1]; // pY
-								if (jt != null) {
-									for (int i = 0; i < par_indices.length; i++) {
-										int indx = par_indices[i] + 1;
-										jt[i][2 * iMTile + 0] = deriv_params[indx][0]; // pX
-										jt[i][2 * iMTile + 1] = deriv_params[indx][1]; // pY (disparity is not used)
+								boolean bad_tile = false;
+								if (!bad_tile) {
+									fx[2 * iMTile + 0] = deriv_params[0][0]; // pX
+									fx[2 * iMTile + 1] = deriv_params[0][1]; // pY
+									if (jt != null) {
+										for (int i = 0; i < par_indices.length; i++) {
+											int indx = par_indices[i] + 1;
+											jt[i][2 * iMTile + 0] = deriv_params[indx][0]; // pX
+											jt[i][2 * iMTile + 1] = deriv_params[indx][1]; // pY (disparity is not used)
+										}
 									}
 								}
 							}

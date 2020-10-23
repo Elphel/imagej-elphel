@@ -72,6 +72,7 @@ public class OpticalFlowParameters {
 	
 	public int         debug_level_optical =  1;
 	public int         debug_level_iterate = -1;
+	public boolean     enable_debug_images =  true;
 	
 	public void dialogQuestions(GenericJTabbedDialog gd) {
 		gd.addMessage("Intraframe ERS to pose");
@@ -159,7 +160,8 @@ public class OpticalFlowParameters {
 		
 		gd.addNumericField("Debug level correlation iterations",                              this.debug_level_iterate,  0,4,"",
 				"Apply during Optical Flow refinement itgerations");
-		
+	    gd.addCheckbox    ("Enable debug images",  this.enable_debug_images,
+			"When false - no debug images will be generated regardless of debug level");
 	}	
 	
 	public void dialogAnswers(GenericJTabbedDialog gd) {
@@ -202,6 +204,7 @@ public class OpticalFlowParameters {
 		this.test_corr_rad_max =                (int) gd.getNextNumber();
 		this.debug_level_optical =    (int) gd.getNextNumber();
 		this.debug_level_iterate =    (int) gd.getNextNumber();
+		this.enable_debug_images =          gd.getNextBoolean();
 		
 	}	
 	
@@ -243,7 +246,7 @@ public class OpticalFlowParameters {
 		properties.setProperty(prefix+"test_corr_rad_max",        this.test_corr_rad_max+"");
 		properties.setProperty(prefix+"debug_level_optical",      this.debug_level_optical+"");
 		properties.setProperty(prefix+"debug_level_iterate",      this.debug_level_iterate+"");
-	
+		properties.setProperty(prefix+"enable_debug_images",      this.enable_debug_images+"");
 	}	
 	
 	public void getProperties(String prefix,Properties properties){
@@ -285,7 +288,8 @@ public class OpticalFlowParameters {
 		if (properties.getProperty(prefix+"test_corr_rad_max")!=null)        this.test_corr_rad_max=Integer.parseInt(properties.getProperty(prefix+"test_corr_rad_max"));
 		if (properties.getProperty(prefix+"debug_level_optical")!=null)      this.debug_level_optical=Integer.parseInt(properties.getProperty(prefix+"debug_level_optical"));
 		if (properties.getProperty(prefix+"debug_level_iterate")!=null)      this.debug_level_iterate=Integer.parseInt(properties.getProperty(prefix+"debug_level_iterate"));
-
+		if (properties.getProperty(prefix+"enable_debug_images")!=null)      this.enable_debug_images=Boolean.parseBoolean(properties.getProperty(prefix+"enable_debug_images"));
+		
 	}
 	@Override
 	public OpticalFlowParameters clone() throws CloneNotSupportedException {
@@ -325,6 +329,7 @@ public class OpticalFlowParameters {
 		ofp.test_corr_rad_max =             this.test_corr_rad_max;
 		ofp.debug_level_optical =           this.debug_level_optical;
 		ofp.debug_level_iterate =           this.debug_level_iterate;
+		ofp.enable_debug_images =           this.enable_debug_images;
 		return ofp;
 		
 	}	

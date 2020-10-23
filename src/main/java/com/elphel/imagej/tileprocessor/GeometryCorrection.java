@@ -4403,13 +4403,15 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		}
 		if (rDist < 0) { // not used in lwir
 			if (debug)System.out.println("getRByRDist("+IJ.d2s(rDist,3)+"): rDist < 0");
-			return Double.NaN;
+			rDist=0.0; // Double.NaN;
 		}
 		double findex = rDist/this.stepR;
 		int index=(int) Math.floor(findex);
 		if (index>=(this.rByRDist.length-2)) { // not used in lwir
 			if (debug) System.out.println("getRByRDist("+IJ.d2s(rDist,3)+"): index="+index+">="+(this.rByRDist.length-2));
-			return Double.NaN;
+			// happens for 3D points far offcenter, should be filtered out by FoV
+			return this.rByRDist.length-1;
+//			return Double.NaN;
 		}
 		double mu = findex - index;
 		double mu2 = mu * mu;
