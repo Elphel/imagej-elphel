@@ -434,7 +434,7 @@ public class ErsCorrection extends GeometryCorrection {
 			this.xyz = xyz;
 			this.atr = atr;
 			this.ers_xyz_dt = ers_xyz_dt;
-			this.ers_atr_dt = ers_xyz_dt;
+			this.ers_atr_dt = ers_atr_dt;
 			this.ers_xyz_d2t = new double[3];
 			this.ers_atr_d2t = new double[3];
 		}
@@ -772,6 +772,16 @@ public class ErsCorrection extends GeometryCorrection {
 		this.ers_watr_center_dt =  watr_center_dt;  // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
 		this.ers_watr_center_d2t = watr_center_d2t; // camera rotaions (az, tilt, roll in radians/s, corresponding to the frame center)
 		setupERS();
+	}
+	
+	public void printVectors(
+			double [] xyz,
+			double [] atr)
+	{
+		if (xyz != null) 	printAngle("       XYZ",xyz);
+		if (atr != null) 	printAngle("       ATR",atr);
+		printAngle(                    "ERS XYZ_dt",ers_wxyz_center_dt);
+		printAngle(                    "ERS ATR_dt",ers_watr_center_dt);
 	}
 	
 	public void setupERS()

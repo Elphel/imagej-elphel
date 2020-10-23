@@ -1999,7 +1999,9 @@ public class OpticalFlow {
 			QuadCLT scene_QuadCLT,
 			int iscale) // 8
 	{
+		String title =  reference_QuadCLT.getImageName()+"-"+scene_QuadCLT.image_name+suffix;
 		double [][] dsrbg = transformCameraVew( // shifts previous image correctly (right)
+				title,                   // final String    title,
 				camera_xyz0, // double [] camera_xyz, // camera center in world coordinates
 				camera_atr0, //double [] camera_atr, // camera orientation relative to world frame
 				scene_QuadCLT,       // QuadCLT   camera_QuadClt,
@@ -2008,10 +2010,11 @@ public class OpticalFlow {
 		double [][] dsrbg_ref;
 		if (blur_reference) {
 			dsrbg_ref = transformCameraVew( // shifts previous image correctly (right)
-					ZERO3, // camera_xyz0, // double [] camera_xyz, // camera center in world coordinates
-					ZERO3, // camera_atr0, // double [] camera_atr, // camera orientation relative to world frame
-					reference_QuadCLT,     // scene_QuadCLT,       // QuadCLT   camera_QuadClt,
-					reference_QuadCLT,     // reference_QuadCLT,       // reference
+					title+"-reference",     // final String    title,
+					ZERO3, // camera_xyz0,  // double [] camera_xyz, // camera center in world coordinates
+					ZERO3, // camera_atr0,  // double [] camera_atr, // camera orientation relative to world frame
+					reference_QuadCLT,      // scene_QuadCLT,       // QuadCLT   camera_QuadClt,
+					reference_QuadCLT,      // reference_QuadCLT,       // reference
 					iscale);
 		} else {
 			dsrbg_ref= reference_QuadCLT.getDSRBG();
@@ -2024,22 +2027,21 @@ public class OpticalFlow {
 		String [] dsrbg_titles = {"d", "s", "r", "b", "g"};
 
 		// combine this scene with warped previous one
-			String [] rtitles = new String[2* dsrbg_titles.length];
-			double [][] dbg_rslt = new double [rtitles.length][];
-			for (int i = 0; i < dsrbg_titles.length; i++) {
-				rtitles[2*i] =    dsrbg_titles[i]+"0";
-				rtitles[2*i+1] =  dsrbg_titles[i];
-				dbg_rslt[2*i] =   pair[0][i];
-				dbg_rslt[2*i+1] = pair[1][i];
-			}
-			String title =  reference_QuadCLT.getImageName()+"-"+scene_QuadCLT.image_name+suffix;
-			(new ShowDoubleFloatArrays()).showArrays(
-					dbg_rslt,
-					tilesX,
-					tilesY,
-					true,
-					title,
-					rtitles);
+		String [] rtitles = new String[2* dsrbg_titles.length];
+		double [][] dbg_rslt = new double [rtitles.length][];
+		for (int i = 0; i < dsrbg_titles.length; i++) {
+			rtitles[2*i] =    dsrbg_titles[i]+"0";
+			rtitles[2*i+1] =  dsrbg_titles[i];
+			dbg_rslt[2*i] =   pair[0][i];
+			dbg_rslt[2*i+1] = pair[1][i];
+		}
+		(new ShowDoubleFloatArrays()).showArrays(
+				dbg_rslt,
+				tilesX,
+				tilesY,
+				true,
+				title,
+				rtitles);
 		
 	}
 	
@@ -2052,16 +2054,17 @@ public class OpticalFlow {
 			int iscale) // 8
 	{
 		int nscenes = scenes.length;
-		int indx_ref = nscenes - 1; 
+		int indx_ref = nscenes - 1;
+		String title =  "previous_frames_matching"+suffix;
 		double [][][] dsrbg = new double [nscenes][][];
 		String [] time_stamps = new String[nscenes];
 		// [0] - last scene before the reference one
 		for (int i = 0; i < nscenes; i++) {
 			int indx = dsrbg.length - i - 1;
+			time_stamps[i] = scenes[indx].getImageName();
 			if ((i == 0) && !blur_reference) {
 				dsrbg[0]= scenes[indx_ref].getDSRBG();
 			} else {
-				time_stamps[i] = scenes[indx].getImageName();
 				ErsCorrection ers_scene = scenes[indx].getErsCorrection();
 				double [] ers_scene_original_xyz_dt = ers_scene.getErsXYZ_dt();
 				double [] ers_scene_original_atr_dt = ers_scene.getErsATR_dt();
@@ -2070,10 +2073,11 @@ public class OpticalFlow {
 						scene_ers_dt[indx][1]); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
 				ers_scene.setupERS();
 				dsrbg[i] = transformCameraVew(   // shifts previous image correctly (right)
-						scene_xyzatr[indx][0],      // double [] camera_xyz, // camera center in world coordinates
-						scene_xyzatr[indx][1],      //double [] camera_atr, // camera orientation relative to world frame
-						scenes[indx],               // QuadCLT   camera_QuadClt,
-						scenes[indx_ref],       // reference
+						title,                   // final String    title,
+						scene_xyzatr[indx][0],   // double [] camera_xyz, // camera center in world coordinates
+						scene_xyzatr[indx][1],   //double [] camera_atr, // camera orientation relative to world frame
+						scenes[indx],            // QuadCLT   camera_QuadClt,
+						scenes[indx_ref],        // reference
 						iscale);
 				ers_scene.setErsDt(
 						ers_scene_original_xyz_dt, // double []    ers_xyz_dt,
@@ -2089,23 +2093,22 @@ public class OpticalFlow {
 		int nslices = dsrbg_titles.length;
 
 		// combine this scene with warped previous one
-			String [] rtitles = new String[nscenes * nslices];
-			double [][] dbg_rslt = new double [rtitles.length][];
-			for (int nslice = 0; nslice < nslices; nslice++) {
-				for (int nscene = 0; nscene < nscenes; nscene++) {
-					rtitles[nscenes * nslice + nscene] =    dsrbg_titles[nslice]+"-"+time_stamps[nscene];
-					dbg_rslt[nscenes * nslice + nscene] =   dsrbg[nscene][nslice];
-				}
+		String [] rtitles = new String[nscenes * nslices];
+		double [][] dbg_rslt = new double [rtitles.length][];
+		for (int nslice = 0; nslice < nslices; nslice++) {
+			for (int nscene = 0; nscene < nscenes; nscene++) {
+				rtitles[nscenes * nslice + nscene] =    dsrbg_titles[nslice]+"-"+time_stamps[nscene];
+				dbg_rslt[nscenes * nslice + nscene] =   dsrbg[nscene][nslice];
 			}
-			String title =  "previous_frames_matching"+suffix;
-			(new ShowDoubleFloatArrays()).showArrays(
-					dbg_rslt,
-					tilesX,
-					tilesY,
-					true,
-					title,
-					rtitles);
-		
+		}
+		(new ShowDoubleFloatArrays()).showArrays(
+				dbg_rslt,
+				tilesX,
+				tilesY,
+				true,
+				title,
+				rtitles);
+
 	}
 	
 	
@@ -2220,6 +2223,7 @@ public class OpticalFlow {
 	/**
 	 * Transform scene view to visually match with a reference scene. It is not accurate as it uses resampling and
 	 * related low pass filtering.
+	 * @param title image title to pring
 	 * @param scene_xyz Scene X (right),Y (up), Z (negative away form camera) in the reference camera coordinates
 	 *        or null to use scene instance coordinates.
 	 * @param scene_atr Scene azimuth, tilt and roll (or null to use scene instance).
@@ -2229,6 +2233,7 @@ public class OpticalFlow {
 	 * @return Per-tile array of resampled {disparity,strength,red,blue,green} values (or nulls).
 	 */
 	public double [][] transformCameraVew(
+			final String    title,
 			final double [] scene_xyz, // camera center in world coordinates
 			final double [] scene_atr, // camera orientation relative to world frame
 			final QuadCLT   scene_QuadClt,
@@ -2261,11 +2266,26 @@ public class OpticalFlow {
 		final ErsCorrection ersSceneCorrection =     scene_QuadClt.getErsCorrection();
 		ersReferenceCorrection.setupERS(); // just in case - setUP using instance paRAMETERS
 		ersSceneCorrection.setupERS();
+		System.out.println("\ntransformCameraVew(): >> "+title +" <<");
+		System.out.println("Reference scene ("+reference_QuadClt.getImageName()+"):");
+		ersReferenceCorrection.printVectors(null, null);
+		System.out.println("Target scene ("+scene_QuadClt.getImageName()+"):");
+		ersSceneCorrection.printVectors    (scene_xyz, scene_atr);
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
-		final double [] zbuffer = new double [tiles];
-//		DoubleAccumulator admax = new DoubleAccumulator (Double::max, Double.NEGATIVE_INFINITY);
-//		DoubleAccumulator admax = new DoubleAccumulator (Double::max, Double.NEGATIVE_INFINITY);
+//		final double [] zbuffer = new double [tiles];
+		DoubleAccumulator [] azbuffer = new DoubleAccumulator[tiles];
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) {
+						azbuffer[nTile] = new DoubleAccumulator (Double::max, Double.NEGATIVE_INFINITY);
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		ai.set(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				public void run() {
@@ -2297,12 +2317,15 @@ public class OpticalFlow {
 								int spx = (int) Math.round(pXpYD[0]*scale);
 								int spy = (int) Math.round(pXpYD[1]*scale);
 								if ((px >= 0) && (py >= 0) && (px < tilesX) & (py < tilesY)) {
+									double d = pXpYD[2];
+									azbuffer[nTile].accumulate(pXpYD[2]);
 									//Z-buffer
-									if (!(pXpYD[2] < zbuffer[px + py* tilesX])) {
-										zbuffer[px + py* tilesX] = pXpYD[2];
+//									if (!(d < zbuffer[px + py* tilesX])) {
+//										zbuffer[px + py* tilesX] = d;
+									if (!(d < azbuffer[nTile].get())) {
 										if ((spx >= 0) && (spy >= 0) && (spx < stilesX) & (spy < stilesY)) {
 											int sTile = spx + spy* stilesX;
-											ds[QuadCLT.DSRBG_DISPARITY][sTile] = pXpYD[2]; //reduce*
+											ds[QuadCLT.DSRBG_DISPARITY][sTile] = d; // pXpYD[2]; //reduce*
 											for (int i = QuadCLT.DSRBG_STRENGTH; i < dsrbg_camera.length; i++) {
 												ds[i][sTile] = dsrbg_camera[i][nTile]; // reduce * 
 											}
@@ -2316,14 +2339,118 @@ public class OpticalFlow {
 			};
 		}		      
 		ImageDtt.startAndJoin(threads);
+		ai.set(0);
 		
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int i = ai.getAndIncrement(); i < ds.length; i = ai.getAndIncrement()) {
+						ds[i] = (new DoubleGaussianBlur()).blurWithNaN(
+								ds[i], // double[] pixels,
+								null,  // double [] in_weight, // or null
+								stilesX, // int width,
+								stilesY, // int height,
+								sigma, // double sigmaX,
+								sigma, // double sigmaY,
+								0.01); // double accuracy);
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		ai.set(0);
+
+		final double [][] dsrbg_out = new double [dsrbg_camera.length][tiles];
+		final int [][] num_non_nan = new int [dsrbg_out.length] [tiles];
 		
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) if (dsrbg_camera[QuadCLT.DSRBG_STRENGTH][nTile] > 0.0) {
+						int tileY = nTile / tilesX;  
+						int tileX = nTile % tilesX;
+						int tile =  tileX +  tileY *  tilesX;
+						int stileY0 = tileY * iscale;
+						int stileY1 = stileY0 + iscale; 
+						int stileX0 = tileX * iscale;
+						int stileX1 = stileX0 + iscale; 
+						for (int stileY = stileY0; stileY < stileY1; stileY++) {
+							for (int stileX = stileX0; stileX < stileX1; stileX++) {
+								int stile = stileX + stileY * stilesX;
+								for (int i = 0; i < dsrbg_out.length; i++) {
+									double d = ds[i][stile];
+									if (!Double.isNaN(d)) {
+										num_non_nan[i][tile] ++;
+										dsrbg_out[i][tile] += d;
+									}	
+								}
+							}							
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
 		
+		for (int i = 0; i < dsrbg_out.length; i++) {
+			for (int j = 0; j < tiles; j++) {
+				if (num_non_nan[i][j] == 0) {
+					dsrbg_out[i][j] = Double.NaN;
+				} else {
+					dsrbg_out[i][j]/=num_non_nan[i][j];
+				}
+			}
+		}
+
+		if (num_passes > 0) {
+			for (int i = 0; i < dsrbg_out.length; i++) {
+				dsrbg_out[i] = tp.fillNaNs(
+						dsrbg_out[i],                  // double [] data,
+						tilesX,                        //int       width, 
+						2 * num_passes,                // int       grow,
+						0.5 * Math.sqrt(2.0),          // double    diagonal_weight, // relative to ortho
+						num_passes * rel_num_passes,   // int       num_passes,
+						threadsMax);                   // final int threadsMax) // maximal number of threads to launch                         
+			}
+		}
+		return dsrbg_out;
+	}
+
+	
+	public double [][] transformCameraVewSingle(
+			double [] scene_xyz, // camera center in world coordinates
+			double [] scene_atr, // camera orientation relative to world frame
+			QuadCLT   scene_QuadClt,
+			QuadCLT   reference_QuadClt,
+			int       iscale)
+	{
+		TileProcessor tp = reference_QuadClt.getTileProcessor();
+		int tilesX = tp.getTilesX();
+		int tilesY = tp.getTilesY();
+		int tiles = tilesX*tilesY;
+		int transform_size = tp.getTileSize();
+		int rel_num_passes = 10;
+		int num_passes =    transform_size; // * 2;
+
+		int stilesX = iscale*tilesX; 
+		int stilesY = iscale*tilesY;
+		int stiles = stilesX*stilesY;
+		double sigma = 0.5 * iscale;
+		double scale =  1.0 * iscale/transform_size;
+		double [][] dsrbg_camera =    scene_QuadClt.getDSRBG();
+///		double [][] dsrbg_reference = reference_QuadClt.getDSRBG();
+		double [][] ds =        new double [dsrbg_camera.length][stiles];
+		for (int i = 0; i <ds.length; i++) {
+			for (int j = 0; j <ds[i].length; j++) {
+				ds[i][j] = Double.NaN;
+			}
+		}
 		
-		
-		
-		
-		
+		ErsCorrection ersReferenceCorrection = reference_QuadClt.getErsCorrection();
+		ErsCorrection ersSceneCorrection =     scene_QuadClt.getErsCorrection();
+		ersReferenceCorrection.setupERS(); // just in case - setUP using instance paRAMETERS
+		ersSceneCorrection.setupERS();
+		double [] zbuffer = new double [tiles];
 		for (int tileY = 0; tileY < tilesY; tileY++) {
 			for (int tileX = 0; tileX < tilesX; tileX++) {
 				int nTile = tileX + tileY * tilesX;
@@ -2425,6 +2552,9 @@ public class OpticalFlow {
 		return dsrbg_out;
 	}
 
+	
+	
+	
 	public void adjustPairsDualPass(
 			CLTParameters  clt_parameters,			
 			double k_prev, 
@@ -2614,10 +2744,6 @@ public class OpticalFlow {
 					param_select2,             // final boolean[]   param_select,
 					param_regweights2, //  final double []   param_regweights,
 					debug_level); // int debug_level)
-			if (debug_level > -1) {
-				System.out.println("Pass 1 scene "+i+" (of "+ scenes.length+") "+
-						reference_QuadClt.getImageName() + "/" + scene_QuadClt.getImageName()+" Done.");
-			}
 			ers_reference.addScene(scene_QuadClt.getImageName(),
 					scenes_xyzatr[i][0],
 					scenes_xyzatr[i][1],
@@ -2736,7 +2862,7 @@ public class OpticalFlow {
 		int tilesY = tp.getTilesY();
 		if (clt_parameters.ofp.enable_debug_images && (debug_level > 0)) {
 			compareRefSceneTiles(
-					"before_LMA",      // String suffix,
+					"-before_LMA",      // String suffix,
 					blur_reference,    // boolean blur_reference,
 					camera_xyz0,       // double [] camera_xyz0,
 					camera_atr0,       // double [] camera_atr0,
@@ -2868,7 +2994,7 @@ public class OpticalFlow {
 		if (clt_parameters.ofp.enable_debug_images && (debug_level == 1))  {
 ///		if (!clt_parameters.ofp.enable_debug_images || (clt_parameters.ofp.enable_debug_images && (debug_level == 1)))  {
 			compareRefSceneTiles(
-					"after_lma",      // String suffix,
+					"-after_lma",      // String suffix,
 					blur_reference,    // boolean blur_reference,
 					camera_xyz0,       // double [] camera_xyz0,
 					camera_atr0,       // double [] camera_atr0,
@@ -2876,33 +3002,7 @@ public class OpticalFlow {
 					scene_QuadCLT,     // QuadCLT scene_QuadCLT,
 					iscale);           // int iscale) // 8
 		}
-		/*
-		double [] wxyz_center_dt_prev1 =   ersCorrectionPrev.ers_wxyz_center_dt;
-		double [] watr_center_dt_prev1 =   ersCorrectionPrev.ers_watr_center_dt; // is twice omega!
-		double [] wxyz_delta1 =            new double[3];
-		double [] watr_delta1 =            new double[3];
-		for (int i = 0; i <3; i++) {
-			wxyz_delta1[i] =              dt * (k_prev * wxyz_center_dt_prev1[i] + (1.0-k_prev) * ersCorrection.ers_wxyz_center_dt[i]);
-			watr_delta1[i] = 0.5 *        dt * (k_prev * watr_center_dt_prev1[i] + (1.0-k_prev) * ersCorrection.ers_watr_center_dt[i]);
-		}
-		watr_delta1[0] = -watr_delta1[0]; /// TESTING!
-		watr_delta1[2] = -watr_delta1[2]; /// TESTING!
-		if (debug_level > 0)  {
-			System.out.println(IntersceneLma.printNameV3("ATR from ERS", watr_delta1));
-			System.out.println(IntersceneLma.printNameV3("XYZ from ERS", wxyz_delta1));
-			System.out.println("Number of full corr+LMA runs = "+(nlma+1));
-		}
-		*/
-		/*
-		reference_QuadCLT.getErsCorrection().addScene(scene_QuadCLT.getImageName(), camera_xyz0,camera_atr0);
-		
-		reference_QuadCLT.saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
-	            null, // String path,             // full name with extension or w/o path to use x3d directory
-	            debug_level);
-	    */
 		return new double [][] {camera_xyz0, camera_atr0};
-		
-//		return null; //pair;
 	}
 	
 	
@@ -3187,11 +3287,12 @@ public class OpticalFlow {
 		int tilesX = tp.getTilesX();
 		int tilesY = tp.getTilesY();
 		String [] dsrbg_titles = {"d", "s", "r", "b", "g"};
-		
+		String title = this_image_name+"-"+scene_QuadCLT.image_name+"-dt"+dt;
 		double [][] dsrbg = transformCameraVew( // shifts previous image correctly (right)
-				camera_xyz0, // double [] camera_xyz, // camera center in world coordinates
-				camera_atr0, //double [] camera_atr, // camera orientation relative to world frame
-				scene_QuadCLT,       // QuadCLT   camera_QuadClt,
+				title,                   // final String    title,
+				camera_xyz0,             // double [] camera_xyz, // camera center in world coordinates
+				camera_atr0,             //double [] camera_atr, // camera orientation relative to world frame
+				scene_QuadCLT,           // QuadCLT   camera_QuadClt,
 				reference_QuadCLT,       // reference
 				iscale);
 		double [][][] pair = {reference_QuadCLT.getDSRBG(),dsrbg};
@@ -3223,7 +3324,7 @@ public class OpticalFlow {
 				dbg_rslt[2*i] =   pair[0][i];
 				dbg_rslt[2*i+1] = pair[1][i];
 			}
-			String title = this_image_name+"-"+scene_QuadCLT.image_name+"-dt"+dt;
+//			String title = this_image_name+"-"+scene_QuadCLT.image_name+"-dt"+dt;
 			(new ShowDoubleFloatArrays()).showArrays(
 					dbg_rslt,
 					tilesX,
