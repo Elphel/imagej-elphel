@@ -371,6 +371,7 @@ public class QuadCLTCPU {
 		ers.getPropertiesPose(prefix,   properties);
 		ers.getPropertiesERS(prefix,    properties);
 		ers.getPropertiesScenes(prefix, properties);
+		ers.getPropertiesLineTime(prefix, properties); // will set old value if not in the file
 		return properties;
 		
 	}
@@ -672,6 +673,7 @@ public class QuadCLTCPU {
 			ers.setPropertiesPose(prefix, properties);
 			ers.setPropertiesERS(prefix, properties);
 			ers.setPropertiesScenes(prefix, properties);
+			ers.setPropertiesLineTime(prefix, properties);
 		}
 	}
 
@@ -8289,7 +8291,7 @@ public class QuadCLTCPU {
 	   * @param debugLevel
 	   * @return true on success, false - on failure
 	   */
-	  public boolean extrinsicsCLT( // USED in lwir TODO: provide boolean 
+	  public boolean extrinsicsCLT( 
 			  CLTParameters           clt_parameters,
 			  boolean 		   adjust_poly,
 			  double inf_min, //  = -1.0;

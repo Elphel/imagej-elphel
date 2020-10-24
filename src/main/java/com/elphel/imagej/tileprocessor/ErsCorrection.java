@@ -247,6 +247,19 @@ public class ErsCorrection extends GeometryCorrection {
 	}
 
 	
+	public void setPropertiesLineTime(String prefix, Properties properties){
+		properties.setProperty(prefix+"_line_time", line_time+"");
+	}
+
+	public boolean getPropertiesLineTime(String prefix, Properties properties){
+		if (properties.getProperty(prefix+"_line_time")!=null)  {
+			line_time =     Double.parseDouble(properties.getProperty(prefix+"_line_time"));
+			return true;
+		} else {
+			line_time = OLD_LINE_TIME;
+			return false;
+		}
+	}
 	
 	
 	public void setPropertiesPose(String prefix, Properties properties){
@@ -739,7 +752,11 @@ public class ErsCorrection extends GeometryCorrection {
 	// setup from extrinsics vector
 	public void setupERSfromExtrinsics()
 	{
-		double BUGS = 26.5/36.38; // tempoorary correction for the wrong scan line time!
+		double BUGS = 1.0;
+		if (line_time == OLD_LINE_TIME) {
+			BUGS = 26.5/36.38; // temporary correction for the wrong scan line time!
+		}
+		
 		double [] ersv = getCorrVector().getIMU();
 		setupERS(
 				new double [3],                            // double [] wxyz_center,     // world camera XYZ (meters) for the frame center

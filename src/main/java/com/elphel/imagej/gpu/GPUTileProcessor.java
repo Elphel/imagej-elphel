@@ -194,7 +194,7 @@ public class GPUTileProcessor {
     	}
     	/**
     	 * Initialize from the float array (read from the GPU)
-    	 * @param flt float array containig tasks data
+    	 * @param flt float array containing tasks data
     	 * @param indx task number to use
     	 */
     	public TpTask(float [] flt, int indx, boolean use_aux)
@@ -2713,6 +2713,83 @@ public class GPUTileProcessor {
     		ImageDtt.startAndJoin(threads);
     	}
 
+        /**
+         * Prepare GPU tasks for interscene accumulation - instead of the uniform grid, pixel coordinates and disparity are provided
+         * by the caller. They are calculated by recalculating from the reference scene after appropriate transformation (shift, rotation
+         * and ERS correction) 
+         * @param pXpYD Array of per-tile pX, pY and disparity triplets (or nulls for undefined tiles).
+         * @param task_code Put this value (typically 512?) for each tile in task field. 
+         * @param geometryCorrection GeometryCorrection instance for the camera.
+         * @param disparity_corr Disparity correction at infinity
+         * @param threadsMax Maximal number of threads to run concurrently.
+         * @return Array of TpTask instances (fully prepared) to be fed to the GPU
+         */
+       	public TpTask[]  setInterTasks(
+       			double [][]               pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+       			int                       task_code, // code to use for active tiles
+    			final GeometryCorrection  geometryCorrection,
+    			final double              disparity_corr,
+    			final int                 threadsMax)  // maximal number of threads to launch
+    	{
+            final int tilesX =  img_width / DTT_SIZE;
+            final int tiles = pXpYD.length;
+    		final Matrix [] corr_rots = geometryCorrection.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices
+    		final int quad_main = (geometryCorrection != null)? num_cams:0;
+    		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+    		final AtomicInteger ai = new AtomicInteger(0);
+    		final AtomicInteger aTiles = new AtomicInteger(0);
+    		final int [] tile_indices = new int [tiles];
+    		for (int ithread = 0; ithread < threads.length; ithread++) {
+    			threads[ithread] = new Thread() {
+    				public void run() {
+    					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) if (pXpYD[nTile] != null) {
+    						tile_indices[aTiles.getAndIncrement()] = nTile;
+    					}
+    				}
+    			};
+    		}		      
+    		ImageDtt.startAndJoin(threads);
+    		ai.set(0);
+    		final TpTask[] tp_tasks = new TpTask[aTiles.get()];
+    		
+    		for (int ithread = 0; ithread < threads.length; ithread++) {
+    			threads[ithread] = new Thread() {
+    				@Override
+    				public void run() {
+    					for (int indx = ai.getAndIncrement(); indx < tp_tasks.length; indx = ai.getAndIncrement()) {
+    						int nTile = tile_indices[indx];
+    						int tileY = nTile / tilesX;
+    						int tileX = nTile % tilesX;
+    						tp_tasks[nTile].ty = tileY;
+    						tp_tasks[nTile].tx = tileX;
+    						tp_tasks[nTile].task = task_code;
+    						double disparity = pXpYD[nTile][2] + disparity_corr;
+    						tp_tasks[nTile].target_disparity = (float) disparity; // will it be used?
+    						double [][] disp_dist_main = new double[quad_main][]; // used to correct 3D correlations (not yet used here)
+    						double [][] centersXY_main = geometryCorrection.getPortsCoordinatesAndDerivatives(
+    								geometryCorrection, //			GeometryCorrection gc_main,
+    								false,          // boolean use_rig_offsets,
+    								corr_rots, // Matrix []   rots,
+    								null,           //  Matrix [][] deriv_rots,
+    								null,           // double [][] pXYderiv, // if not null, should be double[8][]
+    								disp_dist_main,       // used to correct 3D correlations
+    								pXpYD[nTile][0],
+    								pXpYD[nTile][1],
+    								disparity); //  + disparity_corr);
+    						tp_tasks[nTile].xy = new float [centersXY_main.length][2];
+    						for (int i = 0; i < centersXY_main.length; i++) {
+    							tp_tasks[nTile].xy[i][0] = (float) centersXY_main[i][0];
+    							tp_tasks[nTile].xy[i][1] = (float) centersXY_main[i][1];
+    						}
+    					}
+    				}
+    			};
+    		}
+    		ImageDtt.startAndJoin(threads);
+    		return tp_tasks;
+    	}
+        
+        
     	public void setLpfRbg(
     			float [][] lpf_rbg, // 4 64-el. arrays: r,b,g,m
     			boolean    debug)

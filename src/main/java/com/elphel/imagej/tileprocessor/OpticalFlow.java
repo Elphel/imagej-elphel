@@ -3232,7 +3232,7 @@ public class OpticalFlow {
 			double k_prev,
 			QuadCLT reference_QuadCLT,
 			QuadCLT scene_QuadCLT,
-			double corr_scale, //  = 0.75
+			double corr_scale, //  = 0.75 - REMOVE
 			int debug_level)
 	{
 		TileProcessor tp = reference_QuadCLT.getTileProcessor();

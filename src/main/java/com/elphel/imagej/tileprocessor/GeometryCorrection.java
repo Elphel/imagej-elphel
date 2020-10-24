@@ -44,6 +44,7 @@ public class GeometryCorrection {
 //	static final double FOCAL_LENGTH = 4.5; // nominal focal length - used as default and to convert editable parameters to pixels
 //	static final double DISTORTION_RADIUS = 2.8512; // nominal distortion radius - half width of the sensor
 //	static final double PIXEL_SIZE = 2.2; //um
+	public static double OLD_LINE_TIME =  26.5E-6;
 	static final String[] RIG_PAR_NAMES = {"azimuth", "tilt", "roll", "zoom", "angle", "baseline"};
 	public static String RIG_PREFIX =     "rig-";
 	static double SCENE_UNITS_SCALE = 0.001;  // meters from mm
@@ -57,7 +58,7 @@ public class GeometryCorrection {
 			"velocity_x", "velocity_y", "velocity_z"};
 
 	public int    debugLevel = 0;
-	public double line_time =  26.5E-6; // duration of sensor scan line (for ERS) Wrong, 36.38us (change and re-run ERS
+	public double line_time =  36.38E-6; // 26.5E-6; // duration of sensor scan line (for ERS) Wrong, 36.38us (change and re-run ERS
 	public int    pixelCorrectionWidth=2592;   // virtual camera center is at (pixelCorrectionWidth/2, pixelCorrectionHeight/2)
 	public int    pixelCorrectionHeight=1936;
 
