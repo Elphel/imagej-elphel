@@ -11,12 +11,10 @@
 		<version>3.1</version>
 		<relativePath/>
         </parent>
-
-<!-- 
 	<properties>
-		<imagej.app.directory>/home/foxel/Desktop/Fiji.app</imagej.app.directory>
+	    <maven.compiler.target>1.8</maven.compiler.target>
+	    <maven.compiler.source>1.8</maven.compiler.source>
 	</properties>
- -->	
 
 	<groupId>com.elphel</groupId>
  	<artifactId>imagej-elphel</artifactId>
