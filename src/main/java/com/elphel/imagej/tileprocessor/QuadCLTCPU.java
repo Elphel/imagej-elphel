@@ -1935,7 +1935,7 @@ public class QuadCLTCPU {
 			  //				  int srcChannel=correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile]);
 			  int srcChannel=fileIndices[iImage][1];
 
-			  imp_src = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], this.geometryCorrection.woi_tops);
+			  imp_src = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], this.geometryCorrection.woi_tops, this.geometryCorrection.camera_heights);
 
 			  double scaleExposure=1.0;
 			  if (!Double.isNaN(referenceExposures[nFile]) && (imp_src.getProperty("EXPOSURE")!=null)){
@@ -2509,7 +2509,7 @@ public class QuadCLTCPU {
 				  int nFile=channelFiles[srcChannel];
 				  imp_srcs[srcChannel]=null;
 				  if (nFile >=0){
-					  imp_srcs[srcChannel] = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], this.geometryCorrection.woi_tops);
+					  imp_srcs[srcChannel] = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], this.geometryCorrection.woi_tops, this.geometryCorrection.camera_heights);
 
 					  scaleExposure[srcChannel] = 1.0;
 					  if (!Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
@@ -3117,7 +3117,7 @@ public class QuadCLTCPU {
 				  int nFile=channelFiles[srcChannel];
 				  imp_srcs[srcChannel]=null;
 				  if (nFile >=0){
-					  imp_srcs[srcChannel] = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], this.geometryCorrection.woi_tops);
+					  imp_srcs[srcChannel] = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], this.geometryCorrection.woi_tops, this.geometryCorrection.camera_heights);
 
 					  scaleExposures[srcChannel] = 1.0;
 					  if (!Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
@@ -3730,6 +3730,8 @@ public class QuadCLTCPU {
 		  this.image_name = set_name;
 		  ImagePlus [] imp_srcs = new ImagePlus[channelFiles.length];
 		  this.geometryCorrection.woi_tops = new int [channelFiles.length];
+		  this.geometryCorrection.camera_heights = new int [channelFiles.length];
+		  
 		  double [][] dbg_dpixels = new double [channelFiles.length][];
 		  boolean is_lwir =            colorProcParameters.lwir_islwir;
 		  boolean ignore_saturation =  is_lwir;
@@ -3742,7 +3744,7 @@ public class QuadCLTCPU {
 			  int nFile=channelFiles[srcChannel]; // channelFiles[srcChannel];
 			  imp_srcs[srcChannel]=null;
 			  if (nFile >=0){
-				  imp_srcs[srcChannel] = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], this.geometryCorrection.woi_tops);
+				  imp_srcs[srcChannel] = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], this.geometryCorrection.woi_tops, this.geometryCorrection.camera_heights);
 
 				  scaleExposures[srcChannel] = 1.0;
 				  if (!(referenceExposures == null) && !Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
@@ -6424,14 +6426,15 @@ public class QuadCLTCPU {
 			  }
 
 			  ImagePlus [] imp_srcs = new ImagePlus[channelFiles.length];
-			  this.geometryCorrection.woi_tops = new int [channelFiles.length];
+			  this.geometryCorrection.woi_tops =       new int [channelFiles.length];
+			  this.geometryCorrection.camera_heights = new int [channelFiles.length];
 			  boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
 			  double [] scaleExposures = new double[channelFiles.length];
 			  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
 				  int nFile=channelFiles[srcChannel];
 				  imp_srcs[srcChannel]=null;
 				  if (nFile >=0){
-					  imp_srcs[srcChannel] = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], this.geometryCorrection.woi_tops);
+					  imp_srcs[srcChannel] = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], this.geometryCorrection.woi_tops, this.geometryCorrection.camera_heights);
 
 					  scaleExposures[srcChannel] = 1.0;
 					  if (!Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
@@ -11583,13 +11586,15 @@ public class QuadCLTCPU {
 
 		  ImagePlus [] imp_srcs = new ImagePlus[channelFiles.length];
 		  this.geometryCorrection.woi_tops = new int [channelFiles.length];
+		  this.geometryCorrection.camera_heights = new int [channelFiles.length];
+		  
 		  double [][] dbg_dpixels =  batch_mode? null : (new double [channelFiles.length][]);
 
 		  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
 			  int nFile=channelFiles[srcChannel];
 			  imp_srcs[srcChannel]=null;
 			  if (nFile >=0){
-				  imp_srcs[srcChannel] = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], this.geometryCorrection.woi_tops);
+				  imp_srcs[srcChannel] = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], this.geometryCorrection.woi_tops, this.geometryCorrection.camera_heights);
 
 				  scaleExposures[srcChannel] = 1.0;
 				  if (!Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){

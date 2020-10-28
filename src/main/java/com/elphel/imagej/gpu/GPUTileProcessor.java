@@ -63,6 +63,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -2718,19 +2719,33 @@ public class GPUTileProcessor {
          * by the caller. They are calculated by recalculating from the reference scene after appropriate transformation (shift, rotation
          * and ERS correction) 
          * @param pXpYD Array of per-tile pX, pY and disparity triplets (or nulls for undefined tiles).
-         * @param task_code Put this value (typically 512?) for each tile in task field. 
          * @param geometryCorrection GeometryCorrection instance for the camera.
          * @param disparity_corr Disparity correction at infinity
+         * @param margin Skip tile if at least one channel tile center is closer to the image edge than this margin.
+         * @param valid_tiles Optional (if not null) should be initialized as boolean [tiles] - will contain valid tiles
          * @param threadsMax Maximal number of threads to run concurrently.
          * @return Array of TpTask instances (fully prepared) to be fed to the GPU
          */
        	public TpTask[]  setInterTasks(
-       			double [][]               pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
-       			int                       task_code, // code to use for active tiles
+       			final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
     			final GeometryCorrection  geometryCorrection,
     			final double              disparity_corr,
+    			final int                 margin,      // do not use tiles if their centers are closer to the edges
+    			final boolean []          valid_tiles,            
     			final int                 threadsMax)  // maximal number of threads to launch
     	{
+       		final int task_code = ((1 << NUM_PAIRS)-1) << TASK_CORR_BITS; //  correlation only
+       		final double min_px = margin; 
+       		final double max_px = img_width - 1 - margin;
+       		final double [] min_py = new double[num_cams] ;
+       		final double [] max_py = new double[num_cams] ;
+       		for (int i = 0; i < num_cams; i++) {
+       			min_py [i] = margin + geometryCorrection.getWOITops()[i];
+       			max_py [i] = geometryCorrection.getWOITops()[i] + geometryCorrection.getCameraHeights()[i] - 1 - margin;
+       		}
+       		if (valid_tiles!=null) {
+       			Arrays.fill(valid_tiles, false);
+       		}
             final int tilesX =  img_width / DTT_SIZE;
             final int tiles = pXpYD.length;
     		final Matrix [] corr_rots = geometryCorrection.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices
@@ -2738,33 +2753,23 @@ public class GPUTileProcessor {
     		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
     		final AtomicInteger ai = new AtomicInteger(0);
     		final AtomicInteger aTiles = new AtomicInteger(0);
-    		final int [] tile_indices = new int [tiles];
-    		for (int ithread = 0; ithread < threads.length; ithread++) {
-    			threads[ithread] = new Thread() {
-    				public void run() {
-    					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) if (pXpYD[nTile] != null) {
-    						tile_indices[aTiles.getAndIncrement()] = nTile;
-    					}
-    				}
-    			};
-    		}		      
-    		ImageDtt.startAndJoin(threads);
-    		ai.set(0);
-    		final TpTask[] tp_tasks = new TpTask[aTiles.get()];
+    		final TpTask[] tp_tasks = new TpTask[tiles]; // aTiles.get()];
     		
     		for (int ithread = 0; ithread < threads.length; ithread++) {
     			threads[ithread] = new Thread() {
     				@Override
     				public void run() {
-    					for (int indx = ai.getAndIncrement(); indx < tp_tasks.length; indx = ai.getAndIncrement()) {
-    						int nTile = tile_indices[indx];
+    					//    					for (int indx = ai.getAndIncrement(); indx < tp_tasks.length; indx = ai.getAndIncrement()) {
+    					//   						int nTile = tile_indices[indx];
+    					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) if (pXpYD[nTile] != null) {
+        					TpTask tp_task = new TpTask();
     						int tileY = nTile / tilesX;
     						int tileX = nTile % tilesX;
-    						tp_tasks[nTile].ty = tileY;
-    						tp_tasks[nTile].tx = tileX;
-    						tp_tasks[nTile].task = task_code;
+    						tp_task.ty = tileY;
+    						tp_task.tx = tileX;
+    						tp_task.task = task_code;
     						double disparity = pXpYD[nTile][2] + disparity_corr;
-    						tp_tasks[nTile].target_disparity = (float) disparity; // will it be used?
+    						tp_task.target_disparity = (float) disparity; // will it be used?
     						double [][] disp_dist_main = new double[quad_main][]; // used to correct 3D correlations (not yet used here)
     						double [][] centersXY_main = geometryCorrection.getPortsCoordinatesAndDerivatives(
     								geometryCorrection, //			GeometryCorrection gc_main,
@@ -2776,17 +2781,32 @@ public class GPUTileProcessor {
     								pXpYD[nTile][0],
     								pXpYD[nTile][1],
     								disparity); //  + disparity_corr);
-    						tp_tasks[nTile].xy = new float [centersXY_main.length][2];
+    						tp_task.xy = new float [centersXY_main.length][2];
+    						boolean bad_margins = false;
     						for (int i = 0; i < centersXY_main.length; i++) {
-    							tp_tasks[nTile].xy[i][0] = (float) centersXY_main[i][0];
-    							tp_tasks[nTile].xy[i][1] = (float) centersXY_main[i][1];
+    							if (    (centersXY_main[i][0] < min_px) ||    (centersXY_main[i][0] > max_px) ||
+    									(centersXY_main[i][1] < min_py[i]) || (centersXY_main[i][1] > max_py[i])) {
+    								bad_margins = true;
+    								break;
+    							}
+    							tp_task.xy[i][0] = (float) centersXY_main[i][0];
+    							tp_task.xy[i][1] = (float) centersXY_main[i][1];
+    						}
+    						if (bad_margins) {
+    							continue;
+    						}
+    						tp_tasks[aTiles.getAndIncrement()] = tp_task;
+    						if (valid_tiles!=null) {
+    							valid_tiles[nTile] = true;
     						}
     					}
     				}
     			};
     		}
     		ImageDtt.startAndJoin(threads);
-    		return tp_tasks;
+    		final TpTask[] tp_tasks_out = new TpTask[aTiles.get()];
+    		System.arraycopy(tp_tasks, 0, tp_tasks_out, 0, tp_tasks_out.length);
+    		return tp_tasks_out;
     	}
         
         

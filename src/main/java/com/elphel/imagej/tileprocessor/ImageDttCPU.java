@@ -24,6 +24,7 @@ package com.elphel.imagej.tileprocessor;
  */
 // ← → ↑ ↓ ⇖ ⇗ ⇘ ⇙ ↔ ↕ 
 
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.elphel.imagej.cameras.CLTParameters;
@@ -125,6 +126,10 @@ public class ImageDttCPU {
 			  "g0","g1","g2","g3",
 			  "b0","b1","b2","b3",
 			  };
+	  static public String[] CORR_TITLES = {
+			  "top","bottom","left","right","diag-m","diag-o",
+			  "quad","cross","hor","vert",
+			  "s-hor","s-vert","s-quad","s-cross","s-quad-cross","s-combo"}; 
 //			  "dbg0","dbg1","dbg2","dbg3","dbg4","dbg5","dbg6","dbg7","dbg8","dbg9","dbg10","dbg11","dbg12","dbg13","dbg14","dbg15","dbg16","dbg17","dbg18"};
 
 	  static int  BI_DISP_FULL_INDEX =            0;  // 0 - disparity for all directions of the main camera
@@ -5880,10 +5885,81 @@ public class ImageDttCPU {
 	}
 
 
+//	final float  [][][][]     fcorr_td =       new float[tilesY][tilesX][][];
+//	final float  [][][][]     fcorr_combo_td = new float[4][tilesY][tilesX][];
 
+	public static float [][] corr_td_dbg(
+			final float [][][][] fcorr_td,
+			// if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][];
+			// if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
+			final int            num_slices,
+			final int            transform_size,
+			final int []         wh, // should be initialized as int[2];
+			final int            threadsMax)     // maximal number of threads to launch
+	{
+		final int tilesY = (num_slices == 0) ? fcorr_td[0].length : fcorr_td.length;
+		final int tilesX = (num_slices == 0) ? fcorr_td[0][0].length : fcorr_td[0].length;
+		final int nTiles = tilesX*tilesY;
+		final int width =  tilesX * 2 * transform_size;
+		final int height = tilesY * 2 * transform_size;
+		if (wh != null) {
+			wh[0] = width;
+			wh[1] = height;
+		}
+		final int fnum_slices = (num_slices == 0) ? fcorr_td.length : num_slices;
+		final int transform_len = transform_size*transform_size; // 64
+		float [][] dbg_img = new float [fnum_slices][width * height];
+		for (int i = 0; i < dbg_img.length; i++) {
+			Arrays.fill(dbg_img[i], Float.NaN);
+		}
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
+						int tileY = nTile/tilesX;
+						int tileX = nTile - tileY * tilesX;
+						if ((num_slices == 0) || (fcorr_td[tileY][tileX] != null)) {
+							for (int slice = 0; slice < fnum_slices; slice ++) {
+								float [] ftile = (num_slices > 0) ? fcorr_td[tileY][tileX][slice] : fcorr_td[slice][tileY][tileX];
+								if (ftile != null) {
+									for (int qy = 0; qy < 2; qy++) {
+										for (int qx = 0; qx < 2; qx++) {
+											for (int ty = 0; ty < transform_size; ty++) {
+												int py = (tileY * 2 + qy) * transform_size + ty;
+												int px = (tileX * 2 + qx) * transform_size;
+												System.arraycopy(
+														ftile,
+														(2 * qy + qx) * transform_len + transform_size * ty,
+														dbg_img[slice],
+														py * width + px,
+														transform_size);
+												/*
+												for (int tx = 0; tx < transform_size; tx++) {
+													int px = (tileX * 2 + qx) * transform_size + tx;
+													dbg_img[slice][py * width + px] = ftile[(2 * qy + qx) * transform_len + transform_size * ty + tx];
+												}
+												*/
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			};
+		}
+		startAndJoin(threads);
+		return dbg_img;
+	}
+	
+	
 
 	// extract correlation result  in linescan order (for visualization)
-	public double [][] corr_partial_dbg( // not used in lwir
+	public static double [][] corr_partial_dbg( // not used in lwir
 			final double [][][][][] corr_data,
 			final int corr_size,
 			final int pairs,

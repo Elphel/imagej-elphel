@@ -109,8 +109,9 @@ public class GeometryCorrection {
 
 	public  CorrVector extrinsic_corr;
 
-	public RigOffset   rigOffset =    null;
-	public int []      woi_tops =     null; // used to calculate scanline timing
+	public RigOffset   rigOffset =          null;
+	public int []      woi_tops =           null; // used to calculate scanline timing
+	public int []      camera_heights =     null; // actual acquired lines (from woi_tops)
 
 
 	public float [] toFloatArray() { // for GPU comparison
@@ -155,6 +156,7 @@ public class GeometryCorrection {
 				(float) cameraRadius,      // average distance from the "mass center" of the sensors to the sensors
 				(float) disparityRadius,   //=150.0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad
 				woi_tops[0],woi_tops[1],woi_tops[2],woi_tops[3]
+						// TODO: ADD camera_heights[0],	camera_heights[1], camera_heights[2], camera_heights[3],
 		};
 	}
 	public static int arrayLength(int ncam) {
@@ -199,13 +201,18 @@ public class GeometryCorrection {
 				cameraRadius,     // average distance from the "mass center" of the sensors to the sensors
 				disparityRadius,   //=150.0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad
 				woi_tops[0],woi_tops[1],woi_tops[2],woi_tops[3]
+// TODO: ADD camera_heights[0],	camera_heights[1], camera_heights[2], camera_heights[3],
+						
 		};
 	}
 
 	public int [] getWOITops() {// not used in lwir
 		return woi_tops;
 	}
-
+	public int [] getCameraHeights() {
+		return camera_heights;
+	}
+	
 	public double [][] getPXY0(){
 		return this.pXY0;
 	}
@@ -349,6 +356,7 @@ public class GeometryCorrection {
 		pXY0 =    new double [numSensors][2];
 		rXY =     new double [numSensors][2];
 		woi_tops = new int   [numSensors];
+		camera_heights = new int   [numSensors];
 		resetCorrVector();
 	}
 	

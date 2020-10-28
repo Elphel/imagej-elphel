@@ -29,8 +29,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.DoubleAccumulator;
 
 import com.elphel.imagej.cameras.CLTParameters;
+import com.elphel.imagej.cameras.ColorProcParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
+import com.elphel.imagej.gpu.GPUTileProcessor;
+
+import ij.IJ;
 
 public class OpticalFlow {
 	public static double [] ZERO3 = {0.0,0.0,0.0};
@@ -228,6 +232,9 @@ public class OpticalFlow {
 			}
 		}
 	}
+	
+	
+	
 	
 	/**
 	 * Calculate confidence for the interscene X,Y correlation
@@ -2062,6 +2069,7 @@ public class OpticalFlow {
 		for (int i = 0; i < nscenes; i++) {
 			int indx = dsrbg.length - i - 1;
 			time_stamps[i] = scenes[indx].getImageName();
+			System.out.println("\n"+i+ ": "+ time_stamps[i]+" compareRefSceneTiles()");
 			if ((i == 0) && !blur_reference) {
 				dsrbg[0]= scenes[indx_ref].getDSRBG();
 			} else {
@@ -2220,6 +2228,319 @@ public class OpticalFlow {
 				title); //	dsrbg_titles);
 	}
 	
+	public double [][] getSceneDisparityStrength(
+			final boolean     to_ref_disparity, // false - return scene disparity, true - convert disparity back to the reference scene
+			final double []   disparity_ref,   // invalid tiles - NaN in disparity
+			final double []   disparity_scene, // invalid tiles - NaN in disparity (just for masking out invalid scene tiles)
+			final double []   strength_scene,  // to calculate interpolated strength
+			final double []   scene_xyz, // camera center in world coordinates
+			final double []   scene_atr, // camera orientation relative to world frame
+			final double []   scene_ers_xyz_dt, // camera ERS linear
+			final double []   scene_ers_atr_dt, // camera ERS linear
+			final QuadCLT     scene_QuadClt,
+			final QuadCLT     reference_QuadClt,
+			final int         margin,
+			final double      tolerance_ref_absolute,
+			final double      tolerance_ref_relative,
+			final double      tolerance_scene_absolute, // of 4 bi-linear interpolation corners
+			final double      tolerance_scene_relative)  // of 4 bi-linear interpolation corners
+	{
+		TileProcessor tp = reference_QuadClt.getTileProcessor();
+		final int tilesX = tp.getTilesX();
+		final int tilesY = tp.getTilesY();
+		final int transform_size = tp.getTileSize();
+		final int tiles = tilesX*tilesY;
+		final double scene_disparity_cor = 0.0;
+		final boolean [] valid_tiles = new boolean[tiles];
+		scene_QuadClt.getErsCorrection().setErsDt(
+				scene_ers_xyz_dt, // double []    ers_xyz_dt,
+				scene_ers_atr_dt); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
+		//setupERS() will be inside transformToScenePxPyD()
+		double [][] scene_pXpYD = transformToScenePxPyD( // will be null for disparity == NaN
+				disparity_ref,      // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
+				scene_xyz,          // final double []   scene_xyz, // camera center in world coordinates
+				scene_atr,          // final double []   scene_atr, // camera orientation relative to world frame
+				scene_QuadClt,      // final QuadCLT     scene_QuadClt,
+				reference_QuadClt); // final QuadCLT     reference_QuadClt)
+		scene_QuadClt.getGpuQuad().setInterTasks(
+				scene_pXpYD, // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+       			scene_QuadClt.getGeometryCorrection(), // final GeometryCorrection  geometryCorrection,
+       			scene_disparity_cor, // final double              disparity_corr,
+    			margin, // final int                 margin,      // do not use tiles if their centers are closer to the edges
+    			valid_tiles, // final boolean []          valid_tiles,            
+    			threadsMax); // final int                 threadsMax)  // maximal number of threads to launch
+		final double [][] disparity_strength = new double [2][tiles];
+		Arrays.fill(disparity_strength[0], Double.NaN);
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					double [] corners =   new double [4];
+					double [] strengths = new double [4];
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) if (valid_tiles[nTile]){
+						double pX =            scene_pXpYD[nTile][0];
+						double pY =            scene_pXpYD[nTile][1];
+						double tX = (pX - transform_size/2)/transform_size;
+						double tY = (pY - transform_size/2)/transform_size;
+						double disp_from_ref = scene_pXpYD[nTile][2];
+						int itX0 = (int) Math.floor(tX); 
+						int itY0 = (int) Math.floor(tY);
+						double kX = tX - itX0;
+						double kY = tY - itY0;
+						double [] corner_weights = {(1.0-kX)*(1.0-kY), kX*(1.0-kY),(1.0-kX)*kY, kX*kY};
+						int itX1 = itX0 + 1;
+						if (itX1 >= tilesX) {
+							itX1 = tilesX - 1;
+						}
+						int itY1 = itY0 + 1;
+						if (itY1 >= tilesY) {
+							itY1 = tilesY - 1;
+						}
+						corners[0] =  disparity_scene[itX0 + itY0 * tilesX];
+						corners[1] =  disparity_scene[itX1 + itY0 * tilesX];
+						corners[2] =  disparity_scene[itX0 + itY1 * tilesX];
+						corners[3] =  disparity_scene[itX1 + itY1 * tilesX];
+						strengths[0] = strength_scene[itX0 + itY0 * tilesX];
+						strengths[1] = strength_scene[itX1 + itY0 * tilesX];
+						strengths[2] = strength_scene[itX0 + itY1 * tilesX];
+						strengths[3] = strength_scene[itX1 + itY1 * tilesX];
+
+						double disp_tol_ref = tolerance_ref_absolute + disp_from_ref * tolerance_ref_relative;
+						double disp_min_ref =  disp_from_ref - disp_tol_ref; 
+						double disp_max_ref =  disp_from_ref + disp_tol_ref;
+						int idisp_min = 0, idisp_max = 0;
+						int num_corners = 0;
+						for (int i = 0; i < 4; i++) {
+							if (!Double.isNaN(corners[i])) {
+								if ((corners[i] < disp_min_ref) || (corners[i] > disp_max_ref)){
+									corners[i] = Double.NaN;
+									continue;
+								}
+								if (!(corners[i] >= corners[idisp_min])) {
+									idisp_min = i; 
+								}
+								if (!(corners[i] <= corners[idisp_max])) {
+									idisp_max = i; 
+								}
+								num_corners++;
+							}
+						}
+						if (num_corners > 0) {
+							double disp_half = 0.5* (corners[idisp_min] + corners[idisp_max]);
+							double disp_range = 2 * (tolerance_scene_absolute + tolerance_ref_relative * disp_half);
+							while ((num_corners > 0) && ((corners[idisp_max] - corners[idisp_min]) > disp_range )) {
+								num_corners--;
+								if (num_corners > 0) {
+									if (disp_half > disp_from_ref) { // remove max
+										corners[idisp_max] = Double.NaN;
+										// find new max
+										idisp_max = idisp_min;
+										for (int i = 0; i < 4; i++) {
+											if (!(corners[i] <= corners[idisp_max])) {
+												idisp_max = i; 
+											}
+										}
+									} else {
+										corners[idisp_min] = Double.NaN;
+										// find new min
+										idisp_min = idisp_max;
+										for (int i = 0; i < 4; i++) {
+											if (!(corners[i] >= corners[idisp_min])) {
+												idisp_min = i; 
+											}
+										}
+									}
+								}
+							}
+							if (num_corners > 0) {
+								double sw=0.0, swd = 0.0, sws = 0.0;
+								for (int i = 0; i < 4; i++) {
+									if (!Double.isNaN(corners[i])) {
+										sw += corner_weights[i];
+										swd += corner_weights[i] * corners[i];
+										sws += corner_weights[i] * strengths[i];
+									}
+								}
+								disparity_strength[0][nTile] = swd / sw; 
+								disparity_strength[1][nTile] = sws / sw; 
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		if (to_ref_disparity) {
+			ai.set(0);
+//double [][] scene_pXpYD
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) if (scene_pXpYD != null) {
+							if (Double.isNaN(disparity_strength[0][nTile])) {
+								scene_pXpYD[nTile] = null;
+							} else { // replace scene disparity (strength will stay the same
+								scene_pXpYD[nTile][2] = disparity_strength[0][nTile];
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			double [][] toref_pXpYD = transformFromScenePxPyD(
+					scene_pXpYD, // final double [][] pXpYD_scene, // tiles correspond to reference, pX,pY,D - for scene
+					scene_xyz,   // final double []   scene_xyz,   // camera center in world coordinates
+					scene_atr,   // final double []   scene_atr,   // camera orientation relative to world frame
+					scene_QuadClt, // final QuadCLT     scene_QuadClt,
+					reference_QuadClt); // final QuadCLT     reference_QuadClt)
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) {
+							if (toref_pXpYD[nTile] != null) {
+								disparity_strength[0][nTile] = toref_pXpYD[nTile][2];
+							} else {
+								disparity_strength[0][nTile] = Double.NaN;
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}
+		return disparity_strength;
+	}
+	
+	
+	
+	public double [][] transformToScenePxPyD(
+			final double []   disparity_ref, // invalid tiles - NaN in disparity
+			final double []   scene_xyz, // camera center in world coordinates
+			final double []   scene_atr, // camera orientation relative to world frame
+			final QuadCLT     scene_QuadClt,
+			final QuadCLT     reference_QuadClt)
+	{
+		TileProcessor tp = reference_QuadClt.getTileProcessor();
+		final int tilesX = tp.getTilesX();
+		final int tilesY = tp.getTilesY();
+		final int tiles = tilesX*tilesY;
+		final int transform_size = tp.getTileSize();
+		final double [][] pXpYD=               new double [tiles][];
+		final ErsCorrection ersReferenceCorrection = reference_QuadClt.getErsCorrection();
+		final ErsCorrection ersSceneCorrection =     scene_QuadClt.getErsCorrection();
+		ersReferenceCorrection.setupERS(); // just in case - setUP using instance paRAMETERS
+		ersSceneCorrection.setupERS();
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) if (!Double.isNaN(disparity_ref[nTile])) {
+						double disparity = disparity_ref[nTile];
+						int tileY = nTile / tilesX;  
+						int tileX = nTile % tilesX;
+						double centerX = tileX * transform_size + transform_size/2; //  - shiftX;
+						double centerY = tileY * transform_size + transform_size/2; //  - shiftY;
+						if (disparity < 0) {
+							disparity = 0.0;
+						}
+						if (scene_QuadClt == reference_QuadClt) {
+							pXpYD[nTile] = new double [] {centerX, centerY, disparity};
+						} else {
+							pXpYD[nTile] = ersReferenceCorrection.getImageCoordinatesERS( // ersCorrection - reference
+									scene_QuadClt,  // QuadCLT cameraQuadCLT, // camera station that got image to be to be matched 
+									centerX,        // double px,                // pixel coordinate X in the reference view
+									centerY,        // double py,                // pixel coordinate Y in the reference view
+									disparity,      // double disparity,         // reference disparity 
+									true,           // boolean distortedView,    // This camera view is distorted (diff.rect), false - rectilinear
+									ZERO3,          // double [] reference_xyz,  // this view position in world coordinates (typically ZERO3)
+									ZERO3,          // double [] reference_atr,  // this view orientation relative to world frame  (typically ZERO3)
+									true,           // boolean distortedCamera,  // camera view is distorted (false - rectilinear)
+									scene_xyz,      // double [] camera_xyz,     // camera center in world coordinates
+									scene_atr,      // double [] camera_atr,     // camera orientation relative to world frame
+									LINE_ERR);      // double    line_err)       // threshold error in scan lines (1.0)
+							if (pXpYD[nTile] != null) {
+								if (    (pXpYD[nTile][0] < 0.0) ||
+										(pXpYD[nTile][1] < 0.0) ||
+										(pXpYD[nTile][0] > ersSceneCorrection.getSensorWH()[0]) ||
+										(pXpYD[nTile][1] > ersSceneCorrection.getSensorWH()[1])) {
+									pXpYD[nTile] = null;
+								}
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return pXpYD;
+	}
+	
+
+	public double [][] transformFromScenePxPyD(
+			final double [][] pXpYD_scene, // tiles correspond to reference, pX,pY,D - for scene
+			final double []   scene_xyz,   // camera center in world coordinates
+			final double []   scene_atr,   // camera orientation relative to world frame
+			final QuadCLT     scene_QuadClt,
+			final QuadCLT     reference_QuadClt)
+	{
+		TileProcessor tp = reference_QuadClt.getTileProcessor();
+		final int tilesX = tp.getTilesX();
+		final int tilesY = tp.getTilesY();
+		final int tiles = tilesX*tilesY;
+		final double [][] pXpYD=               new double [tiles][];
+		final ErsCorrection ersReferenceCorrection = reference_QuadClt.getErsCorrection();
+		final ErsCorrection ersSceneCorrection =     scene_QuadClt.getErsCorrection();
+		ersReferenceCorrection.setupERS(); // just in case - setUP using instance paRAMETERS
+		ersSceneCorrection.setupERS();
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) if (pXpYD_scene[nTile] != null) {
+						double centerX = pXpYD_scene[nTile][0]; //  - shiftX;
+						double centerY = pXpYD_scene[nTile][1]; //  - shiftX;
+						double disparity = pXpYD_scene[nTile][2];
+						if (disparity < 0) {
+							disparity = 0.0;
+						}
+						if (scene_QuadClt == reference_QuadClt) {
+							pXpYD[nTile] = new double [] {centerX, centerY, disparity};
+						} else {
+							pXpYD[nTile] = ersSceneCorrection.getImageCoordinatesERS( // ersCorrection - reference
+									reference_QuadClt, // QuadCLT cameraQuadCLT, // camera station that got image to be to be matched 
+									centerX,           // double px,                // pixel coordinate X in the reference view
+									centerY,           // double py,                // pixel coordinate Y in the reference view
+									disparity,         // double disparity,         // reference disparity 
+									true,              // boolean distortedView,    // This camera view is distorted (diff.rect), false - rectilinear
+									scene_xyz,         // double [] reference_xyz,  // this view position in world coordinates (typically ZERO3)
+									scene_atr,         // double [] reference_atr,  // this view orientation relative to world frame  (typically ZERO3)
+									true,              // boolean distortedCamera,  // camera view is distorted (false - rectilinear)
+									ZERO3,             // double [] camera_xyz,     // camera center in world coordinates
+									ZERO3,             // double [] camera_atr,     // camera orientation relative to world frame
+									LINE_ERR);         // double    line_err)       // threshold error in scan lines (1.0)
+							if (pXpYD[nTile] != null) {
+								if (    (pXpYD[nTile][0] < 0.0) ||
+										(pXpYD[nTile][1] < 0.0) ||
+										(pXpYD[nTile][0] > ersReferenceCorrection.getSensorWH()[0]) ||
+										(pXpYD[nTile][1] > ersReferenceCorrection.getSensorWH()[1])) {
+									pXpYD[nTile] = null;
+								}
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return pXpYD; // Only disparity matters, pX, py - just for testing
+	}
+	
+	
+	
 	/**
 	 * Transform scene view to visually match with a reference scene. It is not accurate as it uses resampling and
 	 * related low pass filtering.
@@ -2320,8 +2641,6 @@ public class OpticalFlow {
 									double d = pXpYD[2];
 									azbuffer[nTile].accumulate(pXpYD[2]);
 									//Z-buffer
-//									if (!(d < zbuffer[px + py* tilesX])) {
-//										zbuffer[px + py* tilesX] = d;
 									if (!(d < azbuffer[nTile].get())) {
 										if ((spx >= 0) && (spy >= 0) && (spx < stilesX) & (spy < stilesY)) {
 											int sTile = spx + spy* stilesX;
@@ -2792,6 +3111,721 @@ public class OpticalFlow {
 			System.out.println("adjustSeries() Done.");
 		}
 	}
+
+	public void IntersceneAccumulate(
+			CLTParameters  clt_parameters,
+			ColorProcParameters                                  colorProcParameters,
+			QuadCLT ref_scene, // ordered by increasing timestamps
+			int debug_level
+			)
+	{
+		System.out.println("IntersceneAccumulate(), scene timestamp="+ref_scene.getImageName());
+		ErsCorrection ers_reference = ref_scene.getErsCorrection();
+		String [] sts = ers_reference.getScenes();
+		// get list of all other scenes
+		int num_scenes = sts.length + 1;
+		int indx_ref = num_scenes - 1; 
+		QuadCLT [] scenes = new QuadCLT [num_scenes];
+		scenes[indx_ref] = ref_scene;
+		
+		for (int i = 0; i < sts.length; i++) {
+			scenes[i] = ref_scene.spawnQuadCLT(
+					sts[i],
+					clt_parameters,
+					colorProcParameters, //
+					threadsMax,
+					-1); // debug_level);
+			scenes[i].setDSRBG(
+					clt_parameters, // CLTParameters  clt_parameters,
+					threadsMax,     // int            threadsMax,  // maximal number of threads to launch
+					updateStatus,   // boolean        updateStatus,
+					-1); // debug_level);    // int            debugLevel)
+		}
+		
+		
+		final double [][] combo_dsn =  prepareInitialComboDS(
+				clt_parameters,   // final CLTParameters       clt_parameters,
+				scenes,           // final QuadCLT []          scenes,
+				indx_ref,         // final int                 indx_ref,
+				debug_level-2);     // final int                 debug_level);
+
+
+		final int margin = 8;
+		final int tilesX = ref_scene.getTileProcessor().getTilesX();
+		final int tilesY = ref_scene.getTileProcessor().getTilesY();
+////		final int tiles =tilesX * tilesY;
+		
+		if (debug_level >-3) {
+			String [] dbg_titles = {"disp", "strength", "num_valid"};
+			(new ShowDoubleFloatArrays()).showArrays(
+					combo_dsn,
+					tilesX,
+					tilesY,
+					true,
+					"combo_dsn-initial"+ref_scene.getImageName(),
+					dbg_titles); //	dsrbg_titles);
+		}
+		
+		final int max_refines = 10;
+		for (int nrefine = 0; nrefine < max_refines; nrefine++) {
+			Runtime.getRuntime().gc();
+			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+
+			double [][] disparity_map = 
+					//		double [][][][][] clt_corr_partial =
+					correlateInterscene(
+							clt_parameters, // final CLTParameters  clt_parameters,
+							scenes,         // final QuadCLT []     scenes,
+							indx_ref,       // final int            indx_ref,
+							combo_dsn[0],   // final double []      disparity_ref,  // disparity in the reference view tiles (Double.NaN - invalid)
+							margin,         // final int            margin,
+							debug_level);   // final int            debug_level)
+
+			Runtime.getRuntime().gc();
+			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+
+			(new ShowDoubleFloatArrays()).showArrays(
+					disparity_map,
+					tilesX,
+					tilesY,
+					true,
+					"accumulated_disparity_map",
+					ImageDtt.DISPARITY_TITLES
+					);
+			// update disparities
+			final int disparity_index = ImageDtt.DISPARITY_INDEX_CM; // 2
+			final int strength_index =  ImageDtt.DISPARITY_STRENGTH_INDEX; // 10
+			for (int nTile =0; nTile < combo_dsn[0].length; nTile++) {
+				if (!Double.isNaN(combo_dsn[0][nTile]) && !Double.isNaN(disparity_map[disparity_index][nTile])) {
+					combo_dsn[0][nTile] += disparity_map[disparity_index][nTile];
+					combo_dsn[1][nTile]  = disparity_map[strength_index][nTile];
+				}
+			}
+			if (debug_level >-3) {
+				String [] dbg_titles = {"disp", "strength", "num_valid"};
+				(new ShowDoubleFloatArrays()).showArrays(
+						combo_dsn,
+						tilesX,
+						tilesY,
+						true,
+						"combo_dsn-"+nrefine+"-"+ref_scene.getImageName(),
+						dbg_titles); //	dsrbg_titles);
+			}
+		}
+/*		
+		
+		if (debug_level > -10){ // -1
+			ImageDtt image_dtt = new ImageDtt(
+					clt_parameters.transform_size,
+					ref_scene.isMonochrome(),
+					ref_scene.isLwir(),
+					clt_parameters.getScaleStrength(ref_scene.isAux()),
+					ref_scene.getGpuQuad());
+
+			double [][] dbg_corr_rslt_partial = image_dtt.corr_partial_dbg(
+					clt_corr_partial,
+					2*8 - 1,	//final int corr_size,
+					4,	// final int pairs,
+					4,    // final int colors,
+					clt_parameters.corr_border_contrast,
+					threadsMax,
+					debug_level);
+			// titles.length = 15, corr_rslt_partial.length=16!
+			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+					dbg_corr_rslt_partial,
+					tilesX*(2*8),
+					tilesY*(2*8),
+					true,
+					ref_scene.getImageName()+"-TD-PART_CORR-D"+clt_parameters.disparity,
+					ImageDtt.CORR_TITLES);
+			//					  titles);
+		}
+*/
+		
+		if (debug_level >-100) {
+			return;
+		}
+		
+		System.out.println("IntersceneAccumulate(), got previous scenes: "+sts.length);
+		if (debug_level > 1) { // tested OK
+			System.out.println("IntersceneAccumulate(): preparing image set...");
+			int nscenes = scenes.length;
+			//			int indx_ref = nscenes - 1; 
+			double [][][] all_scenes_xyzatr = new double [scenes.length][][]; // includes reference (last)
+			double [][][] all_scenes_ers_dt = new double [scenes.length][][]; // includes reference (last)
+			all_scenes_xyzatr[indx_ref] = new double [][] {ZERO3,ZERO3};
+			all_scenes_ers_dt[indx_ref] = new double [][] {
+				ers_reference.getErsXYZ_dt(),
+				ers_reference.getErsATR_dt()};
+				
+				for (int i = 0; i < nscenes; i++) if (i != indx_ref) {
+					String ts = scenes[i].getImageName();
+					all_scenes_xyzatr[i] = new double[][] {ers_reference.getSceneXYZ(ts),       ers_reference.getSceneATR(ts)}; 		
+					all_scenes_ers_dt[i] = new double[][] {ers_reference.getSceneErsXYZ_dt(ts), ers_reference.getSceneErsATR_dt(ts)}; 		
+				}
+				compareRefSceneTiles(
+						"" ,               // String suffix,
+						true, // false,             // boolean blur_reference,
+						all_scenes_xyzatr, // double [][][] scene_xyzatr, // does not include reference
+						all_scenes_ers_dt, // double [][][] scene_ers_dt, // does not include reference
+						scenes,            // QuadCLT [] scenes,
+						8);                // int iscale) // 8
+		}
+		// create initial disparity map for the reference scene
+		
+	}
+	
+	
+	public double [][] prepareInitialComboDS(
+			final CLTParameters       clt_parameters,
+			final QuadCLT []          scenes,
+			final int                 indx_ref,
+			final int                 debug_level)
+	{
+		final QuadCLT ref_scene = scenes[indx_ref];
+		final int num_scenes = scenes.length;
+		final double [][][] initial_ds = new double[num_scenes][][];
+		final ErsCorrection ers_reference = ref_scene.getErsCorrection();
+		for (int i = 0; i < num_scenes; i++) {
+			initial_ds[i] = conditionInitialDS(
+					clt_parameters, // CLTParameters  clt_parameters,
+					scenes[i], // QuadCLT        scene,
+					-1); // int debug_level);
+		}
+		if (debug_level > -1) {
+			String []   dbg_titles = new String [2*num_scenes];
+			double [][] dbg_img =    new double [2*num_scenes][];
+			for (int i = 0; i < num_scenes; i++) {
+				dbg_titles[i + 0] =          "d-"+scenes[i].getImageName();
+				dbg_titles[i + num_scenes] = "s-"+scenes[i].getImageName();
+				dbg_img   [i + 0] =          initial_ds[i][0];
+				dbg_img   [i + num_scenes] = initial_ds[i][1];
+			}
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_img,
+					ref_scene.getTileProcessor().getTilesX(),
+					ref_scene.getTileProcessor().getTilesY(),
+					true,
+					"all_set_fill_dispatity_gaps"+ref_scene.getImageName(),
+					dbg_titles); //	dsrbg_titles);
+		}
+
+		final int         margin = 8;
+		final double      tolerance_ref_absolute = 0.2; // how much scene disparity may diverge from predicted from reference
+		final double      tolerance_ref_relative = 0.02;
+		final double      tolerance_scene_absolute = 0.2;   // how much 4 bi-linear interpolation corners may differ (remove extremes while not)
+		final double      tolerance_scene_relative = 0.02;
+		double [][][] initial_toref_ds = new double[num_scenes][][];
+		initial_toref_ds[indx_ref] = initial_ds[indx_ref];
+		// reference camera ERS should be already set
+		for (int i = 0; i < num_scenes; i++) if (i != indx_ref) {
+			String ts = scenes[i].getImageName();
+			double []   scene_xyz = ers_reference.getSceneXYZ(ts);
+			double []   scene_atr = ers_reference.getSceneATR(ts);
+			double []   scene_ers_xyz_dt = ers_reference.getSceneErsXYZ_dt(ts);
+			double []   scene_ers_atr_dt = ers_reference.getSceneErsATR_dt(ts);
+			initial_toref_ds[i] = getSceneDisparityStrength(
+					true,                      // final boolean     to_ref_disparity, // false - return scene disparity, true - convert disparity back to the reference scene
+					initial_ds[indx_ref][0],   // final double []   disparity_ref,   // invalid tiles - NaN in disparity
+					initial_ds[i][0],          // final double []   disparity_scene, // invalid tiles - NaN in disparity (just for masking out invalid scene tiles)
+					initial_ds[i][1],          // initial_ds[i][1],          // final double []   strength_scene,  // to calculate interpolated strength
+					scene_xyz,                 // final double []   scene_xyz, // camera center in world coordinates
+					scene_atr,                 // final double []   scene_atr, // camera orientation relative to world frame
+					scene_ers_xyz_dt,          // final double []   scene_ers_xyz_dt, // camera ERS linear
+					scene_ers_atr_dt,          // final double []   scene_ers_atr_dt, // camera ERS linear
+					scenes[i],                 // final QuadCLT     scene_QuadClt,
+					scenes[indx_ref],          // final QuadCLT     reference_QuadClt,
+					margin, // final int         margin,
+					tolerance_ref_absolute,    // final double      tolerance_ref_absolute,
+					tolerance_ref_relative,    // final double      tolerance_ref_relative,
+					tolerance_scene_absolute,  // final double      tolerance_scene_absolute, // of 4 bi-linear interpolation corners
+					tolerance_scene_relative); // final double      tolerance_scene_relative)  // of 4 bi-linear interpolation corners
+		}		
+		if (debug_level > -1) {
+			String []   dbg_titles = new String [2*num_scenes];
+			double [][] dbg_img =    new double [2*num_scenes][];
+			for (int i = 0; i < num_scenes; i++) {
+				dbg_titles[i + 0] =          "d-"+scenes[i].getImageName();
+				dbg_titles[i + num_scenes] = "s-"+scenes[i].getImageName();
+				dbg_img   [i + 0] =          initial_toref_ds[i][0];
+				dbg_img   [i + num_scenes] = initial_toref_ds[i][1];
+			}
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_img,
+					ref_scene.getTileProcessor().getTilesX(),
+					ref_scene.getTileProcessor().getTilesY(),
+					true,
+					"mapped_scenes_disparity_strength"+ref_scene.getImageName(),
+					dbg_titles); //	dsrbg_titles);
+		}
+		//ref_scene
+		final int tilesX = ref_scene.getTileProcessor().getTilesX();
+		final int tilesY = ref_scene.getTileProcessor().getTilesY();
+		final int tiles =tilesX * tilesY;
+
+		final double zero_strength = 0.05; // add where disparity exists and strength is 0.0
+		final double [][] combo_dsn = new double[3][tiles];
+		Arrays.fill(combo_dsn[0], Double.NaN);
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) {
+						int ndef = 0;
+						double sw = 0.0, swd = 0.0;
+						for (int i = 0; i < initial_toref_ds.length; i++) {
+							double d = initial_toref_ds[i][0][nTile];
+							double w = initial_toref_ds[i][1][nTile]+zero_strength;
+							if (!Double.isNaN(d)) {
+								sw += w;
+								swd += w * d;
+								ndef++;
+							}
+							if (ndef > 0) {
+								combo_dsn[0][nTile] = swd/sw;
+								combo_dsn[1][nTile] = sw/ndef;
+								combo_dsn[2][nTile] = 1.0*ndef/initial_toref_ds.length;
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return combo_dsn;
+	}
+	
+	
+	
+	public double [][] correlateInterscene(
+//	public double [][][][][] correlateInterscene(
+			final CLTParameters  clt_parameters,
+			final QuadCLT []     scenes,
+			final int            indx_ref,
+			final double []      disparity_ref,  // disparity in the reference view tiles (Double.NaN - invalid)
+			final int            margin,
+			final int            debug_level
+			)
+	{
+		final int num_scenes = scenes.length;
+		final QuadCLT ref_scene = scenes[indx_ref];
+		final ErsCorrection ers_reference = ref_scene.getErsCorrection();
+		final int tilesX = ref_scene.getTileProcessor().getTilesX();
+		final int tilesY = ref_scene.getTileProcessor().getTilesY();
+		final int tiles =tilesX * tilesY;
+		float  [][][][][]     fcorrs_td =       new float[num_scenes][tilesY][tilesX][][];
+		float  [][][][][]     fcorrs_combo_td = new float[num_scenes][4][tilesY][tilesX][];
+		ImageDtt image_dtt = new ImageDtt(
+				clt_parameters.transform_size,
+				ref_scene.isMonochrome(),
+				ref_scene.isLwir(),
+				clt_parameters.getScaleStrength(ref_scene.isAux()),
+				ref_scene.getGpuQuad());
+
+		for (int i = 0; i < num_scenes; i++) {
+			if (i == indx_ref) {
+				System.out.println("Correlating reference scene");
+			}
+			String ts = scenes[i].getImageName();
+			double [][] scene_pXpYD;
+			if (i == indx_ref) {
+				// transform to self - maybe use a method that sets central points
+				scene_pXpYD = transformToScenePxPyD(
+						disparity_ref,      // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
+						ZERO3,              // final double []   scene_xyz, // camera center in world coordinates
+						ZERO3,              // final double []   scene_atr, // camera orientation relative to world frame
+						ref_scene,          // final QuadCLT     scene_QuadClt,
+						ref_scene);         // final QuadCLT     reference_QuadClt)
+
+			} else {
+				double []   scene_xyz = ers_reference.getSceneXYZ(ts);
+				double []   scene_atr = ers_reference.getSceneATR(ts);
+				double []   scene_ers_xyz_dt = ers_reference.getSceneErsXYZ_dt(ts);
+				double []   scene_ers_atr_dt = ers_reference.getSceneErsATR_dt(ts);
+				scenes[i].getErsCorrection().setErsDt(
+						scene_ers_xyz_dt, // double []    ers_xyz_dt,
+						scene_ers_atr_dt); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
+				//setupERS() will be inside transformToScenePxPyD()
+				scene_pXpYD = transformToScenePxPyD( // will be null for disparity == NaN
+						disparity_ref,      // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
+						scene_xyz,          // final double []   scene_xyz, // camera center in world coordinates
+						scene_atr,          // final double []   scene_atr, // camera orientation relative to world frame
+						scenes[i],      // final QuadCLT     scene_QuadClt,
+						ref_scene); // final QuadCLT     reference_QuadClt)
+			}
+			if (scenes[i].getGpuQuad().getQuadCLT() != scenes[i]) {
+				scenes[i].getGpuQuad().updateQuadCLT(scenes[i]); // to re-load new set of Bayer images to the GPU
+			}
+			final double disparity_corr = 0.0; // (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
+			final double gpu_sigma_rb_corr = scenes[i].isMonochrome()? 1.0 : clt_parameters.gpu_sigma_rb_corr;
+			image_dtt.quadCorrTD(
+					clt_parameters.img_dtt,        // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+					scene_pXpYD,                   // final double [][]         pXpYD,            // per-tile array of pX,pY,disparity triplets (or nulls)
+					fcorrs_td[i],                  // final float  [][][][]     fcorr_td,        // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
+					fcorrs_combo_td[i],            //  final float  [][][][]     fcorr_combo_td,  // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: qud, cross, hor,vert
+					scenes[i].getErsCorrection(),  // final GeometryCorrection  geometryCorrection,
+					disparity_corr,                // final double              disparity_corr,   // disparity offset at infinity
+					margin,                        // final int                 margin,           // do not use tiles if their centers are closer to the edges
+					clt_parameters.gpu_sigma_r,    // 0.9, 1.1
+					clt_parameters.gpu_sigma_b,    // 0.9, 1.1
+					clt_parameters.gpu_sigma_g,    // 0.6, 0.7
+					clt_parameters.gpu_sigma_m,    //  =       0.4; // 0.7;
+					gpu_sigma_rb_corr,             // final double              gpu_sigma_rb_corr, //  = 0.5; // apply LPF after accumulating R and B correlation before G, monochrome ? 1.0 : gpu_sigma_rb_corr;
+					clt_parameters.gpu_sigma_corr, //  =    0.9;gpu_sigma_corr_m
+					clt_parameters.corr_red,       // +used
+					clt_parameters.corr_blue,      // +used
+					threadsMax,                    // final int             threadsMax,       // maximal number of threads to launch
+					debug_level);                  // final int                 globalDebugLevel)
+		}
+		// Combine non-null correlations from all scenes (initially combined and individual for visualization and analysis)
+		final float  [][][][]     fcorr_td =       new float[tilesY][tilesX][][];
+		final float  [][][][]     fcorr_combo_td = new float[4][tilesY][tilesX][];
+		final int first_combo = 0;
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) {
+						int tileY = nTile / tilesX;  
+						int tileX = nTile % tilesX;
+						int num_indiv = 0;
+						int num_combo = 0;
+						for (int i = 0; i < num_scenes; i++) {
+							if (fcorrs_td[i][tileY][tileX] != null) {
+								if (fcorr_td[tileY][tileX] == null) {
+									fcorr_td[tileY][tileX] = new float [fcorrs_td[i][tileY][tileX].length][];
+									for (int j = 0; j < fcorr_td[tileY][tileX].length; j++) {
+										fcorr_td[tileY][tileX][j] = fcorrs_td[i][tileY][tileX][j].clone(); 
+									}
+								} else {
+									for (int j = 0; j < fcorr_td[tileY][tileX].length; j++) {
+										for (int k = 0; k < fcorr_td[tileY][tileX][j].length; k++) {
+											fcorr_td[tileY][tileX][j][k] += fcorrs_td[i][tileY][tileX][j][k];
+										}
+									}
+								}
+								num_indiv++;
+							}
+							
+							if (fcorrs_combo_td[i][first_combo][tileY][tileX] != null) {
+								if (fcorr_combo_td[first_combo][tileY][tileX] == null) {
+									for (int p = 0; p < fcorr_combo_td.length; p++) {
+										if (fcorrs_combo_td[i][p][tileY][tileX]!=null) {
+											fcorr_combo_td[p][tileY][tileX] = fcorrs_combo_td[i][p][tileY][tileX].clone(); 
+										}
+									}
+								} else {
+									for (int p = 0; p < fcorr_combo_td.length; p++) {
+										for (int k = 0; k < fcorr_combo_td[p][tileY][tileX].length; k++) {
+											fcorr_combo_td[p][tileY][tileX][k] += fcorrs_combo_td[i][p][tileY][tileX][k]; 
+										}
+									}
+								}
+								num_combo++;
+							}
+						}
+						if (num_indiv > 0) {
+							double s = 1.0/num_indiv;
+							for (int j = 0; j < fcorr_td[tileY][tileX].length; j++) {
+								for (int k = 0; k < fcorr_td[tileY][tileX][j].length; k++) {
+									fcorr_td[tileY][tileX][j][k] *= s;
+								}
+							}
+						}
+						if (num_combo > 0) {
+							double s = 1.0/num_combo;
+							for (int p = 0; p < fcorr_combo_td.length; p++) {
+								for (int k = 0; k < fcorr_combo_td[p][tileY][tileX].length; k++) {
+									fcorr_combo_td[p][tileY][tileX][k] *= s; 
+								}
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+//		// TODO: Visualize each correlation - individual and combo
+		// testing: overwrite with reference frame correlations
+		if (debug_level < -100) {
+			for (int i = 0; i < fcorr_combo_td.length; i++) {
+				fcorr_combo_td[i] = fcorrs_combo_td[indx_ref][i].clone();
+			}
+			for (int i = 0; i < fcorr_td.length; i++) {
+				fcorr_td[i] = fcorrs_td[indx_ref][i].clone();
+			}
+		}
+		for (int i = 0; i < num_scenes; i++) {
+			fcorrs_td[i] = null;
+			fcorrs_combo_td[i] = null;
+		}
+		if (debug_level > -10){ // -1
+			final int indx_corr = -1;
+			final float [][][][] fcorr_td_dbg =       (indx_corr < 0) ? fcorr_td : fcorrs_td[indx_corr];
+			final float [][][][] fcorr_combo_td_dbg = (indx_corr < 0) ? fcorr_combo_td : fcorrs_combo_td[indx_corr];
+			int [] wh = new int[2];
+			float [][] dbg_corr = ImageDtt.corr_td_dbg(
+					fcorr_td_dbg,               // final float [][][][] fcorr_td,
+					// if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][];
+					// if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
+					GPUTileProcessor.NUM_PAIRS, // final int            num_slices,
+					image_dtt.transform_size,   // final int            transform_size,
+					wh,                         // final int []         wh, // should be initialized as int[2];
+					threadsMax); // final int            threadsMax)     // maximal number of threads to launch
+
+			float [][] dbg_corr_combo = ImageDtt.corr_td_dbg(
+					fcorr_combo_td_dbg,         // final float [][][][] fcorr_td,
+					// if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][];
+					// if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
+					0,                          // final int            num_slices,
+					image_dtt.transform_size,   // final int            transform_size,
+					null,                         // final int []         wh, // should be initialized as int[2];
+					threadsMax); // final int            threadsMax)     // maximal number of threads to launch
+			
+			float [][] dbg_img = new float[dbg_corr.length + dbg_corr_combo.length][];
+			for (int i = 0; i < dbg_corr.length; i++) {
+				dbg_img[i] = dbg_corr[i];
+			}
+			for (int i = 0; i < dbg_corr_combo.length; i++) {
+				dbg_img[i + dbg_corr.length] = dbg_corr_combo[i];
+			}
+			
+			// titles.length = 15, corr_rslt_partial.length=16!
+			String [] dbg_titles = new String [dbg_img.length];
+			System.arraycopy(ImageDtt.CORR_TITLES, 0, dbg_titles, 0, dbg_titles.length);
+			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+					dbg_img,
+					wh[0],
+					wh[1],
+					true,
+					ref_scene.getImageName()+"-TD-PART_CORR-D"+clt_parameters.disparity,
+					dbg_titles);
+		}
+
+		
+		
+		
+		
+		
+		
+		Runtime.getRuntime().gc();
+		System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+
+		double [][][][][] clt_corr_partial = null;
+		clt_corr_partial = new double [tilesY][tilesX][][][];
+		for (int i = 0; i < tilesY; i++){
+			for (int j = 0; j < tilesX; j++){
+				clt_corr_partial[i][j] = null;
+			}
+		}
+		double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
+
+		int disparity_modes = 
+				ImageDtt.BITS_ALL_DISPARITIES |
+				ImageDtt.BITS_ALL_DIFFS | // needs max_diff?
+				ImageDtt.BITS_OVEREXPOSED; //  |
+
+		image_dtt.clt_process_tl_correlations_GPU(	// convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td
+				clt_parameters.img_dtt,				// final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+				// both arrays should have same non-null tiles
+				fcorr_td,				 	 		// final float  [][][][]     corr_td,         // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
+				fcorr_combo_td, 						// final float  [][][][]     corr_combo_td,   // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: qud, cross, hor,vert
+														// each of the top elements may be null to skip particular combo type
+				null, // 	final double [][][][]     corr_tiles,      // [tilesY][tilesX][pair][] ([(2*gpu_corr_rad+1)*(2*gpu_corr_rad+1)]) or null
+				clt_corr_partial,           			// final double [][][][][]   clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+				// [tilesY][tilesX] should be set by caller
+				// When clt_mismatch is non-zero, no far objects extraction will be attempted
+				null, 								// final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
+				// values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
+				disparity_map,						// final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+				// last 2 - contrast, avg/ "geometric average)
+				disparity_modes,                      // final int                 disparity_modes, // bit mask of disparity_map slices to calculate/return
+				clt_parameters.gpu_corr_scale,        //  gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
+				clt_parameters.getGpuFatZero(ref_scene.isMonochrome()), // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
+				image_dtt.transform_size - 1,			// clt_parameters.gpu_corr_rad,   // = transform_size - 1 ?
+				clt_parameters.max_corr_radius,		// final double              max_corr_radius, // 3.9;
+				clt_parameters.clt_window,     		// final int                 window_type,     // GPU: will not be used
+				clt_parameters.tileX,      		    // final int               debug_tileX,
+				clt_parameters.tileY,          		// final int               debug_tileY,
+				threadsMax,
+				debug_level -1 );
+		/*
+		 (new ShowDoubleFloatArrays()).showArrays(
+				 disparity_map,
+				 tilesX,
+				 tilesY,
+				 true,
+				 "accumulated_disparity_map",
+				 ImageDtt.DISPARITY_TITLES
+//				 ,dbg_titles
+				 );
+		 */
+			Runtime.getRuntime().gc();
+			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+		 
+		  if (debug_level < -10){ // -1
+			  double [][] dbg_corr_rslt_partial = ImageDtt.corr_partial_dbg(
+					  clt_corr_partial,
+					  2*image_dtt.transform_size - 1,	//final int corr_size,
+					  4,	// final int pairs,
+					  4,    // final int colors,
+					  clt_parameters.corr_border_contrast,
+					  threadsMax,
+					  debug_level);
+			  // titles.length = 15, corr_rslt_partial.length=16!
+			  (new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+					  dbg_corr_rslt_partial,
+					  tilesX*(2*image_dtt.transform_size),
+					  tilesY*(2*image_dtt.transform_size),
+					  true,
+					  ref_scene.getImageName()+"-TD-PART_CORR-D"+clt_parameters.disparity,
+					  ImageDtt.CORR_TITLES);
+		  }
+		 
+		return disparity_map; // disparity_map
+//		return clt_corr_partial; // disparity_map
+
+	}
+	
+	
+	
+	private double [][] conditionInitialDS(
+			CLTParameters  clt_parameters,
+			QuadCLT        scene,
+			int debug_level)
+	{
+		final int tilesX = scene.getTileProcessor().getTilesX();
+		final int tilesY = scene.getTileProcessor().getTilesY();
+		final int transform_size = scene.getTileProcessor().getTileSize();
+		final int tiles =tilesX * tilesY;
+		final int         num_bottom = 6; // 5; //4; // average this number of lowest disparity neighbors (of 8)
+		final int         num_passes = 100;
+		final double      max_change = 1e-3;
+		final double      min_disparity = -.2; // 0.0;
+		final double      max_sym_disparity = .2;		
+		final double      min_strength_replace =  0.14;
+		final double      min_strength_blur =     0.2; // 0.15
+		final double      sigma = 5; // 2.0;
+		final int         num_blur = 1; // 3;
+		final double      disparity_corr = 0.0;
+		final double      outliers_max_strength = 0.25;
+		final int         outliers_nth_fromextrem = 1; // second from min/max - removes dual-tile max/mins
+		final double      outliers_tolerance_absolute = .2;
+		final double      outliers_tolerance_relative = .02;
+		final int         outliers_max_iter = 100;
+		final double      outliers_max_strength2 = 1.0; // 0.5; any
+		final int         outliers_nth_fromextrem2 = 0; // second from min/max - removes dual-tile max/mins
+		final double      outliers_tolerance_absolute2 = .5;
+		final double      outliers_tolerance_relative2 = .1;
+		
+		final int margin = 8; // pixels
+		double [][] dsrbg = scene.getDSRBG();
+		// mostly filter infinity, clouds, sky
+		double [] disp_outliers = QuadCLT.removeDisparityOutliers(
+				new double[][] {dsrbg[QuadCLT.DSRBG_DISPARITY], dsrbg[QuadCLT.DSRBG_STRENGTH]}, // double [][] ds0,
+				outliers_max_strength,       // final double      max_strength,  // do not touch stronger
+				outliers_nth_fromextrem,     // final int         nth_fromextrem, // 0 - compare to max/min. 1 - second max/min, ... 
+				outliers_tolerance_absolute, // final double      tolerance_absolute,
+				outliers_tolerance_relative, // final double      tolerance_relative,
+				tilesX,                      // final int         width,
+				outliers_max_iter,           // final int         max_iter,
+				false,                       //  final boolean     fit_completely, // do not add tolerance when replacing
+				threadsMax,                  // final int         threadsMax,
+				debug_level);                // final int         debug_level)
+		// remove extreme single-tile outliers (some may be strong - 0.404)
+		disp_outliers = QuadCLT.removeDisparityOutliers(
+				new double[][] {disp_outliers, dsrbg[QuadCLT.DSRBG_STRENGTH]}, // double [][] ds0,
+				outliers_max_strength2,       // final double      max_strength,  // do not touch stronger
+				outliers_nth_fromextrem2,     // final int         nth_fromextrem, // 0 - compare to max/min. 1 - second max/min, ... 
+				outliers_tolerance_absolute2, // final double      tolerance_absolute,
+				outliers_tolerance_relative2, // final double      tolerance_relative,
+				tilesX,                      // final int         width,
+				outliers_max_iter,           // final int         max_iter,
+				false,                       //  final boolean     fit_completely, // do not add tolerance when replacing
+				threadsMax,                  // final int         threadsMax,
+				debug_level);                // final int         debug_level)
+		
+		
+		double [] disp = QuadCLT.blurWeak(
+				new double[][] {disp_outliers, dsrbg[QuadCLT.DSRBG_STRENGTH]}, // double [][] ds,
+				min_strength_blur,    // double      min_strength_blur,
+				min_strength_replace, // double      min_strength_replace,
+				num_blur,             // int         n,
+				tilesX,               // int         width,
+				sigma);               // double      sigma);
+		
+		double [][] ds = {disp,     dsrbg[QuadCLT.DSRBG_STRENGTH]};
+		final double [][] ds_filled = QuadCLT.fillDisparityStrength(
+				ds,                // final double [][] ds0,
+				min_disparity,     // final double      min_disparity,
+				max_sym_disparity, // final double      max_sym_disparity, // lower disparity - num_bottom = 8; 
+				num_bottom,        // final int         num_bottom, // average this number of lowest disparity neighbors (of 8)
+				num_passes,        // final int         num_passes,
+				max_change,        // final double      max_change,
+				tilesX,            // final int         width,
+				threadsMax,        // final int         threadsMax,
+				debug_level); // final int         debug_level)
+		// Mask bad tiles
+		final boolean [] valid_tiles = new boolean [tiles];
+		final double [][] pXpYD = new double [tiles][3];
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+//		final AtomicInteger anum_gaps = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) {
+						int tileY = nTile / tilesX;
+						int tileX = nTile % tilesX;
+						pXpYD[nTile][0] =  tileX * transform_size + transform_size/2;
+						pXpYD[nTile][1] =  tileY * transform_size + transform_size/2;
+						pXpYD[nTile][2] =  ds_filled[0][nTile];
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		scene.getGpuQuad().setInterTasks(
+				pXpYD, // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+    			scene.getGeometryCorrection(), // final GeometryCorrection  geometryCorrection,
+    			disparity_corr, // final double              disparity_corr,
+    			margin, // final int                 margin,      // do not use tiles if their centers are closer to the edges
+    			valid_tiles, // final boolean []          valid_tiles,            
+    			threadsMax); // final int                 threadsMax)  // maximal number of threads to launch
+		ai.set(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) {
+						if (!valid_tiles[nTile]) {
+							ds_filled[0][nTile] = Double.NaN;
+							ds_filled[1][nTile] = 0.0;
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		
+		
+		if ((debug_level > 0) && (clt_parameters.ofp.enable_debug_images)) {
+			String [] dbg_titles = {"disp", "disp_outliers", "disp_blur", "disp_filled", "str", "str_filled"};
+			double [][] dbg_img = {dsrbg[QuadCLT.DSRBG_DISPARITY], disp_outliers, ds[0], ds_filled[0], ds[1], ds_filled[1]};
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_img,
+					tilesX,
+					tilesY,
+					true,
+					"ref_fill_dispatity_gaps-"+scene.getImageName(),
+					dbg_titles); //	dsrbg_titles);
+		}
+		return ds_filled;
+	}
+	
+	
+	
 
 	double [][] getPoseFromErs(
 			double k_prev,

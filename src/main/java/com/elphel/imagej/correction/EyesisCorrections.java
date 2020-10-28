@@ -233,18 +233,22 @@ public class EyesisCorrections {
 
 	public ImagePlus getJp4Tiff(
 			String path,
-			int [] woi_tops) {
-		return getJp4Tiff(path, false, woi_tops);
+			int [] woi_tops,
+			int [] camera_heights
+			) {
+		return getJp4Tiff(path, false, woi_tops, camera_heights);
 	}
 	public ImagePlus getJp4Tiff(
 			String path) {
-		return getJp4Tiff(path, false, null);
+		return getJp4Tiff(path, false, null, null);
 	}
 
 	public ImagePlus getJp4Tiff(
 			String path,
 			boolean ignore_alien, // open image even if it does not belong to the current camera
-			int [] woi_tops) {
+			int [] woi_tops,
+			int [] camera_heights
+			) {
 		// get source file channel
 		int src_channel = correctionsParameters.getChannelFromSourceTiff(path);
 		int sub_camera = src_channel - correctionsParameters.firstSubCamera;
@@ -278,6 +282,9 @@ public class EyesisCorrections {
 				if ((woi_tops != null) && (imp.getProperty("WOI_TOP") != null) && (sensor_number< woi_tops.length)) {
 					if (imp.getProperty("WOI_TOP") != null)
 						woi_tops[sensor_number] = Integer.parseInt((String) imp.getProperty("WOI_TOP"));
+				}
+				if ((camera_heights != null) && (sensor_number< camera_heights.length)) { // actually acquired height (not padded)
+					camera_heights[sensor_number] = imp.getHeight();
 				}
 			} else if (!ignore_alien) {
 				return null;

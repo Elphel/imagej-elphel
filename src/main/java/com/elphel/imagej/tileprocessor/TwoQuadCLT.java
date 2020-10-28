@@ -38,6 +38,7 @@ import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Properties;
 import java.util.Random;
 
@@ -8523,17 +8524,12 @@ if (debugLevel > -100) return true; // temporarily !
 					threadsMax,
 					debugLevel);
 			// temporarily fix wrong sign:
-			ErsCorrection ers = (ErsCorrection) (quadCLTs[i].getGeometryCorrection());
-//			if (reset_from_extrinsics) {
-//				System.out.println("Reset ERS parameters from intraframe extrinsics");
-//				ers.setupERSfromExtrinsics();
-//			}
+//			ErsCorrection ers = (ErsCorrection) (quadCLTs[i].getGeometryCorrection());
 			quadCLTs[i].setDSRBG(
 					clt_parameters, // CLTParameters  clt_parameters,
 					threadsMax,     // int            threadsMax,  // maximal number of threads to launch
 					updateStatus,   // boolean        updateStatus,
 					debugLevel);    // int            debugLevel)
-///			quadCLTs[i].showDSIMain();
 		}
 		
 		
@@ -8547,8 +8543,61 @@ if (debugLevel > -100) return true; // temporarily !
 				quadCLTs, // QuadCLT [] scenes, // ordered by increasing timestamps
 				clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
 		System.out.println("End of interSeriesLMA()");
-
-
+	}
+	
+	
+	public void intersceneAccumulate(
+			QuadCLT                                              quadCLT_main, // tiles should be set
+			CLTParameters             clt_parameters,
+			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
+			ColorProcParameters                                  colorProcParameters,
+			CorrectionColorProc.ColorGainsParameters             channelGainParameters,
+			EyesisCorrectionParameters.RGBParameters             rgbParameters,
+			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+			Properties                                           properties,
+			final int        threadsMax,  // maximal number of threads to launch
+			final boolean    updateStatus,
+			final int        debugLevel)  throws Exception
+	{
+		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
+			quadCLT_main.getGPU().resetGeometryCorrection();
+			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
+		}
+		// final boolean    batch_mode = clt_parameters.batch_run;
+		this.startTime=System.nanoTime();
+		String [] sourceFiles0=quadCLT_main.correctionsParameters.getSourcePaths();
+		QuadCLT.SetChannels [] set_channels_main = quadCLT_main.setChannels(debugLevel);
+		if ((set_channels_main == null) || (set_channels_main.length==0)) {
+			System.out.println("No files to process (of "+sourceFiles0.length+")");
+			return;
+		}
+		QuadCLT.SetChannels [] set_channels=quadCLT_main.setChannels(debugLevel); // TODO: use just the last one (to need this is no time)
+		
+		QuadCLT ref_quadCLT = quadCLT_main.spawnQuadCLT(
+				set_channels[set_channels.length-1].set_name,
+				clt_parameters,
+				colorProcParameters, //
+				threadsMax,
+				debugLevel);
+		// temporarily fix wrong sign:
+//		ErsCorrection ers = (ErsCorrection) (ref_quadCLT.getGeometryCorrection());
+		ref_quadCLT.setDSRBG( // runs GPU to calculate average R,B,G
+				clt_parameters, // CLTParameters  clt_parameters,
+				threadsMax,     // int            threadsMax,  // maximal number of threads to launch
+				updateStatus,   // boolean        updateStatus,
+				debugLevel);    // int            debugLevel)
+		
+		OpticalFlow opticalFlow = new OpticalFlow(
+				threadsMax, // int            threadsMax,  // maximal number of threads to launch
+				updateStatus); // boolean        updateStatus);
+		
+		opticalFlow.IntersceneAccumulate(
+				clt_parameters,            // CLTParameters       clt_parameters,
+				colorProcParameters,       // ColorProcParameters colorProcParameters,
+				ref_quadCLT,               // QuadCLT [] scenes, // ordered by increasing timestamps
+				clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
+		System.out.println("End of intersceneAccumulate()");
+		
 	}
 	
 	public void batchLwirRig(

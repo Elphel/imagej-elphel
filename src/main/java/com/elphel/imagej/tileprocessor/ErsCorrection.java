@@ -357,6 +357,7 @@ public class ErsCorrection extends GeometryCorrection {
 		for (String ts:scenes_poses.keySet()) {
 			scenes[i++] = ts;
 		}
+		Arrays.sort(scenes);
 		return scenes;
 	}
 
@@ -678,6 +679,7 @@ public class ErsCorrection extends GeometryCorrection {
 		extrinsic_corr =       gc.extrinsic_corr; // ;
 		rigOffset =            gc.rigOffset; //  =    null;
 		woi_tops =             gc.woi_tops; //  =     null; // used to calculate scanline timing
+		camera_heights =       gc.camera_heights; //  =     null; // used to calculate scanline timing
 		if (deep) {
 			forward =   clone1d(forward);
 			right =     clone1d(right);
@@ -692,6 +694,7 @@ public class ErsCorrection extends GeometryCorrection {
 			extrinsic_corr = extrinsic_corr.clone(); 
 			if (rigOffset!=null) rigOffset = rigOffset.clone();
 			woi_tops =  clone1d(woi_tops);
+			camera_heights = clone1d(camera_heights);
 		}
 		resetScenes(); // no scenes yet
 		// generate initial ers velocity and roll
