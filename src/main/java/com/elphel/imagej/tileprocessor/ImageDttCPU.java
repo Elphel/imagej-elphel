@@ -24,6 +24,7 @@ package com.elphel.imagej.tileprocessor;
  */
 // ← → ↑ ↓ ⇖ ⇗ ⇘ ⇙ ↔ ↕ 
 
+import java.awt.Rectangle;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -5525,13 +5526,13 @@ public class ImageDttCPU {
 	}
 	/**
 	 * Get frequency-domain representation of the LPF (version for the GPU, in floats)
-	 * @param sigma blurring in pixels
+	 * @param sigma2 squared Gaussian sigma in pixels
 	 * @return float array of the filter, 64 long for 8-pixel DTT
 	 */
 	public float [] floatGetCltLpfFd(
-			double   sigma) {
+			double   sigma2) {
 		DttRad2 dtt = new DttRad2(transform_size);
-		double [] clt_fd = dtt.dttt_iiie(getLpf(sigma));
+		double [] clt_fd = dtt.dttt_iiie(getLpf(sigma2));
 		int l = clt_fd.length;
 		float []   lpf_flat = new float [l];
 		for (int j = 0; j < l; j++) {
@@ -5541,17 +5542,35 @@ public class ImageDttCPU {
 	}
 
 	/**
+	 * Get frequency-domain representation of the LPF (version for the GPU, in floats)
+	 * @param sigma Gaussian sigma in pixels
+	 * @return float array of the filter, 64 long for 8-pixel DTT
+	 */
+	public float [] floatGetCltHpfFd(
+			double   sigma) {
+		DttRad2 dtt = new DttRad2(transform_size);
+		double [] clt_fd = (sigma == 0.0)? (new double[transform_size*transform_size]) : dtt.dttt_iiie(getLpf(sigma * sigma));
+		int l = clt_fd.length;
+		float []   hpf_flat = new float [l];
+		for (int j = 0; j < l; j++) {
+			hpf_flat[j] = (float) (1.0 - clt_fd[j]*2*transform_size);
+		}
+		return hpf_flat;
+	}
+	
+	
+	/**
 	 * Get pixel-domain representation of the LPF
-	 * @param sigma blurring in pixels
+	 * @param sigma2  squared Gaussian sigma in pixels
 	 * @return double array of the filter, 64 long for 8-pixel DTT
 	 */
 
 	public double [] getLpf(
-			double   sigma)
+			double   sigma2) // sigma squared
 	{
 		int transform_len = transform_size * transform_size;
 		final double [] filter_direct= new double[transform_len];
-		if (sigma == 0) {
+		if (sigma2 == 0) {
 			filter_direct[0] = 1.0;
 			for (int i= 1; i<filter_direct.length;i++) {
                 filter_direct[i] =0;
@@ -5559,7 +5578,7 @@ public class ImageDttCPU {
 		} else {
 			for (int i = 0; i < transform_size; i++){
 				for (int j = 0; j < transform_size; j++){
-					filter_direct[i*transform_size+j] = Math.exp(-(i*i+j*j)/(2*sigma)); // FIXME: should be sigma*sigma !
+					filter_direct[i*transform_size+j] = Math.exp(-(i*i+j*j)/(2*sigma2));
 				}
 			}
 		}
@@ -5580,6 +5599,95 @@ public class ImageDttCPU {
 		return filter_direct;
 	}
 
+	/**
+	 * Get frequency-domain representation of the LoG (version for the GPU, in floats)
+	 * @param sigma Gaussian sigma in pixels
+	 * @return float array of the filter, 64 long for 8-pixel DTT
+	 */
+	public float [] floatGetCltLoGFd(
+			double   sigma) {
+		DttRad2 dtt = new DttRad2(transform_size);
+		double [] clt_fd = dtt.dttt_iiie(getLoG(sigma));
+		int l = clt_fd.length;
+		float []   log_flat = new float [l];
+		for (int j = 0; j < l; j++) {
+			log_flat[j] = (float) (clt_fd[j]*2*transform_size);
+		}
+		return log_flat;
+	}
+	
+	/**
+	 * Get pixel-domain representation of the LoG
+	 * @param sigma Gaussian sigma in pixels
+	 * @return double array of the filter, 64 long for 8-pixel DTT
+	 */
+	public double [] getLoG(
+			double   sigma)
+	{
+		int transform_len = transform_size * transform_size;
+		final double sigma2 = sigma*sigma;
+		final double sigma4 = sigma2*sigma2;
+		final double [] filter_direct= new double[transform_len];
+		if (sigma == 0) {
+			filter_direct[0] = 1.0;
+			for (int i= 1; i<filter_direct.length;i++) {
+                filter_direct[i] =0;
+			}
+		} else {
+			for (int i = 0; i < transform_size; i++){
+				for (int j = 0; j < transform_size; j++){
+//https://homepages.inf.ed.ac.uk/rbf/HIPR2/log.htm					
+					filter_direct[i*transform_size+j] =
+							-1.0/(Math.PI * sigma4)*(1.0 - (i*i+j*j)/(2*sigma2))*
+							Math.exp(-(i*i+j*j)/(2*sigma2));
+				}
+			}
+		}
+		(new ShowDoubleFloatArrays()).showArrays(
+				filter_direct,
+				8,
+				8,
+				"log_direct-"+sigma);
+		// normalize
+		double sum2 = 0;
+		for (int i = 0; i < transform_size; i++){
+			for (int j = 0; j < transform_size; j++){
+				double d = 	filter_direct[i*transform_size+j];
+				d*=d;
+				d*=Math.cos(Math.PI*i/(2*transform_size))*Math.cos(Math.PI*j/(2*transform_size));
+				if (i > 0) d*= 2.0;
+				if (j > 0) d*= 2.0;
+				sum2 +=d;
+			}
+		}
+		double sum = Math.sqrt(sum2);
+		for (int i = 0; i<filter_direct.length; i++){
+			filter_direct[i] /= sum;
+		}
+		System.out.println("getLoG("+sigma+") sum="+sum);
+		/*
+		sum2 = 0;
+		for (int i = 0; i < transform_size; i++){
+			for (int j = 0; j < transform_size; j++){
+				double d = 	filter_direct[i*transform_size+j];
+				d*=d;
+				d*=Math.cos(Math.PI*i/(2*transform_size))*Math.cos(Math.PI*j/(2*transform_size));
+				if (i > 0) d*= 2.0;
+				if (j > 0) d*= 2.0;
+				sum2 +=d;
+			}
+		}
+		*/
+		(new ShowDoubleFloatArrays()).showArrays(
+				filter_direct,
+				8,
+				8,
+				"log_direct_norm-"+sigma);
+		
+		
+		
+		return filter_direct;
+	}
 
 
 	public void clt_lpf(  // USED in lwir
@@ -5838,7 +5946,7 @@ public class ImageDttCPU {
 	}
 
 	// extract correlation result  in linescan order (for visualization)
-	public double [] corr_dbg( // not used in lwir
+	public double [] corr_dbg(
 			final double [][][] corr_data,
 			final int           corr_size,
 			final double        border_contrast,
@@ -5883,10 +5991,6 @@ public class ImageDttCPU {
 		startAndJoin(threads);
 		return corr_data_out;
 	}
-
-
-//	final float  [][][][]     fcorr_td =       new float[tilesY][tilesX][][];
-//	final float  [][][][]     fcorr_combo_td = new float[4][tilesY][tilesX][];
 
 	public static float [][] corr_td_dbg(
 			final float [][][][] fcorr_td,
@@ -5957,6 +6061,60 @@ public class ImageDttCPU {
 	}
 	
 	
+	
+//	final float  [][][][]     fcorr_td =       new float[tilesY][tilesX][][];
+//	final float  [][][][]     fcorr_combo_td = new float[4][tilesY][tilesX][];
+
+	public static void corr_td_normalize(
+			final float [][][][] fcorr_td, // will be updated
+			// if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][];
+			// if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
+			final int            num_slices,
+			final int            transform_size,
+			final double         fat_zero_abs,
+			final double         output_amplitude,
+			final int            threadsMax)     // maximal number of threads to launch
+	{
+		final double fat_zero_abs2 = fat_zero_abs * fat_zero_abs; 
+		final int tilesY = (num_slices == 0) ? fcorr_td[0].length : fcorr_td.length;
+		final int tilesX = (num_slices == 0) ? fcorr_td[0][0].length : fcorr_td[0].length;
+		final int nTiles = tilesX*tilesY;
+		final int fnum_slices = (num_slices == 0) ? fcorr_td.length : num_slices;
+		final int transform_len = transform_size*transform_size; // 64
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
+						int tileY = nTile/tilesX;
+						int tileX = nTile - tileY * tilesX;
+						if ((num_slices == 0) || (fcorr_td[tileY][tileX] != null)) {
+							for (int slice = 0; slice < fnum_slices; slice ++) {
+								float [] ftile = (num_slices > 0) ? fcorr_td[tileY][tileX][slice] : fcorr_td[slice][tileY][tileX];
+								if (ftile != null) {
+									for (int i = 0; i < transform_len; i++) {
+										double s2 = fat_zero_abs2;
+										for (int q = 0; q < 4; q++) {
+											double d = ftile[q * transform_len + i]; 
+											s2 += d*d;
+										}
+										double k = output_amplitude/Math.sqrt(s2);
+										for (int q = 0; q < 4; q++) {
+											ftile[q * transform_len + i] *= k;
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			};
+		}
+		startAndJoin(threads);
+	}
+	
 
 	// extract correlation result  in linescan order (for visualization)
 	public static double [][] corr_partial_dbg( // not used in lwir
@@ -5972,19 +6130,14 @@ public class ImageDttCPU {
 		final int tilesX=corr_data[0].length;
 		final int nTiles=tilesX*tilesY;
 		final int tile_size = corr_size+1;
-		final int corr_len = corr_size*corr_size;
-
-		System.out.println("corr_partial_dbg(): tilesY="+tilesY+", tilesX="+tilesX+", corr_size="+corr_size+", corr_len="+corr_len+
-				" pairs="+pairs +" colors = "+colors+" tile_size="+tile_size);
 
 		final double [][] corr_data_out = new double[pairs*colors][tilesY*tilesX*tile_size*tile_size];
-//		final String [] colorNames = {"red","blue","green","composite"};
 
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		for (int pair = 0; pair< pairs; pair++) {
 			for (int nColor = 0; nColor < colors; nColor++) {
-				for (int i=0; i<corr_data_out.length;i++) corr_data_out[pair*colors+nColor][i]= 0;
+				Arrays.fill(corr_data_out[pair*colors+nColor], Double.NaN);
 			}
 		}
 
@@ -6007,10 +6160,10 @@ public class ImageDttCPU {
 												corr_data_out[indx],
 												((tileY*tile_size + i) *tilesX + tileX)*tile_size ,
 												corr_size);
-										corr_data_out[indx][((tileY*tile_size + i) *tilesX + tileX)*tile_size+corr_size] = border_contrast*((i & 1) - 0.5);
+//										corr_data_out[indx][((tileY*tile_size + i) *tilesX + tileX)*tile_size+corr_size] = border_contrast*((i & 1) - 0.5);
 									}
 									for (int i = 0; i < tile_size; i++){
-										corr_data_out[indx][((tileY*tile_size + corr_size) *tilesX + tileX)*tile_size+i] = border_contrast*((i & 1) - 0.5);
+//										corr_data_out[indx][((tileY*tile_size + corr_size) *tilesX + tileX)*tile_size+i] = border_contrast*((i & 1) - 0.5);
 									}
 								}
 							}
@@ -6022,8 +6175,528 @@ public class ImageDttCPU {
 		startAndJoin(threads);
 		return corr_data_out;
 	}
+	
+	public static float [][][] extract_corr_woi(
+			final boolean      copy, // copy tiles stack, not reference
+			final float [][][] fcorr,
+			final Rectangle    woi,
+			final int          tilesX,
+			final int          threadsMax)     // maximal number of threads to launch
+
+	{
+		final int tilesY = fcorr.length/tilesX;
+		if ((woi.width + woi.x) >= tilesX) {
+			int ww = woi.width; 
+			woi.width = tilesX - woi.x;
+			if (woi.width <= 0) {
+				if (ww > tilesX) ww = tilesX;
+				woi.width = ww;
+				woi.x = tilesX - woi.width; 
+			}
+		}
+		if ((woi.height + woi.y) >= tilesY) {
+			int wndh = woi.height; 
+			woi.height = tilesY - woi.y;
+			if (woi.height <= 0) {
+				if (wndh > tilesY) wndh = tilesY;
+				woi.height = wndh;
+				woi.y = tilesY - woi.height; 
+			}
+		}
+		final int nTiles=woi.width * woi.height;
+		final float [][][] fcorr_out = new float [fcorr.length][][];
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
+						int tileY = nTile / woi.width + woi.y;
+						int tileX = nTile % woi.width + woi.x;
+						int tile = tileY * tilesX + tileX;
+						
+						if (copy && (fcorr[tile] != null)) {
+							fcorr_out[tile] = fcorr[tile].clone();	
+						} else {
+							fcorr_out[tile] = fcorr[tile];
+						}
+					}
+				}
+			};
+		}
+		startAndJoin(threads);
+		return fcorr_out;
+	}
+	
+	public static float [][] corr_partial_dbg( // not used in lwir
+			final float  [][][]     fcorr_data,       // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+			final int               tilesX,
+			final int               corr_size,
+			final int               layers,
+			final double            border_contrast,
+			final int               threadsMax,     // maximal number of threads to launch
+			final int               globalDebugLevel)
+	{
+		final int tilesY=fcorr_data.length/tilesX;
+		final int nTiles=tilesX*tilesY;
+		final int tile_size = corr_size+1;
+//		final int corr_len = corr_size*corr_size;
+		final float [][] fcorr_data_out = new float[layers][tilesY*tilesX*tile_size*tile_size];
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int layer = 0; layer < layers; layer++) {
+			Arrays.fill(fcorr_data_out[layer], Float.NaN);
+		}
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					int tileY,tileX;
+					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
+						tileY = nTile/tilesX;
+						tileX = nTile - tileY * tilesX;
+						if (fcorr_data[nTile] != null) {
+							for (int layer = 0; layer < layers; layer++) {
+								for (int i = 0; i < corr_size;i++){
+									System.arraycopy(
+											fcorr_data[nTile][layer],
+											corr_size* i,
+											fcorr_data_out[layer],
+											((tileY*tile_size + i) *tilesX + tileX)*tile_size ,
+											corr_size);
+								}
+							}
+						}
+					}
+				}
+			};
+		}
+		startAndJoin(threads);
+		return fcorr_data_out;
+	}
 
 
+	// extract correlation result  in linescan order (for visualization)
+	// extracts 10 correlation tiles 
+	public static float [] corr_partial_wnd( // not used in lwir
+			final double [][][][][] corr_data,
+			final int               corr_size,
+			final Rectangle         woi,
+			final int               gap,
+			final int []            wh,
+			final int               threadsMax)     // maximal number of threads to launch
+	{
+		final int tile_size = corr_size+1;
+		final int [][] layout = {{0,0,0},{1,1,0},{2,0,1},{3,1,1},{4,0,2},{5,1,2},{6,0,3},{7,1,3},{8,0,4},{9,1,4}}; // {source_index, row, col};
+		if ((woi.width + woi.x) >= corr_data[0].length) {
+			int ww = woi.width; 
+			woi.width = corr_data[0].length - woi.x;
+			if (woi.width <= 0) {
+				if (ww > corr_data[0].length) ww = corr_data[0].length;
+				woi.width = ww;
+				woi.x = corr_data[0].length - woi.width; 
+			}
+		}
+		if ((woi.height + woi.y) >= corr_data.length) {
+			int wndh = woi.height; 
+			woi.height = corr_data.length - woi.y;
+			if (woi.height <= 0) {
+				if (wndh > corr_data.length) wndh = corr_data.length;
+				woi.height = wndh;
+				woi.y = corr_data.length - woi.height; 
+			}
+		}
+		
+		final int nTiles=woi.width * woi.height;
+		
+		final int clust_width =  5 * tile_size + gap;
+		final int clust_height = 2 * tile_size + gap;
+		
+		final int width =  woi.width* clust_width - gap;
+		final int height = woi.height*clust_height - gap;
+		if (wh != null) {
+			wh[0] = width;
+			wh[1] = height;
+		}
+		final float [] corr_data_out = new float[width * height];
+		Arrays.fill(corr_data_out, Float.NaN);
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
+						int tileY = nTile / woi.width; // relative to woi
+						int tileX = nTile % woi.width;
+						int stileY = tileY + woi.y;    // absolute in the corr_data
+						int stileX = tileX + woi.x;
+						if (corr_data[stileY][stileX] != null) {
+							for (int n = 0; n < layout.length; n++) {
+								int src_layer = layout[n][0];
+								int v_tile = layout[n][1];
+								int h_tile = layout[n][2];
+								double [] corr_tile = corr_data[stileY][stileX][src_layer/4][src_layer%4]; // tiles were organized as 4x4
+								int out_x = tileX * clust_width +  h_tile * tile_size;
+								int out_y = tileY * clust_height + v_tile * tile_size;
+								for (int i = 0; i < corr_size;i++){
+									int out_start = (out_y + i) * width + out_x;
+									for (int j = 0; j < corr_size; j++) {
+										corr_data_out[out_start+j] = (float) corr_tile[corr_size* i +j];
+									}
+									/*
+									System.arraycopy(
+											corr_tile,
+											corr_size* i,
+											corr_data_out,
+											(out_y + i) * width + out_x,
+											corr_size);
+									*/
+								}
+							}
+						}
+					}
+				}
+			};
+		}
+		startAndJoin(threads);
+		return corr_data_out;
+	}
+
+	public static float [] corr_partial_wnd( // not used in lwir
+			final float  [][][]     fcorr_data,       // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+			final int               tilesX,
+			final int               corr_size,
+			final Rectangle         woi,
+			final int               gap,
+			final int []            wh,
+			final int               threadsMax)     // maximal number of threads to launch
+	{
+		final int tile_size = corr_size+1;
+		final int tilesY = fcorr_data.length/tilesX;
+		final int [][] layout = {{0,0,0},{1,1,0},{2,0,1},{3,1,1},{4,0,2},{5,1,2},{6,0,3},{7,1,3},{8,0,4},{9,1,4}}; // {source_index, row, col};
+		if ((woi.width + woi.x) >= tilesX) {
+			int ww = woi.width; 
+			woi.width = tilesX - woi.x;
+			if (woi.width <= 0) {
+				if (ww > tilesX) ww = tilesX;
+				woi.width = ww;
+				woi.x = tilesX - woi.width; 
+			}
+		}
+		if ((woi.height + woi.y) >= tilesY) {
+			int wndh = woi.height; 
+			woi.height = tilesY - woi.y;
+			if (woi.height <= 0) {
+				if (wndh > tilesY) wndh = tilesY;
+				woi.height = wndh;
+				woi.y = tilesY - woi.height; 
+			}
+		}
+		final int nTiles=woi.width * woi.height;
+		final int clust_width =  5 * tile_size + gap;
+		final int clust_height = 2 * tile_size + gap;
+		final int width =  woi.width* clust_width - gap;
+		final int height = woi.height*clust_height - gap;
+		if (wh != null) {
+			wh[0] = width;
+			wh[1] = height;
+		}
+		final float [] corr_data_out = new float[width * height];
+		Arrays.fill(corr_data_out, Float.NaN);
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
+						int tileY = nTile / woi.width; // relative to woi
+						int tileX = nTile % woi.width;
+						int stileY = tileY + woi.y;    // absolute in the corr_data
+						int stileX = tileX + woi.x;
+						int stile = stileY * tilesX + stileX;
+						if (fcorr_data[stile] != null) {
+							for (int n = 0; n < layout.length; n++) {
+								int src_layer = layout[n][0];
+								int v_tile = layout[n][1];
+								int h_tile = layout[n][2];
+								float [] fcorr_tile = fcorr_data[stile][src_layer]; // tiles were organized as 4x4
+								int out_x = tileX * clust_width +  h_tile * tile_size;
+								int out_y = tileY * clust_height + v_tile * tile_size;
+								for (int i = 0; i < corr_size;i++){
+									int out_start = (out_y + i) * width + out_x;
+									/*
+									for (int j = 0; j < corr_size; j++) {
+										corr_data_out[out_start+j] = (float) corr_tile[corr_size* i +j];
+									}
+									*/
+									
+									System.arraycopy(
+											fcorr_tile,
+											corr_size* i,
+											corr_data_out,
+											(out_y + i) * width + out_x,
+											corr_size);
+								}
+							}
+						}
+					}
+				}
+			};
+		}
+		startAndJoin(threads);
+		return corr_data_out;
+	}
+	
+	
+	
+	public static float [] corr_td_wnd(
+			final float [][][][] fcorr_td,       // float[tilesY][tilesX][num_slices][];
+			final float [][][][] fcorr_combo_td, // float[4][tilesY][tilesX][];
+			final Rectangle      woi,
+			final int            gap,
+			final int []         wh,
+			final int            transform_size,
+			final int            threadsMax)     // maximal number of threads to launch
+	{
+		final int tile_size = 2 * transform_size;
+		final int [][] layout1 = {{0,0,0},{1,1,0},{2,0,1},{3,1,1},{4,0,2},{5,1,2}}; // {source_index, row, col};
+		final int [][] layout2 = {{0,0,3},{1,1,3},{2,0,4},{3,1,4}}; // {source_index, row, col};
+		if ((woi.width + woi.x) >= fcorr_td[0].length) {
+			int ww = woi.width; 
+			woi.width = fcorr_td[0].length - woi.x;
+			if (woi.width <= 0) {
+				if (ww > fcorr_td[0].length) ww = fcorr_td[0].length;
+				woi.width = ww;
+				woi.x = fcorr_td[0].length - woi.width; 
+			}
+		}
+		if ((woi.height + woi.y) >= fcorr_td.length) {
+			int wndh = woi.height; 
+			woi.height = fcorr_td.length - woi.y;
+			if (woi.height <= 0) {
+				if (wndh > fcorr_td.length) wndh = fcorr_td.length;
+				woi.height = wndh;
+				woi.y = fcorr_td.length - woi.height; 
+			}
+		}
+		
+		final int nTiles=woi.width * woi.height;
+		
+		final int clust_width =  5 * tile_size + gap;
+		final int clust_height = 2 * tile_size + gap;
+		
+		final int width =  woi.width* clust_width - gap;
+		final int height = woi.height*clust_height - gap;
+		if (wh != null) {
+			wh[0] = width;
+			wh[1] = height;
+		}
+		final int transform_len = transform_size * transform_size;
+		final float [] fcorr_data_out = new float[width * height];
+		Arrays.fill(fcorr_data_out, Float.NaN);
+		
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
+						int tileY = nTile / woi.width; // relative to woi
+						int tileX = nTile % woi.width;
+						int stileY = tileY + woi.y;    // absolute in the corr_data
+						int stileX = tileX + woi.x;
+						// first 6 tiles from fcorr_td =       new float[tilesY][tilesX][num_slices][];
+						if (fcorr_td[stileY][stileX] != null) {
+							for (int n = 0; n < layout1.length; n++) {
+								int src_layer = layout1[n][0];
+								int v_tile = layout1[n][1];
+								int h_tile = layout1[n][2];
+								float [] fcorr_tile = fcorr_td[stileY][stileX][src_layer];
+								for (int qy = 0; qy < 2; qy++) {
+									for (int qx = 0; qx < 2; qx++) {
+										for (int i = 0; i < transform_size;i++){
+											System.arraycopy(
+													fcorr_tile,
+													transform_len * (2 *qy + qx) + transform_size * i,
+													fcorr_data_out,
+													(tileY * clust_height + v_tile * tile_size + qy * transform_size + i) * width +
+													(tileX * clust_width +  h_tile * tile_size + qx * transform_size),
+													transform_size);
+										}
+									}
+								}
+							}
+						}
+						// last 4 tiles from fcorr_combo_td = new float[4][tilesY][tilesX][];
+						for (int n = 0; n < layout2.length; n++) {
+							if (fcorr_combo_td[n][stileY][stileX] != null) {
+								int src_layer = layout2[n][0];
+								int v_tile = layout2[n][1];
+								int h_tile = layout2[n][2];
+								float [] fcorr_tile = fcorr_combo_td[src_layer][stileY][stileX];
+								for (int qy = 0; qy < 2; qy++) {
+									for (int qx = 0; qx < 2; qx++) {
+										for (int i = 0; i < transform_size;i++){
+											System.arraycopy(
+													fcorr_tile,
+													transform_len * (2 *qy + qx) + transform_size * i,
+													fcorr_data_out,
+													(tileY * clust_height + v_tile * tile_size + qy * transform_size + i) * width +
+													(tileX * clust_width +  h_tile * tile_size + qx * transform_size),
+													transform_size);
+										}
+									}
+								}
+							}							
+						}
+					}
+				}
+			};
+		}
+		startAndJoin(threads);
+		return fcorr_data_out;
+	}
+
+
+		
+	public static float [][][] corr_get_extra(
+			final float [][][][] fcorrs,
+			final int            tilesX,
+			final int            ncombo,
+			final int            slices,
+			final int            threadsMax)     // maximal number of threads to launch
+	{
+		final int tiles = fcorrs[ncombo].length;
+		final int ncorrs = fcorrs.length - 1;
+		float [][][] fcorr_extra = new float [tiles][][];
+		
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) if (fcorrs[ncombo][nTile] != null){
+						fcorr_extra[nTile] = new float [slices][ncorrs];
+						for (int indx0 = 0; indx0 < ncorrs; indx0++) {
+							int indx = indx0 + ((indx0 < ncombo) ? 0 : 1);
+							if (fcorrs[indx][nTile] != null) {
+								for (int slice = 0; slice < slices; slice++) {
+									if ((fcorrs[ncombo][nTile][slice] != null) && (fcorrs[indx][nTile][slice] != null)) {
+										float [] t0 = fcorrs[ncombo][nTile][slice];
+										float [] t1 = fcorrs[indx][nTile][slice];
+										float s00 = 0.0f, s11 = 0.0f, s01 = 0.0f;
+										for (int i = 0; i < t0.length; i++) {
+											s00 += t0[i] * t0[i];
+											s11 += t1[i] * t1[i];
+											s01 += t0[i] * t1[i];
+										}
+										fcorr_extra[nTile][slice][indx] = (float) (s01/Math.sqrt(s00*s11));
+									}
+								}
+							}
+						}
+					}
+				}
+			};
+		}
+		startAndJoin(threads);
+		return fcorr_extra;
+	}
+	
+	// prepare tile-to-tile correlation data as an extra layer, after layers by corr_td_wnd()
+	public static float [] corr_show_extra(
+			final float [][][] fcorr_extra,  // float[tile][slices][extra];
+			final int          tilesX,
+			final Rectangle    woi,
+			final int          gap,
+			final int          step, // 3
+			final int          size, //2
+			final int []       wh,
+			final int          transform_size,
+			final int          threadsMax)     // maximal number of threads to launch
+	{
+		final int tilesY = fcorr_extra.length / tilesX;
+		final int tile_size = 2 * transform_size;
+		final int per_row = (tile_size + (step-size)) /step;
+		final int [][] layout = {{0,0,0},{1,1,0},{2,0,1},{3,1,1},{4,0,2},{5,1,2},{6,0,3},{7,1,3},{8,0,4},{9,1,4}}; // {source_index, row, col};
+		if ((woi.width + woi.x) >= tilesX) {
+			int ww = woi.width; 
+			woi.width = tilesX - woi.x;
+			if (woi.width <= 0) {
+				if (ww > tilesX) ww = tilesX;
+				woi.width = ww;
+				woi.x = tilesX - woi.width; 
+			}
+		}
+		if ((woi.height + woi.y) >= tilesY) {
+			int wndh = woi.height; 
+			woi.height = tilesY - woi.y;
+			if (woi.height <= 0) {
+				if (wndh > tilesY) wndh = fcorr_extra.length;
+				woi.height = wndh;
+				woi.y = tilesY - woi.height; 
+			}
+		}
+		final int nTiles=woi.width * woi.height;
+		final int clust_width =  5 * tile_size + gap;
+		final int clust_height = 2 * tile_size + gap;
+		final int width =  woi.width* clust_width - gap;
+		final int height = woi.height*clust_height - gap;
+		if (wh != null) {
+			wh[0] = width;
+			wh[1] = height;
+		}
+		final float [] fcorr_data_out = new float[width * height];
+		Arrays.fill(fcorr_data_out, Float.NaN);
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
+						int tileY = nTile / woi.width; // relative to woi
+						int tileX = nTile % woi.width;
+						int stileY = tileY + woi.y;    // absolute in the corr_data
+						int stileX = tileX + woi.x;
+						int stile = stileY * tilesX + stileX; 
+						// first 6 tiles from fcorr_td =       new float[tilesY][tilesX][num_slices][];
+						if (fcorr_extra[stile] != null) {
+							for (int n = 0; n < layout.length; n++) {
+								int src_layer = layout[n][0];
+								int v_tile = layout[n][1];
+								int h_tile = layout[n][2];
+								float [] extra_data = fcorr_extra[stile][src_layer];
+								for (int i = 0; i < extra_data.length; i++) {
+									int extra_row = i / per_row;
+									int extra_col = i % per_row;
+									int extra_0 =
+											(tileY * clust_height + v_tile * tile_size + extra_row * step) * width +
+											(tileX * clust_width +  h_tile * tile_size + extra_col * step);
+									for (int sy = 0; sy < size; sy++) {
+										for (int sx = 0; sx < size; sx++) {
+											fcorr_data_out[extra_0 + sy* width + sx] = extra_data[i];
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			};
+		}
+		startAndJoin(threads);
+		return fcorr_data_out;
+	}
+
+	// calculate inter-tile correlation from the data already converted to the debug images
+	// (and so only for the selected woi)
 
 
 

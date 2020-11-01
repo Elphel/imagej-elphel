@@ -669,8 +669,9 @@ public class ImageDtt extends ImageDttCPU {
 			final double              gpu_sigma_b,     // 0.9, 1.1
 			final double              gpu_sigma_g,     // 0.6, 0.7
 			final double              gpu_sigma_m,     //  =       0.4; // 0.7;
-			final double              gpu_sigma_rb_corr, //  = 0.5; // apply LPF after accumulating R and B correlation before G, monochrome ? 1.0 :
-			final double              gpu_sigma_corr,   //  =    0.9;gpu_sigma_corr_m
+			final double              gpu_sigma_rb_corr,    //  = 0.5; // apply LPF after accumulating R and B correlation before G, monochrome ? 1.0 :
+			final double              gpu_sigma_corr,       //  =    0.9;gpu_sigma_corr_m
+			final double              gpu_sigma_log_corr,   // hpf to reduce dynamic range for correlations
 			final double              corr_red, // +used
 			final double              corr_blue,// +used
 			final int                 threadsMax,       // maximal number of threads to launch
@@ -722,6 +723,42 @@ public class ImageDtt extends ImageDttCPU {
 				"lpf_rb_corr", // String const_name, // "lpf_corr"
 				lpf_rb_flat,
 				globalDebugLevel > -1);
+		
+		final float [] log_flat = floatGetCltHpfFd(gpu_sigma_log_corr);
+		if (globalDebugLevel < -100) {
+			double dbg_sum = 0.0;
+			for (int i = 0; i < log_flat.length; i++) dbg_sum +=log_flat[i];
+			System.out.println("dbg_sum("+gpu_sigma_log_corr+")="+dbg_sum);
+			(new ShowDoubleFloatArrays()).showArrays(
+					log_flat,
+					8,
+					8,
+					"hpf_"+gpu_sigma_log_corr);
+			final float [] log_flat0 = floatGetCltHpfFd(4.0);
+			dbg_sum = 0.0;
+			for (int i = 0; i < log_flat.length; i++) dbg_sum +=log_flat0[i];
+			System.out.println("dbg_sum("+4.0+")="+dbg_sum);
+			(new ShowDoubleFloatArrays()).showArrays(
+					log_flat0,
+					8,
+					8,
+					"hpf_"+4.0);
+			final float [] log_flat1 = floatGetCltHpfFd(1.0);
+			dbg_sum = 0.0;
+			for (int i = 0; i < log_flat.length; i++) dbg_sum +=log_flat1[i];
+			System.out.println("dbg_sum("+1.0+")="+dbg_sum);
+			(new ShowDoubleFloatArrays()).showArrays(
+					log_flat1,
+					8,
+					8,
+					"hpf_"+1.0);
+			System.out.println("dbg_sum("+1.0+")="+dbg_sum);
+		}
+		gpuQuad.setLpfCorr(// constants memory - same for all cameras
+				"LoG_corr", // String const_name, // "lpf_corr"
+				log_flat,
+				globalDebugLevel > -1);
+		
 
 		gpuQuad.setTasks(                  // copy tp_tasks to the GPU memory
 				tp_tasks,                  // TpTask [] tile_tasks,
@@ -1419,7 +1456,8 @@ public class ImageDtt extends ImageDttCPU {
 			                                           // each of the top elements may be null to skip particular combo type
 			final double [][][][]     corr_tiles,      // [tilesY][tilesX][pair][] ([(2*gpu_corr_rad+1)*(2*gpu_corr_rad+1)]) or null
 			final double [][][][][]   clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
-                                                       // [tilesY][tilesX] should be set by caller
+            // 											  [tilesY][tilesX] should be set by caller
+			final float  [][][]       fcorr_tiles,     // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 			// When clt_mismatch is non-zero, no far objects extraction will be attempted
 			final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
 			                                           // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
@@ -1436,6 +1474,7 @@ public class ImageDtt extends ImageDttCPU {
 			final int                 threadsMax,      // maximal number of threads to launch
 			final int                 globalDebugLevel)
 	{
+		final float gpu_fcorr_scale = (float) gpu_corr_scale;
 		if (this.gpuQuad == null) {
 			System.out.println("clt_aberrations_quad_corr_GPU(): this.gpuQuad is null, bailing out");
 			return;
@@ -1642,14 +1681,12 @@ public class ImageDtt extends ImageDttCPU {
 							// double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS][corr_length]; // 225-long (15x15)
 							// added quad and cross combos
 							double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS + num_combo][corr_length]; // 225-long (15x15)
+							float  [][] fcorrs = (fcorr_tiles == null) ? null : new float  [GPUTileProcessor.NUM_PAIRS + num_combo][corr_length]; // 225-long (15x15)
 							int indx_corr = indx_tile * num_tile_corr;
 							int nt = (corr_indices[indx_corr] >> GPUTileProcessor.CORR_NTILE_SHIFT);
 							int tileX = nt % tilesX;
 							int tileY = nt / tilesX;
 							int tIndex = tileY * tilesX + tileX;
-//							if (tileY >= 122) {
-//								System.out.println("tileY="+tileY+" tileX="+tileX);
-//							}
 
 							// Prepare the same (currently 10-layer) corrs as double [][], as in CPU version
 							int pair_mask = 0;
@@ -1660,6 +1697,9 @@ public class ImageDtt extends ImageDttCPU {
 									pair_mask |= (1 << pair);
 									for (int i = 0; i < corr_length; i++) {
 										corrs[pair][i] = gpu_corr_scale * fcorr2D[indx_corr][i]; // from float to double
+									}
+									if (fcorrs != null) for (int i = 0; i < corr_length; i++) {
+										fcorrs[pair][i] = gpu_fcorr_scale * fcorr2D[indx_corr][i];
 									}
 									indx_corr++; 
 								}
@@ -1672,18 +1712,25 @@ public class ImageDtt extends ImageDttCPU {
 									for (int i = 0; i < corr_length; i++) {
 										corrs[pair][i] = gpu_corr_scale * fcorr2D_combo[ncm][indx_tile][i]; // from float to double
 									}
+									if (fcorrs != null) for (int i = 0; i < corr_length; i++) {
+										fcorrs[pair][i] = gpu_fcorr_scale * fcorr2D_combo[ncm][indx_tile][i];
+									}
 								}
 							}
 							if (corr_tiles != null) {
 								corr_tiles[tileY][tileX] = corrs; 
 							}
+							if (fcorr_tiles != null) {
+								fcorr_tiles[tileY * tilesX + tileX] = fcorrs; // does not require corr_common_GPU()
+							}
+							
 							if ((disparity_map != null) || (clt_corr_partial != null) || (clt_mismatch != null)) {
 								int used_pairs = pair_mask; // imgdtt_params.dbg_pair_mask; //TODO: use tile tasks
 								int tile_lma_debug_level =  ((tileX == debug_tileX) && (tileY == debug_tileY))? (imgdtt_params.lma_debug_level-1) : -2;
 								boolean debugTile =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -1);
 								corr_common_GPU(
 										imgdtt_params,        // final ImageDttParameters  imgdtt_params,
-										clt_corr_partial,     // final double [][][][][]   clt_corr_partial,			
+										clt_corr_partial,     // final double [][][][][]   clt_corr_partial,
 										used_pairs,           // final int           used_pairs,
 										disparity_map,        // final double [][]   disparity_map,
 										clt_mismatch,         // final double [][]   clt_mismatch,
@@ -1743,7 +1790,7 @@ public class ImageDtt extends ImageDttCPU {
 	
 	public void corr_common_GPU(
 			final ImageDttParameters  imgdtt_params,
-			final double [][][][][]   clt_corr_partial,			
+			final double [][][][][]   clt_corr_partial,
 			final int           used_pairs,
 			final double [][]   disparity_map,
 			final double [][]   clt_mismatch,
@@ -2041,7 +2088,7 @@ public class ImageDtt extends ImageDttCPU {
 				// create LMA instance, calculate LMA composite argmax
 				// Create 2 groups: ortho & diag
 				Correlations2dLMA lma;
-				if (imgdtt_params.pcorr_use) {
+				if (imgdtt_params.pcorr_use) { // new group phase correlation
 					double [][] fake_corrs = {corrs[6],null,null,null,corrs[7],null};
 					lma = corr2d.corrLMA(
 							imgdtt_params,                // ImageDttParameters  imgdtt_params,

@@ -23,6 +23,7 @@
  */
 package com.elphel.imagej.tileprocessor;
 
+import java.awt.Rectangle;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -3179,6 +3180,7 @@ public class OpticalFlow {
 							indx_ref,       // final int            indx_ref,
 							combo_dsn[0],   // final double []      disparity_ref,  // disparity in the reference view tiles (Double.NaN - invalid)
 							margin,         // final int            margin,
+							nrefine,        // final int            nrefine, // just for debug title
 							debug_level);   // final int            debug_level)
 
 			Runtime.getRuntime().gc();
@@ -3189,7 +3191,7 @@ public class OpticalFlow {
 					tilesX,
 					tilesY,
 					true,
-					"accumulated_disparity_map",
+					"accumulated_disparity_map-"+nrefine,
 					ImageDtt.DISPARITY_TITLES
 					);
 			// update disparities
@@ -3398,16 +3400,19 @@ public class OpticalFlow {
 	
 	
 	
-	public double [][] correlateInterscene(
+	public double[][] correlateInterscene(
 //	public double [][][][][] correlateInterscene(
 			final CLTParameters  clt_parameters,
 			final QuadCLT []     scenes,
 			final int            indx_ref,
 			final double []      disparity_ref,  // disparity in the reference view tiles (Double.NaN - invalid)
 			final int            margin,
+			final int            nrefine, // just for debug title
 			final int            debug_level
 			)
 	{
+		final double fat_zero_pre = (debug_level>-100)?-1.0:0.0; //100000.0; // 10000.0; // 1000.0; //
+		final double output_amplitude = 30000; // 10000; // 1000; // 200; // 50.0;
 		final int num_scenes = scenes.length;
 		final QuadCLT ref_scene = scenes[indx_ref];
 		final ErsCorrection ers_reference = ref_scene.getErsCorrection();
@@ -3422,10 +3427,34 @@ public class OpticalFlow {
 				ref_scene.isLwir(),
 				clt_parameters.getScaleStrength(ref_scene.isAux()),
 				ref_scene.getGpuQuad());
+		/*
+		double [][][][][] clt_corr_partial = null;		
+		clt_corr_partial = new double [tilesY][tilesX][][][];
+		for (int i = 0; i < tilesY; i++){
+			for (int j = 0; j < tilesX; j++){
+				clt_corr_partial[i][j] = null;
+			}
+		}
+		*/
+		double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
 
+		int disparity_modes = 
+				ImageDtt.BITS_ALL_DISPARITIES |
+				ImageDtt.BITS_ALL_DIFFS | // needs max_diff?
+				ImageDtt.BITS_OVEREXPOSED; //  |
+//		final Rectangle tile_woi = new Rectangle(127,2,40,60); // for visualizations
+//		final Rectangle tile_woi = new Rectangle(81,77,64,97); // for visualizations
+		final Rectangle tile_woi = new Rectangle(30,70,50,110); // for visualizations
+		final int vis_gap = 2;
+		final float [][] vis_corr_td = new float[num_scenes + 1][]; // transform-domain visualization
+		final float [][] vis_corr_pd = new float[num_scenes + 2][]; // pixel-domain visualization
+		final int [] wis_wh = new int [2];
+		final float [][][][] fclt_corrs = new float [num_scenes+1][tilesX*tilesY][][]; // will only contain tile_woi tiles to save memory
 		for (int i = 0; i < num_scenes; i++) {
 			if (i == indx_ref) {
-				System.out.println("Correlating reference scene");
+				System.out.println("\nCorrelating reference scene\n");
+			} else {
+				System.out.println("\nCorrelating scene "+i+"\n");
 			}
 			String ts = scenes[i].getImageName();
 			double [][] scene_pXpYD;
@@ -3458,7 +3487,10 @@ public class OpticalFlow {
 				scenes[i].getGpuQuad().updateQuadCLT(scenes[i]); // to re-load new set of Bayer images to the GPU
 			}
 			final double disparity_corr = 0.0; // (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
-			final double gpu_sigma_rb_corr = scenes[i].isMonochrome()? 1.0 : clt_parameters.gpu_sigma_rb_corr;
+			final double gpu_sigma_corr =     clt_parameters.getGpuCorrSigma(scenes[i].isMonochrome());
+			final double gpu_sigma_rb_corr =  scenes[i].isMonochrome()? 1.0 : clt_parameters.gpu_sigma_rb_corr;
+			final double gpu_sigma_log_corr = clt_parameters.getGpuCorrLoGSigma(scenes[i].isMonochrome());
+			final float  [][][]       fclt_corr = new float [tilesX * tilesY][][];
 			image_dtt.quadCorrTD(
 					clt_parameters.img_dtt,        // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 					scene_pXpYD,                   // final double [][]         pXpYD,            // per-tile array of pX,pY,disparity triplets (or nulls)
@@ -3472,11 +3504,92 @@ public class OpticalFlow {
 					clt_parameters.gpu_sigma_g,    // 0.6, 0.7
 					clt_parameters.gpu_sigma_m,    //  =       0.4; // 0.7;
 					gpu_sigma_rb_corr,             // final double              gpu_sigma_rb_corr, //  = 0.5; // apply LPF after accumulating R and B correlation before G, monochrome ? 1.0 : gpu_sigma_rb_corr;
-					clt_parameters.gpu_sigma_corr, //  =    0.9;gpu_sigma_corr_m
+					gpu_sigma_corr,                //  =    0.9;gpu_sigma_corr_m
+					gpu_sigma_log_corr,            // final double              gpu_sigma_log_corr,   // hpf to reduce dynamic range for correlations
 					clt_parameters.corr_red,       // +used
 					clt_parameters.corr_blue,      // +used
 					threadsMax,                    // final int             threadsMax,       // maximal number of threads to launch
 					debug_level);                  // final int                 globalDebugLevel)
+			if (fat_zero_pre >= 0.0) {
+				ImageDtt.corr_td_normalize(
+						fcorrs_td[i], // final float [][][][] fcorr_td, // will be updated
+						// if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][];
+						// if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
+						GPUTileProcessor.NUM_PAIRS, // final int            num_slices,
+						image_dtt.transform_size,   // final int            transform_size,
+						fat_zero_pre, // final double         fat_zero_abs,
+						output_amplitude, // final double         output_amplitude,
+						threadsMax); // final int            threadsMax);     // maximal number of threads to launch
+				ImageDtt.corr_td_normalize(
+						fcorrs_combo_td[i], // final float [][][][] fcorr_td, // will be updated
+						// if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][];
+						// if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
+						0, // final int            num_slices,
+						image_dtt.transform_size,   // final int            transform_size,
+						fat_zero_pre, // final double         fat_zero_abs,
+						output_amplitude, //final double         output_amplitude,
+						threadsMax); // final int            threadsMax);     // maximal number of threads to launch
+			}
+			if (vis_corr_td != null) {
+				vis_corr_td[i] = ImageDtt.corr_td_wnd(
+						fcorrs_td[i],             // final float [][][][] fcorr_td,       // float[tilesY][tilesX][num_slices][];
+						fcorrs_combo_td[i],       // final float [][][][] fcorr_combo_td, // float[4][tilesY][tilesX][];
+						tile_woi,                 // final Rectangle      woi,
+						vis_gap,                  // final int            gap,
+						wis_wh,                   // final int []         wh,
+						image_dtt.transform_size, // final int            transform_size,
+						threadsMax);              // final int            threadsMax)     // maximal number of threads to launch
+				Runtime.getRuntime().gc();
+				System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+			}
+			if ((vis_corr_pd != null) || (fclt_corrs != null)) { // calculate and extract correlation
+				image_dtt.clt_process_tl_correlations_GPU(	// convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td
+						clt_parameters.img_dtt,				// final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+						// both arrays should have same non-null tiles
+						fcorrs_td[i],				 	 		// final float  [][][][]     corr_td,         // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
+						fcorrs_combo_td[i], 						// final float  [][][][]     corr_combo_td,   // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: qud, cross, hor,vert
+																// each of the top elements may be null to skip particular combo type
+						null, // 	final double [][][][]     corr_tiles,      // [tilesY][tilesX][pair][] ([(2*gpu_corr_rad+1)*(2*gpu_corr_rad+1)]) or null
+						null, //clt_corr_partial,           			// final double [][][][][]   clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+						// [tilesY][tilesX] should be set by caller
+						fclt_corr, // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+						// When clt_mismatch is non-zero, no far objects extraction will be attempted
+						null, 								// final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
+						// values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
+						disparity_map,						// final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+						// last 2 - contrast, avg/ "geometric average)
+						disparity_modes,                      // final int                 disparity_modes, // bit mask of disparity_map slices to calculate/return
+						clt_parameters.gpu_corr_scale,        //  gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
+						clt_parameters.getGpuFatZero(ref_scene.isMonochrome()), // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
+						image_dtt.transform_size - 1,			// clt_parameters.gpu_corr_rad,   // = transform_size - 1 ?
+						clt_parameters.max_corr_radius,		// final double              max_corr_radius, // 3.9;
+						clt_parameters.clt_window,     		// final int                 window_type,     // GPU: will not be used
+						clt_parameters.tileX,      		    // final int               debug_tileX,
+						clt_parameters.tileY,          		// final int               debug_tileY,
+						threadsMax,
+						debug_level -1 );
+				if (vis_corr_pd != null) {
+					vis_corr_pd[i] = ImageDtt.corr_partial_wnd( // not used in lwir
+							fclt_corr,                      // clt_corr_partial,               // final double [][][][][] corr_data,
+							tilesX,                         // final int               tilesX,
+							2*image_dtt.transform_size - 1, // final int               corr_size,
+							tile_woi,                       // final Rectangle      woi,
+							vis_gap,                        // final int            gap,
+							wis_wh,                         // final int []         wh,
+							threadsMax);                    // final int               threadsMax)
+				}
+				if (fclt_corrs != null) {
+					fclt_corrs[i] = ImageDtt.extract_corr_woi(
+							true, // final boolean      copy, // copy tiles stack, not reference
+							fclt_corr,   // final float [][][] fcorr,
+							tile_woi,    // final Rectangle    woi,
+							tilesX,      // final int          tilesX,
+							threadsMax); // final int          threadsMax)     // maximal number of threads to launch
+							
+				}
+				Runtime.getRuntime().gc();
+				System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+			}
 		}
 		// Combine non-null correlations from all scenes (initially combined and individual for visualization and analysis)
 		final float  [][][][]     fcorr_td =       new float[tilesY][tilesX][][];
@@ -3600,7 +3713,7 @@ public class OpticalFlow {
 					wh[0],
 					wh[1],
 					true,
-					ref_scene.getImageName()+"-TD-PART_CORR-D"+clt_parameters.disparity,
+					ref_scene.getImageName()+"-TD-CORR-"+nrefine,
 					dbg_titles);
 		}
 
@@ -3612,30 +3725,17 @@ public class OpticalFlow {
 		
 		Runtime.getRuntime().gc();
 		System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
-
-		double [][][][][] clt_corr_partial = null;
-		clt_corr_partial = new double [tilesY][tilesX][][][];
-		for (int i = 0; i < tilesY; i++){
-			for (int j = 0; j < tilesX; j++){
-				clt_corr_partial[i][j] = null;
-			}
-		}
-		double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
-
-		int disparity_modes = 
-				ImageDtt.BITS_ALL_DISPARITIES |
-				ImageDtt.BITS_ALL_DIFFS | // needs max_diff?
-				ImageDtt.BITS_OVEREXPOSED; //  |
-
+		final float  [][][]       fclt_corr = new float [tilesX * tilesY][][];
 		image_dtt.clt_process_tl_correlations_GPU(	// convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td
 				clt_parameters.img_dtt,				// final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 				// both arrays should have same non-null tiles
 				fcorr_td,				 	 		// final float  [][][][]     corr_td,         // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
 				fcorr_combo_td, 						// final float  [][][][]     corr_combo_td,   // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: qud, cross, hor,vert
-														// each of the top elements may be null to skip particular combo type
+				// each of the top elements may be null to skip particular combo type
 				null, // 	final double [][][][]     corr_tiles,      // [tilesY][tilesX][pair][] ([(2*gpu_corr_rad+1)*(2*gpu_corr_rad+1)]) or null
-				clt_corr_partial,           			// final double [][][][][]   clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+				null, // clt_corr_partial,           			// final double [][][][][]   clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 				// [tilesY][tilesX] should be set by caller
+				fclt_corr, // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 				// When clt_mismatch is non-zero, no far objects extraction will be attempted
 				null, 								// final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
 				// values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
@@ -3662,27 +3762,109 @@ public class OpticalFlow {
 //				 ,dbg_titles
 				 );
 		 */
-			Runtime.getRuntime().gc();
-			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
-		 
-		  if (debug_level < -10){ // -1
-			  double [][] dbg_corr_rslt_partial = ImageDtt.corr_partial_dbg(
-					  clt_corr_partial,
-					  2*image_dtt.transform_size - 1,	//final int corr_size,
-					  4,	// final int pairs,
-					  4,    // final int colors,
-					  clt_parameters.corr_border_contrast,
-					  threadsMax,
-					  debug_level);
-			  // titles.length = 15, corr_rslt_partial.length=16!
-			  (new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
-					  dbg_corr_rslt_partial,
-					  tilesX*(2*image_dtt.transform_size),
-					  tilesY*(2*image_dtt.transform_size),
-					  true,
-					  ref_scene.getImageName()+"-TD-PART_CORR-D"+clt_parameters.disparity,
-					  ImageDtt.CORR_TITLES);
-		  }
+		if (vis_corr_pd != null) { // add combined data as the last slice
+			vis_corr_pd[num_scenes] = ImageDtt.corr_partial_wnd( // not used in lwir
+					fclt_corr,                      // clt_corr_partial,               // final double [][][][][] corr_data,
+					tilesX,                         // 
+					2*image_dtt.transform_size - 1, // final int               corr_size,
+					tile_woi,                       // final Rectangle      woi,
+					vis_gap,                        // final int            gap,
+					wis_wh,                         // final int []         wh,
+					threadsMax);                    // final int               threadsMax)				
+		}
+
+		Runtime.getRuntime().gc();
+		System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+
+		if (vis_corr_td != null) { // add combined data as the last slice
+			vis_corr_td[num_scenes] = ImageDtt.corr_td_wnd(
+					fcorr_td,                 // final float [][][][] fcorr_td,       // float[tilesY][tilesX][num_slices][];
+					fcorr_combo_td,           // final float [][][][] fcorr_combo_td, // float[4][tilesY][tilesX][];
+					tile_woi,                 // final Rectangle      woi,
+					vis_gap,                  // final int            gap,
+					wis_wh,                   // final int []         wh,
+					image_dtt.transform_size, // final int            transform_size,
+					threadsMax);              // final int            threadsMax)     // maximal number of threads to launch
+		}
+
+
+
+		if (debug_level > -10){ // -1
+			float [][] dbg_corr_rslt_partial = ImageDtt.corr_partial_dbg(
+					fclt_corr, // final float  [][][]     fcorr_data,       // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					tilesX,    //final int               tilesX,
+					2*image_dtt.transform_size - 1,	//final int corr_size,
+					10, // final int layers 4,	// final int pairs,
+//					4,    // final int colors,
+					clt_parameters.corr_border_contrast,
+					threadsMax,
+					debug_level);
+			// titles.length = 15, corr_rslt_partial.length=16!
+			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+					dbg_corr_rslt_partial,
+					tilesX*(2*image_dtt.transform_size),
+					tilesY*(2*image_dtt.transform_size),
+					true,
+					ref_scene.getImageName()+"-PD-CORR-"+nrefine,
+					ImageDtt.CORR_TITLES);
+		}
+		if (vis_corr_td != null) {
+			String [] dbg_titles = new String[num_scenes+1];
+			for (int i = 0; i < num_scenes; i++) {
+				dbg_titles[i] = scenes[i].getImageName();
+			}
+			dbg_titles[num_scenes] = "combo";
+			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+					vis_corr_td,
+					wis_wh[0],
+					wis_wh[1],
+					true,
+					"TD-"+tile_woi.x+"_"+tile_woi.y+"-"+nrefine,
+					dbg_titles);
+		}
+		float [][][] fcorr_extra = null; 
+	    if (fclt_corrs != null) {
+	        fclt_corrs[num_scenes] = ImageDtt.extract_corr_woi(
+					true, // final boolean      copy, // copy tiles stack, not reference
+	                fclt_corr,   // final float [][][] fcorr,
+	                tile_woi,    // final Rectangle    woi,
+	                tilesX,      // final int          tilesX,
+	                threadsMax); // final int          threadsMax)     // maximal number of threads to launch
+	        fcorr_extra = ImageDtt.corr_get_extra(
+	        		fclt_corrs,    // final float [][][][] fcorrs,
+	    			tilesX,        // final int            tilesX,
+	    			num_scenes,    // final int            ncombo,
+	    			10,            // final int            slices,
+	    			threadsMax);   // final int            threadsMax)
+	    }
+
+		if (vis_corr_pd != null) {
+			if (fcorr_extra != null) {
+				vis_corr_pd[num_scenes + 1]=ImageDtt. corr_show_extra(
+						fcorr_extra,              // final float [][][] fcorr_extra,  // float[tile][slices][extra];
+						tilesX,                   // final int          tilesX,
+						tile_woi,                 // final Rectangle    woi,
+						vis_gap,                  // final int          gap,
+						3,                        // final int          step,
+						2,                        // final int          size,
+						null,                     // final int []       wh,
+						image_dtt.transform_size, // final int          transform_size,
+						threadsMax);              //  final int          threadsMax)     // maximal number of threads to launch
+			}
+			String [] dbg_titles = new String[num_scenes+2];
+			for (int i = 0; i < num_scenes; i++) {
+				dbg_titles[i] = scenes[i].getImageName();
+			}
+			dbg_titles[num_scenes] =     "combo";
+			dbg_titles[num_scenes + 1] = "lucky";
+			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+					vis_corr_pd,
+					wis_wh[0],
+					wis_wh[1],
+					true,
+					"PD-"+"FZ-"+(clt_parameters.getGpuFatZero(ref_scene.isMonochrome()))+"-"+tile_woi.x+"_"+tile_woi.y+"-"+nrefine,
+					dbg_titles);
+		}		  
 		 
 		return disparity_map; // disparity_map
 //		return clt_corr_partial; // disparity_map

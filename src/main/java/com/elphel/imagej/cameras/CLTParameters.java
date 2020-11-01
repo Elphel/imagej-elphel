@@ -800,19 +800,21 @@ public class CLTParameters {
 	public boolean    taEnMismatch         = false;  // Enable cost of a measurement layer not having same layer in the same location or near
 
 // gpu processing parameters
-	public double     gpu_corr_scale =    0.75; // reduce GPU-generated correlation values
-	public int        gpu_corr_rad =        7;  // size of the correlation to save - initially only 15x15
-	public double     gpu_weight_r =      0.5; // 25;
-	public double     gpu_weight_b =      0.2; // 0.25; // weight g = 1.0 - gpu_weight_r - gpu_weight_b
-	public double     gpu_sigma_r =       0.9; // 1.1;
-	public double     gpu_sigma_b =       0.9; // 1.1;
-	public double     gpu_sigma_g =       0.6; // 0.7;
-	public double     gpu_sigma_m =       0.4; // 0.7;
-	public double     gpu_sigma_rb_corr = 0.3; // apply LPF after accumulating R and B correlation before G,
-	public double     gpu_sigma_corr =    0.8;
-	public double     gpu_sigma_corr_m =  0.15;
-	public double     gpu_fatz =          500.0; // was 30
-	public double     gpu_fatz_m =        500.0; // was 30
+	public double     gpu_corr_scale =       0.75; // reduce GPU-generated correlation values
+	public int        gpu_corr_rad =         7;  // size of the correlation to save - initially only 15x15
+	public double     gpu_weight_r =         0.5; // 25;
+	public double     gpu_weight_b =         0.2; // 0.25; // weight g = 1.0 - gpu_weight_r - gpu_weight_b
+	public double     gpu_sigma_r =          0.9; // 1.1;
+	public double     gpu_sigma_b =          0.9; // 1.1;
+	public double     gpu_sigma_g =          0.6; // 0.7;
+	public double     gpu_sigma_m =          0.4; // 0.7;
+	public double     gpu_sigma_rb_corr =    0.3; // apply LPF after accumulating R and B correlation before G,
+	public double     gpu_sigma_corr =       0.8;
+	public double     gpu_sigma_corr_m =     0.15;
+	public double     gpu_sigma_log_corr =   3.0; // fill in after testing
+	public double     gpu_sigma_log_corr_m = 3.0; // fill in after testing
+	public double     gpu_fatz =           500.0; // was 30
+	public double     gpu_fatz_m =         500.0; // was 30
 
 	public boolean    gpu_woi =             false; // if true - use gpu_woi_tx, ...
 	public int        gpu_woi_tx =              0;
@@ -906,6 +908,10 @@ public class CLTParameters {
 
 	public double getGpuCorrSigma(boolean monochrome) {
 		return monochrome ? gpu_sigma_corr_m : gpu_sigma_corr;
+	}
+
+	public double getGpuCorrLoGSigma(boolean monochrome) {
+		return monochrome ? gpu_sigma_log_corr_m : gpu_sigma_log_corr;
 	}
 
 	public double getGpuCorrRBSigma(boolean monochrome) {
@@ -1648,6 +1654,8 @@ public class CLTParameters {
 		properties.setProperty(prefix+"gpu_sigma_rb_corr",          this.gpu_sigma_rb_corr +"");
 		properties.setProperty(prefix+"gpu_sigma_corr",             this.gpu_sigma_corr +"");
 		properties.setProperty(prefix+"gpu_sigma_corr_m",           this.gpu_sigma_corr_m +"");
+		properties.setProperty(prefix+"gpu_sigma_log_corr",         this.gpu_sigma_log_corr +"");
+		properties.setProperty(prefix+"gpu_sigma_log_corr_m",       this.gpu_sigma_log_corr_m +"");
 		properties.setProperty(prefix+"gpu_fatz",                   this.gpu_fatz +"");
 		properties.setProperty(prefix+"gpu_fatz_m",                 this.gpu_fatz_m +"");
 
@@ -2468,6 +2476,8 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"gpu_sigma_rb_corr")!=null)           this.gpu_sigma_rb_corr=Double.parseDouble(properties.getProperty(prefix+"gpu_sigma_rb_corr"));
 		if (properties.getProperty(prefix+"gpu_sigma_corr")!=null)              this.gpu_sigma_corr=Double.parseDouble(properties.getProperty(prefix+"gpu_sigma_corr"));
 		if (properties.getProperty(prefix+"gpu_sigma_corr_m")!=null)            this.gpu_sigma_corr_m=Double.parseDouble(properties.getProperty(prefix+"gpu_sigma_corr_m"));
+		if (properties.getProperty(prefix+"gpu_sigma_log_corr")!=null)          this.gpu_sigma_log_corr=Double.parseDouble(properties.getProperty(prefix+"gpu_sigma_log_corr"));
+		if (properties.getProperty(prefix+"gpu_sigma_log_corr_m")!=null)        this.gpu_sigma_log_corr_m=Double.parseDouble(properties.getProperty(prefix+"gpu_sigma_log_corr_m"));
 		if (properties.getProperty(prefix+"gpu_fatz")!=null)                    this.gpu_fatz=Double.parseDouble(properties.getProperty(prefix+"gpu_fatz"));
 		if (properties.getProperty(prefix+"gpu_fatz_m")!=null)                  this.gpu_fatz_m=Double.parseDouble(properties.getProperty(prefix+"gpu_fatz_m"));
 
@@ -3475,6 +3485,12 @@ public class CLTParameters {
 				"LPF sigma to apply to the composite 2D correlation for RGB images");
 		gd.addNumericField("LPF sigma for correlation, mono",                                                           this.gpu_sigma_corr_m, 4, 6,"pix",
 				"LPF sigma to apply to the composite 2D correlation for monochrome images");
+
+		gd.addNumericField("LoG sigma for correlation, color",                                                          this.gpu_sigma_log_corr, 4, 6,"pix",
+				"Use LoG filter to reduce dynamic range of the correlation input to fit into float range");
+		gd.addNumericField("LoG sigma for correlation, mono",                                                           this.gpu_sigma_log_corr_m, 4, 6,"pix",
+				"Use LoG filter to reduce dynamic range of the correlation input to fit into float range");
+		
 		gd.addNumericField("Fat zero (absolute) for phase correlation of color images",                                 this.gpu_fatz, 4, 6,"",
 				"Add squared fat zero to the sum of squared amplitudes, color images");
 		gd.addNumericField("Fat zero (absolute) for phase correlation of monochrome images",                            this.gpu_fatz_m, 4, 6,"",
@@ -4287,6 +4303,8 @@ public class CLTParameters {
 		this.gpu_sigma_rb_corr =    gd.getNextNumber();
 		this.gpu_sigma_corr =       gd.getNextNumber();
 		this.gpu_sigma_corr_m =     gd.getNextNumber();
+		this.gpu_sigma_log_corr =   gd.getNextNumber();
+		this.gpu_sigma_log_corr_m = gd.getNextNumber();
 		this.gpu_fatz =             gd.getNextNumber();
 		this.gpu_fatz_m =           gd.getNextNumber();
 

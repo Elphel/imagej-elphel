@@ -3326,6 +3326,7 @@ public class QuadCLT extends QuadCLTCPU {
 					null, // 	final double [][][][]     corr_tiles,      // [tilesY][tilesX][pair][] ([(2*gpu_corr_rad+1)*(2*gpu_corr_rad+1)]) or null
 					clt_corr_partial1,           			// final double [][][][][]   clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 					// [tilesY][tilesX] should be set by caller
+					null, // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 					// When clt_mismatch is non-zero, no far objects extraction will be attempted
 					null, 								// final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
 					// values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
