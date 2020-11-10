@@ -59,6 +59,7 @@ import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -75,6 +76,7 @@ import com.elphel.imagej.calibration.PixelMapping;
 import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.cameras.ColorProcParameters;
 import com.elphel.imagej.cameras.EyesisCorrectionParameters;
+import com.elphel.imagej.cameras.ThermalColor;
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.GenericJTabbedDialog;
@@ -704,6 +706,9 @@ private Panel panel1,
 			addButton("Inter LMA",                  panelClt5, color_stop);
 			addButton("Inter Series",               panelClt5, color_process);
 			addButton("Inter Accumulate",           panelClt5, color_process);
+			addButton("Inter Noise",                panelClt5, color_process);
+			addButton("Noise Stats",                panelClt5, color_process);
+			addButton("Colorize Depth",             panelClt5, color_process);
 			plugInFrame.add(panelClt5);
 		}
 
@@ -5126,12 +5131,35 @@ private Panel panel1,
         interSeriesLMA();
     	return;
 
-    	/* ======================================================================== */
+/* ======================================================================== */
     } else if (label.equals("Inter Accumulate")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
         CLT_PARAMETERS.batch_run = true;
         intersceneAccumulate();
+    	return;
+
+/* ======================================================================== */
+    } else if (label.equals("Inter Noise")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        CLT_PARAMETERS.batch_run = true;
+        intersceneNoise();
+    	return;
+
+/* ======================================================================== */
+    } else if (label.equals("Noise Stats")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        CLT_PARAMETERS.batch_run = true;
+        intersceneNoiseStats();
+    	return;
+/* ======================================================================== */
+    } else if (label.equals("Colorize Depth")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        CLT_PARAMETERS.batch_run = true;
+        coloriseDepthMap();
     	return;
     	
 /* ======================================================================== */
@@ -6793,6 +6821,327 @@ private Panel panel1,
 		return true;
 	}
 	
+	public boolean intersceneNoise() {
+		long startTime=System.nanoTime();
+		// load needed sensor and kernels files
+		if (!prepareRigImages()) return false;
+		String configPath=getSaveCongigPath();
+		if (configPath.equals("ABORT")) return false;
+		setAllProperties(PROPERTIES); // batchRig may save properties with the model. Extrinsics will be updated, others should be set here
+		if (DEBUG_LEVEL > -2){
+			System.out.println("++++++++++++++ Testing Interscene processing ++++++++++++++");
+		}
+		
+		if (CLT_PARAMETERS.useGPU()) { // only init GPU instances if it is used
+			if (GPU_TILE_PROCESSOR == null) {
+				try {
+					GPU_TILE_PROCESSOR = new GPUTileProcessor(CORRECTION_PARAMETERS.tile_processor_gpu);
+				} catch (Exception e) {
+					System.out.println("Failed to initialize GPU class");
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					return false;
+				} //final int        debugLevel);
+			}
+			if (CLT_PARAMETERS.useGPU(false) && (QUAD_CLT != null) && (GPU_QUAD == null)) { // if GPU main is needed
+				try {
+					GPU_QUAD = GPU_TILE_PROCESSOR.new GpuQuad(
+							QUAD_CLT,
+							4,
+							3);
+				} catch (Exception e) {
+					System.out.println("Failed to initialize GpuQuad class");
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					return false;
+				} //final int        debugLevel);
+				QUAD_CLT.setGPU(GPU_QUAD);
+			}
+		}
+		
+		try {
+			TWO_QUAD_CLT.intersceneNoise(
+					QUAD_CLT, // QuadCLT quadCLT_main,
+					CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+					DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+					COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+					CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+					RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+					EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+					PROPERTIES,  // Properties                                           properties,
+					THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+					UPDATE_STATUS, //final boolean    updateStatus,
+					DEBUG_LEVEL);
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} //final int        debugLevel);
+		if (configPath!=null) {
+			saveTimestampedProperties( // save config again
+					configPath,      // full path or null
+					null, // use as default directory if path==null
+					true,
+					PROPERTIES);
+		}
+		System.out.println("batchRig(): Processing finished at "+
+				IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec, --- Free memory="+
+				Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+		return true;
+	}
+	
+	public boolean intersceneNoiseStats() {
+		long startTime=System.nanoTime();
+		// load needed sensor and kernels files
+		if (!prepareRigImages()) return false;
+		String configPath=getSaveCongigPath();
+		if (configPath.equals("ABORT")) return false;
+		setAllProperties(PROPERTIES); // batchRig may save properties with the model. Extrinsics will be updated, others should be set here
+		if (DEBUG_LEVEL > -2){
+			System.out.println("++++++++++++++ Testing Interscene processing ++++++++++++++");
+		}
+		
+		if (CLT_PARAMETERS.useGPU()) { // only init GPU instances if it is used
+			if (GPU_TILE_PROCESSOR == null) {
+				try {
+					GPU_TILE_PROCESSOR = new GPUTileProcessor(CORRECTION_PARAMETERS.tile_processor_gpu);
+				} catch (Exception e) {
+					System.out.println("Failed to initialize GPU class");
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					return false;
+				} //final int        debugLevel);
+			}
+			if (CLT_PARAMETERS.useGPU(false) && (QUAD_CLT != null) && (GPU_QUAD == null)) { // if GPU main is needed
+				try {
+					GPU_QUAD = GPU_TILE_PROCESSOR.new GpuQuad(
+							QUAD_CLT,
+							4,
+							3);
+				} catch (Exception e) {
+					System.out.println("Failed to initialize GpuQuad class");
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					return false;
+				} //final int        debugLevel);
+				QUAD_CLT.setGPU(GPU_QUAD);
+			}
+		}
+		
+		try {
+			TWO_QUAD_CLT.intersceneNoiseStats(
+					QUAD_CLT, // QuadCLT quadCLT_main,
+					CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+					DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+					COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+					CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+					RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+					EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+					PROPERTIES,  // Properties                                           properties,
+					THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+					UPDATE_STATUS, //final boolean    updateStatus,
+					DEBUG_LEVEL);
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} //final int        debugLevel);
+		if (configPath!=null) {
+			saveTimestampedProperties( // save config again
+					configPath,      // full path or null
+					null, // use as default directory if path==null
+					true,
+					PROPERTIES);
+		}
+		System.out.println("batchRig(): Processing finished at "+
+				IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec, --- Free memory="+
+				Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+		return true;
+	}
+	
+	public boolean coloriseDepthMap() {
+		ImagePlus imp_sel = WindowManager.getCurrentImage();
+		if (imp_sel==null){
+			IJ.showMessage("Error","No images selected");
+			return false;
+		}
+		double disparity0 =         0.75;
+		double disparity_max =     75.0; // pix
+		boolean show_dialog2 =     false;
+		boolean linear_disparity = false;
+		
+		int legend_width = 0;
+		int legend_gap =   5;
+		GenericJTabbedDialog gd0 = new GenericJTabbedDialog("Ln mode");
+		gd0.addNumericField("disparity0",        disparity0,      5,8,"pix", "Disparity to swict from linear to log. ) - skip log mode");
+		gd0.addNumericField("Maximal disparity", disparity_max,      5,8,"pix", "Fixed maximal disparity (0 - auto");
+		gd0.addCheckbox("Linear disparity legend", linear_disparity);
+		gd0.addNumericField("Legend width",                         legend_width, 0,3,"", "Optional disparity legend vertical bar width");
+		gd0.addNumericField("Legend gap",                           legend_gap, 0,3,"",   "Optional disparity legend vertical bar gap");
+		gd0.addCheckbox("Show second dialog", show_dialog2);
+		
+		gd0.showDialog();
+		if (gd0.wasCanceled()) return false;
+		disparity0=           gd0.getNextNumber();
+		disparity_max=        gd0.getNextNumber();
+		linear_disparity =    gd0.getNextBoolean();
+		legend_width=   (int) gd0.getNextNumber();
+		legend_gap=     (int) gd0.getNextNumber();
+		show_dialog2 =        gd0.getNextBoolean();
+
+		boolean log_mode = disparity0 > 0.0;
+		
+		
+		int current_slice = imp_sel.getCurrentSlice();
+		ImageStack imageStack = imp_sel.getStack();
+		float [] fpixels = (float[]) imageStack.getPixels(current_slice);
+		int width =  imp_sel.getWidth();
+		int height = imp_sel.getHeight();
+		String title = imp_sel.getShortTitle(); // getTitle();
+		double [] dpixels;
+		int width0 = width;
+		if (legend_width <=0 ) {
+			dpixels= new double [fpixels.length];
+			for (int i = 0; i < fpixels.length; i++) {
+				double d = fpixels[i];
+				dpixels[i] = d;
+			}		
+		} else {
+			width += legend_width + legend_gap; 
+			dpixels= new double [height * width];
+			Arrays.fill(dpixels, Double.NaN);
+			double mx = disparity_max;
+			for (int y = 0; y < height; y++) {
+				for (int x = 0; x < width0; x++) {
+					double d = fpixels[ x + y * width0];
+					dpixels[x + y * width] = d;
+					if (d > mx) {
+						mx = d;
+					}
+				}
+			}
+			if (disparity_max > 0) {
+				mx = disparity_max;
+			}
+			if (linear_disparity) {
+				for (int y = 0; y < height; y++) {
+					double d = (mx * y) / height;
+					for (int i = 0; i < legend_width; i++) {
+						dpixels[width0 + legend_gap + i + y * width] = d;
+					}
+				}
+			}
+		}
+		double mn = fpixels[0];
+		double mx = mn;
+		double pwr = 1.0;
+		int palette = 2;
+		for (int i = 0; i < fpixels.length; i++) {
+			double d = dpixels[i];
+			if (log_mode) {
+				if (!Double.isNaN(d)) {
+					if (d < 0.0) { //
+						d = 0.0;
+					} else if (d < disparity0) {
+						d = d/disparity0;
+					} else {
+						d = Math.log(d/disparity0) + 1.0;
+					}
+				}
+			}
+			if (!Double.isNaN(d)) {
+				if (!(d <= mx)) mx = d;
+				if (!(d >= mn)) mn = d;
+			}
+			dpixels[i] = d;
+		}
+		if (disparity_max > 0) {
+			mn = 0.0;
+			double d = disparity_max;
+			if (d < 0.0) { //
+				d = 0.0;
+			} else if (d < disparity0) {
+				d = d/disparity0;
+			} else {
+				d = Math.log(d/disparity0) + 1.0;
+			}
+			mx = d;
+			
+		}
+		
+		if (show_dialog2) {
+			GenericJTabbedDialog gd = new GenericJTabbedDialog("Colorization"+(log_mode?" {log mode)":""));
+			gd.addNumericField("min",                             mn,      5,8,"", "Minimal value to map");
+			gd.addNumericField("max",                             mx,      5,8,"", "Maximal value to map");
+			gd.addNumericField("pwr",                             pwr,     5,8,"", "Exponent power");
+			gd.addNumericField("palette",                         palette, 0,3,"", "Palette index");
+			gd.showDialog();
+			if (gd.wasCanceled()) return false;
+			mn=           gd.getNextNumber();
+			mx=           gd.getNextNumber();
+			pwr=          gd.getNextNumber();
+			palette= (int)gd.getNextNumber();
+		}
+		if (pwr != 1.0) {
+			if (mn < 0) {
+				mn = 0.0;
+			}
+			mn = Math.pow(mn, pwr); 
+			mx = Math.pow(mx, pwr);
+			for (int i = 0; i < dpixels.length; i++) {
+				if (dpixels[i] < 0) {
+					dpixels[i] = 0.0;
+
+				} else {
+					dpixels[i] = Math.pow(dpixels[i], pwr);	
+				}
+			}
+		}
+		
+		if (!linear_disparity && (legend_width > 0) ) {
+			for (int y = 0; y < height; y++) {
+				double d = ((mx-mn) * y) / height;
+				for (int i = 0; i < legend_width; i++) {
+					dpixels[width0 + legend_gap + i + y * width] = d;
+				}
+			}
+		}
+		
+		
+		double [][]  pseudo_pixels = new double [3] [dpixels.length];
+		ThermalColor tc = new ThermalColor(
+				palette, // 	public int     lwir_palette =           0; // 0 - white - hot, 1 - black - hot, 2+ - colored
+				mn,
+				mx,
+				255.0);
+		for (int i = 0; i < dpixels.length; i++) {
+			double [] rgb = tc.getRGB(dpixels[i]);
+			pseudo_pixels[0][i] = rgb[0]; // red
+			pseudo_pixels[1][i] = rgb[1]; // green
+			pseudo_pixels[2][i] = rgb[2]; // blue
+		}
+		String [] rgb_titles =  {"red","green","blue"};
+
+		ImageStack stack = (new  ShowDoubleFloatArrays()).makeStack(
+				pseudo_pixels, // iclt_data,
+				width,         // (tilesX + 0) * clt_parameters.transform_size,
+				height,        // (tilesY + 0) * clt_parameters.transform_size,
+				rgb_titles,    // or use null to get chn-nn slice names
+				true);         // replace NaN with 0.0
+		ImagePlus imp_pseudo =  EyesisCorrections.convertRGBAFloatToRGBA32(
+				stack,   // ImageStack stackFloat, //r,g,b,a
+				//						name+"ARGB"+suffix, // String title,
+				title+"-pseudo", // String title,
+				0.0,   // double r_min,
+				255.0, // double r_max,
+				0.0,   // double g_min,
+				255.0, // double g_max,
+				0.0,   // double b_min,
+				255.0, // double b_max,
+				0.0,   // double alpha_min,
+				1.0);  // double alpha_max)
+		imp_pseudo.getProcessor().resetMinAndMax();
+		imp_pseudo.show();
+		return true;
+	}
 	
 
 	public boolean exportMLData() {

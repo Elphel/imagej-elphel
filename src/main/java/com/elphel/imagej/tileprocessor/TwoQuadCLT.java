@@ -1,5 +1,4 @@
 package com.elphel.imagej.tileprocessor;
-import java.awt.Rectangle;
 /**
  ** TwoQuadCLT - Process images from a pair of Quad/Octal cameras
  **
@@ -22,6 +21,7 @@ import java.awt.Rectangle;
  ** -----------------------------------------------------------------------------**
  **
  */
+import java.awt.Rectangle;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -38,7 +38,9 @@ import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Properties;
 import java.util.Random;
 
@@ -8548,7 +8550,7 @@ if (debugLevel > -100) return true; // temporarily !
 	
 	public void intersceneAccumulate(
 			QuadCLT                                              quadCLT_main, // tiles should be set
-			CLTParameters             clt_parameters,
+			CLTParameters                                        clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
 			ColorProcParameters                                  colorProcParameters,
 			CorrectionColorProc.ColorGainsParameters             channelGainParameters,
@@ -8559,6 +8561,7 @@ if (debugLevel > -100) return true; // temporarily !
 			final boolean    updateStatus,
 			final int        debugLevel)  throws Exception
 	{
+//	double []            noise_sigma_level = {0.01, 1.5};
 		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
 			quadCLT_main.getGPU().resetGeometryCorrection();
 			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
@@ -8573,10 +8576,11 @@ if (debugLevel > -100) return true; // temporarily !
 		}
 		QuadCLT.SetChannels [] set_channels=quadCLT_main.setChannels(debugLevel); // TODO: use just the last one (to need this is no time)
 		
-		QuadCLT ref_quadCLT = quadCLT_main.spawnQuadCLT(
+		QuadCLT ref_quadCLT = quadCLT_main.spawnQuadCLTWithNoise( // spawnQuadCLT(
 				set_channels[set_channels.length-1].set_name,
 				clt_parameters,
 				colorProcParameters, //
+				null, // noise_sigma_level,   // double []            noise_sigma_level,
 				threadsMax,
 				debugLevel);
 		// temporarily fix wrong sign:
@@ -8595,10 +8599,441 @@ if (debugLevel > -100) return true; // temporarily !
 				clt_parameters,            // CLTParameters       clt_parameters,
 				colorProcParameters,       // ColorProcParameters colorProcParameters,
 				ref_quadCLT,               // QuadCLT [] scenes, // ordered by increasing timestamps
+				null, // noise_sigma_level,         // double []            noise_sigma_level,
 				clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
 		System.out.println("End of intersceneAccumulate()");
 		
 	}
+
+	public void intersceneNoiseStats(
+			QuadCLT                                              quadCLT_main, // tiles should be set
+			CLTParameters                                        clt_parameters,
+			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
+			ColorProcParameters                                  colorProcParameters,
+			CorrectionColorProc.ColorGainsParameters             channelGainParameters,
+			EyesisCorrectionParameters.RGBParameters             rgbParameters,
+			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+			Properties                                           properties,
+			final int        threadsMax,  // maximal number of threads to launch
+			final boolean    updateStatus,
+			final int        debugLevel)  throws Exception
+	{
+//		double []            noise_sigma_level = {0.01, 1.5, 1.0}; // amount, sigma, offset
+//		double []            noise_sigma_level = {0.1, 1.5, 1.0};  // amount, sigma, offset
+//		double []            noise_sigma_level = {1.0, 1.5, 1.0};  // amount, sigma, offset
+//		double []            noise_sigma_level = {3.0, 1.5, 1.0};  // amount, sigma, offset
+//		double []            noise_sigma_level = {5.0, 1.5, 1.0};  // amount, sigma, offset
+		double []            noise_sigma_level = null;
+		if (clt_parameters.inp.noise_scale > 0.0) {
+			noise_sigma_level = new double[] {
+					clt_parameters.inp.noise_scale,
+					clt_parameters.inp.noise_sigma,
+					clt_parameters.inp.initial_offset};  // amount, sigma, offset
+		}
+		
+		boolean ref_only =  clt_parameters.inp.ref_only; //  true; // process only reference frame (false - inter-scene)
+		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
+			quadCLT_main.getGPU().resetGeometryCorrection();
+			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
+		}
+		// final boolean    batch_mode = clt_parameters.batch_run;
+		this.startTime=System.nanoTime();
+		String [] sourceFiles0=quadCLT_main.correctionsParameters.getSourcePaths();
+		QuadCLT.SetChannels [] set_channels_main = quadCLT_main.setChannels(debugLevel);
+		if ((set_channels_main == null) || (set_channels_main.length==0)) {
+			System.out.println("No files to process (of "+sourceFiles0.length+")");
+			return;
+		}
+		QuadCLT.SetChannels [] set_channels=quadCLT_main.setChannels(debugLevel); // TODO: use just the last one (to need this is no time)
+		
+		QuadCLT ref_quadCLT = quadCLT_main.spawnQuadCLTWithNoise( // spawnQuadCLT(
+				set_channels[set_channels.length-1].set_name,
+				clt_parameters,
+				colorProcParameters, //
+				noise_sigma_level,   // double []            noise_sigma_level,
+				threadsMax,
+				clt_parameters.inp.noise_debug_level); // debugLevel);
+		/**/
+		getNoiseStats(
+				clt_parameters, // CLTParameters        clt_parameters,
+				ref_quadCLT, //QuadCLT              ref_scene, // ordered by increasing timestamps
+				debugLevel); // int                  debug_level);
+		/**/
+	}	
+	
+	
+	public void intersceneNoise(
+			QuadCLT                                              quadCLT_main, // tiles should be set
+			CLTParameters                                        clt_parameters,
+			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
+			ColorProcParameters                                  colorProcParameters,
+			CorrectionColorProc.ColorGainsParameters             channelGainParameters,
+			EyesisCorrectionParameters.RGBParameters             rgbParameters,
+			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+			Properties                                           properties,
+			final int        threadsMax,  // maximal number of threads to launch
+			final boolean    updateStatus,
+			final int        debugLevel)  throws Exception
+	{
+//		double []            noise_sigma_level = {0.01, 1.5, 1.0}; // amount, sigma, offset
+//		double []            noise_sigma_level = {0.1, 1.5, 1.0};  // amount, sigma, offset
+//		double []            noise_sigma_level = {1.0, 1.5, 1.0};  // amount, sigma, offset
+//		double []            noise_sigma_level = {3.0, 1.5, 1.0};  // amount, sigma, offset
+//		double []            noise_sigma_level = {5.0, 1.5, 1.0};  // amount, sigma, offset
+		double []            noise_sigma_level = null;
+		if (clt_parameters.inp.noise_scale > 0.0) {
+			noise_sigma_level = new double[] {
+					clt_parameters.inp.noise_scale,
+					clt_parameters.inp.noise_sigma,
+					clt_parameters.inp.initial_offset};  // amount, sigma, offset
+		}
+		
+		boolean ref_only =  clt_parameters.inp.ref_only; //  true; // process only reference frame (false - inter-scene)
+		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
+			quadCLT_main.getGPU().resetGeometryCorrection();
+			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
+		}
+		// final boolean    batch_mode = clt_parameters.batch_run;
+		this.startTime=System.nanoTime();
+		String [] sourceFiles0=quadCLT_main.correctionsParameters.getSourcePaths();
+		QuadCLT.SetChannels [] set_channels_main = quadCLT_main.setChannels(debugLevel);
+		if ((set_channels_main == null) || (set_channels_main.length==0)) {
+			System.out.println("No files to process (of "+sourceFiles0.length+")");
+			return;
+		}
+		QuadCLT.SetChannels [] set_channels=quadCLT_main.setChannels(debugLevel); // TODO: use just the last one (to need this is no time)
+		
+		QuadCLT ref_quadCLT = quadCLT_main.spawnQuadCLTWithNoise( // spawnQuadCLT(
+				set_channels[set_channels.length-1].set_name,
+				clt_parameters,
+				colorProcParameters, //
+				noise_sigma_level,   // double []            noise_sigma_level,
+				threadsMax,
+				clt_parameters.inp.noise_debug_level); // debugLevel);
+		/*
+		getNoiseStats(
+				clt_parameters, // CLTParameters        clt_parameters,
+				ref_quadCLT, //QuadCLT              ref_scene, // ordered by increasing timestamps
+				debugLevel); // int                  debug_level);
+		*/
+		// Create 4-slice image with noise from the current data
+		if (noise_sigma_level != null) {
+			String noisy_4slice_suffix = "-noise-level_"+ noise_sigma_level[0]+"-sigma_"+noise_sigma_level[1];
+			ref_quadCLT.genSave4sliceImage(
+					clt_parameters,        // CLTParameters                                   clt_parameters,
+					noisy_4slice_suffix,   // String                                          suffix,
+					debayerParameters,     // EyesisCorrectionParameters.DebayerParameters    debayerParameters,
+					colorProcParameters,   // ColorProcParameters                             colorProcParameters,
+					channelGainParameters, // CorrectionColorProc.ColorGainsParameters        channelGainParameters,
+					rgbParameters,         // EyesisCorrectionParameters.RGBParameters        rgbParameters,
+					threadsMax,            // final int                                       threadsMax,  // maximal number of threads to launch
+					clt_parameters.inp.noise_debug_level); // debugLevel);           // final int                                       debugLevel);
+		}
+		// temporarily fix wrong sign:
+//		ErsCorrection ers = (ErsCorrection) (ref_quadCLT.getGeometryCorrection());
+		ref_quadCLT.setDSRBG( // runs GPU to calculate average R,B,G
+				clt_parameters, // CLTParameters  clt_parameters,
+				threadsMax,     // int            threadsMax,  // maximal number of threads to launch
+				updateStatus,   // boolean        updateStatus,
+				clt_parameters.inp.noise_debug_level); // debugLevel);    // int            debugLevel)
+	
+//		if (debugLevel > -1000) return; // TODO: Remove
+		
+		
+		OpticalFlow opticalFlow = new OpticalFlow(
+				threadsMax, // int            threadsMax,  // maximal number of threads to launch
+				updateStatus); // boolean        updateStatus);
+		
+		opticalFlow.IntersceneNoise(
+				clt_parameters,            // CLTParameters       clt_parameters,
+				ref_only,                  // boolean              ref_only, // process only reference frame (false - inter-scene)
+				colorProcParameters,       // ColorProcParameters colorProcParameters,
+				ref_quadCLT,               // QuadCLT [] scenes, // ordered by increasing timestamps
+				noise_sigma_level,         // double []            noise_sigma_level,
+				clt_parameters.inp.noise_debug_level); // clt_parameters.ofp.debug_level_optical - 1); // 1); // -1); // int debug_level);
+		System.out.println("End of intersceneNoise()");
+	}
+
+	public void getNoiseStats(
+			CLTParameters        clt_parameters,
+			QuadCLT              ref_scene, // ordered by increasing timestamps
+			int                  debug_level)
+	{
+		String []            noise_files = {
+				"-results-lev_1.0E-6-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_1.0E-6-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_1.0E-6-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_0.01-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_0.01-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_0.01-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_0.1-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_0.1-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_0.1-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_0.2-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_0.2-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_0.2-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_0.3-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_0.3-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_0.3-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_0.4-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_0.4-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_0.4-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_0.5-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_0.5-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_0.5-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_0.6-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_0.6-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_0.6-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_0.7-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_0.7-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_0.7-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_0.8-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_0.8-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_0.8-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_0.9-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_0.9-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_0.9-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_1.0-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_1.0-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_1.0-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_1.2-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_1.2-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_1.2-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_1.4-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_1.4-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_1.4-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_1.6-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_1.6-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_1.6-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_1.8-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_1.8-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_1.8-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_2.0-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_2.0-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_2.0-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_2.2-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_2.2-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_2.2-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_2.4-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_2.4-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_2.4-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_2.6-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_2.6-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_2.6-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_2.8-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_2.8-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_2.8-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_3.0-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_3.0-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_3.0-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_3.3-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_3.3-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_3.3-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_3.6-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_3.6-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_3.6-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_4.0-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_4.0-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_4.0-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_4.5-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_4.5-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_4.5-sigma_1.5-offset1.0-nointer-mask1",
+
+				"-results-lev_5.0-sigma_1.5-offset1.0-inter-mask63",
+				"-results-lev_5.0-sigma_1.5-offset1.0-nointer-mask63",
+				"-results-lev_5.0-sigma_1.5-offset1.0-nointer-mask1"};
+		
+		getNoiseStats(
+				clt_parameters,
+				ref_scene, // ordered by increasing timestamps
+				noise_files,
+				debug_level);		
+	}
+
+	
+	
+	
+	public void getNoiseStats(
+			CLTParameters        clt_parameters,
+			QuadCLT              ref_scene, // ordered by increasing timestamps
+			String []            noise_files,
+			int                  debug_level)
+	{
+		/*
+		"disp-last",
+		"str_last",
+		"num vlaid" <= 1.0
+		*/
+		double max_diff = 0.01; // last diff >
+		double max_err = 2.0; // 1.0; // 0.5; // pix
+		double max_err1 =0.25; // pix
+		double min_strength = 0.0; // minimal strength to calculate rmse (ignore weaker)
+		int indx_used = 2;
+		int indx_last = 0;
+		int indx_initial = 3;
+		int indx_strength = 1;
+		double max_disparity = 200.0; // for max_err1
+		
+		final double[][] sky_map = ref_scene. readDoubleArrayFromModelDirectory(
+		"-sky_mask", // String      suffix,
+		0, // int         num_slices, // (0 - all)
+		null); // int []      wh);
+		
+		double [][] ref_dsn = ref_scene.readDoubleArrayFromModelDirectory(
+				"-results-nonoise", // String      suffix,
+				0, // int         num_slices, // (0 - all)
+				null); // int []      wh);
+		int indx_last_diff =  ref_dsn.length - 1;
+		boolean [] good_tiles = new boolean [ref_dsn[0].length];
+		int num_good_init = 0;
+		for (int i = 0; i < good_tiles.length; i++) {
+			good_tiles[i] = (ref_dsn[indx_used][i] > 0.999) && (Math.abs(ref_dsn[indx_last_diff][i]) < max_diff);
+			if (good_tiles[i] && (sky_map != null) && (sky_map[0][i] > 0.0)) {
+				good_tiles[i] = false;
+			}
+			if (good_tiles[i]){
+				num_good_init++;
+			}
+		}
+//		double  [] noise_level = new double  [noise_files.length];
+//		boolean [] intra =       new boolean [noise_files.length];
+//		boolean [] inter =       new boolean [noise_files.length];
+		class DisparityResults{
+			double [][] results;
+		}
+		HashMap <Double, DisparityResults> results_map = new HashMap <Double, DisparityResults> (); 
+		for (int nf = 0; nf < noise_files.length; nf++) {
+			String fn = noise_files[nf];
+			String [] tokens = fn.replace("E-","E_minus").split("-");
+			double noise_level = Double.parseDouble(tokens[2].replace("E_minus","E-").substring("lev_".length()));
+			boolean inter = !fn.contains("nointer");
+			boolean intra = !fn.contains("mask1");
+//			System.out.println("level="+noise_level+", inter="+inter+", intra="+intra);
+			
+			double [][] noise_dsn = ref_scene.readDoubleArrayFromModelDirectory(
+					fn, // noise_files[nf], // String      suffix,
+					0, // int         num_slices, // (0 - all)
+					null); // int []      wh);
+			boolean [] converged_tiles_this = good_tiles.clone();
+			boolean [] good_tiles_this = good_tiles.clone();
+			boolean [] good_tiles_this1 = good_tiles.clone();
+			int num_converged = 0;
+			int num_good = 0;
+			int num_good1 = 0;
+			int num_near = 0;
+			int num_converged_near = 0;
+			
+			
+			double s0 = 0.0;
+			double s2 = 0.0;
+			for (int i = 0; i < good_tiles.length; i++) if (good_tiles[i]) {
+				converged_tiles_this[i] = (Math.abs(noise_dsn[indx_last_diff][i]) < max_diff);
+				if (converged_tiles_this[i]){
+					num_converged++;
+					good_tiles_this[i] = (Math.abs(noise_dsn[indx_last][i] - noise_dsn[indx_initial][i]) < max_err);
+					if (good_tiles_this[i]) {
+						num_good++;
+						double w = (noise_dsn[indx_strength][i] < min_strength)? 0.0 : 1.0;
+						s0 += w;
+						double d = noise_dsn[indx_last][i] - noise_dsn[indx_initial][i];
+						s2 += w * d * d;
+					}
+					/*
+					good_tiles_this1[i] = (Math.abs(noise_dsn[indx_last][i] - noise_dsn[indx_initial][i]) < max_err1);
+					if (good_tiles_this1[i]) {
+						num_good1++;
+					}
+					*/
+				}
+				if (noise_dsn[indx_initial][i] <= max_disparity) { // only for near tiles
+					num_near++;
+					if (converged_tiles_this[i]){
+						num_converged_near++;
+						good_tiles_this1[i] = (Math.abs(noise_dsn[indx_last][i] - noise_dsn[indx_initial][i]) < max_err1);
+						if (good_tiles_this1[i]) {
+							num_good1++;
+						}
+					}					
+				}
+			}
+			double rmse = Math.sqrt(s2/s0);
+			/*
+			 * 		int indx_strength = 1;
+
+			double perc_good =      100.0* num_good/num_good_init;
+			double perc_good1 =     100.0* num_good1/num_good_init;
+			double perc_good_conf = 100.0* num_good/num_converged;
+			*/
+			double [] results = {
+					1.0* num_good/num_good_init,
+//					1.0* num_good1/num_good_init,
+					1.0* num_good1/num_near,
+					1.0* num_good/num_converged,
+					1.0* num_good1/num_converged_near,
+					rmse
+			};
+			if (!results_map.containsKey(noise_level)) {
+				DisparityResults dr = new DisparityResults();
+				dr.results = new double [3][];
+				results_map.put(noise_level, dr);
+			}
+			int results_index = inter ? 0 : (intra? 1 : 2);
+			DisparityResults dr = results_map.get(noise_level);
+			dr.results[results_index] = results;
+			System.out.println("getNoiseStats(): "+noise_files[nf]+": good_ref= " + num_good_init+
+//					", converged= "+num_converged+", good= "+num_good+", good(0.5)= "+perc_good+"%, good(0.1)= "+perc_good1+"%, perc_good_conf= "+perc_good_conf+"%");
+					", converged= "+num_converged+", good= "+num_good+" good(0.1)= "+num_good1+", num_near="+num_near);
+		}
+		List<Double> noise_levels_list = new ArrayList<Double>(results_map.keySet());
+		Collections.sort(noise_levels_list);
+		System.out.println("\n");
+		System.out.print("noise_level, ");
+		System.out.print("inter("+max_err+"), inter("+max_err1+"), inter_conf("+max_err+"), inter_conf("+max_err1+"), inter_rmse("+max_err+"),");
+		System.out.print("intra("+max_err+"), intra("+max_err1+"), intra_conf("+max_err+"), intra_conf("+max_err1+"), intra_rmse("+max_err+"),");
+		System.out.print("binocular("+max_err+"), binocular("+max_err1+"), binocular_conf("+max_err+"), binocular_conf("+max_err1+"), binocular_rmse("+max_err+")");
+		System.out.println();
+		for (Double nl:noise_levels_list) {
+			System.out.print(nl+", ");
+			double [][] results = results_map.get(nl).results;
+			for (int n = 0; n < results.length; n++) {
+				for (int i = 0; i < results[n].length; i++) {
+					System.out.print(results[n][i]);
+					if ((n < (results.length -1)) ||(i< (results[n].length - 1))) {
+						System.out.print(", ");
+					}
+				}
+			}
+			System.out.println();
+		}
+		System.out.println();
+	}
+	
+	
 	
 	public void batchLwirRig(
 			QuadCLT                                              quadCLT_main, // tiles should be set
@@ -8791,9 +9226,10 @@ if (debugLevel > -100) return true; // temporarily !
 							channelGainParameters,
 							rgbParameters,       // EyesisCorrectionParameters.RGBParameters        rgbParameters,
 							scaleExposures_main, // double []	                                    scaleExposures, // probably not needed here - restores brightness of the final image
+							false,               // boolean                                         only4slice,
 							threadsMax,          // final int        threadsMax,  // maximal number of threads to launch
 							updateStatus,        // final boolean    updateStatus,
-							debugLevel);        // final int        debugLevel);
+							debugLevel);         // final int        debugLevel);
 				} else {
 					if (updateStatus) IJ.showStatus("CPU: Rendering 4 image set (disparity = 0) for "+quadCLT_main.image_name+ "and a thumb nail");
 

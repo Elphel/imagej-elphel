@@ -2263,7 +2263,7 @@ public class OpticalFlow {
 				scene_atr,          // final double []   scene_atr, // camera orientation relative to world frame
 				scene_QuadClt,      // final QuadCLT     scene_QuadClt,
 				reference_QuadClt); // final QuadCLT     reference_QuadClt)
-		scene_QuadClt.getGpuQuad().setInterTasks(
+		scene_QuadClt.getGPU().setInterTasks(
 				scene_pXpYD, // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
        			scene_QuadClt.getGeometryCorrection(), // final GeometryCorrection  geometryCorrection,
        			scene_disparity_cor, // final double              disparity_corr,
@@ -3114,10 +3114,11 @@ public class OpticalFlow {
 	}
 
 	public void IntersceneAccumulate(
-			CLTParameters  clt_parameters,
-			ColorProcParameters                                  colorProcParameters,
-			QuadCLT ref_scene, // ordered by increasing timestamps
-			int debug_level
+			CLTParameters        clt_parameters,
+			ColorProcParameters  colorProcParameters,
+			QuadCLT              ref_scene, // ordered by increasing timestamps
+			double []            noise_sigma_level,
+			int                  debug_level
 			)
 	{
 		System.out.println("IntersceneAccumulate(), scene timestamp="+ref_scene.getImageName());
@@ -3130,10 +3131,11 @@ public class OpticalFlow {
 		scenes[indx_ref] = ref_scene;
 		
 		for (int i = 0; i < sts.length; i++) {
-			scenes[i] = ref_scene.spawnQuadCLT(
+			scenes[i] = ref_scene.spawnQuadCLTWithNoise( // spawnQuadCLT(
 					sts[i],
 					clt_parameters,
 					colorProcParameters, //
+					noise_sigma_level,   // double []            noise_sigma_level,
 					threadsMax,
 					-1); // debug_level);
 			scenes[i].setDSRBG(
@@ -3143,31 +3145,58 @@ public class OpticalFlow {
 					-1); // debug_level);    // int            debugLevel)
 		}
 		
-		
 		final double [][] combo_dsn =  prepareInitialComboDS(
 				clt_parameters,   // final CLTParameters       clt_parameters,
 				scenes,           // final QuadCLT []          scenes,
 				indx_ref,         // final int                 indx_ref,
 				debug_level-2);     // final int                 debug_level);
-
+		final double [][] combo_dsn_change = new double [combo_dsn.length+1][];
+		for (int i = 0; i < combo_dsn.length; i++) {
+			combo_dsn_change[i] = combo_dsn[i];
+		}
 
 		final int margin = 8;
 		final int tilesX = ref_scene.getTileProcessor().getTilesX();
 		final int tilesY = ref_scene.getTileProcessor().getTilesY();
-////		final int tiles =tilesX * tilesY;
-		
+
+		String [] combo_dsn_titles = {"disp", "strength", "num_valid","change"};
+	
 		if (debug_level >-3) {
-			String [] dbg_titles = {"disp", "strength", "num_valid"};
 			(new ShowDoubleFloatArrays()).showArrays(
-					combo_dsn,
+					combo_dsn_change,
 					tilesX,
 					tilesY,
 					true,
 					"combo_dsn-initial"+ref_scene.getImageName(),
-					dbg_titles); //	dsrbg_titles);
+					combo_dsn_titles); //	dsrbg_titles);
 		}
 		
 		final int max_refines = 10;
+		final String [] iter_titles = {"disp", "diff", "strength"};
+		final int [] iter_indices = {0,1,3};
+		final int last_slices = combo_dsn_titles.length;
+		final int last_initial_slices = last_slices + iter_titles.length;
+		
+		final double [][] refine_results = new double [last_slices + 3 * (max_refines + 1)][];
+		String [] refine_titles = new String [refine_results.length];
+		for (int i = 0; i < combo_dsn_titles.length; i++) {
+			refine_results[i] = combo_dsn_change[i];
+			refine_titles[i] = combo_dsn_titles[i]+"-last";
+		}
+		for (int i = 0; i < iter_titles.length; i++) {
+			refine_titles[last_slices + i] = iter_titles[i]+"-initial";
+			if (combo_dsn_change[iter_indices[i]] != null) {
+				refine_results[last_slices + i] = combo_dsn_change[iter_indices[i]].clone();
+			} else {
+				refine_results[last_slices + i] = new double [tilesX * tilesY];
+			}
+		}
+		for (int nrefine = 0; nrefine < max_refines; nrefine++) {
+			for (int i = 0; i < iter_titles.length; i++) {
+				refine_titles[last_initial_slices + i * max_refines + nrefine ] = combo_dsn_titles[i]+"-"+nrefine;
+			}
+		}		
+		
 		for (int nrefine = 0; nrefine < max_refines; nrefine++) {
 			Runtime.getRuntime().gc();
 			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
@@ -3178,10 +3207,10 @@ public class OpticalFlow {
 							clt_parameters, // final CLTParameters  clt_parameters,
 							scenes,         // final QuadCLT []     scenes,
 							indx_ref,       // final int            indx_ref,
-							combo_dsn[0],   // final double []      disparity_ref,  // disparity in the reference view tiles (Double.NaN - invalid)
+							combo_dsn_change[0],   // final double []      disparity_ref,  // disparity in the reference view tiles (Double.NaN - invalid)
 							margin,         // final int            margin,
 							nrefine,        // final int            nrefine, // just for debug title
-							debug_level);   // final int            debug_level)
+							debug_level-5);   // final int            debug_level)
 
 			Runtime.getRuntime().gc();
 			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
@@ -3197,53 +3226,46 @@ public class OpticalFlow {
 			// update disparities
 			final int disparity_index = ImageDtt.DISPARITY_INDEX_CM; // 2
 			final int strength_index =  ImageDtt.DISPARITY_STRENGTH_INDEX; // 10
-			for (int nTile =0; nTile < combo_dsn[0].length; nTile++) {
-				if (!Double.isNaN(combo_dsn[0][nTile]) && !Double.isNaN(disparity_map[disparity_index][nTile])) {
-					combo_dsn[0][nTile] += disparity_map[disparity_index][nTile];
-					combo_dsn[1][nTile]  = disparity_map[strength_index][nTile];
+			for (int nTile =0; nTile < combo_dsn_change[0].length; nTile++) {
+				if (!Double.isNaN(combo_dsn_change[0][nTile]) && !Double.isNaN(disparity_map[disparity_index][nTile])) {
+					combo_dsn_change[0][nTile] += disparity_map[disparity_index][nTile];
+					combo_dsn_change[1][nTile]  = disparity_map[strength_index][nTile];
 				}
 			}
+			combo_dsn_change[combo_dsn_change.length -1] = disparity_map[disparity_index]; 
+			
+			for (int i = 0; i < iter_titles.length; i++) {
+				refine_results[last_initial_slices + (i * max_refines) + nrefine] = combo_dsn_change[iter_indices[i]].clone();
+			}
+			
 			if (debug_level >-3) {
-				String [] dbg_titles = {"disp", "strength", "num_valid"};
 				(new ShowDoubleFloatArrays()).showArrays(
-						combo_dsn,
+						combo_dsn_change,
 						tilesX,
 						tilesY,
 						true,
 						"combo_dsn-"+nrefine+"-"+ref_scene.getImageName(),
-						dbg_titles); //	dsrbg_titles);
+						combo_dsn_titles); //	dsrbg_titles);
 			}
 		}
-/*		
 		
-		if (debug_level > -10){ // -1
-			ImageDtt image_dtt = new ImageDtt(
-					clt_parameters.transform_size,
-					ref_scene.isMonochrome(),
-					ref_scene.isLwir(),
-					clt_parameters.getScaleStrength(ref_scene.isAux()),
-					ref_scene.getGpuQuad());
-
-			double [][] dbg_corr_rslt_partial = image_dtt.corr_partial_dbg(
-					clt_corr_partial,
-					2*8 - 1,	//final int corr_size,
-					4,	// final int pairs,
-					4,    // final int colors,
-					clt_parameters.corr_border_contrast,
-					threadsMax,
-					debug_level);
-			// titles.length = 15, corr_rslt_partial.length=16!
-			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
-					dbg_corr_rslt_partial,
-					tilesX*(2*8),
-					tilesY*(2*8),
+		if (debug_level >-5) {
+			(new ShowDoubleFloatArrays()).showArrays(
+					refine_results,
+					tilesX,
+					tilesY,
 					true,
-					ref_scene.getImageName()+"-TD-PART_CORR-D"+clt_parameters.disparity,
-					ImageDtt.CORR_TITLES);
-			//					  titles);
+					"combo-"+max_refines+"-"+ref_scene.getImageName(),
+					refine_titles); //	dsrbg_titles);
 		}
-*/
+		ref_scene.saveDoubleArrayInModelDirectory(
+				"-results-nonoise",  // String      suffix,
+				refine_titles,       // null,          // String []   labels, // or null
+				refine_results,      // dbg_data,         // double [][] data,
+				tilesX,              // int         width,
+				tilesY);             // int         height)
 		
+		// save combo_dsn_change to model directory
 		if (debug_level >-100) {
 			return;
 		}
@@ -3276,6 +3298,218 @@ public class OpticalFlow {
 		// create initial disparity map for the reference scene
 		
 	}
+	
+	public void IntersceneNoise(
+			CLTParameters        clt_parameters,
+			boolean              ref_only, // process only reference frame (false - inter-scene)
+			ColorProcParameters  colorProcParameters,
+			QuadCLT              ref_scene, // ordered by increasing timestamps
+			double []            noise_sigma_level,
+			int                  debug_level
+			)
+	{
+		System.out.println("IntersceneNoise(), scene timestamp="+ref_scene.getImageName());
+		ErsCorrection ers_reference = ref_scene.getErsCorrection();
+		String [] sts = ref_only ? (new String [0]) : ers_reference.getScenes();
+		// get list of all other scenes
+		int num_scenes = sts.length + 1;
+		int indx_ref = num_scenes - 1; 
+		QuadCLT [] scenes = new QuadCLT [num_scenes];
+		scenes[indx_ref] = ref_scene;
+		
+		for (int i = 0; i < sts.length; i++) {
+			scenes[i] = ref_scene.spawnQuadCLTWithNoise( // spawnQuadCLT(
+					sts[i],
+					clt_parameters,
+					colorProcParameters, //
+					noise_sigma_level,   // double []            noise_sigma_level,
+					threadsMax,
+					-1); // debug_level);
+			scenes[i].setDSRBG(
+					clt_parameters, // CLTParameters  clt_parameters,
+					threadsMax,     // int            threadsMax,  // maximal number of threads to launch
+					updateStatus,   // boolean        updateStatus,
+					-1); // debug_level);    // int            debugLevel)
+		}
+		
+		double [][] combo_dsn =  null;
+		if (noise_sigma_level == null) {
+			combo_dsn = prepareInitialComboDS(
+					clt_parameters,   // final CLTParameters       clt_parameters,
+					scenes,           // final QuadCLT []          scenes,
+					indx_ref,         // final int                 indx_ref,
+					debug_level-2);     // final int                 debug_level);
+		} else {
+			combo_dsn = ref_scene. readDoubleArrayFromModelDirectory(
+					"-results-nonoise", // String      suffix,
+					3, // int         num_slices, // (0 - all)
+					null); // int []      wh);
+
+		}
+		final double [][] combo_dsn_change = new double [combo_dsn.length+1][];
+		for (int i = 0; i < combo_dsn.length; i++) {
+			combo_dsn_change[i] = combo_dsn[i];
+		}
+		final int margin = 8;
+		final int tilesX = ref_scene.getTileProcessor().getTilesX();
+		final int tilesY = ref_scene.getTileProcessor().getTilesY();
+
+		String [] combo_dsn_titles = {"disp", "strength", "num_valid","change"};
+	
+		if (debug_level > 0) {
+			(new ShowDoubleFloatArrays()).showArrays(
+					combo_dsn_change,
+					tilesX,
+					tilesY,
+					true,
+					"combo_dsn-initial"+ref_scene.getImageName(),
+					combo_dsn_titles); //	dsrbg_titles);
+		}
+		
+		final int max_refines = 10;
+		final String [] iter_titles = {"disp", "diff", "strength"};
+		final int [] iter_indices = {0,1,3};
+		final int last_slices = combo_dsn_titles.length;
+		final int last_initial_slices = last_slices + iter_titles.length;
+		
+		final double [][] refine_results = new double [last_slices + 3 * (max_refines + 1)][];
+		String [] refine_titles = new String [refine_results.length];
+		for (int i = 0; i < combo_dsn_titles.length; i++) {
+			refine_results[i] = combo_dsn_change[i];
+			refine_titles[i] = combo_dsn_titles[i]+"-last";
+		}
+		for (int i = 0; i < iter_titles.length; i++) {
+			refine_titles[last_slices + i] = iter_titles[i]+"-initial";
+			if (combo_dsn_change[iter_indices[i]] != null) {
+				refine_results[last_slices + i] = combo_dsn_change[iter_indices[i]].clone();
+			} else {
+				refine_results[last_slices + i] = new double [tilesX * tilesY];
+			}
+		}
+		for (int nrefine = 0; nrefine < max_refines; nrefine++) {
+			for (int i = 0; i < iter_titles.length; i++) {
+				refine_titles[last_initial_slices + i * max_refines + nrefine ] = combo_dsn_titles[iter_indices[i]]+"-"+nrefine;
+			}
+		}		
+		if (noise_sigma_level != null) { // add initial offset to the expected disparity
+			for (int i = 0; i < combo_dsn_change[0].length; i++) {
+				combo_dsn_change[0][i] += noise_sigma_level[2]; 
+			}
+		}
+		for (int nrefine = 0; nrefine < max_refines; nrefine++) {
+			Runtime.getRuntime().gc();
+			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+
+			double [][] disparity_map = 
+					//		double [][][][][] clt_corr_partial =
+					correlateInterscene(
+							clt_parameters, // final CLTParameters  clt_parameters,
+							scenes,         // final QuadCLT []     scenes,
+							indx_ref,       // final int            indx_ref,
+							combo_dsn_change[0],   // final double []      disparity_ref,  // disparity in the reference view tiles (Double.NaN - invalid)
+							margin,         // final int            margin,
+							nrefine,        // final int            nrefine, // just for debug title
+							debug_level-5);   // final int            debug_level)
+
+			Runtime.getRuntime().gc();
+			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+			if (debug_level >0) {
+				(new ShowDoubleFloatArrays()).showArrays(
+						disparity_map,
+						tilesX,
+						tilesY,
+						true,
+						"accumulated_disparity_map-"+nrefine,
+						ImageDtt.DISPARITY_TITLES
+						);
+			}
+			// update disparities
+			final int disparity_index = ImageDtt.DISPARITY_INDEX_CM; // 2
+			final int strength_index =  ImageDtt.DISPARITY_STRENGTH_INDEX; // 10
+			for (int nTile =0; nTile < combo_dsn_change[0].length; nTile++) {
+				if (!Double.isNaN(combo_dsn_change[0][nTile]) && !Double.isNaN(disparity_map[disparity_index][nTile])) {
+					combo_dsn_change[0][nTile] += disparity_map[disparity_index][nTile];
+					combo_dsn_change[1][nTile]  = disparity_map[strength_index][nTile];
+				}
+			}
+			combo_dsn_change[combo_dsn_change.length -1] = disparity_map[disparity_index]; 
+			
+			for (int i = 0; i < iter_titles.length; i++) {
+				refine_results[last_initial_slices + (i * max_refines) + nrefine] = combo_dsn_change[iter_indices[i]].clone();
+			}
+			
+			if (debug_level >0) {
+				(new ShowDoubleFloatArrays()).showArrays(
+						combo_dsn_change,
+						tilesX,
+						tilesY,
+						true,
+						"combo_dsn-"+nrefine+"-"+ref_scene.getImageName(),
+						combo_dsn_titles); //	dsrbg_titles);
+			}
+		}
+		
+		if (debug_level > 0) {
+			(new ShowDoubleFloatArrays()).showArrays(
+					refine_results,
+					tilesX,
+					tilesY,
+					true,
+					"combo-"+max_refines+"-"+ref_scene.getImageName(),
+					refine_titles); //	dsrbg_titles);
+		}
+		//noise_sigma_level
+		String rslt_suffix = "-results-nonoise";
+		if (noise_sigma_level != null) {
+			rslt_suffix = "-results-lev_"+noise_sigma_level[0]+"-sigma_"+noise_sigma_level[1]+"-offset"+noise_sigma_level[2];
+			if (ref_only) {
+				rslt_suffix +="-nointer";
+			} else {
+				rslt_suffix +="-inter";
+			}
+			rslt_suffix +="-mask"+clt_parameters.img_dtt.dbg_pair_mask;
+		}
+		ref_scene.saveDoubleArrayInModelDirectory(
+				rslt_suffix,         // String      suffix,
+				refine_titles,       // null,          // String []   labels, // or null
+				refine_results,      // dbg_data,         // double [][] data,
+				tilesX,              // int         width,
+				tilesY);             // int         height)
+		// save combo_dsn_change to model directory
+		if (debug_level >-100) {
+			return;
+		}
+		
+		System.out.println("IntersceneAccumulate(), got previous scenes: "+sts.length);
+		if (debug_level > 1) { // tested OK
+			System.out.println("IntersceneAccumulate(): preparing image set...");
+			int nscenes = scenes.length;
+			//			int indx_ref = nscenes - 1; 
+			double [][][] all_scenes_xyzatr = new double [scenes.length][][]; // includes reference (last)
+			double [][][] all_scenes_ers_dt = new double [scenes.length][][]; // includes reference (last)
+			all_scenes_xyzatr[indx_ref] = new double [][] {ZERO3,ZERO3};
+			all_scenes_ers_dt[indx_ref] = new double [][] {
+				ers_reference.getErsXYZ_dt(),
+				ers_reference.getErsATR_dt()};
+				
+				for (int i = 0; i < nscenes; i++) if (i != indx_ref) {
+					String ts = scenes[i].getImageName();
+					all_scenes_xyzatr[i] = new double[][] {ers_reference.getSceneXYZ(ts),       ers_reference.getSceneATR(ts)}; 		
+					all_scenes_ers_dt[i] = new double[][] {ers_reference.getSceneErsXYZ_dt(ts), ers_reference.getSceneErsATR_dt(ts)}; 		
+				}
+				compareRefSceneTiles(
+						"" ,               // String suffix,
+						true, // false,             // boolean blur_reference,
+						all_scenes_xyzatr, // double [][][] scene_xyzatr, // does not include reference
+						all_scenes_ers_dt, // double [][][] scene_ers_dt, // does not include reference
+						scenes,            // QuadCLT [] scenes,
+						8);                // int iscale) // 8
+		}
+		// create initial disparity map for the reference scene
+		
+	}
+	
+	
 	
 	
 	public double [][] prepareInitialComboDS(
@@ -3401,7 +3635,6 @@ public class OpticalFlow {
 	
 	
 	public double[][] correlateInterscene(
-//	public double [][][][][] correlateInterscene(
 			final CLTParameters  clt_parameters,
 			final QuadCLT []     scenes,
 			final int            indx_ref,
@@ -3411,6 +3644,7 @@ public class OpticalFlow {
 			final int            debug_level
 			)
 	{
+		// Debug images if debug_level > -2
 		final double fat_zero_pre = (debug_level>-100)?-1.0:0.0; //100000.0; // 10000.0; // 1000.0; //
 		final double output_amplitude = 30000; // 10000; // 1000; // 200; // 50.0;
 		final int num_scenes = scenes.length;
@@ -3426,16 +3660,7 @@ public class OpticalFlow {
 				ref_scene.isMonochrome(),
 				ref_scene.isLwir(),
 				clt_parameters.getScaleStrength(ref_scene.isAux()),
-				ref_scene.getGpuQuad());
-		/*
-		double [][][][][] clt_corr_partial = null;		
-		clt_corr_partial = new double [tilesY][tilesX][][][];
-		for (int i = 0; i < tilesY; i++){
-			for (int j = 0; j < tilesX; j++){
-				clt_corr_partial[i][j] = null;
-			}
-		}
-		*/
+				ref_scene.getGPU());
 		double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
 
 		int disparity_modes = 
@@ -3446,8 +3671,8 @@ public class OpticalFlow {
 //		final Rectangle tile_woi = new Rectangle(81,77,64,97); // for visualizations
 		final Rectangle tile_woi = new Rectangle(30,70,50,110); // for visualizations
 		final int vis_gap = 2;
-		final float [][] vis_corr_td = new float[num_scenes + 1][]; // transform-domain visualization
-		final float [][] vis_corr_pd = new float[num_scenes + 2][]; // pixel-domain visualization
+		final float [][] vis_corr_td = (debug_level > -2) ? (new float[num_scenes + 1][]) : null; // transform-domain visualization
+		final float [][] vis_corr_pd = (debug_level > -2) ? (new float[num_scenes + 2][]) : null; // pixel-domain visualization
 		final int [] wis_wh = new int [2];
 		final float [][][][] fclt_corrs = new float [num_scenes+1][tilesX*tilesY][][]; // will only contain tile_woi tiles to save memory
 		for (int i = 0; i < num_scenes; i++) {
@@ -3483,8 +3708,8 @@ public class OpticalFlow {
 						scenes[i],      // final QuadCLT     scene_QuadClt,
 						ref_scene); // final QuadCLT     reference_QuadClt)
 			}
-			if (scenes[i].getGpuQuad().getQuadCLT() != scenes[i]) {
-				scenes[i].getGpuQuad().updateQuadCLT(scenes[i]); // to re-load new set of Bayer images to the GPU
+			if (scenes[i].getGPU().getQuadCLT() != scenes[i]) {
+				scenes[i].getGPU().updateQuadCLT(scenes[i]); // to re-load new set of Bayer images to the GPU
 			}
 			final double disparity_corr = 0.0; // (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
 			final double gpu_sigma_corr =     clt_parameters.getGpuCorrSigma(scenes[i].isMonochrome());
@@ -3510,6 +3735,8 @@ public class OpticalFlow {
 					clt_parameters.corr_blue,      // +used
 					threadsMax,                    // final int             threadsMax,       // maximal number of threads to launch
 					debug_level);                  // final int                 globalDebugLevel)
+			
+			// experimental, not currently uxsed
 			if (fat_zero_pre >= 0.0) {
 				ImageDtt.corr_td_normalize(
 						fcorrs_td[i], // final float [][][][] fcorr_td, // will be updated
@@ -3662,7 +3889,7 @@ public class OpticalFlow {
 		ImageDtt.startAndJoin(threads);
 //		// TODO: Visualize each correlation - individual and combo
 		// testing: overwrite with reference frame correlations
-		if (debug_level < -100) {
+		if (debug_level < -100) { 
 			for (int i = 0; i < fcorr_combo_td.length; i++) {
 				fcorr_combo_td[i] = fcorrs_combo_td[indx_ref][i].clone();
 			}
@@ -3674,8 +3901,9 @@ public class OpticalFlow {
 			fcorrs_td[i] = null;
 			fcorrs_combo_td[i] = null;
 		}
-		if (debug_level > -10){ // -1
-			final int indx_corr = -1;
+		if (debug_level > -2){ // -1
+			int indx_corr = -1;
+			indx_corr = -1;
 			final float [][][][] fcorr_td_dbg =       (indx_corr < 0) ? fcorr_td : fcorrs_td[indx_corr];
 			final float [][][][] fcorr_combo_td_dbg = (indx_corr < 0) ? fcorr_combo_td : fcorrs_combo_td[indx_corr];
 			int [] wh = new int[2];
@@ -3751,17 +3979,6 @@ public class OpticalFlow {
 				clt_parameters.tileY,          		// final int               debug_tileY,
 				threadsMax,
 				debug_level -1 );
-		/*
-		 (new ShowDoubleFloatArrays()).showArrays(
-				 disparity_map,
-				 tilesX,
-				 tilesY,
-				 true,
-				 "accumulated_disparity_map",
-				 ImageDtt.DISPARITY_TITLES
-//				 ,dbg_titles
-				 );
-		 */
 		if (vis_corr_pd != null) { // add combined data as the last slice
 			vis_corr_pd[num_scenes] = ImageDtt.corr_partial_wnd( // not used in lwir
 					fclt_corr,                      // clt_corr_partial,               // final double [][][][][] corr_data,
@@ -3789,13 +4006,12 @@ public class OpticalFlow {
 
 
 
-		if (debug_level > -10){ // -1
+		if (debug_level > -2){ // -1
 			float [][] dbg_corr_rslt_partial = ImageDtt.corr_partial_dbg(
 					fclt_corr, // final float  [][][]     fcorr_data,       // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 					tilesX,    //final int               tilesX,
 					2*image_dtt.transform_size - 1,	//final int corr_size,
 					10, // final int layers 4,	// final int pairs,
-//					4,    // final int colors,
 					clt_parameters.corr_border_contrast,
 					threadsMax,
 					debug_level);
@@ -3865,10 +4081,7 @@ public class OpticalFlow {
 					"PD-"+"FZ-"+(clt_parameters.getGpuFatZero(ref_scene.isMonochrome()))+"-"+tile_woi.x+"_"+tile_woi.y+"-"+nrefine,
 					dbg_titles);
 		}		  
-		 
 		return disparity_map; // disparity_map
-//		return clt_corr_partial; // disparity_map
-
 	}
 	
 	
@@ -3969,7 +4182,7 @@ public class OpticalFlow {
 			};
 		}		      
 		ImageDtt.startAndJoin(threads);
-		scene.getGpuQuad().setInterTasks(
+		scene.getGPU().setInterTasks(
 				pXpYD, // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
     			scene.getGeometryCorrection(), // final GeometryCorrection  geometryCorrection,
     			disparity_corr, // final double              disparity_corr,

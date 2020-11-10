@@ -37,6 +37,7 @@ import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
 import java.util.Arrays;
 import java.util.Properties;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.DoubleAccumulator;
 
@@ -51,9 +52,19 @@ import com.elphel.imagej.gpu.GPUTileProcessor;
 
 import ij.ImagePlus;
 import ij.ImageStack;
+import ij.Prefs;
+import ij.io.FileSaver;
 public class QuadCLT extends QuadCLTCPU {
 	int dbg_lev = 1;
-	private GPUTileProcessor.GpuQuad gpuQuad =              null;	
+	private GPUTileProcessor.GpuQuad gpuQuad =              null; 	// use updateQuadCLT() to update after switching to a different
+	// QuadCLT instance, this.getGPU().getQuadCLT() should be equal to this
+	/*
+			if (getGPU().getQuadCLT() != this) {
+				getGPU().updateQuadCLT(this); // to re-load new set of Bayer images to the GPU
+			}
+
+	 */
+	
 	public QuadCLT(
 			String                                          prefix,
 			Properties                                      properties,
@@ -74,14 +85,12 @@ public class QuadCLT extends QuadCLTCPU {
 		}
 	}
 	
-	public GPUTileProcessor.GpuQuad getGpuQuad(){
-		return this.gpuQuad;
-	}
 	public QuadCLT restoreFromModel(
-			CLTParameters  clt_parameters,
-			ColorProcParameters                       colorProcParameters, //
-			int                                       threadsMax,
-			int                                       debugLevel)
+			CLTParameters        clt_parameters,
+			ColorProcParameters  colorProcParameters,
+			double []            noise_sigma_level,
+			int                  threadsMax,
+			int                  debugLevel)
 
 	{
 		final int        debugLevelInner=clt_parameters.batch_run? -2: debugLevel;
@@ -117,6 +126,13 @@ public class QuadCLT extends QuadCLTCPU {
 				saturation_imp,                 // output  // boolean [][]                              saturation_imp,
 				threadsMax,                     // int                                       threadsMax,
 				debugLevelInner);               // int                                       debugLevel);
+		if (noise_sigma_level != null) {
+			generateAddNoise(
+					"-NOISE",
+					noise_sigma_level,
+					threadsMax,
+					1); // debugLevel); // final int       debug_level)
+		}
 		restoreDSI("-DSI_MAIN"); // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
 		restoreInterProperties( // restore properties for interscene processing (extrinsics, ers, ...)
 				null, // String path,             // full name with extension or null to use x3d directory
@@ -125,7 +141,210 @@ public class QuadCLT extends QuadCLTCPU {
 //		showDSIMain();
 		return this; //  can only be QuadCLT instance
 	}
+	
+	// generate and save noise file (each Bayer component amplitude same as the corresponding image average,
+	// apply gaussian blur with sigma (before Bayer scaling)
+	// If file with the same sigma already exists in the model directory - just use it, multiply by noise_sigma_level[0] and add to the non-zero Bayer
+	
+	public void generateAddNoise(
+			final String    suffix,
+			final double [] noise_sigma_level,
+			final int       threadsMax,
+			final int       debug_level)
+	{
+		final double scale =noise_sigma_level[0];
+		final double sigma =noise_sigma_level[1];
+		final int num_cams = this.image_data.length;
+		final int num_cols = image_data[0].length;
+		final int [] image_wh = geometryCorrection.getSensorWH();
+		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
+				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+				correctionsParameters.x3dModelVersion,
+				true,  // smart,
+				true);  //newAllowed, // save
+		String noise_suffix = suffix + sigma;
+		String file_name = image_name + noise_suffix;
+		String file_path = x3d_path + Prefs.getFileSeparator() + file_name + ".tiff";
+		ImagePlus imp = null;
+		try {
+			imp = new ImagePlus(file_path);
+		} catch (Exception e) {
+			System.out.println ("Failed to open "+file_path+", will generate it");
+		}
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		if ((imp == null) || (imp.getTitle() == null) || (imp.getTitle().equals(""))) {
+			System.out.println ("Empty "+file_path+", will generate it");
+			int num_pix = image_wh[0] * image_wh[1];
+			final double [][] noise = new double [num_cams][num_pix];
+			for (int q = 0; q < num_cams; q++) {
+				final int fq = q;
+				ai.set(0);
+				for (int ithread = 0; ithread < threads.length; ithread++) {
+					threads[ithread] = new Thread() {
+						public void run() {
+							Random random = new Random();
+							for (int i = ai.getAndIncrement(); i < noise[0].length; i = ai.getAndIncrement()) {
+								noise[fq][i] = random.nextGaussian();
+							}
+						}
+					};
+				}		      
+				ImageDtt.startAndJoin(threads);
+			}
+			ai.set(0);
+			if (sigma > 0) {
+				for (int ithread = 0; ithread < threads.length; ithread++) {
+					threads[ithread] = new Thread() {
+						public void run() {
+							for (int q = ai.getAndIncrement(); q <num_cams; q = ai.getAndIncrement()) {
+								(new DoubleGaussianBlur()).blurDouble(noise[q],  image_wh[0], image_wh[1], sigma, sigma, 0.01);
+							}
+						}
+					};
+				}		      
+				ImageDtt.startAndJoin(threads);
+			}
+			for (int q = 0; q < num_cams; q++) {
+				final int fq = q;
+				double [] sc = new double [num_cols];
+				for (int c =0; c < num_cols; c++) {
+					for (int i =0; i < image_data[q][c].length; i++) {
+						sc[c] += image_data[q][c][i];
+					}
+				}
+				final double [][] sb = {
+						{sc[2] * 2.0 / num_pix, sc[0] * 4.0 / num_pix},
+						{sc[1] * 4.0 / num_pix, sc[2] * 2.0 / num_pix}};
+				ai.set(0);
+				for (int ithread = 0; ithread < threads.length; ithread++) {
+					threads[ithread] = new Thread() {
+						public void run() {
+							for (int i = ai.getAndIncrement(); i < noise[0].length; i = ai.getAndIncrement()) {
+								int dx = (i % image_wh[0]) & 1;
+								int dy = (i / image_wh[0]) & 1;
+								noise[fq][i] *= sb[dy][dx];
+							}
+						}
+					};
+				}		      
+				ImageDtt.startAndJoin(threads);
+			}
+			imp = saveDoubleArrayInModelDirectory(
+					noise_suffix,  // String      suffix,
+					null,          // String []   labels, // or null
+					noise,         // double [][] data,
+					image_wh[0],   // int         width,
+					image_wh[1]);  // int         height)
+		}
+		ImageStack imageStack = imp.getStack();
+		float [][] fpixels = new float [num_cams][];
+		for (int q = 0; q < num_cams; q++) {
+			fpixels[q] = (float[]) imageStack.getPixels(q+1);
+		}
+		for (int q = 0; q < num_cams; q++) {
+			final int fq = q;
+			for (int c =0; c < num_cols; c++) {
+				final int fc = c;
+				ai.set(0);
+				for (int ithread = 0; ithread < threads.length; ithread++) {
+					threads[ithread] = new Thread() {
+						public void run() {
+							for (int i = ai.getAndIncrement(); i < image_data[fq][fc].length; i = ai.getAndIncrement()) {
+								if (image_data[fq][fc][i] != 0.0) {
+									image_data[fq][fc][i] += scale * fpixels[fq][i];
+								}
+							}
+						}
+					};
+				}		      
+				ImageDtt.startAndJoin(threads);
+			}			
+		}
+		if (debug_level > 100) {
+			double [][] dbg_data = new double [num_cams*num_cols][];
+			for (int q = 0; q < num_cams;q++) {
+				for (int c = 0; c < num_cols; c++) {
+					dbg_data[q*num_cols+c] = image_data[q][c];
+				}
+			}
+			saveDoubleArrayInModelDirectory(
+					noise_suffix + "-MIXED"+noise_sigma_level[0],  // String      suffix,
+					null,          // String []   labels, // or null
+					dbg_data,         // double [][] data,
+					image_wh[0],   // int         width,
+					image_wh[1]);  // int         height)
+		}
+	}
+	
+	public ImagePlus saveDoubleArrayInModelDirectory(
+			String      suffix,
+			String []   labels, // or null
+			double [][] data,
+			int         width,
+			int         height)
+	{
+		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
+				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+				correctionsParameters.x3dModelVersion,
+				true,  // smart,
+				true);  //newAllowed, // save
+		String file_name = image_name + suffix;
+		String file_path = x3d_path + Prefs.getFileSeparator() + file_name + ".tiff";
+		ImageStack imageStack = (new ShowDoubleFloatArrays()).makeStack(data, width, height, labels);
+		ImagePlus imp = new ImagePlus( file_name, imageStack);
+		FileSaver fs=new FileSaver(imp);
+		fs.saveAsTiff(file_path);
+		return imp;
+	}
+	
+	public double [][] readDoubleArrayFromModelDirectory(
+			String      suffix,
+			int         num_slices, // (0 - all)
+			int []      wh
+			)
+	{
+//		final int [] image_wh = geometryCorrection.getSensorWH();
+		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
+				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+				correctionsParameters.x3dModelVersion,
+				true,  // smart,
+				true);  //newAllowed, // save
+		String file_name = image_name + suffix;
+		String file_path = x3d_path + Prefs.getFileSeparator() + file_name + ".tiff";
+		ImagePlus imp = null;
+		try {
+			imp = new ImagePlus(file_path);
+		} catch (Exception e) {
+			System.out.println ("Failed to open "+file_path+", will generate it");
+		}
+		if ((imp == null) || (imp.getTitle() == null) || (imp.getTitle().equals(""))) {
+			return null;
+		}
+		ImageStack imageStack = imp.getStack();
+		int nChn=imageStack.getSize();
+		if ((num_slices > 0) && (num_slices < nChn)) {
+			nChn = num_slices;
+		}
 
+		float [] fpixels;
+		double [][] result = new double [nChn][]; 
+		for (int n = 0; n < nChn; n++) {
+			fpixels = (float[]) imageStack.getPixels(n + 1);
+			result[n] = new double [fpixels.length];
+			for (int i = 0; i < fpixels.length; i++) {
+				result[n][i] = fpixels[i];
+			}
+		}
+		if (wh != null) {
+			wh[0] = imp.getWidth();
+			wh[1] = imp.getHeight();
+		}
+		return result;
+	}
+	
+	
+	
 	public static double [] removeDisparityOutliers(
 			final double [][] ds0,
 			final double      max_strength,  // do not touch stronger
@@ -1744,8 +1963,47 @@ public class QuadCLT extends QuadCLTCPU {
 	public GPUTileProcessor.GpuQuad getGPU() {
 		return this.gpuQuad;
 	}
-	public void processCLTQuadCorrGPU(
-			ImagePlus []                                    imp_quad,
+	
+	
+	public void genSave4sliceImage(
+			CLTParameters                                   clt_parameters,
+			String                                          suffix,
+			EyesisCorrectionParameters.DebayerParameters    debayerParameters,
+			ColorProcParameters                             colorProcParameters,
+			CorrectionColorProc.ColorGainsParameters        channelGainParameters,
+			EyesisCorrectionParameters.RGBParameters        rgbParameters,
+			final int                                       threadsMax,  // maximal number of threads to launch
+			final int                                       debugLevel){
+		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
+				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+				correctionsParameters.x3dModelVersion,
+				true,  // smart,
+				true);  //newAllowed, // save
+		String file_name = image_name + suffix;
+		String file_path = x3d_path + Prefs.getFileSeparator() + file_name + ".tiff";
+		if (getGPU().getQuadCLT() != this) {
+			getGPU().updateQuadCLT(this); // to re-load new set of Bayer images to the GPU
+		}
+
+		ImagePlus img_noise = processCLTQuadCorrGPU(
+				null,                  // ImagePlus []                        imp_quad, //null will be OK
+				null,                  // boolean [][]                                    saturation_imp, // (near) saturated pixels or null // Not needed use this.saturation_imp
+				clt_parameters,        // CLTParameters                                   clt_parameters,
+				debayerParameters,     // EyesisCorrectionParameters.DebayerParameters    debayerParameters,
+				colorProcParameters,   // ColorProcParameters                             colorProcParameters,
+				channelGainParameters, // CorrectionColorProc.ColorGainsParameters        channelGainParameters,
+				rgbParameters,         // EyesisCorrectionParameters.RGBParameters        rgbParameters,
+				null,                  // double []	                                      scaleExposures, // probably not needed here - restores brightness of the final image
+				true,                  // boolean                                         only4slice,
+				threadsMax,            // final int                                       threadsMax,  // maximal number of threads to launch
+				false,                 // final boolean                                   updateStatus,
+				debugLevel);           // final int                                       debugLevel);
+		FileSaver fs=new FileSaver(img_noise);
+		fs.saveAsTiff(file_path);
+	}	
+	
+	public ImagePlus processCLTQuadCorrGPU(
+			ImagePlus []                                    imp_quad, //null will be OK
 			boolean [][]                                    saturation_imp, // (near) saturated pixels or null // Not needed use this.saturation_imp
 			CLTParameters                                   clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters    debayerParameters,
@@ -1753,6 +2011,7 @@ public class QuadCLT extends QuadCLTCPU {
 			CorrectionColorProc.ColorGainsParameters        channelGainParameters,
 			EyesisCorrectionParameters.RGBParameters        rgbParameters,
 			double []	                                    scaleExposures, // probably not needed here - restores brightness of the final image
+			boolean                                         only4slice,
 			final int                                       threadsMax,  // maximal number of threads to launch
 			final boolean                                   updateStatus,
 			final int                                       debugLevel){
@@ -1773,7 +2032,7 @@ public class QuadCLT extends QuadCLTCPU {
 					updateStatus, // final boolean    updateStatus,
 					debugLevel); // final int        debugLevel)			
 			
-			return;
+			return null;
 		}
 		
 // GPU-specific
@@ -1781,18 +2040,6 @@ public class QuadCLT extends QuadCLTCPU {
 		boolean is_lwir = isLwir();
 		final boolean      batch_mode = clt_parameters.batch_run; //disable any debug images
 		
-/*
-		double    fat_zero = clt_parameters.getGpuFatZero(is_mono); //   30.0;
-		double [] scales = (is_mono) ? (new double [] {1.0}) :(new double [] {
-				clt_parameters.gpu_weight_r, // 0.25
-				clt_parameters.gpu_weight_b, // 0.25
-				1.0 - clt_parameters.gpu_weight_r - clt_parameters.gpu_weight_b}); // 0.5
-		double cwgreen = 1.0/(1.0 + clt_parameters.corr_red + clt_parameters.corr_blue);    // green color
-		double [] col_weights= (is_mono) ? (new double [] {1.0}) :(new double [] {
-				clt_parameters.corr_red *  cwgreen,
-				clt_parameters.corr_blue * cwgreen,
-				cwgreen});
-*/
 		ImageDtt image_dtt = new ImageDtt(
 				  clt_parameters.transform_size,
 				  is_mono,
@@ -1834,10 +2081,13 @@ public class QuadCLT extends QuadCLTCPU {
 		boolean advanced=  correctionsParameters.zcorrect || correctionsParameters.equirectangular;
 		boolean toRGB=     advanced? true: correctionsParameters.toRGB;
 		
-		ImagePlus [] results = new ImagePlus[imp_quad.length];
-		for (int i = 0; i < results.length; i++) {
-			results[i] = imp_quad[i];
-			results[i].setTitle(results[i].getTitle()+"RAW");
+		ImagePlus [] results = null;
+		if (imp_quad !=  null) {
+			results = new ImagePlus[imp_quad.length];
+			for (int i = 0; i < results.length; i++) {
+				results[i] = imp_quad[i];
+				results[i].setTitle(results[i].getTitle()+"RAW");
+			}
 		}
 		if (debugLevel>1) System.out.println("processing: "+gpuQuad.quadCLT);
 
@@ -1857,7 +2107,7 @@ public class QuadCLT extends QuadCLTCPU {
 	    		debugLevel);                          // final int                 debugLevel) - not yet used
 		if (tp_tasks.length == 0) {
 			System.out.println("Empty tasks - nothing to do");
-			return;
+			return null;
 		}
 
 		gpuQuad.setTasks( // copy tp_tasks to the GPU memory
@@ -1877,15 +2127,11 @@ public class QuadCLT extends QuadCLTCPU {
 
 		int out_width =  gpuQuad.getImageWidth()  + gpuQuad.getDttSize();
 		int out_height = gpuQuad.getImageHeight() + gpuQuad.getDttSize();
-//		int tilesX =     gpuQuad.getImageWidth()  / gpuQuad.getDttSize();
-//		int tilesY =     gpuQuad.getImageHeight() / gpuQuad.getDttSize();
 		
 		/* Prepare 4-channel images*/
 		ImagePlus [] imps_RGB = new ImagePlus[iclt_fimg.length];
 		for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
-//			String title=image_name+"-"+String.format("%02d", ncam);
             String title=String.format("%s%s-%02d",image_name, sAux(), ncam);
-			
 			imps_RGB[ncam] = linearStackToColor( // probably no need to separate and process the second half with quadCLT_aux
 					clt_parameters,
 					colorProcParameters,
@@ -1903,11 +2149,11 @@ public class QuadCLT extends QuadCLTCPU {
 					debugLevel );
 		}
 		
-		if (clt_parameters.gen_chn_img) { // save and show 4-slice image
+		if (clt_parameters.gen_chn_img || only4slice) { // save and show 4-slice image
 			// combine to a sliced color image
 			// assuming total number of images to be multiple of 4
 			//			  int [] slice_seq = {0,1,3,2}; //clockwise
-			int [] slice_seq = new int[results.length];
+			int [] slice_seq = new int[gpuQuad.getNumCams()]; //results.length];
 			for (int i = 0; i < slice_seq.length; i++) {
 				slice_seq[i] = i ^ ((i >> 1) & 1); // 0,1,3,2,4,5,7,6, ...
 			}
@@ -1915,22 +2161,26 @@ public class QuadCLT extends QuadCLTCPU {
 			int height = imps_RGB[0].getHeight();
 			ImageStack array_stack=new ImageStack(width,height);
 			for (int i = 0; i<slice_seq.length; i++){
-				if (imps_RGB[slice_seq[i]] != null) {
+///				if (imps_RGB[slice_seq[i]] != null) {
 					array_stack.addSlice("port_"+slice_seq[i], imps_RGB[slice_seq[i]].getProcessor().getPixels());
-				} else {
-					array_stack.addSlice("port_"+slice_seq[i], results[slice_seq[i]].getProcessor().getPixels());
-				}
+///				} else {
+///					array_stack.addSlice("port_"+slice_seq[i], results[slice_seq[i]].getProcessor().getPixels());
+///				}
 			}
 			ImagePlus imp_stack = new ImagePlus(image_name+sAux()+"-SHIFTED-D"+clt_parameters.disparity, array_stack);
 			imp_stack.getProcessor().resetMinAndMax();
-			if (!batch_mode) {
-				imp_stack.updateAndDraw();
+			if (only4slice) {
+				return imp_stack;
+			} else {
+				if (!batch_mode) {
+					imp_stack.updateAndDraw();
+				}
+				eyesisCorrections.saveAndShowEnable(
+						imp_stack,  // ImagePlus             imp,
+						correctionsParameters, // EyesisCorrectionParameters.CorrectionParameters  correctionsParameters,
+						true, // boolean               enableSave,
+						!batch_mode) ;// boolean               enableShow);
 			}
-			eyesisCorrections.saveAndShowEnable(
-					imp_stack,  // ImagePlus             imp,
-					correctionsParameters, // EyesisCorrectionParameters.CorrectionParameters  correctionsParameters,
-					true, // boolean               enableSave,
-					!batch_mode) ;// boolean               enableShow);
 		}
 
 		if (clt_parameters.gen_4_img) { // save 4 JPEG images
@@ -1988,8 +2238,7 @@ public class QuadCLT extends QuadCLTCPU {
         }
 		
  */
-		  
-		
+		return null;	  
 	}
 	
 	

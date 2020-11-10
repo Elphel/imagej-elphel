@@ -1487,7 +1487,7 @@ public class ImageDtt extends ImageDttCPU {
 		for (int i = 0; i < debug_offsets.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
 			debug_offsets[i][j] = imgdtt_params.lma_dbg_offset[i][j]*imgdtt_params.lma_dbg_scale;
 		}
-
+//dbg_pair_mask
 		final int quad = 4;   // number of subcameras
 //		final int numcol = isMonochrome()?1:3;
 
@@ -1723,9 +1723,9 @@ public class ImageDtt extends ImageDttCPU {
 							if (fcorr_tiles != null) {
 								fcorr_tiles[tileY * tilesX + tileX] = fcorrs; // does not require corr_common_GPU()
 							}
-							
 							if ((disparity_map != null) || (clt_corr_partial != null) || (clt_mismatch != null)) {
-								int used_pairs = pair_mask; // imgdtt_params.dbg_pair_mask; //TODO: use tile tasks
+//								int used_pairs = pair_mask; // imgdtt_params.dbg_pair_mask; //TODO: use tile tasks
+								int used_pairs = pair_mask & imgdtt_params.dbg_pair_mask; // imgdtt_params.dbg_pair_mask; //TODO: use tile tasks
 								int tile_lma_debug_level =  ((tileX == debug_tileX) && (tileY == debug_tileY))? (imgdtt_params.lma_debug_level-1) : -2;
 								boolean debugTile =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -1);
 								corr_common_GPU(

@@ -191,38 +191,43 @@ public class QuadCLTCPU {
 		this.ds_from_main =           ErsCorrection.clone2d(qParent.ds_from_main);
 		this.tp =                     qParent.tp;
 	}
-
-    
-	public QuadCLT spawnQuadCLT(
-//			QuadCLTCPU quadCLT_master,
-			String set_name,
-			CLTParameters  clt_parameters,
-			ColorProcParameters                       colorProcParameters, //
-//			  String []                                 sourceFiles,
-//			  String                                    set_name,
-//			  double []                                 referenceExposures,
-//			  int []                                    channelFiles,
-//			  double []                                 scaleExposures,
-//			  boolean [][]                              saturation_imp,
-			int                                       threadsMax,
-			int                                       debugLevel)
+	public QuadCLT spawnQuadCLTWithNoise(
+			String               set_name,
+			CLTParameters        clt_parameters,
+			ColorProcParameters  colorProcParameters,
+			double []            noise_sigma_level,
+			int                  threadsMax,
+			int                  debugLevel)
 	{
 		QuadCLT quadCLT = new QuadCLT(this, set_name);
 		
 		quadCLT.restoreFromModel(
 				clt_parameters,
 				colorProcParameters,
+				noise_sigma_level, // double []            noise_sigma_level,
 				threadsMax,
 				debugLevel);
 		
-//		quadCLT.showDSIMain();
-//		System.out.println("\n image_name="+(quadCLT.image_name)+"\n"+quadCLT.geometryCorrection.getCorrVector().toString());
-		// add to generator ?
-		/*
-		quadCLT.saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
-				null, // String path,             // full name with extension or w/o path to use x3d directory
-				-2); // int debugLevel)
-		*/
+		return quadCLT;
+	}
+
+    
+	public QuadCLT spawnQuadCLT(
+			String              set_name,
+			CLTParameters       clt_parameters,
+			ColorProcParameters colorProcParameters, //
+			int                 threadsMax,
+			int                 debugLevel)
+	{
+		QuadCLT quadCLT = new QuadCLT(this, set_name);
+		
+		quadCLT.restoreFromModel(
+				clt_parameters,
+				colorProcParameters,
+				null,                 // double []    noise_sigma_level,				
+				threadsMax,
+				debugLevel);
+		
 		return quadCLT;
 	}
 	public double getTimeStamp() {

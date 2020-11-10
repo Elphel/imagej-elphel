@@ -1,4 +1,32 @@
 package com.elphel.imagej.cameras;
+/**
+ **
+ ** CLTParameters - Class for handling multiple configuration parameters
+ **
+ ** Copyright (C) 2017-2020 Elphel, Inc.
+ **
+ ** -----------------------------------------------------------------------------**
+ **
+ **  CLTParameters.java is free software: you can redistribute it and/or modify
+ **  it under the terms of the GNU General Public License as published by
+ **  the Free Software Foundation, either version 3 of the License, or
+ **  (at your option) any later version.
+ **
+ **  This program is distributed in the hope that it will be useful,
+ **  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ **  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ **  GNU General Public License for more details.
+ **
+ **  You should have received a copy of the GNU General Public License
+ **  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ ** -----------------------------------------------------------------------------**
+ **
+ */
+
+//import static jcuda.driver.JCudaDriver.cuMemcpyDtoH;
+
+
+
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -875,8 +903,8 @@ public class CLTParameters {
 	public LwirReaderParameters           lwir =    new LwirReaderParameters();
 	public OpticalFlowParameters          ofp =     new OpticalFlowParameters();
 	public IntersceneLmaParameters        ilp =     new IntersceneLmaParameters();
-
-
+	public InterNoiseParameters           inp =     new InterNoiseParameters();
+			
 	public HashMap<String,Double> z_corr_map = new HashMap<String,Double>(); //old one
 	public HashMap<String,Double> infinity_distace_map = new HashMap<String,Double>(); //new one
 	public static String Z_CORR_PREFIX = "z_corr.";
@@ -1729,6 +1757,7 @@ public class CLTParameters {
 		lwir.setProperties    (prefix+"_lwir",    properties);
 		ofp.setProperties     (prefix+"_ofp_",    properties);
 		ilp.setProperties     (prefix+"_ilp_",    properties);
+		inp.setProperties     (prefix+"_inp_",    properties);
 
 	}
 
@@ -2554,6 +2583,7 @@ public class CLTParameters {
 		lwir.getProperties    (prefix+"_lwir",    properties);
 		ofp.getProperties     (prefix+"_ofp_",    properties);
 		ilp.getProperties     (prefix+"_ilp_",    properties);
+		inp.getProperties     (prefix+"_inp_",    properties);
 	}
 
 	public boolean showJDialog() {
@@ -3528,9 +3558,11 @@ public class CLTParameters {
 		gd.addTab         ("O-Flow", "parameters for the interscene Optical FLow calculations");
 		this.ofp.dialogQuestions(gd);
 
-		gd.addTab         ("Intra-LMA", "parameters for the interscene LMA fitting");
+		gd.addTab         ("Inter-LMA", "parameters for the interscene LMA fitting");
 		this.ilp.dialogQuestions(gd);
 		
+		gd.addTab         ("Inter-Noise", "parameters for the interscene noise testing");
+		this.inp.dialogQuestions(gd);
 		
 		gd.addTab         ("Debug", "Other debug images");
 		gd.addMessage     ("--- Other debug images ---");
@@ -4330,6 +4362,7 @@ public class CLTParameters {
 		this.lwir.dialogAnswers(gd);
 		this.ofp.dialogAnswers(gd);
 		this.ilp.dialogAnswers(gd);
+		this.inp.dialogAnswers(gd);
 
 		this.debug_initial_discriminate= gd.getNextBoolean();
 		this.dbg_migrate=                gd.getNextBoolean();
