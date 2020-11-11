@@ -7053,7 +7053,7 @@ private Panel panel1,
 			}
 			dpixels[i] = d;
 		}
-		if (disparity_max > 0) {
+		if (log_mode && (disparity_max > 0)) {
 			mn = 0.0;
 			double d = disparity_max;
 			if (d < 0.0) { //

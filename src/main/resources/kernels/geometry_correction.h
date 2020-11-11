@@ -149,6 +149,15 @@ extern "C" __global__ void get_tiles_offsets(
 		float *              gpu_rByRDist, // length should match RBYRDIST_LEN
 		trot_deriv   * gpu_rot_deriv);
 
+extern "C" __global__ void calculate_tiles_offsets(
+		struct tp_task     * gpu_tasks,
+		int                  num_tiles,          // number of tiles in task
+		struct gc          * gpu_geometry_correction,
+		struct corr_vector * gpu_correction_vector,
+		float *              gpu_rByRDist, // length should match RBYRDIST_LEN
+		trot_deriv   * gpu_rot_deriv);
+
+
 // uses NUM_CAMS blocks, (3,3,3) threads
 extern "C" __global__ void calc_rot_deriv(
 		struct corr_vector * gpu_correction_vector,

@@ -9278,15 +9278,15 @@ if (debugLevel > -100) return true; // temporarily !
 						quadCLT_main.tp.clt_3d_passes.get( quadCLT_main.tp.clt_3d_passes.size() -1),
 						false); // boolean force_final);
 
-				  if (debugLevel > -1) { //-5){
-					  int scan_index =  quadCLT_main.tp.clt_3d_passes.size() -1;
-					  quadCLT_main.tp.showScan(
-							  quadCLT_main.tp.clt_3d_passes.get(scan_index),   // CLTPass3d   scan,
-							  "test_pre-after-"+scan_index); //String title)
-				  }
+				if (debugLevel > -1) { //-5){
+					int scan_index =  quadCLT_main.tp.clt_3d_passes.size() -1;
+					quadCLT_main.tp.showScan(
+							quadCLT_main.tp.clt_3d_passes.get(scan_index),   // CLTPass3d   scan,
+							"test_pre-after-"+scan_index); //String title)
+				}
 
-				
-				
+
+
 				dsi[DSI_DISPARITY_MAIN] = main_last_scan[0];
 				dsi[DSI_STRENGTH_MAIN] =  main_last_scan[1];
 				if (quadCLT_main.correctionsParameters.clt_batch_dsi) { // Should be always enabled ?
@@ -9339,7 +9339,7 @@ if (debugLevel > -100) return true; // temporarily !
 									updateStatus,   // final boolean                            updateStatus,
 									debugLevel);    // final int                                debugLevel)
 						}
-						*/
+						 */
 						// copy regardless of ML generation
 						// See if it will copy all files, not just the main camera ones
 

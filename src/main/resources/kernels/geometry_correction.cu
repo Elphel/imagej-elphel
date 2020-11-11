@@ -281,6 +281,32 @@ extern "C" __global__ void calc_rot_deriv(
 }
 
 
+extern "C" __global__ void calculate_tiles_offsets(
+		struct tp_task     * gpu_tasks,
+		int                  num_tiles,          // number of tiles in task
+		struct gc          * gpu_geometry_correction,
+		struct corr_vector * gpu_correction_vector,
+		float *              gpu_rByRDist, // length should match RBYRDIST_LEN
+		trot_deriv   * gpu_rot_deriv)
+{
+	dim3 threads_geom(NUM_CAMS,TILES_PER_BLOCK_GEOM, 1);
+	dim3 grid_geom   ((num_tiles+TILES_PER_BLOCK_GEOM-1)/TILES_PER_BLOCK_GEOM, 1, 1);
+	if (threadIdx.x == 0) { // always 1
+    	get_tiles_offsets<<<grid_geom,threads_geom>>> (
+    			gpu_tasks,               // struct tp_task     * gpu_tasks,
+				num_tiles,               // int                  num_tiles,          // number of tiles in task list
+				gpu_geometry_correction, //	struct gc          * gpu_geometry_correction,
+				gpu_correction_vector,   //	struct corr_vector * gpu_correction_vector,
+				gpu_rByRDist,            //	float *              gpu_rByRDist)      // length should match RBYRDIST_LEN
+				gpu_rot_deriv);          // union trot_deriv   * gpu_rot_deriv);
+
+	}
+//	__syncthreads();// __syncwarp();
+//	cudaDeviceSynchronize();
+//	cudaDeviceSynchronize();
+}
+
+
 /*
  * blockDim.x = NUM_CAMS
  * blockDim.y = TILES_PER_BLOCK_GEOM
@@ -295,12 +321,7 @@ extern "C" __global__ void get_tiles_offsets(
 		trot_deriv   * gpu_rot_deriv)
 {
 	int task_num = blockIdx.x * blockDim.y + threadIdx.y; //  blockIdx.x * TILES_PER_BLOCK_GEOM + threadIdx.y
-	if (task_num >= num_tiles){
-		return;
-	}
 	int thread_xy = blockDim.x * threadIdx.y + threadIdx.x;
-	int ncam = threadIdx.x;
-	// threadIdx.x - numcam, used for per-camera
 	__shared__ struct gc geometry_correction;
 	__shared__ float rByRDist [RBYRDIST_LEN];
 	__shared__ struct corr_vector extrinsic_corr;
@@ -355,6 +376,10 @@ extern "C" __global__ void get_tiles_offsets(
 		}
 	}
 	__syncthreads();
+	int ncam = threadIdx.x;
+	if (task_num >= num_tiles){
+		return;
+	}
 	int imu_exists = // todo - calculate once with rot_deriv?
 			(extrinsic_corr.imu_rot[0] != 0.0) ||
 			(extrinsic_corr.imu_rot[1] != 0.0) ||
@@ -392,8 +417,8 @@ extern "C" __global__ void get_tiles_offsets(
 	int tileY = (cxy >> 16);
 #ifdef DEBUG23
 	if ((ncam == 0) && (tileX == DBG_TILE_X) && (tileY == DBG_TILE_Y)){
-	printf ("\n  get_tiles_offsets(): Debugging tileX=%d, tileY=%d, ncam = %d\n", tileX,tileY,ncam);
-	printf("\n");
+		printf ("\n  get_tiles_offsets(): Debugging tileX=%d, tileY=%d, ncam = %d\n", tileX,tileY,ncam);
+		printf("\n");
 		__syncthreads();
 	}
 #endif //#ifdef DEBUG23
@@ -418,7 +443,7 @@ extern "C" __global__ void get_tiles_offsets(
 	xyz[0] =  SCENE_UNITS_SCALE * pXc * geometry_correction.disparityRadius / disparity;
 	xyz[1] = -SCENE_UNITS_SCALE * pYc * geometry_correction.disparityRadius / disparity;
 	// next radial distortion coefficients are for this, not master camera (may be the same)
-//	geometry_correction.rad_coeff[i];
+	//	geometry_correction.rad_coeff[i];
 	float fl_pix = geometry_correction.focalLength/(0.001 * geometry_correction.pixelSize); // focal length in pixels - this camera
 	float ri_scale = 0.001 * geometry_correction.pixelSize / geometry_correction.distortionRadius;
 
@@ -440,7 +465,7 @@ extern "C" __global__ void get_tiles_offsets(
 
 
 	// above is common code, below - per camera (was cycle in Java, here individual threads //for (int ncam = 0; ncam < NUM_CAMS; ncam++){
-			// non-distorted XY of the shifted location of the individual sensor
+	// non-distorted XY of the shifted location of the individual sensor
 
 	// -------------- Each camera calculated by its own thread ----------------
 	float pXci0 = pXc - disparity *  rXY[0]; // [ncam][0]; // in pixels
@@ -486,7 +511,7 @@ extern "C" __global__ void get_tiles_offsets(
 	float pYid = pYci * rD2rND;
 	pXY[0] =  pXid + geometry_correction.pXY0[ncam][0];
 	pXY[1] =  pYid + geometry_correction.pXY0[ncam][1];
-// new for ERS
+	// new for ERS
 	pY_offsets[threadIdx.y][ncam] = pXY[1] - geometry_correction.woi_tops[ncam];
 	__syncthreads();
 	// Each thread re-calculate same sum
@@ -511,9 +536,6 @@ extern "C" __global__ void get_tiles_offsets(
 	__syncthreads();// __syncwarp();
 #endif // DEBUG21
 
-
-
-	//	float rvi[3];
 	float drvi_daz [3]; // drvi_daz = deriv_rots[i][0].times(vi);
 	float drvi_dtl [3]; // drvi_dtl = deriv_rots[i][1].times(vi);
 	float drvi_drl [3]; // drvi_drl = deriv_rots[i][2].times(vi);
@@ -547,7 +569,7 @@ extern "C" __global__ void get_tiles_offsets(
 
 	float disp_dist[4]; // only for this channel, to be copied to global gpu_tasks in the end
 	float dpXci_pYci_imu_lin[2][3];
-/*
+	/*
  				double [][] add0 = {
 						{-rXY[i][0],  rXY[i][1], 0.0},
 						{-rXY[i][1], -rXY[i][0], 0.0},
@@ -555,7 +577,7 @@ extern "C" __global__ void get_tiles_offsets(
 				Matrix dd0 = new Matrix(add0);
 				Matrix dd1 = rots[i].times(dd0).getMatrix(0, 1,0,1).times(norm_z); // get top left 2x2 sub-matrix
 
- */
+	 */
 	float dd1[2][2];// get top left 2x2 sub-matrix
 	dd1[0][0] = (-rot_deriv.rots[ncam][0][0]*rXY[0] -rot_deriv.rots[ncam][0][1]*rXY[1])*norm_z;
 	dd1[0][1] = ( rot_deriv.rots[ncam][0][0]*rXY[1] -rot_deriv.rots[ncam][0][1]*rXY[0])*norm_z;
@@ -570,12 +592,11 @@ extern "C" __global__ void get_tiles_offsets(
 	__syncthreads();// __syncwarp();
 #endif // DEBUG21
 
-
 	// now first column of 2x2 dd1 - x, y components of derivatives by disparity, second column - derivatives by ortho to disparity (~Y in 2d correlation)
 	// unity vector in the direction of radius
 	float c_dist = pXci/rNDi;
 	float s_dist = pYci/rNDi;
-//#undef NVRTC_BUG
+	//#undef NVRTC_BUG
 	float drD2rND_dri = 0.0;
 	{
 		float rri = 1.0;
@@ -618,28 +639,16 @@ extern "C" __global__ void get_tiles_offsets(
 	__syncthreads();// __syncwarp();
 #endif // DEBUG21
 
-
 	gpu_tasks[task_num].disp_dist[ncam][0] = disp_dist[0];
 	gpu_tasks[task_num].disp_dist[ncam][1] = disp_dist[1];
 	gpu_tasks[task_num].disp_dist[ncam][2] = disp_dist[2];
 	gpu_tasks[task_num].disp_dist[ncam][3] = disp_dist[3];
 
-//	imu =  extrinsic_corr.getIMU(i); // currently it is common for all channels
-//	float imu_rot [3]; // d_tilt/dt (rad/s), d_az/dt, d_roll/dt 13..15
-//	float imu_move[3]; // dx/dt, dy/dt, dz/dt 16..19 geometry_correction.imu_move
-// ERS linear does not yet use per-port rotations, probably not needed
+	//	imu =  extrinsic_corr.getIMU(i); // currently it is common for all channels
+	//	float imu_rot [3]; // d_tilt/dt (rad/s), d_az/dt, d_roll/dt 13..15
+	//	float imu_move[3]; // dx/dt, dy/dt, dz/dt 16..19 geometry_correction.imu_move
+	// ERS linear does not yet use per-port rotations, probably not needed
 	if (imu_exists){
-		/*
-		float delta_t = disp_dist[2] * disparity * geometry_correction.line_time; // positive for top cameras, negative - for bottom //disp_dist[2]=dd2.get(1, 0)
-		float ers_Xci =	delta_t * (
-				dpXci_dtilt * extrinsic_corr.imu_rot[0] +
-				dpXci_dazimuth * extrinsic_corr.imu_rot[1]  +
-				dpXci_droll * extrinsic_corr.imu_rot[2]);
-		float ers_Yci =	delta_t* (
-				dpYci_dtilt * extrinsic_corr.imu_rot[0] +
-				dpYci_dazimuth * extrinsic_corr.imu_rot[1] +
-				dpYci_droll * extrinsic_corr.imu_rot[2]);
-		 */
 		float ers_x =
 				dpXci_dtilt * extrinsic_corr.imu_rot[0] +
 				dpXci_dazimuth * extrinsic_corr.imu_rot[1]  +
@@ -649,11 +658,8 @@ extern "C" __global__ void get_tiles_offsets(
 				dpYci_dazimuth * extrinsic_corr.imu_rot[1] +
 				dpYci_droll * extrinsic_corr.imu_rot[2];
 
-
-
 #ifdef DEBUG21
 		if ((ncam == DBG_CAM)  && (task_num == DBG_TILE)){
-//			printf("delta_t = %f,  ers_Xci = %f,  ers_Yci = %f\n", delta_t, ers_Xci, ers_Yci);
 			printf("ers_x = %f,  ers_y = %f\n", ers_x, ers_y);
 		}
 		__syncthreads();// __syncwarp();
@@ -665,19 +671,12 @@ extern "C" __global__ void get_tiles_offsets(
 			dpXci_pYci_imu_lin[0][0] = -wdisparity / k; // dpx/ dworld_X
 			dpXci_pYci_imu_lin[1][1] =  wdisparity / k; // dpy/ dworld_Y
 			dpXci_pYci_imu_lin[0][2] =  (xyz[0] / k) * dwdisp_dz; // dpx/ dworld_Z
-			dpXci_pYci_imu_lin[1][2] =  (xyz[1] / k) * dwdisp_dz; // dpy/ dworld_Z
-			/*
-			ers_Xci += delta_t* (
-					dpXci_pYci_imu_lin[0][0] * extrinsic_corr.imu_move[0] +
-					dpXci_pYci_imu_lin[0][2] * extrinsic_corr.imu_move[2]);
-			ers_Yci += delta_t* (
-					dpXci_pYci_imu_lin[1][1] * extrinsic_corr.imu_move[1] +
-					dpXci_pYci_imu_lin[1][2] * extrinsic_corr.imu_move[2]);
-			*/
+////			dpXci_pYci_imu_lin[1][2] =  (xyz[1] / k) * dwdisp_dz; // dpy/ dworld_Z
+			dpXci_pYci_imu_lin[1][2] =  -(xyz[1] / k) * dwdisp_dz; // dpy/ dworld_Z
 			ers_x += dpXci_pYci_imu_lin[0][0] * extrinsic_corr.imu_move[0] +
-					 dpXci_pYci_imu_lin[0][2] * extrinsic_corr.imu_move[2];
+					dpXci_pYci_imu_lin[0][2] * extrinsic_corr.imu_move[2];
 			ers_y += dpXci_pYci_imu_lin[1][1] * extrinsic_corr.imu_move[1] +
-					 dpXci_pYci_imu_lin[1][2] * extrinsic_corr.imu_move[2];
+					dpXci_pYci_imu_lin[1][2] * extrinsic_corr.imu_move[2];
 			float delta_t = (pY_offset/ (1.0 - geometry_correction.line_time * ers_y)) * geometry_correction.line_time; // positive for top cameras, negative - for bottom //disp_dist[2]=dd2.get(1, 0)
 
 			pXY[0] +=   delta_t * ers_x * rD2rND; // added correction to pixel X
@@ -700,8 +699,6 @@ extern "C" __global__ void get_tiles_offsets(
 	// copy results to global memory pXY,  disp_dist
 	gpu_tasks[task_num].xy[ncam][0] = pXY[0];
 	gpu_tasks[task_num].xy[ncam][1] = pXY[1];
-
-
 }
 
 extern "C" __global__ void calcReverseDistortionTable(

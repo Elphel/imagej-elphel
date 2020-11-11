@@ -1019,24 +1019,9 @@ public class CLTPass3d{
 				double     step_threshold,
 				double     min_disparity,
 				double     max_disparity,
-//				double     strength_floor,
-//				double     strength_pow,
 				double     stBlurSigma,
 				boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 				MeasuredLayersFilterParameters mlfp,
-//				int        smplSide, //        = 2;      // Sample size (side of a square)
-//				int        smplNum, //         = 3;      // Number after removing worst
-//				double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-//				boolean    smplWnd,  // use window functions for the samples
-
-//				double     max_abs_tilt,  //  2.0;   // pix per tile
-//				double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
-//				double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-//				double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//				double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
-//				int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-//				double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
-
 				int        measSel)
 		{
 			this.superTiles = new SuperTiles(
@@ -1046,23 +1031,9 @@ public class CLTPass3d{
 					step_threshold,
 					min_disparity,
 					max_disparity,
-//					strength_floor,
-//					strength_pow,
 					stBlurSigma,
 					smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 					mlfp,
-//					smplSide, //        = 2;      // Sample size (side of a square)
-//					smplNum, //         = 3;      // Number after removing worst
-//					smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-//					smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
-//					max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-//					max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//					damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//					min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//					transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-//					far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//					far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
-//					true,          // boolean    null_if_none,
 					measSel);
 			return this.superTiles;
 		}
@@ -1072,19 +1043,6 @@ public class CLTPass3d{
 
 				boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 				MeasuredLayersFilterParameters mlfp,
-//				int        smplSide, //        = 2;      // Sample size (side of a square)
-//				int        smplNum,  //         = 3;      // Number after removing worst
-//				double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-//				boolean    smplWnd,  // use window functions for the samples
-
-//	  			double     max_abs_tilt,  //  2.0;   // pix per tile
-//				double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
-//				double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-//				double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//				double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
-//				int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-//				double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
-
 				int        measSel)
 		{
 			if (this.superTiles == null){
@@ -1096,19 +1054,6 @@ public class CLTPass3d{
 
 					smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 					mlfp,
-//					smplSide, //        = 2;      // Sample size (side of a square)
-//					smplNum,  //         = 3;      // Number after removing worst
-//					smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-//					smplWnd,  // use window functions for the samples
-
-//					max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-//					max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//					damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//					min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//					transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-//					far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//					far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
-
 					measSel);
 		}
 

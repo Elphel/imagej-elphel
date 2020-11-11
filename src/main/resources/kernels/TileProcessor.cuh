@@ -403,6 +403,16 @@ __constant__ float lpf_corr[64]={ // modify if needed
 				0.02728573f, 0.02374977f, 0.01799322f, 0.01186582f, 0.00681327f, 0.00341565f, 0.00153247f, 0.00074451f
 		};
 
+__constant__ float LoG_corr[64]={ // modify if needed high-pass filter before correlation to fit into float range
+				1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f,
+				1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f,
+				1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f,
+				1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f,
+				1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f,
+				1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f,
+				1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f,
+				1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f, 1.00000000f
+		};
 
 __constant__ int pairs[6][2]={
 		{0, 1},
@@ -1086,6 +1096,22 @@ extern "C" __global__ void correlate2D_inner(
 		float * clt_tile1i = clt_tile1 + threadIdx.x;
 		float * clt_tile2i = clt_tile2 + threadIdx.x;
 #pragma unroll
+#define USE_LOG
+#ifdef 	USE_LOG
+		// Apply high-pass filter to correlation inputs to reduce dynamic range before multiplication
+		for (int q = 0; q < 4; q++){
+    		float *log = LoG_corr + threadIdx.x;
+			for (int i = 0; i < DTT_SIZE; i++){ // copy 32 rows (4 quadrants of 8 rows)
+				*clt_tile1i= (*gpu_tile1) * (*log);
+				*clt_tile2i= (*gpu_tile2) * (*log);
+				clt_tile1i += DTT_SIZE1;
+				clt_tile2i += DTT_SIZE1;
+				gpu_tile1 += DTT_SIZE;
+				gpu_tile2 += DTT_SIZE;
+				log +=       DTT_SIZE;
+			}
+		}
+#else
 		for (int i = 0; i < DTT_SIZE4; i++){ // copy 32 rows (4 quadrants of 8 rows)
 			*clt_tile1i= *gpu_tile1;
 			*clt_tile2i= *gpu_tile2;
@@ -1093,7 +1119,8 @@ extern "C" __global__ void correlate2D_inner(
 			clt_tile2i += DTT_SIZE1;
 			gpu_tile1 += DTT_SIZE;
 			gpu_tile2 += DTT_SIZE;
-		}
+    	}
+#endif //USE_LOG
 		__syncthreads();
 #ifdef DBG_TILE
 #ifdef DEBUG6

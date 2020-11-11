@@ -104,24 +104,6 @@ public class SuperTiles{
 			double                  stBlurSigma,
 			boolean                 smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 			MeasuredLayersFilterParameters  mlfp,
-
-//			double                  strength_floor,
-//			double                  strength_pow,
-//			boolean                 smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-//			int                     smplSide, //        = 2;      // Sample size (side of a square)
-//			int                     smplNum, //         = 3;      // Number after removing worst
-//			double                  smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-//			boolean                 smplWnd,  // use window functions for the samples
-
-//  			double     max_abs_tilt,  //  2.0;   // pix per tile
-//			double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
-//			double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-//			double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//			double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
-//			int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-//			double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
-//			boolean    null_if_none,
-
 			int                     measSel)
 	{
 		this.cltPass3d =           cltPass3d;
@@ -134,21 +116,6 @@ public class SuperTiles{
 		this.stBlurSigma =    stBlurSigma;
 		this.smplMode        = smplMode;   // Use sample mode (false - regular tile mode)
 		this.mlfp = mlfp.clone();
-
-//		this.strength_floor = strength_floor;
-//		this.strength_pow =   strength_pow;
-//		this.smplSide        = smplSide;   // Sample size (side of a square)
-//		this.smplNum         = smplNum;    // Number after removing worst
-//		this.smplRms         = smplRms;    // Maximal RMS of the remaining tiles in a sample
-//		this.max_abs_tilt =  max_abs_tilt;
-//		this.max_rel_tilt =  max_rel_tilt;
-//		this.damp_tilt =     damp_tilt;
-//		this.min_tilt_disp = min_tilt_disp;
-//		this.transition =    transition;
-//		this.far_mode =      far_mode;
-//		this.far_power =     far_power;
-//		this.smplWnd         = smplWnd;    // Use window functions for the samples
-
 
 		this.measSel =        measSel;
 		this.step_threshold_near = this.step_threshold_far * step_near / this.step_far ;
@@ -197,18 +164,6 @@ public class SuperTiles{
 				null,       // boolean [][] tile_sel, // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
 				smplMode,   // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 				mlfp,
-//				smplSide,   // final int        smplSide, //        = 2;      // Sample size (side of a square)
-//				smplNum,    // final int        smplNum,  //         = 3;      // Number after removing worst
-//				smplRms,    // final double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-//				smplWnd,    // final boolean    smplWnd,  // use window functions for the samples
-
-//				max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-//				max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//				damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//				min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//				transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-//				far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//				far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 
 				measSel);   // calculate and blur supertiles (for all, not just selected?)
 		if (tileProcessor.globalDebugLevel > 0){

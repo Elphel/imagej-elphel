@@ -6774,11 +6774,11 @@ ImageDtt.startAndJoin(threads);
 
 //======================
 	public void showPlanes(
-			CLTParameters           clt_parameters,
+			CLTParameters      clt_parameters,
 			GeometryCorrection geometryCorrection,
-			final int         threadsMax,  // maximal number of threads to launch
-			final boolean     updateStatus,
-			final int         debugLevel)
+			final int          threadsMax,  // maximal number of threads to launch
+			final boolean      updateStatus,
+			final int          debugLevel)
 	{
 		final boolean                       batch_mode = clt_parameters.batch_run; //disable any debug images
 		trimCLTPasses(); // make possible to run this method multiple time - remove extra passes added by it last time
@@ -6796,22 +6796,9 @@ ImageDtt.startAndJoin(threads);
 					clt_parameters.stStepThreshold,  // double     step_threshold,
 					clt_parameters.stMinDisparity,   // double     min_disparity,
 					clt_parameters.grow_disp_max,   // double     max_disparity,
-//					clt_parameters.stFloor,          // double     strength_floor,
-//					clt_parameters.stPow,            // double     strength_pow,
 					0.0, // NO BLUR double     stBlurSigma)
 					false, //clt_parameters.stSmplMode,  // Use sample mode (false - regular tile mode)
 					clt_parameters.mlfp,         // Filter parameters
-//					clt_parameters.stSmplSide,  // Sample size (side of a square)
-//					clt_parameters.stSmplNum,   // Number after removing worst
-//					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
-//					clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
-//					clt_parameters.fs_max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-//					clt_parameters.fs_max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//					clt_parameters.fs_damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//					clt_parameters.fs_min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//					clt_parameters.fs_transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-//					clt_parameters.fs_far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//					clt_parameters.fs_far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[0] = scan_prev.getSuperTiles().showDisparityHistogram();
 			scan_prev.setSuperTiles(
@@ -6820,22 +6807,9 @@ ImageDtt.startAndJoin(threads);
 					clt_parameters.stStepThreshold,  // double     step_threshold,
 					clt_parameters.stMinDisparity,   // double     min_disparity,
 					clt_parameters.grow_disp_max,   // double     max_disparity,
-//					clt_parameters.stFloor,          // double     strength_floor,
-//					clt_parameters.stPow,            // double     strength_pow,
 					0.0, // NO BLUR double     stBlurSigma)
 					clt_parameters.stSmplMode,  // Use sample mode (false - regular tile mode)
 					clt_parameters.mlfp,         // Filter parameters
-//					clt_parameters.stSmplSide,  // Sample size (side of a square)
-//					clt_parameters.stSmplNum,   // Number after removing worst
-//					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
-//					clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
-//					clt_parameters.fs_max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-//					clt_parameters.fs_max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//					clt_parameters.fs_damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//					clt_parameters.fs_min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//					clt_parameters.fs_transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-//					clt_parameters.fs_far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//					clt_parameters.fs_far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[1] = scan_prev.getSuperTiles().showDisparityHistogram();
 		}
@@ -6847,22 +6821,9 @@ ImageDtt.startAndJoin(threads);
 				clt_parameters.stStepThreshold,  // double     step_threshold,
 				clt_parameters.stMinDisparity,   // double     min_disparity,
 				clt_parameters.grow_disp_max,   // double     max_disparity,
-//				clt_parameters.stFloor,          // double     strength_floor,
-//				clt_parameters.stPow,            // double     strength_pow,
 				clt_parameters.stSigma,          // with blur double     stBlurSigma)
 				false, //clt_parameters.stSmplMode,  // Use sample mode (false - regular tile mode)
 				clt_parameters.mlfp,         // Filter parameters
-//				clt_parameters.stSmplSide,  // Sample size (side of a square)
-//				clt_parameters.stSmplNum,   // Number after removing worst
-//				clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
-//				clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
-//				clt_parameters.fs_max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-//				clt_parameters.fs_max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//				clt_parameters.fs_damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//				clt_parameters.fs_min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//				clt_parameters.fs_transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-//				clt_parameters.fs_far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//				clt_parameters.fs_far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 				clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 		if (show_st) { // otherwise only blured version is needed
 			dbg_hist[2] = scan_prev.getSuperTiles().showDisparityHistogram();
@@ -6884,22 +6845,9 @@ ImageDtt.startAndJoin(threads);
 					clt_parameters.stStepThreshold,  // double     step_threshold,
 					clt_parameters.stMinDisparity,   // double     min_disparity,
 					clt_parameters.grow_disp_max,   // double     max_disparity,
-//					clt_parameters.stFloor,          // double     strength_floor,
-//					clt_parameters.stPow,            // double     strength_pow,
 					0.0, // NO BLUR double     stBlurSigma)
 					clt_parameters.stSmplMode,  // Use sample mode (false - regular tile mode)
 					clt_parameters.mlfp,         // Filter parameters
-//					clt_parameters.stSmplSide,  // Sample size (side of a square)
-//					clt_parameters.stSmplNum,   // Number after removing worst
-//					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
-//					clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
-//					clt_parameters.fs_max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-//					clt_parameters.fs_max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//					clt_parameters.fs_damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//					clt_parameters.fs_min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//					clt_parameters.fs_transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-//					clt_parameters.fs_far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//					clt_parameters.fs_far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 		}
 
@@ -7063,22 +7011,6 @@ ImageDtt.startAndJoin(threads);
 				debugLevel,                  // final int        debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
-/*
-		if (clt_parameters.plSplitApply) {
-			while (true) {
-				int num_added = 0;
-				num_added += st.fillSquares();
-				if (debugLevel > -1) {
-					System.out.println("after fillSquares() added "+num_added);
-				}
-				num_added += st.cutCorners();
-				if (debugLevel > -1) {
-					System.out.println("after plCutCorners() added (cumulative) "+num_added);
-				}
-				if (num_added == 0) break;
-			}
-		}
-*/
 		double [][][]  dispStrength = st.getDisparityStrengths(
 				clt_parameters.stMeasSel); // int        stMeasSel) //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert)
 		boolean [][] tileSel =  st.getMeasurementSelections(
@@ -7199,25 +7131,6 @@ ImageDtt.startAndJoin(threads);
 					clt_parameters.tileY);
 		} // if (clt_parameters.plSplitApply)
 
-/*
-		while (true) {
-			int num_added = 0;
-			if (clt_parameters.plFillSquares){
-				num_added += st.fillSquares();
-			}
-			if (debugLevel > -1) {
-				System.out.println("after fillSquares() added "+num_added);
-			}
-			if (clt_parameters.plCutCorners){
-				num_added += st.cutCorners();
-			}
-			if (debugLevel > -1) {
-				System.out.println("after plCutCorners() added (cumulative) "+num_added);
-			}
-			if (num_added == 0) break;
-		}
-
-*/
 
 		int max_num_tries = 20;
 		if (clt_parameters.plIterations > 0) {
