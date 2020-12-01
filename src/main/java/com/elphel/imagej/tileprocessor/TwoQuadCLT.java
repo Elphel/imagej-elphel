@@ -8671,6 +8671,7 @@ if (debugLevel > -100) return true; // temporarily !
 			EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
 			Properties                                           properties,
+			boolean                                              bayer_artifacts_debug,
 			final int        threadsMax,  // maximal number of threads to launch
 			final boolean    updateStatus,
 			final int        debugLevel)  throws Exception
@@ -8681,7 +8682,7 @@ if (debugLevel > -100) return true; // temporarily !
 //		double []            noise_sigma_level = {3.0, 1.5, 1.0};  // amount, sigma, offset
 //		double []            noise_sigma_level = {5.0, 1.5, 1.0};  // amount, sigma, offset
 		double []            noise_sigma_level = null;
-		if (clt_parameters.inp.noise_scale > 0.0) {
+		if (clt_parameters.inp.noise_scale >= 0.0) {// <0 - will generate no-noise data
 			noise_sigma_level = new double[] {
 					clt_parameters.inp.noise_scale,
 					clt_parameters.inp.noise_sigma,
@@ -8743,14 +8744,23 @@ if (debugLevel > -100) return true; // temporarily !
 		OpticalFlow opticalFlow = new OpticalFlow(
 				threadsMax, // int            threadsMax,  // maximal number of threads to launch
 				updateStatus); // boolean        updateStatus);
-		
-		opticalFlow.IntersceneNoise(
-				clt_parameters,            // CLTParameters       clt_parameters,
-				ref_only,                  // boolean              ref_only, // process only reference frame (false - inter-scene)
-				colorProcParameters,       // ColorProcParameters colorProcParameters,
-				ref_quadCLT,               // QuadCLT [] scenes, // ordered by increasing timestamps
-				noise_sigma_level,         // double []            noise_sigma_level,
-				clt_parameters.inp.noise_debug_level); // clt_parameters.ofp.debug_level_optical - 1); // 1); // -1); // int debug_level);
+		if (bayer_artifacts_debug) {
+			opticalFlow.intersceneNoiseDebug(
+					clt_parameters,            // CLTParameters       clt_parameters,
+					ref_only,                  // boolean              ref_only, // process only reference frame (false - inter-scene)
+					colorProcParameters,       // ColorProcParameters colorProcParameters,
+					ref_quadCLT,               // QuadCLT [] scenes, // ordered by increasing timestamps
+					noise_sigma_level,         // double []            noise_sigma_level,
+					clt_parameters.inp.noise_debug_level); // clt_parameters.ofp.debug_level_optical - 1); // 1); // -1); // int debug_level);
+		} else {
+			opticalFlow.intersceneNoise(
+					clt_parameters,            // CLTParameters       clt_parameters,
+					ref_only,                  // boolean              ref_only, // process only reference frame (false - inter-scene)
+					colorProcParameters,       // ColorProcParameters colorProcParameters,
+					ref_quadCLT,               // QuadCLT [] scenes, // ordered by increasing timestamps
+					noise_sigma_level,         // double []            noise_sigma_level,
+					clt_parameters.inp.noise_debug_level); // clt_parameters.ofp.debug_level_optical - 1); // 1); // -1); // int debug_level);
+		}
 		System.out.println("End of intersceneNoise()");
 	}
 

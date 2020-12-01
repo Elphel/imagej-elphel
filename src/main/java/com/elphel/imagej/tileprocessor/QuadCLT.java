@@ -3123,7 +3123,7 @@ public class QuadCLT extends QuadCLTCPU {
 		  scan_rslt.resetProcessed();
 		  if (clt_corr_partial!=null){ // only to debug matching gpu/cpu
 			  if (debugLevel > -1){ // -1
-				  double [][] corr_rslt_partial = image_dtt.corr_partial_dbg(
+				  double [][] corr_rslt_partial = ImageDtt.corr_partial_dbg(
 						  clt_corr_partial,
 						  2*image_dtt.transform_size - 1,	//final int corr_size,
 						  4,	// final int pairs,
@@ -3363,6 +3363,729 @@ public class QuadCLT extends QuadCLTCPU {
 		  return scan;
 	  }
 
+	  public double [][] getPortsXY() // run after GPU 
+	  {
+		  boolean use_aux = false;
+		  final int tilesX = tp.getTilesX();
+		  final int tilesY = tp.getTilesY();
+		  double [][] ports_xy = new double [tilesY*tilesX][];
+		  GPUTileProcessor.TpTask [] tp_tasks = gpuQuad.getTasks(use_aux); // use_aux);
+		  for (GPUTileProcessor.TpTask tp_task:tp_tasks) {
+			  float [][] txy =  tp_task.getXY(use_aux);
+			  double [] tile_ports_xy = new double [txy.length * txy[0].length];
+			  int indx = 0;
+			  for (int i = 0; i < txy.length; i++) {
+				  for (int j = 0; j < txy[i].length; j++) {
+					  tile_ports_xy[indx++] = txy[i][j];
+				  }
+			  }
+			  ports_xy[tp_task.getTileY()*tilesX + tp_task.getTileX()] = tile_ports_xy;
+		  }
+		  return ports_xy;
+	  }
+	  
+	  
+	  public double [][] CLTCorrDisparityMap(
+			  CLTParameters     clt_parameters,
+			  double []         disparity, // do not measure NaN
+			  double            disparity_corr,
+			  final int         threadsMax,  // maximal number of threads to launch
+			  final boolean     updateStatus,
+			  final int         debugLevel)
+	  {
+		  if ((gpuQuad == null) || !(isAux()?clt_parameters.gpu_use_aux : clt_parameters.gpu_use_main)) {
+			  return null; // no non-GPU 
+		  }
+		  final int tilesX = tp.getTilesX();
+		  final int tilesY = tp.getTilesY();
+		  int op = ImageDtt.setImgMask(0, 0xf);
+		  op =     ImageDtt.setPairMask(op,0xf);
+		  op =     ImageDtt.setForcedDisparity(op,true);
+		  int [][] tile_op = new int [tilesY][tilesX];
+		  double [][]  disparity_array = new double[tilesY][tilesX];
+		  for (int ty = 0; ty < tilesY; ty++) {
+			  for (int tx = 0; tx < tilesX; tx++) {
+				  int indx = ty*tilesX+tx;
+				  if (!Double.isNaN(disparity[indx])) {
+					  tile_op        [ty][tx] = op; // 511; // d;
+					  disparity_array[ty][tx] = disparity[indx];
+					  
+				  }
+			  }
+		  }
+		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
+		  ImageDtt image_dtt = new ImageDtt(
+				  clt_parameters.transform_size,
+				  isMonochrome(),
+				  isLwir(),
+				  clt_parameters.getScaleStrength(isAux()),
+				  gpuQuad);
+//		  double z_correction =  clt_parameters.z_correction;
+//		  if (clt_parameters.z_corr_map.containsKey(image_name)){ // not used in lwir
+//			  z_correction +=clt_parameters.z_corr_map.get(image_name);
+//		  }
+		  // final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
+		  // TODO: find where BITS_ALL_DIFFS is not needed and remove - it takes much longer than correlation in the GPU
+		  int disparity_modes = 
+				  ImageDtt.BITS_ALL_DISPARITIES |
+				  ImageDtt.BITS_ALL_DIFFS | // needs max_diff?
+				  ImageDtt.BITS_OVEREXPOSED; //  |
+//				  ImageDtt.BITS_TONE_RGB;
+
+		  image_dtt.clt_aberrations_quad_corr_GPU( // USED in LWIR
+				  clt_parameters.img_dtt,        // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+				  1,                             // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
+				  tile_op,                       // per-tile operation bit codes
+				  disparity_array,               // clt_parameters.disparity,     // final double            disparity,
+				  null,							 // final float  [][][][]     corr_td,         // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
+				  null, 						 //	final float  [][][][]     corr_combo_td,   // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: qud, cross, hor,vert
+					                             // each of the top elements may be null to skip particular combo type
+				  null,                          // final float  [][][][]     fdisp_dist,      // [tilesY][tilesX][cams][4], // disparity derivatives vectors or null
+				  null,                          //	final float  [][][][]     fpxpy,           // [tilesY][tilesX][cams][2], tile {pX,pY}
+				  //// Uses quadCLT from gpuQuad			
+				                                 // correlation results - final and partial
+				  null,                          // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+				                                 // [type][tilesY][tilesX] should be set by caller
+				                                 // types: 0 - selected correlation (product+offset), 1 - sum
+				  null,                          // clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+				                                 // [tilesY][tilesX] should be set by caller
+				                                 // When clt_mismatch is non-zero, no far objects extraction will be attempted
+				  null,                          // clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
+				                                 // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
+				  disparity_map,                 // disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+				                                 // last 2 - contrast, avg/ "geometric average)
+				  disparity_modes,               // disparity_modes, // bit mask of disparity_map slices to calculate/return
+				  null,                          // 	final double [][][][]     texture_tiles,   // compatible with the CPU ones      
+				  null, // texture_img,          // texture_img,     // null or [3][] (RGB) or [4][] RGBA
+				  null, // texture_woi,          // texture_woi,     // null or generated texture location/size
+				  null,                          //  iclt_fimg,       // will return quad images or null to skip, use quadCLT.linearStackToColor 
+				  clt_parameters.gpu_corr_scale, //  gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
+				  clt_parameters.getGpuFatZero(isMonochrome()), // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
+				  clt_parameters.gpu_sigma_r,    // 0.9, 1.1
+				  clt_parameters.gpu_sigma_b,    // 0.9, 1.1
+				  clt_parameters.gpu_sigma_g,    // 0.6, 0.7
+				  clt_parameters.gpu_sigma_m,    //  =       0.4; // 0.7;
+				  (isMonochrome()? 1.0 : clt_parameters.gpu_sigma_rb_corr), // final double              gpu_sigma_rb_corr, //  = 0.5; // apply LPF after accumulating R and B correlation before G, monochrome ? 1.0 : gpu_sigma_rb_corr;
+				  clt_parameters.gpu_sigma_corr, //  =    0.9;gpu_sigma_corr_m
+				  image_dtt.transform_size - 1, // clt_parameters.gpu_corr_rad,   // = transform_size - 1 ?
+				  clt_parameters.corr_red,       // +used
+				  clt_parameters.corr_blue,      // +used
+				  clt_parameters.max_corr_radius,// 3.9;
+				  clt_parameters.corr_mode,      // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
+				  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
+				  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
+				  clt_parameters.diff_sigma,     // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
+				  clt_parameters.diff_threshold, // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
+				  clt_parameters.diff_gauss,     // true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
+				  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+				  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
+				  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
+				  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
+				  clt_parameters.clt_window,
+				  disparity_corr,                // final double              disparity_corr, // disparity at infinity
+				  clt_parameters.tileX,          // final int               debug_tileX,
+				  clt_parameters.tileY,          // final int               debug_tileY,
+				  threadsMax,
+				  debugLevel);
+		  return disparity_map;
+	  }
+	  
+	  public double [][] CLTCorrDisparityMapCPUTasks(
+			  String            suffix,
+			  CLTParameters     clt_parameters,
+			  final double []   debug_disparity_range,
+			  double []         disparity, // do not measure NaN
+			  double            disparity_corr,
+			  final int         threadsMax,  // maximal number of threads to launch
+			  final boolean     updateStatus,
+			  final int         debugLevel)
+	  {
+		  final boolean show_per_scene = false; // true; // false; //true; // false;
+		  final boolean hv_lma =  (debugLevel > -100) && true; // use LMA with hor/vert pairs instead of the regular hor/vert method
+		  final double fat_zero_cpu = (debugLevel > -100) ? clt_parameters.getGpuFatZero(isMonochrome()) : 0.0; // > 0 - use CPU normalization, DCT2 and unfolding. ==0 - GPU
+		  //			final double fat_zero_pre = (debug_level>-100)?-1.0:0.0; //100000.0; // 10000.0; // 1000.0; //
+		  //		  final double output_amplitude = (debugLevel < -100) ? 30000 : 0.0; // 10000; // 1000; // 200; // 50.0;
+		  final double output_amplitude = 1.0; // 10000; // 1000; // 200; // 50.0;
+
+		  final boolean opposite_mode = true; // false - parallel shift
+		  final double offset_x = 0.0; // 1.0; // 0.0; // 0.5; // 0.0; // 0.0; // 0.1; // 0.0; // 0.1; // 0.1; // 0.0; // 0.1; // 0.0; // 0.1;
+		  final double offset_y = 0.0; // 1.0; // 1.0; // 0.0; // 0.5; // 0.0; // 0.1; // -0.1; // 0.1; // 0.0; // 0.1; // 0.0;
+//		  final Rectangle tile_woi = new Rectangle(250,114,32,24); // for visualizations
+		  final Rectangle tile_woi = new Rectangle(250,114,50,24); // for visualizations
+		  final int vis_gap = 2;
+
+		  if ((gpuQuad == null) || !(isAux()?clt_parameters.gpu_use_aux : clt_parameters.gpu_use_main)) {
+			  return null; // no non-GPU 
+		  }
+		  if (gpuQuad.getQuadCLT() != this) {
+			  gpuQuad.updateQuadCLT(this); // to re-load new set of Bayer images to the GPU
+		  }
+		  final int margin = 8;
+		  final int tilesX = tp.getTilesX();
+		  final int tilesY = tp.getTilesY();
+		  final int tileSize = tp.getTileSize();
+		  final int tiles = tilesY*tilesX;
+		  final int transform_size = tp.getTileSize();
+		  final double [][]  pXpYD=new double[tilesY*tilesX][];            // per-tile array of pX,pY,disparity triplets
+		  for (int nTile = 0; nTile < tiles; nTile++) if (!Double.isNaN(disparity[nTile])) {
+			  int tileX = nTile % tilesX;
+			  int tileY = nTile / tilesX;
+			  double	centerX = tileX * tileSize + tileSize/2; //  - shiftX;
+			  double	centerY = tileY * tileSize + tileSize/2; //  - shiftY;
+			  pXpYD[nTile] = new double[] {centerX, centerY, disparity[nTile]};
+		  }
+		  float  [][][][]     fcorr_td =       new float[tilesY][tilesX][][];
+//		  float  [][][][]     fcorr_combo_td = hv_lma ? null : new float[4][tilesY][tilesX][];
+		  float  [][][][]     fcorr_combo_td = new float[4][tilesY][tilesX][];
+		  final double gpu_sigma_corr =     clt_parameters.getGpuCorrSigma(isMonochrome());
+		  final double gpu_sigma_rb_corr =  isMonochrome()? 1.0 : clt_parameters.gpu_sigma_rb_corr;
+		  final double gpu_sigma_log_corr = clt_parameters.getGpuCorrLoGSigma(isMonochrome());
+		  ImageDtt image_dtt = new ImageDtt(
+				  clt_parameters.transform_size,
+				  isMonochrome(),
+				  isLwir(),
+				  clt_parameters.getScaleStrength(isAux()),
+				  gpuQuad);
+		  GPUTileProcessor.TpTask[] tp_tasks =  gpuQuad.setInterTasks(
+				  pXpYD,              // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+				  geometryCorrection, // final GeometryCorrection  geometryCorrection,
+				  disparity_corr,     // final double              disparity_corr,
+				  margin,             // final int                 margin,      // do not use tiles if their centers are closer to the edges
+				  null,               // final boolean []          valid_tiles,            
+				  threadsMax);        // final int                 threadsMax)  // maximal number of threads to launch
+		  // TODO: test-modify coordinates here
+		  if (opposite_mode) {
+			  for (GPUTileProcessor.TpTask tp_task:tp_tasks) {
+				  tp_task.xy[0][0] -= offset_x;
+				  tp_task.xy[1][0] += offset_x;
+				  tp_task.xy[2][0] -= offset_x;
+				  tp_task.xy[3][0] += offset_x;
+				  tp_task.xy[0][1] -= offset_y;
+				  tp_task.xy[1][1] -= offset_y;
+				  tp_task.xy[2][1] += offset_y;
+				  tp_task.xy[3][1] += offset_y;
+			  }
+		  } else {
+			  for (GPUTileProcessor.TpTask tp_task:tp_tasks) {
+				  tp_task.xy[0][0] += offset_x;
+				  tp_task.xy[1][0] += offset_x;
+				  tp_task.xy[2][0] += offset_x;
+				  tp_task.xy[3][0] += offset_x;
+				  tp_task.xy[0][1] += offset_y;
+				  tp_task.xy[1][1] += offset_y;
+				  tp_task.xy[2][1] += offset_y;
+				  tp_task.xy[3][1] += offset_y;
+			  }
+		  }
+		  image_dtt.quadCorrTD(
+				  clt_parameters.img_dtt,        // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+				  tp_tasks,                      // final GPUTileProcessor.TpTask[] tp_tasks,
+				  fcorr_td,                      // final float  [][][][]     fcorr_td,        // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
+				  fcorr_combo_td,                // final float  [][][][]     fcorr_combo_td,  // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: qud, cross, hor,vert
+				  getErsCorrection(),            // final GeometryCorrection  geometryCorrection,
+				  //					disparity_corr,                // final double              disparity_corr,   // disparity offset at infinity
+				  margin,                        // final int                 margin,           // do not use tiles if their centers are closer to the edges
+				  clt_parameters.gpu_sigma_r,    // 0.9, 1.1
+				  clt_parameters.gpu_sigma_b,    // 0.9, 1.1
+				  clt_parameters.gpu_sigma_g,    // 0.6, 0.7
+				  clt_parameters.gpu_sigma_m,    //  =       0.4; // 0.7;
+				  gpu_sigma_rb_corr,             // final double              gpu_sigma_rb_corr, //  = 0.5; // apply LPF after accumulating R and B correlation before G, monochrome ? 1.0 : gpu_sigma_rb_corr;
+				  gpu_sigma_corr,                //  =    0.9;gpu_sigma_corr_m
+				  gpu_sigma_log_corr,            // final double              gpu_sigma_log_corr,   // hpf to reduce dynamic range for correlations
+				  clt_parameters.corr_red,       // +used
+				  clt_parameters.corr_blue,      // +used
+				  threadsMax,                    // final int             threadsMax,       // maximal number of threads to launch
+				  debugLevel);                   // final int                 globalDebugLevel)
+
+		  double [][] hv_offsets = getPortsXY();
+		  if (show_per_scene) {
+			  String [] dbg_titles = {"disp_fract", "combo", "combo-fract", "disparity"};
+			  double [][] dbg_img = new double [dbg_titles.length][tiles];
+			  for (int i = 0; i < dbg_img.length; i++) {
+				  Arrays.fill(dbg_img[i], Double.NaN);
+			  }
+			  for (int nt = 0; nt < tiles; nt++) if (!Double.isNaN(disparity[nt]) && (hv_offsets[nt] != null)){
+				  dbg_img[0][nt] = disparity[nt]-Math.round(disparity[nt]);
+				  dbg_img[3][nt] = disparity[nt];
+				  double [] hv = hv_offsets[nt];
+				  // vertical expansion minus horizontal expansion
+				  dbg_img[1][nt] = (-hv[1] - hv[3] + hv[5] + hv[7]) -( -hv[0] + hv[2] -hv[4] + hv[6]);
+				  dbg_img[2][nt] = dbg_img[1][nt] - Math.round(dbg_img[1][nt]);
+
+			  }
+			  (new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+					  dbg_img,
+					  tilesX,
+					  tilesY,
+					  true,
+					  "vert-minus-hor-expansion"+suffix+"-CPU",
+					  dbg_titles);
+		  }
+		  
+		  
+		  
+		  int [][] offset_bins = new int [2][tiles];
+		  Arrays.fill(offset_bins[0], -1);
+		  Arrays.fill(offset_bins[1], -1);
+		  double debug_hist_error_step =   0.025;
+		  double debug_hist_max_error2 =   0.6; //
+		  int err_steps2 =  2*((int) Math.ceil(debug_hist_max_error2/debug_hist_error_step)) - 1;
+		  double err_offs2 = -err_steps2 * debug_hist_error_step / 2.0;
+		  for (int nt = 0; nt < tiles; nt++) {
+			  double td = disparity[nt];
+			  if (!Double.isNaN(td) && (hv_offsets[nt]!= null) && (td >= debug_disparity_range[0]) && (td < debug_disparity_range[1])) {
+				  double [] offsets = new double[2];
+				  offsets[0] = -0.25 * (hv_offsets[nt][2] + hv_offsets[nt][6] - hv_offsets[nt][0] - hv_offsets[nt][4]); // null
+				  offsets[1] = -0.25 * (hv_offsets[nt][5] + hv_offsets[nt][7] - hv_offsets[nt][1] - hv_offsets[nt][3]);
+
+				  for (int mode = 0; mode < 2; mode++) { // hor, vert only
+					  double offs = offsets[mode];
+					  //	                    if (mode == 0) {
+					  //	                        offs += 0.5; // experimental - visible shift by 0.5
+					  //	                    }
+					  offs -= Math.round(offs);
+					  if (!Double.isNaN(offs)) {
+						  int x = (int) Math.floor((offs - err_offs2)/debug_hist_error_step);
+						  if      (x < 0) x = 0;
+						  else if (x >= err_steps2) x = err_steps2 - 1;
+						  offset_bins[mode][nt] = x;
+					  }
+				  }    						
+			  }
+		  }
+		  int corr_len = 4 * transform_size * transform_size;
+		  double [][][][] selected_td_tiles = new double [2][err_steps2][10][corr_len];
+		  int [][]        num_acc = new int [2][err_steps2];
+		  for (int nt = 0; nt < tiles; nt++) {
+			  int tileX = nt % tilesX;
+			  int tileY = nt / tilesX;
+			  int ih = offset_bins[0][nt];
+			  int iv = offset_bins[1][nt];
+			  if ((fcorr_td[tileY][tileX] != null) && (ih >= 0) && (iv >= 0)) {
+				  for (int s = 0; s < 6; s++) {
+					  float [] ftile = fcorr_td[tileY][tileX][s];
+					  for (int i = 0; i < corr_len; i++) {
+						  selected_td_tiles[0][ih][s][i] += ftile[i];
+						  selected_td_tiles[1][iv][s][i] += ftile[i];
+					  }
+				  }
+				  if (fcorr_combo_td != null) {
+					  for (int s = 0; s < 4; s++) if (fcorr_combo_td[s] != null) {
+						  float [] ftile = fcorr_combo_td[s][tileY][tileX];
+						  int s1 = s + 6;
+						  for (int i = 0; i < corr_len; i++) {
+							  selected_td_tiles[0][ih][s1][i] += ftile[i];
+							  selected_td_tiles[1][iv][s1][i] += ftile[i];
+						  }
+					  }
+				  }
+				  num_acc[0][ih] ++;
+				  num_acc[1][iv] ++;
+			  }
+		  }
+		  for (int mode = 0; mode < 2; mode++) {
+			  for (int ihv = 0; ihv < err_steps2; ihv++) {
+				  if (num_acc[mode][ihv] > 0) {
+					  for (int s = 0; s < 10; s ++) {
+						  for (int i = 0; i < corr_len; i++) {
+							  selected_td_tiles[mode][ihv][s][i] /= num_acc[mode][ihv];
+						  }
+					  }
+				  }
+			  }
+		  }
+		  // now inject accumulated into the image fcorr_td, fcorr_combo_td
+		  for (int mode = 0; mode < 2; mode++) {
+			  int ty = tile_woi.y + mode;
+			  for (int ihv = 0; ihv < err_steps2; ihv++) {
+				  int tx = tile_woi.x + ihv;
+				  if (num_acc[mode][ihv] > 0) {
+					  for (int s = 0; s < 6; s ++) {
+						  for (int i = 0; i < corr_len; i++) {
+							  fcorr_td[ty][tx][s][i] = (float) selected_td_tiles[mode][ihv][s][i];
+						  }
+					  }
+					  for (int s = 0; s < 4; s ++) {
+						  int s1 = s + 6;
+						  if (fcorr_combo_td!=null) {
+							  for (int i = 0; i < corr_len; i++) {
+								  fcorr_combo_td[s][ty][tx][i] = (float) selected_td_tiles[mode][ihv][s1][i];
+							  }
+						  }
+					  }
+				  }
+			  }
+		  }
+
+		  double[][] disparity_map =      new double [ImageDtt.DISPARITY_TITLES.length][];
+		  double[][] disparity_map_fake = new double [ImageDtt.DISPARITY_TITLES.length][];
+		  int disparity_modes = 
+				  ImageDtt.BITS_ALL_DISPARITIES |
+				  ImageDtt.BITS_ALL_DIFFS | // needs max_diff?
+				  ImageDtt.BITS_OVEREXPOSED; //  |
+
+		  // here accumulate TD tiles according to offsets (like in a histoghram) using double array - convert to float in the very end and
+		  // put them in the top left corner, then process as usual 
+
+
+		  double [][][][][] corrs_pd = null;
+		  double [][][][][] corrs_pd_combo = null;
+		  double [][][][]   corrs = null;
+		  double [][][][]   corrs_combo = null;
+		  int [] dbg_wh = new int [2];
+
+		  double [][] dbg_img = new double [4][];
+		  float [] fdbg_img = ImageDtt.corr_td_wnd(
+				  fcorr_td,             // final float [][][][] fcorr_td,       // float[tilesY][tilesX][num_slices][];
+				  fcorr_combo_td,       // final float [][][][] fcorr_combo_td, // float[4][tilesY][tilesX][];
+				  tile_woi,                 // final Rectangle      woi,
+				  vis_gap,                  // final int            gap,
+				  dbg_wh,                   // final int []         wh,
+				  image_dtt.transform_size, // final int            transform_size,
+				  threadsMax);              // final int            threadsMax)     // maximal number of threads to launch
+		  dbg_img[0] = new double [fdbg_img.length];
+		  for (int i = 0; i < fdbg_img.length; i++) {
+			  dbg_img[0][i] = fdbg_img[i];
+		  }
+		  if (fat_zero_cpu > 0.0) {
+			  // normalize fcorr_td, fcorr_combo_td in-place
+			  if (fcorr_td != null) {
+				  ImageDtt.corr_td_normalize(
+						  fcorr_td, // final float [][][][] fcorr_td, // will be updated
+						  // if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][];
+						  // if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
+						  GPUTileProcessor.NUM_PAIRS, // final int            num_slices,
+						  image_dtt.transform_size,   // final int            transform_size,
+						  fat_zero_cpu, // final double         fat_zero_abs,
+						  output_amplitude, // final double         output_amplitude,
+						  threadsMax); // final int            threadsMax);     // maximal number of threads to launch
+				  ImageDtt.corr_td_lpf(
+						  fcorr_td, // final float [][][][] fcorr_td, // will be updated
+						  // if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][];
+						  // if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
+						  GPUTileProcessor.NUM_PAIRS, // final int            num_slices,
+						  image_dtt.transform_size,   // final int            transform_size,
+						  gpu_sigma_corr,             // final double         corr_sigma,
+						  threadsMax);                // final int            threadsMax);     // maximal number of threads to launch
+
+				  fcorr_td =  ImageDtt.corr_transpose(
+						  fcorr_td, // final float [][][][] fcorr_td, // will be updated
+						  // if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][]; // last index - [4 * 64]
+						  // if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
+						  GPUTileProcessor.NUM_PAIRS, // final int            num_slices,
+						  image_dtt.transform_size,   // final int            transform_size,
+						  threadsMax);                // final int            threadsMax);     // maximal number of threads to launch
+
+				  corrs_pd = ImageDtt.corr_td_dct2(
+						  fcorr_td, // final float [][][][] fcorr_td, // normalized TD representation
+						  // if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][]; // last index - [4 * 64]
+						  // if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
+						  GPUTileProcessor.NUM_PAIRS, // final int            num_slices,
+						  image_dtt.transform_size,   // final int            transform_size,
+						  threadsMax); // final int            threadsMax);     // maximal number of threads to launch
+
+				  corrs = ImageDtt.corr_pd_unfold(
+						  corrs_pd,                   // final double [][][][][] pd_data, // pixel-domain correlation representation
+						  // if 0 - pd_data = new double[4][tilesY][tilesX][4][64]; // last index - [4 * 64]
+						  // if > 0 - pd_data =       new double[tilesY][tilesX][num_slices][4][64];
+						  GPUTileProcessor.NUM_PAIRS, // final int            num_slices,
+						  image_dtt.transform_size,   // final int            transform_size,
+						  threadsMax); // final int            threadsMax);     // maximal number of threads to launch
+
+			  }
+			  if (fcorr_combo_td != null) {
+				  ImageDtt.corr_td_normalize(
+						  fcorr_combo_td,              // final float [][][][] fcorr_td, // will be updated
+						  // if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][];
+						  // if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
+						  0, // final int            num_slices,
+						  image_dtt.transform_size,    // final int            transform_size,
+						  fat_zero_cpu,                // final double         fat_zero_abs,
+						  output_amplitude,            //final double         output_amplitude,
+						  threadsMax);                 // final int            threadsMax);     // maximal number of threads to launch
+
+				  ImageDtt.corr_td_lpf(
+						  fcorr_combo_td, // final float [][][][] fcorr_td, // will be updated
+						  // if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][];
+						  // if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
+						  0,                           // final int            num_slices,
+						  image_dtt.transform_size,    // final int            transform_size,
+						  gpu_sigma_corr,              // final double         corr_sigma,
+						  threadsMax);                 // final int            threadsMax);     // maximal number of threads to launch
+
+				  fcorr_combo_td =  ImageDtt.corr_transpose(
+						  fcorr_combo_td, // final float [][][][] fcorr_td, // will be updated
+						  // if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][]; // last index - [4 * 64]
+						  // if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
+						  0,                           // final int            num_slices,
+						  image_dtt.transform_size,    // final int            transform_size,
+						  threadsMax);                 // final int            threadsMax);     // maximal number of threads to launch
+
+				  corrs_pd_combo = ImageDtt.corr_td_dct2(
+						  fcorr_combo_td,              // final float [][][][] fcorr_td, // normalized TD representation
+						  // if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][]; // last index - [4 * 64]
+						  // if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
+						  0,                           // final int            num_slices,
+						  image_dtt.transform_size,    // final int            transform_size,
+						  threadsMax);                 // final int            threadsMax);     // maximal number of threads to launch
+				  corrs_combo = ImageDtt.corr_pd_unfold(
+						  corrs_pd_combo,              // final double [][][][][] pd_data, // pixel-domain correlation representation
+						  // if 0 - pd_data = new double[4][tilesY][tilesX][4][64]; // last index - [4 * 64]
+						  // if > 0 - pd_data =       new double[tilesY][tilesX][num_slices][4][64];
+						  0,                           // final int            num_slices,
+						  image_dtt.transform_size,    // final int            transform_size,
+						  threadsMax);                 // final int            threadsMax);     // maximal number of threads to launch
+			  }
+			  // after normalization
+			  fdbg_img = ImageDtt.corr_td_wnd(
+					  fcorr_td,             // final float [][][][] fcorr_td,       // float[tilesY][tilesX][num_slices][];
+					  fcorr_combo_td,       // final float [][][][] fcorr_combo_td, // float[4][tilesY][tilesX][];
+					  tile_woi,                 // final Rectangle      woi,
+					  vis_gap,                  // final int            gap,
+					  dbg_wh,                   // final int []         wh,
+					  image_dtt.transform_size, // final int            transform_size,
+					  threadsMax);              // final int            threadsMax)     // maximal number of threads to launch
+			  dbg_img[1] = new double [fdbg_img.length];
+			  for (int i = 0; i < fdbg_img.length; i++) {
+				  dbg_img[1][i] = fdbg_img[i];
+			  }
+			  dbg_img[2] = ImageDtt.corr_td_wnd(
+					  corrs_pd,                 // final float [][][][] fcorr_td,       // float[tilesY][tilesX][num_slices][];
+					  corrs_pd_combo,           // final float [][][][] fcorr_combo_td, // float[4][tilesY][tilesX][];
+					  tile_woi,                 // final Rectangle      woi,
+					  vis_gap,                  // final int            gap,
+					  dbg_wh,                   // final int []         wh,
+					  image_dtt.transform_size, // final int            transform_size,
+					  threadsMax);              // final int            threadsMax)     // maximal number of threads to launch
+
+
+			  final double  [][][]       dclt_corr = new double [tilesX * tilesY][][];
+
+			  ImageDtt.clt_process_pd_correlations(    // process correlations already prepared in dcorr and/or dcorr_combo
+					  this,                            // QuadCLT                   quadCLT,
+					  clt_parameters.img_dtt,			 // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+					  // both arrays should have same non-null tiles
+					  corrs,                           // final double  [][][][]    dcorr,           // [tilesY][tilesX][pair][225] pixel domain representation of 6 corr pairs SHOULD not == null
+					  corrs_combo,                     // final double  [][][][]    dcorr_combo,     // [4][tilesY][tilesX][225] PD of combo corrs: qud, cross, hor,vert MAY BE null
+					  // each of the top elements may be null to skip particular combo type
+					  null, 							 //	final double [][][][]     corr_tiles,      // [tilesY][tilesX][pair][] ([(2*gpu_corr_rad+1)*(2*gpu_corr_rad+1)]) or null
+					  null, 							 // final double [][][][][]   clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					  // 											  [tilesY][tilesX] should be set by caller
+					  dclt_corr,                       // final double  [][][]       dcorr_tiles,     // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					  // When clt_mismatch is non-zero, no far objects extraction will be attempted
+					  null, 							 // final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
+					  // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
+					  disparity_map,					 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+					  // last 2 - contrast, avg/ "geometric average)
+					  disparity_modes,                 // final int                 disparity_modes, // bit mask of disparity_map slices to calculate/return
+					  63,                              // final int                 corr_pairs_mask, // which pairs to use in LMA
+					  clt_parameters.max_corr_radius,	 // final double              max_corr_radius, // 3.9;
+					  clt_parameters.tileX,      		 // final int               debug_tileX,
+					  clt_parameters.tileY,          	 // final int               debug_tileY,
+					  threadsMax,
+					  debugLevel -1 );
+			  if (show_per_scene) {
+				  dbg_img[3] = ImageDtt.corr_partial_wnd( // not used in lwir
+						  dclt_corr,                      // clt_corr_partial,               // final double [][][][][] corr_data,
+						  tilesX,                         // final int               tilesX,
+						  2*image_dtt.transform_size - 1, // final int               corr_size,
+						  tile_woi,                       // final Rectangle      woi,
+						  vis_gap,                        // final int            gap,
+						  dbg_wh,                         // final int []         wh,
+						  threadsMax);                    // final int               threadsMax)
+
+				  String [] dbg_titles = {"td","td_norm", "pd", "corr"}; 
+				  (new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+						  dbg_img,
+						  dbg_wh[0],
+						  dbg_wh[1],
+						  true,
+						  "td-pd-dbg"+suffix+"-CPU",
+						  dbg_titles);
+			  }
+			  if (!hv_lma) {
+				  return disparity_map;
+			  }
+			  disparity_map_fake[ImageDtt.DISPARITY_INDEX_CM] = disparity_map[ImageDtt.DISPARITY_INDEX_CM].clone();
+			  disparity_map_fake[ImageDtt.DISPARITY_STRENGTH_INDEX] = disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX].clone();
+			  // using LMA with horizontal pairs, pretend it is horizontal correlation
+			  ImageDtt.clt_process_pd_correlations(    // process correlations already prepared in dcorr and/or dcorr_combo
+					  this,                            // QuadCLT                   quadCLT,
+					  clt_parameters.img_dtt,			 // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+					  // both arrays should have same non-null tiles
+					  corrs,                           // final double  [][][][]    dcorr,           // [tilesY][tilesX][pair][225] pixel domain representation of 6 corr pairs SHOULD not == null
+					  corrs_combo,                     // final double  [][][][]    dcorr_combo,     // [4][tilesY][tilesX][225] PD of combo corrs: qud, cross, hor,vert MAY BE null
+					  // each of the top elements may be null to skip particular combo type
+					  null, 							 //	final double [][][][]     corr_tiles,      // [tilesY][tilesX][pair][] ([(2*gpu_corr_rad+1)*(2*gpu_corr_rad+1)]) or null
+					  null, 							 // final double [][][][][]   clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					  // 											  [tilesY][tilesX] should be set by caller
+					  null,                            // final double  [][][]       dcorr_tiles,     // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					  // When clt_mismatch is non-zero, no far objects extraction will be attempted
+					  null, 							 // final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
+					  // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
+					  disparity_map,					 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+					  // last 2 - contrast, avg/ "geometric average)
+					  disparity_modes,                 // final int                 disparity_modes, // bit mask of disparity_map slices to calculate/return
+					  3,                               // final int                 corr_pairs_mask, // which pairs to use in LMA
+					  clt_parameters.max_corr_radius,	 // final double              max_corr_radius, // 3.9;
+					  clt_parameters.tileX,      		 // final int               debug_tileX,
+					  clt_parameters.tileY,          	 // final int               debug_tileY,
+					  threadsMax,
+					  debugLevel -1 );
+			  disparity_map_fake[ImageDtt.DISPARITY_INDEX_HOR] =          disparity_map[ImageDtt.DISPARITY_INDEX_CM].clone();
+			  disparity_map_fake[ImageDtt.DISPARITY_INDEX_HOR_STRENGTH] = disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX].clone();
+			  // using LMA with vertical pairs, pretend it is vertical correlation
+			  ImageDtt.clt_process_pd_correlations(    // process correlations already prepared in dcorr and/or dcorr_combo
+					  this,                            // QuadCLT                   quadCLT,
+					  clt_parameters.img_dtt,			 // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+					  // both arrays should have same non-null tiles
+					  corrs,                           // final double  [][][][]    dcorr,           // [tilesY][tilesX][pair][225] pixel domain representation of 6 corr pairs SHOULD not == null
+					  corrs_combo,                     // final double  [][][][]    dcorr_combo,     // [4][tilesY][tilesX][225] PD of combo corrs: qud, cross, hor,vert MAY BE null
+					  // each of the top elements may be null to skip particular combo type
+					  null, 							 //	final double [][][][]     corr_tiles,      // [tilesY][tilesX][pair][] ([(2*gpu_corr_rad+1)*(2*gpu_corr_rad+1)]) or null
+					  null, 							 // final double [][][][][]   clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					  // 											  [tilesY][tilesX] should be set by caller
+					  null,                            // final double  [][][]       dcorr_tiles,     // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					  // When clt_mismatch is non-zero, no far objects extraction will be attempted
+					  null, 							 // final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
+					  // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
+					  disparity_map,					 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+					  // last 2 - contrast, avg/ "geometric average)
+					  disparity_modes,                 // final int                 disparity_modes, // bit mask of disparity_map slices to calculate/return
+					  12,                               // final int                 corr_pairs_mask, // which pairs to use in LMA
+					  clt_parameters.max_corr_radius,	 // final double              max_corr_radius, // 3.9;
+					  clt_parameters.tileX,      		 // final int               debug_tileX,
+					  clt_parameters.tileY,          	 // final int               debug_tileY,
+					  threadsMax,
+					  debugLevel -1 );
+			  disparity_map_fake[ImageDtt.DISPARITY_INDEX_VERT] =          disparity_map[ImageDtt.DISPARITY_INDEX_CM].clone();
+			  disparity_map_fake[ImageDtt.DISPARITY_INDEX_VERT_STRENGTH] = disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX].clone();
+
+		  } else {
+			  // convert correlation arrays to disparity map
+			  //				final float  [][][]       fclt_corr = null; // new float [tilesX * tilesY][][]; // only used for debugging
+			  final float  [][][]       fclt_corr = new float [tilesX * tilesY][][]; // only used for debugging
+			  image_dtt.clt_process_tl_correlations_GPU(	// convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td
+					  clt_parameters.img_dtt,				// final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+					  // both arrays should have same non-null tiles
+					  fcorr_td,				 	 		// final float  [][][][]     corr_td,         // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
+					  fcorr_combo_td, 			    	// final float  [][][][]     corr_combo_td,   // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: qud, cross, hor,vert
+					  // each of the top elements may be null to skip particular combo type
+					  null, 								//	final double [][][][]     corr_tiles,      // [tilesY][tilesX][pair][] ([(2*gpu_corr_rad+1)*(2*gpu_corr_rad+1)]) or null
+					  null, 								// final double [][][][][]   clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					  // [tilesY][tilesX] should be set by caller
+					  fclt_corr, // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					  // When clt_mismatch is non-zero, no far objects extraction will be attempted
+					  null, 								// final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
+					  // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
+					  disparity_map,						// final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+					  // last 2 - contrast, avg/ "geometric average)
+					  disparity_modes,                    // final int                 disparity_modes, // bit mask of disparity_map slices to calculate/return
+					  63, // final int                 corr_pairs_mask, // which pairs to use in LMA
+					  clt_parameters.gpu_corr_scale,      //  gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
+					  clt_parameters.getGpuFatZero(isMonochrome()), // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
+					  image_dtt.transform_size - 1,			// clt_parameters.gpu_corr_rad,   // = transform_size - 1 ?
+					  clt_parameters.max_corr_radius,		// final double              max_corr_radius, // 3.9;
+					  clt_parameters.clt_window,     		// final int                 window_type,     // GPU: will not be used
+					  clt_parameters.tileX,      		    // final int               debug_tileX,
+					  clt_parameters.tileY,          		// final int               debug_tileY,
+					  threadsMax,
+					  debugLevel -1 );
+
+			  fdbg_img = ImageDtt.corr_partial_wnd( // not used in lwir
+					  fclt_corr,                      // clt_corr_partial,               // final double [][][][][] corr_data,
+					  tilesX,                         // final int               tilesX,
+					  2*image_dtt.transform_size - 1, // final int               corr_size,
+					  tile_woi,                       // final Rectangle      woi,
+					  vis_gap,                        // final int            gap,
+					  dbg_wh,                         // final int []         wh,
+					  threadsMax);                    // final int               threadsMax)
+
+			  dbg_img[3] = new double [fdbg_img.length];
+			  for (int i = 0; i < fdbg_img.length; i++) {
+				  dbg_img[3][i] = fdbg_img[i];
+			  }
+			  String [] dbg_titles = {"td","td_norm", "pd", "corr"}; 
+			  (new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+					  dbg_img,
+					  dbg_wh[0],
+					  dbg_wh[1],
+					  true,
+					  "td-pd-dbg"+suffix+"-GPU",
+					  dbg_titles);
+
+			  if (!hv_lma) {
+				  return disparity_map;
+			  }
+			  disparity_map_fake[ImageDtt.DISPARITY_INDEX_CM] = disparity_map[ImageDtt.DISPARITY_INDEX_CM].clone();
+			  disparity_map_fake[ImageDtt.DISPARITY_STRENGTH_INDEX] = disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX].clone();
+			  // using LMA with horizontal pairs, pretend it is horizontal correlation
+			  image_dtt.clt_process_tl_correlations_GPU(	// convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td
+					  clt_parameters.img_dtt,				// final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+					  // both arrays should have same non-null tiles
+					  fcorr_td,				 	 		// final float  [][][][]     corr_td,         // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
+					  fcorr_combo_td, 			    	// final float  [][][][]     corr_combo_td,   // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: qud, cross, hor,vert
+					  // each of the top elements may be null to skip particular combo type
+					  null, 								//	final double [][][][]     corr_tiles,      // [tilesY][tilesX][pair][] ([(2*gpu_corr_rad+1)*(2*gpu_corr_rad+1)]) or null
+					  null, 								// final double [][][][][]   clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					  // [tilesY][tilesX] should be set by caller
+					  fclt_corr, // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					  // When clt_mismatch is non-zero, no far objects extraction will be attempted
+					  null, 								// final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
+					  // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
+					  disparity_map,						// final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+					  // last 2 - contrast, avg/ "geometric average)
+					  disparity_modes,                    // final int                 disparity_modes, // bit mask of disparity_map slices to calculate/return
+					  3, // final int                 corr_pairs_mask, // which pairs to use in LMA
+					  clt_parameters.gpu_corr_scale,      //  gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
+					  clt_parameters.getGpuFatZero(isMonochrome()), // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
+					  image_dtt.transform_size - 1,			// clt_parameters.gpu_corr_rad,   // = transform_size - 1 ?
+					  clt_parameters.max_corr_radius,		// final double              max_corr_radius, // 3.9;
+					  clt_parameters.clt_window,     		// final int                 window_type,     // GPU: will not be used
+					  clt_parameters.tileX,      		    // final int               debug_tileX,
+					  clt_parameters.tileY,          		// final int               debug_tileY,
+					  threadsMax,
+					  debugLevel -1 );
+			  disparity_map_fake[ImageDtt.DISPARITY_INDEX_HOR] =          disparity_map[ImageDtt.DISPARITY_INDEX_CM].clone();
+			  disparity_map_fake[ImageDtt.DISPARITY_INDEX_HOR_STRENGTH] = disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX].clone();
+			  // using LMA with vertical pairs, pretend it is vertical correlation
+			  image_dtt.clt_process_tl_correlations_GPU(	// convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td
+					  clt_parameters.img_dtt,				// final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+					  // both arrays should have same non-null tiles
+					  fcorr_td,				 	 		// final float  [][][][]     corr_td,         // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
+					  fcorr_combo_td, 			    	// final float  [][][][]     corr_combo_td,   // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: qud, cross, hor,vert
+					  // each of the top elements may be null to skip particular combo type
+					  null, 								//	final double [][][][]     corr_tiles,      // [tilesY][tilesX][pair][] ([(2*gpu_corr_rad+1)*(2*gpu_corr_rad+1)]) or null
+					  null, 								// final double [][][][][]   clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					  // [tilesY][tilesX] should be set by caller
+					  fclt_corr, // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					  // When clt_mismatch is non-zero, no far objects extraction will be attempted
+					  null, 								// final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
+					  // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
+					  disparity_map,						// final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+					  // last 2 - contrast, avg/ "geometric average)
+					  disparity_modes,                    // final int                 disparity_modes, // bit mask of disparity_map slices to calculate/return
+					  12, // final int                 corr_pairs_mask, // which pairs to use in LMA
+					  clt_parameters.gpu_corr_scale,      //  gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
+					  clt_parameters.getGpuFatZero(isMonochrome()), // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
+					  image_dtt.transform_size - 1,			// clt_parameters.gpu_corr_rad,   // = transform_size - 1 ?
+					  clt_parameters.max_corr_radius,		// final double              max_corr_radius, // 3.9;
+					  clt_parameters.clt_window,     		// final int                 window_type,     // GPU: will not be used
+					  clt_parameters.tileX,      		    // final int               debug_tileX,
+					  clt_parameters.tileY,          		// final int               debug_tileY,
+					  threadsMax,
+					  debugLevel -1 );
+			  disparity_map_fake[ImageDtt.DISPARITY_INDEX_VERT] =          disparity_map[ImageDtt.DISPARITY_INDEX_CM].clone();
+			  disparity_map_fake[ImageDtt.DISPARITY_INDEX_VERT_STRENGTH] = disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX].clone();
+
+
+
+		  }
+		  return disparity_map_fake;
+	  }	  
+	  
+	  
+	  
 	  
 	  public CLTPass3d  CLTMeasureCorrTesting( // perform single pass according to prepared tiles operations and disparity // not used in lwir
 			  CLTParameters     clt_parameters,
@@ -3443,7 +4166,7 @@ public class QuadCLT extends QuadCLTCPU {
 		  
 		  
 		  
-		  image_dtt.clt_aberrations_quad_corr_GPU( // USED in LWIR
+		  image_dtt.clt_aberrations_quad_corr_GPU(
 				  clt_parameters.img_dtt,        // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 				  1,                             // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 				  tile_op,                       // per-tile operation bit codes
@@ -3521,7 +4244,7 @@ public class QuadCLT extends QuadCLTCPU {
 //				 ,dbg_titles
 				 );
 		  if (debugLevel > -10){ // -1
-			  double [][] corr_rslt_partial = image_dtt.corr_partial_dbg(
+			  double [][] corr_rslt_partial = ImageDtt.corr_partial_dbg(
 					  clt_corr_partial0,
 					  2*image_dtt.transform_size - 1,	//final int corr_size,
 					  4,	// final int pairs,
@@ -3603,7 +4326,7 @@ public class QuadCLT extends QuadCLTCPU {
 			 
 			 
 			  if (debugLevel > -10){ // -1
-				  double [][] corr_rslt_partial = image_dtt.corr_partial_dbg(
+				  double [][] corr_rslt_partial = ImageDtt.corr_partial_dbg(
 						  clt_corr_partial1,
 						  2*image_dtt.transform_size - 1,	//final int corr_size,
 						  4,	// final int pairs,
@@ -4252,7 +4975,7 @@ public class QuadCLT extends QuadCLTCPU {
 			  float  [][][][]     fpxpy =      new float[tilesY][tilesX][][];
 			  final double        gpu_fat_zero = clt_parameters.getGpuFatZero(isMonochrome()); 
 			  
-			  image_dtt.clt_aberrations_quad_corr_GPU( 
+			  image_dtt.clt_aberrations_quad_corr_GPU( // measures 2D correlations
 					  clt_parameters.img_dtt,        // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 					  1,                             // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 					  tile_op,                       // per-tile operation bit codes
@@ -4307,8 +5030,46 @@ public class QuadCLT extends QuadCLTCPU {
 					  clt_parameters.tileY,          // final int               debug_tileY,
 					  threadsMax,
 					  debugLevel);
+if (debugLevel < -100) {
+			  double [][] lazy_eye_data_dbg = image_dtt.cltMeasureLazyEyeGPU ( // processes 2D correlations, returns d,s lazy eye parameters
+					  clt_parameters.img_dtt,        // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+					  disparity_array,               // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
+					  fcorr_td,                      // final float  [][][][]     fcorr_td,        // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr
+					  fdisp_dist,                    // final float  [][][][]     fdisp_dist,      // [tilesY][tilesX][cams][4], // disparity derivatives vectors or null
+					  fpxpy,                         // 						  final float  [][][][]     fpxpy,           // [tilesY][tilesX][cams][2], tile {pX,pY}
+					  clt_parameters.gpu_corr_scale, // gpu_corr_scale,  //  final double              gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
+					  gpu_fat_zero,                  // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
+					  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
+					  null,                          // geometryCorrection_main, // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
+					  disparity_corr,                // final double              disparity_corr, // disparity at infinity
+					  1, // clt_parameters.tileStep,       // final int                 tileStep, // process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters
+					  0, // clt_parameters.super_radius,   // final int                 super_radius, // 0 - none, 1 - 3x3, 2 - 5x5,
 
-			  lazy_eye_data = image_dtt.cltMeasureLazyEyeGPU ( // returns d,s lazy eye parameters
+					  clt_parameters.tileX,          // final int               debug_tileX,
+					  clt_parameters.tileY,          // final int               debug_tileY,
+					  threadsMax,
+					  debugLevel);
+			  	double [][] dbg_img = new double[ExtrinsicAdjustment.DATA_TITLES.length][lazy_eye_data_dbg.length];
+			  	for (int i = 0; i < dbg_img.length; i++) {
+			  		Arrays.fill(dbg_img[i], Double.NaN);
+			  	}
+			  	for (int nt = 0; nt < lazy_eye_data_dbg.length; nt++) if (lazy_eye_data_dbg[nt] != null){
+				  	for (int i = 0; i < dbg_img.length; i++) {
+				  		dbg_img[i][nt] = lazy_eye_data_dbg[nt][i];
+				  	}
+			  	}
+			  
+				(new ShowDoubleFloatArrays()).showArrays(
+						dbg_img,
+						tp.getTilesX(),
+						tp.getTilesY(),
+						true,
+						"LY-everytile",
+						ExtrinsicAdjustment.DATA_TITLES);
+			  
+}			  
+			  
+			  lazy_eye_data = image_dtt.cltMeasureLazyEyeGPU ( // processes 2D correlations, returns d,s lazy eye parameters
 					  clt_parameters.img_dtt,        // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 					  disparity_array,               // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
 					  fcorr_td,                      // final float  [][][][]     fcorr_td,        // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr
@@ -4326,6 +5087,8 @@ public class QuadCLT extends QuadCLTCPU {
 					  clt_parameters.tileY,          // final int               debug_tileY,
 					  threadsMax,
 					  debugLevel);
+			  
+			  
 		  }
 
 		  scan.setLazyEyeData(lazy_eye_data);

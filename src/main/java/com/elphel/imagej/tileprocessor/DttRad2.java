@@ -63,6 +63,34 @@ public class DttRad2 {
 		return fold_k;
 	}
 
+/*	
+	public double [] fold1D(double [] x, double offs) {
+		int n2 = x.length;
+		int n = n2/2;
+		int nh = n/2; // 4
+		int t = ilog2(n)-1;
+		
+		double [] y = new double[n];
+		double [] w = new double [n2];
+		for (int i = 0; i < n2; i++) {
+			w[i]=Math.sin(Math.PI*i/n2 + 0.5 + offs); // sign?
+		}
+		for (int i = 0; i < nh; i++) { // 0.. 3
+			int icr = n + nh - 1 - i;
+			int id =  n + nh + i;
+			int ia =  i;
+			int ibr = n -1 -i;
+			
+			y[i] =   -x[icr]*w[icr] - x[id]* w[id];
+			y[i+nh] = x[ia]* w[ia]  - x[ibr]*w[ibr];
+		}
+		return y;
+	}
+*/	
+	
+	
+	
+	
 	public DttRad2 (int maxN){ // n - maximal
 		setup_arrays(maxN); // always setup arrays for fast calculations
 	}
@@ -482,13 +510,55 @@ public class DttRad2 {
 								 qdata[3][(i-1)*transform_size + j - 1]);
 			}
 		}
-
-
 		return rslt;
-
 	}
 
 
+	public  double [] corr_unfold_tile1(
+			double [][]  qdata, // [4][transform_size*transform_size] data after DCT2 (pixel domain)
+			int          transform_size
+			)
+	{
+		int corr_pixsize = transform_size * 2 - 1;
+		double corr_pixscale = 0.25;
+		double [] rslt = new double [corr_pixsize*corr_pixsize];
+		rslt[corr_pixsize*transform_size - transform_size] = corr_pixscale * qdata[0][0]; // center
+		for (int j = 1; j < transform_size; j++) { //  for i == 0
+			rslt[corr_pixsize*transform_size - transform_size + j] = corr_pixscale * (qdata[0][j] + qdata[1][j-1]);
+			rslt[corr_pixsize*transform_size - transform_size - j] = corr_pixscale * (qdata[0][j] - qdata[1][j-1]);
+		}
+		for (int i = 1; i < transform_size; i++) {
+			rslt[corr_pixsize*(transform_size + i) - transform_size] =
+					corr_pixscale * (qdata[0][i*transform_size] + qdata[2][(i-1)*transform_size]);
+			rslt[corr_pixsize*(transform_size - i) - transform_size] =
+					corr_pixscale * (qdata[0][i*transform_size] - qdata[2][(i-1)*transform_size]);
+			for (int j = 1; j < transform_size; j++) {
+				rslt[corr_pixsize*(transform_size + i) - transform_size + j] =
+						corr_pixscale * (qdata[0][i*    transform_size + j] +
+								 qdata[1][i*    transform_size + j - 1] +
+								 qdata[2][(i-1)*transform_size + j] +
+								 qdata[3][(i-1)*transform_size + j - 1]);
+
+				rslt[corr_pixsize*(transform_size + i) - transform_size - j] =
+						corr_pixscale * ( qdata[0][i*    transform_size + j] +
+								 -qdata[1][i*    transform_size + j - 1] +
+								  qdata[2][(i-1)*transform_size + j] +
+								 -qdata[3][(i-1)*transform_size + j - 1]);
+				rslt[corr_pixsize*(transform_size - i) - transform_size + j] =
+						corr_pixscale * (qdata[0][i*    transform_size + j] +
+								 qdata[1][i*    transform_size + j - 1] +
+								 -qdata[2][(i-1)*transform_size + j] +
+								 -qdata[3][(i-1)*transform_size + j - 1]);
+				rslt[corr_pixsize*(transform_size - i) - transform_size - j] =
+						corr_pixscale * (qdata[0][i*    transform_size + j] +
+								 -qdata[1][i*    transform_size + j - 1] +
+								 -qdata[2][(i-1)*transform_size + j] +
+								 qdata[3][(i-1)*transform_size + j - 1]);
+			}
+		}
+		return rslt;
+	}
+	
 
 
 

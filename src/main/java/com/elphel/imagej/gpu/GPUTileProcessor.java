@@ -1867,7 +1867,23 @@ public class GPUTileProcessor {
         public void execCorr2D_combine(
         		boolean init_corr,    // initialize output tiles (false - add to current)
         		int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
-        		int     pairs_mask    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
+        		int     pairs_mask)    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
+        {
+        	execCorr2D_combine (init_corr, num_pairs_in, pairs_mask, false);
+        }
+        /**
+         * Combine intra-scene correlations in transform domain (possible to accumulate more)          
+         * @param init_corr - true: init output to 0 before accumulating, false: add to current value
+         * @param num_pairs_in - typically ==6 - number of pairs per tile (tile task should have same number per each tile).
+         * This number should match correlations in tasks
+         * @param pairs_mask - selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
+         * @param no_transpose_vertical - do not transpose vertical/diagonal
+         */
+        public void execCorr2D_combine(
+        		boolean init_corr,    // initialize output tiles (false - add to current)
+        		int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
+        		int     pairs_mask,    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
+        		boolean no_transpose_vertical        		
         		) {
         	if (GPU_CORR2D_COMBINE_kernel == null)
         	{
@@ -1881,17 +1897,18 @@ public class GPUTileProcessor {
         	
     		int [] GridFullWarps =    {1, 1, 1};
         	int [] ThreadsFullWarps = {1, 1, 1};
+        	int init_corr_combo = (init_corr ? 1 : 0) + (no_transpose_vertical ? 2 : 0);
         	Pointer kernelParameters = Pointer.to(
             		Pointer.to(new int[] { num_corr_combo_tiles }), // num_task_tiles }), // int   num_tiles           // number of tiles in task
-            		Pointer.to(new int[] { num_pairs }),           // int               num_pairs,          // num pairs per tile (should be the same)
-        			Pointer.to(new int[] { init_corr ? 1 : 0 }),   // int               init_output,        // 1- reset output tiles to zero before accumulating
-            		Pointer.to(new int[] { pairs_mask }),          // int               pairs_mask,         // selected pairs
-        			Pointer.to(gpu_corr_indices),                  // int             * gpu_corr_indices,   // packed tile+pair
-        			Pointer.to(gpu_corr_combo_indices),            // int             * gpu_combo_indices,  // output if not null: packed tile+pairs_mask
-        			Pointer.to(new int[] { corr_stride_td }),      // const size_t      corr_stride,        // (in floats) stride for the input TD correlations
-        			Pointer.to(gpu_corrs_td),                      // float           * gpu_corrs,          // input correlation tiles
-        			Pointer.to(new int[] { corr_stride_combo_td }),// const size_t      corr_stride_combo,  // (in floats) stride for the output TD
-        			Pointer.to(gpu_corrs_combo_td));               // float           * gpu_corrs_combo);   // combined correlation output (one per tile)
+            		Pointer.to(new int[] { num_pairs }),            // int               num_pairs,          // num pairs per tile (should be the same)
+        			Pointer.to(new int[] { init_corr_combo }),      // int               init_output,        // 1- reset output tiles to zero before accumulating
+            		Pointer.to(new int[] { pairs_mask }),           // int               pairs_mask,         // selected pairs
+        			Pointer.to(gpu_corr_indices),                   // int             * gpu_corr_indices,   // packed tile+pair
+        			Pointer.to(gpu_corr_combo_indices),             // int             * gpu_combo_indices,  // output if not null: packed tile+pairs_mask
+        			Pointer.to(new int[] { corr_stride_td }),       // const size_t      corr_stride,        // (in floats) stride for the input TD correlations
+        			Pointer.to(gpu_corrs_td),                       // float           * gpu_corrs,          // input correlation tiles
+        			Pointer.to(new int[] { corr_stride_combo_td }), // const size_t      corr_stride_combo,  // (in floats) stride for the output TD
+        			Pointer.to(gpu_corrs_combo_td));                // float           * gpu_corrs_combo);   // combined correlation output (one per tile)
         	cuCtxSynchronize();
         	// Call the kernel function
         	cuLaunchKernel(GPU_CORR2D_COMBINE_kernel,

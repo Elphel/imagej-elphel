@@ -89,6 +89,7 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
 import com.elphel.imagej.lwir.LwirReader;
 import com.elphel.imagej.readers.EyesisTiff;
 import com.elphel.imagej.tensorflow.TensorflowInferModel;
+import com.elphel.imagej.tileprocessor.Clt1d;
 import com.elphel.imagej.tileprocessor.DttRad2;
 import com.elphel.imagej.tileprocessor.ErsCorrection;
 import com.elphel.imagej.tileprocessor.ImageDtt;
@@ -707,7 +708,9 @@ private Panel panel1,
 			addButton("Inter Series",               panelClt5, color_process);
 			addButton("Inter Accumulate",           panelClt5, color_process);
 			addButton("Inter Noise",                panelClt5, color_process);
+			addButton("Inter Debug Noise",          panelClt5, color_report);
 			addButton("Noise Stats",                panelClt5, color_process);
+			addButton("Test 1D",                    panelClt5, color_process);
 			addButton("Colorize Depth",             panelClt5, color_process);
 			plugInFrame.add(panelClt5);
 		}
@@ -5144,7 +5147,15 @@ private Panel panel1,
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
         CLT_PARAMETERS.batch_run = true;
-        intersceneNoise();
+        intersceneNoise(false); // boolean  bayer_artifacts_debug);
+    	return;
+    	
+/* ======================================================================== */
+    } else if (label.equals("Inter Debug Noise")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        CLT_PARAMETERS.batch_run = true;
+        intersceneNoise(true); // boolean  bayer_artifacts_debug);
     	return;
 
 /* ======================================================================== */
@@ -5160,6 +5171,13 @@ private Panel panel1,
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
         CLT_PARAMETERS.batch_run = true;
         coloriseDepthMap();
+    	return;
+/* ======================================================================== */
+    } else if (label.equals("Test 1D")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        CLT_PARAMETERS.batch_run = true;
+        test1d();
     	return;
     	
 /* ======================================================================== */
@@ -6821,7 +6839,7 @@ private Panel panel1,
 		return true;
 	}
 	
-	public boolean intersceneNoise() {
+	public boolean intersceneNoise(boolean  bayer_artifacts_debug) {
 		long startTime=System.nanoTime();
 		// load needed sensor and kernels files
 		if (!prepareRigImages()) return false;
@@ -6861,16 +6879,17 @@ private Panel panel1,
 		
 		try {
 			TWO_QUAD_CLT.intersceneNoise(
-					QUAD_CLT, // QuadCLT quadCLT_main,
-					CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-					DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-					COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-					CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-					RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+					QUAD_CLT,                   // QuadCLT quadCLT_main,
+					CLT_PARAMETERS,             // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+					DEBAYER_PARAMETERS,         //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+					COLOR_PROC_PARAMETERS,      //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+					CHANNEL_GAINS_PARAMETERS,   //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+					RGB_PARAMETERS,             //EyesisCorrectionParameters.RGBParameters             rgbParameters,
 					EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-					PROPERTIES,  // Properties                                           properties,
-					THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-					UPDATE_STATUS, //final boolean    updateStatus,
+					PROPERTIES,                 // Properties                                           properties,
+					bayer_artifacts_debug,      // boolean  bayer_artifacts_debug
+					THREADS_MAX,                // final int          threadsMax,  // maximal number of threads to launch
+					UPDATE_STATUS,              // final boolean    updateStatus,
 					DEBUG_LEVEL);
 		} catch (Exception e) {
 			// TODO Auto-generated catch block
@@ -6954,6 +6973,11 @@ private Panel panel1,
 		System.out.println("batchRig(): Processing finished at "+
 				IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec, --- Free memory="+
 				Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+		return true;
+	}
+	public boolean test1d() {
+		Clt1d clt1d = new Clt1d(CLT_PARAMETERS.transform_size); // CLT_PARAMETERS
+		clt1d.test1d(CLT_PARAMETERS);
 		return true;
 	}
 	

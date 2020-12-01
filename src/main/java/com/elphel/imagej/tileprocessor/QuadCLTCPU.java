@@ -8350,7 +8350,7 @@ public class QuadCLTCPU {
 			  if (update_disp_from_latest) {
 				  tp.clt_3d_passes.get(combo_scan).updateDisparity();
 			  }
-			  if (clt_parameters.ly_lma_ers) {
+			  if (clt_parameters.ly_lma_ers) { // next is implemented in both QuadCLTCPU and QuadCLT !
 				  CLTMeasureLY( // perform single pass according to prepared tiles operations and disparity // USED in lwir
 						  clt_parameters,
 						  combo_scan,     // final int           scanIndex,

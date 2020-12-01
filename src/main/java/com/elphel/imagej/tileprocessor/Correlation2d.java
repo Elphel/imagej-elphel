@@ -512,13 +512,30 @@ public class Correlation2d {
      */
     public double [][] combineCorrelationsTD(
     		double [][][] corr_combo_td, // vertical will be transposed, other diagonal flipped vertically (should be separate)
-    		int           pairs_mask // vertical
+    		int           pairs_mask  // vertical
+    		) {
+    	return combineCorrelationsTD(corr_combo_td, pairs_mask, false);
+    }
+
+    /**
+     * Combine compatible correlations in TD (for 6 pairs requires 2 calls): vertical will be transposed,
+     * (all quadrants transposed, quadrants 1 and 2 - swapped), "diagonal other" (#5) will be flipped
+     * vertically (quadrants 2 and 3 - negated) 
+     * @param corr_combo_td per-pair array of the TD representation of correlation pairs, mixed color components
+     * @param pairs_mask bitmask of the pairs to combinde
+     * @param no_transpose_vertical Do not transpose vertical pairs (used when combining just vertical together)
+     * @return TD representation of the combined 2D correlation
+     */
+    public double [][] combineCorrelationsTD(
+    		double [][][] corr_combo_td, // vertical will be transposed, other diagonal flipped vertically (should be separate)
+    		int           pairs_mask, // vertical
+    		boolean       no_transpose_vertical
     		) {
     	if (corr_combo_td != null) {
     		double [][]tcorr = new double [4][transform_len];
     		int num_combined = 0;
     		for (int npair = 0; npair < corr_combo_td.length; npair++) if ((((pairs_mask >> npair) & 1) != 0 ) && (corr_combo_td[npair] !=null)) {
-    			if (isHorizontalPair(npair) || isDiagonalMainPair(npair)) {
+    			if (isHorizontalPair(npair) || isDiagonalMainPair(npair) || (isVerticalPair(npair) && no_transpose_vertical)) {
     				for (int q = 0; q < 4; q++) {
     					for (int i = 0; i < transform_len; i++) {
     						tcorr[q][i] += corr_combo_td[npair][q][i];
