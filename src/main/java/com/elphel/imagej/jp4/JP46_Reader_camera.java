@@ -85,6 +85,11 @@ public class JP46_Reader_camera implements PlugIn, ActionListener {
 	 *
 	 */
 	private static final long serialVersionUID = 390855361964415147L;
+	public static int [][] BAYER_INDICES = {
+			{0, 1, 2 ,3},
+			{1, 0, 3 ,2},
+			{2, 3, 0 ,1},
+			{3, 2, 1 ,0}};
 	Panel panel1;
 	Panel confpanel;
 	Frame instance;
@@ -93,7 +98,7 @@ public class JP46_Reader_camera implements PlugIn, ActionListener {
 	String arg;
 
 	static File dir;
-
+	public boolean fix_bayer = true; // shift image (replacing last row/column) if (corrected for flips) BAYER_MODE != 0  
 	public String camera_url = "http://192.168.0.236:8081/";
 	public String camera_img = "bimg";
 	public String camera_img_new = "towp/wait/bimg"; // will always wait for the next image (repetitive acquisitions get new images)
@@ -109,14 +114,26 @@ public class JP46_Reader_camera implements PlugIn, ActionListener {
 	public void run(String arg) {
 		}
 
-	public JP46_Reader_camera(Boolean showGui) {
+	public JP46_Reader_camera(Boolean showGui) { // default fix_bayer = true
 		if (showGui) initGui();
 	}
 
-	public JP46_Reader_camera() {
+	public JP46_Reader_camera() { // default fix_bayer = true
 		initGui();
 	}
 
+	public JP46_Reader_camera(Boolean showGui, int fix_bayer) {
+		if (showGui) initGui();
+		this.fix_bayer = (fix_bayer !=0);
+	}
+
+	public JP46_Reader_camera(int fix_bayer) {
+		initGui();
+		this.fix_bayer = (fix_bayer !=0);
+	}
+	
+//	fix_bayer	
+	
 	private void initGui() {
 		if (headless) return;
 
@@ -390,6 +407,8 @@ public class JP46_Reader_camera implements PlugIn, ActionListener {
 			if (imp == null) {
 				IJ.showMessage("JP46 Reader Error", "Could not open the URL: " + url + " as JPEG/JP46");
 			} else {
+//				imp.updateAndDraw();
+//				imp.show(); // updateAndDraw();
 				if ((imp_src==null) && showImage) {
 //					System.out.println("show() 1");
 					imp.show(); /* Shows before re-ordering*/
@@ -450,6 +469,7 @@ public class JP46_Reader_camera implements PlugIn, ActionListener {
 	}
 	boolean  jp46Reorder(ImagePlus imp, long[] MakerNote, boolean scale, ImagePlus imp_src) {
 		//    int MARGIN=2; // 2 pixels in JP4/JP46 mode around WOI
+		
 		double[] gains= new double[4];
 		double[] blacks= new double[4];
 		double[] blacks256= new double[4];
@@ -459,6 +479,7 @@ public class JP46_Reader_camera implements PlugIn, ActionListener {
 		double[][] rgammas=new double[4][];
 		double min_gain;
 		long WOI_LEFT,WOI_WIDTH,WOI_TOP,WOI_HEIGHT,BAYER_MODE,DCM_HOR,DCM_VERT,BIN_HOR,BIN_VERT;
+		BAYER_MODE = 0;
 		long COLOR_MODE=0;
 		long FLIPH=0;
 		long FLIPV=0;
@@ -730,35 +751,36 @@ public class JP46_Reader_camera implements PlugIn, ActionListener {
 				}
 			}
 			/* apply gammas here */
+			int[] bayer_indices= BAYER_INDICES[(int) BAYER_MODE];
 			if  (MakerNote !=null) {
 
 				if (scale) {
 					for (y=0;y<16;y+=2) for (x=0;x<16;x+=2) {
 						i=(int) macroblock[y  ][x  ];  if (i<0) i=0 ; else if (i>255) i=255;
-						macroblock[y  ][x  ]= (float) (((rgammas[1][i])-blacks256[1])/gains[1]);
+						macroblock[y  ][x  ]= (float) (((rgammas[bayer_indices[1]][i])-blacks256[bayer_indices[1]])/gains[bayer_indices[1]]);
 
 						i=(int) macroblock[y  ][x+1];  if (i<0) i=0 ; else if (i>255) i=255;
-						macroblock[y  ][x+1]= (float) (((rgammas[0][i])-blacks256[0])/gains[0]);
+						macroblock[y  ][x+1]= (float) (((rgammas[bayer_indices[0]][i])-blacks256[bayer_indices[0]])/gains[bayer_indices[0]]);
 
 						i=(int) macroblock[y+1][x  ];  if (i<0) i=0 ; else if (i>255) i=255;
-						macroblock[y+1][x  ]= (float) (((rgammas[3][i])-blacks256[3])/gains[3]);
+						macroblock[y+1][x  ]= (float) (((rgammas[bayer_indices[3]][i])-blacks256[bayer_indices[3]])/gains[bayer_indices[3]]);
 
 						i=(int) macroblock[y+1][x+1];  if (i<0) i=0 ; else if (i>255) i=255;
-						macroblock[y+1][x+1]= (float) (((rgammas[2][i])-blacks256[2])/gains[2]);
+						macroblock[y+1][x+1]= (float) (((rgammas[bayer_indices[2]][i])-blacks256[bayer_indices[2]])/gains[bayer_indices[2]]);
 					}
 				} else {
 					for (y=0;y<16;y+=2) for (x=0;x<16;x+=2) {
 						i=(int) macroblock[y  ][x  ];  if (i<0) i=0 ; else if (i>255) i=255;
-						macroblock[y  ][x  ]= (float) ((rgammas[1][i])-blacks256[1]);
+						macroblock[y  ][x  ]= (float) ((rgammas[bayer_indices[1]][i])-blacks256[bayer_indices[1]]);
 
 						i=(int) macroblock[y  ][x+1];  if (i<0) i=0 ; else if (i>255) i=255;
-						macroblock[y  ][x+1]= (float) ((rgammas[0][i])-blacks256[0]);
+						macroblock[y  ][x+1]= (float) ((rgammas[bayer_indices[0]][i])-blacks256[bayer_indices[0]]);
 
 						i=(int) macroblock[y+1][x  ];  if (i<0) i=0 ; else if (i>255) i=255;
-						macroblock[y+1][x  ]= (float) ((rgammas[3][i])-blacks256[3]);
+						macroblock[y+1][x  ]= (float) ((rgammas[bayer_indices[3]][i])-blacks256[bayer_indices[3]]);
 
 						i=(int) macroblock[y+1][x+1];  if (i<0) i=0 ; else if (i>255) i=255;
-						macroblock[y+1][x+1]= (float) ((rgammas[2][i])-blacks256[2]);
+						macroblock[y+1][x+1]= (float) ((rgammas[bayer_indices[2]][i])-blacks256[bayer_indices[2]]);
 					}
 				}
 			}
@@ -771,16 +793,60 @@ public class JP46_Reader_camera implements PlugIn, ActionListener {
 				}
 			}
 		}
-		if (FLIPH!=0) ip_src.flipHorizontal(); /* To correct Bayer */
-		if (FLIPV!=0) ip_src.flipVertical(); /* To correct Bayer */
+		
+		if (FLIPH!=0) {
+			ip_src.flipHorizontal(); /* To correct Bayer */
+		}
+		if (FLIPV!=0) {
+			ip_src.flipVertical(); /* To correct Bayer */
+		}
 
 		/* Is it needed here ? */
 		/*    imp.draw();
     imp.show(); **/
 		if (use_imp_src) copyProperties (imp, imp_src);
+
+		if (fix_bayer) {
+			shiftToBayer(use_imp_src? imp_src: imp);
+		}
+		
 		return use_imp_src;
 	}
 
+	/**
+	 * Shift image vertically and/or horizontally to make it with BAYER_MODE=0 (RG/GB)
+	 * @param imp_src image, will be modified
+	 * @return true if any changes were applied
+	 */
+	public boolean shiftToBayer( ImagePlus imp) {
+		int bayer_mode = Integer.parseInt((String) imp.getProperty("BAYER_MODE"));
+		int flip_vert = Integer.parseInt((String) imp.getProperty("FLIPV"));
+		int flip_hor = Integer.parseInt((String) imp.getProperty("FLIPH"));
+		bayer_mode ^= flip_hor + (flip_vert << 1); 
+		
+		if (bayer_mode == 0) return false;
+		int width = imp.getWidth();
+		int height = imp.getHeight();
+		float [] pixels = (float[]) imp.getProcessor().getPixels();
+		
+		if ((bayer_mode & 1) != 0) { // horizontal shift
+			System.arraycopy(pixels, 1, pixels, 0, pixels.length-1); // shift left by 1 pixel (last column will be wrong)
+			for (int row = 0; row < height; row++) {
+				pixels[(row + 1) * width -1] = pixels[(row + 1) * width - 3]; // set the last column with the nearest of the same Bayer
+			}
+		}
+
+		if ((bayer_mode & 2) != 0) { // vertical shift
+			System.arraycopy(pixels, width, pixels, 0, pixels.length-width); // shift up by 1 row (last row will be wrong)
+			System.arraycopy(pixels, width * (height - 3), pixels, width * (height-1), width); // set the row column with the nearest of the same Bayer
+		}
+		bayer_mode = flip_hor + (flip_vert << 1); 
+		imp.setProperty("BAYER_MODE",""+bayer_mode);
+		return true;
+	}
+	
+	
+	
 	/* reverses gamma calculations in the camera
       returns double[] table , in the range 0.0..255.996
 	 */
@@ -923,6 +989,22 @@ public class JP46_Reader_camera implements PlugIn, ActionListener {
 					  ((head[offs + 3] <<  0) & 0x000000ff);
 		}
 		return data;
+	}
+	public boolean readDummyURL(String url ) { // throws IOException  {
+		URL camURL = null;
+		URLConnection urlConn = null;
+		try {
+			camURL  = new URL(url);
+			urlConn = camURL.openConnection();
+			urlConn.getHeaderFields();
+		} catch(MalformedURLException e){
+			System.out.println("Please check the URL:" + e.toString() );
+			return false;
+		} catch(IOException  e1){
+			System.out.println("Can't read  from the Internet: "+ e1.toString() );
+			return false;
+		}
+		return true;
 	}
 
 	long[] readElphelMakerNoteURL(String url, int len, double [] xtraExif) throws IOException  {

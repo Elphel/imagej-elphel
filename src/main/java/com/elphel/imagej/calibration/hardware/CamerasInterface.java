@@ -899,6 +899,7 @@ public class CamerasInterface{
 	   		return setupCameraAcquisition(Double.NaN);
 	   	}
 	   	public boolean setupCameraAcquisition(final double exposureScale){
+	   		final boolean mp14 = true;// FIXME: Modified for 14Mpix
 	   		final int ipLength=this.resetURLs.length;
 	   		final boolean [] results=new boolean[ipLength];
 	   		for (int chn=0;chn<ipLength;chn++) results[chn]=(this.sensorPresent[chn]!=null);
@@ -917,14 +918,15 @@ public class CamerasInterface{
 	   		}
 	   		startAndJoin(threads);
 	   		if (Double.isNaN(exposureScale)){ // full init
-	   			int nRepeat=this.setupTriggerMode?4:1;
+//	   			int nRepeat=this.setupTriggerMode?4:1;
+	   			int nRepeat=this.setupTriggerMode?4:2; // FIXME: Modified for 14Mpix
 	   			if (this.nc393) nRepeat++; // is it needed?
 	   			for (int i=0;i<nRepeat;i++){
 	   				if (this.debugLevel>0) System.out.println((i+1)+" of "+nRepeat+": Triggering cameras to give parameters a chance to propagate");
 	   				trigger();
 	   				try
 	   				{
-	   					Thread.sleep( 1000 ); // ms
+	   					Thread.sleep( 2000 ); // ms // FIXME: Modified for 14Mpix
 	   				}
 	   				catch ( InterruptedException e )
 	   				{
@@ -932,6 +934,16 @@ public class CamerasInterface{
 	   				}
 	   			}
 
+	   		} else if (mp14) {
+   				try
+   				{
+   					Thread.sleep( 2000 ); // ms // FIXME: Modified for 14Mpix
+   				}
+   				catch ( InterruptedException e )
+   				{
+   					System.out.println( "awakened prematurely" );
+   				}
+   				trigger();
 	   		}
 	   		boolean result=true;
 	   		for (int chn=0;chn<ipLength;chn++) if (this.sensorPresent[chn]!=null) result &=results[chn];
@@ -1290,7 +1302,8 @@ public class CamerasInterface{
 	   							DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
 	   							DocumentBuilder db = dbf.newDocumentBuilder();
 	   							String url=metaURLs[ipIndex];
-	   							if (debugLevel>2) System.out.println("timestampIPs:" + url );
+//	   							if (debugLevel>2) System.out.println("timestampIPs:" + url );
+	   							if (debugLevel>0) System.out.println("timestampIPs:" + url );
 	   							dom = db.parse(url);
 	   							if (!dom.getDocumentElement().getNodeName().equals("meta")) {
 	   								System.out.println("Root element: expected 'meta', got'" + dom.getDocumentElement().getNodeName()+"'");
@@ -1383,17 +1396,35 @@ public class CamerasInterface{
 	   		startAndJoin(threads);
 	   	}
 
+//	   	public boolean preTrigger()	{ // mt9f002 fails if more than 1-3 sec between triggers 
+//	   		return true;
+//	   	}
+	   	
+	   	
 	   	public ImagePlus [] getImages(final boolean [] acquire, boolean resetAndTrigger, final boolean show){
+		   	final boolean dual_trig = false;
 		   	final boolean [] acquireIPs=selectIPs(acquire);
 			if (this.debugLevel>2) {
 				System.out.println("getImages(...) 2");
 			    for (int ii=0;ii<this.cameraIPs.length;ii++)System.out.println(ii+":  "+this.cameraIPs[ii]);
 			}
 
-		   	if (resetAndTrigger) {
-			  resetCameras();
-			  trigger();
-		   	}
+			if (resetAndTrigger) {
+				try { // FIXME: Make conditional for 14MPix
+					Thread.sleep(2000);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				resetCameras();
+				trigger();
+				if (dual_trig) {
+					timestampIPs(acquireIPs); // ignoring results, just wait
+					resetCameras();
+					//				  trigger();
+					jp4_Instances[0].readDummyURL("http://192.168.0.236/parsedit.php?immediate&TRIG_PERIOD=1*0"); 
+				}
+			}
 		   	final double [] timestamps= timestampIPs(acquireIPs);
 			if (this.debugLevel>2) System.out.println("getImages(): this.imagesIP.length=" + this.imagesIP.length);
 	   		final Thread[] threads = newThreadArray(this.maxNumberOfThreads);
@@ -1590,6 +1621,12 @@ public class CamerasInterface{
 			   		if (debugLevel>2)	System.out.println(String.format("this.laserPointers.setLasers (0x%x)", sequence[nSeqNum]));
 	   			}
 	   			resetIPs(selectIPs(lasersIPs)); // flush buffer
+	   			try { // FIXME: Make conditional for 14MPix
+					Thread.sleep(2000);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 	   			trigger(); // trigger cameras
 	   			ipIndexAtomic.set(0);
 	   			final int fnSeqNum=nSeqNum;
@@ -1613,6 +1650,8 @@ public class CamerasInterface{
 	   								System.out.println("==== "+imageURLs[ipIndex]+ " opened in "+IJ.d2s(0.000000001*(System.nanoTime()-st),3)+" sec");
 	   							}
 	   							laserImagesIP[fnSeqNum-1][ipIndex].setProperty("MIRRORED","NO");
+//	   							laserImagesIP[fnSeqNum-1][ipIndex].setTitle("raw"+fnSeqNum);  //FIXME:Debugging 
+//	   							laserImagesIP[fnSeqNum-1][ipIndex].show(); //FIXME:Debugging
 	   						}
 	   					}
 	   				};
