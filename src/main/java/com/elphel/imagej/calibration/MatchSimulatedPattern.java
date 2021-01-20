@@ -6914,7 +6914,7 @@ public class MatchSimulatedPattern {
 		return combineGridCalibration(laserPointer, // LaserPointer object or null
 				pointersXY, removeOutOfGridPointers, //
 				hintGrid, // predicted grid array (or null)
-				hintGridTolerance, // alllowed mismatch (fraction of period) or 0 - orientation only
+				hintGridTolerance, // allowed mismatch (fraction of period) or 0 - orientation only
 				global_debug_level, // DEBUG_LEVEL
 				noMessageBoxes);
 	}
@@ -7301,6 +7301,10 @@ public class MatchSimulatedPattern {
 					pointersXY[i] = new double[4];
 					pointersXY[i][2] = Double.parseDouble((String) imp.getProperty("POINTER_U_" + i));
 					pointersXY[i][3] = Double.parseDouble((String) imp.getProperty("POINTER_V_" + i));
+				} else if  ((laserPointer != null) &&(laserPointer.laserUVMap[i] != null)) {
+					pointersXY[i] = new double[4];
+					pointersXY[i][2] = laserPointer.laserUVMap[i][0];
+					pointersXY[i][3] = laserPointer.laserUVMap[i][1];
 				} else {
 					pointersXY[i] = new double[2];
 				}

@@ -1785,6 +1785,12 @@ public class CamerasInterface{
 													", X="+pontersXY[nPointer][0]+", Y="+pontersXY[nPointer][1]);
 											images[sensorNum].setProperty("POINTER_X_"+nPointer, IJ.d2s(pontersXY[nPointer][0],1));
 											images[sensorNum].setProperty("POINTER_Y_"+nPointer, IJ.d2s(pontersXY[nPointer][1],1));
+											
+											if ((laserPointers.laserPointer.laserUVMap!=null) && (laserPointers.laserPointer.laserUVMap[nPointer]!=null)) {
+												images[sensorNum].setProperty("POINTER_U_"+nPointer, IJ.d2s(laserPointers.laserPointer.laserUVMap[nPointer][0],1));
+												images[sensorNum].setProperty("POINTER_V_"+nPointer, IJ.d2s(laserPointers.laserPointer.laserUVMap[nPointer][1],1));
+												
+											}
 											pointersDetected++;
 										}
 
