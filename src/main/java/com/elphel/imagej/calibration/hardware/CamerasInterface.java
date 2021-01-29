@@ -1,6 +1,7 @@
 package com.elphel.imagej.calibration.hardware;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
@@ -15,8 +16,10 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
+import org.apache.commons.io.IOUtils;
 import org.w3c.dom.Document;
 import org.xml.sax.SAXException;
+//import org.xml.sax.SAXParseException;
 
 import com.elphel.imagej.calibration.MatchSimulatedPattern;
 import com.elphel.imagej.calibration.UVLEDandLasers;
@@ -98,6 +101,7 @@ public class CamerasInterface{
 		public boolean reportTiming=false;
 		public int cameraBootTimeSeconds=100;
 		public int connectionTimeoutMilliseconds=3000;
+		public boolean is_10398 = false;  
 
     	private void printTiming(String title){
     		if (this.reportTiming) {
@@ -168,7 +172,11 @@ public class CamerasInterface{
         public int getSensorPort (int channelNumber){
         	return ((channelNumber>=0)&& (channelNumber<this.channelMap.length))?this.channelMap[channelNumber][2]:-1;
         }
-
+        
+        public boolean is14Mpix() {
+        	return this.is_10398; 
+        }
+        
         // not used anywhere
         public int getChannel (int subCam, int subChn){
         	return getChannel (subCam, subChn, 0); // for compatibility with 353
@@ -621,53 +629,92 @@ public class CamerasInterface{
 			}
 	   	}
 
-
 	   	public String getSerialNumber(int chn, int EEPROM_chn){
+	   		String [] ser_mod = getSerialNumberModel(chn, EEPROM_chn);
+	   		if ((ser_mod==null) || (ser_mod.length < 1)) return null;
+	   		return ser_mod[0]; 
+	   	}
+	   	public String getModelNumber(int chn, int EEPROM_chn){
+	   		String [] ser_mod = getSerialNumberModel(chn, EEPROM_chn);
+	   		if ((ser_mod==null) || (ser_mod.length < 2)) return null;
+	   		return ser_mod[1]; 
+	   	}
+	   	public String []  getSerialNumberModel(int chn, int EEPROM_chn){
 	   		int colon_index = this.cameraIPs[chn].indexOf(":");
 	   		int sensor_port = Integer.parseInt(this.cameraIPs[chn].substring(colon_index+1)) - this.imgsrvPort;
 	   		String ip=this.cameraIPs[chn].substring(0, colon_index);
-//	   		String url="http://"+this.cameraIPs[chn]+"/i2c.php?cmd=fromEEPROM0&EEPROM_chn="+EEPROM_chn;
+	   		//	   		String url="http://"+this.cameraIPs[chn]+"/i2c.php?cmd=fromEEPROM0&EEPROM_chn="+EEPROM_chn;
+	   		//	   		ip = "192.168.0.236";
 	   		String url="http://"+ip+"/i2c.php?cmd=fromEEPROM" + sensor_port+ "&EEPROM_chn="+EEPROM_chn;
-	   	    	Document dom=null;
-	   	    	String serial=null;
-	   	    	try {
-	   	    		DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
-	   	    		DocumentBuilder db = dbf.newDocumentBuilder();
-	   	    		dom = db.parse(url);
-	   	    		if (!dom.getDocumentElement().getNodeName().equals("board")) {
-	   	    			String msg="Root element: expected 'board', got \"" + dom.getDocumentElement().getNodeName()+"\"";
-	   	    			IJ.showMessage("Error",msg);
-    					throw new IllegalArgumentException (msg);
-	   	    		}
+	   		Document dom=null;
+	   		String serial=null;
+	   		String model=null;
+	   		try {
+	   			DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+	   			DocumentBuilder db = dbf.newDocumentBuilder();
 
-	   	    		serial=(dom.getDocumentElement().getElementsByTagName("serial").item(0).getChildNodes().item(0)).getNodeValue();
-    				// remove opening and closing "
-    				if (serial==null){
-    					String msg="Could not read tag <serial>";
-    					IJ.showMessage("Error",msg);
-    					System.out.println(msg);
-    					return null;
-    				}
-    				if (serial.startsWith("\"")){
-    					serial=serial.substring(1, serial.length()-1);
-    				}
-    			} catch(MalformedURLException e){
-    				String msg="Please check the URL:" + e.toString();
-					IJ.showMessage("Error",msg);
-					throw new IllegalArgumentException (msg);
-    			} catch(IOException  e1){
-    				String msg = e1.getMessage();
-    				if (msg==null || msg.equals(""))  msg = ""+e1;
-					IJ.showMessage("Error",msg);
-					throw new IllegalArgumentException (msg);
-    			}catch(ParserConfigurationException pce) {
-    				pce.printStackTrace();
-    				throw new IllegalArgumentException ("PCE error");
-    			}catch(SAXException se) {
-    				se.printStackTrace();
-    				throw new IllegalArgumentException ("SAX error");
-    			}
-    		return serial;
+	   			InputStream in = new URL( url ).openStream();
+
+	   			byte[] bytes = new byte[0];
+	   			try {
+	   				bytes = IOUtils.toByteArray(in);
+	   			} finally {
+	   				IOUtils.closeQuietly(in); // always gets here
+	   			}
+	   			for (byte b:bytes) {
+	   				if (b < 0) {
+	   					String msg="Sensor EEPROM is not initialized. Use bootblock393 to initialize it. Will throw now";
+	   					IJ.showMessage("Error",msg);
+	   					System.out.println(msg);
+	   					throw new IllegalArgumentException ("SAX error");
+	   					//	    					return null;
+	   				}
+	   			}
+	   			dom = db.parse(url);
+	   			if (!dom.getDocumentElement().getNodeName().equals("board")) {
+	   				String msg="Root element: expected 'board', got \"" + dom.getDocumentElement().getNodeName()+"\"";
+	   				IJ.showMessage("Error",msg);
+	   				throw new IllegalArgumentException (msg);
+	   			}
+
+	   			serial=(dom.getDocumentElement().getElementsByTagName("serial").item(0).getChildNodes().item(0)).getNodeValue();
+	   			// remove opening and closing "
+	   			if (serial==null){
+	   				String msg="Could not read tag <serial>";
+	   				IJ.showMessage("Error",msg);
+	   				System.out.println(msg);
+	   				return null;
+	   			}
+	   			if (serial.startsWith("\"")){
+	   				serial=serial.substring(1, serial.length()-1);
+	   			}
+	   			model=(dom.getDocumentElement().getElementsByTagName("model").item(0).getChildNodes().item(0)).getNodeValue();
+	   			if (model !=null){
+	   				if (model.startsWith("\"")){
+	   					model=model.substring(1, model.length()-1);
+	   				}
+	   			}
+
+	   		} catch(MalformedURLException e){
+	   			String msg="Please check the URL:" + e.toString();
+	   			IJ.showMessage("Error",msg);
+	   			throw new IllegalArgumentException (msg);
+	   		} catch(IOException  e1){
+	   			String msg = e1.getMessage();
+	   			if (msg==null || msg.equals(""))  msg = ""+e1;
+	   			IJ.showMessage("Error",msg);
+	   			throw new IllegalArgumentException (msg);
+	   		}catch(ParserConfigurationException pce) {
+	   			pce.printStackTrace();
+	   			throw new IllegalArgumentException ("PCE error");
+	   		}catch(SAXException se) {
+	   			se.printStackTrace();
+	   			throw new IllegalArgumentException ("SAX error");
+	   			//    			}catch (SAXParseException spe) {
+
+	   		}
+	   		this.is_10398 = "10398".equals(model);
+	   		return new String[] {serial, model};
 	   	}
 
 	   	public double getSensorTemperature(int chn, int EEPROM_chn){
@@ -899,7 +946,7 @@ public class CamerasInterface{
 	   		return setupCameraAcquisition(Double.NaN);
 	   	}
 	   	public boolean setupCameraAcquisition(final double exposureScale){
-	   		final boolean mp14 = true;// FIXME: Modified for 14Mpix
+//	   		final boolean mp14 = is14Mpix();
 	   		final int ipLength=this.resetURLs.length;
 	   		final boolean [] results=new boolean[ipLength];
 	   		for (int chn=0;chn<ipLength;chn++) results[chn]=(this.sensorPresent[chn]!=null);
@@ -918,23 +965,27 @@ public class CamerasInterface{
 	   		}
 	   		startAndJoin(threads);
 	   		if (Double.isNaN(exposureScale)){ // full init
-//	   			int nRepeat=this.setupTriggerMode?4:1;
-	   			int nRepeat=this.setupTriggerMode?4:2; // FIXME: Modified for 14Mpix
+
+	   			int nRepeat=this.setupTriggerMode?4:1;
+	   			int sleep_ms = 1000;
+	   			if (is14Mpix()) {
+	   				nRepeat=this.setupTriggerMode?4:2; // FIXME: Modified for 14Mpix
+	   				sleep_ms = 2000;
+	   			}
 	   			if (this.nc393) nRepeat++; // is it needed?
 	   			for (int i=0;i<nRepeat;i++){
 	   				if (this.debugLevel>0) System.out.println((i+1)+" of "+nRepeat+": Triggering cameras to give parameters a chance to propagate");
 	   				trigger();
 	   				try
 	   				{
-	   					Thread.sleep( 2000 ); // ms // FIXME: Modified for 14Mpix
+	   					Thread.sleep( sleep_ms ); // ms // FIXME: Modified for 14Mpix
 	   				}
 	   				catch ( InterruptedException e )
 	   				{
 	   					System.out.println( "awakened prematurely" );
 	   				}
 	   			}
-
-	   		} else if (mp14) {
+	   		} else if (is14Mpix()) {
    				try
    				{
    					Thread.sleep( 2000 ); // ms // FIXME: Modified for 14Mpix
@@ -1402,7 +1453,6 @@ public class CamerasInterface{
 	   	
 	   	
 	   	public ImagePlus [] getImages(final boolean [] acquire, boolean resetAndTrigger, final boolean show){
-		   	final boolean dual_trig = false;
 		   	final boolean [] acquireIPs=selectIPs(acquire);
 			if (this.debugLevel>2) {
 				System.out.println("getImages(...) 2");
@@ -1410,20 +1460,16 @@ public class CamerasInterface{
 			}
 
 			if (resetAndTrigger) {
-				try { // FIXME: Make conditional for 14MPix
-					Thread.sleep(2000);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+				if (is14Mpix()) {
+					try { // FIXME: Make conditional for 14MPix
+						Thread.sleep(2000);
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
 				}
 				resetCameras();
 				trigger();
-				if (dual_trig) {
-					timestampIPs(acquireIPs); // ignoring results, just wait
-					resetCameras();
-					//				  trigger();
-					jp4_Instances[0].readDummyURL("http://192.168.0.236/parsedit.php?immediate&TRIG_PERIOD=1*0"); 
-				}
 			}
 		   	final double [] timestamps= timestampIPs(acquireIPs);
 			if (this.debugLevel>2) System.out.println("getImages(): this.imagesIP.length=" + this.imagesIP.length);
@@ -1621,12 +1667,14 @@ public class CamerasInterface{
 			   		if (debugLevel>2)	System.out.println(String.format("this.laserPointers.setLasers (0x%x)", sequence[nSeqNum]));
 	   			}
 	   			resetIPs(selectIPs(lasersIPs)); // flush buffer
-	   			try { // FIXME: Make conditional for 14MPix
-					Thread.sleep(2000);
-				} catch (InterruptedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+	   			if (is14Mpix()) {
+	   				try { // FIXME: Make conditional for 14MPix
+	   					Thread.sleep(2000);
+	   				} catch (InterruptedException e) {
+	   					// TODO Auto-generated catch block
+	   					e.printStackTrace();
+	   				}
+	   			}
 	   			trigger(); // trigger cameras
 	   			ipIndexAtomic.set(0);
 	   			final int fnSeqNum=nSeqNum;

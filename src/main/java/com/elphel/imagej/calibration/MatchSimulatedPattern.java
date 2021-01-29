@@ -1691,7 +1691,7 @@ public class MatchSimulatedPattern {
 		floatPixels = (float[]) fht1.getPixels();
 		for (i = 0; i < floatPixels.length; i++)
 			pixels[i] = floatPixels[i];
-
+// show pixels here?
 		int[][] max2OnSpectrum = findFirst2MaxOnSpectrum(fft_complex, // complex, top half, starting from 0,0
 				1, // skip +- from (0,0) and previous max - add parameter to dialog?
 				0.5); // 0.5 - 30deg. orthogonality of 2 vectors - 1.0 - perpendicular, 0.0 - parallel
