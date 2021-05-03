@@ -29,53 +29,53 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 
 public class Lepton3Telemetry {
-	public static final int LEPTON3_IMAGE_WIDTH =     160;
-	public static final int LEPTON3_IMAGE_HEIGHT =    120;
-	public static final int LEPTON3_TELEMETRY_LINES =   2;
-	public static final String REVISION =      "REVISION";      public static final int REVISION_OFFSET =       0;
-	public static final String UPTIME =        "UPTIME";        public static final int UPTIME_OFFSET =         1;
-	public static final String STATUS =        "STATUS";        public static final int STATUS_OFFSET =         3;
-	public static final String MOD_SER =       "MOD_SER";       public static final int MOD_SER_OFFSET =        5;
-	public static final String SOFT_REV =      "SOFT_REV";      public static final int SOFT_REV_OFFSET =      13;
-	public static final String FRAME =         "FRAME";         public static final int FRAME_OFFSET =         20;
-	public static final String MEAN =          "MEAN";          public static final int MEAN_OFFSET =          22;
-	public static final String FPA_TCNT =      "FPA_TCNT";      public static final int FPA_TCNT_OFFSET =      23;
-	public static final String FPA_KELV =      "FPA_KELV";      public static final int FPA_KELV_OFFSET =      24;
-	public static final String ENCL_TCNT =     "ENCL_TCNT";     public static final int ENCL_TCNT_OFFSET =     25;
-	public static final String ENCL_KELV =     "ENCL_KELV";     public static final int ENCL_KELV_OFFSET =     26;
-	public static final String FFC_KELV =      "FFC_KELV";      public static final int FFC_KELV_OFFSET =      29;
-	public static final String FFC_TIME =      "FFC_TIME";      public static final int FFC_TIME_OFFSET =      30;
-	public static final String ENCL_FFC_KELV = "ENCL_FFC_KELV"; public static final int ENCL_FFC_KELV_OFFSET = 32;
-	public static final String AGC_ROI_TLBR =  "AGC_ROI_TLBR";  public static final int AGC_ROI_TLBR_OFFSET =  34;
-	public static final String AGC_CLIP_HIGH = "AGC_CLIP_HIGH"; public static final int AGC_CLIP_HIGH_OFFSET = 38;
-	public static final String AGC_CLIP_LOW =  "AGC_CLIP_LOW";  public static final int AGC_CLIP_LOW_OFFSET =  38;
-	public static final String VFORMAT =       "VFORMAT";       public static final int VFORMAT_OFFSET =       72;
-	public static final String FFC_LOG2 =      "FFC_LOG2";      public static final int FFC_LOG2_OFFSET =      74;
-	public static final String EMISS_8192 =    "EMISS_8192";    public static final int EMISS_8192_OFFSET =    19 + 80; // row B
-	public static final String BGND_KELV =     "BGND_KELV";     public static final int BGND_KELV_OFFSET =     20 + 80;
-	public static final String ATMOSPH_8192 =  "ATMOSPH_8192";  public static final int ATMOSPH_8192_OFFSET =  21 + 80;
-	public static final String ATMOSPH_KELV =  "ATMOSPH_KELV";  public static final int ATMOSPH_KELV_OFFSET =  22 + 80;
-	public static final String WND_TRANS_8192 ="WND_TRANS_8192";public static final int WND_TRANS_8192_OFFSET =23 + 80;
-	public static final String WND_REFL_8192 = "WND_REFL_8192"; public static final int WND_REFL_8192_OFFSET = 24 + 80;
-	public static final String WND_KELV =      "WND_KELV";      public static final int WND_KELV_OFFSET =      25 + 80;
-	public static final String WND_REFL_KELV = "WND_REFL_KELV"; public static final int WND_REFL_KELV_OFFSET = 26 + 80;
-	public static final String GAIN_MODE =     "GAIN_MODE";     public static final int GAIN_MODE_OFFSET =      5 + 160; // row C
-	public static final String GAIN_EFF =      "GAIN_EFF";      public static final int GAIN_EFF_OFFSET =       6 + 160;
-	public static final String GAIN_DFLAG =    "GAIN_DFLAG";    public static final int GAIN_DFLAG_OFFSET =     7 + 160;
-	public static final String GAIN_THR_HL_C = "GAIN_THR_HL_C"; public static final int GAIN_THR_HL_C_OFFSET =  8 + 160;
-	public static final String GAIN_THR_LH_C = "GAIN_THR_LH_C"; public static final int GAIN_THR_LH_C_OFFSET =  9 + 160;
-	public static final String GAIN_THR_HL_K = "GAIN_THR_HL_K"; public static final int GAIN_THR_HL_K_OFFSET = 10 + 160;
-	public static final String GAIN_THR_LH_K = "GAIN_THR_LH_K"; public static final int GAIN_THR_LH_K_OFFSET = 11 + 160;
-	public static final String GAIN_HL_PP =    "GAIN_HL_PP";    public static final int GAIN_HL_PP_OFFSET =    14 + 160;
-	public static final String GAIN_LH_PP =    "GAIN_LH_PP";    public static final int GAIN_LH_PP_OFFSET =    15 + 160;
-	public static final String GAIN_ROI_TLBR = "GAIN_ROI_TLBR"; public static final int GAIN_ROI_TLBR_OFFSET = 22 + 160;
-	public static final String TLIN_EN =       "TLIN_EN";       public static final int TLIN_EN_OFFSET =       48 + 160;
-	public static final String TLIN_RESOL =    "TLIN_RESOL";    public static final int TLIN_RESOL_OFFSET =    49 + 160;
-	public static final String SPOT_AVG_KELV = "SPOT_AVG_KELV"; public static final int SPOT_AVG_KELV_OFFSET = 50 + 160;
-	public static final String SPOT_MAX_KELV = "SPOT_MAX_KELV"; public static final int SPOT_MAX_KELV_OFFSET = 51 + 160;
-	public static final String SPOT_MIN_KELV = "SPOT_MIN_KELV"; public static final int SPOT_MIN_KELV_OFFSET = 52 + 160;
-	public static final String SPOT_POP_PERC = "SPOT_POP_PERC"; public static final int SPOT_POP_PERC_OFFSET = 53 + 160;
-	public static final String SPOT_ROI_TLBR = "SPOT_ROI_TLBR"; public static final int SPOT_ROI_TLBR_OFFSET = 54 + 160;
+	private static final int LEPTON3_IMAGE_WIDTH =     160;
+	private static final int LEPTON3_IMAGE_HEIGHT =    120;
+	private static final int LEPTON3_TELEMETRY_LINES =   2;
+	private static final String REVISION =      "REVISION";      private static final int REVISION_OFFSET =       0;
+	private static final String UPTIME =        "UPTIME";        private static final int UPTIME_OFFSET =         1;
+	private static final String STATUS =        "STATUS";        private static final int STATUS_OFFSET =         3;
+	private static final String MOD_SER =       "MOD_SER";       private static final int MOD_SER_OFFSET =        5;
+	private static final String SOFT_REV =      "SOFT_REV";      private static final int SOFT_REV_OFFSET =      13;
+	private static final String FRAME =         "FRAME";         private static final int FRAME_OFFSET =         20;
+	private static final String MEAN =          "MEAN";          private static final int MEAN_OFFSET =          22;
+	private static final String FPA_TCNT =      "FPA_TCNT";      private static final int FPA_TCNT_OFFSET =      23;
+	private static final String FPA_KELV =      "FPA_KELV";      private static final int FPA_KELV_OFFSET =      24;
+	private static final String ENCL_TCNT =     "ENCL_TCNT";     private static final int ENCL_TCNT_OFFSET =     25;
+	private static final String ENCL_KELV =     "ENCL_KELV";     private static final int ENCL_KELV_OFFSET =     26;
+	private static final String FFC_KELV =      "FFC_KELV";      private static final int FFC_KELV_OFFSET =      29;
+	private static final String FFC_TIME =      "FFC_TIME";      private static final int FFC_TIME_OFFSET =      30;
+	private static final String ENCL_FFC_KELV = "ENCL_FFC_KELV"; private static final int ENCL_FFC_KELV_OFFSET = 32;
+	private static final String AGC_ROI_TLBR =  "AGC_ROI_TLBR";  private static final int AGC_ROI_TLBR_OFFSET =  34;
+	private static final String AGC_CLIP_HIGH = "AGC_CLIP_HIGH"; private static final int AGC_CLIP_HIGH_OFFSET = 38;
+	private static final String AGC_CLIP_LOW =  "AGC_CLIP_LOW";  private static final int AGC_CLIP_LOW_OFFSET =  38;
+	private static final String VFORMAT =       "VFORMAT";       private static final int VFORMAT_OFFSET =       72;
+	private static final String FFC_LOG2 =      "FFC_LOG2";      private static final int FFC_LOG2_OFFSET =      74;
+	private static final String EMISS_8192 =    "EMISS_8192";    private static final int EMISS_8192_OFFSET =    19 + 80; // row B
+	private static final String BGND_KELV =     "BGND_KELV";     private static final int BGND_KELV_OFFSET =     20 + 80;
+	private static final String ATMOSPH_8192 =  "ATMOSPH_8192";  private static final int ATMOSPH_8192_OFFSET =  21 + 80;
+	private static final String ATMOSPH_KELV =  "ATMOSPH_KELV";  private static final int ATMOSPH_KELV_OFFSET =  22 + 80;
+	private static final String WND_TRANS_8192 ="WND_TRANS_8192";private static final int WND_TRANS_8192_OFFSET =23 + 80;
+	private static final String WND_REFL_8192 = "WND_REFL_8192"; private static final int WND_REFL_8192_OFFSET = 24 + 80;
+	private static final String WND_KELV =      "WND_KELV";      private static final int WND_KELV_OFFSET =      25 + 80;
+	private static final String WND_REFL_KELV = "WND_REFL_KELV"; private static final int WND_REFL_KELV_OFFSET = 26 + 80;
+	private static final String GAIN_MODE =     "GAIN_MODE";     private static final int GAIN_MODE_OFFSET =      5 + 160; // row C
+	private static final String GAIN_EFF =      "GAIN_EFF";      private static final int GAIN_EFF_OFFSET =       6 + 160;
+	private static final String GAIN_DFLAG =    "GAIN_DFLAG";    private static final int GAIN_DFLAG_OFFSET =     7 + 160;
+	private static final String GAIN_THR_HL_C = "GAIN_THR_HL_C"; private static final int GAIN_THR_HL_C_OFFSET =  8 + 160;
+	private static final String GAIN_THR_LH_C = "GAIN_THR_LH_C"; private static final int GAIN_THR_LH_C_OFFSET =  9 + 160;
+	private static final String GAIN_THR_HL_K = "GAIN_THR_HL_K"; private static final int GAIN_THR_HL_K_OFFSET = 10 + 160;
+	private static final String GAIN_THR_LH_K = "GAIN_THR_LH_K"; private static final int GAIN_THR_LH_K_OFFSET = 11 + 160;
+	private static final String GAIN_HL_PP =    "GAIN_HL_PP";    private static final int GAIN_HL_PP_OFFSET =    14 + 160;
+	private static final String GAIN_LH_PP =    "GAIN_LH_PP";    private static final int GAIN_LH_PP_OFFSET =    15 + 160;
+	private static final String GAIN_ROI_TLBR = "GAIN_ROI_TLBR"; private static final int GAIN_ROI_TLBR_OFFSET = 22 + 160;
+	private static final String TLIN_EN =       "TLIN_EN";       private static final int TLIN_EN_OFFSET =       48 + 160;
+	private static final String TLIN_RESOL =    "TLIN_RESOL";    private static final int TLIN_RESOL_OFFSET =    49 + 160;
+	private static final String SPOT_AVG_KELV = "SPOT_AVG_KELV"; private static final int SPOT_AVG_KELV_OFFSET = 50 + 160;
+	private static final String SPOT_MAX_KELV = "SPOT_MAX_KELV"; private static final int SPOT_MAX_KELV_OFFSET = 51 + 160;
+	private static final String SPOT_MIN_KELV = "SPOT_MIN_KELV"; private static final int SPOT_MIN_KELV_OFFSET = 52 + 160;
+	private static final String SPOT_POP_PERC = "SPOT_POP_PERC"; private static final int SPOT_POP_PERC_OFFSET = 53 + 160;
+	private static final String SPOT_ROI_TLBR = "SPOT_ROI_TLBR"; private static final int SPOT_ROI_TLBR_OFFSET = 54 + 160;
 
 
 
@@ -109,7 +109,18 @@ public class Lepton3Telemetry {
 					this.pixels.length);
 		}
 	}
+	public static int getWidth() {
+		return LEPTON3_IMAGE_WIDTH;
+	}
 
+	public static int getHeight() {
+		return LEPTON3_IMAGE_HEIGHT;
+	}
+	
+	public static int getTelemetryLines() {
+		return LEPTON3_TELEMETRY_LINES;
+	}
+	
 	public boolean hasTelemetry() {
 		return bbtm != null;
 	}
