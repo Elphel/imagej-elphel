@@ -2,3 +2,11 @@
 /.project
 /.settings/
 /target/
+*.backup
+NC393I
+attic
+*.log
+FOCUS-PSF*
+src/main/resources/trained_model
+bioformats*.*
+metadata*.*
