@@ -27,6 +27,14 @@
         <description>A Maven project implementing imagej-elphel plugin</description>
 
         <dependencies>
+			<!--  ssh support - see https://www.baeldung.com/java-ssh-connection -->
+			<!-- https://mvnrepository.com/artifact/org.apache.sshd/sshd-core -->
+			<dependency>
+			    <groupId>org.apache.sshd</groupId>
+			    <artifactId>sshd-core</artifactId>
+			    <version>2.6.0</version>
+			</dependency>
+       
             <dependency>
                 <groupId>net.imagej</groupId>
                 <artifactId>ij</artifactId>

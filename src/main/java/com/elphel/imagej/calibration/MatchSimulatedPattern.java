@@ -4793,7 +4793,7 @@ public class MatchSimulatedPattern {
 																											// process
 			final double[] bPattern, final double[] windowFunction, final double[] windowFunctionCorr,
 			final double[] windowFunctionCorr2, final double[] windowFunctionCorr4, final double[][] locsNeib, // which
-																												// neibors
+																												// neighbors
 																												// to
 																												// try
 																												// (here
@@ -6919,6 +6919,8 @@ public class MatchSimulatedPattern {
 				noMessageBoxes);
 	}
 
+	
+	
 	// ====== end of calculateDistortions()
 	// ==============================================
 	/**

@@ -318,7 +318,7 @@ public class GenericJTabbedDialog implements ActionListener {
 
     @Override
 	public void actionPerformed(ActionEvent e) {
-    	System.out.println(e.getActionCommand());
+//    	System.out.println(e.getActionCommand());
     	if (e.getActionCommand().equals("Cancel")) {
     		result = e.getActionCommand();
     		jd.dispose();
@@ -409,7 +409,7 @@ public class GenericJTabbedDialog implements ActionListener {
     	}
 
 
-    	System.out.println(combo.getSelectedItem());
+//    	System.out.println(combo.getSelectedItem());
 //    	for (int i = 0; i < selectedItem.length; i++){
  //   	    System.out.println(String.format("item %s = %s", i, selectedItem[i]));
   //  	}

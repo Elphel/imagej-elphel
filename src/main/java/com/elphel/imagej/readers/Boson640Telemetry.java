@@ -76,14 +76,13 @@ public class Boson640Telemetry {
 			dbg = bb.get();
 			bb.position(offset);
 
-//			this.bbtm =
 			bb.get(btm, 0,btm.length);
 			this.bbtm = ByteBuffer.wrap(btm);
 			this.bbtm.order( bb.order()); // or is it already same as in bb?
 			
-			System.out.println("getShort(94)"+this.bbtm.getShort(94));
-			System.out.println("getLong(162)"+this.bbtm.getLong(162));
-			System.out.println("getLong(162)"+this.bbtm.getInt(162));
+//			System.out.println("getShort(94)"+this.bbtm.getShort(94));
+//			System.out.println("getLong(162)"+this.bbtm.getLong(162));
+//			System.out.println("getLong(162)"+this.bbtm.getInt(162));
 			
 			
 			

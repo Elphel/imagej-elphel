@@ -34,6 +34,7 @@ import com.elphel.imagej.calibration.hardware.GoniometerMotors;
 import com.elphel.imagej.cameras.EyesisCameraParameters;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.common.WindowTools;
+import com.elphel.imagej.lwir.Lwir16Reader;
 import com.elphel.imagej.lwir.LwirReader;
 
 import ij.IJ;
@@ -53,7 +54,8 @@ horizontal axis:
 																				// for
 																				// debugging
 	public CamerasInterface cameras = null;
-	public LwirReader lwirReader = null;
+	public LwirReader   lwirReader = null;
+	public Lwir16Reader lwir16Reader = null;
 	// public CalibrationHardwareInterface.LaserPointers lasers = null;
 	// public static CalibrationHardwareInterface.FocusingMotors motorsS=null;
 	// public DistortionProcessConfiguration
@@ -123,6 +125,28 @@ horizontal axis:
 		this.distortionProcessConfiguration=distortionProcessConfiguration;
 	}
 
+	public Goniometer(
+			Lwir16Reader lwir16Reader,
+//			CalibrationHardwareInterface.CamerasInterface cameras,
+			MatchSimulatedPattern.DistortionParameters distortionParametersDefault,
+			MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
+			EyesisCameraParameters eyesisCameraParameters,
+			LaserPointer laserPointers,
+			SimulationPattern.SimulParameters simulParametersDefault,
+			Goniometer.GoniometerParameters goniometerParameters,
+			DistortionProcessConfiguration distortionProcessConfiguration
+			) {
+		this.lwir16Reader= lwir16Reader;
+//		this.cameras = cameras;
+		this.distortionParametersDefault = distortionParametersDefault;
+//		this.distortion = distortion;
+		this.patternDetectParameters=patternDetectParameters;
+		this.eyesisCameraParameters = eyesisCameraParameters;
+		this.laserPointers = laserPointers;
+		this.simulParametersDefault=simulParametersDefault;
+		this.goniometerParameters=goniometerParameters;
+		this.distortionProcessConfiguration=distortionProcessConfiguration;
+	}
 
 
 
@@ -459,6 +483,10 @@ horizontal axis:
 					this.lwirReader.setMotorsPosition(this.goniometerParameters.goniometerMotors.getTargetPositions()); // Used target, not current to prevent minor variations
 					this.lwirReader.reportTiming=debugTiming;
 					this.lwirReader.acquire(this.distortionProcessConfiguration.sourceDirectory); // true - use lasers, updateStatus - make false?
+				} else if (lwir16Reader != null) {
+					this.lwir16Reader.setMotorsPosition(this.goniometerParameters.goniometerMotors.getTargetPositions()); // Used target, not current to prevent minor variations
+					this.lwir16Reader.reportTiming=debugTiming;
+					this.lwir16Reader.acquire(this.distortionProcessConfiguration.sourceDirectory); // true - use lasers, updateStatus - make false?
 				} else {
 					System.out.println("Neignter traditional camera/rig, no LWIR rig are initialized, dry run");
 				}

@@ -73,6 +73,7 @@ import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.common.WindowTools;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
+import com.elphel.imagej.lwir.Lwir16Reader;
 import com.elphel.imagej.lwir.LwirReader;
 import com.elphel.imagej.lwir.LwirReaderParameters;
 import com.elphel.imagej.readers.EyesisTiff;
@@ -108,6 +109,7 @@ public class Aberration_Calibration extends PlugInFrame implements ActionListene
 	private Panel panelGoniometer;
 	private Panel panelPixelMapping, panelStereo,panelStereo1;
 	private Panel panelLWIR;
+	private Panel panelLWIR16;
 
 	private ShowDoubleFloatArrays SDFA_INSTANCE; // just for debugging?
 	JP46_Reader_camera JP4_INSTANCE;
@@ -289,6 +291,7 @@ public class Aberration_Calibration extends PlugInFrame implements ActionListene
 	);
 
     public static LwirReader       LWIR_READER = null;
+    public static Lwir16Reader     LWIR16_READER = null;
 
 
 	public static ProcessCalibrationFilesParameters PROCESS_PARAMETERS = new ProcessCalibrationFilesParameters(
@@ -650,9 +653,7 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 
 	public static Goniometer GONIOMETER=null;
 
-	public static LwirReaderParameters LWIR_PARAMETERS=new LwirReaderParameters();
-
-
+	public static LwirReaderParameters   LWIR_PARAMETERS =   new LwirReaderParameters();
 
 //	new CalibrationHardwareInterface.LaserPointers();
 	public class SyncCommand{
@@ -1030,6 +1031,11 @@ if (MORE_BUTTONS) {
 		panelLWIR.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
 		addButton("LWIR Configure",             panelLWIR,color_configure);
 		addButton("LWIR_TEST",                  panelLWIR, color_conf_process);
+		addButton("CMPRS_STOP",                 panelLWIR, color_stop);
+		addButton("CMPRS_START",                panelLWIR, color_process);
+		addButton("LWIR_FFC",                   panelLWIR, color_conf_process);
+		addButton("RST BUFs",                   panelLWIR, color_stop);
+		
 		addButton("LWIR_ACQUIRE",               panelLWIR, color_conf_process);
 		addButton("Configure Goniometer",       panelLWIR,color_configure);
 		addButton("Goniometer Move",            panelLWIR,color_debug);
@@ -1041,8 +1047,8 @@ if (MORE_BUTTONS) {
 		addButton("EO Offsets",                 panelLWIR,color_process);
 		addButton("LWIR to EO",                 panelLWIR,color_process);
 		addButton("Manual hint",                panelLWIR,color_configure);
-
 		add(panelLWIR);
+		
 		pack();
 		GUI.center(this);
 		setVisible(true);
@@ -9284,30 +9290,96 @@ if (MORE_BUTTONS) {
 			LWIR_PARAMETERS.showJDialog();
 			return;
 		}
-
+//startStopCompressor(LwirReaderParameters lrp, boolean start, double delay)
+		//condProgramLWIRCamera()
 /* ======================================================================== */
-//
+		if (label.equals("CMPRS_START") || label.equals("CMPRS_STOP")) {
+			boolean start = label.equals("CMPRS_START");
+			if (LWIR_PARAMETERS.isLwir16()) {
+				if (LWIR16_READER == null) {
+					LWIR16_READER =  new Lwir16Reader(LWIR_PARAMETERS);
+				}
+				LWIR16_READER.condProgramLWIRCamera();
+				double delay = 3.0;
+				LWIR16_READER.startStopCompressor(LWIR_PARAMETERS, start, delay);
+			}
+			return;
+		}
+/* ======================================================================== */
+		if (label.equals("LWIR_FFC")) {
+			if (LWIR_PARAMETERS.isLwir16()) {
+				if (LWIR16_READER == null) {
+					LWIR16_READER =  new Lwir16Reader(LWIR_PARAMETERS);
+				}
+				LWIR16_READER.condProgramLWIRCamera();
+				int skip_frames = 0; // 300; // 5 second to come to the camera, remove later
+				if (skip_frames > 0) {
+					LWIR16_READER.skipMasterFrames(new String[] {LWIR_PARAMETERS.getLwirIP(0)},  skip_frames);
+				}
+				LWIR16_READER.runFFC(LWIR_PARAMETERS);
+			}
+			return;
+		}
+/* ======================================================================== */
+		if (label.equals("RST BUFs")) {
+			if (LWIR_PARAMETERS.isLwir16()) {
+				if (LWIR16_READER == null) {
+					LWIR16_READER =  new Lwir16Reader(LWIR_PARAMETERS);
+				}
+				LWIR16_READER.condProgramLWIRCamera();
+				LWIR16_READER.resetFrameBuffers(LWIR_PARAMETERS);
+			}
+			return;
+		}
+/* ======================================================================== */
 		if (label.equals("LWIR_TEST")) {
 			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 			//   public static LwirReader       LWIR_READER = null;
-			if (LWIR_READER == null) {
-				LWIR_READER =  new LwirReader(LWIR_PARAMETERS);
-			}
-			ImagePlus [][] imps = LWIR_READER.readAllMultiple(
+			ImagePlus [][] imps;
+			if (LWIR_PARAMETERS.isLwir16()) {
+				if (LWIR16_READER == null) {
+					LWIR16_READER =  new Lwir16Reader(LWIR_PARAMETERS);
+				}
+				LWIR16_READER.programLWIRCamera(LWIR_PARAMETERS);
+				if (DEBUG_LEVEL <1000) {
+					return;
+				}
+				imps = LWIR16_READER.readAllMultiple(
 					LWIR_PARAMETERS.getNumFrames(), // 10, // final int     num_frames,
 					//    			true, // use LWIR telemetry
 					true, // final boolean show,
 					false); // true); // final boolean scale)
+			} else {
+				if (LWIR_READER == null) {
+					LWIR_READER =  new LwirReader(LWIR_PARAMETERS);
+				}
+				imps = LWIR_READER.readAllMultiple(
+						LWIR_PARAMETERS.getNumFrames(), // 10, // final int     num_frames,
+						//    			true, // use LWIR telemetry
+						true, // final boolean show,
+						false); // true); // final boolean scale)
+			}
 			for (ImagePlus imp: imps[0]) {
 				imp.show();
 			}
 
 			System.out.println("LWIR_TEST: got "+imps.length+" image sets");
-			ImagePlus [][] imps_sync =  LWIR_READER.matchSets(imps, 0.001, 3); // double max_mismatch)
-			if (imps_sync != null) {
-				ImagePlus [] imps_avg = LWIR_READER.averageMultiFrames(imps_sync);
-				for (ImagePlus imp: imps_avg) {
-					imp.show();
+			if (LWIR_PARAMETERS.isLwir16()) {
+				// will probably not needed for Bosons
+				ImagePlus [][] imps_sync =  LWIR16_READER.matchSets(imps, 0.001, 3); // double max_mismatch)
+				if (imps_sync != null) {
+					ImagePlus [] imps_avg = LWIR16_READER.averageMultiFrames(imps_sync);
+					for (ImagePlus imp: imps_avg) {
+						imp.show();
+					}
+				}
+			} else {
+				ImagePlus [][] imps_sync =  LWIR_READER.matchSets(imps, 0.001, 3); // double max_mismatch)
+				if (imps_sync != null) {
+					ImagePlus [] imps_avg = LWIR_READER.averageMultiFrames(imps_sync);
+					for (ImagePlus imp: imps_avg) {
+						imp.show();
+					}
 				}
 			}
 			return;
@@ -9315,43 +9387,62 @@ if (MORE_BUTTONS) {
 /* ======================================================================== */
     if (label.equals("LWIR_ACQUIRE")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-		//   public static LwirReader       LWIR_READER = null;
-		if (LWIR_READER == null) {
-			LWIR_READER =  new LwirReader(LWIR_PARAMETERS);
+		ImagePlus [][] imps;
+		if (LWIR_PARAMETERS.isLwir16()) {
+			if (LWIR16_READER == null) {
+				LWIR16_READER =  new Lwir16Reader(LWIR_PARAMETERS);
+			}
+//          ImagePlus [] imps =
+			LWIR16_READER.acquire(DISTORTION_PROCESS_CONFIGURATION.sourceDirectory); // directory to save
+//          ImagePlus [] imps = LWIR_READER.acquire("attic/lwir_test_images"); // directory to save
+		} else {
+			if (LWIR_READER == null) {
+				LWIR_READER =  new LwirReader(LWIR_PARAMETERS);
+			}
+//          ImagePlus [] imps =
+			LWIR_READER.acquire(DISTORTION_PROCESS_CONFIGURATION.sourceDirectory); // directory to save
+//          ImagePlus [] imps = LWIR_READER.acquire("attic/lwir_test_images"); // directory to save
 		}
-//        ImagePlus [] imps =
-   		LWIR_READER.acquire(DISTORTION_PROCESS_CONFIGURATION.sourceDirectory); // directory to save
-//        ImagePlus [] imps = LWIR_READER.acquire("attic/lwir_test_images"); // directory to save
 		return;
 	}
 
     /* ======================================================================== */
 	if       (label.equals("LWIR Goniometer")) {
 		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+		if ((GONIOMETER==null) || (LWIR_PARAMETERS.isLwir16()?(GONIOMETER.lwir16Reader ==  null):(GONIOMETER.lwirReader ==  null))) {
+			if (LWIR_PARAMETERS.isLwir16()) {
+				if (LWIR16_READER == null) {
+					LWIR16_READER =  new Lwir16Reader(LWIR_PARAMETERS);
+				}
+				GONIOMETER= new Goniometer(
+						LWIR16_READER,
+						DISTORTION, //MatchSimulatedPattern.DistortionParameters distortion,
+						PATTERN_DETECT, //MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
+						EYESIS_CAMERA_PARAMETERS, //EyesisCameraParameters eyesisCameraParameters,
+						LASER_POINTERS, // MatchSimulatedPattern.LaserPointer laserPointers
+						SIMUL,                       //SimulationPattern.SimulParameters  simulParametersDefault,
+						GONIOMETER_PARAMETERS, //LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
+						DISTORTION_PROCESS_CONFIGURATION);
+			} else {
+				if (LWIR_READER == null) {
+					LWIR_READER =  new LwirReader(LWIR_PARAMETERS);
+				}
+				GONIOMETER= new Goniometer(
+						LWIR_READER,
+						DISTORTION, //MatchSimulatedPattern.DistortionParameters distortion,
+						PATTERN_DETECT, //MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
+						EYESIS_CAMERA_PARAMETERS, //EyesisCameraParameters eyesisCameraParameters,
+						LASER_POINTERS, // MatchSimulatedPattern.LaserPointer laserPointers
+						SIMUL,                       //SimulationPattern.SimulParameters  simulParametersDefault,
+						GONIOMETER_PARAMETERS, //LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
+						DISTORTION_PROCESS_CONFIGURATION);
 
-//		CAMERAS.setNumberOfThreads(THREADS_MAX);
-//		CAMERAS.debugLevel=DEBUG_LEVEL;
-
-		if ((GONIOMETER==null) || (GONIOMETER.lwirReader ==  null)) {
-			if (LWIR_READER == null) {
-				LWIR_READER =  new LwirReader(LWIR_PARAMETERS);
 			}
-			GONIOMETER= new Goniometer(
-					LWIR_READER,
-//					CAMERAS, // CalibrationHardwareInterface.CamerasInterface cameras,
-					DISTORTION, //MatchSimulatedPattern.DistortionParameters distortion,
-					PATTERN_DETECT, //MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
-					EYESIS_CAMERA_PARAMETERS, //EyesisCameraParameters eyesisCameraParameters,
-					LASER_POINTERS, // MatchSimulatedPattern.LaserPointer laserPointers
-					SIMUL,                       //SimulationPattern.SimulParameters  simulParametersDefault,
-					GONIOMETER_PARAMETERS, //LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
-					DISTORTION_PROCESS_CONFIGURATION
-			);
 			if (DEBUG_LEVEL>1){
-				System.out.println("Initiaslizing Goniometer class");
+				System.out.println("Initialized Goniometer class for "+LWIR_PARAMETERS.getCameraName());
 			}
 		} else if (DEBUG_LEVEL>1){
-			System.out.println("GONIOMETER was initialized");
+			System.out.println("GONIOMETER was initialized for "+LWIR_PARAMETERS.getCameraName());
 		}
 
 		// calculate angular size of the target as visible from the camera
@@ -9435,9 +9526,8 @@ if (MORE_BUTTONS) {
 		lwirToEo();
 		return;
 	}
-
+	
 /* ======================================================================== */
-
 		IJ.showMessage("Not yet implemented");
 		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 		return;

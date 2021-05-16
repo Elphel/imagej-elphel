@@ -96,13 +96,13 @@ public class LwirReader {
 	// -- constructors
 
 	public LwirReader() {
-		this.lwirReaderParameters = new LwirReaderParameters(); // default
+		this.lwirReaderParameters = new LwirReaderParameters(LwirReaderParameters.NAME_TALON); // default
 		imagejJp4TiffMulti = null;
 	}
 
 	public LwirReader(LwirReaderParameters lwirReaderParameters) {
 		if (lwirReaderParameters == null) {
-			this.lwirReaderParameters = new LwirReaderParameters(); // default
+			this.lwirReaderParameters = new LwirReaderParameters(LwirReaderParameters.NAME_TALON); // default
 		} else {
 			this.lwirReaderParameters = lwirReaderParameters;
 		}
@@ -404,9 +404,9 @@ public class LwirReader {
 		}
 		String hex_chan = String.format("0x%x", channels);
 
-		String url = "http://"+lrp.lwir_ip+"/parsedit.php?immediate&sensor_port="+chn+
+		String url = "http://"+lrp.getLwirIP()+"/parsedit.php?immediate&sensor_port="+chn+
 				"&SENSOR_REGS67=0*"+FRAMES_AHEAD+"!"+hex_chan;
-//		String url = "http://"+lrp.lwir_ip+"/parsedit.php?immediate&sensor_port="+chn+
+//		String url = "http://"+lrp.getLwirIP()+"/parsedit.php?immediate&sensor_port="+chn+
 //				"&SENSOR_REGS67=0&*SENSOR_REGS67="+hex_chan;
 		Document dom=null;
 		LOGGER.warn("calibrate(): Perform calibration (instead of 15 frames), url="+url);
@@ -459,7 +459,7 @@ public class LwirReader {
 			return false;
 		}
 		int chn = lrp.lwir_channels[0];
-		String url =  "http://"+lrp.lwir_ip+":"+IMGSRV_PORTS[chn]+SKIP_FRAME_URL;
+		String url =  "http://"+lrp.getLwirIP()+":"+IMGSRV_PORTS[chn]+SKIP_FRAME_URL;
 			Document dom=null;
 			try {
 				DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
@@ -467,7 +467,7 @@ public class LwirReader {
 				dom = db.parse(url);
 				if (!dom.getDocumentElement().getNodeName().equals("meta")) {
 					LOGGER.error("skipFrame() in " + url+
-							": Root element: expected 'me3ta', got \"" + dom.getDocumentElement().getNodeName()+"\"");
+							": Root element: expected 'meta', got \"" + dom.getDocumentElement().getNodeName()+"\"");
 						return false;
 				}
 	   		} catch(MalformedURLException e){
@@ -618,7 +618,7 @@ public class LwirReader {
 		int num_eo = lrp.eo_channels.length;
 		final String [] urls = new String [num_lwir + num_eo];
 		for (int chn:lrp.lwir_channels) {
-			urls[chn] = "http://"+lrp.lwir_ip+"/parsedit.php?immediate&sensor_port="+chn+
+			urls[chn] = "http://"+lrp.getLwirIP()+"/parsedit.php?immediate&sensor_port="+chn+
 					"&BITS=16"+
 					"&COLOR="+COLOR_RAW+ // +"*0"; // raw mode - delay 0 - breaks compressor
 					"&WOI_HEIGHT="+(LWIR_HEIGHT + (lrp.lwir_telemetry?LWIR_TELEMETRY_LINES:0));
