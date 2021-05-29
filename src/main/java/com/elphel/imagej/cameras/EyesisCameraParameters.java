@@ -14,6 +14,7 @@ import com.elphel.imagej.common.GenericJTabbedDialog;
 import com.elphel.imagej.common.WindowTools;
 
 import Jama.Matrix;
+import ij.IJ;
 /*
  **
  ** EyesisCameraParameters.java
@@ -1306,6 +1307,86 @@ import ij.gui.GenericDialog;
         	EyesisSubCameraParameters subCam=this.eyesisSubCameras[stationNumber][subCamNumber];
         	return subCam.enableNoLaser;
     	}
+
+    	/**
+    	 * Get number of the first high-res camera 
+    	 * @return
+    	 */
+    	public int getFirstHighRes() {
+    		int sensor_max_width = 0;
+    		int first_high_res = 0;
+    		for (int ncam = 0; ncam < eyesisSubCameras[0].length; ncam ++) {
+    			if (eyesisSubCameras[0][ncam].sensorWidth > sensor_max_width) {
+    				sensor_max_width = eyesisSubCameras[0][ncam].sensorWidth;
+    				first_high_res = ncam;
+    			}
+    		}
+    		return first_high_res;
+    	}
+    	
+    	public boolean isLWIR(int ncam) {
+    		return eyesisSubCameras[0][ncam].isLWIR();
+    	}
+    	
+    	/**
+    	 * Setting default camera geometry parameters for LWIR16 prototype system
+    	 * @return false if number of cameras is not 20
+    	 */
+    	public boolean setLwir16Geometry() {
+    		if (this.eyesisSubCameras[0].length != 20) {
+    			IJ.showMessage("Requires number of subcameras to be set to 20 before running this command");
+    			return false;
+    		}
+    		double CENTER_FORWARD = 110.1;  // mm from middle 1/4-20 "high" mount
+    		double CENTER_UP =       72.35; // mm from middle 1/4-20 "high" mount
+    		double EO_FORWARD =      47.89; // mm outer lens element center (maybe later replace with entr. pupil location?
+    		double EO_HORVERT =     113.3;  // mm 1/sqrt(radius)
+    		double LWIR_RADIUS =    110.0;  // mm radius of LWIR ring
+    		double LWIR_FORWARD =   46.83;  // mm outer lens element center (maybe later replace with entr. pupil location?
+    		double CENTER_ABOVE_HORIZONTAL = 175; // mm camera mount (middle 1/4-20 "high" mount) above goniomneter horizontal axis
+    		int [][] eo_ru = {{-1,1},{1,1},{-1,-1},{1,-1}};
+    		for (int ncam = 0; ncam < eyesisSubCameras[0].length; ncam ++) {
+    			boolean isLWIR = ncam < 16; 
+    			
+    			for (int nstation = 0; nstation < eyesisSubCameras.length; nstation++) {
+    				eyesisSubCameras[nstation][ncam].cartesian= true;
+    				eyesisSubCameras[nstation][ncam].cartesian= true;
+    				eyesisSubCameras[nstation][ncam].subcamera=   ncam / 4;
+    				eyesisSubCameras[nstation][ncam].sensor_port= ncam % 4;
+    				eyesisSubCameras[nstation][ncam].sensor_port= 0; // or ncam?
+    				
+    				eyesisSubCameras[nstation][ncam].sensorWidth=       isLWIR ? 640   : 2592;
+    				eyesisSubCameras[nstation][ncam].sensorHeight=      isLWIR ? 512   : 1936;
+    				eyesisSubCameras[nstation][ncam].focalLength=       isLWIR ? 14.0  : 4.5;
+    				eyesisSubCameras[nstation][ncam].pixelSize=         isLWIR ? 12.0  : 2.2;
+    				eyesisSubCameras[nstation][ncam].distortionRadius=  isLWIR ? 3.24  :  2.8512; // mm - half width of the sensor
+    				eyesisSubCameras[nstation][ncam].px0=               isLWIR ? 320.0 : 1296.0;
+    				eyesisSubCameras[nstation][ncam].py0=               isLWIR ? 256.0 : 968.0;
+    				if (isLWIR) {
+    					eyesisSubCameras[nstation][ncam].forward = CENTER_FORWARD+LWIR_FORWARD;
+    					eyesisSubCameras[nstation][ncam].height =  CENTER_UP + LWIR_RADIUS * Math.cos(Math.PI/8 * ncam);
+    					eyesisSubCameras[nstation][ncam].right =   LWIR_RADIUS * Math.sin(Math.PI/8 * ncam);
+    				} else {
+    					int ieo = ncam-16;
+    					eyesisSubCameras[nstation][ncam].forward = CENTER_FORWARD+EO_FORWARD;
+    					eyesisSubCameras[nstation][ncam].height =  CENTER_UP + EO_HORVERT * eo_ru[ieo][1];
+    					eyesisSubCameras[nstation][ncam].right =   EO_HORVERT * eo_ru[ieo][0];
+    				}
+    				eyesisSubCameras[nstation][ncam].phi =   0.0;
+    				eyesisSubCameras[nstation][ncam].theta = 0.0;
+    				eyesisSubCameras[nstation][ncam].psi =   0.0;
+    				eyesisSubCameras[nstation][ncam].updateCartesian();
+    				eyesisSubCameras[nstation][ncam].lwir = isLWIR;
+    			}
+    		}
+			for (int nstation = 0; nstation < centerAboveHorizontal.length; nstation++) {
+				centerAboveHorizontal[nstation] = CENTER_ABOVE_HORIZONTAL;	
+			}
+			IJ.showMessage("Camera geometry is set to LWIR16 design (16 LWIR + 4 EO)");
+    		return true;
+    		
+    	}
+    	
         /**
          *
          * @param eyesisCameraParameters current parameters of the Eyesis camera, subcameras and goniometer
@@ -1604,7 +1685,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
 
     			this.eyesisSubCameras[numStation][1]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
@@ -1638,7 +1720,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			this.eyesisSubCameras[numStation][2]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -1671,7 +1754,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     		} else if (numSubCameras==1) {
     			this.cartesian = false;
@@ -1706,7 +1790,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,    // public int subchannel
+    					false); // lwir
 
     		} else if (numSubCameras == 21) {
     			// ================
@@ -1744,7 +1829,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			this.eyesisSubCameras[numStation][1]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -1777,7 +1863,9 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,    // public int subchannel
+    					false); // lwir
+    					
 
     			this.eyesisSubCameras[numStation][2]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -1810,7 +1898,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			this.eyesisSubCameras[numStation][3]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -1843,7 +1932,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			this.eyesisSubCameras[numStation][4]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -1876,7 +1966,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			this.eyesisSubCameras[numStation][5]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -1909,7 +2000,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			this.eyesisSubCameras[numStation][6]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -1942,7 +2034,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			this.eyesisSubCameras[numStation][7]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -1975,7 +2068,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			this.eyesisSubCameras[numStation][8]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -2008,7 +2102,9 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
+    					
 
     			this.eyesisSubCameras[numStation][9]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -2041,7 +2137,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			this.eyesisSubCameras[numStation][10]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -2074,7 +2171,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			this.eyesisSubCameras[numStation][11]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -2107,7 +2205,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			this.eyesisSubCameras[numStation][12]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -2140,7 +2239,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			this.eyesisSubCameras[numStation][13]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -2173,7 +2273,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			this.eyesisSubCameras[numStation][14]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -2206,7 +2307,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			this.eyesisSubCameras[numStation][15]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -2239,7 +2341,9 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
+    					
 
     			this.eyesisSubCameras[numStation][16]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -2272,7 +2376,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			this.eyesisSubCameras[numStation][17]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -2305,7 +2410,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			this.eyesisSubCameras[numStation][18]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -2338,7 +2444,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			this.eyesisSubCameras[numStation][19]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -2371,7 +2478,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			this.eyesisSubCameras[numStation][20]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.defaultSensorWidth,
@@ -2404,7 +2512,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			//
     			// end of PHG21 parameters
@@ -2442,7 +2551,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			for (int i=8;i<16;i++) if (i<numSubCameras) 	this.eyesisSubCameras[numStation][i]=new EyesisSubCameraParameters( // middle 8 cameras
     					this.defaultSensorWidth,
@@ -2475,7 +2585,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			for (int i=16;i<24;i++) if (i<numSubCameras) 	this.eyesisSubCameras[numStation][i]=new EyesisSubCameraParameters( // bottom eight cameras
     					this.defaultSensorWidth,
@@ -2508,7 +2619,8 @@ import ij.gui.GenericDialog;
     					1.0, //channelWeightDefault
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			if (24<numSubCameras) 	this.eyesisSubCameras[numStation][24]=new EyesisSubCameraParameters(
     					this.defaultSensorWidth,
@@ -2541,7 +2653,8 @@ import ij.gui.GenericDialog;
     					8.0, //channelWeightDefault  (was 4)
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
+    					0,   // public int subchannel
+    					false); // lwir
 
     			if (25<numSubCameras) 	this.eyesisSubCameras[numStation][25]=new EyesisSubCameraParameters(
     					this.defaultSensorWidth,
@@ -2574,8 +2687,8 @@ import ij.gui.GenericDialog;
     					8.0, //channelWeightDefault  (was 4)
     					0,   // public int subcamera
     					0,   // public int sensor_port
-    					0);   // public int subchannel
-
+    					0,   // public int subchannel
+    					false); // lwir
     		}
     	}
     	public void recenterVertically(boolean [] subcams, boolean [] stations){

@@ -520,6 +520,10 @@ public class Distortions {
 /*					double [] XYZM=patternParameters.getXYZM( // will throw if outside or masked out
 							fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsUV[pointNumber][0],
 							fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsUV[pointNumber][1]);*/
+					if ((targetXYZ[index]==null) || (XYZMP==null)) {
+						System.out.println("Null problem in imgNum="+imgNum+", point "+pointNumber);
+						continue;
+					}
 					this.targetXYZ[index][0]=XYZMP[0];
 					this.targetXYZ[index][1]=XYZMP[1];
 					this.targetXYZ[index][2]=XYZMP[2];
@@ -3293,6 +3297,7 @@ For each point in the image
 			int global_debug_level, // DEBUG_LEVEL
 			int debug_level // debug level used inside loops
 	){
+
 		int debugThreshold0=0;
 		int debugThreshold=2;
 		MatchSimulatedPattern matchSimulatedPattern = new MatchSimulatedPattern(64); // new instance, all reset, FFTSize=64 will not be used
@@ -3316,6 +3321,10 @@ For each point in the image
 		int numSuccess=0;
 		DistortionCalibrationData dcd=fittingStrategy.distortionCalibrationData;
 		for (int numGridImage=0;numGridImage<dcd.gIP.length;numGridImage++) {
+			if (numGridImage >= 1680)	{
+				System.out.println("Processing debug image "+numGridImage);
+				System.out.println("Processing debug image "+numGridImage);
+			}
 			int set_number = dcd.gIP[numGridImage].getSetNumber();
 			if ((set_number >= start_set) &&
 					(set_number <= end_set) &&
@@ -3338,6 +3347,17 @@ For each point in the image
 						}
 					}
 				}
+				if ((dcd.gIP[numGridImage].matchedPointers > 0) && !ignoreLaserPointers) { // just re-enable with the same shifts (will fail if pointers were just added, but it failed anyway) 
+					if (!dcd.gIP[numGridImage].enabled) {
+						if (this.debugLevel>0) {
+							System.out.println("Re-enabling grid #"+numGridImage+" that has pointer(s) with the previously set UVShiftRot =={0,0,0}");
+						}
+						dcd.gIP[numGridImage].enabled = true;
+						dcd.gIP[numGridImage].newEnabled = true;
+					}
+					continue;
+				}
+				
 				if (this.debugLevel>debugThreshold0) {
 					System.out.println("\n---- applyHintedGrids() image #"+numGridImage+" (imageNumber="+imageNumber+") "+
 							" dcd.gIP["+numGridImage+"].pixelsXY.length="+dcd.gIP[numGridImage].pixelsXY.length+
@@ -3385,7 +3405,6 @@ For each point in the image
 					System.out.println("++++++ BUG: in applyHintedGrids() failed in createUV_INDEX()");
 					continue;
 				}
-
 				double [] goniometerTiltAxial=dcd.getImagesetTiltAxial(numGridImage);
 				if ((goniometerTiltAxial==null) || Double.isNaN(goniometerTiltAxial[0])  || Double.isNaN(goniometerTiltAxial[1])){
 					if (this.debugLevel>0) {
@@ -3551,7 +3570,7 @@ For each point in the image
 	public int [][] getImageMarkers(int numGridImage){
 		String source_path=fittingStrategy.distortionCalibrationData.gIP[numGridImage].source_path;
 		if (source_path != null) {
-			final ImagePlus imp = new ImagePlus(source_path);
+			ImagePlus imp = new ImagePlus(source_path);
 			imp.show();
 			/*
 			Thread msg_box_thread  = new Thread() {
@@ -3580,6 +3599,25 @@ For each point in the image
 				System.out.println("This image does not have point marks - please mark it in "+source_path);
 				IJ.showMessage("This image does not have point marks - please mark it in "+source_path);
 				return null;
+				/*
+				
+				boolean mark_and_continue = IJ.showMessageWithCancel("Mark and Continue", "This image does not have point marks - please mark it in "+source_path);
+				
+				if (mark_and_continue) {
+					imp = new ImagePlus(source_path);
+					System.out.println("got it again!");
+					pointRoi = null;
+					if (imp.getRoi() instanceof PointRoi) {
+						pointRoi =  (PointRoi) imp.getRoi();
+					} else {
+						System.out.println("This image does not have point marks - please mark it in "+source_path);
+						IJ.showMessage("This image does not have point marks - please mark it in "+source_path);
+						return null;
+					}
+				} else {
+					return null;
+				}
+				*/
 			}
 			Point [] points = pointRoi.getContainedPoints();
 			int [][] ipoints = new int [points.length][2];

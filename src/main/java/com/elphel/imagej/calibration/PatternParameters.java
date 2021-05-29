@@ -2,6 +2,7 @@ package com.elphel.imagej.calibration;
 import java.awt.Rectangle;
 import java.util.Properties;
 
+import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 /*
@@ -743,6 +744,7 @@ import ij.io.Opener;
 		public double[] getXYZM(int u, int v, boolean verbose, int station){ // u=0,v=0 - center!
 			int u1=u+this.U0;
 			int v1=v+this.V0;
+			double r2 = 0.25;
         	if ((v1<0) || (u1<0) || (v1 >= this.gridGeometry.length) || (u1 >= this.gridGeometry[0].length) ||
         			(this.gridGeometry[v1][u1][3]==0)) {
         		if ((this.debugLevel>1) && verbose && ((v1<0) || (u1<0) || (v1 >= this.gridGeometry.length) || (u1 >= this.gridGeometry[0].length))){
@@ -755,13 +757,68 @@ import ij.io.Opener;
         		return null;
         	}
         	if (this.stationZCorr==null) return this.gridGeometry[v1][u1];
-        	double [] result=this.gridGeometry[v1][u1].clone();
+        	double [] result = this.gridGeometry[v1][u1].clone();
 // use lower station if grid file does not have current
         	int useStation=(this.stationZCorr[v1][u1].length>station)?station:(this.stationZCorr[v1][u1].length-1);
         	result[2]+=this.stationZCorr[v1][u1][useStation];
 			return result;
-//			return this.gridGeometry[v1][u1];
 		}
+
+		/**
+		 * Use this for just initial orientation
+		 * @param u
+		 * @param v
+		 * @param verbose
+		 * @return {x,y,z}
+		 */
+		public double[] extrapolateXYZ(
+				double u,
+				double v,
+				boolean verbose){ // u=0,v=0 - center! No correction for stationZCorr - anyway it is not accurate outside
+			double u1 = u + this.U0;
+			double v1 = v + this.V0;
+			double r2 = 0.0001;
+			double [] result = null;
+			PolynomialApproximation pa = new PolynomialApproximation();
+			double [][][] data = new double[gridGeometry.length * gridGeometry[0].length][3][];
+			int di = 0;
+			for (int vg = 0; vg < gridGeometry.length; vg++) {
+				double dv2 = v1 - vg;
+				dv2 = dv2*dv2 + r2;;
+				for (int ug = 0; ug < gridGeometry[0].length; ug++) {
+					data[di][0] = new double[2];
+					data[di][0][0] = ug; 
+					data[di][0][1] = vg;
+					data[di][1] = new double[3];
+					data[di][2] = new double[1];
+					if ((gridGeometry[vg][ug] != null) && (gridGeometry[vg][ug][3] > 0.0)){
+						data[di][1][0] = gridGeometry[vg][ug][0]; // x 
+						data[di][1][1] = gridGeometry[vg][ug][1]; // y 
+						data[di][1][2] = gridGeometry[vg][ug][2]; // z
+						double du = u1 - ug;
+						data[di][2][0] = gridGeometry[vg][ug][3] / (du*du + dv2); 
+					}
+					di++;
+				}
+			}
+			double [][] coeff = pa.quadraticApproximation(
+					data,
+					true, // forceLinear,  // use linear approximation
+					null); // damping,
+			if (coeff== null) return null;
+			result = new double[3]; // out of grid, so all but x,y,z are 0.0;
+			for (int i = 0; i < 3; i++) {
+				result[i] = coeff[i][0]*u1 + coeff[i][1]*v1 + coeff[i][2]; 
+			}
+			/*
+        	if (this.stationZCorr==null) return result; // this.gridGeometry[v1][u1];
+// use lower station if grid file does not have current
+        	int useStation=(this.stationZCorr[v1][u1].length>station)?station:(this.stationZCorr[v1][u1].length-1);
+        	result[2]+=this.stationZCorr[v1][u1][useStation];
+        	*/
+			return result;
+		}		
+		
 		public double[] getXYZ(
 				double [] uv,
 				boolean verbose,
@@ -776,8 +833,11 @@ import ij.io.Opener;
 			corn[2] = getXYZM(iu,     iv + 1, verbose, station);
 			corn[3] = getXYZM(iu + 1, iv + 1, verbose, station);
 			if ((corn[0] == null) || (corn[1] == null) || (corn[2] == null) || (corn[3] == null)) {
-				System.out.println("Optical axis outside of the grid: TODO: modify getXYZM() to handle!");
-				return null;
+				if (verbose) {
+					System.out.println("Optical axis outside of the grid: TODO: modify getXYZM() to handle!");
+				}
+				return extrapolateXYZ (uv[0], uv[1], verbose);
+				//				return null;
 			}
 			double [] rslt_xyz = new double[3];
 			rslt_xyz[0] = (1-fu) * (1-fv) * corn[0][0] + fu * (1-fv) * corn[1][0] + (1-fu) * fv * corn[2][0] + fu * fv * corn[3][0];
@@ -915,7 +975,7 @@ import ij.io.Opener;
         	};
 			return result;
 		}
-		public double[] getXYZMPE(
+		public double[] getXYZMPE( // update this and other to interpolate
 				int u,
 				int v,
 				int station,

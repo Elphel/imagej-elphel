@@ -2016,6 +2016,9 @@ public class MatchSimulatedPattern {
 				ix = (interpolateXY[maxIndex][0] + j) % size;
 				for (int i = 0; i < 2; i++) {
 					iy = interpolateXY[maxIndex][1] + i; // next: OOB 2147483647
+					if (iy >= fft_complex.length) {
+						iy = fft_complex.length - 1; // was Index 17 out of bounds for length 17
+					}
 					interpolateAmplitudes[maxIndex][i][j] = Math.sqrt(fft_complex[iy][ix][0] * fft_complex[iy][ix][0]
 							+ fft_complex[iy][ix][1] * fft_complex[iy][ix][1]);
 					interpolatePhases[maxIndex][i][j] = Math.atan2(
@@ -7688,7 +7691,7 @@ public class MatchSimulatedPattern {
 		int shiftSelect = (((shifts[0][0] - coeff[0][2]) * (shifts[0][0] - coeff[0][2]) + (shifts[0][1] - coeff[1][2])
 				* (shifts[0][1] - coeff[1][2])) > ((shifts[1][0] - coeff[0][2]) * (shifts[1][0] - coeff[0][2])
 						+ (shifts[1][1] - coeff[1][2]) * (shifts[1][1] - coeff[1][2]))) ? 1 : 0;
-		if (this.debugLevel > 1) {
+		if (this.debugLevel > 0) {
 			double d1 = Math.sqrt((shifts[0][0] - coeff[0][2]) * (shifts[0][0] - coeff[0][2])
 					+ (shifts[0][1] - coeff[1][2]) * (shifts[0][1] - coeff[1][2]));
 			double d2 = Math.sqrt((shifts[1][0] - coeff[0][2]) * (shifts[1][0] - coeff[0][2])
@@ -8068,7 +8071,8 @@ public class MatchSimulatedPattern {
 					numCells++;
 				}
 			if (numCells > 0) {
-				setPatternGridArray(maxU - minU + 1, maxV - minV + 1);
+//				setPatternGridArray(maxU - minU + 1, maxV - minV + 1); // FIXME: Does nothing
+				this.PATTERN_GRID = setPatternGridArray(maxU - minU + 1, maxV - minV + 1); // FIXME: Does nothing
 				double[] xy = new double[2];
 				int[] uv = new int[2];
 				for (int i = 0; i < pixels[0].length; i++)

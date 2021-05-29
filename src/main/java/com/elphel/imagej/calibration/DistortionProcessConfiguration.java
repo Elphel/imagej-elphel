@@ -25,6 +25,7 @@ package com.elphel.imagej.calibration;
 
 import java.io.File;
 import java.io.FilenameFilter;
+import java.util.Arrays;
 import java.util.Properties;
 
 import com.elphel.imagej.common.WindowTools;
@@ -223,8 +224,10 @@ import ij.gui.GenericDialog;
 			    return new File(current, name).isDirectory();
 			  }
 			});
+			// TODO:Sort set list
 			String [] sourceSets = new String[sourceFileSets.length];
 			for (int i=0;i<sourceSets.length;i++) sourceSets[i]=sourceFileSets[i].getPath();
+			Arrays.sort(sourceSets);
 			return sourceSets;
         }
 

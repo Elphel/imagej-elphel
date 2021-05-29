@@ -45,6 +45,7 @@ import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.common.WindowTools;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
+import com.elphel.imagej.lwir.LwirReaderParameters;
 
 import Jama.Matrix;
 import ij.IJ;
@@ -894,6 +895,24 @@ import ij.text.TextWindow;
         }
 
 // from data organized as image sets
+        public static int getChannelFromPath(String path) {
+//        		int indexSuffix=path.length()-suffix.length();
+        	int indexSuffix = path.lastIndexOf(".");
+        	int indexLastDash=indexSuffix-1;
+        	while ((indexLastDash>0) &&
+        			(indexLastDash>(indexSuffix-3)) &&
+        			(path.charAt(indexLastDash)!='_') &&
+        			(path.charAt(indexLastDash)!='-')) indexLastDash--;
+        	return Integer.parseInt(path.substring(indexLastDash+1,indexSuffix));
+        	
+        }
+        
+        private boolean invertColor(int chn) {
+        	//TODO: Add looking at the image property to find out if inversion is already contained in the grid files
+			return eyesisCameraParameters.isLWIR(chn);
+
+        }
+        
         public void setupDirDistortionCalibrationData (
         		String [][]                                            stationFilenames, // per-station List of image set directories
         		String []                                              source_dirs,      // directories of the source files per station
@@ -927,9 +946,17 @@ import ij.text.TextWindow;
 //        			this.dir = dir;
         			int dot_index = dir.lastIndexOf("_");
         			String digits = "0123456789";
-        			int ts_start = dot_index -1;
+        			// allow "_<comment> after timestanp
+        			int end_pos =dir.length(); 
+        			while ((dot_index > 0) && (
+        					(digits.indexOf(dir.charAt(dot_index -1)) < 0) ||
+        					(digits.indexOf(dir.charAt(dot_index +1)) < 0))) { // not a digit before and after last "_"
+        				end_pos = dot_index;
+        				dot_index = dir.lastIndexOf("_", dot_index-1);
+        			}
+           			int ts_start = dot_index -1;
         			while ((ts_start >=0) && (digits.indexOf(dir.charAt(ts_start)) >= 0)) ts_start--;
-        			this.ts = Double.parseDouble(dir.substring(ts_start + 1).replace('_','.'));
+        			this.ts = Double.parseDouble(dir.substring(ts_start + 1, end_pos).replace('_','.'));
         			String [] files = (new File(dir)).list(gridFilter); // are these full files?
         			paths = new String[num_chn];
         			for (String path:files) {
@@ -1022,8 +1049,9 @@ import ij.text.TextWindow;
         		String [] paths =  dt.getPaths();
         		String [] spaths = dt.getSourcePaths();
         		int with_pointers = -1;
-        		for (int nc = 0; nc < paths.length; nc++) {
-        			String p = paths[nc];
+        		for (int indx = 0; indx < paths.length; indx++) {
+        			String p = paths[indx];
+        			int nc = getChannelFromPath(p);
         			boolean first_in_set = true;
         			if (p != null) {
         				this.gIP[numFile] =              new GridImageParameters(numFile);
@@ -1031,11 +1059,13 @@ import ij.text.TextWindow;
         				this.gIP[numFile].source_path =  spaths[nc];
         				this.gIP[numFile].setStationNumber(dt.getStation());
         				this.gIP[numFile].timestamp =    dt.getTs();
-        				this.gIP[numFile].channel =      nc;
-        				this.gIP[numFile].setNumber =    nis;
+        				this.gIP[numFile].channel =      nc; // **************** what if not all files present?- fixed        				this.gIP[numFile].setNumber =    nis;
         				this.gIP[numFile].gridImageSet = this.gIS[nis];
+            			this.gIP[numFile].setNumber=     nis;
             			this.gIS[nis].imageSet[nc]=this.gIP[numFile];
-            			boolean is_small = getImagePlusProperty(imp_grid,"WOI_WIDTH",0) <= MAX_LWIR_WIDTH;
+//            			boolean is_small = getImagePlusProperty(imp_grid,"WOI_WIDTH",0) <= MAX_LWIR_WIDTH;
+            			boolean is_lwir = eyesisCameraParameters.isLWIR(nc);
+            			
         				//numFile
         				if (first_in_set || read_grids) {
         					if (read_grids) {
@@ -1068,7 +1098,8 @@ import ij.text.TextWindow;
                     			System.out.print("<"+(this.gIP[numFile].matchedPointers));
                     			// Not using LWIR pointers here!
 //                    			if (!ignore_LWIR_pointers || (getImagePlusProperty(imp_grid,"WOI_TOP",0) > MAX_LWIR_WIDTH)) {
-                       			if (!ignore_LWIR_pointers || !is_small) {
+//                       			if (!ignore_LWIR_pointers || !is_small) { // here invert_color = true;
+                    			if (!ignore_LWIR_pointers || !eyesisCameraParameters.isLWIR(nc)) { // here invert_color = true;
                     				with_pointers = numFile;
                         			System.out.print("|"+numFile);
                     			}
@@ -1113,7 +1144,8 @@ import ij.text.TextWindow;
 
 
                     			int [] numBadNodes = new int [2];
-                    			double badNodeThreshold = is_small? this.eyesisCameraParameters.badNodeThresholdLWIR : this.eyesisCameraParameters.badNodeThreshold;
+//                    			double badNodeThreshold = is_small? this.eyesisCameraParameters.badNodeThresholdLWIR : this.eyesisCameraParameters.badNodeThreshold;
+                    			double badNodeThreshold = is_lwir? this.eyesisCameraParameters.badNodeThresholdLWIR : this.eyesisCameraParameters.badNodeThreshold;
                     			if (badNodeThreshold > 0.0){
                     				boolean thisDebug =false;
                     				//                            		thisDebug|=        (fileNumber== 720); // chn 25
@@ -1134,7 +1166,7 @@ import ij.text.TextWindow;
                             	if (disableNoFlatfield && !this.gIP[numFile].flatFieldAvailable) this.gIP[numFile].enabled=false; // just to use old mixed data
 
                             	int [][] shiftRotMatrix= MatchSimulatedPattern.getRemapMatrix(this.gIP[numFile].getUVShiftRot());
-                            	int [] sizeSizeExtra=setGridsWithRemap(
+                            	int [] sizeSizeExtra=setGridsWithRemap( // apply current remap to the grid file data
                             			numFile,
                                 		shiftRotMatrix, // int [][] reMap,
                                 		pixels,
@@ -1173,13 +1205,15 @@ import ij.text.TextWindow;
         			}
         		}
         		if (with_pointers < 0) { // no matching pointers, will try to match selected channel with the pattern
-        			int main_channel = 4; // one of the EO channels to match with the pattern
+//        			int main_channel = 4; // one of the EO channels to match with the pattern
+        			int main_channel = eyesisCameraParameters.getFirstHighRes(); // one of the EO channels to match with the pattern
 //        			boolean [] sensor_mask = null; // later may be used to limit scope to EO-only
         			int extra_search = 2;
 //        			int base_channel = this.gIP[with_pointers].channel;
         			if (this.gIS[nis].imageSet[main_channel] != null) {
         				int imgNum =  this.gIS[nis].imageSet[main_channel].imgNumber;
-        				boolean invert_color = (main_channel & 4) == 0; // first 4 - LWIR
+//        				boolean invert_color = (main_channel & 4) == 0; // first 4 - LWIR
+        				boolean invert_color = invertColor(main_channel); // eyesisCameraParameters.isLWIR(main_channel);
 
 						if (this.updateStatus) IJ.showStatus("Matching with the pattern, grid file "+(imgNum+1)+" (of "+(numFiles)+"): "+this.gIP[imgNum].path);
 						if (this.debugLevel>-1) System.out.print(imgNum+">("+this.gIP[imgNum].getStationNumber()+
@@ -1199,7 +1233,7 @@ import ij.text.TextWindow;
         		        		sensor_wh, // test set pixels width/height pair to reduce weight near the margins (or null)
         		        		false // true // boolean    bdebug
         		        		);
-    					System.out.print(" {"+uv_shift_rot[0]+":"+uv_shift_rot[1]+"]");
+    					System.out.print(" {"+uv_shift_rot[0]+":"+uv_shift_rot[1]+"], invert_color="+invert_color);
 
     					this.gIS[nis].imageSet[main_channel].setUVShiftRot(uv_shift_rot);
 
@@ -1226,7 +1260,9 @@ import ij.text.TextWindow;
         			int extra_search = 1;
         			int base_channel = this.gIP[with_pointers].channel;
         			for (int nc = 0; nc < this.gIS[nis].imageSet.length; nc++) if ((sensor_mask == null) || sensor_mask[nc]) {
-        				boolean invert_color = ((base_channel ^ nc) & 4) != 0;
+//        				boolean invert_color = ((base_channel ^ nc) & 4) != 0;
+        				boolean invert_color = invertColor(base_channel) ^ invertColor(nc); // eyesisCameraParameters.isLWIR(main_channel);
+
         				if ((this.gIS[nis].imageSet[nc].matchedPointers <= 0) && (nc != base_channel)) { // Later add non-laser conditions
         					int imgNum =  this.gIS[nis].imageSet[nc].imgNumber; // with_pointers - base_channel + nc;
     						if (this.updateStatus) IJ.showStatus("Re-reading grid file "+(imgNum+1)+" (of "+(numFiles)+"): "+this.gIP[imgNum].path);
@@ -1522,30 +1558,6 @@ import ij.text.TextWindow;
         }
 
 
-        // suggest set grid offset by comparing with known (by mark) set.
-        // Wrong Grid UV should cause parallel shift - same Z, different XY
-/*
-        public int [] suggestOffset (
-        		int num_img,
-        		boolean non_estimated,
-        		boolean even,
-        		PatternParameters patternParameters) {
-        	int num_set = this.gIP[num_img].getSetNumber();
-        	double [] ref_xyz = getXYZFromMarked(num_set, non_estimated);
-        	if (ref_xyz == null) {
-        		System.out.println("Error: Could not find reference goniometer XYZ for set "+num_set);
-        		return null;
-        	}
-        	double [] diff_xyz = this.gIS[num_set].GXYZ.clone();
-        	for (int i = 0; i < diff_xyz.length; i++) diff_xyz[i]-=ref_xyz[i];
-        	return suggestOffset (
-        			num_img,
-        			diff_xyz, // z is not used, may ne just[2]
-        			even,
-        			patternParameters,
-        			null);
-        }
-*/
         public int [] suggestOffset (
         		int num_img,
         		double [] diff_xyz, // This XYZ minus reference XYZ  z is not used, may be just[2]
@@ -1781,6 +1793,12 @@ import ij.text.TextWindow;
         		sb.append("Lens Distortion Model\t");
         		for (int i=0;i<numSubCameras;i++) sb.append("\t"+lensDistortionModels[i]);
         		sb.append("\n");
+        		
+        		sb.append("LWIR/EO\t");
+        		for (int i=0;i<numSubCameras;i++) {
+        			sb.append("\t"+LwirReaderParameters.sensorName(eyesisCameraParameters.isLWIR(i)));
+        		}
+        		sb.append("\n");
 
         		sb.append("Sensor width\t");
         		for (int i=0;i<numSubCameras;i++) sb.append("\t"+eyesisCameraParameters.getSensorWidth(i));
@@ -1796,8 +1814,14 @@ import ij.text.TextWindow;
             	for (int i=0;i<numSubCameras;i++) cameraPars[i]=eyesisCameraParameters.getParametersVector(stationNumber,i);
             	// parameters same order as in this
             	for (int n=0;n<cameraPars[0].length;n++) if (isSubcameraParameter(n) && isIntrinsicParameter(n)){
+            		int digits = 3;
+            		if (getParameterName(n).startsWith("subcamP")) {
+            			digits = 2;
+            		} else if (getParameterName(n).startsWith("subcamDistortion")) {
+            			digits = 4;
+            		}
             		sb.append(getParameterName(n)+"\t"+getParameterUnits(n));
-            		for (int i=0;i<numSubCameras;i++) sb.append("\t"+IJ.d2s(cameraPars[i][n],3));
+            		for (int i=0;i<numSubCameras;i++) sb.append("\t"+IJ.d2s(cameraPars[i][n],digits));
             		sb.append("\n");
             	}
             	sb.append("---");  for (int i=-1;i<numSubCameras;i++) sb.append("\t");  sb.append("\n");
@@ -1862,6 +1886,12 @@ import ij.text.TextWindow;
 //        		sb.append("Lens Distortion Model\t");
 //        		for (int i=0;i<numSubCameras;i++) sb.append("\t"+lensDistortionModels[i]);
 //        		sb.append("\n");
+
+        		sb.append("LWIR/EO\t");
+        		for (int i=0;i<numSubCameras;i++) {
+        			sb.append("\t"+LwirReaderParameters.sensorName(eyesisCameraParameters.isLWIR(i)));
+        		}
+        		sb.append("\n");
 
         		sb.append("Sensor width\t");
         		for (int i=0;i<numSubCameras;i++) sb.append("\t"+eyesisCameraParameters.getSensorWidth(i));
@@ -1941,7 +1971,9 @@ import ij.text.TextWindow;
 //            	sb.append("---");  for (int i=-1;i<numSubCameras;i++) sb.append("\t");  sb.append("\n");
             	int flindex =getParameterIndexByName("subcamFocalLength");
         		sb.append(getParameterName(flindex)+"\t"+getParameterUnits(flindex));
-        		for (int i=0;i<numSubCameras;i++) sb.append("\t"+IJ.d2s(cameraPars[i][flindex],3));
+        		for (int i=0;i<numSubCameras;i++) {
+        			sb.append("\t"+IJ.d2s(cameraPars[i][flindex],3));
+        		}
         		sb.append("\n");
 
             	sb.append("Camera roll"+"\t"+"degrees"+"\t"+IJ.d2s(commonRot,3));
@@ -2394,7 +2426,8 @@ import ij.text.TextWindow;
         			this.gIP[i].hintedMatch=0; // is it needed?
         			this.gIP[i].enabled=false; // failed against minimal grid period (too far) - probably double reflection in the windows
         		}
-        		if (this.gIP[i].hintedMatch==0) {
+//        		if (this.gIP[i].hintedMatch==0) {
+           		if ((this.gIP[i].hintedMatch==0) && (this.gIP[i].matchedPointers < minPointers)) { // added
         			this.gIP[i].enabled=false; // failed against predicted grid
         		} else {
         			if (
@@ -2572,7 +2605,7 @@ import ij.text.TextWindow;
         		}
         		if (bestRating>0){
         			EyesisSubCameraParameters esp = this.eyesisCameraParameters.eyesisSubCameras[stationNumber][bestChannel];
-        			System.out.println("Image number: "+this.gIS[i].imageSet[bestChannel].getImageNumber());
+        			System.out.println("setInitialOrientation(): Image number: "+this.gIS[i].imageSet[bestChannel].getImageNumber());
         			double [] uv_center = getGridUVfromXY(
         	        		esp.px0, // final double px,
         	        		esp.py0, // final double py,
@@ -2587,11 +2620,11 @@ import ij.text.TextWindow;
         				if (this.debugLevel>0) {
         					System.out.println("Center UV = "+uv_center[0]+","+uv_center[1]);
         				}
+        				// Now will try bilinear interpolate first, then extrapolate
         				double [] patt_xyz = 		patternParameters.getXYZ(
         						uv_center, // double [] uv,
         						false, // boolean verbose,
         						this.gIS[i].getStationNumber()); // int station); // u=0,v=0 - center!
-
             			if (patt_xyz == null) {
             				if (this.debugLevel>0) {
             					System.out.println("Center UV = NULL");
@@ -3886,7 +3919,8 @@ import ij.text.TextWindow;
         				this.gIP[fileNumber].gridImage = imp_grid;
         			}
         		}
-        		boolean is_small = getImagePlusProperty(imp_grid,"WOI_WIDTH",0) <= MAX_LWIR_WIDTH;
+//        		boolean is_small = getImagePlusProperty(imp_grid,"WOI_WIDTH",0) <= MAX_LWIR_WIDTH;
+    			boolean is_lwir = eyesisCameraParameters.isLWIR(this.gIP[fileNumber].channel);
     			this.gIP[fileNumber].woi = new Rectangle(
     					getImagePlusProperty(imp_grid,"WOI_LEFT",0),
     					getImagePlusProperty(imp_grid,"WOI_TOP",0),
@@ -3929,7 +3963,8 @@ import ij.text.TextWindow;
     				woi_compensated = true;
 
     			}
-    	        double badNodeThreshold = is_small? this.eyesisCameraParameters.badNodeThresholdLWIR : this.eyesisCameraParameters.badNodeThreshold;
+//    	        double badNodeThreshold = is_small? this.eyesisCameraParameters.badNodeThresholdLWIR : this.eyesisCameraParameters.badNodeThreshold;
+    	        double badNodeThreshold = is_lwir? this.eyesisCameraParameters.badNodeThresholdLWIR : this.eyesisCameraParameters.badNodeThreshold;
     	        // TODO: maybe adjust threshold to grid period, not the sensor type?
 
     			if (badNodeThreshold>0.0){
@@ -3994,7 +4029,7 @@ import ij.text.TextWindow;
     				}
     			}
     		}
-    		if (this.debugLevel>0) {
+    		if (this.debugLevel>-1) {
     			System.out.println("readAllGrids(), numImages="+numImages+", total number of grid nodes="+numOfGridNodes+", unused nodes "+numOfGridNodes_extra);
     		}
     		 // probably - do not need to verify that this.gIS is null - should do that anyway. UPDATE: no, now reading config file creates gIS
@@ -4371,6 +4406,7 @@ import ij.text.TextWindow;
         	return 0;
         }
 
+        // TODO: Cleanup below to use isLWIR form EyesisCameraParameters
 
         // get "effective" grid period scaled for low-res (as LWIR) sensors
     	public double getEffectivePeriod(int numImg) {

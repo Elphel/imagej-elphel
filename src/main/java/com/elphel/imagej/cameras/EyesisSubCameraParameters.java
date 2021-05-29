@@ -68,7 +68,7 @@ import java.util.Properties;
 		public int subcamera =   0;
 		public int sensor_port = 0;
 		public int subchannel =  0;
-
+		public boolean lwir =    false; // invert color for LWIR sensors
 
 		/*
 		 Modifying to accommodate for eccentricity of different terms (2 parameters per term) and elliptical shape (another 2 terms). When all are
@@ -115,7 +115,8 @@ import java.util.Properties;
     			double channelWeightDefault,
     			int subcamera,
     			int sensor_port,
-    			int subchannel
+    			int subchannel,
+    			boolean lwir     // LWIR camera with inverted color
     	){
     		this.decimateMasks = decimateMasks;
         	this.sensorWidth= sensorWidth;
@@ -158,7 +159,7 @@ import java.util.Properties;
 			this.subcamera = subcamera;
 			this.sensor_port = sensor_port;
 			this.subchannel = subchannel;
-
+			this.lwir =       lwir;
     		updateCartesian(); // set alternative
     	}
     	// defects are not cloned!
@@ -197,7 +198,8 @@ import java.util.Properties;
     	    		this.channelWeightDefault,
     				this.subcamera,
     				this.sensor_port,
-    				this.subchannel
+    				this.subchannel,
+    				this.lwir
     				);
     	}
     	public void setDefaultNonRadial(){
@@ -247,8 +249,7 @@ import java.util.Properties;
 			properties.setProperty(prefix+"subcamera",           this.subcamera+"");
 			properties.setProperty(prefix+"sensor_port",         this.sensor_port+"");
 			properties.setProperty(prefix+"subchannel",          this.subchannel+"");
-
-
+			properties.setProperty(prefix+"lwir",                this.lwir+"");
     	}
     	public void getProperties(String prefix,Properties properties){
     		getProperties(prefix,properties, -1);
@@ -333,7 +334,8 @@ import java.util.Properties;
 				this.sensor_port=Integer.parseInt(properties.getProperty(prefix+"sensor_port"));
 			if (properties.getProperty(prefix+"subchannel")!=null)
 				this.subchannel=Integer.parseInt(properties.getProperty(prefix+"subchannel"));
-
+			if (properties.getProperty(prefix+"lwir")!=null)
+				this.lwir=Boolean.parseBoolean(properties.getProperty(prefix+"lwir"));
     	}
     	public void setChannelWeightCurrent(
     			double weight){
@@ -363,9 +365,14 @@ import java.util.Properties;
     		this.cartesian = cartesian;
     	}
 
+    	public boolean isLWIR() {
+    		return this.lwir;
+    	}
+
     	public double getPixelSize() {
     		return this.pixelSize;
     	}
+    	
     	public double getDistortionRadius() {
     		return this.distortionRadius;
     	}

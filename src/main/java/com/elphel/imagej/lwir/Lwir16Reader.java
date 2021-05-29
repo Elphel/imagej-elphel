@@ -88,7 +88,6 @@ public class Lwir16Reader {
 	public static final String SCRIPT_CAPTURE=  "capture_range.php"; // capture synchronized images
 	public static final String SCRIPT_RESET=    "reset_frames.php";  // Reset frame numbers
 	public static final String SCRIPT_WAIT=     "wait_frame.php";    // wait for absolute frame (positive) or skip frames (nefative)
-	
 	// will remove later
 	public static final String IMAGE_URL_FIRST="/towp/wait/img/save";     // next image name, same image number/time
 	public static final String SKIP_FRAME_URL= "/towp/wait/meta";          // Wait for the next frame, return meta data
@@ -288,38 +287,6 @@ public class Lwir16Reader {
    		}
    		startAndJoin(threads);
 
-   		/*
-		for (int chn = 0; chn < num_channels; chn++) {
-			int width =  sets[0][chn].getWidth();
-			int height = sets[0][chn].getHeight();
-			String title = sets[0][chn].getTitle()+"_average"+num_frames;
-			float [] pixels_avg = (float []) sets[0][chn].getProcessor().getPixels(); //null pointer
-			for (int n = 1; n < num_frames; n++) {
-				float [] pixels = (float []) sets[n][chn].getProcessor().getPixels();
-				for (int i = 0; i < pixels_avg.length; i++) {
-					pixels_avg[i] += pixels[i];
-				}
-			}
-			double scale = 1.0/num_frames;
-			for (int i = 0; i < pixels_avg.length; i++) {
-				pixels_avg[i] *= scale;
-			}
-			ImageProcessor ip=new FloatProcessor(width,height);
-			ip.setPixels(pixels_avg);
-			ip.resetMinAndMax();
-			imps_avg[chn]=  new ImagePlus(title, ip);
-			Properties properties0 = sets[0][chn].getProperties();
-			for (String key:properties0.stringPropertyNames()) {
-				imps_avg[chn].setProperty(key, properties0.getProperty(key));
-			}
-			imps_avg[chn].setProperty("average", ""+num_frames);
-			if (motorsPosition!=null) for (int m=0;m<motorsPosition.length;m++ ) {
-				imps_avg[chn].setProperty("MOTOR"+(m+1), ""+motorsPosition[m]);
-			}
-			ImagejJp4Tiff.encodeProperiesToInfo(imps_avg[chn]);
-			// TODO: Overwrite some properties?
-		}
-   		 */
 		return imps_avg;
 	}
 
@@ -744,6 +711,7 @@ public class Lwir16Reader {
 	    }
 
 	}
+	
 	public double getFutureTimestamnp (String ip, double delay) { // delay in seconds from master
 		if (lwirReaderParameters.getDebugLevel() > 0) {
 			System.out.println("Increasing delay by 3.0s when there is some printing");
@@ -797,22 +765,28 @@ public class Lwir16Reader {
 	 * @param lrp
 	 * @param delay
 	 * @param duration -1 - start only, 0 - stop only, >0 - start+stop (LWIR cameras)
-	 * @param duration_eo -1 - start only, 0 - stop only, >0 - start+stop (EO cameras)
+	 * @param duration_eo -1 - start only, 0 - stop only, >0 - start+stop (EO cameras). If stop only - will wait for both masters
 	 * @return <0 - error, >0 last frame of the master camera/port in sequence
 	 */
 	public int captureRange(LwirReaderParameters lrp, double delay, int duration, int duration_eo) {
+		boolean sync2eo = true;
 		int lwir_master_index = 0;
-		int num_lwir = lrp.getLwirIPs().length;
+		int eo_master_index = 4;
+		String [] all_ips = lrp.getAllIPs();
+		int num_lwir =      lrp.getLwirIPs().length;
 		int [] port_masks= getPortMasks(lrp);
-		double target_ts = getFutureTimestamnp (lrp.getLwirIP(lwir_master_index), delay);
+		String master_ip = all_ips[sync2eo? eo_master_index : lwir_master_index];
+		double target_ts = getFutureTimestamnp (master_ip, delay);
 		if (Double.isNaN(target_ts)) {
 			return -1;
 		}
-		String [] all_ips = lrp.getAllIPs();
 		String [] urls = new String [all_ips.length];
 		for (int i = 0; i < urls.length; i++) {
 			int dur = (i>= num_lwir)?duration_eo:duration;
 			urls[i]=String.format("http://%s/%s?sensor_port=0&ts=%f&m=%d&d=%d", all_ips[i], SCRIPT_CAPTURE, target_ts, port_masks[i], dur);
+			if ((dur == 0) && ((i==lwir_master_index) || (i==eo_master_index))){
+				urls[i] += "&wait";
+			}
 		}
 		boolean OK = true;
    		Document [] docs = collectXmlResponses(urls);
@@ -849,12 +823,19 @@ public class Lwir16Reader {
    		}
 		int master_frame = Integer.parseInt(((Node) 
 				(((Node) docs[lwir_master_index].getDocumentElement().getElementsByTagName("frame").item(0)).getChildNodes().item(0))).getNodeValue());
-		if (lrp.getDebugLevel() > 0) System.out.println(String.format("master_frame=%d(0x%x)", master_frame,master_frame));
+		if ((lrp.getDebugLevel() > 0) && ((duration==0) || (duration_eo==0)) ) {
+			System.out.println(String.format("master_frame=%d(0x%x)", master_frame,master_frame));
+   			for (int i = 0; i < urls.length; i++) {
+   				System.out.println(i+": "+urls[i]);
+   			}
+		}
+//		System.out.println("mater_frame = "+master_frame+", target_ts="+target_ts);
 		return master_frame;
 	}
 	
 	public boolean startStopCompressor(LwirReaderParameters lrp, boolean start, double delay) {
-		if (lrp.getDebugLevel() > 0) System.out.println("startStopCompressor() start="+start);
+//		if (lrp.getDebugLevel() > 0) System.out.println("startStopCompressor() start="+start);
+		if (lrp.getDebugLevel() > -1) System.out.println("startStopCompressor() start="+start);
 		int duration = start? -1: 0;
 		int end_frame = captureRange(lrp, delay, duration, duration);
 		if (end_frame < 0) return false;
@@ -1003,12 +984,13 @@ public class Lwir16Reader {
 		}
 		resetFrameBuffers(lrp); // actually only needed after stopping, here just in case
 		// start capturing frames into each camera buffer
-		int end_frame = captureRange(lrp, lrp.getAcquireDelay(), lrp.getAvgNumberLwir(),lrp.getAvgNumberEO());
+//		int end_frame = 
+		captureRange(lrp, lrp.getAcquireDelay(), lrp.getAvgNumberLwir(),lrp.getAvgNumberEO());
 
 //	public static final String IMAGE_URL_NEXT=  "/torp/next/wait/img/save"; // same image name, same image number/time
 //	public static final String IMAGE_URL_NEXT=  "/torp/wait/img/next/save"; // same image name, same image number/time
-		int [] port_masks= getPortMasks(lrp);
-		String [] all_IPs = lrp.getAllIPs();
+//		int [] port_masks= getPortMasks(lrp);
+//		String [] all_IPs = lrp.getAllIPs();
 		final int num_lwir = lrp.getLwirIPs().length;
 		final int avg_lwir = lrp.getAvgNumberLwir();
 		final int avg_eo =   lrp.getAvgNumberEO();
@@ -1076,7 +1058,9 @@ public class Lwir16Reader {
 				public void run() {
    					for (int chn = indxAtomic.getAndIncrement(); chn < num_channels; chn = indxAtomic.getAndIncrement()) {
    						if (imgs[chn] != null) {
-   							int num_frames = (chn < (num_lwir*IMGSRV_PORTS.length))? avg_lwir : avg_eo;
+   							boolean is_lwir = chn < (num_lwir*IMGSRV_PORTS.length);
+//   							int num_frames = (chn < (num_lwir*IMGSRV_PORTS.length))? avg_lwir : avg_eo;
+   							int num_frames = is_lwir? avg_lwir : avg_eo;
    							if (num_frames > 0) {
    								float [] pixels_avg = (float []) imgs[chn].getProcessor().getPixels();
    								double scale = 1.0/num_frames;
@@ -1090,6 +1074,9 @@ public class Lwir16Reader {
    								if (motorsPosition!=null) for (int m=0;m<motorsPosition.length;m++ ) {
    									imgs[chn].setProperty("MOTOR"+(m+1), ""+motorsPosition[m]);
    								}
+								imgs[chn].setProperty(
+										LwirReaderParameters.SENSOR_TYPE,
+										LwirReaderParameters.SENSOR_TYPES[is_lwir?1:0]);
    								ImagejJp4Tiff.encodeProperiesToInfo(imgs[chn]);
    							}
    						}
@@ -1098,6 +1085,29 @@ public class Lwir16Reader {
    			};
    		}
    		startAndJoin(threads);
+   		
+		if (dirpath != null) {
+			File  f_dir = new File(dirpath);
+			// get series path from the first channel file title
+			String first_name = imgs[0].getTitle();
+			String set_name = first_name.substring(0, first_name.lastIndexOf('_'));
+			String set_path = dirpath+Prefs.getFileSeparator()+set_name;
+			File  set_dir = new File(set_path);
+			set_dir.mkdirs(); // including parent
+			LOGGER.warn("Saving image set to: "+set_dir.getAbsolutePath());
+			for (ImagePlus imp:imgs) {
+				String fname = imp.getTitle();
+//				fname = fname.substring(0, fname.lastIndexOf('_')) + ".tiff"; // remove _average
+//				fname = fname.substring(0, fname.lastIndexOf('.')) + ".tiff"; // remove _average
+				fname = fname + ".tiff"; // remove _average
+   				FileSaver fs=new FileSaver(imp);
+   				String path=set_path+Prefs.getFileSeparator()+fname;
+   				IJ.showStatus("Saving "+path);
+   				LOGGER.info("LWIR_ACQUIRE: 'Saving "+path );
+   				fs.saveAsTiff(path);
+			}
+		}
+   		
 		if (lrp.isShowImages()) {
 			for (ImagePlus imp: imgs) {
 				imp.show();
@@ -1159,7 +1169,9 @@ public class Lwir16Reader {
 				img_numbers[i] = -1;
 			}
 			img_names[i] = (String) imps[i].getProperty("CONTENT_FILENAME");
-			LOGGER.warn("Seconds for "+i+" - "+img_seconds[i]+", number"+img_numbers[i]+", name "+img_names[i]);
+			if (lrp.getDebugLevel() > 0) {
+				LOGGER.warn("Seconds for "+i+" - "+img_seconds[i]+", number"+img_numbers[i]+", name "+img_names[i]);
+			}
 		}
 		// Make a sparse array for all lwir+eo channels with nulls for channels that are not measured. 
 		ImagePlus [] imps_all = new ImagePlus [all_IPs.length * IMGSRV_PORTS.length];
@@ -1307,7 +1319,7 @@ public class Lwir16Reader {
    				}
    			}
    		}
-		skipMasterFrames(two_IPs,  4); // make sure all previous parameters are applied
+		skipMasterFrames(two_IPs,  4); // make sure all previous parameters are applied // waits for both LWIR and EO
 		// second reset after cameras running synchronously
 		OK &= resetAllFrames(lrp);
 		skipMasterFrames(two_IPs,  1); 

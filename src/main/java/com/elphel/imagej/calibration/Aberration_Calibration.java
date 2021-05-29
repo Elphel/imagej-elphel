@@ -1041,6 +1041,8 @@ if (MORE_BUTTONS) {
 		addButton("Goniometer Move",            panelLWIR,color_debug);
 		addButton("LWIR Goniometer",            panelLWIR,color_conf_process);
 		addButton("LWIR grids",                 panelLWIR,color_process);
+		addButton("LWIR15 GEOM",                panelLWIR,color_configure);
+		
 		addButton("Import Subsystem",           panelLWIR,color_configure);
 		addButton("Select LWIR grids",          panelLWIR,color_configure);
 		addButton("Grid offset",                panelLWIR,color_process);
@@ -5822,7 +5824,7 @@ if (MORE_BUTTONS) {
 			double patternHeight=PATTERN_PARAMETERS.patternHeight;
 			double targetAngleHorizontal=360*Math.atan(patternWidth/2/distanceToTarget)/Math.PI;
 			double targetAngleVertical=  360*Math.atan(patternHeight/2/distanceToTarget)/Math.PI;
-			if (DEBUG_LEVEL>0) System.out.println(
+			if (DEBUG_LEVEL>-1) System.out.println(
 					"Using:\n"+
 					"Distance from target:          "+IJ.d2s(distanceToTarget,1)+" mm\n"+
 					"         Taget width:          "+IJ.d2s(patternWidth,1)+" mm\n"+
@@ -9387,6 +9389,7 @@ if (MORE_BUTTONS) {
 /* ======================================================================== */
     if (label.equals("LWIR_ACQUIRE")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+        /*
 		ImagePlus [][] imps;
 		if (LWIR_PARAMETERS.isLwir16()) {
 			if (LWIR16_READER == null) {
@@ -9403,6 +9406,49 @@ if (MORE_BUTTONS) {
 			LWIR_READER.acquire(DISTORTION_PROCESS_CONFIGURATION.sourceDirectory); // directory to save
 //          ImagePlus [] imps = LWIR_READER.acquire("attic/lwir_test_images"); // directory to save
 		}
+		*/
+		if ((GONIOMETER==null) || (LWIR_PARAMETERS.isLwir16()?(GONIOMETER.lwir16Reader ==  null):(GONIOMETER.lwirReader ==  null))) {
+			if (LWIR_PARAMETERS.isLwir16()) {
+				if (LWIR16_READER == null) {
+					LWIR16_READER =  new Lwir16Reader(LWIR_PARAMETERS);
+				}
+				GONIOMETER= new Goniometer(
+						LWIR16_READER,
+						DISTORTION, //MatchSimulatedPattern.DistortionParameters distortion,
+						PATTERN_DETECT, //MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
+						EYESIS_CAMERA_PARAMETERS, //EyesisCameraParameters eyesisCameraParameters,
+						LASER_POINTERS, // MatchSimulatedPattern.LaserPointer laserPointers
+						SIMUL,                       //SimulationPattern.SimulParameters  simulParametersDefault,
+						GONIOMETER_PARAMETERS, //LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
+						DISTORTION_PROCESS_CONFIGURATION);
+				LWIR16_READER.setMotorsPosition(GONIOMETER_PARAMETERS.goniometerMotors.getCurrentPositions()); // getTargetPositions()); // Used target, not current to prevent minor variations				
+				
+			} else {
+				if (LWIR_READER == null) {
+					LWIR_READER =  new LwirReader(LWIR_PARAMETERS);
+				}
+				GONIOMETER= new Goniometer(
+						LWIR_READER,
+						DISTORTION, //MatchSimulatedPattern.DistortionParameters distortion,
+						PATTERN_DETECT, //MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
+						EYESIS_CAMERA_PARAMETERS, //EyesisCameraParameters eyesisCameraParameters,
+						LASER_POINTERS, // MatchSimulatedPattern.LaserPointer laserPointers
+						SIMUL,                       //SimulationPattern.SimulParameters  simulParametersDefault,
+						GONIOMETER_PARAMETERS, //LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
+						DISTORTION_PROCESS_CONFIGURATION);
+				LWIR_READER.setMotorsPosition(GONIOMETER_PARAMETERS.goniometerMotors.getCurrentPositions()); // getTargetPositions()); // Used target, not current to prevent minor variations				
+			}
+			if (DEBUG_LEVEL>1){
+				System.out.println("Initialized Goniometer class for "+LWIR_PARAMETERS.getCameraName());
+			}
+		} else if (DEBUG_LEVEL>1){
+			System.out.println("GONIOMETER was initialized for "+LWIR_PARAMETERS.getCameraName());
+		}
+		if (LWIR_PARAMETERS.isLwir16()) {
+			LWIR16_READER.acquire(DISTORTION_PROCESS_CONFIGURATION.sourceDirectory); // directory to save
+		} else {
+			LWIR_READER.acquire(DISTORTION_PROCESS_CONFIGURATION.sourceDirectory); // directory to save
+		}		
 		return;
 	}
 
@@ -9451,7 +9497,7 @@ if (MORE_BUTTONS) {
 		double patternHeight=PATTERN_PARAMETERS.patternHeight;
 		double targetAngleHorizontal=360*Math.atan(patternWidth/2/distanceToTarget)/Math.PI;
 		double targetAngleVertical=  360*Math.atan(patternHeight/2/distanceToTarget)/Math.PI;
-		if (DEBUG_LEVEL>0) System.out.println(
+		if (DEBUG_LEVEL>-1) System.out.println(
 				"Using:\n"+
 				"Distance from target:          "+IJ.d2s(distanceToTarget,1)+" mm\n"+
 				"         Taget width:          "+IJ.d2s(patternWidth,1)+" mm\n"+
@@ -9475,6 +9521,12 @@ if (MORE_BUTTONS) {
 	    calculateLwirGrids();
         return;
 	}
+/* ======================================================================== */
+	if       (label.equals("LWIR15 GEOM")) {
+		EYESIS_CAMERA_PARAMETERS.setLwir16Geometry();
+		return;
+	}
+	
 /* ======================================================================== */
 	if       (label.equals("Import Subsystem")) {
 		importSystem(null, "EYESIS_CAMERA_PARAMETERS.");
@@ -9978,7 +10030,8 @@ if (MORE_BUTTONS) {
 		//DistortionProcessConfiguration
 		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 		LENS_DISTORTIONS=new Distortions(LENS_DISTORTION_PARAMETERS,PATTERN_PARAMETERS,REFINE_PARAMETERS,this.SYNC_COMMAND.stopRequested);
-		int min_files = 8; // use folders that have all 8 files
+		// Maybe wrong ! Use folders that have at least all EO channels? 
+		int min_files = lwirReaderParameters.getNumChannels();// 8; // use folders that have all 8 files
 		int lwir_chn0 = lwirReaderParameters.getLwirChn0();
 		int eo_chn0 = lwirReaderParameters.getEoChn0();
 		int numStations = 3;
@@ -10011,7 +10064,7 @@ if (MORE_BUTTONS) {
 	    for (int numStation=0;numStation<numStations;numStation++){
 	    	DirectoryChoser dc = new DirectoryChoser(
 	    			gridFilter,
-	    			min_files,
+	    			min_files, // not actually used
 	    			0,
 	    			null);
 	    	dc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
@@ -10215,8 +10268,8 @@ if (MORE_BUTTONS) {
 
         		matchSimulatedPattern.invalidateFlatFieldForGrid(); //Reset Flat Field calibration - different image.
         		matchSimulatedPattern.invalidateFocusMask();
-        		boolean is_lwir = LWIR_PARAMETERS.is_LWIR(imp_sel);
-        		int numAbsolutePoints=matchSimulatedPattern.calculateDistortions(
+        		boolean is_lwir = LWIR_PARAMETERS.is_LWIR(imp_sel); // Not used!
+        		int numAbsolutePoints=matchSimulatedPattern.calculateDistortions( // matchSimulatedPattern.PATTERN_GRID already set
         				LWIR_PARAMETERS, // LwirReaderParameters lwirReaderParameters,
         				DISTORTION, //
         				PATTERN_DETECT,
@@ -11543,7 +11596,7 @@ if (MORE_BUTTONS) {
 		} else {
 			System.out.println("No pattern grid file (ground gtruth) is provided");
 		}
-		if ((configPaths[3] !=null) && (configPaths[3] != "")){ // load sensor
+		if ((configPaths[3] !=null) && !configPaths[3].equals("")){ // load sensor
 			if (distortions.fittingStrategy==null) return false; // Why?
 			if (DEBUG_LEVEL>0) System.out.println("Autoloading sensor calibration files "+configPaths[3]);
 			distortions.setDistortionFromImageStack(

@@ -31,6 +31,7 @@ import java.io.FilenameFilter;
 import java.util.Properties;
 
 import com.elphel.imagej.common.GenericJTabbedDialog;
+import com.elphel.imagej.readers.EyesisTiff;
 
 import ij.ImagePlus;
 import ij.Prefs;
@@ -41,6 +42,8 @@ public class LwirReaderParameters {
 	public final static String [] CAMERA_NAMES= {NAME_TALON,NAME_LWIR16};
 	public final static int []    BOSON_FFC_FRAMES= {2,4,8,16};
 	public final static int []    FFC_GROUPS=          {1,2,4};
+	public static final String [] SENSOR_TYPES = {"EO","LWIR"};
+	public static final String    SENSOR_TYPE =  "SENSOR_TYPE";
 	
 	private boolean parameters_updated =     false;
 	protected String  camera_name =          "Talon"; // "LWIR16";
@@ -94,7 +97,7 @@ public class LwirReaderParameters {
 	protected boolean show_images = false;
 
 	protected int     lwir_chn0 =             0; // not configurable
-	protected int     eo_chn0 =               4; // not configurable
+//	protected int     eo_chn0 =               4; // not configurable
 
 	public LwirReaderParameters() {
 		
@@ -104,7 +107,16 @@ public class LwirReaderParameters {
 		else if (NAME_LWIR16.equals(name)) camera_name = NAME_LWIR16;
 	}
 
-
+	public static boolean is_LWIR(String type) {
+		return ((type != null) && type.equals(SENSOR_TYPES[1]));
+	}
+	public static boolean is_EO(String type) {
+		return ((type != null) && type.equals(SENSOR_TYPES[1]));
+	}
+	public static String sensorName(boolean lwir) {
+		return SENSOR_TYPES[lwir?1:0];
+	}
+	
 	// --- interface methods
 	public int getAvgNumberLwir() {
 		return avg_number;
@@ -126,7 +138,11 @@ public class LwirReaderParameters {
 	}
 
 	public int getEoChn0 () {
-		return eo_chn0;
+		return isLwir16() ? 16:4;// eo_chn0;
+	}
+	
+	public int getNumChannels() {
+		return 20;
 	}
 
 	public boolean is_LWIR(int width) {
@@ -134,6 +150,14 @@ public class LwirReaderParameters {
 	}
 
 	public boolean is_LWIR(ImagePlus imp){
+		// See if image has LwirReaderParameters.SENSOR_TYPE property, then use is_LWIR(String property_value),
+		// if not - use old width property
+		if (imp.getProperty("WOI_WIDTH")==null) {
+			EyesisTiff.decodeProperiesFromInfo(imp);
+		}
+		if (imp.getProperty(SENSOR_TYPE)!=null) {
+			return is_LWIR((String) imp.getProperty(SENSOR_TYPE));
+		}
 		return is_LWIR(imp.getWidth());
 	}
 
