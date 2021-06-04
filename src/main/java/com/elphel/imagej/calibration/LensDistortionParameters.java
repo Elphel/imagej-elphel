@@ -22,7 +22,7 @@ import ij.gui.GenericDialog;
 		 */
 		// lens parameters (add more later)
 
-		final int numInputs= 53; //27; // with A8...// 24;   // parameters in subcamera+...
+		final int numInputs= 57; // with neck*, was 53; //27; // with A8...// 24;   // parameters in subcamera+...
 	    final int numOutputs=42; //16; // with A8...//13;  // parameters in a single camera
 //		final
 //		boolean cummulativeCorrection=true; // r_xy, r_od for higher terms are relative to lower ones
@@ -724,7 +724,7 @@ dPXmmc/dphi=
 
  */
         /**
-         *  extract needed ones, and reorder partial derivatives to match calcInterParameters
+         *  extract needed ones, and reorder partial derivatives to match lensCalcInterParamers (LDP1862)
          *  @param srcDerivatives - values and 15 derivatives for px, py
          */
         public double [][] reorderPartialDerivatives (double [][] srcDerivatives){
@@ -736,16 +736,16 @@ dPXmmc/dphi=
         			 2, // 4		public double pitch=0.0; // angle in degrees from perpendicular to the pattern, 0 - towards wall, positive - up
         			 3, // 5		public double roll=0.0;  // angle in degrees rotation around camera optical axis (perpendicular to pattern if yaw==0, pitch==0), positive - clockwise
         			 7, // 6		public double focalLength=4.5;
-        			16, // 7		public double px0=1296.0;           // center of the lens on the sensor, pixels
-        			17, // 8		public double py0=968.0;           // center of the lens on the sensor, pixels
+        			16, // 7		public double px0=1296.0;        // center of the lens on the sensor, pixels
+        			17, // 8		public double py0=968.0;         // center of the lens on the sensor, pixels
         			    // 	public double distortionRadius=  2.8512; // mm - half width of the sensor
-       			     9, // 9		public double distortionA5=0.0; // r^5 (normalized to focal length or to sensor half width?)
-    			    10, // 10		public double distortionA5=0.0; // r^5 (normalized to focal length or to sensor half width?)
-    			    11, // 11		public double distortionA5=0.0; // r^5 (normalized to focal length or to sensor half width?)
-        			12, // 12		public double distortionA5=0.0; // r^5 (normalized to focal length or to sensor half width?)
-        			13, // 13		public double distortionA=0.0; // r^4 (normalized to focal length or to sensor half width?)
-        			14, // 14		public double distortionB=0.0; // r^3
-        			15, // 15		public double distortionC=0.0; // r^2
+       			     9, // 9		public double distortionA8=0.0;  // r^5 (normalized to focal length or to sensor half width?)
+    			    10, // 10		public double distortionA7=0.0;  // r^5 (normalized to focal length or to sensor half width?)
+    			    11, // 11		public double distortionA6=0.0;  // r^5 (normalized to focal length or to sensor half width?)
+        			12, // 12		public double distortionA5=0.0;  // r^5 (normalized to focal length or to sensor half width?)
+        			13, // 13		public double distortionA=0.0;   // r^4 (normalized to focal length or to sensor half width?)
+        			14, // 14		public double distortionB=0.0;   // r^3
+        			15, // 15		public double distortionC=0.0;   // r^2
         			18, // 16		Orthogonal elongation for r^2"
         			19, // 17		Diagonal   elongation for r^2"
         			20, // 18		Distortion center shift X for r^3"
@@ -802,15 +802,15 @@ dPXmmc/dphi=
         			 2, // 4		public double pitch=0.0; // angle in degrees from perpendicular to the pattern, 0 - towards wall, positive - up
         			 3, // 5		public double roll=0.0;  // angle in degrees rotation around camera optical axis (perpendicular to pattern if yaw==0, pitch==0), positive - clockwise
         			 7, // 6		public double focalLength=4.5;
-        			16, // 7		public double px0=1296.0;           // center of the lens on the sensor, pixels
-        			17, // 8		public double py0=968.0;           // center of the lens on the sensor, pixels
-        			 9, // 9		public double distortionA8=0.0; // r^5 (normalized to focal length or to sensor half width?)
-        			10, // 10		public double distortionA7=0.0; // r^5 (normalized to focal length or to sensor half width?)
-        			11, // 11		public double distortionA6=0.0; // r^5 (normalized to focal length or to sensor half width?)
+        			16, // 7		public double px0=1296.0;       // center of the lens on the sensor, pixels
+        			17, // 8		public double py0=968.0;        // center of the lens on the sensor, pixels
+        			 9, // 9		public double distortionA8=0.0; // r^8 (normalized to focal length or to sensor half width?)
+        			10, // 10		public double distortionA7=0.0; // r^7 (normalized to focal length or to sensor half width?)
+        			11, // 11		public double distortionA6=0.0; // r^6 (normalized to focal length or to sensor half width?)
         			12, // 12		public double distortionA5=0.0; // r^5 (normalized to focal length or to sensor half width?)
-        			13, // 13		public double distortionA=0.0; // r^4 (normalized to focal length or to sensor half width?)
-        			14, // 14		public double distortionB=0.0; // r^3
-        			15, // 15		public double distortionC=0.0; // r^2
+        			13, // 13		public double distortionA=0.0;  // r^4 (normalized to focal length or to sensor half width?)
+        			14, // 14		public double distortionB=0.0;  // r^3
+        			15, // 15		public double distortionC=0.0;  // r^2
         			18, // 16		Orthogonal elongation for r^2"
         			19, // 17		Diagonal   elongation for r^2"
 
@@ -1880,19 +1880,24 @@ dPXmmc/dphi=
 	    	double height=       parVect[2];
 	    	double phi_cyl=      cartesian? Double.NaN:  parVect[3];
 	    	double heading_cart= cartesian? parVect[3]:  Double.NaN;
-	    	double theta=  parVect[4];
-	    	double psi=    parVect[5];
-	    	double goniometerHorizontal=parVect[6];
-	    	double goniometerAxial=parVect[7];
-	    	double interAxisDistance=parVect[8];
-	    	double interAxisAngle=parVect[9];
-	    	double horAxisErrPhi=parVect[10];
-	    	double horAxisErrPsi=parVect[11];
-	    	double entrancePupilForward=parVect[12];
-	    	double centerAboveHorizontal=parVect[13];
-	    	double GXYZ0=parVect[14];
-	    	double GXYZ1=parVect[15];
-	    	double GXYZ2=parVect[16];
+	    	double theta=                 parVect[4];
+	    	double psi=                   parVect[5];
+	    	double goniometerHorizontal=  parVect[6];
+	    	double goniometerAxial=       parVect[7];
+	    	double interAxisDistance=     parVect[8];
+	    	double interAxisAngle=        parVect[9];
+	    	double horAxisErrPhi=         parVect[10];
+	    	double horAxisErrPsi=         parVect[11];
+	    	double entrancePupilForward=  parVect[12];
+	    	double centerAboveHorizontal= parVect[13];
+	    	double GXYZ0=                 parVect[14];
+	    	double GXYZ1=                 parVect[15];
+	    	double GXYZ2=                 parVect[16];
+	    	
+	    	double neck_right =           parVect[17];
+	    	double neck_back =            parVect[18];
+	    	double neck_x =               parVect[19];
+	    	double neck_z =               parVect[20];
 
 	    	double cPS=   Math.cos(psi*Math.PI/180); // subCam.psi
 	    	double sPS=   Math.sin(psi*Math.PI/180); // subCam.psi
@@ -1915,7 +1920,13 @@ dPXmmc/dphi=
 	    	double cHAEPH=Math.cos(horAxisErrPhi*Math.PI/180); //eyesisCameraParameters.horAxisErrPhi
 	    	double sHAEPH=Math.sin(horAxisErrPhi*Math.PI/180); //eyesisCameraParameters.horAxisErrPhi
 	    	double cHAEPS=Math.cos(horAxisErrPsi*Math.PI/180); //eyesisCameraParameters.horAxisErrPsi
-	    	double sHAEPS=Math.sin(horAxisErrPsi*Math.PI/180); //eyesisCameraParameters.horAxisErrPsi\
+	    	double sHAEPS=Math.sin(horAxisErrPsi*Math.PI/180); //eyesisCameraParameters.horAxisErrPsi
+	    	
+	    	double cNR=   Math.cos(neck_right*Math.PI/180);
+	    	double sNR=   Math.sin(neck_right*Math.PI/180);
+	    	double cNB=   Math.cos(neck_back*Math.PI/180); 
+	    	double sNB=   Math.sin(neck_back*Math.PI/180);
+	    	
 
 	/*
 	 0) Translate by distance to entrance pupil (lens center)
@@ -1951,19 +1962,42 @@ dPXmmc/dphi=
 	*/
 	    	double [][] aR3={{cAZP,0.0,sAZP},{0.0,1.0,0.0},{-sAZP,0.0,cAZP}};
 	    	Matrix R3=new Matrix(aR3);
-	/*
+	/**
 	4) Now axes are aligned, just translate to get to eyesis coordinates: Vey= T1+Vc3
 	| Xey |   |      r * sin (azimuth)       |   |Xc3|
 	| Yey | = | height+centerAboveHorizontal | + |Yc3|
 	| Zey |   |      r * cos (azimuth)       |   |Zc3|
+	adding neck shift:
+	| Xey |   | r * sin (azimuth) + neck_x   |   |Xc3|
+	| Yey | = | height+centerAboveHorizontal | + |Yc3|
+	| Zey |   | r * cos (azimuth) + neck_z   |   |Zc3| // to target
 	*/
-	    	double [][] aT1_cyl= {{radius_cyl*sAZ_cyl},{(height+centerAboveHorizontal)},{radius_cyl*cAZ_cyl}}; // {{subCam.radius*sAZ},{subCam.height},{subCam.radius*cAZ}};
-	    	double [][] aT1_cart={{right_cart},        {(height+centerAboveHorizontal)},{forward_cart}}; // {{subCam.radius*sAZ},{subCam.height},{subCam.radius*cAZ}};
+	    	double [][] aT1_cyl= {{radius_cyl*sAZ_cyl + neck_x},
+	    			              {(height+centerAboveHorizontal)},
+	    			              {radius_cyl*cAZ_cyl + neck_z}}; // {{subCam.radius*sAZ},{subCam.height},{subCam.radius*cAZ}};
+	    	double [][] aT1_cart={{right_cart + neck_x},
+	    			              {(height+centerAboveHorizontal)},
+	    			              {forward_cart + neck_z}}; // {{subCam.radius*sAZ},{subCam.height},{subCam.radius*cAZ}};
 
 	    	double [][] aT1= cartesian ? aT1_cart : aT1_cyl;
 	    	Matrix T1=new Matrix(aT1);
-
+	    	
 	/**
+	 * Rotate camera neck around Z (right tilt)
+	 */
+	    	double [][] aRNR =    {{ cNR, sNR, 0.0},
+	    			               {-sNR, cNR, 0.0},
+	    			               { 0.0, 0.0, 1.0}};
+			Matrix RNR=new Matrix(aRNR);
+	/**
+	 * Rotate camera neck around X (back tilt)
+	 */
+	    	double [][] aRNB =    {{ 1.0, 0.0, 0.0},
+	    			               { 0.0, cNB, sNB},
+	    			               { 0.0,-sNB, cNB}};
+			Matrix RNB=new Matrix(aRNB);
+
+	/*
 	5) rotate around moving goniometer axis, by (-goniometerAxial) - same as around EY: Vgm1=R4*Vey
 	| Xgm1 |   |    1           0                     0              |   |Xey|
 	| Ygm1 | = |    0   cos(goniometerAxial)  sin(goniometerAxial)   | * |Yey|
@@ -1978,6 +2012,7 @@ dPXmmc/dphi=
 	*/
 			double [][] aR4_goniometer={{cGA,0.0,sGA},{0.0,1.0,0.0},{-sGA,0.0,cGA}};
 			Matrix R4=new Matrix(isTripod?aR4_tripod:aR4_goniometer);
+			
 	/*
 	6) move to the goniometer horizontal axis:Vgm2=T2+Vgm1
 	| Xgm2 |   |                 0  |   |Xgm1|
@@ -1994,7 +2029,7 @@ dPXmmc/dphi=
 	*/
 	    	double [][] aR5={{cGIAA,sGIAA,0.0},{-sGIAA,cGIAA,0.0},{0.0,0.0,1.0}};
 	    	Matrix R5=new Matrix(aR5);
-	/**
+	/*
 	8)  rotate around goniometer horizontal axis (Xgm3) by -goniometerHorizontal: Vgm4=R6*Vgm3
 	| Xgm4 |   |    cos(goniometerHorizontal)  0   sin(goniometerHorizontal) |   |Xgm3|
 	| Ygm4 | = |               0               1               0             | * |Ygm3|
@@ -2045,11 +2080,13 @@ dPXmmc/dphi=
 	    	Matrix T3=new Matrix(aT3);
 
 	// MA=R8*R7*R6*R5*R4*R3*R2*R1;
-	// MB=T3+(R8*R7*R6*R5*(T2+R4*T1)); - old
 	// MB=T3+(R8*R7*R6*R5*(T2+R4*(T1+R3*R2*R1*T0)));
-	        Matrix MA=R8.times(R7.times(R6.times(R5.times(R4.times(R3.times(R2.times(R1)))))));
-//	        Matrix MB=T3.plus(R8.times(R7.times(R6.times(R5.times(T2.plus(R4.times(T1)))))));
-	        Matrix MB=T3.plus(R8.times(R7.times(R6.times(R5.times(T2.plus(R4.times(T1.plus(R3.times(R2.times(R1.times(T0)))) )))))));
+//	        Matrix MA=R8.times(R7.times(R6.times(R5.times(R4.times(R3.times(R2.times(R1))))))); // before neck
+	        Matrix MA=R8.times(R7.times(R6.times(R5.times(R4.times(RNB.times(RNR.times(R3.times(R2.times(R1)))))))));
+//	        Matrix MB=T3.plus(R8.times(R7.times(R6.times(R5.times(T2.plus(R4.times(T1.plus(R3.times(R2.times(R1.times(T0)))) ))))))); // before neck
+	        Matrix T1M=T1.plus(R3.times(R2.times(R1.times(T0)))); 
+	        Matrix MB=T3.plus(R8.times(R7.times(R6.times(R5.times(T2.plus(R4.times(RNB.times(RNR.times(T1M)))))))));
+	        
 			if (this.debugLevel>2) {
 				System.out.println("MA:");
 				MA.print(10, 5);
@@ -2059,7 +2096,7 @@ dPXmmc/dphi=
 				T3.print(10, 5);
 //				System.out.println("interParameterDerivatives[0]="+sprintfArray(interParameterDerivatives[0]));
 			}
-	        double [] extrinsicParams=parametersFromMAMB(MA,MB); // all after 6 are 0;
+	        double [] extrinsicParams=parametersFromMAMB(MA,MB); // [6] all after 6 are 0;
 
 	        lensDistortionParameters.pixelSize =        pixelSize;
 	        lensDistortionParameters.distortionRadius = distortionRadius;
@@ -2071,22 +2108,22 @@ dPXmmc/dphi=
 	        lensDistortionParameters.pitch=extrinsicParams[4];
 	        lensDistortionParameters.yaw=  extrinsicParams[3];
 	        lensDistortionParameters.roll= extrinsicParams[5];
-
-			lensDistortionParameters.focalLength=parVect[17]; //subCam.focalLength;
-			lensDistortionParameters.px0=parVect[18]; //subCam.px0;
-			lensDistortionParameters.py0=parVect[19]; //subCam.py0;
-			lensDistortionParameters.distortionA8=parVect[20]; //subCam.distortion5;
-			lensDistortionParameters.distortionA7=parVect[21]; //subCam.distortion5;
-			lensDistortionParameters.distortionA6=parVect[22]; //subCam.distortion5;
-			lensDistortionParameters.distortionA5=parVect[23]; //subCam.distortion5;
-			lensDistortionParameters.distortionA=parVect[24]; //subCam.distortionA;
-			lensDistortionParameters.distortionB=parVect[25]; //subCam.distortionB;
-			lensDistortionParameters.distortionC=parVect[26]; //subCam.distortionC;
+	        // offsetting by 4 for neck parameters
+			lensDistortionParameters.focalLength= parVect[21]; //[17]; //subCam.focalLength;
+			lensDistortionParameters.px0=         parVect[22]; //[18]; //subCam.px0;
+			lensDistortionParameters.py0=         parVect[23]; //[19]; //subCam.py0;
+			lensDistortionParameters.distortionA8=parVect[24]; //[20]; //subCam.distortion5;
+			lensDistortionParameters.distortionA7=parVect[25]; //[21]; //subCam.distortion5;
+			lensDistortionParameters.distortionA6=parVect[26]; //[22]; //subCam.distortion5;
+			lensDistortionParameters.distortionA5=parVect[27]; //[23]; //subCam.distortion5;
+			lensDistortionParameters.distortionA= parVect[28]; //[24]; //subCam.distortionA;
+			lensDistortionParameters.distortionB= parVect[29]; //[25]; //subCam.distortionB;
+			lensDistortionParameters.distortionC= parVect[30]; //[26]; //subCam.distortionC;
 
 			lensDistortionParameters.r_xy=new double [6][2];
 			lensDistortionParameters.r_od=new double [7][2];
 
-			int index=27;
+			int index= 31; // before neck*: 27; // index in parVect
 			for (int i=0;i<lensDistortionParameters.r_od.length;i++){
 				if (i>0){
 					lensDistortionParameters.r_xy[i-1][0]=parVect[index++];
@@ -2149,42 +2186,48 @@ dPXmmc/dphi=
 	14(12)  x	public double [] GXYZ=null; // coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
 	15(13)  y
 	16(14)  z
-	17(15)	public double focalLength=4.5;
-	18(16)	public double px0=1296.0;          // center of the lens on the sensor, pixels
-	19(17)		public double py0=968.0;           // center of the lens on the sensor, pixels
-	20(18)		public double distortionA8=0.0; // r^8 (normalized to focal length or to sensor half width?)
-	21(19)		public double distortionA7=0.0; // r^7 (normalized to focal length or to sensor half width?)
-	22(20)		public double distortionA6=0.0; // r^6 (normalized to focal length or to sensor half width?)
-	23(21)		public double distortionA5=0.0; // r^5 (normalized to focal length or to sensor half width?)
-	24(22)		public double distortionA=0.0; // r^4 (normalized to focal length or to sensor half width?)
-	25(23)		public double distortionB=0.0; // r^3
-	26(24)		public double distortionC=0.0; // r^2
-    27          Distortion center shift X for r^3"
-    28          Distortion center shift Y for r^3"
-    29          Distortion center shift X for r^4"
-    30          Distortion center shift Y for r^4"
-    31          Distortion center shift X for r^5"
-    32          Distortion center shift Y for r^5"
-    33          Distortion center shift X for r^6"
-    34          Distortion center shift Y for r^6"
-    35          Distortion center shift X for r^7"
-    36          Distortion center shift Y for r^7"
-    37          Distortion center shift X for r^8"
-    38          Distortion center shift Y for r^8"
-    39          Orthogonal elongation for r^2"
-    40          Diagonal   elongation for r^2"
-    41          Orthogonal elongation for r^3"
-    42          Diagonal   elongation for r^3"
-    43          Orthogonal elongation for r^4"
-    44          Diagonal   elongation for r^4"
-    45          Orthogonal elongation for r^5"
-    46          Diagonal   elongation for r^5"
-    47          Orthogonal elongation for r^6"
-    48          Diagonal   elongation for r^6"
-    49          Orthogonal elongation for r^7"
-    50          Diagonal   elongation for r^7"
-    51          Orthogonal elongation for r^8"
-    52          Diagonal   elongation for r^8"
+	
+	17    	double neck_right =           parVect[17];
+	18    	double neck_back =            parVect[18];
+	19    	double neck_x =               parVect[19];
+	20    	double neck_z =               parVect[20];
+	
+	21  17(15)	public double focalLength=4.5;
+	22  18(16)	public double px0=1296.0;          // center of the lens on the sensor, pixels
+	23  19(17)		public double py0=968.0;           // center of the lens on the sensor, pixels
+	24  20(18)		public double distortionA8=0.0; // r^8 (normalized to focal length or to sensor half width?)
+	25  21(19)		public double distortionA7=0.0; // r^7 (normalized to focal length or to sensor half width?)
+	26  22(20)		public double distortionA6=0.0; // r^6 (normalized to focal length or to sensor half width?)
+	27  23(21)		public double distortionA5=0.0; // r^5 (normalized to focal length or to sensor half width?)
+	28  24(22)		public double distortionA=0.0; // r^4 (normalized to focal length or to sensor half width?)
+	29  25(23)		public double distortionB=0.0; // r^3
+	30  26(24)		public double distortionC=0.0; // r^2
+    31  27          Distortion center shift X for r^3"
+    32  28          Distortion center shift Y for r^3"
+    33  29          Distortion center shift X for r^4"
+    34  30          Distortion center shift Y for r^4"
+    35  31          Distortion center shift X for r^5"
+    36  32          Distortion center shift Y for r^5"
+    37  33          Distortion center shift X for r^6"
+    38  34          Distortion center shift Y for r^6"
+    39  35          Distortion center shift X for r^7"
+    40  36          Distortion center shift Y for r^7"
+    41  37          Distortion center shift X for r^8"
+    42  38          Distortion center shift Y for r^8"
+    43  39          Orthogonal elongation for r^2"
+    44  40          Diagonal   elongation for r^2"
+    45  41          Orthogonal elongation for r^3"
+    46  42          Diagonal   elongation for r^3"
+    47  43          Orthogonal elongation for r^4"
+    48  44          Diagonal   elongation for r^4"
+    49  45          Orthogonal elongation for r^5"
+    50  46          Diagonal   elongation for r^5"
+    51  47          Orthogonal elongation for r^6"
+    52  48          Diagonal   elongation for r^6"
+    53  49          Orthogonal elongation for r^7"
+    54  50          Diagonal   elongation for r^7"
+    55  51          Orthogonal elongation for r^8"
+    56  52          Diagonal   elongation for r^8"
 
 	 * Output parameters (rows):
 	0		public double x0=0;      // lens axis from pattern center, mm (to the right)
@@ -2236,12 +2279,19 @@ dPXmmc/dphi=
 	//calculate dMA_azimuth
 	//calculate dMB_azimuth
 	/*
+	 Before neck
 	// MA=R8*R7*R6*R5*R4*R3*R2*R1;
 	// MB=T3+(R8*R7*R6*R5*(T2+R4*T1)); - old
 	// MB=T3+(R8*R7*R6*R5*(T2+R4*(T1+R3*R2*R1*T0)));
 	        Matrix MA=R8.times(R7.times(R6.times(R5.times(R4.times(R3.times(R2.times(R1)))))));
 	        Matrix MB=T3.plus(R8.times(R7.times(R6.times(R5.times(T2.plus(R4.times(T1)))))));  old
 	        Matrix MB=T3.plus(R8.times(R7.times(R6.times(R5.times(T2.plus(R4.times(T1.plus(R3.times(R2.times(R1.times(T0)))) )))))));
+	 After neck
+	// MA=R8*R7*R6*R5*R4*RNB*RNR*R3*R2*R1;
+	// MB=T3+(R8*R7*R6*R5*(T2+R4*RN*(T1+R3*R2*R1*T0)));
+	        Matrix MA=R8.times(R7.times(R6.times(R5.times(R4.times(RNB.times(RNR.times(R3.times(R2.times(R1))))))));
+	        Matrix MB=T3.plus(R8.times(R7.times(R6.times(R5.times(T2.plus(R4.times(RNB.times(RNR.times(T1.plus(R3.times(R2.times(R1.times(T0)))) )))))))));
+	        
 	3) rotate by -(azimuth+phi) around C2Y:Vc3= R3*Vc2
 	| Xc3 |   | cos(azimuth+phi)    0   sin(azimuth+phi)   |   |Xc2|
 	| Yc3 | = |     0               1         0            | * |Yc2|
@@ -2269,27 +2319,38 @@ dPXmmc/dphi=
 		    		}
 
 	Which parameters affect which matrices
-	                                               R1 | R2 | R3 | R4 | R5 | R6 | R7 | R8 || T0 | T1 | T2 | T3 |
-	0    	public double azimuth_cyl;          //    |    | +  |    |    |    |    |    ||    | +  |    |    |
-	1    	public double radius_cyl;           //    |    |    |    |    |    |    |    ||    | +  |    |    |
-	0    	public double right_cart;           //    |    |    |    |    |    |    |    ||    | +  |    |    |
-	1    	public double forward_cart;         //    |    |    |    |    |    |    |    ||    | +  |    |    |
-	2   	public double height;               //    |    |    |    |    |    |    |    ||    | +  |    |    |
-	3   	public double phi_cyl;              //    |    | +  |    |    |    |    |    ||    |    |    |    |
-	3   	public double head_cart;            //    |    | +  |    |    |    |    |    ||    |    |    |    |
-	4   	public double theta;                //    | +  |    |    |    |    |    |    ||    |    |    |    |
-	5   	public double psi;                  // +  |    |    |    |    |    |    |    ||    |    |    |    |
-	6   	public double goniometerHorizontal; //    |    |    |    |    | +  |    |    ||    |    |    |    |
-	7   	public double goniometerAxial;      //    |    |    | +  |    |    |    |    ||    |    |    |    |
-	8   	public double interAxisDistance;    //    |    |    |    |    |    |    |    ||    |    | +  |    |
-	9    	public double interAxisAngle;       //    |    |    |    | +  |    |    |    ||    |    |    |    |
-	10   	public double horAxisErrPhi;        //    |    |    |    |    |    |    | +  ||    |    |    |    |
-	11   	public double horAxisErrPsi;        //    |    |    |    |    |    | +  |    ||    |    |    |    |
-	12      public double entrancePupilForward  //    |    |    |    |    |    |    |    || +  |    |    |    |
-	13      public double centerAboveHorizontal //    |    |    |    |    |    |    |    ||    | +  |    |    |
-	14  x	public double [] GXYZ=null;         //    |    |    |    |    |    |    |    ||    |    |    | +  |
-	15  y                                       //    |    |    |    |    |    |    |    ||    |    |    | +  |
-	16  z                                       //    |    |    |    |    |    |    |    ||    |    |    | +  |
+	                                               R1 | R2 | R3 | RNR | RNB | R4 | R5 | R6 | R7 | R8 || T0 | T1 | T2 | T3 |
+	0    	public double azimuth_cyl;          //    |    | +  |     |     |    |    |    |    |    ||    | +  |    |    |
+	1    	public double radius_cyl;           //    |    |    |     |     |    |    |    |    |    ||    | +  |    |    |
+	0    	public double right_cart;           //    |    |    |     |     |    |    |    |    |    ||    | +  |    |    |
+	1    	public double forward_cart;         //    |    |    |     |     |    |    |    |    |    ||    | +  |    |    |
+	2   	public double height;               //    |    |    |     |     |    |    |    |    |    ||    | +  |    |    |
+	3   	public double phi_cyl;              //    |    | +  |     |     |    |    |    |    |    ||    |    |    |    |
+	3   	public double head_cart;            //    |    | +  |     |     |    |    |    |    |    ||    |    |    |    |
+	4   	public double theta;                //    | +  |    |     |     |    |    |    |    |    ||    |    |    |    |
+	5   	public double psi;                  // +  |    |    |     |     |    |    |    |    |    ||    |    |    |    |
+	6   	public double goniometerHorizontal; //    |    |    |     |     |    |    | +  |    |    ||    |    |    |    |
+	7   	public double goniometerAxial;      //    |    |    |     |     | +  |    |    |    |    ||    |    |    |    |
+	8   	public double interAxisDistance;    //    |    |    |     |     |    |    |    |    |    ||    |    | +  |    |
+	9    	public double interAxisAngle;       //    |    |    |     |     |    | +  |    |    |    ||    |    |    |    |
+	10   	public double horAxisErrPhi;        //    |    |    |     |     |    |    |    |    | +  ||    |    |    |    |
+	11   	public double horAxisErrPsi;        //    |    |    |     |     |    |    |    | +  |    ||    |    |    |    |
+	12      public double entrancePupilForward  //    |    |    |     |     |    |    |    |    |    || +  |    |    |    |
+	13      public double centerAboveHorizontal //    |    |    |     |     |    |    |    |    |    ||    | +  |    |    |
+	14  x	public double [] GXYZ=null;         //    |    |    |     |     |    |    |    |    |    ||    |    |    | +  |
+	15  y                                       //    |    |    |     |     |    |    |    |    |    ||    |    |    | +  |
+	16  z                                       //    |    |    |     |     |    |    |    |    |    ||    |    |    | +  |
+	
+	17  neckRight                               //    |    |    |  +  |     |    |    |    |    |    ||    |    |    |    | 
+	18  neckBack                                //    |    |    |     | +   |    |    |    |    |    ||    |    |    |    |
+	19  neckXZ[0] (X) +common right             //    |    |    |     |     |    |    |    |    |    ||    | +  |    |    |
+	20  neckXZ[1] (Z) -common forward           //    |    |    |     |     |    |    |    |    |    ||    | +  |    |    |
+
+	// MA=R8*R7*R6*R5*R4*RNB*RNR*R3*R2*R1;
+	// MB=T3+(R8*R7*R6*R5*(T2+R4*RN*(T1+R3*R2*R1*T0)));
+	        Matrix MA=R8.times(R7.times(R6.times(R5.times(R4.times(RNB.times(RNR.times(R3.times(R2.times(R1))))))));
+	        Matrix MB=T3.plus(R8.times(R7.times(R6.times(R5.times(T2.plus(R4.times(RNB.times(RNR.times(T1.plus(R3.times(R2.times(R1.times(T0)))) )))))))));
+
 
 	 */
 	// Below can be optimized with common intermediate results
@@ -2304,7 +2365,7 @@ dPXmmc/dphi=
 	        		double [][] adT1_right_cart={{1.0},{0.0},{0.0}};
 	        		Matrix dT1_right_cart=new Matrix(adT1_right_cart);
 		        	Matrix dMA_right_cart=new Matrix(3,3,0.0); // zero
-	        		Matrix dMB_right_cart=R8.times(R7.times(R6.times(R5.times(R4.times(dT1_right_cart)))));
+	        		Matrix dMB_right_cart=R8.times(R7.times(R6.times(R5.times(R4.times(RNB.times(RNR.times(dT1_right_cart)))))));
 		        	interParameterDerivatives[0]=d_parametersFromMAMB(dMA_right_cart,dMB_right_cart,MA,MB,false);
 		    		if (this.debugLevel>2) {
 		    			System.out.println("dMA_right_cart:");
@@ -2320,8 +2381,8 @@ dPXmmc/dphi=
 	        		double [][] adT1_azimuth_cyl={{radius_cyl*cAZ_cyl},{0.0},{-radius_cyl*sAZ_cyl}}; //{{subCam.radius*cAZ},{subCam.height},{-subCam.radius*sAZ}}
 	        		Matrix dT1_azimuth_cyl=new Matrix(adT1_azimuth_cyl);
 
-	        		Matrix dMA_azimuth_cyl=R8.times(R7.times(R6.times(R5.times(R4.times(dR3_azimuth_cyl.times(R2.times(R1)))))));
-	        		Matrix dMB0_azimuth_cyl=R8.times(R7.times(R6.times(R5.times(R4.times(dT1_azimuth_cyl)))));
+	        		Matrix dMA_azimuth_cyl=R8.times(R7.times(R6.times(R5.times(R4.times(RNB.times(RNR.times(dR3_azimuth_cyl.times(R2.times(R1)))))))));
+	        		Matrix dMB0_azimuth_cyl=R8.times(R7.times(R6.times(R5.times(R4.times(RNB.times(RNR.times(dT1_azimuth_cyl)))))));
 	        		Matrix dMB_azimuth_cyl=dMB0_azimuth_cyl.plus(dMA_azimuth_cyl.times(T0)); // new term
 	        		interParameterDerivatives[0]=d_parametersFromMAMB(dMA_azimuth_cyl,dMB_azimuth_cyl,MA,MB,true); // all after 6 are 0;
 	        		if (this.debugLevel>2) {
@@ -2339,7 +2400,7 @@ dPXmmc/dphi=
 	        		double [][] adT1_forward_cart={{0.0},{0.0},{1.0}}; //{{subCam.radius*sAZ},{0.0},{subCam.radius*cAZ}}
 	        		Matrix dT1_forward_cart=new Matrix(adT1_forward_cart);
 	        		Matrix dMA_forward_cart=new Matrix(3,3,0.0);
-	        		Matrix dMB_forward_cart=R8.times(R7.times(R6.times(R5.times(R4.times(dT1_forward_cart)))));
+	        		Matrix dMB_forward_cart=R8.times(R7.times(R6.times(R5.times(R4.times(RNB.times(RNR.times(dT1_forward_cart)))))));
 	        		interParameterDerivatives[1]=d_parametersFromMAMB(dMA_forward_cart,dMB_forward_cart,MA,MB,false); // all after 6 are 0;
 	        		if (this.debugLevel>2) {
 	        			System.out.println("dMA_forward_cart:");
@@ -2352,7 +2413,7 @@ dPXmmc/dphi=
 	        		double [][] adT1_radius_cyl={{sAZ_cyl},{0.0},{cAZ_cyl}}; //{{subCam.radius*sAZ},{0.0},{subCam.radius*cAZ}}
 	        		Matrix dT1_radius_cyl=new Matrix(adT1_radius_cyl);
 	        		Matrix dMA_radius_cyl=new Matrix(3,3,0.0);
-	        		Matrix dMB_radius_cyl=R8.times(R7.times(R6.times(R5.times(R4.times(dT1_radius_cyl)))));
+	        		Matrix dMB_radius_cyl=R8.times(R7.times(R6.times(R5.times(R4.times(RNB.times(RNR.times(dT1_radius_cyl)))))));
 	        		interParameterDerivatives[1]=d_parametersFromMAMB(dMA_radius_cyl,dMB_radius_cyl,MA,MB,false); // all after 6 are 0;
 	        		if (this.debugLevel>2) {
 	        			System.out.println("dMA_radius_cyl:");
@@ -2368,7 +2429,7 @@ dPXmmc/dphi=
 	        	double [][] adT1_height={{0.0},{1.0},{0.0}};
 	        	Matrix dT1_height=new Matrix(adT1_height);
 	        	Matrix dMA_height=new Matrix(3,3,0.0);
-	        	Matrix dMB_height=R8.times(R7.times(R6.times(R5.times(R4.times(dT1_height)))));
+	        	Matrix dMB_height=R8.times(R7.times(R6.times(R5.times(R4.times(RNB.times(RNR.times(dT1_height)))))));
 	        	interParameterDerivatives[2]=d_parametersFromMAMB(dMA_height,dMB_height,MA,MB,false); // all after 6 are 0;
 	    		if (this.debugLevel>2) {
 	    			System.out.println("dMA_height:");
@@ -2382,8 +2443,7 @@ dPXmmc/dphi=
 	        if (mask[3]) { // here the same for cartesian
 	        	double [][] adR3_phi={{-sAZP,0.0,cAZP},{0.0,0.0,0.0},{-cAZP,0.0,-sAZP}}; // same as adR3_azimuth
 	        	Matrix dR3_phi=new Matrix(adR3_phi); // same as dR3_azimuth
-	        	Matrix dMA_phi=R8.times(R7.times(R6.times(R5.times(R4.times(dR3_phi.times(R2.times(R1))))))); //same as dMA_azimuth
-//	        	Matrix dMB_phi=new Matrix(3,1,0.0);
+	        	Matrix dMA_phi=R8.times(R7.times(R6.times(R5.times(R4.times(RNB.times(RNR.times(dR3_phi.times(R2.times(R1))))))))); //same as dMA_azimuth
 	        	Matrix dMB_phi=dMA_phi.times(T0); // new term
 	        	interParameterDerivatives[3]=d_parametersFromMAMB(dMA_phi,dMB_phi,MA,MB,true); // all after 6 are 0;
 	    		if (this.debugLevel>2) {
@@ -2398,8 +2458,7 @@ dPXmmc/dphi=
 	        if (mask[4]) {
 	        	double [][] adR2_theta={{0.0,0.0,0.0},{0.0,-sTH,cTH},{0.0,-cTH,-sTH}};
 	        	Matrix dR2_theta=new Matrix(adR2_theta);
-	        	Matrix dMA_theta=R8.times(R7.times(R6.times(R5.times(R4.times(R3.times(dR2_theta.times(R1)))))));
-//	        	Matrix dMB_theta=new Matrix(3,1,0.0);
+	        	Matrix dMA_theta=R8.times(R7.times(R6.times(R5.times(R4.times(RNB.times(RNR.times(R3.times(dR2_theta.times(R1)))))))));
 	        	Matrix dMB_theta=dMA_theta.times(T0); // new term
 	        	interParameterDerivatives[4]=d_parametersFromMAMB(dMA_theta,dMB_theta,MA,MB,true); // all after 6 are 0;
 	    		if (this.debugLevel>2) {
@@ -2414,8 +2473,7 @@ dPXmmc/dphi=
 	        if (mask[5]) {
 	        	double [][] adR1_psi={{-sPS,cPS,0.0},{-cPS,-sPS,0.0},{0.0,0.0,0.0}};
 	        	Matrix dR1_psi=new Matrix(adR1_psi);
-	        	Matrix dMA_psi=R8.times(R7.times(R6.times(R5.times(R4.times(R3.times(R2.times(dR1_psi)))))));
-//	        	Matrix dMB_psi=new Matrix(3,1,0.0);
+	        	Matrix dMA_psi=R8.times(R7.times(R6.times(R5.times(R4.times(RNB.times(RNR.times(R3.times(R2.times(dR1_psi)))))))));
 	        	Matrix dMB_psi=dMA_psi.times(T0); // new term
 	        	interParameterDerivatives[5]=d_parametersFromMAMB(dMA_psi,dMB_psi,MA,MB,true); // all after 6 are 0;
 	    		if (this.debugLevel>2) {
@@ -2441,8 +2499,9 @@ dPXmmc/dphi=
 	        	double [][] adR6_goniometerHorizontal_tripod=    {{-sGH,0.0,cGH},{0.0, 0.0,0.0},{-cGH, 0.0,-sGH}};
 	        	double [][] adR6_goniometerHorizontal_goniometer={{ 0.0,0.0,0.0},{0.0,-sGH,cGH},{ 0.0,-cGH,-sGH}};
 	        	Matrix dR6_goniometerHorizontal=new Matrix(isTripod?adR6_goniometerHorizontal_tripod:adR6_goniometerHorizontal_goniometer);
-	        	Matrix dMA_goniometerHorizontal=R8.times(R7.times(dR6_goniometerHorizontal.times(R5.times(R4.times(R3.times(R2.times(R1)))))));
-	        	Matrix dMB_goniometerHorizontal=R8.times(R7.times(dR6_goniometerHorizontal.times(R5.times(T2.plus(R4.times(T1))))));
+	        	Matrix dMA_goniometerHorizontal=R8.times(R7.times(dR6_goniometerHorizontal.times(R5.times(R4.times(RNB.times(RNR.times(R3.times(R2.times(R1)))))))));
+//	        	Matrix dMB_goniometerHorizontal=R8.times(R7.times(dR6_goniometerHorizontal.times(R5.times(T2.plus(R4.times(T1)))))); // Bug noticed 05/31/2021, using T1M
+	        	Matrix dMB_goniometerHorizontal=R8.times(R7.times(dR6_goniometerHorizontal.times(R5.times(T2.plus(R4.times(RNB.times(RNR.times(T1M))))))));
 	        	interParameterDerivatives[6]=d_parametersFromMAMB(dMA_goniometerHorizontal,dMB_goniometerHorizontal,MA,MB,true); // all after 6 are 0;
 	    		if (this.debugLevel>2) {
 	    			System.out.println("dMA_goniometerHorizontal:");
@@ -2458,8 +2517,10 @@ dPXmmc/dphi=
 	        	double [][] adR4_goniometerAxial_tripod=    {{ 0.0,0.0,0.0},{0.0,-sGA,cGA},{ 0.0,-cGA,-sGA}};
 	        	double [][] adR4_goniometerAxial_goniometer={{-sGA,0.0,cGA},{0.0, 0.0,0.0},{-cGA, 0.0,-sGA}};
 	        	Matrix dR4_goniometerAxial=new Matrix(isTripod?adR4_goniometerAxial_tripod:adR4_goniometerAxial_goniometer);
-	        	Matrix dMA_goniometerAxial=R8.times(R7.times(R6.times(R5.times(dR4_goniometerAxial.times(R3.times(R2.times(R1)))))));
-	        	Matrix dMB_goniometerAxial=R8.times(R7.times(R6.times(R5.times(dR4_goniometerAxial.times(T1)))));
+	        	Matrix dMA_goniometerAxial=R8.times(R7.times(R6.times(R5.times(dR4_goniometerAxial.times(RNB.times(RNR.times(R3.times(R2.times(R1)))))))));
+//	        	Matrix dMB_goniometerAxial=R8.times(R7.times(R6.times(R5.times(dR4_goniometerAxial.times(T1 ))))); // Bug noticed 05/31/2021
+	        	Matrix dMB_goniometerAxial=R8.times(R7.times(R6.times(R5.times(dR4_goniometerAxial.times(RNB.times(RNR.times(T1M)))))));
+	        	
 	        	interParameterDerivatives[7]=d_parametersFromMAMB(dMA_goniometerAxial,dMB_goniometerAxial,MA,MB,true); // all after 6 are 0;
 	    		if (this.debugLevel>2) {
 	    			System.out.println("dMA_goniometerAxial:");
@@ -2488,8 +2549,8 @@ dPXmmc/dphi=
 	        if (mask[9]) {
 	        	double [][] adR5_interAxisAngle={{-sGIAA,cGIAA,0.0},{-cGIAA,-sGIAA,0.0},{0.0,0.0,0.0}};
 	        	Matrix dR5_interAxisAngle=new Matrix(adR5_interAxisAngle);
-	        	Matrix dMA_interAxisAngle=R8.times(R7.times(R6.times(dR5_interAxisAngle.times(R4.times(R3.times(R2.times(R1)))))));
-	        	Matrix dMB_interAxisAngle=R8.times(R7.times(R6.times(dR5_interAxisAngle.times(T2.plus(R4.times(T1))))));
+	        	Matrix dMA_interAxisAngle=R8.times(R7.times(R6.times(dR5_interAxisAngle.times(R4.times(RNB.times(RNR.times(R3.times(R2.times(R1)))))))));
+	        	Matrix dMB_interAxisAngle=R8.times(R7.times(R6.times(dR5_interAxisAngle.times(T2.plus(R4.times(RNB.times(RNR.times(T1M))))))));
 	        	interParameterDerivatives[9]=d_parametersFromMAMB(dMA_interAxisAngle,dMB_interAxisAngle,MA,MB,true); // all after 6 are 0;
 	    		if (this.debugLevel>2) {
 	    			System.out.println("dMA_interAxisAngle:");
@@ -2506,8 +2567,8 @@ dPXmmc/dphi=
 	        	double [][] adR8_horAxisErrPhi_tripod=    {{0.0,   0.0,    0.0},{0.0,-sHAEPH,cHAEPH},{    0.0,-cHAEPH,-sHAEPH}};
 	        	double [][] adR8_horAxisErrPhi_goniometer={{-sHAEPH,0.0,cHAEPH},{0.0,    0.0,   0.0},{-cHAEPH,    0.0,-sHAEPH}};
 	        	Matrix dR8_horAxisErrPhi=new Matrix(isTripod?adR8_horAxisErrPhi_tripod:adR8_horAxisErrPhi_goniometer);
-	        	Matrix dMA_horAxisErrPhi=dR8_horAxisErrPhi.times(R7.times(R6.times(R5.times(R4.times(R3.times(R2.times(R1)))))));
-	        	Matrix dMB_horAxisErrPhi=dR8_horAxisErrPhi.times(R7.times(R6.times(R5.times(T2.plus(R4.times(T1))))));
+	        	Matrix dMA_horAxisErrPhi=dR8_horAxisErrPhi.times(R7.times(R6.times(R5.times(R4.times(RNB.times(RNR.times(R3.times(R2.times(R1)))))))));
+	        	Matrix dMB_horAxisErrPhi=dR8_horAxisErrPhi.times(R7.times(R6.times(R5.times(T2.plus(R4.times(RNB.times(RNR.times(T1M))))))));
 	        	interParameterDerivatives[10]=d_parametersFromMAMB(dMA_horAxisErrPhi,dMB_horAxisErrPhi,MA,MB,true); // all after 6 are 0;
 	    		if (this.debugLevel>2) {
 	    			System.out.println("dMA_horAxisErrPhi:");
@@ -2521,8 +2582,8 @@ dPXmmc/dphi=
 	        if (mask[11]) {
 	        	double [][] adR7_horAxisErrPsi={{-sHAEPS,cHAEPS,0.0},{-cHAEPS,-sHAEPS,0.0},{0.0,0.0,0.0}};
 	        	Matrix dR7_horAxisErrPsi=new Matrix(adR7_horAxisErrPsi);
-	        	Matrix dMA_horAxisErrPsi=R8.times(dR7_horAxisErrPsi.times(R6.times(R5.times(R4.times(R3.times(R2.times(R1)))))));
-	        	Matrix dMB_horAxisErrPsi=R8.times(dR7_horAxisErrPsi.times(R6.times(R5.times(T2.plus(R4.times(T1))))));
+	        	Matrix dMA_horAxisErrPsi=R8.times(dR7_horAxisErrPsi.times(R6.times(R5.times(R4.times(RNB.times(RNR.times(R3.times(R2.times(R1)))))))));
+	        	Matrix dMB_horAxisErrPsi=R8.times(dR7_horAxisErrPsi.times(R6.times(R5.times(T2.plus(R4.times(RNB.times(RNR.times(T1M))))))));
 	        	interParameterDerivatives[11]=d_parametersFromMAMB(dMA_horAxisErrPsi,dMB_horAxisErrPsi,MA,MB,true); // all after 6 are 0;
 	    		if (this.debugLevel>2) {
 	    			System.out.println("dMA_horAxisErrPsi:");
@@ -2532,9 +2593,9 @@ dPXmmc/dphi=
 	    			System.out.println("interParameterDerivatives[11]="+sprintfArray(interParameterDerivatives[11]));
 	    		}
 	        } else interParameterDerivatives[11]=null;
-//	                                          // R1 | R2 | R3 | R4 | R5 | R6 | R7 | R8 || T0 | T1 | T2 | T3 |
-	//12   	public double entrancePupilForward  //    |    |    |    |    |    |    |    || +  |    |    |    |
-	//13   	public double centerAboveHorizontal //    |    |    |    |    |    |    |    ||    | +  |    |    |
+//                                                R1 | R2 | R3 | RNR | RNB | R4 | R5 | R6 | R7 | R8 || T0 | T1 | T2 | T3 |
+// 12      public double entrancePupilForward  //    |    |    |     |     |    |    |    |    |    || +  |    |    |    |
+// 13      public double centerAboveHorizontal //    |    |    |     |     |    |    |    |    |    ||    | +  |    |    |
 
 	        if (mask[12]) {
 	        	double [][] adT0_entrancePupilForward={{0.0},{0.0},{1.0}};
@@ -2555,7 +2616,7 @@ dPXmmc/dphi=
 	        	double [][] adT1_centerAboveHorizontal={{0.0},{1.0},{0.0}};
 	        	Matrix dT1_centerAboveHorizontal=new Matrix(adT1_centerAboveHorizontal);
 	        	Matrix dMA_centerAboveHorizontal=new Matrix(3,3,0.0);
-	        	Matrix dMB_centerAboveHorizontal=R8.times(R7.times(R6.times(R5.times(R4.times(dT1_centerAboveHorizontal)))));
+	        	Matrix dMB_centerAboveHorizontal=R8.times(R7.times(R6.times(R5.times(R4.times(RNB.times(RNR.times(dT1_centerAboveHorizontal)))))));
 	        	interParameterDerivatives[13]=d_parametersFromMAMB(dMA_centerAboveHorizontal,dMB_centerAboveHorizontal,MA,MB,false); // all after 6 are 0;
 	    		if (this.debugLevel>2) {
 	    			System.out.println("dMA_centerAboveHorizontal:");
@@ -2581,7 +2642,7 @@ dPXmmc/dphi=
 	        		System.out.println("interParameterDerivatives[14]="+sprintfArray(interParameterDerivatives[14]));
 	        	}
 	        } else interParameterDerivatives[14]=null;
-	//13  y
+	//15  y
 	        if (mask[15]) {
 //	    	double [][] adT3_GXYZ1={{0.0},{1.0},{0.0}};
 	        	double [][] adT3_GXYZ1={{0.0},{-1.0},{0.0}}; // up - positive
@@ -2597,7 +2658,7 @@ dPXmmc/dphi=
 	        		System.out.println("interParameterDerivatives[15]="+sprintfArray(interParameterDerivatives[15]));
 	        	}
 	        } else interParameterDerivatives[15]=null;
-	//14  z
+	//16  z
 	        if (mask[16]) {
 //	    	double [][] adT3_GXYZ2={{0.0},{0.0},{1.0}};
 	        	double [][] adT3_GXYZ2={{0.0},{0.0},{-1.0}}; // away - positive
@@ -2612,26 +2673,96 @@ dPXmmc/dphi=
 	        		System.out.println("interParameterDerivatives[16]="+sprintfArray(interParameterDerivatives[16]));
 	        	}
 	        } else interParameterDerivatives[16]=null;
+	 // 17  neckRight
+	        if (mask[17]) {
+	        	double [][] adRNR_neckRight={
+	        			{-sNR, cNR, 0.0},
+	        			{-cNR,-sNR, 0.0},
+	        			{ 0.0, 0.0, 0.0}};
+	        	Matrix dRNR_neckRight=new Matrix(adRNR_neckRight);
+	        	Matrix dMA_neckRight=R8.times(R7.times(R6.times(R5.times(R4.times(RNB.times(dRNR_neckRight.times(R3.times(R2.times(R1)))))))));
+	        	Matrix dMB_neckRight=R8.times(R7.times(R6.times(R5.times(R4.times(RNB.times(dRNR_neckRight.times(T1M)))))));
+	        	
+	        	interParameterDerivatives[17]=d_parametersFromMAMB(dMA_neckRight,dMB_neckRight,MA,MB,true); // all after 6 are 0;
+	    		if (this.debugLevel>2) {
+	    			System.out.println("dMA_neckRight:");
+	    			dMA_neckRight.print(10, 5);
+	    			System.out.println("dMB_neckRight:");
+	    			dMB_neckRight.print(10, 5);
+	    			System.out.println("interParameterDerivatives[17]="+sprintfArray(interParameterDerivatives[17]));
+	    		}
+	        } else interParameterDerivatives[17]=null;
+     // 18  neckBack
+	        if (mask[18]) {
+	        	double [][] adRNB_neckBack={
+	        			{ 0.0, 0.0, 0.0},
+	        			{ 0.0,-sNB, cNB},
+	        			{ 0.0,-cNB,-sNB}};
+	        	Matrix dRNB_neckBack=new Matrix(adRNB_neckBack);
+	        	Matrix dMA_neckBack=R8.times(R7.times(R6.times(R5.times(R4.times(dRNB_neckBack.times(RNR.times(R3.times(R2.times(R1)))))))));
+	        	Matrix dMB_neckBack=R8.times(R7.times(R6.times(R5.times(R4.times(dRNB_neckBack.times(RNR.times(T1M)))))));
+	        	
+	        	interParameterDerivatives[18]=d_parametersFromMAMB(dMA_neckBack,dMB_neckBack,MA,MB,true); // all after 6 are 0;
+	    		if (this.debugLevel>2) {
+	    			System.out.println("dMA_neckBack:");
+	    			dMA_neckBack.print(10, 5);
+	    			System.out.println("dMB_neckBack:");
+	    			dMB_neckBack.print(10, 5);
+	    			System.out.println("interParameterDerivatives[18]="+sprintfArray(interParameterDerivatives[18]));
+	    		}
+	        } else interParameterDerivatives[18]=null;
+	 // 19  neckX
+	        if (mask[19]) {
+	        	double [][] adT1_neckX={{1.0},{0.0},{0.0}};
+	        	Matrix dT1_neckX=new Matrix(adT1_neckX);
+	        	Matrix dMA_neckX=new Matrix(3,3,0.0);
+	        	Matrix dMB_neckX=R8.times(R7.times(R6.times(R5.times(R4.times(RNB.times(RNR.times(dT1_neckX)))))));
+	        	interParameterDerivatives[19]=d_parametersFromMAMB(dMA_neckX,dMB_neckX,MA,MB,false); // all after 6 are 0;
+	    		if (this.debugLevel>2) {
+	    			System.out.println("dMA_neckX:");
+	    			dMA_neckX.print(10, 5);
+	    			System.out.println("dMB_neckX:");
+	    			dMB_neckX.print(10, 5);
+	    			System.out.println("interParameterDerivatives[19]="+sprintfArray(interParameterDerivatives[19]));
+	    		}
+	        } else interParameterDerivatives[19]=null;
+	 // 20  neckZ      
+	        if (mask[20]) {
+	        	double [][] adT1_neckZ={{0.0},{0.0},{1.0}};
+	        	Matrix dT1_neckZ=new Matrix(adT1_neckZ);
+	        	Matrix dMA_neckZ=new Matrix(3,3,0.0);
+	        	Matrix dMB_neckZ=R8.times(R7.times(R6.times(R5.times(R4.times(RNB.times(RNR.times(dT1_neckZ)))))));
+	        	interParameterDerivatives[20]=d_parametersFromMAMB(dMA_neckZ,dMB_neckZ,MA,MB,false); // all after 6 are 0;
+	    		if (this.debugLevel>2) {
+	    			System.out.println("dMA_neckZ:");
+	    			dMA_neckZ.print(10, 5);
+	    			System.out.println("dMB_neckZ:");
+	    			dMB_neckZ.print(10, 5);
+	    			System.out.println("interParameterDerivatives[20]="+sprintfArray(interParameterDerivatives[20]));
+	    		}
+	        } else interParameterDerivatives[20]=null;
+	        
 	// now fill the rest, unchanged parameters
 	/*
 	    int numInputs=22;   //was 21  parameters in subcamera+...
 	    int numOutputs=13;  //was 12  parameters in a single camera
 
 	 */
-	//17 (15)		public double focalLength=4.5;
-	//18 (16)		public double px0=1296.0;          // center of the lens on the sensor, pixels
-	//19 (17)		public double py0=968.0;           // center of the lens on the sensor, pixels
-	//20 (18)		public double distortionA8=0.0; // r^8 (normalized to focal length or to sensor half width?)
-	//21 (19)		public double distortionA7=0.0; // r^7 (normalized to focal length or to sensor half width?)
-	//22 (20)		public double distortionA6=0.0; // r^6 (normalized to focal length or to sensor half width?)
-	//23 (21)		public double distortionA5=0.0; // r^5 (normalized to focal length or to sensor half width?)
-	//24 (22)		public double distortionA=0.0; // r^4 (normalized to focal length or to sensor half width?)
-	//25 (23)		public double distortionB=0.0; // r^3
-	//26 (24)		public double distortionC=0.0; // r^2
-	//27..52 - non-radial parameters
+	// 21 17 (15)		public double focalLength=4.5;
+	// 22 18 (16)		public double px0=1296.0;          // center of the lens on the sensor, pixels
+	// 23 19 (17)		public double py0=968.0;           // center of the lens on the sensor, pixels
+	// 24 20 (18)		public double distortionA8=0.0; // r^8 (normalized to focal length or to sensor half width?)
+	// 25 21 (19)		public double distortionA7=0.0; // r^7 (normalized to focal length or to sensor half width?)
+	// 26 22 (20)		public double distortionA6=0.0; // r^6 (normalized to focal length or to sensor half width?)
+	// 27 23 (21)		public double distortionA5=0.0; // r^5 (normalized to focal length or to sensor half width?)
+	// 28 24 (22)		public double distortionA=0.0; // r^4 (normalized to focal length or to sensor half width?)
+	// 29 25 (23)		public double distortionB=0.0; // r^3
+	// 30 26 (24)		public double distortionC=0.0; // r^2
+	// 31..56  27..52 - non-radial parameters
 
 //	        for (int inpPar=15; inpPar<getNumInputs(); inpPar++){
-	        for (int inpPar=17; inpPar<getNumInputs(); inpPar++){ // OK with A8. Should be OK with non-radial parameters ((27..52) also
+//	        for (int inpPar=17; inpPar<getNumInputs(); inpPar++){ // OK with A8. Should be OK with non-radial parameters ((27..52) also
+	        for (int inpPar=21; inpPar<getNumInputs(); inpPar++){ // added neck parameters, offset by 4
 	        	if (mask[inpPar]){
 	        		interParameterDerivatives[inpPar]=new double[getNumOutputs()];
 	        		for (int outPar=0; outPar<getNumOutputs(); outPar++){

@@ -483,12 +483,19 @@ import ij.io.Opener;
         		index++;
         	}
         	for (int n=0;n<getNumGeometricChannels();n++) titles[n]=geometricTitles[n];
-        	for (int numStation=0;numStation<this.numStations;numStation++) {
+        	for (int numStation = 0; numStation < this.numStations; numStation++) {
+        		int numStationSrc = numStation;
+        		if (numStationSrc >= this.photometricByView.length) {
+        			System.out.println("Station"+numStationSrc+" >= this.photometricByView.length, saving from the last known station");
+        			numStationSrc = this.photometricByView.length-1;
+        		}
         		for (int nView=0;nView<getNumViews();nView++) {
         			for (int chn=0;chn<getNumPhotometricChannels();chn++){
         				//        		int pixIndex=getNumGeometricChannels()+chn*this.getNumPhotometricChannels()();
         				int pixIndex=getNumGeometricChannels()+numZCorr+(nView + numStation*getNumViews()) *getNumPhotometricChannels()+chn;
-        				for (int i=0;i<length;i++) pixels[pixIndex][i]= (float) this.photometricByView[numStation][nView][chn][i]; //OOB 8 //oob 12
+        				for (int i=0;i<length;i++) {
+        					pixels[pixIndex][i]= (float) this.photometricByView[numStationSrc][nView][chn][i]; //OOB 8 //oob 12
+        				}
         				titles[pixIndex]=photometricTitles[chn]+nView;
         			}
         		}

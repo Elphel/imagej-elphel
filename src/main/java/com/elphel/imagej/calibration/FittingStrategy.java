@@ -669,6 +669,9 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     	 */
 
     	public int  buildParameterMap (int numSeries){
+    		return buildParameterMap (numSeries, true);
+    	}
+       	public int  buildParameterMap (int numSeries, boolean mark_disabled){
     		int numPars=this.distortionCalibrationData.getNumParameters();
     		int numImg=this.distortionCalibrationData.getNumImages();
     		int numTPars=this.parameterMode[numSeries].length;
@@ -681,7 +684,11 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 //    		int [][] tmpMap=new int[numTPars][3]; // temporary array parameterMap[][] (will be truncated)
     		int [][] tmpMap=new int[numPars*numImg][3]; // temporary array parameterMap[][] (will be truncated)
 			double masterTS=this.distortionCalibrationData.getImageTimestamp(this.masterImages[numSeries]); // timestamp of the master image
-			int [] masterVectorIndices = new int [numTPars];
+			int [] masterVectorIndices = new int [numTPars]; //[855] 
+			// all but [4][21] are 0,[4][21] is 2 (modeSupercommon),
+			// [4][63,105,147,189,231,273,315,357,399,441,483,525,567,609,651,]=10
+			// [4][693]= 2 EO(==16)?
+			// [4][733,777,819]= 26
 // iterate through all global/subcamera parameters
     		for (int numTPar=0;numTPar<numTPars;numTPar++) if (this.parameterMode[numSeries][numTPar]!=modeFixed){ // skip "fixed"
     			boolean isCommon=
@@ -695,7 +702,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     			int numPar=this.parameterList[numTPar][1]; // number of per-image parameter for this total parameter index
     			boolean isSubCamera=this.distortionCalibrationData.isSubcameraParameter(numPar);
     			// is it "same as" ?
-    			int sameAs = this.parameterMode[numSeries][numTPar] - this.definedModesAll.length; // number of subcamera to use
+    			int sameAs = this.parameterMode[numSeries][numTPar] - this.definedModesAll.length; // number of subcamera to use (this.definedModesAll.length==10)
     			int numTParMaster = -1;
     			int vectorIndexMaster = -1;
     			if (sameAs < 0  ) {
@@ -713,54 +720,70 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     				vectorIndexMaster = masterVectorIndices[numTParMaster]; // use as vectorIndex for slaves
     			}
 
-    			if (this.debugLevel>2) System.out.println("numTPar="+numTPar+" numSub="+numSub+" numPar="+numPar+" numTParMaster="+numTParMaster);
+    			if (this.debugLevel > 2) System.out.println("numTPa = "+numTPar+" numSub="+numSub+" numPar="+numPar+" numTParMaster="+numTParMaster);
 // iterate through available images
     			for (int numThisImg=0;numThisImg<numImg;numThisImg++) {
-    				if ((selectedEnabledImages[numThisImg]) &&
-    						(!isSubCamera || (numSub==this.distortionCalibrationData.getImageSubcamera(numThisImg))) &&
-    						(this.reverseParameterMap[numThisImg][numPar]<0)){ // image used, this cell is not (yet) defined
+//    				if ((selectedEnabledImages[numThisImg]) &&
+//    						(!isSubCamera || (numSub==this.distortionCalibrationData.getImageSubcamera(numThisImg))) &&
+//    						(this.reverseParameterMap[numThisImg][numPar]<0)){ // image used, this cell is not (yet) defined
+    					
+        			if((!isSubCamera || (numSub==this.distortionCalibrationData.getImageSubcamera(numThisImg))) &&
+        						(this.reverseParameterMap[numThisImg][numPar]<0)){ // image used, this cell is not (yet) defined
     					if (this.debugLevel>2){
     						System.out.println("buildParameterMap("+numSeries+"): numThisImg="+numThisImg+", numPar="+numPar+", vectorIndex="+vectorIndex);
     					}
-// is it "same as" ?
+// is it "same as" ? // "same as" is only applicable to subcamera parameters
     					if (vectorIndexMaster >= 0){
-    						this.reverseParameterMap[numThisImg][numPar] = vectorIndexMaster;
+    						if (mark_disabled || selectedEnabledImages[numThisImg]) {
+    							this.reverseParameterMap[numThisImg][numPar] = vectorIndexMaster;
+    						}
     						// does not look for same parameter in later images - leave it for the master?
     					} else {
+    						if (selectedEnabledImages[numThisImg]) {
 // assign it a new parameter
-    						this.reverseParameterMap[numThisImg][numPar]=vectorIndex;
-    						masterVectorIndices[numTPar] = vectorIndex;
-    						double thisTS=this.distortionCalibrationData.getImageTimestamp(numThisImg);
-    						int thisStation=this.distortionCalibrationData.gIP[numThisImg].getStationNumber();
+    							this.reverseParameterMap[numThisImg][numPar]=vectorIndex;
+    							masterVectorIndices[numTPar] = vectorIndex;
+    							double thisTS=this.distortionCalibrationData.getImageTimestamp(numThisImg);
+    							int thisStation=this.distortionCalibrationData.gIP[numThisImg].getStationNumber();
 // set pointer to this first image
-    						tmpMap[vectorIndex][0]=numThisImg; // vectorindex==22 > tmpMap.length?
-    						tmpMap[vectorIndex][1]=numPar;
-    						tmpMap[vectorIndex][2]=this.parameterMode[numSeries][numTPar];
-    						double minDist=Math.abs(this.distortionCalibrationData.getImageTimestamp(numThisImg)-masterTS);
-    						if (this.debugLevel>2) System.out.println("vectorIndex="+vectorIndex+" numThisImg="+numThisImg);
+    							tmpMap[vectorIndex][0]=numThisImg; // vectorindex==22 > tmpMap.length?
+    							tmpMap[vectorIndex][1]=numPar;
+    							tmpMap[vectorIndex][2]=this.parameterMode[numSeries][numTPar];
+    							double minDist=Math.abs(this.distortionCalibrationData.getImageTimestamp(numThisImg)-masterTS);
+    							if (this.debugLevel>2) System.out.println("vectorIndex="+vectorIndex+" numThisImg="+numThisImg);
 // see if same parameter in some other (later) image(s) is shared
-    						for (int numOtherImg=numThisImg + 1; numOtherImg < numImg; numOtherImg++)
-    							if ((selectedEnabledImages[numOtherImg]) && // OOB 1
-    									(!isSubCamera || (numSub==this.distortionCalibrationData.getImageSubcamera(numOtherImg))) &&
-    									(this.reverseParameterMap[numOtherImg][numPar]<0)){ // image used, this cell is not (yet) defined
-    								if ((this.distortionCalibrationData.getImageTimestamp(numOtherImg)==thisTS) ||  // same parameter same timestamp - same group even if is set differently
-    										(isStation && (this.distortionCalibrationData.gIP[numOtherImg].getStationNumber()==thisStation)) || // new
-    										isCommon ||
-    										(isGroup && (this.parameterGroups[numSeries][numTPar][numThisImg]==
-    										this.parameterGroups[numSeries][numTPar][numOtherImg]))){
+//    							for (int numOtherImg=numThisImg + 1; numOtherImg < numImg; numOtherImg++) {
+    							boolean proc_disabled = mark_disabled && (isCommon || isStation || isGroup);
+       							for (int numOtherImg=0; numOtherImg < numImg; numOtherImg++) {
+       								// 06.03.2021: old way for enabled images - only assign to later images
+       								// disabled or unselected images - assign to even earlier ones
+   								    if ((selectedEnabledImages[numOtherImg] && (numOtherImg > numThisImg)) || (proc_disabled && !selectedEnabledImages[numOtherImg])) {
+//   								    	if ((selectedEnabledImages[numOtherImg]) && // OOB 1
+							    		if ((!isSubCamera || (numSub==this.distortionCalibrationData.getImageSubcamera(numOtherImg))) &&
+   								    			(this.reverseParameterMap[numOtherImg][numPar]<0)){ // image used, this cell is not (yet) defined
+   								    		if ((this.distortionCalibrationData.getImageTimestamp(numOtherImg)==thisTS) ||  // same parameter same timestamp - same group even if is set differently
+   								    				(isStation && (this.distortionCalibrationData.gIP[numOtherImg].getStationNumber()==thisStation)) || // new
+   								    				isCommon ||
+   								    				(isGroup && (this.parameterGroups[numSeries][numTPar][numThisImg]==
+   								    				this.parameterGroups[numSeries][numTPar][numOtherImg]))){
 // assign it a the same parameter
-    									this.reverseParameterMap[numOtherImg][numPar]=vectorIndex;
-    									double thisDist=Math.abs(this.distortionCalibrationData.getImageTimestamp(numThisImg)-masterTS);
-    									if (thisDist<minDist) {
-    										minDist=thisDist;
-    										tmpMap[vectorIndex][0]=numOtherImg;
-    									}
-    								}
-    							}
-    						vectorIndex++;
+   								    			this.reverseParameterMap[numOtherImg][numPar]=vectorIndex;
+   								    			double thisDist=Math.abs(this.distortionCalibrationData.getImageTimestamp(numThisImg)-masterTS);
+   								    			if (thisDist<minDist) {
+   								    				minDist=thisDist;
+   								    				tmpMap[vectorIndex][0]=numOtherImg;
+   								    			}
+   								    		}
+   								    	}
+   								    }
+       							}
+    							vectorIndex++;
+    						}
     					}
     				}
     			}
+// second pass    			
+    			
 
     		}
     		// reverseParameterMap built,   vectorIndex equals to the total number of parameters needed for fitting
@@ -1140,7 +1163,9 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     									" nSub="+nSub+" distortionCalibrationData.getImageSubcamera("+numImg+")="+distortionCalibrationData.getImageSubcamera(numImg)+
     									" vector["+vPar+"]="+vector[vPar]);
     						}
-    						if ((!isSubCamera) || (nSub==this.distortionCalibrationData.getImageSubcamera(numImg))) {
+//    						if ((!isSubCamera) || (nSub==this.distortionCalibrationData.getImageSubcamera(numImg))) {
+    						if ((!isSubCamera) || (nSub==this.distortionCalibrationData.getImageSubcamera(numImg)) ||
+    								(this.reverseParameterMap[numImg][nPar] == vPar)) { // 06.03.2021
 //    							this.distortionCalibrationData.pars[numImg][nPar]=vector[vPar];
     							this.distortionCalibrationData.setParameterValue(numImg,nPar,vector[vPar],true);
     						}
@@ -1170,7 +1195,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     		return vector;
     	}
     	/**
-    	 * Calculates which of all parameters for the particular sensor are to be adjusted (to reduce calcualtions)
+    	 * Calculates which of all parameters for the particular sensor are to be adjusted (to reduce calculations)
     	 * @param numImg number of image
     	 * @param vector parameters vector
     	 * @return mask vector to be used with the results of getImageParametersVector()
@@ -2334,7 +2359,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 
 
 						thisChoice = theseChoices[indx];
-						System.out.println("selectStrategyStep(): this.parameterMode["+numSeries+"]["+i+"]=" + this.parameterMode[numSeries][i]+" indx = "+indx);
+//						System.out.println("selectStrategyStep(): this.parameterMode["+numSeries+"]["+i+"]=" + this.parameterMode[numSeries][i]+" indx = "+indx);
 					}
 					gd.addChoice( // ArrayIndexOutOfBoundsException: 9
 							(this.distortionCalibrationData.isSubcameraParameter(parIndex)?"":"* ") +

@@ -60,7 +60,11 @@ import ij.gui.GenericDialog;
     	public double [] horAxisErrPsi;   // angle in degrees "horizontal" goniometer axis is rotated around moving X axis (up)
     	public double [] entrancePupilForward; // common to all lenses - distance from the sensor to the lens entrance pupil
     	public double [] centerAboveHorizontal; // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each SFE)
-    	public double [][] GXYZ=null; // [numStations]{x,y,z}  coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
+    	public double [][] GXYZ=null;    // [numStations]{x,y,z}  coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
+		public double []  neckRight;     // angle in degrees of the camera as a whole rotated clockwise around axis to the target
+		public double []  neckBack;      // angle in degrees of the camera as a whole rotated clockwise around axis to the target
+		public double [][] neckXZ=null;  // optical head offset in mm relative to the mount point (centerAboveHorizontal as Y)
+    	
 
     	// non-adjustable parameters, not parts of vector
     	public int     numStations;
@@ -114,7 +118,12 @@ import ij.gui.GenericDialog;
         		{10.0,2.0,0.0,1.0}, // 13 centerAboveHorizontal
         		{10.0,2.0,0.0,1.0}, // 14 GXYZ0
         		{10.0,2.0,0.0,1.0}, // 15 GXYZ1
-        		{10.0,2.0,0.0,1.0}  // 16 GXYZ2
+        		{10.0,2.0,0.0,1.0},  // 16 GXYZ2
+        		{10.0,0.2,0.0,1.0}, // 17 neckRight
+        		{10.0,0.2,0.0,1.0}, // 18 neckBack
+        		{10.0,2.0,0.0,1.0}, // 19 neckXZ0
+        		{10.0,2.0,0.0,1.0}  // 20 neckXZ0
+        		
         };
 
         public boolean isTripod() {
@@ -345,6 +354,10 @@ import ij.gui.GenericDialog;
     	    	double GXYZ_0, // coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
     	    	double GXYZ_1, // coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
     	    	double GXYZ_2, // coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
+    	    	double neck_right,
+    	    	double neck_back,
+    	    	double neck_x,
+    	    	double neck_z,
     	    	int sensorWidth,
     	    	int sensorHeight,
     	    	int    shrinkGridForMask, //shrink detected grids by one point for/vert this number of times before calculating masks
@@ -372,6 +385,7 @@ import ij.gui.GenericDialog;
     	    	boolean invertUnmarkedLwirGrid
     			){
     		double [] GXYZ={GXYZ_0,GXYZ_1,GXYZ_2};
+    		double [] neck_xz= {neck_x, neck_z};
     		setSameEyesisCameraParameters (
     				numStations,
     				isTripod,
@@ -387,6 +401,9 @@ import ij.gui.GenericDialog;
     				entrancePupilForward, // common to all lenses - distance from the sensor to the lens entrance pupil
     				centerAboveHorizontal, // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each
     				GXYZ, // coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
+        	    	neck_right,
+        	    	neck_back,
+        	    	neck_xz,
     				sensorWidth,
     				sensorHeight,
     				shrinkGridForMask, //shrink detected grids by one point for/vert this number of times before calculating masks
@@ -429,6 +446,9 @@ import ij.gui.GenericDialog;
     	    	double entrancePupilForward, // common to all lenses - distance from the sensor to the lens entrance pupil
     	    	double centerAboveHorizontal, // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each
     	    	double [] GXYZ, // coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
+    	    	double neck_right,
+    	    	double neck_back,
+    	    	double [] neck_xz,
     	    	int sensorWidth,
     	    	int sensorHeight,
     	    	int    shrinkGridForMask, //shrink detected grids by one point for/vert this number of times before calculating masks
@@ -470,6 +490,9 @@ import ij.gui.GenericDialog;
     				entrancePupilForward, // common to all lenses - distance from the sensor to the lens entrance pupil
     				centerAboveHorizontal, // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each
     				GXYZ, // coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
+    				neck_right,
+    				neck_back,
+    				neck_xz,
     				sensorWidth,
     				sensorHeight,
     				shrinkGridForMask, //shrink detected grids by one point for/vert this number of times before calculating masks
@@ -512,6 +535,9 @@ import ij.gui.GenericDialog;
     	    	double entrancePupilForward, // common to all lenses - distance from the sensor to the lens entrance pupil
     	    	double centerAboveHorizontal, // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each
     	    	double [] GXYZ, // coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
+    	    	double neck_right,
+    	    	double neck_back,
+    	    	double [] neck_xz,
     	    	int defaultSensorWidth,
     	    	int defaultSensorHeight,
     	    	int    shrinkGridForMask, //shrink detected grids by one point for/vert this number of times before calculating masks
@@ -568,7 +594,10 @@ import ij.gui.GenericDialog;
 	    	this.horAxisErrPsi=new double[numStations];
 	    	this.entrancePupilForward=new double[numStations]; // common to all lenses - distance from the sensor to the lens entrance pupil
 	    	this.centerAboveHorizontal=new double[numStations]; // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each
-	    	this.GXYZ=new double[numStations][];
+	    	this.GXYZ=new double[numStations][3];
+	    	this.neckRight=new double[numStations]; 
+	    	this.neckBack=new double[numStations]; 
+	    	this.neckXZ=new double[numStations][2];
 	    	if (numSubCameras>0) this.eyesisSubCameras=new EyesisSubCameraParameters[numStations][];
 	    	this.stationWeight=new double[numStations];
 	    	for (int numStation=0;numStation<numStations;numStation++) {
@@ -581,8 +610,10 @@ import ij.gui.GenericDialog;
 		    	this.horAxisErrPsi[numStation]=horAxisErrPsi;
 		    	this.entrancePupilForward[numStation]=entrancePupilForward; // common to all lenses - distance from the sensor to the lens entrance pupil
 		    	this.centerAboveHorizontal[numStation]=centerAboveHorizontal; // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each
-		    	this.GXYZ[numStation]=new double [3];
 		    	for (int i=0;i<3;i++) this.GXYZ[numStation][i]=GXYZ[i];
+		    	this.neckRight[numStation]=neck_right; 
+		    	this.neckBack[numStation]= neck_back; 
+		    	for (int i=0;i<2;i++) this.neckXZ[numStation][i]=neck_xz[i];
 		    	if (numSubCameras>0) initSubCameras(numStation,numSubCameras);
 	    	}
     	}
@@ -642,7 +673,11 @@ import ij.gui.GenericDialog;
     		destination.horAxisErrPsi=new double[destination.numStations];
     		destination.entrancePupilForward=new double[destination.numStations]; // common to all lenses - distance from the sensor to the lens entrance pupil
     		destination.centerAboveHorizontal=new double[destination.numStations]; // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each
-    		destination.GXYZ=new double[destination.numStations][];
+    		destination.GXYZ=new double[destination.numStations][3];
+    		destination.neckRight=new double[destination.numStations]; 
+    		destination.neckBack=new double[destination.numStations]; 
+    		destination.neckXZ=new double[destination.numStations][2];
+    		
     		if (source.eyesisSubCameras!=null) destination.eyesisSubCameras=new EyesisSubCameraParameters[destination.numStations][];
     		else destination.eyesisSubCameras=null;
     		destination.stationWeight=new double[destination.numStations];
@@ -658,8 +693,10 @@ import ij.gui.GenericDialog;
     			destination.horAxisErrPsi[numStation]=source.horAxisErrPsi[srcNumStation];
     			destination.entrancePupilForward[numStation]=source.entrancePupilForward[srcNumStation]; // common to all lenses - distance from the sensor to the lens entrance pupil
     			destination.centerAboveHorizontal[numStation]=source.centerAboveHorizontal[srcNumStation]; // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each
-    			destination.GXYZ[numStation]=new double [3];
     			for (int i=0;i<3;i++) destination.GXYZ[numStation][i]=source.GXYZ[srcNumStation][i];
+        		destination.neckRight[numStation]=source.neckRight[srcNumStation]; 
+        		destination.neckBack[numStation]= source.neckBack[srcNumStation]; 
+    			for (int i=0;i<2;i++) destination.neckXZ[numStation][i]=source.neckXZ[srcNumStation][i];
     			if (destination.eyesisSubCameras!=null){
     				destination.eyesisSubCameras[numStation]=new EyesisSubCameraParameters[source.eyesisSubCameras[srcNumStation].length];
     				for (int i=0; i<destination.eyesisSubCameras[numStation].length;i++) if (source.eyesisSubCameras[srcNumStation][i]!=null){
@@ -713,6 +750,10 @@ import ij.gui.GenericDialog;
     			properties.setProperty(prefix+"GXYZ_0_"+numStation,this.GXYZ[numStation][0]+"");
     			properties.setProperty(prefix+"GXYZ_1_"+numStation,this.GXYZ[numStation][1]+"");
     			properties.setProperty(prefix+"GXYZ_2_"+numStation,this.GXYZ[numStation][2]+"");
+    			properties.setProperty(prefix+"neckRight_"+numStation,this.neckRight[numStation]+"");
+    			properties.setProperty(prefix+"neckBack_"+numStation,this.neckBack[numStation]+"");
+    			properties.setProperty(prefix+"neckX_"+numStation,this.neckXZ[numStation][0]+"");
+    			properties.setProperty(prefix+"neckZ_"+numStation,this.neckXZ[numStation][1]+"");
     			for (int i=0;i<this.eyesisSubCameras[numStation].length;i++) {
     				this.eyesisSubCameras[numStation][i].setProperties(prefix+numStation+"_subCamera_"+i+'.',properties);
     			}
@@ -830,6 +871,19 @@ import ij.gui.GenericDialog;
         				this.GXYZ[numStation][1]=Double.parseDouble(properties.getProperty(prefix+"GXYZ_1_"+numStation));
         			if (properties.getProperty(prefix+"GXYZ_2_"+numStation)!=null)
         				this.GXYZ[numStation][2]=Double.parseDouble(properties.getProperty(prefix+"GXYZ_2_"+numStation));
+        			
+        			if (properties.getProperty(prefix+"neckRight_"+numStation)!=null)
+        				this.neckRight[numStation]=Double.parseDouble(properties.getProperty(prefix+"neckRight_"+numStation));
+        			if (properties.getProperty(prefix+"neckBack_"+numStation)!=null)
+        				this.neckBack[numStation]=Double.parseDouble(properties.getProperty(prefix+"neckBack_"+numStation));
+        			if (this.neckXZ[numStation] == null) {
+        				this.neckXZ[numStation] = new double[2];
+        			}
+        			if (properties.getProperty(prefix+"neckX_"+numStation)!=null)
+        				this.neckXZ[numStation][0]=Double.parseDouble(properties.getProperty(prefix+"neckX_"+numStation));
+        			if (properties.getProperty(prefix+"neckZ_"+numStation)!=null)
+        				this.neckXZ[numStation][1]=Double.parseDouble(properties.getProperty(prefix+"neckZ_"+numStation));
+        			
         			if (numSubCameras>0) {
         				initSubCameras(numStation, numSubCameras); // set array with default parameters
         				for (int i=0;i<numSubCameras;i++){
@@ -860,6 +914,21 @@ import ij.gui.GenericDialog;
     				this.GXYZ[0][1]=Double.parseDouble(properties.getProperty(prefix+"GXYZ_1"));
     			if (properties.getProperty(prefix+"GXYZ_2")!=null)
     				this.GXYZ[0][2]=Double.parseDouble(properties.getProperty(prefix+"GXYZ_2"));
+    			if (properties.getProperty(prefix+"neckRight")!=null)
+    				this.neckRight[0]=Double.parseDouble(properties.getProperty(prefix+"neckRight"));
+    			if (properties.getProperty(prefix+"neckBack")!=null)
+    				this.neckBack[0]=Double.parseDouble(properties.getProperty(prefix+"neckBack"));
+    			if (this.neckXZ[0] == null) {
+    				this.neckXZ[0] = new double[2];
+    			}
+    			if (properties.getProperty(prefix+"neckX")!=null)
+    				this.neckXZ[0][0]=Double.parseDouble(properties.getProperty(prefix+"neckX"));
+    			if (properties.getProperty(prefix+"neckZ")!=null)
+    				this.neckXZ[0][1]=Double.parseDouble(properties.getProperty(prefix+"neckZ"));
+    			
+    			
+    			
+    			
     			System.out.println(" === numSubCameras="+numSubCameras);
     			if (numSubCameras>0) {
     				initSubCameras(0, numSubCameras); // set array with default parameters
@@ -926,6 +995,12 @@ import ij.gui.GenericDialog;
     			gd.addNumericField("Goniometer reference point position X (target coordinates, left)",     this.GXYZ[numStation][0], 3,7,"mm");
     			gd.addNumericField("Goniometer reference point position Y (target coordinates, up)",       this.GXYZ[numStation][1], 3,7,"mm");
     			gd.addNumericField("Goniometer reference point position Z (target coordinates, away)",     this.GXYZ[numStation][2], 3,7,"mm");
+    			
+				gd.addNumericField("Camera \"neck\" tilt right",                                           this.neckRight[numStation],  3,7,"degrees");
+				gd.addNumericField("Camera \"neck\" tilt back",                                            this.neckBack[numStation],   3,7,"degrees");
+				gd.addNumericField("Camera \"neck\" shift in target X for vertical camera",                this.neckXZ[numStation][0],  3,7,"mm");
+				gd.addNumericField("Camera \"neck\" shift in target Z for vertical camera",                this.neckXZ[numStation][1],  3,7,"mm");
+	    		gd.addMessage("Camera \"neck\" shift in target Y is the same as \"Camera center above goniometer horizontal axis\"");
     		}
     		gd.addMessage("=== Other parameters ===");
 
@@ -989,6 +1064,10 @@ import ij.gui.GenericDialog;
     			this.GXYZ[numStation][0]=                  gd.getNextNumber();
     			this.GXYZ[numStation][1]=                  gd.getNextNumber();
     			this.GXYZ[numStation][2]=                  gd.getNextNumber();
+    			this.neckRight[numStation]=                gd.getNextNumber();
+    			this.neckBack[numStation]=                 gd.getNextNumber();
+    			this.neckXZ[numStation][0]=                gd.getNextNumber();
+    			this.neckXZ[numStation][1]=                gd.getNextNumber();
     		}
     		this.defaultSensorWidth=  (int) gd.getNextNumber();
     		this.defaultSensorHeight= (int) gd.getNextNumber();
@@ -1382,7 +1461,7 @@ import ij.gui.GenericDialog;
 			for (int nstation = 0; nstation < centerAboveHorizontal.length; nstation++) {
 				centerAboveHorizontal[nstation] = CENTER_ABOVE_HORIZONTAL;	
 			}
-			IJ.showMessage("Camera geometry is set to LWIR16 design (16 LWIR + 4 EO)");
+			IJ.showMessage("Camera geometry is set to LWIR16 design (16 LWIR + 4 EO), neck* parameters are not updated");
     		return true;
     		
     	}
@@ -1426,42 +1505,48 @@ import ij.gui.GenericDialog;
         			this.GXYZ[stationNumber][0],              //14 (12) coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
         			this.GXYZ[stationNumber][1],              //15 (13)  y
         			this.GXYZ[stationNumber][2],              //16 (14)  z
-        			subCam.focalLength,        //17 (15)  lens focal length
-        			subCam.px0,                //18 (16) center of the lens on the sensor, pixels
-        			subCam.py0,                //19 (17) center of the lens on the sensor, pixels
-        			subCam.distortionA8,       //20 (18)  r^8 (normalized to focal length or to sensor half width?)
-        			subCam.distortionA7,       //21 (19)  r^7 (normalized to focal length or to sensor half width?)
-        			subCam.distortionA6,       //22 (20)  r^6 (normalized to focal length or to sensor half width?)
-        			subCam.distortionA5,       //23 (21)  r^5 (normalized to focal length or to sensor half width?)
-        			subCam.distortionA,        //24 (22)  r^4 (normalized to focal length or to sensor half width?)
-        			subCam.distortionB,        //25 (23)  r^3
-        			subCam.distortionC,        //26 (24)  r^2
-        			subCam.r_od[0][0],
-        			subCam.r_od[0][1],
-        			subCam.r_xy[0][0],
-        			subCam.r_xy[0][1],
-        			subCam.r_od[1][0],
-        			subCam.r_od[1][1],
-        			subCam.r_xy[1][0],
-        			subCam.r_xy[1][1],
-        			subCam.r_od[2][0],
-        			subCam.r_od[2][1],
-        			subCam.r_xy[2][0],
-        			subCam.r_xy[2][1],
-        			subCam.r_od[3][0],
-        			subCam.r_od[3][1],
-        			subCam.r_xy[3][0],
-        			subCam.r_xy[3][1],
-        			subCam.r_od[4][0],
-        			subCam.r_od[4][1],
-        			subCam.r_xy[4][0],
-        			subCam.r_xy[4][1],
-        			subCam.r_od[5][0],
-        			subCam.r_od[5][1],
-        			subCam.r_xy[5][0],
-        			subCam.r_xy[5][1],
-        			subCam.r_od[6][0],
-        			subCam.r_od[6][1]
+        			
+        			this.neckRight[stationNumber], // 17
+        			this.neckBack[stationNumber],  // 18
+        			this.neckXZ[stationNumber][0], // 19
+        			this.neckXZ[stationNumber][1], // 20
+        			// new indices after adding neck* parameters
+        			subCam.focalLength,        // 21 17 (15)  lens focal length
+        			subCam.px0,                // 22 18 (16) center of the lens on the sensor, pixels
+        			subCam.py0,                // 23 19 (17) center of the lens on the sensor, pixels
+        			subCam.distortionA8,       // 24 20 (18)  r^8 (normalized to focal length or to sensor half width?)
+        			subCam.distortionA7,       // 25 21 (19)  r^7 (normalized to focal length or to sensor half width?)
+        			subCam.distortionA6,       // 26 22 (20)  r^6 (normalized to focal length or to sensor half width?)
+        			subCam.distortionA5,       // 27 23 (21)  r^5 (normalized to focal length or to sensor half width?)
+        			subCam.distortionA,        // 28 24 (22)  r^4 (normalized to focal length or to sensor half width?)
+        			subCam.distortionB,        // 29 25 (23)  r^3
+        			subCam.distortionC,        // 30 26 (24)  r^2
+        			subCam.r_od[0][0],         // 31 
+        			subCam.r_od[0][1],         // 32 
+        			subCam.r_xy[0][0],         // 33
+        			subCam.r_xy[0][1],         // 34
+        			subCam.r_od[1][0],         // 35
+        			subCam.r_od[1][1],         // 36
+        			subCam.r_xy[1][0],         // 37
+        			subCam.r_xy[1][1],         // 38
+        			subCam.r_od[2][0],         // 39
+        			subCam.r_od[2][1],         // 40
+        			subCam.r_xy[2][0],         // 41
+        			subCam.r_xy[2][1],         // 42
+        			subCam.r_od[3][0],         // 43
+        			subCam.r_od[3][1],         // 44
+        			subCam.r_xy[3][0],         // 45
+        			subCam.r_xy[3][1],         // 46
+        			subCam.r_od[4][0],         // 47
+        			subCam.r_od[4][1],         // 48
+        			subCam.r_xy[4][0],         // 49
+        			subCam.r_xy[4][1],         // 50
+        			subCam.r_od[5][0],         // 51
+        			subCam.r_od[5][1],         // 52
+        			subCam.r_xy[5][0],         // 53
+        			subCam.r_xy[5][1],         // 54
+        			subCam.r_od[6][0],         // 55
+        			subCam.r_od[6][1]          // 56 was 53 before neck* 
         	};
         	// Global parameters, not adjusted - just copied once when camera is selected
     // or should they stay fixed and not copied at all?
@@ -1563,7 +1648,7 @@ import ij.gui.GenericDialog;
         		int subCamNumber //
                 ){
 //        	if (parVect.length!=27) throw new IllegalArgumentException ("Wrong length of the parameters vector: "+parVect.length+"(should be 27)");
-        	if (parVect.length!=53) throw new IllegalArgumentException ("Wrong length of the parameters vector: "+parVect.length+"(should be 53)");
+        	if (parVect.length!=57) throw new IllegalArgumentException ("Wrong length of the parameters vector: "+parVect.length+"(should be 57)");
         	if (
         			(this.eyesisSubCameras==null) ||
         			(this.numStations<=stationNumber) ||
@@ -1597,42 +1682,48 @@ import ij.gui.GenericDialog;
         	if (update[14]) this.GXYZ[stationNumber][0]=parVect[14];             //14 coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
         	if (update[15]) this.GXYZ[stationNumber][1]=parVect[15];             //15  y
         	if (update[16]) this.GXYZ[stationNumber][2]=parVect[16];             //16  z
-        	if (update[17]) subCam.focalLength=parVect[17];       //17  lens focal length
-        	if (update[18]) subCam.px0=parVect[18];               //18 center of the lens on the sensor, pixels
-        	if (update[19]) subCam.py0=parVect[19];               //19 center of the lens on the sensor, pixels
-        	if (update[20]) subCam.distortionA8=parVect[20];      //20  r^8 (normalized to focal length or to sensor half width?)
-        	if (update[21]) subCam.distortionA7=parVect[21];      //21  r^7 (normalized to focal length or to sensor half width?)
-        	if (update[22]) subCam.distortionA6=parVect[22];      //22  r^6 (normalized to focal length or to sensor half width?)
-        	if (update[23]) subCam.distortionA5=parVect[23];      //23  r^5 (normalized to focal length or to sensor half width?)
-        	if (update[24]) subCam.distortionA= parVect[24];      //24  r^4 (normalized to focal length or to sensor half width?)
-        	if (update[25]) subCam.distortionB= parVect[25];      //25  r^3
-        	if (update[26]) subCam.distortionC= parVect[26];      //26  r^2
-        	if (update[27]) subCam.r_od[0][0]= parVect[27];
-        	if (update[28]) subCam.r_od[0][1]= parVect[28];
-        	if (update[29]) subCam.r_xy[0][0]= parVect[29];
-        	if (update[30]) subCam.r_xy[0][1]= parVect[30];
-        	if (update[31]) subCam.r_od[1][0]= parVect[31];
-        	if (update[32]) subCam.r_od[1][1]= parVect[32];
-        	if (update[33]) subCam.r_xy[1][0]= parVect[33];
-        	if (update[34]) subCam.r_xy[1][1]= parVect[34];
-        	if (update[35]) subCam.r_od[2][0]= parVect[35];
-        	if (update[36]) subCam.r_od[2][1]= parVect[36];
-        	if (update[37]) subCam.r_xy[2][0]= parVect[37];
-        	if (update[38]) subCam.r_xy[2][1]= parVect[38];
-        	if (update[39]) subCam.r_od[3][0]= parVect[39];
-        	if (update[40]) subCam.r_od[3][1]= parVect[40];
-        	if (update[41]) subCam.r_xy[3][0]= parVect[41];
-        	if (update[42]) subCam.r_xy[3][1]= parVect[42];
-        	if (update[43]) subCam.r_od[4][0]= parVect[43];
-        	if (update[44]) subCam.r_od[4][1]= parVect[44];
-        	if (update[45]) subCam.r_xy[4][0]= parVect[45];
-        	if (update[46]) subCam.r_xy[4][1]= parVect[46];
-        	if (update[47]) subCam.r_od[5][0]= parVect[47];
-        	if (update[48]) subCam.r_od[5][1]= parVect[48];
-        	if (update[49]) subCam.r_xy[5][0]= parVect[49];
-        	if (update[50]) subCam.r_xy[5][1]= parVect[50];
-        	if (update[51]) subCam.r_od[6][0]= parVect[51];
-        	if (update[52]) subCam.r_od[6][1]= parVect[52];
+        	// neck* parameters
+        	if (update[17]) this.neckRight[stationNumber]= parVect[17];           //17  whole camera tilt right at the "neck"
+        	if (update[18]) this.neckBack[stationNumber]=  parVect[18];           //18  whole camera tilt back at the "neck"
+        	if (update[19]) this.neckXZ[stationNumber][0]= parVect[19];           //19  whole camera shift X at the "neck"
+        	if (update[20]) this.neckXZ[stationNumber][1]= parVect[20];           //20  whole camera shift Z at the "neck"
+        	
+        	if (update[21]) subCam.focalLength= parVect[21];      // was 17  lens focal length
+        	if (update[22]) subCam.px0=         parVect[22];      // was 18 center of the lens on the sensor, pixels
+        	if (update[23]) subCam.py0=         parVect[23];      // was 19 center of the lens on the sensor, pixels
+        	if (update[24]) subCam.distortionA8=parVect[24];      // was 20  r^8 (normalized to focal length or to sensor half width?)
+        	if (update[25]) subCam.distortionA7=parVect[25];      // was 21  r^7 (normalized to focal length or to sensor half width?)
+        	if (update[26]) subCam.distortionA6=parVect[26];      // was 22  r^6 (normalized to focal length or to sensor half width?)
+        	if (update[27]) subCam.distortionA5=parVect[27];      // was 23  r^5 (normalized to focal length or to sensor half width?)
+        	if (update[28]) subCam.distortionA= parVect[28];      // was 24  r^4 (normalized to focal length or to sensor half width?)
+        	if (update[29]) subCam.distortionB= parVect[29];      // was 25  r^3
+        	if (update[30]) subCam.distortionC= parVect[30];      // was 26  r^2
+        	if (update[31]) subCam.r_od[0][0]=  parVect[31];
+        	if (update[32]) subCam.r_od[0][1]=  parVect[32];
+        	if (update[33]) subCam.r_xy[0][0]=  parVect[33];
+        	if (update[34]) subCam.r_xy[0][1]=  parVect[34];
+        	if (update[35]) subCam.r_od[1][0]=  parVect[35];
+        	if (update[36]) subCam.r_od[1][1]=  parVect[36];
+        	if (update[37]) subCam.r_xy[1][0]=  parVect[37];
+        	if (update[38]) subCam.r_xy[1][1]=  parVect[38];
+        	if (update[39]) subCam.r_od[2][0]=  parVect[39];
+        	if (update[40]) subCam.r_od[2][1]=  parVect[40];
+        	if (update[41]) subCam.r_xy[2][0]=  parVect[41];
+        	if (update[42]) subCam.r_xy[2][1]=  parVect[42];
+        	if (update[43]) subCam.r_od[3][0]=  parVect[43];
+        	if (update[44]) subCam.r_od[3][1]=  parVect[44];
+        	if (update[45]) subCam.r_xy[3][0]=  parVect[45];
+        	if (update[46]) subCam.r_xy[3][1]=  parVect[46];
+        	if (update[47]) subCam.r_od[4][0]=  parVect[47];
+        	if (update[48]) subCam.r_od[4][1]=  parVect[48];
+        	if (update[49]) subCam.r_xy[4][0]=  parVect[49];
+        	if (update[50]) subCam.r_xy[4][1]=  parVect[50];
+        	if (update[51]) subCam.r_od[5][0]=  parVect[51];
+        	if (update[52]) subCam.r_od[5][1]=  parVect[52];
+        	if (update[53]) subCam.r_xy[5][0]=  parVect[53];
+        	if (update[54]) subCam.r_xy[5][1]=  parVect[54];
+        	if (update[55]) subCam.r_od[6][0]=  parVect[55];
+        	if (update[56]) subCam.r_od[6][1]=  parVect[56];
         }
 
         public void updateCartesian(){
@@ -2691,6 +2782,8 @@ import ij.gui.GenericDialog;
     					false); // lwir
     		}
     	}
+    	
+    	// TODO: add similar for neck*
     	public void recenterVertically(boolean [] subcams, boolean [] stations){
     		boolean sameCenterAboveHorizontal=true;
     		double cah=Double.NaN;

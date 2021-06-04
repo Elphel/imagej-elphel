@@ -109,7 +109,7 @@ public class Aberration_Calibration extends PlugInFrame implements ActionListene
 	private Panel panelGoniometer;
 	private Panel panelPixelMapping, panelStereo,panelStereo1;
 	private Panel panelLWIR;
-	private Panel panelLWIR16;
+//	private Panel panelLWIR16;
 
 	private ShowDoubleFloatArrays SDFA_INSTANCE; // just for debugging?
 	JP46_Reader_camera JP4_INSTANCE;
@@ -508,6 +508,9 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 	    	0.0,
 	    	0.0,
 	    	0.0, 0.0, 2360, //double [] GXYZ // coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
+	    	0.0,
+	    	0.0,
+	    	0.0, 0.0,
 	       	2592, // int sensorWidth=      2592;
 	    	1936, //int sensorHeight=     1936;
 	    	2,    //int    shrinkGridForMask=2; //shrink detected grids by one point for/vert this number of times before calculating masks
@@ -692,14 +695,15 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 		panelRun = new Panel();
 		panelRun.setLayout(new GridLayout(1, 0, 5, 5));
 		addButton("Process Calibration Files",panelRun);
-		addButton("Save",panelRun);
-		addButton("Save Selected",panelRun);
-		addButton("Restore",panelRun,color_restore);
+		addButton("Save",               panelRun);
+		addButton("Save Selected",      panelRun);
+		addButton("Restore",            panelRun,color_restore);
 		addButton("Restore no autoload",panelRun);
-		addButton("Restore SFE Latest",panelRun,color_restore);
-		addButton("List SFE",panelRun,color_report);
-		addButton("Stop",panelRun,color_stop);
-		addButton("Abort",panelRun,color_stop);
+		addButton("Properties clear",   panelRun, color_stop);
+		addButton("Restore SFE Latest", panelRun, color_restore);
+		addButton("List SFE",           panelRun,color_report);
+		addButton("Stop",               panelRun,color_stop);
+		addButton("Abort",              panelRun,color_stop);
 
 		add(panelRun);
 
@@ -1256,6 +1260,10 @@ if (MORE_BUTTONS) {
 /* ======================================================================== */
 	    } else if (label.equals("Restore") || label.equals("Restore no autoload")) {
 	    	restore(label.equals("Restore no autoload"));
+	    	return;
+/* ======================================================================== */
+	    } else if (label.equals("Properties clear")) {
+	    	PROPERTIES=new Properties();
 	    	return;
 /* ======================================================================== */
 		} else if (label.equals("Process Calibration Files")) {
@@ -5977,7 +5985,7 @@ if (MORE_BUTTONS) {
 				return;
 			}
 			GenericDialog gd=new GenericDialog ("Select list mode");
-    		gd.addNumericField("Mode 0 - pointers, 1 - shift/Rots, 2 - points/extra, 3 - rms", 3, 0);
+    		gd.addNumericField("Mode 0 - pointers, 1 - shift/Rots, 2 - points/extra, 3 - rms, 4 - image numbers", 3, 0);
     		gd.showDialog();
     		if (gd.wasCanceled()) return;
     		int listMode=          (int) gd.getNextNumber();

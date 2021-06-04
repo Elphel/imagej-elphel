@@ -27,6 +27,7 @@ import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.geom.Point2D;
 import java.util.ArrayList;
+import java.util.Arrays;
 //import java.util.Arrays;
 //import java.io.StringWriter;
 import java.util.List;
@@ -3321,10 +3322,12 @@ For each point in the image
 		int numSuccess=0;
 		DistortionCalibrationData dcd=fittingStrategy.distortionCalibrationData;
 		for (int numGridImage=0;numGridImage<dcd.gIP.length;numGridImage++) {
+			/*
 			if (numGridImage >= 1680)	{
 				System.out.println("Processing debug image "+numGridImage);
 				System.out.println("Processing debug image "+numGridImage);
 			}
+			*/
 			int set_number = dcd.gIP[numGridImage].getSetNumber();
 			if ((set_number >= start_set) &&
 					(set_number <= end_set) &&
@@ -10747,17 +10750,31 @@ M * V = B
     		EyesisCameraParameters eyesisCameraParameters
     ){
     	boolean resetParametersToZero=false;
+    	boolean updateAllSubcameras = false;
     	boolean [] parameterMask= new boolean[distortionCalibrationData.getNumParameters()];
     	boolean [] channelMask=   new boolean[distortionCalibrationData.getNumSubCameras()];
     	boolean [] stationMask=   new boolean[distortionCalibrationData.getNumStations()];
+    	String [] source_stations = new String[stationMask.length+1];
+    	source_stations[0] = "---";
+    	for (int i = 0; i < stationMask.length; i++) {
+    		source_stations[i+1]=""+i;
+    	}
     	for (int i=0;i<parameterMask.length;i++) parameterMask[i]=false;
     	for (int i=0;i<channelMask.length;i++)   channelMask[i]=  true;
     	for (int i=0;i<stationMask.length;i++)   stationMask[i]=  true;
     	GenericDialog gd=new GenericDialog("Update (new) image settings from known data");
     	//
     	gd.addCheckbox("Reset selected parameters to zero (false - update from camera parameters)", resetParametersToZero);
+    	if (stationMask.length > 1) {
+    		gd.addChoice("Copy selected parameters from tis station to all other stations" , source_stations, source_stations[0]);
+    	}
     	gd.addMessage("Select which individual image parameters to be updated from the camera parameters (or reset to 0)");
-    	for (int i=0;i<parameterMask.length;i++) gd.addCheckbox(i+": "+distortionCalibrationData.getParameterName(i), parameterMask[i]);
+    	
+    	gd.addCheckbox("Update all subcamera parameters", updateAllSubcameras);
+    	
+    	for (int i=0;i<parameterMask.length;i++) {
+    		gd.addCheckbox(i+": "+distortionCalibrationData.getParameterName(i), parameterMask[i]);
+    	}
     	gd.addMessage("----------");
     	gd.addMessage("Select which channels (sub-cameras) to update");
     	for (int i=0;i<channelMask.length;i++) gd.addCheckbox("Subcamera "+i, channelMask[i]);
@@ -10776,6 +10793,12 @@ M * V = B
     	gd.showDialog();
     	if (gd.wasCanceled()) return false;
     	resetParametersToZero=gd.getNextBoolean();
+    	int source_station = -1;
+    	if (stationMask.length > 1) {
+    		source_station = gd.getNextChoiceIndex() - 1;
+    	}
+
+    	updateAllSubcameras = gd.getNextBoolean();
     	for (int i=0;i<parameterMask.length;i++) parameterMask[i]= gd.getNextBoolean();
     	for (int i=0;i<channelMask.length;i++)   channelMask[i]=   gd.getNextBoolean();
     	if (stationMask.length>1) {
@@ -10784,6 +10807,25 @@ M * V = B
     	boolean updateFromTimestamps= gd.getNextBoolean();
     	boolean allowClosest=         gd.getNextBoolean();
     	boolean reCenterVertically=   gd.getNextBoolean();
+
+    	if (updateAllSubcameras) {
+    		resetParametersToZero = false; // just for safety
+        	for (int i=0;i<parameterMask.length;i++) {
+        		parameterMask[i] |= distortionCalibrationData.isSubcameraParameter(i);
+        	}
+    	}
+    	
+    	if (source_station >= 0) {
+    		updateOtherStations(
+    	    		eyesisCameraParameters,
+    	    		source_station,
+    	    		parameterMask,
+    	    		channelMask,
+    	    		stationMask);    		
+    	}
+    	
+    	
+    	
     	if (reCenterVertically){
     		eyesisCameraParameters.recenterVertically(channelMask, stationMask);
     		for (int i=0;i<channelMask.length;i++) channelMask[i]= true;
@@ -10903,6 +10945,38 @@ M * V = B
     	return true;
     }
 
+    
+    /**
+     * Update selected parameters from sourceStation to selected (stationMask) stations, filtered by channelMask
+     * @param eyesisCameraParameters
+     * @param sourceStation
+     * @param parameterMask
+     * @param channelMask
+     * @param stationMask
+     */
+    public void updateOtherStations(
+    		EyesisCameraParameters eyesisCameraParameters,
+    		int                    sourceStation,
+    		boolean []             parameterMask,
+    		boolean []             channelMask,
+    		boolean []             stationMask
+    		) {
+    	for (int stationNumber = 0; stationNumber <  stationMask.length; stationNumber++) if (stationMask[stationNumber]) {
+    		for (int subCam=0; subCam < channelMask.length; subCam++) if (channelMask[subCam]) {
+        		double [] oldVector=eyesisCameraParameters.getParametersVector(stationNumber,subCam);
+        		double [] newVector=eyesisCameraParameters.getParametersVector(sourceStation,subCam);
+        		for (int j=0;j<oldVector.length;j++) if (parameterMask[j]){
+        			oldVector[j]=newVector[j];
+        		}
+    			eyesisCameraParameters.setParametersVector(
+    					newVector,
+    					parameterMask,
+    					stationNumber,
+    					subCam);
+    		}
+    	}
+    }
+    
 
     /**
      * Copies selected parameters from the camera parameters to per-image parameters (i.e. for new/previously disabled images)
@@ -11078,6 +11152,10 @@ M * V = B
     	int numSeries=allImages?(-1):this.fittingStrategy.currentSeriesNumber;
 		boolean [] selectedImages=fittingStrategy.selectedImages(numSeries); // all enabled
 		boolean [] selectedImagesDebug=null;
+		boolean include_disabled = allImages;
+		if (include_disabled) {
+			Arrays.fill(selectedImages, true);
+		}
 		boolean debugThis=false;
 		int maxDebugImages=10;
 		if (this.debugLevel>0) System.out.println("updateCameraParametersFromCalculated("+allImages+")");
@@ -11108,6 +11186,7 @@ M * V = B
 					System.out.println(i+": "+fittingStrategy.distortionCalibrationData.getParameterName(i)+" = "+par[i]);
 				}
 			}
+//			System.out.println(numImg+"[21]: "+fittingStrategy.distortionCalibrationData.getParameterName(21)+" = "+par[21]);
 		}
 		if (this.debugLevel>1) System.out.println("updateCameraParametersFromCalculated("+allImages+") for series="+numSeries);
 		// Next line is not needed anymore (will harm as will set orientationEstimated for all unselected sets)

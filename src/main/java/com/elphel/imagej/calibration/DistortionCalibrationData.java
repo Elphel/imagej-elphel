@@ -440,7 +440,7 @@ import ij.text.TextWindow;
 
 
     	public class GridImageSet{
-    		private int numPars=53; // 27;
+    		private int numPars=57; // before neck:53; // 27;
     		private int thisParsStartIndex=6;
 
     		public int         stationNumber=0; // changes when camera/goniometer is moved to new position
@@ -448,17 +448,19 @@ import ij.text.TextWindow;
 //    		public GridImageParameters firstImage=null; // first non-null image in the sert (update to have current parameters?)
     		public double timeStamp;
     		public int [] motors=null;
-    		public double goniometerAxial=Double.NaN;
-    		public double goniometerTilt=Double.NaN;
-    		public double interAxisDistance;    // 8 distance in mm between two goniometer axes
-    		public double interAxisAngle;       // 9 angle in degrees between two goniometer axes minus 90. negative if "vertical" axis is rotated
-    		public double horAxisErrPhi;        //10 angle in degrees "horizontal" goniometer axis is rotated around target Y axis from target X axis (CW)
-    		public double horAxisErrPsi;        //11 angle in degrees "horizontal" goniometer axis is rotated around moving X axis (up)
-    		public double entrancePupilForward; //12 common to all lenses - distance from the sensor to the lens entrance pupil
-    		public double centerAboveHorizontal;//13 camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each
-    		public double [] GXYZ=new double [3];  //14 (12) coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
-//			this.GXYZ[stationNumber][1],              //15 (13)  y
-//			this.GXYZ[stationNumber][2],              //16 (14)  z
+    		public double goniometerAxial=Double.NaN; // 6
+    		public double goniometerTilt=Double.NaN;  // 7
+    		public double interAxisDistance;          // 8 distance in mm between two goniometer axes
+    		public double interAxisAngle;             // 9 angle in degrees between two goniometer axes minus 90. negative if "vertical" axis is rotated
+    		public double horAxisErrPhi;              //10 angle in degrees "horizontal" goniometer axis is rotated around target Y axis from target X axis (CW)
+    		public double horAxisErrPsi;              //11 angle in degrees "horizontal" goniometer axis is rotated around moving X axis (up)
+    		public double entrancePupilForward;       //12 common to all lenses - distance from the sensor to the lens entrance pupil
+    		public double centerAboveHorizontal;      //13 camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each
+    		public double [] GXYZ=new double [3];     //14 (12) coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
+    		public double neckRight;                 //17 angle in degrees of the camera as a whole rotated clockwise around axis to the target
+    		public double neckBack;                  //18 angle in degrees of the camera as a whole rotated clockwise around axis to the target
+    		public double [] neckXZ=new double [2];  //19,20 optical head offset in mm relative to the mount point (centerAboveHorizontal as Y)
+    		
     		public boolean orientationEstimated=true; // orientation is estimated from other stes, not adjusted by LMA
     		public double setWeight=0.0; // weight of this set when calculating errors
     		public void setEstimatedFromNonNaN(){
@@ -471,7 +473,7 @@ import ij.text.TextWindow;
     			return this.thisParsStartIndex+getSetVector().length;
     		}
 
-    		public double [] getSetVector(){
+    		public double [] getSetVector(){ // was 11, now 15
     			double [] sv={
     		    		this.goniometerTilt,
     		    		this.goniometerAxial,
@@ -484,6 +486,11 @@ import ij.text.TextWindow;
     		    		this.GXYZ[0],
     		    		this.GXYZ[1],
     		    		this.GXYZ[2]
+    		    				
+    		    		,this.neckRight,
+    		    		this.neckBack,
+    		    		this.neckXZ[0],
+    		    		this.neckXZ[1]
     			};
     			return sv;
     		}
@@ -504,6 +511,11 @@ import ij.text.TextWindow;
 	    		this.GXYZ[0]=              vector[ 8];
 	    		this.GXYZ[1]=              vector[ 9];
 	    		this.GXYZ[2]=              vector[10];
+	    		
+	    		this.neckRight=            vector[11];
+	    		this.neckBack=             vector[12];
+	    		this.neckXZ[0]=            vector[13];
+	    		this.neckXZ[1]=            vector[14];
     		}
 
     		public double getParameterValue(int index){
@@ -535,6 +547,10 @@ import ij.text.TextWindow;
     			case  8: this.GXYZ[0]=              value; break;
     			case  9: this.GXYZ[1]=              value; break;
     			case 10: this.GXYZ[2]=              value; break;
+    			case 11: this.neckRight=            value; break;
+    			case 12: this.neckBack=             value; break;
+    			case 13: this.neckXZ[0]=            value; break;
+    			case 14: this.neckXZ[1]=            value; break;
     			}
     		}
 
@@ -584,6 +600,10 @@ import ij.text.TextWindow;
 	    		this.GXYZ[0]=              vector[this.thisParsStartIndex+ 8];
 	    		this.GXYZ[1]=              vector[this.thisParsStartIndex+ 9];
 	    		this.GXYZ[2]=              vector[this.thisParsStartIndex+10];
+	    		this.neckRight=            vector[this.thisParsStartIndex+11];
+	    		this.neckBack=             vector[this.thisParsStartIndex+12];
+	    		this.neckXZ[0]=            vector[this.thisParsStartIndex+13];
+	    		this.neckXZ[1]=            vector[this.thisParsStartIndex+14];
     		}
 
     		public void updateSetFromParameterVector(double [] vector, boolean [] mask){
@@ -603,8 +623,12 @@ import ij.text.TextWindow;
 	    		if (mask[this.thisParsStartIndex+ 8]) this.GXYZ[0]=              vector[this.thisParsStartIndex+ 8];
 	    		if (mask[this.thisParsStartIndex+ 9]) this.GXYZ[1]=              vector[this.thisParsStartIndex+ 9];
 	    		if (mask[this.thisParsStartIndex+10]) this.GXYZ[2]=              vector[this.thisParsStartIndex+10];
+	    		if (mask[this.thisParsStartIndex+11]) this.neckRight=            vector[this.thisParsStartIndex+11];
+	    		if (mask[this.thisParsStartIndex+12]) this.neckBack=             vector[this.thisParsStartIndex+12];
+	    		if (mask[this.thisParsStartIndex+13]) this.neckXZ[0]=            vector[this.thisParsStartIndex+13];
+	    		if (mask[this.thisParsStartIndex+14]) this.neckXZ[1]=            vector[this.thisParsStartIndex+14];
+	    		
     		}
-
     		public double getSetWeight(){return this.setWeight;}
         	public int getStationNumber(){ // TODO: make only a single station number - in GridImageSet?
         		return this.stationNumber;
@@ -627,7 +651,12 @@ import ij.text.TextWindow;
         		{"subcamForward",        "Subcamera distance from the vertical rotation axis, positive - towards the target","mm","S","E"},                               // 1
         		null,                                                   // 2
         		{"subcamHeading",        "Optical axis heading (0 - to the target, positive - CW looking from top)","degrees","S","E"}};               // 3
-
+/*
+ * [3] == "S" - subcamera
+ * [3] == "R" - orientation
+ * [3] == "T" - location
+ * [4] == "I" - intrinsic
+ */
         public String [][] parameterDescriptions ={
         		{"subcamAzimuth",        "Subcamera azimuth, clockwise looking from top","degrees","S","E"},                                    // 0
         		{"subcamDistance",       "Subcamera distance from the axis","mm","S","E"},                                                      // 1
@@ -646,49 +675,55 @@ import ij.text.TextWindow;
     			{"GXYZ0",                "Goniometer reference point position X (target coordinates, left)","mm","T","E"},                      //14 (12)
     			{"GXYZ1",                "Goniometer reference point position Y (target coordinates, up)","mm","T","E"},                        //15 (13)
     			{"GXYZ2",                "Goniometer reference point position Z (target coordinates, away)","mm","T","E"} ,                     //16 (14)
-    			{"subcamFocalLength",    "Lens focal length","mm","S","I"},                                                                     //17 (15)
-    			{"subcamPX0",            "Lens axis on the sensor (horizontal, from left edge)","pixels","S","I"},                              //18 (16)
-    			{"subcamPY0",            "Lens axis on the sensor (vertical, from top edge)","pixels","S","I"},                                 //19 (17)
-    			{"subcamDistortionA8",   "Distortion A8(r^5)","relative","S","I"},                                                              //20 (18)
-    			{"subcamDistortionA7",   "Distortion A7(r^5)","relative","S","I"},                                                              //21 (19)
-    			{"subcamDistortionA6",   "Distortion A6(r^5)","relative","S","I"},                                                              //22 (20)
-    			{"subcamDistortionA5",   "Distortion A5(r^5)","relative","S","I"},                                                              //23 (21)
-    			{"subcamDistortionA",    "Distortion A (r^4)","relative","S","I"},                                                              //24 (22)
-    			{"subcamDistortionB",    "Distortion B (r^3)","relative","S","I"},                                                              //25 (23)
-    			{"subcamDistortionC",    "Distortion C (r^2)","relative","S","I"},                                                               //26 (24)
 
-        		{"subcamElong_C_o",      "Orthogonal elongation for r^2","relative","S","I"},     // 27 39 (37)
-        		{"subcamElong_C_d",      "Diagonal   elongation for r^2","relative","S","I"},     // 28 40 (38)
+    			{"neckRight",            "Camera tilt righ around its \"neck\"","degrees","C","E"},                                        // 17
+    			{"neckBack",             "Camera tilt back around its \"neck\"","degrees","C","E"},                                        // 18
+    			{"neckXZ0",              "Camera shift X at its \"neck\" (common right)","mm","C","E"},                                    // 19
+    			{"neckXZ1",              "Camera shift Z at its \"neck\" (common -forward)","mm","C","E"},                                 // 20
+    			
+    			{"subcamFocalLength",    "Lens focal length","mm","S","I"},                                                                // 21 //17 (15)
+    			{"subcamPX0",            "Lens axis on the sensor (horizontal, from left edge)","pixels","S","I"},                         // 22 //18 (16)
+    			{"subcamPY0",            "Lens axis on the sensor (vertical, from top edge)","pixels","S","I"},                            // 23 //19 (17)
+    			{"subcamDistortionA8",   "Distortion A8(r^5)","relative","S","I"},                                                         // 24 //20 (18)
+    			{"subcamDistortionA7",   "Distortion A7(r^5)","relative","S","I"},                                                         // 25 //21 (19)
+    			{"subcamDistortionA6",   "Distortion A6(r^5)","relative","S","I"},                                                         // 26 //22 (20)
+    			{"subcamDistortionA5",   "Distortion A5(r^5)","relative","S","I"},                                                         // 27 //23 (21)
+    			{"subcamDistortionA",    "Distortion A (r^4)","relative","S","I"},                                                         // 28 //24 (22)
+    			{"subcamDistortionB",    "Distortion B (r^3)","relative","S","I"},                                                         // 29 //25 (23)
+    			{"subcamDistortionC",    "Distortion C (r^2)","relative","S","I"},                                                         // 30 //26 (24)
 
-        		{"subcamEccen_B_x",      "Distortion center shift X for r^3","relative","S","I"}, // 29 27 (25)
-        		{"subcamEccen_B_y",      "Distortion center shift Y for r^3","relative","S","I"}, // 30 28 (26)
-        		{"subcamElong_B_o",      "Orthogonal elongation for r^3","relative","S","I"},     // 31 41 (39)
-        		{"subcamElong_B_d",      "Diagonal   elongation for r^3","relative","S","I"},     // 32 42 (40)
+        		{"subcamElong_C_o",      "Orthogonal elongation for r^2","relative","S","I"},     // 31 // 27 39 (37)
+        		{"subcamElong_C_d",      "Diagonal   elongation for r^2","relative","S","I"},     // 32 // 28 40 (38)
 
-        		{"subcamEccen_A_x",      "Distortion center shift X for r^4","relative","S","I"}, // 33 29 (27)
-        		{"subcamEccen_A_y",      "Distortion center shift Y for r^4","relative","S","I"}, // 34 30 (28)
-        		{"subcamElong_A_o",      "Orthogonal elongation for r^4","relative","S","I"},     // 35 43 (41)
-        		{"subcamElong_A_d",      "Diagonal   elongation for r^4","relative","S","I"},     // 36 44 (42)
+        		{"subcamEccen_B_x",      "Distortion center shift X for r^3","relative","S","I"}, // 33 // 29 27 (25)
+        		{"subcamEccen_B_y",      "Distortion center shift Y for r^3","relative","S","I"}, // 34 // 30 28 (26)
+        		{"subcamElong_B_o",      "Orthogonal elongation for r^3","relative","S","I"},     // 35 // 31 41 (39)
+        		{"subcamElong_B_d",      "Diagonal   elongation for r^3","relative","S","I"},     // 36 // 32 42 (40)
 
-        		{"subcamEccen_A5_x",     "Distortion center shift X for r^5","relative","S","I"}, // 37 31 (29)
-        		{"subcamEccen_A5_y",     "Distortion center shift Y for r^5","relative","S","I"}, // 38 32 (30)
-        		{"subcamElong_A5_o",     "Orthogonal elongation for r^5","relative","S","I"},     // 39 45 (43)
-        		{"subcamElong_A5_d",     "Diagonal   elongation for r^5","relative","S","I"},     // 40 46 (44)
+        		{"subcamEccen_A_x",      "Distortion center shift X for r^4","relative","S","I"}, // 37 // 33 29 (27)
+        		{"subcamEccen_A_y",      "Distortion center shift Y for r^4","relative","S","I"}, // 38 // 34 30 (28)
+        		{"subcamElong_A_o",      "Orthogonal elongation for r^4","relative","S","I"},     // 39 // 35 43 (41)
+        		{"subcamElong_A_d",      "Diagonal   elongation for r^4","relative","S","I"},     // 40 // 36 44 (42)
 
-        		{"subcamEccen_A6_x",     "Distortion center shift X for r^6","relative","S","I"}, // 41 33 (31)
-        		{"subcamEccen_A6_y",     "Distortion center shift Y for r^6","relative","S","I"}, // 42 34 (32)
-        		{"subcamElong_A6_o",     "Orthogonal elongation for r^6","relative","S","I"},     // 43 47 (45)
-        		{"subcamElong_A6_d",     "Diagonal   elongation for r^6","relative","S","I"},     // 44 48 (46)
+        		{"subcamEccen_A5_x",     "Distortion center shift X for r^5","relative","S","I"}, // 41 // 37 31 (29)
+        		{"subcamEccen_A5_y",     "Distortion center shift Y for r^5","relative","S","I"}, // 42 // 38 32 (30)
+        		{"subcamElong_A5_o",     "Orthogonal elongation for r^5","relative","S","I"},     // 43 // 39 45 (43)
+        		{"subcamElong_A5_d",     "Diagonal   elongation for r^5","relative","S","I"},     // 44 // 40 46 (44)
 
-        		{"subcamEccen_A7_x",     "Distortion center shift X for r^7","relative","S","I"}, // 45 35 (33)
-        		{"subcamEccen_A7_y",     "Distortion center shift Y for r^7","relative","S","I"}, // 46 36 (34)
-        		{"subcamElong_A7_o",     "Orthogonal elongation for r^7","relative","S","I"},     // 47 49 (47)
-        		{"subcamElong_A7_d",     "Diagonal   elongation for r^7","relative","S","I"},     // 48 50 (48)
+        		{"subcamEccen_A6_x",     "Distortion center shift X for r^6","relative","S","I"}, // 45 // 41 33 (31)
+        		{"subcamEccen_A6_y",     "Distortion center shift Y for r^6","relative","S","I"}, // 46 // 42 34 (32)
+        		{"subcamElong_A6_o",     "Orthogonal elongation for r^6","relative","S","I"},     // 47 // 43 47 (45)
+        		{"subcamElong_A6_d",     "Diagonal   elongation for r^6","relative","S","I"},     // 48 // 44 48 (46)
 
-        		{"subcamEccen_A8_x",     "Distortion center shift X for r^8","relative","S","I"}, // 49 37 (35)
-        		{"subcamEccen_A8_y",     "Distortion center shift Y for r^8","relative","S","I"}, // 50 38 (36)
-        		{"subcamElong_A8_o",     "Orthogonal elongation for r^8","relative","S","I"},     // 51 51 (49)
-        		{"subcamElong_A8_d",     "Diagonal   elongation for r^8","relative","S","I"}      // 52 52 (50)
+        		{"subcamEccen_A7_x",     "Distortion center shift X for r^7","relative","S","I"}, // 49 // 45 35 (33)
+        		{"subcamEccen_A7_y",     "Distortion center shift Y for r^7","relative","S","I"}, // 50 // 46 36 (34)
+        		{"subcamElong_A7_o",     "Orthogonal elongation for r^7","relative","S","I"},     // 51 // 47 49 (47)
+        		{"subcamElong_A7_d",     "Diagonal   elongation for r^7","relative","S","I"},     // 52 // 48 50 (48)
+
+        		{"subcamEccen_A8_x",     "Distortion center shift X for r^8","relative","S","I"}, // 53 // 49 37 (35)
+        		{"subcamEccen_A8_y",     "Distortion center shift Y for r^8","relative","S","I"}, // 54 // 50 38 (36)
+        		{"subcamElong_A8_o",     "Orthogonal elongation for r^8","relative","S","I"},     // 55 // 51 51 (49)
+        		{"subcamElong_A8_d",     "Diagonal   elongation for r^8","relative","S","I"}      // 56 // 52 52 (50)
         };
 
         public String [] channelSuffixes={ // natural order (same as array indices, may be modified to camera/subcamera
@@ -928,10 +963,8 @@ import ij.text.TextWindow;
         		int       station;
         		String [] paths;
         		String [] spaths; // can be null
-//        		String    dir;
         		double    ts;
         		int getStation() {return station;}
-//        		String getDir() {return dir;}
         		double getTs() {return ts;}
         		String [] getPaths() {return paths;}
         		String [] getSourcePaths() {return spaths;} // may not be null
@@ -943,7 +976,6 @@ import ij.text.TextWindow;
         			  MultipleExtensionsFileFilter sourceFilter)
         		{
         			this.station = station;
-//        			this.dir = dir;
         			int dot_index = dir.lastIndexOf("_");
         			String digits = "0123456789";
         			// allow "_<comment> after timestanp
@@ -1001,9 +1033,6 @@ import ij.text.TextWindow;
         	int numSubCameras=(eyesisCameraParameters==null)?1:eyesisCameraParameters.eyesisSubCameras[0].length;
         	this.numSubCameras=numSubCameras;
         	this.eyesisCameraParameters.numStations=stationFilenames.length;
-//        	int numFiles=0;
-
-//        	DirTs [][] dirTs = new DirTs [stationFilenames.length][];
     		ArrayList<DirTs> dirTsList = new ArrayList<DirTs>();
         	for (int numStation=0;numStation<stationFilenames.length;numStation++){
         		for (int is = 0; is < stationFilenames[numStation].length; is++) {
@@ -1772,6 +1801,12 @@ import ij.text.TextWindow;
         	}
         }
         public void listCameraParameters(){
+        	boolean is_lwir16 = (getNumEo()==4) && (getNumLwir()==16);
+        	double         eoRollDegPerTurn =  -0.45/33.5*180/Math.PI; //  -0.769644799429464 deg/turn, CW screw increases roll, degrees per 1 screw turn
+        	if (is_lwir16) eoRollDegPerTurn =  -0.35/34.3*180/Math.PI; //  -0.769644799429464 deg/turn, CW screw increases roll, degrees per 1 screw turn
+        	double eoHeadDegPerTurn = 0.45/34.5*180/Math.PI; //  0.7473362545184652  deg/turn, both screws CW decreases heading (degree/turn)
+        	double eoElevDegPerTurn = 0.45/14*180/Math.PI; //  1.8416500557776463 deg/turn, top CW, bottom CCW decreases elevation (degree/turn)
+
             int numSubCameras=getNumSubCameras();
             if (this.gIP!=null) {
             	int maxChn=0;
@@ -1855,8 +1890,52 @@ import ij.text.TextWindow;
             		for (int i=1;i<numSubCameras;i++) sb.append("\t---");
             		sb.append("\n");
             	}
+            	if (stationNumber == 0) { // calculating adjustment screws
+            		if (is_lwir16) {
+            			int num_lwir = getNumLwir(); // 16
+            			int num_eo =   getNumEo();   // 4
+            			int eo0 =      num_lwir;     // 16
+                    	double [] eoRollCorrTurns =       new double[num_eo];
+                    	double [] eoTopCorrTurns =        new double[num_eo];
+                    	double [] eoBotCorrTurns =        new double[num_eo];
+                    	for (int i = 0; i < num_eo; i++) {
+                    		eoRollCorrTurns[i] =
+                    				cameraPars[i + eo0][getParameterIndexByName("subcamRoll")] / eoRollDegPerTurn;
+                    		eoTopCorrTurns[i] = 
+                    				cameraPars[i + eo0][getParameterIndexByName("subcamHeading")] / eoHeadDegPerTurn +
+                    				cameraPars[i + eo0][getParameterIndexByName("subcamElevation")] / eoElevDegPerTurn;
+                    		eoBotCorrTurns[i] = 
+                    				cameraPars[i + eo0][getParameterIndexByName("subcamHeading")] / eoHeadDegPerTurn -
+                    				cameraPars[i + eo0][getParameterIndexByName("subcamElevation")] / eoElevDegPerTurn;
+                    	}
+            			
+                    	sb.append("---");  for (int i=-1;i<numSubCameras;i++) sb.append("\t");  sb.append("\n");
+                    	sb.append("Screw roll"+"\t"+"turns CW");
+                    	for (int i = 0; i < eo0; i++)  sb.append("\t");
+                    	for (int i=0;i<num_eo;i++) sb.append("\t"+IJ.d2s(eoRollCorrTurns[i],2));
+                    	sb.append("\n");
+
+                    	sb.append("Screw top"+"\t"+"turns CW");
+                    	for (int i = 0; i < eo0; i++)  sb.append("\t");
+                    	for (int i=0;i<num_eo;i++) sb.append("\t"+IJ.d2s(eoTopCorrTurns[i],2));
+                    	sb.append("\n");
+
+                    	sb.append("Screw bottom"+"\t"+"turns CW");
+                    	for (int i = 0; i < eo0; i++)  sb.append("\t");
+                    	for (int i=0;i<num_eo;i++) sb.append("\t"+IJ.d2s(eoBotCorrTurns[i],2));
+                    	sb.append("\n");
+
+                    	sb.append("---");  for (int i=-1;i<numSubCameras;i++) sb.append("\t");  sb.append("\n");
+            			
+            		}
+            		
+            	}
+            	
             }
-     	    new TextWindow("Camera parameters", header, sb.toString(), 85*(numSubCameras+3),600);
+     	    new TextWindow("Camera_parameters", header, sb.toString(), 85*(numSubCameras+3),600);
+     	    
+     	    
+     	    
          }
 
         public void listCameraParametersXcam(){ // getNumSubCameras() should be 4!
@@ -2053,7 +2132,7 @@ import ij.text.TextWindow;
             	}
 */
             }
-     	    new TextWindow("Camera parameters", header, sb.toString(), 85*(numSubCameras+3),600);
+     	    new TextWindow("Camera_parameters", header, sb.toString(), 85*(numSubCameras+3),600);
          }
 
 
@@ -2275,10 +2354,21 @@ import ij.text.TextWindow;
             			}
             		}
             		break;
+            	case 4:
+            		for (int n=0;n<this.gIS[i].imageSet.length;n++){
+            			sb.append("\t");
+            			if (this.gIS[i].imageSet[n]!=null) {
+            				sb.append(this.gIS[i].imageSet[n].imgNumber);
+            			} else {
+            				sb.append("---");
+            			}
+            		}
+            		break;
             	}
             	sb.append("\n");
     		}
-			new TextWindow("Image calibration state (pointers/hinted state)", header, sb.toString(), 1400, 900);
+//			new TextWindow("Image calibration state (pointers/hinted state)", header, sb.toString(), 1400, 900);
+			new TextWindow("imgSets-M"+mode, header, sb.toString(), 1400, 900);
         }
 
 
@@ -2466,7 +2556,11 @@ import ij.text.TextWindow;
         		}
 
         		/* Disable no-pointer, new, number of points less than required */
-        		if (this.gIP[i].enabled && !wasEnabled && (this.gIP[i].matchedPointers==0) && (this.gIP[i].pixelsXY.length<minGridNodes)){
+        		if (this.gIP[i].enabled &&
+        				!wasEnabled &&
+        				(this.gIP[i].matchedPointers==0) &&
+        				this.gIP[i].gridImageSet.orientationEstimated &&
+        				(this.gIP[i].pixelsXY.length < minGridNodes)){
         			this.gIP[i].enabled=false;
         			notEnoughNodes++;
         		}
@@ -2544,42 +2638,7 @@ import ij.text.TextWindow;
         	return this.gIS.length;
         }
 
-        /**
-         * Create array of image sets ("panoramas"), sorted by timestamps
-         * @param all // use all images (false - only enabled)
-         * @return number of sets
-         */
-
-        public int buildImageSetsOld(boolean all){
-        	List <Double> timeStampList=new ArrayList<Double>(this.gIP.length);
-        	int numChannels=0;
-        	for (int i=0;i<this.gIP.length;i++) if (all || this.gIP[i].enabled){
-        		if (this.gIP[i].channel>numChannels) numChannels=this.gIP[i].channel;
-        		int j=0;
-        		Double ts=this.gIP[i].timestamp;
-        		if (!timeStampList.contains(ts)){
-        			for (;(j<timeStampList.size()) && (ts>timeStampList.get(j));j++);
-        			timeStampList.add(j,ts);
-        		}
-        	}
-        	numChannels++;
-        	this.gIS=new GridImageSet[timeStampList.size()];
-        	for (int i=0;i<this.gIS.length;i++){
-        		this.gIS[i]=new GridImageSet();
-        		this.gIS[i].timeStamp=timeStampList.get(i);
-        		this.gIS[i].imageSet=new GridImageParameters [numChannels];
-        		for (int j=0;j<numChannels;j++) this.gIS[i].imageSet[j]=null;
-
-        	}
-        	for (int i=0;i<this.gIP.length;i++) if (all || this.gIP[i].enabled){
-        		Double ts=this.gIP[i].timestamp;
-        		int iIS=timeStampList.indexOf(ts);
-        		this.gIS[iIS].imageSet[this.gIP[i].channel]=this.gIP[i];
-        		if (this.gIP[i].motors!=null) this.gIS[iIS].motors=this.gIP[i].motors;
-        	}
-        	return this.gIS.length;
-        }
-
+        // TODO: Does it need to be updated for neck*?
         /**
          * Set goniometer initial orientation from the image with maximal number of laser pointers (make averaging later?)
          * Needed before LMA to have some reasonable initial orientation
@@ -2687,35 +2746,8 @@ import ij.text.TextWindow;
             						System.out.println(""+this.gIS[i].goniometerTilt+" ===== orientationEstimated==true =====");
             					}
             				}
-
-
-
             			}
         			}
-/*
- * Remove old method completely
-        			if (overwriteAll || Double.isNaN(this.gIS[i].goniometerAxial)){
-        				double subcam_heading = (esp.heading + (esp.cartesian? 0: esp.azimuth));
-        				this.gIS[i].goniometerAxial=-subcam_heading;
-        				for (int j=0;j<this.gIS[i].imageSet.length;j++) if (this.gIS[i].imageSet[j]!=null) setGA(this.gIS[i].imageSet[j].imgNumber,this.gIS[i].goniometerAxial);
-            			this.gIS[i].orientationEstimated=true;
-            			if (this.debugLevel>1) {
-            				System.out.print(String.format("Setting goniometerAxial for the image set #%4d (%18.6f) to ", i, this.gIS[i].timeStamp));
-            				System.out.println(""+this.gIS[i].goniometerAxial+" +++++ orientationEstimated==true +++++");
-            			}
-        			}
-        			if (overwriteAll || Double.isNaN(this.gIS[i].goniometerTilt )){
-        				this.gIS[i].goniometerTilt= -esp.theta;
-        				for (int j=0;j<this.gIS[i].imageSet.length;j++) if (this.gIS[i].imageSet[j]!=null) setGH(this.gIS[i].imageSet[j].imgNumber,this.gIS[i].goniometerTilt);
-            			this.gIS[i].orientationEstimated=true;
-            			if (this.debugLevel>1) {
-            				System.out.print(String.format("Setting goniometerTilt  for the image set #%4d (%18.6f) to ", i, this.gIS[i].timeStamp));
-            				System.out.println(""+this.gIS[i].goniometerTilt+" ===== orientationEstimated==true =====");
-            			}
-        			}
-*/
-
-
         		}
         	}
         }
@@ -2809,38 +2841,6 @@ import ij.text.TextWindow;
         	}
         }
 
-        public void updateSetOrientationOld(boolean [] selectedImages){
-        	if (this.gIS==null){
-        		String msg="Image set is not initilaized";
-        		System.out.println(msg);
-        		IJ.showMessage(msg);
-        	}
-        	for (int i=0; i<this.gIS.length;i++){
-        		if (selectedImages==null){ // if all selected - remove orientation if there are no enabled images (i.e. after removeOutliers)
-    				this.gIS[i].goniometerAxial=Double.NaN;
-    				this.gIS[i].goniometerTilt= Double.NaN;
-    				this.gIS[i].orientationEstimated=true;
-
-        		}
-        		for (int j=0;j<this.gIS[i].imageSet.length;j++) if ((this.gIS[i].imageSet[j]!=null) && this.gIS[i].imageSet[j].enabled){
-        			if ((selectedImages==null) || selectedImages[this.gIS[i].imageSet[j].imgNumber]) {
-        				this.gIS[i].goniometerAxial=getGA(this.gIS[i].imageSet[j].imgNumber);  //update - most likely will do nothing (if set has non-NaN)
-        				this.gIS[i].goniometerTilt= getGH(this.gIS[i].imageSet[j].imgNumber);
-        				this.gIS[i].goniometerAxial-=360.0*Math.floor((this.gIS[i].goniometerAxial+180.0)/360.0);
-        				this.gIS[i].orientationEstimated=false;
-        				break; // set from the first non-null, enabled image
-        			}
-        		}
-        		// now fill that data to all disabled images of the same set (just for listing RMS errors and debugging)
-        		if (!Double.isNaN(this.gIS[i].goniometerAxial) && !Double.isNaN(this.gIS[i].goniometerTilt)){
-        			for (int j=0;j<this.gIS[i].imageSet.length;j++) if (this.gIS[i].imageSet[j]!=null) { // fill even those that are enabled
-        				setGA(this.gIS[i].imageSet[j].imgNumber,this.gIS[i].goniometerAxial );
-        				setGH(this.gIS[i].imageSet[j].imgNumber,this.gIS[i].goniometerTilt );
-        			}
-        		}
-        	}
-        }
-
         public boolean isEstimated(int imgNum){
         	if (this.gIS==null) {
             	String msg="Image sets are not initialized";
@@ -2859,21 +2859,7 @@ import ij.text.TextWindow;
     		IJ.showMessage("Error",msg);
     		throw new IllegalArgumentException (msg);
         }
-        public boolean isEstimatedOld(int imgNum){
-        	if (this.gIS==null) {
-            	String msg="Image sets are not initialized";
-        		IJ.showMessage("Error",msg);
-        		throw new IllegalArgumentException (msg);
-        	}
-        	for (int i=0;i<this.gIS.length;i++)	if (this.gIS[i].imageSet!=null){
-        		for (int j=0;j<this.gIS[i].imageSet.length;j++) if ((this.gIS[i].imageSet[j]!=null) && (this.gIS[i].imageSet[j].imgNumber==imgNum)){
-        			return this.gIS[i].orientationEstimated;
-        		}
-        	}
-        	String msg="Image with index "+imgNum+" is not in the image set";
-    		IJ.showMessage("Error",msg);
-    		throw new IllegalArgumentException (msg);
-        }
+        
         public int getNumberOfEstimated(boolean enabledOnly) {
         	int numEstimated=0;
         	if (this.gIS==null) return 0;
@@ -2971,6 +2957,7 @@ import ij.text.TextWindow;
         	}
         	return estimated;
         }
+        
         public void enableSelected(boolean [] selected){
         	for (int i=0;i<this.gIP.length  ;i++) if (this.gIP[i]!=null){
         		int i1=i;
@@ -4353,27 +4340,6 @@ import ij.text.TextWindow;
 
 // TODO: Move all custom image properties (including encode/decode from JP4_reader_camera) to a separate class.
 // below is a duplicate from MatchSimulatedPattern
-        @Deprecated
-        public double[][] getPointersXY(ImagePlus imp, int numPointers){
-			   // read image info to properties (if it was not done yet - should it?
-			   if ((imp.getProperty("timestamp")==null) || (((String) imp.getProperty("timestamp")).length()==0)) {
-				   JP46_Reader_camera jp4_instance= new JP46_Reader_camera(false);
-				   jp4_instance.decodeProperiesFromInfo(imp);
-			   }
-			   double [][] pointersXY=new double[numPointers][];
-			   int numPointerDetected=0;
-			   for (int i=0;i<pointersXY.length;i++) {
-				   pointersXY[i]=null;
-				   if ((imp.getProperty("POINTER_X_"+i)!=null) && (imp.getProperty("POINTER_Y_"+i)!=null)) {
-					   pointersXY[i]=new double[2];
-					   pointersXY[i][0]=Double.parseDouble((String) imp.getProperty("POINTER_X_"+i));
-					   pointersXY[i][1]=Double.parseDouble((String) imp.getProperty("POINTER_Y_"+i));
-					   numPointerDetected++;
-				   }
-			   }
-			   if (numPointerDetected>0) return pointersXY;
-			   else return null;
-		   }
 
         public int [] getMotorPositions(ImagePlus imp, int numMotors){
         	// read image info to properties (if it was not done yet - should it?
@@ -4417,14 +4383,27 @@ import ij.text.TextWindow;
     	}
 
     	public boolean hasSmallSensors() {
-    		return small_period_frac > 0.0;
+    		boolean [] ss = getSmallSensors();
+    		if (small_period_frac > 0.0) return true; // old mode
+    		for (boolean b:ss) {
+    			if (b) return true;
+    		}
+    		return false;
+    		
     	}
     	public boolean [] getSmallSensors() {
+    		if (small_sensors == null) {
+    			small_sensors = new boolean[eyesisCameraParameters.eyesisSubCameras[0].length];
+    			for (int i = 0; i < small_sensors.length; i++) {
+    				small_sensors[i]= eyesisCameraParameters.eyesisSubCameras[0][i].isLWIR();
+    			}
+    		}
     		return small_sensors;
     	}
     	public boolean isSmallSensor(int numImg) {
-    		if ((this.gIP != null) && (numImg >= 0) &&   (numImg < this.gIP.length) && (small_sensors != null)){
-    			return small_sensors[this.gIP[numImg].getChannel()];
+    		boolean [] ss = getSmallSensors();
+    		if ((this.gIP != null) && (numImg >= 0) &&   (numImg < this.gIP.length)){
+    			return ss[this.gIP[numImg].getChannel()];
     		}
     		return false;
     	}
@@ -4433,8 +4412,6 @@ import ij.text.TextWindow;
     	public double getSmallPeriodFrac() {
     		return small_period_frac;
     	}
-//        public boolean [] small_sensors =    null; // set by filter grids
-//        public double     small_period_frac =   0; // set by filter grids - ratio of small sensor period to large sensor period
 
     	// depending on camera type, return group, groups, group name
     	// camera type: eyesis26, lwir/eo (2 resolutions) , single, other
@@ -4670,7 +4647,7 @@ import ij.text.TextWindow;
         	return this.pars[numImg][index_ga];
         }
 
-        public void setParameters(double [] parameters, int numImg, boolean[] mask){
+        public void setParameters(double [] parameters, int numImg, boolean[] mask){ // not used?
         	if ((numImg<0) || (numImg>=this.pars.length)) {
         		String msg="There are only "+this.pars.length+" images defined, requested #"+numImg;
         		IJ.showMessage("Error",msg);
