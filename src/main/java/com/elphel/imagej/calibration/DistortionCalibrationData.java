@@ -1121,6 +1121,10 @@ import ij.text.TextWindow;
                 			this.gIP[numFile].gridImage = imp_grid; // Save all images?
                     		this.gIP[numFile].laserPixelCoordinates = MatchSimulatedPattern.getPointersXYUV(imp_grid, laserPointers);
                     		this.gIP[numFile].motors =                getMotorPositions(imp_grid, this.numMotors);
+                    		if (this.gIP[numFile].motors == null) {
+                    			System.out.println("BUG");
+                    			continue;
+                    		}
                     		this.gIS[nis].motors=                     this.gIP[numFile].motors.clone();
                     		this.gIP[numFile].matchedPointers =       getUsedPonters(imp_grid);
                     		if (this.gIP[numFile].matchedPointers > 0) {
@@ -1802,11 +1806,25 @@ import ij.text.TextWindow;
         }
         public void listCameraParameters(){
         	boolean is_lwir16 = (getNumEo()==4) && (getNumLwir()==16);
-        	double         eoRollDegPerTurn =  -0.45/33.5*180/Math.PI; //  -0.769644799429464 deg/turn, CW screw increases roll, degrees per 1 screw turn
-        	if (is_lwir16) eoRollDegPerTurn =  -0.35/34.3*180/Math.PI; //  -0.769644799429464 deg/turn, CW screw increases roll, degrees per 1 screw turn
-        	double eoHeadDegPerTurn = 0.45/34.5*180/Math.PI; //  0.7473362545184652  deg/turn, both screws CW decreases heading (degree/turn)
-        	double eoElevDegPerTurn = 0.45/14*180/Math.PI; //  1.8416500557776463 deg/turn, top CW, bottom CCW decreases elevation (degree/turn)
+        	double M25PITCH = 0.45; // mm
+        	double M16PITCH = 0.35; // mm
+        	double         eoRollDegPerTurn =  -M25PITCH/33.5*180/Math.PI; //  -0.769644799429464 deg/turn, CW screw increases roll, degrees per 1 screw turn
+        	if (is_lwir16) eoRollDegPerTurn =  +M16PITCH/34.3*180/Math.PI; //  -0.769644799429464 deg/turn, CW screw decreases roll, degrees per 1 screw turn
+        	double eoHeadDegPerTurn = M25PITCH/34.5*180/Math.PI; //  0.7473362545184652  deg/turn, both screws CW decreases heading (degree/turn)
+        	double eoElevDegPerTurn = M25PITCH/14*180/Math.PI; //  1.8416500557776463 deg/turn, top CW, bottom CCW decreases elevation (degree/turn)
 
+        	//View from the target to the front of camera
+        	// S1: LWIR top segment,    left screw
+        	// S2: LWIR right segment,  top screw
+        	// S3: LWIR bottom segment, right screw
+        	// S4: LWIR left segment, bottom screw (other 4 screws moved accordingly)
+        	double lwir_rrot =     11.591; // mm, screws from the optical axis
+        	double lwir_rdirect =  31.0;   // mm, screws z distance from the rotation center
+        	// 45 degree cross orientation - movements of the screws when cross moves up/down, right-left are reduced be sqrt(2)
+        	double lwirTurnsPerRollDegree =   lwir_rrot/M16PITCH*Math.PI/180.0;
+        	double lwirTurnsPerDirectDegree = lwir_rdirect/M16PITCH*Math.PI/180.0/Math.sqrt(2.0); // reduced for 45 degree cross
+        	
+        	
             int numSubCameras=getNumSubCameras();
             if (this.gIP!=null) {
             	int maxChn=0;
@@ -1894,6 +1912,7 @@ import ij.text.TextWindow;
             		if (is_lwir16) {
             			int num_lwir = getNumLwir(); // 16
             			int num_eo =   getNumEo();   // 4
+            			int lwir0 =    0;
             			int eo0 =      num_lwir;     // 16
                     	double [] eoRollCorrTurns =       new double[num_eo];
                     	double [] eoTopCorrTurns =        new double[num_eo];
@@ -1908,8 +1927,30 @@ import ij.text.TextWindow;
                     				cameraPars[i + eo0][getParameterIndexByName("subcamHeading")] / eoHeadDegPerTurn -
                     				cameraPars[i + eo0][getParameterIndexByName("subcamElevation")] / eoElevDegPerTurn;
                     	}
+            			double [][] lwir_screw = new double [num_lwir][4];
+            			// for some reason, LWIR roll was overcorrected, scaling it down:
+            			double scale_roll_correction = 0.6;
             			
-                    	sb.append("---");  for (int i=-1;i<numSubCameras;i++) sb.append("\t");  sb.append("\n");
+                    	for (int i = 0; i < num_lwir; i++) {
+                    		lwir_screw[i][0]  = -lwirTurnsPerRollDegree * cameraPars[lwir0 + i][getParameterIndexByName("subcamRoll")]*scale_roll_correction;
+                    		lwir_screw[i][1]  = -lwirTurnsPerRollDegree * cameraPars[lwir0 + i][getParameterIndexByName("subcamRoll")]*scale_roll_correction;
+                    		lwir_screw[i][2]  = -lwirTurnsPerRollDegree * cameraPars[lwir0 + i][getParameterIndexByName("subcamRoll")]*scale_roll_correction;
+                    		lwir_screw[i][3]  = -lwirTurnsPerRollDegree * cameraPars[lwir0 + i][getParameterIndexByName("subcamRoll")]*scale_roll_correction;
+
+                    		lwir_screw[i][0] += +lwirTurnsPerDirectDegree * cameraPars[lwir0 + i][getParameterIndexByName("subcamHeading")];
+                    		lwir_screw[i][1] += +lwirTurnsPerDirectDegree * cameraPars[lwir0 + i][getParameterIndexByName("subcamHeading")];
+                    		lwir_screw[i][2] += -lwirTurnsPerDirectDegree * cameraPars[lwir0 + i][getParameterIndexByName("subcamHeading")];
+                    		lwir_screw[i][3] += -lwirTurnsPerDirectDegree * cameraPars[lwir0 + i][getParameterIndexByName("subcamHeading")];
+                    		
+                    		lwir_screw[i][0] += -lwirTurnsPerDirectDegree * cameraPars[lwir0 + i][getParameterIndexByName("subcamElevation")];
+                    		lwir_screw[i][1] +=  lwirTurnsPerDirectDegree * cameraPars[lwir0 + i][getParameterIndexByName("subcamElevation")];
+                    		lwir_screw[i][2] +=  lwirTurnsPerDirectDegree * cameraPars[lwir0 + i][getParameterIndexByName("subcamElevation")];
+                    		lwir_screw[i][3] += -lwirTurnsPerDirectDegree * cameraPars[lwir0 + i][getParameterIndexByName("subcamElevation")];
+                    	}
+            			
+            			
+                    	
+                    	sb.append("--- EO screws");  for (int i=-1;i<numSubCameras;i++) sb.append("\t");  sb.append("\n");
                     	sb.append("Screw roll"+"\t"+"turns CW");
                     	for (int i = 0; i < eo0; i++)  sb.append("\t");
                     	for (int i=0;i<num_eo;i++) sb.append("\t"+IJ.d2s(eoRollCorrTurns[i],2));
@@ -1925,8 +1966,32 @@ import ij.text.TextWindow;
                     	for (int i=0;i<num_eo;i++) sb.append("\t"+IJ.d2s(eoBotCorrTurns[i],2));
                     	sb.append("\n");
 
-                    	sb.append("---");  for (int i=-1;i<numSubCameras;i++) sb.append("\t");  sb.append("\n");
+                    	sb.append("--- LWIR screws\t(view from target)"); for (int i=0;i<numSubCameras;i++) sb.append("\t");  sb.append("\n");
+/*
+        	double lwirTurnsPerRollDegree =   lwir_rrot/M16PITCH*Math.PI/180.0;
+        	double lwirTurnsPerDirectDegree = lwir_rdirect/M16PITCH*Math.PI/180.0/Math.sqrt(2.0); // reduced for 45 degree cross
             			
+ */
+                    	sb.append("S1: top segment, left screw"+"\t"+"turns CW");
+                    	for (int i=0;i<num_lwir;i++) sb.append("\t"+IJ.d2s(lwir_screw[i][0],2));
+                    	for (int i = 0; i < num_eo; i++)  sb.append("\t");
+                    	sb.append("\n");
+
+                    	sb.append("S2: Right segment, top screw"+"\t"+"turns CW");
+                    	for (int i=0;i<num_lwir;i++) sb.append("\t"+IJ.d2s(lwir_screw[i][1],2));
+                    	for (int i = 0; i < num_eo; i++)  sb.append("\t");
+                    	sb.append("\n");
+
+                    	sb.append("S3: bottom segment, right screw"+"\t"+"turns CW");
+                    	for (int i=0;i<num_lwir;i++) sb.append("\t"+IJ.d2s(lwir_screw[i][2],2));
+                    	for (int i = 0; i < num_eo; i++)  sb.append("\t");
+                    	sb.append("\n");
+
+                    	sb.append("S4: left segment, bottom screw"+"\t"+"turns CW");
+                    	for (int i=0;i<num_lwir;i++) sb.append("\t"+IJ.d2s(lwir_screw[i][3],2));
+                    	for (int i = 0; i < num_eo; i++)  sb.append("\t");
+                    	sb.append("\n");
+                    	sb.append("---");  for (int i=-1;i<numSubCameras;i++) sb.append("\t");  sb.append("\n");
             		}
             		
             	}
@@ -2228,7 +2293,7 @@ import ij.text.TextWindow;
     			}
     			// calculate average tilt for this tilt motor and difference of the current tilt from average
     			double dTilt=Double.NaN;
-    			if (!Double.isNaN(this.gIS[i].goniometerTilt) && (this.gIS[i].motors != null)){
+    			if (!Double.isNaN(this.gIS[i].goniometerTilt) && (this.gIS[i].motors != null) ){
     				int i_low,i_high;
     				for (i_low=i-1;i_low>=0;i_low--){
     					if ((this.gIS[i_low].motors != null) && (this.gIS[i_low].motors[2] != this.gIS[i].motors[2])) break;
@@ -2240,7 +2305,7 @@ import ij.text.TextWindow;
     				int num_avg=0;
     				double sum_avg=0.0;
     				for (int i_avg=i_low;i_avg < i_high; i_avg++){
-    					if (!Double.isNaN(this.gIS[i_avg].goniometerTilt)){
+    					if (!Double.isNaN(this.gIS[i_avg].goniometerTilt) && !this.gIS[i_avg].orientationEstimated){
     						num_avg++;
     						sum_avg += this.gIS[i_avg].goniometerTilt;
     					}
@@ -2256,8 +2321,8 @@ import ij.text.TextWindow;
     			sb.append("\t"+(Double.isNaN(this.gIS[i].goniometerAxial)?"---":((this.gIS[i].orientationEstimated?"(":"")+IJ.d2s(axial_corr_sign,3)+(this.gIS[i].orientationEstimated?")":""))));
     			sb.append("\t"+(Double.isNaN(this.gIS[i].goniometerTilt)?"---":((this.gIS[i].orientationEstimated?"(":"")+IJ.d2s(this.gIS[i].goniometerTilt,3)+(this.gIS[i].orientationEstimated?")":""))));
 
-    			sb.append("\t"+(Double.isNaN(dTilt)?"---":IJ.d2s(dTilt,3)));
-    			sb.append("\t"+(Double.isNaN(firstInterAxisAngle)?"---":IJ.d2s(firstInterAxisAngle,3)));
+    			sb.append("\t"+(Double.isNaN(dTilt)?"---":((this.gIS[i].orientationEstimated?"(":"")+IJ.d2s(dTilt,3)+(this.gIS[i].orientationEstimated?")":"") )));
+    			sb.append("\t"+(Double.isNaN(firstInterAxisAngle)?"---":((this.gIS[i].orientationEstimated?"(":"")+IJ.d2s(firstInterAxisAngle,3)+ (this.gIS[i].orientationEstimated?")":"") )));
 
             	if (showXYZ) {
                 	sb.append(String.format("\t%.1f\t%.1f\t%.1f", this.gIS[i].GXYZ[0], this.gIS[i].GXYZ[1], this.gIS[i].GXYZ[2]));

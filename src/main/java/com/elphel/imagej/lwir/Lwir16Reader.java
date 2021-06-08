@@ -1162,7 +1162,13 @@ public class Lwir16Reader {
 			if (dt==null) {
 				System.out.println("i="+i+", dt is NULL!");
 			}
-			img_seconds[i] = Double.parseDouble(dt.substring(dt.lastIndexOf(":")+1));
+			try {
+				img_seconds[i] = Double.parseDouble(dt.substring(dt.lastIndexOf(":")+1));
+			} catch (Exception e) {
+				System.out.println("i="+i+", dt="+dt);
+				System.out.println("i="+i+", dt="+dt);
+			}
+			
 			try {
 				img_numbers[i] = Integer.parseInt((String) imps[i].getProperty("STD_Image_Number"));
 			} catch (Exception e) {
