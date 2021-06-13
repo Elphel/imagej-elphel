@@ -31,6 +31,7 @@ import java.awt.Color;
 import java.awt.Frame;
 import java.awt.GridLayout;
 import java.awt.Panel;
+import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -49,6 +50,8 @@ import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -6069,211 +6072,7 @@ if (MORE_BUTTONS) {
 				return;
 			}
 			LENS_DISTORTIONS.debugLevel=DEBUG_LEVEL;
-			GenericDialog gd=new GenericDialog ("Select image set to re-calibrate");
-    		gd.addNumericField("Image set number", 0, 0);
-    		gd.addCheckbox    ("Set image set parameters from closest, (re-)estimate orientation", true);
-    		gd.showDialog();
-    		if (gd.wasCanceled()) return;
-    		int imageSetNumber=(int) gd.getNextNumber();
-    		boolean reEstimate=gd.getNextBoolean();
-    		if (imageSetNumber<0) return;
-    		if (reEstimate){
-//    			boolean OK=
-    					LENS_DISTORTIONS.setSetFromClosestAndEstimateOrientation(
-    					imageSetNumber,
-    		    		null, //boolean [] selectedImages,
-    		    		null, //boolean [] parameterMask,
-    		    		LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData,
-    		    		LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.eyesisCameraParameters);
-    		}
-    		double tiltCenter=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerTilt;
-    		double axialCenter=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerAxial;
-    		double interCenter=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].interAxisAngle;
-    		int tiltNumSteps=1;
-    		int axialNumSteps=21;
-    		double tiltStep=0.25;
-    		double axialStep=0.25;
-    		boolean processAllImages=true;
-    		boolean ignoreLaserPointers=false;
-    		double hintGridTolerance=200.0;
-    		boolean useSetsData=  true;
-			gd=new GenericDialog ("Image set # "+imageSetNumber+" re-calibration without laser pointers");
-			gd.addMessage("Strategy 0 should have all parameters but 2 goniometer axes disabled");
-			gd.addMessage("Imgages belonging to the set will be selected, possible to check with \"Remove Outliers\" for strategy 0");
-    		gd.addNumericField("Mismatch tolerance of match between the predicted and acquired grid", hintGridTolerance, 1,4,"fraction of grid half-period");
-    		gd.addCheckbox("Ignore laser pointers", ignoreLaserPointers);
-    		gd.addNumericField("Image set tilt", tiltCenter, 2,6,"degrees");
-    		gd.addNumericField("Image set axial", axialCenter, 2,6,"degrees");
-    		gd.addNumericField("Image set inter-axis", interCenter, 2,6,"degrees");
-    		gd.addNumericField("Tilt number of steps", tiltNumSteps, 0,3,"");
-    		gd.addNumericField("Axial number of steps", axialNumSteps, 0,3,"");
-    		gd.addNumericField("Tilt scan step", tiltStep, 2,5,"degrees");
-    		gd.addNumericField("Axial scan step", axialStep, 2,5,"degrees");
-    		gd.addCheckbox    ("Use image sets data if available (false - use camera data)", useSetsData);
-    		gd.addCheckbox("process all images (false - enabled only)", processAllImages);
-    		gd.showDialog();
-    		if (gd.wasCanceled()) return;
-    		hintGridTolerance=        gd.getNextNumber();
-    		ignoreLaserPointers=      gd.getNextBoolean();
-    		tiltCenter=               gd.getNextNumber();
-    		axialCenter=              gd.getNextNumber();
-    		interCenter=              gd.getNextNumber();
-    		tiltNumSteps=       (int) gd.getNextNumber();
-    		axialNumSteps=      (int) gd.getNextNumber();
-    		tiltStep=                 gd.getNextNumber();
-    		axialStep=                gd.getNextNumber();
-    		useSetsData=              gd.getNextBoolean();
-    		processAllImages=         gd.getNextBoolean();
-    		double [] initialTilt =   new double [tiltNumSteps];
-    		double [] initialAxial=   new double [axialNumSteps];
-    		double [][] finalTilt =   new double [tiltNumSteps][axialNumSteps];
-    		double [][] finalAxial=   new double [tiltNumSteps][axialNumSteps];
-    		double [][] finalInter=   new double [tiltNumSteps][axialNumSteps];
-    		double [][] finalError=   new double [tiltNumSteps][axialNumSteps];
-    		for (int tiltIndex=0; tiltIndex<tiltNumSteps;tiltIndex++) initialTilt[tiltIndex]=tiltCenter+tiltStep*(tiltIndex-0.5*(tiltNumSteps-1));
-    		for (int axialIndex=0;axialIndex<axialNumSteps;axialIndex++) initialAxial[axialIndex]=axialCenter+axialStep*(axialIndex-0.5*(axialNumSteps-1));
-    		for (int tiltIndex=0; tiltIndex<tiltNumSteps;tiltIndex++) for (int axialIndex=0;axialIndex<axialNumSteps;axialIndex++) {
-    			LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerTilt=initialTilt[tiltIndex];
-    			LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerAxial=initialAxial[axialIndex];
-    			LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].interAxisAngle=interCenter; // no scanning, just use center value
-
-    			if (DEBUG_LEVEL>0) System.out.println("Image Set #"+imageSetNumber+
-    												  " Initial tilt="+initialTilt[tiltIndex]+
-    												  " Initial inter="+interCenter);
-    			int [][] imageSets=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.listImages(!processAllImages);
-    			int [] imageSet=imageSets[imageSetNumber];
-    			if (imageSet==null){
-    				IJ.showMessage("Image set #"+imageSetNumber+" is empty");
-    				return;
-    			}
-    			for (int i=0;i<imageSet.length;i++){
-    				int imageNumber=imageSet[i];
-    				LENS_DISTORTIONS.applyHintedGrids(
-    						LASER_POINTERS, // MatchSimulatedPattern.LaserPointer laserPointer, // LaserPointer object that specifies actual laser poiners on the target
-    						DISTORTION_PROCESS_CONFIGURATION.removeOutOfGridPointers, // boolean removeOutOfGridPointers,
-    						hintGridTolerance,                   //double  hintGridTolerance, // alllowed mismatch (fraction of period) or 0 - orientation only
-    						true, //processAll, //boolean processAll, // if true - process all images, false - only disabled
-    						ignoreLaserPointers, //true, //ignoreLaserPointers,
-    						true, //processBlind,
-    						imageNumber,
-    						useSetsData,
-    						THREADS_MAX,                 //int threadsMax,
-    						UPDATE_STATUS,               // boolean updateStatus,
-    						DISTORTION.loop_debug_level, // int mspDebugLevel,
-    						MASTER_DEBUG_LEVEL,          //int global_debug_level, // DEBUG_LEVEL
-    						MASTER_DEBUG_LEVEL           //int debug_level // debug level used inside loops
-    				);
-
-    			}
-    			// set series 0 to this set images
-    			boolean [] selection =LENS_DISTORTIONS.fittingStrategy.selectAllImages(0); // enable all images in series 0
-    			for (int i=0;i<selection.length;i++) selection[i]=false;
-    			for (int i=0;i<imageSet.length;i++) selection[imageSet[i]]=true;
-    			LENS_DISTORTIONS.fittingStrategy.setImageSelection(0,selection);
-				LENS_DISTORTIONS.seriesNumber=   0; // start from 0;
-				LENS_DISTORTIONS.initFittingSeries(false,LENS_DISTORTIONS.filterForAll,0); // will set this.currentVector
-				//this.stopAfterThis[numSeries]
-
-    			LENS_DISTORTIONS.fittingStrategy.stopAfterThis[0]=true;
-				LENS_DISTORTIONS.stopEachStep=   false;
-				LENS_DISTORTIONS.stopEachSeries= false; // will not ask for confirmation after done
-				LENS_DISTORTIONS.stopOnFailure=false;
-				LENS_DISTORTIONS.lambda=LENS_DISTORTIONS.fittingStrategy.lambdas[0]; // 0.001; // why it does not use fitting series lambda?
-				boolean LMA_OK=LENS_DISTORTIONS.LevenbergMarquardt(
-						false, // skip dialog
-						false); // new: dry_run use it here?
-				if (LMA_OK) {
-					finalTilt[tiltIndex][axialIndex]=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerTilt;
-					finalAxial[tiltIndex][axialIndex]=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerAxial;
-					finalInter[tiltIndex][axialIndex]=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].interAxisAngle;
-					finalError[tiltIndex][axialIndex]=LENS_DISTORTIONS.currentRMS;
-				} else {
-					finalTilt[tiltIndex][axialIndex]=initialTilt[tiltIndex];
-					finalAxial[tiltIndex][axialIndex]=initialAxial[axialIndex];
-					finalInter[tiltIndex][axialIndex]=interCenter;
-					finalError[tiltIndex][axialIndex]=Double.NaN;
-					if (DEBUG_LEVEL>0) System.out.println("----------------- LMA FAILED -------------------------");
-				}
-    		}
-    		int bestTiltIndex=0;
-    		int bestAxialIndex=0;
-    		double bestRMS=finalError[bestTiltIndex][bestAxialIndex];
-    		for (int tiltIndex=0; tiltIndex<tiltNumSteps;tiltIndex++) for (int axialIndex=0;axialIndex<axialNumSteps;axialIndex++) {
-    			if (Double.isNaN(bestRMS) || (bestRMS>finalError[tiltIndex][axialIndex])){
-    				bestTiltIndex=tiltIndex;
-    				bestAxialIndex=axialIndex;
-    				bestRMS=finalError[bestTiltIndex][bestAxialIndex];
-    			}
-    		}
-			if (DEBUG_LEVEL>0) System.out.println("================ Image Set #"+imageSetNumber+" rms="+IJ.d2s(bestRMS, 6)+
-					" final tilt="+finalTilt[bestTiltIndex][bestAxialIndex]+" ("+tiltCenter+": "+initialTilt[bestTiltIndex]+") " +
-					" final axial="+finalAxial[bestTiltIndex][bestAxialIndex]+" ("+axialCenter+": "+initialAxial[bestAxialIndex]+")"+
-					" final inter="+finalInter[bestTiltIndex][bestAxialIndex]+" ("+interCenter+": "+interCenter+")");
-
-// repeat with the best indices
-			LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerTilt=finalTilt[bestTiltIndex][bestAxialIndex]; //initialTilt[bestTiltIndex];
-			LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerAxial=finalAxial[bestTiltIndex][bestAxialIndex]; //initialAxial[bestAxialIndex];
-			LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].interAxisAngle=finalInter[bestTiltIndex][bestAxialIndex];
-			if (DEBUG_LEVEL>0) System.out.println(
-					"Image Set #"+imageSetNumber+
-					" Initial tilt="+finalTilt[bestTiltIndex][bestAxialIndex]+
-					" Initial axial="+finalAxial[bestTiltIndex][bestAxialIndex]+
-					" Initial inter="+finalInter[bestTiltIndex][bestAxialIndex]
-							);
-			int [][] imageSets=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.listImages(!processAllImages);
-			int [] imageSet=imageSets[imageSetNumber];
-			if (imageSet==null){
-				IJ.showMessage("Image set #"+imageSetNumber+" is empty");
-				return;
-			}
-			for (int i=0;i<imageSet.length;i++){
-				int imageNumber=imageSet[i];
-				LENS_DISTORTIONS.applyHintedGrids(
-						LASER_POINTERS, // MatchSimulatedPattern.LaserPointer laserPointer, // LaserPointer object that specifies actual laser poiners on the target
-						DISTORTION_PROCESS_CONFIGURATION.removeOutOfGridPointers, // boolean removeOutOfGridPointers,
-						hintGridTolerance,                   //double  hintGridTolerance, // alllowed mismatch (fraction of period) or 0 - orientation only
-						true, //processAll, //boolean processAll, // if true - process all images, false - only disabeld
-						ignoreLaserPointers, //ignoreLaserPointers,
-						true, //processBlind,
-						imageNumber,
-						useSetsData,
-						THREADS_MAX,                 //int threadsMax,
-						UPDATE_STATUS,               // boolean updateStatus,
-						DISTORTION.loop_debug_level, // int mspDebugLevel,
-						MASTER_DEBUG_LEVEL,          //int global_debug_level, // DEBUG_LEVEL
-						MASTER_DEBUG_LEVEL           //int debug_level // debug level used inside loops
-				);
-
-			}
-			// set series 0 to this set images
-			boolean [] selection =LENS_DISTORTIONS.fittingStrategy.selectAllImages(0); // enable all images in series 0
-			for (int i=0;i<selection.length;i++) selection[i]=false;
-			for (int i=0;i<imageSet.length;i++) selection[imageSet[i]]=true;
-			LENS_DISTORTIONS.fittingStrategy.setImageSelection(0,selection);
-			LENS_DISTORTIONS.seriesNumber=   0; // start from 0;
-			LENS_DISTORTIONS.initFittingSeries(false,LENS_DISTORTIONS.filterForAll,0); // will set this.currentVector
-			//this.stopAfterThis[numSeries]
-
-			LENS_DISTORTIONS.fittingStrategy.stopAfterThis[0]=true;
-			LENS_DISTORTIONS.stopEachStep=   false;
-			LENS_DISTORTIONS.stopEachSeries= false; // will not ask for confirmation after done
-			LENS_DISTORTIONS.lambda=LENS_DISTORTIONS.fittingStrategy.lambdas[0];
-			LENS_DISTORTIONS.LevenbergMarquardt(
-					false, // skip dialog
-					false); // new: dry_run use it here?
-
-// save safe settings to run LMA manually
-			LENS_DISTORTIONS.seriesNumber=   0; // start from 0;
-			LENS_DISTORTIONS.initFittingSeries(false,LENS_DISTORTIONS.filterForAll,0); // will set this.currentVector
-			LENS_DISTORTIONS.stopEachSeries= true; // will not ask for confirmation after done
-			LENS_DISTORTIONS.stopOnFailure=true;
-			LENS_DISTORTIONS.lambda=LENS_DISTORTIONS.fittingStrategy.lambdas[0];
-
-			if (DEBUG_LEVEL>0) System.out.println("================ Image Set #"+imageSetNumber+" rms="+IJ.d2s(bestRMS, 6)+
-					" final tilt="+finalTilt[bestTiltIndex][bestAxialIndex]+" ("+tiltCenter+": "+initialTilt[bestTiltIndex]+") " +
-					" final axial="+finalAxial[bestTiltIndex][bestAxialIndex]+" ("+axialCenter+": "+initialAxial[bestAxialIndex]+")" +
-					" final inter="+finalInter[bestTiltIndex][bestAxialIndex]+" ("+interCenter+")");
-
+			recalibrateSet();
 			return;
 		}
 
@@ -9730,6 +9529,318 @@ if (MORE_BUTTONS) {
 	}
 
 
+	public boolean recalibrateSet() {
+		GenericDialog gd=new GenericDialog ("Select image set to re-calibrate");
+		gd.addNumericField("Image set number", 0, 0);
+		gd.addCheckbox    ("Set image set parameters from closest, (re-)estimate orientation", true);
+		gd.showDialog();
+		if (gd.wasCanceled()) return false;
+		int imageSetNumber=(int) gd.getNextNumber();
+		boolean reEstimate=gd.getNextBoolean();
+		if (imageSetNumber<0) return false;
+		if (reEstimate){
+//			boolean OK=
+					LENS_DISTORTIONS.setSetFromClosestAndEstimateOrientation(
+					imageSetNumber,
+		    		null, //boolean [] selectedImages,
+		    		null, //boolean [] parameterMask,
+		    		LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData,
+		    		LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.eyesisCameraParameters);
+		}
+		double tiltCenter=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerTilt;
+		double axialCenter=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerAxial;
+		double interCenter=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].interAxisAngle;
+		
+		double tiltHalfRange =  2.0; // degrees
+		double axialHalfRange = 15.0; // degrees
+		int    scanHalfV =      10;  // can be large - actual will be limited by angular range
+		int    scanHalfU =      10;  // can be large - actual will be limited by angular range
+		double stopRMS =        1.0; // exit when RMS falls below 
+		
+		boolean processAllImages=true;
+		boolean ignoreLaserPointers=false;
+		double hintGridTolerance=200.0;
+		boolean useSetsData=  true;
+		gd=new GenericDialog ("Image set # "+imageSetNumber+" re-calibration without laser pointers");
+		gd.addMessage("Strategy 0 should have all parameters but 2 goniometer axes disabled");
+		gd.addMessage("Imgages belonging to the set will be selected, possible to check with \"Remove Outliers\" for strategy 0");
+		gd.addNumericField("Mismatch tolerance of match between the predicted and acquired grid", hintGridTolerance, 1,4,"fraction of grid half-period");
+		gd.addCheckbox("Ignore laser pointers", ignoreLaserPointers);
+		gd.addNumericField("Image set center tilt", tiltCenter, 2,6,"degrees");
+		gd.addNumericField("Image set center axial", axialCenter, 2,6,"degrees");
+		gd.addNumericField("Image set inter-axis", interCenter, 2,6,"degrees");
+		
+		gd.addNumericField("Tilt  scan half-range", tiltHalfRange,  2,6,"degrees");
+		gd.addNumericField("Axial scan half-range", axialHalfRange, 2,6,"degrees");
+		
+		gd.addNumericField("Half scan in U (almost horizontal) grid nodes (large will be limited by angular range)",  scanHalfU, 0,3,"");
+		gd.addNumericField("Half scan in V (almost vertical) grid nodes (large will be limited by angular range)",    scanHalfV, 0,3,"");
+		gd.addNumericField("Stop RMS - exit scan when RMS falls below", stopRMS, 2,6,"pixels");
+
+		gd.addCheckbox    ("Use image sets data if available (false - use camera data)", useSetsData);
+		gd.addCheckbox("process all images (false - enabled only)", processAllImages);
+		gd.showDialog();
+		if (gd.wasCanceled()) return false;
+		hintGridTolerance=        gd.getNextNumber();
+		ignoreLaserPointers=      gd.getNextBoolean();
+		tiltCenter=               gd.getNextNumber();
+		axialCenter=              gd.getNextNumber();
+		interCenter=              gd.getNextNumber();
+		
+		tiltHalfRange=            gd.getNextNumber();
+		axialHalfRange=           gd.getNextNumber();
+		scanHalfV=          (int) gd.getNextNumber();
+		scanHalfU=          (int) gd.getNextNumber();
+		stopRMS =                 gd.getNextNumber();
+		useSetsData=              gd.getNextBoolean();
+		processAllImages=         gd.getNextBoolean();
+		
+		// Find channel with most weight
+		LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerTilt=tiltCenter;
+		LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerAxial=axialCenter;
+		LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].interAxisAngle=interCenter;
+		// Run once with center position or Goniometer angles to determine average derivatives
+		int [][] imageSets=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.listImages(!processAllImages);
+		int [] imageSet=imageSets[imageSetNumber];
+		if (imageSet==null){
+			IJ.showMessage("Image set #"+imageSetNumber+" is empty");
+			return false;
+		}
+		for (int i=0;i<imageSet.length;i++){
+			int imageNumber=imageSet[i];
+			LENS_DISTORTIONS.applyHintedGrids(
+					LASER_POINTERS, // MatchSimulatedPattern.LaserPointer laserPointer, // LaserPointer object that specifies actual laser poiners on the target
+					DISTORTION_PROCESS_CONFIGURATION.removeOutOfGridPointers, // boolean removeOutOfGridPointers,
+					hintGridTolerance,                   //double  hintGridTolerance, // alllowed mismatch (fraction of period) or 0 - orientation only
+					true, //processAll, //boolean processAll, // if true - process all images, false - only disabeld
+					ignoreLaserPointers, //ignoreLaserPointers,
+					true, //processBlind,
+					imageNumber,
+					useSetsData,
+					THREADS_MAX,                 //int threadsMax,
+					UPDATE_STATUS,               // boolean updateStatus,
+					DISTORTION.loop_debug_level, // int mspDebugLevel,
+					MASTER_DEBUG_LEVEL,          //int global_debug_level, // DEBUG_LEVEL
+					MASTER_DEBUG_LEVEL           //int debug_level // debug level used inside loops
+					);
+
+		}
+		
+		boolean [] selection =LENS_DISTORTIONS.fittingStrategy.selectAllImages(0); // enable all images in series 0
+		for (int i=0;i<selection.length;i++) selection[i]=false;
+		for (int i=0;i<imageSet.length;i++) selection[imageSet[i]]=true;
+		LENS_DISTORTIONS.fittingStrategy.setImageSelection(0,selection);
+		LENS_DISTORTIONS.seriesNumber=   0; // start from 0;
+		LENS_DISTORTIONS.initFittingSeries(false,LENS_DISTORTIONS.filterForAll,0); // will set this.currentVector
+		//this.stopAfterThis[numSeries]
+
+		LENS_DISTORTIONS.fittingStrategy.stopAfterThis[0]=true;
+		LENS_DISTORTIONS.stopEachStep=   false;
+		LENS_DISTORTIONS.stopEachSeries= false; // will not ask for confirmation after done
+		LENS_DISTORTIONS.lambda=LENS_DISTORTIONS.fittingStrategy.lambdas[0];
+		Distortions distortions_dbg = LENS_DISTORTIONS;
+		LENS_DISTORTIONS.LevenbergMarquardt(
+				false, // skip dialog
+				false, // new: dry_run use it here?
+				true);
+		double [][] dTA_dUV = LENS_DISTORTIONS.getDtaDuv();
+		if (DEBUG_LEVEL > 0) {
+			System.out.println(
+					"Grid dTilt/dU =  "+dTA_dUV[0][0]+"\n"+
+					"Grid dAxial/dU = "+dTA_dUV[1][0]+"\n"+
+					"Grid dTilt/dV =  "+dTA_dUV[0][1]+"\n"+
+					"Grid dAxial/dV = "+dTA_dUV[1][1]);
+		}
+		// update center angles
+		tiltCenter=       LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerTilt;
+		axialCenter=      LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerAxial;
+		interCenter =     LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].interAxisAngle;
+		double rms_last=  LENS_DISTORTIONS.currentRMS;
+		double tilt_last =  tiltCenter;
+		double axial_last = axialCenter;
+		double inter_last = interCenter;
+
+		double best_rms =   rms_last;
+		double best_tilt =  tilt_last;
+		double best_axial = axial_last;
+		double best_inter = inter_last;
+		Point  best_pnt =   new Point(0,0); 
+		if (best_rms > stopRMS) { // do nothing if the original center is already OK
+			ArrayList<Point> nodeList = new ArrayList<Point>();
+			for (int dv = -scanHalfV; dv <= scanHalfV; dv++) {
+				for (int du = -scanHalfU; du <= scanHalfU; du++) {
+					if ((((dv+du) % 2) == 0) && ((dv !=0) || (du != 0))){
+						double dtilt =  dTA_dUV[0][0]*du + dTA_dUV[0][1]*dv; 
+						double daxial = dTA_dUV[1][0]*du + dTA_dUV[1][1]*dv; 
+						if ((Math.abs(dtilt) <= tiltHalfRange) && (Math.abs(daxial) <= axialHalfRange)) {
+							nodeList.add(new Point(du,dv));
+						}
+					}
+				}
+			}
+
+			// sort list
+			Collections.sort(nodeList, new Comparator<Point>() {
+				@Override
+				public int compare(Point lhs, Point rhs) {
+					double rhsl2 = rhs.getX()*rhs.getX() + rhs.getY()*rhs.getY();
+					double lhsl2 = lhs.getX()*lhs.getX() + lhs.getY()*lhs.getY(); 
+
+					return (rhsl2 > lhsl2) ? -1 : (rhsl2 < lhsl2) ? 1 : 0;
+				}
+			});
+
+
+			for (Point pnt:nodeList) {
+				double dtilt =  dTA_dUV[0][0]*pnt.getX() + dTA_dUV[0][1]*pnt.getY(); 
+				double daxial = dTA_dUV[1][0]*pnt.getX() + dTA_dUV[1][1]*pnt.getY();
+				double tilt0 =  tiltCenter + dtilt;
+				double axial0 = axialCenter + daxial;
+
+				LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerTilt  = tilt0;
+				LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerAxial = axial0;
+				LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].interAxisAngle  = interCenter; // no scanning, just use center value
+
+				if (DEBUG_LEVEL>0) System.out.println("Image Set #"+imageSetNumber+
+						" Initial tilt="  + tilt0+
+						" Initial axial=" + axial0+
+						" Initial inter=" + interCenter);
+				imageSets=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.listImages(!processAllImages);
+				imageSet=imageSets[imageSetNumber];
+				if (imageSet==null){
+					IJ.showMessage("Image set #"+imageSetNumber+" is empty");
+					return false;
+				}
+				for (int i=0;i<imageSet.length;i++){
+					int imageNumber=imageSet[i];
+					LENS_DISTORTIONS.applyHintedGrids(
+							LASER_POINTERS, // MatchSimulatedPattern.LaserPointer laserPointer, // LaserPointer object that specifies actual laser poiners on the target
+							DISTORTION_PROCESS_CONFIGURATION.removeOutOfGridPointers, // boolean removeOutOfGridPointers,
+							hintGridTolerance,                   //double  hintGridTolerance, // alllowed mismatch (fraction of period) or 0 - orientation only
+							true, //processAll, //boolean processAll, // if true - process all images, false - only disabled
+							ignoreLaserPointers, //true, //ignoreLaserPointers,
+							true, //processBlind,
+							imageNumber,
+							useSetsData,
+							THREADS_MAX,                 //int threadsMax,
+							UPDATE_STATUS,               // boolean updateStatus,
+							DISTORTION.loop_debug_level, // int mspDebugLevel,
+							MASTER_DEBUG_LEVEL,          //int global_debug_level, // DEBUG_LEVEL
+							MASTER_DEBUG_LEVEL           //int debug_level // debug level used inside loops
+							);
+				}
+
+				selection =LENS_DISTORTIONS.fittingStrategy.selectAllImages(0); // enable all images in series 0
+				for (int i=0;i<selection.length;i++) selection[i]=false;
+				for (int i=0;i<imageSet.length;i++) selection[imageSet[i]]=true;
+				LENS_DISTORTIONS.fittingStrategy.setImageSelection(0,selection);
+				LENS_DISTORTIONS.seriesNumber=   0; // start from 0;
+				LENS_DISTORTIONS.initFittingSeries(false,LENS_DISTORTIONS.filterForAll,0); // will set this.currentVector
+				//this.stopAfterThis[numSeries]
+
+				LENS_DISTORTIONS.fittingStrategy.stopAfterThis[0]=true;
+				LENS_DISTORTIONS.stopEachStep=   false;
+				LENS_DISTORTIONS.stopEachSeries= false; // will not ask for confirmation after done
+				LENS_DISTORTIONS.stopOnFailure=false;
+				LENS_DISTORTIONS.lambda=LENS_DISTORTIONS.fittingStrategy.lambdas[0]; // 0.001; // why it does not use fitting series lambda?
+				boolean LMA_OK=LENS_DISTORTIONS.LevenbergMarquardt(
+						false, // skip dialog
+						false, // new: dry_run use it here?
+						false); // no need to calculate dTA_dUV 
+				if (LMA_OK) {
+					tilt_last =  LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerTilt;
+					axial_last = LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerAxial;
+					inter_last = LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].interAxisAngle;
+					rms_last =   LENS_DISTORTIONS.currentRMS;
+					if (rms_last < best_rms) { // no Double.NaN for best_rms here
+						best_rms =   rms_last;
+						best_tilt =  tilt_last;
+						best_axial = axial_last;
+						best_inter = inter_last;
+						best_pnt =   pnt;
+					}
+					if (best_rms <= stopRMS) {
+						break;
+					}
+				} else {
+					if (DEBUG_LEVEL>0) System.out.println("----------------- LMA FAILED -------------------------");
+				}
+			}
+
+
+			if (DEBUG_LEVEL>0) System.out.println("================ Image Set #"+imageSetNumber+" rms="+IJ.d2s(best_rms, 6)+
+					" final tilt= "+best_tilt+ " ("+tiltCenter+")\n" +
+					" final axial="+best_axial+" ("+axialCenter+")\n"+
+					" final inter="+best_inter+" ("+interCenter+")");
+
+			if (best_rms != rms_last) {
+				// Restore best position if it was not the last
+				LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerTilt= best_tilt;
+				LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerAxial=best_axial;
+				LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].interAxisAngle= best_inter;
+				if (DEBUG_LEVEL>0) System.out.println(
+						"Repeating with the best variant for Image Set #"+imageSetNumber+
+						" Initial tilt="+best_tilt+
+						" Initial axial="+best_axial+
+						" Initial inter="+best_inter
+						);
+				imageSets=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.listImages(!processAllImages);
+				imageSet=imageSets[imageSetNumber];
+				if (imageSet==null){
+					IJ.showMessage("Image set #"+imageSetNumber+" is empty");
+					return false;
+				}
+				for (int i=0;i<imageSet.length;i++){
+					int imageNumber=imageSet[i];
+					LENS_DISTORTIONS.applyHintedGrids(
+							LASER_POINTERS, // MatchSimulatedPattern.LaserPointer laserPointer, // LaserPointer object that specifies actual laser poiners on the target
+							DISTORTION_PROCESS_CONFIGURATION.removeOutOfGridPointers, // boolean removeOutOfGridPointers,
+							hintGridTolerance,                   //double  hintGridTolerance, // alllowed mismatch (fraction of period) or 0 - orientation only
+							true, //processAll, //boolean processAll, // if true - process all images, false - only disabeld
+							ignoreLaserPointers, //ignoreLaserPointers,
+							true, //processBlind,
+							imageNumber,
+							useSetsData,
+							THREADS_MAX,                 //int threadsMax,
+							UPDATE_STATUS,               // boolean updateStatus,
+							DISTORTION.loop_debug_level, // int mspDebugLevel,
+							MASTER_DEBUG_LEVEL,          //int global_debug_level, // DEBUG_LEVEL
+							MASTER_DEBUG_LEVEL           //int debug_level // debug level used inside loops
+							);
+
+				}
+				// set series 0 to this set images
+				selection =LENS_DISTORTIONS.fittingStrategy.selectAllImages(0); // enable all images in series 0
+				for (int i=0;i<selection.length;i++) selection[i]=false;
+				for (int i=0;i<imageSet.length;i++) selection[imageSet[i]]=true;
+				LENS_DISTORTIONS.fittingStrategy.setImageSelection(0,selection);
+				LENS_DISTORTIONS.seriesNumber=   0; // start from 0;
+				LENS_DISTORTIONS.initFittingSeries(false,LENS_DISTORTIONS.filterForAll,0); // will set this.currentVector
+				//this.stopAfterThis[numSeries]
+
+				LENS_DISTORTIONS.fittingStrategy.stopAfterThis[0]=true;
+				LENS_DISTORTIONS.stopEachStep=   false;
+				LENS_DISTORTIONS.stopEachSeries= false; // will not ask for confirmation after done
+				LENS_DISTORTIONS.lambda=LENS_DISTORTIONS.fittingStrategy.lambdas[0];
+				LENS_DISTORTIONS.LevenbergMarquardt(
+						false, // skip dialog
+						false); // new: dry_run use it here?
+			}
+		}
+//save safe settings to run LMA manually
+		LENS_DISTORTIONS.seriesNumber=   0; // start from 0;
+		LENS_DISTORTIONS.initFittingSeries(false,LENS_DISTORTIONS.filterForAll,0); // will set this.currentVector
+		LENS_DISTORTIONS.stopEachSeries= true; // will not ask for confirmation after done
+		LENS_DISTORTIONS.stopOnFailure=true;
+		LENS_DISTORTIONS.lambda=LENS_DISTORTIONS.fittingStrategy.lambdas[0];
+		if (DEBUG_LEVEL > -1) System.out.println("================ Image Set #"+imageSetNumber+" rms="+IJ.d2s(best_rms, 6)+
+				" final tilt="+best_tilt+" ("+tiltCenter+") " +
+				" final axial="+best_axial+" ("+axialCenter+")" +
+				" final inter="+best_inter+" ("+interCenter+")" +
+				" final UV offset = ("+best_pnt.getX()+","+best_pnt.getY()+")");
+		return true;
+	}
+	
 	public boolean lwirToEo() {
 		if (LENS_DISTORTIONS == null) {
 			System.out.println("LENS_DISTORTIONS is null");
