@@ -1407,6 +1407,10 @@ import ij.gui.GenericDialog;
     		return eyesisSubCameras[0][ncam].isLWIR();
     	}
     	
+    	public int getSensorType(int ncam) {
+    		return eyesisSubCameras[0][ncam].isLWIR()? 1 : 0;
+    	}
+    	
     	/**
     	 * Setting default camera geometry parameters for LWIR16 prototype system
     	 * @return false if number of cameras is not 20

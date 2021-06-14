@@ -632,6 +632,9 @@ horizontal axis:
 		int nImg=indices[index];
 
 		int subCam=        distortionCalibrationData.getImageChannel(images[nImg]);
+		int sensor_type =  eyesisCameraParameters.getSensorType(subCam);
+
+		
 //		int stationNumber= distortionCalibrationData.getImageStation(numGridImage), // station number
 		double timeStamp=  distortionCalibrationData.getImageTimestamp(images[nImg]);
 
@@ -673,7 +676,9 @@ horizontal axis:
 		if (this.debugLevel>1) lensDistortions.showHintGrid(hintGrid);
 
 
-		MatchSimulatedPattern matchSimulatedPattern = new MatchSimulatedPattern(this.distortionParametersDefault.FFTSize); // new instance, all reset
+///		MatchSimulatedPattern matchSimulatedPattern = new MatchSimulatedPattern(this.distortionParametersDefault.FFTSize); // new instance, all reset
+		MatchSimulatedPattern matchSimulatedPattern = new MatchSimulatedPattern(distortionParametersDefault.getFFTSize(sensor_type)); // new instance, all reset
+		//sensort_type
 		// next 2 lines are not needed for the new instance, but can be
 		// used alternatively if keeping it
 		matchSimulatedPattern.invalidateFlatFieldForGrid(); // Reset Flat Filed calibration - different image.
@@ -690,7 +695,7 @@ horizontal axis:
 					", initial number of pointers was "+numPointers);
 		}
 //matchSimulatedPatterns[numSensor].getChannel(images[numSensor])+" ");
-		MatchSimulatedPattern.DistortionParameters distortionParameters = modifyDistortionParameters();
+		MatchSimulatedPattern.DistortionParameters distortionParameters = modifyDistortionParameters(sensor_type);
 		SimulationPattern.SimulParameters simulParameters = modifySimulParameters();
 
 		boolean noMessageBoxes=true;
@@ -729,34 +734,13 @@ horizontal axis:
 
 	}
 
-	/*
-	 * 	private showDoubleFloatArrays SDFA_INSTANCE= new showDoubleFloatArrays(); // just for debugging?
-   		this.SDFA_INSTANCE.showArrays(gridXYZCorr, getGridWidth(), getGridHeight(),  true, "Grid corrections", titles);
-
-	 *
-					gd.addChoice( // ArrayIndexOutOfBoundsException: 21
-							this.distortionCalibrationData.getParameterName(parIndex)+
-							" ("+sValue+" "+
-							this.distortionCalibrationData.getParameterUnits(parIndex)+")"+
-							(this.distortionCalibrationData.isSubcameraParameter(parIndex)?(" s"+subCam):"com "),
-							this.definedModes, this.definedModes[this.parameterMode[numSeries][i]]);
-
-	 *
-	 * 					this.parameterMode[numSeries][i]=gd.getNextChoiceIndex();
-			PatternParameters patternParameters, // should not be  null
-			boolean equalizeGreens,
-			int threadsMax,
-			boolean updateStatus,
-			int debug_level) {// debug level used inside loops
-
-	 *
-	 *
-	 */
-	public MatchSimulatedPattern.DistortionParameters modifyDistortionParameters(){
+	public MatchSimulatedPattern.DistortionParameters modifyDistortionParameters(int sensor_type){
 		MatchSimulatedPattern.DistortionParameters distortionParameters = this.distortionParametersDefault.clone();
 		distortionParameters.refineInPlace = false;
 		distortionParameters.correlationMaxOffset = this.goniometerParameters.maxCorr;
-		distortionParameters.correlationSize = this.goniometerParameters.correlationSize;
+//		distortionParameters.correlationSize = this.goniometerParameters.correlationSize;
+		distortionParameters.setCorrelationSize(this.goniometerParameters.correlationSize, sensor_type);
+		
 		distortionParameters.correlationGaussWidth = this.goniometerParameters.correlationGaussWidth;
 		distortionParameters.refineCorrelations = false;
 		distortionParameters.fastCorrelationOnFirstPass = true;
@@ -767,7 +751,8 @@ horizontal axis:
 		distortionParameters.flatFieldExpand = this.goniometerParameters.flatFieldExpand;
 		distortionParameters.numberExtrapolated = 1; // measuring distortions -
 		distortionParameters.correlationMinInitialContrast=this.goniometerParameters.correlationMinInitialContrast;
-		distortionParameters.minimalPatternCluster=this.goniometerParameters.minimalPatternCluster;
+//		distortionParameters.minimalPatternCluster=this.goniometerParameters.minimalPatternCluster;
+		distortionParameters.setMinimalPatternCluster(this.goniometerParameters.minimalPatternCluster, sensor_type);
 		distortionParameters.scaleMinimalInitialContrast=this.goniometerParameters.scaleMinimalInitialContrast;
 		distortionParameters.searchOverlap=this.goniometerParameters.searchOverlap;
 		return distortionParameters;
@@ -781,7 +766,7 @@ horizontal axis:
 		return simulParameters;
 	}
 
-	public double[] estimateOrientation(
+	public double[] estimateOrientation( // FIXME: Does not use LWIR parameters, assumes EO!
 			ImagePlus[] images, // last acquire images with number of pointers
 								// detected>0
 			DistortionCalibrationData distortionCalibrationData,
@@ -792,6 +777,7 @@ horizontal axis:
 			int threadsMax,
 			boolean updateStatus,
 			int debug_level) {// debug level used inside loops
+		int sensor_type = 0; // EO
 		long startTime = System.nanoTime();
 		if (lensDistortions == null) {
 			String msg = "lensDistortions is not initialized";
@@ -801,7 +787,7 @@ horizontal axis:
 
 		// remove unneeded, copied from updateFocusGrid() Now it is not needed?
 		SimulationPattern.SimulParameters simulParameters = modifySimulParameters();
-		MatchSimulatedPattern.DistortionParameters distortionParameters = modifyDistortionParameters();
+		MatchSimulatedPattern.DistortionParameters distortionParameters = modifyDistortionParameters(sensor_type);
 
 		int numImages = 0;
 		for (int i = 0; i < images.length; i++)
@@ -834,8 +820,8 @@ horizontal axis:
 		for (int numSensor = 0; numSensor < images.length; numSensor++)
 			if (images[numSensor] != null) {
 				// reset matchSimulatedPattern, so it will start from scratch
-				this.matchSimulatedPatterns[numSensor] = new MatchSimulatedPattern(
-						this.distortionParametersDefault.FFTSize); // new instance, all reset
+//				this.matchSimulatedPatterns[numSensor] = new MatchSimulatedPattern(	this.distortionParametersDefault.FFTSize); // new instance, all reset
+				this.matchSimulatedPatterns[numSensor] = new MatchSimulatedPattern(distortionParametersDefault.getFFTSize(sensor_type)); // new instance, all reset
 				// next 2 lines are not needed for the new instance, but can be
 				// used alternatively if keeping it
 				this.matchSimulatedPatterns[numSensor].invalidateFlatFieldForGrid(); // Reset Flat Filed calibration - different image.

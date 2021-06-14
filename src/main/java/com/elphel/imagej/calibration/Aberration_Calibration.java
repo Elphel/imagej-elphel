@@ -1464,7 +1464,9 @@ if (MORE_BUTTONS) {
 						"",  //arg - not used in JP46 reader
 						true, // un-apply camera color gains
 						imp_sel); // reuse the same image window
-				matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize);
+//				matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize);
+				int sensor_type = 0; // EO
+				matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.getFFTSize(sensor_type));
 //				   matchSimulatedPattern.invalidateFlatFieldForGrid(); //It is already reset, no need to do it again
 //				   matchSimulatedPattern.invalidateFocusMask();
 				matchSimulatedPattern.calculateDistortions(
@@ -1832,7 +1834,9 @@ if (MORE_BUTTONS) {
 				IJ.showMessage("Error","There are no images open\nProcess canceled");
 				return;
 			}
-			matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize);
+//			matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize);
+			int sensor_type = 0; // EO
+			matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.getFFTSize(sensor_type));
 			matchSimulatedPattern.debugLevel=DEBUG_LEVEL;
 			matchSimulatedPattern.distortionsTest (
 					DISTORTION, //
@@ -1861,7 +1865,10 @@ if (MORE_BUTTONS) {
 			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 			imp_sel = WindowManager.getCurrentImage();
 //			imp_distortions=imp_sel;
-			matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize);
+//			matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize);
+			int sensor_type = 0; // EO
+			matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.getFFTSize(sensor_type));
+			
 //			   matchSimulatedPattern.invalidateFlatFieldForGrid(); //It is already reset, no need to do it again
 //			   matchSimulatedPattern.invalidateFocusMask();
 			int numAbsolutePoints=matchSimulatedPattern.calculateDistortions(
@@ -3186,7 +3193,10 @@ if (MORE_BUTTONS) {
 		if  (label.equals("Update Focusing Grid")) {
 			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 			if (matchSimulatedPattern==null) {
-				matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize); // new instance, all reset
+//				matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize); // new instance, all reset
+				int sensor_type = 0; // EO
+				matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.getFFTSize(sensor_type));
+				
 			}
 			matchSimulatedPattern.debugLevel=DEBUG_LEVEL;
 			imp_sel = WindowManager.getCurrentImage();
@@ -3348,7 +3358,10 @@ if (MORE_BUTTONS) {
 	//"Focusing Acquire PSF"
 			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 			if (matchSimulatedPattern==null) {
-				matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize); // new instance, all reset
+//				matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize); // new instance, all reset
+				int sensor_type = 0; // EO
+				matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.getFFTSize(sensor_type));
+				
 			}
 			matchSimulatedPattern.debugLevel=DEBUG_LEVEL;
 			if (LENS_DISTORTION_PARAMETERS==null){
@@ -3559,7 +3572,9 @@ if (MORE_BUTTONS) {
 
 				if (DEBUG_LEVEL>0) System.out.println("Image acquisition (@"+FOCUS_MEASUREMENT_PARAMETERS.sensorTemperature+"C) done at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 				// reset matchSimulatedPattern, so it will start from scratch
-				matchSimulatedPatternSet[imgCounter] = new MatchSimulatedPattern(DISTORTION.FFTSize); // new instance, all reset
+		 		int sensor_type = 0; // EO
+//				matchSimulatedPatternSet[imgCounter] = new MatchSimulatedPattern(DISTORTION.FFTSize); // new instance, all reset
+				matchSimulatedPatternSet[imgCounter] = new MatchSimulatedPattern(DISTORTION.getFFTSize(sensor_type)); // new instance, all reset
 				// next 2 lines are not needed for the new instance, but can be used alternatively if keeipg it
 				   matchSimulatedPatternSet[imgCounter].invalidateFlatFieldForGrid(); //Reset Flat Field calibration - different image.
 				   matchSimulatedPatternSet[imgCounter].invalidateFocusMask();
@@ -3836,7 +3851,10 @@ if (MORE_BUTTONS) {
 			}
 			POWER_CONTROL.lightsOnWithDelay();
 			if (matchSimulatedPattern==null) {
-				matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize); // new instance, all reset
+//				matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize); // new instance, all reset
+				int sensor_type = 0; // EO
+				matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.getFFTSize(sensor_type));
+				
 			}
 			matchSimulatedPattern.debugLevel=DEBUG_LEVEL;
 			if (LENS_DISTORTION_PARAMETERS==null){
@@ -4183,7 +4201,9 @@ if (MORE_BUTTONS) {
 				}
 			}
 			if (matchSimulatedPattern==null) {
-				matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize); // new instance, all reset
+//				matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize); // new instance, all reset
+				int sensor_type = 0; // EO
+				matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.getFFTSize(sensor_type));
 			}
 			matchSimulatedPattern.debugLevel=MASTER_DEBUG_LEVEL;
 			if (LENS_DISTORTION_PARAMETERS==null){
@@ -4392,7 +4412,9 @@ if (MORE_BUTTONS) {
 				}
 			}
 			if (matchSimulatedPattern==null) {
-				matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize); // new instance, all reset
+//				matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize); // new instance, all reset
+				int sensor_type = 0; // EO
+				matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.getFFTSize(sensor_type));
 			}
 			matchSimulatedPattern.debugLevel=DEBUG_LEVEL;
 			if (LENS_DISTORTION_PARAMETERS==null){
@@ -10315,8 +10337,14 @@ if (MORE_BUTTONS) {
 	    String prefix="grid-";
 		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 		DISTORTION_PROCESS_CONFIGURATION.debugLevel=MASTER_DEBUG_LEVEL;
-        if (matchSimulatedPattern==null) matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize);
+		/*
+        if (matchSimulatedPattern==null) {
+     		int sensor_type = 0; // EO
+//        	matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize);
+        	matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.getFFTSize(sensor_type)); //FIXME: works only for EO !!!
+        }
         matchSimulatedPattern.debugLevel=MASTER_DEBUG_LEVEL;
+        */
         String [] sourceSetList = DISTORTION_PROCESS_CONFIGURATION.selectSourceSets();
         LWIR_PARAMETERS.selectSourceChannels();
         boolean [] sel_chn = LWIR_PARAMETERS.getSelected();
@@ -10382,12 +10410,14 @@ if (MORE_BUTTONS) {
         		}
         		imp_sel=new ImagePlus(sourceFilesList[nset][nfile]); // read source file
         		EyesisTiff.decodeProperiesFromInfo(imp_sel);
-
-        		matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize); // TODO: is it needed each time?
+        		int sensor_type = LwirReaderParameters.sensorType(imp_sel);
+        		
+        		matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.getFFTSize(sensor_type)); // FFTSize); // TODO: is it needed each time?
+                matchSimulatedPattern.debugLevel=MASTER_DEBUG_LEVEL;
 
         		matchSimulatedPattern.invalidateFlatFieldForGrid(); //Reset Flat Field calibration - different image.
         		matchSimulatedPattern.invalidateFocusMask();
-        		boolean is_lwir = LWIR_PARAMETERS.is_LWIR(imp_sel); // Not used!
+        		boolean is_lwir = (sensor_type == 1); // LWIR_PARAMETERS.is_LWIR(imp_sel); // Not used! sensorType(ImagePlus imp)
         		int numAbsolutePoints=matchSimulatedPattern.calculateDistortions( // matchSimulatedPattern.PATTERN_GRID already set
         				LWIR_PARAMETERS, // LwirReaderParameters lwirReaderParameters,
         				DISTORTION, //
@@ -10464,7 +10494,11 @@ if (MORE_BUTTONS) {
 		    String prefix="grid-";
 			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 			DISTORTION_PROCESS_CONFIGURATION.debugLevel=MASTER_DEBUG_LEVEL;
-            if (matchSimulatedPattern==null) matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize);
+            if (matchSimulatedPattern==null) {
+//            	matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize);
+				int sensor_type = 0; // EO
+				matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.getFFTSize(sensor_type));
+            }
             matchSimulatedPattern.debugLevel=MASTER_DEBUG_LEVEL;
             String [] sourceFilesList=DISTORTION_PROCESS_CONFIGURATION.selectSourceFiles(); // select files - with/without dialog
             boolean saveGrids=DISTORTION_PROCESS_CONFIGURATION.saveGridImages;
@@ -10495,7 +10529,9 @@ if (MORE_BUTTONS) {
             	}
             	imp_sel=new ImagePlus(sourceFilesList[numFile]); // read source file
             	JP4_INSTANCE.decodeProperiesFromInfo(imp_sel);
-            	matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize); // TODO: is it needed each time?
+//            	matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize); // TODO: is it needed each time?
+				int sensor_type = 0; // EO
+				matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.getFFTSize(sensor_type));
             	if (!DISTORTION_PROCESS_CONFIGURATION.useNoPonters && (MatchSimulatedPattern.getPointersXYUV(imp_sel,LASER_POINTERS)==null)) {
     				if (this.SYNC_COMMAND.stopRequested.get()>0) {
     					System.out.println("User requested stop");
@@ -10610,7 +10646,9 @@ if (MORE_BUTTONS) {
 								true, // un-apply camera color gains
 								imp_sel); // reuse the same image window
 //Remove for old method?
-						matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize);
+//						matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize);
+						int sensor_type = 0; // EO
+						matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.getFFTSize(sensor_type));
 						matchSimulatedPattern.calculateDistortions(
 								LWIR_PARAMETERS,
 		            			DISTORTION, //
@@ -11011,6 +11049,8 @@ if (MORE_BUTTONS) {
 		numInBase2=      (int) gd.getNextNumber();
 		binWidth2 =            gd.getNextNumber();
 		gapWidth2 =            gd.getNextNumber();
+		int sensor_type = 0; // EO
+
 		double [] defectsBayer=(new SFEPhases()).getDefectsBayer(
 				imp_sel,
 				tileClearSize,
@@ -11026,7 +11066,9 @@ if (MORE_BUTTONS) {
 				numInBase2,
 				binWidth2,
 				gapWidth2,
-				new MatchSimulatedPattern(DISTORTION.FFTSize), //matchSimulatedPattern=
+//				new MatchSimulatedPattern(DISTORTION.FFTSize), //matchSimulatedPattern=
+				new MatchSimulatedPattern(DISTORTION.getFFTSize(sensor_type)),
+				
 				COMPONENTS,
 				THREADS_MAX,
 				DEBUG_LEVEL);
@@ -11089,6 +11131,7 @@ if (MORE_BUTTONS) {
 			numInBase2=      (int) gd.getNextNumber();
 			binWidth2 =            gd.getNextNumber();
 			gapWidth2 =            gd.getNextNumber();
+	 		int sensor_type = 0; // EO
 			SFEPhases.SensorDefects[] defectsStats=(new SFEPhases()).accummulateSensorDefects(
 					DISTORTION_PROCESS_CONFIGURATION,
 //					imp_sel,
@@ -11105,7 +11148,9 @@ if (MORE_BUTTONS) {
 					numInBase2,
 					binWidth2,
 					gapWidth2,
-					new MatchSimulatedPattern(DISTORTION.FFTSize), //matchSimulatedPattern=
+//					new MatchSimulatedPattern(DISTORTION.FFTSize), //matchSimulatedPattern=
+					new MatchSimulatedPattern(DISTORTION.getFFTSize(sensor_type)),
+					
 					COMPONENTS,
 					this.SYNC_COMMAND.stopRequested,
 					THREADS_MAX,
@@ -11172,6 +11217,7 @@ if (MORE_BUTTONS) {
 			}
 			if (showImages) for (ImagePlus imp:accImages) if (imp!=null) imp.show();
 //		 SFEPhases sfe_phases= new SFEPhases();
+	 		int sensor_type = 0; // EO
 			defectList=	(new SFEPhases()).interactiveExtractDefectListsFromAccumulatedImages(
 					accImages,
 					128,  // tileClearSize,
@@ -11191,7 +11237,8 @@ if (MORE_BUTTONS) {
 					true, // processCold,
 					true,  // updateSensorCalibrationFiles
 					false,  // clearDefects, // clear defects if none detected
-					new MatchSimulatedPattern(DISTORTION.FFTSize), //matchSimulatedPattern=
+//					new MatchSimulatedPattern(DISTORTION.FFTSize), //matchSimulatedPattern=
+					new MatchSimulatedPattern(DISTORTION.getFFTSize(sensor_type)),
 					COMPONENTS,
 					THREADS_MAX,
 					DEBUG_LEVEL);
@@ -21154,180 +21201,12 @@ use the result to create a rejectiobn mask - if the energy was high, (multiplica
 /* ======================================================================== */
 /* ======================================================================== */
 		public boolean showDistortionDialog(MatchSimulatedPattern.DistortionParameters distortionParameters) {
-			int i;
-			GenericDialog gd = new GenericDialog("Distrortion parameters");
-			gd.addNumericField("FFTSize (Initial pattern and aberraton kernels):", distortionParameters.FFTSize, 0);      // 256
-			gd.addNumericField("FFTSize for LWIR sensors):",                       distortionParameters.FFTSize_lwir, 0); // 32
-			gd.addNumericField("FFTOverlap (aberration kernels):",                 distortionParameters.FFTOverlap, 0);      // 32
-			gd.addNumericField("FFTOverlap for LWIR sensors):",                    distortionParameters.FFTOverlap_lwir, 0); // 4
-			gd.addNumericField("FFT Gaussian width (relative):",                   distortionParameters.fftGaussWidth, 3);
-			gd.addNumericField("Correlation size:",                                distortionParameters.correlationSize, 0); // 64
-			gd.addNumericField("Correlation size LWIR:",                           distortionParameters.correlationSizeLwir, 0); // 16
-			gd.addNumericField("Maximal correlation size:",                        distortionParameters.maximalCorrelationSize, 0); // 128
-			gd.addNumericField("Maximal correlation size LWIR:",                   distortionParameters.maximalCorrelationSizeLwir, 0); // 16
-
-			gd.addNumericField("Correlation Gauss width (relative):",              distortionParameters.correlationGaussWidth, 3);
-			gd.addCheckbox("Keep Gaussian width absolute when increasing FFT size",distortionParameters.absoluteCorrelationGaussWidth);
-//			/phaseCorrelationFraction
-			//// leave this number of zeros on teh margins of the window (toatal from both sides). If correlationGaussWidth>0 will
-	        // additionally multiply by Hamming
-			gd.addNumericField("Leave zeros on the window margins (toatal numbedr from both sides)", distortionParameters.zeros, 0);
-
-			gd.addNumericField("Phase correlation modifier (1.0 - phase corr., 0 - just corr.)", distortionParameters.phaseCorrelationFraction, 5);
-			gd.addNumericField("Correlation high-pass sigma:",          distortionParameters.correlationHighPassSigma, 3);
-
-			gd.addNumericField("Correlation low-pass sigma (fraction of sqrt(2)*Nyquist, lower - more filtering, 0 -none):",distortionParameters.correlationLowPassSigma, 3);
-			gd.addNumericField("Correlation maximal offset from predicted:",distortionParameters.correlationMaxOffset, 3);
-			gd.addNumericField("Detection ring width (fraction):",      distortionParameters.correlationRingWidth, 3);
-			gd.addNumericField("Correlation minimal contrast (normalized)",         distortionParameters.correlationMinContrast, 3);
-			gd.addNumericField("Correlation minimal contrast for initial search (normalized)", distortionParameters.correlationMinInitialContrast, 3);
-			gd.addNumericField("Correlation minimal contrast (absolute)",         distortionParameters.correlationMinAbsoluteContrast, 3);
-			gd.addNumericField("Correlation minimal contrast for initial search (absolute)", distortionParameters.correlationMinAbsoluteInitialContrast, 3);
-
-			gd.addNumericField("Decrease contrast of cells that are too close to the border to be processed in refinement pass", distortionParameters.scaleFirstPassContrast, 3);
-			gd.addNumericField("Gaussian sigma to select correlation center in pixels, 2.0", distortionParameters.contrastSelectSigmaCenter, 3);
-			gd.addNumericField("Gaussian sigma to select correlation off-centers (fraction of UV period), 0.1", distortionParameters.contrastSelectSigma, 3);
-			gd.addNumericField("Gaussian sigma to average correlation variations (as contrast reference), 0.5", distortionParameters.contrastAverageSigma, 3);
-
-			gd.addNumericField("Minimal initial pattern cluster size (0 - disable retries)", distortionParameters.minimalPatternCluster, 0); // 40
-			gd.addNumericField("Minimal initial LWIR pattern cluster size (0 - disable retries)", distortionParameters.minimalPatternClusterLwir, 0); // 10
-			gd.addNumericField("Scale minimal contrast if the initial cluster is nonzero but smaller", distortionParameters.scaleMinimalInitialContrast, 3);
-			gd.addNumericField("Overlap of FFT areas when searching for pattern", distortionParameters.searchOverlap, 3);
-
-			gd.addNumericField("Pattern subdivision:",                  distortionParameters.patternSubdiv, 0); // 4
-			gd.addNumericField("Blur pattern bitmap (sigma):       ",   distortionParameters.bPatternSigma, 3,5,"pattern cell"); // 0.02
-			gd.addNumericField("Blur pattern (sigma):                ", distortionParameters.barraySigma, 3,5,"sensor pix");     // 0.5
-			gd.addNumericField("Correlation weights (around maximum):", distortionParameters.correlationWeightSigma, 3,5,"nodes"); // 2.5
-			gd.addNumericField("Correlation radius scale (0 - sharp sigma)", distortionParameters.correlationRadiusScale, 1,3,"sigmas"); //2.0
-
-			gd.addNumericField("Correlation maximal radius to use",      distortionParameters.correlationRadius, 0,1,"pix"); // 2.0
-			gd.addNumericField("Correlation maximum calculation threshold", distortionParameters.correlationThreshold*100, 2,5,"%"); // .8
-			gd.addNumericField("Interpolate correlation (FFT*linear)",  distortionParameters.correlationSubdiv, 0,3,"x"); // 16
-			gd.addNumericField("Interpolate correlation with FFT",      distortionParameters.correlationFFTSubdiv, 0,3,"x"); // 4
-
-			gd.addNumericField("Correlation dx (debug)",                distortionParameters.correlationDx, 3);
-			gd.addNumericField("Correlation dy (debug)",                distortionParameters.correlationDy, 3);
-			gd.addNumericField("Maximal size of the pattern grid (square)", distortionParameters.gridSize, 0);
-			gd.addCheckbox    ("Refine correlations",                   distortionParameters.refineCorrelations);
-			gd.addCheckbox    ("Use fast correlation on first pass",    distortionParameters.fastCorrelationOnFirstPass);
-			gd.addCheckbox    ("Use fast correlation on refine pass",   distortionParameters.fastCorrelationOnFinalPass);
-
-			gd.addCheckbox    ("Average correlation measurements between neighbors (on refine)", distortionParameters.correlationAverageOnRefine);
-			gd.addCheckbox    ("Update coordinates of the grid points as they are recalculated (false - then update all at once)", distortionParameters.refineInPlace);
-
-			gd.addNumericField("Distance to ortho neighbors (for averaging)", distortionParameters.averageOrthoDist, 3,5,"sensor pix");
-			gd.addNumericField("Combined weight of ortho neighbors (fraction of 1.0)", distortionParameters.averageOrthoWeight, 3);
-			gd.addNumericField("Distance to diagonal neighbors (for averaging)", distortionParameters.averageDiagDist, 3,5,"sensor pix");
-			gd.addNumericField("Combined weight of diagonal neighbors (fraction of 1.0)", distortionParameters.averageDiagWeight, 3);
-			gd.addCheckbox    ("Use quadratic extrapolation (false - force linear)", distortionParameters.useQuadratic);
-
-			gd.addCheckbox    ("Remove outer (unreliable) layer before extrapolation", distortionParameters.removeLast);
-			gd.addNumericField("Number of extrapolated layers of nodes (final stage)", distortionParameters.numberExtrapolated, 0);
-			gd.addNumericField("Sigma during final extrapolation stage", distortionParameters.extrapolationSigma, 3,5,"nodes");
-			gd.addNumericField("Minimal UV span in correlation window to trigger FFT size increase", distortionParameters.minUVSpan, 3);
-
-			gd.addCheckbox    ("Compensate uneven pattern intensity", distortionParameters.flatFieldCorrection);
-			gd.addNumericField("Extrapolate pattern intensity map (relative to pattern period)", distortionParameters.flatFieldExtarpolate, 3);
-			gd.addNumericField("Blur pattern intensity map (relative to pattern period)", distortionParameters.flatFieldBlur, 3);
-			gd.addNumericField("Do not use areas where intensity map is below this part of maximal", distortionParameters.flatFieldMin, 3);
-
-			gd.addNumericField("Shrink before extrapolating intensity map (relative to the average grid period)", distortionParameters.flatFieldShrink, 3);
-			gd.addNumericField("Expand during extrapolation (relative to the average grid period)", distortionParameters.flatFieldExpand, 3);
-			gd.addNumericField("Extrapolation weight effective radius (relative to the average grid period)", distortionParameters.flatFieldSigmaRadius, 3);
-			gd.addNumericField("Consider pixels in a square with the side twice this (relative to flatFieldSigmaRadius)", distortionParameters.flatFieldExtraRadius, 3);
-			gd.addNumericField("Multiply the average grid period to determine the area for averaging the grig brightness", distortionParameters.averagingAreaScale, 3);
-
-			gd.addCheckbox    ("Legacy mode (deprecated)", distortionParameters.legacyMode);
-
-			gd.addNumericField("Debug level inside the loop", distortionParameters.loop_debug_level, 0);
-
-
-			gd.addNumericField("Debug Level:",                          MASTER_DEBUG_LEVEL, 0);
-		    WindowTools.addScrollBars(gd);
-			gd.showDialog();
-			if (gd.wasCanceled()) return false;
-			distortionParameters.FFTSize =                     makePowerOfTwo((int) gd.getNextNumber());
-			distortionParameters.FFTSize_lwir =                makePowerOfTwo((int) gd.getNextNumber());
-			distortionParameters.FFTOverlap =                  makePowerOfTwo((int) gd.getNextNumber());
-			distortionParameters.FFTOverlap_lwir =             makePowerOfTwo((int) gd.getNextNumber());
-			distortionParameters.fftGaussWidth=                gd.getNextNumber();
-			distortionParameters.correlationSize =             makePowerOfTwo((int) gd.getNextNumber());
-			distortionParameters.correlationSizeLwir =         makePowerOfTwo((int) gd.getNextNumber());
-			distortionParameters.maximalCorrelationSize =      makePowerOfTwo((int) gd.getNextNumber());
-			distortionParameters.maximalCorrelationSizeLwir =  makePowerOfTwo((int) gd.getNextNumber());
-			distortionParameters.correlationGaussWidth=        gd.getNextNumber();
-			distortionParameters.absoluteCorrelationGaussWidth=gd.getNextBoolean();
-			distortionParameters.zeros=                  (int) gd.getNextNumber();
-			distortionParameters.phaseCorrelationFraction=     gd.getNextNumber();
-			distortionParameters.correlationHighPassSigma=     gd.getNextNumber();
-			distortionParameters.correlationLowPassSigma=      gd.getNextNumber();
-			distortionParameters.correlationMaxOffset=         gd.getNextNumber();
-			distortionParameters.correlationRingWidth=         gd.getNextNumber();
-			distortionParameters.correlationMinContrast=       gd.getNextNumber();
-			distortionParameters.correlationMinInitialContrast=  gd.getNextNumber();
-
-			distortionParameters.correlationMinAbsoluteContrast=  gd.getNextNumber();
-			distortionParameters.correlationMinAbsoluteInitialContrast=  gd.getNextNumber();
-
-			distortionParameters.scaleFirstPassContrast=     gd.getNextNumber();
-			distortionParameters.contrastSelectSigmaCenter=  gd.getNextNumber();
-			distortionParameters.contrastSelectSigma=        gd.getNextNumber();
-			distortionParameters.contrastAverageSigma=       gd.getNextNumber();
-
-			distortionParameters.minimalPatternCluster=(int) gd.getNextNumber();
-			distortionParameters.minimalPatternClusterLwir=(int) gd.getNextNumber();
-
-			distortionParameters.scaleMinimalInitialContrast=gd.getNextNumber();
-			distortionParameters.searchOverlap=              gd.getNextNumber();
-
-			distortionParameters.patternSubdiv=     (int) gd.getNextNumber();
-			distortionParameters.bPatternSigma=           gd.getNextNumber();
-			distortionParameters.barraySigma=             gd.getNextNumber();
-			distortionParameters.correlationWeightSigma=  gd.getNextNumber();
-			distortionParameters.correlationRadiusScale=  gd.getNextNumber();
-			distortionParameters.correlationRadius= (int) gd.getNextNumber();
-			distortionParameters.correlationThreshold= 0.01*gd.getNextNumber();
-			distortionParameters.correlationSubdiv= (int) gd.getNextNumber();
-			distortionParameters.correlationFFTSubdiv=1;
-			for (i=(int) gd.getNextNumber(); i >1; i>>=1) distortionParameters.correlationFFTSubdiv <<=1; /* make it to be power of 2 */
-			distortionParameters.correlationDx=           gd.getNextNumber();
-			distortionParameters.correlationDy=           gd.getNextNumber();
-			distortionParameters.gridSize=          (int) gd.getNextNumber();
-			distortionParameters.refineCorrelations=      gd.getNextBoolean();
-			distortionParameters.fastCorrelationOnFirstPass=gd.getNextBoolean();
-			distortionParameters.fastCorrelationOnFinalPass=gd.getNextBoolean();
-
-			distortionParameters.correlationAverageOnRefine=gd.getNextBoolean();
-			distortionParameters.refineInPlace=           gd.getNextBoolean();
-			distortionParameters.averageOrthoDist=        gd.getNextNumber();
-			distortionParameters.averageOrthoWeight=      gd.getNextNumber();
-			distortionParameters.averageDiagDist=         gd.getNextNumber();
-			distortionParameters.averageDiagWeight=       gd.getNextNumber();
-			distortionParameters.useQuadratic=            gd.getNextBoolean();
-
-			distortionParameters.removeLast=              gd.getNextBoolean();
-			distortionParameters.numberExtrapolated=(int) gd.getNextNumber();
-			distortionParameters.extrapolationSigma=      gd.getNextNumber();
-			distortionParameters.minUVSpan=               gd.getNextNumber();
-			distortionParameters.flatFieldCorrection=     gd.getNextBoolean();
-			distortionParameters.flatFieldExtarpolate=    gd.getNextNumber();
-			distortionParameters.flatFieldBlur=           gd.getNextNumber();
-			distortionParameters.flatFieldMin=            gd.getNextNumber();
-			distortionParameters.flatFieldShrink=         gd.getNextNumber();
-			distortionParameters.flatFieldExpand=         gd.getNextNumber();
-			distortionParameters.flatFieldSigmaRadius=    gd.getNextNumber();
-			distortionParameters.flatFieldExtraRadius=    gd.getNextNumber();
-			distortionParameters.averagingAreaScale=      gd.getNextNumber();
-			distortionParameters.legacyMode=              gd.getNextBoolean();
-			distortionParameters.loop_debug_level=  (int) gd.getNextNumber();
-			MASTER_DEBUG_LEVEL=                     (int) gd.getNextNumber();
-			return true;
-		}
-		private int makePowerOfTwo(int v) {
-			int v2 = 1;
-			for (int i=v; i > 1; i>>=1 ) v2 <<=1; /* make it to be power of 2 */
-			return v2;
-
+			int [] mdl = {MASTER_DEBUG_LEVEL};
+			if (distortionParameters.showDistortionDialog(mdl)) {
+				MASTER_DEBUG_LEVEL = mdl[0];
+				return true;
+			}
+			return false;
 		}
 /* ======================================================================== */
 /* ======================================================================== */

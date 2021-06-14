@@ -44,6 +44,7 @@ public class LwirReaderParameters {
 	public final static int []    FFC_GROUPS=          {1,2,4};
 	public static final String [] SENSOR_TYPES = {"EO","LWIR"};
 	public static final String    SENSOR_TYPE =  "SENSOR_TYPE";
+	protected static int MAX_LWIR_WIDTH =     1024; //
 	
 	private boolean parameters_updated =     false;
 	protected String  camera_name =          "Talon"; // "LWIR16";
@@ -73,7 +74,6 @@ public class LwirReaderParameters {
 	protected double  eo_gain_rg =           0.7705; // 1.116; halogen/fluorescent
 	protected double  eo_gain_bg =           2.401;  // 1.476;
 	protected boolean [] selected_channels = {true, true, true, true, true, true, true, true};
-	protected int     max_lwir_width =       1024; //
 /*
 	protected double [] eo_exp_corr = {1.0, 1.0, 1.0, 1.0};
 	protected double [] eo_gcorr_rbgb = {
@@ -145,11 +145,11 @@ public class LwirReaderParameters {
 		return 20;
 	}
 
-	public boolean is_LWIR(int width) {
-		return width <= max_lwir_width;
+	public static boolean is_LWIR(int width) {
+		return width <= MAX_LWIR_WIDTH;
 	}
 
-	public boolean is_LWIR(ImagePlus imp){
+	public static boolean is_LWIR(ImagePlus imp){
 		// See if image has LwirReaderParameters.SENSOR_TYPE property, then use is_LWIR(String property_value),
 		// if not - use old width property
 		if (imp.getProperty("WOI_WIDTH")==null) {
@@ -159,6 +159,16 @@ public class LwirReaderParameters {
 			return is_LWIR((String) imp.getProperty(SENSOR_TYPE));
 		}
 		return is_LWIR(imp.getWidth());
+	}
+	public static int sensorType(ImagePlus imp) {
+		if (imp.getProperty("WOI_WIDTH")==null) {
+			EyesisTiff.decodeProperiesFromInfo(imp);
+		}
+		if (imp.getProperty(SENSOR_TYPE)!=null) {
+			return (is_LWIR((String) imp.getProperty(SENSOR_TYPE)))? 1:0;
+		}
+		return is_LWIR(imp.getWidth())? 1 : 0;
+		
 	}
 
 	public int getDebugLevel() {

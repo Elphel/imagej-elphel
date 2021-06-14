@@ -43,6 +43,7 @@ import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
+import com.elphel.imagej.common.WindowTools;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 import com.elphel.imagej.lwir.LwirReaderParameters;
 
@@ -51,6 +52,7 @@ import Jama.Matrix; // Download here: http://math.nist.gov/javanumerics/jama/
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
+import ij.gui.GenericDialog;
 import ij.gui.PointRoi;
 import ij.gui.Roi;
 import ij.process.FHT; // get rid, change to double
@@ -99,6 +101,10 @@ public class MatchSimulatedPattern {
 
 	public MatchSimulatedPattern() {
 	}
+
+//	public MatchSimulatedPattern(int fft_size) {
+//		this.FFT_SIZE = fft_size;
+//	}
 
 	public MatchSimulatedPattern(int fft_size) {
 		this.FFT_SIZE = fft_size;
@@ -3409,16 +3415,19 @@ public class MatchSimulatedPattern {
 	/*
 	 * ============================= Distortions ===================================
 	 */
-	public void distortionsTest(final DistortionParameters distortionParameters, //
+	public void distortionsTest(
+			final DistortionParameters distortionParameters, //
 			final MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
-			final SimulationPattern.SimulParameters simulParameters, final boolean equalizeGreens, final ImagePlus imp, // image
-																														// to
-																														// process
-			final int threadsMax, final boolean updateStatus, final int debug_level) {// debug level used inside loops
+			final SimulationPattern.SimulParameters simulParameters,
+			final boolean equalizeGreens,
+			final ImagePlus imp, // image to process
+			final int threadsMax,
+			final boolean updateStatus,
+			final int debug_level) {// debug level used inside loops
 
 		if (imp == null)
 			return;
-
+		final int sensor_type = LwirReaderParameters.sensorType(imp);
 		Roi roi = imp.getRoi();
 		final Rectangle selection;
 		if (roi == null) {
@@ -3427,10 +3436,10 @@ public class MatchSimulatedPattern {
 			selection = (roi instanceof PointRoi) ? (new Rectangle(0, 0, imp.getWidth(), imp.getHeight()))
 					: roi.getBounds();
 		}
-		MatchSimulatedPattern matchSimulatedPattern = new MatchSimulatedPattern(distortionParameters.FFTSize);
+		MatchSimulatedPattern matchSimulatedPattern = new MatchSimulatedPattern(distortionParameters.getFFTSize(sensor_type));
 		matchSimulatedPattern.debugLevel = debugLevel;
 		MatchSimulatedPattern matchSimulatedPatternCorr = new MatchSimulatedPattern(
-				distortionParameters.correlationSize);
+				distortionParameters.getCorrelationSize(sensor_type));
 		matchSimulatedPatternCorr.debugLevel = debugLevel;
 		final SimulationPattern.SimulParameters thisSimulParameters = simulParameters.clone();
 		thisSimulParameters.subdiv = distortionParameters.patternSubdiv;
@@ -3452,12 +3461,12 @@ public class MatchSimulatedPattern {
 		if (debugLevel > 2)
 			SDFA_INSTANCE.showArrays(input_bayer, true, "selection-bayer-distortionsTest");
 		double[] windowFunction = initWindowFunction(distortionParameters.FFTSize, distortionParameters.fftGaussWidth);
-		final double[] windowFunctionCorr = initWindowFunction(distortionParameters.correlationSize,
+		final double[] windowFunctionCorr = initWindowFunction(distortionParameters.getCorrelationSize(sensor_type),
 				distortionParameters.correlationGaussWidth, distortionParameters.zeros);
 		double[] greens = normalizeAndWindow(input_bayer[4], windowFunction);
 
 		double[][] pattern = matchSimulatedPattern.findPattern(null, // DoubleFHT doubleFHT,
-				greens, distortionParameters.FFTSize, patternDetectParameters,
+				greens, distortionParameters.getFFTSize(sensor_type), patternDetectParameters,
 				patternDetectParameters.minGridPeriod / 2, patternDetectParameters.maxGridPeriod / 2, true, // this is a
 																											// pattern
 																											// for
@@ -3906,14 +3915,22 @@ public class MatchSimulatedPattern {
 		if (imp == null)
 			return 0;
 		final int debugThreshold = 1;
-		final boolean is_lwir = ((lwirReaderParameters != null) && lwirReaderParameters.is_LWIR(imp));
-		final int fft_size = is_lwir ? distortionParameters.FFTSize_lwir : distortionParameters.FFTSize;
-		final int correlation_size = is_lwir ? distortionParameters.correlationSizeLwir
-				: distortionParameters.correlationSize;
-		final int max_correlation_size = is_lwir ? distortionParameters.maximalCorrelationSizeLwir
-				: distortionParameters.maximalCorrelationSize;
-		final int minimal_pattern_cluster = is_lwir ? distortionParameters.minimalPatternClusterLwir
-				: distortionParameters.minimalPatternCluster;
+//		final boolean is_lwir = ((lwirReaderParameters != null) && lwirReaderParameters.is_LWIR(imp));
+//		final int fft_size = is_lwir ? distortionParameters.FFTSize_lwir : distortionParameters.FFTSize;
+//		final int correlation_size = is_lwir ? distortionParameters.correlationSizeLwir
+//				: distortionParameters.correlationSize;
+//		final int max_correlation_size = is_lwir ? distortionParameters.maximalCorrelationSizeLwir
+//				: distortionParameters.maximalCorrelationSize;
+//		final int minimal_pattern_cluster = is_lwir ? distortionParameters.minimalPatternClusterLwir
+//				: distortionParameters.minimalPatternCluster;
+		
+		final int sensor_type = LwirReaderParameters.sensorType(imp);
+		final int fft_size =                distortionParameters.getFFTSize(sensor_type);
+		final int correlation_size =        distortionParameters.getCorrelationSize(sensor_type);
+//		final int max_correlation_size =    distortionParameters.getMaximalCorrelationSize(sensor_type);
+		final int minimal_pattern_cluster = distortionParameters.getMinimalPatternCluster(sensor_type);
+		
+		
 		final int[][] directionsUV = { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 } }; // should have opposite direction
 																					// shifted by half
 		final int[][] directionsUV8 = { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { -1, -1 },
@@ -4329,8 +4346,8 @@ public class MatchSimulatedPattern {
 						@Override
 						public void run() {
 							SimulationPattern simulationPattern = new SimulationPattern(bPattern);
-							MatchSimulatedPattern matchSimulatedPatternCorr = new MatchSimulatedPattern(
-									distortionParameters.correlationSize);
+							MatchSimulatedPattern matchSimulatedPatternCorr = new MatchSimulatedPattern(correlation_size);
+//									distortionParameters.correlationSize);
 							DoubleFHT fht_instance = new DoubleFHT(); // provide DoubleFHT instance to save on
 																		// initializations (or null)
 							String dbgStr = "";
@@ -5048,45 +5065,37 @@ public class MatchSimulatedPattern {
 	}
 
 	/* ================================================================ */
-	public double refineDistortionCorrelation(final LwirReaderParameters lwirReaderParameters, // null is OK
+	public double refineDistortionCorrelation(
+			final LwirReaderParameters lwirReaderParameters, // null is OK
 			final DistortionParameters distortionParameters, //
 			final MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
-			final SimulationPattern.SimulParameters simulParameters, final boolean equalizeGreens, final ImagePlus imp, // image
-																														// to
-																														// process
+			final SimulationPattern.SimulParameters simulParameters,
+			final boolean equalizeGreens,
+			final ImagePlus imp, // image to process
 			final double maxCorr, // maximal allowed correction, in pixels (0.0) - any
-			final int threadsMax, final boolean updateStatus, final int debug_level) {// debug level used inside loops
+			final int threadsMax,
+			final boolean updateStatus,
+			final int debug_level) {// debug level used inside loops
 		scaleContrast(distortionParameters.scaleFirstPassContrast);
+		final int sensor_type = LwirReaderParameters.sensorType(imp);
 		final double[][][][] patternGrid = this.PATTERN_GRID;
 		final int debugThreshold = 1;
 		final Rectangle selection = new Rectangle(0, 0, imp.getWidth(), imp.getHeight());
-		MatchSimulatedPattern matchSimulatedPatternCorr = new MatchSimulatedPattern(
-				distortionParameters.correlationSize);
+		final int correlation_size = distortionParameters.getCorrelationSize(sensor_type);
+		MatchSimulatedPattern matchSimulatedPatternCorr = new MatchSimulatedPattern(correlation_size);
+//				distortionParameters.correlationSize);
 		matchSimulatedPatternCorr.debugLevel = debugLevel;
 		SimulationPattern simulationPattern = new SimulationPattern();
 		final SimulationPattern.SimulParameters thisSimulParameters = simulParameters.clone();
 		thisSimulParameters.subdiv = distortionParameters.patternSubdiv;
 		final double[] bPattern = simulationPattern.patternGenerator(simulParameters); // reuse pattern for next time
-		/*
-		 * final double [] windowFunctionCorr= initWindowFunction(
-		 * distortionParameters.correlationSize,distortionParameters.
-		 * correlationGaussWidth); final double []
-		 * windowFunctionCorr2=initWindowFunction(2*distortionParameters.
-		 * correlationSize,
-		 * (distortionParameters.absoluteCorrelationGaussWidth?0.5:1.0)*
-		 * distortionParameters.correlationGaussWidth); final double []
-		 * windowFunctionCorr4=initWindowFunction(4*distortionParameters.
-		 * correlationSize,
-		 * (distortionParameters.absoluteCorrelationGaussWidth?0.25:1.0)*
-		 * distortionParameters.correlationGaussWidth);
-		 */
-		final double[] windowFunctionCorr = initWindowFunction(distortionParameters.correlationSize,
+		final double[] windowFunctionCorr = initWindowFunction(correlation_size, // distortionParameters.correlationSize,
 				distortionParameters.correlationGaussWidth, distortionParameters.zeros);
-		final double[] windowFunctionCorr2 = initWindowFunction(2 * distortionParameters.correlationSize,
+		final double[] windowFunctionCorr2 = initWindowFunction(2 * correlation_size, // distortionParameters.correlationSize,
 				(distortionParameters.absoluteCorrelationGaussWidth ? 0.5 : 1.0)
 						* distortionParameters.correlationGaussWidth,
 				distortionParameters.zeros);
-		final double[] windowFunctionCorr4 = initWindowFunction(4 * distortionParameters.correlationSize,
+		final double[] windowFunctionCorr4 = initWindowFunction(4 * correlation_size, // distortionParameters.correlationSize,
 				(distortionParameters.absoluteCorrelationGaussWidth ? 0.25 : 1.0)
 						* distortionParameters.correlationGaussWidth,
 				distortionParameters.zeros);
@@ -5161,8 +5170,7 @@ public class MatchSimulatedPattern {
 				@Override
 				public void run() {
 					SimulationPattern simulationPattern = new SimulationPattern(bPattern);
-					MatchSimulatedPattern matchSimulatedPatternCorr = new MatchSimulatedPattern(
-							distortionParameters.correlationSize);
+					MatchSimulatedPattern matchSimulatedPatternCorr = new MatchSimulatedPattern(correlation_size); // distortionParameters.correlationSize);
 					DoubleFHT fht_instance = new DoubleFHT(); // provide DoubleFHT instance to save on initializations
 																// (or null)
 					int[] iUV = new int[2];
@@ -5190,7 +5198,7 @@ public class MatchSimulatedPattern {
 																										// of the
 																										// pattern cross
 																										// point
-								distortionParameters.correlationSize);
+								correlation_size/2); // distortionParameters.correlationSize);
 						if (!selection.contains(centerCross)) {
 							cellNumDoneAtomic.getAndIncrement();
 							continue; // the correlation selection does not fit into WOI selection ??? WOI is now full
@@ -5275,23 +5283,24 @@ public class MatchSimulatedPattern {
 							}
 						}
 
-						double[] centerXY = correctedPatternCrossLocation(lwirReaderParameters, // LwirReaderParameters
-																								// lwirReaderParameters,
-																								// // null is OK
+						double[] centerXY = correctedPatternCrossLocation(
+								lwirReaderParameters, // LwirReaderParameters lwirReaderParameters, null is OK
 								patternGrid[iUV[1]][iUV[0]][0], // initial coordinates of the pattern cross point
 								patternGrid[iUV[1]][iUV[0]][1][0], patternGrid[iUV[1]][iUV[0]][1][1],
-								patternGrid[iUV[1]][iUV[0]][2][0], patternGrid[iUV[1]][iUV[0]][2][1], simulPars, imp, // image
-																														// data
-																														// (Bayer
-																														// mosaic)
+								patternGrid[iUV[1]][iUV[0]][2][0], patternGrid[iUV[1]][iUV[0]][2][1], simulPars, imp, // image data (Bayer mosaic)
 								distortionParameters, //
-								patternDetectParameters, matchSimulatedPatternCorr, // correlationSize
-								thisSimulParameters, equalizeGreens, windowFunctionCorr, windowFunctionCorr2,
-								windowFunctionCorr4, simulationPattern, ((iUV[0] ^ iUV[1]) & 1) != 0, // if true -
-																										// invert
-																										// pattern
-								fht_instance, distortionParameters.fastCorrelationOnFinalPass, //
-								locsNeib, thisDebug, // thisDebug
+								patternDetectParameters,
+								matchSimulatedPatternCorr, // correlationSize
+								thisSimulParameters,
+								equalizeGreens,
+								windowFunctionCorr,
+								windowFunctionCorr2,
+								windowFunctionCorr4,
+								simulationPattern, ((iUV[0] ^ iUV[1]) & 1) != 0, // if true - invert pattern
+								fht_instance,
+								distortionParameters.fastCorrelationOnFinalPass, //
+								locsNeib,
+								thisDebug, // thisDebug
 								null);
 
 						if (centerXY != null) {
@@ -5299,6 +5308,13 @@ public class MatchSimulatedPattern {
 								System.out.println("==>iUV={" + iUV[0] + ",  " + iUV[1] + "}. "
 										+ patternGrid[iUV[1]][iUV[0]][0][0] + " / " + patternGrid[iUV[1]][iUV[0]][0][1]
 										+ " -> " + centerXY[0] + " / " + centerXY[1]);
+							// refine should provide higher contrast than was there, it is so for EO, but not for LWIR
+							// LWIR refined contrast is approximately the same as that of non-refined, twice less than EO
+							// boosting it here
+							if (sensor_type == 1) {
+								centerXY[2] *= 2.0; // boosting refined LWIR
+							}
+
 							if (refineInPlace)
 								setPatternGridCell(patternGrid, iUV, centerXY, null, // double [] wv1,
 										null); // double [] wv2);
@@ -5381,13 +5397,33 @@ public class MatchSimulatedPattern {
 
 			}
 			// Copy new values for the grid cells
+			boolean debug_bias = true;
+			double lwir_refine_dx = -0.25;
+			double lwir_refine_dy = -0.25;
+			double sw = 0.0, swx = 0.0, swy = 0.0; // finding x,y bias of refining
 			for (iUV[1] = 0; iUV[1] < height; iUV[1]++)
 				for (iUV[0] = 0; iUV[0] < width; iUV[0]++)
 					if (newGrid[iUV[1]][iUV[0]] != null) {
+						if (debug_bias) {
+							double [] center_refined = newGrid[iUV[1]][iUV[0]];
+							double [] center_orig =    patternGrid[iUV[1]][iUV[0]][0];
+							sw  += center_refined[2];
+							swx += center_refined[2] * (center_refined[0] - center_orig[0]);
+							swy += center_refined[2] * (center_refined[1] - center_orig[1]);
+						}
 						setPatternGridCell(patternGrid, iUV, newGrid[iUV[1]][iUV[0]], null, // double [] wv1,
 								null); // double [] wv2);
-
+					} else if (sensor_type == 1) { // FIXME: correcting LWIR refine bias  
+						if (isCellDefined(patternGrid, iUV)) {
+							patternGrid[iUV[1]][iUV[0]][0][0] += lwir_refine_dx; 
+							patternGrid[iUV[1]][iUV[0]][0][1] += lwir_refine_dy; 
+						}
 					}
+			if (debug_bias && (sw > 0.0)) {
+				swx /= sw;
+				swy /= sw;
+				System.out.println("Refine bias dx = "+swx+"pix,  dy = "+swy+"pix");
+			}
 			// correction is only calculated for simultaneous update (not for in-place)
 			if (debug_level > 1) {
 				System.out.println("refineDistortionCorrelation(): maximal correction=" + maxActualCorr + " pixels");
@@ -5449,12 +5485,18 @@ public class MatchSimulatedPattern {
 	 * average grid period)
 	 * 
 	 */
-	public ImagePlus equalizeGridIntensity(ImagePlus imp, double[][][][] patternGrid,
+	public ImagePlus equalizeGridIntensity(
+			ImagePlus imp,
+			double[][][][] patternGrid,
 			DistortionParameters distortionParameters, //
-			boolean equalizeGreens, int debugLevel, boolean updateStatus, int threadsMax) {
+			boolean equalizeGreens,
+			int debugLevel,
+			boolean updateStatus,
+			int threadsMax) {
 		int dbgThreshold = 1;
+		final int sensor_type = LwirReaderParameters.sensorType(imp);
 		double[][] gridIntensity = calcGridIntensity(4, // bayerComponent
-				distortionParameters.correlationSize, // size
+				distortionParameters.getCorrelationSize(sensor_type), // correlationSize, // size
 				distortionParameters, //
 				equalizeGreens, imp, // image to process
 				patternGrid, threadsMax);// debug level used inside loops
@@ -5470,6 +5512,10 @@ public class MatchSimulatedPattern {
 		double[] fffg = calcFlatFieldForGrid(gridIntensity, patternGrid, imp.getWidth(), imp.getHeight());
 
 		double averageGridPeriod = averageGridPeriod(patternGrid);
+//		if (debugLevel > (dbgThreshold + 2)) {
+//			this.SDFA_INSTANCE.showArrays(fffg, imp.getWidth(), imp.getHeight(),
+//					imp.getTitle() + "-fftg");
+//		}
 
 		int preShrink = (int) (averageGridPeriod * distortionParameters.flatFieldShrink);
 		int expand = (int) (averageGridPeriod * distortionParameters.flatFieldExpand);
@@ -5584,16 +5630,21 @@ public class MatchSimulatedPattern {
 		return this.gridContrastBrightness;
 	}
 
-	public double[][] calcGridIntensity(final int bayerComponent, final int size,
+	public double[][] calcGridIntensity(
+			final int bayerComponent,
+			final int size,
 			final DistortionParameters distortionParameters, //
-			final boolean equalizeGreens, final ImagePlus imp, // image to process
-			final double[][][][] patternGrid, final int threadsMax) {// debug level used inside loops
+			final boolean equalizeGreens,
+			final ImagePlus imp, // image to process
+			final double[][][][] patternGrid,
+			final int threadsMax) {// debug level used inside loops
+		final int sensor_type = LwirReaderParameters.sensorType(imp);
 		final double[][] gridIntensity = new double[patternGrid.length][patternGrid[0].length];
 		for (int i = 0; i < gridIntensity.length; i++)
 			for (int j = 0; j < gridIntensity[0].length; j++)
 				gridIntensity[i][j] = (bayerComponent >= 0) ? -1.0 : 0.0; // undefined
 		MatchSimulatedPattern matchSimulatedPatternCorr = new MatchSimulatedPattern(
-				distortionParameters.correlationSize);
+				distortionParameters.getCorrelationSize(sensor_type)); // correlationSize);
 		matchSimulatedPatternCorr.debugLevel = debugLevel;
 		final double[] windowFunctionCorr = initWindowFunction(size, // distortionParameters.correlationSize,
 				distortionParameters.correlationGaussWidth, distortionParameters.zeros);
@@ -5650,7 +5701,7 @@ public class MatchSimulatedPattern {
 							if (isCellDefined(patternGrid, iUV[0], iUV[1])) {
 								double[][] patternCell = patternGrid[iUV[1]][iUV[0]];
 								if (patternCell[0].length > 2)
-									gridIntensity[iUV[1]][iUV[0]] = patternCell[0][2];
+									gridIntensity[iUV[1]][iUV[0]] = patternCell[0][2]; // just copy from patternGrid[v][u][0][2]
 							}
 							/*
 							 * gridIntensity[iUV[1]][iUV[0]]=localGridContrast( imp, equalizeGreens,
@@ -6811,35 +6862,48 @@ public class MatchSimulatedPattern {
 		if (distortionParameters.flatFieldCorrection && (this.flatFieldForGrid == null)) // if it is not null it is
 																							// already supposed to be
 																							// applied!
-			imp_eq = equalizeGridIntensity(imp, this.PATTERN_GRID, distortionParameters, //
-					equalizeGreens, global_debug_level, updateStatus, threadsMax);
+			imp_eq = equalizeGridIntensity(
+					imp,
+					this.PATTERN_GRID,
+					distortionParameters, // // makes no sense for LWIR as it normalizes absolute data - actually it does! 
+					equalizeGreens,
+					global_debug_level,
+					updateStatus,
+					threadsMax);
 		else
 			imp_eq = imp;
 
 		if (distortionParameters.refineCorrelations) {
-			refineDistortionCorrelation(lwirReaderParameters, // LwirReaderParameters lwirReaderParameters, // null is
-																// OK
+			refineDistortionCorrelation(
+					lwirReaderParameters, // LwirReaderParameters lwirReaderParameters, // null is OK
 					distortionParameters, //
-					patternDetectParameters, simulParameters, equalizeGreens, imp_eq, 0.0, // final double maxCorr, //
-																							// maximal allowed
-																							// correction, in pixels
-																							// (0.0) - any
-					threadsMax, updateStatus, debug_level); // debug level
+					patternDetectParameters,
+					simulParameters,
+					equalizeGreens,
+					imp_eq,
+					0.0, // final double maxCorr, maximal allowed correction, in pixels (0.0) - any
+					threadsMax,
+					updateStatus,
+					debug_level); // debug level
 
-			recalculateWaveVectors(updateStatus, debug_level);// debug level used inside loops
+			recalculateWaveVectors(
+					updateStatus,
+					debug_level);// debug level used inside loops
 			if (global_debug_level > (debugThreshold + 1))
 				System.out.println("Second pass over at " + IJ.d2s(0.000000001 * (System.nanoTime() - startTime), 3));
 		}
 		// hack gridSize
 		if ((distortionParameters.gridSize & 1) != 0) {
-			refineDistortionCorrelation(lwirReaderParameters, // LwirReaderParameters lwirReaderParameters, // null is
-																// OK
+			refineDistortionCorrelation(lwirReaderParameters, // LwirReaderParameters lwirReaderParameters, // null is OK
 					distortionParameters, //
-					patternDetectParameters, simulParameters, equalizeGreens, imp_eq, 0.0, // final double maxCorr, //
-																							// maximal allowed
-																							// correction, in pixels
-																							// (0.0) - any
-					threadsMax, updateStatus, debug_level); // debug level
+					patternDetectParameters,
+					simulParameters,
+					equalizeGreens,
+					imp_eq,
+					0.0, // final double maxCorr, maximal allowed correction, in pixels (0.0) - any
+					threadsMax,
+					updateStatus,
+					debug_level); // debug level
 
 			recalculateWaveVectors(updateStatus, debug_level);// debug level used inside loops
 			if (global_debug_level > 0)
@@ -9653,16 +9717,21 @@ public class MatchSimulatedPattern {
 	 */
 	//
 	/* ======================================================================== */
-	private double[] correctedPatternCrossLocation(LwirReaderParameters lwirReaderParameters, // null is OK
+	private double[] correctedPatternCrossLocation(
+			LwirReaderParameters lwirReaderParameters, // null is OK
 			double[] beforeXY, // initial coordinates of the pattern cross point
-			double wv0x, double wv0y, double wv1x, double wv1y, double[][] correction, ImagePlus imp, // image data
-																										// (Bayer
-																										// mosaic)
+			double wv0x,
+			double wv0y,
+			double wv1x,
+			double wv1y,
+			double[][] correction,
+			ImagePlus imp, // image data (Bayer mosaic)
 			DistortionParameters distortionParameters, //
 			MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
 			MatchSimulatedPattern matchSimulatedPattern, // correlationSize
-			SimulationPattern.SimulParameters thisSimulParameters, boolean equalizeGreens, double[] window, // window
-																											// function
+			SimulationPattern.SimulParameters thisSimulParameters,
+			boolean equalizeGreens,
+			double[] window, // window function
 			double[] window2, // window function - twice FFT size (or null)
 			double[] window4, // window function - 4x FFT size (or null)
 			SimulationPattern simulationPattern, boolean negative, // invert cross phase
@@ -9670,31 +9739,52 @@ public class MatchSimulatedPattern {
 			double[][] locsNeib, // locations and weights of neighbors to average
 			int debug_level, String dbgStr) {
 		if (distortionParameters.legacyMode)
-			return correctedPatternCrossLocationOld(beforeXY, // initial coordinates of the pattern cross point
-					wv0x, wv0y, wv1x, wv1y, correction, imp, // image data (Bayer mosaic)
+			return correctedPatternCrossLocationOld(
+					beforeXY, // initial coordinates of the pattern cross point
+					wv0x,
+					wv0y,
+					wv1x,
+					wv1y,
+					correction,
+					imp, // image data (Bayer mosaic)
 					distortionParameters, //
-					patternDetectParameters, matchSimulatedPattern, // correlationSize
-					thisSimulParameters, equalizeGreens, window, // window function
+					patternDetectParameters,
+					matchSimulatedPattern, // correlationSize
+					thisSimulParameters,
+					equalizeGreens,
+					window, // window function
 					window2, // window function - twice FFT size (or null)
 					window4, // window function - 4x FFT size (or null)
-					simulationPattern, negative, // invert cross phase
+					simulationPattern,
+					negative, // invert cross phase
 					fht_instance, fast, // use fast measuring of the maximum on the correlation
 					locsNeib, // locations and weights of neighbors to average
 					debug_level);
 		else
-			return correctedPatternCrossLocationAverage4(lwirReaderParameters, // LwirReaderParameters
-																				// lwirReaderParameters, // null is OK
+			return correctedPatternCrossLocationAverage4(
+					lwirReaderParameters, // LwirReaderParameters
 					beforeXY, // initial coordinates of the pattern cross point
-					wv0x, wv0y, wv1x, wv1y, correction, imp, // image data (Bayer mosaic)
+					wv0x,
+					wv0y,
+					wv1x,
+					wv1y,
+					correction,
+					imp, // image data (Bayer mosaic)
 					distortionParameters, //
-					patternDetectParameters, matchSimulatedPattern, // correlationSize
-					thisSimulParameters, equalizeGreens, window, // window function
+					patternDetectParameters,
+					matchSimulatedPattern, // correlationSize
+					thisSimulParameters,
+					equalizeGreens,
+					window, // window function
 					window2, // window function - twice FFT size (or null)
 					window4, // window function - 4x FFT size (or null)
-					simulationPattern, negative, // invert cross phase
-					fht_instance, fast, // use fast measuring of the maximum on the correlation
+					simulationPattern,
+					negative, // invert cross phase
+					fht_instance,
+					fast, // use fast measuring of the maximum on the correlation
 					locsNeib, // locations and weights of neighbors to average
-					debug_level, dbgStr);
+					debug_level,
+					dbgStr);
 	}
 
 	private double[] correctedPatternCrossLocationOld(double[] beforeXY, // initial coordinates of the pattern cross
@@ -9984,36 +10074,50 @@ public class MatchSimulatedPattern {
 		return result;
 	}
 
-	private double[] correctedPatternCrossLocationAverage4(LwirReaderParameters lwirReaderParameters, // null is OK
+	private double[] correctedPatternCrossLocationAverage4(
+			LwirReaderParameters lwirReaderParameters, // null is OK
 			double[] beforeXY, // initial coordinates of the pattern cross point
-			double wv0x, double wv0y, double wv1x, double wv1y, double[][] correction, ImagePlus imp, // image data
-																										// (Bayer
-																										// mosaic)
+			double wv0x,
+			double wv0y,
+			double wv1x,
+			double wv1y,
+			double[][] correction,
+			ImagePlus imp, // image data (Bayer mosaic)
 			DistortionParameters distortionParameters, // distortionParameters.refineCorrelations
 			MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
 			MatchSimulatedPattern matchSimulatedPattern, // correlationSize
-			SimulationPattern.SimulParameters thisSimulParameters, boolean equalizeGreens, double[] window, // window
-																											// function
+			SimulationPattern.SimulParameters thisSimulParameters,
+			boolean equalizeGreens,
+			double[] window, // window function
 			double[] window2, // window function - twice FFT size (or null)
 			double[] window4, // window function - 4x FFT size (or null)
-			SimulationPattern simulationPattern, boolean negative, // invert cross phase
-			DoubleFHT fht_instance, boolean fast, // use fast measuring of the maximum on the correlation
+			SimulationPattern simulationPattern,
+			boolean negative, // invert cross phase
+			DoubleFHT fht_instance,
+			boolean fast, // use fast measuring of the maximum on the correlation
 			double[][] locsNeib, // locations and weights of neighbors to average
-			int debug_level, String dbgStr) {
+			int debug_level,
+			String dbgStr) {
 		if (imp == null) {
 			return null;
 		}
+		/*
 		boolean is_lwir = ((lwirReaderParameters != null) && lwirReaderParameters.is_LWIR(imp));
 		int correlation_size = is_lwir ? distortionParameters.correlationSizeLwir
 				: distortionParameters.correlationSize;
 		int max_correlation_size = is_lwir ? distortionParameters.maximalCorrelationSizeLwir
 				: distortionParameters.maximalCorrelationSize;
+		*/
+		final int sensor_type = LwirReaderParameters.sensorType(imp);
+		final int correlation_size =        distortionParameters.getCorrelationSize(sensor_type);
+		final int max_correlation_size =    distortionParameters.getMaximalCorrelationSize(sensor_type);
+		
 		boolean is_mono = false;
 		try {
 			is_mono = Boolean.parseBoolean((String) imp.getProperty("MONOCHROME"));
 		} catch (Exception e) {
 		}
-		is_mono |= is_lwir;
+		is_mono |= (sensor_type == 1); // is_lwir;
 
 		int debug_threshold = 3;
 		// next print - same for good and bad, correction==null
@@ -10036,7 +10140,7 @@ public class MatchSimulatedPattern {
 		beforeXY[1] += distortionParameters.correlationDy; // offset y (in pixels)
 
 		double[][] invConvMatrix = { { 1, 0 }, { 0, 1 } }; // identity
-		if (!is_lwir) {
+		if (sensor_type != 1) { //(!is_lwir) {
 			double[][] convMatrix = { { 1.0, -1.0 }, { 1.0, 1.0 } }; // from greens2 to pixel WV
 			invConvMatrix = matrix2x2_scale(matrix2x2_invert(convMatrix), 2.0);
 		}
@@ -10112,19 +10216,26 @@ public class MatchSimulatedPattern {
 		if ((debug_level > (debug_threshold - 2)) && (thisCorrelationSize > correlation_size))
 			System.out.println("**** u/v span too small, increasing FFT size to " + thisCorrelationSize);
 		Rectangle centerCross = correlationSelection(beforeXY, // initial coordinates of the pattern cross point
-				(is_lwir ? (thisCorrelationSize / 2) : (thisCorrelationSize)));
+//				(is_lwir ? (thisCorrelationSize / 2) : (thisCorrelationSize)));
+				((sensor_type == 1) ? (thisCorrelationSize / 2) : (thisCorrelationSize)));
 
 		int ixc = centerCross.x + centerCross.width / 2;
 		int iyc = centerCross.y + centerCross.height / 2;
 		double[] diffBeforeXY = { beforeXY[0] - ixc, beforeXY[1] - iyc };
 		double[] greens_mono; // greens or mono
-		if (is_lwir) {
+//		if (is_lwir) {
+		if (sensor_type == 1) {
 			greens_mono = getNoBayer(imp, centerCross);
 			if (debug_level > (debug_threshold + 0))
 				SDFA_INSTANCE.showArrays(greens_mono, "greens_mono");
 			if (debug_level > (debug_threshold + 0))
 				System.out.println("ixc=" + ixc + " iyc=" + iyc);
 			normalizeAndWindow(greens_mono, thisWindow);
+			// Twice lower contrast than EO - doubling below - did not work
+//			for (int i = 0; i < greens_mono.length; i++) {
+//				greens_mono[i] *= 2.0;
+//			}
+			
 		} else {
 			double[][] input_bayer = splitBayer(imp, centerCross, equalizeGreens);
 			if (debug_level > (debug_threshold + 1))
@@ -10176,7 +10287,8 @@ public class MatchSimulatedPattern {
 		double[][] modelCorrs = new double[numOfNeib][];
 		double[][] debugGreens = new double[numOfNeib][0];
 		for (numNeib = 0; numNeib < numOfNeib; numNeib++) {
-			if (is_lwir) { // monochrome, use all pixels
+//			if (is_lwir) { // monochrome, use all pixels
+			if (sensor_type == 1) { // monochrome, use all pixels
 				neibCenter[0] = diffBeforeXY[0] + gridNeib[numNeib][0];
 				neibCenter[1] = diffBeforeXY[1] + gridNeib[numNeib][1];
 			} else {
@@ -10184,11 +10296,13 @@ public class MatchSimulatedPattern {
 				neibCenter[1] = diffBeforeXY[1] + 0.5 * (gridNeib[numNeib][0] - gridNeib[numNeib][1]);
 			}
 			double[] barray;
-			if (is_lwir) {
+//			if (is_lwir) {
+			if (sensor_type == 1) {				
 				// negative=!negative;
 				dUV = matrix2x2_scale(matrix2x2_mul(wv, neibCenter), -2 * Math.PI);
 //				dUV[0] = 0.0; dUV[1] = 0.0;
-				if (debug_level > (debug_threshold + 20)) {
+				boolean dbg_once = false;
+				if (dbg_once || (debug_level > (debug_threshold + 20))) {
 					double[] barray0 = simulationPattern.simulatePatternFullPatternSafe( // Is it the most
 																							// time-consuming part?
 																							// should it be done once
@@ -10429,11 +10543,11 @@ public class MatchSimulatedPattern {
 					WVgreensMono[i][j] *= 0.5;
 		}
 
-		double[] contrasts = correlationContrast(modelCorr, greens_mono, WVgreensMono, // wave vectors (same units as
-																						// the pixels array)
+		double[] contrasts = correlationContrast(modelCorr,
+				greens_mono,
+				WVgreensMono, // wave vectors (same units as the pixels array)
 				distortionParameters.contrastSelectSigmaCenter, // 2.0 Gaussian sigma to select correlation (pixels, 2.0)
-				distortionParameters.contrastSelectSigma, // 0.1 Gaussian sigma to select correlation centers (fraction of
-															// UV period), 0.1
+				distortionParameters.contrastSelectSigma, // 0.1 Gaussian sigma to select correlation centers (fraction of UV period), 0.1
 				centerXY[0], // x0, // center coordinates
 				centerXY[1], // y0,
 				"test-contrast"); // title base for optional plots names
@@ -10497,9 +10611,12 @@ public class MatchSimulatedPattern {
 					+ IJ.d2s(beforeXY[1], 3) + ")->" + IJ.d2s(result[0], 3) + ":" + IJ.d2s(result[1], 3));
 
 // FIXME: maybe wrong for mono?
-		if (is_lwir) {
+//		if (is_lwir) {
+		if (sensor_type == 1) {			
 			result[0] = ixc + diffBeforeXY[0] + centerXY[0];
 			result[1] = iyc + diffBeforeXY[1] + centerXY[1];
+			// Twice lower contrast than EO - doubling below - did not work
+//			result[2] *= 2.0; // not just for refine
 		} else {
 			result[0] = ixc + diffBeforeXY[0] - (-centerXY[0] - centerXY[1]);
 			result[1] = iyc + diffBeforeXY[1] - (centerXY[0] - centerXY[1]);
@@ -12409,103 +12526,337 @@ public class MatchSimulatedPattern {
 	/* ======================================================================== */
 
 	public static class DistortionParameters {
-		public int correlationSize; // FFTSize/4
-		public int correlationSizeLwir;
-		public int maximalCorrelationSize; // FFTSize/2
-		public int maximalCorrelationSizeLwir;
-		public double correlationGaussWidth; // 0 - no window, <0 - use Hamming
-		public boolean absoluteCorrelationGaussWidth = false; // do not scale correlationGaussWidth when the FFT size is
+		private int correlationSize; // FFTSize/4
+		private int correlationSizeLwir;
+		private int maximalCorrelationSize; // FFTSize/2
+		private int maximalCorrelationSizeLwir;
+		public  double correlationGaussWidth; // 0 - no window, <0 - use Hamming
+		public  boolean absoluteCorrelationGaussWidth = false; // do not scale correlationGaussWidth when the FFT size is
 																// increased
-		public int zeros; // leave this number of zeros on the margins of the window (toatal from both
+		public  int zeros; // leave this number of zeros on the margins of the window (toatal from both
 							// sides). If correlationGaussWidth>0 will
 		// additionally multiply by Hamming
-		public int FFTSize;
-		public int FFTSize_lwir;
-		public int FFTOverlap; // 32 used for aberration kernels, former FFT_OVERLAP
-		public int FFTOverlap_lwir; // 4
+		private int FFTSize;
+		private int FFTSize_lwir;
+		private int FFTOverlap; // 32 used for aberration kernels, former FFT_OVERLAP
+		private int FFTOverlap_lwir; // 4
 
-		public double fftGaussWidth;
-		public double phaseCorrelationFraction = 1.0; // 1.0 - phase correlation, 0.0 - just cross-correlation
-		public double correlationHighPassSigma;
-		public double correlationLowPassSigma;
-		public double correlationRingWidth; // ring (around r=0.5 dist to opposite corr) width , center circle
+		public  double fftGaussWidth;
+		public  double phaseCorrelationFraction = 1.0; // 1.0 - phase correlation, 0.0 - just cross-correlation
+		public  double correlationHighPassSigma;
+		public  double correlationLowPassSigma;
+		public  double correlationRingWidth; // ring (around r=0.5 dist to opposite corr) width , center circle
 											// r=0.5*correlationRingWidth
-		public double correlationMaxOffset; // maximal distance between predicted and actual pattern node
-		public double correlationMinContrast; // minimal contrast for the pattern to pass
-		public double correlationMinInitialContrast; // minimal contrast for the pattern of the center (initial point)
-		public double correlationMinAbsoluteContrast; // minimal contrast for the pattern to pass, does not compensate
+		public  double correlationMaxOffset; // maximal distance between predicted and actual pattern node
+		public  double correlationMinContrast; // minimal contrast for the pattern to pass
+		public  double correlationMinInitialContrast; // minimal contrast for the pattern of the center (initial point)
+		public  double correlationMinAbsoluteContrast; // minimal contrast for the pattern to pass, does not compensate
 														// for low ligt
-		public double correlationMinAbsoluteInitialContrast; // minimal contrast for the pattern of the center (initial
+		public  double correlationMinAbsoluteInitialContrast; // minimal contrast for the pattern of the center (initial
 																// point)
 
-		public double scaleFirstPassContrast; // Decrease contrast of cells that are too close to the border to be
+		public  double scaleFirstPassContrast; // Decrease contrast of cells that are too close to the border to be
 												// processed in refinement pass
-		public double contrastSelectSigmaCenter; // Gaussian sigma to select correlation centers in pixels, 2.0 (center
+		public  double contrastSelectSigmaCenter; // Gaussian sigma to select correlation centers in pixels, 2.0 (center
 													// spot)
-		public double contrastSelectSigma; // Gaussian sigma to select correlation centers (fraction of UV period), 0.1
-		public double contrastAverageSigma; // Gaussian sigma to average correlation variations (as contrast reference)
+		public  double contrastSelectSigma; // Gaussian sigma to select correlation centers (fraction of UV period), 0.1
+		public  double contrastAverageSigma; // Gaussian sigma to average correlation variations (as contrast reference)
 											// 0.5
 
-		public int minimalPatternCluster; // minimal pattern cluster size (0 - disable retries)
-		public int minimalPatternClusterLwir; // minimal pattern cluster size (0 - disable retries)
-		public double scaleMinimalInitialContrast; // increase/decrease minimal contrast if initial cluster is >0 but
+		private int minimalPatternCluster; // minimal pattern cluster size (0 - disable retries)
+		private int minimalPatternClusterLwir; // minimal pattern cluster size (0 - disable retries)
+		public  double scaleMinimalInitialContrast; // increase/decrease minimal contrast if initial cluster is >0 but
 													// less than minimalPatternCluster
 
-		public double searchOverlap; // when searching for grid, step this amount of the FFTSize
-		public int patternSubdiv;
-		public double correlationDx; // not saved
-		public double correlationDy; // not saved
-		public int gridSize;
-		public int loop_debug_level;
-		public boolean refineCorrelations;
-		public boolean fastCorrelationOnFirstPass;
-		public boolean fastCorrelationOnFinalPass;
-		public double bPatternSigma; // blur bPattern with this sigma
-		public double barraySigma; // blur barray with this sigma, multiplied by subdiv
-		public double correlationWeightSigma; // sigma (in pixels) for maximum approximation - UNUSED (other maximum
+		public  double searchOverlap; // when searching for grid, step this amount of the FFTSize
+		public  int patternSubdiv;
+		public  double correlationDx; // not saved
+		public  double correlationDy; // not saved
+		public  int gridSize;
+		public  int loop_debug_level;
+		public  boolean refineCorrelations;
+		public  boolean fastCorrelationOnFirstPass;
+		public  boolean fastCorrelationOnFinalPass;
+		public  double bPatternSigma; // blur bPattern with this sigma
+		public  double barraySigma; // blur barray with this sigma, multiplied by subdiv
+		public  double correlationWeightSigma; // sigma (in pixels) for maximum approximation - UNUSED (other maximum
 												// methods)
-		public double correlationRadiusScale; // maximal radius to consider, in sigmas (if 0 - use sigma as radius) -
+		public  double correlationRadiusScale; // maximal radius to consider, in sigmas (if 0 - use sigma as radius) -
 												// UNUSED
-		public int correlationRadius; // radius (green pixel) of the correlation maximum to use for x/y measurement
-		public double correlationThreshold; // fraction of the value of the maximum fro the point to be included in
+		public  int correlationRadius; // radius (green pixel) of the correlation maximum to use for x/y measurement
+		public  double correlationThreshold; // fraction of the value of the maximum fro the point to be included in
 											// centroid calculation
-		public int correlationSubdiv; // Total subdivision of the correlation maximum (linear and FFT)
-		public int correlationFFTSubdiv; // Increase density of the correlation using FFT
-		public boolean correlationAverageOnRefine; // average position between neighbor samples
-		public boolean refineInPlace; // Update coordinates of the grid points as they are recalculated (false - then
+		public  int correlationSubdiv; // Total subdivision of the correlation maximum (linear and FFT)
+		public  int correlationFFTSubdiv; // Increase density of the correlation using FFT
+		public  boolean correlationAverageOnRefine; // average position between neighbor samples
+		public  boolean refineInPlace; // Update coordinates of the grid points as they are recalculated (false - then
 										// update all at once)
-		public double averageOrthoDist; // distance to up/down/right left neighbors (0.5)
-		public double averageOrthoWeight; // weight of 4 ortho neighbors (combined) - 0.4), weight of center -s
+		public  double averageOrthoDist; // distance to up/down/right left neighbors (0.5)
+		public  double averageOrthoWeight; // weight of 4 ortho neighbors (combined) - 0.4), weight of center -s
 											// 1.0-averageOrthoWeight-averageDiagWeight
-		public double averageDiagDist; // distance to diagonal neighbors (projection on x/y) (0.5)
-		public double averageDiagWeight; // weight of 4 diagonal neighbors (combined) - 0.4)
-		public boolean useQuadratic; // use quadratic extrapolation to predict position/wave vectors of a new pixel
+		public  double averageDiagDist; // distance to diagonal neighbors (projection on x/y) (0.5)
+		public  double averageDiagWeight; // weight of 4 diagonal neighbors (combined) - 0.4)
+		public  boolean useQuadratic; // use quadratic extrapolation to predict position/wave vectors of a new pixel
 										// (false - use linear)
-		public boolean removeLast; // remove outer (unreliable) row of nodes
-		public int numberExtrapolated; // add this number of extrapolated nodes
-		public double extrapolationSigma; // use instead of the correlationWeightSigma during final extrapolation
-		public double minUVSpan; // Minimal u/v span in correlation window that triggers increase of the
+		public  boolean removeLast; // remove outer (unreliable) row of nodes
+		public  int numberExtrapolated; // add this number of extrapolated nodes
+		public  double extrapolationSigma; // use instead of the correlationWeightSigma during final extrapolation
+		public  double minUVSpan; // Minimal u/v span in correlation window that triggers increase of the
 									// correlation FFT size
-		public boolean flatFieldCorrection = true; // compensate grid uneven intensity (vignetting, illumination)
-		public double flatFieldExtarpolate = 1.0; // extrapolate flat field intensity map (relative to the average grid
+		public  boolean flatFieldCorrection = true; // compensate grid uneven intensity (vignetting, illumination)
+		public  double flatFieldExtarpolate = 1.0; // extrapolate flat field intensity map (relative to the average grid
 													// period)
-		public double flatFieldBlur = 1.0; // blur the intensity map (relative to the average grid period)
-		public double flatFieldMin = 0.1; // do not try to compensate if intensity less than this part of maximal
-		public double flatFieldShrink = 1.0; // Shrink before extrapolating intensity map (relative to the average grid
+		public  double flatFieldBlur = 1.0; // blur the intensity map (relative to the average grid period)
+		public  double flatFieldMin = 0.1; // do not try to compensate if intensity less than this part of maximal
+		public  double flatFieldShrink = 1.0; // Shrink before extrapolating intensity map (relative to the average grid
 												// period)
-		public double flatFieldExpand = 3.0; // Expand during extrapolation (relative to the average grid period)
-		public double flatFieldSigmaRadius = 1.0;// Extrapolation weight effective radius (relative to the average grid
+		public  double flatFieldExpand = 3.0; // Expand during extrapolation (relative to the average grid period)
+		public  double flatFieldSigmaRadius = 1.0;// Extrapolation weight effective radius (relative to the average grid
 													// period)
-		public double flatFieldExtraRadius = 1.5;// Consider pixels in a square with the side twice this (relative to
+		public  double flatFieldExtraRadius = 1.5;// Consider pixels in a square with the side twice this (relative to
 													// flatFieldSigmaRadius)
-		public double averagingAreaScale = 2.0; // multiply the average grid period to determine the area for averaging
+		public  double averagingAreaScale = 2.0; // multiply the average grid period to determine the area for averaging
 												// the grig brightness
 
 		// match pointers errors
-		public int errTooFewCells = -10;
-		public int errPatternNotFound = -11;
-		public boolean legacyMode = false; // legacy mode
+		public  int errTooFewCells = -10;
+		public  int errPatternNotFound = -11;
+		public  boolean legacyMode = false; // legacy mode
+		
+		
+		public int getCorrelationSize(int sensor_type) {
+			switch (sensor_type) {
+			case 1:  return correlationSizeLwir;
+			default: return correlationSize;}
+		}
 
+		public void setCorrelationSize(int size, int sensor_type) {
+			switch (sensor_type) {
+			case 1:  correlationSizeLwir = size; break;
+			default: correlationSize = size;}
+		}
+		
+		
+		
+		public int getMaximalCorrelationSize(int sensor_type) {
+			switch (sensor_type) {
+			case 1:  return maximalCorrelationSizeLwir;
+			default: return maximalCorrelationSize;}
+		}
+		
+		public int getFFTSize(int sensor_type) {
+			switch (sensor_type) {
+			case 1:  return FFTSize_lwir;
+			default: return FFTSize;}
+		}
+/*
+		public void setFFTSize(int size, int sensor_type) {
+			switch (sensor_type) {
+			case 1:  FFTSize_lwir = size; break;
+			default: FFTSize =      size; }
+			
+		}
+*/
+		
+		public int getFFTOverlap(int sensor_type) {
+			switch (sensor_type) {
+			case 1:  return FFTOverlap_lwir;
+			default: return FFTOverlap;}
+		}
+
+		public int getMinimalPatternCluster(int sensor_type) {
+			switch (sensor_type) {
+			case 1:  return minimalPatternClusterLwir;
+			default: return minimalPatternCluster;}
+		}
+
+		public void setMinimalPatternCluster(int size, int sensor_type) {
+			switch (sensor_type) {
+			case 1:  minimalPatternClusterLwir = size; break;
+			default: minimalPatternCluster = size;}
+		}
+		
+		
+		public boolean showDistortionDialog(int [] mdl) { //MatchSimulatedPattern.DistortionParameters distortionParameters) {
+			MatchSimulatedPattern.DistortionParameters distortionParameters = this;
+			int i;
+			GenericDialog gd = new GenericDialog("Distrortion parameters");
+			gd.addNumericField("FFTSize (Initial pattern and aberraton kernels):", distortionParameters.FFTSize, 0);      // 256
+			gd.addNumericField("FFTSize for LWIR sensors):",                       distortionParameters.FFTSize_lwir, 0); // 32
+			gd.addNumericField("FFTOverlap (aberration kernels):",                 distortionParameters.FFTOverlap, 0);      // 32
+			gd.addNumericField("FFTOverlap for LWIR sensors):",                    distortionParameters.FFTOverlap_lwir, 0); // 4
+			gd.addNumericField("FFT Gaussian width (relative):",                   distortionParameters.fftGaussWidth, 3);
+			gd.addNumericField("Correlation size:",                                distortionParameters.correlationSize, 0); // 64
+			gd.addNumericField("Correlation size LWIR:",                           distortionParameters.correlationSizeLwir, 0); // 16
+			gd.addNumericField("Maximal correlation size:",                        distortionParameters.maximalCorrelationSize, 0); // 128
+			gd.addNumericField("Maximal correlation size LWIR:",                   distortionParameters.maximalCorrelationSizeLwir, 0); // 16
+
+			gd.addNumericField("Correlation Gauss width (relative):",              distortionParameters.correlationGaussWidth, 3);
+			gd.addCheckbox("Keep Gaussian width absolute when increasing FFT size",distortionParameters.absoluteCorrelationGaussWidth);
+//			/phaseCorrelationFraction
+			//// leave this number of zeros on teh margins of the window (toatal from both sides). If correlationGaussWidth>0 will
+	        // additionally multiply by Hamming
+			gd.addNumericField("Leave zeros on the window margins (toatal numbedr from both sides)", distortionParameters.zeros, 0);
+
+			gd.addNumericField("Phase correlation modifier (1.0 - phase corr., 0 - just corr.)", distortionParameters.phaseCorrelationFraction, 5);
+			gd.addNumericField("Correlation high-pass sigma:",          distortionParameters.correlationHighPassSigma, 3);
+
+			gd.addNumericField("Correlation low-pass sigma (fraction of sqrt(2)*Nyquist, lower - more filtering, 0 -none):",distortionParameters.correlationLowPassSigma, 3);
+			gd.addNumericField("Correlation maximal offset from predicted:",distortionParameters.correlationMaxOffset, 3);
+			gd.addNumericField("Detection ring width (fraction):",      distortionParameters.correlationRingWidth, 3);
+			gd.addNumericField("Correlation minimal contrast (normalized)",         distortionParameters.correlationMinContrast, 3);
+			gd.addNumericField("Correlation minimal contrast for initial search (normalized)", distortionParameters.correlationMinInitialContrast, 3);
+			gd.addNumericField("Correlation minimal contrast (absolute)",         distortionParameters.correlationMinAbsoluteContrast, 3);
+			gd.addNumericField("Correlation minimal contrast for initial search (absolute)", distortionParameters.correlationMinAbsoluteInitialContrast, 3);
+
+			gd.addNumericField("Decrease contrast of cells that are too close to the border to be processed in refinement pass", distortionParameters.scaleFirstPassContrast, 3);
+			gd.addNumericField("Gaussian sigma to select correlation center in pixels, 2.0", distortionParameters.contrastSelectSigmaCenter, 3);
+			gd.addNumericField("Gaussian sigma to select correlation off-centers (fraction of UV period), 0.1", distortionParameters.contrastSelectSigma, 3);
+			gd.addNumericField("Gaussian sigma to average correlation variations (as contrast reference), 0.5", distortionParameters.contrastAverageSigma, 3);
+
+			gd.addNumericField("Minimal initial pattern cluster size (0 - disable retries)", distortionParameters.minimalPatternCluster, 0); // 40
+			gd.addNumericField("Minimal initial LWIR pattern cluster size (0 - disable retries)", distortionParameters.minimalPatternClusterLwir, 0); // 10
+			gd.addNumericField("Scale minimal contrast if the initial cluster is nonzero but smaller", distortionParameters.scaleMinimalInitialContrast, 3);
+			gd.addNumericField("Overlap of FFT areas when searching for pattern", distortionParameters.searchOverlap, 3);
+
+			gd.addNumericField("Pattern subdivision:",                  distortionParameters.patternSubdiv, 0); // 4
+			gd.addNumericField("Blur pattern bitmap (sigma):       ",   distortionParameters.bPatternSigma, 3,5,"pattern cell"); // 0.02
+			gd.addNumericField("Blur pattern (sigma):                ", distortionParameters.barraySigma, 3,5,"sensor pix");     // 0.5
+			gd.addNumericField("Correlation weights (around maximum):", distortionParameters.correlationWeightSigma, 3,5,"nodes"); // 2.5
+			gd.addNumericField("Correlation radius scale (0 - sharp sigma)", distortionParameters.correlationRadiusScale, 1,3,"sigmas"); //2.0
+
+			gd.addNumericField("Correlation maximal radius to use",      distortionParameters.correlationRadius, 0,1,"pix"); // 2.0
+			gd.addNumericField("Correlation maximum calculation threshold", distortionParameters.correlationThreshold*100, 2,5,"%"); // .8
+			gd.addNumericField("Interpolate correlation (FFT*linear)",  distortionParameters.correlationSubdiv, 0,3,"x"); // 16
+			gd.addNumericField("Interpolate correlation with FFT",      distortionParameters.correlationFFTSubdiv, 0,3,"x"); // 4
+
+			gd.addNumericField("Correlation dx (debug)",                distortionParameters.correlationDx, 3);
+			gd.addNumericField("Correlation dy (debug)",                distortionParameters.correlationDy, 3);
+			gd.addNumericField("Maximal size of the pattern grid (square)", distortionParameters.gridSize, 0);
+			gd.addCheckbox    ("Refine correlations",                   distortionParameters.refineCorrelations);
+			gd.addCheckbox    ("Use fast correlation on first pass",    distortionParameters.fastCorrelationOnFirstPass);
+			gd.addCheckbox    ("Use fast correlation on refine pass",   distortionParameters.fastCorrelationOnFinalPass);
+
+			gd.addCheckbox    ("Average correlation measurements between neighbors (on refine)", distortionParameters.correlationAverageOnRefine);
+			gd.addCheckbox    ("Update coordinates of the grid points as they are recalculated (false - then update all at once)", distortionParameters.refineInPlace);
+
+			gd.addNumericField("Distance to ortho neighbors (for averaging)", distortionParameters.averageOrthoDist, 3,5,"sensor pix");
+			gd.addNumericField("Combined weight of ortho neighbors (fraction of 1.0)", distortionParameters.averageOrthoWeight, 3);
+			gd.addNumericField("Distance to diagonal neighbors (for averaging)", distortionParameters.averageDiagDist, 3,5,"sensor pix");
+			gd.addNumericField("Combined weight of diagonal neighbors (fraction of 1.0)", distortionParameters.averageDiagWeight, 3);
+			gd.addCheckbox    ("Use quadratic extrapolation (false - force linear)", distortionParameters.useQuadratic);
+
+			gd.addCheckbox    ("Remove outer (unreliable) layer before extrapolation", distortionParameters.removeLast);
+			gd.addNumericField("Number of extrapolated layers of nodes (final stage)", distortionParameters.numberExtrapolated, 0);
+			gd.addNumericField("Sigma during final extrapolation stage", distortionParameters.extrapolationSigma, 3,5,"nodes");
+			gd.addNumericField("Minimal UV span in correlation window to trigger FFT size increase", distortionParameters.minUVSpan, 3);
+
+			gd.addCheckbox    ("Compensate uneven pattern intensity", distortionParameters.flatFieldCorrection);
+			gd.addNumericField("Extrapolate pattern intensity map (relative to pattern period)", distortionParameters.flatFieldExtarpolate, 3);
+			gd.addNumericField("Blur pattern intensity map (relative to pattern period)", distortionParameters.flatFieldBlur, 3);
+			gd.addNumericField("Do not use areas where intensity map is below this part of maximal", distortionParameters.flatFieldMin, 3);
+
+			gd.addNumericField("Shrink before extrapolating intensity map (relative to the average grid period)", distortionParameters.flatFieldShrink, 3);
+			gd.addNumericField("Expand during extrapolation (relative to the average grid period)", distortionParameters.flatFieldExpand, 3);
+			gd.addNumericField("Extrapolation weight effective radius (relative to the average grid period)", distortionParameters.flatFieldSigmaRadius, 3);
+			gd.addNumericField("Consider pixels in a square with the side twice this (relative to flatFieldSigmaRadius)", distortionParameters.flatFieldExtraRadius, 3);
+			gd.addNumericField("Multiply the average grid period to determine the area for averaging the grig brightness", distortionParameters.averagingAreaScale, 3);
+
+			gd.addCheckbox    ("Legacy mode (deprecated)", distortionParameters.legacyMode);
+
+			gd.addNumericField("Debug level inside the loop", distortionParameters.loop_debug_level, 0);
+
+
+			gd.addNumericField("Debug Level:",                          mdl[0], 0);
+		    WindowTools.addScrollBars(gd);
+			gd.showDialog();
+			if (gd.wasCanceled()) return false;
+			distortionParameters.FFTSize =                     makePowerOfTwo((int) gd.getNextNumber());
+			distortionParameters.FFTSize_lwir =                makePowerOfTwo((int) gd.getNextNumber());
+			distortionParameters.FFTOverlap =                  makePowerOfTwo((int) gd.getNextNumber());
+			distortionParameters.FFTOverlap_lwir =             makePowerOfTwo((int) gd.getNextNumber());
+			distortionParameters.fftGaussWidth=                gd.getNextNumber();
+			distortionParameters.correlationSize =             makePowerOfTwo((int) gd.getNextNumber());
+			distortionParameters.correlationSizeLwir =         makePowerOfTwo((int) gd.getNextNumber());
+			distortionParameters.maximalCorrelationSize =      makePowerOfTwo((int) gd.getNextNumber());
+			distortionParameters.maximalCorrelationSizeLwir =  makePowerOfTwo((int) gd.getNextNumber());
+			distortionParameters.correlationGaussWidth=        gd.getNextNumber();
+			distortionParameters.absoluteCorrelationGaussWidth=gd.getNextBoolean();
+			distortionParameters.zeros=                  (int) gd.getNextNumber();
+			distortionParameters.phaseCorrelationFraction=     gd.getNextNumber();
+			distortionParameters.correlationHighPassSigma=     gd.getNextNumber();
+			distortionParameters.correlationLowPassSigma=      gd.getNextNumber();
+			distortionParameters.correlationMaxOffset=         gd.getNextNumber();
+			distortionParameters.correlationRingWidth=         gd.getNextNumber();
+			distortionParameters.correlationMinContrast=       gd.getNextNumber();
+			distortionParameters.correlationMinInitialContrast=  gd.getNextNumber();
+
+			distortionParameters.correlationMinAbsoluteContrast=  gd.getNextNumber();
+			distortionParameters.correlationMinAbsoluteInitialContrast=  gd.getNextNumber();
+
+			distortionParameters.scaleFirstPassContrast=     gd.getNextNumber();
+			distortionParameters.contrastSelectSigmaCenter=  gd.getNextNumber();
+			distortionParameters.contrastSelectSigma=        gd.getNextNumber();
+			distortionParameters.contrastAverageSigma=       gd.getNextNumber();
+
+			distortionParameters.minimalPatternCluster=(int) gd.getNextNumber();
+			distortionParameters.minimalPatternClusterLwir=(int) gd.getNextNumber();
+
+			distortionParameters.scaleMinimalInitialContrast=gd.getNextNumber();
+			distortionParameters.searchOverlap=              gd.getNextNumber();
+
+			distortionParameters.patternSubdiv=     (int) gd.getNextNumber();
+			distortionParameters.bPatternSigma=           gd.getNextNumber();
+			distortionParameters.barraySigma=             gd.getNextNumber();
+			distortionParameters.correlationWeightSigma=  gd.getNextNumber();
+			distortionParameters.correlationRadiusScale=  gd.getNextNumber();
+			distortionParameters.correlationRadius= (int) gd.getNextNumber();
+			distortionParameters.correlationThreshold= 0.01*gd.getNextNumber();
+			distortionParameters.correlationSubdiv= (int) gd.getNextNumber();
+			distortionParameters.correlationFFTSubdiv=1;
+			for (i=(int) gd.getNextNumber(); i >1; i>>=1) distortionParameters.correlationFFTSubdiv <<=1; /* make it to be power of 2 */
+			distortionParameters.correlationDx=           gd.getNextNumber();
+			distortionParameters.correlationDy=           gd.getNextNumber();
+			distortionParameters.gridSize=          (int) gd.getNextNumber();
+			distortionParameters.refineCorrelations=      gd.getNextBoolean();
+			distortionParameters.fastCorrelationOnFirstPass=gd.getNextBoolean();
+			distortionParameters.fastCorrelationOnFinalPass=gd.getNextBoolean();
+
+			distortionParameters.correlationAverageOnRefine=gd.getNextBoolean();
+			distortionParameters.refineInPlace=           gd.getNextBoolean();
+			distortionParameters.averageOrthoDist=        gd.getNextNumber();
+			distortionParameters.averageOrthoWeight=      gd.getNextNumber();
+			distortionParameters.averageDiagDist=         gd.getNextNumber();
+			distortionParameters.averageDiagWeight=       gd.getNextNumber();
+			distortionParameters.useQuadratic=            gd.getNextBoolean();
+
+			distortionParameters.removeLast=              gd.getNextBoolean();
+			distortionParameters.numberExtrapolated=(int) gd.getNextNumber();
+			distortionParameters.extrapolationSigma=      gd.getNextNumber();
+			distortionParameters.minUVSpan=               gd.getNextNumber();
+			distortionParameters.flatFieldCorrection=     gd.getNextBoolean();
+			distortionParameters.flatFieldExtarpolate=    gd.getNextNumber();
+			distortionParameters.flatFieldBlur=           gd.getNextNumber();
+			distortionParameters.flatFieldMin=            gd.getNextNumber();
+			distortionParameters.flatFieldShrink=         gd.getNextNumber();
+			distortionParameters.flatFieldExpand=         gd.getNextNumber();
+			distortionParameters.flatFieldSigmaRadius=    gd.getNextNumber();
+			distortionParameters.flatFieldExtraRadius=    gd.getNextNumber();
+			distortionParameters.averagingAreaScale=      gd.getNextNumber();
+			distortionParameters.legacyMode=              gd.getNextBoolean();
+			distortionParameters.loop_debug_level=  (int) gd.getNextNumber();
+			mdl[0]=                                 (int) gd.getNextNumber();
+			return true;
+		}
+		private int makePowerOfTwo(int v) {
+			int v2 = 1;
+			for (int i=v; i > 1; i>>=1 ) v2 <<=1; /* make it to be power of 2 */
+			return v2;
+
+		}
+		
+		
+		
 		public DistortionParameters(int correlationSize, int correlationSizeLwir, int maximalCorrelationSize,
 				int maximalCorrelationSizeLwir, double correlationGaussWidth, boolean absoluteCorrelationGaussWidth,
 				int zeros, int FFTSize, int FFTSize_lwir, int FFTOverlap, int FFTOverlap_lwir, double fftGaussWidth,

@@ -63,8 +63,9 @@ public class LensAdjustment {
 		distortionParameters.refineInPlace=false;
 
 		distortionParameters.correlationMaxOffset=focusMeasurementParameters.maxCorr;
-
-		distortionParameters.correlationSize=focusMeasurementParameters.correlationSize;
+ 		int sensor_type = 0; // EO
+//		distortionParameters.correlationSize=focusMeasurementParameters.correlationSize;
+		distortionParameters.setCorrelationSize(focusMeasurementParameters.correlationSize,sensor_type);
 		distortionParameters.correlationGaussWidth=focusMeasurementParameters.correlationGaussWidth;
 		distortionParameters.refineCorrelations=false;
 		distortionParameters.fastCorrelationOnFirstPass=true;

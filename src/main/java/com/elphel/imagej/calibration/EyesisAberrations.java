@@ -1248,10 +1248,16 @@ public class EyesisAberrations {
 			if (debugLevel>0) System.out.println("Processing file #"+(imgNum+1)+ " ( of "+files.length+") :"+files[imgNum][0]);
         	ImagePlus imp=new ImagePlus(files[imgNum][0]); // read source file
         	JP4_INSTANCE.decodeProperiesFromInfo(imp);
-       		boolean is_lwir =      lwirReaderParameters.is_LWIR(imp);
-       	    int     fft_size =     is_lwir ? distortionParameters.FFTSize_lwir :    distortionParameters.FFTSize;
-       	    int     fft_overlap =  is_lwir ? distortionParameters.FFTOverlap_lwir : distortionParameters.FFTOverlap;
-       	    imp.setProperty("MONOCHROME",""+is_lwir);
+//       		boolean is_lwir =      lwirReaderParameters.is_LWIR(imp);
+       		int sensor_type =      LwirReaderParameters.sensorType(imp);
+//       	    int     fft_size =     is_lwir ? distortionParameters.FFTSize_lwir :    distortionParameters.FFTSize;
+//       	    int     fft_overlap =  is_lwir ? distortionParameters.FFTOverlap_lwir : distortionParameters.FFTOverlap;
+
+       	    int     fft_size =     distortionParameters.getFFTSize(sensor_type);
+       	    int     fft_overlap =  distortionParameters.getFFTOverlap(sensor_type);
+       	    
+       	    
+       	    imp.setProperty("MONOCHROME",""+(sensor_type == 1));
         	// pad image to full sensor size
 			int numGridImage=fileIndices[imgNum];
 			int chn = distortions.fittingStrategy.distortionCalibrationData.gIP[numGridImage].getChannel();
@@ -1261,7 +1267,8 @@ public class EyesisAberrations {
 					  sensor_width_height, // eyesisCorrections.pixelMapping.sensors[srcChannel].getSensorWH(),
 					  true); // boolean replicate);
 // TODO: Add vignetting correction ?
-        	MatchSimulatedPattern matchSimulatedPattern= new MatchSimulatedPattern(distortionParameters.FFTSize);
+//        	MatchSimulatedPattern matchSimulatedPattern= new MatchSimulatedPattern(distortionParameters.FFTSize);
+        	MatchSimulatedPattern matchSimulatedPattern= new MatchSimulatedPattern(distortionParameters.getFFTSize(sensor_type));
 			boolean [] correlationSizesUsed=null;
 			float [][] simArray=         	null;
 
@@ -1348,7 +1355,7 @@ public class EyesisAberrations {
         					fft_size, // FFT_SIZE, // int               fft_size,
         					colorComponents, //COMPONENTS,   // ColorComponents colorComponents,
         					PSF_subpixel, //PSF_SUBPIXEL, // int           PSF_subpixel,
-        					(is_lwir?otfFilterParameters_lwir:otfFilterParameters),
+        					((sensor_type == 1) ?otfFilterParameters_lwir:otfFilterParameters),
 //        					otfFilterParameters, // OTF_FILTER, // OTFFilterParameters otfFilterParameters,
         					psfParameters, //PSF_PARS, // final PSFParameters psfParameters
         					psfParameters.minDefinedArea , //PSF_PARS.minDefinedArea, // final double       minDefinedArea,
