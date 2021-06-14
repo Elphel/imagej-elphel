@@ -4787,7 +4787,7 @@ public class MatchSimulatedPattern {
 				// return numDefinedCells;
 			}
 
-			if (roi != null) { // don't use this feature with ROI as it can be small
+			if ((roi != null) && !(roi instanceof PointRoi)) { // don't use this feature with ROI as it can be small
 				if (global_debug_level > 0)
 					System.out.println(
 							"Initial pattern cluster is small (" + numDefinedCells + "), but ROI is set - no retries");
@@ -6764,6 +6764,10 @@ public class MatchSimulatedPattern {
 
 				setWOI(0, 0, imp.getWidth(), imp.getHeight());
 				selection = new Rectangle(0, 0, imp.getWidth(), imp.getHeight());
+				// without setting roi to null (maybe setting image roi too?) will not retry if first attempt gets too few points
+				// there is also ignoring PointRoi later, but alone it outputs "Removing failed node (normally should not happen!), u=4, v=2"
+//				roi = null;
+//				imp.setRoi(roi,false);
 			} else {
 				setWOI(roi.getBounds());
 				selection = roi.getBounds();
@@ -6911,7 +6915,7 @@ public class MatchSimulatedPattern {
 			// hack gridSize
 		}
 		patternCells = numDefinedCells();
-		if ((roi != null) && (patternCells < minimal_pattern_cluster)) {
+		if ((roi != null) && (patternCells < minimal_pattern_cluster) && !(roi instanceof PointRoi)) {
 			if (global_debug_level > (debugThreshold + 0))
 				System.out.println("Detected pattern is too small: " + patternCells + ", minimum is set to "
 						+ minimal_pattern_cluster);
