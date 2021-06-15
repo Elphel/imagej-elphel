@@ -96,6 +96,7 @@ import ij.text.TextWindow;
     		return (eyesisCameraParameters==null)?0:eyesisCameraParameters.getNumStations();
     	}
 
+    	
 		public double getPixelSize(int station, int channel) {
 			return this.eyesisCameraParameters.eyesisSubCameras[station][channel].getPixelSize();
 		}
