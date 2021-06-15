@@ -9661,7 +9661,7 @@ if (MORE_BUTTONS) {
 		LENS_DISTORTIONS.stopEachSeries= false; // will not ask for confirmation after done
 		LENS_DISTORTIONS.lambda=LENS_DISTORTIONS.fittingStrategy.lambdas[0];
 		Distortions distortions_dbg = LENS_DISTORTIONS;
-		LENS_DISTORTIONS.LevenbergMarquardt(
+		LENS_DISTORTIONS.LevenbergMarquardt( // Index 0 out of bounds for length 0
 				false, // skip dialog
 				false, // new: dry_run use it here?
 				true);
