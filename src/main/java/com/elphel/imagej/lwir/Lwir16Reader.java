@@ -606,7 +606,7 @@ public class Lwir16Reader {
 		return programLWIRCamera(lwirReaderParameters);
 	}
 	
-	public Document [] collectXmlResponses(String [] urls) {
+	public Document [] collectXmlResponses(final String [] urls) {
 		final Document [] documents = new Document[urls.length]; 
    		final Thread[] threads = newThreadArray(MAX_THREADS);
    		final AtomicInteger indxAtomic = new AtomicInteger(0);
@@ -997,7 +997,7 @@ public class Lwir16Reader {
 		int avg_num = (avg_lwir > avg_eo)? avg_lwir : avg_eo; 
    		final Thread[] threads = newThreadArray(MAX_THREADS);
    		final AtomicInteger indxAtomic = new AtomicInteger(0);
-		ImagePlus [] imgs = readImageSet(
+		final ImagePlus [] imgs = readImageSet(
 				lrp,
 				(avg_lwir> 0),      // boolean get_lwir,
 				(avg_eo >  0),      // boolean get_eo,
@@ -1009,7 +1009,7 @@ public class Lwir16Reader {
 		for (int nmeas = 1; nmeas < avg_num; nmeas++) {
 			boolean use_lwir = nmeas < avg_lwir;
 			boolean use_eo =   nmeas < avg_eo;
-			ImagePlus [] imgs1 = readImageSet(
+			final ImagePlus [] imgs1 = readImageSet(
 					lrp,
 					use_lwir,      // boolean get_lwir,
 					use_eo,      // boolean get_eo,
