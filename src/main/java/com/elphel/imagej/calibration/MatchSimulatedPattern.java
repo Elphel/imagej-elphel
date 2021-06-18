@@ -4372,11 +4372,13 @@ public class MatchSimulatedPattern {
 									continue;
 								} else if ((refCell[0] != null) && (refCell[0].length > 3)) {
 									double dbg_contrast = (refCell[0].length > 2) ? refCell[0][2] : Double.NaN;
-									System.out.println("**** refCell was deleted **** u=" + iUVRef[0] + " v="
-											+ iUVRef[1] + " current=" + iUVdir[0] + "/" + iUVdir[1] + " ncell=" + ncell
-											+ " waveFrontList.size()=" + waveFrontList.size() + " ref_x="
-											+ IJ.d2s(refCell[0][0], 3) + " ref_y=" + IJ.d2s(refCell[0][1], 3)
-											+ " contrast=" + IJ.d2s(dbg_contrast, 3));
+									if (debugLevel > debugThreshold) {
+										System.out.println("**** refCell was deleted **** u=" + iUVRef[0] + " v="
+												+ iUVRef[1] + " current=" + iUVdir[0] + "/" + iUVdir[1] + " ncell=" + ncell
+												+ " waveFrontList.size()=" + waveFrontList.size() + " ref_x="
+												+ IJ.d2s(refCell[0][0], 3) + " ref_y=" + IJ.d2s(refCell[0][1], 3)
+												+ " contrast=" + IJ.d2s(dbg_contrast, 3));
+									}
 								}
 								// found reference cell, calculate x/y, make sure it is inside the selection w/o
 								// borders
@@ -6855,7 +6857,7 @@ public class MatchSimulatedPattern {
 				IJ.showMessage("Error", "Pattern not found");
 			return distortionParameters.errPatternNotFound;
 		} else {
-			if (global_debug_level > (debugThreshold + 1))
+			if (global_debug_level > 0) // (debugThreshold + 1))
 				System.out.println("Initial pattern cluster has " + patternCells + " cells");
 		}
 		if (global_debug_level > (debugThreshold + 1))
@@ -6878,7 +6880,7 @@ public class MatchSimulatedPattern {
 			imp_eq = imp;
 
 		if (distortionParameters.refineCorrelations) {
-			refineDistortionCorrelation(
+			double maxActualCorr = refineDistortionCorrelation(
 					lwirReaderParameters, // LwirReaderParameters lwirReaderParameters, // null is OK
 					distortionParameters, //
 					patternDetectParameters,
@@ -6889,7 +6891,10 @@ public class MatchSimulatedPattern {
 					threadsMax,
 					updateStatus,
 					debug_level); // debug level
-
+			System.out.println(".... maxActualCorr="+maxActualCorr);
+			if (maxActualCorr <= 0.0) {
+				return distortionParameters.errRefineFailed; // 2021
+			}
 			recalculateWaveVectors(
 					updateStatus,
 					debug_level);// debug level used inside loops
@@ -10560,6 +10565,7 @@ public class MatchSimulatedPattern {
 		}
 		contrast = contrasts[0];
 		result[2] = contrast;
+//		System.out.println("cobntrasts = "+contrasts[0]+", "+contrasts[1]);
 		if (Double.isNaN(contrasts[0]) || ((distortionParameters.correlationMinContrast > 0)
 				&& (contrasts[0] < distortionParameters.correlationMinContrast))) {
 			if ((debug_level > (debug_threshold - 1)))
@@ -12400,6 +12406,7 @@ public class MatchSimulatedPattern {
 		public double minGridPeriod;
 		public double maxGridPeriod;
 		public double minGridPeriodLwir;
+		public int    minGridFileSize = 15000; // Minimal file size (to overwrite) 
 		public double maxGridPeriodLwir;
 		public double debugX;
 		public double debugY;
@@ -12623,8 +12630,10 @@ public class MatchSimulatedPattern {
 												// the grig brightness
 
 		// match pointers errors
-		public  int errTooFewCells = -10;
+		public  int errTooFewCells =     -10;
 		public  int errPatternNotFound = -11;
+		public  int errRefineFailed =    -12;
+		
 		public  boolean legacyMode = false; // legacy mode
 		
 		

@@ -10352,6 +10352,7 @@ if (MORE_BUTTONS) {
         String [][] sourceFilesList=LWIR_PARAMETERS.getSourceFiles(sourceSetList, sel_chn);
         boolean saveGrids=DISTORTION_PROCESS_CONFIGURATION.saveGridImages;
         boolean overwriteGrids=DISTORTION_PROCESS_CONFIGURATION.overwriteResultFiles;
+        int minGridFileSize = PATTERN_DETECT.minGridFileSize;
         if (sourceSetList==null) return;
         showPatternMinMaxPeriodDialog(PATTERN_DETECT, true);
         int saved_file = 0;
@@ -10372,7 +10373,8 @@ if (MORE_BUTTONS) {
         		if (!set_dir.exists()) {
         			set_dir.mkdirs(); // including parent
         		}
-        	}
+        	}        						
+
 
         	for (int nfile = 0; nfile < sourceFilesList[nset].length; nfile++) if (sourceFilesList[nset][nfile] != null){
         		in_file++;
@@ -10384,7 +10386,7 @@ if (MORE_BUTTONS) {
         		}
         		String grid_path = null;
         		/*
-        		if (saveGrids && !overwriteGrids){ // check if result already exists
+        		if (saveGrids && !ovminGridFileSizeerwriteGrids){ // check if result already exists
         			i = sourceFilesList[nset][nfile].lastIndexOf('/');
         			if (i>0){
         				String grid_name = prefix+sourceFilesList[nset][nfile].substring(i+1);
@@ -10395,6 +10397,7 @@ if (MORE_BUTTONS) {
     					}
         			}
         		}
+        		patternDetectParameters.minGridFileSize
         		 */
 
         		if (saveGrids){ // check if result already exists
@@ -10402,10 +10405,23 @@ if (MORE_BUTTONS) {
         			if (i>0){
         				String grid_name = prefix+sourceFilesList[nset][nfile].substring(i+1);
         				grid_path = gridSetPath + Prefs.getFileSeparator() + grid_name;
-        				if (!overwriteGrids && ((new File(grid_path)).exists())){ // check if result already exists
-    						if (DEBUG_LEVEL>0) System.out.println("-->>> Skipping existing "+grid_path+" (as requested in \"Configure Process Distortions\")");
-    						continue;
-    					}
+        				File grid_file = new File(grid_path);
+        				if (!overwriteGrids && (grid_file.exists())){ // check if result already exists
+        					if (grid_file.length() >= minGridFileSize) {
+        						if (DEBUG_LEVEL>0) {
+        							System.out.println("-->>> Skipping existing large enough ("+(grid_file.length())+
+        									" bytes >= "+minGridFileSize+" bytes)"+grid_path+" (as requested in \"Configure Process Distortions\")");
+        						}
+        						continue;
+        					} else {
+        						if (DEBUG_LEVEL>0) {
+        							System.out.println("-->>> Deleting small ("+(grid_file.length())+
+        									" bytes < "+minGridFileSize+" bytes)"+grid_path+" (as requested in \"Configure Process Distortions\")");
+        							grid_file.delete();
+        						}
+        						
+        					}
+        				}
         			}
         		}
         		imp_sel=new ImagePlus(sourceFilesList[nset][nfile]); // read source file
@@ -10436,7 +10452,10 @@ if (MORE_BUTTONS) {
         				noMessageBoxes);
 
         		if (DEBUG_LEVEL>1) System.out.println("numAbsolutePoints="+numAbsolutePoints);
-        		if ((numAbsolutePoints==DISTORTION.errPatternNotFound) || (numAbsolutePoints==DISTORTION.errTooFewCells)) {
+        		if ((numAbsolutePoints==DISTORTION.errPatternNotFound) ||
+        				(numAbsolutePoints==DISTORTION.errTooFewCells) ||
+        				(numAbsolutePoints==DISTORTION.errRefineFailed)
+        				) {
         			if (DEBUG_LEVEL>0) System.out.println("Grid "+(in_file)+" not found or too small ("+numAbsolutePoints+"), wasted "+
         					IJ.d2s(0.000000001*(System.nanoTime()-startFileTime),3)+" seconds )\n");
         			if (this.SYNC_COMMAND.stopRequested.get()>0) {
@@ -20990,6 +21009,9 @@ use the result to create a rejectiobn mask - if the energy was high, (multiplica
 			gd.addNumericField("Minimal pattern grid period for LWIR sensors (<=0.0 - do not check)" ,         patternDetectParameters.minGridPeriodLwir, 2,5,"pix");
 			gd.addNumericField("Maximal pattern grid period for LWIR sensors (<=0.0 - do not check)" ,         patternDetectParameters.maxGridPeriodLwir, 2,5,"pix");
 		}
+		gd.addNumericField("Minimal grid file size to overwrite" ,         patternDetectParameters.minGridFileSize, 0, 8, "bytes");
+		//		public double minGridFileSize = 25000; // Minimal file size (to overwirite) 
+
 		gd.showDialog();
 		if (gd.wasCanceled()) return false;
 		patternDetectParameters.minGridPeriod=            gd.getNextNumber();
@@ -20998,6 +21020,7 @@ use the result to create a rejectiobn mask - if the energy was high, (multiplica
 			patternDetectParameters.minGridPeriodLwir=            gd.getNextNumber();
 			patternDetectParameters.maxGridPeriodLwir=            gd.getNextNumber();
 		}
+		patternDetectParameters.minGridFileSize = (int) gd.getNextNumber();
 		return true;
 	}
 
