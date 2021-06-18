@@ -615,6 +615,12 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 	public static double [][][][] PSF_KERNEL_MAP=null; // remove?
 	public static String [] COMPONENT_COLOR_NAMES={"green1","red","blue","green2", "greens (diagonal)", "greens (checker)"};
 	public static String [] STACK_COLOR_NAMES={"red","green","blue"};
+	
+	// last used values for dialogs to suggest next time
+	public int LASTUSED_RECALIB_SET = -1;
+	public int LASTUSED_RECALIB_CHN = -1;
+	public int LASTUSED_MAN_HINT = -1;
+	
 /**
  * DIST_ARRAY:
  *  [v][u][0][0] - pixel x of the grid node u,v
@@ -9379,12 +9385,12 @@ if (MORE_BUTTONS) {
 		}
 		LENS_DISTORTIONS.debugLevel=DEBUG_LEVEL;
 		GenericDialog gd=new GenericDialog("Select grid image to add manual hint");
-		gd.addNumericField("Grid Image index", 0,0);
+		gd.addNumericField("Grid Image index", LASTUSED_MAN_HINT,0);
 
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
 		int numGridImage= (int) gd.getNextNumber();
-
+		LASTUSED_MAN_HINT = numGridImage;
 		LENS_DISTORTIONS.manualGridHint(numGridImage);
         return;
 	}
@@ -9552,13 +9558,32 @@ if (MORE_BUTTONS) {
 
 
 	public boolean recalibrateSet() {
+		int imageSetNumber = LASTUSED_RECALIB_SET;
+		int sel_chn =        LASTUSED_RECALIB_CHN;
+		boolean reEstimate= true;
+		boolean use_eo =    true;
+		boolean use_lwir =  true;
+//		double  grid_mismatch = 0.1;
 		GenericDialog gd=new GenericDialog ("Select image set to re-calibrate");
-		gd.addNumericField("Image set number", 0, 0);
-		gd.addCheckbox    ("Set image set parameters from closest, (re-)estimate orientation", true);
+		gd.addNumericField("Image set number", imageSetNumber, 0);
+		gd.addCheckbox    ("Set image set parameters from closest, (re-)estimate orientation", reEstimate);
+		gd.addCheckbox    ("Use RGB grids for matching", use_eo);
+		gd.addCheckbox    ("Use LWIR grids for matching", use_lwir);
+		gd.addNumericField("Use single channel (<0 - use all unfiltered)", sel_chn, 0);
+// TODO: distribute results to unselected images
+//		gd.addNumericField("Remove outlier channels if relative grid mismatch is above ", grid_mismatch, 2,6,"");
 		gd.showDialog();
 		if (gd.wasCanceled()) return false;
-		int imageSetNumber=(int) gd.getNextNumber();
-		boolean reEstimate=gd.getNextBoolean();
+		imageSetNumber=(int) gd.getNextNumber();
+		reEstimate=gd.getNextBoolean();
+		use_eo =   gd.getNextBoolean();
+		use_lwir = gd.getNextBoolean();
+		sel_chn	=(int) gd.getNextNumber();
+		
+		LASTUSED_RECALIB_SET = imageSetNumber;
+		LASTUSED_RECALIB_CHN = sel_chn;
+		
+//		grid_mismatch = gd.getNextNumber();
 		if (imageSetNumber<0) return false;
 		if (reEstimate){
 //			boolean OK=
@@ -9617,12 +9642,25 @@ if (MORE_BUTTONS) {
 		useSetsData=              gd.getNextBoolean();
 		processAllImages=         gd.getNextBoolean();
 		
-		// Find channel with most weight
+		// Find channel with most weight ???
 		LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerTilt=tiltCenter;
 		LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].goniometerAxial=axialCenter;
 		LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.gIS[imageSetNumber].interAxisAngle=interCenter;
 		// Run once with center position or Goniometer angles to determine average derivatives
-		int [][] imageSets=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.listImages(!processAllImages);
+		int tmask = (use_eo ? 1 : 0) + (use_lwir ? 2 : 0);
+		int [] type_map = LWIR_PARAMETERS.getTypeMap(); // 0 - eo, 1 -0 lwir
+		boolean [] chn_sel = new boolean [type_map.length];
+		if (sel_chn >= 0) {
+			chn_sel[sel_chn] = true;
+		} else {
+			for (int chn = 0; chn < chn_sel.length; chn++) {
+				chn_sel[chn] = (tmask & ( 1 << type_map[chn])) != 0; 
+			}
+		}
+		int [][] imageSets=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.listImages(
+				!processAllImages,
+				chn_sel
+				);
 		int [] imageSet=imageSets[imageSetNumber];
 		if (imageSet==null){
 			IJ.showMessage("Image set #"+imageSetNumber+" is empty");
@@ -9727,7 +9765,9 @@ if (MORE_BUTTONS) {
 						" Initial tilt="  + tilt0+
 						" Initial axial=" + axial0+
 						" Initial inter=" + interCenter);
-				imageSets=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.listImages(!processAllImages);
+				imageSets=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.listImages(
+						!processAllImages,
+						chn_sel);
 				imageSet=imageSets[imageSetNumber];
 				if (imageSet==null){
 					IJ.showMessage("Image set #"+imageSetNumber+" is empty");
@@ -9806,7 +9846,9 @@ if (MORE_BUTTONS) {
 						" Initial axial="+best_axial+
 						" Initial inter="+best_inter
 						);
-				imageSets=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.listImages(!processAllImages);
+				imageSets=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData.listImages(
+						!processAllImages,
+						chn_sel);
 				imageSet=imageSets[imageSetNumber];
 				if (imageSet==null){
 					IJ.showMessage("Image set #"+imageSetNumber+" is empty");
@@ -10172,21 +10214,34 @@ if (MORE_BUTTONS) {
 		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 		LENS_DISTORTIONS=new Distortions(LENS_DISTORTION_PARAMETERS,PATTERN_PARAMETERS,REFINE_PARAMETERS,this.SYNC_COMMAND.stopRequested);
 		// Maybe wrong ! Use folders that have at least all EO channels? 
-		int min_files = lwirReaderParameters.getNumChannels();// 8; // use folders that have all 8 files
+//		int min_files =    lwirReaderParameters.getNumChannels();// 8; // use folders that have all 8 files
+		int [] type_map = lwirReaderParameters.getTypeMap(); // 0 - eo, 1 -0 lwir
+		
 		int lwir_chn0 = lwirReaderParameters.getLwirChn0();
 		int eo_chn0 = lwirReaderParameters.getEoChn0();
 		int numStations = 3;
+		boolean allornone_all =  false;
+		boolean allornone_eo =   true;
+		boolean allornone_lwir = true;
 	    GenericDialog gd = new GenericDialog("Setup Goniometer/Camera Stations");
-	    gd.addMessage("Setting up calibration that includes multiple camera tripod or goniometer positions.");
-	    gd.addMessage("File selection dialog will open for each station separateley.");
+	    gd.addMessage     ("Setting up calibration that includes multiple camera tripod or goniometer positions.");
+	    gd.addMessage     ("File selection dialog will open for each station separateley.");
 	    gd.addNumericField("Number of goniometer/camera stations", numStations,0);
-	    gd.addMessage("lwir_chn0 = "+lwir_chn0);
-	    gd.addMessage("eo_chn0 = "+eo_chn0);
-	    gd.addMessage("min_files = "+min_files);
+	    gd.addMessage     ("lwir_chn0 = "+lwir_chn0);
+	    gd.addMessage     ("eo_chn0 = "+eo_chn0);
+//	    gd.addMessage     ("min_files = "+min_files);
+		gd.addCheckbox    ("Process only sets with all channels present", allornone_all);
+		gd.addCheckbox    ("Process eo channels in a set only if all eo channels are present", allornone_eo);
+		gd.addCheckbox    ("Process lwir channels in a set only if all lwir channels are present", allornone_lwir);
+	    
 
 	    gd.showDialog();
 	    if (gd.wasCanceled()) return false;
 	    numStations= (int) gd.getNextNumber();
+		allornone_all =  gd.getNextBoolean();
+		allornone_eo =   gd.getNextBoolean();
+		allornone_lwir = gd.getNextBoolean();
+	    
 //		String [] grid_extensions={".tif",".tiff"};
 //		String [] src_extensions={".tif",".tiff"};
 		String [] grid_extensions={".tiff"};
@@ -10200,12 +10255,14 @@ if (MORE_BUTTONS) {
 //				new CalibrationFileManagement.DirectoryContentsFilter (gridFilter, min_files, 0, null);
 
     	String [][] gridFileDirs=       new String [numStations][];
+//    	int [][]    gridUseTypes =      new int [numStations][]; // +1 - use eo channels,+2 - use lwir channels (in pointed set) 
+    	boolean [][][] gridUseChn =     new boolean [numStations][][]; // channels to use in each scene  
 		String []   sourceStationDirs = new String [numStations];      // directories of the source files per station
 
 	    for (int numStation=0;numStation<numStations;numStation++){
 	    	DirectoryChoser dc = new DirectoryChoser(
 	    			gridFilter,
-	    			min_files, // not actually used
+	    			type_map.length, // min_files, // not actually used
 	    			0,
 	    			null);
 	    	dc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
@@ -10219,11 +10276,56 @@ if (MORE_BUTTONS) {
 	    	dc.setCurrentDirectory(cur_dir);
 	    	int returnVal = dc.showOpenDialog(IJ.getInstance());
 	    	if (returnVal!=JFileChooser.APPROVE_OPTION)	return false;
-	    	File [] files = dc.getSelectedFiles();
+	    	File [] files = dc.getSelectedFiles(); // set directory nome
 	    	if (files.length<1) return false;
 	    	// Can not make it work correctly with multiple selection, giving up for now
-	    	ArrayList<File>  filelist = new ArrayList<File>();
-	    	for (int nFile=0;nFile<files.length;nFile++) {
+	    	class ScenePathChnFilter{
+	    		File       file;
+	    		boolean [] channels;
+	    		ScenePathChnFilter(File file, boolean [] channels){
+	    			this.file=file;
+	    			this.channels = channels; // clone?
+	    		}
+	    		
+	    	}
+//	    	ArrayList<File>     setlist =  new ArrayList<File>();
+//	    	ArrayList<Integer>  settypes = new ArrayList<Integer>();
+	    	ArrayList<ScenePathChnFilter>     setlist =  new ArrayList<ScenePathChnFilter>();
+	    	
+	    	for (int nSet=0;nSet<files.length;nSet++) { // nfile - scene number
+	    		String [] sfiles = files[nSet].list(gridFilter);
+	    		boolean [] avail_chn = new boolean[type_map.length];
+	    		for (String sfile: sfiles) {
+	    			avail_chn[DistortionCalibrationData.pathToChannel(sfile)] = true;
+	    		}
+	    		boolean [] all_type =   {true, true};
+	    		boolean [] some_type =  {false, false};
+	    		for (int i = 0; i < avail_chn.length; i++) {
+	    			if (avail_chn[i]) {
+	    				some_type[type_map[i]] = true;
+	    			} else {
+	    				all_type[type_map[i]] =  false;
+	    			}
+	    		}
+	    		if (allornone_all && !(all_type[0] && all_type[1])) {
+	    			some_type[0] = false;
+	    			some_type[1] = false;
+	    		}
+	    		if (allornone_eo) 	some_type[0] = all_type[0];
+	    		if (allornone_lwir) some_type[1] = all_type[1];
+	    		
+	    		if (some_type[0] || some_type[1]) {
+	    			for (int i = 0; i < avail_chn.length; i++) {
+	    				avail_chn[i] &= some_type[type_map[i]]; 
+	    			}
+	    			setlist.add(new ScenePathChnFilter(files[nSet], avail_chn));
+//	    			setlist.add(files[nSet]);
+//	    			settypes.add((some_type[0]?1:0)+(some_type[1]?2:0));
+	    		}
+	    		/*
+
+//	    	for (int nFile=0;nFile<files.length;nFile++) {
+
 	    		int num_match = files[nFile].list(gridFilter).length;
 	    		if (num_match >= min_files) {
 	    			filelist.add(files[nFile]);
@@ -10235,11 +10337,20 @@ if (MORE_BUTTONS) {
 //	    			}
 //	    			System.out.println("");
 	    		}
+	    		*/
 	    	}
+/*
+        				int chn = pathToChannel(path);
 
-	    	gridFileDirs[numStation]=new String[filelist.size()];
-	    	for (int nFile=0;nFile<gridFileDirs[numStation].length;nFile++) {
-	    		gridFileDirs[numStation][nFile]= filelist.get(nFile).getPath();
+ */
+	    	gridFileDirs[numStation]=new String[setlist.size()];
+	    	gridUseChn[numStation]=new boolean [gridFileDirs[numStation].length][];
+	    	for (int nSet=0;nSet<gridFileDirs[numStation].length;nSet++) {
+	    		ScenePathChnFilter scene = setlist.get(nSet);
+	    		gridFileDirs[numStation][nSet]= scene.file.getPath();
+	    		gridUseChn[numStation][nSet] = scene.channels;
+//	    		gridFileDirs[numStation][nSet]= setlist.get(nSet).getPath();
+//	    		gridUseTypes[numStation][nSet]=settypes.get(nSet);
 	    	}
 	       	if ((gridFileDirs[numStation]==null) || (gridFileDirs[numStation].length==0)) {
         		if (!IJ.showMessageWithCancel("No files selected","Retry? (Cancel will abort the command)")) return false;
@@ -10279,6 +10390,8 @@ if (MORE_BUTTONS) {
 
 		DISTORTION_CALIBRATION_DATA=new DistortionCalibrationData( // new way for LWIR - initialize from dirs
 				gridFileDirs,
+				gridUseChn, // 
+//				gridUseTypes,  //int    [][] gridUseTypes, // per station, per set - a bitbmask of channels to use (+1 - eo, +2 - lwir)                          
 				sourceStationDirs,
 				gridFilter,
         		sourceFilter,
@@ -10476,12 +10589,16 @@ if (MORE_BUTTONS) {
         				IJ.d2s(0.000000001*(System.nanoTime()-startFileTime),3)+"s )\n");
 
         		//
-        		if (this.SYNC_COMMAND.stopRequested.get()>0) {
+        		if (this.SYNC_COMMAND.stopRequested.get() > 0) {
         			System.out.println("User requested stop");
         			break;
         		}
         		saved_file++;
         	}
+    		if (this.SYNC_COMMAND.stopRequested.get() > 0) {
+    			System.out.println("User requested stop2");
+    			break;
+    		}
         }
         if (DEBUG_LEVEL>0) System.out.println(((this.SYNC_COMMAND.stopRequested.get()>0)?"Partial (interrupted by user) set of grids":"All")+ " grids calculation done at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
         return;

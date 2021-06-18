@@ -1583,7 +1583,10 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     			System.out.println("BUG: selectIndividualImages(): selection.length!=enabled.length!");
     			return false;
     		}
-    	    int [][] imageSets=this.distortionCalibrationData.listImages(!allImages); // true - only enabled images
+    	    int [][] imageSets=this.distortionCalibrationData.listImages(
+    	    		!allImages, // true - only enabled images
+    	    		null); // do not filter by eo/lwir?
+    	    
     	    boolean [] enabledSets=new boolean [imageSets.length];
     	    boolean [] selectedSets=new boolean [imageSets.length]; // at least one image selected in the series
     	    for (int i=0;i<imageSets.length;i++){
@@ -2483,7 +2486,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 					this.selectedImages[numSeries][i]=selectAllImages || ((i==0) && removeAllImages); // invalidate - all, regardless of .enabled
 					this.selectedImages[numSeries][i] &= constrainByStation[this.distortionCalibrationData.gIP[i].getStationNumber()];
 					if (selectHiLowRes != null) {
-						int small_01 = this.distortionCalibrationData.isSmallSensor(i)?1:0;
+						int small_01 = this.distortionCalibrationData.isSmallSensor(i)?1:0;  //OK, i here is image number, not channel number
 //						System.out.println(i+":"+small_01);
 						this.selectedImages[numSeries][i] &= selectHiLowRes[small_01];
 					}

@@ -142,9 +142,17 @@ public class LwirReaderParameters {
 	}
 	
 	public int getNumChannels() {
-		return 20;
+		return isLwir16()?20:8;
 	}
-
+	
+	public int [] getTypeMap() { // eo - 0, lwir - 1
+		int [] types = new int [getNumChannels()];
+		for (int i = 0; i < types.length; i++) {
+			types[i] = (i >= getEoChn0())? 0 : 1;
+		}
+		return types;
+	}
+	
 	public static boolean is_LWIR(int width) {
 		return width <= MAX_LWIR_WIDTH;
 	}

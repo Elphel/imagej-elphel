@@ -92,6 +92,18 @@ import ij.text.TextWindow;
     	public boolean updateStatus=true;
     	public int     debugLevel=2;
     	private ShowDoubleFloatArrays SDFA_INSTANCE=null; // just for debugging
+    	
+    	public static int pathToChannel(String path) {
+    		int last_dash = path.lastIndexOf('-');
+    		int last =      path.lastIndexOf('_');
+    		if (last_dash >last) last = last_dash;
+    		int last_dot = path.lastIndexOf('.');
+    		if (last_dot < 0) {
+    			last_dot = path.length();
+    		}
+    		return Integer.parseInt(path.substring(last+1, last_dot));
+    	}
+    	
     	public int getNumStations(){
     		return (eyesisCameraParameters==null)?0:eyesisCameraParameters.getNumStations();
     	}
@@ -838,20 +850,24 @@ import ij.text.TextWindow;
         }
 
         public DistortionCalibrationData (
-        		String [][] stationFilenames,
-        		String []                                              source_dirs,      // directories of the source files per station
-        		MultipleExtensionsFileFilter gridFilter,
-        		MultipleExtensionsFileFilter sourceFilter,
-        		PatternParameters                                      patternParameters,
-        		EyesisCameraParameters                                 eyesisCameraParameters,
-        		LaserPointer                                           laserPointers, // as a backup if data is not available in the file
-        		Goniometer.GoniometerParameters                        goniometerParameters,
-        		boolean                                                read_grids,
-        		int                                                    debugLevel
+        		String [][]                      stationFilenames,
+        		boolean [][][]                   gridUseChn,   // per station, per set - a bmask of permitted channels
+//        		int    [][]                      gridUseTypes, // per station, per set - a bitbmask of channels to use (+1 - eo, +2 - lwir)                          
+        		String []                        source_dirs,      // directories of the source files per station
+        		MultipleExtensionsFileFilter     gridFilter,
+        		MultipleExtensionsFileFilter     sourceFilter,
+        		PatternParameters                patternParameters,
+        		EyesisCameraParameters           eyesisCameraParameters,
+        		LaserPointer                     laserPointers, // as a backup if data is not available in the file
+        		Goniometer.GoniometerParameters  goniometerParameters,
+        		boolean                          read_grids,
+        		int                              debugLevel
         		) {
         	    this.debugLevel=debugLevel;
         	    setupDirDistortionCalibrationData(
         			stationFilenames,
+            		gridUseChn,   // per station, per set - a bmask of permitted channels
+//            		gridUseTypes, // per station, per set - a bitbmask of channels to use (+1 - eo, +2 - lwir)                          
             		source_dirs,      // directories of the source files per station
         			gridFilter,
         			sourceFilter,
@@ -933,6 +949,7 @@ import ij.text.TextWindow;
 // from data organized as image sets
         public static int getChannelFromPath(String path) {
 //        		int indexSuffix=path.length()-suffix.length();
+        	if (path == null) return -1;
         	int indexSuffix = path.lastIndexOf(".");
         	int indexLastDash=indexSuffix-1;
         	while ((indexLastDash>0) &&
@@ -950,15 +967,17 @@ import ij.text.TextWindow;
         }
         
         public void setupDirDistortionCalibrationData (
-        		String [][]                                            stationFilenames, // per-station List of image set directories
-        		String []                                              source_dirs,      // directories of the source files per station
-        		MultipleExtensionsFileFilter gridFilter,
-        		MultipleExtensionsFileFilter sourceFilter,
-        		PatternParameters                                      patternParameters,
-        		EyesisCameraParameters                                 eyesisCameraParameters,
-        		LaserPointer                                           laserPointers, // as a backup if data is not available in the file
+        		String [][]                     stationFilenames, // per-station List of image set directories
+        		boolean [][][]                  gridUseChn,   // per station, per set - a bmask of permitted channels
+//        		int    [][]                     gridUseTypes, // per station, per set - a bitbmask of channels to use (+1 - eo, +2 - lwir)                          
+        		String []                       source_dirs,      // directories of the source files per station
+        		MultipleExtensionsFileFilter    gridFilter,
+        		MultipleExtensionsFileFilter    sourceFilter,
+        		PatternParameters               patternParameters,
+        		EyesisCameraParameters          eyesisCameraParameters,
+        		LaserPointer                    laserPointers, // as a backup if data is not available in the file
         		Goniometer.GoniometerParameters goniometerParameters,
-        		boolean                                                read_grids
+        		boolean                         read_grids
         		) {
         	class DirTs{
         		int       station;
@@ -971,6 +990,7 @@ import ij.text.TextWindow;
         		String [] getSourcePaths() {return spaths;} // may not be null
         		DirTs(int station,
         			  String dir,  // grid image set directory that contains channel files (may be different timestamps)
+        			  boolean [] permitted_channels, // bitmask of permitted channels (lwir/eo), or null - use nay
         			  String sdir, // source super directory that contains image set directories with files
         			  int num_chn,
         			  MultipleExtensionsFileFilter gridFilter,
@@ -993,6 +1013,7 @@ import ij.text.TextWindow;
         			String [] files = (new File(dir)).list(gridFilter); // are these full files?
         			paths = new String[num_chn];
         			for (String path:files) {
+        				/*
         				int last_dash = path.lastIndexOf('-');
         				int last =      path.lastIndexOf('_');
         				if (last_dash >last) last = last_dash;
@@ -1001,7 +1022,11 @@ import ij.text.TextWindow;
         					last_dot = path.length();
         				}
         				int chn = Integer.parseInt(path.substring(last+1, last_dot));
-        				paths[chn] = (new File(dir,path)).getPath();
+        				*/
+        				int chn = pathToChannel(path);
+        				if ((permitted_channels == null) || (permitted_channels[chn])) {
+        					paths[chn] = (new File(dir,path)).getPath();
+        				}
         				//grid-elphelimg_1559195695_507621_4.tiff
         			}
     				spaths = new String[num_chn];
@@ -1014,6 +1039,7 @@ import ij.text.TextWindow;
         					System.out.println("sfiles == null");
         				}
         				for (String spath:sfiles) {
+        					/*
         					int last_dash = spath.lastIndexOf('-');
         					int last =      spath.lastIndexOf('_');
         					if (last_dash >last) last = last_dash;
@@ -1022,6 +1048,8 @@ import ij.text.TextWindow;
         						last_dot = spath.length();
         					}
         					int chn = Integer.parseInt(spath.substring(last+1, last_dot));
+        					*/
+            				int chn = pathToChannel(spath);
         					spaths[chn] = (new File(set_dir,spath)).getPath();
         				}
         			}
@@ -1040,6 +1068,7 @@ import ij.text.TextWindow;
         			dirTsList.add(new DirTs(
         					numStation,
         					stationFilenames[numStation][is], // 	String dir,
+        					gridUseChn[numStation][is], //
         					source_dirs[numStation],
         					numSubCameras, // int num_chn,
         					gridFilter,
@@ -1297,7 +1326,8 @@ import ij.text.TextWindow;
 //        				boolean invert_color = ((base_channel ^ nc) & 4) != 0;
         				boolean invert_color = invertColor(base_channel) ^ invertColor(nc); // eyesisCameraParameters.isLWIR(main_channel);
 
-        				if ((this.gIS[nis].imageSet[nc].matchedPointers <= 0) && (nc != base_channel)) { // Later add non-laser conditions
+        				if ( (this.gIS[nis].imageSet[nc] != null) &&
+        						(this.gIS[nis].imageSet[nc].matchedPointers <= 0) && (nc != base_channel)) { // Later add non-laser conditions
         					int imgNum =  this.gIS[nis].imageSet[nc].imgNumber; // with_pointers - base_channel + nc;
     						if (this.updateStatus) IJ.showStatus("Re-reading grid file "+(imgNum+1)+" (of "+(numFiles)+"): "+this.gIP[imgNum].path);
     						if (this.debugLevel>-1) System.out.print(imgNum+"*("+this.gIP[imgNum].getStationNumber()+
@@ -2442,16 +2472,36 @@ import ij.text.TextWindow;
          * create list of image indices per image set
          * @return array of image indices for each image set
          */
-        public int [][] listImages(boolean enabledOnly){
+        public int [][] listImages(
+        		boolean enabledOnly,
+        		//int type_mask // 0 - all, otherwise +1 - eo, +2 - lwir
+        		boolean [] chn_sel // selected channels or null
+        		){
         	int [][] imageSets = new int [this.gIS.length][];
     		for (int i=0;i<this.gIS.length;i++){
     			int setSize=0;
-    			for (int n=0;n<this.gIS[i].imageSet.length;n++) if ((this.gIS[i].imageSet[n]!=null) && (this.gIS[i].imageSet[n].imgNumber>=0) && (!enabledOnly || this.gIS[i].imageSet[n].enabled)) setSize++;
+    			for (int n=0;n<this.gIS[i].imageSet.length;n++) {
+    				if (    (this.gIS[i].imageSet[n]!=null) &&
+    						(this.gIS[i].imageSet[n].imgNumber>=0) &&
+    						(!enabledOnly || this.gIS[i].imageSet[n].enabled)) {
+    					if ((chn_sel == null) || (chn_sel[this.gIS[i].imageSet[n].getChannel()])){
+    						setSize++;
+    					}
+    				}
+    			}
     			imageSets[i]=new int [setSize];
     		}
     		for (int i=0;i<this.gIS.length;i++){
     			int index=0;
-    			for (int n=0;n<this.gIS[i].imageSet.length;n++) if ((this.gIS[i].imageSet[n]!=null) && (this.gIS[i].imageSet[n].imgNumber>=0) && (!enabledOnly || this.gIS[i].imageSet[n].enabled)) imageSets[i][index++]=this.gIS[i].imageSet[n].imgNumber;
+    			for (int n=0;n<this.gIS[i].imageSet.length;n++) {
+    				if (    (this.gIS[i].imageSet[n]!=null) && 
+    						(this.gIS[i].imageSet[n].imgNumber>=0) &&
+    						(!enabledOnly || this.gIS[i].imageSet[n].enabled)) {
+    					if ((chn_sel == null) || (chn_sel[this.gIS[i].imageSet[n].getChannel()])){
+    						imageSets[i][index++]=this.gIS[i].imageSet[n].imgNumber;
+    					}
+    				}
+    			}
     		}
         	return imageSets;
         }
@@ -4466,7 +4516,7 @@ import ij.text.TextWindow;
     		}
     		return small_sensors;
     	}
-    	public boolean isSmallSensor(int numImg) {
+    	public boolean isSmallSensor(int numImg) { // number of image, not a channel!!!
     		boolean [] ss = getSmallSensors();
     		if ((this.gIP != null) && (numImg >= 0) &&   (numImg < this.gIP.length)){
     			return ss[this.gIP[numImg].getChannel()];

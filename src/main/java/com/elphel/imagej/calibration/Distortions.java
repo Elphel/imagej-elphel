@@ -854,7 +854,9 @@ public class Distortions {
 		double [] errors=calcErrors(calcYminusFx(this.currentfX));
 		int [] numPairs=calcNumPairs();
 
-	    int [][] imageSets=this.fittingStrategy.distortionCalibrationData.listImages(false); // true - only enabled images
+	    int [][] imageSets=this.fittingStrategy.distortionCalibrationData.listImages(
+	    		false, // true - only enabled images
+	    		null);    // do not filter eo, lwir
 	    boolean hasLWIR = this.fittingStrategy.distortionCalibrationData.hasSmallSensors();
 
 	    int [] numSetPoints=new int [imageSets.length*(hasLWIR?2:1)];
@@ -870,12 +872,13 @@ public class Distortions {
 	    		int [] numInSet= {0,0};
 	    		hasNaNInSet[2*setNum]=false;
 	    		hasNaNInSet[2*setNum+1]=false;
-	    		for (int imgInSet=0;imgInSet<imageSets[setNum].length;imgInSet++) {
-	    			int imgNum=imageSets[setNum][imgInSet];
-	    			int isLwir = this.fittingStrategy.distortionCalibrationData.isSmallSensor(imgNum)?1:0;
+	    		for (int imgInSet=0;imgInSet<imageSets[setNum].length;imgInSet++) { // upper limit depends (now 4/20)
+	    			int imgNum=imageSets[setNum][imgInSet]; // image number
+	    			int chn =    fittingStrategy.distortionCalibrationData.gIP[imgNum].getChannel();
+	    			int isLwir = fittingStrategy.distortionCalibrationData.isSmallSensor(imgNum)?1:0;
 	    			int num=numPairs[imgNum];
-	    			rmsPerImg[setNum][imgInSet] = errors[imgNum];
-	    			numImgPoints[setNum][imgInSet] = num;
+	    			rmsPerImg[setNum][chn] = errors[imgNum];
+	    			numImgPoints[setNum][chn] = num;
 	    			if (Double.isNaN(errors[imgNum])){
 	    				hasNaNInSet[2 * setNum + isLwir]=true;
 	    			} else {
@@ -896,9 +899,10 @@ public class Distortions {
 	    		hasNaNInSet[setNum]=false;
 	    		for (int imgInSet=0;imgInSet<imageSets[setNum].length;imgInSet++) {
 	    			int imgNum=imageSets[setNum][imgInSet];
+	    			int chn =    fittingStrategy.distortionCalibrationData.gIP[imgNum].getChannel();
 	    			int num=numPairs[imgNum];
-	    			rmsPerImg[setNum][imgInSet] = errors[imgNum];
-	    			numImgPoints[setNum][imgInSet] = num;
+	    			rmsPerImg[setNum][chn] = errors[imgNum];
+	    			numImgPoints[setNum][chn] = num;
 	    			if (Double.isNaN(errors[imgNum])){
 	    				hasNaNInSet[setNum]=true;
 	    			} else {
@@ -1040,9 +1044,10 @@ public class Distortions {
 				debugLevel);
 		String [] titles={"X-corr(pix)","Y-corr(pix)","weight","Red","Green","Blue"};
 		for (int numChn=0;numChn<sensorXYRGBCorr.length;numChn++) if (sensorXYRGBCorr[numChn]!=null){
-			boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(numChn);
+//			boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(numChn);
+			boolean small_sensor = fittingStrategy.distortionCalibrationData.getSmallSensors()[numChn];
 			RefineParameters rp = small_sensor ? refineParameters.refineParametersSmall : refineParameters;
-			int decimate=getDecimateMasks(numChn);
+			int decimate=getDecimateMasks(numChn); // Reduce for LWIR? Make form sensor width?
 			int sWidth= (getSensorWidth(numChn)-1)/decimate+1;
 			if (rp.showUnfilteredCorrection &&  enableShow) { //  && this.refineParameters.showUnfilteredCorrection) {
 				showWithRadialTangential(
@@ -1750,7 +1755,9 @@ public class Distortions {
 			){
 		if (this.pixelCorrection==null) return; // no modifications are needed
 		for (int i=0;i<sensorXYCorr.length;i++) if ((sensorXYCorr[i]!=null) && (this.pixelCorrection[i]!=null)) {
-			boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(i);
+//			boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(i);
+			boolean small_sensor = fittingStrategy.distortionCalibrationData.getSmallSensors()[i];
+			
 			RefineParameters rp = small_sensor ? refineParameters.refineParametersSmall : refineParameters;
 //			if (rp.sensorExtrapolateDiff ^ invert) { // add current correction AFTER extrapolationg/bluring
 				double scale = rp.correctionScale;
@@ -1990,7 +1997,8 @@ public class Distortions {
    					for (int imgNum=imageNumberAtomic.getAndIncrement(); (imgNum<selectedImages.length) && !interruptedAtomic.get();imgNum=imageNumberAtomic.getAndIncrement()){
    						if (selectedImages[imgNum]){
    							int chnNum=fittingStrategy.distortionCalibrationData.gIP[imgNum].channel; // number of sub-camera
-   	   						boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(chnNum);
+   	   						//boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(chnNum);
+   	   						boolean small_sensor = fittingStrategy.distortionCalibrationData.getSmallSensors()[chnNum];
    	   						RefineParameters rp = small_sensor ? refineParameters.refineParametersSmall : refineParameters;
    	   						boolean   showIndividual = si && rp.showPerImage;
    	   						int showIndividualNumber = rp.showIndividualNumber;
@@ -2077,7 +2085,8 @@ public class Distortions {
 //   					if (shrinkBlurComboSigma>0.0) gb=new DoubleGaussianBlur();
    					gb=new DoubleGaussianBlur();
    					for (int sensorNum=sensorNumberAtomic.getAndIncrement(); (sensorNum<gridPCorr.length) && !interruptedAtomic.get();sensorNum=sensorNumberAtomic.getAndIncrement()){
-   						boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(sensorNum);
+//   						boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(sensorNum);
+   						boolean small_sensor = fittingStrategy.distortionCalibrationData.getSmallSensors()[sensorNum];
    						RefineParameters rp = small_sensor ? refineParameters.refineParametersSmall : refineParameters;
    						if (rp.extrapolate) {
    							int sensorWidth=   fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorWidth(sensorNum);
@@ -4945,7 +4954,10 @@ List calibration
 
 		boolean [] selectedImages=fittingStrategy.selectedImages(this.seriesNumber);
 //		int [] numPairs=calcNumPairs();
-	    int [][] imageSets=this.fittingStrategy.distortionCalibrationData.listImages(false); // true - only enabled images
+		int [][] imageSets=this.fittingStrategy.distortionCalibrationData.listImages(
+				false, // true - only enabled images
+				null);    // do not filter eo, lwir
+    
 	    int [] numSetPoints=new int [imageSets.length];
 	    double [] rmsPerSet=new double[imageSets.length];
 	    boolean [] hasNaNInSet=new boolean[imageSets.length];
@@ -6188,6 +6200,10 @@ List calibration
    			JtByJmod[i][i]+=lambda*JtByJmod[i][i]; //Marquardt mod
 		}
 //	    M*Ma=Mb
+		System.out.println("JtByJmod.length="+JtByJmod.length+" numPars="+numPars);
+		if (numPars==0) {
+			return null;
+		}
 	    Matrix M=new Matrix(JtByJmod);
 //  public Matrix (double vals[], int m) {
 
@@ -6896,7 +6912,8 @@ List calibration
         	this.pathNames=tmpPaths;
         }
         for (int i=0;i<sensorXYCorr.length;i++) if (sensorXYCorr[i]!=null){
-			boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(i);
+//			boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(i);
+			boolean small_sensor = fittingStrategy.distortionCalibrationData.getSmallSensors()[i];
 			RefineParameters rp = small_sensor ? refineParameters.refineParametersSmall : refineParameters;
     		boolean update =          rp.applyCorrection;
     		boolean updateFlatField = rp.applyFlatField;
@@ -7524,9 +7541,9 @@ List calibration
     	// For each sensor separately accumulate grid intensity using current sensor flat field calibration
     	for (int numImg=0;numImg<fittingStrategy.distortionCalibrationData.gIP.length;numImg++) if (selectedImages[numImg]) {
     		int channel=fittingStrategy.distortionCalibrationData.gIP[numImg].channel;
-    		boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(channel);
+//    		boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(channel);
+			boolean small_sensor = fittingStrategy.distortionCalibrationData.getSmallSensors()[channel];
     		RefineParameters rp = small_sensor ? refineParameters.refineParametersSmall : refineParameters;
-
     		double minContrast = rp.flatFieldMinimalContrast;
 //    		double threshold = rp.flatFieldMinimalContrast;
     		boolean interpolate = rp.flatFieldUseInterpolate;
@@ -7658,7 +7675,8 @@ List calibration
     	}
     	for (int station=0;station<sensorGrids.length;station++){
     		for (int channel=0;channel<sensorGrids[station].length; channel++) if (sensorGrids[station][channel]!=null){
-        		boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(channel);
+//        		boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(channel);
+				boolean small_sensor = fittingStrategy.distortionCalibrationData.getSmallSensors()[channel];
         		RefineParameters rp = small_sensor ? refineParameters.refineParametersSmall : refineParameters;
         		double threshold = rp.flatFieldMinimalContrast;
     			if (this.pixelCorrection[channel]==null) {
@@ -8229,7 +8247,8 @@ List calibration
     	double [][]masks=new double [this.pixelCorrection.length][];
     	int maskIndex=2;
     	for (int numSensor=0;numSensor<masks.length;numSensor++){
-    		boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(numSensor);
+//    		boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(numSensor);
+			boolean small_sensor = fittingStrategy.distortionCalibrationData.getSmallSensors()[numSensor];
     		RefineParameters rp = small_sensor ? refineParameters.refineParametersSmall : refineParameters;
 
     		if (this.pixelCorrection[numSensor]==null) masks[numSensor] = null;
@@ -8258,7 +8277,8 @@ List calibration
     	double [][]masks=new double [this.pixelCorrection.length][];
     	int maskIndex=2;
     	for (int numSensor=0;numSensor<masks.length;numSensor++){
-				boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(numSensor);
+//				boolean small_sensor = fittingStrategy.distortionCalibrationData.isSmallSensor(numSensor);
+				boolean small_sensor = fittingStrategy.distortionCalibrationData.getSmallSensors()[numSensor];
 				RefineParameters rp = small_sensor ? refineParameters.refineParametersSmall : refineParameters;
 
     		double shrink = rp.flatFieldShrink;
