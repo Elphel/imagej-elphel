@@ -159,7 +159,7 @@ public class Distortions {
     public AtomicInteger stopRequested=null; // 1 - stop now, 2 - when convenient
 
     public String [] status ={"",""};
-
+    public double [] lastUsedManualGridHint_UV = {0.5, 0.5};
 
     public int getSensorWidth(int subCam) { return fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorWidth(subCam);} // for the future? different sensors
     public int getSensorHeight(int subCam) { return fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorHeight(subCam);}// for the future? different sensors
@@ -3754,10 +3754,10 @@ For each point in the image
 			}
 			double [][] xyuv = new double [markers.length][4];
 			for (int i =0; i < markers.length; i++) {
-				xyuv[i][0]=markers[i][0];
-				xyuv[i][1]=markers[i][1];
-				xyuv[i][2]=0.5;
-				xyuv[i][3]=0.5;
+				xyuv[i][0] = markers[i][0];
+				xyuv[i][1] = markers[i][1];
+				xyuv[i][2] = lastUsedManualGridHint_UV[0]; // 16.5; // 15.5; // 0.5;
+				xyuv[i][3] = lastUsedManualGridHint_UV[1]; //  0.5; // -8.5;//0.5;
 			}
 			GenericDialog gd=new GenericDialog("Specify U,V coordinates of the marker(s)");
 			gd.addMessage("Center white (LWIR black) cell U=0.5, V=0.5");
@@ -3773,6 +3773,10 @@ For each point in the image
 				xyuv[i][3] = gd.getNextNumber();
 			}
 
+		    lastUsedManualGridHint_UV[0] = xyuv[0][2];
+		    lastUsedManualGridHint_UV[1] = xyuv[0][3];
+			
+			
 			// read grid image
 
 			String grid_path=fittingStrategy.distortionCalibrationData.gIP[imgNumber].path;

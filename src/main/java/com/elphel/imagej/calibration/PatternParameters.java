@@ -404,21 +404,28 @@ import ij.io.Opener;
             	/// TODO: Fix me!
             	return; //
         	}
-        	if (numZCorr>0) {
-        		if (numZCorr==getNumStations()) {
+        	if (numZCorr > 0) { // repeat last/trim
+        		if (numZCorr >= getNumStations()) {
         			if (this.debugLevel>0){
-        				System.out.println("Loading zCorr data: "+getNumStations()+" slices");
+        				if (numZCorr == getNumStations()) {
+        					System.out.println("Loading zCorr data: "+getNumStations()+" slices");
+        				} else {
+        					System.out.println("Loading zCorr data, first "+getNumStations()+" slices of "+ numZCorr+" read from the file");
+        				}
         			}
-        			this.stationZCorr=new double [height][width][numZCorr];
-        			for (int v=0;v<height;v++) for (int u=0;u<width;u++) for (int n=0;n<numZCorr;n++){
+        			this.stationZCorr=new double [height][width][getNumStations()];
+        			for (int v=0;v<height;v++) for (int u=0;u<width;u++) for (int n=0;n<getNumStations();n++){
         				this.stationZCorr[v][u][n]=pixels[n+getNumGeometricChannels()][v*width+u];
         			}
         		} else {
             		System.out.println("File has "+numZCorr+" ZCorr slices, current number of stations is "+getNumStations()+
-            				", skipping loading zCorr data (per-station pattern Z-correction from the average Z)");
-
+            				", repeating last zCorr data (per-station pattern Z-correction from the average Z)");
+        			this.stationZCorr=new double [height][width][getNumStations()];
+        			for (int v=0;v<height;v++) for (int u=0;u<width;u++) for (int n0=0;n0<getNumStations();n0++){
+        				int n = (n0 < numZCorr)? n0 : (numZCorr - 1);
+        				this.stationZCorr[v][u][n]=pixels[n+getNumGeometricChannels()][v*width+u];
+        			}
         		}
-
         	}
 
         	if (this.debugLevel>0){
@@ -1005,6 +1012,7 @@ import ij.io.Opener;
         	if (getNumStations()<=station) updateNumStations(station+1);
         	int nView=this.viewMap[channel];
         	int useStation=(this.stationZCorr!=null)?((this.stationZCorr[v1][u1].length>station)?station:(this.stationZCorr[v1][u1].length-1)):0;
+        	
         	if (nView>=this.photometricByView[station].length){  // OOB 1// NUll pointer - need to run F-field first? (oob1 when grid had less than now
 				nView=this.photometricByView.length-1;
 			}
@@ -1014,6 +1022,7 @@ import ij.io.Opener;
         		System.out.println("index="+index+" vView="+nView);
         		System.out.println();
         	}
+        	// using last station in grid if there are more now than saved 
 
         	double [] result= { // null
         			this.gridGeometry[v1][u1][0],

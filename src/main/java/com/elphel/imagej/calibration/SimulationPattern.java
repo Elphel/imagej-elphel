@@ -1144,8 +1144,9 @@ Cv=(Cy*x-Cx*y)+(-Cy*Dx+Cx*Dy)
 				if (iy < 0) iy = 0;
 				else if (iy >= full_height) iy = full_height - 1;
 				if (ix < 0) ix = 0;
-				else if (ix >= full_width) iy = full_width - 1;
-				result[index] = pattern_sign * spixels[ser][iy * full_width + ix];
+//				else if (ix >= full_width) iy = full_width - 1;
+				else if (ix >= full_width) ix = full_width - 1; // was bug here, causing fatal in the next line
+				result[index] = pattern_sign * spixels[ser][iy * full_width + ix]; // java.lang.ArrayIndexOutOfBoundsException: Index 26873856 out of bounds for length 20072448
 			}
 		}
 		return result;
