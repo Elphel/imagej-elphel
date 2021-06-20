@@ -66,7 +66,7 @@ import ij.text.TextWindow;
 // 2 - in Eclipse project properties -> Build Path -> Libraries -> Add External jar
 public class Distortions {
 //	final public double hintedMaxRelativeRadius=1.2; // make adjustable?
-	final public double hintedMaxRelativeRadiusToDiagonal= 1.1; // 0.96; // make adjustable?
+	final public double hintedMaxRelativeRadiusToDiagonal= 1.3; // 0.96; // make adjustable?
 	private ShowDoubleFloatArrays SDFA_INSTANCE=new ShowDoubleFloatArrays(); // just for debugging?
 //    int numInputs=27; // with A8...// 24;   // parameters in subcamera+...
 //    int numOutputs=16; // with A8...//13;  // parameters in a single camera
