@@ -960,6 +960,7 @@ dPXmmc/dphi=
         		double zp, // target point horizontal, positive - away from camera,  mm
             	double maxRelativeRadius, // make configurable?
         		boolean calculateAll){ // calculate derivatives, false - values only
+//        	maxRelativeRadius *= 1.3; // REMOVE me!
         	switch (this.lensDistortionModelType){
         	case 0:
         	case 1:

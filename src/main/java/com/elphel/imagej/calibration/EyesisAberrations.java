@@ -1455,6 +1455,7 @@ public class EyesisAberrations {
 					multiFilePSF ,         // MULTIFILE_PSF = new EyesisAberrations.MultiFilePSF(
 					fileList[nChn],
 					resultPaths[nChn],
+					nChn, // int                    sensor_channel,       // just for debugging
 					sdfa_instance,        // SDFA_INSTANCE
 					impShow, // just to show in the same window?
 					saveResult,
@@ -1478,6 +1479,7 @@ public class EyesisAberrations {
 			EyesisAberrations.MultiFilePSF           multiFilePSF ,         // MULTIFILE_PSF = new EyesisAberrations.MultiFilePSF(
 			String []              filenames,
 			String                 resultPath,
+			int                    sensor_channel,       // just for debugging
 			ShowDoubleFloatArrays  sdfa_instance,        // SDFA_INSTANCE
 			ImagePlus              imp_sel, // just to show in the same window?
 			boolean                saveResult,
@@ -1819,7 +1821,7 @@ public class EyesisAberrations {
 			}
 
 		}
-		if (multiFilePSF.showWeights) sdfa_instance.showArrays(weights, kWidth, kHeight,  true, "weights");
+		if (multiFilePSF.showWeights) sdfa_instance.showArrays(weights, kWidth, kHeight,  true, "weights-"+sensor_channel);
 		//    	double [][] weights=new double[nFiles+1][kLength];
 		for (int i=0;i<kLength;i++) weights[0][i]=0.0;
 		psfKernelMap=new double [kHeight][kWidth][nChn][];
@@ -2299,6 +2301,15 @@ public class EyesisAberrations {
 		final int full_fft_size = fft_size * PSF_subpixel / (is_mono? 2: 1); // for LWIR - 64, 5MPix: 1024. fft_size = 32/256
 
 
+		if (debug_level>3) {
+			double [] dbg_index = new double [commonMatchSimulatedPattern.UV_INDEX.length];
+			for (int i = 0; i < dbg_index.length; i++) {
+				dbg_index[i] = commonMatchSimulatedPattern.UV_INDEX[i];
+			}
+			SDFA_INSTANCE.showArrays(dbg_index, imp_sel.getWidth(), dbg_index.length/imp_sel.getWidth(), "UV_INDEX");
+		}
+		
+		
 		final boolean debugLateralShifts=(globalDebugLevel>1);
 		System.out.println("createPSFMap(): masterDebugLevel="+masterDebugLevel+" globalDebugLevel="+globalDebugLevel+" debug_level="+debug_level); // 2 2 0
 		final long startTime = System.nanoTime();

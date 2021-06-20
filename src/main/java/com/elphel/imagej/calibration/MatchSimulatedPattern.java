@@ -6720,6 +6720,7 @@ public class MatchSimulatedPattern {
 			int threadsMax, boolean updateStatus, int global_debug_level, // DEBUG_LEVEL
 			int debug_level, // debug level used inside loops
 			boolean noMessageBoxes) {
+		
 		if (imp == null) {
 			IJ.showMessage("Error", "There are no images open\nProcess canceled");
 			return 0;
@@ -6732,6 +6733,8 @@ public class MatchSimulatedPattern {
 				: patternDetectParameters.maxGridPeriod) / 2;
 		int minimal_pattern_cluster = is_lwir ? distortionParameters.minimalPatternClusterLwir
 				: distortionParameters.minimalPatternCluster;
+
+		boolean invert = false; // is_lwir;
 
 		int fft_size = is_lwir ? distortionParameters.FFTSize_lwir : distortionParameters.FFTSize;
 
@@ -6991,6 +6994,7 @@ public class MatchSimulatedPattern {
 				pointersXY, removeOutOfGridPointers, //
 				hintGrid, // predicted grid array (or null)
 				hintGridTolerance, // allowed mismatch (fraction of period) or 0 - orientation only
+				invert, // b/w
 				global_debug_level, // DEBUG_LEVEL
 				noMessageBoxes);
 	}
@@ -7738,7 +7742,7 @@ public class MatchSimulatedPattern {
 		return flipsToRot(flips[0], flips[1], flips[2]);
 	}
 
-	public int[][] gridMatrixApproximate(double[][] coeff) {
+	public int[][] gridMatrixApproximate(double[][] coeff, boolean invert) {
 		int rot = matrixToRot(coeff);
 		boolean[] flips = rotToFlips(rot);
 		double[][] aI = { { 1, 0 }, { 0, 1 } };
@@ -7755,7 +7759,8 @@ public class MatchSimulatedPattern {
 		// now M reconstructs coeff
 		double[][] aM = M.getArray();
 		// Black/white cells have to be flipped if flipU XOR flipW, regardless of swapUV
-		int flipForWhite = (flips[1] ^ flips[2]) ? 1 : 0;
+		
+		int flipForWhite = (invert ^ flips[1] ^ flips[2]) ? 1 : 0;
 		int[][] shifts = {
 				{ 2 * ((int) Math.round(0.5 * (coeff[0][2] + 0))),
 						2 * ((int) Math.round(0.5 * (coeff[1][2] + flipForWhite))) - flipForWhite },
@@ -7774,10 +7779,6 @@ public class MatchSimulatedPattern {
 					+ " d1=" + d1 + " d2=" + d2);
 		}
 		int[][] iCoeff = {
-				// {(int) Math.round(aM[0][0]), (int) Math.round(aM[0][1]),(int)
-				// Math.round(coeff[0][2])},
-				// {(int) Math.round(aM[1][0]), (int) Math.round(aM[1][1]),(int)
-				// Math.round(coeff[1][2])}};
 				{ (int) Math.round(aM[0][0]), (int) Math.round(aM[0][1]), shifts[shiftSelect][0] },
 				{ (int) Math.round(aM[1][0]), (int) Math.round(aM[1][1]), shifts[shiftSelect][1] } };
 		return iCoeff;
@@ -7805,8 +7806,17 @@ public class MatchSimulatedPattern {
 		return iCoeff;
 	}
 
-	public double worstGridMatchRotSkew(double[][] coeff) {
-		int[][] iCoeff = gridMatrixApproximate(coeff);
+	public double worstGridMatchRotSkew(
+			double[][] coeff) {
+		return worstGridMatchRotSkew(coeff, false);
+	}
+	
+	
+	public double worstGridMatchRotSkew(
+			double[][] coeff,
+			boolean invert
+			) {
+		int[][] iCoeff = gridMatrixApproximate(coeff, invert);
 		double worst = 0;
 		for (int i = 0; i < 2; i++)
 			for (int j = 0; j < 2; j++) {
@@ -7817,8 +7827,15 @@ public class MatchSimulatedPattern {
 		return worst;
 	}
 
-	public double worstGridMatchTranslate(double[][] coeff) { // in grids half-periods, not pixels!
-		int[][] iCoeff = gridMatrixApproximate(coeff);
+	public double worstGridMatchTranslate(
+			double[][] coeff) { // in grids half-periods, not pixels!
+		return worstGridMatchTranslate(coeff, false);
+	}
+	
+	public double worstGridMatchTranslate(
+			double[][] coeff,
+			boolean invert) { // in grids half-periods, not pixels!
+		int[][] iCoeff = gridMatrixApproximate(coeff, invert);
 		double worst = 0;
 		for (int i = 0; i < 2; i++) {
 			double d = Math.abs(coeff[i][2] - iCoeff[i][2]);
@@ -8246,7 +8263,7 @@ public class MatchSimulatedPattern {
 			if (gridMatchCoeff != null) {
 				gridRotation = matrixToRot(gridMatchCoeff);
 				this.debugLevel = global_debug_level;
-				int[][] iGridMatchCoeff = gridMatrixApproximate(gridMatchCoeff);
+				int[][] iGridMatchCoeff = gridMatrixApproximate(gridMatchCoeff, false);
 				if (global_debug_level > 1) {
 					System.out.println("gridMatchCoeff[0]={" + IJ.d2s(gridMatchCoeff[0][0], 5) + ", "
 							+ IJ.d2s(gridMatchCoeff[0][1], 5) + ", " + IJ.d2s(gridMatchCoeff[0][2], 5) + "}");
@@ -8317,9 +8334,10 @@ public class MatchSimulatedPattern {
 // Modified 06/19 to move laser pointers to files
 	public int combineGridCalibration(LaserPointer lp, // Only for possible hint on rotations/ flips.LaserPointer object
 														// or null
-			double[][] pointersXYUV, boolean removeOutOfGridPointers, //
+			double[][]   pointersXYUV, boolean removeOutOfGridPointers, //
 			double[][][] hintGrid, // predicted grid array (or null)
-			double hintGridTolerance, // allowed mismatch (fraction of period) or 0 - orientation only
+			double       hintGridTolerance, // allowed mismatch (fraction of period) or 0 - orientation only
+			boolean      invert,            // for lwir
 			int global_debug_level, // DEBUG_LEVEL
 			boolean noMessageBoxes) {
 		boolean has_lasers = false;
@@ -8342,7 +8360,7 @@ public class MatchSimulatedPattern {
 			if (gridMatchCoeff != null) {
 				gridRotation = matrixToRot(gridMatchCoeff);
 				this.debugLevel = global_debug_level;
-				int[][] iGridMatchCoeff = gridMatrixApproximate(gridMatchCoeff);
+				int[][] iGridMatchCoeff = gridMatrixApproximate(gridMatchCoeff, invert);
 				if (global_debug_level > 0) {
 					System.out.println("gridMatchCoeff[0]={" + IJ.d2s(gridMatchCoeff[0][0], 5) + ", "
 							+ IJ.d2s(gridMatchCoeff[0][1], 5) + ", " + IJ.d2s(gridMatchCoeff[0][2], 5) + "}");
@@ -8353,9 +8371,8 @@ public class MatchSimulatedPattern {
 							+ ", " + iGridMatchCoeff[0][2] + "}");
 					System.out.println("iGridMatchCoeff[1]={" + iGridMatchCoeff[1][0] + ", " + iGridMatchCoeff[1][1]
 							+ ", " + iGridMatchCoeff[1][2] + "}");
-					System.out.println("worstGridMatchRotSkew()=" + IJ.d2s(worstGridMatchRotSkew(gridMatchCoeff), 5));
-					System.out
-							.println("worstGridMatchTranslate()=" + IJ.d2s(worstGridMatchTranslate(gridMatchCoeff), 5));
+					System.out.println("worstGridMatchRotSkew()=" + IJ.d2s(worstGridMatchRotSkew(gridMatchCoeff, invert), 5));
+					System.out.println("worstGridMatchTranslate()=" + IJ.d2s(worstGridMatchTranslate(gridMatchCoeff, invert), 5));
 				}
 				// hintGridTolerance==0 - do not try to determine shift from the hint (not
 				// reliable yet)

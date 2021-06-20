@@ -65,7 +65,8 @@ import ij.text.TextWindow;
 // 1 - put commons-configuration-1.7.jar under ImageJ plugins directory (I used ImageJ-Elphel)
 // 2 - in Eclipse project properties -> Build Path -> Libraries -> Add External jar
 public class Distortions {
-	final public double hintedMaxRelativeRadius=1.2; // make adjustable?
+//	final public double hintedMaxRelativeRadius=1.2; // make adjustable?
+	final public double hintedMaxRelativeRadiusToDiagonal= 1.1; // 0.96; // make adjustable?
 	private ShowDoubleFloatArrays SDFA_INSTANCE=new ShowDoubleFloatArrays(); // just for debugging?
 //    int numInputs=27; // with A8...// 24;   // parameters in subcamera+...
 //    int numOutputs=16; // with A8...//13;  // parameters in a single camera
@@ -3331,7 +3332,7 @@ For each point in the image
 			int global_debug_level, // DEBUG_LEVEL
 			int debug_level // debug level used inside loops
 	){
-
+		boolean invert = false;
 		int debugThreshold0=0;
 		int debugThreshold=2;
 		MatchSimulatedPattern matchSimulatedPattern = new MatchSimulatedPattern(64); // new instance, all reset, FFTSize=64 will not be used
@@ -3481,11 +3482,12 @@ For each point in the image
 					int rslt= matchSimulatedPattern.combineGridCalibration(
 							laserPointer, // LaserPointer object or null
 							ignoreLaserPointers?null:dcd.gIP[numGridImage].laserPixelCoordinates, //pointersXY,
-									removeOutOfGridPointers, //
-									hintGrid, // predicted grid array (or null)
-									hintGridTolerance, // allowed mismatch (fraction of period) or 0 - orientation only
-									global_debug_level, // DEBUG_LEVEL
-									noMessageBoxes );
+							removeOutOfGridPointers, //
+							hintGrid, // predicted grid array (or null)
+							hintGridTolerance, // allowed mismatch (fraction of period) or 0 - orientation only
+							invert,
+							global_debug_level, // DEBUG_LEVEL
+							noMessageBoxes );
 					if (global_debug_level>0){
 						System.out.println("applyHintedGrids(): rslt="+rslt);
 					}
@@ -4040,7 +4042,14 @@ For each point in the image
 			int numImg,
 			int u, // grid signed u,v
 			int v){
-		double maxRelativeRadius=this.hintedMaxRelativeRadius; // make adjustable
+
+		
+		int subCamera=   this.fittingStrategy.distortionCalibrationData.gIP[numImg].channel;
+		int sensorWidth=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorWidth(subCamera);
+		int sensorHeight=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorHeight(subCamera);
+//		double maxRelativeRadius=this.hintedMaxRelativeRadius; // make adjustable
+		double maxRelativeRadius=hintedMaxRelativeRadiusToDiagonal * Math.sqrt(sensorWidth * sensorWidth + sensorHeight*sensorHeight)/ sensorWidth;
+		
 		return  reprojectGridNode(
 				lensDistortionParameters,
 				numImg,
@@ -4134,7 +4143,12 @@ For each point in the image
 			double goniometerInterAxis,     // interAxisAngle
 			int  imageSet,
 			boolean filterBorder){
-		double maxRelativeRadius=this.hintedMaxRelativeRadius; // make adjustable
+		int sensorWidth=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorWidth(subCamera);
+		int sensorHeight=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorHeight(subCamera);
+//		double maxRelativeRadius=this.hintedMaxRelativeRadius; // make adjustable
+		double maxRelativeRadius=hintedMaxRelativeRadiusToDiagonal * Math.sqrt(sensorWidth * sensorWidth + sensorHeight*sensorHeight)/ sensorWidth;
+		// 1.1 is sufficient
+//		double maxRelativeRadius= 2.0*Math.sqrt(sensorWidth * sensorWidth + sensorHeight*sensorHeight)/ sensorWidth;
 		int debugThreshold=2;
 		// Get parameter vector (22) for the selected sensor, current Eyesisparameters and specified orientation angles
 		double [] parVector=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getParametersVector(stationNumber,subCamera);
@@ -4156,8 +4170,6 @@ For each point in the image
 			parVector[goniometerInterAxisAngleIndex]=  goniometerInterAxis;
 		}
 //		/interAxis
-		int sensorWidth=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorWidth(subCamera);
-		int sensorHeight=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorHeight(subCamera);
 		System.out.println("estimateGridOnSensor(): subCamera="+subCamera+", goniometerHorizontal="+goniometerHorizontal+", goniometerAxial="+goniometerAxial);
 		this.lensDistortionParameters.lensCalcInterParamers(
 				this.lensDistortionParameters, // 22-long parameter vector for the image
@@ -4187,43 +4199,45 @@ For each point in the image
 		// simple fix - remove pixels with too few neighbors (maybe just all border pixels?
 
 
-		for (int v=0;v<result.length;v++) for (int u=0;u<result[v].length;u++){
-			int [] iUV=this.patternParameters.uvIndicesToUV (u, v);
-			if (iUV==null) {
-				result[v][u]=null;
-			} else {
-				double [] XYZM=this.patternParameters.getXYZM(iUV[0],iUV[1],stationNumber);
-// project the target point to this sensor
-				double [][]pXY=  this.lensDistortionParameters.calcPartialDerivatives(
-						XYZM[0], // target point horizontal, positive - right,  mm
-						XYZM[1], // target point vertical,   positive - down,  mm
-						XYZM[2], // target point horizontal, positive - away from camera,  mm
-						maxRelativeRadius,
-						false); // calculate derivatives, false - values only (NaN for behind points - only when false here)
-// verify the grid is inside the sensor area (may use sensor mask later too? probably not needed)
-				// Now NaN if point is behind the sensor
-				if (Double.isNaN(pXY[0][0]) || (pXY[0][0]<0) || (pXY[0][0]>=sensorWidth) || (pXY[0][1]<0) || (pXY[0][1]>=sensorHeight)){
-					if (this.debugLevel>debugThreshold){
-						System.out.println("--- estimateGridOnSensor():v="+v+" u="+u+" X="+XYZM[0]+" Y="+XYZM[1]+" Z="+XYZM[2]+" M="+XYZM[3]+
-								" pXY[0][0]="+pXY[0][0]+", pXY[0][1]="+pXY[0][1]+", iUV[0]="+iUV[0]+", iUV[1]="+iUV[1]);
-					}
+		for (int v=0;v<result.length;v++) {
+			for (int u=0;u<result[v].length;u++){
+				int [] iUV=this.patternParameters.uvIndicesToUV (u, v);
+				if (iUV==null) {
 					result[v][u]=null;
 				} else {
-					double [] resultCell={pXY[0][0],pXY[0][1],iUV[0],iUV[1]};
-					result[v][u]=resultCell;
-					if (this.debugLevel>debugThreshold){
-						System.out.println("+++ estimateGridOnSensor():v="+v+" u="+u+" X="+XYZM[0]+" Y="+XYZM[1]+" Z="+XYZM[2]+" M="+XYZM[3]+
-								" pXY[0][0]="+pXY[0][0]+", pXY[0][1]="+pXY[0][1]+", iUV[0]="+iUV[0]+", iUV[1]="+iUV[1]);
+					double [] XYZM=this.patternParameters.getXYZM(iUV[0],iUV[1],stationNumber);
+					// project the target point to this sensor
+					double [][]pXY=  this.lensDistortionParameters.calcPartialDerivatives(
+							XYZM[0], // target point horizontal, positive - right,  mm
+							XYZM[1], // target point vertical,   positive - down,  mm
+							XYZM[2], // target point horizontal, positive - away from camera,  mm
+							maxRelativeRadius,
+							false); // calculate derivatives, false - values only (NaN for behind points - only when false here)
+					// verify the grid is inside the sensor area (may use sensor mask later too? probably not needed)
+					// Now NaN if point is behind the sensor
+					if (Double.isNaN(pXY[0][0]) || (pXY[0][0]<0) || (pXY[0][0]>=sensorWidth) || (pXY[0][1]<0) || (pXY[0][1]>=sensorHeight)){
+						if (this.debugLevel>debugThreshold){
+							System.out.println("--- estimateGridOnSensor():v="+v+" u="+u+" X="+XYZM[0]+" Y="+XYZM[1]+" Z="+XYZM[2]+" M="+XYZM[3]+
+									" pXY[0][0]="+pXY[0][0]+", pXY[0][1]="+pXY[0][1]+", iUV[0]="+iUV[0]+", iUV[1]="+iUV[1]);
+						}
+						result[v][u]=null;
+					} else {
+						double [] resultCell={pXY[0][0],pXY[0][1],iUV[0],iUV[1]};
+						result[v][u]=resultCell;
+						if (this.debugLevel>debugThreshold){
+							System.out.println("+++ estimateGridOnSensor():v="+v+" u="+u+" X="+XYZM[0]+" Y="+XYZM[1]+" Z="+XYZM[2]+" M="+XYZM[3]+
+									" pXY[0][0]="+pXY[0][0]+", pXY[0][1]="+pXY[0][1]+", iUV[0]="+iUV[0]+", iUV[1]="+iUV[1]);
+						}
+						visibleCells++;
 					}
-					visibleCells++;
-				}
-				if (this.debugLevel>debugThreshold){
-					int uv=u+v*result[v].length;
-					debugPixels[0][uv]=pXY[0][0];
-					debugPixels[1][uv]=pXY[0][1];
-					debugPixels[2][uv]=XYZM[0];
-					debugPixels[3][uv]=XYZM[1];
-					debugPixels[4][uv]=XYZM[2];
+					if (this.debugLevel>debugThreshold){
+						int uv=u+v*result[v].length;
+						debugPixels[0][uv]=pXY[0][0];
+						debugPixels[1][uv]=pXY[0][1];
+						debugPixels[2][uv]=XYZM[0];
+						debugPixels[3][uv]=XYZM[1];
+						debugPixels[4][uv]=XYZM[2];
+					}
 				}
 			}
 		}
