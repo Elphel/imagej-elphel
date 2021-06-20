@@ -1711,7 +1711,7 @@ if (MORE_BUTTONS) {
 				}
 				//    		SDFA_INSTANCE.showArrays(weights, kWidth, kHeight,  true, "weights");
 			}
-			SDFA_INSTANCE.showArrays(weights, kWidth, kHeight,  true, "weights");
+			SDFA_INSTANCE.showArrays(weights, kWidth, kHeight,  true, "weights-all");
 			//    	double [][] weights=new double[nFiles+1][kLength];
 			for (int i=0;i<kLength;i++) weights[0][i]=0.0;
 			PSF_KERNEL_MAP=new double [kHeight][kWidth][nChn][];
