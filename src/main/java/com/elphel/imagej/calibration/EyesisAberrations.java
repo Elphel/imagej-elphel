@@ -1598,7 +1598,7 @@ public class EyesisAberrations {
 				weights[0][index]+=weights[nFile+1][index];
 			}
 		}
-		if (thisDebugLevel>1) sdfa_instance.showArrays(weights, kWidth, kHeight,  true, "weights0");
+		if (thisDebugLevel>1) sdfa_instance.showArrays(weights, kWidth, kHeight,  true, "weights_"+String.format("%02d",sensor_channel));
 
 		// remove any border ones if non-border is present in the same cell
 		double [][] weightsMasked=new double[weights.length][];
@@ -1821,7 +1821,7 @@ public class EyesisAberrations {
 			}
 
 		}
-		if (multiFilePSF.showWeights) sdfa_instance.showArrays(weights, kWidth, kHeight,  true, "weights-"+sensor_channel);
+		if (multiFilePSF.showWeights) sdfa_instance.showArrays(weights, kWidth, kHeight,  true, "weights-"+String.format("%02d",sensor_channel));
 		//    	double [][] weights=new double[nFiles+1][kLength];
 		for (int i=0;i<kLength;i++) weights[0][i]=0.0;
 		psfKernelMap=new double [kHeight][kWidth][nChn][];

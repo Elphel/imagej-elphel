@@ -8399,7 +8399,7 @@ public class MatchSimulatedPattern {
 				}
 				if (global_debug_level > 0) {
 					System.out.println(
-							(((iGridMatchCoeff[0][2] + iGridMatchCoeff[1][2]) & 1) == 0) ? "EVEN shift" : "ODD shift");
+							(((iGridMatchCoeff[0][2] + iGridMatchCoeff[1][2]) & 1) == 0) ? "EVEN shift" : "ODD shift"); // here
 				}
 			} else {
 				if (global_debug_level > 0)
