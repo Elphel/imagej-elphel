@@ -2696,7 +2696,7 @@ public class EyesisCorrections {
 	}
 
 
-	public void saveAndShow(
+	public static void saveAndShow(
 			ImagePlus             imp,
 			String                path,
 			boolean               png,
@@ -2716,12 +2716,12 @@ public class EyesisCorrections {
 				}
 			}
 
-			if (hasAlphaHighByte && (jpegQuality <= 0)){
+			if (hasAlphaHighByte && ((jpegQuality <= 0) || png)){
 				if (png){
 					if (debugLevel > 0) System.out.println("Saving RGBA result to "+path+".png");
 					(new EyesisTiff()).savePNG_ARGB32(
 							imp,
-							path+".png"
+							path +".png"
 							);
 
 				} else {
@@ -2729,7 +2729,7 @@ public class EyesisCorrections {
 					try {
 						(new EyesisTiff()).saveTiffARGB32(
 								imp,
-								path+".tiff",
+								path, // +".tiff",
 								false, // correctionsParameters.imageJTags,
 								debugLevel);
 					} catch (IOException e) {

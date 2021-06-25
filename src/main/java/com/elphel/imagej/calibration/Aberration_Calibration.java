@@ -112,7 +112,7 @@ public class Aberration_Calibration extends PlugInFrame implements ActionListene
 	private Panel panelGoniometer;
 	private Panel panelPixelMapping, panelStereo,panelStereo1;
 	private Panel panelLWIR;
-//	private Panel panelLWIR16;
+	private Panel panelIllustrations;
 
 	private ShowDoubleFloatArrays SDFA_INSTANCE; // just for debugging?
 	JP46_Reader_camera JP4_INSTANCE;
@@ -597,6 +597,7 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
     	1         // public int    debugLevel=1;
     );
 
+    public static CalibrationIllustration CALIBRATION_ILLUSTRATION = null;
     public static RefineParameters REFINE_PARAMETERS = new RefineParameters();
     public static DistortionCalibrationData DISTORTION_CALIBRATION_DATA=null;
 //    public static FittingStrategy FITTING_STRATEGY=null;
@@ -666,7 +667,7 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 	public static Goniometer GONIOMETER=null;
 
 	public static LwirReaderParameters   LWIR_PARAMETERS =   new LwirReaderParameters();
-
+	public static CalibrationIllustrationParameters CALIBRATION_ILLUSTRATION_PARAMETERS = new CalibrationIllustrationParameters(LWIR_PARAMETERS);
 //	new CalibrationHardwareInterface.LaserPointers();
 	public class SyncCommand{
 	    public boolean isRunning=      false;
@@ -687,7 +688,7 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 		addKeyListener(IJ.getInstance());
 //		setLayout(new GridLayout(ADVANCED_MODE?8:5, 1));
 //		setLayout(new GridLayout(ADVANCED_MODE?9:6, 1));
-		setLayout(new GridLayout(ADVANCED_MODE?21:21, 1));
+		setLayout(new GridLayout(ADVANCED_MODE?22:22, 1));
 		Color color_configure=     new Color(200, 200,160);
 		Color color_process=       new Color(180, 180, 240);
 		Color color_conf_process=  new Color(180, 240, 240);
@@ -1063,6 +1064,13 @@ if (MORE_BUTTONS) {
 		addButton("LWIR to EO",                 panelLWIR,color_process);
 		addButton("Manual hint",                panelLWIR,color_configure);
 		add(panelLWIR);
+		
+		panelIllustrations= new Panel();
+		panelIllustrations.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
+		addButton("Illustrations Configure",    panelIllustrations,color_configure);
+		addButton("Illustrations",              panelIllustrations,color_bundle);
+		add(panelIllustrations);
+		
 		
 		pack();
 		GUI.center(this);
@@ -9373,6 +9381,77 @@ if (MORE_BUTTONS) {
         return;
 	}
 /* ======================================================================== */
+	if (label.equals("Illustrations Configure")) {
+		CALIBRATION_ILLUSTRATION_PARAMETERS.showJDialog();
+		return;
+	}
+/* ======================================================================== */
+	if       (label.equals("Illustrations")) {
+		if (LENS_DISTORTIONS==null) {
+			IJ.showMessage("LENS_DISTORTION is not set"); // to use all grids imported
+			return;
+		}
+		EYESIS_ABERRATIONS.setDistortions(LENS_DISTORTIONS);
+		
+		if (EYESIS_ABERRATIONS.aberrationParameters.illustrationsDirectory.length()>0){
+			File dFile=new File(EYESIS_ABERRATIONS.aberrationParameters.illustrationsDirectory);
+			if (!dFile.isDirectory() &&  !dFile.mkdirs()) {
+				String msg="Failed to create directory "+EYESIS_ABERRATIONS.aberrationParameters.illustrationsDirectory;
+				IJ.showMessage("Warning",msg);
+	    		System.out.println("Warning: "+msg);
+	    		EYESIS_ABERRATIONS.aberrationParameters.illustrationsDirectory=""; // start over with selecting directory
+			}
+		}
+		String configPath=EYESIS_ABERRATIONS.aberrationParameters.selectIllustrationsDirectory(
+				true,
+				EYESIS_ABERRATIONS.aberrationParameters.illustrationsDirectory,
+				true);
+		if (configPath==null){
+    		String msg="No illustrations directory selected, command aborted";
+    		System.out.println("Warning: "+msg);
+    		IJ.showMessage("Warning",msg);
+    		return;
+		}
+		configPath+=Prefs.getFileSeparator()+"config-illustrations";
+		try {
+			saveTimestampedProperties(
+					configPath,      // full path or null
+					null, // use as default directory if path==null
+					true,
+					PROPERTIES);
+
+		} catch (Exception e){
+    		String msg="Failed to save configuration to "+configPath+", command aborted";
+    		System.out.println("Error: "+msg);
+    		IJ.showMessage("Error",msg);
+    		return;
+		}
+		
+		if (CALIBRATION_ILLUSTRATION == null) {
+			CALIBRATION_ILLUSTRATION = new CalibrationIllustration(
+					CALIBRATION_ILLUSTRATION_PARAMETERS, // CalibrationIllustrationParameters illustrationParameters,			
+					EYESIS_ABERRATIONS,          // EyesisAberrations eyesisAberrations,
+					LENS_DISTORTIONS,            // Distortions       distortions,
+					SYNC_COMMAND.stopRequested,  // 	AtomicInteger                  stopRequested,
+					MASTER_DEBUG_LEVEL);         // 		int                            debug_level);
+			/*
+			CALIBRATION_ILLUSTRATION = new CalibrationIllustration(
+				LWIR_PARAMETERS, // LwirReaderParameters           lwirReaderParameters,
+				LENS_DISTORTION_PARAMETERS, // LensDistortionParameters       lensDistortionParameters,
+				PATTERN_PARAMETERS, // PatternParameters              patternParameters,
+				REFINE_PARAMETERS, // 		RefineParameters               refineParameters,
+				DISTORTION_PROCESS_CONFIGURATION, // DistortionProcessConfiguration distortionProcessConfiguration,
+				EYESIS_CAMERA_PARAMETERS, // EyesisCameraParameters         eyesisCameraParameters,
+				SYNC_COMMAND.stopRequested, // 	AtomicInteger                  stopRequested,
+				MASTER_DEBUG_LEVEL); // 		int                            debug_level);
+				*/
+		}
+//		CALIBRATION_ILLUSTRATION.selectUsefulGrids();
+		CALIBRATION_ILLUSTRATION.convertSourceFiles();
+		return;
+	}
+	
+/* ======================================================================== */
 	if       (label.equals("Manual hint")) {
 		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 		if (LENS_DISTORTIONS==null) {
@@ -10214,7 +10293,6 @@ if (MORE_BUTTONS) {
 		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 		LENS_DISTORTIONS=new Distortions(LENS_DISTORTION_PARAMETERS,PATTERN_PARAMETERS,REFINE_PARAMETERS,this.SYNC_COMMAND.stopRequested);
 		// Maybe wrong ! Use folders that have at least all EO channels? 
-//		int min_files =    lwirReaderParameters.getNumChannels();// 8; // use folders that have all 8 files
 		int [] type_map = lwirReaderParameters.getTypeMap(); // 0 - eo, 1 -0 lwir
 		
 		int lwir_chn0 = lwirReaderParameters.getLwirChn0();
@@ -10242,8 +10320,6 @@ if (MORE_BUTTONS) {
 		allornone_eo =   gd.getNextBoolean();
 		allornone_lwir = gd.getNextBoolean();
 	    
-//		String [] grid_extensions={".tif",".tiff"};
-//		String [] src_extensions={".tif",".tiff"};
 		String [] grid_extensions={".tiff"};
 		String [] src_extensions={".tiff"};
 		MultipleExtensionsFileFilter gridFilter =
@@ -10251,11 +10327,8 @@ if (MORE_BUTTONS) {
 		MultipleExtensionsFileFilter sourceFilter =
 				new MultipleExtensionsFileFilter("",src_extensions,"Source calibration images");
 
-//		CalibrationFileManagement.DirectoryContentsFilter gridDirFilter =
-//				new CalibrationFileManagement.DirectoryContentsFilter (gridFilter, min_files, 0, null);
 
     	String [][] gridFileDirs=       new String [numStations][];
-//    	int [][]    gridUseTypes =      new int [numStations][]; // +1 - use eo channels,+2 - use lwir channels (in pointed set) 
     	boolean [][][] gridUseChn =     new boolean [numStations][][]; // channels to use in each scene  
 		String []   sourceStationDirs = new String [numStations];      // directories of the source files per station
 
@@ -11002,7 +11075,11 @@ if (MORE_BUTTONS) {
     	ABERRATIONS_PARAMETERS.autoRestore=false;
 //    	String confPath=loadProperties(null,PROCESS_PARAMETERS.kernelsDirectory, PROCESS_PARAMETERS.useXML, PROPERTIES);
     	String confPath = 	readPropertiesPath(null, PROCESS_PARAMETERS.kernelsDirectory,PROCESS_PARAMETERS.useXML);
-		PROPERTIES = readProperties( confPath, true, PROPERTIES);
+    	Properties properties = readProperties( confPath, true, PROPERTIES);
+    	if (properties == null) {
+    		return;
+    	}
+		PROPERTIES = properties; // readProperties( confPath, true, PROPERTIES);
 		getAllProperties(PROPERTIES);
 		if (DEBUG_LEVEL>0) System.out.println("Configuration parameters are restored from " + confPath);
 		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
@@ -16016,6 +16093,9 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
 		} else {
 			properties = new Properties();
 		}
+		if (path == null) {
+			return null;
+		}
 	    InputStream is;
 		try {
 			is = new FileInputStream(path);
@@ -16151,6 +16231,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
     	boolean select_FOCUSING_FIELD=!select;
     	boolean select_POWER_CONTROL=!select;
     	boolean select_LWIR=!select;
+    	boolean select_ILLUSTRATIONS=!select;
     	if (select) {
     		GenericDialog gd = new GenericDialog("Select parameters to save");
     		gd.addMessage("===== Individual parameters ======");
@@ -16193,6 +16274,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
         	gd.addCheckbox("FOCUSING_FIELD",select_FOCUSING_FIELD);
         	gd.addCheckbox("POWER_CONTROL",select_POWER_CONTROL);
         	gd.addCheckbox("LWIR",select_LWIR);
+        	gd.addCheckbox("Illustrations",select_ILLUSTRATIONS);
 
             WindowTools.addScrollBars(gd);
             gd.showDialog();
@@ -16236,6 +16318,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
         	select_FOCUSING_FIELD=gd.getNextBoolean();
         	select_POWER_CONTROL=gd.getNextBoolean();
         	select_LWIR=gd.getNextBoolean();
+        	select_ILLUSTRATIONS=gd.getNextBoolean();
     	}
 
        	if (select_MASTER_DEBUG_LEVEL) properties.setProperty("MASTER_DEBUG_LEVEL", MASTER_DEBUG_LEVEL+"");
@@ -16277,6 +16360,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
         if ((select_FOCUSING_FIELD) && (FOCUSING_FIELD!=null)) FOCUSING_FIELD.setProperties("FOCUSING_FIELD.", properties);
         if (select_POWER_CONTROL) POWER_CONTROL.setProperties("POWER_CONTROL.", properties);
         if (select_LWIR) LWIR_PARAMETERS.setProperties("LWIR.", properties);
+        if (select_ILLUSTRATIONS) CALIBRATION_ILLUSTRATION_PARAMETERS.setProperties("ILLUSTRATIONS.", properties);
 
     	if (select) properties.remove("selected");
     }
@@ -16321,6 +16405,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
        if (FOCUSING_FIELD!=null) FOCUSING_FIELD.getProperties("FOCUSING_FIELD.", properties,false); // false -> overwrite distortions center
        POWER_CONTROL.getProperties("POWER_CONTROL.", properties);
        LWIR_PARAMETERS.getProperties("LWIR.", properties);
+       CALIBRATION_ILLUSTRATION_PARAMETERS.getProperties("ILLUSTRATIONS.", properties);
     }
 
 	  private String selectSourceDirectory(String defaultPath) {

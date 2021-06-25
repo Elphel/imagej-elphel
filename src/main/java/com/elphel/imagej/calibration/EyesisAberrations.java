@@ -4784,6 +4784,7 @@ public class EyesisAberrations {
     public static class AberrationParameters{
     	public String sourceDirectory="";
     	public String partialKernelDirectory="";
+    	public String illustrationsDirectory="";
     	public String psfKernelDirectory="";
     	public String aberrationsKernelDirectory="";
     	public String calibrationDirectory="";
@@ -4821,6 +4822,7 @@ public class EyesisAberrations {
 		public void setProperties(String prefix,Properties properties){
 			properties.setProperty(prefix+"sourceDirectory",this.sourceDirectory);
 			properties.setProperty(prefix+"partialKernelDirectory",this.partialKernelDirectory);
+			properties.setProperty(prefix+"illustrationsDirectory",this.illustrationsDirectory);
 			properties.setProperty(prefix+"psfKernelDirectory",this.psfKernelDirectory);
 			properties.setProperty(prefix+"aberrationsKernelDirectory",this.aberrationsKernelDirectory);
 			properties.setProperty(prefix+"calibrationDirectory",this.calibrationDirectory);
@@ -4866,6 +4868,7 @@ public class EyesisAberrations {
 		public void getProperties(String prefix,Properties properties){
 			if (properties.getProperty(prefix+"sourceDirectory")!=null)	           this.sourceDirectory=properties.getProperty(prefix+"sourceDirectory");
 			if (properties.getProperty(prefix+"partialKernelDirectory")!=null)     this.partialKernelDirectory=properties.getProperty(prefix+"partialKernelDirectory");
+			if (properties.getProperty(prefix+"illustrationsDirectory")!=null)     this.illustrationsDirectory=properties.getProperty(prefix+"illustrationsDirectory");
 			if (properties.getProperty(prefix+"psfKernelDirectory")!=null)         this.psfKernelDirectory=properties.getProperty(prefix+"psfKernelDirectory");
 			if (properties.getProperty(prefix+"aberrationsKernelDirectory")!=null) this.aberrationsKernelDirectory=properties.getProperty(prefix+"aberrationsKernelDirectory");
 			if (properties.getProperty(prefix+"calibrationDirectory")!=null)       this.calibrationDirectory=properties.getProperty(prefix+"calibrationDirectory");
@@ -5018,6 +5021,8 @@ public class EyesisAberrations {
     		gd.addCheckbox("Select source directory", false);
     		gd.addStringField("Partial kernels directory", this.partialKernelDirectory, 60);
     		gd.addCheckbox("Select partial kernels directory", false);
+    		gd.addStringField("Illustrations directory", this.illustrationsDirectory, 60);
+    		gd.addCheckbox("Select illustrations directory", false);
     		gd.addStringField("Combined kernels directory", this.psfKernelDirectory, 60);
     		gd.addCheckbox("Select combined kernsls directory", false);
     		gd.addStringField("Aberrations kernels directory", this.aberrationsKernelDirectory, 60);
@@ -5071,6 +5076,8 @@ public class EyesisAberrations {
     		if (gd.getNextBoolean()) selectSourceDirectory(false, this.sourceDirectory, false);
     		this.partialKernelDirectory=gd.getNextString();
     		if (gd.getNextBoolean()) selectPartialKernelDirectory(false, this.partialKernelDirectory, false);
+    		this.illustrationsDirectory=gd.getNextString();
+    		if (gd.getNextBoolean()) selectIllustrationsDirectory(false, this.illustrationsDirectory, false);
     		this.psfKernelDirectory=gd.getNextString();
     		if (gd.getNextBoolean()) selectPSFKernelDirectory(false, this.psfKernelDirectory, false);
     		this.aberrationsKernelDirectory=gd.getNextString();
@@ -5133,6 +5140,19 @@ public class EyesisAberrations {
     		if (dir!=null) this.partialKernelDirectory=dir;
     		return dir;
     	}
+
+    	public String selectIllustrationsDirectory(boolean smart, String defaultPath, boolean newAllowed) {
+    		String dir= CalibrationFileManagement.selectDirectory(
+    				smart,
+    				newAllowed, // save
+    				"Illustrations directory", // title
+    				"Select illustrations directory", // button
+    				null, // filter
+    				defaultPath); //this.sourceDirectory);
+    		if (dir!=null) this.illustrationsDirectory=dir;
+    		return dir;
+    	}
+    	
     	public String selectPSFKernelDirectory(boolean smart, String defaultPath, boolean newAllowed) {
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,

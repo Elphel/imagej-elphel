@@ -102,6 +102,26 @@ public class LwirReaderParameters {
 	public LwirReaderParameters() {
 		
 	}
+	
+	public int [] getLwirChannels(boolean absolote) {
+		int [] absolute_chn = new int [lwir_channels.length];
+		for (int i = 0; i < absolute_chn.length; i++) {
+			absolute_chn[i] = lwir_channels[i] + (absolote? getLwirChn0() : 0);
+		}
+		return absolute_chn;
+	}
+
+	public int [] getAbsoluteEoChannels(boolean absolote) {
+		int [] absolute_chn = new int [eo_channels.length];
+		for (int i = 0; i < absolute_chn.length; i++) {
+			absolute_chn[i] = eo_channels[i] +  + (absolote? getEoChn0():0);
+		}
+		return absolute_chn;
+	}
+//	protected int []  lwir_channels =        {0, 1, 2 ,3};
+//	protected int []  eo_channels =          {0, 1, 2 ,3};
+	
+	
 	public LwirReaderParameters(String name) {
 		if (NAME_TALON.equals(name)) camera_name = NAME_TALON;
 		else if (NAME_LWIR16.equals(name)) camera_name = NAME_LWIR16;
@@ -133,11 +153,11 @@ public class LwirReaderParameters {
 	public int getNumFrames() {
 		return num_frames;
 	}
-	public int getLwirChn0 () {
+	public int getLwirChn0() {
 		return lwir_chn0;
 	}
 
-	public int getEoChn0 () {
+	public int getEoChn0() {
 		return isLwir16() ? 16:4;// eo_chn0;
 	}
 	

@@ -1039,16 +1039,6 @@ import ij.text.TextWindow;
         					System.out.println("sfiles == null");
         				}
         				for (String spath:sfiles) {
-        					/*
-        					int last_dash = spath.lastIndexOf('-');
-        					int last =      spath.lastIndexOf('_');
-        					if (last_dash >last) last = last_dash;
-        					int last_dot = spath.lastIndexOf('.');
-        					if (last_dot < 0) {
-        						last_dot = spath.length();
-        					}
-        					int chn = Integer.parseInt(spath.substring(last+1, last_dot));
-        					*/
             				int chn = pathToChannel(spath);
         					spaths[chn] = (new File(set_dir,spath)).getPath();
         				}

@@ -50,6 +50,7 @@ import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.GenericJTabbedDialog;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.correction.CorrectionColorProc;
+import com.elphel.imagej.correction.EyesisCorrections;
 import com.elphel.imagej.gpu.GPUTileProcessor;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
@@ -1030,7 +1031,7 @@ public class TwoQuadCLT {
 						true,  // smart,
 						true);  //newAllowed, // save
 				for (int sub_img = 0; sub_img < imps_RGB.length; sub_img++){
-					quadCLT_main.eyesisCorrections.saveAndShow(
+					EyesisCorrections.saveAndShow(
 							imps_RGB[sub_img],
 							x3d_path,
 							quadCLT_main.correctionsParameters.png && !clt_parameters.black_back,
@@ -1916,7 +1917,7 @@ public class TwoQuadCLT {
 						true,  // smart,
 						true);  //newAllowed, // save
 				for (int sub_img = 0; sub_img < imps_RGB.length; sub_img++){
-					quadCLT_main.eyesisCorrections.saveAndShow(
+					EyesisCorrections.saveAndShow(
 							imps_RGB[sub_img],
 							x3d_path,
 							quadCLT_main.correctionsParameters.png && !clt_parameters.black_back,

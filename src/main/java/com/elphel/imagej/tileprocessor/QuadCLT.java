@@ -2191,7 +2191,7 @@ public class QuadCLT extends QuadCLTCPU {
 					true,  // smart,
 					true);  //newAllowed, // save
 			for (int sub_img = 0; sub_img < imps_RGB.length; sub_img++){
-				eyesisCorrections.saveAndShow(
+				EyesisCorrections.saveAndShow(
 						imps_RGB[sub_img],
 						x3d_path,
 						correctionsParameters.png && !clt_parameters.black_back,
@@ -2720,7 +2720,7 @@ public class QuadCLT extends QuadCLTCPU {
 					true,  // smart,
 					true);  //newAllowed, // save
 			for (int sub_img = 0; sub_img < imps_RGB.length; sub_img++){
-				quadCLT_main.eyesisCorrections.saveAndShow(
+				EyesisCorrections.saveAndShow(
 						imps_RGB[sub_img],
 						x3d_path,
 						quadCLT_main.correctionsParameters.png && !clt_parameters.black_back,

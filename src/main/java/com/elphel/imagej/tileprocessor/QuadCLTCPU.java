@@ -5159,7 +5159,7 @@ public class QuadCLTCPU {
 						  true,  // smart,
 						  true);  //newAllowed, // save
 				  for (int sub_img = 0; sub_img < 4; sub_img++){
-					  eyesisCorrections.saveAndShow(
+					  EyesisCorrections.saveAndShow(
 							  imps_RGB[sub_img],
 							  x3d_path,
 							  correctionsParameters.png && !clt_parameters.black_back,
@@ -12185,7 +12185,7 @@ public class QuadCLTCPU {
 
 		  }
 		  ImagePlus ip_thumb = new ImagePlus(name,ip);
-		  eyesisCorrections.saveAndShow(
+		  EyesisCorrections.saveAndShow(
 				  ip_thumb,
 				  dir,
 				  false,
