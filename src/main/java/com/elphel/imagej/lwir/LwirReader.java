@@ -748,7 +748,7 @@ public class LwirReader {
 	 * From Stephan Preibisch's Multithreading.java class. See:
 	 * http://repo.or.cz/w/trakem2.git?a=blob;f=mpi/fruitfly/general/MultiThreading.java;hb=HEAD
 	 */
-	private Thread[] newThreadArray(int maxCPUs) {
+	private static Thread[] newThreadArray(int maxCPUs) {
 		int n_cpus = Runtime.getRuntime().availableProcessors();
 		if (n_cpus>maxCPUs)n_cpus=maxCPUs;
 		return new Thread[n_cpus];

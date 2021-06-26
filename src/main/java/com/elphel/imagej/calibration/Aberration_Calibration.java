@@ -667,7 +667,9 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 	public static Goniometer GONIOMETER=null;
 
 	public static LwirReaderParameters   LWIR_PARAMETERS =   new LwirReaderParameters();
-	public static CalibrationIllustrationParameters CALIBRATION_ILLUSTRATION_PARAMETERS = new CalibrationIllustrationParameters(LWIR_PARAMETERS);
+	public static CalibrationIllustrationParameters CALIBRATION_ILLUSTRATION_PARAMETERS = new CalibrationIllustrationParameters(
+			LWIR_PARAMETERS,
+			EYESIS_CAMERA_PARAMETERS);
 //	new CalibrationHardwareInterface.LaserPointers();
 	public class SyncCommand{
 	    public boolean isRunning=      false;
@@ -1069,6 +1071,7 @@ if (MORE_BUTTONS) {
 		panelIllustrations.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
 		addButton("Illustrations Configure",    panelIllustrations,color_configure);
 		addButton("Illustrations",              panelIllustrations,color_bundle);
+		addButton("Remove Bad grids",           panelIllustrations,color_stop);
 		add(panelIllustrations);
 		
 		
@@ -9434,20 +9437,27 @@ if (MORE_BUTTONS) {
 					LENS_DISTORTIONS,            // Distortions       distortions,
 					SYNC_COMMAND.stopRequested,  // 	AtomicInteger                  stopRequested,
 					MASTER_DEBUG_LEVEL);         // 		int                            debug_level);
-			/*
-			CALIBRATION_ILLUSTRATION = new CalibrationIllustration(
-				LWIR_PARAMETERS, // LwirReaderParameters           lwirReaderParameters,
-				LENS_DISTORTION_PARAMETERS, // LensDistortionParameters       lensDistortionParameters,
-				PATTERN_PARAMETERS, // PatternParameters              patternParameters,
-				REFINE_PARAMETERS, // 		RefineParameters               refineParameters,
-				DISTORTION_PROCESS_CONFIGURATION, // DistortionProcessConfiguration distortionProcessConfiguration,
-				EYESIS_CAMERA_PARAMETERS, // EyesisCameraParameters         eyesisCameraParameters,
-				SYNC_COMMAND.stopRequested, // 	AtomicInteger                  stopRequested,
-				MASTER_DEBUG_LEVEL); // 		int                            debug_level);
-				*/
 		}
-//		CALIBRATION_ILLUSTRATION.selectUsefulGrids();
 		CALIBRATION_ILLUSTRATION.convertSourceFiles();
+		return;
+	}
+/* ======================================================================== */
+	if       (label.equals("Remove Bad grids")) {
+		if (LENS_DISTORTIONS==null) {
+			IJ.showMessage("LENS_DISTORTION is not set"); // to use all grids imported
+			return;
+		}
+		EYESIS_ABERRATIONS.setDistortions(LENS_DISTORTIONS);
+
+		if (CALIBRATION_ILLUSTRATION == null) {
+			CALIBRATION_ILLUSTRATION = new CalibrationIllustration(
+					CALIBRATION_ILLUSTRATION_PARAMETERS, // CalibrationIllustrationParameters illustrationParameters,			
+					EYESIS_ABERRATIONS,          // EyesisAberrations eyesisAberrations,
+					LENS_DISTORTIONS,            // Distortions       distortions,
+					SYNC_COMMAND.stopRequested,  // 	AtomicInteger                  stopRequested,
+					MASTER_DEBUG_LEVEL);         // 		int                            debug_level);
+		}
+		CALIBRATION_ILLUSTRATION.removeBadGrids();
 		return;
 	}
 	

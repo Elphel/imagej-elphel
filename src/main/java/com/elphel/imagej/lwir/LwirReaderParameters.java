@@ -111,7 +111,7 @@ public class LwirReaderParameters {
 		return absolute_chn;
 	}
 
-	public int [] getAbsoluteEoChannels(boolean absolote) {
+	public int [] getEoChannels(boolean absolote) {
 		int [] absolute_chn = new int [eo_channels.length];
 		for (int i = 0; i < absolute_chn.length; i++) {
 			absolute_chn[i] = eo_channels[i] +  + (absolote? getEoChn0():0);

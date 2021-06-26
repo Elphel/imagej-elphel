@@ -3346,7 +3346,7 @@ public class MatchSimulatedPattern {
 	}
 
 	/* ======================================================================== */
-	private double[] combineDiagonalGreens(double[] green0, double[] green3, int half_width, int half_height) {
+	private static double[] combineDiagonalGreens(double[] green0, double[] green3, int half_width, int half_height) {
 		int y, x, base;
 		int base_b = 0;
 		double[] result = new double[green0.length];
@@ -3568,18 +3568,27 @@ public class MatchSimulatedPattern {
 	 * Wave vector 2 x component [2][1] - Wave vector 2 y component [2][2] - Wave
 	 * vector 2 phase (not used here)
 	 */
-	public double[][] tryPattern(LwirReaderParameters lwirReaderParameters, // null is OK
-			DoubleFHT doubleFHT, double[] point, // xy to try
+	public double[][] tryPattern(
+			LwirReaderParameters lwirReaderParameters, // null is OK
+			DoubleFHT doubleFHT,
+			double[] point, // xy to try
 			final DistortionParameters distortionParameters, //
-			final MatchSimulatedPattern.PatternDetectParameters patternDetectParameters, final double min_half_period,
-			final double max_half_period, final SimulationPattern.SimulParameters thisSimulParameters,
-			final MatchSimulatedPattern matchSimulatedPattern, final MatchSimulatedPattern matchSimulatedPatternCorr,
-			final SimulationPattern simulationPattern, final boolean equalizeGreens, final ImagePlus imp, // image to
-																											// process
-			double[] bPattern, double[] windowFunction, double[] windowFunctionCorr, double[] windowFunctionCorr2,
-			double[] windowFunctionCorr4, double[][] locsNeib, // which neibors to try (here - just the center)
+			final MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
+			final double min_half_period,
+			final double max_half_period,
+			final SimulationPattern.SimulParameters thisSimulParameters,
+			final MatchSimulatedPattern matchSimulatedPattern,
+			final MatchSimulatedPattern matchSimulatedPatternCorr,
+			final SimulationPattern simulationPattern,
+			final boolean equalizeGreens,
+			final ImagePlus imp, // image to process
+			double[] bPattern,
+			double[] windowFunction,
+			double[] windowFunctionCorr,
+			double[] windowFunctionCorr2,
+			double[] windowFunctionCorr4,
+			double[][] locsNeib, // which neibors to try (here - just the center)
 			String dbgStr) {
-
 //		this.debugLevel = 3;
 		if (this.debugLevel == 3) {
 			System.out.println("tryPattern(): this.debugLevel = 3");
@@ -3590,7 +3599,7 @@ public class MatchSimulatedPattern {
 				System.out.println(dbgStr + " imp==null");
 			return null;
 		}
-		boolean is_lwir = ((lwirReaderParameters != null) && lwirReaderParameters.is_LWIR(imp));
+		boolean is_lwir = ((lwirReaderParameters != null) && LwirReaderParameters.is_LWIR(imp));
 		int fft_size = is_lwir ? distortionParameters.FFTSize_lwir : distortionParameters.FFTSize;
 
 		int xc = (int) (2 * Math.round(0.5 * point[0]));
@@ -3906,33 +3915,27 @@ public class MatchSimulatedPattern {
 	// it now can start with non-empty Grid
 	public int distortions( // returns number of grid cells
 			final LwirReaderParameters lwirReaderParameters, // null is OK
-			final boolean[] triedIndices, final DistortionParameters distortionParameters, //
-			final MatchSimulatedPattern.PatternDetectParameters patternDetectParameters, final double min_half_period,
-			final double max_half_period, final SimulationPattern.SimulParameters simulParameters,
-			final boolean equalizeGreens, final ImagePlus imp, // image to process
-			final int threadsMax, final boolean updateStatus, final int debug_level, // debug level used inside loops
+			final boolean[] triedIndices,
+			final DistortionParameters distortionParameters, //
+			final MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
+			final double min_half_period,
+			final double max_half_period,
+			final SimulationPattern.SimulParameters simulParameters,
+			final boolean equalizeGreens,
+			final ImagePlus imp, // image to process
+			final int threadsMax,
+			final boolean updateStatus,
+			final int debug_level, // debug level used inside loops
 			final int global_debug_level) {
 		if (imp == null)
 			return 0;
 		final int debugThreshold = 1;
-//		final boolean is_lwir = ((lwirReaderParameters != null) && lwirReaderParameters.is_LWIR(imp));
-//		final int fft_size = is_lwir ? distortionParameters.FFTSize_lwir : distortionParameters.FFTSize;
-//		final int correlation_size = is_lwir ? distortionParameters.correlationSizeLwir
-//				: distortionParameters.correlationSize;
-//		final int max_correlation_size = is_lwir ? distortionParameters.maximalCorrelationSizeLwir
-//				: distortionParameters.maximalCorrelationSize;
-//		final int minimal_pattern_cluster = is_lwir ? distortionParameters.minimalPatternClusterLwir
-//				: distortionParameters.minimalPatternCluster;
 		
 		final int sensor_type = LwirReaderParameters.sensorType(imp);
 		final int fft_size =                distortionParameters.getFFTSize(sensor_type);
 		final int correlation_size =        distortionParameters.getCorrelationSize(sensor_type);
-//		final int max_correlation_size =    distortionParameters.getMaximalCorrelationSize(sensor_type);
 		final int minimal_pattern_cluster = distortionParameters.getMinimalPatternCluster(sensor_type);
-		
-		
 		final int[][] directionsUV = { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 } }; // should have opposite direction
-																					// shifted by half
 		final int[][] directionsUV8 = { { 1, 0 }, { 0, 1 }, { -1, 0 }, { 0, -1 }, { 1, 1 }, { -1, 1 }, { -1, -1 },
 				{ 1, -1 } }; // first 8 should be the same as in directionsUV
 		final int[] directionsBits8 = { 1, 4, 1, 4, 2, 8, 2, 8 }; // should match directionsUV8
@@ -4103,19 +4106,33 @@ public class MatchSimulatedPattern {
 					System.out.println("distortions(): startScanIndex=" + startScanIndex + " > 3 ####");
 
 				if (startScanIndex < numTries) {
-					nodeQueue = findPatternCandidates(lwirReaderParameters, // LwirReaderParameters
-																			// lwirReaderParameters, // null is OK
-							triedIndices, startScanIndex, // [0] will be updated
-							tryHor, tryVert,
+					nodeQueue = findPatternCandidates(
+							lwirReaderParameters, // LwirReaderParameters
+							triedIndices,
+							startScanIndex, // [0] will be updated
+							tryHor,
+							tryVert,
 							// numTries,
-							selection, thisDistortionParameters, // no control of the displacement
-							patternDetectParameters, min_half_period, max_half_period, thisSimulParameters,
-							matchSimulatedPattern, matchSimulatedPatternCorr, simulationPattern, equalizeGreens, imp, // image
-																														// to
-																														// process
-							bPattern, windowFunction, windowFunctionCorr, windowFunctionCorr2, windowFunctionCorr4,
+							selection,
+							thisDistortionParameters, // no control of the displacement
+							patternDetectParameters,
+							min_half_period,
+							max_half_period,
+							thisSimulParameters,
+							matchSimulatedPattern,
+							matchSimulatedPatternCorr,
+							simulationPattern,
+							equalizeGreens,
+							imp, // image to process
+							bPattern,
+							windowFunction,
+							windowFunctionCorr,
+							windowFunctionCorr2,
+							windowFunctionCorr4,
 							locsNeib, // which neighbors to try (here - just the center)
-							threadsMax, updateStatus, this.debugLevel);
+							threadsMax,
+							updateStatus,
+							this.debugLevel);
 					if (nodeQueue.isEmpty()) { // nodes==null){
 						// if (debugLevel>1) System.out.println("All start points tried");
 						if (global_debug_level > (debugThreshold + 1)) {
@@ -4932,26 +4949,32 @@ public class MatchSimulatedPattern {
 		}
 	}
 
-	private Queue<GridNode> findPatternCandidates(final LwirReaderParameters lwirReaderParameters, // null is OK
+	private Queue<GridNode> findPatternCandidates(
+			final LwirReaderParameters lwirReaderParameters, // null is OK
 			final boolean[] triedIndices, // which indices are already tried
-			final int startScanIndex, final int tryHor, final int tryVert, final Rectangle selection,
+			final int startScanIndex,
+			final int tryHor,
+			final int tryVert,
+			final Rectangle selection,
 			final DistortionParameters distortionParameters, //
-			final MatchSimulatedPattern.PatternDetectParameters patternDetectParameters, final double min_half_period,
-			final double max_half_period, final SimulationPattern.SimulParameters thisSimulParameters,
-			final MatchSimulatedPattern matchSimulatedPattern, final MatchSimulatedPattern matchSimulatedPatternCorr,
-			final SimulationPattern simulationPattern, final boolean equalizeGreens, final ImagePlus imp, // image to
-																											// process
-			final double[] bPattern, final double[] windowFunction, final double[] windowFunctionCorr,
-			final double[] windowFunctionCorr2, final double[] windowFunctionCorr4, final double[][] locsNeib, // which
-																												// neibors
-																												// to
-																												// try
-																												// (here
-																												// -
-																												// just
-																												// the
-																												// center)
-			final int threadsMax, final boolean updateStatus, final int debugLevel) {
+			final MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
+			final double min_half_period,
+			final double max_half_period,
+			final SimulationPattern.SimulParameters thisSimulParameters,
+			final MatchSimulatedPattern matchSimulatedPattern,
+			final MatchSimulatedPattern matchSimulatedPatternCorr,
+			final SimulationPattern simulationPattern,
+			final boolean equalizeGreens,
+			final ImagePlus imp, // image to process
+			final double[] bPattern,
+			final double[] windowFunction,
+			final double[] windowFunctionCorr,
+			final double[] windowFunctionCorr2,
+			final double[] windowFunctionCorr4,
+			final double[][] locsNeib, // which  neibors  to try  (here  -  just  the  center)
+			final int threadsMax,
+			final boolean updateStatus,
+			final int debugLevel) {
 		final int debugThreshold = 2; // -1; // 1; ** Restore 1
 		if ((debugThreshold < 0) || (debugLevel < -10000)) {
 			System.out.println("findPatternCandidates(): debugThreshold < 0 - restore when done");
@@ -5013,17 +5036,26 @@ public class MatchSimulatedPattern {
 											+ ", nh=" + nh + ")");
 								if (debugLevel > 2)
 									System.out.println(debugNumThread + ":" + n + " >> ");
-								double[][] node = tryPattern(lwirReaderParameters, // LwirReaderParameters
-																					// lwirReaderParameters, // null is
-																					// OK
-										doubleFHT, point, // xy to try
+								double[][] node = tryPattern(
+										lwirReaderParameters, // LwirReaderParameters lwirReaderParameters, null is OK
+										doubleFHT,
+										point, // xy to try
 										distortionParameters, // no control of the displacement
-										patternDetectParameters, min_half_period, max_half_period, thisSimulParameters,
-										matchSimulatedPattern, matchSimulatedPatternCorr, simulationPattern,
-										equalizeGreens, imp, // image to process
-										bPattern, windowFunction, windowFunctionCorr, windowFunctionCorr2,
-										windowFunctionCorr4, locsNeib, // which neighbors to try (here - just the
-																		// center)
+										patternDetectParameters,
+										min_half_period,
+										max_half_period,
+										thisSimulParameters,
+										matchSimulatedPattern,
+										matchSimulatedPatternCorr,
+										simulationPattern,
+										equalizeGreens,
+										imp, // image to process
+										bPattern,
+										windowFunction,
+										windowFunctionCorr,
+										windowFunctionCorr2,
+										windowFunctionCorr4,
+										locsNeib, // which neighbors to try (here - just the  center)
 										(debugLevel > debugThreshold)
 												? ("" + debugNumThread + ":" + n + ", nv=" + nv + ", nh=" + nh + ", nb="
 														+ nb + " " + point[0] + "/" + point[1])
@@ -6590,6 +6622,7 @@ public class MatchSimulatedPattern {
 				&& (grid[uv[1]][uv[0]] != null) && (grid[uv[1]][uv[0]][0] != null));
 	}
 
+	
 	private boolean isCellDefined(double[][][][] grid, int u, int v) {
 		return ((v >= 0) && (u >= 0) && (v < grid.length) && (u < grid[v].length) && (grid[v][u] != null)
 				&& (grid[v][u][0] != null));
@@ -6679,16 +6712,31 @@ public class MatchSimulatedPattern {
 		return numDefinedCells(this.PATTERN_GRID);
 	}
 
-	public int numDefinedCells(double[][][][] grid) { // calulate/print number of defined nodes in a grid
+	public int numDefinedCells(double[][][][] grid) { // calculate/print number of defined nodes in a grid
 		int[] iUV = new int[2];
-		int numDefinedCells = 0;
+		int numCells = 0;
 		for (iUV[1] = 0; iUV[1] < grid.length; iUV[1]++)
 			for (iUV[0] = 0; iUV[0] < grid[0].length; iUV[0]++)
 				if (this.isCellDefined(grid, iUV))
-					numDefinedCells++;
-		return numDefinedCells;
+					numCells++;
+		return numCells;
 	}
 
+	public int numStrongCells(double min_contrast) {
+		return numStrongCells(this.PATTERN_GRID, min_contrast);
+	}
+	
+	public int numStrongCells(double[][][][] grid, double min_contrast) { // calculate/print number of defined high-contrast nodes in a grid
+		int[] iUV = new int[2];
+		int numCells = 0;
+		for (iUV[1] = 0; iUV[1] < grid.length; iUV[1]++)
+			for (iUV[0] = 0; iUV[0] < grid[0].length; iUV[0]++)
+				if (this.getCellContrast(grid, iUV) > min_contrast) {
+					numCells++;
+				}
+		return numCells;
+	}
+	
 	public int gridUVWidth() {
 		return ((this.PATTERN_GRID == null) || (this.PATTERN_GRID.length == 0l) || (this.PATTERN_GRID[0] == null)) ? 0
 				: this.PATTERN_GRID[0].length;
@@ -6704,20 +6752,20 @@ public class MatchSimulatedPattern {
 	 * returns number of laser pointers matched (or negative error) if
 	 * (this.flatFieldForGrid!=null) it should already be applied !!
 	 */
-	public int calculateDistortions(LwirReaderParameters lwirReaderParameters, // null is OK
+	public int calculateDistortions(
+			LwirReaderParameters lwirReaderParameters, // null is OK
 			MatchSimulatedPattern.DistortionParameters distortionParameters, //
 			MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
-			SimulationPattern.SimulParameters simulParameters, boolean equalizeGreens, ImagePlus imp, // image to
-																										// process //
-																										// has WOI_TOP
-																										// and possibly
-																										// -
-																										// WOI_COMPENSATED
+			SimulationPattern.SimulParameters simulParameters,
+			boolean equalizeGreens,
+			ImagePlus imp, // image to process has WOI_TOP and possibly WOI_COMPENSATED
 			LaserPointer laserPointer, // LaserPointer object or null
 			boolean removeOutOfGridPointers, //
 			double[][][] hintGrid, // predicted grid array (or null)
 			double hintGridTolerance, // allowed mismatch (fraction of period) or 0 - orientation only
-			int threadsMax, boolean updateStatus, int global_debug_level, // DEBUG_LEVEL
+			int threadsMax,
+			boolean updateStatus,
+			int global_debug_level, // DEBUG_LEVEL
 			int debug_level, // debug level used inside loops
 			boolean noMessageBoxes) {
 		
@@ -6726,13 +6774,16 @@ public class MatchSimulatedPattern {
 			return 0;
 		}
 		final int debugThreshold = 1;
-		boolean is_lwir = ((lwirReaderParameters != null) && lwirReaderParameters.is_LWIR(imp));
+		boolean is_lwir = ((lwirReaderParameters != null) && LwirReaderParameters.is_LWIR(imp));
 		double min_half_period = (is_lwir ? patternDetectParameters.minGridPeriodLwir
 				: patternDetectParameters.minGridPeriod) / 2;
 		double max_half_period = (is_lwir ? patternDetectParameters.maxGridPeriodLwir
 				: patternDetectParameters.maxGridPeriod) / 2;
 		int minimal_pattern_cluster = is_lwir ? distortionParameters.minimalPatternClusterLwir
 				: distortionParameters.minimalPatternCluster;
+		double threshold_contrast = distortionParameters.threshold_contrast;
+		int threshold_number = distortionParameters.threshold_number;
+		
 
 		boolean invert = false; // is_lwir;
 
@@ -6802,131 +6853,167 @@ public class MatchSimulatedPattern {
 		boolean[] triedIndices = new boolean[numTries + 1]; // last set - all used
 		for (int i = 0; i < triedIndices.length; i++)
 			triedIndices[i] = (i < 3); // mark first 3 as if they are already used
+		while (reTries > 0) { // outer loop, including refines
+			while (reTries-- > 0) {
+				this.PATTERN_GRID = null;
+				invalidateCalibration();
 
-		while (reTries-- > 0) {
-			this.PATTERN_GRID = null;
-			invalidateCalibration();
+				patternCells = distortions( // calculates matchSimulatedPattern.DIST_ARRAY // invalidates calibration,
+						// flatFieldForGrid, resets this.PATTERN_GRID
+						lwirReaderParameters, // null is OK
+						triedIndices,
+						distortionParameters, //
+						patternDetectParameters,
+						min_half_period,
+						max_half_period,
+						simulParameters,
+						equalizeGreens,
+						imp,
+						threadsMax, updateStatus, debug_level, global_debug_level); // debug level
+				if (global_debug_level > 0)
+					System.out.println(
+							"Pattern correlation done at " + IJ.d2s(0.000000001 * (System.nanoTime() - startTime), 3)
+							+ " found " + patternCells + " cells, reTries left: " + reTries);
+				if (patternCells > 0) {
+					foundGoodCluster = true;
+					break; // new distortions() code - returns non-zero only if passed other tests
+				}
 
-			patternCells = distortions( // calculates matchSimulatedPattern.DIST_ARRAY // invalidates calibration,
-										// flatFieldForGrid, resets this.PATTERN_GRID
-					lwirReaderParameters, // null is OK
-					triedIndices, distortionParameters, //
-					patternDetectParameters, min_half_period, max_half_period, simulParameters, equalizeGreens, imp,
-					threadsMax, updateStatus, debug_level, global_debug_level); // debug level
-			if (global_debug_level > 0)
-				System.out.println(
-						"Pattern correlation done at " + IJ.d2s(0.000000001 * (System.nanoTime() - startTime), 3)
-								+ " found " + patternCells + " cells, reTries left: " + reTries);
-			if (patternCells > 0) {
-				foundGoodCluster = true;
-				break; // new distortions() code - returns non-zero only if passed other tests
-			}
+				boolean someLeft = false;
+				int startScanIndex = 0;
+				for (startScanIndex = 3; startScanIndex < triedIndices.length; startScanIndex++)
+					if (!triedIndices[startScanIndex]) {
+						someLeft = true;
+						break;
+					}
 
-			boolean someLeft = false;
-			int startScanIndex = 0;
-			for (startScanIndex = 3; startScanIndex < triedIndices.length; startScanIndex++)
-				if (!triedIndices[startScanIndex]) {
-					someLeft = true;
+				if (someLeft) {
+					if (global_debug_level > 0) {
+						System.out.println("Initial pattern cluster is too small (" + patternCells
+								+ "), continuing scanning from index " + startScanIndex);
+					}
+				} else { // all tried
+					if (global_debug_level > 0)
+						System.out.println("--- Tried all - nothing found --- at "
+								+ IJ.d2s(0.000000001 * (System.nanoTime() - startTime), 3));
 					break;
 				}
-
-			if (someLeft) {
-				if (global_debug_level > 0) {
-					System.out.println("Initial pattern cluster is too small (" + patternCells
-							+ "), continuing scanning from index " + startScanIndex);
-				}
-			} else {
-				if (global_debug_level > 0)
-					System.out.println("--- Tried all - nothing found --- at "
-							+ IJ.d2s(0.000000001 * (System.nanoTime() - startTime), 3));
-				break;
 			}
-		}
 
-		// restore initial distortionParameters.correlationMinInitialContrast
-		distortionParameters.correlationMinInitialContrast = savedCorrelationMinInitialContrast;
-		if (!foundGoodCluster) {
+			// restore initial distortionParameters.correlationMinInitialContrast
+			distortionParameters.correlationMinInitialContrast = savedCorrelationMinInitialContrast;
+			if (!foundGoodCluster) {
+				if (global_debug_level > (debugThreshold + 1))
+					System.out.println(
+							"calculateDistortions(): Pattern too small, initial cluster had " + patternCells + " cells");
+				if (global_debug_level > (debugThreshold + 2))
+					IJ.showMessage("Error", "Pattern too small: " + patternCells);
+				return distortionParameters.errPatternNotFound;
+			}
+			if (!patternOK()) {
+				if (global_debug_level > (debugThreshold + 1))
+					System.out.println("Pattern not found");
+				if (global_debug_level > (debugThreshold + 2))
+					IJ.showMessage("Error", "Pattern not found");
+				return distortionParameters.errPatternNotFound;
+			} else {
+				if (global_debug_level > 0) // (debugThreshold + 1))
+					System.out.println("Initial pattern cluster has " + patternCells + " cells");
+			}
 			if (global_debug_level > (debugThreshold + 1))
 				System.out.println(
-						"calculateDistortions(): Pattern too small, initial cluster had " + patternCells + " cells");
-			if (global_debug_level > (debugThreshold + 2))
-				IJ.showMessage("Error", "Pattern too small: " + patternCells);
-			return distortionParameters.errPatternNotFound;
-		}
-		if (!patternOK()) {
-			if (global_debug_level > (debugThreshold + 1))
-				System.out.println("Pattern not found");
-			if (global_debug_level > (debugThreshold + 2))
-				IJ.showMessage("Error", "Pattern not found");
-			return distortionParameters.errPatternNotFound;
-		} else {
-			if (global_debug_level > 0) // (debugThreshold + 1))
-				System.out.println("Initial pattern cluster has " + patternCells + " cells");
-		}
-		if (global_debug_level > (debugThreshold + 1))
-			System.out.println(
-					"Wave vectors recalculated at " + IJ.d2s(0.000000001 * (System.nanoTime() - startTime), 3));
-		recalculateWaveVectors(updateStatus, debug_level);// debug level used inside loops
-		ImagePlus imp_eq;
-		if (distortionParameters.flatFieldCorrection && (this.flatFieldForGrid == null)) // if it is not null it is
-																							// already supposed to be
-																							// applied!
-			imp_eq = equalizeGridIntensity(
-					imp,
-					this.PATTERN_GRID,
-					distortionParameters, // // makes no sense for LWIR as it normalizes absolute data - actually it does! 
-					equalizeGreens,
-					global_debug_level,
-					updateStatus,
-					threadsMax);
-		else
-			imp_eq = imp;
-
-		if (distortionParameters.refineCorrelations) {
-			double maxActualCorr = refineDistortionCorrelation(
-					lwirReaderParameters, // LwirReaderParameters lwirReaderParameters, // null is OK
-					distortionParameters, //
-					patternDetectParameters,
-					simulParameters,
-					equalizeGreens,
-					imp_eq,
-					0.0, // final double maxCorr, maximal allowed correction, in pixels (0.0) - any
-					threadsMax,
-					updateStatus,
-					debug_level); // debug level
-			System.out.println(".... maxActualCorr="+maxActualCorr);
-			if (maxActualCorr <= 0.0) {
-				return distortionParameters.errRefineFailed; // 2021
-			}
-			recalculateWaveVectors(
-					updateStatus,
-					debug_level);// debug level used inside loops
-			if (global_debug_level > (debugThreshold + 1))
-				System.out.println("Second pass over at " + IJ.d2s(0.000000001 * (System.nanoTime() - startTime), 3));
-		}
-		// hack gridSize
-		if ((distortionParameters.gridSize & 1) != 0) {
-			refineDistortionCorrelation(lwirReaderParameters, // LwirReaderParameters lwirReaderParameters, // null is OK
-					distortionParameters, //
-					patternDetectParameters,
-					simulParameters,
-					equalizeGreens,
-					imp_eq,
-					0.0, // final double maxCorr, maximal allowed correction, in pixels (0.0) - any
-					threadsMax,
-					updateStatus,
-					debug_level); // debug level
-
+						"Wave vectors recalculated at " + IJ.d2s(0.000000001 * (System.nanoTime() - startTime), 3));
 			recalculateWaveVectors(updateStatus, debug_level);// debug level used inside loops
-			if (global_debug_level > 0)
-				System.out.println("Third pass over at " + IJ.d2s(0.000000001 * (System.nanoTime() - startTime), 3));
+			ImagePlus imp_eq;
+			if (distortionParameters.flatFieldCorrection && (this.flatFieldForGrid == null)) // if it is not null it is
+				// already supposed to be
+				// applied!
+				imp_eq = equalizeGridIntensity(
+						imp,
+						this.PATTERN_GRID,
+						distortionParameters, // // makes no sense for LWIR as it normalizes absolute data - actually it does! 
+						equalizeGreens,
+						global_debug_level,
+						updateStatus,
+						threadsMax);
+			else
+				imp_eq = imp;
+
+			if (distortionParameters.refineCorrelations) {
+				double maxActualCorr = refineDistortionCorrelation(
+						lwirReaderParameters, // LwirReaderParameters lwirReaderParameters, // null is OK
+						distortionParameters, //
+						patternDetectParameters,
+						simulParameters,
+						equalizeGreens,
+						imp_eq,
+						0.0, // final double maxCorr, maximal allowed correction, in pixels (0.0) - any
+						threadsMax,
+						updateStatus,
+						debug_level); // debug level
+				System.out.println(".... maxActualCorr="+maxActualCorr);
+				if (maxActualCorr <= 0.0) {
+					return distortionParameters.errRefineFailed; // 2021
+				}
+				recalculateWaveVectors(
+						updateStatus,
+						debug_level);// debug level used inside loops
+				if (global_debug_level > (debugThreshold + 1))
+					System.out.println("Second pass over at " + IJ.d2s(0.000000001 * (System.nanoTime() - startTime), 3));
+			}
 			// hack gridSize
-		}
+			if ((distortionParameters.gridSize & 1) != 0) {
+				refineDistortionCorrelation(lwirReaderParameters, // LwirReaderParameters lwirReaderParameters, // null is OK
+						distortionParameters, //
+						patternDetectParameters,
+						simulParameters,
+						equalizeGreens,
+						imp_eq,
+						0.0, // final double maxCorr, maximal allowed correction, in pixels (0.0) - any
+						threadsMax,
+						updateStatus,
+						debug_level); // debug level
+
+				recalculateWaveVectors(updateStatus, debug_level);// debug level used inside loops
+				if (global_debug_level > 0)
+					System.out.println("Third pass over at " + IJ.d2s(0.000000001 * (System.nanoTime() - startTime), 3));
+				// hack gridSize
+			}
+			// Test number of cells with contrast > (~10.0) and fail if number Of over threshold is below minimal_pattern_cluster?
+			patternCells = numDefinedCells();
+			if ((roi != null) && (patternCells < minimal_pattern_cluster) && !(roi instanceof PointRoi)) {
+				if (global_debug_level > (debugThreshold + 0))
+					System.out.println("Detected pattern is too small: " + patternCells + ", minimum is set to "
+							+ minimal_pattern_cluster+". Will try again search for a new start point.");
+				//return distortionParameters.errTooFewCells; // -10
+				continue;
+			}
+			patternCells = numStrongCells(threshold_contrast);
+			if ((roi != null) && (patternCells < threshold_number) && !(roi instanceof PointRoi)) {
+				if (global_debug_level > (debugThreshold + 0))
+					System.out.println("Detected pattern has too few strong cells (with contrast > "+ threshold_contrast+
+							"): " + patternCells + ", minimum number is set to "
+							+ threshold_number+". Will try again search for a new start point.");
+				//return distortionParameters.errTooFewCells; // -10
+				continue;
+			}
+			break; // enough cells?
+		} // end of outer loop that includes refines
+		
 		patternCells = numDefinedCells();
 		if ((roi != null) && (patternCells < minimal_pattern_cluster) && !(roi instanceof PointRoi)) {
 			if (global_debug_level > (debugThreshold + 0))
 				System.out.println("Detected pattern is too small: " + patternCells + ", minimum is set to "
 						+ minimal_pattern_cluster);
+			return distortionParameters.errTooFewCells; // -10
+		}
+		patternCells = numStrongCells(threshold_contrast);
+		if ((roi != null) && (patternCells < threshold_number) && !(roi instanceof PointRoi)) {
+			if (global_debug_level > (debugThreshold + 0))
+				System.out.println("Detected pattern has too few strong cells (with contrast > "+ threshold_contrast+
+						"): " + patternCells + ", minimum number is set to "
+						+ threshold_number+".");
+			//return distortionParameters.errTooFewCells; // -10
 			return distortionParameters.errTooFewCells; // -10
 		}
 
@@ -12554,6 +12641,10 @@ public class MatchSimulatedPattern {
 	/* ======================================================================== */
 
 	public static class DistortionParameters {
+		// TODO: make configurable
+		public double threshold_contrast = 10.0;
+		public int    threshold_number =  10; // grid should have this number of nodes with above-threshold contrast
+		
 		private int correlationSize; // FFTSize/4
 		private int correlationSizeLwir;
 		private int maximalCorrelationSize; // FFTSize/2
@@ -12746,6 +12837,10 @@ public class MatchSimulatedPattern {
 
 			gd.addNumericField("Minimal initial pattern cluster size (0 - disable retries)", distortionParameters.minimalPatternCluster, 0); // 40
 			gd.addNumericField("Minimal initial LWIR pattern cluster size (0 - disable retries)", distortionParameters.minimalPatternClusterLwir, 0); // 10
+			
+			gd.addMessage("thresholdContrast=" + threshold_contrast);
+			gd.addMessage("threshold_number=" + threshold_number);
+
 			gd.addNumericField("Scale minimal contrast if the initial cluster is nonzero but smaller", distortionParameters.scaleMinimalInitialContrast, 3);
 			gd.addNumericField("Overlap of FFT areas when searching for pattern", distortionParameters.searchOverlap, 3);
 
@@ -13506,6 +13601,276 @@ public class MatchSimulatedPattern {
 		return bayer_pixels;
 	}
 
+	
+	public static double[][] splitBayer(ImagePlus imp, int sliceNumber, Rectangle r, boolean equalize_greens, int debug_level) {
+		if (imp == null)
+			return null;
+		ImageProcessor ip = null;
+		float[] pixels;
+		if (imp.getStackSize() > 1) {
+			ip = imp.getStack().getProcessor(sliceNumber);
+		} else {
+			ip = imp.getProcessor();
+		}
+		pixels = (float[]) ip.getPixels(); // null pointer
+		int full_width = imp.getWidth(); // full image width
+		int full_height = imp.getHeight(); // full image height
+		if (r == null)
+			r = new Rectangle(0, 0, full_width, full_height);
+		if (debug_level > 10)
+			IJ.showMessage("splitBayer", "r.width=" + r.width + "\nr.height=" + r.height + "\nr.x=" + r.x + "\nr.y="
+					+ r.y + "\nlength=" + pixels.length);
+		if ((debug_level > 2)
+				&& ((r.x < 0) || (r.y < 0) || ((r.x + r.width) >= full_width) || ((r.y + r.height) >= full_height)))
+			System.out.println("r.width=" + r.width + " r.height=" + r.height + " r.x=" + r.x + " r.y=" + r.y);
+		int x, y, base, base_b, bv, i, j;
+		int half_height = (r.height >> 1);
+		int half_width = (r.width >> 1);
+		// make them all 0 if not a single pixel falls into the image
+		int numColors = (half_height == half_width) ? 5 : 4;
+		int pixX, pixY;
+		double[][] bayer_pixels = new double[numColors][half_height * half_width];
+		if ((r.x >= full_width) || (r.y >= full_height) || ((r.x + r.width) < 0) || ((r.y + r.height) < 0)) {
+			for (i = 0; i < bayer_pixels.length; i++)
+				for (j = 0; j < bayer_pixels[i].length; j++)
+					bayer_pixels[i][j] = 0.0;
+			return bayer_pixels;
+		}
+		// base=r.width*((y<<1)+bv);
+		for (y = 0; y < half_height; y++)
+			for (bv = 0; bv < 2; bv++) {
+				pixY = (y * 2) + bv + r.y;
+				base_b = half_width * y;
+				// if ((pixY>=0)
+
+				if (pixY < 0) {
+					pixY = bv;
+				} else if (pixY >= full_height) {
+					pixY = full_height - 2 + bv;
+				}
+				base = full_width * pixY + ((r.x > 0) ? r.x : 0);
+				// base=full_width*((y*2)+bv+r.y)+r.x;
+				pixX = r.x;
+				if (bv == 0)
+					for (x = 0; x < half_width; x++) {
+						if ((pixX < 0) || (pixX >= (full_width - 2))) {
+							bayer_pixels[0][base_b] = pixels[base];
+							bayer_pixels[1][base_b] = pixels[base + 1];
+						} else {
+							bayer_pixels[0][base_b] = pixels[base++];
+							bayer_pixels[1][base_b] = pixels[base++];
+						}
+						base_b++;
+						pixX += 2;
+					}
+				else
+					for (x = 0; x < half_width; x++) {
+						if ((pixX < 0) || (pixX >= (full_width - 2))) {
+							bayer_pixels[2][base_b] = pixels[base];
+							bayer_pixels[3][base_b] = pixels[base + 1];
+						} else {
+							bayer_pixels[2][base_b] = pixels[base++];
+							bayer_pixels[3][base_b] = pixels[base++];
+						}
+						base_b++;
+						pixX += 2;
+					}
+			}
+		if (equalize_greens) {
+			double g0 = 0.0, g3 = 0.0, g02 = 0.0, g32 = 0.0, a0, a3, b0, b3;
+			int n = bayer_pixels[0].length;
+			for (i = 0; i < bayer_pixels[0].length; i++) {
+				g0 += bayer_pixels[0][i];
+				g02 += bayer_pixels[0][i] * bayer_pixels[0][i];
+				g3 += bayer_pixels[3][i];
+				g32 += bayer_pixels[3][i] * bayer_pixels[3][i];
+			}
+			g0 /= n; // mean value
+			g3 /= n; // meran value
+			g02 = g02 / n - g0 * g0;
+			g32 = g32 / n - g3 * g3;
+			b0 = Math.sqrt(Math.sqrt(g32 / g02));
+			b3 = 1.0 / b0;
+			a0 = (g0 + g3) / 2 - b0 * g0;
+			a3 = (g0 + g3) / 2 - b3 * g3;
+			if (debug_level > 2) {
+				System.out.println("g0= " + g0 + ", g3= " + g3);
+				System.out.println("g02=" + g02 + ", g32=" + g32);
+				System.out.println("a0=" + a0 + ", b0=" + b0);
+				System.out.println("a3=" + a3 + ", b3=" + b3);
+			}
+			for (i = 0; i < bayer_pixels[0].length; i++) {
+				bayer_pixels[0][i] = a0 + bayer_pixels[0][i] * b0;
+				bayer_pixels[3][i] = a3 + bayer_pixels[3][i] * b3;
+			}
+		}
+		if (numColors > 4)
+			bayer_pixels[4] = combineDiagonalGreens(bayer_pixels[0], bayer_pixels[3], half_width, half_height);
+		return bayer_pixels;
+	}
+	//Assuming gr/bg
+	public static double [][] simpleDemosaic(
+			ImagePlus imp,
+			double r2g,
+			double b2g,
+			double saturation,
+			double gamma,
+			double minlin_gamma, // do not apply gamma to lower values
+			double hi            // map to 255, gamma will preserve 
+			) {
+		boolean debug_this = false;
+		double kr= 0.299;
+		double kb = 0.114;
+		double kg = 1.0 - kr - kb;
+		ImageProcessor ip = null;
+		float[] pixels;
+		ip = imp.getProcessor();
+		pixels = (float[]) ip.getPixels(); // null pointer
+		int width = imp.getWidth(); // full image width
+		int height = imp.getHeight(); // full image height
+		double [][] rgb = new double [3][width*height];
+		double [] sg= {0.0,0.0};
+		for (int y = 0; y < height; y+=2) {
+			for (int x = 0; x < width; x+=2) {
+				int indx0 = width*y+x;
+				int indx3 = indx0+width+1;
+				sg[0]+=pixels[indx0];
+				sg[1]+=pixels[indx3];
+			}
+		}
+		double g_av = Math.sqrt(sg[0] * sg[1]); 
+		double g2g0 = g_av/sg[0];
+		double g2g3 = g_av/sg[1];
+		for (int y = 0; y < height; y+=2) {
+			for (int x = 0; x < width; x+=2) {
+				int indx0 = width*y+x;
+				int indx1 = indx0+1;
+				int indx2 = indx0+width;
+				int indx3 = indx2+1;
+				sg[0]+=pixels[indx0];
+				sg[1]+=pixels[indx3];
+				rgb[1][indx0] = pixels[indx0] * g2g0;
+				rgb[1][indx3] = pixels[indx3] * g2g3;
+				rgb[0][indx1] = pixels[indx1] * r2g;
+				rgb[2][indx2] = pixels[indx2] * b2g;
+			}
+		}
+		if (debug_this) {
+			(new ShowDoubleFloatArrays()).showArrays(rgb, width, height, true,imp.getTitle()+"split");
+		}
+		if (debug_this) { // remove
+			System.out.println("sg="+sg[0]+", "+sg[1]+", g_av="+g_av);
+		}
+		// bi-linear interpolation
+		for (int y = 0; y < height; y+=2) {
+			for (int x = 0; x < width; x+=2) {
+				int [][] ind = new int[4][4];
+				int base = (y-1)*width+(x-1);
+				for (int i = 0; i < 4;i++) {
+					int ie = i;
+					if ((i==0) && (y==0)) {
+						ie = 2;
+					} else if ((i==3) && (y==(height - 2))) {
+						ie = 1;
+					}	
+					for (int j = 0; j < 4; j++) {
+						int je = j;
+						if ((j==0) && (x==0)) {
+							je = 2;
+						} else if ((j==3) && (x==(width - 2))) {
+							je = 1;
+						}
+						ind[i][j] = base+ie*width+je;
+					}
+				}
+				// red in top left
+				rgb[0][ind[1][1]] = 0.5* (
+						rgb[0][ind[1][0]] +
+						rgb[0][ind[1][2]]);
+				// blue in top left
+				rgb[2][ind[1][1]] = 0.5* (
+						rgb[2][ind[0][1]] +
+						rgb[2][ind[2][1]]);
+				// green in top right
+				rgb[1][ind[1][2]] = 0.25*(
+						rgb[1][ind[0][2]] +
+						rgb[1][ind[1][1]] +
+						rgb[1][ind[1][3]] +
+						rgb[1][ind[2][2]]);
+				// blue in top right
+				rgb[2][ind[1][2]] = 0.25*(
+						rgb[2][ind[0][1]] +
+						rgb[2][ind[0][3]] +
+						rgb[2][ind[2][1]] +
+						rgb[2][ind[2][3]]);
+				// red in bottom left
+				rgb[0][ind[2][1]] = 0.25*(
+						rgb[0][ind[1][0]] +
+						rgb[0][ind[1][2]] +
+						rgb[0][ind[3][0]] +
+						rgb[0][ind[3][2]]);
+				// green in bottom left
+				rgb[1][ind[2][1]] = 0.25*(
+						rgb[1][ind[1][1]] +
+						rgb[1][ind[2][0]] +
+						rgb[1][ind[2][2]] +
+						rgb[1][ind[3][1]]);
+				// red in bottom right
+				rgb[0][ind[2][2]] = 0.5* (
+						rgb[0][ind[1][2]] +
+						rgb[0][ind[3][2]]);
+				// blue in bottom right
+				rgb[2][ind[2][2]] = 0.5* (
+						rgb[2][ind[2][1]] +
+						rgb[2][ind[2][3]]);
+			}
+		}
+		if (debug_this) {
+			(new ShowDoubleFloatArrays()).showArrays(rgb, width, height, true,imp.getTitle()+"bilinear");
+		}
+		if (saturation != 1.0) {
+			for (int i = 0; i < rgb[0].length; i++) {
+				rgb[0][i] = rgb[1][i] * Math.pow(rgb[0][i]/rgb[1][i], saturation); 
+				rgb[2][i] = rgb[1][i] * Math.pow(rgb[2][i]/rgb[1][i], saturation); 
+			}
+		}
+		
+		// gamma-correction
+/*
+			double gamma,
+			double minlin_gamma, // do not apply gamma to lower values
+			double hi            // map to 255, gamma will preserve 
+		
+ */	   
+		boolean nogamma = (gamma == 1.0); 
+		double out_range = 255.0;
+		double lin_scale =  out_range/hi;
+		if (nogamma) {
+			minlin_gamma = hi;
+		}
+		double scale_out = out_range / (Math.pow(hi,  gamma) - Math.pow(minlin_gamma, gamma)*(1.0 - gamma));
+//		double Y0 = scale_out * Math.pow(minlin_gamma, gamma)*(1.0 - gamma);
+		double rY0 = Math.pow(minlin_gamma, gamma)*(1.0 - gamma);
+		if (!nogamma) {
+			lin_scale = scale_out* gamma*Math.pow(minlin_gamma, gamma - 1); 
+		}
+		for (int indx = 0; indx < rgb[0].length; indx++) {
+			double Y = rgb[0][indx]*kr+rgb[1][indx]*kg+rgb[2][indx]*kb; // intensity to apply gamma
+			double s = lin_scale;
+			if (!nogamma && (Y > minlin_gamma)) {
+				s = scale_out * (Math.pow(Y, gamma) - rY0)/Y;
+			}
+			for (int i = 0; i < 3; i++) {
+				rgb[i][indx] *= s;
+			}
+		}
+		if (debug_this) {
+			(new ShowDoubleFloatArrays()).showArrays(rgb, width, height, true,imp.getTitle()+"gamma");
+		}
+		
+		return rgb;
+	}
+	
 	public double[][] splitBayerOne(ImagePlus imp, Rectangle r, boolean equalize_greens) {
 		ImageProcessor ip = imp.getProcessor();
 		float[] pixels;
