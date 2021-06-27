@@ -6972,7 +6972,8 @@ public class MatchSimulatedPattern {
 						debug_level); // debug level
 				System.out.println(".... maxActualCorr="+maxActualCorr);
 				if (maxActualCorr <= 0.0) {
-					return distortionParameters.errRefineFailed; // 2021
+//					return distortionParameters.errRefineFailed; // 2021
+					continue; 
 				}
 				recalculateWaveVectors(
 						updateStatus,
