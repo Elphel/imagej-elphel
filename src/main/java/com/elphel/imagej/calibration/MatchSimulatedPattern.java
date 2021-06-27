@@ -4975,7 +4975,7 @@ public class MatchSimulatedPattern {
 			final int threadsMax,
 			final boolean updateStatus,
 			final int debugLevel) {
-		final int debugThreshold = 2; // -1; // 1; ** Restore 1
+		final int debugThreshold = 1; // -1; // 1; ** Restore 1
 		if ((debugThreshold < 0) || (debugLevel < -10000)) {
 			System.out.println("findPatternCandidates(): debugThreshold < 0 - restore when done");
 		}
@@ -5006,7 +5006,7 @@ public class MatchSimulatedPattern {
 							.getAndIncrement())
 						if (!triedIndices[n]) {
 							if (!nodeQueue.isEmpty())
-								break; // already set at least one element - does it work?
+								break; // already set at least one element - does it work? Here - one per thread
 							nbh = tryHor - 1;
 							nbv = tryVert - 1;
 							nh = 0;
@@ -5031,10 +5031,10 @@ public class MatchSimulatedPattern {
 							if ((nv > 0) && (nh > 0)) {
 								point[0] = (selection.x + nh * selection.width / (1 << tryHor)) & ~1;
 								point[1] = (selection.y + nv * selection.height / (1 << tryVert)) & ~1;
-								if (debugLevel > 2)
+								if (debugLevel > 1) // was 2
 									System.out.println("trying xc=" + point[0] + ", yc=" + point[1] + "(nv=" + nv
 											+ ", nh=" + nh + ")");
-								if (debugLevel > 2)
+								if (debugLevel > 1) // was 2
 									System.out.println(debugNumThread + ":" + n + " >> ");
 								double[][] node = tryPattern(
 										lwirReaderParameters, // LwirReaderParameters lwirReaderParameters, null is OK
@@ -6830,10 +6830,10 @@ public class MatchSimulatedPattern {
 			}
 		}
 		this.debugLevel = global_debug_level;
-		int patternCells = 0;
+		int patternCells = 0+0;
 		// save initial distortionParameters.correlationMinInitialContrast
 		double savedCorrelationMinInitialContrast = distortionParameters.correlationMinInitialContrast;
-		int reTries = 10; // bail out after these attempts
+		int reTries = 50; // bail out after these attempts
 		boolean foundGoodCluster = false;
 
 		int tryHor = 0, tryVert = 0;
@@ -6981,16 +6981,17 @@ public class MatchSimulatedPattern {
 			}
 			// Test number of cells with contrast > (~10.0) and fail if number Of over threshold is below minimal_pattern_cluster?
 			patternCells = numDefinedCells();
-			if ((roi != null) && (patternCells < minimal_pattern_cluster) && !(roi instanceof PointRoi)) {
-				if (global_debug_level > (debugThreshold + 0))
+//			if ((roi != null) && (patternCells < minimal_pattern_cluster) && !(roi instanceof PointRoi)) {
+			if (patternCells < minimal_pattern_cluster) { // retry regardless of ROI
+				if (global_debug_level > (debugThreshold - 1))
 					System.out.println("Detected pattern is too small: " + patternCells + ", minimum is set to "
 							+ minimal_pattern_cluster+". Will try again search for a new start point.");
 				//return distortionParameters.errTooFewCells; // -10
 				continue;
 			}
 			patternCells = numStrongCells(threshold_contrast);
-			if ((roi != null) && (patternCells < threshold_number) && !(roi instanceof PointRoi)) {
-				if (global_debug_level > (debugThreshold + 0))
+			if (patternCells < threshold_number) {  // retry regardless of ROI
+				if (global_debug_level > (debugThreshold - 1))
 					System.out.println("Detected pattern has too few strong cells (with contrast > "+ threshold_contrast+
 							"): " + patternCells + ", minimum number is set to "
 							+ threshold_number+". Will try again search for a new start point.");
