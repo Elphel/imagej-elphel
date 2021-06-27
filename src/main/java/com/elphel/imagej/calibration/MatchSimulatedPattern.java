@@ -5079,7 +5079,7 @@ public class MatchSimulatedPattern {
 												: null);
 								if ((node != null) && (node[0] != null)) {
 									nodeQueue.add(new GridNode(n, node)); // save tried index for later, will be marked only when used (fixing a very old bug)
-									if (debugLevel > debugThreshold - 1)
+									if (debugLevel > debugThreshold)
 										System.out.println("adding candidate " + n + " x0=" + point[0] + " y0="
 												+ point[1] + " -> " + node[0][0] + "/" + node[0][1]
 												+ " seqNumber.get()=" + seqNumber.get() + " n=" + n);
