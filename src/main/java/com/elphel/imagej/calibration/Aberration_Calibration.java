@@ -1070,8 +1070,8 @@ if (MORE_BUTTONS) {
 		panelIllustrations= new Panel();
 		panelIllustrations.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
 		addButton("Illustrations Configure",    panelIllustrations,color_configure);
+		addButton("Remove bad grids",           panelIllustrations,color_stop);
 		addButton("Illustrations",              panelIllustrations,color_bundle);
-		addButton("Remove Bad grids",           panelIllustrations,color_stop);
 		add(panelIllustrations);
 		
 		
@@ -9442,7 +9442,7 @@ if (MORE_BUTTONS) {
 		return;
 	}
 /* ======================================================================== */
-	if       (label.equals("Remove Bad grids")) {
+	if       (label.equals("Remove bad grids")) {
 		if (LENS_DISTORTIONS==null) {
 			IJ.showMessage("LENS_DISTORTION is not set"); // to use all grids imported
 			return;
@@ -9456,6 +9456,13 @@ if (MORE_BUTTONS) {
 					LENS_DISTORTIONS,            // Distortions       distortions,
 					SYNC_COMMAND.stopRequested,  // 	AtomicInteger                  stopRequested,
 					MASTER_DEBUG_LEVEL);         // 		int                            debug_level);
+		}
+		// TODO: add channel selection and illustration selection, stop at any
+		if (!CALIBRATION_ILLUSTRATION_PARAMETERS.showJDialog()) {
+			return;
+		}
+		if (!ABERRATIONS_PARAMETERS.selectChannelsToProcess("Select channels to process",LENS_DISTORTIONS)) {
+			return;
 		}
 		CALIBRATION_ILLUSTRATION.removeBadGrids();
 		return;
@@ -10542,7 +10549,9 @@ if (MORE_BUTTONS) {
         matchSimulatedPattern.debugLevel=MASTER_DEBUG_LEVEL;
         */
         String [] sourceSetList = DISTORTION_PROCESS_CONFIGURATION.selectSourceSets();
-        LWIR_PARAMETERS.selectSourceChannels();
+        if (LWIR_PARAMETERS.selectSourceChannels() == null) {
+        	return; // canceled dialog
+        }
         boolean [] sel_chn = LWIR_PARAMETERS.getSelected();
         int numFiles = LWIR_PARAMETERS.getSourceFilesFlat(sourceSetList, sel_chn).length; // just the number
         String [][] sourceFilesList=LWIR_PARAMETERS.getSourceFiles(sourceSetList, sel_chn);
@@ -10550,7 +10559,9 @@ if (MORE_BUTTONS) {
         boolean overwriteGrids=DISTORTION_PROCESS_CONFIGURATION.overwriteResultFiles;
         int minGridFileSize = PATTERN_DETECT.minGridFileSize;
         if (sourceSetList==null) return;
-        showPatternMinMaxPeriodDialog(PATTERN_DETECT, true);
+        if (!showPatternMinMaxPeriodDialog(PATTERN_DETECT, true)) {
+        	return;
+        }
         int saved_file = 0;
         int in_file = 0;
 		String gridDir=DISTORTION_PROCESS_CONFIGURATION.selectGridFileDirectory(

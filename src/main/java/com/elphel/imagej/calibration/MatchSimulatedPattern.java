@@ -4092,11 +4092,12 @@ public class MatchSimulatedPattern {
 							);
 							debugLevel = was_debug_level;
 							if ((node != null) && (node[0] != null)) {
-								nodeQueue.add(new GridNode(node));
+								nodeQueue.add(new GridNode(startScanIndex,node));
 								break;
 							}
+						} else {
+							triedIndices[startScanIndex] = true; // only mark failed here, good ones will be marked when used
 						}
-						triedIndices[startScanIndex] = true;
 					}
 			} else { // new multithreaded mode
 				int startScanIndex = 3;
@@ -4205,11 +4206,18 @@ public class MatchSimulatedPattern {
 						}
 					}
 			double[][] node = { null };
-			nodeQueue.add(new GridNode(node)); // will not be used, any element
+			nodeQueue.add(new GridNode(-1,node)); // will not be used, any element
 		}
 		int numDefinedCells = 0;
 		int debug_left = nodeQueue.size();
 		for (GridNode gn : nodeQueue) { // trying candidates as grid seeds - until found or nothing left
+			// Only here mark triedIndices !!
+			if (gn.triedIndex >= 0) {
+				triedIndices[gn.triedIndex] = true; // mark the used seed
+			} else {
+				System.out.println("Was updating, gn.triedIndex(not used)="+gn.triedIndex);
+			}
+			
 			debug_left--;
 			if (global_debug_level > (debugThreshold + 1)) {
 				System.out.println(
@@ -4684,6 +4692,9 @@ public class MatchSimulatedPattern {
 				}
 			} // while (waveFrontList.size()>0)
 			debugLevel = was_debug_level;
+			
+			
+			
 			/*
 			 * if (updating){ return PATTERN_GRID; // no need to crop the array, it should
 			 * not change }
@@ -4805,6 +4816,7 @@ public class MatchSimulatedPattern {
 				}
 				// return numDefinedCells;
 			}
+			
 
 			if ((roi != null) && !(roi instanceof PointRoi)) { // don't use this feature with ROI as it can be small
 				if (global_debug_level > 0)
@@ -4814,6 +4826,8 @@ public class MatchSimulatedPattern {
 					return numDefinedCells;
 				}
 			}
+			
+			
 		} // next node in queue
 		return 0; // none
 	}
@@ -4938,9 +4952,12 @@ public class MatchSimulatedPattern {
 	}
 
 	class GridNode {
+		int triedIndex; // index in the list of tried points
 		double[][] node;
-
-		public GridNode(double[][] node) {
+		public GridNode(
+				int triedIndex,
+				double[][] node) {
+			this.triedIndex = triedIndex;
 			this.node = node;
 		}
 
@@ -5061,18 +5078,20 @@ public class MatchSimulatedPattern {
 														+ nb + " " + point[0] + "/" + point[1])
 												: null);
 								if ((node != null) && (node[0] != null)) {
-									nodeQueue.add(new GridNode(node));
+									nodeQueue.add(new GridNode(n, node)); // save tried index for later, will be marked only when used (fixing a very old bug)
 									if (debugLevel > debugThreshold - 1)
 										System.out.println("adding candidate " + n + " x0=" + point[0] + " y0="
 												+ point[1] + " -> " + node[0][0] + "/" + node[0][1]
 												+ " seqNumber.get()=" + seqNumber.get() + " n=" + n);
+									continue; // so triedIndices[n] will not be set true 
 								}
 							} else {
 								if (debugLevel > debugThreshold)
 									System.out
 											.println("-----" + debugNumThread + ":" + n + ", nv=" + nv + ", nh=" + nh);
 							}
-							triedIndices[n] = true; // regardless - good or bad
+//							triedIndices[n] = true; // regardless - good or bad - that was wrong, and led to skipping retries of good (but not first) nodes
+							triedIndices[n] = true; // will come here only for failed nodes.
 						}
 				}
 			};

@@ -414,7 +414,7 @@ public class CalibrationIllustration {
 			}
 			startAndJoin(threads);
 		}
-		System.out.println("Remoded "+(numRemoved.get())+" bad grid files in "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec.");
+		System.out.println("Removed "+(numRemoved.get())+" bad grid files in "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec.");
 		return true;
 	}
 
