@@ -1072,6 +1072,9 @@ if (MORE_BUTTONS) {
 		addButton("Illustrations Configure",    panelIllustrations,color_configure);
 		addButton("Remove bad grids",           panelIllustrations,color_stop);
 		addButton("Illustrations",              panelIllustrations,color_bundle);
+		addButton("Illustrate Kernels",         panelIllustrations,color_process);
+		addButton("Illustrate Footage",         panelIllustrations,color_process);
+		
 		add(panelIllustrations);
 		
 		
@@ -8867,6 +8870,10 @@ if (MORE_BUTTONS) {
 /* ======================================================================== */
 		if       (label.equals("Select Channels")) {
 			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+			if (LENS_DISTORTIONS == null) {
+				LENS_DISTORTIONS=new Distortions(LENS_DISTORTION_PARAMETERS,PATTERN_PARAMETERS,REFINE_PARAMETERS,this.SYNC_COMMAND.stopRequested);
+			}
+
 			ABERRATIONS_PARAMETERS.selectChannelsToProcess("Select channels to process",LENS_DISTORTIONS); //LENS_DISTORTIONS==null OK
 			return;
 		}
@@ -9432,6 +9439,7 @@ if (MORE_BUTTONS) {
 		
 		if (CALIBRATION_ILLUSTRATION == null) {
 			CALIBRATION_ILLUSTRATION = new CalibrationIllustration(
+					LWIR_PARAMETERS,             //	LwirReaderParameters           lwirReaderParameters,
 					CALIBRATION_ILLUSTRATION_PARAMETERS, // CalibrationIllustrationParameters illustrationParameters,			
 					EYESIS_ABERRATIONS,          // EyesisAberrations eyesisAberrations,
 					LENS_DISTORTIONS,            // Distortions       distortions,
@@ -9442,6 +9450,114 @@ if (MORE_BUTTONS) {
 		return;
 	}
 /* ======================================================================== */
+	if       (label.equals("Illustrate Footage")) {
+//		if (LENS_DISTORTIONS==null) {
+//			IJ.showMessage("LENS_DISTORTION is not set"); // to use all grids imported
+//			return;
+//		}
+//		EYESIS_ABERRATIONS.setDistortions(LENS_DISTORTIONS);
+		
+		if (EYESIS_ABERRATIONS.aberrationParameters.illustrationsDirectory.length()>0){
+			File dFile=new File(EYESIS_ABERRATIONS.aberrationParameters.illustrationsDirectory);
+			if (!dFile.isDirectory() &&  !dFile.mkdirs()) {
+				String msg="Failed to create directory "+EYESIS_ABERRATIONS.aberrationParameters.illustrationsDirectory;
+				IJ.showMessage("Warning",msg);
+	    		System.out.println("Warning: "+msg);
+	    		EYESIS_ABERRATIONS.aberrationParameters.illustrationsDirectory=""; // start over with selecting directory
+			}
+		}
+		String configPath=EYESIS_ABERRATIONS.aberrationParameters.selectIllustrationsDirectory(
+				true,
+				EYESIS_ABERRATIONS.aberrationParameters.illustrationsDirectory,
+				true);
+		if (configPath==null){
+    		String msg="No illustrations directory selected, command aborted";
+    		System.out.println("Warning: "+msg);
+    		IJ.showMessage("Warning",msg);
+    		return;
+		}
+		configPath+=Prefs.getFileSeparator()+"config-illustrations";
+		try {
+			saveTimestampedProperties(
+					configPath,      // full path or null
+					null, // use as default directory if path==null
+					true,
+					PROPERTIES);
+
+		} catch (Exception e){
+    		String msg="Failed to save configuration to "+configPath+", command aborted";
+    		System.out.println("Error: "+msg);
+    		IJ.showMessage("Error",msg);
+    		return;
+		}
+		
+		if (CALIBRATION_ILLUSTRATION == null) { //LWIR_PARAMETERS
+			CALIBRATION_ILLUSTRATION = new CalibrationIllustration(
+					LWIR_PARAMETERS,             // LwirReaderParameters           lwirReaderParameters,
+					CALIBRATION_ILLUSTRATION_PARAMETERS, // CalibrationIllustrationParameters illustrationParameters,			
+					EYESIS_ABERRATIONS,          // EyesisAberrations eyesisAberrations,
+					LENS_DISTORTIONS,            // Distortions       distortions,
+					SYNC_COMMAND.stopRequested,  // 	AtomicInteger                  stopRequested,
+					MASTER_DEBUG_LEVEL);         // 		int                            debug_level);
+		}
+		CALIBRATION_ILLUSTRATION.convertCapturedFiles();
+		return;
+	}
+//	
+/* ======================================================================== */
+	if       (label.equals("Illustrate Kernels")) {
+		if (EYESIS_ABERRATIONS.aberrationParameters.illustrationsDirectory.length()>0){
+			File dFile=new File(EYESIS_ABERRATIONS.aberrationParameters.illustrationsDirectory);
+			if (!dFile.isDirectory() &&  !dFile.mkdirs()) {
+				String msg="Failed to create directory "+EYESIS_ABERRATIONS.aberrationParameters.illustrationsDirectory;
+				IJ.showMessage("Warning",msg);
+	    		System.out.println("Warning: "+msg);
+	    		EYESIS_ABERRATIONS.aberrationParameters.illustrationsDirectory=""; // start over with selecting directory
+			}
+		}
+		String configPath=EYESIS_ABERRATIONS.aberrationParameters.selectIllustrationsDirectory(
+				true,
+				EYESIS_ABERRATIONS.aberrationParameters.illustrationsDirectory,
+				true);
+		if (configPath==null){
+    		String msg="No illustrations directory selected, command aborted";
+    		System.out.println("Warning: "+msg);
+    		IJ.showMessage("Warning",msg);
+    		return;
+		}
+		configPath+=Prefs.getFileSeparator()+"config-illustrations";
+		try {
+			saveTimestampedProperties(
+					configPath,      // full path or null
+					null, // use as default directory if path==null
+					true,
+					PROPERTIES);
+
+		} catch (Exception e){
+    		String msg="Failed to save configuration to "+configPath+", command aborted";
+    		System.out.println("Error: "+msg);
+    		IJ.showMessage("Error",msg);
+    		return;
+		}
+		
+		if (CALIBRATION_ILLUSTRATION == null) {
+			CALIBRATION_ILLUSTRATION = new CalibrationIllustration(
+					LWIR_PARAMETERS,             //	LwirReaderParameters           lwirReaderParameters,
+					CALIBRATION_ILLUSTRATION_PARAMETERS, // CalibrationIllustrationParameters illustrationParameters,			
+					EYESIS_ABERRATIONS,          // EyesisAberrations eyesisAberrations,
+					LENS_DISTORTIONS,            // Distortions       distortions,
+					SYNC_COMMAND.stopRequested,  // 	AtomicInteger                  stopRequested,
+					MASTER_DEBUG_LEVEL);         // 		int                            debug_level);
+		}
+	
+		CALIBRATION_ILLUSTRATION.convertKernels(
+				INVERSE.dSize, // int dsize, // direct kernel size
+				INVERSE.rSize // int rsize  // inverse kernel size
+				);
+		return;
+	}
+	
+	/* ======================================================================== */
 	if       (label.equals("Remove bad grids")) {
 		if (LENS_DISTORTIONS==null) {
 			IJ.showMessage("LENS_DISTORTION is not set"); // to use all grids imported
@@ -9451,6 +9567,7 @@ if (MORE_BUTTONS) {
 
 		if (CALIBRATION_ILLUSTRATION == null) {
 			CALIBRATION_ILLUSTRATION = new CalibrationIllustration(
+					LWIR_PARAMETERS,             //	LwirReaderParameters           lwirReaderParameters,
 					CALIBRATION_ILLUSTRATION_PARAMETERS, // CalibrationIllustrationParameters illustrationParameters,			
 					EYESIS_ABERRATIONS,          // EyesisAberrations eyesisAberrations,
 					LENS_DISTORTIONS,            // Distortions       distortions,
@@ -10401,8 +10518,8 @@ if (MORE_BUTTONS) {
 	    			some_type[0] = false;
 	    			some_type[1] = false;
 	    		}
-	    		if (allornone_eo) 	some_type[0] = all_type[0];
-	    		if (allornone_lwir) some_type[1] = all_type[1];
+	    		if (allornone_eo) 	some_type[0] &= all_type[0];
+	    		if (allornone_lwir) some_type[1] &= all_type[1];
 	    		
 	    		if (some_type[0] || some_type[1]) {
 	    			for (int i = 0; i < avail_chn.length; i++) {

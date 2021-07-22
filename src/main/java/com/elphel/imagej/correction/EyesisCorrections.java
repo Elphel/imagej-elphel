@@ -2721,7 +2721,8 @@ public class EyesisCorrections {
 					if (debugLevel > 0) System.out.println("Saving RGBA result to "+path+".png");
 					(new EyesisTiff()).savePNG_ARGB32(
 							imp,
-							path +".png"
+							path +".png",
+							debugLevel
 							);
 
 				} else {

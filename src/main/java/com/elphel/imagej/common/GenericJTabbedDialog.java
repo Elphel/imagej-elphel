@@ -325,12 +325,19 @@ public class GenericJTabbedDialog implements ActionListener {
     	} else if (e.getActionCommand().equals("OK")) {
     		result = e.getActionCommand();
     		jd.dispose();
+    		// Added 07/18/2021 - button names starting with "_" exit from dialog
+    	} else if ((e.getActionCommand().length()>0) && (e.getActionCommand().charAt(0) == '_')){
+    		result = e.getActionCommand().substring(1);
+    		jd.dispose();
     	}
 
     }
 
     public boolean wasCanceled() {
     	return (result == null) || (result.equals("Cancel"));
+    }
+    public boolean wasOKed() {
+    	return result.equals("OK");
     }
 
     private boolean skipComments (

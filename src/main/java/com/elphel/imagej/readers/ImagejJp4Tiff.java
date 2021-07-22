@@ -28,6 +28,7 @@
  */
 package com.elphel.imagej.readers;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
@@ -141,13 +142,26 @@ public class ImagejJp4Tiff {
 	public ImagePlus readTiffJp4(String path_url, boolean scale, String std ) throws IOException, FormatException { // std - include non-elphel properties with prefix std
 		// determine if it is a file or URL and read url to memory
 		// If URL, then read to memory, if normal file - use direct access
+		if (path_url == null) {
+			LOGGER.warn("readTiffJp4(): null path_url");
+			return null;
+		}
 		url = null;
 		//	 		String mime = null; // use to select jp4/tiff later? Or to check it is correct
 		content_fileName = null;
+		boolean bad_file = false;
 		try {
-			url = new URL(path_url);
-		} catch (MalformedURLException e) {
-			LOGGER.warn("Bad URL: " + path_url);
+			File test_file = new File(path_url); // null
+			test_file.getCanonicalPath();
+		} catch (IOException e) {
+			bad_file = true;
+		}
+		if (bad_file) {
+			try {
+				url = new URL(path_url);
+			} catch (MalformedURLException e) {
+				LOGGER.warn("Bad URL3: " + path_url);
+			}
 		}
 		//https://stackoverflow.com/questions/39086500/read-http-response-header-and-body-from-one-http-request-in-java
 		if (url != null) {

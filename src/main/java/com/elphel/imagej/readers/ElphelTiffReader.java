@@ -26,6 +26,7 @@
  **
  */
 package com.elphel.imagej.readers;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
@@ -187,11 +188,21 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 			  url = null;
 			  //	 		String mime = null; // use to select jp4/tiff later? Or to check it is correct
 			  content_fileName = null;
+			  boolean bad_file = false;
 			  try {
-				  url = new URL(id);
-			  } catch (MalformedURLException e) {
-				  LOGGER.warn("Bad URL: " + id);
+				  File test_file = new File(id);
+				  test_file.getCanonicalPath();
+			  } catch (IOException e) {
+				  bad_file = true;
 			  }
+			  if (bad_file) {
+				  try {
+					  url = new URL(id);
+				  } catch (MalformedURLException e) {
+					  LOGGER.warn("Bad URL2: " + id);
+				  }
+			  }
+
 			  if (url != null) {
 				  LOGGER.debug("Starting initFile() method, read "+ id +" to memory first");
 				  //https://www.rgagnon.com/javadetails/java-0487.html

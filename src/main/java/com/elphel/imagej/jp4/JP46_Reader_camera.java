@@ -1157,7 +1157,7 @@ public class JP46_Reader_camera implements PlugIn, ActionListener {
 		try {
 			url = new URL(cameraurl);
 		} catch (MalformedURLException e) {
-			System.out.println("Bad URL: " + cameraurl);
+			System.out.println("Bad URL4: " + cameraurl);
 			return null;
 		}
 

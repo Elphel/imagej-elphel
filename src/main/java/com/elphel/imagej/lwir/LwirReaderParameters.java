@@ -44,6 +44,9 @@ public class LwirReaderParameters {
 	public final static int []    FFC_GROUPS=          {1,2,4};
 	public static final String [] SENSOR_TYPES = {"EO","LWIR"};
 	public static final String    SENSOR_TYPE =  "SENSOR_TYPE";
+	public final static int       TYPE_EO= 0;
+	public final static int       TYPE_LWIR= 1;
+	
 	protected static int MAX_LWIR_WIDTH =     1024; //
 	
 	private boolean parameters_updated =     false;
@@ -168,7 +171,7 @@ public class LwirReaderParameters {
 	public int [] getTypeMap() { // eo - 0, lwir - 1
 		int [] types = new int [getNumChannels()];
 		for (int i = 0; i < types.length; i++) {
-			types[i] = (i >= getEoChn0())? 0 : 1;
+			types[i] = (i >= getEoChn0())? TYPE_EO : TYPE_LWIR;
 		}
 		return types;
 	}
@@ -195,7 +198,7 @@ public class LwirReaderParameters {
 		if (imp.getProperty(SENSOR_TYPE)!=null) {
 			return (is_LWIR((String) imp.getProperty(SENSOR_TYPE)))? 1:0;
 		}
-		return is_LWIR(imp.getWidth())? 1 : 0;
+		return is_LWIR(imp.getWidth())? TYPE_LWIR : TYPE_EO;
 		
 	}
 

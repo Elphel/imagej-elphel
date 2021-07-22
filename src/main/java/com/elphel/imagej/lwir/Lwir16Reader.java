@@ -1096,6 +1096,9 @@ public class Lwir16Reader {
 			set_dir.mkdirs(); // including parent
 			LOGGER.warn("Saving image set to: "+set_dir.getAbsolutePath());
 			for (ImagePlus imp:imgs) {
+				if (imp==null) { // channel was not selected?
+					continue; 
+				}
 				String fname = imp.getTitle();
 //				fname = fname.substring(0, fname.lastIndexOf('_')) + ".tiff"; // remove _average
 //				fname = fname.substring(0, fname.lastIndexOf('.')) + ".tiff"; // remove _average
@@ -1199,9 +1202,18 @@ public class Lwir16Reader {
 
 	
 	
-	
-	
 	public boolean programLWIRCamera(LwirReaderParameters lrp) {
+		return  programLWIRCamera(lrp, 0);
+	}
+	
+	/**
+	 * Program all 5 cameras for calibration mode
+	 * @param lrp LWIR Reader parameters
+	 * @param compressor_run 0 - exit with compressors stopped, 2 - keep compressors running
+	 * @return true if OK, false otherwise
+	 */
+	
+	public boolean programLWIRCamera(LwirReaderParameters lrp, int compressor_run) {
 		String [] all_IPs =  lrp.getAllIPs();
 		String [] lwir_IPs = lrp.getLwirIPs();
 		String eo_ip =       lrp.getEOIP();
@@ -1228,12 +1240,13 @@ public class Lwir16Reader {
 					   "&XMIT_TIMESTAMP=1";
 
 		}
-		for (int i = 0; i < lwir_IPs.length; i++) { // Alpply to only 4 lwir cameras, port 0 (some to all ports) 
+		for (int i = 0; i < lwir_IPs.length; i++) { // Apply to only 4 lwir cameras, port 0 (some to all ports) 
 			urls[i] += "&TRIG_DELAY="+lrp.lwir_trig_dly+"&*TRIG_DELAY=15"+ // apply to all ports
 					   "&BITS=16&*BITS=15"+
 					   "&COLOR="+COLOR_RAW +"&*COLOR=15"+
 					   "&WOI_HEIGHT="+(LWIR_HEIGHT + (lrp.lwir_telemetry?LWIR_TELEMETRY_LINES:0))+"&*WOI_HEIGHT=15"+
 					   "&"+REG_FFC_FRAMES+"="+lrp.getFFCFrames() +"&*"+REG_FFC_FRAMES+"=15"; // apply to all channels
+			urls[i] += "&COMPRESSOR_RUN=2&*COMPRESSOR_RUN=15"; // turn compressor and keep fort at least one frame after TRIG=4
 		}
 		
 		for (int chn:lrp.eo_channels) { // add color settings to all EO channels			
@@ -1276,6 +1289,9 @@ public class Lwir16Reader {
 	   					"&WOI_TOP=0"+
 	   					"&WOI_WIDTH=2592"+
 	   					"&WOI_HEIGHT=1936";
+	   			if (chn == 0) {
+	   				urls[all_IPs.length-1] += "&COMPRESSOR_RUN=2&*COMPRESSOR_RUN=15"; // turn compressor and keep fort at least one frame after TRIG=4
+	   			}
 	   		}
 		}
 		// run all programming not including TRIG=4
@@ -1303,7 +1319,8 @@ public class Lwir16Reader {
         // set external trigger mode for all LWIR and EO cameras
 		urls = new String[all_IPs.length];
 		for (int i = 0; i < urls.length; i++) {
-			urls[i] = "http://"+all_IPs[i]+"/parsedit.php?immediate&sensor_port=0&TRIG=4&*TRIG=15";
+			urls[i] = "http://"+all_IPs[i]+"/parsedit.php?immediate&sensor_port=0&TRIG=4&*TRIG=15"+
+                    "&COMPRESSOR_RUN=" + compressor_run +"*5&*COMPRESSOR_RUN=15"; // delay turning off COMPRESSOR_RUN
 		}
 		
 		docs = collectXmlResponses(urls);

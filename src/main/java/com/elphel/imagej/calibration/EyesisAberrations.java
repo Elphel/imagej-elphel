@@ -2290,7 +2290,7 @@ public class EyesisAberrations {
 			final int          masterDebugLevel, // get rid of it? // ** NEW
 			final int          globalDebugLevel,// ** NEW
 			final int          debug_level){// debug level used inside loops
-		boolean is_lwir = ((lwirReaderParameters != null) && lwirReaderParameters.is_LWIR(imp_sel));
+		boolean is_lwir = ((lwirReaderParameters != null) && LwirReaderParameters.is_LWIR(imp_sel));
 		boolean is_mono = false;
 		try {
 			is_mono = Boolean.parseBoolean((String) imp_sel.getProperty("MONOCHROME"));
@@ -4785,6 +4785,7 @@ public class EyesisAberrations {
     	public String sourceDirectory="";
     	public String partialKernelDirectory="";
     	public String illustrationsDirectory="";
+    	public String capturedDirectory = "";
     	public String psfKernelDirectory="";
     	public String aberrationsKernelDirectory="";
     	public String calibrationDirectory="";
@@ -4823,10 +4824,10 @@ public class EyesisAberrations {
 			properties.setProperty(prefix+"sourceDirectory",this.sourceDirectory);
 			properties.setProperty(prefix+"partialKernelDirectory",this.partialKernelDirectory);
 			properties.setProperty(prefix+"illustrationsDirectory",this.illustrationsDirectory);
+			properties.setProperty(prefix+"capturedDirectory",     this.capturedDirectory);
 			properties.setProperty(prefix+"psfKernelDirectory",this.psfKernelDirectory);
 			properties.setProperty(prefix+"aberrationsKernelDirectory",this.aberrationsKernelDirectory);
 			properties.setProperty(prefix+"calibrationDirectory",this.calibrationDirectory);
-
 			properties.setProperty(prefix+"autoRestore",this.autoRestore+"");
 			properties.setProperty(prefix+"calibrationPath",this.calibrationPath);
 			properties.setProperty(prefix+"strategyPath",this.strategyPath);
@@ -4869,6 +4870,7 @@ public class EyesisAberrations {
 			if (properties.getProperty(prefix+"sourceDirectory")!=null)	           this.sourceDirectory=properties.getProperty(prefix+"sourceDirectory");
 			if (properties.getProperty(prefix+"partialKernelDirectory")!=null)     this.partialKernelDirectory=properties.getProperty(prefix+"partialKernelDirectory");
 			if (properties.getProperty(prefix+"illustrationsDirectory")!=null)     this.illustrationsDirectory=properties.getProperty(prefix+"illustrationsDirectory");
+			if (properties.getProperty(prefix+"capturedDirectory")!=null)          this.capturedDirectory=properties.getProperty(prefix+"capturedDirectory");
 			if (properties.getProperty(prefix+"psfKernelDirectory")!=null)         this.psfKernelDirectory=properties.getProperty(prefix+"psfKernelDirectory");
 			if (properties.getProperty(prefix+"aberrationsKernelDirectory")!=null) this.aberrationsKernelDirectory=properties.getProperty(prefix+"aberrationsKernelDirectory");
 			if (properties.getProperty(prefix+"calibrationDirectory")!=null)       this.calibrationDirectory=properties.getProperty(prefix+"calibrationDirectory");
@@ -5023,6 +5025,8 @@ public class EyesisAberrations {
     		gd.addCheckbox("Select partial kernels directory", false);
     		gd.addStringField("Illustrations directory", this.illustrationsDirectory, 60);
     		gd.addCheckbox("Select illustrations directory", false);
+    		gd.addStringField("Captured images directory", this.capturedDirectory, 60);
+    		gd.addCheckbox("Select captured images directory", false);
     		gd.addStringField("Combined kernels directory", this.psfKernelDirectory, 60);
     		gd.addCheckbox("Select combined kernsls directory", false);
     		gd.addStringField("Aberrations kernels directory", this.aberrationsKernelDirectory, 60);
@@ -5078,6 +5082,8 @@ public class EyesisAberrations {
     		if (gd.getNextBoolean()) selectPartialKernelDirectory(false, this.partialKernelDirectory, false);
     		this.illustrationsDirectory=gd.getNextString();
     		if (gd.getNextBoolean()) selectIllustrationsDirectory(false, this.illustrationsDirectory, false);
+    		this.capturedDirectory=gd.getNextString();
+    		if (gd.getNextBoolean()) selectCapturedDirectory(false, this.capturedDirectory, false);
     		this.psfKernelDirectory=gd.getNextString();
     		if (gd.getNextBoolean()) selectPSFKernelDirectory(false, this.psfKernelDirectory, false);
     		this.aberrationsKernelDirectory=gd.getNextString();
@@ -5150,6 +5156,18 @@ public class EyesisAberrations {
     				null, // filter
     				defaultPath); //this.sourceDirectory);
     		if (dir!=null) this.illustrationsDirectory=dir;
+    		return dir;
+    	}
+
+    	public String selectCapturedDirectory(boolean smart, String defaultPath, boolean newAllowed) {
+    		String dir= CalibrationFileManagement.selectDirectory(
+    				smart,
+    				newAllowed, // save
+    				"Captured images directory", // title
+    				"Select captured images directory", // button
+    				null, // filter
+    				defaultPath); //this.sourceDirectory);
+    		if (dir!=null) this.capturedDirectory=dir;
     		return dir;
     	}
     	

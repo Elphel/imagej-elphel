@@ -957,9 +957,20 @@ import ij.text.TextWindow;
         			(path.charAt(indexLastDash)!='_') &&
         			(path.charAt(indexLastDash)!='-')) indexLastDash--;
         	return Integer.parseInt(path.substring(indexLastDash+1,indexSuffix));
-        	
         }
-        
+/*        
+        public static double getTimestampFromPath(String path) {
+        	if (path == null) return Double.NaN;
+			int i1=path.indexOf('-',path.lastIndexOf(Prefs.getFileSeparator()));
+			int i2=path.indexOf('-',i1+1);
+			int i3=path.indexOf('.',i2+1);
+			// Extract timestamp from the filename
+			if ((i1<0) || (i2<0)) {
+				return Double.NaN;
+			}
+			return Double.parseDouble(path.substring(i1+1,i2).replace('_','.'));
+        }
+  */      
         private boolean invertColor(int chn) {
         	//TODO: Add looking at the image property to find out if inversion is already contained in the grid files
 			return eyesisCameraParameters.isLWIR(chn);
