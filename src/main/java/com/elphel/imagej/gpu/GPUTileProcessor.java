@@ -70,6 +70,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.elphel.imagej.tileprocessor.CorrVector;
 import com.elphel.imagej.tileprocessor.DttRad2;
 import com.elphel.imagej.tileprocessor.GeometryCorrection;
 import com.elphel.imagej.tileprocessor.ImageDtt;
@@ -93,6 +94,7 @@ import jcuda.nvrtc.JNvrtc;
 import jcuda.nvrtc.nvrtcProgram;
 
 public class GPUTileProcessor {
+	static int CORR_VECTOR_MAX_LENGTH =19; // TODO: update to fit for 16-sensor
 	String LIBRARY_PATH = "/usr/local/cuda/targets/x86_64-linux/lib/libcudadevrt.a"; // linux
 	static String GPU_RESOURCE_DIR =              "kernels";
 	static String [] GPU_KERNEL_FILES = {"dtt8x8.cuh","TileProcessor.cuh"};
@@ -799,7 +801,9 @@ public class GPUTileProcessor {
         	cuMemAlloc(gpu_geometry_correction,      GeometryCorrection.arrayLength(num_cams) * Sizeof.FLOAT);
         	cuMemAlloc(gpu_rByRDist,                 RBYRDIST_LEN *  Sizeof.FLOAT);
         	cuMemAlloc(gpu_rot_deriv,                5*num_cams*3*3 * Sizeof.FLOAT);
-        	cuMemAlloc(gpu_correction_vector,        GeometryCorrection.CorrVector.LENGTH * Sizeof.FLOAT);
+//        	cuMemAlloc(gpu_correction_vector,        CorrVector.LENGTH * Sizeof.FLOAT);
+        	cuMemAlloc(gpu_correction_vector,        CORR_VECTOR_MAX_LENGTH * Sizeof.FLOAT); // update CORR_VECTOR_LENGTH to fit 
+        	
 
             // Set task array
         	cuMemAlloc(gpu_tasks,      tilesX * tilesY * TPTASK_SIZE * Sizeof.FLOAT);
@@ -947,7 +951,7 @@ public class GPUTileProcessor {
  * Copy extrinsic correction vector to the GPU memory
  * @param cv correction vector
  */
-        public void setExtrinsicsVector(GeometryCorrection.CorrVector cv) {
+        public void setExtrinsicsVector(CorrVector cv) {
         	double [] dcv = cv.toFullRollArray();
         	float []  fcv = new float [dcv.length];
         	for (int i = 0; i < dcv.length; i++) {

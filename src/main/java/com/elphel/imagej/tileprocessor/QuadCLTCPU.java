@@ -58,7 +58,7 @@ import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.correction.CorrectionColorProc;
 import com.elphel.imagej.correction.EyesisCorrections;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
-import com.elphel.imagej.tileprocessor.GeometryCorrection.CorrVector;
+import com.elphel.imagej.tileprocessor.CorrVector;
 import com.elphel.imagej.x3d.export.WavefrontExport;
 import com.elphel.imagej.x3d.export.X3dOutput;
 
@@ -615,7 +615,7 @@ public class QuadCLTCPU {
 		this.correctionsParameters = correctionsParameters;
 		this.properties =            properties;
 		is_aux =                     prefix.equals(PREFIX_AUX);
-		getProperties(prefix);
+		getProperties(prefix); // failed with aux
 	}
 
 	public static Properties loadProperties(
@@ -857,8 +857,9 @@ public class QuadCLTCPU {
 		geometryCorrection.pixelSize = sensors[0].pixelSize;
 		geometryCorrection.distortionRadius = sensors[0].distortionRadius;
 
-		for (int i = CorrVector.LENGTH_ANGLES; i < CorrVector.LENGTH; i++){
-		}
+		// What was that below? Started smth?
+//		for (int i = CorrVector.LENGTH_ANGLES; i < CorrVector.LENGTH; i++){
+//		}
 		// set common distportion parameters
 		geometryCorrection.setDistortion(
 				f_avg, // sensors[0].focalLength,
@@ -923,13 +924,16 @@ public class QuadCLTCPU {
 		// calcualte reverse distortion as a table to be linear interpolated (now cubic!)
 		geometryCorrection.calcReverseDistortionTable();
 
-		if (numSensors == 4){
-			geometryCorrection.adustSquare();
-			System.out.println("Adjusted camera to orient X Y along the sides of a square");
+//		if (numSensors == 4){
+		geometryCorrection.adustSquare();
+		System.out.println("Adjusted camera to orient X Y along the sides of a square (now univerasal), numSensors = "+numSensors);
+			/*
 		} else {
 			System.out.println("============= Cannot adustSquare() as it requires exactly 4 sensors, "+numSensors+" provided ==========");
-			return false; // not used in lwir
+			System.out.println("Keeping as it was");
+//			return false; // not used in lwir
 		}
+		*/
 		// Print parameters
 		if (debugLevel > 0){
 			geometryCorrection.listGeometryCorrection(debugLevel > 1);
@@ -5264,7 +5268,7 @@ public class QuadCLTCPU {
 		  boolean apply_extrinsic = (clt_parameters.ly_corr_scale != 0.0);
 		  double      inf_min_disparity = clt_parameters.ly_inf_force_fine? clt_parameters.ly_inf_min_narrow :clt_parameters.ly_inf_min_broad; 
 		  double      inf_max_disparity = clt_parameters.ly_inf_force_fine? clt_parameters.ly_inf_max_narrow :clt_parameters.ly_inf_max_broad; 
-		  GeometryCorrection.CorrVector corr_vector =   ea.solveCorr (
+		  CorrVector corr_vector =   ea.solveCorr (
 				  clt_parameters.ly_marg_fract, 	// double      marg_fract,        // part of half-width, and half-height to reduce weights
 				  clt_parameters.ly_inf_en,      // boolean     use_disparity,     // adjust disparity-related extrinsics
 				  // 1.0 - to skip filtering infinity
@@ -5307,7 +5311,7 @@ public class QuadCLTCPU {
 				  dsxy, // double [][] measured_dsxy,
 				  null, //	boolean [] force_disparity,    // boolean [] force_disparity,
 				  false, // 	boolean     use_main, // corr_rots_aux != null;
-				  geometryCorrection.getCorrVector(), // GeometryCorrection.CorrVector corr_vector,
+				  geometryCorrection.getCorrVector(), // CorrVector corr_vector,
 				  old_new_rms, // double [] old_new_rms, // should be double[2]
 				  debugLevel); //  + 5);// int debugLevel)
 
@@ -5316,7 +5320,7 @@ public class QuadCLTCPU {
 			  System.out.println(geometryCorrection.getCorrVector().toString());
 		  }
 		  if (corr_vector != null) {
-			  GeometryCorrection.CorrVector diff_corr = corr_vector.diffFromVector(geometryCorrection.getCorrVector());
+			  CorrVector diff_corr = corr_vector.diffFromVector(geometryCorrection.getCorrVector());
 			  if (debugLevel > -2){
 					  System.out.println("New extrinsic corrections:");
 					  System.out.println(corr_vector.toString());
@@ -6337,16 +6341,22 @@ public class QuadCLTCPU {
  */
 
 
-	  public void resetExtrinsicCorr( // not used in lwir
+	  public void resetExtrinsicCorr( // not used in lwir // only manual commands
 			  CLTParameters           clt_parameters)
 	  {
 		  if (extrinsic_vect != null) {
-			  extrinsic_vect [GeometryCorrection.CorrVector.IMU_INDEX + 0] = 0.0;
-			  extrinsic_vect [GeometryCorrection.CorrVector.IMU_INDEX + 1] = 0.0;
-			  extrinsic_vect [GeometryCorrection.CorrVector.IMU_INDEX + 2] = 0.0;
-			  extrinsic_vect [GeometryCorrection.CorrVector.IMU_INDEX + 3] = 0.0;
-			  extrinsic_vect [GeometryCorrection.CorrVector.IMU_INDEX + 4] = 0.0;
-			  extrinsic_vect [GeometryCorrection.CorrVector.IMU_INDEX + 5] = 0.0;
+			  for (int i = 0; i < extrinsic_vect.length; i++) {
+				  extrinsic_vect [i] = 0.0;
+			  }
+			  /*
+			  int imu_index = extrinsic_vect.getIMUIndex();
+			  extrinsic_vect [CorrVector.IMU_INDEX + 0] = 0.0;
+			  extrinsic_vect [CorrVector.IMU_INDEX + 1] = 0.0;
+			  extrinsic_vect [CorrVector.IMU_INDEX + 2] = 0.0;
+			  extrinsic_vect [CorrVector.IMU_INDEX + 3] = 0.0;
+			  extrinsic_vect [CorrVector.IMU_INDEX + 4] = 0.0;
+			  extrinsic_vect [CorrVector.IMU_INDEX + 5] = 0.0;
+			  */
 		  }
 		  if (geometryCorrection != null){
 			  geometryCorrection.resetCorrVectorERS();
@@ -8406,7 +8416,7 @@ public class QuadCLTCPU {
 							  debugLevel); // final int        debugLevel)				  
 				  }
 				  
-				  GeometryCorrection.CorrVector corr_vector =   ea.solveCorr (
+				  CorrVector corr_vector =   ea.solveCorr (
 						  clt_parameters.ly_marg_fract, 	  // double      marg_fract,        // part of half-width, and half-height to reduce weights
 						  clt_parameters.ly_inf_en,           // boolean     use_disparity,     // adjust disparity-related extrinsics
 						  // 1.0 - to skip filtering infinity
@@ -8450,7 +8460,7 @@ public class QuadCLTCPU {
 						  scan.getLazyEyeData(),              // dsxy, // double [][] measured_dsxy,
 						  scan.getLazyEyeForceDisparity(),    // null, //	boolean [] force_disparity,    // boolean [] force_disparity,
 						  false, // 	boolean     use_main, // corr_rots_aux != null;
-						  geometryCorrection.getCorrVector(), // GeometryCorrection.CorrVector corr_vector,
+						  geometryCorrection.getCorrVector(), // CorrVector corr_vector,
 						  old_new_rms, // double [] old_new_rms, // should be double[2]
 						  debugLevel); //  + 5);// int debugLevel) >=2 to show images
 
@@ -8459,7 +8469,7 @@ public class QuadCLTCPU {
 					  System.out.println(geometryCorrection.getCorrVector().toString());
 				  }
 				  if (corr_vector != null) {
-					  GeometryCorrection.CorrVector diff_corr = corr_vector.diffFromVector(geometryCorrection.getCorrVector());
+					  CorrVector diff_corr = corr_vector.diffFromVector(geometryCorrection.getCorrVector());
 					  comp_diff = diff_corr.getNorm();
 
 					  if (debugLevel > -2){
@@ -12377,7 +12387,7 @@ public class QuadCLTCPU {
 		  boolean debug_img = false;
 		  int debugLevelInner = -5;
 		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
-		  GeometryCorrection.CorrVector corr_vector = geometryCorrection.getCorrVector().clone();
+		  CorrVector corr_vector = geometryCorrection.getCorrVector().clone();
 		  double [] curr_corr_arr = corr_vector.toArray();
 		  int clusters = ea.clustersX * ea.clustersY;
 		  int num_ly = ExtrinsicAdjustment.INDX_LENGTH; // scan.getLazyEyeData().length;
@@ -12407,8 +12417,8 @@ public class QuadCLTCPU {
 			  // perform asymmetric delta
 			  double [] par_inc = new double [num_pars];
 			  par_inc[npar] = delta * parameter_scales[npar];
-			  GeometryCorrection.CorrVector corr_delta = geometryCorrection.getCorrVector(par_inc,null); // , par_mask); all parameters			  
-			  GeometryCorrection.CorrVector corr_vectorp = corr_vector.clone();
+			  CorrVector corr_delta = geometryCorrection.getCorrVector(par_inc,null); // , par_mask); all parameters			  
+			  CorrVector corr_vectorp = corr_vector.clone();
 			  corr_vectorp.incrementVector(corr_delta,  1.0); // 0.5 for p/m
 			  geometryCorrection.setCorrVector(corr_vectorp) ;
 			  double rdelta = 1.0/ par_inc[npar];

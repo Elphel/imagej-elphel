@@ -172,7 +172,7 @@ public class ElphelJp4Reader  extends ImageIOReader{
 			try {
 				url = new URL(id);
 			} catch (MalformedURLException e) {
-				LOGGER.warn("Bad URL1: " + id);
+//				LOGGER.warn("Bad URL1: " + id); // will try direct file, not an error
 			}
 			if (url != null) {
 				LOGGER.debug("Starting initFile() method, read "+ id +" to memory first");

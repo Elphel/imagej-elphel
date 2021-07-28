@@ -67,7 +67,7 @@ public class ExtrinsicAdjustment {
 	private boolean [] 		  force_disparity = null;                     // boolean [] force_disparity, // same dimension as dsdn, true if disparity should be controlled
 	private double            pure_weight; // weight of samples only
 //	private double []         values;
-	private GeometryCorrection.CorrVector corr_vector = null;
+	private CorrVector corr_vector = null;
 	private boolean []        par_mask =        null;
 	private boolean           use_rig_offsets = false;
 	private double [][]       measured_dsxy =   null;
@@ -217,7 +217,7 @@ public class ExtrinsicAdjustment {
 				 titles);
 	}
 
-	public GeometryCorrection.CorrVector  solveCorr (
+	public CorrVector  solveCorr (
 			double      marg_fract,        // part of half-width, and half-height to reduce weights
 			boolean     use_disparity,     // adjust disparity-related extrinsics
 			double      inf_min_disparity, // minimal disparity for infinity (from average, possibly tilted) 
@@ -256,7 +256,7 @@ public class ExtrinsicAdjustment {
 	  		double [][] measured_dsxy_in,     //
 	  		boolean [] force_disparity_in,    // boolean [] force_disparity,
 	  		boolean     use_main,          // corr_rots_aux != null;
-			GeometryCorrection.CorrVector corr_vector_meas,
+			CorrVector corr_vector_meas,
 			double []   old_new_rms,       // should be double[2]
 			int         debugLevel)
 	{
@@ -456,7 +456,7 @@ public class ExtrinsicAdjustment {
 
 	
 	private double [][] getXYNondistorted(
-			GeometryCorrection.CorrVector corr_vector,
+			CorrVector corr_vector,
 			boolean set_dydisp){
 		int clusters =clustersX * clustersY;
 		Matrix []   corr_rots =  corr_vector.getRotMatrices(); // get array of per-sensor rotation matrices
@@ -1347,7 +1347,7 @@ public class ExtrinsicAdjustment {
 	}
 
 	private double [] getFx(
-			GeometryCorrection.CorrVector corr_vector)
+			CorrVector corr_vector)
 	{
 		int clusters = clustersX * clustersY;
 		Matrix []   corr_rots =  corr_vector.getRotMatrices(); // get array of per-sensor rotation matrices
@@ -1383,7 +1383,7 @@ public class ExtrinsicAdjustment {
 	}
 
 	private double [][] getJacobianTransposed(
-			GeometryCorrection.CorrVector corr_vector,
+			CorrVector corr_vector,
 			double delta){
 		int clusters = clustersX * clustersY;
 		int num_pars = getNumPars();
@@ -1392,9 +1392,9 @@ public class ExtrinsicAdjustment {
 		for (int par = 0; par < num_pars; par++) {
 			double [] pars = new double[num_pars];
 			pars[par] =  delta;
-			GeometryCorrection.CorrVector corr_delta = geometryCorrection.getCorrVector(pars, par_mask);
-			GeometryCorrection.CorrVector corr_vectorp = corr_vector.clone();
-			GeometryCorrection.CorrVector corr_vectorm = corr_vector.clone();
+			CorrVector corr_delta = geometryCorrection.getCorrVector(pars, par_mask);
+			CorrVector corr_vectorp = corr_vector.clone();
+			CorrVector corr_vectorm = corr_vector.clone();
 			corr_vectorp.incrementVector(corr_delta,  0.5);
 			corr_vectorm.incrementVector(corr_delta, -0.5);
 			double [] fx_p = getFx(corr_vectorp);
@@ -1440,7 +1440,7 @@ public class ExtrinsicAdjustment {
 	
 
 	private double dbgJacobians(
-			GeometryCorrection.CorrVector corr_vector,
+			CorrVector corr_vector,
 			double delta,
 			boolean graphic) {
 //		delta *= 0.1;
@@ -1609,7 +1609,7 @@ public class ExtrinsicAdjustment {
 		double max_reasonable = 100.0;
 		
 		 double [][] ers_tilt_az = getMovingObjects( // will output null if ERS tilt or roll are disabled
-				 corr_vector, // GeometryCorrection.CorrVector corr_vector,
+				 corr_vector, // CorrVector corr_vector,
 				 null ); // double [] fx
 		 boolean [] moving_maybe = null;
 		 if (ers_tilt_az != null) {
@@ -1716,11 +1716,11 @@ public class ExtrinsicAdjustment {
 	
 	
 	private double [][] getMovingObjects(
-			GeometryCorrection.CorrVector corr_vector,
+			CorrVector corr_vector,
 			double [] fx // or null;
 			) {
-		int ers_tilt_index =    getParIndex(GeometryCorrection.CorrVector.IMU_INDEX);
-		int ers_azimuth_index = getParIndex(GeometryCorrection.CorrVector.IMU_INDEX + 1);
+		int ers_tilt_index =    getParIndex(corr_vector. getIMUIndex());
+		int ers_azimuth_index = getParIndex(corr_vector. getIMUIndex() + 1);
 		if ((ers_tilt_index < 0) || (ers_azimuth_index < 0)) {
 			return null;
 		}
@@ -1965,7 +1965,7 @@ public class ExtrinsicAdjustment {
 	
 	
 	private void dbgXY(
-			GeometryCorrection.CorrVector corr_vector,
+			CorrVector corr_vector,
 			String title) {
 		int gap = 10; //pix
 		int clusters = clustersX * clustersY;
@@ -2019,7 +2019,7 @@ public class ExtrinsicAdjustment {
 
 
 	private double [][] getJacobianTransposed(
-			GeometryCorrection.CorrVector corr_vector)
+			CorrVector corr_vector)
 	{
 		if (dbg_delta > 0.0) {
 			return getJacobianTransposed(corr_vector, dbg_delta); // running LMA with delta
@@ -2195,7 +2195,7 @@ public class ExtrinsicAdjustment {
 			// TODO: Restore/implement
 			if (debug_level > 3) {
 				 dbgJacobians(
-							corr_vector, // GeometryCorrection.CorrVector corr_vector,
+							corr_vector, // CorrVector corr_vector,
 							1E-5, // double delta,
 							true); //boolean graphic)
 			}
@@ -2251,9 +2251,9 @@ public class ExtrinsicAdjustment {
 		}
 
 		double []  delta = mdelta.getColumnPackedCopy();
-		GeometryCorrection.CorrVector corr_delta = geometryCorrection.getCorrVector(delta, par_mask);
+		CorrVector corr_delta = geometryCorrection.getCorrVector(delta, par_mask);
 
-		GeometryCorrection.CorrVector new_vector = this.corr_vector.clone();
+		CorrVector new_vector = this.corr_vector.clone();
 		double scale = 1.0;
 		new_vector.incrementVector(corr_delta, scale); // ok = false if there are nay NaN-s
 
@@ -2294,7 +2294,7 @@ public class ExtrinsicAdjustment {
 			this.last_rms = getWYmFxRms(this.last_ymfx); // modifies this.last_ymfx
 			if (debug_level > 2) {
 				 dbgJacobians(
-							corr_vector, // GeometryCorrection.CorrVector corr_vector,
+							corr_vector, // CorrVector corr_vector,
 							1E-5, // double delta,
 							true); //boolean graphic)
 			}

@@ -668,7 +668,9 @@ public class ErsCorrection extends GeometryCorrection {
 		XYZ_he =               gc.XYZ_he;     // all cameras coordinates transformed to eliminate heading and elevation (rolls preserved)
 		XYZ_her =              gc.XYZ_her; // = null; // XYZ of the lenses in a corrected CCS (adjusted for to elevation, heading,  common_roll)
 		rXY =                  gc.rXY; // =     null; // XY pairs of the in a normal plane, relative to disparityRadius
-		rXY_ideal =            gc.rXY_ideal; // = {{-0.5, -0.5}, {0.5,-0.5}, {-0.5, 0.5}, {0.5,0.5}};
+		
+//		rXY_ideal =            gc.rXY_ideal; // = {{-0.5, -0.5}, {0.5,-0.5}, {-0.5, 0.5}, {0.5,0.5}};
+		set_rXY_ideal(gc.get_rXY_ideal()); //)
 		cameraRadius =         gc.cameraRadius; // =0; // average distance from the "mass center" of the sensors to the sensors
 		disparityRadius =      gc.disparityRadius; //  150.0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad camera (~=150mm)?
 		rByRDist =             gc.rByRDist; // =null;
@@ -689,7 +691,8 @@ public class ErsCorrection extends GeometryCorrection {
 			XYZ_he =    clone2d(XYZ_he);
 			XYZ_her =   clone2d(XYZ_her);
 			rXY =       clone2d(rXY);
-			rXY_ideal = clone2d(rXY_ideal);
+//			rXY_ideal = clone2d(rXY_ideal);
+			set_rXY_ideal(clone2d(gc.get_rXY_ideal())); //)
 			rByRDist =  clone1d(rByRDist); // probably it is not needed
 			extrinsic_corr = extrinsic_corr.clone(); 
 			if (rigOffset!=null) rigOffset = rigOffset.clone();

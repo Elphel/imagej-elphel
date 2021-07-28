@@ -30,7 +30,7 @@ import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
-//import GeometryCorrection.CorrVector;
+//import CorrVector;
 import Jama.Matrix;
 import ij.ImagePlus;
 import ij.ImageStack;
@@ -2363,7 +2363,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			int solveCorr_debug =  ((clt_parameters.lym_iter == 1) && (clt_parameters.ly_par_sel != 0))? 2 : debugLevel;
 
 
-			GeometryCorrection.CorrVector corr_vector = solveCorr (
+			CorrVector corr_vector = solveCorr (
 					clt_parameters.lylw_inf_en,      // boolean use_disparity,     // if true will ignore disparity data even if available (was false)
 					clt_parameters.lylw_aztilt_en,// boolean use_aztilts,       // Adjust azimuths and tilts excluding disparity
 					clt_parameters.lylw_diff_roll_en,// boolean use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
@@ -2373,7 +2373,7 @@ B = |+dy0   -dy1      -2*dy3 |
 					clt_parameters.lylw_par_sel,     // int     manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 					mismatch_list,                          // ArrayList<Mismatch> mismatch_list,
 					qc.geometryCorrection,                  // GeometryCorrection geometryCorrection,
-					qc.geometryCorrection.getCorrVector(),  // GeometryCorrection.CorrVector corr_vector,
+					qc.geometryCorrection.getCorrVector(),  // CorrVector corr_vector,
 					old_new_rms,                            // double [] old_new_rms, // should be double[2]
 //					2); // debugLevel); // 2); // 1); // int debugLevel)
 					solveCorr_debug); // debugLevel); // 2); // 1); // int debugLevel)
@@ -2926,7 +2926,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			double [] old_new_rms = new double[1];
 			boolean apply_extrinsic = true;
 			int solveCorr_debug =  ((clt_parameters.lym_iter == 1) && (clt_parameters.ly_par_sel != 0))? 2 : debugLevel;
-			GeometryCorrection.CorrVector corr_vector = solveCorr (
+			CorrVector corr_vector = solveCorr (
 					clt_parameters.lylw_inf_en,      // boolean use_disparity,     // if true will ignore disparity data even if available (was false)
 					clt_parameters.lylw_aztilt_en,// boolean use_aztilts,       // Adjust azimuths and tilts excluding disparity
 					clt_parameters.lylw_diff_roll_en,// boolean use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
@@ -2937,7 +2937,7 @@ B = |+dy0   -dy1      -2*dy3 |
 					mismatch_list,                          // ArrayList<Mismatch> mismatch_list,
 					qc.geometryCorrection,                  // GeometryCorrection geometryCorrection,
 ///					geometryCorrection_main, //  GeometryCorrection geometryCorrection_main, // if is aux camera using main cameras' coordinates. Disparity is still in aux camera pixels
-					qc.geometryCorrection.getCorrVector(),  // GeometryCorrection.CorrVector corr_vector,
+					qc.geometryCorrection.getCorrVector(),  // CorrVector corr_vector,
 					old_new_rms,                            // double [] old_new_rms, // should be double[2]
 //					2); // debugLevel); // 2); // 1); // int debugLevel)
 					solveCorr_debug); // debugLevel); // 2); // 1); // int debugLevel)
@@ -3063,7 +3063,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			boolean [] par_mask,
 			ArrayList<Mismatch> mismatch_list,
 			GeometryCorrection geometryCorrection,
-			GeometryCorrection.CorrVector corr_vector,
+			CorrVector corr_vector,
 			int debugLevel)
 	{
 		boolean dbg_images = debugLevel>1;
@@ -3214,7 +3214,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			boolean [] par_mask,
 			ArrayList<Mismatch> mismatch_list,
 			GeometryCorrection geometryCorrection,
-			GeometryCorrection.CorrVector corr_vector,
+			CorrVector corr_vector,
 			int debugLevel)
 	{
 		int num_pars = 0;
@@ -3227,8 +3227,8 @@ B = |+dy0   -dy1      -2*dy3 |
 			double [] sym_par_m = sym_par_0.clone();
 			sym_par_p[sym_par] += 0.5 * delta;
 			sym_par_m[sym_par] -= 0.5 * delta;
-			GeometryCorrection.CorrVector corr_p = geometryCorrection.getCorrVector(sym_par_p, par_mask);
-			GeometryCorrection.CorrVector corr_m = geometryCorrection.getCorrVector(sym_par_m, par_mask);
+			CorrVector corr_p = geometryCorrection.getCorrVector(sym_par_p, par_mask);
+			CorrVector corr_m = geometryCorrection.getCorrVector(sym_par_m, par_mask);
 			double [] mv_p = debug_mv_from_sym(
 					mismatch_list,
 					geometryCorrection,
@@ -3261,7 +3261,7 @@ B = |+dy0   -dy1      -2*dy3 |
 //			boolean [] par_mask,
 			ArrayList<Mismatch> mismatch_list,
 			GeometryCorrection geometryCorrection,
-			GeometryCorrection.CorrVector corr_vector,
+			CorrVector corr_vector,
 			int debugLevel)
 	{
 		double [][] dMismatch_dXY = (new Mismatch()).get_dMismatch_dXY(); // just a static array
@@ -3463,7 +3463,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		return w;
 	}
 
-	public GeometryCorrection.CorrVector  solveCorr (
+	public CorrVector  solveCorr (
 			boolean use_disparity,     // adjust disparity-related extrinsics
 			boolean use_aztilts,       // Adjust azimuths and tilts excluding disparity
 			boolean use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
@@ -3474,7 +3474,7 @@ B = |+dy0   -dy1      -2*dy3 |
 	  		int     manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 			ArrayList<Mismatch> mismatch_list,
 			GeometryCorrection geometryCorrection,
-			GeometryCorrection.CorrVector corr_vector,
+			CorrVector corr_vector,
 			double [] old_new_rms, // should be double[2]
 			int debugLevel)
 	{
@@ -3502,7 +3502,7 @@ B = |+dy0   -dy1      -2*dy3 |
 				par_mask,           // boolean [] par_mask,
 				mismatch_list,      // ArrayList<Mismatch> mismatch_list,
 				geometryCorrection, // GeometryCorrection geometryCorrection,
-				corr_vector,        // GeometryCorrection.CorrVector corr_vector)
+				corr_vector,        // CorrVector corr_vector)
 				debugLevel);		// int debugLevel)
 
 //		debugLevel = 2;
@@ -3558,7 +3558,7 @@ B = |+dy0   -dy1      -2*dy3 |
 					par_mask,           // boolean [] par_mask,
 					mismatch_list,      // ArrayList<Mismatch> mismatch_list,
 					geometryCorrection, // GeometryCorrection geometryCorrection,
-					corr_vector,        // GeometryCorrection.CorrVector corr_vector)
+					corr_vector,        // CorrVector corr_vector)
 					debugLevel);		// int debugLevel)
 
 			dbg_xy =              doubleNaN(dbg_titles_xy.length,                            dbg_length); // jacobian dmv/dsym
@@ -3630,7 +3630,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		}
 		//if (par_mask[0]) drslt[0] *= -1.0; //FIXME: Find actual bug, sym[0] corrects in opposite way
 
-		GeometryCorrection.CorrVector rslt = geometryCorrection.getCorrVector(drslt, par_mask);
+		CorrVector rslt = geometryCorrection.getCorrVector(drslt, par_mask);
 		if (debugLevel > -3){ // change to >0) {
 			System.out.println("solveCorr() rslt (increment):");
 			System.out.println(rslt.toString());

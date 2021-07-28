@@ -543,8 +543,8 @@ public class MLStats {
 						null // EyesisCorrectionParameters.CorrectionParameters correctionsParameters
 						);
 				System.out.println(indx+": model:"+model+", version:"+version+", name: "+name);
-				GeometryCorrection.CorrVector cvm = qcm.geometryCorrection.getCorrVector();
-				GeometryCorrection.CorrVector cva = qca.geometryCorrection.getCorrVector();
+				CorrVector cvm = qcm.geometryCorrection.getCorrVector();
+				CorrVector cva = qca.geometryCorrection.getCorrVector();
 				*/
 				indx++;
 			}
@@ -616,9 +616,15 @@ public class MLStats {
 		String fmt =  "\t"+(inPixels ? "%8.4f":(inMrad?"%8.4f":"%8.2f"));
 		String fmt_angle =  "\t%8.3f";
 		String fmt_len =    "\t%8.3f";
-		int num_sym = showZooms? GeometryCorrection.CorrVector.IMU_INDEX:GeometryCorrection.CorrVector.ZOOM_INDEX; // update
-		if (showERS) num_sym =  GeometryCorrection.CorrVector.LENGTH;
-		
+//		int num_sym = showZooms? CorrVector.IMU_INDEX:CorrVector.ZOOM_INDEX; // update
+//		if (showERS) num_sym =  CorrVector.LENGTH;
+		int num_chn_m = eyesis_corrections_main.getNumChannels();
+		int num_chn_a = eyesis_corrections_aux.getNumChannels();
+		int num_sym_m = showZooms? CorrVector.getIMUIndex(num_chn_m):CorrVector.getZoomIndex(num_chn_m);
+		if (showERS) num_sym_m =  CorrVector.getLength(num_chn_m);
+		int num_sym_a = showZooms? CorrVector.getIMUIndex(num_chn_a):CorrVector.getZoomIndex(num_chn_a);
+		if (showERS) num_sym_a =  CorrVector.getLength(num_chn_a);
+		//eyesis_corrections_main
 		class ModVerString{
 			String model;
 			String version;
@@ -658,10 +664,10 @@ public class MLStats {
 		}
 		
 		if (showSym) {
-			for (int i = 0; i < num_sym; i++) {
+			for (int i = 0; i < num_sym_m; i++) {
 				header+=String.format("\tsym%02d-m", i);
 			}
-			num_col+=num_sym;
+			num_col+=num_sym_m;
 
 		}
 		if (showAux) {
@@ -682,10 +688,10 @@ public class MLStats {
 				num_col+=6;
 			}
 			if (showSym) {
-				for (int i = 0; i < num_sym; i++) {
+				for (int i = 0; i < num_sym_a; i++) {
 					header+=String.format("\tsym%02d-a", i);
 				}
-				num_col+=num_sym;
+				num_col+=num_sym_a;
 			}
 		}
 		if (showRigATR) {
@@ -753,8 +759,19 @@ public class MLStats {
 						null // EyesisCorrectionParameters.CorrectionParameters correctionsParameters
 						);
 				System.out.println(indx+": model:"+model+", version:"+version+", name: "+name);
-				GeometryCorrection.CorrVector cvm = qcm.geometryCorrection.getCorrVector();
-				GeometryCorrection.CorrVector cva = qca.geometryCorrection.getCorrVector();
+				CorrVector cvm = qcm.geometryCorrection.getCorrVector();
+				CorrVector cva = qca.geometryCorrection.getCorrVector();
+				int cvm_azimuth_index = cvm.getAzimuthIndex();
+				int cva_azimuth_index = cva.getAzimuthIndex();
+				int cvm_tilt_index = cvm.getTiltIndex();
+				int cva_tilt_index = cva.getTiltIndex();
+				int cvm_roll_index = cvm.getRollIndex();
+				int cva_roll_index = cva.getRollIndex();
+				int cvm_zoom_index = cvm.getZoomIndex();
+				int cva_zoom_index = cva.getZoomIndex();
+				int cvm_imu_index =  cvm.getIMUIndex();
+				int cva_imu_index =  cva.getIMUIndex();
+				
 //				double [] vect_main = qcm.geometryCorrection.getCorrVector().toArray();
 				StringBuffer sb = new StringBuffer();
 				int ncol = 0;
@@ -764,7 +781,7 @@ public class MLStats {
 					double [] v = new double[4];
 					for (int i = 0; i <4; i++) {
 						if (i < 3) {
-							v[i] =  scale * cvm.getExtrinsicParameterValue(i+GeometryCorrection.CorrVector.AZIMUTH_INDEX, inPixels);
+							v[i] =  scale * cvm.getExtrinsicParameterValue(i+cvm_azimuth_index, inPixels); // CorrVector.AZIMUTH_INDEX, inPixels);
 							v[3] -= v[i];
 						}
 						sb.append(String.format(fmt,v[i])); // azimuths
@@ -775,7 +792,7 @@ public class MLStats {
 					v = new double[4];
 					for (int i = 0; i <4; i++) {
 						if (i < 3) {
-							v[i] =  scale * cvm.getExtrinsicParameterValue(i+GeometryCorrection.CorrVector.TILT_INDEX, inPixels);
+							v[i] =  scale * cvm.getExtrinsicParameterValue(i+cvm_tilt_index, inPixels); // CorrVector.TILT_INDEX, inPixels);
 							v[3] -= v[i];
 						}
 						sb.append(String.format(fmt,v[i])); // tilts
@@ -786,7 +803,7 @@ public class MLStats {
 					v = new double[4];
 					for (int i = 0; i <4; i++) {
 						if (i < 3) {
-							v[i] =  scale * cvm.getExtrinsicParameterValue(i+GeometryCorrection.CorrVector.ROLL_INDEX, inPixels);
+							v[i] =  scale * cvm.getExtrinsicParameterValue(i+cvm_roll_index, inPixels); // CorrVector.ROLL_INDEX, inPixels);
 							v[3] -= v[i];
 						}
 						sb.append(String.format(fmt,v[i])); // rolls
@@ -799,7 +816,7 @@ public class MLStats {
 					double [] v = new double[4];
 					for (int i = 0; i <4; i++) {
 						if (i < 3) {
-							v[i] =  scale * cvm.getExtrinsicParameterValue(i+GeometryCorrection.CorrVector.ZOOM_INDEX, inPixels);
+							v[i] =  scale * cvm.getExtrinsicParameterValue(i+cvm_zoom_index, inPixels); // CorrVector.ZOOM_INDEX, inPixels);
 							v[3] -= v[i];
 						}
 						sb.append(String.format(fmt,v[i])); // zooms
@@ -812,7 +829,7 @@ public class MLStats {
 				if (showERS) { // main camera
 					double [] v = new double[6];
 					for (int i = 0; i < v.length ; i++) {
-						v[i] =  scale * cvm.getExtrinsicParameterValue(i+GeometryCorrection.CorrVector.IMU_INDEX, inPixels);
+						v[i] =  scale * cvm.getExtrinsicParameterValue(i+cvm_imu_index, inPixels); // CorrVector.IMU_INDEX, inPixels);
 						sb.append(String.format(fmt,v[i])); // zooms
 						fmts [ncol] = fmt;
 						stats[ncol  ][0]+=v[i];
@@ -821,7 +838,7 @@ public class MLStats {
 				}
 				
 				if (showSym) {
-					for (int i = 0; i < num_sym; i++) {
+					for (int i = 0; i < num_sym_m; i++) {
 						double v =  scale * cvm.getExtrinsicSymParameterValue(i, inPixels);
 						sb.append(String.format(fmt,v)); // sym parameters
 						fmts [ncol] = fmt;
@@ -835,7 +852,7 @@ public class MLStats {
 						double [] v = new double[4];
 						for (int i = 0; i <4; i++) {
 							if (i < 3) {
-								v[i] =  scale * cva.getExtrinsicParameterValue(i+GeometryCorrection.CorrVector.AZIMUTH_INDEX, inPixels);
+								v[i] =  scale * cva.getExtrinsicParameterValue(i+cva_azimuth_index, inPixels); // CorrVector.AZIMUTH_INDEX, inPixels);
 								v[3] -= v[i];
 							}
 							sb.append(String.format(fmt,v[i])); // azimuths
@@ -846,7 +863,7 @@ public class MLStats {
 						v = new double[4];
 						for (int i = 0; i <4; i++) {
 							if (i < 3) {
-								v[i] =  scale * cva.getExtrinsicParameterValue(i+GeometryCorrection.CorrVector.TILT_INDEX, inPixels);
+								v[i] =  scale * cva.getExtrinsicParameterValue(i+cva_tilt_index, inPixels); // CorrVector.TILT_INDEX, inPixels);
 								v[3] -= v[i];
 							}
 							sb.append(String.format(fmt,v[i])); // tilts
@@ -857,7 +874,7 @@ public class MLStats {
 						v = new double[4];
 						for (int i = 0; i <4; i++) {
 							if (i < 3) {
-								v[i] =  scale * cva.getExtrinsicParameterValue(i+GeometryCorrection.CorrVector.ROLL_INDEX, inPixels);
+								v[i] =  scale * cva.getExtrinsicParameterValue(i+cva_roll_index, inPixels); // CorrVector.ROLL_INDEX, inPixels);
 								v[3] -= v[i];
 							}
 							sb.append(String.format(fmt,v[i])); // rolls
@@ -870,7 +887,7 @@ public class MLStats {
 						double [] v = new double[4];
 						for (int i = 0; i <4; i++) {
 							if (i < 3) {
-								v[i] =  scale * cva.getExtrinsicParameterValue(i+GeometryCorrection.CorrVector.ZOOM_INDEX, inPixels);
+								v[i] =  scale * cva.getExtrinsicParameterValue(i+cva_zoom_index, inPixels); // CorrVector.ZOOM_INDEX, inPixels);
 								v[3] -= v[i];
 							}
 							sb.append(String.format(fmt,v[i])); // zooms
@@ -882,7 +899,7 @@ public class MLStats {
 					if (showERS) { // main camera
 						double [] v = new double[6];
 						for (int i = 0; i < v.length ; i++) {
-							v[i] =  scale * cva.getExtrinsicParameterValue(i+GeometryCorrection.CorrVector.IMU_INDEX, inPixels);
+							v[i] =  scale * cva.getExtrinsicParameterValue(i+cva_imu_index, inPixels); // CorrVector.IMU_INDEX, inPixels);
 							sb.append(String.format(fmt,v[i])); // zooms
 							fmts [ncol] = fmt;
 							stats[ncol  ][0]+=v[i];
@@ -891,7 +908,7 @@ public class MLStats {
 					}
 
 					if (showSym) {
-						for (int i = 0; i < num_sym; i++) {
+						for (int i = 0; i < num_sym_a; i++) {
 							double v =  scale * cva.getExtrinsicSymParameterValue(i, inPixels);
 							sb.append(String.format(fmt,v)); // sym parameters
 							fmts [ncol] = fmt;
