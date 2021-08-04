@@ -32,15 +32,26 @@ import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.Hashtable;
 
 import org.apache.commons.compress.utils.IOUtils;
+import org.joda.time.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.drew.imaging.ImageMetadataReader;
+import com.drew.metadata.Metadata;
+import com.drew.metadata.Tag;
+import com.drew.metadata.exif.ExifIFD0Directory;
+import com.drew.metadata.exif.ExifSubIFDDirectory;
+import com.drew.metadata.exif.GpsDirectory;
 
 import loci.common.ByteArrayHandle;
 import loci.common.Location;
 import loci.common.RandomAccessInputStream;
+import loci.common.services.ServiceException;
 import loci.formats.FormatException;
 import loci.formats.FormatTools;
 import loci.formats.in.MetadataLevel;
@@ -49,6 +60,7 @@ import loci.formats.meta.MetadataStore;
 import loci.formats.tiff.IFD;
 import loci.formats.tiff.IFDList;
 import loci.formats.tiff.TiffRational;
+import ome.xml.model.primitives.Timestamp;
 
 /*
   // non-IFD tags (for internal use)
@@ -92,6 +104,22 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
     public static final int    TAG_SERIAL_NUMBER         = 0xc62f;
     public static final int    TAG_IMAGE_DESCRIPTION     = 0x010e;
 
+// added 08/03/2021    
+	public static final String MAKER_NOTE =            "Makernote";
+	public static final String SUB_SEC_TIME_ORIGINAL = "SUBSEC_TIME_ORIGINAL"; // "Sub-Sec Time Original";
+	public static final String EXPOSURE_TIME =         "Exposure Time";
+	public static final String DATE_TIME_ORIGINAL =    "DATE_TIME_ORIGINAL"; // "Date/Time Original";
+	public static final boolean REORDER = true; // false;
+	public static final String[][] REPLACEMENT_TAGS = // to/from! TODO: check/add for GPS?
+		   {{"SUBSEC_TIME_ORIGINAL",      "Sub-Sec Time Original"},
+			{"DATE_TIME_ORIGINAL",        "Date/Time Original"},
+			{"Instrument_Make",           "Make"},
+			{"Serial_Number",             "Unknown tag (0xc62f)"},
+			{"Instrument_Model",          "Model"}};
+    
+    
+    
+    
 
 	  /** Merge SubIFDs into the main IFD list. */
 //	  protected transient boolean mergeSubIFDs = true; // false;
@@ -113,12 +141,18 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 	private String content_fileName = null; // from Content-disposition
 	private boolean mapped_externally = false; // file is read/mapped externally, do not close it here
 	private boolean file_initialized = false;
+	
 	//	  private String companionFile;
 	//	  private String description;
 	//	  private String calibrationUnit;
 	//	  private Double physicalSizeZ;
 	//	  private Double timeIncrement;
 	//	  private Integer xOrigin, yOrigin;
+	private ExifSubIFDDirectory directory;
+	private ExifIFD0Directory   directory_ifd0;
+	private GpsDirectory        directory_gps;
+	private HashMap<String,String> REPLACEMENT_TAG_MAP = null; // per instance
+	
 
 	// -- Constructor --
 
@@ -132,6 +166,12 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 		suffixSufficient = true; // false;
 ///		mergeSubIFDs = true; // false;
 		LOGGER.debug("ElphelTiffReader(), after supper(), mergeSubIFDs = true;");
+		if (REPLACEMENT_TAG_MAP == null) {
+			REPLACEMENT_TAG_MAP = new HashMap<String,String>();
+			for (String [] line: REPLACEMENT_TAGS) {
+				REPLACEMENT_TAG_MAP.put(line[1], line[0]);
+			}
+		}
 	}
 
 	// -- IFormatReader API methods --
@@ -245,8 +285,8 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 		  file_initialized = true;
 	  }
 
-	@Override
-	protected void initFile(java.lang.String id)
+//	@Override
+	protected void initFileOld(java.lang.String id)
             throws FormatException,
                    java.io.IOException
     {
@@ -255,10 +295,130 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 		LOGGER.debug("Starting initFile() method");
 		super.initFile(id);
 		LOGGER.debug("Ending initFile() method");
-
-
     }
 
+	/* @see loci.formats.FormatReader#initFile(String) */
+	// copied from ElphelJp4Reader
+	@Override
+	protected void initFile(String id) throws FormatException, IOException {
+		LOGGER.debug("initFile("+id+"), currentId="+currentId+",  before super" );
+		try {
+			super.initFile(id); // fails class_not_found
+		}
+		catch (IllegalArgumentException e) {
+			throw new FormatException(e);
+		}
+		LOGGER.debug("initFile("+id+"), currentId="+currentId+",  after super" );
+		// Below needs to be modified - EXIFService does not work with mapFile
+		MetadataStore store = makeFilterMetadata();
+		LOGGER.debug("Parsing TIFF EXIF data");
+		HashMap<String, String> tags = null;
+		try {
+			// Reimplementing ExifServiceImpl as original does not have ExifIFD0Directory
+		    try (RandomAccessInputStream jpegFile = new RandomAccessInputStream(id)) {
+		        try {
+		          Metadata metadata = ImageMetadataReader.readMetadata(jpegFile);
+		          directory =      metadata.getFirstDirectoryOfType(ExifSubIFDDirectory.class);
+		          directory_ifd0 = metadata.getFirstDirectoryOfType(ExifIFD0Directory.class);
+		          directory_gps =  metadata.getFirstDirectoryOfType(GpsDirectory.class);
+		        }
+		        catch (Throwable e) {
+		          throw new ServiceException("Could not read EXIF data", e);
+		        }
+		      }
+		    Date date =  directory.getDate(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL);
+
+		    if (date != null) {
+				Timestamp timestamp = new Timestamp(new DateTime(date));
+				store.setImageAcquisitionDate(timestamp, 0);
+			}
+
+			tags = new HashMap<String, String>();
+			if (directory != null) {
+				for (Tag tag : directory.getTags()) {
+					String tag_name = tag.getTagName();
+					if (REPLACEMENT_TAG_MAP.containsKey(tag_name)) {
+						tags.put(REPLACEMENT_TAG_MAP.get(tag_name), tag.getDescription());
+					} else {
+						tags.put(tag.getTagName(), tag.getDescription());
+					}
+				}
+			}
+			if (directory_ifd0 != null) {
+				for (Tag tag : directory_ifd0.getTags()) {
+					String tag_name = tag.getTagName();
+					if (REPLACEMENT_TAG_MAP.containsKey(tag_name)) {
+						tags.put(REPLACEMENT_TAG_MAP.get(tag_name), tag.getDescription());
+					} else {
+						tags.put(tag.getTagName(), tag.getDescription());
+					}
+				}
+			}
+			if (directory_gps != null) {
+				for (Tag tag : directory_gps.getTags()) {
+					String tag_name = tag.getTagName();
+					if (REPLACEMENT_TAG_MAP.containsKey(tag_name)) {
+						tags.put(REPLACEMENT_TAG_MAP.get(tag_name), tag.getDescription());
+					} else {
+						tags.put(tag.getTagName(), tag.getDescription());
+					}
+				}
+			}
+			// remove "sec" from exposure
+			if (tags.containsKey(EXPOSURE_TIME)){
+				tags.put(EXPOSURE_TIME, tags.get(EXPOSURE_TIME).split(" ")[0]);
+			}
+
+			for (String tagName : tags.keySet()) {
+				addGlobalMeta(tagName, tags.get(tagName));
+			} //{Makernote=105455 131072 127570 300581 171508736 171508736 171508736 171508736 169869312 124780556 1118544 0 0 327779 648 1296, Sub-Sec Time Original=560439, Exposure Time=11167/500000 sec, Date/Time Original=2019:05:13 04:30:26}
+
+		}
+		catch (ServiceException e) {
+			LOGGER.debug("Could not parse EXIF data", e);
+		}
+		long [] maker_note = null;
+		double exposure = Double.NaN;
+		String date_time = null;
+		if (tags.containsKey(MAKER_NOTE)){
+			String [] smn = tags.get(MAKER_NOTE).split(" ");
+			maker_note = new long[smn.length];
+			for (int i = 0; i < maker_note.length; i++) {
+				maker_note[i] = Integer.parseInt(smn[i]);
+			}
+		}
+		if (tags.containsKey(EXPOSURE_TIME)){
+			if (tags.get(EXPOSURE_TIME).contains("/")) {
+				String [] s = tags.get(EXPOSURE_TIME).split("/");
+				exposure = 1.0 * Integer.parseInt(s[0]) / Integer.parseInt(s[1].split(" ")[0]);
+			} else {
+				exposure = Double.parseDouble(tags.get(EXPOSURE_TIME));
+			}
+		}
+		if (tags.containsKey(DATE_TIME_ORIGINAL)){
+			date_time = tags.get(DATE_TIME_ORIGINAL);
+			if (tags.containsKey(SUB_SEC_TIME_ORIGINAL)){
+				date_time += "."+tags.get(SUB_SEC_TIME_ORIGINAL);
+			}
+		}
+//		int bytes_per_pixel =  1;
+		int bpp =   getBitsPerPixel();
+		int bytes_per_pixel =  (bpp + 7) / 9;
+		Hashtable<String, String> property_table = ElphelMeta.getMeta(
+				null, maker_note, exposure, date_time, bytes_per_pixel, true );
+		LOGGER.debug("Created elphelMeta table, size="+property_table.size());
+		for (String key:property_table.keySet()) {
+			addGlobalMeta(ELPHEL_PROPERTY_PREFIX+key,property_table.get(key));
+		}
+		MetadataLevel level = getMetadataOptions().getMetadataLevel();
+		if (level != MetadataLevel.MINIMUM) {
+			//			Integer[] tags = ifds.get(0).keySet().toArray(new Integer[0]);
+			//			LOGGER.debug("initStandardMetadata() - got "+tags.length+" tags");
+		}
+		addGlobalMeta(ELPHEL_PROPERTY_PREFIX+CONTENT_FILENAME,content_fileName);
+	}
+	
+	
 	/* @see loci.formats.IFormatReader#getSeriesUsedFiles(boolean) */
 	@Override
 	public String[] getSeriesUsedFiles(boolean noPixels) {
@@ -297,6 +457,7 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 	// -- Internal BaseTiffReader API methods --
 
 	/* @see BaseTiffReader#initStandardMetadata() */
+	/* Removed 08/03/2021 to match IP4
 	@Override
 	protected void initStandardMetadata() throws FormatException, IOException {
 		LOGGER.debug("initStandardMetadata() - before super()");
@@ -364,46 +525,10 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 		// check for ImageJ-style TIFF comment
 		boolean ij = checkCommentImageJ(comment);
 //		if (ij) parseCommentImageJ(comment);
-		/*
-		// check for MetaMorph-style TIFF comment
-		boolean metamorph = checkCommentMetamorph(comment);
-		if (metamorph && level != MetadataLevel.MINIMUM) {
-			parseCommentMetamorph(comment);
-		}
-		put("MetaMorph", metamorph ? "yes" : "no");
-
-		// check for other INI-style comment
-		if (!ij && !metamorph && level != MetadataLevel.MINIMUM) {
-			parseCommentGeneric(comment);
-		}
-		 */
-		// check for another file with the same name
-		/*
-		if (isGroupFiles()) {
-			Location currentFile = new Location(currentId).getAbsoluteFile();
-			String currentName = currentFile.getName();
-			Location directory = currentFile.getParentFile();
-			String[] files = directory.list(true);
-			if (files != null) {
-				for (String file : files) {
-					String name = file;
-					if (name.indexOf(".") != -1) {
-						name = name.substring(0, name.indexOf("."));
-					}
-
-					if (currentName.startsWith(name) &&
-							checkSuffix(name, COMPANION_SUFFIXES))
-					{
-						companionFile = new Location(directory, file).getAbsolutePath();
-						break;
-					}
-				}
-			}
-		}
-		*/
 	}
-
+	*/
 	  /* @see BaseTiffReader#initMetadataStore() */
+	/* Removed 08/03/2021 to match IP4
 	  @Override
 	protected void initMetadataStore() throws FormatException {
 	    super.initMetadataStore();
@@ -413,7 +538,7 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 //	    }
 	    populateMetadataStoreImageJ(store);
 	  }
-
+	 */
 	  /**
 	   * @see loci.formats.IFormatReader#openBytes(int, byte[], int, int, int, int)
 	   */

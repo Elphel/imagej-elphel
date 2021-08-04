@@ -45,6 +45,7 @@ import com.drew.metadata.Metadata;
 import com.drew.metadata.Tag;
 import com.drew.metadata.exif.ExifIFD0Directory;
 import com.drew.metadata.exif.ExifSubIFDDirectory;
+import com.drew.metadata.exif.GpsDirectory;
 
 import loci.common.ByteArrayHandle;
 import loci.common.Location;
@@ -69,7 +70,7 @@ public class ElphelJp4Reader  extends ImageIOReader{
 	public static final String ELPHEL_PROPERTY_PREFIX = "ELPHEL_";
 	public static final String CONTENT_FILENAME =       "CONTENT_FILENAME";
 	public static final boolean REORDER = true; // false;
-	public static final String[][] REPLACEMENT_TAGS = // to/from!
+	public static final String[][] REPLACEMENT_TAGS = // to/from! TODO: check/add for GPS?
 		   {{"SUBSEC_TIME_ORIGINAL",      "Sub-Sec Time Original"},
 			{"DATE_TIME_ORIGINAL",        "Date/Time Original"},
 			{"Instrument_Make",           "Make"},
@@ -91,7 +92,8 @@ public class ElphelJp4Reader  extends ImageIOReader{
 	private boolean file_initialized = false;
 	private byte [] image_bytes = null;
 	private ExifSubIFDDirectory directory;
-	private ExifIFD0Directory directory_ifd0;
+	private ExifIFD0Directory   directory_ifd0;
+	private GpsDirectory        directory_gps;
 	private HashMap<String,String> REPLACEMENT_TAG_MAP = null; // per instance
 
 
@@ -238,6 +240,7 @@ public class ElphelJp4Reader  extends ImageIOReader{
 		          Metadata metadata = ImageMetadataReader.readMetadata(jpegFile);
 		          directory =      metadata.getFirstDirectoryOfType(ExifSubIFDDirectory.class);
 		          directory_ifd0 = metadata.getFirstDirectoryOfType(ExifIFD0Directory.class);
+		          directory_gps =  metadata.getFirstDirectoryOfType(GpsDirectory.class);
 		        }
 		        catch (Throwable e) {
 		          throw new ServiceException("Could not read EXIF data", e);
@@ -263,6 +266,16 @@ public class ElphelJp4Reader  extends ImageIOReader{
 			}
 			if (directory_ifd0 != null) {
 				for (Tag tag : directory_ifd0.getTags()) {
+					String tag_name = tag.getTagName();
+					if (REPLACEMENT_TAG_MAP.containsKey(tag_name)) {
+						tags.put(REPLACEMENT_TAG_MAP.get(tag_name), tag.getDescription());
+					} else {
+						tags.put(tag.getTagName(), tag.getDescription());
+					}
+				}
+			}
+			if (directory_gps != null) {
+				for (Tag tag : directory_gps.getTags()) {
 					String tag_name = tag.getTagName();
 					if (REPLACEMENT_TAG_MAP.containsKey(tag_name)) {
 						tags.put(REPLACEMENT_TAG_MAP.get(tag_name), tag.getDescription());
@@ -321,8 +334,6 @@ public class ElphelJp4Reader  extends ImageIOReader{
 			//			LOGGER.debug("initStandardMetadata() - got "+tags.length+" tags");
 		}
 		addGlobalMeta(ELPHEL_PROPERTY_PREFIX+CONTENT_FILENAME,content_fileName);
-
-
 	}
 
 
