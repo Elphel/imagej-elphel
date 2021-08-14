@@ -50,6 +50,7 @@ public class SymmVector {
 	private int [] sym_indices;
 	private int num_defined;
 	private boolean [] used_indices;
+	private double [] cumul_influences;
 	public int debug_level =          -1;
 	
 	public SymmVector (
@@ -133,12 +134,13 @@ public class SymmVector {
 			}
 		}
 		boolean use_min_influence = true;
+		cumul_influences = new double[N];
 		for (int ivect = 0; ivect <= sym_indices.length; ivect++) { // <= to check for impossible
 			int best_index = 0;
 			int num_best0 = -1;
 			int num_best  = -1;
 			double best_height = -1.0;
-			double best_metrics = -1.0;
+//			double best_metrics = -1.0;
 			if (ivect == 0) {
 				best_index = 0;
 			} else {
@@ -146,7 +148,9 @@ public class SymmVector {
 				double [] new_mins =    use_min_influence ? getNewMins() : null;
 //				double [] metrics = new_heights.clone();
 //				best_index =        bestVector(metrics);
-				best_index =        bestVector(best_delta, new_heights, new_mins);
+//				best_index =        bestVector(best_delta, new_heights, new_mins);
+				best_index =        bestVector(best_delta, new_heights, best_delta, new_mins, cumul_influences);
+				
 				if (ivect == 1) {
 					if (debug_level > -1) System.out.println("Vector # "+ivect+": overwriting best_index= "+best_index+" with 1");
 					best_index = 1; // overwrite
@@ -288,6 +292,10 @@ public class SymmVector {
 		for (int j = 0; j < 2 *N; j++) {
 			dvectors[indx][j] *= scale; 
 		}
+		double [] ni = getNormInfluence(dvectors[indx]);
+		for (int j = 0; j < N; j++) {
+			cumul_influences[j] += ni[j];
+		}
 	}
 	
 	private double[] remove_projection(double [] new_vect, double [] used_vect) { // |used_vect| === 1.0);
@@ -396,6 +404,57 @@ public class SymmVector {
 		}
 		return num_best;
 	}	
+
+	private int bestVector(double delta_primary, double [] primary, double delta_secondary, double [] secondary, double[] cumul_influences) {
+		if (cumul_influences == null) {
+			return bestVector(delta_primary, primary, secondary);
+		}
+		int ibest = bestVector(primary);
+		double threshold = primary[ibest] * (1.0 - delta_primary);
+		boolean [] mask = new boolean [primary.length];
+		for (int i = 0; i < primary.length; i++) {
+			mask[i] = primary[i] >= threshold;
+		}
+		ibest = bestVector(secondary, mask);
+		threshold = secondary[ibest] * (1.0 - delta_secondary);
+		int num_best = 0;
+		for (int i = 0; i < secondary.length; i++) {
+			if (mask[i] ) {
+				if (secondary[i] >= threshold) {
+					num_best++;
+				} else {
+					mask[i] = false;
+				}
+			}
+		}
+		boolean same_cumul = true;
+		for (int j = 1; j < N; j++) {
+			if (cumul_influences[j] != cumul_influences[0]) {
+				same_cumul = false;
+				break;
+			}
+		}
+		if (!same_cumul) {
+			System.out.print("");
+		}
+		//Balancing influences does not seem to work - all the remaining have them exactly the same
+		double [] corr = new double[mask.length];
+		for (int i = 0; i < mask.length; i++) if (mask[i]){
+			double [] ni = getNormInfluence(dvectors[i]);
+			for (int j = 0; j < N; j++) {
+				corr[i] += cumul_influences[j] * ni[j]; // best has minimal value (most negative)
+			}
+		}
+		int best_index = -1;
+		for (int i = 0; i < mask.length; i++) if (mask[i]){
+			if ((best_index < 0) || (corr[i] < corr[best_index])) {
+				best_index = i;
+			}
+		}		
+		
+		return best_index;
+	}	
+	
 	
 	
 	private int getNumBest(double delta, double [] primary) {
