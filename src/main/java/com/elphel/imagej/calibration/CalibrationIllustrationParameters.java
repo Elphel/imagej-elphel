@@ -24,7 +24,8 @@ public class CalibrationIllustrationParameters {
 	double [][]            lwir_offset_gains; // for balancing channels [0] - offset (subtract) [1] - gain (divide) 
 	int                    palette = 0; // 0 - white - hot, 1 - black - hot, 2+ - colored
 	String                 src_chn_prefix="src_chn-";
-	boolean                save_png = true;
+	boolean                save_png =    true;
+	boolean                save_png_eo = false;
 	int                    JPEG_quality = 90;
 	String                 channel_dir_prefix = "chn_";
 	double [][]            eo_rb2g_hi; // []{r2g,b2g,rgb_hi}
@@ -142,6 +143,7 @@ public class CalibrationIllustrationParameters {
 		}		
 		properties.setProperty(prefix+"palette",            this.palette+"");
 		properties.setProperty(prefix+"save_png",           this.save_png+"");
+		properties.setProperty(prefix+"save_png_eo",        this.save_png_eo+"");
 		properties.setProperty(prefix+"JPEG_quality",       this.JPEG_quality+"");
 		properties.setProperty(prefix+"channel_dir_prefix", this.channel_dir_prefix);
 		for (int i = 0; i < eo_rb2g_hi.length; i++) {
@@ -258,8 +260,9 @@ public class CalibrationIllustrationParameters {
 		 */
 		
 		
-		if (properties.getProperty(prefix+"palette")!=null)      this.palette = Integer.parseInt(properties.getProperty(prefix+"palette"));
-		if (properties.getProperty(prefix+"save_png")!=null)     this.save_png = Boolean.parseBoolean(properties.getProperty(prefix+"save_png"));
+		if (properties.getProperty(prefix+"palette")!=null)      this.palette =     Integer.parseInt(properties.getProperty(prefix+"palette"));
+		if (properties.getProperty(prefix+"save_png")!=null)     this.save_png =    Boolean.parseBoolean(properties.getProperty(prefix+"save_png"));
+		if (properties.getProperty(prefix+"save_png_eo")!=null)  this.save_png_eo = Boolean.parseBoolean(properties.getProperty(prefix+"save_png_eo"));
 		if (properties.getProperty(prefix+"JPEG_quality")!=null) this.JPEG_quality = Integer.parseInt(properties.getProperty(prefix+"JPEG_quality"));
 		if (properties.getProperty(prefix+"channel_dir_prefix")!=null) this.channel_dir_prefix = (String) properties.getProperty(prefix+"channel_dir_prefix");
 
@@ -399,7 +402,8 @@ public class CalibrationIllustrationParameters {
         	gd.addCheckbox("Use station "+i, ((this.station_sel >> i) & 1) != 0, "Include Station "+i+" in generated files.");
         }
     	gd.addCheckbox("Include station number in result file names", this.station_in_filenames, "Use station number as a part of the result file names.");
-		gd.addCheckbox("Save as PNG instead of JPEG", save_png);
+		gd.addCheckbox("Save as PNG instead of JPEG (LWIR channels)", save_png);
+		gd.addCheckbox("Save as PNG instead of JPEG (RGB channels)", save_png_eo);
 		gd.addNumericField("JPEG quality", this.JPEG_quality,  0,3,"","JPEG quality, 0 - use Tiff");
 		gd.addNumericField("Threshold contrast",  this.threshold_contrast,   3,6,"","Consider grid nodes with higher contrast to determine bad grids.");
 		gd.addNumericField("Minimal number of high-contrast nodes", this.threshold_number,  0,3,"","Consider a failed grid if the number of strong nodes is below this.");
@@ -531,6 +535,7 @@ public class CalibrationIllustrationParameters {
 		}
 		this.station_in_filenames =               gd.getNextBoolean();
 		this.save_png =                           gd.getNextBoolean();
+		this.save_png_eo =                        gd.getNextBoolean();
 		this.JPEG_quality =                 (int) gd.getNextNumber();
 		this.threshold_contrast =                 gd.getNextNumber();
 		this.threshold_number=              (int) gd.getNextNumber();
@@ -689,6 +694,10 @@ public class CalibrationIllustrationParameters {
 	}
 	public boolean usePNG() {
 		return this.save_png;
+	}
+
+	public boolean usePNG_EO() {
+		return this.save_png_eo;
 	}
 	public int getJPEG_quality() {
 		return this.JPEG_quality;

@@ -6,8 +6,12 @@ import java.awt.Font;
 import java.awt.Rectangle;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.elphel.imagej.calibration.DistortionCalibrationData.GridImageParameters;
@@ -350,7 +354,7 @@ public class CalibrationIllustration {
 							EyesisCorrections.saveAndShow(
 									imp_ill,
 									chn_ill_dir,
-									illustrationParameters.save_png,
+									illustrationParameters.usePNG(),
 									false, // show
 									illustrationParameters.JPEG_quality, //  <0 - keep current, 0 - force Tiff, >0 use for JPEG
 									0); // debug_level); 
@@ -448,7 +452,7 @@ public class CalibrationIllustration {
 			EyesisCorrections.saveAndShow(
 					imp_ill,
 					dest_dir, // chn_ill_dir,
-					illustrationParameters.save_png,
+					illustrationParameters.usePNG(),
 					false, // show
 					illustrationParameters.JPEG_quality, //  <0 - keep current, 0 - force Tiff, >0 use for JPEG
 					0); // debug_level); 
@@ -528,7 +532,7 @@ public class CalibrationIllustration {
 			EyesisCorrections.saveAndShow(
 					imp_ill,
 					dest_dir, // chn_ill_dir,
-					illustrationParameters.save_png,
+					illustrationParameters.usePNG(),
 					false, // show
 					illustrationParameters.JPEG_quality, //  <0 - keep current, 0 - force Tiff, >0 use for JPEG
 					0); // debug_level); 
@@ -695,10 +699,112 @@ public class CalibrationIllustration {
 		return imp;
 	}
 	
+	public boolean addMissingAsLinks() {
+		String footage_dir = eyesisAberrations.aberrationParameters.illustrationsDirectory+Prefs.getFileSeparator()+FOOTAGE_DIR;
+		File f_footage_dir=new File(footage_dir);
+		if (!f_footage_dir.isDirectory()) {
+			String msg="Directory "+footage_dir+" does not exist, aborting";
+			IJ.showMessage("Warning",msg);
+    		System.out.println("Warning: "+msg);
+    		return false;
+		}
+		int ref_chn = 0; // assume 
+// 1627878701_134650_14-footage.png
+// 1627878701_134650_16-footage.jpeg
+//			String chn_foot_dir = footage_dir+Prefs.getFileSeparator()+ illustrationParameters.getChannelPrefix()+String.format("%02d", nChn);
+//file:///home/eyesis/lwir16-proc/captures/floras_lake/footage-illustrations/footage/chn_00/1627878701_134650_0-footage.png		
+		String ref_dir = footage_dir+Prefs.getFileSeparator()+ illustrationParameters.getChannelPrefix()+String.format("%02d", ref_chn);
+		File f_ref_dir=new File(ref_dir);
+		File[] ref_files=f_ref_dir.listFiles(); // all files
+//		String[] ref_ts = new String [ref_files.length];
+		ArrayList<String> ref_ts_list = new ArrayList<String>();
+
+		for (int i = 0; i < ref_files.length; i++) {
+			String p = ref_files[i].getPath();
+			int [] start_end = getStartEndTS(p);
+			if (start_end != null) {
+				ref_ts_list.add(p.substring(start_end[0],start_end[1]));
+			}
+		}
+		Collections.sort(ref_ts_list);
+		String [] ref_ts = ref_ts_list.toArray(new String[0]);
+		boolean [] selectedChannels =  illustrationParameters.getSelectedChannels();
+		for (int nChn = 0; nChn < selectedChannels.length; nChn++) if (selectedChannels[nChn] && (lwirReaderParameters.getTypeMap()[nChn]==LwirReaderParameters.TYPE_EO)) {
+			String eo_dir = footage_dir+Prefs.getFileSeparator()+ illustrationParameters.getChannelPrefix()+String.format("%02d", nChn);
+			File f_eo_dir=new File(eo_dir);
+			File[] eo_files=f_eo_dir.listFiles(); // all files
+			String [] eo_paths = new String [eo_files.length];
+			for (int i = 0; i < eo_files.length; i++) {
+				eo_paths[i] = eo_files[i].getPath();
+			}
+			Arrays.sort(eo_paths); // assuming single directory
+			String last_path = eo_paths[0];
+			int chn_indx = 0;
+			for (int ref_indx = 0; ref_indx < ref_ts.length; ref_indx++) {
+				int [] start_end = null;
+				String chn_ts = ""; //eo_paths[chn_indx];
+				if (chn_indx < eo_paths.length) {
+					start_end = getStartEndTS(eo_paths[chn_indx]);
+				}
+				if (start_end != null) {
+					chn_ts =eo_paths[chn_indx].substring(start_end[0],start_end[1]);
+				}
+				if (ref_ts[ref_indx].equals(chn_ts)) {
+					if (! Files.isSymbolicLink(Paths.get(eo_paths[chn_indx]))) {
+						last_path = eo_paths[chn_indx];
+					}
+					chn_indx++;
+				} else {
+					start_end = getStartEndTS(last_path);
+					String linked_path = last_path.substring(0,start_end[0])+ref_ts[ref_indx]+last_path.substring(start_end[1]);
+					Path newLink = Paths.get(linked_path);
+					Path target =  Paths.get(last_path);
+					try {
+					    Files.createSymbolicLink(newLink, target);
+					} catch (IOException x) {
+					    System.err.println(x);
+					} catch (UnsupportedOperationException x) {
+					    // Some file systems do not support symbolic links.
+					    System.err.println(x);
+					}
+				}
+				
+			}
+		}
+		return true;
+	}
 	
-	public boolean convertCapturedFiles() {
+	public int [] getStartEndTS(String p) {
+		int istart = p.lastIndexOf(Prefs.getFileSeparator());
+		if (istart < 0) {
+			istart = 0;
+		} else {
+			istart++;
+		}
+		int iend = p.indexOf('_', istart);
+		if (iend > 0) {
+			iend = p.indexOf('_', iend+1); // second "_"
+			if (iend > 0) {
+				return new int[] {istart,iend};
+			}
+		}
+		return null;
+	}
+	
+	public boolean convertCapturedLwirFiles() {
 		long startTime=System.nanoTime(); // restart timer after possible interactive dialogs
 		final boolean [] selectedChannels =  illustrationParameters.getSelectedChannels();
+		boolean has_lwir = false;
+		for (int iChn = 0; iChn < selectedChannels.length; iChn++) {
+			if (selectedChannels[iChn] && (lwirReaderParameters.getTypeMap()[iChn]==LwirReaderParameters.TYPE_LWIR)) {
+				has_lwir = true;
+				break;
+			}
+		}
+		if (!has_lwir) {
+			System.out.println("No LWIR channels to process");
+			return false;
+		}
 
 
 		
@@ -745,9 +851,9 @@ public class CalibrationIllustration {
 //			return false; // temporarily
 		}
 		double [][] offs_gains = illustrationParameters.getLWIROffsetGains();
-		// double [][] illustrationParameters.getLWIROffsetGains() 16-element long, lwir - only
 		// create directories before threads
 		for (int nChn = 0; nChn < selectedChannels.length; nChn++) if (selectedChannels[nChn] && (lwirReaderParameters.getTypeMap()[nChn]==LwirReaderParameters.TYPE_LWIR)) {
+//		for (int nChn = 0; nChn < selectedChannels.length; nChn++) if (selectedChannels[nChn]) {
 			String footage_dir = eyesisAberrations.aberrationParameters.illustrationsDirectory+Prefs.getFileSeparator()+FOOTAGE_DIR;
 			String chn_foot_dir = footage_dir+Prefs.getFileSeparator()+ illustrationParameters.getChannelPrefix()+String.format("%02d", nChn);
 			// create directory if it does not exist
@@ -838,7 +944,7 @@ public class CalibrationIllustration {
 				for (int i = 0; i < histogram.length; i++) {
 					sum_hist += histogram[i];
 				}
-				// normailize, sum(hist) == 1.0;
+				// normalize, sum(hist) == 1.0;
 				double k = 1.0/sum_hist;
 				for (int b = 0; b < histogram.length; b++) {
 					histogram[b] *= k; 
@@ -1002,8 +1108,10 @@ public class CalibrationIllustration {
 									scene_title = scene_title.substring(scene_title.lastIndexOf(Prefs.getFileSeparator())+1);
 								}
 								ImageProcessor ip = imp_out.getProcessor();
-								int posX=521;
-								int posY=513;
+								int posX= width - 119; // 521;
+								int posY= height + 1;  // 513;
+//								int posX=521;
+//								int posY=513;
 								Font font =    new Font("Monospaced", Font.PLAIN, 12);
 								ip.setColor(illustrationParameters.color_annotate); // Color.BLUE);
 								ip.setFont(font);
@@ -1023,7 +1131,7 @@ public class CalibrationIllustration {
 							EyesisCorrections.saveAndShow(
 									imp_out,
 									chn_foot_dir,
-									illustrationParameters.save_png,
+									illustrationParameters.usePNG(),
 									false, // show
 									illustrationParameters.JPEG_quality, //  <0 - keep current, 0 - force Tiff, >0 use for JPEG
 									((nChn==0)?1:0)); // print only for channel 0 
@@ -1084,8 +1192,13 @@ public class CalibrationIllustration {
 									scene_title = scene_title.substring(scene_title.lastIndexOf(Prefs.getFileSeparator())+1);
 								}
 								ImageProcessor ip = imp_out.getProcessor();
-								int posX=521;
-								int posY=513;
+//								int posX=521;
+//								int posY=513;
+								int width =  imp_out.getWidth();
+								int height = imp_out.getHeight();
+								int posX= width - 119; // 521;
+								int posY= height + 1;  // 513;
+ 
 								Font font =    new Font("Monospaced", Font.PLAIN, 12);
 								ip.setColor(illustrationParameters.color_annotate); // Color.BLUE);
 								ip.setFont(font);
@@ -1104,7 +1217,7 @@ public class CalibrationIllustration {
 							EyesisCorrections.saveAndShow(
 									imp_out,
 									chn_foot_dir,
-									illustrationParameters.save_png,
+									illustrationParameters.usePNG(),
 									false, // show
 									illustrationParameters.JPEG_quality, //  <0 - keep current, 0 - force Tiff, >0 use for JPEG
 									0); // debug_level); 
@@ -1119,9 +1232,111 @@ public class CalibrationIllustration {
 		return true;
 	}
 	
+
+	public boolean convertCapturedEoFiles() {
+		long startTime=System.nanoTime(); // restart timer after possible interactive dialogs
+		final boolean [] selectedChannels =  illustrationParameters.getSelectedChannels();
+		boolean has_eo = false;
+		for (int iChn = 0; iChn < selectedChannels.length; iChn++) {
+			if (selectedChannels[iChn] && (lwirReaderParameters.getTypeMap()[iChn]==LwirReaderParameters.TYPE_EO)) {
+				has_eo = true;
+				break;
+			}
+		}
+		if (!has_eo) {
+			System.out.println("No EO channels to process");
+			return false;
+		}
+		final CapturedScene [] captured_scenes = listCapturedScenes( // will return only scenes that have all 4 EO channels
+				eyesisAberrations.aberrationParameters.capturedDirectory, // String   captured_path,
+				illustrationParameters.min_ts,// double   min_ts,
+				illustrationParameters.max_ts,// double   max_ts,
+				illustrationParameters.captures_all_lwir,
+				illustrationParameters.captures_all_eo,
+				illustrationParameters.captures_all); // true); // illustrationParameters.captures_all_lwir); // illustrationParameters.captures_all);
+			
+		
+   		final Thread[] threads = newThreadArray(MAX_THREADS);
+   		final AtomicInteger indxAtomic = new AtomicInteger(0);
+		final int eo0 =   illustrationParameters.getLwirReaderParameters().getEoChn0();
+		
+		for (int iChn = 0; iChn < selectedChannels.length; iChn++) if (selectedChannels[iChn] && (lwirReaderParameters.getTypeMap()[iChn]==LwirReaderParameters.TYPE_EO)) {
+			final int nChn=iChn;
+			indxAtomic.set(0);
+			// Create directory before threads
+			String footage_dir = eyesisAberrations.aberrationParameters.illustrationsDirectory+Prefs.getFileSeparator()+FOOTAGE_DIR;
+			String chn_foot_dir = footage_dir+Prefs.getFileSeparator()+ illustrationParameters.getChannelPrefix()+String.format("%02d", nChn);
+			// create directory if it does not exist
+			File destDir= new File (chn_foot_dir);
+			if (!destDir.exists()){
+				if (!destDir.mkdirs()) {
+					IJ.showMessage("Error","Failed to create results directory "+chn_foot_dir);
+					continue;
+				}
+			}
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					@Override
+					public void run() {
+						ImagejJp4Tiff imagejJp4Tiff = new ImagejJp4Tiff();
+						for (int nScene = indxAtomic.getAndIncrement(); nScene < captured_scenes.length; nScene = indxAtomic.getAndIncrement()) {
+							ImagePlus imp_out =  convertCapturedEO(
+									imagejJp4Tiff,                               // ImagejJp4Tiff imagejJp4Tiff,
+									captured_scenes[nScene].images[nChn],        // String      src_path,
+									nChn - eo0,                                  // int         eo_chn,
+									illustrationParameters.eo_rb2g_hi,           // double [][] eo_rb2g_hi,
+									illustrationParameters.getSaturation(),      // double      saturation,
+									illustrationParameters.getGamma(),           // double      gamma,
+									illustrationParameters.getMinLin());          // double      minlin_gamma, // do not apply gamma to lower values
+							if (imp_out == null) {
+								continue;
+							}
+							if (illustrationParameters.captures_annotate) {
+								String scene_title = captured_scenes[nScene].name;
+								if (scene_title.lastIndexOf(Prefs.getFileSeparator()) > 0) {
+									scene_title = scene_title.substring(scene_title.lastIndexOf(Prefs.getFileSeparator())+1);
+								}
+								ImageProcessor ip = imp_out.getProcessor();
+								int width =  imp_out.getWidth();
+								int height = imp_out.getHeight();
+								int posX= width - 119; // 521;
+								int posY= height + 1;  // 513;
+								Font font =    new Font("Monospaced", Font.PLAIN, 12);
+								ip.setColor(illustrationParameters.color_annotate); // Color.BLUE);
+								ip.setFont(font);
+								ip.drawString(scene_title, posX, posY,Color.BLACK); 
+							}
+							String footage_dir = eyesisAberrations.aberrationParameters.illustrationsDirectory+Prefs.getFileSeparator()+FOOTAGE_DIR;
+							String chn_foot_dir = footage_dir+Prefs.getFileSeparator()+ illustrationParameters.getChannelPrefix()+String.format("%02d", nChn);
+							// create directory if it does not exist
+							File destDir= new File (chn_foot_dir);
+							if (!destDir.exists()){
+								if (!destDir.mkdirs()) {
+									IJ.showMessage("Error","Failed to create results directory "+chn_foot_dir);
+									continue;
+								}
+							}
+							EyesisCorrections.saveAndShow(
+									imp_out,
+									chn_foot_dir,
+									illustrationParameters.usePNG_EO(),
+									false, // show
+									illustrationParameters.JPEG_quality, //  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+									0); // debug_level); 
+						}
+					}
+				};
+			}
+			startAndJoin(threads);
+		}
+		System.out.println("All done in "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec.");
+		return true;
+	}
 	
 	
-	ImagePlus convertCapturedLWIR(
+	
+	
+	ImagePlus convertCapturedLWIR( // not used
 			ImagejJp4Tiff imagejJp4Tiff,
 			String    src_path,
 			double    abs_min,
@@ -1281,6 +1496,85 @@ public class CalibrationIllustration {
 		return imp_footage;
 	}
 	
+
+	ImagePlus convertCapturedEO(
+			ImagejJp4Tiff imagejJp4Tiff,
+			String      src_path,
+			int         eo_chn,
+			double [][] eo_rb2g_hi,
+			double      saturation,
+			double      gamma,
+			double      minlin_gamma) { // do not apply gamma to lower values
+//			boolean     captures_annotate, 
+//		    Color       color_annotate) {
+// read source image		
+		ImagePlus imp_src = null;
+		try {
+			imp_src= imagejJp4Tiff.readTiffJp4(src_path);
+		} catch (IOException e) {
+			System.out.println("convertCapturedEO IOException " + src_path);
+		} catch (FormatException e) {
+			System.out.println("convertCapturedEO FormatException " + src_path);
+		}
+		if (imp_src == null) {
+			return null;
+		}
+		int width = imp_src.getWidth();
+		int height = imp_src.getHeight();
+		String title = imp_src.getTitle();
+		if (title.lastIndexOf(".") > 0) {
+			title = title.substring(0, title.lastIndexOf("."));
+		}
+		if (title.lastIndexOf(Prefs.getFileSeparator()) > 0) {
+			title = title.substring(title.lastIndexOf(Prefs.getFileSeparator())+1);
+		}
+		String title_footage = title+"-footage";
+		
+		ImageStack stack = null;
+		double [][]  pseudo_pixels;
+//		int line_width = 1; // illustrationParameters.getLineWidthLwir();
+		double [][] drgb = MatchSimulatedPattern.simpleDemosaic(
+				imp_src,
+				eo_rb2g_hi[eo_chn][0],  // r2g,
+				eo_rb2g_hi[eo_chn][1],  // b2g,
+				saturation,             // saturation,
+				gamma,                  // gamma,
+				minlin_gamma,           //minlin_gamma, // do not apply gamma to lower values
+				eo_rb2g_hi[eo_chn][2]); // ,rgb_hi);        // map to 255, gamma will preserve
+		pseudo_pixels = new double [4][];
+		for (int i = 0; i < drgb.length; i++) {
+			pseudo_pixels[i] = drgb[i];
+		}
+		pseudo_pixels[3] = new double [pseudo_pixels[0].length];
+		Arrays.fill(pseudo_pixels[3], 1.0);
+		
+
+		String [] rgb_titles =  {"red","green","blue","alpha"};
+		stack = (new  ShowDoubleFloatArrays()).makeStack(
+				pseudo_pixels, // iclt_data,
+				width,         // (tilesX + 0) * clt_parameters.transform_size,
+				height,        // (tilesY + 0) * clt_parameters.transform_size,
+				rgb_titles,    // or use null to get chn-nn slice names
+				true);         // replace NaN with 0.0
+		ImagePlus imp_footage =  EyesisCorrections.convertRGBAFloatToRGBA32(
+				stack,   // ImageStack stackFloat, //r,g,b,a
+				//						name+"ARGB"+suffix, // String title,
+				title_footage, // String title,
+				0.0,   // double r_min,
+				255.0, // double r_max,
+				0.0,   // double g_min,
+				255.0, // double g_max,
+				0.0,   // double b_min,
+				255.0, // double b_max,
+				0.0,   // double alpha_min,
+				1.0);  // double alpha_max)
+		return imp_footage;
+	}
+	
+	
+	
+	
+	
 	class CapturedScene{
 		String   name;
 		String[] images; // indexed by channel
@@ -1353,7 +1647,7 @@ public class CalibrationIllustration {
 				continue;
 			}
 			if (captures_all_eo &&
-					(ns[LwirReaderParameters.TYPE_EO] > 0 ) &&
+					((ns[LwirReaderParameters.TYPE_EO] > 0 ) || captures_all) && // captures_all - zero is not an option
 					(ns[LwirReaderParameters.TYPE_EO] < num_sensors[LwirReaderParameters.TYPE_EO])) {
 				continue;
 			}
@@ -1834,7 +2128,7 @@ public class CalibrationIllustration {
 								EyesisCorrections.saveAndShow(
 										imp_annot,
 										chn_ill_dir,
-										illustrationParameters.save_png,
+										illustrationParameters.usePNG(),
 										false, // show
 										illustrationParameters.JPEG_quality, //  <0 - keep current, 0 - force Tiff, >0 use for JPEG
 										0); // debug_level); 

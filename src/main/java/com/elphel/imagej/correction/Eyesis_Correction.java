@@ -95,6 +95,7 @@ import com.elphel.imagej.tileprocessor.ErsCorrection;
 import com.elphel.imagej.tileprocessor.ImageDtt;
 import com.elphel.imagej.tileprocessor.MLStats;
 import com.elphel.imagej.tileprocessor.QuadCLT;
+import com.elphel.imagej.tileprocessor.SymmVector;
 import com.elphel.imagej.tileprocessor.TwoQuadCLT;
 
 import ij.CompositeImage;
@@ -150,7 +151,8 @@ private Panel panel1,
          panelClt4,
          panelClt5,
          panelClt_GPU,
-         panelLWIR
+         panelLWIR,
+         panelLWIR16
          ;
    JP46_Reader_camera JP4_INSTANCE=null;
 
@@ -191,7 +193,9 @@ private Panel panel1,
    // Add macro for GPU_QUAD?
    public static GPUTileProcessor.GpuQuad GPU_QUAD =     null;
    public static GPUTileProcessor.GpuQuad GPU_QUAD_AUX = null;
-   public static LwirReader       LWIR_READER = null;
+   public static LwirReader       LWIR_READER =          null;
+   public static SymmVector       SYMM_VECTOR_EO =       null;
+   public static SymmVector       SYMM_VECTOR_LWIR =     null;
 
    public static EyesisCorrectionParameters.DebayerParameters DEBAYER_PARAMETERS = new EyesisCorrectionParameters.DebayerParameters(
 		   64,    // size //128;
@@ -489,7 +493,7 @@ private Panel panel1,
 		};
 		instance=plugInFrame;
 		plugInFrame.addKeyListener(IJ.getInstance());
-		int menuRows=4 + (ADVANCED_MODE?4:0) + (MODE_3D?3:0) + (DCT_MODE?6:0) + (GPU_MODE?1:0) +(LWIR_MODE?1:0);
+		int menuRows=4 + (ADVANCED_MODE?4:0) + (MODE_3D?3:0) + (DCT_MODE?6:0) + (GPU_MODE?1:0) +(LWIR_MODE?2:0);
 		plugInFrame.setLayout(new GridLayout(menuRows, 1));
 		panel6 = new Panel();
 		panel6.setLayout(new GridLayout(1, 0, 5, 5));
@@ -760,10 +764,16 @@ private Panel panel1,
 			addButton("AUX OUT 3D",                 panelLWIR, color_process_aux);
 			addButton("Main img AUX",               panelLWIR, color_process_aux);
 			addButton("Main to AUX",                panelLWIR, color_process_aux);
-			addButton("LWIR batch",                  panelClt4, color_process);
+			addButton("LWIR batch",                 panelClt4, color_process);
 //			addButton("LWIR_TEST",                  panelLWIR, color_conf_process);
 //			addButton("LWIR_ACQUIRE",               panelLWIR, color_conf_process);
 			plugInFrame.add(panelLWIR);
+			
+			panelLWIR16 = new Panel();
+			panelLWIR16.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
+			addButton("Generate Sym Vectors",       panelLWIR16, color_configure);
+			plugInFrame.add(panelLWIR16);
+			
 		}
 		plugInFrame.pack();
 //"LWIR batch"
@@ -5288,6 +5298,60 @@ private Panel panel1,
 		/* ======================================================================== */
     } else if (label.equals("Rotations_test")) {
     	ErsCorrection.test_rotations();
+    	
+    } else if (label.equals("Generate Sym Vectors")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	ErsCorrection.test_rotations();
+    	boolean full_type1 = false;
+    	boolean full_type2 = false;
+    	int num_cameras = 4; // will try other values
+    	SYMM_VECTOR_EO = new SymmVector (
+    			num_cameras, // int num_cameras,
+    			full_type1, // boolean full_type1,  // false - all R or all T, true - mixed
+    			full_type2, // boolean full_type2) {// false - quarter 3 is negated quarter 1, true - independent
+    			DEBUG_LEVEL);
+    	num_cameras = 8; // will try other values
+    	SYMM_VECTOR_LWIR = new SymmVector (
+    			num_cameras, // int num_cameras,
+    			full_type1, // boolean full_type1,  // false - all R or all T, true - mixed
+    			full_type2, // boolean full_type2) {// false - quarter 3 is negated quarter 1, true - independent
+    			DEBUG_LEVEL);
+    	num_cameras = 12; // will try other values
+    	SYMM_VECTOR_LWIR = new SymmVector (
+    			num_cameras, // int num_cameras,
+    			full_type1, // boolean full_type1,  // false - all R or all T, true - mixed
+    			full_type2, // boolean full_type2) {// false - quarter 3 is negated quarter 1, true - independent
+    			DEBUG_LEVEL);
+    	num_cameras = 16;
+    	SYMM_VECTOR_LWIR = new SymmVector (
+    			num_cameras, // int num_cameras,
+    			full_type1, // boolean full_type1,  // false - all R or all T, true - mixed
+    			full_type2, // boolean full_type2) {// false - quarter 3 is negated quarter 1, true - independent
+    			DEBUG_LEVEL);
+    	num_cameras = 20;
+    	SYMM_VECTOR_LWIR = new SymmVector (
+    			num_cameras, // int num_cameras,
+    			full_type1, // boolean full_type1,  // false - all R or all T, true - mixed
+    			full_type2, // boolean full_type2) {// false - quarter 3 is negated quarter 1, true - independent
+    			DEBUG_LEVEL);
+    	num_cameras = 24;
+    	SYMM_VECTOR_LWIR = new SymmVector (
+    			num_cameras, // int num_cameras,
+    			full_type1, // boolean full_type1,  // false - all R or all T, true - mixed
+    			full_type2, // boolean full_type2) {// false - quarter 3 is negated quarter 1, true - independent
+    			DEBUG_LEVEL);
+    	num_cameras = 28;
+    	SYMM_VECTOR_LWIR = new SymmVector (
+    			num_cameras, // int num_cameras,
+    			full_type1, // boolean full_type1,  // false - all R or all T, true - mixed
+    			full_type2, // boolean full_type2) {// false - quarter 3 is negated quarter 1, true - independent
+    			DEBUG_LEVEL);
+    	num_cameras = 32;
+    	SYMM_VECTOR_LWIR = new SymmVector (
+    			num_cameras, // int num_cameras,
+    			full_type1, // boolean full_type1,  // false - all R or all T, true - mixed
+    			full_type2, // boolean full_type2) {// false - quarter 3 is negated quarter 1, true - independent
+    			DEBUG_LEVEL);
 //JTabbedTest
 // End of buttons code
     }

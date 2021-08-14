@@ -1074,6 +1074,7 @@ if (MORE_BUTTONS) {
 		addButton("Illustrations",              panelIllustrations,color_bundle);
 		addButton("Illustrate Kernels",         panelIllustrations,color_process);
 		addButton("Illustrate Footage",         panelIllustrations,color_process);
+		addButton("Link Missing",               panelIllustrations,color_process); // add missing low-fps RGB images as links
 		
 		add(panelIllustrations);
 		
@@ -9451,12 +9452,6 @@ if (MORE_BUTTONS) {
 	}
 /* ======================================================================== */
 	if       (label.equals("Illustrate Footage")) {
-//		if (LENS_DISTORTIONS==null) {
-//			IJ.showMessage("LENS_DISTORTION is not set"); // to use all grids imported
-//			return;
-//		}
-//		EYESIS_ABERRATIONS.setDistortions(LENS_DISTORTIONS);
-		
 		if (EYESIS_ABERRATIONS.aberrationParameters.illustrationsDirectory.length()>0){
 			File dFile=new File(EYESIS_ABERRATIONS.aberrationParameters.illustrationsDirectory);
 			if (!dFile.isDirectory() &&  !dFile.mkdirs()) {
@@ -9500,10 +9495,31 @@ if (MORE_BUTTONS) {
 					SYNC_COMMAND.stopRequested,  // 	AtomicInteger                  stopRequested,
 					MASTER_DEBUG_LEVEL);         // 		int                            debug_level);
 		}
-		CALIBRATION_ILLUSTRATION.convertCapturedFiles();
+		CALIBRATION_ILLUSTRATION.convertCapturedLwirFiles();
+		CALIBRATION_ILLUSTRATION.convertCapturedEoFiles();
 		return;
 	}
-//	
+/* ======================================================================== */
+	if       (label.equals("Link Missing") ) {
+		File dFile=new File(EYESIS_ABERRATIONS.aberrationParameters.illustrationsDirectory);
+		if (!dFile.isDirectory()) {
+			String msg="Directory "+EYESIS_ABERRATIONS.aberrationParameters.illustrationsDirectory+" does not exist, aborting";
+			IJ.showMessage("Warning",msg);
+    		System.out.println("Warning: "+msg);
+    		return;
+		}
+		if (CALIBRATION_ILLUSTRATION == null) { //LWIR_PARAMETERS
+			CALIBRATION_ILLUSTRATION = new CalibrationIllustration(
+					LWIR_PARAMETERS,             // LwirReaderParameters           lwirReaderParameters,
+					CALIBRATION_ILLUSTRATION_PARAMETERS, // CalibrationIllustrationParameters illustrationParameters,			
+					EYESIS_ABERRATIONS,          // EyesisAberrations eyesisAberrations,
+					LENS_DISTORTIONS,            // Distortions       distortions,
+					SYNC_COMMAND.stopRequested,  // 	AtomicInteger                  stopRequested,
+					MASTER_DEBUG_LEVEL);         // 		int                            debug_level);
+		}
+		CALIBRATION_ILLUSTRATION.addMissingAsLinks();
+		return;
+	}
 /* ======================================================================== */
 	if       (label.equals("Illustrate Kernels")) {
 		if (EYESIS_ABERRATIONS.aberrationParameters.illustrationsDirectory.length()>0){
