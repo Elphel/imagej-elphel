@@ -1,4 +1,7 @@
 package com.elphel.imagej.tileprocessor;
+
+import java.util.ArrayList;
+
 /**
  **
  ** SymmVector - Generating symmetrical geometry correction vectors for multi-camera
@@ -46,11 +49,22 @@ public class SymmVector {
 	private int [][] proto_type3 =       new int [0][];        // non-quad 
 	
 	private int [][] proto_all;          //
+
 	private double [][] dvectors;
 	private int [] sym_indices;
 	private int num_defined;
 	private boolean [] used_indices;
-	private double [] cumul_influences;
+	private double [] cumul_influences; // did not work - all candidates correlate the same
+	
+	private int [][]    proto_rz;       //+1 - zoom in, rot CW, -1 - zoom out, rot CCW, 0 - error (not initialized)
+	private double [][] rz_vectors;     // normalized rot/zoom vectors
+	private int []      rz_indices;     // indices of selected rz_vectors
+	private int         num_rz_defined; // number of defined rz_indices
+	private boolean []  used_rz_indices;// already used rz_vectors
+	private double []   cumul_rz_influences; // will not work? - all candidates correlate the same
+	
+	
+	
 	public int debug_level =          -1;
 	
 	public SymmVector (
@@ -103,10 +117,6 @@ public class SymmVector {
 		}
 		used_indices = new boolean [num_all];
 		sym_indices =  new int[2*N - 2];
-		//*******************
-//		sym_indices =  new int[2*N]; // just to check impossible  
-//		sym_indices =  new int[8*N]; // just to check impossible  
-		
 		num_defined = 0;
 		dvectors = new double[num_all][2*N];
 		double scale = 1.0/Math.sqrt(N); // all vectors have the same length
@@ -149,7 +159,7 @@ public class SymmVector {
 //				double [] metrics = new_heights.clone();
 //				best_index =        bestVector(metrics);
 //				best_index =        bestVector(best_delta, new_heights, new_mins);
-				best_index =        bestVector(best_delta, new_heights, best_delta, new_mins, cumul_influences);
+				best_index =        bestVector(best_delta, new_heights, best_delta, new_mins, cumul_influences, false);
 				
 				if (ivect == 1) {
 					if (debug_level > -1) System.out.println("Vector # "+ivect+": overwriting best_index= "+best_index+" with 1");
@@ -210,8 +220,146 @@ public class SymmVector {
 			}
 			add_vector(best_index);
 		}
+		
+		// Generate vectors for rot and zoom (same)
+		generateTypeRZ(); // generate candidates as both proto_rot_zoom and rz_vectors
+		used_rz_indices = new boolean [num_all];
+		rz_indices =      new int[N]; // for zoom the zero will be removed
+		num_rz_defined = 0;
+		// Not needed - re-normalize all vectors (remove earlier normalization)
+		
+		boolean use_min_influence_rz = true;
+		cumul_rz_influences = new double[N];
+		for (int ivect = 0; ivect <= rz_indices.length; ivect++) { // <= to check for impossible
+			int best_index = 0;
+			int num_best0 = -1;
+			int num_best  = -1;
+			double best_height = -1.0;
+			if (ivect == 0) {
+				best_index = 0;
+			} else {
+				double [] new_heights = getNewHeightsRZ();
+				double [] new_mins =    use_min_influence_rz ? getNewMinsRZ() : null;
+				best_index =        bestVector(best_delta, new_heights, best_delta, new_mins, cumul_influences, true);
+				
+				if (ivect < 4) {
+					if (debug_level > -1) System.out.println("Vector # "+ivect+": overwriting best_index= "+best_index+" with "+ivect);
+					best_index = ivect; // overwrite with pre-defined vectors
+				}
+				best_height =    new_heights[best_index];
+				num_best0 =      getNumBest(best_delta, new_heights);
+				num_best =       getNumBest(best_delta, new_heights, best_delta, new_mins);
+				
+				if (best_height < fail_length) {
+					if (ivect < rz_indices.length) {
+						System.out.println("Failed to build orthogonal system, current number of independent vectors = "+
+								num_rz_defined+ "(of "+rz_indices.length+ " needed)");
+						break; // continue; // return;
+					} else {
+						System.out.println("No more orthogonal vectors, current number of independent vectors = "+
+								num_rz_defined+ "(of "+rz_indices.length+ " needed)");
+						break; // continue; // return;
+						
+					}
+				}
+			}
+			if (debug_level > 0) {
+				System.out.print(String.format("Vector # %2d",ivect)+" [");
+				for (int j=0; j < N; j++) {
+					System.out.print((proto_rz[best_index][j] > 0)?("+"):((proto_rz[best_index][j] < 0) ? "-":"0"));
+					if ((j+1)%(N/4) != 0) {
+//						System.out.print(", ");
+					} else if (j < (N-1)) {
+						System.out.print("|");
+					} else {
+						System.out.print("] ");
+					}
+				}
+				double s = 0.0;
+				for (int i = 0; i < N; i++) {
+					s+=rz_vectors[best_index][i];
+				}
+				
+				double [] ni =  getNormInfluenceRZ(rz_vectors[best_index]);
+				double [] mmi = minMaxInfluenceRZ (rz_vectors[best_index]);
+				System.out.print(String.format("%4.2f<%4.2f ", mmi[0],mmi[1]));
+				System.out.print(" [");
+				for (int j=0; j < N; j++) {
+					System.out.print(String.format("%3.1f ", ni[j]));
+					if ((j+1)%(N/4) != 0) {
+//						System.out.print(", ");
+					} else if (j < (N-1)) {
+						System.out.print(" | ");
+					} else {
+						System.out.print("] ");
+					}
+				}
+				System.out.print(" l= " + best_height);
+				System.out.print(String.format(" n=%d(%d)", num_best,num_best0));
+//				System.out.print(" "+getType(best_index));
+				if (debug_level > 1) {
+					System.out.print(" s="+s);
+				}
+				System.out.println();
+			}
+			add_vector_rz(best_index);
+		}
 	}
 
+	/**
+	 * Return set of generated orthonormal symmetrical vectors X,Y components (X - right, Y - down).
+	 * {x0,y0,x1,y1, ... x[N-1],y[N-1]}
+	 * Cameras positioned on R=1 circle, #0 - up, others - clockwise looking where camera is pointed
+	 * vector [0] - disparity, all po9inted to the center (similar to quad),
+	 * vector [1] - tangential only, clockwise.  	
+	 * @return
+	 */
+	public double [][] exportXY(){
+		double [][] rslt = new double[sym_indices.length][2*N];
+		for (int n = 0; n < sym_indices.length; n++){
+			double [] vect = dvectors[sym_indices[n]]; // should be normalized
+			for (int i = 0; i < N; i++) {
+				double alpha = i*2*Math.PI/N;
+				rslt[n][2*i + 0] =  vect[2*i + 0]*Math.sin(alpha) + vect[2*i + 1]*Math.cos(alpha);
+				rslt[n][2*i + 1] = -vect[2*i + 0]*Math.cos(alpha) + vect[2*i + 1]*Math.sin(alpha);
+			}
+		}
+		return rslt;
+	}
+
+	/**
+	 * Return set of generated orthonormal symmetrical vectors radial/ tangential components (radial - outwards, X - right, Y - down) 	
+	 * {r0,t0,r1,t1, ... r[N-1],t[N-1]}
+	 * Cameras positioned on R=1 circle, #0 - up, others - clockwise looking where camera is pointed  	
+	 * vector [0] - disparity, all po9inted to the center (similar to quad),
+	 * vector [1] - tangential only, clockwise.  	
+	 * @return
+	 */
+	public double [][] exportRT(){
+		double [][] rslt = new double[sym_indices.length][];
+		for (int n = 0; n < sym_indices.length; n++){
+			rslt[n]= dvectors[sym_indices[n]]; // should be normalized
+		}
+		return rslt;
+	}
+	
+	/**
+	 * 
+	 * @param zoom_mode
+	 * @return
+	 */
+	public double [][] exportRZ(boolean zoom_mode){
+		int offs = zoom_mode ? 1 : 0;
+		double [][] rslt = new double[rz_indices.length - offs][];
+		for (int n = 0; n < rslt.length; n++) {
+			rslt[n]= rz_vectors[rz_indices[n + offs]]; // should be normalized
+		}
+		return rslt;
+	}
+	
+	
+	
+	
 	/**
 	 * To verify that center of mass does not move
 	 * @param vect alternating radial/tangential components, length= 2*N 
@@ -348,7 +496,7 @@ public class SymmVector {
 	}
 	
 	
-	private int bestVector(double [] primary) {
+	private int bestVector(double [] primary) { // OK for RZ
 		int indx = 0;
 		for (int i = 1; i < primary.length; i++) {
 			if (primary[i] > primary[indx]) {
@@ -358,7 +506,7 @@ public class SymmVector {
 		return indx;
 	}
 
-	private int bestVector(double [] primary, boolean [] mask) {
+	private int bestVector(double [] primary, boolean [] mask) { // OK for RZ
 		if (mask == null) {
 			return bestVector(primary);
 		}
@@ -371,7 +519,7 @@ public class SymmVector {
 		return indx;
 	}
 
-	private int bestVector(double delta, double [] primary, double [] secondary) {
+	private int bestVector(double delta, double [] primary, double [] secondary) { // OK for RZ
 		if (secondary == null) {
 			return bestVector(primary);
 		}
@@ -384,7 +532,7 @@ public class SymmVector {
 		return bestVector(secondary, mask);
 	}
 	
-	private int getNumBest(double delta_primary, double [] primary, double delta_secondary, double [] secondary) {
+	private int getNumBest(double delta_primary, double [] primary, double delta_secondary, double [] secondary) {  // OK for RZ
 		if (secondary == null) {
 			return getNumBest(delta_primary, primary);
 		}
@@ -405,7 +553,12 @@ public class SymmVector {
 		return num_best;
 	}	
 
-	private int bestVector(double delta_primary, double [] primary, double delta_secondary, double [] secondary, double[] cumul_influences) {
+	private int bestVector(double delta_primary,
+			               double [] primary,
+			               double delta_secondary,
+			               double [] secondary,
+			               double[] cumul_influences,
+			               boolean rz_mode) {
 		if (cumul_influences == null) {
 			return bestVector(delta_primary, primary, secondary);
 		}
@@ -417,12 +570,9 @@ public class SymmVector {
 		}
 		ibest = bestVector(secondary, mask);
 		threshold = secondary[ibest] * (1.0 - delta_secondary);
-		int num_best = 0;
 		for (int i = 0; i < secondary.length; i++) {
 			if (mask[i] ) {
-				if (secondary[i] >= threshold) {
-					num_best++;
-				} else {
+				if (secondary[i] < threshold) {
 					mask[i] = false;
 				}
 			}
@@ -440,7 +590,7 @@ public class SymmVector {
 		//Balancing influences does not seem to work - all the remaining have them exactly the same
 		double [] corr = new double[mask.length];
 		for (int i = 0; i < mask.length; i++) if (mask[i]){
-			double [] ni = getNormInfluence(dvectors[i]);
+			double [] ni = rz_mode ? getNormInfluenceRZ(rz_vectors[i]): getNormInfluence(dvectors[i]);
 			for (int j = 0; j < N; j++) {
 				corr[i] += cumul_influences[j] * ni[j]; // best has minimal value (most negative)
 			}
@@ -451,7 +601,6 @@ public class SymmVector {
 				best_index = i;
 			}
 		}		
-		
 		return best_index;
 	}	
 	
@@ -729,6 +878,165 @@ public class SymmVector {
 		if (debug_level > 2) {
 			System.out.println();
 		}
+	}
+	class RZLine {
+		int [] line;
+		RZLine(int n){
+			line = new int[n];
+		}
+	}
+	
+	private void generateTypeRZ() {
+		ArrayList<RZLine> rz_list = new ArrayList<RZLine>();
+		RZLine line = new RZLine(N);
+		for (int i = 0; i < N; i++) line.line[i] = 1;
+		rz_list.add(line);
+		line = new RZLine(N);
+		for (int i = 0; i < N; i++) line.line[i] = ((i + N/4) % N < N/2)? -1 : 1;
+		rz_list.add(line);
+		line = new RZLine(N);
+		for (int i = 0; i < N; i++) line.line[i] = (i < N/2)?             -1 : 1;
+		rz_list.add(line);
+	    line = new RZLine(N);
+		for (int i = 0; i < N; i++) line.line[i] = (((i + N/4) % N < N/2) ^ (i < N/2))? 1 : -1;
+		rz_list.add(line);
+		int ord = 0;
+		for (ord = 0; (1 << ord) < (N/4); ord++);
+		if (ord >= 1) {
+			for (int mode = ord; mode > 0; mode--) {
+				int period = 1 << mode;
+				if (period > N/4) {
+					period = N/4; 
+				}
+				boolean odd_period = (period & 1) != 0; 
+				// rotate each pattern by 0..period-1
+				for (int shft = 0; shft < period; shft++) {
+					// for each period but first allow independent reversal
+					int num_pers = (N/period);
+					int num_reversals = 1 << (num_pers - 1);
+					for (int rvrs_patt = 0; rvrs_patt <  num_reversals;  rvrs_patt++) {
+						int [] proto = new int [N];
+						for (int iper = 0; iper < num_pers; iper++) {
+							boolean rvrs = ((rvrs_patt >> (num_pers - iper -1)) & 1) != 0; // for the first period - always false
+							boolean odds =  odd_period && ((iper & 1) != 0); 
+							for (int j = 0; j < period; j++) {
+								int rj = rvrs ? (period - j -1): j;
+								boolean plus = odds? (rj < (period - 1)/2) : (rj < (period + 1)/2);
+								proto[(iper * period + j + shft) % N] = plus ? 1 : -1; 
+							}
+						}
+						line = new RZLine(N);
+						line.line = proto;
+						rz_list.add(line);
+/*
+				int [] proto = new int [N/2];
+				
+				for (int i = 0; i < N/2; i++) {
+					if (i < period) {
+						proto[i] = (i <       (period + 1) / 2) ? 1 : -1;
+					} else {
+						proto[i] = ((i - period) < period / 2)?   1 :  -1;
+					}
+				}
+				for (int i = 0; i < period; i++) {
+					line = new RZLine(N);
+					for (int j = 0; j< N/2; j++) {
+						line.line[j] =     proto [(i + j ) % (N/2)];	
+						line.line[j+N/2] = line.line[j];	
+					}
+					rz_list.add(line);
+				}
+*/				
+					}
+				}
+			}
+		}
+		proto_rz = new int [rz_list.size()][];
+		rz_vectors = new double [proto_rz.length][];
+		used_rz_indices = new boolean [proto_rz.length];
+		for (int i = 0; i < proto_rz.length; i++) {
+			proto_rz[i] = rz_list.get(i).line;
+			rz_vectors[i] = new double[proto_rz[i].length];
+			// normalize and create rz_vectors
+			double l2 = 0.0;
+			for (int j = 0; j < proto_rz[i].length; j++) {
+				l2 += proto_rz[i][j]*proto_rz[i][j];
+			}
+			double s = 1.0/Math.sqrt(l2);
+			for (int j = 0; j < proto_rz[i].length; j++) {
+				rz_vectors[i][j] = s * proto_rz[i][j];
+			}
+		}
+	}
+
+	private void add_vector_rz(int indx) {
+		rz_indices[num_rz_defined++] = indx;
+		used_rz_indices[indx] = true;
+		// normalize selected vector (used when they are orthogonalized
+		double l2 = 0.0;
+		for (int j = 0; j < N; j++) {
+			l2 += rz_vectors[indx][j] * rz_vectors[indx][j]; 
+		}
+		double scale = 1.0/Math.sqrt(l2);
+		for (int j = 0; j < N; j++) {
+			rz_vectors[indx][j] *= scale; 
+		}
+		double [] ni = getNormInfluenceRZ(rz_vectors[indx]);
+		for (int j = 0; j < N; j++) {
+			cumul_rz_influences[j] += ni[j];
+		}
+	}
+	
+	
+	private double remove_projections_rz(double [] new_vect) {
+		for (int n = 0; n < num_rz_defined; n++) {
+			remove_projection(new_vect, rz_vectors[rz_indices[n]]);
+		}
+		return getL1(new_vect);
+	}
+	
+	private double [] getNewHeightsRZ() {
+		double [] heights = new double [rz_vectors.length];
+		for (int i = 0; i < heights.length; i++) {
+			if (!used_rz_indices[i]) {
+				heights[i] = remove_projections_rz(rz_vectors[i]); // modify sources
+			}
+		}
+		return heights;
+	}
+
+	private double [] getNewMinsRZ() {
+		double [] mins = new double [rz_vectors.length];
+		for (int i = 0; i < mins.length; i++) {
+			if (!used_rz_indices[i]) {
+//				heights[i] = remove_projections(dvectors[i].clone());
+				remove_projections_rz(rz_vectors[i]); // modify sources
+				mins[i] = minMaxInfluenceRZ(rz_vectors[i])[0];
+			}
+		}
+		return mins;
+	}
+	
+	public double [] getNormInfluenceRZ(double [] vect) {
+		double l2 = 0.0;
+		for (int i = 0; i < N; i++) {
+			l2 += vect[i]*vect[i];
+		}
+		l2 /= N;
+		double [] ni = new double [N];
+		for (int i = 0; i < N; i++) {
+			ni[i] = Math.sqrt((vect[i]*vect[i])/l2);
+		}
+		return ni;
+	}
+	public double [] minMaxInfluenceRZ(double [] vect) {
+		double [] ni = getNormInfluenceRZ(vect);
+		double mn = ni[0], mx = ni[0];
+		for (int i = 1; i < N; i++) {
+			if (ni[i] < mn) mn = ni[i];
+			else if (ni[i] > mx) mx = ni[i];
+		}
+		return new double [] {mn,mx};
 	}
 	
 	
