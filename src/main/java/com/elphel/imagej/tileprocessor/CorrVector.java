@@ -43,31 +43,52 @@ public class CorrVector{ // TODO: Update to non-quad (extract to a file first)?
 
 	// replacing static constants (they will be different for diffrent numSensors)
 	// 1 step - add methods, 2-nd update methods themselves
-	public int getLength()       {return LENGTH;}
-	public int getLengthAngles() {return LENGTH_ANGLES;}
-	public int getTiltIndex()    {return TILT_INDEX;}
-	public int getAzimuthIndex() {return AZIMUTH_INDEX;}
-	public int getRollIndex()    {return ROLL_INDEX;}
-	public int getZoomIndex()    {return ZOOM_INDEX;}
-	public int getIMUIndex()     {return IMU_INDEX;}
+	public int getLength()       {return getLength      (geometryCorrection.getNumSensors());}
+	public int getLengthAngles() {return getLengthAngles(geometryCorrection.getNumSensors());}
+	public int getTiltIndex()    {return getTiltIndex   (geometryCorrection.getNumSensors());}
+	public int getAzimuthIndex() {return getAzimuthIndex(geometryCorrection.getNumSensors());}
+	public int getRollIndex()    {return getRollIndex   (geometryCorrection.getNumSensors());}
+	public int getZoomIndex()    {return getZoomIndex   (geometryCorrection.getNumSensors());}
+	public int getIMUIndex()     {return getIMUIndex    (geometryCorrection.getNumSensors());}
 	public double getRotAzSgn()  {return ROT_AZ_SGN;}
 	public double getRotTlSgn()  {return ROT_TL_SGN;}
 	public double getRotRlzSgn() {return ROT_RL_SGN;}
 	public double[] getVector()  {return vector;}
 	
 	// static that (will) use number of subcameras
-	public static int getLength(int num_chn)       {return LENGTH;}
-	public static int getLengthAngles(int num_chn) {return LENGTH_ANGLES;}
-	public static int getTiltIndex(int num_chn)    {return TILT_INDEX;}
-	public static int getAzimuthIndex(int num_chn) {return AZIMUTH_INDEX;}
-	public static int getRollIndex(int num_chn)    {return ROLL_INDEX;}
-	public static int getZoomIndex(int num_chn)    {return ZOOM_INDEX;}
-	public static int getIMUIndex(int num_chn)     {return IMU_INDEX;}
+	public static int getLength       (int num_chn) {return 4 * num_chn + 4;}
+	public static int getLengthAngles (int num_chn) {return 3 * num_chn - 2;}
+	public static int getTiltIndex    (int num_chn) {return 0;}
+	public static int getAzimuthIndex (int num_chn) {return     num_chn - 1;}
+	public static int getRollIndex    (int num_chn) {return 2 * num_chn - 2;}
+	public static int getZoomIndex    (int num_chn) {return 3 * num_chn - 2;}
+	public static int getIMUIndex     (int num_chn) {return 4 * num_chn - 3;}
 //	public static double getRotAzSgn(int num_chn)  {return ROT_AZ_SGN;}
 //	public static double getRotTlSgn(int num_chn)  {return ROT_TL_SGN;}
 //	public static double getRotRlzSgn(int num_chn) {return ROT_RL_SGN;}
+	public static String [] getCorrNames(int num_chn) {
+		String [] corr_names = new String[getLength(num_chn)];
+		for (int n = 0; n < num_chn; n++) {
+			if (n < (num_chn - 1)) {
+				corr_names[getTiltIndex(num_chn) + n]=    "tilt"    + n;
+				corr_names[getAzimuthIndex(num_chn) + n]= "azimuth" + n;
+				corr_names[getZoomIndex(num_chn) + n]=    "zoom"    + n;
+			}
+			corr_names[getRollIndex(num_chn) + n]=        "roll"    + n;
+		}
+		corr_names[getIMUIndex(num_chn) + 0]=             "omega_tilt";
+		corr_names[getIMUIndex(num_chn) + 1]=             "omega_azimuth";
+		corr_names[getIMUIndex(num_chn) + 2]=             "omega_roll";
+		corr_names[getIMUIndex(num_chn) + 3]=             "velocity_x";
+		corr_names[getIMUIndex(num_chn) + 4]=             "velocity_y";
+		corr_names[getIMUIndex(num_chn) + 5]=             "velocity_z";
 
+		return corr_names;
+	}
 	
+	public String [] getCorrNames() {
+		return getCorrNames(geometryCorrection.getNumSensors());
+	}
 	
 	
 	public Matrix [] getRotMatrices(Matrix rigMatrix)// USED in lwir

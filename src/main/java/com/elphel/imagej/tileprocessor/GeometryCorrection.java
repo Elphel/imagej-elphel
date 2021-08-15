@@ -49,6 +49,12 @@ public class GeometryCorrection {
 	public static String RIG_PREFIX =     "rig-";
 	static double SCENE_UNITS_SCALE = 0.001;  // meters from mm
 	static String SCENE_UNITS_NAME = "m";
+	
+	//  use static CorrVector.getCorrNames(numSensors)
+	//  or non-static corrVector.getCorrNames();
+	public String [] getCorrNames() {
+		return  CorrVector.getCorrNames(numSensors);
+	}
 	static final String [] CORR_NAMES = { // need to be fixed too!
 			"tilt0","tilt1","tilt2",
 			"azimuth0","azimuth1","azimuth2",
@@ -109,6 +115,9 @@ public class GeometryCorrection {
 		this.rXY_ideal = rXY_ideal;
 	}
 	
+	public int getNumSensors() {
+		return numSensors;
+	}
 	protected double [][] get_rXY_ideal(){
 		if (rXY_ideal == null) {
 			if (numSensors == 4) {
