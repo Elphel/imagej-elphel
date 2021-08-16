@@ -110,7 +110,7 @@ public class QuadCLTCPU {
 	public EyesisCorrectionParameters.CorrectionParameters correctionsParameters=null;
 	double [][][][][][]                                    clt_kernels = null; // can be used to determine monochrome too?
 	public GeometryCorrection                              geometryCorrection = null;
-	double []                                              extrinsic_vect = new double [GeometryCorrection.CORR_NAMES.length]; // extrinsic corrections (needed from properties, before geometryCorrection
+	double[] extrinsic_vect; //  = new double [GeometryCorrection.CORR_NAMES.length]; // extrinsic corrections (needed from properties, before geometryCorrection
 	public int                                             extra_items = 8; // number of extra items saved with kernels (center offset (partial, full, derivatives)
 	public ImagePlus                                       eyesisKernelImage = null;
 	public long                                            startTime;     // start of batch processing
@@ -666,10 +666,13 @@ public class QuadCLTCPU {
 		if (gc == null) { // if it was not yet created
 			gc = new GeometryCorrection(this.extrinsic_vect); // not used in lwir
 		}
+		gc.setPropertiesExtrinsic(prefix, properties);
+		/*
 		for (int i = 0; i < GeometryCorrection.CORR_NAMES.length; i++){
 			String name = prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
 			properties.setProperty(name,  gc.getCorrVector().toArray()[i]+"");
 		}
+		*/
 		if (is_aux && (gc.rigOffset != null)) {
 			gc.rigOffset.setProperties(prefix,properties);
 		}
@@ -697,10 +700,16 @@ public class QuadCLTCPU {
 				}
 			}
 		}
+		/*
 		GeometryCorrection gc = geometryCorrection;
 		if (gc == null) { // if it was not yet created
 			gc = new GeometryCorrection(this.extrinsic_vect);
 		}
+		*/
+		double [] other_extrinsic_vect = GeometryCorrection.getPropertiesExtrinsic(other_prefix, other_properties);
+		int num_cams = CorrVector.getCamerasFromEV(other_extrinsic_vect.length);
+		GeometryCorrection.setPropertiesExtrinsic(this_prefix, properties, other_extrinsic_vect);
+		/*
 		for (int i = 0; i < GeometryCorrection.CORR_NAMES.length; i++){
 			String other_name = other_prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
   			if (other_properties.getProperty(other_name)!=null) {
@@ -713,6 +722,7 @@ public class QuadCLTCPU {
 			properties.setProperty(this_name,  gc.getCorrVector().toArray()[i]+"");
 //			System.out.println("copyPropertiesFrom():"+i+": setProperty("+this_name+","+gc.getCorrVector().toArray()[i]+"");
 		}
+		*/
 //		System.out.println("Done copyPropertiesFrom");
 	}
 
@@ -751,6 +761,21 @@ public class QuadCLTCPU {
 			}
 		}
 		// always set extrinsic_corr
+		double [] new_extrinsic_vect = GeometryCorrection.getPropertiesExtrinsic(prefix, properties);
+		int num_cams = CorrVector.getCamerasFromEV(new_extrinsic_vect.length);
+		for (int i = 0; i < new_extrinsic_vect.length; i++) {
+			if (!Double.isNaN(new_extrinsic_vect[i])) {
+  				if (this.extrinsic_vect == null) { // not used in lwir
+  					// only create non-null array if there are saved values
+  					this.extrinsic_vect = new_extrinsic_vect.clone();
+  				}
+  				this.extrinsic_vect[i] =  new_extrinsic_vect[i];
+  				if (geometryCorrection != null){ // not used in lwir
+  					geometryCorrection.setCorrVector(i,this.extrinsic_vect[i]); // should be same mumber of cameras
+  				}
+			}
+		}
+		/*
 		for (int i = 0; i < GeometryCorrection.CORR_NAMES.length; i++){
 			String name = prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
   			if (properties.getProperty(name)!=null) {
@@ -759,20 +784,12 @@ public class QuadCLTCPU {
   					this.extrinsic_vect = new double [GeometryCorrection.CORR_NAMES.length];
   				}
   				this.extrinsic_vect[i] = Double.parseDouble(properties.getProperty(name));
-//  				System.out.println("getProperties():"+i+": getProperty("+name+") -> "+properties.getProperty(name)+"");
-
   				if (geometryCorrection != null){ // not used in lwir
-//  					if (geometryCorrection.getCorrVector().toArray() == null) {
-//  						geometryCorrection.resetCorrVector(); // make it array of zeros
-//  					}
-//  					geometryCorrection.getCorrVector().toArray()[i] = this.extrinsic_vect[i];
   					geometryCorrection.setCorrVector(i,this.extrinsic_vect[i]);
   				}
   			}
 		}
-//		if (is_aux && (geometryCorrection != null)) {
-//			geometryCorrection.setRigOffsetFromProperies(prefix, properties);
-//		}
+		*/
 		
 		if (geometryCorrection == null) {
 			double [] extrinsic_vect_saved = this.extrinsic_vect.clone();
@@ -846,11 +863,11 @@ public class QuadCLTCPU {
 
 
 		// TODO: Verify correction sign!
-		double f_avg = geometryCorrection.getCorrVector().setZoomsFromF(
-				sensors[0].focalLength,
-				sensors[1].focalLength,
-				sensors[2].focalLength,
-				sensors[3].focalLength);
+		double [] f_lengths = new double [sensors.length];
+		for (int i = 0; i < f_lengths.length; i++) {
+			f_lengths[i] = sensors[i].focalLength;
+		}
+		double f_avg = geometryCorrection.getCorrVector().setZoomsFromF(f_lengths);
 
 		// following parameters are used for scaling extrinsic corrections
 		geometryCorrection.focalLength = f_avg;
@@ -875,28 +892,13 @@ public class QuadCLTCPU {
 				sensors[0].pixelCorrectionHeight,
 				sensors[0].pixelSize);
 		// set other/individual sensor parameters
-		/*
-		for (int i = 1; i < numSensors; i++){
-			if (	(sensors[0].theta !=                 sensors[i].theta) || // elevation
-					(sensors[0].heading !=               sensors[i].heading)){
-				System.out.println("initGeometryCorrection(): All sensors have to have the same elevation and heading, but channels 0 and "+i+" mismatch");
-				return false;
-			}
-		}
-		*/
-		double theta_avg = geometryCorrection.getCorrVector().setTiltsFromThetas(
-				sensors[0].theta,
-				sensors[1].theta,
-				sensors[2].theta,
-				sensors[3].theta);
+		double [] thetas = new double [sensors.length];
+		for (int i = 0; i < thetas.length; i++) thetas[i] = sensors[i].theta;
+		double theta_avg = geometryCorrection.getCorrVector().setTiltsFromThetas(thetas);
 
-		double heading_avg = geometryCorrection.getCorrVector().setAzimuthsFromHeadings(
-				sensors[0].heading,
-				sensors[1].heading,
-				sensors[2].heading,
-				sensors[3].heading);
-
-
+		double [] headings = new double [sensors.length];
+		for (int i = 0; i < headings.length; i++) headings[i] = sensors[i].heading;
+		double heading_avg = geometryCorrection.getCorrVector().setAzimuthsFromHeadings(headings);
 		double []   forward = new double[numSensors];
 		double []   right =   new double[numSensors];
 		double []   height =  new double[numSensors];

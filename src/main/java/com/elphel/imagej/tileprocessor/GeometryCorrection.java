@@ -7,6 +7,7 @@ import java.nio.ByteOrder;
 import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Properties;
 
 import com.elphel.imagej.common.GenericJTabbedDialog;
@@ -52,9 +53,7 @@ public class GeometryCorrection {
 	
 	//  use static CorrVector.getCorrNames(numSensors)
 	//  or non-static corrVector.getCorrNames();
-	public String [] getCorrNames() {
-		return  CorrVector.getCorrNames(numSensors);
-	}
+/*	
 	static final String [] CORR_NAMES = { // need to be fixed too!
 			"tilt0","tilt1","tilt2",
 			"azimuth0","azimuth1","azimuth2",
@@ -62,7 +61,7 @@ public class GeometryCorrection {
 			"zoom0","zoom1","zoom2",
 			"omega_tilt", "omega_azimuth", "omega_roll",
 			"velocity_x", "velocity_y", "velocity_z"};
-
+*/	
 	public int    debugLevel = 0;
 	public double line_time =  36.38E-6; // 26.5E-6; // duration of sensor scan line (for ERS) Wrong, 36.38us (change and re-run ERS
 	public int    pixelCorrectionWidth=2592;   // virtual camera center is at (pixelCorrectionWidth/2, pixelCorrectionHeight/2)
@@ -141,6 +140,49 @@ public class GeometryCorrection {
 	public int []      woi_tops =           null; // used to calculate scanline timing
 	public int []      camera_heights =     null; // actual acquired lines (from woi_tops)
 
+	public String [] getCorrNames() {
+		return  CorrVector.getCorrNames(numSensors);
+	}
+	// Removing dependence on CORR_NAMES in QuadCLTCPU
+	public void setPropertiesExtrinsic(String prefix, Properties properties) {
+		String [] corr_names = getCorrNames(); // variable number of cameras
+		for (int i = 0; i < corr_names.length; i++){
+			String name = prefix+"extrinsic_corr_"+corr_names[i];
+			properties.setProperty(name,  getCorrVector().toArray()[i]+"");
+		}
+	}
+	public static void setPropertiesExtrinsic(String prefix, Properties properties, double [] extrinsic_corr) {
+		int num_cams = CorrVector.getCamerasFromEV(extrinsic_corr.length);
+		String [] corr_names = CorrVector.getCorrNames(num_cams); // variable number of cameras
+		for (int i = 0; i < corr_names.length; i++){
+			String name = prefix+"extrinsic_corr_"+corr_names[i];
+			if (!Double.isNaN( extrinsic_corr[i])) {
+				properties.setProperty(name,  extrinsic_corr[i]+"");
+			}
+		}
+	}
+
+	public static double [] getPropertiesExtrinsic(String prefix, Properties properties) {
+		// determine number of cameras from maximal tilt? 
+		int num_chn = 4;
+		for (; true; num_chn++) {
+			String name = prefix+"extrinsic_corr_"+CorrVector.CORR_TILT+(num_chn - 1); // maximal tilt index = N-2 (tilt2 for quad)
+  			if (properties.getProperty(name) == null) {
+  				break;
+  			}
+		}
+		String [] corr_names = CorrVector.getCorrNames(num_chn);
+		double [] extrinsic_vect = new double [corr_names.length];
+		Arrays.fill(extrinsic_vect, Double.NaN);
+		for (int i = 0; i < extrinsic_vect.length; i++) {
+			String name = prefix+"extrinsic_corr_"+corr_names[i];
+  			if (properties.getProperty(name)!=null) {
+  				extrinsic_vect[i] = Double.parseDouble(properties.getProperty(name));
+  			}
+		}
+		return extrinsic_vect;
+	}
+	
 
 	public float [] toFloatArray() { // for GPU comparison
 		return new float[] {

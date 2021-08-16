@@ -1,6 +1,7 @@
 package com.elphel.imagej.tileprocessor;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 
 /**
  **
@@ -62,10 +63,47 @@ public class SymmVector {
 	private int         num_rz_defined; // number of defined rz_indices
 	private boolean []  used_rz_indices;// already used rz_vectors
 	private double []   cumul_rz_influences; // will not work? - all candidates correlate the same
-	
-	
-	
 	public int debug_level =          -1;
+	
+	// caching results of vectors generation for used camera configuration not to re-generate each time
+	// CorrVector is constructed
+	public static HashMap <Integer,SymmVectorsSet> vectors_cache = new HashMap <Integer,SymmVectorsSet>();
+
+	public static SymmVectorsSet getSymmVectorsSet (int num_cameras) {
+		SymmVectorsSet rvs = vectors_cache.get(num_cameras);
+		if (rvs == null) {
+			rvs = newVectors (num_cameras);
+			vectors_cache.put(num_cameras, rvs);
+		}
+		return rvs;
+	}
+	
+	public static double [][] getSymmXY(int num_cameras){
+		SymmVectorsSet rvs = vectors_cache.get(num_cameras);
+		if (rvs == null) {
+			rvs = newVectors (num_cameras);
+			vectors_cache.put(num_cameras, rvs);
+		}
+		return rvs.xy;
+	}
+	
+	public static SymmVectorsSet newVectors (int num_cameras) {
+		boolean full_type1 = false;
+		boolean full_type2 = false;
+		int debug_level = -1;
+		SymmVectorsSet rvs = new SymmVectorsSet();
+		SymmVector sv = new SymmVector(
+				num_cameras,
+				full_type1,
+				full_type2,
+				debug_level);
+		rvs.xy =     sv.exportXY();
+		rvs.rt =     sv.exportRT();
+		rvs.dir_rt = sv.exportDirRT();
+		rvs.rots =   sv.exportRZ(false); // include common roll
+		rvs.zooms =  sv.exportRZ(true);  // no common zoom
+		return rvs;
+	}
 	
 	public SymmVector (
 			int num_cameras,
@@ -339,6 +377,18 @@ public class SymmVector {
 		double [][] rslt = new double[sym_indices.length][];
 		for (int n = 0; n < sym_indices.length; n++){
 			rslt[n]= dvectors[sym_indices[n]]; // should be normalized
+		}
+		return rslt;
+	}
+	
+	/**
+	 * Export directions (0 - radial to center, 1 - tangential CW, 2 - radial out , 3 tangential CW
+	 * @return
+	 */
+	public int [][] exportDirRT(){
+		int [][] rslt = new int[sym_indices.length][];
+		for (int n = 0; n < sym_indices.length; n++){
+			rslt[n]= proto_all[sym_indices[n]];
 		}
 		return rslt;
 	}
@@ -1064,3 +1114,12 @@ public class SymmVector {
 	 */
 	
 }
+class SymmVectorsSet {
+//	int num_sensors;
+	double [][] xy; 
+	double [][] rt;
+	int    [][] dir_rt;
+	double [][] rots;
+	double [][] zooms;
+}
+
