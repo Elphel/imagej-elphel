@@ -22,22 +22,14 @@ package com.elphel.imagej.tileprocessor;
  ** -----------------------------------------------------------------------------**
  */
 
+import java.util.ArrayList;
+
 import com.elphel.imagej.common.GenericJTabbedDialog;
 //import com.elphel.imagej.tileprocessor.GeometryCorrection.CorrVector;
 
 import Jama.Matrix;
 
 public class CorrVector{ // TODO: Update to non-quad (extract to a file first)?
-	// get rid of these !
-	/*
-	private static final int LENGTH =19; //  10; // was public
-	private static final int LENGTH_ANGLES =10;
-	private static final int TILT_INDEX =    0;
-	private static final int AZIMUTH_INDEX = 3;
-	private static final int ROLL_INDEX =    6;
-	private static final int ZOOM_INDEX =   10;
-	private static final int IMU_INDEX =    13; // d_tilt/dt (rad/s), d_az/dt, d_roll/dt for ERS correction, dx/dt, dy/dt, dz/dt
-	*/
 	
 	private static final double ROT_AZ_SGN = -1.0; // sign of first sin for azimuth rotation
 	private static final double ROT_TL_SGN =  1.0; // sign of first sin for tilt rotation
@@ -513,15 +505,6 @@ public class CorrVector{ // TODO: Update to non-quad (extract to a file first)?
 		}
 	}
 
-	/*
-	public double setZoomsFromF(double f0, double f1, double f2, double f3) { // USED in lwir
-		double f_avg = (f0+f1+f2+f3)/4;
-		vector[10] = (f0 - f_avg)/f_avg;
-		vector[11] = (f1 - f_avg)/f_avg;
-		vector[12] = (f2 - f_avg)/f_avg;
-		return f_avg;
-	}
-	*/
 	public double setZoomsFromF(double [] f) { // USED in lwir
 		int indx = getZoomIndex();
 //		double f_avg = (f0+f1+f2+f3)/4;
@@ -537,15 +520,6 @@ public class CorrVector{ // TODO: Update to non-quad (extract to a file first)?
 	}
 	
 	// Tilts in radians, theta in degrees
-	/*
-	public double setTiltsFromThetas(double t0, double t1, double t2, double t3) { // USED in lwir
-		double t_avg = (t0+t1+t2+t3)/4;
-		vector[0] = (t0 - t_avg)*Math.PI/180.0;
-		vector[1] = (t1 - t_avg)*Math.PI/180.0;
-		vector[2] = (t2 - t_avg)*Math.PI/180.0;
-		return t_avg;
-	}
-	*/
 	public double setTiltsFromThetas(double [] t) { // USED in lwir
 		int indx = getTiltIndex();
 		double t_avg = 0;
@@ -560,15 +534,6 @@ public class CorrVector{ // TODO: Update to non-quad (extract to a file first)?
 	}
 	
 	// Azimuths in radians, headings in degrees
-	/*
-	public double setAzimuthsFromHeadings(double h0, double h1, double h2, double h3) { // USED in lwir
-		double h_avg = (h0+h1+h2+h3)/4;
-		vector[3] = (h0 - h_avg)*Math.PI/180.0;
-		vector[4] = (h1 - h_avg)*Math.PI/180.0;
-		vector[5] = (h2 - h_avg)*Math.PI/180.0;
-		return h_avg;
-	}
-	*/
 	public double setAzimuthsFromHeadings(double [] h) { // USED in lwir
 		int indx = getAzimuthIndex();
 		double h_avg = 0;
@@ -583,18 +548,6 @@ public class CorrVector{ // TODO: Update to non-quad (extract to a file first)?
 	}
 
 	// Include factory calibration rolls
-	/*
-	public double [] getFullRolls() // USED in lwir
-	{
-		double d2r= Math.PI/180.0;
-		double [] rolls =     {
-				vector[6] + d2r * geometryCorrection.roll[0],
-				vector[7] + d2r * geometryCorrection.roll[1],
-				vector[8] + d2r * geometryCorrection.roll[2],
-				vector[9] + d2r * geometryCorrection.roll[3]};
-		return rolls;
-	}
-	*/
 	public double [] getFullRolls() // USED in lwir
 	{
 		int indx =getRollIndex();
@@ -944,6 +897,7 @@ Vector #  3 [-|+|-|+] 1.00<1.00  [1.0  | 1.0  | 1.0  | 1.0 ]  l= 1.0 n=1(1)
 	 *  0: |⇗ ⇖|  1: |⇙ ⇖|  2: |⇖ ⇙|  3: |⇖ ⇗|  4:  |⇗ ⇙|  5: |⇘  ⇖|
 	 *
 	 */
+	/*
 	public double [][] dSym_j_dTar_i() // USED in lwir
 	{
 		double [][] tar_to_sym = {
@@ -979,6 +933,8 @@ Vector #  3 [-|+|-|+] 1.00<1.00  [1.0  | 1.0  | 1.0  | 1.0 ]  l= 1.0 n=1(1)
 		//			Matrix sym_to_tar = new Matrix(symToTARArray());
 		//			Matrix tar_to_sym = sym_to_tar.inverse();
 		//			return tar_to_sym.getArray();
+		 */
+	
 		/*
 a=[
 [-2.0, -2.0,  2.0, -2.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0],
@@ -1010,6 +966,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
     [-0.   , -0.   , -0.   , -0.   , -0.   , -0.   , -0.   , -0.   ,   -0.   , -0.   , -0.5  , -0.5  ,  0.5  ],
     [ 0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,    0.   ,  0.   , -0.5  ,  0.5  ,  0.5  ]])
 */
+	/*
 		double [][] sym_to_tar=	{ // USED in lwir
 				// t0     t1     t2     a0     a1     a2     r0    r1    r2    r3    s0    s1    s2
 				{-0.125,-0.125, 0.125, 0.125,-0.125, 0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0 },  // sym0
@@ -1034,7 +991,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		        } ;
 		return sym_to_tar;
 	}
-
+*/
 	public boolean [] getParMask( // USED in lwir
 			boolean use_disparity,
 			boolean use_aztilts,       // Adjust azimuths and tilts excluding disparity
@@ -1122,11 +1079,27 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 *  UPDATE
 	 * @return
 	 */
-
 	public double [][] getJtPartial( // USED in lwir
 			double [][] port_coord_deriv,
 			boolean []  par_mask)
 	{
+		Matrix from_sym = symmVectorsSet.from_sym;
+		if (par_mask != null) {
+			ArrayList<Integer> par_list = new ArrayList<Integer>();
+			for (int i = 0; i < par_mask.length; i++) {
+				if (par_mask[i]) {
+					par_list.add(i);
+				}
+			}
+			if (par_list.size() < par_mask.length) {
+				int[] sub_pars = par_list.stream().mapToInt(i -> i).toArray(); // Java8
+				from_sym = from_sym.getMatrix(0, par_mask.length,sub_pars); // remove masked columns
+			}
+		}
+		Matrix pcd = new Matrix (port_coord_deriv); // rows: px0,py0,... px[n-1], py[n-1], columns: tar
+		Matrix mjt_part = pcd.times(from_sym).transpose(); // rows: sym0..., columns: px0,py0,... px[n-1], py[n-1]
+		return mjt_part.getArray();
+		/*
 		int num_pars = 0;
 		for (int npar = 0; npar < getLength(); npar++) if ((par_mask==null) || par_mask[npar]) {
 			num_pars++;
@@ -1143,14 +1116,18 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			opar++;
 		}
 		return jt_part;
+		*/
 	}
 
 	// convert tilt0,... roll3 array to symmetrical coordinates [0] - to the center (disparity)
+	// Use   public void setMatrix (int[] r, int[] c, Matrix X) ? 
+
+	// symmVectorsSet.from_sym, symmVectorsSet.to_sym;
 	public double [] toSymArray(boolean [] par_mask) // USED in lwir
 	{
 		return toSymArray(this.vector, par_mask);
 	}
-
+    /*
 	public double [] toSymArray( // USED in lwir
 			double [] tar_array,
 			boolean [] par_mask)
@@ -1186,4 +1163,49 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		}
 		return tar_array;
 	}
+	*/
+	public double [] toSymArray( // USED in lwir
+			double [] tar_array,
+			boolean [] par_mask)
+	{
+		Matrix to_sym = symmVectorsSet.to_sym;
+		if (par_mask != null) {
+			ArrayList<Integer> par_list = new ArrayList<Integer>();
+			for (int i = 0; i < par_mask.length; i++) {
+				if (par_mask[i]) {
+					par_list.add(i);
+				}
+			}
+			if (par_list.size() < par_mask.length) {
+				int[] sub_pars = par_list.stream().mapToInt(i -> i).toArray(); // Java8
+				to_sym = to_sym.getMatrix(sub_pars, 0, par_mask.length); // remove masked rows
+			}
+		}
+		Matrix tar = new Matrix(tar_array,tar_array.length);
+		Matrix sym = to_sym.times(tar);
+		return sym.getColumnPackedCopy();
+	}
+
+	public double [] toTarArray( // USED in lwir
+			double [] sym_array,
+			boolean [] par_mask)
+	{
+		Matrix from_sym = symmVectorsSet.from_sym;
+		if (par_mask != null) {
+			ArrayList<Integer> par_list = new ArrayList<Integer>();
+			for (int i = 0; i < par_mask.length; i++) {
+				if (par_mask[i]) {
+					par_list.add(i);
+				}
+			}
+			if (par_list.size() < par_mask.length) {
+				int[] sub_pars = par_list.stream().mapToInt(i -> i).toArray(); // Java8
+				from_sym = from_sym.getMatrix(0, par_mask.length,sub_pars); // remove masked columns
+			}
+		}
+		Matrix sym = new Matrix(sym_array,sym_array.length);
+		Matrix tar = from_sym.times(sym);
+		return tar.getColumnPackedCopy();
+	}
+	
 }

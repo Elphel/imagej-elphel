@@ -3,6 +3,8 @@ package com.elphel.imagej.tileprocessor;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+import Jama.Matrix;
+
 /**
  **
  ** SymmVector - Generating symmetrical geometry correction vectors for multi-camera
@@ -28,6 +30,9 @@ import java.util.HashMap;
  */
 
 public class SymmVector {
+	public static int TILT_SIGN =   -1;
+	public static int AZIMUTH_SIGN = 1;
+	public static int NUM_ERS = 6;
 	public static int R_MINUS = 0; // radial inwards
 	public static int T_PLUS =  1; // tangential clockwise
 	public static int R_PLUS =  2; // radial outwards
@@ -102,6 +107,9 @@ public class SymmVector {
 		rvs.dir_rt = sv.exportDirRT();
 		rvs.rots =   sv.exportRZ(false); // include common roll
 		rvs.zooms =  sv.exportRZ(true);  // no common zoom
+		Matrix[] fts = sv.fromToSym();
+		rvs.from_sym = fts[0];
+		rvs.to_sym =   fts[1];
 		return rvs;
 	}
 	
@@ -1111,7 +1119,86 @@ public class SymmVector {
 	 * 
 	 * No need for _extra?
 	 * 
+	public static int TILT_SIGN =   -1;
+	public static int AZIMUTH_SIGN = 1;
+	 * 
 	 */
+	
+	public Matrix taToSym() {
+		// restore last tilt, azimuth, reorder to {-tilt[0], azimuth[0], ... -tilt[N-1], azimuth[N-1]
+		Matrix ta2xy = new Matrix(2*N, 2*N-2);
+		for (int i = 0; i < N - 1; i++) {
+			ta2xy.set(2 * i + 0, N -1 + i,  AZIMUTH_SIGN);
+			ta2xy.set(2 * N - 2, N -1 + i, -AZIMUTH_SIGN);
+			ta2xy.set(2 * i + 1,        i,  TILT_SIGN);
+			ta2xy.set(2 * N - 1,        i, -TILT_SIGN);
+		}
+		// convert from "X,Y"
+		
+		return null;
+	}
+
+
+	/**
+	 * Create a submatrix to convert 2*N-2 sym vectors to concatenated {tilt[0:N-2],azimuth[0:N-2]}. 
+	 * @param xy alternating XY components of "symmetrical" vectors as generated
+	 * @return
+	 */
+	public Matrix symToTA(double [][] xy) {
+		// rows - "symmetrical" vectors, columns {x0,y0,..., x{N-2],y[N-2] 
+		Matrix sym2xy = (new Matrix(xy)).getMatrix(0, 2*N-3, 0, 2*N-3).transpose(); // drop last two columns
+		// reorder and change sign (for tilts
+		Matrix xy2ta = new Matrix (2*N-2, 2*N-2);
+		for (int i = 0; i < N - 1; i++) {
+			xy2ta.set(    i, 2* i + 1, TILT_SIGN);
+			xy2ta.set(N-1+i, 2 *i + 0, AZIMUTH_SIGN);
+		}		
+		return xy2ta.times(sym2xy);
+	}
+	
+	/**
+	 * Convert N symmetrical rotation vectors to individual cameras rolls
+	 * @param rots symmetrical rotation vectors
+	 * @return conversion Matrix
+	 */
+	public Matrix symToRoll(double [][] rots) {
+		return (new Matrix(rots)).transpose(); // columns - sym. vectors, rows - rolls of individual cameras
+	}
+
+	/**
+	 * Convert N-1 symmetrical zoom vectors to zooms of the first N-1 cameras
+	 * @param  zooms symmetrical zoom vectors
+	 * @return conversion matrix
+	 */
+	public Matrix symToZoom(double [][] zooms) { // average zoom == 0, 
+		return (new Matrix(zooms)).getMatrix(0, N-2, 0, N-2).transpose(); // drop zooms of the last camera
+	}
+	
+	public Matrix[] fromToSym() {
+		Matrix sym2ta =   symToTA(exportXY());             // 2*N-2
+		Matrix sym2roll = symToRoll(exportRZ(false));      // N
+		Matrix sym2zoom = symToRoll(exportRZ(true));       // N-1
+		Matrix sym2ers =  Matrix.identity(NUM_ERS,NUM_ERS);// NUM_ERS
+		int i0 = 0;
+		int i1 = i0 + sym2ta.getColumnDimension();
+		int i2 = i1 + sym2roll.getColumnDimension();
+		int i3 = i2 + sym2zoom.getColumnDimension();
+		int i4 = i3 + sym2ers.getColumnDimension();
+		Matrix from_sym = new Matrix(i4,i4);
+		from_sym.setMatrix(i0,i1-1,i0,i1-1, sym2ta);
+		from_sym.setMatrix(i1,i2-1,i1,i2-1, sym2roll);
+		from_sym.setMatrix(i2,i3-1,i2,i3-1, sym2zoom);
+		from_sym.setMatrix(i3,i4-1,i4,i4-1, sym2ers);
+
+		Matrix to_sym = new Matrix(i4,i4);
+		to_sym.setMatrix(i0,i1-1,i0,i1-1, sym2ta.inverse());
+		to_sym.setMatrix(i1,i2-1,i1,i2-1, sym2roll.inverse());
+		to_sym.setMatrix(i2,i3-1,i2,i3-1, sym2zoom.inverse());
+		to_sym.setMatrix(i3,i4-1,i4,i4-1, sym2ers.inverse());
+		return new Matrix[] {from_sym,to_sym};
+	}
+	//getColumnDimension
+	
 	
 }
 class SymmVectorsSet {
@@ -1121,5 +1208,7 @@ class SymmVectorsSet {
 	int    [][] dir_rt;
 	double [][] rots;
 	double [][] zooms;
+	Matrix from_sym;
+	Matrix to_sym;
 }
 
