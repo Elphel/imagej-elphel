@@ -182,52 +182,15 @@ public class GeometryCorrection {
 		}
 		return extrinsic_vect;
 	}
-	
 
 	public float [] toFloatArray() { // for GPU comparison
-		return new float[] {
-				pixelCorrectionWidth, //  =2592;   // virtual camera center is at (pixelCorrectionWidth/2, pixelCorrectionHeight/2)
-				pixelCorrectionHeight, // =1936;
-				(float) line_time,        // duration of one scan line readout (for ERS)
-				(float) focalLength,      // =FOCAL_LENGTH;
-				(float) pixelSize,        // =  PIXEL_SIZE; //um
-				(float) distortionRadius, // =  DISTORTION_RADIUS; // mm - half width of the sensor
-				(float) distortionC,      // r^2
-				(float) distortionB,      // r^3
-				(float) distortionA,      // r^4 (normalized to focal length or to sensor half width?)
-				(float) distortionA5,     // r^5 (normalized to focal length or to sensor half width?)
-				(float) distortionA6,     // r^6 (normalized to focal length or to sensor half width?)
-				(float) distortionA7,     // r^7 (normalized to focal length or to sensor half width?)
-				(float) distortionA8,     // r^8 (normalized to focal length or to sensor half width?)
-				// parameters, common for all sensors
-				(float) elevation,     // degrees, up - positive;
-				(float) heading,       // degrees, CW (from top) - positive
-				(float) forward[0], (float) forward[1], (float) forward[2], (float) forward[3], //    [NUM_CAMS];
-				(float) right[0],   (float) right[1],   (float) right[2],   (float) right[3],   // [NUM_CAMS];
-				(float) height[0],  (float) height[1],  (float) height[2],  (float) height[3],  //     [NUM_CAMS];
-				(float) roll[0],    (float) roll[1],    (float) roll[2],    (float) roll[3],     //    [NUM_CAMS];  // degrees, CW (to target) - positive
+		double [] doubles = toDoubleArray();
+		float []  floats = new float [doubles.length];
+		for (int i = 0; i < doubles.length; i++) {
+			floats[i] = (float) doubles[i];
+		}
+		return floats;
 
-				(float) pXY0[0][0], (float) pXY0[0][1], (float) pXY0[1][0], (float) pXY0[1][1],
-				(float) pXY0[2][0], (float) pXY0[2][1], (float) pXY0[3][0], (float) pXY0[3][1],
-//	public  double [][] pXY0 =    null;  // sensor center XY in pixels
-
-				(float) common_right,    // mm right, camera center
-				(float) common_forward,  // mm forward (to target), camera center
-				(float) common_height,   // mm up, camera center
-				(float) common_roll,     // degrees CW (to target) camera as a whole
-//				(float) [][] XYZ_he;     // all cameras coordinates transformed to eliminate heading and elevation (rolls preserved)
-//				(float) [][] XYZ_her = null; // XYZ of the lenses in a corrected CCS (adjusted for to elevation, heading,  common_roll)
-				(float) rXY[0][0], (float) rXY[0][1],        // [NUM_CAMS][2]; // XY pairs of the in a normal plane, relative to disparityRadius
-				(float) rXY[1][0], (float) rXY[1][1],
-				(float) rXY[2][0], (float) rXY[2][1],
-				(float) rXY[3][0], (float) rXY[3][1],
-//				(float) [][] rXY_ideal = {{-0.5, -0.5}, {0.5,-0.5}, {-0.5, 0.5}, {0.5,0.5}};
-			// only used for the multi-quad systems
-				(float) cameraRadius,      // average distance from the "mass center" of the sensors to the sensors
-				(float) disparityRadius,   //=150.0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad
-				woi_tops[0],woi_tops[1],woi_tops[2],woi_tops[3]
-						// TODO: ADD camera_heights[0],	camera_heights[1], camera_heights[2], camera_heights[3],
-		};
 	}
 	public static int arrayLength(int ncam) {
 //		return 21+8*ncam;
@@ -236,7 +199,80 @@ public class GeometryCorrection {
 	}
 
 
-	public double [] toDoubleArray() { // for GPU comparison
+	public double [] toDoubleArray() { // for GPU comparison (join with toFloatArray
+		int [] woi_tops = this.woi_tops;
+		if (woi_tops == null) {
+			woi_tops = new int[numSensors];
+			System.out.println("Warning: woi_tops== null, using all zeros");
+		}
+		Object [] items = {
+				pixelCorrectionWidth, //  =2592;   // virtual camera center is at (pixelCorrectionWidth/2, pixelCorrectionHeight/2)
+				pixelCorrectionHeight, // =1936;
+				line_time,        // duration of one scan line readout (for ERS)
+				focalLength,      // =FOCAL_LENGTH;
+				pixelSize,        // =  PIXEL_SIZE; //um
+				distortionRadius, // =  DISTORTION_RADIUS; // mm - half width of the sensor
+				distortionC,      // r^2
+				distortionB,      // r^3
+				distortionA,      // r^4 (normalized to focal length or to sensor half width?)
+				distortionA5,     // r^5 (normalized to focal length or to sensor half width?)
+				distortionA6,     // r^6 (normalized to focal length or to sensor half width?)
+				distortionA7,     // r^7 (normalized to focal length or to sensor half width?)
+				distortionA8,     // r^8 (normalized to focal length or to sensor half width?)
+				elevation,        // degrees, up - positive;
+				heading,          // degrees, CW (from top) - positive
+				forward ,         // [0],  forward[1],  forward[2],  forward[3], //    [NUM_CAMS];
+				right,            // [0],    right[1],    right[2],    right[3],   //    [NUM_CAMS];
+				height,           // [0],   height[1],   height[2],   height[3],  //     [NUM_CAMS];
+				roll,             // [0],     roll[1],     roll[2],     roll[3],    //    [NUM_CAMS];  // degrees, CW (to target) - positive
+				pXY0,             // [0][0],  pXY0[0][1],  pXY0[1][0],  pXY0[1][1],
+				                  // [2][0],  pXY0[2][1],  pXY0[3][0],  pXY0[3][1],
+
+				common_right,    // mm right, camera center
+				common_forward,  // mm forward (to target), camera center
+				common_height,   // mm up, camera center
+				common_roll,     // degrees CW (to target) camera as a whole
+				rXY, // [0][0],  rXY[0][1],        // [NUM_CAMS][2]; // XY pairs of the in a normal plane, relative to disparityRadius
+//				rXY[1][0],  rXY[1][1],
+//				rXY[2][0],  rXY[2][1],
+//				rXY[3][0],  rXY[3][1],
+				cameraRadius,     // average distance from the "mass center" of the sensors to the sensors
+				disparityRadius,   //=150.0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad
+				woi_tops //[0],woi_tops[1],woi_tops[2],woi_tops[3]
+// TODO: ADD camera_heights[0],	camera_heights[1], camera_heights[2], camera_heights[3],
+		};
+		ArrayList<Double> double_list = new ArrayList<Double>();
+		for (Object item:items) {
+			if (item instanceof Double){
+				double_list.add((Double) item);
+			} else if  (item instanceof Integer) {
+			    double d = (Integer) item;
+//				double_list.add(new Double((Integer) item));
+				double_list.add(d);
+			} else if (item instanceof double[]) {
+				for (double d: (double []) item) {
+					double_list.add( d);
+				}
+			} else if (item instanceof int[]) {
+				for (int i: (int []) item) {
+					double_list.add(1.0*i);
+				}
+			} else if (item instanceof Object []) {
+				for (Object row: ((Object []) item)) {
+					for (double d: (double []) row) {
+						double_list.add(d);
+					}
+				}
+			} else {
+				throw new IllegalArgumentException ("Invalid object type "+item.toString());
+			}
+		}
+		double [] doubles = new double [double_list.size()];
+		for (int i = 0; i < doubles.length; i++) {
+			doubles[i] = double_list.get(i);
+		}
+		return doubles;
+		/*
 		return new double[] {
 				pixelCorrectionWidth, //  =2592;   // virtual camera center is at (pixelCorrectionWidth/2, pixelCorrectionHeight/2)
 				pixelCorrectionHeight, // =1936;
@@ -254,9 +290,9 @@ public class GeometryCorrection {
 				elevation,     // degrees, up - positive;
 				heading,       // degrees, CW (from top) - positive
 				forward[0],  forward[1],  forward[2],  forward[3], //    [NUM_CAMS];
-				right[0],    right[1],    right[2],    right[3],   // [NUM_CAMS];
+				right[0],    right[1],    right[2],    right[3],   //    [NUM_CAMS];
 				height[0],   height[1],   height[2],   height[3],  //     [NUM_CAMS];
-				roll[0],     roll[1],     roll[2],     roll[3],     //    [NUM_CAMS];  // degrees, CW (to target) - positive
+				roll[0],     roll[1],     roll[2],     roll[3],    //    [NUM_CAMS];  // degrees, CW (to target) - positive
 				pXY0[0][0],  pXY0[0][1],  pXY0[1][0],  pXY0[1][1],
 				pXY0[2][0],  pXY0[2][1],  pXY0[3][0],  pXY0[3][1],
 
@@ -274,6 +310,7 @@ public class GeometryCorrection {
 // TODO: ADD camera_heights[0],	camera_heights[1], camera_heights[2], camera_heights[3],
 						
 		};
+		*/
 	}
 
 	public int [] getWOITops() {// not used in lwir
@@ -430,8 +467,9 @@ public class GeometryCorrection {
 		resetCorrVector();
 	}
 	
-	public GeometryCorrection(double [] extrinsic_corr)
+	public GeometryCorrection(double [] extrinsic_corr) // check for null?
 	{
+		this.numSensors = CorrVector.getNumSensors(extrinsic_corr.length);
 		this.extrinsic_corr = 	new CorrVector(this, extrinsic_corr);
 		initPrePostMatrices(true); //false); //
 	}
@@ -1338,34 +1376,7 @@ public class GeometryCorrection {
 			return got_data;
 		}
 		// 9:%8.5f° 10: %8.5f‰
-		public boolean editOffsetsDegrees() {// not used in lwir
-  			GenericJTabbedDialog gd = new GenericJTabbedDialog("Set CLT parameters",800,900);
-			gd.addNumericField("Baseline",                                                            this.baseline,  1,6,"mm",
-					"Distance between quad camera centers");
-			gd.addNumericField("Angle to the aux camera from the main",                               180.0/Math.PI*this.aux_angle,  4,9,"°",
-					"Directly to the right - 0°, directly up - 90°, ...");
-			gd.addNumericField("Auxilliary camera forward from the plane of the main one (not used)", this.aux_z,  3,6,"mm",
-					"Distance from the plane perpendicualr to the main camera axis to the auxiliary camera (positive for aux moved forward)");
-			gd.addNumericField("Auxilliary camera azimuth  (positive - to the right)",                180.0/Math.PI*this.aux_azimuth,  3,6,"°",
-					"Relative to the main camera axis");
-			gd.addNumericField("Auxilliary camera tilt (positive - looking up)",                      180.0/Math.PI*this.aux_tilt,  3,6,"°",
-					"Relative to the main camera");
-			gd.addNumericField("Auxilliary camera roll (positive - clockwise)",                       180.0/Math.PI*this.aux_roll,  3,6,"°",
-					"Roll of a camera as a whole relative to the main camera");
-			gd.addNumericField("Relative zoom",                                                       1000.0*this.aux_zoom,  3,6,"‰",
-					"Zoom ratio minus 1.0 multiplied by 1000.0");
-  			gd.showDialog();
-			if (gd.wasCanceled()) return false;
-			this.baseline=     gd.getNextNumber();
-			this.aux_angle=    gd.getNextNumber() * Math.PI/180;
-			this.aux_z=        gd.getNextNumber();
-			this.aux_azimuth=  gd.getNextNumber() * Math.PI/180;
-			this.aux_tilt=     gd.getNextNumber() * Math.PI/180;
-			this.aux_roll=     gd.getNextNumber() * Math.PI/180;
-			this.aux_zoom=     gd.getNextNumber()/1000.0;
-			recalcRXY();
-			return true;
-		}
+		
 		public boolean editOffsetsPixels() {// not used in lwir
   			GenericJTabbedDialog gd = new GenericJTabbedDialog("Set dual camera rig parameters (auxiliary camera relative to the main one)",800,300);
 			gd.addNumericField("Baseline",                                                            this.baseline,  1,6,"mm",

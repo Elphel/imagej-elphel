@@ -78,7 +78,16 @@ public class CorrVector{ // TODO: Update to non-quad (extract to a file first)?
 		return geometryCorrection.getNumSensors();
 	}
 	
+	public static int getNumSensors(int vector_length) {
+		int num_sensors=4;
+		for (; getLength(num_sensors) < vector_length; num_sensors++);
+		if (getLength(num_sensors) != vector_length) {
+			throw new IllegalArgumentException ("Invalid vector length = "+vector_length);
+		}
+		return num_sensors;
+	}
 	
+//getLength()	
 	public static String [] getCorrNames(int num_chn) {
 		String [] corr_names = new String[getLength(num_chn)];
 		for (int n = 0; n < num_chn; n++) {
@@ -514,7 +523,7 @@ public class CorrVector{ // TODO: Update to non-quad (extract to a file first)?
 		}
 		f_avg /= f.length;
 		for (int i = 0; i < (f.length-1); i++) {
-			vector[indx+i] = (f[i] - f_avg)/f_avg;
+			vector[indx+i] = (f[i] - f_avg)/f_avg; // here first time wrong number of sensors
 		}
 		return f_avg;
 	}
@@ -636,10 +645,10 @@ public class CorrVector{ // TODO: Update to non-quad (extract to a file first)?
 			}
 		}
 		s = "";
-		s+= "tilt    (up):   "; for (int i = 0; i < n; i++) s += String.format(" %8.5fpx", tilts[i]);    s+=" (shift of the image center)\n"; 
-		s+= "azimuth (right):"; for (int i = 0; i < n; i++) s += String.format(" %8.5fpx", azimuths[i]); s+=" (shift of the image center)\n"; 
-		s+= "roll    (CW):   "; for (int i = 0; i < n; i++) s += String.format(" %8.5fpx", rolls[i]);    s+=" (shift at the image half-width from the center)\n"; 
-		s+= "diff zoom (in): "; for (int i = 0; i < n; i++) s += String.format(" %8.5fpx", zooms[i]);    s+=" (shift at the image half-width from the center)\n"; 
+		s+= "tilt    (up):   "; for (int i = 0; i < n; i++) s += String.format(" %8.4fpx", tilts[i]);    s+=" (shift of the image center)\n"; 
+		s+= "azimuth (right):"; for (int i = 0; i < n; i++) s += String.format(" %8.4fpx", azimuths[i]); s+=" (shift of the image center)\n"; 
+		s+= "roll    (CW):   "; for (int i = 0; i < n; i++) s += String.format(" %8.4fpx", rolls[i]);    s+=" (shift at the image half-width from the center)\n"; 
+		s+= "diff zoom (in): "; for (int i = 0; i < n; i++) s += String.format(" %8.4fpx", zooms[i]);    s+=" (shift at the image half-width from the center)\n"; 
 		s += "Symmetrical vector:\n";
 		if (getNumSensors() == 4) { // Use arrows for quad camera only (but update to match new
 			// ← → ↑ ↓ ⇖ ⇗ ⇘ ⇙ ↔ ↺ ↻ 
@@ -678,9 +687,9 @@ Vector #  3 [-|+|-|+] 1.00<1.00  [1.0  | 1.0  | 1.0  | 1.0 ]  l= 1.0 n=1(1)
 					if ((j>0) && (j%(n/4) == 0)) {
 						 s += "|";
 					}
-					s += rt4[rt_proto[indx][i]];
+					s += rt4[rt_proto[i][j]];
 				}
-				s+=String.format("] %9.6f px", sv[indx]);
+				s+=String.format("] %9.6f px\n", sv[indx]);
 				indx++;
 			}
 			// rolls
@@ -691,15 +700,15 @@ Vector #  3 [-|+|-|+] 1.00<1.00  [1.0  | 1.0  | 1.0  | 1.0 ]  l= 1.0 n=1(1)
 					if ((j>0) && (j%(n/4) == 0)) {
 						 s += "|";
 					}
-					if (rot_proto[indx][i] > 0) {
+					if (rot_proto[i][j] > 0) { // Index 30 out of bounds for length 16
 						s+="↻";
-					} else if (rot_proto[indx][i] < 0) {
+					} else if (rot_proto[i][j] < 0) {
 						s+="↺";
 					} else {
 						s+="0";
 					}
 				}
-				s+=String.format("] %9.6f px", sv[indx]);
+				s+=String.format("] %9.6f px\n", sv[indx]);
 				indx++;
 			}
 			// zooms
@@ -710,15 +719,15 @@ Vector #  3 [-|+|-|+] 1.00<1.00  [1.0  | 1.0  | 1.0  | 1.0 ]  l= 1.0 n=1(1)
 					if ((j>0) && (j%(n/4) == 0)) {
 						 s += "|";
 					}
-					if (zoom_proto[indx][i] > 0) {
+					if (zoom_proto[i][j] > 0) {
 						s+="+";
-					} else if (zoom_proto[indx][i] < 0) {
+					} else if (zoom_proto[i][j] < 0) {
 						s+="-";
 					} else {
 						s+="0";
 					}
 				}
-				s+=String.format("] %9.6f px", sv[indx]);
+				s+=String.format("] %9.6f px\n", sv[indx]);
 				indx++;
 			}
 		}

@@ -799,7 +799,12 @@ public class QuadCLTCPU {
 			}
 			// Substitute vector generated in initGeometryCorrection with the saved from properties one:
 			// it also replaces data inside geometryCorrection. TODO: redo to isolate this.extrinsic_vect from geometryCorrection
-			this.extrinsic_vect = 	extrinsic_vect_saved;
+			if (extrinsic_vect_saved.length == this.extrinsic_vect.length) {
+				this.extrinsic_vect = 	extrinsic_vect_saved;
+			} else {
+				System.out.println("Ignoring incompatible saved extrinsic vector ("+extrinsic_vect_saved.length+
+						" long) as current vector length is " + this.extrinsic_vect.length);
+			}
 			geometryCorrection.setCorrVector(this.extrinsic_vect);
 //			geometryCorrection = new GeometryCorrection(this.extrinsic_vect);
 		}
@@ -832,9 +837,6 @@ public class QuadCLTCPU {
 	}
 	public boolean initGeometryCorrection(int debugLevel){ // USED in lwir
 		// keep rig offsets if edited
-		if (geometryCorrection == null) {
-			geometryCorrection = new GeometryCorrection(extrinsic_vect);
-		}
 		if (eyesisCorrections.pixelMapping == null) {
 			// need to initialize sensor data
 //			eyesisCorrections.initSensorFiles(.debugLevel..);
@@ -843,6 +845,27 @@ public class QuadCLTCPU {
 		PixelMapping.SensorData [] sensors =  eyesisCorrections.pixelMapping.sensors;
 		// verify that all sensors have the same distortion parameters
 		int numSensors = sensors.length;
+// if num_sesnors mismatch extrinsic_vect - reset extrinsic_vect and
+		int vector_length = CorrVector.getLength(numSensors);
+		if ((extrinsic_vect == null) || (extrinsic_vect.length != vector_length)) {
+			if (extrinsic_vect == null) {
+				System.out.println("initGeometryCorrection(): Was not expecting extrinsic_vect == null");
+			} else {
+				System.out.println("initGeometryCorrection(): extrinsic_vect.length="+extrinsic_vect.length+
+						" does not match "+numSensors+ " sensors (it should be "+vector_length+")");
+			}
+			System.out.println("Resetting geometryCorrection");
+			geometryCorrection = null;
+			System.out.println("Resetting extrinsic_vect");
+			extrinsic_vect = new double[vector_length];
+		}
+		if (geometryCorrection == null) {
+			geometryCorrection = new GeometryCorrection(extrinsic_vect);
+		}
+		
+		
+		
+		
 		for (int i = 1; i < numSensors; i++){
 			if (//	(sensors[0].focalLength !=           sensors[i].focalLength) || // null pointer
 					(sensors[0].distortionC !=           sensors[i].distortionC) ||
@@ -942,7 +965,7 @@ public class QuadCLTCPU {
 			System.out.println("=== Extrinsic corrections ===");
 			System.out.println(geometryCorrection.getCorrVector().toString());
 		}
-
+		double [] dbg_objects = geometryCorrection.toDoubleArray();
 //listGeometryCorrection
 		return true;
 	}

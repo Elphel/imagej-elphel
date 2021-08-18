@@ -95,7 +95,7 @@ public class SymmVector {
 	public static SymmVectorsSet newVectors (int num_cameras) {
 		boolean full_type1 = false;
 		boolean full_type2 = false;
-		int debug_level = -1;
+		int debug_level = -2;
 		SymmVectorsSet rvs = new SymmVectorsSet();
 		SymmVector sv = new SymmVector(
 				num_cameras,
@@ -410,7 +410,7 @@ public class SymmVector {
 		int offs = zoom_mode ? 1 : 0;
 		double [][] rslt = new double[rz_indices.length - offs][];
 		for (int n = 0; n < rslt.length; n++) {
-			rslt[n]= rz_vectors[rz_indices[n + offs]]; // should be normalized
+			rslt[n]= rz_vectors[rz_indices[n + offs]].clone(); // should be normalized
 		}
 		return rslt;
 	}
@@ -1175,10 +1175,10 @@ public class SymmVector {
 	}
 	
 	public Matrix[] fromToSym() {
-		Matrix sym2ta =   symToTA(exportXY());             // 2*N-2
-		Matrix sym2roll = symToRoll(exportRZ(false));      // N
-		Matrix sym2zoom = symToRoll(exportRZ(true));       // N-1
-		Matrix sym2ers =  Matrix.identity(NUM_ERS,NUM_ERS);// NUM_ERS
+		Matrix sym2ta =   symToTA(exportXY());                              // 2*N-2
+		Matrix sym2roll = symToRoll(exportRZ(false));                       // N
+		Matrix sym2zoom = symToRoll(exportRZ(true)).getMatrix(0,N-2,0,N-2); // N-1, do not use last line
+		Matrix sym2ers =  Matrix.identity(NUM_ERS,NUM_ERS);                 // NUM_ERS
 		int i0 = 0;
 		int i1 = i0 + sym2ta.getColumnDimension();
 		int i2 = i1 + sym2roll.getColumnDimension();
@@ -1188,13 +1188,13 @@ public class SymmVector {
 		from_sym.setMatrix(i0,i1-1,i0,i1-1, sym2ta);
 		from_sym.setMatrix(i1,i2-1,i1,i2-1, sym2roll);
 		from_sym.setMatrix(i2,i3-1,i2,i3-1, sym2zoom);
-		from_sym.setMatrix(i3,i4-1,i4,i4-1, sym2ers);
+		from_sym.setMatrix(i3,i4-1,i3,i4-1, sym2ers);
 
 		Matrix to_sym = new Matrix(i4,i4);
 		to_sym.setMatrix(i0,i1-1,i0,i1-1, sym2ta.inverse());
 		to_sym.setMatrix(i1,i2-1,i1,i2-1, sym2roll.inverse());
 		to_sym.setMatrix(i2,i3-1,i2,i3-1, sym2zoom.inverse());
-		to_sym.setMatrix(i3,i4-1,i4,i4-1, sym2ers.inverse());
+		to_sym.setMatrix(i3,i4-1,i3,i4-1, sym2ers.inverse());
 		return new Matrix[] {from_sym,to_sym};
 	}
 	//getColumnDimension
