@@ -84,7 +84,7 @@ import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.common.WindowTools;
 import com.elphel.imagej.dct.FactorConvKernel;
 import com.elphel.imagej.gpu.GPUTileProcessor;
-import com.elphel.imagej.gpu.JCuda_ImageJ_Example_Plugin;
+//import com.elphel.imagej.gpu.JCuda_ImageJ_Example_Plugin;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 import com.elphel.imagej.lwir.LwirReader;
 import com.elphel.imagej.readers.EyesisTiff;
@@ -5214,7 +5214,7 @@ private Panel panel1,
 
 /* ======================================================================== */
     } else if (label.equals("JCUDA TEST")) {
-
+/*
     	ImagePlus impl = WindowManager.getCurrentImage();
     	if (impl!=null) {
 
@@ -5222,17 +5222,15 @@ private Panel panel1,
 
         	JCuda_ImageJ_Example_Plugin jcuda = new JCuda_ImageJ_Example_Plugin();
 
-        	/*
-        	 * In a standalone test JCUDA plugin it's unknown where .setup() is called from...
-        	 * As well as .run(). But it works like this.
-        	 */
+        	 // In a standalone test JCUDA plugin it's unknown where .setup() is called from...
+        	 // As well as .run(). But it works like this.
         	jcuda.setup(null,impl);
         	jcuda.run(impr);
 
     	}else {
     		System.out.println("Missing the current image. Open one.");
     	}
-
+*/
     	return;
 /* ======================================================================== */
     } else if (label.equals("TF TEST")) {
@@ -11609,7 +11607,7 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
       stack.addSlice("Pr", fpixels_pr);
       stack.addSlice("Pb", fpixels_pb);
       stack.addSlice("Y",  fpixels_y);
-      stack.addSlice("Y0", fpixels_y0); // not filtered by low-pass, preliminary (for comaprison only)
+      stack.addSlice("Y0", fpixels_y0); // not filtered by low-pass, preliminary (for comparison only)
       if (DEBUG_LEVEL>2) {
         stack.addSlice("Yr",fpixels_yR);
         stack.addSlice("Yg",fpixels_yG);
