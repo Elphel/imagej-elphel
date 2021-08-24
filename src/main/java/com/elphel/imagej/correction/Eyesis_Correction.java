@@ -771,6 +771,9 @@ private Panel panel1,
 			
 			panelLWIR16 = new Panel();
 			panelLWIR16.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
+			addButton("SHOW extrinsics",            panelLWIR16, color_report);
+			addButton("Reset Geometry",             panelLWIR16, color_stop);
+			addButton("Reset AUX Geometry",         panelLWIR16, color_stop);
 			addButton("Generate Sym Vectors",       panelLWIR16, color_configure);
 			plugInFrame.add(panelLWIR16);
 			

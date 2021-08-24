@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.SwingUtilities;
 
+import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
@@ -122,6 +123,19 @@ public class PixelMapping {
        	for (int i=0;i<calibFiles.length;i++){
        		SensorData sensorData=new SensorData (calibFiles[i],this.debugLevel);
        		int channel=sensorData.getChannel(); // from Properties
+       		// Temporary to use old sensor files
+       		//    	public static int getChannelFromTiff(String path, String [] suffixes){
+
+       		int channel_file = EyesisCorrectionParameters.CorrectionParameters.getChannelFromTiff(calibFiles[i], new String []{".calib-tiff"}); 
+//       		if ((i>=16) && (channel < 16)) {
+       		if (channel_file != channel) {
+       			System.out.println ("****Temporary fix to use old sensor files, COMMENT OUT when done debugging****");
+       			System.out.println ("i="+i+", channel_file="+channel_file+", channel ="+channel+" -> "+channel_file);
+       			channel = channel_file; // i;
+       		}
+       		
+       		
+       		
        		if ((channel < first_channel) || ((num_channels > 0) && (channel >= (first_channel + num_channels)))) {
        			continue; // wrong channels
        		}

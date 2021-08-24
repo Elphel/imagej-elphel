@@ -951,14 +951,7 @@ public class QuadCLTCPU {
 
 //		if (numSensors == 4){
 		geometryCorrection.adustSquare();
-		System.out.println("Adjusted camera to orient X Y along the sides of a square (now univerasal), numSensors = "+numSensors);
-			/*
-		} else {
-			System.out.println("============= Cannot adustSquare() as it requires exactly 4 sensors, "+numSensors+" provided ==========");
-			System.out.println("Keeping as it was");
-//			return false; // not used in lwir
-		}
-		*/
+		System.out.println("Adjusted camera to orient X Y along the sides of a square (now universal), numSensors = "+numSensors);
 		// Print parameters
 		if (debugLevel > 0){
 			geometryCorrection.listGeometryCorrection(debugLevel > 1);

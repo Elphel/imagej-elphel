@@ -1134,7 +1134,7 @@ public class EyesisCorrectionParameters {
 
     	}
 
-    	public int getChannelFromTiff(String path, String [] suffixes){
+    	public static int getChannelFromTiff(String path, String [] suffixes){
     		String suffix = null;
     		for (String s:suffixes) {
     			if (path.endsWith(s)) {
