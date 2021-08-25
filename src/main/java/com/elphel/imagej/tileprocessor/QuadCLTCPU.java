@@ -4995,7 +4995,7 @@ public class QuadCLTCPU {
 					  for (int i = 0; i < titles.length; i++){
 						  titles[i]=allColorNames[i % allColorNames.length]+"_"+(i / allColorNames.length);
 					  }
-					  double [][] corr_rslt_partial = image_dtt.corr_partial_dbg(
+					  double [][] corr_rslt_partial = ImageDtt.corr_partial_dbg(
 							  clt_corr_partial,
 							  2*image_dtt.transform_size - 1,	//final int corr_size,
 							  4,	// final int pairs,
