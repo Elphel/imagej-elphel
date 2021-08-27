@@ -139,7 +139,7 @@ public class CorrVector{ // TODO: Update to non-quad (extract to a file first)?
 		return derivs;
 	}
 	public Matrix [] getRotMatricesDbg() {
-		Matrix [] rots = new Matrix [4];
+		Matrix [] rots = new Matrix [getNumSensors()];
 		double [] azimuths = getAzimuths();
 		double [] tilts =    getTilts();
 		double [] rolls =    getFullRolls();
@@ -183,7 +183,7 @@ public class CorrVector{ // TODO: Update to non-quad (extract to a file first)?
 
 	public Matrix [][] getRotDeriveMatricesDbg() // USED in lwir
 	{
-		Matrix [][] rot_derivs = new Matrix [4][4]; // channel, azimuth-tilt-roll-zoom
+		Matrix [][] rot_derivs = new Matrix [getNumSensors()][4]; // channel, azimuth-tilt-roll-zoom
 		double [] azimuths = getAzimuths();
 		double [] tilts =    getTilts();
 		double [] rolls =    getFullRolls();
@@ -283,7 +283,7 @@ public class CorrVector{ // TODO: Update to non-quad (extract to a file first)?
 
 	public Matrix [] getRotMatrices() // USED in lwir TODO: Update to non-quad!
 	{
-		Matrix [] rots = new Matrix [4];
+		Matrix [] rots = new Matrix [getNumSensors()];
 		double [] azimuths = getAzimuths();
 		double [] tilts =    getTilts();
 		double [] rolls =    getFullRolls();
@@ -323,7 +323,7 @@ public class CorrVector{ // TODO: Update to non-quad (extract to a file first)?
 //TODO: UPDATE to include scales
 	public Matrix [][] getRotDeriveMatrices() // USED in lwir
 	{
-		Matrix [][] rot_derivs = new Matrix [4][4]; // channel, azimuth-tilt-roll-zoom
+		Matrix [][] rot_derivs = new Matrix [getNumSensors()][4]; // channel, azimuth-tilt-roll-zoom
 		double [] azimuths = getAzimuths();
 		double [] tilts =    getTilts();
 		double [] rolls =    getFullRolls();

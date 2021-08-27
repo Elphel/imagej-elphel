@@ -3061,8 +3061,8 @@ public class QuadCLTCPU {
 
 		  return result;
 	  }
-
-	  public void processCLTQuads( // not used in lwir
+	  @Deprecated
+	  public void processCLTQuads( // not used in lwir uses quad
 			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 			  ColorProcParameters colorProcParameters,
@@ -3290,8 +3290,9 @@ public class QuadCLTCPU {
 		  System.out.println("processCLTQuads(): processing "+fileIndices.length+" files finished at "+
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
-
-	  public ImagePlus [] processCLTQuad( // not used in lwir
+	  
+	  @Deprecated
+	  public ImagePlus [] processCLTQuad( // not used in lwir uses quad
 			  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"
 			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,

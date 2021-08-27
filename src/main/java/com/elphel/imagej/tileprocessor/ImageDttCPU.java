@@ -993,7 +993,7 @@ public class ImageDttCPU {
 		return clt_data;
 	}
 
-
+	@Deprecated
 	public double [][][][][][] clt_aberrations_quad( // not used in lwir
 			final double              disparity,
 			final double [][][]       image_data, // first index - number of image in a quad
@@ -1533,7 +1533,7 @@ public class ImageDttCPU {
 	}
 
 // removing macro and FPGA modes
-	public double[][] cltMeasureLazyEye ( // returns d,s lazy eye parameters
+	public double[][] cltMeasureLazyEye ( // returns d,s lazy eye parameters 
 			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 			final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
@@ -1576,7 +1576,8 @@ public class ImageDttCPU {
 			debug_offsets[i][j] = imgdtt_params.lma_dbg_offset[i][j]*imgdtt_params.lma_dbg_scale;
 		}
 
-		final int quad = 4;   // number of subcameras
+//		final int quad = 4;   // number of subcameras
+		final int nSens = geometryCorrection.getNumSensors();
 		final int numcol = 3; // number of colors // keep the same, just do not use [0] and [1], [2] - green
 
 //		final int numColors = image_data[0].length;
@@ -1596,11 +1597,11 @@ public class ImageDttCPU {
 		final int debug_clustY = debug_tileY / tileStep;
 ///tileStep
 
-		final double [][][][][][] clt_data = new double[quad][numcol][tilesY][tilesX][][];
+		final double [][][][][][] clt_data = new double[nSens][numcol][tilesY][tilesX][][];
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final double [] col_weights= new double [numcol]; // colors are RBG
-		final double [][] dbg_distort = debug_distort? (new double [4*quad][tilesX*tilesY]) : null;
+		final double [][] dbg_distort = debug_distort? (new double [4*nSens][tilesX*tilesY]) : null;
 
 		final double [][] corr_wnd = Corr2dLMA.getCorrWnd(
 				transform_size,
@@ -1736,7 +1737,7 @@ public class ImageDttCPU {
 					//						showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 					double centerX; // center of aberration-corrected (common model) tile, X
 					double centerY; //
-					double [][] fract_shiftsXY = new double[quad][];
+					double [][] fract_shiftsXY = new double[nSens][];
 					Correlation2d corr2d = new Correlation2d(
 							imgdtt_params,              // ImageDttParameters  imgdtt_params,
 							transform_size,             // int transform_size,
@@ -1760,7 +1761,7 @@ public class ImageDttCPU {
 						clustY = nCluster / clustersX;
 						clustX = nCluster % clustersX;
 						double [][][] centersXY = new double [clustSize][][];
-						double [][][] disp_dist = new double[clustSize][quad][]; // used to correct 3D correlations
+						double [][][] disp_dist = new double[clustSize][nSens][]; // used to correct 3D correlations
 						double [][][] corrs =     new double [clustSize][][];
 						double [][]   corr_stat = new double [clustSize][];
 						double []     strength =  new double [clustSize];
@@ -1832,7 +1833,7 @@ public class ImageDttCPU {
 											tIndex =    tileY * tilesX + tileX;
 											//											int nTile = tileY * tilesX + tileX; // how is it different from tIndex?
 											if (clt_mismatch != null) {
-												for (int cam = 0; cam < quad; cam++) {
+												for (int cam = 0; cam < nSens; cam++) {
 													clt_mismatch[3*cam + 0][tIndex] = Double.NaN;
 													clt_mismatch[3*cam + 1][tIndex] = Double.NaN;
 												}
@@ -1914,7 +1915,7 @@ public class ImageDttCPU {
 										pxpy[cTile][1] = centerY;
 
 										if (((globalDebugLevel > 0) || debug_distort) || (debugTile && (globalDebugLevel > -2))) {
-											for (int i = 0; i < quad; i++) {
+											for (int i = 0; i < nSens; i++) {
 												System.out.println("clt_aberrations_quad_corr():  tileX="+tileX+", tileY="+tileY+
 														" centerX="+centerX+" centerY="+centerY+" disparity="+disparity_array[tileY][tileX]+
 														" centersXY["+cTile+"]["+i+"][0]="+centersXY[cTile][i][0]+" centersXY["+cTile+"]["+i+"][1]="+centersXY[cTile][i][1]);
@@ -1931,11 +1932,11 @@ public class ImageDttCPU {
 												centersXY[cTile][i][1] += debug_offsets_xy[i][1];
 											}
 											if ((debug_distort && debugCluster) || debugTile) {
-												for (int i = 0; i < quad; i++) {
+												for (int i = 0; i < nSens; i++) {
 													System.out.println(String.format("%d: {%8.3f, %8.3f}",i,debug_offsets_xy[i][0],debug_offsets_xy[i][1]));
 												}
 
-												for (int i = 0; i < quad; i++) {
+												for (int i = 0; i < nSens; i++) {
 													System.out.println("Corrected clt_aberrations_quad_corr():  tileX="+tileX+", tileY="+tileY+
 															" centerX="+centerX+" centerY="+centerY+" disparity="+disparity_array[tileY][tileX]+
 															" centersXY["+cTile+"]["+i+"][0]="+centersXY[cTile][i][0]+" centersXY["+cTile+"]["+i+"][1]="+centersXY[cTile][i][1]);
@@ -1957,7 +1958,7 @@ public class ImageDttCPU {
 										}
 										// save disparity distortions for visualization:
 										if (dbg_distort != null) {
-											for (int cam = 0; cam <quad; cam++) {
+											for (int cam = 0; cam <nSens; cam++) {
 												dbg_distort[cam * 4 + 0 ][nTile] = disp_dist[cTile][cam][0];
 												dbg_distort[cam * 4 + 1 ][nTile] = disp_dist[cTile][cam][1];
 												dbg_distort[cam * 4 + 2 ][nTile] = disp_dist[cTile][cam][2];
@@ -1977,7 +1978,7 @@ public class ImageDttCPU {
 															centersXY[cTile][3][0]+"\t"+centersXY[cTile][3][1]+"\t");
 												}
 
-												for (int i = 0; i < quad; i++) {
+												for (int i = 0; i < nSens; i++) {
 													clt_data[i][ncol][tileY][tileX] = new double [4][];
 													// Extract image tiles and kernels, correct aberrations, return (ut do not apply) fractional shifts
 													fract_shiftsXY[i] = extract_correct_tile( // return a pair of residual offsets
@@ -2010,14 +2011,14 @@ public class ImageDttCPU {
 
 												if ((globalDebugLevel > 0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
 														(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)) {
-													for (int i = 0; i < quad; i++) {
+													for (int i = 0; i < nSens; i++) {
 														System.out.println("clt_aberrations_quad(): color="+ncol+", tileX="+tileX+", tileY="+tileY+
 																" fract_shiftsXY["+i+"][0]="+fract_shiftsXY[i][0]+" fract_shiftsXY["+i+"][1]="+fract_shiftsXY[i][1]);
 													}
 												}
 
 												// apply residual shift
-												for (int i = 0; i < quad; i++) {
+												for (int i = 0; i < nSens; i++) {
 													fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
 															clt_data[i][ncol][tileY][tileX], // double  [][]  clt_tile,
 //															transform_size,
@@ -2038,7 +2039,7 @@ public class ImageDttCPU {
 												}
 
 											} else { // if (!isMonochrome() || (chn == MONO_CHN) || macro_mode) { // in monochrome mode skip all non-mono (green) channels
-												for (int i = 0; i < quad; i++) {  // used in lwir
+												for (int i = 0; i < nSens; i++) {  // used in lwir
 													clt_data[i][ncol] = null; // erase unused clt_data
 												}
 											}
@@ -2251,7 +2252,7 @@ public class ImageDttCPU {
 													lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_DIFF] += lma_ds[cTile][0] * w;
 													lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PX + 0] += pxpy[cTile][0] * w;
 													lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PX + 1] += pxpy[cTile][1] * w;
-													for (int cam = 0; cam < quad; cam++) {
+													for (int cam = 0; cam < nSens; cam++) {
 														lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_DYDDISP0 + cam] += disp_dist[cTile][cam][2] * w;
 														lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PYDIST + cam] += centersXY[cTile][cam][1] * w;
 													}
@@ -2268,7 +2269,7 @@ public class ImageDttCPU {
 									lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_DIFF]   /= sum_w;
 									lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PX + 0] /= sum_w;
 									lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PX + 1] /= sum_w;
-									for (int cam = 0; cam < quad; cam++) {
+									for (int cam = 0; cam < nSens; cam++) {
 										lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_DYDDISP0 + cam] /= sum_w;
 										lazy_eye_data[nCluster][ExtrinsicAdjustment.INDX_PYDIST +   cam] /= sum_w;
 									}
@@ -2465,7 +2466,8 @@ public class ImageDttCPU {
 				(new double [] {imgdtt_params.pcorr_dbg_offsx,imgdtt_params.pcorr_dbg_offsy}):null;
 
 		final boolean macro_mode = macro_scale != 1;      // correlate tile data instead of the pixel data
-		final int quad = 4;   // number of subcameras
+//		final int quad = 4;   // number of subcameras
+		final int nSens = geometryCorrection.getNumSensors();
 		final int numcol = 3; // number of colors // keep the same, just do not use [0] and [1], [2] - green
 
 //		final int numColors = image_data[0].length;
@@ -2473,11 +2475,11 @@ public class ImageDttCPU {
 		final int tilesX=width/transform_size;
 		final int tilesY=height/transform_size;
 		final int nTilesInChn=tilesX*tilesY;
-		final double [][][][][][] clt_data = new double[quad][numcol][tilesY][tilesX][][];
+		final double [][][][][][] clt_data = new double[nSens][numcol][tilesY][tilesX][][];
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final double [] col_weights= new double [numcol]; // colors are RBG
-		final double [][] dbg_distort = debug_distort? (new double [4*quad][tilesX*tilesY]) : null;
+		final double [][] dbg_distort = debug_distort? (new double [4*nSens][tilesX*tilesY]) : null;
 		final double [][] corr_wnd = Corr2dLMA.getCorrWnd(
 				transform_size,
 				imgdtt_params.lma_wnd);
@@ -2645,7 +2647,7 @@ public class ImageDttCPU {
 					//						showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 					double centerX; // center of aberration-corrected (common model) tile, X
 					double centerY; //
-					double [][] fract_shiftsXY = new double[quad][];
+					double [][] fract_shiftsXY = new double[nSens][];
 					double [][]     tcorr_combo =    null; // [15*15] pixel space
 					double [][][]   tcorr_partial =  null; // [quad][numcol+1][15*15]
 					double [][][][] tcorr_tpartial = null; // [quad][numcol+1][4][8*8]
@@ -2691,7 +2693,7 @@ public class ImageDttCPU {
 						centerY = tileY * transform_size + transform_size/2 - shiftY;
 						// TODO: move port coordinates out of color channel loop
 						double [][] centersXY;
-						double [][] disp_dist = new double[quad][]; // used to correct 3D correlations
+						double [][] disp_dist = new double[nSens][]; // used to correct 3D correlations
 
 						if ((disparity_array == null) || (disparity_array[tileY] == null) || (Double.isNaN(disparity_array[tileY][tileX]))) {
 							System.out.println("Bug with disparity_array !!!");
@@ -2736,7 +2738,7 @@ public class ImageDttCPU {
 							}
 
 							if (((globalDebugLevel > 0) || debug_distort) && debugTile) {
-								for (int i = 0; i < quad; i++) {
+								for (int i = 0; i < nSens; i++) {
 									System.out.println("clt_aberrations_quad_corr():  tileX="+tileX+", tileY="+tileY+
 											" centerX="+centerX+" centerY="+centerY+" disparity="+disparity_array[tileY][tileX]+
 											" centersXY["+i+"][0]="+centersXY[i][0]+" centersXY["+i+"][1]="+centersXY[i][1]);
@@ -2748,7 +2750,7 @@ public class ImageDttCPU {
 									debug_offsets_xy[i][0] = disp_dist[i][0] * debug_offsets[i][0] + disp_dist[i][1] * debug_offsets[i][1];
 									debug_offsets_xy[i][1] = disp_dist[i][2] * debug_offsets[i][0] + disp_dist[i][3] * debug_offsets[i][1];
 								}
-								for (int i = 0; i < quad; i++) {
+								for (int i = 0; i < nSens; i++) {
 									System.out.println(String.format("%d: {%8.3f, %8.3f}",i,debug_offsets_xy[i][0],debug_offsets_xy[i][1]));
 								}
 
@@ -2756,7 +2758,7 @@ public class ImageDttCPU {
 									centersXY[i][0] += debug_offsets_xy[i][0];
 									centersXY[i][1] += debug_offsets_xy[i][1];
 								}
-								for (int i = 0; i < quad; i++) {
+								for (int i = 0; i < nSens; i++) {
 									System.out.println("Corrected clt_aberrations_quad_corr():  tileX="+tileX+", tileY="+tileY+
 											" centerX="+centerX+" centerY="+centerY+" disparity="+disparity_array[tileY][tileX]+
 											" centersXY["+i+"][0]="+centersXY[i][0]+" centersXY["+i+"][1]="+centersXY[i][1]);
@@ -2777,7 +2779,7 @@ public class ImageDttCPU {
 							}
 							// save disparity distortions for visualization:
 							if (dbg_distort != null) {
-								for (int cam = 0; cam <quad; cam++) {
+								for (int cam = 0; cam <nSens; cam++) {
 									dbg_distort[cam * 4 + 0 ][nTile] = disp_dist[cam][0];
 									dbg_distort[cam * 4 + 1 ][nTile] = disp_dist[cam][1];
 									dbg_distort[cam * 4 + 2 ][nTile] = disp_dist[cam][2];
@@ -2842,7 +2844,7 @@ public class ImageDttCPU {
 											centersXY[3][0]+"\t"+centersXY[3][1]+"\t");
 								}
 
-								for (int i = 0; i < quad; i++) {
+								for (int i = 0; i < nSens; i++) {
 									if (debug_for_fpga && (i==0)){ // not used in lwir
 										double [][] fpga_clt_data = new double [4][];
 										double [] fpga_fract_shiftsXY;
@@ -2965,7 +2967,7 @@ public class ImageDttCPU {
 
 								if ((globalDebugLevel > 0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
 										(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)) {
-									for (int i = 0; i < quad; i++) {
+									for (int i = 0; i < nSens; i++) {
 										System.out.println("clt_aberrations_quad(): color="+ncol+", tileX="+tileX+", tileY="+tileY+
 												" fract_shiftsXY["+i+"][0]="+fract_shiftsXY[i][0]+" fract_shiftsXY["+i+"][1]="+fract_shiftsXY[i][1]);
 									}
@@ -2973,7 +2975,7 @@ public class ImageDttCPU {
 
 								if (!no_fract_shift) {  // USED in lwir
 									// apply residual shift
-									for (int i = 0; i < quad; i++) {
+									for (int i = 0; i < nSens; i++) {
 										fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
 												clt_data[i][ncol][tileY][tileX], // double  [][]  clt_tile,
 //												transform_size,
@@ -2997,7 +2999,7 @@ public class ImageDttCPU {
 
 								}
 							} else { // if (!isMonochrome() || (chn == MONO_CHN) || macro_mode) { // in monochrome mode skip all non-mono (green) channels
-								for (int i = 0; i < quad; i++) {  // used in lwir
+								for (int i = 0; i < nSens; i++) {  // used in lwir
 									clt_data[i][ncol] = null; // erase unused clt_data
 								}
 							}
@@ -3200,7 +3202,7 @@ public class ImageDttCPU {
 							    		imgdtt_params.twice_diagonal);  //    		boolean     twice_diagonal)
 
 							    // re-using arrays that were made for color channels
-							    clt_corr_partial[tileY][tileX] = new double[quad][numcol+1][];
+							    clt_corr_partial[tileY][tileX] = new double[nSens][numcol+1][];
 						    	clt_corr_partial[tileY][tileX][0][0] = corrs[0];                        // 1
 						    	clt_corr_partial[tileY][tileX][0][1] = corrs[1];                        // 2
 						    	clt_corr_partial[tileY][tileX][0][2] = corrs[2];                        // 3
@@ -3594,7 +3596,7 @@ public class ImageDttCPU {
 						// ****** FIXME tries to use color == 3, should be disabled!
 						if ((clt_corr_combo != null)  && !imgdtt_params.corr_mode_debug){ // not null - calculate correlations  // not used in lwir
 							tcorr_tpartial=  new double[CORR_PAIRS.length][numcol+1][4][transform_len];
-							tcorr_partial =  new double[quad][numcol+1][];
+							tcorr_partial =  new double[nSens][numcol+1][];
 
 							for (int pair = 0; pair < CORR_PAIRS.length; pair++){
 								for (int ncol = 0; ncol <numcol; ncol++) if (clt_data[ncol] != null){
@@ -3804,7 +3806,7 @@ public class ImageDttCPU {
 							if ((extra_disparity != 0) && !getForcedDisparity(tile_op[tileY][tileX])){ // 0 - adjust disparity, 1 - use provided
 								// shift images by 0.5 * extra disparity in the diagonal direction  // not used in lwir
 								for (int ncol = 0; ncol <numcol; ncol++) { // color
-									for (int i = 0; i < quad; i++) {
+									for (int i = 0; i < nSens; i++) {
 										if (clt_data[i][ncol] != null) {
 											fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
 													clt_data[i][ncol][tileY][tileX], // double  [][]  clt_tile,
@@ -3820,10 +3822,10 @@ public class ImageDttCPU {
 							}
 							// lpf tiles (same as images before)
 							// iclt tiles
-							double [][][] iclt_tile = new double [quad][numcol][]; // in mono some may remain null
+							double [][][] iclt_tile = new double [nSens][numcol][]; // in mono some may remain null
 							double [] clt_tile;
 							double scale = 0.25;  // matching iclt_2d
-							for (int i = 0; i < quad; i++) {  // USED in lwir
+							for (int i = 0; i < nSens; i++) {  // USED in lwir
 								for (int ncol = 0; ncol <numcol; ncol++) if (clt_data[i][ncol] != null) { // color
 									// double [] clt_tile = new double [transform_size*transform_size];
 									for (int dct_mode = 0; dct_mode < 4; dct_mode++){
@@ -3871,8 +3873,8 @@ public class ImageDttCPU {
 							if ((globalDebugLevel > 0) && debugTile) {
 								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
-								double [][] dbg_tile = new double [quad*numcol][];
-								for (int i = 0; i < quad; i++) {
+								double [][] dbg_tile = new double [nSens*numcol][];
+								for (int i = 0; i < nSens; i++) {
 									for (int ncol = 0; ncol <numcol; ncol++) if (iclt_tile[i][ncol] != null) { // color
 										dbg_tile[i * numcol + ncol] = iclt_tile[i][ncol];
 									}
@@ -3882,8 +3884,8 @@ public class ImageDttCPU {
 
 
 							// "de-bayer" tiles for matching, use original data for output
-							double [][][] tiles_debayered = new double [quad][numcol][];
-							for (int i =0; i<quad; i++){
+							double [][][] tiles_debayered = new double [nSens][numcol][];
+							for (int i =0; i<nSens; i++){
 								for (int ncol = 0; ncol < numcol; ncol++) if (iclt_tile[i][ncol] != null) {
 									if (isMonochrome()) {  // used in lwir
 										tiles_debayered[i][ncol] =  iclt_tile[i][ncol];
@@ -3904,8 +3906,8 @@ public class ImageDttCPU {
 							if ((globalDebugLevel > 0) && debugTile) {
 								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
-								double [][] dbg_tile = new double [quad*numcol][];
-								for (int i = 0; i < quad; i++) {
+								double [][] dbg_tile = new double [nSens*numcol][];
+								for (int i = 0; i < nSens; i++) {
 									for (int chn = 0; chn <numcol; chn++) { // color
 										dbg_tile[i * numcol + chn] = tiles_debayered[i][chn];
 									}
@@ -3914,10 +3916,10 @@ public class ImageDttCPU {
 							}
 							// ... used in lwir
 							double []     max_diff = null;
-							if ((disparity_map != null) && (disparity_map.length >= (IMG_DIFF0_INDEX + quad))){
-								max_diff = new double[quad];
+							if ((disparity_map != null) && (disparity_map.length >= (IMG_DIFF0_INDEX + nSens))){
+								max_diff = new double[nSens];
 							}
-							int ports_rgb_len = quad*numcol;  // 12
+							int ports_rgb_len = nSens*numcol;  // 12
 							if ((disparity_map != null) && (disparity_map.length >= (IMG_TONE_RGB + ports_rgb_len))) {
 								ports_rgb = new double[ports_rgb_len];
 							}
@@ -3942,18 +3944,18 @@ public class ImageDttCPU {
 							// mix RGB from iclt_tile, mix alpha with - what? correlation strength or 'don't care'? good correlation or all > min?
 							for (int i = 0; i < iclt_tile[0][first_color].length; i++ ) {
 								double sw = 0.0;
-								for (int ip = 0; ip < quad; ip++) {
+								for (int ip = 0; ip < nSens; ip++) {
 									sw += texture_tiles[tileY][tileX][numcol+1+ip][i];
 								}
 								if (sw != 0 ) sw = 1.0/sw;
 								for (int ncol = 0; ncol < numcol; ncol++) if (iclt_tile[0][ncol] !=null){ // color
 									texture_tiles[tileY][tileX][ncol][i] = 0.0; //iclt[tileY][tileX][chn]
-									for (int ip = 0; ip < quad; ip++) {
+									for (int ip = 0; ip < nSens; ip++) {
 										texture_tiles[tileY][tileX][ncol][i] += sw * texture_tiles[tileY][tileX][numcol+1+ip][i] * iclt_tile[ip][ncol][i];
 									}
 								}
 							}
-							if ((disparity_map != null) && (disparity_map.length >= (IMG_DIFF0_INDEX + quad))){
+							if ((disparity_map != null) && (disparity_map.length >= (IMG_DIFF0_INDEX + nSens))){
 								for (int i = 0; i < max_diff.length; i++){
 									disparity_map[IMG_DIFF0_INDEX + i][tIndex] = max_diff[i];
 								}
@@ -6426,6 +6428,8 @@ public class ImageDttCPU {
 		return corr;
 	}
 	
+	//TODO: remove dependence on quad, remove @Deprecated annotation 
+	@Deprecated
 	public static void clt_process_pd_correlations( // process correlations already prepared in dcorr and/or dcorr_combo
 			QuadCLT                   quadCLT,
 			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
@@ -6614,6 +6618,8 @@ public class ImageDttCPU {
 	}
 
 	
+	//TODO: remove dependence on quad, remove @Deprecated annotation 
+	@Deprecated
 	public static void corr_common( // remove corr_common_GPU in ImageDtt ?
 			
 			final ImageDttParameters  imgdtt_params,
@@ -8223,8 +8229,8 @@ public class ImageDttCPU {
 			DttRad2       dtt)
 	{
 		if (dtt == null) dtt = new DttRad2(dtt_size);
-		for (int quad = 0; quad < 4; quad ++){
-			kernels[quad] = dtt.dttt_iiie(kernels[quad], quad, dtt_size);
+		for (int quadrant = 0; quadrant < 4; quadrant ++){
+			kernels[quadrant] = dtt.dttt_iiie(kernels[quadrant], quadrant, dtt_size);
 		}
  	}
 /*
@@ -8929,10 +8935,15 @@ public class ImageDttCPU {
 			for (int n = 0; n<4; n++){
 				rslt[n][i] = 0;
 				for (int k=0; k<4; k++){
-					if (ZI[n][k] < 0)
-						rslt[n][i] -= data[-ZI[n][k]][i] * kernel[k][i];
-					else
-						rslt[n][i] += data[ ZI[n][k]][i] * kernel[k][i];
+//					if (ZI[n][k] < 0)
+//						rslt[n][i] -= data[-ZI[n][k]][i] * kernel[k][i];
+//					else
+//						rslt[n][i] += data[ ZI[n][k]][i] * kernel[k][i];
+					if (ZI[k][n] < 0)
+					    rslt[n][i] -= data[-ZI[k][n]][i] * kernel[k][i]; // data[-ZI[n][k]][i] * kernel[k][i];
+                    else
+                        rslt[n][i] += data[ ZI[k][n]][i] * kernel[k][i]; // data[ ZI[n][k]][i] * kernel[k][i];
+					
 				}
 			}
 		}
@@ -9594,14 +9605,15 @@ public class ImageDttCPU {
 //		final boolean debug_ports_coordinates = (debug_tileX == -1234);
 		final double poly_corr = imgdtt_params.poly_corr_scale; // maybe add per-tile task bits to select none/near/far
 		final boolean macro_mode = macro_scale != 1;      // correlate tile data instead of the pixel data
-		final int quad = 4;   // number of subcameras
+//		final int quad = 4;   // number of subcameras
+		final int nSens = geometryCorrection.getNumSensors();
 		final int numcol = 3; // number of colors
 		final int nChn = image_data[0].length;
 		final int height=image_data[0][0].length/width;
 		final int tilesX=width/transform_size;
 		final int tilesY=height/transform_size;
 		final int nTilesInChn=tilesX*tilesY;
-		final double [][][][][][] clt_data = new double[quad][nChn][tilesY][tilesX][][];
+		final double [][][][][][] clt_data = new double[nSens][nChn][tilesY][tilesX][][];
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final double [] col_weights= new double [numcol]; // colors are RBG
@@ -9756,7 +9768,7 @@ public class ImageDttCPU {
 					//						showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 					double centerX; // center of aberration-corrected (common model) tile, X
 					double centerY; //
-					double [][] fract_shiftsXY = new double[quad][];
+					double [][] fract_shiftsXY = new double[nSens][];
 					double [][]     tcorr_combo =    null; // [15*15] pixel space
 					double [][][]   tcorr_partial =  null; // [quad][numcol+1][15*15]
 					double [][][][] tcorr_tpartial = null; // [quad][numcol+1][4][8*8]
@@ -9822,7 +9834,7 @@ public class ImageDttCPU {
 									disparity_array[tileY][tileX] + disparity_corr);
 
 							if ((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
-								for (int i = 0; i < quad; i++) {
+								for (int i = 0; i < nSens; i++) {
 									System.out.println("clt_aberrations_quad_corr():  tileX="+tileX+", tileY="+tileY+
 											" centerX="+centerX+" centerY="+centerY+" disparity="+disparity_array[tileY][tileX]+
 											" centersXY["+i+"][0]="+centersXY[i][0]+" centersXY["+i+"][1]="+centersXY[i][1]);
@@ -9898,7 +9910,7 @@ public class ImageDttCPU {
 							    centersXY[3][0]+"\t"+centersXY[3][1]+"\t");
 							}
 
-							for (int i = 0; i < quad; i++) {
+							for (int i = 0; i < nSens; i++) {
 								if (debug_for_fpga && (i==0)){
 									double [][] fpga_clt_data = new double [4][];
 									double [] fpga_fract_shiftsXY;
@@ -10026,7 +10038,7 @@ public class ImageDttCPU {
 
 							if ((globalDebugLevel > 0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
 									(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)) {
-								for (int i = 0; i < quad; i++) {
+								for (int i = 0; i < nSens; i++) {
 									System.out.println("clt_aberrations_quad(): color="+chn+", tileX="+tileX+", tileY="+tileY+
 											" fract_shiftsXY["+i+"][0]="+fract_shiftsXY[i][0]+" fract_shiftsXY["+i+"][1]="+fract_shiftsXY[i][1]);
 								}
@@ -10035,7 +10047,7 @@ public class ImageDttCPU {
 //							if (!no_fract_shift && !FPGA_COMPARE_DATA) {
 							if (!no_fract_shift) {
 								// apply residual shift
-								for (int i = 0; i < quad; i++) {
+								for (int i = 0; i < nSens; i++) {
 									fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
 											clt_data[i][chn][tileY][tileX], // double  [][]  clt_tile,
 //											transform_size,
@@ -10069,7 +10081,7 @@ public class ImageDttCPU {
 						if (clt_corr_combo != null){ // not null - calculate correlations
 
 							tcorr_tpartial=new double[CORR_PAIRS.length][numcol+1][4][transform_len];
-							tcorr_partial =  new double[quad][numcol+1][];
+							tcorr_partial =  new double[nSens][numcol+1][];
 
 							for (int pair = 0; pair < CORR_PAIRS.length; pair++){
 								for (int chn = 0; chn <numcol; chn++){
@@ -10571,7 +10583,7 @@ public class ImageDttCPU {
 							if ((extra_disparity != 0) && !getForcedDisparity(tile_op[tileY][tileX])){ // 0 - adjust disparity, 1 - use provided
 								// shift images by 0.5 * extra disparity in the diagonal direction
 								for (int chn = 0; chn <numcol; chn++) { // color
-									for (int i = 0; i < quad; i++) {
+									for (int i = 0; i < nSens; i++) {
 										fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
 												clt_data[i][chn][tileY][tileX], // double  [][]  clt_tile,
 //												transform_size,
@@ -10585,10 +10597,10 @@ public class ImageDttCPU {
 							}
 							// lpf tiles (same as images before)
 							// iclt tiles
-							double [][][] iclt_tile = new double [quad][numcol][];
+							double [][][] iclt_tile = new double [nSens][numcol][];
 							double [] clt_tile;
 							double scale = 0.25;  // matching iclt_2d
-							for (int i = 0; i < quad; i++) {
+							for (int i = 0; i < nSens; i++) {
 								for (int chn = 0; chn <numcol; chn++) { // color
 									// double [] clt_tile = new double [transform_size*transform_size];
 									for (int dct_mode = 0; dct_mode < 4; dct_mode++){
@@ -10616,8 +10628,8 @@ public class ImageDttCPU {
 							if ((globalDebugLevel > 0) && debugTile) {
 								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
-								double [][] dbg_tile = new double [quad*numcol][];
-								for (int i = 0; i < quad; i++) {
+								double [][] dbg_tile = new double [nSens*numcol][];
+								for (int i = 0; i < nSens; i++) {
 									for (int chn = 0; chn <numcol; chn++) { // color
 										dbg_tile[i * numcol + chn] = iclt_tile[i][chn];
 									}
@@ -10627,8 +10639,8 @@ public class ImageDttCPU {
 
 
 							// "de-bayer" tiles for matching, use original data for output
-							double [][][] tiles_debayered = new double [quad][numcol][];
-							for (int i =0; i<quad; i++){
+							double [][][] tiles_debayered = new double [nSens][numcol][];
+							for (int i =0; i<nSens; i++){
 								for (int chn = 0; chn < numcol; chn++){
 									//								tiles_debayered[i][chn] =  tile_debayer(
 									//										(chn != 2), // red or blue (false - green)
@@ -10649,8 +10661,8 @@ public class ImageDttCPU {
 							if ((globalDebugLevel > 0) && debugTile) {
 								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
-								double [][] dbg_tile = new double [quad*numcol][];
-								for (int i = 0; i < quad; i++) {
+								double [][] dbg_tile = new double [nSens*numcol][];
+								for (int i = 0; i < nSens; i++) {
 									for (int chn = 0; chn <numcol; chn++) { // color
 										dbg_tile[i * numcol + chn] = tiles_debayered[i][chn];
 									}
@@ -10659,8 +10671,8 @@ public class ImageDttCPU {
 							}
 
 							double []     max_diff = null;
-							if ((disparity_map != null) && (disparity_map.length >= (IMG_DIFF0_INDEX + quad))){
-								max_diff = new double[quad];
+							if ((disparity_map != null) && (disparity_map.length >= (IMG_DIFF0_INDEX + nSens))){
+								max_diff = new double[nSens];
 							}
 							texture_tiles[tileY][tileX] =  tile_combine_rgba(
 									tiles_debayered, // iclt_tile,      // [port][numcol][256]
@@ -10684,18 +10696,18 @@ public class ImageDttCPU {
 							// mix RGB from iclt_tile, mix alpha with - what? correlation strength or 'don't care'? good correlation or all > min?
 							for (int i = 0; i < iclt_tile[0][0].length; i++ ) {
 								double sw = 0.0;
-								for (int ip = 0; ip < quad; ip++) {
+								for (int ip = 0; ip < nSens; ip++) {
 									sw += texture_tiles[tileY][tileX][numcol+1+ip][i];
 								}
 								if (sw != 0 ) sw = 1.0/sw;
 								for (int chn = 0; chn <numcol; chn++) { // color
 									texture_tiles[tileY][tileX][chn][i] = 0.0; //iclt[tileY][tileX][chn]
-									for (int ip = 0; ip < quad; ip++) {
+									for (int ip = 0; ip < nSens; ip++) {
 										texture_tiles[tileY][tileX][chn][i] += sw * texture_tiles[tileY][tileX][numcol+1+ip][i] * iclt_tile[ip][chn][i];
 									}
 								}
 							}
-							if ((disparity_map != null) && (disparity_map.length >= (IMG_DIFF0_INDEX + quad))){
+							if ((disparity_map != null) && (disparity_map.length >= (IMG_DIFF0_INDEX + nSens))){
 								for (int i = 0; i < max_diff.length; i++){
 									disparity_map[IMG_DIFF0_INDEX + i][tIndex] = max_diff[i];
 								}
@@ -11196,7 +11208,7 @@ public class ImageDttCPU {
 	public void generateTextureTiles(// not used in lwir
 			final CLTParameters    clt_parameters,
 			final double           extra_disparity,
-			final int              quad,      // number of subcameras
+			final int              nSens,      // number of subcameras
 			final int              numcol, // number of colors
 			int                    img_mask,
 			final int [][]         tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
@@ -11222,7 +11234,7 @@ public class ImageDttCPU {
 				null, // final double []        max_diff,       // maximal (weighted) deviation of each channel from the average
 				clt_parameters,
 				extra_disparity,
-				quad,      // number of subcameras
+				nSens,      // number of subcameras
 				numcol, // number of colors
 				img_mask,
 				tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
@@ -11244,7 +11256,7 @@ public class ImageDttCPU {
 			final double []        max_diff,       // maximal (weighted) deviation of each channel from the average
 			final CLTParameters    clt_parameters,
 			final double           extra_disparity,
-			final int              quad,      // number of subcameras
+			final int              nSens,      // number of subcameras
 			final int              numcol, // number of colors
 			int                    img_mask,
 			final int [][]         tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
@@ -11266,7 +11278,7 @@ public class ImageDttCPU {
 		if ((extra_disparity != 0) && !getForcedDisparity(tile_op[tileY][tileX])){ // 0 - adjust disparity, 1 - use provided (now do not adjust!)
 			// shift images by 0.5 * extra disparity in the diagonal direction
 			for (int chn = 0; chn <numcol; chn++) { // color
-				for (int i = 0; i < quad; i++) {
+				for (int i = 0; i < nSens; i++) {
 					fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
 							clt_data[i][chn], // [tileY][tileX], // double  [][]  clt_tile,
 //							transform_size,
@@ -11281,7 +11293,7 @@ public class ImageDttCPU {
 
 		if (debug_gpu) {
 			// just one camera, all colors
-			for (int cam = 0; cam < 1; cam++) { // quad; i++) {
+			for (int cam = 0; cam < 1; cam++) { // nSens; i++) {
 				for (int chn = 0; chn < numcol; chn++) { // color
 					for (int dct_mode = 0; dct_mode < 4; dct_mode++){
 					System.out.println("=== CLT camera="+cam+", color="+chn+" mode="+dct_mode+" ===");
@@ -11298,10 +11310,10 @@ public class ImageDttCPU {
 
 
 
-		double [][][] iclt_tile = new double [quad][numcol][];
+		double [][][] iclt_tile = new double [nSens][numcol][];
 		double [] clt_tile;
 		double scale = 0.25;  // matching iclt_2d ???
-		for (int i = 0; i < quad; i++) {
+		for (int i = 0; i < nSens; i++) {
 			for (int chn = 0; chn <numcol; chn++) { // color
 				// double [] clt_tile = new double [transform_size*transform_size];
 				for (int dct_mode = 0; dct_mode < 4; dct_mode++){
@@ -11368,7 +11380,7 @@ public class ImageDttCPU {
 		if (debug_gpu) {
 			System.out.println("=============== IMCLT done  ===============");
 			// just one camera, all colors
-			for (int cam = 0; cam < quad; cam++) { // quad; i++) {
+			for (int cam = 0; cam < nSens; cam++) { // nSens; i++) {
 				for (int chn = 0; chn < numcol; chn++) { // color
 					System.out.println("=== IMCLT camera="+cam+", color="+chn+" ===");
 						for (int i = 0; i < 2 * transform_size; i++) {
@@ -11383,8 +11395,8 @@ public class ImageDttCPU {
 		if ((debugLevel > 0) || debug_gpu) {
 			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
-			double [][] dbg_tile = new double [quad*numcol][];
-			for (int i = 0; i < quad; i++) {
+			double [][] dbg_tile = new double [nSens*numcol][];
+			for (int i = 0; i < nSens; i++) {
 				for (int chn = 0; chn <numcol; chn++) { // color
 					dbg_tile[i * numcol + chn] = iclt_tile[i][chn];
 				}
@@ -11394,8 +11406,8 @@ public class ImageDttCPU {
 
 
 		// "de-bayer" tiles for matching, use original data for output
-		double [][][] tiles_debayered = new double [quad][numcol][];
-		for (int i =0; i<quad; i++){
+		double [][][] tiles_debayered = new double [nSens][numcol][];
+		for (int i =0; i<nSens; i++){
 			for (int chn = 0; chn < numcol; chn++){
 				tiles_debayered[i][chn] =  tile_debayer_shot_corr(
 						(chn != 2),                 // red or blue (false - green)
@@ -11411,8 +11423,8 @@ public class ImageDttCPU {
 		if ((debugLevel > 0) || debug_gpu) {
 			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
-			double [][] dbg_tile = new double [quad*numcol][];
-			for (int i = 0; i < quad; i++) {
+			double [][] dbg_tile = new double [nSens*numcol][];
+			for (int i = 0; i < nSens; i++) {
 				for (int chn = 0; chn <numcol; chn++) { // color
 					dbg_tile[i * numcol + chn] = tiles_debayered[i][chn];
 				}
@@ -11421,7 +11433,7 @@ public class ImageDttCPU {
 		}
 		if (debug_gpu) {
 			System.out.println("\n=== BEFORE tile_combine_rgba ===");
-			for (int ccam = 0; ccam < quad; ccam++) {
+			for (int ccam = 0; ccam < nSens; ccam++) {
 				for (int nncol = 0; nncol < numcol; nncol++) {
 					System.out.println(String.format("--- before tile_combine_rgba cam = %d, color=%d ---", ccam, nncol));
 					for (int i = 0; i < 2 * transform_size; i++) {
@@ -11473,13 +11485,13 @@ public class ImageDttCPU {
 		if (lpf_rgb != null) {
 			for (int i = 0; i < iclt_tile[0][0].length; i++ ) {
 				double sw = 0.0;
-				for (int ip = 0; ip < quad; ip++) {
+				for (int ip = 0; ip < nSens; ip++) {
 					sw += texture_tiles[tileY][tileX][numcol+1+ip][i];
 				}
 				if (sw != 0 ) sw = 1.0/sw;
 				for (int chn = 0; chn <numcol; chn++) { // color
 					texture_tiles[tileY][tileX][chn][i] = 0.0; //iclt[tileY][tileX][chn]
-					for (int ip = 0; ip < quad; ip++) {
+					for (int ip = 0; ip < nSens; ip++) {
 						texture_tiles[tileY][tileX][chn][i] += sw * texture_tiles[tileY][tileX][numcol+1+ip][i] * iclt_tile[ip][chn][i];
 					}
 				}
@@ -11683,7 +11695,8 @@ public class ImageDttCPU {
 		return corrs2d;
 	}
 
-
+	// Used quad
+	@Deprecated
 	public double [][][][][][][]  clt_bi_quad_dbg(// not used in lwir
 			final CLTParameters       clt_parameters,
 			final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero

@@ -63,8 +63,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.JFileChooser;
@@ -775,6 +777,7 @@ private Panel panel1,
 			addButton("Reset Geometry",             panelLWIR16, color_stop);
 			addButton("Reset AUX Geometry",         panelLWIR16, color_stop);
 			addButton("Generate Sym Vectors",       panelLWIR16, color_configure);
+			addButton("Image Properties",           panelLWIR16, color_conf_process);
 			plugInFrame.add(panelLWIR16);
 			
 		}
@@ -4338,7 +4341,7 @@ private Panel panel1,
 
 ///========================================
 
-        QUAD_CLT.processCLTQuads(
+        QUAD_CLT.processCLTQuads( // uses quad
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
         		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
@@ -5355,6 +5358,68 @@ private Panel panel1,
     			full_type1, // boolean full_type1,  // false - all R or all T, true - mixed
     			full_type2, // boolean full_type2) {// false - quarter 3 is negated quarter 1, true - independent
     			DEBUG_LEVEL);
+    } else if (label.equals("Image Properties")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+		ImagePlus imp_sel = WindowManager.getCurrentImage();
+		if (imp_sel==null){
+			IJ.showMessage("Error","There are no images open\nProcess canceled");
+			return;
+		}
+		(new JP46_Reader_camera(false)).decodeProperiesFromInfo(imp_sel);
+		ArrayList<String> prop_kv = new ArrayList<String>();
+		Set<Object> jp4_set;
+		Properties jp4_prop;
+		Iterator<Object> itr;
+		String str;
+		jp4_prop=imp_sel.getProperties();
+		if (jp4_prop!=null) {
+			jp4_set=jp4_prop.keySet();
+			itr=jp4_set.iterator();
+			while(itr.hasNext()) {
+				str = (String) itr.next();
+				//				if (!str.equals("Info")) info+="<"+str+">\""+jp4_prop.getProperty(str)+"\"</"+str+">";
+				if (!str.equals("Info")) {
+					prop_kv.add(str+"|"+jp4_prop.getProperty(str));
+				}
+			}
+		}
+		Collections.sort(prop_kv);
+		prop_kv.add("|"); // empty item to add new property
+		GenericDialog gd = new GenericDialog("Edit properties");
+		gd.addMessage("Use empty string to remove property, quoted empty - to set zero length, "+
+		              "name|value for value to set a new property");
+		String [] names = new String[prop_kv.size()];
+		for (int ii = 0; ii < prop_kv.size(); ii++) {
+			String s = (String) prop_kv.get(ii);
+			int sep = s.indexOf("|");
+			if (sep < 0) {
+				sep = s.length();
+			}
+			String name = s.substring(0, sep);
+			names[ii] = name;
+			String val = (sep == s.length()) ? "": s.substring(sep + 1);
+			gd.addStringField(ii+": "+name, val, 20);
+		}
+		WindowTools.addScrollBars(gd);
+		gd.showDialog();
+		if (gd.wasCanceled()) return;
+		for (int ii = 0; ii < prop_kv.size(); ii++) {
+			String name = names[ii];
+			String val = gd.getNextString();
+			int sep = val.indexOf("|");
+			if (sep > 0) { // ignore existing key, set a key/value pair
+				name = val.substring(0, sep);
+				val = val.substring(sep + 1);
+			} else if (val.length() == 0) {
+				val = null;
+			} else {
+				val = val.replaceAll("^\"+|\"+$", ""); // remove leading/trailing "
+			}
+			if (name.length() > 0) {
+				imp_sel.setProperty(name, val);
+			}
+		}
+		(new JP46_Reader_camera(false)).encodeProperiesToInfo(imp_sel);
 //JTabbedTest
 // End of buttons code
     }
