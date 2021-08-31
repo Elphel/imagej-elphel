@@ -1,10 +1,16 @@
 package com.elphel.imagej.tileprocessor;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.tileprocessor.Corr2dLMA.Sample;
+
+import Jama.Matrix;
 
 /**
  **
@@ -46,6 +52,7 @@ public class Correlation2d {
 	private final double [] corr_wndy;
 	private final double [] corr_wndy_notch;
     private final boolean monochrome;
+    
 
 
 	// configuration for 8-lens and 4-lens cameras. 8-lens has baseline = 1 for 1..4 and 1/2 for 4..7
@@ -92,6 +99,10 @@ public class Correlation2d {
 		 {-1,  0, -3,  2},
 		 {-2, -3,  0,  1},
 		 { 3, -2, -1,  0}};
+	
+    public final int numSensors;
+    public final boolean top_is_0; 
+
 
 	public boolean isMonochrome() {return monochrome;} // not used in lwir
 // for 8 cameras and 16 pairs. Following data moved from ImageDtt
@@ -125,15 +136,361 @@ public class Correlation2d {
     	for (int i = 0; i <PAIRS.length; i++) if ((PAIRS[i][2]==type) && ((scale < 0) || (scale == PAIRS[i][3]))) bm |= 1 << i;
     	return bm;
     }
+    
+    private final int [][]  pair_start_end; // start_index, end_index
+    private final int [][]  pair_orient;    // second pair parallel to first pair - 0, CW90 - 1, 180 - 2, CW270 - 3, other - -1
+    private final int []    pair_length;    // number of sensors from first to second
+    private boolean []      corr_pairs;     // Which pairs to calculate
+    private boolean []      corr_pairs_filter; // Remove pairs that do not have measurement
+    public static enum      MCORR_COMB {ALL, DIA, SQ, NEIB, HOR, VERT}; // MCORR_COMB.SQ.ordinal() == 2
+    private static String [] CORR_TITLES_EXTRA={"*all","*dia","*sq","*neib","*hor","*vert"};
+    
+    public final String []  cor_titles;       // per-pair correlation slices titles
+    public final String []  cor_titles_combo; // combo correlation slices titles
+    
+    
+	private int             mcorr_comb_width;  // combined correlation tile width
+	private int             mcorr_comb_height; // combined correlation tile full height
+	private int             mcorr_comb_offset; // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
+	private double          mcorr_comb_disp;   // Combined tile per-pixel disparity for baseline == side of a square
+//	private double [][][][] resample;    // [num_pair][out_index]<null or variable number of {source_index, weight} pairs>
+	
+	private int    [][][]   resample_indices;  // should have the same length as number of pairs
+	private double [][][]   resample_weights;  // should have the same length as number of pairs
 
+	
+	private static int SUB_SAMPLE = 16;  // subsample source pixel in each direction when generating
+	public static int THREADS_MAX = 100; 
+	
+    private void setupPairs() {
+    	int indx = 0;
+    	for (int i = 1; i <= numSensors/2; i++) { // CW length
+    		for (int j = 0; j  < ((i < (numSensors/2))? numSensors : (numSensors/2) ); j++) {
+    			pair_length[indx] = i;
+    			pair_start_end[indx][0] = j;
+    			pair_start_end[indx][1] = (i + j) % numSensors;
+    			indx++;
+ //   			if (indx >= pair_length.length) {
+ //   				break; // BUG
+ //   			}
+    		}
+    	}
+    	for (int i = 0; i < pair_start_end.length; i++ ) {
+    		int n1 = (2 * pair_start_end[i][0] + pair_length[i]) % (2 * numSensors); 
+        	for (int j = 0; j < pair_start_end.length; j++ ) {
+        		int n2 = (2 * pair_start_end[j][0] + pair_length[j]) % (2 * numSensors);
+//        		if ((i >= 116) && (j >= 112)) {
+//        			System.out.println ("i="+i+", j="+j);
+//        			System.out.println ("(n2 - n1) % (numSensors / 2)="+((n2 - n1) % (numSensors / 2)));
+//        			System.out.println ("((n2 - n1) / (numSensors / 2)) % 4 = "+(((n2 - n1) / (numSensors / 2)) % 4));
+//        		}
+        		if ((n2 - n1) % (numSensors / 2) != 0) {
+        			pair_orient[i][j] = -1; // non-ortho
+        		} else {
+        			pair_orient[i][j] = Math.floorMod(((n2 - n1) / (numSensors / 2)) , 4);
+        		}
+        	}
+    	}
+//    	cor_titles = new String[num_pairs + CORR_TITLES_EXTRA.length];
+    	for (int i = 0; i < pair_start_end.length; i++ ) {
+    		cor_titles[i] = getPair(i)[0]+"-"+getPair(i)[1]; //getPair(i) to correct sensor numbers for quad (Z-order)
+    	}
+    	for (int i = 0; i < CORR_TITLES_EXTRA.length; i++ ) {
+    		cor_titles_combo[i] = CORR_TITLES_EXTRA[i];
+    	}
+    	return;
+    }
+    
+    public boolean [] selectLength(boolean [] cur_sel, int l) {
+    	boolean [] sel = (cur_sel == null) ? (new boolean[pair_length.length]) : cur_sel;
+    	for (int i = 0; i < pair_length.length; i++) {
+    		sel[i] |= pair_length[i] == l;
+    	}
+    	return sel; 
+    }
 
+    public boolean [] selectDiameters(boolean [] cur_sel) {
+    	return selectLength(cur_sel, numSensors / 2); 
+    }
 
+    public boolean [] selectSquares(boolean [] cur_sel) {
+    	return selectLength(cur_sel, numSensors / 4); 
+    }
+
+    public boolean [] selectNeibs(boolean [] cur_sel) {
+    	return selectLength(cur_sel, 1); 
+    }
+    
+    public boolean [] selectParallel(boolean [] cur_sel, int start, int end) {
+    	boolean [] sel = (cur_sel == null) ? (new boolean[pair_length.length]) : cur_sel;
+		int n1 = (2 * start + end) % (2 * numSensors); 
+		
+    	for (int j = 0; j < pair_start_end.length; j++ ) {
+    		int n2 = (2 * pair_start_end[j][0] + pair_length[j]) % (2 * numSensors);
+    		if ((n2 - n1) % numSensors == 0) { // only parallel or anti-parallel
+    			sel[j] = true;
+    		}
+    	}
+    	return sel; 
+    }
+
+    public boolean [] selectHorizontal(boolean [] cur_sel) {
+    	if (top_is_0) {
+    		return selectParallel(cur_sel, numSensors - 1, 1);
+    	} else {
+    		return selectParallel(cur_sel, numSensors - 1, 0);
+    	}
+    }
+    
+    public boolean [] selectVertical(boolean [] cur_sel) {
+    	if (top_is_0) {
+    		return selectParallel(cur_sel, 0 , numSensors/2);
+    	} else {
+    		return selectParallel(cur_sel, 0, numSensors/2 - 1);
+    	}
+    }
+    
+    // combine with available correlation results
+    
+    
+    public boolean [] selectAll() {
+    	boolean [] sel = new boolean[pair_length.length];
+    	Arrays.fill(sel, true);
+    	return sel; 
+    }
+
+    public int [] getPair(int indx) {
+    	int [] quad_indx = {1,3,2,0}; // CW to EO numbers
+    	if (numSensors > 4) {
+    		return pair_start_end[indx];
+    	} else {
+    		return new int [] {quad_indx[pair_start_end[indx][0]], quad_indx[pair_start_end[indx][1]]};
+    	}
+    }
+    public int getNumPairs() {
+    	return pair_start_end.length;
+    }
+    
+    public void setCorrPairs(boolean [] sel) { // these pairs will be correlated
+    	corr_pairs = sel.clone();
+    }
+    
+    public void setCorrPairsFilter(double [][][][][][] clt_data, int tileY, int tileX ) { // these pairs will be correlated
+    	corr_pairs_filter = new boolean [pair_start_end.length];
+    	boolean [] en = new boolean [numSensors];
+    	if (clt_data != null) {
+    		for (int i = 0; i < numSensors; i++) if (clt_data[i] != null){
+    			for (int ncol = 0; ncol < clt_data[i].length; ncol++) {
+    				if ((clt_data[i][ncol] != null) && (clt_data[i][ncol][tileY] != null) && (clt_data[i][ncol][tileY][tileX] != null)) {
+    					en[i] = true;
+    					break;
+    				}
+    			}
+    		}
+    		for (int i = 0; i < pair_start_end.length; i++) {
+    			corr_pairs_filter[i] = en[pair_start_end[i][0]] && en[pair_start_end[i][1]];
+    		}
+    	}
+    }
+    
+    /**
+     * Filter sel array by removing unavailable sensors and pairs that are not calculated 
+     * @param sel selection to be filtered
+     * @return number of remaining selected pairs 
+     */
+    public int numRemainingPairs(boolean [] sel ) {
+    	int num_sel = 0;
+    	for (int i = 0; i < sel.length; i++) {
+    		sel[i] &= corr_pairs[i] &&  corr_pairs_filter[i];
+    		if (sel[i]) num_sel++;
+    	}
+    	return num_sel;
+    }
+    
+
+    public boolean [] getCorrPairs() { // these pairs will be correlated
+    	return corr_pairs;
+    }
+    
+    public String[] getCorrTitles() {
+    	return cor_titles;
+    }
+    public String[] getComboTitles() {
+    	return cor_titles_combo;
+    }
+    
+    /**
+     * Add 2D correlation for a pair to the combined correlation tile, applying rotation/scaling
+     * @param accum_tile tile for accumulation in line-scan order, same dimension as during generateResample()
+     * @param corr_tile correlation tile (currently 15x15)
+     * @param num_pair number of correlation pair for which resamplind data exists
+     * @param weight multiply added tile data by this coefficient before accumulation
+     */
+    public void accummulatePair(
+    		double [] accum_tile,
+    		double [] corr_tile,
+    		int       num_pair,
+    		double    weight) {
+    	if ((resample_indices == null) || (resample_indices[num_pair] == null)) {
+    		throw new IllegalArgumentException ("No resample data for num_pair = "+num_pair);
+    	}
+    	for (int i = 0; i < accum_tile.length; i++) if (resample_indices[num_pair][i] != null) {
+    		for (int j = 0; j < resample_indices[num_pair][i].length; j++) {
+    			accum_tile[i] += weight * corr_tile[resample_indices[num_pair][i][j]] * resample_weights[num_pair][i][j];
+    		}
+    	}
+    }
+    
+    /**
+     * Add multiple 2D correlation tiles to a combined correlation tile, applying rotation/scaling
+     * @param corr_tiles (sparse) array of correlation tile, some tiles may be null
+     * @param selection boolean selection array that specifies which (of existing) correlation tiles to add
+     * @param weight  multiply added tile data by this coefficient before accumulation, common for all added tiles
+     */
+    public void accummulatePairs(
+    		double []   accum_tile,
+    		double [][] corr_tiles,
+    		boolean []  selection,
+    		double      weight) { // same weights
+    	for (int num_pair = 0; num_pair < selection.length; num_pair++) {
+    		if (selection[num_pair] && (corr_tiles[num_pair] != null)) {
+    			accummulatePair(
+    					accum_tile,
+    		    		corr_tiles[num_pair],
+    		    		num_pair,
+    		    		weight);
+    		}
+    	}
+    }    
+    
+    public double [] accumulateInit() {return new double [mcorr_comb_width * mcorr_comb_height]; }
+    public int getCombWidth() {return mcorr_comb_width;}
+    public int getCombHeight() {return mcorr_comb_height;}
+    public int getCombOffset() {return mcorr_comb_offset;}
+    public double getCombDisp() {return mcorr_comb_disp;}
+    
+    
+    public void generateResample( // should be called before
+			final int           mcorr_comb_width,  // combined correlation tile width
+			final int           mcorr_comb_height, // combined correlation tile full height
+			final int           mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
+			final double        mcorr_comb_disp){  // Combined tile per-pixel disparity for baseline == side of a square
+    	
+		this.mcorr_comb_width =  mcorr_comb_width;  // combined correlation tile width
+		this.mcorr_comb_height = mcorr_comb_height; // combined correlation tile full height
+		this.mcorr_comb_offset = mcorr_comb_offset; // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
+		this.mcorr_comb_disp =   mcorr_comb_disp;  // Combined tile per-pixel disparity for baseline == side of a square
+		
+		resample_indices = new int     [corr_pairs.length][][];
+		resample_weights = new double  [corr_pairs.length][][];
+		
+		
+		final int weights_size = 2*SUB_SAMPLE-1;
+		final double [] weights1 = new double [weights_size];
+		final double [] weights = new double [weights_size * weights_size];
+		for (int i = 0; i < weights1.length; i++) {
+			double w = Math.sin(Math.PI*(i+1)/(2*SUB_SAMPLE));
+			weights1[i] = w * w;
+		}
+		double s = 0.0;
+		int indx = 0;
+		for (int i = 0; i < weights1.length; i++) {
+			for (int j = 0; j < weights1.length; j++) {
+				double w = weights1[i] * weights1[j];
+				s+=w;
+				weights[indx++] = w;
+			}
+		}
+		// normalize sum == 1.0;
+		double k = 1.0/s;
+		for (int i = 0; i < weights.length; i++) {
+			weights[i] *= k;
+		}
+		
+		
+//    	final double [][][][] resample = new double [pair_start_end.length][mcorr_comb_width * mcorr_comb_height][][];
+    	// use multithreading?
+		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					double [] contrib = new double [corr_size*corr_size];
+					HashSet<Integer> contrib_set = new HashSet<Integer>();
+					Iterator<Integer> contrib_itr;
+					for (int num_pair = ai.getAndIncrement(); num_pair < corr_pairs.length; num_pair = ai.getAndIncrement()) {
+						if (corr_pairs[num_pair]) {
+							resample_indices[num_pair] = new int    [mcorr_comb_width * mcorr_comb_height][];
+							resample_weights[num_pair] = new double [mcorr_comb_width * mcorr_comb_height][];
+							// scale and angle
+							int istart = pair_start_end[num_pair][0];
+							int iend =   pair_start_end[num_pair][1];
+							double cwrot = (((istart+iend) % numSensors) + (top_is_0 ? 0.0 : 0.5)) * Math.PI/numSensors; //  +(top_is_0 ? 0.0 : 0.5)
+							if ((iend > istart) ^ ((iend + istart) <16)) {
+								cwrot += Math.PI;
+							}
+							double pl = 2 * Math.sin(Math.PI* pair_length[num_pair] / numSensors); // length for R=1
+							double scale = pl/Math.sqrt(2.0)* mcorr_comb_disp; // Math.sqrt(2.0) - relative to side of a square - may be change later?
+							Matrix toPair = new Matrix(new double[][] {
+								{scale * Math.cos(cwrot), -scale*Math.sin(cwrot)},
+								{scale * Math.sin(cwrot),  scale*Math.cos(cwrot)}});
+							
+							// scale - to get pair (source) radius from combo (destination) radius
+							double ksub = 1.0/SUB_SAMPLE;
+							Matrix mxy = new Matrix(2,1);
+							for (int i = 0; i < mcorr_comb_height; i++) {
+								int iy = i + mcorr_comb_offset - mcorr_comb_height/2;
+								for (int j = 0; j < mcorr_comb_width; j++) {
+									int ix = j - mcorr_comb_width/2;
+									Arrays.fill(contrib, 0.0);
+									contrib_set.clear();
+									for (int idy = 0; idy <= 2*SUB_SAMPLE; idy++) {
+										mxy.set(1, 0,  iy+ (idy - SUB_SAMPLE + 1) * ksub); //idy == (SUB_SAMPLE -1) - no fractional pixel
+										for (int idx = 0; idx <= 2*SUB_SAMPLE; idx++) {
+											mxy.set(0, 0,  ix+ (idx - SUB_SAMPLE + 1) * ksub); // idy == (SUB_SAMPLE -1) - no fractional pixel
+											double [] pxy = toPair.times(mxy).getColumnPackedCopy();
+											int ipx = (int) Math.round(pxy[0]+transform_size -1);
+											int ipy = (int) Math.round(pxy[1]+transform_size -1);
+											if ((ipx >= 0) && (ipy >= 0) && (ipx < corr_size) && (ipy < corr_size)) {
+												int indx_src = ipy * corr_size + ipx;
+												contrib_set.add(indx_src);
+												contrib[indx_src] += weights[idy * weights_size + idx];
+											}
+										}
+									}
+									if (!contrib_set.isEmpty()) {
+										int indx = i * mcorr_comb_width + j;
+										resample_indices[num_pair][indx] = new int    [contrib_set.size()];
+										resample_weights[num_pair][indx] = new double [contrib_set.size()];
+										contrib_itr = contrib_set.iterator();
+										int contrib_num = 0;
+										while(contrib_itr.hasNext()) {
+											int indx_src = contrib_itr.next();
+											resample_indices[num_pair][indx][contrib_num] = indx_src;
+											resample_weights[num_pair][indx][contrib_num] = contrib[indx_src];
+										}
+									}
+								}
+							}
+						} else {
+							resample_indices[num_pair] = null;
+							resample_weights[num_pair] = null;
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+    }
+    
     public Correlation2d ( // USED in lwir
-    		  ImageDttParameters  imgdtt_params,
-    		  int transform_size,
-    		  double wndx_scale, // (wndy scale is always 1.0)
-    		  boolean monochrome,
-    		  boolean debug) {
+    		int                numSensors,
+    		ImageDttParameters imgdtt_params,
+    		int                transform_size,
+    		double             wndx_scale, // (wndy scale is always 1.0)
+    		boolean            monochrome,
+    		boolean            debug) {
+    	this.numSensors = numSensors;
     	this.monochrome = monochrome;
     	this.dtt = new DttRad2(transform_size);
     	this.transform_size = transform_size;
@@ -164,12 +521,22 @@ public class Correlation2d {
 				true,                            // boolean normalize,
 				true,                            // boolean notch,
 				wndx_scale);                     // double  scale);
+    	int num_pairs = numSensors * (numSensors-1) /2;
+    	pair_start_end = new int [num_pairs][2];
+    	pair_orient =    new int [num_pairs][num_pairs];
+    	pair_length =    new int [num_pairs];
+    	top_is_0 = numSensors > 4; // sensor 0 is straight up, false half-rotated 
+    	cor_titles =       new String[num_pairs];
+    	cor_titles_combo = new String[CORR_TITLES_EXTRA.length];
+    	setupPairs();
       }
 
     public Correlation2d ( // USED in lwir
-    		int transform_size,
+    		int     numSensors,
+    		int     transform_size,
     		boolean monochrome,
     		boolean debug) {
+    	this.numSensors = numSensors;
     	this.monochrome = monochrome;
     	this.dtt = new DttRad2(transform_size);
     	this.transform_size = transform_size;
@@ -182,6 +549,14 @@ public class Correlation2d {
     	this.corr_wndy =               null; // will not be used
     	this.corr_wndx =               null; // will not be used
     	this.corr_wndy_notch =         null; // will not be used
+    	int num_pairs = numSensors * (numSensors-1) /2;
+    	pair_start_end = new int [num_pairs][2];
+    	pair_orient =    new int [num_pairs][num_pairs];
+    	pair_length =    new int [num_pairs];
+    	top_is_0 = numSensors > 4; // sensor 0 is straight up, false half-rotated
+    	cor_titles =       new String[num_pairs];
+    	cor_titles_combo = new String[CORR_TITLES_EXTRA.length];
+    	setupPairs();
     }
     
       public int [] getTransposeAll(boolean diagonal){ // USED in lwir
@@ -781,6 +1156,7 @@ public class Correlation2d {
      * @param clt_data aberration-corrected FD CLT data [camera][color][tileY][tileX][quadrant][index]
      * @param tileX tile to extract X index
      * @param tileY tile to extract Y index
+     * @param pairs_mask bimask of required pairs
      * @param lpf optional low-pass filter
      * @param scale_value   scale correlation results to compensate for lpf changes and other factors
      * @param col_weights RBG color weights
@@ -812,6 +1188,44 @@ public class Correlation2d {
     		    		fat_zero);
     }
 
+    /**
+     * Calculate all required image pairs phase correlation
+     * @param clt_data aberration-corrected FD CLT data [camera][color][tileY][tileX][quadrant][index]
+     * @param tileX tile to extract X index
+     * @param tileY tile to extract Y index
+     * @param pairs_mask boolean array of required pairs
+     * @param lpf optional low-pass filter
+     * @param scale_value   scale correlation results to compensate for lpf changes and other factors
+     * @param col_weights RBG color weights
+     * @param fat_zero fat zero for phase correlations
+     * @return [pair][corr_index]
+     */
+    public double [][]  correlateCompositeFD( // USED in lwir
+    		double [][][][][][] clt_data,
+    		int                 tileX,
+    		int                 tileY,
+    		boolean[]           pairs_mask,
+    		double []           lpf,
+    		double              scale_value, // scale correlation value
+    		double []           col_weights,
+    		double              fat_zero) {
+    	double [][][][]     clt_data_tile = new double[clt_data.length][][][]; // [camera][color][quadrant][index]
+    	for (int ncam = 0; ncam < clt_data.length; ncam++) if (clt_data[ncam] != null){
+    		clt_data_tile[ncam] = new double[clt_data[ncam].length][][];
+        	for (int ncol = 0; ncol < clt_data[ncam].length; ncol++) if ((clt_data[ncam][ncol] != null) && (clt_data[ncam][ncol][tileY] != null)){
+        		clt_data_tile[ncam][ncol] = clt_data[ncam][ncol][tileY][tileX];
+        	}
+    	}
+    	return correlateCompositeFD(
+    		    		clt_data_tile,
+    		    		pairs_mask,
+    		    		lpf,
+    		    		scale_value,
+    		    		col_weights,
+    		    		fat_zero);
+    }
+    
+    
     /**
      * Calculate all required image pairs phase correlation
      * @param clt_data_tile aberration-corrected FD CLT data for one tile [camera][color][quadrant][index]
@@ -846,7 +1260,45 @@ public class Correlation2d {
     	}
     	return pairs_corr;
     }
+    
+    /**
+     * Calculate all required image pairs phase correlation
+     * @param clt_data_tile aberration-corrected FD CLT data for one tile [camera][color][quadrant][index]
+     * @param pairs_mask boolean array of required pairs
+     * @param lpf optional low-pass filter
+     * @param scale_value   scale correlation results to compensate for lpf changes and other factors
+     * @param col_weights RBG color weights
+     * @param fat_zero fat zero for phase correlations
+     * @return [pair][corr_index]
+     */
 
+    public double [][]  correlateCompositeFD( // USED in lwir
+    		double [][][][]     clt_data_tile,
+    		boolean []          pairs_mask, 
+    		double []           lpf,
+    		double              scale_value, // scale correlation value
+    		double []           col_weights,
+    		double              fat_zero) {
+    	if (clt_data_tile == null) return null;
+    	double [][] pairs_corr = new double [getNumPairs()][];
+    	for (int npair = 0; npair < pairs_corr.length; npair++) if (pairs_mask[npair]) {
+    		int [] pair = getPair(npair);
+    		int ncam1 = pair[0]; // start 
+    		int ncam2 = pair[1]; // end
+    		if ((ncam1 < clt_data_tile.length) && (clt_data_tile[ncam1] != null) && (ncam2 < clt_data_tile.length) && (clt_data_tile[ncam2] != null)) {
+    			pairs_corr[npair] =  correlateCompositeFD(
+    					clt_data_tile[ncam1], // double [][][] clt_data1,
+    					clt_data_tile[ncam2], // double [][][] clt_data2,
+    		    		lpf,                  // double []     lpf,
+    		    		scale_value,
+    		    		col_weights,          // double []     col_weights,
+    		    		fat_zero);            // double        fat_zero)
+    		}
+    	}
+    	return pairs_corr;
+    }
+    
+    
     /**
      * Calculate FD phase correlation between averaged FD data from two quad (or octal/mixed)
      * cameras, each should be pre-shifted the same disparity
@@ -1251,15 +1703,14 @@ public class Correlation2d {
     }
 //isDiagonalPair
 /**
- * Find maximum correlation on the grid
+ * Find maximum correlation on the grid (before 08/28/2021)
  * @param data correlation data - full square or just a combined strip with axis at row 0
  * @param axis_only look for the maximum on the disparity axis only. For the rectangular strips and symmetrical forced to be true.
  * @param minMax minimal value of the maximum to be considered valid
  * @param debug print debug data
  * @return a pair of {x,y} or null. x, y are 0 in the center, disparity is -x
  */
-
-
+    @Deprecated
 	public int [] getMaxXYInt( // find integer pair or null if below threshold // USED in lwir
 			double [] data,      // [data_size * data_size]
 			boolean   axis_only,
@@ -1275,6 +1726,46 @@ public class Correlation2d {
 		} else {
 			axis_only = true;
 		}
+		return getMaxXYInt( // find integer pair or null if below threshold // USED in lwir
+				data,      // [data_size * data_size]
+				data_width,
+				center_row,
+				axis_only,
+				minMax,    // minimal value to consider (at integer location, not interpolated)
+				debug);
+		
+	}
+    
+/**
+ * Find maximum correlation on the grid (before 08/28/2021)
+ * @param data correlation data - full square or just a combined strip with axis at row 0
+ * @param data_width width of the data array
+ * @param center_row for axis-only row0 is center, for square arrays - center row
+ * @param axis_only look for the maximum on the disparity axis only. For the rectangular strips and symmetrical forced to be true.
+ * @param minMax minimal value of the maximum to be considered valid
+ * @param debug print debug data
+ * @return a pair of {x,y} or null. x, y are 0 in the center, disparity is -x
+ */
+	
+	public int [] getMaxXYInt( // find integer pair or null if below threshold // USED in lwir
+			double [] data,      // [data_size * data_size]
+			int       data_width,
+			int       center_row,
+			boolean   axis_only,
+			double    minMax,    // minimal value to consider (at integer location, not interpolated)
+			boolean   debug)
+	{
+//		int data_width = 2 * transform_size - 1;
+//		int data_height = data.length / data_width;
+		int center = data_width / 2; // transform_size - 1;
+		/*
+		int center_row = 0;
+		if (data_height == data_width) {
+			center_row = center; // not used in lwir
+		} else {
+			axis_only = true;
+		}
+		*/
 		int    imx = 0;
 		if (debug){
 			System.out.println("getMaxXYInt(): axis_only="+axis_only+", minMax="+minMax);
@@ -1302,8 +1793,9 @@ public class Correlation2d {
 		}
 		return rslt;
 	}
-
-
+	
+	
+	
 	/**
 	 * Get fractional center as a "center of mass" inside circle/square from the integer max. Works on the square 2d phase
 	 * correlation results to provide data for channel x/y offset
@@ -1382,6 +1874,7 @@ public class Correlation2d {
 				this.corr_wndx, // double [] window_x,  // half of a window function in x (disparity) direction
 				debug);// boolean   debug);
 	}
+	
 	public double [] getMaxXCmNotch( // get fractional center as a "center of mass" inside circle/square from the integer max // not used in lwir
 			double [] data,      // [data_size * data_size]
 			int       ixcenter,  // integer center x
@@ -1393,6 +1886,8 @@ public class Correlation2d {
 				this.corr_wndx,       // double [] window_x,  // half of a window function in x (disparity) direction
 				debug);               // boolean   debug);
 	}
+	
+	// No shift by 0.5 for 2021
 	public double [] getMaxXCm( // get fractional center as a "center of mass" inside circle/square from the integer max // USED in lwir
 			double [] data,      // rectangular strip of 1/2 of the correlation are with odd rows shifted by 1/2 pixels
 			int       ixcenter,  // integer center x
@@ -1491,6 +1986,110 @@ public class Correlation2d {
 		return rslt;
 	}
 
+	
+	public double [] getMaxXCm( // get fractional center as a "center of mass" inside circle/square from the integer max // USED in lwir
+			double [] data,      // rectangular strip of 1/2 of the correlation are with odd rows shifted by 1/2 pixels
+			int       center, //  = transform_size - 1;
+			int       data_width, //  = 2 * transform_size - 1;
+			int       ixcenter,  // integer center x
+			double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
+			double [] window_x,  // half of a window function in x (disparity) direction
+			boolean   debug) {
+//		int center = transform_size - 1;
+//		int data_width = 2 * transform_size - 1;
+		int data_height = data.length/data_width;
+		double wy_scale = 1.0;
+		if (data_height > window_y.length) {
+			data_height = window_y.length;
+		} else if (data_height < window_y.length) { // re-  // not used in lwir
+			double swy = window_y[0];
+			for (int i = 1; i < data_height; i++) swy += window_y[i];
+			wy_scale = 1.0/swy;
+		}
+		double [][]dbg_data = null;
+		if (debug) {
+			String [] dbg_titles = {"strip","*wnd_y"};
+			dbg_data = new double [2][];
+			dbg_data[0] =  debugStrip3(data);
+			double [] data_0 = data.clone();
+			for (int i = 0; i < data_height; i++) {
+				for (int j = 0; j <  data_width; j++) {
+					data_0[i * data_width + j] *= (i < window_y.length) ? (wy_scale * window_y[i]): 0.0;
+				}
+			}
+			dbg_data[1] =  debugStrip3(data_0);
+			int long_width = 2 * data_width; // (2 * transform_size-1);
+			if (dbg_data[0] != null) {
+				(new ShowDoubleFloatArrays()).showArrays(
+						dbg_data,
+						long_width,
+						dbg_data[0].length/long_width,
+						true,
+						"Strip",
+						dbg_titles);
+			}
+
+			System.out.println("getMaxXCm(), ixcenter = "+ixcenter);
+			for (int dy = 0; dy < data_height; dy++) {
+				if ((dy & 1) != 0) System.out.print("    ");
+				for (int dx = 0; dx < data_width; dx++) {
+					System.out.print(String.format(" %8.5f", data[dy * data_width + dx]));
+				}
+				System.out.println();
+			}
+			System.out.println();
+		}
+		double s0=0.0, sx=0.0, sx2 = 0.0;
+		int x0 = center + ixcenter; // index of the argmax, starting with 0
+		for (int dy = 0; dy < data_height; dy++) {
+			int odd = dy & 1;
+			double wy = ((dy == 0)? wy_scale: (2.0 * wy_scale))*window_y[dy];
+			int indx0 = data_width * dy;
+			for (int adx = odd; adx < window_x.length; adx+=2) { // index in window_x
+				for (int dir = (adx == 0)?1:-1; dir <= 1; dir+=2) {
+					// calculate data index
+					int idx = (adx * dir) >> 1;
+					int x = 2 * idx + odd;
+					int x1 = x0 + idx; // correct
+					if (debug)	System.out.print(String.format(" %2d:%2d:%d %3d", dy,adx,dir,x));
+					if ((x1 >= 0 ) && (x1 < data_width)) {
+						double d = data[indx0+x1];
+///						if (!Double.isNaN(d)) {
+						if (!Double.isNaN(d) && (d > 0.0)) { // with negative d s0 can get very low value (or even negative)
+							d*= wy*window_x[adx];
+							s0+= d;
+							sx +=  d * x; // result x is twice larger (corresponds to window_x)
+							sx2 += d * x * x;
+							if (debug)	System.out.print(String.format("%8.5f", data[indx0+x1])); //d));
+						}
+					} else {
+						if (debug)	System.out.print("********");
+					}
+				}
+			}
+			if (debug)	System.out.println();
+
+		}
+		if (debug){
+			System.out.println("getMaxXCm() -> s0="+s0+", sx="+sx+", sx2="+sx2+", ixcenter="+ixcenter);
+		}
+
+		if (s0 == 0.0) return null;
+
+		double [] rslt = {
+				ixcenter + sx/s0/2,              // new center in disparity units, relative to the correlation center
+				s0,                              // total "weight"
+				Math.sqrt(s0*sx2 - sx*sx)/s0/2}; // standard deviation in disparity units (divide weight by the standard deviation for quality?)
+		if (debug){
+			System.out.println("getMaxXCm() -> "+rslt[0]+"/"+rslt[1]+"/"+rslt[2]);
+		}
+		return rslt;
+	}
+	
+	
+	
+	
+	
 	/**
 	 * Generate a half-window for correlation center of mass calculation. Window has a flat top,
 	 * then half-cosine fade to zero

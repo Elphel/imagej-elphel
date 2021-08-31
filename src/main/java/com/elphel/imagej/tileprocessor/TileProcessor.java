@@ -6217,7 +6217,9 @@ ImageDtt.startAndJoin(threads);
 
 		double [][][][] texture_tiles = scan_prev.getTextureTiles(); // each is null, manually set texture_tiles - null
 		ImageDtt image_dtt = new ImageDtt(
+				geometryCorrection.getNumSensors(),
 				clt_parameters.transform_size,
+				clt_parameters.img_dtt,
 				isMonochrome(),
 				isLwir(),
 				clt_parameters.getScaleStrength(is_aux));

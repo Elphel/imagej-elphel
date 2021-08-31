@@ -13,13 +13,16 @@ public class ImageDtt extends ImageDttCPU {
 	private final GPUTileProcessor.GpuQuad gpuQuad;
 
 	public ImageDtt(
+			int numSensors,
 			int transform_size,
+			ImageDttParameters imgdtt_params,
 			boolean mono,
 			boolean lwir,
 			double scale_strengths,
 			GPUTileProcessor.GpuQuad gpuQuadIn){
-		super (
+		super ( numSensors,
 				transform_size,
+				imgdtt_params,
 				mono,
 				lwir,
 				scale_strengths);
@@ -27,17 +30,19 @@ public class ImageDtt extends ImageDttCPU {
 	}
 
 	public ImageDtt(
+			int numSensors,
 			int transform_size,
+			ImageDttParameters imgdtt_params,
 			boolean mono,
 			boolean lwir,
 			double scale_strengths){
-		super (
+		super ( numSensors,
 				transform_size,
+				imgdtt_params,
 				mono,
 				lwir,
 				scale_strengths);
 		gpuQuad = null;
-
 	}
 	
 	public GPUTileProcessor.GpuQuad getGPU() {
@@ -500,24 +505,6 @@ public class ImageDtt extends ImageDttCPU {
 			
 			
 			if (corr_indices.length > 0) {
-				/*				
-				if (true) { // debugging only
-					int [] wh = new int[2];
-					double [][] dbg_corr = GPUTileProcessor.getCorr2DView(
-							tilesX,
-							tilesY,
-							corr_indices,
-							fcorr2D,
-							wh);
-					(new ShowDoubleFloatArrays()).showArrays(
-							dbg_corr,
-							wh[0],
-							wh[1],
-							true,
-							"dbg-corr2D-initial", // name+"-CORR2D-D"+clt_parameters.disparity,
-							GPUTileProcessor.getCorrTitles());
-				}
-				*/
 				final int corr_length = fcorr2D[0].length;// all correlation tiles have the same size
 				// assuming that the correlation pairs sets are the same for each tile that has correlations
 				// find this number
@@ -538,6 +525,7 @@ public class ImageDtt extends ImageDttCPU {
 //							double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS][corr_length]; // 225-long (15x15)
 							
 							Correlation2d corr2d = new Correlation2d(
+									numSensors,
 									imgdtt_params,              // ImageDttParameters  imgdtt_params,
 									transform_size,             // int transform_size,
 									2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
@@ -1379,6 +1367,7 @@ public class ImageDtt extends ImageDttCPU {
 //							double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS][corr_length]; // 225-long (15x15)
 							
 							Correlation2d corr2d = new Correlation2d(
+									numSensors,
 									imgdtt_params,              // ImageDttParameters  imgdtt_params,
 									transform_size,             // int transform_size,
 									2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
@@ -1762,6 +1751,7 @@ public class ImageDtt extends ImageDttCPU {
 					public void run() {
 
 						Correlation2d corr2d = new Correlation2d(
+								numSensors,
 								imgdtt_params,              // ImageDttParameters  imgdtt_params,
 								transform_size,             // int transform_size,
 								2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
@@ -2111,6 +2101,7 @@ public class ImageDtt extends ImageDttCPU {
 					public void run() {
 
 						Correlation2d corr2d = new Correlation2d(
+								numSensors,
 								imgdtt_params,              // ImageDttParameters  imgdtt_params,
 								transform_size,             // int transform_size,
 								2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
@@ -3165,6 +3156,7 @@ public class ImageDtt extends ImageDttCPU {
 				@Override
 				public void run() {
 					Correlation2d corr2d = new Correlation2d(
+							numSensors,
 							imgdtt_params,              // ImageDttParameters  imgdtt_params,
 							transform_size,             // int transform_size,
 							2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
@@ -3480,6 +3472,7 @@ public class ImageDtt extends ImageDttCPU {
 				@Override
 				public void run() {
 					Correlation2d corr2d = new Correlation2d(
+							numSensors,
 							imgdtt_params,              // ImageDttParameters  imgdtt_params,
 							transform_size,             // int transform_size,
 							2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)

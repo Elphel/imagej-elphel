@@ -309,7 +309,9 @@ public class MacroCorrelation {
 		*/
 		
 		ImageDtt image_dtt = new ImageDtt(
+				geometryCorrection.getNumSensors(),
 				clt_parameters.transform_size,
+				clt_parameters.img_dtt,
 				this.mtp.isMonochrome(),
 				this.mtp.isLwir(),
 				clt_parameters.getScaleStrength(this.mtp.isAux()));

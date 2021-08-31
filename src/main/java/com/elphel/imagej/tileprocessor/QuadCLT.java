@@ -65,7 +65,7 @@ public class QuadCLT extends QuadCLTCPU {
 
 	 */
 	
-	public QuadCLT(
+	public QuadCLT( // creates AUX, does not know numSensors?
 			String                                          prefix,
 			Properties                                      properties,
 			EyesisCorrections                               eyesisCorrections,
@@ -2041,10 +2041,12 @@ public class QuadCLT extends QuadCLTCPU {
 		final boolean      batch_mode = clt_parameters.batch_run; //disable any debug images
 		
 		ImageDtt image_dtt = new ImageDtt(
-				  clt_parameters.transform_size,
-				  is_mono,
-				  is_lwir,
-				  clt_parameters.getScaleStrength(isAux())); // 1.0);
+				getNumSensors(),
+				clt_parameters.transform_size,
+				clt_parameters.img_dtt,
+				is_mono,
+				is_lwir,
+				clt_parameters.getScaleStrength(isAux())); // 1.0);
 		
 		float [][] lpf_rgb = new float[][] {
 			image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_r),
@@ -2304,10 +2306,12 @@ public class QuadCLT extends QuadCLTCPU {
 				cwgreen});
 
 		ImageDtt image_dtt = new ImageDtt(
-				  clt_parameters.transform_size,
-				  is_mono,
-				  is_lwir,
-				  1.0);
+				quadCLT_main.getNumSensors(),
+				clt_parameters.transform_size,
+				clt_parameters.img_dtt,
+				is_mono,
+				is_lwir,
+				1.0);
 		float [][] lpf_rgb = new float[][] {
 			image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_r),
 			image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_b),
@@ -3023,7 +3027,9 @@ public class QuadCLT extends QuadCLTCPU {
 		  double [][][][] texture_tiles =     new double [tilesY][tilesX][][]; // ["RGBA".length()][];
           */
 		  ImageDtt image_dtt = new ImageDtt(
+				  getNumSensors(),
 				  clt_parameters.transform_size,
+				  clt_parameters.img_dtt,
 				  isMonochrome(),
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
@@ -3277,7 +3283,9 @@ public class QuadCLT extends QuadCLTCPU {
 		  }
           */
 		  ImageDtt image_dtt = new ImageDtt(
+				  getNumSensors(),
 				  clt_parameters.transform_size,
+				  clt_parameters.img_dtt,
 				  isMonochrome(),
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
@@ -3415,7 +3423,9 @@ public class QuadCLT extends QuadCLTCPU {
 		  }
 		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
 		  ImageDtt image_dtt = new ImageDtt(
+				  getNumSensors(),
 				  clt_parameters.transform_size,
+				  clt_parameters.img_dtt,
 				  isMonochrome(),
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
@@ -3541,7 +3551,9 @@ public class QuadCLT extends QuadCLTCPU {
 		  final double gpu_sigma_rb_corr =  isMonochrome()? 1.0 : clt_parameters.gpu_sigma_rb_corr;
 		  final double gpu_sigma_log_corr = clt_parameters.getGpuCorrLoGSigma(isMonochrome());
 		  ImageDtt image_dtt = new ImageDtt(
+				  getNumSensors(),
 				  clt_parameters.transform_size,
+				  clt_parameters.img_dtt,
 				  isMonochrome(),
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
@@ -4136,7 +4148,9 @@ public class QuadCLT extends QuadCLTCPU {
 		  }
           */
 		  ImageDtt image_dtt = new ImageDtt(
+				  getNumSensors(),
 				  clt_parameters.transform_size,
+				  clt_parameters.img_dtt,
 				  isMonochrome(),
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
@@ -4594,7 +4608,9 @@ public class QuadCLT extends QuadCLTCPU {
 		  }
           */
 		  ImageDtt image_dtt = new ImageDtt(
+				  getNumSensors(),
 				  clt_parameters.transform_size,
+				  clt_parameters.img_dtt,
 				  isMonochrome(),
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
@@ -4712,7 +4728,9 @@ public class QuadCLT extends QuadCLTCPU {
 		  }
           */
 		  ImageDtt image_dtt = new ImageDtt(
+				  getNumSensors(),
 				  clt_parameters.transform_size,
+				  clt_parameters.img_dtt,
 				  isMonochrome(),
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
@@ -4919,7 +4937,9 @@ public class QuadCLT extends QuadCLTCPU {
 		  }
 
 		  ImageDtt image_dtt = new ImageDtt(
+				  getNumSensors(),
 				  clt_parameters.transform_size,
+				  clt_parameters.img_dtt,
 				  isMonochrome(),
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),

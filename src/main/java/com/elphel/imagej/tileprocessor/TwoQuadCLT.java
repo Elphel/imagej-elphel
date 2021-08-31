@@ -655,7 +655,9 @@ public class TwoQuadCLT {
 		double [][] disparity_bimap  = new double [ImageDtt.BIDISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
 
 		ImageDtt image_dtt = new ImageDtt(
+				quadCLT_main.getNumSensors(),
 				clt_parameters.transform_size,
+				clt_parameters.img_dtt,
 				quadCLT_main.isMonochrome(),
 				quadCLT_main.isLwir(),
 				clt_parameters.getScaleStrength(false));
@@ -1380,7 +1382,9 @@ public class TwoQuadCLT {
 		}
 		double [][] disparity_bimap  = new double [ImageDtt.BIDISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
 		ImageDtt image_dtt = new ImageDtt(
+				quadCLT_main.getNumSensors(),
 				clt_parameters.transform_size,
+				clt_parameters.img_dtt,
 				quadCLT_main.isMonochrome(),
 				quadCLT_main.isLwir(),
 				clt_parameters.getScaleStrength(false));
@@ -2183,7 +2187,9 @@ public class TwoQuadCLT {
 		}
 
 		ImageDtt image_dtt = new ImageDtt(
+				quadCLT_main.getNumSensors(),
 				clt_parameters.transform_size,
+				clt_parameters.img_dtt,
 				quadCLT_main.isMonochrome(),
 				quadCLT_main.isLwir(),
 				clt_parameters.getScaleStrength(false));
@@ -3090,7 +3096,9 @@ if (debugLevel > -100) return true; // temporarily !
 			}
 		}
 		ImageDtt image_dtt = new ImageDtt(
+				quadCLT_main.getNumSensors(),
 				clt_parameters.transform_size,
+				clt_parameters.img_dtt,
 				quadCLT_main.isMonochrome(),
 				quadCLT_main.isLwir(),
 				clt_parameters.getScaleStrength(false));
@@ -3270,6 +3278,7 @@ if (debugLevel > -100) return true; // temporarily !
 				true,  // smart,
 				true);  //newAllowed, // save
 		Correlation2d corr2d = new Correlation2d(
+				quadCLT_main.getNumSensors(),				
 				clt_parameters.img_dtt,              // ImageDttParameters  imgdtt_params,
 				clt_parameters.transform_size,             // int transform_size,
 				2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
@@ -3491,6 +3500,7 @@ if (debugLevel > -100) return true; // temporarily !
 				true,  // smart,
 				true);  //newAllowed, // save
 		Correlation2d corr2d = new Correlation2d(
+				quadCLT_main.getNumSensors(),
 				clt_parameters.img_dtt,         // ImageDttParameters  imgdtt_params,
 				clt_parameters.transform_size,  // int transform_size,
 				2.0,                            // double wndx_scale, // (wndy scale is always 1.0)
@@ -7171,7 +7181,9 @@ if (debugLevel > -100) return true; // temporarily !
 			final boolean                            updateStatus,
 			final int                                debugLevel){
 		ImageDtt image_dtt = new ImageDtt(
+				quadCLT_main.getNumSensors(),
 				clt_parameters.transform_size,
+				clt_parameters.img_dtt,
 				quadCLT_main.isMonochrome(),
 				quadCLT_main.isLwir(),
 				clt_parameters.getScaleStrength(false));
@@ -7265,6 +7277,7 @@ if (debugLevel > -100) return true; // temporarily !
 		}
 		Random rnd = new Random(System.nanoTime());
 		Correlation2d corr2d = new Correlation2d(
+				quadCLT_main.getNumSensors(),
 				clt_parameters.img_dtt,              // ImageDttParameters  imgdtt_params,
 				clt_parameters.transform_size,             // int transform_size,
 				2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
@@ -7340,7 +7353,9 @@ if (debugLevel > -100) return true; // temporarily !
 			final boolean                            updateStatus,
 			final int                                debugLevel){
 		ImageDtt image_dtt = new ImageDtt(
+				quadCLT_main.getNumSensors(),
 				clt_parameters.transform_size,
+				clt_parameters.img_dtt,
 				quadCLT_aux.isMonochrome(),
 				quadCLT_aux.isLwir(),
 				clt_parameters.getScaleStrength(true));
@@ -7404,6 +7419,7 @@ if (debugLevel > -100) return true; // temporarily !
 		int [][]           tile_op = new int[tilesY][tilesX]; // common for both main and aux
 		double [][]        disparity_array = new double[tilesY][tilesX];
 		Correlation2d corr2d = new Correlation2d(
+				quadCLT_main.getNumSensors(),
 				clt_parameters.img_dtt,              // ImageDttParameters  imgdtt_params,
 				clt_parameters.transform_size,             // int transform_size,
 				2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
@@ -8262,6 +8278,7 @@ if (debugLevel > -100) return true; // temporarily !
 ///		double k_prev = 0.75;
 ///		double corr_scale = 0.75;
 		OpticalFlow opticalFlow = new OpticalFlow(
+				quadCLT_main.getNumSensors(),
 				threadsMax, // int            threadsMax,  // maximal number of threads to launch
 				updateStatus); // boolean        updateStatus);
 		
@@ -8287,7 +8304,7 @@ if (debugLevel > -100) return true; // temporarily !
 	
 	public void interPairsLMA(
 			QuadCLT                                              quadCLT_main, // tiles should be set
-			CLTParameters             clt_parameters,
+			CLTParameters                                        clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
 			ColorProcParameters                                  colorProcParameters,
 			ColorProcParameters                                  colorProcParameters_aux,
@@ -8340,6 +8357,7 @@ if (debugLevel > -100) return true; // temporarily !
 		
 		
 		OpticalFlow opticalFlow = new OpticalFlow(
+				quadCLT_main.getNumSensors(),
 				threadsMax, // int            threadsMax,  // maximal number of threads to launch
 				updateStatus); // boolean        updateStatus);
 		
@@ -8449,6 +8467,7 @@ if (debugLevel > -100) return true; // temporarily !
 		
 		
 		OpticalFlow opticalFlow = new OpticalFlow(
+				quadCLT_main.getNumSensors(),
 				threadsMax, // int            threadsMax,  // maximal number of threads to launch
 				updateStatus); // boolean        updateStatus);
 		
@@ -8537,6 +8556,7 @@ if (debugLevel > -100) return true; // temporarily !
 		
 		
 		OpticalFlow opticalFlow = new OpticalFlow(
+				quadCLT_main.getNumSensors(),
 				threadsMax, // int            threadsMax,  // maximal number of threads to launch
 				updateStatus); // boolean        updateStatus);
 		
@@ -8593,6 +8613,7 @@ if (debugLevel > -100) return true; // temporarily !
 				debugLevel);    // int            debugLevel)
 		
 		OpticalFlow opticalFlow = new OpticalFlow(
+				quadCLT_main.getNumSensors(),
 				threadsMax, // int            threadsMax,  // maximal number of threads to launch
 				updateStatus); // boolean        updateStatus);
 		
@@ -8743,6 +8764,7 @@ if (debugLevel > -100) return true; // temporarily !
 		
 		
 		OpticalFlow opticalFlow = new OpticalFlow(
+				quadCLT_main.getNumSensors(),
 				threadsMax, // int            threadsMax,  // maximal number of threads to launch
 				updateStatus); // boolean        updateStatus);
 		if (bayer_artifacts_debug) {

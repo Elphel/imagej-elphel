@@ -85,7 +85,27 @@ public class ImageDttParameters {
 	public boolean cnvx_non_coll =          true;  // require non-collinear samples in a valid correlation pair
 	public int     cnvx_min_pairs =         5;     // minimal number 2D correlation pairs per tile
 
-
+	public int     mcorr_multi =            4;     // apply *_multi if number of sensors >= mcorr_multi
+	public boolean mcorr_all =              true;  // correlate all N*(N-1)/2 pairs
+	public boolean mcorr_all_multi =        false; // correlate all N*(N-1)/2 pairs for multi
+	public boolean mcorr_dia =              true;  // all diameters (2 pairs for quad, 8 - for lwir16)
+	public boolean mcorr_dia_multi =        true;  // all diameters
+	public boolean mcorr_sq =               true;  // all squares (4 pairs for quad, 16 - for lwir16)
+	public boolean mcorr_sq_multi =         true;  // all squares
+	public boolean mcorr_neib =             true;  // all neighbors (4 pairs for quad, 16 - for lwir16)
+	public boolean mcorr_neib_multi =       true;  // all neighbors
+	public boolean mcorr_cons_all =         true;  // consolidate all available pairs
+	public boolean mcorr_cons_dia =         true;  // consolidate all having length of a diameter
+	public boolean mcorr_cons_sq =          true;  // consolidate all having length of a square side
+	public boolean mcorr_cons_neib =        true;  // consolidate all having shortest length
+	public boolean mcorr_cons_hor =         true;  // consolidate all horizontal pairs
+	public boolean mcorr_cons_vert =        true;  // consolidate all vertical pairs
+	
+	/// these are just for testing, actual will be generated specifically for different applications (LY will use closest pairs)  
+	public int     mcorr_comb_width =       15;
+	public int     mcorr_comb_height =      15;
+	public int     mcorr_comb_offset =      0;
+	public double  mcorr_comb_disp =        1.0; // per-pixel disparity relative to a side of a square
 
 	// pole window will be inverted
 	public int     corr_strip_notch =       11;     // number of rows to calculate for vertical poles
@@ -104,7 +124,7 @@ public class ImageDttParameters {
 	public boolean pcorr_use =              false; // use group phase correlation for disparity calculation in existing code
 	public boolean pcorr_use_hv =           true;  // use group phase correlation to combine hor and vert pairs
 	public double  pcorr_sigma_mono =       0.15;  // correlation sigma for monochrome images  (after normalization)
-	public double  pcorr_sigma =            0.8;  // correlation sigma for Bayder images  (after normalization)
+	public double  pcorr_sigma =            0.8;  // correlation sigma for Bayer images  (after normalization)
 	public double  pcorr_sigma_rb =         0.5;  // correlation sigma extra for R and B (before normalization)
 	public double  pcorr_fat_zero =         0.05; // correlation relative fat zero for Bayer images
 	public double  pcorr_fat_zero_mono =    0.03; // correlation relative fat zero for monochrome images
@@ -183,7 +203,8 @@ public class ImageDttParameters {
 	public int     lma_debug_level =        0;     //
 	public int     lma_debug_level1 =       0;     //
 	public boolean lma_debug_graphic =      false; //
-	public boolean corr_var_cam =           true;  // New correlation mode compatible with 8 subcameras
+	@Deprecated
+	public boolean corr_var_cam =           true;  // New correlation mode compatible with 8 subcameras 
 	public double  cm_max_normalization =   0.55; // fraction of correlation maximum radius, being squared multiplied by maximum to have the same total mass
 	public double  lma_dbg_scale =          0.0;  // scale lma_dbg_offset
 	public double  [][] lma_dbg_offset =    {{ 1.0, 0.0},{ -1.0, 0.0},{-1.0, 0.0},{ 1.0, 0.0}}; //  new double [4][2];
@@ -210,8 +231,24 @@ public class ImageDttParameters {
 	public void setEnhOrthoScale (double s) {
 		enhortho_scale = s;
 	}
+	
+	
+	public boolean getMcorrAll(int numSens) {
+		return (numSens > mcorr_multi) ? mcorr_all_multi : mcorr_all;
+	}
 
+	public boolean getMcorrDia(int numSens) {
+		return (numSens > mcorr_multi) ? mcorr_dia_multi : mcorr_dia;
+	}
 
+	public boolean getMcorrSq(int numSens) {
+		return (numSens > mcorr_multi) ? mcorr_sq_multi :  mcorr_sq;
+	}
+
+	public boolean getMcorrNeib(int numSens) {
+		return (numSens > mcorr_multi) ? mcorr_neib_multi : mcorr_neib;
+	}
+	
 	public void dialogQuestions(GenericJTabbedDialog gd) {
 		
 		    gd.addCheckbox    ("Debug CPU->GPU matching",                                         this.gpu_mode_debug,
@@ -311,9 +348,53 @@ public class ImageDttParameters {
 			gd.addNumericField("Minimal correlation pairs per tile",                              this.cnvx_min_pairs,  0, 3, "",
 					"Minimal number 2D correlation pairs per tile");
 
+			gd.addMessage("Correlation pairs selection for multicamera confifurations");
+			gd.addNumericField("Min number of sensors for \"multi\"",                             this.mcorr_multi,  0, 3, "sensors",
+					"Cameras with this or larger number of sensor will use a \"_multi\" version of parameters (when available)");
 
+			gd.addCheckbox    ("Calculate all correlation pairs for small cameras",               this.mcorr_all,
+					"N*(N-1)/2: 6 for quad, 120 for lwir16 ");
+			gd.addCheckbox    ("Calculate all correlation pairs for multi cameras",               this.mcorr_all_multi,
+					"N*(N-1)/2: 6 for quad, 120 for lwir16");
 
+			gd.addCheckbox    ("Calculate correlation pairs - diameters for small cameras",       this.mcorr_dia,
+					"All diameter pairs. N/2: 2 for quad, 8 for lwir16");
+			gd.addCheckbox    ("Calculate correlation pairs - diameters for multi cameras",       this.mcorr_dia_multi,
+					"All diameter pairs. N/2: 2 for quad, 8 for lwir16");
 
+			gd.addCheckbox    ("Calculate correlation pairs of squares for small cameras",        this.mcorr_sq,
+					"All pairs with the lengths equal to side of a square. N: 4 for quad, 16 for lwir16");
+			gd.addCheckbox    ("Calculate correlation pairs of squares for multi cameras",        this.mcorr_sq_multi,
+					"All pairs with the lengths equal to side of a square. N: 4 for quad, 16 for lwir16");
+			
+			gd.addCheckbox    ("Calculate neighbor  pairs for small cameras",                     this.mcorr_neib,
+					"All neighbor pairs. N: 4 for quad, 16 for lwir16");
+			gd.addCheckbox    ("Calculate neighbor  pairs for multi cameras",                     this.mcorr_neib_multi,
+					"All neighbor pairs. N: 4 for quad, 16 for lwir16");
+
+			gd.addCheckbox    ("Combine all pairs",                                               this.mcorr_cons_all,
+					"Combine all calculated correlation pairs");
+			gd.addCheckbox    ("Combine diameters",                                               this.mcorr_cons_dia,
+					"Combine all pairs with the length of a diameter");
+			gd.addCheckbox    ("Combine squares",                                                 this.mcorr_cons_sq,
+					"Combine all pairs with the length of a side of an inscribed square");
+			gd.addCheckbox    ("Combine neighbors",                                               this.mcorr_cons_neib,
+					"Combine all neighbor pairs ");
+			gd.addCheckbox    ("Combine horizontal pairs",                                        this.mcorr_cons_hor,
+					"Combine all calculated horizontal pairs regardless of length");
+			gd.addCheckbox    ("Combine vertical pairs",                                          this.mcorr_cons_vert,
+					"Combine all calculated vertical pairs regardless of length");
+
+			gd.addMessage("Generating grid for combining visualization, actual will be provided programmatically");
+			gd.addNumericField("Width of a combined correlation tile",                            this.mcorr_comb_width,  0, 3, "pix",
+					"Width of a tile to combine correlations after rotation/scaling");
+			gd.addNumericField("Height of a combined correlation tile",                           this.mcorr_comb_height,  0, 3, "pix",
+					"Full height of a tile to combine correlations after rotation/scaling");
+			gd.addNumericField("Height offset of a combined correlation tile",                    this.mcorr_comb_offset,  0, 3, "pix",
+					"0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)");
+			gd.addNumericField("Relative per-pixel disparity",                                    this.mcorr_comb_disp,  3,6,"pix",
+					"Combined tile per-pixel disparity for baseline == side of a square");
+			
 			gd.addMessage("Window for pole detection mode");
 			gd.addNumericField("Strip height for pole detection",                                 this.corr_strip_notch,  0, 3, "half-pix",
 					"Number of rows to combine/interpolate correlation results. Rows are twice denser than pixels correponding to largest baseline disparity");
@@ -576,6 +657,27 @@ public class ImageDttParameters {
   			this.cnvx_non_coll =         gd.getNextBoolean();
   			this.cnvx_min_pairs=   (int) gd.getNextNumber();
 
+  			this.mcorr_multi=      (int) gd.getNextNumber();
+  			this.mcorr_all =             gd.getNextBoolean();
+  			this.mcorr_all_multi =       gd.getNextBoolean();
+  			this.mcorr_dia =             gd.getNextBoolean();
+  			this.mcorr_dia_multi =       gd.getNextBoolean();
+  			this.mcorr_sq =              gd.getNextBoolean();
+  			this.mcorr_sq_multi =        gd.getNextBoolean();
+  			this.mcorr_neib =            gd.getNextBoolean();
+  			this.mcorr_neib_multi =      gd.getNextBoolean();
+  			this.mcorr_cons_all =        gd.getNextBoolean();
+  			this.mcorr_cons_dia =        gd.getNextBoolean();
+  			this.mcorr_cons_sq =         gd.getNextBoolean();
+  			this.mcorr_cons_neib =       gd.getNextBoolean();
+  			this.mcorr_cons_hor =        gd.getNextBoolean();
+  			this.mcorr_cons_vert =       gd.getNextBoolean();
+  			
+  			this.mcorr_comb_width= (int) gd.getNextNumber();
+  			this.mcorr_comb_height=(int) gd.getNextNumber();
+  			this.mcorr_comb_offset=(int) gd.getNextNumber();
+  			this.mcorr_comb_disp=        gd.getNextNumber();
+  			
   			this.corr_strip_notch= (int) gd.getNextNumber();
   			this.corr_notch_hwidth=      gd.getNextNumber();
   			this.corr_notch_blur=        gd.getNextNumber();
@@ -729,6 +831,27 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"cnvx_non_coll",        this.cnvx_non_coll +"");
 		properties.setProperty(prefix+"cnvx_min_pairs",       this.cnvx_min_pairs +"");
 
+		properties.setProperty(prefix+"mcorr_multi",          this.mcorr_multi +"");
+		properties.setProperty(prefix+"mcorr_all",            this.mcorr_all +"");
+		properties.setProperty(prefix+"mcorr_all_multi",      this.mcorr_all_multi +"");
+		properties.setProperty(prefix+"mcorr_dia",            this.mcorr_dia +"");
+		properties.setProperty(prefix+"mcorr_dia_multi",      this.mcorr_dia_multi +"");
+		properties.setProperty(prefix+"mcorr_sq",             this.mcorr_sq +"");
+		properties.setProperty(prefix+"mcorr_sq_multi",       this.mcorr_sq_multi +"");
+		properties.setProperty(prefix+"mcorr_neib",           this.mcorr_neib +"");
+		properties.setProperty(prefix+"mcorr_neib_multi",     this.mcorr_neib_multi +"");
+		properties.setProperty(prefix+"mcorr_cons_all",       this.mcorr_cons_all +"");
+		properties.setProperty(prefix+"mcorr_cons_dia",       this.mcorr_cons_dia +"");
+		properties.setProperty(prefix+"mcorr_cons_sq",        this.mcorr_cons_sq +"");
+		properties.setProperty(prefix+"mcorr_cons_neib",      this.mcorr_cons_neib +"");
+		properties.setProperty(prefix+"mcorr_cons_hor",       this.mcorr_cons_hor +"");
+		properties.setProperty(prefix+"mcorr_cons_vert",      this.mcorr_cons_vert +"");
+		
+		properties.setProperty(prefix+"mcorr_comb_width",     this.mcorr_comb_width +"");
+		properties.setProperty(prefix+"mcorr_comb_height",    this.mcorr_comb_height +"");
+		properties.setProperty(prefix+"mcorr_comb_offset",    this.mcorr_comb_offset +"");
+		properties.setProperty(prefix+"mcorr_comb_disp",      this.mcorr_comb_disp +"");
+		
 		properties.setProperty(prefix+"corr_strip_notch",     this.corr_strip_notch +"");
 		properties.setProperty(prefix+"corr_notch_hwidth",    this.corr_notch_hwidth +"");
 		properties.setProperty(prefix+"corr_notch_blur",      this.corr_notch_blur +"");
@@ -885,7 +1008,28 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"cnvx_min_samples")!=null)     this.cnvx_min_samples=Integer.parseInt(properties.getProperty(prefix+"cnvx_min_samples"));
 		if (properties.getProperty(prefix+"cnvx_non_coll")!=null)        this.cnvx_non_coll=Boolean.parseBoolean(properties.getProperty(prefix+"cnvx_non_coll"));
 		if (properties.getProperty(prefix+"cnvx_min_pairs")!=null)       this.cnvx_min_pairs=Integer.parseInt(properties.getProperty(prefix+"cnvx_min_pairs"));
-
+		
+		if (properties.getProperty(prefix+"mcorr_multi")!=null)          this.mcorr_multi=Integer.parseInt(properties.getProperty(prefix+"mcorr_multi"));
+		if (properties.getProperty(prefix+"mcorr_all")!=null)            this.mcorr_all=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_all"));
+		if (properties.getProperty(prefix+"mcorr_all_multi")!=null)      this.mcorr_all_multi=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_all_multi"));
+		if (properties.getProperty(prefix+"mcorr_dia")!=null)            this.mcorr_dia=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_dia"));
+		if (properties.getProperty(prefix+"mcorr_dia_multi")!=null)      this.mcorr_dia_multi=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_dia_multi"));
+		if (properties.getProperty(prefix+"mcorr_sq")!=null)             this.mcorr_sq=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_sq"));
+		if (properties.getProperty(prefix+"mcorr_sq_multi")!=null)       this.mcorr_sq_multi=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_sq_multi"));
+		if (properties.getProperty(prefix+"mcorr_neib")!=null)           this.mcorr_neib=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_neib"));
+		if (properties.getProperty(prefix+"mcorr_neib_multi")!=null)     this.mcorr_neib_multi=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_neib_multi"));
+		if (properties.getProperty(prefix+"mcorr_cons_all")!=null)       this.mcorr_cons_all=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_cons_all"));
+		if (properties.getProperty(prefix+"mcorr_cons_dia")!=null)       this.mcorr_cons_dia=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_cons_dia"));
+		if (properties.getProperty(prefix+"mcorr_cons_sq")!=null)        this.mcorr_cons_sq=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_cons_sq"));
+		if (properties.getProperty(prefix+"mcorr_cons_neib")!=null)      this.mcorr_cons_neib=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_cons_neib"));
+		if (properties.getProperty(prefix+"mcorr_cons_hor")!=null)       this.mcorr_cons_hor=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_cons_hor"));
+		if (properties.getProperty(prefix+"mcorr_cons_vert")!=null)      this.mcorr_cons_vert=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_cons_vert"));
+		
+		if (properties.getProperty(prefix+"mcorr_comb_width")!=null)     this.mcorr_comb_width=Integer.parseInt(properties.getProperty(prefix+"mcorr_comb_width"));
+		if (properties.getProperty(prefix+"mcorr_comb_height")!=null)    this.mcorr_comb_height=Integer.parseInt(properties.getProperty(prefix+"mcorr_comb_height"));
+		if (properties.getProperty(prefix+"mcorr_comb_offset")!=null)    this.mcorr_comb_offset=Integer.parseInt(properties.getProperty(prefix+"mcorr_comb_offset"));
+		if (properties.getProperty(prefix+"mcorr_comb_disp")!=null)      this.mcorr_comb_disp=Double.parseDouble(properties.getProperty(prefix+"mcorr_comb_disp"));
+		
 		if (properties.getProperty(prefix+"corr_strip_notch")!=null)     this.corr_strip_notch=Integer.parseInt(properties.getProperty(prefix+"corr_strip_notch"));
 		if (properties.getProperty(prefix+"corr_notch_hwidth")!=null)    this.corr_notch_hwidth=Double.parseDouble(properties.getProperty(prefix+"corr_notch_hwidth"));
 		if (properties.getProperty(prefix+"corr_notch_blur")!=null)      this.corr_notch_blur=Double.parseDouble(properties.getProperty(prefix+"corr_notch_blur"));
@@ -1039,6 +1183,27 @@ public class ImageDttParameters {
 		idp.cnvx_non_coll=           this.cnvx_non_coll;
 		idp.cnvx_min_pairs=          this.cnvx_min_pairs;
 
+		idp.mcorr_multi=             this.mcorr_multi;
+		idp.mcorr_all=               this.mcorr_all;
+		idp.mcorr_all_multi=         this.mcorr_all_multi;
+		idp.mcorr_dia=               this.mcorr_dia;
+		idp.mcorr_dia_multi=         this.mcorr_dia_multi;
+		idp.mcorr_sq=                this.mcorr_sq;
+		idp.mcorr_sq_multi=          this.mcorr_sq_multi;
+		idp.mcorr_neib=              this.mcorr_neib;
+		idp.mcorr_neib_multi=        this.mcorr_neib_multi;
+		idp.mcorr_cons_all=          this.mcorr_cons_all;
+		idp.mcorr_cons_dia=          this.mcorr_cons_dia;
+		idp.mcorr_cons_sq=           this.mcorr_cons_sq;
+		idp.mcorr_cons_neib=         this.mcorr_cons_neib;
+		idp.mcorr_cons_hor=          this.mcorr_cons_hor;
+		idp.mcorr_cons_vert=         this.mcorr_cons_vert;
+		
+		idp.mcorr_comb_width=        this.mcorr_comb_width;
+		idp.mcorr_comb_height=       this.mcorr_comb_height;
+		idp.mcorr_comb_offset=       this.mcorr_comb_offset;
+		idp.mcorr_comb_disp=         this.mcorr_comb_disp;
+		
 		idp.corr_strip_notch=        this.corr_strip_notch;
 		idp.corr_notch_hwidth=       this.corr_notch_hwidth;
 		idp.corr_notch_blur=         this.corr_notch_blur;

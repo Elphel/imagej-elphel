@@ -35,6 +35,7 @@ public class Clt1d {
 
 	public int    transform_size = 8;
 	int           transform_len = 64;
+	int           nSens =          4;
 	DttRad2       dtt;
 	ImageDtt      image_dtt;
 	Correlation2d corr2d;
@@ -46,11 +47,14 @@ public class Clt1d {
 		dtt = new DttRad2(transform_size);
 		dtt.set_window(1);
 		image_dtt = new ImageDtt(
+				nSens,
 				transform_size,
+				null, // FIXME: needs ImageDttParameters (clt_parameters.img_dtt), 
 				false,
 				false,
 				1.0);
 		corr2d = new Correlation2d(
+				nSens,
 				transform_size,             // int transform_size,
 				false,                      // boolean monochrome,
 				false);                     //   boolean debug)

@@ -42,13 +42,15 @@ public class OpticalFlow {
 	public static double  LINE_ERR = 0.1;
 	public int            threadsMax = 100;  // maximal number of threads to launch
 	public boolean        updateStatus = true;
+	public int            numSens;
 
 	public OpticalFlow (
+			int            numSens,
 			int            threadsMax,  // maximal number of threads to launch
 			boolean        updateStatus) {
-		this.threadsMax = threadsMax;
+		this.numSens =      numSens;
+		this.threadsMax =   threadsMax;
 		this.updateStatus = updateStatus;
-		
 	}
 
 	/**
@@ -1019,7 +1021,9 @@ public class OpticalFlow {
 		final int chn_offset = QuadCLT.DSRBG_STRENGTH; // start scene_tiles, reference tiles with this 2-nd index
 		
 		final ImageDtt image_dtt = new ImageDtt(
+				numSens,
 				transform_size,
+				null, // FIXME: Needs  ImageDttParameters (clt_parameters.img_dtt),
 				false,
 				false,
 				1.0);
@@ -1046,6 +1050,7 @@ public class OpticalFlow {
 					double [][][] clt_tiles_scene = new double [num_channels][4][];
 					
 					Correlation2d corr2d = new Correlation2d(
+							numSens,
 							transform_size,             // int transform_size,
 							false,                      // boolean monochrome,
 							false);                     //   boolean debug)
@@ -1140,6 +1145,7 @@ public class OpticalFlow {
 
 						double [][] corr_tile_2D = new double [4][tile_length];
 						Correlation2d corr2d = new Correlation2d(
+								numSens,
 								transform_size,             // int transform_size,
 								false,                      // boolean monochrome,
 								false);                     //   boolean debug)
@@ -3894,7 +3900,9 @@ public class OpticalFlow {
 		}
 		
 		ImageDtt image_dtt = new ImageDtt(
+				numSens,
 				clt_parameters.transform_size,
+				clt_parameters.img_dtt,
 				ref_scene.isMonochrome(),
 				ref_scene.isLwir(),
 				clt_parameters.getScaleStrength(ref_scene.isAux()),
@@ -4803,7 +4811,9 @@ public class OpticalFlow {
 		float  [][][][][]     fcorrs_combo_td = new float[num_scenes][4][tilesY][tilesX][];
 		
 		ImageDtt image_dtt = new ImageDtt(
+				numSens,
 				clt_parameters.transform_size,
+				clt_parameters.img_dtt,
 				ref_scene.isMonochrome(),
 				ref_scene.isLwir(),
 				clt_parameters.getScaleStrength(ref_scene.isAux()),

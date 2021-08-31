@@ -3113,7 +3113,9 @@ private Panel panel1,
 
            }
 		  ImageDtt image_dtt = new ImageDtt(
+				  4, // number of sensors - not used here ?
 				  DCT_PARAMETERS.dct_size,
+				  null, // FIXME: needs ImageDttParameters (clt_parameters.img_dtt), 
 				  false, // mono
 				  false, // lwir
 				  1.0); // Bayer( not monochrome), scale correlation strengths
@@ -3215,10 +3217,12 @@ private Panel panel1,
 
         }
         ImageDtt image_dtt = new ImageDtt(
+        		4, // number of sensors - not used here ?
         		DCT_PARAMETERS.dct_size,
-				  false, // mono
-				  false, // lwir
-				  1.0); // Bayer( not monochrome), scale correlation strengths
+				null, // FIXME: needs ImageDttParameters (clt_parameters.img_dtt), 
+        		false, // mono
+        		false, // lwir
+        		1.0); // Bayer( not monochrome), scale correlation strengths
         double [][][][] dctdc_data = image_dtt.mdctStack(
         		DBG_IMP.getStack(),
         		DCT_PARAMETERS.kernel_chn,
@@ -3309,7 +3313,7 @@ private Panel panel1,
         		EYESIS_DCT.showKernels(); // show restored kernels
         	}
         }
-        EYESIS_DCT.processDCTChannelImages(
+        EYESIS_DCT.processDCTChannelImages( // hard-wired 4 sensors!
         		DCT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
         		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
@@ -4729,7 +4733,8 @@ private Panel panel1,
         }
 
 ///========================================
-
+        System.out.println("***** QUAD_CLT.cltDisparityScans() is removed");
+        /*
         QUAD_CLT.cltDisparityScans(
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
@@ -4740,7 +4745,7 @@ private Panel panel1,
         		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
-
+        */
         if (configPath!=null) {
         	saveTimestampedProperties( // save config again
         			configPath,      // full path or null
@@ -8074,10 +8079,12 @@ private Panel panel1,
 		}
 
 		ImageDtt image_dtt = new ImageDtt(
+				4, // number of sensors - not used here ?
 				CLT_PARAMETERS.transform_size,
-				  false, // mono
-				  false, // lwir
-				  1.0); // Bayer( not monochrome), scale correlation strengths
+				CLT_PARAMETERS.img_dtt,
+				false, // mono
+				false, // lwir
+				1.0); // Bayer( not monochrome), scale correlation strengths
 		double [][][][][] clt_data = image_dtt.cltStack(
 				DBG_IMP.getStack(),
 				0, // CLT_PARAMETERS.kernel_chn,
@@ -8208,7 +8215,9 @@ private Panel panel1,
         }
         String suffix = "-dx_"+(CLT_PARAMETERS.ishift_x+CLT_PARAMETERS.shift_x)+"_dy_"+(CLT_PARAMETERS.ishift_y+CLT_PARAMETERS.shift_y);
         ImageDtt image_dtt = new ImageDtt(
+				  4, // number of sensors
         		CLT_PARAMETERS.transform_size,
+				CLT_PARAMETERS.img_dtt,
         		COLOR_PROC_PARAMETERS.isMonochrome(),
         		COLOR_PROC_PARAMETERS.isLwir(),
         		CLT_PARAMETERS.getScaleStrength(false)); // Bayer, not monochrome

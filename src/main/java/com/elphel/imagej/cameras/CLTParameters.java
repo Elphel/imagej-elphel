@@ -158,6 +158,9 @@ public class CLTParameters {
 	public double     fine_corr_y_2 =     0.0;   // additionally shift image in port 2 in y direction
 	public double     fine_corr_x_3 =     0.0;   // additionally shift image in port 3 in x direction
 	public double     fine_corr_y_3 =     0.0;   // additionally shift image in port 3 in y direction
+	
+//	public double [][] fine_corr_xy;
+	
 	public boolean    fine_corr_ignore =  false; // Ignore manual pixel correction
 	public boolean    fine_corr_apply =   true;  // Apply and set to ignore manual pixel correction after extrinsics correction
 
