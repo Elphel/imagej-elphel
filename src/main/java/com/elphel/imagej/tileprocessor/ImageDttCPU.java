@@ -3090,11 +3090,14 @@ public class ImageDttCPU {
 							double [][] corr_combo = new double [combo_sels.length][];
 							for (int nsel = 0; nsel < combo_sels.length; nsel++) if (combo_sels[nsel] != null){
 								corr_combo[nsel] = correlation2d.accumulateInit();
-								correlation2d.accummulatePairs(
+								double sumw = correlation2d.accummulatePairs(
 										corr_combo[nsel], // double []   accum_tile,
 										corr_tiles,       // double [][] corr_tiles,
 										combo_sels[nsel], // boolean []  selection,
 							    		1.0);             // double      weight);
+								correlation2d.normalizeAccumulatedPairs(
+										corr_combo[nsel],
+										sumw);
 							}
 							// save for output
 							if (clt_corr_out != null) {
@@ -7148,7 +7151,7 @@ public class ImageDttCPU {
 				public void run() {
 					int tileY,tileX, pair;
 					for (int nTile = ai.getAndIncrement(); nTile < nAllTiles; nTile = ai.getAndIncrement()) {
-						pair = nTile / nTiles;
+						pair = pair_indx[nTile / nTiles];
 						int tile = nTile % nTiles;
 						tileY = tile / tilesX;
 						tileX = tile % tilesX;

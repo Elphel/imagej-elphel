@@ -5025,7 +5025,7 @@ public class QuadCLTCPU {
 		  */
 		  // pairwise 2D correlations
 		  if (!batch_mode && !infinity_corr && (clt_corr_out != null)){
-			  if (debugLevel > -1){ // -1
+			  if (debugLevel > -2){ // -1
 				  String [] titles =  image_dtt.correlation2d.getCorrTitles();
 				  double [][] corr_rslt = ImageDtt.corr_partial_dbg(
 						  clt_corr_out, // final double [][][][] corr_data,
@@ -5046,7 +5046,7 @@ public class QuadCLTCPU {
 		  }
 
 		  if (!batch_mode && !infinity_corr && (clt_combo_out != null)){
-			  if (debugLevel > -1){ // -1
+			  if (debugLevel > -2){ // -1
 				  String [] titles =  image_dtt.correlation2d.getComboTitles();
 				  double [][] combo_rslt = ImageDtt.corr_partial_dbg(
 						  clt_combo_out, // final double [][][][] corr_data,
@@ -5057,8 +5057,8 @@ public class QuadCLTCPU {
 				  System.out.println("combo_rslt.length = "+combo_rslt.length+", titles.length = "+titles.length);
 				  sdfa_instance.showArrays(
 						  combo_rslt,
-						  tilesX * clt_parameters.img_dtt.mcorr_comb_width,
-						  tilesY * clt_parameters.img_dtt.mcorr_comb_height,
+						  tilesX * (clt_parameters.img_dtt.mcorr_comb_width + 1),
+						  tilesY * (clt_parameters.img_dtt.mcorr_comb_height + 1),
 						  true,
 						  image_name+sAux()+"-COMBO-D"+clt_parameters.disparity,
 						  titles);

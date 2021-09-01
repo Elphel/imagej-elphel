@@ -347,11 +347,12 @@ public class Correlation2d {
      * @param selection boolean selection array that specifies which (of existing) correlation tiles to add
      * @param weight  multiply added tile data by this coefficient before accumulation, common for all added tiles
      */
-    public void accummulatePairs(
+    public double accummulatePairs(
     		double []   accum_tile,
     		double [][] corr_tiles,
     		boolean []  selection,
     		double      weight) { // same weights
+    	double sumw = 0.0;
     	for (int num_pair = 0; num_pair < selection.length; num_pair++) {
     		if (selection[num_pair] && (corr_tiles[num_pair] != null)) {
     			accummulatePair(
@@ -359,9 +360,23 @@ public class Correlation2d {
     		    		corr_tiles[num_pair],
     		    		num_pair,
     		    		weight);
+    			sumw+=weight;
     		}
     	}
-    }    
+    	return sumw;
+    }
+    
+    public void normalizeAccumulatedPairs(
+    		double []   accum_tile,
+    		double      sumw) {
+    	if ((accum_tile != null) && (sumw > 0)) {
+    		double k = 1.0/sumw;
+    		for (int i= 0; i < accum_tile.length; i++) {
+    			accum_tile[i] *= k;
+    		}
+    	}
+    }
+    
     
     public double [] accumulateInit() {return new double [mcorr_comb_width * mcorr_comb_height]; }
     public int getCombWidth() {return mcorr_comb_width;}
@@ -524,11 +539,6 @@ public class Correlation2d {
  		for (int ithread = 0; ithread < threads.length; ithread++) {
  			threads[ithread] = new Thread() {
  				public void run() {
- 					double [] contrib = new double [corr_size*corr_size];
- 					HashSet<Integer> contrib_set = new HashSet<Integer>();
- 					Iterator<Integer> contrib_itr;
- 					double [][] xy4acc = new double[4][2];
- 					double [][] xy4pair = new double[4][2];
  					ArrayList<Integer> contrib_list = new ArrayList<Integer>();
  					ArrayList<Double>  contrib_weights_list = new ArrayList<Double>();
  					for (int num_pair = ai.getAndIncrement(); num_pair < corr_pairs.length; num_pair = ai.getAndIncrement()) {
@@ -556,11 +566,17 @@ public class Correlation2d {
  							Matrix mxy = new Matrix(2,1);
  							Matrix mpxy = new Matrix(2,1);
  							// 2 methods depending on scale
- 							if (scale >= 1.0) { // pair grid is finer, than accumulated grid
+ 							// try with >= 0.9999 to switch branches and compare results
+/// 							if (scale >= 0.9999) { // 1.0) { // pair grid is finer, than accumulated grid
+  							if (scale >= 1.0) { // pair grid is finer, than accumulated grid
  								for (int i = 0; i < mcorr_comb_height; i++) {
  									int iy = i + mcorr_comb_offset - mcorr_comb_height/2;
  									for (int j = 0; j < mcorr_comb_width; j++) {
  										int ix = j - mcorr_comb_width/2;
+ 										if ((num_pair == 62) && (i==7) && (j==7)) {
+ 											System.out.println("num_pair="+num_pair+", i="+i+", j="+j);
+ 											System.out.println("num_pair="+num_pair+", i="+i+", j="+j);
+ 										}
  		 								// convert +/- 1 pixel to pair
  										double minXPair = Double.NaN,minYPair = Double.NaN, maxXPair = Double.NaN, maxYPair = Double.NaN;
  										for (int d = 0; d < four_corners.length; d++) {
@@ -607,7 +623,7 @@ public class Correlation2d {
  																Math.cos(0.5 * Math.PI * (xy_acc[1] - iy));
  														w *= w;
  														if (w >= ignore_contrib) {
- 															int pair_indx = ipy * corr_size + ipx;
+ 															int pair_indx = ipy * corr_size + ipx + corr_center_offs;
  															contrib_list.add(pair_indx);
  															sumw += w;
  															contrib_weights_list.add(w);
@@ -637,6 +653,10 @@ public class Correlation2d {
  										mxy.set(0, 0,  ix);
  										mxy.set(1, 0,  iy);
  										double [] xy_pair = toPair.times(mxy).getColumnPackedCopy();
+ 										if ((num_pair == 62) && (i==7) && (j==7)) {
+ 											System.out.println("num_pair="+num_pair+", i="+i+", j="+j);
+ 											System.out.println("num_pair="+num_pair+", i="+i+", j="+j);
+ 										}
  										// find 4 corners in the pair array
  										if (    (xy_pair[0] >= (1 - transform_size)) &&
  												(xy_pair[0] <= (transform_size - 1)) &&
@@ -644,13 +664,25 @@ public class Correlation2d {
  												(xy_pair[1] <= (transform_size - 1))) {
  	 			 							contrib_list.clear();
  	 			 							contrib_weights_list.clear();
- 	 			 							int px0 = (int) Math.floor(xy_pair[0]);  
- 	 			 							int py0 = (int) Math.floor(xy_pair[1]);  
+ 	 			 							double [] floor_xy = {Math.floor(xy_pair[0]),Math.floor(xy_pair[1])};
+ 	 			 							double [] ceil_xy =  {Math.ceil(xy_pair[0]), Math.ceil(xy_pair[1])};
+ 	 			 							int px0 = (int) floor_xy[0] + (transform_size - 1);  
+ 	 			 							int py0 = (int) floor_xy[1] + (transform_size - 1);  
  	 			 							double sumw = 0.0;
- 	 			 							double wx0 = Math.cos(0.5*Math.PI*(xy_pair[0] - Math.floor(xy_pair[0])));
- 	 			 							double wx1 = Math.cos(0.5*Math.PI*(Math.ceil(xy_pair[0]) - xy_pair[0])); 
- 	 			 							double wy0 = Math.cos(0.5*Math.PI*(xy_pair[1] - Math.floor(xy_pair[1])));
- 	 			 							double wy1 = Math.cos(0.5*Math.PI*(Math.ceil(xy_pair[1]) - xy_pair[1]));
+ 	 			 							/*
+ 	 			 							if ((num_pair == 62) && (i==7) && (j==7)) {
+ 	 			 								System.out.println("Math.floor(xy_pair[0]="+Math.floor(xy_pair[0]));
+ 	 			 								System.out.println("Math.floor(xy_pair[1]="+Math.floor(xy_pair[1]));
+ 	 			 								System.out.println("Math.ceil(xy_pair[0]="+Math.ceil(xy_pair[0]));
+ 	 			 								System.out.println("Math.ceil(xy_pair[1]="+Math.ceil(xy_pair[1]));
+ 	 			 							}
+ 	 			 							*/
+ 	 			 							double wx0 = Math.cos(0.5*Math.PI*(xy_pair[0] - floor_xy[0]));
+ 	 			 							double wx1 = Math.cos(0.5*Math.PI*(ceil_xy[0] - xy_pair[0]));
+ 	 			 							if (ceil_xy[0] == floor_xy[0]) wx1 = 0.0;
+ 	 			 							double wy0 = Math.cos(0.5*Math.PI*(xy_pair[1] - floor_xy[1]));
+ 	 			 							double wy1 = Math.cos(0.5*Math.PI*(ceil_xy[1] - xy_pair[1]));
+ 	 			 							if (ceil_xy[1] == floor_xy[1]) wy1 = 0.0;
  	 			 							double [] wxy = {wx0*wy0, wx1*wy0, wx0*wy1, wx1*wy1};
  	 			 							int [] pair_ind = {
  	 			 									py0 * corr_size + px0,
