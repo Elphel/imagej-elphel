@@ -370,7 +370,7 @@ public class Correlation2d {
     public double getCombDisp() {return mcorr_comb_disp;}
     
     
-    public void generateResample( // should be called before
+    public void generateResampleOld( // should be called before
 			final int           mcorr_comb_width,  // combined correlation tile width
 			final int           mcorr_comb_height, // combined correlation tile full height
 			final int           mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
@@ -419,6 +419,10 @@ public class Correlation2d {
 					HashSet<Integer> contrib_set = new HashSet<Integer>();
 					Iterator<Integer> contrib_itr;
 					for (int num_pair = ai.getAndIncrement(); num_pair < corr_pairs.length; num_pair = ai.getAndIncrement()) {
+						if (num_pair == 62) {
+							System.out.println("num_pair="+num_pair);
+							System.out.println("num_pair="+num_pair);
+						}
 						if (corr_pairs[num_pair]) {
 							resample_indices[num_pair] = new int    [mcorr_comb_width * mcorr_comb_height][];
 							resample_weights[num_pair] = new double [mcorr_comb_width * mcorr_comb_height][];
@@ -444,13 +448,26 @@ public class Correlation2d {
 									int ix = j - mcorr_comb_width/2;
 									Arrays.fill(contrib, 0.0);
 									contrib_set.clear();
-									for (int idy = 0; idy <= 2*SUB_SAMPLE; idy++) {
+									if ((num_pair == 62) && (i==7) && (j==7)) {
+										System.out.println("num_pair="+num_pair+", i="+i+", j="+j);
+										System.out.println("num_pair="+num_pair+", i="+i+", j="+j);
+									}
+									
+									for (int idy = 0; idy < weights_size; idy++) {
 										mxy.set(1, 0,  iy+ (idy - SUB_SAMPLE + 1) * ksub); //idy == (SUB_SAMPLE -1) - no fractional pixel
-										for (int idx = 0; idx <= 2*SUB_SAMPLE; idx++) {
+										for (int idx = 0; idx < weights_size; idx++) {
 											mxy.set(0, 0,  ix+ (idx - SUB_SAMPLE + 1) * ksub); // idy == (SUB_SAMPLE -1) - no fractional pixel
 											double [] pxy = toPair.times(mxy).getColumnPackedCopy();
-											int ipx = (int) Math.round(pxy[0]+transform_size -1);
-											int ipy = (int) Math.round(pxy[1]+transform_size -1);
+//											int ipx = (int) Math.round(pxy[0]+transform_size -1);
+//											int ipy = (int) Math.round(pxy[1]+transform_size -1);
+											// round symmetrically (away from zero)
+											double dpx = pxy[0]+transform_size -1;
+											double dpy = pxy[1]+transform_size -1;
+											int ipx = (int) Math.round(Math.abs(dpx));
+											int ipy = (int) Math.round(Math.abs(dpy));
+											if (dpx < 0) ipx = -ipx;
+											if (dpy < 0) ipy = -ipy;
+											
 											if ((ipx >= 0) && (ipy >= 0) && (ipx < corr_size) && (ipy < corr_size)) {
 												int indx_src = ipy * corr_size + ipx;
 												contrib_set.add(indx_src);
@@ -468,6 +485,7 @@ public class Correlation2d {
 											int indx_src = contrib_itr.next();
 											resample_indices[num_pair][indx][contrib_num] = indx_src;
 											resample_weights[num_pair][indx][contrib_num] = contrib[indx_src];
+											contrib_num++;
 										}
 									}
 								}
@@ -482,7 +500,194 @@ public class Correlation2d {
 		}		      
 		ImageDtt.startAndJoin(threads);
     }
-    
+
+    public void generateResample( // should be called before
+ 			final int           mcorr_comb_width,  // combined correlation tile width
+ 			final int           mcorr_comb_height, // combined correlation tile full height
+ 			final int           mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
+ 			final double        mcorr_comb_disp){  // Combined tile per-pixel disparity for baseline == side of a square
+     	final double ignore_contrib = 0.001; // ignore contributors with weight below 
+ 		this.mcorr_comb_width =  mcorr_comb_width;  // combined correlation tile width
+ 		this.mcorr_comb_height = mcorr_comb_height; // combined correlation tile full height
+ 		this.mcorr_comb_offset = mcorr_comb_offset; // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
+ 		this.mcorr_comb_disp =   mcorr_comb_disp;  // Combined tile per-pixel disparity for baseline == side of a square
+ 		
+ 		resample_indices = new int     [corr_pairs.length][][];
+ 		resample_weights = new double  [corr_pairs.length][][];
+ 		final double [][] four_corners = {{-1,-1},{1,-1},{-1, 1},{1, 1}};
+// 		final int corr_size = 2 * transform_size - 1;
+ 		final int corr_center_offs =  2 * transform_size * (transform_size -1);
+//     	final double [][][][] resample = new double [pair_start_end.length][mcorr_comb_width * mcorr_comb_height][][];
+     	// use multithreading?
+ 		final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
+ 		final AtomicInteger ai = new AtomicInteger(0);
+ 		for (int ithread = 0; ithread < threads.length; ithread++) {
+ 			threads[ithread] = new Thread() {
+ 				public void run() {
+ 					double [] contrib = new double [corr_size*corr_size];
+ 					HashSet<Integer> contrib_set = new HashSet<Integer>();
+ 					Iterator<Integer> contrib_itr;
+ 					double [][] xy4acc = new double[4][2];
+ 					double [][] xy4pair = new double[4][2];
+ 					ArrayList<Integer> contrib_list = new ArrayList<Integer>();
+ 					ArrayList<Double>  contrib_weights_list = new ArrayList<Double>();
+ 					for (int num_pair = ai.getAndIncrement(); num_pair < corr_pairs.length; num_pair = ai.getAndIncrement()) {
+ 						if (num_pair == 62) {
+ 							System.out.println("num_pair="+num_pair);
+ 							System.out.println("num_pair="+num_pair);
+ 						}
+ 						if (corr_pairs[num_pair]) {
+ 							resample_indices[num_pair] = new int    [mcorr_comb_width * mcorr_comb_height][];
+ 							resample_weights[num_pair] = new double [mcorr_comb_width * mcorr_comb_height][];
+ 							// scale and angle
+ 							int istart = pair_start_end[num_pair][0];
+ 							int iend =   pair_start_end[num_pair][1];
+ 							double cwrot = (((istart+iend) % numSensors) + (top_is_0 ? 0.0 : 0.5)) * Math.PI/numSensors; //  +(top_is_0 ? 0.0 : 0.5)
+ 							if ((iend > istart) ^ ((iend + istart) <16)) {
+ 								cwrot += Math.PI;
+ 							}
+ 							double pl = 2 * Math.sin(Math.PI* pair_length[num_pair] / numSensors); // length for R=1
+ 							// scale - to get pair (source) radius from combo (destination) radius
+ 							double scale = pl/Math.sqrt(2.0)* mcorr_comb_disp; // Math.sqrt(2.0) - relative to side of a square - may be change later?
+ 							Matrix toPair = new Matrix(new double[][] {
+ 								{scale * Math.cos(cwrot), -scale*Math.sin(cwrot)},
+ 								{scale * Math.sin(cwrot),  scale*Math.cos(cwrot)}});
+ 							Matrix fromPair = toPair.inverse();
+ 							Matrix mxy = new Matrix(2,1);
+ 							Matrix mpxy = new Matrix(2,1);
+ 							// 2 methods depending on scale
+ 							if (scale >= 1.0) { // pair grid is finer, than accumulated grid
+ 								for (int i = 0; i < mcorr_comb_height; i++) {
+ 									int iy = i + mcorr_comb_offset - mcorr_comb_height/2;
+ 									for (int j = 0; j < mcorr_comb_width; j++) {
+ 										int ix = j - mcorr_comb_width/2;
+ 		 								// convert +/- 1 pixel to pair
+ 										double minXPair = Double.NaN,minYPair = Double.NaN, maxXPair = Double.NaN, maxYPair = Double.NaN;
+ 										for (int d = 0; d < four_corners.length; d++) {
+ 											mxy.set(0, 0,  ix + four_corners[d][0]);
+ 											mxy.set(1, 0,  iy + four_corners[d][1]);
+ 											double [] xy_pair = toPair.times(mxy).getColumnPackedCopy();
+ 											if (d == 0) {
+ 												minXPair = xy_pair[0];
+ 												maxXPair = minXPair;
+ 												minYPair = xy_pair[1];
+ 												maxYPair = minYPair;
+ 											} else {
+ 												minXPair = Math.min(minXPair,xy_pair[0]);
+ 												minYPair = Math.min(minYPair,xy_pair[1]);
+ 												maxXPair = Math.max(maxXPair,xy_pair[0]);
+ 												maxYPair = Math.max(maxYPair,xy_pair[1]);
+ 											}
+ 										}
+ 										int iMinXPair = (int) Math.floor(minXPair);
+ 										int iMinYPair = (int) Math.floor(minYPair);
+ 										int iMaxXPair = (int) Math.ceil (maxXPair);
+ 										int iMaxYPair = (int) Math.ceil (maxYPair);
+ 										// limit by available data
+ 										if (iMinXPair < (1 - transform_size)) iMinXPair = 1- transform_size; 
+ 										if (iMaxXPair > (transform_size - 1)) iMaxXPair = transform_size -1; 
+ 										if (iMinYPair < (1 - transform_size)) iMinYPair = 1- transform_size; 
+ 										if (iMaxYPair > (transform_size - 1)) iMaxYPair = transform_size -1; 
+ 										// corr_center_offs , corr_len
+ 										if ((iMaxXPair >= iMinXPair) && (iMaxYPair >= iMinYPair)) {
+ 	 			 							contrib_list.clear();
+ 	 			 							contrib_weights_list.clear();
+ 	 			 							double sumw = 0.0;
+ 											for (int ipy= iMinYPair; ipy <= iMaxYPair; ipy ++) {
+ 												mpxy.set(1, 0,  ipy);
+ 												for (int ipx= iMinXPair; ipx <= iMaxXPair; ipx ++) {
+ 													mpxy.set(0, 0,  ipx);
+ 													double [] xy_acc = fromPair.times(mpxy).getColumnPackedCopy();
+ 													// did it get to square of influence?
+ 													if (    (xy_acc[0] > (ix - 1)) &&
+ 															(xy_acc[0] < (ix + 1)) &&
+ 															(xy_acc[1] > (iy - 1)) &&
+ 															(xy_acc[1] < (iy + 1))) {
+ 														double w = Math.cos(0.5 * Math.PI * (xy_acc[0] - ix)) *
+ 																Math.cos(0.5 * Math.PI * (xy_acc[1] - iy));
+ 														w *= w;
+ 														if (w >= ignore_contrib) {
+ 															int pair_indx = ipy * corr_size + ipx;
+ 															contrib_list.add(pair_indx);
+ 															sumw += w;
+ 															contrib_weights_list.add(w);
+ 														}
+ 													}
+ 												}
+ 											}
+ 											if (sumw > 0) {
+ 	 											// normalize and store contributions
+ 		 										int indx = i * mcorr_comb_width + j;
+ 		 										int ncontrib = contrib_list.size();
+ 		 										resample_indices[num_pair][indx] = new int    [ncontrib];
+ 		 										resample_weights[num_pair][indx] = new double [ncontrib];
+ 		 										for (int icontrib = 0; icontrib < ncontrib; icontrib++) {
+ 		 											resample_indices[num_pair][indx][icontrib] = contrib_list.get(icontrib);
+ 		 											resample_weights[num_pair][indx][icontrib] = contrib_weights_list.get(icontrib) / sumw;
+ 		 										}
+ 											}
+ 										}
+ 									}
+ 								}
+ 							} else { // if (scale >= 1.0) { // pair grid is coarser, than accumulated grid
+ 								for (int i = 0; i < mcorr_comb_height; i++) {
+ 									int iy = i + mcorr_comb_offset - mcorr_comb_height/2;
+ 									for (int j = 0; j < mcorr_comb_width; j++) {
+ 										int ix = j - mcorr_comb_width/2;
+ 										mxy.set(0, 0,  ix);
+ 										mxy.set(1, 0,  iy);
+ 										double [] xy_pair = toPair.times(mxy).getColumnPackedCopy();
+ 										// find 4 corners in the pair array
+ 										if (    (xy_pair[0] >= (1 - transform_size)) &&
+ 												(xy_pair[0] <= (transform_size - 1)) &&
+ 												(xy_pair[1] >= (1 - transform_size)) &&
+ 												(xy_pair[1] <= (transform_size - 1))) {
+ 	 			 							contrib_list.clear();
+ 	 			 							contrib_weights_list.clear();
+ 	 			 							int px0 = (int) Math.floor(xy_pair[0]);  
+ 	 			 							int py0 = (int) Math.floor(xy_pair[1]);  
+ 	 			 							double sumw = 0.0;
+ 	 			 							double wx0 = Math.cos(0.5*Math.PI*(xy_pair[0] - Math.floor(xy_pair[0])));
+ 	 			 							double wx1 = Math.cos(0.5*Math.PI*(Math.ceil(xy_pair[0]) - xy_pair[0])); 
+ 	 			 							double wy0 = Math.cos(0.5*Math.PI*(xy_pair[1] - Math.floor(xy_pair[1])));
+ 	 			 							double wy1 = Math.cos(0.5*Math.PI*(Math.ceil(xy_pair[1]) - xy_pair[1]));
+ 	 			 							double [] wxy = {wx0*wy0, wx1*wy0, wx0*wy1, wx1*wy1};
+ 	 			 							int [] pair_ind = {
+ 	 			 									py0 * corr_size + px0,
+ 	 			 									py0 * corr_size + px0 + 1, 
+ 	 			 									(py0 + 1) * corr_size + px0,
+ 	 			 									(py0 + 1) * corr_size + px0 + 1};
+ 	 			 							for (int d = 0; d < wxy.length; d++) {
+ 	 			 								double w = wxy[d]*wxy[d];
+ 	 			 								if (w >= ignore_contrib) {
+ 	 			 									contrib_list.add(pair_ind[d]);
+ 	 			 									contrib_weights_list.add(w);
+ 	 			 									sumw += w;
+ 	 			 								}
+ 	 			 							}
+ 											if (sumw > 0) {
+ 	 											// normalize and store contributions
+ 		 										int indx = i * mcorr_comb_width + j;
+ 		 										int ncontrib = contrib_list.size();
+ 		 										resample_indices[num_pair][indx] = new int    [ncontrib];
+ 		 										resample_weights[num_pair][indx] = new double [ncontrib];
+ 		 										for (int icontrib = 0; icontrib < ncontrib; icontrib++) {
+ 		 											resample_indices[num_pair][indx][icontrib] = contrib_list.get(icontrib);
+ 		 											resample_weights[num_pair][indx][icontrib] = contrib_weights_list.get(icontrib) / sumw;
+ 		 										}
+ 											}
+ 										}
+ 									}
+ 								}
+ 							}
+ 						}
+ 					}
+ 				}
+ 			};
+ 		}		      
+ 		ImageDtt.startAndJoin(threads);
+     }
+  
     public Correlation2d ( // USED in lwir
     		int                numSensors,
     		ImageDttParameters imgdtt_params,
