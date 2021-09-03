@@ -162,6 +162,8 @@ public class Correlation2d {
 	private static int SUB_SAMPLE = 16;  // subsample source pixel in each direction when generating
 	public static int THREADS_MAX = 100; 
 	
+	// All used pairs (but the diameters) are clockwise (end is clockwise of start)
+	// Orientation calculations are valid for clockwise only
     private void setupPairs() {
     	int indx = 0;
     	for (int i = 1; i <= numSensors/2; i++) { // CW length
@@ -223,9 +225,10 @@ public class Correlation2d {
     
     public boolean [] selectParallel(boolean [] cur_sel, int start, int end) {
     	boolean [] sel = (cur_sel == null) ? (new boolean[pair_length.length]) : cur_sel;
-		int n1 = (2 * start + end) % (2 * numSensors); 
-		
-    	for (int j = 0; j < pair_start_end.length; j++ ) {
+    	int l = (end + numSensors - start) % numSensors; // CCW pairfs will have l > numSensors/2
+    	
+		int n1 = (2 * start + l ) % (2 * numSensors); 
+    	for (int j = 0; j < pair_start_end.length; j++ ) { // lengths are always positive
     		int n2 = (2 * pair_start_end[j][0] + pair_length[j]) % (2 * numSensors);
     		if ((n2 - n1) % numSensors == 0) { // only parallel or anti-parallel
     			sel[j] = true;
@@ -449,7 +452,8 @@ public class Correlation2d {
 								cwrot += Math.PI;
 							}
 							double pl = 2 * Math.sin(Math.PI* pair_length[num_pair] / numSensors); // length for R=1
-							double scale = pl/Math.sqrt(2.0)* mcorr_comb_disp; // Math.sqrt(2.0) - relative to side of a square - may be change later?
+//							double scale = pl/Math.sqrt(2.0)* mcorr_comb_disp; // Math.sqrt(2.0) - relative to side of a square - may be change later?
+							double scale = pl/2.0* mcorr_comb_disp; // Math.sqrt(2.0) - relative to diameter
 							Matrix toPair = new Matrix(new double[][] {
 								{scale * Math.cos(cwrot), -scale*Math.sin(cwrot)},
 								{scale * Math.sin(cwrot),  scale*Math.cos(cwrot)}});
@@ -558,7 +562,8 @@ public class Correlation2d {
  							}
  							double pl = 2 * Math.sin(Math.PI* pair_length[num_pair] / numSensors); // length for R=1
  							// scale - to get pair (source) radius from combo (destination) radius
- 							double scale = pl/Math.sqrt(2.0)* mcorr_comb_disp; // Math.sqrt(2.0) - relative to side of a square - may be change later?
+//							double scale = pl/Math.sqrt(2.0)* mcorr_comb_disp; // Math.sqrt(2.0) - relative to side of a square - may be change later?
+							double scale = pl/2.0* mcorr_comb_disp; // Math.sqrt(2.0) - relative to diameter
  							Matrix toPair = new Matrix(new double[][] {
  								{scale * Math.cos(cwrot), -scale*Math.sin(cwrot)},
  								{scale * Math.sin(cwrot),  scale*Math.cos(cwrot)}});
@@ -2088,7 +2093,7 @@ public class Correlation2d {
 	 * Negative values are ignored!
 	 * Both x and y half-windows can be variable length (to reduce calculations with 0.0 elements), normalized
 	 * so sums of zero element and twice all others are 1.0
-	 * Window in Y direction corresponds to correlation stripe rows, corresponding to sqrt(2)/2 sensor pixels
+	 * Window in Y direction corresponds to correlation strip rows, corresponding to sqrt(2)/2 sensor pixels
 	 * for the largest baseline pairs,
 	 * Window in X direction has the same sqrt(2)/2 step, but it is half of the horizontal steps of the correlation
 	 * results strip

@@ -2424,7 +2424,7 @@ public class ImageDttCPU {
 		    
 		    final double [][][][]     clt_corr_out,   // sparse (by the first index) [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] or null
 		    final double [][][][]     clt_combo_out,  // sparse (by the first index) [type][tilesY][tilesX][(combo_tile_size] or null
-		    
+			final double [][][][]     clt_combo_dbg,  // generate sparse  partial rotated/scaled pairs
 //			final double [][][][]     clt_corr_combo_in,  // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 			                                           // [type][tilesY][tilesX] should be set by caller
 													   // types: 0 - selected correlation (product+offset), 1 - sum
@@ -2493,10 +2493,13 @@ public class ImageDttCPU {
 		if (correlation2d != null){
 			// Initialize correlation pairs selection to be used by all threads
 			boolean [] corr_calculate = null;
-			if (imgdtt_params.getMcorrAll(numSensors))  corr_calculate = correlation2d.selectAll();
-			if (imgdtt_params.getMcorrDia(numSensors))  corr_calculate = correlation2d.selectDiameters(corr_calculate);
-			if (imgdtt_params.getMcorrSq (numSensors))  corr_calculate = correlation2d.selectSquares  (corr_calculate);
-			if (imgdtt_params.getMcorrNeib(numSensors)) corr_calculate = correlation2d.selectNeibs    (corr_calculate);
+			if (imgdtt_params.getMcorrAll (numSensors)) corr_calculate = correlation2d.selectAll();
+			if (imgdtt_params.getMcorrDia (numSensors)) corr_calculate = correlation2d.selectDiameters  (corr_calculate);
+			if (imgdtt_params.getMcorrSq  (numSensors)) corr_calculate = correlation2d.selectSquares    (corr_calculate);
+			if (imgdtt_params.getMcorrNeib(numSensors)) corr_calculate = correlation2d.selectNeibs      (corr_calculate);
+			if (imgdtt_params.getMcorrHor (numSensors)) corr_calculate = correlation2d.selectHorizontal (corr_calculate);
+			if (imgdtt_params.getMcorrVert(numSensors)) corr_calculate = correlation2d.selectVertical   (corr_calculate);
+			
 			correlation2d.setCorrPairs(corr_calculate); // will limit correlation pairs calculation
 			correlation2d.generateResample( // should be called before
 					mcorr_comb_width,  // combined correlation tile width
@@ -2539,6 +2542,13 @@ public class ImageDttCPU {
 					clt_combo_out[i] = new double[tilesY][tilesX][]; 
 				}
 			}
+			if (clt_combo_dbg != null) {
+				boolean [] calc_corr_pairs = correlation2d.getCorrPairs();
+				for (int i = 0; i < calc_corr_pairs.length; i++) if (calc_corr_pairs[i]){
+					clt_combo_dbg[i] = new double[tilesY][tilesX][]; 
+				}
+			}
+			
 		}
 		final boolean [][] combo_sels = pcombo_sels; 
 		final boolean debug_distort= globalDebugLevel > 0; ///false; // true;
@@ -3110,6 +3120,17 @@ public class ImageDttCPU {
 									clt_combo_out[num_comb][tileY][tileX] = corr_combo[num_comb];
 								}
 							}
+						    if (clt_combo_dbg != null) { // debug feature, will re-calculate scaled/rotated pairs
+								for (int num_pair = 0; num_pair < corr_tiles.length; num_pair++) if (corr_tiles[num_pair] != null){
+									clt_combo_dbg[num_pair][tileY][tileX] = correlation2d.accumulateInit();
+									correlation2d.accummulatePair(
+											clt_combo_dbg[num_pair][tileY][tileX], // double [] accum_tile,
+											corr_tiles[num_pair], // double [] corr_tile,
+											num_pair, // int       num_pair,
+								    		1.0); // double    weight)
+								}
+						    }
+							
 							
 						    // calculate CM maximums for all mixed channels
 						    // First get integer correlation center, relative to the center

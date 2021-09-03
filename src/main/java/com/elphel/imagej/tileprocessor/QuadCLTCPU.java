@@ -4650,6 +4650,7 @@ public class QuadCLTCPU {
 //		  double [][][][][]   clt_corr_partial = null; // [tp.tilesY][tp.tilesX][pair][color][(2*transform_size-1)*(2*transform_size-1)]
 		  double [][][][]     clt_corr_out =     null; // will be used instead of clt_corr_partial
 		  double [][][][]     clt_combo_out =    null; // will be used instead of clt_corr_combo
+		  double [][][][]     clt_combo_dbg =    null; // generate partial rotated/scaled pairs
 		  double [][][][]     texture_tiles =    null; // [tp.tilesY][tp.tilesX]["RGBA".length()][]; // tiles will be 16x16, 2 visualization mode full 16 or overlapped
 		  double [][]         disparity_map =    null;
 		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
@@ -4669,14 +4670,9 @@ public class QuadCLTCPU {
 				  int num_combo = correlation2d.getComboTitles().length;
 				  clt_corr_out = new double [num_pairs][][][];
 				  clt_combo_out = new double [num_combo][][][];
-				  /*
-				  clt_corr_partial = new double [tilesY][tilesX][][][];
-				  for (int i = 0; i < tilesY; i++){
-					  for (int j = 0; j < tilesX; j++){
-						  clt_corr_partial[i][j] = null;
-					  }
+				  if (clt_parameters.img_dtt.mcorr_comb_dbg) {
+					  clt_combo_dbg = new double [num_pairs][][][];
 				  }
-				  */
 			  } // clt_parameters.corr_mismatch = false
 			  disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
 		  }
@@ -4725,6 +4721,7 @@ public class QuadCLTCPU {
 				  // correlation results
 				  clt_corr_out,   // final double [][][][]     clt_corr_out,   // sparse (by the first index) [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] or null
 				  clt_combo_out,  // final double [][][][]     clt_combo_out,  // sparse (by the first index) [type][tilesY][tilesX][(combo_tile_size] or null
+				  clt_combo_dbg,  // final double [][][][]     clt_combo_dbg,  // generate sparse  partial rotated/scaled pairs
 				  disparity_map,                // [2][tp.tilesY * tp.tilesX]
 	 			  texture_tiles,                // [tp.tilesY][tp.tilesX]["RGBA".length()][];
 				  imp_quad[0].getWidth(),       // final int width,
@@ -4778,6 +4775,8 @@ public class QuadCLTCPU {
 					  +" clt_data[0]["+first_color+"].length="+clt_data[0][first_color].length+" clt_data[0]["+first_color+"][0].length="+
 					  clt_data[0][first_color][0].length);
 		  }
+		  //clt_corr_out = null;
+		  //clt_combo_out = null;
 		  // visualize texture tiles as RGBA slices
 		  double [][] texture_nonoverlap = null;
 		  double [][] texture_overlap = null;
@@ -5065,6 +5064,27 @@ public class QuadCLTCPU {
 			  }
 		  }
 		  
+		  if (!batch_mode && !infinity_corr && (clt_combo_dbg != null)){
+			  if (debugLevel > -2){ // -1
+				  String [] titles =  image_dtt.correlation2d.getCorrTitles();
+				  double [][] corr_rslt = ImageDtt.corr_partial_dbg(
+						  clt_combo_dbg, // final double [][][][] corr_data,
+						  clt_parameters.img_dtt.mcorr_comb_width,	// final int             corr_width,
+						  clt_parameters.img_dtt.mcorr_comb_height,	// final int             corr_height
+						  threadsMax,
+						  debugLevel);
+				  // titles.length = 15, corr_rslt_partial.length=16!
+				  System.out.println("corr_rslt.length = "+corr_rslt.length+", titles.length = "+titles.length);
+				  sdfa_instance.showArrays( // out of boundary 15
+						  corr_rslt,
+						  tilesX * (clt_parameters.img_dtt.mcorr_comb_width + 1),
+						  tilesY * (clt_parameters.img_dtt.mcorr_comb_height + 1),
+						  true,
+						  image_name+sAux()+"-COMBO-DBG-D"+clt_parameters.disparity,
+						  titles);
+			  }
+		  }
+
 		  
 		  double [][][] iclt_data = new double [clt_data.length][][];
 		  if (!infinity_corr && (clt_parameters.gen_chn_img || clt_parameters.gen_4_img || clt_parameters.gen_chn_stacks)) {
