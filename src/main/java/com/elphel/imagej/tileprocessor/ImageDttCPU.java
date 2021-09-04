@@ -57,7 +57,7 @@ public class ImageDttCPU {
 			{0,2,1},
 			{1,3,1}};
 
-	public static double[][] PORT_OFFSETS = {
+	public static double[][] PORT_OFFSETS4 = {
 			{-0.5, -0.5},
 			{ 0.5, -0.5},
 			{-0.5,  0.5},
@@ -268,6 +268,7 @@ public class ImageDttCPU {
 	  public final int numSensors;
 	  public Correlation2d correlation2d = null;
 	  final ImageDttParameters imgdtt_params;
+	  final double [][] port_offsets;
 	  // Save correlation parameters to instantiate  Correlation2d when first needed (called getCorrelation2d(),
 	  // do it before threads to prevent races
 	  
@@ -284,7 +285,27 @@ public class ImageDttCPU {
      public static int     setForcedDisparity (int data, boolean force) {return (data & ~0x100) | (force?0x100:0);}
      public static boolean getOrthoLines (int data){return (data & 0x200) != 0;} // not used in lwir
      public static int     setOrthoLines (int data, boolean force) {return (data & ~0x200) | (force?0x200:0);} // not used in lwir
+     
+     public int getNumSensors() {
+    	 return numSensors;
+     }
 
+     // different scale for quad and multi: Multi - diameter == 1.0, quad - side = 1.0
+     public static double [][]getPortOffsets(int num_sensors, boolean quad_sequence, boolean topis0) {
+    	 if ((num_sensors==4) && quad_sequence) {
+    		 return PORT_OFFSETS4;
+    	 } else {
+    		 double [][] port_offsets = new double [num_sensors][2];
+    		 for (int i = 0; i < num_sensors; i++) {
+    			 double alpha = 2 * Math.PI * (i + (topis0 ? 0 : 0.5))/num_sensors;
+    			 port_offsets[i][0] =  0.5 * Math.sin((alpha));
+    			 port_offsets[i][1] = -0.5 * Math.cos((alpha));
+    		 }
+        	 return port_offsets;
+    	 }
+     }
+     
+     
      public Correlation2d getCorrelation2d() {
     	 if (correlation2d == null) {
     		 // instantiate
@@ -312,6 +333,10 @@ public class ImageDttCPU {
 		this.lwir =       lwir;
 		this.scale_strengths = scale_strengths;
 		this.imgdtt_params = imgdtt_params;
+		this.port_offsets = getPortOffsets(
+				numSensors, // int num_sensors,
+				imgdtt_params.mcorr_quad_sequence, // boolean quad_sequence, 
+				imgdtt_params.getTopIs0(numSensors));// boolean topis0
 	}
 
 	public double getScaleStrengths() {
@@ -2756,6 +2781,14 @@ public class ImageDttCPU {
 						tIndex = tileY * tilesX + tileX;
 						if (tile_op[tileY][tileX] == 0) continue; // nothing to do for this tile
 						int                 img_mask =  getImgMask(tile_op[tileY][tileX]);         // which images to use
+						if (numSensors > 4) {
+							if (img_mask == 0xf) {
+								for (int i = 0; i < numSensors; i++){
+									img_mask |= 1 << i;
+								}
+							}
+						}
+						
 						int                 corr_mask = getPairMask(tile_op[tileY][tileX]);       // which pairs to combine in the combo:  1 - top, 2 bottom, 4 - left, 8 - right
 						// mask out pairs that use missing channels
 						for (int i = 0; i< CORR_PAIRS.length; i++){
@@ -3722,8 +3755,8 @@ public class ImageDttCPU {
 											fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
 													clt_data[i][ncol][tileY][tileX], // double  [][]  clt_tile,
 //													transform_size,
-													extra_disparity * PORT_OFFSETS[i][0] / corr_magic_scale,     // double        shiftX,
-													extra_disparity * PORT_OFFSETS[i][1] / corr_magic_scale,     // double        shiftY,
+													extra_disparity * port_offsets[i][0] / corr_magic_scale,     // double        shiftX,
+													extra_disparity * port_offsets[i][1] / corr_magic_scale,     // double        shiftY,
 													//									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
 													((globalDebugLevel > 0) && (ncol==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
 															(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
@@ -3839,7 +3872,7 @@ public class ImageDttCPU {
 									ports_rgb, // double []     ports_rgb,      // average values of R,G,B for each camera (R0,R1,...,B2,B3)
 									max_diff,        // maximal (weighted) deviation of each channel from the average
 									lt_window2,      // [256]
-									PORT_OFFSETS,    // [port]{x_off, y_off}
+									port_offsets,    // [port]{x_off, y_off}
 									img_mask,        // which port to use, 0xf - all 4 (will modify as local variable)
 									diff_sigma,      // pixel value/pixel change
 									diff_threshold,  // pixel value/pixel change
@@ -3950,8 +3983,13 @@ public class ImageDttCPU {
 			}
 		}
 
-		int usedPorts = ((port_mask >> 0) & 1) + ((port_mask >> 1) & 1) + ((port_mask >> 2) & 1) + ((port_mask >> 3) & 1);
-
+//		int usedPorts = ((port_mask >> 0) & 1) + ((port_mask >> 1) & 1) + ((port_mask >> 2) & 1) + ((port_mask >> 3) & 1);
+		int usedPorts = 0;
+		for (int i = port_mask; i != 0; i >>= 1) {
+			if (( i & 1) !=0) {
+				usedPorts++;
+			}
+		}
 
 		double [][] port_weights = new double[ports][tile_len];
 		double [][] color_avg =    new double[numcol][tile_len];
@@ -4001,7 +4039,7 @@ public class ImageDttCPU {
 		double []  alpha = new double[tile_len];
 		double threshold2 = diff_sigma * diff_threshold;
 		threshold2 *= threshold2; // squared to compare with diff^2
-		if (usedPorts > 1) {
+		if (usedPorts > 1) { // lwir16:
 			double [] pair_dist2r =  new double [ports*(ports-1)/2]; // reversed squared distance between images - to be used with gaussian. Can be calculated once !
 			int [][]  pair_ports = new int [ports*(ports-1)/2][2];
 			int indx = 0;
@@ -5154,7 +5192,7 @@ public class ImageDttCPU {
 			}
 		}
 
-		final double [][] dpixels = new double["RGBA".length()+(has_weights? 8: 0)][width*height]; // assuming java initializes them to 0
+		final double [][] dpixels = new double["RGBA".length()+(has_weights? (numSensors+4): 0)][width*height]; // assuming java initializes them to 0
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final AtomicInteger nser = new AtomicInteger(0);
@@ -11011,7 +11049,7 @@ public class ImageDttCPU {
 									texture_tiles_main,    // final double [][][][]  texture_tiles,   // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
 									lpf_rgb, //null, // filter, //null               // final double []        filter,
 									lt_window2,            // final double []        lt_window2,
-									PORT_OFFSETS,          // final double[][]       port_offsets,
+									port_offsets,          // final double[][]       port_offsets,
 									col_weights,           // final double []        col_weights,
 									dtt,                   // final DttRad2          dtt,
 									tileX,                 // final int              tileX, // only used in debug output
@@ -11033,7 +11071,7 @@ public class ImageDttCPU {
 									texture_tiles_aux,    // final double [][][][]  texture_tiles,   // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
 									lpf_rgb, //  null, // filter,                // final double []        filter,
 									lt_window2,            // final double []        lt_window2,
-									PORT_OFFSETS,          // final double[][]       port_offsets,
+									port_offsets,          // final double[][]       port_offsets,
 									col_weights,           // final double []        col_weights,
 									dtt,                   // final DttRad2          dtt,
 									tileX,                 // final int              tileX, // only used in debug output
@@ -13685,8 +13723,8 @@ public class ImageDttCPU {
 											fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
 													clt_data[i][ncol][tileY][tileX], // double  [][]  clt_tile,
 //													transform_size,
-													extra_disparity * PORT_OFFSETS[i][0] / corr_magic_scale,     // double        shiftX,
-													extra_disparity * PORT_OFFSETS[i][1] / corr_magic_scale,     // double        shiftY,
+													extra_disparity * port_offsets[i][0] / corr_magic_scale,     // double        shiftX,
+													extra_disparity * port_offsets[i][1] / corr_magic_scale,     // double        shiftY,
 													//									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
 													((globalDebugLevel > 0) && (ncol==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
 															(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
@@ -13802,7 +13840,7 @@ public class ImageDttCPU {
 									ports_rgb, // double []     ports_rgb,      // average values of R,G,B for each camera (R0,R1,...,B2,B3)
 									max_diff,        // maximal (weighted) deviation of each channel from the average
 									lt_window2,      // [256]
-									PORT_OFFSETS,    // [port]{x_off, y_off}
+									port_offsets,    // [port]{x_off, y_off}
 									img_mask,        // which port to use, 0xf - all 4 (will modify as local variable)
 									diff_sigma,      // pixel value/pixel change
 									diff_threshold,  // pixel value/pixel change

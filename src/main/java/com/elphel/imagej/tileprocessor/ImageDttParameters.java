@@ -86,6 +86,9 @@ public class ImageDttParameters {
 	public int     cnvx_min_pairs =         5;     // minimal number 2D correlation pairs per tile
 
 	public int     mcorr_multi =            4;     // apply *_multi if number of sensors >= mcorr_multi
+	public boolean mcorr_quad_sequence =    true;  // use linescan (old) numeration for quad cameras
+	public boolean mcorr_topis0 =           false; // sensor 0 is on top (false - zero and last have same height)
+	public boolean mcorr_topis0_multi =     true;  // sensor 0 is on top (false - zero and last have same height)
 	public boolean mcorr_all =              true;  // correlate all N*(N-1)/2 pairs
 	public boolean mcorr_all_multi =        false; // correlate all N*(N-1)/2 pairs for multi
 	public boolean mcorr_dia =              true;  // all diameters (2 pairs for quad, 8 - for lwir16)
@@ -239,6 +242,9 @@ public class ImageDttParameters {
 		enhortho_scale = s;
 	}
 	
+	public boolean getTopIs0(int numSens) {
+		return (numSens > mcorr_multi) ? mcorr_topis0_multi : mcorr_topis0;
+	}
 	
 	public boolean getMcorrAll(int numSens) {
 		return (numSens > mcorr_multi) ? mcorr_all_multi : mcorr_all;
@@ -367,6 +373,14 @@ public class ImageDttParameters {
 			gd.addNumericField("Min number of sensors for \"multi\"",                             this.mcorr_multi,  0, 3, "sensors",
 					"Cameras with this or larger number of sensor will use a \"_multi\" version of parameters (when available)");
 
+			gd.addCheckbox    ("Use linescan (old) numeration for quad cameras",               this.mcorr_quad_sequence,
+					"if true, quadcam ports CW are 2,4,2,0, if false - 0, 1, 2, 3");
+			
+			gd.addCheckbox    ("Top is 0 for small cameras",               this.mcorr_topis0,
+					"True if sensor 0 is strait up, false if it is rotated clockwise so it has the same height as the last sensor");
+			gd.addCheckbox    ("Top is 0 for multi cameras",               this.mcorr_topis0_multi,
+					"True if sensor 0 is strait up, false if it is rotated clockwise so it has the same height as the last sensor");
+			
 			gd.addCheckbox    ("Calculate all correlation pairs for small cameras",               this.mcorr_all,
 					"N*(N-1)/2: 6 for quad, 120 for lwir16 ");
 			gd.addCheckbox    ("Calculate all correlation pairs for multi cameras",               this.mcorr_all_multi,
@@ -687,6 +701,9 @@ public class ImageDttParameters {
   			this.cnvx_min_pairs=   (int) gd.getNextNumber();
 
   			this.mcorr_multi=      (int) gd.getNextNumber();
+  			this.mcorr_quad_sequence =   gd.getNextBoolean();
+  			this.mcorr_topis0 =          gd.getNextBoolean();
+  			this.mcorr_topis0_multi =    gd.getNextBoolean();
   			this.mcorr_all =             gd.getNextBoolean();
   			this.mcorr_all_multi =       gd.getNextBoolean();
   			this.mcorr_dia =             gd.getNextBoolean();
@@ -868,6 +885,9 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"cnvx_min_pairs",       this.cnvx_min_pairs +"");
 
 		properties.setProperty(prefix+"mcorr_multi",          this.mcorr_multi +"");
+		properties.setProperty(prefix+"mcorr_quad_sequence",  this.mcorr_quad_sequence +"");
+		properties.setProperty(prefix+"mcorr_topis0",         this.mcorr_topis0 +"");
+		properties.setProperty(prefix+"mcorr_topis0_multi",   this.mcorr_topis0_multi +"");
 		properties.setProperty(prefix+"mcorr_all",            this.mcorr_all +"");
 		properties.setProperty(prefix+"mcorr_all_multi",      this.mcorr_all_multi +"");
 		properties.setProperty(prefix+"mcorr_dia",            this.mcorr_dia +"");
@@ -1053,6 +1073,9 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"cnvx_min_pairs")!=null)       this.cnvx_min_pairs=Integer.parseInt(properties.getProperty(prefix+"cnvx_min_pairs"));
 		
 		if (properties.getProperty(prefix+"mcorr_multi")!=null)          this.mcorr_multi=Integer.parseInt(properties.getProperty(prefix+"mcorr_multi"));
+		if (properties.getProperty(prefix+"mcorr_quad_sequence")!=null)  this.mcorr_quad_sequence=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_quad_sequence"));
+		if (properties.getProperty(prefix+"mcorr_topis0")!=null)         this.mcorr_topis0=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_topis0"));
+		if (properties.getProperty(prefix+"mcorr_topis0_multi")!=null)   this.mcorr_topis0_multi=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_topis0_multi"));
 		if (properties.getProperty(prefix+"mcorr_all")!=null)            this.mcorr_all=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_all"));
 		if (properties.getProperty(prefix+"mcorr_all_multi")!=null)      this.mcorr_all_multi=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_all_multi"));
 		if (properties.getProperty(prefix+"mcorr_dia")!=null)            this.mcorr_dia=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_dia"));
@@ -1233,6 +1256,9 @@ public class ImageDttParameters {
 		idp.cnvx_min_pairs=          this.cnvx_min_pairs;
 
 		idp.mcorr_multi=             this.mcorr_multi;
+		idp.mcorr_quad_sequence=     this.mcorr_quad_sequence;
+		idp.mcorr_topis0=            this.mcorr_topis0;
+		idp.mcorr_topis0_multi=      this.mcorr_topis0_multi;
 		idp.mcorr_all=               this.mcorr_all;
 		idp.mcorr_all_multi=         this.mcorr_all_multi;
 		idp.mcorr_dia=               this.mcorr_dia;

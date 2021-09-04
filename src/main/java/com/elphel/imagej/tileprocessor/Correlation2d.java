@@ -101,7 +101,7 @@ public class Correlation2d {
 		 { 3, -2, -1,  0}};
 	
     public final int numSensors;
-    public final boolean top_is_0; 
+    public final boolean top_is_0;
 
 
 	public boolean isMonochrome() {return monochrome;} // not used in lwir
@@ -767,7 +767,7 @@ public class Correlation2d {
     	pair_start_end = new int [num_pairs][2];
     	pair_orient =    new int [num_pairs][num_pairs];
     	pair_length =    new int [num_pairs];
-    	top_is_0 = numSensors > 4; // sensor 0 is straight up, false half-rotated 
+    	top_is_0 = imgdtt_params.getTopIs0(numSensors); // sensor 0 is straight up, false half-rotated 
     	cor_titles =       new String[num_pairs];
     	cor_titles_combo = new String[CORR_TITLES_EXTRA.length];
     	setupPairs();
@@ -796,6 +796,7 @@ public class Correlation2d {
     	pair_orient =    new int [num_pairs][num_pairs];
     	pair_length =    new int [num_pairs];
     	top_is_0 = numSensors > 4; // sensor 0 is straight up, false half-rotated
+//     	top_is_0 = imgdtt_params.getTopIs0(numSensors); // sensor 0 is straight up, false half-rotated 
     	cor_titles =       new String[num_pairs];
     	cor_titles_combo = new String[CORR_TITLES_EXTRA.length];
     	setupPairs();

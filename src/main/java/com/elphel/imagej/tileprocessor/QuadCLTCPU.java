@@ -4709,7 +4709,7 @@ public class QuadCLTCPU {
 			  }
 			  
 		  }
-		  if (debugLevel > -1000) texture_tiles = null; // FIXME: until texture generation for multi-cam is fixed
+		  if (debugLevel > 1000) texture_tiles = null; // FIXME: until texture generation for multi-cam is fixed
 		  
 		  double [][][][][][] clt_data = image_dtt.clt_aberrations_quad_corr(
 				  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
@@ -4781,7 +4781,21 @@ public class QuadCLTCPU {
 		  double [][] texture_nonoverlap = null;
 		  double [][] texture_overlap = null;
 		  String [] rbga_titles = {"red","blue","green","alpha"};
-		  String [] rbga_weights_titles = {"red","blue","green","alpha","port0","port1","port2","port3","r-rms","b-rms","g-rms","w-rms"};
+//		  String [] rbga_weights_titles4 = {"red","blue","green","alpha","port0","port1","port2","port3","r-rms","b-rms","g-rms","w-rms"};
+		  String [] rbga_weights_titles_pre =  {"red","blue","green","alpha"};
+		  String [] rbga_weights_titles_post = {"r-rms","b-rms","g-rms","w-rms"};
+		  String [] rbga_weights_titles = new String[rbga_weights_titles_pre.length + rbga_weights_titles_post.length + image_dtt.getNumSensors()];
+		  int indx = 0;
+		  for (int i = 0; i < rbga_weights_titles_pre.length; i++) {
+			  rbga_weights_titles[indx++] = rbga_weights_titles_pre[i];
+		  }
+		  for (int i = 0; i < image_dtt.getNumSensors(); i++) {
+			  rbga_weights_titles[indx++] = "port"+i;
+		  }
+		  for (int i = 0; i < rbga_weights_titles_post.length; i++) {
+			  rbga_weights_titles[indx++] = rbga_weights_titles_post[i];
+		  }	
+		  
 		  // In monochrome mode only G is used ImageDtt.MONO_CHN(==2), others are null
 		  if (texture_tiles != null){
 			  if (clt_parameters.show_nonoverlap){// not used in lwir
@@ -4832,7 +4846,7 @@ public class QuadCLTCPU {
 					  // for now - use just RGB. Later add option for RGBA
 					  double [][] texture_rgb = {texture_overlap[0],texture_overlap[1],texture_overlap[2]};
 					  double [][] texture_rgba = {texture_overlap[0],texture_overlap[1],texture_overlap[2],texture_overlap[3]};
-//					  ImagePlus img_texture =
+					  ImagePlus img_texture =
 					  linearStackToColor(
 							  clt_parameters,
 							  colorProcParameters,
@@ -4848,6 +4862,7 @@ public class QuadCLTCPU {
 							  tilesY *  image_dtt.transform_size,
 							  1.0,         // double scaleExposure, // is it needed?
 							  debugLevel );
+					  img_texture.show();
 				  }
 			  }
 		  }
