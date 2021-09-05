@@ -1971,6 +1971,7 @@ public class Correlation2d {
 		}
 		return getMaxXYInt( // find integer pair or null if below threshold // USED in lwir
 				data,      // [data_size * data_size]
+				null,
 				data_width,
 				center_row,
 				axis_only,
@@ -1992,12 +1993,14 @@ public class Correlation2d {
 	
 	public int [] getMaxXYInt( // find integer pair or null if below threshold // USED in lwir
 			double [] data,      // [data_size * data_size]
+			double [] disp_str,  // if not null, will return {disparity, strength}
 			int       data_width,
 			int       center_row,
 			boolean   axis_only,
 			double    minMax,    // minimal value to consider (at integer location, not interpolated)
 			boolean   debug)
 	{
+		//mcorr_comb_disp
 //		int data_width = 2 * transform_size - 1;
 //		int data_height = data.length / data_width;
 		int center = data_width / 2; // transform_size - 1;
@@ -2033,6 +2036,10 @@ public class Correlation2d {
 		int [] rslt = {imx %  data_width - center, axis_only ? 0 : (imx / data_width - center)};
 		if (debug){
 			System.out.println("getMaxXYInt() -> "+rslt[0]+"/"+rslt[1]);
+		}
+		if (disp_str != null) {
+			disp_str[0] = -rslt[0] * mcorr_comb_disp;
+			disp_str[1] = data[imx];
 		}
 		return rslt;
 	}
@@ -2108,10 +2115,14 @@ public class Correlation2d {
 	 */
 	public double [] getMaxXCm( // get fractional center as a "center of mass" inside circle/square from the integer max // USED in lwir
 			double [] data,      // [data_size * data_size]
+			int       data_width,      //  = 2 * transform_size - 1;
+			int       center_row,
 			int       ixcenter,  // integer center x
 			boolean   debug) {
 		return getMaxXCm( // get fractional center as a "center of mass" inside circle/square from the integer max
 				data,      // double [] data,      // [data_size * data_size]
+				data_width,           // int       data_width,      //  = 2 * transform_size - 1;
+				center_row,           // int       center_row,
 				ixcenter,  // int       ixcenter,  // integer center x
 				this.corr_wndy, // double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
 				this.corr_wndx, // double [] window_x,  // half of a window function in x (disparity) direction
@@ -2120,27 +2131,63 @@ public class Correlation2d {
 	
 	public double [] getMaxXCmNotch( // get fractional center as a "center of mass" inside circle/square from the integer max // not used in lwir
 			double [] data,      // [data_size * data_size]
+			int       data_width,      //  = 2 * transform_size - 1;
+			int       center_row,
 			int       ixcenter,  // integer center x
 			boolean   debug) {
 		return getMaxXCm(             // get fractional center as a "center of mass" inside circle/square from the integer max
 				data,                 // double [] data,      // [data_size * data_size]
+				data_width,           // int       data_width,      //  = 2 * transform_size - 1;
+				center_row,           // int       center_row,
 				ixcenter,             // int       ixcenter,  // integer center x
 				this.corr_wndy_notch, // double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
 				this.corr_wndx,       // double [] window_x,  // half of a window function in x (disparity) direction
 				debug);               // boolean   debug);
 	}
 	
+	@Deprecated
+	public double [] getMaxXCm( // get fractional center as a "center of mass" inside circle/square from the integer max // not used in lwir
+			double [] data,      // [data_size * data_size]
+			int       ixcenter,  // integer center x
+			boolean   debug) {
+		return getMaxXCm( // get fractional center as a "center of mass" inside circle/square from the integer max // not used in lwir
+				data,      // [data_size * data_size]
+				2 * transform_size - 1, // int       data_width, 
+				transform_size - 1,     // int       center_row,
+				ixcenter,  // integer center x
+				debug);
+	}
+	
+	@Deprecated
+	public double [] getMaxXCmNotch( // get fractional center as a "center of mass" inside circle/square from the integer max // not used in lwir
+			double [] data,      // [data_size * data_size]
+			int       ixcenter,  // integer center x
+			boolean   debug) {
+		return getMaxXCmNotch( // get fractional center as a "center of mass" inside circle/square from the integer max // not used in lwir
+				data,      // [data_size * data_size]
+				2 * transform_size - 1, // int       data_width, 
+				transform_size - 1,     // int       center_row,
+				ixcenter,  // integer center x
+				debug);
+	}
+	
 	// No shift by 0.5 for 2021
 	public double [] getMaxXCm( // get fractional center as a "center of mass" inside circle/square from the integer max // USED in lwir
 			double [] data,      // rectangular strip of 1/2 of the correlation are with odd rows shifted by 1/2 pixels
+			int       data_width,      //  = 2 * transform_size - 1;
+			int       center_row,
 			int       ixcenter,  // integer center x
 			double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
 			double [] window_x,  // half of a window function in x (disparity) direction
 			boolean   debug) {
-		int center = transform_size - 1;
-		int data_width = 2 * transform_size - 1;
 		int data_height = data.length/data_width;
-		double wy_scale = 1.0;
+		int center_x = (data_width - 1)/2; //  = transform_size - 1;
+		int x0 = center_x + ixcenter; // index of the argmax, starting with 0
+
+//		int data_width = 2 * transform_size - 1;
+//		int data_height = data.length/data_width;
+//		double wy_scale = 1.0;
+		/*
 		if (data_height > window_y.length) {
 			data_height = window_y.length;
 		} else if (data_height < window_y.length) { // re-  // not used in lwir
@@ -2148,70 +2195,58 @@ public class Correlation2d {
 			for (int i = 1; i < data_height; i++) swy += window_y[i];
 			wy_scale = 1.0/swy;
 		}
-
-		double [][]dbg_data = null;
-		if (debug) {
-			String [] dbg_titles = {"strip","*wnd_y"};
-			dbg_data = new double [2][];
-			dbg_data[0] =  debugStrip3(data);
-			double [] data_0 = data.clone();
+	    */
+		double w_scale = 1.0;
+		if ((center_row + window_y.length > data_height) || (center_row - window_y.length < 0)) {
+			double sw = 0.0;
 			for (int i = 0; i < data_height; i++) {
-				for (int j = 0; j <  data_width; j++) {
-					data_0[i * data_width + j] *= (i < window_y.length) ? (wy_scale * window_y[i]): 0.0;
+				int dy = i - center_row;
+				int ady = (dy > 0) ? dy : -dy;
+				if (ady < window_y.length) {
+					sw += window_y[ady];
 				}
 			}
-			dbg_data[1] =  debugStrip3(data_0);
-			int long_width = 2 * (2 * transform_size-1);
-			if (dbg_data[0] != null) {
-				(new ShowDoubleFloatArrays()).showArrays(
-						dbg_data,
-						long_width,
-						dbg_data[0].length/long_width,
-						true,
-						"Strip",
-						dbg_titles);
-			}
-
-			System.out.println("getMaxXCm(), ixcenter = "+ixcenter);
-			for (int dy = 0; dy < data_height; dy++) {
-				if ((dy & 1) != 0) System.out.print("    ");
-				for (int dx = 0; dx < data_width; dx++) {
-					System.out.print(String.format(" %8.5f", data[dy * data_width + dx]));
-				}
-				System.out.println();
-			}
-			System.out.println();
+			w_scale /= sw; 
 		}
+
+		if ((x0 + window_x.length > data_width) || (x0 - window_x.length < 0)) {
+			double sw = 0.0;
+			for (int i = 0; i < data_width; i++) {
+				int dx = i - x0;
+				int adx = (dx > 0) ? dx : -dx;
+				if (adx < window_x.length) {
+					sw += window_x[adx];
+				}
+			}
+			w_scale /= sw; 
+		}
+		
+		
+		//		double [][]dbg_data = null;
 		double s0=0.0, sx=0.0, sx2 = 0.0;
-		int x0 = center + ixcenter; // index of the argmax, starting with 0
-		for (int dy = 0; dy < data_height; dy++) {
-			int odd = dy & 1;
-			double wy = ((dy == 0)? wy_scale: (2.0 * wy_scale))*window_y[dy];
-			int indx0 = data_width * dy;
-			for (int adx = odd; adx < window_x.length; adx+=2) { // index in window_x
-				for (int dir = (adx == 0)?1:-1; dir <= 1; dir+=2) {
-					// calculate data index
-					int idx = (adx * dir) >> 1;
-					int x = 2 * idx + odd;
-					int x1 = x0 + idx; // correct
-					if (debug)	System.out.print(String.format(" %2d:%2d:%d %3d", dy,adx,dir,x));
-					if ((x1 >= 0 ) && (x1 < data_width)) {
-						double d = data[indx0+x1];
-///						if (!Double.isNaN(d)) {
+		for (int iy = 0; iy < data_height; iy++) {
+			int dy = iy - center_row;
+			int ady = (dy > 0) ? dy : -dy;
+			if (ady < window_y.length) {
+				double wy = w_scale * window_y[ady];
+				int indx0 = data_width * iy;
+				for (int ix = 0; ix < data_width; ix++) {
+					int dx = ix - x0; // 0 at argmax
+					int adx = (dx > 0) ? dx : -dx;
+					if (adx < window_x.length) {
+						double d = data[indx0 + ix];
+						if (debug)	System.out.print(String.format(" %2d:%2d:%8.5f ", dy, dx, d));
 						if (!Double.isNaN(d) && (d > 0.0)) { // with negative d s0 can get very low value (or even negative)
-							d*= wy*window_x[adx];
-							s0+= d;
-							sx +=  d * x; // result x is twice larger (corresponds to window_x)
-							sx2 += d * x * x;
-							if (debug)	System.out.print(String.format("%8.5f", data[indx0+x1])); //d));
-						}
-					} else {
-						if (debug)	System.out.print("********");
+							double w = wy * window_x[adx];
+							d*=    w;
+							s0+=   d;
+							sx +=  d * dx;
+							sx2 += d * dx * dx;
+						}						
 					}
 				}
 			}
 			if (debug)	System.out.println();
-
 		}
 		if (debug){
 			System.out.println("getMaxXCm() -> s0="+s0+", sx="+sx+", sx2="+sx2+", ixcenter="+ixcenter);
@@ -2220,16 +2255,16 @@ public class Correlation2d {
 		if (s0 == 0.0) return null;
 
 		double [] rslt = {
-				ixcenter + sx/s0/2,              // new center in disparity units, relative to the correlation center
-				s0,                              // total "weight"
-				Math.sqrt(s0*sx2 - sx*sx)/s0/2}; // standard deviation in disparity units (divide weight by the standard deviation for quality?)
+				(ixcenter + sx/s0)* mcorr_comb_disp, // /2,              // new center in disparity units, relative to the correlation center
+				s0,                                  // total "weight"
+				(Math.sqrt(s0*sx2 - sx*sx)/s0)* mcorr_comb_disp}; // /2}; // standard deviation in disparity units (divide weight by the standard deviation for quality?)
 		if (debug){
 			System.out.println("getMaxXCm() -> "+rslt[0]+"/"+rslt[1]+"/"+rslt[2]);
 		}
 		return rslt;
 	}
 
-	
+	/*
 	public double [] getMaxXCm( // get fractional center as a "center of mass" inside circle/square from the integer max // USED in lwir
 			double [] data,      // rectangular strip of 1/2 of the correlation are with odd rows shifted by 1/2 pixels
 			int       center, //  = transform_size - 1;
@@ -2328,7 +2363,7 @@ public class Correlation2d {
 		}
 		return rslt;
 	}
-	
+	*/
 	
 	
 	

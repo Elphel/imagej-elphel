@@ -99,9 +99,40 @@ public class ImageDttCPU {
 	  static int  DISPARITY_INDEX_POLY =           8; // index of disparity value in disparity_map == 2 (0,2 or 4)
 	  static int  DISPARITY_STRENGTH_INDEX =      10; // index of strength data in disparity map ==6
 	  static int  DISPARITY_VARIATIONS_INDEX =    11; // index of strength data in disparity map ==6
-	  static int  IMG_DIFF0_INDEX =               12; // index of noise- normalized image difference for port 0 in disparity map
-	  static int  OVEREXPOSED =                   16; // index of overexposed fraction of all pixels
-	  static int  IMG_TONE_RGB =                  17; // 12 entries of r0,r1,r2,r3,g0,g1,g2,g3,b0,b1,b2,b3
+//	  static int  IMG_DIFF0_INDEX =               12; // index of noise- normalized image difference for port 0 in disparity map
+//	  static int  OVEREXPOSED =                   16; // index of overexposed fraction of all pixels
+	  static int  OVEREXPOSED =                   12; // index of overexposed fraction of all pixels
+	  static int  IMG_DIFF0_INDEX =               13; // index of noise- normalized image difference for port 0 in disparity map
+//	  static int  IMG_TONE_RGB =                  17; // 12 entries of r0,r1,r2,r3,g0,g1,g2,g3,b0,b1,b2,b3
+	  
+	  static int  IMG_DIFFS =                     16;
+	  static int  IMG_TONES_RGB =                 17;
+	  
+	  static boolean isCorrBit (int indx) {
+		  return indx <= DISPARITY_STRENGTH_INDEX; // maybe use DISPARITY_VARIATIONS_INDEX?
+	  }
+	  static boolean isSliceBit(int indx) {
+		  return indx < IMG_DIFFS;
+	  }
+	  static int  getImgToneRGB(int numSensors) {
+		  return IMG_DIFF0_INDEX + numSensors;
+	  }
+	  static boolean needImgDiffs(int mode) {
+		  return ((mode >> IMG_DIFFS) & 1) != 0;
+	  }
+	  static boolean needTonesRGB(int mode) {
+		  return ((mode >> IMG_TONES_RGB) & 1) != 0;
+	  }
+	  public boolean isDiffIndex(int indx) {
+		  return (indx >= IMG_DIFF0_INDEX) && (indx < (IMG_DIFF0_INDEX + numSensors));
+	  }
+	  public boolean isToneRGBIndex(int indx) {
+		  return (indx >= (IMG_DIFF0_INDEX + numSensors)) && (indx < (IMG_DIFF0_INDEX + 4 * numSensors));
+	  }
+	  public int getImgToneRGB() {
+		  return getImgToneRGB(numSensors);
+	  }
+
 // remove when not needed
 	  static int BITS_ALL_DISPARITIES = (
 			  (3 << DISPARITY_INDEX_INT) |           // 0 - disparity from correlation integer pixels, 1 - ortho
@@ -113,20 +144,45 @@ public class ImageDttCPU {
 			  (3 << DISPARITY_INDEX_POLY) |          // 8; // index of disparity value in disparity_map == 2 (0,2 or 4)
 			  (1 << DISPARITY_STRENGTH_INDEX) |      // 10; // index of strength data in disparity map ==6
 			  (1 << DISPARITY_VARIATIONS_INDEX));    // 11; // index of strength data in disparity map ==6
-	  static int BITS_ALL_DIFFS =   (0xf   << IMG_DIFF0_INDEX);
+	  
+	  // TODO - use 1 bit per type 
 	  static int BITS_OVEREXPOSED = (1     << OVEREXPOSED);
+      /*
+	  static int BITS_ALL_DIFFS =   (0xf   << IMG_DIFF0_INDEX);
 	  static int BITS_TONE_RGB =    (0xfff << IMG_TONE_RGB);
-			  
+	  */
+	  
+	  // TODO: modify decoding of bits - turns on/off all channels simultaneously
+	  static int BITS_ALL_DIFFS =   (0x1 << IMG_DIFFS);
+	  static int BITS_TONE_RGB =    (0x1 << IMG_TONES_RGB);
 	  static int BITS_FROM_GPU = BITS_ALL_DIFFS | BITS_TONE_RGB;
 	  
-	  
-	  static String [] DISPARITY_TITLES = {
+	  static String [] DISPARITY_TITLES4 = {
 			  "int_disp","int_y_disp","cm_disp","cm_y_disp","hor_disp","hor_strength","vert_disp","vert_strength",
-			  "poly_disp", "poly_y_disp", "strength_disp", "vary_disp","diff0","diff1","diff2","diff3","overexp",
+			  "poly_disp", "poly_y_disp", "strength_disp", "vary_disp","overexp","diff0","diff1","diff2","diff3",
 			  "r0","r1","r2","r3",
 			  "g0","g1","g2","g3",
 			  "b0","b1","b2","b3",
 			  };
+	  static String [] getDisparityTitles(int numSensors) {
+		  String [] disparity_titles0 = {
+				  "int_disp","int_y_disp","cm_disp","cm_y_disp","hor_disp","hor_strength","vert_disp","vert_strength",
+				  "poly_disp", "poly_y_disp", "strength_disp", "vary_disp","overexp"};
+		  String [] disparity_titles = new String [disparity_titles0.length + 4* numSensors];
+		  int indx = 0;
+		  for (String s: disparity_titles0) {
+			  disparity_titles[indx++] = s;
+		  }
+		  for (int i = 0; i < numSensors; i++) disparity_titles[indx++] = "diff"+i;
+		  for (int i = 0; i < numSensors; i++) disparity_titles[indx++] = "r"+i;
+		  for (int i = 0; i < numSensors; i++) disparity_titles[indx++] = "b"+i;
+		  for (int i = 0; i < numSensors; i++) disparity_titles[indx++] = "g"+i;
+		  return disparity_titles;
+	  }
+	  String [] getDisparityTitles() {
+		  return getDisparityTitles(numSensors);
+	  }
+	  
 	  static public String[] CORR_TITLES = {
 			  "top","bottom","left","right","diag-m","diag-o",
 			  "quad","cross","hor","vert",
@@ -313,7 +369,7 @@ public class ImageDttCPU {
     					this.numSensors,      // int                numSensors,
     					this.imgdtt_params,   // ImageDttParameters imgdtt_params,
     					this.transform_size,  // int                transform_size,
-    		    		2.0,                  // double             wndx_scale, // (wndy scale is always 1.0)
+    		    		1.0, // 2.0,                  // double             wndx_scale, // (wndy scale is always 1.0)
     		    		this.monochrome,      // boolean            monochrome,
     		    		false);               // boolean            debug) 
     	 }
@@ -1745,12 +1801,13 @@ public class ImageDttCPU {
 		// add optional initialization of debug layers here
 		if (disparity_map != null){
 			for (int i = 0; i<disparity_map.length;i++){
-				if (i < OVEREXPOSED) {
-					disparity_map[i] = new double [tilesY*tilesX];
-				} else if (i == OVEREXPOSED) {
+				if (i == OVEREXPOSED) {
 					if (saturation_imp!= null) {
-					disparity_map[i] = new double [tilesY*tilesX];
+						disparity_map[i] = new double [tilesY*tilesX];
 					}
+//				} else if (i < OVEREXPOSED) { // includes diffs?
+				} else if (isSliceBit(i)) { // includes diffs?
+					disparity_map[i] = new double [tilesY*tilesX];
 				}
 			}
 		}
@@ -2704,10 +2761,9 @@ public class ImageDttCPU {
 			System.out.println("max_search_radius_poly="+max_search_radius_poly);
 			System.out.println("corr_fat_zero=         "+corr_fat_zero);
 			System.out.println("disparity_array[0][0]= "+disparity_array[0][0]);
-
-
 		}
 		// add optional initialization of debug layers here
+		/*
 		if (disparity_map != null){
 			for (int i = 0; i<disparity_map.length;i++){
 				if (i < OVEREXPOSED) {
@@ -2717,6 +2773,24 @@ public class ImageDttCPU {
 					disparity_map[i] = new double [tilesY*tilesX];
 					}
 				} else if (i >= IMG_TONE_RGB) {
+					if (texture_tiles != null) { // for now - enable 12 tone layers only together with texture tiles
+						disparity_map[i] = new double [tilesY*tilesX];
+					}
+				}
+			}
+		}
+		*/
+		if (disparity_map != null){
+			for (int i = 0; i<disparity_map.length;i++){
+				if (i == OVEREXPOSED) {
+					if (saturation_imp!= null) {
+						disparity_map[i] = new double [tilesY*tilesX];
+					}
+				} else if (isSliceBit(i)) {
+					disparity_map[i] = new double [tilesY*tilesX];
+				} else if (isDiffIndex(i)) {
+					disparity_map[i] = new double [tilesY*tilesX];
+				} else if (isToneRGBIndex(i)) {
 					if (texture_tiles != null) { // for now - enable 12 tone layers only together with texture tiles
 						disparity_map[i] = new double [tilesY*tilesX];
 					}
@@ -3175,8 +3249,13 @@ public class ImageDttCPU {
 									imgdtt_params.min_corr,   //  double    minMax,    // minimal value to consider (at integer location, not interpolated)
 									tile_lma_debug_level > 0); // boolean   debug);
 							*/
+							if (debugTile0) {
+								System.out.println("tileX = "+tileX+", tileY = "+tileY);
+							}
+							double [] disp_str_int = new double[2];
 							int [] ixy =   correlation2d.getMaxXYInt( // find integer pair or null if below threshold // USED in lwir
 									corr_combo_max, // double [] data,      // [data_size * data_size]
+									disp_str_int,
 									correlation2d.getCombWidth(), //       data_width,
 									correlation2d.getCombHeight()/2 - correlation2d.getCombOffset(), // int       center_row, ??????????????
 									true, // boolean   axis_only,
@@ -3184,55 +3263,66 @@ public class ImageDttCPU {
 									tile_lma_debug_level > 0); // boolean   debug);
 							double [] corr_stat = null;
 							
-							/*
 
 							// if integer argmax was strong enough, calculate CM argmax
 							// will not fill out DISPARITY_INDEX_INT+1, DISPARITY_INDEX_CM+1, DISPARITY_INDEX_POLY+1
 							// use clt_mismatch for that
 							double [] disp_str = new double[2];
 							if (ixy != null) { //TODO - for CM use magic!
-								disp_str[1] = strip_combo[ixy[0]+transform_size-1]; // strength at integer max on axis
-								disparity_map[DISPARITY_INDEX_INT][tIndex] =      -ixy[0];
+//								disp_str[1] = strip_combo[ixy[0]+transform_size-1]; // strength at integer max on axis
+								disp_str = disp_str_int;
+								disparity_map[DISPARITY_INDEX_INT][tIndex] =      disp_str[0]; // -ixy[0];
 								disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] = disp_str[1];
+								
 								if (Double.isNaN(disparity_map[DISPARITY_STRENGTH_INDEX][tIndex])) {
 									System.out.println("BUG: 1. disparity_map[DISPARITY_STRENGTH_INDEX]["+tIndex+"] should not be NaN");
 								}
-								corr_stat = corr2d.getMaxXCm(   // get fractional center as a "center of mass" inside circle/square from the integer max
-										strip_combo,                      // double [] data,      // [data_size * data_size]
-										ixy[0],                           // int       ixcenter,  // integer center x
+								corr_stat = correlation2d.getMaxXCm(         // get fractional center as a "center of mass" inside circle/square from the integer max
+										corr_combo_max,                      // double [] data,      // [data_size * data_size]
+										correlation2d.getCombWidth(),        // int       data_width,      //  = 2 * transform_size - 1;
+										correlation2d.getCombHeight()/2 - correlation2d.getCombOffset(),// int       center_row,
+										ixy[0],                              // int       ixcenter,  // integer center x
 										// corr_wndy,                        // double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
 										// corr_wndx,                        // double [] window_x,  // half of a window function in x (disparity) direction
 										(tile_lma_debug_level > 0)); // boolean   debug);
+								if (corr_stat != null) {
+									disparity_map[DISPARITY_INDEX_CM][tIndex] =      -corr_stat[0]; // -ixy[0];
+									disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] = corr_stat[1];
+								}
 							}
 							
+							double [] corr_combo_hor =  corr_combo[Correlation2d.MCORR_COMB.HOR.ordinal()];
+							double [] corr_combo_vert = corr_combo[Correlation2d.MCORR_COMB.VERT.ordinal()];
 							if (imgdtt_params.pcorr_use_hv) { // use combined horizontal and vertical pairs (vertical not transposed) 
 								// for compatibility with old code executed unconditionally. TODO: Move to if (corr_stat != null) ... condition below
-								double [] hor_pair1 = corr2d.getMaxXSOrtho(
-										corrs,                              // double [][] correlations,
-										0x100, //  corrs[8] Correlation2d.getMaskHorizontal(1), // int         pairs_mask,
-										imgdtt_params.corr_offset,          // double      corr_offset,
-										true,                               // boolean     symmetric,   // for comparing with old implementation average with symmetrical before multiplication
-										false,                              // boolean     is_vert,      // transpose X/Y
-										tile_lma_debug_level > 0);          // boolean   debug);
-								if (hor_pair1 != null) {
-									disparity_map[DISPARITY_INDEX_HOR][tIndex] =          -hor_pair1[0];
-									disparity_map[DISPARITY_INDEX_HOR_STRENGTH][tIndex] =  hor_pair1[1];
-								}
+								if ((corr_combo_hor != null) && (ixy != null)) {
+									double [] hor_pair1 = correlation2d.getMaxXCmNotch(
+											corr_combo_hor,                      // double [] data,      // [data_size * data_size]
+											correlation2d.getCombWidth(),        // int       data_width,      //  = 2 * transform_size - 1;
+											correlation2d.getCombHeight()/2 - correlation2d.getCombOffset(),// int       center_row,
+											ixy[0],                              // int       ixcenter,  // integer center x
+											(tile_lma_debug_level > 0)); // boolean   debug);
+									if (hor_pair1 != null) {
+										disparity_map[DISPARITY_INDEX_HOR][tIndex] =          -hor_pair1[0];
+										disparity_map[DISPARITY_INDEX_HOR_STRENGTH][tIndex] =  hor_pair1[1];
+									}
 
-								double [] vert_pair1 = corr2d.getMaxXSOrtho(
-										corrs,                              // double [][] correlations,
-										0x200, // corrs[9] Correlation2d.getMaskVertical(1), // int         pairs_mask,
-										imgdtt_params.corr_offset,        // double      corr_offset,
-										true,                             // boolean     symmetric,   // for comparing with old implementation average with symmetrical before multiplication
-										// change to true, un-rotate source
-										true, // false, // already transposed  // true,                             // boolean     is_vert,      // transpose X/Y
-										tile_lma_debug_level > 0); // boolean   debug);
-								if (vert_pair1 != null) {
-									disparity_map[DISPARITY_INDEX_VERT][tIndex] =         -vert_pair1[0];
-									disparity_map[DISPARITY_INDEX_VERT_STRENGTH][tIndex] = vert_pair1[1];
+								}
+								if ((corr_combo_vert != null) && (ixy != null)) {
+									double [] vert_pair1 = correlation2d.getMaxXCmNotch(
+											corr_combo_vert,                     // double [] data,      // [data_size * data_size]
+											correlation2d.getCombWidth(),        // int       data_width,      //  = 2 * transform_size - 1;
+											correlation2d.getCombHeight()/2 - correlation2d.getCombOffset(),// int       center_row,
+											ixy[0],                              // int       ixcenter,  // integer center x
+											(tile_lma_debug_level > 0)); // boolean   debug);
+									if (vert_pair1 != null) {
+										disparity_map[DISPARITY_INDEX_VERT][tIndex] =         -vert_pair1[0];
+										disparity_map[DISPARITY_INDEX_VERT_STRENGTH][tIndex] = vert_pair1[1];
+									}
 								}
 							} else {
 								// for compatibility with old code executed unconditionally. TODO: Move to if (corr_stat != null) ... condition below
+								/*
 								double [] hor_pair1 = corr2d.getMaxXSOrtho(
 										corrs,                              // double [][] correlations,
 										Correlation2d.getMaskHorizontal(1), // int         pairs_mask,
@@ -3256,9 +3346,9 @@ public class ImageDttCPU {
 									disparity_map[DISPARITY_INDEX_VERT][tIndex] =         -vert_pair1[0];
 									disparity_map[DISPARITY_INDEX_VERT_STRENGTH][tIndex] = vert_pair1[1];
 								}
+								*/
 							}
-
-
+							/*
 							// proceed only if CM correlation result is non-null // for compatibility with old code we need it to run regardless of the strength of the normal correlation
 							if (corr_stat != null) {
 // skipping DISPARITY_VARIATIONS_INDEX - it was not used
@@ -3864,7 +3954,7 @@ public class ImageDttCPU {
 								max_diff = new double[numSensors];
 							}
 							int ports_rgb_len = numSensors*numcol;  // 12
-							if ((disparity_map != null) && (disparity_map.length >= (IMG_TONE_RGB + ports_rgb_len))) {
+							if ((disparity_map != null) && (disparity_map.length >= (getImgToneRGB() + ports_rgb_len))) {
 								ports_rgb = new double[ports_rgb_len];
 							}
 							texture_tiles[tileY][tileX] =  tile_combine_rgba(
@@ -3906,7 +3996,7 @@ public class ImageDttCPU {
 							}
 							if (ports_rgb != null) {
 								for (int i = 0; i < ports_rgb.length; i++){
-									disparity_map[IMG_TONE_RGB + i][tIndex] = ports_rgb[i];
+									disparity_map[getImgToneRGB() + i][tIndex] = ports_rgb[i];
 								}
 							}
 						}
@@ -10380,7 +10470,7 @@ public class ImageDttCPU {
 		final int                 debug_tileY = clt_parameters.tileY;
 		final int quad_main = image_data_main.length;   // number of subcameras
 		final int quad_aux =  image_data_aux.length;   // number of subcameras
-		final int quad = 4;   // number of subcameras
+		final int quad = getNumSensors(); // 4;   // number of subcameras
 		final int numcol = 3; // number of colors
 		final int nChn = image_data_main[0].length;
 		final int height=image_data_main[0][0].length/width;
@@ -10444,6 +10534,7 @@ public class ImageDttCPU {
 
 
 		// add optional initialization of debug layers here
+		/*
 		if (disparity_map != null){
 			for (int i = 0; i<disparity_map.length;i++){
 				if (i < OVEREXPOSED) {
@@ -10459,7 +10550,27 @@ public class ImageDttCPU {
 				}
 			}
 		}
-
+	 */
+		if (disparity_map != null){
+			for (int i = 0; i<disparity_map.length;i++){
+				if (i == OVEREXPOSED) {
+//					if (saturation_imp!= null) {
+//						disparity_map[i] = new double [tilesY*tilesX];
+//					}
+				} else if (isSliceBit(i)) {
+					disparity_map[i] = new double [tilesY*tilesX];
+				} else if (isDiffIndex(i)) {
+					disparity_map[i] = new double [tilesY*tilesX];
+				} else if (isToneRGBIndex(i)) {
+//					if (texture_tiles != null) { // for now - enable 12 tone layers only together with texture tiles
+						disparity_map[i] = new double [tilesY*tilesX];
+//					}
+				}
+			}
+		}
+		
+		
+		
 
 
 
@@ -11029,7 +11140,7 @@ public class ImageDttCPU {
 						double [] ports_rgb = null;
 
 						int ports_rgb_len = quad*numcol;  // 12
-						if ((disparity_map != null) && (disparity_map.length >= (IMG_TONE_RGB + ports_rgb_len))) {
+						if ((disparity_map != null) && (disparity_map.length >= (getImgToneRGB() + ports_rgb_len))) {
 							ports_rgb = new double[ports_rgb_len];
 						}
 
@@ -11105,7 +11216,7 @@ public class ImageDttCPU {
 						}
 						if (ports_rgb != null) {
 							for (int i = 0; i < ports_rgb.length; i++){
-								disparity_map[IMG_TONE_RGB + i][tIndex] = ports_rgb[i];
+								disparity_map[getImgToneRGB() + i][tIndex] = ports_rgb[i];
 							}
 						}
 
@@ -12505,6 +12616,7 @@ public class ImageDttCPU {
 
 		}
 		// add optional initialization of debug layers here
+		/*
 		if (disparity_map != null){
 			for (int i = 0; i<disparity_map.length;i++){
 				if (i < OVEREXPOSED) {
@@ -12520,6 +12632,28 @@ public class ImageDttCPU {
 				}
 			}
 		}
+		*/
+		if (disparity_map != null){
+			for (int i = 0; i<disparity_map.length;i++){
+				if (i == OVEREXPOSED) {
+					if (saturation_imp!= null) {
+						disparity_map[i] = new double [tilesY*tilesX];
+					}
+				} else if (isSliceBit(i)) {
+					disparity_map[i] = new double [tilesY*tilesX];
+				} else if (isDiffIndex(i)) {
+					disparity_map[i] = new double [tilesY*tilesX];
+				} else if (isToneRGBIndex(i)) {
+					if (texture_tiles != null) { // for now - enable 12 tone layers only together with texture tiles
+						disparity_map[i] = new double [tilesY*tilesX];
+					}
+				}
+			}
+		}
+		
+		
+		
+		
 		if (clt_mismatch != null){
 			for (int i = 0; i<clt_mismatch.length;i++){
 				clt_mismatch[i] = new double [tilesY*tilesX]; // will use only "center of mass" centers
@@ -13832,7 +13966,7 @@ public class ImageDttCPU {
 								max_diff = new double[numSensors];
 							}
 							int ports_rgb_len = numSensors*numcol;  // 12
-							if ((disparity_map != null) && (disparity_map.length >= (IMG_TONE_RGB + ports_rgb_len))) {
+							if ((disparity_map != null) && (disparity_map.length >= (getImgToneRGB() + ports_rgb_len))) {
 								ports_rgb = new double[ports_rgb_len];
 							}
 							texture_tiles[tileY][tileX] =  tile_combine_rgba(
@@ -13874,7 +14008,7 @@ public class ImageDttCPU {
 							}
 							if (ports_rgb != null) {
 								for (int i = 0; i < ports_rgb.length; i++){
-									disparity_map[IMG_TONE_RGB + i][tIndex] = ports_rgb[i];
+									disparity_map[getImgToneRGB() + i][tIndex] = ports_rgb[i];
 								}
 							}
 						}

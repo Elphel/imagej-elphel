@@ -520,17 +520,22 @@ public class QuadCLTCPU {
     	if (tp == null) return null;
     	return tp.rig_disparity_strength;
     }
-	public void setTiles (ImagePlus imp, // set tp.tilesX, tp.tilesY // USED in lwir
+	public void setTiles (
+			ImagePlus imp, // set tp.tilesX, tp.tilesY // USED in lwir
+			int numSensors,
 			CLTParameters    clt_parameters,
 			int threadsMax
 			){
-		setTiles(clt_parameters,
+		setTiles(
+				numSensors,
+				clt_parameters,
 				imp.getWidth()/clt_parameters.transform_size,
 				imp.getHeight()/clt_parameters.transform_size,
 				threadsMax);
 	}
 
 	public void setTiles ( // USED in lwir
+			int numSensors,
 			CLTParameters    clt_parameters,
 			int tilesX,
 			int tilesY,
@@ -542,6 +547,7 @@ public class QuadCLTCPU {
 					tilesY,
 					clt_parameters.transform_size,
 					clt_parameters.stSize,
+					numSensors,
 					isMonochrome(),
 					isLwir(),
 					isAux(),
@@ -4077,8 +4083,9 @@ public class QuadCLTCPU {
 			  }
 		  }
 		  setTiles (imp_srcs[0], // set global tp.tilesX, tp.tilesY
-					clt_parameters,
-					threadsMax); // where to get it? Use instance member
+				  getNumSensors(), // tp.getNumSensors(),
+				  clt_parameters,
+				  threadsMax); // where to get it? Use instance member
 		  tp.setTrustedCorrelation(clt_parameters.grow_disp_trust);
 		  tp.resetCLTPasses();
 		  return imp_srcs;
@@ -4674,7 +4681,8 @@ public class QuadCLTCPU {
 					  clt_combo_dbg = new double [num_pairs][][][];
 				  }
 			  } // clt_parameters.corr_mismatch = false
-			  disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
+//			  disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
+			  disparity_map = new double [ImageDtt.getDisparityTitles(getNumSensors()).length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
 		  }
 		  // Includes all 3 colors - will have zeros in unused
 
@@ -4866,7 +4874,18 @@ public class QuadCLTCPU {
 				  }
 			  }
 		  }
-		  
+		  // visualize correlation results
+		  if (disparity_map != null){
+			  if (!batch_mode && clt_parameters.show_map &&  (debugLevel > -2)){
+				  sdfa_instance.showArrays(
+						  disparity_map,
+						  tilesX,
+						  tilesY,
+						  true,
+						  image_name+sAux()+"-DISP_MAP-D"+clt_parameters.disparity,
+						  ImageDtt.getDisparityTitles(getNumSensors())); // ImageDtt.DISPARITY_TITLES);
+			  }
+		  }
 		  /*
 		  
 		  // visualize correlation results
@@ -5340,7 +5359,8 @@ public class QuadCLTCPU {
 			  } // clt_parameters.corr_mismatch = false
 		  }
 		  // Includes all 3 colors - will have zeros in unused
-		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
+//		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
+		  double [][] disparity_map = new double [ImageDtt.getDisparityTitles(getNumSensors()).length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
 
 		  double min_corr_selected = clt_parameters.min_corr;
 		  double [][] shiftXY = new double [getNumSensors()][2];
@@ -6176,7 +6196,8 @@ public class QuadCLTCPU {
 			  }
 		  }
 		  // Includes all 3 colors - will have zeros in unused
-		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
+//		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
+		  double [][] disparity_map = new double [ImageDtt.getDisparityTitles(getNumSensors()).length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
 
 		  double min_corr_selected = clt_parameters.min_corr;
 		  double [][] shiftXY = new double [4][2];
@@ -6296,7 +6317,7 @@ public class QuadCLTCPU {
 						  tilesY,
 						  true,
 						  name+sAux()+"-DISP_MAP-D"+clt_parameters.disparity,
-						  ImageDtt.DISPARITY_TITLES);
+						  ImageDtt.getDisparityTitles(getNumSensors()));// ImageDtt.DISPARITY_TITLES);
 			  }
 			  /*
 			  if (clt_mismatch != null) {
@@ -7342,7 +7363,9 @@ public class QuadCLTCPU {
 			  }
 		  }
 
-		  setTiles (imp_quad[0], // set global tp.tilesX, tp.tilesY
+		  setTiles (
+				  imp_quad[0], // set global tp.tilesX, tp.tilesY
+				  tp.getNumSensors(),
 				  clt_parameters,
 				  threadsMax);
 		  final int tilesX = tp.getTilesX();
@@ -7356,7 +7379,9 @@ public class QuadCLTCPU {
 
 		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
 		  double min_corr_selected = clt_parameters.min_corr;
-		  double [][][] disparity_maps = new double [clt_parameters.disp_scan_count][ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
+//		  double [][][] disparity_maps = new double [clt_parameters.disp_scan_count][ImageDtt.DISPARITY_TITLES.length][];
+		  double [][][] disparity_maps = new double [clt_parameters.disp_scan_count][ImageDtt.getDisparityTitles(getNumSensors()).length][];
+		  
 		  double [][][] clt_mismatches = new double [clt_parameters.disp_scan_count][12][];
 		  for (int scan_step = 0; scan_step < clt_parameters.disp_scan_count; scan_step++) {
 			  double disparity = clt_parameters.disp_scan_start + scan_step * clt_parameters.disp_scan_step;
@@ -7556,8 +7581,8 @@ public class QuadCLTCPU {
 				  ImageDtt.DISPARITY_STRENGTH_INDEX,
 				  ImageDtt.DISPARITY_VARIATIONS_INDEX};
 		  String [] disparity_titles = new String [disp_indices.length];
-		  for (int i = 0; i < disparity_titles.length; i++ ) disparity_titles[i] = ImageDtt.DISPARITY_TITLES[i];
-
+//		  for (int i = 0; i < disparity_titles.length; i++ ) disparity_titles[i] = ImageDtt.DISPARITY_TITLES[i];
+		  for (int i = 0; i < disparity_titles.length; i++ ) disparity_titles[i] = ImageDtt.getDisparityTitles(getNumSensors())[i];
 		  //				  2,4,6,7};
 		  String [] disparities_titles = new String [disparity_titles.length * clt_parameters.disp_scan_count];
 		  double [][] disparities_maps = new double [disparity_titles.length * clt_parameters.disp_scan_count][];
@@ -11618,8 +11643,8 @@ public class QuadCLTCPU {
 
 		  double min_corr_selected = clt_parameters.min_corr; // 0.02
 
-		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
-
+//		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
+		  double [][] disparity_map = new double [ImageDtt.getDisparityTitles(getNumSensors()).length][];
 		  double [][] shiftXY = new double [4][2];
 		  if (!clt_parameters.fine_corr_ignore) {
 			  double [][] shiftXY0 = {
@@ -11856,7 +11881,8 @@ public class QuadCLTCPU {
 		  }
 		  double min_corr_selected = clt_parameters.min_corr;
 
-		  double [][] disparity_map = save_corr ? new double [ImageDtt.DISPARITY_TITLES.length][] : null; //[0] -residual disparity, [1] - orthogonal (just for debugging)
+//		  double [][] disparity_map = save_corr ? new double [ImageDtt.DISPARITY_TITLES.length][] : null; //[0] -residual disparity, [1] - orthogonal (just for debugging)
+		  double [][] disparity_map = save_corr ? new double [ImageDtt.getDisparityTitles(getNumSensors()).length][] : null; //[0] -residual disparity, [1] - orthogonal (just for debugging)
 
 		  double [][] shiftXY = new double [4][2];
 		  if (!clt_parameters.fine_corr_ignore) {
@@ -11993,7 +12019,8 @@ public class QuadCLTCPU {
 			  }
 		  }
 		  double min_corr_selected = clt_parameters.min_corr;
-		  double [][] disparity_map = save_corr ? new double [ImageDtt.DISPARITY_TITLES.length][] : null; //[0] -residual disparity, [1] - orthogonal (just for debugging)
+//		  double [][] disparity_map = save_corr ? new double [ImageDtt.DISPARITY_TITLES.length][] : null; //[0] -residual disparity, [1] - orthogonal (just for debugging)
+		  double [][] disparity_map = save_corr ? new double [ImageDtt.getDisparityTitles(getNumSensors()).length][] : null; //[0] -residual disparity, [1] - orthogonal (just for debugging)
 		  double [][] shiftXY = new double [4][2];
 		  if (!clt_parameters.fine_corr_ignore) {
 			  double [][] shiftXY0 = {

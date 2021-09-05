@@ -37,7 +37,7 @@ import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 public class TileProcessor {
-	public static String [] SCAN_TITLES = {
+	public static String [] SCAN_TITLES = { // wrong now !
 			"tile_op",       //  0
 			"final",         //  1 - calculated, filtered, combined disparity
 			"disparity",     //  2
@@ -80,6 +80,7 @@ public class TileProcessor {
 	public boolean []  rig_post_poles_sel =      null; // Rig tile selection after processing poles
 	public double [][] main_ds_ml =              null; // main camera DSI restored from the COMBO-DSI file to generate ML test files
 
+    final  int         numSensors;
 	public boolean     monochrome =                false;   // these are monochrome images
 	public boolean     lwir =                      false;   // all monochrome are lwir
 	private boolean    is_aux =                    false;   // this camera is aux
@@ -98,11 +99,15 @@ public class TileProcessor {
 	public double [][] dbg_filtered_disp_strength;
 	// All parameters are set only once, during instantiation
 
+	public int getNumSensors() {
+		return numSensors;
+	}
 	public TileProcessor(
 			int tilesX,
 			int tilesY,
 			int tileSize,
 			int superTileSize,
+			int     numSensors,
 			boolean monochrome,
 			boolean lwir,
 			boolean is_aux,
@@ -115,6 +120,7 @@ public class TileProcessor {
 		this.tilesY = tilesY;
 		this.tileSize = tileSize;
 		this.superTileSize = superTileSize;
+		this.numSensors = numSensors;
 		this.monochrome = monochrome;
 		this.lwir =       lwir;
 		this.is_aux = is_aux;
@@ -128,6 +134,7 @@ public class TileProcessor {
 		this.tilesY =             tp.tilesY;
 		this.tileSize =           tp.tileSize;
 		this.superTileSize =      tp.superTileSize;
+		this.numSensors =         tp.numSensors;
 		this.monochrome =         tp.monochrome;
 		this.lwir =               tp.lwir;
 		this.is_aux =             tp.is_aux;
@@ -1147,7 +1154,9 @@ public class TileProcessor {
 		}
 		for (CLTPass3d combo_pass : combo_pass_list) {
 			combo_pass.tile_op =              new int [tilesY][tilesX]; // for just non-zero
-			combo_pass.disparity_map =        new double [ImageDtt.DISPARITY_TITLES.length][];
+//			combo_pass.disparity_map =        new double [ImageDtt.DISPARITY_TITLES.length][];
+			combo_pass.disparity_map =        new double [ImageDtt.getDisparityTitles(getNumSensors()).length][];
+			
 			for (int i = 0; i< ImageDtt.QUAD; i++) combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i] = new double[tlen];
 			if (copyDebug){
 				combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM] =            new double[tlen];
@@ -1481,7 +1490,8 @@ ImageDtt.startAndJoin(threads);
 		}
 		for (CLTPass3d combo_pass : combo_pass_list) {
 			combo_pass.tile_op =              new int [tilesY][tilesX]; // for just non-zero
-			combo_pass.disparity_map =        new double [ImageDtt.DISPARITY_TITLES.length][];
+//			combo_pass.disparity_map =        new double [ImageDtt.DISPARITY_TITLES.length][];
+			combo_pass.disparity_map =        new double [ImageDtt.getDisparityTitles(getNumSensors()).length][];			
 			for (int i = 0; i< ImageDtt.QUAD; i++) combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i] = new double[tlen];
 			if (copyDebug){
 				combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM] =            new double[tlen];
@@ -1798,7 +1808,8 @@ ImageDtt.startAndJoin(threads);
 		final int tlen = tilesX * tilesY;
 		final int disparity_index = usePoly ? ImageDtt.DISPARITY_INDEX_POLY : ImageDtt.DISPARITY_INDEX_CM;
 		combo_pass.tile_op =              new int [tilesY][tilesX]; // for just non-zero
-		combo_pass.disparity_map =        new double [ImageDtt.DISPARITY_TITLES.length][];
+//		combo_pass.disparity_map =        new double [ImageDtt.DISPARITY_TITLES.length][];
+		combo_pass.disparity_map =        new double [ImageDtt.getDisparityTitles(getNumSensors()).length][];		
 		for (int i = 0; i< ImageDtt.QUAD; i++) combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i] = new double[tlen];
 		if (copyDebug){
 			combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM] =            new double[tlen];
@@ -3701,6 +3712,7 @@ ImageDtt.startAndJoin(threads);
 		return ds;
 	}
 
+	// TODO: update for variable length
 	public double [][] getShowScan(
 			CLTPass3d   scan,
 			boolean measured_only)
@@ -3757,7 +3769,7 @@ ImageDtt.startAndJoin(threads);
 			dbg_img[ 9] = scan.disparity_map[ImageDtt.DISPARITY_INDEX_VERT_STRENGTH];
 			dbg_img[20] = scan.disparity_map[ImageDtt.OVEREXPOSED];
 			for (int i = 0; i < 12; i++) {
-				dbg_img[this_IMG_TONE_RGB+i] = scan.disparity_map[ImageDtt.IMG_TONE_RGB + i];
+				dbg_img[this_IMG_TONE_RGB+i] = scan.disparity_map[ImageDtt.getImgToneRGB(numSensors) + i];
 			}
 		}
 		dbg_img[1] = scan.calc_disparity_combo;
@@ -4025,7 +4037,8 @@ ImageDtt.startAndJoin(threads);
 				block_propagate, // tiles,
 				null); // prohibit);
 		if ((debugLevel > -1) && show_bgnd_nonbgnd){
-			 new ShowDoubleFloatArrays().showArrays(bgnd_data.disparity_map,  tilesX, tilesY, true, "bgnd_map",ImageDtt.DISPARITY_TITLES);
+//			 new ShowDoubleFloatArrays().showArrays(bgnd_data.disparity_map,  tilesX, tilesY, true, "bgnd_map",ImageDtt.DISPARITY_TITLES);
+			 new ShowDoubleFloatArrays().showArrays(bgnd_data.disparity_map,  tilesX, tilesY, true, "bgnd_map",ImageDtt.getDisparityTitles(getNumSensors()));
 			 new ShowDoubleFloatArrays().showArrays(dbg_worst2,  tilesX, tilesY, "worst2");
 		}
 		// TODO: check if minimal cluster strengh should be limited here

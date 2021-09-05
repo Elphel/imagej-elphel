@@ -225,19 +225,26 @@ public class ImageDtt extends ImageDttCPU {
 		boolean need_corr = (clt_mismatch != null) || (fcorr_combo_td !=null) || (fcorr_td !=null) ; // (not the only reason)
 		// skipping DISPARITY_VARIATIONS_INDEX - it was not used
 		if (disparity_map != null){
-			for (int i = 0; i<disparity_map.length;i++) if ((disparity_modes & (1 << i)) != 0){
-				if ((i == OVEREXPOSED) && (saturation_imp == null)) {
-					continue;
-				}
-				disparity_map[i] = new double [tilesY*tilesX];
-				if ((i >= IMG_TONE_RGB) || ((i >= IMG_DIFF0_INDEX) && (i < (IMG_DIFF0_INDEX + 4)))) {
+			for (int i = 0; i<disparity_map.length;i++) {
+				if (isSliceBit(i) && ((disparity_modes & (1 << i)) != 0)) { 
+					if ((i == OVEREXPOSED) && (saturation_imp == null)) {
+						continue;
+					}
+					disparity_map[i] = new double [tilesY*tilesX];
+					if (isCorrBit (i)) {
+						need_corr = true;
+					}
+				} else if (isDiffIndex(i) && needImgDiffs(disparity_modes)){
+					disparity_map[i] = new double [tilesY*tilesX];
 					need_macro = true;
-				}
-				if (i <=DISPARITY_STRENGTH_INDEX) {
-					need_corr = true;
+				} else if (isToneRGBIndex(i) && needTonesRGB(disparity_modes)){
+					disparity_map[i] = new double [tilesY*tilesX];
+					need_macro = true;
 				}
 			}
 		}
+
+		
 		
 		if (clt_mismatch != null){
 			for (int i = 0; i<clt_mismatch.length;i++){
@@ -373,11 +380,12 @@ public class ImageDtt extends ImageDttCPU {
 				dust_remove,    // boolean   dust_remove,        // Do not reduce average weight when only one image differs much from the average
 				false,                 // boolean   calc_textures,
 				true);                   // boolean   calc_extra)
-			float [][] extra = gpuQuad.getExtra();
+			float [][] extra = gpuQuad.getExtra(); // now 4*numSensors
 			int num_cams = gpuQuad.getNumCams();
 			for (int ncam = 0; ncam < num_cams; ncam++) {
 				int indx = ncam + IMG_DIFF0_INDEX;
-				if ((disparity_modes & (1 << indx)) != 0){
+//				if ((disparity_modes & (1 << indx)) != 0){
+				if (needImgDiffs(disparity_modes)){
 					disparity_map[indx] = new double [extra[ncam].length];
 					for (int i = 0; i < extra[ncam].length; i++) {
 						disparity_map[indx][i] = extra[ncam][i];
@@ -386,6 +394,7 @@ public class ImageDtt extends ImageDttCPU {
 			}
 			for (int nc = 0; nc < (extra.length - num_cams); nc++) {
 				int sindx = nc + num_cams;
+				/*
 				int indx = nc + IMG_TONE_RGB;
 				if ((disparity_modes & (1 << indx)) != 0){
 					disparity_map[indx] = new double [extra[sindx].length];
@@ -393,6 +402,17 @@ public class ImageDtt extends ImageDttCPU {
 						disparity_map[indx][i] = extra[sindx][i];
 					}
 				}
+	            */
+				int indx = nc + getImgToneRGB(); // IMG_TONE_RGB;
+//				if ((disparity_modes & (1 << indx)) != 0){
+				if (needTonesRGB(disparity_modes)){
+					disparity_map[indx] = new double [extra[sindx].length];
+					for (int i = 0; i < extra[sindx].length; i++) {
+						disparity_map[indx][i] = extra[sindx][i];
+					}
+				}
+
+				
 			}			
 		}
 		// does it need non-overlapping texture tiles
@@ -1019,6 +1039,7 @@ public class ImageDtt extends ImageDttCPU {
 		boolean need_macro = false;
 		boolean need_corr = (clt_mismatch != null) || (fcorr_combo_td !=null) || (fcorr_td !=null) ; // (not the only reason)
 		// skipping DISPARITY_VARIATIONS_INDEX - it was not used
+		/*
 		if (disparity_map != null){
 			for (int i = 0; i<disparity_map.length;i++) if ((disparity_modes & (1 << i)) != 0){
 				if ((i == OVEREXPOSED) && (saturation_imp == null)) {
@@ -1033,6 +1054,28 @@ public class ImageDtt extends ImageDttCPU {
 				}
 			}
 		}
+		*/
+		if (disparity_map != null){
+			for (int i = 0; i<disparity_map.length;i++) {
+				if (isSliceBit(i) && ((disparity_modes & (1 << i)) != 0)) { 
+					if ((i == OVEREXPOSED) && (saturation_imp == null)) {
+						continue;
+					}
+					disparity_map[i] = new double [tilesY*tilesX];
+					if (isCorrBit (i)) {
+						need_corr = true;
+					}
+				} else if (isDiffIndex(i) && needImgDiffs(disparity_modes)){
+					disparity_map[i] = new double [tilesY*tilesX];
+					need_macro = true;
+				} else if (isToneRGBIndex(i) && needTonesRGB(disparity_modes)){
+					disparity_map[i] = new double [tilesY*tilesX];
+					need_macro = true;
+				}
+			}
+		}
+
+		
 		
 		if (clt_mismatch != null){
 			for (int i = 0; i<clt_mismatch.length;i++){
@@ -1201,7 +1244,8 @@ public class ImageDtt extends ImageDttCPU {
 			int num_cams = gpuQuad.getNumCams();
 			for (int ncam = 0; ncam < num_cams; ncam++) {
 				int indx = ncam + IMG_DIFF0_INDEX;
-				if ((disparity_modes & (1 << indx)) != 0){
+//				if ((disparity_modes & (1 << indx)) != 0){
+				if (needImgDiffs(disparity_modes)){
 					disparity_map[indx] = new double [extra[ncam].length];
 					for (int i = 0; i < extra[ncam].length; i++) {
 						disparity_map[indx][i] = extra[ncam][i];
@@ -1210,8 +1254,9 @@ public class ImageDtt extends ImageDttCPU {
 			}
 			for (int nc = 0; nc < (extra.length - num_cams); nc++) {
 				int sindx = nc + num_cams;
-				int indx = nc + IMG_TONE_RGB;
-				if ((disparity_modes & (1 << indx)) != 0){
+				int indx = nc + getImgToneRGB(); // IMG_TONE_RGB;
+//				if ((disparity_modes & (1 << indx)) != 0){
+				if (needTonesRGB(disparity_modes)){
 					disparity_map[indx] = new double [extra[sindx].length];
 					for (int i = 0; i < extra[sindx].length; i++) {
 						disparity_map[indx][i] = extra[sindx][i];

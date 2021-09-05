@@ -3009,10 +3009,10 @@ public class QuadCLT extends QuadCLTCPU {
 		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
 		  double [][][][]     clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][]; // will only be used inside?
 
-//		  double min_corr_selected = clt_parameters.min_corr; // 0.02 was not used !
 		  // yes, needed  (for macro)
-		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
-//if ((i >= IMG_TONE_RGB) || ((i >= IMG_DIFF0_INDEX) && (i < (IMG_DIFF0_INDEX + 4)))) {
+//		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
+		  double [][] disparity_map = new double [ImageDtt.getDisparityTitles(getNumSensors()).length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
+		  
 		  /*
 		  double [][] shiftXY = new double [4][2];
 		  // not used
@@ -3269,7 +3269,8 @@ public class QuadCLT extends QuadCLTCPU {
 				  }
 			  }
 		  }
-		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
+//		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
+		  double [][] disparity_map = new double [ImageDtt.getDisparityTitles(getNumSensors()).length][];
 		  /*
 		  double [][] shiftXY = new double [4][2];
 		  // not used
@@ -3421,7 +3422,9 @@ public class QuadCLT extends QuadCLTCPU {
 				  }
 			  }
 		  }
-		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
+//		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
+		  double [][] disparity_map = new double [ImageDtt.getDisparityTitles(getNumSensors()).length][];
+
 		  ImageDtt image_dtt = new ImageDtt(
 				  getNumSensors(),
 				  clt_parameters.transform_size,
@@ -3729,8 +3732,11 @@ public class QuadCLT extends QuadCLTCPU {
 			  }
 		  }
 
-		  double[][] disparity_map =      new double [ImageDtt.DISPARITY_TITLES.length][];
-		  double[][] disparity_map_fake = new double [ImageDtt.DISPARITY_TITLES.length][];
+//		  double[][] disparity_map =      new double [ImageDtt.DISPARITY_TITLES.length][];
+//		  double[][] disparity_map_fake = new double [ImageDtt.DISPARITY_TITLES.length][];
+		  double [][] disparity_map = new double [ImageDtt.getDisparityTitles(getNumSensors()).length][];
+		  double [][] disparity_map_fake = new double [ImageDtt.getDisparityTitles(getNumSensors()).length][];
+		  
 		  int disparity_modes = 
 				  ImageDtt.BITS_ALL_DISPARITIES |
 				  ImageDtt.BITS_ALL_DIFFS | // needs max_diff?
@@ -4134,7 +4140,8 @@ public class QuadCLT extends QuadCLTCPU {
 				  }
 			  }
 		  }
-		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
+//		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
+		  double [][] disparity_map = new double [ImageDtt.getDisparityTitles(getNumSensors()).length][];		  
 		  /*
 		  double [][] shiftXY = new double [4][2];
 		  // not used
@@ -4283,7 +4290,9 @@ public class QuadCLT extends QuadCLTCPU {
 				  clt_corr_partial1[i][j] = null;
 			  }
 		  }
-		  double [][] disparity_map1 = new double [ImageDtt.DISPARITY_TITLES.length][];
+//		  double [][] disparity_map1 = new double [ImageDtt.DISPARITY_TITLES.length][];
+		  double [][] disparity_map1 = new double [ImageDtt.getDisparityTitles(getNumSensors()).length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
+		  
 		  
 		  float [][][][] corr_td_blur = image_dtt.blur_corr_GPU( // convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td
 //					final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others

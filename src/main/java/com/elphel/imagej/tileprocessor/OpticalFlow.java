@@ -3227,7 +3227,7 @@ public class OpticalFlow {
 					tilesY,
 					true,
 					"accumulated_disparity_map-"+nrefine,
-					ImageDtt.DISPARITY_TITLES
+					ImageDtt.getDisparityTitles(ref_scene.getNumSensors()) // ImageDtt.DISPARITY_TITLES
 					);
 			// update disparities
 			final int disparity_index = ImageDtt.DISPARITY_INDEX_CM; // 2
@@ -3426,7 +3426,7 @@ public class OpticalFlow {
 						tilesY,
 						true,
 						"accumulated_disparity_map-"+nrefine,
-						ImageDtt.DISPARITY_TITLES
+						ImageDtt.getDisparityTitles(ref_scene.getNumSensors()) // ImageDtt.DISPARITY_TITLES
 						);
 			}
 			// update disparities
@@ -3637,7 +3637,7 @@ public class OpticalFlow {
 						tilesY,
 						true,
 						"accumulated_disparity_map-"+nrefine,
-						ImageDtt.DISPARITY_TITLES
+						ImageDtt.getDisparityTitles(ref_scene.getNumSensors()) // ImageDtt.DISPARITY_TITLES
 						);
 			}
 			// update disparities
@@ -3907,7 +3907,7 @@ public class OpticalFlow {
 				ref_scene.isLwir(),
 				clt_parameters.getScaleStrength(ref_scene.isAux()),
 				ref_scene.getGPU());
-		double[][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
+		double[][] disparity_map = new double [image_dtt.getDisparityTitles().length][];
 
 		int disparity_modes = 
 				ImageDtt.BITS_ALL_DISPARITIES |
@@ -4818,7 +4818,7 @@ public class OpticalFlow {
 				ref_scene.isLwir(),
 				clt_parameters.getScaleStrength(ref_scene.isAux()),
 				ref_scene.getGPU());
-		double[][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
+		double[][] disparity_map = new double [image_dtt.getDisparityTitles().length][];
 
 		int disparity_modes = 
 				ImageDtt.BITS_ALL_DISPARITIES |

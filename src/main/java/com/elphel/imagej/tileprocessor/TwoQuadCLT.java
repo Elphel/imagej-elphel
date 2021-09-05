@@ -1404,7 +1404,8 @@ public class TwoQuadCLT {
 		double [][][]       port_xy_main_dbg = new double [tilesX*tilesY][][];
 		double [][][]       port_xy_aux_dbg =  new double [tilesX*tilesY][][];
 //		double [][][]       corr2ddata =       new double [1][][];
-		double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
+//		double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
+		double [][] disparity_map = new double [image_dtt.getDisparityTitles().length][];
 
 		final double [][][][][][][] clt_bidata = // new double[2][quad][nChn][tilesY][tilesX][][]; // first index - main/aux
 				image_dtt.clt_bi_quad_dbg (
@@ -1443,17 +1444,19 @@ public class TwoQuadCLT {
 						port_xy_aux_dbg);                      // final double [][][]       port_xy_aux_dbg) // for each tile/port save x,y pixel coordinates (gpu code development)
 
 /////		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
-
-		String [] sub_titles = new String [GPUTileProcessor.NUM_CAMS * (GPUTileProcessor.NUM_COLORS+1)];
+		int numSensors = GPUTileProcessor.NUM_CAMS; // Wrong - different for main and aux
+		String [] sub_titles = new String [numSensors * (GPUTileProcessor.NUM_COLORS+1)];
 		double [][] sub_disparity_map = new double [sub_titles.length][];
-		for (int ncam = 0; ncam < GPUTileProcessor.NUM_CAMS; ncam++) {
+		for (int ncam = 0; ncam < numSensors; ncam++) {
 			sub_disparity_map[ncam] = disparity_map[ncam + ImageDtt.IMG_DIFF0_INDEX];
-			sub_titles[ncam] = ImageDtt.DISPARITY_TITLES[ncam + ImageDtt.IMG_DIFF0_INDEX];
+//			sub_titles[ncam] = ImageDtt.DISPARITY_TITLES[ncam + ImageDtt.IMG_DIFF0_INDEX];
+			sub_titles[ncam] = ImageDtt.getDisparityTitles(numSensors)[ncam + ImageDtt.IMG_DIFF0_INDEX];
 			for (int ncol = 0; ncol < GPUTileProcessor.NUM_COLORS; ncol++) {
-				sub_disparity_map[ncam + (ncol + 1)* GPUTileProcessor.NUM_CAMS] =
-						disparity_map[ncam +ncol* GPUTileProcessor.NUM_CAMS+ ImageDtt.IMG_TONE_RGB];
-				sub_titles[ncam + (ncol + 1)* GPUTileProcessor.NUM_CAMS] =
-						ImageDtt.DISPARITY_TITLES[ncam +ncol* GPUTileProcessor.NUM_CAMS+ ImageDtt.IMG_TONE_RGB];
+				sub_disparity_map[ncam + (ncol + 1)* numSensors] =
+						disparity_map[ncam +ncol* numSensors+ ImageDtt.getImgToneRGB(numSensors)];
+				sub_titles[ncam + (ncol + 1)* numSensors] =
+//						ImageDtt.DISPARITY_TITLES[ncam +ncol* numSensors+ ImageDtt.getImgToneRGB(numSensors)];
+						ImageDtt.getDisparityTitles(numSensors)[ncam +ncol* numSensors+ ImageDtt.getImgToneRGB(numSensors)];
 			}
 		}
 //		String [] sub_titles = {ImageDtt.DISPARITY_TITLES[ImageDtt.IMG_DIFF0_INDEX]

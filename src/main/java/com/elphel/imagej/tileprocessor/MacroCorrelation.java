@@ -62,6 +62,7 @@ public class MacroCorrelation {
 					mTilesY,   // int tilesY,
 					tileSize,  // int tileSize,
 					tp.superTileSize, // int superTileSize,
+					tp.getNumSensors(),
 					tp.isMonochrome(),
 					tp.isLwir(),
 					tp.isAux(),
@@ -80,7 +81,7 @@ public class MacroCorrelation {
 			final double                             macro_disparity_step,
 			final int                                debugLevel){
 
-
+        int numSensors = geometryCorrection.getNumSensors();
 		double [][][] input_data = CLTMacroSetData( // perform single pass according to prepared tiles operations and disparity
 				src_scan);           // final CLTPass3d      src_scan, // results of the normal correlations (now expecting infinity)
 		if (debugLevel > 0) {
@@ -144,6 +145,8 @@ public class MacroCorrelation {
 		final int mTilesY = (pTilesY + tileSize - 1) / tileSize;
 		final int mTiles = mTilesX * mTilesY;
 		final int num_chn = 3;
+		final int numSensors = tp.getNumSensors();
+		final int toneRGB = ImageDtt.getImgToneRGB(numSensors);
   		double     corr_red =          0.5;  // Red to green correlation weight
   		double     corr_blue =         0.2;  // Blue to green correlation weight
   		double [] col_weights = new double[3];
@@ -152,10 +155,10 @@ public class MacroCorrelation {
 		col_weights[1] = corr_blue * col_weights[2];
 
 
-		final double [][][] input_data = new double [ImageDtt.QUAD][num_chn][mTiles*tileSize*tileSize];
-		final int INDX_R0 = ImageDtt.IMG_TONE_RGB;
-		final int INDX_B0 = ImageDtt.IMG_TONE_RGB +     ImageDtt.QUAD;
-		final int INDX_G0 = ImageDtt.IMG_TONE_RGB + 2 * ImageDtt.QUAD;
+		final double [][][] input_data = new double [numSensors][num_chn][mTiles*tileSize*tileSize];
+		final int INDX_R0 = toneRGB;
+		final int INDX_B0 = toneRGB +     numSensors;
+		final int INDX_G0 = toneRGB + 2 * numSensors;
 
 		for (int sub_cam =0; sub_cam < input_data.length; sub_cam++){
 			for (int pty = 0; pty < pTilesY; pty++){
@@ -279,34 +282,14 @@ public class MacroCorrelation {
 		}
 		double min_corr_selected = clt_parameters.min_corr;
 
-		double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
+//		double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
+		double [][] disparity_map = new double [ImageDtt.getDisparityTitles(geometryCorrection.getNumSensors()).length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
 
 		double [][] shiftXY = {{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0}};
 
 		double [][][][] clt_corr_combo = null; //    new double [ImageDtt.TCORR_TITLES.length][mTilesY][mTilesX][]; // needed always
 		double [][][][][]   clt_corr_partial = null; // [tp.tilesY][tp.tilesX][pair][color][(2*transform_size-1)*(2*transform_size-1)]
 
-		/*
-		if (show_corr_partial) {
-			clt_corr_partial = new double [mTilesY][mTilesX][][][];
-			for (int i = 0; i < mTilesY; i++){
-				for (int j = 0; j < mTilesX; j++){
-					clt_corr_partial[i][j] = null;
-				}
-			}
-		}
-
-		if (show_corr_combo) {
-			clt_corr_combo =  new double [ImageDtt.TCORR_TITLES.length][mTilesY][mTilesX][]; // needed always
-			for (int i = 0; i < mTilesY; i++){
-				for (int j = 0; j < mTilesX; j++){
-					for (int k = 0; k<clt_corr_combo.length; k++){
-						clt_corr_combo[k][i][j] = null;
-					}
-				}
-			}
-		}
-		*/
 		
 		ImageDtt image_dtt = new ImageDtt(
 				geometryCorrection.getNumSensors(),
