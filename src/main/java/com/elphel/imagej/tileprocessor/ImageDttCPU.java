@@ -2266,7 +2266,7 @@ public class ImageDttCPU {
 													corrs[cTile],                        // double [][]         corrs,
 													disp_dist[cTile],
 													rXY,                          // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
-													imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
+													corr2d.longToArray(imgdtt_params.dbg_pair_mask), // imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
 													null,                         // disp_str[cTile],  //corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
 													poly_disp,                    // double[]            poly_ds,    // null or pair of disparity/strength
 													imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
@@ -2322,7 +2322,7 @@ public class ImageDttCPU {
 									corrs, // [tIndex],                        // double [][]         corrs,
 									disp_dist, // [tIndex],
 									rXY,                          // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
-									imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
+									corr2d.longToArray(imgdtt_params.dbg_pair_mask), // imgdtt_params.dbg_pair_mask  // int                 pair_mask, // which pairs to process
 									disp_str, // corr_stat,                    // double[][]    xcenter_str,   // preliminary center x in pixels for largest baseline
 									imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
 									clust_lma_debug_level + 0, // 2,    // int                 debug_level, // for a single cluster
@@ -3193,7 +3193,7 @@ public class ImageDttCPU {
 							}
 							// calculate all selected pairs correlations
 							int all_pairs = imgdtt_params.dbg_pair_mask; //TODO: use tile tasks
-
+							
 							double [][]  corr_tiles = correlation2d.correlateCompositeFD(
 						    		clt_data,                     // double [][][][][][] clt_data,
 						    		tileX,                        // int                 tileX,
@@ -3348,7 +3348,6 @@ public class ImageDttCPU {
 								}
 								*/
 							}
-							/*
 							// proceed only if CM correlation result is non-null // for compatibility with old code we need it to run regardless of the strength of the normal correlation
 							if (corr_stat != null) {
 // skipping DISPARITY_VARIATIONS_INDEX - it was not used
@@ -3359,19 +3358,20 @@ public class ImageDttCPU {
 								}
 
 								// debug new LMA correlations
-								if (debugTile) {
+								if (debugTile0) { // should be debugTile
 									System.out.println("Will run new LMA for tileX="+tileX+", tileY="+tileY);
 
 									double [] poly_disp = {Double.NaN, 0.0};
-							    	Corr2dLMA lma2 = corr2d.corrLMA2Single(
+							    	Corr2dLMA lma2 = correlation2d.corrLMA2Single(
 							    			imgdtt_params,                // ImageDttParameters  imgdtt_params,
 								    		false,                        // boolean             adjust_ly, // adjust Lazy Eye
 							    			corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
 							    			corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
-							    			corrs,                        // double [][]         corrs,
+							    			corr_tiles, // corrs,          // double [][]         corrs,
 							    			disp_dist,
 											rXY,                          // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
-							    			imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
+											// all that are not null in corr_tiles
+											correlation2d.selectAll(),   // longToArray(imgdtt_params.dbg_pair_mask),  // int                 pair_mask, // which pairs to process
 							    			disp_str,  //corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
 											poly_disp,                    // double[]            poly_ds,    // null or pair of disparity/strength
 							    			imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
@@ -3392,6 +3392,8 @@ public class ImageDttCPU {
 							    		lma2.printStats(ds,1);
 							    	}
 								}
+								
+								/*
 
 //								disparity_map[DISPARITY_INDEX_CM + 1][tIndex] = // y not available here
 								// calculate/fill out hor and vert
@@ -3605,7 +3607,9 @@ public class ImageDttCPU {
 										}
 							    	}
 								}
+								*/
 							} // end of if (corr_stat != null)
+							/*
 							if      (corr_mode == 0) extra_disparity = disparity_map[DISPARITY_INDEX_INT][tIndex];
 							else if (corr_mode == 1) extra_disparity = disparity_map[DISPARITY_INDEX_CM][tIndex];
 							else if (corr_mode == 2) extra_disparity = disparity_map[DISPARITY_INDEX_POLY][tIndex];
@@ -6973,12 +6977,13 @@ public class ImageDttCPU {
 				// create LMA instance, calculate LMA composite argmax
 				// Create 2 groups: ortho & diag
 				Correlations2dLMA lma;
+				int num_pairs = (quad * (quad-1)) / 2;
 				if (imgdtt_params.pcorr_use) { // new group phase correlation
 					double [][] fake_corrs = {corrs[6],null,null,null,corrs[7],null};
 					lma = corr2d.corrLMA(
 							imgdtt_params,                // ImageDttParameters  imgdtt_params,
 							fake_corrs,                   // double [][]         corrs,
-							0x11, // imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
+							corr2d.longToArray(0x11), // imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
 							false,                        // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
 							corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
 							imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
@@ -6989,7 +6994,7 @@ public class ImageDttCPU {
 					lma = corr2d.corrLMA(
 							imgdtt_params,                // ImageDttParameters  imgdtt_params,
 							corrs,                        // double [][]         corrs,
-							used_pairs, // imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
+							corr2d.longToArray(used_pairs), // used_pairs, // imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
 							false,                        // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
 							corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
 							imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
@@ -9822,7 +9827,7 @@ public class ImageDttCPU {
 		    	Correlations2dLMA lma = corr2d.corrLMA(
 		    			clt_parameters.img_dtt,                // ImageDttParameters  clt_parameters.img_dtt,
 		    			corrs,                        // double [][]         corrs,
-		    			clt_parameters.img_dtt.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
+		    			corr2d.longToArray(clt_parameters.img_dtt.dbg_pair_mask), // clt_parameters.img_dtt.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
 		        		false,                        // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
 		    			corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
 		    			clt_parameters.img_dtt.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
@@ -13391,7 +13396,7 @@ public class ImageDttCPU {
 							    			corrs,                        // double [][]         corrs,
 							    			disp_dist,
 											rXY,                          // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
-							    			imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
+											corr2d.longToArray(imgdtt_params.dbg_pair_mask), // imgdtt_params.dbg_pair_mask  // int                 pair_mask, // which pairs to process
 							    			disp_str,  //corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
 											poly_disp,                    // double[]            poly_ds,    // null or pair of disparity/strength
 							    			imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
@@ -13427,7 +13432,7 @@ public class ImageDttCPU {
 										lma = corr2d.corrLMA(
 								    			imgdtt_params,                // ImageDttParameters  imgdtt_params,
 								    			fake_corrs,                   // double [][]         corrs,
-								    			0x11, // imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
+								    			corr2d.longToArray(0x11),     // 0x11, // imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
 								        		false,                        // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
 								    			corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
 								    			imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
@@ -13440,7 +13445,7 @@ public class ImageDttCPU {
 										lma = corr2d.corrLMA(
 								    			imgdtt_params,                // ImageDttParameters  imgdtt_params,
 								    			fake_corrs,                   // double [][]         corrs,
-								    			0x11, // imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
+								    			corr2d.longToArray(0x11),     // 0x11, // imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
 								        		false,                        // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
 								    			corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
 								    			imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
@@ -13453,7 +13458,7 @@ public class ImageDttCPU {
 										lma = corr2d.corrLMA(
 								    			imgdtt_params,                // ImageDttParameters  imgdtt_params,
 								    			corrs,                        // double [][]         corrs,
-								    			imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
+								    			corr2d.longToArray(imgdtt_params.dbg_pair_mask),     // imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
 								        		false,                        // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
 								    			corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
 								    			imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,

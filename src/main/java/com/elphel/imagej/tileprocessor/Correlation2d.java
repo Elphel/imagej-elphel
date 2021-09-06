@@ -278,6 +278,10 @@ public class Correlation2d {
     	corr_pairs = sel.clone();
     }
     
+    public int getNumSensors() {
+    	return this.numSensors;
+    }
+    
     public void setCorrPairsFilter(double [][][][][][] clt_data, int tileY, int tileX ) { // these pairs will be correlated
     	corr_pairs_filter = new boolean [pair_start_end.length];
     	boolean [] en = new boolean [numSensors];
@@ -321,6 +325,20 @@ public class Correlation2d {
     public String[] getComboTitles() {
     	return cor_titles_combo;
     }
+    
+    public static boolean [] longToArray(long sel_bits, int num_pairs) {
+    	boolean [] sel = new boolean [num_pairs];
+    	for (int i = 0; i < sel.length;i++) {
+    		sel[i] = (sel_bits & 1) > 0;
+    		sel_bits >>= 1;
+    	}
+    	return sel;
+    }
+
+    public boolean [] longToArray(long sel_bits) {
+    	return longToArray (sel_bits, pair_start_end.length);
+    }
+    
     
     /**
      * Add 2D correlation for a pair to the combined correlation tile, applying rotation/scaling
@@ -1621,10 +1639,10 @@ public class Correlation2d {
     *        (1 - largest, 2 - half, 4 - quarter)
     * @return single square correlation array, same dimension as the input (now 15x15)
     */
-
+    @Deprecated
     public double [] combineCompatiblePairs(// USED in lwir
     		double [][] correlations,
-    		int         pairs_mask,
+    		boolean []  pairs_mask,
         	boolean     diagonal,
         	int         baseline_scale
     		) {
@@ -1632,7 +1650,9 @@ public class Correlation2d {
     	double [] combo = new double [width * width];
     	int number_combined = 0;
     	// find diagonal/ortho and scale that determine compatible correlations
-    	for (int npair = 0; npair < PAIRS.length; npair++) if ((((pairs_mask >> npair) & 1) != 0 ) && (correlations[npair]!=null) &&
+    	//       			if (pairs_mask[npair] && (correlations[npair]!=null)){
+//    	for (int npair = 0; npair < PAIRS.length; npair++) if ((((pairs_mask >> npair) & 1) != 0 ) && (correlations[npair]!=null) &&
+    	for (int npair = 0; npair < PAIRS.length; npair++) if (pairs_mask[npair] && (correlations[npair]!=null) &&
     		(isDiagonalPair(npair) == diagonal) && (PAIRS[npair][3] == baseline_scale)){
     		if (isHorizontalPair(npair) || isDiagonalMainPair(npair)) {
     			for (int i = 0; i < combo.length; i++) combo[i]+= correlations[npair][i];
@@ -1662,9 +1682,10 @@ public class Correlation2d {
      *        (1 - largest, 2 - half, 4 - quarter)
      * @return {number of compatible pairs among the selection, index of the base pair}
      */
+    @Deprecated
     public int [] getNumberBaseOfCompatiblePairs(// USED in lwir
     		double [][] correlations,
-    		int         pairs_mask,
+    		boolean []  pairs_mask,
         	boolean     diagonal,
         	int         baseline_scale
     		) {
@@ -1674,7 +1695,8 @@ public class Correlation2d {
     	for (int npair = 0; npair < PAIRS.length; npair++) {
     		if ((isDiagonalPair(npair) == diagonal) && (PAIRS[npair][3] == baseline_scale)){
     			if (base_pair < 0) base_pair = npair;
-    			if ((((pairs_mask >> npair) & 1) != 0 ) && (correlations[npair]!=null)){
+//    			if ((((pairs_mask >> npair) & 1) != 0 ) && (correlations[npair]!=null)){
+       			if (pairs_mask[npair] && (correlations[npair]!=null)){
     				number_combined++;
     			}
     		}
@@ -2795,7 +2817,7 @@ public class Correlation2d {
     		Correlations2dLMA lma=corrLMA(
     				imgdtt_params, // ImageDttParameters  imgdtt_params,
     				corrs,         // double [][]         corrs,
-    				this_mask,     // int                 pair_mask, // which pairs to process
+    				longToArray(this_mask), //this_mask,     // int                 pair_mask, // which pairs to process
     				true,          // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
     				xcenter,       // double              xcenter,   // preliminary center x in pixels for largest baseline
     				vasw_pwr,      // double              vasw_pwr,  // value as weight to this power,
@@ -2946,7 +2968,7 @@ public class Correlation2d {
     			Correlations2dLMA lma=corrLMA(
     					imgdtt_params, // ImageDttParameters  imgdtt_params,
     					corrs,         // double [][]         corrs,
-    		    		this_mask,     // int                 pair_mask, // which pairs to process
+    					longToArray(this_mask), // this_mask,     // int                 pair_mask, // which pairs to process
     		    		false,         // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
     		    		xcenter,       // double              xcenter,   // preliminary center x in pixels for largest baseline
     		    		vasw_pwr,      // double              vasw_pwr,  // value as weight to this power,
@@ -3141,7 +3163,7 @@ public class Correlation2d {
     		double [][][]       corrs, // per tile, per pair, 2 correlation in line-scan order
     		double [][][]       disp_dist, // per tile, per camera disparity matrix as a 1d (linescan order)
     		double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
-    		int                 pair_mask, // which pairs to process
+    		boolean []          pair_mask, // which pairs to process
     		double[][]          disp_str,   // -preliminary center x in pixels for largest baseline
     		double              vasw_pwr,  // value as weight to this power,
     		int                 debug_level,
@@ -3165,6 +3187,7 @@ public class Correlation2d {
     	}
     		Corr2dLMA lma = new Corr2dLMA(
     			corrs.length,
+				this, // Correlation2d correlation2d,
     			transform_size,
     			corr_wnd,
     			rXY, //double [][] rXY, // non-distorted X,Y offset per nominal pixel of disparity
@@ -3194,8 +3217,8 @@ public class Correlation2d {
     			((disp_str == null) || ((disp_str[ntile] != null) && (disp_str[ntile][1] > 0.0)))){
     		double[][] corr = new double[corrs[ntile].length][];
     		double [][] filtWeight = new double [corrs[ntile].length][];
-//    		blur_max[ntile] = new double [corrs[ntile].length];
-    		for (int npair = 0; npair < corrs[ntile].length; npair++) if ((corrs[ntile][npair] != null) && (((pair_mask >> npair) & 1) !=0)){
+//    		for (int npair = 0; npair < corrs[ntile].length; npair++) if ((corrs[ntile][npair] != null) && (((pair_mask >> npair) & 1) !=0)){
+       		for (int npair = 0; npair < corrs[ntile].length; npair++) if ((corrs[ntile][npair] != null) && (pair_mask[npair])){
     			corr[npair] = corrs[ntile][npair].clone();
     			if (corr_wnd_inv_limited != null) {
     				for (int i = 0; i < corr.length; i++) {
@@ -3253,8 +3276,8 @@ public class Correlation2d {
     		// numpairs
     		if (numpairs >= imgdtt_params.cnvx_min_pairs) {
     			for (int npair = 0; npair < corrs[ntile].length; npair++) if (filtWeight[npair] != null){
-    				int fcam = PAIRS[npair][0];
-    				int scam = PAIRS[npair][1];
+//    				int fcam = PAIRS[npair][0];
+//    				int scam = PAIRS[npair][1];
     				for (int i = 1; i < filtWeight[npair].length; i++) if (filtWeight[npair][i] > 0.0) {
     					int ix = i % corr_size; // >=0
     					int iy = i / corr_size; // >=0
@@ -3265,8 +3288,9 @@ public class Correlation2d {
     					}
     					lma.addSample( // x = 0, y=0 - center
     							ntile, // tile
-    							fcam,  // int    fcam, // first  camera index
-    							scam,  // int    scam, // second camera index
+    							npair,
+//    							fcam,  // int    fcam, // first  camera index
+//    							scam,  // int    scam, // second camera index
     							ix,    // int    x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
     							iy,    // int    y,      // y coordinate (0 - disparity axis)
     							v,     // double v,       // correlation value at that point
@@ -3390,6 +3414,7 @@ public class Correlation2d {
     				} else { // have to restart LMA initialization
     					lma = new Corr2dLMA(
     							corrs.length,
+    							this, // 				Correlation2d correlation2d,
     							transform_size,
     							corr_wnd,
     							rXY, //double [][] rXY, // non-distorted X,Y offset per nominal pixel of disparity
@@ -3540,7 +3565,7 @@ public class Correlation2d {
     		double [][]         corrs,
     		double [][]         disp_dist, // per camera disparity matrix as a 1d (linescan order)
     		double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
-    		int                 pair_mask, // which pairs to process
+    		boolean []          pair_mask, // which pairs to process
     		double[]            disp_str,   // -preliminary center x in pixels for largest baseline
     		double[]            poly_ds,    // null or pair of disparity/strength
     		double              vasw_pwr,  // value as weight to this power,
@@ -3564,6 +3589,7 @@ public class Correlation2d {
     	int corr_size = 2 * transform_size - 1;
     	Corr2dLMA lma = new Corr2dLMA(
     			1,
+				this, // Correlation2d correlation2d,
     			transform_size,
     			corr_wnd,
     			rXY,                       //double [][] rXY, // non-distorted X,Y offset per nominal pixel of disparity
@@ -3584,7 +3610,9 @@ public class Correlation2d {
     	}
 
 
-    	for (int npair = 0; npair < corrs.length; npair++) if ((corrs[npair] != null) && (((pair_mask >> npair) & 1) !=0)){
+//    	for (int npair = 0; npair < corrs.length; npair++) if ((corrs[npair] != null) && (((pair_mask >> npair) & 1) !=0)){
+   		for (int npair = 0; npair < corrs.length; npair++) if ((corrs[npair] != null) && (pair_mask[npair])){
+    		
 //    		double[] corr = corrs[npair].clone();
     		double [] corr_blur = corrs[npair].clone();
     		if (corr_wnd_inv_limited != null) {
@@ -3620,8 +3648,8 @@ public class Correlation2d {
 
     	    // Normalize weight for each pair to compensate for different number of convex samples?
 
-    	    int fcam = PAIRS[npair][0];
-    	    int scam = PAIRS[npair][1];
+//    	    int fcam = PAIRS[npair][0];
+//    	    int scam = PAIRS[npair][1];
     	    for (int i = 1; i < filtWeight.length; i++) if (filtWeight[i] > 0.0) {
     	    	int ix = i % corr_size; // >=0
     	    	int iy = i / corr_size; // >=0
@@ -3633,8 +3661,9 @@ public class Correlation2d {
 //    	        if (v > blur_max[npair]) blur_max[npair] = v;
     	    	lma.addSample( // x = 0, y=0 - center
     	    			0,    // tile
-    	    			fcam, // int    fcam,  // first  camera index
-    	    			scam, // int    scam,  // second camera index
+    	    			npair,
+//    	    			fcam, // int    fcam,  // first  camera index
+//   	    			scam, // int    scam,  // second camera index
     	    			ix,   // int    x,     // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
     	    			iy,   // int    y,     // y coordinate (0 - disparity axis)
     	    			v,    // double v,     // correlation value at that point
@@ -3816,7 +3845,8 @@ public class Correlation2d {
     public Correlations2dLMA corrLMA( // USED in lwir
     		ImageDttParameters  imgdtt_params,
     		double [][]         corrs,
-    		int                 pair_mask, // which pairs to process
+//    		int                 pair_mask, // which pairs to process
+    		boolean []          pair_mask, // which pairs to process
     		boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
     		double              xcenter,   // preliminary center x in pixels for largest baseline
     		double              vasw_pwr,  // value as weight to this power,
@@ -3967,7 +3997,7 @@ public class Correlation2d {
     		ImageDttParameters  imgdtt_params,
     		double [][]         disparity_distortions, // {d_disp/dx, d_ndisp/dx, d_disp/dy, d_ndisp/dy} for each camera
     		double [][]         corrs,
-    		int                 pair_mask, // which pairs to process
+    		boolean[]           pair_mask, // which pairs to process
     		boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
     		double              xcenter,   // preliminary center x in pixels for largest baseline
     		double              vasw_pwr,  // value as weight to this power,

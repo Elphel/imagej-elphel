@@ -2591,7 +2591,7 @@ public class ImageDtt extends ImageDttCPU {
 					lma = corr2d.corrLMA(
 							imgdtt_params,                // ImageDttParameters  imgdtt_params,
 							fake_corrs,                   // double [][]         corrs,
-							0x11, // imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
+							corr2d.longToArray(0x11), // 0x11, // imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
 							false,                        // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
 							corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
 							imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
@@ -2602,7 +2602,7 @@ public class ImageDtt extends ImageDttCPU {
 					lma = corr2d.corrLMA(
 							imgdtt_params,                // ImageDttParameters  imgdtt_params,
 							corrs,                        // double [][]         corrs,
-							used_pairs, // imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
+							corr2d.longToArray(used_pairs), // used_pairs, // imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
 							false,                        // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
 							corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
 							imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
@@ -3253,7 +3253,7 @@ public class ImageDtt extends ImageDttCPU {
 								corrs,                        // double [][]         corrs,
 								tile_disp_dist,
 								rXY,                          // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
-								imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
+								corr2d.longToArray(imgdtt_params.dbg_pair_mask), // imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
 								null,                         // disp_str[cTile],  //corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
 								poly_disp,                    // double[]            poly_ds,    // null or pair of disparity/strength
 								imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
@@ -3571,7 +3571,7 @@ public class ImageDtt extends ImageDttCPU {
 								corrs,                        // double [][]         corrs,
 								tile_disp_dist,
 								rXY,                          // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
-								imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
+								corr2d.longToArray(imgdtt_params.dbg_pair_mask), // imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
 								null,                         // disp_str[cTile],  //corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
 								poly_disp,                    // double[]            poly_ds,    // null or pair of disparity/strength
 								imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
