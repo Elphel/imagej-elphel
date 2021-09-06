@@ -64,6 +64,7 @@ Fx=A(i)*W(x,y)*(pa*(x-x0j)^2+2*pb*(x-x0j)*(y-y0j)+pc*(y-y0j)^2)
  *
  */
 import java.util.ArrayList;
+import java.util.Arrays;
 
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.PolynomialApproximation;
@@ -119,7 +120,9 @@ public class Corr2dLMA {
 	private final int []      used_cams_map; //  =  new int[NUM_CAMS]; // for each camera index return used index ???
 
 	private int []            used_cams_rmap; // variable-length list of used cameras numbers
-	private int [][][]        used_pairs_map; // for each camera index return used index ??
+//	private int [][][]        used_pairs_map; // for each camera index return used index ??
+	private int [][]          used_pairs_map; // [tile][pair] -1 for unused pairs, >=0 for used ones
+	
 	private boolean []        used_tiles;
 
 	private final int         transform_size;
@@ -334,13 +337,12 @@ public class Corr2dLMA {
 	}
 
 	public double [][][] dbgGetSamples(double [][] ds, int mode){
-		int [][] comb_map = getCombMap();
-		int numPairs = comb_map[0][0];
-		comb_map[0][0] = -1;
-
+//		int [][] comb_map = getCombMap();
+//		int numPairs = comb_map[0][0];
+//		comb_map[0][0] = -1;
+		int numPairs = getNumAllTilesUsedPairs();
 		int size = 2* transform_size -1;
 		int size2 = size*size;
-
 		double [][][] rslt = new double [numTiles][numPairs][size2];
 		for (int nTile = 0; nTile < numTiles; nTile++) {
 			for (int np = 0; np < numPairs; np++) {
@@ -364,27 +366,29 @@ public class Corr2dLMA {
 			else if (mode == 1) d = s.w;
 			else if (mode == 2) d = fx[ns];
 //			int np = comb_map[s.fcam][s.scam]; ////////////////////
-			int np = s.pair; ////////////////////
-			rslt[s.tile][np][s.iy*size + s.ix] = d;
+//			int np = s.pair; ////////////////////
+			int inp = used_pairs_map[s.tile][s.pair];
+			rslt[s.tile][inp][s.iy*size + s.ix] = d;
 		}
 
 		return rslt;
 	}
 	
-	@Deprecated
-	public String [] dbgGetSliceTiles() {
-		int [][] comb_map = getCombMap();
-		int np = comb_map[0][0];
-		comb_map[0][0] = -1;
-
+	public String [] dbgGetSliceTitles() {
+		int [] comb_map = getCombMap();
+		int np = getNumAllTilesUsedPairs(); // comb_map[0][0];
+//		comb_map[0][0] = -1;
 		String [] srslt = new String [np];
-		for (int f = 0; f < num_cams; f++) for (int s = 0; s < num_cams; s++) {
-			if (comb_map[f][s] >= 0) {
-				srslt[comb_map[f][s]] = ""+f+"->"+s;
+		for (int npair = 0; npair < comb_map.length; npair++) {
+			if (comb_map[npair] >= 0) {
+				int [] fs = correlation2d.getPair(npair);
+				srslt[comb_map[npair]] = ""+fs[0]+"->"+fs[1];
 			}
 		}
 		return srslt;
 	}
+	
+	/*
 	@Deprecated
 	public int [][] getCombMap(){
 		boolean [][]  comb_pairs = new boolean[num_cams][num_cams];
@@ -404,8 +408,36 @@ public class Corr2dLMA {
 		return comb_map;
 
 	}
+   */
+	public int [] getCombMap(){
+		int []comb_map = new int [num_pairs];
+		Arrays.fill(comb_map, -1);
+		int np = 0;
+		for (int npair = 0; npair < num_pairs; npair++) {
+			for (int t = 0; t < numTiles; t++) {
+				if (used_pairs_map[t][npair] >= 0) {
+					comb_map[npair] = np++;
+					break;
+				}
+			}
+		}
+		return comb_map;
+	}
 
-
+	public int getNumAllTilesUsedPairs() {
+		int np = 0;
+		for (int npair = 0; npair < num_pairs; npair++) {
+			for (int t = 0; t < numTiles; t++) {
+				if (used_pairs_map[t][npair] >= 0) {
+					np++;
+					break;
+				}
+			}
+		}
+		return np;
+	}
+	
+	
 	@Deprecated
 	public int getPairIndex(int f, int s) {
 		if (f > s) {
@@ -497,14 +529,18 @@ public class Corr2dLMA {
 		adjust_lazyeye_ortho = adjust_lazyeye_par; // simplify relations for the calculated/dependent parameters
 		lazy_eye = adjust_lazyeye_par | adjust_lazyeye_ortho;
 		bad_tile = -1;
-		used_pairs_map = new int [numTiles][num_cams][num_cams];
+//		used_pairs_map = new int [numTiles][num_cams][num_cams];
 		used_cameras = new boolean[num_cams];
 		boolean [][] used_pairs = new boolean[numTiles][num_pairs];
 		// 0-weight values and NaN-s should be filtered on input!
-		for (int t = 0; t < numTiles; t++) for (int f = 0; f < num_cams; f++) for (int s = 0; s < num_cams; s++) {
-			used_pairs_map[t][f][s] = -1;
+//		for (int t = 0; t < numTiles; t++) for (int f = 0; f < num_cams; f++) for (int s = 0; s < num_cams; s++) {
+//			used_pairs_map[t][f][s] = -1;
+//		}
+		used_pairs_map = new int [numTiles][num_pairs];
+		for (int t = 0; t < numTiles; t++) {
+			Arrays.fill(used_pairs_map[t], -1);
 		}
-		boolean [][][] used_pairs_dir = new boolean [numTiles][num_cams][num_cams];
+//		boolean [][][] used_pairs_dir = new boolean [numTiles][num_cams][num_cams];
 		used_tiles = new boolean[numTiles];
 		for (Sample s:samples) { // ignore zero-weight samples
 			int pair = s.pair;
@@ -514,7 +550,7 @@ public class Corr2dLMA {
 			used_tiles[s.tile] = true;
 			used_pairs[s.tile][pair]=true; // throws < 0 - wrong pair, f==s
 //			used_pairs_dir[s.tile][s.fcam][s.scam] = true;
-			used_pairs_dir[s.tile][fscam[0]][fscam[1]] = true;
+//			used_pairs_dir[s.tile][fscam[0]][fscam[1]] = true;
 		}
 		ncam_used = 0;
 		npairs =new int [numTiles];  // pairs in each tile
@@ -556,9 +592,12 @@ public class Corr2dLMA {
 			*/
 			for (int pair = 0; pair < num_pairs; pair++) {
 				int npair = upmam[pair];
-				int [] fs = correlation2d.getPair(pair);
-				if      (used_pairs_dir[nTile][fs[0]][fs[1]]) used_pairs_map[nTile][fs[0]][fs[1]] = npair;  // either or, can not be f,s and s,f pairs
-				else if (used_pairs_dir[nTile][fs[1]][fs[0]]) used_pairs_map[nTile][fs[1]][fs[0]] = npair;
+//				int [] fs = correlation2d.getPair(pair);
+//				if      (used_pairs_dir[nTile][fs[0]][fs[1]]) used_pairs_map[nTile][fs[0]][fs[1]] = npair;  // either or, can not be f,s and s,f pairs
+//				else if (used_pairs_dir[nTile][fs[1]][fs[0]]) used_pairs_map[nTile][fs[1]][fs[0]] = npair;
+//				if      (used_pairs_dir[nTile][fs[0]][fs[1]]) used_pairs_map[nTile][pair] = npair;  // either or, can not be f,s and s,f pairs
+//				else if (used_pairs_dir[nTile][fs[1]][fs[0]]) used_pairs_map[nTile][pair] = npair;
+				if      (used_pairs[nTile][pair]) used_pairs_map[nTile][pair] = npair;
 			}
 		}
 
@@ -657,7 +696,8 @@ public class Corr2dLMA {
 		for (int nTile = 0; nTile < used_pairs_map.length; nTile++) if (used_tiles[nTile]){
 			for (int npair = 0; npair < num_pairs; npair++) {
 				int [] fs = correlation2d.getPair(npair); // TODO: change used_pairs_map?
-				if (used_pairs_map[nTile][fs[0]][fs[1]] >= 0) {
+//				if (used_pairs_map[nTile][fs[0]][fs[1]] >= 0) {
+				if (used_pairs_map[nTile][npair] >= 0) {
 					m_pairs[nTile][npair] =     m_disp[nTile][fs[0]].minus(m_disp[nTile][fs[1]]);
 					m_pairs_inv[nTile][npair] = m_pairs[nTile][npair].inverse();
 				}
@@ -673,7 +713,8 @@ public class Corr2dLMA {
 		for (int nTile = 0; nTile < used_pairs_map.length; nTile++)  if (used_tiles[nTile]){
 			for (int npair = 0; npair < num_pairs; npair++) {
 				int [] fs = correlation2d.getPair(npair); // TODO: change used_pairs_map?
-				if (used_pairs_map[nTile][fs[0]][fs[1]] >= 0) {
+//				if (used_pairs_map[nTile][fs[0]][fs[1]] >= 0) {
+				if (used_pairs_map[nTile][npair] >= 0) {
 					m_pairs_inv[nTile][npair] = m_pairs[nTile][npair].inverse();
 				}
 			}
@@ -1445,9 +1486,10 @@ public class Corr2dLMA {
     	int npair0 = -1;
     	for (int i = 0; i < num_points; i++) {
     		if (i < samples.size()) {
-    			int [] fs = correlation2d.getPair(samples.get(i).pair);
+//    			int [] fs = correlation2d.getPair(samples.get(i).pair);
 //        		int npair = used_pairs_map[samples.get(i).tile][samples.get(i).fcam][samples.get(i).scam];
-        		int npair = used_pairs_map[samples.get(i).tile][fs[0]][fs[1]];
+//        		int npair = used_pairs_map[samples.get(i).tile][fs[0]][fs[1]];
+        		int npair = used_pairs_map[samples.get(i).tile][samples.get(i).pair];
         		if (npair !=npair0) {
         			if (npair0 >=0) System.out.println();
         			npair0 = npair;

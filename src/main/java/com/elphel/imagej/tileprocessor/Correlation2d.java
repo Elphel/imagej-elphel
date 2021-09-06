@@ -3496,10 +3496,10 @@ public class Correlation2d {
     		}
     	}
 
-
+    	// ds[tile]{disparity, strength}
 
     	if (debug_graphic && lmaSuccess) {
-    		String [] sliceTitles = lma.dbgGetSliceTiles();
+    		String [] sliceTitles = lma.dbgGetSliceTitles();
     		if (corrs.length == 1) {
     			(new ShowDoubleFloatArrays()).showArrays(
     					lma.dbgGetSamples(ds, 0)[0],
@@ -3550,7 +3550,7 @@ public class Correlation2d {
     					dbg_out_width,
     					dbg_out_height,
     					true,
-    					"weights"+"_x"+tileX+"_y"+tileY, sliceTitles);
+    					"weights_late"+"_x"+tileX+"_y"+tileY, sliceTitles);
     		}
     	}
 
@@ -3605,7 +3605,8 @@ public class Correlation2d {
     				corr_size,
     				corr_size,
     				true,
-    				"corr_pairs"+"_x"+tileX+"_y"+tileY);
+    				"corr_pairs"+"_x"+tileX+"_y"+tileY,
+    				getCorrTitles());
 
     	}
 
@@ -3678,14 +3679,16 @@ public class Correlation2d {
     				corr_size,
     				corr_size,
     				true,
-    				"corr_blurred"+"_x"+tileX+"_y"+tileY);
+    				"corr_blurred"+"_x"+tileX+"_y"+tileY,
+    				getCorrTitles());
 
     		(new ShowDoubleFloatArrays()).showArrays(
     				dbg_weights,
     				corr_size,
     				corr_size,
     				true,
-    				"corr_weights"+"_x"+tileX+"_y"+tileY);
+    				"corr_weights"+"_x"+tileX+"_y"+tileY,
+    				getCorrTitles());
     	}
 
 //    	double [][] disp_str = {{xcenter, 1.0}}; // temporary
@@ -3813,8 +3816,8 @@ public class Correlation2d {
     			}
     			//    				double [][] ds = null;
     			if (debug_graphic && lmaSuccess) {
-    				String [] sliceTitles = lma.dbgGetSliceTiles();
-    				if (corrs.length == 1) { // only for single-tile cluster
+    				String [] sliceTitles = lma.dbgGetSliceTitles();
+ //   				if (corrs.length == 1) { // only for single-tile cluster (here it is always single, and corrs is double [][], not double [][][]
     					(new ShowDoubleFloatArrays()).showArrays(
     							lma.dbgGetSamples(null,0)[0],
     							corr_size,
@@ -3832,8 +3835,8 @@ public class Correlation2d {
     							corr_size,
     							corr_size,
     							true,
-    							"corr_weights"+"_x"+tileX+"_y"+tileY, sliceTitles);
-    				}
+    							"corr_weights_late"+"_x"+tileX+"_y"+tileY, sliceTitles);
+//    				}
     			}
     		}
 
