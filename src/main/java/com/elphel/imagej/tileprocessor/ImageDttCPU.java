@@ -3360,268 +3360,51 @@ public class ImageDttCPU {
 								// debug new LMA correlations
 								if (debugTile0) { // should be debugTile
 									System.out.println("Will run new LMA for tileX="+tileX+", tileY="+tileY);
-
-									double [] poly_disp = {Double.NaN, 0.0};
-							    	Corr2dLMA lma2 = correlation2d.corrLMA2Single(
-							    			imgdtt_params,                // ImageDttParameters  imgdtt_params,
-								    		false,                        // boolean             adjust_ly, // adjust Lazy Eye
-							    			corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
-							    			corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
-							    			corr_tiles, // corrs,          // double [][]         corrs,
-							    			disp_dist,
-											rXY,                          // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
-											// all that are not null in corr_tiles
-											correlation2d.selectAll(),   // longToArray(imgdtt_params.dbg_pair_mask),  // int                 pair_mask, // which pairs to process
-							    			disp_str,  //corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
-											poly_disp,                    // double[]            poly_ds,    // null or pair of disparity/strength
-							    			imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
-							    			tile_lma_debug_level+2,         // int                 debug_level,
-							        		tileX,                        // int                 tileX, // just for debug output
-							        		tileY );                      // int                 tileY
-							    	double [][] ds = null;
-							    	if (lma2 != null) {
-							    		ds = lma2.lmaDisparityStrength(
-							    				imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
-							    				imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
-							    				imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
-												imgdtt_params.lmas_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
-							    				imgdtt_params.lmas_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
-							    				imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
-							    				imgdtt_params.lma_str_offset    // convert lma-generated strength to match previous ones - add to result
-							    				);
-							    		lma2.printStats(ds,1);
-							    	}
 								}
+								double [] poly_disp = {Double.NaN, 0.0};
+								Corr2dLMA lma2 = correlation2d.corrLMA2Single(
+										imgdtt_params,                // ImageDttParameters  imgdtt_params,
+										true, // false,                        // boolean             adjust_ly, // adjust Lazy Eye
+										corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
+										corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
+										corr_tiles, // corrs,          // double [][]         corrs,
+										disp_dist,
+										rXY,                          // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
+										// all that are not null in corr_tiles
+										correlation2d.selectAll(),   // longToArray(imgdtt_params.dbg_pair_mask),  // int                 pair_mask, // which pairs to process
+										disp_str,  //corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
+										poly_disp,                    // double[]            poly_ds,    // null or pair of disparity/strength
+										imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
+										tile_lma_debug_level, // +2,         // int                 debug_level,
+										tileX,                        // int                 tileX, // just for debug output
+										tileY );                      // int                 tileY
+								if (debugTile0) { // should be debugTile
+									System.out.println("Ran LMA for tileX="+tileX+", tileY="+tileY);
+								}
+								double [][] ds = null;
+								if (lma2 != null) {
+									ds = lma2.lmaDisparityStrength(
+											imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
+											imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
+											imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+											imgdtt_params.lmas_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
+											imgdtt_params.lmas_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
+											imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
+											imgdtt_params.lma_str_offset    // convert lma-generated strength to match previous ones - add to result
+											);
+									if (ds != null) { // always true
+										disparity_map[DISPARITY_INDEX_POLY][tIndex] =     ds[0][0];
+										disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] = ds[0][1];
+										if (debugTile0) {
+											lma2.printStats(ds,1);
+										}
+									}
+								}
+//								} //if (debugTile0) { // should be debugTile
 							} // end of if (corr_stat != null)
-							/*
-							if      (corr_mode == 0) extra_disparity = disparity_map[DISPARITY_INDEX_INT][tIndex];
-							else if (corr_mode == 1) extra_disparity = disparity_map[DISPARITY_INDEX_CM][tIndex];
-							else if (corr_mode == 2) extra_disparity = disparity_map[DISPARITY_INDEX_POLY][tIndex];
-							else if (corr_mode == 3) extra_disparity = disparity_map[DISPARITY_INDEX_HOR][tIndex];  // not used in lwir
-							else if (corr_mode == 4) extra_disparity = disparity_map[DISPARITY_INDEX_VERT][tIndex];  // not used in lwir
-							if (Double.isNaN(extra_disparity)) extra_disparity = 0;  // used in lwir
-
-							if (Double.isNaN(disparity_map[DISPARITY_STRENGTH_INDEX][tIndex])) {
-								System.out.println("BUG: 3. disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] should not be NaN");
-							}
-							
-							
-							*/
-							
 							
 						} // if (disparity_map != null){ // not null - calculate correlations
 						// only debug is left
-						// old (per-color correlation)
-						// ****** FIXME tries to use color == 3, should be disabled!
-						
-						
-						/*
-						if ((clt_corr_combo != null)  && !imgdtt_params.corr_mode_debug){ // not null - calculate correlations  // not used in lwir
-							tcorr_tpartial=  new double[CORR_PAIRS.length][numcol+1][4][transform_len];
-							tcorr_partial =  new double[numSensors][numcol+1][];
-
-							for (int pair = 0; pair < CORR_PAIRS.length; pair++){
-								for (int ncol = 0; ncol <numcol; ncol++) if (clt_data[ncol] != null){
-									double [][] data1 = clt_data[CORR_PAIRS[pair][0]][ncol][tileY][tileX];
-									double [][] data2 = clt_data[CORR_PAIRS[pair][1]][ncol][tileY][tileX];
-									if ((data1 != null) && (data2 != null)) {
-
-										double [] a2 = new double[transform_len];
-										double sa2 = 0.0;
-										for (int i = 0; i < transform_len; i++) {
-											double s1 = 0.0, s2=0.0;
-											for (int n = 0; n< 4; n++){
-												s1+=data1[n][i] * data1[n][i];
-												s2+=data2[n][i] * data2[n][i];
-											}
-											a2[i] = Math.sqrt(s1*s2);
-											sa2 += a2[i];
-										}
-										double fz2 = sa2/transform_len * corr_fat_zero * corr_fat_zero; // fat_zero squared to match units
-										for (int i = 0; i < transform_len; i++) {
-											double scale = 1.0 / (a2[i] + fz2);
-											for (int n = 0; n<4; n++){
-												tcorr_tpartial[pair][ncol][n][i] = 0;
-												for (int k=0; k<4; k++){
-													if (ZI[n][k] < 0)
-														tcorr_tpartial[pair][ncol][n][i] -=
-														data1[-ZI[n][k]][i] * data2[k][i];
-													else
-														tcorr_tpartial[pair][ncol][n][i] +=
-														data1[ZI[n][k]][i] * data2[k][i];
-												}
-												tcorr_tpartial[pair][ncol][n][i] *= scale;
-											}
-										}
-									} else {
-										tcorr_tpartial[pair][ncol] = null;
-									}
-									// got transform-domain correlation for the pair, 1 color
-								}
-								// calculate composite color
-								for (int i = 0; i < transform_len; i++) {
-									for (int n = 0; n<4; n++) {
-										tcorr_tpartial[pair][numcol][n][i] = 0.0;
-										for (int ncol= 0; ncol < tcorr_tpartial[pair].length; ncol++) { // tcorr_tpartial[pair].length = 4 > colors
-											if (tcorr_tpartial[pair][ncol] != null) {
-												tcorr_tpartial[pair][numcol][n][i] += col_weights[ncol] * tcorr_tpartial[pair][0][n][i];
-											}
-										}
-									}
-								}
-								// now lpf (only last/composite color if do not preserve intermediate
-								int firstColor = (clt_corr_partial == null)? numcol : 0;
-								if (corr_sigma >0) {
-									for (int ncol = firstColor; ncol <= numcol; ncol++) if (tcorr_tpartial[pair][ncol] != null){
-										for (int i = 0; i < transform_len; i++) {
-											for (int n = 0; n<4; n++) {
-												tcorr_tpartial[pair][ncol][n][i] *= filter[i];
-											}
-										}
-									}
-								}
-								// convert to pixel domain - all or just composite color
-								for (int ncol = firstColor; ncol <= numcol; ncol++) if (tcorr_tpartial[pair][ncol] != null) {
-									for (int quadrant = 0; quadrant < 4; quadrant++){
-										int mode = ((quadrant << 1) & 2) | ((quadrant >> 1) & 1); // transpose
-										tcorr_tpartial[pair][ncol][quadrant] =
-												dtt.dttt_iie(tcorr_tpartial[pair][ncol][quadrant], mode, transform_size);
-									}
-								}
-								// convert from 4 quadrants to 15x15 centered tiles (each color or only composite)
-								for (int ncol = firstColor; ncol <= numcol; ncol++) if (tcorr_tpartial[pair][ncol] != null) {
-									tcorr_partial[pair][ncol] = dtt.corr_unfold_tile(
-											tcorr_tpartial[pair][ncol],
-											transform_size);
-								}
-								// transpose vertical pairs
-								if (CORR_PAIRS[pair][2] != 0) {
-									for (int ncol = firstColor; ncol <= numcol; ncol++) if (tcorr_tpartial[pair][ncol] != null) {
-										for (int i = 0; i < transpose_indices.length; i++) {
-											double d = tcorr_partial[pair][ncol][transpose_indices[i][0]];
-											tcorr_partial[pair][ncol][transpose_indices[i][0]] = tcorr_partial[pair][ncol][transpose_indices[i][1]];
-											tcorr_partial[pair][ncol][transpose_indices[i][1]] = d;
-											//transpose_indices
-										}
-									}
-								}
-								// make symmetrical around the disparity direction (horizontal) (here using just average, not mul/sum mixture)
-								// symmetry can be added to result, not individual (if sum - yes, but with multiplication - not)
-								if (corr_sym && (clt_mismatch == null)){ // when measuring clt_mismatch symmetry should be off !
-									for (int ncol = firstColor; ncol <= numcol; ncol++) if (tcorr_tpartial[pair][ncol] != null) {
-										for (int i = 1 ; i < transform_size; i++){
-											int indx1 = (transform_size - 1 - i) * corr_size;
-											int indx2 = (transform_size - 1 + i) * corr_size;
-											for (int j = 0; j< corr_size; j++){
-												int indx1j = indx1 + j;
-												int indx2j = indx2 + j;
-												tcorr_partial[pair][ncol][indx1j] =
-														0.5* (tcorr_partial[pair][ncol][indx1j] + tcorr_partial[pair][ncol][indx2j]);
-												tcorr_partial[pair][ncol][indx2j] = tcorr_partial[pair][ncol][indx1j];
-											}
-										}
-									}
-								}
-							} // all pairs calculated
-
-
-							tcorr_combo = new double [TCORR_TITLES.length][corr_size * corr_size];
-
-							int numPairs = 	0, numPairsHor = 0, numPairsVert = 0;
-							for (int pair = 0; pair < CORR_PAIRS.length; pair++) if (((corr_mask >> pair) & 1) != 0){
-								numPairs++;
-								if (CORR_PAIRS[pair][2] == 0) { // horizontal pair)
-									numPairsHor++;
-								} else {
-									numPairsVert++;
-								}
-							}
-							double avScale = 0.0, avScaleHor = 0.0, avScaleVert = 0.0;
-							if (numPairs > 0) {
-								boolean debugMax =  tile_lma_debug_level > 1;
-								avScale = 1.0/numPairs;
-								if (numPairsHor > 0)  avScaleHor = 1.0/numPairsHor;
-								if (numPairsVert > 0) avScaleVert = 1.0/numPairsVert;
-								if (debugMax) {
-									System.out.println("avScale = "+avScale+", avScaleHor = "+avScaleHor+", avScaleVert = "+avScaleVert+", corr_offset = "+corr_offset);
-								}
-								if (corr_offset < 0) { // just add all partial correlations for composite color
-									for (int i = 0; i < tcorr_combo[TCORR_COMBO_RSLT].length; i++){
-										tcorr_combo[TCORR_COMBO_RSLT][i] = 0.0;
-										tcorr_combo[TCORR_COMBO_HOR][i] = 0.0;
-										tcorr_combo[TCORR_COMBO_VERT][i] = 0.0;
-										for (int pair = 0; pair < CORR_PAIRS.length; pair++) if (((corr_mask >> pair) & 1) != 0){
-											tcorr_combo[TCORR_COMBO_RSLT][i] += avScale*tcorr_partial[pair][numcol][i]; // only composite color channel
-											if (CORR_PAIRS[pair][2] == 0) { // horizontal pair
-												tcorr_combo[TCORR_COMBO_HOR][i] +=  avScaleHor*tcorr_partial[pair][numcol][i]; // only composite color channel
-											} else { //vertical pair
-												tcorr_combo[TCORR_COMBO_VERT][i] += avScaleVert*tcorr_partial[pair][numcol][i]; // only composite color channel
-											}
-											if (debugMax) {
-												System.out.println("tcorr_combo[TCORR_COMBO_RSLT]["+i+"]="+tcorr_combo[TCORR_COMBO_RSLT][i]+" tcorr_partial["+pair+"]["+numcol+"]["+i+"]="+tcorr_partial[pair][numcol][i]);
-											}
-										}
-									}
-								} else {
-									for (int i = 0; i < tcorr_combo[TCORR_COMBO_RSLT].length; i++){
-										tcorr_combo[TCORR_COMBO_RSLT][i] = 1.0;
-										tcorr_combo[TCORR_COMBO_HOR][i] =  1.0;
-										tcorr_combo[TCORR_COMBO_VERT][i] = 1.0;
-										for (int pair = 0; pair < CORR_PAIRS.length; pair++) if (((corr_mask >> pair) & 1) != 0){
-											tcorr_combo[TCORR_COMBO_RSLT][i] *= (tcorr_partial[pair][numcol][i] + corr_offset); // only composite color channel
-											if (CORR_PAIRS[pair][2] == 0) { // horizontal pair
-												tcorr_combo[TCORR_COMBO_HOR][i] *= (tcorr_partial[pair][numcol][i] + corr_offset); // only composite color channel
-											} else { //vertical pair
-												tcorr_combo[TCORR_COMBO_VERT][i] *= (tcorr_partial[pair][numcol][i] + corr_offset); // only composite color channel
-											}
-											if (debugMax) {
-												System.out.println("tcorr_combo[TCORR_COMBO_RSLT]["+i+"]="+tcorr_combo[TCORR_COMBO_RSLT][i]+" tcorr_partial["+pair+"]["+numcol+"]["+i+"]="+tcorr_partial[pair][numcol][i]);
-											}
-										}
-										if (corr_normalize) {
-											if (tcorr_combo[TCORR_COMBO_RSLT][i] > 0.0){
-												tcorr_combo[TCORR_COMBO_RSLT][i] = Math.pow(tcorr_combo[TCORR_COMBO_RSLT][i],avScale) - corr_offset;
-											} else {
-												tcorr_combo[TCORR_COMBO_RSLT][i] =  -corr_offset;
-											}
-
-											if (tcorr_combo[TCORR_COMBO_HOR][i] > 0.0){
-												tcorr_combo[TCORR_COMBO_HOR][i] = Math.pow(tcorr_combo[TCORR_COMBO_HOR][i],avScaleHor) - corr_offset;
-											} else {
-												tcorr_combo[TCORR_COMBO_HOR][i] =  -corr_offset;
-											}
-
-											if (tcorr_combo[TCORR_COMBO_VERT][i] > 0.0){
-												tcorr_combo[TCORR_COMBO_VERT][i] = Math.pow(tcorr_combo[TCORR_COMBO_VERT][i],avScaleVert) - corr_offset;
-											} else {
-												tcorr_combo[TCORR_COMBO_VERT][i] =  -corr_offset;
-											}
-										}
-									}
-								}
-								// calculate sum also
-								for (int i = 0; i < tcorr_combo[TCORR_COMBO_SUM].length; i++){
-									tcorr_combo[TCORR_COMBO_SUM][i] = 0.0;
-									for (int pair = 0; pair < CORR_PAIRS.length; pair++) if (((corr_mask >> pair) & 1) != 0){
-										tcorr_combo[TCORR_COMBO_SUM][i] += avScale*tcorr_partial[pair][numcol][i]; // only composite color channel
-										if (debugMax) {
-											System.out.println("tcorr_combo[TCORR_COMBO_SUM]["+i+"]="+tcorr_combo[TCORR_COMBO_SUM][i]+" tcorr_partial["+pair+"]["+numcol+"]["+i+"]="+tcorr_partial[pair][numcol][i]);
-										}
-									}
-								}
-								// return results
-								for (int n = 0; n < clt_corr_combo.length; n++){ // tcorr_combo now may be longer than clt_corr_combo
-									clt_corr_combo[n][tileY][tileX] = tcorr_combo[n];
-								}
-								if (clt_corr_partial != null){
-									clt_corr_partial[tileY][tileX] = tcorr_partial;
-								}
-
-							} // if (numPairs > 0) {
-
-						} // end of if (clt_corr_combo != null)
-
-						*/
 
 
 						if (texture_tiles !=null) {

@@ -1666,7 +1666,7 @@ public class Corr2dLMA {
 			if (Double.isNaN(maxmin_amp[tile][0])) {
 				continue;
 			}
-			double avg = 0.5*(maxmin_amp[tile][0]+maxmin_amp[tile][1]);
+			double avg = 0.50*(maxmin_amp[tile][0]+maxmin_amp[tile][1]);
 			double rrms = rms[tile]/avg;
 			if (((lma_max_rel_rms > 0.0) && (rrms > lma_max_rel_rms)) ||
 					(Math.max(abc[tile][0], abc[tile][2]) < lma_min_max_ac)

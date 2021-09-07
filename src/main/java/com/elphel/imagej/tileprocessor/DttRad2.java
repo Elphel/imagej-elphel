@@ -1135,6 +1135,10 @@ public class DttRad2 {
 		}
 	}
 
+	public void setup_CSIIe(int maxN){
+		setup_CIIe(maxN);
+		setup_SIIe(maxN);
+	}
 	private void setup_SIIe(int maxN){
 		if (maxN > N) setup_arrays(maxN);
 		int l = ilog2(N);

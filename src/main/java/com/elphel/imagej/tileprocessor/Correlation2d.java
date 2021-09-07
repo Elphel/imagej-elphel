@@ -753,6 +753,7 @@ public class Correlation2d {
     	this.numSensors = numSensors;
     	this.monochrome = monochrome;
     	this.dtt = new DttRad2(transform_size);
+    	this.dtt.setup_CSIIe(transform_size); // common for multiple threads, initializing on demand fails
     	this.transform_size = transform_size;
     	this.transform_len = transform_size * transform_size;
     	this.corr_size = transform_size * 2 -1;
@@ -799,6 +800,7 @@ public class Correlation2d {
     	this.numSensors = numSensors;
     	this.monochrome = monochrome;
     	this.dtt = new DttRad2(transform_size);
+    	this.dtt.setup_CSIIe(transform_size); // common for multiple threads, initializing on demand fails
     	this.transform_size = transform_size;
     	this.transform_len = transform_size * transform_size;
     	this.corr_size = transform_size * 2 -1;
