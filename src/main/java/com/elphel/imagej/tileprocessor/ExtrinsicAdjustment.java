@@ -30,22 +30,20 @@ import Jama.Matrix;
  */
 
 
-
-
 public class ExtrinsicAdjustment {
+	/*
 	static final int NUM_SENSORS =   4;
-
 	static final int INDX_DISP =     0; // composite
 	static final int INDX_STRENGTH = 1;
-	static final int INDX_X0 =       2;
+	static final int INDX_X0 =       2; // 2 * NUM_SENSORS long
 	static final int INDX_TARGET =  10; // target disparity
 	static final int INDX_DIFF =    11; // differential disparity (now w/o magic composite =target + diff)
-	static final int INDX_DYDDISP0 =12; // derivative of pixel y over disparity (for ERS)
-	static final int INDX_PX =      16;
-	static final int INDX_DD0 =     18;
-	static final int INDX_ND0 =     22;
+	static final int INDX_DYDDISP0 =12; // derivative of pixel y over disparity (for ERS) NUM_SENSORS long
+	static final int INDX_PX =      16; // 2 ?
+	static final int INDX_DD0 =     18; // NUM_SENSORS long
+	static final int INDX_ND0 =     22; // NUM_SENSORS long
 	static final int INDX_PYDIST =  26; // average pY to calculate ERS time difference
-	static final int INDX_LENGTH =  26 + 4;
+	static final int INDX_LENGTH =  26 + 4; // total length
 	static final int POINTS_SAMPLE = 2 * NUM_SENSORS +1; // points per sample residual disparity, 4*dd, *nd
 	static final String [] DATA_TITLES = {
 			"Disparity", "Strength",
@@ -56,7 +54,41 @@ public class ExtrinsicAdjustment {
 			"DD-0", "DD-1","DD-2","DD-3",
 			"ND-0", "ND-1","ND-2","ND-3",
 			"pY0",  "pY1", "pY2", "pY3"};
-
+    */
+	// changing values to consolidate fixed values (not dependent on the number of sensors to use static)
+//    static final int NUM_SENSORS =   4;
+	static final int INDX_DISP =     0; // composite
+	static final int INDX_STRENGTH = 1;
+	static final int INDX_TARGET =   2; // target disparity
+	static final int INDX_DIFF =     3; // differential disparity (now w/o magic composite =target + diff)
+	static final int INDX_PX =       4; // 4,5
+	static final int INDX_X0 =       6; // 2 * NUM_SENSORS long
+	// keep static for above, replace non-static 
+//	static final int INDX_DYDDISP0 =14; // derivative of pixel y over disparity (for ERS) NUM_SENSORS long
+//	static final int INDX_DD0 =     18; // NUM_SENSORS long
+//	static final int INDX_ND0 =     22; // NUM_SENSORS long
+//	static final int INDX_PYDIST =  26; // average pY to calculate ERS time difference
+//	static final int INDX_LENGTH =  26 + 4; // total length
+//	static final int POINTS_SAMPLE = 2 * NUM_SENSORS +1; // points per sample residual disparity, 4*dd, *nd
+	
+	final int indx_dyddisp0; //INDX_X0 + 2 * num_sensors  =14; // derivative of pixel y over disparity (for ERS) NUM_SENSORS long
+	final int indx_dd0; //  =     18; // NUM_SENSORS long
+	final int indx_nd0; //  =     22; // NUM_SENSORS long
+	final int indx_pydist; //  =  26; // average pY to calculate ERS time difference
+	final int indx_length; //  =  26 + 4; // total length
+	final int points_sample; //  = 2 * NUM_SENSORS +1; // points per sample residual disparity, 4*dd, *nd
+	final String [] data_titles; 
+	/*
+	static final String [] DATA_TITLES = {
+			"Disparity", "Strength",
+			"DX-0","DY-0","DX-1","DY-1","DX-2","DY-2","DX-3","DY-3",
+			"Target Disparity","Diff. Disparity",
+			"dY_dD-0","dY_dD-1","dY_dD-2","dY_dD-3",
+			"pX","pY",
+			"DD-0", "DD-1","DD-2","DD-3",
+			"ND-0", "ND-1","ND-2","ND-3",
+			"pY0",  "pY1", "pY2", "pY3"};
+	*/
 	// next values are only updated after success
 	private double []         last_rms =        null; // {rms, rms_pure}, matching this.vector
 	private double []         good_or_bad_rms = null; // just for diagnostics, to read last (failed) rms
@@ -77,10 +109,12 @@ public class ExtrinsicAdjustment {
 	private double[][]        world_xyz =       null;
 	private double []         weight_window =   null; // center area is more reliable
 
-	public GeometryCorrection geometryCorrection = null;
+	public final GeometryCorrection geometryCorrection;
 	public int clusterSize;
 	public int clustersX;
 	public int clustersY;
+	
+	public final int num_sensors;
 	
 	public double dbg_delta = 0; // 1.0E-5; // if not 0 - use delta instead of the derivatives in getJacobianTransposed
 
@@ -99,28 +133,90 @@ public class ExtrinsicAdjustment {
 		return on_rms;
 	}
 
+	/*
+	final int indx_dyddisp0; //INDX_X0 + 2 * num_sensors  =14; // derivative of pixel y over disparity (for ERS) NUM_SENSORS long
+	final int indx_dd0; //  =     18; // NUM_SENSORS long
+	final int indx_nd0; //  =     22; // NUM_SENSORS long
+	final int indx_pydist; //  =  26; // average pY to calculate ERS time difference
+	final int indx_length; //  =  26 + 4; // total length
+	final int points_sample; //  = 2 * NUM_SENSORS +1; // points per sample residual disparity, 4*dd, *nd
+//	static final int INDX_DYDDISP0 =14; // derivative of pixel y over disparity (for ERS) NUM_SENSORS long
+//	static final int INDX_DD0 =     18; // NUM_SENSORS long
+//	static final int INDX_ND0 =     22; // NUM_SENSORS long
+//	static final int INDX_PYDIST =  26; // average pY to calculate ERS time difference
+//	static final int INDX_LENGTH =  26 + 4; // total length
+	static final int POINTS_SAMPLE = 2 * NUM_SENSORS +1; // points per sample residual disparity, 4*dd, *nd
+	
+	 */
+	public static int get_INDX_DYDDISP0(int num_sensors) {return INDX_X0 + 2 * num_sensors;}
+	public static int get_INDX_DD0     (int num_sensors) {return INDX_X0 + 3 * num_sensors;}
+	public static int get_INDX_ND0     (int num_sensors) {return INDX_X0 + 4 * num_sensors;}
+	public static int get_INDX_PYDIST  (int num_sensors) {return INDX_X0 + 5 * num_sensors;}
+	public static int get_INDX_LENGTH  (int num_sensors) {return INDX_X0 + 6 * num_sensors;}
+	public static int get_POINTS_SAMPLE(int num_sensors) {return 2 * num_sensors + 1;}
+	
 	public ExtrinsicAdjustment (
 			GeometryCorrection gc,
 			int         clusterSize,
 	  		int         clustersX,
 	  		int         clustersY) {
-		geometryCorrection = gc;
+		this.geometryCorrection = gc;
+		this.num_sensors = gc.getNumSensors();
 		this.clusterSize = clusterSize;
-		this.clustersX = clustersX;
-		this.clustersY = clustersY;
+		this.clustersX =   clustersX;
+		this.clustersY =   clustersY;
+		
+		indx_dyddisp0 = get_INDX_DYDDISP0(num_sensors); // = 14; // derivative of pixel y over disparity (for ERS) NUM_SENSORS long
+		indx_dd0 =      get_INDX_DD0     (num_sensors); // = 18; // NUM_SENSORS long
+		indx_nd0 =      get_INDX_ND0     (num_sensors); // = 22; // NUM_SENSORS long
+		indx_pydist =   get_INDX_PYDIST  (num_sensors); // = 26; // average pY to calculate ERS time difference
+		indx_length =   get_INDX_LENGTH  (num_sensors); // = 26 + 4; // total length
+		points_sample = get_POINTS_SAMPLE(num_sensors); // = 2 * NUM_SENSORS +1; //points per sample residual disparity, 4*dd, *nd
+		data_titles = new String[indx_length];
+		String [] titles_static = {"Disparity", "Strength",
+				"Target Disparity","Diff. Disparity",
+				"pX","pY"};
+		int indx = 0;
+		for (int i = 0; i < titles_static.length; i++) {
+			data_titles[indx++] = titles_static[i];
+		}
+		for (int i = 0; i < num_sensors; i++) {
+			data_titles[indx++] = "DX-"+i;
+			data_titles[indx++] = "DY-"+i;
+		}
+		for (int i = 0; i < num_sensors; i++) {
+			data_titles[indx++] = "dY_dD-"+i;
+		}
+		for (int i = 0; i < num_sensors; i++) {
+			data_titles[indx++] = "DD-"+i;
+		}
+		for (int i = 0; i < num_sensors; i++) {
+			data_titles[indx++] = "ND-"+i;
+		}
+		for (int i = 0; i < num_sensors; i++) {
+			data_titles[indx++] = "pY"+i;
+		}
 	}
 
 	public void showInput(double[][] data, String title) {
 		int clusters = clustersX * clustersY;
-		double [][] pixels = new double [ExtrinsicAdjustment.INDX_LENGTH+4][clusters];
-		String [] titles = new String[ExtrinsicAdjustment.INDX_LENGTH+4];
-		for (int i = 0; i < ExtrinsicAdjustment.INDX_LENGTH; i++) {
-			titles[i] = ExtrinsicAdjustment.DATA_TITLES[i];
+//		double [][] pixels = new double [ExtrinsicAdjustment.INDX_LENGTH+4][clusters];
+//		String [] titles = new String[ExtrinsicAdjustment.INDX_LENGTH+4];
+//		for (int i = 0; i < ExtrinsicAdjustment.INDX_LENGTH; i++) {
+		double [][] pixels = new double [indx_length + 4][clusters];
+		String [] titles =  new String[indx_length + 4];
+			for (int i = 0; i < indx_length; i++) {
+			//			titles[i] = ExtrinsicAdjustment.DATA_TITLES[i];
+			titles[i] = data_titles[i];
 		}
-		titles[ExtrinsicAdjustment.INDX_LENGTH+0]="Force_disparity";
-		titles[ExtrinsicAdjustment.INDX_LENGTH+1]="dx-sum";
-		titles[ExtrinsicAdjustment.INDX_LENGTH+2]="dy_sum";
-		titles[ExtrinsicAdjustment.INDX_LENGTH+3]="dd_sum";
+//		titles[ExtrinsicAdjustment.INDX_LENGTH+0]="Force_disparity";
+//		titles[ExtrinsicAdjustment.INDX_LENGTH+1]="dx-sum";
+//		titles[ExtrinsicAdjustment.INDX_LENGTH+2]="dy_sum";
+//		titles[ExtrinsicAdjustment.INDX_LENGTH+3]="dd_sum";
+		titles[indx_length+0]="Force_disparity";
+		titles[indx_length+1]="dx-sum";
+		titles[indx_length+2]="dy_sum";
+		titles[indx_length+3]="dd_sum";
 		
 		for (int cluster = 0; cluster < clusters; cluster++) {
 			if (data[cluster] != null) {
@@ -128,9 +224,12 @@ public class ExtrinsicAdjustment {
 					pixels[c][cluster] = data[cluster][c];
 				}
 				for (int i = 0;i <4; i++) {
-					pixels[ExtrinsicAdjustment.INDX_LENGTH+1][cluster] += 0.25 * data[cluster][ExtrinsicAdjustment.INDX_X0 + 2 * i];
-					pixels[ExtrinsicAdjustment.INDX_LENGTH+2][cluster] += 0.25 * data[cluster][ExtrinsicAdjustment.INDX_X0 + 2 * i + 1];
-					pixels[ExtrinsicAdjustment.INDX_LENGTH+3][cluster] += 0.25 * data[cluster][ExtrinsicAdjustment.INDX_DD0 + i];
+//					pixels[ExtrinsicAdjustment.INDX_LENGTH+1][cluster] += 0.25 * data[cluster][ExtrinsicAdjustment.INDX_X0 + 2 * i];
+//					pixels[ExtrinsicAdjustment.INDX_LENGTH+2][cluster] += 0.25 * data[cluster][ExtrinsicAdjustment.INDX_X0 + 2 * i + 1];
+//					pixels[ExtrinsicAdjustment.INDX_LENGTH+3][cluster] += 0.25 * data[cluster][ExtrinsicAdjustment.INDX_DD0 + i];
+					pixels[indx_length+1][cluster] += 0.25 * data[cluster][INDX_X0 + 2 * i];
+					pixels[indx_length+2][cluster] += 0.25 * data[cluster][INDX_X0 + 2 * i + 1];
+					pixels[indx_length+3][cluster] += 0.25 * data[cluster][indx_dd0 + i];
 				}
 			} else {
 				for (int c = 0; c < pixels.length; c++) {
@@ -139,7 +238,8 @@ public class ExtrinsicAdjustment {
 				}
 			}
 			if (force_disparity!=null) {
-				pixels[ExtrinsicAdjustment.INDX_LENGTH][cluster] = force_disparity[cluster]?1.0:0.0;
+//				pixels[ExtrinsicAdjustment.INDX_LENGTH][cluster] = force_disparity[cluster]?1.0:0.0;
+				pixels[indx_length][cluster] = force_disparity[cluster]?1.0:0.0;
 			}
 		}
 		 (new ShowDoubleFloatArrays()).showArrays(
@@ -150,7 +250,7 @@ public class ExtrinsicAdjustment {
 				 title,
 				 titles); //ExtrinsicAdjustment.DATA_TITLES);
 	}
-
+	/*
 	public static void showLYInput(
 			double[][] data,
 			String     title,
@@ -161,6 +261,8 @@ public class ExtrinsicAdjustment {
 		String [] titles = new String[ExtrinsicAdjustment.INDX_LENGTH+3];
 		for (int i = 0; i < ExtrinsicAdjustment.INDX_LENGTH; i++) {
 			titles[i] = ExtrinsicAdjustment.DATA_TITLES[i];
+//			titles[i] = data_titles[i];
+
 		}
 		titles[ExtrinsicAdjustment.INDX_LENGTH+0]="dx-sum";
 		titles[ExtrinsicAdjustment.INDX_LENGTH+1]="dy_sum";
@@ -191,7 +293,7 @@ public class ExtrinsicAdjustment {
 				 title,
 				 titles); //ExtrinsicAdjustment.DATA_TITLES);
 	}
-	
+	*/
 	
 	private void showX0Y0(double [][] xy0, String title) {
 		String [] titles = {"xnd-0","ynd-0","xnd-1","ynd-1","xnd-2","ynd-2","xnd-3","ynd-3"};
@@ -483,18 +585,15 @@ public class ExtrinsicAdjustment {
 			}
 			if (measured_dsxy[cluster] != null) {
 				if (set_dydisp) {
-///					dy_ddisparity[cluster] = new double[NUM_SENSORS];
-					pY_offset [cluster] = new double[NUM_SENSORS];
+					pY_offset [cluster] = new double[num_sensors];
 					double lines_avg = 0;
-					for (int i = 0; i < NUM_SENSORS; i++) {
-///						dy_ddisparity[cluster][i] = measured_dsxy[cluster][INDX_DYDDISP0 + i];
+					for (int i = 0; i < num_sensors; i++) {
 						// find average time
-//						pY_offset[cluster][i] =  measured_dsxy[cluster][INDX_PYDIST + i] - py_time0[i];
-						pY_offset[cluster][i] =  measured_dsxy[cluster][INDX_PYDIST + i] - top_woi[i]; // time (scanlines) since frame start
+						pY_offset[cluster][i] =  measured_dsxy[cluster][indx_pydist + i] - top_woi[i]; // time (scanlines) since frame start
 						lines_avg += pY_offset[cluster][i]; 
 					}
-					lines_avg /= NUM_SENSORS;
-					for (int i = 0; i < NUM_SENSORS; i++) {
+					lines_avg /= num_sensors;
+					for (int i = 0; i < num_sensors; i++) {
 						pY_offset[cluster][i] -=  lines_avg;
 					}
 					
@@ -540,7 +639,7 @@ public class ExtrinsicAdjustment {
 		int clusters = clustersX * clustersY;
 		double rms = 0, rms_pure = 0;
 		for (int cluster = 0; cluster < clusters;  cluster++) if (measured_dsxy[cluster] != null){
-			int indx0 = POINTS_SAMPLE * cluster + 0;
+			int indx0 = points_sample * cluster + 0;
 			// force_disparity - compensate measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DIFF],
 			// false - keep (so force fx==0
 			double d = - fx[indx0];
@@ -549,13 +648,15 @@ public class ExtrinsicAdjustment {
 				}
 			fx[indx0] = this.weights[indx0] * d;
 			rms += fx[indx0]*d; // sum of weights
-			for (int cam = 0; cam < NUM_SENSORS; cam++) {
+			for (int cam = 0; cam < num_sensors; cam++) {
 				int indx = indx0 + cam + 1;
-				d = (-measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + cam] - fx[indx]);
+//				d = (-measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + cam] - fx[indx]);
+				d = (-measured_dsxy[cluster][indx_dd0 + cam] - fx[indx]);
 				fx[indx] = this.weights[indx] * d;
 				rms += fx[indx] * d; // sum of weights
 				indx = indx0 + cam + 5; // nd
-				d = (-measured_dsxy[cluster][ExtrinsicAdjustment.INDX_ND0 + cam] - fx[indx]);
+//				d = (-measured_dsxy[cluster][ExtrinsicAdjustment.INDX_ND0 + cam] - fx[indx]);
+				d = (-measured_dsxy[cluster][indx_nd0 + cam] - fx[indx]);
 				fx[indx] = this.weights[indx] * d;
 				rms += fx[indx] * d; // sum of weights
 			}
@@ -566,7 +667,7 @@ public class ExtrinsicAdjustment {
 		double [] rslt = {rms, rms_pure};
 		return rslt;
 	}
-	
+	/*
 	@Deprecated
 	private double [] getWeightWindowOld(double marg_fraction) { // 0.0 - no margins, 1.0 - pure cosine
 		double mf_hor =  marg_fraction;
@@ -610,8 +711,8 @@ public class ExtrinsicAdjustment {
 			}
 		}
 		return w;
-
 	}
+	*/
 
 	private double [] getWeightWindow(
 			double marg_fraction, // 0.0 - no margins, 1.0 - pure cosine
@@ -827,8 +928,8 @@ public class ExtrinsicAdjustment {
 		double swf = 0.0;
 		int clusters = clustersX * clustersY;
 		for (int cluster = 0; cluster < clusters; cluster++) if (measured_dsxy[cluster] != null){
-			for (int i = 0; i < POINTS_SAMPLE; i++) {
-				int indx = cluster * POINTS_SAMPLE + i;
+			for (int i = 0; i < points_sample; i++) {
+				int indx = cluster * points_sample + i;
 				sw += weights[indx];
 				if (fg[cluster]) {
 					swf += weights[indx];
@@ -843,8 +944,8 @@ public class ExtrinsicAdjustment {
 			double k_fg = fg_boost_fraction/swf;
 			double k_bg = (1.0 - fg_boost_fraction)/(1.0 - swf);
 			for (int cluster = 0; cluster < clusters; cluster++) if (measured_dsxy[cluster] != null){
-				for (int i = 0; i < POINTS_SAMPLE; i++) {
-					int indx = cluster * POINTS_SAMPLE + i;
+				for (int i = 0; i < points_sample; i++) {
+					int indx = cluster * points_sample + i;
 					weights[indx] *= fg[cluster] ? k_fg : k_bg;
 				}
 			}
@@ -863,12 +964,12 @@ public class ExtrinsicAdjustment {
 		for (int cluster = 0; cluster < clusters; cluster++) if (measured_dsxy[cluster] != null){
 			double disparity = measured_dsxy[cluster][ExtrinsicAdjustment.INDX_TARGET]; // INDX_DISP];
 			if (disparity <= max_disparity) {
-				for (int i = 0; i < POINTS_SAMPLE; i++) {
-					sw_near += weights[cluster * POINTS_SAMPLE + i];
+				for (int i = 0; i < points_sample; i++) {
+					sw_near += weights[cluster * points_sample + i];
 				}
 			}
-			for (int i = 0; i < POINTS_SAMPLE; i++) {
-				sw += weights[cluster * POINTS_SAMPLE + i];
+			for (int i = 0; i < points_sample; i++) {
+				sw += weights[cluster * points_sample + i];
 			}
 		}
 		
@@ -877,12 +978,12 @@ public class ExtrinsicAdjustment {
 			for (int cluster = 0; cluster < clusters; cluster++) if (measured_dsxy[cluster] != null){
 				double disparity = measured_dsxy[cluster][ExtrinsicAdjustment.INDX_TARGET]; // INDX_DISP];
 				if (disparity <= max_disparity) {
-					for (int i = 0; i < POINTS_SAMPLE; i++) {
-						weights[cluster * POINTS_SAMPLE + i] *= wboost;
+					for (int i = 0; i < points_sample; i++) {
+						weights[cluster * points_sample + i] *= wboost;
 					}
 				} else {
-					for (int i = 0; i < POINTS_SAMPLE; i++) {
-						weights[cluster * POINTS_SAMPLE + i] = 0;
+					for (int i = 0; i < points_sample; i++) {
+						weights[cluster * points_sample + i] = 0;
 					}
 				}
 			}
@@ -947,12 +1048,12 @@ public class ExtrinsicAdjustment {
 		int clusters = clustersX * clustersY;
 		for (int cluster = 0; cluster < clusters; cluster++) if (measured_dsxy[cluster] != null){
 			if (!prohibit[cluster]) {
-				for (int i = 0; i < POINTS_SAMPLE; i++) {
-					sw_en += weights[cluster * POINTS_SAMPLE + i];
+				for (int i = 0; i < points_sample; i++) {
+					sw_en += weights[cluster * points_sample + i];
 				}
 			}
-			for (int i = 0; i < POINTS_SAMPLE; i++) {
-				sw += weights[cluster * POINTS_SAMPLE + i];
+			for (int i = 0; i < points_sample; i++) {
+				sw += weights[cluster * points_sample + i];
 			}
 		}
 		
@@ -960,12 +1061,12 @@ public class ExtrinsicAdjustment {
 			double wboost = sw/sw_en;
 			for (int cluster = 0; cluster < clusters; cluster++) if (measured_dsxy[cluster] != null){
 				if (!prohibit[cluster]) {
-					for (int i = 0; i < POINTS_SAMPLE; i++) {
-						weights[cluster * POINTS_SAMPLE + i] *= wboost;
+					for (int i = 0; i < points_sample; i++) {
+						weights[cluster * points_sample + i] *= wboost;
 					}
 				} else {
-					for (int i = 0; i < POINTS_SAMPLE; i++) {
-						weights[cluster * POINTS_SAMPLE + i] = 0;
+					for (int i = 0; i < points_sample; i++) {
+						weights[cluster * points_sample + i] = 0;
 					}
 				}
 			}
@@ -980,11 +1081,11 @@ public class ExtrinsicAdjustment {
 			boolean [] filtered_infinity,
 			int min_num_forced,  // if number of forced samples exceeds this, zero out weights of non-forced
 			double weight_disparity, // now 0.0 - 1.0 fraction of disparity in all samples
-			double weight_lazyeye)   // relative weight of disparity to 1/POINTS_SAMPLE 
+			double weight_lazyeye)   // relative weight of disparity to 1/points_sample 
 	{
 //		weight_disparity =.5; // FIXME: Fix!
 		int clusters = clustersX * clustersY;
-		double [] weights = new double  [clusters * POINTS_SAMPLE];
+		double [] weights = new double  [clusters * points_sample];
 		boolean [] disable = new boolean [clusters];
 		if (filtered_infinity != null) {
 			for (int cluster = 0; cluster < clusters;  cluster++)	{
@@ -1013,12 +1114,12 @@ public class ExtrinsicAdjustment {
 		if (use_forced) {
 			// disparity weight non-zero only for infinity, non-disparity - equal scale for all
 			k_inf_disp = weight_disparity / swf;
-			k_inf_ly = (1.0 - weight_disparity) / sw / (POINTS_SAMPLE - 1);
+			k_inf_ly = (1.0 - weight_disparity) / sw / (points_sample - 1);
 			k_other_disp = 0.0;
 			k_other_ly = k_inf_ly;
 		} else {
-			k_other_disp = weight_lazyeye / sw / POINTS_SAMPLE;
-			k_other_ly = (1.0 - weight_lazyeye/POINTS_SAMPLE) / (POINTS_SAMPLE - 1) / sw;
+			k_other_disp = weight_lazyeye / sw / points_sample;
+			k_other_ly = (1.0 - weight_lazyeye/points_sample) / (points_sample - 1) / sw;
 			k_inf_disp = k_other_disp; 
 			k_inf_ly = k_other_ly;
 		}
@@ -1026,14 +1127,14 @@ public class ExtrinsicAdjustment {
 		for (int cluster = 0; cluster < clusters;  cluster++) if ((measured_dsxy[cluster] != null) && !disable[cluster]){
 			double s = measured_dsxy[cluster][ExtrinsicAdjustment.INDX_STRENGTH] * weight_window[cluster]; // cluster weight
 			if ((force_disparity != null) && force_disparity[cluster]) {
-				weights[cluster * POINTS_SAMPLE + 0] = s * k_inf_disp;
-				for (int i = 1; i < POINTS_SAMPLE; i++) {
-					weights[cluster * POINTS_SAMPLE + i] = s * k_inf_ly;
+				weights[cluster * points_sample + 0] = s * k_inf_disp;
+				for (int i = 1; i < points_sample; i++) {
+					weights[cluster * points_sample + i] = s * k_inf_ly;
 				}
 			} else {
-				weights[cluster * POINTS_SAMPLE + 0] = s * k_other_disp;
-				for (int i = 1; i < POINTS_SAMPLE; i++) {
-					weights[cluster * POINTS_SAMPLE + i] = s * k_other_ly;
+				weights[cluster * points_sample + 0] = s * k_other_disp;
+				for (int i = 1; i < points_sample; i++) {
+					weights[cluster * points_sample + i] = s * k_other_ly;
 				}
 			}
 		}		
@@ -1100,7 +1201,7 @@ public class ExtrinsicAdjustment {
 			double max_disparity_use) // do not process near objects to avoid ERS
 	{
 		int clusters = clustersX * clustersY;
-		double [] weights = new double  [clusters * POINTS_SAMPLE];
+		double [] weights = new double  [clusters * points_sample];
 		double [][] strength = new double [2][clusters]; // 0 - for disparity, 1 - for ly
 		boolean [] disable = new boolean [clusters];
 		if (filtered_infinity != null) {
@@ -1141,13 +1242,13 @@ public class ExtrinsicAdjustment {
 		}
 		if (use_forced) {
 			k_inf_disp =   weight_infinity / swf;
-			k_inf_ly =     weight_infinity / swf / (POINTS_SAMPLE - 1);
+			k_inf_ly =     weight_infinity / swf / (points_sample - 1);
 			k_other_disp = (1.0 - weight_infinity) / (sw - swf);
-			k_other_ly =   (1.0 - weight_infinity) / (sw - swf) / (POINTS_SAMPLE - 1);
+			k_other_ly =   (1.0 - weight_infinity) / (sw - swf) / (points_sample - 1);
 			
 		} else {
 			k_other_disp = 1.0  / sw;
-			k_other_ly =   1.0 / sw / (POINTS_SAMPLE - 1);
+			k_other_ly =   1.0 / sw / (points_sample - 1);
 			k_inf_disp =   k_other_disp; 
 			k_inf_ly =     k_other_ly;
 		}
@@ -1156,14 +1257,14 @@ public class ExtrinsicAdjustment {
 			double sd = strength[0][cluster];
 			double sly =strength[1][cluster];
 			if ((force_disparity != null) && force_disparity[cluster]) {
-				weights[cluster * POINTS_SAMPLE + 0] = sd * k_inf_disp;
-				for (int i = 1; i < POINTS_SAMPLE; i++) {
-					weights[cluster * POINTS_SAMPLE + i] = sly * k_inf_ly;
+				weights[cluster * points_sample + 0] = sd * k_inf_disp;
+				for (int i = 1; i < points_sample; i++) {
+					weights[cluster * points_sample + i] = sly * k_inf_ly;
 				}
 			} else {
-				weights[cluster * POINTS_SAMPLE + 0] = sd * k_other_disp;
-				for (int i = 1; i < POINTS_SAMPLE; i++) {
-					weights[cluster * POINTS_SAMPLE + i] = sly * k_other_ly;
+				weights[cluster * points_sample + 0] = sd * k_other_disp;
+				for (int i = 1; i < points_sample; i++) {
+					weights[cluster * points_sample + i] = sly * k_other_ly;
 				}
 			}
 		}		
@@ -1186,7 +1287,7 @@ public class ExtrinsicAdjustment {
 	{
 		int clusters = clustersX * clustersY;
 	    double half_width = 0.5 * clustersX;
-		double [] weights = new double  [clusters * POINTS_SAMPLE];
+		double [] weights = new double  [clusters * points_sample];
 		double [][] strength = new double [2][clusters]; // 0 - for disparity, 1 - for ly
 		boolean [] disable = new boolean [clusters];
 		if (filtered_infinity != null) {
@@ -1233,13 +1334,13 @@ public class ExtrinsicAdjustment {
 		}
 		if (use_forced) {
 			k_inf_disp =   weight_infinity / swf;
-			k_inf_ly =     weight_infinity / swf / (POINTS_SAMPLE - 1);
+			k_inf_ly =     weight_infinity / swf / (points_sample - 1);
 			k_other_disp = (1.0 - weight_infinity) / (sw - swf);
-			k_other_ly =   (1.0 - weight_infinity) / (sw - swf) / (POINTS_SAMPLE - 1);
+			k_other_ly =   (1.0 - weight_infinity) / (sw - swf) / (points_sample - 1);
 			
 		} else {
 			k_other_disp = 1.0  / sw;
-			k_other_ly =   1.0 / sw / (POINTS_SAMPLE - 1);
+			k_other_ly =   1.0 / sw / (points_sample - 1);
 			k_inf_disp =   k_other_disp; 
 			k_inf_ly =     k_other_ly;
 		}
@@ -1248,14 +1349,14 @@ public class ExtrinsicAdjustment {
 			double sd = strength[0][cluster];
 			double sly =strength[1][cluster];
 			if ((force_disparity != null) && force_disparity[cluster]) {
-				weights[cluster * POINTS_SAMPLE + 0] = sd * k_inf_disp;
-				for (int i = 1; i < POINTS_SAMPLE; i++) {
-					weights[cluster * POINTS_SAMPLE + i] = sly * k_inf_ly;
+				weights[cluster * points_sample + 0] = sd * k_inf_disp;
+				for (int i = 1; i < points_sample; i++) {
+					weights[cluster * points_sample + i] = sly * k_inf_ly;
 				}
 			} else {
-				weights[cluster * POINTS_SAMPLE + 0] = sd * k_other_disp;
-				for (int i = 1; i < POINTS_SAMPLE; i++) {
-					weights[cluster * POINTS_SAMPLE + i] = sly * k_other_ly;
+				weights[cluster * points_sample + 0] = sd * k_other_disp;
+				for (int i = 1; i < points_sample; i++) {
+					weights[cluster * points_sample + i] = sly * k_other_ly;
 				}
 			}
 		}
@@ -1268,10 +1369,10 @@ public class ExtrinsicAdjustment {
 			for (int cluster = 0; cluster < clusters;  cluster++) {
 				if ((measured_dsxy[cluster] != null) && force_disparity[cluster] && !disable[cluster]){
 					double x = cluster % clustersX;
-					double wd = weights[cluster * POINTS_SAMPLE + 0];
+					double wd = weights[cluster * points_sample + 0];
 					double wly = 0;
-					for (int i = 1; i < POINTS_SAMPLE; i++) {
-						wly += weights[cluster * POINTS_SAMPLE + i];
+					for (int i = 1; i < points_sample; i++) {
+						wly += weights[cluster * points_sample + i];
 					}
 					if (x >= half_width) {
 						swdr += wd;
@@ -1290,14 +1391,14 @@ public class ExtrinsicAdjustment {
 				if ((measured_dsxy[cluster] != null) && force_disparity[cluster] && !disable[cluster]){
 					double x = cluster % clustersX;
 					if (x >= half_width) {
-						weights[cluster * POINTS_SAMPLE + 0] *= kwdr;
-						for (int i = 1; i < POINTS_SAMPLE; i++) {
-							weights[cluster * POINTS_SAMPLE + i] *= kwlyr;
+						weights[cluster * points_sample + 0] *= kwdr;
+						for (int i = 1; i < points_sample; i++) {
+							weights[cluster * points_sample + i] *= kwlyr;
 						}
 					} else {
-						weights[cluster * POINTS_SAMPLE + 0] *= kwdl;
-						for (int i = 1; i < POINTS_SAMPLE; i++) {
-							weights[cluster * POINTS_SAMPLE + i] *= kwlyl;
+						weights[cluster * points_sample + 0] *= kwdl;
+						for (int i = 1; i < points_sample; i++) {
+							weights[cluster * points_sample + i] *= kwlyl;
 						}
 					}
 				}
@@ -1353,7 +1454,7 @@ public class ExtrinsicAdjustment {
 		Matrix []   corr_rots =  corr_vector.getRotMatrices(); // get array of per-sensor rotation matrices
 		Matrix [][] deriv_rots = corr_vector.getRotDeriveMatrices();
 		double [] imu = corr_vector.getIMU(); // i)
-		double [] y_minus_fx = new double  [clusters * POINTS_SAMPLE];
+		double [] y_minus_fx = new double  [clusters * points_sample];
 		for (int cluster = 0; cluster < clusters;  cluster++) {
 			if (measured_dsxy[cluster] != null){
 				double [] ddnd = geometryCorrection.getPortsDDNDAndDerivativesNew( // USED in lwir
@@ -1372,11 +1473,11 @@ public class ExtrinsicAdjustment {
 				//arraycopy(Object src, int srcPos, Object dest, int destPos, int length)
 				//		    System.arraycopy(src_pixels, 0, dst_pixels, 0, src_pixels.length); /* for the borders closer to 1/2 kernel size*/
 				ddnd[0] = ddnd[0]; // ?
-				for (int i = 0; i < NUM_SENSORS; i++) {
+				for (int i = 0; i < num_sensors; i++) {
 					ddnd[i + 1] = ddnd[i + 1];
 					ddnd[i + 5] = ddnd[i + 5];
 				}
-				System.arraycopy(ddnd, 0, y_minus_fx, cluster*POINTS_SAMPLE, POINTS_SAMPLE);
+				System.arraycopy(ddnd, 0, y_minus_fx, cluster*points_sample, points_sample);
 			}
 		}
 		return y_minus_fx;
@@ -1387,7 +1488,7 @@ public class ExtrinsicAdjustment {
 			double delta){
 		int clusters = clustersX * clustersY;
 		int num_pars = getNumPars();
-		double [][] jt = new double  [num_pars][clusters * POINTS_SAMPLE ];
+		double [][] jt = new double  [num_pars][clusters * points_sample ];
 		double rdelta = 1.0/delta;
 		for (int par = 0; par < num_pars; par++) {
 			double [] pars = new double[num_pars];
@@ -1451,18 +1552,18 @@ public class ExtrinsicAdjustment {
 		double [][] jt =        getJacobianTransposed(corr_vector);
 		double [][] jt_delta =  getJacobianTransposed(corr_vector, delta);
 		double tot_error = 0;
-		double [][] err =   new double [num_pars][POINTS_SAMPLE];
+		double [][] err =   new double [num_pars][points_sample];
 		double [] err_par = new double [num_pars];
 		for (int par = 0; par < num_pars; par++) {
 			for (int cluster = 0; cluster < clusters;  cluster++) if (measured_dsxy[cluster] != null){
-				for (int i = 0; i < POINTS_SAMPLE; i++) {
-					int indx = cluster *  POINTS_SAMPLE+ i;
+				for (int i = 0; i < points_sample; i++) {
+					int indx = cluster *  points_sample+ i;
 					if (Math.abs(jt[par][indx] - jt_delta[par][indx]) > err[par][i]) {
 						err[par][i] = Math.abs(jt[par][indx] - jt_delta[par][indx]);
 					}
 				}
 			}
-			for (int i = 0; i < POINTS_SAMPLE; i++) {
+			for (int i = 0; i < points_sample; i++) {
 				if (err[par][i] > err_par[par]) {
 					err_par[par] = err[par][i];
 				}
@@ -1491,14 +1592,14 @@ public class ExtrinsicAdjustment {
 				titles3[3 * par + 0] = titles[par]+"";
 				titles3[3 * par + 1] = titles[par]+"_delta";
 				titles3[3 * par + 2] = titles[par]+"_diff";
-				for (int mode = 0; mode < POINTS_SAMPLE; mode++) {
+				for (int mode = 0; mode < points_sample; mode++) {
 					int x0 = (mode % 3) * (clustersX + gap);
 					int y0 = (mode / 3) * (clustersY + gap);
 					for (int cluster = 0; cluster < clusters;  cluster++) {
 						int x = x0 + (cluster % clustersX);
 						int y = y0 + (cluster / clustersX);
 						int pix = x + y * width;
-						int indx = cluster * POINTS_SAMPLE + mode;
+						int indx = cluster * points_sample + mode;
 
 						if (measured_dsxy[cluster] != null){
 							dbg_img[3 * par + 0][pix] =  jt[par][indx];
@@ -1522,14 +1623,14 @@ public class ExtrinsicAdjustment {
 			 
 				dbg_img = new double [num_pars][width*height];
 				for (int par = 0; par < num_pars; par++) {
-					for (int mode = 0; mode < POINTS_SAMPLE; mode++) {
+					for (int mode = 0; mode < points_sample; mode++) {
 						int x0 = (mode % 3) * (clustersX + gap);
 						int y0 = (mode / 3) * (clustersY + gap);
 						for (int cluster = 0; cluster < clusters;  cluster++) {
 							int x = x0 + (cluster % clustersX);
 							int y = y0 + (cluster / clustersX);
 							int pix = x + y * width;
-							int indx = cluster * POINTS_SAMPLE + mode;
+							int indx = cluster * points_sample + mode;
 
 							if (measured_dsxy[cluster] != null){
 								dbg_img[par][pix] =  jt[par][indx];
@@ -1561,23 +1662,25 @@ public class ExtrinsicAdjustment {
 		int width  = 3 * clustersX + 2 * gap;
 		int height = 3 * clustersY + 2 * gap;
 		double [][] dbg_img = new double [3][width*height];
-		for (int mode = 0; mode < POINTS_SAMPLE; mode++) {
+		for (int mode = 0; mode < points_sample; mode++) {
 			int x0 = (mode % 3) * (clustersX + gap);
 			int y0 = (mode / 3) * (clustersY + gap);
 			for (int cluster = 0; cluster < clusters;  cluster++) {
 				int x = x0 + (cluster % clustersX);
 				int y = y0 + (cluster / clustersX);
 				int pix = x + y * width;
-				int indx = cluster * POINTS_SAMPLE + mode;
+				int indx = cluster * points_sample + mode;
 				if (measured_dsxy[cluster] != null){
 					if (mode ==0) {
 						dbg_img[0][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DIFF];
 						dbg_img[1][pix] = -fx[indx];
 						dbg_img[2][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DIFF] + fx[indx];
 					} else {
-						dbg_img[0][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + mode - 1];
+//						dbg_img[0][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + mode - 1];
+						dbg_img[0][pix] =  measured_dsxy[cluster][indx_dd0 + mode - 1];
 						dbg_img[1][pix] = -fx[indx];
-						dbg_img[2][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + mode - 1] + fx[indx];
+//						dbg_img[2][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + mode - 1] + fx[indx];
+						dbg_img[2][pix] =  measured_dsxy[cluster][indx_dd0 + mode - 1] + fx[indx];
 					}
 				} else {
 					dbg_img[ 0][pix] =  Double.NaN;
@@ -1729,9 +1832,10 @@ public class ExtrinsicAdjustment {
 		double [][] jt = getJacobianTransposed(corr_vector);
 		for (int cluster = 0; cluster < clusters; cluster++) if ( measured_dsxy[cluster] != null) {
 			ers_tilt_az[cluster] = new double [2];
-			for (int i = 0; i < (POINTS_SAMPLE-1); i++) {
-				int indx = cluster * POINTS_SAMPLE + i + 1; // skipping disparity
-				double d = measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + i];
+			for (int i = 0; i < (points_sample-1); i++) {
+				int indx = cluster * points_sample + i + 1; // skipping disparity
+//				double d = measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + i];
+				double d = measured_dsxy[cluster][indx_dd0 + i];
 				if (fx != null) {
 					d += fx[indx];
 				}
@@ -1748,8 +1852,8 @@ public class ExtrinsicAdjustment {
 		double [] cluster_weights = new double [clusters];
 		double sw = 0.0;
 		for (int cluster = 0; cluster < clusters; cluster++) {
-			for (int i = 0; i < POINTS_SAMPLE; i++) {
-				cluster_weights[cluster] += this.weights[cluster * POINTS_SAMPLE + i];
+			for (int i = 0; i < points_sample; i++) {
+				cluster_weights[cluster] += this.weights[cluster * points_sample + i];
 				sw += cluster_weights[cluster];
 			}
 		}
@@ -1908,14 +2012,14 @@ public class ExtrinsicAdjustment {
 		int width  = 3 * clustersX + 2 * gap;
 		int height = 3 * clustersY + 2 * gap;
 		double [][] dbg_img = new double [titles.length][width*height];
-		for (int mode = 0; mode < POINTS_SAMPLE; mode++) {
+		for (int mode = 0; mode < points_sample; mode++) {
 			int x0 = (mode % 3) * (clustersX + gap);
 			int y0 = (mode / 3) * (clustersY + gap);
 			for (int cluster = 0; cluster < clusters;  cluster++) {
 				int x = x0 + (cluster % clustersX);
 				int y = y0 + (cluster / clustersX);
 				int pix = x + y * width;
-				int indx = cluster * POINTS_SAMPLE + mode;
+				int indx = cluster * points_sample + mode;
 				if (measured_dsxy[cluster] != null){
 					if (mode ==0) {
 						dbg_img[0][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DIFF];
@@ -1931,13 +2035,17 @@ public class ExtrinsicAdjustment {
 							dbg_img[5][pix] =  Double.NaN;
 						}
 					} else {
-						dbg_img[0][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + mode - 1];
+//						dbg_img[0][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + mode - 1];
+						dbg_img[0][pix] =  measured_dsxy[cluster][indx_dd0 + mode - 1];
 						dbg_img[1][pix] = -fx[indx];
-						dbg_img[2][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + mode - 1] + fx[indx];
+//						dbg_img[2][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + mode - 1] + fx[indx];
+						dbg_img[2][pix] =  measured_dsxy[cluster][indx_dd0 + mode - 1] + fx[indx];
 						if (weights[indx] > 0.0) {
 							dbg_img[3][pix] =  weights[indx]*clusters;
-							dbg_img[4][pix] =  weights[indx]*clusters*(measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + mode - 1] + fx[indx]);
-							dbg_img[5][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + mode - 1] + fx[indx];
+//							dbg_img[4][pix] =  weights[indx]*clusters*(measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + mode - 1] + fx[indx]);
+//							dbg_img[5][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + mode - 1] + fx[indx];
+							dbg_img[4][pix] =  weights[indx]*clusters*(measured_dsxy[cluster][indx_dd0 + mode - 1] + fx[indx]);
+							dbg_img[5][pix] =  measured_dsxy[cluster][indx_dd0 + mode - 1] + fx[indx];
 						} else {
 							dbg_img[3][pix] =  Double.NaN;
 							dbg_img[4][pix] =  Double.NaN;
@@ -1976,7 +2084,7 @@ public class ExtrinsicAdjustment {
 
 		double [][] dbg_img = new double [3][width*height];
 		double [][] moving_objects = new double [3][clusters];
-		for (int mode = 0; mode < 2 * NUM_SENSORS + 1; mode++) {
+		for (int mode = 0; mode < 2 * num_sensors + 1; mode++) {
 			int x0 = (mode % 3) * (clustersX + gap);
 			int y0 = (mode / 3) * (clustersY + gap);
 			for (int cluster = 0; cluster < clusters;  cluster++) {
@@ -1984,7 +2092,7 @@ public class ExtrinsicAdjustment {
 				int y = y0 + (cluster / clustersX);
 				int pix = x + y * width;
 				if (measured_dsxy[cluster] != null){
-					if (mode < (2 * NUM_SENSORS)) {
+					if (mode < (2 * num_sensors)) {
 						dbg_img[0][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_X0+mode];
 						dbg_img[1][pix] =  xy[cluster][mode] - x0y0[cluster][mode];
 						dbg_img[2][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_X0+mode] - (xy[cluster][mode] - x0y0[cluster][mode]);
@@ -1992,9 +2100,9 @@ public class ExtrinsicAdjustment {
 						moving_objects[1][cluster] += dbg_img[1][pix]*dbg_img[0][pix];
 						moving_objects[2][cluster] += dbg_img[2][pix]*dbg_img[0][pix];
 					} else {
-						dbg_img[0][pix] = Math.sqrt(moving_objects[0][cluster]/(2 * NUM_SENSORS));
-						dbg_img[1][pix] = Math.sqrt(moving_objects[0][cluster]/(2 * NUM_SENSORS));
-						dbg_img[2][pix] = Math.sqrt(moving_objects[0][cluster]/(2 * NUM_SENSORS));
+						dbg_img[0][pix] = Math.sqrt(moving_objects[0][cluster]/(2 * num_sensors));
+						dbg_img[1][pix] = Math.sqrt(moving_objects[0][cluster]/(2 * num_sensors));
+						dbg_img[2][pix] = Math.sqrt(moving_objects[0][cluster]/(2 * num_sensors));
 					}
 				} else {
 					dbg_img[ 0][pix] =  Double.NaN;
@@ -2026,7 +2134,7 @@ public class ExtrinsicAdjustment {
 		}
 		int clusters = clustersX * clustersY;
 		int num_pars = getNumPars();
-		double [][] jt = new double  [num_pars][clusters * POINTS_SAMPLE ];
+		double [][] jt = new double  [num_pars][clusters * points_sample ];
 		Matrix []   corr_rots =  corr_vector.getRotMatrices(); // get array of per-sensor rotation matrices
 		Matrix [][] deriv_rots = corr_vector.getRotDeriveMatrices();
 		double [] imu = corr_vector.getIMU(); // i)

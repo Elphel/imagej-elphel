@@ -5945,7 +5945,7 @@ public class QuadCLTCPU {
 
 		  double [][] dsxy = new double[clustersX * clustersY][];
 		  ImagePlus imp_sel = WindowManager.getCurrentImage();
-		  if ((imp_sel == null) || (imp_sel.getStackSize() != ExtrinsicAdjustment.INDX_LENGTH)) {
+		  if ((imp_sel == null) || (imp_sel.getStackSize() != ExtrinsicAdjustment.get_INDX_LENGTH(getNumSensors()))) {
 			  System.out.println("No image / wrong image selected, bailing out");
 			  return null;
 		  } else {
@@ -5958,7 +5958,7 @@ public class QuadCLTCPU {
 					  return null;
 				}
 				ImageStack stack_sel = imp_sel.getStack();
-				float [][] fpixels = new float [ExtrinsicAdjustment.INDX_LENGTH][];
+				float [][] fpixels = new float [ExtrinsicAdjustment.get_INDX_LENGTH(getNumSensors())][];
 				for (int i = 0; i < fpixels.length; i++) {
 					fpixels[i] = (float[]) stack_sel.getPixels(i+1);
 				}
@@ -6247,10 +6247,16 @@ public class QuadCLTCPU {
 		  if (lazy_eye_data != null) {
 				  int clustersX= (tilesX + clt_parameters.tileStep - 1) / clt_parameters.tileStep;
 				  int clustersY= (tilesY + clt_parameters.tileStep - 1) / clt_parameters.tileStep;
-				  double [][] dbg_cluster = new double [ExtrinsicAdjustment.INDX_LENGTH][clustersY * clustersX];
+				  ExtrinsicAdjustment ea_dbg = new ExtrinsicAdjustment (
+						  geometryCorrection, // GeometryCorrection gc,
+						  clt_parameters.tileStep, // int         clusterSize,
+						  clustersX, // int         clustersX,
+						  clustersY); // int         clustersY)
+
+				  double [][] dbg_cluster = new double [ExtrinsicAdjustment.get_INDX_LENGTH(getNumSensors())][clustersY * clustersX];
 				  for (int n = 0; n < lazy_eye_data.length; n++) {
 					  if ((lazy_eye_data[n] != null) && (lazy_eye_data[n][ExtrinsicAdjustment.INDX_STRENGTH] >= clt_parameters.img_dtt.lma_diff_minw)) {
-						  for (int i = 0; i < ExtrinsicAdjustment.INDX_LENGTH; i++ ) {
+						  for (int i = 0; i < ExtrinsicAdjustment.get_INDX_LENGTH(getNumSensors()); i++ ) {
 							  if (i == ExtrinsicAdjustment.INDX_STRENGTH) {
 								  dbg_cluster[i][n] = lazy_eye_data[n][i] - clt_parameters.img_dtt.lma_diff_minw; // strength
 							  } else {
@@ -6258,7 +6264,7 @@ public class QuadCLTCPU {
 							  }
 						  }
 					  } else {
-						  for (int i = 0; i < ExtrinsicAdjustment.INDX_LENGTH; i++ ) {
+						  for (int i = 0; i < ExtrinsicAdjustment.get_INDX_LENGTH(getNumSensors()); i++ ) {
 							  if (i == ExtrinsicAdjustment.INDX_STRENGTH) {
 								  dbg_cluster[i][n] = 0.0; // strength
 							  } else {
@@ -6274,7 +6280,7 @@ public class QuadCLTCPU {
 						  clustersY,
 						  true,
 						  name+sAux()+"-CLT_MISMATCH-D"+clt_parameters.disparity+"_"+clt_parameters.tileStep+"x"+clt_parameters.tileStep,
-						  ExtrinsicAdjustment.DATA_TITLES);
+						  ea_dbg.data_titles); //  ExtrinsicAdjustment.DATA_TITLES);
 
 				  if (disparity_map != null){
 					  int target_index = ImageDtt.DISPARITY_INDEX_INT;
@@ -13084,7 +13090,7 @@ public class QuadCLTCPU {
 		  CorrVector corr_vector = geometryCorrection.getCorrVector().clone();
 		  double [] curr_corr_arr = corr_vector.toArray();
 		  int clusters = ea.clustersX * ea.clustersY;
-		  int num_ly = ExtrinsicAdjustment.INDX_LENGTH; // scan.getLazyEyeData().length;
+		  int num_ly = ExtrinsicAdjustment.get_INDX_LENGTH(getNumSensors()); // scan.getLazyEyeData().length;
 		  int num_pars = curr_corr_arr.length;
 		  double [][][] ly_diff = new double [num_pars][num_ly][clusters];
 		  for (int np = 0; np < num_pars; np++) {
@@ -13208,14 +13214,14 @@ public class QuadCLTCPU {
 		  */
 		  dbg_img = new double [num_pars][width*height];
 		  for (int par = 0; par < num_pars; par++) {
-			  for (int mode = 0; mode < ExtrinsicAdjustment.POINTS_SAMPLE; mode++) {
+			  for (int mode = 0; mode < ExtrinsicAdjustment.get_POINTS_SAMPLE(getNumSensors()); mode++) {
 				  int x0 = (mode % 3) * (ea.clustersX + gap);
 				  int y0 = (mode / 3) * (ea.clustersY + gap);
 				  for (int cluster = 0; cluster < clusters;  cluster++) {
 					  int x = x0 + (cluster % ea.clustersX);
 					  int y = y0 + (cluster / ea.clustersX);
 					  int pix = x + y * width;
-					  int indx = (mode == 0) ? ExtrinsicAdjustment.INDX_DIFF : (ExtrinsicAdjustment.INDX_DD0 + mode - 1);
+					  int indx = (mode == 0) ? ExtrinsicAdjustment.INDX_DIFF : (ExtrinsicAdjustment.get_INDX_DD0(getNumSensors()) + mode - 1);
 					  if (mode == 0) {
 						  dbg_img[par][pix] = -ly_diff[par][indx][cluster];
 					  } else {
@@ -13234,7 +13240,7 @@ public class QuadCLTCPU {
 
 		  dbg_img = new double [num_pars][width*height];
 		  for (int par = 0; par < num_pars; par++) {
-			  for (int mode = 0; mode < ExtrinsicAdjustment.POINTS_SAMPLE; mode++) {
+			  for (int mode = 0; mode < ExtrinsicAdjustment.get_POINTS_SAMPLE(getNumSensors()); mode++) {
 				  int x0 = (mode % 3) * (ea.clustersX + gap);
 				  int y0 = (mode / 3) * (ea.clustersY + gap);
 				  for (int cluster = 0; cluster < clusters;  cluster++) {

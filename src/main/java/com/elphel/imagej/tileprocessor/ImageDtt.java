@@ -3334,7 +3334,7 @@ public class ImageDtt extends ImageDttCPU {
 								dbg_img[18][nclust] = lma_ds[0][0] + disparity_array_center[clustY][clustX] + disparity_corr; 
 							}
 							if ((lma_ds[0] != null) && (lma_ds[0][1]> 0.0)) {
-								lazy_eye_data[nclust] = new double [ExtrinsicAdjustment.INDX_LENGTH];
+								lazy_eye_data[nclust] = new double [ExtrinsicAdjustment.get_INDX_LENGTH(numSensors)];
 								lazy_eye_data[nclust][ExtrinsicAdjustment.INDX_STRENGTH] =           strengh_k * lma_ds[0][1]  * num_in_cluster[clustY][clustX]; 
 								lazy_eye_data[nclust][ExtrinsicAdjustment.INDX_DISP] =               lma_ds[0][0] + disparity_array_center[clustY][clustX] + disparity_corr;
 								lazy_eye_data[nclust][ExtrinsicAdjustment.INDX_TARGET] =             (disparity_array_center[clustY][clustX] + disparity_corr);
@@ -3342,21 +3342,21 @@ public class ImageDtt extends ImageDttCPU {
 								lazy_eye_data[nclust][ExtrinsicAdjustment.INDX_PX + 0] =             pxpy[clustY][clustX][0];
 								lazy_eye_data[nclust][ExtrinsicAdjustment.INDX_PX + 1] =             pxpy[clustY][clustX][1];
 								for (int cam = 0; cam < quad; cam++) {
-									lazy_eye_data[nclust][ExtrinsicAdjustment.INDX_DYDDISP0 + cam] = tile_disp_dist[cam][2];
-									lazy_eye_data[nclust][ExtrinsicAdjustment.INDX_PYDIST + cam] =   clust_pY [clustY][clustX][cam];
+									lazy_eye_data[nclust][ExtrinsicAdjustment.get_INDX_DYDDISP0(numSensors) + cam] = tile_disp_dist[cam][2];
+									lazy_eye_data[nclust][ExtrinsicAdjustment.get_INDX_PYDIST(numSensors) + cam] =   clust_pY [clustY][clustX][cam];
 									
 								}
 								for (int cam = 0; cam < ddnd.length; cam++) {
 									if (ddnd[cam] != null) { //convert to x,y from dd/nd
 										lazy_eye_data[nclust][2 * cam + ExtrinsicAdjustment.INDX_X0 + 0] = ddnd[cam][0] * rXY[cam][0] - ddnd[cam][1] * rXY[cam][1];
 										lazy_eye_data[nclust][2 * cam + ExtrinsicAdjustment.INDX_X0 + 1] = ddnd[cam][0] * rXY[cam][1] + ddnd[cam][1] * rXY[cam][0];
-										lazy_eye_data[nclust][ExtrinsicAdjustment.INDX_DD0 + cam] =        ddnd[cam][0];
-										lazy_eye_data[nclust][ExtrinsicAdjustment.INDX_ND0 + cam] =        ddnd[cam][1];
+										lazy_eye_data[nclust][ExtrinsicAdjustment.get_INDX_DD0(numSensors) + cam] =        ddnd[cam][0];
+										lazy_eye_data[nclust][ExtrinsicAdjustment.get_INDX_ND0(numSensors) + cam] =        ddnd[cam][1];
 									} else {
 										lazy_eye_data[nclust][2 * cam + ExtrinsicAdjustment.INDX_X0 + 0] = Double.NaN;
 										lazy_eye_data[nclust][2 * cam + ExtrinsicAdjustment.INDX_X0 + 1] = Double.NaN;
-										lazy_eye_data[nclust][ExtrinsicAdjustment.INDX_DD0 + cam] =        Double.NaN;
-										lazy_eye_data[nclust][ExtrinsicAdjustment.INDX_ND0 + cam] =        Double.NaN;
+										lazy_eye_data[nclust][ExtrinsicAdjustment.get_INDX_DD0(numSensors) + cam] =        Double.NaN;
+										lazy_eye_data[nclust][ExtrinsicAdjustment.get_INDX_ND0(numSensors) + cam] =        Double.NaN;
 									}
 								}
 							}
@@ -3652,7 +3652,7 @@ public class ImageDtt extends ImageDttCPU {
 		    				}
 
 							if ((lma_ds[0] != null) && (lma_ds[0][1]> 0.0)) {
-								lazy_eye_data_final[nclust] = new double [ExtrinsicAdjustment.INDX_LENGTH];
+								lazy_eye_data_final[nclust] = new double [ExtrinsicAdjustment.get_INDX_LENGTH(numSensors)];
 								lazy_eye_data_final[nclust][ExtrinsicAdjustment.INDX_STRENGTH] =           strengh_k * lma_ds[0][1]  * num_in_cluster_final[clustY][clustX]; 
 								lazy_eye_data_final[nclust][ExtrinsicAdjustment.INDX_DISP] =               lma_ds[0][0] + disparity_array_center[clustY][clustX] + disparity_corr;
 								lazy_eye_data_final[nclust][ExtrinsicAdjustment.INDX_TARGET] =             disparity_array_center[clustY][clustX] + disparity_corr;
@@ -3660,20 +3660,20 @@ public class ImageDtt extends ImageDttCPU {
 								lazy_eye_data_final[nclust][ExtrinsicAdjustment.INDX_PX + 0] =             pxpy_super[clustY][clustX][0];
 								lazy_eye_data_final[nclust][ExtrinsicAdjustment.INDX_PX + 1] =             pxpy_super[clustY][clustX][1];
 								for (int cam = 0; cam < quad; cam++) {
-									lazy_eye_data_final[nclust][ExtrinsicAdjustment.INDX_DYDDISP0 + cam] = tile_disp_dist[cam][2];
-									lazy_eye_data_final[nclust][ExtrinsicAdjustment.INDX_PYDIST + cam] =   clust_pY_super [clustY][clustX][cam];
+									lazy_eye_data_final[nclust][ExtrinsicAdjustment.get_INDX_DYDDISP0(numSensors) + cam] = tile_disp_dist[cam][2];
+									lazy_eye_data_final[nclust][ExtrinsicAdjustment.get_INDX_PYDIST(numSensors) + cam] =   clust_pY_super [clustY][clustX][cam];
 								}
 								for (int cam = 0; cam < ddnd.length; cam++) {
 									if (ddnd[cam] != null) { //convert to x,y from dd/nd
 										lazy_eye_data_final[nclust][2 * cam + ExtrinsicAdjustment.INDX_X0 + 0] = ddnd[cam][0] * rXY[cam][0] - ddnd[cam][1] * rXY[cam][1];
 										lazy_eye_data_final[nclust][2 * cam + ExtrinsicAdjustment.INDX_X0 + 1] = ddnd[cam][0] * rXY[cam][1] + ddnd[cam][1] * rXY[cam][0];
-										lazy_eye_data_final[nclust][ExtrinsicAdjustment.INDX_DD0 + cam] =        ddnd[cam][0];
-										lazy_eye_data_final[nclust][ExtrinsicAdjustment.INDX_ND0 + cam] =        ddnd[cam][1];
+										lazy_eye_data_final[nclust][ExtrinsicAdjustment.get_INDX_DD0(numSensors) + cam] =        ddnd[cam][0];
+										lazy_eye_data_final[nclust][ExtrinsicAdjustment.get_INDX_ND0(numSensors) + cam] =        ddnd[cam][1];
 									} else {
 										lazy_eye_data_final[nclust][2 * cam + ExtrinsicAdjustment.INDX_X0 + 0] = Double.NaN;
 										lazy_eye_data_final[nclust][2 * cam + ExtrinsicAdjustment.INDX_X0 + 1] = Double.NaN;
-										lazy_eye_data_final[nclust][ExtrinsicAdjustment.INDX_DD0 + cam] =        Double.NaN;
-										lazy_eye_data_final[nclust][ExtrinsicAdjustment.INDX_ND0 + cam] =        Double.NaN;
+										lazy_eye_data_final[nclust][ExtrinsicAdjustment.get_INDX_DD0(numSensors) + cam] =        Double.NaN;
+										lazy_eye_data_final[nclust][ExtrinsicAdjustment.get_INDX_ND0(numSensors) + cam] =        Double.NaN;
 									}
 								}
 							}

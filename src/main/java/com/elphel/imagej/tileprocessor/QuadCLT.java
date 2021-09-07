@@ -5078,7 +5078,14 @@ if (debugLevel < -100) {
 					  clt_parameters.tileY,          // final int               debug_tileY,
 					  threadsMax,
 					  debugLevel);
-			  	double [][] dbg_img = new double[ExtrinsicAdjustment.DATA_TITLES.length][lazy_eye_data_dbg.length];
+			  ExtrinsicAdjustment ea_dbg = new ExtrinsicAdjustment (
+					  geometryCorrection, // GeometryCorrection gc,
+					  1, // int         clusterSize,
+					  tilesX, // int         clustersX,
+					  tilesY); // int         clustersY)
+			  
+//			  	double [][] dbg_img = new double[ExtrinsicAdjustment.DATA_TITLES.length][lazy_eye_data_dbg.length];
+			  	double [][] dbg_img = new double[ea_dbg.data_titles.length][lazy_eye_data_dbg.length];
 			  	for (int i = 0; i < dbg_img.length; i++) {
 			  		Arrays.fill(dbg_img[i], Double.NaN);
 			  	}
@@ -5094,7 +5101,7 @@ if (debugLevel < -100) {
 						tp.getTilesY(),
 						true,
 						"LY-everytile",
-						ExtrinsicAdjustment.DATA_TITLES);
+						ea_dbg.data_titles); //	ExtrinsicAdjustment.DATA_TITLES);
 			  
 }			  
 			  
