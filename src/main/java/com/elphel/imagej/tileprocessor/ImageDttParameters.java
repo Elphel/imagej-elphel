@@ -101,6 +101,9 @@ public class ImageDttParameters {
 	public boolean mcorr_hor_multi =        true;  // all horizontal
 	public boolean mcorr_vert =             true;  // all vertical (2 pairs for quad, 8 - for lwir16)
 	public boolean mcorr_vert_multi =       true;  // all vertical
+	//final int                 corr_sel, // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert 
+	public int     mcorr_sel_ly =           1;     // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
+	public int     mcorr_sel_ly_multi =     2+4+8; // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
 
 	
 	public boolean mcorr_cons_all =         true;  // consolidate all available pairs
@@ -270,6 +273,10 @@ public class ImageDttParameters {
 		return (numSens > mcorr_multi) ? mcorr_vert_multi : mcorr_vert;
 	}
 
+	public int getMcorrSelLY(int numSens) {
+		return (numSens > mcorr_multi) ? mcorr_sel_ly_multi : mcorr_sel_ly;
+	}
+	
 	public void dialogQuestions(GenericJTabbedDialog gd) {
 		
 		    gd.addCheckbox    ("Debug CPU->GPU matching",                                         this.gpu_mode_debug,
@@ -410,8 +417,10 @@ public class ImageDttParameters {
 					"All vertical pairs. N: 2 for quad, 8 for lwir16");
 			gd.addCheckbox    ("Calculate vertical pairs for multi cameras",                     this.mcorr_vert_multi,
 					"All vertical pairs. N: 2 for quad, 8 for lwir16");
-
-			
+			gd.addNumericField    ("Select correlation pairs for LY for small cameras",          this.mcorr_sel_ly,  0, 3, "",
+					" +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert");
+			gd.addNumericField    ("Select correlation pairs for LY for multi cameras",          this.mcorr_sel_ly_multi,  0, 3, "",
+					" +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert");
 
 			gd.addCheckbox    ("Combine all pairs",                                               this.mcorr_cons_all,
 					"Combine all calculated correlation pairs");
@@ -718,6 +727,9 @@ public class ImageDttParameters {
   			this.mcorr_vert =            gd.getNextBoolean();
   			this.mcorr_vert_multi =      gd.getNextBoolean();
   			
+  			this.mcorr_sel_ly=     (int) gd.getNextNumber();
+  			this.mcorr_sel_ly_multi=(int)gd.getNextNumber();
+
   			this.mcorr_cons_all =        gd.getNextBoolean();
   			this.mcorr_cons_dia =        gd.getNextBoolean();
   			this.mcorr_cons_sq =         gd.getNextBoolean();
@@ -902,6 +914,9 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"mcorr_vert",           this.mcorr_vert +"");
 		properties.setProperty(prefix+"mcorr_vert_multi",     this.mcorr_vert_multi +"");
 		
+		properties.setProperty(prefix+"mcorr_sel_ly",         this.mcorr_sel_ly +"");
+		properties.setProperty(prefix+"mcorr_sel_ly_multi",   this.mcorr_sel_ly_multi +"");
+
 		properties.setProperty(prefix+"mcorr_cons_all",       this.mcorr_cons_all +"");
 		properties.setProperty(prefix+"mcorr_cons_dia",       this.mcorr_cons_dia +"");
 		properties.setProperty(prefix+"mcorr_cons_sq",        this.mcorr_cons_sq +"");
@@ -1088,6 +1103,8 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"mcorr_hor_multi")!=null)      this.mcorr_hor_multi=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_hor_multi"));
 		if (properties.getProperty(prefix+"mcorr_vert")!=null)           this.mcorr_vert=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_vert"));
 		if (properties.getProperty(prefix+"mcorr_vert_multi")!=null)     this.mcorr_vert_multi=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_vert_multi"));
+		if (properties.getProperty(prefix+"mcorr_sel_ly")!=null)         this.mcorr_sel_ly=Integer.parseInt(properties.getProperty(prefix+"mcorr_sel_ly"));
+		if (properties.getProperty(prefix+"mcorr_sel_ly_multi")!=null)   this.mcorr_sel_ly_multi=Integer.parseInt(properties.getProperty(prefix+"mcorr_sel_ly_multi"));
 		
 		if (properties.getProperty(prefix+"mcorr_cons_all")!=null)       this.mcorr_cons_all=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_cons_all"));
 		if (properties.getProperty(prefix+"mcorr_cons_dia")!=null)       this.mcorr_cons_dia=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_cons_dia"));
@@ -1273,6 +1290,9 @@ public class ImageDttParameters {
 		idp.mcorr_vert=              this.mcorr_vert;
 		idp.mcorr_vert_multi=        this.mcorr_vert_multi;
 		
+		idp.mcorr_sel_ly=            this.mcorr_sel_ly;
+		idp.mcorr_sel_ly_multi=      this.mcorr_sel_ly_multi;
+
 		idp.mcorr_cons_all=          this.mcorr_cons_all;
 		idp.mcorr_cons_dia=          this.mcorr_cons_dia;
 		idp.mcorr_cons_sq=           this.mcorr_cons_sq;

@@ -4715,8 +4715,16 @@ public class QuadCLTCPU {
 			  for (int i = 0; i < fine_corr0.length; i++) {
 				  this.fine_corr[i] = fine_corr0[i];
 			  }
-			  
 		  }
+		  //getNumSensors()
+		  
+		  int mcorr_sel = ImageDtt. corrSelEncode(
+				  clt_parameters.img_dtt.getMcorrAll  (getNumSensors()),  // boolean sel_all,
+				  clt_parameters.img_dtt.getMcorrDia  (getNumSensors()),  // boolean sel_dia,
+				  clt_parameters.img_dtt.getMcorrSq   (getNumSensors()),  // boolean sel_sq,
+				  clt_parameters.img_dtt.getMcorrNeib (getNumSensors()),  // boolean sel_neib,
+				  clt_parameters.img_dtt.getMcorrHor  (getNumSensors()),  // boolean sel_hor,
+				  clt_parameters.img_dtt.getMcorrVert (getNumSensors())); // boolean sel_vert);
 		  if (debugLevel > 1000) texture_tiles = null; // FIXME: until texture generation for multi-cam is fixed
 		  
 		  double [][][][][][] clt_data = image_dtt.clt_aberrations_quad_corr(
@@ -4764,7 +4772,7 @@ public class QuadCLTCPU {
 				  clt_parameters.corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
 				  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
 				  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
-
+				  mcorr_sel, // 	final int                 mcorr_sel,    // Which pairs to correlate // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
 				  clt_parameters.img_dtt.mcorr_comb_width,					// final int                 mcorr_comb_width,  // combined correlation tile width
 				  clt_parameters.img_dtt.mcorr_comb_height,					// final int                 mcorr_comb_height, // combined correlation tile full height
 				  clt_parameters.img_dtt.mcorr_comb_offset,					// final int                 mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
@@ -6215,6 +6223,7 @@ public class QuadCLTCPU {
 			  z_correction +=clt_parameters.z_corr_map.get(name);// not used in lwir
 		  }
 		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
+		  /*
 		  double [][] lazy_eye_data = image_dtt.cltMeasureLazyEye(
 				  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 				  tile_op,                      // per-tile operation bit codes
@@ -6243,6 +6252,36 @@ public class QuadCLTCPU {
 				  clt_parameters.tileY,         // final int               debug_tileY, -1234 will cause port coordinates debug images
 				  threadsMax,
 				  debugLevel);
+		  */
+		  double [][] lazy_eye_data = image_dtt.cltMeasureLazyEye ( // returns d,s lazy eye parameters 
+				  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+				  tile_op,                      // final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
+				  disparity_array,              // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
+				  image_data,                   // final double [][][]      imade_data, // first index - number of image in a quad
+				  saturation_imp,               // final boolean [][]        saturation_imp, // (near) saturated pixels or null
+				  tilesX * image_dtt.transform_size, // 	final int                 width,
+				  clt_parameters.getFatZero(isMonochrome()),      // final double              corr_fat_zero,    // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
+				  clt_parameters.corr_red,      // final double              corr_red,
+				  clt_parameters.corr_blue,     // final double              corr_blue,
+				  clt_parameters.getCorrSigma(image_dtt.isMonochrome()), // final double              corr_sigma,
+				  min_corr_selected, // 0.0001; //final double              min_corr,        // 0.02; // minimal correlation value to consider valid
+				  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
+				  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
+				  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+				  clt_parameters.kernel_step,    // final int                 kernel_step,
+				  clt_parameters.clt_window,     // final int                 window_type,
+				  shiftXY,                       // final double [][]         shiftXY, // [port]{shiftX,shiftY}
+				  disparity_corr,                // final double              disparity_corr, // disparity at infinity
+				  clt_parameters.shift_x,        // final double              shiftX, // shift image horizontally (positive - right) - just for testing
+				  clt_parameters.shift_y,        // final double              shiftY, // shift image vertically (positive - down)
+				  clt_parameters.tileStep,       // final int                 tileStep, // process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters
+				  clt_parameters.img_dtt.getMcorrSelLY(getNumSensors()), //    final int                 mcorr_sel, // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert 
+				  clt_parameters.tileX,        // final int                 debug_tileX,
+				  clt_parameters.tileY,         // final int                 debug_tileY,
+				  threadsMax, // final int                 threadsMax,  // maximal number of threads to launch
+				  debugLevel - 2); // final int                 globalDebugLevel)
+		  
+		  
 
 		  if (lazy_eye_data != null) {
 				  int clustersX= (tilesX + clt_parameters.tileStep - 1) / clt_parameters.tileStep;
@@ -12233,36 +12272,65 @@ public class QuadCLTCPU {
 					  "LY-combo_scan-"+scan+"_post"); //String title)
 		  }
 		  // use new, LMA-based mismatch calculation
-		  double [][] lazy_eye_data = image_dtt.cltMeasureLazyEye ( // returns d,s lazy eye parameters
-				  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
-				  tile_op,                      // per-tile operation bit codes
-				  disparity_array,              // clt_parameters.disparity,     // final double            disparity,
-				  image_data,                   // final double [][][]      imade_data, // first index - number of image in a quad
-				  saturation_imp,               // boolean [][] saturation_imp, // (near) saturated pixels or null
-				  null, // final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
-				  // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
-				  null, // disparity_map,    // [12][tp.tilesY * tp.tilesX]
-				  tilesX * image_dtt.transform_size, // imp_quad[0].getWidth(),       // final int width,
-				  clt_parameters.getFatZero(isMonochrome()),      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
-				  clt_parameters.corr_red,
-				  clt_parameters.corr_blue,
-				  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
-				  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
-				  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
-				  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
-				  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-				  clt_parameters.kernel_step,
-//				  image_dtt.transform_size,
-				  clt_parameters.clt_window,
-				  shiftXY, //
-				  disparity_corr, // final double              disparity_corr, // disparity at infinity
-				  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
-				  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
-				  clt_parameters.tileStep,         // 	final int                 tileStep, // process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters
-				  clt_parameters.tileX,         // final int               debug_tileX,
-				  clt_parameters.tileY,         // final int               debug_tileY,
-				  threadsMax,
-				  debugLevel - 2); // -0);
+		  double [][] lazy_eye_data;
+		  /*
+			  lazy_eye_data = image_dtt.cltMeasureLazyEye ( // returns d,s lazy eye parameters
+					  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+					  tile_op,                      // per-tile operation bit codes
+					  disparity_array,              // clt_parameters.disparity,     // final double            disparity,
+					  image_data,                   // final double [][][]      imade_data, // first index - number of image in a quad
+					  saturation_imp,               // boolean [][] saturation_imp, // (near) saturated pixels or null
+					  null, // final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
+					  // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
+					  null, // disparity_map,    // [12][tp.tilesY * tp.tilesX]
+					  tilesX * image_dtt.transform_size, // imp_quad[0].getWidth(),       // final int width,
+					  clt_parameters.getFatZero(isMonochrome()),      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
+					  clt_parameters.corr_red,
+					  clt_parameters.corr_blue,
+					  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
+					  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
+					  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
+					  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
+					  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+					  clt_parameters.kernel_step,
+					  clt_parameters.clt_window,
+					  shiftXY, //
+					  disparity_corr, // final double              disparity_corr, // disparity at infinity
+					  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
+					  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
+					  clt_parameters.tileStep,      // final int                 tileStep, // process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters
+					  clt_parameters.tileX,         // final int               debug_tileX,
+					  clt_parameters.tileY,         // final int               debug_tileY,
+					  threadsMax,
+					  debugLevel - 2); // -0);
+			*/
+			  lazy_eye_data = image_dtt.cltMeasureLazyEye ( // returns d,s lazy eye parameters 
+					  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+					  tile_op,                      // final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
+					  disparity_array,              // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
+					  image_data,                   // final double [][][]      imade_data, // first index - number of image in a quad
+					  saturation_imp,               // final boolean [][]        saturation_imp, // (near) saturated pixels or null
+					  tilesX * image_dtt.transform_size, // 	final int                 width,
+					  clt_parameters.getFatZero(isMonochrome()),      // final double              corr_fat_zero,    // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
+					  clt_parameters.corr_red,      // final double              corr_red,
+					  clt_parameters.corr_blue,     // final double              corr_blue,
+					  clt_parameters.getCorrSigma(image_dtt.isMonochrome()), // final double              corr_sigma,
+					  min_corr_selected, // 0.0001; //final double              min_corr,        // 0.02; // minimal correlation value to consider valid
+					  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
+					  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
+					  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+					  clt_parameters.kernel_step,    // final int                 kernel_step,
+					  clt_parameters.clt_window,     // final int                 window_type,
+					  shiftXY,                       // final double [][]         shiftXY, // [port]{shiftX,shiftY}
+					  disparity_corr,                // final double              disparity_corr, // disparity at infinity
+					  clt_parameters.shift_x,        // final double              shiftX, // shift image horizontally (positive - right) - just for testing
+					  clt_parameters.shift_y,        // final double              shiftY, // shift image vertically (positive - down)
+					  clt_parameters.tileStep,       // final int                 tileStep, // process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters
+					  clt_parameters.img_dtt.getMcorrSelLY(getNumSensors()), //    final int                 mcorr_sel, // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert 
+					  clt_parameters.tileX,        // final int                 debug_tileX,
+					  clt_parameters.tileY,         // final int                 debug_tileY,
+					  threadsMax, // final int                 threadsMax,  // maximal number of threads to launch
+					  debugLevel - 2); // final int                 globalDebugLevel)
 		  scan.setLazyEyeData(lazy_eye_data);
 		  scan.is_measured =   true; // but no disparity map/textures
 		  scan.is_combo =      false;

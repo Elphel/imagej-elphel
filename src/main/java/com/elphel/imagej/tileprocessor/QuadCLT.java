@@ -4967,6 +4967,7 @@ public class QuadCLT extends QuadCLTCPU {
 		  // use new, LMA-based mismatch calculation
 		  double [][] lazy_eye_data = null;
 		  if ((gpuQuad == null) || !(isAux()?clt_parameters.gpu_use_aux_adjust : clt_parameters.gpu_use_main_adjust)) { // CPU
+			  /*
 			  lazy_eye_data = image_dtt.cltMeasureLazyEye ( // returns d,s lazy eye parameters
 					  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 					  tile_op,                      // per-tile operation bit codes
@@ -4997,6 +4998,35 @@ public class QuadCLT extends QuadCLTCPU {
 					  clt_parameters.tileY,         // final int               debug_tileY,
 					  threadsMax,
 					  debugLevel - 2);
+			*/
+			  lazy_eye_data = image_dtt.cltMeasureLazyEye ( // returns d,s lazy eye parameters 
+					  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+					  tile_op,                      // final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
+					  disparity_array,              // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
+					  image_data,                   // final double [][][]      imade_data, // first index - number of image in a quad
+					  saturation_imp,               // final boolean [][]        saturation_imp, // (near) saturated pixels or null
+					  tilesX * image_dtt.transform_size, // 	final int                 width,
+					  clt_parameters.getFatZero(isMonochrome()),      // final double              corr_fat_zero,    // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
+					  clt_parameters.corr_red,      // final double              corr_red,
+					  clt_parameters.corr_blue,     // final double              corr_blue,
+					  clt_parameters.getCorrSigma(image_dtt.isMonochrome()), // final double              corr_sigma,
+					  min_corr_selected, // 0.0001; //final double              min_corr,        // 0.02; // minimal correlation value to consider valid
+					  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
+					  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
+					  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+					  clt_parameters.kernel_step,    // final int                 kernel_step,
+					  clt_parameters.clt_window,     // final int                 window_type,
+					  shiftXY,                       // final double [][]         shiftXY, // [port]{shiftX,shiftY}
+					  disparity_corr,                // final double              disparity_corr, // disparity at infinity
+					  clt_parameters.shift_x,        // final double              shiftX, // shift image horizontally (positive - right) - just for testing
+					  clt_parameters.shift_y,        // final double              shiftY, // shift image vertically (positive - down)
+					  clt_parameters.tileStep,       // final int                 tileStep, // process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters
+					  clt_parameters.img_dtt.getMcorrSelLY(getNumSensors()), //    final int                 mcorr_sel, // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert 
+					  clt_parameters.tileX,        // final int                 debug_tileX,
+					  clt_parameters.tileY,         // final int                 debug_tileY,
+					  threadsMax, // final int                 threadsMax,  // maximal number of threads to launch
+					  debugLevel - 2); // final int                 globalDebugLevel)
+			  
 		  } else {// GPU
 			  // First - measure and get 	fcorr_td, fdisp_dist, fpxpy
 			  float  [][][][]     fcorr_td =   new float[tilesY][tilesX][][];
