@@ -37,7 +37,8 @@ import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 public class TileProcessor {
-	public static String [] SCAN_TITLES = { // wrong now !
+	
+	public static String [] SCAN_TITLES4 = {
 			"tile_op",       //  0
 			"final",         //  1 - calculated, filtered, combined disparity
 			"disparity",     //  2
@@ -66,11 +67,13 @@ public class TileProcessor {
 			"d0","d1","d2","d3"
 //			"ly_force" // force lazy eye disparity
 	};
+
 	public static String [] SCAN_TITLES_DS = {
 			"disparity",
 			"strength"
 	};
 
+	public final String []  scan_titles;
 
 	public ArrayList <CLTPass3d> clt_3d_passes = null;
 	public double [][] rig_disparity_strength =  null; // Disparity and strength created by a two-camera rig, with disparity scale and distortions of the main camera
@@ -102,6 +105,22 @@ public class TileProcessor {
 	public int getNumSensors() {
 		return numSensors;
 	}
+	public static int getStringIndex(String needle, String [] haystack) {
+		for (int i = 0; i < haystack.length; i++) {
+			if (haystack[i].equals(needle)) return i;
+		}
+		String shaystack = "{";
+		for (String s:haystack) {
+			shaystack +="\""+s+"\",";
+		}
+		shaystack +="}";
+		throw new IllegalArgumentException ("Scan title\""+needle+"\" is not found in "+shaystack);
+	}
+	
+	public int getScanTitleIndex(String title) {
+		return getStringIndex(title, scan_titles);
+	}
+	
 	public TileProcessor(
 			int tilesX,
 			int tilesY,
@@ -128,7 +147,21 @@ public class TileProcessor {
 		this.trustedCorrelation = trustedCorrelation;
 		this.maxOverexposure =      maxOverexposure;
 		this.threadsMax = threadsMax;
+		this.scan_titles = new String[SCAN_TITLES4.length + (this.numSensors-4)*6];
+		int idiff0 =    getStringIndex("diff0",    SCAN_TITLES4);
+		int idiff2max = getStringIndex("diff2max", SCAN_TITLES4);
+		int ir0 =       getStringIndex("r0", SCAN_TITLES4);
+		int indx = 0;
+		for (int i = 0; i < idiff0; i++)	  scan_titles[indx++] = SCAN_TITLES4[i];
+		for (int i = 0; i < numSensors; i++)  scan_titles[indx++] = "diff"+i;
+		for (int i = idiff2max; i < ir0; i++) scan_titles[indx++] = SCAN_TITLES4[i];
+		for (int i = 0; i < numSensors; i++)  scan_titles[indx++] = "r"+i;
+		for (int i = 0; i < numSensors; i++)  scan_titles[indx++] = "b"+i;
+		for (int i = 0; i < numSensors; i++)  scan_titles[indx++] = "g"+i;
+		for (int i = 0; i < numSensors; i++)  scan_titles[indx++] = "y"+i;
+		for (int i = 0; i < numSensors; i++)  scan_titles[indx++] = "d"+i;
 	}
+	
 	public TileProcessor(TileProcessor tp) {
 		this.tilesX =             tp.tilesX;
 		this.tilesY =             tp.tilesY;
@@ -143,6 +176,7 @@ public class TileProcessor {
 		this.maxOverexposure =    tp.maxOverexposure;
 		this.threadsMax =         tp.threadsMax;
 		this.globalDebugLevel =   tp.globalDebugLevel;
+		this.scan_titles =        tp.scan_titles; 
 		
 		// next should not be needed for new instance
 		/*
@@ -492,7 +526,7 @@ public class TileProcessor {
 					if ((good_comp == null) || (!good_comp[0] && !good_comp[1] && !good_comp[2])){
 						pass.tile_op[ty][tx] =    0;
 						pass.texture_tiles = null;
-						for (int i = 0; i< ImageDtt.QUAD; i++)  pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = 0.0;
+						for (int i = 0; i< numSensors; i++)  pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = 0.0;
 					}
 					if ((good_comp == null) || !good_comp[0]) {
 						pass.calc_disparity[nt] = Double.NaN;
@@ -1157,7 +1191,7 @@ public class TileProcessor {
 //			combo_pass.disparity_map =        new double [ImageDtt.DISPARITY_TITLES.length][];
 			combo_pass.disparity_map =        new double [ImageDtt.getDisparityTitles(getNumSensors()).length][];
 			
-			for (int i = 0; i< ImageDtt.QUAD; i++) combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i] = new double[tlen];
+			for (int i = 0; i< numSensors; i++) combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i] = new double[tlen];
 			if (copyDebug){
 				combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM] =            new double[tlen];
 				combo_pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX] =      new double[tlen];
@@ -1341,7 +1375,7 @@ public class TileProcessor {
 							combo_pass.calc_disparity[nt] =         pass.disparity_map[disparity_index][nt]/corr_magic_scale +  pass.disparity[ty][tx];
 							combo_pass.strength[nt] =               pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nt];
 							// Only copy for full disparity
-							for (int i = 0; i< ImageDtt.QUAD; i++) {
+							for (int i = 0; i< numSensors; i++) {
 								if (pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i]!= null) {// do not copy empty
 									combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt];
 								}
@@ -1360,7 +1394,7 @@ public class TileProcessor {
 							combo_pass.calc_disparity[nt] =         Double.NaN;
 							combo_pass.strength[nt] =               0.0;
 							// Only copy for full disparity
-							for (int i = 0; i< ImageDtt.QUAD; i++)  combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = Double.NaN;
+							for (int i = 0; i< numSensors; i++)  combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = Double.NaN;
 							if (copyDebug){
 								combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nt] =            Double.NaN;
 								combo_pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nt] =      Double.NaN;
@@ -1396,7 +1430,7 @@ public class TileProcessor {
 							combo_pass.calc_disparity_hor[nt] = Double.NaN;
 							combo_pass.strength_hor[nt] =       0.0;
 							// Only copy for full disparity
-							for (int i = 0; i< ImageDtt.QUAD; i++)  combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = Double.NaN;
+							for (int i = 0; i< numSensors; i++)  combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = Double.NaN;
 							if (copyDebug){
 								combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_HOR][nt] =           Double.NaN;
 								combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_HOR_STRENGTH][nt] =  0.0;
@@ -1433,7 +1467,7 @@ public class TileProcessor {
 							combo_pass.calc_disparity_vert[nt] = Double.NaN;
 							combo_pass.strength_vert[nt] =       0.0;
 							// Only copy for full disparity
-							for (int i = 0; i< ImageDtt.QUAD; i++)  combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = Double.NaN;
+							for (int i = 0; i< numSensors; i++)  combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = Double.NaN;
 							if (copyDebug){
 								combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_VERT][nt] =           Double.NaN;
 								combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_VERT_STRENGTH][nt] =  0.0;
@@ -1492,7 +1526,7 @@ ImageDtt.startAndJoin(threads);
 			combo_pass.tile_op =              new int [tilesY][tilesX]; // for just non-zero
 //			combo_pass.disparity_map =        new double [ImageDtt.DISPARITY_TITLES.length][];
 			combo_pass.disparity_map =        new double [ImageDtt.getDisparityTitles(getNumSensors()).length][];			
-			for (int i = 0; i< ImageDtt.QUAD; i++) combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i] = new double[tlen];
+			for (int i = 0; i< numSensors; i++) combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i] = new double[tlen];
 			if (copyDebug){
 				combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM] =            new double[tlen];
 				combo_pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX] =      new double[tlen];
@@ -1669,7 +1703,7 @@ ImageDtt.startAndJoin(threads);
 					combo_pass.calc_disparity[nt] =         pass.disparity_map[disparity_index][nt]/corr_magic_scale +  pass.disparity[ty][tx];
 					combo_pass.strength[nt] =               pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nt];
 					// Only copy for full disparity
-					for (int i = 0; i< ImageDtt.QUAD; i++) {
+					for (int i = 0; i< numSensors; i++) {
 						if (pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i]!= null) {// do not copy empty
 							combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt];
 						}
@@ -1688,7 +1722,7 @@ ImageDtt.startAndJoin(threads);
 					combo_pass.calc_disparity[nt] =         Double.NaN;
 					combo_pass.strength[nt] =               0.0;
 					// Only copy for full disparity
-					for (int i = 0; i< ImageDtt.QUAD; i++)  combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = Double.NaN;
+					for (int i = 0; i< numSensors; i++)  combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = Double.NaN;
 					if (copyDebug){
 						combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nt] =            Double.NaN;
 						combo_pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nt] =      Double.NaN;
@@ -1724,7 +1758,7 @@ ImageDtt.startAndJoin(threads);
 					combo_pass.calc_disparity_hor[nt] = Double.NaN;
 					combo_pass.strength_hor[nt] =       0.0;
 					// Only copy for full disparity
-					for (int i = 0; i< ImageDtt.QUAD; i++)  combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = Double.NaN;
+					for (int i = 0; i< numSensors; i++)  combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = Double.NaN;
 					if (copyDebug){
 						combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_HOR][nt] =           Double.NaN;
 						combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_HOR_STRENGTH][nt] =  0.0;
@@ -1761,7 +1795,7 @@ ImageDtt.startAndJoin(threads);
 					combo_pass.calc_disparity_vert[nt] = Double.NaN;
 					combo_pass.strength_vert[nt] =       0.0;
 					// Only copy for full disparity
-					for (int i = 0; i< ImageDtt.QUAD; i++)  combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = Double.NaN;
+					for (int i = 0; i< numSensors; i++)  combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = Double.NaN;
 					if (copyDebug){
 						combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_VERT][nt] =           Double.NaN;
 						combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_VERT_STRENGTH][nt] =  0.0;
@@ -1810,7 +1844,7 @@ ImageDtt.startAndJoin(threads);
 		combo_pass.tile_op =              new int [tilesY][tilesX]; // for just non-zero
 //		combo_pass.disparity_map =        new double [ImageDtt.DISPARITY_TITLES.length][];
 		combo_pass.disparity_map =        new double [ImageDtt.getDisparityTitles(getNumSensors()).length][];		
-		for (int i = 0; i< ImageDtt.QUAD; i++) combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i] = new double[tlen];
+		for (int i = 0; i< numSensors; i++) combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i] = new double[tlen];
 		if (copyDebug){
 			combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM] =            new double[tlen];
 			combo_pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX] =      new double[tlen];
@@ -1958,7 +1992,7 @@ ImageDtt.startAndJoin(threads);
 					combo_pass.calc_disparity[nt] =         pass.disparity_map[disparity_index][nt]/corr_magic_scale +  pass.disparity[ty][tx];
 					combo_pass.strength[nt] =               pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nt];
 					// Only copy for full disparity
-					for (int i = 0; i< ImageDtt.QUAD; i++)  combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt];
+					for (int i = 0; i< numSensors; i++)     combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt];
 
 					if (copyDebug){
 						combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nt] =            pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nt];
@@ -3535,11 +3569,11 @@ ImageDtt.startAndJoin(threads);
 	}
 
 	public String [] getScanTitles() {
-		return SCAN_TITLES;
+		return scan_titles; // SCAN_TITLES;
 	}
 
 	public String [] getScanTitles(boolean ds_only) {
-		return ds_only ? SCAN_TITLES_DS : SCAN_TITLES;
+		return ds_only ? SCAN_TITLES_DS : scan_titles; // SCAN_TITLES;
 	}
 
 	public void showScan(
@@ -3718,8 +3752,7 @@ ImageDtt.startAndJoin(threads);
 			boolean measured_only)
 	{
 		int NUM_SLICES=getScanTitles().length;
-		int this_IMG_TONE_RGB = 21;
-//		int ly_force_indx = 41;
+		int this_IMG_TONE_RGB = getScanTitleIndex("r0");
   		double     corr_red =          0.5;  // Red to green correlation weight
   		double     corr_blue =         0.2;  // Blue to green correlation weight
   		double     scale_diff =        5.0; // scale 0.5*(r+b)-G to match Y
@@ -3727,68 +3760,92 @@ ImageDtt.startAndJoin(threads);
 		col_weights[2] = 1.0/(1.0 + corr_red + corr_blue);    // green color
 		col_weights[0] = corr_red *  col_weights[2];
 		col_weights[1] = corr_blue * col_weights[2];
-		int this_IMG_TONE_RGB_R = this_IMG_TONE_RGB + 0;
-		int this_IMG_TONE_RGB_B = this_IMG_TONE_RGB + 4;
-		int this_IMG_TONE_RGB_G = this_IMG_TONE_RGB + 8;
-		int this_IMG_TONE_RGB_Y =  this_IMG_TONE_RGB+12;
-		int this_IMG_TONE_RGB_DIFF = this_IMG_TONE_RGB+16;
+		int this_IMG_TONE_RGB_R =     getScanTitleIndex("r0");
+		int this_IMG_TONE_RGB_B =     getScanTitleIndex("b0");
+		int this_IMG_TONE_RGB_G =     getScanTitleIndex("g0");
+		int this_IMG_TONE_RGB_Y =     getScanTitleIndex("y0");
+		int this_IMG_TONE_RGB_DIFF =  getScanTitleIndex("d0");
 //		boolean [] ly_force = scan.getLazyEyeForceDisparity();
-
+		int i_tile_op =        getScanTitleIndex("tile_op");        //  0
+		int i_final =          getScanTitleIndex("final");          //  1
+		int i_disparity =      getScanTitleIndex("disparity");      //  2
+		int i_disp_cm =        getScanTitleIndex("disp_cm");        //  3
+		int i_disp_hor =       getScanTitleIndex("disp_hor");       //  4
+		int i_disp_vert =      getScanTitleIndex("disp_vert");      //  5
+		int i_final_strength = getScanTitleIndex("final_strength"); //  6
+		int i_strength =       getScanTitleIndex("strength");       //  7
+		int i_strength_hor =   getScanTitleIndex("strength_hor");   //  8
+		int i_strength_vert =  getScanTitleIndex("strength_vert");  //  9
+		int i_selection =      getScanTitleIndex("selection");      // 10
+		int i_border_tiles =   getScanTitleIndex("border_tiles");   // 11
+		int i_max_tried =      getScanTitleIndex("max_tried");      // 12
+		int i_diff0 =          getScanTitleIndex("diff0");          // 13*
+		int i_diff2max =       getScanTitleIndex("diff2max");       // 17*
+		int i_diff2maxAvg =    getScanTitleIndex("diff2maxAvg");    // 18*
+		int i_normStrength =   getScanTitleIndex("normStrength");   // 19*
+		int i_overexp =        getScanTitleIndex("overexp");        // 20*
+		
+		
+		int i_getImgToneRGB = ImageDtt.getImgToneRGB(numSensors);
+		
 		int tlen = tilesX*tilesY;
 		if (scan.tile_op == null) measured_only = false;
 		boolean [] measured = new boolean [tlen]; 
 		double [][] dbg_img = new double[NUM_SLICES][];
-		if (scan.tile_op != null)              dbg_img[ 0] = new double[tlen];
-		if (scan.disparity !=  null)           dbg_img[ 2] = new double[tlen];
-		if (scan.selected != null)             dbg_img[10] = new double[tlen];
-		if (scan.border_tiles != null)         dbg_img[11] = new double[tlen];
-		if (scan.max_tried_disparity != null)  dbg_img[12] = new double[tlen];
+		if (scan.tile_op != null)              dbg_img[i_tile_op] =      new double[tlen];
+		if (scan.disparity !=  null)           dbg_img[i_disparity] =    new double[tlen];
+		if (scan.selected != null)             dbg_img[i_selection] =    new double[tlen];
+		if (scan.border_tiles != null)         dbg_img[i_border_tiles] = new double[tlen];
+		if (scan.max_tried_disparity != null)  dbg_img[i_max_tried] =    new double[tlen];
 //		if (ly_force != null)                  dbg_img[ly_force_indx] = new double[tlen];
 		
 
 		for (int ty = 0; ty < tilesY; ty++) for (int tx = 0; tx < tilesX; tx++){
 			int nt = ty*tilesX + tx;
 			if (scan.tile_op != null) {
-				dbg_img[ 0][nt] = scan.tile_op[ty][tx];
+				dbg_img[i_tile_op][nt] = scan.tile_op[ty][tx];
 				measured[nt] = scan.tile_op[ty][tx] > 0;
 			}
-			if (scan.disparity !=  null)           dbg_img[ 2][nt] = scan.disparity[ty][tx];
-			if (scan.selected != null)             dbg_img[10][nt] = scan.selected[nt]? 1.0:0.0;
-			if (scan.border_tiles != null)         dbg_img[11][nt] = scan.border_tiles[nt]? 1.0:0.0;
-			if (scan.max_tried_disparity != null)  dbg_img[12][nt] = scan.max_tried_disparity[ty][tx];
+			if (scan.disparity !=  null)           dbg_img[i_disparity]   [nt] = scan.disparity[ty][tx];
+			if (scan.selected != null)             dbg_img[i_selection]   [nt] = scan.selected[nt]? 1.0:0.0;
+			if (scan.border_tiles != null)         dbg_img[i_border_tiles][nt] = scan.border_tiles[nt]? 1.0:0.0;
+			if (scan.max_tried_disparity != null)  dbg_img[i_max_tried]   [nt] = scan.max_tried_disparity[ty][tx];
 //			if (ly_force != null)                  dbg_img[ly_force_indx][nt] = ly_force[nt]? 1.0:0.0;
 		}
 		double [] strength4 = null;
 		if (scan.disparity_map != null){
+			
 			strength4 = scan.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX];
-			dbg_img[ 3] = scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM];
-			dbg_img[ 4] = scan.disparity_map[ImageDtt.DISPARITY_INDEX_HOR];
-			dbg_img[ 5] = scan.disparity_map[ImageDtt.DISPARITY_INDEX_VERT];
-			dbg_img[ 7] = scan.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX];
-			dbg_img[ 8] = scan.disparity_map[ImageDtt.DISPARITY_INDEX_HOR_STRENGTH];
-			dbg_img[ 9] = scan.disparity_map[ImageDtt.DISPARITY_INDEX_VERT_STRENGTH];
-			dbg_img[20] = scan.disparity_map[ImageDtt.OVEREXPOSED];
-			for (int i = 0; i < 12; i++) {
-				dbg_img[this_IMG_TONE_RGB+i] = scan.disparity_map[ImageDtt.getImgToneRGB(numSensors) + i];
+			dbg_img[i_disp_cm] =       scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM];
+			dbg_img[i_disp_hor] =      scan.disparity_map[ImageDtt.DISPARITY_INDEX_HOR];
+			dbg_img[i_disp_vert] =     scan.disparity_map[ImageDtt.DISPARITY_INDEX_VERT];
+			dbg_img[i_strength] =      scan.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX];
+			dbg_img[i_strength_hor] =  scan.disparity_map[ImageDtt.DISPARITY_INDEX_HOR_STRENGTH];
+			dbg_img[i_strength_vert] = scan.disparity_map[ImageDtt.DISPARITY_INDEX_VERT_STRENGTH];
+			dbg_img[i_overexp] =       scan.disparity_map[ImageDtt.OVEREXPOSED];
+			//		int this_IMG_TONE_RGB = getScanTitleIndex("r0");
+			// 		int i_getImgToneRGB = ImageDtt.getImgToneRGB(numSensors);
+
+			for (int i = 0; i < 3 *numSensors; i++) {
+				dbg_img[this_IMG_TONE_RGB+i] = scan.disparity_map[i_getImgToneRGB + i];
 			}
 		}
-		dbg_img[1] = scan.calc_disparity_combo;
-		dbg_img[6] = scan.strength;
-		double  [][] these_diffs =     scan.getDiffs();
-		double [] diff2max = scan.getSecondMaxDiff(false);
-		double [] diff2maxAvg = scan.getSecondMaxDiff(true);
+		dbg_img[i_final] =          scan.calc_disparity_combo;
+		dbg_img[i_final_strength] = scan.strength;
+		double  [][] these_diffs =  scan.getDiffs();
+		double [] diff2max =        scan.getSecondMaxDiff(false);
+		double [] diff2maxAvg =     scan.getSecondMaxDiff(true);
 		if (these_diffs != null) {
-			dbg_img[13] = these_diffs[0];
-			dbg_img[14] = these_diffs[1];
-			dbg_img[15] = these_diffs[2];
-			dbg_img[16] = these_diffs[3];
-			dbg_img[17] = diff2max;
-			dbg_img[18] = diff2maxAvg;
-			dbg_img[19] = new double[tlen];
+			for (int i = 0; i < numSensors; i++) {
+				dbg_img[i_diff0+i] = these_diffs[i];
+			}
+			dbg_img[i_diff2max] =     diff2max;
+			dbg_img[i_diff2maxAvg] =  diff2maxAvg;
+			dbg_img[i_normStrength] = new double[tlen];
 			if ((diff2maxAvg != null) && (strength4 != null)) {
 				for (int i = 0; i < tlen; i++){
 					if (diff2maxAvg[i] > 0.0){
-						dbg_img[19][i] = strength4[i]/ diff2maxAvg[i];
+						dbg_img[i_normStrength][i] = strength4[i] / diff2maxAvg[i];
 					}
 				}
 			}

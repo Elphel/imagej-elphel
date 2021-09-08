@@ -73,7 +73,11 @@ public class CLTPass3d{
 		public double [][]      tiles_RBGA =           null;
 
 		SuperTiles              superTiles = null;
-		TileProcessor           tileProcessor;
+		final TileProcessor     tileProcessor;
+		public int getNumSensors() {
+			return tileProcessor.getNumSensors();
+		}
+		
 		public CLTPass3d (TileProcessor tileProcessor)
 		{
 			this.tileProcessor = tileProcessor;
@@ -304,8 +308,8 @@ public class CLTPass3d{
 
 		public double [][] getDiffs (){
 			if (disparity_map == null) return null;
-			double  [][] these_diffs =    new double[ImageDtt.QUAD][];
-			for (int i = 0; i< ImageDtt.QUAD; i++) these_diffs[i] = disparity_map[ImageDtt.IMG_DIFF0_INDEX + i];
+			double  [][] these_diffs =    new double[getNumSensors()][];
+			for (int i = 0; i< these_diffs.length; i++) these_diffs[i] = disparity_map[ImageDtt.IMG_DIFF0_INDEX + i]; // IMG_DIFF0_INDEX does not depend on num sensors
 			return these_diffs;
 		}
 

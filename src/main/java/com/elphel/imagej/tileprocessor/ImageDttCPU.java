@@ -85,7 +85,7 @@ public class ImageDttCPU {
 			  {0,1,3,4}};          // bottom right
 //	 public static int FORCE_DISPARITY_BIT = 8; // move to parameters?
 
-	  static int  QUAD =                           4; // number of cameras in camera
+//	  static int  QUAD =                           4; // number of cameras in camera
 	  static int  GREEN_CHN =                      2; // index of green channel
 	  static int  MONO_CHN =                       2; // index of channel used in monochrome mode
 

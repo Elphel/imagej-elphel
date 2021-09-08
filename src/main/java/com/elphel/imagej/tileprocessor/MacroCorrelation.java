@@ -194,7 +194,7 @@ public class MacroCorrelation {
 		final int mTilesY = (pTilesY + tileSize - 1) / tileSize;
 		final int mTiles = mTilesX * mTilesY;
 		final int num_chn = tmp_input? 3: (1 + ((other_channels == null) ? 0 : (other_channels[0].length)));
-		final double [][][] input_data = new double [ImageDtt.QUAD][num_chn][mTiles*tileSize*tileSize];
+		final double [][][] input_data = new double [src_scan.getNumSensors()][num_chn][mTiles*tileSize*tileSize];
 		//			double [][] tiles_tone = src_scan.getTileRBGA( No, we need individual subcameras
 		//					4); // int num_layers);
 		// TODO: add other channels (average tone)
