@@ -2047,7 +2047,7 @@ public class QuadCLT extends QuadCLTCPU {
 				is_mono,
 				is_lwir,
 				clt_parameters.getScaleStrength(isAux())); // 1.0);
-		
+		image_dtt.getCorrelation2d(); // initiate image_dtt.correlation2d, needed if disparity_map != null  
 		float [][] lpf_rgb = new float[][] {
 			image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_r),
 			image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_b),
@@ -2312,6 +2312,7 @@ public class QuadCLT extends QuadCLTCPU {
 				is_mono,
 				is_lwir,
 				1.0);
+		image_dtt.getCorrelation2d(); // initiate image_dtt.correlation2d, needed if disparity_map != null  
 		float [][] lpf_rgb = new float[][] {
 			image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_r),
 			image_dtt.floatGetCltLpfFd(clt_parameters.gpu_sigma_b),
@@ -3034,6 +3035,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
 				  gpuQuad);
+		  image_dtt.getCorrelation2d(); // initiate image_dtt.correlation2d, needed if disparity_map != null  
 		  double z_correction =  clt_parameters.z_correction;
 		  if (clt_parameters.z_corr_map.containsKey(image_name)){ // not used in lwir
 			  z_correction +=clt_parameters.z_corr_map.get(image_name);
@@ -3177,7 +3179,7 @@ public class QuadCLT extends QuadCLTCPU {
 		  final int tilesX = tp.getTilesX();
 		  final int tilesY = tp.getTilesY();
 		  CLTPass3d bgnd_data = tp.clt_3d_passes.get(0);
-		  boolean [] bgnd_tiles_grown2 = bgnd_data.selected.clone(); // only these have non 0 alpha
+		  boolean [] bgnd_tiles_grown2 = bgnd_data.getSelected().clone(); // only these have non 0 alpha
 		  tp.growTiles(
 				  2,      // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 				  bgnd_tiles_grown2,
@@ -3291,6 +3293,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
 				  gpuQuad);
+		  image_dtt.getCorrelation2d(); // initiate image_dtt.correlation2d, needed if disparity_map != null  
 		  double z_correction =  clt_parameters.z_correction;
 		  if (clt_parameters.z_corr_map.containsKey(image_name)){ // not used in lwir
 			  z_correction +=clt_parameters.z_corr_map.get(image_name);
@@ -3433,6 +3436,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
 				  gpuQuad);
+		  image_dtt.getCorrelation2d(); // initiate image_dtt.correlation2d, needed if disparity_map != null  
 //		  double z_correction =  clt_parameters.z_correction;
 //		  if (clt_parameters.z_corr_map.containsKey(image_name)){ // not used in lwir
 //			  z_correction +=clt_parameters.z_corr_map.get(image_name);
@@ -3561,6 +3565,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
 				  gpuQuad);
+		  image_dtt.getCorrelation2d(); // initiate image_dtt.correlation2d, needed if disparity_map != null  
 		  GPUTileProcessor.TpTask[] tp_tasks =  gpuQuad.setInterTasks(
 				  pXpYD,              // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
 				  geometryCorrection, // final GeometryCorrection  geometryCorrection,
@@ -4162,6 +4167,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
 				  gpuQuad);
+		  image_dtt.getCorrelation2d(); // initiate image_dtt.correlation2d, needed if disparity_map != null  
 		  double z_correction =  clt_parameters.z_correction;
 		  if (clt_parameters.z_corr_map.containsKey(image_name)){ // not used in lwir
 			  z_correction +=clt_parameters.z_corr_map.get(image_name);
@@ -4417,7 +4423,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  texture_woi_pix.y/transform_size,
 				  texture_woi_pix.width/transform_size,
 				  texture_woi_pix.height/transform_size);
-		  scan.selected = scan.getTextureSelection().clone(); // null
+		  scan.setSelected(scan.getTextureSelection().clone()); // null
 		  ImagePlus imp_texture_cluster = linearStackToColor(
 				  clt_parameters,
 				  colorProcParameters,
@@ -4624,6 +4630,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
 				  gpuQuad);
+		  image_dtt.getCorrelation2d(); // initiate image_dtt.correlation2d, needed if disparity_map != null  
 		  double z_correction =  clt_parameters.z_correction;
 		  if (clt_parameters.z_corr_map.containsKey(image_name)){ // not used in lwir
 			  z_correction +=clt_parameters.z_corr_map.get(image_name);
@@ -4744,6 +4751,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
 				  gpuQuad);
+		  image_dtt.getCorrelation2d(); // initiate image_dtt.correlation2d, needed if disparity_map != null  
 		  double z_correction =  clt_parameters.z_correction;
 		  if (clt_parameters.z_corr_map.containsKey(image_name)){ // not used in lwir
 			  z_correction +=clt_parameters.z_corr_map.get(image_name);
@@ -4935,14 +4943,17 @@ public class QuadCLT extends QuadCLTCPU {
 			  }
 		  }
 		  double min_corr_selected = clt_parameters.min_corr;
-		  double [][] shiftXY = new double [4][2];
-		  if (!clt_parameters.fine_corr_ignore) {
+		  double [][] shiftXY = new double [getNumSensors()][2];
+		  if (!clt_parameters.fine_corr_ignore) {// invalid for AUX!
 			  double [][] shiftXY0 = {
 					  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
 					  {clt_parameters.fine_corr_x_1,clt_parameters.fine_corr_y_1},
 					  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
 					  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
-			  shiftXY = shiftXY0;
+			  // FIXME - only first 4 sensors have correction. And is it the same for aux and main? 
+			  for (int i = 0; i < shiftXY0.length;i++) {
+				  shiftXY[i] = shiftXY0[i];
+			  }
 		  }
 
 		  ImageDtt image_dtt = new ImageDtt(
@@ -4953,6 +4964,8 @@ public class QuadCLT extends QuadCLTCPU {
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
 				  gpuQuad);
+		  image_dtt.getCorrelation2d(); // initiate image_dtt.correlation2d, needed if disparity_map != null  
+		  
 		  double z_correction =  clt_parameters.z_correction;
 		  if (clt_parameters.z_corr_map.containsKey(image_name)){ // not used in lwir
 			  z_correction +=clt_parameters.z_corr_map.get(image_name);

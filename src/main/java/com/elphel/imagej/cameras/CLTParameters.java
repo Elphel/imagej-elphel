@@ -126,14 +126,14 @@ public class CLTParameters {
 
 	public double     diff_sigma =        5.0;   // RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
 	public double     diff_threshold =    1.5;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
-	public boolean    diff_gauss =        true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
+	public boolean    diff_gauss =        true;  // when averaging images, use Gaussian around average as weight (false - sharp all/nothing)
 	public double     min_agree =         3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 	public boolean    dust_remove =       true;  // Do not reduce average weight when only one image differes much from the average
 
 	public boolean    black_back =        true;  // use Black for backdrop outside of the FOV
 	public boolean    keep_weights =      true;  // add port weights to RGBA stack (debug feature)
 	public boolean    sharp_alpha =       false; // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
-	public double     alpha0 = 	          0.6; // > .525 Alpha channel 0.0 thereshold (lower - transparent) (watch for far objects)
+	public double     alpha0 = 	          0.6; // > .525 Alpha channel 0.0 threshold (lower - transparent) (watch for far objects)
 	public double     alpha1 = 	          0.8; // Alpha channel 1.0 threshold (higher - opaque) (watch for window dust)
 
 	public boolean    gen_chn_stacks =    false; // generate shifted channel rgb stacks
@@ -345,7 +345,7 @@ public class CLTParameters {
 	public int        min_clstr_seed   = 4; //2;     // number of tiles in a cluster to seed (just background?)
 	public int        min_clstr_lone   = 4;     // number of tiles in a cluster not close to other clusters (more than 2 tiles apart)
 	public double     min_clstr_weight = 0.0;   // Minimal total strength of the cluster
-	public double     min_clstr_max    = 0.25;  // Minimal maximal strength of the cluster
+	public double     min_clstr_max    = 0.18;  // Minimal maximal strength of the cluster
 
 	public int        fill_gaps        = 4;     // same as in grow - 1:  4 directions by 1 step, 2: 8 directions by 1 step. +2*n - alternating hor/vert
 	public int        fill_final       = 50;    // same as fill_gaps, on the final pass

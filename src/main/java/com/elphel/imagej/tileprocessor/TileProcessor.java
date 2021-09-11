@@ -3072,11 +3072,11 @@ ImageDtt.startAndJoin(threads);
 //		double [] dbg_disparity = scan.getDisparity().clone(); // to modify in-place **** remove clone after debugged ****
 		boolean [] these_no_border = new boolean [tlen];
 		for (int i = 0; i < these_no_border.length; i++) {
-			these_no_border[i] = last_scan.selected[i] && !last_scan.border_tiles[i];
+			these_no_border[i] = last_scan.getSelected()[i] && !last_scan.getBorderTiles()[i]; // selected
 		}
 
-		boolean [] dbg_last_selected = last_scan.selected.clone();
-		boolean [] dbg_last_border =   last_scan.border_tiles.clone();
+		boolean [] dbg_last_selected = last_scan.getSelected().clone(); // selected
+		boolean [] dbg_last_border =   last_scan.getBorderTiles().clone();
 		@SuppressWarnings("unused")
 		boolean [] dbg_no_border =     these_no_border.clone();
 
@@ -3084,7 +3084,7 @@ ImageDtt.startAndJoin(threads);
 		// known are background or these tiles
 		if (bg_scan != null) {
 			for (int i = 0; i < known_tiles.length; i++) {
-				known_tiles[i] |= bg_scan.selected[i];
+				known_tiles[i] |= bg_scan.getSelected()[i]; // selected
 			}
 		}
 		// set combo disparity from  last prepared
@@ -3166,7 +3166,8 @@ ImageDtt.startAndJoin(threads);
 //			if ((last_scan.selected == null) || (expanded == null) || (disparity == null)) {
 //				System.out.println( " BUG in setupExpand()");
 //			}  else {
-				selected[nTile] = (last_scan.selected[nTile] || expanded[nTile]) && !Double.isNaN(disparity[nTile]); // selected by refine and new java.lang.NullPointerException
+///				selected[nTile] = (last_scan.selected[nTile] || expanded[nTile]) && !Double.isNaN(disparity[nTile]); // selected by refine and new java.lang.NullPointerException
+				selected[nTile] = (last_scan.getSelected()[nTile] || expanded[nTile]) && !Double.isNaN(disparity[nTile]); // selected by refine and new java.lang.NullPointerException
 				border[nTile] = selected[nTile] && !known_tiles[nTile];
 //			}
 		}
@@ -3272,18 +3273,21 @@ ImageDtt.startAndJoin(threads);
 		double [] disparity = scan.getDisparity(); // to modify in-place
 		boolean [] these_no_border = new boolean [tlen];
 		for (int i = 0; i < these_no_border.length; i++) {
-			these_no_border[i] = last_scan.selected[i] && !last_scan.border_tiles[i];
+//			these_no_border[i] = last_scan.selected[i] && !last_scan.border_tiles[i];
+			these_no_border[i] = last_scan.getSelected()[i] && !last_scan.getBorderTiles()[i];
 		}
 
-		boolean [] dbg_last_selected = last_scan.selected.clone();
-		boolean [] dbg_last_border =   last_scan.border_tiles.clone();
+//		boolean [] dbg_last_selected = last_scan.selected.clone();
+		boolean [] dbg_last_selected = last_scan.getSelected().clone();
+		boolean [] dbg_last_border =   last_scan.getBorderTiles().clone();
 		boolean [] dbg_no_border =     these_no_border.clone();
 
 		boolean [] known_tiles = these_no_border.clone();
 		// known are background or these tiles
 		if (bg_scan != null) {
 			for (int i = 0; i < known_tiles.length; i++) {
-				known_tiles[i] |= bg_scan.selected[i];
+//				known_tiles[i] |= bg_scan.selected[i];
+				known_tiles[i] |= bg_scan.getSelected()[i];
 			}
 		}
 		// set combo disparity from  last prepared
@@ -3313,7 +3317,8 @@ ImageDtt.startAndJoin(threads);
 ///			if (!grow_retry_inf && (bg_scan == null)){ // FIXME: BUG bg_scan == null here!
 			if (!grow_retry_inf && (bg_scan != null)){ // FIXME: BUG bg_scan == null here!
 				for (int i = 0; i < untested_bgnd.length; i++) {
-					if (bg_scan.selected[i]) untested_bgnd[i] = false;
+//					if (bg_scan.selected[i]) untested_bgnd[i] = false;
+					if (bg_scan.getSelected()[i]) untested_bgnd[i] = false;
 				}
 			}
 			// turn these tiles as if they are not known (really known or belong to bgnd)
@@ -3453,8 +3458,9 @@ ImageDtt.startAndJoin(threads);
 			}
 			return 0;
 		}
-		scan.selected =     grown;
-		scan.border_tiles = border;
+//		scan.selected =     grown;
+		scan.setSelected(grown);
+		scan.setBorderTiles (border);
 		scan.disparity = new double [tilesY][tilesX];
 		scan.tile_op =       new int [tilesY][tilesX];
 		int op = ImageDtt.setImgMask(0, 0xf);
@@ -3466,7 +3472,8 @@ ImageDtt.startAndJoin(threads);
 
 		for (int ty = 0; ty < tilesY; ty++) for (int tx = 0; tx <tilesX; tx++){
 			int indx =  tilesX * ty + tx;
-			if (scan.selected[indx]) {
+//			if (scan.selected[indx]) {
+			if (scan.getSelected()[indx]) {
 				scan.disparity[ty][tx] = disparity[indx];
 				scan.tile_op[ty][tx] = op;
 				num_op_tiles ++;
@@ -3510,10 +3517,13 @@ ImageDtt.startAndJoin(threads);
 				dbg_img[0][i] = scan.max_tried_disparity[ty][tx];
 				dbg_img[2][i] = scan.disparity[ty][tx];
 				dbg_img[3][i] = strength[i];
-				if (bg_scan != null) dbg_img[4][i] = ((bg_scan.selected != null) &&    (bg_scan.selected[i]))? boolean_val:0.0 ;
-				dbg_img[5][i] = ((last_scan.selected != null) &&  (last_scan.selected[i]))? boolean_val:0.0 ;
+//				if (bg_scan != null) dbg_img[4][i] = ((bg_scan.selected != null) &&    (bg_scan.selected[i]))? boolean_val:0.0 ;
+				if (bg_scan != null) dbg_img[4][i] = ((bg_scan.getSelected() != null) &&    (bg_scan.getSelected()[i]))? boolean_val:0.0 ;
+//				dbg_img[5][i] = ((last_scan.selected != null) &&  (last_scan.selected[i]))? boolean_val:0.0 ;
+				dbg_img[5][i] = ((last_scan.getSelected() != null) &&  (last_scan.getSelected()[i]))? boolean_val:0.0 ;
 				dbg_img[6][i] = 0.05 * (dbg_img[4][i] + dbg_img[5][i]);
-				dbg_img[7][i] = (scan.selected[i]?4:0)+ (scan.border_tiles[i]?8:0);
+//				dbg_img[7][i] = (scan.selected[i]?4:0)+ (scan.border_tiles[i]?8:0);
+				dbg_img[7][i] = (scan.getSelected()[i]?4:0)+ (scan.getBorderTiles()[i]?8:0);
 
 				dbg_img[8][i] = (dbg_last_selected[i]?4:0)+ (dbg_last_border[i]?8:0);
 				dbg_img[9][i] = dbg_no_border[i]?boolean_val:0;
@@ -3794,12 +3804,14 @@ ImageDtt.startAndJoin(threads);
 		double [][] dbg_img = new double[NUM_SLICES][];
 		if (scan.tile_op != null)              dbg_img[i_tile_op] =      new double[tlen];
 		if (scan.disparity !=  null)           dbg_img[i_disparity] =    new double[tlen];
-		if (scan.selected != null)             dbg_img[i_selection] =    new double[tlen];
-		if (scan.border_tiles != null)         dbg_img[i_border_tiles] = new double[tlen];
+		if (scan.getSelected() != null)        dbg_img[i_selection] =    new double[tlen];
+		if (scan.getBorderTiles() != null)     dbg_img[i_border_tiles] = new double[tlen];
 		if (scan.max_tried_disparity != null)  dbg_img[i_max_tried] =    new double[tlen];
 //		if (ly_force != null)                  dbg_img[ly_force_indx] = new double[tlen];
 		
-
+		boolean [] gotSelected = scan.getSelected();
+		boolean [] gotBorderTiles = scan.getBorderTiles();
+		
 		for (int ty = 0; ty < tilesY; ty++) for (int tx = 0; tx < tilesX; tx++){
 			int nt = ty*tilesX + tx;
 			if (scan.tile_op != null) {
@@ -3807,8 +3819,9 @@ ImageDtt.startAndJoin(threads);
 				measured[nt] = scan.tile_op[ty][tx] > 0;
 			}
 			if (scan.disparity !=  null)           dbg_img[i_disparity]   [nt] = scan.disparity[ty][tx];
-			if (scan.selected != null)             dbg_img[i_selection]   [nt] = scan.selected[nt]? 1.0:0.0;
-			if (scan.border_tiles != null)         dbg_img[i_border_tiles][nt] = scan.border_tiles[nt]? 1.0:0.0;
+//			if (scan.selected != null)             dbg_img[i_selection]   [nt] = scan.selected[nt]? 1.0:0.0;
+			if (gotSelected != null)               dbg_img[i_selection]   [nt] = gotSelected[nt]? 1.0:0.0;
+			if (gotBorderTiles != null)            dbg_img[i_border_tiles][nt] = gotBorderTiles[nt]? 1.0:0.0;
 			if (scan.max_tried_disparity != null)  dbg_img[i_max_tried]   [nt] = scan.max_tried_disparity[ty][tx];
 //			if (ly_force != null)                  dbg_img[ly_force_indx][nt] = ly_force[nt]? 1.0:0.0;
 		}
@@ -3850,7 +3863,7 @@ ImageDtt.startAndJoin(threads);
 				}
 			}
 			if (dbg_img[this_IMG_TONE_RGB] != null) {
-				for (int np = 0; np < 4; np++) {
+				for (int np = 0; np < numSensors; np++) {
 					dbg_img[this_IMG_TONE_RGB_Y+np] = new double [tlen];
 					dbg_img[this_IMG_TONE_RGB_DIFF+np] = new double [tlen];
 					for (int i = 0; i < tlen; i++){
@@ -3891,13 +3904,14 @@ ImageDtt.startAndJoin(threads);
 		boolean [] bgnd_tiles =       new boolean [tilesY * tilesX];
 		boolean [] nonbgnd_tiles =    new boolean [tilesY * tilesX];
 		boolean [] block_propagate =  new boolean [tilesY * tilesX];
-		int quad = 4;
+//		int quad = 4;
 		ShowDoubleFloatArrays sdfa_instance = null;
 		if (debugLevel > -1)
 			sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
 		CLTPass3d bgnd_data = clt_3d_passes.get(0);
 		double [][]     disparity_map=  bgnd_data.disparity_map;
+		int [] dbg_numtile = new int [2];
 		for (int tileY = 0; tileY < tilesY; tileY++){
 			for (int tileX = 0; tileX < tilesX; tileX++){
 				int tindx = tileY * tilesX + tileX;
@@ -3905,26 +3919,32 @@ ImageDtt.startAndJoin(threads);
 				if (Math.abs(disparity_map[disparity_index][tindx]) < bgnd_range){
 					if (disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][tindx] >= bgnd_sure){
 						bgnd_tiles[tindx] = true;
+						dbg_numtile[0]++;
 					}
 				} else {
 					if (disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][tindx] > bgnd_maybe){ // maybe non-bkgnd
 						if (disparity_map[disparity_index][tindx] > 0.0) { // disregard negative disparity points
 							nonbgnd_tiles[tindx] = true;
+							dbg_numtile[1]++;
 						}
 					}
 				}
 				// see if the second worst variation exceeds sure_smth (like a window), really close object
 				int imax1 = 0;
-				for (int i = 1; i< quad; i++){
+				for (int i = 1; i< getNumSensors(); i++){
 					if (disparity_map[ImageDtt.IMG_DIFF0_INDEX+i][tindx] > disparity_map[ImageDtt.IMG_DIFF0_INDEX + imax1][tindx]) imax1 = i;
 				}
 				int imax2 = (imax1 == 0)? 1 : 0;
-				for (int i = 0; i< quad; i++) if (i != imax1) {
+				for (int i = 0; i< getNumSensors(); i++) if (i != imax1) {
 					if (disparity_map[ImageDtt.IMG_DIFF0_INDEX+i][tindx] > disparity_map[ImageDtt.IMG_DIFF0_INDEX + imax2][tindx]) imax2 = i;
 				}
 				block_propagate[tindx] = (disparity_map[ImageDtt.IMG_DIFF0_INDEX + imax2][tindx] > sure_smth);
 			}
 		}
+		if (debugLevel > -1) {
+			System.out.println("Before removing small clusters: number of background tiles = "+dbg_numtile[0]+", non-bgnd tiles = "+dbg_numtile[1]);
+		}
+
 		// TODO: check if minimal cluster strength should be limited here
 		if (min_clstr_seed > 1){
 			removeSmallClusters(
@@ -3944,6 +3964,14 @@ ImageDtt.startAndJoin(threads);
 					min_clstr_block, // int        min_area,  // minimal number of pixels
 					0.0, //clt_parameters.min_clstr_weight,  // double     min_weight // minimal total weight of the cluster
 					0.0); // clt_parameters.min_clstr_max);    // double     min_max_weight // minimal value of the maximal strengh in the cluster
+		}
+		if (debugLevel > -1+0) {
+			dbg_numtile = new int [2];
+			for (int tindx = 0; tindx < bgnd_tiles.length; tindx++) {
+				if (bgnd_tiles[tindx]) dbg_numtile[0]++;
+				if (nonbgnd_tiles[tindx]) dbg_numtile[1]++;
+			}
+			System.out.println("After removing small clusters: number of background tiles = "+dbg_numtile[0]+", non-bgnd tiles = "+dbg_numtile[1]);
 		}
 
 		if ((sdfa_instance != null) && show_bgnd_nonbgnd) {
@@ -4032,7 +4060,7 @@ ImageDtt.startAndJoin(threads);
 		boolean [] bgnd_tiles =       new boolean [tilesY * tilesX];
 		boolean [] nonbgnd_tiles =    new boolean [tilesY * tilesX];
 		boolean [] block_propagate =  new boolean [tilesY * tilesX];
-		int quad = 4;
+//		int quad = 4;
 		ShowDoubleFloatArrays sdfa_instance = null;
 		if (debugLevel > -1)
 			sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
@@ -4063,7 +4091,7 @@ ImageDtt.startAndJoin(threads);
 				int imax1 = 0;
 				double worst1 = 0.0;
 				// modified to look around for the 1-st maximum
-				for (int i = 1; i< quad; i++){
+				for (int i = 1; i< getNumSensors(); i++){
 //					if (disparity_map[ImageDtt.IMG_DIFF0_INDEX+i][tindx] > disparity_map[ImageDtt.IMG_DIFF0_INDEX + imax1][tindx]){
 					if (disparity_map[ImageDtt.IMG_DIFF0_INDEX+i][tindx] > worst1){
 						imax1 = i;
@@ -4080,7 +4108,7 @@ ImageDtt.startAndJoin(threads);
 					}
 				}
 				int imax2 = (imax1 == 0)? 1 : 0;
-				for (int i = 0; i< quad; i++) if (i != imax1) {
+				for (int i = 0; i< getNumSensors(); i++) if (i != imax1) {
 					if (disparity_map[ImageDtt.IMG_DIFF0_INDEX+i][tindx] > disparity_map[ImageDtt.IMG_DIFF0_INDEX + imax2][tindx]) imax2 = i;
 				}
 				dbg_worst2[tindx] = disparity_map[ImageDtt.IMG_DIFF0_INDEX + imax2][tindx];
@@ -4186,7 +4214,7 @@ ImageDtt.startAndJoin(threads);
 			}
 
 		}
-		// was not in tghe original
+		// was not in the original
 		tnSurface.growSelection(
 				4, // grow,
 				bgnd_tiles, // tiles,
@@ -4365,7 +4393,7 @@ ImageDtt.startAndJoin(threads);
 			CLTPass3d scan_next =new CLTPass3d(this);
 			scan_next.disparity =     disparityTask;
 			scan_next.tile_op =       tile_op;
-			scan_next.border_tiles =  borderTiles;
+			scan_next.setBorderTiles (borderTiles);
 			scan_next.dbg_index =     ncl; // matching overlapClusters[]
 			clt_3d_passes.add(scan_next);
 
@@ -4389,7 +4417,7 @@ ImageDtt.startAndJoin(threads);
 					for (int tx = 0; tx < tilesX; tx++){
 						int indx = ty*tilesX + tx;
 						if (dbg_scan.tile_op[ty][tx] !=0){
-							if (dbg_scan.border_tiles[indx]) {
+							if (dbg_scan.getBorderTiles()[indx]) {
 								dbg_shells[ns][indx] = 0.5*ampl;
 							} else {
 								dbg_shells[ns][indx] = 1.0*ampl;
@@ -4638,7 +4666,7 @@ ImageDtt.startAndJoin(threads);
 			CLTPass3d scan_next =new CLTPass3d(this);
 			scan_next.disparity =     disparityTask;
 			scan_next.tile_op =       tile_op;
-			scan_next.border_tiles =  borderTiles;
+			scan_next.setBorderTiles (borderTiles);
 			clt_3d_passes.add(scan_next);
 			numClusters++;
 		}
@@ -4747,7 +4775,7 @@ ImageDtt.startAndJoin(threads);
 			CLTPass3d scan_next =new CLTPass3d(this);
 			scan_next.disparity =     disparityTask;
 			scan_next.tile_op =       tile_op;
-			scan_next.border_tiles =  borderTiles;
+			scan_next.setBorderTiles (borderTiles);
 			clt_3d_passes.add(scan_next);
 			numClusters++;
 		}
@@ -5291,7 +5319,7 @@ ImageDtt.startAndJoin(threads);
 
 			if (this_disparity[i] < disparity_far) {
 				if (this_strength[i] > this_maybe){
-					if (bg_tiles[i]) { // far can only be among previously selected for bgnd?
+					if (bg_tiles[i]) { // far can only be among previously selected for bgnd? bg_tiles = null ?
 						far_tiles[i] = true;
 					}
 				}
@@ -5356,7 +5384,15 @@ ImageDtt.startAndJoin(threads);
 		}
 
 //ex_nstrength
-
+		if (debugLevel > -1) {
+			int num_far=0, num_near=0, num_these = 0;
+			for (int i = 0; i <tlen; i++){
+				if (far_tiles[i]) num_far++;
+				if (near_tiles[i]) num_near++;
+				if (these_tiles[i]) num_these++;
+			}
+			System.out.println("num_far="+num_far+", num_near="+num_near+", num_these="+num_these);
+		}
 
 		boolean[] prohibit = null; // TBD
 		boolean[] dbg_before_small = null;
@@ -5382,7 +5418,7 @@ ImageDtt.startAndJoin(threads);
 					0.0); // clt_parameters.min_clstr_max);    // double     min_max_weight // minimal value of the maximal strengh in the cluster
 			if ((sdfa_instance!=null) && show_scan) dbg_before_small = these_tiles.clone();
 			// only remove far outstanding clusters
-			removeSmallClusters( // remove single-tile clusters - anywhere
+			removeSmallClusters( // remove single-tile clusters - anywhere // removed all
 					false, // true,            // boolean    diag_en,   // enable diagonal directions, false only up, dowm, right,left
 					these_tiles,     // boolean [] tiles_src,    // selected tiles, will modified
 					this_strength, // orig_strength, // null,            // double []   weights_src,   // or null
@@ -5391,7 +5427,7 @@ ImageDtt.startAndJoin(threads);
 					min_clstr_max,    // double     min_max_weight // minimal value of the maximal strengh in the cluster
 					debugLevel);
 			if ((sdfa_instance!=null) && show_scan) dbg_before_lone = these_tiles.clone();
-			removeLoneClusters(
+			removeLoneClusters(  // did not remove anything
 					false, // true,            // boolean    diag_en,   // enable diagonal directions, false only up, dowm, right,left
 					these_tiles,      // boolean [] tiles_src,    // selected tiles, will modified
 					this_strength, // orig_strength, // null,            // double []   weights_src,   // or null
@@ -5927,11 +5963,10 @@ ImageDtt.startAndJoin(threads);
 			final int         debugLevel)
 	{
 		CLTPass3d scan_prev = clt_3d_passes.get(clt_3d_passes.size() -1);
-		CLTPass3d scan_bg =   clt_3d_passes.get(bg_scan_index); //
+		CLTPass3d scan_bg =   clt_3d_passes.get(bg_scan_index); // does it have .selected?
 		CLTPass3d scan_lm =   getLastMeasured(-1);
 //		boolean [] border_tiles = (scan_lm != null) ? scan_lm.getBorderTiles() : null;
-		ShowDoubleFloatArrays sdfa_instance = null;
-		if (debugLevel > -1) sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
+//		ShowDoubleFloatArrays sdfa_instance = null;
 		//TODO: for next passes - combine all selected for previous passes (all passes with smaller disparity)
 		int [] replaced =  null; // +1 - hor, +2 - vert
 		int [] replaced0 = null; // +1 - hor, +2 - vert
@@ -5940,7 +5975,8 @@ ImageDtt.startAndJoin(threads);
 		String [] dbg_titles = null;
 		boolean show_ortho = clt_parameters.show_ortho_combine || (debugLevel > 1);
 		boolean show_super = clt_parameters.show_refine_supertiles || (debugLevel > 1);
-		boolean show_st =    clt_parameters.stShow || (debugLevel > 1);
+		boolean show_st =    clt_parameters.stShow || (debugLevel > 2);
+//		if ((debugLevel > -1)) sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		if (show_ortho){
 			String [] dbg_titles0 = {
 					"combo_disparity",    //  0
@@ -5985,7 +6021,8 @@ ImageDtt.startAndJoin(threads);
 				clt_parameters.or_maxDisp,   // 5.0;   // Maximal disparity to apply ortho correction
 				show_ortho,                  //  show replacement of disparity/strength by those of hor/vert
 				debugLevel);
-
+        // replaced == null?
+		replaced0 = replaced.clone();
 		if (clt_parameters.poles_fix) {
 			boolean [] selection = new boolean [replaced.length];
 			boolean [] tilesHor =   new boolean [replaced.length];
@@ -6035,7 +6072,7 @@ ImageDtt.startAndJoin(threads);
 			}
 			dbg_img[12] = dreplaced0;
 			dbg_img[13] = dreplaced;
-			sdfa_instance.showArrays(dbg_img, tilesX, tilesY, true, "ortho_combine",dbg_titles);
+			(new ShowDoubleFloatArrays()).showArrays(dbg_img, tilesX, tilesY, true, "ortho_combine",dbg_titles);
 		}
 
 		if (debugLevel > 10){
@@ -6047,7 +6084,7 @@ ImageDtt.startAndJoin(threads);
 
 		boolean [] these_tiles = FilterScan(
 				scan_prev,        // final CLTPass3d   scan,
-				scan_bg.selected, // get from selected in clt_3d_passes.get(0);
+				scan_bg.getSelected(), // selected, // get from selected in clt_3d_passes.get(0); // null?
 				clt_parameters.ex_min_over,// when expanding over previously detected (by error) background, disregard far tiles
 //				border_tiles,      // final boolean  [] border_tiles,      // last measured boirder tiles
 				scan_lm,          // final CLTPass3d   last_meas,         // last measured scan (with border_tiles and getSecondMaxDiff
@@ -6118,7 +6155,7 @@ ImageDtt.startAndJoin(threads);
 			int hist_width0 =  scan_prev.getSuperTiles().showDisparityHistogramWidth();
 			int hist_height0 = dbg_hist[0].length/hist_width0;
 			if (show_st){
-				sdfa_instance.showArrays(dbg_hist, hist_width0, hist_height0, true, "disparity_supertiles_histograms",dbg_st_titles);
+				(new ShowDoubleFloatArrays()).showArrays(dbg_hist, hist_width0, hist_height0, true, "disparity_supertiles_histograms",dbg_st_titles);
 			}
 
 			scan_prev.getBgDispStrength( // calculate (check non-null)?
@@ -6184,7 +6221,7 @@ ImageDtt.startAndJoin(threads);
 					clt_parameters.transform_size, // int    tile_size,
 					-1.0, // double bgnd,
 					1.0); // double fgnd)
-			sdfa_instance.showArrays(dbg_neib,tilesX*clt_parameters.transform_size, tilesY*clt_parameters.transform_size,"XXneighbors");
+			(new ShowDoubleFloatArrays()).showArrays(dbg_neib,tilesX*clt_parameters.transform_size, tilesY*clt_parameters.transform_size,"XXneighbors");
 		}
 //		double [] dbg_after2 = scan_prev.getDisparity().clone();
 
@@ -6254,14 +6291,15 @@ ImageDtt.startAndJoin(threads);
 				dbg_disp[10][i] = borderTiles[i]? 1.0: 0.0;
 			}
 
-			sdfa_instance.showArrays(dbg_disp, tilesX, tilesY, true, "refine_disparity_supertiles-"+clt_3d_passes.size(),dbg_disp_tiltes);
+			(new ShowDoubleFloatArrays()).showArrays(dbg_disp, tilesX, tilesY, true, "refine_disparity_supertiles-"+clt_3d_passes.size(),dbg_disp_tiltes);
 		}
 
 		CLTPass3d scan_next =new CLTPass3d(this);
 		scan_next.disparity =     disparityTask;
 		scan_next.tile_op =       tile_op;
-		scan_next.border_tiles =  borderTiles;
-		scan_next.selected =      grown; // includes border_tiles
+		scan_next.setBorderTiles (borderTiles);
+//		scan_next.selected =      grown; // includes border_tiles
+		scan_next.setSelected(grown); // includes border_tiles
 		return scan_next;
 	}
 
@@ -7706,7 +7744,7 @@ ImageDtt.startAndJoin(threads);
 			}
 			these_tiles = FilterScan(
 					scan_prev,        // final CLTPass3d   scan,
-					scan_bg.selected, // get from selected in clt_3d_passes.get(0);
+					scan_bg.getSelected(), // selected, // get from selected in clt_3d_passes.get(0);
 					clt_parameters.ex_min_over,// when expanding over previously detected (by error) background, disregard far tiles
 					scan_lm,          // final CLTPass3d   last_meas,         // last measured scan (with border_tiles and getSecondMaxDiff
 					replaced,         // final int      [] horVertMod, // +1 - modified by hor correlation, +2 - modified by vert correlation (or null)
@@ -7735,7 +7773,8 @@ ImageDtt.startAndJoin(threads);
 		} else { //!ortho_old
 			these_tiles= combineHorVertDisparity_old(
 				scan_prev,                     // final CLTPass3d   scan,
-				scan_bg.selected, // clt_3d_passes.get(0).selected, // final boolean [] bg_tiles,          // get from selected in clt_3d_passes.get(0);
+//				scan_bg.selected, // clt_3d_passes.get(0).selected, // final boolean [] bg_tiles,          // get from selected in clt_3d_passes.get(0);
+				scan_bg.getSelected(), // clt_3d_passes.get(0).selected, // final boolean [] bg_tiles,          // get from selected in clt_3d_passes.get(0);
 				disparity_far,    //
 				disparity_near,   //
 				ex_strength,      // this_sure,        // minimal strength to be considered definitely background
@@ -8004,7 +8043,7 @@ ImageDtt.startAndJoin(threads);
 			CLTPass3d scan_next =new CLTPass3d(this);
 			scan_next.disparity =     disparityTask;
 			scan_next.tile_op =       tile_op;
-			scan_next.border_tiles =  borderTiles;
+			scan_next.setBorderTiles (borderTiles);
 			clt_3d_passes.add(scan_next);
 			numClusters++;
 		}

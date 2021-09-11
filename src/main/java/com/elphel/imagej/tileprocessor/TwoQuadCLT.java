@@ -9126,9 +9126,9 @@ if (debugLevel > -100) return true; // temporarily !
 			int [] channelFiles_main = set_channels_main[nSet].fileNumber();
 			int [] channelFiles_aux =  set_channels_aux[nSet].fileNumber();
 			boolean [][] saturation_imp_main = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles_main.length][] : null;
-			boolean [][] saturation_imp_aux =  (clt_parameters.sat_level > 0.0)? new boolean[channelFiles_main.length][] : null;
+			boolean [][] saturation_imp_aux =  (clt_parameters.sat_level > 0.0)? new boolean[channelFiles_aux.length][] : null;
 			double [] scaleExposures_main = new double[channelFiles_main.length];
-			double [] scaleExposures_aux =  new double[channelFiles_main.length];
+			double [] scaleExposures_aux =  new double[channelFiles_aux.length];
 			if (updateStatus) IJ.showStatus("Conditioning main camera image set for "+quadCLT_main.image_name);
 			ImagePlus [] imp_srcs_main = quadCLT_main.conditionImageSet(
 					clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
@@ -9437,14 +9437,15 @@ if (debugLevel > -100) return true; // temporarily !
 								properties,  // Properties properties,    // if null - will only save extrinsics)
 								debugLevel);
 					}
-					continue; // skipping to the next file
+					
+///					continue; // skipping to the next file
 				}
 			}
 
 			// Process AUX (LWIR) camera data
 			// 1) Prepare DS for adjustments (just d/s, with ambiguous disparity tiles removed)
 			// 2) Prepare full D/S and FG/BG data to be embedded within the ML files
-			double [][] main_ds = {dsi[DSI_DISPARITY_MAIN], dsi[DSI_STRENGTH_MAIN]};
+			double [][] main_ds = {dsi[DSI_DISPARITY_MAIN], dsi[DSI_STRENGTH_MAIN]}; // {null, null}
 
 			if ((adjust_aux == 0) &&
 					!quadCLT_main.correctionsParameters.clt_batch_4img_aux &&
@@ -9455,24 +9456,25 @@ if (debugLevel > -100) return true; // temporarily !
 				continue; 
 			}
 			
-			
-			quadCLT_aux.ds_from_main = quadCLT_aux.depthMapMainToAux( // only 2 layers for adjustments
-					main_ds, // double [][] ds,
-					quadCLT_main.getGeometryCorrection(), //  GeometryCorrection geometryCorrection_main,
-					quadCLT_aux.getGeometryCorrection(), //  GeometryCorrection geometryCorrection_aux,
-					clt_parameters,
-					false,             // split_fg_bg,
-					true,              // for_adjust,
-					debugLevel);       // DEBUG_LEVEL); // int debug_level
+			if (main_ds[0] != null) {
+				quadCLT_aux.ds_from_main = quadCLT_aux.depthMapMainToAux( // only 2 layers for adjustments
+						main_ds, // double [][] ds,
+						quadCLT_main.getGeometryCorrection(), //  GeometryCorrection geometryCorrection_main,
+						quadCLT_aux.getGeometryCorrection(), //  GeometryCorrection geometryCorrection_aux,
+						clt_parameters,
+						false,             // split_fg_bg,
+						true,              // for_adjust,
+						debugLevel);       // DEBUG_LEVEL); // int debug_level
 
-			this.dsi_aux_from_main = quadCLT_aux.depthMapMainToAux( // 8 layers for ML generation/exporting + 2 zero layers
-					main_ds, // double [][] ds,
-					quadCLT_main.getGeometryCorrection(), //  GeometryCorrection geometryCorrection_main,
-					quadCLT_aux.getGeometryCorrection(),  //  GeometryCorrection geometryCorrection_aux,
-					clt_parameters,
-					true,                                 // split_fg_bg,
-					false,                                // for_adjust,
-					debugLevel);                          // int debug_level
+				this.dsi_aux_from_main = quadCLT_aux.depthMapMainToAux( // 8 layers for ML generation/exporting + 2 zero layers
+						main_ds, // double [][] ds,
+						quadCLT_main.getGeometryCorrection(), //  GeometryCorrection geometryCorrection_main,
+						quadCLT_aux.getGeometryCorrection(),  //  GeometryCorrection geometryCorrection_aux,
+						clt_parameters,
+						true,                                 // split_fg_bg,
+						false,                                // for_adjust,
+						debugLevel);                          // int debug_level
+			}
 
 			ImagePlus [] imp_srcs_aux = quadCLT_aux.conditionImageSet(
 					clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
@@ -9485,14 +9487,13 @@ if (debugLevel > -100) return true; // temporarily !
 					saturation_imp_aux,            //output  // boolean [][]                              saturation_imp,
 					threadsMax,                 // int                                       threadsMax,
 					debugLevelInner); // int                                       debugLevel);
-
 			// optionally adjust AUX extrinsics (using quadCLT_aux.ds_from_main )
 			for (int num_adjust_aux = 0; num_adjust_aux < adjust_aux; num_adjust_aux++) {
 				if (updateStatus) IJ.showStatus("Building basic  DSI for the AUX camera image set "+quadCLT_main.image_name+
-						" using main camera DSI, pass "+(num_adjust_aux+1)+" of "+num_adjust_aux);
+						" using main camera DSI, pass "+(num_adjust_aux+1)+" of "+adjust_aux);
 				if (debugLevel > -5) {
 					System.out.println("Building basic  DSI for the AUX camera image set "+quadCLT_main.image_name+
-							" using main camera DSI, pass "+(num_adjust_aux+1)+" of "+num_adjust_aux);
+							" using main camera DSI, pass "+(num_adjust_aux+1)+" of "+adjust_aux);
 				}
 				quadCLT_aux.preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
 						imp_srcs_aux, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
@@ -9530,18 +9531,19 @@ if (debugLevel > -100) return true; // temporarily !
 							updateStatus,// final boolean    updateStatus,
 							debugLevelInner); // final int        debugLevel)
 					if (!ok) break;
+				} else {
+					boolean ok = quadCLT_aux.extrinsicsCLTfromGT(
+							null,
+							quadCLT_aux.ds_from_main, // gt_disp_strength,
+							clt_parameters,           // EyesisCorrectionParameters.CLTParameters           clt_parameters,
+							false,                    // adjust_poly,
+							threadsMax,               // final int        threadsMax,  // maximal number of threads to launch
+							updateStatus,             // final boolean    updateStatus,
+							debugLevel + 2);          // final int        debugLevel)
+					if (!ok) break;
 				}
-				boolean ok = quadCLT_aux.extrinsicsCLTfromGT(
-						  null,
-						  quadCLT_aux.ds_from_main, // gt_disp_strength,
-						  clt_parameters,           // EyesisCorrectionParameters.CLTParameters           clt_parameters,
-						  false,                    // adjust_poly,
-						  threadsMax,               // final int        threadsMax,  // maximal number of threads to launch
-						  updateStatus,             // final boolean    updateStatus,
-						  debugLevel + 2);          // final int        debugLevel)
 // clear memory for AUX
 				quadCLT_aux.tp.resetCLTPasses();
-				if (!ok) break;
 			}
 			// Generate 4 AUX camera images and thumbnail
 			if (quadCLT_main.correctionsParameters.clt_batch_4img_aux){

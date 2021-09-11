@@ -114,8 +114,9 @@ public class ImageDtt extends ImageDttCPU {
 //gpuQuad
 		final boolean debug_distort= globalDebugLevel > 0; ///false; // true;
 
-		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
-		for (int i = 0; i < debug_offsets.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
+//		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
+		final double [][] debug_offsets = new double[getNumSensors()][2];  
+		for (int i = 0; i < imgdtt_params.lma_dbg_offset.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
 			debug_offsets[i][j] = imgdtt_params.lma_dbg_offset[i][j]*imgdtt_params.lma_dbg_scale;
 		}
 
@@ -929,8 +930,9 @@ public class ImageDtt extends ImageDttCPU {
 //gpuQuad
 		final boolean debug_distort= globalDebugLevel > 0; ///false; // true;
 
-		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
-		for (int i = 0; i < debug_offsets.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
+//		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
+		final double [][] debug_offsets = new double[getNumSensors()][2];  
+		for (int i = 0; i < imgdtt_params.lma_dbg_offset.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
 			debug_offsets[i][j] = imgdtt_params.lma_dbg_offset[i][j]*imgdtt_params.lma_dbg_scale;
 		}
 
@@ -1617,8 +1619,9 @@ public class ImageDtt extends ImageDttCPU {
 //gpuQuad
 		final boolean debug_distort= globalDebugLevel > 0; ///false; // true;
 
-		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
-		for (int i = 0; i < debug_offsets.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
+//		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
+		final double [][] debug_offsets = new double[getNumSensors()][2];  
+		for (int i = 0; i < imgdtt_params.lma_dbg_offset.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
 			debug_offsets[i][j] = imgdtt_params.lma_dbg_offset[i][j]*imgdtt_params.lma_dbg_scale;
 		}
 //dbg_pair_mask
@@ -1967,8 +1970,9 @@ public class ImageDtt extends ImageDttCPU {
 //gpuQuad
 		final boolean debug_distort= globalDebugLevel > 0; ///false; // true;
 
-		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
-		for (int i = 0; i < debug_offsets.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
+//		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
+		final double [][] debug_offsets = new double[getNumSensors()][2];  
+		for (int i = 0; i < imgdtt_params.lma_dbg_offset.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
 			debug_offsets[i][j] = imgdtt_params.lma_dbg_offset[i][j]*imgdtt_params.lma_dbg_scale;
 		}
 //dbg_pair_mask

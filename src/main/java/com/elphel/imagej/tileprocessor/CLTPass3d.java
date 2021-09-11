@@ -57,8 +57,8 @@ public class CLTPass3d{
 		                                                     // exceeds minBgFract, otherwise proceed to the next one (and accumulate strength)
 		private double []       bgTileDisparity =      null;
 		private double []       bgTileStrength =       null;
-		public  boolean []      border_tiles =         null; // these are border tiles, zero out alpha
-		public  boolean []      selected =             null; // which tiles are selected for this layer
+		private  boolean []     border_tiles =         null; // these are border tiles, zero out alpha
+		private  boolean []     selected =             null; // which tiles are selected for this layer
 		public  double [][][][] texture_tiles;
 		// texture_selection is only used for the GPU and if not null means it is for the GPU
 		public boolean []       texture_selection =    null; // use by the GPU to set texture to generate

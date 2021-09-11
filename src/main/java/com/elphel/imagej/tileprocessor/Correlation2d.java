@@ -455,10 +455,10 @@ public class Correlation2d {
 					HashSet<Integer> contrib_set = new HashSet<Integer>();
 					Iterator<Integer> contrib_itr;
 					for (int num_pair = ai.getAndIncrement(); num_pair < corr_pairs.length; num_pair = ai.getAndIncrement()) {
-						if (num_pair == 62) {
-							System.out.println("num_pair="+num_pair);
-							System.out.println("num_pair="+num_pair);
-						}
+//						if (num_pair == 62) {
+//							System.out.println("num_pair="+num_pair);
+//							System.out.println("num_pair="+num_pair);
+//						}
 						if (corr_pairs[num_pair]) {
 							resample_indices[num_pair] = new int    [mcorr_comb_width * mcorr_comb_height][];
 							resample_weights[num_pair] = new double [mcorr_comb_width * mcorr_comb_height][];
@@ -485,10 +485,10 @@ public class Correlation2d {
 									int ix = j - mcorr_comb_width/2;
 									Arrays.fill(contrib, 0.0);
 									contrib_set.clear();
-									if ((num_pair == 62) && (i==7) && (j==7)) {
-										System.out.println("num_pair="+num_pair+", i="+i+", j="+j);
-										System.out.println("num_pair="+num_pair+", i="+i+", j="+j);
-									}
+//									if ((num_pair == 62) && (i==7) && (j==7)) {
+//										System.out.println("num_pair="+num_pair+", i="+i+", j="+j);
+//										System.out.println("num_pair="+num_pair+", i="+i+", j="+j);
+//									}
 									
 									for (int idy = 0; idy < weights_size; idy++) {
 										mxy.set(1, 0,  iy+ (idy - SUB_SAMPLE + 1) * ksub); //idy == (SUB_SAMPLE -1) - no fractional pixel
@@ -564,10 +564,10 @@ public class Correlation2d {
  					ArrayList<Integer> contrib_list = new ArrayList<Integer>();
  					ArrayList<Double>  contrib_weights_list = new ArrayList<Double>();
  					for (int num_pair = ai.getAndIncrement(); num_pair < corr_pairs.length; num_pair = ai.getAndIncrement()) {
- 						if (num_pair == 62) {
- 							System.out.println("num_pair="+num_pair);
- 							System.out.println("num_pair="+num_pair);
- 						}
+// 						if (num_pair == 62) {
+// 							System.out.println("num_pair="+num_pair);
+// 							System.out.println("num_pair="+num_pair);
+// 						}
  						if (corr_pairs[num_pair]) {
  							resample_indices[num_pair] = new int    [mcorr_comb_width * mcorr_comb_height][];
  							resample_weights[num_pair] = new double [mcorr_comb_width * mcorr_comb_height][];
@@ -596,10 +596,10 @@ public class Correlation2d {
  									int iy = i + mcorr_comb_offset - mcorr_comb_height/2;
  									for (int j = 0; j < mcorr_comb_width; j++) {
  										int ix = j - mcorr_comb_width/2;
- 										if ((num_pair == 62) && (i==7) && (j==7)) {
- 											System.out.println("num_pair="+num_pair+", i="+i+", j="+j);
- 											System.out.println("num_pair="+num_pair+", i="+i+", j="+j);
- 										}
+// 										if ((num_pair == 62) && (i==7) && (j==7)) {
+// 											System.out.println("num_pair="+num_pair+", i="+i+", j="+j);
+// 											System.out.println("num_pair="+num_pair+", i="+i+", j="+j);
+// 										}
  		 								// convert +/- 1 pixel to pair
  										double minXPair = Double.NaN,minYPair = Double.NaN, maxXPair = Double.NaN, maxYPair = Double.NaN;
  										for (int d = 0; d < four_corners.length; d++) {
@@ -676,10 +676,10 @@ public class Correlation2d {
  										mxy.set(0, 0,  ix);
  										mxy.set(1, 0,  iy);
  										double [] xy_pair = toPair.times(mxy).getColumnPackedCopy();
- 										if ((num_pair == 62) && (i==7) && (j==7)) {
- 											System.out.println("num_pair="+num_pair+", i="+i+", j="+j);
- 											System.out.println("num_pair="+num_pair+", i="+i+", j="+j);
- 										}
+// 										if ((num_pair == 62) && (i==7) && (j==7)) {
+// 											System.out.println("num_pair="+num_pair+", i="+i+", j="+j);
+// 											System.out.println("num_pair="+num_pair+", i="+i+", j="+j);
+// 										}
  										// find 4 corners in the pair array
  										if (    (xy_pair[0] >= (1 - transform_size)) &&
  												(xy_pair[0] <= (transform_size - 1)) &&

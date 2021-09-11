@@ -220,7 +220,11 @@ public class ImageDttParameters {
 	public boolean corr_var_cam =           true;  // New correlation mode compatible with 8 subcameras 
 	public double  cm_max_normalization =   0.55; // fraction of correlation maximum radius, being squared multiplied by maximum to have the same total mass
 	public double  lma_dbg_scale =          0.0;  // scale lma_dbg_offset
-	public double  [][] lma_dbg_offset =    {{ 1.0, 0.0},{ -1.0, 0.0},{-1.0, 0.0},{ 1.0, 0.0}}; //  new double [4][2];
+	public double  [][] lma_dbg_offset =    {
+			                                 {  1.0, 0.0},
+			                                 { -1.0, 0.0},
+			                                 { -1.0, 0.0},
+			                                 {  1.0, 0.0}}; //  new double [4][2];
 
 	public double getCorrSigma(boolean monochrome) {
 		return monochrome ? pcorr_sigma_mono : pcorr_sigma;

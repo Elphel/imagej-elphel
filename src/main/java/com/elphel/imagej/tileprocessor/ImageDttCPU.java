@@ -1705,8 +1705,9 @@ public class ImageDttCPU {
 		final boolean debug_distort= (globalDebugLevel >0); // .false; // true;
 //		final double [][] debug_offsets = null;
 		//lma_dbg_scale
-		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
-		for (int i = 0; i < debug_offsets.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
+//		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
+		final double [][] debug_offsets = new double[getNumSensors()][2];  
+		for (int i = 0; i < imgdtt_params.lma_dbg_offset.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
 			debug_offsets[i][j] = imgdtt_params.lma_dbg_offset[i][j]*imgdtt_params.lma_dbg_scale;
 		}
 
@@ -2563,8 +2564,9 @@ public class ImageDttCPU {
 			final int                 globalDebugLevel)
 	{
 		final boolean debug_distort= (globalDebugLevel >0); // .false; // true;
-		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
-		for (int i = 0; i < debug_offsets.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
+//		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
+		final double [][] debug_offsets = new double[getNumSensors()][2];  
+		for (int i = 0; i < imgdtt_params.lma_dbg_offset.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
 			debug_offsets[i][j] = imgdtt_params.lma_dbg_offset[i][j]*imgdtt_params.lma_dbg_scale;
 		}
 
@@ -3205,8 +3207,10 @@ public class ImageDttCPU {
 			final double [][][][]     clt_combo_dbg,  // generate sparse  partial rotated/scaled pairs
 			// When clt_mismatch is non-zero, no far objects extraction will be attempted
 			// clt_mismatch is used in older code, not supported in GPU - there is cltMeasureLazyEye for that purpose
+			// this.correlation2d should be not null if disparity_map != null
 			final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
 			                                           // last 2 - contrast, avg/ "geometric average)
+			
 			final double [][][][]     texture_tiles,   // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
 			final int                 width,
 			final double              corr_fat_zero,    // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
@@ -3322,8 +3326,9 @@ public class ImageDttCPU {
 		}
 		final boolean [][] combo_sels = pcombo_sels; 
 		final boolean debug_distort= globalDebugLevel > 0; ///false; // true;
-		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
-		for (int i = 0; i < debug_offsets.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
+//		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
+		final double [][] debug_offsets = new double[getNumSensors()][2];  
+		for (int i = 0; i < imgdtt_params.lma_dbg_offset.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
 			debug_offsets[i][j] = imgdtt_params.lma_dbg_offset[i][j]*imgdtt_params.lma_dbg_scale;
 		}
 		
@@ -3848,7 +3853,7 @@ public class ImageDttCPU {
 						double extra_disparity = 0.0; // used for textures:  if allowed, shift images extra before trying to combine
 
 						// fill clt_corr_combo if it exists
-						if (disparity_map != null){ // not null - calculate correlations
+						if (disparity_map != null){ // not null - calculate correlations 
 							for (int i = 0; i < disparity_map.length; i++) {
 								if (disparity_map[i] != null) disparity_map[i][nTile] = (
 										(i == DISPARITY_STRENGTH_INDEX) ||
@@ -4112,12 +4117,16 @@ public class ImageDttCPU {
 								}
 							}
 							// iclt here: [quad][color][256]
-							if ((globalDebugLevel > 0) && debugTile) {
+							if ((globalDebugLevel > 0) && debugTile0) {
 								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-								String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
+								String [] col_names= {"red","blue","green"};
+								String [] titles = new String[numSensors * numcol];
+//								String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
 								double [][] dbg_tile = new double [numSensors*numcol][];
 								for (int i = 0; i < numSensors; i++) {
 									for (int ncol = 0; ncol <numcol; ncol++) if (iclt_tile[i][ncol] != null) { // color
+										String col_name = (ncol < col_names.length)?col_names[ncol]:("c<"+ncol+">");
+										titles[i * numcol + ncol] = col_name + i; 
 										dbg_tile[i * numcol + ncol] = iclt_tile[i][ncol];
 									}
 								}
@@ -4145,12 +4154,16 @@ public class ImageDttCPU {
 									}
 								}
 							}
-							if ((globalDebugLevel > 0) && debugTile) {
+							if ((globalDebugLevel > 0) && debugTile0) {
 								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
-								String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
+								String [] col_names= {"red","blue","green"};
+								String [] titles = new String[numSensors * numcol];
+								
 								double [][] dbg_tile = new double [numSensors*numcol][];
 								for (int i = 0; i < numSensors; i++) {
 									for (int chn = 0; chn <numcol; chn++) { // color
+										String col_name = (chn< col_names.length)?col_names[chn]:("c<"+chn+">");
+										titles[i * numcol + chn] = col_name + i; 
 										dbg_tile[i * numcol + chn] = tiles_debayered[i][chn];
 									}
 								}
@@ -4182,7 +4195,10 @@ public class ImageDttCPU {
 									(globalDebugLevel > 0) && debugTile,
 									false);          // boolean       debug_gpu)      // generate output fro matching with GPU processing
 
-
+							if ((globalDebugLevel > 0) && debugTile0) {
+								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
+								sdfa_instance.showArrays(texture_tiles[tileY][tileX], 2* transform_size, 2* transform_size, true, "tile_combine_rgba_x"+tileX+"_y"+tileY);
+							}
 							// mix RGB from iclt_tile, mix alpha with - what? correlation strength or 'don't care'? good correlation or all > min?
 							for (int i = 0; i < iclt_tile[0][first_color].length; i++ ) {
 								double sw = 0.0;
@@ -4196,6 +4212,10 @@ public class ImageDttCPU {
 										texture_tiles[tileY][tileX][ncol][i] += sw * texture_tiles[tileY][tileX][numcol+1+ip][i] * iclt_tile[ip][ncol][i];
 									}
 								}
+							}
+							if ((globalDebugLevel > 0) && debugTile0) { // same as previous for mono
+								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
+								sdfa_instance.showArrays(texture_tiles[tileY][tileX], 2* transform_size, 2* transform_size, true, "tile_mixed_rgba_x"+tileX+"_y"+tileY);
 							}
 							if ((disparity_map != null) && (disparity_map.length >= (IMG_DIFF0_INDEX + numSensors))){
 								for (int i = 0; i < max_diff.length; i++){
@@ -6702,8 +6722,9 @@ public class ImageDttCPU {
 		final boolean [][] saturation_imp = quadCLT.saturation_imp;               // boolean [][] saturation_imp, // (near) saturated pixels or null
 		final boolean debug_distort= globalDebugLevel > 0; ///false; // true;
 
-		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
-		for (int i = 0; i < debug_offsets.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
+//		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
+		final double [][] debug_offsets = new double[quadCLT.getNumSensors()][2];  
+		for (int i = 0; i < imgdtt_params.lma_dbg_offset.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
 			debug_offsets[i][j] = imgdtt_params.lma_dbg_offset[i][j]*imgdtt_params.lma_dbg_scale;
 		}
 		final int quad = 4;   // number of subcameras
@@ -12682,8 +12703,9 @@ public class ImageDttCPU {
 		
 		final boolean debug_distort= globalDebugLevel > 0; ///false; // true;
 
-		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
-		for (int i = 0; i < debug_offsets.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
+//		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
+		final double [][] debug_offsets = new double[getNumSensors()][2];  
+		for (int i = 0; i < imgdtt_params.lma_dbg_offset.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
 			debug_offsets[i][j] = imgdtt_params.lma_dbg_offset[i][j]*imgdtt_params.lma_dbg_scale;
 		}
 		
