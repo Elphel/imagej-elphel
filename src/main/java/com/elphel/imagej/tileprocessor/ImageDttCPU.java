@@ -4042,6 +4042,28 @@ public class ImageDttCPU {
 										disparity_map[DISPARITY_INDEX_POLY+1][tIndex] = ds[0][1];
 										if (debugTile0) {
 											lma2.printStats(ds,1);
+											double [][] ddnd = lma2.getDdNd();
+											if (ddnd != null) {
+												double [][] dxy= new double [ddnd.length][2];
+												for (int i = 0; i < dxy.length; i++) {
+													dxy[i][0] = ddnd[i][0] * rXY[i][0] - ddnd[i][1] * rXY[i][1];
+													dxy[i][1] = ddnd[i][0] * rXY[i][1] + ddnd[i][1] * rXY[i][0];
+												}
+												System.out.print("       Port:  ");
+												for (int i = 0; i < dxy.length; i++) System.out.print(String.format("   %2d   ", i)); System.out.println();
+												System.out.print("Radial_in =  [");
+												for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", ddnd[i][0])); System.out.println("]");
+												System.out.print("Tangent_CW = [");
+												for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", ddnd[i][1])); System.out.println("]");
+												System.out.print("X =          [");
+												for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", dxy[i][0])); System.out.println("]");
+												System.out.print("Y =          [");
+												for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", dxy[i][1])); System.out.println("]");
+												System.out.println();
+											}
+											
+											
+											
 										}
 									}
 								}

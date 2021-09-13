@@ -6028,9 +6028,9 @@ public class QuadCLTCPU {
 			  float [][] rgba = new float [num_slices][];
 			  for (int i = 0; i < 3; i++) rgba[i] = new float [iclt_data[green_index].length];
 			  for (int i = 0; i < rbg_in[green_index].length; i++) {
-				  if (i == 700) {
-					  System.out.println("linearStackToColor(): i="+i);
-				  }
+//				  if (i == 700) {
+//					  System.out.println("linearStackToColor(): i="+i);
+//				  }
 				  float [] rgb = tc.getRGB(iclt_data[green_index][i]);
 				  rgba[0][i] = rgb[0]; // red
 				  rgba[1][i] = rgb[1]; // green
@@ -6147,9 +6147,9 @@ public class QuadCLTCPU {
 			  double [][] rgba = new double [num_slices][];
 			  for (int i = 0; i < 3; i++) rgba[i] = new double [iclt_data[green_index].length];
 			  for (int i = 0; i < rbg_in[green_index].length; i++) {
-				  if (i == 700) {
-					  System.out.println("linearStackToColor(): i="+i);
-				  }
+//				  if (i == 700) {
+//					  System.out.println("linearStackToColor(): i="+i);
+//				  }
 				  double [] rgb = tc.getRGB(iclt_data[green_index][i]);
 				  rgba[0][i] = rgb[0]; // red
 				  rgba[1][i] = rgb[1]; // green
@@ -8158,18 +8158,88 @@ public class QuadCLTCPU {
 			  double inf_max, //  =  1.0;
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
-			  final int        debugLevel)
-	  {
-		  extrinsics_prepare( 
+			  final int        debugLevel) {
+		  return extrinsicsCLT( 
 				  clt_parameters,
+				  null, // String           dbg_path, // if not null - read extrinsics_bgnd_combo file instead of extrinsics_prepare
+				  adjust_poly,
 				  inf_min, //  = -1.0;
 				  inf_max, //  =  1.0;
 				  threadsMax,  // maximal number of threads to launch
 				  updateStatus,
 				  debugLevel);
+	  }
+	  
+	  public boolean getPreparedExtrinsics(String path) {
+		  String [] titles =  {"bgnd_disp","bgnd_str","combo_disp","combo_str","bg_sel","bg_use","combo_use"};
+		  int exp_slices = titles.length;
+		  if (path == null) {return false;}
+		  ImagePlus img_extrinsics_bgnd_combo = new ImagePlus(path);
+		  ImageStack stack_extrinsics_bgnd_combo = img_extrinsics_bgnd_combo.getStack();
+		  int nSlices=stack_extrinsics_bgnd_combo.getSize();
+		  int width = img_extrinsics_bgnd_combo.getWidth();
+		  int height = img_extrinsics_bgnd_combo.getHeight();
+		  if (nSlices != exp_slices) {
+			  throw new IllegalArgumentException ("getPreparedExtrinsics(): Expected "+exp_slices+" in "+path+", got "+nSlices);
+		  }
+		  double [][] data = new double [nSlices][width*height];
+		  for (int slice = 0; slice < nSlices; slice ++) {
+			  float [] pixels = (float []) stack_extrinsics_bgnd_combo.getPixels(slice+1);
+			  for (int i = 0; i < pixels.length; i++) {
+				  data[slice][i] = pixels[i];
+			  }
+		  }
+		  boolean [] bg_sel =    new boolean [width*height];
+		  boolean [] bg_use =    new boolean [width*height];
+		  boolean [] combo_use = new boolean [width*height];
+		  for (int i = 0; i < bg_sel.length; i++) {
+			  bg_sel[i] = data[4][i] > 0; // NaN OK
+			  bg_use[i] = data[5][i] > 0; // NaN OK
+			  combo_use[i] = data[6][i] > 0; // NaN OK
+		  }
 		  
+		  CLTPass3d bg_scan =    new CLTPass3d(tp, 0 );
+		  CLTPass3d combo_scan = new CLTPass3d(tp, 0 );
+		  int op = ImageDtt.setImgMask(0, 0xf);
+		  op =     ImageDtt.setPairMask(op,0xf);
+		  op =     ImageDtt.setForcedDisparity(op,true);
+		  for (int ty = 0; ty < height; ty++) {
+			  for (int tx = 0; tx < width; tx++) {
+				  int indx = ty*width+tx;
+				  bg_scan.tile_op[ty][tx] =      bg_use[indx]? op: 0;
+				  combo_scan.tile_op[ty][tx] =   combo_use[indx]? op: 0;
+//				  bg_scan.disparity[ty][tx] =    bg_use[indx]? data[0][indx]: Double.NaN;
+				  bg_scan.disparity[ty][tx] =    bg_use[indx]? 0.0: Double.NaN;
+				  combo_scan.disparity[ty][tx] = combo_use[indx]? data[2][indx]: Double.NaN;
+			  }
+		  }
+		  tp.clt_3d_passes.add(bg_scan);
+		  tp.clt_3d_passes.add(combo_scan);
+		  return true;
+	  }
+	  
+	  public boolean extrinsicsCLT( 
+			  CLTParameters           clt_parameters,
+			  String           dbg_path, // if not null - read extrinsics_bgnd_combo file instead of extrinsics_prepare
+			  boolean 		   adjust_poly,
+			  double inf_min, //  = -1.0;
+			  double inf_max, //  =  1.0;
+			  final int        threadsMax,  // maximal number of threads to launch
+			  final boolean    updateStatus,
+			  final int        debugLevel)
+	  {
+		  boolean got_saved = getPreparedExtrinsics(dbg_path);
+		  if (!got_saved) {
+			  extrinsics_prepare( 
+					  clt_parameters,
+					  inf_min, //  = -1.0;
+					  inf_max, //  =  1.0;
+					  threadsMax,  // maximal number of threads to launch
+					  updateStatus,
+					  debugLevel);
+		  }
 		  
-		  final boolean    batch_mode = clt_parameters.batch_run;
+		  final boolean    batch_mode = false; // clt_parameters.batch_run;
 		  int debugLevelInner =  batch_mode ? -5: debugLevel;
 		  boolean update_disp_from_latest = clt_parameters.lym_update_disp ; // true;
 		  int max_tries =                   clt_parameters.lym_iter; // 25;
@@ -8254,7 +8324,7 @@ public class QuadCLTCPU {
 							  false, // boolean                 update_disparity, // re-measure disparity before measuring LY
 							  threadsMax, // final int        threadsMax,  // maximal number of threads to launch
 							  updateStatus, //final boolean    updateStatus,
-							  1E-3, // double           delta,
+							  1E-2, // 1E-3, // double           delta,
 							  debugLevel); // final int        debugLevel)				  
 				  }
 				  
@@ -12464,32 +12534,63 @@ public class QuadCLTCPU {
 			  final boolean           updateStatus,
 			  double                  delta,
 			  final int               debugLevel)
-	  {
-		  double [] parameter_scales = { // multiply delay for each parameter
-				  0.3,  // 0.014793657667505566, // 00 10
-				  0.3,  // 0.015484017460841183, // 01 10
-				  0.3,  // 0.02546712771769517,  // 02 10
-				  0.3,  // 0.02071573747995167,  // 03 10
-				  0.3,  // 0.026584237444512468, // 04 10
-				  0.3,  // 0.014168012698804967, // 05 10
-				  2.0,  // 1.8554483718240792E-4, // 06
-				  0.3, //2.3170738149889717E-4, // 07
-				  0.3, //3.713239026512266E-4,  // 08
-				  0.3, //2.544834643007531E-4,  // 09
-				  0.3, // 2.5535557646736286E-4, // 10 
-				  0.3, // 1.98531249109261E-4,   // 11
-				  0.3, // 2.1802727086879284E-4, // 12
-				  150, // 8.814346720176489E-1,  // 5,  // 13 10000x
-				  150, // 7.071297501674136E-1,  // 5,  // 14 10000x
-				  150, // 1.306306793587865E-0,  // 4,  // 15 10000x
-				  300, // 2.8929916645453735E-0, // 4, // 16 10000x
-				  300, // 2.943408022525927E-0,  // 4,  // 17 10000x
-				  500.0}; // 390.6185365641268};    //4};  // 18 100000x 
+	  {   
+		  delta = 0.0003;
+		  /*double [] parameter_scales4 = { // multiply delay for each parameter
+				  0.3,  // 0.014793657667505566, // 00 10 tilt0
+				  0.3,  // 0.015484017460841183, // 01 10 tilt1
+				  0.3,  // 0.02546712771769517,  // 02 10 tilt2
+				  
+				  0.3,  // 0.02071573747995167,  // 03 10 az0
+				  0.3,  // 0.026584237444512468, // 04 10 az1
+				  0.3,  // 0.014168012698804967, // 05 10 az2
+				  
+				  2.0,  // 1.8554483718240792E-4,// 06 roll0
+				  0.3, //2.3170738149889717E-4,  // 07 roll1
+				  0.3, //3.713239026512266E-4,   // 08 roll2
+				  0.3, //2.544834643007531E-4,   // 09 roll3
+				  0.3, // 2.5535557646736286E-4, // 10 zoom0 
+				  0.3, // 1.98531249109261E-4,   // 11 zoom1
+				  0.3, // 2.1802727086879284E-4, // 12 zoom2
+				  
+				  150, // 8.814346720176489E-1,  // 5,  // 13 10000x omega-tilt
+				  150, // 7.071297501674136E-1,  // 5,  // 14 10000x omega az
+				  150, // 1.306306793587865E-0,  // 4,  // 15 10000x omega roll
+				  300, // 2.8929916645453735E-0, // 4,  // 16 10000x vx
+				  300, // 2.943408022525927E-0,  // 4,  // 17 10000x vy
+				  500.0}; // 390.6185365641268};    //4};  // 18 100000x vz
+				  */
+		  double scale_tl = 0.3;
+		  double scale_az = 0.3;
+		  double scale_rl0 = 2.0;
+		  double scale_rl = 0.3;
+		  double scale_zoom = 0.3;
+		  double [] scales_imu = {
+				  150, // 8.814346720176489E-1,  // 5,  // 13 10000x omega-tilt
+				  150, // 7.071297501674136E-1,  // 5,  // 14 10000x omega az
+				  150, // 1.306306793587865E-0,  // 4,  // 15 10000x omega roll
+				  300, // 2.8929916645453735E-0, // 4,  // 16 10000x vx
+				  300, // 2.943408022525927E-0,  // 4,  // 17 10000x vy
+				  500.0}; // 390.6185365641268};    //4};  // 18 100000x vz
 //		  delta = 0.001; // should be 0.001
 		  boolean debug_img = false;
 		  int debugLevelInner = -5;
 		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
 		  CorrVector corr_vector = geometryCorrection.getCorrVector().clone();
+//		  String [] corr_names = corr_vector.getCorrNames();
+		  int num_sensors=getNumSensors();
+		  double [] parameter_scales = new double [corr_vector.getLength()];	
+		  for (int i = 0; i < num_sensors; i++) {
+			  parameter_scales    [corr_vector.getRollIndex()+   i] = (i > 0) ? scale_rl : scale_rl0;
+			  if (i < num_sensors - 1) {
+				  parameter_scales[corr_vector.getTiltIndex()+   i]=scale_tl;
+				  parameter_scales[corr_vector.getAzimuthIndex()+i]=scale_az;
+				  parameter_scales[corr_vector.getZoomIndex()+   i]=scale_zoom;
+			  }
+		  }
+		  for (int i = 0; i < scales_imu.length; i++) {
+			  parameter_scales[corr_vector.getIMUIndex()+   i] = scales_imu[i];
+		  }		  
 		  double [] curr_corr_arr = corr_vector.toArray();
 		  int clusters = ea.clustersX * ea.clustersY;
 		  int num_ly = ExtrinsicAdjustment.get_INDX_LENGTH(getNumSensors()); // scan.getLazyEyeData().length;
@@ -12514,7 +12615,11 @@ public class QuadCLTCPU {
 					  ly_initial, // double[][] data,
 					  "drv_reference");// String title);
 		  }
-
+		  String [] titles = corr_vector.getCorrNames(); // new String [num_pars]; //ea.getSymNames(); // why "S" here, while it is tarz???
+//		  for (int i = 0; i < num_pars; i++) {
+//			  titles[i] = "S"+i;
+//		  }
+		  
 		  for (int npar = 0; npar < num_pars; npar++) {
 			  // perform asymmetric delta
 			  double [] par_inc = new double [num_pars];
@@ -12524,7 +12629,8 @@ public class QuadCLTCPU {
 			  corr_vectorp.incrementVector(corr_delta,  1.0); // 0.5 for p/m
 			  geometryCorrection.setCorrVector(corr_vectorp) ;
 			  double rdelta = 1.0/ par_inc[npar];
-			  System.out.println("S"+npar+" scale="+rdelta+"\n"+(geometryCorrection.getCorrVector().toString()));
+//			  System.out.println("S"+npar+" scale="+rdelta); // +"\n"+(geometryCorrection.getCorrVector().toString()));
+			  System.out.println(npar+": "+ titles[npar]+", scale="+rdelta); // +"\n"+(geometryCorrection.getCorrVector().toString()));
 			  gpuResetCorrVector();
 			  if (update_disparity) {
 				  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity
@@ -12585,12 +12691,12 @@ public class QuadCLTCPU {
 		  }
 		  */
 		  int gap = 10;
-		  String [] titles = new String [num_pars]; //ea.getSymNames();
-		  for (int i = 0; i < num_pars; i++) {
-			  titles[i] = "S"+i;
-		  }
-		  int width  = 3 * ea.clustersX + 2 * gap;
-		  int height = 3 * ea.clustersY + 2 * gap;
+//		  int width  = 3 * ea.clustersX + 2 * gap;
+//		  int height = 3 * ea.clustersY + 2 * gap;
+		  int rows = ea.getRowsCols()[0];
+		  int cols = ea.getRowsCols()[1];
+		  int width  = cols * (ea.clustersX + gap) - gap;
+		  int height = rows * (ea.clustersY + gap) - gap;
 		  double [][] dbg_img = new double [num_pars][width*height];
 		  /*
 		  for (int par = 0; par < num_pars; par++) {
@@ -12617,8 +12723,8 @@ public class QuadCLTCPU {
 		  dbg_img = new double [num_pars][width*height];
 		  for (int par = 0; par < num_pars; par++) {
 			  for (int mode = 0; mode < ExtrinsicAdjustment.get_POINTS_SAMPLE(getNumSensors()); mode++) {
-				  int x0 = (mode % 3) * (ea.clustersX + gap);
-				  int y0 = (mode / 3) * (ea.clustersY + gap);
+				  int x0 = (mode % cols) * (ea.clustersX + gap);
+				  int y0 = (mode / cols) * (ea.clustersY + gap);
 				  for (int cluster = 0; cluster < clusters;  cluster++) {
 					  int x = x0 + (cluster % ea.clustersX);
 					  int y = y0 + (cluster / ea.clustersX);
@@ -12643,8 +12749,8 @@ public class QuadCLTCPU {
 		  dbg_img = new double [num_pars][width*height];
 		  for (int par = 0; par < num_pars; par++) {
 			  for (int mode = 0; mode < ExtrinsicAdjustment.get_POINTS_SAMPLE(getNumSensors()); mode++) {
-				  int x0 = (mode % 3) * (ea.clustersX + gap);
-				  int y0 = (mode / 3) * (ea.clustersY + gap);
+				  int x0 = (mode % cols) * (ea.clustersX + gap);
+				  int y0 = (mode / cols) * (ea.clustersY + gap);
 				  for (int cluster = 0; cluster < clusters;  cluster++) {
 					  int x = x0 + (cluster % ea.clustersX);
 					  int y = y0 + (cluster / ea.clustersX);

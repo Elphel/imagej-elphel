@@ -292,6 +292,8 @@ public class CLTParameters {
 	public double     ly_norm_disp =    5.0;     // Reduce weight of higher disparity tiles
 
 	// Lazy eye multi-step fitting
+	public String     lym_dbg_path =   "";      // read saved extrinsics_bgnd_combo.tif to bypass long preparation
+	
 	public double     lym_overexp     = 0.0001;  // Any (near) saturated pixels - discard tile (see sat_level also)
 	public boolean    lym_update_disp = true;    // Update target disparity after each step
 	public int        lym_iter =        25;      // Maximal number of iterations
@@ -1188,6 +1190,9 @@ public class CLTParameters {
 		properties.setProperty(prefix+"ly_disp_rvar_gt",            this.ly_disp_rvar_gt +"");
 		properties.setProperty(prefix+"ly_norm_disp",               this.ly_norm_disp +"");
 		properties.setProperty(prefix+"lym_overexp",                this.lym_overexp +"");
+
+		properties.setProperty(prefix+"lym_dbg_path",                this.lym_dbg_path +"");
+		
 		properties.setProperty(prefix+"lym_update_disp",            this.lym_update_disp+"");
 		properties.setProperty(prefix+"lym_iter",                   this.lym_iter+"");
 		properties.setProperty(prefix+"lym_change",                 this.lym_change +"");
@@ -1997,6 +2002,7 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"ly_disp_rvar_gt")!=null)               this.ly_disp_rvar_gt=Double.parseDouble(properties.getProperty(prefix+"ly_disp_rvar_gt"));
 		if (properties.getProperty(prefix+"ly_norm_disp")!=null)                  this.ly_norm_disp=Double.parseDouble(properties.getProperty(prefix+"ly_norm_disp"));
 		if (properties.getProperty(prefix+"lym_overexp")!=null)                   this.lym_overexp=Double.parseDouble(properties.getProperty(prefix+"lym_overexp"));
+		if (properties.getProperty(prefix+"lym_dbg_path")!=null)                  this.lym_dbg_path= (String) properties.getProperty(prefix+"lym_dbg_path");
 		if (properties.getProperty(prefix+"lym_update_disp")!=null)               this.lym_update_disp=Boolean.parseBoolean(properties.getProperty(prefix+"lym_update_disp"));
 		if (properties.getProperty(prefix+"lym_iter")!=null)                      this.lym_iter=Integer.parseInt(properties.getProperty(prefix+"lym_iter"));
 		if (properties.getProperty(prefix+"lym_change")!=null)                    this.lym_change=Double.parseDouble(properties.getProperty(prefix+"lym_change"));
@@ -2895,6 +2901,8 @@ public class CLTParameters {
 				"Full allowed mismatch is a sum of absolute and disparity times relative (relaxed when ground truth is available)");
 		gd.addNumericField("Reduce weight of higher disparity tiles",                                           this.ly_norm_disp, 5,8,"");
 		gd.addMessage     ("--- Lazy eye multi-step fitting ---");
+
+		gd.addStringField ("Read extrinsics_bgnd_combo instead of building it",                                 this.lym_dbg_path, 80);
 		gd.addNumericField("Any (near) saturated pixels - discard tile (see sat_level also)",                   this.lym_overexp,  10,12,"");
 		gd.addCheckbox    ("Update target disparity after each step",                                           this.lym_update_disp);
 		gd.addNumericField("Maximal number of iterations",                                                      this.lym_iter,  0);
@@ -3833,6 +3841,8 @@ public class CLTParameters {
 		this.ly_disp_var_gt=        gd.getNextNumber();
 		this.ly_disp_rvar_gt=       gd.getNextNumber();
 		this.ly_norm_disp=          gd.getNextNumber();
+		
+		this.lym_dbg_path =         gd.getNextString();
 		this.lym_overexp=           gd.getNextNumber();
 		this.lym_update_disp=       gd.getNextBoolean();
 		this.lym_iter=        (int) gd.getNextNumber();

@@ -1101,8 +1101,12 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				}
 			}
 			if (par_list.size() < par_mask.length) {
-				int[] sub_pars = par_list.stream().mapToInt(i -> i).toArray(); // Java8
-				from_sym = from_sym.getMatrix(0, par_mask.length,sub_pars); // remove masked columns
+				int[] sub_pars = new int [par_list.size()];
+				for (int i = 0; i < sub_pars.length; i++) {
+					sub_pars[i] = par_list.get(i); 
+				}
+//				int[] sub_pars = par_list.stream().mapToInt(i -> i).toArray(); // Java8
+				from_sym = from_sym.getMatrix(0, par_mask.length-1,sub_pars); // remove masked columns
 			}
 		}
 		Matrix pcd = new Matrix (port_coord_deriv); // rows: px0,py0,... px[n-1], py[n-1], columns: tar
@@ -1187,7 +1191,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			}
 			if (par_list.size() < par_mask.length) {
 				int[] sub_pars = par_list.stream().mapToInt(i -> i).toArray(); // Java8
-				to_sym = to_sym.getMatrix(sub_pars, 0, par_mask.length); // remove masked rows
+				to_sym = to_sym.getMatrix(sub_pars, 0, par_mask.length-1); // remove masked rows
 			}
 		}
 		Matrix tar = new Matrix(tar_array,tar_array.length);
@@ -1209,7 +1213,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			}
 			if (par_list.size() < par_mask.length) {
 				int[] sub_pars = par_list.stream().mapToInt(i -> i).toArray(); // Java8
-				from_sym = from_sym.getMatrix(0, par_mask.length,sub_pars); // remove masked columns
+				from_sym = from_sym.getMatrix(0, par_mask.length-1,sub_pars); // remove masked columns
 			}
 		}
 		Matrix sym = new Matrix(sym_array,sym_array.length);

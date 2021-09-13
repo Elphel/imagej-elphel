@@ -2806,7 +2806,36 @@ public class GeometryCorrection {
 		return jt;
 	}
 
+	public double [][] getPortsXYDerivativesNew( // USED in lwir
+			GeometryCorrection gc_main,
+			boolean     use_rig_offsets,
+			Matrix []   rots,
+			Matrix [][] deriv_rots,
+			double []   py_offset,  // array of per-port average pY offset from the center (to correct ERS) or null (for no ERS)
+			double []   imu, // may be null
+			double []   xyz, // world XYZ for ERS correction
+			double      px,
+			double      py,
+			double      disparity)
+	{
+		// make sure initPrePostMatrices(true) already ran (in constructor). (true) means that minus sign is already incorporated
+		double [][] pXYNDderiv = new double [2*numSensors][]; // CorrVector.LENGTH][];
+		getPortsNonDistortedCoordinatesAndDerivativesNew( // USED in lwir
+				gc_main,
+				use_rig_offsets,
+				rots,
+				deriv_rots,
+				pXYNDderiv, // if not null, should be double[8][]
+				py_offset,   //  // array of per-port average pY offset from the center (to correct ERS) or null (for no ERS)
+				imu,
+				xyz,
+				px,
+				py,
+				disparity);
+		return(new Matrix(pXYNDderiv)).getArray();
+	}
 
+	
 
 
 

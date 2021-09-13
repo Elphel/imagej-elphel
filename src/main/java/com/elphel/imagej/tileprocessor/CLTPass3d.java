@@ -902,7 +902,9 @@ public class CLTPass3d{
 		 */
 		public void updateDisparity()
 		{
-			setTileOpDisparity(null, getDisparity(0));
+			if (disparity_map != null) {
+				setTileOpDisparity(null, getDisparity(0));
+			}
 		}
 
 

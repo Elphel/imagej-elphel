@@ -102,11 +102,11 @@ public class ExtrinsicAdjustment {
 	private CorrVector corr_vector = null;
 	private boolean []        par_mask =        null;
 	private boolean           use_rig_offsets = false;
-	private double [][]       measured_dsxy =   null;
+	private double [][]       measured_dsxy =   null; // only set in solveCorr()
 //	private double [][]       dy_ddisparity =   null; // conveniently extracted from  dsdn
-	private double [][]       pY_offset =    null; // conveniently extracted from  dsdn - per-sensor average pY to calculate ERS offset 
+	private double [][]       pY_offset =       null; // conveniently extracted from  dsdn - per-sensor average pY to calculate ERS offset (set in getXYNondistorted())
 	private double [][]       x0y0 =            null; //
-	private double[][]        world_xyz =       null;
+	private double[][]        world_xyz =       null; // only set in solveCorr()
 	private double []         weight_window =   null; // center area is more reliable
 
 	public final GeometryCorrection geometryCorrection;
@@ -296,7 +296,13 @@ public class ExtrinsicAdjustment {
 	*/
 	
 	private void showX0Y0(double [][] xy0, String title) {
-		String [] titles = {"xnd-0","ynd-0","xnd-1","ynd-1","xnd-2","ynd-2","xnd-3","ynd-3"};
+		int num_sensors = this.geometryCorrection.getNumSensors();
+//		String [] titles = {"xnd-0","ynd-0","xnd-1","ynd-1","xnd-2","ynd-2","xnd-3","ynd-3"};
+		String [] titles = new String [ 2 * num_sensors];
+		for (int i = 0; i < num_sensors; i++) {
+			titles[2*i + 0] = "xnd-"+i;
+			titles[2*i + 1] = "ynd-"+i;
+		}
 		int clusters = clustersX * clustersY;
 		double [][] pixels = new double [titles.length][clusters];
 		for (int cluster = 0; cluster < clusters; cluster++) {
@@ -392,7 +398,7 @@ public class ExtrinsicAdjustment {
 		world_xyz =  getWorldXYZ(); // freeze world coordinates for measured pX,pY and disparity
 		// calculate x,y non-distorted offsets for current correction vectors (to subtract from the new (modified) values
 		// 0/0 in the center (in the optical center), in pixels 
-		x0y0 = getXYNondistorted(
+		x0y0 = getXYNondistorted( // Sets pY_offset[], needed for .getPortsDDNDDerivativesNew() (in getJacobianTransposed)
 				corr_vector,
 				true); // boolean set_dydisp)
 
@@ -418,7 +424,7 @@ public class ExtrinsicAdjustment {
 		
 		double [] dfe = null;
 		if (max_dfe > 0) {
-			dfe = distanceFromEdge (
+			dfe = distanceFromEdge ( // all 0? too little, non-continuous
 					force_disparity,
 					measured_dsxy,
 					min_dfe, // 1.75
@@ -434,7 +440,7 @@ public class ExtrinsicAdjustment {
 					force_disparity,    // boolean [] force_disparity, // same dimension as dsdn, true if disparity should be controlled
 					dfe,                // double [] distance_from_edge,
 					en_infinity_tilt,   // boolean en_tilt,  // consider right/left infinity tilt (will be disabled if more than *abs difference over width)
-					min_num_forced,     // int min_in_half,
+					min_num_forced/4,   // int min_in_half,
 					inf_min_disp_abs,   // double min_infinity_abs,
 					inf_max_disp_abs,   // double max_infinity_abs,
 					inf_min_disparity,  // double min_infinity,
@@ -467,7 +473,7 @@ public class ExtrinsicAdjustment {
 				 max_disparity_far,   // 					double max_disparity_far)     // reduce weights of near tiles proportional to sqrt(max_disparity_far/disparity)
 				 max_disparity_use);
 		if (use_disparity) {
-			if (inf_stat[0] < min_num_forced) {
+			if (inf_stat[0] < min_num_forced) { // 4
 				System.out.println("Too few infinity tiles ("+inf_stat[0]+"<"+(min_num_forced)+") to adjust disparity");
 				// disable parameters...all extrinsic
 				use_disparity =    false;
@@ -475,7 +481,7 @@ public class ExtrinsicAdjustment {
 				use_diff_rolls =   false;
 				common_roll =      false;
 				corr_focalLength = false;
-			} else if (inf_stat[1] < min_num_forced/2) {
+			} else if ((inf_stat[1] < min_num_forced/4) || (inf_stat[1] < 1)) { 
 				System.out.println("Too few infinity tiles ("+inf_stat[1]+"<"+(min_num_forced/2)+") in one half to balance right/left");
 				// disable parameters: all extrinsic but disparity (S0)
 				use_aztilts =      false;
@@ -821,7 +827,7 @@ public class ExtrinsicAdjustment {
 	private boolean [] filterInfinity(
 			double  [][] measured_dsxy,
 			boolean [] force_disparity, // same dimension as dsdn, true if disparity should be controlled
-			double [] distance_from_edge,
+			double [] distance_from_edge, // all 0?
 			boolean en_tilt,  // consider right/left infinity tilt (will be disabled if more than *abs difference over width)
 			int min_in_half,
 			double min_infinity_abs,
@@ -829,6 +835,9 @@ public class ExtrinsicAdjustment {
 			double min_infinity,
 			double max_infinity
 			) {
+		if (min_in_half < 1) {
+			min_in_half = 1;
+		}
 		int clusters = clustersX * clustersY;
 	    double half_width = 0.5 * clustersX;
 		boolean [] true_infinity = new boolean[clusters];
@@ -1584,17 +1593,18 @@ public class ExtrinsicAdjustment {
 		}
 		if (graphic) {
 			String [] titles3 = new String[num_pars * 3];
-
-			int width  = 3 * clustersX + 2 * gap;
-			int height = 3 * clustersY + 2 * gap;
+			int rows = getRowsCols()[0];
+			int cols = getRowsCols()[1];
+			int width  = cols * (clustersX + gap) - gap;
+			int height = rows * (clustersY + gap) - gap;
 			double [][] dbg_img = new double [num_pars * 3][width*height];
 			for (int par = 0; par < num_pars; par++) {
 				titles3[3 * par + 0] = titles[par]+"";
 				titles3[3 * par + 1] = titles[par]+"_delta";
 				titles3[3 * par + 2] = titles[par]+"_diff";
 				for (int mode = 0; mode < points_sample; mode++) {
-					int x0 = (mode % 3) * (clustersX + gap);
-					int y0 = (mode / 3) * (clustersY + gap);
+					int x0 = (mode % cols) * (clustersX + gap);
+					int y0 = (mode / cols) * (clustersY + gap);
 					for (int cluster = 0; cluster < clusters;  cluster++) {
 						int x = x0 + (cluster % clustersX);
 						int y = y0 + (cluster / clustersX);
@@ -1624,8 +1634,8 @@ public class ExtrinsicAdjustment {
 				dbg_img = new double [num_pars][width*height];
 				for (int par = 0; par < num_pars; par++) {
 					for (int mode = 0; mode < points_sample; mode++) {
-						int x0 = (mode % 3) * (clustersX + gap);
-						int y0 = (mode / 3) * (clustersY + gap);
+						int x0 = (mode % cols) * (clustersX + gap);
+						int y0 = (mode / cols) * (clustersY + gap);
 						for (int cluster = 0; cluster < clusters;  cluster++) {
 							int x = x0 + (cluster % clustersX);
 							int y = y0 + (cluster / clustersX);
@@ -1659,12 +1669,14 @@ public class ExtrinsicAdjustment {
 		int gap = 10; //pix
 		int clusters = clustersX * clustersY;
 		String [] titles = {"Y", "-fX", "Y+fx"};
-		int width  = 3 * clustersX + 2 * gap;
-		int height = 3 * clustersY + 2 * gap;
+		int rows = getRowsCols()[0];
+		int cols = getRowsCols()[1];
+		int width  = cols * (clustersX + gap) - gap;
+		int height = rows * (clustersY + gap) - gap;
 		double [][] dbg_img = new double [3][width*height];
 		for (int mode = 0; mode < points_sample; mode++) {
-			int x0 = (mode % 3) * (clustersX + gap);
-			int y0 = (mode / 3) * (clustersY + gap);
+			int x0 = (mode % cols) * (clustersX + gap);
+			int y0 = (mode / cols) * (clustersY + gap);
 			for (int cluster = 0; cluster < clusters;  cluster++) {
 				int x = x0 + (cluster % clustersX);
 				int y = y0 + (cluster / clustersX);
@@ -1998,7 +2010,15 @@ public class ExtrinsicAdjustment {
 	
 	
 	
-	
+	public int [] getRowsCols() {
+		int rows = (int) Math.round(Math.sqrt(points_sample));
+		int cols = points_sample/rows;
+		if (rows*cols < points_sample) {
+			cols++;
+		}
+		return new int [] {rows,cols};
+	}
+
 	private void dbgYminusFxWeight(
 			double []   fx,
 			double []   weights,
@@ -2009,12 +2029,14 @@ public class ExtrinsicAdjustment {
 		int gap = 10; //pix
 		int clusters = clustersX * clustersY;
 		String [] titles = {"Y", "-fX", "Y+fx", "Weight", "W*(Y+fx)", "Masked Y+fx"};
-		int width  = 3 * clustersX + 2 * gap;
-		int height = 3 * clustersY + 2 * gap;
+		int rows = getRowsCols()[0];
+		int cols = getRowsCols()[1];
+		int width  = cols * (clustersX + gap) - gap;
+		int height = rows * (clustersY + gap) - gap;
 		double [][] dbg_img = new double [titles.length][width*height];
 		for (int mode = 0; mode < points_sample; mode++) {
-			int x0 = (mode % 3) * (clustersX + gap);
-			int y0 = (mode / 3) * (clustersY + gap);
+			int x0 = (mode % cols) * (clustersX + gap);
+			int y0 = (mode / cols) * (clustersY + gap);
 			for (int cluster = 0; cluster < clusters;  cluster++) {
 				int x = x0 + (cluster % clustersX);
 				int y = y0 + (cluster / clustersX);
@@ -2053,7 +2075,12 @@ public class ExtrinsicAdjustment {
 						}
 					}
 				} else {
-					dbg_img[0][pix] =  Double.NaN;
+					if (pix >= dbg_img[0].length) {
+						System.out.println("pix="+pix+" >= "+dbg_img[0].length);
+						System.out.println("pix="+pix+" >= "+dbg_img[0].length);
+						System.out.println("pix="+pix+" >= "+dbg_img[0].length);
+					}
+					dbg_img[0][pix] =  Double.NaN; //Index 16240 out of bounds for length 16240
 					dbg_img[1][pix] =  Double.NaN;
 					dbg_img[2][pix] =  Double.NaN;
 					dbg_img[3][pix] =  Double.NaN;
@@ -2078,15 +2105,17 @@ public class ExtrinsicAdjustment {
 		int gap = 10; //pix
 		int clusters = clustersX * clustersY;
 		String [] titles = {"meas", "correction", "diff"};
-		int width  = 3 * clustersX + 2 * gap;
-		int height = 3 * clustersY + 2 * gap;
+		int rows = getRowsCols()[0];
+		int cols = getRowsCols()[1];
+		int width  = cols * (clustersX + gap) - gap;
+		int height = rows * (clustersY + gap) - gap;
 		double [][] xy = getXYNondistorted(corr_vector, false);
 
 		double [][] dbg_img = new double [3][width*height];
 		double [][] moving_objects = new double [3][clusters];
 		for (int mode = 0; mode < 2 * num_sensors + 1; mode++) {
-			int x0 = (mode % 3) * (clustersX + gap);
-			int y0 = (mode / 3) * (clustersY + gap);
+			int x0 = (mode % cols) * (clustersX + gap);
+			int y0 = (mode / cols) * (clustersY + gap);
 			for (int cluster = 0; cluster < clusters;  cluster++) {
 				int x = x0 + (cluster % clustersX);
 				int y = y0 + (cluster / clustersX);
@@ -2142,6 +2171,7 @@ public class ExtrinsicAdjustment {
 //			Mismatch mm = mismatch_list.get(indx);
 //			double [] pXY = mm.getPXY();
 			// will calculate 9 rows (disparity, dd0, dd1,cdd2, dd3, nd0, nd1, nd2, nd3}, columns - parameters
+			// Now 2*num_sensors+1
 			double [][] deriv = geometryCorrection.getPortsDDNDDerivativesNew( // USED in lwir
 					geometryCorrection,     // GeometryCorrection gc_main,
 					use_rig_offsets,        // boolean     use_rig_offsets,
@@ -2156,7 +2186,7 @@ public class ExtrinsicAdjustment {
 ///			int dbg_index = cluster; // dbg_index (pXY, dbg_decimate);
 			// convert to symmetrical coordinates
 			// derivatives of each port coordinates (in pixels) for each of selected symmetric all parameters (sym0 is convergence for disparity)
-			 double [][] jt_partial = corr_vector.getJtPartial(
+			 double [][] jt_partial = corr_vector.getJtPartial( // extract common?
 						deriv, // double [][] port_coord_deriv,
 						par_mask); // boolean [] par_mask
 
@@ -2286,7 +2316,7 @@ public class ExtrinsicAdjustment {
 		if (this.last_rms == null) { //first time, need to calculate all (vector is valid)
 			this.last_jt =  getJacobianTransposed(corr_vector); // new double [num_pars][num_points];
 			this.last_ymfx = getFx(corr_vector);
-			if (debug_level > -1) { // temporary
+			if (debug_level > -2) { // temporary
 				dbgYminusFxWeight(
 						this.last_ymfx,
 						this.weights,
@@ -2300,8 +2330,14 @@ public class ExtrinsicAdjustment {
 					this.last_ymfx); // modifies this.last_ymfx (weights and subtracts fx)
 			this.initial_rms = this.last_rms.clone();
 			this.good_or_bad_rms = this.last_rms.clone();
+			if (debug_level > -1) {
+				showDerivatives(0);
+				showDerivatives(1);
+				showDerivatives(2);
+				showDerivatives(3);
+			}
 			// TODO: Restore/implement
-			if (debug_level > 3) {
+			if (debug_level > 3) { // compares true jacobians and calculated with delta (same for all parameters)
 				 dbgJacobians(
 							corr_vector, // CorrVector corr_vector,
 							1E-5, // double delta,
@@ -2408,5 +2444,102 @@ public class ExtrinsicAdjustment {
 			}
 		}
 		return rslt;
+	}
+	
+	public void showDerivatives(int typ4) {
+		// typ == 0 -> DDND, 1 - XT
+		int typ = typ4 % 2;
+		boolean use_sym = typ4 > 1;
+		int gap = 10;
+		int clusters = clustersX * clustersY;
+		//		int num_pars = getNumPars(); // only used
+		int num_pars = corr_vector.toArray().length; // all parameters
+		String [] titles = new String [num_pars]; //ea.getSymNames();
+		for (int i = 0; i < num_pars; i++) {
+			titles[i] = "S"+i;
+		}
+		Matrix []   corr_rots =  corr_vector.getRotMatrices(); // get array of per-sensor rotation matrices
+		Matrix [][] deriv_rots = corr_vector.getRotDeriveMatrices();
+		Matrix from_sym = corr_vector.symmVectorsSet.from_sym;
+		double [] imu = corr_vector.getIMU(); //
+		int rows = getRowsCols()[0];
+		int cols = getRowsCols()[1];
+		int width  = cols * (clustersX + gap) - gap;
+		int height = rows * (clustersY + gap) - gap;
+		double [][] dbg_img = new double [num_pars][width*height];
+		//		double [][][] derivs = new double [points_sample][][];
+		double [][][] derivs = new double [clusters][][];
+		for (int cluster = 0; cluster < clusters;  cluster++) if (measured_dsxy[cluster] != null){
+			//			Mismatch mm = mismatch_list.get(indx);
+			//			double [] pXY = mm.getPXY();
+			// will calculate 9 rows (disparity, dd0, dd1,cdd2, dd3, nd0, nd1, nd2, nd3}, columns - parameters
+			// Now 2*num_sensors+1
+			if (typ == 0) {
+				derivs[cluster] = geometryCorrection.getPortsDDNDDerivativesNew( // USED in lwir
+						this.geometryCorrection,     // GeometryCorrection gc_main,
+						this.use_rig_offsets,        // boolean     use_rig_offsets,
+						corr_rots,              // Matrix []   rots,
+						deriv_rots,             // Matrix [][] deriv_rots,
+						this.pY_offset[cluster],     // double []   py_offset,  // array of per-port average pY offset from the center (to correct ERS) or null (for no ERS)
+						imu,                    // double []   imu,
+						this.world_xyz[cluster],                  // double []   xyz, // world XYZ for ERS correction
+						this.measured_dsxy[cluster][ExtrinsicAdjustment.INDX_PX + 0], // double      px,
+						this.measured_dsxy[cluster][ExtrinsicAdjustment.INDX_PX + 1], // double      py,
+						this.measured_dsxy[cluster][ExtrinsicAdjustment.INDX_TARGET]); // double      disparity);
+			} else {
+				derivs[cluster] = geometryCorrection.getPortsXYDerivativesNew( // USED in lwir
+						this.geometryCorrection,     // GeometryCorrection gc_main,
+						this.use_rig_offsets,        // boolean     use_rig_offsets,
+						corr_rots,              // Matrix []   rots,
+						deriv_rots,             // Matrix [][] deriv_rots,
+						this.pY_offset[cluster],     // double []   py_offset,  // array of per-port average pY offset from the center (to correct ERS) or null (for no ERS)
+						imu,                    // double []   imu,
+						this.world_xyz[cluster],                  // double []   xyz, // world XYZ for ERS correction
+						this.measured_dsxy[cluster][ExtrinsicAdjustment.INDX_PX + 0], // double      px,
+						this.measured_dsxy[cluster][ExtrinsicAdjustment.INDX_PX + 1], // double      py,
+						this.measured_dsxy[cluster][ExtrinsicAdjustment.INDX_TARGET]); // double      disparity);
+				
+			}
+			// optionally convert to use sym vectors
+			if (use_sym) {
+				Matrix derivs_tarz = new Matrix(derivs[cluster]);
+				Matrix derivs_sym = derivs_tarz.times(from_sym);
+				derivs[cluster] = derivs_sym.getArray();
+			}
+		}
+		for (int par = 0; par < num_pars; par++) {
+			for (int mode = 0; mode < points_sample; mode++) {
+				int x0 = (mode % cols) * (clustersX + gap);
+				int y0 = (mode / cols) * (clustersY + gap);
+				for (int cluster = 0; cluster < clusters;  cluster++) {
+					int x = x0 + (cluster % clustersX);
+					int y = y0 + (cluster / clustersX);
+					int pix = x + y * width;
+//					int indx = (mode == 0) ? INDX_DIFF : (indx_dd0 + mode - 1);
+					if (typ == 0) {
+						double d = (derivs[cluster] == null)? Double.NaN : derivs[cluster][mode][par];
+						if (mode == 0) {
+							dbg_img[par][pix] = -d;
+						} else {
+							dbg_img[par][pix] = d;
+						}
+					} else {
+						if (mode == 0) {
+							dbg_img[par][pix] = Double.NaN; // skip
+						} else {
+							dbg_img[par][pix] = (derivs[cluster] == null)? Double.NaN : derivs[cluster][mode-1][par];
+						}
+					}
+				}
+			}
+		}
+		String title = ((typ == 0)?"dDND_dpar":"dXY_dpar") + (use_sym? "_sym":"_tarz");
+		(new ShowDoubleFloatArrays()).showArrays(
+				dbg_img,
+				width,
+				height,
+				true,
+				title, // +(update_disparity?"U":""),
+				(use_sym? titles: corr_vector.getCorrNames())); // titles);
 	}
 }

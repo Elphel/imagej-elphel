@@ -9495,41 +9495,49 @@ if (debugLevel > -100) return true; // temporarily !
 					System.out.println("Building basic  DSI for the AUX camera image set "+quadCLT_main.image_name+
 							" using main camera DSI, pass "+(num_adjust_aux+1)+" of "+adjust_aux);
 				}
-				quadCLT_aux.preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
-						imp_srcs_aux, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
-						saturation_imp_aux, // boolean [][] saturation_imp, // (near) saturated pixels or null
-						clt_parameters,
-						debayerParameters,
-						colorProcParameters_aux,
-						rgbParameters,
-						threadsMax,  // maximal number of threads to launch
-						updateStatus,
-						debugLevelInner);
-				// adjust extrinsics here
-				System.out.println("Adjust AUX extrinsics here");
-				if (updateStatus) IJ.showStatus("Adjusting AUX camera image set for "+quadCLT_aux.image_name+
-						", pass "+(num_adjust_aux+1)+" of "+adjust_aux);
-				if (debugLevel > -5) {
-					System.out.println("Adjusting AUX camera image set for "+quadCLT_aux.image_name+
-							", pass "+(num_adjust_aux+1)+" of "+adjust_aux);
-				}
+			    String dbg_path = clt_parameters.lym_dbg_path; // /home/elphel/lwir16-proc/proc1/results_cuda/25/extrinsics_bgnd_combo.tif
+			    if (dbg_path.length()==0) {
+			    	dbg_path = null;
+			    }
+//			    dbg_path = "/home/elphel/lwir16-proc/proc1/results_cuda/25/extrinsics_bgnd_combo.tif";
+			    if (dbg_path == null) {
+			    	quadCLT_aux.preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
+			    			imp_srcs_aux, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+			    			saturation_imp_aux, // boolean [][] saturation_imp, // (near) saturated pixels or null
+			    			clt_parameters,
+			    			debayerParameters,
+			    			colorProcParameters_aux,
+			    			rgbParameters,
+			    			threadsMax,  // maximal number of threads to launch
+			    			updateStatus,
+			    			debugLevelInner);
+			    	// adjust extrinsics here
+			    	System.out.println("Adjust AUX extrinsics here");
+			    	if (updateStatus) IJ.showStatus("Adjusting AUX camera image set for "+quadCLT_aux.image_name+
+			    			", pass "+(num_adjust_aux+1)+" of "+adjust_aux);
+			    	if (debugLevel > -5) {
+			    		System.out.println("Adjusting AUX camera image set for "+quadCLT_aux.image_name+
+			    				", pass "+(num_adjust_aux+1)+" of "+adjust_aux);
+			    	}
+			    }
 				if (quadCLT_aux.ds_from_main == null) {
 					System.out.println("BUG: quadCLT_aux.ds_from_main should be not null here!");
 				    double inf_min = -1.0;
 				    double inf_max =  1.0;
 				    if (num_adjust_aux >= (adjust_aux/2)) {
 				        inf_min = -0.2;
-				        inf_max = 0.05;
+				        inf_max = 0.2;  // 0.05; Changed for LWIR16
 				    }
 					// adjust w/o main camera - maybe will be used in the future
 					boolean ok = quadCLT_aux.extrinsicsCLT(
 							clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
+							dbg_path,
 							false, // adjust_poly,
 				            inf_min, // double inf_min,
 				            inf_max,  // double inf_max,
 							threadsMax,  //final int        threadsMax,  // maximal number of threads to launch
 							updateStatus,// final boolean    updateStatus,
-							debugLevelInner); // final int        debugLevel)
+							1); // debugLevelInner); // final int        debugLevel)
 					if (!ok) break;
 				} else {
 					boolean ok = quadCLT_aux.extrinsicsCLTfromGT(

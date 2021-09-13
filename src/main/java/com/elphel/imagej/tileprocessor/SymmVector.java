@@ -103,7 +103,7 @@ public class SymmVector {
 				full_type2,
 				debug_level);
 		rvs.xy =     sv.exportXY();
-		rvs.rt =     sv.exportRT();
+		rvs.rt =     sv.exportRT(); // radius/tangential (out, cw, out, cw
 		rvs.dir_rt = sv.exportDirRT();
 		rvs.rots =   sv.exportRZ(false); // include common roll
 		rvs.zooms =  sv.exportRZ(true);  // no common zoom
@@ -1152,8 +1152,9 @@ public class SymmVector {
 		for (int i = 0; i < N - 1; i++) {
 			xy2ta.set(    i, 2* i + 1, TILT_SIGN);
 			xy2ta.set(N-1+i, 2 *i + 0, AZIMUTH_SIGN);
-		}		
-		return xy2ta.times(sym2xy);
+		}
+		Matrix sym2ta = xy2ta.times(sym2xy);
+		return sym2ta;
 	}
 	
 	/**
@@ -1195,6 +1196,7 @@ public class SymmVector {
 		to_sym.setMatrix(i1,i2-1,i1,i2-1, sym2roll.inverse());
 		to_sym.setMatrix(i2,i3-1,i2,i3-1, sym2zoom.inverse());
 		to_sym.setMatrix(i3,i4-1,i3,i4-1, sym2ers.inverse());
+//		Matrix dbg = from_sym.times(to_sym);
 		return new Matrix[] {from_sym,to_sym};
 	}
 	//getColumnDimension
