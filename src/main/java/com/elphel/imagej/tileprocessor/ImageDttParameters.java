@@ -147,13 +147,18 @@ public class ImageDttParameters {
 // LMA parameters
 	public double  lma_disp_range =          5.0;   // disparity range to combine in one cluster (to mitigate ERS
 // LMA single parameters
-	public boolean lmas_gaussian =           false; // model correlation maximum as a Gaussian (false - as a parabola)
+//	public boolean lmas_gaussian =           false; // model correlation maximum as a Gaussian (false - as a parabola)
+	public int     lmas_gaussian =           0;    //  0 - parabola, 1 - Gaussian, 2 - limited parabola, 3 - limited squared parabola
 	public boolean lmas_adjust_wm =          true;  // used in new for width
 	public boolean lmas_adjust_wy =          true;  // adjust non-circular
 	public boolean lmas_adjust_ag =          true;  // adjust gains gains
 	// Pre-lma poly
 	public double  lmas_poly_str_scale =     1.0;   // scale pre-lma poly strength
 	public double  lmas_poly_str_min =       0.05;  // ignore tiles with poly strength (scaled) below
+
+	public boolean lmas_poly_continue =      true;  // use center if polynomial argmax fails
+	public boolean lmas_LY_single =          true; // Adjust LY when performing single-tile LMA
+	public boolean lmas_LY_single_LY =       false; // Adjust LY when performing single-tile LMA before LY
 
 	public double  lmas_lambda_initial =     0.03;   //
 	public double  lmas_rms_diff =           0.0003; //
@@ -165,9 +170,11 @@ public class ImageDttParameters {
 	public double  lmas_min_min_ac =         0.007; // minimal of a and C coefficients minimum (measures sharpest point)
 	public double  lmas_max_area =           0.0;  // maximal half-area (if > 0.0)
 
-	public boolean lma_gaussian =           false; // model correlation maximum as a Gaussian (false - as a parabola)
+//	public boolean lma_gaussian =           false; // model correlation maximum as a Gaussian (false - as a parabola)
+	public int     lma_gaussian =           0;     // 0 - parabola, 1 - Gaussian, 2 - limited parabola, 3 - limited squared parabola
 	public boolean lma_second =             true;  // re-run LMA after removing weak/failed tiles
-	public boolean lma_second_gaussian =    false;  // re-run after removing weal/failed in Gaussian mode
+//	public boolean lma_second_gaussian =    false;  // re-run after removing weal/failed in Gaussian mode
+	public int     lma_second_gaussian =    0; // false;  // re-run after removing weal/failed in Gaussian mode
 	public boolean lma_adjust_wm =          true;  // used in new for width
 	public boolean lma_adjust_wy =          true;  // false; // used in new for ellipse
 	public boolean lma_adjust_wxy =         true;  // used in new for lazy eye adjust parallel-to-disparity correction
@@ -198,6 +205,9 @@ public class ImageDttParameters {
 	public double  lma_rms_diff =           0.003; //
 	public int     lma_num_iter =          10;     //
 	// Filtering and strength calculation
+	
+	public boolean lma_multi_cons =         true;  // false - run multi-tile LMA on all tiles, true - average each pare over all tiles 
+	
 	public double  lma_max_rel_rms =        0.25;  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 	public double  lma_min_strength =       1.0;   // minimal composite strength (sqrt(average amp squared over absolute RMS)
 	public double  lma_min_ac =             0.05;  // minimal of a and C coefficients maximum (measures sharpest point/line)
@@ -502,8 +512,11 @@ public class ImageDttParameters {
 			gd.addMessage("Single-tile (no lazy eye) only parameters (some are common");
 			gd.addNumericField("Cluster disparity range",                                         this.lma_disp_range,  3, 6, "pix",
 					"Disparity range to combine in one cluster (to mitigate ERS");
-			gd.addCheckbox    ("Correlation maximum as gaussian",                                 this.lmas_gaussian,
-					"Model correlation maximum as a Gaussian exp(-r^2)  (false - as a parabola - 1-r^2)");
+//			gd.addCheckbox    ("Correlation maximum as gaussian",                                 this.lmas_gaussian,
+//					"Model correlation maximum as a Gaussian exp(-r^2)  (false - as a parabola - 1-r^2)");
+			gd.addNumericField    ("Correlation maximum function type",                            this.lmas_gaussian,  0, 3, "",
+					"0 - parabola - 1-r^2, 1 -  exp(-r^2), 2 - limited parabola (>=0), 3 - limited squared parabola  (1-r^2)^2");
+			
 			gd.addCheckbox    ("Fit correlation defined half-width",                              this.lmas_adjust_wm,
 					"Allow fitting of the half-width common for all pairs, defined by the LPF filter of the phase correlation");
 			gd.addCheckbox    ("Adjust ellipse parameters (was Fit extra vertical half-width)",   this.lmas_adjust_wy,
@@ -516,6 +529,15 @@ public class ImageDttParameters {
 					"Calculated as maximal value over average radius");
 			gd.addNumericField("Minimal pre-LMA poly strength (scaled)",                          this.lmas_poly_str_min,  3, 6, "",
 					"Ignore tiles with pre-LMA poly strength (scaled with above) below this value");
+			
+
+			gd.addCheckbox    ("Use center point for initial LMA",                                this.lmas_poly_continue,
+					"Use center po8int if polynomial argmax() failed");
+			gd.addCheckbox    ("Adjust LY when performing single-tile LMA (non-LY operations)",   this.lmas_LY_single,
+					"Adjust individual sensor misaligtnments when performing LMA-based argmax() when LY output itself is not requested");
+			gd.addCheckbox    ("Adjust LY when performing single-tile LMA first LY stage",        this.lmas_LY_single_LY,
+					"Adjust individual sensor misaligtnments when performing first pass of LMA-based argmax() before processing clusters for LY");
+			
 		    gd.addMessage("LMA (single) LMA fitting parameters");
 		    gd.addNumericField("Initial value of LMA lambda",                                     this.lmas_lambda_initial,  3, 6, "",
 		            "The higher the lambda the more close it will be to the gradient descent (slower/safer)");
@@ -536,12 +558,16 @@ public class ImageDttParameters {
 		            "Maximal product of maximum half-width by half-height, ignore check if <=0");
 
 			gd.addMessage("Multi-tile (for lazy eye) LMA (some are used for with single-tile mode too)");
-			gd.addCheckbox    ("Correlation maximum as gaussian",                                 this.lma_gaussian,
-					"Model correlation maximum as a Gaussian exp(-r^2)  (false - as a parabola - 1-r^2)");
+			gd.addNumericField    ("Correlation maximum function type",                            this.lma_gaussian,  0, 3, "",
+					"0 - parabola - 1-r^2, 1 -  exp(-r^2), 2 - limited parabola (>=0), 3 - limited squared parabola  (1-r^2)^2");
+			
 			gd.addCheckbox    ("Re-run LMA after removing weak/failed tiles",                     this.lma_second,
 					"Re-run LMA with filtered tiles (see Correlation strength calculation section below)");
-			gd.addCheckbox    ("Gaussian mode during LMA re-run",                                 this.lma_second_gaussian,
-					"Parabola is more stable when using with un-filtered tiles, so it makes sense to use Gaussina only on filtered tiles");
+//			gd.addCheckbox    ("Gaussian mode during LMA re-run",                                 this.lma_second_gaussian,
+//					"Parabola is more stable when using with un-filtered tiles, so it makes sense to use Gaussina only on filtered tiles");
+			gd.addNumericField    ("Correlation maximum function typedurinf re-run",              this.lma_second_gaussian,  0, 3, "",
+					"0 - parabola - 1-r^2, 1 -  exp(-r^2), 2 - limited parabola (>=0), 3 - limited squared parabola  (1-r^2)^2."+
+			" Parabola is more stable when using with un-filtered tiles, so it makes sense to use Gaussina only on filtered tiles");
 
 			gd.addCheckbox    ("Fit correlation defined half-width",                              this.lma_adjust_wm,
 					"Allow fitting of the half-width common for all pairs, defined by the LPF filter of the phase correlation");
@@ -591,6 +617,9 @@ public class ImageDttParameters {
 					"Limit LMA cycles, so it will exit after certain number of small improvements");
 
 			gd.addMessage("LMA results filtering");
+			gd.addCheckbox    ("Average correlation tiles instead of the multi-tile LMA",         this.lma_multi_cons,
+					"False - run multi-tile LMA on all tiles, true - average each pair over all tiles (as in GPU)");
+			
 			gd.addNumericField("Maximal relative RMS ",                                           this.lma_max_rel_rms,  6, 8, "",
 					"Discard tile if ratio of RMS to average of min and max amplitude exceeds this value");
 			gd.addNumericField("Minimal composite strength",                                      this.lma_min_strength,  6, 8, "",
@@ -772,7 +801,7 @@ public class ImageDttParameters {
 			this.pcorr_dbg_offsy =       gd.getNextNumber();
 //LMA tab
 			this.lma_disp_range =        gd.getNextNumber();
-			this.lmas_gaussian=          gd.getNextBoolean();
+			this.lmas_gaussian=    (int) gd.getNextNumber();
 			this.lmas_adjust_wm=         gd.getNextBoolean();
 			this.lmas_adjust_wy=         gd.getNextBoolean();
 			this.lmas_adjust_ag=         gd.getNextBoolean();
@@ -780,18 +809,22 @@ public class ImageDttParameters {
 			this.lmas_poly_str_scale =   gd.getNextNumber();
 			this.lmas_poly_str_min =     gd.getNextNumber();
 
+			this.lmas_poly_continue=     gd.getNextBoolean();
+			this.lmas_LY_single=         gd.getNextBoolean();
+			this.lmas_LY_single_LY=      gd.getNextBoolean();
+
 			this.lmas_lambda_initial =   gd.getNextNumber();
 			this.lmas_rms_diff =         gd.getNextNumber();
   			this.lmas_num_iter=    (int) gd.getNextNumber();
 			this.lmas_max_rel_rms =      gd.getNextNumber();
 			this.lmas_min_strength =     gd.getNextNumber();
 			this.lmas_min_ac =           gd.getNextNumber();
-			this.lmas_min_min_ac =           gd.getNextNumber();
+			this.lmas_min_min_ac =       gd.getNextNumber();
 			this.lmas_max_area =         gd.getNextNumber();
 
-			this.lma_gaussian=           gd.getNextBoolean();
+			this.lma_gaussian=     (int) gd.getNextNumber();
 			this.lma_second=             gd.getNextBoolean();
-			this.lma_second_gaussian=    gd.getNextBoolean();
+			this.lma_second_gaussian= (int) gd.getNextNumber();
 			this.lma_adjust_wm=          gd.getNextBoolean();
 			this.lma_adjust_wy=          gd.getNextBoolean();
 			this.lma_adjust_wxy=         gd.getNextBoolean();
@@ -817,6 +850,7 @@ public class ImageDttParameters {
 			this.lma_rms_diff =          gd.getNextNumber();
   			this.lma_num_iter=     (int) gd.getNextNumber();
 
+  			this.lma_multi_cons =        gd.getNextBoolean();
 			this.lma_max_rel_rms =       gd.getNextNumber();
 			this.lma_min_strength =      gd.getNextNumber();
 			this.lma_min_ac =            gd.getNextNumber();
@@ -966,6 +1000,10 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"lmas_poly_str_scale",  this.lmas_poly_str_scale +"");
 		properties.setProperty(prefix+"lmas_poly_str_min",    this.lmas_poly_str_min +"");
 
+		properties.setProperty(prefix+"lmas_poly_continue",   this.lmas_poly_continue +"");
+		properties.setProperty(prefix+"lmas_LY_single",       this.lmas_LY_single +"");
+		properties.setProperty(prefix+"lmas_LY_single_LY",    this.lmas_LY_single_LY +"");
+
 		properties.setProperty(prefix+"lmas_lambda_initial",  this.lmas_lambda_initial +"");
 		properties.setProperty(prefix+"lmas_rms_diff",        this.lmas_rms_diff +"");
 		properties.setProperty(prefix+"lmas_num_iter",        this.lmas_num_iter +"");
@@ -1004,6 +1042,7 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"lma_rms_diff",         this.lma_rms_diff +"");
 		properties.setProperty(prefix+"lma_num_iter",         this.lma_num_iter +"");
 
+		properties.setProperty(prefix+"lma_multi_cons",       this.lma_multi_cons +"");
 		properties.setProperty(prefix+"lma_max_rel_rms",      this.lma_max_rel_rms +"");
 		properties.setProperty(prefix+"lma_min_strength",     this.lma_min_strength +"");
 		properties.setProperty(prefix+"lma_min_ac",           this.lma_min_ac +"");
@@ -1148,13 +1187,24 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"pcorr_dbg_offsy")!=null)      this.pcorr_dbg_offsy=Double.parseDouble(properties.getProperty(prefix+"pcorr_dbg_offsy"));
 
 		if (properties.getProperty(prefix+"lma_disp_range")!=null)       this.lma_disp_range=Double.parseDouble(properties.getProperty(prefix+"lma_disp_range"));
-		if (properties.getProperty(prefix+"lmas_gaussian")!=null)        this.lmas_gaussian=Boolean.parseBoolean(properties.getProperty(prefix+"lmas_gaussian"));
+		if (properties.getProperty(prefix+"lmas_gaussian")!=null) {
+			String lma_function = properties.getProperty(prefix+"lmas_gaussian");
+			if (lma_function.equals("true") || lma_function.equals("false")) {
+				this.lmas_gaussian = Boolean.parseBoolean(lma_function)? 1 : 0;
+			} else {
+				this.lmas_gaussian=Integer.parseInt(lma_function);				
+			}
+		}
 		if (properties.getProperty(prefix+"lmas_adjust_wm")!=null)       this.lmas_adjust_wm=Boolean.parseBoolean(properties.getProperty(prefix+"lmas_adjust_wm"));
 		if (properties.getProperty(prefix+"lmas_adjust_wy")!=null)       this.lmas_adjust_wy=Boolean.parseBoolean(properties.getProperty(prefix+"lmas_adjust_wy"));
 		if (properties.getProperty(prefix+"lmas_adjust_ag")!=null)       this.lmas_adjust_ag=Boolean.parseBoolean(properties.getProperty(prefix+"lmas_adjust_ag"));
 
 		if (properties.getProperty(prefix+"lmas_poly_str_scale")!=null)  this.lmas_poly_str_scale=Double.parseDouble(properties.getProperty(prefix+"lmas_poly_str_scale"));
 		if (properties.getProperty(prefix+"lmas_poly_str_min")!=null)    this.lmas_poly_str_min=Double.parseDouble(properties.getProperty(prefix+"lmas_poly_str_min"));
+
+		if (properties.getProperty(prefix+"lmas_poly_continue")!=null)   this.lmas_poly_continue=Boolean.parseBoolean(properties.getProperty(prefix+"lmas_poly_continue"));
+		if (properties.getProperty(prefix+"lmas_LY_single")!=null)       this.lmas_LY_single=Boolean.parseBoolean(properties.getProperty(prefix+"lmas_LY_single"));
+		if (properties.getProperty(prefix+"lmas_LY_single_LY")!=null)    this.lmas_LY_single_LY=Boolean.parseBoolean(properties.getProperty(prefix+"lmas_LY_single_LY"));
 
 		if (properties.getProperty(prefix+"lmas_lambda_initial")!=null)  this.lmas_lambda_initial=Double.parseDouble(properties.getProperty(prefix+"lmas_lambda_initial"));
 		if (properties.getProperty(prefix+"lmas_rms_diff")!=null)        this.lmas_rms_diff=Double.parseDouble(properties.getProperty(prefix+"lmas_rms_diff"));
@@ -1165,9 +1215,24 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"lmas_min_min_ac")!=null)      this.lmas_min_min_ac=Double.parseDouble(properties.getProperty(prefix+"lmas_min_min_ac"));
 		if (properties.getProperty(prefix+"lmas_max_area")!=null)        this.lmas_max_area=Double.parseDouble(properties.getProperty(prefix+"lmas_max_area"));
 
-		if (properties.getProperty(prefix+"lma_gaussian")!=null)         this.lma_gaussian=Boolean.parseBoolean(properties.getProperty(prefix+"lma_gaussian"));
+		if (properties.getProperty(prefix+"lma_gaussian")!=null) {
+			String lma_function = properties.getProperty(prefix+"lma_gaussian");
+			if (lma_function.equals("true") || lma_function.equals("false")) {
+				this.lma_gaussian = Boolean.parseBoolean(lma_function)? 1 : 0;
+			} else {
+				this.lma_gaussian=Integer.parseInt(lma_function);				
+			}
+		}
+		
 		if (properties.getProperty(prefix+"lma_second")!=null)           this.lma_second=Boolean.parseBoolean(properties.getProperty(prefix+"lma_second"));
-		if (properties.getProperty(prefix+"lma_second_gaussian")!=null)  this.lma_second_gaussian=Boolean.parseBoolean(properties.getProperty(prefix+"lma_second_gaussian"));
+		if (properties.getProperty(prefix+"lma_second_gaussian")!=null) {
+			String lma_function = properties.getProperty(prefix+"lma_second_gaussian");
+			if (lma_function.equals("true") || lma_function.equals("false")) {
+				this.lma_second_gaussian = Boolean.parseBoolean(lma_function)? 1 : 0;
+			} else {
+				this.lma_second_gaussian=Integer.parseInt(lma_function);				
+			}
+		}
 		if (properties.getProperty(prefix+"lma_adjust_wm")!=null)        this.lma_adjust_wm=Boolean.parseBoolean(properties.getProperty(prefix+"lma_adjust_wm"));
 		if (properties.getProperty(prefix+"lma_adjust_wy")!=null)        this.lma_adjust_wy=Boolean.parseBoolean(properties.getProperty(prefix+"lma_adjust_wy"));
 		if (properties.getProperty(prefix+"lma_adjust_wxy")!=null)       this.lma_adjust_wxy=Boolean.parseBoolean(properties.getProperty(prefix+"lma_adjust_wxy"));
@@ -1192,6 +1257,7 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"lma_rms_diff")!=null)         this.lma_rms_diff=Double.parseDouble(properties.getProperty(prefix+"lma_rms_diff"));
 		if (properties.getProperty(prefix+"lma_num_iter")!=null)         this.lma_num_iter=Integer.parseInt(properties.getProperty(prefix+"lma_num_iter"));
 
+		if (properties.getProperty(prefix+"lma_multi_cons")!=null)       this.lma_multi_cons=Boolean.parseBoolean(properties.getProperty(prefix+"lma_multi_cons"));
 		if (properties.getProperty(prefix+"lma_max_rel_rms")!=null)      this.lma_max_rel_rms=Double.parseDouble(properties.getProperty(prefix+"lma_max_rel_rms"));
 		if (properties.getProperty(prefix+"lma_min_strength")!=null)     this.lma_min_strength=Double.parseDouble(properties.getProperty(prefix+"lma_min_strength"));
 		if (properties.getProperty(prefix+"lma_min_ac")!=null)           this.lma_min_ac=Double.parseDouble(properties.getProperty(prefix+"lma_min_ac"));
@@ -1200,9 +1266,9 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"lma_str_scale")!=null)        this.lma_str_scale=Double.parseDouble(properties.getProperty(prefix+"lma_str_scale"));
 		if (properties.getProperty(prefix+"lma_str_offset")!=null)       this.lma_str_offset=Double.parseDouble(properties.getProperty(prefix+"lma_str_offset"));
 
-		if (properties.getProperty(prefix+"lma_diff_xy")!=null)         this.lma_diff_xy=Boolean.parseBoolean(properties.getProperty(prefix+"lma_diff_xy"));
-		if (properties.getProperty(prefix+"lma_diff_minw")!=null)       this.lma_diff_minw=Double.parseDouble(properties.getProperty(prefix+"lma_diff_minw"));
-		if (properties.getProperty(prefix+"lma_diff_sigma")!=null)      this.lma_diff_sigma=Double.parseDouble(properties.getProperty(prefix+"lma_diff_sigma"));
+		if (properties.getProperty(prefix+"lma_diff_xy")!=null)          this.lma_diff_xy=Boolean.parseBoolean(properties.getProperty(prefix+"lma_diff_xy"));
+		if (properties.getProperty(prefix+"lma_diff_minw")!=null)        this.lma_diff_minw=Double.parseDouble(properties.getProperty(prefix+"lma_diff_minw"));
+		if (properties.getProperty(prefix+"lma_diff_sigma")!=null)       this.lma_diff_sigma=Double.parseDouble(properties.getProperty(prefix+"lma_diff_sigma"));
 
 		if (properties.getProperty(prefix+"lma_debug_level")!=null)      this.lma_debug_level=Integer.parseInt(properties.getProperty(prefix+"lma_debug_level"));
 		if (properties.getProperty(prefix+"lma_debug_level1")!=null)     this.lma_debug_level1=Integer.parseInt(properties.getProperty(prefix+"lma_debug_level1"));
@@ -1343,6 +1409,10 @@ public class ImageDttParameters {
 		idp.lmas_poly_str_scale =    this.lmas_poly_str_scale;
 		idp.lmas_poly_str_min =      this.lmas_poly_str_min;
 
+		idp.lmas_poly_continue =     this.lmas_poly_continue;
+		idp.lmas_LY_single =         this.lmas_LY_single;
+		idp.lmas_LY_single_LY =      this.lmas_LY_single_LY;
+
 		idp.lmas_lambda_initial =    this.lmas_lambda_initial;
 		idp.lmas_rms_diff =          this.lmas_rms_diff;
 		idp.lmas_num_iter =          this.lmas_num_iter;
@@ -1379,6 +1449,7 @@ public class ImageDttParameters {
 		idp.lma_rms_diff =           this.lma_rms_diff;
 		idp.lma_num_iter =           this.lma_num_iter;
 
+		idp.lma_multi_cons =         this.lma_multi_cons;
 		idp.lma_max_rel_rms=         this.lma_max_rel_rms;
 		idp.lma_min_strength=        this.lma_min_strength;
 		idp.lma_min_ac=              this.lma_min_ac;

@@ -5666,7 +5666,13 @@ public class QuadCLTCPU {
 				  clt_parameters.shift_x,        // final double              shiftX, // shift image horizontally (positive - right) - just for testing
 				  clt_parameters.shift_y,        // final double              shiftY, // shift image vertically (positive - down)
 				  clt_parameters.tileStep,       // final int                 tileStep, // process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters
-				  clt_parameters.img_dtt.getMcorrSelLY(getNumSensors()), //    final int                 mcorr_sel, // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert 
+				  clt_parameters.img_dtt.getMcorrSelLY(getNumSensors()), //    final int                 mcorr_sel, // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
+
+				  clt_parameters.img_dtt.mcorr_comb_width,					// final int                 mcorr_comb_width,  // combined correlation tile width
+				  clt_parameters.img_dtt.mcorr_comb_height,					// final int                 mcorr_comb_height, // combined correlation tile full height
+				  clt_parameters.img_dtt.mcorr_comb_offset,					// final int                 mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
+				  clt_parameters.img_dtt.mcorr_comb_disp,					// final double              mcorr_comb_disp,   // Combined tile per-pixel disparity for baseline == side of a square
+				  
 				  clt_parameters.tileX,        // final int                 debug_tileX,
 				  clt_parameters.tileY,         // final int                 debug_tileY,
 				  threadsMax, // final int                 threadsMax,  // maximal number of threads to launch
@@ -8203,6 +8209,10 @@ public class QuadCLTCPU {
 		  int op = ImageDtt.setImgMask(0, 0xf);
 		  op =     ImageDtt.setPairMask(op,0xf);
 		  op =     ImageDtt.setForcedDisparity(op,true);
+		  bg_scan.setSelected(bg_sel);
+		  combo_scan.setSelected(combo_use);
+		  bg_scan.setStrength(data[1]); // will not be used
+		  combo_scan.setStrength(data[3]);
 		  for (int ty = 0; ty < height; ty++) {
 			  for (int tx = 0; tx < width; tx++) {
 				  int indx = ty*width+tx;
@@ -8216,6 +8226,123 @@ public class QuadCLTCPU {
 		  tp.clt_3d_passes.add(bg_scan);
 		  tp.clt_3d_passes.add(combo_scan);
 		  return true;
+	  }
+	  
+	  // for now works only from file (using
+	  public void updateScansForLY(
+			  int bg_scan_indx,
+			  int combo_scan_indx,
+			  boolean top_bg,                  // all above bg is bg
+			  int fill_gaps_bg,                // 1 - in 4 directions by 1, 2 - in 8 directions by 1,
+			  int fill_gaps_combo,             // 1 - in 4 directions by 1, 2 - in 8 directions by 1,
+			  boolean use_strength,            // weight average disparity by strength
+			  double scale_derivative_strength // 1.0 - new strength - average of neibs, 0.5 - only 1/2 of neibs
+		      ) {
+		  int op = ImageDtt.setImgMask(0, 0xf);
+		  op =     ImageDtt.setPairMask(op,0xf);
+		  op =     ImageDtt.setForcedDisparity(op,true);
+		  int width =  tp.getTilesX();
+		  int height = tp.getTilesY();
+		  CLTPass3d bg_scan =    tp.clt_3d_passes.get(bg_scan_indx);
+		  CLTPass3d combo_scan = tp.clt_3d_passes.get(combo_scan_indx);
+		  TileNeibs tn = new TileNeibs(width,height);
+		  
+//		  int [][] bg_tile_op =    bg_scan.tile_op;
+//		  int [][] combo_tile_op = combo_scan.tile_op;
+		  boolean [] bg_sel =    bg_scan.getSelected(); 
+		  boolean [] combo_sel = combo_scan.getSelected();
+		  double [] combo_disparity = new double [width*height];
+		  {
+			  int indx = 0;
+			  for (int ty = 0; ty < height; ty++) {
+				  for (int tx = 0; tx < width; tx++) {
+					  combo_disparity[indx++] = combo_scan.disparity[ty][tx];
+				  }
+			  }
+		  }
+		  double [] combo_strength = null;
+		  if (use_strength) {
+			  combo_strength = combo_scan.getStrength();
+		  }
+		  
+		  if (fill_gaps_bg > 0) {
+			  tp.growTiles(
+					  fill_gaps_bg,       // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+					  bg_sel,
+					  null); // prohibit
+		  }
+		  if (top_bg) {
+			  for (int indx = width; indx < bg_sel.length; indx++) {
+				  if (bg_sel[indx]) {
+					  int indx_up = tn.getNeibIndex(indx, TileNeibs.DIR_N);
+					  if ((indx_up >= 0) && !bg_sel[indx_up]) {
+						  while (indx_up >= 0) {
+							  bg_sel[indx_up] = true;
+							  indx_up = tn.getNeibIndex(indx_up, TileNeibs.DIR_N);
+						  }
+					  }
+				  }
+			  }
+		  }
+		  bg_scan.setSelected(bg_sel); // maybe not needed, as it is already the same array
+		  // remove from combo all bg
+		  for (int indx = 0; indx < bg_sel.length; indx++) {
+			  combo_sel[indx] &= !bg_sel[indx];
+		  }
+		  // Fill gaps
+		  for (; fill_gaps_combo > 0; fill_gaps_combo--) {
+			  boolean [] sel_new = combo_sel.clone();
+			  int num_sel =0;
+			  for (int i = 0; i < sel_new.length; i++) if (sel_new[i]) num_sel++;
+			  System.out.println("num_sel = "+num_sel);
+			  tp.growTiles(
+					  1,       // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+					  sel_new,
+					  bg_sel); // prohibit
+			  num_sel =0;
+			  for (int i = 0; i < sel_new.length; i++) if (sel_new[i]) num_sel++;
+			  System.out.println("num_sel grown = "+num_sel);
+			  
+			  for (int indx = 0; indx < combo_sel.length; indx++) {
+				  if (!combo_sel[indx] && sel_new[indx]) {
+					  double sum_w = 0.0;
+					  double sum_wd = 0.0;
+					  double sum_d = 0.0;
+					  int num_neibs = 0;
+					  for (int dir = 0; dir< 8; dir++) {
+						  int indx1 = tn.getNeibIndex(indx, dir);
+						  if ((indx1 >= 0) && combo_sel[indx1]) {
+							  double w = (combo_strength != null) ? combo_strength[indx1]:1.0;
+							  sum_w += w;
+							  sum_d +=  combo_disparity[indx1];
+							  sum_wd += w * combo_disparity[indx1];
+							  num_neibs++;
+						  }
+					  }
+					  // num_neibs should be > 0;
+					  if (combo_strength != null) {
+						  combo_strength[indx] = scale_derivative_strength * sum_w/num_neibs;
+					  }
+					  if (sum_w > 0) {
+						  combo_disparity[indx] = sum_wd/sum_w;
+					  } else {
+						  combo_disparity[indx] = sum_d/num_neibs;
+					  }
+				  }
+			  }
+			  combo_sel = sel_new;
+		  }
+		  combo_scan.setSelected(combo_sel); // maybe not needed, as it is already the same array
+		  // prepare tile_op and disparity for
+		  for (int ty = 0; ty < height; ty++) {
+			  for (int tx = 0; tx <  width; tx++) {
+				  int indx = ty * width + tx;
+				  bg_scan.tile_op[ty][tx] =      bg_sel[indx] ?    op: 0;
+				  combo_scan.tile_op[ty][tx] =   combo_sel[indx] ? op: 0;
+				  bg_scan.disparity[ty][tx] =    bg_sel[indx]?     0.0: Double.NaN;
+				  combo_scan.disparity[ty][tx] = combo_sel[indx]?  combo_disparity[indx]: Double.NaN;
+			  }
+		  }
 	  }
 	  
 	  public boolean extrinsicsCLT( 
@@ -8239,15 +8366,16 @@ public class QuadCLTCPU {
 					  debugLevel);
 		  }
 		  
+		  
 		  final boolean    batch_mode = false; // clt_parameters.batch_run;
 		  int debugLevelInner =  batch_mode ? -5: debugLevel;
 		  boolean update_disp_from_latest = clt_parameters.lym_update_disp ; // true;
 		  int max_tries =                   clt_parameters.lym_iter; // 25;
 		  double min_sym_update =           clt_parameters.getLymChange(is_aux); //  4e-6; // stop iterations if no angle changes more than this
 		  double min_poly_update =          clt_parameters.lym_poly_change; //  Parameter vector difference to exit from polynomial correction
-		  int bg_scan = 0;
+		  int bg_scan = 0+0;
 		  int combo_scan= tp.clt_3d_passes.size()-1;
-		  
+	  
 		  AlignmentCorrection ac = null;
 		  if (!clt_parameters.ly_lma_ers ) {
 			  ac = new AlignmentCorrection(this);
@@ -8261,11 +8389,37 @@ public class QuadCLTCPU {
 			  tp.showScan(
 					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
 					  "combo_scan-"+combo_scan+"_post"); //String title)
-			  tp.showScan(
-					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
-					  "combo_measured_scan-"+combo_scan+"_post"); //String title)
+//			  tp.showScan(
+//					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
+//					  "combo_measured_scan-"+combo_scan+"_post"); //String title)
+		  }
+		  // Increase density before LY
+		  if (clt_parameters.lym_mod_map) { // may not work when running directly, w/o getPreparedExtrinsics(dbg_path)
+		  updateScansForLY(
+				  bg_scan,                             // int bg_scan_indx,
+				  combo_scan,                          // int combo_scan_indx,
+				  clt_parameters.lym_top_bg ,          // boolean top_bg, // all above bg is bg
+				  clt_parameters.lym_fill_gaps_bg ,    // int fill_gaps_combo, // 1 - in 4 directions by 1, 2 - in 8 directions by 1,
+				  clt_parameters.lym_fill_gaps_combo , // int fill_gaps_bg,    // 1 - in 4 directions by 1, 2 - in 8 directions by 1,
+				  clt_parameters.lym_use_strength ,    // boolean use_strength,
+				  clt_parameters.lym_scale_deriv_str); // double scale_derivative_strength, // 1.0 - new strength - average of neibs, 0.5 - only 1/2 of neibs
 		  }
 
+		  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) {
+		  //if (clt_parameters.show_extrinsic && (debugLevel > -1)) { // temporary
+			  tp.showScan(
+					  tp.clt_3d_passes.get(bg_scan),   // CLTPass3d   scan,
+					  "bg_scan_post_mod"); //String title)
+			  tp.showScan(
+					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
+					  "combo_scan-"+combo_scan+"_post_mod"); //String title)
+//			  tp.showScan(
+//					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
+//					  "combo_measured_scan-"+combo_scan+"_post_mod"); //String title)
+		  }
+		  
+		  
+		  
 		  double comp_diff = min_sym_update + 1; // (> min_sym_update)
 		  
 		  for (int num_iter = 0; num_iter < max_tries; num_iter++){
@@ -8310,12 +8464,20 @@ public class QuadCLTCPU {
 				  boolean apply_extrinsic = (clt_parameters.ly_corr_scale != 0.0);
 				  CLTPass3d   scan = tp.clt_3d_passes.get(combo_scan);
 				  // for the second half of runs (always for single run) - limit infinity min/max
+				  double min_strength = 0.1; // 0.23;
+				  int [] pfmt = {8, 3};
 				  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) {
 					  ea.showInput(scan.getLazyEyeData(),"first_data");
+					  System.out.println(ea.stringWeightedLY(
+							  scan.getLazyEyeData(), // double [][] data,
+							  null,                  // double [][] ref_data,
+							  min_strength,          // double min_strength,
+							  pfmt,                  // int [] format,
+			                  "_00"));               // String suffix))
 				  }
 				  
 				  boolean debug_actual_LY_derivs =  debugLevel > 9; // true
-				  
+				  boolean                 use_tarz = false;
 				  if (debug_actual_LY_derivs) {
 					  debugLYDerivatives(
 							  ea, // ExtrinsicAdjustment     ea,
@@ -8324,7 +8486,8 @@ public class QuadCLTCPU {
 							  false, // boolean                 update_disparity, // re-measure disparity before measuring LY
 							  threadsMax, // final int        threadsMax,  // maximal number of threads to launch
 							  updateStatus, //final boolean    updateStatus,
-							  1E-2, // 1E-3, // double           delta,
+							  0.01, // 0.001, // 3.3333E-3, // double           delta,
+							  use_tarz, // boolean                 use_tarz,  // derivatives by tarz, notg symmetrical vectors
 							  debugLevel); // final int        debugLevel)				  
 				  }
 				  
@@ -11720,7 +11883,13 @@ public class QuadCLTCPU {
 					  clt_parameters.shift_x,        // final double              shiftX, // shift image horizontally (positive - right) - just for testing
 					  clt_parameters.shift_y,        // final double              shiftY, // shift image vertically (positive - down)
 					  clt_parameters.tileStep,       // final int                 tileStep, // process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters
-					  clt_parameters.img_dtt.getMcorrSelLY(getNumSensors()), //    final int                 mcorr_sel, // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert 
+					  clt_parameters.img_dtt.getMcorrSelLY(getNumSensors()), //    final int                 mcorr_sel, // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
+
+					  clt_parameters.img_dtt.mcorr_comb_width,					// final int                 mcorr_comb_width,  // combined correlation tile width
+					  clt_parameters.img_dtt.mcorr_comb_height,					// final int                 mcorr_comb_height, // combined correlation tile full height
+					  clt_parameters.img_dtt.mcorr_comb_offset,					// final int                 mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
+					  clt_parameters.img_dtt.mcorr_comb_disp,					// final double              mcorr_comb_disp,   // Combined tile per-pixel disparity for baseline == side of a square
+					  
 					  clt_parameters.tileX,        // final int                 debug_tileX,
 					  clt_parameters.tileY,         // final int                 debug_tileY,
 					  threadsMax, // final int                 threadsMax,  // maximal number of threads to launch
@@ -12533,9 +12702,10 @@ public class QuadCLTCPU {
 			  final int               threadsMax,  // maximal number of threads to launch
 			  final boolean           updateStatus,
 			  double                  delta,
+			  boolean                 use_tarz,  // derivatives by tarz, notg symmetrical vectors
 			  final int               debugLevel)
 	  {   
-		  delta = 0.0003;
+//		  delta = 0.001;
 		  /*double [] parameter_scales4 = { // multiply delay for each parameter
 				  0.3,  // 0.014793657667505566, // 00 10 tilt0
 				  0.3,  // 0.015484017460841183, // 01 10 tilt1
@@ -12581,7 +12751,7 @@ public class QuadCLTCPU {
 		  int num_sensors=getNumSensors();
 		  double [] parameter_scales = new double [corr_vector.getLength()];	
 		  for (int i = 0; i < num_sensors; i++) {
-			  parameter_scales    [corr_vector.getRollIndex()+   i] = (i > 0) ? scale_rl : scale_rl0;
+			  parameter_scales    [corr_vector.getRollIndex()+   i] = ((i > 0) || use_tarz)? scale_rl : scale_rl0;
 			  if (i < num_sensors - 1) {
 				  parameter_scales[corr_vector.getTiltIndex()+   i]=scale_tl;
 				  parameter_scales[corr_vector.getAzimuthIndex()+i]=scale_az;
@@ -12615,22 +12785,47 @@ public class QuadCLTCPU {
 					  ly_initial, // double[][] data,
 					  "drv_reference");// String title);
 		  }
-		  String [] titles = corr_vector.getCorrNames(); // new String [num_pars]; //ea.getSymNames(); // why "S" here, while it is tarz???
-//		  for (int i = 0; i < num_pars; i++) {
-//			  titles[i] = "S"+i;
-//		  }
 		  
+//		  String [] titles = corr_vector.getCorrNames(); // new String [num_pars]; //ea.getSymNames(); // why "S" here, while it is tarz???
+		  // geometryCorrection.getCorrVector(par_inc,null) converts sym -> tarz
+		  String [] titles;
+		  if (use_tarz) {
+			  titles = corr_vector.getCorrNames();
+		  } else {
+			  titles = new String [num_pars]; //ea.getSymNames(); // why "S" here, while it is tarz???
+			  for (int i = 0; i < num_pars; i++) {
+				  titles[i] = "S"+i;
+			  }
+		  }
+		  System.out.println("Initial:\n"+corr_vector.toString(true));  // true - short out
+		  double min_strength = 0.1; // 0.23		  
+		  int [] pfmt = {8,3};
+		  if (debugLevel > -3) {
+			  System.out.println(ea.stringWeightedLY(
+					  scan.getLazyEyeData(), // double [][] data,
+					  null,                  // double [][] ref_data,
+					  min_strength,          // double min_strength,
+					  pfmt,                  // int [] format,
+	                  "_00"));               // String suffix))
+		  }
+
 		  for (int npar = 0; npar < num_pars; npar++) {
 			  // perform asymmetric delta
 			  double [] par_inc = new double [num_pars];
 			  par_inc[npar] = delta * parameter_scales[npar];
-			  CorrVector corr_delta = geometryCorrection.getCorrVector(par_inc,null); // , par_mask); all parameters			  
+			  CorrVector corr_delta;			  
+			  if (use_tarz) {
+				  corr_delta = new CorrVector (geometryCorrection,par_inc);
+			  } else {
+				  corr_delta = geometryCorrection.getCorrVector(par_inc,null); // , par_mask); all parameters			  
+			  }
 			  CorrVector corr_vectorp = corr_vector.clone();
 			  corr_vectorp.incrementVector(corr_delta,  1.0); // 0.5 for p/m
 			  geometryCorrection.setCorrVector(corr_vectorp) ;
 			  double rdelta = 1.0/ par_inc[npar];
-//			  System.out.println("S"+npar+" scale="+rdelta); // +"\n"+(geometryCorrection.getCorrVector().toString()));
 			  System.out.println(npar+": "+ titles[npar]+", scale="+rdelta); // +"\n"+(geometryCorrection.getCorrVector().toString()));
+			  System.out.println("delta:\n"+corr_delta.toString(true));  // true - short out
+			  System.out.println("vector:\n"+corr_vectorp.toString(true));  // true - short out
 			  gpuResetCorrVector();
 			  if (update_disparity) {
 				  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity
@@ -12670,11 +12865,37 @@ public class QuadCLTCPU {
 			  ea.showInput(
 					  ly, // double[][] data,
 					  "drv_par"+npar+"-B");// String title);
-			*/  
+			*/
+//			  double min_strength = 0.23;
+//			  int [] pfmt = {8,3};
+			  if (debugLevel > -3) {
+				  System.out.println(ea.stringWeightedLY(
+						  ly,                    // double [][] data,
+						  null,                  // double [][] ref_data,
+						  min_strength,          // double min_strength,
+						  pfmt,                  // int [] format,
+		                  "_"+titles[npar]));    // String suffix))
+			  }
+
 			  for (int cluster = 0; cluster < clusters; cluster++) if ((ly_initial[cluster] != null) && (ly[cluster]!=null)){
 				  for (int nl = 0; nl < ly_initial[cluster].length; nl++) {
 					  ly_diff[npar][nl][cluster] =  rdelta * (ly[cluster][nl] - ly_initial[cluster][nl]); 
 				  }
+			  }
+			  if (debugLevel > -3) {
+				  double [][] ly_diff1 = new double [ly_initial.length][];
+				  for (int cluster = 0; cluster < clusters; cluster++) if ((ly_initial[cluster] != null) && (ly[cluster]!=null)){
+					  ly_diff1[cluster] = new double [ly_initial[cluster].length];
+					  for (int nl = 0; nl < ly_initial[cluster].length; nl++) {
+						  ly_diff1[cluster][nl] =  rdelta * (ly[cluster][nl] - ly_initial[cluster][nl]); 
+					  }
+				  }
+				  System.out.println(ea.stringWeightedLY(
+						  ly_diff1,         // double [][] data,
+						  ly_initial,            // double [][] ref_data,
+						  min_strength,          // double min_strength,
+						  pfmt,                  // int [] format,
+		                  "_d"+titles[npar]));    // String suffix))
 			  }
 		  }
 		  geometryCorrection.setCorrVector(corr_vector) ; // restore

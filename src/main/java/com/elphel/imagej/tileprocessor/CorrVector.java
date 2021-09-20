@@ -597,8 +597,11 @@ public class CorrVector{ // TODO: Update to non-quad (extract to a file first)?
 	}
 	
 	@Override
-	public String toString() // USED in lwir
-	{
+	public String toString() { // USED in lwir
+		return toString(false);
+	}
+	
+	public String toString(boolean short_out) {
 		String s;
 		double [] sym_vect = toSymArray(null);
 		double [] v = new double [vector.length];
@@ -648,7 +651,10 @@ public class CorrVector{ // TODO: Update to non-quad (extract to a file first)?
 		s+= "tilt    (up):   "; for (int i = 0; i < n; i++) s += String.format(" %8.4fpx", tilts[i]);    s+=" (shift of the image center)\n"; 
 		s+= "azimuth (right):"; for (int i = 0; i < n; i++) s += String.format(" %8.4fpx", azimuths[i]); s+=" (shift of the image center)\n"; 
 		s+= "roll    (CW):   "; for (int i = 0; i < n; i++) s += String.format(" %8.4fpx", rolls[i]);    s+=" (shift at the image half-width from the center)\n"; 
-		s+= "diff zoom (in): "; for (int i = 0; i < n; i++) s += String.format(" %8.4fpx", zooms[i]);    s+=" (shift at the image half-width from the center)\n"; 
+		s+= "diff zoom (in): "; for (int i = 0; i < n; i++) s += String.format(" %8.4fpx", zooms[i]);    s+=" (shift at the image half-width from the center)\n";
+		if (short_out) {
+			return s;
+		}
 		s += "Symmetrical vector:\n";
 		if (getNumSensors() == 4) { // Use arrows for quad camera only (but update to match new
 			// ← → ↑ ↓ ⇖ ⇗ ⇘ ⇙ ↔ ↺ ↻ 

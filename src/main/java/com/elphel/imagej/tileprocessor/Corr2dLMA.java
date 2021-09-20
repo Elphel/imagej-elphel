@@ -78,7 +78,7 @@ public class Corr2dLMA {
 
 ///	final static int          NUM_CAMS =     4; // not all have to be used, so it is maximal number of cameras
 ///	final static int          NUM_PAIRS =    NUM_CAMS* (NUM_CAMS -1)/2; // number of possible pairs
-
+	final static int          NTILE0 = 0;
 	final static int          DISP_INDEX =   0; // common/average disparity
 	final static int          A_INDEX =      1; // A*(x-x0)^2
 	final static int          B_INDEX =      2; // 2*B*(x-x0)*(y-y0)
@@ -132,7 +132,7 @@ public class Corr2dLMA {
     private int []            npairs; // number of used pairs per tile
     private int               last_cam; // index of the last camera (special treatment for disparity correction)
     private int               pre_last_cam; // index of the pre-last camera (special treatment for disparity correction)
-    private Matrix [][]       m_disp;
+    private Matrix [][]       m_disp;       
 //    private Matrix [][][]     m_pairs;
 //    private Matrix [][][]     m_pairs_inv;  // inverted m_pairs to calculate x,y -> dd,nd for initial disparity calculation
 
@@ -145,7 +145,8 @@ public class Corr2dLMA {
     private int               numTiles = 1;
     private Matrix            mddnd; // Matrix to calculate 2 last corrections in disparity direction and 1 ortho from the first ones (normally 2+3=5)
 
-    private boolean           gaussian_mode = true;
+//    private boolean           gaussian_mode = true;
+    private int               gaussian_mode = 1; // 0 - parabola, 1 - gaussian, 2 - limited parabola, 4 - limited squared parabola
     private boolean           lazy_eye; // calculate parameters/derivatives for the "lazy eye" parameters
     private double [][]       rXY;
     private int []            dd_indices; //normally 5-long (2 * ncam -3), absolute parameter indices for dd_pre_last, dd_last and nd_last
@@ -196,7 +197,7 @@ public class Corr2dLMA {
 				int         ts, // null - use default table
 				double [][] corr_wnd, // may be null
 				double [][] rXY, // non-distorted X,Y offset per nominal pixel of disparity
-				boolean     gaussian_mode
+				int         gaussian_mode // 0 - parabola, 1 - Gaussian, 2 - limited parabola, 3 - limited squared parabola
 				) {
 		this.correlation2d = correlation2d;
 		this.num_cams =  correlation2d.getNumSensors();
@@ -437,18 +438,7 @@ public class Corr2dLMA {
 		return np;
 	}
 	
-	
-	@Deprecated
-	public int getPairIndex(int f, int s) {
-		if (f > s) {
-			int t = f;
-			f = s;
-			s = t;
-		}
-		return (num_cams * f) - (f + 1)*f/2 - f - 1 + s ; // return n*i - i*(i+1)//2 - i + j -1
-	}
 
-	
 	
 	public void setMatrices(double [][] am_disp) {
 		m_disp = new Matrix[1][num_cams];
@@ -515,6 +505,119 @@ public class Corr2dLMA {
 		}
 	}
 
+	public boolean setInitialLYOffsets(
+			double [][] pair_centers,
+    		double      step_weight, // scale corrections
+    		double      min_correction,  // exit when maximal XY correction is below
+    		boolean debug) {
+		if (pair_centers == null) {
+			return false;
+		}
+		
+		// Verify that all cameras are used
+		for (int ncam = 0; ncam <num_cams; ncam++) if (!used_cameras[ncam]){
+			return false; // not all cameras present
+		}
+		
+		boolean apply = true; // false;
+		
+		double min_corr2 = min_correction * min_correction;
+		Matrix[] xy_cam_disp = new Matrix [num_cams]; // per camera - x,y without LY - just from disparity
+//		Matrix ddnd_disp = new Matrix(new double [] {all_pars[DISP_INDEX + NTILE0*tile_params], 0.0}, 2);
+		Matrix ddnd_disp = new Matrix(new double [] {-all_pars[DISP_INDEX + NTILE0*tile_params], 0.0}, 2);
+		for (int ncam = 0; ncam < num_cams; ncam++) {
+			xy_cam_disp[ncam] = m_disp[NTILE0][ncam].times(ddnd_disp);
+		}
+		Matrix[] m_pair_centers = new Matrix[pair_centers.length];
+		for (int pair = 0; pair < num_pairs; pair++) if (pair_centers[pair] != null) {
+			m_pair_centers[pair] = new Matrix (new double[] {pair_centers[pair][0], pair_centers[pair][1]},2);
+			int [] se =correlation2d.getPair(pair);
+			m_pair_centers[pair].plusEquals(xy_cam_disp[se[0]]).minusEquals(xy_cam_disp[se[1]]); // TODO: verify signs
+		}
+		// m_pair_centers - measured xy pair centers, corrected for disparity, so sum(dd) should be 0;
+		Matrix [] xy_ly = new Matrix [num_cams];
+		Matrix [] xy_ly_new = new Matrix [num_cams];
+		for (int ncam = 0; ncam < num_cams; ncam++) {
+			xy_ly[ncam] = new Matrix(2,1); // zero [x,Y] column
+		}
+		int max_try = 101;
+		double [] sum_w = new double [num_cams];  
+		for (int ntry = 0; ntry < max_try; ntry++) {
+			// reset new vectors
+			for (int ncam = 0; ncam < num_cams; ncam++) {
+				xy_ly_new[ncam] = new Matrix(2,1); // zero [x,Y] column
+			}
+			for (int pair = 0; pair < num_pairs; pair++) if (m_pair_centers[pair] != null){
+				int [] se =correlation2d.getPair(pair);
+				xy_ly_new[se[1]].plusEquals(xy_ly[se[0]].plus (m_pair_centers[pair]).times(pair_centers[pair][2]));
+				xy_ly_new[se[0]].plusEquals(xy_ly[se[1]].minus(m_pair_centers[pair]).times(pair_centers[pair][2]));
+				if (ntry == 0) {
+					sum_w[se[1]] += pair_centers[pair][2];
+					sum_w[se[0]] += pair_centers[pair][2];
+				}
+			}
+			double max_diff2 = 0;
+			for (int ncam = 0; ncam < num_cams; ncam++) {
+				xy_ly_new[ncam] =xy_ly[ncam].times(1.0 - step_weight).plus(xy_ly_new[ncam].times(step_weight/sum_w[ncam]));
+				double dx =  xy_ly_new[ncam].get(0, 0) - xy_ly[ncam].get(0, 0);
+				double dy =  xy_ly_new[ncam].get(1, 0) - xy_ly[ncam].get(1, 0);
+				double d2 = dx*dx + dy*dy;
+				if (d2 > max_diff2) {
+					max_diff2 = d2;
+				}
+				xy_ly[ncam] = xy_ly_new[ncam];
+			}
+			if (max_diff2 < min_corr2) {
+				break;
+			}
+		}
+		// correct to zero dx, dy
+		Matrix s_xy = new Matrix(2,1); // zero [x,Y] column
+		for (int ncam = 0; ncam < num_cams; ncam++) {
+			s_xy.plusEquals(xy_ly[ncam]);
+		}		
+		s_xy.timesEquals(1.0/num_cams);
+		for (int ncam = 0; ncam < num_cams; ncam++) {
+			xy_ly[ncam].minusEquals(s_xy);
+		}
+		if (debug) {
+			System.out.println(String.format("%2s: %6s %6s","","   X", "   Y"));
+			for (int ncam = 0; ncam <num_cams; ncam++) {
+				System.out.println(String.format("%2d: %6.3f %6.3f", ncam, xy_ly[ncam].get(0, 0), xy_ly[ncam].get(1, 0)));
+			}
+		}
+		// convert to ddnd
+		Matrix [] ddnd = new Matrix [num_cams];
+		Matrix s_dd = new Matrix(2,1); // zero [x,Y] column
+		for (int ncam = 0; ncam < num_cams; ncam++) {
+			ddnd[ncam] = m_disp[NTILE0][ncam].inverse().times(xy_ly[ncam]);
+			s_dd.plusEquals(ddnd[ncam]); 
+		}
+		s_dd.set(1, 0, 0);
+		s_dd.timesEquals(1.0/num_cams);
+		for (int ncam = 0; ncam < num_cams; ncam++) {
+			ddnd[ncam].minusEquals(s_dd) ;
+		}
+		
+		if (debug) {
+			System.out.println(String.format("%2s: %6s %6s","","  DD", "  ND"));
+			for (int ncam = 0; ncam <num_cams; ncam++) {
+				System.out.println(String.format("%2d: %6.3f %6.3f", ncam, ddnd[ncam].get(0, 0), ddnd[ncam].get(1, 0)));
+			}
+		}
+		
+		
+		// apply corrections
+		if (apply) {
+			for (int ncam = 0; ncam <num_cams; ncam++) {
+				this.all_pars[ddisp_index + ncam] = -ddnd[ncam].get(0, 0);
+				this.all_pars[ndisp_index + ncam] = -ddnd[ncam].get(1, 0);
+			}
+			toVector();
+		}
+		return true;
+	}
+	
 	public boolean initVector( // USED in lwir
 			boolean adjust_width,         // adjust width of the maximum -                                           lma_adjust_wm
 			boolean adjust_scales,        // adjust 2D correlation scales -                                          lma_adjust_ag
@@ -522,6 +625,8 @@ public class Corr2dLMA {
 			boolean adjust_lazyeye_par,   // adjust disparity corrections parallel to disparities                    lma_adjust_wxy
 			boolean adjust_lazyeye_ortho, // obsolete - make == adjust_lazyeye_par adjust disparity corrections orthogonal to disparities                  lma_adjust_ly1
 			double [][] disp_str,         // initial value of disparity
+//			double [][] ly_offsets_pairs, // common for all tiles: initial per sensor x,y LY offsets (or null)  
+//			double [][] ly_offsets_pairs, // common for all tiles: initial per pair x,y LY offsets (or null)  
 			double  half_width,           // A=1/(half_widh)^2                                                       lma_half_width
 			double  cost_lazyeye_par,     // cost for each of the non-zero disparity corrections                     lma_cost_wy
 			double  cost_lazyeye_odtho    // cost for each of the non-zero ortho disparity corrections               lma_cost_wxy
@@ -875,8 +980,11 @@ public class Corr2dLMA {
 	private double [] getFxJt(
 			double []   vector,
 			double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
-		if (this.gaussian_mode) return getFxJt_gaussian(vector, jt);
-		else                    return getFxJt_parabola(vector, jt);
+		if (this.gaussian_mode == 0) return getFxJt_parabola         (vector, jt);
+		if (this.gaussian_mode == 1) return getFxJt_gaussian         (vector, jt);
+		if (this.gaussian_mode == 2) return getFxJt_parabola_lim     (vector, jt);
+		if (this.gaussian_mode == 3) return getFxJt_parabola_squared (vector, jt);
+		else                         return getFxJt_parabola         (vector, jt);
 	}
 
 	private double [] getFxJt_parabola( // USED in lwir
@@ -911,8 +1019,8 @@ public class Corr2dLMA {
 //corr_wnd
 		for (int ns = 0; ns < num_samples; ns++) {
 			Sample s = samples.get(ns);
-//			int pair = pindx[s.fcam][s.scam]; // all pairs, noit just used?
-			int pair = s.pair; // all pairs, noit just used?
+//			int pair = pindx[s.fcam][s.scam]; // all pairs, not just used?
+			int pair = s.pair; // all pairs, not just used?
 			int [] fs = correlation2d.getPair(pair);
 			double A = AT[s.tile];
 			double B = BT[s.tile];
@@ -1056,6 +1164,361 @@ public class Corr2dLMA {
 		return fx;
 	}
 
+	private double [] getFxJt_parabola_lim( // USED in lwir
+			double []   vector,
+			double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
+		if (vector == null) return null;
+		double [] av = fromVector(vector);
+		Matrix [][] xcam_ycam = new Matrix[numTiles][num_cams];
+		double [][][][] xp_yp = new double[numTiles][num_cams][num_cams][];
+		double [] axc_yc = {transform_size - 1.0, transform_size-1.0};
+		Matrix xc_yc = new Matrix(axc_yc, 2);
+		double [] AT = new double [numTiles]; // av[A_INDEX];
+		double [] BT = new double [numTiles]; // av[B_INDEX];
+		double [] CT = new double [numTiles]; // A + av[CMA_INDEX];
+		for (int nTile = 0; nTile < numTiles; nTile++) if (used_tiles[nTile]){
+			for (int i = 0; i < num_cams; i++) if (used_cameras[i]) {
+				double [] add_dnd = {av[DISP_INDEX+ nTile * tile_params]+ av[ddisp_index + i],  av[ndisp_index + i]};
+				xcam_ycam[nTile][i] = m_disp[nTile][i].times(new Matrix(add_dnd,2));
+			}
+			for (int f = 0; f < num_cams; f++) if (used_cameras[f]) {
+				for (int s = 0; s < num_cams; s++) if (used_cameras[s]) {
+					xp_yp[nTile][f][s] =xcam_ycam[nTile][f].minus(xcam_ycam[nTile][s]).plus(xc_yc).getColumnPackedCopy();
+				}
+			}
+			AT[nTile] = av[A_INDEX + nTile * tile_params];
+			BT[nTile] = av[B_INDEX + nTile * tile_params];
+			CT[nTile] = AT[nTile] + av[CMA_INDEX + nTile * tile_params];
+		}
+
+		int num_samples = samples.size();
+		double [] fx= new double [num_samples + 2 * num_cams];
+//corr_wnd
+		for (int ns = 0; ns < num_samples; ns++) {
+			Sample s = samples.get(ns);
+//			int pair = pindx[s.fcam][s.scam]; // all pairs, not just used?
+			int pair = s.pair; // all pairs, not just used?
+			int [] fs = correlation2d.getPair(pair);
+			double A = AT[s.tile];
+			double B = BT[s.tile];
+			double C = CT[s.tile];
+
+			double Gp = av[G0_INDEX + pair + s.tile * tile_params];
+			double Wp = corr_wnd[s.ix][s.iy];
+			double WGp = Wp * Gp;
+//			double xmxp = s.ix - xp_yp[s.tile][s.fcam][s.scam][0];
+//			double ymyp = s.iy - xp_yp[s.tile][s.fcam][s.scam][1];
+			double xmxp = s.ix - xp_yp[s.tile][fs[0]][fs[1]][0]; // TODO - change format of xp_yp
+			double ymyp = s.iy - xp_yp[s.tile][fs[0]][fs[1]][1];
+			double xmxp2 = xmxp * xmxp;
+			double ymyp2 = ymyp * ymyp;
+			double xmxp_ymyp = xmxp * ymyp;
+			double d = Wp*(1.0 - (A*xmxp2 + 2 * B * xmxp_ymyp + C * ymyp2));
+			
+			double lim_negative = (d < 0)? 0.0 : 1.0;
+			d *= lim_negative;
+			
+			fx[ns] = d * Gp;
+			if (Double.isNaN(fx[ns])) {
+				System.out.println("fx["+ns+"]="+fx[ns]);
+			}
+			if (s.tile > 0) {
+				System.out.print("");
+			}
+			if (jt != null) {
+				if (par_map[DISP_INDEX + s.tile*tile_params] >= 0) {
+					jt[par_map[DISP_INDEX + s.tile*tile_params]][ns] = lim_negative* 2 * WGp *
+//						((A * xmxp + B * ymyp) * m_pairs[s.tile][s.fcam][s.scam].get(0, 0)+
+//						 (B * xmxp + C * ymyp) * m_pairs[s.tile][s.fcam][s.scam].get(1, 0));
+						((A * xmxp + B * ymyp) * m_pairs[s.tile][s.pair].get(0, 0)+
+						 (B * xmxp + C * ymyp) * m_pairs[s.tile][s.pair].get(1, 0));
+				}
+				if (par_map[A_INDEX + s.tile*tile_params] >= 0) {
+					jt[par_map[A_INDEX + s.tile*tile_params]][ns] = -WGp * (xmxp2 + ymyp2) * lim_negative;
+				}
+				if (par_map[B_INDEX + s.tile*tile_params] >= 0) {
+					jt[par_map[B_INDEX + s.tile*tile_params]][ns] = -WGp * 2 * xmxp_ymyp * lim_negative;
+				}
+				if (par_map[CMA_INDEX + s.tile*tile_params] >= 0) {
+					jt[par_map[CMA_INDEX + s.tile*tile_params]][ns] = -WGp * ymyp2 * lim_negative;
+				}
+//				for (int p = 0; p < npairs[s.tile]; p++) { // par_mask[G0_INDEX + p] as all pairs either used, or not - then npairs == 0
+				for (int p = 0; p < num_pairs; p++) { // par_mask[G0_INDEX + p] as all pairs either used, or not - then npairs == 0
+					if (par_map[G0_INDEX + p + s.tile*tile_params] >= 0) {
+						jt[par_map[G0_INDEX + p + s.tile*tile_params]][ns] = (p== pair)? d : 0.0; // (par_mask[G0_INDEX + pair])? d;
+					}
+				}
+				if (lazy_eye) {
+					for (int f = 0; f < num_cams; f++)  { // -1 for the last_cam and pre_last_cam
+						if (par_map[ddisp_index + f] >= 0) jt[par_map[ddisp_index + f]][ns] = 0.0;
+						if (par_map[ndisp_index + f] >= 0) jt[par_map[ndisp_index + f]][ns] = 0.0;
+					}
+					double [] dd_deriv = new double[3]; // derivatives by dependent dd_pre_lars, dd_last and nd_last (calculated on demand) with sign according to first/second in a pair
+					if ((fs[0] == pre_last_cam)) {
+						dd_deriv[0] =   2 * WGp * lim_negative * 
+								(       (A * xmxp + B * ymyp) * m_disp[s.tile][pre_last_cam].get(0, 0)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][pre_last_cam].get(1, 0));
+					} else if ((fs[1] == pre_last_cam)) {
+						dd_deriv[0] =  -2 * WGp * lim_negative *
+								(       (A * xmxp + B * ymyp) * m_disp[s.tile][pre_last_cam].get(0, 0)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][pre_last_cam].get(1, 0));
+					}
+					if ((fs[0] == last_cam)) {
+						dd_deriv[1] =   2 * WGp * lim_negative *
+								(       (A * xmxp + B * ymyp) * m_disp[s.tile][last_cam].get(0, 0)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][last_cam].get(1, 0));
+						dd_deriv[2] =   2 * WGp * lim_negative *
+								(       (A * xmxp + B * ymyp) * m_disp[s.tile][last_cam].get(0, 1)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][last_cam].get(1, 1));
+
+					} else if ((fs[1] == last_cam)) {
+						dd_deriv[1] =  -2 * WGp * lim_negative *
+								(       (A * xmxp + B * ymyp) * m_disp[s.tile][last_cam].get(0, 0)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][last_cam].get(1, 0));
+						dd_deriv[2] =  -2 * WGp * lim_negative *
+								(       (A * xmxp + B * ymyp) * m_disp[s.tile][last_cam].get(0, 1)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][last_cam].get(1, 1));
+					}
+					// now accumulate derivatives:
+					// first calculate contributions of the dd, nd directly:
+					if (par_map[ddisp_index + fs[0]] >= 0){ // par_map[ddisp_index + last_cam] always <0
+						jt[par_map[ddisp_index + fs[0]]][ns] += 2 * WGp * lim_negative *
+								((A * xmxp + B * ymyp) * m_disp[s.tile][fs[0]].get(0, 0)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][fs[0]].get(1, 0));
+					}
+					if (par_map[ddisp_index + fs[1]]>= 0){ // par_map[ddisp_index + last_cam] always <0
+						jt[par_map[ddisp_index + fs[1]]][ns] -= 2 * WGp * lim_negative *
+								((A * xmxp + B * ymyp) * m_disp[s.tile][fs[1]].get(0, 0)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][fs[1]].get(1, 0));
+					}
+					if (par_map[ndisp_index + fs[0]] >=0){
+						jt[par_map[ndisp_index + fs[0]]][ns] += 2 * WGp * lim_negative *
+								(       (A * xmxp + B * ymyp) * m_disp[s.tile][fs[0]].get(0, 1)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][fs[0]].get(1, 1));
+					}
+					if (par_map[ndisp_index + fs[1]] >= 0) {
+
+						jt[par_map[ndisp_index + fs[1]]][ns] -= 2 * WGp * lim_negative *
+								(       (A * xmxp + B * ymyp) * m_disp[s.tile][fs[1]].get(0, 1)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][fs[1]].get(1, 1));
+					}
+					// now calculate indirect ones through derivatives by dd_pre_last (dd_deriv[0]), dd_last (dd_deriv[1]) and nd_last (dd_deriv[2])
+					////    private int []            dd_indices; //normally 5-long (2 * ncam -3), absolute parameter indices for dd_pre_last, dd_last and nd_last
+					for (int ddn = 0; ddn < 3; ddn++) if (dd_deriv[ddn] != 0.0) {
+						for (int i = 0; i < dd_indices.length; i++) {
+							jt[dd_indices[i]][ns] += dd_deriv[ddn] * mddnd.get(ddn, i); // already includes  lim_negative *
+//							if (Double.isNaN(jt[dd_indices[i]][ns])){
+//								System.out.println("getFxJt_parabola(): jt[dd_indices["+i+"]]["+ns+"] == NaN, dd_indices["+i+"]="+dd_indices[i]);
+//							}
+						}
+					}
+				}
+			}
+		}
+		if (lazy_eye) { // do not include  lim_negative *
+			for (int n = 0; n < num_cams; n++) { // av[ddisp_index +last_cam] and other 2 are already populated
+				fx[num_samples +            n] = av[ddisp_index + n];
+				fx[num_samples + num_cams + n] = av[ndisp_index + n];
+			}
+
+			// and derivatives
+			if (jt != null) {
+				for (int i = 0; i < num_cams; i++) {
+					if ((i != last_cam) && (i != pre_last_cam) && (par_map[ddisp_index + i] >= 0)) {
+						jt[par_map[ddisp_index + i]][num_samples + i] = 1.0;
+					}
+					if ((i != last_cam) && (par_map[ndisp_index + i] >= 0)) {
+						jt[par_map[ndisp_index + i] ][num_samples + num_cams + i] = 1.0;
+					}
+				}
+				for (int i = 0; i < dd_indices.length; i++) {
+					jt[dd_indices[i]][num_samples +        pre_last_cam] = mddnd.get(0, i);
+					jt[dd_indices[i]][num_samples +            last_cam] = mddnd.get(1, i);
+					jt[dd_indices[i]][num_samples + num_cams + last_cam] = mddnd.get(2, i);
+				}
+			}
+		}
+		return fx;
+	}
+	
+	private double [] getFxJt_parabola_squared( // USED in lwir
+			double []   vector,
+			double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
+		if (vector == null) return null;
+		double [] av = fromVector(vector);
+		Matrix [][] xcam_ycam = new Matrix[numTiles][num_cams];
+		double [][][][] xp_yp = new double[numTiles][num_cams][num_cams][];
+		double [] axc_yc = {transform_size - 1.0, transform_size-1.0};
+		Matrix xc_yc = new Matrix(axc_yc, 2);
+		double [] AT = new double [numTiles]; // av[A_INDEX];
+		double [] BT = new double [numTiles]; // av[B_INDEX];
+		double [] CT = new double [numTiles]; // A + av[CMA_INDEX];
+		for (int nTile = 0; nTile < numTiles; nTile++) if (used_tiles[nTile]){
+			for (int i = 0; i < num_cams; i++) if (used_cameras[i]) {
+				double [] add_dnd = {av[DISP_INDEX+ nTile * tile_params]+ av[ddisp_index + i],  av[ndisp_index + i]};
+				xcam_ycam[nTile][i] = m_disp[nTile][i].times(new Matrix(add_dnd,2));
+			}
+			for (int f = 0; f < num_cams; f++) if (used_cameras[f]) {
+				for (int s = 0; s < num_cams; s++) if (used_cameras[s]) {
+					xp_yp[nTile][f][s] =xcam_ycam[nTile][f].minus(xcam_ycam[nTile][s]).plus(xc_yc).getColumnPackedCopy();
+				}
+			}
+			AT[nTile] = av[A_INDEX + nTile * tile_params];
+			BT[nTile] = av[B_INDEX + nTile * tile_params];
+			CT[nTile] = AT[nTile] + av[CMA_INDEX + nTile * tile_params];
+		}
+
+		int num_samples = samples.size();
+		double [] fx= new double [num_samples + 2 * num_cams];
+//corr_wnd
+		for (int ns = 0; ns < num_samples; ns++) {
+			Sample s = samples.get(ns);
+			int pair = s.pair; // all pairs, not just used?
+			int [] fs = correlation2d.getPair(pair);
+			double A = AT[s.tile];
+			double B = BT[s.tile];
+			double C = CT[s.tile];
+
+			double Gp = av[G0_INDEX + pair + s.tile * tile_params];
+			double Wp = corr_wnd[s.ix][s.iy]; // *********
+			double WGp = Wp * Gp;
+			double xmxp = s.ix - xp_yp[s.tile][fs[0]][fs[1]][0]; // TODO - change format of xp_yp
+			double ymyp = s.iy - xp_yp[s.tile][fs[0]][fs[1]][1];
+			double xmxp2 = xmxp * xmxp;
+			double ymyp2 = ymyp * ymyp;
+			double xmxp_ymyp = xmxp * ymyp;
+			double d = Wp*(1.0 - (A*xmxp2 + 2 * B * xmxp_ymyp + C * ymyp2));
+			
+			double lim_negative = (d < 0)? 0.0 : 1.0;
+			d *= lim_negative;
+			
+			fx[ns] = d * d * Gp;
+			
+			// d(d^2)/dp = 2*d *dd/dp
+			
+			double lim_negative_2d = 2 * d * lim_negative;
+			
+			if (Double.isNaN(fx[ns])) {
+				System.out.println("fx["+ns+"]="+fx[ns]);
+			}
+			if (s.tile > 0) {
+				System.out.print("");
+			}
+			if (jt != null) {
+				if (par_map[DISP_INDEX + s.tile*tile_params] >= 0) {
+					jt[par_map[DISP_INDEX + s.tile*tile_params]][ns] = lim_negative_2d* 2 * WGp *
+						((A * xmxp + B * ymyp) * m_pairs[s.tile][s.pair].get(0, 0)+
+						 (B * xmxp + C * ymyp) * m_pairs[s.tile][s.pair].get(1, 0));
+				}
+				if (par_map[A_INDEX + s.tile*tile_params] >= 0) {
+					jt[par_map[A_INDEX + s.tile*tile_params]][ns] = -WGp * (xmxp2 + ymyp2) * lim_negative_2d;
+				}
+				if (par_map[B_INDEX + s.tile*tile_params] >= 0) {
+					jt[par_map[B_INDEX + s.tile*tile_params]][ns] = -WGp * 2 * xmxp_ymyp * lim_negative_2d;
+				}
+				if (par_map[CMA_INDEX + s.tile*tile_params] >= 0) {
+					jt[par_map[CMA_INDEX + s.tile*tile_params]][ns] = -WGp * ymyp2 * lim_negative_2d;
+				}
+				for (int p = 0; p < num_pairs; p++) { // par_mask[G0_INDEX + p] as all pairs either used, or not - then npairs == 0
+					if (par_map[G0_INDEX + p + s.tile*tile_params] >= 0) {
+						jt[par_map[G0_INDEX + p + s.tile*tile_params]][ns] = (p== pair)? (d * d) : 0.0; // (par_mask[G0_INDEX + pair])? d;
+					}
+				}
+				if (lazy_eye) {
+					for (int f = 0; f < num_cams; f++)  { // -1 for the last_cam and pre_last_cam
+						if (par_map[ddisp_index + f] >= 0) jt[par_map[ddisp_index + f]][ns] = 0.0;
+						if (par_map[ndisp_index + f] >= 0) jt[par_map[ndisp_index + f]][ns] = 0.0;
+					}
+					double [] dd_deriv = new double[3]; // derivatives by dependent dd_pre_lars, dd_last and nd_last (calculated on demand) with sign according to first/second in a pair
+					if ((fs[0] == pre_last_cam)) {
+						dd_deriv[0] =   2 * WGp * lim_negative_2d * 
+								(       (A * xmxp + B * ymyp) * m_disp[s.tile][pre_last_cam].get(0, 0)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][pre_last_cam].get(1, 0));
+					} else if ((fs[1] == pre_last_cam)) {
+						dd_deriv[0] =  -2 * WGp * lim_negative_2d *
+								(       (A * xmxp + B * ymyp) * m_disp[s.tile][pre_last_cam].get(0, 0)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][pre_last_cam].get(1, 0));
+					}
+					if ((fs[0] == last_cam)) {
+						dd_deriv[1] =   2 * WGp * lim_negative_2d *
+								(       (A * xmxp + B * ymyp) * m_disp[s.tile][last_cam].get(0, 0)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][last_cam].get(1, 0));
+						dd_deriv[2] =   2 * WGp * lim_negative_2d *
+								(       (A * xmxp + B * ymyp) * m_disp[s.tile][last_cam].get(0, 1)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][last_cam].get(1, 1));
+
+					} else if ((fs[1] == last_cam)) {
+						dd_deriv[1] =  -2 * WGp * lim_negative_2d *
+								(       (A * xmxp + B * ymyp) * m_disp[s.tile][last_cam].get(0, 0)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][last_cam].get(1, 0));
+						dd_deriv[2] =  -2 * WGp * lim_negative_2d *
+								(       (A * xmxp + B * ymyp) * m_disp[s.tile][last_cam].get(0, 1)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][last_cam].get(1, 1));
+					}
+					// now accumulate derivatives:
+					// first calculate contributions of the dd, nd directly:
+					if (par_map[ddisp_index + fs[0]] >= 0){ // par_map[ddisp_index + last_cam] always <0
+						jt[par_map[ddisp_index + fs[0]]][ns] += 2 * WGp * lim_negative_2d *
+								((A * xmxp + B * ymyp) * m_disp[s.tile][fs[0]].get(0, 0)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][fs[0]].get(1, 0));
+					}
+					if (par_map[ddisp_index + fs[1]]>= 0){ // par_map[ddisp_index + last_cam] always <0
+						jt[par_map[ddisp_index + fs[1]]][ns] -= 2 * WGp * lim_negative_2d *
+								((A * xmxp + B * ymyp) * m_disp[s.tile][fs[1]].get(0, 0)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][fs[1]].get(1, 0));
+					}
+					if (par_map[ndisp_index + fs[0]] >=0){
+						jt[par_map[ndisp_index + fs[0]]][ns] += 2 * WGp * lim_negative_2d *
+								(       (A * xmxp + B * ymyp) * m_disp[s.tile][fs[0]].get(0, 1)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][fs[0]].get(1, 1));
+					}
+					if (par_map[ndisp_index + fs[1]] >= 0) {
+
+						jt[par_map[ndisp_index + fs[1]]][ns] -= 2 * WGp * lim_negative_2d *
+								(       (A * xmxp + B * ymyp) * m_disp[s.tile][fs[1]].get(0, 1)+
+										(B * xmxp + C * ymyp) * m_disp[s.tile][fs[1]].get(1, 1));
+					}
+					// now calculate indirect ones through derivatives by dd_pre_last (dd_deriv[0]), dd_last (dd_deriv[1]) and nd_last (dd_deriv[2])
+					////    private int []            dd_indices; //normally 5-long (2 * ncam -3), absolute parameter indices for dd_pre_last, dd_last and nd_last
+					for (int ddn = 0; ddn < 3; ddn++) if (dd_deriv[ddn] != 0.0) {
+						for (int i = 0; i < dd_indices.length; i++) {
+							jt[dd_indices[i]][ns] += dd_deriv[ddn] * mddnd.get(ddn, i); // already includes  lim_negative *
+//							if (Double.isNaN(jt[dd_indices[i]][ns])){
+//								System.out.println("getFxJt_parabola(): jt[dd_indices["+i+"]]["+ns+"] == NaN, dd_indices["+i+"]="+dd_indices[i]);
+//							}
+						}
+					}
+				}
+			}
+		}
+		if (lazy_eye) { // do not include  lim_negative *
+			for (int n = 0; n < num_cams; n++) { // av[ddisp_index +last_cam] and other 2 are already populated
+				fx[num_samples +            n] = av[ddisp_index + n];
+				fx[num_samples + num_cams + n] = av[ndisp_index + n];
+			}
+
+			// and derivatives
+			if (jt != null) {
+				for (int i = 0; i < num_cams; i++) {
+					if ((i != last_cam) && (i != pre_last_cam) && (par_map[ddisp_index + i] >= 0)) {
+						jt[par_map[ddisp_index + i]][num_samples + i] = 1.0;
+					}
+					if ((i != last_cam) && (par_map[ndisp_index + i] >= 0)) {
+						jt[par_map[ndisp_index + i] ][num_samples + num_cams + i] = 1.0;
+					}
+				}
+				for (int i = 0; i < dd_indices.length; i++) {
+					jt[dd_indices[i]][num_samples +        pre_last_cam] = mddnd.get(0, i);
+					jt[dd_indices[i]][num_samples +            last_cam] = mddnd.get(1, i);
+					jt[dd_indices[i]][num_samples + num_cams + last_cam] = mddnd.get(2, i);
+				}
+			}
+		}
+		return fx;
+	}
+	
+	
+	
 	private double [] getFxJt_gaussian( // USED in lwir
 			double []   vector,
 			double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
@@ -1296,8 +1759,6 @@ public class Corr2dLMA {
 				System.out.println();
 			}
 		}
-
-
 	}
 	public double [][] getTileStats(){
 		double []   rms =        getRmsTile();
@@ -1334,8 +1795,8 @@ public class Corr2dLMA {
 				if (i < samples.size()) {
 					s = samples.get(i);
 					int [] fs = correlation2d.getPair(s.pair);
-					System.out.println(String.format("%3d: x=%2d y=%2d v=%9.6f fx=%9.6f w=%9.7f pair=%2d scam=%2d tile=%d",
-							i, s.ix, s.iy, s.v, fx_pos, s.w, fs[0], fs[1], s.tile));
+					System.out.println(String.format("%3d: x=%2d y=%2d v=%9.6f fx=%9.6f w=%9.7f pair=%3d fcam=%2d scam=%2d tile=%d",
+							i, s.ix, s.iy, s.v, fx_pos, s.w, s.pair, fs[0], fs[1], s.tile));
 				}
 				else {
 					System.out.println(String.format("%3d: %2s %2s v=%9.6f fx=%9.6f w=%9.7f", i, "-", "-", this.values[i], fx_pos, this.weights[i]));
@@ -1345,8 +1806,8 @@ public class Corr2dLMA {
 			int ns =0;
 			for (Sample s:samples){
 				int [] fs = correlation2d.getPair(s.pair);
-				System.out.println(String.format("%3d: x=%2d y=%2d v=%9.6f w=%9.7f fcam=%1d scam=%1d tile=%d",
-						ns++, s.ix, s.iy, s.v, s.w, fs[0], fs[1], s.tile));
+				System.out.println(String.format("%3d: x=%2d y=%2d v=%9.6f w=%9.7f pair= %3d fcam=%2d scam=%2d tile=%d",
+						ns++, s.ix, s.iy, s.v, s.w, s.pair, fs[0], fs[1], s.tile));
 			}
 		}
 	}
@@ -1424,9 +1885,12 @@ public class Corr2dLMA {
 		}
 		Matrix m5 = new Matrix(a5,a5.length); // single column, normally 5 rows
 		Matrix m3 = mddnd.times(m5);
-		all_pars[ddisp_index + used_cams_rmap[pre_last_cam]] = m3.get(0, 0);
-		all_pars[ddisp_index + used_cams_rmap[last_cam]] =     m3.get(1, 0);
-		all_pars[ndisp_index + used_cams_rmap[last_cam]] =     m3.get(2, 0);
+//		all_pars[ddisp_index + used_cams_rmap[pre_last_cam]] = m3.get(0, 0);
+//		all_pars[ddisp_index + used_cams_rmap[last_cam]] =     m3.get(1, 0);
+//		all_pars[ndisp_index + used_cams_rmap[last_cam]] =     m3.get(2, 0);
+		all_pars[ddisp_index + pre_last_cam] = m3.get(0, 0);
+		all_pars[ddisp_index + last_cam] =     m3.get(1, 0);
+		all_pars[ndisp_index + last_cam] =     m3.get(2, 0);
 
 	}
 
@@ -1446,9 +1910,12 @@ public class Corr2dLMA {
 		}
 		Matrix m5 = new Matrix(a5,a5.length); // single column, normally 5 rows
 		Matrix m3 = mddnd.times(m5);
-		ap[ddisp_index + used_cams_rmap[pre_last_cam]] = m3.get(0, 0);
-		ap[ddisp_index + used_cams_rmap[last_cam]] =     m3.get(1, 0);
-		ap[ndisp_index + used_cams_rmap[last_cam]] =     m3.get(2, 0);
+//		ap[ddisp_index + used_cams_rmap[pre_last_cam]] = m3.get(0, 0);
+//		ap[ddisp_index + used_cams_rmap[last_cam]] =     m3.get(1, 0);
+//		ap[ndisp_index + used_cams_rmap[last_cam]] =     m3.get(2, 0);
+		ap[ddisp_index + pre_last_cam] = m3.get(0, 0);
+		ap[ddisp_index + last_cam] =     m3.get(1, 0);
+		ap[ndisp_index + last_cam] =     m3.get(2, 0);
 		return ap;
 	}
 
@@ -1666,7 +2133,10 @@ public class Corr2dLMA {
 			if (Double.isNaN(maxmin_amp[tile][0])) {
 				continue;
 			}
-			double avg = 0.50*(maxmin_amp[tile][0]+maxmin_amp[tile][1]);
+			if (maxmin_amp[tile][1] < 0.0) {
+				continue; // inverse maximum - discard tile
+			}
+			double avg = 0.50*(maxmin_amp[tile][0]+maxmin_amp[tile][1]); // max_min[1] can be negative - filter it out?
 			double rrms = rms[tile]/avg;
 			if (((lma_max_rel_rms > 0.0) && (rrms > lma_max_rel_rms)) ||
 					(Math.max(abc[tile][0], abc[tile][2]) < lma_min_max_ac)
@@ -1692,7 +2162,11 @@ public class Corr2dLMA {
 			if ((strength < lma_min_strength) || Double.isNaN(disparity)) {
 				continue;
 			}
-			strength = Math.sqrt(strength * Math.sqrt(abc[tile][0] * abc[tile][2])); // / area ); // new strength
+			double ac = abc[tile][0] * abc[tile][2];
+			if (ac < 0) {
+				continue;
+			}
+			strength = Math.sqrt(strength * Math.sqrt(ac)); // / area ); // new strength
 			ds[tile][0] = disparity;
 			ds[tile][1] = (strength * lma_str_scale) + lma_str_offset;
 		}
@@ -1947,9 +2421,12 @@ public class Corr2dLMA {
 	public double [][] getABCTile(){
 		double [][] abc = new double[numTiles][3];
 		for (int tile = 0; tile < numTiles; tile++) {
-			abc[tile][0] =  (par_mask[A_INDEX+ tile * tile_params])? all_pars[A_INDEX+ tile * tile_params] :Double.NaN;
-			abc[tile][1] =  (par_mask[B_INDEX+ tile * tile_params])? all_pars[B_INDEX+ tile * tile_params] :Double.NaN;
-			abc[tile][2] = abc[tile][0] + ( (par_mask[CMA_INDEX+ tile * tile_params])? all_pars[CMA_INDEX+ tile * tile_params] :Double.NaN);
+//			abc[tile][0] =  (par_mask[A_INDEX+ tile * tile_params])? all_pars[A_INDEX+ tile * tile_params] :Double.NaN;
+//			abc[tile][1] =  (par_mask[B_INDEX+ tile * tile_params])? all_pars[B_INDEX+ tile * tile_params] :Double.NaN;
+//			abc[tile][2] = abc[tile][0] + ( (par_mask[CMA_INDEX+ tile * tile_params])? all_pars[CMA_INDEX+ tile * tile_params] :Double.NaN);
+			abc[tile][0] =  all_pars[A_INDEX+ tile * tile_params];
+			abc[tile][1] =  all_pars[B_INDEX+ tile * tile_params];
+			abc[tile][2] =  abc[tile][0] + all_pars[CMA_INDEX+ tile * tile_params];
 		}
 		return abc;
 	}
@@ -2048,7 +2525,7 @@ public class Corr2dLMA {
 			this.good_or_bad_rms = this.last_rms.clone();
 			if (debug_level > 3) {
 				debugJt(
-						0.000001, // double      delta,
+						0.000001, // double      delta, // 0.2, //
 						this.vector); // double []   vector);
 			}
 		}
@@ -2073,7 +2550,7 @@ public class Corr2dLMA {
 			return rslt;
 		}
 		if (debug_level>2) {
-			System.out.println("(JtJ + lambda*diag(JtJ).inv()");
+			System.out.println("(JtJ + lambda*diag(JtJ)).inv()");
 			jtjl_inv.print(18, 6);
 		}
 //last_jt has NaNs

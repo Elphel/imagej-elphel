@@ -200,19 +200,12 @@ public class ExtrinsicAdjustment {
 
 	public void showInput(double[][] data, String title) {
 		int clusters = clustersX * clustersY;
-//		double [][] pixels = new double [ExtrinsicAdjustment.INDX_LENGTH+4][clusters];
-//		String [] titles = new String[ExtrinsicAdjustment.INDX_LENGTH+4];
-//		for (int i = 0; i < ExtrinsicAdjustment.INDX_LENGTH; i++) {
 		double [][] pixels = new double [indx_length + 4][clusters];
 		String [] titles =  new String[indx_length + 4];
 			for (int i = 0; i < indx_length; i++) {
 			//			titles[i] = ExtrinsicAdjustment.DATA_TITLES[i];
 			titles[i] = data_titles[i];
 		}
-//		titles[ExtrinsicAdjustment.INDX_LENGTH+0]="Force_disparity";
-//		titles[ExtrinsicAdjustment.INDX_LENGTH+1]="dx-sum";
-//		titles[ExtrinsicAdjustment.INDX_LENGTH+2]="dy_sum";
-//		titles[ExtrinsicAdjustment.INDX_LENGTH+3]="dd_sum";
 		titles[indx_length+0]="Force_disparity";
 		titles[indx_length+1]="dx-sum";
 		titles[indx_length+2]="dy_sum";
@@ -223,13 +216,10 @@ public class ExtrinsicAdjustment {
 				for (int c = 0; c < data[cluster].length; c++) {
 					pixels[c][cluster] = data[cluster][c];
 				}
-				for (int i = 0;i <4; i++) {
-//					pixels[ExtrinsicAdjustment.INDX_LENGTH+1][cluster] += 0.25 * data[cluster][ExtrinsicAdjustment.INDX_X0 + 2 * i];
-//					pixels[ExtrinsicAdjustment.INDX_LENGTH+2][cluster] += 0.25 * data[cluster][ExtrinsicAdjustment.INDX_X0 + 2 * i + 1];
-//					pixels[ExtrinsicAdjustment.INDX_LENGTH+3][cluster] += 0.25 * data[cluster][ExtrinsicAdjustment.INDX_DD0 + i];
-					pixels[indx_length+1][cluster] += 0.25 * data[cluster][INDX_X0 + 2 * i];
-					pixels[indx_length+2][cluster] += 0.25 * data[cluster][INDX_X0 + 2 * i + 1];
-					pixels[indx_length+3][cluster] += 0.25 * data[cluster][indx_dd0 + i];
+				for (int i = 0;i < num_sensors; i++) {
+					pixels[indx_length+1][cluster] += data[cluster][INDX_X0 + 2 * i]/num_sensors;
+					pixels[indx_length+2][cluster] += data[cluster][INDX_X0 + 2 * i + 1]/num_sensors;
+					pixels[indx_length+3][cluster] += data[cluster][indx_dd0 + i]/num_sensors;
 				}
 			} else {
 				for (int c = 0; c < pixels.length; c++) {
@@ -238,7 +228,6 @@ public class ExtrinsicAdjustment {
 				}
 			}
 			if (force_disparity!=null) {
-//				pixels[ExtrinsicAdjustment.INDX_LENGTH][cluster] = force_disparity[cluster]?1.0:0.0;
 				pixels[indx_length][cluster] = force_disparity[cluster]?1.0:0.0;
 			}
 		}
@@ -249,6 +238,67 @@ public class ExtrinsicAdjustment {
 				 true,
 				 title,
 				 titles); //ExtrinsicAdjustment.DATA_TITLES);
+	}
+	public double [] weightedLY (
+			double [][] data,     // may be difference between two LY
+			double [][] ref_data, // to use strength from it (or the same as data)
+			double min_strength) {
+		if (ref_data == null) ref_data = data;
+		double [] avg = new double [indx_length];
+		double [] weights = new double [data.length];
+		double sw = 0;
+		for (int cluster = 0; cluster < weights.length; cluster++) if ((ref_data[cluster] != null) && (data[cluster] != null) && !Double.isNaN (ref_data[cluster][INDX_STRENGTH])){
+			double w = ref_data[cluster][INDX_STRENGTH] - min_strength;
+			if (w < 0.0) w = 0.0;
+			weights[cluster] = w;
+			sw += w;
+		}
+		if (sw <= 0.0) {
+			return null;
+		}
+		for (int cluster = 0; cluster < weights.length; cluster++) {
+			weights[cluster] /= sw;
+		}
+		for (int n = 0; n < avg.length; n ++ ) {
+			for (int cluster = 0; cluster < weights.length; cluster++) {
+				if ((weights[cluster] > 0.0) && !Double.isNaN(data[cluster][n])){
+					avg[n] += weights[cluster] * data[cluster][n];
+				}
+			}			
+		}
+		return avg;
+	}
+	
+	public String stringWeightedLY(
+			double [][] data,     // may be difference between two LY
+			double [][] ref_data, // to use strength from it
+			double min_strength,
+			int [] format,
+			String suffix)
+	{
+		String dfmt =  "%"+format[0]+"."+format[1]+"f,";
+		String dfmta = "%"+format[0]+"."+(2*format[1])+"f";
+		String hfmt =  "%"+(format[0]/2)+"d%"+(format[0]-format[0]/2)+"s,";
+		double [] avg =  weightedLY (data, ref_data, min_strength);
+		String s = "";
+		double avg_dd = 0.0, avg_nd = 0.0, avg_x = 0.0, avg_y = 0.0;
+		for (int p = 0; p < num_sensors; p++) avg_dd += avg[indx_dd0 + p]/ num_sensors;
+		for (int p = 0; p < num_sensors; p++) avg_nd += avg[indx_nd0 + p]/ num_sensors;
+		for (int p = 0; p < num_sensors; p++) avg_x +=  avg[INDX_X0 + 2 * p + 0]/ num_sensors;
+		for (int p = 0; p < num_sensors; p++) avg_y +=  avg[INDX_X0 + 2 * p + 1]/ num_sensors;
+		
+		s +="diff_disparity = "+String.format(dfmt, avg[INDX_DIFF])+"\n";
+		s += "Port"+suffix+": [";
+		for (int p = 0; p < num_sensors; p++) s += String.format(hfmt, p, "");s+="]\n";
+		s += "DD"+suffix+"=   [";
+		for (int p = 0; p < num_sensors; p++) s += String.format(dfmt, avg[indx_dd0 + p]);s+="]" + String.format(" # avg = "+dfmta+"\n", avg_dd);
+		s += "ND"+suffix+"=   [";
+		for (int p = 0; p < num_sensors; p++) s += String.format(dfmt, avg[indx_nd0 + p]);s+="]" + String.format(" # avg = "+dfmta+"\n", avg_nd);
+		s += "DX"+suffix+"=   [";
+		for (int p = 0; p < num_sensors; p++) s += String.format(dfmt, avg[INDX_X0 + 2 * p + 0]);s+="]" + String.format(" # avg = "+dfmta+"\n", avg_x);
+		s += "DY"+suffix+"=   [";
+		for (int p = 0; p < num_sensors; p++) s += String.format(dfmt, avg[INDX_X0 + 2 * p + 1]);s+="]" + String.format(" # avg = "+dfmta+"\n", avg_y);
+		return s;
 	}
 	/*
 	public static void showLYInput(

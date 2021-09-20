@@ -2120,6 +2120,45 @@ public class Correlation2d {
 		}
 		return rslt;
 	}
+	
+	/**
+	 * Get fractional center as a "center of mass" for all pixels
+	 * Data should be masked by the caller 
+	 * @param data correlation data [(2 * transform_size - 1) * (2 * transform_size - 1)]
+	 * @param data_width
+	 * @param center_row
+	 * @param debug
+	 * @return argmax() relative to the tile center
+	 */
+	
+	public double [] getMaxXYCm( // not used in lwir
+			double [] data,
+			int       data_width,      //  = 2 * transform_size - 1;
+			int       center_row,
+			boolean   debug)
+	{
+		int data_height = data.length/data_width;
+		int center_x = (data_width - 1)/2; //  = transform_size - 1;
+		//calculate as "center of mass"
+		double s0 = 0, sx=0,sy = 0;
+		for (int iy = 0; iy < data_height; iy++) {
+			double y = iy - center_row;
+			for (int ix = 0; ix < data_width; ix++) {
+				double x = ix - center_x;
+				double d =  data[iy * data_width + ix];
+				s0 += d;
+				sx += d * x;
+				sy += d * y;
+			}
+		}
+		double [] rslt = {sx / s0, sy / s0};
+		if (debug){
+			System.out.println("getMaxXYCm() -> "+rslt[0]+":"+rslt[1]);
+		}
+		return rslt;
+	}
+	
+	
 	/**
 	 * Calculate 1-d maximum location, strength and half-width for the special strip (odd rows shifted by 0.5
 	 * Negative values are ignored!
@@ -3430,7 +3469,6 @@ public class Correlation2d {
     						imgdtt_params.lma_adjust_wy,  // boolean adjust_ellipse,   // allow non-circular correlation maximums lma_adjust_wy
     						true, // imgdtt_params.lma_adjust_wxy, // boolean adjust_lazyeye_par,   // adjust disparity corrections parallel to disparities  lma_adjust_wxy
     						true, // imgdtt_params.lma_adjust_ly1, // boolean adjust_lazyeye_ortho, // adjust disparity corrections orthogonal to disparities lma_adjust_ly1
-
     						ds, // disp_str, // xcenter_str,                  // double [][] disp_str,         // initial value of disparity/strength/?
     						imgdtt_params.lma_half_width, // double  half_width,       // A=1/(half_widh)^2   lma_half_width
     						imgdtt_params.lma_cost_wy,     // double  cost_lazyeye_par,     // cost for each of the non-zero disparity corrections        lma_cost_wy
@@ -3600,7 +3638,7 @@ public class Correlation2d {
 
 
     	double [][] dbg_corr =    debug_graphic ? new double [corrs.length][] : null;
-    	double [][] dbg_weights = debug_graphic ? new double [corrs.length][] : null;
+//    	double [][] dbg_weights = debug_graphic ? new double [corrs.length][] : null;
     	if (debug_graphic) {
     		(new ShowDoubleFloatArrays()).showArrays(
     				corrs,
@@ -3614,6 +3652,7 @@ public class Correlation2d {
 
 
 //    	for (int npair = 0; npair < corrs.length; npair++) if ((corrs[npair] != null) && (((pair_mask >> npair) & 1) !=0)){
+    	double [][] filtWeight = new double [corrs.length][];
    		for (int npair = 0; npair < corrs.length; npair++) if ((corrs[npair] != null) && (pair_mask[npair])){
     		
 //    		double[] corr = corrs[npair].clone();
@@ -3638,7 +3677,7 @@ public class Correlation2d {
     		// filter convex
     		int ix0 = (imx % corr_size) - center; // signed, around center to match filterConvex
     		int iy0 = (imx / corr_size) - center; // signed, around center to match filterConvex
-    	    double [] filtWeight =  filterConvex(
+    	    filtWeight[npair] =  filterConvex(
     	    		corr_blur,             // double [] corr_data,
     	            imgdtt_params.cnvx_hwnd_size, // int       hwin,
     	            ix0,                          // int       x0,
@@ -3647,17 +3686,17 @@ public class Correlation2d {
     	            imgdtt_params.cnvx_weight,    // double    nc_cost,
     	            (debug_level > 2));           // boolean   debug);
     	    if (dbg_corr    != null) 	dbg_corr   [npair] = corr_blur;
-    	    if (dbg_weights != null) 	dbg_weights[npair] = filtWeight;
+//    	    if (dbg_weights != null) 	dbg_weights[npair] = filtWeight[npair];
 
     	    // Normalize weight for each pair to compensate for different number of convex samples?
 
 //    	    int fcam = PAIRS[npair][0];
 //    	    int scam = PAIRS[npair][1];
-    	    for (int i = 1; i < filtWeight.length; i++) if (filtWeight[i] > 0.0) {
+    	    for (int i = 1; i < filtWeight[npair].length; i++) if (filtWeight[npair][i] > 0.0) {
     	    	int ix = i % corr_size; // >=0
     	    	int iy = i / corr_size; // >=0
     	    	double v = corrs[npair][i]; // not blurred
-    	    	double w = filtWeight[i];
+    	    	double w = filtWeight[npair][i];
     	        if (vasw_pwr != 0) {
     	            w *= Math.pow(Math.abs(v), vasw_pwr);
     	        }
@@ -3685,7 +3724,7 @@ public class Correlation2d {
     				getCorrTitles());
 
     		(new ShowDoubleFloatArrays()).showArrays(
-    				dbg_weights,
+    				filtWeight,
     				corr_size,
     				corr_size,
     				true,
@@ -3699,22 +3738,45 @@ public class Correlation2d {
     		disp_str2[0] = disp_str;
     	}
 //    	double [][] disp_str2 = {{0.0, 1.0}}; // temporary // will be calculated/set later
+    	
+    	
+    	
     	boolean lmaSuccess = false;
 		double [] disp = null;
+		// adjust_ly
+		double [][] ly_offsets_pairs = null;
+		if (adjust_ly) {
+			ly_offsets_pairs = getPairsCenters(
+					corrs, // 		double [][] corrs,
+					filtWeight); // double [][] weights)
+		}
+		double      step_weight = 0.5; // scale corrections
+		double      min_correction = 0.1; //  exit when maximal XY correction is below
+		
 		while (!lmaSuccess) {
-    		lma.initVector( // USED in lwir
+    		lma.initVector(
     				imgdtt_params.lmas_adjust_wm,  // boolean adjust_width,     // adjust width of the maximum - lma_adjust_wm
     				imgdtt_params.lmas_adjust_ag,  // boolean adjust_scales,    // adjust 2D correlation scales - lma_adjust_ag
     				imgdtt_params.lmas_adjust_wy,  // boolean adjust_ellipse,   // allow non-circular correlation maximums lma_adjust_wy
     				(adjust_ly ? imgdtt_params.lma_adjust_wxy : false), //imgdtt_params.lma_adjust_wxy, // boolean adjust_lazyeye_par,   // adjust disparity corrections parallel to disparities  lma_adjust_wxy
     				(adjust_ly ? imgdtt_params.lma_adjust_ly1: false), // imgdtt_params.lma_adjust_ly1, // boolean adjust_lazyeye_ortho, // adjust disparity corrections orthogonal to disparities lma_adjust_ly1
-    				disp_str2, // xcenter,                      // double  disp0,            // initial value of disparity
+    				disp_str2, // xcenter, 
     				imgdtt_params.lma_half_width, // double  half_width,       // A=1/(half_widh)^2   lma_half_width
     				(adjust_ly ? imgdtt_params.lma_cost_wy : 0.0), // imgdtt_params.lma_cost_wy,     // double  cost_lazyeye_par,     // cost for each of the non-zero disparity corrections        lma_cost_wy
     				(adjust_ly ? imgdtt_params.lma_cost_wxy : 0.0) //imgdtt_params.lma_cost_wxy     // double  cost_lazyeye_odtho    // cost for each of the non-zero ortho disparity corrections  lma_cost_wxy
     				);
+    		
     		lma.setMatrices(disp_dist);
     		lma.initMatrices(); // should be called after initVector and after setMatrices
+    		boolean all_sensors_used = lma.setInitialLYOffsets(
+    				ly_offsets_pairs,  // double [][] pair_centers,
+    				step_weight,       // double      step_weight, // scale corrections
+    				min_correction,    // double      min_correction ){  // exit when maximal XY correction is below
+    				(debug_level > 0)); // 
+    		if (adjust_ly && !all_sensors_used) {
+    			return null; //LY requested, but not all sensors present
+    		}
+
     		//center
     		disp = null;
     		if (need_poly) {
@@ -3724,8 +3786,15 @@ public class Correlation2d {
     					debug_graphic?dbg_title:null); // 		double [] rslt = {-approx2d[0], approx2d[2], hwx, hwy};
 
     			if (disp == null) {
-    				if (debug_level > 0) {
-    					System.out.println("Poly disparity=NULL");
+    				if (imgdtt_params.lmas_poly_continue && (disp == null)) {
+    					disp = disp_str2[0];
+    					if (debug_level > 0) {
+    						System.out.println("Poly disparity=NULL, using tile center for initial LMA");
+    					}
+    				} else {
+    					if (debug_level > 0) {
+    						System.out.println("Poly disparity=NULL, set lmas_poly_continue to true to use tile center instead");
+    					}
     				}
     			} else {
     				disp[1] *= imgdtt_params.lmas_poly_str_scale;
@@ -3748,6 +3817,9 @@ public class Correlation2d {
     		} else {
     			disp = disp_str;
     		}
+    		
+    		
+    		
     		if (disp != null) {
     			disp_str2[0] = disp;
     			lma.initDisparity( // USED in lwir
@@ -3785,7 +3857,7 @@ public class Correlation2d {
     		lma.updateFromVector();
 
 
-    		double [][] dispStr = lma.lmaDisparityStrength(
+    		double [][] dispStr = lma.lmaDisparityStrength( //TODO: add parameter to filter out negative minimums ?
     				imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
     				imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
     				imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
@@ -3846,7 +3918,32 @@ public class Correlation2d {
     	return lmaSuccess? lma: null;
     }
 
-
+    public double [][] getPairsCenters(
+    		double [][] corrs,
+    		double [][] weights){
+    	double [][] xy_offsets_pairs = new double[corrs.length][]; // 
+    	for (int np = 0; np < corrs.length; np++) if (corrs[np]!= null) {
+            double [] wcorr = new double [corrs[np].length];
+        	double  pair_weights = 0.0;
+            for (int i = 0; i < wcorr.length; i++) if (weights[np][i] > 0.0){
+            	wcorr[i] = corrs[np][i]*weights[np][i];
+            	pair_weights += wcorr [i];
+            }
+            double [] dxy = getMaxXYCm(
+            		wcorr,   // double [] data,
+                    getCombWidth(), //       data_width,
+                    getCombHeight()/2 - getCombOffset(), // int       center_row
+        			false); // boolean   debug)
+            xy_offsets_pairs[np] = new double[3];
+            xy_offsets_pairs[np][0] = dxy[0];
+            xy_offsets_pairs[np][1] = dxy[1];
+            xy_offsets_pairs[np][2] = pair_weights;
+    	}
+    	return xy_offsets_pairs;
+    }
+    
+    
+    
     public Correlations2dLMA corrLMA( // USED in lwir
     		ImageDttParameters  imgdtt_params,
     		double [][]         corrs,

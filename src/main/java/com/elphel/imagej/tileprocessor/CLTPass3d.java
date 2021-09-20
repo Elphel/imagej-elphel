@@ -504,6 +504,11 @@ public class CLTPass3d{
 			}
 			return strength;
 		}
+		
+		public void setStrength(double [] strength) {
+			this.strength = strength;
+		}
+		
 		/**
 		 * Get four pairs (original) correlation strength. Not a copy
 		 * @return line-scan array of per-tile horizontal pairs correlation strength by reference (not a copy)

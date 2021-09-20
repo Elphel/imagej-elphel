@@ -5034,7 +5034,13 @@ public class QuadCLT extends QuadCLTCPU {
 					  clt_parameters.shift_x,        // final double              shiftX, // shift image horizontally (positive - right) - just for testing
 					  clt_parameters.shift_y,        // final double              shiftY, // shift image vertically (positive - down)
 					  clt_parameters.tileStep,       // final int                 tileStep, // process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters
-					  clt_parameters.img_dtt.getMcorrSelLY(getNumSensors()), //    final int                 mcorr_sel, // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert 
+					  clt_parameters.img_dtt.getMcorrSelLY(getNumSensors()), //    final int                 mcorr_sel, // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
+
+					  clt_parameters.img_dtt.mcorr_comb_width,					// final int                 mcorr_comb_width,  // combined correlation tile width
+					  clt_parameters.img_dtt.mcorr_comb_height,					// final int                 mcorr_comb_height, // combined correlation tile full height
+					  clt_parameters.img_dtt.mcorr_comb_offset,					// final int                 mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
+					  clt_parameters.img_dtt.mcorr_comb_disp,					// final double              mcorr_comb_disp,   // Combined tile per-pixel disparity for baseline == side of a square
+					  
 					  clt_parameters.tileX,        // final int                 debug_tileX,
 					  clt_parameters.tileY,         // final int                 debug_tileY,
 					  threadsMax, // final int                 threadsMax,  // maximal number of threads to launch

@@ -300,7 +300,14 @@ public class CLTParameters {
 	private double    lym_change =      5e-5;    // Parameter vector difference to exit 4e-6 - OK
 	private double    lym_change_aux =  1e-4;    // same for aux camera (currntly)lwir
 	public double     lym_poly_change = 0.002;   // Parameter vector difference to exit from polynomial correction
-
+	
+	public boolean    lym_mod_map =     true;    // Modify preliminary disparity map before running LY
+	public boolean    lym_top_bg =      true;    // All above found BG is also BG (valid for most, but not all scenes)
+	public int        lym_fill_gaps_bg = 0;      // fill small gaps in found background 
+	public int        lym_fill_gaps_combo = 2;   // 1 - in 4 directions by 1, 2 - in 8 directions by 1,
+	public boolean    lym_use_strength = true;   // Use strength when averaging disparity from neighbors
+	public double     lym_scale_deriv_str=0.5;   // Scale strength of the interpolated tiles from average neighbors strength
+	
 	public boolean    lyf_filter =      false;   // Filter lazy eye pairs by their values
 	public int        lyf_smpl_side =   3;       // 8 x8 masked, 16x16 sampled
 	public double     lyf_rms_max =     0.1;     // Maximal RMS (all components to components average)
@@ -1190,14 +1197,19 @@ public class CLTParameters {
 		properties.setProperty(prefix+"ly_disp_rvar_gt",            this.ly_disp_rvar_gt +"");
 		properties.setProperty(prefix+"ly_norm_disp",               this.ly_norm_disp +"");
 		properties.setProperty(prefix+"lym_overexp",                this.lym_overexp +"");
-
 		properties.setProperty(prefix+"lym_dbg_path",                this.lym_dbg_path +"");
-		
 		properties.setProperty(prefix+"lym_update_disp",            this.lym_update_disp+"");
 		properties.setProperty(prefix+"lym_iter",                   this.lym_iter+"");
 		properties.setProperty(prefix+"lym_change",                 this.lym_change +"");
 		properties.setProperty(prefix+"lym_change_aux",             this.lym_change_aux +"");
 		properties.setProperty(prefix+"lym_poly_change",            this.lym_poly_change +"");
+
+		properties.setProperty(prefix+"lym_mod_map",                this.lym_mod_map +"");
+		properties.setProperty(prefix+"lym_top_bg",                 this.lym_top_bg +"");
+		properties.setProperty(prefix+"lym_fill_gaps_bg",           this.lym_fill_gaps_bg +"");
+		properties.setProperty(prefix+"lym_fill_gaps_combo",        this.lym_fill_gaps_combo +"");
+		properties.setProperty(prefix+"lym_use_strength",           this.lym_use_strength +"");
+		properties.setProperty(prefix+"lym_scale_deriv_str",        this.lym_scale_deriv_str +"");
 
 		properties.setProperty(prefix+"lyf_filter",                 this.lyf_filter+"");
 		properties.setProperty(prefix+"lyf_smpl_side",              this.lyf_smpl_side+"");
@@ -2007,9 +2019,15 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"lym_iter")!=null)                      this.lym_iter=Integer.parseInt(properties.getProperty(prefix+"lym_iter"));
 		if (properties.getProperty(prefix+"lym_change")!=null)                    this.lym_change=Double.parseDouble(properties.getProperty(prefix+"lym_change"));
 		if (properties.getProperty(prefix+"lym_change_aux")!=null)                this.lym_change_aux=Double.parseDouble(properties.getProperty(prefix+"lym_change_aux"));
-
 		if (properties.getProperty(prefix+"lym_poly_change")!=null)               this.lym_poly_change=Double.parseDouble(properties.getProperty(prefix+"lym_poly_change"));
 
+		if (properties.getProperty(prefix+"lym_mod_map")!=null)                   this.lym_mod_map=Boolean.parseBoolean(properties.getProperty(prefix+"lym_mod_map"));
+		if (properties.getProperty(prefix+"lym_top_bg")!=null)                    this.lym_top_bg=Boolean.parseBoolean(properties.getProperty(prefix+"lym_top_bg"));
+		if (properties.getProperty(prefix+"lym_fill_gaps_bg")!=null)              this.lym_fill_gaps_bg=Integer.parseInt(properties.getProperty(prefix+"lym_fill_gaps_bg"));
+		if (properties.getProperty(prefix+"lym_fill_gaps_combo")!=null)           this.lym_fill_gaps_combo=Integer.parseInt(properties.getProperty(prefix+"lym_fill_gaps_combo"));
+		if (properties.getProperty(prefix+"lym_use_strength")!=null)              this.lym_use_strength=Boolean.parseBoolean(properties.getProperty(prefix+"lym_use_strength"));
+		if (properties.getProperty(prefix+"lym_scale_deriv_str")!=null)           this.lym_scale_deriv_str=Double.parseDouble(properties.getProperty(prefix+"lym_scale_deriv_str"));
+		
 		if (properties.getProperty(prefix+"lyf_filter")!=null)                    this.lyf_filter=Boolean.parseBoolean(properties.getProperty(prefix+"lyf_filter"));
 		if (properties.getProperty(prefix+"lyf_smpl_side")!=null)                 this.lyf_smpl_side=Integer.parseInt(properties.getProperty(prefix+"lyf_smpl_side"));
 		if (properties.getProperty(prefix+"lyf_rms_max")!=null)                   this.lyf_rms_max=Double.parseDouble(properties.getProperty(prefix+"lyf_rms_max"));
@@ -2908,9 +2926,23 @@ public class CLTParameters {
 		gd.addNumericField("Maximal number of iterations",                                                      this.lym_iter,  0);
 		gd.addNumericField("Parameter vector difference to exit (main camera)",                                 this.lym_change,  10,12,"");
 		gd.addNumericField("Parameter vector difference to exit (aux camera)",                                  this.lym_change_aux,  10,12,"");
-
 		gd.addNumericField("Parameter vector difference to exit from polynomial correction",                    this.lym_poly_change,  10);
 
+		gd.addMessage     ("--- Lazy eye data preparation ---");
+		gd.addCheckbox    ("Modify preliminary disparity map before running LY",                                this.lym_mod_map,
+				"LY may tolerate some disparity errors when just pure LY is needed");
+		gd.addCheckbox    ("Consider all above infinity to be infinity",                                        this.lym_top_bg,
+				"Valid for many, but not all scenes, such as tree branches over sky background");
+		gd.addNumericField("Fill gaps in background selection",                                                 this.lym_fill_gaps_bg,  0, 2, "pix",
+				"1 -  1 pixel in 4 directions, 2 - 1 step in 8 directions, ...");
+		gd.addNumericField("Fill gaps in combo selection",                                                      this.lym_fill_gaps_combo,  0, 2, "pix",
+				"1 -  1 pixel in 4 directions, 2 - 1 step in 8 directions, ...");
+		gd.addCheckbox    ("Use strength when averaging disparity from neighbors",                              this.lym_use_strength,
+				"Weight by strength when averaging missing disparity tiles, false - use equal weights");
+		gd.addNumericField("Scale strength of the interpolated tiles from average neighbors strength",          this.lym_scale_deriv_str,  3, 6, "",
+				"Multiply average strength of neighbors when assigning to a missing tile");
+		
+		
 		gd.addMessage     ("--- Lazy eye samples filter ---");
 		gd.addCheckbox    ("Filter lazy eye pairs by their values",                                             this.lyf_filter);
 		gd.addNumericField("Fileter sample side (if 8, 8 x8 masked, 16x16 sampled)",                            this.lyf_smpl_side,  0);
@@ -3850,6 +3882,13 @@ public class CLTParameters {
 		this.lym_change_aux=        gd.getNextNumber();
 
 		this.lym_poly_change=       gd.getNextNumber();
+		
+		this.lym_mod_map=           gd.getNextBoolean();
+		this.lym_top_bg=            gd.getNextBoolean();
+		this.lym_fill_gaps_bg = (int) gd.getNextNumber();
+		this.lym_fill_gaps_combo = (int) gd.getNextNumber();
+		this.lym_use_strength=      gd.getNextBoolean();
+		this.lym_scale_deriv_str =  gd.getNextNumber();
 
 		this.lyf_filter=            gd.getNextBoolean();
 		this.lyf_smpl_side=   (int) gd.getNextNumber();
