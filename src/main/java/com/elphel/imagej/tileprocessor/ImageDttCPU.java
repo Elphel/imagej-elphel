@@ -3222,10 +3222,10 @@ public class ImageDttCPU {
 										if (disp_dist_cons != null) {
 											System.out.println("disp_dist_cons[0]="+disp_dist_cons[0]+", disp_dist_cons[0]="+disp_dist_cons[0]+" (this tile - weighted average will be discarded)");
 										}
-										(new ShowDoubleFloatArrays()).showArrays(corrs_cons,  15, 15, true, "corrs_cons_CX"+clustX+"-CY"+clustY,correlation2d.getCorrTitles());
+//										(new ShowDoubleFloatArrays()).showArrays(corrs_cons,  15, 15, true, "corrs_cons_CX"+clustX+"-CY"+clustY,correlation2d.getCorrTitles());
 										// 					mcorr_comb_width,  // combined correlation tile width
 										//mcorr_comb_height, // combined correlation tile full height
-										(new ShowDoubleFloatArrays()).showArrays(corr_combo_all,  mcorr_comb_width, mcorr_comb_height, "corr_combo_all_CX"+clustX+"-CY"+clustY);
+//										(new ShowDoubleFloatArrays()).showArrays(corr_combo_all,  mcorr_comb_width, mcorr_comb_height, "corr_combo_all_CX"+clustX+"-CY"+clustY);
 									}
 									
 									if (ixy != null) { //TODO - for CM use magic!
@@ -3246,7 +3246,7 @@ public class ImageDttCPU {
 											if (disp_str_combo != null) {
 												System.out.println("disp_str_combo[0]="+disp_str_combo[1]+", disp_str_combo[0]="+disp_str_combo[1]);
 											}
-											(new ShowDoubleFloatArrays()).showArrays(corrs_cons,  15, 15, true, "corrs_cons_CX"+clustX+"-CY"+clustY,correlation2d.getCorrTitles());
+//											(new ShowDoubleFloatArrays()).showArrays(corrs_cons,  15, 15, true, "corrs_cons_CX"+clustX+"-CY"+clustY,correlation2d.getCorrTitles());
 										}
 										
 										lma2 = correlation2d.corrLMA2Single(

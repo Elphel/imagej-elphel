@@ -9537,7 +9537,7 @@ if (debugLevel > -100) return true; // temporarily !
 				            inf_max,  // double inf_max,
 							threadsMax,  //final int        threadsMax,  // maximal number of threads to launch
 							updateStatus,// final boolean    updateStatus,
-							1); // debugLevelInner); // final int        debugLevel)
+							debugLevelInner); // 1); // final int        debugLevel)
 					if (!ok) break;
 				} else {
 					boolean ok = quadCLT_aux.extrinsicsCLTfromGT(

@@ -589,6 +589,12 @@ public class ExtrinsicAdjustment {
 					 "Initial_y-fX_after_moving_objects");
 		 }
 		 
+		 if (debugLevel > 0) {
+			 printYminusFxWeight(
+					 this.last_ymfx,
+					 this.weights,
+					 "Initial_y-fX_after_moving_objects");
+		 }
 		 double lambda = 0.1;
 		 double lambda_scale_good = 0.5;
 		 double lambda_scale_bad =  8.0;
@@ -705,13 +711,11 @@ public class ExtrinsicAdjustment {
 			fx[indx0] = this.weights[indx0] * d;
 			rms += fx[indx0]*d; // sum of weights
 			for (int cam = 0; cam < num_sensors; cam++) {
-				int indx = indx0 + cam + 1;
-//				d = (-measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + cam] - fx[indx]);
+				int indx = indx0 + cam + 1; // index of dd component
 				d = (-measured_dsxy[cluster][indx_dd0 + cam] - fx[indx]);
 				fx[indx] = this.weights[indx] * d;
 				rms += fx[indx] * d; // sum of weights
-				indx = indx0 + cam + 5; // nd
-//				d = (-measured_dsxy[cluster][ExtrinsicAdjustment.INDX_ND0 + cam] - fx[indx]);
+				indx = indx0 + cam + num_sensors + 1; // // index of nd component
 				d = (-measured_dsxy[cluster][indx_nd0 + cam] - fx[indx]);
 				fx[indx] = this.weights[indx] * d;
 				rms += fx[indx] * d; // sum of weights
@@ -2107,15 +2111,15 @@ public class ExtrinsicAdjustment {
 							dbg_img[5][pix] =  Double.NaN;
 						}
 					} else {
-//						dbg_img[0][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + mode - 1];
+						//						dbg_img[0][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + mode - 1];
 						dbg_img[0][pix] =  measured_dsxy[cluster][indx_dd0 + mode - 1];
 						dbg_img[1][pix] = -fx[indx];
-//						dbg_img[2][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + mode - 1] + fx[indx];
+						//						dbg_img[2][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + mode - 1] + fx[indx];
 						dbg_img[2][pix] =  measured_dsxy[cluster][indx_dd0 + mode - 1] + fx[indx];
 						if (weights[indx] > 0.0) {
 							dbg_img[3][pix] =  weights[indx]*clusters;
-//							dbg_img[4][pix] =  weights[indx]*clusters*(measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + mode - 1] + fx[indx]);
-//							dbg_img[5][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + mode - 1] + fx[indx];
+							//							dbg_img[4][pix] =  weights[indx]*clusters*(measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + mode - 1] + fx[indx]);
+							//							dbg_img[5][pix] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DD0 + mode - 1] + fx[indx];
 							dbg_img[4][pix] =  weights[indx]*clusters*(measured_dsxy[cluster][indx_dd0 + mode - 1] + fx[indx]);
 							dbg_img[5][pix] =  measured_dsxy[cluster][indx_dd0 + mode - 1] + fx[indx];
 						} else {
@@ -2148,6 +2152,55 @@ public class ExtrinsicAdjustment {
 				titles);
 	}
 	
+	
+	public void printYminusFxWeight(
+			double []   fx,
+			double []   weights,
+			String title) {
+		if (fx == null) {
+			fx = new double [weights.length];
+		}
+		int clusters = clustersX * clustersY;
+		//			String [] titles = {"Y", "-fX", "Y+fx", "Weight", "W*(Y+fx)", "Masked Y+fx"};
+		System.out.println("===== "+title+" =====");
+		// text output
+		for (int mode = 0; mode < points_sample; mode++) {
+			if (mode == 0) {
+				System.out.println("Differential Disparity");
+			} else if (mode <= num_sensors) {
+				System.out.println("DD-"+(mode - 1));
+			} else {
+				System.out.println("ND-"+(mode - num_sensors - 1));
+			}
+			System.out.println(            "clusterX clusterY     Y       -fX    Y + fX   Weight  W*(Y+fX) Masked (Y + fX)");
+			for (int cluster = 0; cluster < clusters;  cluster++) {
+				int clusterX = cluster % clustersX;
+				int clusterY = cluster / clustersX;
+				int indx = cluster * points_sample + mode;
+				if ((measured_dsxy[cluster] != null) && (weights[indx] > 0.0)){
+					double [] dbg_data = new double[6];
+					if (mode ==0) {
+						dbg_data[0] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DIFF];
+						dbg_data[1] = -fx[indx];
+						dbg_data[2] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DIFF] + fx[indx];
+						dbg_data[3] =  weights[indx]*clusters;
+						dbg_data[4] =  weights[indx]*clusters*(measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DIFF] + fx[indx]);
+						dbg_data[5] =  measured_dsxy[cluster][ExtrinsicAdjustment.INDX_DIFF] + fx[indx];
+					} else {
+						dbg_data[0] =  measured_dsxy[cluster][indx_dd0 + mode - 1];
+						dbg_data[1] = -fx[indx];
+						dbg_data[2] =  measured_dsxy[cluster][indx_dd0 + mode - 1] + fx[indx];
+						dbg_data[3] =  weights[indx]*clusters;
+						dbg_data[4] =  weights[indx]*clusters*(measured_dsxy[cluster][indx_dd0 + mode - 1] + fx[indx]);
+						dbg_data[5] =  measured_dsxy[cluster][indx_dd0 + mode - 1] + fx[indx];
+					}
+					System.out.println(String.format("  %3d      %3d      %8.5f %8.5f %8.5f %8.5f %8.5f %8.5f", 
+							clusterX, clusterY, dbg_data[0],dbg_data[1],dbg_data[2],dbg_data[3],dbg_data[4],dbg_data[5]));
+				}
+			}
+		}
+	}
+
 	
 	private void dbgXY(
 			CorrVector corr_vector,
@@ -2366,8 +2419,14 @@ public class ExtrinsicAdjustment {
 		if (this.last_rms == null) { //first time, need to calculate all (vector is valid)
 			this.last_jt =  getJacobianTransposed(corr_vector); // new double [num_pars][num_points];
 			this.last_ymfx = getFx(corr_vector);
-			if (debug_level > -2) { // temporary
+			if (debug_level > -1) { // temporary
 				dbgYminusFxWeight(
+						this.last_ymfx,
+						this.weights,
+						"Initial_y-fX_after_moving_objects");
+			}
+			if (debug_level > -1) { // temporary
+				printYminusFxWeight(
 						this.last_ymfx,
 						this.weights,
 						"Initial_y-fX_after_moving_objects");
@@ -2400,7 +2459,7 @@ public class ExtrinsicAdjustment {
 				lambda, // *10, // temporary
 				this.last_jt)); // double [][] jt)
 		if (debug_level>2) {
-			System.out.println("JtJ + lambda*diag(JtJ");
+			System.out.println("JtJ + lambda*diag(JtJ), lambda = "+lambda);
 			wjtjlambda.print(18, 6);
 			double [] diag_sqrt = getWJtDiagSqrt(this.last_jt);
 			System.out.print("diag_sqrt={");
@@ -2428,20 +2487,20 @@ public class ExtrinsicAdjustment {
 			return rslt;
 		}
 		if (debug_level>2) {
-			System.out.println("(JtJ + lambda*diag(JtJ).inv()");
-			jtjl_inv.print(18, 6);
+			System.out.println("(JtJ + lambda*diag(JtJ).inv(), lambda = "+lambda);
+			jtjl_inv.print(18, 10);
 		}
 //last_jt has NaNs
 		Matrix jty = (new Matrix(this.last_jt)).times(y_minus_fx_weighted);
 		if (debug_level>2) {
 			System.out.println("Jt * (y-fx)");
-			jty.print(18, 6);
+			jty.print(18, 10);
 		}
 
 		Matrix mdelta = jtjl_inv.times(jty);
 		if (debug_level>2) {
 			System.out.println("mdelta");
-			mdelta.print(18, 6);
+			mdelta.print(18, 10);
 		}
 
 		double []  delta = mdelta.getColumnPackedCopy();
