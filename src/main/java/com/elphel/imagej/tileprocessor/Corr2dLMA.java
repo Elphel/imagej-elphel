@@ -79,7 +79,7 @@ public class Corr2dLMA {
 ///	final static int          NUM_CAMS =     4; // not all have to be used, so it is maximal number of cameras
 ///	final static int          NUM_PAIRS =    NUM_CAMS* (NUM_CAMS -1)/2; // number of possible pairs
 	final static int          NTILE0 = 0;
-	final static int          DISP_INDEX =   0; // common/average disparity
+	final static int          DISP_INDEX =   0; // common/average disparity (negative!)
 	final static int          A_INDEX =      1; // A*(x-x0)^2
 	final static int          B_INDEX =      2; // 2*B*(x-x0)*(y-y0)
 	final static int          CMA_INDEX =    3; // C*(y-y0)^2, encode C-A
@@ -2116,6 +2116,7 @@ public class Corr2dLMA {
 
 	
 	public double [][] lmaDisparityStrength(
+			double  lmas_min_amp,     // minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 			double  lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 			double  lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 			double  lma_min_max_ac,   // minimal of A and C coefficients maximum (measures sharpest point/line)
@@ -2134,6 +2135,9 @@ public class Corr2dLMA {
 				continue;
 			}
 			if (maxmin_amp[tile][1] < 0.0) {
+				continue; // inverse maximum - discard tile
+			}
+			if ((maxmin_amp[tile][1]/maxmin_amp[tile][0]) < lmas_min_amp) {
 				continue; // inverse maximum - discard tile
 			}
 			double avg = 0.50*(maxmin_amp[tile][0]+maxmin_amp[tile][1]); // max_min[1] can be negative - filter it out?

@@ -164,11 +164,14 @@ public class ImageDttParameters {
 	public double  lmas_rms_diff =           0.0003; //
 	public int     lmas_num_iter =          20;     ///10
 	// Filtering and strength calculation
-	public double  lmas_max_rel_rms =        0.3;   // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
-	public double  lmas_min_strength =       0.7;   // minimal composite strength (sqrt(average amp squared over absolute RMS)
-	public double  lmas_min_ac =             0.02;  // minimal of a and C coefficients maximum (measures sharpest point/line)
-	public double  lmas_min_min_ac =         0.007; // minimal of a and C coefficients minimum (measures sharpest point)
-	public double  lmas_max_area =           0.0;  // maximal half-area (if > 0.0)
+	// High ratio of amplitudes may be caused by "neighbors" correlations when the same object disappears from the tile
+	// for small disparities 0.5...0.7 is OK, for larger, and small objects on uniform background, may need 0.2
+	public double  lmas_min_amp =            0.25;   // minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude           
+	public double  lmas_max_rel_rms =        0.3;   // LWIR16: 0.5 maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
+	public double  lmas_min_strength =       0.7;   // LWIR16: 0.4 minimal composite strength (sqrt(average amp squared over absolute RMS)
+	public double  lmas_min_ac =             0.02;  // LWIR16: 0.01  minimal of a and C coefficients maximum (measures sharpest point/line)
+	public double  lmas_min_min_ac =         0.007; // LWIR16: 0.007 minimal of a and C coefficients minimum (measures sharpest point)
+	public double  lmas_max_area =           0.0;   // LWIR16: 0.0  maximal half-area (if > 0.0)
 
 //	public boolean lma_gaussian =           false; // model correlation maximum as a Gaussian (false - as a parabola)
 	public int     lma_gaussian =           0;     // 0 - parabola, 1 - Gaussian, 2 - limited parabola, 3 - limited squared parabola
@@ -214,8 +217,8 @@ public class ImageDttParameters {
 	public double  lma_min_min_ac =         0.015; // minimal of a and C coefficients minimum (measures sharpest point)
 	public double  lma_max_area =           30.0;  //45.0;  // maximal half-area (if > 0.0)
 
-	public double  lma_str_scale =          0.2;   // convert lma-generated strength to match previous ones - scale
-	public double  lma_str_offset =         0.05;  // convert lma-generated strength to match previous ones - add to result
+	public double  lma_str_scale =          0.2;   // LWIR16: 0.2 convert lma-generated strength to match previous ones - scale
+	public double  lma_str_offset =         0.05;  // LWIR16: 0.05 convert lma-generated strength to match previous ones - add to result
 
 
 	// Lazy eye results interpretation
@@ -546,6 +549,8 @@ public class ImageDttParameters {
 		    gd.addNumericField("LMA maximal iterations",                                          this.lmas_num_iter,  0, 3, "",
 		            "Limit LMA cycles, so it will exit after certain number of small improvements");
 		    gd.addMessage("LMA (single) results filtering");
+		    gd.addNumericField("Minimal weakest pair to strongest pair correlation amplitude ratio",this.lmas_min_amp,  6, 8, "",
+		            "Discard tile if ratio of the weakest correlation pair amplitude to that of the strongest one is lower than this");
 		    gd.addNumericField("Maximal relative RMS ",                                           this.lmas_max_rel_rms,  6, 8, "",
 		            "Discard tile if ratio of RMS to average of min and max amplitude exceeds this value");
 		    gd.addNumericField("Minimal composite strength",                                      this.lmas_min_strength,  6, 8, "",
@@ -816,6 +821,7 @@ public class ImageDttParameters {
 			this.lmas_lambda_initial =   gd.getNextNumber();
 			this.lmas_rms_diff =         gd.getNextNumber();
   			this.lmas_num_iter=    (int) gd.getNextNumber();
+  			this.lmas_min_amp =          gd.getNextNumber();
 			this.lmas_max_rel_rms =      gd.getNextNumber();
 			this.lmas_min_strength =     gd.getNextNumber();
 			this.lmas_min_ac =           gd.getNextNumber();
@@ -1007,6 +1013,7 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"lmas_lambda_initial",  this.lmas_lambda_initial +"");
 		properties.setProperty(prefix+"lmas_rms_diff",        this.lmas_rms_diff +"");
 		properties.setProperty(prefix+"lmas_num_iter",        this.lmas_num_iter +"");
+		properties.setProperty(prefix+"lmas_min_amp",         this.lmas_min_amp +"");
 		properties.setProperty(prefix+"lmas_max_rel_rms",     this.lmas_max_rel_rms +"");
 		properties.setProperty(prefix+"lmas_min_strength",    this.lmas_min_strength +"");
 		properties.setProperty(prefix+"lmas_min_ac",          this.lmas_min_ac +"");
@@ -1209,6 +1216,7 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"lmas_lambda_initial")!=null)  this.lmas_lambda_initial=Double.parseDouble(properties.getProperty(prefix+"lmas_lambda_initial"));
 		if (properties.getProperty(prefix+"lmas_rms_diff")!=null)        this.lmas_rms_diff=Double.parseDouble(properties.getProperty(prefix+"lmas_rms_diff"));
 		if (properties.getProperty(prefix+"lmas_num_iter")!=null)        this.lmas_num_iter=Integer.parseInt(properties.getProperty(prefix+"lmas_num_iter"));
+		if (properties.getProperty(prefix+"lmas_min_amp")!=null)         this.lmas_min_amp=Double.parseDouble(properties.getProperty(prefix+"lmas_min_amp"));
 		if (properties.getProperty(prefix+"lmas_max_rel_rms")!=null)     this.lmas_max_rel_rms=Double.parseDouble(properties.getProperty(prefix+"lmas_max_rel_rms"));
 		if (properties.getProperty(prefix+"lmas_min_strength")!=null)    this.lmas_min_strength=Double.parseDouble(properties.getProperty(prefix+"lmas_min_strength"));
 		if (properties.getProperty(prefix+"lmas_min_ac")!=null)          this.lmas_min_ac=Double.parseDouble(properties.getProperty(prefix+"lmas_min_ac"));
@@ -1416,6 +1424,7 @@ public class ImageDttParameters {
 		idp.lmas_lambda_initial =    this.lmas_lambda_initial;
 		idp.lmas_rms_diff =          this.lmas_rms_diff;
 		idp.lmas_num_iter =          this.lmas_num_iter;
+		idp.lmas_min_amp=            this.lmas_min_amp;
 		idp.lmas_max_rel_rms=        this.lmas_max_rel_rms;
 		idp.lmas_min_strength=       this.lmas_min_strength;
 		idp.lmas_min_ac=             this.lmas_min_ac;

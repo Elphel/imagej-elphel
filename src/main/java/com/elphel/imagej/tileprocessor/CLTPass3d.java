@@ -57,8 +57,9 @@ public class CLTPass3d{
 		                                                     // exceeds minBgFract, otherwise proceed to the next one (and accumulate strength)
 		private double []       bgTileDisparity =      null;
 		private double []       bgTileStrength =       null;
-		private  boolean []     border_tiles =         null; // these are border tiles, zero out alpha
-		private  boolean []     selected =             null; // which tiles are selected for this layer
+		private boolean []      border_tiles =         null; // these are border tiles, zero out alpha
+		private boolean []      selected =             null; // which tiles are selected for this layer
+		boolean []              has_lma =              null; // which tiles are measured with LMA (reliable strength)
 		public  double [][][][] texture_tiles;
 		// texture_selection is only used for the GPU and if not null means it is for the GPU
 		public boolean []       texture_selection =    null; // use by the GPU to set texture to generate
@@ -69,7 +70,8 @@ public class CLTPass3d{
 		public  String          texture = null; // relative (to x3d) path
 		public  Rectangle       texture_bounds; // in tiles, not pixels !
 		public  int             dbg_index;
-		public  int             disparity_index = ImageDtt.DISPARITY_INDEX_CM; // may also be ImageDtt.DISPARITY_INDEX_POLY
+		public  int             disparity_index =      ImageDtt.DISPARITY_INDEX_CM; // may also be ImageDtt.DISPARITY_INDEX_POLY
+		public   int            lma_disparity_index =  ImageDtt.DISPARITY_INDEX_POLY; // set to -1 to ignore and always use just CM (also applies to lma_strength - next)
 		public double [][]      tiles_RBGA =           null;
 
 		SuperTiles              superTiles = null;
@@ -361,7 +363,16 @@ public class CLTPass3d{
 		public void setBorderTiles (boolean [] border_tiles) {
 			this.border_tiles = border_tiles;
 		}
-
+		
+		public boolean [] getLMA() {
+			if (has_lma == null) {
+				has_lma = hasLMADefined();
+			}
+			return has_lma;
+		}
+		public void setLMA(boolean [] has_lma) {// use for combo tiles
+			this.has_lma = has_lma;
+		}
 
 		public void fixNaNDisparity()
 		{
@@ -599,30 +610,59 @@ public class CLTPass3d{
 		// methods to "condition" measured disparity values
 		public void conditionDisparity()
 		{
+/*			
 			conditionDisparity(disparity_index);
 		}
 
-		public void conditionDisparity(int disparity_index)
+		public void conditionDisparity(int disparity_index) // only called from above
 		{
+*/		
 			int tilesX = tileProcessor.getTilesX();
 			int tilesY = tileProcessor.getTilesY();
-			double corr_magic_scale = tileProcessor.getMagicScale();
-
-
-			this.disparity_index = disparity_index;
+			double corr_magic_scale =     tileProcessor.getMagicScale();
+			double corr_magic_scale_LMA = 1.0;
+//			int lma_disparity_index = ImageDtt.DISPARITY_INDEX_POLY;
+//			this.disparity_index = disparity_index;
 			calc_disparity =      new double[tilesY*tilesX];
 			calc_disparity_hor =  new double[tilesY*tilesX];
 			calc_disparity_vert = new double[tilesY*tilesX];
+			double [] lma_disparity = (lma_disparity_index >= 0) ? disparity_map[lma_disparity_index] : null;
 			for (int i = 0; i < tilesY; i++){
 				for (int j = 0; j < tilesX; j++){
 					int indx = i * tilesX + j;
-					calc_disparity[indx] =      disparity_map[disparity_index][indx]/corr_magic_scale +               this.disparity[i][j];
+					if ((lma_disparity != null) && !Double.isNaN(lma_disparity[indx])) {
+						calc_disparity[indx] =  lma_disparity[indx]/corr_magic_scale_LMA +                            this.disparity[i][j];
+					} else {
+						calc_disparity[indx] =  disparity_map[disparity_index][indx]/corr_magic_scale +               this.disparity[i][j];
+					}
 					calc_disparity_hor[indx] =  disparity_map[ImageDtt.DISPARITY_INDEX_HOR][indx]/corr_magic_scale +  this.disparity[i][j];
 					calc_disparity_vert[indx] = disparity_map[ImageDtt.DISPARITY_INDEX_VERT][indx]/corr_magic_scale + this.disparity[i][j];
 				}
 			}
 			calc_disparity_combo = calc_disparity.clone(); // for now - just clone, can be modified separately and combined with hor/vert
 		}
+		
+		public boolean [] hasLMADefined(){ // will try not to create this.has_lma
+			if (disparity_map == null) {
+				if (has_lma==null) {
+					return null;
+				} else {
+					return has_lma;
+				}
+				
+			}
+			int tilesX = tileProcessor.getTilesX();
+			int tilesY = tileProcessor.getTilesY();
+			double [] lma_disparity = (lma_disparity_index >= 0) ? disparity_map[lma_disparity_index] : null;
+			boolean [] lma_defined = new boolean[tilesX * tilesY];
+			if (lma_disparity != null) {
+				for (int i = 0; i < lma_disparity.length; i++) {
+					lma_defined[i] = !Double.isNaN(lma_disparity[i]);
+				}
+			}
+			return lma_defined;
+		}
+		
 		
 		// bypassing calculations
 		public void setCalcDisparityStrength(
@@ -644,7 +684,7 @@ public class CLTPass3d{
 		 *
 		 * Replace weak by a weighted average of non-weak. If there are none - use weak ones, including this one too.
 		 */
-		public boolean[] replaceWeakOutliers(
+		public boolean[] replaceWeakOutliers( // does not replace tiles with LMA available, busts LMA-defined strengths when averaging
 				final boolean [] selection,
 				final double weakStrength,    // strength to be considered weak, subject to this replacement
 				final double maxDiff,
@@ -654,6 +694,7 @@ public class CLTPass3d{
 				final double disparityNear,
 				final int debugLevel)
 		{
+			final double  scale_strength_lma = 5.0; // increase LMA-defined strength during averaging
 			final int tilesX = tileProcessor.getTilesX();
 			final int tilesY = tileProcessor.getTilesY();
 
@@ -663,6 +704,8 @@ public class CLTPass3d{
 			final int [] dirs = dirs8;
 			final double [] disparity = getDisparity(0);
 			final double [] strength =  getStrength();
+			final boolean [] has_lma =  getLMA();
+
 			final double absMinDisparity = 0.5 * disparityFar; // adjust? below this is definitely wrong (weak)
 			final double absMaxDisparity = 1.5 * disparityNear; // change?
 			final int dbg_nTile = (debugLevel > 0) ? 43493: -1; // x=77,y=134; // 42228; // x = 108, y = 130 46462; // 41545;
@@ -674,7 +717,7 @@ public class CLTPass3d{
 					@Override
 					public void run() {
 						for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
-							if (((strength[nTile] < weakStrength) ||
+							if (((!has_lma[nTile] && (strength[nTile] < weakStrength)) ||
 									(disparity[nTile] < absMinDisparity) ||
 									(disparity[nTile] > absMaxDisparity))&& ((selection == null) || selection[nTile])) {
 								if (nTile == dbg_nTile){
@@ -698,6 +741,9 @@ public class CLTPass3d{
 												 (disparity[nTile1] >= disparityFar) && // don't count on too near/too far for averaging
 												 (disparity[nTile1] <= disparityNear)){
 											double w = strength[nTile1];
+											if (has_lma[nTile1]) {
+												w *= scale_strength_lma;
+											}
 											sw += w;
 											sd += w * disparity[nTile1];
 											hasNeighbors = true;
@@ -742,12 +788,18 @@ public class CLTPass3d{
 									int nTile1 = nTile + dirs[dir];
 									if (!weakOutliers[nTile1] && ((selection == null) || selection[nTile1 ]) ) {
 										double w = strength[nTile1];
+										if (has_lma[nTile1]) {
+											w *= scale_strength_lma;
+										}
 										sw += w;
 										sd += w * src_disparity[nTile1];
 									}
 								}
 								if (sw == 0) { // Nothing strong around - repeat with weak and this one too.
 									double w = strength[nTile];
+									if (has_lma[nTile]) {
+										w *= scale_strength_lma;
+									}
 									if (!Double.isNaN( src_disparity[nTile])) {
 										sw += w;
 										sd += w * src_disparity[nTile];
@@ -756,6 +808,9 @@ public class CLTPass3d{
 										int nTile1 = nTile + dirs[dir];
 										if ((selection == null) || selection[nTile1 ]) {
 											w = strength[nTile1];
+											if (has_lma[nTile1]) {
+												w *= scale_strength_lma;
+											}
 											if (!Double.isNaN( src_disparity[nTile1])) {
 												sw += w;
 												sd += w * src_disparity[nTile1];

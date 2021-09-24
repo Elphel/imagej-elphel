@@ -2305,6 +2305,7 @@ public class ImageDttCPU {
 											}
 											if (lma2 != null) {
 												disp_str[cTile] = lma2.lmaDisparityStrength(
+									    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 														imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 														imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 														imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
@@ -2357,6 +2358,7 @@ public class ImageDttCPU {
 								double [][] ddnd = lma2.getDdNd();
 								double [] stats  = lma2.getStats(num_good_tiles);
 								double [][] lma_ds = lma2.lmaDisparityStrength(
+					    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 					    				imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 					    				imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 					    				imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
@@ -2425,6 +2427,7 @@ public class ImageDttCPU {
 // just for debugging, can be removed
 								if (disparity_map != null){
 									double [][] lma2_ds = lma2.lmaDisparityStrength(
+						    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 											imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 											imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 											imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
@@ -3107,6 +3110,7 @@ public class ImageDttCPU {
 											if (lma2 != null) {
 												dbg_num_good_lma ++;
 												disp_str[cTile] = lma2.lmaDisparityStrength(
+									    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 														imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 														imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 														imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
@@ -3289,6 +3293,7 @@ public class ImageDttCPU {
 								double [][] ddnd = lma2.getDdNd();
 								double [] stats  = lma2.getStats(num_good_tiles);
 								double [][] lma_ds = lma2.lmaDisparityStrength(
+					    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 					    				imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 					    				imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 					    				imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
@@ -4141,17 +4146,9 @@ public class ImageDttCPU {
 								}
 						    }
 							
-							
 						    // calculate CM maximums for all mixed channels
 						    // First get integer correlation center, relative to the center
 							double [] corr_combo_max = corr_combo[Correlation2d.MCORR_COMB.ALL.ordinal()];
-							/*
-							int [] ixy =  corr2d.getMaxXYInt( // find integer pair or null if below threshold
-									strip_combo,              // double [] data,
-									true,                     // boolean   axis_only,
-									imgdtt_params.min_corr,   //  double    minMax,    // minimal value to consider (at integer location, not interpolated)
-									tile_lma_debug_level > 0); // boolean   debug);
-							*/
 							if (debugTile0) {
 								System.out.println("tileX = "+tileX+", tileY = "+tileY);
 							}
@@ -4175,6 +4172,7 @@ public class ImageDttCPU {
 //								disp_str[1] = strip_combo[ixy[0]+transform_size-1]; // strength at integer max on axis
 								disp_str = disp_str_int;
 								disparity_map[DISPARITY_INDEX_INT][tIndex] =      disp_str[0]; // -ixy[0];
+								disparity_map[DISPARITY_INDEX_CM+1][tIndex] =     disp_str[1]; // reusing old fine-corr
 								disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] = disp_str[1];
 								
 								if (Double.isNaN(disparity_map[DISPARITY_STRENGTH_INDEX][tIndex])) {
@@ -4190,6 +4188,7 @@ public class ImageDttCPU {
 										(tile_lma_debug_level > 0)); // boolean   debug);
 								if (corr_stat != null) {
 									disparity_map[DISPARITY_INDEX_CM][tIndex] =      -corr_stat[0]; // -ixy[0];
+									disparity_map[DISPARITY_INDEX_CM+1][tIndex] =     corr_stat[1]; // reusing old fine-corr
 									disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] = corr_stat[1];
 								}
 							}
@@ -4228,7 +4227,8 @@ public class ImageDttCPU {
 							if (corr_stat != null) {
 // skipping DISPARITY_VARIATIONS_INDEX - it was not used
 								disp_str[0] = -corr_stat[0];
-								disparity_map[DISPARITY_INDEX_CM][tIndex] = disp_str[0]; // disparity is negative X
+								disp_str[1] =  corr_stat[1];
+//								disparity_map[DISPARITY_INDEX_CM][tIndex] = disp_str[0]; // disparity is negative X. Already done above
 								if (tile_lma_debug_level > 0) {
 									System.out.println("Will run getMaxXSOrtho( ) for tileX="+tileX+", tileY="+tileY);
 								}
@@ -4260,6 +4260,7 @@ public class ImageDttCPU {
 								double [][] ds = null;
 								if (lma2 != null) {
 									ds = lma2.lmaDisparityStrength(
+						    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 											imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 											imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 											imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
@@ -4271,30 +4272,35 @@ public class ImageDttCPU {
 									if (ds != null) { // always true
 										disparity_map[DISPARITY_INDEX_POLY][tIndex] =   ds[0][0];
 										disparity_map[DISPARITY_INDEX_POLY+1][tIndex] = ds[0][1];
+										disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] = ds[0][1]; // overwrite with LMA strength
+
 										if (debugTile0) {
 											lma2.printStats(ds,1);
-											double [][] ddnd = lma2.getDdNd();
-											if (ddnd != null) {
-												double [][] dxy= new double [ddnd.length][2];
-												for (int i = 0; i < dxy.length; i++) {
-													dxy[i][0] = ddnd[i][0] * rXY[i][0] - ddnd[i][1] * rXY[i][1];
-													dxy[i][1] = ddnd[i][0] * rXY[i][1] + ddnd[i][1] * rXY[i][0];
+											if (imgdtt_params.lmas_LY_single) {
+												double [][] ddnd = lma2.getDdNd();
+												if (ddnd != null) {
+													double [][] dxy= new double [ddnd.length][2];
+													for (int i = 0; i < dxy.length; i++) {
+														dxy[i][0] = ddnd[i][0] * rXY[i][0] - ddnd[i][1] * rXY[i][1];
+														dxy[i][1] = ddnd[i][0] * rXY[i][1] + ddnd[i][1] * rXY[i][0];
+													}
+													System.out.print("       Port:  ");
+													for (int i = 0; i < dxy.length; i++) System.out.print(String.format("   %2d   ", i)); System.out.println();
+													System.out.print("Radial_in =  [");
+													for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", ddnd[i][0])); System.out.println("]");
+													System.out.print("Tangent_CW = [");
+													for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", ddnd[i][1])); System.out.println("]");
+													System.out.print("X =          [");
+													for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", dxy[i][0])); System.out.println("]");
+													System.out.print("Y =          [");
+													for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", dxy[i][1])); System.out.println("]");
+													System.out.println();
+												} else {
+													System.out.println("No dd/nd and x/y offsets data is available ");
 												}
-												System.out.print("       Port:  ");
-												for (int i = 0; i < dxy.length; i++) System.out.print(String.format("   %2d   ", i)); System.out.println();
-												System.out.print("Radial_in =  [");
-												for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", ddnd[i][0])); System.out.println("]");
-												System.out.print("Tangent_CW = [");
-												for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", ddnd[i][1])); System.out.println("]");
-												System.out.print("X =          [");
-												for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", dxy[i][0])); System.out.println("]");
-												System.out.print("Y =          [");
-												for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", dxy[i][1])); System.out.println("]");
-												System.out.println();
+											} else {
+												System.out.println("LY offsets are not measured");
 											}
-											
-											
-											
 										}
 									}
 								}
@@ -13876,6 +13882,7 @@ public class ImageDttCPU {
 							    	double [][] ds = null;
 							    	if (lma2 != null) {
 							    		ds = lma2.lmaDisparityStrength(
+							    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 							    				imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 							    				imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 							    				imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)

@@ -268,6 +268,7 @@ public class DisparityProcessor {
 			final double  []  disparity,          // current disparity value
 			final double  []  measured_disparity, // measured disparity
 			final double  []  strength,
+			final boolean []  has_lma, 
 			final double  []  hor_disparity, // not yet used
 			final double  []  hor_strength, // not yet used
 			final boolean []  selected,
@@ -276,6 +277,7 @@ public class DisparityProcessor {
 			final int         threadsMax,      // maximal number of threads to launch                         
 			final int         debugLevel)
 	{
+		final double  scale_strength_lma = 5.0; // increase LMA-defined strength during averaging
 		final int dbg_tile = -1; // 28643; // x=131, y=88
 		ShowDoubleFloatArrays sdfa_instance = null;
 		if (debugLevel > 0) sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
@@ -382,7 +384,12 @@ public class DisparityProcessor {
 //								}
 								// calculate pull by the measured disparity
 								double disparity_diff = (measured_disparity[nTile] - disp_data[0][nTile]);
-								double eff_strength = ((border != null) && border[nTile])? 0.0: (strength[nTile] - clt_parameters.tiStrengthOffset);
+								double str = strength[nTile];
+								if (has_lma[nTile]) {
+									str *= scale_strength_lma;
+								}
+//								double eff_strength = ((border != null) && border[nTile])? 0.0: (strength[nTile] - clt_parameters.tiStrengthOffset);
+								double eff_strength = ((border != null) && border[nTile])? 0.0: (str - clt_parameters.tiStrengthOffset);
 								if (eff_strength < 0) eff_strength = 0;
 								double disparity_pull = eff_strength;
 //								if (tileY == 89){

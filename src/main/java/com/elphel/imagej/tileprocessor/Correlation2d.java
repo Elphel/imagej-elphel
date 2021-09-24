@@ -3422,6 +3422,7 @@ public class Correlation2d {
 
     		//    		double [][] ds =         lma.getDisparityStrength();
     		ds = lma.lmaDisparityStrength(
+    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
     				imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
     				imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
     				imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
@@ -3521,6 +3522,7 @@ public class Correlation2d {
         			}
     				//        		double [][] ds =         lma.getDisparityStrength();
     				ds = lma.lmaDisparityStrength(
+    	    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
     						imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
     						imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
     						imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
@@ -3858,6 +3860,7 @@ public class Correlation2d {
 
 
     		double [][] dispStr = lma.lmaDisparityStrength( //TODO: add parameter to filter out negative minimums ?
+    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
     				imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
     				imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
     				imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)

@@ -7160,7 +7160,7 @@ public class QuadCLTCPU {
 						  false,                                            // final boolean               no_weak,
 						  false,                                            // final boolean               use_last,   //
 						  // TODO: when useCombo - pay attention to borders (disregard)
-						  false,                                            // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
+//						  false,                                            // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
 						  true,                                             // 	 final boolean               copyDebug)
 						  debugLevel);
 
@@ -7243,7 +7243,7 @@ public class QuadCLTCPU {
 					  false,                                            // final boolean               no_weak,
 					  false,                                            // final boolean               use_last,   //
 					  // TODO: when useCombo - pay attention to borders (disregard)
-					  false,                                            // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
+//					  false,                                            // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
 					  true,                                             // 	 final boolean               copyDebug)
 					  debugLevel);
 
@@ -7469,7 +7469,7 @@ public class QuadCLTCPU {
 		  boolean [] bgmask = getBackgroundImageMasks(
     			  clt_parameters,
     			  name,               // .getTitle(), //String name=(String) imp_src.getProperty("name");
-    			  ImageDtt.DISPARITY_INDEX_CM, // index of disparity value in disparity_map == 2 (0,2 or 4)
+//    			  ImageDtt.DISPARITY_INDEX_CM, // index of disparity value in disparity_map == 2 (0,2 or 4)
     			  threadsMax,  // maximal number of threads to launch
     			  updateStatus,
     			  debugLevel);
@@ -7480,7 +7480,7 @@ public class QuadCLTCPU {
     			  colorProcParameters,
     			  rgbParameters,
     			  name,               // .getTitle(), //String name=(String) imp_src.getProperty("name");
-    			  ImageDtt.DISPARITY_INDEX_CM, // index of disparity value in disparity_map == 2 (0,2 or 4)
+//    			  ImageDtt.DISPARITY_INDEX_CM, // index of disparity value in disparity_map == 2 (0,2 or 4)
     			  threadsMax,  // maximal number of threads to launch
     			  updateStatus,
     			  debugLevel);
@@ -7690,8 +7690,7 @@ public class QuadCLTCPU {
     					  true, // 		final boolean     keep_raw_fg,  // do not replace raw tiles by the plates, if raw is closer (like poles)
     					  0.0, // final double      scale_filtered_strength_pre, // scale plate_ds[1] before comparing to raw strength
     					  0.0, // final double      scale_filtered_strength_post,// scale plate_ds[1] when replacing raw (generally plate_ds is more reliable if it exists)
-
-    					  ImageDtt.DISPARITY_INDEX_CM,  // index of disparity value in disparity_map == 2 (0,2 or 4)
+//    					  ImageDtt.DISPARITY_INDEX_CM,  // index of disparity value in disparity_map == 2 (0,2 or 4)
     					  geometryCorrection,
     					  threadsMax,  // maximal number of threads to launch
     					  updateStatus,
@@ -7705,13 +7704,13 @@ public class QuadCLTCPU {
     						  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
     						  "before_makeUnique-"+refine_pass);
     			  int [] numLeftRemoved = tp.makeUnique(
-    					  tp.clt_3d_passes,                  // final ArrayList <CLTPass3d> passes,
-    					  0,                                 //  final int                   firstPass,
+    					  tp.clt_3d_passes,                      // final ArrayList <CLTPass3d> passes,
+    					  0,                                     //  final int                   firstPass,
     					  refine_pass, // - 1,                   //  final int                   lastPassPlus1,
-    					  tp.clt_3d_passes.get(refine_pass), //  final CLTPass3d             new_scan,
-    					  clt_parameters.grow_disp_max,       // final double                grow_disp_max,
-    					  clt_parameters.gr_unique_tol,   //  final double                unique_tolerance,
-    					  clt_parameters.show_unique);      // final boolean               show_unique)
+    					  tp.clt_3d_passes.get(refine_pass),     //  final CLTPass3d             new_scan,
+    					  clt_parameters.grow_disp_max,          // final double                grow_disp_max,
+    					  clt_parameters.gr_unique_tol,          //  final double                unique_tolerance,
+    					  clt_parameters.show_unique);           // final boolean               show_unique)
     			  if (debugLevel > -1){
     				  System.out.println("cycle makeUnique("+refine_pass+") -> left: "+numLeftRemoved[0]+", removed:" + numLeftRemoved[1]);
     			  }
@@ -7830,8 +7829,7 @@ public class QuadCLTCPU {
 					  true, // 		final boolean     keep_raw_fg,  // do not replace raw tiles by the plates, if raw is closer (like poles)
 					  0.0, // final double      scale_filtered_strength_pre, // scale plate_ds[1] before comparing to raw strength
 					  0.0, // final double      scale_filtered_strength_post,// scale plate_ds[1] when replacing raw (generally plate_ds is more reliable if it exists)
-
-					  ImageDtt.DISPARITY_INDEX_CM,  // index of disparity value in disparity_map == 2 (0,2 or 4)
+//					  ImageDtt.DISPARITY_INDEX_CM,  // index of disparity value in disparity_map == 2 (0,2 or 4)
 					  geometryCorrection,
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
@@ -7892,6 +7890,28 @@ public class QuadCLTCPU {
 					  false,                                            // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
 					  true,                                             // 	 final boolean               copyDebug)
 					  debugLevel);
+			  for (int nexpand = 0; nexpand < 20; nexpand++) {
+				  int num_added = tp.expandCertain (
+						  combo_pass, // final CLTPass3d             combo_pass, // modify
+						  tp.clt_3d_passes, //  final ArrayList <CLTPass3d> passes,
+						  bg_pass, //  final int                   firstPass,
+						  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
+						  0.5, // 	 final int                   disp_avg_arange, // average neighbors with disparity not more than that from the lowest 
+						  0.1, // 	 final int                   disp_avg_rrange, // same, relative to disparity
+						  1.0, // 	 final int                   disp_arange,     // look for a fit within range from the neighbor 
+						  0.1, //    final int                   disp_rrange,     // same, relative to disparity
+						  2,   // 	 final int                   min_defined,     // minimal number of defined neighbors that fit into the range
+						  tp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
+						  tp.getMaxOverexposure(),                          //  final double                max_overexposure,
+						  debugLevel); // final int                   debugLevel)
+				  if (num_added==0) {
+					  break;
+				  }
+				  if (show_init_refine) tp.showScan(
+						  combo_pass, // CLTPass3d   scan,
+						  "expamded-"+nexpand+"-added-"+num_added);
+			  }
+			  
 
 			  if (show_init_refine) tp.showScan(
 					  combo_pass, // CLTPass3d   scan,
@@ -9770,7 +9790,7 @@ public class QuadCLTCPU {
     				  pt_keep_raw_fg, // 		final boolean     keep_raw_fg,  // do not replace raw tiles by the plates, if raw is closer (like poles)
     				  pt_scale_pre,   // final double      scale_filtered_strength_pre, // scale plate_ds[1] before comparing to raw strength
     				  pt_scale_post,  // final double      scale_filtered_strength_post,// scale plate_ds[1] when replacing raw (generally plate_ds is more reliable if it exists)
-    				  ImageDtt.DISPARITY_INDEX_CM,   // index of disparity value in disparity_map == 2 (0,2 or 4)
+//    				  ImageDtt.DISPARITY_INDEX_CM,   // index of disparity value in disparity_map == 2 (0,2 or 4)
     				  geometryCorrection,
     				  tp.threadsMax,  // maximal number of threads to launch
     				  false, // updateStatus,
@@ -10472,7 +10492,7 @@ public class QuadCLTCPU {
 //			  ColorProcParameters colorProcParameters,
 //			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  String     name,
-			  int        disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
+//			  int        disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
 			  int        threadsMax,  // maximal number of threads to launch
 			  boolean    updateStatus,
 			  int        debugLevel
@@ -10500,7 +10520,7 @@ public class QuadCLTCPU {
 				  clt_parameters.sure_smth,      // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
 				  clt_parameters.min_clstr_seed, // number of tiles in a cluster to seed (just background?)
 				  clt_parameters.min_clstr_block,// number of tiles in a cluster to block (just non-background?)
-				  disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
+//				  disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
 				  clt_parameters.show_bgnd_nonbgnd,
 				  (clt_parameters.debug_filters ? (debugLevel) : -1));
 		  boolean [] bgnd_tiles_new =   tp.getBackgroundMask_new( // which tiles do belong to the background
@@ -10510,7 +10530,7 @@ public class QuadCLTCPU {
 				  clt_parameters.sure_smth,      // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
 				  clt_parameters.min_clstr_seed, // number of tiles in a cluster to seed (just background?)
 				  clt_parameters.min_clstr_block,// number of tiles in a cluster to block (just non-background?)
-				  disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
+//				  disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
 				  clt_parameters.show_bgnd_nonbgnd,
 				  (clt_parameters.debug_filters ? (debugLevel) : -1));
 		  boolean [] bgnd_dbg =    bgnd_tiles.clone(); // only these have non 0 alpha
@@ -10567,7 +10587,7 @@ public class QuadCLTCPU {
 			  ColorProcParameters                       colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters  rgbParameters,
 			  String     name,
-			  int        disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
+//			  int        disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
 			  int        threadsMax,  // maximal number of threads to launch
 			  boolean    updateStatus,
 			  int        debugLevel

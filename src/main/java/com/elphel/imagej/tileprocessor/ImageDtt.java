@@ -3291,6 +3291,7 @@ public class ImageDtt extends ImageDttCPU {
 							if (dbg_img != null) dbg_img[1][nclust] = 1.0;
 							// was for single tile
 							disp_str = lma2.lmaDisparityStrength(
+				    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 									imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 									imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 									imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
@@ -3583,31 +3584,10 @@ public class ImageDtt extends ImageDttCPU {
 								tileX,                        // int                 tileX, // just for debug output
 								tileY);                       // int                 tileY
 						
-						
-						/*
-						double [][] poly_disp2 = {{Double.NaN, 0.0}};
-						double [][][] corrs2 = {corrs};
-						double [][][] tile_disp_dist2 = {tile_disp_dist};
-						// TODO: maybe use corrLMA2Single again, but take care of initVector!
-						Corr2dLMA lma2 = corr2d.corrLMA2Multi( // multitile num_tiles_super == 1
-								imgdtt_params,                // ImageDttParameters  imgdtt_params,
-								1,                            // int                 clust_width,
-								corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
-								corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
-								corrs2, // corrs,                        // double [][]         corrs,
-								tile_disp_dist2,
-								rXY,                          // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
-								imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
-//								null,                         // disp_str[cTile],  //corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
-								poly_disp2,                    // double[]            poly_ds,    // null or pair of disparity/strength
-								imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
-								tdl, // tile_lma_debug_level, //+2,         // int                 debug_level,
-								tileX,                        // int                 tileX, // just for debug output
-								tileY);                       // int                 tileY
-						*/
 						if (lma2 != null) {
 							// was for single tile
 							disp_str = lma2.lmaDisparityStrength(
+				    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 									imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 									imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 									imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)

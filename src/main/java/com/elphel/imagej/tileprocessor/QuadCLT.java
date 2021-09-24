@@ -3158,7 +3158,7 @@ public class QuadCLT extends QuadCLTCPU {
 			  ColorProcParameters                       colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters  rgbParameters,
 			  String     name,
-			  int        disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
+//			  int        disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
 			  int        threadsMax,  // maximal number of threads to launch
 			  boolean    updateStatus,
 			  int        debugLevel
@@ -3170,7 +3170,7 @@ public class QuadCLT extends QuadCLTCPU {
 					  colorProcParameters,
 					  rgbParameters,
 					  name,
-					  disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
+//					  disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
 					  debugLevel);
