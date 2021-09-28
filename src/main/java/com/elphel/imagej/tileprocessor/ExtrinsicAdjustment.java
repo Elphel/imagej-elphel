@@ -2439,7 +2439,7 @@ public class ExtrinsicAdjustment {
 					this.last_ymfx); // modifies this.last_ymfx (weights and subtracts fx)
 			this.initial_rms = this.last_rms.clone();
 			this.good_or_bad_rms = this.last_rms.clone();
-			if (debug_level > -1) {
+			if (debug_level > 1) {
 				showDerivatives(0);
 				showDerivatives(1);
 				showDerivatives(2);

@@ -48,6 +48,8 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.checkerframework.checker.units.qual.m;
+
 import com.elphel.imagej.calibration.PixelMapping;
 import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.cameras.ColorProcParameters;
@@ -442,6 +444,30 @@ public class QuadCLTCPU {
 				0);       // int                   jpegQuality)
 	}
 
+	public void saveDSIAll(
+			double [][] dsi) // DSI_SLICES.length
+	{
+		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
+				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+				correctionsParameters.x3dModelVersion,
+				true,  // smart,
+				true);  //newAllowed, // save
+		String title = image_name+"-DSI_MAIN";
+//		String []   titles =   {TwoQuadCLT.DSI_SLICES[TwoQuadCLT.DSI_DISPARITY_MAIN], TwoQuadCLT.DSI_SLICES[TwoQuadCLT.DSI_STRENGTH_MAIN]};
+//		double [][] dsi_main = {dsi[TwoQuadCLT.DSI_DISPARITY_MAIN],        dsi[TwoQuadCLT.DSI_STRENGTH_MAIN]};
+
+//		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(dsi_main, tp.getTilesX(), tp.getTilesY(),  title, titles);
+		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(dsi, tp.getTilesX(), tp.getTilesY(),  title, TwoQuadCLT.DSI_SLICES);
+		eyesisCorrections.saveAndShow(
+				imp,      // ImagePlus             imp,
+				x3d_path, // String                path,
+				false,    // boolean               png,
+				false,    // boolean               show,
+				0);       // int                   jpegQuality)
+	}
+	
+	
+	
 
 	// Save GT from main and AUX calculated DS
 	public void saveDSIGTAux(
@@ -3750,7 +3776,9 @@ public class QuadCLTCPU {
 
 	  int getTotalFiles(SetChannels [] sc) { // USED in lwir
 		  int nf = 0;
-		  for (int i = 0; i < sc.length; i++) nf+=sc[i].fileNumber().length;
+		  if (sc != null) {
+			  for (int i = 0; i < sc.length; i++) nf+=sc[i].fileNumber().length;
+		  }
 		  return nf;
 	  }
 
@@ -4747,12 +4775,7 @@ public class QuadCLTCPU {
 				  clt_parameters.corr_red,
 				  clt_parameters.corr_blue,
 				  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
-				  clt_parameters.corr_normalize, // normalize correlation results by rms
-				  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
-				  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
-				  clt_parameters.max_corr_radius,
-				  clt_parameters.max_corr_double, // Double pass when masking center of mass to reduce preference for integer values
-				  clt_parameters.corr_mode,     // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
+
 				  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
 				  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
 				  clt_parameters.diff_sigma,     // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
@@ -7675,6 +7698,7 @@ public class QuadCLTCPU {
     			  CLTPass3d refined = tp.refinePassSetup( // prepare tile tasks for the refine pass (re-measure disparities)
     					  //				  final double [][][]       image_data, // first index - number of image in a quad
     					  clt_parameters,
+    					  0, // int               clust_radius,     // 0 - initial single-tile, 1 - 1x1 (same), 2 - 3x3, 3 5x5
     					  clt_parameters.stUseRefine, // use supertiles
     					  bg_pass, /// does it have .selected
     					  // disparity range - differences from
@@ -7707,6 +7731,7 @@ public class QuadCLTCPU {
     					  tp.clt_3d_passes,                      // final ArrayList <CLTPass3d> passes,
     					  0,                                     //  final int                   firstPass,
     					  refine_pass, // - 1,                   //  final int                   lastPassPlus1,
+    					  0, // 	 final int                   clust_radius,     // 0 - initial single-tile, 1 - 1x1 (same), 2 - 3x3, 3 5x5
     					  tp.clt_3d_passes.get(refine_pass),     //  final CLTPass3d             new_scan,
     					  clt_parameters.grow_disp_max,          // final double                grow_disp_max,
     					  clt_parameters.gr_unique_tol,          //  final double                unique_tolerance,
@@ -7742,10 +7767,10 @@ public class QuadCLTCPU {
     					  clt_parameters,
     					  refine_pass,
     					  false, // true, // final boolean     save_textures,
+						  0,                 // final int         clust_radius,
     					  threadsMax,  // maximal number of threads to launch
     					  updateStatus,
     					  debugLevel);
-    			  
     			  
     			  if (debugLevel > -3){
     				  System.out.println("CLTMeasure("+refine_pass+")-*");
@@ -7791,6 +7816,7 @@ public class QuadCLTCPU {
 					  clt_parameters,
 					  tp.clt_3d_passes.size() -1, // new, refine_pass+1, - just added from macro - VERIFY
 					  true, // final boolean     save_textures,
+					  0,                 // final int         clust_radius,
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
 					  debugLevel);
@@ -7800,7 +7826,6 @@ public class QuadCLTCPU {
 			  if (show_init_refine) tp.showScan(
 					  tp.clt_3d_passes.get(tp.clt_3d_passes.size() -1), // CLTPass3d   scan,
 					  "after_measure_macro-"+tp.clt_3d_passes.size());
-
     	  }
 
 /// Refining after all added
@@ -7814,6 +7839,7 @@ public class QuadCLTCPU {
 			  CLTPass3d refined = tp.refinePassSetup( // prepare tile tasks for the refine pass (re-measure disparities)
 					  //				  final double [][][]       image_data, // first index - number of image in a quad
 					  clt_parameters,
+					  0, // int               clust_radius,     // 0 - initial single-tile, 1 - 1x1 (same), 2 - 3x3, 3 5x5
 					  clt_parameters.stUseRefine, // use supertiles
 					  bg_pass,
 					  // disparity range - differences from
@@ -7845,6 +7871,7 @@ public class QuadCLTCPU {
 					  tp.clt_3d_passes,                  // final ArrayList <CLTPass3d> passes,
 					  0,                                 //  final int                   firstPass,
 					  refine_pass, // - 1,                   //  final int                   lastPassPlus1,
+					  0, // 	 final int                   clust_radius,     // 0 - initial single-tile, 1 - 1x1 (same), 2 - 3x3, 3 5x5
 					  tp.clt_3d_passes.get(refine_pass), //  final CLTPass3d             new_scan,
 					  clt_parameters.grow_disp_max,       // final double                grow_disp_max,
 					  clt_parameters.gr_unique_tol,   //  final double                unique_tolerance,
@@ -7862,6 +7889,7 @@ public class QuadCLTCPU {
 					  clt_parameters,
 					  refine_pass,
 					  true, // final boolean     save_textures,
+					  0,                 // final int         clust_radius,
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
 					  debugLevel);
@@ -7890,35 +7918,222 @@ public class QuadCLTCPU {
 					  false,                                            // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
 					  true,                                             // 	 final boolean               copyDebug)
 					  debugLevel);
-			  for (int nexpand = 0; nexpand < 20; nexpand++) {
-				  int num_added = tp.expandCertain (
-						  combo_pass, // final CLTPass3d             combo_pass, // modify
-						  tp.clt_3d_passes, //  final ArrayList <CLTPass3d> passes,
-						  bg_pass, //  final int                   firstPass,
-						  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
-						  0.5, // 	 final int                   disp_avg_arange, // average neighbors with disparity not more than that from the lowest 
-						  0.1, // 	 final int                   disp_avg_rrange, // same, relative to disparity
-						  1.0, // 	 final int                   disp_arange,     // look for a fit within range from the neighbor 
-						  0.1, //    final int                   disp_rrange,     // same, relative to disparity
-						  2,   // 	 final int                   min_defined,     // minimal number of defined neighbors that fit into the range
-						  tp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
-						  tp.getMaxOverexposure(),                          //  final double                max_overexposure,
-						  debugLevel); // final int                   debugLevel)
-				  if (num_added==0) {
-					  break;
-				  }
-				  if (show_init_refine) tp.showScan(
-						  combo_pass, // CLTPass3d   scan,
-						  "expamded-"+nexpand+"-added-"+num_added);
-			  }
-			  
-
-			  if (show_init_refine) tp.showScan(
-					  combo_pass, // CLTPass3d   scan,
-					  "after_compositeScan-"+tp.clt_3d_passes.size());
-
 			  tp.clt_3d_passes.add(combo_pass);
 		  }
+		  
+		  
+		  /*
+		  
+
+		  combo_pass.setSelected(combo_pass.getLMA().clone()); // store original LMA
+		  
+		  if (show_init_refine) tp.showScan(
+				  combo_pass, // CLTPass3d   scan,
+				  "after_compositeScan-"+tp.clt_3d_passes.size());
+		  
+		  
+		  for (int nexpand = 0; nexpand < 50; nexpand++) {
+			  int num_added = tp.expandCertain (
+					  combo_pass, // final CLTPass3d             combo_pass, // modify
+					  tp.clt_3d_passes, //  final ArrayList <CLTPass3d> passes,
+					  bg_pass, //  final int                   firstPass,
+					  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
+					  -1.0, // final double                degrade_no_data, // if >=0 will expand without any measurements, using scaled down strength 
+					  0.5, // 	 final int                   disp_avg_arange, // average neighbors with disparity not more than that from the lowest 
+					  0.1, // 	 final int                   disp_avg_rrange, // same, relative to disparity
+					  1.0, // 	 final int                   disp_arange,     // look for a fit within range from the neighbor 
+					  0.1, //    final int                   disp_rrange,     // same, relative to disparity
+					  2,   // 	 final int                   min_defined,     // minimal number of defined neighbors that fit into the range
+					  tp.getTrustedCorrelation(),                             // final double                trustedCorrelation,
+					  tp.getMaxOverexposure(),                                // final double                max_overexposure,
+					  debugLevel); // final int                   debugLevel)
+			  if (num_added==0) {
+				  break;
+			  }
+			  if (show_init_refine &&(debugLevel > 10)) tp.showScan(
+					  combo_pass, // CLTPass3d   scan,
+					  "expanded-"+nexpand+"-added-"+num_added);
+		  }
+//		  combo_pass.setLMA(combo_pass.getSelected()); // restore original LMA
+		  if (show_init_refine) tp.showScan(
+				  combo_pass, // CLTPass3d   scan,
+				  "after_expandedCertain-"+tp.clt_3d_passes.size());
+		  for (int nexpand = 0; nexpand < 50; nexpand++) {
+			  int num_added = tp.expandCertain (
+					  combo_pass, // final CLTPass3d             combo_pass, // modify
+					  tp.clt_3d_passes, //  final ArrayList <CLTPass3d> passes,
+					  bg_pass, //  final int                   firstPass,
+					  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
+					  0.5, //    final double                degrade_no_data, // if >=0 will expand without any measurements, using scaled down strength 
+					  1.0, // 0.5, // 	 final int                   disp_avg_arange, // average neighbors with disparity not more than that from the lowest 
+					  0.2, // 0.1, // 	 final int                   disp_avg_rrange, // same, relative to disparity
+					  1.0, // 	 final int                   disp_arange,     // look for a fit within range from the neighbor 
+					  0.1, //    final int                   disp_rrange,     // same, relative to disparity
+					  2,   // 	 final int                   min_defined,     // minimal number of defined neighbors that fit into the range
+					  tp.getTrustedCorrelation(),                             // final double                trustedCorrelation,
+					  tp.getMaxOverexposure(),                                // final double                max_overexposure,
+					  debugLevel); // final int                   debugLevel)
+			  if (num_added==0) {
+				  break;
+			  }
+			  if (show_init_refine &&(debugLevel > 10)) tp.showScan(
+					  combo_pass, // CLTPass3d   scan,
+					  "expanded-"+nexpand+"-added-"+num_added);
+		  }
+		  if (show_init_refine) tp.showScan(
+				  combo_pass, // CLTPass3d   scan,
+				  "after_expandedAll2-"+tp.clt_3d_passes.size());
+		  
+		  for (int nexpand = 0; nexpand < 50; nexpand++) {
+			  int num_added = tp.expandCertain (
+					  combo_pass, // final CLTPass3d             combo_pass, // modify
+					  tp.clt_3d_passes, //  final ArrayList <CLTPass3d> passes,
+					  bg_pass, //  final int                   firstPass,
+					  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
+					  0.5, //    final double                degrade_no_data, // if >=0 will expand without any measurements, using scaled down strength 
+					  1.0, // 0.5, // 	 final int                   disp_avg_arange, // average neighbors with disparity not more than that from the lowest 
+					  0.2, // 0.1, // 	 final int                   disp_avg_rrange, // same, relative to disparity
+					  1.0, // 	 final int                   disp_arange,     // look for a fit within range from the neighbor 
+					  0.1, //    final int                   disp_rrange,     // same, relative to disparity
+					  1,   // 2,   // 	 final int                   min_defined,     // minimal number of defined neighbors that fit into the range
+					  tp.getTrustedCorrelation(),                             // final double                trustedCorrelation,
+					  tp.getMaxOverexposure(),                                // final double                max_overexposure,
+					  debugLevel); // final int                   debugLevel)
+			  if (num_added==0) {
+				  break;
+			  }
+			  if (show_init_refine &&(debugLevel > 10)) tp.showScan(
+					  combo_pass, // CLTPass3d   scan,
+					  "expanded-"+nexpand+"-added-"+num_added);
+		  }
+		  if (show_init_refine) tp.showScan(
+				  combo_pass, // CLTPass3d   scan,
+				  "after_expandedAll-"+tp.clt_3d_passes.size());
+		  combo_pass.setLMA(combo_pass.getSelected()); // restore original LMA
+		  if (show_init_refine) tp.showScan(
+				  combo_pass, // CLTPass3d   scan,
+				  "after_restoredLMA-"+tp.clt_3d_passes.size());
+		  */
+		  
+		  // create and measure several variable-cluster scans from the same single-tile combo_pass
+		  CLTPass3d combo_pass = tp.clt_3d_passes.get(tp.clt_3d_passes.size() - 1); // last pass created by tp.compositeScan
+		  int max_clust_radius =  4; // 7x7
+		  CLTPass3d [] combo_multi = new CLTPass3d[max_clust_radius+1];
+		  combo_multi[0] = combo_pass;
+		  for (int clust_radius = 2; clust_radius <= max_clust_radius; clust_radius++) {
+			  // using combo_pass (latest)
+			  int num_added = tp.expandCertainMulti ( 
+					  combo_pass, // CLTPass3d             combo_pass, // modify
+					  tp.clt_3d_passes, //ArrayList <CLTPass3d> passes,
+					  bg_pass, //  int                   firstPass,
+					  tp.clt_3d_passes.size(), //	 int                   lastPassPlus1,
+					  0.5, //  double                disp_avg_arange1, // average neighbors with disparity not more than that from the lowest 
+					  0.1, // double                disp_avg_rrange1, // same, relative to disparity
+					  1.0, // double                disp_avg_arange2, // average neighbors with disparity not more than that from the lowest 
+					  0.2, // double                disp_avg_rrange2, // same, relative to disparity
+					  1.0, //                 disp_arange,     // look for a fit within range from the neighbor 
+					  0.1, // double                disp_rrange,     // same, relative to disparity
+					  "single-", // String                title_prefix,
+					  0); // debugLevl = 1 for low number of images (6) 
+			  System.out.println("Added "+num_added+" tiles berore cluster radius "+clust_radius);
+			  boolean [] has_lma = combo_pass.getLMA();
+			  double [] disparity = combo_pass.getDisparity(1); // calc_disparity (skip NaN!)
+			  for (int nnn = 0; nnn < num_macro_refine; nnn ++){ //
+
+				  refine_pass = tp.clt_3d_passes.size();
+				  CLTPass3d refined_multi = tp.refinePassSetupMulti( // prepare tile tasks for the second pass based on the previous one(s)
+						  combo_pass, // CLTPass3d         combo_pass,
+						  clust_radius, // int               clust_radius,     // 0 - initial single-tile, 1 - 1x1 (same), 2 - 3x3, 3 5x5
+						  0, // clust_radius - 1, // 	int               shrink_from_defined,
+
+						  threadsMax,  // maximal number of threads to launch
+						  updateStatus,
+						  debugLevel);
+				  tp.clt_3d_passes.add(refined_multi);
+
+				  if (debugLevel > -1)
+					  tp.showScan(
+							  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
+							  "refined_multi_"+clust_radius+"before_makeUnique");
+				  int [] numLeftRemoved = tp.makeUnique(
+						  tp.clt_3d_passes,                  // final ArrayList <CLTPass3d> passes,
+						  0,                                 //  final int                   firstPass,
+						  refine_pass, // - 1,               //  final int                   lastPassPlus1,
+						  clust_radius,                      //	 final int                   clust_radius,     // 0 - initial single-tile, 1 - 1x1 (same), 2 - 3x3, 3 5x5
+						  tp.clt_3d_passes.get(refine_pass), //  final CLTPass3d             new_scan,
+						  clt_parameters.grow_disp_max,       // final double                grow_disp_max,
+						  clt_parameters.gr_unique_tol,   //  final double                unique_tolerance,
+						  clt_parameters.show_unique);      // final boolean               show_unique)
+				  if (debugLevel > -1){
+					  System.out.println("makeUnique("+refine_pass+") -> left: "+numLeftRemoved[0]+", removed:" + numLeftRemoved[1]);
+				  }
+				  if (show_init_refine) tp.showScan(
+						  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
+						  "after_refinePassSetup-"+tp.clt_3d_passes.size());
+				  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity
+						  clt_parameters,
+						  refine_pass,
+						  false,          // true,           // final boolean     save_textures,
+						  clust_radius,   // final int         clust_radius,
+						  threadsMax,
+						  updateStatus,
+						  debugLevel);
+				  if (show_init_refine) tp.showScan(
+						  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
+						  "after_measure-"+tp.clt_3d_passes.size());
+				  combo_multi[clust_radius-1] = tp.compositeScan(
+						  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
+						  bg_pass, //  final int                   firstPass,
+						  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
+						  tp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
+						  tp.getMaxOverexposure(),                          //  final double                max_overexposure,
+						  -0.5, // 0.0, // clt_parameters.bgnd_range,                //	 final double                disp_far,   // limit results to the disparity range
+						  clt_parameters.grow_disp_max,                     // final double                disp_near,
+						  clt_parameters.combine_min_strength,              // final double                minStrength,
+						  clt_parameters.combine_min_hor,                   // final double                minStrengthHor,
+						  clt_parameters.combine_min_vert,                  // final double                minStrengthVert,
+						  false,                                            // final boolean               no_weak,
+						  false,                                            // final boolean               use_last,   //
+						  // TODO: when useCombo - pay attention to borders (disregard)
+						  false,                                            // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
+						  true,                                             // 	 final boolean               copyDebug)
+						  debugLevel);
+				  double [] disparity_LMA = combo_multi[clust_radius-1].getDisparityLMA();
+				  for (int i = 0; i< disparity.length; i++) {
+					  if (!Double.isNaN(disparity_LMA[i])) {
+						  disparity[i] = disparity_LMA[i]; // update only measured, others will be removed by makeUnique
+					  }
+				  }
+				  if (show_init_refine) tp.showScan(
+						  combo_multi[clust_radius-1], // CLTPass3d   scan,
+						  "combo_multi-"+clust_radius+"-pass"+nnn);
+				  
+				  tp.clt_3d_passes.add(combo_multi[clust_radius-1] );
+				  combo_pass = combo_multi[clust_radius-1];
+				  
+				  // combine tasks from (original) combo_pass and combo_pass_multi (use its combo_disparity, but saved getLMA from original combo_pass ?
+				  // when done, grow to fill gaps from 3x3 first (by 1 step) and from 5x5 - second?(by 2 steps), ...
+
+			  }
+		  }
+		  int num_added = tp.expandCertainMulti ( 
+				  combo_pass, // CLTPass3d             combo_pass, // modify
+				  tp.clt_3d_passes, //ArrayList <CLTPass3d> passes,
+				  bg_pass, //  int                   firstPass,
+				  tp.clt_3d_passes.size(), //	 int                   lastPassPlus1,
+				  0.5, //  double                disp_avg_arange1, // average neighbors with disparity not more than that from the lowest 
+				  0.1, // double                disp_avg_rrange1, // same, relative to disparity
+				  1.0, // double                disp_avg_arange2, // average neighbors with disparity not more than that from the lowest 
+				  0.2, // double                disp_avg_rrange2, // same, relative to disparity
+				  1.0, //                 disp_arange,     // look for a fit within range from the neighbor 
+				  0.1, // double                disp_rrange,     // same, relative to disparity
+				  "single-", // String                title_prefix,
+				  0); // int                   debugLevel) // 1 - show results 2 - show stages 3 - show all 
+		  System.out.println("Added "+num_added+" tiles after cluster radius scan");
+		  if (debugLevel > -2) tp.showScan(
+				  combo_pass, // CLTPass3d   scan,
+				  "after_multi-tile_disparity_extension");
+		  
 
  ///// Refining after all added   - end
 		  Runtime.getRuntime().gc();
@@ -7927,6 +8142,12 @@ public class QuadCLTCPU {
 		  return true;
 	  }
 
+
+	  
+	  
+	  
+	  
+	  
 	  ArrayList <CLTPass3d> prepareDisparityScan( // USED in lwir
 			  	double scan_start,
 			  	double scan_step,
@@ -8065,6 +8286,7 @@ public class QuadCLTCPU {
 				  clt_parameters,
 				  combo_scan,
 				  false, // final boolean     save_textures,
+				  0,                 // final int         clust_radius,
 				  tp.threadsMax,  // maximal number of threads to launch
 				  false, // updateStatus,
 				  debugLevelInner - 1);
@@ -8119,7 +8341,7 @@ public class QuadCLTCPU {
 				  combo_use[nTile] = true;
 			  }
 		  }
-		  if ( !batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) { // true
+		  if ( !batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1+0)) { // true
 			  String [] dbg_titles = {"fdisp", "fstr", "disp", "str", "overexp","sel","use"};
 			  double [][] ddd = {filtered_combo_scand_isp_strength[0],filtered_combo_scand_isp_strength[1],combo_disp,combo_str,combo_overexp, null, null};
 			  ddd[5] = new double [combo_use.length];
@@ -8215,6 +8437,9 @@ public class QuadCLTCPU {
 				  data[slice][i] = pixels[i];
 			  }
 		  }
+		  
+		  
+		  
 		  boolean [] bg_sel =    new boolean [width*height];
 		  boolean [] bg_use =    new boolean [width*height];
 		  boolean [] combo_use = new boolean [width*height];
@@ -8616,15 +8841,17 @@ public class QuadCLTCPU {
 							  combo_scan,
 							  false,             // final boolean     save_textures,
 							  true,              // final boolean     save_corr,
-//							  null,              // combo_mismatch,    // final double [][] mismatch,    // null or double [12][]
+							  0,           // clust_radius,
 							  tp.threadsMax,     // maximal number of threads to launch
 							  false,             // updateStatus,
 							  debugLevelInner - 1);
-/**/							  
+/**/		
+					  // Why twice?
 					  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity
 							  clt_parameters,
 							  combo_scan,
 							  false,             // final boolean     save_textures,
+							  0,                 // clust_radius,
 							  tp.threadsMax,     // maximal number of threads to launch
 							  false,             // updateStatus,
 							  debugLevelInner - 1);
@@ -8916,6 +9143,7 @@ public class QuadCLTCPU {
 					  clt_parameters,
 					  combo_scan + 1 + nm,
 					  false, // true, // final boolean     save_textures,
+					  0,                 // final int         clust_radius,
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
 					  debugLevel);
@@ -8996,6 +9224,7 @@ public class QuadCLTCPU {
 				  clt_parameters,
 				  last_scan,
 				  false, // true, // final boolean     save_textures,
+				  0,                 // final int         clust_radius,
 				  threadsMax,  // maximal number of threads to launch
 				  updateStatus,
 				  debugLevel);
@@ -9033,6 +9262,7 @@ public class QuadCLTCPU {
 				  clt_parameters,
 				  last_scan2,
 				  false, // true, // final boolean     save_textures,
+				  0,                 // final int         clust_radius,
 				  threadsMax,  // maximal number of threads to launch
 				  updateStatus,
 				  debugLevel);
@@ -9775,6 +10005,7 @@ public class QuadCLTCPU {
     	  if (refine) { // currently is broken if !refine
     		  CLTPass3d refined = tp.refinePassSetup( // prepare tile tasks for the refine pass (re-measure disparities), add it to the list
     				  clt_parameters,
+					  0, // int               clust_radius,     // 0 - initial single-tile, 1 - 1x1 (same), 2 - 3x3, 3 5x5
     				  stUseRefine, // use supertiles
     				  bg_index, // bg_scan bg_pass,
     				  // disparity range - differences from
@@ -9968,6 +10199,7 @@ public class QuadCLTCPU {
     				  passes,                  // final ArrayList <CLTPass3d> passes,
     				  0,                                 //  final int                   firstPass,
     				  refine_pass, // - 1,                   //  final int                   lastPassPlus1,
+					  0, // 	 final int                   clust_radius,     // 0 - initial single-tile, 1 - 1x1 (same), 2 - 3x3, 3 5x5
     				  extended_pass, // tp.clt_3d_passes.get(refine_pass), //  final CLTPass3d             new_scan,
     				  clt_parameters.grow_disp_max,       // final double                grow_disp_max,
     				  clt_parameters.gr_unique_tol,   //  final double                unique_tolerance,
@@ -10004,6 +10236,7 @@ public class QuadCLTCPU {
     			  clt_parameters,
     			  refine_pass,
     			  false, // final boolean     save_textures,
+				  0,                 // final int         clust_radius,
     			  tp.threadsMax,  // maximal number of threads to launch
     			  false, // updateStatus,
     			  debugLevel - 1);
@@ -11086,129 +11319,66 @@ public class QuadCLTCPU {
 				  clt_parameters.img_dtt.getMcorrNeib (getNumSensors()),  // boolean sel_neib,
 				  clt_parameters.img_dtt.getMcorrHor  (getNumSensors()),  // boolean sel_hor,
 				  clt_parameters.img_dtt.getMcorrVert (getNumSensors())); // boolean sel_vert);
-		  
-		  if (USE_PRE_2021) {
-			  //		  clt_corr_combo = null; // Something is broke in old code, tries to use color==3 ==colors.weights.length
-			  image_dtt.clt_aberrations_quad_corr(
-					  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
-					  1,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
-					  tile_op,                      // per-tile operation bit codes
-					  disparity_array,              // clt_parameters.disparity,     // final double            disparity,
-					  image_data,                   // final double [][][]      imade_data, // first index - number of image in a quad
-					  saturation_imp,               // boolean [][] saturation_imp, // (near) saturated pixels or null
-					  // correlation results - final and partial
-					  null, // clt_corr_combo,               // [tp.tilesY][tp.tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
-					  null, // clt_corr_partial, // null, // clt_corr_partial,    // [tp.tilesY][tp.tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
-					  null,    // [tp.tilesY][tp.tilesX][pair]{dx,dy,weight}[(2*transform_size-1)*(2*transform_size-1)] // transpose unapplied. null - do not calculate
-					  //	Use it with disparity_maps[scan_step]?		  clt_mismatch,    // [tp.tilesY][tp.tilesX][pair]{dx,dy,weight}[(2*transform_size-1)*(2*transform_size-1)] // transpose unapplied. null - do not calculate
-					  disparity_map,    // [12][tp.tilesY * tp.tilesX]
-					  texture_tiles,        // [tp.tilesY][tp.tilesX]["RGBA".length()][];
-					  tilesX * image_dtt.transform_size, // imp_quad[0].getWidth(),       // final int width,
-					  clt_parameters.getFatZero(isMonochrome()),      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
-					  clt_parameters.corr_sym,
-					  clt_parameters.corr_offset,
-					  clt_parameters.corr_red,
-					  clt_parameters.corr_blue,
-					  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
-					  clt_parameters.corr_normalize, // normalize correlation results by rms
-					  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
-					  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
-					  clt_parameters.max_corr_radius,
-					  clt_parameters.max_corr_double, // Double pass when masking center of mass to reduce preference for integer values
-					  clt_parameters.corr_mode,     // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
-					  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
-					  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
-					  clt_parameters.diff_sigma,     // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
-					  clt_parameters.diff_threshold, // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
-					  clt_parameters.diff_gauss,     // true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
-					  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-					  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
-					  clt_parameters.keep_weights,   // Add port weights to RGBA stack (debug feature)
-					  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
-					  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
-					  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-					  clt_parameters.kernel_step,
-					  ///				  image_dtt.transform_size,
-					  clt_parameters.clt_window,
-					  shiftXY, //
-					  disparity_corr, // final double              disparity_corr, // disparity at infinity
-					  (clt_parameters.fcorr_ignore? null: this.fine_corr),
-					  clt_parameters.corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
-					  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
-					  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
-					  clt_parameters.tileX,         // final int               debug_tileX,
-					  clt_parameters.tileY,         // final int               debug_tileY,
-					  (clt_parameters.dbg_mode & 64) != 0, // no fract shift
-					  (clt_parameters.dbg_mode & 128) != 0, // no convolve
-					  //				  (clt_parameters.dbg_mode & 256) != 0, // transpose convolve
-					  threadsMax,
-					  debugLevel);
-		  } else {
-			  image_dtt.clt_aberrations_quad_corr(
-					  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
-					  1,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
-					  tile_op,                      // per-tile operation bit codes
-					  disparity_array,              // clt_parameters.disparity,     // final double            disparity,
-					  image_data,                   // final double [][][]      imade_data, // first index - number of image in a quad
-					  saturation_imp,               // boolean [][] saturation_imp, // (near) saturated pixels or null
-					  // correlation results - final and partial
-					 // 2021 replaced next 3
-					  null,                         // final double [][][][]     clt_corr_out,   // sparse (by the first index) [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] or null
-					  null,                         // final double [][][][]     clt_combo_out,  // sparse (by the first index) [type][tilesY][tilesX][(combo_tile_size] or null
-					  null,                         // final double [][][][]     clt_combo_dbg,  // generate sparse  partial rotated/scaled pairs
-					  disparity_map,    // [12][tp.tilesY * tp.tilesX]
-					  texture_tiles,        // [tp.tilesY][tp.tilesX]["RGBA".length()][];
-					  tilesX * image_dtt.transform_size, // imp_quad[0].getWidth(),       // final int width,
-					  clt_parameters.getFatZero(isMonochrome()),      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
-					  clt_parameters.corr_sym,
-					  clt_parameters.corr_offset,
-					  clt_parameters.corr_red,
-					  clt_parameters.corr_blue,
-					  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
-					  clt_parameters.corr_normalize, // normalize correlation results by rms
-					  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
-					  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
-					  clt_parameters.max_corr_radius,
-					  clt_parameters.max_corr_double, // Double pass when masking center of mass to reduce preference for integer values
-					  clt_parameters.corr_mode,     // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
-					  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
-					  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
-					  clt_parameters.diff_sigma,     // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
-					  clt_parameters.diff_threshold, // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
-					  clt_parameters.diff_gauss,     // true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
-					  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-					  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
-					  clt_parameters.keep_weights,   // Add port weights to RGBA stack (debug feature)
-					  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
-					  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
-					  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-					  clt_parameters.kernel_step,
-					  ///				  image_dtt.transform_size,
-					  clt_parameters.clt_window,
-					  shiftXY, //
-					  disparity_corr, // final double              disparity_corr, // disparity at infinity
-					  (clt_parameters.fcorr_ignore? null: this.fine_corr),
-					  clt_parameters.corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
-					  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
-					  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
 
-					  // 2021 new next 5
-					  mcorr_sel, // 	final int                 mcorr_sel,    // Which pairs to correlate // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
-					  clt_parameters.img_dtt.mcorr_comb_width,					// final int                 mcorr_comb_width,  // combined correlation tile width
-					  clt_parameters.img_dtt.mcorr_comb_height,					// final int                 mcorr_comb_height, // combined correlation tile full height
-					  clt_parameters.img_dtt.mcorr_comb_offset,					// final int                 mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
-					  clt_parameters.img_dtt.mcorr_comb_disp,					// final double              mcorr_comb_disp,   // Combined tile per-pixel disparity for baseline == side of a square
-					  
-					  clt_parameters.tileX,         // final int               debug_tileX,
-					  clt_parameters.tileY,         // final int               debug_tileY,
-					  (clt_parameters.dbg_mode & 64) != 0, // no fract shift
-					  (clt_parameters.dbg_mode & 128) != 0, // no convolve
-					  //				  (clt_parameters.dbg_mode & 256) != 0, // transpose convolve
-					  threadsMax,
-					  debugLevel);
-			  
-			  
-		  }
+		  image_dtt.clt_aberrations_quad_corr(
+				  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+				  1,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
+				  tile_op,                      // per-tile operation bit codes
+				  disparity_array,              // clt_parameters.disparity,     // final double            disparity,
+				  image_data,                   // final double [][][]      imade_data, // first index - number of image in a quad
+				  saturation_imp,               // boolean [][] saturation_imp, // (near) saturated pixels or null
+				  // correlation results - final and partial
+				  // 2021 replaced next 3
+				  null,                         // final double [][][][]     clt_corr_out,   // sparse (by the first index) [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] or null
+				  null,                         // final double [][][][]     clt_combo_out,  // sparse (by the first index) [type][tilesY][tilesX][(combo_tile_size] or null
+				  null,                         // final double [][][][]     clt_combo_dbg,  // generate sparse  partial rotated/scaled pairs
+				  disparity_map,    // [12][tp.tilesY * tp.tilesX]
+				  texture_tiles,        // [tp.tilesY][tp.tilesX]["RGBA".length()][];
+				  tilesX * image_dtt.transform_size, // imp_quad[0].getWidth(),       // final int width,
+				  clt_parameters.getFatZero(isMonochrome()),      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
+				  clt_parameters.corr_sym,
+				  clt_parameters.corr_offset,
+				  clt_parameters.corr_red,
+				  clt_parameters.corr_blue,
+				  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
+				  
+				  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
+				  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
+				  clt_parameters.diff_sigma,     // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
+				  clt_parameters.diff_threshold, // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
+				  clt_parameters.diff_gauss,     // true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
+				  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+				  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
+				  clt_parameters.keep_weights,   // Add port weights to RGBA stack (debug feature)
+				  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
+				  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
+				  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+				  clt_parameters.kernel_step,
+				  ///				  image_dtt.transform_size,
+				  clt_parameters.clt_window,
+				  shiftXY, //
+				  disparity_corr, // final double              disparity_corr, // disparity at infinity
+				  (clt_parameters.fcorr_ignore? null: this.fine_corr),
+				  clt_parameters.corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
+				  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
+				  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
+
+				  // 2021 new next 5
+				  mcorr_sel, // 	final int                 mcorr_sel,    // Which pairs to correlate // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
+				  clt_parameters.img_dtt.mcorr_comb_width,					// final int                 mcorr_comb_width,  // combined correlation tile width
+				  clt_parameters.img_dtt.mcorr_comb_height,					// final int                 mcorr_comb_height, // combined correlation tile full height
+				  clt_parameters.img_dtt.mcorr_comb_offset,					// final int                 mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
+				  clt_parameters.img_dtt.mcorr_comb_disp,					// final double              mcorr_comb_disp,   // Combined tile per-pixel disparity for baseline == side of a square
+
+				  clt_parameters.tileX,         // final int               debug_tileX,
+				  clt_parameters.tileY,         // final int               debug_tileY,
+				  (clt_parameters.dbg_mode & 64) != 0, // no fract shift
+				  (clt_parameters.dbg_mode & 128) != 0, // no convolve
+				  //				  (clt_parameters.dbg_mode & 256) != 0, // transpose convolve
+				  threadsMax,
+				  debugLevel);
+
+
 		  scan_rslt.disparity = disparity_array;
 		  scan_rslt.tile_op = tile_op;
 		  scan_rslt.disparity_map = disparity_map;
@@ -11229,37 +11399,39 @@ public class QuadCLTCPU {
 		  return CLTMeasure( // measure background // USED in lwir
 				  clt_parameters,
 				  scanIndex,
-				  true, // save_textures,
-				  false, // save_corr,
+				  true,        // save_textures,
+				  false,       // save_corr,
+				  0,           // clust_radius,
 				  threadsMax,  // maximal number of threads to launch
 				  updateStatus,
 				  debugLevel);
 	  }
-	  /*
-	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity // not used in lwir
-			  CLTParameters           clt_parameters,
+/*
+	  public CLTPass3d  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity // not used in lwir
+			  CLTParameters     clt_parameters,
 			  final int         scanIndex,
 			  final boolean     save_textures,
-			  final boolean     save_corr,
+//			  final int         clust_radius,
 			  final int         threadsMax,  // maximal number of threads to launch
 			  final boolean     updateStatus,
-			  final int         debugLevel)
-	  {
-		  return CLTMeasure( // perform single pass according to prepared tiles operations and disparity
-				  clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
-				  scanIndex,      // final int         scanIndex,
-				  save_textures,  // final boolean     save_textures,
-				  save_corr,      // final boolean       save_corr,
-//				  null,           // final double [][] mismatch,    // null or double [12][]
-				  threadsMax,     // final int         threadsMax,  // maximal number of threads to launch
-				  updateStatus,   // final boolean     updateStatus,
-				  debugLevel);    // final int         debugLevel);
+			  final int         debugLevel) {
+		  return  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity // not used in lwir
+				  clt_parameters,
+				  scanIndex,
+				  save_textures,
+				  0, // clust_radius,
+				  threadsMax,  // maximal number of threads to launch
+				  updateStatus,
+				  debugLevel);
 	  }
 	  */
+	  
+	  
 	  public CLTPass3d  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity // not used in lwir
 			  CLTParameters           clt_parameters,
 			  final int         scanIndex,
 			  final boolean     save_textures,
+			  final int         clust_radius,
 			  final int         threadsMax,  // maximal number of threads to launch
 			  final boolean     updateStatus,
 			  final int         debugLevel)
@@ -11268,8 +11440,8 @@ public class QuadCLTCPU {
 				  clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 				  scanIndex,      // final int         scanIndex,
 				  save_textures,  // final boolean     save_textures,
-				  true,           // final boolean       save_corr,
-//				  null,           // final double [][] mismatch,    // null or double [12][]
+				  true,           // final boolean     save_corr,
+				  clust_radius,   // final int         clust_radius,
 				  threadsMax,     // final int         threadsMax,  // maximal number of threads to launch
 				  updateStatus,   // final boolean     updateStatus,
 				  debugLevel);    // final int         debugLevel);
@@ -11280,11 +11452,12 @@ public class QuadCLTCPU {
 			  final int           scanIndex,
 			  final boolean       save_textures,
 			  final boolean       save_corr,
-//			  final double [][]   mismatch,    // null or double [12][] or [numClusters][] for new LMA
+			  final int           clust_radius,
 			  final int           threadsMax,  // maximal number of threads to launch
 			  final boolean       updateStatus,
 			  final int           debugLevel)
 	  {
+		  final boolean use_tilted = true; // Pass it (and clust_radius?) through scan properties?
 //		  final double [][]   mismatch = null;    // null or double [12][] or [numClusters][] for new LMA
 		  final int dbg_x = -295-debugLevel;
 		  final int dbg_y = -160-debugLevel;
@@ -11329,9 +11502,8 @@ public class QuadCLTCPU {
 				  System.out.println("CLTMeasure("+scanIndex+"): tile_op["+dbg_y+"]["+dbg_x+"] = "+tile_op[dbg_y][dbg_x]);
 			  }
 		  }
-		  double min_corr_selected = clt_parameters.min_corr;
+//		  double min_corr_selected = clt_parameters.min_corr;
 
-//		  double [][] disparity_map = save_corr ? new double [ImageDtt.DISPARITY_TITLES.length][] : null; //[0] -residual disparity, [1] - orthogonal (just for debugging)
 		  double [][] disparity_map = save_corr ? new double [ImageDtt.getDisparityTitles(getNumSensors()).length][] : null; //[0] -residual disparity, [1] - orthogonal (just for debugging)
 
 		  double [][] shiftXY = new double [getNumSensors()][2];
@@ -11371,7 +11543,7 @@ public class QuadCLTCPU {
 				  this.fine_corr[i] = fine_corr0[i];
 			  }
 		  }
-
+		  double [][][] fine_corr =  (clt_parameters.fcorr_ignore? null: this.fine_corr);
 		  int mcorr_sel = ImageDtt. corrSelEncode( // maybe update?
 				  clt_parameters.img_dtt.getMcorrAll  (getNumSensors()),  // boolean sel_all,
 				  clt_parameters.img_dtt.getMcorrDia  (getNumSensors()),  // boolean sel_dia,
@@ -11379,8 +11551,64 @@ public class QuadCLTCPU {
 				  clt_parameters.img_dtt.getMcorrNeib (getNumSensors()),  // boolean sel_neib,
 				  clt_parameters.img_dtt.getMcorrHor  (getNumSensors()),  // boolean sel_hor,
 				  clt_parameters.img_dtt.getMcorrVert (getNumSensors())); // boolean sel_vert);
-		  if (USE_PRE_2021) {
-			  image_dtt.clt_aberrations_quad_corr(
+		  if (clust_radius > 0) {
+			  if (use_tilted) {
+				  image_dtt.clt_aberrations_quad_corr_tilted(
+						  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+						  1,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
+						  tile_op,                      // per-tile operation bit codes
+						  disparity_array,              // clt_parameters.disparity,     // final double            disparity,
+						  image_data,                   // final double [][][]      imade_data, // first index - number of image in a quad
+						  saturation_imp,               // boolean [][] saturation_imp, // (near) saturated pixels or null
+						  // correlation results - final and partial
+						  // 2021 replaced next 3
+						  null,                         // final double [][][][]     clt_corr_out,   // sparse (by the first index) [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] or null
+						  null,                         // final double [][][][]     clt_combo_out,  // sparse (by the first index) [type][tilesY][tilesX][(combo_tile_size] or null
+						  null,                         // final double [][][][]     clt_combo_dbg,  // generate sparse  partial rotated/scaled pairs
+						  //	Use it with disparity_maps[scan_step]?		  clt_mismatch,    // [tp.tilesY][tp.tilesX][pair]{dx,dy,weight}[(2*transform_size-1)*(2*transform_size-1)] // transpose unapplied. null - do not calculate
+						  disparity_map,    // [12][tp.tilesY * tp.tilesX]
+
+						  tilesX * image_dtt.transform_size, // imp_quad[0].getWidth(),       // final int width,
+						  clt_parameters.getFatZero(isMonochrome()),      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
+						  clt_parameters.corr_sym,
+						  clt_parameters.corr_offset,
+						  clt_parameters.corr_red,
+						  clt_parameters.corr_blue,
+						  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
+
+						  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
+						  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
+						  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+						  clt_parameters.kernel_step,
+						  clt_parameters.clt_window,
+						  shiftXY, //
+						  disparity_corr, // final double              disparity_corr, // disparity at infinity
+						  fine_corr,                     // null, // (clt_parameters.fcorr_ignore? null: this.fine_corr),
+//						  clt_parameters.corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
+						  clt_parameters.shift_x,        // final int               shiftX, // shift image horizontally (positive - right) - just for testing
+						  clt_parameters.shift_y,        // final int               shiftY, // shift image vertically (positive - down)
+						  clust_radius,                  // final int                 clustRadius,  // 1 - single tile, 2 - 3x3, 3 - 5x5, ... 
+						  
+						  1.0, // 	final double              arange, // absolute disparity range to consolidate
+						  0.1, // 	final double              rrange, // relative disparity range to consolidate
+						  0.5, // final double              no_tilt, // no tilt if center disparity is lower
+						  0.01, // final double              damp_tilt,    // 0.1?
+
+						  // 2021 new next 5
+						  mcorr_sel, // 	final int                 mcorr_sel,    // Which pairs to correlate // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
+						  clt_parameters.img_dtt.mcorr_comb_width,					// final int                 mcorr_comb_width,  // combined correlation tile width
+						  clt_parameters.img_dtt.mcorr_comb_height,					// final int                 mcorr_comb_height, // combined correlation tile full height
+						  clt_parameters.img_dtt.mcorr_comb_offset,					// final int                 mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
+						  clt_parameters.img_dtt.mcorr_comb_disp,					// final double              mcorr_comb_disp,   // Combined tile per-pixel disparity for baseline == side of a square
+						  clt_parameters.tileX,         // final int               debug_tileX,
+						  clt_parameters.tileY,         // final int               debug_tileY,
+						  (clt_parameters.dbg_mode & 64) != 0, // no fract shift
+						  (clt_parameters.dbg_mode & 128) != 0, // no convolve
+						  threadsMax,
+						  debugLevel);			  
+				  
+			  } else {
+			  image_dtt.clt_aberrations_quad_corr_multi(
 					  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 					  1,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 					  tile_op,                      // per-tile operation bit codes
@@ -11388,12 +11616,13 @@ public class QuadCLTCPU {
 					  image_data,                   // final double [][][]      imade_data, // first index - number of image in a quad
 					  saturation_imp,               // boolean [][] saturation_imp, // (near) saturated pixels or null
 					  // correlation results - final and partial
-					  null, // clt_corr_combo,               // [tp.tilesY][tp.tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
-					  null, // clt_corr_partial,    // [tp.tilesY][tp.tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
-					  null, // mismatch, // null,    // [tp.tilesY][tp.tilesX][pair]{dx,dy,weight}[(2*transform_size-1)*(2*transform_size-1)] // transpose unapplied. null - do not calculate
+					  // 2021 replaced next 3
+					  null,                         // final double [][][][]     clt_corr_out,   // sparse (by the first index) [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] or null
+					  null,                         // final double [][][][]     clt_combo_out,  // sparse (by the first index) [type][tilesY][tilesX][(combo_tile_size] or null
+					  null,                         // final double [][][][]     clt_combo_dbg,  // generate sparse  partial rotated/scaled pairs
 					  //	Use it with disparity_maps[scan_step]?		  clt_mismatch,    // [tp.tilesY][tp.tilesX][pair]{dx,dy,weight}[(2*transform_size-1)*(2*transform_size-1)] // transpose unapplied. null - do not calculate
 					  disparity_map,    // [12][tp.tilesY * tp.tilesX]
-					  texture_tiles,        // [tp.tilesY][tp.tilesX]["RGBA".length()][];
+
 					  tilesX * image_dtt.transform_size, // imp_quad[0].getWidth(),       // final int width,
 					  clt_parameters.getFatZero(isMonochrome()),      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
 					  clt_parameters.corr_sym,
@@ -11401,22 +11630,7 @@ public class QuadCLTCPU {
 					  clt_parameters.corr_red,
 					  clt_parameters.corr_blue,
 					  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
-					  clt_parameters.corr_normalize, // normalize correlation results by rms
-					  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
-					  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
-					  clt_parameters.max_corr_radius,
-					  //				  clt_parameters.enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
-					  //				  clt_parameters.enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
-					  clt_parameters.max_corr_double, // Double pass when masking center of mass to reduce preference for integer values
-					  clt_parameters.corr_mode,     // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
-					  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
-					  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
-					  clt_parameters.diff_sigma,     // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
-					  clt_parameters.diff_threshold, // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
-					  clt_parameters.diff_gauss,     // true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
-					  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-					  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
-					  clt_parameters.keep_weights,   // Add port weights to RGBA stack (debug feature)
+
 					  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
 					  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 					  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
@@ -11424,18 +11638,29 @@ public class QuadCLTCPU {
 					  clt_parameters.clt_window,
 					  shiftXY, //
 					  disparity_corr, // final double              disparity_corr, // disparity at infinity
-					  (clt_parameters.fcorr_ignore? null: this.fine_corr),
-					  clt_parameters.corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
-					  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
-					  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
+					  fine_corr,                     // null, // (clt_parameters.fcorr_ignore? null: this.fine_corr),
+//					  clt_parameters.corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
+					  clt_parameters.shift_x,        // final int               shiftX, // shift image horizontally (positive - right) - just for testing
+					  clt_parameters.shift_y,        // final int               shiftY, // shift image vertically (positive - down)
+					  clust_radius,                  // final int                 clustRadius,  // 1 - single tile, 2 - 3x3, 3 - 5x5, ... 
+					  
+					  1.0, // 	final double              arange, // absolute disparity range to consolidate
+					  0.1, // 	final double              rrange, // relative disparity range to consolidate
+
+					  // 2021 new next 5
+					  mcorr_sel, // 	final int                 mcorr_sel,    // Which pairs to correlate // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
+					  clt_parameters.img_dtt.mcorr_comb_width,					// final int                 mcorr_comb_width,  // combined correlation tile width
+					  clt_parameters.img_dtt.mcorr_comb_height,					// final int                 mcorr_comb_height, // combined correlation tile full height
+					  clt_parameters.img_dtt.mcorr_comb_offset,					// final int                 mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
+					  clt_parameters.img_dtt.mcorr_comb_disp,					// final double              mcorr_comb_disp,   // Combined tile per-pixel disparity for baseline == side of a square
 					  clt_parameters.tileX,         // final int               debug_tileX,
 					  clt_parameters.tileY,         // final int               debug_tileY,
 					  (clt_parameters.dbg_mode & 64) != 0, // no fract shift
 					  (clt_parameters.dbg_mode & 128) != 0, // no convolve
-					  //				  (clt_parameters.dbg_mode & 256) != 0, // transpose convolve
 					  threadsMax,
-					  debugLevel);
-		  } else {
+					  debugLevel);			  
+			  }
+		  } else { // clust_radius
 			  image_dtt.clt_aberrations_quad_corr(
 					  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 					  1,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
@@ -11458,14 +11683,7 @@ public class QuadCLTCPU {
 					  clt_parameters.corr_red,
 					  clt_parameters.corr_blue,
 					  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
-					  clt_parameters.corr_normalize, // normalize correlation results by rms
-					  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
-					  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
-					  clt_parameters.max_corr_radius,
-					  //				  clt_parameters.enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
-					  //				  clt_parameters.enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
-					  clt_parameters.max_corr_double, // Double pass when masking center of mass to reduce preference for integer values
-					  clt_parameters.corr_mode,     // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
+
 					  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
 					  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
 					  clt_parameters.diff_sigma,     // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
@@ -11481,7 +11699,7 @@ public class QuadCLTCPU {
 					  clt_parameters.clt_window,
 					  shiftXY, //
 					  disparity_corr, // final double              disparity_corr, // disparity at infinity
-					  (clt_parameters.fcorr_ignore? null: this.fine_corr),
+					  fine_corr,
 					  clt_parameters.corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
 					  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
 					  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
@@ -11499,11 +11717,12 @@ public class QuadCLTCPU {
 					  threadsMax,
 					  debugLevel);			  
 		  }
-
 		  scan.disparity_map = disparity_map;
 		  scan.texture_tiles = texture_tiles;
 		  scan.is_measured =   true; // but no disparity map/textures
 		  scan.is_combo =      false;
+		  scan.has_lma = null;
+		  scan.getLMA(); // recalculate		  
 		  scan.resetProcessed();
 		  return scan;
 	  }
@@ -11602,122 +11821,61 @@ public class QuadCLTCPU {
 				  clt_parameters.img_dtt.getMcorrNeib (getNumSensors()),  // boolean sel_neib,
 				  clt_parameters.img_dtt.getMcorrHor  (getNumSensors()),  // boolean sel_hor,
 				  clt_parameters.img_dtt.getMcorrVert (getNumSensors())); // boolean sel_vert);
-		  if (USE_PRE_2021) {
-			  image_dtt.clt_aberrations_quad_corr(
-					  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
-					  1,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
-					  tile_op,                      // per-tile operation bit codes
-					  disparity_array,              // clt_parameters.disparity,     // final double            disparity,
-					  image_data,                   // final double [][][]      imade_data, // first index - number of image in a quad
-					  saturation_imp,               // boolean [][] saturation_imp, // (near) saturated pixels or null
-					  // correlation results - final and partial
-					  null, // clt_corr_combo,               // [tp.tilesY][tp.tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
-					  null, // clt_corr_partial,    // [tp.tilesY][tp.tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
-					  null, // mismatch, // null,    // [tp.tilesY][tp.tilesX][pair]{dx,dy,weight}[(2*transform_size-1)*(2*transform_size-1)] // transpose unapplied. null - do not calculate
-					  //	Use it with disparity_maps[scan_step]?		  clt_mismatch,    // [tp.tilesY][tp.tilesX][pair]{dx,dy,weight}[(2*transform_size-1)*(2*transform_size-1)] // transpose unapplied. null - do not calculate
-					  disparity_map,    // [12][tp.tilesY * tp.tilesX]
-					  texture_tiles,        // [tp.tilesY][tp.tilesX]["RGBA".length()][];
-					  tilesX * image_dtt.transform_size, // imp_quad[0].getWidth(),       // final int width,
-					  clt_parameters.getFatZero(isMonochrome()),      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
-					  clt_parameters.corr_sym,
-					  clt_parameters.corr_offset,
-					  clt_parameters.corr_red,
-					  clt_parameters.corr_blue,
-					  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
-					  clt_parameters.corr_normalize, // normalize correlation results by rms
-					  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
-					  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
-					  clt_parameters.max_corr_radius,
-					  clt_parameters.max_corr_double, // Double pass when masking center of mass to reduce preference for integer values
-					  clt_parameters.corr_mode,     // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
-					  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
-					  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
-					  clt_parameters.diff_sigma,     // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
-					  clt_parameters.diff_threshold, // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
-					  clt_parameters.diff_gauss,     // true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
-					  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-					  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
-					  clt_parameters.keep_weights,   // Add port weights to RGBA stack (debug feature)
-					  geometryCorrection,           // final GeometryCorrection  geometryCorrection,
-					  geometryCorrection_main, // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
-					  clt_kernels,                  // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-					  clt_parameters.kernel_step,
-					  clt_parameters.clt_window,
-					  shiftXY, //
-					  disparity_corr, // final double              disparity_corr, // disparity at infinity
-					  (clt_parameters.fcorr_ignore? null: this.fine_corr),
-					  clt_parameters.corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
-					  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
-					  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
-					  clt_parameters.tileX,         // final int               debug_tileX,
-					  clt_parameters.tileY,         // final int               debug_tileY,
-					  (clt_parameters.dbg_mode & 64) != 0, // no fract shift
-					  (clt_parameters.dbg_mode & 128) != 0, // no convolve
-					  //				  (clt_parameters.dbg_mode & 256) != 0, // transpose convolve
-					  threadsMax,
-					  debugLevel);
-		  } else {
-			  image_dtt.clt_aberrations_quad_corr(
-					  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
-					  1,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
-					  tile_op,                      // per-tile operation bit codes
-					  disparity_array,              // clt_parameters.disparity,     // final double            disparity,
-					  image_data,                   // final double [][][]      imade_data, // first index - number of image in a quad
-					  saturation_imp,               // boolean [][] saturation_imp, // (near) saturated pixels or null
-					  // correlation results - final and partial
-						 // 2021 replaced next 3
-					  null,                         // final double [][][][]     clt_corr_out,   // sparse (by the first index) [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] or null
-					  null,                         // final double [][][][]     clt_combo_out,  // sparse (by the first index) [type][tilesY][tilesX][(combo_tile_size] or null
-					  null,                         // final double [][][][]     clt_combo_dbg,  // generate sparse  partial rotated/scaled pairs
-					  //	Use it with disparity_maps[scan_step]?		  clt_mismatch,    // [tp.tilesY][tp.tilesX][pair]{dx,dy,weight}[(2*transform_size-1)*(2*transform_size-1)] // transpose unapplied. null - do not calculate
-					  disparity_map,    // [12][tp.tilesY * tp.tilesX]
-					  texture_tiles,        // [tp.tilesY][tp.tilesX]["RGBA".length()][];
-					  tilesX * image_dtt.transform_size, // imp_quad[0].getWidth(),       // final int width,
-					  clt_parameters.getFatZero(isMonochrome()),      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
-					  clt_parameters.corr_sym,
-					  clt_parameters.corr_offset,
-					  clt_parameters.corr_red,
-					  clt_parameters.corr_blue,
-					  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
-					  clt_parameters.corr_normalize, // normalize correlation results by rms
-					  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
-					  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
-					  clt_parameters.max_corr_radius,
-					  clt_parameters.max_corr_double, // Double pass when masking center of mass to reduce preference for integer values
-					  clt_parameters.corr_mode,     // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
-					  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
-					  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
-					  clt_parameters.diff_sigma,     // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
-					  clt_parameters.diff_threshold, // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
-					  clt_parameters.diff_gauss,     // true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
-					  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-					  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
-					  clt_parameters.keep_weights,   // Add port weights to RGBA stack (debug feature)
-					  geometryCorrection,           // final GeometryCorrection  geometryCorrection,
-					  geometryCorrection_main, // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
-					  clt_kernels,                  // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-					  clt_parameters.kernel_step,
-					  clt_parameters.clt_window,
-					  shiftXY, //
-					  disparity_corr, // final double              disparity_corr, // disparity at infinity
-					  (clt_parameters.fcorr_ignore? null: this.fine_corr),
-					  clt_parameters.corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
-					  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
-					  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
-					  // 2021 new next 5
-					  mcorr_sel, // 	final int                 mcorr_sel,    // Which pairs to correlate // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
-					  clt_parameters.img_dtt.mcorr_comb_width,					// final int                 mcorr_comb_width,  // combined correlation tile width
-					  clt_parameters.img_dtt.mcorr_comb_height,					// final int                 mcorr_comb_height, // combined correlation tile full height
-					  clt_parameters.img_dtt.mcorr_comb_offset,					// final int                 mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
-					  clt_parameters.img_dtt.mcorr_comb_disp,					// final double              mcorr_comb_disp,   // Combined tile per-pixel disparity for baseline == side of a square
-					  clt_parameters.tileX,         // final int               debug_tileX,
-					  clt_parameters.tileY,         // final int               debug_tileY,
-					  (clt_parameters.dbg_mode & 64) != 0, // no fract shift
-					  (clt_parameters.dbg_mode & 128) != 0, // no convolve
-					  //				  (clt_parameters.dbg_mode & 256) != 0, // transpose convolve
-					  threadsMax,
-					  debugLevel);
-		  }
+		  image_dtt.clt_aberrations_quad_corr(
+				  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+				  1,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
+				  tile_op,                      // per-tile operation bit codes
+				  disparity_array,              // clt_parameters.disparity,     // final double            disparity,
+				  image_data,                   // final double [][][]      imade_data, // first index - number of image in a quad
+				  saturation_imp,               // boolean [][] saturation_imp, // (near) saturated pixels or null
+				  // correlation results - final and partial
+				  // 2021 replaced next 3
+				  null,                         // final double [][][][]     clt_corr_out,   // sparse (by the first index) [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] or null
+				  null,                         // final double [][][][]     clt_combo_out,  // sparse (by the first index) [type][tilesY][tilesX][(combo_tile_size] or null
+				  null,                         // final double [][][][]     clt_combo_dbg,  // generate sparse  partial rotated/scaled pairs
+				  //	Use it with disparity_maps[scan_step]?		  clt_mismatch,    // [tp.tilesY][tp.tilesX][pair]{dx,dy,weight}[(2*transform_size-1)*(2*transform_size-1)] // transpose unapplied. null - do not calculate
+				  disparity_map,    // [12][tp.tilesY * tp.tilesX]
+				  texture_tiles,        // [tp.tilesY][tp.tilesX]["RGBA".length()][];
+				  tilesX * image_dtt.transform_size, // imp_quad[0].getWidth(),       // final int width,
+				  clt_parameters.getFatZero(isMonochrome()),      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
+				  clt_parameters.corr_sym,
+				  clt_parameters.corr_offset,
+				  clt_parameters.corr_red,
+				  clt_parameters.corr_blue,
+				  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
+				  
+				  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
+				  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
+				  clt_parameters.diff_sigma,     // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
+				  clt_parameters.diff_threshold, // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
+				  clt_parameters.diff_gauss,     // true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
+				  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+				  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
+				  clt_parameters.keep_weights,   // Add port weights to RGBA stack (debug feature)
+				  geometryCorrection,           // final GeometryCorrection  geometryCorrection,
+				  geometryCorrection_main, // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
+				  clt_kernels,                  // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+				  clt_parameters.kernel_step,
+				  clt_parameters.clt_window,
+				  shiftXY, //
+				  disparity_corr, // final double              disparity_corr, // disparity at infinity
+				  (clt_parameters.fcorr_ignore? null: this.fine_corr),
+				  clt_parameters.corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
+				  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
+				  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
+				  // 2021 new next 5
+				  mcorr_sel, // 	final int                 mcorr_sel,    // Which pairs to correlate // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
+				  clt_parameters.img_dtt.mcorr_comb_width,					// final int                 mcorr_comb_width,  // combined correlation tile width
+				  clt_parameters.img_dtt.mcorr_comb_height,					// final int                 mcorr_comb_height, // combined correlation tile full height
+				  clt_parameters.img_dtt.mcorr_comb_offset,					// final int                 mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
+				  clt_parameters.img_dtt.mcorr_comb_disp,					// final double              mcorr_comb_disp,   // Combined tile per-pixel disparity for baseline == side of a square
+				  clt_parameters.tileX,         // final int               debug_tileX,
+				  clt_parameters.tileY,         // final int               debug_tileY,
+				  (clt_parameters.dbg_mode & 64) != 0, // no fract shift
+				  (clt_parameters.dbg_mode & 128) != 0, // no convolve
+				  //				  (clt_parameters.dbg_mode & 256) != 0, // transpose convolve
+				  threadsMax,
+				  debugLevel);
 		  scan.disparity_map = disparity_map;
 		  scan.texture_tiles = texture_tiles;
 		  scan.is_measured =   true;
@@ -11843,7 +12001,7 @@ public class QuadCLTCPU {
 		  }
 		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
 
-		  if (debugLevel > -5){
+		  if (debugLevel > -3) { // -5){
 			  tp.showScan(
 					  scan,   // CLTPass3d   scan,
 					  "LY-combo_scan-"+scan+"_post"); //String title)
@@ -12852,6 +13010,7 @@ public class QuadCLTCPU {
 						  clt_parameters,
 						  scanIndex,
 						  false,             // final boolean     save_textures,
+						  0,                 // final int         clust_radius,
 						  tp.threadsMax,     // maximal number of threads to launch
 						  false,             // updateStatus,
 						  debugLevelInner -1); // - 1); // -5-1

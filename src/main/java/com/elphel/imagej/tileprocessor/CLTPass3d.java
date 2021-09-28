@@ -64,14 +64,15 @@ public class CLTPass3d{
 		// texture_selection is only used for the GPU and if not null means it is for the GPU
 		public boolean []       texture_selection =    null; // use by the GPU to set texture to generate
 				
-		public  double [][]      max_tried_disparity =  null; //[ty][tx] used for combined passes, shows maximal disparity for this tile, regardless of results
+		public  double [][]     max_tried_disparity =  null; //[ty][tx] used for combined passes, shows maximal disparity for this tile, regardless of results
+		public  int             clust_radius =         0;    // 0 - no clusters, 1 = 1x1 (same as 0, just different program), 2 - 3x3, 3 - 5x5
 		public  boolean         is_combo =             false;
 		public  boolean         is_measured =          false;
 		public  String          texture = null; // relative (to x3d) path
 		public  Rectangle       texture_bounds; // in tiles, not pixels !
 		public  int             dbg_index;
 		public  int             disparity_index =      ImageDtt.DISPARITY_INDEX_CM; // may also be ImageDtt.DISPARITY_INDEX_POLY
-		public   int            lma_disparity_index =  ImageDtt.DISPARITY_INDEX_POLY; // set to -1 to ignore and always use just CM (also applies to lma_strength - next)
+		public  int             lma_disparity_index =  ImageDtt.DISPARITY_INDEX_POLY; // set to -1 to ignore and always use just CM (also applies to lma_strength - next)
 		public double [][]      tiles_RBGA =           null;
 
 		SuperTiles              superTiles = null;
@@ -96,7 +97,14 @@ public class CLTPass3d{
 
 			}
 		}
-
+		public int getClustRadius() {
+			return clust_radius;
+		}
+		
+		public void setClustRadius (int clust_radius) {
+			this.clust_radius = clust_radius;
+		}
+		
 		public TileProcessor getTileProcessor()
 		{
 			return this.tileProcessor;
@@ -606,32 +614,38 @@ public class CLTPass3d{
 				return calc_disparity_combo;
 			}
 		}
+		public double [] getDisparityLMA() {
+			if (calc_disparity == null) conditionDisparity(); // sets has_lma;
+			double [] disparityLMA = calc_disparity.clone();
+			for (int i = 0; i < disparityLMA.length; i++) {
+				if (!has_lma[i]) {
+					disparityLMA[i] = Double.NaN;
+				}
+			}
+			return disparityLMA;
+		}
 
 		// methods to "condition" measured disparity values
 		public void conditionDisparity()
 		{
-/*			
-			conditionDisparity(disparity_index);
-		}
-
-		public void conditionDisparity(int disparity_index) // only called from above
-		{
-*/		
 			int tilesX = tileProcessor.getTilesX();
 			int tilesY = tileProcessor.getTilesY();
 			double corr_magic_scale =     tileProcessor.getMagicScale();
 			double corr_magic_scale_LMA = 1.0;
-//			int lma_disparity_index = ImageDtt.DISPARITY_INDEX_POLY;
-//			this.disparity_index = disparity_index;
 			calc_disparity =      new double[tilesY*tilesX];
 			calc_disparity_hor =  new double[tilesY*tilesX];
 			calc_disparity_vert = new double[tilesY*tilesX];
+			
 			double [] lma_disparity = (lma_disparity_index >= 0) ? disparity_map[lma_disparity_index] : null;
+			double [] lma_strength =  (lma_disparity_index >= 0) ? disparity_map[lma_disparity_index+1] : null;
+			has_lma = (lma_disparity != null) ? new boolean[tilesX * tilesY] : null;
+
 			for (int i = 0; i < tilesY; i++){
 				for (int j = 0; j < tilesX; j++){
 					int indx = i * tilesX + j;
-					if ((lma_disparity != null) && !Double.isNaN(lma_disparity[indx])) {
+					if ((lma_disparity != null) && !Double.isNaN(lma_disparity[indx]) && (lma_strength[indx] > 0.0)) {
 						calc_disparity[indx] =  lma_disparity[indx]/corr_magic_scale_LMA +                            this.disparity[i][j];
+						has_lma[indx] = true;
 					} else {
 						calc_disparity[indx] =  disparity_map[disparity_index][indx]/corr_magic_scale +               this.disparity[i][j];
 					}
@@ -654,10 +668,11 @@ public class CLTPass3d{
 			int tilesX = tileProcessor.getTilesX();
 			int tilesY = tileProcessor.getTilesY();
 			double [] lma_disparity = (lma_disparity_index >= 0) ? disparity_map[lma_disparity_index] : null;
+			double [] lma_strength =  (lma_disparity_index >= 0) ? disparity_map[lma_disparity_index+1] : null;
 			boolean [] lma_defined = new boolean[tilesX * tilesY];
 			if (lma_disparity != null) {
 				for (int i = 0; i < lma_disparity.length; i++) {
-					lma_defined[i] = !Double.isNaN(lma_disparity[i]);
+					lma_defined[i] = !Double.isNaN(lma_disparity[i]) && (lma_strength[i] > 0);
 				}
 			}
 			return lma_defined;

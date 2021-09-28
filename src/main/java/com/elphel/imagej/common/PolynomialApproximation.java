@@ -269,7 +269,7 @@ public class PolynomialApproximation {
 				   this.debugLevel);
 			   }
 
-	   public double [][] quadraticApproximation(
+	   public double [][] quadraticApproximation( // no use
 			   double [][][] data,
 			   boolean forceLinear,  // use linear approximation
 			   int debugLevel
@@ -312,8 +312,8 @@ public class PolynomialApproximation {
 				   1.0E-15,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
 				   this.debugLevel);
 	   }
-
-	   public double [][] quadraticApproximation(
+/*
+	   public double [][] quadraticApproximation( // no use
 			   double [][][] data,
 			   boolean forceLinear,  // use linear approximation
 			   double thresholdLin,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
@@ -328,7 +328,7 @@ public class PolynomialApproximation {
 				   1.0E-15,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
 				   this.debugLevel);
 	   }
-
+*/
 	   public double [][] quadraticApproximation(
 			   double [][][] data,
 			   boolean forceLinear,  // use linear approximation
@@ -441,8 +441,12 @@ public class PolynomialApproximation {
 					   }
 				   }
 			   }
-
-			   int zDim=data[0][1].length;
+			   
+			   int zDim = 0; // =data[0][1].length;
+			   for (int i = 0; i < data.length; i++) if (data[i] != null){
+				   zDim =data[i][1].length;
+				   break;
+			   }
 
 			   double w,z,x,x2,x3,x4,y,y2,y3,y4,wz;
 			   int i,j,n=0;
@@ -465,7 +469,7 @@ public class PolynomialApproximation {
 				   SZ02[i]=0.0;
 				   SZ20[i]=0.0;
 			   }
-			   for (i=0;i<data.length;i++)  {
+			   for (i=0;i<data.length;i++)  if (data[i] != null){
 				   w=(data[i].length>2)? data[i][2][0]:1.0;
 				   if (w>0) {
 					   n++;
@@ -585,7 +589,7 @@ public class PolynomialApproximation {
 			   }
 			   return ABCDEF;
 		   }
-//			calcualte "volume" made of the matrix row-vectors, placed orthogonally
+//			calculate "volume" made of the matrix row-vectors, placed orthogonally
 		// to be compared to determinant
 			public double normMatix(double [][] a) {
 		        double d,norm=1.0;

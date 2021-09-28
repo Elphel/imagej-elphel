@@ -160,7 +160,8 @@ public class EyesisCorrectionParameters {
   		public boolean clt_batch_genMl =      true;  // Generate ML output
   		public boolean clt_batch_dbg1 =       true;  // Generate debug images if a single set is selected
   		public boolean clt_batch_dsi =        true;  // Create and save DSI combo image with the model
-  		public boolean clt_batch_dsi_aux =    false;  // Calculate and save aux camera DSI (currently it is offset from the main/rig data
+		public boolean clt_batch_dsi_aux =    false;  // Calculate and save aux camera DSI (currently it is offset from the main/rig data
+		public boolean clt_batch_dsi_aux_full=false;  // more than just preExpandCLTQuad3d() (same as for Lazy Eye
   		public boolean clt_batch_save_extrinsics =    true;  // Save cameras extrinsic parameters with the model
   		public boolean clt_batch_save_all =    true;  // Save all parameters with the model
 
@@ -302,6 +303,7 @@ public class EyesisCorrectionParameters {
 
   			cp.clt_batch_dsi=    		  this.clt_batch_dsi;
   			cp.clt_batch_dsi_aux=    	  this.clt_batch_dsi_aux;
+  			cp.clt_batch_dsi_aux_full= 	  this.clt_batch_dsi_aux_full;
   			cp.clt_batch_save_extrinsics= this.clt_batch_save_extrinsics;
   			cp.clt_batch_save_all=        this.clt_batch_save_all;
 
@@ -482,6 +484,7 @@ public class EyesisCorrectionParameters {
 
     		properties.setProperty(prefix+"clt_batch_dsi",             this.clt_batch_dsi+"");
     		properties.setProperty(prefix+"clt_batch_dsi_aux",         this.clt_batch_dsi_aux+"");
+    		properties.setProperty(prefix+"clt_batch_dsi_aux_full",    this.clt_batch_dsi_aux_full+"");
     		properties.setProperty(prefix+"clt_batch_save_extrinsics", this.clt_batch_save_extrinsics+"");
     		properties.setProperty(prefix+"clt_batch_save_all",        this.clt_batch_save_all+"");
 
@@ -640,6 +643,7 @@ public class EyesisCorrectionParameters {
 
 			if (properties.getProperty(prefix+"clt_batch_dsi")!= null)             this.clt_batch_dsi=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_dsi"));
 			if (properties.getProperty(prefix+"clt_batch_dsi_aux")!= null)         this.clt_batch_dsi_aux=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_dsi_aux"));
+			if (properties.getProperty(prefix+"clt_batch_dsi_aux_full")!= null)    this.clt_batch_dsi_aux_full=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_dsi_aux_full"));
 			if (properties.getProperty(prefix+"clt_batch_save_extrinsics")!= null) this.clt_batch_save_extrinsics=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_save_extrinsics"));
 			if (properties.getProperty(prefix+"clt_batch_save_all")!= null)        this.clt_batch_save_all=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_save_all"));
 
@@ -1015,6 +1019,10 @@ public class EyesisCorrectionParameters {
     		gd.addCheckbox    ("Include/genarate separate aux camera DSI data in the combo DSI",     this.clt_batch_dsi_aux,
     				"8-rig: DSI for the AUX camera is offset (by the rig baseline) from the main and rig DSI. Aux DSI requires extra processing time."+
     		" EO+LWIR - generate a separate GT+AUX file");
+    		gd.addCheckbox    ("Additional steps to calculate Auf DSI (more than for LY adjustment)",   this.clt_batch_dsi_aux_full,
+    				"(Not yet tested)");
+    		
+    		
     		gd.addCheckbox    ("Save field adjustment data with the model",                          this.clt_batch_save_extrinsics,
     				"This data can be used to restore specific filed-adjusted cameras extrinsics used when the model was generated");
     		gd.addCheckbox    ("Save all parameters with the model",                                 this.clt_batch_save_all,
@@ -1103,6 +1111,7 @@ public class EyesisCorrectionParameters {
     		this.clt_batch_dbg1=         gd.getNextBoolean(); // 29
     		this.clt_batch_dsi=             gd.getNextBoolean();
     		this.clt_batch_dsi_aux=         gd.getNextBoolean();
+    		this.clt_batch_dsi_aux_full=         gd.getNextBoolean();
     		this.clt_batch_save_extrinsics= gd.getNextBoolean();
     		this.clt_batch_save_all=        gd.getNextBoolean();
     		if (clt_parameters != null) {
@@ -1291,6 +1300,10 @@ public class EyesisCorrectionParameters {
     		extensions[0] = sourceSuffix;
     		prefixes[0] =   sourcePrefix;
 			MultipleExtensionsFileFilter setFilter = new MultipleExtensionsFileFilter(prefixes,extensions,"Image sets");
+			MultipleExtensionsFileFilter setFilterMain = new MultipleExtensionsFileFilter(
+					new String[] {prefixes[0]},new String[] {extensions[0]},"Image sets main");
+			MultipleExtensionsFileFilter setFilterAux = new MultipleExtensionsFileFilter(
+					new String[] {prefixes[1]},new String[] {extensions[1]},"Image sets main");
 
 	    	DirectoryChoser dc = new DirectoryChoser(
 	    			setFilter,
@@ -1319,15 +1332,26 @@ public class EyesisCorrectionParameters {
 	    	ArrayList<File>  setFilesList = new ArrayList<File>(); // list of set files
 	    	for (int nFile=0;nFile<files.length;nFile++) {
 //	    		String [] setChnFiles = files[nFile].list(setFilter);
-	    		File [] setChnFiles = files[nFile].listFiles(setFilter);
+	    		File [] setChnFiles =     files[nFile].listFiles(setFilter);
+	    		File [] setMainChnFiles = files[nFile].listFiles(setFilterMain);
+	    		File [] setAuxChnFiles =  files[nFile].listFiles(setFilterAux);
 	    		int num_match = setChnFiles.length;
-	    		if (    (num_match == num_chn_files) || // all files for main and aux
-	    				(num_match == num_chn_main) || // only main camera files
-	    				(num_match == num_chn_aux))   // only aux camera files
-	    				{ // only use sets of exact number of files
+	    		if (num_match == num_chn_files) {
+//	    			|| // all files for main and aux
+//	    				(setMainChnFiles.length == num_chn_main) || // has all needed main camera files
+//	    				(setAuxChnFiles.length == num_chn_aux))   //   has all needed camera files
+//	    				{ // only use sets of exact number of files
 	    			setDirList.add(files[nFile]);
 	    			for (File f: setChnFiles) {
 	    				setFilesList.add(f);
+	    			}
+	    		} else if ((setMainChnFiles.length == num_chn_main) || (setAuxChnFiles.length == num_chn_aux))  {
+	    			setDirList.add(files[nFile]);
+	    			if (setMainChnFiles.length == num_chn_main) {
+		    			for (File f: setMainChnFiles) setFilesList.add(f);
+	    			}
+	    			if (setAuxChnFiles.length == num_chn_aux) {
+		    			for (File f: setAuxChnFiles) setFilesList.add(f);
 	    			}
 	    		}
 	    	}

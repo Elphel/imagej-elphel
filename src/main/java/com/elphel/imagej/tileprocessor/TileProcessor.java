@@ -1062,16 +1062,18 @@ public class TileProcessor {
 		double strength;
 		double adiff;
 		boolean has_lma;
+		int     clust_radius;
 		DSD (int indx){ // only index
 			this.indx =      indx;
 		}
 
-		DSD (int indx, double disparity, double strength,	double adiff, boolean has_lma){
-			this.indx =      indx;
-			this.disparity = disparity;
-			this.strength =  strength;
-			this.adiff =     adiff;
-			this.has_lma =   has_lma;
+		DSD (int indx, double disparity, double strength,	double adiff, boolean has_lma, int clust_radius){
+			this.indx =         indx;
+			this.disparity =    disparity;
+			this.strength =     strength;
+			this.adiff =        adiff;
+			this.has_lma =      has_lma;
+			this.clust_radius = clust_radius;
 		}
 	}
 
@@ -1088,10 +1090,13 @@ public class TileProcessor {
 		
 		// if there is at least one with lma - remove all without lma measurements
 		boolean some_lma = false;
+		int     best_clust_radius = 1000000;
 		for (DSD dsd : src_list) {
-			some_lma |= dsd.has_lma;
-			if (some_lma) {
-				break;
+			if (dsd.has_lma) {
+				if (!some_lma || (dsd.clust_radius < best_clust_radius)) {
+					best_clust_radius = dsd.clust_radius;
+				}
+				some_lma = true;
 			}
 		}
 		
@@ -1099,7 +1104,7 @@ public class TileProcessor {
 			int best_indx = 0;
 			for (int i = 1; i < list_in.size(); i++) {
 				DSD dsd = list_in.get(i);
-				if (dsd.has_lma | !some_lma) {
+				if (!some_lma || (dsd.has_lma && (dsd.clust_radius == best_clust_radius))) {
 					if 	(dsd.adiff < list_in.get(best_indx).adiff) {
 						best_indx = i;
 					}
@@ -1110,7 +1115,7 @@ public class TileProcessor {
 			
 			ArrayList<DSD> list_remain = new ArrayList<DSD>();
 			for (DSD dsd: list_in) {
-				if (dsd.has_lma | !some_lma) {
+				if (!some_lma || (dsd.has_lma && (dsd.clust_radius == best_clust_radius))) {
 					if (Math.abs(best_dsd.disparity - dsd.disparity) > disp_tolerance) {
 						list_remain.add(dsd);
 					}
@@ -1273,6 +1278,7 @@ public class TileProcessor {
 						double strongest_weak_hor =  0.0;
 						double strongest_weak_vert = 0.0;
 						boolean use_lma =            false; // tile has at least one LMA-measured scan
+						int    best_lma =            1000000; // larger than any, the smaller - the better
 
 						combo_pass0.max_tried_disparity[ty][tx] = Double.NaN;
 						if (nt == dbg_tile) {
@@ -1292,6 +1298,7 @@ public class TileProcessor {
 										(pass.disparity[ty][tx] > combo_pass0.max_tried_disparity[ty][tx]))){
 									combo_pass0.max_tried_disparity[ty][tx] = pass.disparity[ty][tx];
 								}
+								int clust_radius = pass.getClustRadius();
 								boolean last = (ipass == (lastPassPlus1-1)) && use_last;
 								double [] mdisp_lma_arr = pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY];
 								boolean m_lma =        (mdisp_lma_arr != null) && !Double.isNaN(mdisp_lma_arr[nt]);
@@ -1299,8 +1306,11 @@ public class TileProcessor {
 									// should not, but may happen that closer measurement will not result in LMA while some other (stray?) did
 									continue;
 								}
-								boolean first_lma = !use_lma && m_lma;
-								use_lma = m_lma;
+								boolean first_lma = m_lma && (!use_lma ||  (clust_radius < best_lma));
+								if (first_lma) {
+									use_lma = true;
+//									best_lma = clust_radius;
+								}
 								double mdisp =         m_lma?
 										mdisp_lma_arr[nt] : pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nt];
 								double corr_magic = m_lma ? corr_magic_scale_lma : corr_magic_scale;
@@ -1325,11 +1335,11 @@ public class TileProcessor {
 										//							if ((bg_tiles == null) || !bg_tiles[nt] || (disp >= ex_min_over)) {
 										if ((disp >= disp_far) && (disp <= disp_near) && !Double.isNaN(adiff)){
 											if (m_lma || (strength >= minStrength)) {
-												if (first_lma || !(adiff >= adiff_best)){ // adiff_best == Double.NaN works too
+												if (first_lma || ((!use_lma || (best_lma == clust_radius)) && !(adiff >= adiff_best))){ // adiff_best == Double.NaN works too
 													adiff_best = adiff;
 													best_index = ipass;
 												}
-												full_list.add(new DSD(ipass, disp, strength,  adiff, m_lma));
+												full_list.add(new DSD(ipass, disp, strength,  adiff, m_lma, clust_radius));
 											} else {
 												if ((last && (strength > 0.0)) || (!no_weak && (strength > strongest_weak))){
 													strongest_weak = strength; // definitely not LMA
@@ -1348,7 +1358,7 @@ public class TileProcessor {
 													adiff_best_hor = adiff_hor;
 													best_index_hor = ipass;
 												}
-												hor_list.add(new DSD(ipass, disp_hor, strength_hor,  adiff_hor, false)); // hor_lma not yet defined
+												hor_list.add(new DSD(ipass, disp_hor, strength_hor,  adiff_hor, false, 0)); // hor_lma not yet defined
 											} else {
 												if ((last && (strength_hor > 0.0))  || (!no_weak && (strength_hor > strongest_weak_hor))){
 													strongest_weak_hor = strength_hor;
@@ -1366,7 +1376,7 @@ public class TileProcessor {
 													adiff_best_vert = adiff_vert;
 													best_index_vert = ipass;
 												}
-												vert_list.add(new DSD(ipass, disp_vert, strength_vert,  adiff_vert, false)); // vert_lma not yet defined
+												vert_list.add(new DSD(ipass, disp_vert, strength_vert,  adiff_vert, false, 0)); // vert_lma not yet defined
 											} else {
 												if ((last && (strength_vert > 0.0))  || (!no_weak && (strength_vert > strongest_weak_vert))){
 													strongest_weak_vert = strength_vert;
@@ -1539,6 +1549,7 @@ ImageDtt.startAndJoin(threads);
 			 final ArrayList <CLTPass3d> passes,
 			 final int                   firstPass,
 			 final int                   lastPassPlus1,
+			 final double                degrade_no_data, // if >=0 will expand without any measurements, using scaled down strength 
 			 final double                disp_avg_arange, // average neighbors with disparity not more than that from the lowest 
 			 final double                disp_avg_rrange, // same, relative to disparity
 			 final double                disp_arange,     // look for a fit within range from the neighbor 
@@ -1603,6 +1614,7 @@ ImageDtt.startAndJoin(threads);
 							if (num_neibs >= min_defined) {
 								//min_defined
 								double avg_lma = swd/sw;
+								sw /= num_neibs;
 								// Now find "best fit": smallest residual within range
 								double drange = Math.max(disp_arange, disp_rrange * avg_lma);
 								int best_index = -1;
@@ -1641,6 +1653,10 @@ ImageDtt.startAndJoin(threads);
 									}
 									combo_pass.calc_disparity[nt] =  pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nt]/corr_magic_scale +  pass.disparity[ty][tx];
 									combo_pass.strength[nt] =        pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nt];
+								} else if (degrade_no_data >= 0) {
+									added_defined[nt] = true;
+									combo_pass.calc_disparity[nt] =  avg_lma;
+									combo_pass.strength[nt] =        sw * degrade_no_data;
 								}
 							}
 						}
@@ -1659,7 +1675,119 @@ ImageDtt.startAndJoin(threads);
 		return num_new; // combo_pass_list;
 	}
 
-	
+	public int expandCertainMulti ( 
+	 CLTPass3d             combo_pass, // modify
+	 ArrayList <CLTPass3d> passes,
+	 int                   firstPass,
+	 int                   lastPassPlus1,
+	 double                disp_avg_arange1, // average neighbors with disparity not more than that from the lowest 
+	 double                disp_avg_rrange1, // same, relative to disparity
+	 double                disp_avg_arange2, // average neighbors with disparity not more than that from the lowest 
+	 double                disp_avg_rrange2, // same, relative to disparity
+	 double                disp_arange,     // look for a fit within range from the neighbor 
+	 double                disp_rrange,     // same, relative to disparity
+	 String                title_prefix,
+	 int                   debugLevel) // 1 - show results 2 - show stages 3 - show all 
+	{
+		int num_new = 0;
+		if (title_prefix == null) {
+			title_prefix = "";
+		}
+		  combo_pass.setSelected(combo_pass.getLMA().clone()); // store original LMA
+		  
+		  if (debugLevel > 0) showScan(
+				  combo_pass, // CLTPass3d   scan,
+				  title_prefix+"before_expandCertainMulti-"+passes.size());
+		  
+		  
+		  for (int nexpand = 0; nexpand < 100; nexpand++) { // will break
+			  int num_added = expandCertain (
+					  combo_pass,       // final CLTPass3d             combo_pass, // modify
+					  passes,           // final ArrayList <CLTPass3d> passes,
+					  firstPass,        // final int                   firstPass,
+					  passes.size(),    // final int                   lastPassPlus1,
+					  -1.0,             // final double                degrade_no_data, // if >=0 will expand without any measurements, using scaled down strength 
+					  disp_avg_arange1, // final int                   disp_avg_arange, // average neighbors with disparity not more than that from the lowest 
+					  disp_avg_rrange1, // final int                   disp_avg_rrange, // same, relative to disparity
+					  disp_arange,      // final int                   disp_arange,     // look for a fit within range from the neighbor 
+					  disp_rrange,      // final int                   disp_rrange,     // same, relative to disparity
+					  2,                // final int                   min_defined,     // minimal number of defined neighbors that fit into the range
+					  getTrustedCorrelation(), // final double                trustedCorrelation,
+					  getMaxOverexposure(),    // final double                max_overexposure,
+					  -1); // debugLevel); // final int                   debugLevel)
+			  if (num_added==0) {
+				  break;
+			  }
+			  num_new += num_added;
+			  if (debugLevel > 2) showScan(
+					  combo_pass, // CLTPass3d   scan,
+					  title_prefix+"expanded1-"+nexpand+"-added-"+num_added);
+		  }
+		  if (debugLevel > 1) showScan(
+				  combo_pass, // CLTPass3d   scan,
+				  title_prefix+"after_expandedCertain1-"+passes.size());
+		  for (int nexpand = 0; nexpand < 50; nexpand++) {
+			  int num_added = expandCertain (
+					  combo_pass,       // final CLTPass3d             combo_pass, // modify
+					  passes,           // final ArrayList <CLTPass3d> passes,
+					  firstPass,        // final int                   firstPass,
+					  passes.size(),    // final int                   lastPassPlus1,
+					  0.5,             // final double                degrade_no_data, // if >=0 will expand without any measurements, using scaled down strength 
+					  disp_avg_arange2, // final int                   disp_avg_arange, // average neighbors with disparity not more than that from the lowest 
+					  disp_avg_rrange2, // final int                   disp_avg_rrange, // same, relative to disparity
+					  disp_arange,      // final int                   disp_arange,     // look for a fit within range from the neighbor 
+					  disp_rrange,      // final int                   disp_rrange,     // same, relative to disparity
+					  2,                // final int                   min_defined,     // minimal number of defined neighbors that fit into the range
+					  getTrustedCorrelation(), // final double                trustedCorrelation,
+					  getMaxOverexposure(),    // final double                max_overexposure,
+					  -1); // debugLevel); // final int                   debugLevel)
+			  if (num_added==0) {
+				  break;
+			  }
+			  num_new += num_added;
+			  if (debugLevel > 2) showScan(
+					  combo_pass, // CLTPass3d   scan,
+					  title_prefix+"expanded2-"+nexpand+"-added-"+num_added);
+		  }
+		  if (debugLevel > 1) showScan(
+				  combo_pass, // CLTPass3d   scan,
+				  title_prefix+"after_expandedAll1-"+passes.size());
+		  
+		  for (int nexpand = 0; nexpand < 50; nexpand++) {
+			  int num_added = expandCertain (
+					  combo_pass,       // final CLTPass3d             combo_pass, // modify
+					  passes,           // final ArrayList <CLTPass3d> passes,
+					  firstPass,        // final int                   firstPass,
+					  passes.size(),    // final int                   lastPassPlus1,
+					  0.5,             // final double                degrade_no_data, // if >=0 will expand without any measurements, using scaled down strength 
+					  disp_avg_arange2, // final int                   disp_avg_arange, // average neighbors with disparity not more than that from the lowest 
+					  disp_avg_rrange2, // final int                   disp_avg_rrange, // same, relative to disparity
+					  disp_arange,      // final int                   disp_arange,     // look for a fit within range from the neighbor 
+					  disp_rrange,      // final int                   disp_rrange,     // same, relative to disparity
+					  1,                // final int                   min_defined,     // minimal number of defined neighbors that fit into the range
+					  getTrustedCorrelation(), // final double                trustedCorrelation,
+					  getMaxOverexposure(),    // final double                max_overexposure,
+					  -1); // debugLevel); // final int                   debugLevel)
+			  if (num_added==0) {
+				  break;
+			  }
+			  num_new += num_added;
+			  if (debugLevel > 2) showScan(
+					  combo_pass, // CLTPass3d   scan,
+					  title_prefix+"expanded2-"+nexpand+"-added-"+num_added);
+		  }
+		  if (debugLevel > 1) showScan(
+				  combo_pass, // CLTPass3d   scan,
+				  title_prefix+"after_expandedAll2-"+passes.size());
+		  combo_pass.setLMA(combo_pass.getSelected()); // restore original LMA
+		  if (debugLevel > 0) showScan(
+				  combo_pass, // CLTPass3d   scan,
+				  title_prefix+"after_restoredLMA-"+passes.size());
+		
+		
+		return num_new;
+	}
+
 	
 	
 	
@@ -2333,6 +2461,7 @@ ImageDtt.startAndJoin(threads);
 			 final ArrayList <CLTPass3d> passes,
 			 final int                   firstPass,
 			 final int                   lastPassPlus1,
+			 final int                   clust_radius,     // 0 - initial single-tile, 1 - 1x1 (same), 2 - 3x3, 3 5x5
 			 final CLTPass3d             new_scan,
 			 final double                grow_disp_max,
 			 final double                unique_tolerance,
@@ -2354,7 +2483,7 @@ ImageDtt.startAndJoin(threads);
 					total ++;
 					for (int ipass = firstPass;  ipass <lastPassPlus1; ipass++ ){
 						CLTPass3d pass = passes.get(ipass);
-						if ((pass.tile_op[ty][tx] != 0) && pass.isMeasured()){
+						if ((pass.tile_op[ty][tx] != 0) && pass.isMeasured() && (pass.getClustRadius() == clust_radius)){
 							// Double.isNaN should not happen
 							if (     Double.isNaN(pass.disparity[ty][tx]) ||
 									(Math.abs(new_scan.disparity[ty][tx] - pass.disparity[ty][tx]) < unique_tolerance) ||
@@ -2625,6 +2754,7 @@ ImageDtt.startAndJoin(threads);
 						passes, // clt_3d_passes,       // final ArrayList <CLTPass3d> passes,
 						firstPass,           //  final int                   firstPass,
 						lastPassPlus1, // clt_3d_passes.size(),// last_scan,           // - 1,                   //  final int                   lastPassPlus1,
+						0, // 	 final int                   clust_radius,     // 0 - initial single-tile, 1 - 1x1 (same), 2 - 3x3, 3 5x5
 						scan,                //clt_3d_passes.get(refine_pass), //  final CLTPass3d             new_scan,
 						grow_disp_max,       // final double                grow_disp_max,
 						unique_tolerance,    //  final double                unique_tolerance,
@@ -3369,6 +3499,18 @@ ImageDtt.startAndJoin(threads);
 			ds[1] = dbg_img[6]; // final strength
 		}
 		return ds;
+	}
+	public double [][] getDSLMA(
+			CLTPass3d   scan,
+			boolean use_final)
+	{
+		double [] disparity =    scan.getDisparity(use_final?0:1);
+		double [] disparityLMA = scan.getDisparityLMA();
+		if (!use_final) {
+			scan.setStrength(null);
+		}
+		double [] strength =     scan.getStrength();
+		return new double [][] {disparity, strength, disparityLMA}; 
 	}
 
 	// TODO: update for variable length
@@ -5569,9 +5711,65 @@ ImageDtt.startAndJoin(threads);
 		return null;
 	}
 
+	public CLTPass3d refinePassSetupMulti( // prepare tile tasks for the second pass based on the previous one(s)
+			CLTPass3d         combo_pass,
+			int               clust_radius,     // 0 - initial single-tile, 1 - 1x1 (same), 2 - 3x3, 3 5x5
+			int               shrink_from_defined,
+			final int         threadsMax,  // maximal number of threads to launch
+			final boolean     updateStatus,
+			final int         debugLevel) {
+		CLTPass3d scan_next =new CLTPass3d(this);
+		double [] prev_disparity = combo_pass.getDisparity(1); // (0) - calc_disparity_combo - wrong
+		boolean [] has_lma = combo_pass.getLMA().clone();
+		if (clust_radius < 1) {
+			throw new IllegalArgumentException ("refinePassSetupMulti(): clust_radius should be >0, it is "+clust_radius);
+		}
+		
+		growTiles(
+				2 * (shrink_from_defined), // clust_radius - 1),   // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				has_lma,                  // boolean [] tiles,
+				null);                    // boolean [] prohibit)
+
+		boolean [] need_meas = new boolean [has_lma.length];
+		for (int i = 0; i < need_meas.length; i++) need_meas[i] = !has_lma[i];
+
+		growTiles(
+				2 ,                       // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				has_lma,                  // boolean [] tiles,
+				null);                    // boolean [] prohibit)
+		
+		
+		double [][] disparityTask = new double [tilesY][tilesX];
+		int [][]    tile_op =       new int [tilesY][tilesX];
+		boolean [] borderTiles =    new boolean[tilesY*tilesX]; // to zero alpha in the images
+		int op = ImageDtt.setImgMask(0, 0xf);
+		op =     ImageDtt.setPairMask(op,0xf);
+		op =     ImageDtt.setForcedDisparity(op,true);
+		for (int ty = 0; ty < tilesY; ty++) for (int tx = 0; tx <tilesX; tx++){
+			int indx =  tilesX * ty + tx;
+			if ( need_meas[indx]) {
+				borderTiles[indx] =  has_lma[indx];
+				disparityTask[ty][tx] = prev_disparity[indx];
+				tile_op[ty][tx] = op;
+			} else {
+				disparityTask[ty][tx] = 0.0;
+				tile_op[ty][tx] = 0;
+				borderTiles[indx] = false;
+			}
+		}
+		scan_next.setClustRadius(clust_radius);
+		scan_next.disparity =     disparityTask;
+		scan_next.tile_op =       tile_op;
+		scan_next.setBorderTiles (borderTiles);
+		scan_next.setSelected(need_meas); // includes border_tiles
+		return scan_next;
+	}
+	
+		
 
 	public CLTPass3d refinePassSetup( // prepare tile tasks for the second pass based on the previous one(s)
 			CLTParameters           clt_parameters,
+			int               clust_radius,     // 0 - initial single-tile, 1 - 1x1 (same), 2 - 3x3, 3 5x5
 			boolean           use_supertiles,   // false (2018)
 			int               bg_scan_index,    // 0
 			double            disparity_far,    // 0.3

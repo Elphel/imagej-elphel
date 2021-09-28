@@ -3234,27 +3234,47 @@ public class QuadCLT extends QuadCLTCPU {
 		  return imp_texture_full;
 
 	  }
-	
-// Resore to CLTMeasureCorr when done testing	  
+
 	  public CLTPass3d  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity // not used in lwir
 			  CLTParameters     clt_parameters,
 			  final int         scanIndex,
 			  final boolean     save_textures,
+//			  final int         clust_rasius,
+			  final int         threadsMax,  // maximal number of threads to launch
+			  final boolean     updateStatus,
+			  final int         debugLevel) {
+		  return  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity // not used in lwir
+				  clt_parameters,
+				  scanIndex,
+				  save_textures,
+				  0, // clust_radius,
+				  threadsMax,  // maximal number of threads to launch
+				  updateStatus,
+				  debugLevel);
+	  }
+	  
+	  
+	  public CLTPass3d  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity // not used in lwir
+			  CLTParameters     clt_parameters,
+			  final int         scanIndex,
+			  final boolean     save_textures,
+			  final int         clust_radius,
 			  final int         threadsMax,  // maximal number of threads to launch
 			  final boolean     updateStatus,
 			  final int         debugLevel)
 	  {
 		  if ((gpuQuad == null) || !(isAux()?clt_parameters.gpu_use_aux : clt_parameters.gpu_use_main)) {
+			  // TODO: implement clust_radius for GPU !
 			  return super.CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity
 					  clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 					  scanIndex,      // final int         scanIndex,
 					  save_textures,  // final boolean     save_textures,
+					  clust_radius,   // final int         clust_radius,
 					  threadsMax,     // final int         threadsMax,  // maximal number of threads to launch
 					  updateStatus,   // final boolean     updateStatus,
 					  debugLevel);    // final int         debugLevel);
 		  }
 		  // GPU will not use textures. Maybe set texture_selection instead?
-//		  final int transform_size =clt_parameters.transform_size;
 		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
 		  final int tilesX = tp.getTilesX();
 		  final int tilesY = tp.getTilesY();
@@ -3271,20 +3291,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  }
 			  }
 		  }
-//		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
 		  double [][] disparity_map = new double [ImageDtt.getDisparityTitles(getNumSensors()).length][];
-		  /*
-		  double [][] shiftXY = new double [4][2];
-		  // not used
-		  if (!clt_parameters.fine_corr_ignore) {
-			  double [][] shiftXY0 = {
-					  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
-					  {clt_parameters.fine_corr_x_1,clt_parameters.fine_corr_y_1},
-					  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
-					  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
-			  shiftXY = shiftXY0;
-		  }
-          */
 		  ImageDtt image_dtt = new ImageDtt(
 				  getNumSensors(),
 				  clt_parameters.transform_size,
@@ -3305,67 +3312,126 @@ public class QuadCLT extends QuadCLTCPU {
 				  ImageDtt.BITS_ALL_DISPARITIES |
 				  ImageDtt.BITS_ALL_DIFFS | // needs max_diff?
 				  ImageDtt.BITS_OVEREXPOSED; //  |
-//				  ImageDtt.BITS_TONE_RGB;
+		  if (clust_radius > 0) { 
+			  image_dtt.clt_aberrations_quad_corr_GPU( // USED in LWIR
+					  clt_parameters.img_dtt,        // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+					  1,                             // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
+					  tile_op,                       // per-tile operation bit codes
+					  disparity_array,               // clt_parameters.disparity,     // final double            disparity,
+					  null,							 // final float  [][][][]     corr_td,         // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
+					  null, 						 //	final float  [][][][]     corr_combo_td,   // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: qud, cross, hor,vert
+					  // each of the top elements may be null to skip particular combo type
+					  null,                          // final float  [][][][]     fdisp_dist,      // [tilesY][tilesX][cams][4], // disparity derivatives vectors or null
+					  null,                          //	final float  [][][][]     fpxpy,           // [tilesY][tilesX][cams][2], tile {pX,pY}
+					  //// Uses quadCLT from gpuQuad			
+					  // correlation results - final and partial
+					  null,                          // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					  // [type][tilesY][tilesX] should be set by caller
+					  // types: 0 - selected correlation (product+offset), 1 - sum
+					  null,                          // clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					  // [tilesY][tilesX] should be set by caller
+					  // When clt_mismatch is non-zero, no far objects extraction will be attempted
+					  null,                          // clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
+					  // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
+					  disparity_map,                 // disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+					  // last 2 - contrast, avg/ "geometric average)
+					  disparity_modes,               // disparity_modes, // bit mask of disparity_map slices to calculate/return
 
-		  image_dtt.clt_aberrations_quad_corr_GPU( // USED in LWIR
-				  clt_parameters.img_dtt,        // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
-				  1,                             // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
-				  tile_op,                       // per-tile operation bit codes
-				  disparity_array,               // clt_parameters.disparity,     // final double            disparity,
-				  null,							 // final float  [][][][]     corr_td,         // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
-				  null, 						 //	final float  [][][][]     corr_combo_td,   // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: qud, cross, hor,vert
-					                             // each of the top elements may be null to skip particular combo type
-				  null,                          // final float  [][][][]     fdisp_dist,      // [tilesY][tilesX][cams][4], // disparity derivatives vectors or null
-				  null,                          //	final float  [][][][]     fpxpy,           // [tilesY][tilesX][cams][2], tile {pX,pY}
-				  //// Uses quadCLT from gpuQuad			
-				                                 // correlation results - final and partial
-				  null,                          // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
-				                                 // [type][tilesY][tilesX] should be set by caller
-				                                 // types: 0 - selected correlation (product+offset), 1 - sum
-				  null,                          // clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
-				                                 // [tilesY][tilesX] should be set by caller
-				                                 // When clt_mismatch is non-zero, no far objects extraction will be attempted
-				  null,                          // clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
-				                                 // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
-				  disparity_map,                 // disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
-				                                 // last 2 - contrast, avg/ "geometric average)
-				  disparity_modes,               // disparity_modes, // bit mask of disparity_map slices to calculate/return
-					
-				  null,                          // 	final double [][][][]     texture_tiles,   // compatible with the CPU ones      
-				  null, // texture_img,          // texture_img,     // null or [3][] (RGB) or [4][] RGBA
-				  null, // texture_woi,          // texture_woi,     // null or generated texture location/size
-				  null,                          //  iclt_fimg,       // will return quad images or null to skip, use quadCLT.linearStackToColor 
-					// new parameters, will replace some other?
-//				  clt_parameters.getFatZero(isMonochrome()),      // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
-				  clt_parameters.gpu_corr_scale, //  gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
-				  clt_parameters.getGpuFatZero(isMonochrome()), // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
-				  clt_parameters.gpu_sigma_r,    // 0.9, 1.1
-				  clt_parameters.gpu_sigma_b,    // 0.9, 1.1
-				  clt_parameters.gpu_sigma_g,    // 0.6, 0.7
-				  clt_parameters.gpu_sigma_m,    //  =       0.4; // 0.7;
-				  (isMonochrome()? 1.0 : clt_parameters.gpu_sigma_rb_corr), // final double              gpu_sigma_rb_corr, //  = 0.5; // apply LPF after accumulating R and B correlation before G, monochrome ? 1.0 : gpu_sigma_rb_corr;
-				  clt_parameters.gpu_sigma_corr, //  =    0.9;gpu_sigma_corr_m
-				  image_dtt.transform_size - 1, // clt_parameters.gpu_corr_rad,   // = transform_size - 1 ?
-				  clt_parameters.corr_red,       // +used
-				  clt_parameters.corr_blue,      // +used
-				  clt_parameters.max_corr_radius,// 3.9;
-				  clt_parameters.corr_mode,      // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
-				  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
-				  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
-				  clt_parameters.diff_sigma,     // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
-				  clt_parameters.diff_threshold, // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
-				  clt_parameters.diff_gauss,     // true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
-				  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-				  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
-				  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
-				  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
-				  clt_parameters.clt_window,
-				  disparity_corr,                // final double              disparity_corr, // disparity at infinity
-				  clt_parameters.tileX,          // final int               debug_tileX,
-				  clt_parameters.tileY,          // final int               debug_tileY,
-				  threadsMax,
-				  debugLevel);
-		  
+					  null,                          // 	final double [][][][]     texture_tiles,   // compatible with the CPU ones      
+					  null, // texture_img,          // texture_img,     // null or [3][] (RGB) or [4][] RGBA
+					  null, // texture_woi,          // texture_woi,     // null or generated texture location/size
+					  null,                          //  iclt_fimg,       // will return quad images or null to skip, use quadCLT.linearStackToColor 
+					  // new parameters, will replace some other?
+					  //				  clt_parameters.getFatZero(isMonochrome()),      // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
+					  clt_parameters.gpu_corr_scale, //  gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
+					  clt_parameters.getGpuFatZero(isMonochrome()), // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
+					  clt_parameters.gpu_sigma_r,    // 0.9, 1.1
+					  clt_parameters.gpu_sigma_b,    // 0.9, 1.1
+					  clt_parameters.gpu_sigma_g,    // 0.6, 0.7
+					  clt_parameters.gpu_sigma_m,    //  =       0.4; // 0.7;
+					  (isMonochrome()? 1.0 : clt_parameters.gpu_sigma_rb_corr), // final double              gpu_sigma_rb_corr, //  = 0.5; // apply LPF after accumulating R and B correlation before G, monochrome ? 1.0 : gpu_sigma_rb_corr;
+					  clt_parameters.gpu_sigma_corr, //  =    0.9;gpu_sigma_corr_m
+					  image_dtt.transform_size - 1, // clt_parameters.gpu_corr_rad,   // = transform_size - 1 ?
+					  clt_parameters.corr_red,       // +used
+					  clt_parameters.corr_blue,      // +used
+					  clt_parameters.max_corr_radius,// 3.9;
+					  clt_parameters.corr_mode,      // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
+					  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
+					  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
+					  clt_parameters.diff_sigma,     // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
+					  clt_parameters.diff_threshold, // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
+					  clt_parameters.diff_gauss,     // true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
+					  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+					  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
+					  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
+					  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
+					  clt_parameters.clt_window,
+					  disparity_corr,                // final double              disparity_corr, // disparity at infinity
+					  clt_parameters.tileX,          // final int               debug_tileX,
+					  clt_parameters.tileY,          // final int               debug_tileY,
+					  threadsMax,
+					  debugLevel);
+			  
+		  } else {
+			  image_dtt.clt_aberrations_quad_corr_GPU( // USED in LWIR
+					  clt_parameters.img_dtt,        // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+					  1,                             // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
+					  tile_op,                       // per-tile operation bit codes
+					  disparity_array,               // clt_parameters.disparity,     // final double            disparity,
+					  null,							 // final float  [][][][]     corr_td,         // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
+					  null, 						 //	final float  [][][][]     corr_combo_td,   // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: qud, cross, hor,vert
+					  // each of the top elements may be null to skip particular combo type
+					  null,                          // final float  [][][][]     fdisp_dist,      // [tilesY][tilesX][cams][4], // disparity derivatives vectors or null
+					  null,                          //	final float  [][][][]     fpxpy,           // [tilesY][tilesX][cams][2], tile {pX,pY}
+					  //// Uses quadCLT from gpuQuad			
+					  // correlation results - final and partial
+					  null,                          // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					  // [type][tilesY][tilesX] should be set by caller
+					  // types: 0 - selected correlation (product+offset), 1 - sum
+					  null,                          // clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					  // [tilesY][tilesX] should be set by caller
+					  // When clt_mismatch is non-zero, no far objects extraction will be attempted
+					  null,                          // clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
+					  // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
+					  disparity_map,                 // disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+					  // last 2 - contrast, avg/ "geometric average)
+					  disparity_modes,               // disparity_modes, // bit mask of disparity_map slices to calculate/return
+
+					  null,                          // 	final double [][][][]     texture_tiles,   // compatible with the CPU ones      
+					  null, // texture_img,          // texture_img,     // null or [3][] (RGB) or [4][] RGBA
+					  null, // texture_woi,          // texture_woi,     // null or generated texture location/size
+					  null,                          //  iclt_fimg,       // will return quad images or null to skip, use quadCLT.linearStackToColor 
+					  // new parameters, will replace some other?
+					  //				  clt_parameters.getFatZero(isMonochrome()),      // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
+					  clt_parameters.gpu_corr_scale, //  gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
+					  clt_parameters.getGpuFatZero(isMonochrome()), // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
+					  clt_parameters.gpu_sigma_r,    // 0.9, 1.1
+					  clt_parameters.gpu_sigma_b,    // 0.9, 1.1
+					  clt_parameters.gpu_sigma_g,    // 0.6, 0.7
+					  clt_parameters.gpu_sigma_m,    //  =       0.4; // 0.7;
+					  (isMonochrome()? 1.0 : clt_parameters.gpu_sigma_rb_corr), // final double              gpu_sigma_rb_corr, //  = 0.5; // apply LPF after accumulating R and B correlation before G, monochrome ? 1.0 : gpu_sigma_rb_corr;
+					  clt_parameters.gpu_sigma_corr, //  =    0.9;gpu_sigma_corr_m
+					  image_dtt.transform_size - 1, // clt_parameters.gpu_corr_rad,   // = transform_size - 1 ?
+					  clt_parameters.corr_red,       // +used
+					  clt_parameters.corr_blue,      // +used
+					  clt_parameters.max_corr_radius,// 3.9;
+					  clt_parameters.corr_mode,      // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
+					  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
+					  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
+					  clt_parameters.diff_sigma,     // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
+					  clt_parameters.diff_threshold, // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
+					  clt_parameters.diff_gauss,     // true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
+					  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+					  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
+					  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
+					  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
+					  clt_parameters.clt_window,
+					  disparity_corr,                // final double              disparity_corr, // disparity at infinity
+					  clt_parameters.tileX,          // final int               debug_tileX,
+					  clt_parameters.tileY,          // final int               debug_tileY,
+					  threadsMax,
+					  debugLevel);
+		  }	  
  		  scan.disparity_map = disparity_map;
 		  scan.texture_tiles = null;
 		  scan.setTextureSelection(tex_sel);
@@ -4123,6 +4189,7 @@ public class QuadCLT extends QuadCLTCPU {
 					  clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 					  scanIndex,      // final int         scanIndex,
 					  save_textures,  // final boolean     save_textures,
+					  0,                 // final int         clust_radius,
 					  threadsMax,     // final int         threadsMax,  // maximal number of threads to launch
 					  updateStatus,   // final boolean     updateStatus,
 					  debugLevel);    // final int         debugLevel);
@@ -4972,7 +5039,7 @@ public class QuadCLT extends QuadCLTCPU {
 		  }
 		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
 
-		  if (debugLevel > -5){
+		  if (debugLevel > -3){ // now -3
 			  tp.showScan(
 					  scan,   // CLTPass3d   scan,
 					  "LY-combo_scan-"+scan+"_post"); //String title)
