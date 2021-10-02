@@ -5,24 +5,28 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.gpu.GPUTileProcessor;
+import com.elphel.imagej.gpu.GpuQuad;
+import com.elphel.imagej.gpu.TpTask;
 
 //import Jama.Matrix;
 
 public class ImageDtt extends ImageDttCPU {
 	public boolean debug_strengths = false; // true;
-	private final GPUTileProcessor.GpuQuad gpuQuad;
+	private final GpuQuad gpuQuad;
 
 	public ImageDtt(
 			int numSensors,
 			int transform_size,
 			ImageDttParameters imgdtt_params,
+			boolean aux,
 			boolean mono,
 			boolean lwir,
 			double scale_strengths,
-			GPUTileProcessor.GpuQuad gpuQuadIn){
+			GpuQuad gpuQuadIn){
 		super ( numSensors,
 				transform_size,
 				imgdtt_params,
+				aux,
 				mono,
 				lwir,
 				scale_strengths);
@@ -33,19 +37,21 @@ public class ImageDtt extends ImageDttCPU {
 			int numSensors,
 			int transform_size,
 			ImageDttParameters imgdtt_params,
+			boolean aux,
 			boolean mono,
 			boolean lwir,
 			double scale_strengths){
 		super ( numSensors,
 				transform_size,
 				imgdtt_params,
+				aux,
 				mono,
 				lwir,
 				scale_strengths);
 		gpuQuad = null;
 	}
 	
-	public GPUTileProcessor.GpuQuad getGPU() {
+	public GpuQuad getGPU() {
 		return this.gpuQuad;
 	}
 	
@@ -272,7 +278,7 @@ public class ImageDtt extends ImageDttCPU {
 		final boolean use_main = geometryCorrection_main != null;
 		boolean [] used_corrs = new boolean[1];
 	    final int all_pairs = imgdtt_params.dbg_pair_mask; //TODO: use tile tasks
-		final GPUTileProcessor.TpTask[] tp_tasks =  gpuQuad.setTpTask(
+		final TpTask[] tp_tasks =  gpuQuad.setTpTask(
 				disparity_array, // final double [][]  disparity_array,  // [tilesY][tilesX] - individual per-tile expected disparity
 				disparity_corr,  // final double       disparity_corr,
 				used_corrs,      // final boolean []   need_corrs,       // should be initialized to boolean[1] or null
@@ -319,13 +325,13 @@ public class ImageDtt extends ImageDttCPU {
 		gpuQuad.execSetTilesOffsets(); // prepare tiles offsets in GPU memory
 
 		if ((fdisp_dist != null) || (fpxpy != null)) {
-			final GPUTileProcessor.TpTask[] tp_tasks_full = gpuQuad.getTasks(use_main);
+			final TpTask[] tp_tasks_full = gpuQuad.getTasks(use_main);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
 					@Override
 					public void run() {
 						for (int indx_tile = ai.getAndIncrement(); indx_tile < tp_tasks_full.length; indx_tile = ai.getAndIncrement()) {
-							GPUTileProcessor.TpTask task = tp_tasks_full[indx_tile];
+							TpTask task = tp_tasks_full[indx_tile];
 							if (fdisp_dist != null) {
 								fdisp_dist[task.getTileY()][task.getTileX()] = task.getDispDist();
 							}
@@ -688,7 +694,7 @@ public class ImageDtt extends ImageDttCPU {
 			final int                 globalDebugLevel)
 	{
 		// prepare tasks
-       	GPUTileProcessor.TpTask[] tp_tasks =  gpuQuad.setInterTasks(
+       	TpTask[] tp_tasks =  gpuQuad.setInterTasks(
        			pXpYD,              // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
        			geometryCorrection, // final GeometryCorrection  geometryCorrection,
        			disparity_corr,     // final double              disparity_corr,
@@ -701,7 +707,6 @@ public class ImageDtt extends ImageDttCPU {
     			fcorr_td,        // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
     			fcorr_combo_td,  // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: quad, cross, hor,vert
     			geometryCorrection,
-//    			disparity_corr,   // disparity offset at infinity
     			margin,           // do not use tiles if their centers are closer to the edges
     			gpu_sigma_r,     // 0.9, 1.1
     			gpu_sigma_b,     // 0.9, 1.1
@@ -718,7 +723,7 @@ public class ImageDtt extends ImageDttCPU {
 
 	public void quadCorrTD(
 			final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
-			final GPUTileProcessor.TpTask[] tp_tasks,
+			final TpTask[] tp_tasks,
 			final float  [][][][]     fcorr_td,        // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
 			final float  [][][][]     fcorr_combo_td,  // [4][tilesY][tilesX][pair][4*64] TD of combo corrs: quad, cross, hor,vert
 			final GeometryCorrection  geometryCorrection,
@@ -865,7 +870,7 @@ public class ImageDtt extends ImageDttCPU {
 	
 	
 	
-	public GPUTileProcessor.TpTask[][] clt_aberrations_quad_corr_GPU_test(
+	public TpTask[][] clt_aberrations_quad_corr_GPU_test(
 			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 			final int                 macro_scale,     // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
@@ -1105,7 +1110,7 @@ public class ImageDtt extends ImageDttCPU {
 		final boolean use_main = geometryCorrection_main != null;
 		boolean [] used_corrs = new boolean[1];
 	    final int all_pairs = imgdtt_params.dbg_pair_mask; //TODO: use tile tasks
-		final GPUTileProcessor.TpTask[] tp_tasks =  gpuQuad.setTpTask(
+		final TpTask[] tp_tasks =  gpuQuad.setTpTask(
 				disparity_array, // final double [][]  disparity_array,  // [tilesY][tilesX] - individual per-tile expected disparity
 				disparity_corr,  // final double       disparity_corr,
 				used_corrs,      // final boolean []   need_corrs,       // should be initialized to boolean[1] or null
@@ -1151,17 +1156,17 @@ public class ImageDtt extends ImageDttCPU {
 
 		gpuQuad.execSetTilesOffsets(); // prepare tiles offsets in GPU memory
 
-		GPUTileProcessor.TpTask[][] test_tasks = new GPUTileProcessor.TpTask[3][];
+		TpTask[][] test_tasks = new TpTask[3][];
 		test_tasks[2] = tp_tasks;
 		if ((fdisp_dist != null) || (fpxpy != null)) {
-			final GPUTileProcessor.TpTask[] tp_tasks_full = gpuQuad.getTasks(use_main);
+			final TpTask[] tp_tasks_full = gpuQuad.getTasks(use_main);
 			test_tasks[0] = tp_tasks_full;
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
 					@Override
 					public void run() {
 						for (int indx_tile = ai.getAndIncrement(); indx_tile < tp_tasks_full.length; indx_tile = ai.getAndIncrement()) {
-							GPUTileProcessor.TpTask task = tp_tasks_full[indx_tile];
+							TpTask task = tp_tasks_full[indx_tile];
 							if (fdisp_dist != null) {
 								fdisp_dist[task.getTileY()][task.getTileX()] = task.getDispDist();
 							}
@@ -1179,14 +1184,14 @@ public class ImageDtt extends ImageDttCPU {
 
 			gpuQuad.execSetTilesOffsets(); // prepare tiles offsets in GPU memory
 			
-			final GPUTileProcessor.TpTask[] tp_tasks_full = gpuQuad.getTasks(use_main); // reads the same
+			final TpTask[] tp_tasks_full = gpuQuad.getTasks(use_main); // reads the same
 			test_tasks[1] = tp_tasks_full;
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
 					@Override
 					public void run() {
 						for (int indx_tile = ai.getAndIncrement(); indx_tile < tp_tasks_full.length; indx_tile = ai.getAndIncrement()) {
-							GPUTileProcessor.TpTask task = tp_tasks_full[indx_tile];
+							TpTask task = tp_tasks_full[indx_tile];
 							if (fpxpy != null) {
 								fpxpy_test[task.getTileY()][task.getTileX()] = task.getXY(use_main); // boolean use_aux);
 							}
@@ -1637,20 +1642,6 @@ public class ImageDtt extends ImageDttCPU {
 //		final double [] col_weights= new double [numcol]; // colors are RBG
 		final double [][] dbg_distort = debug_distort? (new double [4*quad][tilesX*tilesY]) : null;
 		// not yet used with GPU
-/**		
-		final double [][] corr_wnd = Corr2dLMA.getCorrWnd(
-				transform_size,
-				imgdtt_params.lma_wnd);
-		final double [] corr_wnd_inv_limited = (imgdtt_params.lma_min_wnd <= 1.0)?  new double [corr_wnd.length * corr_wnd[0].length]: null;
-		if (corr_wnd_inv_limited != null) {
-			double inv_pwr = imgdtt_params.lma_wnd_pwr - (imgdtt_params.lma_wnd - 1.0); // compensate for lma_wnd
-			for (int i = imgdtt_params.lma_hard_marg; i < (corr_wnd.length - imgdtt_params.lma_hard_marg); i++) {
-				for (int j = imgdtt_params.lma_hard_marg; j < (corr_wnd.length - imgdtt_params.lma_hard_marg); j++) {
-					corr_wnd_inv_limited[i * (corr_wnd.length) + j] = 1.0/Math.max(Math.pow(corr_wnd[i][j],inv_pwr), imgdtt_params.lma_min_wnd);
-				}
-			}
-		}
-*/
 		// keep for now for mono, find out  what do they mean for macro mode
 		
 		final int corr_size = transform_size * 2 - 1;

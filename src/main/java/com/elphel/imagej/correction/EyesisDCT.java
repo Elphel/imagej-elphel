@@ -1223,7 +1223,8 @@ public class EyesisDCT {
 			  ImageDtt image_dtt = new ImageDtt(
 					  4, // 4 sensors, will not be used here
 					  dctParameters.dct_size,
-					  null, // FIXME: needs ImageDttParameters (clt_parameters.img_dtt), 
+					  null, // FIXME: needs ImageDttParameters (clt_parameters.img_dtt),
+					  false, // aux
 					  false, // mono
 					  false, // lwir
 					  1.0); // Bayer( not monochrome), scale correlation strengths

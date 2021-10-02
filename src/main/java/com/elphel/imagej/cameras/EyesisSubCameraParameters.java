@@ -44,6 +44,7 @@ import java.util.Properties;
     	public double psi;     // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
 		public double focalLength=4.5;
 		public double pixelSize=  2.2; //um
+		public double lineTime =  3.638E-5; // 2.7778e-05 for Boson
 		public double distortionRadius=  2.8512; // mm - half width of the sensor
 		public double distortionA8=0.0; //r^8 (normalized to focal length or to sensor half width?)
 		public double distortionA7=0.0; //r^7 (normalized to focal length or to sensor half width?)
@@ -100,6 +101,7 @@ import java.util.Properties;
     			double psi,      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     			double focalLength,
     			double pixelSize,//um
+    			double lineTime, //  =  3.638E-5; // 2.7778e-05 for Boson
     			double distortionRadius, //mm - half width of the sensor
     			double distortionA8, // r^8
     			double distortionA7, // r^7
@@ -183,6 +185,7 @@ import java.util.Properties;
     				this.psi,
     	    		this.focalLength,
     	    		this.pixelSize,
+    	    		this.lineTime,
     	    		this.distortionRadius,
     	    		this.distortionA8,
     	    		this.distortionA7,
@@ -227,6 +230,7 @@ import java.util.Properties;
     		properties.setProperty(prefix+"psi",                 this.psi+"");
 			properties.setProperty(prefix+"focalLength",         this.focalLength+"");
 			properties.setProperty(prefix+"pixelSize",           this.pixelSize+"");
+			properties.setProperty(prefix+"lineTime",            this.lineTime+"");
 			properties.setProperty(prefix+"distortionRadius",    this.distortionRadius+"");
 			properties.setProperty(prefix+"distortionA8",        this.distortionA8+"");
 			properties.setProperty(prefix+"distortionA7",        this.distortionA7+"");
@@ -288,6 +292,8 @@ import java.util.Properties;
 				this.focalLength=Double.parseDouble(properties.getProperty(prefix+"focalLength"));
 			if (properties.getProperty(prefix+"pixelSize")!=null)
 				this.pixelSize=Double.parseDouble(properties.getProperty(prefix+"pixelSize"));
+			if (properties.getProperty(prefix+"lineTime")!=null)
+				this.lineTime=Double.parseDouble(properties.getProperty(prefix+"lineTime"));
 			if (properties.getProperty(prefix+"distortionRadius")!=null)
 				this.distortionRadius=Double.parseDouble(properties.getProperty(prefix+"distortionRadius"));
 			if (properties.getProperty(prefix+"distortionA8")!=null)

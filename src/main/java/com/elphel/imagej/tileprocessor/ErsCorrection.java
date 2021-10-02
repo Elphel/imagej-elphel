@@ -639,6 +639,8 @@ public class ErsCorrection extends GeometryCorrection {
 	public ErsCorrection(GeometryCorrection gc, boolean deep) {
 		debugLevel =           gc.debugLevel;
 		line_time =            gc.line_time;            // 36.38! //26.5E-6; // duration of sensor scan line (for ERS)
+		monochrome =           gc.monochrome;
+		lwir =                 gc.lwir;
 		pixelCorrectionWidth=  gc.pixelCorrectionWidth; // 2592;   // virtual camera center is at (pixelCorrectionWidth/2, pixelCorrectionHeight/2)
 		pixelCorrectionHeight= gc.pixelCorrectionHeight; // 1936;
 		focalLength =          gc.focalLength; // =FOCAL_LENGTH;

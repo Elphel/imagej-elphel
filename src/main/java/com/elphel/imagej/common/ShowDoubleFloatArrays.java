@@ -104,7 +104,11 @@ import ij.process.ImageProcessor;
 	    	  not_empty = true;
 	    	  fpixels=new float[pixels[i].length];
 	    	  for (j=0;j<fpixels.length;j++) fpixels[j]=(float)pixels[i][j];
-	    	  array_stack.addSlice(titles[i], fpixels);
+	    	  if (i < titles.length) {
+	    		  array_stack.addSlice(titles[i], fpixels);
+	    	  } else {
+	    		  array_stack.addSlice("slice-"+i, fpixels);
+	    	  }
 	      }
 	      if (not_empty) {
 	    	  ImagePlus imp_stack = new ImagePlus(title, array_stack);

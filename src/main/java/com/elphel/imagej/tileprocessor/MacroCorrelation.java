@@ -295,6 +295,7 @@ public class MacroCorrelation {
 				geometryCorrection.getNumSensors(),
 				clt_parameters.transform_size,
 				clt_parameters.img_dtt,
+				this.mtp.isAux(),
 				this.mtp.isMonochrome(),
 				this.mtp.isLwir(),
 				clt_parameters.getScaleStrength(this.mtp.isAux()));

@@ -7161,6 +7161,7 @@ List calibration
     	imp.setProperty("focalLength", ""+subCam.focalLength);
     	imp.setProperty("focalLength_units", "mm");
     	imp.setProperty("pixelSize", ""+subCam.pixelSize);
+    	imp.setProperty("lineTime",  ""+subCam.lineTime);
     	imp.setProperty("pixelSize_units", "um");
     	imp.setProperty("distortionA8", ""+subCam.distortionA8);
     	imp.setProperty("distortionA7", ""+subCam.distortionA7);
@@ -7380,6 +7381,17 @@ List calibration
         	subCam.distortionRadius=        Double.parseDouble((String) imp.getProperty("distortionRadius"));
         	subCam.focalLength=             Double.parseDouble((String) imp.getProperty("focalLength"));
         	subCam.pixelSize=               Double.parseDouble((String) imp.getProperty("pixelSize"));
+        	if (imp.getProperty("lineTime") != null) {
+            	subCam.pixelSize=               Double.parseDouble((String) imp.getProperty("lineTime"));
+        	} else { // fix older saved files
+        		if (subCam.pixelSize < 5.0) {
+        			subCam.pixelSize=3.638E-5;
+	        	} else if (distortionCalibrationData.eyesisCameraParameters.getSensorWidth(numSensor) == 640){ // Boson
+	        		subCam.lineTime = 2.7778e-05; // 12um pixel, Boson
+	        	} else {
+	        		subCam.lineTime = 7.8e-05; // 12um pixel, Lepton (may7 be wrong)
+	        	}
+        	}
         	if (imp.getProperty("distortionA8")!=null) {
         		subCam.distortionA8=            Double.parseDouble((String) imp.getProperty("distortionA8"));
         	} else subCam.distortionA8=0.0;

@@ -1148,6 +1148,7 @@ import ij.gui.GenericDialog;
     				gd.addNumericField("Camera roll, positive CW looking to the target",subCam.psi,     5,9,"degrees");
     				gd.addNumericField("Lens focal length",               subCam.focalLength, 5,8,"mm");
     				gd.addNumericField("Sensor pixel period",             subCam.pixelSize, 5,8,"um");
+    				gd.addNumericField("Sensor line time (us): 36.38 5MPix, 27.778 Boson, 78(?) Lepton ", (1E6*subCam.lineTime), 5,8,"us");
     				gd.addNumericField("Distortion radius (half width)",  subCam.distortionRadius, 6,8,"mm");
     				gd.addNumericField("Distortion A8 (r^8)",             subCam.distortionA8, 8,10,"");
     				gd.addNumericField("Distortion A7 (r^7)",             subCam.distortionA7, 8,10,"");
@@ -1233,6 +1234,7 @@ import ij.gui.GenericDialog;
     				subCam.psi=             gd.getNextNumber();
     				subCam.focalLength=     gd.getNextNumber();
     				subCam.pixelSize=       gd.getNextNumber();
+    				subCam.lineTime =  1E-6*gd.getNextNumber();
     				subCam.distortionRadius=gd.getNextNumber();
     				subCam.distortionA8=    gd.getNextNumber();
     				subCam.distortionA7=    gd.getNextNumber();
@@ -1298,6 +1300,7 @@ import ij.gui.GenericDialog;
     	    				subCam.psi=             first.psi;
     	    				subCam.focalLength=     first.focalLength;
     	    				subCam.pixelSize=       first.pixelSize;
+    	    				subCam.lineTime=        first.lineTime;
     	    				subCam.distortionRadius=first.distortionRadius;
     	    				subCam.distortionA8=    first.distortionA8;
     	    				subCam.distortionA7=    first.distortionA7;
@@ -1442,6 +1445,13 @@ import ij.gui.GenericDialog;
     				eyesisSubCameras[nstation][ncam].sensorHeight=      isLWIR ? 512   : 1936;
     				eyesisSubCameras[nstation][ncam].focalLength=       isLWIR ? 14.0  : 4.5;
     				eyesisSubCameras[nstation][ncam].pixelSize=         isLWIR ? 12.0  : 2.2;
+    	        	if (eyesisSubCameras[nstation][ncam].pixelSize < 5.0) {
+    	        		eyesisSubCameras[nstation][ncam].lineTime = 3.638E-5;
+    	        	} else if (eyesisSubCameras[nstation][ncam].sensorWidth == 640){ // Boson
+    	        		eyesisSubCameras[nstation][ncam].lineTime = 2.7778e-05; // 12um pixel, Boson
+    	        	} else {
+    	        		eyesisSubCameras[nstation][ncam].lineTime = 7.8e-05; // 12um pixel, Lepton (may be wrong)
+    	        	}
     				eyesisSubCameras[nstation][ncam].distortionRadius=  isLWIR ? 3.24  :  2.8512; // mm - half width of the sensor
     				eyesisSubCameras[nstation][ncam].px0=               isLWIR ? 320.0 : 1296.0;
     				eyesisSubCameras[nstation][ncam].py0=               isLWIR ? 256.0 : 968.0;
@@ -1765,6 +1775,7 @@ import ij.gui.GenericDialog;
     					180.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		4.5, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -1800,6 +1811,7 @@ import ij.gui.GenericDialog;
     					180.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		4.5, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -1834,6 +1846,7 @@ import ij.gui.GenericDialog;
     					180.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		4.5, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -1870,6 +1883,7 @@ import ij.gui.GenericDialog;
     					0.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		4.5, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -1909,6 +1923,7 @@ import ij.gui.GenericDialog;
     					-90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -1943,6 +1958,7 @@ import ij.gui.GenericDialog;
     					90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -1978,6 +1994,7 @@ import ij.gui.GenericDialog;
     					90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2012,6 +2029,7 @@ import ij.gui.GenericDialog;
     					-90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2046,6 +2064,7 @@ import ij.gui.GenericDialog;
     					90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2080,6 +2099,7 @@ import ij.gui.GenericDialog;
     					90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2114,6 +2134,7 @@ import ij.gui.GenericDialog;
     					-90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2148,6 +2169,7 @@ import ij.gui.GenericDialog;
     					90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2182,6 +2204,7 @@ import ij.gui.GenericDialog;
     					90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2217,6 +2240,7 @@ import ij.gui.GenericDialog;
     					-90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2251,6 +2275,7 @@ import ij.gui.GenericDialog;
     					90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2285,6 +2310,7 @@ import ij.gui.GenericDialog;
     					90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2319,6 +2345,7 @@ import ij.gui.GenericDialog;
     					-90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2353,6 +2380,7 @@ import ij.gui.GenericDialog;
     					90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2387,6 +2415,7 @@ import ij.gui.GenericDialog;
     					90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2421,6 +2450,7 @@ import ij.gui.GenericDialog;
     					-90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2456,6 +2486,7 @@ import ij.gui.GenericDialog;
     					90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2490,6 +2521,7 @@ import ij.gui.GenericDialog;
     					90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2524,6 +2556,7 @@ import ij.gui.GenericDialog;
     					-90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2558,6 +2591,7 @@ import ij.gui.GenericDialog;
     					90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2592,6 +2626,7 @@ import ij.gui.GenericDialog;
     					90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		5.4, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2631,6 +2666,7 @@ import ij.gui.GenericDialog;
     					90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		4.5, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2665,6 +2701,7 @@ import ij.gui.GenericDialog;
     					90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		4.5, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2699,6 +2736,7 @@ import ij.gui.GenericDialog;
     					-90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		4.5, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2733,6 +2771,7 @@ import ij.gui.GenericDialog;
     					90.0,  //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		4.5, // double focalLength
     		    		2.2, // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)
@@ -2767,6 +2806,7 @@ import ij.gui.GenericDialog;
     					-90.0,    //double psi;      // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
     		    		4.5,    // double focalLength
     		    		2.2,    // double pixelSize (um)
+    		    		3.638E-5, //  double lineTime
     		    		2.8512, //double distortionRadius mm - half width of the sensor
     		    		0.0, // double distortionA8 // r^8 (normalized to focal length or to sensor half width?)
     		    		0.0, // double distortionA7 // r^7 (normalized to focal length or to sensor half width?)

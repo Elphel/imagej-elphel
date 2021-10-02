@@ -15706,6 +15706,11 @@ public class PixelMapping {
     	public double psi;     // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target roll
 		public double focalLength=4.5;
 		public double pixelSize=  2.2; //um
+		public double lineTime =  3.638E-5; // 2.7778e-05 for Boson
+		
+		public boolean monochrome = false;
+		public boolean lwir =       false;
+		
 		public double distortionRadius=  2.8512; // mm - half width of the sensor
 		public double distortionA8=0.0; //r^8 (normalized to focal length or to sensor half width?)
 		public double distortionA7=0.0; //r^7 (normalized to focal length or to sensor half width?)
@@ -16301,6 +16306,9 @@ public class PixelMapping {
 
 	    public void setSensorDataFromImageStack(ImagePlus imp){
 //	    	int corrX=0,corrY=1,corrMask=2;
+	    	boolean need_lineTime_fix =   false; // will use sensor default if not provided, 3.638E-5 for RGB and 2.7778e-05 for Boson
+	    	boolean need_monochrome_fix = false; // will use sensor default if not provided, 3.638E-5 for RGB and 2.7778e-05 for Boson
+	    	boolean need_lwir_fix =       false; // will use sensor default if not provided, 3.638E-5 for RGB and 2.7778e-05 for Boson
 	    	if (imp == null){
 	    		String msg="Sensor Calibration image is null";
 	    		IJ.showMessage("Error",msg);
@@ -16325,10 +16333,29 @@ public class PixelMapping {
 	    	        "heading",
 	    	        "elevation",
 	    	        "roll",
-	    	        "channel"
+	    	        "channel",
+	        		"lineTime",   // optional
+	        		"monochrome", // optional
+	        		"lwir"        // optional
 	        		};
 	        for (int i=0; i<requiredProperties.length;i++) if (imp.getProperty(requiredProperties[i])==null){
 	    		String msg="Required property "+requiredProperties[i]+" is not defined in "+imp.getTitle();
+	    		// is it 
+	    		if (requiredProperties[i].equals("lineTime")) {
+	    			System.out.println(requiredProperties[i]+" is not provided, will use default");
+	    			need_lineTime_fix = true;
+	    			continue;
+	    		}
+	    		if (requiredProperties[i].equals("monochrome")) {
+	    			System.out.println(requiredProperties[i]+" is not provided, will use default");
+	    			need_monochrome_fix = true;
+	    			continue;
+	    		}
+	    		if (requiredProperties[i].equals("lwir")) {
+	    			System.out.println(requiredProperties[i]+" is not provided, will use default");
+	    			need_lwir_fix = true;
+	    			continue;
+	    		}
 	    		IJ.showMessage("Error",msg);
 	    		throw new IllegalArgumentException (msg);
 	        }
@@ -16352,6 +16379,43 @@ public class PixelMapping {
 	        this.distortionRadius= Double.parseDouble((String) imp.getProperty("distortionRadius"));
 	        this.focalLength=      Double.parseDouble((String) imp.getProperty("focalLength"));
 	        this.pixelSize=        Double.parseDouble((String) imp.getProperty("pixelSize"));
+	        if (need_lineTime_fix) {
+	        	if (this.pixelSize < 5.0) {
+	        		this.lineTime = 3.638E-5;
+	        	} else if (this.pixelCorrectionWidth == 640){ // Boson
+	        		this.lineTime = 2.7778e-05; // 12um pixel, Boson
+	        	} else {
+	        		this.lineTime = 7.8e-05; // 12um pixel, Lepton (may7 be wrong)
+	        	}
+	        } else {
+		        this.lineTime=        Double.parseDouble((String) imp.getProperty("lineTime"));
+	        }
+
+	        if (need_monochrome_fix) {
+	        	if (this.pixelSize < 5.0) {
+	        		this.monochrome = false;
+	        	} else if (this.pixelCorrectionWidth == 640){ // Boson
+	        		this.monochrome = true; // 12um pixel, Boson
+	        	} else {
+	        		this.monochrome = true; // 12um pixel, Lepton (may7 be wrong)
+	        	}
+	        } else {
+		        this.monochrome=        Boolean.parseBoolean((String) imp.getProperty("monochrome"));
+	        }
+	        
+	        
+	        if (need_lwir_fix) {
+	        	if (this.pixelSize < 5.0) {
+	        		this.lwir = false;
+	        	} else if (this.pixelCorrectionWidth == 640){ // Boson
+	        		this.lwir = true; // 12um pixel, Boson
+	        	} else {
+	        		this.lwir = true; // 12um pixel, Lepton (may7 be wrong)
+	        	}
+	        } else {
+		        this.lwir=        Boolean.parseBoolean((String) imp.getProperty("lwir"));
+	        }
+	        
 	        if (imp.getProperty("distortionA8")!=null)	this.distortionA8=     Double.parseDouble((String) imp.getProperty("distortionA8"));
 	        else this.distortionA8= 0.0;
 	        if (imp.getProperty("distortionA7")!=null)	this.distortionA7=     Double.parseDouble((String) imp.getProperty("distortionA7"));

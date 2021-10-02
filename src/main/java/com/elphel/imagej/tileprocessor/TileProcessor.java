@@ -6160,6 +6160,7 @@ ImageDtt.startAndJoin(threads);
 				geometryCorrection.getNumSensors(),
 				clt_parameters.transform_size,
 				clt_parameters.img_dtt,
+				isAux(),
 				isMonochrome(),
 				isLwir(),
 				clt_parameters.getScaleStrength(is_aux));

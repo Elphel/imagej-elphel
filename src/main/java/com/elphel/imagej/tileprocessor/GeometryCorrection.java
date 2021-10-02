@@ -64,6 +64,9 @@ public class GeometryCorrection {
 */	
 	public int    debugLevel = 0;
 	public double line_time =  36.38E-6; // 26.5E-6; // duration of sensor scan line (for ERS) Wrong, 36.38us (change and re-run ERS
+	// Boson - 27.7778E-6 (750/27E6)
+	public boolean monochrome = false;
+	public boolean lwir =       false;
 	public int    pixelCorrectionWidth=2592;   // virtual camera center is at (pixelCorrectionWidth/2, pixelCorrectionHeight/2)
 	public int    pixelCorrectionHeight=1936;
 
@@ -117,6 +120,15 @@ public class GeometryCorrection {
 	public int getNumSensors() {
 		return numSensors;
 	}
+	
+	public boolean isMonochrome() {
+		return monochrome;
+	}
+
+	public boolean isLwir() {
+		return lwir;
+	}
+	
 	protected double [][] get_rXY_ideal(){
 		if (rXY_ideal == null) {
 			if (numSensors == 4) {
@@ -798,7 +810,7 @@ public class GeometryCorrection {
 			ro.aux_tilt =       this.aux_tilt;
 			ro.aux_roll =       this.aux_roll;
 			ro.aux_zoom =       this.aux_zoom;
-			ro.full_par_index = this.full_par_index.clone();
+			ro.full_par_index = (this.full_par_index == null)?null:this.full_par_index.clone();
 			ro.par_scales =     this.par_scales.clone();
 			return ro;
 		}
@@ -1477,8 +1489,10 @@ public class GeometryCorrection {
 			double distortionRadius,
 			int    pixelCorrectionWidth,   // virtual camera center is at (pixelCorrectionWidth/2, pixelCorrectionHeight/2)
 			int    pixelCorrectionHeight,
-			double pixelSize
-
+			double pixelSize,
+			double line_time,
+			boolean monochrome,
+			boolean lwir
 			)	{
 		if (!Double.isNaN(focalLength))      this.focalLength = focalLength;
 		if (!Double.isNaN(distortionC))      this.distortionC = distortionC;
@@ -1492,6 +1506,9 @@ public class GeometryCorrection {
 		if (pixelCorrectionWidth >= 0)       this.pixelCorrectionWidth = pixelCorrectionWidth;
 		if (pixelCorrectionHeight >= 0)      this.pixelCorrectionHeight = pixelCorrectionHeight;
 		if (!Double.isNaN(pixelSize))        this.pixelSize = pixelSize;
+		if (!Double.isNaN(line_time))        this.line_time = line_time;
+		this.monochrome = monochrome;
+		this.lwir =       lwir;
 		//	imp.setProperty("distortion_formula",  "(normalized by distortionRadius in mm) Rdist/R=A8*R^7+A7*R^6+A6*R^5+A5*R^4+A*R^3+B*R^2+C*R+(1-A6-A7-A6-A5-A-B-C)");
 		//	imp.setProperty("distortionRadius", ""+subCam.distortionRadius);
 	}
@@ -1671,6 +1688,9 @@ public class GeometryCorrection {
 		System.out.println("pixelCorrectionWidth =\t"+  pixelCorrectionWidth+"\tpix");
 		System.out.println("pixelCorrectionHeight =\t"+ pixelCorrectionHeight+"\tpix");
 		System.out.println("pixelSize =\t"+             pixelSize+"\tum");
+		System.out.println("lineTime =\t"+             (1E6*line_time)+"\tus");
+		System.out.println("monochrome =\t"+            monochrome+"\t");
+		System.out.println("lwir =\t"+                  lwir+"\t");
 		System.out.println("distortionRadius =\t"+      distortionRadius+"\tmm");
 		System.out.println("'=== Common input parameters ===");
 		System.out.println("distortionA8 =\t"+ distortionA8);

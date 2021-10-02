@@ -50,6 +50,7 @@ public class Clt1d {
 				nSens,
 				transform_size,
 				null, // FIXME: needs ImageDttParameters (clt_parameters.img_dtt), 
+				false, // aux
 				false,
 				false,
 				1.0);

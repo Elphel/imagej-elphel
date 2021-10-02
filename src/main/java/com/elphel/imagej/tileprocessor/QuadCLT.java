@@ -49,6 +49,8 @@ import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.correction.CorrectionColorProc;
 import com.elphel.imagej.correction.EyesisCorrections;
 import com.elphel.imagej.gpu.GPUTileProcessor;
+import com.elphel.imagej.gpu.GpuQuad;
+import com.elphel.imagej.gpu.TpTask;
 
 import ij.ImagePlus;
 import ij.ImageStack;
@@ -56,7 +58,7 @@ import ij.Prefs;
 import ij.io.FileSaver;
 public class QuadCLT extends QuadCLTCPU {
 	int dbg_lev = 1;
-	private GPUTileProcessor.GpuQuad gpuQuad =              null; 	// use updateQuadCLT() to update after switching to a different
+	private GpuQuad gpuQuad =              null; 	// use updateQuadCLT() to update after switching to a different
 	// QuadCLT instance, this.getGPU().getQuadCLT() should be equal to this
 	/*
 			if (getGPU().getQuadCLT() != this) {
@@ -78,13 +80,35 @@ public class QuadCLT extends QuadCLTCPU {
 				);
 	}
 	
+	public boolean hasGPU() {
+		return (gpuQuad != null);
+	}
+	QuadCLT saveQuadClt() {
+		if (gpuQuad == null) {
+			return null;
+		}
+		QuadCLT savedQuadClt =  gpuQuad.getQuadCLT();
+		if (savedQuadClt != this) {
+			gpuQuad.updateQuadCLT(this); // to re-load new set of Bayer images to the GPU
+		} else {
+			savedQuadClt = null;
+		}
+		return savedQuadClt;
+	}
+	void restoreQuadClt(QuadCLT savedQuadClt) {
+		if (savedQuadClt !=  null) {
+			gpuQuad.updateQuadCLT(savedQuadClt);
+		}
+	}
+
+	
 	public QuadCLT(QuadCLTCPU pq, String name) {
 		super (pq, name);
 		if (pq instanceof QuadCLT) {
 			this.gpuQuad = ((QuadCLT) pq).gpuQuad; //  careful when switching - reset Geometry, vectors, bayer images. Kernels should be the same
 		}
 	}
-	
+/*	
 	public QuadCLT restoreFromModel(
 			CLTParameters        clt_parameters,
 			ColorProcParameters  colorProcParameters,
@@ -108,7 +132,7 @@ public class QuadCLT extends QuadCLTCPU {
 		// sets set name to jp4, overwrite
 		set_channels[0].set_name = this.image_name; // set_name;
 		double [] referenceExposures = null;
-		if (!colorProcParameters.lwir_islwir) {
+		if (!isLwir()) { // colorProcParameters.lwir_islwir) {
 			referenceExposures = eyesisCorrections.calcReferenceExposures(sourceFiles, debugLevel);
 		}
 		int [] channelFiles = set_channels[0].fileNumber();		
@@ -141,11 +165,11 @@ public class QuadCLT extends QuadCLTCPU {
 //		showDSIMain();
 		return this; //  can only be QuadCLT instance
 	}
-	
+*/	
 	// generate and save noise file (each Bayer component amplitude same as the corresponding image average,
 	// apply gaussian blur with sigma (before Bayer scaling)
 	// If file with the same sigma already exists in the model directory - just use it, multiply by noise_sigma_level[0] and add to the non-zero Bayer
-	
+/*	
 	public void generateAddNoise(
 			final String    suffix,
 			final double [] noise_sigma_level,
@@ -343,7 +367,7 @@ public class QuadCLT extends QuadCLTCPU {
 		return result;
 	}
 	
-	
+	*/
 	
 	public static double [] removeDisparityOutliers(
 			final double [][] ds0,
@@ -546,6 +570,7 @@ public class QuadCLT extends QuadCLTCPU {
 		return ds;
 	}
 
+	/*
     public double [][]  getDSRBG (){
     	return dsrbg;
     }
@@ -557,8 +582,9 @@ public class QuadCLT extends QuadCLTCPU {
 			int            debugLevel)
     {
     	setDSRBG(
-    			this.dsi[TwoQuadCLT.DSI_DISPARITY_MAIN],
-    			this.dsi[TwoQuadCLT.DSI_STRENGTH_MAIN],
+    			this.dsi[is_aux?TwoQuadCLT.DSI_DISPARITY_AUX:TwoQuadCLT.DSI_DISPARITY_MAIN],
+    			this.dsi[is_aux?TwoQuadCLT.DSI_STRENGTH_AUX:TwoQuadCLT.DSI_STRENGTH_MAIN],
+    			this.dsi[is_aux?TwoQuadCLT.DSI_DISPARITY_AUX_LMA:TwoQuadCLT.DSI_DISPARITY_MAIN_LMA],
     			clt_parameters,
     			threadsMax,
     	        updateStatus,
@@ -567,6 +593,7 @@ public class QuadCLT extends QuadCLTCPU {
     public void setDSRBG(
     		double [] disparity,
     		double [] strength,
+    		double [] disparity_lma,
 			CLTParameters  clt_parameters,
 			int            threadsMax,  // maximal number of threads to launch
 			boolean        updateStatus,
@@ -576,12 +603,14 @@ public class QuadCLT extends QuadCLTCPU {
     			clt_parameters,
     			disparity,
     			strength,
+    			disparity_lma,
     			threadsMax,  // maximal number of threads to launch
     			updateStatus,
     			debugLevel);
     	double [][] dsrbg = {
     			disparity,
     			strength,
+    			disparity_lma,
     			rbg[0],rbg[1],rbg[2]};
     	this.dsrbg = dsrbg;
     }
@@ -590,6 +619,7 @@ public class QuadCLT extends QuadCLTCPU {
 			CLTParameters  clt_parameters,
 			double []      disparity,
 			double []      strength,
+    		double []      disparity_lma,
 			int            threadsMax,  // maximal number of threads to launch
 			boolean        updateStatus,
 			int            debugLevel)
@@ -598,6 +628,11 @@ public class QuadCLT extends QuadCLTCPU {
 		scan.setCalcDisparityStrength(
 				disparity,
 				strength);
+		if (disparity_lma == null) {
+			scan.resetLMA();
+		} else {
+			scan.setLMA(disparity_lma);
+		}
 		boolean [] selection = new boolean [disparity.length];
 		for (int i = 0; i < disparity.length; i++) {
 			selection[i] = (!Double.isNaN(disparity[i]) && ((strength == null) || (strength[i] > 0)));
@@ -637,7 +672,7 @@ public class QuadCLT extends QuadCLTCPU {
 		return rgba;
 	}
 	
-	
+*/	
 	
 	
 	@Deprecated
@@ -785,7 +820,7 @@ public class QuadCLT extends QuadCLTCPU {
 	}
 	
 	@Deprecated
-	public double[][][]  get_pair(
+	public double[][][]  get_pair( // not used
 			double k_prev,
 			QuadCLT qprev,
 			double corr_scale, //  = 0.75
@@ -998,6 +1033,7 @@ public class QuadCLT extends QuadCLTCPU {
 		}
 		return dsrbg_out;
 	}
+
 	@Deprecated
 	public double[][][]  get_pair_old(
 			double k_prev,
@@ -1957,10 +1993,10 @@ public class QuadCLT extends QuadCLTCPU {
 	}
 	
 	
-	public void setGPU(GPUTileProcessor.GpuQuad gpuQuad) {
+	public void setGPU(GpuQuad gpuQuad) {
 		this.gpuQuad = gpuQuad;
 	}
-	public GPUTileProcessor.GpuQuad getGPU() {
+	public GpuQuad getGPU() {
 		return this.gpuQuad;
 	}
 	
@@ -2044,6 +2080,7 @@ public class QuadCLT extends QuadCLTCPU {
 				getNumSensors(),
 				clt_parameters.transform_size,
 				clt_parameters.img_dtt,
+				isAux(),
 				is_mono,
 				is_lwir,
 				clt_parameters.getScaleStrength(isAux())); // 1.0);
@@ -2099,7 +2136,7 @@ public class QuadCLT extends QuadCLTCPU {
 		}
 		final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
 		// the following will be replaced by setFullFrameImages() with target disparities
-		GPUTileProcessor.TpTask [] tp_tasks  = gpuQuad.setFullFrameImages( // when disparities array is known - use different arguments of setFullFrameImages
+		TpTask [] tp_tasks  = gpuQuad.setFullFrameImages( // when disparities array is known - use different arguments of setFullFrameImages
 				null,                                 // Rectangle                 woi,
 				clt_parameters.gpu_woi_round,         // boolean                   round_woi,
 	    		(float) clt_parameters.disparity,     // float                     target_disparity, // apply same disparity to all tiles
@@ -2283,6 +2320,8 @@ public class QuadCLT extends QuadCLTCPU {
 // get fat_zero (absolute) and color scales
 		boolean is_mono = quadCLT_main.isMonochrome();
 		boolean is_lwir = quadCLT_main.isLwir();
+		boolean is_aux =  quadCLT_main.isAux();
+
 
 		double    fat_zero = clt_parameters.getGpuFatZero(is_mono); //   30.0;
 /*		
@@ -2309,6 +2348,7 @@ public class QuadCLT extends QuadCLTCPU {
 				quadCLT_main.getNumSensors(),
 				clt_parameters.transform_size,
 				clt_parameters.img_dtt,
+				is_aux,
 				is_mono,
 				is_lwir,
 				1.0);
@@ -2372,7 +2412,7 @@ public class QuadCLT extends QuadCLTCPU {
 		final double disparity_corr = (z_correction == 0) ? 0.0 : quadCLT_main.geometryCorrection.getDisparityFromZ(1.0/z_correction);
 		
 		
-		GPUTileProcessor.TpTask [] tp_tasks  = quadCLT_main.getGPU().setFullFrameImages( // when disparities array is known - use different arguments of setFullFrameImages
+		TpTask [] tp_tasks  = quadCLT_main.getGPU().setFullFrameImages( // when disparities array is known - use different arguments of setFullFrameImages
 				twoi,                                 // Rectangle                 woi,
 				clt_parameters.gpu_woi_round,         // boolean                   round_woi,
 	    		(float) clt_parameters.disparity,     // float                     target_disparity, // apply same disparity to all tiles
@@ -2552,7 +2592,7 @@ public class QuadCLT extends QuadCLTCPU {
 			int num_cams =GPUTileProcessor.NUM_CAMS;
 			for (int nt = 0; nt < tp_tasks.length; nt++) {
 				for (int i = 0; i < num_cams; i++) {
-					GPUTileProcessor.TpTask task = tp_tasks[nt];
+					TpTask task = tp_tasks[nt];
 					int nTile = task.ty * tilesX + task.tx;
 					geom_dbg[2 * i + 0][nTile] = task.xy[i][0]; // x
 					geom_dbg[2 * i + 1][nTile] = task.xy[i][1]; // y
@@ -2939,7 +2979,7 @@ public class QuadCLT extends QuadCLTCPU {
 	
 	public static boolean savePortsXY(
 			EyesisCorrectionParameters.CorrectionParameters ecp,
-			GPUTileProcessor.TpTask [] tp_tasks
+			TpTask [] tp_tasks
 			) {
 		if ((ecp.tile_processor_gpu != null) && !ecp.tile_processor_gpu.isEmpty()) {
 			int quad = 4;
@@ -3031,6 +3071,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  getNumSensors(),
 				  clt_parameters.transform_size,
 				  clt_parameters.img_dtt,
+				  isAux(),
 				  isMonochrome(),
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
@@ -3296,6 +3337,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  getNumSensors(),
 				  clt_parameters.transform_size,
 				  clt_parameters.img_dtt,
+				  isAux(),
 				  isMonochrome(),
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
@@ -3447,8 +3489,8 @@ public class QuadCLT extends QuadCLTCPU {
 		  final int tilesX = tp.getTilesX();
 		  final int tilesY = tp.getTilesY();
 		  double [][] ports_xy = new double [tilesY*tilesX][];
-		  GPUTileProcessor.TpTask [] tp_tasks = gpuQuad.getTasks(use_aux); // use_aux);
-		  for (GPUTileProcessor.TpTask tp_task:tp_tasks) {
+		  TpTask [] tp_tasks = gpuQuad.getTasks(use_aux); // use_aux);
+		  for (TpTask tp_task:tp_tasks) {
 			  float [][] txy =  tp_task.getXY(use_aux);
 			  double [] tile_ports_xy = new double [txy.length * txy[0].length];
 			  int indx = 0;
@@ -3498,6 +3540,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  getNumSensors(),
 				  clt_parameters.transform_size,
 				  clt_parameters.img_dtt,
+				  isAux(),
 				  isMonochrome(),
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
@@ -3627,12 +3670,13 @@ public class QuadCLT extends QuadCLTCPU {
 				  getNumSensors(),
 				  clt_parameters.transform_size,
 				  clt_parameters.img_dtt,
+				  isAux(),
 				  isMonochrome(),
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
 				  gpuQuad);
 		  image_dtt.getCorrelation2d(); // initiate image_dtt.correlation2d, needed if disparity_map != null  
-		  GPUTileProcessor.TpTask[] tp_tasks =  gpuQuad.setInterTasks(
+		  TpTask[] tp_tasks =  gpuQuad.setInterTasks(
 				  pXpYD,              // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
 				  geometryCorrection, // final GeometryCorrection  geometryCorrection,
 				  disparity_corr,     // final double              disparity_corr,
@@ -3641,7 +3685,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  threadsMax);        // final int                 threadsMax)  // maximal number of threads to launch
 		  // TODO: test-modify coordinates here
 		  if (opposite_mode) {
-			  for (GPUTileProcessor.TpTask tp_task:tp_tasks) {
+			  for (TpTask tp_task:tp_tasks) {
 				  tp_task.xy[0][0] -= offset_x;
 				  tp_task.xy[1][0] += offset_x;
 				  tp_task.xy[2][0] -= offset_x;
@@ -3652,7 +3696,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  tp_task.xy[3][1] += offset_y;
 			  }
 		  } else {
-			  for (GPUTileProcessor.TpTask tp_task:tp_tasks) {
+			  for (TpTask tp_task:tp_tasks) {
 				  tp_task.xy[0][0] += offset_x;
 				  tp_task.xy[1][0] += offset_x;
 				  tp_task.xy[2][0] += offset_x;
@@ -4230,6 +4274,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  getNumSensors(),
 				  clt_parameters.transform_size,
 				  clt_parameters.img_dtt,
+				  isAux(),
 				  isMonochrome(),
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
@@ -4569,6 +4614,14 @@ public class QuadCLT extends QuadCLTCPU {
 					  threadsMax,                 // final int           threadsMax,  // maximal number of threads to launch
 					  updateStatus,               // final boolean       updateStatus,
 					  debugLevel);                // final int           debugLevel);
+		  } else {
+			  CLTMeasureTextures( // perform single pass according to prepared tiles operations and disparity // not used in lwir
+					  clt_parameters,   // final CLTParameters           clt_parameters,
+					  scan,             // final CLTPass3d   scan,
+					  threadsMax,
+					  updateStatus,
+					  debugLevel);
+			  
 		  }
 		  super.setPassAvgRBGA( // get image from a single pass, return relative path for x3d // USED in lwir
 				  clt_parameters,
@@ -4693,6 +4746,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  getNumSensors(),
 				  clt_parameters.transform_size,
 				  clt_parameters.img_dtt,
+				  isAux(),
 				  isMonochrome(),
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
@@ -4814,6 +4868,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  getNumSensors(),
 				  clt_parameters.transform_size,
 				  clt_parameters.img_dtt,
+				  isAux(),
 				  isMonochrome(),
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
@@ -4887,25 +4942,27 @@ public class QuadCLT extends QuadCLTCPU {
 	  }
 
 	  
-	  public CLTPass3d  CLTMeasureTextures( // perform single pass according to prepared tiles operations and disparity // not used in lwir
-			  CLTParameters           clt_parameters,
-			  final int         scanIndex,
+//	  public CLTPass3d  CLTMeasureTextures( // perform single pass according to prepared tiles operations and disparity // not used in lwir
+	  public void CLTMeasureTextures( // perform single pass according to prepared tiles operations and disparity // not used in lwir
+			  final CLTParameters           clt_parameters,
+			  final CLTPass3d          scan,
 			  final int         threadsMax,  // maximal number of threads to launch
 			  final boolean     updateStatus,
 			  final int         debugLevel)
 	  {
 		  if ((gpuQuad == null) || !(isAux()?clt_parameters.gpu_use_aux : clt_parameters.gpu_use_main)) {
-			  return super.CLTMeasureTextures( // measure background // USED in lwir
+			  super.CLTMeasureTextures( // measure background // USED in lwir
 					  clt_parameters,
-					  scanIndex,
+					  scan,
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
 					  debugLevel);
+			  return;
 		  }
 		  final int tilesX = tp.getTilesX();
 		  final int tilesY = tp.getTilesY();
 
-		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
+//		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
 		  // maybe just rely on tile_op ?
 		  boolean [] text_sel = new boolean [tilesX * tilesY];
 		  for (int ty = 0; ty < tilesY; ty++) {
@@ -4917,13 +4974,18 @@ public class QuadCLT extends QuadCLTCPU {
 		  scan.setTextureSelection(text_sel); // .clone(); GPU will measure when the texture will be requested
 //		  scan.is_measured =   true; // but no disparity map/textures
 		  scan.is_combo =      false;
-		  return scan; // what about processed and other attributes?
+		  if (debugLevel > 10) {
+			  tp.showScan(
+					  scan,   // CLTPass3d   scan,
+					  "CLTMeasureTextures->");
+		  }
+//		  return scan; // what about processed and other attributes?
 		  
 	  }
 	
-	  public CLTPass3d  CLTMeasureLY( // perform single pass according to prepared tiles operations and disparity // USED in lwir
+	  public void CLTMeasureLY( // perform single pass according to prepared tiles operations and disparity // USED in lwir
 			  final CLTParameters clt_parameters,
-			  final int           scanIndex,
+			  final CLTPass3d     scan,
 			  final int           bgIndex, // combine, if >=0
 			  final int           threadsMax,  // maximal number of threads to launch
 			  final boolean       updateStatus,
@@ -4937,7 +4999,7 @@ public class QuadCLT extends QuadCLTCPU {
 		  final int clustersX= (tilesX + cluster_size - 1) / cluster_size;
 		  final int clustersY= (tilesY + cluster_size - 1) / cluster_size;
 
-		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
+//		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
 		  scan.setLazyEyeClusterSize(cluster_size);
 		  boolean [] force_disparity= new boolean[clustersX * clustersY];
 		  //		  scan.setLazyEyeForceDisparity(force_disparity);
@@ -5004,9 +5066,11 @@ public class QuadCLT extends QuadCLTCPU {
 			  for (int ty = 0; ty < tile_op.length; ty ++) for (int tx = 0; tx < tile_op[ty].length; tx ++){
 				  if (tile_op[ty][tx] != 0) numTiles ++;
 			  }
-			  System.out.println("CLTMeasure("+scanIndex+"): numTiles = "+numTiles);
+//			  System.out.println("CLTMeasure("+scanIndex+"): numTiles = "+numTiles);
+			  System.out.println("CLTMeasure(): numTiles = "+numTiles);
 			  if ((dbg_y >= 0) && (dbg_x >= 0) && (tile_op[dbg_y][dbg_x] != 0)){
-				  System.out.println("CLTMeasure("+scanIndex+"): tile_op["+dbg_y+"]["+dbg_x+"] = "+tile_op[dbg_y][dbg_x]);
+//				  System.out.println("CLTMeasure("+scanIndex+"): tile_op["+dbg_y+"]["+dbg_x+"] = "+tile_op[dbg_y][dbg_x]);
+				  System.out.println("CLTMeasure(): tile_op["+dbg_y+"]["+dbg_x+"] = "+tile_op[dbg_y][dbg_x]);
 			  }
 		  }
 		  double min_corr_selected = clt_parameters.min_corr;
@@ -5027,6 +5091,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  getNumSensors(),
 				  clt_parameters.transform_size,
 				  clt_parameters.img_dtt,
+				  isAux(),
 				  isMonochrome(),
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()),
@@ -5247,7 +5312,7 @@ if (debugLevel < -100) {
 		  scan.is_measured =   true; // but no disparity map/textures
 		  scan.is_combo =      false;
 		  scan.resetProcessed();
-		  return scan;
+//		  return scan;
 	  }
 	  
 	  public void gpuResetCorrVector() {

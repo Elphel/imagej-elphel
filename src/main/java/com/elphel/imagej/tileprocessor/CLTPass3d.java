@@ -378,10 +378,22 @@ public class CLTPass3d{
 			}
 			return has_lma;
 		}
+
 		public void setLMA(boolean [] has_lma) {// use for combo tiles
 			this.has_lma = has_lma;
 		}
 
+		public void resetLMA() {
+			this.has_lma = null;
+		}
+		public void setLMA(double [] disparity_lma) {// use for combo tiles
+			this.has_lma = new boolean [disparity_lma.length];
+			for (int i = 0; i < disparity_lma.length; i++) {
+				this.has_lma[i] = !Double.isNaN(disparity_lma[i]);
+			}
+		}
+		
+		
 		public void fixNaNDisparity()
 		{
 			fixNaNDisparity(
