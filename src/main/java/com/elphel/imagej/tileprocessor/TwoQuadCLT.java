@@ -8317,9 +8317,10 @@ if (debugLevel > -100) return true; // temporarily !
 ///		double k_prev = 0.75;
 ///		double corr_scale = 0.75;
 		OpticalFlow opticalFlow = new OpticalFlow(
-				quadCLT.getNumSensors(),
-				threadsMax, // int            threadsMax,  // maximal number of threads to launch
-				updateStatus); // boolean        updateStatus);
+				quadCLT_main.getNumSensors(),
+				clt_parameters.ofp.scale_no_lma_disparity, // double         scale_no_lma_disparity,
+				threadsMax,                                // int            threadsMax,  // maximal number of threads to launch
+				updateStatus);                             // boolean        updateStatus);
 		
 		for (int i = 1; i < quadCLTs.length; i++) {
 //			QuadCLT qPrev = (i > 0) ? quadCLTs[i - 1] : null;
@@ -8348,7 +8349,7 @@ if (debugLevel > -100) return true; // temporarily !
 			CLTParameters                                        clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
 			ColorProcParameters                                  colorProcParameters,
-			ColorProcParameters                                  colorProcParameters_aux,
+//			ColorProcParameters                                  colorProcParameters_aux,
 			CorrectionColorProc.ColorGainsParameters             channelGainParameters,
 			EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
@@ -8394,14 +8395,18 @@ if (debugLevel > -100) return true; // temporarily !
 					threadsMax,     // int            threadsMax,  // maximal number of threads to launch
 					updateStatus,   // boolean        updateStatus,
 					debugLevel);    // int            debugLevel)
-///			quadCLTs[i].showDSIMain();
+			if (debugLevel > 0) {
+				quadCLTs[i].showDSIMain(); // was commented out
+				quadCLTs[i].showDSI(); // was commented out
+			}
 		}
 		
 		
 		OpticalFlow opticalFlow = new OpticalFlow(
 				quadCLT_main.getNumSensors(),
-				threadsMax, // int            threadsMax,  // maximal number of threads to launch
-				updateStatus); // boolean        updateStatus);
+				clt_parameters.ofp.scale_no_lma_disparity, // double         scale_no_lma_disparity,
+				threadsMax,                                // int            threadsMax,  // maximal number of threads to launch
+				updateStatus);                             // boolean        updateStatus);
 		
 		for (int i = 1; i < quadCLTs.length; i++) {
 //			QuadCLT qPrev = (i > 0) ? quadCLTs[i - 1] : null;
@@ -8419,7 +8424,6 @@ if (debugLevel > -100) return true; // temporarily !
 			
 			opticalFlow.adjustPairsLMA(
 					clt_parameters, // CLTParameters  clt_parameters,
-//					clt_parameters.ofp.k_prev, // k_prev,
 					// FIXME: *********** update getPoseFromErs to use QUADCLTCPU ! **********				
 					(QuadCLT) quadCLTs[i],
 					(QuadCLT) qPrev,
@@ -8427,29 +8431,7 @@ if (debugLevel > -100) return true; // temporarily !
 					pose[1], // atr
 					clt_parameters.ilp.ilma_lma_select,             // final boolean[]   param_select,
 					clt_parameters.ilp.ilma_regularization_weights, //  final double []   param_regweights,
-//					clt_parameters.ofp.ers_to_pose_scale, // corr_scale,
 					clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
-			/*
-			scenes_xyzatr[i] = adjustPairsLMA(
-					clt_parameters,     // CLTParameters  clt_parameters,			
-					reference_QuadClt, // QuadCLT reference_QuadCLT,
-					scene_QuadClt, // QuadCLT scene_QuadCLT,
-					pose[0], // xyz
-					pose[1], // atr
-					clt_parameters.ilp.ilma_lma_select,             // final boolean[]   param_select,
-					clt_parameters.ilp.ilma_regularization_weights, //  final double []   param_regweights,
-					debug_level); // int debug_level)
-			 * 
-			 *  
-			 *  reversed
-			opticalFlow.test_LMA(
-					clt_parameters, // CLTParameters  clt_parameters,
-					clt_parameters.ofp.k_prev, // k_prev,
-					qPrev,
-					quadCLTs[i],
-					clt_parameters.ofp.ers_to_pose_scale, // corr_scale,
-					clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
-			 */
 		}
 
 
@@ -8463,7 +8445,7 @@ if (debugLevel > -100) return true; // temporarily !
 			CLTParameters             clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
 			ColorProcParameters                                  colorProcParameters,
-			ColorProcParameters                                  colorProcParameters_aux,
+//			ColorProcParameters                                  colorProcParameters_aux,
 			CorrectionColorProc.ColorGainsParameters             channelGainParameters,
 			EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
@@ -8489,9 +8471,10 @@ if (debugLevel > -100) return true; // temporarily !
 //		String set_name = set_channels[0].set_name;
 		
 //		QuadCLT [] quadCLTs = new QuadCLT [set_channels.length]; 
-		QuadCLTCPU [] quadCLTs = new QuadCLTCPU [set_channels.length]; 
+//		QuadCLTCPU [] quadCLTs = new QuadCLTCPU [set_channels.length]; 
+		QuadCLT [] quadCLTs = new QuadCLT [set_channels.length]; 
 		for (int i = 0; i < quadCLTs.length; i++) {
-			quadCLTs[i] = quadCLT_main.spawnQuadCLT(
+			quadCLTs[i] = (QuadCLT) quadCLT_main.spawnQuadCLT(
 					set_channels[i].set_name,
 					clt_parameters,
 					colorProcParameters, //
@@ -8514,41 +8497,18 @@ if (debugLevel > -100) return true; // temporarily !
 		
 		OpticalFlow opticalFlow = new OpticalFlow(
 				quadCLT_main.getNumSensors(),
-				threadsMax, // int            threadsMax,  // maximal number of threads to launch
-				updateStatus); // boolean        updateStatus);
+				clt_parameters.ofp.scale_no_lma_disparity, // double         scale_no_lma_disparity,
+				threadsMax,                                // int            threadsMax,  // maximal number of threads to launch
+				updateStatus);                             // boolean        updateStatus);
 		
 		opticalFlow.adjustPairsDualPass(
 				clt_parameters, // CLTParameters  clt_parameters,			
 				clt_parameters.ofp.k_prev, // k_prev,
 				// FIXME: *********** update adjustPairsDualPass to use QUADCLTCPU ! **********				
-				(QuadCLT []) quadCLTs, // QuadCLT [] scenes, // ordered by increasing timestamps
+//				(QuadCLT []) 
+				quadCLTs, // QuadCLT [] scenes, // ordered by increasing timestamps
 				clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
 		
-		/*
-		
-		for (int i = 1; i < quadCLTs.length; i++) {
-			QuadCLT qPrev = (i > 0) ? quadCLTs[i - 1] : null;
-			//			double [][][] pair_sets =
-			opticalFlow.test_LMA(
-					clt_parameters, // CLTParameters  clt_parameters,
-					clt_parameters.ofp.k_prev, // k_prev,
-					quadCLTs[i],
-					qPrev,
-					clt_parameters.ofp.ers_to_pose_scale, // corr_scale,
-					clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
-					*/
-			/* reversed
-			opticalFlow.test_LMA(
-					clt_parameters, // CLTParameters  clt_parameters,
-					clt_parameters.ofp.k_prev, // k_prev,
-					qPrev,
-					quadCLTs[i],
-					clt_parameters.ofp.ers_to_pose_scale, // corr_scale,
-					clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
-			 */
-		/*
-		}
-       */
 
 		System.out.println("End of test");
 
@@ -8560,7 +8520,7 @@ if (debugLevel > -100) return true; // temporarily !
 			CLTParameters             clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
 			ColorProcParameters                                  colorProcParameters,
-			ColorProcParameters                                  colorProcParameters_aux,
+//			ColorProcParameters                                  colorProcParameters_aux,
 			CorrectionColorProc.ColorGainsParameters             channelGainParameters,
 			EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
@@ -8584,10 +8544,10 @@ if (debugLevel > -100) return true; // temporarily !
 		}
 		QuadCLT.SetChannels [] set_channels=quadCLT_main.setChannels(debugLevel);
 		
-//		QuadCLT [] quadCLTs = new QuadCLT [set_channels.length]; 
-		QuadCLTCPU [] quadCLTs = new QuadCLTCPU [set_channels.length]; 
+		QuadCLT [] quadCLTs = new QuadCLT [set_channels.length]; 
+//		QuadCLTCPU [] quadCLTs = new QuadCLTCPU [set_channels.length]; 
 		for (int i = 0; i < quadCLTs.length; i++) {
-			quadCLTs[i] = quadCLT_main.spawnQuadCLT(
+			quadCLTs[i] = (QuadCLT) quadCLT_main.spawnQuadCLT(
 					set_channels[i].set_name,
 					clt_parameters,
 					colorProcParameters, //
@@ -8605,14 +8565,16 @@ if (debugLevel > -100) return true; // temporarily !
 		
 		OpticalFlow opticalFlow = new OpticalFlow(
 				quadCLT_main.getNumSensors(),
-				threadsMax, // int            threadsMax,  // maximal number of threads to launch
-				updateStatus); // boolean        updateStatus);
+				clt_parameters.ofp.scale_no_lma_disparity, // double         scale_no_lma_disparity,
+				threadsMax,                                // int            threadsMax,  // maximal number of threads to launch
+				updateStatus);                             // boolean        updateStatus);
 		
 		opticalFlow.adjustSeries(
 				clt_parameters, // CLTParameters  clt_parameters,			
 				clt_parameters.ofp.k_prev, // k_prev,\
 				// FIXME: *********** update adjustSeries to use QUADCLTCPU ! **********								
-				(QuadCLT []) quadCLTs, // QuadCLT [] scenes, // ordered by increasing timestamps
+//				(QuadCLT []) 
+				quadCLTs, // QuadCLT [] scenes, // ordered by increasing timestamps
 				clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
 		System.out.println("End of interSeriesLMA()");
 	}
@@ -8663,12 +8625,14 @@ if (debugLevel > -100) return true; // temporarily !
 		
 		OpticalFlow opticalFlow = new OpticalFlow(
 				quadCLT_main.getNumSensors(),
-				threadsMax, // int            threadsMax,  // maximal number of threads to launch
-				updateStatus); // boolean        updateStatus);
+				clt_parameters.ofp.scale_no_lma_disparity, // double         scale_no_lma_disparity,
+				threadsMax,                                // int            threadsMax,  // maximal number of threads to launch
+				updateStatus);                             // boolean        updateStatus);
 		
 		opticalFlow.IntersceneAccumulate(
 				clt_parameters,            // CLTParameters       clt_parameters,
 				colorProcParameters,       // ColorProcParameters colorProcParameters,
+				set_channels,              // QuadCLT.SetChannels [] set_channels
 				ref_quadCLT,               // QuadCLT [] scenes, // ordered by increasing timestamps
 				null, // noise_sigma_level,         // double []            noise_sigma_level,
 				clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
@@ -8814,8 +8778,10 @@ if (debugLevel > -100) return true; // temporarily !
 		
 		OpticalFlow opticalFlow = new OpticalFlow(
 				quadCLT_main.getNumSensors(),
-				threadsMax, // int            threadsMax,  // maximal number of threads to launch
-				updateStatus); // boolean        updateStatus);
+				clt_parameters.ofp.scale_no_lma_disparity, // double         scale_no_lma_disparity,
+				threadsMax,                                // int            threadsMax,  // maximal number of threads to launch
+				updateStatus);                             // boolean        updateStatus);
+		
 		if (bayer_artifacts_debug) {
 			opticalFlow.intersceneNoiseDebug(
 					clt_parameters,            // CLTParameters       clt_parameters,

@@ -2305,7 +2305,11 @@ public class GpuQuad{ // quad camera description
 		final double [] max_py = new double[num_cams] ;
 		for (int i = 0; i < num_cams; i++) {
 			min_py [i] = margin + geometryCorrection.getWOITops()[i];
-			max_py [i] = geometryCorrection.getWOITops()[i] + geometryCorrection.getCameraHeights()[i] - 1 - margin;
+			// camera_heights array is only set during conditionImageSet(), not called by the intersceneAccumulate()
+			// That was correct, as all scenes should be conditioned
+//			max_py [i] = geometryCorrection.getWOITops()[i] + geometryCorrection.getCameraHeights()[i] - 1 - margin;
+			max_py [i] = geometryCorrection.getSensorWH()[1] - 1 - margin;
+			//.getSensorWH()[0]
 		}
 		if (valid_tiles!=null) {
 			Arrays.fill(valid_tiles, false);
@@ -2334,17 +2338,18 @@ public class GpuQuad{ // quad camera description
 						tp_task.task = task_code;
 						double disparity = pXpYD[nTile][2] + disparity_corr;
 						tp_task.target_disparity = (float) disparity; // will it be used?
-						double [][] disp_dist_main = new double[quad_main][]; // used to correct 3D correlations (not yet used here)
+						double [][] disp_dist = new double[quad_main][]; // used to correct 3D correlations (not yet used here)
 						double [][] centersXY_main = geometryCorrection.getPortsCoordinatesAndDerivatives(
 								geometryCorrection, //			GeometryCorrection gc_main,
 								false,          // boolean use_rig_offsets,
 								corr_rots, // Matrix []   rots,
 								null,           //  Matrix [][] deriv_rots,
 								null,           // double [][] pXYderiv, // if not null, should be double[8][]
-								disp_dist_main,       // used to correct 3D correlations
+								disp_dist,       // used to correct 3D correlations
 								pXpYD[nTile][0],
 								pXpYD[nTile][1],
 								disparity); //  + disparity_corr);
+						tp_task.setDispDist(disp_dist);
 						tp_task.xy = new float [centersXY_main.length][2];
 						boolean bad_margins = false;
 						for (int i = 0; i < centersXY_main.length; i++) {

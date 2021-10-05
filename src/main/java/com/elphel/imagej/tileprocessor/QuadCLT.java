@@ -3491,7 +3491,7 @@ public class QuadCLT extends QuadCLTCPU {
 		  double [][] ports_xy = new double [tilesY*tilesX][];
 		  TpTask [] tp_tasks = gpuQuad.getTasks(use_aux); // use_aux);
 		  for (TpTask tp_task:tp_tasks) {
-			  float [][] txy =  tp_task.getXY(use_aux);
+			  float [][] txy =  tp_task.getXY(); // use_aux);
 			  double [] tile_ports_xy = new double [txy.length * txy[0].length];
 			  int indx = 0;
 			  for (int i = 0; i < txy.length; i++) {
@@ -3616,6 +3616,7 @@ public class QuadCLT extends QuadCLTCPU {
 		  return disparity_map;
 	  }
 	  
+	  @Deprecated
 	  public double [][] CLTCorrDisparityMapCPUTasks(
 			  String            suffix,
 			  CLTParameters     clt_parameters,

@@ -274,6 +274,10 @@ public class Correlation2d {
     	return pair_start_end.length;
     }
     
+    public static int getNumPairs(int numSensors) {
+     return  numSensors * (numSensors-1) /2;
+    }
+    
     public void setCorrPairs(boolean [] sel) { // these pairs will be correlated
     	corr_pairs = sel.clone();
     }
@@ -782,7 +786,7 @@ public class Correlation2d {
 				true,                            // boolean normalize,
 				true,                            // boolean notch,
 				wndx_scale);                     // double  scale);
-    	int num_pairs = numSensors * (numSensors-1) /2;
+    	int num_pairs = getNumPairs(numSensors);//  numSensors * (numSensors-1) /2;
     	pair_start_end = new int [num_pairs][2];
     	pair_orient =    new int [num_pairs][num_pairs];
     	pair_length =    new int [num_pairs];

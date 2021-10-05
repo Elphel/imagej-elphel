@@ -2024,7 +2024,7 @@ public class Corr2dLMA {
 			double      lambda,
 			double [][] jt){
 		int num_pars = jt.length;
-		int nup_points = jt[0].length;
+		int nup_points = (num_pars > 0)? jt[0].length : 0;
 		double [][] wjtjl = new double [num_pars][num_pars];
 		for (int i = 0; i < num_pars; i++) {
 			for (int j = i; j < num_pars; j++) {

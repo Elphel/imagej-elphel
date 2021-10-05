@@ -54,6 +54,18 @@ public class TpTask {
 	public float [][] getDispDist(){
 		return disp_dist;
 	}
+	public void setDispDist(float [][] disp_dist){
+		this.disp_dist = disp_dist;
+	}
+	public void setDispDist(double [][] disp_dist){
+		this.disp_dist = new float [disp_dist.length][disp_dist[0].length];
+		for (int i = 0; i < disp_dist.length; i++) {
+			for (int j = 0; j < disp_dist[0].length; j++) {
+				this.disp_dist[i][j] = (float) disp_dist[i][j];		
+			}
+		}
+	}
+
 	public double [][] getDoubleDispDist(){
 		if (disp_dist == null) { // can it happen?
 			return null;
@@ -66,12 +78,30 @@ public class TpTask {
 		}
 		return ddisp_dist;
 	}
-	
+	@Deprecated
 	public float [][] getXY(boolean use_aux){
 		return use_aux? xy_aux : xy;
 	}
+	@Deprecated
 	public double [][] getDoubleXY(boolean use_aux){
 		float [][] fXY = getXY(use_aux);
+		if (fXY == null) {
+			return null;
+		}
+		double [][] dXY = new double [fXY.length][fXY[0].length];
+		for (int nsens = 0; nsens < fXY.length; nsens++) {
+			for (int i = 0; i < fXY[nsens].length; i++) {
+				dXY[nsens][i] = fXY[nsens][i]; 
+			}
+		}
+		return dXY;
+	}
+
+	public float [][] getXY(){
+		return  xy;
+	}
+	public double [][] getDoubleXY(){
+		float [][] fXY = getXY();
 		if (fXY == null) {
 			return null;
 		}

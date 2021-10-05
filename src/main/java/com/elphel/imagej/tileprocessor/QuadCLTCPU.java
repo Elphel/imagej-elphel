@@ -314,7 +314,7 @@ public class QuadCLTCPU {
 			System.out.println ("Failed to open "+file_path);
 			return -1;
 		}
-		System.out.println("restoreDSI(): got "+imp.getStackSize()+" slices");
+		System.out.println("restoreDSI(): got "+imp.getStackSize()+" slices from file: "+file_path);
 		if (imp.getStackSize() < 2) {
 			System.out.println ("Failed to read "+file_path);
 			return -1;
@@ -359,7 +359,9 @@ public class QuadCLTCPU {
 			  path = x3d_path+Prefs.getFileSeparator()+path;
 		}
 		Properties	inter_properties = new Properties();
-		setProperties(QuadCLT.PREFIX,inter_properties);
+		String prefix = is_aux?PREFIX_AUX:PREFIX; 
+//		setProperties(QuadCLT.PREFIX,inter_properties); 
+		setProperties(prefix,inter_properties); 
 //		quadCLT_aux.setProperties(QuadCLT.PREFIX_AUX,properties);
 		OutputStream os;
 		try {
@@ -433,6 +435,7 @@ public class QuadCLTCPU {
 		ers.getPropertiesERS(prefix,    properties);
 		ers.getPropertiesScenes(prefix, properties);
 		ers.getPropertiesLineTime(prefix, properties); // will set old value if not in the file
+		System.out.println("Restored interframe properties from :"+path);
 		return properties;
 		
 	}
@@ -443,8 +446,10 @@ public class QuadCLTCPU {
     }
     public String [] getDSRGGTiltes() {
 		return isMonochrome()?
-				(new String[]{"disparity","strength", "disparity_lma","Y"}):
-					(new String[]{"disparity","strength", "disparity_lma","R","B","G"});
+//				(new String[]{"disparity","strength", "disparity_lma","Y"}):
+//					(new String[]{"disparity","strength", "disparity_lma","R","B","G"});
+		(new String[]{"disparity","strength", "Y"}):
+			(new String[]{"disparity","strength", "R","B","G"});
     }
 
     public void setDSRBG(
@@ -471,6 +476,17 @@ public class QuadCLTCPU {
 			boolean        updateStatus,
 			int            debugLevel)
     {
+    	double snld =  clt_parameters.ofp.scale_no_lma_disparity;
+    	if ((snld != 1.0) && (disparity_lma != null)) {
+        	strength = strength.clone();
+        	for (int i = 0; i < strength.length; i++) {
+        		if (Double.isNaN(disparity_lma[i])) {
+        			strength[i] *= snld;
+        		}
+        	}
+    		
+    	}
+    	
     	double[][] rbg = getTileRBG(
     			clt_parameters,
     			disparity,
@@ -483,13 +499,13 @@ public class QuadCLTCPU {
     		this.dsrbg = new double[][] {
     			disparity,
     			strength,
-    			disparity_lma,
+//    			disparity_lma,
     			rbg[2]};
     	} else {
     		this.dsrbg = new double[][] {
     			disparity,
     			strength,
-    			disparity_lma,
+//    			disparity_lma,
     			rbg[0],rbg[1],rbg[2]};
     	}
 		if (debugLevel > 1) { // -2) {
@@ -943,15 +959,22 @@ public class QuadCLTCPU {
 				0);       // int                   jpegQuality)
 	}
 	public void showDSIMain() {
-		showDSIMain(this.dsi);
+		showDSIMain(
+				this.dsi,
+				isAux());
 	}
 	
 	public void showDSIMain(
-			double [][] dsi)
+			double [][] dsi,
+			boolean use_aux)
 	{
 		  String title = image_name+"-DSI_MAIN";
-		  String []   titles =   {TwoQuadCLT.DSI_SLICES[TwoQuadCLT.DSI_DISPARITY_MAIN], TwoQuadCLT.DSI_SLICES[TwoQuadCLT.DSI_STRENGTH_MAIN]};
-		  double [][] dsi_main = {dsi[TwoQuadCLT.DSI_DISPARITY_MAIN],        dsi[TwoQuadCLT.DSI_STRENGTH_MAIN]};
+		  String []   titles =   {
+				  TwoQuadCLT.DSI_SLICES[use_aux?TwoQuadCLT.DSI_DISPARITY_AUX:TwoQuadCLT.DSI_DISPARITY_MAIN],
+				  TwoQuadCLT.DSI_SLICES[use_aux?TwoQuadCLT.DSI_STRENGTH_AUX:TwoQuadCLT.DSI_STRENGTH_MAIN]};
+		  double [][] dsi_main = {
+				  dsi[use_aux?TwoQuadCLT.DSI_DISPARITY_AUX:TwoQuadCLT.DSI_DISPARITY_MAIN],
+				  dsi[use_aux?TwoQuadCLT.DSI_STRENGTH_AUX:TwoQuadCLT.DSI_STRENGTH_MAIN]};
 
 		  (new ShowDoubleFloatArrays()).showArrays(dsi_main,tp.getTilesX(), tp.getTilesY(), true, title, titles);
 	}

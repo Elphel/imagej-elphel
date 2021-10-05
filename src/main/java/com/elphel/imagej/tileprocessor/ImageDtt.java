@@ -336,7 +336,7 @@ public class ImageDtt extends ImageDttCPU {
 								fdisp_dist[task.getTileY()][task.getTileX()] = task.getDispDist();
 							}
 							if (fpxpy != null) {
-								fpxpy[task.getTileY()][task.getTileX()] = task.getXY(use_main); // boolean use_aux);
+								fpxpy[task.getTileY()][task.getTileX()] = task.getXY(); // use_main); // boolean use_aux);
 							}
 						} // end of tile
 					}
@@ -1171,7 +1171,7 @@ public class ImageDtt extends ImageDttCPU {
 								fdisp_dist[task.getTileY()][task.getTileX()] = task.getDispDist();
 							}
 							if (fpxpy != null) {
-								fpxpy[task.getTileY()][task.getTileX()] = task.getXY(use_main); // boolean use_aux);
+								fpxpy[task.getTileY()][task.getTileX()] = task.getXY(); // use_main); // boolean use_aux);
 							}
 						} // end of tile
 					}
@@ -1193,7 +1193,7 @@ public class ImageDtt extends ImageDttCPU {
 						for (int indx_tile = ai.getAndIncrement(); indx_tile < tp_tasks_full.length; indx_tile = ai.getAndIncrement()) {
 							TpTask task = tp_tasks_full[indx_tile];
 							if (fpxpy != null) {
-								fpxpy_test[task.getTileY()][task.getTileX()] = task.getXY(use_main); // boolean use_aux);
+								fpxpy_test[task.getTileY()][task.getTileX()] = task.getXY(); // use_main); // boolean use_aux);
 							}
 						} // end of tile
 					}

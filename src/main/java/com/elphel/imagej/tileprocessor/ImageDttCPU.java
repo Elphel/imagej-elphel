@@ -3262,7 +3262,7 @@ public class ImageDttCPU {
 										// IDCT-IV should be in reversed order: CC->CC, SC->CS, CS->SC, SS->SS
 										int idct_mode = ((dct_mode << 1) & 2) | ((dct_mode >> 1) & 1);
 
-										if ((globalDebugLevel > 0) && debugTile) {
+										if ((globalDebugLevel > 10) && debugTile) {
 											double [] clt_tile_dbg =  clt_tile.clone();
 											double [] clt_tile_dbg1 = clt_tile.clone();
 											clt_tile_dbg = dtt.dttt_ivn   (clt_tile_dbg,  idct_mode, transform_size, false);
@@ -8571,7 +8571,16 @@ public class ImageDttCPU {
 		return corr_data_out;
 	}
 		
-	
+	/**
+	 * Extract selected window from fcorr [tile][pair][]
+	 * @param copy try copy, false - reference
+	 * @param fcorr correlation tiles: first index tile number (assuming linescan order), second index - pair index, third - pixel in a tile
+	 * @param woi Rectangle x,y,width,height (in tiles)
+	 * @param tilesX fcorr width in tiles
+	 * @param threadsMax
+	 * @return
+	 */
+	@Deprecated
 	public static float [][][] extract_corr_woi(
 			final boolean      copy, // copy tiles stack, not reference
 			final float [][][] fcorr,
@@ -8613,9 +8622,73 @@ public class ImageDttCPU {
 						int tile = tileY * tilesX + tileX;
 						
 						if (copy && (fcorr[tile] != null)) {
-							fcorr_out[tile] = fcorr[tile].clone();	
+							fcorr_out[tile] = fcorr[tile].clone();	// seems a bug, should be fcorr_out[nTile] = fcorr[tile].clone();
 						} else {
-							fcorr_out[tile] = fcorr[tile];
+							fcorr_out[tile] = fcorr[tile];	       // seems a bug, should be fcorr_out[nTile] = fcorr[tile];
+						}
+					}
+				}
+			};
+		}
+		startAndJoin(threads);
+		return fcorr_out;
+	}
+
+	// 2021
+	public static float [][][] extract_corr_woi(
+			final boolean      copy, // copy tiles stack, not reference
+			final float [][][] fcorr,
+			final Rectangle    woi,
+			final TpTask []    tp_tasks,        //
+			final int          tilesX,
+			final int          tilesY,
+			final int          threadsMax)     // maximal number of threads to launch
+
+	{
+//		int []    tXY = getCorrSize(tp_tasks);
+//		final int tilesX = tXY[0];
+//		final int tilesY = tXY[1];
+		if ((woi.width + woi.x) >= tilesX) {
+			int ww = woi.width; 
+			woi.width = tilesX - woi.x;
+			if (woi.width <= 0) {
+				if (ww > tilesX) ww = tilesX;
+				woi.width = ww;
+				woi.x = tilesX - woi.width; 
+			}
+		}
+		if ((woi.height + woi.y) >= tilesY) {
+			int wndh = woi.height; 
+			woi.height = tilesY - woi.y;
+			if (woi.height <= 0) {
+				if (wndh > tilesY) wndh = tilesY;
+				woi.height = wndh;
+				woi.y = tilesY - woi.height; 
+			}
+		}
+		final float [][][] fcorr_out = new float [fcorr.length][][];
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tp_tasks.length; nTile = ai.getAndIncrement()) {
+						int stileY = tp_tasks[nTile].getTileY(); //  nTile/tilesX;
+						int stileX = tp_tasks[nTile].getTileX(); //nTile - tileY * tilesX;
+						int tileY = stileY - woi.y; //  nTile/tilesX;
+						int tileX = stileX - woi.x; //nTile - tileY * tilesX;
+						if ((tileY >=0) && (tileX >=0) && (tileY < woi.height) && (tileX < woi.width)) {
+
+//							int tileY = nTile / woi.width + woi.y;
+//							int tileX = nTile % woi.width + woi.x;
+							int tile = tileY * tilesX + tileX;
+
+							if (copy && (fcorr[tile] != null)) {
+								fcorr_out[nTile] = fcorr[tile].clone();	
+							} else {
+								fcorr_out[nTile] = fcorr[tile];
+							}
 						}
 					}
 				}
@@ -8625,6 +8698,9 @@ public class ImageDttCPU {
 		return fcorr_out;
 	}
 	
+	
+	
+	@Deprecated
 	public static float [][] corr_partial_dbg( // not used in lwir
 			final float  [][][]     fcorr_data,       // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 			final int               tilesX,
@@ -8672,84 +8748,53 @@ public class ImageDttCPU {
 		return fcorr_data_out;
 	}
 
-
-	// extract correlation result  in linescan order (for visualization)
-	// extracts 10 correlation tiles 
-	public static float [] corr_partial_wnd( // not used in lwir
-			final double [][][][][] corr_data,
+	// 2021 version, uses tp_tasks as an index to fcorr_data
+	public static float [][] corr_partial_dbg( // not used in lwir
+			final float  [][][]     fcorr_data,       // [tile][pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+			final TpTask []         tp_tasks,        //
+			final int               tilesX,
+			final int               tilesY,
 			final int               corr_size,
-			final Rectangle         woi,
-			final int               gap,
-			final int []            wh,
-			final int               threadsMax)     // maximal number of threads to launch
+			final int               layers0,
+			final double            border_contrast,
+			final int               threadsMax,     // maximal number of threads to launch
+			final int               globalDebugLevel)
 	{
+		if ((fcorr_data == null) || (fcorr_data.length == 0)) { // assuming each defined tile has the same number of layers and non-null layers
+			System.out.println("corr_partial_dbg(): empty fcorr_data");
+			return null;
+		}
+//		int []    tXY = getCorrSize(tp_tasks);
+//		final int tilesX = tXY[0];
+//		final int tilesY = tXY[1];
 		final int tile_size = corr_size+1;
-		final int [][] layout = {{0,0,0},{1,1,0},{2,0,1},{3,1,1},{4,0,2},{5,1,2},{6,0,3},{7,1,3},{8,0,4},{9,1,4}}; // {source_index, row, col};
-		if ((woi.width + woi.x) >= corr_data[0].length) {
-			int ww = woi.width; 
-			woi.width = corr_data[0].length - woi.x;
-			if (woi.width <= 0) {
-				if (ww > corr_data[0].length) ww = corr_data[0].length;
-				woi.width = ww;
-				woi.x = corr_data[0].length - woi.width; 
-			}
-		}
-		if ((woi.height + woi.y) >= corr_data.length) {
-			int wndh = woi.height; 
-			woi.height = corr_data.length - woi.y;
-			if (woi.height <= 0) {
-				if (wndh > corr_data.length) wndh = corr_data.length;
-				woi.height = wndh;
-				woi.y = corr_data.length - woi.height; 
-			}
-		}
-		
-		final int nTiles=woi.width * woi.height;
-		
-		final int clust_width =  5 * tile_size + gap;
-		final int clust_height = 2 * tile_size + gap;
-		
-		final int width =  woi.width* clust_width - gap;
-		final int height = woi.height*clust_height - gap;
-		if (wh != null) {
-			wh[0] = width;
-			wh[1] = height;
-		}
-		final float [] corr_data_out = new float[width * height];
-		Arrays.fill(corr_data_out, Float.NaN);
+		final int layers = (layers0 < fcorr_data[0].length) ? layers0 : fcorr_data[0].length;
+	
+		final float [][] fcorr_data_out = new float[layers][]; //  [tilesY*tilesX*tile_size*tile_size];
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
-
+		
+		for (int layer = 0; layer < layers; layer++) if (fcorr_data[0][layer] != null){
+			fcorr_data_out[layer] = new float[tilesY*tilesX*tile_size*tile_size];
+			Arrays.fill(fcorr_data_out[layer], Float.NaN);
+		}
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				@Override
 				public void run() {
-					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
-						int tileY = nTile / woi.width; // relative to woi
-						int tileX = nTile % woi.width;
-						int stileY = tileY + woi.y;    // absolute in the corr_data
-						int stileX = tileX + woi.x;
-						if (corr_data[stileY][stileX] != null) {
-							for (int n = 0; n < layout.length; n++) {
-								int src_layer = layout[n][0];
-								int v_tile = layout[n][1];
-								int h_tile = layout[n][2];
-								double [] corr_tile = corr_data[stileY][stileX][src_layer/4][src_layer%4]; // tiles were organized as 4x4
-								int out_x = tileX * clust_width +  h_tile * tile_size;
-								int out_y = tileY * clust_height + v_tile * tile_size;
+					int tileY,tileX;
+					for (int nTile = ai.getAndIncrement(); nTile < tp_tasks.length; nTile = ai.getAndIncrement()) {
+						tileY = tp_tasks[nTile].getTileY(); //  nTile/tilesX;
+						tileX = tp_tasks[nTile].getTileX(); //nTile - tileY * tilesX;
+						if (fcorr_data[nTile] != null) {
+							for (int layer = 0; layer < layers; layer++) if (fcorr_data[nTile][layer] != null){ // sparse
 								for (int i = 0; i < corr_size;i++){
-									int out_start = (out_y + i) * width + out_x;
-									for (int j = 0; j < corr_size; j++) {
-										corr_data_out[out_start+j] = (float) corr_tile[corr_size* i +j];
-									}
-									/*
 									System.arraycopy(
-											corr_tile,
+											fcorr_data[nTile][layer],
 											corr_size* i,
-											corr_data_out,
-											(out_y + i) * width + out_x,
+											fcorr_data_out[layer],
+											((tileY*tile_size + i) *tilesX + tileX)*tile_size ,
 											corr_size);
-									*/
 								}
 							}
 						}
@@ -8758,9 +8803,10 @@ public class ImageDttCPU {
 			};
 		}
 		startAndJoin(threads);
-		return corr_data_out;
+		return fcorr_data_out;
 	}
 
+	@Deprecated
 	public static float [] corr_partial_wnd( // not used in lwir
 			final float  [][][]     fcorr_data,       // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 			final int               tilesX,
@@ -8823,13 +8869,6 @@ public class ImageDttCPU {
 								int out_x = tileX * clust_width +  h_tile * tile_size;
 								int out_y = tileY * clust_height + v_tile * tile_size;
 								for (int i = 0; i < corr_size;i++){
-									int out_start = (out_y + i) * width + out_x;
-									/*
-									for (int j = 0; j < corr_size; j++) {
-										corr_data_out[out_start+j] = (float) corr_tile[corr_size* i +j];
-									}
-									*/
-									
 									System.arraycopy(
 											fcorr_tile,
 											corr_size* i,
@@ -8847,8 +8886,208 @@ public class ImageDttCPU {
 		return corr_data_out;
 	}
 	
+	@Deprecated
+	public static int [] getCorrSize( // not used in lwir
+			final TpTask []         tp_tasks) {
+		int ty = -1,tx = -1;
+		for (int i = 0; i < tp_tasks.length; i++) {
+			if (tp_tasks[i].getTileX() > tx) tx = tp_tasks[i].getTileX(); 
+			if (tp_tasks[i].getTileY() > ty) ty = tp_tasks[i].getTileY(); 
+		}
+		return new int [] {tx,ty};
+	}
 
+	public static int getCorrPairs( // not used in lwir
+			final float  [][][]     fcorr_data) {       // [tile][pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+		for (int i = 0; i < fcorr_data.length; i++) {
+			if (fcorr_data[i] != null) {
+				return fcorr_data[i].length;
+			}
+		}
+		return 0;
+	}
 	
+	
+	
+	
+	public static int [][] getCorrLayout(   // {source_index, row, col};
+			Object corr_pairs,
+			double max_aspect){ // 3.0
+		if (Double.isNaN(max_aspect)) {
+			max_aspect = 3.0;
+		}
+		boolean [] sel_pairs = null;
+		int num_pairs = -1;
+		if (corr_pairs instanceof double[][][]) {
+			double [][][] parray = (double [][][]) corr_pairs;
+			for (int nTile = 0; nTile < parray.length; nTile++) {
+				if (parray[nTile] != null) {
+					num_pairs = parray[nTile].length;
+					sel_pairs = new boolean [num_pairs];
+					for (int npair = 0; npair < num_pairs; npair++) {
+						sel_pairs[npair] = parray[nTile][npair] != null;
+					}
+					break;
+				}
+			}
+		} else if (corr_pairs instanceof float [][][]) {
+			float [][][] parray = (float [][][]) corr_pairs;
+			for (int nTile = 0; nTile < parray.length; nTile++) {
+				if (parray[nTile] != null) {
+					num_pairs = parray[nTile].length;
+					sel_pairs = new boolean [num_pairs];
+					for (int npair = 0; npair < num_pairs; npair++) {
+						sel_pairs[npair] = parray[nTile][npair] != null;
+					}
+					break;
+				}
+			}
+		} else {
+			  throw new IllegalArgumentException ("getCorrLayout(): only double [][][] and float [][][] are supported");
+		}
+		if (sel_pairs == null) {
+			System.out.println("getCorrLayout(): empty");
+			return null;
+		}
+		int num_used = 0;
+		for (int i = 0; i < sel_pairs.length; i++) {
+			if (sel_pairs[i]) num_used++;
+		}
+		if (num_used == 0) {
+			System.out.println("getCorrLayout(): Number of define correlation pairs = 0");
+			return null;
+		}
+		int max_height = (int) Math.sqrt(num_used);
+		int waste = num_used, best_width = -1;
+		
+		for (int height = max_height; (height > 0) && (Math.ceil(1.0*num_used/height) <  height *max_aspect ); height--) {
+			int width = num_used/ height;
+			if (width * height < num_used) width ++;
+			int new_waste = width * height - num_used;
+			if (new_waste < waste) {
+				waste = new_waste;
+				best_width = width;
+			}
+		}
+		int [][] rslt = new int [num_used][3];
+		int indx = 0, row = 0, col = 0;
+		for (int i = 0; i < num_pairs; i++) {
+			if (sel_pairs[i]) {
+				rslt[indx  ][0] = i;
+				rslt[indx  ][1] = row;
+				rslt[indx++][2] = col++;
+				if (col >= best_width) {
+					row++;
+					col = 0;
+				}
+			}
+		}
+		return rslt;     
+	}
+	
+	// 2021 version, uses tp_tasks as an index to fcorr_data
+	public static float [] corr_partial_wnd( // not used in lwir
+			final float  [][][]     fcorr_data,       // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+			final TpTask []         tp_tasks,        //
+			final int               tilesX,
+			final int               tilesY,
+			final int               corr_size,
+			final Rectangle         woi,
+			final int               gap,
+			final int []            wh,
+			final int               threadsMax)     // maximal number of threads to launch
+	{
+		if ((fcorr_data == null) || (fcorr_data.length == 0)) { // assuming each defined tile has the same number of layers and non-null layers
+			System.out.println("corr_partial_dbg(): empty fcorr_data");
+			return null;
+		}
+//		int []    tXY = getCorrSize(tp_tasks);
+//		final int tilesX = tXY[0];
+//		final int tilesY = tXY[1];
+		
+		final int tile_size = corr_size+1;
+//		final int tilesY = fcorr_data.length/tilesX;
+//		final int [][] layout = {{0,0,0},{1,1,0},{2,0,1},{3,1,1},{4,0,2},{5,1,2},{6,0,3},{7,1,3},{8,0,4},{9,1,4}}; // {source_index, row, col};
+		final int [][] layout = getCorrLayout(  // {source_index, row, col};
+				fcorr_data, // Object corr_pairs,
+				3.0); // double max_aspect);
+		
+		if ((woi.width + woi.x) >= tilesX) {
+			int ww = woi.width; 
+			woi.width = tilesX - woi.x;
+			if (woi.width <= 0) {
+				if (ww > tilesX) ww = tilesX;
+				woi.width = ww;
+				woi.x = tilesX - woi.width; 
+			}
+		}
+		if ((woi.height + woi.y) >= tilesY) {
+			int wndh = woi.height; 
+			woi.height = tilesY - woi.y;
+			if (woi.height <= 0) {
+				if (wndh > tilesY) wndh = tilesY;
+				woi.height = wndh;
+				woi.y = tilesY - woi.height; 
+			}
+		}
+//		final int nTiles=woi.width * woi.height;
+		final int clust_width =  5 * tile_size + gap;
+		final int clust_height = 2 * tile_size + gap;
+		final int width =  woi.width* clust_width - gap;
+		final int height = woi.height*clust_height - gap;
+		if (wh != null) {
+			wh[0] = width;
+			wh[1] = height;
+		}
+		final float [] corr_data_out = new float[width * height];
+		Arrays.fill(corr_data_out, Float.NaN);
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tp_tasks.length; nTile = ai.getAndIncrement()) {
+						int stileY = tp_tasks[nTile].getTileY(); //  nTile/tilesX;
+						int stileX = tp_tasks[nTile].getTileX(); //nTile - tileY * tilesX;
+						int tileY = stileY - woi.y; //  nTile/tilesX;
+						int tileX = stileX - woi.x; //nTile - tileY * tilesX;
+						if ((tileY >=0) && (tileX >=0) && (tileY < woi.height) && (tileX < woi.width)) {
+//							int tileY = nTile / woi.width; // relative to woi
+//							int tileX = nTile % woi.width;
+//							int stileY = tileY + woi.y;    // absolute in the corr_data
+//							int stileX = tileX + woi.x;
+//							int stile = stileY * tilesX + stileX;
+							if (fcorr_data[nTile] != null) {
+								for (int n = 0; n < layout.length; n++) {
+									int src_layer = layout[n][0];
+									int v_tile = layout[n][1];
+									int h_tile = layout[n][2];
+									float [] fcorr_tile = fcorr_data[nTile][src_layer]; // tiles were organized as 4x4 ??
+									int out_x = tileX * clust_width +  h_tile * tile_size;
+									int out_y = tileY * clust_height + v_tile * tile_size;
+									for (int i = 0; i < corr_size;i++){
+										int out_start = (out_y + i) * width + out_x;
+
+										System.arraycopy(
+												fcorr_tile,
+												corr_size* i,
+												corr_data_out,
+												(out_y + i) * width + out_x,
+												corr_size);
+									}
+								}
+							}
+						}
+					}
+				}
+			};
+		}
+		startAndJoin(threads);
+		return corr_data_out;
+	}
+
+	@Deprecated
 	public static double [] corr_partial_wnd( // not used in lwir
 			final double  [][][]    dcorr_data,       // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 			final int               tilesX,
@@ -8930,8 +9169,104 @@ public class ImageDttCPU {
 		return corr_data_out;
 	}
 	
+	// 2021 
+	public static double [] corr_partial_wnd( // not used in lwir
+			final double  [][][]    dcorr_data,      // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+			final TpTask []         tp_tasks,        //
+			final int               tilesX,
+			final int               tilesY,
+			final int               corr_size,
+			final Rectangle         woi,
+			final int               gap,
+			final int []            wh,
+			final int               threadsMax)     // maximal number of threads to launch
+	{
+//		int []    tXY = getCorrSize(tp_tasks);
+//		final int tilesX = tXY[0];
+//		final int tilesY = tXY[1];
+		final int tile_size = corr_size+1;
+
+//		final int [][] layout = {{0,0,0},{1,1,0},{2,0,1},{3,1,1},{4,0,2},{5,1,2},{6,0,3},{7,1,3},{8,0,4},{9,1,4}}; // {source_index, row, col};
+		final int [][] layout = getCorrLayout(  // {source_index, row, col};
+				dcorr_data, // Object corr_pairs,
+				3.0); // double max_aspect);
+		
+		if ((woi.width + woi.x) >= tilesX) {
+			int ww = woi.width; 
+			woi.width = tilesX - woi.x;
+			if (woi.width <= 0) {
+				if (ww > tilesX) ww = tilesX;
+				woi.width = ww;
+				woi.x = tilesX - woi.width; 
+			}
+		}
+		if ((woi.height + woi.y) >= tilesY) {
+			int wndh = woi.height; 
+			woi.height = tilesY - woi.y;
+			if (woi.height <= 0) {
+				if (wndh > tilesY) wndh = tilesY;
+				woi.height = wndh;
+				woi.y = tilesY - woi.height; 
+			}
+		}
+//		final int nTiles=woi.width * woi.height;
+		final int clust_width =  5 * tile_size + gap;
+		final int clust_height = 2 * tile_size + gap;
+		final int width =  woi.width* clust_width - gap;
+		final int height = woi.height*clust_height - gap;
+		if (wh != null) {
+			wh[0] = width;
+			wh[1] = height;
+		}
+		final double [] corr_data_out = new double[width * height];
+		Arrays.fill(corr_data_out, Float.NaN);
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tp_tasks.length; nTile = ai.getAndIncrement()) {
+						int stileY = tp_tasks[nTile].getTileY(); //  nTile/tilesX;
+						int stileX = tp_tasks[nTile].getTileX(); //nTile - tileY * tilesX;
+						int tileY = stileY - woi.y; //  nTile/tilesX;
+						int tileX = stileX - woi.x; //nTile - tileY * tilesX;
+						if ((tileY >=0) && (tileX >=0) && (tileY < woi.height) && (tileX < woi.width)) {
+//							int tileY = nTile / woi.width; // relative to woi
+//							int tileX = nTile % woi.width;
+//							int stileY = tileY + woi.y;    // absolute in the corr_data
+//							int stileX = tileX + woi.x;
+//							int stile = stileY * tilesX + stileX;
+							if (dcorr_data[nTile] != null) {
+								for (int n = 0; n < layout.length; n++) {
+									int src_layer = layout[n][0];
+									if (dcorr_data[nTile].length > src_layer) {
+										int v_tile = layout[n][1];
+										int h_tile = layout[n][2];
+										double [] dcorr_tile = dcorr_data[nTile][src_layer]; // tiles were organized as 4x4
+										int out_x = tileX * clust_width +  h_tile * tile_size;
+										int out_y = tileY * clust_height + v_tile * tile_size;
+										for (int i = 0; i < corr_size;i++){
+											System.arraycopy(
+													dcorr_tile,
+													corr_size* i,
+													corr_data_out,
+													(out_y + i) * width + out_x,
+													corr_size);
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			};
+		}
+		startAndJoin(threads);
+		return corr_data_out;
+	}
 	
-	
+	@Deprecated
 	public static float [] corr_td_wnd(
 			final float [][][][] fcorr_td,       // float[tilesY][tilesX][num_slices][];
 			final float [][][][] fcorr_combo_td, // float[4][tilesY][tilesX][];
@@ -9043,7 +9378,8 @@ public class ImageDttCPU {
 		return fcorr_data_out;
 	}
 
-	public static double [] corr_td_wnd(
+	@Deprecated
+	public static double [] corr_td_wnd( // not used
 			final double [][][][] dcorr_td,       // float[tilesY][tilesX][num_slices][];
 			final double [][][][] dcorr_combo_td, // float[4][tilesY][tilesX][];
 			final Rectangle      woi,
@@ -9153,8 +9489,8 @@ public class ImageDttCPU {
 	}
 
 	
-
-	public static double [] corr_td_wnd(
+	@Deprecated
+	public static double [] corr_td_wnd( // only used in debug version
 			final double [][][][][] dcorr_td,       // float[tilesY][tilesX][num_slices][];
 			final double [][][][][] dcorr_combo_td, // float[4][tilesY][tilesX][];
 			final Rectangle         woi,
@@ -9311,6 +9647,7 @@ public class ImageDttCPU {
 	}
 	
 	// prepare tile-to-tile correlation data as an extra layer, after layers by corr_td_wnd()
+	@Deprecated
 	public static float [] corr_show_extra(
 			final float [][][] fcorr_extra,  // float[tile][slices][extra];
 			final int          tilesX,
@@ -15280,10 +15617,8 @@ public class ImageDttCPU {
 			final int                 width,
 			final TpTask []           tp_tasks,
 			final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
-//   			final double [][]         pXpYD,            // per-tile array of pX,pY,disparity triplets (or nulls)
 			final double [][][][][]   dcorr_td,        // [pair][tilesY][tilesX][4][64] sparse transform domain representation of corr pairs
 			// no combo here - rotate, combine in pixel domain after interframe
-///			final double [][][][]     dcorr_combo_td,  // [type][tilesY][tilesX][4*64] TD of combo corrs: quad, cross, hor,vert
 			final double [][][][][][] clt_kernels,     // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 			final int                 kernel_step,
 			final int                 window_type,
@@ -15291,10 +15626,6 @@ public class ImageDttCPU {
 			final double              corr_blue,
 
 			final int                 mcorr_sel,    // Which pairs to correlate // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
-//			final int                 mcorr_comb_width,  // combined correlation tile width
-//			final int                 mcorr_comb_height, // combined correlation tile full height
-//			final int                 mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
-//			final double              mcorr_comb_disp,   // Combined tile per-pixel disparity for baseline == side of a square
 			final int                 debug_tileX,
 			final int                 debug_tileY,
 			final int                 threadsMax,       // maximal number of threads to launch
@@ -15304,7 +15635,7 @@ public class ImageDttCPU {
 		final int tilesX=width/transform_size;
 		final int tilesY=height/transform_size;
 //		boolean [][] pcombo_sels = null;
-		if (correlation2d != null){
+		if (correlation2d == null){
 			  throw new IllegalArgumentException ("quadCorrTD(): correlation2d == null!");
 		}
 		// Initialize correlation pairs selection to be used by all threads
@@ -15362,7 +15693,8 @@ public class ImageDttCPU {
 		final boolean [][] combo_sels = pcombo_sels; 
 		*/
 		
-		final int numcol = isMonochrome()?1:3;
+//		final int numcol = isMonochrome()?1:3;
+		final int numcol = 3; // number of colors // keep the same, just do not use [0] and [1], [2] - green
 
 		final double [] col_weights= new double [numcol]; // colors are RBG
 		if (isMonochrome()) {
@@ -15416,7 +15748,7 @@ public class ImageDttCPU {
 						boolean debugTile =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -1);
 						boolean debugTile0 =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -3);
 						// TODO: move port coordinates out of color channel loop
-						double [][] centersXY = tp_tasks[iTile].getDoubleXY(isAux());
+						double [][] centersXY = tp_tasks[iTile].getDoubleXY();// isAux());
 
 						// save disparity distortions for visualization:
 						// TODO: use correction after disparity applied (to work for large disparity values)
@@ -15499,7 +15831,7 @@ public class ImageDttCPU {
 		    final double [][][][]     clt_corr_out,   // sparse (by the first index) [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] or null
   		    final double [][][][]     clt_combo_out,  // sparse (by the first index) [>=1][tilesY][tilesX][(combo_tile_size] or null
 			// to be converted to float
-			final double  [][][]      dcorr_tiles,     // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+			final double  [][][]      dcorr_tiles,     // [tile][pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 			// When clt_mismatch is non-zero, no far objects extraction will be attempted
 			//optional, may be null
 			final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
@@ -15522,7 +15854,7 @@ public class ImageDttCPU {
 		int tx=-1, ty=-1;
 		for (int np = 0; np < dcorr_td.length; np++) if (dcorr_td[np] != null){
 			for (int ity = 0; ity < dcorr_td[np].length; ity++) if (dcorr_td[np][ity] != null){
-				ty = ity;
+				ty = dcorr_td[np].length;;
 				tx = dcorr_td[np][ity].length;
 				ity =  dcorr_td[np].length;
 				np = dcorr_td.length;
@@ -15602,7 +15934,7 @@ public class ImageDttCPU {
 						}
 						boolean debugTile0 =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -3);
 						// TODO: move port coordinates out of color channel loop
-						double [][] centersXY = tp_tasks[iTile].getDoubleXY(isAux());
+						double [][] centersXY = tp_tasks[iTile].getDoubleXY(); // isAux());
 						double [][] disp_dist = tp_tasks[iTile].getDoubleDispDist();
 						double [][] corrs =      new double [dcorr_td.length][];
 						for (int i = 0; i < dcorr_td.length; i++) if (dcorr_td[i] != null) {
@@ -15615,9 +15947,10 @@ public class ImageDttCPU {
 						}
 						
 						if (dcorr_tiles != null) {
-							for (int i = 0; i < corrs.length; i++) { //  if (corrs[i] != null) {
-								dcorr_tiles[iTile][i] =  corrs[i];
-							}
+							dcorr_tiles[iTile] =  corrs;
+//							for (int i = 0; i < corrs.length; i++) { //  if (corrs[i] != null) {
+//								dcorr_tiles[iTile][i] =  corrs[i];
+//							}
 						}
 						if (clt_corr_out != null) {
 							for (int num_pair = 0; num_pair < corrs.length; num_pair++) if (corrs[num_pair] != null){
@@ -15683,7 +16016,7 @@ public class ImageDttCPU {
 								disp_str,  //corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
 								poly_disp,                    // double[]            poly_ds,    // null or pair of disparity/strength
 								imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
-								0,                            // tile_lma_debug_level, // +2,         // int                 debug_level,
+								-2, //0,                            // tile_lma_debug_level, // +2,         // int                 debug_level,
 								tileX,                        // int                 tileX, // just for debug output
 								tileY );                      // int                 tileY
 						if (debugTile0) { // should be debugTile
@@ -15758,9 +16091,8 @@ public class ImageDttCPU {
 		int tilesX=-1, tilesY=-1; 
 		for (int np = 0; np < dcorr_td.length; np++) if (dcorr_td[np] != null){
 			for (int ity = 0; ity < dcorr_td[np].length; ity++) if (dcorr_td[np][ity] != null){
-				tilesY = ity;
+				tilesY = dcorr_td[np].length;
 				tilesX = dcorr_td[np][ity].length;
-				ity =  dcorr_td[np].length;
 				np = dcorr_td.length;
 				break;
 			}
@@ -15777,7 +16109,8 @@ public class ImageDttCPU {
 		//for (int npair = 0;)
 		for (int tileY = 0; tileY < tilesY; tileY++) {
 			for (int tileX = 0; tileX < tilesX; tileX++) {
-				fcorr_td[tileY][tileX] = new float [dcorr_td[tileY][tileX].length][];
+//				fcorr_td[tileY][tileX] = new float [dcorr_td[tileY][tileX].length][];
+				fcorr_td[tileY][tileX] = new float [num_pairs][];
 				for (int npair = 0; npair < num_pairs; npair++) {
 					if ((dcorr_td[npair] != null) && (dcorr_td[npair][tileY] != null)) {
 						double [][] dtile = dcorr_td[npair][tileY][tileX];
@@ -15809,7 +16142,7 @@ public class ImageDttCPU {
     		tilesX = fcorr_td[tileY].length;
     		for (int tileX = 0; tileX < fcorr_td[tileY].length; tileX++) if (fcorr_td[tileY][tileX]!=null){
     			num_pairs=fcorr_td[tileY][tileX].length;
-    			tileY = fcorr_td.length;
+    			tileY = fcorr_td.length; // exit from the outer loop
     			break;
     		}
     	}
@@ -15818,11 +16151,15 @@ public class ImageDttCPU {
 			return null;
     	}
     	int tile_len = transform_size*transform_size;
-    	double [][][][][] dcorr_td = new double [num_pairs][tilesY][tilesX][][];
+//    	double [][][][][] dcorr_td = new double [num_pairs][tilesY][tilesX][][];
+    	double [][][][][] dcorr_td = new double [num_pairs][][][][];
     	for (int tileY = 0; tileY < tilesY; tileY++) if (fcorr_td [tileY] != null) {
     		for (int tileX = 0; tileX < tilesX; tileX++)  if (fcorr_td [tileY][tileX] != null){
     			for (int npair = 0; npair < num_pairs; npair++) {
     				if (fcorr_td [tileY][tileX][npair] != null) {
+    					if (dcorr_td[npair] == null) {
+    						dcorr_td[npair] = new double [tilesY][tilesX][][];
+    					}
     					dcorr_td[npair][tileY][tileX] = new double [4][tile_len];
 						int indx = 0;
 						for (int quadrant = 0; quadrant < 4; quadrant++) {

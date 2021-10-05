@@ -371,7 +371,7 @@ public class ErsCorrection extends GeometryCorrection {
 	public void addScene(String timestamp, double [] xyz, double [] atr, double [] ers_xyz_dt, double [] ers_atr_dt) {
 		scenes_poses.put(timestamp, new XyzAtr(xyz, atr, ers_xyz_dt, ers_atr_dt));
 	}
-	
+	//not used
 	public void addScene(String timestamp, double [] xyz, double [] atr, double [] ers_xyz_dt, double [] ers_atr_dt, double [] ers_xyz_d2t, double [] ers_atr_d2t) {
 		scenes_poses.put(timestamp, new XyzAtr(xyz, atr, ers_xyz_dt, ers_atr_dt, ers_xyz_d2t, ers_atr_d2t));
 	}

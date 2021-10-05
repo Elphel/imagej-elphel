@@ -28,6 +28,7 @@ import java.util.Properties;
 import com.elphel.imagej.common.GenericJTabbedDialog;
 
 public class OpticalFlowParameters {
+    public double      scale_no_lma_disparity = 1.0; // multiply strength were disparity_lma = NaN; 
 	public double      k_prev = 0.75;
 	public double      ers_to_pose_scale = 0.75;
 	public double      tolerance_absolute_ref = 0.25; // absolute disparity half-range in each tile
@@ -75,6 +76,8 @@ public class OpticalFlowParameters {
 	public boolean     enable_debug_images =  true;
 	
 	public void dialogQuestions(GenericJTabbedDialog gd) {
+		gd.addNumericField("Scale strength for the tiles with no LMA disparity",              this.scale_no_lma_disparity,3,6,"",
+				"Reduce strength (but kip less reliable CM-measured disparity for the tiles with no disparity measured with LMA");
 		gd.addMessage("Intraframe ERS to pose");
 		gd.addNumericField("Previous (in time) frame weight (0.75)",                          this.k_prev,             3,6,"",
 				"Earlier frame ERS was sampled closer to interframe");
@@ -165,6 +168,7 @@ public class OpticalFlowParameters {
 	}	
 	
 	public void dialogAnswers(GenericJTabbedDialog gd) {
+		this.scale_no_lma_disparity =       gd.getNextNumber();
 		this.k_prev =                       gd.getNextNumber();
 		this.ers_to_pose_scale =            gd.getNextNumber();
 		this.tolerance_absolute_ref =       gd.getNextNumber();
@@ -209,6 +213,7 @@ public class OpticalFlowParameters {
 	}	
 	
 	public void setProperties(String prefix,Properties properties){
+		properties.setProperty(prefix+"scale_no_lma_disparity",   this.scale_no_lma_disparity+"");
 		properties.setProperty(prefix+"k_prev",                   this.k_prev+"");
 		properties.setProperty(prefix+"ers_to_pose_scale",        this.ers_to_pose_scale+"");
 		properties.setProperty(prefix+"tolerance_absolute_ref",   this.tolerance_absolute_ref+"");
@@ -250,6 +255,7 @@ public class OpticalFlowParameters {
 	}	
 	
 	public void getProperties(String prefix,Properties properties){
+		if (properties.getProperty(prefix+"scale_no_lma_disparity")!=null)   this.scale_no_lma_disparity=Double.parseDouble(properties.getProperty(prefix+"scale_no_lma_disparity"));
 		if (properties.getProperty(prefix+"k_prev")!=null)                   this.k_prev=Double.parseDouble(properties.getProperty(prefix+"k_prev"));
 		if (properties.getProperty(prefix+"ers_to_pose_scale")!=null)        this.ers_to_pose_scale=Double.parseDouble(properties.getProperty(prefix+"ers_to_pose_scale"));
 		if (properties.getProperty(prefix+"tolerance_absolute_ref")!=null)   this.tolerance_absolute_ref=Double.parseDouble(properties.getProperty(prefix+"tolerance_absolute_ref"));
@@ -294,6 +300,7 @@ public class OpticalFlowParameters {
 	@Override
 	public OpticalFlowParameters clone() throws CloneNotSupportedException {
 		OpticalFlowParameters ofp =     new OpticalFlowParameters();
+		ofp.scale_no_lma_disparity =        this.scale_no_lma_disparity;
 		ofp.k_prev =                        this.k_prev;
 		ofp.ers_to_pose_scale =             this.ers_to_pose_scale;
 		ofp.tolerance_absolute_ref =        this.tolerance_absolute_ref;
