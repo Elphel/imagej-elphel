@@ -5525,7 +5525,7 @@ public class QuadCLTCPU {
 						  tilesX*(2*image_dtt.transform_size),
 						  tilesY*(2*image_dtt.transform_size),
 						  true,
-						  image_name+sAux()+"-CORR-D"+clt_parameters.disparity,
+						  image_name+sAux()+"-CORR-D"+clt_parameters.disparity+"-FZ"+clt_parameters.getFatZero(isMonochrome()),
 						  titles);
 			  }
 		  }
@@ -5545,7 +5545,7 @@ public class QuadCLTCPU {
 						  tilesX * (clt_parameters.img_dtt.mcorr_comb_width + 1),
 						  tilesY * (clt_parameters.img_dtt.mcorr_comb_height + 1),
 						  true,
-						  image_name+sAux()+"-COMBO-D"+clt_parameters.disparity,
+						  image_name+sAux()+"-COMBO-D"+clt_parameters.disparity+"-FZ"+clt_parameters.getFatZero(isMonochrome()),
 						  titles);
 			  }
 		  }

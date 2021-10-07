@@ -644,7 +644,7 @@ public class OpticalFlow {
 					-1);                    //final int         debug_level)
 			double      this_min_change = min_change; //  (ntry < num_run_all)? 0.0: min_change;
 			boolean     ignore_worsening = ntry < num_ignore_worsening; // (num_run_all + 10);
-			if (debug_level > 0) {
+			if (debug_level > 0) { //-2) { // was >0
 				System.out.println("======== NTRY "+ntry +" ========");
 			}
 			flowXY_run = recalculateFlowXY(
@@ -1517,7 +1517,7 @@ public class OpticalFlow {
 							}
 							int iwidth =  imax_tX - imin_tX + 1;
 							int iheight = imax_tY - imin_tY + 1;
-							double [][] scene_slices = new double [dsrbg_scene.length][iwidth*iheight];
+							double [][] scene_slices = new double [dsrbg_scene.length][iwidth*iheight]; //OOM here
 							for (int iY = 0; iY < iheight; iY++) {
 								int tY = imin_tY + iY;
 								if ((tY >= 0) && (tY < tilesY)) {
@@ -3054,6 +3054,7 @@ public class OpticalFlow {
 		// modify LMA parameters to freeze reference ERS, remove pull on scene ERS
 		boolean[]   param_select2 =     clt_parameters.ilp.ilma_lma_select.clone();             // final boolean[]   param_select,
 		double []   param_regweights2 = clt_parameters.ilp.ilma_regularization_weights; //  final double []   param_regweights,
+		boolean delete_scene_asap = (debug_level < 10); // to save memory
 		// freeze reference ERS, free scene ERS
 		for (int j = 0; j <3; j++) {
 			param_select2[ErsCorrection.DP_DVX  + j] = false;
@@ -3076,10 +3077,10 @@ public class OpticalFlow {
 			double [] new_from_last_atr = ers_scene_last_known.getSceneATR(scene_ts);
 			
 			// combine two rotations and two translations 
-			
+			System.out.println("Processing scene "+i);
 			double [][] combo_XYZATR = ErsCorrection.combineXYZATR(
 					last_known_xyz,     // double [] reference_xyz,
-					last_known_atr,     // double [] reference_atr,
+					last_known_atr,     // double [] reference_atr, // null?
 					new_from_last_xyz,  // double [] scene_xyz,
 					new_from_last_atr); // double [] scene_atr)
 			
@@ -3114,12 +3115,17 @@ public class OpticalFlow {
 				System.out.println("Pass multi scene "+i+" (of "+ scenes.length+") "+
 						reference_QuadClt.getImageName() + "/" + scene_QuadClt.getImageName()+" Done.");
 			}
+			if (delete_scene_asap) {
+				scenes[i+1] = null;
+			}
+//			Runtime.getRuntime().gc();
+//			System.out.println("Scene "+i+", --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			
 		}
 		reference_QuadClt.saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
 	            null, // String path,             // full name with extension or w/o path to use x3d directory
 	            debug_level+1);
-		if (debug_level > -1) {
+		if (!delete_scene_asap && (debug_level > -1)) {
 			System.out.println("adjustSeries(): preparing image set...");
 			int nscenes = scenes.length;
 			int indx_ref = nscenes - 1; 

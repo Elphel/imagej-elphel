@@ -15612,7 +15612,7 @@ public class ImageDttCPU {
 
 	// reimplementing from GPU version (will also need upgrade for multi-sensor > 4)
 	
-	public void quadCorrTD(
+	public double [][][][][][] quadCorrTD(
 			final double [][][]       image_data,      // first index - number of image in a quad
 			final int                 width,
 			final TpTask []           tp_tasks,
@@ -15634,65 +15634,25 @@ public class ImageDttCPU {
 		final int height=image_data[0][0].length/width;
 		final int tilesX=width/transform_size;
 		final int tilesY=height/transform_size;
-//		boolean [][] pcombo_sels = null;
-		if (correlation2d == null){
-			  throw new IllegalArgumentException ("quadCorrTD(): correlation2d == null!");
-		}
+//		if (correlation2d == null){
+//			  throw new IllegalArgumentException ("quadCorrTD(): correlation2d == null!");
+//		}
 		// Initialize correlation pairs selection to be used by all threads
-		boolean [] corr_calculate = null;
-		if (isCorrAll  (mcorr_sel)) corr_calculate = correlation2d.selectAll();
-		if (isCorrDia  (mcorr_sel)) corr_calculate = correlation2d.selectDiameters  (corr_calculate);
-		if (isCorrSq   (mcorr_sel)) corr_calculate = correlation2d.selectSquares    (corr_calculate);
-		if (isCorrNeib (mcorr_sel)) corr_calculate = correlation2d.selectNeibs      (corr_calculate);
-		if (isCorrHor  (mcorr_sel)) corr_calculate = correlation2d.selectHorizontal (corr_calculate);
-		if (isCorrVert (mcorr_sel)) corr_calculate = correlation2d.selectVertical   (corr_calculate);
-		correlation2d.setCorrPairs(corr_calculate); // will limit correlation pairs calculation
-		
-//		correlation2d.generateResample( // should be called before
-//				mcorr_comb_width,  // combined correlation tile width
-//				mcorr_comb_height, // combined correlation tile full height
-//				mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
-//				mcorr_comb_disp);
-		/*
-		pcombo_sels = new boolean [Correlation2d.MCORR_COMB.values().length][];
-		if (imgdtt_params.mcorr_cons_all) {
-			int indx = Correlation2d.MCORR_COMB.ALL.ordinal();
-			pcombo_sels[indx] = correlation2d.selectAll(); 
-		}
-		if (imgdtt_params.mcorr_cons_dia) {
-			int indx = Correlation2d.MCORR_COMB.DIA.ordinal();
-			pcombo_sels[indx] = correlation2d.selectDiameters(null); 
-		}
-		if (imgdtt_params.mcorr_cons_sq) {
-			int indx = Correlation2d.MCORR_COMB.SQ.ordinal();
-			pcombo_sels[indx] = correlation2d.selectSquares(null); 
-		}
-		if (imgdtt_params.mcorr_cons_neib) {
-			int indx = Correlation2d.MCORR_COMB.NEIB.ordinal();
-			pcombo_sels[indx] = correlation2d.selectNeibs(null); 
-		}
-		if (imgdtt_params.mcorr_cons_hor) {
-			int indx = Correlation2d.MCORR_COMB.HOR.ordinal();
-			pcombo_sels[indx] = correlation2d.selectHorizontal(null); 
-		}
-		if (imgdtt_params.mcorr_cons_vert) {
-			int indx = Correlation2d.MCORR_COMB.VERT.ordinal();
-			pcombo_sels[indx] = correlation2d.selectVertical(null); 
-		}
-		*/
-		boolean [] calc_corr_pairs = correlation2d.getCorrPairs();
-		for (int i = 0; i < calc_corr_pairs.length; i++) if (calc_corr_pairs[i]){
-			dcorr_td[i] = new double[tilesY][tilesX][][]; 
-		}
-		/*
-		if (dcorr_combo_td != null) {
-			for (int i = 0; i < pcombo_sels.length; i++) if (pcombo_sels[i] != null){
-				dcorr_combo_td[i] = new double[tilesY][tilesX][]; 
+		if (correlation2d != null){
+			boolean [] corr_calculate = null;
+			if (isCorrAll  (mcorr_sel)) corr_calculate = correlation2d.selectAll();
+			if (isCorrDia  (mcorr_sel)) corr_calculate = correlation2d.selectDiameters  (corr_calculate);
+			if (isCorrSq   (mcorr_sel)) corr_calculate = correlation2d.selectSquares    (corr_calculate);
+			if (isCorrNeib (mcorr_sel)) corr_calculate = correlation2d.selectNeibs      (corr_calculate);
+			if (isCorrHor  (mcorr_sel)) corr_calculate = correlation2d.selectHorizontal (corr_calculate);
+			if (isCorrVert (mcorr_sel)) corr_calculate = correlation2d.selectVertical   (corr_calculate);
+			correlation2d.setCorrPairs(corr_calculate); // will limit correlation pairs calculation
+
+			boolean [] calc_corr_pairs = correlation2d.getCorrPairs();
+			for (int i = 0; i < calc_corr_pairs.length; i++) if (calc_corr_pairs[i]){
+				dcorr_td[i] = new double[tilesY][tilesX][][]; 
 			}
 		}
-		final boolean [][] combo_sels = pcombo_sels; 
-		*/
-		
 //		final int numcol = isMonochrome()?1:3;
 		final int numcol = 3; // number of colors // keep the same, just do not use [0] and [1], [2] - green
 
@@ -15707,7 +15667,6 @@ public class ImageDttCPU {
 			col_weights[1] = corr_blue * col_weights[2];
 		}
 		
-//		final double [] filter =     doubleGetCltLpfFd(corr_sigma);
 		final double [] filter_rb =  isMonochrome() ? null: doubleGetCltLpfFd(imgdtt_params.pcorr_sigma_rb);
 		
 		DttRad2 dtt = new DttRad2(transform_size);
@@ -15733,10 +15692,10 @@ public class ImageDttCPU {
 					dtt.set_window(window_type);
 					int tileY,tileX; // ,tIndex; // , chn;
 					double [][] fract_shiftsXY = new double[numSensors][];
-					for (int iTile = ai.getAndIncrement(); iTile < tp_tasks.length; iTile = ai.getAndIncrement()) {
+					for (int iTile = ai.getAndIncrement(); iTile < tp_tasks.length; iTile = ai.getAndIncrement()) if (tp_tasks[iTile].getTask() != 0) {
 						tileY = tp_tasks[iTile].getTileY(); //  /tilesX;
 						tileX = tp_tasks[iTile].getTileX(); //nTile % tilesX;
-						if (tp_tasks[iTile].getTask() == 0) continue; // nothing to do for this tile
+						/*
 						int                 img_mask =  0xf; // getImgMask(tile_op[tileY][tileX]);         // which images to use
 						if (numSensors > 4) {
 							if (img_mask == 0xf) {
@@ -15745,8 +15704,262 @@ public class ImageDttCPU {
 								}
 							}
 						}
-						boolean debugTile =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -1);
-						boolean debugTile0 =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -3);
+						*/
+//						boolean debugTile =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -1);
+//						boolean debugTile0 =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -3);
+						// TODO: move port coordinates out of color channel loop
+						double [][] centersXY = tp_tasks[iTile].getDoubleXY();// isAux());
+
+						// save disparity distortions for visualization:
+						// TODO: use correction after disparity applied (to work for large disparity values)
+						// See if macro_mode uses color channels for non-color?
+						for (int ncol = 0; ncol <numcol; ncol++) {
+							if (!isMonochrome() || (ncol == MONO_CHN)) { // in monochrome mode skip all non-mono (green) channels  // used in lwir (5 of 6 branches)
+
+								for (int i = 0; i < numSensors; i++) {
+									clt_data[i][ncol][tileY][tileX] = new double [4][];
+									// Extract image tiles and kernels, correct aberrations, return (ut do not apply) fractional shifts
+									fract_shiftsXY[i] = extract_correct_tile( // return a pair of residual offsets
+											image_data[i],
+											width,       // image width
+											((clt_kernels == null) ? null : clt_kernels[i]), // [color][tileY][tileX][band][pixel]
+											clt_data[i][ncol][tileY][tileX], //double  [][]        clt_tile,    // should be double [4][];
+											kernel_step,
+											dtt,
+											ncol,
+											centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
+											centersXY[i][1], // centerY, //
+											0, // ((!FPGA_COMPARE_DATA && (globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (ncol == 2) && (i==0)) ? (globalDebugLevel + 0) : 0), // external tile compare
+											false, // no_deconvolution,
+											false, // ); // transpose);
+											null, //final boolean [][]        saturation_imp, // (near) saturated pixels or null
+											null); // final double [] overexposed)
+								} // for (int i = 0; i < quad; i++)
+								if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (ncol == 2)) {
+									System.out.println();
+								}
+
+								// apply residual shift
+								for (int i = 0; i < numSensors; i++) {
+									fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
+											clt_data[i][ncol][tileY][tileX], // double  [][]  clt_tile,
+											fract_shiftsXY[i][0],            // double        shiftX,
+											fract_shiftsXY[i][1],            // double        shiftY,
+											false);
+								}
+							} else { // if (!isMonochrome() || (chn == MONO_CHN) || macro_mode) { // in monochrome mode skip all non-mono (green) channels
+								for (int i = 0; i < numSensors; i++) {  // used in lwir
+									clt_data[i][ncol] = null; // erase unused clt_data
+								}
+							}
+						}// end of for (int chn = 0; chn <numcol; chn++)
+						// all color channels are done here
+						if (correlation2d != null) { // will only calculate clt_data
+							// calculate all selected pairs correlations
+							// change filter for lpf_rb (null for mono)
+							double [][][] corr_tiles_td =  correlation2d.correlateCompositeTD(
+									clt_data,                     // double [][][][][][] clt_data,
+									tileX,                        // int                 tileX,
+									tileY,                        // int                 tileY,
+									correlation2d.getCorrPairs(), // boolean []          pairs_mask,
+									filter_rb,                    // double []           lpf_rb, // extra lpf for red and blue (unused for mono) or null
+									getScaleStrengths(),          // double              scale_value, // scale correlation value
+									col_weights);                 // double []           col_weights)
+							for (int pair = 0; pair < corr_tiles_td.length; pair++) if (corr_tiles_td[pair] != null) {
+								dcorr_td[pair][tileY][tileX] = corr_tiles_td[pair]; 
+							}
+						}
+					}
+				}
+			};
+		}
+		startAndJoin(threads);
+		return clt_data;
+	}
+	
+	
+	/*
+	public double [][] quadCorrTD_tilted( // process tilted multiframe, returns per-tile weights (for fat zero application)
+			final double [][][]       image_data,      // first index - number of image in a quad
+			final int                 width,
+			final TpTask []           tp_tasks,        // should exclude strong tiles (e.g. having disparity_lma)
+			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+			final double [][][][][]   dcorr_td,        // [pair][tilesY][tilesX][4][64] sparse transform domain representation of corr pairs
+			final double [][][][][][] clt_kernels,     // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+			final int                 kernel_step,
+			final int                 window_type,
+			final double              corr_red,
+			final double              corr_blue,
+			
+			final int                 clustRadius,  // 1 - single tile, 2 - 3x3, 3 - 5x5, ...
+			final double              arange,  // absolute disparity range to consolidate
+			final double              rrange,  // relative disparity range to consolidate
+			final double              no_tilt, // no tilt if center disparity is lower
+			final double              damp_tilt,    // 0.1?
+
+			final int                 mcorr_sel,    // Which pairs to correlate // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
+			final int                 debug_tileX,
+			final int                 debug_tileY,
+			final int                 threadsMax,       // maximal number of threads to launch
+			final int                 globalDebugLevel)
+	{
+		final int height=image_data[0][0].length/width;
+		final int tilesX=width/transform_size;
+		final int tilesY=height/transform_size;
+		final double [][] tile_weights = new double [tilesY][tilesX];
+		final TpTask [][] tp_tasks_full = new TpTask[tilesY][tilesX]; 
+		final double [] damping = {damp_tilt, damp_tilt, 0.0}; // 0.0 will be applied to average value, tilt_cost - to both tilts
+		final int clustDiameter = 2 * clustRadius - 1;
+		final int center_indx = (clustRadius - 1) * (clustDiameter + 1);
+		final double [] wnd_neib = new double [clustDiameter * clustDiameter];
+		for (int iy = 0; iy < clustDiameter; iy++) {
+			double wy = Math.sin(Math.PI *(iy+1) / (clustDiameter + 1));
+			for (int ix = 0; ix < clustDiameter; ix++) {
+				wnd_neib[iy * clustDiameter + ix] = wy * Math.sin(Math.PI *(ix+1) / (clustDiameter + 1));
+			}
+		}
+		
+//		if (correlation2d == null){
+//			  throw new IllegalArgumentException ("quadCorrTD(): correlation2d == null!");
+//		}
+		// Initialize correlation pairs selection to be used by all threads
+		if (correlation2d != null){
+			boolean [] corr_calculate = null;
+			if (isCorrAll  (mcorr_sel)) corr_calculate = correlation2d.selectAll();
+			if (isCorrDia  (mcorr_sel)) corr_calculate = correlation2d.selectDiameters  (corr_calculate);
+			if (isCorrSq   (mcorr_sel)) corr_calculate = correlation2d.selectSquares    (corr_calculate);
+			if (isCorrNeib (mcorr_sel)) corr_calculate = correlation2d.selectNeibs      (corr_calculate);
+			if (isCorrHor  (mcorr_sel)) corr_calculate = correlation2d.selectHorizontal (corr_calculate);
+			if (isCorrVert (mcorr_sel)) corr_calculate = correlation2d.selectVertical   (corr_calculate);
+			correlation2d.setCorrPairs(corr_calculate); // will limit correlation pairs calculation
+
+			boolean [] calc_corr_pairs = correlation2d.getCorrPairs();
+			for (int i = 0; i < calc_corr_pairs.length; i++) if (calc_corr_pairs[i]){
+				dcorr_td[i] = new double[tilesY][tilesX][][]; 
+			}
+		}
+//		final int numcol = isMonochrome()?1:3;
+		final int numcol = 3; // number of colors // keep the same, just do not use [0] and [1], [2] - green
+
+		final double [] col_weights= new double [numcol]; // colors are RBG
+		if (isMonochrome()) {
+			col_weights[2] = 1.0;// green color/mono
+			col_weights[0] = 0;
+			col_weights[1] = 0;
+		} else {
+			col_weights[2] = 1.0/(1.0 + corr_red + corr_blue);    // green color
+			col_weights[0] = corr_red *  col_weights[2];
+			col_weights[1] = corr_blue * col_weights[2];
+		}
+		
+		final double [] filter_rb =  isMonochrome() ? null: doubleGetCltLpfFd(imgdtt_params.pcorr_sigma_rb);
+		
+		DttRad2 dtt = new DttRad2(transform_size);
+		dtt.set_window(window_type);
+		final double [] lt_window = dtt.getWin2d();	// [256]
+
+		final double [] lt_window2 = new double [lt_window.length]; // squared
+		for (int i = 0; i < lt_window.length; i++) lt_window2[i] = lt_window[i] * lt_window[i];
+
+		if (globalDebugLevel > 1) {
+			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
+			sdfa_instance.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
+		}
+		
+		final double [][][][][][] clt_data = new double[numSensors][numcol][tilesY][tilesX][][];
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					DttRad2 dtt = new DttRad2(transform_size);
+					dtt.set_window(window_type);
+					int tileY,tileX; // ,tIndex; // , chn;
+					for (int iTile = ai.getAndIncrement(); iTile < tp_tasks.length; iTile = ai.getAndIncrement()) if (tp_tasks[iTile].getTask() != 0){
+						tileY = tp_tasks[iTile].getTileY(); //  /tilesX;
+						tileX = tp_tasks[iTile].getTileX(); //nTile % tilesX;
+						tp_tasks_full[tileY][tileX] = tp_tasks[iTile];
+					}
+				}
+			};
+		}
+		startAndJoin(threads);
+		
+		ai.set(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					DttRad2 dtt = new DttRad2(transform_size);
+					dtt.set_window(window_type);
+					int tileYC,tileXC; // ,tIndex; // , chn;
+					double [][] fract_shiftsXY = new double[numSensors][];
+					PolynomialApproximation pa = new PolynomialApproximation();
+					TileNeibs tn = new TileNeibs(tilesX,tilesY);
+					double [][][][] clt_data_tile = new double[numSensors][numcol][][];
+					for (int iTile = ai.getAndIncrement(); iTile < tp_tasks.length; iTile = ai.getAndIncrement()) if (tp_tasks[iTile].getTask() != 0){
+						tileYC = tp_tasks[iTile].getTileY(); //  /tilesX;
+						tileXC = tp_tasks[iTile].getTileX(); //nTile % tilesX;
+						boolean debugTile =(tileXC == debug_tileX) && (tileYC == debug_tileY) && (globalDebugLevel > -1);
+						boolean debugTile0 =(tileXC == debug_tileX) && (tileYC == debug_tileY) && (globalDebugLevel > -3);
+						double [][] centersXY = tp_tasks[iTile].getDoubleXY();// isAux());
+						
+						if (debugTile0) {
+							System.out.println("tileXC = "+tileXC+", tileYC = "+tileYC);
+						}
+						//calculate tilts
+						TileNeibs tn = new TileNeibs(tilesX,tilesY);
+						boolean [] used_neibs = new boolean [clustDiameter * clustDiameter];
+						double disparity_center = disparity_array[tileYC][tileXC];
+						double disp_min = disparity_center - arange - rrange * Math.abs(disparity_center);
+						double disp_max = disparity_center + arange + rrange * Math.abs(disparity_center);
+						double tiltY = 0, tiltX=0;
+						double [][][] mdata = new double [wnd_neib.length][][]; // now empty lines will be skipped [3][];
+						double sum_w = 0.0;
+						for (int dty = -clustRadius+1; dty < clustRadius; dty++) {
+							for (int dtx = -clustRadius+1; dtx < clustRadius; dtx++) {
+								int nTile1 = tn.getNeibIndex(nTileC, dtx, dty);
+								if (nTile1 >= 0){
+									int tileX1 = nTile1 % tilesX;
+									int tileY1 = nTile1 / tilesX;
+									if ((tile_op[tileY1][tileX1] != 0) && (disparity_array[tileY1][tileX1] >= disp_min)  && (disparity_array[tileY1][tileX1] <= disp_max)){
+										int mindx = (dty * clustDiameter + dtx + center_indx);
+										used_neibs[mindx] = true;
+										double w = wnd_neib[mindx];
+										mdata[mindx] = new double[3][];
+										mdata[mindx][0] = new double [2];
+										mdata[mindx][0][0] =  dtx;
+										mdata[mindx][0][1] =  dty;
+										mdata[mindx][1] = new double [1];
+										mdata[mindx][1][0] =  disparity_array[tileY1][tileX1]; 
+										mdata[mindx][2] = new double [1];
+										mdata[mindx][2][0] =  w;
+										sum_w += w;
+									}
+								}
+							}
+						}
+						double scale_weighths = 1.0/sum_w;
+						if (disparity_center > no_tilt) {
+							double[][] approx2d = pa.quadraticApproximation(
+									mdata,
+									true,          // boolean forceLinear,  // use linear approximation
+									damping,       // double [] damping,
+									-1);           // debug level
+							if (approx2d != null){
+								tiltX = approx2d[0][0];
+								tiltY = approx2d[0][1]; // approx2d[0][2] - const C (A*x+B*y+C), C is not used here 
+							}
+//							if (num_tiles == 0) {
+//								continue; // should never happen anyway
+//							}
+						}
+						
+						
+						
+//						boolean debugTile =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -1);
+//						boolean debugTile0 =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -3);
 						// TODO: move port coordinates out of color channel loop
 						double [][] centersXY = tp_tasks[iTile].getDoubleXY();// isAux());
 
@@ -15798,27 +16011,39 @@ public class ImageDttCPU {
 							}
 						}// end of for (int chn = 0; chn <numcol; chn++)
 						// all color channels are done here
-						// calculate all selected pairs correlations
-						
-						// change filter for lpf_rb (null for mono)
-						double [][][] corr_tiles_td =  correlation2d.correlateCompositeTD(
-								clt_data,                     // double [][][][][][] clt_data,
-								tileX,                        // int                 tileX,
-								tileY,                        // int                 tileY,
-								correlation2d.getCorrPairs(), // boolean []          pairs_mask,
-								filter_rb,                    // double []           lpf_rb, // extra lpf for red and blue (unused for mono) or null
-								getScaleStrengths(),          // double              scale_value, // scale correlation value
-								col_weights);                 // double []           col_weights)
-
-						for (int pair = 0; pair < corr_tiles_td.length; pair++) if (corr_tiles_td[pair] != null) {
-							dcorr_td[pair][tileY][tileX] = corr_tiles_td[pair]; 
+						if (correlation2d != null) { // will only calculate clt_data
+							// calculate all selected pairs correlations
+							// change filter for lpf_rb (null for mono)
+							double [][][] corr_tiles_td =  correlation2d.correlateCompositeTD(
+									clt_data,                     // double [][][][][][] clt_data,
+									tileX,                        // int                 tileX,
+									tileY,                        // int                 tileY,
+									correlation2d.getCorrPairs(), // boolean []          pairs_mask,
+									filter_rb,                    // double []           lpf_rb, // extra lpf for red and blue (unused for mono) or null
+									getScaleStrengths(),          // double              scale_value, // scale correlation value
+									col_weights);                 // double []           col_weights)
+							for (int pair = 0; pair < corr_tiles_td.length; pair++) if (corr_tiles_td[pair] != null) {
+								dcorr_td[pair][tileY][tileX] = corr_tiles_td[pair]; 
+							}
 						}
+						
+						
+						
 					}
 				}
 			};
 		}
 		startAndJoin(threads);
+		
+		
+		
+		return tile_weights;
 	}
+	
+*/	
+	
+	
+	
 	
 	public void clt_process_tl_correlations( // convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td
 			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others

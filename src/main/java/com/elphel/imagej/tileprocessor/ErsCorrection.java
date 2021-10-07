@@ -1959,7 +1959,7 @@ public class ErsCorrection extends GeometryCorrection {
 			double [] scene_xyz,
 			double [] scene_atr)
 	{
-		Rotation   ref_rotation=   new Rotation(RotationOrder.YXZ, ROT_CONV, reference_atr[0],reference_atr[1],reference_atr[2]);
+		Rotation   ref_rotation=   new Rotation(RotationOrder.YXZ, ROT_CONV, reference_atr[0],reference_atr[1],reference_atr[2]); // null
 		Rotation   scene_rotation= new Rotation(RotationOrder.YXZ, ROT_CONV, scene_atr[0],    scene_atr[1],    scene_atr[2]);
 		Vector3D   ref_offset =    new Vector3D(reference_xyz);
 		Vector3D   scene_offset =  new Vector3D(scene_xyz);

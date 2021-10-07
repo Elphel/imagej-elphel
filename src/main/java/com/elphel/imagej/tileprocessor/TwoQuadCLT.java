@@ -909,7 +909,7 @@ public class TwoQuadCLT {
 						tilesX*(2*image_dtt.transform_size),
 						tilesY*(2*image_dtt.transform_size),
 						true,
-						name + "-CORR-D"+clt_parameters.disparity,
+						name + "-CORR-D"+clt_parameters.disparity+"-FZ"+clt_parameters.getFatZero(quadCLT_main.isMonochrome()),
 						titles );
 			}
 		}
@@ -1799,7 +1799,8 @@ public class TwoQuadCLT {
 						tilesX*(2*image_dtt.transform_size),
 						tilesY*(2*image_dtt.transform_size),
 						true,
-						name + "-CORR-D"+clt_parameters.disparity,
+						name + "-CORR-D"+clt_parameters.disparity+"-FZ"+clt_parameters.getFatZero(quadCLT_main.isMonochrome()),
+						
 						titles );
 			}
 		}
