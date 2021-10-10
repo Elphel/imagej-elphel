@@ -8311,7 +8311,12 @@ if (debugLevel > -100) return true; // temporarily !
 					threadsMax,     // int            threadsMax,  // maximal number of threads to launch
 					updateStatus,   // boolean        updateStatus,
 					debugLevel);    // int            debugLevel)
-///			quadCLTs[i].showDSIMain();
+			if (debugLevel > -10) {
+				quadCLTs[i].showDSIMain();
+				quadCLTs[i].testAltCorr (
+						clt_parameters, // CLTParameters             clt_parameters,
+						this.dsi); // double [][] dsi);
+			}
 		}
 		
 		
@@ -8341,9 +8346,9 @@ if (debugLevel > -100) return true; // temporarily !
 
 
 		System.out.println("End of test");
-
-
 	}
+	
+	
 	
 	public void interPairsLMA(
 			QuadCLT                                              quadCLT_main, // tiles should be set

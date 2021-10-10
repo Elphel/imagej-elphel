@@ -938,7 +938,117 @@ public class GpuQuad{ // quad camera description
 		return task_list.toArray(new TpTask[task_list.size()]);		
 	}
 
+	/**
+	 * Set a single task
+	 * @param num_cams number of sensors in a system
+	 * @param task_code task code (need to be re-defined, currently is mostly zero/non-zero
+	 * @param tileX integer tile X coordinate
+	 * @param tileY integer tile X coordinate
+	 * @param target_disparity target disparity (should include disparity_corr if used)
+	 * @param corr_rots Array of rotational matrices, may be null, but it is more efficient to calculate it once
+	 * @param transform_size CLT transform size (==8)
+	 * @param geometryCorrection instance of GeometryCorrection class fro the scene
+	 * @return TpTask instance, compatible with both CPU and GPU processing
+	 */
+	public static TpTask setTask(
+			int                 num_cams,
+			int                 transform_size,
+			int                 task_code,
+			int                 tileX,
+			int                 tileY,
+			double              target_disparity, // include disparity_corr
+			// use geometryCorrection.getCorrVector().getRotMatrices(); once per whole image set
+			Matrix []           corr_rots,        // if null, will be calculated
+			GeometryCorrection  geometryCorrection)
+	{
+		if (corr_rots == null) {
+			corr_rots = geometryCorrection.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices
+		}
+		TpTask tp_task = new TpTask(num_cams, tileX, tileY);
+		tp_task.task = task_code;
+//		double disparity = pXpYD[nTile][2] + disparity_corr;
+		tp_task.target_disparity = (float) target_disparity; // will it be used?
+		double	centerX = tileX * transform_size + transform_size/2;
+		double	centerY = tileY * transform_size + transform_size/2;
+		
+		double [][] disp_dist = new double[num_cams][]; // used to correct 3D correlations (not yet used here)
+		double [][] centersXY_main = geometryCorrection.getPortsCoordinatesAndDerivatives(
+				geometryCorrection, //			GeometryCorrection gc_main,
+				false,              // boolean use_rig_offsets,
+				corr_rots,          // Matrix []   rots,
+				null,               //  Matrix [][] deriv_rots,
+				null,               // double [][] pXYderiv,
+				disp_dist,          // used to correct 3D correlations
+				centerX,
+				centerY,
+				tp_task.target_disparity); //  + disparity_corr);
+		tp_task.setDispDist(disp_dist);
+		tp_task.xy = new float [centersXY_main.length][2];
+		for (int i = 0; i < centersXY_main.length; i++) {
+			tp_task.xy[i][0] = (float) centersXY_main[i][0];
+			tp_task.xy[i][1] = (float) centersXY_main[i][1];
+		}
+		return tp_task;
+	}
 
+	public static TpTask[]  setTasks(
+			final int                      num_cams,
+			final int                      transform_size,
+			final double [][]	           disparity_array,  // [tilesY][tilesX] - individual per-tile expected disparity
+			final double                   disparity_corr,
+			final int [][]                 tile_op,          // [tilesY][tilesX] - what to do - 0 - nothing for this tile
+			final GeometryCorrection       geometryCorrection,
+			final int                      threadsMax)       // maximal number of threads to launch
+	{
+		final int tilesY = disparity_array.length;
+		int tx = -1;
+		for (int i = 0; i < disparity_array.length; i++) if (disparity_array[i] != null) {
+			tx = disparity_array[i].length;
+			break;
+		}
+		if (tx < 0) {
+			return new TpTask[0]; 
+		}
+		final int tilesX = tx;
+		final Matrix [] corr_rots = geometryCorrection.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices
+		final TpTask[]  tp_tasks_xy = new TpTask[tilesY * tilesX];
+		final AtomicInteger ai =            new AtomicInteger(0);
+		final AtomicInteger anum_tiles =    new AtomicInteger(0);
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int iTile = ai.getAndIncrement(); iTile < tp_tasks_xy.length; iTile = ai.getAndIncrement()) {
+						int tileY = iTile /tilesX;
+						int tileX = iTile % tilesX;
+						if ((tile_op[tileY][tileX] != 0) && !Double.isNaN(disparity_array[tileY][tileX])) {
+							tp_tasks_xy[iTile] = setTask(
+									num_cams,                                       // int                 num_cams,
+									transform_size,                                 // int                 transform_size,
+									tile_op[tileY][tileX],                          // int                 task_code,
+									tileX,                                          // int                 tileX,
+									tileY,                                          // int                 tileY,
+									disparity_array[tileY][tileX] + disparity_corr, // double              target_disparity, // include disparity_corr
+									corr_rots,                                      // Matrix []           corr_rots,        // if null, will be calculated
+									geometryCorrection);                            // GeometryCorrection  geometryCorrection)
+							anum_tiles.getAndIncrement();
+						}
+					}
+				}
+			};
+		}
+		ImageDtt.startAndJoin(threads);
+		final TpTask[] tp_tasks = new TpTask[anum_tiles.get()];
+		int indx = 0;
+		for (int i = 0; i < tp_tasks_xy.length; i++) if (tp_tasks_xy[i] != null) {
+			tp_tasks[indx++] = tp_tasks_xy[i];
+		}
+		return tp_tasks;		
+	}
+	
+	
+	
 
 	/**
 	 * Prepare contents pointers for calculation of the correlation pairs
@@ -2330,11 +2440,11 @@ public class GpuQuad{ // quad camera description
 					//    					for (int indx = ai.getAndIncrement(); indx < tp_tasks.length; indx = ai.getAndIncrement()) {
 					//   						int nTile = tile_indices[indx];
 					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) if (pXpYD[nTile] != null) {
-						TpTask tp_task = new TpTask();
 						int tileY = nTile / tilesX;
 						int tileX = nTile % tilesX;
-						tp_task.ty = tileY;
-						tp_task.tx = tileX;
+						TpTask tp_task = new TpTask(num_cams, tileX, tileY);
+//						tp_task.ty = tileY;
+//						tp_task.tx = tileX;
 						tp_task.task = task_code;
 						double disparity = pXpYD[nTile][2] + disparity_corr;
 						tp_task.target_disparity = (float) disparity; // will it be used?
@@ -2378,6 +2488,11 @@ public class GpuQuad{ // quad camera description
 		return tp_tasks_out;
 	}
 
+
+	
+	
+	
+	
 
 
 

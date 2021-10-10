@@ -416,6 +416,9 @@ public class CLTPass3d{
 				double [] disparity,
 				double [] strength)
 		{
+			if ((disparity == null) || (strength == null)) {
+				return;
+			}
 			// depends on direction, but that is OK - just converge faster when smoothing
 			int tilesX = tileProcessor.getTilesX();
 			int tilesY = tileProcessor.getTilesY();
@@ -1000,7 +1003,9 @@ public class CLTPass3d{
 		{
 			final double [][] diffs = getDiffs();
 			if (diffs == null) return null;
-
+			for (int i = 0; i < diffs.length; i++) {
+				if (diffs[i] == null) return null;
+			}
 			final int tilesX = tileProcessor.getTilesX();
 			final int tilesY = tileProcessor.getTilesY();
 			final int num_tiles = tilesX * tilesY;

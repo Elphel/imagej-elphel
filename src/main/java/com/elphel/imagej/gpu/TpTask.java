@@ -1,15 +1,24 @@
 package com.elphel.imagej.gpu;
 
 public class TpTask {
-	public int   task; // [0](+1) - generate 4 images, [4..9]+16..+512 - correlation pairs, 2 - generate texture tiles
-	public float target_disparity;
-    public int num_sensors = 4;
-	public int ty;
-	public int tx;
-	public float[][] xy = null;
-	public float[][] xy_aux = null;
+	public int        task; // [0](+1) - generate 4 images, [4..9]+16..+512 - correlation pairs, 2 - generate texture tiles
+	public float      target_disparity;
+    public int        num_sensors = 4;
+	public int        ty;
+	public int        tx;
+	public float[][]  xy = null;
+	public float[][]  xy_aux = null;
 	public float [][] disp_dist = null;
-	public TpTask() {}
+//	public float      weight;
+	
+	public TpTask(
+			int num_sensors,
+			int tileX,
+			int tileY) {
+		this.num_sensors = num_sensors;
+		this.ty = tileY;
+		this.tx = tileX;
+	}
 
 	public TpTask(int num_sensors, int tx, int ty, float target_disparity, int task ) {
 		this.tx = tx;

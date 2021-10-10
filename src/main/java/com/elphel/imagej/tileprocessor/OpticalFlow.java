@@ -5465,6 +5465,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		final float  [][][][]   fcorr_td_acc  = new float [tilesY][tilesX][][];
 		final int    [][][]     num_acc = new int [tilesY][tilesX][num_pairs];
 		double fat_zero_single = clt_parameters.getGpuFatZero(ref_scene.isMonochrome()); // for single scene
+		// TODO: make per-tile variable
 		double scaled_fat_zero = fat_zero_single / (scenes.length);
 		boolean show_accumulated_correlations =debug_level > -5;
 		boolean show_reference_correlations =debug_level > -5;

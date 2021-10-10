@@ -3681,7 +3681,7 @@ public class Correlation2d {
     		boolean             adjust_ly, // adjust Lazy Eye
     		double [][]         corr_wnd, // correlation window to save on re-calculation of the window
     		double []           corr_wnd_inv_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
-    		double [][]         corrs,
+    		double [][]         corrs, // may have more elements than pair_mask (corrs may have combo as last elements)
     		double [][]         disp_dist, // per camera disparity matrix as a 1d (linescan order)
     		double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
     		boolean []          pair_mask, // which pairs to process
@@ -3732,7 +3732,7 @@ public class Correlation2d {
 
 //    	for (int npair = 0; npair < corrs.length; npair++) if ((corrs[npair] != null) && (((pair_mask >> npair) & 1) !=0)){
     	double [][] filtWeight = new double [corrs.length][];
-   		for (int npair = 0; npair < corrs.length; npair++) if ((corrs[npair] != null) && (pair_mask[npair])){
+   		for (int npair = 0; npair < pair_mask.length; npair++) if ((corrs[npair] != null) && (pair_mask[npair])){
     		
 //    		double[] corr = corrs[npair].clone();
     		double [] corr_blur = corrs[npair].clone();
