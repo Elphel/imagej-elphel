@@ -25,6 +25,7 @@ package com.elphel.imagej.tileprocessor;
  */
 
 import java.awt.Rectangle;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class CLTPass3d{
@@ -559,6 +560,9 @@ public class CLTPass3d{
 			double trustedCorrelation = tileProcessor.getTrustedCorrelation();
 			double max_overexposure = tileProcessor.getMaxOverexposure();
 			if (strength_hor == null) {
+				if (disparity_map[ImageDtt.DISPARITY_INDEX_HOR_STRENGTH] == null) {
+					return null;
+				}
 				strength_hor = disparity_map[ImageDtt.DISPARITY_INDEX_HOR_STRENGTH].clone();
 				if (trustedCorrelation > 0.0){
 					for (int i = 0; i < strength_hor.length; i++){
@@ -583,6 +587,9 @@ public class CLTPass3d{
 			double trustedCorrelation = tileProcessor.getTrustedCorrelation();
 			double max_overexposure = tileProcessor.getMaxOverexposure();
 			if (strength_vert == null) {
+				if (disparity_map[ImageDtt.DISPARITY_INDEX_VERT_STRENGTH] == null) {
+					return null;
+				}
 				strength_vert = disparity_map[ImageDtt.DISPARITY_INDEX_VERT_STRENGTH].clone();
 				if (trustedCorrelation > 0.0){
 					for (int i = 0; i < strength_vert.length; i++){
@@ -639,7 +646,22 @@ public class CLTPass3d{
 			}
 			return disparityLMA;
 		}
-
+		
+		public double getDisprityHor(int nt) {
+			return (disparity_map[ImageDtt.DISPARITY_INDEX_HOR] == null) ? Double.NaN : disparity_map[ImageDtt.DISPARITY_INDEX_HOR][nt]; 
+		}
+		public double getDisprityVert(int nt) {
+			return (disparity_map[ImageDtt.DISPARITY_INDEX_VERT] == null) ? Double.NaN : disparity_map[ImageDtt.DISPARITY_INDEX_VERT][nt]; 
+		}
+		public double getStrengthHor(int nt) {
+			return (disparity_map[ImageDtt.DISPARITY_INDEX_HOR_STRENGTH] == null) ? 0.0 : disparity_map[ImageDtt.DISPARITY_INDEX_HOR_STRENGTH][nt]; 
+		}
+		public double getStrengthVert(int nt) {
+			return (disparity_map[ImageDtt.DISPARITY_INDEX_VERT_STRENGTH] == null) ? 0.0 : disparity_map[ImageDtt.DISPARITY_INDEX_VERT_STRENGTH][nt]; 
+		}
+		
+		
+		
 		// methods to "condition" measured disparity values
 		public void conditionDisparity()
 		{
@@ -650,6 +672,9 @@ public class CLTPass3d{
 			calc_disparity =      new double[tilesY*tilesX];
 			calc_disparity_hor =  new double[tilesY*tilesX];
 			calc_disparity_vert = new double[tilesY*tilesX];
+			Arrays.fill(calc_disparity,      Double.NaN);
+			Arrays.fill(calc_disparity_hor,  Double.NaN);
+			Arrays.fill(calc_disparity_vert, Double.NaN);
 			
 			double [] lma_disparity = (lma_disparity_index >= 0) ? disparity_map[lma_disparity_index] : null;
 			double [] lma_strength =  (lma_disparity_index >= 0) ? disparity_map[lma_disparity_index+1] : null;
@@ -664,11 +689,25 @@ public class CLTPass3d{
 					} else {
 						calc_disparity[indx] =  disparity_map[disparity_index][indx]/corr_magic_scale +               this.disparity[i][j];
 					}
-					calc_disparity_hor[indx] =  disparity_map[ImageDtt.DISPARITY_INDEX_HOR][indx]/corr_magic_scale +  this.disparity[i][j];
-					calc_disparity_vert[indx] = disparity_map[ImageDtt.DISPARITY_INDEX_VERT][indx]/corr_magic_scale + this.disparity[i][j];
 				}
 			}
 			calc_disparity_combo = calc_disparity.clone(); // for now - just clone, can be modified separately and combined with hor/vert
+			if (disparity_map[ImageDtt.DISPARITY_INDEX_HOR] != null) {
+				for (int i = 0; i < tilesY; i++){
+					for (int j = 0; j < tilesX; j++){
+						int indx = i * tilesX + j;
+						calc_disparity_hor[indx] =  disparity_map[ImageDtt.DISPARITY_INDEX_HOR][indx]/corr_magic_scale +  this.disparity[i][j];
+					}
+				}
+			}
+			if (disparity_map[ImageDtt.DISPARITY_INDEX_VERT] != null) {
+				for (int i = 0; i < tilesY; i++){
+					for (int j = 0; j < tilesX; j++){
+						int indx = i * tilesX + j;
+						calc_disparity_vert[indx] = disparity_map[ImageDtt.DISPARITY_INDEX_VERT][indx]/corr_magic_scale + this.disparity[i][j];
+					}
+				}
+			}
 		}
 		
 		public boolean [] hasLMADefined(){ // will try not to create this.has_lma
@@ -975,13 +1014,15 @@ public class CLTPass3d{
 					}
 				} else {
 					if (selection[indx]) {
-						this.disparity[ty][tx] = (disparity == null)? 0.0: disparity[indx];
+//						this.disparity[ty][tx] = (disparity == null)? 0.0: disparity[indx];
 						this.tile_op[ty][tx] = tile_op;
 						num_op_tiles ++;
 					} else {
-						this.disparity[ty][tx] = 0.0;
+//						this.disparity[ty][tx] = 0.0;
 						this.tile_op[ty][tx] = 0;
 					}
+					this.disparity[ty][tx] = (disparity == null)? 0.0: disparity[indx];
+					
 				}
 			}
 			return num_op_tiles;

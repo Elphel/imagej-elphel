@@ -1517,6 +1517,10 @@ public class OpticalFlow {
 							}
 							int iwidth =  imax_tX - imin_tX + 1;
 							int iheight = imax_tY - imin_tY + 1;
+							if ((iwidth <= 0) || (iheight <= 0)) {
+								System.out.println ("prepareSceneTiles(): iwidth ="+iwidth+", iheight ="+iheight+", min_tX="+min_tX+", imin_tY="+imin_tY+", max_tX="+max_tX+", imax_tY="+imax_tY);
+								continue;
+							}
 							double [][] scene_slices = new double [dsrbg_scene.length][iwidth*iheight]; //OOM here
 							for (int iY = 0; iY < iheight; iY++) {
 								int tY = imin_tY + iY;
@@ -1653,7 +1657,7 @@ public class OpticalFlow {
 									scene_slices, // final double [][] slices,
 									num_passes,   // final int         num_passes,
 									max_change,   // final double      max_change,
-									iwidth);      // final int         width
+									iwidth);      // final int         width // got zero!
 
 							if ((debug_level>1) && (iMTile == dbg_mtile)) {
 								String [] dbg_titles= scene_QuadClt.getDSRGGTiltes(); //{"d","s","r","b","g"};
@@ -3077,7 +3081,7 @@ public class OpticalFlow {
 			double [] new_from_last_atr = ers_scene_last_known.getSceneATR(scene_ts);
 			
 			// combine two rotations and two translations 
-			System.out.println("Processing scene "+i);
+			System.out.println("Processing scene "+i+": "+scene_QuadClt.getImageName());
 			double [][] combo_XYZATR = ErsCorrection.combineXYZATR(
 					last_known_xyz,     // double [] reference_xyz,
 					last_known_atr,     // double [] reference_atr, // null?
@@ -5625,6 +5629,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 						clt_parameters.tileY,      // final int                 debug_tileY,
 						threadsMax,                // final int                 threadsMax,       // maximal number of threads to launch
 						debug_level);              //final int                 globalDebugLevel)
+				
 				accumulateCorrelations(
 						num_acc,       // final int [][][]        num_acc,     // number of accumulated tiles [tilesY][tilesX][pair]
 						dcorr_td,      // final double [][][][][] dcorr_td,    // [pair][tilesY][tilesX][4][64] sparse transform domain representation of corr pairs 

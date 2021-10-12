@@ -1314,12 +1314,12 @@ public class TileProcessor {
 								double mdisp =         m_lma?
 										mdisp_lma_arr[nt] : pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nt];
 								double corr_magic = m_lma ? corr_magic_scale_lma : corr_magic_scale;
-								double mdisp_hor =     pass.disparity_map[ImageDtt.DISPARITY_INDEX_HOR][nt];
-								double mdisp_vert =    pass.disparity_map[ImageDtt.DISPARITY_INDEX_VERT][nt];
+								double mdisp_hor =     pass.getDisprityHor(nt); // disparity_map[ImageDtt.DISPARITY_INDEX_HOR][nt];
+								double mdisp_vert =    pass.getDisprityVert(nt); // disparity_map[ImageDtt.DISPARITY_INDEX_VERT][nt];
 
 								double strength =      pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nt];
-								double strength_hor =  pass.disparity_map[ImageDtt.DISPARITY_INDEX_HOR_STRENGTH][nt];
-								double strength_vert = pass.disparity_map[ImageDtt.DISPARITY_INDEX_VERT_STRENGTH][nt];
+								double strength_hor =  pass.getStrengthHor(nt); // disparity_map[ImageDtt.DISPARITY_INDEX_HOR_STRENGTH][nt];
+								double strength_vert = pass.getStrengthVert(nt); // disparity_map[ImageDtt.DISPARITY_INDEX_VERT_STRENGTH][nt];
 
 								boolean overexposed =  (max_overexposure > 0.0) &&
 										(pass.disparity_map[ImageDtt.OVEREXPOSED] != null) &&
@@ -3364,6 +3364,71 @@ ImageDtt.startAndJoin(threads);
 						titles);
 		System.out.println("showScan("+title+"): isMeasured()="+scan.isMeasured()+", isProcessed()="+scan.isProcessed()+", isCombo()="+scan.isCombo());
 	}
+	
+	public void showLmaCmStrength(
+			CLTPass3d   scan,
+			int         bins,
+			String      title) {
+		double [][] strengths = {
+				scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM +   1],
+				scan.disparity_map[ImageDtt.DISPARITY_INDEX_POLY + 1]};
+		double mx_cm = 0.0, mx_lma = 0.0;
+		for (int i = 0; i < strengths[0].length; i++) {
+			if (strengths[0][i] > mx_cm)  mx_cm =  strengths[0][i];
+			if (strengths[1][i] > mx_lma) mx_lma = strengths[1][i];
+		}
+		System.out.println("showLmaCmStrength(): mx_cm="+mx_cm+", mx_lma="+mx_lma);
+		double step_cm =   mx_cm / bins; 
+		double step_lma =  mx_lma / bins; //  / 10.0;
+		double [] hist_arr = new double [bins*bins];
+		for (int i = 0; i < strengths[0].length; i++) if (strengths[1][i] > 0.0){
+			int b_cm =  (int) Math.floor(strengths[0][i] / step_cm);
+			int b_lma = (int) Math.floor(strengths[1][i] / step_lma);
+			if (b_cm >= bins)  b_cm = bins -1;
+			if (b_lma >= bins) b_lma = bins -1;
+			hist_arr[b_lma * bins + b_cm] += 1.0;
+		}
+		for (int i = 0; i < hist_arr.length; i++) {
+			if (hist_arr[i] <= 0.0) {
+				hist_arr[i] = Double.NaN;
+			}
+		}
+		(new ShowDoubleFloatArrays()).showArrays(
+				hist_arr,
+				bins,
+				bins,
+				title);
+		return;
+	}
+	
+	public void adjustLmaStrength (
+			ImageDttParameters  imgdtt_params,
+			CLTPass3d           scan,
+			int                 debugLevel)
+	{
+		double [][] strengths = {
+				scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM +   1],
+				scan.disparity_map[ImageDtt.DISPARITY_INDEX_POLY + 1]};
+		double s0 = 0.0, sx = 0.0, sx2 = 0.0, sy = 0.0, sxy = 0.0;
+		for (int i = 0; i < strengths[0].length; i++) if ((strengths[1][i] > 0.0) && (strengths[0][i] > 0)){
+			double x = strengths[1][i]; 
+			double y = strengths[0][i]; 
+			s0 += 1.0;
+			sx += x;
+			sx2 += x*x;
+			sy += y;
+			sxy += x * y;
+		}
+		imgdtt_params.lma_str_scale = (sxy * s0 - sy * sx) / (sx2 * s0 - sx * sx);
+		imgdtt_params.lma_str_offset = (sy * sx2 - sxy * sx) / (sx2 * s0 - sx * sx);
+		if (debugLevel > 0) {
+			System.out.println("adjustLmaStrength(): lma_str_scale="+imgdtt_params.lma_str_scale+", lma_str_offset="+imgdtt_params.lma_str_offset);
+		}
+		for (int i = 0; i < strengths[1].length; i++) if (strengths[1][i] > 0.0){
+			scan.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][i] = (strengths[1][i] * imgdtt_params.lma_str_scale) + imgdtt_params.lma_str_offset;
+		}
+	}
+	
 
 
 	public void  ShowScansSFB(
@@ -5752,13 +5817,13 @@ ImageDtt.startAndJoin(threads);
 				disparityTask[ty][tx] = prev_disparity[indx];
 				tile_op[ty][tx] = op;
 			} else {
-				disparityTask[ty][tx] = 0.0;
+				disparityTask[ty][tx] = Double.NaN; // 0.0;
 				tile_op[ty][tx] = 0;
 				borderTiles[indx] = false;
 			}
 		}
 		scan_next.setClustRadius(clust_radius);
-		scan_next.disparity =     disparityTask;
+		scan_next.disparity =     disparityTask; // will have NaN-s
 		scan_next.tile_op =       tile_op;
 		scan_next.setBorderTiles (borderTiles);
 		scan_next.setSelected(need_meas); // includes border_tiles

@@ -2125,7 +2125,7 @@ public class Corr2dLMA {
 			double  lma_str_scale,    // convert lma-generated strength to match previous ones - scale
 			double  lma_str_offset    // convert lma-generated strength to match previous ones - add to result
 			){
-		double [][] ds =         new double[numTiles][2];
+		double [][] ds =         new double[numTiles][3];
 		double []   rms =        getRmsTile();
 		double [][] maxmin_amp = getMaxMinAmpTile();
 		double [][] abc =        getABCTile();
@@ -2173,6 +2173,7 @@ public class Corr2dLMA {
 			strength = Math.sqrt(strength * Math.sqrt(ac)); // / area ); // new strength
 			ds[tile][0] = disparity;
 			ds[tile][1] = (strength * lma_str_scale) + lma_str_offset;
+			ds[tile][2] = strength; // as is
 		}
 		return ds;
 	}

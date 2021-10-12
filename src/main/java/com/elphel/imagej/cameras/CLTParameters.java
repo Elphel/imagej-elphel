@@ -63,11 +63,13 @@ public class CLTParameters {
 	public int        ishift_y =            0;  // debug feature - shift source image by this pixels down
 
 	private double    fat_zero =          0.05; // modify phase correlation to prevent division by very small numbers
-	private double    fat_zero_mono =     0.03;  // modify phase correlation to prevent division by very small numbers
-	private double    corr_sigma =        0.8;  // LPF correlation sigma
-	private double    corr_sigma_mono =   0.1;  // LPF correlation sigma for monochrome images
-	private double    scale_strength_main = 1.0; // leave as is
-	private double    scale_strength_aux =  0.3; // reduce to match lower sigma
+	private double    fat_zero_mono =     0.03; // modify phase correlation to prevent division by very small numbers
+	private double    corr_sigma =        0.9;  // LPF correlation sigma
+	private double    corr_sigma_mono =   0.15; // LPF correlation sigma for monochrome images
+	private double    texture_sigma =     0.9;  // LPF correlation sigma
+	private double    texture_sigma_mono =0.15; // LPF correlation sigma for monochrome images
+	private double    scale_strength_main = 1.0;// leave as is
+	private double    scale_strength_aux =  0.3;// reduce to match lower sigma
 	public boolean    norm_kern =         true; // normalize kernels
 	public boolean    gain_equalize =     false;// equalize green channel gain (bug fix for wrong exposure in Exif ?)
 	public boolean    colors_equalize =   true; // equalize R/G, B/G of the individual channels
@@ -938,6 +940,9 @@ public class CLTParameters {
 	public double getCorrSigma(boolean monochrome) {
 		return monochrome ? corr_sigma_mono : corr_sigma;
 	}
+	public double getTextureSigma(boolean monochrome) {
+		return monochrome ? texture_sigma_mono : texture_sigma;
+	}
 	public double getFatZero(boolean monochrome) {
 		return monochrome ? fat_zero_mono : fat_zero;
 	}
@@ -994,6 +999,8 @@ public class CLTParameters {
 		properties.setProperty(prefix+"fat_zero_mono",              this.fat_zero_mono+"");
 		properties.setProperty(prefix+"corr_sigma",                 this.corr_sigma+"");
 		properties.setProperty(prefix+"corr_sigma_mono",            this.corr_sigma_mono+"");
+		properties.setProperty(prefix+"texture_sigma",              this.texture_sigma+"");
+		properties.setProperty(prefix+"texture_sigma_mono",         this.texture_sigma_mono+"");
 		properties.setProperty(prefix+"scale_strength_main",        this.scale_strength_main+"");
 		properties.setProperty(prefix+"scale_strength_aux",         this.scale_strength_aux+"");
 
@@ -1808,6 +1815,8 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"fat_zero_mono")!=null)                 this.fat_zero_mono=Double.parseDouble(properties.getProperty(prefix+"fat_zero_mono"));
 		if (properties.getProperty(prefix+"corr_sigma")!=null)                    this.corr_sigma=Double.parseDouble(properties.getProperty(prefix+"corr_sigma"));
 		if (properties.getProperty(prefix+"corr_sigma_mono")!=null)               this.corr_sigma_mono=Double.parseDouble(properties.getProperty(prefix+"corr_sigma_mono"));
+		if (properties.getProperty(prefix+"texture_sigma")!=null)                 this.texture_sigma=Double.parseDouble(properties.getProperty(prefix+"texture_sigma"));
+		if (properties.getProperty(prefix+"texture_sigma_mono")!=null)            this.texture_sigma_mono=Double.parseDouble(properties.getProperty(prefix+"texture_sigma_mono"));
 		if (properties.getProperty(prefix+"scale_strength_main")!=null)           this.scale_strength_main=Double.parseDouble(properties.getProperty(prefix+"scale_strength_main"));
 		if (properties.getProperty(prefix+"scale_strength_aux")!=null)            this.scale_strength_aux=Double.parseDouble(properties.getProperty(prefix+"scale_strength_aux"));
 
@@ -2636,9 +2645,14 @@ public class CLTParameters {
 		gd.addNumericField("ishift_y: shift source image by this pixels down",                                  this.ishift_y,                  0);
 		gd.addNumericField("Modify phase correlation to prevent division by very small numbers",                this.fat_zero,                  4);
 		gd.addNumericField("Modify phase correlation for monochrome images",                                    this.fat_zero_mono,             4);
-		gd.addNumericField("LPF correlarion sigma for Bayer color images",                                      this.corr_sigma,                4);
-		gd.addNumericField("LPF correlarion sigma for monochrome images",                                       this.corr_sigma_mono,           4);
+		gd.addNumericField("LPF correlarion sigma for Bayer color images (correlation)",                        this.corr_sigma,                4);
+		gd.addNumericField("LPF correlarion sigma for monochrome images (correlation)",                         this.corr_sigma_mono,           4);
 
+		gd.addNumericField("LPF correlarion sigma for Bayer color images (textures)",                           this.texture_sigma,             4);
+		gd.addNumericField("LPF correlarion sigma for monochrome images (textures)",                            this.texture_sigma_mono,        4);
+		
+		
+		
 		gd.addNumericField("Scale all correlation strengths (to compensate correlation sigma) for main camera", this.scale_strength_main,       4);
 		gd.addNumericField("Scale all correlation strengths (to compensate correlation sigma) for aux camera",  this.scale_strength_aux,        4);
 
@@ -3668,6 +3682,8 @@ public class CLTParameters {
 		this.fat_zero_mono =        gd.getNextNumber();
 		this.corr_sigma =           gd.getNextNumber();
 		this.corr_sigma_mono =      gd.getNextNumber();
+		this.texture_sigma =        gd.getNextNumber();
+		this.texture_sigma_mono =   gd.getNextNumber();
 		this.scale_strength_main =  gd.getNextNumber();
 		this.scale_strength_aux =   gd.getNextNumber();
 		this.norm_kern=             gd.getNextBoolean();

@@ -996,11 +996,15 @@ public class GpuQuad{ // quad camera description
 			final int                      transform_size,
 			final double [][]	           disparity_array,  // [tilesY][tilesX] - individual per-tile expected disparity
 			final double                   disparity_corr,
-			final int [][]                 tile_op,          // [tilesY][tilesX] - what to do - 0 - nothing for this tile
+			final int [][]                 tile_op,          // [tilesY][tilesX] - what to do - 0 - nothing for this tile, null - use non-NaN in disparity_array
 			final GeometryCorrection       geometryCorrection,
 			final int                      threadsMax)       // maximal number of threads to launch
 	{
 		final int tilesY = disparity_array.length;
+		int op = ImageDtt.setImgMask(0, 0xf); // use if tile_op is not provided
+		op =     ImageDtt.setPairMask(op,0xf);
+		op =     ImageDtt.setForcedDisparity(op,true);
+		final int fop = op;
 		int tx = -1;
 		for (int i = 0; i < disparity_array.length; i++) if (disparity_array[i] != null) {
 			tx = disparity_array[i].length;
@@ -1022,11 +1026,15 @@ public class GpuQuad{ // quad camera description
 					for (int iTile = ai.getAndIncrement(); iTile < tp_tasks_xy.length; iTile = ai.getAndIncrement()) {
 						int tileY = iTile /tilesX;
 						int tileX = iTile % tilesX;
-						if ((tile_op[tileY][tileX] != 0) && !Double.isNaN(disparity_array[tileY][tileX])) {
+						int op = fop;
+						if (tile_op != null) {
+							op = tile_op[tileY][tileX];
+						}
+						if ((op != 0) && !Double.isNaN(disparity_array[tileY][tileX])) {
 							tp_tasks_xy[iTile] = setTask(
 									num_cams,                                       // int                 num_cams,
 									transform_size,                                 // int                 transform_size,
-									tile_op[tileY][tileX],                          // int                 task_code,
+									op,                                             // int                 task_code,
 									tileX,                                          // int                 tileX,
 									tileY,                                          // int                 tileY,
 									disparity_array[tileY][tileX] + disparity_corr, // double              target_disparity, // include disparity_corr

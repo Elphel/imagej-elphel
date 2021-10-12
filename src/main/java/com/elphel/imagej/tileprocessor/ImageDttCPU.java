@@ -1102,7 +1102,7 @@ public class ImageDttCPU {
 						centerX = tileX * transform_size + transform_size/2 - shiftX;
 						centerY = tileY * transform_size + transform_size/2 - shiftY;
 
-						double [] fract_shiftXY = extract_correct_tile( // return a pair of resudual offsets
+						double [] fract_shiftXY = extract_correct_tile( // return a pair of residual offsets
 								image_data,
 								width,       // image width
 								clt_kernels, // [color][tileY][tileX][band][pixel]
@@ -16247,8 +16247,12 @@ public class ImageDttCPU {
 		}
 		
 		if (disparity_map != null){ // only slices that are needed, keep others
-			int [] used_slices = {DISPARITY_INDEX_CM, DISPARITY_INDEX_CM+1,DISPARITY_INDEX_POLY,DISPARITY_INDEX_POLY+1,DISPARITY_STRENGTH_INDEX};
-			int [] nan_slices =  {DISPARITY_INDEX_CM, DISPARITY_INDEX_POLY};
+			int [] used_slices = run_lma? 
+					(    new int[] {DISPARITY_INDEX_CM, DISPARITY_INDEX_CM+1,DISPARITY_INDEX_POLY,DISPARITY_INDEX_POLY+1,DISPARITY_STRENGTH_INDEX}):
+						(new int[] {DISPARITY_INDEX_CM, DISPARITY_INDEX_CM+1,DISPARITY_STRENGTH_INDEX});
+			int [] nan_slices =  run_lma?
+					(    new int[] {DISPARITY_INDEX_CM, DISPARITY_INDEX_POLY}):
+						(new int[] {DISPARITY_INDEX_CM});
 			for (int indx:used_slices) {
 				disparity_map[indx] = new double[tilesY*tilesX];
 			}
@@ -16321,7 +16325,7 @@ public class ImageDttCPU {
 									sumw);
 							corrs[dcorr_td[iTile].length] = corr_combo_tile;  // last element
 							// copy to output for monitoring if non-null;
-							if (clt_corr_out.length > num_pairs) {
+							if ((clt_corr_out != null) && (clt_corr_out.length > num_pairs)) {
 								clt_corr_out[num_pairs][tileY][tileX] = corr_combo_tile;
 							}
 							if (disparity_map != null) {
@@ -16389,7 +16393,7 @@ public class ImageDttCPU {
 								if (ds != null) { // always true
 									if (disparity_map!=null) {
 										disparity_map[DISPARITY_INDEX_POLY    ][nTile] = ds[0][0];
-										disparity_map[DISPARITY_INDEX_POLY + 1][nTile] = ds[0][1];
+										disparity_map[DISPARITY_INDEX_POLY + 1][nTile] = ds[0][2]; // LMA strength as is
 										disparity_map[DISPARITY_STRENGTH_INDEX][nTile] = ds[0][1]; // overwrite with LMA strength
 									}
 									if (debugTile0) {
@@ -16643,11 +16647,54 @@ public class ImageDttCPU {
 		startAndJoin(threads);
 		return texture_tiles;
 	}
+	private double [][][] prepareNeibs(
+			int                 nTileC,
+			double []           target_disparity, //  = new double [tilesY * tilesX];
+			TileNeibs           tn,
+			int                 clustRadius,
+			double []           wnd_neib,
+			int [][]            dtx_dty, // null or int [][] dtx_dty =    new int [wnd_neib.length][]; 
+			double              arange,  // absolute disparity range to consolidate
+			double              rrange)  // relative disparity range to consolidate
+	{
+		int clustDiameter = 2 * clustRadius - 1;
+		int center_indx =   (clustRadius - 1) * (clustDiameter + 1);		
+		double disparity_center = target_disparity[nTileC];
+		double disp_min = disparity_center - arange - rrange * Math.abs(disparity_center);
+		double disp_max = disparity_center + arange + rrange * Math.abs(disparity_center);
+		double [][][] mdata = new double [wnd_neib.length][][]; // now empty lines will be skipped [3][];
+		for (int dty = -clustRadius+1; dty < clustRadius; dty++) {
+			for (int dtx = -clustRadius+1; dtx < clustRadius; dtx++) {
+				int nTile1 = tn.getNeibIndex(nTileC, dtx, dty);
+				if (nTile1 >= 0){
+					double disparity = target_disparity[nTile1];
+					if (!Double.isNaN(disparity) && (disparity >= disp_min)  && (disparity <= disp_max)){
+						int mindx = (dty * clustDiameter + dtx + center_indx);
+						double w = wnd_neib[mindx];
+						mdata[mindx] = new double[3][];
+						mdata[mindx][0] = new double [2];
+						mdata[mindx][0][0] =  dtx;
+						mdata[mindx][0][1] =  dty;
+						mdata[mindx][1] = new double [1];
+						mdata[mindx][1][0] =  disparity; 
+						mdata[mindx][2] = new double [1];
+						mdata[mindx][2][0] =  w;
+						if (dtx_dty != null) dtx_dty[mindx] = new int[] {dtx, dty};
+					}
+				}
+			}
+		}
+		return mdata;
+	}
+	
 	
 	public double []  quadCorrTD_tilted( // returns tile weights to be used for scaling fat zeros during transform domain -> pixel domain transform
 			final double [][][]       image_data,      // first index - number of image in a quad
 			final int                 width,
 			final TpTask []           tp_tasks,
+			final TpTask []           tp_tasks_target,  // null or wider array to provide target disparity for neighbors
+//			final double [][]	      disparity_array,  // [tilesY][tilesX] - individual per-tile expected disparity
+//			final double              disparity_corr, // apply to disparity array data only, tp_tasks are already corrected
 			final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
 			// dcorr_td should be either null, or double [tp_tasks.length][][];
 			final double [][][][]     dcorr_td,        // [tile][pair][4][64] sparse by pair transform domain representation of corr pairs
@@ -16662,7 +16709,8 @@ public class ImageDttCPU {
 			final double              corr_red,
 			final double              corr_blue,
 			// related to tilt
-			final int                 clustRadius,  // 1 - single tile, 2 - 3x3, 3 - 5x5, ...
+			final int                 clustRadiusTilt,  // 1 - single tile, 2 - 3x3, 3 - 5x5, ...
+			final int                 clustRadius,      // 1 - single tile, 2 - 3x3, 3 - 5x5, ...
 			final double              arange,  // absolute disparity range to consolidate
 			final double              rrange,  // relative disparity range to consolidate
 			final double              no_tilt, // no tilt if center disparity is lower
@@ -16670,6 +16718,7 @@ public class ImageDttCPU {
 			
 			
 			final int                 mcorr_sel,    // Which pairs to correlate // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
+			final double [][]         dbg_tilts, // [2][] // will return [2][tilesY * tiles X];
 			final int                 debug_tileX,
 			final int                 debug_tileY,
 			final int                 threadsMax,       // maximal number of threads to launch
@@ -16677,7 +16726,6 @@ public class ImageDttCPU {
 	{
 		final double [] damping = {damp_tilt, damp_tilt, 0.0}; // 0.0 will be applied to average value, tilt_cost - to both tilts
 		final int clustDiameter = 2 * clustRadius - 1;
-		final int center_indx = (clustRadius - 1) * (clustDiameter + 1);
 		final double [] wnd_neib = new double [clustDiameter * clustDiameter];
 		for (int iy = 0; iy < clustDiameter; iy++) {
 			double wy = Math.sin(Math.PI *(iy+1) / (clustDiameter + 1));
@@ -16685,6 +16733,17 @@ public class ImageDttCPU {
 				wnd_neib[iy * clustDiameter + ix] = wy * Math.sin(Math.PI *(ix+1) / (clustDiameter + 1));
 			}
 		}
+		
+		// separate for tilt, clustRadiusTilt >= clustRadius
+		final int clustDiameterTilt = 2 * clustRadiusTilt - 1;
+		final double [] wnd_neib_tilt = new double [clustDiameterTilt * clustDiameterTilt];
+		for (int iy = 0; iy < clustDiameterTilt; iy++) {
+			double wy = Math.sin(Math.PI *(iy+1) / (clustDiameterTilt + 1));
+			for (int ix = 0; ix < clustDiameterTilt; ix++) {
+				wnd_neib_tilt[iy * clustDiameterTilt + ix] = wy * Math.sin(Math.PI *(ix+1) / (clustDiameterTilt + 1));
+			}
+		}
+		
 		final int height=image_data[0][0].length/width;
 		final int tilesX=width/transform_size;
 		final int tilesY=height/transform_size;
@@ -16694,16 +16753,35 @@ public class ImageDttCPU {
 //		double [] 
 		Arrays.fill(target_disparity, Double.NaN);
 		final Matrix [] corr_rots =geometryCorrection.getCorrVector().getRotMatrices();
-		
+		if (dbg_tilts != null) {
+			for (int i = 0; i < dbg_tilts.length; i++) {
+				dbg_tilts[i] = new double [tilesY * tilesX];
+				Arrays.fill(dbg_tilts[i], Double.NaN);
+			}
+		}
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
+		if (tp_tasks_target != null) {
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					@Override
+					public void run() {
+						int tileX, tileY, nTile;
+						for (int iTile = ai.getAndIncrement(); iTile < tp_tasks_target.length; iTile = ai.getAndIncrement()) if (tp_tasks_target[iTile].getTask() != 0) {
+							tileY = tp_tasks_target[iTile].getTileY(); //  /tilesX;
+							tileX = tp_tasks_target[iTile].getTileX(); //nTile % tilesX;
+							nTile = tileY * tilesX + tileX;
+							target_disparity[nTile] = tp_tasks_target[iTile].getTargetDisparity(); 
+						}
+					}
+				};
+			}
+			ai.set(0);
+		}
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				@Override
 				public void run() {
-//					DttRad2 dtt = new DttRad2(transform_size);
-//					dtt.set_window(window_type);
-//					double [][] fract_shiftsXY = new double[numSensors][];
 					int tileX, tileY, nTile;
 					for (int iTile = ai.getAndIncrement(); iTile < tp_tasks.length; iTile = ai.getAndIncrement()) if (tp_tasks[iTile].getTask() != 0) {
 						tileY = tp_tasks[iTile].getTileY(); //  /tilesX;
@@ -16732,48 +16810,20 @@ public class ImageDttCPU {
 						tileXC = tp_tasks[iTileC].getTileX(); //nTile % tilesX;
 						nTileC = tileYC * tilesX + tileXC;
 						if (tp_tasks[iTileC].getTask() == 0) continue; // nothing to do for this tile, should not normally happen
-						//						target_disparity[nTile] = tp_tasks[iTile].getTargetDisparity();
-						//calculate tilts
-						boolean [] used_neibs = new boolean [clustDiameter * clustDiameter];
-						double disparity_center = target_disparity[nTileC];
-						double disp_min = disparity_center - arange - rrange * Math.abs(disparity_center);
-						double disp_max = disparity_center + arange + rrange * Math.abs(disparity_center);
-						double tiltY = 0, tiltX=0;
-						double [][][] mdata = new double [wnd_neib.length][][]; // now empty lines will be skipped [3][];
-						int [][] dtx_dty =    new int [wnd_neib.length][]; 
-						//						double [] weights = new double [wnd_neib.length];
-						double sum_w = 0.0;
-						int num_used = 0;
-						for (int dty = -clustRadius+1; dty < clustRadius; dty++) {
-							for (int dtx = -clustRadius+1; dtx < clustRadius; dtx++) {
-								int nTile1 = tn.getNeibIndex(nTileC, dtx, dty);
-								if (nTile1 >= 0){
-									double disparity = target_disparity[nTile1];
-									if (!Double.isNaN(disparity) && (disparity >= disp_min)  && (disparity <= disp_max)){
+						//calculate tilts (use larger clustRadiusTilt than clustRadius for accumulating tiles)
+						double [][][] mdata = 	prepareNeibs(
+								nTileC,           // int                 nTileC,
+								target_disparity, //double []           target_disparity, //  = new double [tilesY * tilesX];
+								tn,               //        TileNeibs           tn,
+								clustRadiusTilt , // int                 clustRadius,
+								wnd_neib_tilt,    // double []           wnd_neib,
+								null,             // int [][]            dtx_dty, // null or int [][] dtx_dty =    new int [wnd_neib.length][]; 
+								arange,           // double              arange,  // absolute disparity range to consolidate
+								rrange);          // double              rrange)  // relative disparity range to consolidate
 
-										//										int tileX1 = nTile1 % tilesX;
-										//										int tileY1 = nTile1 / tilesX;
-										///										if ((tile_op[tileY1][tileX1] != 0) && (disparity_array[tileY1][tileX1] >= disp_min)  && (disparity_array[tileY1][tileX1] <= disp_max)){
-										int mindx = (dty * clustDiameter + dtx + center_indx);
-										used_neibs[mindx] = true;
-										double w = wnd_neib[mindx];
-										mdata[mindx] = new double[3][];
-										mdata[mindx][0] = new double [2];
-										mdata[mindx][0][0] =  dtx;
-										mdata[mindx][0][1] =  dty;
-										mdata[mindx][1] = new double [1];
-										mdata[mindx][1][0] =  disparity; 
-										mdata[mindx][2] = new double [1];
-										mdata[mindx][2][0] =  w;
-										sum_w += w;
-										num_used ++;
-										dtx_dty[mindx] = new int[] {dtx, dty};
-										//										}
-									}
-								}
-							}
-						}
-						//						double scale_weighths = 1.0/sum_w;
+						double disparity_center = target_disparity[nTileC];
+						double tiltY = 0, tiltX=0;
+						
 						if (disparity_center > no_tilt) {
 							double[][] approx2d = pa.quadraticApproximation(
 									mdata,
@@ -16784,15 +16834,34 @@ public class ImageDttCPU {
 								tiltX = approx2d[0][0];
 								tiltY = approx2d[0][1]; // approx2d[0][2] - const C (A*x+B*y+C), C is not used here 
 							}
-							//							if (num_tiles == 0) {
-							//								continue; // should never happen anyway
-							//							}
 						}
+						
+						if (dbg_tilts != null) {
+							dbg_tilts[0][nTileC] = tiltX;
+							dbg_tilts[1][nTileC] = tiltY;
+						}
+
+						// apply smaller square for tiles accumulation
+						int [][] dtx_dty =    new int [wnd_neib.length][]; 
+						mdata = 	prepareNeibs(
+								nTileC,           // int                 nTileC,
+								target_disparity, //double []           target_disparity, //  = new double [tilesY * tilesX];
+								tn,               //        TileNeibs           tn,
+								clustRadius ,     // int                 clustRadius,
+								wnd_neib,         // double []           wnd_neib,
+								dtx_dty,          // int [][]            dtx_dty, // null or int [][] dtx_dty =    new int [wnd_neib.length][]; 
+								arange,           // double              arange,  // absolute disparity range to consolidate
+								rrange);          // double              rrange)  // relative disparity range to consolidate
+						int num_used = 0;
+						for (int i = 0; i < mdata.length; i++) 	if (mdata[i] != null) {
+							num_used++;
+						}
+						
 						tp_tasks_2d[iTileC] = new TpTask[num_used];
 						tp_weights_2d[iTileC] = new double[num_used];
 						int indx = 0;
 						int task_code = tp_tasks[iTileC].getTask(); // copy from the center tile
-						for (int mindx = 0; mindx < mdata.length; mindx++) if (used_neibs[mindx]){
+						for (int mindx = 0; mindx < mdata.length; mindx++) if (mdata[mindx] != null) { // used_neibs[mindx]){
 							tp_weights_2d[iTileC][indx] = mdata[mindx][2][0];
 							int dtx = dtx_dty[mindx][0];
 							int dty = dtx_dty[mindx][1];
@@ -16869,9 +16938,13 @@ public class ImageDttCPU {
 						for (int npair = 0; npair < selected_pairs.length; npair++) if (selected_pairs[npair]) {
 							dcorr_td[iTileC][npair] = new double [num_quadrants][transform_len];
 						}
+						double sw = 0, sw2 = 0;
 						for (int sub_tile = 0; sub_tile < tp_tasks_2d[iTileC].length; sub_tile++) {
-							accum_weights[iTileC] += tp_weights_2d[iTileC][sub_tile];
+							double w = tp_weights_2d[iTileC][sub_tile];
+							sw += w;
+							sw2 += w * w;
 						}
+						accum_weights[iTileC] = (sw * sw) / sw2; // square S/N compared to that of a single tile
 						for (int npair = 0; npair < selected_pairs.length; npair++) if (selected_pairs[npair]) {
 							for (int sub_tile = 0; sub_tile < tp_tasks_2d[iTileC].length; sub_tile++) {
 								int task_indx_all = tasks_indices[iTileC] + sub_tile;

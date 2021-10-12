@@ -8311,7 +8311,7 @@ if (debugLevel > -100) return true; // temporarily !
 					threadsMax,     // int            threadsMax,  // maximal number of threads to launch
 					updateStatus,   // boolean        updateStatus,
 					debugLevel);    // int            debugLevel)
-			if (debugLevel > -10) {
+			if (debugLevel > 10) { // =================== change to -10 for test (single-scene)
 				quadCLTs[i].showDSIMain();
 				quadCLTs[i].testAltCorr (
 						clt_parameters, // CLTParameters             clt_parameters,

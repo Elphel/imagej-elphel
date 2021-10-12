@@ -144,6 +144,13 @@ public class ImageDttParameters {
 	public double  pcorr_dbg_offsx =        0.0;  // X-offset correlation in TD
 	public double  pcorr_dbg_offsy =        0.0;  // Y-offset correlation in TD
 
+	// Multi-tile averaging tilt
+	public double  tilt_arange =            1.0;  //absolute disparity range to consolidate
+	public double  tilt_rrange =            0.1;  // relative disparity range to consolidate
+	public double  tilt_no_tilt =           0.5;  // no tilt if center disparity is lower
+	public double  tilt_damp_tilt =         0.01; // 0.1?
+	public int     tilt_clust_extra =       2; // 0.1? measure tilt by larger cluster radius than for averaging
+	
 // LMA parameters
 	public double  lma_disp_range =          5.0;   // disparity range to combine in one cluster (to mitigate ERS
 // LMA single parameters
@@ -217,8 +224,8 @@ public class ImageDttParameters {
 	public double  lma_min_min_ac =         0.015; // minimal of a and C coefficients minimum (measures sharpest point)
 	public double  lma_max_area =           30.0;  //45.0;  // maximal half-area (if > 0.0)
 
-	public double  lma_str_scale =          0.2;   // LWIR16: 0.2 convert lma-generated strength to match previous ones - scale
-	public double  lma_str_offset =         0.05;  // LWIR16: 0.05 convert lma-generated strength to match previous ones - add to result
+	public double  lma_str_scale =          0.2665;   // LWIR16: 0.2 convert lma-generated strength to match previous ones - scale
+	public double  lma_str_offset =         0.1046;   // LWIR16: 0.05 convert lma-generated strength to match previous ones - add to result
 
 
 	// Lazy eye results interpretation
@@ -510,6 +517,18 @@ public class ImageDttParameters {
 					"Rotate in Transform Domain");
 			gd.addNumericField("Debug feature - shift correlation result Y",                      this.pcorr_dbg_offsy,  3, 6, "",
 					"Rotate in Transform Domain");
+			
+			gd.addMessage("Multi-tile averaging");
+			gd.addNumericField("Absolute disparity range to consolidate",                         this.tilt_arange,  3, 6, "",
+					"Only use neighbor tiles if their differ less from the center");
+			gd.addNumericField("Relative disparity range to consolidate",                         this.tilt_rrange,  3, 6, "",
+					"Only use neighbor tiles if their differ less from the center relative to the center disparity");
+			gd.addNumericField("No tilt if center disparity is smaller",                          this.tilt_no_tilt,  3, 6, "",
+					"Use constant disparity for the whole cluster if center disparity is below");
+			gd.addNumericField("Tilt regularization",                                             this.tilt_damp_tilt,  3, 6, "",
+					"Minimize tilt when data is insufficient to determine it");
+			gd.addNumericField    ("Increase cluster radius for measuring tilt by this",          this.tilt_clust_extra,  0, 3, "",
+					"Before averaging calculate tilt using larger square, e.g. ==2 - use 7x7 for tilt for 3x3 averaging");
 			
 			gd.addTab("Corr LMA","Parameters for LMA fitting of the correlation maximum parameters");
 			gd.addMessage("Single-tile (no lazy eye) only parameters (some are common");
@@ -804,6 +823,13 @@ public class ImageDttParameters {
 			this.pcorr_fat_zero_mono =   gd.getNextNumber();
 			this.pcorr_dbg_offsx =       gd.getNextNumber();
 			this.pcorr_dbg_offsy =       gd.getNextNumber();
+
+			this.tilt_arange =           gd.getNextNumber();
+			this.tilt_rrange =           gd.getNextNumber();
+			this.tilt_no_tilt =          gd.getNextNumber();
+			this.tilt_damp_tilt =        gd.getNextNumber();
+			this.tilt_clust_extra= (int) gd.getNextNumber();
+			
 //LMA tab
 			this.lma_disp_range =        gd.getNextNumber();
 			this.lmas_gaussian=    (int) gd.getNextNumber();
@@ -997,6 +1023,14 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"pcorr_dbg_offsx",      this.pcorr_dbg_offsx +"");
 		properties.setProperty(prefix+"pcorr_dbg_offsy",      this.pcorr_dbg_offsy +"");
 
+		properties.setProperty(prefix+"tilt_arange",          this.tilt_arange +"");
+		properties.setProperty(prefix+"tilt_rrange",          this.tilt_rrange +"");
+		properties.setProperty(prefix+"tilt_no_tilt",         this.tilt_no_tilt +"");
+		properties.setProperty(prefix+"tilt_damp_tilt",       this.tilt_damp_tilt +"");
+		properties.setProperty(prefix+"tilt_clust_extra",     this.tilt_clust_extra +"");
+
+		
+		
 		properties.setProperty(prefix+"lma_disp_range",       this.lma_disp_range +"");
 		properties.setProperty(prefix+"lmas_gaussian",        this.lmas_gaussian +"");
 		properties.setProperty(prefix+"lmas_adjust_wm",       this.lmas_adjust_wm +"");
@@ -1192,6 +1226,13 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"pcorr_fat_zero_mono")!=null)  this.pcorr_fat_zero_mono=Double.parseDouble(properties.getProperty(prefix+"pcorr_fat_zero_mono"));
 		if (properties.getProperty(prefix+"pcorr_dbg_offsx")!=null)      this.pcorr_dbg_offsx=Double.parseDouble(properties.getProperty(prefix+"pcorr_dbg_offsx"));
 		if (properties.getProperty(prefix+"pcorr_dbg_offsy")!=null)      this.pcorr_dbg_offsy=Double.parseDouble(properties.getProperty(prefix+"pcorr_dbg_offsy"));
+		
+		if (properties.getProperty(prefix+"tilt_arange")!=null)          this.tilt_arange=Double.parseDouble(properties.getProperty(prefix+"tilt_arange"));
+		if (properties.getProperty(prefix+"tilt_rrange")!=null)          this.tilt_rrange=Double.parseDouble(properties.getProperty(prefix+"tilt_rrange"));
+		if (properties.getProperty(prefix+"tilt_no_tilt")!=null)         this.tilt_no_tilt=Double.parseDouble(properties.getProperty(prefix+"tilt_no_tilt"));
+		if (properties.getProperty(prefix+"tilt_damp_tilt")!=null)       this.tilt_damp_tilt=Double.parseDouble(properties.getProperty(prefix+"tilt_damp_tilt"));
+		if (properties.getProperty(prefix+"tilt_clust_extra")!=null)     this.tilt_clust_extra=Integer.parseInt(properties.getProperty(prefix+"tilt_clust_extra"));
+		
 
 		if (properties.getProperty(prefix+"lma_disp_range")!=null)       this.lma_disp_range=Double.parseDouble(properties.getProperty(prefix+"lma_disp_range"));
 		if (properties.getProperty(prefix+"lmas_gaussian")!=null) {
@@ -1407,6 +1448,12 @@ public class ImageDttParameters {
 		idp.pcorr_fat_zero_mono =    this.pcorr_fat_zero_mono;
 		idp.pcorr_dbg_offsx =        this.pcorr_dbg_offsx;
 		idp.pcorr_dbg_offsy =        this.pcorr_dbg_offsy;
+		
+		idp.tilt_arange =            this.tilt_arange;
+		idp.tilt_rrange =            this.tilt_rrange;
+		idp.tilt_no_tilt =           this.tilt_no_tilt;
+		idp.tilt_damp_tilt =         this.tilt_damp_tilt;
+		idp.tilt_clust_extra =       this.tilt_clust_extra;
 
 		idp.lma_disp_range=          this.lma_disp_range;
 		idp.lmas_gaussian =          this.lmas_gaussian;
