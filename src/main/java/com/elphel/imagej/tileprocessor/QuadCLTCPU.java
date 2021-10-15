@@ -47,7 +47,9 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.DoubleAccumulator;
 
 import org.checkerframework.checker.units.qual.m;
 
@@ -295,14 +297,21 @@ public class QuadCLTCPU {
 		return image_name;
 	}
     
-	public int restoreDSI(String suffix) // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
+	public int restoreDSI(
+			String suffix,
+			boolean silent) // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
 	{
 		this.dsi = new double [TwoQuadCLT.DSI_SLICES.length][];
-		return restoreDSI(suffix,dsi);
+		return restoreDSI(
+				suffix,
+				dsi,
+				silent);
 	}
 	
-	public int restoreDSI(String suffix, // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
-			double [][] dsi) {
+	public int restoreDSI(
+			String suffix, // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
+			double [][] dsi,
+			boolean silent) {
 		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
 				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
 				correctionsParameters.x3dModelVersion,
@@ -313,12 +322,22 @@ public class QuadCLTCPU {
 		try {
 			imp = new ImagePlus(file_path);
 		} catch (Exception e) {
-			System.out.println ("Failed to open "+file_path);
+			if (!silent) {
+				System.out.println ("Failed to open "+file_path);
+			}
+			return -1;
+		}
+		if (imp.getWidth()==0) { // file not found
+			if (!silent) {
+				System.out.println ("Failed to open "+file_path);
+			}
 			return -1;
 		}
 		System.out.println("restoreDSI(): got "+imp.getStackSize()+" slices from file: "+file_path);
 		if (imp.getStackSize() < 2) {
-			System.out.println ("Failed to read "+file_path);
+			if (!silent) {
+				System.out.println ("Failed to read "+file_path);
+			}
 			return -1;
 		}
 		int num_slices_read = 0;
@@ -601,7 +620,6 @@ public class QuadCLTCPU {
 
 	{
 		final int        debugLevelInner=clt_parameters.batch_run? -2: debugLevel;
-//		String set_name = image_name; // prevent from being overwritten?
 		String jp4_copy_path= correctionsParameters.selectX3dDirectory(
 				this.image_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
 				correctionsParameters.jp4SubDir,
@@ -640,7 +658,15 @@ public class QuadCLTCPU {
 					threadsMax,
 					1); // debugLevel); // final int       debug_level)
 		}
-		restoreDSI("-DSI_MAIN"); // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
+		// try to restore DSI generated from interscene if available, if not use single-scene -DSI_MAIN
+		if (restoreDSI(
+				"-DSI_INTER",
+				true // silent
+				) < 0) { 
+			restoreDSI(
+					"-DSI_MAIN",  // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
+					false); // silent
+		}
 		restoreInterProperties( // restore properties for interscene processing (extrinsics, ers, ...)
 				null, // String path,             // full name with extension or null to use x3d directory
 				false, // boolean all_properties,//				null, // Properties properties,   // if null - will only save extrinsics)
@@ -717,30 +743,70 @@ public class QuadCLTCPU {
 				}		      
 				ImageDtt.startAndJoin(threads);
 			}
-			for (int q = 0; q < num_cams; q++) {
-				final int fq = q;
-				double [] sc = new double [num_cols];
-				for (int c =0; c < num_cols; c++) {
-					for (int i =0; i < image_data[q][c].length; i++) {
-						sc[c] += image_data[q][c][i];
+			if (isLwir()) {
+				for (int q = 0; q < num_cams; q++) {
+					final int fq = q;
+					double s1 = 0.0, s2 = 0.0;
+					for (int i =0; i < image_data[q][0].length; i++) {
+						s1  += image_data[q][0][i];
+						s2 += image_data[q][0][i] * image_data[q][0][i];
+					}
+					double s0 = image_data[q][0].length;
+					final double sb = 2.0 * Math.sqrt(s2*s0 - s1*s1) / s0; // 2.0 - to match calculation for RGB (average value)  
+					ai.set(0);
+					for (int ithread = 0; ithread < threads.length; ithread++) {
+						threads[ithread] = new Thread() {
+							public void run() {
+								for (int i = ai.getAndIncrement(); i < noise[0].length; i = ai.getAndIncrement()) {
+									noise[fq][i] *= sb;
+								}
+							}
+						};
+					}		      
+					ImageDtt.startAndJoin(threads);
+				}
+			} else {
+				for (int q = 0; q < num_cams; q++) {
+					final int fq = q;
+					double [] sc = new double [num_cols];
+					for (int c =0; c < num_cols; c++) {
+						for (int i =0; i < image_data[q][c].length; i++) {
+							sc[c] += image_data[q][c][i];
+						}
+					}
+					if (isMonochrome()) {
+						final double sb = sc[0]/num_pix; 
+						ai.set(0);
+						for (int ithread = 0; ithread < threads.length; ithread++) {
+							threads[ithread] = new Thread() {
+								public void run() {
+									for (int i = ai.getAndIncrement(); i < noise[0].length; i = ai.getAndIncrement()) {
+										noise[fq][i] *= sb;
+									}
+								}
+							};
+						}		      
+						ImageDtt.startAndJoin(threads);
+
+					} else {
+						final double [][] sb = {
+								{sc[2] * 2.0 / num_pix, sc[0] * 4.0 / num_pix},
+								{sc[1] * 4.0 / num_pix, sc[2] * 2.0 / num_pix}};
+						ai.set(0);
+						for (int ithread = 0; ithread < threads.length; ithread++) {
+							threads[ithread] = new Thread() {
+								public void run() {
+									for (int i = ai.getAndIncrement(); i < noise[0].length; i = ai.getAndIncrement()) {
+										int dx = (i % image_wh[0]) & 1;
+										int dy = (i / image_wh[0]) & 1;
+										noise[fq][i] *= sb[dy][dx];
+									}
+								}
+							};
+						}		      
+						ImageDtt.startAndJoin(threads);
 					}
 				}
-				final double [][] sb = {
-						{sc[2] * 2.0 / num_pix, sc[0] * 4.0 / num_pix},
-						{sc[1] * 4.0 / num_pix, sc[2] * 2.0 / num_pix}};
-				ai.set(0);
-				for (int ithread = 0; ithread < threads.length; ithread++) {
-					threads[ithread] = new Thread() {
-						public void run() {
-							for (int i = ai.getAndIncrement(); i < noise[0].length; i = ai.getAndIncrement()) {
-								int dx = (i % image_wh[0]) & 1;
-								int dy = (i / image_wh[0]) & 1;
-								noise[fq][i] *= sb[dy][dx];
-							}
-						}
-					};
-				}		      
-				ImageDtt.startAndJoin(threads);
 			}
 			imp = saveDoubleArrayInModelDirectory(
 					noise_suffix,  // String      suffix,
@@ -909,6 +975,7 @@ public class QuadCLTCPU {
 	}
 
 	public void saveDSIAll(
+			String suffix, // "-DSI_MAIN"
 			double [][] dsi) // DSI_SLICES.length
 	{
 		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
@@ -916,11 +983,7 @@ public class QuadCLTCPU {
 				correctionsParameters.x3dModelVersion,
 				true,  // smart,
 				true);  //newAllowed, // save
-		String title = image_name+"-DSI_MAIN";
-//		String []   titles =   {TwoQuadCLT.DSI_SLICES[TwoQuadCLT.DSI_DISPARITY_MAIN], TwoQuadCLT.DSI_SLICES[TwoQuadCLT.DSI_STRENGTH_MAIN]};
-//		double [][] dsi_main = {dsi[TwoQuadCLT.DSI_DISPARITY_MAIN],        dsi[TwoQuadCLT.DSI_STRENGTH_MAIN]};
-
-//		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(dsi_main, tp.getTilesX(), tp.getTilesY(),  title, titles);
+		String title = image_name+suffix; // "-DSI_MAIN";
 		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(dsi, tp.getTilesX(), tp.getTilesY(),  title, TwoQuadCLT.DSI_SLICES);
 		eyesisCorrections.saveAndShow(
 				imp,      // ImagePlus             imp,
@@ -4314,208 +4377,238 @@ public class QuadCLTCPU {
 		  boolean lwir_subtract_dc =   colorProcParameters.lwir_subtract_dc;
 		  boolean lwir_eq_chn =        colorProcParameters.lwir_eq_chn;
 		  boolean correct_vignetting = colorProcParameters.correct_vignetting;
-//		  this.is_mono =               isMonochrome(); // is_lwir; // maybe add other monochrome?
 
-		  for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++){
-			  int nFile=channelFiles[srcChannel]; // channelFiles[srcChannel];
-			  imp_srcs[srcChannel]=null;
-			  if (nFile >=0){
-				  imp_srcs[srcChannel] = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], this.geometryCorrection.woi_tops, this.geometryCorrection.camera_heights);
+		  final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		  final AtomicInteger ai = new AtomicInteger(0);
+		  final AtomicBoolean aReturnNull = new AtomicBoolean(false); 
 
-				  scaleExposures[srcChannel] = 1.0;
-				  if (!(referenceExposures == null) && !Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
-					  scaleExposures[srcChannel] = referenceExposures[nFile]/Double.parseDouble((String) imp_srcs[srcChannel].getProperty("EXPOSURE"));
-					  if (debugLevel > -1) {
-						  System.out.println("Will scale intensity (to compensate for exposure) by  "+scaleExposures[srcChannel]+
-								  ", EXPOSURE = "+imp_srcs[srcChannel].getProperty("EXPOSURE"));
-					  }
+		  for (int ithread = 0; ithread < threads.length; ithread++) {
+			  threads[ithread] = new Thread() {
+				  public void run() {
+//					  for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++){
+					  for (int srcChannel = ai.getAndIncrement(); srcChannel < channelFiles.length; srcChannel = ai.getAndIncrement()) {
+
+						  int nFile=channelFiles[srcChannel]; // channelFiles[srcChannel];
+						  imp_srcs[srcChannel]=null;
+						  if (nFile >=0){
+							  imp_srcs[srcChannel] = eyesisCorrections.getJp4Tiff(sourceFiles[nFile], geometryCorrection.woi_tops, geometryCorrection.camera_heights);
+
+							  scaleExposures[srcChannel] = 1.0;
+							  if (!(referenceExposures == null) && !Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
+								  scaleExposures[srcChannel] = referenceExposures[nFile]/Double.parseDouble((String) imp_srcs[srcChannel].getProperty("EXPOSURE"));
+								  if (debugLevel > -1) {
+									  System.out.println("Will scale intensity (to compensate for exposure) by  "+scaleExposures[srcChannel]+
+											  ", EXPOSURE = "+imp_srcs[srcChannel].getProperty("EXPOSURE"));
+								  }
+							  }
+							  String name_from_dir = correctionsParameters.getNameFromSourceTiff(sourceFiles[nFile]);
+							  if (name_from_dir.equals("jp4")) {
+								  name_from_dir = set_name; // to fix save source files copy in the model/jp4
+							  }
+							  imp_srcs[srcChannel].setProperty("name",    name_from_dir);
+							  imp_srcs[srcChannel].setProperty("channel", srcChannel); // it may already have channel
+							  imp_srcs[srcChannel].setProperty("path",    sourceFiles[nFile]); // it may already have channel
+
+							  if (correctionsParameters.pixelDefects && (eyesisCorrections.defectsXY!=null)&& (eyesisCorrections.defectsXY[srcChannel]!=null)){
+								  // apply pixel correction
+								  int numApplied=	eyesisCorrections.correctDefects( // not used in lwir
+										  imp_srcs[srcChannel],
+										  srcChannel,
+										  debugLevel);
+								  if ((debugLevel>0) && (numApplied>0)) { // reduce verbosity after verified defect correction works
+									  System.out.println("Corrected "+numApplied+" pixels in "+sourceFiles[nFile]);
+								  }
+							  }
+							  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
+							  int width =  imp_srcs[srcChannel].getWidth();
+							  int height = imp_srcs[srcChannel].getHeight();
+							  if ((debugLevel > -1) && (!isMonochrome())) {
+								  double [] max_pix= {0.0, 0.0, 0.0, 0.0};
+								  //					  for (int y = 0; y < height-1; y+=2){
+								  for (int y = 0; (y < 499) && (y < height); y+=2){
+									  //						  for (int x = 0; x < width-1; x+=2){
+									  for (int x = width/2; x < width-1; x+=2){
+										  if (pixels[y*width+x        ] > max_pix[0])  max_pix[0] = pixels[y*width+x        ];
+										  if (pixels[y*width+x+      1] > max_pix[1])  max_pix[1] = pixels[y*width+x+      1];
+										  if (pixels[y*width+x+width  ] > max_pix[2])  max_pix[2] = pixels[y*width+x+width  ];
+										  if (pixels[y*width+x+width+1] > max_pix[3])  max_pix[3] = pixels[y*width+x+width+1];
+									  }
+								  }
+								  if (debugLevel > -2) {
+									  System.out.println(String.format("channel %d max_pix[] = %6.2f %6.2f %6.2f %6.2f", srcChannel, max_pix[0], max_pix[1], max_pix[2], max_pix[3]));
+								  }
+								  dbg_dpixels[srcChannel] = new double [pixels.length];
+								  for (int i = 0; i < pixels.length; i++) dbg_dpixels[srcChannel][i] = pixels[i];
+								  //						  imp_srcs[srcChannel].show();
+							  }
+							  if (clt_parameters.sat_level > 0.0){
+								  saturation_imp[srcChannel] = new boolean[width*height];
+								  if (!ignore_saturation) {
+									  double [] saturations = {
+											  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_1")),
+											  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_0")),
+											  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_3")),
+											  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_2"))};
+									  if (debugLevel > -2) {
+										  System.out.println(String.format("channel %d saturations = %6.2f %6.2f %6.2f %6.2f", srcChannel,
+												  saturations[0],saturations[1],saturations[2],saturations[3]));
+									  }
+									  double [] scaled_saturations = new double [saturations.length];
+									  for (int i = 0; i < scaled_saturations.length; i++){
+										  scaled_saturations[i] = saturations[i] * clt_parameters.sat_level;
+									  }
+									  for (int y = 0; y < height-1; y+=2){
+										  for (int x = 0; x < width-1; x+=2){
+											  if (pixels[y*width+x        ] > scaled_saturations[0])  saturation_imp[srcChannel][y*width+x        ] = true;
+											  if (pixels[y*width+x+      1] > scaled_saturations[1])  saturation_imp[srcChannel][y*width+x      +1] = true;
+											  if (pixels[y*width+x+width  ] > scaled_saturations[2])  saturation_imp[srcChannel][y*width+x+width  ] = true;
+											  if (pixels[y*width+x+width+1] > scaled_saturations[3])  saturation_imp[srcChannel][y*width+x+width+1] = true;
+										  }
+									  }
+								  }
+							  }
+
+							  if (!is_lwir) { // no vigneting correction and no color scaling
+								  if (correctionsParameters.vignetting && correct_vignetting){
+									  if ((eyesisCorrections.channelVignettingCorrection==null) || (srcChannel<0) || (srcChannel>=eyesisCorrections.channelVignettingCorrection.length) || (eyesisCorrections.channelVignettingCorrection[srcChannel]==null)){
+										  if (debugLevel > -3) {
+											  System.out.println("No vignetting data for channel "+srcChannel);
+										  }
+										  aReturnNull.set(true);
+										  continue;  // return null;
+									  }
+									  ///						  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
+
+									  float [] vign_pixels = eyesisCorrections.channelVignettingCorrection[srcChannel];
+									  if (pixels.length!=vign_pixels.length){
+										  //							  System.out.println("Vignetting data for channel "+srcChannel+" has "+vign_pixels.length+" pixels, image "+sourceFiles[nFile]+" has "+pixels.length);
+										  int woi_width =  Integer.parseInt((String) imp_srcs[srcChannel].getProperty("WOI_WIDTH"));
+										  int woi_height = Integer.parseInt((String) imp_srcs[srcChannel].getProperty("WOI_HEIGHT"));
+										  int woi_top =  Integer.parseInt((String) imp_srcs[srcChannel].getProperty("WOI_TOP"));
+										  int woi_left =  Integer.parseInt((String) imp_srcs[srcChannel].getProperty("WOI_LEFT"));
+										  int vign_width =  eyesisCorrections.pixelMapping.sensors[srcChannel].pixelCorrectionWidth;
+										  int vign_height = eyesisCorrections.pixelMapping.sensors[srcChannel].pixelCorrectionHeight;
+
+										  if (pixels.length != woi_width * woi_height){
+											  System.out.println("Vignetting data for channel "+srcChannel+" has "+vign_pixels.length+" pixels, < "+
+													  sourceFiles[nFile]+" has "+pixels.length);
+											  woi_width = width;
+											  woi_height = height;
+										  }
+										  if (vign_width < (woi_left + woi_width)) {
+											  System.out.println("Vignetting data for channel "+srcChannel+
+													  " has width + left ("+(woi_left+woi_width)+") > vign_width ("+vign_width+")");
+											  aReturnNull.set(true);
+											  continue;  // return null;
+										  }
+										  if (vign_height < (woi_top + woi_height)) {
+											  System.out.println("Vignetting data for channel "+srcChannel+
+													  " has height + top ("+(woi_top+woi_height)+") > vign_height ("+vign_width+")");
+											  aReturnNull.set(true);
+											  continue;  // return null;
+										  }
+										  if (pixels.length != woi_width * woi_height){
+											  System.out.println("Vignetting data for channel "+srcChannel+" has "+vign_pixels.length+" pixels, < "+
+													  sourceFiles[nFile]+" has "+pixels.length);
+											  aReturnNull.set(true);
+											  continue;  // return null;
+										  }
+										  vign_pixels = new float[woi_width * woi_height];
+										  for (int row = 0; row < woi_height; row++) {
+											  System.arraycopy(
+													  eyesisCorrections.channelVignettingCorrection[srcChannel], // src
+													  (woi_top + row) * vign_width + woi_left, // srcPos,
+													  vign_pixels,                             // dest,
+													  row * woi_width,                         // destPos,
+													  woi_width);                              // length);
+										  }
+
+									  }
+									  // TODO: Move to do it once:
+									  double min_non_zero = 0.0;
+									  for (int i=0;i<pixels.length;i++){
+										  double d = vign_pixels[i];
+										  if ((d > 0.0) && ((min_non_zero == 0) || (min_non_zero > d))){
+											  min_non_zero = d;
+										  }
+									  }
+									  double max_vign_corr = clt_parameters.vignetting_range*min_non_zero;
+									  if (debugLevel > -2) {
+										  System.out.println("Vignetting data: channel="+srcChannel+", min = "+min_non_zero);
+									  }
+									  for (int i=0;i<pixels.length;i++){
+										  double d = vign_pixels[i];
+										  if (d > max_vign_corr) d = max_vign_corr;
+										  pixels[i]*=d;
+									  }
+									  // Scale here, combine with vignetting later?
+									  ///						  int width =  imp_srcs[srcChannel].getWidth();
+									  ///						  int height = imp_srcs[srcChannel].getHeight();
+									  for (int y = 0; y < height-1; y+=2){
+										  for (int x = 0; x < width-1; x+=2){
+											  pixels[y*width+x        ] *= clt_parameters.scale_g;
+											  pixels[y*width+x+width+1] *= clt_parameters.scale_g;
+											  pixels[y*width+x      +1] *= clt_parameters.scale_r;
+											  pixels[y*width+x+width  ] *= clt_parameters.scale_b;
+										  }
+									  }
+
+								  } else { // assuming GR/BG pattern // not used in lwir
+									  if (debugLevel > -2) {
+
+										  System.out.println("Applying fixed color gain correction parameters: Gr="+
+												  clt_parameters.novignetting_r+", Gg="+clt_parameters.novignetting_g+", Gb="+clt_parameters.novignetting_b);
+									  }
+									  ///						  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
+									  ///						  int width =  imp_srcs[srcChannel].getWidth();
+									  ///						  int height = imp_srcs[srcChannel].getHeight();
+									  double kr = clt_parameters.scale_r/clt_parameters.novignetting_r;
+									  double kg = clt_parameters.scale_g/clt_parameters.novignetting_g;
+									  double kb = clt_parameters.scale_b/clt_parameters.novignetting_b;
+									  for (int y = 0; y < height-1; y+=2){
+										  for (int x = 0; x < width-1; x+=2){
+											  pixels[y*width+x        ] *= kg;
+											  pixels[y*width+x+width+1] *= kg;
+											  pixels[y*width+x      +1] *= kr;
+											  pixels[y*width+x+width  ] *= kb;
+										  }
+									  }
+								  }
+							  }
+						  }
+					  } // (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++){
 				  }
-				  String name_from_dir = correctionsParameters.getNameFromSourceTiff(sourceFiles[nFile]);
-				  if (name_from_dir.equals("jp4")) {
-					  name_from_dir = set_name; // to fix save source files copy in the model/jp4
-				  }
-				  imp_srcs[srcChannel].setProperty("name",    name_from_dir);
-				  imp_srcs[srcChannel].setProperty("channel", srcChannel); // it may already have channel
-				  imp_srcs[srcChannel].setProperty("path",    sourceFiles[nFile]); // it may already have channel
-
-				  if (this.correctionsParameters.pixelDefects && (eyesisCorrections.defectsXY!=null)&& (eyesisCorrections.defectsXY[srcChannel]!=null)){
-					  // apply pixel correction
-					  int numApplied=	eyesisCorrections.correctDefects( // not used in lwir
-							  imp_srcs[srcChannel],
-							  srcChannel,
-							  debugLevel);
-					  if ((debugLevel>0) && (numApplied>0)) { // reduce verbosity after verified defect correction works
-						  System.out.println("Corrected "+numApplied+" pixels in "+sourceFiles[nFile]);
-					  }
-				  }
-				  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
-				  int width =  imp_srcs[srcChannel].getWidth();
-				  int height = imp_srcs[srcChannel].getHeight();
-				  if ((debugLevel > -1) && (!isMonochrome())) {
-					  double [] max_pix= {0.0, 0.0, 0.0, 0.0};
-//					  for (int y = 0; y < height-1; y+=2){
-					  for (int y = 0; (y < 499) && (y < height); y+=2){
-//						  for (int x = 0; x < width-1; x+=2){
-						  for (int x = width/2; x < width-1; x+=2){
-							  if (pixels[y*width+x        ] > max_pix[0])  max_pix[0] = pixels[y*width+x        ];
-							  if (pixels[y*width+x+      1] > max_pix[1])  max_pix[1] = pixels[y*width+x+      1];
-							  if (pixels[y*width+x+width  ] > max_pix[2])  max_pix[2] = pixels[y*width+x+width  ];
-							  if (pixels[y*width+x+width+1] > max_pix[3])  max_pix[3] = pixels[y*width+x+width+1];
-						  }
-					  }
-					  if (debugLevel > -2) {
-						  System.out.println(String.format("channel %d max_pix[] = %6.2f %6.2f %6.2f %6.2f", srcChannel, max_pix[0], max_pix[1], max_pix[2], max_pix[3]));
-					  }
-					  dbg_dpixels[srcChannel] = new double [pixels.length];
-					  for (int i = 0; i < pixels.length; i++) dbg_dpixels[srcChannel][i] = pixels[i];
-					  //						  imp_srcs[srcChannel].show();
-				  }
-				  if (clt_parameters.sat_level > 0.0){
-					  saturation_imp[srcChannel] = new boolean[width*height];
-					  if (!ignore_saturation) {
-						  double [] saturations = {
-								  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_1")),
-								  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_0")),
-								  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_3")),
-								  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_2"))};
-						  if (debugLevel > -2) {
-							  System.out.println(String.format("channel %d saturations = %6.2f %6.2f %6.2f %6.2f", srcChannel,
-								  saturations[0],saturations[1],saturations[2],saturations[3]));
-						  }
-						  double [] scaled_saturations = new double [saturations.length];
-						  for (int i = 0; i < scaled_saturations.length; i++){
-							  scaled_saturations[i] = saturations[i] * clt_parameters.sat_level;
-						  }
-						  for (int y = 0; y < height-1; y+=2){
-							  for (int x = 0; x < width-1; x+=2){
-								  if (pixels[y*width+x        ] > scaled_saturations[0])  saturation_imp[srcChannel][y*width+x        ] = true;
-								  if (pixels[y*width+x+      1] > scaled_saturations[1])  saturation_imp[srcChannel][y*width+x      +1] = true;
-								  if (pixels[y*width+x+width  ] > scaled_saturations[2])  saturation_imp[srcChannel][y*width+x+width  ] = true;
-								  if (pixels[y*width+x+width+1] > scaled_saturations[3])  saturation_imp[srcChannel][y*width+x+width+1] = true;
-							  }
-						  }
-					  }
-				  }
-
-				  if (!is_lwir) { // no vigneting correction and no color scaling
-					  if (this.correctionsParameters.vignetting && correct_vignetting){
-						  if ((eyesisCorrections.channelVignettingCorrection==null) || (srcChannel<0) || (srcChannel>=eyesisCorrections.channelVignettingCorrection.length) || (eyesisCorrections.channelVignettingCorrection[srcChannel]==null)){
-							  if (debugLevel > -3) {
-								  System.out.println("No vignetting data for channel "+srcChannel);
-							  }
-							  return null; // not used in lwir
-						  }
-						  ///						  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
-
-						  float [] vign_pixels = eyesisCorrections.channelVignettingCorrection[srcChannel];
-						  if (pixels.length!=vign_pixels.length){
-//							  System.out.println("Vignetting data for channel "+srcChannel+" has "+vign_pixels.length+" pixels, image "+sourceFiles[nFile]+" has "+pixels.length);
-							  int woi_width =  Integer.parseInt((String) imp_srcs[srcChannel].getProperty("WOI_WIDTH"));
-							  int woi_height = Integer.parseInt((String) imp_srcs[srcChannel].getProperty("WOI_HEIGHT"));
-							  int woi_top =  Integer.parseInt((String) imp_srcs[srcChannel].getProperty("WOI_TOP"));
-							  int woi_left =  Integer.parseInt((String) imp_srcs[srcChannel].getProperty("WOI_LEFT"));
-							  int vign_width =  eyesisCorrections.pixelMapping.sensors[srcChannel].pixelCorrectionWidth;
-							  int vign_height = eyesisCorrections.pixelMapping.sensors[srcChannel].pixelCorrectionHeight;
-
-							  if (pixels.length != woi_width * woi_height){
-								  System.out.println("Vignetting data for channel "+srcChannel+" has "+vign_pixels.length+" pixels, < "+
-										  sourceFiles[nFile]+" has "+pixels.length);
-								  woi_width = width;
-								  woi_height = height;
-							  }
-							  if (vign_width < (woi_left + woi_width)) {
-								  System.out.println("Vignetting data for channel "+srcChannel+
-										  " has width + left ("+(woi_left+woi_width)+") > vign_width ("+vign_width+")");
-								  return null;
-							  }
-							  if (vign_height < (woi_top + woi_height)) {
-								  System.out.println("Vignetting data for channel "+srcChannel+
-										  " has height + top ("+(woi_top+woi_height)+") > vign_height ("+vign_width+")");
-								  return null;
-							  }
-							  if (pixels.length != woi_width * woi_height){
-								  System.out.println("Vignetting data for channel "+srcChannel+" has "+vign_pixels.length+" pixels, < "+
-										  sourceFiles[nFile]+" has "+pixels.length);
-								  return null;
-							  }
-							  vign_pixels = new float[woi_width * woi_height];
-							  for (int row = 0; row < woi_height; row++) {
-								  System.arraycopy(
-										  eyesisCorrections.channelVignettingCorrection[srcChannel], // src
-										  (woi_top + row) * vign_width + woi_left, // srcPos,
-										  vign_pixels,                             // dest,
-										  row * woi_width,                         // destPos,
-										  woi_width);                              // length);
-							  }
-
-						  }
-						  // TODO: Move to do it once:
-						  double min_non_zero = 0.0;
-						  for (int i=0;i<pixels.length;i++){
-							  double d = vign_pixels[i];
-							  if ((d > 0.0) && ((min_non_zero == 0) || (min_non_zero > d))){
-								  min_non_zero = d;
-							  }
-						  }
-						  double max_vign_corr = clt_parameters.vignetting_range*min_non_zero;
-						  if (debugLevel > -2) {
-							  System.out.println("Vignetting data: channel="+srcChannel+", min = "+min_non_zero);
-						  }
-						  for (int i=0;i<pixels.length;i++){
-							  double d = vign_pixels[i];
-							  if (d > max_vign_corr) d = max_vign_corr;
-							  pixels[i]*=d;
-						  }
-						  // Scale here, combine with vignetting later?
-						  ///						  int width =  imp_srcs[srcChannel].getWidth();
-						  ///						  int height = imp_srcs[srcChannel].getHeight();
-						  for (int y = 0; y < height-1; y+=2){
-							  for (int x = 0; x < width-1; x+=2){
-								  pixels[y*width+x        ] *= clt_parameters.scale_g;
-								  pixels[y*width+x+width+1] *= clt_parameters.scale_g;
-								  pixels[y*width+x      +1] *= clt_parameters.scale_r;
-								  pixels[y*width+x+width  ] *= clt_parameters.scale_b;
-							  }
-						  }
-
-					  } else { // assuming GR/BG pattern // not used in lwir
-						  if (debugLevel > -2) {
-
-							  System.out.println("Applying fixed color gain correction parameters: Gr="+
-									  clt_parameters.novignetting_r+", Gg="+clt_parameters.novignetting_g+", Gb="+clt_parameters.novignetting_b);
-						  }
-						  ///						  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
-						  ///						  int width =  imp_srcs[srcChannel].getWidth();
-						  ///						  int height = imp_srcs[srcChannel].getHeight();
-						  double kr = clt_parameters.scale_r/clt_parameters.novignetting_r;
-						  double kg = clt_parameters.scale_g/clt_parameters.novignetting_g;
-						  double kb = clt_parameters.scale_b/clt_parameters.novignetting_b;
-						  for (int y = 0; y < height-1; y+=2){
-							  for (int x = 0; x < width-1; x+=2){
-								  pixels[y*width+x        ] *= kg;
-								  pixels[y*width+x+width+1] *= kg;
-								  pixels[y*width+x      +1] *= kr;
-								  pixels[y*width+x+width  ] *= kb;
-							  }
-						  }
-					  }
-				  }
-			  }
-		  }
+			  };
+		  }		      
+		  ImageDtt.startAndJoin(threads);
+		  if (aReturnNull.get()) {
+			  return null;
+		  };
+		  
 		  // temporary applying scaleExposures[srcChannel] here, setting it to all 1.0
 		  if (debugLevel > -2) {
 			  System.out.println("Temporarily applying scaleExposures[] here - 1" );
 		  }
-		  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
-			  if (!is_lwir) {
-				  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
-				  for (int i = 0; i < pixels.length; i++){
-					  pixels[i] *= scaleExposures[srcChannel];
+		  
+		  ai.set(0);
+		  for (int ithread = 0; ithread < threads.length; ithread++) {
+			  threads[ithread] = new Thread() {
+				  public void run() {
+					  //					  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
+					  for (int srcChannel = ai.getAndIncrement(); srcChannel < channelFiles.length; srcChannel = ai.getAndIncrement()) {
+						  if (!is_lwir) {
+							  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
+							  for (int i = 0; i < pixels.length; i++){
+								  pixels[i] *= scaleExposures[srcChannel];
+							  }
+						  }
+						  scaleExposures[srcChannel] = 1.0;
+					  }
 				  }
-			  }
-			  scaleExposures[srcChannel] = 1.0;
+			  };
+		  }		      
+		  ImageDtt.startAndJoin(threads);
 
-		  }
 
 		  if ((debugLevel > -1) && (saturation_imp != null) && !is_lwir){
 			  String [] titles = {"chn0","chn1","chn2","chn3"};
@@ -4560,7 +4653,7 @@ public class QuadCLTCPU {
 		  // once per quad here
 		  // may need to equalize gains between channels
 		  if (!is_lwir && (clt_parameters.gain_equalize || clt_parameters.colors_equalize)){ // false, true
-			  channelGainsEqualize(
+			  channelGainsEqualize( // TODO: not multithreaded - convert
 					  clt_parameters.gain_equalize, //false
 					  clt_parameters.colors_equalize, // true
 					  clt_parameters.nosat_equalize, // boolean nosat_equalize, // true
@@ -4576,6 +4669,7 @@ public class QuadCLTCPU {
 						  imp_srcs,
 						  lwir_subtract_dc, // boolean      remove_dc,
 						  set_name, // just for debug messages == setNames.get(nSet)
+						  threadsMax,
 						  debugLevel);
 			   int num_avg = 0;
 			   this.lwir_offset = 0.0;
@@ -4593,21 +4687,30 @@ public class QuadCLTCPU {
 		  image_path=  (String) imp_srcs[0].getProperty("path");		  
 		  this.saturation_imp = saturation_imp;
 		  image_data =          new double [imp_srcs.length][][];
-		  this.new_image_data = true;		  
-		  for (int i = 0; i < image_data.length; i++){
-			  image_data[i] = eyesisCorrections.bayerToDoubleStack(
-					  imp_srcs[i], // source Bayer image, linearized, 32-bit (float))
-					  null, // no margins, no oversample
-					  isMonochrome()); // is_mono);
-			  
-// TODO: Scale greens here ?
-//			  if (!is_mono && (image_data[i].length > 2)) {
-			  if (!isMonochrome() && (image_data[i].length > 2)) {
-				  for (int j =0 ; j < image_data[i][0].length; j++){
-					  image_data[i][2][j]*=0.5; // Scale green 0.5 to compensate more pixels than R,B
+		  this.new_image_data = true;
+		  
+		  ai.set(0);
+		  for (int ithread = 0; ithread < threads.length; ithread++) {
+			  threads[ithread] = new Thread() {
+				  public void run() {
+					  //for (int i = 0; i < image_data.length; i++){
+					  for (int i = ai.getAndIncrement(); i < image_data.length; i = ai.getAndIncrement()) {
+						  image_data[i] = eyesisCorrections.bayerToDoubleStack(
+								  imp_srcs[i], // source Bayer image, linearized, 32-bit (float))
+								  null, // no margins, no oversample
+								  isMonochrome()); // is_mono);
+						  // TODO: Scale greens here ?
+						  //			  if (!is_mono && (image_data[i].length > 2)) {
+						  if (!isMonochrome() && (image_data[i].length > 2)) {
+							  for (int j =0 ; j < image_data[i][0].length; j++){
+								  image_data[i][2][j]*=0.5; // Scale green 0.5 to compensate more pixels than R,B
+							  }
+						  }
+					  }
 				  }
-			  }
+			  };
 		  }
+		  ImageDtt.startAndJoin(threads);
 		  setTiles (imp_srcs[0], // set global tp.tilesX, tp.tilesY
 				  getNumSensors(), // tp.getNumSensors(),
 				  clt_parameters,
@@ -4657,7 +4760,8 @@ public class QuadCLTCPU {
 			  boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
 			  double [] scaleExposures = new double[channelFiles.length];
 
-			  ImagePlus [] imp_srcs = conditionImageSet(
+//			  ImagePlus [] imp_srcs = 
+					  conditionImageSet(
 					  clt_parameters,             // EyesisCorrectionParameters.CLTParameters  clt_parameters,
 					  colorProcParameters,
 					  sourceFiles,                // String []                                 sourceFiles,
@@ -4672,7 +4776,7 @@ public class QuadCLTCPU {
 
 			  // once per quad here
 			  processCLTQuadCorrCPU( // returns ImagePlus, but it already should be saved/shown
-					  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+//					  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
 					  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 					  clt_parameters,
 					  debayerParameters,
@@ -5077,70 +5181,103 @@ public class QuadCLTCPU {
 			  ImagePlus [] imp_srcs,
 			  boolean      remove_dc,
 			  String setName, // just for debug messages == setNames.get(nSet)
+			  final int threadsMax,
 			  int debugLevel){
 		  double [] offsets = new double [channelFiles.length];
 		  double [][] avr_pix = new double [channelFiles.length][2]; // val/weight
-		  double [] wnd_x = {};
-		  double [] wnd_y = {};
-		  double total_s = 0.0, total_w = 0.0;
-		  for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++){
-			  int nFile=channelFiles[srcChannel];
-			  if (nFile >=0){
-				  avr_pix[srcChannel][0] = 0.0;
-				  avr_pix[srcChannel][1] = 0.0;
-				  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
-				  int width =  imp_srcs[srcChannel].getWidth();
-				  int height = imp_srcs[srcChannel].getHeight();
-				  if (wnd_x.length != width) {
-					  wnd_x = new double[width];
-					  for (int i = 0; i < width; i++) {
-						  wnd_x[i] = 0.5 - 0.5*Math.cos(2*Math.PI * (i+1) / (width + 1));
+//		  double [] wnd_x = {};
+//		  double [] wnd_y = {};
+//		  double total_s = 0.0, total_w = 0.0;
+		  DoubleAccumulator atotal_s = new DoubleAccumulator(Double::sum, 0L);
+		  DoubleAccumulator atotal_w = new DoubleAccumulator(Double::sum, 0L);
+		  final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		  final AtomicInteger ai = new AtomicInteger(0);
+		  
+		  for (int ithread = 0; ithread < threads.length; ithread++) {
+			  threads[ithread] = new Thread() {
+				  public void run() {
+					  double [] wnd_x;
+					  double [] wnd_y;
+
+					  //					  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
+					  for (int srcChannel = ai.getAndIncrement(); srcChannel < channelFiles.length; srcChannel = ai.getAndIncrement()) {
+
+						  //		  for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++){
+						  int nFile=channelFiles[srcChannel];
+						  if (nFile >=0){
+							  avr_pix[srcChannel][0] = 0.0;
+							  avr_pix[srcChannel][1] = 0.0;
+							  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
+							  int width =  imp_srcs[srcChannel].getWidth();
+							  int height = imp_srcs[srcChannel].getHeight();
+//							  if (wnd_x.length != width) {
+								  wnd_x = new double[width];
+								  for (int i = 0; i < width; i++) {
+									  wnd_x[i] = 0.5 - 0.5*Math.cos(2*Math.PI * (i+1) / (width + 1));
+								  }
+//							  }
+//							  if (wnd_y.length != height) {
+								  wnd_y = new double[height];
+								  for (int i = 0; i < height; i++) {
+									  wnd_y[i] = 0.5 - 0.5*Math.cos(2*Math.PI * (i+1) / (height + 1));
+								  }
+//							  }
+							  int indx = 0;
+							  for (int y = 0; y < height; y++) {
+								  for (int x = 0; x < width; x++) {
+									  double w = wnd_y[y]*wnd_x[x];
+									  avr_pix[srcChannel][0] += w * pixels[indx++];
+									  avr_pix[srcChannel][1] += w;
+								  }
+							  }
+//							  total_s += avr_pix[srcChannel][0];
+//							  total_w += avr_pix[srcChannel][1];
+							  atotal_s.accumulate(avr_pix[srcChannel][0]);
+							  atotal_w.accumulate(avr_pix[srcChannel][1]);
+							  avr_pix[srcChannel][0]/=avr_pix[srcChannel][1]; // weighted average
+						  }
 					  }
 				  }
-				  if (wnd_y.length != height) {
-					  wnd_y = new double[height];
-					  for (int i = 0; i < height; i++) {
-						  wnd_y[i] = 0.5 - 0.5*Math.cos(2*Math.PI * (i+1) / (height + 1));
-					  }
-				  }
-				  int indx = 0;
-				  for (int y = 0; y < height; y++) {
-					  for (int x = 0; x < width; x++) {
-						  double w = wnd_y[y]*wnd_x[x];
-						  avr_pix[srcChannel][0] += w * pixels[indx++];
-						  avr_pix[srcChannel][1] += w;
-					  }
-				  }
-				  total_s += avr_pix[srcChannel][0];
-				  total_w += avr_pix[srcChannel][1];
-				  avr_pix[srcChannel][0]/=avr_pix[srcChannel][1]; // weighted average
-			  }
-		  }
-		  double avg = total_s/total_w;
+			  };
+		  }		      
+		  ImageDtt.startAndJoin(threads);
+//		  double avg = total_s/total_w;
+		  double avg = atotal_s.get()/atotal_w.get();
+		  
 		  if (!remove_dc) { // not used in lwir
 			  for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++) if (channelFiles[srcChannel] >=0){
 				  avr_pix[srcChannel][0] -= avg;
 			  }
 
 		  }
-		  for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++){
-			  int nFile=channelFiles[srcChannel];
-			  if (nFile >=0) {
-//				  offsets[srcChannel]= (avr_pix[srcChannel][0] - (remove_dc ? 0.0: avg));
-				  offsets[srcChannel]= avr_pix[srcChannel][0];
-				  float fd = (float)offsets[srcChannel];
-				  float [] pixels = (float []) imp_srcs[srcChannel].getProcessor().getPixels();
-				  for (int i = 0; i < pixels.length; i++) {
-					  pixels[i] -= fd;
+		  
+		  ai.set(0);
+		  for (int ithread = 0; ithread < threads.length; ithread++) {
+			  threads[ithread] = new Thread() {
+				  public void run() {
+					  // for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++){
+					  for (int srcChannel = ai.getAndIncrement(); srcChannel < channelFiles.length; srcChannel = ai.getAndIncrement()) {
+						  int nFile=channelFiles[srcChannel];
+						  if (nFile >=0) {
+							  //				  offsets[srcChannel]= (avr_pix[srcChannel][0] - (remove_dc ? 0.0: avg));
+							  offsets[srcChannel]= avr_pix[srcChannel][0];
+							  float fd = (float)offsets[srcChannel];
+							  float [] pixels = (float []) imp_srcs[srcChannel].getProcessor().getPixels();
+							  for (int i = 0; i < pixels.length; i++) {
+								  pixels[i] -= fd;
+							  }
+						  }
+					  }
 				  }
-			  }
-		  }
-
+			  };
+		  }		      
+		  ImageDtt.startAndJoin(threads);
 		  return offsets;
 	  }
 
-	  public ImagePlus [] processCLTQuadCorrCPU( // USED in lwir
-			  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"
+//	  public ImagePlus [] processCLTQuadCorrCPU( // USED in lwir
+	  public void processCLTQuadCorrCPU( // USED in lwir
+//			  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"
 			  boolean [][] saturation_imp, // (near) saturated pixels or null // Not needed use this.saturation_imp
 			  CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
@@ -5159,12 +5296,13 @@ public class QuadCLTCPU {
 		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
 		  // may use this.StartTime to report intermediate steps execution times
-
+		  /*
 		  ImagePlus [] results = new ImagePlus[imp_quad.length];
 		  for (int i = 0; i < results.length; i++) {
 			  results[i] = imp_quad[i];
 			  results[i].setTitle(results[i].getTitle()+"RAW");
 		  }
+		  */
 		  if (debugLevel>1) System.out.println("processing: "+image_path);
 		  ImageDtt image_dtt = new ImageDtt(
 				  getNumSensors(),
@@ -5262,7 +5400,7 @@ public class QuadCLTCPU {
 				  clt_combo_dbg,  // final double [][][][]     clt_combo_dbg,  // generate sparse  partial rotated/scaled pairs
 				  disparity_map,                // [2][tp.tilesY * tp.tilesX]
 	 			  texture_tiles,                // [tp.tilesY][tp.tilesX]["RGBA".length()][];
-				  imp_quad[0].getWidth(),       // final int width,
+	 			  geometryCorrection.getSensorWH()[0], //  imp_quad[0].getWidth(),       // final int width,
 				  clt_parameters.getFatZero(isMonochrome()),      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
 				  clt_parameters.corr_sym,
 				  clt_parameters.corr_offset,
@@ -5603,7 +5741,7 @@ public class QuadCLTCPU {
 								  debugLevel);
 						  for (int ii = 0; ii < clt_set.length; ii++) clt[chn*4+ii] = clt_set[ii];
 					  }
-
+/*
 					  if (debugLevel > 0){
 						  sdfa_instance.showArrays(clt,
 								  tilesX*image_dtt.transform_size,
@@ -5611,6 +5749,7 @@ public class QuadCLTCPU {
 								  true,
 								  results[iQuad].getTitle()+"-CLT-D"+clt_parameters.disparity);
 					  }
+					  */
 				  }
 				  iclt_data[iQuad] = new double [clt_data[iQuad].length][];
 
@@ -5624,12 +5763,14 @@ public class QuadCLTCPU {
 							  debugLevel);
 
 				  }
+				  /*
 				  if (clt_parameters.gen_chn_stacks) sdfa_instance.showArrays(
 						  iclt_data[iQuad],
 						  (tilesX + 0) * image_dtt.transform_size,
 						  (tilesY + 0) * image_dtt.transform_size,
 						  true,
 						  results[iQuad].getTitle()+"-ICLT-RGB-D"+clt_parameters.disparity);
+				  */
 			  } // end of generating shifted channel images
 
 
@@ -5674,7 +5815,7 @@ public class QuadCLTCPU {
 							  iclt_data[iQuad],
 							  tilesX *  image_dtt.transform_size,
 							  tilesY *  image_dtt.transform_size,
-							  scaleExposures[iQuad], // double scaleExposure, // is it needed?
+							  (scaleExposures == null) ? 1.0 : scaleExposures[iQuad], // double scaleExposure, // is it needed?
 							  debugLevel );
 				  }
 
@@ -5695,7 +5836,7 @@ public class QuadCLTCPU {
 					  if (imps_RGB[slice_seq[i]] != null) {
 						  array_stack.addSlice("port_"+slice_seq[i], imps_RGB[slice_seq[i]].getProcessor().getPixels());
 					  } else { // not used in lwir
-						  array_stack.addSlice("port_"+slice_seq[i], results[slice_seq[i]].getProcessor().getPixels());
+///						  array_stack.addSlice("port_"+slice_seq[i], results[slice_seq[i]].getProcessor().getPixels());
 					  }
 				  }
 				  ImagePlus imp_stack = new ImagePlus(image_name+sAux()+"-SHIFTED-D"+clt_parameters.disparity, array_stack);
@@ -5814,8 +5955,7 @@ public class QuadCLTCPU {
 				  }
 			  }
 		  }
-		  
-		  return results;
+//		  return results;
 	  }
 	  
 	  public ImagePlus [] processCLTQuadCorrTestERS(
@@ -13278,7 +13418,7 @@ public class QuadCLTCPU {
 			  }
 			  if (correctionsParameters.clt_batch_4img){ // not used in lwir
 				  processCLTQuadCorrCPU( // returns ImagePlus, but it already should be saved/shown
-						  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+//						  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
 						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						  clt_parameters,
 						  debayerParameters,

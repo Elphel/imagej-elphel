@@ -9329,7 +9329,7 @@ if (debugLevel > -100) return true; // temporarily !
 						if (updateStatus) IJ.showStatus("CPU: Rendering 4 image set (disparity = 0) for "+quadCLT_main.image_name+ "and a thumb nail");
 
 						quadCLT_main.processCLTQuadCorrCPU( // returns ImagePlus, but it already should be saved/shown
-								imp_srcs_main, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+//								imp_srcs_main, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
 								saturation_imp_main, // boolean [][] saturation_imp, // (near) saturated pixels or null
 								clt_parameters,
 								debayerParameters,
@@ -9469,8 +9469,10 @@ if (debugLevel > -100) return true; // temporarily !
 				} else { // if (quadCLT_main.correctionsParameters.clt_batch_explore) {
 					int num_restored =  0;
 					try {
-						num_restored =  quadCLT_main.restoreDSI(DSI_MAIN_SUFFIX, // "-DSI_COMBO", "-DSI_MAIN"
-								dsi);
+						num_restored =  quadCLT_main.restoreDSI(
+								DSI_MAIN_SUFFIX, // "-DSI_COMBO", "-DSI_MAIN"
+								dsi,
+								false);
 
 					} catch (Exception e) {
 
@@ -9622,7 +9624,7 @@ if (debugLevel > -100) return true; // temporarily !
 					if (updateStatus) IJ.showStatus("Rendering 4 AUX image set (disparity = 0) for "+quadCLT_aux.image_name);
 
 					quadCLT_aux.processCLTQuadCorrCPU( // returns ImagePlus, but it already should be saved/shown
-							imp_srcs_aux, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+//							imp_srcs_aux, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
 							saturation_imp_aux, // boolean [][] saturation_imp, // (near) saturated pixels or null
 							clt_parameters,
 							debayerParameters,
@@ -9674,7 +9676,9 @@ if (debugLevel > -100) return true; // temporarily !
 					dsi[DSI_DISPARITY_AUX_LMA] = aux_last_scan[2];
 					
 //					quadCLT_main.saveDSIMain (dsi);
-					quadCLT_aux.saveDSIAll (dsi);
+					quadCLT_aux.saveDSIAll (
+							"-DSI_MAIN", // String suffix, // "-DSI_MAIN"
+							dsi);
 					if (clt_parameters.rig.ml_copyJP4) {
 						copyJP4src(
 								set_name,           // String                                   set_name

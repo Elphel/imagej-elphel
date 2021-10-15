@@ -41,6 +41,7 @@ import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 import com.elphel.imagej.readers.EyesisTiff;
 import com.elphel.imagej.readers.ImagejJp4Tiff;
+import com.elphel.imagej.tileprocessor.ImageDtt;
 
 import ij.CompositeImage;
 import ij.IJ;
@@ -59,7 +60,7 @@ import loci.formats.FormatException;
 
 public class EyesisCorrections {
 	public JP46_Reader_camera JP4_INSTANCE=   new JP46_Reader_camera(false);
-	public ImagejJp4Tiff      imagejJp4Tiff = new ImagejJp4Tiff();
+//	public ImagejJp4Tiff      imagejJp4Tiff = new ImagejJp4Tiff();
 
 	ShowDoubleFloatArrays SDFA_INSTANCE=   new ShowDoubleFloatArrays();
 	DebayerScissorsClass debayerScissors=null;
@@ -253,7 +254,7 @@ public class EyesisCorrections {
 		int src_channel = correctionsParameters.getChannelFromSourceTiff(path);
 		int sub_camera = src_channel - correctionsParameters.firstSubCamera;
 		int subchannel=  pixelMapping.getSubChannelSilent(sub_camera); // only used for demux
-
+		ImagejJp4Tiff      imagejJp4Tiff =  new ImagejJp4Tiff(); // override global
 		ImagePlus imp = null;
 		try {
 			imp = imagejJp4Tiff.readTiffJp4(
@@ -602,8 +603,8 @@ public class EyesisCorrections {
 	}
 
 	public void createChannelVignetting(
-			boolean correct_vignetting){
-
+			final boolean correct_vignetting){
+		final int threadsMax = 100;
 		///		this.channelWidthHeight=new int [this.usedChannels.length][];
 		this.channelVignettingCorrection=new float [this.usedChannels.length][];
 		this.defectsXY=new int [this.usedChannels.length][][];
@@ -616,116 +617,128 @@ public class EyesisCorrections {
 			this.defectsDiff[nChn]=null;
 		}
 		int [][] bayer={{1,0},{2,1}}; // GR/BG
-		ImagePlus imp=null,imp_composite=null;
-		for (int nFile=0;nFile<correctionsParameters.getSourcePaths().length;nFile++){
-			int [] channels={correctionsParameters.getChannelFromSourceTiff(correctionsParameters.getSourcePaths()[nFile])};
-			if (!this.pixelMapping.subcamerasUsed()) {
-				channels = this.pixelMapping.channelsForSubCamera(channels[0]-correctionsParameters.firstSubCameraConfig); // index in calibration files matching this source
-			} else 	if (correctionsParameters.isJP4()){
-				int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
-				channels=this.pixelMapping.channelsForSubCamera(subCamera);
-			}
 
-			if (this.pixelMapping.isChannelAvailable(channels)) { //channels!=null) {
-				imp=null;
-				imp_composite=null;
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					ImagePlus imp=null,imp_composite=null;
+					ImagejJp4Tiff      imagejJp4Tiff = new ImagejJp4Tiff(); // override instance-global
+					//for (int nFile=0;nFile<correctionsParameters.getSourcePaths().length;nFile++){
+					for (int nFile = ai.getAndIncrement(); nFile < correctionsParameters.getSourcePaths().length; nFile = ai.getAndIncrement()) {
+						int [] channels={correctionsParameters.getChannelFromSourceTiff(correctionsParameters.getSourcePaths()[nFile])};
+						if (!pixelMapping.subcamerasUsed()) {
+							channels = pixelMapping.channelsForSubCamera(channels[0]-correctionsParameters.firstSubCameraConfig); // index in calibration files matching this source
+						} else 	if (correctionsParameters.isJP4()){
+							int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
+							channels=pixelMapping.channelsForSubCamera(subCamera);
+						}
 
-				try {
-					imp_composite = imagejJp4Tiff.readTiffJp4(
-							correctionsParameters.getSourcePaths()[nFile],
-							true); // scale);
-				} catch (IOException | FormatException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				} // throws IOException, FormatException { // std - include non-elphel properties with prefix std
+						if (pixelMapping.isChannelAvailable(channels)) { //channels!=null) {
+							imp=null;
+							imp_composite=null;
 
-				if ((imp==null) && (imp_composite==null)) {
-					if (this.debugLevel>0) System.out.println("createChannelVignetting(): can not open "+correctionsParameters.getSourcePaths()[nFile]+
-							" as "+(correctionsParameters.isJP4()?"JP4":"TIFF")+" file");
-					continue;
-				}
-				for (int chn=0;chn<channels.length;chn++) {
-					int srcChannel=channels[chn];
-					///					if ((this.channelWidthHeight[srcChannel]==null) && this.pixelMapping.isChannelAvailable(srcChannel)){
-					if (this.pixelMapping.isChannelAvailable(srcChannel)){
-						int subChannel=this.pixelMapping.getSubChannel(srcChannel);
-						if (correct_vignetting) {
-							if (this.correctionsParameters.swapSubchannels01) {
-								switch (subChannel){
-								case 0: subChannel=1; break;
-								case 1: subChannel=0; break;
-								}
+							try {
+								imp_composite = imagejJp4Tiff.readTiffJp4(
+										correctionsParameters.getSourcePaths()[nFile],
+										true); // scale);
+							} catch (IOException | FormatException e) {
+								// TODO Auto-generated catch block
+								e.printStackTrace();
+							} // throws IOException, FormatException { // std - include non-elphel properties with prefix std
+
+							if ((imp==null) && (imp_composite==null)) {
+								if (debugLevel>0) System.out.println("createChannelVignetting(): can not open "+correctionsParameters.getSourcePaths()[nFile]+
+										" as "+(correctionsParameters.isJP4()?"JP4":"TIFF")+" file");
+								continue;
 							}
-							if ((channels.length > 1) && correctionsParameters.isJP4()) {
-								if (subChannel<0){
-									System.out.println("BUG in createChannelVignetting(): chn="+chn+
-											" subChannel="+subChannel+
-											" nFile="+nFile+" : "+correctionsParameters.getSourcePaths()[nFile]+
-											" channels.length="+channels.length);
-									for (int i=0;i<channels.length;i++) System.out.print(" "+channels[i]);
-									System.out.println();
-									for (int i=0;i<this.usedChannels.length;i++) if (this.usedChannels[i]) {
-										System.out.println(i+": subCamera="+this.pixelMapping.sensors[i].subcamera);
+							for (int chn=0;chn<channels.length;chn++) {
+								int srcChannel=channels[chn];
+								///					if ((channelWidthHeight[srcChannel]==null) && pixelMapping.isChannelAvailable(srcChannel)){
+								if (pixelMapping.isChannelAvailable(srcChannel)){
+									int subChannel=pixelMapping.getSubChannel(srcChannel);
+									if (correct_vignetting) {
+										if (correctionsParameters.swapSubchannels01) {
+											switch (subChannel){
+											case 0: subChannel=1; break;
+											case 1: subChannel=0; break;
+											}
+										}
+										if ((channels.length > 1) && correctionsParameters.isJP4()) {
+											if (subChannel<0){
+												System.out.println("BUG in createChannelVignetting(): chn="+chn+
+														" subChannel="+subChannel+
+														" nFile="+nFile+" : "+correctionsParameters.getSourcePaths()[nFile]+
+														" channels.length="+channels.length);
+												for (int i=0;i<channels.length;i++) System.out.print(" "+channels[i]);
+												System.out.println();
+												for (int i=0;i<usedChannels.length;i++) if (usedChannels[i]) {
+													System.out.println(i+": subCamera="+pixelMapping.sensors[i].subcamera);
+												}
+
+											}
+											imp=JP4_INSTANCE.demuxImage(imp_composite, subChannel);
+											if (imp==null) imp=imp_composite; // not a composite image
+										} else {
+											imp=imp_composite;
+										}
+
+										imp =  ShowDoubleFloatArrays.padBayerToFullSize(
+												imp, // ImagePlus imp_src,
+												pixelMapping.sensors[srcChannel].getSensorWH(),
+												true); // boolean replicate);
+										channelVignettingCorrection[srcChannel]=pixelMapping.getBayerFlatFieldFloat(
+												srcChannel,
+												bayer,
+												1.5); // TODO: Make range configurable, improve FF interpolation in calibraion
+									} else { // no vignetting correction
+										int [] wh = pixelMapping.getSensorWH(srcChannel);
+										channelVignettingCorrection[srcChannel] = new float [wh[0]*wh[1]];
+										for (int i = 0; i < channelVignettingCorrection[srcChannel].length; i++) {
+											channelVignettingCorrection[srcChannel][i] = 1.0f;
+										}
 									}
-
-								}
-								imp=JP4_INSTANCE.demuxImage(imp_composite, subChannel);
-								if (imp==null) imp=imp_composite; // not a composite image
-							} else {
-								imp=imp_composite;
-							}
-
-							imp =  ShowDoubleFloatArrays.padBayerToFullSize(
-									imp, // ImagePlus imp_src,
-									pixelMapping.sensors[srcChannel].getSensorWH(),
-									true); // boolean replicate);
-							this.channelVignettingCorrection[srcChannel]=this.pixelMapping.getBayerFlatFieldFloat(
-									srcChannel,
-									bayer,
-									1.5); // TODO: Make range configurable, improve FF interpolation in calibraion
-						} else { // no vignetting correction
-							int [] wh = this.pixelMapping.getSensorWH(srcChannel);
-							this.channelVignettingCorrection[srcChannel] = new float [wh[0]*wh[1]];
-							for (int i = 0; i < this.channelVignettingCorrection[srcChannel].length; i++) {
-								this.channelVignettingCorrection[srcChannel][i] = 1.0f;
-							}
-						}
-						if (this.debugLevel>0){
-							SDFA_INSTANCE.showArrays(
-									this.channelVignettingCorrection[srcChannel],
-									this.pixelMapping.sensors[srcChannel].pixelCorrectionWidth,
-									this.pixelMapping.sensors[srcChannel].pixelCorrectionHeight,
-									"Vingetting-"+srcChannel
-									);
-						}
-						if (this.debugLevel>0){
-							System.out.println("Created vignetting info for channel "+srcChannel+
-									" subchannel="+subChannel+" ("+
-									correctionsParameters.getSourcePaths()[nFile]+")");
-							///							System.out.println("imageWidth= "+this.channelWidthHeight[srcChannel][0]+" imageHeight="+this.channelWidthHeight[srcChannel][1]);
-						}
-						this.defectsXY[srcChannel]=this.pixelMapping.getDefectsXY(srcChannel);
-						this.defectsDiff[srcChannel]=this.pixelMapping.getDefectsDiff(srcChannel);
-						if (this.debugLevel>0){
-							if (this.defectsXY[srcChannel]==null){
-								System.out.println("No pixel defects info is available for channel "+srcChannel);
-							} else {
-								System.out.println("Extracted "+this.defectsXY[srcChannel].length+" pixel outliers for channel "+srcChannel+
-										" (x:y:difference");
-								int numInLine=8;
-								for (int i=0;i<this.defectsXY[srcChannel].length;i++){
-									System.out.print(this.defectsXY[srcChannel][0]+":"+this.defectsXY[srcChannel][1]);
-									if ((this.defectsDiff[srcChannel]!=null) && (this.defectsDiff[srcChannel].length>i)){
-										System.out.print(":"+IJ.d2s(this.defectsDiff[srcChannel][i],3)+" ");
+									if (debugLevel>0){
+										SDFA_INSTANCE.showArrays(
+												channelVignettingCorrection[srcChannel],
+												pixelMapping.sensors[srcChannel].pixelCorrectionWidth,
+												pixelMapping.sensors[srcChannel].pixelCorrectionHeight,
+												"Vingetting-"+srcChannel
+												);
 									}
-									if (((i%numInLine)==(numInLine-1)) || (i == (this.defectsXY[srcChannel].length-1))) System.out.println();
+									if (debugLevel>0){
+										System.out.println("Created vignetting info for channel "+srcChannel+
+												" subchannel="+subChannel+" ("+
+												correctionsParameters.getSourcePaths()[nFile]+")");
+										///							System.out.println("imageWidth= "+channelWidthHeight[srcChannel][0]+" imageHeight="+channelWidthHeight[srcChannel][1]);
+									}
+									defectsXY[srcChannel]=pixelMapping.getDefectsXY(srcChannel);
+									defectsDiff[srcChannel]=pixelMapping.getDefectsDiff(srcChannel);
+									if (debugLevel>0){
+										if (defectsXY[srcChannel]==null){
+											System.out.println("No pixel defects info is available for channel "+srcChannel);
+										} else {
+											System.out.println("Extracted "+defectsXY[srcChannel].length+" pixel outliers for channel "+srcChannel+
+													" (x:y:difference");
+											int numInLine=8;
+											for (int i=0;i<defectsXY[srcChannel].length;i++){
+												System.out.print(defectsXY[srcChannel][0]+":"+defectsXY[srcChannel][1]);
+												if ((defectsDiff[srcChannel]!=null) && (defectsDiff[srcChannel].length>i)){
+													System.out.print(":"+IJ.d2s(defectsDiff[srcChannel][i],3)+" ");
+												}
+												if (((i%numInLine)==(numInLine-1)) || (i == (defectsXY[srcChannel].length-1))) System.out.println();
+											}
+										}
+									}
 								}
 							}
 						}
 					}
 				}
-			}
-		}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
 	}
 
 	boolean [] usedChannels(String [] paths){

@@ -27,6 +27,7 @@ import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.DoubleAccumulator;
 
@@ -3180,16 +3181,13 @@ public class OpticalFlow {
 		}
 		String [] scene_names = scenes_list.toArray(new String [0]); 
 		// get list of all other scenes
-//		int num_scenes = sts.length + 1;
 		int num_scenes = scene_names.length + 1;
 		int indx_ref = num_scenes - 1; 
 		QuadCLT [] scenes = new QuadCLT [num_scenes];
 		scenes[indx_ref] = ref_scene;
 		
-//		for (int i = 0; i < sts.length; i++) {
 		for (int i = 0; i < scene_names.length; i++) {
 			scenes[i] = ref_scene.spawnQuadCLTWithNoise( // spawnQuadCLT(
-//					sts[i],
 					scene_names[i],
 					clt_parameters,
 					colorProcParameters, //
@@ -3208,6 +3206,17 @@ public class OpticalFlow {
 				scenes,           // final QuadCLT []          scenes,
 				indx_ref,         // final int                 indx_ref,
 				debug_level-2);     // final int                 debug_level);
+		// re-read ref's INTER if possible
+		
+		if (ref_scene.restoreDSI( // if there is already calculated with interscene - us it
+				"-DSI_INTER",
+				true // silent
+				) >=0 ) {
+			System.out.println("IntersceneAccumulate(): Using previously calculated interscene DSI (*-DSI_INTER) as initial DSI");
+			combo_dsn[0] = ref_scene.dsi[ref_scene.is_aux?TwoQuadCLT.DSI_DISPARITY_AUX:TwoQuadCLT.DSI_DISPARITY_MAIN];
+			combo_dsn[1] = ref_scene.dsi[ref_scene.is_aux?TwoQuadCLT.DSI_STRENGTH_AUX:TwoQuadCLT.DSI_STRENGTH_MAIN];
+		}
+		
 		final double [][] combo_dsn_change = new double [combo_dsn.length+1][];
 		for (int i = 0; i < combo_dsn.length; i++) {
 			combo_dsn_change[i] = combo_dsn[i];
@@ -3254,21 +3263,20 @@ public class OpticalFlow {
 				refine_titles[last_initial_slices + i * max_refines + nrefine ] = combo_dsn_titles[i]+"-"+nrefine;
 			}
 		}		
-		
+		double [][] disparity_map = null;
 		for (int nrefine = 0; nrefine < max_refines; nrefine++) {
 			Runtime.getRuntime().gc();
 			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
-			double [][] disparity_map = 
-					//		double [][][][][] clt_corr_partial =
-					correlateInterscene(
-							clt_parameters, // final CLTParameters  clt_parameters,
-							scenes,         // final QuadCLT []     scenes,
-							indx_ref,       // final int            indx_ref,
-							combo_dsn_change[0],   // final double []      disparity_ref,  // disparity in the reference view tiles (Double.NaN - invalid)
-							margin,         // final int            margin,
-							nrefine,        // final int            nrefine, // just for debug title
-							debug_level-5);   // final int            debug_level)
+			//		double [][][][][] clt_corr_partial =
+			disparity_map = correlateInterscene(
+					clt_parameters, // final CLTParameters  clt_parameters,
+					scenes,         // final QuadCLT []     scenes,
+					indx_ref,       // final int            indx_ref,
+					combo_dsn_change[0],   // final double []      disparity_ref,  // disparity in the reference view tiles (Double.NaN - invalid)
+					margin,         // final int            margin,
+					nrefine,        // final int            nrefine, // just for debug title
+					debug_level-5);   // final int            debug_level)
 
 			Runtime.getRuntime().gc();
 			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
@@ -3323,6 +3331,22 @@ public class OpticalFlow {
 				tilesX,              // int         width,
 				tilesY);             // int         height)
 		
+		// save _DSI_INTER - sema format, as _DSI_MAIN, it will be used instead of _DSI_MAIN next time
+		double [][] dsi = new double [TwoQuadCLT.DSI_SLICES.length][];
+		dsi[ref_scene.is_aux?TwoQuadCLT.DSI_DISPARITY_AUX:TwoQuadCLT.DSI_DISPARITY_MAIN] = combo_dsn_change[0];
+		dsi[ref_scene.is_aux?TwoQuadCLT.DSI_STRENGTH_AUX:TwoQuadCLT.DSI_STRENGTH_MAIN] =   combo_dsn_change[1];
+		double [] disp_lma = disparity_map[ImageDtt.DISPARITY_INDEX_POLY];
+		if (disp_lma != null) { 
+			int indx_lma = ref_scene.is_aux?TwoQuadCLT.DSI_DISPARITY_AUX_LMA:TwoQuadCLT.DSI_DISPARITY_MAIN_LMA; 
+			dsi[indx_lma] = combo_dsn_change[0].clone();
+			for (int i = 0; i < disp_lma.length; i++) {
+				if (Double.isNaN(disp_lma[i])) {
+					dsi[indx_lma][i] = Double.NaN;		
+				}
+			}
+		}
+		ref_scene.saveDSIAll ( "-DSI_INTER",dsi); // delete/rename this file to start iterations from reference lma
+
 		// save combo_dsn_change to model directory
 		if (debug_level >-100) {
 			return;
@@ -5463,7 +5487,6 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		final ErsCorrection ers_reference = ref_scene.getErsCorrection();
 		final int tilesX = ref_scene.getTileProcessor().getTilesX();
 		final int tilesY = ref_scene.getTileProcessor().getTilesY();
-//		final int tiles =tilesX * tilesY;
 		final int num_pairs = Correlation2d.getNumPairs(ref_scene.getNumSensors());
 		final double [][][][][] dcorr_td_acc  = new double[num_pairs][][][][];
 		final float  [][][][]   fcorr_td_acc  = new float [tilesY][tilesX][][];
@@ -5487,8 +5510,6 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				ref_scene.isLwir(),
 				clt_parameters.getScaleStrength(ref_scene.isAux()),
 				ref_scene.getGPU());
-		
-		// init Correlation2d
 		
 		image_dtt.getCorrelation2d(); // initiate image_dtt.correlation2d, needed if disparity_map != null  
 
@@ -5609,8 +5630,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				//Correlation2d correlation2d = 
 				image_dtt.getCorrelation2d();
 				int mcorr_sel = ImageDtt.corrSelEncode(clt_parameters.img_dtt,scenes[nscene].getNumSensors());
-				double [][][][][]   dcorr_td = new double[num_pairs][][][][]; // correlation2d.getCorrTitles().length][][][][];        // [pair][tilesY][tilesX][4][64] sparse transform domain representation of corr pairs
-				//num_pairs
+				double [][][][]   dcorr_td = new double[tp_tasks.length][][][]; // [tile][pair][4][64] sparse by pair transform domain representation of corr pairs
 				image_dtt.quadCorrTD(
 						scenes[nscene].getImageData(),                      // final double [][][]       image_data,      // first index - number of image in a quad
 						scenes[nscene].getErsCorrection().getSensorWH()[0], // final int                 width,
@@ -5631,8 +5651,9 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 						debug_level);              //final int                 globalDebugLevel)
 				
 				accumulateCorrelations(
+						tp_tasks,      // final TpTask []           tp_tasks,
 						num_acc,       // final int [][][]        num_acc,     // number of accumulated tiles [tilesY][tilesX][pair]
-						dcorr_td,      // final double [][][][][] dcorr_td,    // [pair][tilesY][tilesX][4][64] sparse transform domain representation of corr pairs 
+						dcorr_td,      // final double [][][][][] dcorr_td,    // [tile][pair][4][64] sparse transform domain representation of corr pairs 
 						dcorr_td_acc); // final double [][][][][] dcorr_td_acc // [pair][tilesY][tilesX][4][64] sparse transform domain representation of corr pairs 
 
 				if ((nscene == indx_ref) && show_reference_correlations) { // prepare 2d correlations for visualization, double/CPU mode
@@ -5642,18 +5663,21 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 							tp_tasks_ref,                  // final TpTask []           tp_tasks,        // data from the reference frame - will be applied to LMW for the integrated correlations
 							// only listed tiles will be processed
 							ref_scene.getErsCorrection().getRXY(false), // final double [][]         rXY,             // from geometryCorrection
+							tilesX,                        // final int                 tilesX,          // tp_tasks may lack maximal tileX, tileY  
+							tilesY,                        // final int                 tilesY,
 							// no fcorr_combo_td here both arrays should have same non-null tiles
-							dcorr_td,                      // final double [][][][][]   dcorr_td,      // [pair][tilesY][tilesX][4][64] sparse transform domain representation of corr pairs
+							dcorr_td,                      // final double [][][][]     dcorr_td,        // [tile][pair][4][64] sparse by pair transform domain representation of corr pairs
+							null,                          // final double []           dcorr_weight,    // [tile] weighted number of tiles averaged (divide squared fat zero by this)
 							// next both can be nulls
 							null,                          // final double [][][][]     clt_corr_out,   // sparse (by the first index) [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] or null
-							null,                          // final double [][][][]     clt_combo_out,  // sparse (by the first index) [>=1][tilesY][tilesX][(combo_tile_size] or null
 							// to be converted to float
 							dcorr_tiles,                   // final double  [][][]      dcorr_tiles,     // [tile][pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 							// When clt_mismatch is non-zero, no far objects extraction will be attempted
 							//optional, may be null
 							disparity_map,                 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+							true,                          // final boolean             run_lma,         // calculate LMA, false - CM only
 							// last 2 - contrast, avg/ "geometric average)
-							scaled_fat_zero, // clt_parameters.getGpuFatZero(ref_scene.isMonochrome()), // final double              afat_zero2,      // gpu_fat_zero ==30? clt_parameters.getGpuFatZero(is_mono); absolute fat zero, same units as components squared values
+							clt_parameters.getGpuFatZero(ref_scene.isMonochrome()),   // clt_parameters.getGpuFatZero(ref_scene.isMonochrome()), // final double              afat_zero2,      // gpu_fat_zero ==30? clt_parameters.getGpuFatZero(is_mono); absolute fat zero, same units as components squared values
 							clt_parameters.gpu_sigma_m,    // final double              corr_sigma,      //
 							// define combining of all 2D correlation pairs for CM (LMA does not use them)
 
@@ -5667,12 +5691,9 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 							clt_parameters.tileY,          // final int                 debug_tileY,
 							threadsMax,                    // final int                 threadsMax,      // maximal number of threads to launch
 							debug_level -1 );              // final int                 globalDebugLevel)
-
 					image_dtt.convertFcltCorr(
 							dcorr_tiles, // double [][][] dcorr_tiles,// [tile][sparse, correlation pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 							fclt_corr);  // float  [][][] fclt_corr) //  new float [tilesX * tilesY][][] or null
-
-
 				}
 			}
 
@@ -5688,6 +5709,14 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 						threadsMax, // final int               threadsMax,     // maximal number of threads to launch
 						debug_level); // final int               globalDebugLevel)
 				
+				String [] titles = new String [dbg_corr_rslt_partial.length]; // dcorr_tiles[0].length];
+				int ind_length = image_dtt.getCorrelation2d().getCorrTitles().length;
+				
+				System.arraycopy(image_dtt.getCorrelation2d().getCorrTitles(), 0, titles, 0, ind_length);
+				for (int i = ind_length; i < titles.length; i++) {
+					titles[i] = "combo-"+(i - ind_length);
+				}
+				
 				// titles.length = 15, corr_rslt_partial.length=16!
 				(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
 						dbg_corr_rslt_partial,
@@ -5695,7 +5724,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 						tilesY*(2*image_dtt.transform_size),
 						true,
 						ref_scene.getImageName()+"-CORR-REFSCENE-"+nrefine,
-						image_dtt.getCorrelation2d().getCorrTitles()); //CORR_TITLES);
+						titles); // image_dtt.getCorrelation2d().getCorrTitles()); //CORR_TITLES);
 
 			}
 
@@ -5715,9 +5744,6 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					dcorr_td_acc); // final double [][][][][] dcorr_td_acc // [pair][tilesY][tilesX][4][64] sparse transform domain representation of corr pairs 
 		}
 		
-		
-		
-//		final float  [][][]       fclt_corr = new float [tilesX * tilesY][][]; // not all used
 		if (ref_scene.hasGPU()) {
 			image_dtt.clt_process_tl_correlations_GPU(	// convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td
 					clt_parameters.img_dtt,				// final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
@@ -5746,46 +5772,60 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					debug_level -1 );
 
 		} else {
-//			double [][][][][] dcorr_td = image_dtt.convertCorrTd( // may return null if nothing to convert
-//					fcorr_td); // float [][][][] fcorr_td);
-			double [][][] dcorr_tiles = (fclt_corr != null)? (new double [tp_tasks_ref.length][][]):null;
+			double [][][][]   dcorr_td = new double[tp_tasks_ref.length][][][]; // [tile][pair][4][64] sparse transform domain representation of corr pairs
+			double []         dcorr_weight = new double[tp_tasks_ref.length];
+			for (int iTile = 0; iTile < dcorr_td.length; iTile++) {
+				TpTask task = tp_tasks_ref[iTile];
+				int tileY = task.getTileY(); // tilesX;  
+				int tileX = task.getTileX(); // nTile % tilesX;
+				dcorr_td[iTile] = new double [num_pairs][][];
+				for (int npair = 0; npair < num_pairs; npair++) if (dcorr_td_acc[npair] != null){
+					dcorr_td[iTile][npair] = dcorr_td_acc[npair][tileY][tileX];
+					dcorr_weight[iTile] = num_acc[tileY][tileX][npair]; // number of accumulated tiles [tilesY][tilesX][pair]
+				}
+			}
+
+			double [][][]     dcorr_tiles = (fclt_corr != null)? (new double [tp_tasks_ref.length][][]):null;
 			image_dtt.clt_process_tl_correlations( // convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td
 					clt_parameters.img_dtt,		   // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 					tp_tasks_ref,                  // final TpTask []           tp_tasks,        // data from the reference frame - will be applied to LMW for the integrated correlations
-	                                               // only listed tiles will be processed
+					// only listed tiles will be processed
 					ref_scene.getErsCorrection().getRXY(false), // final double [][]         rXY,             // from geometryCorrection
-	// no fcorr_combo_td here both arrays should have same non-null tiles
-					dcorr_td_acc,                      // final double [][][][][]   dcorr_td,      // [pair][tilesY][tilesX][4][64] sparse transform domain representation of corr pairs
-	// next both can be nulls
+					tilesX,                        // final int                 tilesX,          // tp_tasks may lack maximal tileX, tileY  
+					tilesY,                        // final int                 tilesY,
+					// no fcorr_combo_td here both arrays should have same non-null tiles
+					dcorr_td,                      // final double [][][][]     dcorr_td,        // [tile][pair][4][64] sparse by pair transform domain representation of corr pairs
+					dcorr_weight,                   // final double []           dcorr_weight,    // [tile] weighted number of tiles averaged (divide squared fat zero by this)
+
+					// next both can be nulls
 					null,                          // final double [][][][]     clt_corr_out,   // sparse (by the first index) [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] or null
-					null,                          // final double [][][][]     clt_combo_out,  // sparse (by the first index) [>=1][tilesY][tilesX][(combo_tile_size] or null
-	// to be converted to float
+					// to be converted to float
 					dcorr_tiles,                   // final double  [][][]      dcorr_tiles,     // [tile][pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
-	// When clt_mismatch is non-zero, no far objects extraction will be attempted
-	//optional, may be null
+					// When clt_mismatch is non-zero, no far objects extraction will be attempted
+					//optional, may be null
 					disparity_map,                 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
-	                                               // last 2 - contrast, avg/ "geometric average)
-					scaled_fat_zero, // clt_parameters.getGpuFatZero(ref_scene.isMonochrome()), // final double              afat_zero2,      // gpu_fat_zero ==30? clt_parameters.getGpuFatZero(is_mono); absolute fat zero, same units as components squared values
+					true,                          // final boolean             run_lma,         // calculate LMA, false - CM only
+					// last 2 - contrast, avg/ "geometric average)
+					clt_parameters.getGpuFatZero(ref_scene.isMonochrome()),   // clt_parameters.getGpuFatZero(ref_scene.isMonochrome()), // final double              afat_zero2,      // gpu_fat_zero ==30? clt_parameters.getGpuFatZero(is_mono); absolute fat zero, same units as components squared values
 					clt_parameters.gpu_sigma_m,    // final double              corr_sigma,      //
-	    // define combining of all 2D correlation pairs for CM (LMA does not use them)
-					
+					// define combining of all 2D correlation pairs for CM (LMA does not use them)
+
 					clt_parameters.img_dtt.mcorr_comb_width, // final int                 mcorr_comb_width,  // combined correlation tile width
 					clt_parameters.img_dtt.mcorr_comb_height,// final int                 mcorr_comb_height, // combined correlation tile full height
 					clt_parameters.img_dtt.mcorr_comb_offset,// final int                 mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
 					clt_parameters.img_dtt.mcorr_comb_disp,	 // final double              mcorr_comb_disp,   // Combined tile per-pixel disparity for baseline == side of a square
-	    
+
 					clt_parameters.clt_window,     // final int                 window_type,     // GPU: will not be used
 					clt_parameters.tileX,          // final int                 debug_tileX,
 					clt_parameters.tileY,          // final int                 debug_tileY,
 					threadsMax,                    // final int                 threadsMax,      // maximal number of threads to launch
 					debug_level -1 );              // final int                 globalDebugLevel)
-
+			
 			image_dtt.convertFcltCorr(
 					dcorr_tiles, // double [][][] dcorr_tiles,// [tile][sparse, correlation pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 					fclt_corr);  // float  [][][] fclt_corr) //  new float [tilesX * tilesY][][] or null
 			
 		}
-		
 
 		Runtime.getRuntime().gc();
 		System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
@@ -5800,19 +5840,25 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					clt_parameters.corr_border_contrast, // final double            border_contrast,
 					threadsMax, // final int               threadsMax,     // maximal number of threads to launch
 					debug_level); // final int               globalDebugLevel)
+			String [] titles = new String [dbg_corr_rslt_partial.length]; // dcorr_tiles[0].length];
+			int ind_length = image_dtt.getCorrelation2d().getCorrTitles().length;
 			
-			// titles.length = 15, corr_rslt_partial.length=16!
+			System.arraycopy(image_dtt.getCorrelation2d().getCorrTitles(), 0, titles, 0, ind_length);
+			for (int i = ind_length; i < titles.length; i++) {
+				titles[i] = "combo-"+(i - ind_length);
+			}
 			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
 					dbg_corr_rslt_partial,
 					tilesX*(2*image_dtt.transform_size),
 					tilesY*(2*image_dtt.transform_size),
 					true,
 					ref_scene.getImageName()+"-CORR-ACCUM"+num_scenes+"-"+nrefine,
-					image_dtt.getCorrelation2d().getCorrTitles()); //CORR_TITLES);
+					titles);      // image_dtt.getCorrelation2d().getCorrTitles()); //CORR_TITLES);
 		}
 		return disparity_map; // disparity_map
 	}
 	
+	@Deprecated
 	public void accumulateCorrelations(
 			final int [][][]        num_acc,     // number of accumulated tiles [tilesY][tilesX][pair]
 			final double [][][][][] dcorr_td,    // [pair][tilesY][tilesX][4][64] sparse transform domain representation of corr pairs 
@@ -5868,6 +5914,67 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		ImageDtt.startAndJoin(threads);
 	}
 
+	
+	public void accumulateCorrelations(
+			final TpTask []         tp_tasks,
+			final int [][][]        num_acc,     // number of accumulated tiles [tilesY][tilesX][pair] 
+			final double [][][][]   dcorr_td,    // [tile][pair][4][64] sparse transform domain representation of corr pairs 
+			final double [][][][][] dcorr_td_acc // [pair][tilesY][tilesX][4][64] sparse transform domain representation of corr pairs 
+			) {
+		final int tilesY = num_acc.length;
+		final int tilesX = num_acc[0].length;
+		final int num_pairs = num_acc[0][0].length;
+		final AtomicBoolean [] acorrs = new AtomicBoolean[num_pairs];
+		for (int i = 0; i < acorrs.length; i++) {
+			acorrs[i] = new AtomicBoolean();
+		}
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int iTile = ai.getAndIncrement(); iTile < tp_tasks.length; iTile = ai.getAndIncrement()) if (dcorr_td[iTile] != null) {
+						for (int pair = 0; pair < num_pairs; pair++) if (dcorr_td[iTile][pair] != null){
+							acorrs[pair].set(true);
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		for (int pair = 0; pair < acorrs.length; pair++) if ((dcorr_td_acc[pair] == null) && acorrs[pair].get()) {
+			dcorr_td_acc[pair] = new double[tilesY][tilesX][][];
+		}
+		ai.set(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int iTile = ai.getAndIncrement(); iTile < tp_tasks.length; iTile = ai.getAndIncrement()) if ((tp_tasks[iTile] != null) && (tp_tasks[iTile].getTask() != 0)) {
+						int tileY = tp_tasks[iTile].getTileY(); // tilesX;  
+						int tileX = tp_tasks[iTile].getTileX(); // nTile % tilesX;
+						for (int pair = 0; pair < num_pairs; pair++) if ((dcorr_td[iTile] != null) && (dcorr_td[iTile][pair] != null)){
+							if (dcorr_td_acc[pair][tileY][tileX] == null) {
+								dcorr_td_acc[pair][tileY][tileX] = new double [dcorr_td[iTile][pair].length][]; // 4
+								for (int q = 0; q < dcorr_td_acc[pair][tileY][tileX].length; q++) {
+									dcorr_td_acc[pair][tileY][tileX][q] = dcorr_td[iTile][pair][q].clone();
+								}
+							} else {
+								for (int q = 0; q < dcorr_td_acc[pair][tileY][tileX].length; q++) {
+									for (int i = 0; i < dcorr_td_acc[pair][tileY][tileX][q].length; i++) {
+										dcorr_td_acc[pair][tileY][tileX][q][i] += dcorr_td[iTile][pair][q][i];
+									}
+								}
+							}
+							num_acc[tileY][tileX][pair]++;
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+	}
+	
+	
 // GPU (float) version
 	public void accumulateCorrelations(
 			final int [][][]     num_acc,          // number of accumulated tiles [tilesY][tilesX][pair]

@@ -2017,7 +2017,7 @@ public class QuadCLT extends QuadCLTCPU {
 				true);  //newAllowed, // save
 		String file_name = image_name + suffix;
 		String file_path = x3d_path + Prefs.getFileSeparator() + file_name + ".tiff";
-		if (getGPU().getQuadCLT() != this) {
+		if ((getGPU() != null) && (getGPU().getQuadCLT() != this)) {
 			getGPU().updateQuadCLT(this); // to re-load new set of Bayer images to the GPU
 		}
 
@@ -2034,8 +2034,8 @@ public class QuadCLT extends QuadCLTCPU {
 				threadsMax,            // final int                                       threadsMax,  // maximal number of threads to launch
 				false,                 // final boolean                                   updateStatus,
 				debugLevel);           // final int                                       debugLevel);
-		FileSaver fs=new FileSaver(img_noise);
-		fs.saveAsTiff(file_path);
+//		FileSaver fs=new FileSaver(img_noise); // is null, will be saved inside to /home/elphel/lwir16-proc/proc1/results_cuda/1626032208_613623-AUX-SHIFTED-D0.0
+//		fs.saveAsTiff(file_path);
 	}	
 	
 	public ImagePlus processCLTQuadCorrGPU(
@@ -2054,7 +2054,7 @@ public class QuadCLT extends QuadCLTCPU {
 		if (gpuQuad == null) {
 			System.out.println("GPU instance is not initialized, using CPU mode");
 			processCLTQuadCorrCPU(
-					imp_quad,              // ImagePlus []                  imp_quad, // should have properties "name"(base for saving results), "channel","path"
+//					imp_quad,              // ImagePlus []                  imp_quad, // should have properties "name"(base for saving results), "channel","path"
 					saturation_imp,        // boolean [][]                  saturation_imp, // (near) saturated pixels or null // Not needed use this.saturation_imp
 					clt_parameters,        // CLTParameters                 clt_parameters,
 					debayerParameters,     // EyesisCorrectionParameters.DebayerParameters     debayerParameters,

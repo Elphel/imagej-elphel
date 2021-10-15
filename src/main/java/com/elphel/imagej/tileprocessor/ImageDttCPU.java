@@ -16693,8 +16693,6 @@ public class ImageDttCPU {
 			final int                 width,
 			final TpTask []           tp_tasks,
 			final TpTask []           tp_tasks_target,  // null or wider array to provide target disparity for neighbors
-//			final double [][]	      disparity_array,  // [tilesY][tilesX] - individual per-tile expected disparity
-//			final double              disparity_corr, // apply to disparity array data only, tp_tasks are already corrected
 			final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
 			// dcorr_td should be either null, or double [tp_tasks.length][][];
 			final double [][][][]     dcorr_td,        // [tile][pair][4][64] sparse by pair transform domain representation of corr pairs
@@ -16703,9 +16701,6 @@ public class ImageDttCPU {
 			final GeometryCorrection  geometryCorrection,
 			final int                 kernel_step,
 			final int                 window_type,
-
-//			final double              disparity_corr, should be aapplied to tp_tasks already!
-
 			final double              corr_red,
 			final double              corr_blue,
 			// related to tilt
