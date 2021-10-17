@@ -8619,6 +8619,7 @@ if (debugLevel > -100) return true; // temporarily !
 				clt_parameters,
 				colorProcParameters, //
 				null, // noise_sigma_level,   // double []            noise_sigma_level,
+				null, // final QuadCLTCPU     ref_scene, // may be null if scale_fpn <= 0
 				threadsMax,
 				debugLevel);
 		// temporarily fix wrong sign:
@@ -8664,12 +8665,16 @@ if (debugLevel > -100) return true; // temporarily !
 //		double []            noise_sigma_level = {1.0, 1.5, 1.0};  // amount, sigma, offset
 //		double []            noise_sigma_level = {3.0, 1.5, 1.0};  // amount, sigma, offset
 //		double []            noise_sigma_level = {5.0, 1.5, 1.0};  // amount, sigma, offset
-		double []            noise_sigma_level = null;
-		if (clt_parameters.inp.noise_scale > 0.0) {
-			noise_sigma_level = new double[] {
+//		double []            noise_sigma_level = null;
+		NoiseParameters      noise_sigma_level = null;
+		if ((clt_parameters.inp.noise.scale_random  > 0.0) || (clt_parameters.inp.noise.scale_fpn  > 0.0)){
+			noise_sigma_level = clt_parameters.inp.noise.clone();
+			/*		
+					new double[] {
 					clt_parameters.inp.noise_scale,
 					clt_parameters.inp.noise_sigma,
 					clt_parameters.inp.initial_offset};  // amount, sigma, offset
+					*/
 		}
 		
 		boolean ref_only =  clt_parameters.inp.ref_only; //  true; // process only reference frame (false - inter-scene)
@@ -8692,6 +8697,7 @@ if (debugLevel > -100) return true; // temporarily !
 				clt_parameters,
 				colorProcParameters, //
 				noise_sigma_level,   // double []            noise_sigma_level,
+				null,                // QuadCLTCPU           ref_scene, // may be null if scale_fpn <= 0
 				threadsMax,
 				clt_parameters.inp.noise_debug_level); // debugLevel);
 		/**/
@@ -8722,12 +8728,16 @@ if (debugLevel > -100) return true; // temporarily !
 //		double []            noise_sigma_level = {1.0, 1.5, 1.0};  // amount, sigma, offset
 //		double []            noise_sigma_level = {3.0, 1.5, 1.0};  // amount, sigma, offset
 //		double []            noise_sigma_level = {5.0, 1.5, 1.0};  // amount, sigma, offset
-		double []            noise_sigma_level = null;
-		if (clt_parameters.inp.noise_scale >= 0.0) {// <0 - will generate no-noise data
-			noise_sigma_level = new double[] {
+//		double []            noise_sigma_level = null;
+		NoiseParameters            noise_sigma_level = null;
+		if ((clt_parameters.inp.noise.scale_random >= 0.0) || (clt_parameters.inp.noise.scale_fpn >= 0.0)) {// <0 - will generate no-noise data
+			noise_sigma_level = clt_parameters.inp.noise.clone();
+					/*
+					noise_sigma_level = new double[] {
 					clt_parameters.inp.noise_scale,
 					clt_parameters.inp.noise_sigma,
-					clt_parameters.inp.initial_offset};  // amount, sigma, offset
+					clt_parameters.inp.initial_offset};  // amount, sigma, offset\
+        */					
 		}
 		
 		boolean ref_only =  clt_parameters.inp.ref_only; //  true; // process only reference frame (false - inter-scene)
@@ -8750,6 +8760,7 @@ if (debugLevel > -100) return true; // temporarily !
 				clt_parameters,
 				colorProcParameters, //
 				noise_sigma_level,   // double []            noise_sigma_level,
+				null, // final QuadCLTCPU     ref_scene, // may be null if scale_fpn <= 0
 				threadsMax,
 				clt_parameters.inp.noise_debug_level); // debugLevel);
 		/*
@@ -8760,7 +8771,10 @@ if (debugLevel > -100) return true; // temporarily !
 		*/
 		// Create 4-slice image with noise from the current data
 		if (noise_sigma_level != null) {
-			String noisy_4slice_suffix = "-noise-level_"+ noise_sigma_level[0]+"-sigma_"+noise_sigma_level[1];
+			String noisy_4slice_suffix =
+					"-noise-random_"+ noise_sigma_level.scale_random+
+					"-noise-fpn_"+    noise_sigma_level.scale_fpn+
+					"-sigma_"+noise_sigma_level.sigma;
 			ref_quadCLT.genSave4sliceImage(
 					clt_parameters,        // CLTParameters                                   clt_parameters,
 					noisy_4slice_suffix,   // String                                          suffix,

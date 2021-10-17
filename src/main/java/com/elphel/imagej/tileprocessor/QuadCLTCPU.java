@@ -228,7 +228,8 @@ public class QuadCLTCPU {
 			String               set_name,
 			CLTParameters        clt_parameters,
 			ColorProcParameters  colorProcParameters,
-			double []            noise_sigma_level,
+			NoiseParameters		 noise_sigma_level,
+			QuadCLTCPU           ref_scene, // may be null if scale_fpn <= 0
 			int                  threadsMax,
 			int                  debugLevel)
 	{
@@ -238,6 +239,7 @@ public class QuadCLTCPU {
 				clt_parameters,
 				colorProcParameters,
 				noise_sigma_level, // double []            noise_sigma_level,
+				ref_scene,         // QuadCLTCPU     ref_scene, // may be null if scale_fpn <= 0
 				threadsMax,
 				debugLevel);
 		
@@ -282,7 +284,8 @@ public class QuadCLTCPU {
 		quadCLT.restoreFromModel(
 				clt_parameters,
 				colorProcParameters,
-				null,                 // double []    noise_sigma_level,				
+				null,                 // double []    noise_sigma_level,
+				null, // final QuadCLTCPU     ref_scene, // may be null if scale_fpn <= 0
 				threadsMax,
 				debugLevel);
 		
@@ -614,7 +617,9 @@ public class QuadCLTCPU {
 	public QuadCLTCPU restoreFromModel(
 			CLTParameters        clt_parameters,
 			ColorProcParameters  colorProcParameters,
-			double []            noise_sigma_level,
+//			double []
+			NoiseParameters	     noise_sigma_level,
+			QuadCLTCPU           ref_scene, // may be null if scale_fpn <= 0
 			int                  threadsMax,
 			int                  debugLevel)
 
@@ -654,6 +659,7 @@ public class QuadCLTCPU {
 		if (noise_sigma_level != null) {
 			generateAddNoise(
 					"-NOISE",
+					ref_scene, // final QuadCLTCPU ref_scene, // may be null if scale_fpn <= 0
 					noise_sigma_level,
 					threadsMax,
 					1); // debugLevel); // final int       debug_level)
@@ -686,12 +692,110 @@ public class QuadCLTCPU {
 	
 	public void generateAddNoise(
 			final String    suffix,
-			final double [] noise_sigma_level,
+			final QuadCLTCPU ref_scene, // may be null if scale_fpn <= 0
+//			final double [] 
+			final NoiseParameters noise_sigma_level,
 			final int       threadsMax,
 			final int       debug_level)
 	{
-		final double scale =noise_sigma_level[0];
-		final double sigma =noise_sigma_level[1];
+		final double scale_random = noise_sigma_level.scale_random; // _sigma_level[0];
+		final double scale_fpn =    noise_sigma_level.scale_fpn;    // noise_sigma_level[0];
+		final double sigma =        noise_sigma_level.sigma; // [1];
+		ImagePlus imp = generateAddNoise(
+				suffix,       // final String    suffix,
+				sigma,        // final double    sigma,
+				threadsMax, // final int       threadsMax,
+				debug_level); // final int       debug_level) : null;
+		
+		ImagePlus imp_ref = null;
+		if (scale_fpn >0){
+			if (ref_scene !=null) {
+			imp_ref= ref_scene.generateAddNoise(
+					suffix,       // final String    suffix,
+					sigma,        // final double    sigma,
+					threadsMax, // final int       threadsMax,
+					debug_level); // final int       debug_level) : null;
+			} else {
+				imp_ref= imp; // when calculating ref_scene itself it is provided as null
+			}
+		}
+		
+		
+		final int num_cams = this.image_data.length;
+		final int num_cols = image_data[0].length;
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		ImageStack imageStack = imp.getStack();
+		final float [][] fpixels = new float [num_cams][];
+		for (int q = 0; q < num_cams; q++) {
+			fpixels[q] = (float[]) imageStack.getPixels(q+1);
+		}
+		final float [][] fpixels_ref = (imp_ref != null) ? (new float [num_cams][]): null;
+		if (imp_ref != null) {
+			ImageStack imageStack_ref = imp_ref.getStack();
+			for (int q = 0; q < num_cams; q++) {
+				fpixels_ref[q] = (float[]) imageStack_ref.getPixels(q+1);
+			}
+		}
+		
+		
+		for (int q = 0; q < num_cams; q++) {
+			final int fq = q;
+			for (int c =0; c < num_cols; c++) {
+				final int fc = c;
+				ai.set(0);
+				for (int ithread = 0; ithread < threads.length; ithread++) {
+					threads[ithread] = new Thread() {
+						public void run() {
+							for (int i = ai.getAndIncrement(); i < image_data[fq][fc].length; i = ai.getAndIncrement()) {
+								if (image_data[fq][fc][i] != 0.0) {
+									image_data[fq][fc][i] += scale_random * fpixels[fq][i];
+									if (fpixels_ref != null) {
+										image_data[fq][fc][i] += scale_fpn * fpixels_ref[fq][i];
+									}
+								}
+							}
+						}
+					};
+				}		      
+				ImageDtt.startAndJoin(threads);
+			}			
+		}
+		if (debug_level > 100) {
+			double [][] dbg_data = new double [num_cams*num_cols][];
+			for (int q = 0; q < num_cams;q++) {
+				for (int c = 0; c < num_cols; c++) {
+					dbg_data[q*num_cols+c] = image_data[q][c];
+				}
+			}
+			int [] image_wh = geometryCorrection.getSensorWH();
+			String noise_suffix = suffix + sigma;
+			saveDoubleArrayInModelDirectory(
+					noise_suffix + "-MIXED-RND"+scale_random+"-FPN"+scale_fpn, // noise_sigma_level[0],  // String      suffix,
+					null,          // String []   labels, // or null
+					dbg_data,         // double [][] data,
+					image_wh[0],   // int         width,
+					image_wh[1]);  // int         height)
+		}
+	}
+	
+
+	
+	// May need to run twice - for both refscene and this one if fpn >=0
+	/**
+	 * Load existing noise image, generate if it did no exist 
+	 * @param suffix file name suffix (sigma will be added)
+	 * @param sigma blur sigma (in pixels), the amount of added noise will be used by caller, noise image only depends on sigma 
+	 * @param threadsMax
+	 * @param debug_level
+	 * @return Noise image, one slice per sensor (Bayer mosaic still use 1 slice per sensor)
+	 */
+	public ImagePlus generateAddNoise(
+			final String    suffix,
+			final double    sigma,
+			final int       threadsMax,
+			final int       debug_level)
+	{
 		final int num_cams = this.image_data.length;
 		final int num_cols = image_data[0].length;
 		final int [] image_wh = geometryCorrection.getSensorWH();
@@ -815,45 +919,12 @@ public class QuadCLTCPU {
 					image_wh[0],   // int         width,
 					image_wh[1]);  // int         height)
 		}
-		ImageStack imageStack = imp.getStack();
-		float [][] fpixels = new float [num_cams][];
-		for (int q = 0; q < num_cams; q++) {
-			fpixels[q] = (float[]) imageStack.getPixels(q+1);
-		}
-		for (int q = 0; q < num_cams; q++) {
-			final int fq = q;
-			for (int c =0; c < num_cols; c++) {
-				final int fc = c;
-				ai.set(0);
-				for (int ithread = 0; ithread < threads.length; ithread++) {
-					threads[ithread] = new Thread() {
-						public void run() {
-							for (int i = ai.getAndIncrement(); i < image_data[fq][fc].length; i = ai.getAndIncrement()) {
-								if (image_data[fq][fc][i] != 0.0) {
-									image_data[fq][fc][i] += scale * fpixels[fq][i];
-								}
-							}
-						}
-					};
-				}		      
-				ImageDtt.startAndJoin(threads);
-			}			
-		}
-		if (debug_level > 100) {
-			double [][] dbg_data = new double [num_cams*num_cols][];
-			for (int q = 0; q < num_cams;q++) {
-				for (int c = 0; c < num_cols; c++) {
-					dbg_data[q*num_cols+c] = image_data[q][c];
-				}
-			}
-			saveDoubleArrayInModelDirectory(
-					noise_suffix + "-MIXED"+noise_sigma_level[0],  // String      suffix,
-					null,          // String []   labels, // or null
-					dbg_data,         // double [][] data,
-					image_wh[0],   // int         width,
-					image_wh[1]);  // int         height)
-		}
-	}
+		return imp;
+	}	
+	
+	
+	
+	
 	
 	
 	public ImagePlus saveDoubleArrayInModelDirectory(
@@ -874,6 +945,7 @@ public class QuadCLTCPU {
 		ImagePlus imp = new ImagePlus( file_name, imageStack);
 		FileSaver fs=new FileSaver(imp);
 		fs.saveAsTiff(file_path);
+		System.out.println("saveDoubleArrayInModelDirectory(): saved "+file_path);
 		return imp;
 	}
 	
