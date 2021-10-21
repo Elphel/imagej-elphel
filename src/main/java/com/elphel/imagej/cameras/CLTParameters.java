@@ -88,6 +88,7 @@ public class CLTParameters {
 	public double     disparity  =        0.0; // nominal disparity between side of square cameras (pix)
 	public double     z_correction  =     0.0; // Inverse distance to infinity (misalignment correction)
 	public boolean    correlate =         true; // calculate correlation
+	public boolean    correlate_lma =     true; // Use LMA to find disparity from 2d phase correlations
 	public int        corr_mask =         15;  // bitmask of pairs to combine in the composite
 	public boolean    corr_sym =          false; // combine correlation with mirrored around disparity direction
 	public boolean    corr_keep =         true;  // keep all partial correlations (otherwise - only combined one)
@@ -1023,6 +1024,7 @@ public class CLTParameters {
 		properties.setProperty(prefix+"disparity",                  this.disparity +"");
 		properties.setProperty(prefix+"z_correction",               this.z_correction +"");
 		properties.setProperty(prefix+"correlate",                  this.correlate+"");
+		properties.setProperty(prefix+"correlate_lma",              this.correlate_lma+"");
 		properties.setProperty(prefix+"corr_mask",                  this.corr_mask+"");
 		properties.setProperty(prefix+"corr_sym",                   this.corr_sym+"");
 		properties.setProperty(prefix+"corr_keep",                  this.corr_keep+"");
@@ -1839,6 +1841,7 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"disparity")!=null)                     this.disparity=Double.parseDouble(properties.getProperty(prefix+"disparity"));
 		if (properties.getProperty(prefix+"z_correction")!=null)                  this.z_correction=Double.parseDouble(properties.getProperty(prefix+"z_correction"));
 		if (properties.getProperty(prefix+"correlate")!=null)                     this.correlate=Boolean.parseBoolean(properties.getProperty(prefix+"correlate"));
+		if (properties.getProperty(prefix+"correlate_lma")!=null)                 this.correlate_lma=Boolean.parseBoolean(properties.getProperty(prefix+"correlate_lma"));
 		if (properties.getProperty(prefix+"corr_mask")!=null)                     this.corr_mask=Integer.parseInt(properties.getProperty(prefix+"corr_mask"));
 		if (properties.getProperty(prefix+"corr_sym")!=null)                      this.corr_sym=Boolean.parseBoolean(properties.getProperty(prefix+"corr_sym"));
 		if (properties.getProperty(prefix+"corr_keep")!=null)                     this.corr_keep=Boolean.parseBoolean(properties.getProperty(prefix+"corr_keep"));
@@ -2674,6 +2677,7 @@ public class CLTParameters {
 		gd.addNumericField("Kernel step in pixels (has 1 kernel margin on each side)",                          this.kernel_step,            0);
 		gd.addNumericField("Inverse distance to infinity (misalignment correction)",                            this.z_correction,  6);
 		gd.addCheckbox    ("Perform correlation",                                                               this.correlate);
+		gd.addCheckbox    ("Run LMA on 2d correlations to extract disparity",                                   this.correlate_lma);
 		gd.addNumericField("Bitmask of pairs to combine in the composite (top, bottom, left,righth)",           this.corr_mask,            0);
 		gd.addCheckbox    ("Combine correlation with mirrored around disparity direction",                      this.corr_sym);
 		gd.addCheckbox    ("Keep all partial correlations (otherwise - only combined one)",                     this.corr_keep);
@@ -3704,6 +3708,7 @@ public class CLTParameters {
 		this.kernel_step=     (int) gd.getNextNumber();
 		this.z_correction=          gd.getNextNumber();
 		this.correlate=             gd.getNextBoolean();
+		this.correlate_lma=         gd.getNextBoolean();
 		this.corr_mask=       (int) gd.getNextNumber();
 		this.corr_sym=              gd.getNextBoolean();
 		this.corr_keep=             gd.getNextBoolean();

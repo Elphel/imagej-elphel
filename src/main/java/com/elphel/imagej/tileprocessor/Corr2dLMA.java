@@ -675,8 +675,8 @@ public class Corr2dLMA {
 		if (ncam_used < 2) {
 			return false;
 		}
-		last_cam =     (ncam_used > 1)? used_cams_rmap[ncam_used - 1] :-1;
-		pre_last_cam = (ncam_used > 2)? used_cams_rmap[ncam_used - 2] :-1;
+		last_cam =     (ncam_used >= 1)? used_cams_rmap[ncam_used - 1] :-1;
+		pre_last_cam = (ncam_used >= 2)? used_cams_rmap[ncam_used - 2] :-1;
 
 		setOffsetMatrices();
 

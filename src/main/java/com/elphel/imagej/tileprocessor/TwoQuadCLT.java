@@ -38,6 +38,7 @@ import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -8660,24 +8661,12 @@ if (debugLevel > -100) return true; // temporarily !
 			final boolean    updateStatus,
 			final int        debugLevel)  throws Exception
 	{
-//		double []            noise_sigma_level = {0.01, 1.5, 1.0}; // amount, sigma, offset
-//		double []            noise_sigma_level = {0.1, 1.5, 1.0};  // amount, sigma, offset
-//		double []            noise_sigma_level = {1.0, 1.5, 1.0};  // amount, sigma, offset
-//		double []            noise_sigma_level = {3.0, 1.5, 1.0};  // amount, sigma, offset
-//		double []            noise_sigma_level = {5.0, 1.5, 1.0};  // amount, sigma, offset
-//		double []            noise_sigma_level = null;
 		NoiseParameters      noise_sigma_level = null;
 		if ((clt_parameters.inp.noise.scale_random  > 0.0) || (clt_parameters.inp.noise.scale_fpn  > 0.0)){
 			noise_sigma_level = clt_parameters.inp.noise.clone();
-			/*		
-					new double[] {
-					clt_parameters.inp.noise_scale,
-					clt_parameters.inp.noise_sigma,
-					clt_parameters.inp.initial_offset};  // amount, sigma, offset
-					*/
 		}
 		
-		boolean ref_only =  clt_parameters.inp.ref_only; //  true; // process only reference frame (false - inter-scene)
+//		boolean ref_only =  clt_parameters.inp.ref_only; //  true; // process only reference frame (false - inter-scene)
 		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
 			quadCLT_main.getGPU().resetGeometryCorrection();
 			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
@@ -8707,6 +8696,177 @@ if (debugLevel > -100) return true; // temporarily !
 				debugLevel); // int                  debug_level);
 		/**/
 	}	
+
+	
+	public void intersceneNoiseBatch(
+			QuadCLT                                              quadCLT_main, // tiles should be set
+			CLTParameters                                        clt_parameters,
+			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
+			ColorProcParameters                                  colorProcParameters,
+			CorrectionColorProc.ColorGainsParameters             channelGainParameters,
+			EyesisCorrectionParameters.RGBParameters             rgbParameters,
+			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+			Properties                                           properties,
+			boolean                                              bayer_artifacts_debug,
+			final int        threadsMax,  // maximal number of threads to launch
+			final boolean    updateStatus,
+			final int        debugLevel)  throws Exception
+	{
+		// 1626032208_613623-results-rnd_0.003-fpn_0.0-sigma_1.5-offset1.0-sensors16-inter.tiff
+	
+		double [][] noise_task = {
+				{0.00, 0.0, 1.5, 1.0, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.00, 0.0, 1.5, 1.0, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{0.00, 0.0, 1.5, 1.0, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
+				{0.00, 0.0, 1.5, 1.0, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{0.00, 0.0, 1.5, 1.0, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{0.00, 0.0, 1.5, 1.0, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{0.00, 0.0, 1.5, 1.0, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{0.00, 0.0, 1.5, 1.0, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+
+				{0.003,0.0, 1.5, 1.0, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.003,0.0, 1.5, 1.0, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{0.003,0.0, 1.5, 1.0, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
+				{0.003,0.0, 1.5, 1.0, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{0.003,0.0, 1.5, 1.0, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{0.003,0.0, 1.5, 1.0, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{0.003,0.0, 1.5, 1.0, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{0.003,0.0, 1.5, 1.0, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+
+				{0.01, 0.0, 1.5, 1.0, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.01, 0.0, 1.5, 1.0, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{0.01, 0.0, 1.5, 1.0, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
+				{0.01, 0.0, 1.5, 1.0, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{0.01, 0.0, 1.5, 1.0, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{0.01, 0.0, 1.5, 1.0, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{0.01, 0.0, 1.5, 1.0, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{0.01, 0.0, 1.5, 1.0, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+				
+				{0.03, 0.0, 1.5, 1.0, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.03, 0.0, 1.5, 1.0, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{0.03, 0.0, 1.5, 1.0, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
+				{0.03, 0.0, 1.5, 1.0, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{0.03, 0.0, 1.5, 1.0, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{0.03, 0.0, 1.5, 1.0, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{0.03, 0.0, 1.5, 1.0, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{0.03, 0.0, 1.5, 1.0, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+
+				{0.06, 0.0, 1.5, 1.0, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.06, 0.0, 1.5, 1.0, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{0.06, 0.0, 1.5, 1.0, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
+				{0.06, 0.0, 1.5, 1.0, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{0.06, 0.0, 1.5, 1.0, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{0.06, 0.0, 1.5, 1.0, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{0.06, 0.0, 1.5, 1.0, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{0.06, 0.0, 1.5, 1.0, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+
+				{0.1,  0.0, 1.5, 1.0, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.1,  0.0, 1.5, 1.0, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{0.1,  0.0, 1.5, 1.0, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
+				{0.1,  0.0, 1.5, 1.0, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{0.1,  0.0, 1.5, 1.0, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{0.1,  0.0, 1.5, 1.0, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{0.1,  0.0, 1.5, 1.0, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{0.1,  0.0, 1.5, 1.0, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+
+				{0.2,  0.0, 1.5, 1.0, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.2,  0.0, 1.5, 1.0, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{0.2,  0.0, 1.5, 1.0, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
+				{0.2,  0.0, 1.5, 1.0, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{0.2,  0.0, 1.5, 1.0, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{0.2,  0.0, 1.5, 1.0, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{0.2,  0.0, 1.5, 1.0, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{0.2,  0.0, 1.5, 1.0, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+				
+				{0.3,  0.0, 1.5, 1.0, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.3,  0.0, 1.5, 1.0, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{0.3,  0.0, 1.5, 1.0, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
+				{0.3,  0.0, 1.5, 1.0, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{0.3,  0.0, 1.5, 1.0, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{0.3,  0.0, 1.5, 1.0, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{0.3,  0.0, 1.5, 1.0, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{0.3,  0.0, 1.5, 1.0, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+
+				{0.4,  0.0, 1.5, 1.0, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.4,  0.0, 1.5, 1.0, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{0.4,  0.0, 1.5, 1.0, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
+				{0.4,  0.0, 1.5, 1.0, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{0.4,  0.0, 1.5, 1.0, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{0.4,  0.0, 1.5, 1.0, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{0.4,  0.0, 1.5, 1.0, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{0.4,  0.0, 1.5, 1.0, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+
+				{0.5,  0.0, 1.5, 1.0, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.5,  0.0, 1.5, 1.0, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{0.5,  0.0, 1.5, 1.0, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
+				{0.5,  0.0, 1.5, 1.0, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{0.5,  0.0, 1.5, 1.0, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{0.5,  0.0, 1.5, 1.0, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{0.5,  0.0, 1.5, 1.0, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{0.5,  0.0, 1.5, 1.0, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+		};
+		System.out.println ("\n\n\n");
+		System.out.println("Noise parameters for this batch run are hard-wired in the code above this line");
+		for (int numset = 0; numset < noise_task.length; numset++) {
+			double noise_rnd = noise_task[numset][0];
+			double noise_fpn = noise_task[numset][1];
+			double sigma =     noise_task[numset][2];
+			double offset =    noise_task[numset][3];
+			int sensor_mode = (int) noise_task[numset][4];
+			boolean inter =    noise_task[numset][5] > 0;
+			
+			clt_parameters.img_dtt.mcorr_limit_sensors = sensor_mode;
+			clt_parameters.img_dtt.mcorr_all_multi =     (sensor_mode != 0); // add "all pairs" for 2,4,8 sesnors , but not for all 16 (mode 0)
+			clt_parameters.inp.noise.scale_random =      noise_rnd;
+			clt_parameters.inp.noise.scale_fpn =         noise_fpn;
+			clt_parameters.inp.noise.sigma =             sigma;
+			clt_parameters.inp.noise.initial_offset =    offset;
+			clt_parameters.inp.ref_only =               !inter;
+			if (quadCLT_main.getNumSensors() == 16) {
+				switch (clt_parameters.img_dtt.mcorr_limit_sensors) {
+				case 0:
+					clt_parameters.inp.noise.used_sensors = 16;
+					break;
+				case 1:
+					clt_parameters.inp.noise.used_sensors = 2;
+					break;
+				case 2:
+					clt_parameters.inp.noise.used_sensors = 4;
+					break;
+				case 3:
+					clt_parameters.inp.noise.used_sensors = 8;
+					break;
+				}
+				System.out.println ("Using "+clt_parameters.inp.noise.used_sensors+" of "+quadCLT_main.getNumSensors()+" sensors.");
+			}
+			
+			System.out.println ("\n\n\n");
+			System.out.println("\n******** Running with simulated noise, run "+(numset +1)+" of "+noise_task.length); 
+			System.out.println ("sensor_mode =    "+sensor_mode);
+			System.out.println ("all_pairs =      "+clt_parameters.img_dtt.mcorr_all_multi);
+			System.out.println ("used_sensors =   "+clt_parameters.inp.noise.used_sensors);
+			System.out.println ("noise_rnd =      "+noise_rnd);
+			System.out.println ("noise_fpn =      "+noise_fpn);
+			System.out.println ("sigma =          "+        sigma);
+			System.out.println ("initial_offset = "+offset);
+			System.out.println ("inter =          "+inter);
+			System.out.println ("\n\n\n");
+			intersceneNoise(
+					quadCLT_main,              // QuadCLT                                              quadCLT_main, // tiles should be set
+					clt_parameters,            // CLTParameters                                        clt_parameters,
+					debayerParameters,         // EyesisCorrectionParameters.DebayerParameters         debayerParameters,
+					colorProcParameters,       // ColorProcParameters                                  colorProcParameters,
+					channelGainParameters,     // CorrectionColorProc.ColorGainsParameters             channelGainParameters,
+					rgbParameters,             // EyesisCorrectionParameters.RGBParameters             rgbParameters,
+					equirectangularParameters, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+					properties,                // Properties                                           properties,
+					bayer_artifacts_debug,     // boolean                                              bayer_artifacts_debug,
+					threadsMax,                // final int        threadsMax,  // maximal number of threads to launch
+					updateStatus,              // final boolean    updateStatus,
+					debugLevel);               // final int        debugLevel)			
+		}
+		
+	}
 	
 	
 	public void intersceneNoise(
@@ -8731,6 +8891,23 @@ if (debugLevel > -100) return true; // temporarily !
 //		double []            noise_sigma_level = null;
 		NoiseParameters            noise_sigma_level = null;
 		if ((clt_parameters.inp.noise.scale_random >= 0.0) || (clt_parameters.inp.noise.scale_fpn >= 0.0)) {// <0 - will generate no-noise data
+			if (quadCLT_main.getNumSensors() == 16) {
+				switch (clt_parameters.img_dtt.mcorr_limit_sensors) {
+				case 0:
+					clt_parameters.inp.noise.used_sensors = 16;
+					break;
+				case 1:
+					clt_parameters.inp.noise.used_sensors = 2;
+					break;
+				case 2:
+					clt_parameters.inp.noise.used_sensors = 4;
+					break;
+				case 3:
+					clt_parameters.inp.noise.used_sensors = 8;
+					break;
+				}
+				System.out.println ("Using "+clt_parameters.inp.noise.used_sensors+" of "+quadCLT_main.getNumSensors()+" sensors.");
+			}
 			noise_sigma_level = clt_parameters.inp.noise.clone();
 					/*
 					noise_sigma_level = new double[] {
@@ -8739,7 +8916,6 @@ if (debugLevel > -100) return true; // temporarily !
 					clt_parameters.inp.initial_offset};  // amount, sigma, offset\
         */					
 		}
-		
 		boolean ref_only =  clt_parameters.inp.ref_only; //  true; // process only reference frame (false - inter-scene)
 		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
 			quadCLT_main.getGPU().resetGeometryCorrection();
@@ -8828,6 +9004,93 @@ if (debugLevel > -100) return true; // temporarily !
 			int                  debug_level)
 	{
 		String []            noise_files = {
+				"-results-rnd_0.0-fpn_0.0-sigma_1.5-offset1.0-sensors16-inter",
+				"-results-rnd_0.0-fpn_0.0-sigma_1.5-offset1.0-sensors16-nointer",
+				"-results-rnd_0.0-fpn_0.0-sigma_1.5-offset1.0-sensors2-inter",
+				"-results-rnd_0.0-fpn_0.0-sigma_1.5-offset1.0-sensors2-nointer",
+				"-results-rnd_0.0-fpn_0.0-sigma_1.5-offset1.0-sensors4-inter",
+				"-results-rnd_0.0-fpn_0.0-sigma_1.5-offset1.0-sensors4-nointer",
+				"-results-rnd_0.0-fpn_0.0-sigma_1.5-offset1.0-sensors8-inter",
+				"-results-rnd_0.0-fpn_0.0-sigma_1.5-offset1.0-sensors8-nointer",
+				"-results-rnd_0.003-fpn_0.0-sigma_1.5-offset1.0-sensors16-inter",
+				"-results-rnd_0.003-fpn_0.0-sigma_1.5-offset1.0-sensors16-nointer",
+				"-results-rnd_0.003-fpn_0.0-sigma_1.5-offset1.0-sensors2-inter",
+				"-results-rnd_0.003-fpn_0.0-sigma_1.5-offset1.0-sensors2-nointer",
+				"-results-rnd_0.003-fpn_0.0-sigma_1.5-offset1.0-sensors4-inter",
+				"-results-rnd_0.003-fpn_0.0-sigma_1.5-offset1.0-sensors4-nointer",
+				"-results-rnd_0.003-fpn_0.0-sigma_1.5-offset1.0-sensors8-inter",
+				"-results-rnd_0.003-fpn_0.0-sigma_1.5-offset1.0-sensors8-nointer",
+				"-results-rnd_0.01-fpn_0.0-sigma_1.5-offset1.0-sensors16-inter",
+				"-results-rnd_0.01-fpn_0.0-sigma_1.5-offset1.0-sensors16-nointer",
+				"-results-rnd_0.01-fpn_0.0-sigma_1.5-offset1.0-sensors2-inter",
+				"-results-rnd_0.01-fpn_0.0-sigma_1.5-offset1.0-sensors2-nointer",
+				"-results-rnd_0.01-fpn_0.0-sigma_1.5-offset1.0-sensors4-inter",
+				"-results-rnd_0.01-fpn_0.0-sigma_1.5-offset1.0-sensors4-nointer",
+				"-results-rnd_0.01-fpn_0.0-sigma_1.5-offset1.0-sensors8-inter",
+				"-results-rnd_0.01-fpn_0.0-sigma_1.5-offset1.0-sensors8-nointer",
+				"-results-rnd_0.03-fpn_0.0-sigma_1.5-offset1.0-sensors16-inter",
+				"-results-rnd_0.03-fpn_0.0-sigma_1.5-offset1.0-sensors16-nointer",
+				"-results-rnd_0.03-fpn_0.0-sigma_1.5-offset1.0-sensors2-inter",
+				"-results-rnd_0.03-fpn_0.0-sigma_1.5-offset1.0-sensors2-nointer",
+				"-results-rnd_0.03-fpn_0.0-sigma_1.5-offset1.0-sensors4-inter",
+				"-results-rnd_0.03-fpn_0.0-sigma_1.5-offset1.0-sensors4-nointer",
+				"-results-rnd_0.03-fpn_0.0-sigma_1.5-offset1.0-sensors8-inter",
+				"-results-rnd_0.03-fpn_0.0-sigma_1.5-offset1.0-sensors8-nointer",
+				"-results-rnd_0.06-fpn_0.0-sigma_1.5-offset1.0-sensors16-inter",
+				"-results-rnd_0.06-fpn_0.0-sigma_1.5-offset1.0-sensors16-nointer",
+				"-results-rnd_0.06-fpn_0.0-sigma_1.5-offset1.0-sensors2-inter",
+				"-results-rnd_0.06-fpn_0.0-sigma_1.5-offset1.0-sensors2-nointer",
+				"-results-rnd_0.06-fpn_0.0-sigma_1.5-offset1.0-sensors4-inter",
+				"-results-rnd_0.06-fpn_0.0-sigma_1.5-offset1.0-sensors4-nointer",
+				"-results-rnd_0.06-fpn_0.0-sigma_1.5-offset1.0-sensors8-inter",
+				"-results-rnd_0.06-fpn_0.0-sigma_1.5-offset1.0-sensors8-nointer",
+				"-results-rnd_0.1-fpn_0.0-sigma_1.5-offset1.0-sensors16-inter",
+				"-results-rnd_0.1-fpn_0.0-sigma_1.5-offset1.0-sensors16-nointer",
+				"-results-rnd_0.1-fpn_0.0-sigma_1.5-offset1.0-sensors2-inter",
+				"-results-rnd_0.1-fpn_0.0-sigma_1.5-offset1.0-sensors2-nointer",
+				"-results-rnd_0.1-fpn_0.0-sigma_1.5-offset1.0-sensors4-inter",
+				"-results-rnd_0.1-fpn_0.0-sigma_1.5-offset1.0-sensors4-nointer",
+				"-results-rnd_0.1-fpn_0.0-sigma_1.5-offset1.0-sensors8-inter",
+				"-results-rnd_0.1-fpn_0.0-sigma_1.5-offset1.0-sensors8-nointer",
+				
+				"-results-rnd_0.2-fpn_0.0-sigma_1.5-offset1.0-sensors16-inter",
+				"-results-rnd_0.2-fpn_0.0-sigma_1.5-offset1.0-sensors16-nointer",
+				"-results-rnd_0.2-fpn_0.0-sigma_1.5-offset1.0-sensors2-inter",
+				"-results-rnd_0.2-fpn_0.0-sigma_1.5-offset1.0-sensors2-nointer",
+				"-results-rnd_0.2-fpn_0.0-sigma_1.5-offset1.0-sensors4-inter",
+				"-results-rnd_0.2-fpn_0.0-sigma_1.5-offset1.0-sensors4-nointer",
+				"-results-rnd_0.2-fpn_0.0-sigma_1.5-offset1.0-sensors8-inter",
+				"-results-rnd_0.2-fpn_0.0-sigma_1.5-offset1.0-sensors8-nointer",
+
+				"-results-rnd_0.3-fpn_0.0-sigma_1.5-offset1.0-sensors16-inter",
+				"-results-rnd_0.3-fpn_0.0-sigma_1.5-offset1.0-sensors16-nointer",
+				"-results-rnd_0.3-fpn_0.0-sigma_1.5-offset1.0-sensors2-inter",
+				"-results-rnd_0.3-fpn_0.0-sigma_1.5-offset1.0-sensors2-nointer",
+				"-results-rnd_0.3-fpn_0.0-sigma_1.5-offset1.0-sensors4-inter",
+				"-results-rnd_0.3-fpn_0.0-sigma_1.5-offset1.0-sensors4-nointer",
+				"-results-rnd_0.3-fpn_0.0-sigma_1.5-offset1.0-sensors8-inter",
+				"-results-rnd_0.3-fpn_0.0-sigma_1.5-offset1.0-sensors8-nointer",
+				"-results-rnd_0.0-fpn_0.01-sigma_1.5-offset1.0-sensors16-inter",
+
+				"-results-rnd_0.4-fpn_0.0-sigma_1.5-offset1.0-sensors16-inter",
+				"-results-rnd_0.4-fpn_0.0-sigma_1.5-offset1.0-sensors16-nointer",
+				"-results-rnd_0.4-fpn_0.0-sigma_1.5-offset1.0-sensors2-inter",
+				"-results-rnd_0.4-fpn_0.0-sigma_1.5-offset1.0-sensors2-nointer",
+				"-results-rnd_0.4-fpn_0.0-sigma_1.5-offset1.0-sensors4-inter",
+				"-results-rnd_0.4-fpn_0.0-sigma_1.5-offset1.0-sensors4-nointer",
+				"-results-rnd_0.4-fpn_0.0-sigma_1.5-offset1.0-sensors8-inter",
+				"-results-rnd_0.4-fpn_0.0-sigma_1.5-offset1.0-sensors8-nointer",
+				
+				"-results-rnd_0.5-fpn_0.0-sigma_1.5-offset1.0-sensors16-inter",
+				"-results-rnd_0.5-fpn_0.0-sigma_1.5-offset1.0-sensors16-nointer",
+				"-results-rnd_0.5-fpn_0.0-sigma_1.5-offset1.0-sensors2-inter",
+				"-results-rnd_0.5-fpn_0.0-sigma_1.5-offset1.0-sensors2-nointer",
+				"-results-rnd_0.5-fpn_0.0-sigma_1.5-offset1.0-sensors4-inter",
+				"-results-rnd_0.5-fpn_0.0-sigma_1.5-offset1.0-sensors4-nointer",
+				"-results-rnd_0.5-fpn_0.0-sigma_1.5-offset1.0-sensors8-inter",
+				"-results-rnd_0.5-fpn_0.0-sigma_1.5-offset1.0-sensors8-nointer",
+				
+/*				
 				"-results-lev_1.0E-6-sigma_1.5-offset1.0-inter-mask63",
 				"-results-lev_1.0E-6-sigma_1.5-offset1.0-nointer-mask63",
 				"-results-lev_1.0E-6-sigma_1.5-offset1.0-nointer-mask1",
@@ -8934,7 +9197,9 @@ if (debugLevel > -100) return true; // temporarily !
 
 				"-results-lev_5.0-sigma_1.5-offset1.0-inter-mask63",
 				"-results-lev_5.0-sigma_1.5-offset1.0-nointer-mask63",
-				"-results-lev_5.0-sigma_1.5-offset1.0-nointer-mask1"};
+				"-results-lev_5.0-sigma_1.5-offset1.0-nointer-mask1"
+				*/
+				};
 		
 		getNoiseStats(
 				clt_parameters,
@@ -8943,6 +9208,108 @@ if (debugLevel > -100) return true; // temporarily !
 				debug_level);		
 	}
 
+	private boolean [] getGoodTiles(
+			double max_diff,
+			double disp_near_rel,
+			double disp_max_rel,
+			double disp_max_inter,
+			double disp_far_abs,
+			double disp_max_abs,
+			double min_scenes, // 
+			double [] disp,
+			double [] disp_lma,
+			double [] last_diff,
+			double [] sky_map, // may be null
+			double [] scenes_used, // 1.0 - all
+			int tilesX,
+			boolean debug_img
+			) {
+		double disp_rel_min = 0.5;
+		disp_lma = disp_lma.clone();
+		int tilesY = disp.length / tilesX;
+		boolean [] good_tiles = new boolean [disp.length];
+//		int num_good_init = 0;
+		if (sky_map != null) {
+			for (int i = 0; i < disp_lma.length; i++) {
+				if (sky_map[i] > 0.0) {
+					disp_lma[i] = Double.NaN; // remove sky
+				}
+			}
+		}
+		double [][] disp_diff = new double [2][disp.length];
+		String [] disp_titles=null;
+		if (debug_img) {
+			disp_titles = new String[] {"absolute","relative","disp_lma","filter_diff","filter_rel","filter_intermed", "filter_abs","filter_used"};
+			disp_diff = new double [disp_titles.length][disp.length];
+			for (int i = 0; i < disp_diff.length; i++) {
+				Arrays.fill(disp_diff[i], Double.NaN);
+			}
+			disp_diff[2] = disp_lma.clone(); // lma
+		}
+		TileNeibs tn = new TileNeibs(tilesX,tilesY);
+		for (int tile = 0; tile < disp.length; tile++) if (!Double.isNaN(disp_lma[tile])) {
+			double d = disp[tile];
+			double mn = d, mx = d;
+			for (int dir = 0; dir < 8; dir++) {
+				int tile1 = tn.getNeibIndex(tile, dir);
+				if ((tile1 >= 0) && !Double.isNaN(disp[tile1])) {
+					if (disp[tile1] > mx) mx = disp[tile1];
+					if (disp[tile1] < mn) mn = disp[tile1];
+				}
+			}
+			double mx_abs = Math.max(Math.abs(mx-d), Math.abs(mn-d));
+			double mx_rel = 0;
+			if (d > disp_rel_min) mx_rel = mx_abs/d;
+			disp_diff[0][tile] = mx_abs;
+			disp_diff[1][tile] = mx_rel;
+		}
+		for (int i = 0; i < last_diff.length; i++) {
+			if (Math.abs(last_diff[i]) > max_diff) {
+				disp_lma[i] = Double.NaN; // remove large diff.
+			}
+		}
+		if (debug_img) 	disp_diff[3] = disp_lma.clone(); // lma
+		for (int i = 0; i < disp_diff[1].length; i++){
+			if ((disp_lma[i] > disp_near_rel) && (disp_diff[1][i] > disp_max_rel)) {
+				disp_lma[i] = Double.NaN; // remove large diff.
+			}
+		}
+		if (debug_img) 	disp_diff[4] = disp_lma.clone();
+		for (int i = 0; i < disp_diff[1].length; i++){
+			if ((disp_lma[i] < disp_near_rel) && (disp_lma[i] > disp_far_abs) && (disp_diff[0][i] > disp_max_inter)) {
+				disp_lma[i] = Double.NaN; // remove large diff.
+			}
+		}
+		// disp_max_inter
+		if (debug_img) 	disp_diff[5] = disp_lma.clone();
+		for (int i = 0; i < disp_diff[1].length; i++){
+			if ((disp_lma[i] < disp_far_abs) && (disp_diff[0][i] > disp_max_abs)) {
+				disp_lma[i] = Double.NaN; // remove large diff.
+			}
+		}
+		if (debug_img) 	disp_diff[6] = disp_lma.clone();
+		if (scenes_used != null) {
+			for (int i = 0; i < disp_lma.length; i++){
+				if (scenes_used[i] < min_scenes) {
+					disp_lma[i] = Double.NaN; // remove large diff.
+				}
+			}
+		}
+		if (debug_img) 	disp_diff[7] = disp_lma.clone();
+		if (debug_img) {
+		(new ShowDoubleFloatArrays()).showArrays(
+				disp_diff,
+				tilesX,
+				tilesY,
+				true,
+				"disparity-variance",
+				disp_titles);
+		}
+		for (int i = 0; i < disp_lma.length; i++) {
+			good_tiles[i] = !Double.isNaN(disp_lma[i]);
+		}
+		return good_tiles;
+	}
 	
 	
 	
@@ -8957,17 +9324,40 @@ if (debugLevel > -100) return true; // temporarily !
 		"str_last",
 		"num vlaid" <= 1.0
 		*/
-		double max_diff = 0.01; // last diff >
+		final int tilesX = ref_scene.tp.getTilesX();
+//		final int tilesY = ref_scene.tp.getTilesY();
+
+		double max_diff = 0.04; // 0.01; // last diff >
 		double max_err = 2.0; // 1.0; // 0.5; // pix
 		double max_err1 =0.25; // pix
 		double min_strength = 0.0; // minimal strength to calculate rmse (ignore weaker)
-		int indx_used = 2;
-		int indx_last = 0;
-		int indx_initial = 3;
-		int indx_strength = 1;
-		double max_disparity = 200.0; // for max_err1
+		int indx_used =      3;
+		int indx_last =      0;
+		int indx_lma_last =  clt_parameters.correlate_lma? 2 : 0; // if lma was disabled fallback to just disparity
+		int indx_diff_last = 4;
 		
-		final double[][] sky_map = ref_scene. readDoubleArrayFromModelDirectory(
+//		int indx_initial =  3;
+		
+		int indx_strength = 1;
+		double max_disparity = 30.0; // for max_err1
+//		double disp_rel_min = 0.5;
+		
+		double disp_near_rel = 2.5;
+		double disp_max_rel = 0.25;
+		double disp_max_inter = 0.8;
+		double disp_far_abs = 1.0;
+		double disp_max_abs = 0.4;
+		double min_scenes_used = 0.5;
+		boolean use_edges =    true; // false; // do not filter ourt edges
+		boolean all_converge = true; // false; // use only tiles that converge for all variants (intra, inter, used sensors)
+		boolean all_max_err =  true; // false;  // use only tiles that have limited error for all variants (intra, inter, used sensors)
+		
+		if (use_edges) {
+			disp_max_rel = 10.0;
+			disp_max_abs = 10.0;
+		}
+		
+		final double[][] sky_map = ref_scene.readDoubleArrayFromModelDirectory(
 		"-sky_mask", // String      suffix,
 		0, // int         num_slices, // (0 - all)
 		null); // int []      wh);
@@ -8976,40 +9366,134 @@ if (debugLevel > -100) return true; // temporarily !
 				"-results-nonoise", // String      suffix,
 				0, // int         num_slices, // (0 - all)
 				null); // int []      wh);
+		
 		int indx_last_diff =  ref_dsn.length - 1;
-		boolean [] good_tiles = new boolean [ref_dsn[0].length];
+		boolean [] good_tiles_ref = getGoodTiles(
+				max_diff,                // double max_diff,
+				disp_near_rel,           // double disp_near_rel,
+				disp_max_rel,            // double disp_max_rel,
+				disp_max_inter,          // double disp_max_inter
+				disp_far_abs,            // double disp_far_abs,
+				disp_max_abs,            // double disp_max_abs,
+				min_scenes_used,         // double min_scenes
+				ref_dsn[indx_last],      // double [] disp,
+				ref_dsn[indx_lma_last],  // double [] disp_lma,
+				ref_dsn[indx_diff_last], // indx_last_diff], // double [] last_diff,
+				sky_map[0],              // double [] sky_map, // may be null
+				ref_dsn[indx_used],      // double [] scenes_used, // 1.0 - all
+				tilesX,                  // int tilesX,
+				(debug_level > -2));     // boolean debug_img);
+		
+		
+		
 		int num_good_init = 0;
-		for (int i = 0; i < good_tiles.length; i++) {
-			good_tiles[i] = (ref_dsn[indx_used][i] > 0.999) && (Math.abs(ref_dsn[indx_last_diff][i]) < max_diff);
-			if (good_tiles[i] && (sky_map != null) && (sky_map[0][i] > 0.0)) {
-				good_tiles[i] = false;
-			}
-			if (good_tiles[i]){
+		for (int i = 0; i < good_tiles_ref.length; i++) {
+//			good_tiles[i] = (ref_dsn[indx_used][i] > 0.999) && (Math.abs(ref_dsn[indx_last_diff][i]) < max_diff);
+//			if (good_tiles[i] && (sky_map != null) && (sky_map[0][i] > 0.0)) {
+//				good_tiles[i] = false;
+//			}
+			if (good_tiles_ref[i]){
 				num_good_init++;
 			}
 		}
+		System.out.println("Number of \"good\" tiles to use for comparison =" + num_good_init);
+		if (debug_level > 100) {
+			return;
+		}
+		
+		
 //		double  [] noise_level = new double  [noise_files.length];
 //		boolean [] intra =       new boolean [noise_files.length];
 //		boolean [] inter =       new boolean [noise_files.length];
 		class DisparityResults{
 			double [][] results;
 		}
-		HashMap <Double, DisparityResults> results_map = new HashMap <Double, DisparityResults> (); 
+		class NoiseLevel implements Comparable<NoiseLevel>{
+			double rnd;
+			double fpn;
+			NoiseLevel(double rnd, double fpn) {
+				this.rnd = rnd;
+				this.fpn = fpn;
+			}
+			@Override
+			public boolean equals(Object obj) {
+				if ((obj == null) || (getClass() != obj.getClass())){
+					return false;
+				}
+				NoiseLevel other = (NoiseLevel) obj;
+				return (other.rnd == rnd) && (other.fpn == fpn);
+			}
+			@Override
+			public int compareTo(NoiseLevel other) {
+				return (this.fpn > other.fpn)? 1 :((this.fpn < other.fpn) ? -1: ((this.rnd > other.rnd)? 1 : ((this.rnd < other.rnd) ? -1: 0)));
+			}
+	        @Override
+	        public int hashCode() {
+	        	return ((Double)(rnd + 7919*fpn)).hashCode();
+	        }
+			
+		}
+		
+//		boolean all_converge = false; // use only tiles that converge for all variants (intra, inter, used sensors)
+//		boolean all_max_err =  false;  // use only tiles that have limited error for all variants (intra, inter, used sensors)
+		boolean [] converged_tiles = good_tiles_ref.clone();
+		boolean [] good_tiles =      good_tiles_ref.clone();
+		if (all_converge || all_max_err) { // scan all images
+			for (int nf = 0; nf < noise_files.length; nf++) {
+				String fn = noise_files[nf];
+				String [] tokens = fn.replace("E-","E_minus").split("-");
+				double noise_random = Double.parseDouble(tokens[2].replace("E_minus","E-").substring("rnd_".length()));
+				double noise_fpn = Double.parseDouble(tokens[3].replace("E_minus","E-").substring("fpn_".length()));
+				NoiseLevel noise_level = new NoiseLevel(noise_random, noise_fpn);
+				boolean inter = !fn.contains("nointer");
+				int     used_sensors = Integer.parseInt(tokens[6].replace("E_minus","E-").substring("sensors".length()));
+				if (inter) {
+					double [][] noise_dsn = ref_scene.readDoubleArrayFromModelDirectory(
+							fn, // noise_files[nf], // String      suffix,
+							0, // int         num_slices, // (0 - all)
+							null); // int []      wh);
+
+					for (int i = 0; i < good_tiles_ref.length; i++) if (good_tiles_ref[i]) {
+						if (Math.abs(noise_dsn[indx_last_diff][i]) > max_diff) {
+							converged_tiles[i] = false;
+							if (all_converge) {
+								good_tiles[i] = false;
+							}
+						}
+						if (good_tiles[i] && all_max_err) {
+							if (Math.abs(noise_dsn[indx_last][i] - ref_dsn[indx_last][i]) > max_err) {
+								good_tiles[i] = false;
+							}
+						}
+					}
+				}
+			}			
+		}
+		int num_converged_global = 0;
+		int num_good_global =      0;
+		for (int i = 0; i < good_tiles.length; i++) {
+			if (converged_tiles[i]) num_converged_global++;
+			if (good_tiles[i])      num_good_global++;
+		}
+		System.out.println("num_converged_global="+num_converged_global+", num_good_global="+num_good_global);
+		
+		HashMap <NoiseLevel, DisparityResults> results_map = new HashMap <NoiseLevel, DisparityResults> (); 
 		for (int nf = 0; nf < noise_files.length; nf++) {
 			String fn = noise_files[nf];
 			String [] tokens = fn.replace("E-","E_minus").split("-");
-			double noise_level = Double.parseDouble(tokens[2].replace("E_minus","E-").substring("lev_".length()));
+			double noise_random = Double.parseDouble(tokens[2].replace("E_minus","E-").substring("rnd_".length()));
+			double noise_fpn = Double.parseDouble(tokens[3].replace("E_minus","E-").substring("fpn_".length()));
+			NoiseLevel noise_level = new NoiseLevel(noise_random, noise_fpn);
 			boolean inter = !fn.contains("nointer");
-			boolean intra = !fn.contains("mask1");
-//			System.out.println("level="+noise_level+", inter="+inter+", intra="+intra);
+			int     used_sensors = Integer.parseInt(tokens[6].replace("E_minus","E-").substring("sensors".length()));
 			
 			double [][] noise_dsn = ref_scene.readDoubleArrayFromModelDirectory(
 					fn, // noise_files[nf], // String      suffix,
 					0, // int         num_slices, // (0 - all)
 					null); // int []      wh);
-			boolean [] converged_tiles_this = good_tiles.clone();
-			boolean [] good_tiles_this = good_tiles.clone();
-			boolean [] good_tiles_this1 = good_tiles.clone();
+			boolean [] converged_tiles_this = converged_tiles.clone(); // .clone();
+			boolean [] good_tiles_this = good_tiles.clone(); // good_tiles_ref.clone();
+			boolean [] good_tiles_this1 = good_tiles.clone(); //  good_tiles_ref.clone();
 			int num_converged = 0;
 			int num_good = 0;
 			int num_good1 = 0;
@@ -9019,16 +9503,17 @@ if (debugLevel > -100) return true; // temporarily !
 			
 			double s0 = 0.0;
 			double s2 = 0.0;
-			for (int i = 0; i < good_tiles.length; i++) if (good_tiles[i]) {
+			for (int i = 0; i < good_tiles_ref.length; i++) if (good_tiles[i]) { // _ref[i]) {
 				converged_tiles_this[i] = (Math.abs(noise_dsn[indx_last_diff][i]) < max_diff);
 				if (converged_tiles_this[i]){
 					num_converged++;
-					good_tiles_this[i] = (Math.abs(noise_dsn[indx_last][i] - noise_dsn[indx_initial][i]) < max_err);
+					good_tiles_this[i] = (Math.abs(noise_dsn[indx_last][i] - ref_dsn[indx_last][i]) < max_err);
+					//indx_last
 					if (good_tiles_this[i]) {
 						num_good++;
 						double w = (noise_dsn[indx_strength][i] < min_strength)? 0.0 : 1.0;
 						s0 += w;
-						double d = noise_dsn[indx_last][i] - noise_dsn[indx_initial][i];
+						double d = noise_dsn[indx_last][i] - ref_dsn[indx_last][i];
 						s2 += w * d * d;
 					}
 					/*
@@ -9038,11 +9523,14 @@ if (debugLevel > -100) return true; // temporarily !
 					}
 					*/
 				}
-				if (noise_dsn[indx_initial][i] <= max_disparity) { // only for near tiles
+///				if (noise_dsn[indx_initial][i] <= max_disparity) { // only for near tiles
+				// Is it a bug? smaller error for near tiles?
+				if (ref_dsn[indx_last][i] <= max_disparity) { // only for near tiles
 					num_near++;
 					if (converged_tiles_this[i]){
 						num_converged_near++;
-						good_tiles_this1[i] = (Math.abs(noise_dsn[indx_last][i] - noise_dsn[indx_initial][i]) < max_err1);
+//						good_tiles_this1[i] = (Math.abs(noise_dsn[indx_last][i] - noise_dsn[indx_initial][i]) < max_err1);
+						good_tiles_this1[i] = (Math.abs(noise_dsn[indx_last][i] - ref_dsn[indx_last][i]) < max_err1);
 						if (good_tiles_this1[i]) {
 							num_good1++;
 						}
@@ -9067,32 +9555,77 @@ if (debugLevel > -100) return true; // temporarily !
 			};
 			if (!results_map.containsKey(noise_level)) {
 				DisparityResults dr = new DisparityResults();
-				dr.results = new double [3][];
+				dr.results = new double [8][];
 				results_map.put(noise_level, dr);
 			}
-			int results_index = inter ? 0 : (intra? 1 : 2);
+			// inter 16, inter 8, inter 4, inter 2, intra16, intra 8, intra 4, intra 2 
+			int results_index = inter? 0 : 4; // inter; //  ? 0 : (intra? 1 : 2);
+			switch (used_sensors) {
+			case 16:
+				results_index += 0;
+				break;
+			case 8:
+				results_index += 1;
+				break;
+			case 4:
+				results_index += 2;
+				break;
+			case 2:
+				results_index += 3;
+				break;
+			default:
+				System.out.println("Invalid number of sensors:"+used_sensors);
+				continue;
+			}
+			
 			DisparityResults dr = results_map.get(noise_level);
 			dr.results[results_index] = results;
 			System.out.println("getNoiseStats(): "+noise_files[nf]+": good_ref= " + num_good_init+
-//					", converged= "+num_converged+", good= "+num_good+", good(0.5)= "+perc_good+"%, good(0.1)= "+perc_good1+"%, perc_good_conf= "+perc_good_conf+"%");
 					", converged= "+num_converged+", good= "+num_good+" good(0.1)= "+num_good1+", num_near="+num_near);
 		}
-		List<Double> noise_levels_list = new ArrayList<Double>(results_map.keySet());
+//		List<Double> noise_levels_list = new ArrayList<Double>(results_map.keySet());
+		List<NoiseLevel> noise_levels_list = new ArrayList<NoiseLevel>(results_map.keySet());
 		Collections.sort(noise_levels_list);
+		
+//		String [] config_types = {"all_16", "octal", "quad", "binocular"};
+		String [] config_types = {"16", "8", "4", "2"};
 		System.out.println("\n");
-		System.out.print("noise_level, ");
-		System.out.print("inter("+max_err+"), inter("+max_err1+"), inter_conf("+max_err+"), inter_conf("+max_err1+"), inter_rmse("+max_err+"),");
-		System.out.print("intra("+max_err+"), intra("+max_err1+"), intra_conf("+max_err+"), intra_conf("+max_err1+"), intra_rmse("+max_err+"),");
-		System.out.print("binocular("+max_err+"), binocular("+max_err1+"), binocular_conf("+max_err+"), binocular_conf("+max_err1+"), binocular_rmse("+max_err+")");
+//		System.out.print("noise_level, ");
+		System.out.print("noise_random, noise_fpn, ");
+		
+		for (int it = 0; it < config_types.length; it++) {
+			System.out.print("inter_"+config_types[it]+"("+max_err+"), inter_"+config_types[it]+"("+max_err1+
+					"), inter_conf_"+config_types[it]+"("+max_err+"), inter_conf_"+config_types[it]+
+					"("+max_err1+"), inter_rmse_"+config_types[it]+"("+max_err+"),");
+		}
+
+		for (int it = 0; it < config_types.length; it++) {
+			System.out.print("intra_"+config_types[it]+"("+max_err+"), intra_"+config_types[it]+"("+max_err1+
+					"), intra_conf_"+config_types[it]+"("+max_err+"), intra_conf_"+config_types[it]+
+					"("+max_err1+"), intra_rmse_"+config_types[it]+"("+max_err+"),");
+		}
+		
+//		System.out.print("inter("+max_err+"), inter("+max_err1+"), inter_conf("+max_err+"), inter_conf("+max_err1+"), inter_rmse("+max_err+"),");
+//		System.out.print("intra("+max_err+"), intra("+max_err1+"), intra_conf("+max_err+"), intra_conf("+max_err1+"), intra_rmse("+max_err+"),");
+//		System.out.print("binocular("+max_err+"), binocular("+max_err1+"), binocular_conf("+max_err+"), binocular_conf("+max_err1+"), binocular_rmse("+max_err+")");
 		System.out.println();
-		for (Double nl:noise_levels_list) {
-			System.out.print(nl+", ");
+		for (NoiseLevel nl:noise_levels_list) {
+			System.out.print(nl.rnd+", "+nl.fpn+", ");
 			double [][] results = results_map.get(nl).results;
 			for (int n = 0; n < results.length; n++) {
-				for (int i = 0; i < results[n].length; i++) {
-					System.out.print(results[n][i]);
-					if ((n < (results.length -1)) ||(i< (results[n].length - 1))) {
-						System.out.print(", ");
+				if (results[n] != null) {
+					for (int i = 0; i < results[n].length; i++) {
+						System.out.print(results[n][i]);
+						if ((n < (results.length -1)) || (i< (results[n].length - 1))) {
+							System.out.print(", ");
+						}
+					}
+				} else {
+					for (int i = 0; i < 5; i++) { // length of results
+						if ((n < (results.length -1)) || ( i< 4)) {
+							System.out.print(" --- ");
+							System.out.print(", ");
+						}
 					}
 				}
 			}

@@ -51,10 +51,58 @@ public class Correlation2d {
 	private final double [] corr_wndx;
 	private final double [] corr_wndy;
 	private final double [] corr_wndy_notch;
-    private final boolean monochrome;
-    
+	private final boolean monochrome;
 
+	public static int CORR_SEL_BIT_ALL =   0; 
+	public static int CORR_SEL_BIT_DIA =   1; 
+	public static int CORR_SEL_BIT_SQ =    2;
+	public static int CORR_SEL_BIT_NEIB =  3;
+	public static int CORR_SEL_BIT_HOR =   4;
+	public static int CORR_SEL_BIT_VERT =  5;
+	
+	public static int CORR_SEL_BIT_LIMIT =  8;
+	public static int CORR_SEL_BITS_LIMIT = 3;
+// Debug feature to limit selections to:
+// 1: 2 sensors - horizontal diameter, sensors  4,12
+// 2: 4 sensors - original quad selection, sensors 2,6,10,14
+// 3: 8 sensors - 0,2,4,6,8,10,12,14	
 
+	public static int corrSelEncode(
+			boolean sel_all,
+			boolean sel_dia,
+			boolean sel_sq,
+			boolean sel_neib,
+			boolean sel_hor,
+			boolean sel_vert,
+			int     limit_sensors) {
+		return  (sel_all ?  (1 << CORR_SEL_BIT_ALL):  0) |
+				(sel_dia ?  (1 << CORR_SEL_BIT_DIA):  0) |
+				(sel_sq ?   (1 << CORR_SEL_BIT_SQ):   0) |
+				(sel_neib ? (1 << CORR_SEL_BIT_NEIB): 0) |
+				(sel_hor ?  (1 << CORR_SEL_BIT_HOR):  0) |
+				(sel_vert ? (1 << CORR_SEL_BIT_VERT): 0) |
+				((limit_sensors & ((1 << CORR_SEL_BITS_LIMIT) - 1)) << CORR_SEL_BIT_LIMIT);
+	}
+	public static boolean isCorrAll (int sel) { return ((sel >> CORR_SEL_BIT_ALL)  & 1) != 0;}
+	public static boolean isCorrDia (int sel) { return ((sel >> CORR_SEL_BIT_DIA)  & 1) != 0;}
+	public static boolean isCorrSq  (int sel) { return ((sel >> CORR_SEL_BIT_SQ)   & 1) != 0;}
+	public static boolean isCorrNeib(int sel) { return ((sel >> CORR_SEL_BIT_NEIB) & 1) != 0;}
+	public static boolean isCorrHor (int sel) { return ((sel >> CORR_SEL_BIT_HOR)  & 1) != 0;}
+	public static boolean isCorrVert(int sel) { return ((sel >> CORR_SEL_BIT_VERT) & 1) != 0;}
+	public static int getSensorsLimit(int sel){ return ((sel >> CORR_SEL_BIT_LIMIT) & ((1 << CORR_SEL_BITS_LIMIT) - 1));}
+
+	public static int corrSelEncode(ImageDttParameters  img_dtt, int num_sensors) {
+		return corrSelEncode(
+				img_dtt.getMcorrAll  (num_sensors),  // boolean sel_all,
+				img_dtt.getMcorrDia  (num_sensors),  // boolean sel_dia,
+				img_dtt.getMcorrSq   (num_sensors),  // boolean sel_sq,
+				img_dtt.getMcorrNeib (num_sensors),  // boolean sel_neib,
+				img_dtt.getMcorrHor  (num_sensors),  // boolean sel_hor,
+				img_dtt.getMcorrVert (num_sensors),  // boolean sel_vert);
+				img_dtt.mcorr_limit_sensors); // 0 - no limit, 1 - (4,12) 2 - (2, 6, 10, 14), 3 - (0,2,4,6,8,10,12,14)
+	}
+	
+	  
 	// configuration for 8-lens and 4-lens cameras. 8-lens has baseline = 1 for 1..4 and 1/2 for 4..7
 /*0        1
      4  5
@@ -277,6 +325,39 @@ public class Correlation2d {
     public static int getNumPairs(int numSensors) {
      return  numSensors * (numSensors-1) /2;
     }
+    
+    public void setCorrPairs(int mcorr_sel) {
+		boolean [] corr_calculate = null;
+		if (isCorrAll  (mcorr_sel)) corr_calculate = selectAll();
+		if (isCorrDia  (mcorr_sel)) corr_calculate = selectDiameters  (corr_calculate);
+		if (isCorrSq   (mcorr_sel)) corr_calculate = selectSquares    (corr_calculate);
+		if (isCorrNeib (mcorr_sel)) corr_calculate = selectNeibs      (corr_calculate);
+		if (isCorrHor  (mcorr_sel)) corr_calculate = selectHorizontal (corr_calculate);
+		if (isCorrVert (mcorr_sel)) corr_calculate = selectVertical   (corr_calculate);
+		
+		int sensors_limit = getSensorsLimit(mcorr_sel);
+		if ((sensors_limit != 0) && (numSensors == 16)) { // so far only for 16 sensors
+			boolean [] sel_sensors = new boolean [numSensors];
+			int [][] indices = {
+					{4,12},                // binocular,
+					{2,6,10,14},           // quad
+					{0,2,4,6,8,10,12,14}}; // octal
+			for (int i = 0; i < indices[sensors_limit-1].length; i++) {
+				sel_sensors[indices[sensors_limit-1][i]] = true;
+			}
+//			boolean [] pair_sel = getCorrPairs();
+			for (int i = 0; i < corr_calculate.length; i++) if (corr_calculate[i]){
+				int [] se = getPair(i);
+				if (!sel_sensors[se[0]] || !sel_sensors[se[1]]) {
+					corr_calculate[i] = false;
+				}
+			}
+//			setCorrPairs(pair_sel);
+			//*********************************** limit pairs
+		}
+		setCorrPairs(corr_calculate);
+    }
+    
     
     public void setCorrPairs(boolean [] sel) { // these pairs will be correlated
     	corr_pairs = sel.clone();

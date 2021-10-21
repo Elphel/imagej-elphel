@@ -5456,7 +5456,7 @@ public class QuadCLTCPU {
 		  }
 		  //getNumSensors()
 		  
-		  int mcorr_sel = ImageDtt.corrSelEncode(clt_parameters.img_dtt, getNumSensors());
+		  int mcorr_sel = Correlation2d.corrSelEncode(clt_parameters.img_dtt, getNumSensors());
 //		  if (debugLevel > 1000) texture_tiles = null; // FIXME: until texture generation for multi-cam is fixed
 		  
 		  double [][][][][][] clt_data = image_dtt.clt_aberrations_quad_corr(
@@ -11947,7 +11947,7 @@ public class QuadCLTCPU {
 			  }
 		  }
 
-		  int mcorr_sel = ImageDtt.corrSelEncode(clt_parameters.img_dtt, getNumSensors());
+		  int mcorr_sel = Correlation2d.corrSelEncode(clt_parameters.img_dtt, getNumSensors());
 
 		  image_dtt.clt_aberrations_quad_corr(
 				  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
@@ -12237,7 +12237,7 @@ public class QuadCLTCPU {
 			  }
 		  }
 		  double [][][] fine_corr =  (clt_parameters.fcorr_ignore? null: this.fine_corr);
-		  int mcorr_sel = ImageDtt.corrSelEncode(clt_parameters.img_dtt, getNumSensors());
+		  int mcorr_sel = Correlation2d.corrSelEncode(clt_parameters.img_dtt, getNumSensors());
 		  if (clust_radius > 0) {
 			  if (use_tilted) {
 				  image_dtt.clt_aberrations_quad_corr_tilted(
@@ -12506,7 +12506,7 @@ public class QuadCLTCPU {
 			  }
 		  }
 
-		  int mcorr_sel = ImageDtt.corrSelEncode(clt_parameters.img_dtt, getNumSensors());
+		  int mcorr_sel = Correlation2d.corrSelEncode(clt_parameters.img_dtt, getNumSensors());
 		  image_dtt.clt_aberrations_quad_corr(
 				  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 				  1,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
@@ -12583,7 +12583,7 @@ public class QuadCLTCPU {
 			  final int         debugLevel)
 	  {
 		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
-		  boolean       run_lma =    true;
+		  boolean       run_lma =    clt_parameters.correlate_lma;
 		  boolean       need_diffs = true; //
 		  CLTMeas( // perform single pass according to prepared tiles operations and disparity
 				  clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
@@ -12644,7 +12644,7 @@ public class QuadCLTCPU {
 			  z_correction +=clt_parameters.z_corr_map.get(image_name);
 		  }
 		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
-		  int mcorr_sel = ImageDtt.corrSelEncode(clt_parameters.img_dtt, getNumSensors());
+		  int mcorr_sel = Correlation2d.corrSelEncode(clt_parameters.img_dtt, getNumSensors());
 		  TpTask[] tp_tasks = GpuQuad.setTasks(
 				  num_sensors,                  // final int                      num_cams,
 				  image_dtt.getTransformSize(), // final int                      transform_size,

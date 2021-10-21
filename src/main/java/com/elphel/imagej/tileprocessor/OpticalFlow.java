@@ -3554,7 +3554,8 @@ public class OpticalFlow {
 					"-fpn_"+        noise_sigma_level.scale_fpn+
 					"-sigma_"+      noise_sigma_level.sigma+ // [1]+
 					"-offset"+      noise_sigma_level.initial_offset+ // [2];
-					"-sensors"+     noise_sigma_level.used_sensors;
+					"-sensors"+     noise_sigma_level.used_sensors +
+					(clt_parameters.correlate_lma?"-lma":"-nolma");
 
 			if (ref_only) {
 				rslt_suffix +="-nointer";
@@ -3640,9 +3641,22 @@ public class OpticalFlow {
 		}
 //		String [] combo_dsn_titles = {"disp", "strength", "num_valid","change"};
 		String [] combo_dsn_titles = {"disp", "strength","disp_lma","num_valid","change"};
+		int combo_dsn_indx_disp =     0; // cumulative disparity (from CM or POLY)
+		int combo_dsn_indx_strength = 1;
+		int combo_dsn_indx_lma =      2; // masked copy from 0 - cumulative disparity
+		int combo_dsn_indx_valid =    3; // initial only
+		int combo_dsn_indx_change =   4; // increment
+		boolean read_nonoise_lma =clt_parameters.correlate_lma || true; // read always
 //		final String [] iter_titles = {"disp", "diff", "strength","disp_lma"};
-		final int [] iter_indices = {0,1,2,4}; // which to save for each iteration: {"disp", "strength","disp_lma","change"};
-		final int [] initial_indices = {0,1,3}; // initial: "disp", "strength","num_valid"
+		final int [] iter_indices = {
+				combo_dsn_indx_disp,
+				combo_dsn_indx_strength,
+				combo_dsn_indx_lma,
+				combo_dsn_indx_change}; // which to save for each iteration: {"disp", "strength","disp_lma","change"};
+		final int [] initial_indices = {
+				combo_dsn_indx_disp,
+				combo_dsn_indx_strength,
+				combo_dsn_indx_valid}; // initial: "disp", "strength","num_valid"
 		double [][] combo_dsn =  null;
 		if (noise_sigma_level == null) {
 			double[][] combo_dsn0 = prepareInitialComboDS( // 3
@@ -3657,7 +3671,7 @@ public class OpticalFlow {
 			
 		} else {
 			combo_dsn = ref_scene. readDoubleArrayFromModelDirectory( //"disp", "strength","disp_lma","num_valid"
-					"-results-nonoise", // String      suffix,
+					"-results-nonoise" + (read_nonoise_lma?"-lma":"-nolma"), // String      suffix,
 					combo_dsn_titles.length - 1, // 4
 					null); // int []      wh);
 
@@ -3672,7 +3686,7 @@ public class OpticalFlow {
 		}
 		if (noise_sigma_level != null) { // add initial offset to the expected disparity
 			for (int i = 0; i < combo_dsn_change[0].length; i++) {
-				combo_dsn_change[0][i] += noise_sigma_level.initial_offset; // [2]; 
+				combo_dsn_change[combo_dsn_indx_disp][i] += noise_sigma_level.initial_offset; //initial offset
 			}
 		}
 //		combo_dsn_change[combo_dsn_change.length - 1] = new double [tilesX*tilesY];
@@ -3741,27 +3755,31 @@ public class OpticalFlow {
 						);
 			}
 			// update disparities
-			final int disparity_index = ImageDtt.DISPARITY_INDEX_CM; // 2
-			final int strength_index =  ImageDtt.DISPARITY_STRENGTH_INDEX; // 10
+			double [] map_disparity =     disparity_map[ImageDtt.DISPARITY_INDEX_CM]; // 2
+			double [] map_strength =      disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX]; // 10
+			double [] map_disparity_lma = disparity_map[ImageDtt.DISPARITY_INDEX_POLY]; // 8
 			for (int nTile =0; nTile < combo_dsn_change[0].length; nTile++) {
-				if (!Double.isNaN(combo_dsn_change[0][nTile]) && !Double.isNaN(disparity_map[disparity_index][nTile])) {
-					combo_dsn_change[0][nTile] += disparity_map[disparity_index][nTile];
-					combo_dsn_change[1][nTile]  = disparity_map[strength_index][nTile];
-				}
-			}
-			System.arraycopy(combo_dsn_change[0], 0, combo_dsn_change[2], 0, combo_dsn_change[0].length); // lma
-//			combo_dsn_change[2]  = combo_dsn_change[0].clone(); // lma
-			double [] disp_lma = disparity_map[ImageDtt.DISPARITY_INDEX_POLY];
-			if (disp_lma != null) { 
-				for (int i = 0; i < disp_lma.length; i++) {
-					if (Double.isNaN(disp_lma[i])) {
-						combo_dsn_change[2][i] = Double.NaN;		
+				if (!Double.isNaN(combo_dsn_change[0][nTile])) {
+					if ((map_disparity_lma != null) && !Double.isNaN(map_disparity_lma[nTile])) {
+						combo_dsn_change[combo_dsn_indx_change][nTile] = map_disparity_lma[nTile];
+					} else if (!Double.isNaN(map_disparity[nTile])) {
+						combo_dsn_change[combo_dsn_indx_change][nTile] = map_disparity[nTile] / clt_parameters.ofp.magic_scale;
+					}
+					if (!Double.isNaN(combo_dsn_change[combo_dsn_indx_change][nTile])) {
+						combo_dsn_change[combo_dsn_indx_disp][nTile] +=     combo_dsn_change[combo_dsn_indx_change][nTile]; 
+						combo_dsn_change[combo_dsn_indx_strength][nTile]  = map_strength[nTile]; // combine CM/LMA
 					}
 				}
 			}
-			
-//			combo_dsn_change[combo_dsn_change.length -1] = disparity_map[disparity_index]; 
-			System.arraycopy(disparity_map[disparity_index], 0, combo_dsn_change[combo_dsn_change.length -1], 0, combo_dsn_change[0].length); // lma
+			// Copy disparity to sisparity_lma and just mask out  tiles with no DMA data (keep all if LMA did not run at all)  
+			System.arraycopy(combo_dsn_change[combo_dsn_indx_disp], 0, combo_dsn_change[combo_dsn_indx_lma], 0, combo_dsn_change[combo_dsn_indx_disp].length); // lma
+			if (map_disparity_lma != null) { 
+				for (int i = 0; i < map_disparity_lma.length; i++) {
+					if (Double.isNaN(map_disparity_lma[i])) {
+						combo_dsn_change[combo_dsn_indx_lma][i] = Double.NaN;		
+					}
+				}
+			}
 			
 			for (int i = 0; i < iter_indices.length; i++) {
 				refine_results[last_initial_slices + (i * max_refines) + nrefine] = combo_dsn_change[iter_indices[i]].clone();
@@ -3797,6 +3815,7 @@ public class OpticalFlow {
 					"-sigma_"+      noise_sigma_level.sigma+ // [1]+
 					"-offset"+      noise_sigma_level.initial_offset+ // [2];
 					"-sensors"+     noise_sigma_level.used_sensors;
+			
 			if (ref_only) {
 				rslt_suffix +="-nointer";
 			} else {
@@ -3804,6 +3823,7 @@ public class OpticalFlow {
 			}
 			//rslt_suffix +="-mask"+clt_parameters.img_dtt.dbg_pair_mask;
 		}
+		rslt_suffix += (clt_parameters.correlate_lma?"-lma":"-nolma");
 		ref_scene.saveDoubleArrayInModelDirectory(
 				rslt_suffix,         // String      suffix,
 				refine_titles,       // null,          // String []   labels, // or null
@@ -5052,7 +5072,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 						debug_level);
 			} else { // CPU version
 				Correlation2d correlation2d = image_dtt.getCorrelation2d();
-				int mcorr_sel = ImageDtt.corrSelEncode(clt_parameters.img_dtt,scenes[nscene].getNumSensors());
+				int mcorr_sel = Correlation2d.corrSelEncode(clt_parameters.img_dtt,scenes[nscene].getNumSensors());
 				double [][][][][]   dcorr_td = new double[correlation2d.getCorrTitles().length][][][][];        // [pair][tilesY][tilesX][4][64] sparse transform domain representation of corr pairs
 				image_dtt.quadCorrTD(
 						scenes[nscene].getImageData(),                      // final double [][][]       image_data,      // first index - number of image in a quad
@@ -5669,7 +5689,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			} else { // CPU version
 				//Correlation2d correlation2d = 
 				image_dtt.getCorrelation2d();
-				int mcorr_sel = ImageDtt.corrSelEncode(clt_parameters.img_dtt,scenes[nscene].getNumSensors());
+				int mcorr_sel = Correlation2d.corrSelEncode(clt_parameters.img_dtt,scenes[nscene].getNumSensors());
 				double [][][][]   dcorr_td = new double[tp_tasks.length][][][]; // [tile][pair][4][64] sparse by pair transform domain representation of corr pairs
 				image_dtt.quadCorrTD(
 						scenes[nscene].getImageData(),                      // final double [][][]       image_data,      // first index - number of image in a quad
@@ -5715,7 +5735,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 							// When clt_mismatch is non-zero, no far objects extraction will be attempted
 							//optional, may be null
 							disparity_map,                 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
-							true,                          // final boolean             run_lma,         // calculate LMA, false - CM only
+							clt_parameters.correlate_lma,  // final boolean             run_lma,         // calculate LMA, false - CM only
 							// last 2 - contrast, avg/ "geometric average)
 							clt_parameters.getGpuFatZero(ref_scene.isMonochrome()),   // clt_parameters.getGpuFatZero(ref_scene.isMonochrome()), // final double              afat_zero2,      // gpu_fat_zero ==30? clt_parameters.getGpuFatZero(is_mono); absolute fat zero, same units as components squared values
 							clt_parameters.gpu_sigma_m,    // final double              corr_sigma,      //
@@ -5844,7 +5864,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					// When clt_mismatch is non-zero, no far objects extraction will be attempted
 					//optional, may be null
 					disparity_map,                 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
-					true,                          // final boolean             run_lma,         // calculate LMA, false - CM only
+					clt_parameters.correlate_lma, // true,                          // final boolean             run_lma,         // calculate LMA, false - CM only
 					// last 2 - contrast, avg/ "geometric average)
 					clt_parameters.getGpuFatZero(ref_scene.isMonochrome()),   // clt_parameters.getGpuFatZero(ref_scene.isMonochrome()), // final double              afat_zero2,      // gpu_fat_zero ==30? clt_parameters.getGpuFatZero(is_mono); absolute fat zero, same units as components squared values
 					clt_parameters.gpu_sigma_m,    // final double              corr_sigma,      //

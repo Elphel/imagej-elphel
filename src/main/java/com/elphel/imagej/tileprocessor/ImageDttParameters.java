@@ -101,6 +101,9 @@ public class ImageDttParameters {
 	public boolean mcorr_hor_multi =        true;  // all horizontal
 	public boolean mcorr_vert =             true;  // all vertical (2 pairs for quad, 8 - for lwir16)
 	public boolean mcorr_vert_multi =       true;  // all vertical
+
+	public int     mcorr_limit_sensors =       0;  // 0 - no limit, 1: binocular (12,4), 3 - quad (2,6,10,14), 4 -octal (0,2,4,6,8,10,12,14)
+	
 	//final int                 corr_sel, // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert 
 	public int     mcorr_sel_ly =           1;     // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
 	public int     mcorr_sel_ly_multi =     2+4+8; // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
@@ -112,6 +115,11 @@ public class ImageDttParameters {
 	public boolean mcorr_cons_neib =        true;  // consolidate all having shortest length
 	public boolean mcorr_cons_hor =         true;  // consolidate all horizontal pairs
 	public boolean mcorr_cons_vert =        true;  // consolidate all vertical pairs
+	
+	public double [] mcorr_weights =        {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 16.0}; // static weights of pairs of length 1...8
+	public boolean mcorr_static_weights =   true; // when mixing , apply static weights to pairs depending on their lengths
+	public double  mcorr_weights_power =    1.0;  // divide pair by horizontal (disparity) width after rotation/scaling (skip negative when measuring width)
+	public boolean mcorr_dynamic_weights =  true; // Apply weights to pairs dependent on the width in disparity direction
 	
 	/// these are just for testing, actual will be generated specifically for different applications (LY will use closest pairs)  
 	public int     mcorr_comb_width =       15;
@@ -441,6 +449,10 @@ public class ImageDttParameters {
 					"All vertical pairs. N: 2 for quad, 8 for lwir16");
 			gd.addCheckbox    ("Calculate vertical pairs for multi cameras",                     this.mcorr_vert_multi,
 					"All vertical pairs. N: 2 for quad, 8 for lwir16");
+			
+			gd.addNumericField    ("Limit sensors: (0 - all, 1 - binocular, 2 - quad, 3 - octal)",this.mcorr_limit_sensors,  0, 3, "",
+					"Limit correlations to subset of the sensors for performance comparison: 1 - (4,12), 2 - (2,6,10,14), 3 - (0,2,4,6,8,10,12,14)");
+			
 			gd.addNumericField    ("Select correlation pairs for LY for small cameras",          this.mcorr_sel_ly,  0, 3, "",
 					" +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert");
 			gd.addNumericField    ("Select correlation pairs for LY for multi cameras",          this.mcorr_sel_ly_multi,  0, 3, "",
@@ -458,6 +470,17 @@ public class ImageDttParameters {
 					"Combine all calculated horizontal pairs regardless of length");
 			gd.addCheckbox    ("Combine vertical pairs",                                          this.mcorr_cons_vert,
 					"Combine all calculated vertical pairs regardless of length");
+			gd.addMessage("Weights for mixing correlation pairs");
+			for (int i = 0; i < mcorr_weights.length; i++) {
+				gd.addNumericField("Weight of correlation pair "+(i+1)+" long",                   this.mcorr_weights[i],  3,6,"",
+						"Relative weight of pairs, length - number of sensors intervals (1 - neighbors,..., 8 - diameters)");
+			}
+			gd.addCheckbox    ("Apply static weights defined above",                              this.mcorr_static_weights,
+					"Apply length-dependent weights for rotated/scaled pairs");
+			gd.addNumericField("Divide correlation pair weight by its width to this power",       this.mcorr_weights_power,  3,6,"pix",
+					"Increase weight of pairs with linear features perpendicular to the base direction and long base pairs");
+			gd.addCheckbox    ("Apply dynaminc (feature-dependent) weights defined above",        this.mcorr_dynamic_weights,
+					"Calculate each pairs's width (in the disparity direction) after rotation/scaling and apply");
 
 			gd.addMessage("Generating grid for combining visualization, actual will be provided programmatically");
 			gd.addNumericField("Width of a combined correlation tile",                            this.mcorr_comb_width,  0, 3, "pix",
@@ -783,6 +806,7 @@ public class ImageDttParameters {
   			this.mcorr_hor_multi =       gd.getNextBoolean();
   			this.mcorr_vert =            gd.getNextBoolean();
   			this.mcorr_vert_multi =      gd.getNextBoolean();
+  			this.mcorr_limit_sensors=(int)gd.getNextNumber();
   			
   			this.mcorr_sel_ly=     (int) gd.getNextNumber();
   			this.mcorr_sel_ly_multi=(int)gd.getNextNumber();
@@ -793,6 +817,13 @@ public class ImageDttParameters {
   			this.mcorr_cons_neib =       gd.getNextBoolean();
   			this.mcorr_cons_hor =        gd.getNextBoolean();
   			this.mcorr_cons_vert =       gd.getNextBoolean();
+  			
+			for (int i = 0; i < mcorr_weights.length; i++) {
+				this.mcorr_weights[i] = gd.getNextNumber();
+			}
+  			this.mcorr_static_weights =  gd.getNextBoolean();
+  			this.mcorr_weights_power=    gd.getNextNumber();
+  			this.mcorr_dynamic_weights = gd.getNextBoolean();
   			
   			this.mcorr_comb_width= (int) gd.getNextNumber();
   			this.mcorr_comb_height=(int) gd.getNextNumber();
@@ -983,6 +1014,7 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"mcorr_hor_multi",      this.mcorr_hor_multi +"");
 		properties.setProperty(prefix+"mcorr_vert",           this.mcorr_vert +"");
 		properties.setProperty(prefix+"mcorr_vert_multi",     this.mcorr_vert_multi +"");
+		properties.setProperty(prefix+"mcorr_limit_sensors",  this.mcorr_limit_sensors +"");
 		
 		properties.setProperty(prefix+"mcorr_sel_ly",         this.mcorr_sel_ly +"");
 		properties.setProperty(prefix+"mcorr_sel_ly_multi",   this.mcorr_sel_ly_multi +"");
@@ -993,6 +1025,13 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"mcorr_cons_neib",      this.mcorr_cons_neib +"");
 		properties.setProperty(prefix+"mcorr_cons_hor",       this.mcorr_cons_hor +"");
 		properties.setProperty(prefix+"mcorr_cons_vert",      this.mcorr_cons_vert +"");
+		
+		for (int i = 0; i < mcorr_weights.length; i++) {
+			properties.setProperty(prefix+"mcorr_weights_"+(i+1), this.mcorr_weights[i] +"");
+		}
+		properties.setProperty(prefix+"mcorr_static_weights", this.mcorr_static_weights +"");
+		properties.setProperty(prefix+"mcorr_weights_power",  this.mcorr_weights_power +"");
+		properties.setProperty(prefix+"mcorr_dynamic_weights",this.mcorr_dynamic_weights +"");
 		
 		properties.setProperty(prefix+"mcorr_comb_width",     this.mcorr_comb_width +"");
 		properties.setProperty(prefix+"mcorr_comb_height",    this.mcorr_comb_height +"");
@@ -1187,6 +1226,8 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"mcorr_hor_multi")!=null)      this.mcorr_hor_multi=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_hor_multi"));
 		if (properties.getProperty(prefix+"mcorr_vert")!=null)           this.mcorr_vert=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_vert"));
 		if (properties.getProperty(prefix+"mcorr_vert_multi")!=null)     this.mcorr_vert_multi=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_vert_multi"));
+		if (properties.getProperty(prefix+"mcorr_limit_sensors")!=null)  this.mcorr_limit_sensors=Integer.parseInt(properties.getProperty(prefix+"mcorr_limit_sensors"));
+
 		if (properties.getProperty(prefix+"mcorr_sel_ly")!=null)         this.mcorr_sel_ly=Integer.parseInt(properties.getProperty(prefix+"mcorr_sel_ly"));
 		if (properties.getProperty(prefix+"mcorr_sel_ly_multi")!=null)   this.mcorr_sel_ly_multi=Integer.parseInt(properties.getProperty(prefix+"mcorr_sel_ly_multi"));
 		
@@ -1196,6 +1237,13 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"mcorr_cons_neib")!=null)      this.mcorr_cons_neib=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_cons_neib"));
 		if (properties.getProperty(prefix+"mcorr_cons_hor")!=null)       this.mcorr_cons_hor=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_cons_hor"));
 		if (properties.getProperty(prefix+"mcorr_cons_vert")!=null)      this.mcorr_cons_vert=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_cons_vert"));
+		
+		for (int i = 0; i < mcorr_weights.length; i++) if (properties.getProperty(prefix+"mcorr_weights_"+(i+1))!=null) { 
+				this.mcorr_weights[i] = Double.parseDouble(properties.getProperty(prefix+"mcorr_weights_"+(i+1)));
+		}
+		if (properties.getProperty(prefix+"mcorr_static_weights")!=null) this.mcorr_static_weights=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_static_weights"));
+		if (properties.getProperty(prefix+"mcorr_weights_power")!=null)  this.mcorr_weights_power=Double.parseDouble(properties.getProperty(prefix+"mcorr_weights_power"));
+		if (properties.getProperty(prefix+"mcorr_dynamic_weights")!=null)this.mcorr_dynamic_weights=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_dynamic_weights"));
 		
 		if (properties.getProperty(prefix+"mcorr_comb_width")!=null)     this.mcorr_comb_width=Integer.parseInt(properties.getProperty(prefix+"mcorr_comb_width"));
 		if (properties.getProperty(prefix+"mcorr_comb_height")!=null)    this.mcorr_comb_height=Integer.parseInt(properties.getProperty(prefix+"mcorr_comb_height"));
@@ -1409,6 +1457,8 @@ public class ImageDttParameters {
 		idp.mcorr_vert=              this.mcorr_vert;
 		idp.mcorr_vert_multi=        this.mcorr_vert_multi;
 		
+		idp.mcorr_limit_sensors=     this.mcorr_limit_sensors;
+
 		idp.mcorr_sel_ly=            this.mcorr_sel_ly;
 		idp.mcorr_sel_ly_multi=      this.mcorr_sel_ly_multi;
 
@@ -1418,6 +1468,11 @@ public class ImageDttParameters {
 		idp.mcorr_cons_neib=         this.mcorr_cons_neib;
 		idp.mcorr_cons_hor=          this.mcorr_cons_hor;
 		idp.mcorr_cons_vert=         this.mcorr_cons_vert;
+		
+		idp.mcorr_weights=           this.mcorr_weights.clone();
+		idp.mcorr_static_weights=    this.mcorr_static_weights;
+		idp.mcorr_weights_power=     this.mcorr_weights_power;
+		idp.mcorr_dynamic_weights=   this.mcorr_dynamic_weights;
 		
 		idp.mcorr_comb_width=        this.mcorr_comb_width;
 		idp.mcorr_comb_height=       this.mcorr_comb_height;

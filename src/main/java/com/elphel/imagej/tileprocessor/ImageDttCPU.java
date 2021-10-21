@@ -319,54 +319,6 @@ public class ImageDttCPU {
 	  static int  TCORR_COMBO_VERT =  3; // combined correlation from 2 vertical   pairs (0,1). Used to detect horizontal features
 	  static String [] TCORR_TITLES = {"combo","sum","hor","vert"};
 
-	  static int CORR_SEL_BIT_ALL =   0; 
-	  static int CORR_SEL_BIT_DIA =   1; 
-	  static int CORR_SEL_BIT_SQ =    2;
-	  static int CORR_SEL_BIT_NEIB =  3;
-	  static int CORR_SEL_BIT_HOR =   4;
-	  static int CORR_SEL_BIT_VERT =  5;
-	  
-	  public static int corrSelEncode(
-			  boolean sel_all,
-			  boolean sel_dia,
-			  boolean sel_sq,
-			  boolean sel_neib,
-			  boolean sel_hor,
-			  boolean sel_vert) {
-		  return  (sel_all ?  (1 << CORR_SEL_BIT_ALL):  0) |
-				  (sel_dia ?  (1 << CORR_SEL_BIT_DIA):  0) |
-				  (sel_sq ?   (1 << CORR_SEL_BIT_SQ):   0) |
-				  (sel_neib ? (1 << CORR_SEL_BIT_NEIB): 0) |
-				  (sel_hor ?  (1 << CORR_SEL_BIT_HOR):  0) |
-				  (sel_vert ? (1 << CORR_SEL_BIT_VERT): 0);
-	  }
-	  
-	  public static int corrSelEncode(ImageDttParameters  img_dtt, int num_sensors) {
-		  return corrSelEncode(
-				  img_dtt.getMcorrAll  (num_sensors),  // boolean sel_all,
-				  img_dtt.getMcorrDia  (num_sensors),  // boolean sel_dia,
-				  img_dtt.getMcorrSq   (num_sensors),  // boolean sel_sq,
-				  img_dtt.getMcorrNeib (num_sensors),  // boolean sel_neib,
-				  img_dtt.getMcorrHor  (num_sensors),  // boolean sel_hor,
-				  img_dtt.getMcorrVert (num_sensors)); // boolean sel_vert);
-	  }
-
-/*	  
-	  int mcorr_sel = ImageDtt. corrSelEncode( // maybe update?
-			  clt_parameters.img_dtt.getMcorrAll  (getNumSensors()),  // boolean sel_all,
-			  clt_parameters.img_dtt.getMcorrDia  (getNumSensors()),  // boolean sel_dia,
-			  clt_parameters.img_dtt.getMcorrSq   (getNumSensors()),  // boolean sel_sq,
-			  clt_parameters.img_dtt.getMcorrNeib (getNumSensors()),  // boolean sel_neib,
-			  clt_parameters.img_dtt.getMcorrHor  (getNumSensors()),  // boolean sel_hor,
-			  clt_parameters.img_dtt.getMcorrVert (getNumSensors())); // boolean sel_vert);
-*/
-	  
-	  public static boolean isCorrAll (int sel) { return ((sel >> CORR_SEL_BIT_ALL)  & 1) != 0;}
-	  public static boolean isCorrDia (int sel) { return ((sel >> CORR_SEL_BIT_DIA)  & 1) != 0;}
-	  public static boolean isCorrSq  (int sel) { return ((sel >> CORR_SEL_BIT_SQ)   & 1) != 0;}
-	  public static boolean isCorrNeib(int sel) { return ((sel >> CORR_SEL_BIT_NEIB) & 1) != 0;}
-	  public static boolean isCorrHor (int sel) { return ((sel >> CORR_SEL_BIT_HOR)  & 1) != 0;}
-	  public static boolean isCorrVert(int sel) { return ((sel >> CORR_SEL_BIT_VERT) & 1) != 0;}
 	  
 	  private final boolean monochrome;
 	  private final boolean lwir;       // means that no sqrt correction
@@ -1761,13 +1713,7 @@ public class ImageDttCPU {
 		// this.correlation2d should be non-null
 		boolean [] corr_calculate = null;
 		{
-			if (isCorrAll  (mcorr_sel)) corr_calculate = correlation2d.selectAll();
-			if (isCorrDia  (mcorr_sel)) corr_calculate = correlation2d.selectDiameters  (corr_calculate);
-			if (isCorrSq   (mcorr_sel)) corr_calculate = correlation2d.selectSquares    (corr_calculate);
-			if (isCorrNeib (mcorr_sel)) corr_calculate = correlation2d.selectNeibs      (corr_calculate);
-			if (isCorrHor  (mcorr_sel)) corr_calculate = correlation2d.selectHorizontal (corr_calculate);
-			if (isCorrVert (mcorr_sel)) corr_calculate = correlation2d.selectVertical   (corr_calculate);
-			correlation2d.setCorrPairs(corr_calculate); // will limit correlation pairs calculation
+			correlation2d.setCorrPairs(mcorr_sel); // will limit correlation pairs calculation
 			correlation2d.generateResample( // should be called before
 					mcorr_comb_width,  // combined correlation tile width
 					mcorr_comb_height, // combined correlation tile full height
@@ -2653,14 +2599,7 @@ public class ImageDttCPU {
 		boolean [][] pcombo_sels = null;
 		if (correlation2d != null){
 			// Initialize correlation pairs selection to be used by all threads
-			boolean [] corr_calculate = null;
-			if (isCorrAll  (mcorr_sel)) corr_calculate = correlation2d.selectAll();
-			if (isCorrDia  (mcorr_sel)) corr_calculate = correlation2d.selectDiameters  (corr_calculate);
-			if (isCorrSq   (mcorr_sel)) corr_calculate = correlation2d.selectSquares    (corr_calculate);
-			if (isCorrNeib (mcorr_sel)) corr_calculate = correlation2d.selectNeibs      (corr_calculate);
-			if (isCorrHor  (mcorr_sel)) corr_calculate = correlation2d.selectHorizontal (corr_calculate);
-			if (isCorrVert (mcorr_sel)) corr_calculate = correlation2d.selectVertical   (corr_calculate);
-			correlation2d.setCorrPairs(corr_calculate); // will limit correlation pairs calculation
+			correlation2d.setCorrPairs(mcorr_sel); // will limit correlation pairs calculation
 			correlation2d.generateResample( // should be called before
 					mcorr_comb_width,  // combined correlation tile width
 					mcorr_comb_height, // combined correlation tile full height
@@ -3501,14 +3440,7 @@ public class ImageDttCPU {
 			  throw new IllegalArgumentException ("clt_aberrations_quad_corr_multi(): disparity_map == null!");
 		}
 		// Initialize correlation pairs selection to be used by all threads
-		boolean [] corr_calculate = null;
-		if (isCorrAll  (mcorr_sel)) corr_calculate = correlation2d.selectAll();
-		if (isCorrDia  (mcorr_sel)) corr_calculate = correlation2d.selectDiameters  (corr_calculate);
-		if (isCorrSq   (mcorr_sel)) corr_calculate = correlation2d.selectSquares    (corr_calculate);
-		if (isCorrNeib (mcorr_sel)) corr_calculate = correlation2d.selectNeibs      (corr_calculate);
-		if (isCorrHor  (mcorr_sel)) corr_calculate = correlation2d.selectHorizontal (corr_calculate);
-		if (isCorrVert (mcorr_sel)) corr_calculate = correlation2d.selectVertical   (corr_calculate);
-		correlation2d.setCorrPairs(corr_calculate); // will limit correlation pairs calculation
+		correlation2d.setCorrPairs(mcorr_sel); // will limit correlation pairs calculation
 		correlation2d.generateResample( // should be called before
 				mcorr_comb_width,  // combined correlation tile width
 				mcorr_comb_height, // combined correlation tile full height
@@ -4495,14 +4427,7 @@ public class ImageDttCPU {
 			  throw new IllegalArgumentException ("clt_aberrations_quad_corr_multi(): disparity_map == null!");
 		}
 		// Initialize correlation pairs selection to be used by all threads
-		boolean [] corr_calculate = null;
-		if (isCorrAll  (mcorr_sel)) corr_calculate = correlation2d.selectAll();
-		if (isCorrDia  (mcorr_sel)) corr_calculate = correlation2d.selectDiameters  (corr_calculate);
-		if (isCorrSq   (mcorr_sel)) corr_calculate = correlation2d.selectSquares    (corr_calculate);
-		if (isCorrNeib (mcorr_sel)) corr_calculate = correlation2d.selectNeibs      (corr_calculate);
-		if (isCorrHor  (mcorr_sel)) corr_calculate = correlation2d.selectHorizontal (corr_calculate);
-		if (isCorrVert (mcorr_sel)) corr_calculate = correlation2d.selectVertical   (corr_calculate);
-		correlation2d.setCorrPairs(corr_calculate); // will limit correlation pairs calculation
+		correlation2d.setCorrPairs(mcorr_sel); // will limit correlation pairs calculation
 		correlation2d.generateResample( // should be called before
 				mcorr_comb_width,  // combined correlation tile width
 				mcorr_comb_height, // combined correlation tile full height
@@ -15648,15 +15573,7 @@ public class ImageDttCPU {
 //		}
 		// Initialize correlation pairs selection to be used by all threads
 		if (correlation2d != null){
-			boolean [] corr_calculate = null;
-			if (isCorrAll  (mcorr_sel)) corr_calculate = correlation2d.selectAll();
-			if (isCorrDia  (mcorr_sel)) corr_calculate = correlation2d.selectDiameters  (corr_calculate);
-			if (isCorrSq   (mcorr_sel)) corr_calculate = correlation2d.selectSquares    (corr_calculate);
-			if (isCorrNeib (mcorr_sel)) corr_calculate = correlation2d.selectNeibs      (corr_calculate);
-			if (isCorrHor  (mcorr_sel)) corr_calculate = correlation2d.selectHorizontal (corr_calculate);
-			if (isCorrVert (mcorr_sel)) corr_calculate = correlation2d.selectVertical   (corr_calculate);
-			correlation2d.setCorrPairs(corr_calculate); // will limit correlation pairs calculation
-
+			correlation2d.setCorrPairs(mcorr_sel); // will limit correlation pairs calculation
 			boolean [] calc_corr_pairs = correlation2d.getCorrPairs();
 			for (int i = 0; i < calc_corr_pairs.length; i++) if (calc_corr_pairs[i]){
 				dcorr_td[i] = new double[tilesY][tilesX][][]; 
@@ -15810,14 +15727,7 @@ public class ImageDttCPU {
 	{
 		// Initialize correlation pairs selection to be used by all threads
 		if (correlation2d != null){
-			boolean [] corr_calculate = null;
-			if (isCorrAll  (mcorr_sel)) corr_calculate = correlation2d.selectAll();
-			if (isCorrDia  (mcorr_sel)) corr_calculate = correlation2d.selectDiameters  (corr_calculate);
-			if (isCorrSq   (mcorr_sel)) corr_calculate = correlation2d.selectSquares    (corr_calculate);
-			if (isCorrNeib (mcorr_sel)) corr_calculate = correlation2d.selectNeibs      (corr_calculate);
-			if (isCorrHor  (mcorr_sel)) corr_calculate = correlation2d.selectHorizontal (corr_calculate);
-			if (isCorrVert (mcorr_sel)) corr_calculate = correlation2d.selectVertical   (corr_calculate);
-			correlation2d.setCorrPairs(corr_calculate); // will limit correlation pairs calculation
+			correlation2d.setCorrPairs(mcorr_sel); // will limit correlation pairs calculation
 		}
 //		final int numcol = isMonochrome()?1:3;
 		final int numcol = 3; // number of colors // keep the same, just do not use [0] and [1], [2] - green
