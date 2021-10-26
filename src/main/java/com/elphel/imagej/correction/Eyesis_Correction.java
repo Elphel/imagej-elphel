@@ -7374,36 +7374,57 @@ private Panel panel1,
 			IJ.showMessage("Error","No images selected");
 			return false;
 		}
-		double disparity0 =         0.75;
-		double disparity_max =     75.0; // pix
+		String sky_mask =            "/home/elphel/lwir16-proc/results-cuda/ERS-debug1/models3/1626032208_613623/v01/1626032208_613623-sky_mask.tiff";
+		double disp_inf =           -0.2; // -1.0; // 0.0;            
+		double disparity0 =         0.75; // 2; // 0.75;
+		double disparity_max =     23; // 75.0; // pix
 		boolean show_dialog2 =     false;
 		boolean linear_disparity = false;
+		int     palette =           4;
 		
-		int legend_width = 0;
-		int legend_gap =   5;
+		
+		int legend_width = 2; // 0;
+		int legend_gap =   2; // 5;
 		GenericJTabbedDialog gd0 = new GenericJTabbedDialog("Ln mode");
-		gd0.addNumericField("disparity0",        disparity0,      5,8,"pix", "Disparity to swict from linear to log. ) - skip log mode");
+		gd0.addStringField ("File path of the sky mask",  sky_mask, 80,"optional file with 0.0 - keep, >0.0 - replace with NaN");
+		gd0.addNumericField("Disparity at infinity", disp_inf,      5,8,"pix", "Disparity at infinity ");
+		gd0.addNumericField("disparity0",        disparity0,      5,8,"pix", "Disparity to switch from linear to log. ) - skip log mode");
 		gd0.addNumericField("Maximal disparity", disparity_max,      5,8,"pix", "Fixed maximal disparity (0 - auto");
 		gd0.addCheckbox("Linear disparity legend", linear_disparity);
 		gd0.addNumericField("Legend width",                         legend_width, 0,3,"", "Optional disparity legend vertical bar width");
 		gd0.addNumericField("Legend gap",                           legend_gap, 0,3,"",   "Optional disparity legend vertical bar gap");
+		gd0.addNumericField("palette",                              palette, 0,3,"", "Palette index");
 		gd0.addCheckbox("Show second dialog", show_dialog2);
 		
 		gd0.showDialog();
 		if (gd0.wasCanceled()) return false;
+		sky_mask =            gd0.getNextString();
+		disp_inf =            gd0.getNextNumber();
 		disparity0=           gd0.getNextNumber();
 		disparity_max=        gd0.getNextNumber();
 		linear_disparity =    gd0.getNextBoolean();
 		legend_width=   (int) gd0.getNextNumber();
 		legend_gap=     (int) gd0.getNextNumber();
+		palette=        (int) gd0.getNextNumber();
 		show_dialog2 =        gd0.getNextBoolean();
 
-		boolean log_mode = disparity0 > 0.0;
-		
-		
+		boolean log_mode = disparity0 > 0.00;
+		float [] fsky_mask = null;
+		if (sky_mask.length() > 0) {
+			ImagePlus imp_sky_mask = new ImagePlus(sky_mask);
+			fsky_mask = (float[]) imp_sky_mask.getProcessor().getPixels();
+		}
+//		float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();		
 		int current_slice = imp_sel.getCurrentSlice();
 		ImageStack imageStack = imp_sel.getStack();
-		float [] fpixels = (float[]) imageStack.getPixels(current_slice);
+		float [] fpixels0 = (float[]) imageStack.getPixels(current_slice);
+		float [] fpixels = fpixels0.clone();
+		for (int i = 0; i <fpixels.length; i++) {
+			fpixels[i] -= (float) disp_inf;
+			if ((fsky_mask != null) && (fsky_mask[i] > 0.0f)) {
+				fpixels[i] = Float.NaN;
+			}
+		}
 		int width =  imp_sel.getWidth();
 		int height = imp_sel.getHeight();
 		String title = imp_sel.getShortTitle(); // getTitle();
@@ -7441,11 +7462,10 @@ private Panel panel1,
 				}
 			}
 		}
-		double mn = fpixels[0];
+		double mn = dpixels[0];
 		double mx = mn;
 		double pwr = 1.0;
-		int palette = 2;
-		for (int i = 0; i < fpixels.length; i++) {
+		for (int i = 0; i < dpixels.length; i++) {
 			double d = dpixels[i];
 			if (log_mode) {
 				if (!Double.isNaN(d)) {
@@ -7458,7 +7478,8 @@ private Panel panel1,
 					}
 				}
 			}
-			if (!Double.isNaN(d)) {
+			int px = i % width;
+			if ((px < width0) && !Double.isNaN(d)) { // do not use legend
 				if (!(d <= mx)) mx = d;
 				if (!(d >= mn)) mn = d;
 			}
@@ -7483,13 +7504,11 @@ private Panel panel1,
 			gd.addNumericField("min",                             mn,      5,8,"", "Minimal value to map");
 			gd.addNumericField("max",                             mx,      5,8,"", "Maximal value to map");
 			gd.addNumericField("pwr",                             pwr,     5,8,"", "Exponent power");
-			gd.addNumericField("palette",                         palette, 0,3,"", "Palette index");
 			gd.showDialog();
 			if (gd.wasCanceled()) return false;
 			mn=           gd.getNextNumber();
 			mx=           gd.getNextNumber();
 			pwr=          gd.getNextNumber();
-			palette= (int)gd.getNextNumber();
 		}
 		if (pwr != 1.0) {
 			if (mn < 0) {
@@ -7516,7 +7535,9 @@ private Panel panel1,
 			}
 		}
 		
-		
+		System.out.println("mn="+mn+", mx="+mx);
+//		(new ShowDoubleFloatArrays()) .showArrays(dpixels,  width, height, "test_depth_mn="+mn+"_mx="+mx);
+
 		double [][]  pseudo_pixels = new double [3] [dpixels.length];
 		ThermalColor tc = new ThermalColor(
 				palette, // 	public int     lwir_palette =           0; // 0 - white - hot, 1 - black - hot, 2+ - colored

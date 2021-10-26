@@ -23,6 +23,7 @@
  */
 package com.elphel.imagej.tileprocessor;
 
+import java.awt.Color;
 import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -40,6 +41,10 @@ import com.elphel.imagej.gpu.GpuQuad;
 import com.elphel.imagej.gpu.TpTask;
 
 import ij.IJ;
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.gui.Line;
+import ij.process.ImageProcessor;
 
 public class OpticalFlow {
 	public static double [] ZERO3 = {0.0,0.0,0.0};
@@ -2775,8 +2780,8 @@ public class OpticalFlow {
 		return dsrbg_out;
 	}
 
-	
-	public double [][] transformCameraVewSingle(
+	@Deprecated
+	public double [][] transformCameraVewSingle( // not used
 			double [] scene_xyz, // camera center in world coordinates
 			double [] scene_atr, // camera orientation relative to world frame
 			QuadCLT   scene_QuadClt,
@@ -3604,6 +3609,163 @@ public class OpticalFlow {
 		
 	}
 	
+	public ImagePlus generateSceneOutlines(
+			QuadCLT    ref_scene, // ordered by increasing timestamps
+			QuadCLT [] scenes,
+			int        extra, // add around largest outline
+			int        scale,
+			int        line_width_outline,
+			int        line_width_corners,
+			Color      line_color_outline,
+			Color      line_color_corners
+			) {
+		int step_outline = 5;
+		int tilesX = ref_scene.getTileProcessor().getTilesX();
+		int tilesY = ref_scene.getTileProcessor().getTilesY();
+		int transform_size = ref_scene.getTileProcessor().getTileSize();
+		ErsCorrection ers_reference = ref_scene.getErsCorrection();
+		double [][] corners = {//new double [4][3]; // for each corner {px, py, d}
+				{0.00,                         0.0,                         0.0},
+				{tilesX * transform_size - 1, 0.0,                         0.0}, 
+				{tilesX * transform_size - 1, tilesY * transform_size - 1, 0.0}, 
+				{0.0,                         tilesY * transform_size - 1, 0.0}, 
+		};
+		double [][][] outlines = new double [scenes.length][corners.length][];
+		double minx = tilesX * transform_size, maxx = 0.0, miny = tilesY * transform_size, maxy = 0.0; //
+		for (int nscene = 0; nscene < scenes.length; nscene++ ) {
+			String ts = scenes[nscene].getImageName();
+			for (int ncorn = 0; ncorn < corners.length; ncorn++) {
+				double []   ref_xyz = ers_reference.getSceneXYZ(ts);
+				double []   ref_atr = ers_reference.getSceneATR(ts);
+
+				double [] pXpYD = scenes[nscene].getErsCorrection().getImageCoordinatesERS(
+						ref_scene,          // QuadCLT cameraQuadCLT,    // camera station that got image to be to be matched 
+						corners[ncorn][0],  // double px,                // pixel coordinate X in the reference view
+						corners[ncorn][1],  // double py,                // pixel coordinate Y in the reference view
+						corners[ncorn][2],  // double disparity,         // this reference disparity 
+						true,               // boolean distortedView,    // This camera view is distorted (diff.rect), false - rectilinear
+						ref_xyz,            // double [] reference_xyz,  // this view position in world coordinates (typically zero3)
+						ref_atr,            // double [] reference_atr,  // this view orientation relative to world frame  (typically zero3)
+						true,               // boolean distortedCamera,  // camera view is distorted (false - rectilinear)
+						new double [3], // double [] camera_xyz,     // camera center in world coordinates
+						new double [3], // double [] camera_atr,     // camera orientation relative to world frame
+						1.0); // double    line_err)       // threshold error in scan lines (1.0)
+				outlines[nscene][ncorn] = pXpYD;
+				if (minx > pXpYD[0]) minx = pXpYD[0];
+				if (miny > pXpYD[1]) miny = pXpYD[1];
+				if (maxx < pXpYD[0]) maxx = pXpYD[0];
+				if (maxy < pXpYD[1]) maxy = pXpYD[1];
+				System.out.println(String.format("%3d:%1d: px= %8.2f py= %8.2f disparity= %8.5f",nscene, ncorn, pXpYD[0], pXpYD[1], pXpYD[2]));
+			}
+			System.out.println();
+		}
+		int ix0 =    (int) Math.floor(minx) - extra;  // original pixels, subtract from data
+		int width =  scale * (((int) Math.ceil (maxx) - ix0 ) + extra);  // scaled
+		int iy0 =    (int) Math.floor(miny) - extra; 
+		int height = scale * (((int) Math.ceil (maxy) - iy0 ) + extra);
+		ImageStack stack = new 		ImageStack(width, height);
+		int [] blank = new int [width*height];
+		for (int nscene = 0; nscene < (scenes.length + 2); nscene++ ) {
+			String slice_title = "";
+			if (nscene < scenes.length) {
+				slice_title = scenes[nscene].getImageName();
+			} else if (nscene == scenes.length) {
+				slice_title = "corners";
+			} else {
+				slice_title = "all";
+			}
+			stack.addSlice(slice_title, blank.clone());
+		}
+		// Draw outline on each individual slice
+		for (int nscene = 0; nscene < scenes.length; nscene++ ) {
+			ImageProcessor ip = stack.getProcessor(nscene+1);
+			ip.setLineWidth(line_width_outline);
+			ip.setColor    (line_color_outline); // does not work?
+			for (int icorn = 0; icorn < outlines[nscene].length; icorn++) {
+				int icorn_next = icorn+1;
+				if (icorn_next >= outlines[nscene].length) {
+					icorn_next = 0;
+				}
+				double [][] se = {
+						{scale * (outlines[nscene][icorn][0]-ix0),     scale * (outlines[nscene][icorn][1]-iy0)},
+						{scale * (outlines[nscene][icorn_next][0]-ix0),scale * (outlines[nscene][icorn_next][1]-iy0)}};
+				for (int dy = -line_width_outline+1; dy < line_width_outline; dy+=2) {
+					for (int dx = -line_width_outline+1; dx < line_width_outline; dx+=2) {
+						Line line = new Line(se[0][0] + 0.5*dx, se[0][1] + 0.5*dy, se[1][0] + 0.5*dx, se[1][1] + 0.5*dy);
+						line.drawPixels(ip);
+					}
+				}
+			}
+		}
+		int indx_corners = scenes.length;
+		int indx_all =    indx_corners+1;
+		// Trace corners
+		{
+			ImageProcessor ip = stack.getProcessor(indx_corners+1);
+			ip.setLineWidth(line_width_corners);
+			ip.setColor    (line_color_corners); // does not work?
+			for (int icorn = 0; icorn < outlines[0].length; icorn++) {
+				for (int nscene = 0; nscene < (scenes.length - 1); nscene++ ) {
+					double [][] se = {
+					{scale * (outlines[nscene][icorn][0]-ix0),     scale * (outlines[nscene][icorn][1]-iy0)},
+					{scale * (outlines[nscene + 1][icorn][0]-ix0),scale * (outlines[nscene+1][icorn][1]-iy0)}};
+					for (int dy = -line_width_corners+1; dy < line_width_corners; dy+=2) {
+						for (int dx = -line_width_corners+1; dx < line_width_corners; dx+=2) {
+							Line line = new Line(se[0][0] + 0.5*dx, se[0][1] + 0.5*dy, se[1][0] + 0.5*dx, se[1][1] + 0.5*dy);
+							line.drawPixels(ip);
+						}
+					}
+				}
+			}			
+		}
+		// Combine all in last slice
+		{
+			// outlines
+			ImageProcessor ip = stack.getProcessor(indx_all+1);
+			ip.setLineWidth(line_width_outline);
+			ip.setColor    (line_color_outline); // does not work?
+			for (int nscene = 0; nscene < scenes.length; nscene++ ) if (((scenes.length - nscene -1) % step_outline) == 0){
+				for (int icorn = 0; icorn < outlines[nscene].length; icorn++) {
+					int icorn_next = icorn+1;
+					if (icorn_next >= outlines[nscene].length) {
+						icorn_next = 0;
+					}
+					double [][] se = {
+							{scale * (outlines[nscene][icorn][0]-ix0),     scale * (outlines[nscene][icorn][1]-iy0)},
+							{scale * (outlines[nscene][icorn_next][0]-ix0),scale * (outlines[nscene][icorn_next][1]-iy0)}};
+					for (int dy = -line_width_outline+1; dy < line_width_outline; dy+=2) {
+						for (int dx = -line_width_outline+1; dx < line_width_outline; dx+=2) {
+							Line line = new Line(se[0][0] + 0.5*dx, se[0][1] + 0.5*dy, se[1][0] + 0.5*dx, se[1][1] + 0.5*dy);
+							line.drawPixels(ip);
+						}
+					}
+
+				}
+			}
+			// corners
+			ip.setLineWidth(line_width_corners);
+			ip.setColor    (line_color_corners); // does not work?
+			for (int icorn = 0; icorn < outlines[0].length; icorn++) {
+				for (int nscene = 0; nscene < (scenes.length - 1); nscene++ ) {
+					double [][] se = {
+					{scale * (outlines[nscene][icorn][0]-ix0),     scale * (outlines[nscene][icorn][1]-iy0)},
+					{scale * (outlines[nscene + 1][icorn][0]-ix0),scale * (outlines[nscene+1][icorn][1]-iy0)}};
+					for (int dy = -line_width_corners+1; dy < line_width_corners; dy+=2) {
+						for (int dx = -line_width_corners+1; dx < line_width_corners; dx+=2) {
+							Line line = new Line(se[0][0] + 0.5*dx, se[0][1] + 0.5*dy, se[1][0] + 0.5*dx, se[1][1] + 0.5*dy);
+							line.drawPixels(ip);
+						}
+					}
+				}
+			}			
+			
+		}
+		
+        ImagePlus imp_stack = new ImagePlus("scene_outlines", stack);
+        imp_stack.getProcessor().resetMinAndMax();
+        imp_stack.show();
+		return imp_stack;
+	}
 	
 	public void intersceneNoise(
 			CLTParameters        clt_parameters,
@@ -3676,10 +3838,35 @@ public class OpticalFlow {
 					null); // int []      wh);
 
 		}
+		
+		
+		
 //		final double [][] combo_dsn_change = new double [combo_dsn.length+1][];
 		final int margin = 8;
 		final int tilesX = ref_scene.getTileProcessor().getTilesX();
 		final int tilesY = ref_scene.getTileProcessor().getTilesY();
+		if (debug_level > -1) {
+			int        extra = 10; // pixels around largest outline
+			int        scale = 4;
+
+			int        line_width_outline = 1;
+			int        line_width_corners = 3;
+			Color      line_color_outline = new Color(0, 255, 0);   // green
+			Color      line_color_corners = new Color(0, 255, 255); // cyan
+
+			// generating scene outlines for results documentation
+			ImagePlus imp_outlines = generateSceneOutlines(
+					ref_scene,          // QuadCLT    ref_scene, // ordered by increasing timestamps
+					scenes,             // QuadCLT [] scenes
+					extra,              // int        extra // add around largest outline
+					scale,              // int        scale,
+					line_width_outline, // int        line_width_outline,
+					line_width_corners, // int        line_width_corners,
+					line_color_outline, // Color      line_color_outline,
+					line_color_corners  // Color      line_color_corners
+					);		
+			imp_outlines.show();
+		}
 		final double [][] combo_dsn_change = new double [combo_dsn_titles.length] [tilesX*tilesY];
 		for (int i = 0; i < combo_dsn.length; i++) { // 4 elements: "disp", "strength","disp_lma","num_valid"
 			if (combo_dsn[i] != null) combo_dsn_change[i] = combo_dsn[i]; // all but change
@@ -3930,7 +4117,7 @@ public class OpticalFlow {
 					tolerance_scene_absolute,  // final double      tolerance_scene_absolute, // of 4 bi-linear interpolation corners
 					tolerance_scene_relative); // final double      tolerance_scene_relative)  // of 4 bi-linear interpolation corners
 		}		
-		if (debug_level > -1) {
+		if (debug_level > -1) { // **** Used to create images for report !
 			String []   dbg_titles = new String [2*num_scenes];
 			double [][] dbg_img =    new double [2*num_scenes][];
 			for (int i = 0; i < num_scenes; i++) {
@@ -4064,9 +4251,9 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		final double disparity_corr = debug_disparity_bias; // 0.0; // (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
 		for (int nscene = 0; nscene < num_scenes; nscene++) {
 			if (nscene == indx_ref) {
-				System.out.println("\nCorrelating reference scene, nrefine = "+nrefine+"\n");
+				System.out.println("Correlating reference scene, nrefine = "+nrefine);
 			} else {
-				System.out.println("\nCorrelating scene "+nrefine+":"+nscene+"\n");
+				System.out.println("Correlating scene "+nrefine+":"+nscene);
 			}
 			String ts = scenes[nscene].getImageName();
 			double [][] scene_pXpYD;
@@ -4998,9 +5185,9 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		TpTask[] tp_tasks_ref = null;
 		for (int nscene = 0; nscene < num_scenes; nscene++) {
 			if (nscene == indx_ref) {
-				System.out.println("\nCorrelating reference scene, nrefine = "+nrefine+"\n");
+				System.out.println("Correlating reference scene, nrefine = "+nrefine);
 			} else {
-				System.out.println("\nCorrelating scene "+nrefine+":"+nscene+"\n");
+				System.out.println("Correlating scene "+nrefine+":"+nscene);
 			}
 			String ts = scenes[nscene].getImageName();
 			double [][] scene_pXpYD;
@@ -5583,9 +5770,9 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		TpTask[] tp_tasks_ref = null;
 		for (int nscene = 0; nscene < num_scenes; nscene++) {
 			if (nscene == indx_ref) {
-				System.out.println("\nCorrelating reference scene, nrefine = "+nrefine+"\n");
+				System.out.println("Correlating reference scene, nrefine = "+nrefine);
 			} else {
-				System.out.println("\nCorrelating scene "+nrefine+":"+nscene+"\n");
+				System.out.println("Correlating scene "+nrefine+":"+nscene);
 			}
 			String ts = scenes[nscene].getImageName();
 			double [][] scene_pXpYD;
@@ -5750,7 +5937,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 							clt_parameters.tileX,          // final int                 debug_tileX,
 							clt_parameters.tileY,          // final int                 debug_tileY,
 							threadsMax,                    // final int                 threadsMax,      // maximal number of threads to launch
-							debug_level -1 );              // final int                 globalDebugLevel)
+							debug_level + 2); // -1 );              // final int                 globalDebugLevel)
 					image_dtt.convertFcltCorr(
 							dcorr_tiles, // double [][][] dcorr_tiles,// [tile][sparse, correlation pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 							fclt_corr);  // float  [][][] fclt_corr) //  new float [tilesX * tilesY][][] or null
@@ -5829,7 +6016,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					clt_parameters.tileX,      		    // final int               debug_tileX,
 					clt_parameters.tileY,          		// final int               debug_tileY,
 					threadsMax,
-					debug_level -1 );
+					debug_level + (show_reference_correlations? 2 : -1) );
 
 		} else {
 			double [][][][]   dcorr_td = new double[tp_tasks_ref.length][][][]; // [tile][pair][4][64] sparse transform domain representation of corr pairs
@@ -5879,8 +6066,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					clt_parameters.tileX,          // final int                 debug_tileX,
 					clt_parameters.tileY,          // final int                 debug_tileY,
 					threadsMax,                    // final int                 threadsMax,      // maximal number of threads to launch
-					debug_level -1 );              // final int                 globalDebugLevel)
-			
+					debug_level + (show_reference_correlations? 2 : -1));              // final int                 globalDebugLevel)
 			image_dtt.convertFcltCorr(
 					dcorr_tiles, // double [][][] dcorr_tiles,// [tile][sparse, correlation pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 					fclt_corr);  // float  [][][] fclt_corr) //  new float [tilesX * tilesY][][] or null

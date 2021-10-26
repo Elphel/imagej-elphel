@@ -917,7 +917,7 @@ public class ErsCorrection extends GeometryCorrection {
 	 * @param camera_xyz camera lens position during centerline acquisition in world coordinates, null - use instance global
 	 * @param camera_atr camera orientation during centerline acquisition in world frame, null - use instance global
 	 * @param line_err iterate until the line (pY) correction is below this value
-	 * @return {px, py, disparity } (right, down) or null if behind the camera
+	 * @return {px, py, disparity } (right, down) or null if behind the camera of the other camera
 	 */
 	
 	public double [] getImageCoordinatesERS(
@@ -1064,7 +1064,8 @@ public class ErsCorrection extends GeometryCorrection {
 	 * @param line_err iterate until the line (pY) correction is below this value
 	 * @return {px, py, disparity } (right, down)
 	 */
-	public double [] getImageCoordinatesERS( // USED in lwir
+	@Deprecated
+	public double [] getImageCoordinatesERS( // not used?
 			double [] xyzw,
 			boolean correctDistortions, // correct distortion (will need corrected background too !)
 			double    line_err) // threshold error in scan lines (1.0)

@@ -16193,7 +16193,11 @@ public class ImageDttCPU {
 								}
 							}
 						}
-						boolean debugTile0 =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -3);
+						boolean debugTile0 =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -6);
+						if (debugTile0) {
+							System.out.println("clt_process_tl_correlations(): tileX="+tileX+", tileY="+tileY);
+						}
+
 						// TODO: move port coordinates out of color channel loop
 						// double [][] centersXY = tp_tasks[iTile].getDoubleXY(); // isAux());
 						double [][] disp_dist = tp_tasks[iTile].getDoubleDispDist();
@@ -16225,11 +16229,55 @@ public class ImageDttCPU {
 						double [] disp_str = {0.0, 0.0}; // diaprity = 0 will be initial approximation for LMA if no averaging
 						if (combine_corrs) {
 							double [] corr_combo_tile = correlation2d.accumulateInit(); // combine all available pairs
-							double sumw = correlation2d.accummulatePairs(
-									corr_combo_tile,           // double []   accum_tile,
-									corrs,                     // double [][] corr_tiles, may be longer than selection, extra will be ignored 
-									correlation2d.selectAll(), // boolean []  selection,
-									1.0);             // double      weight);
+							double sumw = 0.0;
+							
+							if (imgdtt_params.mcorr_static_weights || imgdtt_params.mcorr_dynamic_weights) {
+								double [] weights = new double [correlation2d.getNumPairs()];
+								if (imgdtt_params.mcorr_static_weights) {
+									int [] pair_lengths = correlation2d.getPairLengths();
+									for (int npair = 0; npair< weights.length; npair++) if (corrs[npair] != null) {
+										weights[npair] = imgdtt_params.mcorr_weights[pair_lengths[npair] - 1];
+									}
+								} else {
+									for (int npair = 0; npair< weights.length; npair++) if (corrs[npair] != null) {
+										weights[npair] = 1.0;
+									}
+//									Arrays.fill(weights, 1.0);
+								}
+								if (imgdtt_params.mcorr_dynamic_weights) {
+									for (int npair = 0; npair< weights.length; npair++) if (corrs[npair] != null) {
+										double pair_width = correlation2d. getPairWidth(
+												corrs[npair] , //double [] corr_tile,
+									    		npair);        // int       num_pair)
+										if (pair_width < 0.1) {
+											System.out.println("pair_width["+npair+"]="+pair_width);
+										} else {
+										weights[npair] /= Math.pow(pair_width, imgdtt_params.mcorr_weights_power);
+										}
+									}
+									
+								}
+								if (debugTile0) {
+									System.out.println("clt_process_tl_correlations(): per-pair weights:");
+									for (int npair = 0; npair< weights.length; npair++) if (weights[npair] > 0.0) {
+										int [] pair = correlation2d.getPair(npair);
+										int pair_length = correlation2d.getPairLength(npair);
+										System.out.println(String.format("%3d: %2d -> %2d [%2d]: %8.5f",npair,pair[0],pair[1],pair_length,weights[npair]));
+									}
+								}
+								sumw = correlation2d.accummulatePairs(
+										corr_combo_tile,      // double []   accum_tile,
+										corrs,                // double [][] corr_tiles, may be longer than selection, extra will be ignored 
+										weights);             // double []     weights);
+							} else { // old way, same weight for all pairs
+								sumw = correlation2d.accummulatePairs(
+										corr_combo_tile,           // double []   accum_tile,
+										corrs,                     // double [][] corr_tiles, may be longer than selection, extra will be ignored 
+										correlation2d.selectAll(), // boolean []  selection,
+										1.0);             // double      weight);
+							}
+							
+							
 							correlation2d.normalizeAccumulatedPairs(
 									corr_combo_tile,
 									sumw);

@@ -116,9 +116,10 @@ public class ImageDttParameters {
 	public boolean mcorr_cons_hor =         true;  // consolidate all horizontal pairs
 	public boolean mcorr_cons_vert =        true;  // consolidate all vertical pairs
 	
-	public double [] mcorr_weights =        {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 16.0}; // static weights of pairs of length 1...8
+//	public double [] mcorr_weights =        {1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 16.0}; // static weights of pairs of length 1...8
+	public double [] mcorr_weights =        {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0}; // static weights of pairs of length 1...8
 	public boolean mcorr_static_weights =   true; // when mixing , apply static weights to pairs depending on their lengths
-	public double  mcorr_weights_power =    1.0;  // divide pair by horizontal (disparity) width after rotation/scaling (skip negative when measuring width)
+	public double  mcorr_weights_power =    2.0;  // divide pair by horizontal (disparity) width after rotation/scaling (skip negative when measuring width)
 	public boolean mcorr_dynamic_weights =  true; // Apply weights to pairs dependent on the width in disparity direction
 	
 	/// these are just for testing, actual will be generated specifically for different applications (LY will use closest pairs)  

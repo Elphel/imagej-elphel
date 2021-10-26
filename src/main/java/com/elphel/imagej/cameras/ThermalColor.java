@@ -112,7 +112,121 @@ public class ThermalColor {
 				0xfff8c4, 0xfff9c7, 0xfff9ca, 0xfff9cd, 0xfffad1, 0xfffad4, 0xfffbd8, 0xfffcdb,
 				0xfffcdf, 0xfffde2, 0xfffde5, 0xfffde8, 0xfffeeb, 0xfffeee, 0xfffef1, 0xfffef4,
 				0xffffff};
-		int [][] palettes = {white_hot_palette, black_hot_palette, iron_palette};
+		int [] pal01_palette = {0x1f77b4,0xff7f0e,
+				0x2ca02c,
+				0xd62728,
+				0x9467bd,
+				0x8c564b,
+				0xe377c2,
+				0x7f7f7f,
+				0xbcbd22,
+				0x17becf};
+		int [] viridis_palette = {
+				0x46317e,
+				0x365b8c,
+				0x277e8e,
+				0x1fa187,
+				0x49c16d,
+				0x9fd938};
+		
+		int [] viridis_mod_palette = {
+				0x401080,
+				0x46317e,
+				0x365b8c,
+				0x277e8e,
+				0x1fa187,
+				0x49c16d,
+				0x9fd938,
+				0xcc9000,
+				0xff6000
+				};
+		
+		int [] coolwarm_palette = {
+				0x6788ed ,
+				0x99bafe ,
+				0xc8d7ef ,
+				0xedd0c1 ,
+				0xf6a789 ,
+				0xe16852};
+		int [] cubehelix_palette = {
+				0x1a2341 ,
+				0x1b6144 ,
+				0x687a30 ,
+				0xc77a7c ,
+				0xcda2e0 ,
+				0xc6e1f1};
+		int [] hsv_palette = {		
+				0xffd400 ,
+				0x4eff00 ,
+				0xff85 ,
+				0x9dff ,
+				0x3600ff ,
+				0xff00ec};
+		int [] hsv2_palette = {		
+				0xffd400 ,
+				0x4eff00 ,
+				0xff85 ,
+				0x9dff ,
+				0x3600ff ,
+				0xff00ec,
+				0xffd400 ,
+				0x4eff00 ,
+				0xff85 ,
+				0x9dff ,
+				0x3600ff ,
+				0xff00ec};
+		int [] hsv3_palette = {		
+				0xffd400 ,
+				0x4eff00 ,
+				0xff85 ,
+				0x9dff ,
+				0x3600ff ,
+				0xff00ec,
+				0xffd400 ,
+				0x4eff00 ,
+				0xff85 ,
+				0x9dff ,
+				0x3600ff ,
+				0xff00ec ,
+				0xffd400 ,
+				0x4eff00 ,
+				0xff85 ,
+				0x9dff ,
+				0x3600ff ,
+				0xff00ec};
+		
+		int [] spectral_palette = {		
+				0xe1514a ,
+				0xfba55c ,
+				0xfee899 ,
+				0xecf7a2 ,
+				0xa1d9a4 ,
+				0x479fb3};
+
+		int [] spectral_r_palette = {		
+				0x479fb3 ,
+				0xa1d9a4 ,
+				0xecf7a2 ,
+				0xfee899 ,
+				0xfba55c ,
+				0xe1514a};
+
+
+		int [][] palettes = {
+				white_hot_palette,
+				black_hot_palette,
+				iron_palette,
+				pal01_palette,
+				viridis_palette,
+				coolwarm_palette,
+				cubehelix_palette,
+				hsv_palette,
+				hsv2_palette,
+				hsv3_palette,
+				viridis_mod_palette,
+				spectral_palette,
+				spectral_r_palette
+		};
 		if (indx <0) indx = 0;
 		else if (indx >= palettes.length) indx = palettes.length - 1;
 		return palettes[indx];

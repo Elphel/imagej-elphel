@@ -209,6 +209,12 @@ public class Correlation2d {
 	
 	private static int SUB_SAMPLE = 16;  // subsample source pixel in each direction when generating
 	public static int THREADS_MAX = 100; 
+	public int getPairLength(int pair) {
+		return pair_length[pair];
+	}
+	public int [] getPairLengths() {
+		return pair_length;
+	}
 	
 	// All used pairs (but the diameters) are clockwise (end is clockwise of start)
 	// Orientation calculations are valid for clockwise only
@@ -429,7 +435,7 @@ public class Correlation2d {
      * Add 2D correlation for a pair to the combined correlation tile, applying rotation/scaling
      * @param accum_tile tile for accumulation in line-scan order, same dimension as during generateResample()
      * @param corr_tile correlation tile (currently 15x15)
-     * @param num_pair number of correlation pair for which resamplind data exists
+     * @param num_pair number of correlation pair for which resampling data exists
      * @param weight multiply added tile data by this coefficient before accumulation
      */
     public void accummulatePair(
@@ -472,6 +478,26 @@ public class Correlation2d {
     	return sumw;
     }
     
+    public double accummulatePairs(
+    		double []   accum_tile,
+    		double [][] corr_tiles,
+    		double  []   weights) {
+    	double sumw = 0.0;
+    	for (int num_pair = 0; num_pair < weights.length; num_pair++) {
+    		if ((weights[num_pair]>0.0) && (corr_tiles[num_pair] != null)) {
+    			accummulatePair(
+    					accum_tile,
+    		    		corr_tiles[num_pair],
+    		    		num_pair,
+    		    		weights[num_pair]);
+    			sumw+=weights[num_pair];
+    		}
+    	}
+    	return sumw;
+    }
+    
+    
+    
     public void normalizeAccumulatedPairs(
     		double []   accum_tile,
     		double      sumw) {
@@ -481,6 +507,36 @@ public class Correlation2d {
     			accum_tile[i] *= k;
     		}
     	}
+    }
+    
+    /**
+     * Calculate correlation pair width in the disparity direction to boost weights of the most
+     * informative (for disparity) pairs 
+     * @param corr_tile for selected pair 
+     * @param num_pair selected pair number
+     * @return pair width (in pixels) in the disparity direction after applying rotation and scaling
+     */
+    public double getPairWidth(
+    		double [] corr_tile,
+    		int       num_pair){ // Center line only
+     	if ((resample_indices == null) || (resample_indices[num_pair] == null)) {
+    		throw new IllegalArgumentException ("getPairWidth(): No resample data for num_pair = "+num_pair);
+    	}
+    	double s0 = 0.0, s1 = 0.0, s2 = 0.0;
+		int indx = mcorr_comb_width * (mcorr_comb_offset + ((mcorr_comb_height - 1) / 2));
+    	for (int ix = 0; ix < mcorr_comb_width; ix ++ ) if (resample_indices[num_pair][indx] != null){
+    		for (int j = 0; j < resample_indices[num_pair][indx].length; j++) {
+    			double d = corr_tile[resample_indices[num_pair][indx][j]] * resample_weights[num_pair][indx][j];
+    			if (d < 0) {
+    				d = 0.0; // was get5ting negative (s0*s2- s1*s1) !
+    			}
+    			s0 += d;
+    			s1 += d * ix; 
+    			s2 += d * ix * ix; 
+    		}
+    		indx++;
+    	}
+    	return Math.sqrt(s0*s2- s1*s1)/s0;
     }
     
     
