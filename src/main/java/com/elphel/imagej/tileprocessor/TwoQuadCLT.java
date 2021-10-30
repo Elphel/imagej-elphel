@@ -8715,7 +8715,6 @@ if (debugLevel > -100) return true; // temporarily !
 		// 1626032208_613623-results-rnd_0.003-fpn_0.0-sigma_1.5-offset1.0-sensors16-inter.tiff
 	
 		double [][] noise_task = {
-				/*
 				{0.00, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.00, 0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.00, 0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
@@ -8725,60 +8724,125 @@ if (debugLevel > -100) return true; // temporarily !
 				{0.00, 0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
 				{0.00, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
 
-				{0.003,0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				/*{0.003,0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.003,0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.003,0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
 				{0.003,0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
 				{0.003,0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.003,0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.003,0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.003,0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+				{0.003,0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
 
-				{0.01, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				/*{0.01, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.01, 0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.01, 0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
 				{0.01, 0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
 				{0.01, 0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.01, 0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.01, 0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.01, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+				{0.01, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
+
+				{0.02, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.02, 0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{0.02, 0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
+				{0.02, 0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{0.02, 0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{0.02, 0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{0.02, 0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{0.02, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
 				
-				{0.03, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				/*{0.03, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.03, 0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.03, 0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
 				{0.03, 0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
 				{0.03, 0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.03, 0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.03, 0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.03, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+				{0.03, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
 
-				{0.06, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				/*{0.04, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.04, 0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{0.04, 0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
+				{0.04, 0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{0.04, 0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{0.04, 0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{0.04, 0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{0.04, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
+
+				{0.05, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.05, 0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{0.05, 0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
+				{0.05, 0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{0.05, 0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{0.05, 0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{0.05, 0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{0.05, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+				
+				
+				/*{0.06, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.06, 0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.06, 0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
 				{0.06, 0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
 				{0.06, 0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.06, 0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.06, 0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.06, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+				{0.06, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
 
-				{0.1,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				/*{0.08, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.08, 0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{0.08, 0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
+				{0.08, 0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{0.08, 0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{0.08, 0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{0.08, 0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{0.08, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
+
+				/*{0.1,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.1,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.1,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
 				{0.1,  0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
 				{0.1,  0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.1,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.1,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.1,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+				{0.1,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
 
-				{0.2,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				/*{0.13,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.13,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{0.13,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
+				{0.13,  0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{0.13,  0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{0.13,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{0.13,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{0.13,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
+
+				/*{0.16,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.16,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{0.16,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
+				{0.16,  0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{0.16,  0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{0.16,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{0.16,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{0.16,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
+				
+				/*{0.2,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.2,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.2,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
 				{0.2,  0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
 				{0.2,  0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.2,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.2,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.2,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
-				{0.3,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.2,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
+
+				/*{0.25,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.25,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{0.25,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
+				{0.25,  0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{0.25,  0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{0.25,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{0.25,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{0.25,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
+				
+				/*{0.3,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.3,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.3,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
 				{0.3,  0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
@@ -8813,7 +8877,7 @@ if (debugLevel > -100) return true; // temporarily !
 				{0.6,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.6,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
 				{0.6,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
-				*/
+
 				{0.7,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.7,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.7,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter 
@@ -8821,17 +8885,35 @@ if (debugLevel > -100) return true; // temporarily !
 				{0.7,  0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.7,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.7,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.7,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+				{0.7,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
 
-				{0.8,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				/*{0.8,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.8,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.8,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter 
 				{0.8,  0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
 				{0.8,  0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.8,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.8,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.8,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+				{0.8,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
 
+				{0.9,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.9,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{0.9,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter 
+				{0.9,  0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{0.9,  0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{0.9,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{0.9,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{0.9,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+
+				{1.0,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{1.0,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{1.0,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter 
+				{1.0,  0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{1.0,  0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{1.0,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{1.0,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{1.0,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+				
 		};
 		System.out.println ("\n\n\n");
 		System.out.println("Noise parameters for this batch run are hard-wired in the code above this line");
@@ -9049,6 +9131,7 @@ if (debugLevel > -100) return true; // temporarily !
 				"-results-rnd_0.003-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
 				"-results-rnd_0.003-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
 				"-results-rnd_0.003-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+				
 				"-results-rnd_0.01-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
 				"-results-rnd_0.01-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
 				"-results-rnd_0.01-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
@@ -9057,6 +9140,16 @@ if (debugLevel > -100) return true; // temporarily !
 				"-results-rnd_0.01-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
 				"-results-rnd_0.01-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
 				"-results-rnd_0.01-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+				
+				"-results-rnd_0.02-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
+				"-results-rnd_0.02-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
+				"-results-rnd_0.02-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
+				"-results-rnd_0.02-fpn_0.0-sigma_1.5-offset1.4142-sensors2-nointer-nolma",
+				"-results-rnd_0.02-fpn_0.0-sigma_1.5-offset1.4142-sensors4-inter-nolma",
+				"-results-rnd_0.02-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
+				"-results-rnd_0.02-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
+				"-results-rnd_0.02-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+				
 				"-results-rnd_0.03-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
 				"-results-rnd_0.03-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
 				"-results-rnd_0.03-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
@@ -9065,6 +9158,25 @@ if (debugLevel > -100) return true; // temporarily !
 				"-results-rnd_0.03-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
 				"-results-rnd_0.03-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
 				"-results-rnd_0.03-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+
+				"-results-rnd_0.04-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
+				"-results-rnd_0.04-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
+				"-results-rnd_0.04-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
+				"-results-rnd_0.04-fpn_0.0-sigma_1.5-offset1.4142-sensors2-nointer-nolma",
+				"-results-rnd_0.04-fpn_0.0-sigma_1.5-offset1.4142-sensors4-inter-nolma",
+				"-results-rnd_0.04-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
+				"-results-rnd_0.04-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
+				"-results-rnd_0.04-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+				
+				"-results-rnd_0.05-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
+				"-results-rnd_0.05-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
+				"-results-rnd_0.05-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
+				"-results-rnd_0.05-fpn_0.0-sigma_1.5-offset1.4142-sensors2-nointer-nolma",
+				"-results-rnd_0.05-fpn_0.0-sigma_1.5-offset1.4142-sensors4-inter-nolma",
+				"-results-rnd_0.05-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
+				"-results-rnd_0.05-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
+				"-results-rnd_0.05-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+
 				"-results-rnd_0.06-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
 				"-results-rnd_0.06-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
 				"-results-rnd_0.06-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
@@ -9073,6 +9185,16 @@ if (debugLevel > -100) return true; // temporarily !
 				"-results-rnd_0.06-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
 				"-results-rnd_0.06-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
 				"-results-rnd_0.06-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+				
+				"-results-rnd_0.08-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
+				"-results-rnd_0.08-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
+				"-results-rnd_0.08-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
+				"-results-rnd_0.08-fpn_0.0-sigma_1.5-offset1.4142-sensors2-nointer-nolma",
+				"-results-rnd_0.08-fpn_0.0-sigma_1.5-offset1.4142-sensors4-inter-nolma",
+				"-results-rnd_0.08-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
+				"-results-rnd_0.08-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
+				"-results-rnd_0.08-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+				
 				"-results-rnd_0.1-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
 				"-results-rnd_0.1-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
 				"-results-rnd_0.1-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
@@ -9081,6 +9203,24 @@ if (debugLevel > -100) return true; // temporarily !
 				"-results-rnd_0.1-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
 				"-results-rnd_0.1-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
 				"-results-rnd_0.1-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+
+				"-results-rnd_0.13-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
+				"-results-rnd_0.13-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
+				"-results-rnd_0.13-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
+				"-results-rnd_0.13-fpn_0.0-sigma_1.5-offset1.4142-sensors2-nointer-nolma",
+				"-results-rnd_0.13-fpn_0.0-sigma_1.5-offset1.4142-sensors4-inter-nolma",
+				"-results-rnd_0.13-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
+				"-results-rnd_0.13-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
+				"-results-rnd_0.13-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+
+				"-results-rnd_0.16-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
+				"-results-rnd_0.16-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
+				"-results-rnd_0.16-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
+				"-results-rnd_0.16-fpn_0.0-sigma_1.5-offset1.4142-sensors2-nointer-nolma",
+				"-results-rnd_0.16-fpn_0.0-sigma_1.5-offset1.4142-sensors4-inter-nolma",
+				"-results-rnd_0.16-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
+				"-results-rnd_0.16-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
+				"-results-rnd_0.16-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
 				
 				"-results-rnd_0.2-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
 				"-results-rnd_0.2-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
@@ -9090,6 +9230,15 @@ if (debugLevel > -100) return true; // temporarily !
 				"-results-rnd_0.2-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
 				"-results-rnd_0.2-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
 				"-results-rnd_0.2-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+
+				"-results-rnd_0.25-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
+				"-results-rnd_0.25-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
+				"-results-rnd_0.25-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
+				"-results-rnd_0.25-fpn_0.0-sigma_1.5-offset1.4142-sensors2-nointer-nolma",
+				"-results-rnd_0.25-fpn_0.0-sigma_1.5-offset1.4142-sensors4-inter-nolma",
+				"-results-rnd_0.25-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
+				"-results-rnd_0.25-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
+				"-results-rnd_0.25-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
 
 				"-results-rnd_0.3-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
 				"-results-rnd_0.3-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
@@ -9118,14 +9267,50 @@ if (debugLevel > -100) return true; // temporarily !
 				"-results-rnd_0.5-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
 				"-results-rnd_0.5-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
 
-				"-results-rnd_0.5-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
-				"-results-rnd_0.5-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
-				"-results-rnd_0.5-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
-				"-results-rnd_0.5-fpn_0.0-sigma_1.5-offset1.4142-sensors2-nointer-nolma",
-				"-results-rnd_0.5-fpn_0.0-sigma_1.5-offset1.4142-sensors4-inter-nolma",
-				"-results-rnd_0.5-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
-				"-results-rnd_0.5-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
-				"-results-rnd_0.5-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+				"-results-rnd_0.6-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
+				"-results-rnd_0.6-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
+				"-results-rnd_0.6-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
+				"-results-rnd_0.6-fpn_0.0-sigma_1.5-offset1.4142-sensors2-nointer-nolma",
+				"-results-rnd_0.6-fpn_0.0-sigma_1.5-offset1.4142-sensors4-inter-nolma",
+				"-results-rnd_0.6-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
+				"-results-rnd_0.6-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
+				"-results-rnd_0.6-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+
+				"-results-rnd_0.7-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
+				"-results-rnd_0.7-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
+				"-results-rnd_0.7-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
+				"-results-rnd_0.7-fpn_0.0-sigma_1.5-offset1.4142-sensors2-nointer-nolma",
+				"-results-rnd_0.7-fpn_0.0-sigma_1.5-offset1.4142-sensors4-inter-nolma",
+				"-results-rnd_0.7-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
+				"-results-rnd_0.7-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
+				"-results-rnd_0.7-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+
+				"-results-rnd_0.8-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
+				"-results-rnd_0.8-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
+				"-results-rnd_0.8-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
+				"-results-rnd_0.8-fpn_0.0-sigma_1.5-offset1.4142-sensors2-nointer-nolma",
+				"-results-rnd_0.8-fpn_0.0-sigma_1.5-offset1.4142-sensors4-inter-nolma",
+				"-results-rnd_0.8-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
+				"-results-rnd_0.8-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
+				"-results-rnd_0.8-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+
+				"-results-rnd_0.9-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
+				"-results-rnd_0.9-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
+				"-results-rnd_0.9-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
+				"-results-rnd_0.9-fpn_0.0-sigma_1.5-offset1.4142-sensors2-nointer-nolma",
+				"-results-rnd_0.9-fpn_0.0-sigma_1.5-offset1.4142-sensors4-inter-nolma",
+				"-results-rnd_0.9-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
+				"-results-rnd_0.9-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
+				"-results-rnd_0.9-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+
+				"-results-rnd_1.0-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
+				"-results-rnd_1.0-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
+				"-results-rnd_1.0-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
+				"-results-rnd_1.0-fpn_0.0-sigma_1.5-offset1.4142-sensors2-nointer-nolma",
+				"-results-rnd_1.0-fpn_0.0-sigma_1.5-offset1.4142-sensors4-inter-nolma",
+				"-results-rnd_1.0-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
+				"-results-rnd_1.0-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
+				"-results-rnd_1.0-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
 				/*
 				"-results-rnd_0.0-fpn_0.0-sigma_1.5-offset1.0-sensors16-inter",
 				"-results-rnd_0.0-fpn_0.0-sigma_1.5-offset1.0-sensors16-nointer",
@@ -9442,6 +9627,8 @@ if (debugLevel > -100) return true; // temporarily !
 			String []            noise_files,
 			int                  debug_level)
 	{
+		int dbg_tile = 1222; // 737;
+
 		/*
 		"disp-last",
 		"str_last",
@@ -9450,9 +9637,9 @@ if (debugLevel > -100) return true; // temporarily !
 		final int tilesX = ref_scene.tp.getTilesX();
 //		final int tilesY = ref_scene.tp.getTilesY();
 
-		double max_diff = 0.04; // 0.01; // last diff >
-		double max_err = 2.0; // 1.0; // 0.5; // pix
-		double max_err1 =0.25; // pix
+		double max_diff = 0.01; // 0.001; // 0.01; //  0.04; // 0.01; // last diff >
+		double max_err = 2.0; // 2.5; // 1.5; // 2.0; // 1.0; // 0.5; // pix
+		double max_err1 =0.250; // pix
 		double min_strength = 0.0; // minimal strength to calculate rmse (ignore weaker)
 		int indx_used =      3;
 		int indx_last =      0;
@@ -9474,10 +9661,14 @@ if (debugLevel > -100) return true; // temporarily !
 		boolean use_edges =    false; // true; // false; // do not filter out edges
 		boolean all_converge = false;  // true; // false; // use only tiles that converge for all variants (intra, inter, used sensors)
 		boolean all_max_err =  false; // true; // false;  // use only tiles that have limited error for all variants (intra, inter, used sensors)
-		boolean same_num_sensors = false; // true; // compare performance to same number of sensors, inter, no-noise
+		boolean same_num_sensors = true; //  false; // true; // compare performance to same number of sensors, inter, no-noise
+		int          min_modes = 4; // 5; // 6; // 5; // 4;//at least half are meaningfull
+		
+		double min_inter16_noise_level = 0.1; // 0.3; // tile should have at least this noise level for 1nter16 (mode 0)
+		
 		if (use_edges) {
-			disp_max_rel = 10.0;
-			disp_max_abs = 10.0;
+			disp_max_rel = 100.0;
+			disp_max_abs = 100.0;
 		}
 		
 		final double[][] sky_map = ref_scene.readDoubleArrayFromModelDirectory(
@@ -9486,7 +9677,8 @@ if (debugLevel > -100) return true; // temporarily !
 		null); // int []      wh);
 		
 		double [][] ref_dsn = ref_scene.readDoubleArrayFromModelDirectory(
-				"-results-nonoise", // String      suffix,
+//				"-results-nonoise", // String      suffix,
+				"-results-nonoise-nolma", // String      suffix,
 				0, // int         num_slices, // (0 - all)
 				null); // int []      wh);
 		
@@ -9615,11 +9807,11 @@ if (debugLevel > -100) return true; // temporarily !
 						good_tiles_mode[sensor_mode_file[nf]] = getGoodTiles(
 								max_diff,                  // double max_diff,
 								// disable edges filtering - use only common edges
-								100.0,// disp_near_rel,    // double disp_near_rel,
-								100.0,//disp_max_rel,      // double disp_max_rel,
+								disp_near_rel,             // double disp_near_rel,
+								100.0,  //disp_max_rel,    // double disp_max_rel,
 								disp_max_inter,            // double disp_max_inter
 								disp_far_abs,              // double disp_far_abs,
-								disp_max_abs,              // double disp_max_abs,
+								100.0, // disp_max_abs,    // double disp_max_abs,
 								min_scenes_used,           // double min_scenes
 								noise_dsn[indx_last],      // double [] disp,
 								noise_dsn[indx_lma_last],  // double [] disp_lma,
@@ -9674,7 +9866,7 @@ if (debugLevel > -100) return true; // temporarily !
 		// For each file find boolean good/bad, comparing to zero noise of the same number of sensors, itnerscene 
 		boolean [][] good_file_tile = new boolean[noise_files.length][]; // [good_tiles.length];
 //		double max_err1 =0.25; // pix
-		double max_diff_from_ref = 0.1; // max_err1; // 0.25 pix
+		double max_diff_from_ref = 0.2; // 0.06; // 5; // 0.1; // max_err1; // 0.25 pix
 		for (int nf = 0; nf < noise_files.length; nf++) {
 			// common or per number of sensors reference data 
 			String fn = noise_files[nf];
@@ -9687,6 +9879,13 @@ if (debugLevel > -100) return true; // temporarily !
 //			boolean [] good_ref = good_tiles_mode[sensor_mode]; // good tile without noise for this number of sensors
 			good_file_tile[nf] = good_tiles_mode[sensor_mode].clone();
 			for (int ntile = 0; ntile < good_file_tile[nf].length; ntile++) if (good_file_tile[nf][ntile]) {
+				if (ntile == dbg_tile) {
+					System.out.println("Finding good tiles: ntile = "+ntile+", nf="+nf+" ("+fn+")");
+					System.out.println("noise_dsn["+indx_last+"]["+ntile+"]="+noise_dsn[indx_last][ntile]+
+							", ref_var["+indx_last+"]["+ntile+"]="+ref_var[indx_last][ntile]);
+					
+				}
+				
 				boolean converged = (Math.abs(noise_dsn[indx_last_diff][ntile]) < max_diff);
 				if (!converged) {
 					good_file_tile[nf][ntile] = false;
@@ -9700,7 +9899,6 @@ if (debugLevel > -100) return true; // temporarily !
 			}			
 		}
 		// show number of noise values for each tile, num sensors and intra/inter, discarding tiles that are good/bad for all noise levels
-		int          min_modes = 4;//at least half are meaningfull
 		{
 			boolean use_fpn = false;
 			double [][] dbg_num_noise_val = new double [good_tiles_mode.length*2][good_tiles.length];
@@ -9709,32 +9907,38 @@ if (debugLevel > -100) return true; // temporarily !
 				dbg_num_noise_titles[i]=                       "inter"+(new int [] {16,8,4,2})[i];
 				dbg_num_noise_titles[i+good_tiles_mode.length]="intra"+(new int [] {16,8,4,2})[i];
 			}
-			for (int i = 0; i < dbg_num_noise_val.length; i++) {
+			for (int i = 00; i < dbg_num_noise_val.length; i++) {
 				Arrays.fill(dbg_num_noise_val[i], Double.NaN);
 			}
-			for (int ntile = 0; ntile < good_tiles.length; ntile++) if (good_tiles[ntile]) { // do not bother with obviously bad
-				int [] num_good =    new int [dbg_num_noise_val.length];
-				boolean [] has_bad = new boolean [dbg_num_noise_val.length];
-				for (int nf = 0; nf < noise_files.length; nf++) {
-					int results_index = sensor_mode_file[nf] + (inter_file[nf]? 0 : 4); // inter; //  ? 0 : (intra? 1 : 2);
-					if (good_file_tile[nf][ntile]) {
-						num_good[results_index]++;
-					} else {
-						has_bad[results_index] = true;
+			for (int ntile = 0; ntile < good_tiles.length; ntile++) {
+				if (ntile == dbg_tile) {
+					System.out.println("Finding good tiles: ntile = "+ntile);
+				}
+				
+				if (good_tiles[ntile]) { // do not bother with obviously bad
+					int [] num_good =    new int [dbg_num_noise_val.length];
+					boolean [] has_bad = new boolean [dbg_num_noise_val.length];
+					for (int nf = 0; nf < noise_files.length; nf++) {
+						int results_index = sensor_mode_file[nf] + (inter_file[nf]? 0 : 4); // inter; //  ? 0 : (intra? 1 : 2);
+						if (good_file_tile[nf][ntile]) {
+							num_good[results_index]++;
+						} else {
+							has_bad[results_index] = true;
+						}
 					}
-				}
-				// only keep tiles that have noise threshold for all modalities
-				int num_full = 0;
-				for (int i = 0; i < dbg_num_noise_val.length; i++) {
-					 if (has_bad[i] && (num_good[i] > 0)) {
-						 num_full++;
-					 }
-				}
-				if (num_full < min_modes) {
-					continue;
-				}
-				for (int i = 0; i < dbg_num_noise_val.length; i++) if (has_bad[i]) {
-					dbg_num_noise_val[i][ntile] = num_good[i];
+					// only keep tiles that have noise threshold for all modalities
+					int num_full = 0;
+					for (int i = 0; i < dbg_num_noise_val.length; i++) {
+						if (has_bad[i] && (num_good[i] > 0)) {
+							num_full++;
+						}
+					}
+					if (num_full < min_modes) {
+						continue;
+					}
+					for (int i = 0; i < dbg_num_noise_val.length; i++) if (has_bad[i]) {
+						dbg_num_noise_val[i][ntile] = num_good[i];
+					}
 				}
 			}
 			(new ShowDoubleFloatArrays()).showArrays(
@@ -9746,11 +9950,12 @@ if (debugLevel > -100) return true; // temporarily !
 					dbg_num_noise_titles);
 			double []    noise_file = use_fpn ? noise_fpn_file : noise_rnd_file;
 			double [][] noise_levels = 	InterIntraLMA.getNoiseThreshold(
-					noise_file,       // double []    noise_file, //  = new double [noise_files.length];
-					sensor_mode_file, // int []       sensor_mode_file,
-					inter_file,       // boolean []   inter_file,
-					good_file_tile,   // boolean [][] good_file_tile,
-					min_modes);        // int          min_modes,
+					noise_file,              // double []    noise_file, //  = new double [noise_files.length];
+					sensor_mode_file,        // int []       sensor_mode_file,
+					inter_file,              // boolean []   inter_file,
+					good_file_tile,          // boolean [][] good_file_tile,
+					min_inter16_noise_level, // double       min_inter16_noise_level,
+					min_modes);              // int          min_modes,
 			double [][] dbg_noise_levels = new double [dbg_num_noise_titles.length][good_tiles.length];
 			for (int i = 0; i < dbg_noise_levels.length; i++) {
 				Arrays.fill(dbg_noise_levels[i], Double.NaN);
@@ -9767,8 +9972,50 @@ if (debugLevel > -100) return true; // temporarily !
 					true,
 					"noise_levels",
 					dbg_num_noise_titles);
+			double noise_offset = 0.03; // 0.10; // 0.03; // 50;
+			InterIntraLMA interIntraLMA = new InterIntraLMA(
+					noise_levels, // double [][] noise_thresh,
+					noise_offset, // double      offset, // initial value for N0
+					tilesX,       // int         tilesX, // debug images only
+					1); // int         debug_level)
+
+			boolean adjust_N0 = true;
+			boolean adjust_Gi = true;
+			boolean adjust_St = true; // false;
+
+			boolean LMA_OK = interIntraLMA.runLma(
+					adjust_N0, // boolean adjust_N0,
+					adjust_Gi, // boolean adjust_Gi,
+					adjust_St, // boolean adjust_St,
+					0.1, // double lambda,           // 0.1
+					0.5, // double lambda_scale_good,// 0.5
+					8.0, // double lambda_scale_bad, // 8.0
+					100, // double lambda_max,       // 100
+					0.001, // double rms_diff,         // 0.001
+					20, // int    num_iter,         // 20
+					2); // 0); // int    debug_level)
+			
+			System.out.println("LMA_OK = "+LMA_OK);
+			System.out.println("N0 = "+interIntraLMA.N0+" (natural noise level)");
+			for (int i = 0; i < interIntraLMA.gi.length; i++) {
+				System.out.println("g["+i+"]= "+ interIntraLMA.gi[i]);
+			}
+			double [] dbg_st = new double [good_tiles.length]; // good_tiles.length/ tilesX
+			Arrays.fill(dbg_st, Double.NaN);
+			for (int [] indices : interIntraLMA.sample_indx) {
+				int itile = indices[0];
+				int atile = interIntraLMA.tile_index[itile];
+				dbg_st[atile] = interIntraLMA.St[itile];
+			}
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_st,
+					tilesX,
+					good_tiles.length/ tilesX,
+					"lma_st_out");
+			
+
 		}
-		
+
 		//good_tiles_mode
 		System.out.println("num_converged_global="+num_converged_global+", num_good_global="+num_good_global);
 		for (int j = 0; j < num_good_mode.length; j++) {
