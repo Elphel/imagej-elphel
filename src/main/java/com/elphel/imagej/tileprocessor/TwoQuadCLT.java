@@ -8714,7 +8714,7 @@ if (debugLevel > -100) return true; // temporarily !
 	{
 		// 1626032208_613623-results-rnd_0.003-fpn_0.0-sigma_1.5-offset1.0-sensors16-inter.tiff
 		// manual restrictions on the hard-wired list of files
-		boolean process_inter = true; // false;
+		boolean process_inter = false; // true; // false;
 		boolean process_intra = true;
 		int     num_noise_var_inter = 0;
 		int     num_noise_var_intra = 17;
@@ -8812,7 +8812,7 @@ if (debugLevel > -100) return true; // temporarily !
 				{0.1,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.1,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
 				{0.1,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
-
+*/
 				{0.13,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.13,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.13,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
@@ -8920,8 +8920,8 @@ if (debugLevel > -100) return true; // temporarily !
 				{1.0,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{1.0,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
 				{1.0,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
-				*/
-
+				
+/*
 				{1.3,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{1.3,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{1.3,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter 
@@ -8957,7 +8957,7 @@ if (debugLevel > -100) return true; // temporarily !
 				{2.5,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{2.5,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
 				{2.5,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
-				
+				*/
 		};
 		System.out.println ("\n\n\n");
 		System.out.println("Noise parameters for this batch run are hard-wired in the code above this line");
