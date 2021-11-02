@@ -224,6 +224,7 @@ public class QuadCLTCPU {
 	double [][][][][][]  getCltKernels() {                            
 		return clt_kernels;
 	}
+	@Deprecated
 	public QuadCLT spawnQuadCLTWithNoise(
 			String               set_name,
 			CLTParameters        clt_parameters,
@@ -239,6 +240,7 @@ public class QuadCLTCPU {
 				clt_parameters,
 				colorProcParameters,
 				noise_sigma_level, // double []            noise_sigma_level,
+				-1,  //  int                  noise_variant, // <0 - no-variants, compatible with old code
 				ref_scene,         // QuadCLTCPU     ref_scene, // may be null if scale_fpn <= 0
 				threadsMax,
 				debugLevel);
@@ -246,6 +248,32 @@ public class QuadCLTCPU {
 		return quadCLT;
 	}
 
+	public QuadCLT spawnQuadCLTWithNoise(
+			String               set_name,
+			CLTParameters        clt_parameters,
+			ColorProcParameters  colorProcParameters,
+			NoiseParameters		 noise_sigma_level,
+			int                  noise_variant, // <0 - no-variants, compatible with old code
+			QuadCLTCPU           ref_scene, // may be null if scale_fpn <= 0
+			int                  threadsMax,
+			int                  debugLevel)
+	{
+		QuadCLT quadCLT = new QuadCLT(this, set_name);
+		
+		quadCLT.restoreFromModel(
+				clt_parameters,
+				colorProcParameters,
+				noise_sigma_level, // double []            noise_sigma_level,
+				noise_variant,     //int                  noise_variant, // <0 - no-variants, compatible with old code
+				ref_scene,         // QuadCLTCPU     ref_scene, // may be null if scale_fpn <= 0
+				threadsMax,
+				debugLevel);
+		
+		return quadCLT;
+	}
+	
+	
+	
 	/*
 	public QuadCLT spawnQuadCLT(
 			String              set_name,
@@ -285,7 +313,8 @@ public class QuadCLTCPU {
 				clt_parameters,
 				colorProcParameters,
 				null,                 // double []    noise_sigma_level,
-				null, // final QuadCLTCPU     ref_scene, // may be null if scale_fpn <= 0
+				-1,                   // noise_variant, // <0 - no-variants, compatible with old code
+				null,                 // final QuadCLTCPU     ref_scene, // may be null if scale_fpn <= 0
 				threadsMax,
 				debugLevel);
 		
@@ -611,14 +640,11 @@ public class QuadCLTCPU {
 		return rgba;
 	}
 	
-	
-	
-	
 	public QuadCLTCPU restoreFromModel(
 			CLTParameters        clt_parameters,
 			ColorProcParameters  colorProcParameters,
-//			double []
 			NoiseParameters	     noise_sigma_level,
+			int                  noise_variant, // <0 - no-variants, compatible with old code
 			QuadCLTCPU           ref_scene, // may be null if scale_fpn <= 0
 			int                  threadsMax,
 			int                  debugLevel)
@@ -661,6 +687,7 @@ public class QuadCLTCPU {
 					"-NOISE",
 					ref_scene, // final QuadCLTCPU ref_scene, // may be null if scale_fpn <= 0
 					noise_sigma_level,
+					noise_variant, //final int       noise_variant, // <0 - no-variants, compatible with old code
 					threadsMax,
 					1); // debugLevel); // final int       debug_level)
 		}
@@ -691,16 +718,17 @@ public class QuadCLTCPU {
 	// If file with the same sigma already exists in the model directory - just use it, multiply by noise_sigma_level[0] and add to the non-zero Bayer
 	
 	public void generateAddNoise(
-			final String    suffix,
+			final String    suffix_novar,
 			final QuadCLTCPU ref_scene, // may be null if scale_fpn <= 0
-//			final double [] 
 			final NoiseParameters noise_sigma_level,
+			final int       noise_variant, // <0 - no-variants, compatible with old code
 			final int       threadsMax,
 			final int       debug_level)
 	{
 		final double scale_random = noise_sigma_level.scale_random; // _sigma_level[0];
 		final double scale_fpn =    noise_sigma_level.scale_fpn;    // noise_sigma_level[0];
 		final double sigma =        noise_sigma_level.sigma; // [1];
+		final String    suffix = suffix_novar + ((noise_variant >= 0) ? ("-"+noise_variant+"-"):""); 
 		ImagePlus imp = generateAddNoise(
 				suffix,       // final String    suffix,
 				sigma,        // final double    sigma,

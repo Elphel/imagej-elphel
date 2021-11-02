@@ -8642,7 +8642,7 @@ if (debugLevel > -100) return true; // temporarily !
 				colorProcParameters,       // ColorProcParameters colorProcParameters,
 				set_channels,              // QuadCLT.SetChannels [] set_channels
 				ref_quadCLT,               // QuadCLT [] scenes, // ordered by increasing timestamps
-				null, // noise_sigma_level,         // double []            noise_sigma_level,
+				null,                      // noise_sigma_level,         // double []            noise_sigma_level,
 				clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
 		System.out.println("End of intersceneAccumulate()");
 		
@@ -8713,8 +8713,14 @@ if (debugLevel > -100) return true; // temporarily !
 			final int        debugLevel)  throws Exception
 	{
 		// 1626032208_613623-results-rnd_0.003-fpn_0.0-sigma_1.5-offset1.0-sensors16-inter.tiff
-	
+		// manual restrictions on the hard-wired list of files
+		boolean process_inter = true; // false;
+		boolean process_intra = true;
+		int     num_noise_var_inter = 0;
+		int     num_noise_var_intra = 17;
+		
 		double [][] noise_task = {
+				/*
 				{0.00, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.00, 0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.00, 0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
@@ -8722,25 +8728,26 @@ if (debugLevel > -100) return true; // temporarily !
 				{0.00, 0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.00, 0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.00, 0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.00, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
-
-				/*{0.003,0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.00, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra */
+/*
+				{0.003,0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.003,0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.003,0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
 				{0.003,0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
 				{0.003,0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.003,0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.003,0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.003,0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
+				{0.003,0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra */
+				
 
-				/*{0.01, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+/*				{0.01, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.01, 0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.01, 0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
 				{0.01, 0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
 				{0.01, 0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.01, 0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.01, 0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.01, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
+				{0.01, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
 
 				{0.02, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.02, 0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
@@ -8751,23 +8758,23 @@ if (debugLevel > -100) return true; // temporarily !
 				{0.02, 0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
 				{0.02, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
 				
-				/*{0.03, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.03, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.03, 0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.03, 0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
 				{0.03, 0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
 				{0.03, 0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.03, 0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.03, 0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.03, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
+				{0.03, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
 
-				/*{0.04, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.04, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.04, 0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.04, 0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
 				{0.04, 0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
 				{0.04, 0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.04, 0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.04, 0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.04, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
+				{0.04, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
 
 				{0.05, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.05, 0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
@@ -8779,70 +8786,70 @@ if (debugLevel > -100) return true; // temporarily !
 				{0.05, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
 				
 				
-				/*{0.06, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.06, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.06, 0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.06, 0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
 				{0.06, 0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
 				{0.06, 0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.06, 0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.06, 0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.06, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
+				{0.06, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
 
-				/*{0.08, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.08, 0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.08, 0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.08, 0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
 				{0.08, 0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
 				{0.08, 0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.08, 0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.08, 0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.08, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
+				{0.08, 0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
 
-				/*{0.1,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.1,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.1,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.1,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
 				{0.1,  0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
 				{0.1,  0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.1,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.1,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.1,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
+				{0.1,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
 
-				/*{0.13,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.13,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.13,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.13,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
 				{0.13,  0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
 				{0.13,  0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.13,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.13,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.13,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
+				{0.13,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
 
-				/*{0.16,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.16,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.16,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.16,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
 				{0.16,  0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
 				{0.16,  0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.16,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.16,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.16,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
+				{0.16,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
 				
-				/*{0.2,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.2,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.2,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.2,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
 				{0.2,  0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
 				{0.2,  0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.2,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.2,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.2,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
+				{0.2,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
 
-				/*{0.25,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.25,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.25,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.25,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
 				{0.25,  0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
 				{0.25,  0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.25,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.25,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.25,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
+				{0.25,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
 				
-				/*{0.3,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.3,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.3,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.3,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter  	
 				{0.3,  0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
@@ -8885,16 +8892,16 @@ if (debugLevel > -100) return true; // temporarily !
 				{0.7,  0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.7,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.7,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.7,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
+				{0.7,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
 
-				/*{0.8,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{0.8,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.8,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
 				{0.8,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter 
 				{0.8,  0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
 				{0.8,  0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
 				{0.8,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{0.8,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
-				{0.8,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra*/
+				{0.8,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
 
 				{0.9,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
 				{0.9,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
@@ -8913,6 +8920,43 @@ if (debugLevel > -100) return true; // temporarily !
 				{1.0,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
 				{1.0,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
 				{1.0,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+				*/
+
+				{1.3,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{1.3,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{1.3,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter 
+				{1.3,  0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{1.3,  0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{1.3,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{1.3,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{1.3,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+
+				{1.6,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{1.6,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{1.6,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter 
+				{1.6,  0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{1.6,  0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{1.6,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{1.6,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{1.6,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+				
+				{2.0,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{2.0,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{2.0,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter 
+				{2.0,  0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{2.0,  0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{2.0,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{2.0,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{2.0,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
+				 
+				{2.5,  0.0, 1.5, 1.4142, 0.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, inter  	
+				{2.5,  0.0, 1.5, 1.4142, 0.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors16, intra
+				{2.5,  0.0, 1.5, 1.4142, 3.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, inter 
+				{2.5,  0.0, 1.5, 1.4142, 3.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors8, intra
+				{2.5,  0.0, 1.5, 1.4142, 2.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, inter  	
+				{2.5,  0.0, 1.5, 1.4142, 2.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors4, intra
+				{2.5,  0.0, 1.5, 1.4142, 1.0, 1.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, inter  	
+				{2.5,  0.0, 1.5, 1.4142, 1.0, 0.0}, // rnad = 0.06, fpn = 0.0, sigma = 1.5, offset = 1.0, sensors2, intra
 				
 		};
 		System.out.println ("\n\n\n");
@@ -8925,7 +8969,16 @@ if (debugLevel > -100) return true; // temporarily !
 			double offset =    noise_task[numset][3];
 			int sensor_mode = (int) noise_task[numset][4];
 			boolean inter =    noise_task[numset][5] > 0;
-			
+			if (inter && !process_inter) {
+				System.out.println("Skipping set "+numset+" as it is inter and process_inter==false");
+				continue;
+			}
+			if (!inter && !process_intra) {
+				System.out.println("Skipping set "+numset+" as it is intra and process_intra==false");
+				continue;
+			}
+
+			int num_noise_variants = inter?  num_noise_var_inter : num_noise_var_intra;
 			clt_parameters.img_dtt.mcorr_limit_sensors = sensor_mode;
 			clt_parameters.img_dtt.mcorr_all_multi =     always_all_pairs || (sensor_mode != 0); // add "all pairs" for 2,4,8 sensors , but not for all 16 (mode 0)
 			clt_parameters.inp.noise.scale_random =      noise_rnd;
@@ -8953,30 +9006,63 @@ if (debugLevel > -100) return true; // temporarily !
 			
 			System.out.println ("\n\n\n");
 			System.out.println("\n******** Running with simulated noise, run "+(numset +1)+" of "+noise_task.length); 
-			System.out.println ("sensor_mode =    "+sensor_mode);
-			System.out.println ("all_pairs =      "+clt_parameters.img_dtt.mcorr_all_multi);
-			System.out.println ("used_sensors =   "+clt_parameters.inp.noise.used_sensors);
-			System.out.println ("noise_rnd =      "+noise_rnd);
-			System.out.println ("noise_fpn =      "+noise_fpn);
-			System.out.println ("sigma =          "+        sigma);
-			System.out.println ("initial_offset = "+offset);
-			System.out.println ("inter =          "+inter);
+			System.out.println ("sensor_mode =        "+sensor_mode);
+			System.out.println ("all_pairs =          "+clt_parameters.img_dtt.mcorr_all_multi);
+			System.out.println ("used_sensors =       "+clt_parameters.inp.noise.used_sensors);
+			System.out.println ("noise_rnd =          "+noise_rnd);
+			System.out.println ("noise_fpn =          "+noise_fpn);
+			System.out.println ("sigma =              "+        sigma);
+			System.out.println ("initial_offset =     "+offset);
+			System.out.println ("inter =              "+inter);
+			System.out.println ("num_noise_variants = "+num_noise_variants);
 			System.out.println ("\n\n\n");
-			intersceneNoise(
-					quadCLT_main,              // QuadCLT                                              quadCLT_main, // tiles should be set
-					clt_parameters,            // CLTParameters                                        clt_parameters,
-					debayerParameters,         // EyesisCorrectionParameters.DebayerParameters         debayerParameters,
-					colorProcParameters,       // ColorProcParameters                                  colorProcParameters,
-					channelGainParameters,     // CorrectionColorProc.ColorGainsParameters             channelGainParameters,
-					rgbParameters,             // EyesisCorrectionParameters.RGBParameters             rgbParameters,
-					equirectangularParameters, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-					properties,                // Properties                                           properties,
-					bayer_artifacts_debug,     // boolean                                              bayer_artifacts_debug,
-					threadsMax,                // final int        threadsMax,  // maximal number of threads to launch
-					updateStatus,              // final boolean    updateStatus,
-					debugLevel);               // final int        debugLevel)			
+			if ((num_noise_variants <= 0) || ((noise_rnd == 0.0) && (noise_fpn == 0.0))) { // no need to generate multiple zero-noise
+				intersceneNoise(
+						quadCLT_main,              // QuadCLT                                              quadCLT_main, // tiles should be set
+						clt_parameters,            // CLTParameters                                        clt_parameters,
+						debayerParameters,         // EyesisCorrectionParameters.DebayerParameters         debayerParameters,
+						colorProcParameters,       // ColorProcParameters                                  colorProcParameters,
+						channelGainParameters,     // CorrectionColorProc.ColorGainsParameters             channelGainParameters,
+						rgbParameters,             // EyesisCorrectionParameters.RGBParameters             rgbParameters,
+						equirectangularParameters, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+						properties,                // Properties                                           properties,
+						bayer_artifacts_debug,     // boolean                                              bayer_artifacts_debug,
+						-1,                        // int                                                  noise_variant, // <0 - no-variants, compatible with old code
+						threadsMax,                // final int        threadsMax,  // maximal number of threads to launch
+						updateStatus,              // final boolean    updateStatus,
+						debugLevel);               // final int        debugLevel)
+			} else {
+				for (int noise_variant = 0; noise_variant < num_noise_variants; noise_variant++) {
+					System.out.println ("\n\n\n");
+					System.out.println("\n******** Running with simulated noise, run "+(numset +1)+" of "+noise_task.length+
+							", noise variant "+noise_variant+" (of "+num_noise_variants+")"); 
+					System.out.println ("sensor_mode =        "+sensor_mode);
+					System.out.println ("all_pairs =          "+clt_parameters.img_dtt.mcorr_all_multi);
+					System.out.println ("used_sensors =       "+clt_parameters.inp.noise.used_sensors);
+					System.out.println ("noise_rnd =          "+noise_rnd);
+					System.out.println ("noise_fpn =          "+noise_fpn);
+					System.out.println ("sigma =              "+        sigma);
+					System.out.println ("initial_offset =     "+offset);
+					System.out.println ("inter =              "+inter);
+					System.out.println ("\n\n\n");
+					intersceneNoise(
+							quadCLT_main,              // QuadCLT                                              quadCLT_main, // tiles should be set
+							clt_parameters,            // CLTParameters                                        clt_parameters,
+							debayerParameters,         // EyesisCorrectionParameters.DebayerParameters         debayerParameters,
+							colorProcParameters,       // ColorProcParameters                                  colorProcParameters,
+							channelGainParameters,     // CorrectionColorProc.ColorGainsParameters             channelGainParameters,
+							rgbParameters,             // EyesisCorrectionParameters.RGBParameters             rgbParameters,
+							equirectangularParameters, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+							properties,                // Properties                                           properties,
+							bayer_artifacts_debug,     // boolean                                              bayer_artifacts_debug,
+							noise_variant,             // int                                                  noise_variant, // <0 - no-variants, compatible with old code
+							threadsMax,                // final int        threadsMax,  // maximal number of threads to launch
+							updateStatus,              // final boolean    updateStatus,
+							debugLevel);               // final int        debugLevel)
+					
+				}
+			}
 		}
-		
 	}
 	
 	
@@ -8990,16 +9076,11 @@ if (debugLevel > -100) return true; // temporarily !
 			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
 			Properties                                           properties,
 			boolean                                              bayer_artifacts_debug,
-			final int        threadsMax,  // maximal number of threads to launch
-			final boolean    updateStatus,
-			final int        debugLevel)  throws Exception
+			int                                                  noise_variant, // <0 - no-variants, compatible with old code
+			final int                                            threadsMax,  // maximal number of threads to launch
+			final boolean                                        updateStatus,
+			final int                                            debugLevel)  throws Exception
 	{
-//		double []            noise_sigma_level = {0.01, 1.5, 1.0}; // amount, sigma, offset
-//		double []            noise_sigma_level = {0.1, 1.5, 1.0};  // amount, sigma, offset
-//		double []            noise_sigma_level = {1.0, 1.5, 1.0};  // amount, sigma, offset
-//		double []            noise_sigma_level = {3.0, 1.5, 1.0};  // amount, sigma, offset
-//		double []            noise_sigma_level = {5.0, 1.5, 1.0};  // amount, sigma, offset
-//		double []            noise_sigma_level = null;
 		NoiseParameters            noise_sigma_level = null;
 		if ((clt_parameters.inp.noise.scale_random >= 0.0) || (clt_parameters.inp.noise.scale_fpn >= 0.0)) {// <0 - will generate no-noise data
 			if (quadCLT_main.getNumSensors() == 16) {
@@ -9020,12 +9101,7 @@ if (debugLevel > -100) return true; // temporarily !
 				System.out.println ("Using "+clt_parameters.inp.noise.used_sensors+" of "+quadCLT_main.getNumSensors()+" sensors.");
 			}
 			noise_sigma_level = clt_parameters.inp.noise.clone();
-					/*
-					noise_sigma_level = new double[] {
-					clt_parameters.inp.noise_scale,
-					clt_parameters.inp.noise_sigma,
-					clt_parameters.inp.initial_offset};  // amount, sigma, offset\
-        */					
+			
 		}
 		boolean ref_only =  clt_parameters.inp.ref_only; //  true; // process only reference frame (false - inter-scene)
 		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
@@ -9047,6 +9123,7 @@ if (debugLevel > -100) return true; // temporarily !
 				clt_parameters,
 				colorProcParameters, //
 				noise_sigma_level,   // double []            noise_sigma_level,
+				noise_variant,       // int                  noise_variant, // <0 - no-variants, compatible with old code
 				null, // final QuadCLTCPU     ref_scene, // may be null if scale_fpn <= 0
 				threadsMax,
 				clt_parameters.inp.noise_debug_level); // debugLevel);
@@ -9062,6 +9139,9 @@ if (debugLevel > -100) return true; // temporarily !
 					"-noise-random_"+ noise_sigma_level.scale_random+
 					"-noise-fpn_"+    noise_sigma_level.scale_fpn+
 					"-sigma_"+noise_sigma_level.sigma;
+			if (noise_variant >=0) {
+				noisy_4slice_suffix += "-variant_"+noise_variant;
+			}
 			ref_quadCLT.genSave4sliceImage(
 					clt_parameters,        // CLTParameters                                   clt_parameters,
 					noisy_4slice_suffix,   // String                                          suffix,
@@ -9104,6 +9184,7 @@ if (debugLevel > -100) return true; // temporarily !
 					colorProcParameters,       // ColorProcParameters colorProcParameters,
 					ref_quadCLT,               // QuadCLT [] scenes, // ordered by increasing timestamps
 					noise_sigma_level,         // double []            noise_sigma_level,
+					noise_variant,             // int                  noise_variant, // <0 - no-variants, compatible with old code
 					clt_parameters.inp.noise_debug_level); // clt_parameters.ofp.debug_level_optical - 1); // 1); // -1); // int debug_level);
 		}
 		System.out.println("End of intersceneNoise()");
@@ -9311,6 +9392,45 @@ if (debugLevel > -100) return true; // temporarily !
 				"-results-rnd_1.0-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
 				"-results-rnd_1.0-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
 				"-results-rnd_1.0-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+				
+				"-results-rnd_1.3-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
+				"-results-rnd_1.3-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
+				"-results-rnd_1.3-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
+				"-results-rnd_1.3-fpn_0.0-sigma_1.5-offset1.4142-sensors2-nointer-nolma",
+				"-results-rnd_1.3-fpn_0.0-sigma_1.5-offset1.4142-sensors4-inter-nolma",
+				"-results-rnd_1.3-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
+				"-results-rnd_1.3-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
+				"-results-rnd_1.3-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+				
+				"-results-rnd_1.6-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
+				"-results-rnd_1.6-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
+				"-results-rnd_1.6-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
+				"-results-rnd_1.6-fpn_0.0-sigma_1.5-offset1.4142-sensors2-nointer-nolma",
+				"-results-rnd_1.6-fpn_0.0-sigma_1.5-offset1.4142-sensors4-inter-nolma",
+				"-results-rnd_1.6-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
+				"-results-rnd_1.6-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
+				"-results-rnd_1.6-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+				
+				"-results-rnd_2.0-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
+				"-results-rnd_2.0-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
+				"-results-rnd_2.0-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
+				"-results-rnd_2.0-fpn_0.0-sigma_1.5-offset1.4142-sensors2-nointer-nolma",
+				"-results-rnd_2.0-fpn_0.0-sigma_1.5-offset1.4142-sensors4-inter-nolma",
+				"-results-rnd_2.0-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
+				"-results-rnd_2.0-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
+				"-results-rnd_2.0-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+				
+				"-results-rnd_2.5-fpn_0.0-sigma_1.5-offset1.4142-sensors16-inter-nolma",
+				"-results-rnd_2.5-fpn_0.0-sigma_1.5-offset1.4142-sensors16-nointer-nolma",
+				"-results-rnd_2.5-fpn_0.0-sigma_1.5-offset1.4142-sensors2-inter-nolma",
+				"-results-rnd_2.5-fpn_0.0-sigma_1.5-offset1.4142-sensors2-nointer-nolma",
+				"-results-rnd_2.5-fpn_0.0-sigma_1.5-offset1.4142-sensors4-inter-nolma",
+				"-results-rnd_2.5-fpn_0.0-sigma_1.5-offset1.4142-sensors4-nointer-nolma",
+				"-results-rnd_2.5-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
+				"-results-rnd_2.5-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
+				
+				
+				
 				/*
 				"-results-rnd_0.0-fpn_0.0-sigma_1.5-offset1.0-sensors16-inter",
 				"-results-rnd_0.0-fpn_0.0-sigma_1.5-offset1.0-sensors16-nointer",
@@ -9627,7 +9747,7 @@ if (debugLevel > -100) return true; // temporarily !
 			String []            noise_files,
 			int                  debug_level)
 	{
-		int dbg_tile = 1222; // 737;
+		int dbg_tile = 829; // 828; // 1222; // 737;
 
 		/*
 		"disp-last",
@@ -9652,19 +9772,41 @@ if (debugLevel > -100) return true; // temporarily !
 		double max_disparity = 30.0; // for max_err1
 //		double disp_rel_min = 0.5;
 		
-		double disp_near_rel = 2.5;
-		double disp_max_rel = 0.25;
-		double disp_max_inter = 0.8;
-		double disp_far_abs = 1.0;
-		double disp_max_abs = 0.4;
-		double min_scenes_used = 0.5;
-		boolean use_edges =    false; // true; // false; // do not filter out edges
-		boolean all_converge = false;  // true; // false; // use only tiles that converge for all variants (intra, inter, used sensors)
-		boolean all_max_err =  false; // true; // false;  // use only tiles that have limited error for all variants (intra, inter, used sensors)
+		double disp_near_rel =     2.5;
+		double disp_max_rel =      0.25;
+		double disp_max_inter =    0.8;
+		double disp_far_abs =      1.0;
+		double disp_max_abs =      0.4;
+		double min_scenes_used =   0.5;
+		boolean use_edges =        false; // true; // false; // do not filter out edges
+		boolean all_converge =     false;  // true; // false; // use only tiles that converge for all variants (intra, inter, used sensors)
+		boolean all_max_err =      false; // true; // false;  // use only tiles that have limited error for all variants (intra, inter, used sensors)
 		boolean same_num_sensors = true; //  false; // true; // compare performance to same number of sensors, inter, no-noise
-		int          min_modes = 4; // 5; // 6; // 5; // 4;//at least half are meaningfull
+		int          min_modes =   4; // 5; // 6; // 5; // 4;//at least half are meaningfull
 		
-		double min_inter16_noise_level = 0.1; // 0.3; // tile should have at least this noise level for 1nter16 (mode 0)
+		// LMA parameters
+		boolean useLinear =         true;
+		double  noise_offset =      0.05; // 0.1; // 0.03; // 0.10; // 0.03; // 50;
+		double  n0 =                0.03;
+		boolean adjust_N0 =         true;
+		boolean adjust_Gi =         true;
+		boolean adjust_St =         true; // false;
+		
+		double min_inter16_noise_level = 0.10; // 0.3; // tile should have at least this noise level for 1nter16 (mode 0)
+		
+		boolean zero_all_bad =      true; // false; //  true;    // set noise_level to zero if all noise levels result in bad tiles
+		boolean all_inter =         true;    // tile has to be defined for all inter
+		boolean need_same_inter =   true; // do not use intra sample if same inter is bad for all noise levels  
+
+		double max_diff_from_ref = 0.20; // 0.06; // 5; // 0.1; // max_err1; // 0.25 pix
+		boolean use_fpn = false;
+
+		double max_diff_from_ref_range = 0.25*max_diff_from_ref; // trying to stay in linear
+		int    max_diff_from_ref_steps = 21;
+		int    range_outliers =          2;
+		int    range_min_keep =          1; // emove less outliers if needed to keep this remain 
+
+		
 		
 		if (use_edges) {
 			disp_max_rel = 100.0;
@@ -9863,10 +10005,10 @@ if (debugLevel > -100) return true; // temporarily !
 			}
 		}
 		
-		// For each file find boolean good/bad, comparing to zero noise of the same number of sensors, itnerscene 
+		// For each file find boolean good/bad, comparing to zero noise of the same number of sensors, interscene 
 		boolean [][] good_file_tile = new boolean[noise_files.length][]; // [good_tiles.length];
+		boolean [][][] good_file_tile_range = new boolean[noise_files.length][][]; // [good_tiles.length];
 //		double max_err1 =0.25; // pix
-		double max_diff_from_ref = 0.2; // 0.06; // 5; // 0.1; // max_err1; // 0.25 pix
 		for (int nf = 0; nf < noise_files.length; nf++) {
 			// common or per number of sensors reference data 
 			String fn = noise_files[nf];
@@ -9878,6 +10020,7 @@ if (debugLevel > -100) return true; // temporarily !
 					null); // int []      wh);
 //			boolean [] good_ref = good_tiles_mode[sensor_mode]; // good tile without noise for this number of sensors
 			good_file_tile[nf] = good_tiles_mode[sensor_mode].clone();
+			good_file_tile_range[nf] = new boolean [good_tiles_mode[sensor_mode].length][];
 			for (int ntile = 0; ntile < good_file_tile[nf].length; ntile++) if (good_file_tile[nf][ntile]) {
 				if (ntile == dbg_tile) {
 					System.out.println("Finding good tiles: ntile = "+ntile+", nf="+nf+" ("+fn+")");
@@ -9891,16 +10034,30 @@ if (debugLevel > -100) return true; // temporarily !
 					good_file_tile[nf][ntile] = false;
 					continue;
 				}
+				good_file_tile[nf][ntile] =       (Math.abs(noise_dsn[indx_last][ntile] - ref_var[indx_last][ntile]) < max_diff_from_ref);
+				good_file_tile_range[nf][ntile] = new boolean[max_diff_from_ref_steps];
+				boolean has_good = false;
+				for (int stp = 0; stp < max_diff_from_ref_steps; stp++) {
+					double thresh = max_diff_from_ref + max_diff_from_ref_range * (2 *stp - max_diff_from_ref_steps + 1)/(max_diff_from_ref_steps-1);
+					boolean is_good = (Math.abs(noise_dsn[indx_last][ntile] - ref_var[indx_last][ntile]) < thresh);
+					good_file_tile_range[nf][ntile][stp] = is_good; 
+					has_good |= is_good;
+				}
+				if (!has_good) {
+					good_file_tile_range[nf][ntile] = null; // all bad
+				}
+				
+				/*
 				boolean good_tiles_this = (Math.abs(noise_dsn[indx_last][ntile] - ref_var[indx_last][ntile]) < max_diff_from_ref);
 				if (!good_tiles_this) {
 					good_file_tile[nf][ntile] = false;
 					continue;
 				}
+				*/
 			}			
 		}
-		// show number of noise values for each tile, num sensors and intra/inter, discarding tiles that are good/bad for all noise levels
 		{
-			boolean use_fpn = false;
+			// show number of noise values for each tile, num sensors and intra/inter, discarding tiles that are good/bad for all noise levels
 			double [][] dbg_num_noise_val = new double [good_tiles_mode.length*2][good_tiles.length];
 			String [] dbg_num_noise_titles = new String [dbg_num_noise_val.length];
 			for (int i = 0; i < good_tiles_mode.length; i++) {
@@ -9914,7 +10071,7 @@ if (debugLevel > -100) return true; // temporarily !
 				if (ntile == dbg_tile) {
 					System.out.println("Finding good tiles: ntile = "+ntile);
 				}
-				
+
 				if (good_tiles[ntile]) { // do not bother with obviously bad
 					int [] num_good =    new int [dbg_num_noise_val.length];
 					boolean [] has_bad = new boolean [dbg_num_noise_val.length];
@@ -9948,21 +10105,77 @@ if (debugLevel > -100) return true; // temporarily !
 					true,
 					"num_noise_levels",
 					dbg_num_noise_titles);
+
+			for (int i = 00; i < dbg_num_noise_val.length; i++) {
+				Arrays.fill(dbg_num_noise_val[i], Double.NaN);
+			}
+			for (int ntile = 0; ntile < good_tiles.length; ntile++) {
+				if (ntile == dbg_tile) {
+					System.out.println("Finding good tiles: ntile = "+ntile);
+				}
+
+				if (good_tiles[ntile]) { // do not bother with obviously bad
+					int [] num_good =    new int [dbg_num_noise_val.length];
+					boolean [] has_bad = new boolean [dbg_num_noise_val.length];
+					for (int nf = 0; nf < noise_files.length; nf++) {
+						int results_index = sensor_mode_file[nf] + (inter_file[nf]? 0 : 4); // inter; //  ? 0 : (intra? 1 : 2);
+						if (good_file_tile_range[nf][ntile] != null) {
+							for (int stp = 0; stp < good_file_tile_range[nf][ntile].length; stp++) {
+								if (good_file_tile_range[nf][ntile][stp]) {
+									num_good[results_index]++;
+								} else {
+									has_bad[results_index] = true;
+								}
+							}
+							
+						} else {
+							has_bad[results_index] = true;
+						}
+					}
+					// only keep tiles that have noise threshold for all modalities
+					int num_full = 0;
+					for (int i = 0; i < dbg_num_noise_val.length; i++) {
+						if (has_bad[i] && (num_good[i] > 0)) {
+							num_full++;
+						}
+					}
+					if (num_full < min_modes) {
+						continue;
+					}
+					for (int i = 0; i < dbg_num_noise_val.length; i++) if (has_bad[i]) {
+						dbg_num_noise_val[i][ntile] = num_good[i];
+					}
+				}
+			}
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_num_noise_val,
+					tilesX,
+					good_tiles.length/ tilesX,
+					true,
+					"num_noise_levels_range",
+					dbg_num_noise_titles);
+			
+			
 			double []    noise_file = use_fpn ? noise_fpn_file : noise_rnd_file;
-			double [][] noise_levels = 	InterIntraLMA.getNoiseThreshold(
+			double [][] noise_levels0 = 	InterIntraLMA.getNoiseThreshold(
 					noise_file,              // double []    noise_file, //  = new double [noise_files.length];
 					sensor_mode_file,        // int []       sensor_mode_file,
 					inter_file,              // boolean []   inter_file,
 					good_file_tile,          // boolean [][] good_file_tile,
 					min_inter16_noise_level, // double       min_inter16_noise_level,
-					min_modes);              // int          min_modes,
+					min_modes,               // int          min_modes,
+					zero_all_bad,            // boolean zero_all_bad = true;    // set noise_level to zero if all noise levels result in bad tiles
+					all_inter,               // boolean all_inter =    true;    // tile has to be defined for all inter
+					need_same_inter,         // boolean need_same_inter = true; // do not use intra sample if same inter is bad for all noise levels
+					dbg_tile);               // int            dbg_tile);
+					
 			double [][] dbg_noise_levels = new double [dbg_num_noise_titles.length][good_tiles.length];
 			for (int i = 0; i < dbg_noise_levels.length; i++) {
 				Arrays.fill(dbg_noise_levels[i], Double.NaN);
 			}
-			for (int ntile = 0; ntile <noise_levels.length; ntile++) if (noise_levels[ntile] != null){
-				for (int i = 0; i < noise_levels[ntile].length; i++) {
-					dbg_noise_levels[i][ntile] = noise_levels[ntile][i];
+			for (int ntile = 0; ntile <noise_levels0.length; ntile++) if (noise_levels0[ntile] != null){
+				for (int i = 0; i < noise_levels0[ntile].length; i++) {
+					dbg_noise_levels[i][ntile] = noise_levels0[ntile][i];
 				}
 			}
 			(new ShowDoubleFloatArrays()).showArrays(
@@ -9972,16 +10185,70 @@ if (debugLevel > -100) return true; // temporarily !
 					true,
 					"noise_levels",
 					dbg_num_noise_titles);
-			double noise_offset = 0.03; // 0.10; // 0.03; // 50;
+			{
+//				int dbg_tile = 828;
+				for (int mode = 0; mode < 8; mode++) {
+					for (int nf = 0; nf < noise_files.length; nf++) if(good_file_tile_range[nf] !=null){ // always
+						int mode_file = sensor_mode_file[nf] + (inter_file[nf]? 0 : 4); // inter; //  ? 0 : (intra? 1 : 2);
+						if (mode_file == mode) {
+							double noise_rnd = noise_rnd_file[nf];
+							if (good_file_tile_range[nf][dbg_tile] != null) {
+								String s = "";
+								for (int i = 0; i < good_file_tile_range[nf][dbg_tile].length; i++) {
+									s += good_file_tile_range[nf][dbg_tile][i]? " + ": " - ";
+								}
+								System.out.println(String.format("%1d:%3d %6.4f %s", mode, nf, noise_rnd, s));
+							} else {
+								System.out.println(String.format("%1d:%3d %6.4f", mode, nf, noise_rnd));
+
+							}
+						}
+
+					}
+				}
+			}
+			
+			double [][] noise_levels = 	InterIntraLMA.getNoiseThreshold(
+					noise_file,              // double []    noise_file, //  = new double [noise_files.length];
+					sensor_mode_file,        // int []       sensor_mode_file,
+					inter_file,              // boolean []   inter_file,
+					range_outliers,          // int            outliers,  // may need do modify algorithm to avoid bias - removing same side (densier) outliers 
+					range_min_keep,          // int            min_keep, // remove less outliers if needed to keep this remain 
+					good_file_tile_range,    // boolean [][][] good_file_tile_range,
+					min_inter16_noise_level, // double       min_inter16_noise_level,
+					min_modes+0,             // int          min_modes,
+					zero_all_bad,            // boolean zero_all_bad = true;    // set noise_level to zero if all noise levels result in bad tiles
+					all_inter,               // boolean all_inter =    true;    // tile has to be defined for all inter
+					need_same_inter,         // boolean need_same_inter = true; // do not use intra sample if same inter is bad for all noise levels
+					dbg_tile);               // int            dbg_tile);
+			
+			double [][] dbg_noise_levels_range = new double [dbg_num_noise_titles.length][good_tiles.length];
+			for (int i = 0; i < dbg_noise_levels_range.length; i++) {
+				Arrays.fill(dbg_noise_levels_range[i], Double.NaN);
+			}
+			for (int ntile = 0; ntile <noise_levels.length; ntile++) if (noise_levels[ntile] != null){
+				for (int i = 0; i < noise_levels[ntile].length; i++) {
+					dbg_noise_levels_range[i][ntile] = noise_levels[ntile][i];
+				}
+			}
+
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_noise_levels_range,
+					tilesX,
+					good_tiles.length/ tilesX,
+					true,
+					"noise_levels_range",
+					dbg_num_noise_titles);
+			
+
 			InterIntraLMA interIntraLMA = new InterIntraLMA(
+					useLinear,    // boolean     useLinear,
 					noise_levels, // double [][] noise_thresh,
-					noise_offset, // double      offset, // initial value for N0
+					noise_offset, // double      offset  // for "relative" noise
+					n0 ,          // double       n0,    // initial value for N0
 					tilesX,       // int         tilesX, // debug images only
 					1); // int         debug_level)
 
-			boolean adjust_N0 = true;
-			boolean adjust_Gi = true;
-			boolean adjust_St = true; // false;
 
 			boolean LMA_OK = interIntraLMA.runLma(
 					adjust_N0, // boolean adjust_N0,
@@ -9992,7 +10259,7 @@ if (debugLevel > -100) return true; // temporarily !
 					8.0, // double lambda_scale_bad, // 8.0
 					100, // double lambda_max,       // 100
 					0.001, // double rms_diff,         // 0.001
-					20, // int    num_iter,         // 20
+					30, // int    num_iter,         // 20
 					2); // 0); // int    debug_level)
 			
 			System.out.println("LMA_OK = "+LMA_OK);

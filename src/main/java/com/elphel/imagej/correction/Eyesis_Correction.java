@@ -7255,6 +7255,7 @@ private Panel panel1,
 					EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
 					PROPERTIES,                 // Properties                                           properties,
 					bayer_artifacts_debug,      // boolean  bayer_artifacts_debug
+					-1,                         // int                                                  noise_variant, // <0 - no-variants, compatible with old code
 					THREADS_MAX,                // final int          threadsMax,  // maximal number of threads to launch
 					UPDATE_STATUS,              // final boolean    updateStatus,
 					DEBUG_LEVEL);

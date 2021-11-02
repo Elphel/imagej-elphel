@@ -3168,8 +3168,7 @@ public class OpticalFlow {
 			ColorProcParameters  colorProcParameters,
 			QuadCLT.SetChannels [] set_channels,
 			QuadCLT              ref_scene, // ordered by increasing timestamps
-//			double []            
-			NoiseParameters noise_sigma_level,
+			NoiseParameters noise_sigma_level, // only comes with no-noise here
 			int                  debug_level
 			)
 	{
@@ -3197,7 +3196,8 @@ public class OpticalFlow {
 					scene_names[i],
 					clt_parameters,
 					colorProcParameters, //
-					noise_sigma_level,   // double []            noise_sigma_level,
+					noise_sigma_level,   // double []            noise_sigma_level,only comes with non-noise here, so noise_variant is not needed
+					-1,                  // int                  noise_variant, // <0 - no-variants, compatible with old code
 					ref_scene,           // QuadCLTCPU           ref_scene, // may be null if scale_fpn <= 0
 					threadsMax,
 					-1); // debug_level);
@@ -3774,6 +3774,7 @@ public class OpticalFlow {
 			QuadCLT              ref_scene, // ordered by increasing timestamps
 //			double []
 			NoiseParameters		 noise_sigma_level,
+			int                  noise_variant, // <0 - no-variants, compatible with old code			
 			int                  debug_level
 			)
 	{
@@ -3792,6 +3793,7 @@ public class OpticalFlow {
 					clt_parameters,
 					colorProcParameters, //
 					noise_sigma_level,   // double []            noise_sigma_level,
+					noise_variant,       // int                  noise_variant, // <0 - no-variants, compatible with old code
 					ref_scene,          // QuadCLTCPU           ref_scene, // may be null if scale_fpn <= 0
 					threadsMax,
 					-1); // debug_level);
@@ -3832,7 +3834,7 @@ public class OpticalFlow {
 			}
 			
 		} else {
-			combo_dsn = ref_scene. readDoubleArrayFromModelDirectory( //"disp", "strength","disp_lma","num_valid"
+			combo_dsn = ref_scene.readDoubleArrayFromModelDirectory( //"disp", "strength","disp_lma","num_valid"
 					"-results-nonoise" + (read_nonoise_lma?"-lma":"-nolma"), // String      suffix,
 					combo_dsn_titles.length - 1, // 4
 					null); // int []      wh);
@@ -3845,7 +3847,7 @@ public class OpticalFlow {
 		final int margin = 8;
 		final int tilesX = ref_scene.getTileProcessor().getTilesX();
 		final int tilesY = ref_scene.getTileProcessor().getTilesY();
-		if (debug_level > -1) {
+		if (debug_level > 0) {
 			int        extra = 10; // pixels around largest outline
 			int        scale = 4;
 
@@ -4011,6 +4013,12 @@ public class OpticalFlow {
 			//rslt_suffix +="-mask"+clt_parameters.img_dtt.dbg_pair_mask;
 		}
 		rslt_suffix += (clt_parameters.correlate_lma?"-lma":"-nolma");
+		if (noise_variant >= 0) {
+			rslt_suffix +="-variant"+noise_variant;
+		}
+		
+		//			int                  noise_variant, // <0 - no-variants, compatible with old code			
+
 		ref_scene.saveDoubleArrayInModelDirectory(
 				rslt_suffix,         // String      suffix,
 				refine_titles,       // null,          // String []   labels, // or null

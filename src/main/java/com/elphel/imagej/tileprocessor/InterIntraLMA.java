@@ -52,13 +52,14 @@ public class InterIntraLMA {
 			boolean []   inter_file,
 			boolean [][] good_file_tile,
 			double       min_inter16_noise_level,
-			int          min_modes)
+			int          min_modes,
+			boolean      zero_all_bad,     // set noise_level to zero if all noise levels result in bad tiles
+			boolean      all_inter,        // tile has to be defined for all inter
+			boolean      need_same_inter, // = true; // do not use intra sample if same inter is bad for all noise levels
+			int          dbg_tile)
+			
 	{
-		int dbg_tile = 1222;
-//		boolean remove_non_monotonic = false; // true;
-		boolean zero_all_bad = true;    // set noise_level to zero if all noise levels result in bad tiles
-		boolean all_inter =    true;    // tile has to be defined for all inter
-		boolean need_same_inter = true; // do not use intra sample if same inter is bad for all noise levels  
+//		int dbg_tile = 828; // 1222;
 		int num_sensor_modes = 0;
 		int num_tiles = good_file_tile[0].length;
 		for (int i = 0; i < sensor_mode_file.length; i++) {
@@ -167,6 +168,221 @@ public class InterIntraLMA {
 		}
 		return rslt;
 	}
+	
+	// trying multi-threshold good_file_tile_range
+	public static double [][] getNoiseThreshold(
+			double []      noise_file, //  = new double [noise_files.length];
+			int []         sensor_mode_file,
+			boolean []     inter_file,
+			int            outliers,  // may need do modify algorithm to avoid bias - removing same side (densier) outliers 
+			int            min_keep, // remove less outliers if needed to keep this remain 
+			boolean [][][] good_file_tile_range,
+			double         min_inter16_noise_level,
+			int            min_modes,
+			boolean        zero_all_bad,     // set noise_level to zero if all noise levels result in bad tiles
+			boolean        all_inter,        // tile has to be defined for all inter
+			boolean        need_same_inter, // = true; // do not use intra sample if same inter is bad for all noise levels
+			int            dbg_tile)
+			
+	{
+		//int dbg_tile = 828;
+		int num_sensor_modes = 00;
+		int num_tiles = good_file_tile_range[0].length;
+		for (int i = 0; i < sensor_mode_file.length; i++) {
+			if (sensor_mode_file[i] > num_sensor_modes) {
+				num_sensor_modes = sensor_mode_file[i];
+			}
+		}
+		num_sensor_modes ++;
+		int num_modes = 2 * num_sensor_modes;
+		double [][] rslt = new double [num_tiles][]; // number of tiles  
+		double [][][][] noise_intervals = new double[num_modes][num_tiles][][]; // [2]; // [modes][tiles] {max_good, min_bad}
+		double [][]   lowest_all_bad = new double[num_modes][num_tiles]; // // lowest all bad (or NaN)
+		for (int i = 0; i < num_modes; i++) {
+			for (int j= 0; j < num_tiles; j++) {
+				lowest_all_bad[i][j] =Double.NaN;
+			}
+		}
+		for (int nf = 0; nf < noise_file.length; nf++) {
+			double noise = noise_file[nf];
+			int mode = sensor_mode_file[nf] + (inter_file[nf] ? 0: num_sensor_modes); 
+			for (int ntile = 0; ntile < num_tiles; ntile++) {
+				if (ntile == dbg_tile) {
+					System.out.println("ntile = "+ntile+", nf ="+nf);
+				}
+//				double lowest_all_bad = Double.NaN;
+				if (good_file_tile_range[nf][ntile] != null) {
+					if (noise_intervals[mode][ntile] == null) {
+						noise_intervals[mode][ntile] = new double [good_file_tile_range[nf][ntile].length][2];
+						for (int stp = 0; stp < noise_intervals[mode][ntile].length; stp++) {
+							noise_intervals[mode][ntile][stp][0] = Double.NaN;
+							noise_intervals[mode][ntile][stp][1] = Double.NaN;
+						}
+					}
+					for (int stp = 0; stp < noise_intervals[mode][ntile].length; stp++) {
+
+						if (good_file_tile_range[nf][ntile][stp]) { // good tile
+							if (!(noise <= noise_intervals[mode][ntile][stp][0])){ // including Double.isNaN(noise_interval[mode][ntile][0]
+								noise_intervals[mode][ntile][stp][0] = noise;
+							}
+						} else { // bad tile
+							if (!(noise >= noise_intervals[mode][ntile][stp][1])){ // including Double.isNaN(noise_interval[mode][ntile][1]
+								noise_intervals[mode][ntile][stp][1] = noise;
+							}
+						}
+					}
+				} else { // all bad files
+					if (!(noise >= lowest_all_bad[mode][ntile])) {
+						lowest_all_bad[mode][ntile] = noise;
+					}
+				}
+			}
+		}
+		// apply lowest_all_bad
+		for (int mode = 0; mode < num_modes; mode++) {
+			for (int ntile= 0; ntile < num_tiles; ntile++) {
+				double noise = lowest_all_bad[mode][ntile];
+				if (!Double.isNaN(noise) && (noise_intervals[mode][ntile] != null)) {
+					for (int stp = 0; stp < noise_intervals[mode][ntile].length; stp++) {
+						if (!(noise >= noise_intervals[mode][ntile][stp][1])){ // including Double.isNaN(noise_interval[mode][ntile][1]
+							noise_intervals[mode][ntile][stp][1] = noise;
+						}
+					}					
+				}
+			}
+		}
+		
+		for (int ntile = 0; ntile < num_tiles; ntile++){ 
+			if (ntile == dbg_tile) {
+				System.out.println("ntile = "+ntile);
+			}
+			
+			int num_defined = 00;
+			int num_defined_inter = 0;
+			for (int mode = 0; mode < num_modes; mode++) {
+				if (noise_intervals[mode][ntile] != null) {
+					boolean defined = false;
+					for (double [] nd:noise_intervals[mode][ntile]) {
+						if (!Double.isNaN(nd[0]) && !Double.isNaN(nd[1])) {
+							defined = true;
+							break;
+						}
+					}
+					if (defined) {
+						num_defined++;
+						if (mode < 4) {
+							num_defined_inter++;
+						}
+
+					}
+				}
+			}
+			//all_inter
+			if ((num_defined >= min_modes) && (!all_inter || (num_defined_inter >= 4))) {
+				rslt[ntile] = new double [num_modes];
+				for (int mode = 0; mode < num_modes; mode++){
+					if (noise_intervals[mode][ntile] != null) {
+						double [] pre_rslt = new double [noise_intervals[mode][ntile].length];  //null pointer
+						int num_def = 0;
+						for (int stp = 0; stp < pre_rslt.length; stp++) {
+							if (need_same_inter && Double.isNaN(noise_intervals[mode & 3][ntile][stp][0])) { // no good for same sensors inter
+								pre_rslt[stp] = Double.NaN;
+							} else 	if (!Double.isNaN(noise_intervals[mode][ntile][stp][0]) && !Double.isNaN(noise_intervals[mode][ntile][stp][1])) {
+								pre_rslt[stp] = noise_intervals[mode][ntile][stp][1]; // lowest noise for bad
+							} else if (zero_all_bad && Double.isNaN(noise_intervals[mode][ntile][stp][0])) {
+								pre_rslt[stp] = 0.0;
+							} else {
+								pre_rslt[stp] = Double.NaN;
+							}
+							if (!Double.isNaN(pre_rslt[stp])) {
+								num_def++;
+							}
+						}
+						if (num_def > 0) {
+							for (int num_outlier = 0; num_outlier <= outliers; num_outlier++) { // will break
+								double s0=0, sx=0, sx2=0, sy=0, sxy=0;
+								double x0 = 0.5 * (pre_rslt.length -1);
+								for (int stp = 0; stp < pre_rslt.length; stp++) {
+									double y = pre_rslt[stp];
+									if (!Double.isNaN(y)) {
+										double x = stp - x0;
+										s0+= 1.0;
+										sx += x;
+										sx2 += x*x;
+										sy += y;
+										sxy += x*y;
+									}
+								}
+								double a = 0.0;
+								double b = sy;
+								if (num_def > 1) {
+									double dn = (s0*sx2 - sx*sx);
+									a = (sxy*s0 - sy*sx)/dn;
+									b = (sy*sx2 - sxy*sx)/dn;
+								}
+								if ((num_outlier == outliers) || (num_def <= min_keep)) {
+									rslt[ntile][mode] = b;
+									break;
+								}
+								// find and remove the worst outlier
+								int worst_indx = -1;
+								double worst_err2 = -1.0;
+								for (int stp = 0; stp < pre_rslt.length; stp++) {
+									double y = pre_rslt[stp];
+									if (!Double.isNaN(y)) {
+										double err2 = y - a * (stp - x0) -b;
+										err2 *= err2;
+										if (err2 > worst_err2) {
+											worst_err2 = err2;
+											worst_indx = stp;
+										}
+									}
+								}
+								pre_rslt[worst_indx] = Double.NaN; // remove worst result
+								num_def--;
+							}
+						} else {
+							rslt[ntile][mode] = Double.NaN;
+						}
+					} else {
+						rslt[ntile][mode] = zero_all_bad ? 0.0 : Double.NaN; // no good in any stp
+					}
+				}
+			}
+			if ((rslt[ntile] != null) && (min_inter16_noise_level >0)){ // filter by to weak inter-16 (mode 0)
+				if (!(rslt[ntile][0] >= min_inter16_noise_level)){
+					rslt[ntile] = null;
+				}
+			}
+			if (rslt[ntile] != null) {
+				boolean all_nan = true;
+				boolean has_nan = false;
+				boolean has_inter_nan = false;
+				for (int mode = 0; mode < rslt[ntile].length; mode++) {
+					if (Double.isNaN(rslt[ntile][mode])) {
+						has_nan = true;
+						if (mode < 4) {
+							has_inter_nan = true;
+						}
+					} else {
+						all_nan = false;
+					}
+				}
+				if (all_nan) {
+					System.out.println("All NaN for tile = "+ntile);
+				}
+				if (has_nan) {
+					System.out.println("Has NaN for tile = "+ntile);
+				}
+				if (has_inter_nan) {
+					System.out.println("Has has_inter_nan for tile = "+ntile);
+				}
+			}
+		}
+		return rslt;
+	}
+	
+	
 	//Monotonic function
 	public int       debug_level = 0;
 	public double    offset;
@@ -178,14 +394,19 @@ public class InterIntraLMA {
 	public double [] vector; // N0, g[1]... [g7], St[i]
 	public int [][]  sample_indx; // pairs of {tile_index, mode}
 	public double [] gi;
+	public double [] gi2;
 	
 	public double [][] last_jt;// 			this.last_jt = new double [num_pars][num_points];
 
-	public double    N0;
+	public boolean   useLinear = true; // use linear instead of squared for N0, St and Gi in a vector  
+	public double    N0;  // trying linear N2 instead of N0*N0
+	public double    N02; // squared N0 (may be negative)
+	
 	public double [] Y;
 	public double [] K; // scale noise levels to make them near-relative
 	public int    [] tile_index;
 	public double [] St;
+	public double [] St2;
 	public double [] weights;
 	public double [] fx;
 	public double    last_rms = Double.NaN;
@@ -201,12 +422,15 @@ public class InterIntraLMA {
 	int dbgTilesY = 64;
 	
 	public InterIntraLMA(
+			boolean     useLinear,
 			double [][] noise_thresh,
-			double      offset, // initial value for N0
+			double      offset, // for "relative" noise
+			double      n0,    // initial value for N0 0.02
 			int         tilesX, // debug images only
 			int         debug_level)
 	{
 		boolean debug_img =  (debug_level > -1);
+		this.useLinear = useLinear;
 //		this.gi =     g0.clone();
 		this.offset = offset;
 		this.debug_level = debug_level;
@@ -224,7 +448,8 @@ public class InterIntraLMA {
 		this.gi[0] = 1.0; // all, inter - ga1n= 1.0
 		sample_indx = new int [num_samples][2];
 		tile_index = new int[num_tiles];
-		N0 = 0.03; // offset; // .01; // offset;
+		this.N0 = n0; // 0.03; // offset; // .01; // offset;
+		N02 = N0*N0; // offset; // .01; // offset;
 		Y = new double[num_samples];
 		K = new double[num_samples];
 		weights = new double[num_samples];
@@ -257,7 +482,7 @@ public class InterIntraLMA {
 			weights[nsample] = 1.0/num_samples;
 		}
 		// initial approximation
-		double N0 =  offset;
+		double N0 =  n0; // offset;
 		double N02 = N0*N0;
 		// set St for tiles that are defined for mode==0 (inter16) 
 		for (int nsample = 0; nsample < num_samples; nsample++) if (sample_indx[nsample][1] == 0){
@@ -374,6 +599,20 @@ public class InterIntraLMA {
 			}
 			
 		}
+		if (useLinear) {
+			St2 = new double [St.length];
+			for (int i = 0; i < St.length; i++) {
+				St2[i] = St[i]*St[i];
+			}
+			gi2 = new double [gi.length];
+			for (int i = 0; i < gi.length; i++) {
+				gi2[i] = gi[i]*gi[i];
+			}
+			for (int i = 0; i < Y.length; i++) {
+				Y[i] *= Y[i];
+				K[i] *= K[i];
+			}
+		}
 		if (dbg_img  != null) {
 			(new ShowDoubleFloatArrays()).showArrays(
 					dbg_img,
@@ -396,27 +635,42 @@ public class InterIntraLMA {
 		this.adjust_St = adjust_St;
 		double [] v = new double [(adjust_N0 ? 1 : 0) + (adjust_Gi ? (gi.length - 1) : 0) + (adjust_St ? st.length : 0)];
 		if (adjust_N0) {
-			v[0] = n0;
+			v[0] = useLinear ? (n0 * n0) : n0;
 		}
 		if (adjust_Gi) {
-			System.arraycopy(gi, 1, v, (adjust_N0 ? 1 : 0), gi.length-1);
+			if (useLinear) {
+				int indx = adjust_N0 ? 1 : 0;
+				for (int i = 1; i <  gi.length; i++) {
+					v[indx++] = gi[i];
+				}
+			} else {
+				System.arraycopy(gi, 1, v, (adjust_N0 ? 1 : 0), gi.length-1);
+			}
 		}
 		if (adjust_St) {
-			System.arraycopy(st, 0, v, (adjust_N0 ? 1 : 0) + (adjust_Gi ? (gi.length - 1) : 0), st.length);
+			if (useLinear) {
+				int indx = (adjust_N0 ? 1 : 0) + (adjust_Gi ? (gi.length - 1) : 0);
+				for (int i = 0; i <  st.length; i++) {
+					v[indx++] = st[i];
+				}
+			} else {
+				System.arraycopy(st, 0, v, (adjust_N0 ? 1 : 0) + (adjust_Gi ? (gi.length - 1) : 0), st.length);
+			}
 		}
 		return v;
 	}
 	
-	private double getN0(double [] v) {
-		return adjust_N0 ? v[0] : N0;
+	private double getN0(double [] v) { // returns squared in linear mode
+		return adjust_N0 ? v[0] : (useLinear ? N02 : N0);
 	}
 	
 	private double [] getGi(double [] v) {
 		double [] gi = new double [this.gi.length];
-		
 		gi[0] = 1.0;
 		if (adjust_Gi) {
 			System.arraycopy(v, (adjust_N0 ? 1 : 0), gi, 1, gi.length-1);
+		} else if (useLinear) {
+			System.arraycopy(this.gi2, 1, gi, 1, gi2.length-1);
 		} else {
 			System.arraycopy(this.gi, 1, gi, 1, gi.length-1);
 		}
@@ -429,6 +683,8 @@ public class InterIntraLMA {
 			st = new double [this.St.length]; // .length - this.gi.length];
 			System.arraycopy(v, (adjust_N0 ? 1 : 0) + (adjust_Gi ? (gi.length - 1) : 0), st, 0, st.length);
 			return st;
+		} else if (useLinear) {
+			return St2.clone();
 		} else {
 			return St.clone();
 		}
@@ -460,35 +716,57 @@ public class InterIntraLMA {
 				Arrays.fill(jt[i],0.0);
 			}
 		}
-
-		for (int i = 0; i < fx.length; i++) {
-			int itile = sample_indx[i][0];
-			int mode =  sample_indx[i][1];
-			double nv2 = st[itile]*gi[mode];
-			nv2 *= nv2;
-			nv2 -= n0*n0;
-			if (nv2 > 0) {  // if <=0 - keep 0.0
-				double sqrt = Math.sqrt(nv2);
-				fx[i] = K[i] * sqrt;
+		if (useLinear) {
+			for (int i = 0; i < fx.length; i++) {
+				int itile = sample_indx[i][0];
+				int mode =  sample_indx[i][1];
+				double nv = st[itile]*gi[mode] - n0;
+				fx[i] = K[i] * nv;
 				if (jt != null) {
-					double Amti = K[i]/sqrt;
 					int indx = 0;
 					if (adjust_N0) {
-						jt[indx++][i] = - Amti * n0;
+						jt[indx++][i] = - K[i];
 					}
-					double asg = Amti*st[itile]*gi[mode];
 					if (adjust_Gi && (mode > 0)) {
-						jt[indx + mode -1][i] = asg *st[itile];
+						jt[indx + mode -1][i] = K[i] *st[itile];
 						indx += gi.length -1;
 					}
 					if (adjust_St) {
-						jt[indx + itile][i] = asg * gi[mode];
+						jt[indx + itile][i] = K[i] * gi[mode];
+					}
+				}
+			}
+		} else {
+			for (int i = 0; i < fx.length; i++) {
+				int itile = sample_indx[i][0];
+				int mode =  sample_indx[i][1];
+				double nv2 = st[itile]*gi[mode];
+				nv2 *= nv2;
+				nv2 -= n0*n0;
+				if (nv2 > 0) {  // if <=0 - keep 0.0
+					double sqrt = Math.sqrt(nv2);
+					fx[i] = K[i] * sqrt;
+					if (jt != null) {
+						double Amti = K[i]/sqrt;
+						int indx = 0;
+						if (adjust_N0) {
+							jt[indx++][i] = - Amti * n0;
+						}
+						double asg = Amti*st[itile]*gi[mode];
+						if (adjust_Gi && (mode > 0)) {
+							jt[indx + mode -1][i] = asg *st[itile];
+							indx += gi.length -1;
+						}
+						if (adjust_St) {
+							jt[indx + itile][i] = asg * gi[mode];
+						}
 					}
 				}
 			}
 		}
 		return fx;
 	}
+	
 	public double [][] getYDbg() {
 		double [][] dbg_Y = new double [gi.length][dbgTilesX*dbgTilesY];
 		for (int mode = 0; mode < dbg_Y.length; mode++) {
@@ -519,6 +797,40 @@ public class InterIntraLMA {
 		}
 		return dbg_Fx;
 	}
+	
+	public double [][] getNmDbg() {
+		double [][] dbg_Nm = new double [gi.length][dbgTilesX*dbgTilesY];
+		for (int mode = 0; mode < dbg_Nm.length; mode++) {
+			Arrays.fill(dbg_Nm[mode], Double.NaN);
+		}
+		for (int i = 0; i < Y.length; i++) {
+			int itile = sample_indx[i][0];
+			int mode =  sample_indx[i][1];
+			int tile = tile_index[itile];
+			dbg_Nm[mode][tile] = Y[i]/K[i];
+		}
+		return dbg_Nm;
+	}
+
+	public double [][] getNvDbg() {
+		double [][] dbg_Nv = new double [gi.length][dbgTilesX*dbgTilesY];
+		for (int mode = 0; mode < dbg_Nv.length; mode++) {
+			Arrays.fill(dbg_Nv[mode], Double.NaN);
+		}
+		double [] fx = getFxJt(
+				vector, // double []   vector,
+				null);  // double [][] jt)
+		for (int i = 0; i < Y.length; i++) {
+			int itile = sample_indx[i][0];
+			int mode =  sample_indx[i][1];
+			int tile =  tile_index[itile];
+			dbg_Nv[mode][tile] = fx[i]/K[i];
+		}
+		return dbg_Nv;
+	}
+
+	
+	
 	
 	
 	private double [] getWYMinusFx(
@@ -639,10 +951,10 @@ public class InterIntraLMA {
 				N0, // double n0,
 				gi, // double [] gi,
 				St); // double [] st) {
-			
+        boolean dbg_img = debug_level > 0; 			
 		boolean [] rslt = {false,false};
 		this.last_rms = Double.NaN;
-		int iter = 0;
+		int iter = 00;
 		for (iter = 0; iter < num_iter; iter++) {
 			rslt =  lmaStep(
 					lambda,
@@ -686,17 +998,69 @@ public class InterIntraLMA {
 			System.out.println("LMA: full RMS="+last_rms+" ("+initial_rms+"), lambda="+lambda);
 		}
 		if (rslt[0]) { // success
-			if (adjust_N0) {
-				N0 = getN0(vector);
+			if (useLinear) {
+				if (adjust_N0) {
+					N02 = getN0(vector);
+					N0 = (N02 >= 0.0)? Math.sqrt(N02) : Double.NaN;
+				}
+				if (adjust_Gi) {
+					gi2 = getGi(vector);
+					for (int i = 0; i < gi2.length; i++) {
+						gi[i] = (gi2[i] >= 0.0) ? Math.sqrt(gi2[i]): Double.NaN;
+					}
+				}
+				if (adjust_St) {
+					St2 = getSt(vector);
+					for (int i = 0; i < St2.length; i++) {
+						St[i] = (St2[i] >= 0.0) ? Math.sqrt(St2[i]): Double.NaN;
+					}
+				}
+			} else {
+				if (adjust_N0) {
+					N0 = getN0(vector);
+				}
+				if (adjust_Gi) {
+					gi = getGi(vector);
+				}
+				if (adjust_St) {
+					St = getSt(vector);
+				}
 			}
-			if (adjust_Gi) {
-				gi = getGi(vector);
+			
+			if (dbg_img) {
+				double [][] dbg_Y =  getYDbg();
+				(new ShowDoubleFloatArrays()).showArrays(
+						dbg_Y,
+						dbgTilesX,
+						dbgTilesY,
+						true,
+						"dbg_Y");
+				double [][] dbg_Fx = getFxDbg();
+				(new ShowDoubleFloatArrays()).showArrays(
+						dbg_Fx,
+						dbgTilesX,
+						dbgTilesY,
+						true,
+						"dbg_Fx");
+				
+				double [][] dbg_Nm =  getNmDbg(); // for linear - extract sqrt
+				(new ShowDoubleFloatArrays()).showArrays(
+						dbg_Nm,
+						dbgTilesX,
+						dbgTilesY,
+						true,
+						"dbg_Nm");
+				double [][] dbg_Nv =  getNvDbg(); // for linear - extract sqrt
+				(new ShowDoubleFloatArrays()).showArrays(
+						dbg_Nv,
+						dbgTilesX,
+						dbgTilesY,
+						true,
+						"dbg_Nv");
 			}
-			if (adjust_St) {
-				St = getSt(vector);
-			}
+			
+			
 		}
-		
 		return rslt[0];
 	}
 	
@@ -709,7 +1073,7 @@ public class InterIntraLMA {
 		int num_points = this.weights.length; // includes 2 extra for regularization
 		int num_pars = vector.length;
 		boolean [] rslt = {false,false};
-		boolean dbg_img = debug_level > 2;
+		boolean dbg_img = debug_level > 2+0;
 		if (Double.isNaN(last_rms)) { //first time, need to calculate all (vector is valid)
 			last_jt = new double [num_pars][num_points];
 			double [] fx = getFxJt(
@@ -766,7 +1130,7 @@ public class InterIntraLMA {
 			}
 			return rslt;
 		}
-		if (debug_level>2) {
+		if (debug_level > 2) {
 			System.out.println("(JtJ + lambda*diag(JtJ)).inv()");
 			jtjl_inv.print(18, 6);
 		}
