@@ -46,19 +46,187 @@ public class InterIntraLMA {
 	 * of the bad tile. Double.NaN if noise threshold can not be determined. null if the tile is
 	 * undefined for all modes   
 	 */
-	public static double [][] getNoiseThreshold(
-			double []    noise_file, //  = new double [noise_files.length];
+	public static double [][][] getNoiseThresholdsPartial(
+			double []    noise_file,     //  = new double [noise_files.length];
+			int []       group_indices,  // last points after last file index
 			int []       sensor_mode_file,
 			boolean []   inter_file,
 			boolean [][] good_file_tile,
 			double       min_inter16_noise_level,
+			boolean      apply_min_inter16_to_inter,
+			int          min_modes,
+			boolean      zero_all_bad,     // (should likely be set!) set noise_level to zero if all noise levels result in bad tiles
+			boolean      all_inter,        // tile has to be defined for all inter
+			boolean      need_same_inter,  // = true; // do not use intra sample if same inter is bad for all noise levels
+			boolean need_same_zero,        // do not use samle if it is bad for zero-noise 
+			int          dbg_tile)
+	{
+//		int num_groups = group_indices.length - 1;
+		int num_variants = 1;
+		for (int i = 0; i < group_indices.length - 1; i++) {
+			int ng = group_indices[i+1] - group_indices[i];
+			if (ng > num_variants) {
+				num_variants = ng;
+			}
+		}
+		double [][][] rslt_partial = new double [num_variants][][];
+		for (int nv = 0; nv < num_variants; nv++) {
+			rslt_partial[nv] = getNoiseThreshold(
+					noise_file,              // double []    noise_file,     //  = new double [noise_files.length];
+					group_indices,           // int []       group_indices,  // last points after last file index
+					nv,                      // int          group_index,    // use this index of same noise value variants (or 0 if that does not exist) 
+					sensor_mode_file,        // int []       sensor_mode_file,
+					inter_file,              // boolean []   inter_file,
+					good_file_tile,          // boolean [][] good_file_tile,
+					min_inter16_noise_level, // double       min_inter16_noise_level,
+					apply_min_inter16_to_inter, // boolean      apply_min_inter16_to_inter,
+					min_modes,               // int          min_modes,
+					zero_all_bad,            // boolean      zero_all_bad,     // set noise_level to zero if all noise levels result in bad tiles
+					all_inter,               // boolean      all_inter,        // tile has to be defined for all inter
+					need_same_inter,         // boolean      need_same_inter, // = true; // do not use intra sample if same inter is bad for all noise levels
+					need_same_zero,          // boolean need_same_zero,        // do not use samle if it is bad for zero-noise 
+					dbg_tile);               // int          dbg_tile);
+		}
+
+		return  rslt_partial;
+	}
+	
+	public static double [][][] getNoiseThresholdsPartial(
+			double []    noise_file,     //  = new double [noise_files.length];
+			int []       group_indices,  // last points after last file index
+			int []       sensor_mode_file,
+			boolean []   inter_file,
+			int          outliers,  // may need do modify algorithm to avoid bias - removing same side (densier) outliers 
+			int          min_keep, // remove less outliers if needed to keep this remain 
+			boolean [][][] good_file_tile_range,
+			double       min_inter16_noise_level,
+			boolean      apply_min_inter16_to_inter,
+			int          min_modes,
+			boolean      zero_all_bad,     // (should likely be set!) set noise_level to zero if all noise levels result in bad tiles
+			boolean      all_inter,        // tile has to be defined for all inter
+			boolean      need_same_inter,  // = true; // do not use intra sample if same inter is bad for all noise levels
+			boolean      need_same_zero,   // do not use samle if it is bad for zero-noise 
+			int          dbg_tile)
+	{
+//		int num_groups = group_indices.length - 1;
+		int num_variants = 1;
+		for (int i = 0; i < group_indices.length - 1; i++) {
+			int ng = group_indices[i+1] - group_indices[i];
+			if (ng > num_variants) {
+				num_variants = ng;
+			}
+		}
+		double [][][] rslt_partial = new double [num_variants][][];
+		for (int nv = 0; nv < num_variants; nv++) {
+			rslt_partial[nv] = getNoiseThreshold(
+					noise_file,              // double []    noise_file,     //  = new double [noise_files.length];
+					group_indices,           // int []       group_indices,  // last points after last file index
+					nv,                      // int          group_index,    // use this index of same noise value variants (or 0 if that does not exist) 
+					sensor_mode_file,        // int []       sensor_mode_file,
+					inter_file,              // boolean []   inter_file,
+					outliers,                // int          outliers,  // may need do modify algorithm to avoid bias - removing same side (densier) outliers 
+					min_keep,                 //int          min_keep, // remove less outliers if needed to keep this remain 
+					good_file_tile_range,    // boolean [][][] good_file_tile_range,
+					min_inter16_noise_level, // double       min_inter16_noise_level,
+					apply_min_inter16_to_inter, // boolean      apply_min_inter16_to_inter,
+					min_modes,               // int          min_modes,
+					zero_all_bad,            // boolean      zero_all_bad,     // set noise_level to zero if all noise levels result in bad tiles
+					all_inter,               // boolean      all_inter,        // tile has to be defined for all inter
+					need_same_inter,         //boolean      need_same_inter, // = true; // do not use intra sample if same inter is bad for all noise levels
+					need_same_zero,          // boolean need_same_zero,        // do not use samle if it is bad for zero-noise 
+					dbg_tile);               // int          dbg_tile);
+		}
+
+		return  rslt_partial;
+	}
+	
+	public static double [][] mergeNoiseVariants(
+			double [][][] partial_thresholds,
+			int           num_outliers,
+			int           min_remain){
+		int num_modes = 0;
+		int num_tiles = partial_thresholds[0].length;
+		for (int i = 0; i < num_tiles; i++) {
+			if (partial_thresholds[0][i]!= null) {
+				num_modes = partial_thresholds[0][i].length;
+				break;
+			}
+		}
+		double [][] rslt = new double [num_tiles][]; // number of tiles
+		for (int ntile = 0; ntile < num_tiles; ntile++) {
+			boolean has_data = false;
+			for (int nv = 0; nv < partial_thresholds.length; nv++) {
+				if (partial_thresholds[nv][ntile] != null) {
+					has_data = true;
+					break;
+				}
+			}
+			if (has_data) {
+				rslt[ntile] = new double [num_modes];
+				for (int mode = 0; mode < num_modes; mode ++) {
+					double [] partial_tile = new double [partial_thresholds.length];
+					Arrays.fill(partial_tile, Double.NaN);
+					for (int nv = 0; nv < partial_tile.length; nv++) if (partial_thresholds[nv][ntile] != null){
+						partial_tile[nv] = partial_thresholds[nv][ntile][mode];
+					}
+					int num_defined = 0;
+					double avg = Double.NaN;
+					double s = 0.0;
+					for (int nv = 0; nv < partial_tile.length; nv++) if (!Double.isNaN(partial_tile[nv])) {
+						s+= partial_tile[nv];
+						num_defined++;
+					}
+					if (num_defined > 0) {
+						avg = s / num_defined;
+						for (int num_removed = 0; num_removed < num_outliers; num_removed++) {
+							if (num_defined <= min_remain) {
+								break;
+							}
+							double max_diff2 = 0;
+							int ioutlier = -1;
+							for (int nv = 0; nv < partial_tile.length; nv++) if (!Double.isNaN(partial_tile[nv])) {
+								double diff2 = partial_tile[nv] - s;
+								diff2 *= diff2;
+								if (diff2 > max_diff2) {
+									max_diff2 = diff2;
+									ioutlier = nv;
+								}
+							}							
+							if (ioutlier < 0) {
+								break;
+							}
+							s -=                     partial_tile[ioutlier];
+							partial_tile[ioutlier] = Double.NaN;
+							num_defined--;
+							avg = s / num_defined;
+						}
+					}
+					rslt[ntile][mode] = avg;
+				}
+			}
+		}
+		return rslt;
+	}
+	
+	public static double [][] getNoiseThreshold(
+			double []    noise_file,     //  = new double [noise_files.length];
+			int []       group_indices,  // last points after last file index
+			int          group_index,    // use this index of same noise value variants (or 0 if that does not exist) 
+			int []       sensor_mode_file,
+			boolean []   inter_file,
+			boolean [][] good_file_tile,
+			double       min_inter16_noise_level,
+			boolean      apply_min_inter16_to_inter,
 			int          min_modes,
 			boolean      zero_all_bad,     // set noise_level to zero if all noise levels result in bad tiles
 			boolean      all_inter,        // tile has to be defined for all inter
-			boolean      need_same_inter, // = true; // do not use intra sample if same inter is bad for all noise levels
+			boolean      need_same_inter,  // = true; // do not use intra sample if same inter is bad for all noise levels
+			boolean      need_same_zero,   // do not use samle if it is bad for zero-noise 
 			int          dbg_tile)
 			
 	{
+		// min_inter16_noise_level
+		int num_groups = group_indices.length - 1;
 //		int dbg_tile = 828; // 1222;
 		int num_sensor_modes = 0;
 		int num_tiles = good_file_tile[0].length;
@@ -77,12 +245,17 @@ public class InterIntraLMA {
 				noise_interval[i][j][1] =Double.NaN;
 			}
 		}
-		for (int nf = 0; nf < noise_file.length; nf++) {
+//		for (int nf = 0; nf < noise_file.length; nf++) {
+		for (int ng = 0; ng < num_groups; ng++) {
+			int nf = group_indices[ng] +  group_index;
+			if (nf >= group_indices[ng+1]) {
+				nf = group_indices[ng+1] -1;
+			}
 			double noise = noise_file[nf];
 			int mode = sensor_mode_file[nf] + (inter_file[nf] ? 0: num_sensor_modes); 
 			for (int ntile = 0; ntile < num_tiles; ntile++) {
 				if (ntile == dbg_tile) {
-					System.out.println("ntile = "+ntile+", nf ="+nf);
+					System.out.println("ntile = "+ntile+", nf ="+nf+", mode = "+mode);
 				}
 				if (good_file_tile[nf][ntile]) { // good tile
 					if (!(noise <= noise_interval[mode][ntile][0])){ // including Double.isNaN(noise_interval[mode][ntile][0]
@@ -115,20 +288,15 @@ public class InterIntraLMA {
 			if ((num_defined >= min_modes) && (!all_inter || (num_defined_inter >= 4))) {
 				rslt[ntile] = new double [num_modes];
 				for (int mode = 0; mode < num_modes; mode++) {
-//					if (need_same_inter && (mode >= 4) && Double.isNaN(noise_interval[mode & 3][ntile][0])) {  // no good for same sensors inter
 					if (need_same_inter && Double.isNaN(noise_interval[mode & 3][ntile][0])) { // no good for same sensors inter
 						rslt[ntile][mode] = Double.NaN;
+			        } else if (need_same_zero && (Double.isNaN(noise_interval[mode][ntile][0])
+			        		|| (noise_interval[mode][ntile][1] == 0.0))) { // no good for same sensors
+			        	rslt[ntile][mode] = Double.NaN;
 					} else 	if (!Double.isNaN(noise_interval[mode][ntile][0]) && !Double.isNaN(noise_interval[mode][ntile][1])) {
-						/*
-						rslt[ntile][mode] = 0.5 * (noise_interval[mode][ntile][0] + noise_interval[mode][ntile][1]);
-						if (remove_non_monotonic && (noise_interval[mode][ntile][0] > noise_interval[mode][ntile][1])) {
-							rslt[ntile][mode] = Double.NaN;
-						}
-						*/
 						// use the lowest failed noise level assuming that false positive may happen even for much higher noise level 
 						rslt[ntile][mode] = noise_interval[mode][ntile][1]; // lowest noise for bad
 						
-//					} else if (zero_all_bad && Double.isNaN(noise_interval[mode][ntile][1])) {
 					} else if (zero_all_bad && Double.isNaN(noise_interval[mode][ntile][0])) {
 						rslt[ntile][mode] = 0.0;
 					} else {
@@ -138,7 +306,13 @@ public class InterIntraLMA {
 			}
 			if ((rslt[ntile] != null) && (min_inter16_noise_level >0)){ // filter by to weak inter-16 (mode 0)
 				if (!(rslt[ntile][0] >= min_inter16_noise_level)){
-					rslt[ntile] = null;
+					if (apply_min_inter16_to_inter) {
+						rslt[ntile] = null;
+					} else {
+						for (int mode = 4; mode < rslt[ntile].length; mode++) {
+							rslt[ntile][mode] = Double.NaN;
+						}
+					}
 				}
 			}
 			if (rslt[ntile] != null) {
@@ -172,21 +346,26 @@ public class InterIntraLMA {
 	// trying multi-threshold good_file_tile_range
 	public static double [][] getNoiseThreshold(
 			double []      noise_file, //  = new double [noise_files.length];
+			int []         group_indices,  // last points after last file index
+			int            group_index,    // use this index of same noise value variants (or 0 if that does not exist) 
 			int []         sensor_mode_file,
 			boolean []     inter_file,
 			int            outliers,  // may need do modify algorithm to avoid bias - removing same side (densier) outliers 
 			int            min_keep, // remove less outliers if needed to keep this remain 
 			boolean [][][] good_file_tile_range,
 			double         min_inter16_noise_level,
+			boolean        apply_min_inter16_to_inter,
 			int            min_modes,
 			boolean        zero_all_bad,     // set noise_level to zero if all noise levels result in bad tiles
 			boolean        all_inter,        // tile has to be defined for all inter
 			boolean        need_same_inter, // = true; // do not use intra sample if same inter is bad for all noise levels
+			boolean        need_same_zero,        // do not use samle if it is bad for zero-noise
 			int            dbg_tile)
 			
 	{
 		//int dbg_tile = 828;
-		int num_sensor_modes = 00;
+		int num_groups = group_indices.length - 1;
+		int num_sensor_modes = 0;
 		int num_tiles = good_file_tile_range[0].length;
 		for (int i = 0; i < sensor_mode_file.length; i++) {
 			if (sensor_mode_file[i] > num_sensor_modes) {
@@ -203,7 +382,12 @@ public class InterIntraLMA {
 				lowest_all_bad[i][j] =Double.NaN;
 			}
 		}
-		for (int nf = 0; nf < noise_file.length; nf++) {
+//		for (int nf = 0; nf < noise_file.length; nf++) {
+		for (int ng = 0; ng < num_groups; ng++) {
+			int nf = group_indices[ng] +  group_index;
+			if (nf >= group_indices[ng+1]) {
+				nf = group_indices[ng+1] -1;
+			}
 			double noise = noise_file[nf];
 			int mode = sensor_mode_file[nf] + (inter_file[nf] ? 0: num_sensor_modes); 
 			for (int ntile = 0; ntile < num_tiles; ntile++) {
@@ -285,7 +469,14 @@ public class InterIntraLMA {
 						double [] pre_rslt = new double [noise_intervals[mode][ntile].length];  //null pointer
 						int num_def = 0;
 						for (int stp = 0; stp < pre_rslt.length; stp++) {
-							if (need_same_inter && Double.isNaN(noise_intervals[mode & 3][ntile][stp][0])) { // no good for same sensors inter
+							if (need_same_inter && (
+									(noise_intervals[mode & 3][ntile] == null) ||
+									Double.isNaN(noise_intervals[mode & 3][ntile][stp][0]))) { // no good for same sensors inter
+								pre_rslt[stp] = Double.NaN;
+							} else if (need_same_zero && (
+									(noise_intervals[mode][ntile] == null) || 
+									Double.isNaN(noise_intervals[mode][ntile][stp][0]) ||
+									(noise_intervals[mode][ntile][stp][1] == 0.0))) { // bad for no- noise for same sensors
 								pre_rslt[stp] = Double.NaN;
 							} else 	if (!Double.isNaN(noise_intervals[mode][ntile][stp][0]) && !Double.isNaN(noise_intervals[mode][ntile][stp][1])) {
 								pre_rslt[stp] = noise_intervals[mode][ntile][stp][1]; // lowest noise for bad
@@ -344,16 +535,29 @@ public class InterIntraLMA {
 						} else {
 							rslt[ntile][mode] = Double.NaN;
 						}
-					} else {
-						rslt[ntile][mode] = zero_all_bad ? 0.0 : Double.NaN; // no good in any stp
+					} else { // bad for all stp
+						if (need_same_inter && (noise_intervals[mode & 3][ntile] == null))
+							rslt[ntile][mode] = Double.NaN;
+						else if (need_same_zero && (noise_intervals[mode][ntile] == null)){
+							rslt[ntile][mode] = Double.NaN;
+						} else {
+							rslt[ntile][mode] = zero_all_bad ? 0.0 : Double.NaN; // no good in any stp
+						}
 					}
 				}
 			}
 			if ((rslt[ntile] != null) && (min_inter16_noise_level >0)){ // filter by to weak inter-16 (mode 0)
 				if (!(rslt[ntile][0] >= min_inter16_noise_level)){
-					rslt[ntile] = null;
+					if (apply_min_inter16_to_inter) {
+						rslt[ntile] = null;
+					} else {
+						for (int mode = 4; mode < rslt[ntile].length; mode++) {
+							rslt[ntile][mode] = Double.NaN;
+						}
+					}
 				}
 			}
+			
 			if (rslt[ntile] != null) {
 				boolean all_nan = true;
 				boolean has_nan = false;
@@ -427,6 +631,7 @@ public class InterIntraLMA {
 			double      offset, // for "relative" noise
 			double      n0,    // initial value for N0 0.02
 			int         tilesX, // debug images only
+			double      scale_intra, // scale weight of intra-scene samples ( < 1.0)
 			int         debug_level)
 	{
 		boolean debug_img =  (debug_level > -1);
@@ -473,14 +678,24 @@ public class InterIntraLMA {
 		
 		
 		// create Y, K and weights vectors
+		// scale_intra
+		double sum_w = 0.0;
 		for (int nsample = 0; nsample < num_samples; nsample++) {
 			int tile = tile_index[sample_indx[nsample][0]];
+			int mode = sample_indx[nsample][1];
+			double w = (mode >= 4) ? scale_intra : 1.0;
 			double d = noise_thresh[tile][sample_indx[nsample][1]];
 			K[nsample] = 1.0/(d + offset);
 			Y[nsample] = d * K[nsample];
 			// may be modified, but sum (weights) should be == 1.0;
-			weights[nsample] = 1.0/num_samples;
+			weights[nsample] = w; // 1.0/num_samples;
+			sum_w += w;
 		}
+		double scale_w = 1.0/sum_w;
+		for (int nsample = 0; nsample < num_samples; nsample++) {
+			weights[nsample] *= scale_w;
+		}
+		
 		// initial approximation
 		double N0 =  n0; // offset;
 		double N02 = N0*N0;
@@ -727,8 +942,10 @@ public class InterIntraLMA {
 					if (adjust_N0) {
 						jt[indx++][i] = - K[i];
 					}
-					if (adjust_Gi && (mode > 0)) {
-						jt[indx + mode -1][i] = K[i] *st[itile];
+					if (adjust_Gi) {
+						if (mode > 0) {
+							jt[indx + mode -1][i] = K[i] *st[itile];
+						}
 						indx += gi.length -1;
 					}
 					if (adjust_St) {
@@ -753,8 +970,11 @@ public class InterIntraLMA {
 							jt[indx++][i] = - Amti * n0;
 						}
 						double asg = Amti*st[itile]*gi[mode];
-						if (adjust_Gi && (mode > 0)) {
-							jt[indx + mode -1][i] = asg *st[itile];
+//						if (adjust_Gi && (mode > 0)) {
+						if (adjust_Gi) {
+							if  (mode > 0) {
+								jt[indx + mode -1][i] = asg *st[itile];
+							}
 							indx += gi.length -1;
 						}
 						if (adjust_St) {
@@ -766,6 +986,140 @@ public class InterIntraLMA {
 		}
 		return fx;
 	}
+	
+	
+	private boolean debugJt(
+    		double      delta,
+    		double []   vector) {
+    	int num_points = sample_indx.length;
+    	int num_pars = vector.length;
+
+//    	delta = 0.001;
+
+    	double [][] jt =          new double [num_pars][num_points];
+    	double [][] jt_delta =    new double [num_pars][num_points];
+    	double [][] jt_diff =     new double [num_pars][num_points];
+    	double [] max_diff =      new double [num_pars];
+    	boolean [] has_nan =      new boolean [num_pars];
+    	int    [] max_diff_indx = new int [num_pars];
+    	double    worst_diff =  0.0;
+    	int       worst_par  = -1;
+    	boolean   has_any_nan = false;
+    	double [] fx = getFxJt( vector,jt);
+    	if (fx == null) return false;
+    	if (getFxJt(delta, vector,jt_delta) == null) return false;
+    	
+    	for (int npar = 0; npar < jt.length; npar++) {
+    		for (int npoint = 0; npoint < jt[npar].length; npoint++) {
+    			jt_diff[npar][npoint] = jt[npar][npoint] - jt_delta[npar][npoint];
+    			if (Double.isNaN(jt_diff[npar][npoint])) {
+    				has_nan[npar] = true;
+    			} else {
+    				if (Math.abs(jt_diff[npar][npoint]) > max_diff[npar]) {
+    					max_diff[npar] =      Math.abs(jt_diff[npar][npoint]);
+    					max_diff_indx[npar] = npoint;
+    				}
+    			}
+    		}
+    		has_any_nan |= has_nan[npar];
+    		if (max_diff[npar] > worst_diff) {
+    			worst_diff = max_diff[npar];
+    			worst_par = npar;
+    		}
+    	}
+    	System.out.println("Has NaNs = "+has_any_nan);
+    	if (has_any_nan) {
+    		for (int i = 0; i < has_nan.length; i++) {
+    			if (has_nan[i]) {
+    				System.out.print(i+", ");
+    			}
+    		}
+    		System.out.println();
+    	}
+    	System.out.println("Worst diff = "+worst_diff+" for parameter #"+worst_par+", point "+max_diff_indx[worst_par]);
+		System.out.println();
+    	/*
+    	
+    	System.out.println("Test of jt-jt_delta difference,  delta = "+delta+ ":");
+    	System.out.print(String.format("Til P %3s: %10s ", "#", "fx"));
+    	for (int anp = 0; anp< all_pars.length; anp++) if(par_mask[anp]){
+			String parname;
+			if      (anp >= ndisp_index) parname = PAR_NAME_CORRNDISP + (anp - ndisp_index);
+			else if (anp >= ddisp_index) parname = PAR_NAME_CORRDISP +  (anp - ddisp_index);
+			else {
+				int ntile = anp / tile_params;
+				int anpr =  anp % tile_params;
+				if (anpr < G0_INDEX) parname = PAR_NAMES[anpr]+"-"+ntile;
+				else                 parname = PAR_NAME_SCALE +"-"+ntile + ":"+ (anpr - G0_INDEX);
+			}
+        	System.out.print(String.format("| %16s ", parname));
+    	}
+    	System.out.println();
+    	int npair0 = -1;
+    	for (int i = 0; i < num_points; i++) {
+    		if (i < samples.size()) {
+//    			int [] fs = correlation2d.getPair(samples.get(i).pair);
+//        		int npair = used_pairs_map[samples.get(i).tile][samples.get(i).fcam][samples.get(i).scam];
+//        		int npair = used_pairs_map[samples.get(i).tile][fs[0]][fs[1]];
+        		int npair = used_pairs_map[samples.get(i).tile][samples.get(i).pair];
+        		if (npair !=npair0) {
+        			if (npair0 >=0) System.out.println();
+        			npair0 = npair;
+        		}
+    			System.out.print(String.format("%3d %1d %3d: %10.7f ",samples.get(i).tile, npair, i, fx[i]));
+    		} else {
+            	System.out.print(String.format(" -  - %3d: %10.7f ", i, fx[i]));
+    		}
+        	for (int np = 0; np < num_pars; np++) {
+//            	System.out.print(String.format("|%8.5f %8.5f ", jt_delta[np][i], 1000*(jt[np][i] - jt_delta[np][i])));
+            	System.out.print(String.format("|%8.5f %8.5f ", jt_delta[np][i], 1.0 * (jt[np][i] - jt_delta[np][i])));
+            	double adiff = Math.abs(jt[np][i] - jt_delta[np][i]);
+            	if (adiff > max_diff[np]) {
+            		max_diff[np] = adiff;
+            	}
+        	}
+        	System.out.println();
+    	}
+    	double tmd = 0.0;
+    	for (int np = 0; np < num_pars; np++) {
+    		if (max_diff[np] > tmd) tmd= max_diff[np];
+    	}
+//        System.out.print(String.format("      %15s ", "Maximal diff:"));
+        System.out.print(String.format("Max diff.(%10.5f):", tmd));
+
+    	for (int np = 0; np < num_pars; np++) {
+        	System.out.print(String.format("|%8s %8.5f ", "1/1000×",  1000*max_diff[np]));
+    	}
+    	System.out.println();
+    	*/
+    	return true;
+    }
+
+
+	public double [] getFxJt( // not used in lwir
+			double      delta, // for testing derivatives: calculates as delta-F/delta_x
+			double []   vector,
+			double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
+		double [] fx0=getFxJt(vector,null);
+		if (fx0 == null) return null;
+		for (int np = 0; np < vector.length; np++) {
+			double [] vector1 = vector.clone();
+			vector1[np]+= delta;
+			double [] fxp=getFxJt(vector1,null);
+			if (fxp == null) return null;
+			vector1 = vector.clone();
+			vector1[np]-= delta;
+			double [] fxm=getFxJt(vector1,null);
+			if (fxm == null) return null;
+			jt[np] = new double [fxp.length];
+			for (int i = 0; i < fxp.length; i++) {
+				jt[np][i] = (fxp[i] - fxm[i])/delta/2;
+			}
+		}
+		return fx0;
+	}
+	
+	
 	
 	public double [][] getYDbg() {
 		double [][] dbg_Y = new double [gi.length][dbgTilesX*dbgTilesY];
@@ -915,7 +1269,11 @@ public class InterIntraLMA {
 							if (i == j) {
 								wjtjl[i][j] += d * lambda;
 								if (d == 0) {
-									System.out.println("Diagonal ZERO for i=j="+i+" absolute tile = "+tile_index[i-8]); // assuming N0, gi[1]...gi[7]
+									if (i >= 8) {
+										System.out.println("Diagonal ZERO for i=j="+i+" absolute tile = "+tile_index[i-8]); // assuming N0, gi[1]...gi[7]
+									}else {
+										System.out.println("Diagonal ZERO for i=j="+i); // assuming N0, gi[1]...gi[7]
+									}
 									wjtjl[i][j] = 1.0; // Jt * (y-fx) will anyway be 0, so any value here should work.
 								}
 							} else {
@@ -1102,13 +1460,11 @@ public class InterIntraLMA {
 						true,
 						"dbg_Fx");
 			}
-			/*
 			if (debug_level > 3) {
 				debugJt(
 						0.000001, // double      delta, // 0.2, //
 						this.vector); // double []   vector);
 			}
-			*/
 		}
 		Matrix y_minus_fx_weighted = new Matrix(last_ymfx, last_ymfx.length);
 

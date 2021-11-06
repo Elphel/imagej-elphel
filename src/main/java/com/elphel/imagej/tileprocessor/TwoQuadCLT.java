@@ -24,6 +24,7 @@ package com.elphel.imagej.tileprocessor;
 import java.awt.Rectangle;
 import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileFilter;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -40,6 +41,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
@@ -1034,11 +1036,14 @@ public class TwoQuadCLT {
 			}
 			if (clt_parameters.gen_4_img) {
 				// Save as individual JPEG images in the model directory
-				String x3d_path= quadCLT_main.correctionsParameters.selectX3dDirectory(
-						name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-						quadCLT_main.correctionsParameters.x3dModelVersion,
-						true,  // smart,
-						true);  //newAllowed, // save
+//				String x3d_path= quadCLT_main.correctionsParameters.selectX3dDirectory(
+//						name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+//						quadCLT_main.correctionsParameters.x3dModelVersion,
+//						true,  // smart,
+//						true);  //newAllowed, // save
+				String x3d_path = quadCLT_main.getX3dDirectory(name);
+				
+				
 				for (int sub_img = 0; sub_img < imps_RGB.length; sub_img++){
 					EyesisCorrections.saveAndShow(
 							imps_RGB[sub_img],
@@ -1927,11 +1932,15 @@ public class TwoQuadCLT {
 			}
 			if (clt_parameters.gen_4_img) {
 				// Save as individual JPEG images in the model directory
+				/*
 				String x3d_path= quadCLT_main.correctionsParameters.selectX3dDirectory(
 						name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
 						quadCLT_main.correctionsParameters.x3dModelVersion,
 						true,  // smart,
 						true);  //newAllowed, // save
+						*/
+				String x3d_path = quadCLT_main.getX3dDirectory(name);
+
 				for (int sub_img = 0; sub_img < imps_RGB.length; sub_img++){
 					EyesisCorrections.saveAndShow(
 							imps_RGB[sub_img],
@@ -8686,6 +8695,7 @@ if (debugLevel > -100) return true; // temporarily !
 				clt_parameters,
 				colorProcParameters, //
 				noise_sigma_level,   // double []            noise_sigma_level,
+				-1,                  // int                  noise_variant, // <0 - no-variants, compatible with old code
 				null,                // QuadCLTCPU           ref_scene, // may be null if scale_fpn <= 0
 				threadsMax,
 				clt_parameters.inp.noise_debug_level); // debugLevel);
@@ -9429,8 +9439,6 @@ if (debugLevel > -100) return true; // temporarily !
 				"-results-rnd_2.5-fpn_0.0-sigma_1.5-offset1.4142-sensors8-inter-nolma",
 				"-results-rnd_2.5-fpn_0.0-sigma_1.5-offset1.4142-sensors8-nointer-nolma",
 				
-				
-				
 				/*
 				"-results-rnd_0.0-fpn_0.0-sigma_1.5-offset1.0-sensors16-inter",
 				"-results-rnd_0.0-fpn_0.0-sigma_1.5-offset1.0-sensors16-nointer",
@@ -9628,11 +9636,53 @@ if (debugLevel > -100) return true; // temporarily !
 				"-results-lev_5.0-sigma_1.5-offset1.0-nointer-mask1"
 				*/
 				};
-		
+		// extend files by noise variants
+		//ref_scene
+
+		ArrayList<String> full_files_list = new ArrayList<String>();
+		String x3d_path = ref_scene.getX3dDirectory()+"";
+		File model_directory = new File(x3d_path);
+		int [] group_indices = new int [noise_files.length + 1];
+		for (int nf = 0; nf < noise_files.length; nf++) {
+			group_indices[nf] = full_files_list.size();
+			String base_suffix = noise_files[nf];
+			final String file_prefix = ref_scene.getImageName()+base_suffix;
+			FileFilter noiseFilefilter = new FileFilter() 
+			{
+				//Override accept method
+				public boolean accept(File file) {
+
+					//if the file extension is .log return true, else false
+					if (file.getName().endsWith(".tiff") && file.getName().startsWith(file_prefix)) {
+						return true;
+					}
+					return false;
+				}
+			};
+			
+			File[] files = model_directory.listFiles(noiseFilefilter);
+			ArrayList<String> flist = new ArrayList<String>();
+			for (File f:files) {
+				String name = f.getName();
+				String suffix = name.substring(ref_scene.getImageName().length(), name.length() - ".tiff".length());
+				flist.add(suffix);
+			}
+
+    		Collections.sort(flist, new Comparator<String>() {
+    		    @Override
+    		    public int compare(String lhs, String rhs) { // ascending
+    		        return rhs.length() > lhs.length()  ? -1 : (rhs.length() < lhs.length()) ? 1 : lhs.compareTo(rhs);
+    		    }
+    		});
+    		full_files_list.addAll(flist);
+		}
+		group_indices[group_indices.length - 1] = full_files_list.size();
+		String [] noise_files_full = full_files_list.toArray(new String[0]);
 		getNoiseStats(
 				clt_parameters,
 				ref_scene, // ordered by increasing timestamps
-				noise_files,
+				noise_files_full, // noise_files,
+				group_indices,
 				debug_level);		
 	}
 
@@ -9739,38 +9789,68 @@ if (debugLevel > -100) return true; // temporarily !
 		return good_tiles;
 	}
 	
-	
+	class DisparityResults{
+		int    []   num_instances;
+		double [][] results;
+	}
+	class NoiseLevel implements Comparable<NoiseLevel>{
+		double rnd;
+		double fpn;
+		NoiseLevel(double rnd, double fpn) {
+			this.rnd = rnd;
+			this.fpn = fpn;
+		}
+		@Override
+		public boolean equals(Object obj) {
+			if ((obj == null) || (getClass() != obj.getClass())){
+				return false;
+			}
+			NoiseLevel other = (NoiseLevel) obj;
+			return (other.rnd == rnd) && (other.fpn == fpn);
+		}
+		@Override
+		public int compareTo(NoiseLevel other) {
+			return (this.fpn > other.fpn)? 1 :((this.fpn < other.fpn) ? -1: ((this.rnd > other.rnd)? 1 : ((this.rnd < other.rnd) ? -1: 0)));
+		}
+        @Override
+        public int hashCode() {
+        	return ((Double)(rnd + 7919*fpn)).hashCode();
+        }
+		
+	}
 	
 	public void getNoiseStats(
 			CLTParameters        clt_parameters,
 			QuadCLT              ref_scene, // ordered by increasing timestamps
 			String []            noise_files,
+			int []               group_indices,
 			int                  debug_level)
 	{
-		int dbg_tile = 829; // 828; // 1222; // 737;
-
-		/*
-		"disp-last",
-		"str_last",
-		"num vlaid" <= 1.0
-		*/
+		int dbg_tile = 194; // 829; // 828; // 1222; // 737;
 		final int tilesX = ref_scene.tp.getTilesX();
-//		final int tilesY = ref_scene.tp.getTilesY();
+		int [] var_map = new int [noise_files.length]; // for each file - group number (matching group_indices).
+		double [] var_weights = new double [noise_files.length];
+		for (int i = 0; i < group_indices.length-1; i++) {
+			int indx_from = group_indices[i];
+//			int indx_to =   (i < (group_indices.length -1))? group_indices[i+1] : noise_files.length ;
+			int indx_to =   group_indices[i+1];
+			double w = 1.0/(indx_to - indx_from);
+			for (int j = indx_from; j < indx_to; j++) {
+				var_map[j] = i;
+				var_weights[j] = w;
+			}
+		}
 
 		double max_diff = 0.01; // 0.001; // 0.01; //  0.04; // 0.01; // last diff >
-		double max_err = 2.0; // 2.5; // 1.5; // 2.0; // 1.0; // 0.5; // pix
-		double max_err1 =0.250; // pix
+		double max_err =  2.0; // 2.5; // 1.5; // 2.0; // 1.0; // 0.5; // pix
+		double max_err1 = 0.250; // pix
 		double min_strength = 0.0; // minimal strength to calculate rmse (ignore weaker)
 		int indx_used =      3;
 		int indx_last =      0;
 		int indx_lma_last =  clt_parameters.correlate_lma? 2 : 0; // if lma was disabled fallback to just disparity
 		int indx_diff_last = 4;
-		
-//		int indx_initial =  3;
-		
 		int indx_strength = 1;
 		double max_disparity = 30.0; // for max_err1
-//		double disp_rel_min = 0.5;
 		
 		double disp_near_rel =     2.5;
 		double disp_max_rel =      0.25;
@@ -9785,31 +9865,35 @@ if (debugLevel > -100) return true; // temporarily !
 		int          min_modes =   4; // 5; // 6; // 5; // 4;//at least half are meaningfull
 		
 		// LMA parameters
-		boolean useLinear =         true;
-		double  noise_offset =      0.05; // 0.1; // 0.03; // 0.10; // 0.03; // 50;
+		boolean useLinear =         false; // true; // false; // true;
+		double  noise_offset =      0.03; // 0.05; // 0.03; // 0.5; // 0.1; // 0.03; //  0.1; // 0.05; // 0.1; // 0.03; // 0.10; // 0.03; // 50;
 		double  n0 =                0.03;
-		boolean adjust_N0 =         true;
+		boolean adjust_N0 =         false; // true;
 		boolean adjust_Gi =         true;
-		boolean adjust_St =         true; // false;
+		boolean adjust_St =         true; // false; // true; // false;
 		
-		double min_inter16_noise_level = 0.10; // 0.3; // tile should have at least this noise level for 1nter16 (mode 0)
-		
+		// change to only apply to intra, inter ahould use weak.
+		double min_inter16_noise_level = 0.5; // 0.3; // 0.1; // 0.3; //  0.1; // 0.3; // tile should have at least this noise level for 1nter16 (mode 0)
+		boolean apply_min_inter16_to_inter = false;
 		boolean zero_all_bad =      true; // false; //  true;    // set noise_level to zero if all noise levels result in bad tiles
 		boolean all_inter =         true;    // tile has to be defined for all inter
 		boolean need_same_inter =   true; // do not use intra sample if same inter is bad for all noise levels  
+		boolean need_same_zero =    false; // true; // do not use sample if it is bad for zero-noise  
 
-		double max_diff_from_ref = 0.20; // 0.06; // 5; // 0.1; // max_err1; // 0.25 pix
+		double max_diff_from_ref = 0.25; // 0.1; // 0.20; // 0.06; // 5; // 0.1; // max_err1; // 0.25 pix
 		boolean use_fpn = false;
 
 		double max_diff_from_ref_range = 0.25*max_diff_from_ref; // trying to stay in linear
 		int    max_diff_from_ref_steps = 21;
 		int    range_outliers =          2;
-		int    range_min_keep =          1; // emove less outliers if needed to keep this remain 
-
-		
+		int    range_min_keep =          1; // remove less outliers if needed to keep this remain 
+		int    num_var_outliers =        4;
+		int    min_var_remain =         10;
+		double scale_intra =             0.2;
+		boolean run_lma =           false;
 		
 		if (use_edges) {
-			disp_max_rel = 100.0;
+			disp_max_rel = 100.00;
 			disp_max_abs = 100.0;
 		}
 		
@@ -9819,7 +9903,6 @@ if (debugLevel > -100) return true; // temporarily !
 		null); // int []      wh);
 		
 		double [][] ref_dsn = ref_scene.readDoubleArrayFromModelDirectory(
-//				"-results-nonoise", // String      suffix,
 				"-results-nonoise-nolma", // String      suffix,
 				0, // int         num_slices, // (0 - all)
 				null); // int []      wh);
@@ -9845,10 +9928,6 @@ if (debugLevel > -100) return true; // temporarily !
 		
 		int num_good_init = 0;
 		for (int i = 0; i < good_tiles_ref.length; i++) {
-//			good_tiles[i] = (ref_dsn[indx_used][i] > 0.999) && (Math.abs(ref_dsn[indx_last_diff][i]) < max_diff);
-//			if (good_tiles[i] && (sky_map != null) && (sky_map[0][i] > 0.0)) {
-//				good_tiles[i] = false;
-//			}
 			if (good_tiles_ref[i]){
 				num_good_init++;
 			}
@@ -9859,48 +9938,17 @@ if (debugLevel > -100) return true; // temporarily !
 		}
 		
 		
-//		double  [] noise_level = new double  [noise_files.length];
-//		boolean [] intra =       new boolean [noise_files.length];
-//		boolean [] inter =       new boolean [noise_files.length];
-		class DisparityResults{
-			double [][] results;
-		}
-		class NoiseLevel implements Comparable<NoiseLevel>{
-			double rnd;
-			double fpn;
-			NoiseLevel(double rnd, double fpn) {
-				this.rnd = rnd;
-				this.fpn = fpn;
-			}
-			@Override
-			public boolean equals(Object obj) {
-				if ((obj == null) || (getClass() != obj.getClass())){
-					return false;
-				}
-				NoiseLevel other = (NoiseLevel) obj;
-				return (other.rnd == rnd) && (other.fpn == fpn);
-			}
-			@Override
-			public int compareTo(NoiseLevel other) {
-				return (this.fpn > other.fpn)? 1 :((this.fpn < other.fpn) ? -1: ((this.rnd > other.rnd)? 1 : ((this.rnd < other.rnd) ? -1: 0)));
-			}
-	        @Override
-	        public int hashCode() {
-	        	return ((Double)(rnd + 7919*fpn)).hashCode();
-	        }
-			
-		}
-		
 //		boolean all_converge = false; // use only tiles that converge for all variants (intra, inter, used sensors)
 //		boolean all_max_err =  false;  // use only tiles that have limited error for all variants (intra, inter, used sensors)
 		boolean [] converged_tiles = good_tiles_ref.clone();
 		boolean [] good_tiles =      good_tiles_ref.clone();
 		boolean [][] good_tiles_mode = {good_tiles_ref.clone(),good_tiles_ref.clone(),good_tiles_ref.clone(),good_tiles_ref.clone()}; // per intra mode
 		double [][][] ref_dsn_mode = new double[4][][];
-		int [] sensor_mode_file = new int [noise_files.length];
+		int [] sensor_mode_file =  new int [noise_files.length];
 		double [] noise_rnd_file = new double [noise_files.length];
 		double [] noise_fpn_file = new double [noise_files.length];
 		boolean [] inter_file =    new boolean [noise_files.length];
+//		int [] var_map = new int [noise_files.length]; // for each file - group number (matching group_indices).
 		
 		// extract data from file names
 		for (int nf = 0; nf < noise_files.length; nf++) {
@@ -9935,10 +9983,9 @@ if (debugLevel > -100) return true; // temporarily !
 		}		
 		
 		
-		if (all_converge || all_max_err || same_num_sensors) { // scan all images
+		if (all_converge || all_max_err || same_num_sensors) { // scan all images, use only interscene with no-noise
 			for (int nf = 0; nf < noise_files.length; nf++) {
 				String fn = noise_files[nf];
-				
 				if (inter_file[nf]) {
 					double [][] noise_dsn = ref_scene.readDoubleArrayFromModelDirectory(
 							fn, // noise_files[nf], // String      suffix,
@@ -10008,7 +10055,6 @@ if (debugLevel > -100) return true; // temporarily !
 		// For each file find boolean good/bad, comparing to zero noise of the same number of sensors, interscene 
 		boolean [][] good_file_tile = new boolean[noise_files.length][]; // [good_tiles.length];
 		boolean [][][] good_file_tile_range = new boolean[noise_files.length][][]; // [good_tiles.length];
-//		double max_err1 =0.25; // pix
 		for (int nf = 0; nf < noise_files.length; nf++) {
 			// common or per number of sensors reference data 
 			String fn = noise_files[nf];
@@ -10018,7 +10064,6 @@ if (debugLevel > -100) return true; // temporarily !
 					fn, // noise_files[nf], // String      suffix,
 					0, // int         num_slices, // (0 - all)
 					null); // int []      wh);
-//			boolean [] good_ref = good_tiles_mode[sensor_mode]; // good tile without noise for this number of sensors
 			good_file_tile[nf] = good_tiles_mode[sensor_mode].clone();
 			good_file_tile_range[nf] = new boolean [good_tiles_mode[sensor_mode].length][];
 			for (int ntile = 0; ntile < good_file_tile[nf].length; ntile++) if (good_file_tile[nf][ntile]) {
@@ -10026,7 +10071,6 @@ if (debugLevel > -100) return true; // temporarily !
 					System.out.println("Finding good tiles: ntile = "+ntile+", nf="+nf+" ("+fn+")");
 					System.out.println("noise_dsn["+indx_last+"]["+ntile+"]="+noise_dsn[indx_last][ntile]+
 							", ref_var["+indx_last+"]["+ntile+"]="+ref_var[indx_last][ntile]);
-					
 				}
 				
 				boolean converged = (Math.abs(noise_dsn[indx_last_diff][ntile]) < max_diff);
@@ -10046,16 +10090,9 @@ if (debugLevel > -100) return true; // temporarily !
 				if (!has_good) {
 					good_file_tile_range[nf][ntile] = null; // all bad
 				}
-				
-				/*
-				boolean good_tiles_this = (Math.abs(noise_dsn[indx_last][ntile] - ref_var[indx_last][ntile]) < max_diff_from_ref);
-				if (!good_tiles_this) {
-					good_file_tile[nf][ntile] = false;
-					continue;
-				}
-				*/
 			}			
 		}
+		
 		{
 			// show number of noise values for each tile, num sensors and intra/inter, discarding tiles that are good/bad for all noise levels
 			double [][] dbg_num_noise_val = new double [good_tiles_mode.length*2][good_tiles.length];
@@ -10073,12 +10110,14 @@ if (debugLevel > -100) return true; // temporarily !
 				}
 
 				if (good_tiles[ntile]) { // do not bother with obviously bad
+					double [] val_good = new double [dbg_num_noise_val.length];
 					int [] num_good =    new int [dbg_num_noise_val.length];
 					boolean [] has_bad = new boolean [dbg_num_noise_val.length];
 					for (int nf = 0; nf < noise_files.length; nf++) {
 						int results_index = sensor_mode_file[nf] + (inter_file[nf]? 0 : 4); // inter; //  ? 0 : (intra? 1 : 2);
 						if (good_file_tile[nf][ntile]) {
 							num_good[results_index]++;
+							val_good[results_index] += var_weights[nf];
 						} else {
 							has_bad[results_index] = true;
 						}
@@ -10094,7 +10133,7 @@ if (debugLevel > -100) return true; // temporarily !
 						continue;
 					}
 					for (int i = 0; i < dbg_num_noise_val.length; i++) if (has_bad[i]) {
-						dbg_num_noise_val[i][ntile] = num_good[i];
+						dbg_num_noise_val[i][ntile] = val_good[i]; // num_good[i];
 					}
 				}
 			}
@@ -10106,7 +10145,7 @@ if (debugLevel > -100) return true; // temporarily !
 					"num_noise_levels",
 					dbg_num_noise_titles);
 
-			for (int i = 00; i < dbg_num_noise_val.length; i++) {
+			for (int i = 0; i < dbg_num_noise_val.length; i++) {
 				Arrays.fill(dbg_num_noise_val[i], Double.NaN);
 			}
 			for (int ntile = 0; ntile < good_tiles.length; ntile++) {
@@ -10116,6 +10155,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 				if (good_tiles[ntile]) { // do not bother with obviously bad
 					int [] num_good =    new int [dbg_num_noise_val.length];
+					double [] val_good = new double [dbg_num_noise_val.length];
 					boolean [] has_bad = new boolean [dbg_num_noise_val.length];
 					for (int nf = 0; nf < noise_files.length; nf++) {
 						int results_index = sensor_mode_file[nf] + (inter_file[nf]? 0 : 4); // inter; //  ? 0 : (intra? 1 : 2);
@@ -10123,6 +10163,7 @@ if (debugLevel > -100) return true; // temporarily !
 							for (int stp = 0; stp < good_file_tile_range[nf][ntile].length; stp++) {
 								if (good_file_tile_range[nf][ntile][stp]) {
 									num_good[results_index]++;
+									val_good[results_index] += var_weights[nf];
 								} else {
 									has_bad[results_index] = true;
 								}
@@ -10143,7 +10184,7 @@ if (debugLevel > -100) return true; // temporarily !
 						continue;
 					}
 					for (int i = 0; i < dbg_num_noise_val.length; i++) if (has_bad[i]) {
-						dbg_num_noise_val[i][ntile] = num_good[i];
+						dbg_num_noise_val[i][ntile] = val_good[i]; // num_good[i];
 					}
 				}
 			}
@@ -10157,17 +10198,27 @@ if (debugLevel > -100) return true; // temporarily !
 			
 			
 			double []    noise_file = use_fpn ? noise_fpn_file : noise_rnd_file;
-			double [][] noise_levels0 = 	InterIntraLMA.getNoiseThreshold(
+			double [][][] noise_levels_partial0 = 	InterIntraLMA.getNoiseThresholdsPartial(
 					noise_file,              // double []    noise_file, //  = new double [noise_files.length];
+					group_indices,           // int []       group_indices,  // last points after last file index
 					sensor_mode_file,        // int []       sensor_mode_file,
 					inter_file,              // boolean []   inter_file,
 					good_file_tile,          // boolean [][] good_file_tile,
 					min_inter16_noise_level, // double       min_inter16_noise_level,
+					apply_min_inter16_to_inter, // boolean      apply_min_inter16_to_inter,
 					min_modes,               // int          min_modes,
 					zero_all_bad,            // boolean zero_all_bad = true;    // set noise_level to zero if all noise levels result in bad tiles
 					all_inter,               // boolean all_inter =    true;    // tile has to be defined for all inter
 					need_same_inter,         // boolean need_same_inter = true; // do not use intra sample if same inter is bad for all noise levels
+					need_same_zero,          // boolean need_same_zero,        // do not use samle if it is bad for zero-noise 
 					dbg_tile);               // int            dbg_tile);
+					
+			double [][] noise_levels0 = InterIntraLMA.mergeNoiseVariants(
+					noise_levels_partial0, // double [][][] partial_thresholds,
+					num_var_outliers,      // int           num_outliers,
+					min_var_remain);       // int           min_remain);
+					
+					
 					
 			double [][] dbg_noise_levels = new double [dbg_num_noise_titles.length][good_tiles.length];
 			for (int i = 0; i < dbg_noise_levels.length; i++) {
@@ -10187,7 +10238,7 @@ if (debugLevel > -100) return true; // temporarily !
 					dbg_num_noise_titles);
 			{
 //				int dbg_tile = 828;
-				for (int mode = 0; mode < 8; mode++) {
+				for (int mode = 00; mode < 8; mode++) {
 					for (int nf = 0; nf < noise_files.length; nf++) if(good_file_tile_range[nf] !=null){ // always
 						int mode_file = sensor_mode_file[nf] + (inter_file[nf]? 0 : 4); // inter; //  ? 0 : (intra? 1 : 2);
 						if (mode_file == mode) {
@@ -10200,27 +10251,32 @@ if (debugLevel > -100) return true; // temporarily !
 								System.out.println(String.format("%1d:%3d %6.4f %s", mode, nf, noise_rnd, s));
 							} else {
 								System.out.println(String.format("%1d:%3d %6.4f", mode, nf, noise_rnd));
-
 							}
 						}
-
 					}
 				}
 			}
 			
-			double [][] noise_levels = 	InterIntraLMA.getNoiseThreshold(
+			double [][][] noise_levels_partial = 	InterIntraLMA.getNoiseThresholdsPartial(
 					noise_file,              // double []    noise_file, //  = new double [noise_files.length];
+					group_indices,           // int []       group_indices,  // last points after last file index
 					sensor_mode_file,        // int []       sensor_mode_file,
 					inter_file,              // boolean []   inter_file,
 					range_outliers,          // int            outliers,  // may need do modify algorithm to avoid bias - removing same side (densier) outliers 
 					range_min_keep,          // int            min_keep, // remove less outliers if needed to keep this remain 
 					good_file_tile_range,    // boolean [][][] good_file_tile_range,
 					min_inter16_noise_level, // double       min_inter16_noise_level,
-					min_modes+0,             // int          min_modes,
+					apply_min_inter16_to_inter, // boolean      apply_min_inter16_to_inter,
+					min_modes,               // int          min_modes,
 					zero_all_bad,            // boolean zero_all_bad = true;    // set noise_level to zero if all noise levels result in bad tiles
 					all_inter,               // boolean all_inter =    true;    // tile has to be defined for all inter
 					need_same_inter,         // boolean need_same_inter = true; // do not use intra sample if same inter is bad for all noise levels
+					need_same_zero,          // boolean need_same_zero,        // do not use samle if it is bad for zero-noise 
 					dbg_tile);               // int            dbg_tile);
+			double [][] noise_levels = InterIntraLMA.mergeNoiseVariants(
+					noise_levels_partial, // double [][][] partial_thresholds,
+					num_var_outliers,      // int           num_outliers,
+					min_var_remain);       // int           min_remain);
 			
 			double [][] dbg_noise_levels_range = new double [dbg_num_noise_titles.length][good_tiles.length];
 			for (int i = 0; i < dbg_noise_levels_range.length; i++) {
@@ -10247,8 +10303,9 @@ if (debugLevel > -100) return true; // temporarily !
 					noise_offset, // double      offset  // for "relative" noise
 					n0 ,          // double       n0,    // initial value for N0
 					tilesX,       // int         tilesX, // debug images only
+					scale_intra, // double      scale_intra, // scale weight of intra-scene samples ( < 1.0)
 					1); // int         debug_level)
-
+			if (run_lma) {
 
 			boolean LMA_OK = interIntraLMA.runLma(
 					adjust_N0, // boolean adjust_N0,
@@ -10257,7 +10314,7 @@ if (debugLevel > -100) return true; // temporarily !
 					0.1, // double lambda,           // 0.1
 					0.5, // double lambda_scale_good,// 0.5
 					8.0, // double lambda_scale_bad, // 8.0
-					100, // double lambda_max,       // 100
+					1000, // double lambda_max,       // 100
 					0.001, // double rms_diff,         // 0.001
 					30, // int    num_iter,         // 20
 					2); // 0); // int    debug_level)
@@ -10279,7 +10336,7 @@ if (debugLevel > -100) return true; // temporarily !
 					tilesX,
 					good_tiles.length/ tilesX,
 					"lma_st_out");
-			
+			}
 
 		}
 
@@ -10352,23 +10409,28 @@ if (debugLevel > -100) return true; // temporarily !
 			if (!results_map.containsKey(noise_level)) {
 				DisparityResults dr = new DisparityResults();
 				dr.results = new double [8][];
+				dr.num_instances = new int[8];
 				results_map.put(noise_level, dr);
 			}
 			// inter 16, inter 8, inter 4, inter 2, intra16, intra 8, intra 4, intra 2 
 			
 			DisparityResults dr = results_map.get(noise_level);
-			dr.results[results_index] = results;
+			if (dr.results[results_index] == null) {
+				dr.results[results_index] = results.clone();
+			} else {
+				for (int i = 0; i < results.length; i++) {
+					dr.results[results_index][i] += results[i];
+				}
+			}
+			dr.num_instances[results_index]++;
 			System.out.println("getNoiseStats(): "+noise_files[nf]+": good_ref= " + num_good_init+
 					", converged= "+num_converged+", good= "+num_good+" good(0.1)= "+num_good1+", num_near="+num_near);
 		}
-//		List<Double> noise_levels_list = new ArrayList<Double>(results_map.keySet());
 		List<NoiseLevel> noise_levels_list = new ArrayList<NoiseLevel>(results_map.keySet());
 		Collections.sort(noise_levels_list);
 		
-//		String [] config_types = {"all_16", "octal", "quad", "binocular"};
 		String [] config_types = {"16", "8", "4", "2"};
 		System.out.println("\n");
-//		System.out.print("noise_level, ");
 		System.out.print("noise_random, noise_fpn, ");
 		
 		for (int it = 0; it < config_types.length; it++) {
@@ -10383,9 +10445,17 @@ if (debugLevel > -100) return true; // temporarily !
 					"("+max_err1+"), intra_rmse_"+config_types[it]+"("+max_err+"),");
 		}
 		
-//		System.out.print("inter("+max_err+"), inter("+max_err1+"), inter_conf("+max_err+"), inter_conf("+max_err1+"), inter_rmse("+max_err+"),");
-//		System.out.print("intra("+max_err+"), intra("+max_err1+"), intra_conf("+max_err+"), intra_conf("+max_err1+"), intra_rmse("+max_err+"),");
-//		System.out.print("binocular("+max_err+"), binocular("+max_err1+"), binocular_conf("+max_err+"), binocular_conf("+max_err1+"), binocular_rmse("+max_err+")");
+		for (NoiseLevel nl:noise_levels_list) {
+			double [][] results = results_map.get(nl).results;
+			int [] num_instances = results_map.get(nl).num_instances;
+			for (int m = 0; m < results.length; m++) {
+				if (num_instances[m] > 1) {
+					for (int i = 0; i < results[m].length; i++){
+						 results[m][i] /= num_instances[m];
+					}
+				}
+			}
+		}
 		System.out.println();
 		for (NoiseLevel nl:noise_levels_list) {
 			System.out.print(nl.rnd+", "+nl.fpn+", ");
@@ -10409,9 +10479,381 @@ if (debugLevel > -100) return true; // temporarily !
 			}
 			System.out.println();
 		}
+		// good (2.0), good(.25) conf(2.0), conf(0.25) rmse(2.0)
+		double [] rslt_err= {max_err1,max_err,max_err1,max_err,max_err}; 
+		int [] used_results = {0,1,4};
+		int [][] sens_to_res = {{7,6,5,4},{3,2,1,0}}; //[inter]{2,4,8,16};
 		System.out.println();
-	}
+		double [] noise_lev = new double [noise_levels_list.size()];
+		double [][][][] plots_direct = new double [used_results.length][sens_to_res.length][sens_to_res[0].length][noise_levels_list.size()];
+		int nn = 0;
+		for (NoiseLevel nl:noise_levels_list) {
+			noise_lev[nn] = use_fpn ? nl.fpn : nl.rnd;
+			double [][] results = results_map.get(nl).results;
+			for (int pt = 0; pt < plots_direct.length; pt++) {
+				for (int inter = 0; inter < sens_to_res.length; inter++) {
+					for (int isens = 0; isens < sens_to_res[0].length; isens++) {
+						plots_direct[pt][inter][isens][nn] = results[sens_to_res[inter][isens]][used_results[pt]]; 
+					}
+				}
+			}
+			nn++;
+		}
+		int num_y_steps = 100;
+		// compare RMSE : 4, 8, 16 to binocular
+		double rmse_min =         0.0;
+		double rmse_max =         0.9;
+		double rmse_max_ratio =   8.0;
+		double rmse_max_ratio1 =  4.0;
+		double rmse_max_ratio2 = 15.0;
+		double density_min     =  0.0;
+		double density_max     =  1.0;
+		plotInverted(
+				noise_levels_list, // List<NoiseLevel> noise_levels_list,
+				results_map,       // HashMap <NoiseLevel, DisparityResults> results_map,
+				max_err,           // double max_err,
+				max_err1,          // double max_err1,
+				use_fpn,           // boolean use_fpn,
+				num_y_steps,       // int num_y_steps, //  = 100;
+				rmse_min,          // double rmse_min, //  = 0.0;
+				rmse_max,          // double rmse_max, //  = 0.9;
+				rmse_max_ratio,    // double rmse_max_ratio, // = 6.0;
+				rmse_max_ratio1,   // double rmse_max_ratio1,// = 4.0;
+				rmse_max_ratio2,   // double rmse_max_ratio2 // = 20.0;
+				density_min,       // double density_min,    // == 0
+				density_max);       // double density_max,    // == 1
+
 	
+	}
+
+	public void plotInverted(
+			List<NoiseLevel> noise_levels_list,
+			HashMap <NoiseLevel, DisparityResults> results_map,
+			double max_err,
+			double max_err1,
+			boolean use_fpn,
+			int num_y_steps, //  = 100;
+			double rmse_min, //  = 0.0;
+			double rmse_max, //  = 0.9;
+			double rmse_max_ratio, // = 6.0;
+			double rmse_max_ratio1,// = 4.0;
+			double rmse_max_ratio2,// = 20.0;
+			double density_min,    // == 0
+			double density_max     // == 1
+			) {
+		// good (2.0), good(.25) conf(2.0), conf(0.25) rmse(2.0)
+		double [] rslt_err= {max_err1,max_err,max_err1,max_err,max_err}; 
+		int [] used_results = {0,1,4};
+		int [][] sens_to_res = {{7,6,5,4},{3,2,1,0}}; //[inter]{2,4,8,16};
+		System.out.println();
+		double [] noise_lev = new double [noise_levels_list.size()];
+		double [][][][] plots_direct = new double [used_results.length][sens_to_res.length][sens_to_res[0].length][noise_levels_list.size()];
+		int nn = 0;
+		for (NoiseLevel nl:noise_levels_list) {
+			noise_lev[nn] = use_fpn ? nl.fpn : nl.rnd;
+			double [][] results = results_map.get(nl).results;
+			for (int pt = 0; pt < plots_direct.length; pt++) {
+				for (int inter = 0; inter < sens_to_res.length; inter++) {
+					for (int isens = 0; isens < sens_to_res[0].length; isens++) {
+						plots_direct[pt][inter][isens][nn] = results[sens_to_res[inter][isens]][used_results[pt]]; 
+					}
+				}
+			}
+			nn++;
+		}
+		
+		
+		
+		// compare RMSE : 4, 8, 16 to binocular
+		int pt_rmse = 2;
+		String [] col_titles_rmse = {
+				"rmse("+rslt_err[pt_rmse]+")",
+				"4:2 intra",
+				"8:2 intra",
+				"16:2 intra",
+				"4:2 inter",
+				"8:2 inter",
+				"16:2 inter"};
+		for (int i = 0; i < col_titles_rmse.length; i++) {
+			System.out.print(col_titles_rmse[i]);
+			if (i < (col_titles_rmse.length -1)) {
+				System.out.print(", ");
+			}
+			
+		}
+		System.out.println();
+		double [] rmse_vals = inverseLinTFunc(
+				noise_lev, // double [] x_val,
+				plots_direct[pt_rmse][0][0], // double [] y_val,
+				rmse_min, // double    y_min,
+				rmse_max, // double    y_max,
+				num_y_steps+1)[0]; //int       npoints		) 
+		double [][][] rmse_rslt = new double [sens_to_res.length][sens_to_res[0].length][];
+		for (int inter = 0; inter < sens_to_res.length; inter++) {
+			for (int isens = 0; isens < sens_to_res[0].length; isens++) {
+				rmse_rslt[inter][isens] = inverseLinTFunc(
+						noise_lev, // double [] x_val,
+						plots_direct[pt_rmse][inter][isens], // double [] y_val,
+						rmse_min, // double    y_min,
+						rmse_max, // double    y_max,
+						num_y_steps+1)[1]; //int       npoints		) 
+			}
+		}
+		for (int i = 0; i < rmse_vals.length; i++) {
+			System.out.print(String.format("%8.5f, ", rmse_vals[i]));
+			for (int inter = 0; inter < sens_to_res.length; inter++) {
+				for (int isens = 1; isens < sens_to_res[0].length; isens++) {
+					double ratio = rmse_rslt[inter][isens][i]/rmse_rslt[inter][0][i];
+					if ((ratio > rmse_max_ratio) || Double.isInfinite(ratio)) {
+						ratio = Double.NaN;
+					}
+					if (!Double.isNaN(ratio)) {
+						System.out.print (String.format("%8.5f", ratio));
+					}
+					if (isens < (sens_to_res[0].length - 1)) {
+						System.out.print (", ");
+					}
+				}
+				if (inter < (sens_to_res.length - 1)) {
+					System.out.print (", ");
+				}
+			}
+			System.out.println();
+		}
+		System.out.println("\n");
+		// compare RMSE : 4 to binocular, 8 to 4, 16 to 4
+		String [] col_titles_rmse1 = {
+				"rmse("+rslt_err[pt_rmse]+")",
+				"4:2 intra",
+				"8:4 intra",
+				"16:8 intra",
+				"4:2 inter",
+				"8:4 inter",
+				"16:8 inter"};
+		for (int i = 0; i < col_titles_rmse1.length; i++) {
+			System.out.print(col_titles_rmse1[i]);
+			if (i < (col_titles_rmse1.length -1)) {
+				System.out.print(", ");
+			}
+		}
+		System.out.println();
+		
+		for (int i = 0; i < rmse_vals.length; i++) {
+			System.out.print(String.format("%8.5f, ", rmse_vals[i]));
+			for (int inter = 0; inter < sens_to_res.length; inter++) {
+				for (int isens = 1; isens < sens_to_res[0].length; isens++) {
+					double ratio = rmse_rslt[inter][isens][i]/rmse_rslt[inter][isens - 1][i];
+					if ((ratio > rmse_max_ratio1) || Double.isInfinite(ratio)) {
+						ratio = Double.NaN;
+					}
+					if (!Double.isNaN(ratio)) {
+						System.out.print (String.format("%8.5f", ratio));
+					}
+					if (isens < (sens_to_res[0].length - 1)) {
+						System.out.print (", ");
+					}
+				}
+				if (inter < (sens_to_res.length - 1)) {
+					System.out.print (", ");
+				}
+			}
+			System.out.println();
+		}
+		System.out.println("\n");
+		// compare RMSE : inter to same intra
+		String [] col_titles_rmse2 = {
+				"rmse("+rslt_err[pt_rmse]+")",
+				"inter:intra (2)",
+				"inter:intra (4)",
+				"inter:intra (8)",
+				"inter:intra (16)"};
+		for (int i = 0; i < col_titles_rmse2.length; i++) {
+			System.out.print(col_titles_rmse2[i]);
+			if (i < (col_titles_rmse2.length -1)) {
+				System.out.print(", ");
+			}
+		}
+		System.out.println();
+		
+		for (int i = 0; i < rmse_vals.length; i++) {
+			System.out.print(String.format("%8.5f, ", rmse_vals[i]));
+			for (int isens = 0; isens < sens_to_res[0].length; isens++) {
+				double ratio = rmse_rslt[1][isens][i]/rmse_rslt[0][isens][i];
+				if ((ratio > rmse_max_ratio2) || Double.isInfinite(ratio)) {
+					ratio = Double.NaN;
+				}
+				if (!Double.isNaN(ratio)) {
+					System.out.print (String.format("%8.5f", ratio));
+				}
+				if (isens < (sens_to_res[0].length - 1)) {
+					System.out.print (", ");
+				}
+			}
+			System.out.println();
+		}
+		System.out.println("\n");
+		
+
+		for (int idensity_err = 0; idensity_err < 2; idensity_err++) {
+			
+			// compare density (2.0 and 0.25) : 4, 8, 16 to binocular
+			int pt_density = used_results[idensity_err];
+			String [] col_titles_density = {
+					"density("+rslt_err[pt_density]+")",
+					"4:2 intra",
+					"8:2 intra",
+					"16:2 intra",
+					"4:2 inter",
+					"8:2 inter",
+					"16:2 inter"};
+			for (int i = 0; i < col_titles_density.length; i++) {
+				System.out.print(col_titles_density[i]);
+				if (i < (col_titles_density.length -1)) {
+					System.out.print(", ");
+				}
+				
+			}
+			System.out.println();
+			double [] density_vals = inverseLinTFunc(
+					noise_lev, // double [] x_val,
+					plots_direct[pt_density][0][0], // double [] y_val,
+					rmse_min, // double    y_min,
+					rmse_max, // double    y_max,
+					num_y_steps+1)[0]; //int       npoints		) 
+			double [][][] density_rslt = new double [sens_to_res.length][sens_to_res[0].length][];
+			for (int inter = 0; inter < sens_to_res.length; inter++) {
+				for (int isens = 0; isens < sens_to_res[0].length; isens++) {
+					density_rslt[inter][isens] = inverseLinTFunc(
+							noise_lev, // double [] x_val,
+							plots_direct[pt_density][inter][isens], // double [] y_val,
+							density_min, // double    y_min,
+							density_max, // double    y_max,
+							num_y_steps+1)[1]; //int       npoints		) 
+				}
+			}
+			for (int i = 0; i < density_vals.length; i++) {
+				System.out.print(String.format("%8.5f, ", density_vals[i]));
+				for (int inter = 0; inter < sens_to_res.length; inter++) {
+					for (int isens = 1; isens < sens_to_res[0].length; isens++) {
+						double ratio = density_rslt[inter][isens][i]/density_rslt[inter][0][i];
+						if ((ratio > rmse_max_ratio) || Double.isInfinite(ratio)) {
+							ratio = Double.NaN;
+						}
+						if (!Double.isNaN(ratio)) {
+							System.out.print (String.format("%8.5f", ratio));
+						}
+						if (isens < (sens_to_res[0].length - 1)) {
+							System.out.print (", ");
+						}
+					}
+					if (inter < (sens_to_res.length - 1)) {
+						System.out.print (", ");
+					}
+				}
+				System.out.println();
+			}
+			System.out.println("\n");
+			// compare RMSE : 4 to binocular, 8 to 4, 16 to 4
+			String [] col_titles_density1 = {
+					"density("+rslt_err[pt_density]+")",
+					"4:2 intra",
+					"8:4 intra",
+					"16:8 intra",
+					"4:2 inter",
+					"8:4 inter",
+					"16:8 inter"};
+			for (int i = 0; i < col_titles_density1.length; i++) {
+				System.out.print(col_titles_density1[i]);
+				if (i < (col_titles_density1.length -1)) {
+					System.out.print(", ");
+				}
+			}
+			System.out.println();
+			
+			for (int i = 0; i < density_vals.length; i++) {
+				System.out.print(String.format("%8.5f, ", density_vals[i]));
+				for (int inter = 0; inter < sens_to_res.length; inter++) {
+					for (int isens = 1; isens < sens_to_res[0].length; isens++) {
+						double ratio = density_rslt[inter][isens][i]/density_rslt[inter][isens - 1][i];
+						if ((ratio > rmse_max_ratio1) || Double.isInfinite(ratio)) {
+							ratio = Double.NaN;
+						}
+						if (!Double.isNaN(ratio)) {
+							System.out.print (String.format("%8.5f", ratio));
+						}
+						if (isens < (sens_to_res[0].length - 1)) {
+							System.out.print (", ");
+						}
+					}
+					if (inter < (sens_to_res.length - 1)) {
+						System.out.print (", ");
+					}
+				}
+				System.out.println();
+			}
+			System.out.println("\n");
+			// compare RMSE : inter to same intra
+			String [] col_titles_density2 = {
+					"density("+rslt_err[pt_density]+")",
+					"inter:intra (2)",
+					"inter:intra (4)",
+					"inter:intra (8)",
+					"inter:intra (16)"};
+			for (int i = 0; i < col_titles_density2.length; i++) {
+				System.out.print(col_titles_density2[i]);
+				if (i < (col_titles_density2.length -1)) {
+					System.out.print(", ");
+				}
+			}
+			System.out.println();
+			
+			for (int i = 0; i < density_vals.length; i++) {
+				System.out.print(String.format("%8.5f, ", density_vals[i]));
+				for (int isens = 0; isens < sens_to_res[0].length; isens++) {
+					double ratio = density_rslt[1][isens][i]/density_rslt[0][isens][i];
+					if ((ratio > rmse_max_ratio2) || Double.isInfinite(ratio)) {
+						ratio = Double.NaN;
+					}
+					if (!Double.isNaN(ratio)) {
+						System.out.print (String.format("%8.5f", ratio));
+					}
+					if (isens < (sens_to_res[0].length - 1)) {
+						System.out.print (", ");
+					}
+				}
+				System.out.println();
+			}
+			System.out.println("\n");
+		}
+	}
+		
+	
+	
+	public double [][] inverseLinTFunc(
+			double [] x_val,
+			double [] y_val,
+			double    y_min,
+			double    y_max,
+			int       npoints
+			){
+		double [][] x_y = new double [2][npoints];
+		for (int i = 0; i < npoints; i++) {
+			double y = y_min + i * (y_max - y_min)/(npoints -1);
+			x_y[0][i] = y;
+			x_y[1][i] = Double.NaN;
+			for (int j = 0; j < (x_val.length - 1); j++){
+				if (y_val[j] == y) {
+					x_y[1][i] = x_val[j];
+					break;
+				} else 	if ((y_val[j] - y) * (y_val[j + 1] - y) <= 0) {
+					x_y[1][i] = x_val[j] + (x_val[j+1] - x_val[j]) * (y - y_val[j])/(y_val[j+1]-y_val[j]);
+					break;
+				}
+			}
+			
+		}
+		return x_y;
+	}
 	
 	
 	public void batchLwirRig(
@@ -11531,12 +11973,15 @@ if (debugLevel > -100) return true; // temporarily !
 
 		}
 		if (!path.contains(Prefs.getFileSeparator())) {
+			/*
 			  String x3d_path= quadCLT_main.correctionsParameters.selectX3dDirectory( // for x3d and obj
 					  quadCLT_main.correctionsParameters.getModelName(quadCLT.image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
 					  quadCLT_main.correctionsParameters.x3dModelVersion,
 						  true,  // smart,
 						  true);  //newAllowed, // save
-			  path = x3d_path+Prefs.getFileSeparator()+path;
+			 */
+			String x3d_path = quadCLT_main.getX3dDirectory();
+			path = x3d_path+Prefs.getFileSeparator()+path;
 		}
 		if (properties == null) {
 			properties = new Properties();

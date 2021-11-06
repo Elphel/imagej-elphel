@@ -329,6 +329,26 @@ public class QuadCLTCPU {
 		return image_name;
 	}
     
+	public String getX3dDirectory() { // replace direct calculations  
+		String x3d_path = correctionsParameters.selectX3dDirectory( // for x3d and obj
+				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+				correctionsParameters.x3dModelVersion,
+				true,  // smart,
+				true);  //newAllowed, // save
+		return x3d_path;
+	}
+
+	// maybe will not be needed? TODO: Check
+	public String getX3dDirectory(String name) { // replace direct calculations  
+		String x3d_path = correctionsParameters.selectX3dDirectory( // for x3d and obj
+				name,       // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+				correctionsParameters.x3dModelVersion,
+				true,  // smart,
+				true);  //newAllowed, // save
+		return x3d_path;
+	}
+	
+	
 	public int restoreDSI(
 			String suffix,
 			boolean silent) // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
@@ -344,11 +364,7 @@ public class QuadCLTCPU {
 			String suffix, // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
 			double [][] dsi,
 			boolean silent) {
-		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
-				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-				correctionsParameters.x3dModelVersion,
-				true,  // smart,
-				true);  //newAllowed, // save
+		String x3d_path = getX3dDirectory();
 		String file_path = x3d_path + Prefs.getFileSeparator() + image_name + suffix + ".tiff";
 		ImagePlus imp = null;
 		try {
@@ -404,12 +420,8 @@ public class QuadCLTCPU {
 
 		}
 		if (!path.contains(Prefs.getFileSeparator())) {
-			  String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
-					  correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-					  correctionsParameters.x3dModelVersion,
-						  true,  // smart,
-						  true);  //newAllowed, // save
-			  path = x3d_path+Prefs.getFileSeparator()+path;
+			String x3d_path = getX3dDirectory();
+			path = x3d_path+Prefs.getFileSeparator()+path;
 		}
 		Properties	inter_properties = new Properties();
 		String prefix = is_aux?PREFIX_AUX:PREFIX; 
@@ -465,12 +477,8 @@ public class QuadCLTCPU {
 
 		}
 		if (!path.contains(Prefs.getFileSeparator())) {
-			  String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
-					  correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-					  correctionsParameters.x3dModelVersion,
-						  true,  // smart,
-						  true);  //newAllowed, // save
-			  path = x3d_path+Prefs.getFileSeparator()+path;
+			String x3d_path = getX3dDirectory();
+			path = x3d_path+Prefs.getFileSeparator()+path;
 		}
 		properties = loadProperties(
 				path, // String path,
@@ -827,11 +835,7 @@ public class QuadCLTCPU {
 		final int num_cams = this.image_data.length;
 		final int num_cols = image_data[0].length;
 		final int [] image_wh = geometryCorrection.getSensorWH();
-		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
-				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-				correctionsParameters.x3dModelVersion,
-				true,  // smart,
-				true);  //newAllowed, // save
+		String x3d_path = getX3dDirectory();
 		String noise_suffix = suffix + sigma;
 		String file_name = image_name + noise_suffix;
 		String file_path = x3d_path + Prefs.getFileSeparator() + file_name + ".tiff";
@@ -962,11 +966,7 @@ public class QuadCLTCPU {
 			int         width,
 			int         height)
 	{
-		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
-				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-				correctionsParameters.x3dModelVersion,
-				true,  // smart,
-				true);  //newAllowed, // save
+		String x3d_path = getX3dDirectory();
 		String file_name = image_name + suffix;
 		String file_path = x3d_path + Prefs.getFileSeparator() + file_name + ".tiff";
 		ImageStack imageStack = (new ShowDoubleFloatArrays()).makeStack(data, width, height, labels);
@@ -984,11 +984,7 @@ public class QuadCLTCPU {
 			)
 	{
 //		final int [] image_wh = geometryCorrection.getSensorWH();
-		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
-				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-				correctionsParameters.x3dModelVersion,
-				true,  // smart,
-				true);  //newAllowed, // save
+		String x3d_path = getX3dDirectory();
 		String file_name = image_name + suffix;
 		String file_path = x3d_path + Prefs.getFileSeparator() + file_name + ".tiff";
 		ImagePlus imp = null;
@@ -1030,19 +1026,15 @@ public class QuadCLTCPU {
 			double [][] dsi
 			)
 	{
-		  String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
-				  correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-				  correctionsParameters.x3dModelVersion,
-					  true,  // smart,
-					  true);  //newAllowed, // save
-		  String title = image_name+TwoQuadCLT.DSI_COMBO_SUFFIX;
-		  ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(dsi,tp.getTilesX(), tp.getTilesY(),  title, TwoQuadCLT.DSI_SLICES);
-			eyesisCorrections.saveAndShow(
-					   imp,      // ImagePlus             imp,
-					   x3d_path, // String                path,
-					   false,    // boolean               png,
-					   false,    // boolean               show,
-					   0);       // int                   jpegQuality)
+		String x3d_path = getX3dDirectory();
+		String title = image_name+TwoQuadCLT.DSI_COMBO_SUFFIX;
+		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(dsi,tp.getTilesX(), tp.getTilesY(),  title, TwoQuadCLT.DSI_SLICES);
+		eyesisCorrections.saveAndShow(
+				imp,      // ImagePlus             imp,
+				x3d_path, // String                path,
+				false,    // boolean               png,
+				false,    // boolean               show,
+				0);       // int                   jpegQuality)
 	}
 
 	public void showDSI(){ showDSI(this.dsi);}
@@ -1056,11 +1048,7 @@ public class QuadCLTCPU {
 	public void saveDSIMain(
 			double [][] dsi) // DSI_SLICES.length
 	{
-		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
-				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-				correctionsParameters.x3dModelVersion,
-				true,  // smart,
-				true);  //newAllowed, // save
+		String x3d_path = getX3dDirectory();
 		String title = image_name+"-DSI_MAIN";
 		String []   titles =   {TwoQuadCLT.DSI_SLICES[TwoQuadCLT.DSI_DISPARITY_MAIN], TwoQuadCLT.DSI_SLICES[TwoQuadCLT.DSI_STRENGTH_MAIN]};
 		double [][] dsi_main = {dsi[TwoQuadCLT.DSI_DISPARITY_MAIN],        dsi[TwoQuadCLT.DSI_STRENGTH_MAIN]};
@@ -1078,11 +1066,7 @@ public class QuadCLTCPU {
 			String suffix, // "-DSI_MAIN"
 			double [][] dsi) // DSI_SLICES.length
 	{
-		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
-				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-				correctionsParameters.x3dModelVersion,
-				true,  // smart,
-				true);  //newAllowed, // save
+		String x3d_path = getX3dDirectory();
 		String title = image_name+suffix; // "-DSI_MAIN";
 		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(dsi, tp.getTilesX(), tp.getTilesY(),  title, TwoQuadCLT.DSI_SLICES);
 		eyesisCorrections.saveAndShow(
@@ -1101,11 +1085,7 @@ public class QuadCLTCPU {
 			QuadCLT quadCLT_aux,
 			double [][] dsi_aux_from_main)
 	{
-		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
-				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-				correctionsParameters.x3dModelVersion,
-				true,  // smart,
-				true);  //newAllowed, // save
+		String x3d_path = getX3dDirectory();
 		String title = quadCLT_aux.image_name+"-DSI_GT-AUX";
 //		String []   titles =   {DSI_SLICES[DSI_DISPARITY_MAIN], DSI_SLICES[DSI_STRENGTH_MAIN]};
 //		double [][] dsi_main = {dsi[DSI_DISPARITY_MAIN],        dsi[DSI_STRENGTH_MAIN]};
@@ -5955,11 +5935,7 @@ public class QuadCLTCPU {
 			  }
 			  if (clt_parameters.gen_4_img) {
 				  // Save as individual JPEG images in the model directory
-				  String x3d_path= correctionsParameters.selectX3dDirectory(
-						  image_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-						  correctionsParameters.x3dModelVersion,
-						  true,  // smart,
-						  true);  //newAllowed, // save
+					String x3d_path = getX3dDirectory();
 				  for (int sub_img = 0; sub_img < imps_RGB.length; sub_img++){
 					  EyesisCorrections.saveAndShow(
 							  imps_RGB[sub_img],
@@ -11047,12 +11023,7 @@ public class QuadCLTCPU {
 					  tp.clt_3d_passes.get(next_pass-1),   // CLTPass3d   scan,
 					  "after_pass3-"+(next_pass-1)); //String title)
 		  }
- 		  String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
- 				 correctionsParameters.getModelName(this.image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
- 				  correctionsParameters.x3dModelVersion,
-				  true,  // smart,
-				  true);  //newAllowed, // save
-
+			String x3d_path = getX3dDirectory();
  			// create x3d file
 		  if (clt_parameters.output_x3d) {
 			  x3dOutput = new X3dOutput(

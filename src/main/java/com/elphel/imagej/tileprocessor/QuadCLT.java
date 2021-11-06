@@ -2010,11 +2010,7 @@ public class QuadCLT extends QuadCLTCPU {
 			EyesisCorrectionParameters.RGBParameters        rgbParameters,
 			final int                                       threadsMax,  // maximal number of threads to launch
 			final int                                       debugLevel){
-		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
-				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-				correctionsParameters.x3dModelVersion,
-				true,  // smart,
-				true);  //newAllowed, // save
+		String x3d_path = getX3dDirectory();
 		String file_name = image_name + suffix;
 		String file_path = x3d_path + Prefs.getFileSeparator() + file_name + ".tiff";
 		if ((getGPU() != null) && (getGPU().getQuadCLT() != this)) {
@@ -2224,11 +2220,7 @@ public class QuadCLT extends QuadCLTCPU {
 
 		if (clt_parameters.gen_4_img) { // save 4 JPEG images
 			// Save as individual JPEG images in the model directory
-			String x3d_path= correctionsParameters.selectX3dDirectory(
-					image_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-					correctionsParameters.x3dModelVersion,
-					true,  // smart,
-					true);  //newAllowed, // save
+			String x3d_path = getX3dDirectory();
 			for (int sub_img = 0; sub_img < imps_RGB.length; sub_img++){
 				EyesisCorrections.saveAndShow(
 						imps_RGB[sub_img],
@@ -2759,11 +2751,7 @@ public class QuadCLT extends QuadCLTCPU {
 
 		if (clt_parameters.gen_4_img) { // save 4 JPEG images
 			// Save as individual JPEG images in the model directory
-			String x3d_path= quadCLT_main.correctionsParameters.selectX3dDirectory(
-					name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-					quadCLT_main.correctionsParameters.x3dModelVersion,
-					true,  // smart,
-					true);  //newAllowed, // save
+			String x3d_path= quadCLT_main.getX3dDirectory();
 			for (int sub_img = 0; sub_img < imps_RGB.length; sub_img++){
 				EyesisCorrections.saveAndShow(
 						imps_RGB[sub_img],
