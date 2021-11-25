@@ -805,6 +805,8 @@ private Panel panel1,
 			addButton("Reset AUX Geometry",         panelLWIR16, color_stop);
 			addButton("Generate Sym Vectors",       panelLWIR16, color_configure);
 			addButton("Image Properties",           panelLWIR16, color_conf_process);
+			addButton("GPU simulate",               panelClt_GPU, color_conf_process);
+			
 			plugInFrame.add(panelLWIR16);
 			
 		}
@@ -6095,12 +6097,12 @@ private Panel panel1,
 					QUAD_CLT, // QuadCLT quadCLT_main,
 					QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
 					CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-					DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+//					DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 					COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 					COLOR_PROC_PARAMETERS_AUX, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters_aux,
-					RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+//					RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
 					THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-					UPDATE_STATUS, //final boolean    updateStatus,
+//					UPDATE_STATUS, //final boolean    updateStatus,
 					DEBUG_LEVEL);
 		} catch (Exception e) {
 			// TODO Auto-generated catch block

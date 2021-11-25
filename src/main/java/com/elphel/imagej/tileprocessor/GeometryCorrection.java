@@ -237,9 +237,9 @@ public class GeometryCorrection {
 				right,            // [0],    right[1],    right[2],    right[3],   //    [NUM_CAMS];
 				height,           // [0],   height[1],   height[2],   height[3],  //     [NUM_CAMS];
 				roll,             // [0],     roll[1],     roll[2],     roll[3],    //    [NUM_CAMS];  // degrees, CW (to target) - positive
+				// [NUM_CAMS][2]
 				pXY0,             // [0][0],  pXY0[0][1],  pXY0[1][0],  pXY0[1][1],
 				                  // [2][0],  pXY0[2][1],  pXY0[3][0],  pXY0[3][1],
-
 				common_right,    // mm right, camera center
 				common_forward,  // mm forward (to target), camera center
 				common_height,   // mm up, camera center
@@ -284,47 +284,55 @@ public class GeometryCorrection {
 			doubles[i] = double_list.get(i);
 		}
 		return doubles;
-		/*
-		return new double[] {
-				pixelCorrectionWidth, //  =2592;   // virtual camera center is at (pixelCorrectionWidth/2, pixelCorrectionHeight/2)
-				pixelCorrectionHeight, // =1936;
-				line_time,        // duration of one scan line readout (for ERS)
-				focalLength,      // =FOCAL_LENGTH;
-				pixelSize,        // =  PIXEL_SIZE; //um
-				distortionRadius, // =  DISTORTION_RADIUS; // mm - half width of the sensor
-				distortionC,      // r^2
-				distortionB,      // r^3
-				distortionA,      // r^4 (normalized to focal length or to sensor half width?)
-				distortionA5,     // r^5 (normalized to focal length or to sensor half width?)
-				distortionA6,     // r^6 (normalized to focal length or to sensor half width?)
-				distortionA7,     // r^7 (normalized to focal length or to sensor half width?)
-				distortionA8,     // r^8 (normalized to focal length or to sensor half width?)
-				elevation,     // degrees, up - positive;
-				heading,       // degrees, CW (from top) - positive
-				forward[0],  forward[1],  forward[2],  forward[3], //    [NUM_CAMS];
-				right[0],    right[1],    right[2],    right[3],   //    [NUM_CAMS];
-				height[0],   height[1],   height[2],   height[3],  //     [NUM_CAMS];
-				roll[0],     roll[1],     roll[2],     roll[3],    //    [NUM_CAMS];  // degrees, CW (to target) - positive
-				pXY0[0][0],  pXY0[0][1],  pXY0[1][0],  pXY0[1][1],
-				pXY0[2][0],  pXY0[2][1],  pXY0[3][0],  pXY0[3][1],
-
-				common_right,    // mm right, camera center
-				common_forward,  // mm forward (to target), camera center
-				common_height,   // mm up, camera center
-				common_roll,     // degrees CW (to target) camera as a whole
-				rXY[0][0],  rXY[0][1],        // [NUM_CAMS][2]; // XY pairs of the in a normal plane, relative to disparityRadius
-				rXY[1][0],  rXY[1][1],
-				rXY[2][0],  rXY[2][1],
-				rXY[3][0],  rXY[3][1],
-				cameraRadius,     // average distance from the "mass center" of the sensors to the sensors
-				disparityRadius,   //=150.0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad
-				woi_tops[0],woi_tops[1],woi_tops[2],woi_tops[3]
-// TODO: ADD camera_heights[0],	camera_heights[1], camera_heights[2], camera_heights[3],
-						
-		};
-		*/
 	}
 
+	public GeometryCorrection expandSensors(int num_cams) {
+		GeometryCorrection egc = new GeometryCorrection (num_cams);
+		// single
+		int min_nc = (numSensors < num_cams) ? numSensors : num_cams;
+		
+		egc.pixelCorrectionWidth =  pixelCorrectionWidth; //  =2592;   // virtual camera center is at (pixelCorrectionWidth/2, pixelCorrectionHeight/2)
+		egc.pixelCorrectionHeight = pixelCorrectionHeight; // =1936;
+		egc.line_time =             line_time;     // duration of one scan line readout (for ERS)
+		egc.focalLength =           focalLength; // ,      // =FOCAL_LENGTH;
+		egc.pixelSize =             pixelSize;        // =  PIXEL_SIZE; //um
+		egc.distortionRadius =      distortionRadius; // =  DISTORTION_RADIUS; // mm - half width of the sensor
+		egc.distortionC =           distortionC;      // r^2
+		egc.distortionB =           distortionB;      // r^3
+		egc.distortionA =           distortionA;      // r^4 (normalized to focal length or to sensor half width?)
+		egc.distortionA5 =          distortionA5;     // r^5 (normalized to focal length or to sensor half width?)
+		egc.distortionA6 =          distortionA6;     // r^6 (normalized to focal length or to sensor half width?)
+		egc.distortionA7 =          distortionA7;     // r^7 (normalized to focal length or to sensor half width?)
+		egc.distortionA8 =          distortionA8;     // r^8 (normalized to focal length or to sensor half width?)
+		egc.elevation =             elevation;        // degrees, up - positive;
+		egc.heading =               heading;          // degrees, CW (from top) - positive
+		
+		egc.common_right =          common_right;     // mm right, camera center
+		egc.common_forward =        common_forward;   // mm forward (to target), camera center
+		egc.common_height =         common_height;    // mm up, camera center
+		egc.common_roll =           common_roll;      // degrees CW (to target) camera as a whole
+		egc.cameraRadius =          cameraRadius;     // average distance from the "mass center" of the sensors to the sensors
+		egc.disparityRadius =       disparityRadius;  //=150.0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad
+		
+		
+		
+		System.arraycopy(forward,   0, egc.forward, 0, min_nc);
+		System.arraycopy(right,     0, egc.right,   0, min_nc);
+		System.arraycopy(height,    0, egc.height,  0, min_nc);
+		System.arraycopy(roll,      0, egc.roll,    0, min_nc);
+		System.arraycopy(woi_tops,  0, egc.woi_tops,0, min_nc);
+		for (int n = 0; n < min_nc; n++) {
+			egc.pXY0[n] = pXY0[n].clone(); 
+		}
+		CorrVector cv = new CorrVector (
+				egc, // GeometryCorrection geometryCorrection,
+				this); // GeometryCorrection sourceGeometryCorrection)
+		egc.setCorrVector(cv);
+		egc.rByRDist = rByRDist.clone();
+		return egc;
+	}
+	
+	
 	public int [] getWOITops() {// not used in lwir
 		return woi_tops;
 	}

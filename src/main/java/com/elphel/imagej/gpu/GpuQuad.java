@@ -374,6 +374,7 @@ public class GpuQuad{ // quad camera description
 		}
 	}
 
+	// Use NUM_CAMS = 16 gc.expandSensors(NUM_CAMS) here
 	public void setGeometryCorrection(GeometryCorrection gc,
 			boolean use_java_rByRDist) { // false - use newer GPU execCalcReverseDistortions
 		float [] fgc = gc.toFloatArray();
@@ -1306,6 +1307,8 @@ public class GpuQuad{ // quad camera description
 			IJ.showMessage("Error", "No GPU kernel: GPU_IMCLT_ALL_kernel");
 			return;
 		}
+		//cuFuncSetAttribute(this.gpuTileProcessor.GPU_IMCLT_ALL_kernel, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, 65536)		
+
 		int apply_lpf =  1;
 		int tilesX =  img_width / GPUTileProcessor.DTT_SIZE;
 		int tilesY =  img_height / GPUTileProcessor.DTT_SIZE;
@@ -1321,6 +1324,7 @@ public class GpuQuad{ // quad camera description
 				Pointer.to(new int[] { imclt_stride })              // const size_t       dstride);            // in floats (pixels)
 				);
 		cuCtxSynchronize();
+		
 		// Call the kernel function
 		cuLaunchKernel(this.gpuTileProcessor.GPU_IMCLT_ALL_kernel,
 				GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension

@@ -417,6 +417,26 @@ public class CorrVector{ // TODO: Update to non-quad (extract to a file first)?
 		this.geometryCorrection = geometryCorrection;
 	}
 	
+	public CorrVector (
+			GeometryCorrection geometryCorrection,
+			GeometryCorrection sourceGeometryCorrection)
+	{
+		int num_sensors = geometryCorrection.getNumSensors();
+		this.symmVectorsSet = 	SymmVector.getSymmVectorsSet (num_sensors);
+		this.geometryCorrection = geometryCorrection;
+		this.vector = new double[getLength(num_sensors)];
+		CorrVector scv = sourceGeometryCorrection.getCorrVector();
+		int num_sens =  geometryCorrection.getNumSensors();
+		int snum_sens = sourceGeometryCorrection.getNumSensors();
+		int min_num_sens = (snum_sens < num_sens) ? snum_sens : num_sens; 
+		System.arraycopy(scv.vector, scv.getTiltIndex(),    vector, getTiltIndex(),    min_num_sens - 1);
+		System.arraycopy(scv.vector, scv.getAzimuthIndex(), vector, getAzimuthIndex(), min_num_sens - 1);
+		System.arraycopy(scv.vector, scv.getRollIndex(),    vector, getRollIndex(),    min_num_sens);
+		System.arraycopy(scv.vector, scv.getZoomIndex(),    vector, getZoomIndex(),    min_num_sens - 1);
+		System.arraycopy(scv.vector, scv.getIMUIndex(),     vector, getIMUIndex(),     CORR_IMU.length);
+	}
+	
+	
 	public CorrVector getCorrVector(
 			GeometryCorrection geometryCorrection,
 			double [] vector){// not used in lwir

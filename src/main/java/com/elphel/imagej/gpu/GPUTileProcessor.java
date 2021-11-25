@@ -91,7 +91,7 @@ public class GPUTileProcessor {
 	public static int DTT_SIZE_LOG2 =             3;
 	public static int DTT_SIZE =                  (1 << DTT_SIZE_LOG2);
 	static int        THREADSX =                  DTT_SIZE;
-	public static int NUM_CAMS =                  4;
+	public static int NUM_CAMS =                  16; // 4; Now - maximal number of sensors
 	public static int NUM_PAIRS =                 6; // top hor, bottom hor, left vert, right vert, main diagonal, other diagonal
 	public static int NUM_COLORS =                3;
 //	public static int IMG_WIDTH =              2592;

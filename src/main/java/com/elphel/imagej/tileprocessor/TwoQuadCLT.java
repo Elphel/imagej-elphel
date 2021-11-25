@@ -54,6 +54,7 @@ import com.elphel.imagej.common.GenericJTabbedDialog;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.correction.CorrectionColorProc;
 import com.elphel.imagej.correction.EyesisCorrections;
+import com.elphel.imagej.gpu.ExportForGPUDevelopment;
 import com.elphel.imagej.gpu.GPUTileProcessor;
 import com.elphel.imagej.gpu.GpuQuad;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
@@ -365,7 +366,133 @@ public class TwoQuadCLT {
 			String                                         save_prefix, // absolute path to the cuda project root
 			QuadCLT                                        quadCLT_main,
 			QuadCLT                                        quadCLT_aux,
-			CLTParameters       clt_parameters,
+			CLTParameters                                  clt_parameters,
+//			EyesisCorrectionParameters.DebayerParameters   debayerParameters,
+			ColorProcParameters                            colorProcParameters,
+			ColorProcParameters                            colorProcParameters_aux,
+//			EyesisCorrectionParameters.RGBParameters       rgbParameters,
+			final int                                      threadsMax,  // maximal number of threads to launch
+//			final boolean                                  updateStatus,
+			final int                                      debugLevel) throws Exception
+	{
+
+		this.startTime=System.nanoTime();
+		String [] sourceFiles=quadCLT_main.correctionsParameters.getSourcePaths();
+		QuadCLT.SetChannels [] set_channels_main = quadCLT_main.setChannels(debugLevel);
+		QuadCLT.SetChannels [] set_channels_aux =  quadCLT_aux.setChannels(debugLevel);
+		QuadCLT.SetChannels [] set_channels = set_channels_main;
+		if ((set_channels == null) || ((set_channels_aux != null) && (set_channels_aux.length > set_channels.length))) {
+			set_channels = set_channels_aux;
+		}
+//		if ((set_channels_main == null) || (set_channels_main.length==0) || (set_channels_aux == null) || (set_channels_aux.length==0)) {
+		if ((set_channels == null) || (set_channels.length==0)) {
+			System.out.println("No files to process (of "+sourceFiles.length+")");
+			return;
+		}
+		double [] referenceExposures_main = null;
+		double [] referenceExposures_aux =  null;
+//		if (!colorProcParameters.lwir_islwir && !(set_channels_main == null)) {
+		if (!quadCLT_main.isLwir() && !(set_channels_main == null)) {
+			referenceExposures_main = quadCLT_main.eyesisCorrections.calcReferenceExposures(debugLevel);
+		}
+//		if (!colorProcParameters_aux.lwir_islwir && !(set_channels_aux == null)) {
+		if (!quadCLT_aux.isLwir() && !(set_channels_aux == null)) {
+			referenceExposures_aux =  quadCLT_aux.eyesisCorrections.calcReferenceExposures(debugLevel);
+		}
+		for (int nSet = 0; nSet < set_channels_main.length; nSet++){
+			// check it is the same set for both cameras
+			/*
+			if (set_channels_aux.length <= nSet ) {
+				throw new Exception ("Set names for cameras do not match: main camera: '"+set_channels_main[nSet].name()+"', aux. camera: nothing");
+			}
+			if (!set_channels_main[nSet].name().equals(set_channels_aux[nSet].name())) {
+				throw new Exception ("Set names for cameras do not match: main camera: '"+set_channels_main[nSet].name()+"', aux. camera: '"+set_channels_main[nSet].name()+"'");
+			}
+			*/
+			String set_name = set_channels[nSet].set_name;
+			int nSet_main = -1, nSet_aux = -1;
+			if (set_channels_main == set_channels) {
+				nSet_main = nSet;
+			} else if (set_channels_aux == set_channels) {
+				nSet_aux = nSet;
+			}
+			if ((nSet_main < 0) && (set_channels_main != null)) {
+				for (int ns = 0; ns < set_channels_main.length; ns++) if (set_name.equals(set_channels_main[ns].set_name)) {
+					nSet_main = ns;
+					break;
+				}
+			}
+			if ((nSet_aux < 0) && (set_channels_aux != null)) {
+				for (int ns = 0; ns < set_channels_aux.length; ns++) if (set_name.equals(set_channels_aux[ns].set_name)) {
+					nSet_aux = ns;
+					break;
+				}
+			}
+			int [] channelFiles_main = (nSet_main < 0)? null: set_channels_main[nSet_main].fileNumber();
+			int [] channelFiles_aux =  (nSet_aux <  0)? null: set_channels_aux[nSet_aux].fileNumber();
+			boolean [][] saturation_imp_main = ((channelFiles_main != null) && (clt_parameters.sat_level > 0.0))? new boolean[channelFiles_main.length][] : null;
+			boolean [][] saturation_imp_aux =  ((channelFiles_aux != null) && (clt_parameters.sat_level > 0.0))? new boolean[channelFiles_aux.length][] : null;
+			double [] scaleExposures_main = (channelFiles_main != null) ? (new double[channelFiles_main.length]) : null;
+			double [] scaleExposures_aux =  (channelFiles_aux != null) ? (new double[channelFiles_aux.length]) : null;
+			ImagePlus [] imp_srcs_main = quadCLT_main.conditionImageSet(
+					clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+					colorProcParameters,            //  ColorProcParameters                       colorProcParameters, //
+					sourceFiles,                    // String []                                 sourceFiles,
+					set_channels_main[nSet].name(), // String                                    set_name,
+					referenceExposures_main,        // double []                                 referenceExposures,
+					channelFiles_main,              // int []                                    channelFiles,
+					scaleExposures_main,            //output  // double [] scaleExposures
+					saturation_imp_main,            //output  // boolean [][]                              saturation_imp,
+					threadsMax,                 // int                                       threadsMax,
+					debugLevel); // int                                       debugLevel);
+
+			ImagePlus [] imp_srcs_aux = quadCLT_aux.conditionImageSet(
+					clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+					colorProcParameters_aux,        //  ColorProcParameters                       colorProcParameters, //
+					sourceFiles,                    // String []                                 sourceFiles,
+					set_channels_aux[nSet].name(), // String                                    set_name,
+					referenceExposures_aux,        // double []                                 referenceExposures,
+					channelFiles_aux,              // int []                                    channelFiles,
+					scaleExposures_aux,            //output  // double [] scaleExposures
+					saturation_imp_aux,            //output  // boolean [][]                              saturation_imp,
+					threadsMax,                 // int                                       threadsMax,
+					debugLevel); // int                                       debugLevel);
+
+			// Tempporarily processing individually with the old code
+			ExportForGPUDevelopment.processCLTQuadCorrPairForGPU(
+					save_prefix,                // String                                         save_prefix,
+					quadCLT_main,               // QuadCLT                                        quadCLT,
+					imp_srcs_main,              // ImagePlus []                                   imp_quad,
+					clt_parameters);            // CLTParameters                                  clt_parameters);
+			
+			ExportForGPUDevelopment.processCLTQuadCorrPairForGPU(
+					save_prefix,                // String                                         save_prefix,
+					quadCLT_aux,               // QuadCLT                                        quadCLT,
+					imp_srcs_aux,              // ImagePlus []                                   imp_quad,
+					clt_parameters);            // CLTParameters                                  clt_parameters);
+
+			Runtime.getRuntime().gc();
+			if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels_aux.length+") finished at "+
+					IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+
+			if (quadCLT_aux.eyesisCorrections.stopRequested.get()>0) {
+				System.out.println("User requested stop");
+				System.out.println("Processing "+(nSet + 1)+" file sets (of "+set_channels_main.length+") finished at "+
+						IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				return;
+			}
+		}
+		System.out.println("prepareFilesForGPUDebug(): processing "+(quadCLT_main.getTotalFiles(set_channels_main)+quadCLT_aux.getTotalFiles(set_channels_aux))+" files ("+set_channels_main.length+" file sets) finished at "+
+				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+
+	}
+	
+	@Deprecated
+	public void prepareFilesForGPUDebug_old(
+			String                                         save_prefix, // absolute path to the cuda project root
+			QuadCLT                                        quadCLT_main,
+			QuadCLT                                        quadCLT_aux,
+			CLTParameters                                  clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters   debayerParameters,
 			ColorProcParameters                            colorProcParameters,
 			ColorProcParameters                            colorProcParameters_aux,
@@ -466,7 +593,9 @@ public class TwoQuadCLT {
 				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 	}
-
+	
+	
+	
 	public void processCLTQuadCorrPairsGpu(
 			GpuQuad                        gpuQuad_main,
 			GpuQuad                        gpuQuad_aux,
@@ -1122,190 +1251,6 @@ public class TwoQuadCLT {
 
 	}
 
-	public void saveFloatKernels(String file_prefix,
-			                     double [][][][][][] clt_kernels,
-			                     double [][][]       image_data,
-			                     double [][][]       port_xy,
-			                     boolean transpose) throws IOException {
-		if (clt_kernels != null) {
-			for (int chn = 0; chn < clt_kernels.length; chn++) {
-				String kern_path = file_prefix+"_chn"+chn+(transpose?"_transposed":"")+".kernel";
-				String offs_path = file_prefix+"_chn"+chn+(transpose?"_transposed":"")+".kernel_offsets";
-				FileOutputStream fos = new FileOutputStream(kern_path);
-				DataOutputStream dos = new DataOutputStream(fos);
-				WritableByteChannel channel = Channels.newChannel(dos);
-				int float_buffer_size = clt_kernels[chn].length * clt_kernels[chn][0].length* clt_kernels[chn][0][0].length * 4 * 64;
-				ByteBuffer bb = ByteBuffer.allocate(float_buffer_size * 4);
-				bb.order(ByteOrder.LITTLE_ENDIAN);
-				bb.clear();
-				for (int ty = 0; ty <  clt_kernels[chn][0].length; ty++) {
-					for (int tx = 0; tx <  clt_kernels[chn][0][ty].length; tx++) {
-						for (int col = 0; col <  clt_kernels[chn].length; col++) {
-							for (int p = 0; p < 4; p++) {
-								double [] pa = clt_kernels[chn][col][ty][tx][p];
-								for (int i0 = 0; i0 < 64; i0++) {
-									int i;
-									if (transpose) {
-										i = ((i0 & 7) << 3) + ((i0 >>3) & 7);
-									} else {
-										i = i0;
-									}
-//									dos.writeFloat((float)pa[i]);
-									bb.putFloat((float)pa[i]);
-								}
-							}
-						}
-					}
-				}
-				bb.flip();
-				channel.write(bb);
-				dos.close();
-
-				fos = new FileOutputStream(offs_path);
-				dos = new DataOutputStream(fos);
-				channel = Channels.newChannel(dos);
-				float_buffer_size = clt_kernels[chn][0].length * clt_kernels[chn][0].length* clt_kernels[chn][0][0].length * 4 * clt_kernels[chn][0][0][0][4].length;
-				bb = ByteBuffer.allocate(float_buffer_size * 4);
-				bb.order(ByteOrder.LITTLE_ENDIAN);
-				bb.clear();
-				for (int ty = 0; ty <  clt_kernels[chn][0].length; ty++) {
-					for (int tx = 0; tx <  clt_kernels[chn][0][ty].length; tx++) {
-						for (int col = 0; col <  clt_kernels[chn].length; col++) {
-							double [] pa = clt_kernels[chn][col][ty][tx][4];
-							for (int i = 0; i < pa.length; i++) {
-//								dos.writeFloat((float)pa[i]);
-								bb.putFloat((float)pa[i]);
-							}
-						}
-					}
-				}
-				bb.flip();
-				channel.write(bb);
-				dos.close();
-			}
-		}
-
-		if (image_data != null) {
-			for (int chn = 0; chn < image_data.length; chn++) {
-				String img_path =  file_prefix+"_chn"+chn+".bayer";
-				FileOutputStream fos = new FileOutputStream(img_path);
-				DataOutputStream dos = new DataOutputStream(fos);
-				WritableByteChannel channel = Channels.newChannel(dos);
-				ByteBuffer bb = ByteBuffer.allocate(image_data[chn][0].length * 4);
-				bb.order(ByteOrder.LITTLE_ENDIAN);
-				bb.clear();
-				for (int i = 0; i <  image_data[chn][0].length; i++) {
-//					dos.writeFloat((float) (image_data[chn][0][i] + image_data[chn][1][i] + image_data[chn][2][i]));
-					double d = 0;
-					for (int c = 0; c < image_data[chn].length; c++) {
-						d += image_data[chn][c][i];
-					}
-//					bb.putFloat((float) (image_data[chn][0][i] + image_data[chn][1][i] + image_data[chn][2][i]));
-					bb.putFloat((float) d);
-				}
-				bb.flip();
-				channel.write(bb);
-				dos.close();
-			}
-		}
-		if (port_xy != null) {
-			for (int chn = 0; chn < port_xy[0].length; chn++) {
-				String img_path =  file_prefix+"_chn"+chn+".portsxy";
-				FileOutputStream fos = new FileOutputStream(img_path);
-				DataOutputStream dos = new DataOutputStream(fos);
-				WritableByteChannel channel = Channels.newChannel(dos);
-				ByteBuffer bb = ByteBuffer.allocate(port_xy.length * 2 * 4);
-				bb.order(ByteOrder.LITTLE_ENDIAN);
-				bb.clear();
-				for (int i = 0; i <  port_xy.length; i++) {
-					bb.putFloat((float) (port_xy[i][chn][0])); // x-offset
-					bb.putFloat((float) (port_xy[i][chn][1])); // y-offset
-				}
-				bb.flip();
-				channel.write(bb);
-				dos.close();
-			}
-		}
-	}
-
-
-
-	public void saveFloatKernelsBigEndian(String file_prefix,
-			double [][][][][][] clt_kernels,
-			double [][][]       image_data,
-			double [][][]       port_xy,
-			boolean transpose) throws IOException {
-		if (clt_kernels != null) {
-			for (int chn = 0; chn < clt_kernels.length; chn++) {
-				String kern_path = file_prefix+"_chn"+chn+(transpose?"_transposed":"")+".kernel";
-				String offs_path = file_prefix+"_chn"+chn+(transpose?"_transposed":"")+".kernel_offsets";
-				FileOutputStream fos = new FileOutputStream(kern_path);
-				DataOutputStream dos = new DataOutputStream(fos);
-				for (int ty = 0; ty <  clt_kernels[chn][0].length; ty++) {
-					for (int tx = 0; tx <  clt_kernels[chn][0][ty].length; tx++) {
-						for (int col = 0; col <  clt_kernels[chn].length; col++) {
-							for (int p = 0; p < 4; p++) {
-								double [] pa = clt_kernels[chn][col][ty][tx][p];
-								for (int i0 = 0; i0 < 64; i0++) {
-									int i;
-									if (transpose) {
-										i = ((i0 & 7) << 3) + ((i0 >>3) & 7);
-									} else {
-										i = i0;
-									}
-									dos.writeFloat((float)pa[i]);
-								}
-							}
-						}
-					}
-				}
-				dos.close();
-				fos = new FileOutputStream(offs_path);
-				dos = new DataOutputStream(fos);
-
-				for (int ty = 0; ty <  clt_kernels[chn][0].length; ty++) {
-					for (int tx = 0; tx <  clt_kernels[chn][0][ty].length; tx++) {
-						for (int col = 0; col <  clt_kernels[chn].length; col++) {
-							double [] pa = clt_kernels[chn][col][ty][tx][4];
-							for (int i = 0; i < pa.length; i++) {
-								dos.writeFloat((float)pa[i]);
-							}
-						}
-					}
-				}
-
-				dos.close();
-			}
-		}
-
-		if (image_data != null) {
-			for (int chn = 0; chn < image_data.length; chn++) {
-				String img_path =  file_prefix+"_chn"+chn+".bayer";
-				FileOutputStream fos = new FileOutputStream(img_path);
-				DataOutputStream dos = new DataOutputStream(fos);
-				for (int i = 0; i <  image_data[chn][0].length; i++) {
-					dos.writeFloat((float) (image_data[chn][0][i] + image_data[chn][1][i] + image_data[chn][2][i]));
-				}
-				dos.close();
-			}
-		}
-		if (port_xy != null) {
-			for (int chn = 0; chn < port_xy[0].length; chn++) {
-				String img_path =  file_prefix+"_chn"+chn+".portsxy";
-				FileOutputStream fos = new FileOutputStream(img_path);
-				DataOutputStream dos = new DataOutputStream(fos);
-				for (int i = 0; i <  port_xy.length; i++) {
-					dos.writeFloat((float) (port_xy[i][chn][0])); // x-offset
-					dos.writeFloat((float) (port_xy[i][chn][1])); // y-offset
-				}
-				dos.close();
-			}
-
-		}
-
-	}
-
-
 	public ImagePlus [] processCLTQuadCorrPairForGPU(
 			String                                         save_prefix,
 			QuadCLT                                        quadCLT_main,
@@ -1346,28 +1291,13 @@ public class TwoQuadCLT {
 			results[i].setTitle(results[i].getTitle()+"RAW");
 		}
 		if (debugLevel>1) System.out.println("processing: "+path);
-/*		// 08/12/2020 Moved to conditionImageSet		
-		getRigImageStacks(
-				clt_parameters,  // EyesisCorrectionParameters.CLTParameters       clt_parameters,
-				quadCLT_main,    // QuadCLT                                         quadCLT_main,
-				quadCLT_aux,     // QuadCLT                                          quadCLT_aux,
-				imp_quad_main,   // ImagePlus []                                   imp_quad_main,
-				imp_quad_aux,    // ImagePlus []                                    imp_quad_aux,
-				saturation_main, // boolean [][]        saturation_main, // (near) saturated pixels or null
-				saturation_aux, // boolean [][]        saturation_aux, // (near) saturated pixels or null
-				threadsMax,      // maximal number of threads to launch
-				debugLevel);     // final int        debugLevel);
-*/
 		// temporary setting up tile task file (one integer per tile, bitmask
 		// for testing defined for a window, later the tiles to process will be calculated based on previous passes results
 
 		int [][]    tile_op_main = quadCLT_main.tp.setSameTileOp(clt_parameters,  clt_parameters.tile_task_op, debugLevel);
 		//		  int [][]    tile_op_aux =  quadCLT_aux.tp.setSameTileOp (clt_parameters,  clt_parameters.tile_task_op, debugLevel);
-
 		double [][] disparity_array_main = quadCLT_main.tp.setSameDisparity(clt_parameters.disparity); // [tp.tilesY][tp.tilesX] - individual per-tile expected disparity
-
 		//TODO: Add array of default disparity - use for combining images in force disparity mode (no correlation), when disparity is predicted from other tiles
-
 		// start with all old arrays, remove some later
 		double [][][][]     clt_corr_combo =        null;
 		double [][][][]     texture_tiles_main =    null; // [tp.tilesY][tp.tilesX]["RGBA".length()][]; // tiles will be 16x16, 2 visualization mode full 16 or overlapped
@@ -1416,8 +1346,6 @@ public class TwoQuadCLT {
 
 		double [][][]       port_xy_main_dbg = new double [tilesX*tilesY][][];
 		double [][][]       port_xy_aux_dbg =  new double [tilesX*tilesY][][];
-//		double [][][]       corr2ddata =       new double [1][][];
-//		double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
 		double [][] disparity_map = new double [image_dtt.getDisparityTitles().length][];
 
 		final double [][][][][][][] clt_bidata = // new double[2][quad][nChn][tilesY][tilesX][][]; // first index - main/aux
@@ -1454,26 +1382,21 @@ public class TwoQuadCLT {
 						threadsMax,                           // final int                 threadsMax,  // maximal number of threads to launch
 						debugLevel,                           // final int                 globalDebugLevel);
 						port_xy_main_dbg,                     // final double [][][]       port_xy_main_dbg, // for each tile/port save x,y pixel coordinates (gpu code development)
-						port_xy_aux_dbg);                      // final double [][][]       port_xy_aux_dbg) // for each tile/port save x,y pixel coordinates (gpu code development)
+						port_xy_aux_dbg);                     // final double [][][]       port_xy_aux_dbg) // for each tile/port save x,y pixel coordinates (gpu code development)
 
-/////		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
 		int numSensors = GPUTileProcessor.NUM_CAMS; // Wrong - different for main and aux
 		String [] sub_titles = new String [numSensors * (GPUTileProcessor.NUM_COLORS+1)];
 		double [][] sub_disparity_map = new double [sub_titles.length][];
 		for (int ncam = 0; ncam < numSensors; ncam++) {
 			sub_disparity_map[ncam] = disparity_map[ncam + ImageDtt.IMG_DIFF0_INDEX];
-//			sub_titles[ncam] = ImageDtt.DISPARITY_TITLES[ncam + ImageDtt.IMG_DIFF0_INDEX];
 			sub_titles[ncam] = ImageDtt.getDisparityTitles(numSensors)[ncam + ImageDtt.IMG_DIFF0_INDEX];
 			for (int ncol = 0; ncol < GPUTileProcessor.NUM_COLORS; ncol++) {
 				sub_disparity_map[ncam + (ncol + 1)* numSensors] =
 						disparity_map[ncam +ncol* numSensors+ ImageDtt.getImgToneRGB(numSensors)];
 				sub_titles[ncam + (ncol + 1)* numSensors] =
-//						ImageDtt.DISPARITY_TITLES[ncam +ncol* numSensors+ ImageDtt.getImgToneRGB(numSensors)];
 						ImageDtt.getDisparityTitles(numSensors)[ncam +ncol* numSensors+ ImageDtt.getImgToneRGB(numSensors)];
 			}
 		}
-//		String [] sub_titles = {ImageDtt.DISPARITY_TITLES[ImageDtt.IMG_DIFF0_INDEX]
-
 		(new ShowDoubleFloatArrays()).showArrays(
 				sub_disparity_map,
 	    		tilesX,
@@ -1521,7 +1444,6 @@ public class TwoQuadCLT {
 				GPUTileProcessor.getCorrTitles());
 
 		if ((save_prefix != null) && (save_prefix != "")) {
-
 			if (debugLevel < -1000) {
 				return null;
 			}
@@ -1532,9 +1454,8 @@ public class TwoQuadCLT {
 			//		boolean [][] what_to_save = {{false,false,true}, {false,false,true}};
 			boolean [][] what_to_save = {{true,true,true}, {true,true,true}};
 			try {
-				saveFloatKernels(
+				 ExportForGPUDevelopment.saveFloatKernels(
 						kernel_dir +"main", // String file_prefix,
-//						(what_to_save[0][0]?clt_kernels_main:null), // double [][][][][][] clt_kernels, // null
 						(what_to_save[0][0]?quadCLT_main.getCLTKernels():null), // double [][][][][][] clt_kernels, // null
 						(what_to_save[0][1]?quadCLT_main.image_data:null),
 						(what_to_save[0][2]?port_xy_main_dbg:null), // double [][][]       port_xy,
@@ -1546,9 +1467,8 @@ public class TwoQuadCLT {
 			} // boolean transpose);
 
 			try {
-				saveFloatKernels(
+				 ExportForGPUDevelopment.saveFloatKernels(
 						kernel_dir +"aux", // String file_prefix,
-//						(what_to_save[1][0]?clt_kernels_aux:null), // double [][][][][][] clt_kernels, // null
 						(what_to_save[1][0]?quadCLT_aux.getCLTKernels():null), // double [][][][][][] clt_kernels, // null
 						(what_to_save[1][1]?quadCLT_aux.image_data:null),
 						(what_to_save[1][2]?port_xy_aux_dbg:null), // double [][][]       port_xy,
@@ -1581,7 +1501,6 @@ public class TwoQuadCLT {
 			if (ers_delay !=null) {
 				showERSDelay(ers_delay);
 			}
-
 		}
 		double [][] texture_nonoverlap_main = null;
 		double [][] texture_nonoverlap_aux = null;
@@ -1618,7 +1537,6 @@ public class TwoQuadCLT {
 			if (clt_parameters.show_nonoverlap){
 				texture_nonoverlap_main = image_dtt.combineRBGATiles(
 						texture_tiles_main,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
-//						image_dtt.transform_size,
 						false,                         // when false - output each tile as 16x16, true - overlap to make 8x8
 						clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 						threadsMax,                    // maximal number of threads to launch
@@ -1633,7 +1551,6 @@ public class TwoQuadCLT {
 
 				texture_nonoverlap_aux = image_dtt.combineRBGATiles(
 						texture_tiles_aux,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
-//						image_dtt.transform_size,
 						false,                         // when false - output each tile as 16x16, true - overlap to make 8x8
 						clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 						threadsMax,                    // maximal number of threads to launch
@@ -1650,7 +1567,6 @@ public class TwoQuadCLT {
 				int alpha_index = 3;
 				texture_overlap_main = image_dtt.combineRBGATiles(
 						texture_tiles_main,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
-//						image_dtt.transform_size,
 						true,                         // when false - output each tile as 16x16, true - overlap to make 8x8
 						clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 						threadsMax,                    // maximal number of threads to launch
@@ -1668,7 +1584,6 @@ public class TwoQuadCLT {
 
 				texture_overlap_aux = image_dtt.combineRBGATiles(
 						texture_tiles_aux,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
-//						image_dtt.transform_size,
 						true,                         // when false - output each tile as 16x16, true - overlap to make 8x8
 						clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
 						threadsMax,                    // maximal number of threads to launch
@@ -1810,7 +1725,6 @@ public class TwoQuadCLT {
 						titles );
 			}
 		}
-		//		  final double [][][][][][][] clt_bidata = // new double[2][quad][nChn][tilesY][tilesX][][]; // first index - main/aux
 		int quad_main = clt_bidata[0].length;
 		int quad_aux =  clt_bidata[1].length;
 
@@ -1829,7 +1743,6 @@ public class TwoQuadCLT {
 						image_dtt.clt_lpf(
 								clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
 								clt_bidata[iAux][iSubCam][chn],
-//								image_dtt.transform_size,
 								threadsMax,
 								debug_lpf);
 					}
@@ -1861,7 +1774,6 @@ public class TwoQuadCLT {
 				for (int chn=0; chn<iclt_data.length;chn++){
 					iclt_data[chn] = image_dtt.iclt_2d_debug_gpu(
 							clt_bidata[iAux][iSubCam][chn], // scanline representation of dcd data, organized as dct_size x dct_size tiles
-//							image_dtt.transform_size,  // final int
 							clt_parameters.clt_window,      // window_type
 							15,                             // clt_parameters.iclt_mask,       //which of 4 to transform back
 							0,                              // clt_parameters.dbg_mode,        //which of 4 to transform back
@@ -1869,7 +1781,6 @@ public class TwoQuadCLT {
 							debugLevel,
 							clt_parameters.tileX,           // final int                 debug_tileX
 							clt_parameters.tileY);          // final int                 debug_tileY
-
 				}
 
 				if (clt_parameters.gen_chn_stacks) sdfa_instance.showArrays(iclt_data,
@@ -1897,7 +1808,6 @@ public class TwoQuadCLT {
 			} // end of generating shifted channel images
 
 
-
 			if (clt_parameters.gen_chn_img) {
 				// combine to a sliced color image
 				// assuming total number of images to be multiple of 4
@@ -1923,7 +1833,6 @@ public class TwoQuadCLT {
 				}
 				//imp_stack.getProcessor().resetMinAndMax();
 				//imp_stack.show();
-				//				  eyesisCorrections.saveAndShow(imp_stack, this.correctionsParameters);
 				quadCLT_main.eyesisCorrections.saveAndShowEnable(
 						imp_stack,  // ImagePlus             imp,
 						quadCLT_main.correctionsParameters, // EyesisCorrectionParameters.CorrectionParameters  correctionsParameters,
@@ -1932,13 +1841,6 @@ public class TwoQuadCLT {
 			}
 			if (clt_parameters.gen_4_img) {
 				// Save as individual JPEG images in the model directory
-				/*
-				String x3d_path= quadCLT_main.correctionsParameters.selectX3dDirectory(
-						name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-						quadCLT_main.correctionsParameters.x3dModelVersion,
-						true,  // smart,
-						true);  //newAllowed, // save
-						*/
 				String x3d_path = quadCLT_main.getX3dDirectory(name);
 
 				for (int sub_img = 0; sub_img < imps_RGB.length; sub_img++){
@@ -1961,10 +1863,8 @@ public class TwoQuadCLT {
 						model_path,
 						"thumb",
 						debugLevel);
-
 			}
 		}
-
 		return results;
 	}
 	
@@ -9861,7 +9761,7 @@ if (debugLevel > -100) return true; // temporarily !
 		boolean use_edges =        false; // true; // false; // do not filter out edges
 		boolean all_converge =     false;  // true; // false; // use only tiles that converge for all variants (intra, inter, used sensors)
 		boolean all_max_err =      false; // true; // false;  // use only tiles that have limited error for all variants (intra, inter, used sensors)
-		boolean same_num_sensors = true; //  false; // true; // compare performance to same number of sensors, inter, no-noise
+		boolean same_num_sensors = false; // true; //  false; // true; // compare performance to same number of sensors, inter, no-noise
 		int          min_modes =   4; // 5; // 6; // 5; // 4;//at least half are meaningfull
 		
 		// LMA parameters
@@ -10508,7 +10408,50 @@ if (debugLevel > -100) return true; // temporarily !
 		double rmse_max_ratio2 = 15.0;
 		double density_min     =  0.0;
 		double density_max     =  1.0;
-		plotInverted(
+		int    hist_bins       = 25;
+		double hist_intra_min  =  0.5;
+		double hist_intra_max  =  4.0;
+		double hist_inter_min  =  2.0;
+		double hist_inter_max  = 15.0;
+		
+		double noise_add_min = 0.00;
+		double noise_add_max = 0.1; 
+		double noise_add_step = 0.001;
+		int    num_noise_steps = (int) Math.ceil((noise_add_max - noise_add_min)/noise_add_step);
+		double [] noise_add_rmse = new double [num_noise_steps+1];
+		int best_inoise_step = 0; 
+		for (int inoise_step = 0; inoise_step < noise_add_rmse.length; inoise_step++) {
+			double noise_add = noise_add_min + inoise_step * noise_add_step;
+			noise_add_rmse[inoise_step] = 		calcErrPerAddNoiseOrPlotInverted(
+					noise_levels_list, // List<NoiseLevel> noise_levels_list,
+					results_map,       // HashMap <NoiseLevel, DisparityResults> results_map,
+					max_err,           // double max_err,
+					max_err1,          // double max_err1,
+					use_fpn,           // boolean use_fpn,
+					num_y_steps,       // int num_y_steps, //  = 100;
+					rmse_min,          // double rmse_min, //  = 0.0;
+					rmse_max,          // double rmse_max, //  = 0.9;
+					rmse_max_ratio,    // double rmse_max_ratio, // = 6.0;
+					rmse_max_ratio1,   // double rmse_max_ratio1,// = 4.0;
+					rmse_max_ratio2,   // double rmse_max_ratio2 // = 20.0;
+					density_min,       // double density_min,    // == 0
+					density_max,       // double density_max,    // == 1
+					hist_bins,         // int    hist_bins, //        = 50;
+					hist_intra_min,    // double hist_intra_min, //  =  0.5;
+					hist_intra_max,    // double hist_intra_max, //  =  4.0;
+					hist_inter_min,    // double hist_inter_min, //  =  2.0;
+					hist_inter_max,    // double hist_inter_max  //= 15.0;
+					noise_add,         // double noise_add,
+					false );           // boolean printOut
+			System.out.println(inoise_step + ": noise_add="+noise_add+" -> "+noise_add_rmse[inoise_step]);
+			if ((inoise_step > 0) && (noise_add_rmse[inoise_step] < noise_add_rmse[best_inoise_step])) {
+				best_inoise_step = inoise_step;
+			}
+			System.out.println("noise_add_rmse["+best_inoise_step+"] = "+noise_add_rmse[best_inoise_step]);
+		}
+		
+//		double noise_add = 0.04;
+		calcErrPerAddNoiseOrPlotInverted(
 				noise_levels_list, // List<NoiseLevel> noise_levels_list,
 				results_map,       // HashMap <NoiseLevel, DisparityResults> results_map,
 				max_err,           // double max_err,
@@ -10521,31 +10464,43 @@ if (debugLevel > -100) return true; // temporarily !
 				rmse_max_ratio1,   // double rmse_max_ratio1,// = 4.0;
 				rmse_max_ratio2,   // double rmse_max_ratio2 // = 20.0;
 				density_min,       // double density_min,    // == 0
-				density_max);       // double density_max,    // == 1
-
-	
+				density_max,       // double density_max,    // == 1
+				hist_bins,         // int    hist_bins, //        = 50;
+				hist_intra_min,    // double hist_intra_min, //  =  0.5;
+				hist_intra_max,    // double hist_intra_max, //  =  4.0;
+				hist_inter_min,    // double hist_inter_min, //  =  2.0;
+				hist_inter_max,    // double hist_inter_max  //= 15.0;
+				noise_add_rmse[best_inoise_step],         // double noise_add,
+				true );            // boolean printOut
 	}
 
-	public void plotInverted(
+	public double calcErrPerAddNoiseOrPlotInverted(
 			List<NoiseLevel> noise_levels_list,
 			HashMap <NoiseLevel, DisparityResults> results_map,
 			double max_err,
 			double max_err1,
 			boolean use_fpn,
-			int num_y_steps, //  = 100;
-			double rmse_min, //  = 0.0;
-			double rmse_max, //  = 0.9;
-			double rmse_max_ratio, // = 6.0;
-			double rmse_max_ratio1,// = 4.0;
-			double rmse_max_ratio2,// = 20.0;
-			double density_min,    // == 0
-			double density_max     // == 1
+			int num_y_steps,       // =100;
+			double rmse_min,       // =  0.0;
+			double rmse_max,       // =  0.9;
+			double rmse_max_ratio, // =  6.0;
+			double rmse_max_ratio1,// =  4.0;
+			double rmse_max_ratio2,// =  20.0;
+			double density_min,    // =  0
+			double density_max,    // =  1
+			int    hist_bins,      // = 50;
+			double hist_intra_min, // =  0.5;
+			double hist_intra_max, // =  4.0;
+			double hist_inter_min, // =  2.0;
+			double hist_inter_max, // = 15.0;
+			double noise_add,
+			boolean printOut
 			) {
+//		double noise_add = 0.04; // add to noise value to compensate for intrinsic noise
 		// good (2.0), good(.25) conf(2.0), conf(0.25) rmse(2.0)
 		double [] rslt_err= {max_err1,max_err,max_err1,max_err,max_err}; 
 		int [] used_results = {0,1,4};
 		int [][] sens_to_res = {{7,6,5,4},{3,2,1,0}}; //[inter]{2,4,8,16};
-		System.out.println();
 		double [] noise_lev = new double [noise_levels_list.size()];
 		double [][][][] plots_direct = new double [used_results.length][sens_to_res.length][sens_to_res[0].length][noise_levels_list.size()];
 		int nn = 0;
@@ -10562,8 +10517,6 @@ if (debugLevel > -100) return true; // temporarily !
 			nn++;
 		}
 		
-		
-		
 		// compare RMSE : 4, 8, 16 to binocular
 		int pt_rmse = 2;
 		String [] col_titles_rmse = {
@@ -10574,24 +10527,29 @@ if (debugLevel > -100) return true; // temporarily !
 				"4:2 inter",
 				"8:2 inter",
 				"16:2 inter"};
-		for (int i = 0; i < col_titles_rmse.length; i++) {
-			System.out.print(col_titles_rmse[i]);
-			if (i < (col_titles_rmse.length -1)) {
-				System.out.print(", ");
+		if (printOut) {
+			for (int i = 0; i < col_titles_rmse.length; i++) {
+				System.out.print(col_titles_rmse[i]);
+				if (i < (col_titles_rmse.length -1)) {
+					System.out.print(", ");
+				}
 			}
-			
+			System.out.println();
 		}
-		System.out.println();
+		
+		
 		double [] rmse_vals = inverseLinTFunc(
+				noise_add, // double    x_add,
 				noise_lev, // double [] x_val,
 				plots_direct[pt_rmse][0][0], // double [] y_val,
 				rmse_min, // double    y_min,
 				rmse_max, // double    y_max,
-				num_y_steps+1)[0]; //int       npoints		) 
+				num_y_steps+1)[0]; //int       npoints		)
 		double [][][] rmse_rslt = new double [sens_to_res.length][sens_to_res[0].length][];
 		for (int inter = 0; inter < sens_to_res.length; inter++) {
 			for (int isens = 0; isens < sens_to_res[0].length; isens++) {
 				rmse_rslt[inter][isens] = inverseLinTFunc(
+						noise_add, // double    x_add,
 						noise_lev, // double [] x_val,
 						plots_direct[pt_rmse][inter][isens], // double [] y_val,
 						rmse_min, // double    y_min,
@@ -10599,143 +10557,12 @@ if (debugLevel > -100) return true; // temporarily !
 						num_y_steps+1)[1]; //int       npoints		) 
 			}
 		}
-		for (int i = 0; i < rmse_vals.length; i++) {
-			System.out.print(String.format("%8.5f, ", rmse_vals[i]));
-			for (int inter = 0; inter < sens_to_res.length; inter++) {
-				for (int isens = 1; isens < sens_to_res[0].length; isens++) {
-					double ratio = rmse_rslt[inter][isens][i]/rmse_rslt[inter][0][i];
-					if ((ratio > rmse_max_ratio) || Double.isInfinite(ratio)) {
-						ratio = Double.NaN;
-					}
-					if (!Double.isNaN(ratio)) {
-						System.out.print (String.format("%8.5f", ratio));
-					}
-					if (isens < (sens_to_res[0].length - 1)) {
-						System.out.print (", ");
-					}
-				}
-				if (inter < (sens_to_res.length - 1)) {
-					System.out.print (", ");
-				}
-			}
-			System.out.println();
-		}
-		System.out.println("\n");
-		// compare RMSE : 4 to binocular, 8 to 4, 16 to 4
-		String [] col_titles_rmse1 = {
-				"rmse("+rslt_err[pt_rmse]+")",
-				"4:2 intra",
-				"8:4 intra",
-				"16:8 intra",
-				"4:2 inter",
-				"8:4 inter",
-				"16:8 inter"};
-		for (int i = 0; i < col_titles_rmse1.length; i++) {
-			System.out.print(col_titles_rmse1[i]);
-			if (i < (col_titles_rmse1.length -1)) {
-				System.out.print(", ");
-			}
-		}
-		System.out.println();
-		
-		for (int i = 0; i < rmse_vals.length; i++) {
-			System.out.print(String.format("%8.5f, ", rmse_vals[i]));
-			for (int inter = 0; inter < sens_to_res.length; inter++) {
-				for (int isens = 1; isens < sens_to_res[0].length; isens++) {
-					double ratio = rmse_rslt[inter][isens][i]/rmse_rslt[inter][isens - 1][i];
-					if ((ratio > rmse_max_ratio1) || Double.isInfinite(ratio)) {
-						ratio = Double.NaN;
-					}
-					if (!Double.isNaN(ratio)) {
-						System.out.print (String.format("%8.5f", ratio));
-					}
-					if (isens < (sens_to_res[0].length - 1)) {
-						System.out.print (", ");
-					}
-				}
-				if (inter < (sens_to_res.length - 1)) {
-					System.out.print (", ");
-				}
-			}
-			System.out.println();
-		}
-		System.out.println("\n");
-		// compare RMSE : inter to same intra
-		String [] col_titles_rmse2 = {
-				"rmse("+rslt_err[pt_rmse]+")",
-				"inter:intra (2)",
-				"inter:intra (4)",
-				"inter:intra (8)",
-				"inter:intra (16)"};
-		for (int i = 0; i < col_titles_rmse2.length; i++) {
-			System.out.print(col_titles_rmse2[i]);
-			if (i < (col_titles_rmse2.length -1)) {
-				System.out.print(", ");
-			}
-		}
-		System.out.println();
-		
-		for (int i = 0; i < rmse_vals.length; i++) {
-			System.out.print(String.format("%8.5f, ", rmse_vals[i]));
-			for (int isens = 0; isens < sens_to_res[0].length; isens++) {
-				double ratio = rmse_rslt[1][isens][i]/rmse_rslt[0][isens][i];
-				if ((ratio > rmse_max_ratio2) || Double.isInfinite(ratio)) {
-					ratio = Double.NaN;
-				}
-				if (!Double.isNaN(ratio)) {
-					System.out.print (String.format("%8.5f", ratio));
-				}
-				if (isens < (sens_to_res[0].length - 1)) {
-					System.out.print (", ");
-				}
-			}
-			System.out.println();
-		}
-		System.out.println("\n");
-		
-
-		for (int idensity_err = 0; idensity_err < 2; idensity_err++) {
-			
-			// compare density (2.0 and 0.25) : 4, 8, 16 to binocular
-			int pt_density = used_results[idensity_err];
-			String [] col_titles_density = {
-					"density("+rslt_err[pt_density]+")",
-					"4:2 intra",
-					"8:2 intra",
-					"16:2 intra",
-					"4:2 inter",
-					"8:2 inter",
-					"16:2 inter"};
-			for (int i = 0; i < col_titles_density.length; i++) {
-				System.out.print(col_titles_density[i]);
-				if (i < (col_titles_density.length -1)) {
-					System.out.print(", ");
-				}
-				
-			}
-			System.out.println();
-			double [] density_vals = inverseLinTFunc(
-					noise_lev, // double [] x_val,
-					plots_direct[pt_density][0][0], // double [] y_val,
-					rmse_min, // double    y_min,
-					rmse_max, // double    y_max,
-					num_y_steps+1)[0]; //int       npoints		) 
-			double [][][] density_rslt = new double [sens_to_res.length][sens_to_res[0].length][];
-			for (int inter = 0; inter < sens_to_res.length; inter++) {
-				for (int isens = 0; isens < sens_to_res[0].length; isens++) {
-					density_rslt[inter][isens] = inverseLinTFunc(
-							noise_lev, // double [] x_val,
-							plots_direct[pt_density][inter][isens], // double [] y_val,
-							density_min, // double    y_min,
-							density_max, // double    y_max,
-							num_y_steps+1)[1]; //int       npoints		) 
-				}
-			}
-			for (int i = 0; i < density_vals.length; i++) {
-				System.out.print(String.format("%8.5f, ", density_vals[i]));
+		if (printOut) {
+			for (int i = 0; i < rmse_vals.length; i++) {
+				System.out.print(String.format("%8.5f, ", rmse_vals[i]));
 				for (int inter = 0; inter < sens_to_res.length; inter++) {
 					for (int isens = 1; isens < sens_to_res[0].length; isens++) {
-						double ratio = density_rslt[inter][isens][i]/density_rslt[inter][0][i];
+						double ratio = rmse_rslt[inter][isens][i]/rmse_rslt[inter][0][i];
 						if ((ratio > rmse_max_ratio) || Double.isInfinite(ratio)) {
 							ratio = Double.NaN;
 						}
@@ -10753,6 +10580,152 @@ if (debugLevel > -100) return true; // temporarily !
 				System.out.println();
 			}
 			System.out.println("\n");
+		}
+		// compare RMSE : 4 to binocular, 8 to 4, 16 to 4
+		String [] col_titles_rmse1 = {
+				"rmse("+rslt_err[pt_rmse]+")",
+				"4:2 intra",
+				"8:4 intra",
+				"16:8 intra",
+				"4:2 inter",
+				"8:4 inter",
+				"16:8 inter"};
+		if (printOut) {
+			for (int i = 0; i < col_titles_rmse1.length; i++) {
+				System.out.print(col_titles_rmse1[i]);
+				if (i < (col_titles_rmse1.length -1)) {
+					System.out.print(", ");
+				}
+			}
+			System.out.println();
+		}
+		
+		double [][] ratios_intra_rmse = new double [col_titles_rmse1.length - 1][rmse_vals.length];
+		for (int i = 0; i < rmse_vals.length; i++) {
+			if (printOut) System.out.print(String.format("%8.5f, ", rmse_vals[i]));
+			for (int inter = 0; inter < sens_to_res.length; inter++) {
+				for (int isens = 1; isens < sens_to_res[0].length; isens++) {
+					double ratio = rmse_rslt[inter][isens][i]/rmse_rslt[inter][isens - 1][i];
+					if ((ratio > rmse_max_ratio1) || Double.isInfinite(ratio)) {
+						ratio = Double.NaN;
+					}
+					if (!Double.isNaN(ratio)) {
+						if (printOut) System.out.print (String.format("%8.5f", ratio));
+					}
+					if (isens < (sens_to_res[0].length - 1)) {
+						if (printOut) System.out.print (", ");
+					}
+					int indx = inter * (sens_to_res[0].length-1) + isens-1;
+					ratios_intra_rmse[indx][i] = ratio;
+				}
+				if (inter < (sens_to_res.length - 1)) {
+					if (printOut) System.out.print (", ");
+				}
+			}
+			if (printOut) System.out.println();
+		}
+		if (printOut) System.out.println("\n");
+		// compare RMSE : inter to same intra
+		String [] col_titles_rmse2 = {
+				"rmse("+rslt_err[pt_rmse]+")",
+				"inter:intra (2)",
+				"inter:intra (4)",
+				"inter:intra (8)",
+				"inter:intra (16)"};
+		double [][] ratios_inter_rmse = new double [col_titles_rmse2.length - 1][rmse_vals.length];	
+		if (printOut) {
+			for (int i = 0; i < col_titles_rmse2.length; i++) {
+				System.out.print(col_titles_rmse2[i]);
+				if (i < (col_titles_rmse2.length -1)) {
+					System.out.print(", ");
+				}
+			}
+			System.out.println();
+		}
+		for (int i = 0; i < rmse_vals.length; i++) {
+			if (printOut) System.out.print(String.format("%8.5f, ", rmse_vals[i]));
+			for (int isens = 0; isens < sens_to_res[0].length; isens++) {
+				double ratio = rmse_rslt[1][isens][i]/rmse_rslt[0][isens][i];
+				if ((ratio > rmse_max_ratio2) || Double.isInfinite(ratio)) {
+					ratio = Double.NaN;
+				}
+				if (!Double.isNaN(ratio)) {
+					if (printOut) System.out.print (String.format("%8.5f", ratio));
+				}
+				if (isens < (sens_to_res[0].length - 1)) {
+					if (printOut) System.out.print (", ");
+				}
+				int indx = isens;
+				ratios_inter_rmse[indx][i] = ratio;
+				
+			}
+			if (printOut) System.out.println();
+		}
+		if (printOut) System.out.println("\n");
+		double [][][] ratios_intra_density2 = new double [2][][];
+		double [][][] ratios_inter_density2 = new double [2][][];
+		for (int idensity_err = 0; idensity_err < 2; idensity_err++) {
+			// compare density (2.0 and 0.25) : 4, 8, 16 to binocular
+			int pt_density = used_results[idensity_err];
+			String [] col_titles_density = {
+					"density("+rslt_err[pt_density]+")",
+					"4:2 intra",
+					"8:2 intra",
+					"16:2 intra",
+					"4:2 inter",
+					"8:2 inter",
+					"16:2 inter"};
+			if (printOut) {
+				for (int i = 0; i < col_titles_density.length; i++) {
+					System.out.print(col_titles_density[i]);
+					if (i < (col_titles_density.length -1)) {
+						System.out.print(", ");
+					}
+				}
+				System.out.println();
+			}
+			double [] density_vals = inverseLinTFunc(
+					noise_add, // double    x_add,
+					noise_lev, // double [] x_val,
+					plots_direct[pt_density][0][0], // double [] y_val,
+					rmse_min, // double    y_min,
+					rmse_max, // double    y_max,
+					num_y_steps+1)[0]; //int       npoints		) 
+			
+			double [][][] density_rslt = new double [sens_to_res.length][sens_to_res[0].length][];
+			for (int inter = 0; inter < sens_to_res.length; inter++) {
+				for (int isens = 0; isens < sens_to_res[0].length; isens++) {
+					density_rslt[inter][isens] = inverseLinTFunc(
+							noise_add, // double    x_add,
+							noise_lev, // double [] x_val,
+							plots_direct[pt_density][inter][isens], // double [] y_val,
+							density_min, // double    y_min,
+							density_max, // double    y_max,
+							num_y_steps+1)[1]; //int       npoints		) 
+				}
+			}
+			for (int i = 0; i < density_vals.length; i++) {
+				if (printOut) System.out.print(String.format("%8.5f, ", density_vals[i]));
+				for (int inter = 0; inter < sens_to_res.length; inter++) {
+					for (int isens = 1; isens < sens_to_res[0].length; isens++) {
+						double ratio = density_rslt[inter][isens][i]/density_rslt[inter][0][i];
+						if ((ratio > rmse_max_ratio) || Double.isInfinite(ratio)) {
+							ratio = Double.NaN;
+						}
+						if (!Double.isNaN(ratio)) {
+							if (printOut) System.out.print (String.format("%8.5f", ratio));
+						}
+						if (isens < (sens_to_res[0].length - 1)) {
+							if (printOut) System.out.print (", ");
+						}
+					}
+					if (inter < (sens_to_res.length - 1)) {
+						if (printOut) System.out.print (", ");
+					}
+				}
+				if (printOut) System.out.println();
+			}
+			if (printOut) System.out.println("\n");
 			// compare RMSE : 4 to binocular, 8 to 4, 16 to 4
 			String [] col_titles_density1 = {
 					"density("+rslt_err[pt_density]+")",
@@ -10762,16 +10735,19 @@ if (debugLevel > -100) return true; // temporarily !
 					"4:2 inter",
 					"8:4 inter",
 					"16:8 inter"};
-			for (int i = 0; i < col_titles_density1.length; i++) {
-				System.out.print(col_titles_density1[i]);
-				if (i < (col_titles_density1.length -1)) {
-					System.out.print(", ");
+			ratios_intra_density2[idensity_err] = new double [col_titles_density1.length - 1][rmse_vals.length];
+			if (printOut)  {
+				for (int i = 0; i < col_titles_density1.length; i++) {
+					System.out.print(col_titles_density1[i]);
+					if (i < (col_titles_density1.length -1)) {
+						System.out.print(", ");
+					}
 				}
+				System.out.println();
 			}
-			System.out.println();
 			
 			for (int i = 0; i < density_vals.length; i++) {
-				System.out.print(String.format("%8.5f, ", density_vals[i]));
+				if (printOut) System.out.print(String.format("%8.5f, ", density_vals[i]));
 				for (int inter = 0; inter < sens_to_res.length; inter++) {
 					for (int isens = 1; isens < sens_to_res[0].length; isens++) {
 						double ratio = density_rslt[inter][isens][i]/density_rslt[inter][isens - 1][i];
@@ -10779,19 +10755,21 @@ if (debugLevel > -100) return true; // temporarily !
 							ratio = Double.NaN;
 						}
 						if (!Double.isNaN(ratio)) {
-							System.out.print (String.format("%8.5f", ratio));
+							if (printOut) System.out.print (String.format("%8.5f", ratio));
 						}
 						if (isens < (sens_to_res[0].length - 1)) {
-							System.out.print (", ");
+							if (printOut) System.out.print (", ");
 						}
+						int indx = inter * (sens_to_res[0].length-1) + isens-1;
+						ratios_intra_density2[idensity_err][indx][i] = ratio;
 					}
 					if (inter < (sens_to_res.length - 1)) {
-						System.out.print (", ");
+						if (printOut) System.out.print (", ");
 					}
 				}
-				System.out.println();
+				if (printOut) System.out.println();
 			}
-			System.out.println("\n");
+			if (printOut) System.out.println("\n");
 			// compare RMSE : inter to same intra
 			String [] col_titles_density2 = {
 					"density("+rslt_err[pt_density]+")",
@@ -10799,54 +10777,262 @@ if (debugLevel > -100) return true; // temporarily !
 					"inter:intra (4)",
 					"inter:intra (8)",
 					"inter:intra (16)"};
-			for (int i = 0; i < col_titles_density2.length; i++) {
-				System.out.print(col_titles_density2[i]);
-				if (i < (col_titles_density2.length -1)) {
-					System.out.print(", ");
+			if (printOut) {
+				for (int i = 0; i < col_titles_density2.length; i++) {
+					System.out.print(col_titles_density2[i]);
+					if (i < (col_titles_density2.length -1)) {
+						System.out.print(", ");
+					}
 				}
+				System.out.println();
 			}
-			System.out.println();
-			
+			ratios_inter_density2[idensity_err] = new double [col_titles_density2.length - 1][density_vals.length];
 			for (int i = 0; i < density_vals.length; i++) {
-				System.out.print(String.format("%8.5f, ", density_vals[i]));
+				if (printOut) System.out.print(String.format("%8.5f, ", density_vals[i]));
 				for (int isens = 0; isens < sens_to_res[0].length; isens++) {
 					double ratio = density_rslt[1][isens][i]/density_rslt[0][isens][i];
 					if ((ratio > rmse_max_ratio2) || Double.isInfinite(ratio)) {
 						ratio = Double.NaN;
 					}
 					if (!Double.isNaN(ratio)) {
-						System.out.print (String.format("%8.5f", ratio));
+						if (printOut) System.out.print (String.format("%8.5f", ratio));
 					}
 					if (isens < (sens_to_res[0].length - 1)) {
-						System.out.print (", ");
+						if (printOut) System.out.print (", ");
 					}
+					int indx = isens;
+					ratios_inter_density2[idensity_err][indx][i] = ratio;
 				}
-				System.out.println();
+				if (printOut) System.out.println();
 			}
-			System.out.println("\n");
+			if (printOut) System.out.println("\n");
 		}
+		
+		
+		
+		double [][] ratios_intra_density  = ratios_intra_density2[1]; // use density for 2.0, not 0.25
+		double [][] ratios_inter_density  = ratios_inter_density2[1]; // use density for 2.0, not 0.25
+		
+		String [] hist_titles_intra = {
+				"contrast_ratio",  // 0
+				"4:2",             // 1
+				"8:4",             // 2
+				"16:8",            // 3
+				"4:2 RMSE",        // 4
+				"8:4 RMSE",        // 5 
+				"16:8 RMSE",       // 6
+				"4:2 density",     // 7
+				"8:4 density",     // 8
+				"16:8 density"};   // 9
+		String [] hist_titles_inter = {
+				"contrast_ratio", //  0
+				"average",        //  1
+				"2",              //  2  
+				"4",              //  3
+				"8",              //  4
+				"16",             //  5
+				"all RMSE",       //  6
+				"2 RMSE",         //  7
+				"4 RMSE",         //  8
+				"8 RMSE",         //  9
+				"16 RMSE",        // 10
+				"all density",    // 11
+				"2 density",      // 12
+				"4 density",      // 13
+				"8 density",      // 14
+				"16 density"};    // 15
+		
+		double [] hist_intra_log = {Math.log(hist_intra_min),Math.log(hist_intra_max)};
+		double bin_step_log_intra =   (hist_intra_log[1]- hist_intra_log[0])/hist_bins;
+		double [][] hist_intra = new double [hist_titles_intra.length][hist_bins+1]; 
+		for (int i = 0; i < hist_bins + 1; i++) {
+			hist_intra[0][i] = Math.exp(hist_intra_log[0] +  bin_step_log_intra * i);
+		}
+		double [] ratio_intra_s0 = new double [3], ratio_intra_s1 = new double [3], ratio_intra_s2 = new double [3];  // 4:2, 8:4, 16:8
+		double ratio_inter_s0 = 0, ratio_inter_s1 = 0,ratio_inter_s2 = 0; // inter/intra
+		double[]  rmse_s0 =    new double[3], rmse_s1 =    new double[3], rmse_s2 = new double[3];
+		double[]  density_s0 = new double[3], density_s1 = new double[3], density_s2 = new double[3];
+//		double[] rmse_log_mean = new double[3];
+//		double[] rmse_log_rmse = new double[3];
+		
+		for (int i = 0; i < ratios_intra_rmse[0].length; i++) { // same length for _rmse amd _density
+			for (int mode = 0; mode < ratios_intra_rmse.length; mode++) {
+				int bin_rmse = (Double.isNaN(ratios_intra_rmse[mode][i])) ? -1 :
+					(int) Math.round((Math.log(ratios_intra_rmse[mode][i])-hist_intra_log[0])/bin_step_log_intra);
+				if (bin_rmse > hist_bins) {
+					bin_rmse = -1;
+				}
+				int sens_mode = mode % 3; // ignore inter/intra 0: 4/2, 1: 8/4, 2: 16/8
+				if (bin_rmse >= 0) {
+					hist_intra[1 + sens_mode][bin_rmse] += 1.0/2;
+					hist_intra[4 + sens_mode][bin_rmse] += 1.0;
+					double d = Math.log(ratios_intra_rmse[mode][i]);
+					ratio_intra_s0[sens_mode] += 1.0;
+					ratio_intra_s1[sens_mode] += d;
+					ratio_intra_s2[sens_mode] += d*d;
+					rmse_s0[sens_mode] += 1.0;
+					rmse_s1[sens_mode] += d;
+					rmse_s2[sens_mode] += d*d;
+					
+				}
+				int bin_density = (Double.isNaN(ratios_intra_density[mode][i])) ? -1 : // should be same number of modes and samples as rmse
+					(int) Math.round((Math.log(ratios_intra_density[mode][i])-hist_intra_log[0])/bin_step_log_intra);
+				if (bin_density > hist_bins) {
+					bin_density = -1;
+				}
+				if (bin_density >= 0) {
+					hist_intra[ 1 + sens_mode][bin_density] += 1.0/2;
+					hist_intra[ 7 + sens_mode][bin_density] += 1.0;
+					double d = Math.log(ratios_intra_density[mode][i]);
+					ratio_intra_s0[sens_mode] += 1.0;
+					ratio_intra_s1[sens_mode] += d;
+					ratio_intra_s2[sens_mode] += d*d;
+					density_s0[sens_mode] += 1.0;
+					density_s1[sens_mode] += d;
+					density_s2[sens_mode] += d*d;
+				}
+			}
+		}
+		if (!printOut ) { // calculate RMSE depending on noise_add
+			double all_s0 = 0.0, all_rmse = 0.0;
+			for (int i = 0; i < rmse_s0.length; i++) {
+				all_s0 +=   rmse_s0[i];
+				all_s0 +=   density_s0[i];
+				all_rmse += rmse_s2[i]*   rmse_s0[i] -    rmse_s1[i]*   rmse_s1[i];
+				all_rmse += density_s2[i]*density_s0[i] - density_s1[i]*density_s1[i];
+			}
+			all_rmse = Math.sqrt(all_rmse)/all_s0;
+			return all_rmse;
+		}	
+		
+		double [] hist_inter_log = {Math.log(hist_inter_min),Math.log(hist_inter_max)};
+		double bin_step_log_inter =   (hist_inter_log[1]- hist_inter_log[0])/hist_bins; 
+		double [][] hist_inter = new double [hist_titles_inter.length][hist_bins+1]; 
+		for (int i = 0; i < hist_bins + 1; i++) {
+			hist_inter[0][i] = Math.exp(hist_inter_log[0] +  bin_step_log_inter * i);
+		}
+		
+		for (int i = 0; i < ratios_inter_rmse[0].length; i++) {  // same length for _rmse amd _density
+			for (int mode = 0; mode < ratios_inter_rmse.length; mode++) {
+				int bin_rmse = (Double.isNaN(ratios_inter_rmse[mode][i])) ? -2 :
+					(int) Math.round((Math.log(ratios_inter_rmse[mode][i])-hist_inter_log[0])/bin_step_log_inter);
+				if (bin_rmse > hist_bins) {
+					bin_rmse = -1;
+				}
+				int sens_mode = mode;  
+				if (bin_rmse >= 0) {
+					hist_inter[1][bin_rmse] +=             1.0/6;
+					hist_inter[2 + sens_mode][bin_rmse] += 1.0/2;
+					hist_inter[6][bin_rmse] +=             1.0/3;
+					hist_inter[7 + sens_mode][bin_rmse] += 1.0;
+					double d = Math.log(ratios_inter_rmse[mode][i]);
+					ratio_inter_s0 += 1.0;
+					ratio_inter_s1 += d;
+					ratio_inter_s2 += d*d;
+				}
+				int bin_density = (Double.isNaN(ratios_inter_density[mode][i])) ? -3 : // should be same number of modes and samples as rmse
+					(int) Math.round((Math.log(ratios_inter_density[mode][i])-hist_inter_log[0])/bin_step_log_inter);
+				if (bin_density > hist_bins) {
+					bin_density = -1;
+				}
+				if (bin_density >= 0) {
+					hist_inter[ 1][bin_density] +=             1.0/6;
+					hist_inter[ 2 + sens_mode][bin_density] += 1.0/2;
+					hist_inter[11][bin_density] +=             1.0/3;
+					hist_inter[12 + sens_mode][bin_density] += 1.0;
+					double d = Math.log(ratios_inter_density[mode][i]);
+					ratio_inter_s0 += 1.0;
+					ratio_inter_s1 += d;
+					ratio_inter_s2 += d*d;
+				}
+			}
+		}
+		double [] ratio_intra_log_mean = new double [3];
+		double [] ratio_intra_log_rmse = new double [3];
+		String [] rslt_names = {"4:2", "8:4", "16:8"};
+		for (int i = 0; i < ratio_intra_s0.length; i++) {
+			ratio_intra_log_mean[i] = ratio_intra_s1[i]/ratio_intra_s0[i];
+			ratio_intra_log_rmse[i] = Math.sqrt(ratio_intra_s2[i]*ratio_intra_s0[i] - ratio_intra_s1[i]*ratio_intra_s1[i])/ratio_intra_s0[i];
+		}
+
+		double ratio_inter_log_mean = ratio_inter_s1/ratio_inter_s0;
+		double ratio_inter_log_rmse = Math.sqrt(ratio_inter_s2*ratio_inter_s0 - ratio_inter_s1*ratio_inter_s1)/ratio_inter_s0;
+		
+		
+		for (int i = 0; i < hist_titles_intra.length; i++) {
+			System.out.print(hist_titles_intra[i]);
+			if (i < (hist_titles_intra.length -1)) {
+				System.out.print(", ");
+			}
+		}
+		System.out.println();
+		for (int i = 0; i < hist_intra[0].length; i++) {
+			for (int mode = 0; mode < hist_intra.length; mode++) {
+				System.out.print(String.format("%8.5f", hist_intra[mode][i]));
+				if (mode < (hist_intra.length-1)) {
+					System.out.print(", ");
+				};
+			}
+			System.out.println();
+		}		
+		System.out.println("\n");
+		for (int i = 0; i < hist_titles_inter.length; i++) {
+			System.out.print(hist_titles_inter[i]);
+			if (i < (hist_titles_inter.length -1)) {
+				System.out.print(", ");
+			}
+		}
+		System.out.println();
+		for (int i = 0; i < hist_inter[0].length; i++) {
+			for (int mode = 0; mode < hist_inter.length; mode++) {
+				System.out.print(String.format("%8.5f", hist_inter[mode][i]));
+				if (mode < (hist_inter.length-1)) {
+					System.out.print(", ");
+				};
+			}
+			System.out.println();
+		}		
+		System.out.println("\n");
+		for (int i = 0; i < ratio_intra_s0.length; i++) {
+			double pos_marg = Math.exp(ratio_intra_log_mean[i])*(Math.exp(ratio_intra_log_rmse[i]) - 1.0);
+			double neg_marg = Math.exp(ratio_intra_log_mean[i])*(1.0 - Math.exp(-ratio_intra_log_rmse[i]));
+			System.out.println(String.format("Gain %s = %8.5f (+%4.2f - %4.2f)",rslt_names[i],Math.exp(ratio_intra_log_mean[i]), pos_marg,neg_marg ));
+		}
+		{
+			double pos_marg = Math.exp(ratio_inter_log_mean)*(Math.exp(ratio_inter_log_rmse) - 1.0);
+			double neg_marg = Math.exp(ratio_inter_log_mean)*(1.0 - Math.exp(-ratio_inter_log_rmse));
+			System.out.println(String.format("Gain inter99 = %8.5f (+%4.2f - %4.2f)",Math.exp(ratio_inter_log_mean), pos_marg,neg_marg ));
+		}
+		System.out.println("\n");
+		System.out.println(" noise_add ="+noise_add);		
+		System.out.println("\n");
+		return 0;
 	}
 		
 	
 	
 	public double [][] inverseLinTFunc(
+			double    x_add,
 			double [] x_val,
 			double [] y_val,
 			double    y_min,
 			double    y_max,
 			int       npoints
 			){
+//		double    x_add = 0.04;
 		double [][] x_y = new double [2][npoints];
 		for (int i = 0; i < npoints; i++) {
 			double y = y_min + i * (y_max - y_min)/(npoints -1);
 			x_y[0][i] = y;
 			x_y[1][i] = Double.NaN;
 			for (int j = 0; j < (x_val.length - 1); j++){
+				//double xval = x_val[j] + x_add;
 				if (y_val[j] == y) {
-					x_y[1][i] = x_val[j];
+					x_y[1][i] = x_val[j] + x_add;
 					break;
 				} else 	if ((y_val[j] - y) * (y_val[j + 1] - y) <= 0) {
-					x_y[1][i] = x_val[j] + (x_val[j+1] - x_val[j]) * (y - y_val[j])/(y_val[j+1]-y_val[j]);
+//					x_y[1][i] = x_val[j] + (x_val[j+1] - x_val[j]) * (y - y_val[j])/(y_val[j+1]-y_val[j]);
+					x_y[1][i] = x_val[j] + x_add + (x_val[j+1] - x_val[j]) * (y - y_val[j])/(y_val[j+1]-y_val[j]);
 					break;
 				}
 			}

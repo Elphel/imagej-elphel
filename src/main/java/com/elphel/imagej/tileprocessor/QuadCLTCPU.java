@@ -1469,7 +1469,9 @@ public class QuadCLTCPU {
 			geometryCorrection.setCorrVector(this.extrinsic_vect);
 //			geometryCorrection = new GeometryCorrection(this.extrinsic_vect);
 		}
-
+//
+		
+		
 		if (is_aux) {
 			geometryCorrection.setRigOffsetFromProperies(prefix, properties);
 		}
@@ -1631,7 +1633,13 @@ public class QuadCLTCPU {
 			System.out.println("=== Extrinsic corrections ===");
 			System.out.println(geometryCorrection.getCorrVector().toString());
 		}
-		double [] dbg_objects = geometryCorrection.toDoubleArray();
+//		double [] dbg_objects = geometryCorrection.toDoubleArray();
+		double [] dbg_double =  geometryCorrection.toDoubleArray();
+		float  [] dbg_float =   geometryCorrection.toFloatArray();
+		System.out.println("toFloatArray().length="+geometryCorrection.toFloatArray().length);
+		System.out.println();
+		
+		
 //listGeometryCorrection
 		return true;
 	}
@@ -14166,18 +14174,18 @@ public class QuadCLTCPU {
 			  ) {
 		  boolean       need_diffs = false;
 		  double [][] src_data = {
-	    			this.dsi[is_aux?TwoQuadCLT.DSI_DISPARITY_AUX:TwoQuadCLT.DSI_DISPARITY_MAIN],
-	    			this.dsi[is_aux?TwoQuadCLT.DSI_STRENGTH_AUX:TwoQuadCLT.DSI_STRENGTH_MAIN],
-	    			this.dsi[is_aux?TwoQuadCLT.DSI_DISPARITY_AUX_LMA:TwoQuadCLT.DSI_DISPARITY_MAIN_LMA],
+				  this.dsi[is_aux?TwoQuadCLT.DSI_DISPARITY_AUX:TwoQuadCLT.DSI_DISPARITY_MAIN],
+				  this.dsi[is_aux?TwoQuadCLT.DSI_STRENGTH_AUX:TwoQuadCLT.DSI_STRENGTH_MAIN],
+				  this.dsi[is_aux?TwoQuadCLT.DSI_DISPARITY_AUX_LMA:TwoQuadCLT.DSI_DISPARITY_MAIN_LMA],
 		  };
-		  
+
 		  CLTPass3d pass = new CLTPass3d (this.tp, 0);
 		  boolean [] selection = new boolean [src_data[0].length];
 		  boolean [] selection_all = new boolean [src_data[0].length];
 		  for (int i = 0; i < selection.length; i++) {
 			  selection[i] =     (src_data[1][i] > 0) && (Double.isNaN(src_data[2][i])); // that do not have LMA
 			  selection_all[i] = (src_data[1][i] > 0);
-			  
+
 		  }
 		  for (int clust_radius = 00; clust_radius < 5; clust_radius++) {
 			  pass.setTileOpDisparity(
@@ -14194,22 +14202,24 @@ public class QuadCLTCPU {
 					  100,            // final int           threadsMax,  // maximal number of threads to launch
 					  true,           // final boolean       updateStatus,
 					  0);             // final int           debugLevel) 
-    		  tp.showScan(
-    				  pass, // CLTPass3d   scan,
-    				  getImageName()+"-MAP-FZ"+(clt_parameters.getGpuFatZero(isMonochrome()))+"-CLUST"+clust_radius);
-    		  tp.showLmaCmStrength(
-    				  pass, // CLTPass3d   scan,
-    				  64, // 	int         bins,
-    				  "Strength_lma_vs_cm_cr"+clust_radius+"-FZ"+(clt_parameters.getGpuFatZero(isMonochrome()))); // String      title)
-    		  if (clust_radius == 0) {
-    			  tp.adjustLmaStrength (
-    					  clt_parameters.img_dtt, // ImageDttParameters  imgdtt_params,
-    					  pass, // CLTPass3d           scan,
-    					  1); // int                 debugLevel)
-    		  }
+			  tp.showScan(
+					  pass, // CLTPass3d   scan,
+					  getImageName()+"-MAP-FZ"+(clt_parameters.getGpuFatZero(isMonochrome()))+"-CLUST"+clust_radius);
+			  tp.showLmaCmStrength(
+					  pass, // CLTPass3d   scan,
+					  64, // 	int         bins,
+					  "Strength_lma_vs_cm_cr"+clust_radius+"-FZ"+(clt_parameters.getGpuFatZero(isMonochrome()))); // String      title)
+			  if (clust_radius == 0) {
+				  tp.adjustLmaStrength (
+						  clt_parameters.img_dtt, // ImageDttParameters  imgdtt_params,
+						  pass, // CLTPass3d           scan,
+						  1); // int                 debugLevel)
+			  }
 		  }
 		  return;
 	  }
 	  
-	  
+// Generate files for testing GPU	  
+
+
 }
