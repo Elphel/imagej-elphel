@@ -157,11 +157,20 @@ public class Aberration_Calibration extends PlugInFrame implements ActionListene
 
 	public static EyesisAberrations.InterpolateParameters INTERPOLATE= new EyesisAberrations.InterpolateParameters (
 			32, // insize -      size of each kernel (should be square)
-			4,  // step   -      number of subdivisions from input to output
-			17, // add_top     - add this number of kernel rows to the output above the existent/interpolated
-			17, // add_left    - add this number of kernel columns to the output on the left of the existent/interpolated
-			18, // add_right   - add this number of kernel columns to the output on the right of the existent/interpolated
-			17, // add_bottom  - add this number of kernel rows to the output below the existent/interpolated
+			2,  // step   -      number of subdivisions from input to output
+			9, // add_top     - add this number of kernel rows to the output above the existent/interpolated
+			8, // add_left    - add this number of kernel columns to the output on the left of the existent/interpolated
+			9, // add_right   - add this number of kernel columns to the output on the right of the existent/interpolated
+			9, // add_bottom  - add this number of kernel rows to the output below the existent/interpolated
+			0.0 // extrapolate - 0.0 - duplicate, 1.0 - extrapolate outside of the known kernels
+	);
+	public static EyesisAberrations.InterpolateParameters INTERPOLATE_LWIR= new EyesisAberrations.InterpolateParameters (
+			32, // insize -      size of each kernel (should be square)
+			1,  // step   -      number of subdivisions from input to output
+			8, // add_top     - add this number of kernel rows to the output above the existent/interpolated
+			8, // add_left    - add this number of kernel columns to the output on the left of the existent/interpolated
+			9, // add_right   - add this number of kernel columns to the output on the right of the existent/interpolated
+			9, // add_bottom  - add this number of kernel rows to the output below the existent/interpolated
 			0.0 // extrapolate - 0.0 - duplicate, 1.0 - extrapolate outside of the known kernels
 	);
 
@@ -1241,7 +1250,7 @@ if (MORE_BUTTONS) {
 			return;
 /* ======================================================================== */
 		} else if (label.equals("Conf. Interpolation")) {
-			showInterpolateParametersDialog(INTERPOLATE);
+			showInterpolateParametersDialog(INTERPOLATE, INTERPOLATE_LWIR);
 			return;
 /* ======================================================================== */
 		} else if (label.equals("Conf. Inversion")) {
@@ -9072,10 +9081,11 @@ if (MORE_BUTTONS) {
 			boolean interpolatedOK=	EYESIS_ABERRATIONS.interpolateKernels ( // save configuration to combined kernels directory before calling this methode
 					this.SYNC_COMMAND.stopRequested,
 					INTERPOLATE,          // INTERPOLATE
-					MULTIFILE_PSF ,         // MULTIFILE_PSF = new EyesisAberrations.MultiFilePSF(
+					INTERPOLATE_LWIR,     // INTERPOLATE_LWIR
+					MULTIFILE_PSF ,       // MULTIFILE_PSF = new EyesisAberrations.MultiFilePSF(
 					true, //              saveResult,
 					false, //              showResult,
-					UPDATE_STATUS,          // UPDATE_STATUS
+					UPDATE_STATUS,        // UPDATE_STATUS
 					DEBUG_LEVEL);
 
 			if (interpolatedOK) {
@@ -11119,6 +11129,10 @@ if (MORE_BUTTONS) {
 			startTime-=(System.nanoTime()-tmpTime); // do not count time used for selection of files
 			filePaths=prepareInterpolateKernelsList(PROCESS_PARAMETERS);
 			for (fileNum=0;fileNum<filePaths.length;fileNum++) if ((filePaths[fileNum]!=null) && (filePaths[fileNum].length>0)) {
+				System.out.println("isLwir16()="+LWIR_PARAMETERS.isLwir16());
+				if (LWIR_PARAMETERS.isLwir16()) {
+					System.out.println("isLwir16()="+LWIR_PARAMETERS.isLwir16());
+				}
 				file=new File(filePaths[fileNum][0][0]);
 				if (!file.exists()) {
 					if (DEBUG_LEVEL>1) System.out.println("Raw PSF kernel stack file "+filePaths[fileNum][0][0]+" does not exist");
@@ -16488,6 +16502,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
 
        	if (select_SIMUL) SIMUL.setProperties(             "SIMUL.", properties);
         if (select_INTERPOLATE) INTERPOLATE.setProperties(       "INTERPOLATE.", properties);
+        if (select_INTERPOLATE) INTERPOLATE_LWIR.setProperties(  "INTERPOLATE_LWIR.", properties);
         if (select_INVERSE) INVERSE.setProperties(           "INVERSE.", properties);
         if (select_PSF_PARS) PSF_PARS.setProperties(          "PSF_PARS.", properties);
         if (select_OTF_FILTER) OTF_FILTER.setProperties(         "OTF_FILTER.", properties);
@@ -16533,6 +16548,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
 
        SIMUL.getProperties("SIMUL.", properties);
        INTERPOLATE.getProperties("INTERPOLATE.", properties);
+       INTERPOLATE_LWIR.getProperties("INTERPOLATE_LWIR.", properties);
        INVERSE.getProperties("INVERSE.", properties);
        PSF_PARS.getProperties("PSF_PARS.", properties);
        OTF_FILTER.getProperties("OTF_FILTER.", properties);
@@ -21224,7 +21240,9 @@ use the result to create a rejectiobn mask - if the energy was high, (multiplica
 
 /* ======================================================================== */
 /* ======================================================================== */
-	public boolean showInterpolateParametersDialog(EyesisAberrations.InterpolateParameters interpolateParameters) {
+	public boolean showInterpolateParametersDialog(
+			EyesisAberrations.InterpolateParameters interpolateParameters,
+			EyesisAberrations.InterpolateParameters interpolateParameters_lwir) {
 		GenericDialog gd = new GenericDialog("Interpolate kernels parameters");
 		gd.addNumericField("Input kernel size",                                                            interpolateParameters.size,     0); // 64
 		gd.addNumericField("Interpolation step between original kernels",                                  interpolateParameters.step,       0); //4
@@ -21233,6 +21251,16 @@ use the result to create a rejectiobn mask - if the energy was high, (multiplica
 		gd.addNumericField("Interpolation add on the right (in output, subdivided steps)",                 interpolateParameters.add_right,   0); //16
 		gd.addNumericField("Interpolation add on the bottom (in output, subdivided steps)",                interpolateParameters.add_bottom,  0); //16
 		gd.addNumericField("Interpolation: extrapolate margins - 0.0 - duplicate, 1.0 - full extrapolate", interpolateParameters.extrapolate,3); //1.0
+		if (interpolateParameters_lwir!=null) {
+			gd.addMessage("LWIR (low-res mono) sensors:");
+			gd.addNumericField("Input kernel size",                                                            interpolateParameters_lwir.size,     0); // 64
+			gd.addNumericField("Interpolation step between original kernels",                                  interpolateParameters_lwir.step,       0); //4
+			gd.addNumericField("Interpolation add on the top (in output, subdivided steps)",                   interpolateParameters_lwir.add_top,     0); //16
+			gd.addNumericField("Interpolation add on the left (in output, subdivided steps)",                  interpolateParameters_lwir.add_left,    0); //16
+			gd.addNumericField("Interpolation add on the right (in output, subdivided steps)",                 interpolateParameters_lwir.add_right,   0); //16
+			gd.addNumericField("Interpolation add on the bottom (in output, subdivided steps)",                interpolateParameters_lwir.add_bottom,  0); //16
+			gd.addNumericField("Interpolation: extrapolate margins - 0.0 - duplicate, 1.0 - full extrapolate", interpolateParameters_lwir.extrapolate,3); //1.0
+		}		
 		gd.showDialog();
 		if (gd.wasCanceled()) return false;
 		interpolateParameters.size=       (int) gd.getNextNumber();
@@ -21242,6 +21270,15 @@ use the result to create a rejectiobn mask - if the energy was high, (multiplica
 		interpolateParameters.add_right=  (int) gd.getNextNumber();
 		interpolateParameters.add_bottom= (int) gd.getNextNumber();
 		interpolateParameters.extrapolate=      gd.getNextNumber();
+		if (interpolateParameters_lwir!=null) {
+			interpolateParameters_lwir.size=       (int) gd.getNextNumber();
+			interpolateParameters_lwir.step=       (int) gd.getNextNumber();
+			interpolateParameters_lwir.add_top=    (int) gd.getNextNumber();
+			interpolateParameters_lwir.add_left=   (int) gd.getNextNumber();
+			interpolateParameters_lwir.add_right=  (int) gd.getNextNumber();
+			interpolateParameters_lwir.add_bottom= (int) gd.getNextNumber();
+			interpolateParameters_lwir.extrapolate=      gd.getNextNumber();
+		}
 		return true;
 	}
 /* ======================================================================== */

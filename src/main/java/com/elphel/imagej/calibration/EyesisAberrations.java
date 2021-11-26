@@ -658,6 +658,7 @@ public class EyesisAberrations {
    	public boolean interpolateKernels(
 		    AtomicInteger stopRequested, // 1 - stop now, 2 - when convenient
 			EyesisAberrations.InterpolateParameters  interpolateParameters, // INTERPOLATE
+			EyesisAberrations.InterpolateParameters  interpolateParameters_lwir, // INTERPOLATE
 			EyesisAberrations.MultiFilePSF           multiFilePSF ,         // MULTIFILE_PSF = new EyesisAberrations.MultiFilePSF(
    			boolean                saveResult,
    			boolean                showResult,
@@ -721,9 +722,11 @@ public class EyesisAberrations {
    				System.out.println("Need a 3-layer stack (for color) or single (for mono) with raw PSF kernels");
    				continue;
    			}
+   			boolean is_mono = impSpsf.getStackSize() == 1;
+			System.out.println("Interpolating "+ (is_mono? "monochrome":"color") + " sensor kernel");
    			ImageStack stack= interpolateKernelStack(
    					impSpsf.getStack(), // Image stack, each slice consists of square kernels of one channel
-   					interpolateParameters,
+   					(is_mono?interpolateParameters_lwir:interpolateParameters),
    					updateStatus,
    					globalDebugLevel); // update status info
 
