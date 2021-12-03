@@ -55,7 +55,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
+import com.elphel.imagej.tileprocessor.Correlation2d;
+
 import ij.IJ;
+import ij.text.TextWindow;
 import jcuda.Pointer;
 import jcuda.driver.CUcontext;
 import jcuda.driver.CUdevice;
@@ -69,7 +72,6 @@ import jcuda.nvrtc.JNvrtc;
 import jcuda.nvrtc.nvrtcProgram;
 
 public class GPUTileProcessor {
-	static int CORR_VECTOR_MAX_LENGTH =19; // TODO: update to fit for 16-sensor
 	String LIBRARY_PATH = "/usr/local/cuda/targets/x86_64-linux/lib/libcudadevrt.a"; // linux
 	static String GPU_RESOURCE_DIR =              "kernels";
 	static String [] GPU_KERNEL_FILES = {"dtt8x8.cuh","TileProcessor.cuh"};
@@ -91,9 +93,10 @@ public class GPUTileProcessor {
 	public static int DTT_SIZE_LOG2 =             3;
 	public static int DTT_SIZE =                  (1 << DTT_SIZE_LOG2);
 	static int        THREADSX =                  DTT_SIZE;
-	public static int NUM_CAMS =                  16; // 4; Now - maximal number of sensors
-	public static int NUM_PAIRS =                 6; // top hor, bottom hor, left vert, right vert, main diagonal, other diagonal
-	public static int NUM_COLORS =                3;
+	public static int MAX_NUM_CAMS =             16; // 4; Now - maximal number of sensors
+	public static int CORR_VECTOR_MAX_LENGTH =   3 + 4 * MAX_NUM_CAMS; // 67; // 19; // TODO: update to fit for 16-sensor
+//	public static int NUM_PAIRS =                 6; // top hor, bottom hor, left vert, right vert, main diagonal, other diagonal
+//	public static int NUM_COLORS =                3;
 //	public static int IMG_WIDTH =              2592;
 //	public static int IMG_HEIGHT =             1936;
 	static int        KERNELS_HOR =             164;
@@ -105,14 +108,17 @@ public class GPUTileProcessor {
 	static int        CORR_TILES_PER_BLOCK	=     4;
 	static int        CORR_TILES_PER_BLOCK_NORMALIZE = 4; // maybe change to 8?	
 	static int        CORR_TILES_PER_BLOCK_COMBINE = 4; // increase to 16?
+	static int        NUM_THREADS              = 32;
+
 	static int        TEXTURE_THREADS_PER_TILE =  8; // 16;
 	static int        TEXTURE_TILES_PER_BLOCK =   1;
 	static int        IMCLT_THREADS_PER_TILE =   16;
 	static int        IMCLT_TILES_PER_BLOCK =     4;
-	static int        TPTASK_SIZE =                 1+ 1+ NUM_CAMS * 2 + 1 + NUM_CAMS * 4 ; // tp_task structure size in floats
+//	static int        TPTASK_SIZE =                 1+ 1+ NUM_CAMS * 2 + 1 + NUM_CAMS * 4 ; // tp_task structure size in floats
 	static int        CLTEXTRA_SIZE =               8;
 	static int        CORR_SIZE =                   (2* DTT_SIZE - 1) * (2* DTT_SIZE - 1); // 15x15
 	public static int CORR_NTILE_SHIFT =          8;  // also for texture tiles list
+	// FIXME: CORR_PAIRS_MASK will not work !!!	
 	public static int CORR_PAIRS_MASK =        0x3f;  // lower bits used to address correlation pair for the selected tile
 	public static int CORR_TEXTURE_BIT =          7;  // bit 7 used to request texture for the tile
 	public static int TASK_CORR_BITS =            4;  // start of pair mask
@@ -129,7 +135,7 @@ public class GPUTileProcessor {
 
 	public static int RBYRDIST_LEN =           5001; //for double, 10001 - float;   // length of rByRDist to allocate shared memory
 	public static double RBYRDIST_STEP =          0.0004; //  for double, 0.0002 - for float; // to fit into GPU shared memory (was 0.001);
-	public static int TILES_PER_BLOCK_GEOM =     32/NUM_CAMS; // blockDim.x = NUM_CAMS; blockDim.x = TILES_PER_BLOCK_GEOM
+	public static int TILES_PER_BLOCK_GEOM =     32/MAX_NUM_CAMS; // blockDim.x = NUM_CAMS; blockDim.x = TILES_PER_BLOCK_GEOM
 	public static int TASK_TEXTURE_BITS = ((1 << TASK_TEXTURE_N_BIT) | (1 << TASK_TEXTURE_E_BIT) | (1 << TASK_TEXTURE_S_BIT) | (1 << TASK_TEXTURE_W_BIT));
 
 
@@ -139,17 +145,17 @@ public class GPUTileProcessor {
     public boolean kernels_set = false;
     public boolean bayer_set =   false;
 
-    CUfunction GPU_CONVERT_DIRECT_kernel =          null;
-    CUfunction GPU_IMCLT_ALL_kernel =               null;
-    CUfunction GPU_CORRELATE2D_kernel =             null;
-    CUfunction GPU_CORR2D_COMBINE_kernel =          null;
-    CUfunction GPU_CORR2D_NORMALIZE_kernel =        null;
-    CUfunction GPU_TEXTURES_kernel =                null;
-    CUfunction GPU_RBGA_kernel =                    null;
-    CUfunction GPU_ROT_DERIV_kernel =               null;
-//    private CUfunction GPU_SET_TILES_OFFSETS_kernel =       null;
-    CUfunction GPU_CALCULATE_TILES_OFFSETS_kernel = null;
-    CUfunction GPU_CALC_REVERSE_DISTORTION_kernel = null;
+    CUfunction GPU_CONVERT_DIRECT_kernel =          null; // "convert_direct"
+    CUfunction GPU_IMCLT_ALL_kernel =               null; // "imclt_rbg_all"
+    CUfunction GPU_CORRELATE2D_kernel =             null; // "correlate2D"
+    CUfunction GPU_CORR2D_COMBINE_kernel =          null; // "corr2D_combine"
+    CUfunction GPU_CORR2D_NORMALIZE_kernel =        null; // "corr2D_normalize";
+    CUfunction GPU_TEXTURES_kernel =                null; // "textures_nonoverlap"
+    CUfunction GPU_RBGA_kernel =                    null; // "generate_RBGA"
+    CUfunction GPU_ROT_DERIV_kernel =               null; // "calc_rot_deriv"
+//    private CUfunction GPU_SET_TILES_OFFSETS_kernel =       null; // "get_tiles_offsets"
+    CUfunction GPU_CALCULATE_TILES_OFFSETS_kernel = null; // "calculate_tiles_offsets"
+    CUfunction GPU_CALC_REVERSE_DISTORTION_kernel = null; // "calcReverseDistortionTable"
 
     CUmodule    module; // to access constants memory
     //    private
@@ -175,9 +181,9 @@ public class GPUTileProcessor {
         return"#define JCUDA\n"+
         				"#define DTT_SIZE_LOG2 " +                  DTT_SIZE_LOG2+"\n"+
         				"#define THREADSX " +                       THREADSX+"\n"+
-        				"#define NUM_CAMS " +                       NUM_CAMS+"\n"+
-        				"#define NUM_PAIRS " +                      NUM_PAIRS+"\n"+
-        				"#define NUM_COLORS " +                     NUM_COLORS+"\n"+
+        				"#define NUM_CAMS " +                       MAX_NUM_CAMS+"\n"+
+//        				"#define NUM_PAIRS " +                      NUM_PAIRS+"\n"+
+//        				"#define NUM_COLORS " +                     NUM_COLORS+"\n"+
         				"#define KERNELS_LSTEP " +                  KERNELS_LSTEP+"\n"+
         				"#define THREADS_PER_TILE " +               THREADS_PER_TILE+"\n"+
         				"#define TILES_PER_BLOCK " +                TILES_PER_BLOCK+"\n"+
@@ -185,12 +191,13 @@ public class GPUTileProcessor {
         				"#define CORR_TILES_PER_BLOCK " +           CORR_TILES_PER_BLOCK+"\n"+
         				"#define CORR_TILES_PER_BLOCK_NORMALIZE " + CORR_TILES_PER_BLOCK_NORMALIZE+"\n"+
         				"#define CORR_TILES_PER_BLOCK_COMBINE " +   CORR_TILES_PER_BLOCK_COMBINE+"\n"+
+        				"#define NUM_THREADS " +                    NUM_THREADS+"\n"+
         				"#define TEXTURE_THREADS_PER_TILE " +       TEXTURE_THREADS_PER_TILE+"\n"+
         				"#define TEXTURE_TILES_PER_BLOCK " +        TEXTURE_TILES_PER_BLOCK+"\n"+
         				"#define IMCLT_THREADS_PER_TILE " +         IMCLT_THREADS_PER_TILE+"\n"+
         				"#define IMCLT_TILES_PER_BLOCK " +          IMCLT_TILES_PER_BLOCK+"\n"+
         				"#define CORR_NTILE_SHIFT " +               CORR_NTILE_SHIFT+"\n"+
-        				"#define CORR_PAIRS_MASK " +                CORR_PAIRS_MASK+"\n"+
+//        				"#define CORR_PAIRS_MASK " +                CORR_PAIRS_MASK+"\n"+
         				"#define CORR_TEXTURE_BIT " +               CORR_TEXTURE_BIT+"\n"+
         				"#define TASK_CORR_BITS " +                 TASK_CORR_BITS+"\n"+
         				"#define TASK_TEXTURE_N_BIT " +             TASK_TEXTURE_N_BIT+"\n"+
@@ -240,7 +247,7 @@ public class GPUTileProcessor {
         ClassLoader classLoader = getClass().getClassLoader();
 
         String [] kernelSources = new String[GPU_SRC_FILES.length];
-
+        boolean show_source = false; // true;
         for (int cunit = 0; cunit < kernelSources.length; cunit++) {
         	kernelSources[cunit] = ""; // use StringBuffer?
             for (String src_file:GPU_SRC_FILES[cunit]) {
@@ -267,7 +274,17 @@ public class GPUTileProcessor {
                 	kernelSources[cunit] += sourceFile;
             	}
             }
+            if (show_source) {
+//            	String lines[] = kernelSources[cunit].split("\\r?\\n");
+//            	String body = "";
+//            	for (int l = 0; l < lines.length; l++) {
+//            		body += (l+1)+"\t"+lines[l]+"\n";
+//            	}
+//            	new TextWindow("GPU_Source_Code", "#\tline", body,400,800);
+            	new TextWindow("GPU_Source_Code", "", kernelSources[cunit],400,800);
+            }
         }
+
         // Create the kernel functions (first - just test)
         String [] func_names = {
         		GPU_CONVERT_DIRECT_NAME,
@@ -319,13 +336,15 @@ public class GPUTileProcessor {
     	return new String []{"hor-top","hor-bottom","vert-left","vert-right","diag-main","diag-other","quad","cross"};
     }
     public static double [][] getCorr2DView(
+    		int num_sensors,
     		int tilesX,
     		int tilesY,
     		int [] indices,
     		float [][] corr2d,
     		int [] wh){ // if is [2] - return width, height
+    	int max_num_pairs = Correlation2d.getNumPairs(num_sensors);
     	if ((corr2d == null) || (corr2d.length == 0)) {
-    		return new double [NUM_PAIRS][0];
+    		return new double [max_num_pairs][0];
     	}
     	int num_pairs = -1; // corr2d.length;
 		for (int n = 0; n < indices.length; n++) {
@@ -334,7 +353,7 @@ public class GPUTileProcessor {
 		}
 		num_pairs++;
 		if (num_pairs < 1) {
-    		return new double [NUM_PAIRS][0];
+    		return new double [max_num_pairs][0];
 		}
     	boolean [] bpairs = new boolean[num_pairs];
 		for (int n = 0; n < indices.length; n++) {

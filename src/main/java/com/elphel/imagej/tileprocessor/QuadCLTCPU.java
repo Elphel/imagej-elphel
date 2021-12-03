@@ -115,7 +115,7 @@ public class QuadCLTCPU {
 	static String []                                       fine_corr_dir_names = {"X","Y"};
 	public static String                                   PREFIX =     "EYESIS_DCT.";    // change later (first on save)
 	public static String                                   PREFIX_AUX = "EYESIS_DCT_AUX."; // change later (first on save)
-	static int                                             QUAD =  4; // number of cameras
+//	static int                                             QUAD =  4; // number of cameras
 
 	public Properties                                      properties = null;
 	public EyesisCorrections                               eyesisCorrections = null;
@@ -1621,7 +1621,7 @@ public class QuadCLTCPU {
 				pXY0);
 		geometryCorrection.planeProjectLenses(); // project all lenses to the common plane
 
-		// calcualte reverse distortion as a table to be linear interpolated (now cubic!)
+		// calculate reverse distortion as a table to be linear interpolated (now cubic!)
 		geometryCorrection.calcReverseDistortionTable();
 
 //		if (numSensors == 4){
@@ -7032,8 +7032,8 @@ public class QuadCLTCPU {
 				  this.correctionsParameters.blueProc,
 				  debugLevel);
 		  if (debugLevel > 1) System.out.println("Processed colors to YPbPr, total number of slices="+stack.getSize());
-		  if (saveShowIntermediate && (debugLevel > 1)) {
-			  ImagePlus imp_dbg=new ImagePlus("procColors",stack);
+		  if (saveShowIntermediate && (stack != null) && (debugLevel > 1)) {
+			  ImagePlus imp_dbg=new ImagePlus("procColors",stack);  // null
 			  eyesisCorrections.saveAndShow(
 					  imp_dbg,
 					  this.correctionsParameters);
@@ -13367,8 +13367,10 @@ public class QuadCLTCPU {
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startSetTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  }
 			  this.startSetTime = System.nanoTime();
-			  boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[QUAD][] : null;
-			  double [] scaleExposures = new double[QUAD]; //
+//			  boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[QUAD][] : null;
+//			  double [] scaleExposures = new double[QUAD]; //
+			  boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[getNumSensors()][] : null;
+			  double [] scaleExposures = new double[getNumSensors()]; //
 			  ImagePlus [] imp_srcs = conditionImageSetBatch(
 					  nSet,               // final int                           nSet, // index of the 4-image set
 					  clt_parameters,     // final EyesisCorrectionParameters.CLTParameters           clt_parameters,

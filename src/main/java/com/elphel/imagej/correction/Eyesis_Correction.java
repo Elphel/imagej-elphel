@@ -4419,6 +4419,7 @@ private Panel panel1,
     	String configPath=getSaveCongigPath();
     	if (configPath.equals("ABORT")) return;
 
+    	
         EYESIS_CORRECTIONS.initSensorFiles(
         		DEBUG_LEVEL,
     			false, // boolean missing_ok,
@@ -4455,7 +4456,33 @@ private Panel panel1,
         		return;
         	}
         }
-
+        // After kernels and GeometryCorrection
+		if (CLT_PARAMETERS.useGPU()) { // only init GPU instances if it is used
+			if (GPU_TILE_PROCESSOR == null) {
+				try {
+					GPU_TILE_PROCESSOR = new GPUTileProcessor(CORRECTION_PARAMETERS.tile_processor_gpu);
+				} catch (Exception e) {
+					System.out.println("Failed to initialize GPU class");
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					return;
+				} //final int        debugLevel);
+			}
+			if (CLT_PARAMETERS.useGPU(false) && (QUAD_CLT != null) && (GPU_QUAD == null)) { // if GPU main is needed
+				try {
+					GPU_QUAD = new GpuQuad(
+							GPU_TILE_PROCESSOR, QUAD_CLT);
+				} catch (Exception e) {
+					System.out.println("Failed to initialize GpuQuad class");
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					return;
+				} //final int        debugLevel);
+				QUAD_CLT.setGPU(GPU_QUAD);
+			}
+		}
+        
+        
 ///========================================
         int num_infinity_corr = infinity_corr? CLT_PARAMETERS.inf_repeat : 1;
         if ( num_infinity_corr < 1) num_infinity_corr = 1;
@@ -4497,6 +4524,30 @@ private Panel panel1,
         				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         				UPDATE_STATUS, //final boolean    updateStatus,
         				DEBUG_LEVEL); //final int        debugLevel);
+        		/*
+        		String x3d_path = QUAD_CLT.getX3dDirectory();
+        		String file_name = QUAD_CLT.getImageName(); //  + suffix;
+        		String file_path = x3d_path + Prefs.getFileSeparator() + file_name + ".tiff";
+        		if ((QUAD_CLT.getGPU() != null) && (QUAD_CLT.getGPU().getQuadCLT() != QUAD_CLT)) {
+        			QUAD_CLT.getGPU().updateQuadCLT(QUAD_CLT); // to re-load new set of Bayer images to the GPU
+        		}
+        		
+        		ImagePlus img_quad = QUAD_CLT.processCLTQuadCorrGPU(
+        				null,                     // ImagePlus []                        imp_quad, //null will be OK
+        				null,                     // boolean [][]                                    saturation_imp, // (near) saturated pixels or null // Not needed use this.saturation_imp
+        				CLT_PARAMETERS,           // CLTParameters                                   clt_parameters,
+        				DEBAYER_PARAMETERS,       // EyesisCorrectionParameters.DebayerParameters    debayerParameters,
+        				COLOR_PROC_PARAMETERS,    // ColorProcParameters                             colorProcParameters,
+        				CHANNEL_GAINS_PARAMETERS, // CorrectionColorProc.ColorGainsParameters        channelGainParameters,
+        				RGB_PARAMETERS,           // EyesisCorrectionParameters.RGBParameters        rgbParameters,
+        				null,                     // double []	                                      scaleExposures, // probably not needed here - restores brightness of the final image
+        				true,                     // boolean                                         only4slice,
+        				THREADS_MAX,              // final int                                       threadsMax,  // maximal number of threads to launch
+        				UPDATE_STATUS,            // final boolean                                   updateStatus,
+        				DEBUG_LEVEL);             // final int                                       debugLevel);
+        		FileSaver fs=new FileSaver(img_quad); // is null, will be saved inside to /home/elphel/lwir16-proc/proc1/results_cuda/1626032208_613623-AUX-SHIFTED-D0.0
+        		fs.saveAsTiff(file_path);
+        		*/
         	}
         }
 
@@ -4568,6 +4619,45 @@ private Panel panel1,
         		return;
         	}
         }
+        // After kernels and GeometryCorrection
+		if (CLT_PARAMETERS.useGPU()) { // only init GPU instances if it is used
+			if (GPU_TILE_PROCESSOR == null) {
+				try {
+					GPU_TILE_PROCESSOR = new GPUTileProcessor(CORRECTION_PARAMETERS.tile_processor_gpu);
+				} catch (Exception e) {
+					System.out.println("Failed to initialize GPU class");
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					return;
+				} //final int        debugLevel);
+			}
+			/*
+			if (CLT_PARAMETERS.useGPU(false) && (QUAD_CLT != null) && (GPU_QUAD == null)) { // if GPU main is needed
+				try {
+					GPU_QUAD = new GpuQuad(
+							GPU_TILE_PROCESSOR, QUAD_CLT);
+				} catch (Exception e) {
+					System.out.println("Failed to initialize GpuQuad class");
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					return; //  false;
+				} //final int        debugLevel);
+				QUAD_CLT.setGPU(GPU_QUAD);
+			}
+			*/
+			if (CLT_PARAMETERS.useGPU(true) && (QUAD_CLT_AUX != null) && (GPU_QUAD_AUX == null)) { // if GPU AUX is needed
+				try {
+					GPU_QUAD_AUX =  new GpuQuad(//
+							GPU_TILE_PROCESSOR, QUAD_CLT_AUX);
+				} catch (Exception e) {
+					System.out.println("Failed to initialize GpuQuad class");
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					return; //  false;
+				} //final int        debugLevel);
+				QUAD_CLT_AUX.setGPU(GPU_QUAD_AUX);
+			}
+		}
         @SuppressWarnings("unused")
 		QuadCLT dbg_qc_main =  QUAD_CLT;
         @SuppressWarnings("unused")
@@ -6151,9 +6241,7 @@ private Panel panel1,
 		if (GPU_QUAD == null) {
 			try {
 				GPU_QUAD =  new GpuQuad(
-						GPU_TILE_PROCESSOR, QUAD_CLT,
-						4,
-						3);
+						GPU_TILE_PROCESSOR, QUAD_CLT);
 			} catch (Exception e) {
 				System.out.println("Failed to initialize GpuQuad class");
 				// TODO Auto-generated catch block
@@ -6632,9 +6720,7 @@ private Panel panel1,
 			if (CLT_PARAMETERS.useGPU(false) && (QUAD_CLT != null) && (GPU_QUAD == null)) { // if GPU main is needed
 				try {
 					GPU_QUAD = new GpuQuad(
-							GPU_TILE_PROCESSOR, QUAD_CLT,
-							4,
-							3);
+							GPU_TILE_PROCESSOR, QUAD_CLT);
 				} catch (Exception e) {
 					System.out.println("Failed to initialize GpuQuad class");
 					// TODO Auto-generated catch block
@@ -6646,9 +6732,7 @@ private Panel panel1,
 			if (CLT_PARAMETERS.useGPU(true) && (QUAD_CLT_AUX != null) && (GPU_QUAD_AUX == null)) { // if GPU AUX is needed
 				try {
 					GPU_QUAD_AUX =  new GpuQuad(//
-							GPU_TILE_PROCESSOR, QUAD_CLT_AUX,
-							4,
-							3);
+							GPU_TILE_PROCESSOR, QUAD_CLT_AUX);
 				} catch (Exception e) {
 					System.out.println("Failed to initialize GpuQuad class");
 					// TODO Auto-generated catch block
@@ -6719,9 +6803,8 @@ private Panel panel1,
 				if (CLT_PARAMETERS.useGPU(true) && (QUAD_CLT_AUX != null) && (GPU_QUAD_AUX == null)) { // if GPU AUX is needed
 					try {
 						GPU_QUAD_AUX =  new GpuQuad(//
-								GPU_TILE_PROCESSOR, QUAD_CLT_AUX,
-								4,
-								3);
+								GPU_TILE_PROCESSOR,
+								QUAD_CLT_AUX);
 					} catch (Exception e) {
 						System.out.println("Failed to initialize GpuQuad class");
 						// TODO Auto-generated catch block
@@ -6734,9 +6817,7 @@ private Panel panel1,
 				if (CLT_PARAMETERS.useGPU(false) && (QUAD_CLT != null) && (GPU_QUAD == null)) { // if GPU main is needed
 					try {
 						GPU_QUAD = new GpuQuad(
-								GPU_TILE_PROCESSOR, QUAD_CLT,
-								4,
-								3);
+								GPU_TILE_PROCESSOR, QUAD_CLT);
 					} catch (Exception e) {
 						System.out.println("Failed to initialize GpuQuad class");
 						// TODO Auto-generated catch block
@@ -6810,9 +6891,7 @@ private Panel panel1,
 				if (CLT_PARAMETERS.useGPU(true) && (QUAD_CLT_AUX != null) && (GPU_QUAD_AUX == null)) { // if GPU AUX is needed
 					try {
 						GPU_QUAD_AUX =  new GpuQuad(//
-								GPU_TILE_PROCESSOR, QUAD_CLT_AUX,
-								4,
-								3);
+								GPU_TILE_PROCESSOR, QUAD_CLT_AUX);
 					} catch (Exception e) {
 						System.out.println("Failed to initialize GpuQuad class");
 						// TODO Auto-generated catch block
@@ -6825,9 +6904,7 @@ private Panel panel1,
 				if (CLT_PARAMETERS.useGPU(false) && (QUAD_CLT != null) && (GPU_QUAD == null)) { // if GPU main is needed
 					try {
 						GPU_QUAD = new GpuQuad(
-								GPU_TILE_PROCESSOR, QUAD_CLT,
-								4,
-								3);
+								GPU_TILE_PROCESSOR, QUAD_CLT);
 					} catch (Exception e) {
 						System.out.println("Failed to initialize GpuQuad class");
 						// TODO Auto-generated catch block
@@ -6900,9 +6977,7 @@ private Panel panel1,
 				if (CLT_PARAMETERS.useGPU(true) && (QUAD_CLT_AUX != null) && (GPU_QUAD_AUX == null)) { // if GPU AUX is needed
 					try {
 						GPU_QUAD_AUX =  new GpuQuad(//
-								GPU_TILE_PROCESSOR, QUAD_CLT_AUX,
-								4,
-								3);
+								GPU_TILE_PROCESSOR, QUAD_CLT_AUX);
 					} catch (Exception e) {
 						System.out.println("Failed to initialize GpuQuad class");
 						// TODO Auto-generated catch block
@@ -6915,9 +6990,7 @@ private Panel panel1,
 				if (CLT_PARAMETERS.useGPU(false) && (QUAD_CLT != null) && (GPU_QUAD == null)) { // if GPU main is needed
 					try {
 						GPU_QUAD = new GpuQuad(
-								GPU_TILE_PROCESSOR, QUAD_CLT,
-								4,
-								3);
+								GPU_TILE_PROCESSOR, QUAD_CLT);
 					} catch (Exception e) {
 						System.out.println("Failed to initialize GpuQuad class");
 						// TODO Auto-generated catch block
@@ -6992,9 +7065,7 @@ private Panel panel1,
 				if (CLT_PARAMETERS.useGPU(true) && (QUAD_CLT_AUX != null) && (GPU_QUAD_AUX == null)) { // if GPU AUX is needed
 					try {
 						GPU_QUAD_AUX =  new GpuQuad(//
-								GPU_TILE_PROCESSOR, QUAD_CLT_AUX,
-								4,
-								3);
+								GPU_TILE_PROCESSOR, QUAD_CLT_AUX);
 					} catch (Exception e) {
 						System.out.println("Failed to initialize GpuQuad class");
 						// TODO Auto-generated catch block
@@ -7007,9 +7078,7 @@ private Panel panel1,
 				if (CLT_PARAMETERS.useGPU(false) && (QUAD_CLT != null) && (GPU_QUAD == null)) { // if GPU main is needed
 					try {
 						GPU_QUAD = new GpuQuad(
-								GPU_TILE_PROCESSOR, QUAD_CLT,
-								4,
-								3);
+								GPU_TILE_PROCESSOR, QUAD_CLT);
 					} catch (Exception e) {
 						System.out.println("Failed to initialize GpuQuad class");
 						// TODO Auto-generated catch block
@@ -7081,9 +7150,7 @@ private Panel panel1,
 				if (CLT_PARAMETERS.useGPU(true) && (QUAD_CLT_AUX != null) && (GPU_QUAD_AUX == null)) { // if GPU AUX is needed
 					try {
 						GPU_QUAD_AUX =  new GpuQuad(//
-								GPU_TILE_PROCESSOR, QUAD_CLT_AUX,
-								4,
-								3);
+								GPU_TILE_PROCESSOR, QUAD_CLT_AUX);
 					} catch (Exception e) {
 						System.out.println("Failed to initialize GpuQuad class");
 						// TODO Auto-generated catch block
@@ -7096,9 +7163,7 @@ private Panel panel1,
 				if (CLT_PARAMETERS.useGPU(false) && (QUAD_CLT != null) && (GPU_QUAD == null)) { // if GPU main is needed
 					try {
 						GPU_QUAD = new GpuQuad(
-								GPU_TILE_PROCESSOR, QUAD_CLT,
-								4,
-								3);
+								GPU_TILE_PROCESSOR, QUAD_CLT);
 					} catch (Exception e) {
 						System.out.println("Failed to initialize GpuQuad class");
 						// TODO Auto-generated catch block
@@ -7198,9 +7263,7 @@ private Panel panel1,
 				if (CLT_PARAMETERS.useGPU(true) && (QUAD_CLT_AUX != null) && (GPU_QUAD_AUX == null)) { // if GPU AUX is needed
 					try {
 						GPU_QUAD_AUX =  new GpuQuad(//
-								GPU_TILE_PROCESSOR, QUAD_CLT_AUX,
-								4,
-								3);
+								GPU_TILE_PROCESSOR, QUAD_CLT_AUX);
 					} catch (Exception e) {
 						System.out.println("Failed to initialize GpuQuad class");
 						// TODO Auto-generated catch block
@@ -7213,9 +7276,7 @@ private Panel panel1,
 				if (CLT_PARAMETERS.useGPU(false) && (QUAD_CLT != null) && (GPU_QUAD == null)) { // if GPU main is needed
 					try {
 						GPU_QUAD = new GpuQuad(
-								GPU_TILE_PROCESSOR, QUAD_CLT,
-								4,
-								3);
+								GPU_TILE_PROCESSOR, QUAD_CLT);
 					} catch (Exception e) {
 						System.out.println("Failed to initialize GpuQuad class");
 						// TODO Auto-generated catch block
@@ -7304,9 +7365,7 @@ private Panel panel1,
 				if (CLT_PARAMETERS.useGPU(true) && (QUAD_CLT_AUX != null) && (GPU_QUAD_AUX == null)) { // if GPU AUX is needed
 					try {
 						GPU_QUAD_AUX =  new GpuQuad(//
-								GPU_TILE_PROCESSOR, QUAD_CLT_AUX,
-								4,
-								3);
+								GPU_TILE_PROCESSOR, QUAD_CLT_AUX);
 					} catch (Exception e) {
 						System.out.println("Failed to initialize GpuQuad class");
 						// TODO Auto-generated catch block
@@ -7319,9 +7378,7 @@ private Panel panel1,
 				if (CLT_PARAMETERS.useGPU(false) && (QUAD_CLT != null) && (GPU_QUAD == null)) { // if GPU main is needed
 					try {
 						GPU_QUAD = new GpuQuad(
-								GPU_TILE_PROCESSOR, QUAD_CLT,
-								4,
-								3);
+								GPU_TILE_PROCESSOR, QUAD_CLT);
 					} catch (Exception e) {
 						System.out.println("Failed to initialize GpuQuad class");
 						// TODO Auto-generated catch block

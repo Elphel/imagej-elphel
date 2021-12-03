@@ -1384,13 +1384,14 @@ public class TwoQuadCLT {
 						port_xy_main_dbg,                     // final double [][][]       port_xy_main_dbg, // for each tile/port save x,y pixel coordinates (gpu code development)
 						port_xy_aux_dbg);                     // final double [][][]       port_xy_aux_dbg) // for each tile/port save x,y pixel coordinates (gpu code development)
 
-		int numSensors = GPUTileProcessor.NUM_CAMS; // Wrong - different for main and aux
-		String [] sub_titles = new String [numSensors * (GPUTileProcessor.NUM_COLORS+1)];
+		int numSensors = quadCLT_main.getNumSensors(); // GPUTileProcessor.NUM_CAMS; // Wrong - different for main and aux
+		int num_colors_main = quadCLT_main.isMonochrome()?1:3; 
+		String [] sub_titles = new String [numSensors * (num_colors_main+1)];
 		double [][] sub_disparity_map = new double [sub_titles.length][];
 		for (int ncam = 0; ncam < numSensors; ncam++) {
 			sub_disparity_map[ncam] = disparity_map[ncam + ImageDtt.IMG_DIFF0_INDEX];
 			sub_titles[ncam] = ImageDtt.getDisparityTitles(numSensors)[ncam + ImageDtt.IMG_DIFF0_INDEX];
-			for (int ncol = 0; ncol < GPUTileProcessor.NUM_COLORS; ncol++) {
+			for (int ncol = 0; ncol < num_colors_main; ncol++) {
 				sub_disparity_map[ncam + (ncol + 1)* numSensors] =
 						disparity_map[ncam +ncol* numSensors+ ImageDtt.getImgToneRGB(numSensors)];
 				sub_titles[ncam + (ncol + 1)* numSensors] =
@@ -1407,7 +1408,7 @@ public class TwoQuadCLT {
 		// Create list of all correlation pairs
 		double [][][][][][] clt_data = clt_bidata[0];
 		int numTiles = tilesX * tilesY;
-		int numPairs = GPUTileProcessor.NUM_PAIRS;
+		int numPairs = Correlation2d.getNumPairs(quadCLT_main.getNumSensors()); // GPUTileProcessor.NUM_PAIRS;
 		int [] corr_indices = new int [numTiles * numPairs];
 		int indx=0;
 		for (int i = 0; i < numTiles; i++) {
@@ -1430,6 +1431,7 @@ public class TwoQuadCLT {
 		}
 		int [] wh = new int[2];
 		double [][] dbg_corr = GPUTileProcessor.getCorr2DView(
+				quadCLT_main.getNumSensors(),
 	    		tilesX,
 	    		tilesY,
 	    		corr_indices,

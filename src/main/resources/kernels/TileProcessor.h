@@ -44,10 +44,13 @@
 
 extern "C" __global__ void convert_direct( // called with a single block, single thread
 		//		struct CltExtra ** gpu_kernel_offsets, // [NUM_CAMS], // changed for jcuda to avoid struct parameters
+		int                num_cams,           // actual number of cameras
+		int                num_colors,         // actual number of colors: 3 for RGB, 1 for LWIR/mono
 		float           ** gpu_kernel_offsets, // [NUM_CAMS],
 		float           ** gpu_kernels,        // [NUM_CAMS],
 		float           ** gpu_images,         // [NUM_CAMS],
-		struct tp_task   * gpu_tasks,
+		float            * gpu_ftasks,         // flattened tasks, 27 floats for quad EO, 99 floats for LWIR16
+//		struct tp_task   * gpu_tasks,
 		float           ** gpu_clt,            // [NUM_CAMS][TILES-Y][TILES-X][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 		size_t             dstride,            // in floats (pixels)
 		int                num_tiles,          // number of tiles in task
@@ -60,15 +63,21 @@ extern "C" __global__ void convert_direct( // called with a single block, single
 		int *              pnum_active_tiles,  //  indices to gpu_tasks
 		int                tilesx);
 
-
 extern "C" __global__ void correlate2D(
+		int               num_cams,
+//		int *             sel_pairs,
+		int               sel_pairs0,
+		int               sel_pairs1,
+		int               sel_pairs2,
+		int               sel_pairs3,
 		float          ** gpu_clt,            // [NUM_CAMS] ->[TILES-Y][TILES-X][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 		int               colors,             // number of colors (3/1)
 		float             scale0,             // scale for R
 		float             scale1,             // scale for B
 		float             scale2,             // scale for G
 		float             fat_zero,           // here - absolute
-		struct tp_task  * gpu_tasks,          // array of per-tile tasks (now bits 4..9 - correlation pairs)
+		float            * gpu_ftasks,         // flattened tasks, 27 floats for quad EO, 99 floats for LWIR16
+//		struct tp_task  * gpu_tasks,          // array of per-tile tasks (now bits 4..9 - correlation pairs)
 		int               num_tiles,          // number of tiles in task
 		int               tilesx,             // number of tile rows
 		int             * gpu_corr_indices,   // packed tile+pair
@@ -99,7 +108,9 @@ extern "C" __global__ void corr2D_combine(
 		float           * gpu_corrs_combo);   // combined correlation output (one per tile)
 
 extern "C" __global__ void textures_nonoverlap(
-		struct tp_task  * gpu_tasks,
+		int               num_cams,           // number of cameras
+		float            * gpu_ftasks,         // flattened tasks, 27 floats for quad EO, 99 floats
+		//		struct tp_task  * gpu_tasks,
 		int               num_tiles,          // number of tiles in task list
 //		int               num_tilesx,         // number of tiles in a row
 // declare arrays in device code?
@@ -121,6 +132,7 @@ extern "C" __global__ void textures_nonoverlap(
 
 extern "C"
 __global__ void imclt_rbg_all(
+		int                num_cams,
 		float           ** gpu_clt,            // [NUM_CAMS][TILES-Y][TILES-X][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 		float           ** gpu_corr_images,    // [NUM_CAMS][WIDTH, 3 * HEIGHT]
 		int                apply_lpf,
@@ -142,8 +154,10 @@ extern "C" __global__ void imclt_rbg(
 		const size_t      dstride);            // in floats (pixels)
 
 extern "C" __global__ void generate_RBGA(
+		int                num_cams,           // number of cameras used
 		// Parameters to generate texture tasks
-		struct tp_task   * gpu_tasks,
+		float            * gpu_ftasks,         // flattened tasks, 27 floats for quad EO, 99 floats for LWIR16
+//		struct tp_task   * gpu_tasks,
 		int                num_tiles,          // number of tiles in task list
 		// declare arrays in device code?
 		int              * gpu_texture_indices,// packed tile + bits (now only (1 << 7)

@@ -7744,6 +7744,8 @@ public class ImageDttCPU {
 		}
 		final int num_combo = (dcorr_combo == null)? 0 : dcorr_combo.length;
 		final int corr_length = (2 * transform_size - 1) * (2 * transform_size - 1);
+		// FIXME: will not work with combining pairs !!!
+		final int num_pairs = Correlation2d.getNumPairs(quadCLT.getNumSensors());
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				@Override
@@ -7765,7 +7767,7 @@ public class ImageDttCPU {
 						int tileX = tIndex % tilesX;
 						if (dcorr[tileY][tileX] != null) {
 							// added quad and cross combos
-							double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS + num_combo][corr_length]; // 225-long (15x15)
+							double [][]  corrs = new double [num_pairs + num_combo][corr_length]; // 225-long (15x15)
 							// Prepare the same (currently 10-layer) corrs as double [][], as in CPU version
 							int pair_mask = 0;
 							if (dcorr != null) {
@@ -7780,7 +7782,7 @@ public class ImageDttCPU {
 
 							if (num_combo > 0) {
 								for (int pair_combo = 0; pair_combo < dcorr_combo.length; pair_combo++) {
-									corrs[GPUTileProcessor.NUM_PAIRS + pair_combo] = dcorr_combo[pair_combo][tileY][tileX];
+									corrs[num_pairs + pair_combo] = dcorr_combo[pair_combo][tileY][tileX];
 								}
 							}
 							if (corr_tiles != null) {
@@ -10098,7 +10100,8 @@ public class ImageDttCPU {
 			for (int i = 0; i < transform_size2; i++){
 				System.arraycopy(image_data[chn_img], (ctile_top + i) * width + ctile_left, tile_in, transform_size2 * i, transform_size2);
 			}
-		} else { // copy by 1
+		} else { // copy by 1 ASSUMES Bayer (extends in pairs, incorrect for MONO)
+/*			
 			for (int i = 0; i < transform_size2; i++){
 				int pi = ctile_top + i;
 				if      (pi < 0)       pi &= 1;
@@ -10110,6 +10113,22 @@ public class ImageDttCPU {
 					tile_in[transform_size2 * i + j] = image_data[chn_img][pi * width + pj];
 				}
 			}
+*/
+			int extend_c = isMonochrome()?0:1;
+			for (int i = 0; i < transform_size2; i++){
+				int pi = ctile_top + i;
+				if      (pi < 0)       pi &= extend_c; // 1;
+//				else if (pi >= height) pi = height - 2 + (pi & 1);
+				else if (pi >= height) pi = height - 1 - extend_c + (pi & extend_c);
+				for (int j = 0; j < transform_size2; j++){
+					int pj = ctile_left + j;
+					if      (pj < 0)      pj &= extend_c; // 1;
+//					else if (pj >= width) pj = width - 2 + (pj & 1);
+					else if (pj >= width) pj = width - 1 - extend_c + (pj & extend_c);
+					tile_in[transform_size2 * i + j] = image_data[chn_img][pi * width + pj];
+				}
+			}
+
 		}
 		if (debug_gpu) {
 			System.out.println("---Image tile for color="+chn_img+"---");
@@ -10382,7 +10401,7 @@ public class ImageDttCPU {
 
 		if (!debug_fpga) {
 			for (int dct_mode = 0; dct_mode < 4; dct_mode++) {
-				if (fold_coeff != null){
+				if (fold_coeff != null){ // not null w/o debug
 					clt_tile[dct_mode] = dtt.fold_tile (tile_in, transform_size, dct_mode, fold_coeff); // DCCT, DSCT, DCST, DSST
 				} else {
 					clt_tile[dct_mode] = dtt.fold_tile (tile_in, transform_size, dct_mode); // DCCT, DSCT, DCST, DSST

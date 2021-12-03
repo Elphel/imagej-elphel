@@ -65,7 +65,7 @@ public class ExportForGPUDevelopment {
 			} // boolean transpose);
 
 			// make it same length of 16 sensors (for fixed-size struct gc in GPU kernel code 
-			GeometryCorrection ext_gc = quadCLT.getGeometryCorrection().expandSensors(GPUTileProcessor.NUM_CAMS) ;
+			GeometryCorrection ext_gc = quadCLT.getGeometryCorrection().expandSensors(GPUTileProcessor.MAX_NUM_CAMS) ;
 			
 			try {
 //				quadCLT.getGeometryCorrection().saveFloatsGPU(kernel_dir + (quadCLT.isAux()?"aux":"main"));
@@ -184,7 +184,7 @@ public class ExportForGPUDevelopment {
 			}
 		}
 	}
-
+	@Deprecated
 	public static void saveFloatKernelsBigEndian(String file_prefix, // never used
 			double [][][][][][] clt_kernels,
 			double [][][]       image_data,

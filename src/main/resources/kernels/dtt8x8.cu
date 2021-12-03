@@ -951,6 +951,7 @@ __device__ void dttiv_color_2d(
     dctiv_nodiverg( // all colors
 			clt_tile + (DTT_SIZE1 * threadIdx.x), // [0][threadIdx.x], // pointer to start of row
 			1); //int inc);
+//	__syncthreads();// worsened
     if (color == BAYER_GREEN){
         dstiv_nodiverg( // all colors
 				clt_tile + DTT_SIZE1 * threadIdx.x + DTT_SIZE1 * DTT_SIZE, // clt_tile[1][threadIdx.x], // pointer to start of row
@@ -969,6 +970,7 @@ __device__ void dttiv_color_2d(
     dctiv_nodiverg( // all colors
     		clt_tile + threadIdx.x, //  &clt_tile[0][0][threadIdx.x], // pointer to start of column
 			DTT_SIZE1); // int inc,
+//	__syncthreads();// worsened
     if (color == BAYER_GREEN){
           dctiv_nodiverg( // all colors
         		clt_tile + threadIdx.x + (DTT_SIZE1 * DTT_SIZE), // &clt_tile[1][0][threadIdx.x], // pointer to start of column
@@ -976,6 +978,50 @@ __device__ void dttiv_color_2d(
     }
   	 __syncthreads();// __syncwarp();
 }
+
+__device__ void dttiv_mono_2d(
+		float * clt_tile)
+{
+	// Copy 0-> 1
+
+    dctiv_nodiverg(
+			clt_tile + (DTT_SIZE1 * threadIdx.x) + (0 * DTT_SIZE1 * DTT_SIZE),
+			1); //int inc);
+    dstiv_nodiverg(
+    		clt_tile + (DTT_SIZE1 * threadIdx.x) + (1 * DTT_SIZE1 * DTT_SIZE),
+			1); //int inc);
+    dctiv_nodiverg(
+			clt_tile + (DTT_SIZE1 * threadIdx.x) + (2 * DTT_SIZE1 * DTT_SIZE),
+			1); //int inc);
+    dstiv_nodiverg(
+    		clt_tile + (DTT_SIZE1 * threadIdx.x) + (3 * DTT_SIZE1 * DTT_SIZE),
+			1); //int inc);
+	__syncthreads();// __syncwarp();
+
+#ifdef DEBUG222
+    if ((threadIdx.x) == 0){
+        printf("\nDTT Tiles after horizontal pass, color=%d\n",color);
+    	debug_print_clt1(clt_tile, color, (color== BAYER_GREEN)?3:1); // only 1 quadrant for R,B and 2 - for G
+    }
+     __syncthreads();// __syncwarp();
+#endif
+
+ 	dctiv_nodiverg( // CC
+ 			clt_tile + threadIdx.x,
+			DTT_SIZE1); // int inc,
+ 	dctiv_nodiverg( // SC
+ 			clt_tile + threadIdx.x + 1 * (DTT_SIZE1 * DTT_SIZE),
+			DTT_SIZE1); // int inc,
+ 	dstiv_nodiverg( // CS
+ 			clt_tile + threadIdx.x + 2 * (DTT_SIZE1 * DTT_SIZE), // &clt_tile[1][0][threadIdx.x], // pointer to start of column
+			DTT_SIZE1); // int inc,
+ 	dstiv_nodiverg( // SS
+ 			clt_tile + threadIdx.x + 3 * (DTT_SIZE1 * DTT_SIZE), // &clt_tile[1][0][threadIdx.x], // pointer to start of column
+			DTT_SIZE1); // int inc,
+  	 __syncthreads();// __syncwarp();
+}
+
+
 
 //
 // Uses 16 threads, gets 4*8*8 clt tiles, performs idtt-iv (swapping 1 and 2 quadrants) and then unfolds with window,

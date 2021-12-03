@@ -56,6 +56,8 @@ public class ImageDtt extends ImageDttCPU {
 	}
 	
 //	public double [][][][][][]
+	
+	//FIXME: pair combining that will not work with non-quad !!!
 	public void clt_aberrations_quad_corr_GPU(
 			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 			final int                 macro_scale,     // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
@@ -322,7 +324,7 @@ public class ImageDtt extends ImageDttCPU {
 				use_main,                  // use_aux); // boolean use_aux)
 				imgdtt_params.gpu_verify); // boolean verify
 
-		gpuQuad.execSetTilesOffsets(); // prepare tiles offsets in GPU memory
+		gpuQuad.execSetTilesOffsets(true); // prepare tiles offsets in GPU memory // calculate tile centers
 
 		if ((fdisp_dist != null) || (fpxpy != null)) {
 			final TpTask[] tp_tasks_full = gpuQuad.getTasks(use_main);
@@ -388,7 +390,8 @@ public class ImageDtt extends ImageDttCPU {
 				false,                 // boolean   calc_textures,
 				true);                   // boolean   calc_extra)
 			float [][] extra = gpuQuad.getExtra(); // now 4*numSensors
-			int num_cams = gpuQuad.getNumCams();
+//			int num_cams = gpuQuad.getNumCams();
+			int num_cams = getNumSensors();
 			for (int ncam = 0; ncam < num_cams; ncam++) {
 				int indx = ncam + IMG_DIFF0_INDEX;
 //				if ((disparity_modes & (1 << indx)) != 0){
@@ -472,9 +475,10 @@ public class ImageDtt extends ImageDttCPU {
 			final float [][] fcorr2D = gpuQuad.getCorr2D(gpu_corr_rad); //  int corr_rad);
 			
 			// Combine 4 ortho pairs
+			final int num_pairs = Correlation2d.getNumPairs(numSensors);
 			gpuQuad.execCorr2D_combine( // calculate cross pairs
 			        true, // boolean init_corr,    // initialize output tiles (false - add to current)
-			        GPUTileProcessor.NUM_PAIRS,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
+			        num_pairs,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
 			        0x0f); // int     pairs_mask    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
 			if ((fcorr_combo_td != null) && (fcorr_combo_td.length >= 0) && (fcorr_combo_td[0] != null)) {
 				gpuQuad.getCorrTilesComboTd(fcorr_combo_td[0]); // generate transform domain correlation pairs for quad ortho combination
@@ -490,7 +494,7 @@ public class ImageDtt extends ImageDttCPU {
 			// Combine 2 diagonal pairs			
 			gpuQuad.execCorr2D_combine( // calculate cross pairs
 			        true, // boolean init_corr,    // initialize output tiles (false - add to current)
-			        GPUTileProcessor.NUM_PAIRS,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
+			        num_pairs,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
 			        0x30); // int     pairs_mask    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
 			if ((fcorr_combo_td != null) && (fcorr_combo_td.length >= 1) && (fcorr_combo_td[1] != null)) {
 				gpuQuad.getCorrTilesComboTd(fcorr_combo_td[1]); // generate transform domain correlation pairs for cross diagonal combination
@@ -504,7 +508,7 @@ public class ImageDtt extends ImageDttCPU {
 			// Combine 2 horizontal pairs
 			gpuQuad.execCorr2D_combine( // calculate cross pairs
 			        true, // boolean init_corr,    // initialize output tiles (false - add to current)
-			        GPUTileProcessor.NUM_PAIRS,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
+			        num_pairs,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
 			        0x03); // int     pairs_mask    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
 			if ((fcorr_combo_td != null) && (fcorr_combo_td.length >= 2) && (fcorr_combo_td[2] != null)) {
 				gpuQuad.getCorrTilesComboTd(fcorr_combo_td[2]); // generate transform domain correlation pairs for horizontal combination
@@ -517,7 +521,7 @@ public class ImageDtt extends ImageDttCPU {
 			// Combine 2 vertical pairs
 			gpuQuad.execCorr2D_combine( // calculate cross pairs
 			        true, // boolean init_corr,    // initialize output tiles (false - add to current)
-			        GPUTileProcessor.NUM_PAIRS,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
+			        num_pairs,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
 					0x0c, // int     pairs_mask    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
 					true); // boolean       no_transpose_vertical
 			if ((fcorr_combo_td != null) && (fcorr_combo_td.length >= 3) && (fcorr_combo_td[3] != null)) {
@@ -549,7 +553,7 @@ public class ImageDtt extends ImageDttCPU {
 						@Override
 						public void run() {
 							//							int tileY,tileX,tIndex;
-//							double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS][corr_length]; // 225-long (15x15)
+//							double [][]  corrs = new double [num_pairs][corr_length]; // 225-long (15x15)
 							
 							Correlation2d corr2d = new Correlation2d(
 									numSensors,
@@ -564,9 +568,9 @@ public class ImageDtt extends ImageDttCPU {
 									(imgdtt_params.lma_debug_level > 1)); // boolean debug);
 
 							for (int indx_tile = ai.getAndIncrement(); indx_tile < num_tiles; indx_tile = ai.getAndIncrement()) {
-								// double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS][corr_length]; // 225-long (15x15)
+								// double [][]  corrs = new double [num_pairs][corr_length]; // 225-long (15x15)
 								// added quad and cross combos
-								double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS + 4][corr_length]; // 225-long (15x15)
+								double [][]  corrs = new double [num_pairs + 4][corr_length]; // 225-long (15x15)
 								int indx_corr = indx_tile * num_tile_corr;
 								int nt = (corr_indices[indx_corr] >> GPUTileProcessor.CORR_NTILE_SHIFT);
 								int tileX = nt % tilesX;
@@ -577,7 +581,7 @@ public class ImageDtt extends ImageDttCPU {
 								int pair_mask = 0;
 								for (int indx_pair = 0; indx_pair < num_tile_corr; indx_pair++) {
 									int pair = corr_indices[indx_corr] & GPUTileProcessor.CORR_PAIRS_MASK; // ((1 << CORR_NTILE_SHIFT) - 1); // np should
-									assert pair < GPUTileProcessor.NUM_PAIRS : "invalid correllation pair";
+									assert pair < num_pairs : "invalid correllation pair";
 									pair_mask |= (1 << pair);
 									for (int i = 0; i < corr_length; i++) {
 										corrs[pair][i] = gpu_corr_scale * fcorr2D[indx_corr][i]; // from float to double
@@ -585,7 +589,7 @@ public class ImageDtt extends ImageDttCPU {
 									indx_corr++; 
 								}
 								// add 4 combo layers : quad, cross, hor, vert
-								int pair = GPUTileProcessor.NUM_PAIRS; // 6
+								int pair = num_pairs; // 6
 								nt = (corr_quad_indices[indx_tile] >> GPUTileProcessor.CORR_NTILE_SHIFT); // corr_quad_indices - different sequence
 								for (int i = 0; i < corr_length; i++) {
 									corrs[pair][i] = gpu_corr_scale * fcorr2D_quad[indx_tile][i]; // from float to double
@@ -831,12 +835,14 @@ public class ImageDtt extends ImageDttCPU {
 		if (fcorr_td != null) {
 			gpuQuad.getCorrTilesTd(fcorr_td); // generate transform domain correlation pairs
 		}
+		// FIXME: will not work with combining pairs !!!
+		final int num_pairs = Correlation2d.getNumPairs(numSensors);
 		// Combine 4 ortho pairs
 		if (fcorr_combo_td != null) {
 			if ((fcorr_combo_td.length >= 0) && (fcorr_combo_td[0] != null)) {
 				gpuQuad.execCorr2D_combine( // calculate cross pairs
 						true, // boolean init_corr,    // initialize output tiles (false - add to current)
-						GPUTileProcessor.NUM_PAIRS,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
+						num_pairs,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
 						0x0f); // int     pairs_mask    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
 				gpuQuad.getCorrTilesComboTd(fcorr_combo_td[0]); // generate transform domain correlation pairs for quad ortho combination
 			}
@@ -844,7 +850,7 @@ public class ImageDtt extends ImageDttCPU {
 			if ((fcorr_combo_td.length >= 1) && (fcorr_combo_td[1] != null)) {
 				gpuQuad.execCorr2D_combine( // calculate cross pairs
 						true, // boolean init_corr,    // initialize output tiles (false - add to current)
-						GPUTileProcessor.NUM_PAIRS,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
+						num_pairs,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
 						0x30); // int     pairs_mask    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
 				gpuQuad.getCorrTilesComboTd(fcorr_combo_td[1]); // generate transform domain correlation pairs for cross diagonal combination
 			}
@@ -852,7 +858,7 @@ public class ImageDtt extends ImageDttCPU {
 			if ((fcorr_combo_td.length >= 2) && (fcorr_combo_td[2] != null)) {
 				gpuQuad.execCorr2D_combine( // calculate cross pairs
 						true, // boolean init_corr,    // initialize output tiles (false - add to current)
-						GPUTileProcessor.NUM_PAIRS,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
+						num_pairs,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
 						0x03); // int     pairs_mask    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
 				gpuQuad.getCorrTilesComboTd(fcorr_combo_td[2]); // generate transform domain correlation pairs for horizontal combination
 			}
@@ -860,7 +866,7 @@ public class ImageDtt extends ImageDttCPU {
 			if ((fcorr_combo_td.length >= 3) && (fcorr_combo_td[3] != null)) {
 				gpuQuad.execCorr2D_combine( // calculate cross pairs
 						true, // boolean init_corr,    // initialize output tiles (false - add to current)
-						GPUTileProcessor.NUM_PAIRS,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
+						num_pairs,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
 						0x0c, // int     pairs_mask    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
 						true); // boolean       no_transpose_vertical
 				gpuQuad.getCorrTilesComboTd(fcorr_combo_td[3]); // generate transform domain correlation pairs for vertical combination
@@ -869,8 +875,8 @@ public class ImageDtt extends ImageDttCPU {
 	}
 	
 	
-	
-	public TpTask[][] clt_aberrations_quad_corr_GPU_test(
+	@Deprecated
+	public TpTask[][] clt_aberrations_quad_corr_GPU_test( // Not used
 			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 			final int                 macro_scale,     // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
@@ -1154,7 +1160,7 @@ public class ImageDtt extends ImageDttCPU {
 				use_main,                  // use_aux); // boolean use_aux)
 				imgdtt_params.gpu_verify); // boolean verify
 
-		gpuQuad.execSetTilesOffsets(); // prepare tiles offsets in GPU memory
+		gpuQuad.execSetTilesOffsets(true); // prepare tiles offsets in GPU memory // calculate tile centers
 
 		TpTask[][] test_tasks = new TpTask[3][];
 		test_tasks[2] = tp_tasks;
@@ -1182,7 +1188,7 @@ public class ImageDtt extends ImageDttCPU {
 		}
 		if (fpxpy_test != null) {
 
-			gpuQuad.execSetTilesOffsets(); // prepare tiles offsets in GPU memory
+			gpuQuad.execSetTilesOffsets(true); // prepare tiles offsets in GPU memory // calculate tile centers
 			
 			final TpTask[] tp_tasks_full = gpuQuad.getTasks(use_main); // reads the same
 			test_tasks[1] = tp_tasks_full;
@@ -1248,7 +1254,8 @@ public class ImageDtt extends ImageDttCPU {
 				false,                 // boolean   calc_textures,
 				true);                   // boolean   calc_extra)
 			float [][] extra = gpuQuad.getExtra();
-			int num_cams = gpuQuad.getNumCams();
+//			int num_cams = gpuQuad.getNumCams();
+			int num_cams = getNumSensors();
 			for (int ncam = 0; ncam < num_cams; ncam++) {
 				int indx = ncam + IMG_DIFF0_INDEX;
 //				if ((disparity_modes & (1 << indx)) != 0){
@@ -1306,6 +1313,8 @@ public class ImageDtt extends ImageDttCPU {
 		
 		
 		// does it need correlations?
+		// FIXME: will not work with combining pairs !!!
+		final int num_pairs = Correlation2d.getNumPairs(numSensors);
 		if (fneed_corr) {
 			//Generate 2D phase correlations from the CLT representation
 			gpuQuad.execCorr2D_TD(col_weights); // Get TD version of correlations (may be read out and saved) 
@@ -1323,7 +1332,7 @@ public class ImageDtt extends ImageDttCPU {
 			// Combine 4 ortho pairs
 			gpuQuad.execCorr2D_combine( // calculate cross pairs
 			        true, // boolean init_corr,    // initialize output tiles (false - add to current)
-			        GPUTileProcessor.NUM_PAIRS,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
+			        num_pairs,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
 			        0x0f); // int     pairs_mask    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
 			if ((fcorr_combo_td != null) && (fcorr_combo_td.length >= 0) && (fcorr_combo_td[0] != null)) {
 				gpuQuad.getCorrTilesComboTd(fcorr_combo_td[0]); // generate transform domain correlation pairs for quad ortho combination
@@ -1339,7 +1348,7 @@ public class ImageDtt extends ImageDttCPU {
 			// Combine 2 diagonal pairs			
 			gpuQuad.execCorr2D_combine( // calculate cross pairs
 			        true, // boolean init_corr,    // initialize output tiles (false - add to current)
-			        GPUTileProcessor.NUM_PAIRS,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
+			        num_pairs,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
 			        0x30); // int     pairs_mask    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
 			if ((fcorr_combo_td != null) && (fcorr_combo_td.length >= 1) && (fcorr_combo_td[1] != null)) {
 				gpuQuad.getCorrTilesComboTd(fcorr_combo_td[1]); // generate transform domain correlation pairs for cross diagonal combination
@@ -1353,7 +1362,7 @@ public class ImageDtt extends ImageDttCPU {
 			// Combine 2 horizontal pairs
 			gpuQuad.execCorr2D_combine( // calculate cross pairs
 			        true, // boolean init_corr,    // initialize output tiles (false - add to current)
-			        GPUTileProcessor.NUM_PAIRS,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
+			        num_pairs,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
 			        0x03); // int     pairs_mask    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
 			if ((fcorr_combo_td != null) && (fcorr_combo_td.length >= 2) && (fcorr_combo_td[2] != null)) {
 				gpuQuad.getCorrTilesComboTd(fcorr_combo_td[2]); // generate transform domain correlation pairs for horizontal combination
@@ -1366,7 +1375,7 @@ public class ImageDtt extends ImageDttCPU {
 			// Combine 2 vertical pairs
 			gpuQuad.execCorr2D_combine( // calculate cross pairs
 			        true, // boolean init_corr,    // initialize output tiles (false - add to current)
-			        GPUTileProcessor.NUM_PAIRS,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
+			        num_pairs,    // int     num_pairs_in, // typically 6 - number of pairs per tile (tile task should have same number per each tile
 					0x0c, // int     pairs_mask    // selected pairs (0x3 - horizontal, 0xc - vertical, 0xf - quad, 0x30 - cross)
 					true); // boolean       no_transpose_vertical
 			if ((fcorr_combo_td != null) && (fcorr_combo_td.length >= 3) && (fcorr_combo_td[3] != null)) {
@@ -1410,13 +1419,12 @@ public class ImageDtt extends ImageDttCPU {
 				final int num_tile_corr = nc0; // normally 6
 				final int num_tiles = corr_indices.length / num_tile_corr; 
 				
-
 				for (int ithread = 0; ithread < threads.length; ithread++) {
 					threads[ithread] = new Thread() {
 						@Override
 						public void run() {
 							//							int tileY,tileX,tIndex;
-//							double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS][corr_length]; // 225-long (15x15)
+//							double [][]  corrs = new double [num_pairs][corr_length]; // 225-long (15x15)
 							
 							Correlation2d corr2d = new Correlation2d(
 									numSensors,
@@ -1431,9 +1439,9 @@ public class ImageDtt extends ImageDttCPU {
 									(imgdtt_params.lma_debug_level > 1)); // boolean debug);
 
 							for (int indx_tile = ai.getAndIncrement(); indx_tile < num_tiles; indx_tile = ai.getAndIncrement()) {
-								// double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS][corr_length]; // 225-long (15x15)
+								// double [][]  corrs = new double [num_pairs][corr_length]; // 225-long (15x15)
 								// added quad and cross combos
-								double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS + 4][corr_length]; // 225-long (15x15)
+								double [][]  corrs = new double [num_pairs + 4][corr_length]; // 225-long (15x15)
 								int indx_corr = indx_tile * num_tile_corr;
 								int nt = (corr_indices[indx_corr] >> GPUTileProcessor.CORR_NTILE_SHIFT);
 								int tileX = nt % tilesX;
@@ -1444,7 +1452,7 @@ public class ImageDtt extends ImageDttCPU {
 								int pair_mask = 0;
 								for (int indx_pair = 0; indx_pair < num_tile_corr; indx_pair++) {
 									int pair = corr_indices[indx_corr] & GPUTileProcessor.CORR_PAIRS_MASK; // ((1 << CORR_NTILE_SHIFT) - 1); // np should
-									assert pair < GPUTileProcessor.NUM_PAIRS : "invalid correllation pair";
+									assert pair < num_pairs : "invalid correllation pair";
 									pair_mask |= (1 << pair);
 									for (int i = 0; i < corr_length; i++) {
 										corrs[pair][i] = gpu_corr_scale * fcorr2D[indx_corr][i]; // from float to double
@@ -1452,7 +1460,7 @@ public class ImageDtt extends ImageDttCPU {
 									indx_corr++; 
 								}
 								// add 4 combo layers : quad, cross, hor, vert
-								int pair = GPUTileProcessor.NUM_PAIRS; // 6
+								int pair = num_pairs; // 6
 								nt = (corr_quad_indices[indx_tile] >> GPUTileProcessor.CORR_NTILE_SHIFT); // corr_quad_indices - different sequence
 								for (int i = 0; i < corr_length; i++) {
 									corrs[pair][i] = gpu_corr_scale * fcorr2D_quad[indx_tile][i]; // from float to double
@@ -1779,7 +1787,9 @@ public class ImageDtt extends ImageDttCPU {
 				nc0++;
 			}
 			final int num_tile_corr = nc0; // normally 6
-			final int num_tiles = corr_indices.length / num_tile_corr; 
+			final int num_tiles = corr_indices.length / num_tile_corr;
+			// FIXME: will not work with combining pairs !!!
+			final int num_pairs = Correlation2d.getNumPairs(numSensors);
 //			Runtime.getRuntime().gc();
 //			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
@@ -1802,10 +1812,10 @@ public class ImageDtt extends ImageDttCPU {
 								(imgdtt_params.lma_debug_level > 1)); // boolean debug);
 
 						for (int indx_tile = ai.getAndIncrement(); indx_tile < num_tiles; indx_tile = ai.getAndIncrement()) {
-							// double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS][corr_length]; // 225-long (15x15)
+							// double [][]  corrs = new double [num_pairs][corr_length]; // 225-long (15x15)
 							// added quad and cross combos
-							double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS + num_combo][corr_length]; // 225-long (15x15)
-							float  [][] fcorrs = (fcorr_tiles == null) ? null : new float  [GPUTileProcessor.NUM_PAIRS + num_combo][corr_length]; // 225-long (15x15)
+							double [][]  corrs = new double [num_pairs + num_combo][corr_length]; // 225-long (15x15)
+							float  [][] fcorrs = (fcorr_tiles == null) ? null : new float  [num_pairs + num_combo][corr_length]; // 225-long (15x15)
 							int indx_corr = indx_tile * num_tile_corr;
 							int nt = (corr_indices[indx_corr] >> GPUTileProcessor.CORR_NTILE_SHIFT);
 							int tileX = nt % tilesX;
@@ -1817,7 +1827,7 @@ public class ImageDtt extends ImageDttCPU {
 							if (fcorr_td != null) {
 								for (int indx_pair = 0; indx_pair < num_tile_corr; indx_pair++) {
 									int pair = corr_indices[indx_corr] & GPUTileProcessor.CORR_PAIRS_MASK; // ((1 << CORR_NTILE_SHIFT) - 1); // np should
-									assert pair < GPUTileProcessor.NUM_PAIRS : "invalid correllation pair";
+									assert pair < num_pairs : "invalid correllation pair";
 									pair_mask |= (1 << pair);
 									for (int i = 0; i < corr_length; i++) {
 										corrs[pair][i] = gpu_corr_scale * fcorr2D[indx_corr][i]; // from float to double
@@ -1832,7 +1842,7 @@ public class ImageDtt extends ImageDttCPU {
 							if (num_combo > 0) {
 								for (int ncm = 0; ncm < num_combo; ncm++) if (corr_combo_indices[ncm]!=null){
 									nt = (corr_combo_indices[ncm][indx_tile] >> GPUTileProcessor.CORR_NTILE_SHIFT); // corr_quad_indices - different sequence
-									int pair = GPUTileProcessor.NUM_PAIRS + ncm; // 6+
+									int pair = num_pairs + ncm; // 6+
 									for (int i = 0; i < corr_length; i++) {
 										corrs[pair][i] = gpu_corr_scale * fcorr2D_combo[ncm][indx_tile][i]; // from float to double
 									}
@@ -2130,11 +2140,11 @@ public class ImageDtt extends ImageDttCPU {
 				nc0++;
 			}
 			final int num_tile_corr = nc0; // normally 6
-			final int num_tiles = corr_indices.length / num_tile_corr; 
+			final int num_tiles = corr_indices.length / num_tile_corr;
+			// FIXME: will not work with combining pairs !!!
+			final int num_pairs = Correlation2d.getNumPairs(numSensors);
 //			Runtime.getRuntime().gc();
 //			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
-
-
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
 					@Override
@@ -2153,10 +2163,10 @@ public class ImageDtt extends ImageDttCPU {
 								(imgdtt_params.lma_debug_level > 1)); // boolean debug);
 
 						for (int indx_tile = ai.getAndIncrement(); indx_tile < num_tiles; indx_tile = ai.getAndIncrement()) {
-							// double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS][corr_length]; // 225-long (15x15)
+							// double [][]  corrs = new double [num_pairs][corr_length]; // 225-long (15x15)
 							// added quad and cross combos
-							double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS + num_combo][corr_length]; // 225-long (15x15)
-							float  [][] fcorrs = (fcorr_tiles == null) ? null : new float  [GPUTileProcessor.NUM_PAIRS + num_combo][corr_length]; // 225-long (15x15)
+							double [][]  corrs = new double [num_pairs + num_combo][corr_length]; // 225-long (15x15)
+							float  [][] fcorrs = (fcorr_tiles == null) ? null : new float  [num_pairs + num_combo][corr_length]; // 225-long (15x15)
 							int indx_corr = indx_tile * num_tile_corr;
 							int nt = (corr_indices[indx_corr] >> GPUTileProcessor.CORR_NTILE_SHIFT);
 							int tileX = nt % tilesX;
@@ -2168,7 +2178,7 @@ public class ImageDtt extends ImageDttCPU {
 							if (fcorr_td != null) {
 								for (int indx_pair = 0; indx_pair < num_tile_corr; indx_pair++) {
 									int pair = corr_indices[indx_corr] & GPUTileProcessor.CORR_PAIRS_MASK; // ((1 << CORR_NTILE_SHIFT) - 1); // np should
-									assert pair < GPUTileProcessor.NUM_PAIRS : "invalid correllation pair";
+									assert pair < num_pairs : "invalid correllation pair";
 									pair_mask |= (1 << pair);
 									for (int i = 0; i < corr_length; i++) {
 										corrs[pair][i] = gpu_corr_scale * fcorr2D[indx_corr][i]; // from float to double
@@ -2183,7 +2193,7 @@ public class ImageDtt extends ImageDttCPU {
 							if (num_combo > 0) {
 								for (int ncm = 0; ncm < num_combo; ncm++) if (corr_combo_indices[ncm]!=null){
 									nt = (corr_combo_indices[ncm][indx_tile] >> GPUTileProcessor.CORR_NTILE_SHIFT); // corr_quad_indices - different sequence
-									int pair = GPUTileProcessor.NUM_PAIRS + ncm; // 6+
+									int pair = num_pairs + ncm; // 6+
 									for (int i = 0; i < corr_length; i++) {
 										corrs[pair][i] = gpu_corr_scale * fcorr2D_combo[ncm][indx_tile][i]; // from float to double
 									}
@@ -3207,7 +3217,7 @@ public class ImageDtt extends ImageDttCPU {
 							imgdtt_params.getEnhOrthoScale(isAux()), //double getEnhOrthoScale(isAux()),
 							(imgdtt_params.lma_debug_level > 1)); // boolean debug);
 					for (int indx_tile = ai.getAndIncrement(); indx_tile < num_tiles; indx_tile = ai.getAndIncrement()) {
-						double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS][corr_length]; // 225-long (15x15)
+						double [][]  corrs = new double [num_pairs][corr_length]; // 225-long (15x15)
 						int indx_corr = indx_tile * num_pairs;
 						int nt = (corr_indices[indx_corr] >> GPUTileProcessor.CORR_NTILE_SHIFT);
 						int tileX = nt % tilesX;
@@ -3220,7 +3230,7 @@ public class ImageDtt extends ImageDttCPU {
 
 						for (int indx_pair = 0; indx_pair < num_pairs; indx_pair++) {
 							int pair = corr_indices[indx_corr] & GPUTileProcessor.CORR_PAIRS_MASK; // ((1 << CORR_NTILE_SHIFT) - 1); // np should
-							assert pair < GPUTileProcessor.NUM_PAIRS : "invalid correllation pair";
+							assert pair < num_pairs : "invalid correllation pair";
 							for (int i = 0; i < corr_length; i++) {
 								corrs[pair][i] = gpu_corr_scale * fcorr2D[indx_corr][i]; // from float to double
 							}
@@ -3524,7 +3534,7 @@ public class ImageDtt extends ImageDttCPU {
 							imgdtt_params.getEnhOrthoScale(isAux()), //double getEnhOrthoScale(isAux()),
 							(imgdtt_params.lma_debug_level > 1)); // boolean debug);
 					for (int indx_tile = ai.getAndIncrement(); indx_tile < num_tiles_super; indx_tile = ai.getAndIncrement()) {
-						double [][]  corrs = new double [GPUTileProcessor.NUM_PAIRS][corr_length_super]; // 225-long (15x15)
+						double [][]  corrs = new double [num_pairs][corr_length_super]; // 225-long (15x15)
 						int indx_corr = indx_tile * num_pairs;
 						int nt = (corr_indices_super[indx_corr] >> GPUTileProcessor.CORR_NTILE_SHIFT);
 						int tileX = nt % tilesX;
@@ -3539,7 +3549,7 @@ public class ImageDtt extends ImageDttCPU {
 
 						for (int indx_pair = 0; indx_pair < num_pairs; indx_pair++) {
 							int pair = corr_indices_super[indx_corr] & GPUTileProcessor.CORR_PAIRS_MASK; // ((1 << CORR_NTILE_SHIFT) - 1); // np should
-							assert pair < GPUTileProcessor.NUM_PAIRS : "invalid correllation pair";
+							assert pair < num_pairs : "invalid correllation pair";
 							for (int i = 0; i < corr_length_super; i++) {
 								corrs[pair][i] = gpu_corr_scale * fcorr2D_super[indx_corr][i]; // from float to double
 							}

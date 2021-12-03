@@ -37,23 +37,30 @@
 
 */
 #ifndef JCUDA
-#include "tp_defines.h"
-#include "dtt8x8.h"
-#include "geometry_correction.h"
+	#include "tp_defines.h"
+	#include "dtt8x8.h"
+	#include "geometry_correction.h"
 #endif // #ifndef JCUDA
+
+#ifndef get_task_size
+	#define get_task_size(x) (sizeof(struct tp_task)/sizeof(float) - 6 * (NUM_CAMS - x))
+#endif
+
 
 // Using NUM_CAMS threads per tile
 #define THREADS_PER_BLOCK_GEOM (TILES_PER_BLOCK_GEOM * NUM_CAMS)
-#define CYCLES_COPY_GC   ((sizeof(struct gc)/sizeof(float) + THREADS_PER_BLOCK_GEOM - 1) / THREADS_PER_BLOCK_GEOM)
-#define CYCLES_COPY_CV   ((sizeof(struct corr_vector)/sizeof(float) + THREADS_PER_BLOCK_GEOM - 1) / THREADS_PER_BLOCK_GEOM)
-#define CYCLES_COPY_RBRD ((RBYRDIST_LEN + THREADS_PER_BLOCK_GEOM - 1) / THREADS_PER_BLOCK_GEOM)
+///#define CYCLES_COPY_GC   ((sizeof(struct gc)/sizeof(float) + THREADS_PER_BLOCK_GEOM - 1) / THREADS_PER_BLOCK_GEOM)
+///#define CYCLES_COPY_CV   ((sizeof(struct corr_vector)/sizeof(float) + THREADS_PER_BLOCK_GEOM - 1) / THREADS_PER_BLOCK_GEOM)
+///#define CYCLES_COPY_RBRD ((RBYRDIST_LEN + THREADS_PER_BLOCK_GEOM - 1) / THREADS_PER_BLOCK_GEOM)
 //#define CYCLES_COPY_ROTS ((NUM_CAMS * 3 *3 + THREADS_PER_BLOCK_GEOM - 1) / THREADS_PER_BLOCK_GEOM)
-#define CYCLES_COPY_ROTS (((sizeof(trot_deriv)/sizeof(float)) + THREADS_PER_BLOCK_GEOM - 1) / THREADS_PER_BLOCK_GEOM)
+//#define CYCLES_COPY_ROTS (((sizeof(trot_deriv)/sizeof(float)) + THREADS_PER_BLOCK_GEOM - 1) / THREADS_PER_BLOCK_GEOM)
 
 #define DBG_CAM 3
 
-__device__ void printGeometryCorrection(struct gc * g);
-__device__ void printExtrinsicCorrection(corr_vector * cv);
+__device__ void printGeometryCorrection(struct gc * g, int num_cams);
+__device__ void printExtrinsicCorrection(corr_vector * cv, int num_cams);
+
+
 /**
  * Calculate non-distorted radius from distorted using table approximation
  * @param rDist distorted radius
@@ -123,11 +130,28 @@ __constant__ int offset_derivs =   1;                   // 1..4 // should be nex
 __constant__ int offset_matrices = 5;   // 5..11
 __constant__ int offset_tmp =      12; // 12..15
 
+//inline __device__ int get_task_size_gc(int num_cams);
+inline __device__ int get_task_task_gc(int num_tile, float * gpu_ftasks, int num_cams);
+inline __device__ int get_task_txy_gc(int num_tile, float * gpu_ftasks, int num_cams);
+
+//inline __device__ int get_task_size_gc(int num_cams){
+//	return sizeof(struct tp_task)/sizeof(float) - 6 * (NUM_CAMS - num_cams);
+//}
+
+inline __device__ int get_task_task_gc(int num_tile, float * gpu_ftasks, int num_cams) {
+	return *(int *) (gpu_ftasks +  get_task_size(num_cams) * num_tile);
+}
+inline __device__ int get_task_txy_gc(int num_tile, float * gpu_ftasks, int num_cams) {
+	return *(int *) (gpu_ftasks +  get_task_size(num_cams) * num_tile + 1);
+}
+
+
 /**
  * Calculate rotation matrices and derivatives by az, tilt, roll, zoom
  * NUM_CAMS blocks of 3,3,3 tiles
  */
 extern "C" __global__ void calc_rot_deriv(
+		int                  num_cams,
 		struct corr_vector * gpu_correction_vector,
 		trot_deriv   * gpu_rot_deriv)
 {
@@ -137,15 +161,16 @@ extern "C" __global__ void calc_rot_deriv(
 	float zoom;
 	int ncam =    blockIdx.x; // threadIdx.z;
 	int nangle1 = threadIdx.x + threadIdx.y * blockDim.x; // * >> 1;
-	int nangle =  nangle1 >> 1;
+	int nangle =  nangle1 >> 1; // 0: az, 1: tilt, 2: roll, 3:roll
 	int is_sin = nangle1 & 1;
 	if ((threadIdx.z == 0) && (nangle < 4)){ // others just idle here
 		float * gangles = (float *) gpu_correction_vector + angles_offsets[nangle]; // pointer for channel 0
-		if (ncam == (NUM_CAMS-1)){ // for the whole block
+///		if (ncam == (NUM_CAMS-1)){ // for the whole block
+		if (ncam == (num_cams-1)){ // for the whole block
 			angle = 0.0;
 			zoom = 0.0;
-#pragma	unroll
-			for (int n = 0; n < (NUM_CAMS-1); n++){
+///			for (int n = 0; n < (NUM_CAMS-1); n++){
+			for (int n = 0; n < (num_cams-1); n++){
 				angle -= *(gangles + n);
 				zoom -= gpu_correction_vector->zoom[n];
 			}
@@ -282,18 +307,29 @@ extern "C" __global__ void calc_rot_deriv(
 
 
 extern "C" __global__ void calculate_tiles_offsets(
-		struct tp_task     * gpu_tasks,
+		int                  uniform_grid, //==0: use provided centers (as for interscene) , !=0 calculate uniform grid
+		int                  num_cams,
+		float              * gpu_ftasks,         // flattened tasks, 27 floats for quad EO, 99 floats for LWIR16
+//		struct tp_task     * gpu_tasks,
 		int                  num_tiles,          // number of tiles in task
 		struct gc          * gpu_geometry_correction,
 		struct corr_vector * gpu_correction_vector,
 		float *              gpu_rByRDist, // length should match RBYRDIST_LEN
 		trot_deriv   * gpu_rot_deriv)
 {
-	dim3 threads_geom(NUM_CAMS,TILES_PER_BLOCK_GEOM, 1);
-	dim3 grid_geom   ((num_tiles+TILES_PER_BLOCK_GEOM-1)/TILES_PER_BLOCK_GEOM, 1, 1);
+///	dim3 threads_geom(NUM_CAMS,TILES_PER_BLOCK_GEOM, 1);
+///	dim3 grid_geom   ((num_tiles+TILES_PER_BLOCK_GEOM-1)/TILES_PER_BLOCK_GEOM, 1, 1);
+	int tiles_per_block_geom = NUM_THREADS/ num_cams;
+	dim3 threads_geom(num_cams,tiles_per_block_geom, 1);
+	dim3 grid_geom   ((num_tiles + tiles_per_block_geom - 1)/tiles_per_block_geom, 1, 1);
+//#define NUM_THREADS                   32
+
 	if (threadIdx.x == 0) { // always 1
     	get_tiles_offsets<<<grid_geom,threads_geom>>> (
-    			gpu_tasks,               // struct tp_task     * gpu_tasks,
+    			uniform_grid,            // int                  uniform_grid, //==0: use provided centers (as for interscene) , !=0 calculate uniform grid
+    			num_cams,                // int                  num_cams,
+				gpu_ftasks,              // float              * gpu_ftasks,         // flattened tasks, 27 floats for quad EO, 99 floats for LWIR16
+//    			gpu_tasks,               // struct tp_task     * gpu_tasks,
 				num_tiles,               // int                  num_tiles,          // number of tiles in task list
 				gpu_geometry_correction, //	struct gc          * gpu_geometry_correction,
 				gpu_correction_vector,   //	struct corr_vector * gpu_correction_vector,
@@ -313,66 +349,77 @@ extern "C" __global__ void calculate_tiles_offsets(
  */
 
 extern "C" __global__ void get_tiles_offsets(
-		struct tp_task     * gpu_tasks,
+		int                  uniform_grid, //==0: use provided centers (as for interscene) , !=0 calculate uniform grid
+		int                  num_cams,
+//		struct tp_task     * gpu_tasks,
+		float              * gpu_ftasks,         // flattened tasks, 27 floats for quad EO, 99 floats for LWIR16
 		int                  num_tiles,          // number of tiles in task
 		struct gc          * gpu_geometry_correction,
 		struct corr_vector * gpu_correction_vector,
 		float *              gpu_rByRDist,      // length should match RBYRDIST_LEN
-		trot_deriv   * gpu_rot_deriv)
+		trot_deriv *         gpu_rot_deriv)
 {
+	int task_size = get_task_size(num_cams);
 	int task_num = blockIdx.x * blockDim.y + threadIdx.y; //  blockIdx.x * TILES_PER_BLOCK_GEOM + threadIdx.y
 	int thread_xy = blockDim.x * threadIdx.y + threadIdx.x;
+	int dim_xy = blockDim.x * blockDim.y; // number of parallel threads (<=32)
 	__shared__ struct gc geometry_correction;
 	__shared__ float rByRDist [RBYRDIST_LEN];
 	__shared__ struct corr_vector extrinsic_corr;
 	__shared__ trot_deriv rot_deriv;
-	__shared__ float pY_offsets[TILES_PER_BLOCK_GEOM][NUM_CAMS];
+///	__shared__ float pY_offsets[TILES_PER_BLOCK_GEOM][NUM_CAMS];
+	__shared__ float pY_offsets[NUM_THREADS][NUM_CAMS]; // maximal dimensions, actual will be smaller
 	float pXY[2]; // result to be copied to task
+	//blockDim.y
 	// copy data common to all threads
 	{
+		int cycles_copy_gc = ((sizeof(struct gc)/sizeof(float) + dim_xy - 1) / dim_xy);
 		float * gcp_local =  (float *) &geometry_correction;
 		float * gcp_global = (float *) gpu_geometry_correction;
 		int offset = thread_xy;
-		for (int i = 0; i < CYCLES_COPY_GC; i++){
+		for (int i = 0; i < cycles_copy_gc; i++){
 			if (offset < sizeof(struct gc)/sizeof(float)) {
 				*(gcp_local + offset) = *(gcp_global + offset);
 			}
-			offset += THREADS_PER_BLOCK_GEOM;
+			offset += dim_xy;
 		}
 	}
 	{
+		int cycles_copy_cv = ((sizeof(struct corr_vector)/sizeof(float) + dim_xy - 1) / dim_xy);
 		float * cvp_local =  (float *) &extrinsic_corr;
 		float * cvp_global = (float *) gpu_correction_vector;
 		int offset = thread_xy;
-		for (int i = 0; i < CYCLES_COPY_CV; i++){
+		for (int i = 0; i < cycles_copy_cv; i++){
 			if (offset < sizeof(struct corr_vector)/sizeof(float)) {
 				*(cvp_local + offset) = *(cvp_global + offset);
 			}
-			offset += THREADS_PER_BLOCK_GEOM;
+			offset += dim_xy;
 		}
 	}
 	// TODO: maybe it is better to use system memory and not read all table?
 	{
+		int cycles_copy_rbrd = (RBYRDIST_LEN + dim_xy - 1) / dim_xy;
 		float * rByRDistp_local =  (float *) rByRDist;
 		float * rByRDistp_global = (float *) gpu_rByRDist;
 		int offset = thread_xy;
-		for (int i = 0; i < CYCLES_COPY_RBRD; i++){
+		for (int i = 0; i < cycles_copy_rbrd; i++){
 			if (offset < RBYRDIST_LEN) {
 				*(rByRDistp_local + offset) = *(rByRDistp_global + offset);
 			}
-			offset += THREADS_PER_BLOCK_GEOM;
+			offset += dim_xy;
 		}
 	}
 	// copy rotational  matrices (with their derivatives by azimuth, tilt, roll and zoom - for ERS correction)
 	{
+		int cycles_copy_rot = ((sizeof(trot_deriv)/sizeof(float)) + dim_xy - 1) / dim_xy;
 		float * rots_local =  (float *) &rot_deriv;
 		float * rots_global = (float *) gpu_rot_deriv; // rot_matrices;
 		int offset = thread_xy;
-		for (int i = 0; i < CYCLES_COPY_ROTS; i++){
+		for (int i = 0; i < cycles_copy_rot; i++){
 			if (offset < sizeof(trot_deriv)/sizeof(float)) {
 				*(rots_local + offset) = *(rots_global + offset);
 			}
-			offset += THREADS_PER_BLOCK_GEOM;
+			offset += dim_xy;
 		}
 	}
 	__syncthreads();
@@ -392,8 +439,8 @@ extern "C" __global__ void get_tiles_offsets(
 	if ((ncam == DBG_CAM)  && (task_num == DBG_TILE)){
 		printf("\nTile = %d, camera= %d\n", task_num, ncam);
 		printf("\nget_tiles_offsets() threadIdx.x = %d,  threadIdx.y = %d,blockIdx.x= %d\n", (int)threadIdx.x, (int)threadIdx.y, (int) blockIdx.x);
-		printGeometryCorrection(&geometry_correction);
-		printExtrinsicCorrection(&extrinsic_corr);
+		printGeometryCorrection(&geometry_correction, num_cams);
+		printExtrinsicCorrection(&extrinsic_corr,num_cams);
 	}
 	__syncthreads();// __syncwarp();
 #endif // DEBUG21
@@ -411,19 +458,32 @@ extern "C" __global__ void get_tiles_offsets(
 	 */
 
 	// common code, calculated in parallel
-	int cxy = gpu_tasks[task_num].txy;
-	float disparity = gpu_tasks[task_num].target_disparity;
+///	int cxy = gpu_tasks[task_num].txy;
+///	float disparity = gpu_tasks[task_num].target_disparity;
+	float disparity = * (gpu_ftasks +  task_size * task_num + 2);
+	float *centerXY =    gpu_ftasks +  task_size * task_num + tp_task_centerXY_offset;
+	float px =  *(centerXY);
+	float py =  *(centerXY + 1);
+	int cxy =  *(int *) (gpu_ftasks +  task_size * task_num + 1);
 	int tileX = (cxy & 0xffff);
 	int tileY = (cxy >> 16);
+
+//	if (isnan(px)) {
+//	if (__float_as_int(px) == 0x7fffffff) {
+	if (uniform_grid) {
 #ifdef DEBUG23
-	if ((ncam == 0) && (tileX == DBG_TILE_X) && (tileY == DBG_TILE_Y)){
-		printf ("\n  get_tiles_offsets(): Debugging tileX=%d, tileY=%d, ncam = %d\n", tileX,tileY,ncam);
-		printf("\n");
-		__syncthreads();
-	}
+		if ((ncam == 0) && (tileX == DBG_TILE_X) && (tileY == DBG_TILE_Y)){
+			printf ("\n  get_tiles_offsets(): Debugging tileX=%d, tileY=%d, ncam = %d\n", tileX,tileY,ncam);
+			printf("\n");
+			__syncthreads();
+		}
 #endif //#ifdef DEBUG23
-	float px = tileX * DTT_SIZE + DTT_SIZE/2; //  - shiftX;
-	float py = tileY * DTT_SIZE + DTT_SIZE/2; //  - shiftY;
+		px = tileX * DTT_SIZE + DTT_SIZE/2; //  - shiftX;
+		py = tileY * DTT_SIZE + DTT_SIZE/2; //  - shiftY;
+		*(centerXY) =     px;
+		*(centerXY + 1) = py;
+	}
+	__syncthreads();
 
 	float pXcd = px - 0.5 * geometry_correction.pixelCorrectionWidth;
 	float pYcd = py - 0.5 * geometry_correction.pixelCorrectionHeight;
@@ -450,14 +510,17 @@ extern "C" __global__ void get_tiles_offsets(
 
 #ifdef DEBUG21
 	if ((ncam == DBG_CAM)  && (task_num == DBG_TILE)){
-		printf("\nTile = %d, camera= %d\n", task_num, ncam);
-		printf("tileX = %d,  tileY = %d\n", tileX, tileY);
-		printf("px = %f,  py = %f\n", px, py);
-		printf("pXcd = %f,  pYcd = %f\n", pXcd, pYcd);
-		printf("rXY[0] = %f,  rXY[1] = %f\n", rXY[0], rXY[1]);
-		printf("rD = %f,  rND2R = %f\n", rD, rND2R);
-		printf("pXc = %f,  pYc = %f\n", pXc, pYc);
-		printf("fl_pix = %f,  ri_scale = %f\n", fl_pix, ri_scale);
+		printf("\nuniform_grid=%d\n",                  uniform_grid);
+		printf("Tile = %d, camera= %d\n",              task_num, ncam);
+		printf("TargetDisparity = %f\n",               disparity);
+		printf("tileX = %d,  tileY = %d\n",            tileX, tileY);
+		printf("px = %f,  py = %f\n",                  px, py);
+		printf("centerXY[0] = %f,  centerXY[1] = %f\n", *(centerXY), *(centerXY + 1));
+		printf("pXcd = %f,  pYcd = %f\n",              pXcd, pYcd);
+		printf("rXY[0] = %f,  rXY[1] = %f\n",          rXY[0], rXY[1]);
+		printf("rD = %f,  rND2R = %f\n",               rD, rND2R);
+		printf("pXc = %f,  pYc = %f\n",                pXc, pYc);
+		printf("fl_pix = %f,  ri_scale = %f\n",        fl_pix, ri_scale);
 		printf("xyz[0] = %f, xyz[1] = %f, xyz[2] = %f\n", xyz[0],xyz[1],xyz[2]);
 	}
 	__syncthreads();// __syncwarp();
@@ -516,10 +579,10 @@ extern "C" __global__ void get_tiles_offsets(
 	__syncthreads();
 	// Each thread re-calculate same sum
 	float lines_avg = 0;
-	for (int i = 0; i < NUM_CAMS; i ++){
+	for (int i = 0; i < num_cams; i ++){
 		lines_avg += pY_offsets[threadIdx.y][i];
 	}
-	lines_avg *= (1.0/NUM_CAMS);
+	lines_avg *= (1.0/num_cams);
 	// used when calculating derivatives, TODO: combine calculations !
 	float pY_offset = pY_offsets[threadIdx.y][ncam] - lines_avg;
 #ifdef DEBUG21
@@ -531,7 +594,7 @@ extern "C" __global__ void get_tiles_offsets(
 		printf("rD2rND = %f\n", rD2rND);
 		printf("pXid = %f,  pYid = %f\n", pXid, pYid);
 		printf("pXY[0] = %f,  pXY[1] = %f\n", pXY[0], pXY[1]); // OK
-		printf("lines_avg = %f,  pY_offset = %f\n", lines_avg, pY_offset);
+		printf("lines_avg = %f,  pY_offset = %f\n", lines_avg, pY_offset); // *
 	}
 	__syncthreads();// __syncwarp();
 #endif // DEBUG21
@@ -638,11 +701,15 @@ extern "C" __global__ void get_tiles_offsets(
 	}
 	__syncthreads();// __syncwarp();
 #endif // DEBUG21
-
-	gpu_tasks[task_num].disp_dist[ncam][0] = disp_dist[0];
-	gpu_tasks[task_num].disp_dist[ncam][1] = disp_dist[1];
-	gpu_tasks[task_num].disp_dist[ncam][2] = disp_dist[2];
-	gpu_tasks[task_num].disp_dist[ncam][3] = disp_dist[3];
+///	gpu_tasks[task_num].disp_dist[ncam][0] = disp_dist[0];
+///	gpu_tasks[task_num].disp_dist[ncam][1] = disp_dist[1];
+///	gpu_tasks[task_num].disp_dist[ncam][2] = disp_dist[2];
+///	gpu_tasks[task_num].disp_dist[ncam][3] = disp_dist[3];
+	float * disp_dist_p = gpu_ftasks +  task_size * task_num + tp_task_xy_offset + num_cams* 2 + ncam * 4; //  ncam = threadIdx.x, so each thread will have different offset
+	*(disp_dist_p++) = disp_dist[0]; // global memory
+	*(disp_dist_p++) = disp_dist[1];
+	*(disp_dist_p++) = disp_dist[2];
+	*(disp_dist_p++) = disp_dist[3];
 
 	//	imu =  extrinsic_corr.getIMU(i); // currently it is common for all channels
 	//	float imu_rot [3]; // d_tilt/dt (rad/s), d_az/dt, d_roll/dt 13..15
@@ -696,9 +763,14 @@ extern "C" __global__ void get_tiles_offsets(
 
 		}
 	}
-	// copy results to global memory pXY,  disp_dist
-	gpu_tasks[task_num].xy[ncam][0] = pXY[0];
-	gpu_tasks[task_num].xy[ncam][1] = pXY[1];
+	// copy results to global memory pXY,  disp_dist (already copied)
+//	gpu_tasks[task_num].xy[ncam][0] = pXY[0];
+//	gpu_tasks[task_num].xy[ncam][1] = pXY[1];
+//	float * tile_xy_p = gpu_ftasks +  task_size * task_num + 3 + num_cams * 4 + ncam * 2; //  ncam = threadIdx.x, so each thread will have different offset
+	// .xy goes right after 3 commonn (tak, txy and target_disparity
+	float * tile_xy_p = gpu_ftasks +  task_size * task_num + tp_task_xy_offset + ncam * 2; //  ncam = threadIdx.x, so each thread will have different offset
+	*(tile_xy_p++) = pXY[0]; // global memory
+	*(tile_xy_p++) = pXY[1]; // global memory
 }
 
 extern "C" __global__ void calcReverseDistortionTable(
@@ -796,7 +868,7 @@ inline __device__ float getRByRDist(float rDist,
 	return result;
 }
 
-__device__ void printGeometryCorrection(struct gc * g){
+__device__ void printGeometryCorrection(struct gc * g, int num_cams){
 #ifndef JCUDA
 	printf("\nGeometry Correction\n------------------\n");
 	printf("%22s: %f\n","pixelCorrectionWidth",  g->pixelCorrectionWidth);
@@ -818,39 +890,58 @@ __device__ void printGeometryCorrection(struct gc * g){
 	printf("%22s: %f\n","elevation",   g->elevation);
 	printf("%22s: %f\n","heading",     g->heading);
 
-	printf("%22s: %f, %f, %f, %f \n","forward", g->forward[0], g->forward[1], g->forward[2], g->forward[3]);
-	printf("%22s: %f, %f, %f, %f \n","right",   g->right[0],   g->right[1],   g->right[2],   g->right[3]);
-	printf("%22s: %f, %f, %f, %f \n","height",  g->height[0],  g->height[1],  g->height[2],  g->height[3]);
-	printf("%22s: %f, %f, %f, %f \n","roll",    g->roll[0],    g->roll[1],    g->roll[2],    g->roll[3]);
-	printf("%22s: %f, %f \n",        "pXY0[0]", g->pXY0[0][0], g->pXY0[0][1]);
-	printf("%22s: %f, %f \n",        "pXY0[1]", g->pXY0[1][0], g->pXY0[1][1]);
-	printf("%22s: %f, %f \n",        "pXY0[2]", g->pXY0[2][0], g->pXY0[2][1]);
-	printf("%22s: %f, %f \n",        "pXY0[3]", g->pXY0[3][0], g->pXY0[3][1]);
+//	printf("%22s: %f, %f, %f, %f \n","forward", g->forward[0], g->forward[1], g->forward[2], g->forward[3]);
+//	printf("%22s: %f, %f, %f, %f \n","right",   g->right[0],   g->right[1],   g->right[2],   g->right[3]);
+//	printf("%22s: %f, %f, %f, %f \n","height",  g->height[0],  g->height[1],  g->height[2],  g->height[3]);
+//	printf("%22s: %f, %f, %f, %f \n","roll",    g->roll[0],    g->roll[1],    g->roll[2],    g->roll[3]);
+//	printf("%22s: %f, %f \n",        "pXY0[0]", g->pXY0[0][0], g->pXY0[0][1]);
+//	printf("%22s: %f, %f \n",        "pXY0[1]", g->pXY0[1][0], g->pXY0[1][1]);
+//	printf("%22s: %f, %f \n",        "pXY0[2]", g->pXY0[2][0], g->pXY0[2][1]);
+//	printf("%22s: %f, %f \n",        "pXY0[3]", g->pXY0[3][0], g->pXY0[3][1]);
+	printf("%22s:","forward"); for (int ncam = 0; ncam < num_cams; ncam++) printf(" %f,", g->forward[ncam]); printf("\n");
+	printf("%22s:","right");   for (int ncam = 0; ncam < num_cams; ncam++) printf(" %f,", g->right  [ncam]); printf("\n");
+	printf("%22s:","height");  for (int ncam = 0; ncam < num_cams; ncam++) printf(" %f,", g->height [ncam]); printf("\n");
+	printf("%22s:","roll");    for (int ncam = 0; ncam < num_cams; ncam++) printf(" %f,", g->roll   [ncam]); printf("\n");
+	for (int ncam = 0; ncam < num_cams; ncam++) {
+		printf("%19s%2d]: %f, %f \n", "pXY0[",ncam, g->pXY0[ncam][0], g->pXY0[ncam][1]);
+	}
 
 	printf("%22s: %f\n","common_right",   g->common_right);
 	printf("%22s: %f\n","common_forward", g->common_forward);
 	printf("%22s: %f\n","common_height",  g->common_height);
 	printf("%22s: %f\n","common_roll",    g->common_roll);
 
-	printf("%22s: x=%f, y=%f\n","rXY[0]", g->rXY[0][0], g->rXY[0][1]);
-	printf("%22s: x=%f, y=%f\n","rXY[1]", g->rXY[1][0], g->rXY[1][1]);
-	printf("%22s: x=%f, y=%f\n","rXY[2]", g->rXY[2][0], g->rXY[2][1]);
-	printf("%22s: x=%f, y=%f\n","rXY[3]", g->rXY[3][0], g->rXY[3][1]);
-
+//	printf("%22s: x=%f, y=%f\n","rXY[0]", g->rXY[0][0], g->rXY[0][1]);
+//	printf("%22s: x=%f, y=%f\n","rXY[1]", g->rXY[1][0], g->rXY[1][1]);
+//	printf("%22s: x=%f, y=%f\n","rXY[2]", g->rXY[2][0], g->rXY[2][1]);
+//	printf("%22s: x=%f, y=%f\n","rXY[3]", g->rXY[3][0], g->rXY[3][1]);
+	for (int ncam = 0; ncam < num_cams; ncam++) {
+		printf("%19s%2d]: %f, %f \n", "rXY[", ncam, g->rXY[ncam][0], g->rXY[ncam][1]);
+	}
 	printf("%22s: %f\n","cameraRadius",    g->cameraRadius);
 	printf("%22s: %f\n","disparityRadius", g->disparityRadius);
-	printf("%22s: %f, %f, %f, %f \n","woi_tops", g->woi_tops[0], g->woi_tops[1], g->woi_tops[2], g->woi_tops[3]);
+
+//	printf("%22s: %f, %f, %f, %f \n","woi_tops", g->woi_tops[0], g->woi_tops[1], g->woi_tops[2], g->woi_tops[3]);
+	printf("%22s:","woi_tops");    for (int ncam = 0; ncam < num_cams; ncam++) printf(" %f,", g->woi_tops[ncam]); printf("\n");
+
 #endif //ifndef JCUDA
 }
 
-__device__ void printExtrinsicCorrection(corr_vector * cv)
+__device__ void printExtrinsicCorrection(corr_vector * cv, int num_cams)
 {
 #ifndef JCUDA
 	printf("\nExtrinsic Correction Vector\n---------------------------\n");
-	printf("%22s: %f, %f, %f\n",     "tilt",    cv->tilt[0],    cv->tilt[1],    cv->tilt[2]);
-	printf("%22s: %f, %f, %f\n",     "azimuth", cv->azimuth[0], cv->azimuth[1], cv->azimuth[2]);
-	printf("%22s: %f, %f, %f, %f\n", "roll",    cv->roll[0],    cv->roll[1],    cv->roll[2],      cv->roll[3]);
-	printf("%22s: %f, %f, %f\n",     "zoom",    cv->zoom[0],    cv->zoom[1],    cv->zoom[2]);
+//	printf("%22s: %f, %f, %f\n",     "tilt",    cv->tilt[0],    cv->tilt[1],    cv->tilt[2]);
+//	printf("%22s: %f, %f, %f\n",     "azimuth", cv->azimuth[0], cv->azimuth[1], cv->azimuth[2]);
+//	printf("%22s: %f, %f, %f, %f\n", "roll",    cv->roll[0],    cv->roll[1],    cv->roll[2],      cv->roll[3]);
+//	printf("%22s: %f, %f, %f\n",     "zoom",    cv->zoom[0],    cv->zoom[1],    cv->zoom[2]);
+
+	printf("%22s:","tilt");    for (int ncam = 0; ncam < (num_cams-1); ncam++) printf(" %f,", cv->tilt[ncam]);    printf("\n");
+	printf("%22s:","azimuth"); for (int ncam = 0; ncam < (num_cams-1); ncam++) printf(" %f,", cv->azimuth[ncam]); printf("\n");
+	printf("%22s:","roll");    for (int ncam = 0; ncam <  num_cams;    ncam++) printf(" %f,", cv->roll[ncam]);    printf("\n");
+	printf("%22s:","zoom");    for (int ncam = 0; ncam < (num_cams-1); ncam++) printf(" %f,", cv->zoom[ncam]);    printf("\n");
+
+
 
 	printf("%22s: %f(t), %f(a), %f(r)\n",     "imu_rot",    cv->imu_rot[0],    cv->imu_rot[1],    cv->imu_rot[2]);
 	printf("%22s: %f(x), %f(y), %f(z)\n",     "imu_move",    cv->imu_move[0],    cv->imu_move[1],    cv->imu_move[2]);

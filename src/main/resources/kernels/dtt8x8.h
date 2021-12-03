@@ -88,6 +88,8 @@ extern __device__ void dttii_2d(
 extern __device__ void dttiv_color_2d(
 		float * clt_tile,
 		int color);
+extern __device__ void dttiv_mono_2d(
+		float * clt_tile);
 extern __device__ void imclt(
 		float * clt_tile,   //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports [4][8][9]
 		float * mclt_tile );

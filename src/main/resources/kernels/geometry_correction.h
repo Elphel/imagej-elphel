@@ -41,6 +41,7 @@
 #include "tp_defines.h"
 #endif
 
+
 #define NVRTC_BUG 1
 #ifndef M_PI
 #define M_PI  3.14159265358979323846 /* pi */
@@ -60,10 +61,16 @@ struct tp_task {
 		int      txy;
 		unsigned short sxy[2];
 	};
-	float xy[NUM_CAMS][2];
 	float target_disparity;
+	float centerXY[2];          // "ideal" centerX, centerY to use instead of the uniform tile centers (txy) for interscene accumulation
+	                            // if isnan(centerXY[0]), then txy is used to calculate centerXY and all xy
+	float xy[NUM_CAMS][2];
 	float disp_dist[NUM_CAMS][4]; // calculated with getPortsCoordinates()
 };
+
+#define get_task_size(x) (sizeof(struct tp_task)/sizeof(float) - 6 * (NUM_CAMS - x))
+#define tp_task_xy_offset 5
+#define tp_task_centerXY_offset 3
 
 struct corr_vector{
 	float tilt    [NUM_CAMS-1]; // 0..2
@@ -142,7 +149,10 @@ struct gc {
 };
 #define RAD_COEFF_LEN 7
 extern "C" __global__ void get_tiles_offsets(
-		struct tp_task     * gpu_tasks,
+		int                  uniform_grid, //==0: use provided centers (as for interscene) , !=0 calculate uniform grid
+		int                  num_cams,
+//		struct tp_task     * gpu_tasks,
+		float              * gpu_ftasks,         // flattened tasks, 27 floats for quad EO, 99 floats for LWIR16
 		int                  num_tiles,          // number of tiles in task
 		struct gc          * gpu_geometry_correction,
 		struct corr_vector * gpu_correction_vector,
@@ -150,7 +160,10 @@ extern "C" __global__ void get_tiles_offsets(
 		trot_deriv   * gpu_rot_deriv);
 
 extern "C" __global__ void calculate_tiles_offsets(
-		struct tp_task     * gpu_tasks,
+		int                  uniform_grid, //==0: use provided centers (as for interscene) , !=0 calculate uniform grid
+		int                  num_cams,
+		float              * gpu_ftasks,         // flattened tasks, 27 floats for quad EO, 99 floats for LWIR16
+//		struct tp_task     * gpu_tasks,
 		int                  num_tiles,          // number of tiles in task
 		struct gc          * gpu_geometry_correction,
 		struct corr_vector * gpu_correction_vector,
@@ -160,6 +173,7 @@ extern "C" __global__ void calculate_tiles_offsets(
 
 // uses NUM_CAMS blocks, (3,3,3) threads
 extern "C" __global__ void calc_rot_deriv(
+		int                  num_cams,
 		struct corr_vector * gpu_correction_vector,
 		trot_deriv   * gpu_rot_deriv);
 
@@ -168,5 +182,6 @@ extern "C" __global__ void calc_rot_deriv(
 extern "C" __global__ void calcReverseDistortionTable(
 		struct gc * geometry_correction,
 		float * rByRDist);
+
 
 

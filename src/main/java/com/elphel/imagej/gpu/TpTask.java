@@ -6,10 +6,18 @@ public class TpTask {
     public int        num_sensors = 4;
 	public int        ty;
 	public int        tx;
+	public float []   centerXY = {Float.NaN,Float.NaN};
 	public float[][]  xy = null;
 	public float[][]  xy_aux = null;
 	public float [][] disp_dist = null;
 //	public float      weight;
+	public static int getSize(int num_sensors) {
+		return 5 + 2* num_sensors + 4 * num_sensors;
+	}
+	public int getSize() {
+		return 5 + 2* num_sensors + 4 * num_sensors;
+	}
+	
 	
 	public TpTask(
 			int num_sensors,
@@ -30,15 +38,21 @@ public class TpTask {
 	}
 	/**
 	 * Initialize from the float array (read from the GPU)
+	 * @param num_sensors number of sesnors in an array
 	 * @param flt float array containing tasks data
 	 * @param indx task number to use
+	 * @param use_aux (always false now)
 	 */
-	public TpTask(float [] flt, int indx, boolean use_aux)
+	public TpTask(int num_sensors, float [] flt, int task_indx, boolean use_aux)
 	{
-		task =    Float.floatToIntBits(flt[indx++]);
-		int txy = Float.floatToIntBits(flt[indx++]);
+		int indx = task_indx * getSize(num_sensors);
+		task =    Float.floatToIntBits(flt[indx++]); // 0
+		int txy = Float.floatToIntBits(flt[indx++]); // 1
 		ty = txy >> 16;
 		tx = txy & 0xffff;
+		target_disparity = flt[indx++];              // 2
+		centerXY[0] = flt[indx++];                   // 3
+		centerXY[1] = flt[indx++];                   // 4
 		if (use_aux) {
 			xy_aux = new float[num_sensors][2];
     		for (int i = 0; i < num_sensors; i++) {
@@ -52,7 +66,6 @@ public class TpTask {
     			xy[i][1] = flt[indx++];
     		}
 		}
-		target_disparity = flt[indx++];
 		disp_dist = new float [num_sensors][4];
 		for (int i = 0; i < num_sensors; i++) {
 			for (int j = 0; j < 4; j++) {
@@ -123,8 +136,6 @@ public class TpTask {
 		return dXY;
 	}
 	
-	
-	
 	public int getTileY(){
 		return ty;
 	}
@@ -137,17 +148,36 @@ public class TpTask {
 	public double getTargetDisparity() {
 		return target_disparity;
 	}
+	
+	public float [] getCenterXY() {
+		return centerXY;
+	}
+
+	public double [] getDoubleCenterXY() {
+		return new double [] {centerXY[0],centerXY[1]};
+	}
+	
+	public void setCenterXY(double [] centerXY) {
+		this.centerXY = new float [] {(float) centerXY[0],(float) centerXY[1]};
+	}
+
 
 	// convert this class instance to float array to match layout of the C struct
 	public float [] asFloatArray(boolean use_aux) {
-		float [] flt = new float [GPUTileProcessor.TPTASK_SIZE];
+		
+		float [] flt = new float [getSize()];
 		return asFloatArray(flt, 0, use_aux);
 	}
 	// convert this class instance to float array to match layout of the C struct,
 	// fill existing float array from the specified index
-	public float [] asFloatArray(float [] flt, int indx, boolean use_aux) {
-		flt[indx++] = Float.intBitsToFloat(task);
-		flt[indx++] = Float.intBitsToFloat(tx + (ty << 16));
+	public float [] asFloatArray(float [] flt, int 	task_indx, boolean use_aux) {
+		int indx = task_indx * getSize(num_sensors);
+		flt[indx++] = Float.intBitsToFloat(task);            // 0
+		flt[indx++] = Float.intBitsToFloat(tx + (ty << 16)); // 1
+		flt[indx++] = this.target_disparity;                 // 2
+		flt[indx++] = centerXY[0];                           // 3
+		flt[indx++] = centerXY[1];                           // 4
+		
 		float [][] offsets = use_aux? this.xy_aux: this.xy;
 		for (int i = 0; i < num_sensors; i++) {
 			if (offsets != null) {
@@ -157,9 +187,8 @@ public class TpTask {
 				indx+= 2;
 			}
 		}
-		flt[indx++] = this.target_disparity;
 		/*
-		for (int i = 0; i < NUM_CAMS; i++) { // actually disp_dist will be initialized by the GPU
+		for (int i = 0; i < num_sensors; i++) { // actually disp_dist will be initialized by the GPU
 			indx+= 4;
 			flt[indx++] = disp_dist[i][0];
 			flt[indx++] = disp_dist[i][1];

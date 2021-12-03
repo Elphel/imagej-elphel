@@ -43,7 +43,8 @@
             <dependency>
                 <groupId>org.jcuda</groupId>
                 <artifactId>jcuda</artifactId>
-                <version>10.1.0</version>
+                <!-- <version>10.1.0</version> -->
+                <version>11.2.0</version>
             </dependency>
             <!--
             	As of 2018/09/11 TF for GPU on Maven supports CUDA 9.0 (vs latest 9.2)

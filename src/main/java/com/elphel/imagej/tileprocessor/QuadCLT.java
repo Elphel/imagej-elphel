@@ -51,7 +51,9 @@ import com.elphel.imagej.correction.EyesisCorrections;
 import com.elphel.imagej.gpu.GPUTileProcessor;
 import com.elphel.imagej.gpu.GpuQuad;
 import com.elphel.imagej.gpu.TpTask;
+import com.elphel.imagej.tileprocessor.QuadCLTCPU.SetChannels;
 
+import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.Prefs;
@@ -2034,6 +2036,90 @@ public class QuadCLT extends QuadCLTCPU {
 //		fs.saveAsTiff(file_path);
 	}	
 	
+	
+	// added 12/21
+	public void processCLTQuadCorrs( // not used in lwir
+			CLTParameters           clt_parameters,
+			EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+			ColorProcParameters colorProcParameters,
+			CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+			EyesisCorrectionParameters.RGBParameters             rgbParameters,
+			//			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+			final boolean    apply_corr,    // calculate and apply additional fine geometry correction
+			final boolean    infinity_corr, // calculate and apply geometry correction at infinity
+			final int        threadsMax,    // maximal number of threads to launch
+			final boolean    updateStatus,
+			final int        debugLevel)
+	{
+		if (infinity_corr && (clt_parameters.z_correction != 0.0)){
+			System.out.println(
+					"****************************************\n"+
+							"* Resetting manual infinity correction *\n"+
+					"****************************************\n");
+			clt_parameters.z_correction = 0.0;
+		}
+
+		this.startTime=System.nanoTime();
+		String [] sourceFiles=correctionsParameters.getSourcePaths();
+		SetChannels [] set_channels=setChannels(debugLevel);
+		if ((set_channels == null) || (set_channels.length==0)) {
+			System.out.println("No files to process (of "+sourceFiles.length+")");
+			return;
+		}
+		// multiply each image by this and divide by individual (if not NaN)
+		double [] referenceExposures = null;
+		//		  if (!colorProcParameters.lwir_islwir) {
+		if (!isLwir()) {
+			referenceExposures=eyesisCorrections.calcReferenceExposures(debugLevel);
+		}
+		for (int nSet = 0; nSet < set_channels.length; nSet++){
+			int [] channelFiles = set_channels[nSet].fileNumber();
+			boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
+			double [] scaleExposures = new double[channelFiles.length];
+
+			//			  ImagePlus [] imp_srcs = 
+			conditionImageSet(
+					clt_parameters,             // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+					colorProcParameters,
+					sourceFiles,                // String []                                 sourceFiles,
+					set_channels[nSet].name(),  // String                                    set_name,
+					referenceExposures,         // double []                                 referenceExposures,
+					channelFiles,               // int []                                    channelFiles,
+					scaleExposures,   //output  // double [] scaleExposures
+					saturation_imp,   //output  // boolean [][]                              saturation_imp,
+					threadsMax,                 // int                                       threadsMax,
+					debugLevel); // int                                       debugLevel);
+
+
+			// once per quad here
+			processCLTQuadCorrGPU(  // returns ImagePlus, but it already should be saved/shown
+					null,           // imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+					saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
+					clt_parameters,
+					debayerParameters,
+					colorProcParameters,
+					channelGainParameters,
+					rgbParameters,
+					scaleExposures,
+					false, // true,            // boolean                                         only4slice,
+					threadsMax,                // final int                                       threadsMax,  // maximal number of threads to launch
+					false,                     // final boolean                                   updateStatus,
+					debugLevel);               // final int                                       debugLevel);
+			if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels.length+") finished at "+
+					IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+			if (eyesisCorrections.stopRequested.get()>0) {
+				System.out.println("User requested stop");
+				System.out.println("Processing "+(nSet + 1)+" file sets (of "+set_channels.length+") finished at "+
+						IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				return;
+			}
+		}
+		System.out.println("processCLTQuadCorrs(): processing "+getTotalFiles(set_channels)+" files ("+set_channels.length+" file sets) finished at "+
+				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+	}
+	
+	
+	
 	public ImagePlus processCLTQuadCorrGPU(
 			ImagePlus []                                    imp_quad, //null will be OK
 			boolean [][]                                    saturation_imp, // (near) saturated pixels or null // Not needed use this.saturation_imp
@@ -2050,7 +2136,6 @@ public class QuadCLT extends QuadCLTCPU {
 		if (gpuQuad == null) {
 			System.out.println("GPU instance is not initialized, using CPU mode");
 			processCLTQuadCorrCPU(
-//					imp_quad,              // ImagePlus []                  imp_quad, // should have properties "name"(base for saving results), "channel","path"
 					saturation_imp,        // boolean [][]                  saturation_imp, // (near) saturated pixels or null // Not needed use this.saturation_imp
 					clt_parameters,        // CLTParameters                 clt_parameters,
 					debayerParameters,     // EyesisCorrectionParameters.DebayerParameters     debayerParameters,
@@ -2068,6 +2153,7 @@ public class QuadCLT extends QuadCLTCPU {
 		}
 		
 // GPU-specific
+		boolean showCoord = debugLevel > 1;
 		boolean is_mono = isMonochrome();
 		boolean is_lwir = isLwir();
 		final boolean      batch_mode = clt_parameters.batch_run; //disable any debug images
@@ -2150,12 +2236,24 @@ public class QuadCLT extends QuadCLTCPU {
 				use_aux, // boolean use_aux)
 				clt_parameters.img_dtt.gpu_verify); // boolean verify
 
-		gpuQuad.execSetTilesOffsets();
+		gpuQuad.execSetTilesOffsets(true); // prepare tiles offsets in GPU memory // calculate tile centers
+
+		if (showCoord) {
+			double max_r_by_rdist_err = gpuQuad.maxRbyRDistErr();
+			System.out.println("Maximal R-by-RDist error = "+max_r_by_rdist_err);
+			showCentersPortsXY("Tile_Virtual_Centers");
+//			showCentersXY("Tile_Virtual_Centers");
+//			showPortsXY("Tile_Physical_Sensor_Centers");
+		}
+		
+		
 		gpuQuad.execConvertDirect();
 		gpuQuad.execImcltRbgAll(is_mono); 
 
 		// get data back from GPU
-		float [][][] iclt_fimg = new float [gpuQuad.getNumCams()][][];
+//		float [][][] iclt_fimg = new float [gpuQuad.getNumCams()][][];
+		float [][][] iclt_fimg = new float [getNumSensors()][][];
+
 		for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
 			iclt_fimg[ncam] = gpuQuad.getRBG(ncam);
 		}
@@ -2188,7 +2286,8 @@ public class QuadCLT extends QuadCLTCPU {
 			// combine to a sliced color image
 			// assuming total number of images to be multiple of 4
 			//			  int [] slice_seq = {0,1,3,2}; //clockwise
-			int [] slice_seq = new int[gpuQuad.getNumCams()]; //results.length];
+//			int [] slice_seq = new int[gpuQuad.getNumCams()]; //results.length];
+			int [] slice_seq = new int[getNumSensors()]; //results.length];
 			for (int i = 0; i < slice_seq.length; i++) {
 				slice_seq[i] = i ^ ((i >> 1) & 1); // 0,1,3,2,4,5,7,6, ...
 			}
@@ -2458,7 +2557,7 @@ public class QuadCLT extends QuadCLTCPU {
 		long startTasksSetup=System.nanoTime();
 		for (int i = 0; i < NREPEAT; i++ ) {
 			// Calculate tiles offsets (before each direct conversion run)
-			quadCLT_main.getGPU().execSetTilesOffsets();
+			quadCLT_main.getGPU().execSetTilesOffsets(true); // prepare tiles offsets in GPU memory // calculate tile centers
 		}
 
 		long startDirectConvert=System.nanoTime();
@@ -2475,18 +2574,24 @@ public class QuadCLT extends QuadCLTCPU {
 		}
 		long endImcltTime = System.nanoTime();
 
+		// FIXME: Temporary setting all pairs to correlate
+		int num_pairs = quadCLT_main.getGPU().getNumPairs();
+		boolean [] sel_pairs = new boolean [num_pairs];
+		Arrays.fill(sel_pairs, true);
+		
 		long startCorr2d=System.nanoTime();   // System.nanoTime();
-		for (int i = 0; i < NREPEAT; i++ )
+		
+		for (int i = 0; i < NREPEAT; i++ ) {
 			//Generate 2D phase correlations from the CLT representation
 			quadCLT_main.getGPU().execCorr2D(
-	    		scales,// double [] scales,
-	    		fat_zero, // double fat_zero);
-	    		clt_parameters.gpu_corr_rad); // int corr_radius
-
+					sel_pairs,                    // boolean [] pair_select,
+					scales,                       // double [] scales,
+					fat_zero,                     // double fat_zero);
+					clt_parameters.gpu_corr_rad); // int corr_radius
+		}
 		long endCorr2d = System.nanoTime();
-
 		
-		// SHould be done before execCorr2D_TD as corr_indices are shared to save memory
+		// Should be done before execCorr2D_TD as corr_indices are shared to save memory
 		int [] corr_indices = quadCLT_main.getGPU().getCorrIndices();
 		// the following is not yet shared
 		float [][] corr2D = quadCLT_main.getGPU().getCorr2D(
@@ -2567,7 +2672,9 @@ public class QuadCLT extends QuadCLTCPU {
 		System.out.println(" - textures:           "+(runTexturesTime*1.0e-6)+"ms");
 		System.out.println(" - RGBA:               "+(runTexturesRBGATime*1.0e-6)+"ms");
 		// get data back from GPU
-		float [][][] iclt_fimg = new float [quadCLT_main.getGPU().getNumCams()][][];
+//		float [][][] iclt_fimg = new float [quadCLT_main.getGPU().getNumCams()][][];
+		float [][][] iclt_fimg = new float [quadCLT_main.getNumSensors()][][];
+		
 		for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
 			iclt_fimg[ncam] = quadCLT_main.getGPU().getRBG(ncam);
 		}
@@ -2581,7 +2688,7 @@ public class QuadCLT extends QuadCLTCPU {
 			//			GPUTileProcessor.TpTask []
 			tp_tasks = quadCLT_main.getGPU().getTasks (false); // boolean use_aux)
 			double [][] geom_dbg = new double [ImageDtt.GEOM_TITLES_DBG.length][tilesX*tilesY];
-			int num_cams =GPUTileProcessor.NUM_CAMS;
+			int num_cams = quadCLT_main.getNumSensors(); // GPUTileProcessor.numSensors; // NUM_CAMS;
 			for (int nt = 0; nt < tp_tasks.length; nt++) {
 				for (int i = 0; i < num_cams; i++) {
 					TpTask task = tp_tasks[nt];
@@ -2622,10 +2729,11 @@ public class QuadCLT extends QuadCLTCPU {
 		// Available after gpu_diff_rgb_combo is generated in execTextures
 		if (calc_extra) {
 			String [] extra_group_titles = {"DIFF","Red","Blue","Green"};
-			String [] extra_titles = new String [extra_group_titles.length*quadCLT_main.getGPU().getNumCams()];
+			int numSensors = quadCLT_main.getNumSensors();
+			String [] extra_titles = new String [extra_group_titles.length* numSensors];
 			for (int g = 0; g < extra_group_titles.length;g++) {
-				for (int ncam=0; ncam < quadCLT_main.getGPU().getNumCams();ncam++) {
-					extra_titles[g * quadCLT_main.getGPU().getNumCams() + ncam]= extra_group_titles[g]+"-"+ncam;
+				for (int ncam=0; ncam < numSensors;ncam++) {
+					extra_titles[g * numSensors + ncam]= extra_group_titles[g]+"-"+ncam;
 				}
 			}
 			float [][] extra = quadCLT_main.getGPU().getExtra();
@@ -2679,12 +2787,14 @@ public class QuadCLT extends QuadCLTCPU {
 			float [][] corr2D_cross = quadCLT_main.getGPU().getCorr2DCombo(clt_parameters.gpu_corr_rad);
 			
 			double [][] dbg_corr_pairs = GPUTileProcessor.getCorr2DView(
+					quadCLT_main.getNumSensors(),
 					tilesX,
 					tilesY,
 					corr_indices,
 					corr2D,
 					wh);
 			double [][] dbg_corr_quad = GPUTileProcessor.getCorr2DView(
+					quadCLT_main.getNumSensors(),
 					tilesX,
 					tilesY,
 					corr_quad_indices,
@@ -2692,6 +2802,7 @@ public class QuadCLT extends QuadCLTCPU {
 					wh);
 
 			double [][] dbg_corr_cross = GPUTileProcessor.getCorr2DView(
+					quadCLT_main.getNumSensors(),
 					tilesX,
 					tilesY,
 					corr_cross_indices,
@@ -3471,6 +3582,10 @@ public class QuadCLT extends QuadCLTCPU {
 		  return scan;
 	  }
 
+	  /**
+	   * Get GPU-calculated tiles ceneters coordinates for each sesnor
+	   * @return per-tile null 2*num_sesnors array of alternating X and Y 
+	   */
 	  public double [][] getPortsXY() // run after GPU 
 	  {
 		  boolean use_aux = false;
@@ -3491,6 +3606,109 @@ public class QuadCLT extends QuadCLTCPU {
 		  }
 		  return ports_xy;
 	  }
+
+	  /**
+	   * Get GPU-calculated tiles centerXY (tile centers for the virtual camera)
+	   * @return per-tile null or pair of X,Y
+	   */
+	  public double [][] getCenterXY() // run after GPU 
+	  {
+		  boolean use_aux = false;
+		  final int tilesX = tp.getTilesX();
+		  final int tilesY = tp.getTilesY();
+
+		  double [][] centers_xy = new double [tilesY*tilesX][];
+		  TpTask [] tp_tasks = gpuQuad.getTasks(use_aux); // use_aux);
+		  for (TpTask tp_task:tp_tasks) {
+			  centers_xy[tp_task.getTileY()*tilesX + tp_task.getTileX()] = tp_task.getDoubleCenterXY(); // use_aux);
+		  }
+		  return centers_xy;
+	  }
+
+	  public void showPortsXY(String title) {
+		  int tilesX = tp.getTilesX();
+		  int tilesY = tp.getTilesY();
+		  int num_sensors = getNumSensors();
+		  String [] titles = new String[2*num_sensors];
+		  for (int n = 0; n < num_sensors; n++) {
+			  titles[n]= "x"+n;
+			  titles[n+num_sensors]= "y"+n;
+		  }
+		  double [][] ports_xy =  getPortsXY();
+		  double [][] data = new double [2*num_sensors][tilesX*tilesY];
+		  for (int l = 0; l < data.length; l++)  Arrays.fill(data[l], Double.NaN);
+		  for (int i = 0; i < ports_xy.length; i++) if (ports_xy[i]!= null) {
+			  for (int j = 0; j < data.length; j++) {
+				  data[j][i] = ports_xy[i][2 * (j % num_sensors)  + (j / num_sensors)];
+			  }
+		  }
+		  (new ShowDoubleFloatArrays()).showArrays( 
+				  data,
+				  tilesX,
+				  tilesY,
+				  true,
+				  title,
+				  titles);
+	  }
+
+	  public void showCentersXY(String title) {
+		  int tilesX = tp.getTilesX();
+		  int tilesY = tp.getTilesY();
+		  String [] titles = {"centerX","centerY"};
+		  double [][] centers_xy =  getCenterXY();
+		  double [][] data = new double [2][tilesX*tilesY];
+		  for (int l = 0; l < data.length; l++)  Arrays.fill(data[l], Double.NaN);
+		  for (int i = 0; i < centers_xy.length; i++) if (centers_xy[i]!= null) {
+			  data[0][i] = centers_xy[i][0];
+			  data[1][i] = centers_xy[i][1];
+		  }
+		  (new ShowDoubleFloatArrays()).showArrays( 
+				  data,
+				  tilesX,
+				  tilesY,
+				  true,
+				  title,
+				  titles);
+	  }
+	  
+	  public void showCentersPortsXY(String title) {
+		  int tilesX = tp.getTilesX();
+		  int tilesY = tp.getTilesY();
+		  int num_sensors = getNumSensors();
+		  String [] titles = new String[2*num_sensors + 2];
+		  titles[0]= "centerX" ;
+		  titles[num_sensors + 1]= "centerY" ;
+		  for (int n = 0; n < num_sensors; n++) {
+			  titles[n + 1]= "x"+n ;
+			  titles[n + 1 + (num_sensors + 1)]= "y"+n;
+		  }
+		  double [][] ports_xy =  getPortsXY();
+		  double [][] centers_xy =  getCenterXY();
+
+		  double [][] data = new double [2*(num_sensors + 1)][tilesX*tilesY];
+		  for (int l = 0; l < data.length; l++)  Arrays.fill(data[l], Double.NaN);
+		  for (int i = 0; i < ports_xy.length; i++) if (ports_xy[i]!= null) {
+			  for (int j = 0; j < data.length; j++) {
+				  int dir = j / (num_sensors + 1); // 0 - X, 1 - Y
+				  int n = j - dir * (num_sensors + 1);
+				  if (n == 0) {
+					  data[j][i] = centers_xy[i][dir];
+				  } else {
+					  n --;
+					  data[j][i] = ports_xy[i][2 * n  + dir];
+				  }
+			  }
+		  }
+		  (new ShowDoubleFloatArrays()).showArrays( 
+				  data,
+				  tilesX,
+				  tilesY,
+				  true,
+				  title,
+				  titles);
+	  }
+
+	  
 	  
 	  
 	  public double [][] CLTCorrDisparityMap(
@@ -3871,12 +4089,13 @@ public class QuadCLT extends QuadCLTCPU {
 		  }
 		  if (fat_zero_cpu > 0.0) {
 			  // normalize fcorr_td, fcorr_combo_td in-place
+			  int num_pairs = Correlation2d.getNumPairs(getNumSensors());
 			  if (fcorr_td != null) {
 				  ImageDtt.corr_td_normalize(
 						  fcorr_td, // final float [][][][] fcorr_td, // will be updated
 						  // if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][];
 						  // if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
-						  GPUTileProcessor.NUM_PAIRS, // final int            num_slices,
+						  num_pairs, // final int            num_slices,
 						  image_dtt.transform_size,   // final int            transform_size,
 						  fat_zero_cpu, // final double         fat_zero_abs,
 						  output_amplitude, // final double         output_amplitude,
@@ -3885,7 +4104,7 @@ public class QuadCLT extends QuadCLTCPU {
 						  fcorr_td, // final float [][][][] fcorr_td, // will be updated
 						  // if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][];
 						  // if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
-						  GPUTileProcessor.NUM_PAIRS, // final int            num_slices,
+						  num_pairs, // final int            num_slices,
 						  image_dtt.transform_size,   // final int            transform_size,
 						  gpu_sigma_corr,             // final double         corr_sigma,
 						  threadsMax);                // final int            threadsMax);     // maximal number of threads to launch
@@ -3894,7 +4113,7 @@ public class QuadCLT extends QuadCLTCPU {
 						  fcorr_td, // final float [][][][] fcorr_td, // will be updated
 						  // if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][]; // last index - [4 * 64]
 						  // if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
-						  GPUTileProcessor.NUM_PAIRS, // final int            num_slices,
+						  num_pairs, // final int            num_slices,
 						  image_dtt.transform_size,   // final int            transform_size,
 						  threadsMax);                // final int            threadsMax);     // maximal number of threads to launch
 
@@ -3902,7 +4121,7 @@ public class QuadCLT extends QuadCLTCPU {
 						  fcorr_td, // final float [][][][] fcorr_td, // normalized TD representation
 						  // if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][]; // last index - [4 * 64]
 						  // if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
-						  GPUTileProcessor.NUM_PAIRS, // final int            num_slices,
+						  num_pairs, // final int            num_slices,
 						  image_dtt.transform_size,   // final int            transform_size,
 						  threadsMax); // final int            threadsMax);     // maximal number of threads to launch
 
@@ -3910,7 +4129,7 @@ public class QuadCLT extends QuadCLTCPU {
 						  corrs_pd,                   // final double [][][][][] pd_data, // pixel-domain correlation representation
 						  // if 0 - pd_data = new double[4][tilesY][tilesX][4][64]; // last index - [4 * 64]
 						  // if > 0 - pd_data =       new double[tilesY][tilesX][num_slices][4][64];
-						  GPUTileProcessor.NUM_PAIRS, // final int            num_slices,
+						  num_pairs, // final int            num_slices,
 						  image_dtt.transform_size,   // final int            transform_size,
 						  threadsMax); // final int            threadsMax);     // maximal number of threads to launch
 

@@ -323,6 +323,7 @@ public class GeometryCorrection {
 		System.arraycopy(woi_tops,  0, egc.woi_tops,0, min_nc);
 		for (int n = 0; n < min_nc; n++) {
 			egc.pXY0[n] = pXY0[n].clone(); 
+			egc.rXY[n] =  rXY[n].clone(); 
 		}
 		CorrVector cv = new CorrVector (
 				egc, // GeometryCorrection geometryCorrection,

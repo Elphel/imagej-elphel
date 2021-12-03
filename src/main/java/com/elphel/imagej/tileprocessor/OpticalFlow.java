@@ -4319,11 +4319,13 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			
 			// experimental, not currently used
 			if (fat_zero_pre >= 0.0) {
+				// FIXME: will not work with combining pairs !!!
+				int num_pairs = Correlation2d.getNumPairs(numSens);
 				ImageDtt.corr_td_normalize(
 						fcorrs_td[nscene], // final float [][][][] fcorr_td, // will be updated
 						// if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][];
 						// if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
-						GPUTileProcessor.NUM_PAIRS, // final int            num_slices,
+						num_pairs, // GPUTileProcessor.NUM_PAIRS, // final int            num_slices,
 						image_dtt.transform_size,   // final int            transform_size,
 						fat_zero_pre, // final double         fat_zero_abs,
 						output_amplitude, // final double         output_amplitude,
@@ -4529,11 +4531,13 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			final float [][][][] fcorr_td_dbg =       (indx_corr < 0) ? fcorr_td : fcorrs_td[indx_corr];
 			final float [][][][] fcorr_combo_td_dbg = (indx_corr < 0) ? fcorr_combo_td : fcorrs_combo_td[indx_corr];
 			int [] wh = new int[2];
+			// FIXME: will not work with combining pairs !!!
+			int num_pairs = Correlation2d.getNumPairs(numSens);
 			float [][] dbg_corr = ImageDtt.corr_td_dbg(
 					fcorr_td_dbg,               // final float [][][][] fcorr_td,
 					// if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][];
 					// if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
-					GPUTileProcessor.NUM_PAIRS, // final int            num_slices,
+					num_pairs,                  // final int            num_slices,
 					image_dtt.transform_size,   // final int            transform_size,
 					wh,                         // final int []         wh, // should be initialized as int[2];
 					threadsMax); // final int            threadsMax)     // maximal number of threads to launch
@@ -5492,11 +5496,13 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			final float [][][][] fcorr_td_dbg =       (indx_corr < 0) ? fcorr_td : fcorrs_td[indx_corr];
 			final float [][][][] fcorr_combo_td_dbg = null; // (indx_corr < 0) ? fcorr_combo_td : fcorrs_combo_td[indx_corr];
 			int [] wh = new int[2];
+			// FIXME: will not work with combining pairs !!!
+			int num_pairs = Correlation2d.getNumPairs(numSens);
 			float [][] dbg_corr = ImageDtt.corr_td_dbg(
 					fcorr_td_dbg,               // final float [][][][] fcorr_td,
 					// if 0 - fcorr_combo_td = new float[4][tilesY][tilesX][];
 					// if > 0 - fcorr_td =       new float[tilesY][tilesX][num_slices][];
-					GPUTileProcessor.NUM_PAIRS, // final int            num_slices,
+					num_pairs,                  // final int            num_slices,
 					image_dtt.transform_size,   // final int            transform_size,
 					wh,                         // final int []         wh, // should be initialized as int[2];
 					threadsMax); // final int            threadsMax)     // maximal number of threads to launch
