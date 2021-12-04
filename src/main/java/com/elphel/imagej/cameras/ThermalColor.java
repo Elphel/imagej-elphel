@@ -42,8 +42,20 @@ public class ThermalColor {
 		double k = out_range/PALETTE_RANGE;
 		double value = (v-min)/(max-min) * (this.palette.length - 1);
 		int ivalue = (int) (value);
-		if (ivalue < 0)                         return getRGB((float) min); // this.palette[0];
-		if (ivalue >= (this.palette.length -1)) return getRGB((float) max); // this.palette[this.palette.length -1];
+		if (ivalue < 0) {
+//			return getRGB((float) min); // this.palette[0];
+			return new float[] {
+					(float) this.palette[0][0],
+					(float) this.palette[0][1],
+					(float) this.palette[0][2]};
+		}
+		if (ivalue >= (this.palette.length -1)) {
+//			return getRGB((float) max); // this.palette[this.palette.length -1];
+			return new float[] {
+				(float) this.palette[this.palette.length -1][0],
+				(float) this.palette[this.palette.length -1][1],
+				(float) this.palette[this.palette.length -1][2]};
+		}
 		double a = (value-ivalue); // 0..1
 		float [] rslt = {
 				(float) (k*((1 - a) * this.palette[ivalue][0] + a * this.palette[ivalue+1][0])),

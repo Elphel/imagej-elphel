@@ -1346,7 +1346,7 @@ public class GpuQuad{ // quad camera description
 		cuCtxSynchronize();
 		
 		// Call the kernel function
-		cuLaunchKernel(this.gpuTileProcessor.GPU_IMCLT_ALL_kernel,
+		cuLaunchKernel(this.gpuTileProcessor.GPU_IMCLT_ALL_kernel, // failed with LWIR
 				GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
 				ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
 				0, null,                   // Shared memory size and stream (shared - only dynamic, static is in code)
@@ -2231,7 +2231,8 @@ public class GpuQuad{ // quad camera description
 		copyD2H.dstPitch =        width_in_bytes;
 
 		copyD2H.WidthInBytes =    width_in_bytes;
-		copyD2H.Height =          3 * height; // /2;
+//		copyD2H.Height =          3 * height; // /2;
+		copyD2H.Height =          num_colors * height; // /2;
 
 		cuMemcpy2D(copyD2H); // run copy
 

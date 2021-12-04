@@ -2260,12 +2260,34 @@ public class QuadCLT extends QuadCLTCPU {
 
 		int out_width =  gpuQuad.getImageWidth()  + gpuQuad.getDttSize();
 		int out_height = gpuQuad.getImageHeight() + gpuQuad.getDttSize();
+		if (isLwir() && colorProcParameters.lwir_autorange) {
+			double rel_low =  colorProcParameters.lwir_low;
+			double rel_high = colorProcParameters.lwir_high;
+			if (!Double.isNaN(getLwirOffset())) {
+				rel_low -=  getLwirOffset();
+				rel_high -= getLwirOffset();
+			}
+			double [] cold_hot =  autorange(
+					iclt_fimg,                         // iclt_data, // double [][][] iclt_data, //  [iQuad][ncol][i] - normally only [][2][] is non-null
+					rel_low,                           // double hard_cold,// matches data, DC (this.lwir_offset)  subtracted
+					rel_high,                          // double hard_hot,   // matches data, DC (this.lwir_offset)  subtracted
+					colorProcParameters.lwir_too_cold, // double too_cold, // pixels per image
+					colorProcParameters.lwir_too_hot,  // double too_hot,  // pixels per image
+					1024); // int num_bins)
+			if (cold_hot != null) {
+				if (!Double.isNaN(getLwirOffset())) {
+					cold_hot[0] += getLwirOffset();
+					cold_hot[1] += getLwirOffset();
+				}
+			}
+			setColdHot(cold_hot); // will be used for shifted images and for texture tiles
+		}
 		
 		/* Prepare 4-channel images*/
 		ImagePlus [] imps_RGB = new ImagePlus[iclt_fimg.length];
 		for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
             String title=String.format("%s%s-%02d",image_name, sAux(), ncam);
-			imps_RGB[ncam] = linearStackToColor( // probably no need to separate and process the second half with quadCLT_aux
+			imps_RGB[ncam] = linearStackToColor( // probably no need to separate and process the second half with quadCLT_aux (!)
 					clt_parameters,
 					colorProcParameters,
 					rgbParameters,
@@ -2284,22 +2306,22 @@ public class QuadCLT extends QuadCLTCPU {
 		
 		if (clt_parameters.gen_chn_img || only4slice) { // save and show 4-slice image
 			// combine to a sliced color image
-			// assuming total number of images to be multiple of 4
-			//			  int [] slice_seq = {0,1,3,2}; //clockwise
-//			int [] slice_seq = new int[gpuQuad.getNumCams()]; //results.length];
-			int [] slice_seq = new int[getNumSensors()]; //results.length];
-			for (int i = 0; i < slice_seq.length; i++) {
-				slice_seq[i] = i ^ ((i >> 1) & 1); // 0,1,3,2,4,5,7,6, ...
+			int [] slice_seq = {0,1,3,2}; //clockwise
+			if (imps_RGB.length > 4) {
+				slice_seq = new int [imps_RGB.length];
+				for (int i = 0; i < slice_seq.length; i++) {
+					slice_seq[i] = i;
+				}
 			}
 			int width = imps_RGB[0].getWidth();
 			int height = imps_RGB[0].getHeight();
 			ImageStack array_stack=new ImageStack(width,height);
 			for (int i = 0; i<slice_seq.length; i++){
-///				if (imps_RGB[slice_seq[i]] != null) {
-					array_stack.addSlice("port_"+slice_seq[i], imps_RGB[slice_seq[i]].getProcessor().getPixels());
-///				} else {
-///					array_stack.addSlice("port_"+slice_seq[i], results[slice_seq[i]].getProcessor().getPixels());
-///				}
+				///				if (imps_RGB[slice_seq[i]] != null) {
+				array_stack.addSlice("port_"+slice_seq[i], imps_RGB[slice_seq[i]].getProcessor().getPixels());
+				///				} else {
+				///					array_stack.addSlice("port_"+slice_seq[i], results[slice_seq[i]].getProcessor().getPixels());
+				///				}
 			}
 			ImagePlus imp_stack = new ImagePlus(image_name+sAux()+"-SHIFTED-D"+clt_parameters.disparity, array_stack);
 			imp_stack.getProcessor().resetMinAndMax();

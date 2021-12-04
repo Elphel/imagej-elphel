@@ -5829,7 +5829,7 @@ public class QuadCLTCPU {
 								  debugLevel);
 						  for (int ii = 0; ii < clt_set.length; ii++) clt[chn*4+ii] = clt_set[ii];
 					  }
-/*
+					  /*
 					  if (debugLevel > 0){
 						  sdfa_instance.showArrays(clt,
 								  tilesX*image_dtt.transform_size,
@@ -5837,7 +5837,7 @@ public class QuadCLTCPU {
 								  true,
 								  results[iQuad].getTitle()+"-CLT-D"+clt_parameters.disparity);
 					  }
-					  */
+					   */
 				  }
 				  iclt_data[iQuad] = new double [clt_data[iQuad].length][];
 
@@ -5858,12 +5858,12 @@ public class QuadCLTCPU {
 						  (tilesY + 0) * image_dtt.transform_size,
 						  true,
 						  results[iQuad].getTitle()+"-ICLT-RGB-D"+clt_parameters.disparity);
-				  */
+				   */
 			  } // end of generating shifted channel images
 
 
 			  // Use iclt_data here for LWIR autorange
-//			  if (colorProcParameters.isLwir() && colorProcParameters.lwir_autorange) {
+			  //			  if (colorProcParameters.isLwir() && colorProcParameters.lwir_autorange) {
 			  if (isLwir() && colorProcParameters.lwir_autorange) {
 				  double rel_low =  colorProcParameters.lwir_low;
 				  double rel_high = colorProcParameters.lwir_high;
@@ -5887,25 +5887,25 @@ public class QuadCLTCPU {
 				  setColdHot(cold_hot); // will be used for shifted images and for texture tiles
 			  }
 			  ImagePlus [] imps_RGB = new ImagePlus[clt_data.length]; // all 16 here
-				  for (int iQuad = 0; iQuad < clt_data.length; iQuad++){
-					  if (!clt_parameters.gen_chn_img) continue;
-					  String title=String.format("%s%s-%02d",image_name, sAux(), iQuad);
-					  imps_RGB[iQuad] = linearStackToColor(
-							  clt_parameters,
-							  colorProcParameters,
-							  rgbParameters,
-							  title, // String name,
-							  "-D"+clt_parameters.disparity, //String suffix, // such as disparity=...
-							  toRGB,
-							  !this.correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
-							  !batch_mode, // true, // boolean saveShowIntermediate, // save/show if set globally
-							  false, // boolean saveShowFinal,        // save/show result (color image?)
-							  iclt_data[iQuad],
-							  tilesX *  image_dtt.transform_size,
-							  tilesY *  image_dtt.transform_size,
-							  (scaleExposures == null) ? 1.0 : scaleExposures[iQuad], // double scaleExposure, // is it needed?
-							  debugLevel );
-				  }
+			  for (int iQuad = 0; iQuad < clt_data.length; iQuad++){
+				  if (!clt_parameters.gen_chn_img) continue;
+				  String title=String.format("%s%s-%02d",image_name, sAux(), iQuad);
+				  imps_RGB[iQuad] = linearStackToColor(
+						  clt_parameters,
+						  colorProcParameters,
+						  rgbParameters,
+						  title, // String name,
+						  "-D"+clt_parameters.disparity, //String suffix, // such as disparity=...
+						  toRGB,
+						  !this.correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
+						  !batch_mode, // true, // boolean saveShowIntermediate, // save/show if set globally
+						  false, // boolean saveShowFinal,        // save/show result (color image?)
+						  iclt_data[iQuad],
+						  tilesX *  image_dtt.transform_size,
+						  tilesY *  image_dtt.transform_size,
+						  (scaleExposures == null) ? 1.0 : scaleExposures[iQuad], // double scaleExposure, // is it needed?
+								  debugLevel );
+			  }
 
 
 			  if (clt_parameters.gen_chn_img) {
@@ -5924,7 +5924,7 @@ public class QuadCLTCPU {
 					  if (imps_RGB[slice_seq[i]] != null) {
 						  array_stack.addSlice("port_"+slice_seq[i], imps_RGB[slice_seq[i]].getProcessor().getPixels());
 					  } else { // not used in lwir
-///						  array_stack.addSlice("port_"+slice_seq[i], results[slice_seq[i]].getProcessor().getPixels());
+						  ///						  array_stack.addSlice("port_"+slice_seq[i], results[slice_seq[i]].getProcessor().getPixels());
 					  }
 				  }
 				  ImagePlus imp_stack = new ImagePlus(image_name+sAux()+"-SHIFTED-D"+clt_parameters.disparity, array_stack);
@@ -5943,7 +5943,7 @@ public class QuadCLTCPU {
 			  }
 			  if (clt_parameters.gen_4_img) {
 				  // Save as individual JPEG images in the model directory
-					String x3d_path = getX3dDirectory();
+				  String x3d_path = getX3dDirectory();
 				  for (int sub_img = 0; sub_img < imps_RGB.length; sub_img++){
 					  EyesisCorrections.saveAndShow(
 							  imps_RGB[sub_img],
@@ -5968,7 +5968,7 @@ public class QuadCLTCPU {
 
 
 			  }
-			  
+
 		  }
 		  if (texture_tiles != null){
 			  if (clt_parameters.show_nonoverlap){// not used in lwir
@@ -6623,106 +6623,164 @@ public class QuadCLTCPU {
 			  double    hard_cold,
 			  double    hard_hot,
 			  int       num_bins) {
-			  int [] hist = new int [num_bins];
-			  double k = num_bins / (hard_hot - hard_cold);
-			  for (double d:data) {
-				  int bin = (int) ((d - hard_cold)*k);
-				  if (bin < 0) bin = 0;
-				  else if (bin >= num_bins) bin = (num_bins -1);
-				  hist[bin]++;
-			  }
-			  return hist;
+		  int [] hist = new int [num_bins];
+		  double k = num_bins / (hard_hot - hard_cold);
+		  for (double d:data) {
+			  int bin = (int) ((d - hard_cold)*k);
+			  if (bin < 0) bin = 0;
+			  else if (bin >= num_bins) bin = (num_bins -1);
+			  hist[bin]++;
 		  }
-		  public int [] addHist( // USED in lwir
-				  int [] this_hist,
-				  int [] other_hist) {
-			  for (int i = 0; i < this_hist.length; i++) {
-				  this_hist[i] += other_hist[i];
-			  }
-			  return this_hist;
+		  return hist;
+	  }
+	  public int [] getLwirHistogram( // USED in lwir
+			  float [] data,
+			  double    hard_cold,
+			  double    hard_hot,
+			  int       num_bins) {
+		  int [] hist = new int [num_bins];
+		  double k = num_bins / (hard_hot - hard_cold);
+		  for (double d:data) {
+			  int bin = (int) ((d - hard_cold)*k);
+			  if (bin < 0) bin = 0;
+			  else if (bin >= num_bins) bin = (num_bins -1);
+			  hist[bin]++;
 		  }
-		  // get low/high (soft min/max) from the histogram
-		  // returns value between 0.0 (low histogram limit and 1.0 - high histgram limit
-		  public double getMarginFromHist( // USED in lwir
-				  int [] hist, // histogram
-				  double cumul_val, // cummulative number of items to be ignored
-				  boolean high_marg) { // false - find low margin(output ~0.0) , true - find high margin (output ~1.0)
-			  int n = 0;
-			  int n_prev = 0;
-			  int bin;
-			  double s = 1.0 / hist.length;
-			  double v;
-			  if (high_marg) {
-				  for (bin = hist.length -1; bin >= 0; bin--) {
-					  n_prev = n;
-					  n+= hist[bin];
-					  if (n > cumul_val) break;
-				  }
-				  if (n <= cumul_val) { // not used in lwir
-					  v =  0.0; // cumul_val > total number of samples
-				  } else {
-					  v = s* (bin + 1 - (cumul_val - n_prev)/(n - n_prev));
-				  }
-
+		  return hist;
+	  }
+	  public int [] addHist( // USED in lwir
+			  int [] this_hist,
+			  int [] other_hist) {
+		  for (int i = 0; i < this_hist.length; i++) {
+			  this_hist[i] += other_hist[i];
+		  }
+		  return this_hist;
+	  }
+	  // get low/high (soft min/max) from the histogram
+	  // returns value between 0.0 (low histogram limit and 1.0 - high histgram limit
+	  public double getMarginFromHist( // USED in lwir
+			  int [] hist, // histogram
+			  double cumul_val, // cummulative number of items to be ignored
+			  boolean high_marg) { // false - find low margin(output ~0.0) , true - find high margin (output ~1.0)
+		  int n = 0;
+		  int n_prev = 0;
+		  int bin;
+		  double s = 1.0 / hist.length;
+		  double v;
+		  if (high_marg) {
+			  for (bin = hist.length -1; bin >= 0; bin--) {
+				  n_prev = n;
+				  n+= hist[bin];
+				  if (n > cumul_val) break;
+			  }
+			  if (n <= cumul_val) { // not used in lwir
+				  v =  0.0; // cumul_val > total number of samples
 			  } else {
-				  for (bin = 0; bin < hist.length; bin++) {
-					  n_prev = n;
-					  n+= hist[bin];
-					  if (n > cumul_val) break;
-				  }
-				  if (n <= cumul_val) { // not used in lwir
-					  v =  1.0; // cumul_val > total number of samples
-				  } else {
-					  v = s * (bin + (cumul_val - n_prev)/(n - n_prev));
-				  }
+				  v = s* (bin + 1 - (cumul_val - n_prev)/(n - n_prev));
 			  }
-			  return v;
-		  }
 
-		  public double [] autorange( // USED in lwir
-				  double [][][] iclt_data, //  [iQuad][ncol][i] - normally only [][2][] is non-null
-				  double hard_cold,// matches data, DC (this.lwir_offset)  subtracted
-				  double hard_hot, // matches data, DC (this.lwir_offset)  subtracted
-				  double too_cold, // pixels per image
-				  double too_hot,  // pixels per image
-				  int num_bins) {
-			  int ncol;
-			  for (ncol = 0; ncol < iclt_data[0].length; ncol++) {
-				  if (iclt_data[0][ncol] != null) break;
+		  } else {
+			  for (bin = 0; bin < hist.length; bin++) {
+				  n_prev = n;
+				  n+= hist[bin];
+				  if (n > cumul_val) break;
 			  }
-			  too_cold *= iclt_data.length;
-			  too_hot *= iclt_data.length;
-			  int [] hist = null;
-			  for (int iQuad = 0; iQuad < iclt_data.length; iQuad++) {
-				  int [] this_hist = getLwirHistogram(
-						  iclt_data[iQuad][ncol], // double [] data,
-						  hard_cold,
-						  hard_hot,
-						  num_bins);
-				  if (hist == null) {
-					  hist = this_hist;
-				  } else {
-					  addHist(
-							  hist,
-							  this_hist);
-				  }
+			  if (n <= cumul_val) { // not used in lwir
+				  v =  1.0; // cumul_val > total number of samples
+			  } else {
+				  v = s * (bin + (cumul_val - n_prev)/(n - n_prev));
 			  }
-			  double [] rel_lim = {
-					  getMarginFromHist(
-							  hist, // histogram
-							  too_cold, // double cumul_val, // cummulative number of items to be ignored
-							  false), // boolean high_marg)
-					  getMarginFromHist(
-							  hist, // histogram
-							  too_hot, // double cumul_val, // cummulative number of items to be ignored
-							  true)}; // boolean high_marg)
-			  double [] abs_lim = {
-					  rel_lim[0] * (hard_hot - hard_cold) + hard_cold,
-					  rel_lim[1] * (hard_hot - hard_cold) + hard_cold,
-			  };
-			  return abs_lim;
 		  }
+		  return v;
+	  }
 
+	  public double [] autorange( // USED in lwir
+			  double [][][] iclt_data, //  [iQuad][ncol][i] - normally only [][2][] is non-null
+			  double hard_cold,// matches data, DC (this.lwir_offset)  subtracted
+			  double hard_hot, // matches data, DC (this.lwir_offset)  subtracted
+			  double too_cold, // pixels per image
+			  double too_hot,  // pixels per image
+			  int num_bins) {
+		  int ncol;
+		  for (ncol = 0; ncol < iclt_data[0].length; ncol++) {
+			  if (iclt_data[0][ncol] != null) break;
+		  }
+		  too_cold *= iclt_data.length;
+		  too_hot *= iclt_data.length;
+		  int [] hist = null;
+		  for (int iQuad = 0; iQuad < iclt_data.length; iQuad++) {
+			  int [] this_hist = getLwirHistogram(
+					  iclt_data[iQuad][ncol], // double [] data,
+					  hard_cold,
+					  hard_hot,
+					  num_bins);
+			  if (hist == null) {
+				  hist = this_hist;
+			  } else {
+				  addHist(
+						  hist,
+						  this_hist);
+			  }
+		  }
+		  double [] rel_lim = {
+				  getMarginFromHist(
+						  hist, // histogram
+						  too_cold, // double cumul_val, // cummulative number of items to be ignored
+						  false), // boolean high_marg)
+				  getMarginFromHist(
+						  hist, // histogram
+						  too_hot, // double cumul_val, // cummulative number of items to be ignored
+						  true)}; // boolean high_marg)
+		  double [] abs_lim = {
+				  rel_lim[0] * (hard_hot - hard_cold) + hard_cold,
+				  rel_lim[1] * (hard_hot - hard_cold) + hard_cold,
+		  };
+		  return abs_lim;
+	  }
+
+	  public double [] autorange( // USED in lwir
+			  float [][][] iclt_data, //  [iQuad][ncol][i] - normally only [][2][] is non-null
+			  double hard_cold,// matches data, DC (this.lwir_offset)  subtracted
+			  double hard_hot, // matches data, DC (this.lwir_offset)  subtracted
+			  double too_cold, // pixels per image
+			  double too_hot,  // pixels per image
+			  int num_bins) {
+		  int ncol;
+		  for (ncol = 0; ncol < iclt_data[0].length; ncol++) {
+			  if (iclt_data[0][ncol] != null) break;
+		  }
+		  too_cold *= iclt_data.length;
+		  too_hot *= iclt_data.length;
+		  int [] hist = null;
+		  for (int iQuad = 0; iQuad < iclt_data.length; iQuad++) {
+			  int [] this_hist = getLwirHistogram(
+					  iclt_data[iQuad][ncol], // double [] data,
+					  hard_cold,
+					  hard_hot,
+					  num_bins);
+			  if (hist == null) {
+				  hist = this_hist;
+			  } else {
+				  addHist(
+						  hist,
+						  this_hist);
+			  }
+		  }
+		  double [] rel_lim = {
+				  getMarginFromHist(
+						  hist, // histogram
+						  too_cold, // double cumul_val, // cummulative number of items to be ignored
+						  false), // boolean high_marg)
+				  getMarginFromHist(
+						  hist, // histogram
+						  too_hot, // double cumul_val, // cummulative number of items to be ignored
+						  true)}; // boolean high_marg)
+		  double [] abs_lim = {
+				  rel_lim[0] * (hard_hot - hard_cold) + hard_cold,
+				  rel_lim[1] * (hard_hot - hard_cold) + hard_cold,
+		  };
+		  return abs_lim;
+	  }
 
 
 	  // float
@@ -6747,9 +6805,14 @@ public class QuadCLTCPU {
 		  // convert to ImageStack of 3 slices
 		  String [] sliceNames = {"red", "blue", "green"};
 		  int green_index = 2;
-		  float [][] rbg_in = {iclt_data[0],iclt_data[1],iclt_data[2]};
+		  float [][] rbg_in;
+		  if (iclt_data.length >= 3) {
+			  rbg_in = new float [][] {iclt_data[0],iclt_data[1],iclt_data[2]}; // RBG or LWIR CPU
+		  } else {
+			  rbg_in = new float [][] {iclt_data[0],iclt_data[0],iclt_data[0]}; // after LWIR/GPU
+			  green_index = 0;
+		  }
 		  float []   alpha = null; // (0..1.0)
-//		  float [][] rgb_in = {iclt_data[0],iclt_data[1],iclt_data[2]};
 		  if (iclt_data.length > 3) alpha = iclt_data[3];
 		  if (isLwir()) {
 			  String [] rgb_titles =  {"red","green","blue"};
