@@ -556,7 +556,7 @@ public class QuadCLTCPU {
     			threadsMax,  // maximal number of threads to launch
     			updateStatus,
     			debugLevel);
-    	if (isMonochrome()) {
+    	if (isMonochrome()) { // only [2] is non-zero
     		this.dsrbg = new double[][] {
     			disparity,
     			strength,

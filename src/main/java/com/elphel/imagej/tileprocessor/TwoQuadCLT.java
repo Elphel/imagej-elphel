@@ -376,7 +376,7 @@ public class TwoQuadCLT {
 			final int                                      debugLevel) throws Exception
 	{
 
-		this.startTime=System.nanoTime();
+		this.startTime=System.nanoTime()+0;
 		String [] sourceFiles=quadCLT_main.correctionsParameters.getSourcePaths();
 		QuadCLT.SetChannels [] set_channels_main = quadCLT_main.setChannels(debugLevel);
 		QuadCLT.SetChannels [] set_channels_aux =  quadCLT_aux.setChannels(debugLevel);
@@ -399,7 +399,7 @@ public class TwoQuadCLT {
 		if (!quadCLT_aux.isLwir() && !(set_channels_aux == null)) {
 			referenceExposures_aux =  quadCLT_aux.eyesisCorrections.calcReferenceExposures(debugLevel);
 		}
-		for (int nSet = 0; nSet < set_channels_main.length; nSet++){
+		for (int nSet = 0; nSet < set_channels.length; nSet++){
 			// check it is the same set for both cameras
 			/*
 			if (set_channels_aux.length <= nSet ) {
@@ -434,42 +434,49 @@ public class TwoQuadCLT {
 			boolean [][] saturation_imp_aux =  ((channelFiles_aux != null) && (clt_parameters.sat_level > 0.0))? new boolean[channelFiles_aux.length][] : null;
 			double [] scaleExposures_main = (channelFiles_main != null) ? (new double[channelFiles_main.length]) : null;
 			double [] scaleExposures_aux =  (channelFiles_aux != null) ? (new double[channelFiles_aux.length]) : null;
-			ImagePlus [] imp_srcs_main = quadCLT_main.conditionImageSet(
-					clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
-					colorProcParameters,            //  ColorProcParameters                       colorProcParameters, //
-					sourceFiles,                    // String []                                 sourceFiles,
-					set_channels_main[nSet].name(), // String                                    set_name,
-					referenceExposures_main,        // double []                                 referenceExposures,
-					channelFiles_main,              // int []                                    channelFiles,
-					scaleExposures_main,            //output  // double [] scaleExposures
-					saturation_imp_main,            //output  // boolean [][]                              saturation_imp,
-					threadsMax,                 // int                                       threadsMax,
-					debugLevel); // int                                       debugLevel);
+			ImagePlus [] imp_srcs_main = new ImagePlus [0];
+			if (nSet_main >= 0) {
+				imp_srcs_main = quadCLT_main.conditionImageSet(
+						clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+						colorProcParameters,            //  ColorProcParameters                       colorProcParameters, //
+						sourceFiles,                    // String []                                 sourceFiles,
+						set_channels_main[nSet].name(), // String                                    set_name,
+						referenceExposures_main,        // double []                                 referenceExposures,
+						channelFiles_main,              // int []                                    channelFiles,
+						scaleExposures_main,            //output  // double [] scaleExposures
+						saturation_imp_main,            //output  // boolean [][]                              saturation_imp,
+						threadsMax,                 // int                                       threadsMax,
+						debugLevel); // int                                       debugLevel);
+				ExportForGPUDevelopment.processCLTQuadCorrPairForGPU(
+						save_prefix,                // String                                         save_prefix,
+						quadCLT_main,               // QuadCLT                                        quadCLT,
+						imp_srcs_main,              // ImagePlus []                                   imp_quad,
+						clt_parameters);            // CLTParameters                                  clt_parameters);
+			} else {
+				System.out.println("No images to export data for the main (RGB) camera");
+			}
 
-			ImagePlus [] imp_srcs_aux = quadCLT_aux.conditionImageSet(
-					clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
-					colorProcParameters_aux,        //  ColorProcParameters                       colorProcParameters, //
-					sourceFiles,                    // String []                                 sourceFiles,
-					set_channels_aux[nSet].name(), // String                                    set_name,
-					referenceExposures_aux,        // double []                                 referenceExposures,
-					channelFiles_aux,              // int []                                    channelFiles,
-					scaleExposures_aux,            //output  // double [] scaleExposures
-					saturation_imp_aux,            //output  // boolean [][]                              saturation_imp,
-					threadsMax,                 // int                                       threadsMax,
-					debugLevel); // int                                       debugLevel);
-
-			// Tempporarily processing individually with the old code
-			ExportForGPUDevelopment.processCLTQuadCorrPairForGPU(
-					save_prefix,                // String                                         save_prefix,
-					quadCLT_main,               // QuadCLT                                        quadCLT,
-					imp_srcs_main,              // ImagePlus []                                   imp_quad,
-					clt_parameters);            // CLTParameters                                  clt_parameters);
-			
-			ExportForGPUDevelopment.processCLTQuadCorrPairForGPU(
-					save_prefix,                // String                                         save_prefix,
-					quadCLT_aux,               // QuadCLT                                        quadCLT,
-					imp_srcs_aux,              // ImagePlus []                                   imp_quad,
-					clt_parameters);            // CLTParameters                                  clt_parameters);
+			ImagePlus [] imp_srcs_aux =  new ImagePlus [0];
+			if (nSet_aux >= 0) {
+				imp_srcs_aux = quadCLT_aux.conditionImageSet(
+						clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+						colorProcParameters_aux,        //  ColorProcParameters                       colorProcParameters, //
+						sourceFiles,                    // String []                                 sourceFiles,
+						set_channels_aux[nSet].name(), // String                                    set_name,
+						referenceExposures_aux,        // double []                                 referenceExposures,
+						channelFiles_aux,              // int []                                    channelFiles,
+						scaleExposures_aux,            //output  // double [] scaleExposures
+						saturation_imp_aux,            //output  // boolean [][]                              saturation_imp,
+						threadsMax,                 // int                                       threadsMax,
+						debugLevel); // int                                       debugLevel);
+				ExportForGPUDevelopment.processCLTQuadCorrPairForGPU(
+						save_prefix,                // String                                         save_prefix,
+						quadCLT_aux,               // QuadCLT                                        quadCLT,
+						imp_srcs_aux,              // ImagePlus []                                   imp_quad,
+						clt_parameters);            // CLTParameters                                  clt_parameters);
+			} else {
+				System.out.println("No images to export data for the AUX (LWIR) camera");
+			}
 
 			Runtime.getRuntime().gc();
 			if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels_aux.length+") finished at "+
@@ -482,7 +489,9 @@ public class TwoQuadCLT {
 				return;
 			}
 		}
-		System.out.println("prepareFilesForGPUDebug(): processing "+(quadCLT_main.getTotalFiles(set_channels_main)+quadCLT_aux.getTotalFiles(set_channels_aux))+" files ("+set_channels_main.length+" file sets) finished at "+
+		int num_main = ((quadCLT_main != null) && (set_channels_main != null))?  quadCLT_main.getTotalFiles(set_channels_main) : 0;
+		int num_aux =  ((quadCLT_aux != null) &&  (set_channels_aux != null))?   quadCLT_aux.getTotalFiles(set_channels_aux) : 0;
+		System.out.println("prepareFilesForGPUDebug(): processing "+(num_main + num_aux)+" files ("+set_channels.length+" file sets) finished at "+
 				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 	}

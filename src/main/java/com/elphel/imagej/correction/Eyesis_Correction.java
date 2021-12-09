@@ -6198,8 +6198,12 @@ private Panel panel1,
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		} //final int        debugLevel);
-		QUAD_CLT.tp.clt_3d_passes = null; // resetCLTPasses(); // so running "Ground truth" after would be OK
-		QUAD_CLT_AUX.tp.clt_3d_passes = null; //.resetCLTPasses();
+		if (QUAD_CLT.tp != null) {
+			QUAD_CLT.tp.clt_3d_passes = null; // resetCLTPasses();
+		}
+		if (QUAD_CLT_AUX.tp != null) {
+			QUAD_CLT_AUX.tp.clt_3d_passes = null; // resetCLTPasses();
+		}
 
 		if (configPath!=null) {
 			saveTimestampedProperties( // save config again
