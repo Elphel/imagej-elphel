@@ -49,7 +49,7 @@ extern "C" __global__ void convert_direct( // called with a single block, single
 		float           ** gpu_kernel_offsets, // [NUM_CAMS],
 		float           ** gpu_kernels,        // [NUM_CAMS],
 		float           ** gpu_images,         // [NUM_CAMS],
-		float            * gpu_ftasks,         // flattened tasks, 27 floats for quad EO, 99 floats for LWIR16
+		float            * gpu_ftasks,         // flattened tasks, 29 floats for quad EO, 101 floats for LWIR16
 //		struct tp_task   * gpu_tasks,
 		float           ** gpu_clt,            // [NUM_CAMS][TILES-Y][TILES-X][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 		size_t             dstride,            // in floats (pixels)
@@ -76,7 +76,7 @@ extern "C" __global__ void correlate2D(
 		float             scale1,             // scale for B
 		float             scale2,             // scale for G
 		float             fat_zero,           // here - absolute
-		float            * gpu_ftasks,         // flattened tasks, 27 floats for quad EO, 99 floats for LWIR16
+		float            * gpu_ftasks,         // flattened tasks, 29 floats for quad EO, 101 floats for LWIR16
 //		struct tp_task  * gpu_tasks,          // array of per-tile tasks (now bits 4..9 - correlation pairs)
 		int               num_tiles,          // number of tiles in task
 		int               tilesx,             // number of tile rows
@@ -109,7 +109,7 @@ extern "C" __global__ void corr2D_combine(
 
 extern "C" __global__ void textures_nonoverlap(
 		int               num_cams,           // number of cameras
-		float            * gpu_ftasks,         // flattened tasks, 27 floats for quad EO, 99 floats
+		float            * gpu_ftasks,         // flattened tasks, 29 floats for quad EO, 101 floats
 		//		struct tp_task  * gpu_tasks,
 		int               num_tiles,          // number of tiles in task list
 //		int               num_tilesx,         // number of tiles in a row
@@ -141,6 +141,10 @@ __global__ void imclt_rbg_all(
 		int                woi_theight,
 		const size_t       dstride);            // in floats (pixels)
 
+extern "C" __global__ void erase8x8(
+		float           * gpu_top_left,
+		const size_t      dstride);
+
 extern "C" __global__ void imclt_rbg(
 		float           * gpu_clt,            // [TILES-Y][TILES-X][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 		float           * gpu_rbg,            // WIDTH, 3 * HEIGHT
@@ -156,7 +160,7 @@ extern "C" __global__ void imclt_rbg(
 extern "C" __global__ void generate_RBGA(
 		int                num_cams,           // number of cameras used
 		// Parameters to generate texture tasks
-		float            * gpu_ftasks,         // flattened tasks, 27 floats for quad EO, 99 floats for LWIR16
+		float            * gpu_ftasks,         // flattened tasks, 29 floats for quad EO, 101 floats for LWIR16
 //		struct tp_task   * gpu_tasks,
 		int                num_tiles,          // number of tiles in task list
 		// declare arrays in device code?
