@@ -84,6 +84,7 @@ public class GpuQuad{ // quad camera description
 	private CUdeviceptr gpu_color_weights;
 	private CUdeviceptr gpu_generate_RBGA_params;
 	private CUdeviceptr gpu_woi;
+	private CUdeviceptr gpu_num_texture_tiles;
 	private CUdeviceptr gpu_textures_rgba;
 	private CUdeviceptr gpu_correction_vector;
 	private CUdeviceptr gpu_rot_deriv;
@@ -108,6 +109,41 @@ public class GpuQuad{ // quad camera description
 	private boolean geometry_correction_set = false;
 	private boolean geometry_correction_vector_set = false;
 	public  int gpu_debug_level = 1;
+	
+	
+	int host_get_textures_shared_size( // in bytes
+			//__device__ int get_textures_shared_size( // in bytes
+			int                num_cams,     // actual number of cameras
+			int                num_colors,   // actual number of colors: 3 for RGB, 1 for LWIR/mono
+			int []             offsets){     // in floats
+		int DTT_SIZE1 =       GPUTileProcessor.DTT_SIZE + 1;
+		int DTT_SIZE2 =       2 * GPUTileProcessor.DTT_SIZE;
+		int DTT_SIZE21 =      DTT_SIZE2 + 1;
+
+
+		int offs = 0;
+		if (offsets != null) offsets[0] = offs;
+		offs += num_cams * num_colors * 2 * GPUTileProcessor.DTT_SIZE * DTT_SIZE21; //float mclt_tiles         [NUM_CAMS][NUM_COLORS][2*DTT_SIZE][DTT_SIZE21]
+		if (offsets != null) offsets[1] = offs;
+		offs += num_cams * num_colors * 4 * GPUTileProcessor.DTT_SIZE * DTT_SIZE1;  // float clt_tiles         [NUM_CAMS][NUM_COLORS][4][DTT_SIZE][DTT_SIZE1]
+		if (offsets != null) offsets[2] = offs;
+		int mclt_tmp_size = num_cams * num_colors * DTT_SIZE2 * DTT_SIZE21;                // [NUM_CAMS][NUM_COLORS][DTT_SIZE2][DTT_SIZE21]
+		int rgbaw_size =    (2* (num_colors + 1) + num_cams) * DTT_SIZE2 * DTT_SIZE21;     // [NUM_COLORS + 1 + NUM_CAMS + NUM_COLORS + 1][DTT_SIZE2][DTT_SIZE21]
+		offs += (rgbaw_size > mclt_tmp_size) ? rgbaw_size : mclt_tmp_size;
+		if (offsets != null) offsets[3] = offs;
+		offs += num_cams * 2;                                      // float port_offsets      [NUM_CAMS][2];
+		if (offsets != null) offsets[4] = offs;
+		offs += num_colors * num_cams;                             // float ports_rgb_shared  [NUM_COLORS][NUM_CAMS];
+		if (offsets != null) offsets[5] = offs;
+		offs += num_cams;                                          // float max_diff_shared   [NUM_CAMS];
+		if (offsets != null) offsets[6] = offs;
+		offs += num_cams * GPUTileProcessor.TEXTURE_THREADS_PER_TILE;               // float max_diff_tmp      [NUM_CAMS][TEXTURE_THREADS_PER_TILE]
+		if (offsets != null) offsets[7] = offs;
+		offs += num_colors * num_cams *  GPUTileProcessor.TEXTURE_THREADS_PER_TILE; //float ports_rgb_tmp     [NUM_COLORS][NUM_CAMS][TEXTURE_THREADS_PER_TILE];
+		if (offsets != null) offsets[8] = offs;
+		return Sizeof.INT * offs; // shared_floats;
+	}
+	
 	// should only be updated with the same cameras instance
 	public void updateQuadCLT(final QuadCLT quadCLT) {
 		this.quadCLT =      quadCLT;
@@ -183,6 +219,8 @@ public class GpuQuad{ // quad camera description
 		gpu_generate_RBGA_params =new CUdeviceptr(); //  allocate 5 * Sizeof.FLOAT
 
 		gpu_woi =                 new CUdeviceptr(); //  4 integers (x, y, width, height) Rectangle - in tiles
+		gpu_num_texture_tiles =   new CUdeviceptr(); //  8 integers
+
 		gpu_textures_rgba =       new CUdeviceptr(); //  allocate tilesX * tilesY * ? * 256 * Sizeof.FLOAT
 
 		gpu_correction_vector=    new CUdeviceptr();
@@ -285,6 +323,7 @@ public class GpuQuad{ // quad camera description
 
 
 		cuMemAlloc(gpu_woi,                               4 * Sizeof.FLOAT);
+		cuMemAlloc(gpu_num_texture_tiles,                 8 * Sizeof.FLOAT);
 		cuMemAlloc(gpu_num_texture_ovlp,                  8 * Sizeof.FLOAT);
 		cuMemAlloc(gpu_texture_indices_len,               1 * Sizeof.FLOAT);
 
@@ -1575,6 +1614,25 @@ public class GpuQuad{ // quad camera description
 		cuCtxSynchronize();
 	}
 
+	public void execRBGA(
+			double [] color_weights,
+			boolean   is_lwir,
+			double    min_shot,           // 10.0
+			double    scale_shot,         // 3.0
+			double    diff_sigma,         // pixel value/pixel change
+			double    diff_threshold,     // pixel value/pixel change
+			double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+			boolean   dust_remove) {
+		execRBGA_noDP(
+				color_weights,  // double [] color_weights,
+				is_lwir,        // boolean   is_lwir,
+				min_shot,       // double    min_shot,           // 10.0
+				scale_shot,     // double    scale_shot,         // 3.0
+				diff_sigma,     // double    diff_sigma,         // pixel value/pixel change
+				diff_threshold, // double    diff_threshold,     // pixel value/pixel change
+				min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+				dust_remove);   // boolean   dust_remove);
+	}
 	/**
 	 * Generate combined (overlapping) texture
 	 * @param color_weights - [3] (RGB) or [1] (mono) color weights for matching
@@ -1586,7 +1644,7 @@ public class GpuQuad{ // quad camera description
 	 * @param min_agree  minimal number of channels to agree on a point (real number to work with fuzzy averages
 	 * @param dust_remove do not reduce average weight when only one image differs much from the average
 	 */
-	public void execRBGA(
+	public void execRBGA_DP(
 			double [] color_weights,
 			boolean   is_lwir,
 			double    min_shot,           // 10.0
@@ -1600,7 +1658,8 @@ public class GpuQuad{ // quad camera description
 			IJ.showMessage("Error", "No GPU kernel: GPU_TEXTURES_kernel");
 			return;
 		}
-		int num_colors = color_weights.length;
+//		int num_colors = color_weights.length;
+		int num_colors = is_lwir? 1 : color_weights.length;
 		if (num_colors > 3) num_colors = 3;
 		float [] fcolor_weights = new float[3];
 		fcolor_weights[0] = (float) color_weights[0];
@@ -1657,6 +1716,352 @@ public class GpuQuad{ // quad camera description
 				kernelParameters, null);   // Kernel- and extra parameters
 		cuCtxSynchronize();
 	}
+	
+
+	/**
+	 * Generate combined (overlapping) texture
+	 * Version w/o Dynamic Parallelism to pass shared memory size. May be removed if maximal SM issue will be resolved
+	 * @param color_weights - [3] (RGB) or [1] (mono) color weights for matching
+	 * @param is_lwir ignore shot noise normalization
+	 * @param min_shot - minimal value to use sqrt() for shot noise normalization (default - 10)
+	 * @param scale_shot scale shot noise (3.0)
+	 * @param diff_sigma pixel value/pixel change (1.5) - normalize channel values difference by the offsets of the cameras 
+	 * @param diff_threshold - never used?
+	 * @param min_agree  minimal number of channels to agree on a point (real number to work with fuzzy averages
+	 * @param dust_remove do not reduce average weight when only one image differs much from the average
+	 */
+	
+	public void execRBGA_noDP(
+			double [] color_weights,
+			boolean   is_lwir,
+			double    min_shot,           // 10.0
+			double    scale_shot,         // 3.0
+			double    diff_sigma,         // pixel value/pixel change
+			double    diff_threshold,     // pixel value/pixel change
+			double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+			boolean   dust_remove) {
+		
+
+		
+		
+		
+		
+		
+		execCalcReverseDistortions(); // will check if it is needed first
+		if (this.gpuTileProcessor.GPU_RBGA_kernel == null) {
+			IJ.showMessage("Error", "No GPU kernel: GPU_TEXTURES_kernel");
+			return;
+		}
+		int num_colors = is_lwir? 1 : color_weights.length;
+		if (num_colors > 3) num_colors = 3;
+		float [] fcolor_weights = new float[3];
+		fcolor_weights[0] = (float) color_weights[0];
+		fcolor_weights[1] = (num_colors >1)?((float) color_weights[1]):0.0f;
+		fcolor_weights[2] = (num_colors >2)?((float) color_weights[2]):0.0f;
+		double sw = 0.0; for (int i = 0; i < fcolor_weights.length; i++) sw+= fcolor_weights[i];
+		for (int i = 0; i < fcolor_weights.length; i++) fcolor_weights[i]/=sw;
+		cuMemcpyHtoD(gpu_color_weights, Pointer.to(fcolor_weights),  fcolor_weights.length * Sizeof.FLOAT);
+
+		float [] generate_RBGA_params = {
+				(float)             min_shot,           // 10.0
+				(float)             scale_shot,         // 3.0
+				(float)             diff_sigma,         // pixel value/pixel change
+				(float)             diff_threshold,     // pixel value/pixel change
+				(float)             min_agree          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+		};
+		cuMemcpyHtoD(gpu_generate_RBGA_params, Pointer.to(generate_RBGA_params),  generate_RBGA_params.length * Sizeof.FLOAT);
+
+		int iis_lwir =      (is_lwir)? 1:0;
+		int idust_remove =  (dust_remove)? 1 : 0;
+		int width =  img_width / GPUTileProcessor.DTT_SIZE;
+		int height = img_height / GPUTileProcessor.DTT_SIZE;
+
+		// Testing parameters
+		TpTask [] test_tasks0 = new TpTask[width * height];
+		float [] test_ftasks0 = new float [test_tasks0.length * getTaskSize()];
+		cuMemcpyDtoH(Pointer.to(test_ftasks0),            gpu_ftasks,  test_ftasks0.length * Sizeof.FLOAT);
+		for (int i = 0; i < test_tasks0.length; i++) {
+			test_tasks0[i] = new TpTask(num_cams, test_ftasks0, i, false);	
+		}
+		
+		
+		//		woi.x =      Float.floatToIntBits(fwoi[0]) * GPUTileProcessor.DTT_SIZE;
+		//		woi.y =      Float.floatToIntBits(fwoi[1]) * GPUTileProcessor.DTT_SIZE;
+		//		woi.width =  Float.floatToIntBits(fwoi[2]) * GPUTileProcessor.DTT_SIZE;
+		//		woi.height = Float.floatToIntBits(fwoi[3]) * GPUTileProcessor.DTT_SIZE;
+
+		int blocks_x = (width + ((1 << GPUTileProcessor.THREADS_DYNAMIC_BITS) - 1)) >> GPUTileProcessor.THREADS_DYNAMIC_BITS;
+		int []  blocks0 =  {blocks_x, height, 1};
+		int []  threads0 = {(1 << GPUTileProcessor.THREADS_DYNAMIC_BITS), 1, 1};
+		/*
+	    clear_texture_list<<<blocks0,threads0>>>(
+	    		gpu_texture_indices,
+				width,
+				height);
+		 */
+		Pointer kp_clear_texture_list = Pointer.to(
+				Pointer.to(gpu_texture_indices_ovlp), // gpu_texture_indices,
+				Pointer.to(new int[] {width}),
+				Pointer.to(new int[] {height}));
+		cuCtxSynchronize();
+		// Call the kernel function
+		cuLaunchKernel(this.gpuTileProcessor.GPU_CLEAR_TEXTURE_LIST_kernel,
+				blocks0[0],  blocks0[1],  blocks0[2], // Grid dimension
+				threads0[0], threads0[1], threads0[2],// Block dimension
+				0, null,                              // Shared memory size and stream (shared - only dynamic, static is in code)
+				kp_clear_texture_list, null);         // Kernel- and extra parameters
+		cuCtxSynchronize();
+
+		int blocks_t =    (num_task_tiles + ((1 << GPUTileProcessor.THREADS_DYNAMIC_BITS)) -1) >> GPUTileProcessor.THREADS_DYNAMIC_BITS;//
+		int []  blocks =  {blocks_t, 1, 1};
+		int []  threads = {(1 << GPUTileProcessor.THREADS_DYNAMIC_BITS), 1, 1};
+		// mark used tiles in gpu_texture_indices memory
+		/*
+	    mark_texture_tiles <<<blocks,threads>>>(
+	    		num_cams,           // int                num_cams,
+				gpu_ftasks,         // float            * gpu_ftasks,         // flattened tasks, 27 floats for quad EO, 99 floats for LWIR16
+				num_tiles,          // number of tiles in task list
+				width,              // number of tiles in a row
+				gpu_texture_indices); // packed tile + bits (now only (1 << 7)
+		 */
+		Pointer kp_mark_texture_tiles = Pointer.to(
+				Pointer.to(new int[] {num_cams}),         // int                num_cams,
+				Pointer.to(gpu_ftasks),                   // float            * gpu_ftasks,         // flattened tasks, 29 floats for quad EO, 101 floats for LWIR16
+				Pointer.to(new int[] { num_task_tiles }), // int                num_tiles,          // number of tiles in task list
+				Pointer.to(new int[] {width}),
+				Pointer.to(gpu_texture_indices_ovlp));    // gpu_texture_indices,
+		cuLaunchKernel(this.gpuTileProcessor.GPU_MARK_TEXTURE_LIST_kernel,
+				blocks[0],  blocks[1],  blocks[2],        // Grid dimension
+				threads[0], threads[1], threads[2],       // Block dimension
+				0, null,                                  // Shared memory size and stream (shared - only dynamic, static is in code)
+				kp_mark_texture_tiles, null);             // Kernel- and extra parameters
+		cuCtxSynchronize();
+		int [] cpu_woi =               new int[4];
+		int [] cpu_num_texture_tiles = new int[8];
+
+		//		cuMemcpyDtoH(Pointer.to(cpu_woi), gpu_woi,  cpu_woi.length * Sizeof.INT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed
+		cpu_woi[0] = width;
+		cpu_woi[1] = height;
+		cpu_woi[2] = 0;
+		cpu_woi[3] = 0;
+		cuMemcpyHtoD(gpu_woi, Pointer.to(cpu_woi),  cpu_woi.length * Sizeof.INT);
+//		cuMemcpyDtoH(Pointer.to(cpu_woi), gpu_woi,  cpu_woi.length * Sizeof.INT); //just for testing		
+		
+		/*
+    // TODO: create gpu_woi to pass	(copy from woi)
+    // set lower 4 bits in each gpu_ftasks task
+    mark_texture_neighbor_tiles <<<blocks,threads>>>(
+    		num_cams,           // int                num_cams,
+			gpu_ftasks,         // float            * gpu_ftasks,         // flattened tasks, 27 floats for quad EO, 99 floats for LWIR16
+			num_tiles,           // number of tiles in task list
+			width,               // number of tiles in a row
+			height,              // number of tiles rows
+			gpu_texture_indices, // packed tile + bits (now only (1 << 7)
+			gpu_woi);                // min_x, min_y, max_x, max_y
+
+	checkCudaErrors(cudaDeviceSynchronize());
+		 */
+		Pointer kp_mark_texture_neighbor_tiles = Pointer.to(
+				Pointer.to(new int[] {num_cams}),         // int      num_cams,
+				Pointer.to(gpu_ftasks),                   // float  * gpu_ftasks,          // flattened tasks, 29 floats for quad EO, 101 floats for LWIR16
+				Pointer.to(new int[] { num_task_tiles }), // int      num_tiles,           // number of tiles in task list
+				Pointer.to(new int[] {width}),            // int      width,               // number of tiles in a row
+				Pointer.to(new int[] {height}),           // int      height,              // number of tiles rows
+				Pointer.to(gpu_texture_indices_ovlp),     // int    * gpu_texture_indices, // packed tile + bits (now only (1 << 7)
+				Pointer.to(gpu_woi));                     // int    * woi,                 // min_x, min_y, max_x, max_y
+		cuLaunchKernel(this.gpuTileProcessor.GPU_MARK_TEXTURE_NEIGHBOR_kernel,
+				blocks[0],  blocks[1],  blocks[2],        // Grid dimension
+				threads[0], threads[1], threads[2],       // Block dimension
+				0, null,                                  // Shared memory size and stream (shared - only dynamic, static is in code)
+				kp_mark_texture_neighbor_tiles, null);    // Kernel- and extra parameters
+		cuCtxSynchronize();
+		//		int [] cpu_num_texture_tiles = new int[8];
+		Arrays.fill(cpu_num_texture_tiles, 0); 
+		cuMemcpyHtoD(gpu_num_texture_tiles, Pointer.to(cpu_num_texture_tiles),  cpu_num_texture_tiles.length * Sizeof.INT);
+		/*
+    gen_texture_list <<<blocks,threads>>>(
+    		num_cams,            // int                num_cams,
+			gpu_ftasks,          // float            * gpu_ftasks,         // flattened tasks, 27 floats for quad EO, 99 floats for LWIR16
+			num_tiles,           // number of tiles in task list
+			width,               // number of tiles in a row
+			height,              // int                height,               // number of tiles rows
+			gpu_texture_indices, // packed tile + bits (now only (1 << 7)
+			gpu_num_texture_tiles,   // number of texture tiles to process
+			gpu_woi);                // x,y, here woi[2] = max_X, woi[3] - max-Y
+	checkCudaErrors(cudaDeviceSynchronize()); // not needed yet, just for testing
+		 */
+//		cuMemcpyHtoD(gpu_woi, Pointer.to(cpu_woi),  cpu_woi.length * Sizeof.INT); // just for testing
+		
+// Testing parameters
+		TpTask [] test_tasks = new TpTask[width * height];
+		float [] test_ftasks = new float [test_tasks.length * getTaskSize()];
+		cuMemcpyDtoH(Pointer.to(test_ftasks),            gpu_ftasks,  test_ftasks.length * Sizeof.FLOAT);
+		for (int i = 0; i < test_tasks.length; i++) {
+			test_tasks[i] = new TpTask(num_cams, test_ftasks, i, false);	
+		}
+		
+		cuMemcpyDtoH(Pointer.to(cpu_num_texture_tiles), gpu_num_texture_tiles,  cpu_num_texture_tiles.length * Sizeof.INT);		
+		cuMemcpyDtoH(Pointer.to(cpu_woi),               gpu_woi,  cpu_woi.length * Sizeof.INT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed		
+		int tilesX = width;
+		int tilesY = height;
+		int tilesYa = (tilesY + 3) & ~3;
+		int [] cpu_texture_indices_ovlp = new int [tilesX * tilesYa];
+		cuMemcpyDtoH(Pointer.to(cpu_texture_indices_ovlp),               gpu_texture_indices_ovlp,  cpu_texture_indices_ovlp.length * Sizeof.INT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed		
+		cuMemcpyHtoD(gpu_texture_indices_ovlp,                           Pointer.to(cpu_texture_indices_ovlp),  cpu_texture_indices_ovlp.length * Sizeof.INT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed		
+	
+		
+		Pointer kp_gen_texture_list = Pointer.to(
+				Pointer.to(new int[] {num_cams}),         // int      num_cams,
+				Pointer.to(gpu_ftasks),                   // float  * gpu_ftasks,          // flattened tasks, 29 floats for quad EO, 101 floats for LWIR16
+				Pointer.to(new int[] { num_task_tiles }), // int      num_tiles,           // number of tiles in task list
+				Pointer.to(new int[] {width}),            // int      width,               // number of tiles in a row
+				Pointer.to(new int[] {height}),           // int      height,              // number of tiles rows
+				Pointer.to(gpu_texture_indices_ovlp),     // int    * gpu_texture_indices, // packed tile + bits (now only (1 << 7)
+				Pointer.to(gpu_num_texture_tiles),        // int    * gpu_num_texture_tiles,   // number of texture tiles to process
+				Pointer.to(gpu_woi));                     // int    * woi,                 // min_x, min_y, max_x, max_y
+		cuLaunchKernel(this.gpuTileProcessor.GPU_GEN_TEXTURE_LIST_kernel,
+				blocks[0],  blocks[1],  blocks[2],        // Grid dimension
+				threads[0], threads[1], threads[2],       // Block dimension
+				0, null,                                  // Shared memory size and stream (shared - only dynamic, static is in code)
+				kp_gen_texture_list, null);    // Kernel- and extra parameters
+		cuCtxSynchronize();
+		// copy gpu_woi back to host woi
+//		float [] fcpu_woi = new float [4];
+//		cuMemcpyDtoH(Pointer.to(fcpu_woi), gpu_woi,  4 * Sizeof.FLOAT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed
+		
+		cuMemcpyDtoH(Pointer.to(cpu_woi), gpu_woi,  cpu_woi.length * Sizeof.INT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed		
+		cpu_woi[2] += 1 - cpu_woi[0]; // width  (was min and max)
+		cpu_woi[3] += 1 - cpu_woi[1]; // height (was min and max)
+		// copy host-modified data back to GPU
+		cuMemcpyHtoD(gpu_woi, Pointer.to(cpu_woi),  cpu_woi.length * Sizeof.INT);
+		// copy gpu_num_texture_tiles back to host cpu_num_texture_tiles for processing by the CPU code
+		cuMemcpyDtoH(Pointer.to(cpu_num_texture_tiles), gpu_num_texture_tiles,  cpu_num_texture_tiles.length * Sizeof.INT);		
+		// Testing parameters
+		//		int [] cpu_texture_indices_ovlp = new int [tilesX * tilesYa];
+		cuMemcpyDtoH(Pointer.to(cpu_texture_indices_ovlp),               gpu_texture_indices_ovlp,  cpu_texture_indices_ovlp.length * Sizeof.INT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed		
+
+		// Zero output textures. Trim
+		// texture_rbga_stride
+		int texture_width =        (cpu_woi[2] + 1) * GPUTileProcessor.DTT_SIZE;
+		int texture_tiles_height = (cpu_woi[3] + 1) * GPUTileProcessor.DTT_SIZE;
+		int texture_slices =       num_colors + 1;
+
+		int blocks_x2 = ((texture_width + 
+				((1 << (GPUTileProcessor.THREADS_DYNAMIC_BITS + GPUTileProcessor.DTT_SIZE_LOG2 )) - 1)) >>
+				(GPUTileProcessor.THREADS_DYNAMIC_BITS + GPUTileProcessor.DTT_SIZE_LOG2));
+		int [] blocks2  = {blocks_x2, texture_tiles_height * texture_slices, 1}; // each thread - 8 vertical
+		int [] threads2 = {(1 << GPUTileProcessor.THREADS_DYNAMIC_BITS), 1, 1};
+		/*
+		 clear_texture_rbga<<<blocks2,threads2>>>( // illegal value error
+				 texture_width,
+				 texture_tiles_height * texture_slices, // int               texture_slice_height,
+				 texture_rbga_stride,                   // const size_t      texture_rbga_stride,     // in floats 8*stride
+				 gpu_texture_tiles) ;                   // float           * gpu_texture_tiles);
+		 */
+
+		Pointer kp_clear_texture_rbga = Pointer.to(
+				Pointer.to(new int[] {texture_width}),           // int      texture_width,
+				Pointer.to(new int[] {texture_tiles_height * texture_slices}),// int               texture_slice_height,
+				Pointer.to(new int[]   { texture_stride_rgba }), // const size_t      texture_rbga_stride,     // in floats 8*stride
+				Pointer.to(gpu_textures_rgba));                   // float           * gpu_texture_tiles)    // (number of colors +1 + ?)*16*16 rgba texture tiles
+		cuLaunchKernel(this.gpuTileProcessor.GPU_CLEAR_TEXTURE_RBGA_kernel,
+				blocks2[0],  blocks2[1],  blocks2[2],   // Grid dimension
+				threads2[0], threads2[1], threads2[2],  // Block dimension
+				0, null,                                // Shared memory size and stream (shared - only dynamic, static is in code)
+				kp_clear_texture_rbga, null);           // Kernel- and extra parameters
+		cuCtxSynchronize();
+		boolean DEBUG8A = true;
+
+		// Testing parameters
+		//		int [] cpu_texture_indices_ovlp = new int [tilesX * tilesYa];
+		cuMemcpyDtoH(Pointer.to(cpu_texture_indices_ovlp),               gpu_texture_indices_ovlp,  cpu_texture_indices_ovlp.length * Sizeof.INT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed		
+//		cuMemcpyHtoD(gpu_texture_indices_ovlp,                           Pointer.to(cpu_texture_indices_ovlp),  cpu_texture_indices_ovlp.length * Sizeof.INT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed		
+		
+		// Run 8 times - first 4 1-tile offsets  inner tiles (w/o verifying margins), then - 4 times with verification and ignoring 4-pixel
+		// oversize (border 16x 16 tiles overhang by 4 pixels)
+		int tilesya =  ((height +3) & (~3)); //#define TILES-YA       ((TILES-Y +3) & (~3))
+
+		for (int pass = 0; pass < 8; pass++){
+			int num_cams_per_thread = GPUTileProcessor.NUM_THREADS / GPUTileProcessor.TEXTURE_THREADS_PER_TILE; // 4 cameras parallel, then repeat
+			int[] threads_texture = {GPUTileProcessor.TEXTURE_THREADS_PER_TILE, num_cams_per_thread, 1}; // TEXTURE_TILES_PER_BLOCK, 1);
+
+			int border_tile =  (pass >> 2);
+			int ntt = cpu_num_texture_tiles[((pass & 3) << 1) + border_tile];
+
+			int [] grid_texture = {(ntt + GPUTileProcessor.TEXTURE_TILES_PER_BLOCK-1) / GPUTileProcessor.TEXTURE_TILES_PER_BLOCK,1,1}; // TEXTURE_TILES_PER_BLOCK = 1
+
+			int ti_offset = (pass & 3) * (width * (tilesya >> 2)); //  (TILES-X * (TILES-YA >> 2));  // 1/4
+			if (border_tile != 0){
+				ti_offset += width * (tilesya >> 2) - ntt; // TILES-X * (TILES-YA >> 2) - ntt;
+			}
+			int shared_size = host_get_textures_shared_size( // in bytes
+					num_cams,     // int                num_cams,     // actual number of cameras
+					num_colors,   // int                num_colors,   // actual number of colors: 3 for RGB, 1 for LWIR/mono
+					null);           // int *              offsets);     // in floats
+			
+			if (DEBUG8A) {
+				System.out.println(String.format("generate_RBGA() pass= %d, border_tile= %d, ti_offset= %d, ntt=%d",
+						pass, border_tile,ti_offset, ntt));
+				//			System.out.println(String.format("generate_RBGA() gpu_texture_indices= %p, gpu_texture_indices + ti_offset= %p\n",
+				//					(void *) gpu_texture_indices, (void *) (gpu_texture_indices + ti_offset));
+				System.out.println(String.format("\ngenerate_RBGA() grid_texture={%d, %d, %d)\n",
+						grid_texture[0], grid_texture[1], grid_texture[2]));
+				System.out.println(String.format("\ngenerate_RBGA() threads_texture={%d, %d, %d)\n",
+						threads_texture[0], threads_texture[1], threads_texture[2]));
+				
+				System.out.println ("pass="+pass);
+				for (int i = 0; i < 256; i++){
+					int indx0 = ti_offset + i;
+					if (indx0 < cpu_texture_indices_ovlp.length) {
+						int indx = cpu_texture_indices_ovlp[indx0];
+						System.out.println(String.format("%05x | %02d: %04x %03d %03d %x",indx0, i,indx>>8, (indx>>8) / 80, (indx >> 8) % 80, indx&0xff));
+					}
+				}
+				System.out.println ("\n\n");
+			}
+
+			cuFuncSetAttribute(this.gpuTileProcessor.GPU_TEXTURES_ACCUMULATE_kernel, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, 65536);
+			Pointer kp_textures_accumulate = Pointer.to(
+					Pointer.to(new int[] {num_cams}),                // int         num_cams,
+					Pointer.to(gpu_woi),                             // int       * woi,            // min_x, min_y, max_x, max_y
+					Pointer.to(gpu_clt),                             // float    ** gpu_clt,        // [num_cams] ->[TILESY][TILESX][num_colors][DTT_SIZE*DTT_SIZE]
+					Pointer.to(new int[] {ntt}),                     // size_t      num_texture_tiles,// number of texture tiles to process
+					Pointer.to(new int[] {ti_offset}),                     // size_t      num_texture_tiles,// number of texture tiles to process
+					Pointer.to(gpu_texture_indices_ovlp),            //  gpu_texture_indices_offset,// add to gpu_texture_indices
+					Pointer.to(gpu_geometry_correction),             // struct gc * gpu_geometry_correction,
+					Pointer.to(new int[]   {num_colors}),            // int         colors,         // number of colors (3/1)
+					Pointer.to(new int[]   {iis_lwir}),              // int         is_lwir,        // do not perform shot correction
+					Pointer.to(new float[] {(float) min_shot}),      // float       min_shot,       // 10.0
+					Pointer.to(new float[] {(float) scale_shot}),    // float       scale_shot,     // 3.0
+					Pointer.to(new float[] {(float) diff_sigma}),    // float       diff_sigma,     // pixel value/pixel change
+					Pointer.to(new float[] {(float) diff_threshold}),// float       diff_threshold, // pixel value/pixel change
+					Pointer.to(new float[] {(float) min_agree}),     // float       min_agree,      // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+					Pointer.to(gpu_color_weights),                   // float       weights[3],     // scale for R,B,G (or {1.0,0.0,0.0}
+					Pointer.to(new int[]   {idust_remove}),          // int         dust_remove,        // Do not reduce average weight when only one image differes much from the average
+					Pointer.to(new int[]   {0}),                     // int         keep_weights,       // return channel weights after A in RGBA
+					 // combining both non-overlap and overlap (each calculated if pointer is not null )
+					Pointer.to(new int[]   { texture_stride_rgba }), // const size_t      texture_rbga_stride,     // in floats
+					Pointer.to(gpu_textures_rgba),                   // float           * gpu_texture_tiles)    // (number of colors +1 + ?)*16*16 rgba texture tiles
+					Pointer.to(new int[]   {0}),                               // size_t      texture_stride,     // in floats (now 256*4 = 1024)
+					Pointer.to(new int[]   {0}), // gpu_texture_tiles, // float           * gpu_texture_tiles);  // (number of colors +1 + ?)*16*16 rgba texture tiles
+					Pointer.to(new int[]   {0}), // 1, // int               linescan_order,     // if !=0 then output gpu_diff_rgb_combo in linescan order, else  - in gpu_texture_indices order
+					Pointer.to(new int[]   {0}), //);//gpu_diff_rgb_combo);             // float           * gpu_diff_rgb_combo) // diff[num_cams], R[num_cams], B[num_cams],G[num_cams]
+					Pointer.to(new int[]   {width}));
+			
+			cuLaunchKernel(this.gpuTileProcessor.GPU_TEXTURES_ACCUMULATE_kernel,
+					grid_texture[0],    grid_texture[1],    grid_texture[2],   // Grid dimension
+					threads_texture[0], threads_texture[1], threads_texture[2],  // Block dimension
+					shared_size, null,                      // Shared memory size and stream (shared - only dynamic, static is in code)
+					kp_textures_accumulate, null);          // Kernel- and extra parameters
+		
+			cuCtxSynchronize();
+		}
+
+
+	}
+
+	
+	
 	/**
 	 * Generate non-overlapping (16x16) texture tiles
 	 * @param color_weights - [3] (RGB) or [1] (mono) color weights for matching
@@ -2565,7 +2970,7 @@ public class GpuQuad{ // quad camera description
 
 		CUdeviceptr constantMemoryPointer = new CUdeviceptr();
 		long constantMemorySizeArray[] = { 0 };
-		cuModuleGetGlobal(constantMemoryPointer, constantMemorySizeArray,  this.gpuTileProcessor.module, "lpf_data");
+		cuModuleGetGlobal(constantMemoryPointer, constantMemorySizeArray,  this.gpuTileProcessor.module, "lpf_data"); //CUDA_ERROR_ILLEGAL_ADDRESS after re-run
 		int constantMemorySize = (int)constantMemorySizeArray[0];
 		if (debug) System.out.println("constantMemoryPointer: " + constantMemoryPointer);
 		if (debug) System.out.println("constantMemorySize: " + constantMemorySize);

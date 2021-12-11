@@ -2364,7 +2364,55 @@ public class QuadCLT extends QuadCLTCPU {
 					debugLevel);
 
 		}
+// try textures here
 
+		boolean show_textures_rgba = clt_parameters.show_rgba_color;
+		if (show_textures_rgba) {
+			float [][] texture_img = new float [isMonochrome()?2:4][];
+			double [] col_weights = new double[3];
+			if (isMonochrome()) {
+				col_weights[0] = 1.0;
+				col_weights[1] = 0.0;
+				col_weights[2] = 0.0;// green color/mono
+			} else {
+				col_weights[2] = 1.0/(1.0 +  clt_parameters.corr_red + clt_parameters.corr_blue);    // green color
+				col_weights[0] = clt_parameters.corr_red *  col_weights[2];
+				col_weights[1] = clt_parameters.corr_blue * col_weights[2];
+			}
+			Rectangle woi = new Rectangle(); // will be filled out to match actual available image
+			gpuQuad.execRBGA(
+					col_weights,                   // double [] color_weights,
+					isLwir(),                      // boolean   is_lwir,
+					clt_parameters.min_shot,       // double    min_shot,           // 10.0
+					clt_parameters.scale_shot,     // double    scale_shot,         // 3.0
+					clt_parameters.diff_sigma,     // double    diff_sigma,         // pixel value/pixel change Used much larger sigma = 10.0 instead of 1.5
+					clt_parameters.diff_threshold, // double    diff_threshold,     // pixel value/pixel change
+					clt_parameters.min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+					clt_parameters.dust_remove);   // boolean   dust_remove,
+			float [][] rbga = gpuQuad.getRBGA(
+					(isMonochrome() ? 1 : 3), // int     num_colors,
+					woi);
+			for (int ncol = 0; ncol < texture_img.length; ncol++) if (ncol < rbga.length) {
+				texture_img[ncol] = rbga[ncol];
+			}
+			// first try just multi-layer, then with palette
+			
+			(new ShowDoubleFloatArrays()).showArrays( // show slices RBGA (colors - 256, A - 1.0)
+					rbga,
+					woi.width,
+					woi.height,
+					true,
+					getImageName()+"-RGBA-STACK-D"+clt_parameters.disparity+
+					":"+clt_parameters.gpu_woi_tx+":"+clt_parameters.gpu_woi_ty+
+					":"+clt_parameters.gpu_woi_twidth+":"+clt_parameters.gpu_woi_theight+
+					":"+(clt_parameters.gpu_woi_round?"C":"R")
+					//,new String[] {"R","B","G","A"}
+					);
+			
+			
+			
+			
+		}
 /**
        if (colorProcParameters.isLwir() && colorProcParameters.lwir_autorange) {
             double rel_low =  colorProcParameters.lwir_low;

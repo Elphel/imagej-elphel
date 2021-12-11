@@ -127,7 +127,7 @@ public class CLTParameters {
 	public double     min_shot =          10.0;  // Do not adjust for shot noise if lower than
 	public double     scale_shot =        3.0;   // scale when dividing by sqrt
 
-	public double     diff_sigma =        5.0;   // RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
+	public double     diff_sigma =        5.0;   // RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image) (1.5 for RGB, 10 for LWIR?) 
 	public double     diff_threshold =    1.5;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
 	public boolean    diff_gauss =        true;  // when averaging images, use Gaussian around average as weight (false - sharp all/nothing)
 	public double     min_agree =         3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)

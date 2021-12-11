@@ -45,6 +45,7 @@ public class TpTask {
 	 */
 	public TpTask(int num_sensors, float [] flt, int task_indx, boolean use_aux)
 	{
+		this.num_sensors = num_sensors; // will not be encoded
 		int indx = task_indx * getSize(num_sensors);
 		task =    Float.floatToIntBits(flt[indx++]); // 0
 		int txy = Float.floatToIntBits(flt[indx++]); // 1

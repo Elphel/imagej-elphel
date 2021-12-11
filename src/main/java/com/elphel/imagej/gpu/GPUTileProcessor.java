@@ -88,7 +88,17 @@ public class GPUTileProcessor {
 	static String GPU_SET_TILES_OFFSETS =          "get_tiles_offsets";   // calculate pixel offsets and disparity distortions
 	static String GPU_CALCULATE_TILES_OFFSETS =    "calculate_tiles_offsets";   // calculate pixel offsets and disparity distortions
 	static String GPU_CALC_REVERSE_DISTORTION =    "calcReverseDistortionTable"; // calculate reverse radial distortion table from gpu_geometry_correction
+	// Kernels to use w/o Dynamic Parallelism    
+	static String GPU_CLEAR_TEXTURE_LIST_NAME =    "clear_texture_list";
+	static String GPU_MARK_TEXTURE_LIST_NAME =     "mark_texture_tiles";
+	static String GPU_MARK_TEXTURE_NEIGHBOR_NAME = "mark_texture_neighbor_tiles";
+	static String GPU_GEN_TEXTURE_LIST_NAME =      "gen_texture_list";
+	static String GPU_CLEAR_TEXTURE_RBGA_NAME =    "clear_texture_rbga";
+	static String GPU_TEXTURES_ACCUMULATE_NAME =   "textures_accumulate";
+	static String GPU_CREATE_NONOVERLAP_LIST_NAME ="create_nonoverlap_list";
 
+	
+	
 //  pass some defines to gpu source code with #ifdef JCUDA
 	public static int DTT_SIZE_LOG2 =             3;
 	public static int DTT_SIZE =                  (1 << DTT_SIZE_LOG2);
@@ -153,9 +163,18 @@ public class GPUTileProcessor {
     CUfunction GPU_TEXTURES_kernel =                null; // "textures_nonoverlap"
     CUfunction GPU_RBGA_kernel =                    null; // "generate_RBGA"
     CUfunction GPU_ROT_DERIV_kernel =               null; // "calc_rot_deriv"
-//    private CUfunction GPU_SET_TILES_OFFSETS_kernel =       null; // "get_tiles_offsets"
     CUfunction GPU_CALCULATE_TILES_OFFSETS_kernel = null; // "calculate_tiles_offsets"
     CUfunction GPU_CALC_REVERSE_DISTORTION_kernel = null; // "calcReverseDistortionTable"
+// Kernels to use w/o Dynamic Parallelism    
+    CUfunction GPU_CLEAR_TEXTURE_LIST_kernel =      null; // "clear_texture_list"
+    CUfunction GPU_MARK_TEXTURE_LIST_kernel =       null; // "mark_texture_tiles"
+    CUfunction GPU_MARK_TEXTURE_NEIGHBOR_kernel =   null; // "mark_texture_neighbor_tiles"
+    CUfunction GPU_GEN_TEXTURE_LIST_kernel =        null; // "gen_texture_list"
+    CUfunction GPU_CLEAR_TEXTURE_RBGA_kernel =      null; // "clear_texture_rbga"
+    CUfunction GPU_TEXTURES_ACCUMULATE_kernel =     null; // "textures_accumulate"
+    CUfunction GPU_CREATE_NONOVERLAP_LIST_kernel =  null; // "create_nonoverlap_list"
+    
+    
 
     CUmodule    module; // to access constants memory
     //    private
@@ -295,9 +314,16 @@ public class GPUTileProcessor {
         		GPU_TEXTURES_NAME,
         		GPU_RBGA_NAME,
         		GPU_ROT_DERIV,
-//        		GPU_SET_TILES_OFFSETS,
         		GPU_CALCULATE_TILES_OFFSETS,
-        		GPU_CALC_REVERSE_DISTORTION
+        		GPU_CALC_REVERSE_DISTORTION,
+        		// Kernels to use w/o Dynamic Parallelism    
+        		GPU_CLEAR_TEXTURE_LIST_NAME,
+        		GPU_MARK_TEXTURE_LIST_NAME,
+        		GPU_MARK_TEXTURE_NEIGHBOR_NAME,
+        		GPU_GEN_TEXTURE_LIST_NAME,
+        		GPU_CLEAR_TEXTURE_RBGA_NAME,
+        		GPU_TEXTURES_ACCUMULATE_NAME,
+        		GPU_CREATE_NONOVERLAP_LIST_NAME
         };
         CUfunction[] functions = createFunctions(kernelSources,
         		                                 func_names,
@@ -311,9 +337,17 @@ public class GPUTileProcessor {
         GPU_TEXTURES_kernel=                 functions[5];
         GPU_RBGA_kernel=                     functions[6];
         GPU_ROT_DERIV_kernel =               functions[7];
-//        GPU_SET_TILES_OFFSETS_kernel =       functions[8];
         GPU_CALCULATE_TILES_OFFSETS_kernel = functions[8];
         GPU_CALC_REVERSE_DISTORTION_kernel = functions[9];
+     // Kernels to use w/o Dynamic Parallelism    
+        GPU_CLEAR_TEXTURE_LIST_kernel =      functions[10];
+        GPU_MARK_TEXTURE_LIST_kernel =       functions[11];
+        GPU_MARK_TEXTURE_NEIGHBOR_kernel =   functions[12];
+        GPU_GEN_TEXTURE_LIST_kernel =        functions[13];
+        GPU_CLEAR_TEXTURE_RBGA_kernel =      functions[14];
+        GPU_TEXTURES_ACCUMULATE_kernel =     functions[15];
+        GPU_CREATE_NONOVERLAP_LIST_kernel =  functions[16];
+        
 
         System.out.println("GPU kernel functions initialized");
         System.out.println(GPU_CONVERT_DIRECT_kernel.toString());
@@ -324,10 +358,16 @@ public class GPUTileProcessor {
         System.out.println(GPU_TEXTURES_kernel.toString());
         System.out.println(GPU_RBGA_kernel.toString());
         System.out.println(GPU_ROT_DERIV_kernel.toString());
-//        System.out.println(GPU_SET_TILES_OFFSETS_kernel.toString());
         System.out.println(GPU_CALCULATE_TILES_OFFSETS_kernel.toString());
         System.out.println(GPU_CALC_REVERSE_DISTORTION_kernel.toString());
-        
+        // Kernels to use w/o Dynamic Parallelism    
+        System.out.println(GPU_CLEAR_TEXTURE_LIST_kernel.toString());
+        System.out.println(GPU_MARK_TEXTURE_LIST_kernel.toString());
+        System.out.println(GPU_MARK_TEXTURE_NEIGHBOR_kernel.toString());
+        System.out.println(GPU_GEN_TEXTURE_LIST_kernel.toString());
+        System.out.println(GPU_CLEAR_TEXTURE_RBGA_kernel.toString());
+        System.out.println(GPU_TEXTURES_ACCUMULATE_kernel.toString());
+        System.out.println(GPU_CREATE_NONOVERLAP_LIST_kernel.toString());
         // GPU data structures are now initialized through GpuQuad instances
     }
     
@@ -475,6 +515,7 @@ public class GPUTileProcessor {
     	for (int i = 0; i < kernelNames.length; i++) {
     		// Find the function in the source by name, get its pointer
     		functions[i] = new CUfunction();
+    		System.out.println("Looking for GPU kernel ["+i+"]: "+kernelNames[i]);
     		cuModuleGetFunction(functions[i] , module, kernelNames[i]);
     	}
     	return functions;
