@@ -2791,7 +2791,9 @@ __global__ void convert_correct_tiles(
  * @param dust_remove          do not reduce average weight when only one image differs much from the average (true)
  * @param texture_stride       output stride in floats (now 256*4 = 1024)
  * @param gpu_texture_tiles    output array (number of colors +1 + ?)*16*16 rgba texture tiles) float values. Will not be calculated if null
+ * @param inescan_order        0 low-res tiles have tghe same order, as gpu_texture_indices, 1 - in linescan order
  * @param gpu_diff_rgb_combo   low-resolution output, with per-camera mismatch an each color average. Will not be calculated if null
+ * @param num_tilesx           number of tiles in a row
  */
 extern "C" __global__ void textures_nonoverlap(
 		int               num_cams,           // number of cameras
@@ -2812,6 +2814,7 @@ extern "C" __global__ void textures_nonoverlap(
 // combining both non-overlap and overlap (each calculated if pointer is not null )
 		size_t            texture_stride,     // in floats (now 256*4 = 1024)
 		float           * gpu_texture_tiles,  // (number of colors +1 + ?)*16*16 rgba texture tiles
+		int               linescan_order,     // 0 low-res tiles have tghe same order, as gpu_texture_indices, 1 - in linescan order
 		float           * gpu_diff_rgb_combo, // diff[num_cams], R[num_cams], B[num_cams],G[num_cams]
 		int               num_tilesx)
 // num_tilesx in the end - worked, after num_tiles - did not compile with JIT in Eclipse
@@ -2875,8 +2878,8 @@ extern "C" __global__ void textures_nonoverlap(
 				0,                               // size_t      texture_rbg_stride, // in floats
 				(float *) 0,                     // float           * gpu_texture_rbg,     // (number of colors +1 + ?)*16*16 rgba texture tiles
 				texture_stride,                  // size_t      texture_stride,     // in floats (now 256*4 = 1024)
-				gpu_texture_tiles,               //(float *)0);// float           * gpu_texture_tiles);  // (number of colors +1 + ?)*16*16 rgba texture tiles
-				1, // 	int               linescan_order,     // if !=0 then output gpu_diff_rgb_combo in linescan order, else  - in gpu_texture_indices order
+				gpu_texture_tiles,               // (float *)0);// float           * gpu_texture_tiles);  // (number of colors +1 + ?)*16*16 rgba texture tiles
+				linescan_order,                  //	int               linescan_order,     // if !=0 then output gpu_diff_rgb_combo in linescan order, else  - in gpu_texture_indices order
 				gpu_diff_rgb_combo, //);             // float           * gpu_diff_rgb_combo) // diff[num_cams], R[num_cams], B[num_cams],G[num_cams]
 				num_tilesx);
 	 }

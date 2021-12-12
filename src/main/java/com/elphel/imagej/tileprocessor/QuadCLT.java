@@ -2409,10 +2409,167 @@ public class QuadCLT extends QuadCLTCPU {
 					//,new String[] {"R","B","G","A"}
 					);
 			
+		}
+		boolean try_lores = true;
+		if (try_lores) {
+			//Generate non-overlapping (16x16) texture tiles, prepare
+			double [] col_weights = new double[3];
+			if (isMonochrome()) {
+				col_weights[0] = 1.0;
+				col_weights[1] = 0.0;
+				col_weights[2] = 0.0;// green color/mono
+			} else {
+				col_weights[2] = 1.0/(1.0 +  clt_parameters.corr_red + clt_parameters.corr_blue);    // green color
+				col_weights[0] = clt_parameters.corr_red *  col_weights[2];
+				col_weights[1] = clt_parameters.corr_blue * col_weights[2];
+			}
+
+			gpuQuad.execTextures(
+				col_weights,                   // double [] color_weights,
+				isLwir(),                      // boolean   is_lwir,
+				clt_parameters.min_shot,       // double    min_shot,           // 10.0
+				clt_parameters.scale_shot,     // double    scale_shot,         // 3.0
+				clt_parameters.diff_sigma,     // double    diff_sigma,         // pixel value/pixel change Used much larger sigma = 10.0 instead of 1.5
+				clt_parameters.diff_threshold, // double    diff_threshold,     // pixel value/pixel change
+				clt_parameters.min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+				clt_parameters.dust_remove,    // boolean   dust_remove,
+				false,                         // boolean   calc_textures,
+				true,                          // boolean   calc_extra
+				false);                        // boolean   linescan_order) // TODO: use true to avoid reordering of the low-res output 
+			float [][] extra = gpuQuad.getExtra(); // now 4*numSensors
+			int num_cams = getNumSensors();
+			
+			(new ShowDoubleFloatArrays()).showArrays( // show slices RBGA (colors - 256, A - 1.0)
+					extra,
+					gpuQuad.img_width / GPUTileProcessor.DTT_SIZE,
+					gpuQuad.img_height / GPUTileProcessor.DTT_SIZE,
+					true,
+					getImageName()+"-LOW-RES"
+					//,new String[] {"R","B","G","A"}
+					);
+			
+			
+			/*
+			for (int ncam = 0; ncam < num_cams; ncam++) {
+				int indx = ncam + IMG_DIFF0_INDEX;
+//				if ((disparity_modes & (1 << indx)) != 0){
+				if (needImgDiffs(disparity_modes)){
+					disparity_map[indx] = new double [extra[ncam].length];
+					for (int i = 0; i < extra[ncam].length; i++) {
+						disparity_map[indx][i] = extra[ncam][i];
+					}
+				}
+			}
+			*/
+			for (int nc = 00; nc < (extra.length - num_cams); nc++) {
+				int sindx = nc + num_cams;
+				/*
+				int indx = nc + IMG_TONE_RGB;
+				if ((disparity_modes & (1 << indx)) != 0){
+					disparity_map[indx] = new double [extra[sindx].length];
+					for (int i = 0; i < extra[sindx].length; i++) {
+						disparity_map[indx][i] = extra[sindx][i];
+					}
+				}
+	            */
+				/*
+				int indx = nc + getImgToneRGB(); // IMG_TONE_RGB;
+//				if ((disparity_modes & (1 << indx)) != 0){
+				if (needTonesRGB(disparity_modes)){
+					disparity_map[indx] = new double [extra[sindx].length];
+					for (int i = 0; i < extra[sindx].length; i++) {
+						disparity_map[indx][i] = extra[sindx][i];
+					}
+				}
+*/
+				
+			}
+			boolean try_textures = true;
+			if (try_textures) {
+				//Generate non-overlapping (16x16) texture tiles, prepare 
+				gpuQuad.execTextures(
+					col_weights,                   // double [] color_weights,
+					isLwir(),         // boolean   is_lwir,
+					clt_parameters.min_shot,       // double    min_shot,           // 10.0
+					clt_parameters.scale_shot,     // double    scale_shot,         // 3.0
+					clt_parameters.diff_sigma,     // double    diff_sigma,         // pixel value/pixel change Used much larger sigma = 10.0 instead of 1.5
+					clt_parameters.diff_threshold, // double    diff_threshold,     // pixel value/pixel change
+					clt_parameters.min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+					clt_parameters.dust_remove,    // boolean   dust_remove,
+					true,                          // boolean   calc_textures,
+					false,                         // boolean   calc_extra
+					false);                        // boolean   linescan_order) 
+
+				int [] texture_indices = gpuQuad.getTextureIndices();
+				int numcol = isMonochrome()? 1 : 3;
+				int    num_src_slices = numcol + 1; //  + (clt_parameters.keep_weights?(ports + numcol + 1):0); // 12 ; // calculate
+				float [] flat_textures =  gpuQuad.getFlatTextures( // fatal error has been detected by the Java Runtime Environment:
+						texture_indices.length,
+						numcol, // int     num_colors,
+			    		false); // clt_parameters.keep_weights); // boolean keep_weights);
+				int tilesX = gpuQuad.img_width / GPUTileProcessor.DTT_SIZE;
+				int tilesY = gpuQuad.img_height / GPUTileProcessor.DTT_SIZE;
+				double [][][][] texture_tiles = new double [tilesY][tilesX][][];
+				gpuQuad.doubleTextures(
+			    		new Rectangle(0, 0, tilesX, tilesY), // Rectangle    woi,
+			    		texture_tiles,                       // double [][][][] texture_tiles, // null or [tilesY][tilesX]
+			    		texture_indices,                     // int []       indices,
+			    		flat_textures,                       // float [][][] ftextures,
+			    		tilesX,                              // int          full_width,
+			    		isMonochrome()? 2: 4,                                   // rbga only /int          num_slices
+			    		num_src_slices                       // int          num_src_slices
+			    		);
+				int num_out_slices = 0;
+				for (int nt = 0; nt < tilesY * tilesX; nt++) {
+					if (texture_tiles[nt / tilesX][nt % tilesX] != null) {
+						num_out_slices = texture_tiles[nt / tilesX][nt % tilesX].length;
+						break;
+					}
+				}
+				if (num_out_slices > 0) {
+					int ssize = 2*GPUTileProcessor.DTT_SIZE;
+					int width =  tilesX * ssize;
+					int height = tilesY * ssize;
+					double [][] dbg_nonoverlap = new double[num_out_slices][width * height];
+					for (int slice = 0; slice < num_out_slices; slice++) {
+						Arrays.fill(dbg_nonoverlap[slice], Double.NaN);
+					}
+					for (int ty = 0; ty < tilesY; ty++) {
+						for (int tx = 0; tx < tilesX; tx++) {
+							if (texture_tiles[ty][tx] != null) {
+								for (int slice = 0; slice < num_out_slices; slice++) {
+									for (int row = 0; row < ssize; row++) {
+										System.arraycopy(
+												texture_tiles[ty][tx][slice],
+												row * ssize,
+												dbg_nonoverlap[slice],
+												(ty * ssize + row) * width + (tx * ssize),
+												ssize);
+									}
+								}
+							}
+						}
+						
+					}
+					(new ShowDoubleFloatArrays()).showArrays( // show slices RBGA (colors - 256, A - 1.0)
+							dbg_nonoverlap,
+							width,
+							height,
+							true,
+							getImageName()+"-textures"
+							);
+				}
+				System.out.println("try_textures DONE");
+			}
 			
 			
 			
 		}
+// try low-res and non-overlap textures
+		
+		
+		
+		
 /**
        if (colorProcParameters.isLwir() && colorProcParameters.lwir_autorange) {
             double rel_low =  colorProcParameters.lwir_low;
@@ -2700,7 +2857,9 @@ public class QuadCLT extends QuadCLTCPU {
 				clt_parameters.min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 				clt_parameters.dust_remove,    // boolean   dust_remove,        // Do not reduce average weight when only one image differs much from the average
 				calc_textures,                 // boolean   calc_textures,
-				calc_extra);                   // boolean   calc_extra)
+				calc_extra,                    // boolean   calc_extra)
+				false);                        // boolean   linescan_order) // TODO: use true to avoid reordering of the low-res output 
+				
 
 		long endTextures = System.nanoTime();
 // run texturesRBGA

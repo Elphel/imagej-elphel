@@ -387,8 +387,9 @@ public class ImageDtt extends ImageDttCPU {
 				diff_threshold, // double    diff_threshold,     // pixel value/pixel change - never used in GPU ?
 				min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 				dust_remove,    // boolean   dust_remove,        // Do not reduce average weight when only one image differs much from the average
-				false,                 // boolean   calc_textures,
-				true);                   // boolean   calc_extra)
+				false,          // boolean   calc_textures,
+				true,           // boolean   calc_extra
+				false);         // boolean   linescan_order) // TODO: use true to avoid reordering of the low-res output 
 			float [][] extra = gpuQuad.getExtra(); // now 4*numSensors
 //			int num_cams = gpuQuad.getNumCams();
 			int num_cams = getNumSensors();
@@ -438,7 +439,8 @@ public class ImageDtt extends ImageDttCPU {
 				min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 				dust_remove,    // boolean   dust_remove,        // Do not reduce average weight when only one image differs much from the average
 				true,           // boolean   calc_textures,
-				false);         // boolean   calc_extra)
+				false,          // boolean   calc_extra
+				false);         // boolean   linescan_order) 
 
 			int [] texture_indices = gpuQuad.getTextureIndices();
 			int          num_src_slices = numcol + 1; //  + (clt_parameters.keep_weights?(ports + numcol + 1):0); // 12 ; // calculate
@@ -1251,8 +1253,9 @@ public class ImageDtt extends ImageDttCPU {
 				diff_threshold, // double    diff_threshold,     // pixel value/pixel change - never used in GPU ?
 				min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 				dust_remove,    // boolean   dust_remove,        // Do not reduce average weight when only one image differs much from the average
-				false,                 // boolean   calc_textures,
-				true);                   // boolean   calc_extra)
+				false,          // boolean   calc_textures,
+				true,           // boolean   calc_extra
+				false);         // boolean   linescan_order) // TODO: use true to avoid reordering of the low-res output 
 			float [][] extra = gpuQuad.getExtra();
 //			int num_cams = gpuQuad.getNumCams();
 			int num_cams = getNumSensors();
@@ -1291,7 +1294,8 @@ public class ImageDtt extends ImageDttCPU {
 				min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 				dust_remove,    // boolean   dust_remove,        // Do not reduce average weight when only one image differs much from the average
 				true,           // boolean   calc_textures,
-				false);         // boolean   calc_extra)
+				false,          // boolean   calc_extra
+				false);         // boolean   linescan_order) 
 
 			int [] texture_indices = gpuQuad.getTextureIndices();
 			int          num_src_slices = numcol + 1; //  + (clt_parameters.keep_weights?(ports + numcol + 1):0); // 12 ; // calculate

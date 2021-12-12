@@ -1623,15 +1623,27 @@ public class GpuQuad{ // quad camera description
 			double    diff_threshold,     // pixel value/pixel change
 			double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 			boolean   dust_remove) {
-		execRBGA_noDP(
-				color_weights,  // double [] color_weights,
-				is_lwir,        // boolean   is_lwir,
-				min_shot,       // double    min_shot,           // 10.0
-				scale_shot,     // double    scale_shot,         // 3.0
-				diff_sigma,     // double    diff_sigma,         // pixel value/pixel change
-				diff_threshold, // double    diff_threshold,     // pixel value/pixel change
-				min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-				dust_remove);   // boolean   dust_remove);
+		if (GPUTileProcessor.USE_DS_DP) {
+			execRBGA_DP(
+					color_weights,  // double [] color_weights,
+					is_lwir,        // boolean   is_lwir,
+					min_shot,       // double    min_shot,           // 10.0
+					scale_shot,     // double    scale_shot,         // 3.0
+					diff_sigma,     // double    diff_sigma,         // pixel value/pixel change
+					diff_threshold, // double    diff_threshold,     // pixel value/pixel change
+					min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+					dust_remove);   // boolean   dust_remove);
+		} else {
+			execRBGA_noDP(
+					color_weights,  // double [] color_weights,
+					is_lwir,        // boolean   is_lwir,
+					min_shot,       // double    min_shot,           // 10.0
+					scale_shot,     // double    scale_shot,         // 3.0
+					diff_sigma,     // double    diff_sigma,         // pixel value/pixel change
+					diff_threshold, // double    diff_threshold,     // pixel value/pixel change
+					min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+					dust_remove);   // boolean   dust_remove);
+		}
 	}
 	/**
 	 * Generate combined (overlapping) texture
@@ -1740,18 +1752,18 @@ public class GpuQuad{ // quad camera description
 			double    diff_threshold,     // pixel value/pixel change
 			double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 			boolean   dust_remove) {
-		
-
-		
-		
-		
-		
-		
 		execCalcReverseDistortions(); // will check if it is needed first
-		if (this.gpuTileProcessor.GPU_RBGA_kernel == null) {
-			IJ.showMessage("Error", "No GPU kernel: GPU_TEXTURES_kernel");
+		if (    (this.gpuTileProcessor.GPU_CLEAR_TEXTURE_LIST_kernel == null) &&
+				(this.gpuTileProcessor.GPU_MARK_TEXTURE_LIST_kernel == null) &&
+				(this.gpuTileProcessor.GPU_MARK_TEXTURE_NEIGHBOR_kernel == null) &&
+				(this.gpuTileProcessor.GPU_GEN_TEXTURE_LIST_kernel == null) &&
+				(this.gpuTileProcessor.GPU_CLEAR_TEXTURE_RBGA_kernel == null) &&
+				(this.gpuTileProcessor.GPU_TEXTURES_ACCUMULATE_kernel == null)) {
+			IJ.showMessage("Error", "No GPU kernel(s)");
 			return;
 		}
+		boolean DEBUG8A = false;
+
 		int num_colors = is_lwir? 1 : color_weights.length;
 		if (num_colors > 3) num_colors = 3;
 		float [] fcolor_weights = new float[3];
@@ -1777,13 +1789,17 @@ public class GpuQuad{ // quad camera description
 		int height = img_height / GPUTileProcessor.DTT_SIZE;
 
 		// Testing parameters
-		TpTask [] test_tasks0 = new TpTask[width * height];
-		float [] test_ftasks0 = new float [test_tasks0.length * getTaskSize()];
-		cuMemcpyDtoH(Pointer.to(test_ftasks0),            gpu_ftasks,  test_ftasks0.length * Sizeof.FLOAT);
-		for (int i = 0; i < test_tasks0.length; i++) {
-			test_tasks0[i] = new TpTask(num_cams, test_ftasks0, i, false);	
+		TpTask [] test_tasks0 = null;
+		float [] test_ftasks0 = null;
+		int [] cpu_texture_indices_ovlp = null;		
+		if (DEBUG8A) {
+			test_tasks0 = new TpTask[width * height];
+			test_ftasks0 = new float [test_tasks0.length * getTaskSize()];
+			cuMemcpyDtoH(Pointer.to(test_ftasks0),            gpu_ftasks,  test_ftasks0.length * Sizeof.FLOAT);
+			for (int i = 0; i < test_tasks0.length; i++) {
+				test_tasks0[i] = new TpTask(num_cams, test_ftasks0, i, false);	
+			}
 		}
-		
 		
 		//		woi.x =      Float.floatToIntBits(fwoi[0]) * GPUTileProcessor.DTT_SIZE;
 		//		woi.y =      Float.floatToIntBits(fwoi[1]) * GPUTileProcessor.DTT_SIZE;
@@ -1892,24 +1908,24 @@ public class GpuQuad{ // quad camera description
 		 */
 //		cuMemcpyHtoD(gpu_woi, Pointer.to(cpu_woi),  cpu_woi.length * Sizeof.INT); // just for testing
 		
-// Testing parameters
-		TpTask [] test_tasks = new TpTask[width * height];
-		float [] test_ftasks = new float [test_tasks.length * getTaskSize()];
-		cuMemcpyDtoH(Pointer.to(test_ftasks),            gpu_ftasks,  test_ftasks.length * Sizeof.FLOAT);
-		for (int i = 0; i < test_tasks.length; i++) {
-			test_tasks[i] = new TpTask(num_cams, test_ftasks, i, false);	
-		}
-		
-		cuMemcpyDtoH(Pointer.to(cpu_num_texture_tiles), gpu_num_texture_tiles,  cpu_num_texture_tiles.length * Sizeof.INT);		
-		cuMemcpyDtoH(Pointer.to(cpu_woi),               gpu_woi,  cpu_woi.length * Sizeof.INT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed		
-		int tilesX = width;
-		int tilesY = height;
-		int tilesYa = (tilesY + 3) & ~3;
-		int [] cpu_texture_indices_ovlp = new int [tilesX * tilesYa];
-		cuMemcpyDtoH(Pointer.to(cpu_texture_indices_ovlp),               gpu_texture_indices_ovlp,  cpu_texture_indices_ovlp.length * Sizeof.INT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed		
-		cuMemcpyHtoD(gpu_texture_indices_ovlp,                           Pointer.to(cpu_texture_indices_ovlp),  cpu_texture_indices_ovlp.length * Sizeof.INT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed		
-	
-		
+		// Testing parameters
+		if (DEBUG8A) {
+			TpTask [] test_tasks = new TpTask[width * height];
+			float [] test_ftasks = new float [test_tasks.length * getTaskSize()];
+			cuMemcpyDtoH(Pointer.to(test_ftasks),            gpu_ftasks,  test_ftasks.length * Sizeof.FLOAT);
+			for (int i = 0; i < test_tasks.length; i++) {
+				test_tasks[i] = new TpTask(num_cams, test_ftasks, i, false);	
+			}
+
+			cuMemcpyDtoH(Pointer.to(cpu_num_texture_tiles), gpu_num_texture_tiles,  cpu_num_texture_tiles.length * Sizeof.INT);		
+			cuMemcpyDtoH(Pointer.to(cpu_woi),               gpu_woi,  cpu_woi.length * Sizeof.INT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed		
+			int tilesX = width;
+			int tilesY = height;
+			int tilesYa = (tilesY + 3) & ~3;
+			cpu_texture_indices_ovlp = new int [tilesX * tilesYa];
+			cuMemcpyDtoH(Pointer.to(cpu_texture_indices_ovlp),               gpu_texture_indices_ovlp,  cpu_texture_indices_ovlp.length * Sizeof.INT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed		
+			cuMemcpyHtoD(gpu_texture_indices_ovlp,                           Pointer.to(cpu_texture_indices_ovlp),  cpu_texture_indices_ovlp.length * Sizeof.INT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed		
+		}		
 		Pointer kp_gen_texture_list = Pointer.to(
 				Pointer.to(new int[] {num_cams}),         // int      num_cams,
 				Pointer.to(gpu_ftasks),                   // float  * gpu_ftasks,          // flattened tasks, 29 floats for quad EO, 101 floats for LWIR16
@@ -1937,9 +1953,9 @@ public class GpuQuad{ // quad camera description
 		// copy gpu_num_texture_tiles back to host cpu_num_texture_tiles for processing by the CPU code
 		cuMemcpyDtoH(Pointer.to(cpu_num_texture_tiles), gpu_num_texture_tiles,  cpu_num_texture_tiles.length * Sizeof.INT);		
 		// Testing parameters
-		//		int [] cpu_texture_indices_ovlp = new int [tilesX * tilesYa];
-		cuMemcpyDtoH(Pointer.to(cpu_texture_indices_ovlp),               gpu_texture_indices_ovlp,  cpu_texture_indices_ovlp.length * Sizeof.INT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed		
-
+		if (DEBUG8A) {
+			cuMemcpyDtoH(Pointer.to(cpu_texture_indices_ovlp),               gpu_texture_indices_ovlp,  cpu_texture_indices_ovlp.length * Sizeof.INT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed
+		}
 		// Zero output textures. Trim
 		// texture_rbga_stride
 		int texture_width =        (cpu_woi[2] + 1) * GPUTileProcessor.DTT_SIZE;
@@ -1970,12 +1986,11 @@ public class GpuQuad{ // quad camera description
 				0, null,                                // Shared memory size and stream (shared - only dynamic, static is in code)
 				kp_clear_texture_rbga, null);           // Kernel- and extra parameters
 		cuCtxSynchronize();
-		boolean DEBUG8A = true;
 
 		// Testing parameters
-		//		int [] cpu_texture_indices_ovlp = new int [tilesX * tilesYa];
-		cuMemcpyDtoH(Pointer.to(cpu_texture_indices_ovlp),               gpu_texture_indices_ovlp,  cpu_texture_indices_ovlp.length * Sizeof.INT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed		
-//		cuMemcpyHtoD(gpu_texture_indices_ovlp,                           Pointer.to(cpu_texture_indices_ovlp),  cpu_texture_indices_ovlp.length * Sizeof.INT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed		
+		if (DEBUG8A) {
+			cuMemcpyDtoH(Pointer.to(cpu_texture_indices_ovlp),               gpu_texture_indices_ovlp,  cpu_texture_indices_ovlp.length * Sizeof.INT); // hope that Float.floatToIntBits(fcorr_indices[i]) is not needed
+		}
 		
 		// Run 8 times - first 4 1-tile offsets  inner tiles (w/o verifying margins), then - 4 times with verification and ignoring 4-pixel
 		// oversize (border 16x 16 tiles overhang by 4 pixels)
@@ -2085,7 +2100,50 @@ public class GpuQuad{ // quad camera description
 			double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 			boolean   dust_remove,        // Do not reduce average weight when only one image differs much from the average
 			boolean   calc_textures,
-			boolean   calc_extra)
+			boolean   calc_extra,
+			boolean   linescan_order
+			) {
+		if (GPUTileProcessor.USE_DS_DP) {
+			execTextures_DP(
+					color_weights,
+					is_lwir,
+					min_shot,           // 10.0
+					scale_shot,         // 3.0
+					diff_sigma,         // pixel value/pixel change
+					diff_threshold,     // pixel value/pixel change
+					min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+					dust_remove,        // Do not reduce average weight when only one image differs much from the average
+					calc_textures,
+					calc_extra,
+					linescan_order);
+		} else {
+			execTextures_noDP(
+					color_weights,
+					is_lwir,
+					min_shot,           // 10.0
+					scale_shot,         // 3.0
+					diff_sigma,         // pixel value/pixel change
+					diff_threshold,     // pixel value/pixel change
+					min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+					dust_remove,        // Do not reduce average weight when only one image differs much from the average
+					calc_textures,
+					calc_extra,
+					linescan_order);
+		}
+	}
+	
+	public void execTextures_DP(
+			double [] color_weights,
+			boolean   is_lwir,
+			double    min_shot,           // 10.0
+			double    scale_shot,         // 3.0
+			double    diff_sigma,         // pixel value/pixel change
+			double    diff_threshold,     // pixel value/pixel change
+			double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+			boolean   dust_remove,        // Do not reduce average weight when only one image differs much from the average
+			boolean   calc_textures,
+			boolean   calc_extra,
+			boolean   linescan_order)
 	{
 		execCalcReverseDistortions(); // will check if it is needed first
 		if (this.gpuTileProcessor.GPU_TEXTURES_kernel == null)
@@ -2112,6 +2170,7 @@ public class GpuQuad{ // quad camera description
 		cuMemcpyHtoD(gpu_generate_RBGA_params, Pointer.to(generate_RBGA_params),  generate_RBGA_params.length * Sizeof.FLOAT);
 
 		int iis_lwir =      (is_lwir)? 1:0;
+		int ilinescan_order = linescan_order? 1 : 0;
 		int idust_remove =  (dust_remove)? 1 : 0;
 
 		int [] GridFullWarps =    {1, 1, 1};
@@ -2135,7 +2194,9 @@ public class GpuQuad{ // quad camera description
 				Pointer.to(gpu_color_weights),                   // float             weights[3],         // scale for R,B,G
 				Pointer.to(new int[] { idust_remove }),
 				Pointer.to(new int[] {calc_textures? texture_stride : 0}),
-				Pointer.to(gpu_textures), calc_extra ? Pointer.to(gpu_diff_rgb_combo) : Pointer.to(new int[] { 0 }),
+				Pointer.to(gpu_textures),
+				Pointer.to(new int[]   {ilinescan_order}),       // 1, // int               linescan_order,     // if !=0 then output gpu_diff_rgb_combo in linescan order, else  - in gpu_texture_indices order
+				calc_extra ? Pointer.to(gpu_diff_rgb_combo) : Pointer.to(new int[] { 0 }),
 				Pointer.to(new int[] { tilesX }));
 		cuCtxSynchronize();
 		// Call the kernel function
@@ -2147,6 +2208,189 @@ public class GpuQuad{ // quad camera description
 		cuCtxSynchronize();
 	}
 
+	public void execTextures_noDP(
+			double [] color_weights,
+			boolean   is_lwir,
+			double    min_shot,           // 10.0
+			double    scale_shot,         // 3.0
+			double    diff_sigma,         // pixel value/pixel change
+			double    diff_threshold,     // pixel value/pixel change
+			double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+			boolean   dust_remove,        // Do not reduce average weight when only one image differs much from the average
+			boolean   calc_textures,
+			boolean   calc_extra,
+			boolean   linescan_order)
+	{
+		execCalcReverseDistortions(); // will check if it is needed first
+		if (    (this.gpuTileProcessor.GPU_CREATE_NONOVERLAP_LIST_kernel == null) &&
+				(this.gpuTileProcessor.GPU_TEXTURES_ACCUMULATE_kernel == null)) {
+			IJ.showMessage("Error", "No GPU kernel(s)");
+			return;
+		}
+		int keep_texture_weights = 0; // pass as parameter?
+		int tilesX =  img_width / GPUTileProcessor.DTT_SIZE;
+		int num_colors = is_lwir? 1 : color_weights.length;
+		if (num_colors > 3) num_colors = 3;
+		float [] fcolor_weights = new float[3];
+		fcolor_weights[0] = (float) color_weights[0];
+		fcolor_weights[1] = (num_colors >1)?((float) color_weights[1]):0.0f;
+		fcolor_weights[2] = (num_colors >2)?((float) color_weights[2]):0.0f;
+		double sw = 0.0; for (int i = 0; i < fcolor_weights.length; i++) sw+= fcolor_weights[i];
+		for (int i = 0; i < fcolor_weights.length; i++) fcolor_weights[i]/=sw;
+		int iis_lwir =      (is_lwir)? 1:0;
+		int ilinescan_order = linescan_order? 1 : 0;
+		int idust_remove =  (dust_remove)? 1 : 0;
+		
+		cuMemcpyHtoD(gpu_color_weights, Pointer.to(fcolor_weights),  fcolor_weights.length * Sizeof.FLOAT);
+		
+		/*
+		dim3 threads0(CONVERT_DIRECT_INDEXING_THREADS, 1, 1);
+		dim3 blocks0 ((tp_task_size + CONVERT_DIRECT_INDEXING_THREADS -1) >> CONVERT_DIRECT_INDEXING_THREADS_LOG2,1, 1);
+		int  linescan_order = 1; // output low-res in linescan order, 0 - in gpu_texture_indices order
+ 		printf("threads0=(%d, %d, %d)\n",threads0.x,threads0.y,threads0.z);
+ 		printf("blocks0=(%d, %d, %d)\n",blocks0.x,blocks0.y,blocks0.z);
+ 		int   cpu_pnum_texture_tiles = 0;
+ 	    int * gpu_pnum_texture_tiles;
+ 	    checkCudaErrors (cudaMalloc((void **)&gpu_pnum_texture_tiles, sizeof(int)));
+#define CONVERT_DIRECT_INDEXING_THREADS_LOG2 5
+#define CONVERT_DIRECT_INDEXING_THREADS (1 << CONVERT_DIRECT_INDEXING_THREADS_LOG2) // 32
+    int tp_task_size =  TILESX * TILESY; // sizeof(ftask_data)/sizeof(float)/task_size; // number of task tiles
+		cpu_pnum_texture_tiles = 0;
+		checkCudaErrors(cudaMemcpy(
+				gpu_pnum_texture_tiles,
+				&cpu_pnum_texture_tiles,
+				sizeof(int),
+				cudaMemcpyHostToDevice));
+
+	 */
+		int CONVERT_DIRECT_INDEXING_THREADS_LOG2 = 5;
+		int CONVERT_DIRECT_INDEXING_THREADS = (1 << CONVERT_DIRECT_INDEXING_THREADS_LOG2); // 32
+
+		int [] threads0 = {CONVERT_DIRECT_INDEXING_THREADS, 1, 1};
+		int [] blocks0 =  {(num_task_tiles + CONVERT_DIRECT_INDEXING_THREADS -1) >> CONVERT_DIRECT_INDEXING_THREADS_LOG2,1, 1};
+		int [] cpu_pnum_texture_tiles = {0};
+		cuMemcpyHtoD(gpu_texture_indices_len, Pointer.to(cpu_pnum_texture_tiles),  1 * Sizeof.INT);
+		/*
+		 create_nonoverlap_list<<<blocks0,threads0>>>(
+				 num_cams,                // int                num_cams,
+				 gpu_ftasks,              // float            * gpu_ftasks,         // flattened tasks, 27 floats for quad EO, 99 floats for LWIR16
+				 tp_task_size,            // int                num_tiles,           // number of tiles in task
+				 TILESX,                  // int                width,               // number of tiles in a row
+				 gpu_texture_indices,     // int *              nonoverlap_list,     // pointer to the calculated number of non-zero tiles
+				 gpu_pnum_texture_tiles); // int *              pnonoverlap_length)  //  indices to gpu_tasks  // should be initialized to zero
+		 cudaDeviceSynchronize();
+		 */
+		Pointer kp_create_nonoverlap_list = Pointer.to(
+				Pointer.to(new int[] {num_cams}),         // int     num_cams,           // number of sensors
+				Pointer.to(gpu_ftasks),                   // float * gpu_ftasks,         // flattened tasks, 29 floats for quad EO, 101 floats for LWIR16
+				Pointer.to(new int[] { num_task_tiles }), // int     num_tiles,          // number of tiles in task list
+				Pointer.to(new int[] {tilesX}),           // int     width,              // number of tiles in a row
+				Pointer.to(gpu_texture_indices),          // int   * nonoverlap_list,    // pointer to the calculated number of non-zero tiles
+				Pointer.to(gpu_texture_indices_len));     // int   * pnonoverlap_length) //  indices to gpu_tasks  // should be initialized to zero
+		cuLaunchKernel(this.gpuTileProcessor.GPU_CREATE_NONOVERLAP_LIST_kernel,
+				blocks0[0],  blocks0[1],  blocks0[2],        // Grid dimension
+				threads0[0], threads0[1], threads0[2],       // Block dimension
+				0, null,                                  // Shared memory size and stream (shared - only dynamic, static is in code)
+				kp_create_nonoverlap_list, null);             // Kernel- and extra parameters
+		cuCtxSynchronize();
+		/*
+	 checkCudaErrors(cudaMemcpy(
+			 &cpu_pnum_texture_tiles,
+			 gpu_pnum_texture_tiles,
+			 sizeof(int),
+			 cudaMemcpyDeviceToHost));
+*/
+		cuMemcpyDtoH(Pointer.to(cpu_pnum_texture_tiles), gpu_texture_indices_len,  1 * Sizeof.FLOAT);
+/*
+	 printf("cpu_pnum_texture_tiles = %d\n",  cpu_pnum_texture_tiles);
+	 int num_cams_per_thread = NUM_THREADS / TEXTURE_THREADS_PER_TILE; // 4 cameras parallel, then repeat
+	 dim3 threads_texture1(TEXTURE_THREADS_PER_TILE, num_cams_per_thread, 1); // TEXTURE_TILES_PER_BLOCK, 1);
+	 dim3 grid_texture1((cpu_pnum_texture_tiles + TEXTURE_TILES_PER_BLOCK-1) / TEXTURE_TILES_PER_BLOCK,1,1);
+ 		printf("threads_texture1=(%d, %d, %d)\n",threads_texture1.x,threads_texture1.y,threads_texture1.z);
+ 		printf("grid_texture1=(%d, %d, %d)\n",grid_texture1.x,grid_texture1.y,grid_texture1.z);
+
+	 int shared_size = host_get_textures_shared_size( // in bytes
+			 num_cams,         // int                num_cams,     // actual number of cameras
+			 texture_colors,   // int                num_colors,   // actual number of colors: 3 for RGB, 1 for LWIR/mono
+			 0);           // int *              offsets);     // in floats
+	printf("\n1. shared_size=%d, num_cams=%d, colors=%d\n",shared_size,num_cams, texture_colors);
+
+	cudaFuncSetAttribute(textures_accumulate, cudaFuncAttributeMaxDynamicSharedMemorySize, 65536); // for CC 7.5
+	cudaFuncSetAttribute(textures_accumulate, cudaFuncAttributePreferredSharedMemoryCarveout,cudaSharedmemCarveoutMaxShared);
+ */
+		int num_cams_per_thread = GPUTileProcessor.NUM_THREADS / GPUTileProcessor.TEXTURE_THREADS_PER_TILE; // 4 cameras parallel, then repeat
+		int[] threads_texture = {GPUTileProcessor.TEXTURE_THREADS_PER_TILE, num_cams_per_thread, 1}; // TEXTURE_TILES_PER_BLOCK, 1);
+		int[] grid_texture    = {(cpu_pnum_texture_tiles[0] + GPUTileProcessor.TEXTURE_TILES_PER_BLOCK-1) / GPUTileProcessor.TEXTURE_TILES_PER_BLOCK,1,1};
+		int shared_size = host_get_textures_shared_size( // in bytes
+				num_cams,     // int                num_cams,     // actual number of cameras
+				num_colors,   // int                num_colors,   // actual number of colors: 3 for RGB, 1 for LWIR/mono
+				null);           // int *              offsets);     // in floats
+/*
+    				textures_accumulate <<<grid_texture1,threads_texture1,  shared_size>>>( // 65536>>>( //
+    						num_cams,                        // 	int               num_cams,           // number of cameras used
+							(int *) 0,                       // int             * woi,                // x, y, width,height
+							gpu_clt,                         // float          ** gpu_clt,            // [num_cams] ->[TILES-Y][TILES-X][colors][DTT_SIZE*DTT_SIZE]
+							cpu_pnum_texture_tiles, // *pnum_texture_tiles,             // size_t            num_texture_tiles,  // number of texture tiles to process
+							0,                               //                 gpu_texture_indices_offset,// add to gpu_texture_indices
+							gpu_texture_indices,             // int             * gpu_texture_indices,// packed tile + bits (now only (1 << 7)
+							gpu_geometry_correction,         // struct gc       * gpu_geometry_correction,
+							texture_colors,                  // int               colors,             // number of colors (3/1)
+							(texture_colors == 1),           // int               is_lwir,            // do not perform shot correction
+							generate_RBGA_params[0], // min_shot,      // float             min_shot,           // 10.0
+							generate_RBGA_params[1], // scale_shot,    // float             scale_shot,         // 3.0
+							generate_RBGA_params[2], // diff_sigma,    // float             diff_sigma,         // pixel value/pixel change
+							generate_RBGA_params[3], // diff_threshold,// float             diff_threshold,     // pixel value/pixel change
+							generate_RBGA_params[4], // min_agree,     // float             min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+							
+							gpu_color_weights,               // float             weights[3],         // scale for R,B,G
+							1,                       // dust_remove,                     // int               dust_remove,        // Do not reduce average weight when only one image differs much from the average
+							keep_texture_weights, // 0, // 1                               // int               keep_weights,       // return channel weights after A in RGBA (was removed) (should be 0 if gpu_texture_rbg)?
+							// combining both non-overlap and overlap (each calculated if pointer is not null )
+							0,                               // size_t      texture_rbg_stride, // in floats
+							(float *) 0,                     // float           * gpu_texture_rbg,     // (number of colors +1 + ?)*16*16 rgba texture tiles
+							dstride_textures /sizeof(float),          // texture_stride,                  // size_t      texture_stride,     // in floats (now 256*4 = 1024)
+							gpu_textures, // (float *) 0,             // gpu_texture_tiles,               //(float *)0);// float           * gpu_texture_tiles);  // (number of colors +1 + ?)*16*16 rgba texture tiles
+							linescan_order,          // int               linescan_order,     // if !=0 then output gpu_diff_rgb_combo in linescan order, else  - in gpu_texture_indices order
+							gpu_diff_rgb_combo, //);             // float           * gpu_diff_rgb_combo) // diff[num_cams], R[num_cams], B[num_cams],G[num_cams]
+							TILESX);
+ */
+		cuFuncSetAttribute(this.gpuTileProcessor.GPU_TEXTURES_ACCUMULATE_kernel, CU_FUNC_ATTRIBUTE_MAX_DYNAMIC_SHARED_SIZE_BYTES, 65536);
+		Pointer kp_textures_accumulate = Pointer.to(
+				Pointer.to(new int[] {num_cams}),                // int         num_cams,
+				Pointer.to(new int[]   {0}),  // Pointer.to(gpu_woi),  // int       * woi,            // min_x, min_y, max_x, max_y
+				Pointer.to(gpu_clt),                             // float    ** gpu_clt,        // [num_cams] ->[TILESY][TILESX][num_colors][DTT_SIZE*DTT_SIZE]
+				Pointer.to(new int[] {cpu_pnum_texture_tiles[0]}),                     // size_t      num_texture_tiles,// number of texture tiles to process
+				Pointer.to(new int[] {0}),                     // size_t      num_texture_tiles,// number of texture tiles to process
+				Pointer.to(gpu_texture_indices),          // int   * nonoverlap_list,    // pointer to the calculated number of non-zero tiles
+				Pointer.to(gpu_geometry_correction),             // struct gc * gpu_geometry_correction,
+				Pointer.to(new int[]   {num_colors}),            // int         colors,         // number of colors (3/1)
+				Pointer.to(new int[]   {iis_lwir}),              // int         is_lwir,        // do not perform shot correction
+				Pointer.to(new float[] {(float) min_shot}),      // float       min_shot,       // 10.0
+				Pointer.to(new float[] {(float) scale_shot}),    // float       scale_shot,     // 3.0
+				Pointer.to(new float[] {(float) diff_sigma}),    // float       diff_sigma,     // pixel value/pixel change
+				Pointer.to(new float[] {(float) diff_threshold}),// float       diff_threshold, // pixel value/pixel change
+				Pointer.to(new float[] {(float) min_agree}),     // float       min_agree,      // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+				Pointer.to(gpu_color_weights),                   // float       weights[3],     // scale for R,B,G (or {1.0,0.0,0.0}
+				Pointer.to(new int[]   {idust_remove}),          // int         dust_remove,        // Do not reduce average weight when only one image differes much from the average
+				Pointer.to(new int[]   {keep_texture_weights}),  // int         keep_weights,       // return channel weights after A in RGBA
+				 // combining both non-overlap and overlap (each calculated if pointer is not null )
+				Pointer.to(new int[]   {0}),                     // const size_t      texture_rbga_stride,     // in floats
+				Pointer.to(new int[]   {0}),                     // float           * gpu_texture_tiles)    // (number of colors +1 + ?)*16*16 rgba texture tiles
+				Pointer.to(new int[] {calc_textures? texture_stride : 0}), // size_t   texture_stride,     // in floats (now 256*4 = 1024)
+				Pointer.to(gpu_textures), // gpu_texture_tiles, // float           * gpu_texture_tiles);  // (number of colors +1 + ?)*16*16 rgba texture tiles
+				Pointer.to(new int[]   {ilinescan_order}), // 1, // int               linescan_order,     // if !=0 then output gpu_diff_rgb_combo in linescan order, else  - in gpu_texture_indices order
+				calc_extra ? Pointer.to(gpu_diff_rgb_combo) : Pointer.to(new int[] { 0 }),
+				Pointer.to(new int[] { tilesX }));
+		cuLaunchKernel(this.gpuTileProcessor.GPU_TEXTURES_ACCUMULATE_kernel,
+				grid_texture[0],    grid_texture[1],    grid_texture[2],   // Grid dimension
+				threads_texture[0], threads_texture[1], threads_texture[2],  // Block dimension
+				shared_size, null,                      // Shared memory size and stream (shared - only dynamic, static is in code)
+				kp_textures_accumulate, null);          // Kernel- and extra parameters
+		cuCtxSynchronize();
+		
+	}
+	
+	
 	public int getNumPairs() {return num_pairs;}
 
 	public int [] setCorrTilesTd(
@@ -2586,6 +2830,9 @@ public class GpuQuad{ // quad camera description
 			int          num_slices,
 			int          num_src_slices
 			){
+		if (num_slices > num_src_slices) {
+			num_slices =num_src_slices;
+		}
 		int texture_slice_size = (2 * GPUTileProcessor.DTT_SIZE)* (2 * GPUTileProcessor.DTT_SIZE);
 		int texture_tile_size = texture_slice_size * num_src_slices ;
 		if ((woi == null) && (texture_tiles==null)) {
@@ -2601,19 +2848,19 @@ public class GpuQuad{ // quad camera description
 
 		//        	double [][][][] textures = new double [woi.height][woi.width][num_slices][texture_slice_size];
 		for (int indx = 0; indx < indices.length; indx++) if ((indices[indx] & (1 << GPUTileProcessor.LIST_TEXTURE_BIT)) != 0){
-			int tile = indices[indx] >> GPUTileProcessor.CORR_NTILE_SHIFT;
-		int tileX = tile % full_width;
-		int tileY = tile / full_width;
-		int wtileX = tileX - woi.x;
-		int wtileY = tileY - woi.y;
-		texture_tiles[tileY][tileX] = new double [num_slices][texture_slice_size];
-		if ((wtileX >=0 ) && (wtileX < woi.width) && (wtileY >= 0) && (wtileY < woi.height)) {
-			for (int slice = 0; slice < num_slices; slice++) {
-				for (int i = 0; i < texture_slice_size; i++) {
-					texture_tiles[wtileY][wtileX][slice][i] = ftextures[indx * texture_tile_size + slice * texture_slice_size + i];
+			int tile = (indices[indx] >> GPUTileProcessor.CORR_NTILE_SHIFT);
+			int tileX = tile % full_width;
+			int tileY = tile / full_width;
+			int wtileX = tileX - woi.x;
+			int wtileY = tileY - woi.y;
+			texture_tiles[tileY][tileX] = new double [num_slices][texture_slice_size];
+			if ((wtileX >=0 ) && (wtileX < woi.width) && (wtileY >= 0) && (wtileY < woi.height)) {
+				for (int slice = 0; slice < num_slices; slice++) {
+					for (int i = 0; i < texture_slice_size; i++) {
+						texture_tiles[wtileY][wtileX][slice][i] = ftextures[indx * texture_tile_size + slice * texture_slice_size + i];
+					}
 				}
 			}
-		}
 		}
 		return texture_tiles;
 	}

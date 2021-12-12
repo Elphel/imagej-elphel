@@ -72,6 +72,7 @@ import jcuda.nvrtc.JNvrtc;
 import jcuda.nvrtc.nvrtcProgram;
 
 public class GPUTileProcessor {
+	public static boolean USE_DS_DP = false; // Use Dynamic Shared memory with Dynamic Parallelism (not implemented)  
 	String LIBRARY_PATH = "/usr/local/cuda/targets/x86_64-linux/lib/libcudadevrt.a"; // linux
 	static String GPU_RESOURCE_DIR =              "kernels";
 	static String [] GPU_KERNEL_FILES = {"dtt8x8.cuh","TileProcessor.cuh"};
