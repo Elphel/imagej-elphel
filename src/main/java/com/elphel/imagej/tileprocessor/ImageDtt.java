@@ -1,6 +1,7 @@
 package com.elphel.imagej.tileprocessor;
 
 import java.awt.Rectangle;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
@@ -53,6 +54,13 @@ public class ImageDtt extends ImageDttCPU {
 	
 	public GpuQuad getGPU() {
 		return this.gpuQuad;
+	}
+	
+	public boolean [] getCorrMask() {
+		if (gpuQuad != null) {
+			return getCorrMask();
+		}
+		return super.getCorrMask();
 	}
 	
 //	public double [][][][][][]
@@ -161,16 +169,14 @@ public class ImageDtt extends ImageDttCPU {
 */
 		// keep for now for mono, find out  what do they mean for macro mode
 		
-		if (macro_mode) { // all the same as they now mean different
-			//compensating Bayer correction
-			col_weights[0] = 0.25; //  1.0/3;
-			col_weights[1] = 0.25; //  1.0/3;
-			col_weights[2] = 0.5; // 1.0/3;
+		if (isMonochrome()) {
+			col_weights[0] = 1.0; // 2] = 1.0;// green color/mono
 		} else {
-			if (isMonochrome()) {
-				col_weights[2] = 1.0;// green color/mono
-				col_weights[0] = 0;
-				col_weights[1] = 0;
+			if (macro_mode) { // all the same as they now mean different
+				//compensating Bayer correction
+				col_weights[0] = 0.25; //  1.0/3;
+				col_weights[1] = 0.25; //  1.0/3;
+				col_weights[2] = 0.5; // 1.0/3;
 			} else {
 				col_weights[2] = 1.0/(1.0 + corr_red + corr_blue);    // green color
 				col_weights[0] = corr_red *  col_weights[2];
@@ -326,7 +332,7 @@ public class ImageDtt extends ImageDttCPU {
 
 		gpuQuad.execSetTilesOffsets(true); // prepare tiles offsets in GPU memory // calculate tile centers
 
-		if ((fdisp_dist != null) || (fpxpy != null)) {
+		if ((fdisp_dist != null) || (fpxpy != null)) { // skip
 			final TpTask[] tp_tasks_full = gpuQuad.getTasks(use_main);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
@@ -463,8 +469,13 @@ public class ImageDtt extends ImageDttCPU {
 		
 		// does it need correlations?
 		if (fneed_corr) {
+			int mcorr_sel = Correlation2d.corrSelEncode(imgdtt_params,numSensors);
+			int [] i_mcorr_sel = Correlation2d.intCorrPairs(
+					mcorr_sel,
+					numSensors,
+					4); // int num_out); should be 4 int
 			//Generate 2D phase correlations from the CLT representation
-			gpuQuad.execCorr2D_TD(col_weights); // Get TD version of correlations (may be read out and saved) 
+			gpuQuad.execCorr2D_TD(col_weights,i_mcorr_sel); // Get TD version of correlations (may be read out and saved) 
 			final int [] corr_indices = gpuQuad.getCorrIndices();
 			if (fcorr_td != null) {
 				gpuQuad.getCorrTilesTd(fcorr_td); // generate transform domain correlation pairs
@@ -473,6 +484,7 @@ public class ImageDtt extends ImageDttCPU {
 			gpuQuad.execCorr2D_normalize(
 	        		false, // boolean combo, // normalize combo correlations (false - per-pair ones) 
 					gpu_fat_zero, // double fat_zero);
+					null, // float [] fcorr_weights, // null or one per correlation tile (num_corr_tiles) to divide fat zero2
 		    		gpu_corr_rad); // int corr_radius
 			final float [][] fcorr2D = gpuQuad.getCorr2D(gpu_corr_rad); //  int corr_rad);
 			
@@ -489,6 +501,7 @@ public class ImageDtt extends ImageDttCPU {
 			gpuQuad.execCorr2D_normalize(
 	        		true, // boolean combo, // normalize combo correlations (false - per-pair ones) 
 					gpu_fat_zero, // double fat_zero);
+					null, // float [] fcorr_weights, // null or one per correlation tile (num_corr_tiles) to divide fat zero2
 		    		gpu_corr_rad); // int corr_radius
 			final int [] corr_quad_indices = gpuQuad.getCorrComboIndices(); // get quad
 			final float [][] fcorr2D_quad =   gpuQuad.getCorr2DCombo(gpu_corr_rad);
@@ -504,6 +517,7 @@ public class ImageDtt extends ImageDttCPU {
 			gpuQuad.execCorr2D_normalize(
 	        		true, // boolean combo, // normalize combo correlations (false - per-pair ones) 
 					gpu_fat_zero, // double fat_zero);
+					null, // float [] fcorr_weights, // null or one per correlation tile (num_corr_tiles) to divide fat zero2
 		    		gpu_corr_rad); // int corr_radius
 			final float [][] fcorr2D_cross =   gpuQuad.getCorr2DCombo(gpu_corr_rad);
 			
@@ -518,6 +532,7 @@ public class ImageDtt extends ImageDttCPU {
 			gpuQuad.execCorr2D_normalize(
 	        		true, // boolean combo, // normalize combo correlations (false - per-pair ones) 
 					gpu_fat_zero, // double fat_zero);
+					null, // float [] fcorr_weights, // null or one per correlation tile (num_corr_tiles) to divide fat zero2
 		    		gpu_corr_rad); // int corr_radius
 			final float [][] fcorr2D_hor =   gpuQuad.getCorr2DCombo(gpu_corr_rad);
 			// Combine 2 vertical pairs
@@ -532,6 +547,7 @@ public class ImageDtt extends ImageDttCPU {
 			gpuQuad.execCorr2D_normalize(
 	        		true, // boolean combo, // normalize combo correlations (false - per-pair ones) 
 					gpu_fat_zero, // double fat_zero);
+					null, // float [] fcorr_weights, // null or one per correlation tile (num_corr_tiles) to divide fat zero2
 		    		gpu_corr_rad); // int corr_radius
 			final float [][] fcorr2D_vert =   gpuQuad.getCorr2DCombo(gpu_corr_rad);
 			
@@ -701,6 +717,7 @@ public class ImageDtt extends ImageDttCPU {
 	{
 		// prepare tasks
        	TpTask[] tp_tasks =  gpuQuad.setInterTasks(
+       			false, // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
        			pXpYD,              // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
        			geometryCorrection, // final GeometryCorrection  geometryCorrection,
        			disparity_corr,     // final double              disparity_corr,
@@ -727,6 +744,193 @@ public class ImageDtt extends ImageDttCPU {
     			globalDebugLevel);
 	}
 
+	
+	
+	public void quadCorrTD(
+			final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
+			final TpTask[]            tp_tasks,
+			final float  [][][][]     fcorr_td,        // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
+			final GeometryCorrection  geometryCorrection,
+			final double              gpu_sigma_r,     // 0.9, 1.1
+			final double              gpu_sigma_b,     // 0.9, 1.1
+			final double              gpu_sigma_g,     // 0.6, 0.7
+			final double              gpu_sigma_m,     //  =       0.4; // 0.7;
+			final double              gpu_sigma_rb_corr,    //  = 0.5; // apply LPF after accumulating R and B correlation before G, monochrome ? 1.0 :
+			final double              gpu_sigma_corr,       //  =    0.9;gpu_sigma_corr_m
+			final double              gpu_sigma_log_corr,   // hpf to reduce dynamic range for correlations
+			final double              corr_red, // +used
+			final double              corr_blue,// +used
+			final int                 mcorr_sel,    // Which pairs to correlate // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
+			final int                 threadsMax,       // maximal number of threads to launch
+			final int                 globalDebugLevel)
+	{
+		final int numcol = isMonochrome()?1:3;
+		final double [] col_weights= new double [numcol]; // colors are RBG
+		if (isMonochrome()) {
+			col_weights[0] = 1.00; // Was 0 ! 0;
+		} else {
+			col_weights[2] = 1.0/(1.0 + corr_red + corr_blue);    // green color
+			col_weights[0] = corr_red *  col_weights[2];
+			col_weights[1] = corr_blue * col_weights[2];
+		}
+		
+		//texture_tiles
+
+		final float [][] lpf_rgb = new float[][] {
+			floatGetCltLpfFd(gpu_sigma_r),
+			floatGetCltLpfFd(gpu_sigma_b),
+			floatGetCltLpfFd(gpu_sigma_g),
+			floatGetCltLpfFd(gpu_sigma_m)
+		};
+		gpuQuad.setLpfRbg( // constants memory - same for all cameras
+				lpf_rgb,
+				globalDebugLevel > -1);
+
+		final float [] lpf_flat = floatGetCltLpfFd(gpu_sigma_corr);
+
+		gpuQuad.setLpfCorr(// constants memory - same for all cameras
+				"lpf_corr", // String const_name, // "lpf_corr"
+				lpf_flat,
+				globalDebugLevel > -1);
+
+		final float [] lpf_rb_flat = floatGetCltLpfFd(gpu_sigma_rb_corr);
+		gpuQuad.setLpfCorr(// constants memory - same for all cameras
+				"lpf_rb_corr", // String const_name, // "lpf_corr"
+				lpf_rb_flat,
+				globalDebugLevel > -1);
+		
+		final float [] log_flat = floatGetCltHpfFd(gpu_sigma_log_corr);
+		if (globalDebugLevel < -100) {
+			double dbg_sum = 0.0;
+			for (int i = 0; i < log_flat.length; i++) dbg_sum +=log_flat[i];
+			System.out.println("dbg_sum("+gpu_sigma_log_corr+")="+dbg_sum);
+			(new ShowDoubleFloatArrays()).showArrays(
+					log_flat,
+					8,
+					8,
+					"hpf_"+gpu_sigma_log_corr);
+			final float [] log_flat0 = floatGetCltHpfFd(4.0);
+			dbg_sum = 0.0;
+			for (int i = 0; i < log_flat.length; i++) dbg_sum +=log_flat0[i];
+			System.out.println("dbg_sum("+4.0+")="+dbg_sum);
+			(new ShowDoubleFloatArrays()).showArrays(
+					log_flat0,
+					8,
+					8,
+					"hpf_"+4.0);
+			final float [] log_flat1 = floatGetCltHpfFd(1.0);
+			dbg_sum = 0.0;
+			for (int i = 0; i < log_flat.length; i++) dbg_sum +=log_flat1[i];
+			System.out.println("dbg_sum("+1.0+")="+dbg_sum);
+			(new ShowDoubleFloatArrays()).showArrays(
+					log_flat1,
+					8,
+					8,
+					"hpf_"+1.0);
+			System.out.println("dbg_sum("+1.0+")="+dbg_sum);
+		}
+		gpuQuad.setLpfCorr(// constants memory - same for all cameras
+				"LoG_corr", // String const_name, // "lpf_corr"
+				log_flat,
+				globalDebugLevel > -1);
+
+		gpuQuad.setTasks(                  // copy tp_tasks to the GPU memory
+				tp_tasks,                  // TpTask [] tile_tasks,
+				false,                     // use_aux); // boolean use_aux)
+				imgdtt_params.gpu_verify); // boolean verify
+		// used alternative method to prepare tasks, not centered in the tile centers
+		
+		// FIXME: change back to false !!!!
+		// Testing, remove when done
+//		gpuQuad.resetGeometryCorrection();
+//		gpuQuad.setConvolutionKernels(true); // set kernels if they are not set already
+//		gpuQuad.setBayerImages(true);     // set Bayer images if this.quadCLT instance has new ones
+		
+		
+		
+		
+		
+		gpuQuad.execSetTilesOffsets(false); // false); // prepare tiles offsets in GPU memory, using NON-UNIFORM grid (pre-calculated)
+		// update tp_tasks
+		gpuQuad.updateTasks(
+				tp_tasks,
+				false); // boolean use_aux    // while is it in class member? - just to be able to free
+		
+       	// Skipping if ((fdisp_dist != null) || (fpxpy != null)) {...
+
+		gpuQuad.execConvertDirect();
+
+		int [] i_mcorr_sel = Correlation2d.intCorrPairs(
+				mcorr_sel,
+				numSensors,
+				4); // int num_out); should be 4 int
+		gpuQuad.setCorrMask(i_mcorr_sel);
+		
+		boolean test_execCorr2D = false;
+		if (test_execCorr2D) {
+			double fat_zero = 2000.0; // 30.0; // 2000.0; // 30.00;
+			int gpu_corr_rad =  7;
+			int corr_size = 2* gpu_corr_rad + 1;
+			//Generate 2D phase correlations from the CLT representation
+			
+    // Try to zero out memory before calculating?	
+//			gpuQuad.eraseGpuCorrs();
+			gpuQuad.execCorr2D(
+					gpuQuad.getCorrMask(),    // boolean [] pair_select,
+					col_weights,              // double [] scales,
+					fat_zero,                 // double fat_zero);
+					gpu_corr_rad);            // int corr_radius
+			// Should be done before execCorr2D_TD as corr_indices are shared to save memory
+			int [] corr_indices = gpuQuad.getCorrIndices();
+			// the following is not yet shared
+			float [][] corr2D =  gpuQuad.getCorr2D(
+					gpu_corr_rad); //  int corr_rad);
+			final int tilesX=gpuQuad.getTilesX(); // width/transform_size;
+			final int tilesY=gpuQuad.getTilesY(); // final int tilesY=height/transform_size;
+			int num_tiles = tilesX * tilesY;
+//			int with =   tilesX * GPUTileProcessor.DTT_SIZE;
+//			int height = tilesY * GPUTileProcessor.DTT_SIZE;
+			int sq = 16;
+			int num_pairs = gpuQuad.getNumUsedPairs();
+			float [][] corr_img = new float [num_pairs][tilesY * sq * tilesX * sq];
+			for (int pair = 0; pair < num_pairs; pair++) {
+				Arrays.fill(corr_img[pair], Float.NaN);
+			}
+		    for (int ict = 0; ict < corr_indices.length; ict++){
+		    	//    	int ct = cpu_corr_indices[ict];
+		    	int ctt = ( corr_indices[ict] >>  GPUTileProcessor.CORR_NTILE_SHIFT);
+		    	int cpair = corr_indices[ict] & ((1 << GPUTileProcessor.CORR_NTILE_SHIFT) - 1);
+		    	int ty = ctt / tilesX;
+		    	int tx = ctt % tilesX;
+		    	int dst_offs0 = (ty * sq * tilesX * sq) + (tx * sq);
+		    	for (int iy = 0; iy < corr_size; iy++){
+		    		int dst_offs = dst_offs0 + iy * (tilesX * sq);
+		    		System.arraycopy(corr2D[ict], iy * corr_size, corr_img[cpair], dst_offs, corr_size);
+		    	}
+		    }
+			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+					corr_img,
+					tilesX * sq,
+					tilesY * sq,
+					true,
+					"test-corr");
+		}
+		
+
+		//Generate 2D phase correlations from the CLT representation
+		gpuQuad.execCorr2D_TD(col_weights, i_mcorr_sel); // Get TD version of correlations 
+//		final int [] corr_indices = gpuQuad.getCorrIndices();
+		if (fcorr_td != null) {
+			gpuQuad.getCorrTilesTd(fcorr_td); // generate transform domain correlation pairs
+		}
+//		// FIXME: will not work with combining pairs !!!
+//		final int num_pairs = Correlation2d.getNumPairs(numSensors);
+	}
+	
+	
+	
+	
+	@Deprecated
 	public void quadCorrTD(
 			final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
 			final TpTask[] tp_tasks,
@@ -832,7 +1036,12 @@ public class ImageDtt extends ImageDttCPU {
 		gpuQuad.execConvertDirect();
 
 		//Generate 2D phase correlations from the CLT representation
-		gpuQuad.execCorr2D_TD(col_weights); // Get TD version of correlations 
+		int mcorr_sel = Correlation2d.corrSelEncode(imgdtt_params,numSensors);
+		int [] i_mcorr_sel = Correlation2d.intCorrPairs(
+				mcorr_sel,
+				numSensors,
+				4); // int num_out); should be 4 int
+		gpuQuad.execCorr2D_TD(col_weights,i_mcorr_sel); // Get TD version of correlations 
 		final int [] corr_indices = gpuQuad.getCorrIndices();
 		if (fcorr_td != null) {
 			gpuQuad.getCorrTilesTd(fcorr_td); // generate transform domain correlation pairs
@@ -1321,7 +1530,12 @@ public class ImageDtt extends ImageDttCPU {
 		final int num_pairs = Correlation2d.getNumPairs(numSensors);
 		if (fneed_corr) {
 			//Generate 2D phase correlations from the CLT representation
-			gpuQuad.execCorr2D_TD(col_weights); // Get TD version of correlations (may be read out and saved) 
+			int mcorr_sel = Correlation2d.corrSelEncode(imgdtt_params,numSensors);
+			int [] i_mcorr_sel = Correlation2d.intCorrPairs(
+					mcorr_sel,
+					numSensors,
+					4); // int num_out); should be 4 int
+			gpuQuad.execCorr2D_TD(col_weights,i_mcorr_sel); // Get TD version of correlations (may be read out and saved) 
 			final int [] corr_indices = gpuQuad.getCorrIndices();
 			if (fcorr_td != null) {
 				gpuQuad.getCorrTilesTd(fcorr_td); // generate transform domain correlation pairs
@@ -1330,6 +1544,7 @@ public class ImageDtt extends ImageDttCPU {
 			gpuQuad.execCorr2D_normalize(
 	        		false, // boolean combo, // normalize combo correlations (false - per-pair ones) 
 					gpu_fat_zero, // double fat_zero);
+					null, // float [] fcorr_weights, // null or one per correlation tile (num_corr_tiles) to divide fat zero2
 		    		gpu_corr_rad); // int corr_radius
 			final float [][] fcorr2D = gpuQuad.getCorr2D(gpu_corr_rad); //  int corr_rad);
 			
@@ -1345,6 +1560,7 @@ public class ImageDtt extends ImageDttCPU {
 			gpuQuad.execCorr2D_normalize(
 	        		true, // boolean combo, // normalize combo correlations (false - per-pair ones) 
 					gpu_fat_zero, // double fat_zero);
+					null, // float [] fcorr_weights, // null or one per correlation tile (num_corr_tiles) to divide fat zero2
 		    		gpu_corr_rad); // int corr_radius
 			final int [] corr_quad_indices = gpuQuad.getCorrComboIndices(); // get quad
 			final float [][] fcorr2D_quad =   gpuQuad.getCorr2DCombo(gpu_corr_rad);
@@ -1358,8 +1574,9 @@ public class ImageDtt extends ImageDttCPU {
 				gpuQuad.getCorrTilesComboTd(fcorr_combo_td[1]); // generate transform domain correlation pairs for cross diagonal combination
 			}
 			gpuQuad.execCorr2D_normalize(
-	        		true, // boolean combo, // normalize combo correlations (false - per-pair ones) 
-					gpu_fat_zero, // double fat_zero);
+	        		true,          // boolean combo, // normalize combo correlations (false - per-pair ones) 
+					gpu_fat_zero,  // double fat_zero);
+					null,          // float [] fcorr_weights, // null or one per correlation tile (num_corr_tiles) to divide fat zero2
 		    		gpu_corr_rad); // int corr_radius
 			final float [][] fcorr2D_cross =   gpuQuad.getCorr2DCombo(gpu_corr_rad);
 			
@@ -1372,8 +1589,9 @@ public class ImageDtt extends ImageDttCPU {
 				gpuQuad.getCorrTilesComboTd(fcorr_combo_td[2]); // generate transform domain correlation pairs for horizontal combination
 			}
 			gpuQuad.execCorr2D_normalize(
-	        		true, // boolean combo, // normalize combo correlations (false - per-pair ones) 
-					gpu_fat_zero, // double fat_zero);
+	        		true,          // boolean combo, // normalize combo correlations (false - per-pair ones) 
+					gpu_fat_zero,  // double fat_zero);
+					null,          // float [] fcorr_weights, // null or one per correlation tile (num_corr_tiles) to divide fat zero2
 		    		gpu_corr_rad); // int corr_radius
 			final float [][] fcorr2D_hor =   gpuQuad.getCorr2DCombo(gpu_corr_rad);
 			// Combine 2 vertical pairs
@@ -1386,8 +1604,9 @@ public class ImageDtt extends ImageDttCPU {
 				gpuQuad.getCorrTilesComboTd(fcorr_combo_td[3]); // generate transform domain correlation pairs for vertical combination
 			}
 			gpuQuad.execCorr2D_normalize(
-	        		true, // boolean combo, // normalize combo correlations (false - per-pair ones) 
-					gpu_fat_zero, // double fat_zero);
+	        		true,          // boolean combo, // normalize combo correlations (false - per-pair ones) 
+					gpu_fat_zero,  // double fat_zero);
+					null,          // float [] fcorr_weights, // null or one per correlation tile (num_corr_tiles) to divide fat zero2
 		    		gpu_corr_rad); // int corr_radius
 			final float [][] fcorr2D_vert =   gpuQuad.getCorr2DCombo(gpu_corr_rad);
 			
@@ -1731,20 +1950,35 @@ public class ImageDtt extends ImageDttCPU {
 		
 		int [] corr_indices_ = null; 
 		float [][] fcorr2D_ = null;
+		
 		if (fcorr_td != null) {
-			int [][] pairs_map = {{0,0},{1,1},{2,2},{3,3},{4,4},{5,5}};
+			
+///			int [][] pairs_map = {{0,0},{1,1},{2,2},{3,3},{4,4},{5,5}};
+///			corr_indices_ = gpuQuad.setCorrTilesTd( // .length = 295866 should set num_corr_tiles!
+///					fcorr_td, // final float [][][][] corr_tiles, // [tileY][tileX][pair][4*64]
+///					pairs_map); // int [][] pairs) // typically {{0,0},{1,1},{2,2},{3,3},{4,4},{5,5} [0] - 3rd index in corr_tiles, [1] -
+			
 			corr_indices_ = gpuQuad.setCorrTilesTd( // .length = 295866 should set num_corr_tiles!
 					fcorr_td, // final float [][][][] corr_tiles, // [tileY][tileX][pair][4*64]
-					pairs_map); // int [][] pairs) // typically {{0,0},{1,1},{2,2},{3,3},{4,4},{5,5} [0] - 3rd index in corr_tiles, [1] -
+		            null, // int [][][]           num_acc,     // number of accumulated tiles [tilesY][tilesX][pair] (or null)
+		            null); // float [][]           pfcorr_weights); // null or one per correlation tile (num_corr_tiles) to divide fat zero2
+			
 			gpuQuad.execCorr2D_normalize(
 					false, // boolean combo, // normalize combo correlations (false - per-pair ones) 
 					gpu_fat_zero, // double fat_zero);
+					null, // float [] fcorr_weights, // null or one per correlation tile (num_corr_tiles) to divide fat zero2
 					gpu_corr_rad); // int corr_radius
 			fcorr2D_ = gpuQuad.getCorr2D(gpu_corr_rad); //  int corr_rad);
 		}
+		
 		final int [] corr_indices = corr_indices_; 
 		final float [][] fcorr2D = fcorr2D_; // len = 49311
 
+		
+		
+		
+		
+		
 		final int num_combo= (fcorr_combo_td != null)? fcorr_combo_td.length : 0;
 		final int [][] corr_combo_indices = (fcorr_combo_td != null)? new int [num_combo][] : null;
 		final float [][][] fcorr2D_combo = (fcorr_combo_td != null)? new float[num_combo][][] : null;
@@ -1758,11 +1992,13 @@ public class ImageDtt extends ImageDttCPU {
 				gpuQuad.execCorr2D_normalize(
 						true, // boolean combo, // normalize combo correlations (false - per-pair ones) 
 						gpu_fat_zero, // double fat_zero);
+						null, // float [] fcorr_weights, // null or one per correlation tile (num_corr_tiles) to divide fat zero2
 						gpu_corr_rad); // int corr_radius
 				fcorr2D_combo[i] =  gpuQuad.getCorr2DCombo(gpu_corr_rad);
 			}
 		}
 		final boolean fneed_macro = false;
+		
 		if (corr_indices.length > 0) {
 			/*
 			if (true) { // debugging only
@@ -1794,8 +2030,6 @@ public class ImageDtt extends ImageDttCPU {
 			final int num_tiles = corr_indices.length / num_tile_corr;
 			// FIXME: will not work with combining pairs !!!
 			final int num_pairs = Correlation2d.getNumPairs(numSensors);
-//			Runtime.getRuntime().gc();
-//			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 
 			for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -1932,7 +2166,436 @@ public class ImageDtt extends ImageDttCPU {
 //		return clt_data;
 	}
 	
+	// using most of the ImageDttCPU.clt_process_tl_correlations
+	public void clt_process_tl_correlations( // convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td
+			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+	        final float  [][][][]     fcorr_td,        // [tilesY][tilesX][pair][4*64] transform domain representation of all selected corr pairs
+	        int [][][]                num_acc,         // number of accumulated tiles [tilesY][tilesX][pair] (or null)       
+	        final double              gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
+	        final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0
+	        final int                 gpu_corr_rad,    // = transform_size - 1 ?
+	        // The tp_tasks data should be decoded from GPU to get coordinates
+			final TpTask []           tp_tasks,        // data from the reference frame - will be applied to LMW for the integrated correlations
+			final double [][]         rXY,             // from geometryCorrection
+			// next both can be nulls
+		    final double [][][][]     clt_corr_out,   // sparse (by the first index) [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] or null
+		    // combo will be added as extra pair if mcorr_comb_width > 0 and clt_corr_out has a slot for it
+			// to be converted to float
+			final double  [][][]      dcorr_tiles,     // [tile][pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+			// When clt_mismatch is non-zero, no far objects extraction will be attempted
+			//optional, may be null
+			final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+			final boolean             run_lma,         // calculate LMA, false - CM only
+  		    // define combining of all 2D correlation pairs for CM (LMA does not use them)
+			final int                 mcorr_comb_width,  // combined correlation tile width (set <=0 to skip combined correlations)
+			final int                 mcorr_comb_height, // combined correlation tile full height
+			final int                 mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
+			final double              mcorr_comb_disp,   // Combined tile per-pixel disparity for baseline == side of a square
+			final int                 window_type,     // GPU: will not be used
+			final int                 debug_tileX,
+			final int                 debug_tileY,
+			final int                 threadsMax,      // maximal number of threads to launch
+			final int                 globalDebugLevel)
+	{
+		
+//		final int [] dbg_tiles = (globalDebugLevel > -1)? new int []{37721, 39022, 40975, 38042, 40963, 42253, 38694, 39343, 36443} : null;
+//		final float gpu_fcorr_scale = (float) gpu_corr_scale;
+		if (this.gpuQuad == null) {
+			System.out.println("clt_aberrations_quad_corr_GPU(): this.gpuQuad is null, bailing out");
+			return;
+		}
+		
+//		final boolean [][] saturation_imp = gpuQuad.quadCLT.saturation_imp;               // boolean [][] saturation_imp, // (near) saturated pixels or null
+//gpuQuad
+//		final boolean debug_distort= globalDebugLevel > 0; ///false; // true;
 
+//		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
+		final double [][] debug_offsets = new double[getNumSensors()][2];  
+		for (int i = 0; i < imgdtt_params.lma_dbg_offset.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
+			debug_offsets[i][j] = imgdtt_params.lma_dbg_offset[i][j]*imgdtt_params.lma_dbg_scale;
+		}
+
+		final int width =  gpuQuad.getImageWidth();
+		final int height = gpuQuad.getImageHeight();
+		final int tilesX=  gpuQuad.getTilesX(); // width/transform_size;
+		final int tilesY=  gpuQuad.getTilesY(); // final int tilesY=height/transform_size;
+		// not yet used with GPU
+		// keep for now for mono, find out  what do they mean for macro mode
+		
+		final int corr_size = transform_size * 2 - 1;
+		
+
+		// reducing weight of on-axis correlation values to enhance detection of vertical/horizontal lines
+		// multiply correlation results inside the horizontal center strip  2*enhortho_width - 1 wide by enhortho_scale
+
+		final double [] enh_ortho_scale = new double [corr_size];
+		for (int i = 0; i < corr_size; i++){
+			if ((i < (transform_size - imgdtt_params.getEnhOrthoWidth(isAux()))) || (i > (transform_size - 2 + imgdtt_params.getEnhOrthoWidth(isAux())))) {
+				enh_ortho_scale[i] = 1.0;
+			} else {
+				enh_ortho_scale[i] = imgdtt_params.getEnhOrthoScale(isAux());
+			}
+			if (i == (transform_size-1)) enh_ortho_scale[i] = 0.0 ; // hardwired 0 in the center
+			enh_ortho_scale[i] *= Math.sin(Math.PI*(i+1.0)/(2*transform_size));
+		}
+		if (globalDebugLevel > 1){
+			System.out.println("getEnhOrthoWidth(isAux())="+ imgdtt_params.getEnhOrthoWidth(isAux())+" getEnhOrthoScale(isAux())="+ imgdtt_params.getEnhOrthoScale(isAux()));
+			for (int i = 0; i < corr_size; i++){
+				System.out.println(" enh_ortho_scale["+i+"]="+ enh_ortho_scale[i]);
+
+			}
+		}
+
+		// Create window  to select center correlation strip using
+		// ortho_height - full width of non-zero elements
+		// ortho_eff_height - effective height (ration of the weighted column sum to the center value)
+		int wcenter = transform_size - 1;
+		final double [] ortho_weights = new double [corr_size]; // [15]
+		for (int i = 0; i < corr_size; i++){
+			if ((i >= wcenter - imgdtt_params.ortho_height/2) && (i <= wcenter + imgdtt_params.ortho_height/2)) {
+				double dx = 1.0*(i-wcenter)/(imgdtt_params.ortho_height/2 + 1);
+				ortho_weights[i] = 0.5*(1.0+Math.cos(Math.PI*dx))/imgdtt_params.ortho_eff_height;
+			}
+		}
+		if (globalDebugLevel > 0){
+			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
+			for (int i = 0; i < corr_size; i++){
+				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
+			}
+		}
+
+
+		if (globalDebugLevel > 00) {
+			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+transform_size+
+					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
+		}
+		
+		final float [][]           pfcorr_weights = (num_acc != null) ? new float[1][] : null;
+// This version obeys tp_task order and fills fcorr_td gaps (should be none_) with zeros.
+		final int [] corr_indices = gpuQuad.setCorrTilesTd( // .length = 295866 should set num_corr_tiles!
+				tp_tasks,        //final TpTask []      tp_tasks,        // data from the reference frame - will be applied to LMW for the integrated correlations
+				fcorr_td,        // final float [][][][] corr_tiles, // [tileY][tileX][pair][4*64]
+				num_acc,         // int [][][]           num_acc,     // number of accumulated tiles [tilesY][tilesX][pair] (or null)
+				pfcorr_weights); //float [][]           pfcorr_weights) // null or one per correlation tile (num_corr_tiles) to divide fat zero2
+		float [] fcorr_weights = (num_acc != null) ? pfcorr_weights[0] : null;
+		gpuQuad.execCorr2D_normalize(
+				false, // boolean combo, // normalize combo correlations (false - per-pair ones) 
+				gpu_fat_zero,            // double fat_zero);
+				fcorr_weights,           // fcorr_weights,           // float [] fcorr_weights, // null or one per correlation tile (num_corr_tiles) to divide fat zero2
+				gpu_corr_rad);           // int corr_radius
+		final float [][] fcorr2D = gpuQuad.getCorr2D(gpu_corr_rad); //  int corr_rad);
+		
+		if (corr_indices.length > 0) {
+			/*
+			if (true) { // debugging only
+				int [] wh = new int[2];
+				double [][] dbg_corr = GPUTileProcessor.getCorr2DView(
+						tilesX,
+						tilesY,
+						corr_indices,
+						fcorr2D,
+						wh);
+				(new ShowDoubleFloatArrays()).showArrays(
+						dbg_corr,
+						wh[0],
+						wh[1],
+						true,
+						"dbg-corr2D-fromTD", // name+"-CORR2D-D"+clt_parameters.disparity,
+						GPUTileProcessor.getCorrTitles());
+			}
+			 */
+			final int corr_length = fcorr2D[0].length;// all correlation tiles have the same size
+			
+//	        final int num_used_pairs = getNumUsedPairs();// Number of used pairs		num_pairs = num_pairs_in;
+//			final int num_tiles = corr_indices.length / num_used_pairs; // num_tile_corr;
+
+
+			// CPU version below
+			// CPU version uses sparse 2D correlation arrays (length 120 for 16 cameras, unused are null. GPU version compacts these arrays
+			int [] used_pairs_list = gpuQuad.getUsedPairsList(); // GPU index -> CPU index
+
+
+			if (correlation2d == null) {
+				throw new IllegalArgumentException ("clt_process_tl_correlations(): correlation2d == null!");
+			}
+			correlation2d.setCorrPairs(gpuQuad.getCorrMask()); // copy correlation selection from GPU to Correlation2d instance 
+			final int num_pairs = correlation2d.getCorrPairs().length; // will throw if null
+
+			// which to use - num_pairs or num_used_pairs? Or set correlation2d to match num_used_pairs
+			
+			final boolean combine_corrs = (mcorr_comb_width > 0); // use 0 to disable combining (use LMA only)
+//			final double [] corr_lpf =     doubleGetCltLpfFd(corr_sigma);
+
+			if (clt_corr_out != null) {  // not used so far? REMOVE?
+				boolean [] calc_corr_pairs = correlation2d.getCorrPairs();
+				for (int i = 0; i < calc_corr_pairs.length; i++) if (calc_corr_pairs[i]){
+					clt_corr_out[i] = new double[tilesY][tilesX][]; 
+				}
+				if (clt_corr_out.length > num_pairs) {
+					clt_corr_out[num_pairs] = new double[tilesY][tilesX][]; // for combo
+				}
+			}
+
+			if (combine_corrs) {
+				correlation2d.generateResample( // should be called before
+						mcorr_comb_width,  // combined correlation tile width
+						mcorr_comb_height, // combined correlation tile full height
+						mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
+						mcorr_comb_disp);
+			}
+			final double [][] corr_wnd = Corr2dLMA.getCorrWnd(
+					transform_size,
+					imgdtt_params.lma_wnd);
+			final double [] corr_wnd_inv_limited = (imgdtt_params.lma_min_wnd <= 1.0)?  new double [corr_wnd.length * corr_wnd[0].length]: null;
+			if (corr_wnd_inv_limited != null) {
+				double inv_pwr = imgdtt_params.lma_wnd_pwr - (imgdtt_params.lma_wnd - 1.0); // compensate for lma_wnd
+				for (int i = imgdtt_params.lma_hard_marg; i < (corr_wnd.length - imgdtt_params.lma_hard_marg); i++) {
+					for (int j = imgdtt_params.lma_hard_marg; j < (corr_wnd.length - imgdtt_params.lma_hard_marg); j++) {
+						corr_wnd_inv_limited[i * (corr_wnd.length) + j] = 1.0/Math.max(Math.pow(corr_wnd[i][j],inv_pwr), imgdtt_params.lma_min_wnd);
+					}
+				}
+			}
+
+			if (disparity_map != null){ // only slices that are needed, keep others
+				int [] used_slices = run_lma? 
+						(    new int[] {DISPARITY_INDEX_CM, DISPARITY_INDEX_CM+1,DISPARITY_INDEX_POLY,DISPARITY_INDEX_POLY+1,DISPARITY_STRENGTH_INDEX}):
+							(new int[] {DISPARITY_INDEX_CM, DISPARITY_INDEX_CM+1,DISPARITY_STRENGTH_INDEX});
+				int [] nan_slices =  run_lma?
+						(    new int[] {DISPARITY_INDEX_CM, DISPARITY_INDEX_POLY}):
+							(new int[] {DISPARITY_INDEX_CM});
+				for (int indx:used_slices) {
+					disparity_map[indx] = new double[tilesY*tilesX];
+				}
+				for (int indx:nan_slices) {
+					Arrays.fill(disparity_map[indx], Double.NaN);
+				}
+			}
+
+			final Thread[] threads = newThreadArray(threadsMax);
+			final AtomicInteger ai = new AtomicInteger(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					@Override
+					public void run() {
+						DttRad2 dtt = new DttRad2(transform_size);
+						dtt.set_window(window_type);
+						int tileY,tileX,nTile; // , chn;
+						for (int iTile = ai.getAndIncrement(); iTile < tp_tasks.length; iTile = ai.getAndIncrement()) {
+							tileY = tp_tasks[iTile].getTileY(); //  /tilesX;
+							tileX = tp_tasks[iTile].getTileX(); //nTile % tilesX;
+							nTile = tileY * tilesX + tileX;
+							if (tp_tasks[iTile].getTask() == 0) continue; // nothing to do for this tile
+							boolean debugTile0 =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -6);
+							if (debugTile0) {
+								System.out.println("clt_process_tl_correlations(): tileX="+tileX+", tileY="+tileY);
+							}
+							// TODO: move port coordinates out of color channel loop
+							// double [][] centersXY = tp_tasks[iTile].getDoubleXY(); // isAux());
+							double [][] disp_dist = tp_tasks[iTile].getDoubleDispDist();
+							double [][] corrs =      new double [correlation2d.getNumPairs() + (combine_corrs? 1 : 0)][]; // extra for combo "all"
+/*							
+							//dcorr_weight[iTile]
+							double this_fat_zero2 = afat_zero2;
+							if ((dcorr_weight != null) && (dcorr_weight[iTile] > 0)) {
+								this_fat_zero2 /= dcorr_weight[iTile];
+							}
+							for (int pair = 0; pair < dcorr_td[iTile].length; pair++) if (dcorr_td[iTile][pair] != null) {
+								corrs[pair] = correlation2d.normalizeConvertCorr(
+										dcorr_td[iTile][pair], // double [][] tcorr, // null or initialized to [4][transform_len]
+										corr_lpf, //   double []   lpf,
+										this_fat_zero2, //   double      afat_zero2, // absolute fat zero, same units as components squared values
+										0, //   int corr_radius,
+										false); //   boolean debug_gpu)							
+							}
+*/							
+							// copy correlation tiles from the GPU's floating point arrays 
+							for (int ipair = 0; ipair < used_pairs_list.length; ipair++) {
+								int pair = used_pairs_list[ipair];
+								corrs[pair] = new double[corr_length];
+								int fcorr2D_indx = iTile *  used_pairs_list.length + ipair;
+								for (int i = 0; i < corr_length; i++) {
+									corrs[pair][i] = gpu_corr_scale * fcorr2D[fcorr2D_indx][i]; // copy one-by-one converting from floats to doubles 	
+								}
+							}
+							if (dcorr_tiles != null) {
+								dcorr_tiles[iTile] =  corrs;
+							}
+							if (clt_corr_out != null) { // now not used
+								for (int num_pair = 0; num_pair < corrs.length; num_pair++) if (corrs[num_pair] != null){
+									clt_corr_out[num_pair][tileY][tileX] = corrs[num_pair];
+								}
+							}
+							// get CM disparity/strength
+							double [] disp_str = {0.0, 0.0}; // diaprity = 0 will be initial approximation for LMA if no averaging
+							if (combine_corrs) {
+								double [] corr_combo_tile = correlation2d.accumulateInit(); // combine all available pairs
+								double sumw = 0.0;
+								if (imgdtt_params.mcorr_static_weights || imgdtt_params.mcorr_dynamic_weights) {
+									double [] weights = new double [correlation2d.getNumPairs()];
+									if (imgdtt_params.mcorr_static_weights) {
+										int [] pair_lengths = correlation2d.getPairLengths();
+										for (int npair = 0; npair< weights.length; npair++) if (corrs[npair] != null) {
+											weights[npair] = imgdtt_params.mcorr_weights[pair_lengths[npair] - 1];
+										}
+									} else {
+										for (int npair = 0; npair< weights.length; npair++) if (corrs[npair] != null) {
+											weights[npair] = 1.0;
+										}
+										//									Arrays.fill(weights, 1.0);
+									}
+									if (imgdtt_params.mcorr_dynamic_weights) {
+										for (int npair = 0; npair< weights.length; npair++) if (corrs[npair] != null) {
+											double pair_width = correlation2d. getPairWidth(
+													corrs[npair] , //double [] corr_tile,
+													npair);        // int       num_pair)
+											if (pair_width < 0.1) {
+												System.out.println("pair_width["+npair+"]="+pair_width);
+											} else {
+												weights[npair] /= Math.pow(pair_width, imgdtt_params.mcorr_weights_power);
+											}
+										}
+
+									}
+									if (debugTile0) {
+										System.out.println("clt_process_tl_correlations(): per-pair weights:");
+										for (int npair = 0; npair< weights.length; npair++) if (weights[npair] > 0.0) {
+											int [] pair = correlation2d.getPair(npair);
+											int pair_length = correlation2d.getPairLength(npair);
+											System.out.println(String.format("%3d: %2d -> %2d [%2d]: %8.5f",npair,pair[0],pair[1],pair_length,weights[npair]));
+										}
+									}
+									sumw = correlation2d.accummulatePairs(
+											corr_combo_tile,      // double []   accum_tile,
+											corrs,                // double [][] corr_tiles, may be longer than selection, extra will be ignored 
+											weights);             // double []     weights);
+								} else { // old way, same weight for all pairs
+									sumw = correlation2d.accummulatePairs(
+											corr_combo_tile,           // double []   accum_tile,
+											corrs,                     // double [][] corr_tiles, may be longer than selection, extra will be ignored 
+											correlation2d.selectAll(), // boolean []  selection,
+											1.0);             // double      weight);
+								}
+
+
+								correlation2d.normalizeAccumulatedPairs(
+										corr_combo_tile,
+										sumw);
+//								corrs[dcorr_td[iTile].length] = corr_combo_tile;  // last element
+								corrs[corrs.length -1] = corr_combo_tile;  // last element
+								// copy to output for monitoring if non-null;
+								if ((clt_corr_out != null) && (clt_corr_out.length > num_pairs)) {
+									clt_corr_out[num_pairs][tileY][tileX] = corr_combo_tile;
+								}
+								if (disparity_map != null) {
+									int [] ixy =   correlation2d.getMaxXYInt( // find integer pair or null if below threshold // USED in lwir
+											corr_combo_tile, // double [] data,      // [data_size * data_size]
+											null, // disp_str_combo,
+											correlation2d.getCombWidth(), //       data_width,
+											correlation2d.getCombHeight()/2 - correlation2d.getCombOffset(), // int       center_row, ??????????????
+											true, // boolean   axis_only,
+											-1.0, // imgdtt_params.min_corr,  // ???? double    minMax,    // minimal value to consider (at integer location, not interpolated)
+											false); // debugCluster); // tile_lma_debug_level > 0); // boolean   debug);
+									double [] corr_stat = correlation2d.getMaxXCm(         // get fractional center as a "center of mass" inside circle/square from the integer max
+											corr_combo_tile,                      // double [] data,      // [data_size * data_size]
+											correlation2d.getCombWidth(),        // int       data_width,      //  = 2 * transform_size - 1;
+											correlation2d.getCombHeight()/2 - correlation2d.getCombOffset(),// int       center_row,
+											ixy[0],                              // int       ixcenter,  // integer center x
+											false); // debugCluster); // (tile_lma_debug_level > 0)); // boolean   debug);
+									if (corr_stat != null) { // almost always
+										disp_str = new double [] {-corr_stat[0], corr_stat[1]};
+										if (disparity_map!=null) {
+											disparity_map[DISPARITY_INDEX_CM      ][nTile] = disp_str[0];
+											disparity_map[DISPARITY_INDEX_CM + 1  ][nTile] = disp_str[1];
+											disparity_map[DISPARITY_STRENGTH_INDEX][nTile] = disp_str[1];
+										}
+									}
+								}
+							}
+							if (run_lma && (disparity_map != null)) {
+								// debug the LMA correlations
+								if (debugTile0) { // should be debugTile
+									System.out.println("Will run new LMA for tileX="+tileX+", tileY="+tileY);
+								}
+								double [] poly_disp = {Double.NaN, 0.0};
+								Corr2dLMA lma2 = correlation2d.corrLMA2Single(
+										imgdtt_params,                // ImageDttParameters  imgdtt_params,
+										imgdtt_params.lmas_LY_single, // false,                        // boolean             adjust_ly, // adjust Lazy Eye
+										corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
+										corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
+										corrs,                        // corrs,          // double [][]         corrs,
+										disp_dist,
+										rXY,                          // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
+										// all that are not null in corr_tiles
+										correlation2d.selectAll(),    // longToArray(imgdtt_params.dbg_pair_mask),  // int                 pair_mask, // which pairs to process
+										disp_str,  //corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
+										poly_disp,                    // double[]            poly_ds,    // null or pair of disparity/strength
+										imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
+										-2, //0,                            // tile_lma_debug_level, // +2,         // int                 debug_level,
+										tileX,                        // int                 tileX, // just for debug output
+										tileY );                      // int                 tileY
+								if (debugTile0) { // should be debugTile
+									System.out.println("Ran LMA for tileX="+tileX+", tileY="+tileY);
+								}
+								double [][] ds = null;
+								if (lma2 != null) {
+									ds = lma2.lmaDisparityStrength(
+											imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
+											imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
+											imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
+											imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+											imgdtt_params.lmas_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
+											imgdtt_params.lmas_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
+											imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
+											imgdtt_params.lma_str_offset    // convert lma-generated strength to match previous ones - add to result
+											);
+									if (ds != null) { // always true
+										if (disparity_map!=null) {
+											disparity_map[DISPARITY_INDEX_POLY    ][nTile] = ds[0][0];
+											disparity_map[DISPARITY_INDEX_POLY + 1][nTile] = ds[0][2]; // LMA strength as is
+											disparity_map[DISPARITY_STRENGTH_INDEX][nTile] = ds[0][1]; // overwrite with LMA strength
+										}
+										if (debugTile0) {
+											lma2.printStats(ds,1);
+											if (imgdtt_params.lmas_LY_single) {
+												double [][] ddnd = lma2.getDdNd(); // will not be used here
+												if (ddnd != null) {
+													double [][] dxy= new double [ddnd.length][2];
+													for (int i = 0; i < dxy.length; i++) {
+														dxy[i][0] = ddnd[i][0] * rXY[i][0] - ddnd[i][1] * rXY[i][1];
+														dxy[i][1] = ddnd[i][0] * rXY[i][1] + ddnd[i][1] * rXY[i][0];
+													}
+													System.out.print("       Port:  ");
+													for (int i = 0; i < dxy.length; i++) System.out.print(String.format("   %2d   ", i)); System.out.println();
+													System.out.print("Radial_in =  [");
+													for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", ddnd[i][0])); System.out.println("]");
+													System.out.print("Tangent_CW = [");
+													for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", ddnd[i][1])); System.out.println("]");
+													System.out.print("X =          [");
+													for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", dxy[i][0])); System.out.println("]");
+													System.out.print("Y =          [");
+													for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", dxy[i][1])); System.out.println("]");
+													System.out.println();
+												} else {
+													System.out.println("No dd/nd and x/y offsets data is available ");
+												}
+											} else {
+												System.out.println("LY offsets are not measured");
+											}
+										}
+									}
+								}
+							}
+
+						}
+					}
+				};
+			}
+			startAndJoin(threads);
+		}
+		return;
+	}	
+	
+		
 	
 	
 	
@@ -2084,6 +2747,7 @@ public class ImageDtt extends ImageDttCPU {
 		
 		int [] corr_indices_ = null; 
 		float [][] fcorr2D_ = null;
+		
 		if (fcorr_td != null) {
 			int [][] pairs_map = {{0,0},{1,1},{2,2},{3,3},{4,4},{5,5}};
 			corr_indices_ = gpuQuad.setCorrTilesTd( // .length = 295866 should set num_corr_tiles!
@@ -2092,9 +2756,11 @@ public class ImageDtt extends ImageDttCPU {
 			gpuQuad.execCorr2D_normalize(
 					false, // boolean combo, // normalize combo correlations (false - per-pair ones) 
 					gpu_fat_zero, // double fat_zero);
+					null, // float [] fcorr_weights, // null or one per correlation tile (num_corr_tiles) to divide fat zero2
 					gpu_corr_rad); // int corr_radius
 			fcorr2D_ = gpuQuad.getCorr2D(gpu_corr_rad); //  int corr_rad);
 		}
+		
 		final int [] corr_indices = corr_indices_; 
 		final float [][] fcorr2D = fcorr2D_; // len = 49311
 
@@ -2111,6 +2777,7 @@ public class ImageDtt extends ImageDttCPU {
 				gpuQuad.execCorr2D_normalize(
 						true, // boolean combo, // normalize combo correlations (false - per-pair ones) 
 						gpu_fat_zero, // double fat_zero);
+						null, // float [] fcorr_weights, // null or one per correlation tile (num_corr_tiles) to divide fat zero2
 						gpu_corr_rad); // int corr_radius
 				fcorr2D_combo[i] =  gpuQuad.getCorr2DCombo(gpu_corr_rad);
 			}
@@ -3176,13 +3843,14 @@ public class ImageDtt extends ImageDttCPU {
 		}
 		startAndJoin(threads);
 		
-		int [][] pairs_map = {{0,0},{1,1},{2,2},{3,3},{4,4},{5,5}};
+				int [][] pairs_map = {{0,0},{1,1},{2,2},{3,3},{4,4},{5,5}};
 		final int [] corr_indices = gpuQuad.setCorrTilesTd( // .length = 295866 should set num_corr_tiles!
 				fcorr_td_centers, // final float [][][][] corr_tiles, // [tileY][tileX][pair][4*64]
 				pairs_map); // int [][] pairs) // typically {{0,0},{1,1},{2,2},{3,3},{4,4},{5,5} [0] - 3rd index in corr_tiles, [1] -
 		gpuQuad.execCorr2D_normalize(
 				false, // boolean combo, // normalize combo correlations (false - per-pair ones) 
 				gpu_fat_zero, // double fat_zero);
+				null, // float [] fcorr_weights, // null or one per correlation tile (num_corr_tiles) to divide fat zero2
 				gpu_corr_rad); // int corr_radius
 		final float [][] fcorr2D = gpuQuad.getCorr2D(gpu_corr_rad); //  int corr_rad);
 		
@@ -3512,6 +4180,7 @@ public class ImageDtt extends ImageDttCPU {
 		gpuQuad.execCorr2D_normalize(
 				false, // boolean combo, // normalize combo correlations (false - per-pair ones) 
 				gpu_fat_zero, // double fat_zero);
+				null, // float [] fcorr_weights, // null or one per correlation tile (num_corr_tiles) to divide fat zero2
 				gpu_corr_rad); // int corr_radius
 		final float [][] fcorr2D_super = gpuQuad.getCorr2D(gpu_corr_rad); //  int corr_rad);
 		final int corr_length_super = fcorr2D_super[0].length + 0;// all correlation tiles have the same size

@@ -139,7 +139,7 @@ public class GPUTileProcessor {
 	public static int TASK_TEXTURE_W_BIT =        3; // Texture with West  neighbor
 //	public static int TASK_TEXTURE_BIT =          3;  // bit to request texture calculation int task field of struct tp_task
 	public static int LIST_TEXTURE_BIT =          7;  // bit to request texture calculation
-	public static int CORR_OUT_RAD =              4;  // output radius of the correlations (implemented)
+//	public static int CORR_OUT_RAD =              4;  // output radius of the correlations (implemented)
 	public static double FAT_ZERO_WEIGHT =        0.0001; // add to port weights to avoid nan
 
 	public static int THREADS_DYNAMIC_BITS =      5; // treads in block for CDP creation of the texture list
@@ -225,7 +225,7 @@ public class GPUTileProcessor {
         				"#define TASK_TEXTURE_S_BIT " +             TASK_TEXTURE_S_BIT+"\n"+
         				"#define TASK_TEXTURE_W_BIT " +             TASK_TEXTURE_W_BIT+"\n"+
         				"#define LIST_TEXTURE_BIT " +               LIST_TEXTURE_BIT+"\n"+
-        				"#define CORR_OUT_RAD " +                   CORR_OUT_RAD+"\n" +
+//        				"#define CORR_OUT_RAD " +                   CORR_OUT_RAD+"\n" +
         				"#define FAT_ZERO_WEIGHT " +                FAT_ZERO_WEIGHT+"\n"+
         				"#define THREADS_DYNAMIC_BITS " +           THREADS_DYNAMIC_BITS+"\n"+
         				"#define RBYRDIST_LEN " +                   RBYRDIST_LEN+"\n"+

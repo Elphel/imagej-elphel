@@ -41,18 +41,18 @@ import Jama.Matrix;
 import ij.ImageStack;
 
 public class ImageDttCPU {
-	  static boolean FPGA_COMPARE_DATA= false; // true; // false; //
-	  static int     FPGA_SHIFT_BITS =  7; // number of bits for fractional pixel shift
-	  static int     FPGA_PIXEL_BITS = 15; // bits to represent pixel data (positive)
-	  static int     FPGA_WND_BITS =   17; // bits to represent mclt window (positive for 18-bit signed mpy input)
-	  static int     FPGA_DTT_IN =     22; // bits to represent maximal value after folding (input to DTT)
-	  static int     FPGA_TILE_SIZE =  22; // size of square side for the composite colors tile (16..22)
+	static boolean FPGA_COMPARE_DATA= false; // true; // false; //
+	static int     FPGA_SHIFT_BITS =  7; // number of bits for fractional pixel shift
+	static int     FPGA_PIXEL_BITS = 15; // bits to represent pixel data (positive)
+	static int     FPGA_WND_BITS =   17; // bits to represent mclt window (positive for 18-bit signed mpy input)
+	static int     FPGA_DTT_IN =     22; // bits to represent maximal value after folding (input to DTT)
+	static int     FPGA_TILE_SIZE =  22; // size of square side for the composite colors tile (16..22)
 	public static  int [][] ZI =
-			{{ 0,  1,  2,  3},
-			 {-1,  0, -3,  2},
-			 {-2, -3,  0,  1},
-			 { 3, -2, -1,  0}};
-	  
+		{{ 0,  1,  2,  3},
+				{-1,  0, -3,  2},
+				{-2, -3,  0,  1},
+				{ 3, -2, -1,  0}};
+
 	public static int [][] CORR_PAIRS ={ // {first, second, rot} rot: 0 - as is, 1 - swap y,x
 			{0,1,0},
 			{2,3,0},
@@ -65,274 +65,290 @@ public class ImageDttCPU {
 			{-0.5,  0.5},
 			{ 0.5,  0.5}};
 
-	  // kernels ar designed to have sum = 1.0 and completely reject Bayer modulation for each color
-	  static double [] kern_g={
-			  0.0,   0.125,  0.0  ,
-			  0.125, 0.5,    0.125,
-			  0.0,   0.125,  0.0  };
-	  static double [] kern_rb={
-			  0.0625,  0.125, 0.0625,
-			  0.125,   0.25,  0.125,
-			  0.0625,  0.125, 0.0625};
-//	  static double [][] kerns = {kern_rb,kern_rb,kern_g};
-	  static int [][] corn_side_indices = { // of 012/345/678 3x3 square kernel
-			  {4,5,7,8},           // top left corner
-			  {3,4,5,6,7,8},       // top middle
-			  {3,4,6,7},           // top right
-			  {1,2,4,5,7,8},       // middle left
-			  {0,1,2,3,4,5,6,7,8}, // middle
-			  {0,1,3,4,6,7},       // middle right
-			  {1,2,4,5},           // bottom left
-			  {0,1,2,3,4,5},       // bottom middle
-			  {0,1,3,4}};          // bottom right
-//	 public static int FORCE_DISPARITY_BIT = 8; // move to parameters?
+	// kernels ar designed to have sum = 1.0 and completely reject Bayer modulation for each color
+	static double [] kern_g={
+			0.0,   0.125,  0.0  ,
+			0.125, 0.5,    0.125,
+			0.0,   0.125,  0.0  };
+	static double [] kern_rb={
+			0.0625,  0.125, 0.0625,
+			0.125,   0.25,  0.125,
+			0.0625,  0.125, 0.0625};
+	//	  static double [][] kerns = {kern_rb,kern_rb,kern_g};
+	static int [][] corn_side_indices = { // of 012/345/678 3x3 square kernel
+			{4,5,7,8},           // top left corner
+			{3,4,5,6,7,8},       // top middle
+			{3,4,6,7},           // top right
+			{1,2,4,5,7,8},       // middle left
+			{0,1,2,3,4,5,6,7,8}, // middle
+			{0,1,3,4,6,7},       // middle right
+			{1,2,4,5},           // bottom left
+			{0,1,2,3,4,5},       // bottom middle
+			{0,1,3,4}};          // bottom right
+	//	 public static int FORCE_DISPARITY_BIT = 8; // move to parameters?
 
-//	  static int  QUAD =                           4; // number of cameras in camera
-	  static int  GREEN_CHN =                      2; // index of green channel
-	  static int  MONO_CHN =                       2; // index of channel used in monochrome mode
+	//	  static int  QUAD =                           4; // number of cameras in camera
+	static int  GREEN_CHN =                      2; // index of green channel
+	static int  MONO_CHN =                       2; // index of channel used in monochrome mode
 
-	  static int  DISPARITY_INDEX_INT =            0; // 0 - disparity from correlation integer pixels, 1 - ortho
-	  // Now DISPARITY_INDEX_CM may be POLY with backup from CM (for bad correlation)
-	  static int  DISPARITY_INDEX_CM =             2; // 2 - disparity from correlation "center mass", 3 - ortho (only used for fine correction)
-	  static int  DISPARITY_INDEX_HOR =            4; // disparity from correlation of the horizontal pairs with center suppressed
-	  static int  DISPARITY_INDEX_HOR_STRENGTH =   5; // strength for hor mode (emphasis on vertical lines)
-	  static int  DISPARITY_INDEX_VERT =           6; // disparity from correlation of the vertical pairs with center suppressed
-	  static int  DISPARITY_INDEX_VERT_STRENGTH =  7; // strength in vert mode (horizontal lines detection)
-	  static int  DISPARITY_INDEX_POLY =           8; // index of disparity value in disparity_map == 2 (0,2 or 4)
-	  static int  DISPARITY_STRENGTH_INDEX =      10; // index of strength data in disparity map ==6
-	  static int  DISPARITY_VARIATIONS_INDEX =    11; // index of strength data in disparity map ==6
-//	  static int  IMG_DIFF0_INDEX =               12; // index of noise- normalized image difference for port 0 in disparity map
-//	  static int  OVEREXPOSED =                   16; // index of overexposed fraction of all pixels
-	  static int  OVEREXPOSED =                   12; // index of overexposed fraction of all pixels
-	  static int  IMG_DIFF0_INDEX =               13; // index of noise- normalized image difference for port 0 in disparity map
-//	  static int  IMG_TONE_RGB =                  17; // 12 entries of r0,r1,r2,r3,g0,g1,g2,g3,b0,b1,b2,b3
-	  
-	  static int  IMG_DIFFS =                     16;
-	  static int  IMG_TONES_RGB =                 17;
-	  
-	  static boolean isCorrBit (int indx) {
-		  return indx <= DISPARITY_STRENGTH_INDEX; // maybe use DISPARITY_VARIATIONS_INDEX?
-	  }
-	  static boolean isSliceBit(int indx) {
-		  return indx < IMG_DIFFS;
-	  }
-	  static int  getImgToneRGB(int numSensors) {
-		  return IMG_DIFF0_INDEX + numSensors;
-	  }
-	  static boolean needImgDiffs(int mode) {
-		  return ((mode >> IMG_DIFFS) & 1) != 0;
-	  }
-	  static boolean needTonesRGB(int mode) {
-		  return ((mode >> IMG_TONES_RGB) & 1) != 0;
-	  }
-	  public boolean isDiffIndex(int indx) {
-		  return (indx >= IMG_DIFF0_INDEX) && (indx < (IMG_DIFF0_INDEX + numSensors));
-	  }
-	  public boolean isToneRGBIndex(int indx) {
-		  return (indx >= (IMG_DIFF0_INDEX + numSensors)) && (indx < (IMG_DIFF0_INDEX + 4 * numSensors));
-	  }
-	  public int getImgToneRGB() {
-		  return getImgToneRGB(numSensors);
-	  }
+	static int  DISPARITY_INDEX_INT =            0; // 0 - disparity from correlation integer pixels, 1 - ortho
+	// Now DISPARITY_INDEX_CM may be POLY with backup from CM (for bad correlation)
+	static int  DISPARITY_INDEX_CM =             2; // 2 - disparity from correlation "center mass", 3 - ortho (only used for fine correction)
+	static int  DISPARITY_INDEX_HOR =            4; // disparity from correlation of the horizontal pairs with center suppressed
+	static int  DISPARITY_INDEX_HOR_STRENGTH =   5; // strength for hor mode (emphasis on vertical lines)
+	static int  DISPARITY_INDEX_VERT =           6; // disparity from correlation of the vertical pairs with center suppressed
+	static int  DISPARITY_INDEX_VERT_STRENGTH =  7; // strength in vert mode (horizontal lines detection)
+	static int  DISPARITY_INDEX_POLY =           8; // index of disparity value in disparity_map == 2 (0,2 or 4)
+	static int  DISPARITY_STRENGTH_INDEX =      10; // index of strength data in disparity map ==6
+	static int  DISPARITY_VARIATIONS_INDEX =    11; // index of strength data in disparity map ==6
+	//	  static int  IMG_DIFF0_INDEX =               12; // index of noise- normalized image difference for port 0 in disparity map
+	//	  static int  OVEREXPOSED =                   16; // index of overexposed fraction of all pixels
+	static int  OVEREXPOSED =                   12; // index of overexposed fraction of all pixels
+	static int  IMG_DIFF0_INDEX =               13; // index of noise- normalized image difference for port 0 in disparity map
+	//	  static int  IMG_TONE_RGB =                  17; // 12 entries of r0,r1,r2,r3,g0,g1,g2,g3,b0,b1,b2,b3
 
-// remove when not needed
-	  static int BITS_ALL_DISPARITIES = (
-			  (3 << DISPARITY_INDEX_INT) |           // 0 - disparity from correlation integer pixels, 1 - ortho
-			  (3 << DISPARITY_INDEX_CM) |            // 2 - disparity from correlation "center mass", 3 - ortho (only used for fine correction)
-			  (1 << DISPARITY_INDEX_HOR) |           // 4 - disparity from correlation of the horizontal pairs with center suppressed
-			  (1 << DISPARITY_INDEX_HOR_STRENGTH) |  // 5; // strength for hor mode (emphasis on vertical lines)
-			  (1 << DISPARITY_INDEX_VERT) |          // 6; // disparity from correlation of the vertical pairs with center suppressed
-			  (1 << DISPARITY_INDEX_VERT_STRENGTH) | // 7; // strength in vert mode (horizontal lines detection)
-			  (3 << DISPARITY_INDEX_POLY) |          // 8; // index of disparity value in disparity_map == 2 (0,2 or 4)
-			  (1 << DISPARITY_STRENGTH_INDEX) |      // 10; // index of strength data in disparity map ==6
-			  (1 << DISPARITY_VARIATIONS_INDEX));    // 11; // index of strength data in disparity map ==6
-	  
-	  // TODO - use 1 bit per type 
-	  static int BITS_OVEREXPOSED = (1     << OVEREXPOSED);
-      /*
+	static int  IMG_DIFFS =                     16;
+	static int  IMG_TONES_RGB =                 17;
+
+	static boolean isCorrBit (int indx) {
+		return indx <= DISPARITY_STRENGTH_INDEX; // maybe use DISPARITY_VARIATIONS_INDEX?
+	}
+	static boolean isSliceBit(int indx) {
+		return indx < IMG_DIFFS;
+	}
+	static int  getImgToneRGB(int numSensors) {
+		return IMG_DIFF0_INDEX + numSensors;
+	}
+	static boolean needImgDiffs(int mode) {
+		return ((mode >> IMG_DIFFS) & 1) != 0;
+	}
+	static boolean needTonesRGB(int mode) {
+		return ((mode >> IMG_TONES_RGB) & 1) != 0;
+	}
+	public boolean isDiffIndex(int indx) {
+		return (indx >= IMG_DIFF0_INDEX) && (indx < (IMG_DIFF0_INDEX + numSensors));
+	}
+	public boolean isToneRGBIndex(int indx) {
+		return (indx >= (IMG_DIFF0_INDEX + numSensors)) && (indx < (IMG_DIFF0_INDEX + 4 * numSensors));
+	}
+	public int getImgToneRGB() {
+		return getImgToneRGB(numSensors);
+	}
+
+	// remove when not needed
+	static int BITS_ALL_DISPARITIES = (
+			(3 << DISPARITY_INDEX_INT) |           // 0 - disparity from correlation integer pixels, 1 - ortho
+			(3 << DISPARITY_INDEX_CM) |            // 2 - disparity from correlation "center mass", 3 - ortho (only used for fine correction)
+			(1 << DISPARITY_INDEX_HOR) |           // 4 - disparity from correlation of the horizontal pairs with center suppressed
+			(1 << DISPARITY_INDEX_HOR_STRENGTH) |  // 5; // strength for hor mode (emphasis on vertical lines)
+			(1 << DISPARITY_INDEX_VERT) |          // 6; // disparity from correlation of the vertical pairs with center suppressed
+			(1 << DISPARITY_INDEX_VERT_STRENGTH) | // 7; // strength in vert mode (horizontal lines detection)
+			(3 << DISPARITY_INDEX_POLY) |          // 8; // index of disparity value in disparity_map == 2 (0,2 or 4)
+			(1 << DISPARITY_STRENGTH_INDEX) |      // 10; // index of strength data in disparity map ==6
+			(1 << DISPARITY_VARIATIONS_INDEX));    // 11; // index of strength data in disparity map ==6
+
+	// TODO - use 1 bit per type 
+	static int BITS_OVEREXPOSED = (1     << OVEREXPOSED);
+	/*
 	  static int BITS_ALL_DIFFS =   (0xf   << IMG_DIFF0_INDEX);
 	  static int BITS_TONE_RGB =    (0xfff << IMG_TONE_RGB);
-	  */
+	 */
+
+	// TODO: modify decoding of bits - turns on/off all channels simultaneously
+	static int BITS_ALL_DIFFS =   (0x1 << IMG_DIFFS);
+	static int BITS_TONE_RGB =    (0x1 << IMG_TONES_RGB);
+	static int BITS_FROM_GPU = BITS_ALL_DIFFS | BITS_TONE_RGB;
+
+	static String [] DISPARITY_TITLES4 = {
+			"int_disp","int_y_disp","cm_disp","cm_y_disp","hor_disp","hor_strength","vert_disp","vert_strength",
+			"poly_disp", "poly_y_disp", "strength_disp", "vary_disp","overexp","diff0","diff1","diff2","diff3",
+			"r0","r1","r2","r3",
+			"g0","g1","g2","g3",
+			"b0","b1","b2","b3",
+	};
+	static String [] getDisparityTitles(int numSensors) {
+		String [] disparity_titles0 = {
+				"int_disp","int_y_disp","cm_disp","cm_y_disp","hor_disp","hor_strength","vert_disp","vert_strength",
+				"poly_disp", "poly_y_disp", "strength_disp", "vary_disp","overexp"};
+		String [] disparity_titles = new String [disparity_titles0.length + 4* numSensors];
+		int indx = 0;
+		for (String s: disparity_titles0) {
+			disparity_titles[indx++] = s;
+		}
+		for (int i = 0; i < numSensors; i++) disparity_titles[indx++] = "diff"+i;
+		for (int i = 0; i < numSensors; i++) disparity_titles[indx++] = "r"+i;
+		for (int i = 0; i < numSensors; i++) disparity_titles[indx++] = "b"+i;
+		for (int i = 0; i < numSensors; i++) disparity_titles[indx++] = "g"+i;
+		return disparity_titles;
+	}
+	String [] getDisparityTitles() {
+		return getDisparityTitles(numSensors);
+	}
+
+	static public String[] CORR_TITLES = {
+			"top","bottom","left","right","diag-m","diag-o",
+			"quad","cross","hor","vert",
+			"s-hor","s-vert","s-quad","s-cross","s-quad-cross","s-combo"}; 
+	//			  "dbg0","dbg1","dbg2","dbg3","dbg4","dbg5","dbg6","dbg7","dbg8","dbg9","dbg10","dbg11","dbg12","dbg13","dbg14","dbg15","dbg16","dbg17","dbg18"};
+
+	static int  BI_DISP_FULL_INDEX =            0;  // 0 - disparity for all directions of the main camera
+	static int  BI_DISP_HOR_INDEX =             1;  // 1 - disparity for 2 horizontal pairs of the main camera
+	static int  BI_DISP_VERT_INDEX =            2;  // 2 - disparity for 2 vertical pairs of the main camera
+	static int  BI_DISP_DIAGM_INDEX =           3;  // 3 - disparity for main diagonal pair of the main camera
+	static int  BI_DISP_DIAGO_INDEX =           4;  // 4 - disparity for main diagonal pair of the main camera
+	static int  BI_ADISP_FULL_INDEX =           5;  // 5 - disparity for all directions of the aux camera
+	static int  BI_ADISP_HOR_INDEX =            6;  // 6 - disparity for 2 horizontal pairs of the aux camera
+	static int  BI_ADISP_VERT_INDEX =           7;  // 7 - disparity for 2 vertical pairs of the aux camera
+	static int  BI_ADISP_DIAGM_INDEX =          8;  // 8 - disparity for main diagonal pair of the aux camera
+	static int  BI_ADISP_DIAGO_INDEX =          9;  // 9 - disparity for main diagonal pair of the aux camera
+	static int  BI_DISP_CROSS_INDEX =          10;  //10 - disparity between the main the aux camera
+	static int  BI_DISP_CROSS_DX_INDEX =       11;  //11 - delta disparity between the main the aux camera (horizontal)
+	static int  BI_DISP_CROSS_DY_INDEX =       12;  //12 - delta disparity between the main the aux camera (vertical)
+	static int  BI_STR_FULL_INDEX =            13;  //13 - strength for all directions of the main camera
+	static int  BI_STR_HOR_INDEX =             14;  //14 - strength for 2 horizontal pairs of the main camera
+	static int  BI_STR_VERT_INDEX =            15;  //15 - strength for 2 vertical pairs of the main camera
+	static int  BI_STR_DIAGM_INDEX =           16;  //16 - strength for main diagonal pair of the main camera
+	static int  BI_STR_DIAGO_INDEX =           17;  //17 - strength for main diagonal pair of the main camera
+	static int  BI_ASTR_FULL_INDEX =           18;  //18 - strength for all directions of the aux camera
+	static int  BI_ASTR_HOR_INDEX =            19;  //19 - strength for 2 horizontal pairs of the aux camera
+	static int  BI_ASTR_VERT_INDEX =           20;  //20 - strength for 2 vertical pairs of the aux camera
+	static int  BI_ASTR_DIAGM_INDEX =          21;  //21 - strength for main diagonal pair of the aux camera
+	static int  BI_ASTR_DIAGO_INDEX =          22;  //22 - strength for main diagonal pair of the aux camera
+	static int  BI_STR_CROSS_INDEX =           23;  //23 - strength between the main the aux camera
+	static int  BI_STR_ALL_INDEX =             24;  //24 - average strength (product of strengths to 1/3 power), TODO: strength at cross disparity
+	static int  BI_TARGET_INDEX =              25;  //25 - target disparity
+	static int  BI_DBG1_INDEX =                26;  //26 - debug layer 1
+	static int  BI_DBG2_INDEX =                27;  //27 - debug layer 2
+	static int  BI_DBG3_INDEX =                28;  //28 - debug layer 2
+	static int  BI_DBG4_INDEX =                29;  //29 - debug layer 2
+
+	static String [] BIDISPARITY_TITLES = {
+			"disparity","disp_hor","disp_vert","disp_diagm","disp_diago",
+			"adisparity","adisp_hor","adisp_vert","adisp_diagm","adisp_diago",
+			"bi-disparity","bi-disparity-dx","bi-disparity-dy",
+			"strength", "str_hor", "str_vert", "str_diagm", "str_diago",
+			"astrength", "astr_hor", "astr_vert", "astr_diagm", "astr_diago",
+			"bi-strength", "all-strength", "target", "dbg1", "dbg2", "dbg3", "dbg4"};
+	static int [] BIDISPARITY_STRENGTHS= {
+			BI_STR_FULL_INDEX,   BI_STR_VERT_INDEX,  BI_STR_DIAGM_INDEX,  BI_STR_DIAGO_INDEX,
+			BI_ASTR_FULL_INDEX,  BI_ASTR_HOR_INDEX,  BI_ASTR_VERT_INDEX,  BI_ASTR_DIAGM_INDEX,
+			BI_ASTR_DIAGO_INDEX, BI_STR_CROSS_INDEX, BI_STR_ALL_INDEX};
+
+	static int  DISP_FULL_INDEX =            0;  // 0 - disparity for all directions of the main camera
+	static int  DISP_HOR_INDEX =             1;  // 1 - disparity for 2 horizontal pairs of the main camera
+	static int  DISP_VERT_INDEX =            2;  // 2 - disparity for 2 vertical pairs of the main camera
+	static int  DISP_DIAGM_INDEX =           3;  // 3 - disparity for main diagonal pair of the main camera
+	static int  DISP_DIAGO_INDEX =           4;  // 4 - disparity for main diagonal pair of the main camera
+	static int  STR_FULL_INDEX =             5;  //11 - strength for all directions of the main camera
+	static int  STR_HOR_INDEX =              6;  //12 - strength for 2 horizontal pairs of the main camera
+	static int  STR_VERT_INDEX =             7;  //13 - strength for 2 vertical pairs of the main camera
+	static int  STR_DIAGM_INDEX =            8;  //14 - strength for main diagonal pair of the main camera
+	static int  STR_DIAGO_INDEX =            9;  //15 - strength for main diagonal pair of the main camera
+
+	// ML data
+
+	static int  ML_TOP_INDEX =               0;  // 0 - top pair 2d correlation center area
+	static int  ML_BOTTOM_INDEX =            1;  // 1 - bottom pair 2d correlation center area
+	static int  ML_LEFT_INDEX =              2;  // 2 - left pair 2d correlation center area
+	static int  ML_RIGHT_INDEX =             3;  // 3 - right pair 2d correlation center area
+	static int  ML_DIAGM_INDEX =             4;  // 4 - main diagonal (top-left to bottom-right) pair 2d correlation center area
+	static int  ML_DIAGO_INDEX =             5;  // 5 - other diagonal (bottom-left to top-right) pair 2d correlation center area
+	static int  ML_HOR_INDEX =               6;  // 6 - horizontal pairs combined 2d correlation center area
+	static int  ML_VERT_INDEX =              7;  // 7 - vertical pairs combined 2d correlation center area
+
+	static int  ML_TOP_AUX_INDEX =           8;  // 8 - top pair 2d correlation center area (auxiliary camera)
+	static int  ML_BOTTOM_AUX_INDEX =        9;  // 9 - bottom pair 2d correlation center area (auxiliary camera)
+	static int  ML_LEFT_AUX_INDEX =         10;  //10 - left pair 2d correlation center area (auxiliary camera)
+	static int  ML_RIGHT_AUX_INDEX =        11;  //11 - right pair 2d correlation center area (auxiliary camera)
+	static int  ML_DIAGM_AUX_INDEX =        12;  //12 - main diagonal (top-left to bottom-right) pair 2d correlation center area (auxiliary camera)
+	static int  ML_DIAGO_AUX_INDEX =        13;  //13 - other diagonal (bottom-left to top-right) pair 2d correlation center area (auxiliary camera)
+	static int  ML_HOR_AUX_INDEX =          14;  //14 - horizontal pairs combined 2d correlation center area (auxiliary camera)
+	static int  ML_VERT_AUX_INDEX =         15;  //15 - vertical pairs combined 2d correlation center area (auxiliary camera)
+
+	static int  ML_INTER_INDEX =            16;  //16 - inter-camera (between two quad ones) correlation center area
+	static int  ML_OTHER_INDEX =            17;  //17 - other data: 0 (top left tile corner) - preset disparity of the tile, 1: (next element) - ground trouth data, 2:
+	//      ground truth confidence
+	static int  ML_DBG1_INDEX =             18;  //18 - just debug data (first - auto phase correlation)
+
+	static String [] ML_TITLES = {
+			"top-pair", "bottom-pair", "left_pair", "right-pair", "diagm-pair", "diago-pair","hor-pairs","vert-pairs",
+			"top-aux",  "bottom-aux",  "left_aux",  "right-aux",  "diagm-aux",  "diago-aux", "hor-aux",  "vert-aux",
+			"inter", "other", "dbg1"};
+
+	static String [] GEOM_TITLES_DBG ={
+			"px0","py0","px1","py1","px2","py2","px3","py3",
+			"dd0-0","dd0-1","dd0-2","dd0-3",
+			"dd1-0","dd1-1","dd1-2","dd1-3",
+			"dd2-0","dd2-1","dd2-2","dd2-3",
+			"dd3-0","dd3-1","dd3-2","dd3-3"};
+
+	public static int  ML_OTHER_TARGET =            0;  // Offset to target disparity data in  ML_OTHER_INDEX layer tile
+	public static int  ML_OTHER_GTRUTH =            2;  // Offset to ground truth disparity data in ML_OTHER_INDEX layer tile
+	public static int  ML_OTHER_GTRUTH_STRENGTH =   4;  // Offset to ground truth confidence data in  ML_OTHER_INDEX layer tile
+	public static int  ML_OTHER_GTRUTH_RMS =        6;  // Offset to ground truth RMS in  ML_OTHER_INDEX layer tile
+	public static int  ML_OTHER_GTRUTH_RMS_SPLIT =  8;  // Offset to ground truth combined FG/BG RMS in  ML_OTHER_INDEX layer tile
+	public static int  ML_OTHER_GTRUTH_FG_DISP =   10;  // Offset to ground truth FG disparity in  ML_OTHER_INDEX layer tile
+	public static int  ML_OTHER_GTRUTH_FG_STR =    12;  // Offset to ground truth FG strength in  ML_OTHER_INDEX layer tile
+	public static int  ML_OTHER_GTRUTH_BG_DISP =   14;  // Offset to ground truth BG disparity in  ML_OTHER_INDEX layer tile
+	public static int  ML_OTHER_GTRUTH_BG_STR =    16;  // Offset to ground truth BG strength in  ML_OTHER_INDEX layer tile
+	public static int  ML_OTHER_AUX_DISP =         18;  // Offset to AUX heuristic disparity in  ML_OTHER_INDEX layer tile
+	public static int  ML_OTHER_AUX_STR =          20;  // Offset to AUX heuristic strength in  ML_OTHER_INDEX layer tile
+
+
+	// indices in cross-camera correlation results
+	static int INDEX_DISP =     0;
+	static int INDEX_STRENGTH = 1;
+	static int INDEX_DX =       2;
+	static int INDEX_DY =       3;
+
+
+	static String [] SNGL_DISPARITY_TITLES = {
+			"disparity","disp_hor","disp_vert","disp_diagm","disp_diago",
+			"strength", "str_hor", "str_vert", "str_diagm", "str_diago"};
+	static int [] SNGL_DISPARITY_NAN = {DISP_FULL_INDEX, DISP_HOR_INDEX, DISP_VERT_INDEX,  DISP_DIAGM_INDEX, DISP_DIAGO_INDEX};
+
+	static int [][] SNGL_TO_BI = {
+			{BI_DISP_FULL_INDEX, BI_DISP_HOR_INDEX, BI_DISP_VERT_INDEX,BI_DISP_DIAGM_INDEX,BI_DISP_DIAGO_INDEX,
+				BI_STR_FULL_INDEX, BI_STR_HOR_INDEX, BI_STR_VERT_INDEX,BI_STR_DIAGM_INDEX,BI_STR_DIAGO_INDEX},
+			{BI_ADISP_FULL_INDEX, BI_ADISP_HOR_INDEX, BI_ADISP_VERT_INDEX,BI_ADISP_DIAGM_INDEX,BI_ADISP_DIAGO_INDEX,
+					BI_ASTR_FULL_INDEX, BI_ASTR_HOR_INDEX, BI_ASTR_VERT_INDEX,BI_ASTR_DIAGM_INDEX,BI_ASTR_DIAGO_INDEX}};
+
+	static int  TCORR_COMBO_RSLT =  0; // normal combined correlation from all   selected pairs (mult/sum)
+	static int  TCORR_COMBO_SUM =   1; // sum of channel correlations from all   selected pairs
+	static int  TCORR_COMBO_HOR =   2; // combined correlation from 2 horizontal pairs (0,1). Used to detect vertical features
+	static int  TCORR_COMBO_VERT =  3; // combined correlation from 2 vertical   pairs (0,1). Used to detect horizontal features
+	static String [] TCORR_TITLES = {"combo","sum","hor","vert"};
+
+
+	private final boolean monochrome;
+	private final boolean lwir;       // means that no sqrt correction
+	private final boolean aux;
+	private final double scale_strengths; // scale all correlation strengths (to compensate for LPF sigma changes)
+	public final int transform_size;
+	public final int numSensors;
+	public Correlation2d correlation2d = null;
+	final ImageDttParameters imgdtt_params;
+	final double [][] port_offsets;
+	// Save correlation parameters to instantiate  Correlation2d when first needed (called getCorrelation2d(),
+	// do it before threads to prevent races
+
+	public boolean [] getCorrMask() {
+		if (correlation2d != null) {
+			return correlation2d.getCorrPairs();
+		}
+		return null;
+	}
+	
+	public int getNumUsedPairs() {
+		int np = 0;
+		boolean [] mask = getCorrMask(); // different for ImageDtt and ImageDttCPU
+		for (int i = 0; i < mask.length; i++) if (mask[i]) {
+			np++;
+		}
+		return np;
+	}
 	  
-	  // TODO: modify decoding of bits - turns on/off all channels simultaneously
-	  static int BITS_ALL_DIFFS =   (0x1 << IMG_DIFFS);
-	  static int BITS_TONE_RGB =    (0x1 << IMG_TONES_RGB);
-	  static int BITS_FROM_GPU = BITS_ALL_DIFFS | BITS_TONE_RGB;
 	  
-	  static String [] DISPARITY_TITLES4 = {
-			  "int_disp","int_y_disp","cm_disp","cm_y_disp","hor_disp","hor_strength","vert_disp","vert_strength",
-			  "poly_disp", "poly_y_disp", "strength_disp", "vary_disp","overexp","diff0","diff1","diff2","diff3",
-			  "r0","r1","r2","r3",
-			  "g0","g1","g2","g3",
-			  "b0","b1","b2","b3",
-			  };
-	  static String [] getDisparityTitles(int numSensors) {
-		  String [] disparity_titles0 = {
-				  "int_disp","int_y_disp","cm_disp","cm_y_disp","hor_disp","hor_strength","vert_disp","vert_strength",
-				  "poly_disp", "poly_y_disp", "strength_disp", "vary_disp","overexp"};
-		  String [] disparity_titles = new String [disparity_titles0.length + 4* numSensors];
-		  int indx = 0;
-		  for (String s: disparity_titles0) {
-			  disparity_titles[indx++] = s;
-		  }
-		  for (int i = 0; i < numSensors; i++) disparity_titles[indx++] = "diff"+i;
-		  for (int i = 0; i < numSensors; i++) disparity_titles[indx++] = "r"+i;
-		  for (int i = 0; i < numSensors; i++) disparity_titles[indx++] = "b"+i;
-		  for (int i = 0; i < numSensors; i++) disparity_titles[indx++] = "g"+i;
-		  return disparity_titles;
-	  }
-	  String [] getDisparityTitles() {
-		  return getDisparityTitles(numSensors);
-	  }
-	  
-	  static public String[] CORR_TITLES = {
-			  "top","bottom","left","right","diag-m","diag-o",
-			  "quad","cross","hor","vert",
-			  "s-hor","s-vert","s-quad","s-cross","s-quad-cross","s-combo"}; 
-//			  "dbg0","dbg1","dbg2","dbg3","dbg4","dbg5","dbg6","dbg7","dbg8","dbg9","dbg10","dbg11","dbg12","dbg13","dbg14","dbg15","dbg16","dbg17","dbg18"};
-
-	  static int  BI_DISP_FULL_INDEX =            0;  // 0 - disparity for all directions of the main camera
-	  static int  BI_DISP_HOR_INDEX =             1;  // 1 - disparity for 2 horizontal pairs of the main camera
-	  static int  BI_DISP_VERT_INDEX =            2;  // 2 - disparity for 2 vertical pairs of the main camera
-	  static int  BI_DISP_DIAGM_INDEX =           3;  // 3 - disparity for main diagonal pair of the main camera
-	  static int  BI_DISP_DIAGO_INDEX =           4;  // 4 - disparity for main diagonal pair of the main camera
-	  static int  BI_ADISP_FULL_INDEX =           5;  // 5 - disparity for all directions of the aux camera
-	  static int  BI_ADISP_HOR_INDEX =            6;  // 6 - disparity for 2 horizontal pairs of the aux camera
-	  static int  BI_ADISP_VERT_INDEX =           7;  // 7 - disparity for 2 vertical pairs of the aux camera
-	  static int  BI_ADISP_DIAGM_INDEX =          8;  // 8 - disparity for main diagonal pair of the aux camera
-	  static int  BI_ADISP_DIAGO_INDEX =          9;  // 9 - disparity for main diagonal pair of the aux camera
-	  static int  BI_DISP_CROSS_INDEX =          10;  //10 - disparity between the main the aux camera
-	  static int  BI_DISP_CROSS_DX_INDEX =       11;  //11 - delta disparity between the main the aux camera (horizontal)
-	  static int  BI_DISP_CROSS_DY_INDEX =       12;  //12 - delta disparity between the main the aux camera (vertical)
-	  static int  BI_STR_FULL_INDEX =            13;  //13 - strength for all directions of the main camera
-	  static int  BI_STR_HOR_INDEX =             14;  //14 - strength for 2 horizontal pairs of the main camera
-	  static int  BI_STR_VERT_INDEX =            15;  //15 - strength for 2 vertical pairs of the main camera
-	  static int  BI_STR_DIAGM_INDEX =           16;  //16 - strength for main diagonal pair of the main camera
-	  static int  BI_STR_DIAGO_INDEX =           17;  //17 - strength for main diagonal pair of the main camera
-	  static int  BI_ASTR_FULL_INDEX =           18;  //18 - strength for all directions of the aux camera
-	  static int  BI_ASTR_HOR_INDEX =            19;  //19 - strength for 2 horizontal pairs of the aux camera
-	  static int  BI_ASTR_VERT_INDEX =           20;  //20 - strength for 2 vertical pairs of the aux camera
-	  static int  BI_ASTR_DIAGM_INDEX =          21;  //21 - strength for main diagonal pair of the aux camera
-	  static int  BI_ASTR_DIAGO_INDEX =          22;  //22 - strength for main diagonal pair of the aux camera
-	  static int  BI_STR_CROSS_INDEX =           23;  //23 - strength between the main the aux camera
-	  static int  BI_STR_ALL_INDEX =             24;  //24 - average strength (product of strengths to 1/3 power), TODO: strength at cross disparity
-	  static int  BI_TARGET_INDEX =              25;  //25 - target disparity
-	  static int  BI_DBG1_INDEX =                26;  //26 - debug layer 1
-	  static int  BI_DBG2_INDEX =                27;  //27 - debug layer 2
-	  static int  BI_DBG3_INDEX =                28;  //28 - debug layer 2
-	  static int  BI_DBG4_INDEX =                29;  //29 - debug layer 2
-
-	  static String [] BIDISPARITY_TITLES = {
-			  "disparity","disp_hor","disp_vert","disp_diagm","disp_diago",
-			  "adisparity","adisp_hor","adisp_vert","adisp_diagm","adisp_diago",
-			  "bi-disparity","bi-disparity-dx","bi-disparity-dy",
-			  "strength", "str_hor", "str_vert", "str_diagm", "str_diago",
-			  "astrength", "astr_hor", "astr_vert", "astr_diagm", "astr_diago",
-			  "bi-strength", "all-strength", "target", "dbg1", "dbg2", "dbg3", "dbg4"};
-	  static int [] BIDISPARITY_STRENGTHS= {
-			  BI_STR_FULL_INDEX,   BI_STR_VERT_INDEX,  BI_STR_DIAGM_INDEX,  BI_STR_DIAGO_INDEX,
-			  BI_ASTR_FULL_INDEX,  BI_ASTR_HOR_INDEX,  BI_ASTR_VERT_INDEX,  BI_ASTR_DIAGM_INDEX,
-			  BI_ASTR_DIAGO_INDEX, BI_STR_CROSS_INDEX, BI_STR_ALL_INDEX};
-
-	  static int  DISP_FULL_INDEX =            0;  // 0 - disparity for all directions of the main camera
-	  static int  DISP_HOR_INDEX =             1;  // 1 - disparity for 2 horizontal pairs of the main camera
-	  static int  DISP_VERT_INDEX =            2;  // 2 - disparity for 2 vertical pairs of the main camera
-	  static int  DISP_DIAGM_INDEX =           3;  // 3 - disparity for main diagonal pair of the main camera
-	  static int  DISP_DIAGO_INDEX =           4;  // 4 - disparity for main diagonal pair of the main camera
-	  static int  STR_FULL_INDEX =             5;  //11 - strength for all directions of the main camera
-	  static int  STR_HOR_INDEX =              6;  //12 - strength for 2 horizontal pairs of the main camera
-	  static int  STR_VERT_INDEX =             7;  //13 - strength for 2 vertical pairs of the main camera
-	  static int  STR_DIAGM_INDEX =            8;  //14 - strength for main diagonal pair of the main camera
-	  static int  STR_DIAGO_INDEX =            9;  //15 - strength for main diagonal pair of the main camera
-
-	  // ML data
-
-	  static int  ML_TOP_INDEX =               0;  // 0 - top pair 2d correlation center area
-	  static int  ML_BOTTOM_INDEX =            1;  // 1 - bottom pair 2d correlation center area
-	  static int  ML_LEFT_INDEX =              2;  // 2 - left pair 2d correlation center area
-	  static int  ML_RIGHT_INDEX =             3;  // 3 - right pair 2d correlation center area
-	  static int  ML_DIAGM_INDEX =             4;  // 4 - main diagonal (top-left to bottom-right) pair 2d correlation center area
-	  static int  ML_DIAGO_INDEX =             5;  // 5 - other diagonal (bottom-left to top-right) pair 2d correlation center area
-	  static int  ML_HOR_INDEX =               6;  // 6 - horizontal pairs combined 2d correlation center area
-	  static int  ML_VERT_INDEX =              7;  // 7 - vertical pairs combined 2d correlation center area
-
-	  static int  ML_TOP_AUX_INDEX =           8;  // 8 - top pair 2d correlation center area (auxiliary camera)
-	  static int  ML_BOTTOM_AUX_INDEX =        9;  // 9 - bottom pair 2d correlation center area (auxiliary camera)
-	  static int  ML_LEFT_AUX_INDEX =         10;  //10 - left pair 2d correlation center area (auxiliary camera)
-	  static int  ML_RIGHT_AUX_INDEX =        11;  //11 - right pair 2d correlation center area (auxiliary camera)
-	  static int  ML_DIAGM_AUX_INDEX =        12;  //12 - main diagonal (top-left to bottom-right) pair 2d correlation center area (auxiliary camera)
-	  static int  ML_DIAGO_AUX_INDEX =        13;  //13 - other diagonal (bottom-left to top-right) pair 2d correlation center area (auxiliary camera)
-	  static int  ML_HOR_AUX_INDEX =          14;  //14 - horizontal pairs combined 2d correlation center area (auxiliary camera)
-	  static int  ML_VERT_AUX_INDEX =         15;  //15 - vertical pairs combined 2d correlation center area (auxiliary camera)
-
-	  static int  ML_INTER_INDEX =            16;  //16 - inter-camera (between two quad ones) correlation center area
-	  static int  ML_OTHER_INDEX =            17;  //17 - other data: 0 (top left tile corner) - preset disparity of the tile, 1: (next element) - ground trouth data, 2:
-	                                               //      ground truth confidence
-	  static int  ML_DBG1_INDEX =             18;  //18 - just debug data (first - auto phase correlation)
-
-	  static String [] ML_TITLES = {
-			  "top-pair", "bottom-pair", "left_pair", "right-pair", "diagm-pair", "diago-pair","hor-pairs","vert-pairs",
-			  "top-aux",  "bottom-aux",  "left_aux",  "right-aux",  "diagm-aux",  "diago-aux", "hor-aux",  "vert-aux",
-			  "inter", "other", "dbg1"};
-
-	  static String [] GEOM_TITLES_DBG ={
-			  "px0","py0","px1","py1","px2","py2","px3","py3",
-			  "dd0-0","dd0-1","dd0-2","dd0-3",
-			  "dd1-0","dd1-1","dd1-2","dd1-3",
-			  "dd2-0","dd2-1","dd2-2","dd2-3",
-			  "dd3-0","dd3-1","dd3-2","dd3-3"};
-	  
-	  public static int  ML_OTHER_TARGET =            0;  // Offset to target disparity data in  ML_OTHER_INDEX layer tile
-	  public static int  ML_OTHER_GTRUTH =            2;  // Offset to ground truth disparity data in ML_OTHER_INDEX layer tile
-	  public static int  ML_OTHER_GTRUTH_STRENGTH =   4;  // Offset to ground truth confidence data in  ML_OTHER_INDEX layer tile
-	  public static int  ML_OTHER_GTRUTH_RMS =        6;  // Offset to ground truth RMS in  ML_OTHER_INDEX layer tile
-	  public static int  ML_OTHER_GTRUTH_RMS_SPLIT =  8;  // Offset to ground truth combined FG/BG RMS in  ML_OTHER_INDEX layer tile
-	  public static int  ML_OTHER_GTRUTH_FG_DISP =   10;  // Offset to ground truth FG disparity in  ML_OTHER_INDEX layer tile
-	  public static int  ML_OTHER_GTRUTH_FG_STR =    12;  // Offset to ground truth FG strength in  ML_OTHER_INDEX layer tile
-	  public static int  ML_OTHER_GTRUTH_BG_DISP =   14;  // Offset to ground truth BG disparity in  ML_OTHER_INDEX layer tile
-	  public static int  ML_OTHER_GTRUTH_BG_STR =    16;  // Offset to ground truth BG strength in  ML_OTHER_INDEX layer tile
-	  public static int  ML_OTHER_AUX_DISP =         18;  // Offset to AUX heuristic disparity in  ML_OTHER_INDEX layer tile
-	  public static int  ML_OTHER_AUX_STR =          20;  // Offset to AUX heuristic strength in  ML_OTHER_INDEX layer tile
-
-
-	  // indices in cross-camera correlation results
-	  static int INDEX_DISP =     0;
-	  static int INDEX_STRENGTH = 1;
-	  static int INDEX_DX =       2;
-	  static int INDEX_DY =       3;
-
-
-	  static String [] SNGL_DISPARITY_TITLES = {
-			  "disparity","disp_hor","disp_vert","disp_diagm","disp_diago",
-			  "strength", "str_hor", "str_vert", "str_diagm", "str_diago"};
-      static int [] SNGL_DISPARITY_NAN = {DISP_FULL_INDEX, DISP_HOR_INDEX, DISP_VERT_INDEX,  DISP_DIAGM_INDEX, DISP_DIAGO_INDEX};
-
-      static int [][] SNGL_TO_BI = {
-    		  {BI_DISP_FULL_INDEX, BI_DISP_HOR_INDEX, BI_DISP_VERT_INDEX,BI_DISP_DIAGM_INDEX,BI_DISP_DIAGO_INDEX,
-    			  BI_STR_FULL_INDEX, BI_STR_HOR_INDEX, BI_STR_VERT_INDEX,BI_STR_DIAGM_INDEX,BI_STR_DIAGO_INDEX},
-    		  {BI_ADISP_FULL_INDEX, BI_ADISP_HOR_INDEX, BI_ADISP_VERT_INDEX,BI_ADISP_DIAGM_INDEX,BI_ADISP_DIAGO_INDEX,
-    				  BI_ASTR_FULL_INDEX, BI_ASTR_HOR_INDEX, BI_ASTR_VERT_INDEX,BI_ASTR_DIAGM_INDEX,BI_ASTR_DIAGO_INDEX}};
-
-	  static int  TCORR_COMBO_RSLT =  0; // normal combined correlation from all   selected pairs (mult/sum)
-	  static int  TCORR_COMBO_SUM =   1; // sum of channel correlations from all   selected pairs
-	  static int  TCORR_COMBO_HOR =   2; // combined correlation from 2 horizontal pairs (0,1). Used to detect vertical features
-	  static int  TCORR_COMBO_VERT =  3; // combined correlation from 2 vertical   pairs (0,1). Used to detect horizontal features
-	  static String [] TCORR_TITLES = {"combo","sum","hor","vert"};
-
-	  
-	  private final boolean monochrome;
-	  private final boolean lwir;       // means that no sqrt correction
-	  private final boolean aux;
-	  private final double scale_strengths; // scale all correlation strengths (to compensate for LPF sigma changes)
-	  public final int transform_size;
-	  public final int numSensors;
-	  public Correlation2d correlation2d = null;
-	  final ImageDttParameters imgdtt_params;
-	  final double [][] port_offsets;
-	  // Save correlation parameters to instantiate  Correlation2d when first needed (called getCorrelation2d(),
-	  // do it before threads to prevent races
-	  
-
 	  // save lpf arrays (rgb and corr) to use in C-program for debugging
 	 public double []   dbg_filter_corr;
 	 public double [][] dbg_filter_rbg;

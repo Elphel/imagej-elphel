@@ -101,6 +101,17 @@ public class Correlation2d {
 				img_dtt.getMcorrVert (num_sensors),  // boolean sel_vert);
 				img_dtt.mcorr_limit_sensors); // 0 - no limit, 1 - (4,12) 2 - (2, 6, 10, 14), 3 - (0,2,4,6,8,10,12,14)
 	}
+
+	public static int corrSelEncodeAll(int limit_sensors) { // 0 - no limit, 1 - (4,12) 2 - (2, 6, 10, 14), 3 - (0,2,4,6,8,10,12,14)
+		return corrSelEncode(
+				true,  // boolean sel_all,
+				false,  // boolean sel_dia,
+				false,  // boolean sel_sq,
+				false,  // boolean sel_neib,
+				false,  // boolean sel_hor,
+				false,  // boolean sel_vert);
+				limit_sensors); // 0 - no limit, 1 - (4,12) 2 - (2, 6, 10, 14), 3 - (0,2,4,6,8,10,12,14)
+	}
 	
 	  
 	// configuration for 8-lens and 4-lens cameras. 8-lens has baseline = 1 for 1..4 and 1/2 for 4..7
@@ -332,7 +343,26 @@ public class Correlation2d {
      return  numSensors * (numSensors-1) /2;
     }
     
-    public void setCorrPairs(int mcorr_sel) {
+    public static boolean [] boolCorrPairs(int mcorr_sel, int numSensors) {
+    	Correlation2d c2d = new Correlation2d(
+    			numSensors, // other parameters do not matter
+    			8, 
+    			true,
+    			false);
+		return c2d.setCorrPairs(mcorr_sel);
+    }
+    
+    public static int [] intCorrPairs(int mcorr_sel, int numSensors, int num_out) {
+    	boolean [] boolCorrPairs = boolCorrPairs(mcorr_sel, numSensors);
+    	int [] int_pairs = new int [num_out]; // normally 4
+    	for (int i = 0; i < boolCorrPairs.length; i++) if (boolCorrPairs[i]){
+    		int_pairs[i >> 5] |= 1 << (i & 31);
+    	}
+    	return int_pairs;
+    	
+    }
+    
+    public boolean[] setCorrPairs(int mcorr_sel) {
 		boolean [] corr_calculate = null;
 		if (isCorrAll  (mcorr_sel)) corr_calculate = selectAll();
 		if (isCorrDia  (mcorr_sel)) corr_calculate = selectDiameters  (corr_calculate);
@@ -362,6 +392,7 @@ public class Correlation2d {
 			//*********************************** limit pairs
 		}
 		setCorrPairs(corr_calculate);
+		return corr_calculate;
     }
     
     

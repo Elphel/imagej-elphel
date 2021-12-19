@@ -6140,54 +6140,6 @@ if (debugLevel > -100) return true; // temporarily !
 					// special treatment - make 2 bytes of one disparity value
 					for (int tileY = 0; tileY < tilesY; tileY++) {
 						for (int tileX = 0; tileX < tilesX; tileX++) {
-							/*
-							double target_disparity = corr2d.restoreMlTilePixel(
-									tileX,                            // int         tileX,
-									tileY,                            // int         tileY,
-									ml_hwidth,                        // int         ml_hwidth,
-									ml_data,                          // double [][] ml_data,
-									ImageDtt.ML_OTHER_INDEX,          // int         ml_layer,
-									ImageDtt.ML_OTHER_TARGET ,        // int         ml_index,
-									tilesX);                          // int         tilesX);
-							double gtruth_disparity = corr2d.restoreMlTilePixel(
-									tileX,                            // int         tileX,
-									tileY,                            // int         tileY,
-									ml_hwidth,                        // int         ml_hwidth,
-									ml_data,                          // double [][] ml_data,
-									ImageDtt.ML_OTHER_INDEX,          // int         ml_layer,
-									ImageDtt.ML_OTHER_GTRUTH ,        // int         ml_index,
-									tilesX);                          // int         tilesX);
-							double gtruth_strength = corr2d.restoreMlTilePixel(
-									tileX,                            // int         tileX,
-									tileY,                            // int         tileY,
-									ml_hwidth,                        // int         ml_hwidth,
-									ml_data,                          // double [][] ml_data,
-									ImageDtt.ML_OTHER_INDEX,          // int         ml_layer,
-									ImageDtt.ML_OTHER_GTRUTH_STRENGTH ,     // int         ml_index,
-									tilesX);                          // int         tilesX);
-							// converting disparity to 9.7 ( 1/128 pixel step, +/-256 pixels disparity range), 0x8000 - zero disparity
-							// converting strength to 2 bytes 0.16 fixed point
-							int itd = (int) Math.round(128 * target_disparity) + 0x8000;
-							int [] itarget_disparity = {itd >> 8, itd & 0xff};
-							int igt = (int) Math.round(128 * gtruth_disparity) + 0x8000;
-							int [] igtruth_disparity = {igt >> 8, igt & 0xff};
-							int igs = (int) Math.round(0x10000 * gtruth_strength);
-							int [] igtruth_strength =  {igs >> 8, igs & 0xff};
-							for (int nb = 0; nb<2; nb++) {
-								if (!Double.isNaN(target_disparity)) {
-									int indx =  corr2d.getMlTilePixelIndex(tileX,tileY, ml_hwidth, ImageDtt.ML_OTHER_TARGET + nb, tilesX);
-									iml_data[nl][indx] = (byte) itarget_disparity[nb];
-								}
-								if (!Double.isNaN(gtruth_disparity)) {
-									int indx =  corr2d.getMlTilePixelIndex(tileX,tileY, ml_hwidth, ImageDtt.ML_OTHER_GTRUTH + nb, tilesX);
-									iml_data[nl][indx] = (byte) igtruth_disparity[nb];
-								}
-								if (gtruth_strength > 0.0) {
-									int indx =  corr2d.getMlTilePixelIndex(tileX,tileY, ml_hwidth, ImageDtt.ML_OTHER_GTRUTH_STRENGTH + nb, tilesX);
-									iml_data[nl][indx] = (byte) igtruth_strength[nb];
-								}
-							}
-							*/
 							for (int data:signed_data) if (aux_mode || (data <= ImageDtt.ML_OTHER_GTRUTH_STRENGTH)) {
 								double d =  corr2d.restoreMlTilePixel(
 										tileX,                            // int         tileX,
@@ -8984,6 +8936,121 @@ if (debugLevel > -100) return true; // temporarily !
 				}
 			}
 		}
+	}
+	
+
+	public void interIntraExportML(
+			QuadCLT                                              quadCLT_main, // tiles should be set
+			CLTParameters                                        clt_parameters,
+			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
+			ColorProcParameters                                  colorProcParameters,
+			CorrectionColorProc.ColorGainsParameters             channelGainParameters,
+			EyesisCorrectionParameters.RGBParameters             rgbParameters,
+			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+			Properties                                           properties,
+//			boolean                                              bayer_artifacts_debug,
+//			int                                                  noise_variant, // <0 - no-variants, compatible with old code
+			final int                                            threadsMax,  // maximal number of threads to launch
+			final boolean                                        updateStatus,
+			final int                                            debugLevel)  throws Exception
+	{
+		// TODO:remove
+		boolean                                              bayer_artifacts_debug = false;
+		int                                                  noise_variant = -1; // <0 - no-variants, compatible with old code
+
+		NoiseParameters            noise_sigma_level = null;
+		if ((clt_parameters.inp.noise.scale_random >= 0.0) || (clt_parameters.inp.noise.scale_fpn >= 0.0)) {// <0 - will generate no-noise data
+			if (quadCLT_main.getNumSensors() == 16) {
+				switch (clt_parameters.img_dtt.mcorr_limit_sensors) {
+				case 0:
+					clt_parameters.inp.noise.used_sensors = 16;
+					break;
+				case 1:
+					clt_parameters.inp.noise.used_sensors = 2;
+					break;
+				case 2:
+					clt_parameters.inp.noise.used_sensors = 4;
+					break;
+				case 3:
+					clt_parameters.inp.noise.used_sensors = 8;
+					break;
+				}
+				System.out.println ("Using "+clt_parameters.inp.noise.used_sensors+" of "+quadCLT_main.getNumSensors()+" sensors.");
+			}
+			noise_sigma_level = clt_parameters.inp.noise.clone();
+			
+		}
+		
+		boolean ref_only =  clt_parameters.inp.ref_only; //  true; // process only reference frame (false - inter-scene)
+		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
+			quadCLT_main.getGPU().resetGeometryCorrection();
+			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
+		}
+		// final boolean    batch_mode = clt_parameters.batch_run;
+		this.startTime=System.nanoTime();
+		String [] sourceFiles0=quadCLT_main.correctionsParameters.getSourcePaths();
+		QuadCLT.SetChannels [] set_channels_main = quadCLT_main.setChannels(debugLevel);
+		if ((set_channels_main == null) || (set_channels_main.length==0)) {
+			System.out.println("No files to process (of "+sourceFiles0.length+")");
+			return;
+		}
+		QuadCLT.SetChannels [] set_channels=quadCLT_main.setChannels(debugLevel); // TODO: use just the last one (to need this is no time)
+		
+		QuadCLT ref_quadCLT = quadCLT_main.spawnQuadCLT(
+				set_channels[set_channels.length-1].set_name,
+				clt_parameters,
+				colorProcParameters, //
+				threadsMax,
+				clt_parameters.inp.noise_debug_level); // debugLevel);
+		
+		// temporarily fix wrong sign:
+//		ErsCorrection ers = (ErsCorrection) (ref_quadCLT.getGeometryCorrection());
+		ref_quadCLT.setDSRBG( // runs GPU to calculate average R,B,G
+				clt_parameters, // CLTParameters  clt_parameters,
+				threadsMax,     // int            threadsMax,  // maximal number of threads to launch
+				updateStatus,   // boolean        updateStatus,
+				clt_parameters.inp.noise_debug_level); // debugLevel);    // int            debugLevel)
+	
+//		if (debugLevel > -1000) return; // TODO: Remove
+		
+		
+		OpticalFlow opticalFlow = new OpticalFlow(
+				quadCLT_main.getNumSensors(),
+				clt_parameters.ofp.scale_no_lma_disparity, // double         scale_no_lma_disparity,
+				threadsMax,                                // int            threadsMax,  // maximal number of threads to launch
+				updateStatus);
+		ErsCorrection ers_reference = ref_quadCLT.getErsCorrection();
+		String [] sts = ref_only ? (new String [0]) : ers_reference.getScenes();
+		// get list of all other scenes
+		int num_scenes = sts.length + 1;
+		int indx_ref = num_scenes - 1; 
+		QuadCLT [] scenes = new QuadCLT [num_scenes];
+		scenes[indx_ref] = ref_quadCLT;
+
+		for (int i = 0; i < sts.length; i++) {
+			scenes[i] = ref_quadCLT.spawnQuadCLT( // spawnQuadCLT(
+					sts[i],
+					clt_parameters,
+					colorProcParameters, //
+					threadsMax,
+					-1); // debug_level);
+			scenes[i].setDSRBG(
+					clt_parameters, // CLTParameters  clt_parameters,
+					threadsMax,     // int            threadsMax,  // maximal number of threads to launch
+					updateStatus,   // boolean        updateStatus,
+					-1); // debug_level);    // int            debugLevel)
+		}
+		opticalFlow.intersceneExport(
+				clt_parameters,            // CLTParameters       clt_parameters,
+				ers_reference,             // ErsCorrection        ers_reference,
+				scenes,                    // QuadCLT []           scenes,
+				indx_ref, // int                  indx_ref,
+				colorProcParameters,       // ColorProcParameters colorProcParameters,
+				ref_quadCLT, // QuadCLT              ref_scene, // ordered by increasing timestamps
+				clt_parameters.inp.noise_debug_level // clt_parameters.ofp.debug_level_optical - 1); // 1); // -1); // int debug_level);
+				);
+
+		System.out.println("End of intersceneNoise()");
 	}
 	
 	

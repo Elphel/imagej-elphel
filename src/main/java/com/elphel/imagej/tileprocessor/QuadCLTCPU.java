@@ -272,28 +272,6 @@ public class QuadCLTCPU {
 		return quadCLT;
 	}
 	
-	
-	
-	/*
-	public QuadCLT spawnQuadCLT(
-			String              set_name,
-			CLTParameters       clt_parameters,
-			ColorProcParameters colorProcParameters, //
-			int                 threadsMax,
-			int                 debugLevel)
-	{
-		QuadCLT quadCLT = new QuadCLT(this, set_name); //null
-		
-		quadCLT.restoreFromModel(
-				clt_parameters,
-				colorProcParameters,
-				null,                 // double []    noise_sigma_level,				
-				threadsMax,
-				debugLevel);
-		
-		return quadCLT;
-	}
-	 */
   
 	public QuadCLTCPU spawnQuadCLT(
 			String              set_name,
@@ -505,7 +483,7 @@ public class QuadCLTCPU {
     public double [][]  getDSRBG (){
     	return dsrbg;
     }
-    public String [] getDSRGGTiltes() {
+    public String [] getDSRGGTitles() {
 		return isMonochrome()?
 //				(new String[]{"disparity","strength", "disparity_lma","Y"}):
 //					(new String[]{"disparity","strength", "disparity_lma","R","B","G"});
@@ -561,7 +539,7 @@ public class QuadCLTCPU {
     			disparity,
     			strength,
 //    			disparity_lma,
-    			rbg[2]};
+    			((rbg.length>2)?rbg[2]:rbg[0])}; // [2] - for old compatibility, [0] - new (2021)
     	} else {
     		this.dsrbg = new double[][] {
     			disparity,
@@ -571,7 +549,7 @@ public class QuadCLTCPU {
     	}
 		if (debugLevel > 1) { // -2) {
 			String title = image_name+"-DSRBG";
-			String [] titles = getDSRGGTiltes();
+			String [] titles = getDSRGGTitles();
 			(new ShowDoubleFloatArrays()).showArrays(
 					this.dsrbg,
 					tp.getTilesX(),
@@ -611,7 +589,7 @@ public class QuadCLTCPU {
 		// will work only with GPU
 		// reset bayer source, geometry correction/vector
 		//this.new_image_data =     true;
-		QuadCLT savedQuadClt =  saveQuadClt();
+		QuadCLT savedQuadClt =  saveQuadClt(); // does nothing with CPU
 		/*
 			QuadCLT savedQuadClt =  gpuQuad.getQuadCLT();
 			if (savedQuadClt != this) {
@@ -628,8 +606,8 @@ public class QuadCLTCPU {
 				debugLevel);
 		double [][] rgba = scan.getTilesRBGA();
 		if (debugLevel > -1) { // -2) {
-			String title = image_name+"-RBGA";
-			String [] titles = {"R","B","G","A"};
+			String title = image_name+"-RBGA"; // max A = 0.00297 with LWIR
+			String [] titles = isMonochrome()? (new String [] {"Y","A"}):(new String []{"R","B","G","A"});
 			(new ShowDoubleFloatArrays()).showArrays(
 					rgba,
 					tp.getTilesX(),
@@ -13890,7 +13868,7 @@ public class QuadCLTCPU {
 				  }
 			  }
 		  }
-		  scan.setTilesRBGA(tileTones); 
+		  scan.setTilesRBGA(tileTones); // Alpha is very low, ~1/400
 		  if (debugLevel>10) {
 			  (new ShowDoubleFloatArrays()).showArrays(
 					  tileTones,

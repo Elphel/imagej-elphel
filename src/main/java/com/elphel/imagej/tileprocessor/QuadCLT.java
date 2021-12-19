@@ -2248,6 +2248,75 @@ public class QuadCLT extends QuadCLTCPU {
 		
 		
 		gpuQuad.execConvertDirect();
+		boolean test_execCorr2D = false; // true;
+		int mcorr_sel = Correlation2d.corrSelEncode(clt_parameters.img_dtt, getNumSensors());
+
+		if (test_execCorr2D) {
+			int [] i_mcorr_sel = Correlation2d.intCorrPairs(
+					mcorr_sel,
+					getNumSensors(),
+					4); // int num_out); should be 4 int
+			gpuQuad.setCorrMask(i_mcorr_sel);
+			
+			double fat_zero = 30.0; // 2000.0; // 30.00;
+			int gpu_corr_rad =  7;
+			int corr_size = 2* gpu_corr_rad + 1;
+
+			final int numcol = isMonochrome()?1:3;
+			final double [] col_weights= new double [numcol]; // colors are RBG
+			if (isMonochrome()) {
+				col_weights[0] = 1.00; // Was 0 ! 0;
+			} else {
+				col_weights[2] = 1.0/(1.0 + clt_parameters.corr_red + clt_parameters.corr_blue);    // green color
+				col_weights[0] = clt_parameters.corr_red *  col_weights[2];
+				col_weights[1] = clt_parameters.corr_blue * col_weights[2];
+			}
+
+			//Generate 2D phase correlations from the CLT representation
+			// Try to zero out memory before calculating?	
+			gpuQuad.eraseGpuCorrs(); // no-diff
+			gpuQuad.execCorr2D(
+					gpuQuad.getCorrMask(),    // boolean [] pair_select,
+					col_weights,              // double [] scales,
+					fat_zero,                 // double fat_zero);
+					gpu_corr_rad);            // int corr_radius
+			// Should be done before execCorr2D_TD as corr_indices are shared to save memory
+			int [] corr_indices = gpuQuad.getCorrIndices();
+			// the following is not yet shared
+			float [][] corr2D =  gpuQuad.getCorr2D(
+					gpu_corr_rad); //  int corr_rad);
+			final int tilesX=gpuQuad.getTilesX(); // width/transform_size;
+			final int tilesY=gpuQuad.getTilesY(); // final int tilesY=height/transform_size;
+			int num_tiles = tilesX * tilesY;
+			int sq = 16;
+			int num_pairs = gpuQuad.getNumUsedPairs();
+			float [][] corr_img = new float [num_pairs][tilesY * sq * tilesX * sq];
+			for (int pair = 0; pair < num_pairs; pair++) {
+				Arrays.fill(corr_img[pair], Float.NaN);
+			}
+			for (int ict = 0; ict < corr_indices.length; ict++){
+				
+				
+				//    	int ct = cpu_corr_indices[ict];
+				int ctt = ( corr_indices[ict] >>  GPUTileProcessor.CORR_NTILE_SHIFT);
+				int cpair = corr_indices[ict] & ((1 << GPUTileProcessor.CORR_NTILE_SHIFT) - 1);
+				int ty = ctt / tilesX;
+				int tx = ctt % tilesX;
+				int dst_offs0 = (ty * sq * tilesX * sq) + (tx * sq);
+				for (int iy = 0; iy < corr_size; iy++){
+					int dst_offs = dst_offs0 + iy * (tilesX * sq);
+					System.arraycopy(corr2D[ict], iy * corr_size, corr_img[cpair], dst_offs, corr_size);
+				}
+			}
+			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+					corr_img,
+					tilesX * sq,
+					tilesY * sq,
+					true,
+					"test-corr1");
+		}
+		
+		
 		gpuQuad.execImcltRbgAll(is_mono); 
 
 		// get data back from GPU
@@ -2408,7 +2477,33 @@ public class QuadCLT extends QuadCLTCPU {
 					":"+(clt_parameters.gpu_woi_round?"C":"R")
 					//,new String[] {"R","B","G","A"}
 					);
-			
+			float [][] rgb_text; //  = new float [(isMonochrome() ? 1 : 3)][]; // {rbga[0],rbga[1],rbga[2]};
+			float [][] rgba_text; //  = new float [(isMonochrome() ? 2 : 4)][]; // {rbga[0],rbga[1],rbga[2],rbga[3]};
+			if (isMonochrome()) {
+				rgb_text = new float [][]{rbga[0]};
+				rgba_text = new float [][]{rbga[0]};
+			} else {
+				rgb_text = new float [][]{rbga[0],rbga[2],rbga[1]};
+				rgba_text = new float [][]{rbga[0],rbga[2],rbga[1],rbga[3]};
+			}
+			//isAux()
+			ImagePlus imp_rgba = linearStackToColor(
+					clt_parameters,
+					colorProcParameters,
+					rgbParameters,
+					getImageName()+"-texture", // String name,
+					"-D"+clt_parameters.disparity+"-"+(isAux()?"AUX":"MAIN")+ "GPU", //String suffix, // such as disparity=...
+					toRGB,
+					!correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
+					false, // true, // boolean saveShowIntermediate, // save/show if set globally
+					false, // true, // boolean saveShowFinal,        // save/show result (color image?)
+					((clt_parameters.alpha1 > 0)? rgba_text: rgb_text),
+					woi.width, // clt_parameters.gpu_woi_twidth * image_dtt.transform_size, //  tilesX *  image_dtt.transform_size,
+					woi.height, // clt_parameters.gpu_woi_theight *image_dtt.transform_size, //  tilesY *  image_dtt.transform_size,
+					1.0,         // double scaleExposure, // is it needed?
+					debugLevel );
+			imp_rgba.getProcessor().resetMinAndMax();
+			imp_rgba.show();
 		}
 		boolean try_lores = true;
 		if (try_lores) {
@@ -2824,11 +2919,15 @@ public class QuadCLT extends QuadCLTCPU {
 		float [][] corr2D = quadCLT_main.getGPU().getCorr2D(
 				clt_parameters.gpu_corr_rad); //  int corr_rad);
 		
-		
-		
 // calculate correlations, keep TD
+		int mcorr_sel = Correlation2d.corrSelEncode(clt_parameters.img_dtt,quadCLT_main.getNumSensors());
+		int [] i_mcorr_sel = Correlation2d.intCorrPairs(
+				mcorr_sel,
+				quadCLT_main.getNumSensors(),
+				4); // int num_out); should be 4 int
+
 		quadCLT_main.getGPU().execCorr2D_TD(
-	    		scales);// double [] scales,
+	    		scales,i_mcorr_sel);// double [] scales,
 		
 		quadCLT_main.getGPU().execCorr2D_combine( // calculate cross pairs
 		        true, // boolean init_corr,    // initialize output tiles (false - add to current)
@@ -2838,9 +2937,8 @@ public class QuadCLT extends QuadCLTCPU {
 		quadCLT_main.getGPU().execCorr2D_normalize(
         		true, // boolean combo, // normalize combo correlations (false - per-pair ones) 
 	    		fat_zero, // double fat_zero);
+				null, // float [] fcorr_weights, // null or one per correlation tile (num_corr_tiles) to divide fat zero2
 	    		clt_parameters.gpu_corr_rad); // int corr_radius
-		
-		
 // run textures
 		long startTextures = System.nanoTime();   // System.nanoTime();
 		boolean   calc_textures = clt_parameters.gpu_show_jtextures; //  true;
@@ -3010,6 +3108,7 @@ public class QuadCLT extends QuadCLTCPU {
 			quadCLT_main.getGPU().execCorr2D_normalize(
 	        		true, // boolean combo, // normalize combo correlations (false - per-pair ones) 
 		    		fat_zero, // double fat_zero);
+					null, // float [] fcorr_weights, // null or one per correlation tile (num_corr_tiles) to divide fat zero2
 		    		clt_parameters.gpu_corr_rad); // int corr_radius
 			
 			int [] corr_cross_indices = quadCLT_main.getGPU().getCorrComboIndices(); // get quad
@@ -4113,6 +4212,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  gpuQuad);
 		  image_dtt.getCorrelation2d(); // initiate image_dtt.correlation2d, needed if disparity_map != null  
 		  TpTask[] tp_tasks =  gpuQuad.setInterTasks(
+				  false, // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
 				  pXpYD,              // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
 				  geometryCorrection, // final GeometryCorrection  geometryCorrection,
 				  disparity_corr,     // final double              disparity_corr,
@@ -5010,20 +5110,14 @@ public class QuadCLT extends QuadCLTCPU {
 
 	  public void setPassAvgRBGA( // get image from a single pass, return relative path for x3d // USED in lwir
 			  CLTParameters           clt_parameters,
-//			  int        scanIndex,
 			  CLTPass3d  scan,			  
 			  int        threadsMax,  // maximal number of threads to launch
 			  boolean    updateStatus,
 			  int        debugLevel)
 	  {
 		  if ((gpuQuad != null) && (isAux()?clt_parameters.gpu_use_aux : clt_parameters.gpu_use_main)) {
-//			  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
-//			  final int tilesX = tp.getTilesX();
-//			  final int tilesY = tp.getTilesY();
 			  final int tilesX = scan.getTileProcessor().getTilesX();
 			  final int tilesY = scan.getTileProcessor().getTilesY();
-			  
-			  
 			  double [] disparity = scan.getDisparity();
 			  double [] strength =  scan.getStrength();
 			  boolean [] selection = null; // scan.getSelected();
@@ -5042,7 +5136,6 @@ public class QuadCLT extends QuadCLTCPU {
 						  scan.getSelected(), // boolean [] selection,
 						  scan.getDisparity()); // double []  disparity)
 			  }
-			  
 			  
 			  scan.texture_tiles = getTextureTilesGPU( // returns texture tiles, as with CPU
 					  clt_parameters,     // CLTParameters       clt_parameters,
@@ -5763,5 +5856,27 @@ if (debugLevel < -100) {
 			  getGPU().resetGeometryCorrection();
 		  }
 	  }
+	  
+		public QuadCLT spawnQuadCLT(
+				String              set_name,
+				CLTParameters       clt_parameters,
+				ColorProcParameters colorProcParameters, //
+				int                 threadsMax,
+				int                 debugLevel)
+		{
+			QuadCLT quadCLT = new QuadCLT(this, set_name); //null
+			
+			quadCLT.restoreFromModel(
+					clt_parameters,
+					colorProcParameters,
+					null,                 // double []    noise_sigma_level,
+					-1,                   // noise_variant, // <0 - no-variants, compatible with old code
+					null,                 // final QuadCLTCPU     ref_scene, // may be null if scale_fpn <= 0
+					threadsMax,
+					debugLevel);
+			
+			return quadCLT;
+		}
+	  
 	  
 }
