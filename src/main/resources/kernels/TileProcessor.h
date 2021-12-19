@@ -75,14 +75,15 @@ extern "C" __global__ void correlate2D(
 		float             scale0,             // scale for R
 		float             scale1,             // scale for B
 		float             scale2,             // scale for G
-		float             fat_zero,           // here - absolute
+		float             fat_zero2,           // here - absolute, squared
 		float            * gpu_ftasks,         // flattened tasks, 29 floats for quad EO, 101 floats for LWIR16
 //		struct tp_task  * gpu_tasks,          // array of per-tile tasks (now bits 4..9 - correlation pairs)
 		int               num_tiles,          // number of tiles in task
 		int               tilesx,             // number of tile rows
 		int             * gpu_corr_indices,   // packed tile+pair
 		int             * pnum_corr_tiles,    // pointer to a number of correlation tiles to process
-		const size_t      corr_stride,        // in floats
+		size_t      corr_stride,        // in floats
+//		int               corr_stride,        // in floats
 		int               corr_radius,        // radius of the output correlation (7 for 15x15)
 		float           * gpu_corrs);          // correlation output data
 
@@ -90,9 +91,10 @@ extern "C" __global__ void corr2D_normalize(
 		int               num_corr_tiles,     // number of correlation tiles to process
 		const size_t      corr_stride_td,     // in floats
 		float           * gpu_corrs_td,       // correlation tiles in transform domain
+		float           * corr_weights,       // null or per-tile weight (fat_zero2 will be divided by it)
 		const size_t      corr_stride,        // in floats
 		float           * gpu_corrs,          // correlation output data (either pixel domain or transform domain
-		float             fat_zero,           // here - absolute
+		float             fat_zero2,          // here - absolute, squared
 		int               corr_radius);        // radius of the output correlation (7 for 15x15)
 
 extern "C" __global__ void corr2D_combine(
