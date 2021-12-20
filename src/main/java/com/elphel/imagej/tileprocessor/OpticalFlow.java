@@ -26,25 +26,22 @@ package com.elphel.imagej.tileprocessor;
 import java.awt.Color;
 import java.awt.Rectangle;
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.DoubleAccumulator;
+import java.util.concurrent.ThreadLocalRandom;
 
 import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.cameras.ColorProcParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
-import com.elphel.imagej.gpu.GPUTileProcessor;
 import com.elphel.imagej.gpu.GpuQuad;
 import com.elphel.imagej.gpu.TpTask;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
-import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.Prefs;
@@ -3780,7 +3777,6 @@ public class OpticalFlow {
 			ErsCorrection        ers_reference,
 			QuadCLT []           scenes,
 			int                  indx_ref,
-//			boolean              ref_only, // process only reference frame (false - inter-scene)
 			ColorProcParameters  colorProcParameters,
 			QuadCLT              ref_scene, // ordered by increasing timestamps
 			int                  debug_level
@@ -3788,35 +3784,14 @@ public class OpticalFlow {
 	{
 		System.out.println("intersceneExport(), scene timestamp="+ref_scene.getImageName());
 		int num_scenes = scenes.length;
-		/*
-		ErsCorrection ers_reference = ref_scene.getErsCorrection();
-//		String [] sts = ref_only ? (new String [0]) : ers_reference.getScenes();
-		// get list of all other scenes
-		int num_scenes = sts.length + 1;
-		int indx_ref = num_scenes - 1; 
-		QuadCLT [] scenes = new QuadCLT [num_scenes];
-		scenes[indx_ref] = ref_scene;
-		for (int i = 0; i < sts.length; i++) {
-			scenes[i] = ref_scene.spawnQuadCLT( // spawnQuadCLT(
-					sts[i],
-					clt_parameters,
-					colorProcParameters, //
-					threadsMax,
-					-1); // debug_level);
-			scenes[i].setDSRBG(
-					clt_parameters, // CLTParameters  clt_parameters,
-					threadsMax,     // int            threadsMax,  // maximal number of threads to launch
-					updateStatus,   // boolean        updateStatus,
-					-1); // debug_level);    // int            debugLevel)
-		}
-		*/
-		
 		String [] combo_dsn_titles = {"disp", "strength","disp_lma","num_valid","change"};
 		int combo_dsn_indx_disp =     0; // cumulative disparity (from CM or POLY)
 		int combo_dsn_indx_strength = 1;
 		int combo_dsn_indx_lma =      2; // masked copy from 0 - cumulative disparity
 		int combo_dsn_indx_valid =    3; // initial only
 		int combo_dsn_indx_change =   4; // increment
+		final double min_disp_change = 0.001; // stop re-measure when difference is below
+		
 		final int [] iter_indices = {
 				combo_dsn_indx_disp,
 				combo_dsn_indx_strength,
@@ -3840,6 +3815,7 @@ public class OpticalFlow {
 		final int margin = 8;
 		final int tilesX = ref_scene.getTileProcessor().getTilesX();
 		final int tilesY = ref_scene.getTileProcessor().getTilesY();
+		final int tiles = tilesX * tilesY;
 		if (debug_level > 100) { // add parameter?
 			int        extra = 10; // pixels around largest outline
 			int        scale = 4;
@@ -3862,7 +3838,7 @@ public class OpticalFlow {
 					);		
 			imp_outlines.show();
 		}
-		final double [][] combo_dsn_change = new double [combo_dsn_titles.length] [tilesX*tilesY];
+		final double [][] combo_dsn_change = new double [combo_dsn_titles.length] [tiles];
 		for (int i = 0; i < combo_dsn.length; i++) { // 4 elements: "disp", "strength","disp_lma","num_valid"
 			if (combo_dsn[i] != null) combo_dsn_change[i] = combo_dsn[i]; // all but change
 		}
@@ -3879,18 +3855,22 @@ public class OpticalFlow {
 		final int max_refines = 10;
 		final int last_slices = combo_dsn_titles.length;
 		final int last_initial_slices = last_slices + initial_indices.length;
+		final boolean [] defined_tiles = new boolean [tiles];
+		for (int i = 0; i < defined_tiles.length; i++) {
+			defined_tiles[i] = !Double.isNaN(combo_dsn_change[combo_dsn_indx_disp][i]); // initially defined tiles 
+		}
 		final double [][] refine_results = new double [last_slices + 4 * (max_refines + 1)][];
 		String [] refine_titles = new String [refine_results.length];
 		for (int i = 0; i < combo_dsn_titles.length; i++) {
 			refine_results[i] = combo_dsn_change[i]; // first 5 - references to 5-element combo_dsn_change
-			refine_titles[i] = combo_dsn_titles[i]+"-last"; // "disp", "strength","disp_lma","num_valid","change"
+			refine_titles[i] =  combo_dsn_titles[i]+"-last"; // "disp", "strength","disp_lma","num_valid","change"
 		}
 		for (int i = 0; i < initial_indices.length; i++) {
 			refine_titles[last_slices + i] = combo_dsn_titles[initial_indices[i]]+"-initial"; // "disp", "strength","num_valid"
 			if (combo_dsn_change[initial_indices[i]] != null) {
 				refine_results[last_slices + i] = combo_dsn_change[initial_indices[i]].clone();
 			} else {
-				refine_results[last_slices + i] = new double [tilesX * tilesY];
+				refine_results[last_slices + i] = new double [tiles];
 			}
 		}
 		for (int nrefine = 0; nrefine < max_refines; nrefine++) {
@@ -3898,23 +3878,17 @@ public class OpticalFlow {
 				refine_titles[last_initial_slices + i * max_refines + nrefine ] = combo_dsn_titles[iter_indices[i]]+"-"+nrefine;
 			}
 		}
-		
-		if (debug_level > 1000) {
-			System.out.println("Temporary exit from intersceneExport()");
-			return;
-		}
-		
-		
+		double [] target_disparity = combo_dsn_change[combo_dsn_indx_disp].clone();
 		for (int nrefine = 0; nrefine < max_refines; nrefine++) {
-			Runtime.getRuntime().gc();
-			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+//			Runtime.getRuntime().gc();
+//			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			int mcorr_sel = Correlation2d.corrSelEncode(clt_parameters.img_dtt,scenes[indx_ref].getNumSensors());
 			double [][] disparity_map = 
 					correlateInterscene(
 							clt_parameters, // final CLTParameters  clt_parameters,
 							scenes,         // final QuadCLT []     scenes,
 							indx_ref,       // final int            indx_ref,
-							combo_dsn_change[0],   // final double []      disparity_ref,  // disparity in the reference view tiles (Double.NaN - invalid)
+							target_disparity, // combo_dsn_change[combo_dsn_indx_disp],   // final double []      disparity_ref,  // disparity in the reference view tiles (Double.NaN - invalid)
 							margin,         // final int            margin,
 							nrefine,        // final int            nrefine, // just for debug title
 							( nrefine == (max_refines - 1)) && clt_parameters.inp.show_final_2d, // final boolean        show_2d_corr,
@@ -3936,17 +3910,30 @@ public class OpticalFlow {
 			double [] map_disparity =     disparity_map[ImageDtt.DISPARITY_INDEX_CM]; // 2
 			double [] map_strength =      disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX]; // 10
 			double [] map_disparity_lma = disparity_map[ImageDtt.DISPARITY_INDEX_POLY]; // 8
+			int num_tomeas = 0; // number of tiles to measure
+			Arrays.fill(target_disparity, Double.NaN);
 			for (int nTile =0; nTile < combo_dsn_change[0].length; nTile++) {
-				if (!Double.isNaN(combo_dsn_change[0][nTile])) {
-					if ((map_disparity_lma != null) && !Double.isNaN(map_disparity_lma[nTile])) {
-						combo_dsn_change[combo_dsn_indx_change][nTile] = map_disparity_lma[nTile];
-					} else if (!Double.isNaN(map_disparity[nTile])) {
-						combo_dsn_change[combo_dsn_indx_change][nTile] = map_disparity[nTile] / clt_parameters.ofp.magic_scale;
+				if (defined_tiles[nTile]) { // originally defined, maybe not measured last time
+					if (!Double.isNaN(combo_dsn_change[combo_dsn_indx_disp][nTile])) { // remeasured
+						if ((map_disparity_lma != null) && !Double.isNaN(map_disparity_lma[nTile])) {
+							combo_dsn_change[combo_dsn_indx_change][nTile] = map_disparity_lma[nTile];
+						} else if (!Double.isNaN(map_disparity[nTile])) {
+							combo_dsn_change[combo_dsn_indx_change][nTile] = map_disparity[nTile] / clt_parameters.ofp.magic_scale;
+						}
+						if (!Double.isNaN(combo_dsn_change[combo_dsn_indx_change][nTile])) {
+							combo_dsn_change[combo_dsn_indx_disp][nTile] +=     combo_dsn_change[combo_dsn_indx_change][nTile]; 
+							combo_dsn_change[combo_dsn_indx_strength][nTile]  = map_strength[nTile]; // combine CM/LMA
+						}
+						if (Math.abs(combo_dsn_change[combo_dsn_indx_change][nTile]) >= min_disp_change) {
+							target_disparity[nTile] = combo_dsn_change[combo_dsn_indx_disp][nTile];
+							num_tomeas ++;
+						} else {
+							num_tomeas+=0;
+						}
+					} else { // originally defined, but not re-measured
+						num_tomeas+=0;
 					}
-					if (!Double.isNaN(combo_dsn_change[combo_dsn_indx_change][nTile])) {
-						combo_dsn_change[combo_dsn_indx_disp][nTile] +=     combo_dsn_change[combo_dsn_indx_change][nTile]; 
-						combo_dsn_change[combo_dsn_indx_strength][nTile]  = map_strength[nTile]; // combine CM/LMA
-					}
+					
 				}
 			}
 			// Copy disparity to disparity_lma and just mask out  tiles with no LMA data (keep all if LMA did not run at all)  
@@ -3972,6 +3959,12 @@ public class OpticalFlow {
 						"combo_dsn-"+nrefine+"-"+ref_scene.getImageName(),
 						combo_dsn_titles); //	dsrbg_titles);
 			}
+			if (debug_level > -2) {
+				System.out.println ("nrefine pass = "+nrefine+", remaining "+num_tomeas+" tiles to re-measure");
+			}
+			if (num_tomeas == 0) {
+				break;
+			}
 		}
 		
 		if (debug_level > 0) {
@@ -3984,8 +3977,8 @@ public class OpticalFlow {
 					refine_titles); //	dsrbg_titles);
 		}
 		//noise_sigma_level
-		String rslt_suffix = "-inter-intra";
-		rslt_suffix += (clt_parameters.correlate_lma?"-lma":"-nolma");
+		String rslt_suffix = "-INTER-INTRA";
+		rslt_suffix += (clt_parameters.correlate_lma?"-LMA":"-NOLMA");
 
 		ref_scene.saveDoubleArrayInModelDirectory(
 				rslt_suffix,         // String      suffix,
@@ -4025,6 +4018,7 @@ public class OpticalFlow {
 		// create initial disparity map for the reference scene
 		boolean add_combo = true;   // add 121-st slice with combined pairs correlation
 		boolean save_accum = true;  // save accumulated 0-offset correlation
+		boolean randomize_offsets = true; 
 		double  disparity_low =   -5.0;
 		double  disparity_high =   5.0;
 		double  disparity_pwr =    2.0;
@@ -4065,7 +4059,8 @@ public class OpticalFlow {
 					        facc_2d_img,    // final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)
 							debug_level-8); // final int            debug_level)
 					float [][] corr_2d_img = facc_2d_img[0];					
-					double [] target_disparity = combo_dsn_change[0].clone();
+//					double [] 
+					target_disparity = combo_dsn_change[0].clone();
 					double [][] payload = {
 							target_disparity,
 							refine_results[0], // GT disparity
@@ -4124,32 +4119,60 @@ public class OpticalFlow {
 					imp_ml.setProperty("metaTargetDisparity", ""+0);
 					imp_ml.setProperty("metaGTDisparity",     ""+1);
 					imp_ml.setProperty("metaGTConfidence",    ""+2);
-					imp_ml.setProperty("metaFracValid",       ""+3);
-					imp_ml.setProperty("metaLastDiff",        ""+4);
+					imp_ml.setProperty("metaGTDisparityLMA",  ""+3);
+					imp_ml.setProperty("metaFracValid",       ""+4);
+					imp_ml.setProperty("metaLastDiff",        ""+5);
 					(new JP46_Reader_camera(false)).encodeProperiesToInfo(imp_ml);			
 					FileSaver fs=new FileSaver(imp_ml);
 					fs.saveAsTiff(file_path);
 					System.out.println("intersceneExport(): saved "+file_path);
 		}
-		
+		double [][] all_offsets = new double [disparity_steps][];
+		String [] soffset_centers = new String [disparity_steps];
 		for (int nstep = 0; nstep < disparity_steps; nstep++) {
-			double disparity_offset_rel = (disparity_low + (disparity_high - disparity_low) * nstep / (disparity_steps-1))/disp_ampl;
-			double dsgn = (disparity_offset_rel > 0.0) ? 1.0 : ((disparity_offset_rel < 0.0)? -1.0 : 0.0);
-			double disparity_offset = Math.pow(Math.abs(disparity_offset_rel), disparity_pwr) * dsgn * disp_ampl ;
+			double [] disparity_offsets_rel = { // below, center, above
+					(disparity_low + (disparity_high - disparity_low) * (nstep - 1) / (disparity_steps-1))/disp_ampl,
+					(disparity_low + (disparity_high - disparity_low) * (nstep + 0) / (disparity_steps-1))/disp_ampl,
+					(disparity_low + (disparity_high - disparity_low) * (nstep + 1) / (disparity_steps-1))/disp_ampl
+			};
+			double [] disparity_offset3 = new double [disparity_offsets_rel.length];
+			for (int i = 0; i < disparity_offsets_rel.length; i++) {
+				double dsgn = (disparity_offsets_rel[i] > 0.0) ? 1.0 : ((disparity_offsets_rel[i] < 0.0)? -1.0 : 0.0);
+				disparity_offset3[i] = Math.pow(Math.abs(disparity_offsets_rel[i]), disparity_pwr) * dsgn * disp_ampl ;
+			}
+			if (disparity_offset3[0] > disparity_offset3[2]) { // can that happen?
+				double d = disparity_offset3[0];
+				disparity_offset3[0] =disparity_offset3[2];
+				disparity_offset3[2] = d; 
+			}
+			double disparity_offset = disparity_offset3[1];
 			if (debug_level > -2) {
 				System.out.println("dispatity offset #"+(nstep + 1)+" (of "+disparity_steps+") = "+disparity_offset);
 			}
+			double [] disparity_offsets;
+			if (randomize_offsets) {
+				disparity_offsets = getLappedRandom(
+						disparity_offset3[0], // double min_exclusive,
+						disparity_offset3[2], // double max_exclusive,
+						tiles); // int    nSamples);
+			} else {
+				disparity_offsets = new double[tiles];
+				Arrays.fill(disparity_offsets, disparity_offset3[0]);
+			}
+			all_offsets[nstep] = disparity_offsets;
+			
 			float [][] corr_2d_img = generateOffset2DCorrelations(
 					clt_parameters, // final CLTParameters  clt_parameters,
 					scenes[indx_ref], // final QuadCLT        ref_scene,
 					combo_dsn_change[0], // final double []      disparity_ref_in,  // disparity in the reference view tiles (Double.NaN - invalid)
-					disparity_offset, // final double         disparity_offset,
+					disparity_offsets, // disparity_offset, // final double         disparity_offset,
 					margin, // final int            margin,
 					add_combo, // final boolean        add_combo,
 					debug_level-9); // final int            debug_level);
-			double [] target_disparity = combo_dsn_change[0].clone();
+//			double [] 
+			target_disparity = combo_dsn_change[0].clone();
 			for (int i = 0; i < target_disparity.length; i++) {
-				target_disparity[i]+= disparity_offset;
+				target_disparity[i]+= disparity_offsets[i];
 			}
 			double [][] payload = {
 					target_disparity,
@@ -4188,8 +4211,14 @@ public class OpticalFlow {
 					false); // boolean noNaN)
 			String x3d_path = ref_scene.getX3dDirectory();
 			String sdisparity_offset = String.format("%8.3f", disparity_offset).trim();
+			soffset_centers[nstep] = sdisparity_offset;
+
 			String title = ref_scene.getImageName() + suffix+
-					(ref_scene.isAux()?"-AUX":"-MAIN")+"-DOFFS"+ sdisparity_offset;
+					(ref_scene.isAux()?"-AUX":"-MAIN");
+			if (randomize_offsets) {
+				title+="-RND";
+			}			
+			title+="-DOFFS"+ sdisparity_offset;
 			String mldir=ref_scene.correctionsParameters.mlDirectory;
 			String aMldir=x3d_path + Prefs.getFileSeparator() + mldir;
 			String file_path = aMldir + Prefs.getFileSeparator() + title + ".tiff";
@@ -4197,14 +4226,21 @@ public class OpticalFlow {
 			if (!dir.exists()){
 				dir.mkdirs();
 			}
-//			String file_path = aMldir + Prefs.getFileSeparator() + title + ".tiff";
 			ImagePlus imp_ml = new ImagePlus(title, ml_stack);
 			imp_ml.setProperty("VERSION",             "2.0");
-//			imp_ml.setProperty("tileWidth",    ""+ml_width);
 			imp_ml.setProperty("numScenes",           ""+num_scenes);
 			imp_ml.setProperty("indexReference",      ""+indx_ref);
 			imp_ml.setProperty("fatZero",             ""+fat_zero_single);
-			imp_ml.setProperty("dispOffset",          ""+disparity_offset);
+			imp_ml.setProperty("dispOffset",          ""+disparity_offset3[1]);
+			imp_ml.setProperty("randomize_offsets",   ""+randomize_offsets);
+			if (randomize_offsets) {
+				imp_ml.setProperty("dispOffsetLow",   ""+disparity_offset3[0]);
+				imp_ml.setProperty("dispOffsetHigh",  ""+disparity_offset3[2]);
+			}
+			imp_ml.setProperty("disparity_low",       ""+disparity_low);
+			imp_ml.setProperty("disparity_high",      ""+disparity_high);
+			imp_ml.setProperty("disparity_pwr",       ""+disparity_pwr);
+			imp_ml.setProperty("disparity_steps",     ""+disparity_steps);
 			imp_ml.setProperty("tileMetaScale",       ""+tileMetaScale);
 			imp_ml.setProperty("tileMetaSlice",       ""+tileMetaSlice);
 			imp_ml.setProperty("tileStepX",           ""+tileStepX);
@@ -4219,7 +4255,80 @@ public class OpticalFlow {
 			fs.saveAsTiff(file_path);
 			System.out.println("intersceneExport(): saved "+file_path);
 		}
+		
+		String offsets_suffix = "-DISP_OFFSETS";
+		if (randomize_offsets) {
+			offsets_suffix+="-RND";
+		}			
+
+		ref_scene.saveDoubleArrayInModelDirectory(
+				offsets_suffix,      // String      suffix,
+				soffset_centers,     // null,          // String []   labels, // or null
+				all_offsets,         // dbg_data,         // double [][] data,
+				tilesX,              // int         width,
+				tilesY);             // int         height)
+		
 	}
+	
+	/**
+	 * Generate a pseudo-random values in the range (min_exclusive, max_exclusive) - both exclusive
+	 * with a histogram being a shifted cosine, so an overlap of such distributions shifted by half-range
+	 * will result in even distribution over the full range
+	 * @param min_exclusive minimal value (exclusive)
+	 * @param max_exclusive maximal value (exclusive)
+	 * @param nSamples number of samples to generate
+	 * @return nSamples-long array of valudes
+	 */
+	public double [] getLappedRandom(
+			double min_exclusive,
+			double max_exclusive,
+			int    nSamples) {
+		return getLappedRandom(
+				min_exclusive,
+				max_exclusive,
+				nSamples,
+				1E-8,
+				100);
+	}
+
+	public double [] getLappedRandom(
+			double min_exclusive,
+			double max_exclusive,
+			int    nSamples,
+			double e,
+			int    num_iter)
+	{
+		final double [] rslt = new double [nSamples];
+		final double offset =    0.5 * (max_exclusive + min_exclusive);
+		final double amplitude = 0.5 * (max_exclusive - min_exclusive);
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < nSamples; nTile = ai.getAndIncrement()) {
+						double x = ThreadLocalRandom.current().nextDouble(); // only positives, will mirror later
+						// use Newton method to invert x=y+sin(pi*y)/pi
+						double y = 1 - Math.sqrt(1 - x); // initial approximation
+						for (int n = 0; n < num_iter; n++) {
+							double xi = y + Math.sin(Math.PI * y)/Math.PI;
+							if (Math.abs (x - xi) < e) {
+								break;
+							}
+							y += (x - xi) / (1.0 + Math.cos(Math.PI * y));
+						}
+						if (ThreadLocalRandom.current().nextBoolean()) { // negative values, now -1.0<y<1.0 
+							y = -y; 
+						}
+						rslt[nTile] = offset + amplitude * y;
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return rslt;
+	}
+	
 	
 	/**
 	 * Add per-tile metada into the gaps between the image tiles
@@ -6268,9 +6377,6 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		final double [][][][][] dcorr_td_acc  = new double[num_pairs][][][][];
 		final float  [][][][]   fcorr_td_acc  = new float [tilesY][tilesX][][];
 		final int    [][][]     num_acc = new int [tilesY][tilesX][num_pairs];
-///		double fat_zero_single = clt_parameters.getGpuFatZero(ref_scene.isMonochrome()); // for single scene
-		// TODO: make per-tile variable
-///		double scaled_fat_zero = fat_zero_single / (scenes.length);
 		boolean show_accumulated_correlations = show_2d_corr || debug_level > -5;
 		boolean show_reference_correlations =  show_2d_corr || debug_level > -5;
 		final float  [][][]       fclt_corr = ((accum_2d_corr != null) || show_accumulated_correlations || show_reference_correlations) ?
@@ -6285,7 +6391,9 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				ref_scene.isLwir(),
 				clt_parameters.getScaleStrength(ref_scene.isAux()),
 				ref_scene.getGPU());
-		
+		if (ref_scene.getGPU() != null) {
+			ref_scene.getGPU().gpu_debug_level = debug_level;
+		}
 		image_dtt.getCorrelation2d(); // initiate image_dtt.correlation2d, needed if disparity_map != null  
 
 		double[][] disparity_map = new double [image_dtt.getDisparityTitles().length][];
@@ -6660,7 +6768,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			final CLTParameters  clt_parameters,
 			final QuadCLT        ref_scene,
 			final double []      disparity_ref_in,  // disparity in the reference view tiles (Double.NaN - invalid)
-			final double         disparity_offset,
+			final double []      disparity_offsets,
 			final int            margin,
 			final boolean        add_combo,
 			final int            debug_level)
@@ -6699,7 +6807,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				ref_scene);         // final QuadCLT     reference_QuadClt)
 	for (int i = 0; i < scene_pXpYD.length; i++) {
 		if ((scene_pXpYD[i] != null) && !Double.isNaN(scene_pXpYD[i][2])) {
-			scene_pXpYD[i][2] += disparity_offset;
+			scene_pXpYD[i][2] += disparity_offsets[i];
 		}
 	}
 
