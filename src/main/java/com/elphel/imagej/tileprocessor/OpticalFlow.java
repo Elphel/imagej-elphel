@@ -3790,7 +3790,9 @@ public class OpticalFlow {
 		int combo_dsn_indx_lma =      2; // masked copy from 0 - cumulative disparity
 		int combo_dsn_indx_valid =    3; // initial only
 		int combo_dsn_indx_change =   4; // increment
-		final double min_disp_change = 0.001; // stop re-measure when difference is below
+		
+		final double min_disp_change = clt_parameters.rig.mll_min_disp_change; // 0.001; // stop re-measure when difference is below
+		final int max_refines =       clt_parameters.rig.mll_max_refines;
 		
 		final int [] iter_indices = {
 				combo_dsn_indx_disp,
@@ -3852,7 +3854,6 @@ public class OpticalFlow {
 					combo_dsn_titles); //	dsrbg_titles);
 		}
 		
-		final int max_refines = 10;
 		final int last_slices = combo_dsn_titles.length;
 		final int last_initial_slices = last_slices + initial_indices.length;
 		final boolean [] defined_tiles = new boolean [tiles];
@@ -3914,7 +3915,8 @@ public class OpticalFlow {
 			Arrays.fill(target_disparity, Double.NaN);
 			for (int nTile =0; nTile < combo_dsn_change[0].length; nTile++) {
 				if (defined_tiles[nTile]) { // originally defined, maybe not measured last time
-					if (!Double.isNaN(combo_dsn_change[combo_dsn_indx_disp][nTile])) { // remeasured
+//					if (!Double.isNaN(combo_dsn_change[combo_dsn_indx_disp][nTile])) { // remeasured
+					if ((map_disparity_lma != null) || !Double.isNaN(map_disparity[nTile])) { // remeasured
 						if ((map_disparity_lma != null) && !Double.isNaN(map_disparity_lma[nTile])) {
 							combo_dsn_change[combo_dsn_indx_change][nTile] = map_disparity_lma[nTile];
 						} else if (!Double.isNaN(map_disparity[nTile])) {
@@ -4016,21 +4018,22 @@ public class OpticalFlow {
 						8);                // int iscale) // 8
 		}
 		// create initial disparity map for the reference scene
-		boolean add_combo = true;   // add 121-st slice with combined pairs correlation
-		boolean save_accum = true;  // save accumulated 0-offset correlation
-		boolean randomize_offsets = true; 
-		double  disparity_low =   -5.0;
-		double  disparity_high =   5.0;
-		double  disparity_pwr =    2.0;
-		int     disparity_steps = 20;
-		double  disp_ampl = Math.max(Math.abs(disparity_low),Math.abs(disparity_high));
-		double  tileMetaScale =    0.001;
-		int     tileMetaSlice =   -1; // all slices
-		String suffix = "-ML";
-		double  fat_zero_single = clt_parameters.getGpuFatZero(ref_scene.isMonochrome()); // for single scene
-		int tileStepX = 16;
-		int tileStepY = 16;
+		boolean add_combo =         clt_parameters.rig.mll_add_combo;         //true; add 121-st slice with combined pairs correlation
+		boolean save_accum =        clt_parameters.rig.mll_save_accum;        //true;  // save accumulated 0-offset correlation
+		boolean randomize_offsets = clt_parameters.rig.mll_randomize_offsets; // true; 
+		double  disparity_low =     clt_parameters.rig.mll_disparity_low;     // -5.0;
+		double  disparity_high =    clt_parameters.rig.mll_disparity_high;    // 5.0;
+		double  disparity_pwr =     clt_parameters.rig.mll_disparity_pwr;     // 2.0;
+		int     disparity_steps =   clt_parameters.rig.mll_disparity_steps;   // 20;
+		double  tileMetaScale =     clt_parameters.rig.mll_tileMetaScale;     // 0.001;
+		int     tileMetaSlice =     clt_parameters.rig.mll_tileMetaSlice;     // -1; // all slices
+		int     tileStepX =         clt_parameters.rig.mll_tileStepX;         // 16;
+		int     tileStepY =         clt_parameters.rig.mll_tileStepY;         // 16;
+		String  suffix =            clt_parameters.rig.mll_suffix;            // "-ML";
 
+		double  disp_ampl = Math.max(Math.abs(disparity_low),Math.abs(disparity_high));
+		//		String suffix =ref_scene.correctionsParameters.mlDirectory; // now "ML32
+		double  fat_zero_single = clt_parameters.getGpuFatZero(ref_scene.isMonochrome()); // for single scene
 		
 		ImageDtt image_dtt;
 		image_dtt = new ImageDtt(

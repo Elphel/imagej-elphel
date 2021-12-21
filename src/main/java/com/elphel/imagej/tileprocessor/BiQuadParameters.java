@@ -245,19 +245,33 @@ public class BiQuadParameters {
 	public double  oc_min_strength =          0.1;     // Minimal main camera strength
 
 
+// ML  export for LWIR16 camera	
+	
+// calculating GT	
+	public double  mll_min_disp_change =       0.001; // stop re-measure when difference is below
+	public int     mll_max_refines =          10;
+// Exporting ML files	
+	public boolean mll_add_combo =             true;   // add 121-st slice with combined pairs correlation
+	public boolean mll_save_accum =            true;  // save accumulated 0-offset correlation
+	public boolean mll_randomize_offsets =     true; 
+	public double  mll_disparity_low =        -5.0;
+	public double  mll_disparity_high =        5.0;
+	public double  mll_disparity_pwr =         2.0;
+	public int     mll_disparity_steps =      20;
+	public double  mll_tileMetaScale =         0.001;
+	public int     mll_tileMetaSlice =        -1; // all slices
+	public int     mll_tileStepX =            16;
+	public int     mll_tileStepY =            16;
+	public String  mll_suffix =             "-ML";
 
 //	public boolean ml_generate =               false;  // Generate ML data automatically when running ground truth - MOVED to BATCH parameters
 	public boolean ml_poles =                  true;   // Generate ML data from the DSI that includes extracted poles
 	public boolean ml_copyJP4 =                true;   // Copy source jp4 files when running "Ground truth" command
-
 	public int     ml_hwidth =                 4;      // Half-width of the ML tiles to export (0-> 1x1, 1->3x3, 2 -> 5x5)
-
 // For dual-quad rig mode
 	public double  ml_disparity_sweep  =       2.0;    // Disparity sweep around ground truth, each side
 	public int     ml_sweep_steps =            1;      // Number of disparity sweep steps
-
 	public boolean ml_randomize =              true;    // randomize offset within 1 step (reduces ml_sweep_steps by 1)
-
 // enhancing main camera dsi for generation of the ml files
 	public double  ml_rig_tolerance =          2.0;     // replace main camera disparity if it differs from rig by more than this
 	public double  ml_rnd_offset =             0.5;     // add random offset to rig disparity if there is no suitable data from main camera neighbors
@@ -265,11 +279,9 @@ public class BiQuadParameters {
 	public int     ml_grow_steps =             2;       // measure correlation for the tiles in the undefined areas around known (to match 5x5 clusters
 	public int     ml_grow_mode =              2;       // -1 - prefer background, 0 - use average. 1 - prefer foreground, 2 - auto (closest to rig )
 	public double  ml_new_strength =           0.5;     // assign this fraction of known strengths average to the tiles where strength is unknown (expanded tiles with extrapolated target)
-
 	public boolean ml_main =                   true;    // generate ML from main camera DSI
 	public boolean ml_main_rnd =               true;    // generate ML from main camera DSI with random offset
 	public boolean ml_rig_rnd =                true;    // generate ML from rig DSI (GT) with random offset
-
 // for EO+LWIR mode
 	public boolean ml_aux_ag =                 true;    // aux (lwir) mode - generate 2dcorr for GT (average disparity)
 	public boolean ml_aux_fg =                 true;    // aux (lwir) mode - generate 2dcorr for GT (foreground disparity)
@@ -277,7 +289,6 @@ public class BiQuadParameters {
 	public double  ml_aux_low =                 0.0;    // aux (lwir) mode - disparity sweep low
 	public double  ml_aux_high =               10.0;    // aux (lwir) mode - disparity sweep high
 	public double  ml_aux_step =                0.1;    // aux (lwir) mode - disparity sweep step( >= 0 - no sweep)
-
 // common
 	public boolean ml_keep_aux =               false; // true; // include auxiliary camera data in the ML output
 	public boolean ml_keep_inter =             false; // true; // include inter-camera correlation data in the ML output
@@ -288,9 +299,6 @@ public class BiQuadParameters {
 	public double  ml_limit_extrim =           0.00001; // ignore lowest and highest values when converting to 8 bpp
 	public boolean ml_show_ml =                true; // show each generated MLoutput file
 	public double  ml_fatzero =                0.05; // Use this value for correlation
-
-
-
 
 
 	public void dialogQuestions(GenericJTabbedDialog gd) {
@@ -672,8 +680,38 @@ public class BiQuadParameters {
 
         gd.addTab("ML","Parameters related to the ML files generation for the dual-quad camera rig");
 
-//		gd.addCheckbox    ("Generate ML data automatically",                                                       this.ml_generate,
-//				"Generate ML data automatically when running ground truth (may run separately from a command button)");
+		gd.addMessage("Calculating GT Disparity");
+		gd.addNumericField("Min change of disparity",                                                             this.mll_min_disp_change,  3,6,"pix",
+				"Refine tile until disparity change falls below");
+		gd.addNumericField("Number of disparity refine passes",                                                   this.mll_max_refines,  0,3,"",
+				"Abandon disparity refinement for tiles where disparity does not converge after this number of passes");
+		gd.addMessage("ML output files export for LWIR16 camera");
+		gd.addCheckbox    ("Add combo slice",                                                                     this.mll_add_combo,
+				"Add combined correlations slice from all available pairs after rotation/scaling. Will not be used for training, can be removed to reduce processing time");
+		gd.addCheckbox    ("Save interscene correlations",                                                        this.mll_save_accum,
+				"Save interscene combination of correlations as used for GT calculation. Will not be used for training, can be removed to reduce processing time");
+		gd.addCheckbox    ("Randomize disparity offsets",                                                         this.mll_randomize_offsets,
+				"Add random offset to the file-common disparity offset. The total disparity offset histogram is squared half-period of cosine"+
+		" so ahen multiple files are combined, the disparity offset distribution is uniform.");
+		gd.addNumericField("Disparity offset low",                                                                this.mll_disparity_low,   3,6,"pix",
+				"Low limit of the disparity offset scan range (normally negative e.g. -5.0 pix)");
+		gd.addNumericField("Disparity offset high",                                                               this.mll_disparity_high,  3,6,"pix",
+				"High limit of the disparity offset scan range (normally positive e.g. +5.0 pix)");
+		gd.addNumericField("Disparity offset power",                                                              this.mll_disparity_pwr,   3,6,"",
+				"Provision for non-linear disparity offset steps, 2.0 means squared. It makes smaller disparity steps near 0, larger steps for larger values");
+		gd.addNumericField("Number of disparity offset values",                                                   this.mll_disparity_steps, 0,3,"",
+				"Number of values (and so files) including limits");
+		gd.addNumericField("Tile metadata scale",                                                                 this.mll_tileMetaScale,  3,6,"x",
+				"Scale per-tile metadata values to reduce its visual contrast compared to that of the 2d correlation data");
+		gd.addNumericField("Slice number for metadata (-1 - all slices)",                                         this.mll_tileMetaSlice, 0,3,"",
+				"Embed per-tile metadata into this slice, -1 - embed in all slices");
+		gd.addNumericField("Metadata step X",                                                                     this.mll_tileStepX, 0,3,"pix",
+				"Horizontal step for embedded metadata - should match 2D correlation step");
+		gd.addNumericField("Metadata step X",                                                                     this.mll_tileStepY, 0,3,"pix",
+				"Vertical step for embedded metadata - should match 2D correlation step");
+		gd.addStringField ("ML filename suffix",                              this.mll_suffix, 10,
+				"Use this string as a part of output file names (e.g. '-ML')");
+		gd.addMessage("Pre-LWIR16");
 		gd.addCheckbox    ("Generate ML data from the DSI that includes extracted poles",                          this.ml_poles,
 				"If unchecked - use DSI w/o poles data");
 		gd.addCheckbox    ("Copy JP4 source images when generating ML data",                                       this.ml_copyJP4,
@@ -689,7 +727,7 @@ public class BiQuadParameters {
 		gd.addCheckbox    ("Randomize offset",                                                                    this.ml_randomize,
 				"Each tile will have individual offset, but it the range between the filename and next higher. Reduces sweep steps by 1");
 
-		gd.addMessage("Enhancing main camera dsi for generation of the ml files (dual quad rig mode");
+		gd.addMessage("Enhancing main camera dsi for generation of the ml files (dual quad rig mode)");
 
 		gd.addNumericField("Max disparity difference between rig and main camera",                                this.ml_rig_tolerance,  3,6,"",
 				"Replace main camera disparity if it differs from rig by more than this");
@@ -942,8 +980,21 @@ public class BiQuadParameters {
 		this.oc_min_disparity=              gd.getNextNumber();
 		this.oc_min_strength=               gd.getNextNumber();
 
-
-//		this.ml_generate=                   gd.getNextBoolean();
+		this.mll_min_disp_change=           gd.getNextNumber();
+		this.mll_max_refines=         (int) gd.getNextNumber();
+		this.mll_add_combo=                 gd.getNextBoolean();
+		this.mll_save_accum=                gd.getNextBoolean();
+		this.mll_randomize_offsets=         gd.getNextBoolean();
+		this.mll_disparity_low=             gd.getNextNumber();
+		this.mll_disparity_high=            gd.getNextNumber();
+		this.mll_disparity_pwr=             gd.getNextNumber();
+		this.mll_disparity_steps=     (int) gd.getNextNumber();
+		this.mll_tileMetaScale=             gd.getNextNumber();
+		this.mll_tileMetaSlice=       (int) gd.getNextNumber();
+		this.mll_tileStepX=           (int) gd.getNextNumber();
+		this.mll_tileStepY=           (int) gd.getNextNumber();
+		this.mll_suffix=                    gd.getNextString();
+		
 		this.ml_poles=                      gd.getNextBoolean();
 		this.ml_copyJP4=                    gd.getNextBoolean();
 
@@ -1174,6 +1225,21 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"oc_min_disparity",          this.oc_min_disparity+"");
 		properties.setProperty(prefix+"oc_min_strength",           this.oc_min_strength+"");
 
+		properties.setProperty(prefix+"mll_min_disp_change",       this.mll_min_disp_change+"");
+		properties.setProperty(prefix+"mll_max_refines",           this.mll_max_refines+"");
+		properties.setProperty(prefix+"mll_add_combo",             this.mll_add_combo+"");
+		properties.setProperty(prefix+"mll_save_accum",            this.mll_save_accum+"");
+		properties.setProperty(prefix+"mll_randomize_offsets",     this.mll_randomize_offsets+"");
+		properties.setProperty(prefix+"mll_disparity_low",         this.mll_disparity_low+"");
+		properties.setProperty(prefix+"mll_disparity_high",        this.mll_disparity_high+"");
+		properties.setProperty(prefix+"mll_disparity_pwr",         this.mll_disparity_pwr+"");
+		properties.setProperty(prefix+"mll_disparity_steps",       this.mll_disparity_steps+"");
+		properties.setProperty(prefix+"mll_tileMetaScale",         this.mll_tileMetaScale+"");
+		properties.setProperty(prefix+"mll_tileMetaSlice",         this.mll_tileMetaSlice+"");
+		properties.setProperty(prefix+"mll_tileStepX",             this.mll_tileStepX+"");
+		properties.setProperty(prefix+"mll_tileStepY",             this.mll_tileStepY+"");
+		properties.setProperty(prefix+"mll_suffix",                this.mll_suffix+"");
+		
 //		properties.setProperty(prefix+"ml_generate",               this.ml_generate+"");
 		properties.setProperty(prefix+"ml_poles",                  this.ml_poles+"");
 		properties.setProperty(prefix+"ml_copyJP4",                this.ml_copyJP4+"");
@@ -1401,15 +1467,27 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"oc_min_disparity")!=null)        this.oc_min_disparity=Double.parseDouble(properties.getProperty(prefix+"oc_min_disparity"));
 		if (properties.getProperty(prefix+"oc_min_strength")!=null)         this.oc_min_strength=Double.parseDouble(properties.getProperty(prefix+"oc_min_strength"));
 
-//		if (properties.getProperty(prefix+"ml_generate")!=null)             this.ml_generate=Boolean.parseBoolean(properties.getProperty(prefix+"ml_generate"));
+		if (properties.getProperty(prefix+"mll_min_disp_change")!=null)     this.mll_min_disp_change=Double.parseDouble(properties.getProperty(prefix+"mll_min_disp_change"));
+		if (properties.getProperty(prefix+"mll_max_refines")!=null)         this.mll_max_refines=Integer.parseInt(properties.getProperty(prefix+"mll_max_refines"));
+		if (properties.getProperty(prefix+"mll_add_combo")!=null)           this.mll_add_combo=Boolean.parseBoolean(properties.getProperty(prefix+"mll_add_combo"));
+		if (properties.getProperty(prefix+"mll_save_accum")!=null)          this.mll_save_accum=Boolean.parseBoolean(properties.getProperty(prefix+"mll_save_accum"));
+		if (properties.getProperty(prefix+"mll_randomize_offsets")!=null)   this.mll_randomize_offsets=Boolean.parseBoolean(properties.getProperty(prefix+"mll_randomize_offsets"));
+		if (properties.getProperty(prefix+"mll_disparity_low")!=null)       this.mll_disparity_low=Double.parseDouble(properties.getProperty(prefix+"mll_disparity_low"));
+		if (properties.getProperty(prefix+"mll_disparity_high")!=null)      this.mll_disparity_high=Double.parseDouble(properties.getProperty(prefix+"mll_disparity_high"));
+		if (properties.getProperty(prefix+"mll_disparity_pwr")!=null)       this.mll_disparity_pwr=Double.parseDouble(properties.getProperty(prefix+"mll_disparity_pwr"));
+		if (properties.getProperty(prefix+"mll_disparity_steps")!=null)     this.mll_disparity_steps=Integer.parseInt(properties.getProperty(prefix+"mll_disparity_steps"));
+		if (properties.getProperty(prefix+"mll_tileMetaScale")!=null)       this.mll_tileMetaScale=Double.parseDouble(properties.getProperty(prefix+"mll_tileMetaScale"));
+		if (properties.getProperty(prefix+"mll_tileMetaSlice")!=null)       this.mll_tileMetaSlice=Integer.parseInt(properties.getProperty(prefix+"mll_tileMetaSlice"));
+		if (properties.getProperty(prefix+"mll_tileStepX")!=null)           this.mll_tileStepX=Integer.parseInt(properties.getProperty(prefix+"mll_tileStepX"));
+		if (properties.getProperty(prefix+"mll_tileStepY")!=null)           this.mll_tileStepY=Integer.parseInt(properties.getProperty(prefix+"mll_tileStepY"));
+		if (properties.getProperty(prefix+"mll_suffix")!=null)              this.mll_suffix=(String)(properties.getProperty(prefix+"mll_suffix"));
+		
 		if (properties.getProperty(prefix+"ml_poles")!=null)                this.ml_poles=Boolean.parseBoolean(properties.getProperty(prefix+"ml_poles"));
 		if (properties.getProperty(prefix+"ml_copyJP4")!=null)              this.ml_copyJP4=Boolean.parseBoolean(properties.getProperty(prefix+"ml_copyJP4"));
 		if (properties.getProperty(prefix+"ml_hwidth")!=null)               this.ml_hwidth=Integer.parseInt(properties.getProperty(prefix+"ml_hwidth"));
 		if (properties.getProperty(prefix+"ml_disparity_sweep")!=null)      this.ml_disparity_sweep=Double.parseDouble(properties.getProperty(prefix+"ml_disparity_sweep"));
 		if (properties.getProperty(prefix+"ml_sweep_steps")!=null)          this.ml_sweep_steps=Integer.parseInt(properties.getProperty(prefix+"ml_sweep_steps"));
-
 		if (properties.getProperty(prefix+"ml_randomize")!=null)            this.ml_randomize=Boolean.parseBoolean(properties.getProperty(prefix+"ml_randomize"));
-
 
 		if (properties.getProperty(prefix+"ml_rig_tolerance")!=null)        this.ml_rig_tolerance=Double.parseDouble(properties.getProperty(prefix+"ml_rig_tolerance"));
 		if (properties.getProperty(prefix+"ml_rnd_offset")!=null)           this.ml_rnd_offset=Double.parseDouble(properties.getProperty(prefix+"ml_rnd_offset"));
@@ -1631,7 +1709,21 @@ public class BiQuadParameters {
 		bqp.oc_min_disparity =          this.oc_min_disparity;
 		bqp.oc_min_strength =           this.oc_min_strength;
 
-//		bqp.ml_generate=                this.ml_generate;
+		bqp.mll_min_disp_change =       this.mll_min_disp_change;
+		bqp.mll_max_refines =           this.mll_max_refines;
+		bqp.mll_add_combo =             this.mll_add_combo;
+		bqp.mll_save_accum =            this.mll_save_accum;
+		bqp.mll_randomize_offsets =     this.mll_randomize_offsets;
+		bqp.mll_disparity_low =         this.mll_disparity_low;
+		bqp.mll_disparity_high =        this.mll_disparity_high; 
+		bqp.mll_disparity_pwr  =        this.mll_disparity_pwr;
+		bqp.mll_disparity_steps =       this.mll_disparity_steps;
+		bqp.mll_tileMetaScale =         this.mll_tileMetaScale;
+		bqp.mll_tileMetaSlice =         this.mll_tileMetaSlice;
+		bqp.mll_tileStepX =             this.mll_tileStepX;
+		bqp.mll_tileStepY =             this.mll_tileStepY;
+		bqp.mll_suffix =                this.mll_suffix;
+		
 		bqp.ml_poles=                   this.ml_poles;
 		bqp.ml_copyJP4=                 this.ml_copyJP4;
 		bqp.ml_hwidth=                  this.ml_hwidth;
