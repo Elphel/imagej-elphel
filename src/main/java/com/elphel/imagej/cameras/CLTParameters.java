@@ -337,6 +337,8 @@ public class CLTParameters {
 	// not used anywhere so far
 	public double     min_smth         = 0.25;  // 0.25 minimal noise-normalized pixel difference in a channel to suspect something
 	public double     sure_smth        = 2.0;   // reliable noise-normalized pixel difference in a channel to have something
+	public double     rsure_smth       = 0.5;   // reliable noise-normalized pixel difference in a channel to have something
+	public double     cold_sky_above   = 50.0;  // "Cold sky" - LWIR only, bgnd for all colder than found BG by this value
 	public double     bgnd_range       = 0.3;   // disparity range to be considered background
 	public double     other_range      = 2.0;   // disparity difference from center (provided) disparity to trust
 
@@ -1239,6 +1241,8 @@ public class CLTParameters {
 
 		properties.setProperty(prefix+"min_smth",                   this.min_smth +"");
 		properties.setProperty(prefix+"sure_smth",                  this.sure_smth +"");
+		properties.setProperty(prefix+"rsure_smth",                 this.rsure_smth +"");
+		properties.setProperty(prefix+"cold_sky_above",             this.cold_sky_above +"");
 		properties.setProperty(prefix+"bgnd_range",                 this.bgnd_range +"");
 		properties.setProperty(prefix+"other_range",                this.other_range +"");
 
@@ -2059,6 +2063,8 @@ public class CLTParameters {
 
 		if (properties.getProperty(prefix+"min_smth")!=null)                      this.min_smth=Double.parseDouble(properties.getProperty(prefix+"min_smth"));
 		if (properties.getProperty(prefix+"sure_smth")!=null)                     this.sure_smth=Double.parseDouble(properties.getProperty(prefix+"sure_smth"));
+		if (properties.getProperty(prefix+"rsure_smth")!=null)                    this.rsure_smth=Double.parseDouble(properties.getProperty(prefix+"rsure_smth"));
+		if (properties.getProperty(prefix+"cold_sky_above")!=null)                this.cold_sky_above=Double.parseDouble(properties.getProperty(prefix+"cold_sky_above"));
 		if (properties.getProperty(prefix+"bgnd_range")!=null)                    this.bgnd_range=Double.parseDouble(properties.getProperty(prefix+"bgnd_range"));
 		if (properties.getProperty(prefix+"other_range")!=null)                   this.other_range=Double.parseDouble(properties.getProperty(prefix+"other_range"));
 
@@ -2991,6 +2997,11 @@ public class CLTParameters {
 
 		gd.addNumericField("Minimal noise-normalized pixel difference in a channel to suspect something",            this.min_smth,  3);
 		gd.addNumericField("Reliable noise-normalized pixel difference in a channel to have something ",             this.sure_smth,  3);
+
+		gd.addNumericField("Relative inter-channel variation meaning there is something non-bg",                     this.rsure_smth,  4,6,"",
+				"Absolute difference ratio to average of mean and max meaning that there is something there");
+		gd.addNumericField("Cold sky",                                                                               this.cold_sky_above,  4,6,"counts",
+				"LWIR-only: tiles that are higher than the lowest BG and are colder by this value than BG");
 		gd.addNumericField("Disparity range to be considered background",                                            this.bgnd_range,  3);
 		gd.addNumericField("Disparity difference from the center (provided) disparity to trust",                     this.other_range,  3);
 
@@ -3933,6 +3944,8 @@ public class CLTParameters {
 		this.debug_filters=         gd.getNextBoolean();
 		this.min_smth=              gd.getNextNumber();
 		this.sure_smth=             gd.getNextNumber();
+		this.rsure_smth=            gd.getNextNumber();
+		this.cold_sky_above=        gd.getNextNumber();
 		this.bgnd_range=            gd.getNextNumber();
 		this.other_range=           gd.getNextNumber();
 

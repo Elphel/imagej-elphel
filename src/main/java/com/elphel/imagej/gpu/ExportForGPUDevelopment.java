@@ -34,7 +34,7 @@ public class ExportForGPUDevelopment {
 		//		  int mcorr_sel = Correlation2d.corrSelEncode(clt_parameters.img_dtt, getNumSensors());
 		TpTask[] tp_tasks = GpuQuad.setTasks(
 				quadCLT.getNumSensors(),       // final int                      num_cams,
-				clt_parameters.transform_size, // final int                      transform_size,
+//				clt_parameters.transform_size, // final int                      transform_size,
 				disparity_array,               // final double [][]	           disparity_array,  // [tilesY][tilesX] - individual per-tile expected disparity
 				disparity_corr,                // final double                   disparity_corr,
 				tile_op,                       // final int [][]                 tile_op,          // [tilesY][tilesX] - what to do - 0 - nothing for this tile

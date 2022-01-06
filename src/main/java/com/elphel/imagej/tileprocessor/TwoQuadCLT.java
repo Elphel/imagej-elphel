@@ -1399,12 +1399,12 @@ public class TwoQuadCLT {
 		double [][] sub_disparity_map = new double [sub_titles.length][];
 		for (int ncam = 0; ncam < numSensors; ncam++) {
 			sub_disparity_map[ncam] = disparity_map[ncam + ImageDtt.IMG_DIFF0_INDEX];
-			sub_titles[ncam] = ImageDtt.getDisparityTitles(numSensors)[ncam + ImageDtt.IMG_DIFF0_INDEX];
+			sub_titles[ncam] = ImageDtt.getDisparityTitles(numSensors, quadCLT_main.isMonochrome())[ncam + ImageDtt.IMG_DIFF0_INDEX];
 			for (int ncol = 0; ncol < num_colors_main; ncol++) {
 				sub_disparity_map[ncam + (ncol + 1)* numSensors] =
 						disparity_map[ncam +ncol* numSensors+ ImageDtt.getImgToneRGB(numSensors)];
 				sub_titles[ncam + (ncol + 1)* numSensors] =
-						ImageDtt.getDisparityTitles(numSensors)[ncam +ncol* numSensors+ ImageDtt.getImgToneRGB(numSensors)];
+						ImageDtt.getDisparityTitles(numSensors,quadCLT_main.isMonochrome())[ncam +ncol* numSensors+ ImageDtt.getImgToneRGB(numSensors)];
 			}
 		}
 		(new ShowDoubleFloatArrays()).showArrays(
@@ -8253,8 +8253,8 @@ if (debugLevel > -100) return true; // temporarily !
 		QuadCLT.SetChannels [] set_channels=quadCLT_main.setChannels(debugLevel);
 //		String set_name = set_channels[0].set_name;
 		
-//		QuadCLT [] quadCLTs = new QuadCLT [set_channels.length]; 
-		QuadCLTCPU [] quadCLTs = new QuadCLTCPU [set_channels.length]; 
+		QuadCLT [] quadCLTs = new QuadCLT [set_channels.length]; // Was line below
+//		QuadCLTCPU [] quadCLTs = new QuadCLTCPU [set_channels.length]; 
 		for (int i = 0; i < quadCLTs.length; i++) {
 			quadCLTs[i] = quadCLT_main.spawnQuadCLT(
 					set_channels[i].set_name,
@@ -11176,15 +11176,6 @@ if (debugLevel > -100) return true; // temporarily !
 		}
 		
 		for (int nSet = 0; nSet < set_channels.length; nSet++){
-			// check it is the same set for both cameras
-			/*
-			if ((set_channels_aux != null) && (set_channels_aux.length <= nSet )) {
-				throw new Exception ("Set names for cameras do not match: main camera: '"+set_channels_main[nSet].name()+"', aux. camera: nothing");
-			}
-			if (!set_channels_main[nSet].name().equals(set_channels_aux[nSet].name())) {
-				throw new Exception ("Set names for cameras do not match: main camera: '"+set_channels_main[nSet].name()+"', aux. camera: '"+set_channels_main[nSet].name()+"'");
-			}
-			*/
 			// nset -> name - n1, n2 (in 
 			String set_name = set_channels[nSet].set_name;
 			int nSet_main = -1, nSet_aux = -1;
@@ -11358,7 +11349,6 @@ if (debugLevel > -100) return true; // temporarily !
 								debugLevel);         // final int        debugLevel);
 					} else {
 						if (updateStatus) IJ.showStatus("CPU: Rendering 4 image set (disparity = 0) for "+quadCLT_main.image_name+ "and a thumb nail");
-
 						quadCLT_main.processCLTQuadCorrCPU( // returns ImagePlus, but it already should be saved/shown
 //								imp_srcs_main, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
 								saturation_imp_main, // boolean [][] saturation_imp, // (near) saturated pixels or null
@@ -11652,23 +11642,39 @@ if (debugLevel > -100) return true; // temporarily !
 				}
 				// Generate 4 AUX camera images and thumbnail
 				if (quadCLT_main.correctionsParameters.clt_batch_4img_aux){
-					if (updateStatus) IJ.showStatus("Rendering 4 AUX image set (disparity = 0) for "+quadCLT_aux.image_name);
-
-					quadCLT_aux.processCLTQuadCorrCPU( // returns ImagePlus, but it already should be saved/shown
-//							imp_srcs_aux, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
-							saturation_imp_aux, // boolean [][] saturation_imp, // (near) saturated pixels or null
-							clt_parameters,
-							debayerParameters,
-							colorProcParameters_aux,
-							channelGainParameters,
-							rgbParameters,
-							scaleExposures_aux,
-							false, // calculate and apply additional fine geometry correction
-							false, // calculate and apply geometry correction at infinity
-							threadsMax,  // maximal number of threads to launch
-							updateStatus,
-							debugLevel);
-					quadCLT_aux.tp.resetCLTPasses();
+					if (clt_parameters.gpu_use_aux) {
+						if (updateStatus) IJ.showStatus("GPU: Rendering 4 AUX image set (disparity = 0) for "+quadCLT_aux.image_name+ "and a thumb nail");
+						quadCLT_aux.processCLTQuadCorrGPU(
+								imp_srcs_aux,        // ImagePlus []                                    imp_quad,
+								saturation_imp_aux,  // boolean [][] saturation_imp, // (near) saturated pixels or null
+								clt_parameters,      // CLTParameters                                   clt_parameters,
+								debayerParameters,   // EyesisCorrectionParameters.DebayerParameters    debayerParameters,
+								colorProcParameters_aux, // ColorProcParameters                             colorProcParameters,
+								channelGainParameters,
+								rgbParameters,       // EyesisCorrectionParameters.RGBParameters        rgbParameters,
+								scaleExposures_aux,  // double []	                                    scaleExposures, // probably not needed here - restores brightness of the final image
+								false,               // boolean                                         only4slice,
+								threadsMax,          // final int        threadsMax,  // maximal number of threads to launch
+								updateStatus,        // final boolean    updateStatus,
+								debugLevel);         // final int        debugLevel);
+					} else {
+						if (updateStatus) IJ.showStatus("CPU: Rendering 4 AUX image set (disparity = 0) for "+quadCLT_aux.image_name);
+						quadCLT_aux.processCLTQuadCorrCPU( // returns ImagePlus, but it already should be saved/shown
+								//							imp_srcs_aux, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+								saturation_imp_aux, // boolean [][] saturation_imp, // (near) saturated pixels or null
+								clt_parameters,
+								debayerParameters,
+								colorProcParameters_aux,
+								channelGainParameters,
+								rgbParameters,
+								scaleExposures_aux,
+								false, // calculate and apply additional fine geometry correction
+								false, // calculate and apply geometry correction at infinity
+								threadsMax,  // maximal number of threads to launch
+								updateStatus,
+								debugLevel);
+						quadCLT_aux.tp.resetCLTPasses();
+					}
 				}
 				// Currently - no LWIR 3D model generation, maybe it will be added later
 				// Generate AUX DS

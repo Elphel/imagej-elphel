@@ -282,6 +282,15 @@ public class ImageDttParameters {
 		return (numSens > mcorr_multi) ? mcorr_topis0_multi : mcorr_topis0;
 	}
 	
+	public int getMcorr(int numSens) {
+		return  (getMcorrAll (numSens) ?  1 : 0) |
+				(getMcorrDia (numSens) ?  2 : 0) |
+				(getMcorrSq  (numSens) ?  8 : 0) |
+				(getMcorrNeib(numSens) ? 16 : 0) |
+				(getMcorrHor (numSens) ? 32 : 0) |
+				(getMcorrVert(numSens) ? 64 : 0);
+	}
+	
 	public boolean getMcorrAll(int numSens) {
 		return (numSens > mcorr_multi) ? mcorr_all_multi : mcorr_all;
 	}
@@ -309,6 +318,42 @@ public class ImageDttParameters {
 	public int getMcorrSelLY(int numSens) {
 		return (numSens > mcorr_multi) ? mcorr_sel_ly_multi : mcorr_sel_ly;
 	}
+	
+	public void setMcorr(int numSens, int sel ) {
+		setMcorrAll (numSens, (sel & (1 << 0)) != 0);
+		setMcorrDia (numSens, (sel & (1 << 1)) != 0);
+		setMcorrSq  (numSens, (sel & (1 << 2)) != 0);
+		setMcorrNeib(numSens, (sel & (1 << 3)) != 0);
+		setMcorrHor (numSens, (sel & (1 << 4)) != 0);
+		setMcorrVert(numSens, (sel & (1 << 5)) != 0);
+	}
+	
+	
+	public void setMcorrAll(int numSens, boolean b) {
+		if (numSens > mcorr_multi) mcorr_all_multi = b; else mcorr_all = b;
+	}
+
+	public void setMcorrDia(int numSens, boolean b) {
+		if (numSens > mcorr_multi) mcorr_dia_multi = b; else mcorr_dia = b;
+	}
+
+	public void setMcorrSq(int numSens, boolean b) {
+		if (numSens > mcorr_multi) mcorr_sq_multi = b; else mcorr_sq = b;
+	}
+
+	public void setMcorrNeib(int numSens, boolean b) {
+		if (numSens > mcorr_multi) mcorr_neib_multi = b; else mcorr_neib = b;
+	}
+
+	public void setMcorrHor(int numSens, boolean b) {
+		if (numSens > mcorr_multi) mcorr_hor_multi = b; else mcorr_hor = b;
+	}
+
+	public void setMcorrVert(int numSens, boolean b) {
+		if (numSens > mcorr_multi) mcorr_vert_multi = b; else mcorr_vert = b;
+	}
+
+	
 	
 	public void dialogQuestions(GenericJTabbedDialog gd) {
 		

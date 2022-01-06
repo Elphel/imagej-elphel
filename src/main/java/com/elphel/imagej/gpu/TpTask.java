@@ -38,7 +38,7 @@ public class TpTask {
 	}
 	/**
 	 * Initialize from the float array (read from the GPU)
-	 * @param num_sensors number of sesnors in an array
+	 * @param num_sensors number of sensors in an array
 	 * @param flt float array containing tasks data
 	 * @param indx task number to use
 	 * @param use_aux (always false now)
@@ -101,24 +101,6 @@ public class TpTask {
 		}
 		return ddisp_dist;
 	}
-	@Deprecated
-	public float [][] getXY(boolean use_aux){
-		return use_aux? xy_aux : xy;
-	}
-	@Deprecated
-	public double [][] getDoubleXY(boolean use_aux){
-		float [][] fXY = getXY(use_aux);
-		if (fXY == null) {
-			return null;
-		}
-		double [][] dXY = new double [fXY.length][fXY[0].length];
-		for (int nsens = 0; nsens < fXY.length; nsens++) {
-			for (int i = 0; i < fXY[nsens].length; i++) {
-				dXY[nsens][i] = fXY[nsens][i]; 
-			}
-		}
-		return dXY;
-	}
 
 	public float [][] getXY(){
 		return  xy;
@@ -149,6 +131,11 @@ public class TpTask {
 	public double getTargetDisparity() {
 		return target_disparity;
 	}
+
+	public void updateTargetDisparity(float td) {
+		target_disparity = td;
+	}
+	
 	
 	public float [] getCenterXY() {
 		return centerXY;
@@ -188,15 +175,6 @@ public class TpTask {
 				indx+= 2;
 			}
 		}
-		/*
-		for (int i = 0; i < num_sensors; i++) { // actually disp_dist will be initialized by the GPU
-			indx+= 4;
-			flt[indx++] = disp_dist[i][0];
-			flt[indx++] = disp_dist[i][1];
-			flt[indx++] = disp_dist[i][2];
-			flt[indx++] = disp_dist[i][3];
-		}
-		*/
 		return flt;
 	}
 }

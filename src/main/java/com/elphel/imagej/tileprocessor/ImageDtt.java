@@ -138,7 +138,7 @@ public class ImageDtt extends ImageDttCPU {
 
 
 		final boolean macro_mode = macro_scale != 1;      // correlate tile data instead of the pixel data
-		final int quad = 4;   // number of subcameras
+//		final int quad = getNumSensors(); // 4;   // number of subcameras
 //		final int numcol = 3; // number of colors // keep the same, just do not use [0] and [1], [2] - green
 		final int numcol = isMonochrome()?1:3;
 
@@ -151,7 +151,7 @@ public class ImageDtt extends ImageDttCPU {
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final double [] col_weights= new double [numcol]; // colors are RBG
-		final double [][] dbg_distort = debug_distort? (new double [4*quad][tilesX*tilesY]) : null;
+		final double [][] dbg_distort = debug_distort? (new double [4*getNumSensors()][tilesX*tilesY]) : null;
 		// not yet used with GPU
 /**		
 		final double [][] corr_wnd = Corr2dLMA.getCorrWnd(
@@ -448,12 +448,12 @@ public class ImageDtt extends ImageDttCPU {
 				false,          // boolean   calc_extra
 				false);         // boolean   linescan_order) 
 
-			int [] texture_indices = gpuQuad.getTextureIndices();
-			int          num_src_slices = numcol + 1; //  + (clt_parameters.keep_weights?(ports + numcol + 1):0); // 12 ; // calculate
+			int [] texture_indices =  gpuQuad.getTextureIndices();
+			int    num_src_slices =   numcol + 1; //  + (clt_parameters.keep_weights?(ports + numcol + 1):0); // 12 ; // calculate
 			float [] flat_textures =  gpuQuad.getFlatTextures( // fatal error has been detected by the Java Runtime Environment:
 					texture_indices.length,
-					numcol, // int     num_colors,
-		    		false); // clt_parameters.keep_weights); // boolean keep_weights);
+					numcol,    // int     num_colors,
+		    		false);    // clt_parameters.keep_weights); // boolean keep_weights);
 
 			gpuQuad.doubleTextures(
 		    		new Rectangle(0, 0, tilesX, tilesY), // Rectangle    woi,
@@ -461,7 +461,7 @@ public class ImageDtt extends ImageDttCPU {
 		    		texture_indices,                     // int []       indices,
 		    		flat_textures,                       // float [][][] ftextures,
 		    		tilesX,                              // int          full_width,
-		    		4,                                   // rbga only /int          num_slices
+		    		isMonochrome()? 2: 4,                // rbga only /int          num_slices
 		    		num_src_slices                       // int          num_src_slices
 		    		);
 		}
@@ -650,21 +650,9 @@ public class ImageDtt extends ImageDttCPU {
 										tile_lma_debug_level, // int                 tile_lma_debug_level,
 										debugTile,            // boolean             debugTile,
 										globalDebugLevel);    // final int           globalDebugLevel)							
-								
-								// double extra_disparity = 0.0; // used for textures:  if allowed, shift images extra before trying to combine
-/*
-// Disabled for GPU
-								if      (corr_mode == 0) extra_disparity = disparity_map[DISPARITY_INDEX_INT][tIndex];
-								else if (corr_mode == 1) extra_disparity = disparity_map[DISPARITY_INDEX_CM][tIndex];
-								else if (corr_mode == 2) extra_disparity = disparity_map[DISPARITY_INDEX_POLY][tIndex];
-								else if (corr_mode == 3) extra_disparity = disparity_map[DISPARITY_INDEX_HOR][tIndex];  // not used in lwir
-								else if (corr_mode == 4) extra_disparity = disparity_map[DISPARITY_INDEX_VERT][tIndex];  // not used in lwir
-								if (Double.isNaN(extra_disparity)) extra_disparity = 0;  // used in lwir
-*/
 								if ((disparity_map != null) && Double.isNaN(disparity_map[DISPARITY_STRENGTH_INDEX][tIndex])) {
 									System.out.println("BUG: 3. disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] should not be NaN");
 								}
-
 								// only debug is left
 								// old (per-color correlation)
 								// removed
@@ -681,20 +669,10 @@ public class ImageDtt extends ImageDttCPU {
 		if ((dbg_distort != null) &&(globalDebugLevel >=0)) {
 			(new ShowDoubleFloatArrays()).showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
 		}
-/*
-//		final double [][] dbg_distort = debug_distort? (new double [4*quad][tilesX*tilesY]) : null;
-		if ((dbg_distort != null) &&(globalDebugLevel >=0)) {
-			(new ShowDoubleFloatArrays()).showArrays(dbg_distort,  tilesX, tilesY, true, "disparity_distortions"); // , dbg_titles);
-		}
-
-		if (dbg_ports_coords != null) {
-			(new showDoubleFloatArrays()).showArrays(dbg_ports_coords,  tilesX, tilesY, true, "ports_coordinates", dbg_titles);
-		}
-*/
-//		return clt_data;
 	}
 
 	// calculate FD correlations for specified pXpYD array to use for interscene accumulation
+	@Deprecated
 	public void quadCorrTD(
 			final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
    			final double [][]         pXpYD,            // per-tile array of pX,pY,disparity triplets (or nulls)
@@ -744,6 +722,124 @@ public class ImageDtt extends ImageDttCPU {
     			globalDebugLevel);
 	}
 
+	// Run after quadCorrTD when clt is in memory
+	public double [][][][] process_texture_tiles(
+				double corr_red,
+				double corr_blue,
+				double    min_shot,           // 10.0
+				double    scale_shot,         // 3.0
+				double    diff_sigma,         // pixel value/pixel change Used much larger sigma = 10.0 instead of 1.5
+				double    diff_threshold,     // pixel value/pixel change
+				double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+				boolean   dust_remove
+			){
+		int numcol = isMonochrome()? 1 : 3;
+		double [] col_weights = new double[numcol];
+		if (isMonochrome()) {
+			col_weights[0] = 1.0;
+		} else {
+			col_weights[2] = 1.0/(1.0 +  corr_red + corr_blue);    // green color
+			col_weights[0] = corr_red *  col_weights[2];
+			col_weights[1] = corr_blue * col_weights[2];
+		}
+		
+		gpuQuad.execTextures(
+				col_weights,    // double [] color_weights,
+				isLwir(),       // boolean   is_lwir,
+				min_shot,       // double    min_shot,           // 10.0
+				scale_shot,     // double    scale_shot,         // 3.0
+				diff_sigma,     // double    diff_sigma,         // pixel value/pixel change Used much larger sigma = 10.0 instead of 1.5
+				diff_threshold, // double    diff_threshold,     // pixel value/pixel change
+				min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+				dust_remove,    // boolean   dust_remove,
+				true,           // boolean   calc_textures,
+				false,          // boolean   calc_extra
+				false);         // boolean   linescan_order)
+		int    num_src_slices = numcol + 1; //  + (clt_parameters.keep_weights?(ports + numcol + 1):0); // 12 ; // calculate
+		int [] texture_indices = gpuQuad.getTextureIndices();
+		float [] flat_textures =  gpuQuad.getFlatTextures(
+				texture_indices.length,
+				numcol, // int     num_colors,
+	    		false); // clt_parameters.keep_weights); // boolean keep_weights);
+		int tilesX = gpuQuad.img_width / GPUTileProcessor.DTT_SIZE;
+		int tilesY = gpuQuad.img_height / GPUTileProcessor.DTT_SIZE;
+		double [][][][] texture_tiles = new double [tilesY][tilesX][][];
+		gpuQuad.doubleTextures(
+	    		new Rectangle(0, 0, tilesX, tilesY), // Rectangle    woi,
+	    		texture_tiles,                       // double [][][][] texture_tiles, // null or [tilesY][tilesX]
+	    		texture_indices,                     // int []       indices,
+	    		flat_textures,                       // float [][][] ftextures,
+	    		tilesX,                              // int          full_width,
+	    		isMonochrome()? 2: 4,                // rbga only /int          num_slices Same number
+	    		num_src_slices                       // int          num_src_slices
+	    		);
+		return texture_tiles;
+	}
+	
+	public float [][] get_diffs_lowres(
+			double      corr_red,
+			double      corr_blue,
+			double      min_shot,           // 10.0
+			double      scale_shot,         // 3.0
+			double      diff_sigma,         // pixel value/pixel change Used much larger sigma = 10.0 instead of 1.5
+			double      diff_threshold,     // pixel value/pixel change
+			double      min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+			boolean     dust_remove,
+			boolean     save_diff,
+			boolean     save_lowres,
+			double [][] disparity_map   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate			
+			){
+		int numcol = isMonochrome()? 1 : 3;
+		double [] col_weights = new double[numcol];
+		if (isMonochrome()) {
+			col_weights[0] = 1.0;
+		} else {
+			col_weights[2] = 1.0/(1.0 +  corr_red + corr_blue);    // green color
+			col_weights[0] = corr_red *  col_weights[2];
+			col_weights[1] = corr_blue * col_weights[2];
+		}
+		gpuQuad.execTextures(
+				col_weights,    // double [] color_weights,
+				isLwir(),       // boolean   is_lwir,
+				min_shot,       // double    min_shot,           // 10.0
+				scale_shot,     // double    scale_shot,         // 3.0
+				diff_sigma,     // double    diff_sigma,         // pixel value/pixel change Used much larger sigma = 10.0 instead of 1.5
+				diff_threshold, // double    diff_threshold,     // pixel value/pixel change
+				min_agree,      // double    min_agree,          // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+				dust_remove,    // boolean   dust_remove,
+				false,          // boolean   calc_textures,
+				true,           // boolean   calc_extra
+				false);         // boolean   linescan_order)
+		float [][] extra = gpuQuad.getExtra(); // now 4*numSensors
+		int ports_rgb_len = numSensors*numcol;  // 12 / 16
+
+		if (disparity_map != null) { // convert to double and copy to the correct layers of disparity_map
+//			int num_cams = getNumSensors();
+			if (disparity_map != null){ // Only init layers that are going to be used, keep others
+				if (save_diff && (disparity_map.length >= (IMG_DIFF0_INDEX + numSensors))) {
+					for (int i = 0; i < numSensors; i++) {
+						int i_dest = IMG_DIFF0_INDEX + i;
+						disparity_map[i_dest] = new double[extra[i].length];
+						for (int j = 0; j < extra[i].length; j++) {
+							disparity_map[i_dest][j] = extra[i][j];
+						}
+					}
+				}
+				if (save_lowres && (disparity_map.length >= (getImgToneRGB() + ports_rgb_len))) {
+		            for (int i = 0; i < ports_rgb_len; i++){
+		            	int i_src = numSensors + i;
+						int i_dest = getImgToneRGB() + i;
+		                disparity_map[i_dest] = new double[extra[i_src].length];
+						for (int j = 0; j < extra[i].length; j++) {
+							disparity_map[i_dest][j] = extra[i_src][j];
+						}
+		            }
+				}
+			}
+		}
+		return extra;
+	}
+	
 	
 	
 	public void quadCorrTD(
@@ -760,7 +856,7 @@ public class ImageDtt extends ImageDttCPU {
 			final double              gpu_sigma_log_corr,   // hpf to reduce dynamic range for correlations
 			final double              corr_red, // +used
 			final double              corr_blue,// +used
-			final int                 mcorr_sel,    // Which pairs to correlate // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
+			final int                 mcorr_sel,    // Which pairs to correlate // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert. 0 - no correlations
 			final int                 threadsMax,       // maximal number of threads to launch
 			final int                 globalDebugLevel)
 	{
@@ -859,6 +955,9 @@ public class ImageDtt extends ImageDttCPU {
        	// Skipping if ((fdisp_dist != null) || (fpxpy != null)) {...
 
 		gpuQuad.execConvertDirect();
+		if (mcorr_sel == 0) { // no correlation at all
+			return;
+		}
 
 		int [] i_mcorr_sel = Correlation2d.intCorrPairs(
 				mcorr_sel,
@@ -2170,7 +2269,8 @@ public class ImageDtt extends ImageDttCPU {
 	public void clt_process_tl_correlations( // convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td
 			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 	        final float  [][][][]     fcorr_td,        // [tilesY][tilesX][pair][4*64] transform domain representation of all selected corr pairs
-	        int [][][]                num_acc,         // number of accumulated tiles [tilesY][tilesX][pair] (or null)       
+	        float [][][]              num_acc,         // number of accumulated tiles [tilesY][tilesX][pair] (or null)
+	        double []                 dcorr_weight,    // alternative to num_acc, compatible with CPU processing (only one non-zero enough)
 	        final double              gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
 	        final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0
 	        final int                 gpu_corr_rad,    // = transform_size - 1 ?
@@ -2198,18 +2298,11 @@ public class ImageDtt extends ImageDttCPU {
 			final int                 globalDebugLevel)
 	{
 		
-//		final int [] dbg_tiles = (globalDebugLevel > -1)? new int []{37721, 39022, 40975, 38042, 40963, 42253, 38694, 39343, 36443} : null;
-//		final float gpu_fcorr_scale = (float) gpu_corr_scale;
 		if (this.gpuQuad == null) {
 			System.out.println("clt_aberrations_quad_corr_GPU(): this.gpuQuad is null, bailing out");
 			return;
 		}
 		
-//		final boolean [][] saturation_imp = gpuQuad.quadCLT.saturation_imp;               // boolean [][] saturation_imp, // (near) saturated pixels or null
-//gpuQuad
-//		final boolean debug_distort= globalDebugLevel > 0; ///false; // true;
-
-//		final double [][] debug_offsets = new double[imgdtt_params.lma_dbg_offset.length][2];
 		final double [][] debug_offsets = new double[getNumSensors()][2];  
 		for (int i = 0; i < imgdtt_params.lma_dbg_offset.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
 			debug_offsets[i][j] = imgdtt_params.lma_dbg_offset[i][j]*imgdtt_params.lma_dbg_scale;
@@ -2270,14 +2363,24 @@ public class ImageDtt extends ImageDttCPU {
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
 		
-		final float [][]           pfcorr_weights = (num_acc != null) ? new float[1][] : null;
+		final float [][]           pfcorr_weights = ((num_acc != null) || (dcorr_weight != null))? new float[1][] : null;
 // This version obeys tp_task order and fills fcorr_td gaps (should be none_) with zeros.
-		final int [] corr_indices = gpuQuad.setCorrTilesTd( // .length = 295866 should set num_corr_tiles!
-				tp_tasks,        //final TpTask []      tp_tasks,        // data from the reference frame - will be applied to LMW for the integrated correlations
-				fcorr_td,        // final float [][][][] corr_tiles, // [tileY][tileX][pair][4*64]
-				num_acc,         // int [][][]           num_acc,     // number of accumulated tiles [tilesY][tilesX][pair] (or null)
-				pfcorr_weights); //float [][]           pfcorr_weights) // null or one per correlation tile (num_corr_tiles) to divide fat zero2
-		float [] fcorr_weights = (num_acc != null) ? pfcorr_weights[0] : null;
+		
+		int [] corr_indices;
+		if (num_acc != null) { // version with float [][][]           num_acc,     // number of accumulated tiles [tilesY][tilesX][pair] (or null)
+			corr_indices = gpuQuad.setCorrTilesTd( // .length = 295866 should set num_corr_tiles!
+					tp_tasks,        // final TpTask []      tp_tasks,        // data from the reference frame - will be applied to LMW for the integrated correlations
+					fcorr_td,        // final float [][][][] corr_tiles, // [tileY][tileX][pair][4*64]
+					num_acc,         // float [][][]           num_acc,     // number of accumulated tiles [tilesY][tilesX][pair] (or null)
+					pfcorr_weights); // float [][]           pfcorr_weights) // null or one per correlation tile (num_corr_tiles) to divide fat zero2
+		} else { // version with // double []            dcorr_weight, // [ntile] (or null), compatible with the CPU version 
+			corr_indices = gpuQuad.setCorrTilesTd( // .length = 295866 should set num_corr_tiles!
+					tp_tasks,        // final TpTask []      tp_tasks,        // data from the reference frame - will be applied to LMW for the integrated correlations
+					fcorr_td,        // final float [][][][] corr_tiles, // [tileY][tileX][pair][4*64]
+					dcorr_weight,    // double []            dcorr_weight, // [ntile] (or null)
+					pfcorr_weights); // float [][]           pfcorr_weights) // null or one per correlation tile (num_corr_tiles) to divide fat zero2
+		}
+		float [] fcorr_weights = ((num_acc != null) || (dcorr_weight != null))? pfcorr_weights[0] : null;
 		gpuQuad.execCorr2D_normalize(
 				false, // boolean combo, // normalize combo correlations (false - per-pair ones) 
 				gpu_fat_zero,            // double fat_zero);
@@ -2286,29 +2389,7 @@ public class ImageDtt extends ImageDttCPU {
 		final float [][] fcorr2D = gpuQuad.getCorr2D(gpu_corr_rad); //  int corr_rad);
 		
 		if (corr_indices.length > 0) {
-			/*
-			if (true) { // debugging only
-				int [] wh = new int[2];
-				double [][] dbg_corr = GPUTileProcessor.getCorr2DView(
-						tilesX,
-						tilesY,
-						corr_indices,
-						fcorr2D,
-						wh);
-				(new ShowDoubleFloatArrays()).showArrays(
-						dbg_corr,
-						wh[0],
-						wh[1],
-						true,
-						"dbg-corr2D-fromTD", // name+"-CORR2D-D"+clt_parameters.disparity,
-						GPUTileProcessor.getCorrTitles());
-			}
-			 */
 			final int corr_length = fcorr2D[0].length;// all correlation tiles have the same size
-			
-//	        final int num_used_pairs = getNumUsedPairs();// Number of used pairs		num_pairs = num_pairs_in;
-//			final int num_tiles = corr_indices.length / num_used_pairs; // num_tile_corr;
-
 
 			// CPU version below
 			// CPU version uses sparse 2D correlation arrays (length 120 for 16 cameras, unused are null. GPU version compacts these arrays
@@ -2324,7 +2405,6 @@ public class ImageDtt extends ImageDttCPU {
 			// which to use - num_pairs or num_used_pairs? Or set correlation2d to match num_used_pairs
 			
 			final boolean combine_corrs = (mcorr_comb_width > 0); // use 0 to disable combining (use LMA only)
-//			final double [] corr_lpf =     doubleGetCltLpfFd(corr_sigma);
 
 			if (clt_corr_out != null) {  // not used so far? REMOVE?
 				boolean [] calc_corr_pairs = correlation2d.getCorrPairs();
@@ -2383,31 +2463,19 @@ public class ImageDtt extends ImageDttCPU {
 						for (int iTile = ai.getAndIncrement(); iTile < tp_tasks.length; iTile = ai.getAndIncrement()) {
 							tileY = tp_tasks[iTile].getTileY(); //  /tilesX;
 							tileX = tp_tasks[iTile].getTileX(); //nTile % tilesX;
+							if (fcorr_td[tileY][tileX] == null) {
+								continue; // nothing accumulated for this tile 
+							}
 							nTile = tileY * tilesX + tileX;
 							if (tp_tasks[iTile].getTask() == 0) continue; // nothing to do for this tile
 							boolean debugTile0 =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -6);
 							if (debugTile0) {
-								System.out.println("clt_process_tl_correlations(): tileX="+tileX+", tileY="+tileY);
+								System.out.println("clt_process_tl_correlations(): tileX="+tileX+", tileY="+tileY+", iTile="+iTile+", nTile="+nTile);
 							}
 							// TODO: move port coordinates out of color channel loop
 							// double [][] centersXY = tp_tasks[iTile].getDoubleXY(); // isAux());
 							double [][] disp_dist = tp_tasks[iTile].getDoubleDispDist();
 							double [][] corrs =      new double [correlation2d.getNumPairs() + (combine_corrs? 1 : 0)][]; // extra for combo "all"
-/*							
-							//dcorr_weight[iTile]
-							double this_fat_zero2 = afat_zero2;
-							if ((dcorr_weight != null) && (dcorr_weight[iTile] > 0)) {
-								this_fat_zero2 /= dcorr_weight[iTile];
-							}
-							for (int pair = 0; pair < dcorr_td[iTile].length; pair++) if (dcorr_td[iTile][pair] != null) {
-								corrs[pair] = correlation2d.normalizeConvertCorr(
-										dcorr_td[iTile][pair], // double [][] tcorr, // null or initialized to [4][transform_len]
-										corr_lpf, //   double []   lpf,
-										this_fat_zero2, //   double      afat_zero2, // absolute fat zero, same units as components squared values
-										0, //   int corr_radius,
-										false); //   boolean debug_gpu)							
-							}
-*/							
 							// copy correlation tiles from the GPU's floating point arrays 
 							for (int ipair = 0; ipair < used_pairs_list.length; ipair++) {
 								int pair = used_pairs_list[ipair];
@@ -2517,7 +2585,7 @@ public class ImageDtt extends ImageDttCPU {
 									System.out.println("Will run new LMA for tileX="+tileX+", tileY="+tileY);
 								}
 								double [] poly_disp = {Double.NaN, 0.0};
-								Corr2dLMA lma2 = correlation2d.corrLMA2Single(
+								Corr2dLMA lma2 = correlation2d.corrLMA2Single( // null pointer
 										imgdtt_params,                // ImageDttParameters  imgdtt_params,
 										imgdtt_params.lmas_LY_single, // false,                        // boolean             adjust_ly, // adjust Lazy Eye
 										corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window

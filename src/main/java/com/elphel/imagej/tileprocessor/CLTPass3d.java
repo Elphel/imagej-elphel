@@ -1027,7 +1027,37 @@ public class CLTPass3d{
 			}
 			return num_op_tiles;
 		}
+		
+		public void setTileOp(
+				int  tile_op)
+		{
+			final int tilesX = tileProcessor.getTilesX();
+			final int tilesY = tileProcessor.getTilesY();
+			this.tile_op =     new int [tilesY][tilesX];
 
+			for (int ty = 0; ty < tilesY; ty++) for (int tx = 0; tx <tilesX; tx++){
+				this.tile_op[ty][tx] = tile_op;
+			}
+		}
+
+		public double [] getDA() {
+			final int tilesX = tileProcessor.getTilesX();
+			final int tilesY = tileProcessor.getTilesY();
+			double [] da = new double [tilesX*tilesY];
+			for (int ty = 0; ty < tilesY; ty++) for (int tx = 0; tx <tilesX; tx++){
+				da[tilesX * ty + tx] = this.disparity[ty][tx];
+			}
+			return da;
+		}
+
+		public void setDA(double [] da) {
+			final int tilesX = tileProcessor.getTilesX();
+			final int tilesY = tileProcessor.getTilesY();
+			for (int ty = 0; ty < tilesY; ty++) for (int tx = 0; tx <tilesX; tx++){
+				this.disparity[ty][tx] = da[tilesX * ty + tx];
+			}
+		}
+		
 		/**
 		 * Set next measurement disparity from last calculated
 		 */

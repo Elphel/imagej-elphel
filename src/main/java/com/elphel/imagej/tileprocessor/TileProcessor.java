@@ -1220,7 +1220,7 @@ public class TileProcessor {
 		}
 		for (CLTPass3d combo_pass : combo_pass_list) {
 			combo_pass.tile_op =              new int [tilesY][tilesX]; // for just non-zero
-			combo_pass.disparity_map =        new double [ImageDtt.getDisparityTitles(getNumSensors()).length][];
+			combo_pass.disparity_map =        new double [ImageDtt.getDisparityTitles(getNumSensors(), isMonochrome()).length][];
 			
 			for (int i = 0; i< numSensors; i++) combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i] = new double[tlen];
 			if (copyDebug){
@@ -1430,8 +1430,12 @@ public class TileProcessor {
 							if (copyDebug){
 								combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nt] =            pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nt];
 								combo_pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nt] =      pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nt];
-								combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY][nt] =          pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY][nt];
-								combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY+1][nt] =        pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY+1][nt];
+								if (pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY] != null) {
+									combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY][nt] =          pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY][nt];
+								}
+								if (pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY + 1] != null) {
+									combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY+1][nt] =        pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY+1][nt];
+								}
 							}
 						}
 						// fill empty planes (if any). May be all if there were no even weak tiles (old best_index<0)
@@ -1447,8 +1451,12 @@ public class TileProcessor {
 							if (copyDebug){
 								combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nt] =            Double.NaN;
 								combo_pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nt] =      Double.NaN;
-								combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY][nt] =          Double.NaN;
-								combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY+1][nt] =        Double.NaN;
+								if (combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY] != null) {
+									combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY][nt] =          Double.NaN;
+								}
+								if (combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY+1] != null) {
+									combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY+1][nt] =        Double.NaN;
+								}
 							}
 						}
 						// TODO: For now hor/vert are added independently and are not synchronized to full-quad correlations
@@ -3585,6 +3593,7 @@ ImageDtt.startAndJoin(threads);
 	{
 		int NUM_SLICES=getScanTitles().length;
 		int this_IMG_TONE_RGB = getScanTitleIndex("r0");
+		int num_col = isMonochrome()? 1 : 3;
   		double     corr_red =          0.5;  // Red to green correlation weight
   		double     corr_blue =         0.2;  // Blue to green correlation weight
   		double     scale_diff =        5.0; // scale 0.5*(r+b)-G to match Y
@@ -3671,7 +3680,7 @@ ImageDtt.startAndJoin(threads);
 			//		int this_IMG_TONE_RGB = getScanTitleIndex("r0");
 			// 		int i_getImgToneRGB = ImageDtt.getImgToneRGB(numSensors);
 
-			for (int i = 0; i < 3 *numSensors; i++) {
+			for (int i = 0; i < num_col *numSensors; i++) {
 				dbg_img[this_IMG_TONE_RGB+i] = scan.disparity_map[i_getImgToneRGB + i];
 			}
 		}
@@ -3698,15 +3707,25 @@ ImageDtt.startAndJoin(threads);
 				for (int np = 0; np < numSensors; np++) {
 					dbg_img[this_IMG_TONE_RGB_Y+np] = new double [tlen];
 					dbg_img[this_IMG_TONE_RGB_DIFF+np] = new double [tlen];
-					for (int i = 0; i < tlen; i++){
-						dbg_img[this_IMG_TONE_RGB_Y+np][i] =
-								col_weights[0]*dbg_img[this_IMG_TONE_RGB_R + np][i] +
-								col_weights[1]*dbg_img[this_IMG_TONE_RGB_B + np][i] +
-								col_weights[2]*dbg_img[this_IMG_TONE_RGB_G + np][i];
-						dbg_img[this_IMG_TONE_RGB_DIFF+np][i] =
-								scale_diff* 0.5 * dbg_img[this_IMG_TONE_RGB_R + np][i] +
-								scale_diff* 0.5 * dbg_img[this_IMG_TONE_RGB_B + np][i] -
-								scale_diff* 1.0 * dbg_img[this_IMG_TONE_RGB_G + np][i];
+					if (isMonochrome()) {
+						for (int i = 0; i < tlen; i++){
+							dbg_img[this_IMG_TONE_RGB_Y+np][i] =
+									dbg_img[this_IMG_TONE_RGB_R + np][i];
+							dbg_img[this_IMG_TONE_RGB_DIFF+np][i] =
+									scale_diff* 0.5 * dbg_img[this_IMG_TONE_RGB_R + np][i];
+						}
+						
+					} else {
+						for (int i = 0; i < tlen; i++){
+							dbg_img[this_IMG_TONE_RGB_Y+np][i] =
+									col_weights[0]*dbg_img[this_IMG_TONE_RGB_R + np][i] +
+									col_weights[1]*dbg_img[this_IMG_TONE_RGB_B + np][i] +
+									col_weights[2]*dbg_img[this_IMG_TONE_RGB_G + np][i];
+							dbg_img[this_IMG_TONE_RGB_DIFF+np][i] =
+									scale_diff* 0.5 * dbg_img[this_IMG_TONE_RGB_R + np][i] +
+									scale_diff* 0.5 * dbg_img[this_IMG_TONE_RGB_B + np][i] -
+									scale_diff* 1.0 * dbg_img[this_IMG_TONE_RGB_G + np][i];
+						}
 					}
 				}
 			}
@@ -3726,13 +3745,17 @@ ImageDtt.startAndJoin(threads);
 			double     bgnd_range,       // disparity range to be considered background
 			double     bgnd_sure,        // minimal strength to be considered definitely background
 			double     bgnd_maybe,       // maximal strength to ignore as non-background
-			double     sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
+			double     rsure_smth,       // 
+			double     cold_sky_above,   // 
 			int        min_clstr_seed,   // number of tiles in a cluster to seed (just background?)
 			int        min_clstr_block,  // number of tiles in a cluster to block (just non-background?)
 //			int        disparity_index,  // index of disparity value in disparity_map == 2 (0,2 or 4)
 			boolean    show_bgnd_nonbgnd,
 			int        debugLevel
 			){
+//		double rsure_smth = 0.50; // TODO - Use sure_smth in the range 0.3.. 1.0
+		double strength_sky = bgnd_sure;
+//		double cold_sky_above = 50.0; // isLwir() - only, <0, Double.NaN - do not apply
 		boolean [] bgnd_tiles =       new boolean [tilesY * tilesX];
 		boolean [] nonbgnd_tiles =    new boolean [tilesY * tilesX];
 		boolean [] block_propagate =  new boolean [tilesY * tilesX];
@@ -3744,6 +3767,22 @@ ImageDtt.startAndJoin(threads);
 		double [] disparity = bgnd_data.getDisparity();
 		double [] strength =  bgnd_data.getStrength();
 		boolean [] has_lma =  bgnd_data.hasLMADefined(); // trust LMA regardless of strength
+		double [] diff2MaxAVg = bgnd_data.getSecondMaxDiff (true); //			final boolean averaged)
+		// normalize by sqrt(max * mean)
+		double diff2MaxAVg_max = 0, diff2MaxAVg_mean = 0;
+		int diff2MaxAVg_num = 0;
+		for (int tindx = 0; tindx < diff2MaxAVg.length; 	tindx++) if (!Double.isNaN(diff2MaxAVg[tindx])){
+			diff2MaxAVg_num++;
+			diff2MaxAVg_max = Math.max(diff2MaxAVg_max, diff2MaxAVg[tindx]);
+			diff2MaxAVg_mean += diff2MaxAVg[tindx];
+		}
+		diff2MaxAVg_mean /= diff2MaxAVg_num;
+		double diff2MaxAVg_norm = 1.0/Math.sqrt(diff2MaxAVg_mean*diff2MaxAVg_max);
+		for (int tindx = 0; tindx < diff2MaxAVg.length; 	tindx++) {
+			diff2MaxAVg[tindx] *= diff2MaxAVg_norm;
+			block_propagate[tindx] = diff2MaxAVg[tindx] > rsure_smth; 
+		}
+
 		int [] dbg_numtile = new int [2];
 		for (int tindx = 0; tindx < disparity.length; 	tindx++) {	
 //			if (Math.abs(disparity_map[disparity_index][tindx]) < bgnd_range){
@@ -3751,6 +3790,7 @@ ImageDtt.startAndJoin(threads);
 //				if (disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][tindx] >= bgnd_sure){
 				if (has_lma [tindx] || (strength[tindx] >= bgnd_sure)){
 					bgnd_tiles[tindx] = true;
+					block_propagate[tindx] = false;
 					dbg_numtile[0]++;
 				}
 			} else {
@@ -3764,6 +3804,7 @@ ImageDtt.startAndJoin(threads);
 				}
 			}
 			// see if the second worst variation exceeds sure_smth (like a window), really close object
+			/*
 			int imax1 = 0;
 			for (int i = 1; i< getNumSensors(); i++){
 				if (disparity_map[ImageDtt.IMG_DIFF0_INDEX+i][tindx] > disparity_map[ImageDtt.IMG_DIFF0_INDEX + imax1][tindx]) imax1 = i;
@@ -3773,6 +3814,8 @@ ImageDtt.startAndJoin(threads);
 				if (disparity_map[ImageDtt.IMG_DIFF0_INDEX+i][tindx] > disparity_map[ImageDtt.IMG_DIFF0_INDEX + imax2][tindx]) imax2 = i;
 			}
 			block_propagate[tindx] = (disparity_map[ImageDtt.IMG_DIFF0_INDEX + imax2][tindx] > sure_smth);
+           */
+ 
 		}
 		if (debugLevel > -1) {
 			System.out.println("Before removing small clusters: number of background tiles = "+dbg_numtile[0]+", non-bgnd tiles = "+dbg_numtile[1]);
@@ -3798,7 +3841,18 @@ ImageDtt.startAndJoin(threads);
 					0.0, //clt_parameters.min_clstr_weight,  // double     min_weight // minimal total weight of the cluster
 					0.0); // clt_parameters.min_clstr_max);    // double     min_max_weight // minimal value of the maximal strengh in the cluster
 		}
-		if (debugLevel > -1+0) {
+		// grow BG and remove block_propagate there if not non_bgnd there
+		final TileNeibs tnSurface = new TileNeibs(tilesX, tilesY);
+		boolean [] bg_grown = bgnd_tiles.clone();
+		tnSurface.growSelection(
+				2, // grow,
+				bg_grown, // tiles,
+				nonbgnd_tiles); // prohibit);
+		for (int tindx = 0; tindx < disparity.length; 	tindx++) { // if (bgnd_tiles[tindx]) {
+			block_propagate[tindx] &= !bg_grown[tindx];
+		}
+		
+		if (debugLevel > -1+00) {
 			dbg_numtile = new int [2];
 			for (int tindx = 0; tindx < bgnd_tiles.length; tindx++) {
 				if (bgnd_tiles[tindx]) dbg_numtile[0]++;
@@ -3806,6 +3860,55 @@ ImageDtt.startAndJoin(threads);
 			}
 			System.out.println("After removing small clusters: number of background tiles = "+dbg_numtile[0]+", non-bgnd tiles = "+dbg_numtile[1]);
 		}
+		if (isLwir() && !(cold_sky_above < 0)) {
+			double [] avg_temp = new double [disparity.length];
+			Arrays.fill(avg_temp, Double.NaN);
+			int ncams = getNumSensors();
+			int map_indx = ImageDtt.getImgToneRGB(ncams);// bgnd_data.
+			for (int tindx = 0; tindx < disparity.length; 	tindx++) { // if (bgnd_tiles[tindx]) {
+				double d = 0.0;
+				for (int ncam = 0; ncam <ncams; ncam++) {
+					d+= disparity_map[map_indx+ncam][tindx];
+				}
+				avg_temp[tindx] = d/ncams; 
+			}
+			
+			int bgnd_bottom = -1;
+			double bgnd_coldest = Double.NaN;
+			double bgnd_mean = 0.0;
+			int num_bgnd = 0;
+			for (int tindx = 0; tindx < disparity.length; 	tindx++) if (bgnd_tiles[tindx] && !Double.isNaN(avg_temp[tindx])) {
+				bgnd_mean += avg_temp[tindx];
+				num_bgnd++;
+				if (!(bgnd_coldest < avg_temp[tindx])) {
+					bgnd_coldest = avg_temp[tindx];
+				}
+				int tileY = tindx/tilesX; 
+				if (tileY > bgnd_bottom) {
+					bgnd_bottom = tileY;
+				}
+			}
+			bgnd_mean /= num_bgnd;
+			double bgnd_thresh = (0.9*bgnd_mean + 0.1*bgnd_coldest) - cold_sky_above;
+			// overwrite nobgnd if they are weak?
+			for (int tindx = 0; tindx < disparity.length; 	tindx++) if (!bgnd_tiles[tindx] &&
+				(!nonbgnd_tiles[tindx] || ((strength[tindx] < strength_sky) && !has_lma [tindx]))) {
+				if (avg_temp[tindx] < bgnd_thresh) {
+					bgnd_tiles[tindx] = true;
+					nonbgnd_tiles[tindx] = false;
+					block_propagate[tindx] = false;
+				}
+			}
+			if (debugLevel > -1+0) {
+				dbg_numtile = new int [2];
+				for (int tindx = 0; tindx < bgnd_tiles.length; tindx++) {
+					if (bgnd_tiles[tindx]) dbg_numtile[0]++;
+					if (nonbgnd_tiles[tindx]) dbg_numtile[1]++;
+				}
+				System.out.println("After cold sky: number of background tiles = "+dbg_numtile[0]+", non-bgnd tiles = "+dbg_numtile[1]);
+			}
+		}
+		
 
 		if ((sdfa_instance != null) && show_bgnd_nonbgnd) {
 			String [] titles = {"bgnd","nonbgnd","block","strength","disparity","LMA"};
@@ -3961,7 +4064,7 @@ ImageDtt.startAndJoin(threads);
 				null); // prohibit);
 		if ((debugLevel > -1) && show_bgnd_nonbgnd){
 //			 new ShowDoubleFloatArrays().showArrays(bgnd_data.disparity_map,  tilesX, tilesY, true, "bgnd_map",ImageDtt.DISPARITY_TITLES);
-			 new ShowDoubleFloatArrays().showArrays(bgnd_data.disparity_map,  tilesX, tilesY, true, "bgnd_map",ImageDtt.getDisparityTitles(getNumSensors()));
+			 new ShowDoubleFloatArrays().showArrays(bgnd_data.disparity_map,  tilesX, tilesY, true, "bgnd_map",ImageDtt.getDisparityTitles(getNumSensors(), isMonochrome()));
 			 new ShowDoubleFloatArrays().showArrays(dbg_worst2,  tilesX, tilesY, "worst2");
 		}
 		// TODO: check if minimal cluster strengh should be limited here
@@ -5371,8 +5474,8 @@ ImageDtt.startAndJoin(threads);
 // to some power when averaging here)
 	public int [] combineOrthoDisparity(
 			final CLTPass3d   scan,        // scan data
-			final boolean     or_hor,       // true;  // Apply ortho correction to horizontal correlation (vertical features)
-			final boolean     or_vert,      // true;  // Apply ortho correction to vertical correlation (horizontal features)
+			boolean     or_hor,       // true;  // Apply ortho correction to horizontal correlation (vertical features)
+			boolean     or_vert,      // true;  // Apply ortho correction to vertical correlation (horizontal features)
 			final double      or_sigma,     // 2.0;   // Blur sigma: verically for horizontal correlation, horizontally - for vertically
 			final double      or_sharp,     // 0.5;   // 3-point sharpening (-k, +2k+1, -k)
 			final double      or_scale,     // 2.0;   // Scale ortho correletion strength relative to 4-directional one
@@ -5391,6 +5494,8 @@ ImageDtt.startAndJoin(threads);
 		double [] disparity_vert = scan.getDisparity(3); // .clone(); // calculated
 		double [] strength_hor =   scan.getHorStrength(); // .clone();
 		double [] strength_vert =  scan.getVertStrength(); // .clone();
+		or_hor &= (strength_hor != null);
+		or_hor &= (strength_vert != null);
 		int [] replaced = new int[strength.length];
 		double [][] dbg_img = null;
 		String []  dbg_titles = {"disparity",         // 0
@@ -5413,8 +5518,8 @@ ImageDtt.startAndJoin(threads);
 			dbg_img[2] =  disparity_hor.clone();
 			dbg_img[4] =  disparity_vert.clone();
 			dbg_img[7] =  strength.clone();
-			dbg_img[8] =  strength_hor.clone();
-			dbg_img[10] = strength_vert.clone();
+			dbg_img[8] =  (strength_hor != null) ?  strength_hor.clone(): null;
+			dbg_img[10] = (strength_vert != null) ? strength_vert.clone(): null;
 
 		}
 		if (or_hor){
@@ -5895,8 +6000,8 @@ ImageDtt.startAndJoin(threads);
 			dbg_img[ 3] = scan_prev.getDisparity(2).clone();
 			dbg_img[ 5] = scan_prev.getDisparity(3).clone();
 			dbg_img[ 7] = scan_prev.getStrength().clone();
-			dbg_img[ 9] = scan_prev.getHorStrength().clone();
-			dbg_img[11] = scan_prev.getVertStrength().clone();
+			dbg_img[ 9] = (scan_prev.getHorStrength() != null) ? scan_prev.getHorStrength().clone() : null;
+			dbg_img[11] = (scan_prev.getVertStrength() != null) ? scan_prev.getVertStrength().clone() : null;
 			dbg_img[14] = new double [scan_prev.getDisparity().length];
 			dbg_img[15] = new double [scan_prev.getDisparity().length];
 		}

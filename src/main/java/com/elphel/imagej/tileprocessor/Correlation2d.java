@@ -1594,7 +1594,7 @@ public class Correlation2d {
      * @param lpf optional final low-pass filter applied to mixed colors
      * @param lpf_rb optional low-pass filter (extra) for R,B components only
      * @param scale_value scale correlation results to compensate for lpf changes and other factors
-     * @param col_weights [3] - color weights {R, B, G} - green is last, normalized to sum =1.0
+     * @param col_weights [3] - color weights {R, B, G} - green is last, normalized to sum =1.0 
      * @return correlation result (Transform Domain) [quadrant][index]
      */
     public double[][]   correlateCompositeTD(
@@ -4069,7 +4069,7 @@ public class Correlation2d {
     		
     		if (disp != null) {
     			disp_str2[0] = disp;
-    			lma.initDisparity( // USED in lwir
+    			lma.initDisparity( // USED in lwir null pointer
     					disp_str2); // double [][] disp_str         // initial value of disparity
 
     			if (debug_level > 1) {

@@ -500,7 +500,7 @@ public class Corr2dLMA {
 			if ((disp_str[nTile] != null) && (disp_str[nTile][1] > 0.0) && used_tiles[nTile]) {
 				this.all_pars[DISP_INDEX + nTile*tile_params] = -disp_str[nTile][0]; // disp0;
 			} else {
-				this.all_pars[DISP_INDEX + nTile*tile_params] = 0.0; // disp0;
+				this.all_pars[DISP_INDEX + nTile*tile_params] = 0.0; // disp0; // null pointer
 			}
 		}
 	}
@@ -2535,10 +2535,13 @@ public class Corr2dLMA {
 			}
 		}
 		Matrix y_minus_fx_weighted = new Matrix(this.last_ymfx, this.last_ymfx.length);
-
-		Matrix wjtjlambda = new Matrix(getWJtJlambda(
+		double [][] awjtjlambda = getWJtJlambda( // null
 				lambda, // *10, // temporary
-				this.last_jt)); // double [][] jt)
+				this.last_jt); // double [][] jt)
+		if ((awjtjlambda ==  null) || (awjtjlambda.length==0)) {
+			return null;
+		}
+		Matrix wjtjlambda = new Matrix(awjtjlambda); // double [][] jt)
 		if (debug_level>2) {
 			System.out.println("JtJ + lambda*diag(JtJ");
 			wjtjlambda.print(18, 6);

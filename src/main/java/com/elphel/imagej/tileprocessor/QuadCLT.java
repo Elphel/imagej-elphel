@@ -82,9 +82,15 @@ public class QuadCLT extends QuadCLTCPU {
 				);
 	}
 	
+	public GpuQuad getGPUQuad() {
+		return gpuQuad;
+	}
+	
 	public boolean hasGPU() {
 		return (gpuQuad != null);
 	}
+	
+	
 	QuadCLT saveQuadClt() {
 		if (gpuQuad == null) {
 			return null;
@@ -110,266 +116,6 @@ public class QuadCLT extends QuadCLTCPU {
 			this.gpuQuad = ((QuadCLT) pq).gpuQuad; //  careful when switching - reset Geometry, vectors, bayer images. Kernels should be the same
 		}
 	}
-/*	
-	public QuadCLT restoreFromModel(
-			CLTParameters        clt_parameters,
-			ColorProcParameters  colorProcParameters,
-			double []            noise_sigma_level,
-			int                  threadsMax,
-			int                  debugLevel)
-
-	{
-		final int        debugLevelInner=clt_parameters.batch_run? -2: debugLevel;
-//		String set_name = image_name; // prevent from being overwritten?
-		String jp4_copy_path= correctionsParameters.selectX3dDirectory(
-				this.image_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-				correctionsParameters.jp4SubDir,
-				true,  // smart,
-				true);  //newAllowed, // save
-		String [] sourceFiles = correctionsParameters.selectSourceFileInSet(jp4_copy_path, debugLevel);
-		SetChannels [] set_channels=setChannels(
-				null, // single set name
-				sourceFiles,
-				debugLevel);
-		// sets set name to jp4, overwrite
-		set_channels[0].set_name = this.image_name; // set_name;
-		double [] referenceExposures = null;
-		if (!isLwir()) { // colorProcParameters.lwir_islwir) {
-			referenceExposures = eyesisCorrections.calcReferenceExposures(sourceFiles, debugLevel);
-		}
-		int [] channelFiles = set_channels[0].fileNumber();		
-		boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
-		double []    scaleExposures = new double[channelFiles.length];
-//		ImagePlus [] imp_srcs = 
-		conditionImageSet(
-				clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
-				colorProcParameters,            //  ColorProcParameters                       colorProcParameters, //
-				sourceFiles,                    // String []                                 sourceFiles,
-				this.image_name,                       // String                                    set_name,
-				referenceExposures,             // double []                                 referenceExposures,
-				channelFiles,                   // int []                                    channelFiles,
-				scaleExposures,                 // output  // double [] scaleExposures
-				saturation_imp,                 // output  // boolean [][]                              saturation_imp,
-				threadsMax,                     // int                                       threadsMax,
-				debugLevelInner);               // int                                       debugLevel);
-		if (noise_sigma_level != null) {
-			generateAddNoise(
-					"-NOISE",
-					noise_sigma_level,
-					threadsMax,
-					1); // debugLevel); // final int       debug_level)
-		}
-		restoreDSI("-DSI_MAIN"); // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
-		restoreInterProperties( // restore properties for interscene processing (extrinsics, ers, ...)
-				null, // String path,             // full name with extension or null to use x3d directory
-				false, // boolean all_properties,//				null, // Properties properties,   // if null - will only save extrinsics)
-				debugLevel);
-//		showDSIMain();
-		return this; //  can only be QuadCLT instance
-	}
-*/	
-	// generate and save noise file (each Bayer component amplitude same as the corresponding image average,
-	// apply gaussian blur with sigma (before Bayer scaling)
-	// If file with the same sigma already exists in the model directory - just use it, multiply by noise_sigma_level[0] and add to the non-zero Bayer
-/*	
-	public void generateAddNoise(
-			final String    suffix,
-			final double [] noise_sigma_level,
-			final int       threadsMax,
-			final int       debug_level)
-	{
-		final double scale =noise_sigma_level[0];
-		final double sigma =noise_sigma_level[1];
-		final int num_cams = this.image_data.length;
-		final int num_cols = image_data[0].length;
-		final int [] image_wh = geometryCorrection.getSensorWH();
-		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
-				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-				correctionsParameters.x3dModelVersion,
-				true,  // smart,
-				true);  //newAllowed, // save
-		String noise_suffix = suffix + sigma;
-		String file_name = image_name + noise_suffix;
-		String file_path = x3d_path + Prefs.getFileSeparator() + file_name + ".tiff";
-		ImagePlus imp = null;
-		try {
-			imp = new ImagePlus(file_path);
-		} catch (Exception e) {
-			System.out.println ("Failed to open "+file_path+", will generate it");
-		}
-		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
-		final AtomicInteger ai = new AtomicInteger(0);
-		if ((imp == null) || (imp.getTitle() == null) || (imp.getTitle().equals(""))) {
-			System.out.println ("Empty "+file_path+", will generate it");
-			int num_pix = image_wh[0] * image_wh[1];
-			final double [][] noise = new double [num_cams][num_pix];
-			for (int q = 0; q < num_cams; q++) {
-				final int fq = q;
-				ai.set(0);
-				for (int ithread = 0; ithread < threads.length; ithread++) {
-					threads[ithread] = new Thread() {
-						public void run() {
-							Random random = new Random();
-							for (int i = ai.getAndIncrement(); i < noise[0].length; i = ai.getAndIncrement()) {
-								noise[fq][i] = random.nextGaussian();
-							}
-						}
-					};
-				}		      
-				ImageDtt.startAndJoin(threads);
-			}
-			ai.set(0);
-			if (sigma > 0) {
-				for (int ithread = 0; ithread < threads.length; ithread++) {
-					threads[ithread] = new Thread() {
-						public void run() {
-							for (int q = ai.getAndIncrement(); q <num_cams; q = ai.getAndIncrement()) {
-								(new DoubleGaussianBlur()).blurDouble(noise[q],  image_wh[0], image_wh[1], sigma, sigma, 0.01);
-							}
-						}
-					};
-				}		      
-				ImageDtt.startAndJoin(threads);
-			}
-			for (int q = 0; q < num_cams; q++) {
-				final int fq = q;
-				double [] sc = new double [num_cols];
-				for (int c =0; c < num_cols; c++) {
-					for (int i =0; i < image_data[q][c].length; i++) {
-						sc[c] += image_data[q][c][i];
-					}
-				}
-				final double [][] sb = {
-						{sc[2] * 2.0 / num_pix, sc[0] * 4.0 / num_pix},
-						{sc[1] * 4.0 / num_pix, sc[2] * 2.0 / num_pix}};
-				ai.set(0);
-				for (int ithread = 0; ithread < threads.length; ithread++) {
-					threads[ithread] = new Thread() {
-						public void run() {
-							for (int i = ai.getAndIncrement(); i < noise[0].length; i = ai.getAndIncrement()) {
-								int dx = (i % image_wh[0]) & 1;
-								int dy = (i / image_wh[0]) & 1;
-								noise[fq][i] *= sb[dy][dx];
-							}
-						}
-					};
-				}		      
-				ImageDtt.startAndJoin(threads);
-			}
-			imp = saveDoubleArrayInModelDirectory(
-					noise_suffix,  // String      suffix,
-					null,          // String []   labels, // or null
-					noise,         // double [][] data,
-					image_wh[0],   // int         width,
-					image_wh[1]);  // int         height)
-		}
-		ImageStack imageStack = imp.getStack();
-		float [][] fpixels = new float [num_cams][];
-		for (int q = 0; q < num_cams; q++) {
-			fpixels[q] = (float[]) imageStack.getPixels(q+1);
-		}
-		for (int q = 0; q < num_cams; q++) {
-			final int fq = q;
-			for (int c =0; c < num_cols; c++) {
-				final int fc = c;
-				ai.set(0);
-				for (int ithread = 0; ithread < threads.length; ithread++) {
-					threads[ithread] = new Thread() {
-						public void run() {
-							for (int i = ai.getAndIncrement(); i < image_data[fq][fc].length; i = ai.getAndIncrement()) {
-								if (image_data[fq][fc][i] != 0.0) {
-									image_data[fq][fc][i] += scale * fpixels[fq][i];
-								}
-							}
-						}
-					};
-				}		      
-				ImageDtt.startAndJoin(threads);
-			}			
-		}
-		if (debug_level > 100) {
-			double [][] dbg_data = new double [num_cams*num_cols][];
-			for (int q = 0; q < num_cams;q++) {
-				for (int c = 0; c < num_cols; c++) {
-					dbg_data[q*num_cols+c] = image_data[q][c];
-				}
-			}
-			saveDoubleArrayInModelDirectory(
-					noise_suffix + "-MIXED"+noise_sigma_level[0],  // String      suffix,
-					null,          // String []   labels, // or null
-					dbg_data,         // double [][] data,
-					image_wh[0],   // int         width,
-					image_wh[1]);  // int         height)
-		}
-	}
-	
-	public ImagePlus saveDoubleArrayInModelDirectory(
-			String      suffix,
-			String []   labels, // or null
-			double [][] data,
-			int         width,
-			int         height)
-	{
-		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
-				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-				correctionsParameters.x3dModelVersion,
-				true,  // smart,
-				true);  //newAllowed, // save
-		String file_name = image_name + suffix;
-		String file_path = x3d_path + Prefs.getFileSeparator() + file_name + ".tiff";
-		ImageStack imageStack = (new ShowDoubleFloatArrays()).makeStack(data, width, height, labels);
-		ImagePlus imp = new ImagePlus( file_name, imageStack);
-		FileSaver fs=new FileSaver(imp);
-		fs.saveAsTiff(file_path);
-		return imp;
-	}
-	
-	public double [][] readDoubleArrayFromModelDirectory(
-			String      suffix,
-			int         num_slices, // (0 - all)
-			int []      wh
-			)
-	{
-//		final int [] image_wh = geometryCorrection.getSensorWH();
-		String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
-				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-				correctionsParameters.x3dModelVersion,
-				true,  // smart,
-				true);  //newAllowed, // save
-		String file_name = image_name + suffix;
-		String file_path = x3d_path + Prefs.getFileSeparator() + file_name + ".tiff";
-		ImagePlus imp = null;
-		try {
-			imp = new ImagePlus(file_path);
-		} catch (Exception e) {
-			System.out.println ("Failed to open "+file_path+", will generate it");
-		}
-		if ((imp == null) || (imp.getTitle() == null) || (imp.getTitle().equals(""))) {
-			return null;
-		}
-		ImageStack imageStack = imp.getStack();
-		int nChn=imageStack.getSize();
-		if ((num_slices > 0) && (num_slices < nChn)) {
-			nChn = num_slices;
-		}
-
-		float [] fpixels;
-		double [][] result = new double [nChn][]; 
-		for (int n = 0; n < nChn; n++) {
-			fpixels = (float[]) imageStack.getPixels(n + 1);
-			result[n] = new double [fpixels.length];
-			for (int i = 0; i < fpixels.length; i++) {
-				result[n][i] = fpixels[i];
-			}
-		}
-		if (wh != null) {
-			wh[0] = imp.getWidth();
-			wh[1] = imp.getHeight();
-		}
-		return result;
-	}
-	
-	*/
 	
 	public static double [] removeDisparityOutliers(
 			final double [][] ds0,
@@ -2152,11 +1898,16 @@ public class QuadCLT extends QuadCLTCPU {
 			return null;
 		}
 		
+
 // GPU-specific
 		boolean showCoord = debugLevel > 1;
 		boolean is_mono = isMonochrome();
 		boolean is_lwir = isLwir();
 		final boolean      batch_mode = clt_parameters.batch_run; //disable any debug images
+		boolean test_execCorr2D =    batch_mode?false: false; // true;
+		boolean try_lores =          batch_mode?false: true;
+		boolean show_textures_rgba = batch_mode?false: clt_parameters.show_rgba_color;
+		boolean try_textures =       batch_mode?false: true;
 		
 		ImageDtt image_dtt = new ImageDtt(
 				getNumSensors(),
@@ -2248,7 +1999,6 @@ public class QuadCLT extends QuadCLTCPU {
 		
 		
 		gpuQuad.execConvertDirect();
-		boolean test_execCorr2D = false; // true;
 		int mcorr_sel = Correlation2d.corrSelEncode(clt_parameters.img_dtt, getNumSensors());
 
 		if (test_execCorr2D) {
@@ -2287,7 +2037,7 @@ public class QuadCLT extends QuadCLTCPU {
 					gpu_corr_rad); //  int corr_rad);
 			final int tilesX=gpuQuad.getTilesX(); // width/transform_size;
 			final int tilesY=gpuQuad.getTilesY(); // final int tilesY=height/transform_size;
-			int num_tiles = tilesX * tilesY;
+//			int num_tiles = tilesX * tilesY;
 			int sq = 16;
 			int num_pairs = gpuQuad.getNumUsedPairs();
 			float [][] corr_img = new float [num_pairs][tilesY * sq * tilesX * sq];
@@ -2295,8 +2045,6 @@ public class QuadCLT extends QuadCLTCPU {
 				Arrays.fill(corr_img[pair], Float.NaN);
 			}
 			for (int ict = 0; ict < corr_indices.length; ict++){
-				
-				
 				//    	int ct = cpu_corr_indices[ict];
 				int ctt = ( corr_indices[ict] >>  GPUTileProcessor.CORR_NTILE_SHIFT);
 				int cpair = corr_indices[ict] & ((1 << GPUTileProcessor.CORR_NTILE_SHIFT) - 1);
@@ -2434,15 +2182,16 @@ public class QuadCLT extends QuadCLTCPU {
 
 		}
 // try textures here
-
-		boolean show_textures_rgba = clt_parameters.show_rgba_color;
 		if (show_textures_rgba) {
 			float [][] texture_img = new float [isMonochrome()?2:4][];
-			double [] col_weights = new double[3];
+//			double [] col_weights = new double[3];
+			double [] col_weights = new double[isMonochrome() ? 1 :3];
 			if (isMonochrome()) {
 				col_weights[0] = 1.0;
-				col_weights[1] = 0.0;
-				col_weights[2] = 0.0;// green color/mono
+//			if (isMonochrome()) {
+//				col_weights[0] = 1.0;
+//				col_weights[1] = 0.0;
+//				col_weights[2] = 0.0;// green color/mono
 			} else {
 				col_weights[2] = 1.0/(1.0 +  clt_parameters.corr_red + clt_parameters.corr_blue);    // green color
 				col_weights[0] = clt_parameters.corr_red *  col_weights[2];
@@ -2505,20 +2254,17 @@ public class QuadCLT extends QuadCLTCPU {
 			imp_rgba.getProcessor().resetMinAndMax();
 			imp_rgba.show();
 		}
-		boolean try_lores = true;
 		if (try_lores) {
 			//Generate non-overlapping (16x16) texture tiles, prepare
-			double [] col_weights = new double[3];
+//			double [] col_weights = new double[3];
+			double [] col_weights = new double[isMonochrome() ? 1 :3];
 			if (isMonochrome()) {
 				col_weights[0] = 1.0;
-				col_weights[1] = 0.0;
-				col_weights[2] = 0.0;// green color/mono
 			} else {
 				col_weights[2] = 1.0/(1.0 +  clt_parameters.corr_red + clt_parameters.corr_blue);    // green color
 				col_weights[0] = clt_parameters.corr_red *  col_weights[2];
 				col_weights[1] = clt_parameters.corr_blue * col_weights[2];
 			}
-
 			gpuQuad.execTextures(
 				col_weights,                   // double [] color_weights,
 				isLwir(),                      // boolean   is_lwir,
@@ -2542,44 +2288,10 @@ public class QuadCLT extends QuadCLTCPU {
 					getImageName()+"-LOW-RES"
 					//,new String[] {"R","B","G","A"}
 					);
-			
-			
-			/*
-			for (int ncam = 0; ncam < num_cams; ncam++) {
-				int indx = ncam + IMG_DIFF0_INDEX;
-//				if ((disparity_modes & (1 << indx)) != 0){
-				if (needImgDiffs(disparity_modes)){
-					disparity_map[indx] = new double [extra[ncam].length];
-					for (int i = 0; i < extra[ncam].length; i++) {
-						disparity_map[indx][i] = extra[ncam][i];
-					}
-				}
-			}
-			*/
 			for (int nc = 00; nc < (extra.length - num_cams); nc++) {
 				int sindx = nc + num_cams;
-				/*
-				int indx = nc + IMG_TONE_RGB;
-				if ((disparity_modes & (1 << indx)) != 0){
-					disparity_map[indx] = new double [extra[sindx].length];
-					for (int i = 0; i < extra[sindx].length; i++) {
-						disparity_map[indx][i] = extra[sindx][i];
-					}
-				}
-	            */
-				/*
-				int indx = nc + getImgToneRGB(); // IMG_TONE_RGB;
-//				if ((disparity_modes & (1 << indx)) != 0){
-				if (needTonesRGB(disparity_modes)){
-					disparity_map[indx] = new double [extra[sindx].length];
-					for (int i = 0; i < extra[sindx].length; i++) {
-						disparity_map[indx][i] = extra[sindx][i];
-					}
-				}
-*/
 				
 			}
-			boolean try_textures = true;
 			if (try_textures) {
 				//Generate non-overlapping (16x16) texture tiles, prepare 
 				gpuQuad.execTextures(
@@ -2656,40 +2368,8 @@ public class QuadCLT extends QuadCLTCPU {
 				}
 				System.out.println("try_textures DONE");
 			}
-			
-			
-			
 		}
 // try low-res and non-overlap textures
-		
-		
-		
-		
-/**
-       if (colorProcParameters.isLwir() && colorProcParameters.lwir_autorange) {
-            double rel_low =  colorProcParameters.lwir_low;
-            double rel_high = colorProcParameters.lwir_high;
-            if (!Double.isNaN(getLwirOffset())) {
-                rel_low -=  getLwirOffset();
-                rel_high -= getLwirOffset();
-            }
-            double [] cold_hot =  autorange(
-                    iclt_data, // double [][][] iclt_data, //  [iQuad][ncol][i] - normally only [][2][] is non-null
-                    rel_low, // double hard_cold,// matches data, DC (this.lwir_offset)  subtracted
-                    rel_high, // double hard_hot, // matches data, DC (this.lwir_offset)  subtracted
-                    colorProcParameters.lwir_too_cold, // double too_cold, // pixels per image
-                    colorProcParameters.lwir_too_hot, // double too_hot,  // pixels per image
-                    1024); // int num_bins)
-            if (cold_hot != null) {
-                if (!Double.isNaN(getLwirOffset())) {
-                    cold_hot[0] += getLwirOffset();
-                    cold_hot[1] += getLwirOffset();
-                }
-            }
-            setColdHot(cold_hot); // will be used for shifted images and for texture tiles
-        }
-		
- */
 		return null;	  
 	}
 	
@@ -3451,8 +3131,9 @@ public class QuadCLT extends QuadCLTCPU {
 		
 	}
 	
-// overwrites super method	
-	  public CLTPass3d CLTBackgroundMeas( // measure background // USED in lwir
+// overwrites super method	// Restored super - it now includes GPU
+	  @Deprecated
+	  public CLTPass3d CLTBackgroundMeas_Old( // measure background // USED in lwir
 			  CLTParameters       clt_parameters,
 			  final int           threadsMax,  // maximal number of threads to launch
 			  final boolean       updateStatus,
@@ -3479,21 +3160,8 @@ public class QuadCLT extends QuadCLTCPU {
 
 		  // yes, needed  (for macro)
 //		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
-		  double [][] disparity_map = new double [ImageDtt.getDisparityTitles(getNumSensors()).length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
-		  
-		  /*
-		  double [][] shiftXY = new double [4][2];
-		  // not used
-		  if (!clt_parameters.fine_corr_ignore) {
-			  double [][] shiftXY0 = {
-					  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
-					  {clt_parameters.fine_corr_x_1,clt_parameters.fine_corr_y_1},
-					  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
-					  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
-			  shiftXY = shiftXY0;
-		  }
+		  double [][] disparity_map = new double [ImageDtt.getDisparityTitles(getNumSensors(), isMonochrome()).length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
 		  double [][][][] texture_tiles =     new double [tilesY][tilesX][][]; // ["RGBA".length()][];
-          */
 		  ImageDtt image_dtt = new ImageDtt(
 				  getNumSensors(),
 				  clt_parameters.transform_size,
@@ -3553,9 +3221,9 @@ public class QuadCLT extends QuadCLTCPU {
 				                                 // last 2 - contrast, avg/ "geometric average)
 				  disparity_modes,               // disparity_modes, // bit mask of disparity_map slices to calculate/return
 					
-				  null,                          // 	final double [][][][]     texture_tiles,   // compatible with the CPU ones      
-				  null, // texture_img,                   // texture_img,     // null or [3][] (RGB) or [4][] RGBA
-				  null, // texture_woi,                   // texture_woi,     // null or generated texture location/size
+				  texture_tiles,                 // 	final double [][][][]     texture_tiles,   // compatible with the CPU ones      
+				  null, // texture_img,          // texture_img,     // null or [3][] (RGB) or [4][] RGBA
+				  null, // texture_woi,          // texture_woi,     // null or generated texture location/size
 				  null,                          //  iclt_fimg,       // will return quad images or null to skip, use quadCLT.linearStackToColor 
 					// new parameters, will replace some other?
 //				  clt_parameters.getFatZero(isMonochrome()),      // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0\
@@ -3655,9 +3323,9 @@ public class QuadCLT extends QuadCLTCPU {
 		  //				  bgnd_data.getTextureSelection()
 		  bgnd_data.setTextureSelection(bgnd_tiles_grown2);
 		  Rectangle  texture_woi_pix = new Rectangle(); // in pixels
-		  float [][] texture_img = GetTextureGPU( // returns texture
+		  float [][] texture_img = GetTextureGPU( // returns texture CUDA error at com.elphel.imagej.gpu.GpuQuad.execRBGA_noDP(GpuQuad.java:2180)
 				  clt_parameters,      // CLTParameters       clt_parameters,
-				  texture_woi_pix,         // Rectangle  texture_woi, // = new Rectangle();
+				  texture_woi_pix,     // Rectangle  texture_woi, // = new Rectangle();
 				  bgnd_data.disparity, // double [][]         disparity_array, // [tilesY][tilesX]
 				  bgnd_tiles_grown2,   // bgnd_tiles_grown2,   // boolean []          selection,
 				  threadsMax,          // final int           threadsMax,  // maximal number of threads to launch
@@ -3665,8 +3333,8 @@ public class QuadCLT extends QuadCLTCPU {
 				  debugLevel);         // final int           debugLevel);
 
 		  // for now - use just RGB. Later add option for RGBA
-		  float [][] texture_rgb = {texture_img[0],texture_img[1],texture_img[2]};
-		  float [][] texture_rgba = {texture_img[0],texture_img[1],texture_img[2],texture_img[3]};
+		  float [][] texture_rgb = isMonochrome() ? (new float [][] {texture_img[0]}): (new float [][] {texture_img[0],texture_img[1],texture_img[2]});
+		  float [][] texture_rgba = isMonochrome() ? (new float [][] {texture_img[0],texture_img[1]}) : (new float [][] {texture_img[0],texture_img[1],texture_img[2],texture_img[3]});
 
 		  int out_width =  tilesX *  clt_parameters.transform_size;
 		  int out_height = tilesY *  clt_parameters.transform_size;
@@ -3702,12 +3370,11 @@ public class QuadCLT extends QuadCLTCPU {
 		  return imp_texture_full;
 
 	  }
-
+/*
 	  public CLTPass3d  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity // not used in lwir
 			  CLTParameters     clt_parameters,
 			  final int         scanIndex,
 			  final boolean     save_textures,
-//			  final int         clust_rasius,
 			  final int         threadsMax,  // maximal number of threads to launch
 			  final boolean     updateStatus,
 			  final int         debugLevel) {
@@ -3720,9 +3387,9 @@ public class QuadCLT extends QuadCLTCPU {
 				  updateStatus,
 				  debugLevel);
 	  }
+*/	  
 	  
-	  
-	  public CLTPass3d  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity // not used in lwir
+	  public CLTPass3d  CLTMeasureCorr_replaced( // perform single pass according to prepared tiles operations and disparity // not used in lwir
 			  CLTParameters     clt_parameters,
 			  final int         scanIndex,
 			  final boolean     save_textures,
@@ -3759,7 +3426,7 @@ public class QuadCLT extends QuadCLTCPU {
 				  }
 			  }
 		  }
-		  double [][] disparity_map = new double [ImageDtt.getDisparityTitles(getNumSensors()).length][];
+		  double [][] disparity_map = new double [ImageDtt.getDisparityTitles(getNumSensors(), isMonochrome()).length][];
 		  ImageDtt image_dtt = new ImageDtt(
 				  getNumSensors(),
 				  clt_parameters.transform_size,
@@ -4068,7 +3735,7 @@ public class QuadCLT extends QuadCLTCPU {
 			  }
 		  }
 //		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
-		  double [][] disparity_map = new double [ImageDtt.getDisparityTitles(getNumSensors()).length][];
+		  double [][] disparity_map = new double [ImageDtt.getDisparityTitles(getNumSensors(), isMonochrome()).length][];
 
 		  ImageDtt image_dtt = new ImageDtt(
 				  getNumSensors(),
@@ -4385,15 +4052,15 @@ public class QuadCLT extends QuadCLTCPU {
 
 //		  double[][] disparity_map =      new double [ImageDtt.DISPARITY_TITLES.length][];
 //		  double[][] disparity_map_fake = new double [ImageDtt.DISPARITY_TITLES.length][];
-		  double [][] disparity_map = new double [ImageDtt.getDisparityTitles(getNumSensors()).length][];
-		  double [][] disparity_map_fake = new double [ImageDtt.getDisparityTitles(getNumSensors()).length][];
+		  double [][] disparity_map = new double [ImageDtt.getDisparityTitles(getNumSensors(), isMonochrome()).length][];
+		  double [][] disparity_map_fake = new double [ImageDtt.getDisparityTitles(getNumSensors(), isMonochrome()).length][];
 		  
 		  int disparity_modes = 
 				  ImageDtt.BITS_ALL_DISPARITIES |
 				  ImageDtt.BITS_ALL_DIFFS | // needs max_diff?
 				  ImageDtt.BITS_OVEREXPOSED; //  |
 
-		  // here accumulate TD tiles according to offsets (like in a histoghram) using double array - convert to float in the very end and
+		  // here accumulate TD tiles according to offsets (like in a histogram) using double array - convert to float in the very end and
 		  // put them in the top left corner, then process as usual 
 
 
@@ -4794,7 +4461,7 @@ public class QuadCLT extends QuadCLTCPU {
 			  }
 		  }
 //		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][];
-		  double [][] disparity_map = new double [ImageDtt.getDisparityTitles(getNumSensors()).length][];		  
+		  double [][] disparity_map = new double [ImageDtt.getDisparityTitles(getNumSensors(), isMonochrome()).length][];		  
 		  /*
 		  double [][] shiftXY = new double [4][2];
 		  // not used
@@ -4946,7 +4613,7 @@ public class QuadCLT extends QuadCLTCPU {
 			  }
 		  }
 //		  double [][] disparity_map1 = new double [ImageDtt.DISPARITY_TITLES.length][];
-		  double [][] disparity_map1 = new double [ImageDtt.getDisparityTitles(getNumSensors()).length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
+		  double [][] disparity_map1 = new double [ImageDtt.getDisparityTitles(getNumSensors(), isMonochrome()).length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
 		  
 		  
 		  float [][][][] corr_td_blur = image_dtt.blur_corr_GPU( // convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td

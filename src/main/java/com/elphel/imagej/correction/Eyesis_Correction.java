@@ -6757,8 +6757,6 @@ private Panel panel1,
 		
 		try {
 			TWO_QUAD_CLT.batchLwirRig(
-//					GPU_QUAD,     // GPUTileProcessor.GpuQuad gpuQuad_main, // may be null if GPU for MAIN is not use3d
-//					GPU_QUAD_AUX, // GPUTileProcessor.GpuQuad gpuQuad_aux,  // may be null if GPU for AUX is not use3d
 					QUAD_CLT, // QuadCLT quadCLT_main,
 					QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
 					CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,

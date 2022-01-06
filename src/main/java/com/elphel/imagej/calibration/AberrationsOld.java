@@ -1413,10 +1413,10 @@ Panel panel1,panel2;
       }
 /* Filter pattern coefficients to make sure they all match between quadrtants (match to the center one?)*/
      boolean patternsMatchedInitially=matchPatterns(quarter_patterns,quarter_patterns[4]);    // uses pattern in the center quadrant
-     if (DEBUG_LEVEL>1) {
-          System.out.println(patternsMatchedInitially?"Sim: All quadrant wave vectors matched initially, no correction needed":
-        	  "Some quadrant wave vectors were adjusted to match");
-     }
+//     if (DEBUG_LEVEL>1) {
+//          System.out.println(patternsMatchedInitially?"Sim: All quadrant wave vectors matched initially, no correction needed":
+//        	  "Some quadrant wave vectors were adjusted to match");
+//     }
      
       patternCorr=calcPatternNonLinear(quarter_patterns); // divide results by ,(FFTSize/2)^2
       if (DEBUG_LEVEL>1) { /* increase LEVEL later */

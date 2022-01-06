@@ -283,7 +283,7 @@ public class MacroCorrelation {
 		double min_corr_selected = clt_parameters.min_corr;
 
 //		double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
-		double [][] disparity_map = new double [ImageDtt.getDisparityTitles(geometryCorrection.getNumSensors()).length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
+		double [][] disparity_map = new double [ImageDtt.getDisparityTitles(geometryCorrection.getNumSensors(), this.mtp.isMonochrome()).length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
 
 		double [][] shiftXY = {{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0}};
 
