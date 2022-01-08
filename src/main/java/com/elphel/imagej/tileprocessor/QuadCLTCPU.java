@@ -8862,7 +8862,7 @@ public class QuadCLTCPU {
 			  // Restore pairs selection
 		  clt_parameters.img_dtt.setMcorr(getNumSensors(), save_pairs_selection); // restore
 		  if (clt_parameters.gr_nan_bg) {
-			  if (debugLevel > -3) {
+			  if (debugLevel > -2) {
 				  tp.showScan(
 						  tp.clt_3d_passes.get(bg_pass), // CLTPass3d   scan,
 						  "bg_passs-"+tp.clt_3d_passes.size());
