@@ -585,7 +585,16 @@ public class CLTParameters {
 	public double     gr_fin_diff          =   0.01; // Maximal change to finish smoothing iterations
 	public double     gr_unique_tol        =   0.15; // Do not re-measure correlation if target disparity differs from some previous by this
 	public double     gr_unique_pretol     =   0.5;  // Larger tolerance for expanding (not refining)
+	
+	public int        gr_max_clust_radius  =     4; // 7x7
+	public int        gr_num_refines =           4;
+	public boolean    gr_exp_certain =           false;
 
+	public boolean    gr_reduce_sngl =           true;
+	public boolean    gr_reduce_multi =          true;
+	public boolean    gr_all_last =              true;
+	public boolean    gr_nan_bg =                true;
+	
 
 	public boolean    ft_mod_strength =          true;    // When set, multiply each tile strength by the number of selected neighbors
 	public boolean    ft_clusterize_by_highest = true;    // Clusterize using disparity horizontal maximums for fronto planes and minimums - for horizontal. False - use histograms
@@ -1468,6 +1477,13 @@ public class CLTParameters {
 		properties.setProperty(prefix+"gr_fin_diff",                this.gr_fin_diff +"");
 		properties.setProperty(prefix+"gr_unique_tol",              this.gr_unique_tol +"");
 		properties.setProperty(prefix+"gr_unique_pretol",           this.gr_unique_pretol +"");
+		properties.setProperty(prefix+"gr_max_clust_radius",        this.gr_max_clust_radius +"");
+		properties.setProperty(prefix+"gr_num_refines",             this.gr_num_refines +"");
+		properties.setProperty(prefix+"gr_exp_certain",             this.gr_exp_certain +"");
+		properties.setProperty(prefix+"gr_reduce_sngl",             this.gr_reduce_sngl +"");
+		properties.setProperty(prefix+"gr_reduce_multi",            this.gr_reduce_multi +"");
+		properties.setProperty(prefix+"gr_all_last",                this.gr_all_last +"");
+		properties.setProperty(prefix+"gr_nan_bg",                  this.gr_nan_bg +"");
 
 		properties.setProperty(prefix+"ft_mod_strength",                    this.ft_mod_strength +"");
 		properties.setProperty(prefix+"ft_clusterize_by_highest",           this.ft_clusterize_by_highest +"");
@@ -2298,8 +2314,14 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"gr_fin_diff")!=null)                   this.gr_fin_diff=Double.parseDouble(properties.getProperty(prefix+"gr_fin_diff"));
 		if (properties.getProperty(prefix+"gr_unique_tol")!=null)                 this.gr_unique_tol=Double.parseDouble(properties.getProperty(prefix+"gr_unique_tol"));
 		if (properties.getProperty(prefix+"gr_unique_pretol")!=null)              this.gr_unique_pretol=Double.parseDouble(properties.getProperty(prefix+"gr_unique_pretol"));
-
-
+		if (properties.getProperty(prefix+"gr_max_clust_radius")!=null)           this.gr_max_clust_radius=Integer.parseInt(properties.getProperty(prefix+"gr_max_clust_radius"));
+		if (properties.getProperty(prefix+"gr_num_refines")!=null)                this.gr_num_refines=Integer.parseInt(properties.getProperty(prefix+"gr_num_refines"));
+		if (properties.getProperty(prefix+"gr_exp_certain")!=null)                this.gr_exp_certain=Boolean.parseBoolean(properties.getProperty(prefix+"gr_exp_certain"));
+		if (properties.getProperty(prefix+"gr_reduce_sngl")!=null)                this.gr_reduce_sngl=Boolean.parseBoolean(properties.getProperty(prefix+"gr_reduce_sngl"));
+		if (properties.getProperty(prefix+"gr_reduce_multi")!=null)               this.gr_reduce_multi=Boolean.parseBoolean(properties.getProperty(prefix+"gr_reduce_multi"));
+		if (properties.getProperty(prefix+"gr_all_last")!=null)                   this.gr_all_last=Boolean.parseBoolean(properties.getProperty(prefix+"gr_all_last"));
+		if (properties.getProperty(prefix+"gr_nan_bg")!=null)                     this.gr_nan_bg=Boolean.parseBoolean(properties.getProperty(prefix+"gr_nan_bg"));
+		
 		if (properties.getProperty(prefix+"ft_mod_strength")!=null)                    this.ft_mod_strength=Boolean.parseBoolean(properties.getProperty(prefix+"ft_mod_strength"));
 		if (properties.getProperty(prefix+"ft_clusterize_by_highest")!=null)           this.ft_clusterize_by_highest=Boolean.parseBoolean(properties.getProperty(prefix+"ft_clusterize_by_highest"));
 		if (properties.getProperty(prefix+"ft_clust_sigma")!=null)                     this.ft_clust_sigma=Double.parseDouble(properties.getProperty(prefix+"ft_clust_sigma"));
@@ -2314,8 +2336,6 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"ft_hor_vert_overlap")!=null)                this.ft_hor_vert_overlap=Integer.parseInt(properties.getProperty(prefix+"ft_hor_vert_overlap"));
 		if (properties.getProperty(prefix+"ft_used_companions")!=null)                 this.ft_used_companions=Integer.parseInt(properties.getProperty(prefix+"ft_used_companions"));
 		if (properties.getProperty(prefix+"ft_used_true_companions")!=null)            this.ft_used_true_companions=Integer.parseInt(properties.getProperty(prefix+"ft_used_true_companions"));
-
-
 
 		if (properties.getProperty(prefix+"plPreferDisparity")!=null)             this.plPreferDisparity=Boolean.parseBoolean(properties.getProperty(prefix+"plPreferDisparity"));
 		if (properties.getProperty(prefix+"plDispNorm")!=null)                    this.plDispNorm=Double.parseDouble(properties.getProperty(prefix+"plDispNorm"));
@@ -3289,7 +3309,25 @@ public class CLTParameters {
 		gd.addNumericField("Maximal change to finish smoothing iterations",                                                 this.gr_fin_diff,  6);
 		gd.addNumericField("Do not re-measure correlation if target disparity differs from some previous less",             this.gr_unique_tol,  6);
 		gd.addNumericField("Larger tolerance for expanding (not refining)",                                                 this.gr_unique_pretol,  6);
+		
+		gd.addMessage     ("--- Mukti-tile DSI expansion ---");
+		gd.addNumericField("Maximal cluster radius",                                                                        this.gr_max_clust_radius,  0,6,"",
+				"2 - 3x3, 3 - 5x5, 4 - 7x7 tiles");
+		gd.addNumericField("Number of refines for each cluster radius",                                                    this.gr_num_refines,  0,6,"",
+				"Each tile will be processed until change fallls below gr_unique_tol ('Do not re-measure...' above), buit hard-limited by this value");
+		gd.addCheckbox    ("Expand DSI over weak tiles",                                                                    this.gr_exp_certain,
+				"Has problems (produces dips), disable");
+		gd.addCheckbox    ("Reduce number of pairs when refining single-tile DSI",                                          this.gr_reduce_sngl,
+				"Currently to 40 pairs: neigbors, squares, diameters");
+		gd.addCheckbox    ("Reduce number of pairs when refining single-tile DSI",                                          this.gr_reduce_multi,
+				"Currently to 40 pairs: neigbors, squares, diameters");
+		gd.addCheckbox    ("Restore to all configured pairs for the last refine cycles",                                    this.gr_all_last,
+				"Use configured (ImageDtt tab) pairs for the last refine cycles (both single and multi-tile");
+		gd.addCheckbox    ("Undefine disparity for the background tiles",                                                   this.gr_nan_bg,
+				"Set DSI disparity to NaN  for the BG tiles");
 
+		
+		
 		gd.addTab         ("Alt CLusterize", "Alternative initial tiles clusterization");
 
 		gd.addCheckbox    ("Modify cluster strengths",                                                                      this.ft_mod_strength,
@@ -4170,6 +4208,13 @@ public class CLTParameters {
 		this.gr_fin_diff=           gd.getNextNumber();
 		this.gr_unique_tol=         gd.getNextNumber();
 		this.gr_unique_pretol=      gd.getNextNumber();
+		this.gr_max_clust_radius= (int) gd.getNextNumber();
+		this.gr_num_refines=      (int) gd.getNextNumber();
+		this.gr_exp_certain=            gd.getNextBoolean();
+		this.gr_reduce_sngl=            gd.getNextBoolean();
+		this.gr_reduce_multi=           gd.getNextBoolean();
+		this.gr_all_last=               gd.getNextBoolean();
+		this.gr_nan_bg=                 gd.getNextBoolean();
 
 		this.ft_mod_strength=               gd.getNextBoolean();
 		this.ft_clusterize_by_highest=      gd.getNextBoolean();

@@ -1019,7 +1019,7 @@ public class EyesisCorrectionParameters {
     		gd.addCheckbox    ("Include/genarate separate aux camera DSI data in the combo DSI",     this.clt_batch_dsi_aux,
     				"8-rig: DSI for the AUX camera is offset (by the rig baseline) from the main and rig DSI. Aux DSI requires extra processing time."+
     		" EO+LWIR - generate a separate GT+AUX file");
-    		gd.addCheckbox    ("Additional steps to calculate Auf DSI (more than for LY adjustment)",   this.clt_batch_dsi_aux_full,
+    		gd.addCheckbox    ("Additional steps to calculate Aux DSI (more than for LY adjustment)",   this.clt_batch_dsi_aux_full,
     				"(Not yet tested)");
     		
     		

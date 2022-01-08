@@ -2468,7 +2468,7 @@ public class ImageDtt extends ImageDttCPU {
 							}
 							nTile = tileY * tilesX + tileX;
 							if (tp_tasks[iTile].getTask() == 0) continue; // nothing to do for this tile
-							boolean debugTile0 =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -6);
+							boolean debugTile0 =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > 0);
 							if (debugTile0) {
 								System.out.println("clt_process_tl_correlations(): tileX="+tileX+", tileY="+tileY+", iTile="+iTile+", nTile="+nTile);
 							}
@@ -2517,7 +2517,9 @@ public class ImageDtt extends ImageDttCPU {
 													corrs[npair] , //double [] corr_tile,
 													npair);        // int       num_pair)
 											if (pair_width < 0.1) {
-												System.out.println("pair_width["+npair+"]="+pair_width);
+												if (globalDebugLevel > 0) {
+													System.out.println("pair_width["+npair+"]="+pair_width);
+												}
 											} else {
 												weights[npair] /= Math.pow(pair_width, imgdtt_params.mcorr_weights_power);
 											}

@@ -15970,7 +15970,7 @@ public class ImageDttCPU {
 								}
 							}
 						}
-						boolean debugTile0 =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -6);
+						boolean debugTile0 =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > 0);
 						if (debugTile0) {
 							System.out.println("clt_process_tl_correlations(): tileX="+tileX+", tileY="+tileY);
 						}
@@ -16027,7 +16027,9 @@ public class ImageDttCPU {
 												corrs[npair] , //double [] corr_tile,
 									    		npair);        // int       num_pair)
 										if (pair_width < 0.1) {
-											System.out.println("pair_width["+npair+"]="+pair_width);
+											if (globalDebugLevel > 0) {
+												System.out.println("pair_width["+npair+"]="+pair_width);
+											}
 										} else {
 										weights[npair] /= Math.pow(pair_width, imgdtt_params.mcorr_weights_power);
 										}
@@ -16884,7 +16886,7 @@ public class ImageDttCPU {
 						tileYC = tp_tasks[iTileC].getTileY(); //  /tilesX;
 						tileXC = tp_tasks[iTileC].getTileX(); //nTile % tilesX;
 						nTileC = tileYC * tilesX + tileXC;
-						if ((tileXC == debug_tileX) && (tileYC == debug_tileY)) {
+						if ((globalDebugLevel > -2) && (tileXC == debug_tileX) && (tileYC == debug_tileY)) {
 							System.out.println("quadCorrTD_tilted(): tileXC="+tileXC+", tileYC="+tileYC+", iTileC="+iTileC);
 						}
 						//quadCorrTD_tilted
@@ -16963,7 +16965,7 @@ public class ImageDttCPU {
 							} else {
 								tp_index_multi[offset_index][cindex]  =  iTileC;
 							}
-							if ((globalDebugLevel > 0) && (tileXC == debug_tileX) && (tileYC == debug_tileY)) {
+							if ((globalDebugLevel > -2) && (tileXC == debug_tileX) && (tileYC == debug_tileY)) {
 								System.out.println("mindx="+mindx+", cindex="+cindex+", disparity_target="+disparity_target+
 										", offset_index="+offset_index+", cindex="+cindex+", tileX="+tileX+", tileY="+tileY );
 							}
@@ -17037,7 +17039,7 @@ public class ImageDttCPU {
 							globalDebugLevel);
 					if (globalDebugLevel > 0) {
 						for (TpTask tt: tp_tasks_pass) {
-							if ((globalDebugLevel > 0) && ((tt.getTileY() - idy) == debug_tileY) && ((tt.getTileX()-idx) == debug_tileX)) {
+							if ((globalDebugLevel > -2) && ((tt.getTileY() - idy) == debug_tileY) && ((tt.getTileX()-idx) == debug_tileX)) {
 								System.out.println(" +++ neib_index="+neib_index+" tX="+tt.getTileX()+" tY="+tt.getTileY()
 										+ " target_disparity="+tt.getTargetDisparity()+" idx="+idx+" idy="+idy);
 							}
@@ -17064,7 +17066,7 @@ public class ImageDttCPU {
 									float [][] src_corrs = fcorr_td_part[tY_src][tX_src];
 									if (src_corrs != null) {
 										// TODO: finish checking correct fcorr_td_part
-										if ((globalDebugLevel > 0) && (tX_dst == debug_tileX) && (tY_dst == debug_tileY)) {
+										if ((globalDebugLevel > -2) && (tX_dst == debug_tileX) && (tY_dst == debug_tileY)) {
 											System.out.println("*** quadCorrTD_tilted_sum(): neib_index="+fneib_index+", tX_dst="+tX_dst+", tY_dst="+tY_dst+
 													", iTileC="+iTileC+", tX_src="+tX_src+", tY_src="+tY_src+", w="+w);
 										}
