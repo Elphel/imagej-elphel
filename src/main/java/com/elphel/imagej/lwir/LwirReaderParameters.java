@@ -117,7 +117,7 @@ public class LwirReaderParameters {
 	public int [] getEoChannels(boolean absolote) {
 		int [] absolute_chn = new int [eo_channels.length];
 		for (int i = 0; i < absolute_chn.length; i++) {
-			absolute_chn[i] = eo_channels[i] +  + (absolote? getEoChn0():0);
+			absolute_chn[i] = eo_channels[i] +  (absolote? getEoChn0():0);
 		}
 		return absolute_chn;
 	}
@@ -241,7 +241,7 @@ public class LwirReaderParameters {
 	
 	// call after switch from Lwir16 to Talon
 	public boolean isLwir16() {
-		return camera_name.equals(NAME_LWIR16);
+		return camera_name.equals(NAME_LWIR16) || ((lwir_channels != null) && (lwir_channels.length == 16));
 	}
 	
 	public int getFFCFrames() {

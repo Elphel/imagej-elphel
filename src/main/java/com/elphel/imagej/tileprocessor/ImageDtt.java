@@ -789,6 +789,11 @@ public class ImageDtt extends ImageDttCPU {
 			boolean     save_lowres,
 			double [][] disparity_map   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate			
 			){
+		if (gpuQuad.num_task_tiles == 0) {
+			System.out.println("get_diffs_lowres(): num_task_tiles=0!");
+			return null;
+		}
+
 		int numcol = isMonochrome()? 1 : 3;
 		double [] col_weights = new double[numcol];
 		if (isMonochrome()) {
@@ -798,7 +803,7 @@ public class ImageDtt extends ImageDttCPU {
 			col_weights[0] = corr_red *  col_weights[2];
 			col_weights[1] = corr_blue * col_weights[2];
 		}
-		gpuQuad.execTextures(
+		gpuQuad.execTextures( // CUDA_ERROR_INVALID_VALUE
 				col_weights,    // double [] color_weights,
 				isLwir(),       // boolean   is_lwir,
 				min_shot,       // double    min_shot,           // 10.0

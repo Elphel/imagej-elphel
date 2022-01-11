@@ -101,7 +101,7 @@ public class GpuQuad{ // quad camera description
 	private int imclt_stride;
 	private int texture_stride;
 	private int texture_stride_rgba;
-	private int num_task_tiles;
+	public  int num_task_tiles;
 	private int num_corr_tiles;
 	private final int num_all_pairs; //  = 6; // number of correlation pairs per tile (should match tasks)
 	private int num_corr_combo_tiles;
@@ -109,7 +109,7 @@ public class GpuQuad{ // quad camera description
 
 	private boolean geometry_correction_set = false;
 	private boolean geometry_correction_vector_set = false;
-	public  int gpu_debug_level = 1;
+	private int gpu_debug_level = 0; // 1;
 	
 //    private	boolean []  corr_mask_boolean; // to keep selected correlations between correlation in TD and processing of those correlations
     private	int []  corr_mask_int = new int [4]; // to keep selected correlations between correlation in TD and processing of those correlations
@@ -211,7 +211,9 @@ public class GpuQuad{ // quad camera description
 	}
 	
 	public GpuQuad(
-			GPUTileProcessor gpuTileProcessor, final QuadCLT quadCLT    			
+			GPUTileProcessor gpuTileProcessor,
+			final QuadCLT    quadCLT,
+			int              debug_level
 			//   			final int img_width,
 			//   			final int img_height,
 			//   	    	final int kernels_hor,
@@ -219,7 +221,7 @@ public class GpuQuad{ // quad camera description
 //			final int num_cams,
 //			final int num_colors
 			) {
-		
+		setGpu_debug_level(debug_level);
 		this.gpuTileProcessor = gpuTileProcessor;
 		this.quadCLT =       quadCLT;
 		int [] wh =          quadCLT.getGeometryCorrection().getSensorWH();
@@ -451,14 +453,14 @@ public class GpuQuad{ // quad camera description
 	public void resetGeometryCorrection() {
 		geometry_correction_set = false;
 		geometry_correction_vector_set = false;
-		if (gpu_debug_level > -1) {
+		if (getGpu_debug_level() > -1) {
 			System.out.println("======resetGeometryCorrection()");
 		}
 
 	}
 	public void resetGeometryCorrectionVector() {
 		geometry_correction_vector_set = false;
-		if (gpu_debug_level > -1) {
+		if (getGpu_debug_level() > -1) {
 			System.out.println("======resetGeometryCorrectionVector()");
 		}
 	}
@@ -477,7 +479,7 @@ public class GpuQuad{ // quad camera description
 	public void setGeometryCorrectionVector() { // will reset geometry_correction_vector_set when running GPU kernel
 		setExtrinsicsVector( // expand to maximal numer of sensors
 				quadCLT.getGeometryCorrection().expandSensors(GPUTileProcessor.MAX_NUM_CAMS).getCorrVector());
-		if (gpu_debug_level > -1) {
+		if (getGpu_debug_level() > -1) {
 			System.out.println("======setGeometryCorrectionVector()");
 		}
 	}
@@ -499,7 +501,7 @@ public class GpuQuad{ // quad camera description
 		cuMemcpyHtoD(gpu_geometry_correction, Pointer.to(fgc),       fgc.length * Sizeof.FLOAT);
 ///	Already allocated !	
 ///		cuMemAlloc  (gpu_rot_deriv, 5 * GPUTileProcessor.MAX_NUM_CAMS *3 *3 * Sizeof.FLOAT); // NCAM of 3x3 rotation matrices, plus 4 derivative matrices for each camera
-		if (gpu_debug_level > -1) {
+		if (getGpu_debug_level() > -1) {
 			System.out.println("======setGeometryCorrection()");
 		}
 	}
@@ -540,7 +542,7 @@ public class GpuQuad{ // quad camera description
 			fcv[i] = (float) dcv[i];
 		}
 		cuMemcpyHtoD(gpu_correction_vector, Pointer.to(fcv), fcv.length * Sizeof.FLOAT);
-		if (gpu_debug_level > -1) {
+		if (getGpu_debug_level() > -1) {
 			System.out.println("======setExtrinsicsVector()");
 		}
 	}
@@ -567,7 +569,7 @@ public class GpuQuad{ // quad camera description
 			tile_tasks[i].asFloatArray(ftasks, i, use_aux);
 		}
 		cuMemcpyHtoD(gpu_ftasks, Pointer.to(ftasks), task_size * num_task_tiles * Sizeof.FLOAT);
-		if (gpu_debug_level > -1) {
+		if (getGpu_debug_level() > -1) {
 			System.out.println("======setTasks()");
 		}
 	}
@@ -592,7 +594,7 @@ public class GpuQuad{ // quad camera description
 			tile_tasks[i] = new TpTask(quadCLT.getNumSensors(), ftasks, i, use_aux);
 		}
 		
-		if (gpu_debug_level > -1) {
+		if (getGpu_debug_level() > -1) {
 			System.out.println("======updateTasks()");
 		}
 	}
@@ -743,7 +745,7 @@ public class GpuQuad{ // quad camera description
 					ncam);      // int ncam)
 		}
 		this.gpuTileProcessor.kernels_set = true;
-		if (gpu_debug_level > -1) {
+		if (getGpu_debug_level() > -1) {
 			System.out.println("======setConvolutionKernels()");
 		}
 	}
@@ -803,7 +805,7 @@ public class GpuQuad{ // quad camera description
 					ncam); // int ncam)
 		}
 		this.gpuTileProcessor.bayer_set = true;
-		if (gpu_debug_level > -1) {
+		if (getGpu_debug_level() > -1) {
 			System.out.println("======setBayerImages()");
 		}
 	}
@@ -1320,7 +1322,7 @@ public class GpuQuad{ // quad camera description
 				kernelParameters, null);   // Kernel- and extra parameters
 		cuCtxSynchronize(); // remove later
 		geometry_correction_vector_set = true;
-		if (gpu_debug_level > -1) {
+		if (getGpu_debug_level() > -1) {
 			System.out.println("======execRotDerivs()");
 		}
 	}
@@ -1355,7 +1357,7 @@ public class GpuQuad{ // quad camera description
 				kernelParameters, null);   // Kernel- and extra parameters
 		cuCtxSynchronize(); // remove later
 		geometry_correction_set = true;
-		if (gpu_debug_level > -1) {
+		if (getGpu_debug_level() > -1) {
 			System.out.println("======execCalcReverseDistortions()");
 		}
 	}
@@ -1391,7 +1393,7 @@ public class GpuQuad{ // quad camera description
 				0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
 				kernelParameters, null);   // Kernel- and extra parameters
 		cuCtxSynchronize(); // remove later
-		if (gpu_debug_level > -1) {
+		if (getGpu_debug_level() > -1) {
 			System.out.println("======execSetTilesOffsets(), num_task_tiles="+num_task_tiles+", uniform_grid="+uniform_grid);
 		}
 	}
@@ -1440,7 +1442,7 @@ public class GpuQuad{ // quad camera description
 				0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
 				kernelParameters, null);   // Kernel- and extra parameters
 		cuCtxSynchronize(); // remove later
-		if (gpu_debug_level > -1) {
+		if (getGpu_debug_level() > -1) {
 			System.out.println("======execConvertDirect()");
 		}
 	}
@@ -1482,7 +1484,7 @@ public class GpuQuad{ // quad camera description
 				0, null,                   // Shared memory size and stream (shared - only dynamic, static is in code)
 				kernelParameters, null);   // Kernel- and extra parameters
 		cuCtxSynchronize();
-		if (gpu_debug_level > -1) {
+		if (getGpu_debug_level() > -1) {
 			System.out.println("======execImcltRbgAll()");
 		}
 		
@@ -1599,7 +1601,7 @@ public class GpuQuad{ // quad camera description
 				0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
 				kernelParameters, null);   // Kernel- and extra parameters
 		cuCtxSynchronize();
-		if (gpu_debug_level > -1) {
+		if (getGpu_debug_level() > -1) {
 			System.out.println("======execCorr2D_TD()");
 		}
 		
@@ -2232,7 +2234,7 @@ public class GpuQuad{ // quad camera description
 					calc_extra,
 					linescan_order);
 		} else {
-			execTextures_noDP(
+			execTextures_noDP( // CUDA_ERROR_INVALID_VALUE
 					color_weights,
 					is_lwir,
 					min_shot,           // 10.0
@@ -2336,6 +2338,10 @@ public class GpuQuad{ // quad camera description
 			boolean   calc_extra,
 			boolean   linescan_order)
 	{
+		if (num_task_tiles == 0) {
+			System.out.println("execTextures_noDP(): num_task_tiles=0!");
+			return;
+		}
 		execCalcReverseDistortions(); // will check if it is needed first
 		if (    (this.gpuTileProcessor.GPU_CREATE_NONOVERLAP_LIST_kernel == null) &&
 				(this.gpuTileProcessor.GPU_TEXTURES_ACCUMULATE_kernel == null)) {
@@ -2402,7 +2408,10 @@ public class GpuQuad{ // quad camera description
 				Pointer.to(new int[] {tilesX}),           // int     width,              // number of tiles in a row
 				Pointer.to(gpu_texture_indices),          // int   * nonoverlap_list,    // pointer to the calculated number of non-zero tiles
 				Pointer.to(gpu_texture_indices_len));     // int   * pnonoverlap_length) //  indices to gpu_tasks  // should be initialized to zero
-		cuLaunchKernel(this.gpuTileProcessor.GPU_CREATE_NONOVERLAP_LIST_kernel,
+		if (getGpu_debug_level() > -1) {
+			System.out.println("======execTextures_noDP(), num_task_tiles="+num_task_tiles);
+		}
+		cuLaunchKernel(this.gpuTileProcessor.GPU_CREATE_NONOVERLAP_LIST_kernel, //CUDA_ERROR_INVALID_VALUE
 				blocks0[0],  blocks0[1],  blocks0[2],        // Grid dimension
 				threads0[0], threads0[1], threads0[2],       // Block dimension
 				0, null,                                  // Shared memory size and stream (shared - only dynamic, static is in code)
@@ -3572,6 +3581,12 @@ public class GpuQuad{ // quad camera description
 			}
 		}
 		return lpf;
+	}
+	public int getGpu_debug_level() {
+		return gpu_debug_level;
+	}
+	public void setGpu_debug_level(int gpu_debug_level) {
+		this.gpu_debug_level = gpu_debug_level;
 	}
 
 } // end of public class GpuQuad

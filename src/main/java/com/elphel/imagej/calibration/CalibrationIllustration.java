@@ -69,7 +69,9 @@ public class CalibrationIllustration {
 		}
 		
 	}			
-
+	public CalibrationIllustrationParameters getIllustrationParameters() {
+		return illustrationParameters;
+	}
 	public void plotGrid(
 			int       numImg,
 			int       line_width,
@@ -810,31 +812,31 @@ public class CalibrationIllustration {
 		
 		final CapturedScene [] captured_scenes = listCapturedScenes(
 				eyesisAberrations.aberrationParameters.capturedDirectory, // String   captured_path,
-				illustrationParameters.min_ts,// double   min_ts,
-				illustrationParameters.max_ts,// double   max_ts,
-				illustrationParameters.captures_all_lwir,
-				illustrationParameters.captures_all_eo,
-				illustrationParameters.captures_all);
+				illustrationParameters.getMin_ts(),// double   min_ts,
+				illustrationParameters.getMax_ts(),// double   max_ts,
+				illustrationParameters.isCaptures_all_lwir(),
+				illustrationParameters.isCaptures_all_eo(),
+				illustrationParameters.isCaptures_all());
 		
 		// optionally perform balancing
 		double [][] windows = null;
 		if (illustrationParameters.calib_offs_gain) {
 			CapturedScene [] balancing_scenes = captured_scenes;
-			if (    (illustrationParameters.calib_offs_gain_ts < illustrationParameters.min_ts) ||
-					((illustrationParameters.calib_offs_gain_ts + illustrationParameters.calib_offs_gain_dur) > illustrationParameters.max_ts)) {
+			if (    (illustrationParameters.calib_offs_gain_ts < illustrationParameters.getMin_ts()) ||
+					((illustrationParameters.calib_offs_gain_ts + illustrationParameters.calib_offs_gain_dur) > illustrationParameters.getMax_ts())) {
 				balancing_scenes = listCapturedScenes(
 						eyesisAberrations.aberrationParameters.capturedDirectory, // String   captured_path,
 						illustrationParameters.calib_offs_gain_ts,// double   min_ts,
 						illustrationParameters.calib_offs_gain_ts + illustrationParameters.calib_offs_gain_dur,// double   max_ts,
-						illustrationParameters.captures_all_lwir,
-						illustrationParameters.captures_all_eo,
-						illustrationParameters.captures_all);
+						illustrationParameters.isCaptures_all_lwir(),
+						illustrationParameters.isCaptures_all_eo(),
+						illustrationParameters.isCaptures_all());
 
 
 			}
 			// read once scene to find width/height
 			ImagePlus[] imps = getImagesMultithreaded(
-					balancing_scenes[0].images,             // final String []   image_paths,
+					balancing_scenes[0].getImages(),             // final String []   image_paths,
 					(1 << LwirReaderParameters.TYPE_LWIR),  // final int         types_mask, // +1 - TYPE_EO, +2 - TYPE_LWIR
 					null); // final double [][] pixels) // if not null - will fill
 			windows = getWindows (imps,illustrationParameters.auto_range_wnd_type);
@@ -886,17 +888,17 @@ public class CalibrationIllustration {
 		for (int iScene = 0; iScene < captured_scenes.length; iScene++) {
 			final int nScene = iScene;
 			final ImagePlus[] imps = getImagesMultithreaded(
-					captured_scenes[nScene].images,         // final String []   image_paths,
+					captured_scenes[nScene].getImages(),         // final String []   image_paths,
 					(1 << LwirReaderParameters.TYPE_LWIR),  // final int         types_mask, // +1 - TYPE_EO, +2 - TYPE_LWIR
 					dpixels); // final double [][] pixels)  // if not null - will fill
 			
 			// TODO: Make sure all images are read in, continue if any failed !!!\
 			boolean has_bad_images = false;
 			int sensor_types[] = lwirReaderParameters.getTypeMap(); // eo - 0, lwir - 1
-			for (int nChn = 0; nChn < captured_scenes[nScene].images.length; nChn++) {
-				if ((captured_scenes[nScene].images[nChn] != null) && ((sensor_types[nChn] & (1 << LwirReaderParameters.TYPE_LWIR)) != 0)  && (imps[nChn] == null)) {
+			for (int nChn = 0; nChn < captured_scenes[nScene].getImages().length; nChn++) {
+				if ((captured_scenes[nScene].getImages()[nChn] != null) && ((sensor_types[nChn] & (1 << LwirReaderParameters.TYPE_LWIR)) != 0)  && (imps[nChn] == null)) {
 					has_bad_images = true;
-					System.out.println("***** Failed to read image "+captured_scenes[nScene].images[nChn]+", will skip this scene *****");
+					System.out.println("***** Failed to read image "+captured_scenes[nScene].getImages()[nChn]+", will skip this scene *****");
 				}
 			}
 			if (has_bad_images) {
@@ -1036,7 +1038,7 @@ public class CalibrationIllustration {
 				}
 				
 				System.out.println(String.format("---- Scene: %s, lim_low=%8.2f, lim_high=%8.2f, lim_range=%8.2f",
-						captured_scenes[nScene].name,lim_low,lim_high,lim_range));
+						captured_scenes[nScene].getName(),lim_low,lim_high,lim_range));
 				
 			} // if (auto_range)
 			
@@ -1103,7 +1105,7 @@ public class CalibrationIllustration {
 								continue;
 							}
 							if (illustrationParameters.captures_annotate) {
-								String scene_title = captured_scenes[nScene].name;
+								String scene_title = captured_scenes[nScene].getName();
 								if (scene_title.lastIndexOf(Prefs.getFileSeparator()) > 0) {
 									scene_title = scene_title.substring(scene_title.lastIndexOf(Prefs.getFileSeparator())+1);
 								}
@@ -1249,11 +1251,11 @@ public class CalibrationIllustration {
 		}
 		final CapturedScene [] captured_scenes = listCapturedScenes( // will return only scenes that have all 4 EO channels
 				eyesisAberrations.aberrationParameters.capturedDirectory, // String   captured_path,
-				illustrationParameters.min_ts,// double   min_ts,
-				illustrationParameters.max_ts,// double   max_ts,
-				illustrationParameters.captures_all_lwir,
-				illustrationParameters.captures_all_eo,
-				illustrationParameters.captures_all); // true); // illustrationParameters.captures_all_lwir); // illustrationParameters.captures_all);
+				illustrationParameters.getMin_ts(),// double   min_ts,
+				illustrationParameters.getMax_ts(),// double   max_ts,
+				illustrationParameters.isCaptures_all_lwir(),
+				illustrationParameters.isCaptures_all_eo(),
+				illustrationParameters.isCaptures_all()); // true); // illustrationParameters.captures_all_lwir); // illustrationParameters.captures_all);
 			
 		
    		final Thread[] threads = newThreadArray(MAX_THREADS);
@@ -1282,7 +1284,7 @@ public class CalibrationIllustration {
 						for (int nScene = indxAtomic.getAndIncrement(); nScene < captured_scenes.length; nScene = indxAtomic.getAndIncrement()) {
 							ImagePlus imp_out =  convertCapturedEO(
 									imagejJp4Tiff,                               // ImagejJp4Tiff imagejJp4Tiff,
-									captured_scenes[nScene].images[nChn],        // String      src_path,
+									captured_scenes[nScene].getImages()[nChn],        // String      src_path,
 									nChn - eo0,                                  // int         eo_chn,
 									illustrationParameters.eo_rb2g_hi,           // double [][] eo_rb2g_hi,
 									illustrationParameters.getSaturation(),      // double      saturation,
@@ -1292,7 +1294,7 @@ public class CalibrationIllustration {
 								continue;
 							}
 							if (illustrationParameters.captures_annotate) {
-								String scene_title = captured_scenes[nScene].name;
+								String scene_title = captured_scenes[nScene].getName();
 								if (scene_title.lastIndexOf(Prefs.getFileSeparator()) > 0) {
 									scene_title = scene_title.substring(scene_title.lastIndexOf(Prefs.getFileSeparator())+1);
 								}
@@ -1575,25 +1577,66 @@ public class CalibrationIllustration {
 	
 	
 	
-	class CapturedScene{
-		String   name;
-		String[] images; // indexed by channel
+	public class CapturedScene{
+		private String   name;
+		private String[] images; // indexed by channel
+		int []   src_dir_index;     
 		double   ts;
 		CapturedScene (String name, String [] images, double ts){
-			this.name = name;
-			this.images = images;
+			this.setName(name);
+			this.setImages(images);
 			this.ts = ts;
+			this.src_dir_index = new int [this.getImages().length];
+			Arrays.fill(this.src_dir_index, -1);
+		}
+		public String getName() {
+			return name;
+		}
+		public void setName(String name) {
+			this.name = name;
+		}
+		public String[] getImages() {
+			return images;
+		}
+		public void setImages(String[] images) {
+			this.images = images;
 		}
 	}
 	
-	
-	CapturedScene [] listCapturedScenes(
+	public CapturedScene [] listCapturedScenes(
 			String   captured_path,
 			double   min_ts,
 			double   max_ts,
 			boolean  captures_all_lwir,
 			boolean  captures_all_eo,
 			boolean  captures_all) {
+		return listCapturedScenes(
+				captured_path,                  // String   result_path,
+				(new String[] {captured_path}), // String   captured_paths,
+				// if both (seq_len <= 0) && (seq_gap <= 0) will create a single-level directories
+				0,                 // int      seq_len, // sequence fixed length (or 0)
+				0.0,               // double   seq_gap, // start a new sequence after gap longer than 
+				min_ts,            // double   min_ts,
+				max_ts,            // double   max_ts,
+				captures_all_lwir, // boolean  captures_all_lwir,
+				captures_all_eo,   // boolean  captures_all_eo,
+				captures_all);     // boolean  captures_all)
+	}
+
+	
+	
+	public CapturedScene [] listCapturedScenes(
+			String   result_path,
+			String []  captured_paths,
+			// if both (seq_len <= 0) && (seq_gap <= 0) will create a single-level directories
+			int      seq_len, // sequence fixed length (or 0)
+			double   seq_gap, // start a new sequence after gap longer than 
+			double   min_ts,
+			double   max_ts,
+			boolean  captures_all_lwir,
+			boolean  captures_all_eo,
+			boolean  captures_all) {
+		boolean two_level_dirs = (seq_len > 0) || (seq_gap > 0.0);
 		int sensor_types[] = lwirReaderParameters.getTypeMap(); // eo - 0, lwir - 1
 		int num_sensors[] = {0,0};
 		int num_all_sensors = 0; 
@@ -1602,42 +1645,102 @@ public class CalibrationIllustration {
 			num_sensors[st]++;
 			num_all_sensors++;
 		}
-		File dFile=new File(captured_path);
-		File[] scenesFiles=dFile.listFiles(); // all files
-		String[] scenePaths = new String [scenesFiles.length];
-		for (int i = 0; i < scenesFiles.length; i++) {
-			scenePaths[i] = scenesFiles[i].getPath();
+		if (!result_path.endsWith(Prefs.getFileSeparator())) {
+			result_path += Prefs.getFileSeparator();
 		}
-		Arrays.sort(scenePaths);
-		// Filter by number of files
-		ArrayList<CapturedScene> filteredScenesList = new ArrayList<CapturedScene>();
+		String [][] scenePaths = new String[captured_paths.length][];
+		for (int si = 0; si < captured_paths.length;si++) if ((captured_paths[si] != null) && (captured_paths[si].trim().length() > 0)){
+			File dFile=new File(captured_paths[si].trim());
+			File[] scenesFiles=dFile.listFiles(); // all files
+			scenePaths[si] = new String [scenesFiles.length];
+			for (int i = 0; i < scenesFiles.length; i++) {
+				scenePaths[si][i] = scenesFiles[i].getPath();
+			}
+			Arrays.sort(scenePaths[si]);
+			// Filter by number of files
+		}
 		
-		
+		@SuppressWarnings("unchecked")
+		ArrayList<CapturedScene> [] partial_lists = new ArrayList[scenePaths.length];
 //		for (File sceneDir: scenesFiles) {
-		for (String scenePath: scenePaths) {
-			int basename_start = scenePath.lastIndexOf(Prefs.getFileSeparator());
-			if (basename_start >= 0) {
-				basename_start++;
-			} else {
-				basename_start = 0;
+		for (int si = 0; si < scenePaths.length;si++) {
+			partial_lists[si] = new ArrayList<CapturedScene>();
+			if (scenePaths[si] != null) {
+				for (String scenePath: scenePaths[si]) {
+					int basename_start = scenePath.lastIndexOf(Prefs.getFileSeparator());
+					if (basename_start >= 0) {
+						basename_start++;
+					} else {
+						basename_start = 0;
+					}
+					//			double ts = Double.parseDouble(sceneDir.getPath().replace('_','.'));
+					String sts = scenePath.substring(basename_start);
+					double ts = Double.parseDouble(sts.replace('_','.'));
+					if (ts < min_ts) {
+						continue;
+					}
+					if (ts > max_ts) {
+						continue;
+					}
+					File sceneDir = new File(scenePath);
+					File [] sFiles = sceneDir.listFiles();
+					String [] images = new String [num_all_sensors];
+					for (File ifile: sFiles) {
+						int chn = DistortionCalibrationData.getChannelFromPath(ifile.getPath());
+						images[chn] = ifile.getPath();
+					}
+					partial_lists[si].add(new CapturedScene(sts, images, ts)); 
+				}
 			}
-			//			double ts = Double.parseDouble(sceneDir.getPath().replace('_','.'));
-			double ts = Double.parseDouble(scenePath.substring(basename_start).replace('_','.'));
-			if (ts < min_ts) {
-				continue;
+		}
+		// combine partial lists
+		int [] lists_indices = new int [partial_lists.length];
+		ArrayList<CapturedScene> filteredScenesList = new ArrayList<CapturedScene>();
+		int last_seq_size = 0;
+		double last_ts =    0.0;
+		String seq_name =   "";
+		while (true) {
+			boolean some_left = false;
+			for (int si = 0; si < scenePaths.length;si++) {
+				if (lists_indices[si] < partial_lists[si].size()) {
+					some_left = true;
+					break;
+				}
 			}
-			if (ts > max_ts) {
-				continue;
+			if (!some_left) {
+				break;
 			}
+			double early_ts = Double.NaN;
+			int first_earliet_ts = -1;
+			for (int si = 0; si < scenePaths.length;si++) if (lists_indices[si] < partial_lists[si].size()){
+				if (!(partial_lists[si].get(lists_indices[si]).ts >= early_ts)) {
+					early_ts = partial_lists[si].get(lists_indices[si]).ts; // first earliest timestamp of remaining lists
+					first_earliet_ts=si;
+				}
+			}
+			CapturedScene cs = partial_lists[first_earliet_ts].get(lists_indices[first_earliet_ts]);
+			lists_indices[first_earliet_ts]++;
+			// combine with all remaining partial list of the same timestamp;
 			int ns[] = {0,0};
 			int nsa = 0;
-			File sceneDir = new File(scenePath);
-			File [] sFiles = sceneDir.listFiles();
-			for (File ifile: sFiles) {
-				int chn = DistortionCalibrationData.getChannelFromPath(ifile.getPath());
+			for (int chn = 0; chn < cs.getImages().length; chn++) if (cs.getImages()[chn] != null) {
+				cs.src_dir_index[chn] = first_earliet_ts;
 				ns[sensor_types[chn]]++;
 				nsa++;
 			}
+			for (int si = first_earliet_ts +1; si < scenePaths.length; si++) if (lists_indices[si] < partial_lists[si].size()){
+				CapturedScene cs1 = partial_lists[si].get(lists_indices[si]);
+				if (cs1.ts == early_ts) {
+					lists_indices[si]++;
+					for (int chn = 0; chn < cs1.getImages().length; chn++) if ((cs.getImages()[chn] == null) && (cs1.getImages()[chn] != null)) {
+						cs.getImages()[chn] = cs1.getImages()[chn];
+						cs.src_dir_index[chn] = si;
+						ns[sensor_types[chn]]++;
+						nsa++;
+					}
+				}
+			}
+			
 			if (captures_all && (nsa < num_all_sensors)) {
 				continue;
 			}
@@ -1651,13 +1754,21 @@ public class CalibrationIllustration {
 					(ns[LwirReaderParameters.TYPE_EO] < num_sensors[LwirReaderParameters.TYPE_EO])) {
 				continue;
 			}
-			String [] images = new String [num_all_sensors];
-			for (File ifile: sFiles) {
-				int chn = DistortionCalibrationData.getChannelFromPath(ifile.getPath());
-				images[chn] = ifile.getPath();
-				ns[sensor_types[chn]]++;
+			if (two_level_dirs) {
+				last_seq_size ++;
+				if (filteredScenesList.isEmpty() ||
+						((seq_len > 0) && (last_seq_size >= seq_len)) ||
+						((seq_gap > 0.0) && ((cs.ts - last_ts) >= seq_gap))
+						) {
+					seq_name = cs.getName();
+				}
+				last_ts = cs.ts;
+				cs.setName(result_path + seq_name + Prefs.getFileSeparator()+ cs.getName());
+			} else {
+				cs.setName(result_path + cs.getName());
 			}
-			filteredScenesList.add(new CapturedScene(sceneDir.getPath(), images, ts));
+			
+			filteredScenesList.add(cs); // modified version
 			
 		}
 		System.out.println("Selected "+(filteredScenesList.size())+" scenes");
@@ -1820,7 +1931,7 @@ public class CalibrationIllustration {
 		for (CapturedScene scene: scenes) {
 			if ((scene.ts >= min_ts) && (scene.ts <= max_ts)) {
 				ImagePlus [] imps = getImagesMultithreaded(
-						scene.images, // final String []   image_paths,
+						scene.getImages(), // final String []   image_paths,
 						(1 << LwirReaderParameters.TYPE_LWIR), // final int         types_mask, // +1 - TYPE_EO, +2 - TYPE_LWIR
 						dpixels); // final double [][] pixels) // if not null - will fill
 				

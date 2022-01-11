@@ -8539,7 +8539,7 @@ public class QuadCLTCPU {
       			  // End of just debugging
     			  // will split old/new	  
 //    			  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity
-     			  CLTMeasCorr( // perform single pass according to prepared tiles operations and disparity
+     			  CLTMeasCorr( // perform single pass according to prepared tiles operations and disparity // CUDA_ERROR_INVALID_VALUE on lowres
     					  //    			  CLTMeasCorr(
     					  clt_parameters,
     					  refine_pass,
@@ -13021,7 +13021,7 @@ public class QuadCLTCPU {
 						  clt_parameters.dust_remove);   // boolean   dust_remove
 			  }
 			  if (save_diff || save_lowres) {
-				  image_dtt.get_diffs_lowres(
+				  image_dtt.get_diffs_lowres( // CUDA_ERROR_INVALID_VALUE (because no tiles)
 						  clt_parameters.corr_red,       // double    corr_red,
 						  clt_parameters.corr_blue,      // double    corr_blue,
 						  clt_parameters.min_shot,       // double    min_shot,           // 10.0

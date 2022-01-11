@@ -888,6 +888,7 @@ public class CLTParameters {
 	public boolean    gpu_use_aux_macro =   false; // accelerate tile processor for the aux (lwir) quad camera in macro mode
 	public boolean    gpu_use_aux_adjust =  false; // accelerate tile processor for the aux (lwir) quad camera for field calibration
 	public boolean    gpu_debug_accum =     false; // debug multi-tile TD accumulation
+	public int        gpu_debug_level =         0; // >=0 - verbose
 
 	public boolean    replaceWeakOutliers =   true; // false;
 
@@ -1754,6 +1755,7 @@ public class CLTParameters {
 		properties.setProperty(prefix+"gpu_use_aux_macro",          this.gpu_use_aux_macro +"");
 		properties.setProperty(prefix+"gpu_use_aux_adjust",         this.gpu_use_aux_adjust +"");
 		properties.setProperty(prefix+"gpu_debug_accum",            this.gpu_debug_accum +"");
+		properties.setProperty(prefix+"gpu_debug_level",            this.gpu_debug_level +"");
 		
 		properties.setProperty(prefix+"debug_initial_discriminate",       this.debug_initial_discriminate+"");
 		properties.setProperty(prefix+"dbg_migrate",                      this.dbg_migrate+"");
@@ -2593,7 +2595,9 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"gpu_use_aux_macro")!=null)           this.gpu_use_aux_macro=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_use_aux_macro"));
 		if (properties.getProperty(prefix+"gpu_use_aux_adjust")!=null)          this.gpu_use_aux_adjust=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_use_aux_adjust"));
 		if (properties.getProperty(prefix+"gpu_debug_accum")!=null)             this.gpu_debug_accum=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_debug_accum"));
-
+		if (properties.getProperty(prefix+"gpu_debug_level")!=null)             this.gpu_debug_level=Integer.parseInt(properties.getProperty(prefix+"gpu_debug_level"));
+		
+		
 		if (properties.getProperty(prefix+"debug_initial_discriminate")!=null)       this.debug_initial_discriminate=Boolean.parseBoolean(properties.getProperty(prefix+"debug_initial_discriminate"));
 		if (properties.getProperty(prefix+"dbg_migrate")!=null)                      this.dbg_migrate=Boolean.parseBoolean(properties.getProperty(prefix+"dbg_migrate"));
 
@@ -3660,6 +3664,8 @@ public class CLTParameters {
 		gd.addCheckbox    ("Accelerate tile processor for the aux (lwir) quad camera in macro mode",                    this.gpu_use_aux_macro);
 		gd.addCheckbox    ("Accelerate tile processor for the aux (lwir) quad camera for field calibration",            this.gpu_use_aux_adjust);
 		gd.addCheckbox    ("Debug multi-tile TD accumulation",                                                          this.gpu_debug_accum);
+		gd.addNumericField("Debug all GPU operations (>=0 - show)",                                                     this.gpu_debug_level, 0, 6,"",
+				"Debug all GPU operations (>=0 - show)");
 		
 		gd.addTab         ("LWIR", "parameters for LWIR/EO 8-camera rig");
 		this.lwir.dialogQuestions(gd);
@@ -4489,6 +4495,7 @@ public class CLTParameters {
 		this.gpu_use_aux_macro=     gd.getNextBoolean();
 		this.gpu_use_aux_adjust=    gd.getNextBoolean();
 		this.gpu_debug_accum=       gd.getNextBoolean();
+		this.gpu_debug_level= (int) gd.getNextNumber();
 		
 		this.lwir.dialogAnswers(gd);
 		this.ofp.dialogAnswers(gd);

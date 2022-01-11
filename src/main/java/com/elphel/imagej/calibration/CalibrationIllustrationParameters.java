@@ -12,6 +12,7 @@ import com.elphel.imagej.lwir.LwirReaderParameters;
 import ij.gui.GenericDialog;
 
 public class CalibrationIllustrationParameters {
+	public static String [] copy_modes = {"copy","move", "soft link", "hard link"};
 	static double          DFLT_LWIR_LO = 22500.0;
 	static double          DFLT_LWIR_HI = 23500.0;
 	static double          DFLT_EO_R2G =  1.03;  // gain red relative to green
@@ -77,9 +78,9 @@ public class CalibrationIllustrationParameters {
 	boolean                kernel_process_direct =        true;
 	boolean                kernel_process_inverse =       true;
 	
-	boolean                captures_all_lwir =            true;
-	boolean                captures_all_eo =              true;
-	boolean                captures_all =                 false;
+	private boolean                captures_all_lwir =            true;
+	private boolean                captures_all_eo =              true;
+	private boolean                captures_all =                 false;
 	double                 percentile_min =               0.0; // absolute min            
 	double                 percentile_max =               0.0; // absolute max
 	double                 max_range =                 1000.0; // 600-1000
@@ -90,8 +91,8 @@ public class CalibrationIllustrationParameters {
     Color                  color_annotate =               new Color(  0,200, 200, 255);
 	int                    captures_palette =             0; // 0 - white - hot, 1 - black - hot, 2+ - colored
 	long                   selected_channels =            0; // bitmask of selected channels
-	double                 min_ts =                       0.0;                   
-	double                 max_ts =              2000000000.0;
+	private double                 min_ts =                       0.0;                   
+	private double                 max_ts =              2000000000.0;
 
 	int                    auto_range_wnd_type =          3; // 0 - piramid, 1 half-sin, 2-piramid squared, 3 - sin^2
 	boolean                calib_offs_gain =              true; // perform offset/gain calibration
@@ -104,6 +105,14 @@ public class CalibrationIllustrationParameters {
 	double                 autorange_range_up =           0.1;  // increase range (fraction of new value)
 	double                 autorange_range_down =         0.02; // decrease range (fraction of new value)
 	
+	public int                    num_source_folders = 5;
+	public int                    copy_mode =   0;
+	public String []              sourceFolders = new String[num_source_folders];
+	public String                 destinationFolder = "";
+	// if both (seq_len <= 0) && (seq_gap <= 0) will create a single-level directories
+	public double                 inter_gap = 1.0; // seconds between series
+	public int                    seq_len =   0;   // sequence length
+	public boolean                two_level_dirs = true; 
 	
 	
 	
@@ -202,9 +211,9 @@ public class CalibrationIllustrationParameters {
 		properties.setProperty(prefix+"kernel_lwir_palette",         this.kernel_lwir_palette+"");
 		properties.setProperty(prefix+"kernels_normalize",           this.kernels_normalize+"");
 		
-		properties.setProperty(prefix+"captures_all_lwir",           this.captures_all_lwir+"");
-		properties.setProperty(prefix+"captures_all_eo",             this.captures_all_eo+"");
-		properties.setProperty(prefix+"captures_all",                this.captures_all+"");
+		properties.setProperty(prefix+"captures_all_lwir",           this.isCaptures_all_lwir()+"");
+		properties.setProperty(prefix+"captures_all_eo",             this.isCaptures_all_eo()+"");
+		properties.setProperty(prefix+"captures_all",                this.isCaptures_all()+"");
 		properties.setProperty(prefix+"percentile_min",              this.percentile_min+"");
 		properties.setProperty(prefix+"percentile_max",              this.percentile_max+"");
 		properties.setProperty(prefix+"max_range",                   this.max_range+"");
@@ -218,8 +227,8 @@ public class CalibrationIllustrationParameters {
 		properties.setProperty(prefix+"color_annotate",              lcolor_annotate+"");
 		properties.setProperty(prefix+"captures_palette",            this.captures_palette+"");
 		properties.setProperty(prefix+"selected_channels",           this.selected_channels+"");
-		properties.setProperty(prefix+"min_ts",                      this.min_ts+"");
-		properties.setProperty(prefix+"max_ts",                      this.max_ts+"");
+		properties.setProperty(prefix+"min_ts",                      this.getMin_ts()+"");
+		properties.setProperty(prefix+"max_ts",                      this.getMax_ts()+"");
 
 		properties.setProperty(prefix+"auto_range_wnd_type",         this.auto_range_wnd_type+"");
 		properties.setProperty(prefix+"calib_offs_gain",             this.calib_offs_gain+"");
@@ -231,6 +240,17 @@ public class CalibrationIllustrationParameters {
 		properties.setProperty(prefix+"autorange_offs_down",         this.autorange_offs_down+"");
 		properties.setProperty(prefix+"autorange_range_up",          this.autorange_range_up+"");
 		properties.setProperty(prefix+"autorange_range_down",        this.autorange_range_down+"");
+
+		properties.setProperty(prefix+"num_source_folders",          this.num_source_folders+"");
+		for (int i = 0; i < this.num_source_folders; i++) {
+			properties.setProperty(prefix+"sourceFolders_"+i,        this.sourceFolders[i]+"");
+		}
+		properties.setProperty(prefix+"copy_mode",                   this.copy_mode+"");
+		properties.setProperty(prefix+"destinationFolder",           this.destinationFolder+"");
+		properties.setProperty(prefix+"inter_gap",                   this.inter_gap+"");
+		properties.setProperty(prefix+"seq_len",                     this.seq_len+"");
+		properties.setProperty(prefix+"two_level_dirs",              this.two_level_dirs+"");
+	
 	}
 	
 	public void getProperties(String prefix,Properties properties){
@@ -333,9 +353,9 @@ public class CalibrationIllustrationParameters {
 		if (properties.getProperty(prefix+"kernel_direct_lwir_min")!=null)       this.kernel_direct_lwir_min = Double.parseDouble(properties.getProperty(prefix+"kernel_direct_lwir_min"));
 		if (properties.getProperty(prefix+"kernel_lwir_palette")!=null)          this.kernel_lwir_palette = Integer.parseInt(properties.getProperty(prefix+"kernel_lwir_palette"));
 		if (properties.getProperty(prefix+"kernels_normalize")!=null)            this.kernels_normalize = Boolean.parseBoolean(properties.getProperty(prefix+"kernels_normalize"));
-		if (properties.getProperty(prefix+"captures_all_lwir")!=null)            this.captures_all_lwir = Boolean.parseBoolean(properties.getProperty(prefix+"captures_all_lwir"));
-		if (properties.getProperty(prefix+"captures_all_eo")!=null)              this.captures_all_eo = Boolean.parseBoolean(properties.getProperty(prefix+"captures_all_eo"));
-		if (properties.getProperty(prefix+"captures_all")!=null)                 this.captures_all = Boolean.parseBoolean(properties.getProperty(prefix+"captures_all"));
+		if (properties.getProperty(prefix+"captures_all_lwir")!=null)            this.setCaptures_all_lwir(Boolean.parseBoolean(properties.getProperty(prefix+"captures_all_lwir")));
+		if (properties.getProperty(prefix+"captures_all_eo")!=null)              this.setCaptures_all_eo(Boolean.parseBoolean(properties.getProperty(prefix+"captures_all_eo")));
+		if (properties.getProperty(prefix+"captures_all")!=null)                 this.setCaptures_all(Boolean.parseBoolean(properties.getProperty(prefix+"captures_all")));
 		if (properties.getProperty(prefix+"percentile_min")!=null)               this.percentile_min = Double.parseDouble(properties.getProperty(prefix+"percentile_min"));
 		if (properties.getProperty(prefix+"percentile_max")!=null)               this.percentile_max = Double.parseDouble(properties.getProperty(prefix+"percentile_max"));
 		if (properties.getProperty(prefix+"max_range")!=null)                    this.max_range = Double.parseDouble(properties.getProperty(prefix+"max_range"));
@@ -350,8 +370,8 @@ public class CalibrationIllustrationParameters {
 		}
 		if (properties.getProperty(prefix+"captures_palette")!=null)             this.captures_palette = Integer.parseInt(properties.getProperty(prefix+"captures_palette"));
 		if (properties.getProperty(prefix+"selected_channels")!=null)            this.selected_channels = Long.parseLong(properties.getProperty(prefix+"selected_channels"));
-		if (properties.getProperty(prefix+"min_ts")!=null)                       this.min_ts = Double.parseDouble(properties.getProperty(prefix+"min_ts"));
-		if (properties.getProperty(prefix+"max_ts")!=null)                       this.max_ts = Double.parseDouble(properties.getProperty(prefix+"max_ts"));
+		if (properties.getProperty(prefix+"min_ts")!=null)                       this.setMin_ts(Double.parseDouble(properties.getProperty(prefix+"min_ts")));
+		if (properties.getProperty(prefix+"max_ts")!=null)                       this.setMax_ts(Double.parseDouble(properties.getProperty(prefix+"max_ts")));
 
 		if (properties.getProperty(prefix+"auto_range_wnd_type")!=null)          this.auto_range_wnd_type = Integer.parseInt(properties.getProperty(prefix+"auto_range_wnd_type"));
 		if (properties.getProperty(prefix+"calib_offs_gain")!=null)              this.calib_offs_gain = Boolean.parseBoolean(properties.getProperty(prefix+"calib_offs_gain"));
@@ -363,12 +383,23 @@ public class CalibrationIllustrationParameters {
 		if (properties.getProperty(prefix+"autorange_offs_down")!=null)          this.autorange_offs_down = Double.parseDouble(properties.getProperty(prefix+"autorange_offs_down"));
 		if (properties.getProperty(prefix+"autorange_range_up")!=null)           this.autorange_range_up = Double.parseDouble(properties.getProperty(prefix+"autorange_range_up"));
 		if (properties.getProperty(prefix+"autorange_range_down")!=null)         this.autorange_range_down = Double.parseDouble(properties.getProperty(prefix+"autorange_range_down"));
+		
+		if (properties.getProperty(prefix+"num_source_folders")!=null)           this.num_source_folders = Integer.parseInt(properties.getProperty(prefix+"num_source_folders"));
+		for (int si = 0; si < num_source_folders; si++) {
+			if (properties.getProperty(prefix+"sourceFolders_"+si)!=null)        this.sourceFolders[si]= (String) (properties.getProperty(prefix+"sourceFolders_"+si));
+		}
+		if (properties.getProperty(prefix+"copy_mode")!=null)                    this.copy_mode = Integer.parseInt(properties.getProperty(prefix+"copy_mode"));
+		if (properties.getProperty(prefix+"destinationFolder")!=null)            this.destinationFolder= (String) (properties.getProperty(prefix+"destinationFolder"));
+		if (properties.getProperty(prefix+"inter_gap")!=null)                    this.inter_gap = Double.parseDouble(properties.getProperty(prefix+"inter_gap"));
+		if (properties.getProperty(prefix+"seq_len")!=null)                      this.seq_len = Integer.parseInt(properties.getProperty(prefix+"seq_len"));
+		if (properties.getProperty(prefix+"two_level_dirs")!=null)               this.two_level_dirs = Boolean.parseBoolean(properties.getProperty(prefix+"two_level_dirs"));
+		
 	}
 	
 	public void dialogQuestions(GenericJTabbedDialog gd) {
 		final int lwir0 = getLwirReaderParameters().getLwirChn0();
 		final int eo0 =   getLwirReaderParameters().getEoChn0();
-		final int numStations = eyesisCameraParameters.getNumStations();
+		final int numStations = (this.eyesisCameraParameters != null)?  eyesisCameraParameters.getNumStations() : 0;
         gd.addTab("LWIR","LWIR photometric parameters");
 		gd.addNumericField("Thermal color palette", this.palette,  0,3,"","0 - white-hot, 1 - black-hot, 2+ - colored");
 		for (int i = 0; i < lwir_ranges.length; i++) {
@@ -449,9 +480,9 @@ public class CalibrationIllustrationParameters {
     	gd.addCheckbox    ("Normalize each kernel/component",              this.kernels_normalize, "Make each kernel component maximum be 1.0");
     	
         gd.addTab("Field footage","Coverting raw captured images into PNG/JPEG sequences to convert to video");
-    	gd.addCheckbox    ("Ignore scenes with partial LWIR channels",    this.captures_all_lwir, "Skip scenes where not all or none LWIR channels are available");
-    	gd.addCheckbox    ("Ignore scenes with partial EO channels",      this.captures_all_eo,   "Skip scenes where not all or none EO channels are available");
-    	gd.addCheckbox    ("Ignore partial scenes",                       this.captures_all,      "Skip scenes where not all (20) images are present");
+    	gd.addCheckbox    ("Ignore scenes with partial LWIR channels",    this.isCaptures_all_lwir(), "Skip scenes where not all or none LWIR channels are available");
+    	gd.addCheckbox    ("Ignore scenes with partial EO channels",      this.isCaptures_all_eo(),   "Skip scenes where not all or none EO channels are available");
+    	gd.addCheckbox    ("Ignore partial scenes",                       this.isCaptures_all(),      "Skip scenes where not all (20) images are present");
 		gd.addNumericField("Ignore coldest percentile",               100*this.percentile_min,    4,8,"%","This fraction of all pixels will be considered 'too cold'");
 		gd.addNumericField("Ignore hottest percentile",               100*this.percentile_max,    4,8,"%","This fraction of all pixels will be considered 'too hot'");
 		gd.addNumericField("Maximal range",                               this.max_range,    4,8,"counts","Maximal range (in 16-bit raw TIFF counts) to use while presenting output data");
@@ -462,8 +493,8 @@ public class CalibrationIllustrationParameters {
 		scolor = (this.color_annotate==null)?"none":String.format("%08x", getLongColor(this.color_annotate));
 		gd.addStringField ("Line color for the grid lines (actual grid)",scolor, 8, "Any invalid hex number disables annotation");
 		gd.addNumericField("Thermal color palette", this.captures_palette,  0,3,"","0 - white-hot, 1 - black-hot, 2+ - colored");
-		gd.addNumericField("Minimal timestamp to process",                this.min_ts, 4,20,"s","Do not process scenes earlier than that timestamp");
-		gd.addNumericField("Maximal timestamp to process",                this.max_ts, 4,20,"s","Do not process scenes later than that timestamp");
+		gd.addNumericField("Minimal timestamp to process",                this.getMin_ts(), 4,20,"s","Do not process scenes earlier than that timestamp");
+		gd.addNumericField("Maximal timestamp to process",                this.getMax_ts(), 4,20,"s","Do not process scenes later than that timestamp");
     	
 		gd.addNumericField("Sensor balancing window type",                this.auto_range_wnd_type,     0,3,"","0 - piramid, 1 half-sin, 2-piramid squared, 3 - sin^2");
     	gd.addCheckbox    ("Perform LWIR sensors offset/gain balancing ", this.calib_offs_gain, "Calculate sensor channels offset and gains from selected imagery");
@@ -477,6 +508,24 @@ public class CalibrationIllustrationParameters {
 		gd.addNumericField("Decrease range (fraction of new value)",      this.autorange_range_down, 4,6,"","If system wants to decrease range, use this (<=1.0) fraction of the new value");
 
 		gd.addCheckbox    ("Edit selected channels",                      false, "check to edit selected channels");
+        gd.addTab("Source dirs","Source directories to organize series");
+        // num_source_folders not edited, always 5
+		for (int si = 0; si < num_source_folders; si++) {
+			gd.addStringField ("Source directory "+(si+1),                this.sourceFolders[si], 100,
+					"Directory containing timestamped scene folders. Keep empty if not needed (e.g. multiple cameras already merged");
+		}
+		gd.addStringField ("Destination directory",                       this.destinationFolder, 100,
+				"Will contain folders for each sequence of (usually) 100 scene folders");
+		gd.addChoice("Copy/move/link mode", copy_modes, copy_modes[copy_mode],
+				"Copy mode. Hard links are possible only for the same disk");
+
+  		gd.addNumericField("Minimal gap between series",                  this.inter_gap, 4, 6,"s",
+				"Series will be split if the time gap between scenes exceeds this value");
+		gd.addNumericField("Sequence length",                             this.seq_len,     0,3,"scenes",
+				"Limit sequence length if >=0 ");
+    	gd.addCheckbox    ("Two-level directories",                       this.two_level_dirs,
+    			"Consolidate scene files in sequences named by the first timestamp. Requires at least one of inter_gap or seq_len to be > 0");
+		
 	}
 	
 	//kernels_normalize
@@ -528,9 +577,11 @@ public class CalibrationIllustrationParameters {
 // --- General ---		
 		this.channel_dir_prefix =    gd.getNextString();
 		this.station_sel = 0;
-		for (int i = 0; i < eyesisCameraParameters.getNumStations();i++) {
-			if (gd.getNextBoolean()) {
-				this.station_sel |=  1 << i;
+		if (this.eyesisCameraParameters != null) {
+			for (int i = 0; i < eyesisCameraParameters.getNumStations();i++) {
+				if (gd.getNextBoolean()) {
+					this.station_sel |=  1 << i;
+				}
 			}
 		}
 		this.station_in_filenames =               gd.getNextBoolean();
@@ -571,9 +622,9 @@ public class CalibrationIllustrationParameters {
 		this.kernel_lwir_palette =          (int) gd.getNextNumber();
 		this.kernels_normalize =                  gd.getNextBoolean();
 
-		this.captures_all_lwir =                  gd.getNextBoolean();
-		this.captures_all_eo =                    gd.getNextBoolean();
-		this.captures_all =                       gd.getNextBoolean();
+		this.setCaptures_all_lwir(gd.getNextBoolean());
+		this.setCaptures_all_eo(gd.getNextBoolean());
+		this.setCaptures_all(gd.getNextBoolean());
 		this.percentile_min =                0.01*gd.getNextNumber();
 		this.percentile_max =                0.01*gd.getNextNumber();
 		this.max_range =                          gd.getNextNumber();
@@ -590,8 +641,8 @@ public class CalibrationIllustrationParameters {
 			this.color_annotate = null;
 		}
 		this.captures_palette =             (int) gd.getNextNumber();
-		this.min_ts =                             gd.getNextNumber();
-		this.max_ts =                             gd.getNextNumber();
+		this.setMin_ts(gd.getNextNumber());
+		this.setMax_ts(gd.getNextNumber());
 		
 		this.auto_range_wnd_type =          (int) gd.getNextNumber();
 		this.calib_offs_gain =                    gd.getNextBoolean();
@@ -607,6 +658,15 @@ public class CalibrationIllustrationParameters {
 		if (gd.getNextBoolean()) {
 			selectChannelsToProcess("Select channels to process");
 		}
+		
+		for (int si = 0; si < num_source_folders; si++) {
+			this.sourceFolders[si]=              gd.getNextString();
+		}
+		this.destinationFolder=                  gd.getNextString();
+		this.copy_mode =                         gd.getNextChoiceIndex();
+		this.inter_gap =                         gd.getNextNumber();
+		this.seq_len=                      (int) gd.getNextNumber();
+		this.two_level_dirs =                    gd.getNextBoolean();
 	}
 	
 	public boolean showJDialog() {
@@ -629,7 +689,7 @@ public class CalibrationIllustrationParameters {
 		}
 		if ((eo_rb2g_hi == null) || (eo_rb2g_hi.length != lwirReaderParameters.getEoChannels(false).length)) {
 			eo_rb2g_hi = new double [lwirReaderParameters.getEoChannels(false).length][3];
-			for (int i = 0; i < lwir_ranges.length; i++) {
+			for (int i = 0; i < eo_rb2g_hi.length; i++) { // lwir_ranges.length; i++) {
 				eo_rb2g_hi[i][0] = DFLT_EO_R2G;  // gain red relative to green
 				eo_rb2g_hi[i][1] = DFLT_EO_B2G;  // gain blue relative to green
 				eo_rb2g_hi[i][2] = DFLT_EO_HI;   // range to map to 255.0
@@ -763,5 +823,45 @@ public class CalibrationIllustrationParameters {
 				for (int i=1;i<num_eo_channels;i++) selection[num_lwir_channels+i]=selection[num_lwir_channels];
 			}
 		}
+	}
+
+	public double getMin_ts() {
+		return min_ts;
+	}
+
+	public void setMin_ts(double min_ts) {
+		this.min_ts = min_ts;
+	}
+
+	public double getMax_ts() {
+		return max_ts;
+	}
+
+	public void setMax_ts(double max_ts) {
+		this.max_ts = max_ts;
+	}
+
+	public boolean isCaptures_all_lwir() {
+		return captures_all_lwir;
+	}
+
+	public void setCaptures_all_lwir(boolean captures_all_lwir) {
+		this.captures_all_lwir = captures_all_lwir;
+	}
+
+	public boolean isCaptures_all_eo() {
+		return captures_all_eo;
+	}
+
+	public void setCaptures_all_eo(boolean captures_all_eo) {
+		this.captures_all_eo = captures_all_eo;
+	}
+
+	public boolean isCaptures_all() {
+		return captures_all;
+	}
+
+	public void setCaptures_all(boolean captures_all) {
+		this.captures_all = captures_all;
 	}
 }

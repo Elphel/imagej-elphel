@@ -26,19 +26,19 @@ import java.util.Arrays;
  */
 
 public class TileNeibs{
-	final static int DIR_N =       0; // UP
-	final static int DIR_NE =      1;
-	final static int DIR_E =       2; // Right
-	final static int DIR_SE =      3;
-	final static int DIR_S =       4; // Down
-	final static int DIR_SW =      5;
-	final static int DIR_W =       6; // Left
-	final static int DIR_NW =      7;
-	final static int DIR_CENTER = -1;
-	final static int DIR_UP =      0; // UP
-	final static int DIR_LEFT =    2; // Right
-	final static int DIR_DOWN =    4; // Down
-	final static int DIR_RIGHT =   6; // Left
+	final public static int DIR_N =       0; // UP
+	final public static int DIR_NE =      1;
+	final public static int DIR_E =       2; // Right
+	final public static int DIR_SE =      3;
+	final public static int DIR_S =       4; // Down
+	final public static int DIR_SW =      5;
+	final public static int DIR_W =       6; // Left
+	final public static int DIR_NW =      7;
+	final public static int DIR_CENTER = -1;
+	final public static int DIR_UP =      0; // UP
+	final public static int DIR_LEFT =    2; // Right
+	final public static int DIR_DOWN =    4; // Down
+	final public static int DIR_RIGHT =   6; // Left
 
 	int sizeX;
 	int sizeY;

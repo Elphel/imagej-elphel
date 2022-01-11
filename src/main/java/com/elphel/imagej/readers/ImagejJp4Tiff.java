@@ -36,6 +36,10 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Iterator;
@@ -45,6 +49,9 @@ import java.util.Set;
 import org.apache.commons.compress.utils.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
+import com.elphel.imagej.tileprocessor.TileNeibs;
 
 import ij.ImagePlus;
 import ij.process.FloatProcessor;
@@ -72,6 +79,15 @@ public class ImagejJp4Tiff {
 	private static final boolean KEEP_EXTENSION = false; // remove extension for ImagePlus title
 	private static final boolean BOTTOM_TELEMETRY = true; // telemetry (if present) is at the bottom of the image
 
+	// Fixing bit12 in channel 6 of LWIR 16 camera 00:0E:64:10:C4:35
+	private static final String FIXCH6_SERIAL = "00:0E:64:10:C4:35";
+	private static final int    FIXCH6_CHANNEL =     2;
+	private static final int    FIXCH6_BIT     =    12;
+//	private static final int    FIXCH6_MAXVAL  = 23367; // higher - subtract 4096, <19271 -add 4096 
+	private static final int    FIXCH6_EXPECTED  = 21319; // expected value 
+	private static final String FIXCH6_EARLIEST = "2021-12-01 00:00:00.000";
+	private static final String FIXCH6_LATEST =   "2022-04-01 00:00:00.000";
+	
 	// -- Fields --
 
 	private ImageReader reader = null;
@@ -219,6 +235,11 @@ public class ImagejJp4Tiff {
 		}
 		Hashtable<String, Object> meta_hash = reader.getGlobalMetadata();
 
+		int fixed_center =  fix000E6410C435(
+				meta_hash, // Hashtable<String, Object> meta_hash,
+				pixels); // short [] pixels)
+		
+		
 		boolean degamma = bytes_per_pixel < 2; // both JP4 and 8-bit tiff
 		
 		// FIXME: Do not scale telemetry!
@@ -297,6 +318,9 @@ public class ImagejJp4Tiff {
 			for (String key:telemetryMap.keySet()) {
 				imp.setProperty(TELEMETRY_PREFIX+key, telemetryMap.get(key));
 			}
+		}
+		if (fixed_center > 0) {
+			imp.setProperty("FIXED_CHN6", ""+fixed_center);
 		}
 		encodeProperiesToInfo(imp);
 		Location.mapFile(content_fileName, null);
@@ -426,5 +450,290 @@ public class ImagejJp4Tiff {
 		//TODO: Add flips here!
 		return pixels;
 	}
+	
+	// fixing "00:0E:64:10:C4:35" camera
+	public int fix000E6410C435(
+			Hashtable<String, Object> meta_hash,
+			float [] pixels)
+	{
+		boolean debug = false;
+		int width =  reader.getSizeX();
+		int height = reader.getSizeY();
+		String serial = (String) meta_hash.get("Serial_Number");
+		if ((serial == null) || !serial.equals(FIXCH6_SERIAL)) {
+			return -1; // wrong camera 
+		}
+		String schannel = ((String) meta_hash.get("PageNumber")).substring(0,1);
+		if ((schannel == null) || (Integer.parseInt(schannel) != FIXCH6_CHANNEL)) {
+			return -2; // wrong channel
+		}		
+		
+		String sfdate = (String) meta_hash.get("DateTime");
+		sfdate = sfdate.replaceFirst(":", "-");
+		sfdate = sfdate.replaceFirst(":", "-")+".000";
+		SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss.SSS");
+		try {
+			Date startDate = dateFormat.parse(FIXCH6_EARLIEST);
+			Date endDate =   dateFormat.parse(FIXCH6_LATEST);
+			Date fileDate =  dateFormat.parse(sfdate);
+			if (fileDate.before(startDate) && fileDate.after(endDate)) {
+				return -3; // too early or too late 
+			}
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		int [] hist = new int [4096];
+		int max12 = ((int) pixels[640]) & 0xf000;
+		int min12 = max12;
+		for (int i = 640; i < pixels.length; i++) {
+			int sp = (int) pixels[i];
+			int sp12 = sp & 0xe000;
+			if (sp12 > max12) {
+				max12 = sp12;
+			} else if (sp12 < min12) {
+				min12 = sp12;
+			}
+			hist[sp & 0xfff]++; 
+		}
+		int z0 = 0;
+		int zbest = 0;
+		int lbest = 0;
+		while (z0 <= 4095) {
+			for (; z0 < (4096-lbest); z0++) {
+				if (hist[z0] == 0) {
+					break;
+				}
+			}
+			if ( z0 > (4095 - lbest) ) {
+				break;
+			}
+			int l = 1;
+			for (; l < 4096; l++) {
+				if (hist[(z0 + l) & 0xfff] != 0) {
+					break;
+				}
+			}
+			if (l > lbest) {
+				zbest = z0;
+				lbest = l;
+			}
+			z0 += l + 1;
+		}
+		if (lbest == 0) {
+			System.out.println ("Failed to fix bit 12 for channel 2 of camera 00:0E:64:10:C4:35");
+		}
+		int center = 0;
+		int split = (zbest+ lbest/2) & 0xfff;
+		int vmin = 0;
+		if (max12 > min12) {
+			vmin = max12 - 4096 + split;
+		} else if (lbest < 2048) {
+			vmin = min12 + split;
+		} else {
+			center = min12 + ((split + 2048) & 0xfff);
+			boolean use_high = Math.abs(center - FIXCH6_EXPECTED) > Math.abs(center + 4096 - FIXCH6_EXPECTED);
+			if (use_high) {
+				center += 4096;
+			}
+			vmin = center - 2048;
+		}
+		float mn = vmin;
+		float mx = mn + 4095;
+		float fr = 4096;
+		for (int i = 640; i < pixels.length; i++) {
+			if (pixels[i] > mx) {
+				pixels[i] -= fr; 
+			} else if (pixels[i] < mn) {
+				pixels[i] += fr;
+			}
+		}
+		center = vmin+2048;
+		height = 512; // was 513
+		int [] idata = new int [width*height];
+		double max_adiff = 4096/2;
+		int num_diff = 0;
+		double [][] dbg_img = debug? new double [4][width*height] : null;
+		for (int iy = 0; iy < height; iy++) {
+			for (int ix = 0; ix < width; ix++) {
+				int indx = iy*width+ix;
+				int sindx = indx + width;
+				idata[indx] = (int) pixels[sindx];
+				double hdiff=0, vdiff=0, ahdiff = 0, avdiff = 0;
+				if (ix < (width - 1)) {
+					hdiff = pixels[sindx] - pixels[sindx + 1];
+					ahdiff = Math.abs(hdiff);
+				}
+				if (iy < (height - 1)) {
+					vdiff = pixels[sindx] - pixels[sindx + width];
+					avdiff = Math.abs(vdiff);
+				}
+				if (dbg_img != null) {
+					dbg_img[0][indx] = pixels[sindx];
+					if (ix < (width - 1)) {
+						dbg_img[1][indx] = hdiff;
+					}					
+					if (iy < (height - 1)) {
+						dbg_img[2][indx] = vdiff;
+					}
+					dbg_img[3][indx] = idata[indx] & 0xf000;
+				}
+				if (Math.max(avdiff, ahdiff) > max_adiff) {
+					num_diff++;
+				}
+			}
+		}
+		
+		if (dbg_img != null) {
+			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+					dbg_img,
+					width,
+					height,
+					true,
+					"fix000E6410C435");
+		}
 
+		if (num_diff == 0) {
+			System.out.println ("No discontinuities remain");
+			return center;
+		}
+		System.out.println ("Discontinuities remain, will fix by clusters");
+		fixByClusters(
+				width,
+				height,
+				FIXCH6_BIT,         // int    bad_bit,
+				idata,              // int [] data)
+				(dbg_img != null)); // boolean debug)
+		for (int i = 0; i < idata.length; i++) {
+			pixels[i+640] = idata[i];
+		}
+		return center;
+	}
+
+	public boolean fixByClusters(
+			int    width,
+			int    height,
+			int    bad_bit,
+			int [] data,
+			boolean debug) {
+		TileNeibs tn = new TileNeibs(width,height);
+		int [] clusters = new int [width*height];
+		int max_diff = (1 << (bad_bit - 1))-1;
+		//		  max_diff = (1 << (bad_bit - 2))-1; // verify
+		int start_pix =     0;
+		int cluster_index = 0;
+		ArrayList<Integer> wave_list = new ArrayList<Integer>(1000);
+		while (start_pix < clusters.length) {
+			// find first empty pixel
+			for (; (start_pix < clusters.length) && (clusters[start_pix] != 0); start_pix++);
+			if (start_pix >= clusters.length) {
+				break;
+			}
+			cluster_index++;
+			wave_list.add(start_pix);
+			clusters[start_pix] = cluster_index;
+			while (!wave_list.isEmpty()) {
+				int indx = wave_list.remove(0);
+				int center_value = data[indx];
+				int mn = center_value - max_diff;
+				int mx = center_value + max_diff;
+				for (int dir = 0; dir < 8; dir++) {
+					int indx_new = tn.getNeibIndex(indx, dir);
+					if ((indx_new >= 0) && (clusters[indx_new] == 0)){
+						int val = data[indx_new];
+						if ((val > mn) && (val < mx)) {
+							wave_list.add(indx_new);
+							clusters[indx_new] = cluster_index;
+						}
+					}
+				}
+			}
+		}
+		if (cluster_index < 2) {
+			return false;//  nothing to do, probably error - reduce max_diff?
+		}
+		int [] clust_sizes = new int [cluster_index];
+		for (int i = 0; i < clusters.length; i++) {
+			clust_sizes[clusters[i]-1]++;
+		}
+		// Find the largest cluster -assuming it is correct
+		int largest = 0;
+		int [] cluster_offset = new int [cluster_index];
+		boolean [] cluster_offset_set = new boolean[cluster_index];
+		for (int i = 1; i < cluster_index; i++) {
+			if (clust_sizes[i] > clust_sizes[largest]) {
+				largest = i;
+			}
+		}
+		cluster_offset_set[largest] = true; // largest cluster has offset 0
+		int num_unset = cluster_index - 1;
+		int indx = 0;
+		int indx_new = 0;
+		int [] dirs = {TileNeibs.DIR_E,TileNeibs.DIR_S};
+		int ioffs = 1 << bad_bit; // 4096
+		for (;num_unset > 0; num_unset--) {
+			int ntry = 0;
+			for (; ntry < (2*clusters.length); ntry++) {
+				int ndir = ntry & 1;
+				int clust1 = clusters[indx]-1;
+				indx_new = tn.getNeibIndex(indx, dirs[ndir]);
+				if ((indx_new >= 0) && (cluster_offset_set[clust1] != cluster_offset_set[clusters[indx_new]-1])) {
+					break;
+				}
+				if (ndir == 1) {
+					indx++;
+				}
+			}
+			if (ntry >= (2*clusters.length)) {
+				System.out.println("fixByClusters() BUG!");
+				break;
+			}
+			int indx_set =  indx;// cluster_offset_set[clusters[indx]] ? indx
+			int indx_nset = indx_new;
+			if (cluster_offset_set[clusters[indx_new]-1]) {
+				indx_set =  indx_new;// cluster_offset_set[clusters[indx]] ? indx
+				indx_nset = indx;
+			}
+			
+			if (data[indx_nset] > data[indx_set]) {
+				cluster_offset[clusters[indx_nset]-1] = cluster_offset[clusters[indx_set]-1] - ioffs; 
+			} else {
+				cluster_offset[clusters[indx_nset]-1] = cluster_offset[clusters[indx_set]-1] + ioffs; 
+			}
+			cluster_offset_set[clusters[indx_nset]-1] = true;
+		}
+		double [][] dbg_img = null;
+		if (debug) {
+			dbg_img = new double [4][clusters.length];
+			for (int i = 0; i< clusters.length; i++) {
+				dbg_img[0][i] = clusters[i];
+				dbg_img[1][i] = cluster_offset[clusters[i]-1];
+				dbg_img[2][i] = data[i];
+			}
+		}
+		// apply correction
+		for (int i = 0; i < clusters.length; i++) {
+			data[i] += cluster_offset[clusters[i]-1];
+		}
+		if (debug) {
+			for (int i = 0; i< clusters.length; i++) {
+				dbg_img[3][i] = data[i];
+			}
+		}
+		
+		if (dbg_img != null) {
+			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+					dbg_img,
+					width,
+					height,
+					true,
+					"clusters",
+					new String [] {"cluster", "offset","data_in","data_out"});
+		}
+		
+
+		
+		return true;
+	}
+	
 }

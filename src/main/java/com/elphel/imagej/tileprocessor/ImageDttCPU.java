@@ -16250,7 +16250,7 @@ public class ImageDttCPU {
 					mcorr_sel,                         // final int                 mcorr_sel,    // Which pairs to correlate // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
 					threadsMax,       // maximal number of threads to launch
 					debugLevel);
-			if (getGPU().gpu_debug_level > -1) {
+			if (getGPU().getGpu_debug_level() > -1) {
 				System.out.println("==ooo=after image_dtt.correlateMultiTilted(): 1");
 			}
 			float  [][][]     num_acc = null; // new float [tilesY][tilesX][num_pairs];

@@ -12239,7 +12239,7 @@ if (debugLevel > -100) return true; // temporarily !
 			quadCLT = quadCLT_aux;
 		}
 		if (path == null) {
-			path = quadCLT.image_name + ((properties == null) ? "-EXTRINSICS":"")+".corr-xml";
+			path = quadCLT.image_name + ((properties == null) ? "-EXTRINSICS":"") + ".corr-xml";
 
 		}
 		if (!path.contains(Prefs.getFileSeparator())) {
@@ -12250,7 +12250,8 @@ if (debugLevel > -100) return true; // temporarily !
 						  true,  // smart,
 						  true);  //newAllowed, // save
 			 */
-			String x3d_path = quadCLT_main.getX3dDirectory();
+//			String x3d_path = quadCLT_main.getX3dDirectory();
+			String x3d_path = quadCLT.getX3dDirectory();
 			path = x3d_path+Prefs.getFileSeparator()+path;
 		}
 		if (properties == null) {

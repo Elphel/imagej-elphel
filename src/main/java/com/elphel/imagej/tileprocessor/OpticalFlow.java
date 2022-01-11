@@ -5790,7 +5790,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				clt_parameters.getScaleStrength(ref_scene.isAux()),
 				ref_scene.getGPU());
 		if (ref_scene.getGPU() != null) {
-			ref_scene.getGPU().gpu_debug_level = debug_level;
+			ref_scene.getGPU().setGpu_debug_level(debug_level);
 		}
 		image_dtt.getCorrelation2d(); // initiate image_dtt.correlation2d, needed if disparity_map != null  
 
@@ -5869,7 +5869,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 						mcorr_sel,                         // final int                 mcorr_sel,    // Which pairs to correlate // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
 						threadsMax,       // maximal number of threads to launch
 						debug_level);
-				if (image_dtt.getGPU().gpu_debug_level > -1) {
+				if (image_dtt.getGPU().getGpu_debug_level() > -1) {
 					System.out.println("==ooo=after image_dtt.quadCorrTD()");
 				}
 // Verify tasks are now updated
@@ -5877,7 +5877,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 						num_acc,       // final int [][][]     num_acc,          // number of accumulated tiles [tilesY][tilesX][pair]
 						fcorr_td,      // final float [][][][] fcorr_td,         // [tilesY][tilesX][pair][256] sparse transform domain representation of corr pairs 
 						fcorr_td_acc); // final float [][][][] fcorr_td_acc      // [tilesY][tilesX][pair][256] sparse transform domain representation of corr pairs
-				if (image_dtt.getGPU().gpu_debug_level > -1) {
+				if (image_dtt.getGPU().getGpu_debug_level() > -1) {
 					System.out.println("==ooo=accumulateCorrelations()");
 				}
 				
@@ -6245,7 +6245,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					mcorr_sel,                         // final int                 mcorr_sel,    // Which pairs to correlate // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
 					threadsMax,       // maximal number of threads to launch
 					debug_level);
-			if (image_dtt.getGPU().gpu_debug_level > -1) {
+			if (image_dtt.getGPU().getGpu_debug_level() > -1) {
 				System.out.println("==ooo=after image_dtt.quadCorrTD()");
 			}
 

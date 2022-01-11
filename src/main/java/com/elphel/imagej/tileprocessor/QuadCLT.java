@@ -3331,13 +3331,19 @@ public class QuadCLT extends QuadCLTCPU {
 				  threadsMax,          // final int           threadsMax,  // maximal number of threads to launch
 				  updateStatus,        // final boolean       updateStatus,
 				  debugLevel);         // final int           debugLevel);
+		  int out_width =  tilesX *  clt_parameters.transform_size;
+		  int out_height = tilesY *  clt_parameters.transform_size;
+		  ImagePlus imp_texture_full = null;
+		  if (texture_img == null) {
+			  System.out.println("No background visible");
+			  texture_woi_pix = new Rectangle(0,0,1,1);
+			  texture_img = new float[][] {{0.0f},{0.0f}};
+		  }
 
 		  // for now - use just RGB. Later add option for RGBA
 		  float [][] texture_rgb = isMonochrome() ? (new float [][] {texture_img[0]}): (new float [][] {texture_img[0],texture_img[1],texture_img[2]});
 		  float [][] texture_rgba = isMonochrome() ? (new float [][] {texture_img[0],texture_img[1]}) : (new float [][] {texture_img[0],texture_img[1],texture_img[2],texture_img[3]});
 
-		  int out_width =  tilesX *  clt_parameters.transform_size;
-		  int out_height = tilesY *  clt_parameters.transform_size;
 			
 		  ImagePlus imp_texture_bgnd = linearStackToColor(
 				  clt_parameters,
@@ -3357,7 +3363,7 @@ public class QuadCLT extends QuadCLTCPU {
 //		  imp_texture_bgnd.show();
 		  // resize for backdrop here!
 //	public double getFOVPix(){ // get ratio of 1 pixel X/Y to Z (distance to object)
-		  ImagePlus imp_texture_full = resizeToFull(
+		  imp_texture_full = resizeToFull(
 				  out_width, // int       out_width,
 				  out_height, // int       out_height,
 				  texture_woi_pix.x, // int       x0, // image offset-x 
@@ -5012,7 +5018,9 @@ public class QuadCLT extends QuadCLTCPU {
 				  clt_parameters.tileY,          // final int               debug_tileY,
 				  threadsMax,
 				  debugLevel);
-		  
+		  if ((texture_img[0] == null) || (texture_img[1]== null)) {
+			  return null;
+		  }
 		  return texture_img;
 	  }
 	  
