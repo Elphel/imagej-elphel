@@ -3289,6 +3289,7 @@ public class OpticalFlow {
 					clt_parameters.inp.show_final_2d, // final boolean        show_2d_corr,
 					mcorr_sel,      // final int            mcorr_sel, //  = Correlation2d.corrSelEncode(clt_parameters.img_dtt,scenes[nscene].getNumSensors());
 					null,           // final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)
+					false,          // final boolean        no_map, // do not generate disparity_map (time-consuming LMA)
 					debug_level-5);   // final int            debug_level)
 
 			Runtime.getRuntime().gc();
@@ -3344,7 +3345,7 @@ public class OpticalFlow {
 				tilesX,              // int         width,
 				tilesY);             // int         height)
 		
-		// save _DSI_INTER - sema format, as _DSI_MAIN, it will be used instead of _DSI_MAIN next time
+		// save _DSI_INTER - same format, as _DSI_MAIN, it will be used instead of _DSI_MAIN next time
 		double [][] dsi = new double [TwoQuadCLT.DSI_SLICES.length][];
 		dsi[ref_scene.is_aux?TwoQuadCLT.DSI_DISPARITY_AUX:TwoQuadCLT.DSI_DISPARITY_MAIN] = combo_dsn_change[0];
 		dsi[ref_scene.is_aux?TwoQuadCLT.DSI_STRENGTH_AUX:TwoQuadCLT.DSI_STRENGTH_MAIN] =   combo_dsn_change[1];
@@ -3895,6 +3896,7 @@ public class OpticalFlow {
 							( nrefine == (max_refines - 1)) && clt_parameters.inp.show_final_2d, // final boolean        show_2d_corr,
 					        mcorr_sel,      // final int            mcorr_sel, //  = 							
 							null,           // final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)
+							false,          // final boolean        no_map, // do not generate disparity_map (time-consuming LMA)
 							debug_level-8);   // final int            debug_level)
 			
 			if (debug_level > 0) {
@@ -4060,6 +4062,7 @@ public class OpticalFlow {
 							false,          // final boolean        show_2d_corr,
 					        mcorr_sel,      // final int            mcorr_sel, //  = 							
 					        facc_2d_img,    // final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)
+							true,           // final boolean        no_map, // do not generate disparity_map (time-consuming LMA)
 							debug_level-8); // final int            debug_level)
 					float [][] corr_2d_img = facc_2d_img[0];					
 //					double [] 
@@ -4550,6 +4553,7 @@ public class OpticalFlow {
 							( nrefine == (max_refines - 1)) && clt_parameters.inp.show_final_2d, // final boolean        show_2d_corr,
 					        mcorr_sel,      // final int            mcorr_sel, //  = 							
 							null,           // final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)
+							false,          // final boolean        no_map, // do not generate disparity_map (time-consuming LMA)
 							debug_level-5);   // final int            debug_level)
 
 			Runtime.getRuntime().gc();
@@ -5762,6 +5766,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			final boolean        show_2d_corr,
 			final int            mcorr_sel, //  = Correlation2d.corrSelEncode(clt_parameters.img_dtt,scenes[nscene].getNumSensors());
 			final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)
+			final boolean        no_map, // do not generate disparity_map (time-consuming LMA)
 			final int            debug_level
 			)
 	{
@@ -5794,7 +5799,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		}
 		image_dtt.getCorrelation2d(); // initiate image_dtt.correlation2d, needed if disparity_map != null  
 
-		double[][] disparity_map = new double [image_dtt.getDisparityTitles().length][];
+		double[][] disparity_map = no_map ? null : new double [image_dtt.getDisparityTitles().length][];
 		final double disparity_corr = 0.00; // (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
 		TpTask[] tp_tasks_ref = null;
 		for (int nscene = 0; nscene < num_scenes; nscene++) {
@@ -6192,10 +6197,10 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 
 		image_dtt.getCorrelation2d(); // initiate image_dtt.correlation2d, needed if disparity_map != null  
 
-		double[][] disparity_map = new double [image_dtt.getDisparityTitles().length][];
+//		double[][] disparity_map = new double [image_dtt.getDisparityTitles().length][];
 		final double disparity_corr = 0.0; // (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
 		TpTask[] tp_tasks_ref = null;
-		String ts = ref_scene.getImageName();
+//		String ts = ref_scene.getImageName();
 		double [][] scene_pXpYD;
 		// transform to self - maybe use a method that sets central points
 		scene_pXpYD = transformToScenePxPyD(
@@ -6269,7 +6274,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					dcorr_tiles,                   // final double  [][][]      dcorr_tiles,     // [tile][pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 					// When clt_mismatch is non-zero, no far objects extraction will be attempted
 					//optional, may be null
-					disparity_map,                 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+					null, // disparity_map,                 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
 					clt_parameters.correlate_lma,  // final boolean             run_lma,         // calculate LMA, false - CM only
 					// define combining of all 2D correlation pairs for CM (LMA does not use them)
 					(add_combo ? clt_parameters.img_dtt.mcorr_comb_width : 0), //final int                 mcorr_comb_width,  // combined correlation tile width (set <=0 to skip combined correlations)
@@ -6324,7 +6329,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					dcorr_tiles,                   // final double  [][][]      dcorr_tiles,     // [tile][pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 					// When clt_mismatch is non-zero, no far objects extraction will be attempted
 					//optional, may be null
-					disparity_map,                 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+					null, // disparity_map,                 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
 					clt_parameters.correlate_lma,  // final boolean             run_lma,         // calculate LMA, false - CM only
 					// last 2 - contrast, avg/ "geometric average)
 					clt_parameters.getGpuFatZero(ref_scene.isMonochrome()),   // clt_parameters.getGpuFatZero(ref_scene.isMonochrome()), // final double              afat_zero2,      // gpu_fat_zero ==30? clt_parameters.getGpuFatZero(is_mono); absolute fat zero, same units as components squared values

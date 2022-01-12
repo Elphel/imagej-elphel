@@ -163,8 +163,21 @@ public class EyesisCorrectionParameters {
 		public boolean clt_batch_dsi_aux =    false;  // Calculate and save aux camera DSI (currently it is offset from the main/rig data
 		public boolean clt_batch_dsi_aux_full=false;  // more than just preExpandCLTQuad3d() (same as for Lazy Eye
   		public boolean clt_batch_save_extrinsics =    true;  // Save cameras extrinsic parameters with the model
-  		public boolean clt_batch_save_all =    true;  // Save all parameters with the model
+  		public boolean clt_batch_save_all =   true;  // Save all parameters with the model
 
+  		public boolean clt_batch_skip_scenes =     false;  // Skip all per-scene processing, go directly to processing sequences
+  		
+  		public boolean clt_batch_pose_pairs_main = false;  // calculate pair-wise camera poses
+  		public boolean clt_batch_pose_last_main =  false;  // calculate camera poses realtive to the last scene
+  		public boolean clt_batch_pose_scene_main = false;  // calculate camera poses relative to all other ones
+  		public boolean clt_batch_ml_last_main =    false;  // export ML files for the last (reference scene)
+  		public boolean clt_batch_ml_all_main =     false;  // export ML files for all available reference scenes
+  		
+  		public boolean clt_batch_pose_pairs_aux =  false;  // calculate pair-wise camera poses
+  		public boolean clt_batch_pose_last_aux =   false;  // calculate camera poses realtive to the last scene
+  		public boolean clt_batch_pose_scene_aux =  false;  // calculate camera poses relative to all other ones
+  		public boolean clt_batch_ml_last_aux =     false;  // export ML files for the last (reference scene)
+  		public boolean clt_batch_ml_all_aux =      false;  // export ML files for all available reference scenes
 
 
     	public String x3dModelVersion="v01";
@@ -307,6 +320,20 @@ public class EyesisCorrectionParameters {
   			cp.clt_batch_save_extrinsics= this.clt_batch_save_extrinsics;
   			cp.clt_batch_save_all=        this.clt_batch_save_all;
 
+  			cp.clt_batch_skip_scenes=        this.clt_batch_skip_scenes;
+
+  			cp.clt_batch_pose_pairs_main=    this.clt_batch_pose_pairs_main;
+  			cp.clt_batch_pose_last_main=     this.clt_batch_pose_last_main;
+  			cp.clt_batch_pose_scene_main=    this.clt_batch_pose_scene_main;
+  			cp.clt_batch_ml_last_main=       this.clt_batch_ml_last_main;
+  			cp.clt_batch_ml_all_main=        this.clt_batch_ml_all_main;
+  			
+  			
+  			cp.clt_batch_pose_pairs_aux=    this.clt_batch_pose_pairs_aux;
+  			cp.clt_batch_pose_last_aux=     this.clt_batch_pose_last_aux;
+  			cp.clt_batch_pose_scene_aux=    this.clt_batch_pose_scene_aux;
+  			cp.clt_batch_ml_last_aux=       this.clt_batch_ml_last_aux;
+  			cp.clt_batch_ml_all_aux=        this.clt_batch_ml_all_aux;
 
     		cp.thumb_overwrite =        this.thumb_overwrite;
     		cp.thumb_width =            this.thumb_width;
@@ -488,6 +515,20 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"clt_batch_save_extrinsics", this.clt_batch_save_extrinsics+"");
     		properties.setProperty(prefix+"clt_batch_save_all",        this.clt_batch_save_all+"");
 
+    		properties.setProperty(prefix+"clt_batch_skip_scenes",          this.clt_batch_skip_scenes+"");
+
+    		properties.setProperty(prefix+"clt_batch_pose_pairs_main",      this.clt_batch_pose_pairs_main+"");
+    		properties.setProperty(prefix+"clt_batch_pose_last_main",       this.clt_batch_pose_last_main+"");
+    		properties.setProperty(prefix+"clt_batch_pose_scene_main",      this.clt_batch_pose_scene_main+"");
+    		properties.setProperty(prefix+"clt_batch_ml_last_main",         this.clt_batch_ml_last_main+"");
+    		properties.setProperty(prefix+"clt_batch_ml_all_main",          this.clt_batch_ml_all_main+"");
+    		
+    		properties.setProperty(prefix+"clt_batch_pose_pairs_aux",      this.clt_batch_pose_pairs_aux+"");
+    		properties.setProperty(prefix+"clt_batch_pose_last_aux",       this.clt_batch_pose_last_aux+"");
+    		properties.setProperty(prefix+"clt_batch_pose_scene_aux",      this.clt_batch_pose_scene_aux+"");
+    		properties.setProperty(prefix+"clt_batch_ml_last_aux",         this.clt_batch_ml_last_aux+"");
+    		properties.setProperty(prefix+"clt_batch_ml_all_aux",          this.clt_batch_ml_all_aux+"");
+
     		properties.setProperty(prefix+"thumb_overwrite",       this.thumb_overwrite+"");
     		properties.setProperty(prefix+"thumb_width",           this.thumb_width+"");
     		properties.setProperty(prefix+"thumb_height",          this.thumb_height+"");
@@ -647,6 +688,20 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"clt_batch_save_extrinsics")!= null) this.clt_batch_save_extrinsics=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_save_extrinsics"));
 			if (properties.getProperty(prefix+"clt_batch_save_all")!= null)        this.clt_batch_save_all=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_save_all"));
 
+			if (properties.getProperty(prefix+"clt_batch_skip_scenes")!= null)     this.clt_batch_skip_scenes=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_skip_scenes"));
+
+			if (properties.getProperty(prefix+"clt_batch_pose_pairs_main")!= null) this.clt_batch_pose_pairs_main=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_pose_pairs_main"));
+			if (properties.getProperty(prefix+"clt_batch_pose_last_main")!= null)  this.clt_batch_pose_last_main=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_pose_last_main"));
+			if (properties.getProperty(prefix+"clt_batch_pose_scene_main")!= null) this.clt_batch_pose_scene_main=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_pose_scene_main"));
+			if (properties.getProperty(prefix+"clt_batch_ml_last_main")!= null)    this.clt_batch_ml_last_main=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_ml_last_main"));
+			if (properties.getProperty(prefix+"clt_batch_ml_all_main")!= null)     this.clt_batch_ml_all_main=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_ml_all_main"));
+			
+			if (properties.getProperty(prefix+"clt_batch_pose_pairs_aux")!= null)  this.clt_batch_pose_pairs_aux=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_pose_pairs_aux"));
+			if (properties.getProperty(prefix+"clt_batch_pose_last_aux")!= null)   this.clt_batch_pose_last_aux=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_pose_last_aux"));
+			if (properties.getProperty(prefix+"clt_batch_pose_scene_aux")!= null)  this.clt_batch_pose_scene_aux=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_pose_scene_aux"));
+			if (properties.getProperty(prefix+"clt_batch_ml_last_aux")!= null)     this.clt_batch_ml_last_aux=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_ml_last_aux"));
+			if (properties.getProperty(prefix+"clt_batch_ml_all_aux")!= null)      this.clt_batch_ml_all_aux=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_ml_all_aux"));
+			
 			if (properties.getProperty(prefix+"thumb_overwrite")!= null)     this.thumb_overwrite=Boolean.parseBoolean(properties.getProperty(prefix+"thumb_overwrite"));
 			if (properties.getProperty(prefix+"thumb_width")!=null)          this.thumb_width=Integer.parseInt(properties.getProperty(prefix+"thumb_width"));
   		    if (properties.getProperty(prefix+"thumb_height")!=null)         this.thumb_height=Integer.parseInt(properties.getProperty(prefix+"thumb_height"));
@@ -1018,7 +1073,7 @@ public class EyesisCorrectionParameters {
     				"Save main camera, dual-quad rig and optionally aux camera combo DSI image with the model");
     		gd.addCheckbox    ("Include/genarate separate aux camera DSI data in the combo DSI",     this.clt_batch_dsi_aux,
     				"8-rig: DSI for the AUX camera is offset (by the rig baseline) from the main and rig DSI. Aux DSI requires extra processing time."+
-    		" EO+LWIR - generate a separate GT+AUX file");
+    		"EO+LWIR - generate a separate GT+AUX file");
     		gd.addCheckbox    ("Additional steps to calculate Aux DSI (more than for LY adjustment)",   this.clt_batch_dsi_aux_full,
     				"(Not yet tested)");
     		
@@ -1028,7 +1083,32 @@ public class EyesisCorrectionParameters {
     		gd.addCheckbox    ("Save all parameters with the model",                                 this.clt_batch_save_all,
     				"Save a copy of all parameters with the model");
 
-
+			gd.addMessage     ("============ LWIR16 processing ============");
+    		gd.addCheckbox    ("Skip scenes processing",                                               this.clt_batch_skip_scenes,
+    				"Skip all per-scene processing, go directly to processing sequences");
+			gd.addMessage     ("============ RGB cameras ============");
+    		gd.addCheckbox    ("RGB: Calculate pair-wise camera poses",                                 this.clt_batch_pose_pairs_main,
+    				"RGB: Relative poses are calculated for pairs of consecututive scenes. Requires DSI for each scene");
+    		gd.addCheckbox    ("RGB: Scene poses relative to the last",                                 this.clt_batch_pose_last_main,
+    				"RGB: Relative camera poses to the reference (last) scene");
+    		gd.addCheckbox    ("RGB: Scene poses relative to others",                                   this.clt_batch_pose_scene_main,
+    				"RGB: Camera poses relative to all other scenes in the series, not just relative to the latest (not yet implemented)");
+    		gd.addCheckbox    ("RGB: Generate ML files for the last scene",                             this.clt_batch_ml_last_main,
+    				"RGB: Generate ML output files for the last scene, requres 'Scene poses relative to the last'");
+    		gd.addCheckbox    ("RGB: Generate ML files for each scene",                                 this.clt_batch_ml_all_main,
+    				"RGB: Requires 'Scene poses relative to others', not yet implemented");
+			
+			gd.addMessage     ("============ LWIR cameras ============");
+			gd.addCheckbox    ("LWIR: Calculate pair-wise camera poses",                                 this.clt_batch_pose_pairs_aux,
+    				"LWIR: Relative poses are calculated for pairs of consecututive scenes. Requires DSI for each scene");
+    		gd.addCheckbox    ("LWIR: Scene poses relative to the last",                                 this.clt_batch_pose_last_aux,
+    				"LWIR: Relative camera poses to the reference (last) scene");
+    		gd.addCheckbox    ("LWIR: Scene poses relative to others",                                   this.clt_batch_pose_scene_aux,
+    				"LWIR: Camera poses relative to all other scenes in the series, not just relative to the latest (not yet implemented)");
+    		gd.addCheckbox    ("LWIR: Generate ML files for the last scene",                             this.clt_batch_ml_last_aux,
+    				"LWIR: Generate ML output files for the last scene, requres 'Scene poses relative to the last'");
+    		gd.addCheckbox    ("LWIR: Generate ML files for each scene",                                 this.clt_batch_ml_all_aux,
+    				"LWIR: Requires 'Scene poses relative to others', not yet implemented");
 
     		if (clt_parameters != null) {
 //    			gd.addMessage     ("============ selected CLT parameters ============");
@@ -1114,12 +1194,27 @@ public class EyesisCorrectionParameters {
     		this.clt_batch_dsi_aux_full=         gd.getNextBoolean();
     		this.clt_batch_save_extrinsics= gd.getNextBoolean();
     		this.clt_batch_save_all=        gd.getNextBoolean();
+    		
+    		this.clt_batch_skip_scenes=        gd.getNextBoolean();
+
+    		this.clt_batch_pose_pairs_main=   gd.getNextBoolean();
+    		this.clt_batch_pose_last_main=    gd.getNextBoolean();
+    		this.clt_batch_pose_scene_main=   gd.getNextBoolean();
+    		this.clt_batch_ml_last_main=      gd.getNextBoolean();
+    		this.clt_batch_ml_all_main=       gd.getNextBoolean();
+
+    		this.clt_batch_pose_pairs_aux=   gd.getNextBoolean();
+    		this.clt_batch_pose_last_aux=    gd.getNextBoolean();
+    		this.clt_batch_pose_scene_aux=   gd.getNextBoolean();
+    		this.clt_batch_ml_last_aux=      gd.getNextBoolean();
+    		this.clt_batch_ml_all_aux=       gd.getNextBoolean();
+    		
     		if (clt_parameters != null) {
-    			clt_parameters.grow_disp_max = gd.getNextNumber();
-    			clt_parameters.gain_equalize = gd.getNextBoolean();
-    			clt_parameters.z_correction =  gd.getNextNumber();
-      			clt_parameters.tsNumClust =    (int) gd.getNextNumber();
-      			clt_parameters.max_clusters =  (int) gd.getNextNumber();
+    			clt_parameters.grow_disp_max =      gd.getNextNumber();
+    			clt_parameters.gain_equalize =      gd.getNextBoolean();
+    			clt_parameters.z_correction =       gd.getNextNumber();
+      			clt_parameters.tsNumClust =   (int) gd.getNextNumber();
+      			clt_parameters.max_clusters = (int) gd.getNextNumber();
     		}
     		return true;
     	}

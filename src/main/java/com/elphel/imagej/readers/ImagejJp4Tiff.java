@@ -476,7 +476,7 @@ public class ImagejJp4Tiff {
 			Date startDate = dateFormat.parse(FIXCH6_EARLIEST);
 			Date endDate =   dateFormat.parse(FIXCH6_LATEST);
 			Date fileDate =  dateFormat.parse(sfdate);
-			if (fileDate.before(startDate) && fileDate.after(endDate)) {
+			if (fileDate.before(startDate) || fileDate.after(endDate)) {
 				return -3; // too early or too late 
 			}
 		} catch (ParseException e) {
