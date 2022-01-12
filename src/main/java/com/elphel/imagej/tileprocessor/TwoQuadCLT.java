@@ -8954,33 +8954,6 @@ if (debugLevel > -100) return true; // temporarily !
 			final boolean                                        updateStatus,
 			final int                                            debugLevel)  throws Exception
 	{
-		// TODO:remove
-		boolean                                              bayer_artifacts_debug = false;
-		int                                                  noise_variant = -1; // <0 - no-variants, compatible with old code
-
-		NoiseParameters            noise_sigma_level = null;
-		if ((clt_parameters.inp.noise.scale_random >= 0.0) || (clt_parameters.inp.noise.scale_fpn >= 0.0)) {// <0 - will generate no-noise data
-			if (quadCLT_main.getNumSensors() == 16) {
-				switch (clt_parameters.img_dtt.mcorr_limit_sensors) {
-				case 0:
-					clt_parameters.inp.noise.used_sensors = 16;
-					break;
-				case 1:
-					clt_parameters.inp.noise.used_sensors = 2;
-					break;
-				case 2:
-					clt_parameters.inp.noise.used_sensors = 4;
-					break;
-				case 3:
-					clt_parameters.inp.noise.used_sensors = 8;
-					break;
-				}
-				System.out.println ("Using "+clt_parameters.inp.noise.used_sensors+" of "+quadCLT_main.getNumSensors()+" sensors.");
-			}
-			noise_sigma_level = clt_parameters.inp.noise.clone();
-			
-		}
-		
 		boolean ref_only =  clt_parameters.inp.ref_only; //  true; // process only reference frame (false - inter-scene)
 		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
 			quadCLT_main.getGPU().resetGeometryCorrection();
