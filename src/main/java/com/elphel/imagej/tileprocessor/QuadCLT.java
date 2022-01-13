@@ -5532,6 +5532,12 @@ if (debugLevel < -100) {
 		  }
 	  }
 	  
+	  public void resetBayer() {
+		  if (getGPU() != null) {
+			  getGPU().resetBayer();
+		  }
+	  }
+	  
 		public QuadCLT spawnQuadCLT(
 				String              set_name,
 				CLTParameters       clt_parameters,

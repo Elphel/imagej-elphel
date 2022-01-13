@@ -201,7 +201,9 @@ public class GpuQuad{ // quad camera description
 		resetGeometryCorrectionVector();
 		this.gpuTileProcessor.bayer_set =        false;
 	}
-	
+	public void resetBayer() {
+		this.gpuTileProcessor.bayer_set =        false;
+	}
 	public QuadCLT getQuadCLT( ) {
 		return this.quadCLT;
 	}

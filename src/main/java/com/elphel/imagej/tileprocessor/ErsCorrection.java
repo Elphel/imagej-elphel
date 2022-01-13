@@ -1971,6 +1971,21 @@ public class ErsCorrection extends GeometryCorrection {
 		return new double[][] {xyz,angles};
 		
 	}
+
+	public static double [][] invertXYZATR(
+			double [] source_xyz,
+			double [] source_atr)
+	{
+		Rotation   scene_rotation= new Rotation(RotationOrder.YXZ, ROT_CONV, source_atr[0],    source_atr[1],    source_atr[2]);
+		Vector3D   scene_offset =  new Vector3D(-source_xyz[0], -source_xyz[1], -source_xyz[2]);
+		Rotation   rotation =      scene_rotation.revert(); // 
+		Vector3D   offset = rotation.applyTo(scene_offset); // junk
+		double []  angles = rotation.getAngles(RotationOrder.YXZ, ROT_CONV);
+		double []  xyz = offset.toArray();
+		return new double[][] {xyz,angles};
+	}
+	
+	
 	
 	public double [] getImageCoordinatesERS(
 			double [] xyzw,

@@ -815,6 +815,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			addButton("Image Properties", panelLWIR16, color_conf_process);
 			addButton("Illustrations Configure", panelLWIR16, color_conf_process);
 			addButton("Footage Organize", panelLWIR16, color_conf_process);
+			addButton("Super batch",     panelLWIR16, color_process);
 
 			plugInFrame.add(panelLWIR16);
 
@@ -5433,7 +5434,42 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			FOOTAGE_ORGANIZE.OrganizeSeries(
 					CLT_PARAMETERS,
 					CALIBRATION_ILLUSTRATION);
-
+		} else if (label.equals("Super batch")) {
+			DEBUG_LEVEL = MASTER_DEBUG_LEVEL;
+			EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+			CLT_PARAMETERS.batch_run = true;
+			String [] configs = loadMultiProperties(
+					CORRECTION_PARAMETERS.resultsDirectory, // String directory,
+					true);// boolean useXML,
+			if (configs == null) {
+				return;
+			}
+			long startTime = System.nanoTime();
+			for (int nc = 0; nc < configs.length; nc++) {
+				long startTimeRun = System.nanoTime();
+				String config = configs[nc];
+				String path = loadProperties(config, CORRECTION_PARAMETERS.resultsDirectory, true, PROPERTIES);
+				System.out.println(path);
+				if (path != null) {
+					getAllProperties(PROPERTIES);
+					if (DEBUG_LEVEL > -3)
+						System.out.println("Configuration parameters are restored from " + path);
+				} else {
+					if (DEBUG_LEVEL > -10)
+						System.out.println("Failed to restore configuration parameters");
+					return;
+				}
+				batchLwir();
+				System.out.println("Super batch: processing of run "+ nc+" (of "+configs.length+"): "+config+ " finished in "
+						+ IJ.d2s(0.000000001 * (System.nanoTime() - startTimeRun), 3) + " sec, --- Free memory="
+						+ Runtime.getRuntime().freeMemory() + " (of " + Runtime.getRuntime().totalMemory() + ")");
+			}
+			System.out.println("Super batch: all (of "+configs.length+"): finished at "
+					+ IJ.d2s(0.000000001 * (System.nanoTime() - startTime), 3) + " sec, --- Free memory="
+					+ Runtime.getRuntime().freeMemory() + " (of " + Runtime.getRuntime().totalMemory() + ")");
+			return;
+			
+			
 		} else if (label.equals("Image Properties")) {
 			DEBUG_LEVEL = MASTER_DEBUG_LEVEL;
 			ImagePlus imp_sel = WindowManager.getCurrentImage();
@@ -9136,7 +9172,9 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 									+ ")"), // filter
 					directory); // may be ""
 		} else
-			path += patterns[0];
+			if (!path.endsWith(patterns[0])) {
+				path += patterns[0]; // where was it used???
+			}
 		if (path == null)
 			return null;
 		InputStream is;
@@ -9172,6 +9210,25 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 		return path;
 	}
 
+	
+	public String [] loadMultiProperties(
+			String directory,
+			boolean useXML) {
+		String[] XMLPatterns = { ".corr-xml", ".xml" };
+		String[] confPatterns = { ".conf" };
+		String[] patterns = useXML ? XMLPatterns : confPatterns;
+		String [] paths = selectFiles(
+				false, // boolean save,
+				"Multiple configuration file selection", // title
+				"Read configuration files", // button
+				new MultipleExtensionsFileFilter(patterns,
+						(useXML ? "XML " : "") + "Configuration files (" + (useXML ? "*.corr-xml" : "*.conf")
+								+ ")"), // filter
+				new String[] {directory}); // String[] defaultPaths)
+		return paths;
+	}
+	
+	
 	/* ======================================================================== */
 	public void setAllProperties(Properties properties) {
 		properties.setProperty("MASTER_DEBUG_LEVEL", MASTER_DEBUG_LEVEL + "");
