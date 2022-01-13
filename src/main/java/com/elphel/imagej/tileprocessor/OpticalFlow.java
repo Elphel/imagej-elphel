@@ -3090,6 +3090,7 @@ public class OpticalFlow {
 			double [] new_from_last_xyz = ers_scene_last_known.getSceneXYZ(scene_ts);
 			double [] new_from_last_atr = ers_scene_last_known.getSceneATR(scene_ts);
 			
+			/*			
 			double [][] last_from_new =     ErsCorrection.invertXYZATR(new_from_last_xyz, new_from_last_atr);
 			double [][] vfy_new_from_last = ErsCorrection.invertXYZATR(last_from_new[0], last_from_new[1]);
 			System.out.println(new_from_last_xyz[0]+","+new_from_last_xyz[1]+","+new_from_last_xyz[2]+","+
@@ -3098,7 +3099,6 @@ public class OpticalFlow {
 					last_from_new[1][0]+","+last_from_new[1][1]+","+last_from_new[1][2]);
 			System.out.println(vfy_new_from_last[0][0]+","+vfy_new_from_last[0][1]+","+vfy_new_from_last[0][2]+","+
 					vfy_new_from_last[1][0]+","+vfy_new_from_last[1][1]+","+vfy_new_from_last[1][2]);
-/*			
 			double [][] last_from_new1 =     ErsCorrection.invertXYZATR(vfy_new_from_last[0],vfy_new_from_last[1]);
 			double [][] vfy_new_from_last1 = ErsCorrection.invertXYZATR(last_from_new1[0], last_from_new1[1]);
 
@@ -3274,8 +3274,71 @@ public class OpticalFlow {
 		}
 		// process scenes after reference (if it is not the last
 		if (ref_index <  (scenes.length - 1)) {
-		}		
-		
+			for (int i =  ref_index + 1; i < scenes.length ; i++) {
+				QuadCLT scene_QuadClt =      scenes[i];
+				String last_known_ts =           scenes[i-1].getImageName(); // it should be present in the reference scene scenes
+//				String scene_ts =                scenes[i].getImageName(); // it should be present in the scenes[i+1] scenes
+//				ErsCorrection ers_scene_last_known = scenes[i-1].getErsCorrection();
+				ErsCorrection ers_scene =            scene_QuadClt.getErsCorrection();
+
+				double [] last_known_xyz = ers_reference.getSceneXYZ(last_known_ts);
+				double [] last_known_atr = ers_reference.getSceneATR(last_known_ts);
+				double [] last_from_new_xyz = ers_scene.getSceneXYZ(last_known_ts);
+				double [] last_from_new_atr = ers_scene.getSceneATR(last_known_ts);
+				double [][] new_from_last =   ErsCorrection.invertXYZATR(last_from_new_xyz, last_from_new_atr);
+
+				double [] new_from_last_xyz = new_from_last[0]; // ers_scene_last_known.getSceneXYZ(scene_ts);
+				double [] new_from_last_atr = new_from_last[1]; // ers_scene_last_known.getSceneATR(scene_ts);
+				double [][] combo_XYZATR = new_from_last;
+				if (i > ( ref_index + 1)) {
+					// combine two rotations and two translations 
+					System.out.println("Processing scene "+i+": "+scene_QuadClt.getImageName());
+					combo_XYZATR = ErsCorrection.combineXYZATR(
+							last_known_xyz,     // double [] reference_xyz,
+							last_known_atr,     // double [] reference_atr, // null?
+							new_from_last_xyz,  // double [] scene_xyz,
+							new_from_last_atr); // double [] scene_atr)
+				}
+				// before adjusting - save original ERS, restart afterwards
+				double [] ers_scene_original_xyz_dt = ers_scene.getErsXYZ_dt();
+				double [] ers_scene_original_atr_dt = ers_scene.getErsATR_dt();
+
+				// ers should be correct for both
+
+				scenes_xyzatr[i] = adjustPairsLMA(
+						clt_parameters,     // CLTParameters  clt_parameters,			
+						reference_QuadClt, // QuadCLT reference_QuadCLT,
+						scene_QuadClt, // QuadCLT scene_QuadCLT,
+						combo_XYZATR[0], // xyz
+						combo_XYZATR[1], // atr
+						param_select2,             // final boolean[]   param_select,
+						param_regweights2, //  final double []   param_regweights,
+						debug_level); // int debug_level)
+				ers_reference.addScene(scene_QuadClt.getImageName(),
+						scenes_xyzatr[i][0],
+						scenes_xyzatr[i][1],
+						ers_scene.getErsXYZ_dt(),		
+						ers_scene.getErsATR_dt()		
+						);
+
+				// restore original ers data
+				ers_scene.setErsDt(
+						ers_scene_original_xyz_dt, // double []    ers_xyz_dt,
+						ers_scene_original_atr_dt); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
+				ers_scene.setupERS();
+				if (debug_level > -1) {
+					System.out.println("Pass multi scene "+i+" (of "+ scenes.length+") "+
+							reference_QuadClt.getImageName() + "/" + scene_QuadClt.getImageName()+" Done.");
+				}
+				if (delete_scene_asap) {
+					scenes[i-1] = null;
+				}
+				//			Runtime.getRuntime().gc();
+				//			System.out.println("Scene "+i+", --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+
+
+			}		
+		}
 		
 		reference_QuadClt.saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
 	            null, // String path,             // full name with extension or w/o path to use x3d directory

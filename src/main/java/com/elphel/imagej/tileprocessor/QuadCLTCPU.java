@@ -2187,7 +2187,7 @@ public class QuadCLTCPU {
 			  }
 		  }
 		  ShowDoubleFloatArrays sdfa_instance = null;
-		  if (debugLevel>0){
+		  if (debugLevel>10){ // was 0, but failed with "17"
 			  sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		  }
 
