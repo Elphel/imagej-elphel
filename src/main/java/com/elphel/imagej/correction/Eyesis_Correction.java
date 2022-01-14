@@ -7141,7 +7141,9 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 		QuadCLT quadCLT = use_aux ? QUAD_CLT_AUX : QUAD_CLT;
 		ColorProcParameters colorProcParameters = use_aux ? COLOR_PROC_PARAMETERS_AUX : COLOR_PROC_PARAMETERS;
 		try {
-			TWO_QUAD_CLT.interIntraExportML(quadCLT, // QuadCLT quadCLT_main,
+			TWO_QUAD_CLT.interIntraExportML(
+					quadCLT, // QuadCLT quadCLT_main,
+					-1, // use last // int  indx_ref,     // = num_scenes - 1; 
 					CLT_PARAMETERS, // EyesisCorrectionParameters.DCTParameters dct_parameters,
 					DEBAYER_PARAMETERS, // EyesisCorrectionParameters.DebayerParameters debayerParameters,
 					colorProcParameters, // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,

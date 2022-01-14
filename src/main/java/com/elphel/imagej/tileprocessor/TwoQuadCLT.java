@@ -8518,6 +8518,7 @@ if (debugLevel > -100) return true; // temporarily !
 				// FIXME: *********** update adjustSeries to use QUADCLTCPU ! **********								
 //				(QuadCLT []) 
 				quadCLTs, // QuadCLT [] scenes, // ordered by increasing timestamps
+				ref_index, // int            ref_index,
 				clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
 		System.out.println("End of interSeriesLMA()");
 	}
@@ -9007,6 +9008,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 	public void interIntraExportML(
 			QuadCLT                                              quadCLT_main, // tiles should be set
+			int                                                  indx_ref,     // = num_scenes - 1; 
 			CLTParameters                                        clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
 			ColorProcParameters                                  colorProcParameters,
@@ -9062,7 +9064,10 @@ if (debugLevel > -100) return true; // temporarily !
 		String [] sts = ref_only ? (new String [0]) : ers_reference.getScenes();
 		// get list of all other scenes
 		int num_scenes = sts.length + 1;
-		int indx_ref = num_scenes - 1; 
+//		int indx_ref = num_scenes - 1;
+		if (indx_ref < 0) {
+			indx_ref = num_scenes - 1;
+		}
 		QuadCLT [] scenes = new QuadCLT [num_scenes];
 		scenes[indx_ref] = ref_quadCLT;
 
@@ -11175,14 +11180,16 @@ if (debugLevel > -100) return true; // temporarily !
 			final int        debugLevel)  throws Exception
 	{
 		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
-			quadCLT_main.getGPU().resetGeometryCorrection();
-			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
-			quadCLT_main.resetBayer();
+			quadCLT_main.setQuadClt(); // ignore previous result,
+//			quadCLT_main.getGPU().resetGeometryCorrection();
+//			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
+//			quadCLT_main.resetBayer();
 		}
 		if ((quadCLT_aux != null) && (quadCLT_aux.getGPU() != null)) {
-			quadCLT_aux.getGPU().resetGeometryCorrection();
-			quadCLT_aux.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
-			quadCLT_aux.resetBayer();
+			quadCLT_aux.setQuadClt();
+//			quadCLT_aux.getGPU().resetGeometryCorrection();
+//			quadCLT_aux.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
+//			quadCLT_aux.resetBayer();
 		}
 
 		
@@ -11222,6 +11229,7 @@ if (debugLevel > -100) return true; // temporarily !
 			}
 
 			for (int nSet = 0; nSet < set_channels.length; nSet++){
+				/*
 				if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) { //TODO:  is it needed here? WAs not needed before - verify
 					quadCLT_main.getGPU().resetGeometryCorrection();
 					quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
@@ -11231,7 +11239,8 @@ if (debugLevel > -100) return true; // temporarily !
 					quadCLT_aux.getGPU().resetGeometryCorrection();
 					quadCLT_aux.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
 					quadCLT_aux.resetBayer();
-				}
+				}*/
+				
 				// nset -> name - n1, n2 (in 
 				String set_name = set_channels[nSet].set_name;
 				int nSet_main = -1, nSet_aux = -1;
@@ -11846,6 +11855,7 @@ if (debugLevel > -100) return true; // temporarily !
 //		System.out.println("batchLwirRig(): processing "+(quadCLT_main.getTotalFiles(set_channels_main)+quadCLT_aux.getTotalFiles(set_channels_aux))+" files ("+set_channels_main.length+" file sets) finished at "+
 		int num_main = (quadCLT_main==null)? 0 : quadCLT_main.getTotalFiles(set_channels_main);
 		int num_aux =  (quadCLT_aux ==null)? 0 : quadCLT_aux.getTotalFiles(set_channels_aux);
+		/*
 		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) { //TODO:  is it needed here? WAs not needed before - verify
 			quadCLT_main.getGPU().resetGeometryCorrection();
 			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
@@ -11856,6 +11866,7 @@ if (debugLevel > -100) return true; // temporarily !
 			quadCLT_aux.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
 			quadCLT_aux.resetBayer();
 		}
+		*/
 		// Process LWIR16 tasks applicable to scene series rather than individual scenes
 		if (quadCLT_main.correctionsParameters.clt_batch_pose_pairs_main) {
 			TestInterLMA(quadCLT_main,         // QUAD_CLT, // QuadCLT quadCLT_main,
@@ -11891,8 +11902,29 @@ if (debugLevel > -100) return true; // temporarily !
 					debugLevel);
 		}
 		
+		if (quadCLT_main.correctionsParameters.clt_batch_pose_scene_main) {
+			int ref_index = 50; // temporarily, will make evently distributed
+			interSeriesLMA(quadCLT_main,       // QUAD_CLT, // QuadCLT quadCLT_main,
+					ref_index,                 // int    ref_index,
+					clt_parameters,            // EyesisCorrectionParameters.DCTParameters dct_parameters,
+					debayerParameters,         // EyesisCorrectionParameters.DebayerParameters debayerParameters,
+					colorProcParameters,       // COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters
+											   // colorProcParameters,
+					channelGainParameters,     // CorrectionColorProc.ColorGainsParameters channelGainParameters,
+					rgbParameters,             // EyesisCorrectionParameters.RGBParameters rgbParameters,
+					equirectangularParameters, // EyesisCorrectionParameters.EquirectangularParameters
+											   // equirectangularParameters,
+					properties,                // Properties properties,
+					true,                      // false, // boolean reset_from_extrinsics,
+					threadsMax,                // final int threadsMax, // maximal number of threads to launch
+					updateStatus,              // final boolean updateStatus,
+					debugLevel);
+		}
+		
+		
 		if (quadCLT_main.correctionsParameters.clt_batch_ml_last_main) {
 			interIntraExportML(quadCLT_main,   // QuadCLT quadCLT_main,
+					-1, // use last // int  indx_ref,     // = num_scenes - 1; 
 					clt_parameters,            // EyesisCorrectionParameters.DCTParameters dct_parameters,
 					debayerParameters,         // EyesisCorrectionParameters.DebayerParameters debayerParameters,
 					colorProcParameters,       // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
@@ -11940,8 +11972,28 @@ if (debugLevel > -100) return true; // temporarily !
 					debugLevel);
 		}		
 		
+		if (quadCLT_main.correctionsParameters.clt_batch_pose_scene_aux) {
+			int ref_index = 50; // temporarily, will make evently distributed
+			interSeriesLMA(quadCLT_aux,        // QUAD_CLT, // QuadCLT quadCLT_main,
+					ref_index,                 // int    ref_index,
+					clt_parameters,            // EyesisCorrectionParameters.DCTParameters dct_parameters,
+					debayerParameters,         // EyesisCorrectionParameters.DebayerParameters debayerParameters,
+					colorProcParameters_aux,   // COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters
+											   // colorProcParameters,
+					channelGainParameters,     // CorrectionColorProc.ColorGainsParameters channelGainParameters,
+					rgbParameters,             // EyesisCorrectionParameters.RGBParameters rgbParameters,
+					equirectangularParameters, // EyesisCorrectionParameters.EquirectangularParameters
+										       // equirectangularParameters,
+					properties,                // Properties properties,
+					true,                      // false, // boolean reset_from_extrinsics,
+					threadsMax,                // final int threadsMax, // maximal number of threads to launch
+					updateStatus,              // final boolean updateStatus,
+					debugLevel);
+		}
+		
 		if (quadCLT_main.correctionsParameters.clt_batch_ml_last_aux) {
 			interIntraExportML(quadCLT_aux,    // QuadCLT quadCLT_main,
+					-1, // use last // int  indx_ref,     // = num_scenes - 1; 
 					clt_parameters,            // EyesisCorrectionParameters.DCTParameters dct_parameters,
 					debayerParameters,         // EyesisCorrectionParameters.DebayerParameters debayerParameters,
 					colorProcParameters_aux,   // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
@@ -11954,6 +12006,7 @@ if (debugLevel > -100) return true; // temporarily !
 					updateStatus,              // final boolean updateStatus,
 					debugLevel);
 		}
+		/*
 		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) { //TODO:  is it needed here? WAs not needed before - verify
 			quadCLT_main.getGPU().resetGeometryCorrection();
 			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
@@ -11964,6 +12017,7 @@ if (debugLevel > -100) return true; // temporarily !
 			quadCLT_aux.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
 			quadCLT_aux.resetBayer();
 		}
+		*/
 
 		System.out.println("batchLwirRig(): processing "+(num_main + num_aux)+" files ("+set_channels.length+" file sets) finished at "+
 				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");

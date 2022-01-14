@@ -2705,7 +2705,7 @@ public class EyesisCorrections {
 				png,
 				show,
 				jpegQuality,//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
-				this.debugLevel);
+				this.debugLevel+3);
 	}
 
 

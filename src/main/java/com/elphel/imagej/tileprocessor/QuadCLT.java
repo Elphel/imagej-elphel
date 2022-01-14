@@ -109,6 +109,11 @@ public class QuadCLT extends QuadCLTCPU {
 		}
 	}
 
+	void setQuadClt() {
+		if (gpuQuad != null) {
+			gpuQuad.updateQuadCLT(this); // to re-load new set of Bayer images to the GPU
+		}
+	}
 	
 	public QuadCLT(QuadCLTCPU pq, String name) {
 		super (pq, name);

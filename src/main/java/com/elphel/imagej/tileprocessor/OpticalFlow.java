@@ -1526,7 +1526,8 @@ public class OpticalFlow {
 							}
 							int iwidth =  imax_tX - imin_tX + 1;
 							int iheight = imax_tY - imin_tY + 1;
-							if ((iwidth <= 0) || (iheight <= 0)) {
+////							if ((iwidth <= 0) || (iheight <= 0)) {
+							if ((iwidth <= 1) || (iheight <= 1)) {
 								System.out.println ("prepareSceneTiles(): iwidth ="+iwidth+", iheight ="+iheight+", min_tX="+min_tX+", imin_tY="+imin_tY+", max_tX="+max_tX+", imax_tY="+imax_tY);
 								continue;
 							}
@@ -3480,8 +3481,8 @@ public class OpticalFlow {
 		}		
 		double [][] disparity_map = null;
 		for (int nrefine = 0; nrefine < max_refines; nrefine++) {
-			Runtime.getRuntime().gc();
-			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+	///		Runtime.getRuntime().gc();
+	///		System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			int mcorr_sel = Correlation2d.corrSelEncode(clt_parameters.img_dtt,scenes[indx_ref].getNumSensors());
 			disparity_map = correlateInterscene(
 					clt_parameters, // final CLTParameters  clt_parameters,
@@ -3496,8 +3497,8 @@ public class OpticalFlow {
 					false,          // final boolean        no_map, // do not generate disparity_map (time-consuming LMA)
 					debug_level-5);   // final int            debug_level)
 
-			Runtime.getRuntime().gc();
-			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+	///		Runtime.getRuntime().gc();
+	///		System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 			(new ShowDoubleFloatArrays()).showArrays(
 					disparity_map,
@@ -3699,8 +3700,8 @@ public class OpticalFlow {
 			}
 		}
 		for (int nrefine = 0; nrefine < max_refines; nrefine++) {
-			Runtime.getRuntime().gc();
-			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+///			Runtime.getRuntime().gc();
+///			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 			double [][] disparity_map = 
 					//		double [][][][][] clt_corr_partial =
@@ -3713,8 +3714,8 @@ public class OpticalFlow {
 							nrefine,        // final int            nrefine, // just for debug title
 							debug_level-5);   // final int            debug_level)
 
-			Runtime.getRuntime().gc();
-			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+///			Runtime.getRuntime().gc();
+///			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			if (debug_level > 0) {
 				(new ShowDoubleFloatArrays()).showArrays(
 						disparity_map,
@@ -3972,8 +3973,8 @@ public class OpticalFlow {
 		}
 		
         ImagePlus imp_stack = new ImagePlus("scene_outlines", stack);
-        imp_stack.getProcessor().resetMinAndMax();
-        imp_stack.show();
+//        imp_stack.getProcessor().resetMinAndMax();
+//       imp_stack.show();
 		return imp_stack;
 	}
 	
@@ -3987,6 +3988,7 @@ public class OpticalFlow {
 			int                  debug_level
 			)
 	{
+		boolean generate_outlines = true; // TODO: move to configs
 		System.out.println("intersceneExport(), scene timestamp="+ref_scene.getImageName());
 		int num_scenes = scenes.length;
 		String [] combo_dsn_titles = {"disp", "strength","disp_lma","num_valid","change"};
@@ -4023,7 +4025,7 @@ public class OpticalFlow {
 		final int tilesX = ref_scene.getTileProcessor().getTilesX();
 		final int tilesY = ref_scene.getTileProcessor().getTilesY();
 		final int tiles = tilesX * tilesY;
-		if (debug_level > 100) { // add parameter?
+		if (generate_outlines) { // debug_level > 100) { // add parameter?
 			int        extra = 10; // pixels around largest outline
 			int        scale = 4;
 
@@ -4042,8 +4044,11 @@ public class OpticalFlow {
 					line_width_corners, // int        line_width_corners,
 					line_color_outline, // Color      line_color_outline,
 					line_color_corners  // Color      line_color_corners
-					);		
-			imp_outlines.show();
+					);
+			ref_scene.saveImagePlusInModelDirectory(
+					"scene_outlines", // String      suffix,
+					imp_outlines); // ImagePlus   imp)
+//			imp_outlines.show();
 		}
 		final double [][] combo_dsn_change = new double [combo_dsn_titles.length] [tiles];
 		for (int i = 0; i < combo_dsn.length; i++) { // 4 elements: "disp", "strength","disp_lma","num_valid"
@@ -4792,8 +4797,8 @@ public class OpticalFlow {
 			}
 		}		
 		for (int nrefine = 0; nrefine < max_refines; nrefine++) {
-			Runtime.getRuntime().gc();
-			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+///			Runtime.getRuntime().gc();
+///			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			int mcorr_sel = Correlation2d.corrSelEncode(clt_parameters.img_dtt,scenes[indx_ref].getNumSensors());
 			double [][] disparity_map = 
 					correlateInterscene(
@@ -4809,8 +4814,8 @@ public class OpticalFlow {
 							false,          // final boolean        no_map, // do not generate disparity_map (time-consuming LMA)
 							debug_level-5);   // final int            debug_level)
 
-			Runtime.getRuntime().gc();
-			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+///			Runtime.getRuntime().gc();
+///			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			
 			if (debug_level > 0) {
 				(new ShowDoubleFloatArrays()).showArrays(
@@ -5228,8 +5233,8 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 						wis_wh,                   // final int []         wh,
 						image_dtt.transform_size, // final int            transform_size,
 						threadsMax);              // final int            threadsMax)     // maximal number of threads to launch
-				Runtime.getRuntime().gc();
-				System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+///				Runtime.getRuntime().gc();
+///				System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			}
 			if ((vis_corr_pd != null) || (fclt_corrs != null)) { // calculate and extract correlation
 				image_dtt.clt_process_tl_correlations_GPU(	// convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td
@@ -5276,8 +5281,8 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 							threadsMax); // final int          threadsMax)     // maximal number of threads to launch
 							
 				}
-				Runtime.getRuntime().gc();
-				System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+///				Runtime.getRuntime().gc();
+///				System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 				//nscene
 				if (debug_dhv != null) {
 					debug_dhv[3 * nscene + 0] = disparity_map[ImageDtt.DISPARITY_INDEX_CM];
@@ -5450,8 +5455,8 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					dbg_titles);
 		}
 		
-		Runtime.getRuntime().gc();
-		System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+///		Runtime.getRuntime().gc();
+///		System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 		final float  [][][]       fclt_corr = new float [tilesX * tilesY][][];
 		image_dtt.clt_process_tl_correlations_GPU(	// convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td
 				clt_parameters.img_dtt,				// final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
@@ -5914,8 +5919,8 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		}		
 		
 		
-		Runtime.getRuntime().gc();
-		System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+///		Runtime.getRuntime().gc();
+///		System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 		if (vis_corr_td != null) { // add combined data as the last slice
 			vis_corr_td[num_scenes] = ImageDtt.corr_td_wnd(
@@ -6281,8 +6286,8 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 
 
 		}
-		Runtime.getRuntime().gc();
-		System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+///		Runtime.getRuntime().gc();
+///		System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 		// Normalize accumulated corelations
 		if (ref_scene.hasGPU()) {
 			 accumulateCorrelationsAcOnly(
@@ -6385,8 +6390,8 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			
 		}
 
-		Runtime.getRuntime().gc();
-		System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+///		Runtime.getRuntime().gc();
+///		System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 		if (show_accumulated_correlations || (accum_2d_corr != null)){ // -1
 			float [][] accum_2d_img = ImageDtt.corr_partial_dbg( // not used in lwir
 					fclt_corr, // final float  [][][]     fcorr_data,       // [tile][pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate

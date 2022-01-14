@@ -222,9 +222,12 @@ public class QuadCLTCPU {
 		return null;
 	}
 	
-	void restoreQuadClt(QuadCLT savedQuadClt) {
+	void restoreQuadClt(QuadCLT savedQuadClt) { // do nothing
 	}
 
+	void setQuadClt() { // do nothing
+	}
+	
 	double [][][][][][]  getCltKernels() {                            
 		return clt_kernels;
 	}
@@ -937,10 +940,6 @@ public class QuadCLTCPU {
 	}	
 	
 	
-	
-	
-	
-	
 	public ImagePlus saveDoubleArrayInModelDirectory(
 			String      suffix,
 			String []   labels, // or null
@@ -958,6 +957,20 @@ public class QuadCLTCPU {
 		System.out.println("saveDoubleArrayInModelDirectory(): saved "+file_path);
 		return imp;
 	}
+	
+	public void saveImagePlusInModelDirectory(
+			String      suffix,
+			ImagePlus   imp)
+	{
+		String x3d_path = getX3dDirectory();
+		String file_name = image_name + suffix;
+		String file_path = x3d_path + Prefs.getFileSeparator() + file_name + ".tiff";
+		FileSaver fs=new FileSaver(imp);
+		fs.saveAsTiff(file_path);
+		System.out.println("saveDoubleArrayInModelDirectory(): saved "+file_path);
+	}
+	
+	
 	
 	public double [][] readDoubleArrayFromModelDirectory(
 			String      suffix,
