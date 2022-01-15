@@ -248,8 +248,14 @@ public class BiQuadParameters {
 // ML  export for LWIR16 camera	
 	
 // calculating GT	
-	public double  mll_min_disp_change =       0.001; // stop re-measure when difference is below
-	public int     mll_max_refines =          10;
+
+	
+	public double  mll_min_disp_change_pre =   0.01; // stop re-measure when difference is below
+	public int     mll_max_refines_pre =      10;
+	public double  mll_min_disp_change_lma =   0.001; // stop re-measure when difference is below
+	public int     mll_max_refines_lma =       5;
+	public boolean mll_generate_scene_outlines = false; // Uses 2 GB - change format, add dimensions (separate color for ref)
+	
 // Exporting ML files	
 	public boolean mll_add_combo =             true;   // add 121-st slice with combined pairs correlation
 	public boolean mll_save_accum =            true;  // save accumulated 0-offset correlation
@@ -681,10 +687,17 @@ public class BiQuadParameters {
         gd.addTab("ML","Parameters related to the ML files generation for the dual-quad camera rig");
 
 		gd.addMessage("Calculating GT Disparity");
-		gd.addNumericField("Min change of disparity",                                                             this.mll_min_disp_change,  3,6,"pix",
+		gd.addNumericField("Min change of disparity (preliminary, 40 pairs/no LMA)",                               this.mll_min_disp_change_pre,  3,6,"pix",
 				"Refine tile until disparity change falls below");
-		gd.addNumericField("Number of disparity refine passes",                                                   this.mll_max_refines,  0,3,"",
+		gd.addNumericField("Number of disparity refine passes (preliminary, 40 pairs/no LMA)",                     this.mll_max_refines_pre,  0,3,"",
 				"Abandon disparity refinement for tiles where disparity does not converge after this number of passes");
+		gd.addNumericField("Min change of disparity (final, 120 pairs with LMA)",                                  this.mll_min_disp_change_lma,  3,6,"pix",
+				"Refine tile until disparity change falls below");
+		gd.addNumericField("Number of disparity refine passes (final, 120 pairs with LMA)",                        this.mll_max_refines_lma,  0,3,"",
+				"Abandon disparity refinement for tiles where disparity does not converge after this number of passes");
+		gd.addCheckbox    ("Generate scene outlines",                                                              this.mll_generate_scene_outlines,
+				"Generate and save scene outlines for scene series (need to change format, it is 2GB with uncompressed Tiff)");
+		
 		gd.addMessage("ML output files export for LWIR16 camera");
 		gd.addCheckbox    ("Add combo slice",                                                                     this.mll_add_combo,
 				"Add combined correlations slice from all available pairs after rotation/scaling. Will not be used for training, can be removed to reduce processing time");
@@ -980,8 +993,12 @@ public class BiQuadParameters {
 		this.oc_min_disparity=              gd.getNextNumber();
 		this.oc_min_strength=               gd.getNextNumber();
 
-		this.mll_min_disp_change=           gd.getNextNumber();
-		this.mll_max_refines=         (int) gd.getNextNumber();
+		this.mll_min_disp_change_pre=       gd.getNextNumber();
+		this.mll_max_refines_pre=     (int) gd.getNextNumber();
+		this.mll_min_disp_change_lma=       gd.getNextNumber();
+		this.mll_max_refines_lma=     (int) gd.getNextNumber();
+		this.mll_generate_scene_outlines=   gd.getNextBoolean();
+		
 		this.mll_add_combo=                 gd.getNextBoolean();
 		this.mll_save_accum=                gd.getNextBoolean();
 		this.mll_randomize_offsets=         gd.getNextBoolean();
@@ -1225,8 +1242,12 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"oc_min_disparity",          this.oc_min_disparity+"");
 		properties.setProperty(prefix+"oc_min_strength",           this.oc_min_strength+"");
 
-		properties.setProperty(prefix+"mll_min_disp_change",       this.mll_min_disp_change+"");
-		properties.setProperty(prefix+"mll_max_refines",           this.mll_max_refines+"");
+		properties.setProperty(prefix+"mll_min_disp_change_pre",     this.mll_min_disp_change_pre+"");
+		properties.setProperty(prefix+"mll_max_refines_pre",         this.mll_max_refines_pre+"");
+		properties.setProperty(prefix+"mll_min_disp_change_lma",     this.mll_min_disp_change_lma+"");
+		properties.setProperty(prefix+"mll_max_refines_lma",         this.mll_max_refines_lma+"");
+		properties.setProperty(prefix+"mll_generate_scene_outlines", this.mll_generate_scene_outlines+"");
+		
 		properties.setProperty(prefix+"mll_add_combo",             this.mll_add_combo+"");
 		properties.setProperty(prefix+"mll_save_accum",            this.mll_save_accum+"");
 		properties.setProperty(prefix+"mll_randomize_offsets",     this.mll_randomize_offsets+"");
@@ -1467,8 +1488,12 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"oc_min_disparity")!=null)        this.oc_min_disparity=Double.parseDouble(properties.getProperty(prefix+"oc_min_disparity"));
 		if (properties.getProperty(prefix+"oc_min_strength")!=null)         this.oc_min_strength=Double.parseDouble(properties.getProperty(prefix+"oc_min_strength"));
 
-		if (properties.getProperty(prefix+"mll_min_disp_change")!=null)     this.mll_min_disp_change=Double.parseDouble(properties.getProperty(prefix+"mll_min_disp_change"));
-		if (properties.getProperty(prefix+"mll_max_refines")!=null)         this.mll_max_refines=Integer.parseInt(properties.getProperty(prefix+"mll_max_refines"));
+		if (properties.getProperty(prefix+"mll_min_disp_change_pre")!=null) this.mll_min_disp_change_pre=Double.parseDouble(properties.getProperty(prefix+"mll_min_disp_change_pre"));
+		if (properties.getProperty(prefix+"mll_max_refines_pre")!=null)     this.mll_max_refines_pre=Integer.parseInt(properties.getProperty(prefix+"mll_max_refines_pre"));
+		if (properties.getProperty(prefix+"mll_min_disp_change_lma")!=null) this.mll_min_disp_change_lma=Double.parseDouble(properties.getProperty(prefix+"mll_min_disp_change_lma"));
+		if (properties.getProperty(prefix+"mll_max_refines_lma")!=null)     this.mll_max_refines_lma=Integer.parseInt(properties.getProperty(prefix+"mll_max_refines_lma"));
+		if (properties.getProperty(prefix+"mll_generate_scene_outlines")!=null) this.mll_generate_scene_outlines=Boolean.parseBoolean(properties.getProperty(prefix+"mll_generate_scene_outlines"));
+		
 		if (properties.getProperty(prefix+"mll_add_combo")!=null)           this.mll_add_combo=Boolean.parseBoolean(properties.getProperty(prefix+"mll_add_combo"));
 		if (properties.getProperty(prefix+"mll_save_accum")!=null)          this.mll_save_accum=Boolean.parseBoolean(properties.getProperty(prefix+"mll_save_accum"));
 		if (properties.getProperty(prefix+"mll_randomize_offsets")!=null)   this.mll_randomize_offsets=Boolean.parseBoolean(properties.getProperty(prefix+"mll_randomize_offsets"));
@@ -1709,8 +1734,12 @@ public class BiQuadParameters {
 		bqp.oc_min_disparity =          this.oc_min_disparity;
 		bqp.oc_min_strength =           this.oc_min_strength;
 
-		bqp.mll_min_disp_change =       this.mll_min_disp_change;
-		bqp.mll_max_refines =           this.mll_max_refines;
+		bqp.mll_min_disp_change_pre =   this.mll_min_disp_change_pre;
+		bqp.mll_max_refines_pre =       this.mll_max_refines_pre;
+		bqp.mll_min_disp_change_lma =   this.mll_min_disp_change_lma;
+		bqp.mll_max_refines_lma =       this.mll_max_refines_lma;
+		bqp.mll_generate_scene_outlines = this.mll_generate_scene_outlines;
+		
 		bqp.mll_add_combo =             this.mll_add_combo;
 		bqp.mll_save_accum =            this.mll_save_accum;
 		bqp.mll_randomize_offsets =     this.mll_randomize_offsets;

@@ -693,7 +693,7 @@ public class QuadCLTCPU {
 					"-DSI_MAIN",  // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
 					false); // silent
 		}
-		restoreInterProperties( // restore properties for interscene processing (extrinsics, ers, ...)
+		restoreInterProperties( // restore properties for interscene processing (extrinsics, ers, ...) // get relative poses (98)
 				null, // String path,             // full name with extension or null to use x3d directory
 				false, // boolean all_properties,//				null, // Properties properties,   // if null - will only save extrinsics)
 				debugLevel);

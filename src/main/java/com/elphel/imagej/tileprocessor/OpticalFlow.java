@@ -2494,7 +2494,7 @@ public class OpticalFlow {
 						double centerX = tileX * transform_size + transform_size/2; //  - shiftX;
 						double centerY = tileY * transform_size + transform_size/2; //  - shiftY;
 						if (disparity < 0) {
-							disparity = 0.0;
+							disparity = 1.0* disparity; // 0.0;
 						}
 						if (scene_QuadClt == reference_QuadClt) {
 							pXpYD[nTile] = new double [] {centerX, centerY, disparity};
@@ -3982,13 +3982,17 @@ public class OpticalFlow {
 			CLTParameters        clt_parameters,
 			ErsCorrection        ers_reference,
 			QuadCLT []           scenes,
-			int                  indx_ref,
 			ColorProcParameters  colorProcParameters,
-			QuadCLT              ref_scene, // ordered by increasing timestamps
 			int                  debug_level
 			)
 	{
-		boolean generate_outlines = true; // TODO: move to configs
+		// empiric correction for both lma and non-lma step
+	  	double corr_nonlma = 1.23;
+	  	double corr_lma =    1.23;
+		// reference scene is always added to tghe end, even is out of timestamp order
+		int      indx_ref = scenes.length - 1; // Always added to the end even if out-of order
+		QuadCLT  ref_scene = scenes[indx_ref]; // ordered by increasing timestamps
+		boolean generate_outlines = false; // true; // TODO: move to configs
 		System.out.println("intersceneExport(), scene timestamp="+ref_scene.getImageName());
 		int num_scenes = scenes.length;
 		String [] combo_dsn_titles = {"disp", "strength","disp_lma","num_valid","change"};
@@ -3998,8 +4002,8 @@ public class OpticalFlow {
 		int combo_dsn_indx_valid =    3; // initial only
 		int combo_dsn_indx_change =   4; // increment
 		
-		final double min_disp_change = clt_parameters.rig.mll_min_disp_change; // 0.001; // stop re-measure when difference is below
-		final int max_refines =       clt_parameters.rig.mll_max_refines;
+		double min_disp_change = clt_parameters.rig.mll_min_disp_change_pre; // 0.001; // stop re-measure when difference is below
+		final int max_refines =       clt_parameters.rig.mll_max_refines_lma + clt_parameters.rig.mll_max_refines_pre;
 		
 		final int [] iter_indices = {
 				combo_dsn_indx_disp,
@@ -4025,6 +4029,7 @@ public class OpticalFlow {
 		final int tilesX = ref_scene.getTileProcessor().getTilesX();
 		final int tilesY = ref_scene.getTileProcessor().getTilesY();
 		final int tiles = tilesX * tilesY;
+		// uses 2 GB - change format
 		if (generate_outlines) { // debug_level > 100) { // add parameter?
 			int        extra = 10; // pixels around largest outline
 			int        scale = 4;
@@ -4090,13 +4095,41 @@ public class OpticalFlow {
 			}
 		}
 		double [] target_disparity = combo_dsn_change[combo_dsn_indx_disp].clone();
+		double [] target_disparity_orig = target_disparity.clone(); // will just use NaN/not NaN to restore tasks before second pass with LMA
 		double [][] combo_dsn_final = new double [combo_dsn_titles.length][combo_dsn[0].length];
 		combo_dsn_final[0]= combo_dsn[0].clone();
 		for (int i = 1; i < combo_dsn_final.length; i++) {
 			Arrays.fill(combo_dsn_final[i], Double.NaN);
 		}
+		// Save pair selection and minimize them for scanning, then restore;
+		int num_sensors =scenes[indx_ref].getNumSensors();
+		int save_pairs_selection = clt_parameters.img_dtt.getMcorr(num_sensors);
+		clt_parameters.img_dtt.setMcorr(num_sensors, 0 ); // remove all
+		clt_parameters.img_dtt.setMcorrNeib(num_sensors,true);
+		clt_parameters.img_dtt.setMcorrSq  (num_sensors,true); // remove even more?
+		clt_parameters.img_dtt.setMcorrDia (num_sensors,true); // remove even more?
+		boolean save_run_lma = clt_parameters.correlate_lma;
+		clt_parameters.correlate_lma = false;
+		
 		for (int nrefine = 0; nrefine < max_refines; nrefine++) {
-			int mcorr_sel = Correlation2d.corrSelEncode(clt_parameters.img_dtt,scenes[indx_ref].getNumSensors());
+			if (nrefine == clt_parameters.rig.mll_max_refines_pre) {
+				min_disp_change = clt_parameters.rig.mll_min_disp_change_lma;				
+				clt_parameters.img_dtt.setMcorr(num_sensors, save_pairs_selection); // restore
+				clt_parameters.correlate_lma = save_run_lma; // restore
+				for (int nt = 0; nt < target_disparity.length; nt++) if (Double.isNaN(target_disparity[nt])){
+					if (!Double.isNaN(target_disparity_orig[nt])) {
+						target_disparity[nt] = combo_dsn_change[combo_dsn_indx_disp][nt];
+					}
+				}
+				if (debug_level > -2) {
+					int num_tomeas = 0;
+					for (int nt = 0; nt < target_disparity.length; nt++) if (!Double.isNaN(target_disparity[nt])){
+						num_tomeas++;
+					}
+					System.out.println ("nrefine pass = "+nrefine+", remaining "+num_tomeas+" tiles to re-measure");
+				}
+			}
+			int mcorr_sel = Correlation2d.corrSelEncode(clt_parameters.img_dtt,num_sensors);
 			double [][] disparity_map = 
 					correlateInterscene(
 							clt_parameters, // final CLTParameters  clt_parameters,
@@ -4111,7 +4144,7 @@ public class OpticalFlow {
 							false,          // final boolean        no_map, // do not generate disparity_map (time-consuming LMA)
 							debug_level-8);   // final int            debug_level)
 			
-			if (debug_level > 0) {
+			if (debug_level > -3) {
 				(new ShowDoubleFloatArrays()).showArrays(
 						disparity_map,
 						tilesX,
@@ -4133,9 +4166,9 @@ public class OpticalFlow {
 //					if ((map_disparity_lma != null) || !Double.isNaN(map_disparity[nTile])) { // remeasured
 					if (!Double.isNaN(map_disparity[nTile])) { // remeasured
 						if ((map_disparity_lma != null) && !Double.isNaN(map_disparity_lma[nTile])) {
-							combo_dsn_change[combo_dsn_indx_change][nTile] = map_disparity_lma[nTile];
+							combo_dsn_change[combo_dsn_indx_change][nTile] = map_disparity_lma[nTile] * corr_nonlma;
 						} else if (!Double.isNaN(map_disparity[nTile])) {
-							combo_dsn_change[combo_dsn_indx_change][nTile] = map_disparity[nTile] / clt_parameters.ofp.magic_scale;
+							combo_dsn_change[combo_dsn_indx_change][nTile] = map_disparity[nTile] / clt_parameters.ofp.magic_scale * corr_lma;
 						}
 						if (!Double.isNaN(combo_dsn_change[combo_dsn_indx_change][nTile])) {
 							combo_dsn_change[combo_dsn_indx_disp][nTile] +=     combo_dsn_change[combo_dsn_indx_change][nTile]; 
@@ -4192,6 +4225,8 @@ public class OpticalFlow {
 				break;
 			}
 		}
+		
+// Do above twice: with 40 pairs, no-lma and then with all pairs+LMA
 		
 		if (debug_level > 1) {
 			(new ShowDoubleFloatArrays()).showArrays(

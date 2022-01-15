@@ -208,6 +208,17 @@ public class ErsCorrection extends GeometryCorrection {
 	private double [][]  ers_atr;           // azimuth-tilt-roll per scan line
 	private double [][]  ers_atr_dt;        // angular velocities per scan line. It is now actually 2*omega!
 	
+
+	/*
+	static final double ERS_MIN_DISPARITY = 1.0E-6; // to avoid disparity == 0.0 in division
+	private double limitedReciprocal(double d) {
+		if (d >  ERS_MIN_DISPARITY) return 1/0/d;
+		if (d < -ERS_MIN_DISPARITY) return 1/0/d;
+		if (d > 0) return 1.0/ERS_MIN_DISPARITY;
+		return -1.0/ERS_MIN_DISPARITY;
+	}
+	*/
+	
 	public void setPose(
 			double []    camera_xyz,
 			double []    camera_atr) {
@@ -948,7 +959,8 @@ public class ErsCorrection extends GeometryCorrection {
 				return null;
 			}
 			if (xyzw[2] > 0) {
-				return null; // can not match object behind the camera
+				xyzw[2] = xyzw[2];
+///				return null; // can not match object behind the camera
 			}
 			ErsCorrection ers_camera = this;
 			if (cameraQuadCLT != null) {
@@ -1028,30 +1040,43 @@ public class ErsCorrection extends GeometryCorrection {
 		// camera orientation during pixel acquisition :
 		Quaternion qpix = ers_quaternion[line];
 		Rotation cam_orient_now_local = new Rotation(qpix.getQ0(), qpix.getQ1(), qpix.getQ2(),qpix.getQ3(), true); // boolean needsNormalization)
-		boolean is_infinity = Math.abs(disparity) < THRESHOLD; // Maybe all negative - too?
-		if (!is_infinity) {
+///		boolean is_infinity = Math.abs(disparity) < THRESHOLD; // Maybe all negative - too?
+///		if (!is_infinity) {
+		if (Math.abs(disparity) >= THRESHOLD) {
 			for (int i = 0; i < 3; i++) {
 				xyz[i] /= disparity;
+			}
+		} else {
+			if (disparity >= 0) {
+				for (int i = 0; i < 3; i++) {
+					xyz[i] /= THRESHOLD;
+				}
+			} else {
+				for (int i = 0; i < 3; i++) {
+					xyz[i] /= -THRESHOLD;
+				}
 			}
 		}
 		Vector3D v3= new Vector3D(xyz);
 		// convert to frame parallel to the camera during center line
 		Vector3D cam_center_now_local = cam_orient_now_local.applyInverseTo(v3);
 		// get real world xyz relative to the camera acquiring a center line
-		Vector3D cam_center_local = (is_infinity) ? cam_center_now_local :  cam_center_now_local.add(cam_now_local); // skip translation for infinity
+///		Vector3D cam_center_local = (is_infinity) ? cam_center_now_local :  cam_center_now_local.add(cam_now_local); // skip translation for infinity
+		Vector3D cam_center_local = cam_center_now_local.add(cam_now_local); // skip translation for infinity
 		// undo camera rotation during acquisition of the center line. 
 		Vector3D cam_center_world = cam_orient_center.applyInverseTo(cam_center_local);
 		// convert to the real world coordinates
-		world_xyz =   (is_infinity) ? cam_center_world : cam_center_world.add(new Vector3D(camera_xyz));
+///		world_xyz =   (is_infinity) ? cam_center_world : cam_center_world.add(new Vector3D(camera_xyz));
+		world_xyz =   cam_center_world.add(new Vector3D(camera_xyz));
 		double [] wxyz = world_xyz.toArray();
 		double [] wxyz4 = {wxyz[0],wxyz[1],wxyz[2], 1.0};
 		if (Double.isNaN(wxyz4[0])) {
 			wxyz4[0] = Double.NaN;
 		}
 
-		if (is_infinity) {
-			wxyz4[3] = 0.0;
-		}
+///		if (is_infinity) {
+///			wxyz4[3] = 0.0;
+///		}
 		return wxyz4;
 	}
 	
@@ -1994,13 +2019,26 @@ public class ErsCorrection extends GeometryCorrection {
 			double [] camera_atr,  // camera orientation relative to world frame
 			double    line_err) // threshold error in scan lines (1.0)
 	{
-		boolean is_infinity = xyzw[3] == 0;
+///		boolean is_infinity = xyzw[3] == 0;
+		double rxyzw3 = 0.0; //  = 1.0/xyzw[3]
+		if (Math.abs(xyzw[3]) >= THRESHOLD) {
+			rxyzw3 =  1.0/xyzw[3];
+		} else if (xyzw[3] > 0.0) {
+			rxyzw3 =  1.0/THRESHOLD;
+		} else {
+			rxyzw3 =  -1.0/THRESHOLD;
+		}
 		Vector3D world_xyz = new Vector3D(xyzw[0],xyzw[1],xyzw[2]);
+		world_xyz.scalarMultiply(rxyzw3);
+		/*
 		if (!is_infinity) {
 			world_xyz.scalarMultiply(1.0/xyzw[3]);
 		}
+		*/
 		// convert to camera-centered, world-parallel coordinates 
-		Vector3D cam_center_world = (is_infinity) ? world_xyz : world_xyz.subtract(new Vector3D(camera_xyz));
+///		Vector3D cam_center_world = (is_infinity) ? world_xyz : world_xyz.subtract(new Vector3D(camera_xyz));
+		Vector3D cam_center_world = world_xyz.subtract(new Vector3D(camera_xyz));
+		
 		// rotate to match camera coordinates when scanning the center line
 		Rotation   cam_orient_center= new Rotation(RotationOrder.YXZ, ROT_CONV, camera_atr[0],camera_atr[1],camera_atr[2]);
 		Vector3D cam_center_local = cam_orient_center.applyTo(cam_center_world);
@@ -2020,19 +2058,32 @@ public class ErsCorrection extends GeometryCorrection {
 			Vector3D cam_now_local1 = new Vector3D(ers_xyz[iline1]);
 			Vector3D cam_now_local = cam_now_local0.scalarMultiply(1.0 - fline).add(fline,cam_now_local1); 
 			
-			Vector3D cam_center_now_local = (is_infinity) ? cam_center_local :  cam_center_local.subtract(cam_now_local); // skip translation for infinity
+///			Vector3D cam_center_now_local = (is_infinity) ? cam_center_local :  cam_center_local.subtract(cam_now_local); // skip translation for infinity
+			Vector3D cam_center_now_local = cam_center_local.subtract(cam_now_local); // skip translation for infinity
 			Quaternion qpix0 = ers_quaternion[iline0];
 			Quaternion qpix1 = ers_quaternion[iline1];
 			Quaternion qpix= (qpix0.multiply(1.0-fline)).add(qpix1.multiply(fline));
 			Rotation cam_orient_now_local = new Rotation(qpix.getQ0(), qpix.getQ1(), qpix.getQ2(),qpix.getQ3(), true); // boolean 			
 			Vector3D v3 = cam_orient_now_local.applyTo(cam_center_now_local);
+			
 			double [] xyz = v3.toArray();
-			if (Math.abs(xyz[2]) < THRESHOLD) {
-				return null; // object too close to the lens
+///			if (Math.abs(xyz[2]) < THRESHOLD) {
+///				return null; // object too close to the lens
+///			}
+			double recip_disp; // = xyz[2];
+			if (Math.abs(xyz[2]) >= THRESHOLD) {
+				recip_disp = 1.0/xyz[2];
+				// object too close to the lens (positive or negative)				
+			} else if (xyz[2] > 0) {
+				recip_disp = 1.0/THRESHOLD;
+			} else {
+				recip_disp = -1.0/THRESHOLD;
 			}
-			double pXc =       -(1000.0*focalLength / pixelSize) * xyz[0] / xyz[2];
-			double pYc =        (1000.0*focalLength / pixelSize) * xyz[1] / xyz[2];
-			double disparity = is_infinity ? 0.0 : (-(1000.0*focalLength / pixelSize) / xyz[2] * SCENE_UNITS_SCALE * disparityRadius);
+			double pXc =       -(1000.0*focalLength / pixelSize) * xyz[0] * recip_disp; // / xyz[2];
+			double pYc =        (1000.0*focalLength / pixelSize) * xyz[1] * recip_disp; // / xyz[2];
+//			double disparity = is_infinity ? 0.0 : (-(1000.0*focalLength / pixelSize) / xyz[2] * SCENE_UNITS_SCALE * disparityRadius);
+			double disparity = -(1000.0*focalLength / pixelSize) * recip_disp * SCENE_UNITS_SCALE * disparityRadius;
+			
 			double rND = Math.sqrt(pXc*pXc + pYc*pYc)*0.001*this.pixelSize; // mm
 
 			double rD2RND = correctDistortions?getRDistByR(rND/this.distortionRadius):1.0;

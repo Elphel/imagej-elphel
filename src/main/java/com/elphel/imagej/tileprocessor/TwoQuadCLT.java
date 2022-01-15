@@ -9036,9 +9036,13 @@ if (debugLevel > -100) return true; // temporarily !
 			return;
 		}
 		QuadCLT.SetChannels [] set_channels=quadCLT_main.setChannels(debugLevel); // TODO: use just the last one (to need this is no time)
+		if (indx_ref < 00) {
+			indx_ref = set_channels.length + indx_ref; // count from the last
+		}
 		
-		QuadCLT ref_quadCLT = quadCLT_main.spawnQuadCLT(
-				set_channels[set_channels.length-1].set_name,
+		QuadCLT ref_quadCLT = quadCLT_main.spawnQuadCLT( // gets all relative poses (98)
+//				set_channels[set_channels.length-1].set_name,
+				set_channels[indx_ref].set_name,
 				clt_parameters,
 				colorProcParameters, //
 				threadsMax,
@@ -9051,9 +9055,6 @@ if (debugLevel > -100) return true; // temporarily !
 				threadsMax,     // int            threadsMax,  // maximal number of threads to launch
 				updateStatus,   // boolean        updateStatus,
 				clt_parameters.inp.noise_debug_level); // debugLevel);    // int            debugLevel)
-	
-//		if (debugLevel > -1000) return; // TODO: Remove
-		
 		
 		OpticalFlow opticalFlow = new OpticalFlow(
 				quadCLT_main.getNumSensors(),
@@ -9061,15 +9062,15 @@ if (debugLevel > -100) return true; // temporarily !
 				threadsMax,                                // int            threadsMax,  // maximal number of threads to launch
 				updateStatus);
 		ErsCorrection ers_reference = ref_quadCLT.getErsCorrection();
-		String [] sts = ref_only ? (new String [0]) : ers_reference.getScenes();
+		String [] sts = ref_only ? (new String [0]) : ers_reference.getScenes(); // others, referenced by reference
 		// get list of all other scenes
-		int num_scenes = sts.length + 1;
+		int num_scenes = sts.length + 1; // including reference
 //		int indx_ref = num_scenes - 1;
-		if (indx_ref < 0) {
-			indx_ref = num_scenes - 1;
-		}
+//		if (indx_ref < 0) {
+//			indx_ref = num_scenes - 1;
+//		}
 		QuadCLT [] scenes = new QuadCLT [num_scenes];
-		scenes[indx_ref] = ref_quadCLT;
+		scenes[scenes.length - 1] = ref_quadCLT; // always added to the end, even if out of order
 
 		for (int i = 0; i < sts.length; i++) {
 			scenes[i] = ref_quadCLT.spawnQuadCLT( // spawnQuadCLT(
@@ -9084,13 +9085,12 @@ if (debugLevel > -100) return true; // temporarily !
 					updateStatus,   // boolean        updateStatus,
 					-1); // debug_level);    // int            debugLevel)
 		}
+		// Does not need to specify reference scene - it is always the last even if out of timestamp order
 		opticalFlow.intersceneExport(
 				clt_parameters,            // CLTParameters       clt_parameters,
 				ers_reference,             // ErsCorrection        ers_reference,
 				scenes,                    // QuadCLT []           scenes,
-				indx_ref, // int                  indx_ref,
 				colorProcParameters,       // ColorProcParameters colorProcParameters,
-				ref_quadCLT, // QuadCLT              ref_scene, // ordered by increasing timestamps
 				clt_parameters.inp.noise_debug_level // clt_parameters.ofp.debug_level_optical - 1); // 1); // -1); // int debug_level);
 				);
 
@@ -11994,6 +11994,22 @@ if (debugLevel > -100) return true; // temporarily !
 		if (quadCLT_main.correctionsParameters.clt_batch_ml_last_aux) {
 			interIntraExportML(quadCLT_aux,    // QuadCLT quadCLT_main,
 					-1, // use last // int  indx_ref,     // = num_scenes - 1; 
+					clt_parameters,            // EyesisCorrectionParameters.DCTParameters dct_parameters,
+					debayerParameters,         // EyesisCorrectionParameters.DebayerParameters debayerParameters,
+					colorProcParameters_aux,   // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+					channelGainParameters,     // CorrectionColorProc.ColorGainsParameters channelGainParameters,
+					rgbParameters,             // EyesisCorrectionParameters.RGBParameters rgbParameters,
+					equirectangularParameters, // EyesisCorrectionParameters.EquirectangularParameters
+											   // equirectangularParameters,
+					properties,                // Properties properties,
+					threadsMax,                // final int threadsMax, // maximal number of threads to launch
+					updateStatus,              // final boolean updateStatus,
+					debugLevel);
+		}
+		if (quadCLT_main.correctionsParameters.clt_batch_ml_all_aux) {
+			int ref_index = 50; // temporarily, will make evently distributed
+			interIntraExportML(quadCLT_aux,    // QuadCLT quadCLT_main,
+					ref_index,                 // TODO: Make with some strp from latest, matching clt_batch_pose_scene_aux
 					clt_parameters,            // EyesisCorrectionParameters.DCTParameters dct_parameters,
 					debayerParameters,         // EyesisCorrectionParameters.DebayerParameters debayerParameters,
 					colorProcParameters_aux,   // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
