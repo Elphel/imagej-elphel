@@ -170,12 +170,16 @@ public class EyesisCorrectionParameters {
   		public boolean clt_batch_pose_pairs_main = false;  // calculate pair-wise camera poses
   		public boolean clt_batch_pose_last_main =  false;  // calculate camera poses realtive to the last scene
   		public boolean clt_batch_pose_scene_main = false;  // calculate camera poses relative to all other ones
+  		public int     clt_batch_offset_main =     0;      // when selecting multiple reference scene, offset from the last one
+  		public int     clt_batch_step_main   =     3;      // step (decreasing timestamp) to select reference frames in a sequence
   		public boolean clt_batch_ml_last_main =    false;  // export ML files for the last (reference scene)
   		public boolean clt_batch_ml_all_main =     false;  // export ML files for all available reference scenes
   		
   		public boolean clt_batch_pose_pairs_aux =  false;  // calculate pair-wise camera poses
   		public boolean clt_batch_pose_last_aux =   false;  // calculate camera poses realtive to the last scene
   		public boolean clt_batch_pose_scene_aux =  false;  // calculate camera poses relative to all other ones
+  		public int     clt_batch_offset_aux =      0;      // when selecting multiple reference scene, offset from the last one
+  		public int     clt_batch_step_aux   =     10;      // step (decreasing timestamp) to select reference frames in a sequence
   		public boolean clt_batch_ml_last_aux =     false;  // export ML files for the last (reference scene)
   		public boolean clt_batch_ml_all_aux =      false;  // export ML files for all available reference scenes
 
@@ -325,6 +329,10 @@ public class EyesisCorrectionParameters {
   			cp.clt_batch_pose_pairs_main=    this.clt_batch_pose_pairs_main;
   			cp.clt_batch_pose_last_main=     this.clt_batch_pose_last_main;
   			cp.clt_batch_pose_scene_main=    this.clt_batch_pose_scene_main;
+  			
+  			cp.clt_batch_offset_main=        this.clt_batch_offset_main;
+  			cp.clt_batch_step_main=          this.clt_batch_step_main;
+  			
   			cp.clt_batch_ml_last_main=       this.clt_batch_ml_last_main;
   			cp.clt_batch_ml_all_main=        this.clt_batch_ml_all_main;
   			
@@ -332,6 +340,8 @@ public class EyesisCorrectionParameters {
   			cp.clt_batch_pose_pairs_aux=    this.clt_batch_pose_pairs_aux;
   			cp.clt_batch_pose_last_aux=     this.clt_batch_pose_last_aux;
   			cp.clt_batch_pose_scene_aux=    this.clt_batch_pose_scene_aux;
+  			cp.clt_batch_offset_aux=        this.clt_batch_offset_aux;
+  			cp.clt_batch_step_aux=          this.clt_batch_step_aux;
   			cp.clt_batch_ml_last_aux=       this.clt_batch_ml_last_aux;
   			cp.clt_batch_ml_all_aux=        this.clt_batch_ml_all_aux;
 
@@ -520,12 +530,18 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"clt_batch_pose_pairs_main",      this.clt_batch_pose_pairs_main+"");
     		properties.setProperty(prefix+"clt_batch_pose_last_main",       this.clt_batch_pose_last_main+"");
     		properties.setProperty(prefix+"clt_batch_pose_scene_main",      this.clt_batch_pose_scene_main+"");
+    		
+    		properties.setProperty(prefix+"clt_batch_offset_main",          this.clt_batch_offset_main+"");
+    		properties.setProperty(prefix+"clt_batch_step_main",            this.clt_batch_step_main+"");
+    		
     		properties.setProperty(prefix+"clt_batch_ml_last_main",         this.clt_batch_ml_last_main+"");
     		properties.setProperty(prefix+"clt_batch_ml_all_main",          this.clt_batch_ml_all_main+"");
     		
     		properties.setProperty(prefix+"clt_batch_pose_pairs_aux",      this.clt_batch_pose_pairs_aux+"");
     		properties.setProperty(prefix+"clt_batch_pose_last_aux",       this.clt_batch_pose_last_aux+"");
     		properties.setProperty(prefix+"clt_batch_pose_scene_aux",      this.clt_batch_pose_scene_aux+"");
+    		properties.setProperty(prefix+"clt_batch_offset_aux",          this.clt_batch_offset_aux+"");
+    		properties.setProperty(prefix+"clt_batch_step_aux",            this.clt_batch_step_aux+"");
     		properties.setProperty(prefix+"clt_batch_ml_last_aux",         this.clt_batch_ml_last_aux+"");
     		properties.setProperty(prefix+"clt_batch_ml_all_aux",          this.clt_batch_ml_all_aux+"");
 
@@ -693,12 +709,16 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"clt_batch_pose_pairs_main")!= null) this.clt_batch_pose_pairs_main=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_pose_pairs_main"));
 			if (properties.getProperty(prefix+"clt_batch_pose_last_main")!= null)  this.clt_batch_pose_last_main=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_pose_last_main"));
 			if (properties.getProperty(prefix+"clt_batch_pose_scene_main")!= null) this.clt_batch_pose_scene_main=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_pose_scene_main"));
+  		    if (properties.getProperty(prefix+"clt_batch_offset_main")!=null)      this.clt_batch_offset_main=Integer.parseInt(properties.getProperty(prefix+"clt_batch_offset_main"));
+  		    if (properties.getProperty(prefix+"clt_batch_step_main")!=null)        this.clt_batch_step_main=Integer.parseInt(properties.getProperty(prefix+"clt_batch_step_main"));
 			if (properties.getProperty(prefix+"clt_batch_ml_last_main")!= null)    this.clt_batch_ml_last_main=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_ml_last_main"));
 			if (properties.getProperty(prefix+"clt_batch_ml_all_main")!= null)     this.clt_batch_ml_all_main=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_ml_all_main"));
 			
 			if (properties.getProperty(prefix+"clt_batch_pose_pairs_aux")!= null)  this.clt_batch_pose_pairs_aux=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_pose_pairs_aux"));
 			if (properties.getProperty(prefix+"clt_batch_pose_last_aux")!= null)   this.clt_batch_pose_last_aux=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_pose_last_aux"));
 			if (properties.getProperty(prefix+"clt_batch_pose_scene_aux")!= null)  this.clt_batch_pose_scene_aux=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_pose_scene_aux"));
+  		    if (properties.getProperty(prefix+"clt_batch_offset_aux")!=null)       this.clt_batch_offset_aux=Integer.parseInt(properties.getProperty(prefix+"clt_batch_offset_aux"));
+  		    if (properties.getProperty(prefix+"clt_batch_step_aux")!=null)         this.clt_batch_step_aux=Integer.parseInt(properties.getProperty(prefix+"clt_batch_step_aux"));
 			if (properties.getProperty(prefix+"clt_batch_ml_last_aux")!= null)     this.clt_batch_ml_last_aux=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_ml_last_aux"));
 			if (properties.getProperty(prefix+"clt_batch_ml_all_aux")!= null)      this.clt_batch_ml_all_aux=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_ml_all_aux"));
 			
@@ -1086,6 +1106,7 @@ public class EyesisCorrectionParameters {
 			gd.addMessage     ("============ LWIR16 processing ============");
     		gd.addCheckbox    ("Skip scenes processing",                                               this.clt_batch_skip_scenes,
     				"Skip all per-scene processing, go directly to processing sequences");
+    		
 			gd.addMessage     ("============ RGB cameras ============");
     		gd.addCheckbox    ("RGB: Calculate pair-wise camera poses",                                 this.clt_batch_pose_pairs_main,
     				"RGB: Relative poses are calculated for pairs of consecututive scenes. Requires DSI for each scene");
@@ -1093,6 +1114,13 @@ public class EyesisCorrectionParameters {
     				"RGB: Relative camera poses to the reference (last) scene");
     		gd.addCheckbox    ("RGB: Scene poses relative to others",                                   this.clt_batch_pose_scene_main,
     				"RGB: Camera poses relative to all other scenes in the series, not just relative to the latest (not yet implemented)");
+
+  			gd.addNumericField("RGB: Offset latest reference scene",                                    this.clt_batch_offset_main,   0, 3, "scenes",
+  					"When selecting multiple reference scenes for ML files generation, offset from the last scene in the series");
+  			gd.addNumericField("RGB: Step between reference scenes",                                    this.clt_batch_step_main,   0, 3, "scenes",
+  					"When selecting multiple reference scenes for ML files generation, step between scenes");
+    		
+    		
     		gd.addCheckbox    ("RGB: Generate ML files for the last scene",                             this.clt_batch_ml_last_main,
     				"RGB: Generate ML output files for the last scene, requres 'Scene poses relative to the last'");
     		gd.addCheckbox    ("RGB: Generate ML files for each scene",                                 this.clt_batch_ml_all_main,
@@ -1105,6 +1133,12 @@ public class EyesisCorrectionParameters {
     				"LWIR: Relative camera poses to the reference (last) scene");
     		gd.addCheckbox    ("LWIR: Scene poses relative to others",                                   this.clt_batch_pose_scene_aux,
     				"LWIR: Camera poses relative to all other scenes in the series, not just relative to the latest (not yet implemented)");
+
+  			gd.addNumericField("LWIR: Offset latest reference scene",                                    this.clt_batch_offset_aux,   0, 3, "scenes",
+  					"When selecting multiple reference scenes for ML files generation, offset from the last scene in the series");
+  			gd.addNumericField("LWIR: Step between reference scenes",                                    this.clt_batch_step_aux,   0, 3, "scenes",
+  					"When selecting multiple reference scenes for ML files generation, step between scenes");
+    		
     		gd.addCheckbox    ("LWIR: Generate ML files for the last scene",                             this.clt_batch_ml_last_aux,
     				"LWIR: Generate ML output files for the last scene, requres 'Scene poses relative to the last'");
     		gd.addCheckbox    ("LWIR: Generate ML files for each scene",                                 this.clt_batch_ml_all_aux,
@@ -1200,12 +1234,16 @@ public class EyesisCorrectionParameters {
     		this.clt_batch_pose_pairs_main=   gd.getNextBoolean();
     		this.clt_batch_pose_last_main=    gd.getNextBoolean();
     		this.clt_batch_pose_scene_main=   gd.getNextBoolean();
+    		this.clt_batch_offset_main= (int) gd.getNextNumber();
+    		this.clt_batch_step_main =  (int) gd.getNextNumber();
     		this.clt_batch_ml_last_main=      gd.getNextBoolean();
     		this.clt_batch_ml_all_main=       gd.getNextBoolean();
 
     		this.clt_batch_pose_pairs_aux=   gd.getNextBoolean();
     		this.clt_batch_pose_last_aux=    gd.getNextBoolean();
     		this.clt_batch_pose_scene_aux=   gd.getNextBoolean();
+    		this.clt_batch_offset_aux= (int) gd.getNextNumber();
+    		this.clt_batch_step_aux =  (int) gd.getNextNumber();
     		this.clt_batch_ml_last_aux=      gd.getNextBoolean();
     		this.clt_batch_ml_all_aux=       gd.getNextBoolean();
     		

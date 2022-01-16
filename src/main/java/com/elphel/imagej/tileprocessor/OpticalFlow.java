@@ -32,6 +32,9 @@ import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.DoubleAccumulator;
+
+import org.apache.commons.math3.complex.Quaternion;
+
 import java.util.concurrent.ThreadLocalRandom;
 
 import com.elphel.imagej.cameras.CLTParameters;
@@ -3054,7 +3057,7 @@ public class OpticalFlow {
 		            debug_level+1);
 		}		
 	}
-
+/*
 	public void adjustSeries(
 			CLTParameters  clt_parameters,			
 			double k_prev, 
@@ -3090,26 +3093,6 @@ public class OpticalFlow {
 
 			double [] new_from_last_xyz = ers_scene_last_known.getSceneXYZ(scene_ts);
 			double [] new_from_last_atr = ers_scene_last_known.getSceneATR(scene_ts);
-			
-			/*			
-			double [][] last_from_new =     ErsCorrection.invertXYZATR(new_from_last_xyz, new_from_last_atr);
-			double [][] vfy_new_from_last = ErsCorrection.invertXYZATR(last_from_new[0], last_from_new[1]);
-			System.out.println(new_from_last_xyz[0]+","+new_from_last_xyz[1]+","+new_from_last_xyz[2]+","+
-					new_from_last_atr[0]+","+new_from_last_atr[1]+","+new_from_last_atr[2]);
-			System.out.println(last_from_new[0][0]+","+last_from_new[0][1]+","+last_from_new[0][2]+","+
-					last_from_new[1][0]+","+last_from_new[1][1]+","+last_from_new[1][2]);
-			System.out.println(vfy_new_from_last[0][0]+","+vfy_new_from_last[0][1]+","+vfy_new_from_last[0][2]+","+
-					vfy_new_from_last[1][0]+","+vfy_new_from_last[1][1]+","+vfy_new_from_last[1][2]);
-			double [][] last_from_new1 =     ErsCorrection.invertXYZATR(vfy_new_from_last[0],vfy_new_from_last[1]);
-			double [][] vfy_new_from_last1 = ErsCorrection.invertXYZATR(last_from_new1[0], last_from_new1[1]);
-
-			System.out.println(last_from_new1[0][0]+","+last_from_new1[0][1]+","+last_from_new1[0][2]+","+
-					last_from_new1[1][0]+","+last_from_new1[1][1]+","+last_from_new1[1][2]);
-			System.out.println(vfy_new_from_last1[0][0]+","+vfy_new_from_last1[0][1]+","+vfy_new_from_last1[0][2]+","+
-					vfy_new_from_last1[1][0]+","+vfy_new_from_last1[1][1]+","+vfy_new_from_last1[1][2]);
-			*/
-			
-			
 			
 			// combine two rotations and two translations 
 			System.out.println("Processing scene "+i+": "+scene_QuadClt.getImageName());
@@ -3187,7 +3170,7 @@ public class OpticalFlow {
 			System.out.println("adjustSeries() Done.");
 		}
 	}
-
+*/
 	public void adjustSeries(
 			CLTParameters  clt_parameters,			
 			double         k_prev, 
@@ -3196,13 +3179,16 @@ public class OpticalFlow {
 			int            debug_level
 			)
 	{
+		if (ref_index < 0) {
+			ref_index += scenes.length;
+		}
 		double [][][] scenes_xyzatr = new double [scenes.length][][]; // previous scene relative to the next one
 		QuadCLT reference_QuadClt = scenes[ref_index]; // scenes.length-1]; // last acquired
 		ErsCorrection ers_reference = reference_QuadClt.getErsCorrection();
 		// modify LMA parameters to freeze reference ERS, remove pull on scene ERS
 		boolean[]   param_select2 =     clt_parameters.ilp.ilma_lma_select.clone();             // final boolean[]   param_select,
 		double []   param_regweights2 = clt_parameters.ilp.ilma_regularization_weights; //  final double []   param_regweights,
-		boolean delete_scene_asap = (debug_level < 10); // to save memory
+		boolean delete_scene_asap = false; //  (debug_level < 10); // to save memory
 		// freeze reference ERS, free scene ERS
 		for (int j = 0; j <3; j++) {
 			param_select2[ErsCorrection.DP_DVX  + j] = false;
@@ -3344,7 +3330,7 @@ public class OpticalFlow {
 		reference_QuadClt.saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
 	            null, // String path,             // full name with extension or w/o path to use x3d directory
 	            debug_level+1);
-		if (!delete_scene_asap && (debug_level > -1)) {
+		if (!delete_scene_asap && (debug_level > 1000)) { // Null pointer at compareRefSceneTiles ->ers_scene.setupERS();-> Quaternion quat_center1 = ...
 			System.out.println("adjustSeries(): preparing image set...");
 			int nscenes = scenes.length;
 			int indx_ref = nscenes - 1; 
@@ -3987,8 +3973,8 @@ public class OpticalFlow {
 			)
 	{
 		// empiric correction for both lma and non-lma step
-	  	double corr_nonlma = 1.23;
-	  	double corr_lma =    1.23;
+	  	double corr_nonlma = 1.0; // 1.23;
+	  	double corr_lma =    1.0; // 1.23;
 		// reference scene is always added to tghe end, even is out of timestamp order
 		int      indx_ref = scenes.length - 1; // Always added to the end even if out-of order
 		QuadCLT  ref_scene = scenes[indx_ref]; // ordered by increasing timestamps
@@ -4110,7 +4096,16 @@ public class OpticalFlow {
 		clt_parameters.img_dtt.setMcorrDia (num_sensors,true); // remove even more?
 		boolean save_run_lma = clt_parameters.correlate_lma;
 		clt_parameters.correlate_lma = false;
-		
+		double []  disp_err =     new double [combo_dsn[0].length];  // last time measure disparity error from correlation (scaled for CM)
+		double []  corr_scale =   new double [combo_dsn[0].length];  // applied correction scale
+		boolean [] was_lma =      new boolean [combo_dsn[0].length]; // previous measurement used LMA (not to match LMA/non-LMA measurements)
+		Arrays.fill(disp_err, Double.NaN);
+		Arrays.fill(corr_scale, 1.0);
+		double min_scale = 0.75, max_scale = 1.5; // reset correction scale to 1.0 if calculated is too big/small (jumping FG/BG)
+		double [][] dbg_corr_scale = null;
+		if (debug_level > 0) {
+			dbg_corr_scale = new double[max_refines][];
+		}		
 		for (int nrefine = 0; nrefine < max_refines; nrefine++) {
 			if (nrefine == clt_parameters.rig.mll_max_refines_pre) {
 				min_disp_change = clt_parameters.rig.mll_min_disp_change_lma;				
@@ -4144,7 +4139,7 @@ public class OpticalFlow {
 							false,          // final boolean        no_map, // do not generate disparity_map (time-consuming LMA)
 							debug_level-8);   // final int            debug_level)
 			
-			if (debug_level > -3) {
+			if (debug_level > 0) { //-3) {
 				(new ShowDoubleFloatArrays()).showArrays(
 						disparity_map,
 						tilesX,
@@ -4162,16 +4157,31 @@ public class OpticalFlow {
 			Arrays.fill(target_disparity, Double.NaN);
 			for (int nTile =0; nTile < combo_dsn_change[0].length; nTile++) {
 				if (defined_tiles[nTile]) { // originally defined, maybe not measured last time
-//					if (!Double.isNaN(combo_dsn_change[combo_dsn_indx_disp][nTile])) { // remeasured
-//					if ((map_disparity_lma != null) || !Double.isNaN(map_disparity[nTile])) { // remeasured
-					if (!Double.isNaN(map_disparity[nTile])) { // remeasured
-						if ((map_disparity_lma != null) && !Double.isNaN(map_disparity_lma[nTile])) {
+					if (!Double.isNaN(map_disparity[nTile])) { // re-measured
+						boolean is_lma = (map_disparity_lma != null) && !Double.isNaN(map_disparity_lma[nTile]);
+						if (is_lma) {
 							combo_dsn_change[combo_dsn_indx_change][nTile] = map_disparity_lma[nTile] * corr_nonlma;
 						} else if (!Double.isNaN(map_disparity[nTile])) {
 							combo_dsn_change[combo_dsn_indx_change][nTile] = map_disparity[nTile] / clt_parameters.ofp.magic_scale * corr_lma;
 						}
 						if (!Double.isNaN(combo_dsn_change[combo_dsn_indx_change][nTile])) {
-							combo_dsn_change[combo_dsn_indx_disp][nTile] +=     combo_dsn_change[combo_dsn_indx_change][nTile]; 
+//							corr_scale[nTile] = 1.0; // use default scale for the error to calculate new target disparity
+							// will keep previous new_corr_scale value when no previous data or switching non-LMA/LMA. Should be initialized to 1.0 
+							if (!Double.isNaN(disp_err[nTile]) && (is_lma == was_lma[nTile])) {
+								// current target_disparity: combo_dsn_change[combo_dsn_indx_disp][nTile]
+								double this_target_disparity = combo_dsn_change[combo_dsn_indx_disp][nTile];
+								double previous_target_disparity = this_target_disparity - corr_scale[nTile] * disp_err[nTile];
+								double prev_disp_err = disp_err[nTile];
+								double this_disp_err = combo_dsn_change[combo_dsn_indx_change][nTile];
+								double new_corr_scale = (previous_target_disparity - this_target_disparity) / (this_disp_err - prev_disp_err);
+								if ((new_corr_scale <= max_scale) && (new_corr_scale >= min_scale)) {
+									corr_scale[nTile] = new_corr_scale;
+								}
+							}
+							
+							combo_dsn_change[combo_dsn_indx_disp][nTile] +=     combo_dsn_change[combo_dsn_indx_change][nTile] * corr_scale[nTile];
+							was_lma[nTile] = is_lma;
+							
 							combo_dsn_change[combo_dsn_indx_strength][nTile]  = map_strength[nTile]; // combine CM/LMA
 
 							combo_dsn_final[combo_dsn_indx_disp][nTile] =    combo_dsn_change[combo_dsn_indx_disp][nTile];
@@ -4183,18 +4193,33 @@ public class OpticalFlow {
 							combo_dsn_final[combo_dsn_indx_valid][nTile] = combo_dsn[combo_dsn_indx_valid][nTile]; // not much sense
 							combo_dsn_final[combo_dsn_indx_change][nTile] = combo_dsn_change[combo_dsn_indx_change][nTile];
 						}
+						disp_err[nTile] = combo_dsn_change[combo_dsn_indx_change][nTile];
+						
 						if (Math.abs(combo_dsn_change[combo_dsn_indx_change][nTile]) >= min_disp_change) {
-							target_disparity[nTile] = combo_dsn_change[combo_dsn_indx_disp][nTile];
+							target_disparity[nTile] = combo_dsn_change[combo_dsn_indx_disp][nTile] ;
 							num_tomeas ++;
 						} else {
 							num_tomeas+=0;
 						}
+						
 					} else { // originally defined, but not re-measured
 						num_tomeas+=0;
 					}
 					
 				}
 			}
+			if (dbg_corr_scale != null) {
+				dbg_corr_scale[nrefine] = corr_scale.clone();
+			}
+			/*
+			System.arraycopy(combo_dsn_change[combo_dsn_indx_change],   0, prev_diff, 0, combo_dsn_change[combo_dsn_indx_change].length); // lma
+			System.arraycopy(combo_dsn_change[combo_dsn_indx_strength], 0, prev_strength, 0, combo_dsn_change[combo_dsn_indx_change].length); // lma
+			if (map_disparity_lma != null) {
+				for (int nTile =0; nTile < prev_lma.length; nTile++) {
+					prev_lma[nTile] =  !Double.isNaN(map_disparity_lma[nTile]);
+				}
+			}
+			*/
 			// Copy disparity to disparity_lma and just mask out  tiles with no LMA data (keep all if LMA did not run at all)  
 			System.arraycopy(combo_dsn_change[combo_dsn_indx_disp], 0, combo_dsn_change[combo_dsn_indx_lma], 0, combo_dsn_change[combo_dsn_indx_disp].length); // lma
 			if (map_disparity_lma != null) { 
@@ -4224,8 +4249,17 @@ public class OpticalFlow {
 			if (num_tomeas == 0) {
 				break;
 			}
+			
 		}
-		
+		if (dbg_corr_scale != null) {
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_corr_scale,
+					tilesX,
+					tilesY,
+					true,
+					"Correction scales"
+					);
+		}
 // Do above twice: with 40 pairs, no-lma and then with all pairs+LMA
 		
 		if (debug_level > 1) {

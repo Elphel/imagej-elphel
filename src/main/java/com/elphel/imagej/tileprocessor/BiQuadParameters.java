@@ -250,10 +250,10 @@ public class BiQuadParameters {
 // calculating GT	
 
 	
-	public double  mll_min_disp_change_pre =   0.01; // stop re-measure when difference is below
-	public int     mll_max_refines_pre =      10;
-	public double  mll_min_disp_change_lma =   0.001; // stop re-measure when difference is below
-	public int     mll_max_refines_lma =       5;
+	public double  mll_min_disp_change_pre =   0.03; // stop re-measure when difference is below, no-LMA, 40 pairs
+	public int     mll_max_refines_pre =       5;
+	public double  mll_min_disp_change_lma =   0.003; // stop re-measure when difference is below, LMA, 120 pairs
+	public int     mll_max_refines_lma =       4;
 	public boolean mll_generate_scene_outlines = false; // Uses 2 GB - change format, add dimensions (separate color for ref)
 	
 // Exporting ML files	

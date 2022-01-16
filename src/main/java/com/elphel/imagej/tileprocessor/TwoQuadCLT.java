@@ -8394,6 +8394,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 	}
 
+	/*
 	public void interSeriesLMA(
 			QuadCLT                                              quadCLT_main, // tiles should be set
 			CLTParameters             clt_parameters,
@@ -8457,10 +8458,12 @@ if (debugLevel > -100) return true; // temporarily !
 				clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
 		System.out.println("End of interSeriesLMA()");
 	}
+	*/
 	
 	public void interSeriesLMA(
 			QuadCLT                                              quadCLT_main, // tiles should be set
-			int                                                  ref_index,
+			int                                                  ref_index, // -1 - last
+			int                                                  ref_step, 
 			CLTParameters             clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
 			ColorProcParameters                                  colorProcParameters,
@@ -8504,22 +8507,29 @@ if (debugLevel > -100) return true; // temporarily !
 					updateStatus,   // boolean        updateStatus,
 					debugLevel);    // int            debugLevel)
 		}
+		if (ref_index < 0) {
+			ref_index += quadCLTs.length;
+		}
 		
-		
-		OpticalFlow opticalFlow = new OpticalFlow(
-				quadCLT_main.getNumSensors(),
-				clt_parameters.ofp.scale_no_lma_disparity, // double         scale_no_lma_disparity,
-				threadsMax,                                // int            threadsMax,  // maximal number of threads to launch
-				updateStatus);                             // boolean        updateStatus);
-		
-		opticalFlow.adjustSeries(
-				clt_parameters, // CLTParameters  clt_parameters,			
-				clt_parameters.ofp.k_prev, // k_prev,\
-				// FIXME: *********** update adjustSeries to use QUADCLTCPU ! **********								
-//				(QuadCLT []) 
-				quadCLTs, // QuadCLT [] scenes, // ordered by increasing timestamps
-				ref_index, // int            ref_index,
-				clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
+		for (int ri = ref_index; ri >= 0; ri -= ref_step) {
+			OpticalFlow opticalFlow = new OpticalFlow(
+					quadCLT_main.getNumSensors(),
+					clt_parameters.ofp.scale_no_lma_disparity, // double         scale_no_lma_disparity,
+					threadsMax,                                // int            threadsMax,  // maximal number of threads to launch
+					updateStatus);                             // boolean        updateStatus);
+
+			opticalFlow.adjustSeries(
+					clt_parameters, // CLTParameters  clt_parameters,			
+					clt_parameters.ofp.k_prev, // k_prev,\
+					// FIXME: *********** update adjustSeries to use QUADCLTCPU ! **********								
+					//				(QuadCLT []) 
+					quadCLTs, // QuadCLT [] scenes, // ordered by increasing timestamps
+					ri, // ref_index, // int            ref_index,
+					clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
+			if (ref_step <= 0) {
+				break;
+			}
+		}
 		System.out.println("End of interSeriesLMA()");
 	}
 
@@ -9008,7 +9018,8 @@ if (debugLevel > -100) return true; // temporarily !
 
 	public void interIntraExportML(
 			QuadCLT                                              quadCLT_main, // tiles should be set
-			int                                                  indx_ref,     // = num_scenes - 1; 
+			int                                                  ref_index,     // = num_scenes - 1;
+			int                                                  ref_step, 
 			CLTParameters                                        clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
 			ColorProcParameters                                  colorProcParameters,
@@ -9036,64 +9047,64 @@ if (debugLevel > -100) return true; // temporarily !
 			return;
 		}
 		QuadCLT.SetChannels [] set_channels=quadCLT_main.setChannels(debugLevel); // TODO: use just the last one (to need this is no time)
-		if (indx_ref < 00) {
-			indx_ref = set_channels.length + indx_ref; // count from the last
+		if (ref_index < 0) {
+			ref_index = set_channels.length + ref_index; // count from the last
 		}
 		
-		QuadCLT ref_quadCLT = quadCLT_main.spawnQuadCLT( // gets all relative poses (98)
-//				set_channels[set_channels.length-1].set_name,
-				set_channels[indx_ref].set_name,
-				clt_parameters,
-				colorProcParameters, //
-				threadsMax,
-				clt_parameters.inp.noise_debug_level); // debugLevel);
-		
-		// temporarily fix wrong sign:
-//		ErsCorrection ers = (ErsCorrection) (ref_quadCLT.getGeometryCorrection());
-		ref_quadCLT.setDSRBG( // runs GPU to calculate average R,B,G
-				clt_parameters, // CLTParameters  clt_parameters,
-				threadsMax,     // int            threadsMax,  // maximal number of threads to launch
-				updateStatus,   // boolean        updateStatus,
-				clt_parameters.inp.noise_debug_level); // debugLevel);    // int            debugLevel)
-		
-		OpticalFlow opticalFlow = new OpticalFlow(
-				quadCLT_main.getNumSensors(),
-				clt_parameters.ofp.scale_no_lma_disparity, // double         scale_no_lma_disparity,
-				threadsMax,                                // int            threadsMax,  // maximal number of threads to launch
-				updateStatus);
-		ErsCorrection ers_reference = ref_quadCLT.getErsCorrection();
-		String [] sts = ref_only ? (new String [0]) : ers_reference.getScenes(); // others, referenced by reference
-		// get list of all other scenes
-		int num_scenes = sts.length + 1; // including reference
-//		int indx_ref = num_scenes - 1;
-//		if (indx_ref < 0) {
-//			indx_ref = num_scenes - 1;
-//		}
-		QuadCLT [] scenes = new QuadCLT [num_scenes];
-		scenes[scenes.length - 1] = ref_quadCLT; // always added to the end, even if out of order
-
-		for (int i = 0; i < sts.length; i++) {
-			scenes[i] = ref_quadCLT.spawnQuadCLT( // spawnQuadCLT(
-					sts[i],
+		for (int indx_ref = ref_index; indx_ref >= 0; indx_ref -= ref_step) {
+			QuadCLT ref_quadCLT = quadCLT_main.spawnQuadCLT( // gets all relative poses (98)
+					set_channels[indx_ref].set_name,
 					clt_parameters,
 					colorProcParameters, //
 					threadsMax,
-					-1); // debug_level);
-			scenes[i].setDSRBG(
+					clt_parameters.inp.noise_debug_level); // debugLevel);
+
+			// temporarily fix wrong sign:
+			//		ErsCorrection ers = (ErsCorrection) (ref_quadCLT.getGeometryCorrection());
+			ref_quadCLT.setDSRBG( // runs GPU to calculate average R,B,G
 					clt_parameters, // CLTParameters  clt_parameters,
 					threadsMax,     // int            threadsMax,  // maximal number of threads to launch
 					updateStatus,   // boolean        updateStatus,
-					-1); // debug_level);    // int            debugLevel)
-		}
-		// Does not need to specify reference scene - it is always the last even if out of timestamp order
-		opticalFlow.intersceneExport(
-				clt_parameters,            // CLTParameters       clt_parameters,
-				ers_reference,             // ErsCorrection        ers_reference,
-				scenes,                    // QuadCLT []           scenes,
-				colorProcParameters,       // ColorProcParameters colorProcParameters,
-				clt_parameters.inp.noise_debug_level // clt_parameters.ofp.debug_level_optical - 1); // 1); // -1); // int debug_level);
-				);
+					clt_parameters.inp.noise_debug_level); // debugLevel);    // int            debugLevel)
 
+			OpticalFlow opticalFlow = new OpticalFlow(
+					quadCLT_main.getNumSensors(),
+					clt_parameters.ofp.scale_no_lma_disparity, // double         scale_no_lma_disparity,
+					threadsMax,                                // int            threadsMax,  // maximal number of threads to launch
+					updateStatus);
+			ErsCorrection ers_reference = ref_quadCLT.getErsCorrection();
+			String [] sts = ref_only ? (new String [0]) : ers_reference.getScenes(); // others, referenced by reference
+			// get list of all other scenes
+			int num_scenes = sts.length + 1; // including reference
+			//		int indx_ref = num_scenes - 1;
+			//		if (indx_ref < 0) {
+			//			indx_ref = num_scenes - 1;
+			//		}
+			QuadCLT [] scenes = new QuadCLT [num_scenes];
+			scenes[scenes.length - 1] = ref_quadCLT; // always added to the end, even if out of order
+
+			for (int i = 0; i < sts.length; i++) {
+				scenes[i] = ref_quadCLT.spawnQuadCLT( // spawnQuadCLT(
+						sts[i],
+						clt_parameters,
+						colorProcParameters, //
+						threadsMax,
+						-1); // debug_level);
+				scenes[i].setDSRBG(
+						clt_parameters, // CLTParameters  clt_parameters,
+						threadsMax,     // int            threadsMax,  // maximal number of threads to launch
+						updateStatus,   // boolean        updateStatus,
+						-1); // debug_level);    // int            debugLevel)
+			}
+			// Does not need to specify reference scene - it is always the last even if out of timestamp order
+			opticalFlow.intersceneExport(
+					clt_parameters,            // CLTParameters       clt_parameters,
+					ers_reference,             // ErsCorrection        ers_reference,
+					scenes,                    // QuadCLT []           scenes,
+					colorProcParameters,       // ColorProcParameters colorProcParameters,
+					clt_parameters.inp.noise_debug_level // clt_parameters.ofp.debug_level_optical - 1); // 1); // -1); // int debug_level);
+					);
+		}
 		System.out.println("End of interIntraExportML()");
 	}
 	
@@ -11887,6 +11898,8 @@ if (debugLevel > -100) return true; // temporarily !
 		
 		if (quadCLT_main.correctionsParameters.clt_batch_pose_last_main) {
 			interSeriesLMA(quadCLT_main,       // QUAD_CLT, // QuadCLT quadCLT_main,
+					-1,                        // int    ref_index,
+					0,  // int  ref_step, 
 					clt_parameters,            // EyesisCorrectionParameters.DCTParameters dct_parameters,
 					debayerParameters,         // EyesisCorrectionParameters.DebayerParameters debayerParameters,
 					colorProcParameters,       // COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters
@@ -11903,9 +11916,11 @@ if (debugLevel > -100) return true; // temporarily !
 		}
 		
 		if (quadCLT_main.correctionsParameters.clt_batch_pose_scene_main) {
-			int ref_index = 50; // temporarily, will make evently distributed
+			int ref_index_start = -quadCLT_main.correctionsParameters.clt_batch_offset_main -1; // 0 means last (pass -1 to interSeriesLMA())
+			int ref_index_step =  quadCLT_main.correctionsParameters.clt_batch_step_main;
 			interSeriesLMA(quadCLT_main,       // QUAD_CLT, // QuadCLT quadCLT_main,
-					ref_index,                 // int    ref_index,
+					ref_index_start,           // int    ref_index,
+					ref_index_step,            // int  ref_step, 
 					clt_parameters,            // EyesisCorrectionParameters.DCTParameters dct_parameters,
 					debayerParameters,         // EyesisCorrectionParameters.DebayerParameters debayerParameters,
 					colorProcParameters,       // COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters
@@ -11925,6 +11940,7 @@ if (debugLevel > -100) return true; // temporarily !
 		if (quadCLT_main.correctionsParameters.clt_batch_ml_last_main) {
 			interIntraExportML(quadCLT_main,   // QuadCLT quadCLT_main,
 					-1, // use last // int  indx_ref,     // = num_scenes - 1; 
+					0, // int                                                  ref_step, 
 					clt_parameters,            // EyesisCorrectionParameters.DCTParameters dct_parameters,
 					debayerParameters,         // EyesisCorrectionParameters.DebayerParameters debayerParameters,
 					colorProcParameters,       // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
@@ -11937,6 +11953,26 @@ if (debugLevel > -100) return true; // temporarily !
 					updateStatus,              // final boolean updateStatus,
 					debugLevel);
 		}
+		
+		if (quadCLT_main.correctionsParameters.clt_batch_ml_all_main) {
+			int ref_index_start = -quadCLT_main.correctionsParameters.clt_batch_offset_main -1; // 0 means last (pass -1 to interSeriesLMA())
+			int ref_index_step =  quadCLT_main.correctionsParameters.clt_batch_step_main;
+			interIntraExportML(quadCLT_main,   // QuadCLT quadCLT_main,
+					ref_index_start,           // int    ref_index,
+					ref_index_step,            // int  ref_step, 
+					clt_parameters,            // EyesisCorrectionParameters.DCTParameters dct_parameters,
+					debayerParameters,         // EyesisCorrectionParameters.DebayerParameters debayerParameters,
+					colorProcParameters,       // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+					channelGainParameters,     // CorrectionColorProc.ColorGainsParameters channelGainParameters,
+					rgbParameters,             // EyesisCorrectionParameters.RGBParameters rgbParameters,
+					equirectangularParameters, // EyesisCorrectionParameters.EquirectangularParameters
+											   // equirectangularParameters,
+					properties,                // Properties properties,
+					threadsMax,                // final int threadsMax, // maximal number of threads to launch
+					updateStatus,              // final boolean updateStatus,
+					debugLevel);
+		}
+		
 
 		if (quadCLT_main.correctionsParameters.clt_batch_pose_pairs_aux) {
 			TestInterLMA(quadCLT_aux,          // QUAD_CLT, // QuadCLT quadCLT_main,
@@ -11957,6 +11993,8 @@ if (debugLevel > -100) return true; // temporarily !
 
 		if (quadCLT_main.correctionsParameters.clt_batch_pose_last_aux) {
 			interSeriesLMA(quadCLT_aux,        // QUAD_CLT, // QuadCLT quadCLT_main,
+					-1,                        // int  ref_index,
+					0,  // int  ref_step, 
 					clt_parameters,            // EyesisCorrectionParameters.DCTParameters dct_parameters,
 					debayerParameters,         // EyesisCorrectionParameters.DebayerParameters debayerParameters,
 					colorProcParameters_aux,   // COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters
@@ -11973,9 +12011,11 @@ if (debugLevel > -100) return true; // temporarily !
 		}		
 		
 		if (quadCLT_main.correctionsParameters.clt_batch_pose_scene_aux) {
-			int ref_index = 50; // temporarily, will make evently distributed
+			int ref_index_start = -quadCLT_main.correctionsParameters.clt_batch_offset_aux -1; // 0 means last (pass -1 to interSeriesLMA())
+			int ref_index_step =  quadCLT_main.correctionsParameters.clt_batch_step_aux;
 			interSeriesLMA(quadCLT_aux,        // QUAD_CLT, // QuadCLT quadCLT_main,
-					ref_index,                 // int    ref_index,
+					ref_index_start,           // int    ref_index,
+					ref_index_step,            // int  ref_step, 
 					clt_parameters,            // EyesisCorrectionParameters.DCTParameters dct_parameters,
 					debayerParameters,         // EyesisCorrectionParameters.DebayerParameters debayerParameters,
 					colorProcParameters_aux,   // COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters
@@ -11994,6 +12034,7 @@ if (debugLevel > -100) return true; // temporarily !
 		if (quadCLT_main.correctionsParameters.clt_batch_ml_last_aux) {
 			interIntraExportML(quadCLT_aux,    // QuadCLT quadCLT_main,
 					-1, // use last // int  indx_ref,     // = num_scenes - 1; 
+					0, // int                                                  ref_step, 
 					clt_parameters,            // EyesisCorrectionParameters.DCTParameters dct_parameters,
 					debayerParameters,         // EyesisCorrectionParameters.DebayerParameters debayerParameters,
 					colorProcParameters_aux,   // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
@@ -12007,9 +12048,11 @@ if (debugLevel > -100) return true; // temporarily !
 					debugLevel);
 		}
 		if (quadCLT_main.correctionsParameters.clt_batch_ml_all_aux) {
-			int ref_index = 50; // temporarily, will make evently distributed
+			int ref_index_start = -quadCLT_main.correctionsParameters.clt_batch_offset_aux -1; // 0 means last (pass -1 to interSeriesLMA())
+			int ref_index_step =  quadCLT_main.correctionsParameters.clt_batch_step_aux;
 			interIntraExportML(quadCLT_aux,    // QuadCLT quadCLT_main,
-					ref_index,                 // TODO: Make with some strp from latest, matching clt_batch_pose_scene_aux
+					ref_index_start,           // int    ref_index,
+					ref_index_step,            // int  ref_step, 
 					clt_parameters,            // EyesisCorrectionParameters.DCTParameters dct_parameters,
 					debayerParameters,         // EyesisCorrectionParameters.DebayerParameters debayerParameters,
 					colorProcParameters_aux,   // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
@@ -12022,18 +12065,6 @@ if (debugLevel > -100) return true; // temporarily !
 					updateStatus,              // final boolean updateStatus,
 					debugLevel);
 		}
-		/*
-		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) { //TODO:  is it needed here? WAs not needed before - verify
-			quadCLT_main.getGPU().resetGeometryCorrection();
-			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
-			quadCLT_main.resetBayer();
-		}
-		if ((quadCLT_aux != null) && (quadCLT_aux.getGPU() != null)) {
-			quadCLT_aux.getGPU().resetGeometryCorrection();
-			quadCLT_aux.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
-			quadCLT_aux.resetBayer();
-		}
-		*/
 
 		System.out.println("batchLwirRig(): processing "+(num_main + num_aux)+" files ("+set_channels.length+" file sets) finished at "+
 				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
