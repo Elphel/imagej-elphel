@@ -38,7 +38,8 @@
             <dependency>
                 <groupId>net.imagej</groupId>
                 <artifactId>ij</artifactId>
-                <version>1.52e</version>
+<!--                <version>1.52e</version> -->
+                <version>1.53j</version>
             </dependency>
             <dependency>
                 <groupId>org.jcuda</groupId>
@@ -264,7 +265,7 @@
 		</repository>
 		<repository>
 			<id>elphel.imagej-elphel</id>
-			<url>https://github.com/Elphel/imagej-elphel</url>
+			<url>https://git.elphel.com/Elphel/imagej-elphel</url>
 		</repository>
 		<repository>
 			<id>other</id>

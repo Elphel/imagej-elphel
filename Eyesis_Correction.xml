@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<!-- Copy this file to ~/.imagej  . If that directory does not exist it will be created after first launch. This will enable all start buttons in menu -->
+<properties>
+<comment>last updated Thu Sep 08 14:09:47 MDT 2016</comment>
+<entry key="ADVANCED_MODE">True</entry>
+<entry key="DCT_MODE">True</entry>
+<entry key="MODE_3D">False</entry>
+<entry key="GPU_MODE">True</entry>
+<entry key="LWIR_MODE">True</entry>
+</properties>

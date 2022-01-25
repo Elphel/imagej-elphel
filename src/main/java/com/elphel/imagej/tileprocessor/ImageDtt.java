@@ -2499,7 +2499,7 @@ public class ImageDtt extends ImageDttCPU {
 								}
 							}
 							// get CM disparity/strength
-							double [] disp_str = {0.0, 0.0}; // diaprity = 0 will be initial approximation for LMA if no averaging
+							double [] disp_str = {0.0, 0.0}; // dispaprity = 0 will be initial approximation for LMA if no averaging
 							if (combine_corrs) {
 								double [] corr_combo_tile = correlation2d.accumulateInit(); // combine all available pairs
 								double sumw = 0.0;
