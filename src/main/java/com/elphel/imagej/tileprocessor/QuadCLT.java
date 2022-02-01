@@ -3892,6 +3892,7 @@ public class QuadCLT extends QuadCLTCPU {
 		  TpTask[] tp_tasks =  gpuQuad.setInterTasks(
 				  false, // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
 				  pXpYD,              // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+				  null,          // final boolean []          selection, // may be null, if not null do not  process unselected tiles
 				  geometryCorrection, // final GeometryCorrection  geometryCorrection,
 				  disparity_corr,     // final double              disparity_corr,
 				  margin,             // final int                 margin,      // do not use tiles if their centers are closer to the edges

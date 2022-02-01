@@ -107,6 +107,8 @@ public class Corr2dLMA {
 	private double []         values;
 
 	// next values are only updated after success
+	private int iter =        0; // to be able to read number of used iterations 
+
 	private double []         last_rms =        null; // {rms, rms_pure}, matching this.vector
 	private double []         good_or_bad_rms = null; // just for diagnostics, to read last (failed) rms
 	private double []         initial_rms =     null; // {rms, rms_pure}, first-calcualted rms
@@ -153,6 +155,11 @@ public class Corr2dLMA {
 
     public int                bad_tile=-1;   // bad tile - exponent got infinite, remove the tile and start over again
                                              // happens in gaussian mode with the convex area around wrong maximum
+    public int getNumIter() {
+    	return iter;
+    }
+//	private int iter =        0; // to be able to read number of used iterations 
+
 
 	public class Sample{ // USED in lwir
 		int    tile;   // tile in a cluster
@@ -207,33 +214,13 @@ public class Corr2dLMA {
 		this.gaussian_mode = gaussian_mode;
 		this.used_cams_map  =  new int[num_cams];
 		
-		
-		/*
-		this.pindx =           new int [num_cams][num_cams];
-		for (int f = 0; f < num_cams; f++) {
-			pindx[f][f]=-1;
-			for (int s = f+1; s < num_cams; s++) {
-				pindx[f][s] = getPairIndex(f,s);
-				pindx[s][f] = pindx[f][s];
-			}
-		}
-		*/
-		
-		
 		this.numTiles = numTiles;
 		ddisp_index = this.numTiles * this.tile_params; // ;
 		ndisp_index =  ddisp_index + num_cams;  // disparity offset per camera - none should be disable
 		num_all_pars = ndisp_index+ num_cams; // maximal number of parameters
-
-//		boolean sq = true; // false;
 		this.transform_size = ts;
 	    this.corr_wnd = corr_wnd;
 	}
-/*
-	public static double [][] getCorrWnd(int transform_size){
-		return getCorrWnd(transform_size, true);// false);
-	}
-*/
 	public static double [][] getCorrWnd(int transform_size, double pwr){ // sq = false
 //		double pwr = 1.3;
 		double [][] corr_wnd = new double[2 * transform_size - 1][2 * transform_size - 1];
@@ -264,32 +251,13 @@ public class Corr2dLMA {
 		}
 		return corr_wnd;
 	}
-
-//	public double[][] getCorrWnd() {
-//		return this.corr_wnd;
-//	}
-/*
-	public void addSample( // x = 0, y=0 - center
-			int    tile,
-			int    fcam,   // first  camera index
-			int    scam,   // second camera index
-			int    x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
-			int    y,      // y coordinate (0 - disparity axis)
-			double v,      // correlation value at that point
-			double w) {    // sample weight
-		if ((w > 0) && !Double.isNaN(v)) samples.add(new Sample(tile,fcam,scam,x,y,v,w));
-	}
-*/
 	public void addSample( // x = 0, y=0 - center
 			int    tile,
 			int    pair,
-//			int    fcam,   // first  camera index
-//			int    scam,   // second camera index
 			int    x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
 			int    y,      // y coordinate (0 - disparity axis)
 			double v,      // correlation value at that point
 			double w) {    // sample weight
-//		if ((w > 0) && !Double.isNaN(v)) samples.add(new Sample(tile,fcam,scam,x,y,v,w));
 		if ((w > 0) && !Double.isNaN(v)) samples.add(new Sample(tile,pair,x,y,v,w));
 	}
 	
@@ -307,7 +275,7 @@ public class Corr2dLMA {
 		return samples;
 	}
 
-	// maybe in the future - just remove a pad pair?
+	// maybe in the future - just remove a bad pair?
 	private void removeBadTile(
 			int ntile,
 			int fcam,   // not yet used, maybe try removing just a pair, not all tile?
@@ -338,9 +306,6 @@ public class Corr2dLMA {
 	}
 
 	public double [][][] dbgGetSamples(double [][] ds, int mode){
-//		int [][] comb_map = getCombMap();
-//		int numPairs = comb_map[0][0];
-//		comb_map[0][0] = -1;
 		int numPairs = getNumAllTilesUsedPairs();
 		int size = 2* transform_size -1;
 		int size2 = size*size;
@@ -366,8 +331,6 @@ public class Corr2dLMA {
 			if      (mode == 0) d = s.v;
 			else if (mode == 1) d = s.w;
 			else if (mode == 2) d = fx[ns];
-//			int np = comb_map[s.fcam][s.scam]; ////////////////////
-//			int np = s.pair; ////////////////////
 			int inp = used_pairs_map[s.tile][s.pair];
 			rslt[s.tile][inp][s.iy*size + s.ix] = d;
 		}
@@ -378,7 +341,6 @@ public class Corr2dLMA {
 	public String [] dbgGetSliceTitles() {
 		int [] comb_map = getCombMap();
 		int np = getNumAllTilesUsedPairs(); // comb_map[0][0];
-//		comb_map[0][0] = -1;
 		String [] srslt = new String [np];
 		for (int npair = 0; npair < comb_map.length; npair++) {
 			if (comb_map[npair] >= 0) {
@@ -389,27 +351,6 @@ public class Corr2dLMA {
 		return srslt;
 	}
 	
-	/*
-	@Deprecated
-	public int [][] getCombMap(){
-		boolean [][]  comb_pairs = new boolean[num_cams][num_cams];
-
-		for (int t = 0; t < numTiles; t++) {
-			for (int f = 0; f < num_cams; f++) for (int s = 0; s < num_cams; s++) {
-				comb_pairs[f][s] |= used_pairs_map[t][f][s] >= 0;
-			}
-		}
-		int np = 0;
-		int [][] comb_map = new int [num_cams][num_cams];
-		for (int f = 0; f < num_cams; f++) for (int s = 0; s < num_cams; s++) {
-			if  (comb_pairs[f][s]) comb_map[f][s] = np++;
-			else comb_map[f][s] = -1;
-		}
-		comb_map[0][0] = np;
-		return comb_map;
-
-	}
-   */
 	public int [] getCombMap(){
 		int []comb_map = new int [num_pairs];
 		Arrays.fill(comb_map, -1);
@@ -625,8 +566,6 @@ public class Corr2dLMA {
 			boolean adjust_lazyeye_par,   // adjust disparity corrections parallel to disparities                    lma_adjust_wxy
 			boolean adjust_lazyeye_ortho, // obsolete - make == adjust_lazyeye_par adjust disparity corrections orthogonal to disparities                  lma_adjust_ly1
 			double [][] disp_str,         // initial value of disparity
-//			double [][] ly_offsets_pairs, // common for all tiles: initial per sensor x,y LY offsets (or null)  
-//			double [][] ly_offsets_pairs, // common for all tiles: initial per pair x,y LY offsets (or null)  
 			double  half_width,           // A=1/(half_widh)^2                                                       lma_half_width
 			double  cost_lazyeye_par,     // cost for each of the non-zero disparity corrections                     lma_cost_wy
 			double  cost_lazyeye_odtho    // cost for each of the non-zero ortho disparity corrections               lma_cost_wxy
@@ -634,18 +573,13 @@ public class Corr2dLMA {
 		adjust_lazyeye_ortho = adjust_lazyeye_par; // simplify relations for the calculated/dependent parameters
 		lazy_eye = adjust_lazyeye_par | adjust_lazyeye_ortho;
 		bad_tile = -1;
-//		used_pairs_map = new int [numTiles][num_cams][num_cams];
 		used_cameras = new boolean[num_cams];
 		boolean [][] used_pairs = new boolean[numTiles][num_pairs];
 		// 0-weight values and NaN-s should be filtered on input!
-//		for (int t = 0; t < numTiles; t++) for (int f = 0; f < num_cams; f++) for (int s = 0; s < num_cams; s++) {
-//			used_pairs_map[t][f][s] = -1;
-//		}
 		used_pairs_map = new int [numTiles][num_pairs];
 		for (int t = 0; t < numTiles; t++) {
 			Arrays.fill(used_pairs_map[t], -1);
 		}
-//		boolean [][][] used_pairs_dir = new boolean [numTiles][num_cams][num_cams];
 		used_tiles = new boolean[numTiles];
 		for (Sample s:samples) { // ignore zero-weight samples
 			int pair = s.pair;
@@ -654,8 +588,6 @@ public class Corr2dLMA {
 			used_cameras[fscam[1]]=true;
 			used_tiles[s.tile] = true;
 			used_pairs[s.tile][pair]=true; // throws < 0 - wrong pair, f==s
-//			used_pairs_dir[s.tile][s.fcam][s.scam] = true;
-//			used_pairs_dir[s.tile][fscam[0]][fscam[1]] = true;
 		}
 		ncam_used = 0;
 		npairs =new int [numTiles];  // pairs in each tile
@@ -686,22 +618,8 @@ public class Corr2dLMA {
 				upmam[i] = npairs[nTile];
 				if (used_pairs[nTile][i])  npairs[nTile]++;
 			}
-			/*
-			for (int f = 0; f < num_cams; f++) {
-				for (int s = f+1; s < num_cams; s++) {
-					int npair = upmam[pindx[f][s]];
-					if      (used_pairs_dir[nTile][f][s]) used_pairs_map[nTile][f][s] = npair;  // either or, can not be f,s and s,f pairs
-					else if (used_pairs_dir[nTile][s][f]) used_pairs_map[nTile][s][f] = npair;
-				}
-			}
-			*/
 			for (int pair = 0; pair < num_pairs; pair++) {
 				int npair = upmam[pair];
-//				int [] fs = correlation2d.getPair(pair);
-//				if      (used_pairs_dir[nTile][fs[0]][fs[1]]) used_pairs_map[nTile][fs[0]][fs[1]] = npair;  // either or, can not be f,s and s,f pairs
-//				else if (used_pairs_dir[nTile][fs[1]][fs[0]]) used_pairs_map[nTile][fs[1]][fs[0]] = npair;
-//				if      (used_pairs_dir[nTile][fs[0]][fs[1]]) used_pairs_map[nTile][pair] = npair;  // either or, can not be f,s and s,f pairs
-//				else if (used_pairs_dir[nTile][fs[1]][fs[0]]) used_pairs_map[nTile][pair] = npair;
 				if      (used_pairs[nTile][pair]) used_pairs_map[nTile][pair] = npair;
 			}
 		}
@@ -752,7 +670,6 @@ public class Corr2dLMA {
 			total_weight += s.w;
 			values[i] =  s.v;
 			sw += weights[i];
-//			int indx = G0_INDEX + pindx[s.fcam][s.scam] + s.tile * tile_params;
 			int indx = G0_INDEX + s.pair + s.tile * tile_params;
 			double d = s.v;
 			if (this.corr_wnd !=null) {
@@ -794,14 +711,11 @@ public class Corr2dLMA {
 
 
 	public void initMatrices() { // should be called after initVector and after setMatrices
-//		m_pairs = new Matrix[used_pairs_map.length][num_cams][num_cams];
-//		m_pairs_inv = new Matrix[used_pairs_map.length][num_cams][num_cams];
 		m_pairs = new Matrix[used_pairs_map.length][num_pairs];
 		m_pairs_inv = new Matrix[used_pairs_map.length][num_pairs];
 		for (int nTile = 0; nTile < used_pairs_map.length; nTile++) if (used_tiles[nTile]){
 			for (int npair = 0; npair < num_pairs; npair++) {
 				int [] fs = correlation2d.getPair(npair); // TODO: change used_pairs_map?
-//				if (used_pairs_map[nTile][fs[0]][fs[1]] >= 0) {
 				if (used_pairs_map[nTile][npair] >= 0) {
 					m_pairs[nTile][npair] =     m_disp[nTile][fs[0]].minus(m_disp[nTile][fs[1]]);
 					m_pairs_inv[nTile][npair] = m_pairs[nTile][npair].inverse();
@@ -812,13 +726,11 @@ public class Corr2dLMA {
 
 
 	public void initInvertMatrices() { // should be called after initMatrices only if m_pairs_inv are needed
-//		m_pairs_inv = new Matrix[used_pairs_map.length][num_cams][num_cams];
 		m_pairs_inv = new Matrix[used_pairs_map.length][num_pairs];
 
 		for (int nTile = 0; nTile < used_pairs_map.length; nTile++)  if (used_tiles[nTile]){
 			for (int npair = 0; npair < num_pairs; npair++) {
 				int [] fs = correlation2d.getPair(npair); // TODO: change used_pairs_map?
-//				if (used_pairs_map[nTile][fs[0]][fs[1]] >= 0) {
 				if (used_pairs_map[nTile][npair] >= 0) {
 					m_pairs_inv[nTile][npair] = m_pairs[nTile][npair].inverse();
 				}
@@ -850,7 +762,6 @@ public class Corr2dLMA {
     		} else {
         		bv = s.v / corr_wnd[s.iy][s.ix];
     		}
-//    		bv /=this.all_pars[G0_INDEX + pindx[s.fcam][s.scam] + s.tile * tile_params];
     		bv /=this.all_pars[G0_INDEX + s.pair + s.tile * tile_params];
     		//corr_wnd
     		int indx = 2 * ns;
@@ -863,7 +774,6 @@ public class Corr2dLMA {
 
     	    double [] aXY = {s.ix - center, s.iy - center};
     	    Matrix mXY = new Matrix(aXY,2);
-//    	    Matrix mDDND = m_pairs_inv[s.tile][s.fcam][s.scam].times(mXY);
     	    Matrix mDDND = m_pairs_inv[s.tile][s.pair].times(mXY);
 
     	    mdata[indx  ][0][0] =  mDDND.get(0, 0); // dd
@@ -1532,9 +1442,9 @@ public class Corr2dLMA {
 		double [] BT = new double [numTiles]; // av[B_INDEX];
 		double [] CT = new double [numTiles]; // A + av[CMA_INDEX];
 		for (int nTile = 0; nTile < numTiles; nTile++)  if (used_tiles[nTile]){
-			for (int i = 0; i < num_cams; i++) if (used_cameras[i]) {
-				double [] add_dnd = {av[DISP_INDEX+ nTile * tile_params]+ av[ddisp_index + i],  av[ndisp_index + i]};
-				xcam_ycam[nTile][i] = m_disp[nTile][i].times(new Matrix(add_dnd,2));
+			for (int ncam = 0; ncam < num_cams; ncam++) if (used_cameras[ncam]) {
+				double [] add_dnd = {av[DISP_INDEX+ nTile * tile_params]+ av[ddisp_index + ncam],  av[ndisp_index + ncam]};
+				xcam_ycam[nTile][ncam] = m_disp[nTile][ncam].times(new Matrix(add_dnd,2));
 			}
 			for (int f = 0; f < num_cams; f++) if (used_cameras[f]) {
 				for (int s = 0; s < num_cams; s++) if (used_cameras[s]) {
@@ -1590,7 +1500,7 @@ public class Corr2dLMA {
 			if (s.tile > 0) {
 				System.out.print("");
 			}
-			if (jt != null) {
+			if (jt != null) { // Need derivatives too, no just Fx
 				if (par_map[DISP_INDEX + s.tile*tile_params] >= 0)  jt[par_map[DISP_INDEX + s.tile*tile_params]][ns] = 2 * WGpexp *
 						((A * xmxp + B * ymyp) * m_pairs[s.tile][s.pair].get(0, 0)+
 								(B * xmxp + C * ymyp) * m_pairs[s.tile][s.pair].get(1, 0));
@@ -1698,6 +1608,33 @@ public class Corr2dLMA {
 		return fx;
 	}
 
+	/**
+	 * Calculate each defined pair x,y expected offset, assuming only disparity, not lazy eye   
+	 * @param corrs - pairs 2D correlations (each in scanline order) - just to determine null/non-null
+	 * @param disparity - expected disparity (e.g. from CM)
+	 * @param disp_dist - per camera disparity matrix as a 1d (linescan order))
+	 * @return per pair x,y expected center offset in 2D correlations or nulls for undefined pairs (or null if already set)
+	 */
+	public double [][] getPairsOffsets(
+			double [][]       corrs,
+			boolean []        pair_mask,
+			double            disparity,
+			double [][]       disp_dist){ // 
+		double [][] xy_offsets = new double [corrs.length][];
+		if (disp_dist != null) {
+			setMatrices(disp_dist);
+		}
+		for (int pair = 0; pair < xy_offsets.length; pair++) if ((pair < correlation2d.getNumPairs()) && (corrs[pair] != null) && ((pair_mask == null) || pair_mask[pair])){ // OK to calculate for each
+ 			int [] fscam = correlation2d.getPair(pair); // returns [first_cam, second_cam]
+			Matrix mdd_dnd = new Matrix(new double[] {-disparity,  0.0},2);
+			Matrix xcam_ycam_f = m_disp[0][fscam[0]].times(mdd_dnd);
+			Matrix xcam_ycam_s = m_disp[0][fscam[1]].times(mdd_dnd);
+			xy_offsets[pair] = xcam_ycam_f.minus(xcam_ycam_s).getColumnPackedCopy();	
+		}
+		return xy_offsets;
+	}
+	
+	
 
 	public void printParams() { // not used in lwir
 		// to make sure it is updated
@@ -1872,7 +1809,6 @@ public class Corr2dLMA {
 
 	public void updateFromVector() { // USED in lwir
 		int np = 0;
-//		all_pars = fromVector(vector);//
 
 		for (int i = 0; i < par_mask.length; i++) if (par_mask[i]) all_pars[i] = vector[np++];
 		// just for reporting
@@ -1885,9 +1821,6 @@ public class Corr2dLMA {
 		}
 		Matrix m5 = new Matrix(a5,a5.length); // single column, normally 5 rows
 		Matrix m3 = mddnd.times(m5);
-//		all_pars[ddisp_index + used_cams_rmap[pre_last_cam]] = m3.get(0, 0);
-//		all_pars[ddisp_index + used_cams_rmap[last_cam]] =     m3.get(1, 0);
-//		all_pars[ndisp_index + used_cams_rmap[last_cam]] =     m3.get(2, 0);
 		all_pars[ddisp_index + pre_last_cam] = m3.get(0, 0);
 		all_pars[ddisp_index + last_cam] =     m3.get(1, 0);
 		all_pars[ndisp_index + last_cam] =     m3.get(2, 0);
@@ -1910,9 +1843,6 @@ public class Corr2dLMA {
 		}
 		Matrix m5 = new Matrix(a5,a5.length); // single column, normally 5 rows
 		Matrix m3 = mddnd.times(m5);
-//		ap[ddisp_index + used_cams_rmap[pre_last_cam]] = m3.get(0, 0);
-//		ap[ddisp_index + used_cams_rmap[last_cam]] =     m3.get(1, 0);
-//		ap[ndisp_index + used_cams_rmap[last_cam]] =     m3.get(2, 0);
 		ap[ddisp_index + pre_last_cam] = m3.get(0, 0);
 		ap[ddisp_index + last_cam] =     m3.get(1, 0);
 		ap[ndisp_index + last_cam] =     m3.get(2, 0);
@@ -2426,9 +2356,6 @@ public class Corr2dLMA {
 	public double [][] getABCTile(){
 		double [][] abc = new double[numTiles][3];
 		for (int tile = 0; tile < numTiles; tile++) {
-//			abc[tile][0] =  (par_mask[A_INDEX+ tile * tile_params])? all_pars[A_INDEX+ tile * tile_params] :Double.NaN;
-//			abc[tile][1] =  (par_mask[B_INDEX+ tile * tile_params])? all_pars[B_INDEX+ tile * tile_params] :Double.NaN;
-//			abc[tile][2] = abc[tile][0] + ( (par_mask[CMA_INDEX+ tile * tile_params])? all_pars[CMA_INDEX+ tile * tile_params] :Double.NaN);
 			abc[tile][0] =  all_pars[A_INDEX+ tile * tile_params];
 			abc[tile][1] =  all_pars[B_INDEX+ tile * tile_params];
 			abc[tile][2] =  abc[tile][0] + all_pars[CMA_INDEX+ tile * tile_params];
@@ -2461,7 +2388,6 @@ public class Corr2dLMA {
 	{
 		boolean [] rslt = {false,false};
 		this.last_rms = null;
-		int iter = 0;
 		for (iter = 0; iter < num_iter; iter++) {
 			rslt =  lmaStep(
 					lambda,

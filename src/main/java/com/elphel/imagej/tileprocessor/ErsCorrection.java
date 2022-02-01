@@ -955,28 +955,27 @@ public class ErsCorrection extends GeometryCorrection {
 				distortedView,   // correct distortion (will need corrected background too !)
 				reference_xyz,   // camera center in world coordinates
 				reference_atr);  // camera orientation relative to world frame
-			if (xyzw == null) {
-				return null;
-			}
-			if (xyzw[2] > 0) {
-				xyzw[2] = xyzw[2];
-///				return null; // can not match object behind the camera
-			}
-			ErsCorrection ers_camera = this;
-			if (cameraQuadCLT != null) {
-				ers_camera = cameraQuadCLT.getErsCorrection();
-			}
-			if (camera_xyz == null)	camera_xyz = ers_camera.camera_xyz;
-			if (camera_atr == null)	camera_atr = ers_camera.camera_atr;
-			
-			double [] pXpYD = ers_camera.getImageCoordinatesERS( // USED in lwir
-					xyzw,
-					distortedCamera,
-					camera_xyz,  // camera center in world coordinates
-					camera_atr,  // camera orientation relative to world frame
-					line_err);             // threshold error in scan lines (1.0)
-			
-			return pXpYD;
+		if (xyzw == null) {
+			return null;
+		}
+		if (xyzw[2] > 0) {
+			xyzw[2] = xyzw[2];
+		}
+		ErsCorrection ers_camera = this;
+		if (cameraQuadCLT != null) {
+			ers_camera = cameraQuadCLT.getErsCorrection();
+		}
+		if (camera_xyz == null)	camera_xyz = ers_camera.camera_xyz;
+		if (camera_atr == null)	camera_atr = ers_camera.camera_atr;
+
+		double [] pXpYD = ers_camera.getImageCoordinatesERS( // USED in lwir
+				xyzw,
+				distortedCamera,
+				camera_xyz,  // camera center in world coordinates
+				camera_atr,  // camera orientation relative to world frame
+				line_err);             // threshold error in scan lines (1.0)
+
+		return pXpYD;
 	}
 	
 	/**

@@ -11766,6 +11766,11 @@ if (debugLevel > -100) return true; // temporarily !
 								threadsMax,  // maximal number of threads to launch
 								updateStatus,
 								debugLevelInner);
+						  if (clt_parameters.img_dtt.lmamask_dbg) {
+							  System.out.println("Remove me - TQC11770");
+							  return;
+						  }
+						
 						if (quadCLT_main.correctionsParameters.clt_batch_dsi_aux_full) {
 							if (updateStatus) IJ.showStatus("Expanding DSI for the aux camera image set "+quadCLT_main.image_name+" (for DSI export)");
 							quadCLT_aux.expandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown

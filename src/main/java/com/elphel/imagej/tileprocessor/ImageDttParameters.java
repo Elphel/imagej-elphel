@@ -77,7 +77,17 @@ public class ImageDttParameters {
 	public int     dbg_pair_mask =          0x3f;  // which pairs to combine
 	public int     corr_strip_hight =       9;     // number of rows to calculate
 
+	//lmamask_
+	public boolean lmamask_dbg =              false;  // show LMA images, exit after single BG
+	public boolean lmamask_en =               false;  // Use disparity-based LMA samples filter
+	public double  lmamask_magic =            0.85;
+	public double  lmamask_min_main =         0.4;
+	public double  lmamask_min_neib =         0.10;
+	public double  lmamask_weight_neib =      0.75;
+	public double  lmamask_weight_neib_neib = 0.5;
 	// Extracting bi-convex (convex in both orthogonal directions) cells and allowing non-convex on the selection border only
+	public boolean cnvx_en =                true;  // Use convex-based LMA samples filter
+	public boolean cnvx_or =                false;  // If both lmamask_en and cnvx_en are available, use max; if false - multiply masks 
 	public int     cnvx_hwnd_size =         4;     // half window size (both horizontal and vertical to extract bi-convex cells
 	public double  cnvx_weight =            0.5;   // relative weight of non-convex (border) cell
 	public boolean cnvx_add3x3 =            true;  // always select 3x3 cells around integer maximum
@@ -439,7 +449,27 @@ public class ImageDttParameters {
 			gd.addNumericField("Number of correlation rows to combine (strip height)",            this.corr_strip_hight,  0, 3, "",
 					"Number of rows to combine/interpolate correlation results. Rows are twice denser than pixels correponding to largest baseline disparity");
 
+			gd.addMessage("LMA samples filter based on estimated disparity");
+			gd.addCheckbox    ("Debug LMA",                                                       this.lmamask_dbg,
+					"Generate debug images and exit after first clt_process_tl_correlations() while generating background image");
+			gd.addCheckbox    ("Use disparity-based LMA samples filtering",                       this.lmamask_en,
+					"Generate weighs by averaging 2D correlation shape and per-pair shifting for estimated from CM disparity");
+		    gd.addNumericField("Divide estimated disparity by magic 0.85",                        this.lmamask_magic,  6,8,"",
+		    		"Increase estimated disparity before averaging correlation shape and per-pair shifting the result");
+		    gd.addNumericField("Minimal relative sample value for unconditional inclusion",       this.lmamask_min_main,  6,8,"",
+		    		"Relatrive (to maximal) value in averaged correlation to be assigned window vlaue of 1.0 regardless of neighbors");
+		    gd.addNumericField("Minimal relative sample value for neighbor inclusion",            this.lmamask_min_neib,  6,8,"",
+		    		"Minimal relative sample value for conditional inclusion (if it has unconditional neighbor");
+		    gd.addNumericField("Neighbor weight",                                                 this.lmamask_weight_neib,  6,8,"",
+		    		"Assign window value for strong enough values of neighbors of unconditionally included");
+		    gd.addNumericField("Neighbor of neighbor weights",                                    this.lmamask_weight_neib_neib,  6,8,"",
+		    		"Weight of neighbors of conditionally or anconditionally included poins regardless of their values");
 
+			gd.addMessage("LMA samples filter based on convex sample values");
+			gd.addCheckbox    ("Use convex-based LMA samples filtering",                          this.cnvx_en,
+					"Select LMA samples based on convex correlation samples");
+			gd.addCheckbox    ("'OR' window functions",                                           this.cnvx_or,
+					"If both lmamask_en and cnvx_en are available, use max(); if false - multiply masks");
 			gd.addNumericField("Half window size to extract bi-convex cells",                     this.cnvx_hwnd_size,  0, 3, "pix",
 					"Create selection mask for quadratic approximation inside square around initial maximum position, specify distance from the center");
 		    gd.addNumericField("Relative weight of non-convex (border) cell",                     this.cnvx_weight,  6,8,"",
@@ -826,7 +856,16 @@ public class ImageDttParameters {
   			this.dbg_pair_mask=    (int) gd.getNextNumber();
   			this.corr_strip_hight= (int) gd.getNextNumber();
 
+  			this.lmamask_dbg =              gd.getNextBoolean();
+  			this.lmamask_en =               gd.getNextBoolean();
+			this.lmamask_magic =            gd.getNextNumber();
+			this.lmamask_min_main =         gd.getNextNumber();
+			this.lmamask_min_neib =         gd.getNextNumber();
+			this.lmamask_weight_neib =      gd.getNextNumber();
+			this.lmamask_weight_neib_neib = gd.getNextNumber();
 
+  			this.cnvx_en =                 gd.getNextBoolean();
+  			this.cnvx_or =                 gd.getNextBoolean();
   			this.cnvx_hwnd_size=   (int) gd.getNextNumber();
 			this.cnvx_weight =           gd.getNextNumber();
   			this.cnvx_add3x3 =           gd.getNextBoolean();
@@ -1035,6 +1074,15 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"dbg_pair_mask",        this.dbg_pair_mask +"");
 		properties.setProperty(prefix+"corr_strip_hight",     this.corr_strip_hight +"");
 
+		properties.setProperty(prefix+"lmamask_dbg",          this.lmamask_dbg +"");
+		properties.setProperty(prefix+"lmamask_en",           this.lmamask_en +"");
+		properties.setProperty(prefix+"lmamask_magic",        this.lmamask_magic +"");
+		properties.setProperty(prefix+"lmamask_min_main",     this.lmamask_min_main +"");
+		properties.setProperty(prefix+"lmamask_min_neib",     this.lmamask_min_neib +"");
+		properties.setProperty(prefix+"lmamask_weight_neib",  this.lmamask_weight_neib +"");
+		properties.setProperty(prefix+"lmamask_weight_neib_neib", this.lmamask_weight_neib_neib +"");
+		properties.setProperty(prefix+"cnvx_en",               this.cnvx_en +"");
+		properties.setProperty(prefix+"cnvx_or",               this.cnvx_or +"");
 		properties.setProperty(prefix+"cnvx_hwnd_size",       this.cnvx_hwnd_size +"");
 		properties.setProperty(prefix+"cnvx_weight",          this.cnvx_weight +"");
 		properties.setProperty(prefix+"cnvx_add3x3",          this.cnvx_add3x3 +"");
@@ -1248,6 +1296,17 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"dbg_pair_mask")!=null)        this.dbg_pair_mask=Integer.parseInt(properties.getProperty(prefix+"dbg_pair_mask"));
 		if (properties.getProperty(prefix+"corr_strip_hight")!=null)     this.corr_strip_hight=Integer.parseInt(properties.getProperty(prefix+"corr_strip_hight"));
 
+		
+		if (properties.getProperty(prefix+"lmamask_dbg")!=null)               this.lmamask_dbg=Boolean.parseBoolean(properties.getProperty(prefix+"lmamask_dbg"));
+		if (properties.getProperty(prefix+"lmamask_en")!=null)               this.lmamask_en=Boolean.parseBoolean(properties.getProperty(prefix+"lmamask_en"));
+		if (properties.getProperty(prefix+"lmamask_magic")!=null)            this.lmamask_magic=Double.parseDouble(properties.getProperty(prefix+"lmamask_magic"));
+		if (properties.getProperty(prefix+"lmamask_min_main")!=null)         this.lmamask_min_main=Double.parseDouble(properties.getProperty(prefix+"lmamask_min_main"));
+		if (properties.getProperty(prefix+"lmamask_min_neib")!=null)         this.lmamask_min_neib=Double.parseDouble(properties.getProperty(prefix+"lmamask_min_neib"));
+		if (properties.getProperty(prefix+"lmamask_weight_neib")!=null)      this.lmamask_weight_neib=Double.parseDouble(properties.getProperty(prefix+"lmamask_weight_neib"));
+		if (properties.getProperty(prefix+"lmamask_weight_neib_neib")!=null) this.lmamask_weight_neib_neib=Double.parseDouble(properties.getProperty(prefix+"lmamask_weight_neib_neib"));
+
+		if (properties.getProperty(prefix+"cnvx_en")!=null)                  this.cnvx_en=Boolean.parseBoolean(properties.getProperty(prefix+"cnvx_en"));
+		if (properties.getProperty(prefix+"cnvx_or")!=null)                  this.cnvx_or=Boolean.parseBoolean(properties.getProperty(prefix+"cnvx_or"));
 		if (properties.getProperty(prefix+"cnvx_hwnd_size")!=null)       this.cnvx_hwnd_size=Integer.parseInt(properties.getProperty(prefix+"cnvx_hwnd_size"));
 		if (properties.getProperty(prefix+"cnvx_weight")!=null)          this.cnvx_weight=Double.parseDouble(properties.getProperty(prefix+"cnvx_weight"));
 		if (properties.getProperty(prefix+"cnvx_add3x3")!=null)          this.cnvx_add3x3=Boolean.parseBoolean(properties.getProperty(prefix+"cnvx_add3x3"));
@@ -1477,6 +1536,15 @@ public class ImageDttParameters {
 		idp.dbg_pair_mask=           this.dbg_pair_mask;
 		idp.corr_strip_hight=        this.corr_strip_hight;
 
+		idp.lmamask_dbg=               this.lmamask_dbg;
+		idp.lmamask_en=                this.lmamask_en;
+		idp.lmamask_magic=             this.lmamask_magic;
+		idp.lmamask_min_main=          this.lmamask_min_main;
+		idp.lmamask_min_neib=          this.lmamask_min_neib;
+		idp.lmamask_weight_neib=       this.lmamask_weight_neib;
+		idp.lmamask_weight_neib_neib=  this.lmamask_weight_neib_neib;
+		idp.cnvx_en=                   this.cnvx_en;
+		idp.cnvx_or=                   this.cnvx_or;
 		idp.cnvx_hwnd_size=          this.cnvx_hwnd_size;
 		idp.cnvx_weight=             this.cnvx_weight;
 		idp.cnvx_add3x3=             this.cnvx_add3x3;

@@ -697,6 +697,7 @@ public class ImageDtt extends ImageDttCPU {
        	TpTask[] tp_tasks =  gpuQuad.setInterTasks(
        			false, // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
        			pXpYD,              // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+				null,               // final boolean []          selection, // may be null, if not null do not  process unselected tiles
        			geometryCorrection, // final GeometryCorrection  geometryCorrection,
        			disparity_corr,     // final double              disparity_corr,
        			margin,             // final int                 margin,      // do not use tiles if their centers are closer to the edges
@@ -2307,6 +2308,7 @@ public class ImageDtt extends ImageDttCPU {
 			System.out.println("clt_aberrations_quad_corr_GPU(): this.gpuQuad is null, bailing out");
 			return;
 		}
+
 		
 		final double [][] debug_offsets = new double[getNumSensors()][2];  
 		for (int i = 0; i < imgdtt_params.lma_dbg_offset.length; i++) for (int j = 0; j < debug_offsets[i].length; j++) {
@@ -2321,6 +2323,13 @@ public class ImageDtt extends ImageDttCPU {
 		// keep for now for mono, find out  what do they mean for macro mode
 		
 		final int corr_size = transform_size * 2 - 1;
+
+		final double [][]         debug_lma = imgdtt_params.lmamask_dbg? (new double [6][tilesX*tilesY]):null;
+		if (debug_lma != null) {
+			for (int i = 0; i < debug_lma.length; i++) {
+				Arrays.fill(debug_lma[i], Double.NaN);
+			}
+		}
 		
 
 		// reducing weight of on-axis correlation values to enhance detection of vertical/horizontal lines
@@ -2422,7 +2431,7 @@ public class ImageDtt extends ImageDttCPU {
 			}
 
 			if (combine_corrs) {
-				correlation2d.generateResample( // should be called before
+				correlation2d.generateResample( // should be called before *** This can be done in CPU, table(s) copied to GPU 
 						mcorr_comb_width,  // combined correlation tile width
 						mcorr_comb_height, // combined correlation tile full height
 						mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
@@ -2499,7 +2508,7 @@ public class ImageDtt extends ImageDttCPU {
 								}
 							}
 							// get CM disparity/strength
-							double [] disp_str = {0.0, 0.0}; // dispaprity = 0 will be initial approximation for LMA if no averaging
+							double [] disp_str = {0.0, 0.0}; // disparity = 0 will be initial approximation for LMA if no averaging
 							if (combine_corrs) {
 								double [] corr_combo_tile = correlation2d.accumulateInit(); // combine all available pairs
 								double sumw = 0.0;
@@ -2592,9 +2601,16 @@ public class ImageDtt extends ImageDttCPU {
 									System.out.println("Will run new LMA for tileX="+tileX+", tileY="+tileY);
 								}
 								double [] poly_disp = {Double.NaN, 0.0};
+								double [] debug_lma_tile = (debug_lma != null) ? (new double [debug_lma.length]):null;
+								if (debug_lma_tile != null) {
+									for (int i = 0; i < debug_lma.length; i++) {
+										debug_lma_tile[i] = debug_lma[i][nTile];
+									}
+								}
+								
 								Corr2dLMA lma2 = correlation2d.corrLMA2Single( // null pointer
 										imgdtt_params,                // ImageDttParameters  imgdtt_params,
-										imgdtt_params.lmas_LY_single, // false,                        // boolean             adjust_ly, // adjust Lazy Eye
+										imgdtt_params.lmas_LY_single, // false,    // boolean             adjust_ly, // adjust Lazy Eye
 										corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
 										corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
 										corrs,                        // corrs,          // double [][]         corrs,
@@ -2605,9 +2621,12 @@ public class ImageDtt extends ImageDttCPU {
 										disp_str,  //corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
 										poly_disp,                    // double[]            poly_ds,    // null or pair of disparity/strength
 										imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
-										-2, //0,                            // tile_lma_debug_level, // +2,         // int                 debug_level,
+										debug_lma_tile,               // double []           debug_lma_tile,
+										(debugTile0 ? 1: -2),         // int                 debug_level,
+//										-2, //0,                            // tile_lma_debug_level, // +2,         // int                 debug_level,
 										tileX,                        // int                 tileX, // just for debug output
-										tileY );                      // int                 tileY
+										tileY ); 
+								// int                 tileY
 								if (debugTile0) { // should be debugTile
 									System.out.println("Ran LMA for tileX="+tileX+", tileY="+tileY);
 								}
@@ -2659,14 +2678,31 @@ public class ImageDtt extends ImageDttCPU {
 										}
 									}
 								}
-							}
 
+								if (debug_lma_tile != null) {
+									for (int i = 0; i < debug_lma.length; i++) {
+										debug_lma[i][nTile] = debug_lma_tile[i];
+									}
+								}
+							}
 						}
 					}
 				};
 			}
 			startAndJoin(threads);
+			if (debug_lma != null) {
+	    		(new ShowDoubleFloatArrays()).showArrays(
+	    				debug_lma,
+	    				tilesX,
+	    				tilesY,
+	    				true,
+	    				"lma_debug",
+	    				new String[] {"disp_samples","num_cnvx_samples","num_comb_samples", "num_lmas","num_iters","rms"}
+	    				);
+				
+			}			
 		}
+		
 		return;
 	}	
 	

@@ -8253,6 +8253,12 @@ public class QuadCLTCPU {
 				  threadsMax,  // maximal number of threads to launch
 				  updateStatus,
 				  debugLevel);
+		  if (clt_parameters.img_dtt.lmamask_dbg) {
+			  System.out.println("Remove me - QCC8257");
+			  return false;
+		  }
+		  
+		  
 		  tp.clt_3d_passes.add(bgnd_data);
 		  //    	  if (show_init_refine)
 //		  if ((debugLevel > -2) && clt_parameters.show_first_bg) {
@@ -12026,7 +12032,8 @@ public class QuadCLTCPU {
 		  d =     ImageDtt.setPairMask(d,0xf);
 		  d =     ImageDtt.setForcedDisparity(d,true);
 		  int [][]     tile_op =         tp.setSameTileOp(clt_parameters,  d, debugLevel);
-		  double [][]  disparity_array = tp.setSameDisparity(0.0); // [tp.tilesY][tp.tilesX] - individual per-tile expected disparity
+		  double disparity0 = 0.0;
+		  double [][]  disparity_array = tp.setSameDisparity(disparity0); // [tp.tilesY][tp.tilesX] - individual per-tile expected disparity
 		  scan.disparity = disparity_array;
 		  scan.tile_op = tile_op;
 		  CLTPass3d scan_rslt =  CLTMeas( // perform single pass according to prepared tiles operations and disparity // USED in lwir
@@ -12976,6 +12983,7 @@ public class QuadCLTCPU {
 							// When clt_mismatch is non-zero, no far objects extraction will be attempted
 							//optional, may be null
 							disparity_map,                 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+							// REMOVE 'true'
 							clt_parameters.correlate_lma,  // final boolean             run_lma,         // calculate LMA, false - CM only
 				  		    // define combining of all 2D correlation pairs for CM (LMA does not use them)
 							clt_parameters.img_dtt.mcorr_comb_width, //final int                 mcorr_comb_width,  // combined correlation tile width (set <=0 to skip combined correlations)
@@ -12986,7 +12994,7 @@ public class QuadCLTCPU {
 							clt_parameters.tileX,          // final int                 debug_tileX,
 							clt_parameters.tileY,          // final int                 debug_tileY,
 							threadsMax,                    // final int                 threadsMax,      // maximal number of threads to launch
-							debugLevel + 2+0); // -1 );              // final int                 globalDebugLevel)
+							debugLevel + 2+1); // -1 );              // final int                 globalDebugLevel)
 				  
 			  } else {			  
 				  image_dtt.clt_process_tl_correlations( // convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td

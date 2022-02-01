@@ -28,7 +28,9 @@ import java.awt.Rectangle;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.DoubleAccumulator;
@@ -2306,6 +2308,7 @@ public class OpticalFlow {
 				scene_QuadClt.getGeometryCorrection().getSensorWH()[0],
 				!scene_QuadClt.hasGPU(), // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
 				scene_pXpYD, // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+				null,          // final boolean []          selection, // may be null, if not null do not  process unselected tiles
 				scene_QuadClt.getGeometryCorrection(), // final GeometryCorrection  geometryCorrection,
 				scene_disparity_cor, // final double              disparity_corr,
     			margin, // final int                 margin,      // do not use tiles if their centers are closer to the edges
@@ -2531,6 +2534,272 @@ public class OpticalFlow {
 		return pXpYD;
 	}
 	
+	//TODO: refine inter-scene pose to accommodate refined disparity map
+	/**
+	 * Removing BG tiles that are not visible because of the FG ones
+	 * @param tp TileProcessor instance to get image dimensions
+	 * @param pXpYD Array of pX, pY, Disparity triplets for the current camera calculated from the reference 3D model
+	 * @param max_overlap maximal area overlap (for the full 16x16 image tiles) that allows the BG tile to be kept
+	 * @param pXpYD_cam optional array of this camera disparity map to "cast shadows" from the objects that are not visible
+	 * in the reference (accurate) 3D model TODO: pre-filter to remove those that should be visible in pXpYD? At least remove
+	 * low-confidence triplets.
+	 * @param min_adisp_cam minimal absolute disparity difference for pXpYD_cam to consider
+	 * @param min_rdisp_cam minimal relative disparity difference for pXpYD_cam to consider
+	 * @param debug_level debug level
+	 * @return copy of pXpYD with occluded elements nulled
+	 */
+	
+	public double [][] filterBG (
+			final TileProcessor tp,
+			final double [][] pXpYD,
+			final double max_overlap,
+//			final double [][] pXpYD_cam,
+			final double []   disparity_cam,
+//			final double min_str_cam,
+			final double min_adisp_cam,
+			final double min_rdisp_cam,
+			final int    dbg_tileX,
+			final int    dbg_tileY,
+			final int    debug_level
+			){
+		final int tilesX = tp.getTilesX();
+		final int tilesY = tp.getTilesY();
+		final int dbg_nTile = dbg_tileY * tilesX + dbg_tileX;
+		final int tileSize = tp.getTileSize();
+//		final double tileSize2 = tileSize * 2;
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final int tiles = tilesX*tilesY;
+		final TileNeibs tn =  new TileNeibs(tilesX, tilesY);
+		ArrayList<List<Integer>> fg_bg_list = new ArrayList<List<Integer>> (tiles);
+		for (int i = 0; i < tiles; i++) {
+			fg_bg_list.add(Collections.synchronizedList(new ArrayList<Integer>()));
+		}
+		final int offs_range = 1; // (max_overlap < 0.5) ? 2 : 1; 
+		final double[][] pXpYD_filtered = pXpYD.clone();
+		final AtomicInteger ai_num_tiles = new AtomicInteger(0);
+		final AtomicInteger ai_num_removed = new AtomicInteger(0);
+		final int overlap_radius = 4; // 9x9
+		final int overlap_diameter = 2 * overlap_radius + 1; // 9
+		final int overlap_size =  overlap_diameter * overlap_diameter; // 81
+		final double scale_dist = 2.00 * overlap_radius / tileSize; // 1.0 for overlap_radius==4
+
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int indx = ai.getAndIncrement(); indx < pXpYD.length; indx = ai.getAndIncrement()) if (pXpYD[indx] != null) {
+						int tx = (int)Math.round(pXpYD[indx][0]/tileSize);
+						int ty = (int)Math.round(pXpYD[indx][1]/tileSize);
+						if ((debug_level > 0) && (tx == dbg_tileX) && (ty == dbg_tileY)) {
+							System.out.println("filterBG(): tx = "+tx+", ty="+ty+", indx="+indx);
+							System.out.print("");
+						}
+						if ((tx >=0) && (ty >=0) && (tx < tilesX) && (ty < tilesY)) {
+							int nTile = ty * tilesX + tx;
+							synchronized(fg_bg_list.get(nTile)) {
+								fg_bg_list.get(nTile).add(indx);
+							}
+							ai_num_tiles.getAndIncrement();
+						} else {
+							pXpYD_filtered[indx] = null;
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		ai.set(0);
+		// filter by the reference model
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					boolean [] overlap_staging = new boolean [overlap_size];
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) if (fg_bg_list.get(nTile).size() > 0) {
+						for (int tindx_bg: fg_bg_list.get(nTile)) {
+							double [] txyd_bg = pXpYD[tindx_bg];
+// 		final int offs_range = (max_overlap < 0.5) ? 2 : 1;
+							if ((debug_level > -1) && (tindx_bg == dbg_nTile)) {
+								System.out.println("filterBG(): tindx_bg="+tindx_bg+", nTile = "+nTile+", txyd_bg[0]="+txyd_bg[0]+", txyd_bg[1]="+txyd_bg[1]+", txyd_bg[2]="+txyd_bg[2]);
+								System.out.print("");
+							}
+							Arrays.fill(overlap_staging, false);
+							boolean some_overlap = false;
+							for (int dty = -offs_range; dty <= offs_range; dty++) {
+								for (int dtx = -offs_range; dtx <= offs_range; dtx++) {
+									int nTile_fg = tn.getNeibIndex(nTile, dtx, dty);
+									if (nTile_fg >= 0) 	for (int tindx_fg: fg_bg_list.get(nTile_fg)) if (tindx_fg != tindx_bg){
+										double [] txyd_fg = pXpYD[tindx_fg];
+										// check if FG is closer than BG (here does not have to be significantly closer
+										if (txyd_fg[2] > txyd_bg[2]) {
+											// see if there is any overlap
+											double x_fg_bg = txyd_fg[0] - txyd_bg[0];
+											double y_fg_bg = txyd_fg[1] - txyd_bg[1];
+											if ((Math.abs(x_fg_bg) < tileSize) && (Math.abs(y_fg_bg) < tileSize)) {
+												applyOverlap(
+														overlap_staging,          // boolean [] staging,
+														overlap_diameter,         // int        overlap_diameter,
+														scale_dist,               // double     scale_dist,
+														x_fg_bg,  // double     dx,
+														y_fg_bg); // double     dy
+												some_overlap = true;
+											}
+										}
+									}
+								}
+							}
+							// apply camera disparity map
+							if (disparity_cam != null) {
+								double ddisp = min_adisp_cam +  txyd_bg[2] * min_rdisp_cam;
+								int tx = (int) Math.round(txyd_bg[0]/tileSize);
+								int ty = (int) Math.round(txyd_bg[1]/tileSize);
+								// Limit to 0.. max?
+								int nTile_fg_center = ty * tilesX + tx;
+								for (int dty = -offs_range; dty <= offs_range; dty++) {
+									for (int dtx = -offs_range; dtx <= offs_range; dtx++) {
+										int nTile_fg = tn.getNeibIndex(nTile_fg_center, dtx, dty);
+										if ((nTile_fg >= 0) && (disparity_cam[nTile_fg] - txyd_bg[2] > ddisp)){
+											double x_fg_bg = (tx + dtx + 0.5) * tileSize - txyd_bg[0];
+											double y_fg_bg = (ty + dty + 0.5) * tileSize - txyd_bg[1];
+											if ((Math.abs(x_fg_bg) < tileSize) && (Math.abs(y_fg_bg) < tileSize)) {
+												applyOverlap(
+														overlap_staging,          // boolean [] staging,
+														overlap_diameter,         // int        overlap_diameter,
+														scale_dist,               // double     scale_dist,
+														x_fg_bg,  // double     dx,
+														y_fg_bg); // double     dy
+												some_overlap = true;
+											}
+										}
+									}
+								}
+							}
+							if (some_overlap) { // count actual overlap
+								int nuv_overlap = 0;
+								for (boolean staging_point: overlap_staging) {
+									if (staging_point) {
+										nuv_overlap++;
+									}
+								}
+								double frac_overlap = 1.0 * nuv_overlap / overlap_staging.length;
+								if (frac_overlap> max_overlap) {
+									ai_num_removed.getAndIncrement();
+									pXpYD_filtered[tindx_bg] = null; // OK that it still remains in the lists
+								}
+							}
+
+
+							/*
+											double overlapX = Math.max(tileSize2 - Math.abs(txyd_fg[0] - txyd_bg[0]), 0)/tileSize2;
+											double overlapY = Math.max(tileSize2 - Math.abs(txyd_fg[1] - txyd_bg[1]), 0)/tileSize2;
+											if ((overlapX * overlapY) > max_overlap) { // remove BG tile
+												pXpYD_filtered[tindx_bg] = null; // OK that it still remains in the lists
+												ai_num_removed_ref.getAndIncrement();
+												if ((debug_level > -1) && (nTile==dbg_nTile)) {
+													System.out.println("+++++++++++++++ filterBG(): nTile = "+nTile+
+															", txyd_bg[0]="+txyd_bg[0]+", txyd_bg[1]="+txyd_bg[1]+", txyd_bg[2]="+txyd_bg[2]+
+															", txyd_fg[0]="+txyd_fg[0]+", txyd_fg[1]="+txyd_fg[1]+", txyd_fg[2]="+txyd_fg[2]);
+													System.out.print("");
+												}
+											}
+							 */
+
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		/*
+		// Maybe remove here from the list tiles that are removed from pXpYD_filtered?
+		if (pXpYD_cam != null) {
+			ai.set(0);
+			// filter by the reference model
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int tindx_fg = ai.getAndIncrement(); tindx_fg < pXpYD_cam.length; tindx_fg = ai.getAndIncrement()) if (pXpYD_cam[tindx_fg] != null) {
+							double [] txyd_fg = pXpYD[tindx_fg];
+							double ddisp = min_adisp_cam +  txyd_fg[2] * min_rdisp_cam; 
+							int tx = (int)Math.round(txyd_fg[0]/tileSize);
+							int ty = (int)Math.round(txyd_fg[1]/tileSize);
+							if ((tx >=0) && (ty >=0) && (tx < tilesX) && (ty < tilesY)) {
+								int nTile_fg = ty * tilesX + tx;
+								for (int dy = -offs_range; dy <= offs_range; dy++) {
+									for (int dx = -offs_range; dx <= offs_range; dx++) {
+										int nTile_bg = tn.getNeibIndex(nTile_fg, dx, dy);
+										if (nTile_bg >= 0) 	for (int tindx_bg: fg_bg_list.get(nTile_bg)){
+											double [] txyd_bg = pXpYD[tindx_bg];
+											if ((txyd_fg[2] - txyd_bg[2]) > ddisp) { // FG is significantly closer than BG
+												double overlapX = Math.max(tileSize2 - Math.abs(txyd_fg[0] - txyd_bg[0]), 0)/tileSize2;
+												double overlapY = Math.max(tileSize2 - Math.abs(txyd_fg[1] - txyd_bg[1]), 0)/tileSize2;
+												if ((overlapX * overlapY) > max_overlap) { // remove BG tile
+													pXpYD_filtered[tindx_bg] = null; // OK that it still remains in the lists
+													ai_num_removed_cam.getAndIncrement();
+												}
+											}
+										}										
+									}
+								}
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}
+		*/
+		if (debug_level > -1){
+			System.out.println("filterBG(): num_all_tiles = "+ai_num_tiles.get()+
+					", num_removed="+ ai_num_removed.get()+
+					", remaining tiles="+(ai_num_tiles.get() - ai_num_removed.get()));
+			System.out.print("");
+		}
+
+		return pXpYD_filtered;
+	}
+
+	
+	private void applyOverlap(
+			boolean [] staging,
+			int        overlap_diameter,
+			double     scale_dist,
+			double     dx,
+			double     dy
+			) { 
+		int ix0 = (int) Math.round(dx * scale_dist);
+		int ix1 = ix0 + overlap_diameter;
+		int iy0 = (int) Math.round(dy * scale_dist);
+		int iy1 = iy0 + overlap_diameter;
+		if (ix0 < 0) ix0 = 0;
+		if (ix1 > overlap_diameter) ix1 = overlap_diameter;
+		if (iy0 < 0) iy0 = 0;
+		if (iy1 > overlap_diameter) iy1 = overlap_diameter;
+		for (int iy = iy0; iy < iy1; iy++) {
+			int line_start = iy * overlap_diameter;
+			Arrays.fill(staging,  line_start + ix0, line_start + ix1, true);
+		}
+	}
+	
+	
+	/*
+	ArrayList<Integer> neib_list = new ArrayList<Integer>(20);
+	// here each tlist is accessed exclusively
+	Collections.sort(fg_bg_list.get(nTile), new Comparator<Integer>() {
+	    @Override
+	    public int compare(Integer lhs, Integer rhs) { // descending // ascending
+	        return pXpYD[lhs][2] > pXpYD[rhs][2]  ? -1 : (pXpYD[lhs][2]  < pXpYD[rhs][2] ) ? 1 : 0;
+	    }
+	});
+	 * 
+  List list = Collections.synchronizedList(new ArrayList());
+      ...
+  synchronized(list) {
+      Iterator i = list.iterator(); // Must be in synchronized block
+      while (i.hasNext())
+          foo(i.next());
+  }
+
+	 */
 
 	public double [][] transformFromScenePxPyD(
 			final double [][] pXpYD_scene, // tiles correspond to reference, pX,pY,D - for scene
@@ -3470,11 +3739,13 @@ public class OpticalFlow {
 	///		Runtime.getRuntime().gc();
 	///		System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			int mcorr_sel = Correlation2d.corrSelEncode(clt_parameters.img_dtt,scenes[indx_ref].getNumSensors());
+			// FIXME: 							null,           // final boolean []     selection, // may be null, if not null do not  process unselected tiles
 			disparity_map = correlateInterscene(
 					clt_parameters, // final CLTParameters  clt_parameters,
 					scenes,         // final QuadCLT []     scenes,
 					indx_ref,       // final int            indx_ref,
 					combo_dsn_change[0],   // final double []      disparity_ref,  // disparity in the reference view tiles (Double.NaN - invalid)
+					null,           // final boolean []     selection, // may be null, if not null do not  process unselected tiles
 					margin,         // final int            margin,
 					nrefine,        // final int            nrefine, // just for debug title
 					clt_parameters.inp.show_final_2d, // final boolean        show_2d_corr,
@@ -3975,7 +4246,7 @@ public class OpticalFlow {
 		// empiric correction for both lma and non-lma step
 	  	double corr_nonlma = 1.0; // 1.23;
 	  	double corr_lma =    1.0; // 1.23;
-		// reference scene is always added to tghe end, even is out of timestamp order
+		// reference scene is always added to the end, even is out of timestamp order
 		int      indx_ref = scenes.length - 1; // Always added to the end even if out-of order
 		QuadCLT  ref_scene = scenes[indx_ref]; // ordered by increasing timestamps
 		boolean generate_outlines = false; // true; // TODO: move to configs
@@ -4105,32 +4376,42 @@ public class OpticalFlow {
 		double [][] dbg_corr_scale = null;
 		if (debug_level > 0) {
 			dbg_corr_scale = new double[max_refines][];
-		}		
+		}
+		boolean [] selection = new boolean [target_disparity.length];
+		for (int i = 0; i < target_disparity.length; i++) {
+			selection[i] = !Double.isNaN(target_disparity[i]);
+		}
+		boolean [] selection_orig = selection.clone();
 		for (int nrefine = 0; nrefine < max_refines; nrefine++) {
 			if (nrefine == clt_parameters.rig.mll_max_refines_pre) {
 				min_disp_change = clt_parameters.rig.mll_min_disp_change_lma;				
 				clt_parameters.img_dtt.setMcorr(num_sensors, save_pairs_selection); // restore
 				clt_parameters.correlate_lma = save_run_lma; // restore
+				/*
 				for (int nt = 0; nt < target_disparity.length; nt++) if (Double.isNaN(target_disparity[nt])){
 					if (!Double.isNaN(target_disparity_orig[nt])) {
 						target_disparity[nt] = combo_dsn_change[combo_dsn_indx_disp][nt];
 					}
 				}
+				*/
+				selection = selection_orig.clone();
 				if (debug_level > -2) {
 					int num_tomeas = 0;
-					for (int nt = 0; nt < target_disparity.length; nt++) if (!Double.isNaN(target_disparity[nt])){
+					for (int nt = 0; nt < target_disparity.length; nt++) if (selection[nt]) { // (!Double.isNaN(target_disparity[nt])){
 						num_tomeas++;
 					}
 					System.out.println ("nrefine pass = "+nrefine+", remaining "+num_tomeas+" tiles to re-measure");
 				}
 			}
 			int mcorr_sel = Correlation2d.corrSelEncode(clt_parameters.img_dtt,num_sensors);
+			// FIXME: 							null,           // final boolean []     selection, // may be null, if not null do not  process unselected tiles
 			double [][] disparity_map = 
 					correlateInterscene(
 							clt_parameters, // final CLTParameters  clt_parameters,
 							scenes,         // final QuadCLT []     scenes,
 							indx_ref,       // final int            indx_ref,
 							target_disparity, // combo_dsn_change[combo_dsn_indx_disp],   // final double []      disparity_ref,  // disparity in the reference view tiles (Double.NaN - invalid)
+							selection,      // final boolean []     selection, // may be null, if not null do not  process unselected tiles
 							margin,         // final int            margin,
 							nrefine,        // final int            nrefine, // just for debug title
 							false, // ( nrefine == (max_refines - 1)) && clt_parameters.inp.show_final_2d, // final boolean        show_2d_corr,
@@ -4154,7 +4435,8 @@ public class OpticalFlow {
 			double [] map_strength =      disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX]; // 10
 			double [] map_disparity_lma = disparity_map[ImageDtt.DISPARITY_INDEX_POLY]; // 8
 			int num_tomeas = 0; // number of tiles to measure
-			Arrays.fill(target_disparity, Double.NaN);
+//			Arrays.fill(target_disparity, Double.NaN);
+			Arrays.fill(selection, false);
 			for (int nTile =0; nTile < combo_dsn_change[0].length; nTile++) {
 				if (defined_tiles[nTile]) { // originally defined, maybe not measured last time
 					if (!Double.isNaN(map_disparity[nTile])) { // re-measured
@@ -4197,6 +4479,7 @@ public class OpticalFlow {
 						
 						if (Math.abs(combo_dsn_change[combo_dsn_indx_change][nTile]) >= min_disp_change) {
 							target_disparity[nTile] = combo_dsn_change[combo_dsn_indx_disp][nTile] ;
+							selection[nTile] = true;
 							num_tomeas ++;
 						} else {
 							num_tomeas+=0;
@@ -4379,11 +4662,13 @@ public class OpticalFlow {
 		if (save_accum) {
 			int mcorr_sel = Correlation2d.corrSelEncodeAll(0); // all sensors
 			        float [][][] facc_2d_img = new float [1][][];
+					// FIXME: 							null,           // final boolean []     selection, // may be null, if not null do not  process unselected tiles
 					correlateInterscene(
 							clt_parameters, // final CLTParameters  clt_parameters,
 							scenes,         // final QuadCLT []     scenes,
 							indx_ref,       // final int            indx_ref,
 							combo_dsn_change[0],   // final double []      disparity_ref,  // disparity in the reference view tiles (Double.NaN - invalid)
+							null,           // final boolean []     selection, // may be null, if not null do not  process unselected tiles
 							margin,         // final int            margin,
 							-1,             // final int            nrefine, // just for debug title
 							false,          // final boolean        show_2d_corr,
@@ -4869,12 +5154,14 @@ public class OpticalFlow {
 ///			Runtime.getRuntime().gc();
 ///			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			int mcorr_sel = Correlation2d.corrSelEncode(clt_parameters.img_dtt,scenes[indx_ref].getNumSensors());
+			// FIXME: 							null,           // final boolean []     selection, // may be null, if not null do not  process unselected tiles
 			double [][] disparity_map = 
 					correlateInterscene(
 							clt_parameters, // final CLTParameters  clt_parameters,
 							scenes,         // final QuadCLT []     scenes,
 							indx_ref,       // final int            indx_ref,
 							combo_dsn_change[0],   // final double []      disparity_ref,  // disparity in the reference view tiles (Double.NaN - invalid)
+							null,           // final boolean []     selection, // may be null, if not null do not  process unselected tiles
 							margin,         // final int            margin,
 							nrefine,        // final int            nrefine, // just for debug title
 							( nrefine == (max_refines - 1)) && clt_parameters.inp.show_final_2d, // final boolean        show_2d_corr,
@@ -6088,6 +6375,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			final QuadCLT []     scenes,
 			final int            indx_ref,
 			final double []      disparity_ref,  // disparity in the reference view tiles (Double.NaN - invalid)
+			final boolean []     selection, // may be null, if not null do not  process unselected tiles
 			final int            margin,
 			final int            nrefine, // just for debug title
 			final boolean        show_2d_corr,
@@ -6155,12 +6443,29 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 						scene_ers_xyz_dt, // double []    ers_xyz_dt,
 						scene_ers_atr_dt); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
 				//setupERS() will be inside transformToScenePxPyD()
-				scene_pXpYD = transformToScenePxPyD( // will be null for disparity == NaN
+				double [][] scene_pXpYD_prefilter = transformToScenePxPyD( // will be null for disparity == NaN, total size - tilesX*tilesY
 						disparity_ref,      // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
 						scene_xyz,          // final double []   scene_xyz, // camera center in world coordinates
 						scene_atr,          // final double []   scene_atr, // camera orientation relative to world frame
 						scenes[nscene],      // final QuadCLT     scene_QuadClt,
 						ref_scene); // final QuadCLT     reference_QuadClt)
+				
+				double max_overlap = 0.6; 
+				double [] disparity_cam = null; // for now
+//				double min_str_cam =    0.1;
+				double min_adisp_cam =  0.2;
+				double min_rdisp_cam =  0.03;
+				
+				scene_pXpYD = filterBG (
+						scenes[indx_ref].getTileProcessor(), // final TileProcessor tp,
+						scene_pXpYD_prefilter, // final double [][] pXpYD,
+						max_overlap,           // final double max_overlap,
+						disparity_cam,         // final double [] disparity_cam,
+						min_adisp_cam,         // final double min_adisp_cam,
+						min_rdisp_cam,         // final double min_rdisp_cam,
+						clt_parameters.tileX,  // final int    dbg_tileX,
+						clt_parameters.tileY,  // final int    dbg_tileY,
+						0); // 1); //debug_level);          // final int    debug_level);
 			}
 			scenes[nscene].saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU)
 			final double gpu_sigma_corr =     clt_parameters.getGpuCorrSigma(scenes[nscene].isMonochrome());
@@ -6173,11 +6478,12 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					scenes[nscene].getErsCorrection().getSensorWH()[0],
 					!scenes[nscene].hasGPU(), // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
 					scene_pXpYD,              // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+					selection,                // final boolean []          selection, // may be null, if not null do not  process unselected tiles
 					scenes[nscene].getErsCorrection(), // final GeometryCorrection  geometryCorrection,
-					disparity_corr,     // final double              disparity_corr,
-					margin,             // final int                 margin,      // do not use tiles if their centers are closer to the edges
-					null,               // final boolean []          valid_tiles,            
-					threadsMax);        // final int                 threadsMax)  // maximal number of threads to launch
+					disparity_corr,           // final double              disparity_corr,
+					margin,                   // final int                 margin,      // do not use tiles if their centers are closer to the edges
+					null,                     // final boolean []          valid_tiles,            
+					threadsMax);              // final int                 threadsMax)  // maximal number of threads to launch
 			if (nscene == indx_ref) {
 				tp_tasks_ref = tp_tasks; // will use coordinates data for LMA ? disp_dist
 			}
@@ -6552,6 +6858,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				ref_scene.getErsCorrection().getSensorWH()[0],
 				!ref_scene.hasGPU(), // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
 				scene_pXpYD,              // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+				null,              // final boolean []          selection, // may be null, if not null do not  process unselected tiles
 				ref_scene.getErsCorrection(), // final GeometryCorrection  geometryCorrection,
 				disparity_corr,     // final double              disparity_corr,
 				margin,             // final int                 margin,      // do not use tiles if their centers are closer to the edges
@@ -7295,6 +7602,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				scene.getGeometryCorrection().getSensorWH()[0],
 				!scene.hasGPU(), // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
 				pXpYD, // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+				null,          // final boolean []          selection, // may be null, if not null do not  process unselected tiles
     			scene.getGeometryCorrection(), // final GeometryCorrection  geometryCorrection,
     			disparity_corr, // final double              disparity_corr,
     			margin, // final int                 margin,      // do not use tiles if their centers are closer to the edges

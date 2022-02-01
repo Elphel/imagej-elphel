@@ -3335,6 +3335,7 @@ public class GpuQuad{ // quad camera description
 	public TpTask[]  setInterTasks(
 			final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
 			final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+			final boolean []          selection, // may be null, if not null do not  process unselected tiles
 			final GeometryCorrection  geometryCorrection,
 			final double              disparity_corr,
 			final int                 margin,      // do not use tiles if their centers are closer to the edges
@@ -3346,6 +3347,7 @@ public class GpuQuad{ // quad camera description
 				img_width,          // final int                 img_width,
 				calcPortsCoordinatesAndDerivatives, // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
 				pXpYD,              // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+				selection,          // final boolean []          selection, // may be null, if not null do not  process unselected tiles
 				geometryCorrection, // final GeometryCorrection  geometryCorrection,
 				disparity_corr,     // final double              disparity_corr,
 				margin,             // final int                 margin,      // do not use tiles if their centers are closer to the edges
@@ -3358,6 +3360,7 @@ public class GpuQuad{ // quad camera description
 			final int                 img_width,
 			final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
 			final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+			final boolean []          selection, // may be null, if not null do not  process unselected tiles
 			final GeometryCorrection  geometryCorrection,
 			final double              disparity_corr,
 			final int                 margin,      // do not use tiles if their centers are closer to the edges
@@ -3395,9 +3398,7 @@ public class GpuQuad{ // quad camera description
 			threads[ithread] = new Thread() {
 				@Override
 				public void run() {
-					//    					for (int indx = ai.getAndIncrement(); indx < tp_tasks.length; indx = ai.getAndIncrement()) {
-					//   						int nTile = tile_indices[indx];
-					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) if (pXpYD[nTile] != null) {
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) if ((pXpYD[nTile] != null) && ((selection == null) || selection[nTile])) {
 						int tileY = nTile / tilesX;
 						int tileX = nTile % tilesX;
 						TpTask tp_task = new TpTask(num_cams, tileX, tileY);
