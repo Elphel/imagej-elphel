@@ -2403,7 +2403,49 @@ public class Correlation2d {
 		return rslt;
 	}
 	
+	/**
+	 * Analyze 1d correlation (single centerline of the 3D phase correlation combined output
+	 * from all pairs or only diameters to detect double maximum (simultaneous FG+BG) 
+	 * @param combo_corrs 2D phase correlation, now 15x15 = 255 pixels long 
+	 * @param min_fraction minimal ratio of weaker maximum to the strongest
+	 * @return array of 1 or 2 {disparity, strength} pairs (zero pairs if no local max)
+	 */
+	public double [][] getDoublePoly(
+			double [] combo_corrs,
+			double    min_fraction
+			){
+		int center_x = 2* (transform_size - 1) * transform_size; // 112
+		int [] imx = new int[2];
+		for (int i = center_x - transform_size + 2; i < center_x + transform_size - 1; i++) {
+			double c = combo_corrs[i];
+			if ((c > combo_corrs[i - 1]) && (c > combo_corrs[i + 1])) {
+				if ((imx[0] == 0) || (c > combo_corrs[imx[0]]))  {
+					imx[1] = imx[0];
+					imx[0] = i;
+				} else if ((imx[1] == 0) || (c > combo_corrs[imx[1]]))  {
+					imx[1] = i;
+				}
+				i++; // skip next after max
+			}
+		}
+		if (imx[0] == 0) return new double[0][];
+		int nm = 1;
+		if ((imx[1] > 0) && (combo_corrs[imx[1]]/combo_corrs[imx[0]] > min_fraction)) {
+			nm++; 
+		}
+		double [][] maxes = new double [nm][2];
+		
+		for (int i = 0; i < nm; i++) {
+			double c = combo_corrs[imx[i]];
+			double a = (combo_corrs[imx[i] + 1] + combo_corrs[imx[i] - 1]) / 2 - c;
+			double b = (combo_corrs[imx[i] + 1] - combo_corrs[imx[i] - 1]);
+			maxes[i][0] = imx[i]- center_x - 0.5 * b / a;  
+			maxes[i][1] = c - 0.25 * b * b / a;
+		}
+		return maxes;
+	}
 	
+//corr_size	transform_size
 	/**
 	 * Calculate 1-d maximum location, strength and half-width for the special strip (odd rows shifted by 0.5
 	 * Negative values are ignored!

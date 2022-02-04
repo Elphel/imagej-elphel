@@ -2303,7 +2303,7 @@ public class ImageDtt extends ImageDttCPU {
 			final int                 threadsMax,      // maximal number of threads to launch
 			final int                 globalDebugLevel)
 	{
-		
+		final boolean diameters_combo = (imgdtt_params.mcorr_dual_fract > 0.0); // add diameters-only combo after all-combo
 		if (this.gpuQuad == null) {
 			System.out.println("clt_aberrations_quad_corr_GPU(): this.gpuQuad is null, bailing out");
 			return;
@@ -2483,13 +2483,18 @@ public class ImageDtt extends ImageDttCPU {
 							nTile = tileY * tilesX + tileX;
 							if (tp_tasks[iTile].getTask() == 0) continue; // nothing to do for this tile
 							boolean debugTile0 =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > 0);
+							boolean debugTile1 =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -10);
 							if (debugTile0) {
 								System.out.println("clt_process_tl_correlations(): tileX="+tileX+", tileY="+tileY+", iTile="+iTile+", nTile="+nTile);
 							}
 							// TODO: move port coordinates out of color channel loop
 							// double [][] centersXY = tp_tasks[iTile].getDoubleXY(); // isAux());
+							
+							
+							// Generate +1/+2
 							double [][] disp_dist = tp_tasks[iTile].getDoubleDispDist();
-							double [][] corrs =      new double [correlation2d.getNumPairs() + (combine_corrs? 1 : 0)][]; // extra for combo "all"
+							int num_combo = combine_corrs? (diameters_combo? 2 : 1) : 0;
+							double [][] corrs =      new double [correlation2d.getNumPairs() + num_combo][]; // extra for combo "all"
 							// copy correlation tiles from the GPU's floating point arrays 
 							for (int ipair = 0; ipair < used_pairs_list.length; ipair++) {
 								int pair = used_pairs_list[ipair];
@@ -2511,7 +2516,8 @@ public class ImageDtt extends ImageDttCPU {
 							double [] disp_str = {0.0, 0.0}; // disparity = 0 will be initial approximation for LMA if no averaging
 							if (combine_corrs) {
 								double [] corr_combo_tile = correlation2d.accumulateInit(); // combine all available pairs
-								double sumw = 0.0;
+								double [] corr_dia_tile = diameters_combo ? correlation2d.accumulateInit(): null; // combine diameters
+								double sumw = 0.0, sumw_dia = 0.0;
 								if (imgdtt_params.mcorr_static_weights || imgdtt_params.mcorr_dynamic_weights) {
 									double [] weights = new double [correlation2d.getNumPairs()];
 									if (imgdtt_params.mcorr_static_weights) {
@@ -2552,23 +2558,73 @@ public class ImageDtt extends ImageDttCPU {
 											corr_combo_tile,      // double []   accum_tile,
 											corrs,                // double [][] corr_tiles, may be longer than selection, extra will be ignored 
 											weights);             // double []     weights);
+									if (corr_dia_tile != null) {
+										double [] weights_dia = weights.clone();
+										boolean [] sel_dia = correlation2d.selectDiameters(null);
+										for (int i= 0; i < sel_dia.length; i++) {
+											if (!sel_dia[i]) {
+												weights_dia[i] = 0.0;
+											}
+										}
+										sumw_dia = correlation2d.accummulatePairs(
+												corr_dia_tile,        // double []   accum_tile,
+												corrs,                // double [][] corr_tiles, may be longer than selection, extra will be ignored 
+												weights_dia);         // double []     weights);
+									}
 								} else { // old way, same weight for all pairs
 									sumw = correlation2d.accummulatePairs(
 											corr_combo_tile,           // double []   accum_tile,
 											corrs,                     // double [][] corr_tiles, may be longer than selection, extra will be ignored 
 											correlation2d.selectAll(), // boolean []  selection,
 											1.0);             // double      weight);
+									if (corr_dia_tile != null) {
+										sumw_dia = correlation2d.accummulatePairs(
+												corr_dia_tile,           // double []   accum_tile,
+												corrs,                     // double [][] corr_tiles, may be longer than selection, extra will be ignored 
+												correlation2d.selectDiameters(null), // boolean []  selection,
+												1.0);             // double      weight);
+									}
 								}
 
 
 								correlation2d.normalizeAccumulatedPairs(
 										corr_combo_tile,
 										sumw);
-//								corrs[dcorr_td[iTile].length] = corr_combo_tile;  // last element
-								corrs[corrs.length -1] = corr_combo_tile;  // last element
+								
+//								corrs[corrs.length -1] = corr_combo_tile;  // last element
+								corrs[correlation2d.getNumPairs()] = corr_combo_tile;
+								if (corr_dia_tile != null) {
+									correlation2d.normalizeAccumulatedPairs(
+											corr_dia_tile,
+											sumw_dia);
+									corrs[correlation2d.getNumPairs()+1] = corr_dia_tile;
+								}
+								
 								// copy to output for monitoring if non-null;
 								if ((clt_corr_out != null) && (clt_corr_out.length > num_pairs)) {
 									clt_corr_out[num_pairs][tileY][tileX] = corr_combo_tile;
+									if ((clt_corr_out.length > (num_pairs+1)) && (corr_dia_tile != null)) {
+										clt_corr_out[num_pairs + 1][tileY][tileX] = corr_dia_tile;
+									}
+								}
+								// calculate 0,1, or 2 maximums
+								if (debugTile1) {
+									System.out.println("clt_process_tl_correlations(): debugTile1");
+								}
+								double [][] maxes = correlation2d.getDoublePoly(
+										((corr_dia_tile != null) ? corr_dia_tile : corr_combo_tile), // double [] combo_corrs,
+										imgdtt_params.mcorr_dual_fract); //double    min_fraction
+								// TODO: add corr layer - copy of combo with singles as nulls
+//								if ((maxes.length < 2) && (clt_corr_out != null) && (clt_corr_out.length > num_pairs)) {
+								if ((maxes.length < 2) && (corr_dia_tile!=null)) { //FIXME: Debug
+//									corrs[correlation2d.getNumPairs()] = null; // temporarily keep only with pairs
+									Arrays.fill(corrs[correlation2d.getNumPairs()+1], Double.NaN);
+								}
+								if (debugTile1) {
+									System.out.println("clt_process_tl_correlations() maxes=");
+									for (int i = 0; i < maxes.length; i++) {
+										System.out.println(String.format("maxes[%d][0]=%f, maxes[%d][1]=%f", i, maxes[i][0], i, maxes[i][1]));
+									}
 								}
 								if (disparity_map != null) {
 									int [] ixy =   correlation2d.getMaxXYInt( // find integer pair or null if below threshold // USED in lwir

@@ -131,6 +131,7 @@ public class ImageDttParameters {
 	public boolean mcorr_static_weights =   true; // when mixing , apply static weights to pairs depending on their lengths
 	public double  mcorr_weights_power =    2.0;  // divide pair by horizontal (disparity) width after rotation/scaling (skip negative when measuring width)
 	public boolean mcorr_dynamic_weights =  true; // Apply weights to pairs dependent on the width in disparity direction
+	public double  mcorr_dual_fract=        0.15; // Minimal relative strength of the second correlation maximum to treat as FG+BG
 	
 	/// these are just for testing, actual will be generated specifically for different applications (LY will use closest pairs)  
 	public int     mcorr_comb_width =       15;
@@ -557,6 +558,8 @@ public class ImageDttParameters {
 					"Increase weight of pairs with linear features perpendicular to the base direction and long base pairs");
 			gd.addCheckbox    ("Apply dynaminc (feature-dependent) weights defined above",        this.mcorr_dynamic_weights,
 					"Calculate each pairs's width (in the disparity direction) after rotation/scaling and apply");
+			gd.addNumericField("Minimal relative strength of the second maximum (0 - ignore)",    this.mcorr_dual_fract,  3,6,"",
+					"Minimal relative strength of the second correlation maximum to treat as FG+BG (0 - ignore dual maximums, no special treatment)");
 
 			gd.addMessage("Generating grid for combining visualization, actual will be provided programmatically");
 			gd.addNumericField("Width of a combined correlation tile",                            this.mcorr_comb_width,  0, 3, "pix",
@@ -909,6 +912,7 @@ public class ImageDttParameters {
   			this.mcorr_static_weights =  gd.getNextBoolean();
   			this.mcorr_weights_power=    gd.getNextNumber();
   			this.mcorr_dynamic_weights = gd.getNextBoolean();
+  			this.mcorr_dual_fract=       gd.getNextNumber();
   			
   			this.mcorr_comb_width= (int) gd.getNextNumber();
   			this.mcorr_comb_height=(int) gd.getNextNumber();
@@ -1126,6 +1130,7 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"mcorr_static_weights", this.mcorr_static_weights +"");
 		properties.setProperty(prefix+"mcorr_weights_power",  this.mcorr_weights_power +"");
 		properties.setProperty(prefix+"mcorr_dynamic_weights",this.mcorr_dynamic_weights +"");
+		properties.setProperty(prefix+"mcorr_dual_fract",     this.mcorr_dual_fract +"");
 		
 		properties.setProperty(prefix+"mcorr_comb_width",     this.mcorr_comb_width +"");
 		properties.setProperty(prefix+"mcorr_comb_height",    this.mcorr_comb_height +"");
@@ -1349,6 +1354,7 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"mcorr_static_weights")!=null) this.mcorr_static_weights=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_static_weights"));
 		if (properties.getProperty(prefix+"mcorr_weights_power")!=null)  this.mcorr_weights_power=Double.parseDouble(properties.getProperty(prefix+"mcorr_weights_power"));
 		if (properties.getProperty(prefix+"mcorr_dynamic_weights")!=null)this.mcorr_dynamic_weights=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_dynamic_weights"));
+		if (properties.getProperty(prefix+"mcorr_dual_fract")!=null)     this.mcorr_dual_fract=Double.parseDouble(properties.getProperty(prefix+"mcorr_dual_fract"));
 		
 		if (properties.getProperty(prefix+"mcorr_comb_width")!=null)     this.mcorr_comb_width=Integer.parseInt(properties.getProperty(prefix+"mcorr_comb_width"));
 		if (properties.getProperty(prefix+"mcorr_comb_height")!=null)    this.mcorr_comb_height=Integer.parseInt(properties.getProperty(prefix+"mcorr_comb_height"));
@@ -1587,6 +1593,7 @@ public class ImageDttParameters {
 		idp.mcorr_static_weights=    this.mcorr_static_weights;
 		idp.mcorr_weights_power=     this.mcorr_weights_power;
 		idp.mcorr_dynamic_weights=   this.mcorr_dynamic_weights;
+		idp.mcorr_dual_fract=        this.mcorr_dual_fract;
 		
 		idp.mcorr_comb_width=        this.mcorr_comb_width;
 		idp.mcorr_comb_height=       this.mcorr_comb_height;

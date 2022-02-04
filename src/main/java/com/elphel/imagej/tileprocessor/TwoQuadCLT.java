@@ -9104,6 +9104,9 @@ if (debugLevel > -100) return true; // temporarily !
 					colorProcParameters,       // ColorProcParameters colorProcParameters,
 					clt_parameters.inp.noise_debug_level // clt_parameters.ofp.debug_level_optical - 1); // 1); // -1); // int debug_level);
 					);
+			if (ref_step == 0) {
+				break;
+			}
 		}
 		System.out.println("End of interIntraExportML()");
 	}

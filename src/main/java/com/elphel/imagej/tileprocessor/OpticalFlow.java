@@ -2590,7 +2590,7 @@ public class OpticalFlow {
 					for (int indx = ai.getAndIncrement(); indx < pXpYD.length; indx = ai.getAndIncrement()) if (pXpYD[indx] != null) {
 						int tx = (int)Math.round(pXpYD[indx][0]/tileSize);
 						int ty = (int)Math.round(pXpYD[indx][1]/tileSize);
-						if ((debug_level > 0) && (tx == dbg_tileX) && (ty == dbg_tileY)) {
+						if ((debug_level > 0) && (indx == dbg_nTile)) { //(tx == dbg_tileX) && (ty == dbg_tileY)) {
 							System.out.println("filterBG(): tx = "+tx+", ty="+ty+", indx="+indx);
 							System.out.print("");
 						}
@@ -4873,19 +4873,19 @@ public class OpticalFlow {
 			fs.saveAsTiff(file_path);
 			System.out.println("intersceneExport(): saved "+file_path);
 		}
-		
-		String offsets_suffix = "-DISP_OFFSETS";
-		if (randomize_offsets) {
-			offsets_suffix+="-RND";
-		}			
+		if (disparity_steps > 0) {
+			String offsets_suffix = "-DISP_OFFSETS";
+			if (randomize_offsets) {
+				offsets_suffix+="-RND";
+			}			
 
-		ref_scene.saveDoubleArrayInModelDirectory(
-				offsets_suffix,      // String      suffix,
-				soffset_centers,     // null,          // String []   labels, // or null
-				all_offsets,         // dbg_data,         // double [][] data,
-				tilesX,              // int         width,
-				tilesY);             // int         height)
-		
+			ref_scene.saveDoubleArrayInModelDirectory(
+					offsets_suffix,      // String      suffix,
+					soffset_centers,     // null,          // String []   labels, // or null
+					all_offsets,         // dbg_data,         // double [][] data,
+					tilesX,              // int         width,
+					tilesY);             // int         height)
+		}
 	}
 	
 	/**
@@ -6451,16 +6451,19 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 						ref_scene); // final QuadCLT     reference_QuadClt)
 				
 				double max_overlap = 0.6; 
-				double [] disparity_cam = null; // for now
 //				double min_str_cam =    0.1;
 				double min_adisp_cam =  0.2;
 				double min_rdisp_cam =  0.03;
-				
+				double [][] scene_ds =conditionInitialDS(
+						clt_parameters, // CLTParameters  clt_parameters,
+						scenes[nscene], // QuadCLT        scene,
+						-1); // int debug_level); 
+				double [] disparity_cam = scene_ds[0]; // null; // for now
 				scene_pXpYD = filterBG (
 						scenes[indx_ref].getTileProcessor(), // final TileProcessor tp,
 						scene_pXpYD_prefilter, // final double [][] pXpYD,
 						max_overlap,           // final double max_overlap,
-						disparity_cam,         // final double [] disparity_cam,
+						null, // disparity_cam,         // final double [] disparity_cam,
 						min_adisp_cam,         // final double min_adisp_cam,
 						min_rdisp_cam,         // final double min_rdisp_cam,
 						clt_parameters.tileX,  // final int    dbg_tileX,
@@ -6663,7 +6666,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		}
 ///		Runtime.getRuntime().gc();
 ///		System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
-		// Normalize accumulated corelations
+		// Normalize accumulated correlations
 		if (ref_scene.hasGPU()) {
 			 accumulateCorrelationsAcOnly(
 					 num_acc,       // final int [][][]     num_acc,          // number of accumulated tiles [tilesY][tilesX][pair]
