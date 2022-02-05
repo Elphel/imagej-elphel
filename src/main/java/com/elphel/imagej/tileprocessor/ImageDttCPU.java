@@ -1826,7 +1826,7 @@ public class ImageDttCPU {
 				ortho_weights[i] = 0.5*(1.0+Math.cos(Math.PI*dx))/imgdtt_params.ortho_eff_height;
 			}
 		}
-		if (globalDebugLevel > 0){
+		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
@@ -1834,7 +1834,7 @@ public class ImageDttCPU {
 		}
 
 
-		if (globalDebugLevel > 0) {
+		if (globalDebugLevel > 1) {
 			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
@@ -1842,7 +1842,7 @@ public class ImageDttCPU {
 		final double [] filter =  doubleGetCltLpfFd(corr_sigma);
 
 		// prepare disparity maps and weights
-		if (globalDebugLevel > 0){
+		if (globalDebugLevel > 1){
 			System.out.println("corr_fat_zero=         "+corr_fat_zero);
 			System.out.println("disparity_array[0][0]= "+disparity_array[0][0]);
 
@@ -3629,14 +3629,14 @@ public class ImageDttCPU {
 				ortho_weights[i] = 0.5*(1.0+Math.cos(Math.PI*dx))/imgdtt_params.ortho_eff_height;
 			}
 		}
-		if (globalDebugLevel > 0){
+		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
 			}
 		}
 
-		if (globalDebugLevel > 0) {
+		if (globalDebugLevel > 1) {
 			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
@@ -4605,14 +4605,14 @@ public class ImageDttCPU {
 				ortho_weights[i] = 0.5*(1.0+Math.cos(Math.PI*dx))/imgdtt_params.ortho_eff_height;
 			}
 		}
-		if (globalDebugLevel > 0){
+		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
 			}
 		}
 
-		if (globalDebugLevel > 0) {
+		if (globalDebugLevel > 1) {
 			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
@@ -7879,7 +7879,7 @@ public class ImageDttCPU {
 				ortho_weights[i] = 0.5*(1.0+Math.cos(Math.PI*dx))/imgdtt_params.ortho_eff_height;
 			}
 		}
-		if (globalDebugLevel > 0){
+		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
@@ -12225,7 +12225,7 @@ public class ImageDttCPU {
 				ortho_weights[i] = 0.5*(1.0+Math.cos(Math.PI*dx))/clt_parameters.img_dtt.ortho_eff_height;
 			}
 		}
-		if (globalDebugLevel > 0){
+		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ clt_parameters.img_dtt.ortho_height+" ortho_eff_height="+ clt_parameters.img_dtt.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
@@ -13162,7 +13162,7 @@ public class ImageDttCPU {
 				ortho_weights[i] = 0.5*(1.0+Math.cos(Math.PI*dx))/clt_parameters.img_dtt.ortho_eff_height;
 			}
 		}
-		if (globalDebugLevel > 0){
+		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ clt_parameters.img_dtt.ortho_height+" ortho_eff_height="+ clt_parameters.img_dtt.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
@@ -13879,14 +13879,14 @@ public class ImageDttCPU {
 				ortho_weights[i] = 0.5*(1.0+Math.cos(Math.PI*dx))/clt_parameters.img_dtt.ortho_eff_height;
 			}
 		}
-		if (globalDebugLevel > 0){
+		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ clt_parameters.img_dtt.ortho_height+" ortho_eff_height="+ clt_parameters.img_dtt.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
 			}
 		}
 
-		if (globalDebugLevel > 0) {
+		if (globalDebugLevel > 1) {
 			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
@@ -14291,7 +14291,7 @@ public class ImageDttCPU {
 				ortho_weights[i] = 0.5*(1.0+Math.cos(Math.PI*dx))/imgdtt_params.ortho_eff_height;
 			}
 		}
-		if (globalDebugLevel > 0){
+		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
@@ -14301,7 +14301,7 @@ public class ImageDttCPU {
 
 
 
-		if (globalDebugLevel > 0) {
+		if (globalDebugLevel > 1) {
 			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
@@ -16027,7 +16027,7 @@ public class ImageDttCPU {
 												corrs[npair] , //double [] corr_tile,
 									    		npair);        // int       num_pair)
 										if (pair_width < 0.1) {
-											if (globalDebugLevel > 0) {
+											if (globalDebugLevel > 1) {
 												System.out.println("pair_width["+npair+"]="+pair_width);
 											}
 										} else {

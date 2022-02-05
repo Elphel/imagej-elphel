@@ -80,7 +80,7 @@ public class ImageDttParameters {
 	//lmamask_
 	public boolean lmamask_dbg =              false;  // show LMA images, exit after single BG
 	public boolean lmamask_en =               false;  // Use disparity-based LMA samples filter
-	public double  lmamask_magic =            0.85;
+	public double  lmamask_magic =            0.85;   // Now only used for initial disparity from estimated by CM/Poly
 	public double  lmamask_min_main =         0.4;
 	public double  lmamask_min_neib =         0.10;
 	public double  lmamask_weight_neib =      0.75;
@@ -456,7 +456,7 @@ public class ImageDttParameters {
 			gd.addCheckbox    ("Use disparity-based LMA samples filtering",                       this.lmamask_en,
 					"Generate weighs by averaging 2D correlation shape and per-pair shifting for estimated from CM disparity");
 		    gd.addNumericField("Divide estimated disparity by magic 0.85",                        this.lmamask_magic,  6,8,"",
-		    		"Increase estimated disparity before averaging correlation shape and per-pair shifting the result");
+		    		"Increase estimated disparity for iniital LMA setiings");
 		    gd.addNumericField("Minimal relative sample value for unconditional inclusion",       this.lmamask_min_main,  6,8,"",
 		    		"Relatrive (to maximal) value in averaged correlation to be assigned window vlaue of 1.0 regardless of neighbors");
 		    gd.addNumericField("Minimal relative sample value for neighbor inclusion",            this.lmamask_min_neib,  6,8,"",

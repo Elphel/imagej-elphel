@@ -740,6 +740,8 @@ public class Corr2dLMA {
 
 	/**
 	 * Calculate initial disparity by polynomial approximation. Only works with a single tile now
+	 * Note: combo correlation scale is one pixel for 1 pixel disparity for diameter cameras, while standard 
+	 * (pre-shift) disparity refers to a quad-camera (square) pixel offset. So the returned disparity should be divided by sqrt(2)
 	 * @param corr_wnd_inv_limited window (same as for finding convex) to boost gain in peripheral areas, but not the very marginal ones
 	 * @param max_offset maximal abs(disparity) value to trust
 	 * @param dgg_title if !=null - generate debug image with this title

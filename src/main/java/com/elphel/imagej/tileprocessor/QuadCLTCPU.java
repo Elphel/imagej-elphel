@@ -12858,7 +12858,7 @@ public class QuadCLTCPU {
 		  final boolean             save_diff =   save_textures || need_diffs; // true; // separately save differences and 
 		  final boolean             save_lowres = save_textures || need_diffs; // true; // low-res images
 		  
-		  if (clust_radius > 00) { // will not generate textures
+		  if (clust_radius > 0) { // will not generate textures
 			  // set tasks for all non-NaN target disparities
 			  TpTask [] tp_tasks_target = GpuQuad.setTasks(
 					  num_sensors,                  // final int                      num_cams,
@@ -12976,7 +12976,7 @@ public class QuadCLTCPU {
 							tp_tasks,                  // final TpTask []           tp_tasks,        // data from the reference frame - will be applied to LMW for the integrated correlations
 							geometryCorrection.getRXY(false), // final double [][]         rXY,             // from geometryCorrection
 							// next both can be nulls
-							null,                          // final double [][][][]     clt_corr_out,   // sparse (by the first index) [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] or null
+							clt_corr_out, // null,                          // final double [][][][]     clt_corr_out,   // sparse (by the first index) [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] or null
 						    // combo will be added as extra pair if mcorr_comb_width > 0 and clt_corr_out has a slot for it
 							// to be converted to float
 							dcorr_tiles,                   // final double  [][][]      dcorr_tiles,     // [tile][pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate

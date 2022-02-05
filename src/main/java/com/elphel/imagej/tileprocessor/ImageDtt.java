@@ -221,7 +221,7 @@ public class ImageDtt extends ImageDttCPU {
 				ortho_weights[i] = 0.5*(1.0+Math.cos(Math.PI*dx))/imgdtt_params.ortho_eff_height;
 			}
 		}
-		if (globalDebugLevel > 0){
+		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
@@ -229,7 +229,7 @@ public class ImageDtt extends ImageDttCPU {
 		}
 
 
-		if (globalDebugLevel > 0) {
+		if (globalDebugLevel > 1) {
 			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
@@ -1350,7 +1350,7 @@ public class ImageDtt extends ImageDttCPU {
 				ortho_weights[i] = 0.5*(1.0+Math.cos(Math.PI*dx))/imgdtt_params.ortho_eff_height;
 			}
 		}
-		if (globalDebugLevel > 0){
+		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
@@ -1358,7 +1358,7 @@ public class ImageDtt extends ImageDttCPU {
 		}
 
 
-		if (globalDebugLevel > 0) {
+		if (globalDebugLevel > 1) {
 			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
@@ -2015,7 +2015,7 @@ public class ImageDtt extends ImageDttCPU {
 				ortho_weights[i] = 0.5*(1.0+Math.cos(Math.PI*dx))/imgdtt_params.ortho_eff_height;
 			}
 		}
-		if (globalDebugLevel > 0){
+		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
@@ -2023,7 +2023,7 @@ public class ImageDtt extends ImageDttCPU {
 		}
 
 
-		if (globalDebugLevel > 0) {
+		if (globalDebugLevel > 1) {
 			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
@@ -2303,6 +2303,7 @@ public class ImageDtt extends ImageDttCPU {
 			final int                 threadsMax,      // maximal number of threads to launch
 			final int                 globalDebugLevel)
 	{
+		final double disparity_scale = 1.0/Math.sqrt(2); // combo pixels -> disparity pixels
 		final boolean diameters_combo = (imgdtt_params.mcorr_dual_fract > 0.0); // add diameters-only combo after all-combo
 		if (this.gpuQuad == null) {
 			System.out.println("clt_aberrations_quad_corr_GPU(): this.gpuQuad is null, bailing out");
@@ -2364,7 +2365,7 @@ public class ImageDtt extends ImageDttCPU {
 				ortho_weights[i] = 0.5*(1.0+Math.cos(Math.PI*dx))/imgdtt_params.ortho_eff_height;
 			}
 		}
-		if (globalDebugLevel > 0){
+		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
@@ -2372,7 +2373,7 @@ public class ImageDtt extends ImageDttCPU {
 		}
 
 
-		if (globalDebugLevel > 00) {
+		if (globalDebugLevel > 1) {
 			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
@@ -2537,7 +2538,7 @@ public class ImageDtt extends ImageDttCPU {
 													corrs[npair] , //double [] corr_tile,
 													npair);        // int       num_pair)
 											if (pair_width < 0.1) {
-												if (globalDebugLevel > 0) {
+												if (globalDebugLevel > 1) {
 													System.out.println("pair_width["+npair+"]="+pair_width);
 												}
 											} else {
@@ -2612,6 +2613,7 @@ public class ImageDtt extends ImageDttCPU {
 									System.out.println("clt_process_tl_correlations(): debugTile1");
 								}
 								double [][] maxes = correlation2d.getDoublePoly(
+										disparity_scale, // double    disparity_scale,
 										((corr_dia_tile != null) ? corr_dia_tile : corr_combo_tile), // double [] combo_corrs,
 										imgdtt_params.mcorr_dual_fract); //double    min_fraction
 								// TODO: add corr layer - copy of combo with singles as nulls
@@ -2623,9 +2625,31 @@ public class ImageDtt extends ImageDttCPU {
 								if (debugTile1) {
 									System.out.println("clt_process_tl_correlations() maxes=");
 									for (int i = 0; i < maxes.length; i++) {
-										System.out.println(String.format("maxes[%d][0]=%f, maxes[%d][1]=%f", i, maxes[i][0], i, maxes[i][1]));
+										System.out.println(String.format("maxes[%d][0]=%f (quadcam disparity pixels, not combo pixels), maxes[%d][1]=%f", i, maxes[i][0], i, maxes[i][1]));
 									}
 								}
+								if (debugTile1) {
+									correlation2d.corrLMA2DualMax( // null pointer
+											imgdtt_params,                // ImageDttParameters  imgdtt_params,
+											imgdtt_params.lmas_LY_single, // false,    // boolean             adjust_ly, // adjust Lazy Eye
+											corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
+											corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
+											corrs,                        // corrs,          // double [][]         corrs,
+											disp_dist,
+											rXY,                          // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
+											// all that are not null in corr_tiles
+											correlation2d.selectAll(),    // longToArray(imgdtt_params.dbg_pair_mask),  // int                 pair_mask, // which pairs to process
+											maxes,                     //double[][]          disp_str_dual,          // -preliminary center x in pixels for largest baseline
+											null, // poly_disp,                    // double[]            poly_ds,    // null or pair of disparity/strength
+											imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
+											null, // debug_lma_tile,               // double []           debug_lma_tile,
+											(debugTile0 ? 1: -2),         // int                 debug_level,
+//											-2, //0,                            // tile_lma_debug_level, // +2,         // int                 debug_level,
+											tileX,                        // int                 tileX, // just for debug output
+											tileY ); 
+									
+								}
+								
 								if (disparity_map != null) {
 									int [] ixy =   correlation2d.getMaxXYInt( // find integer pair or null if below threshold // USED in lwir
 											corr_combo_tile, // double [] data,      // [data_size * data_size]
@@ -2642,7 +2666,10 @@ public class ImageDtt extends ImageDttCPU {
 											ixy[0],                              // int       ixcenter,  // integer center x
 											false); // debugCluster); // (tile_lma_debug_level > 0)); // boolean   debug);
 									if (corr_stat != null) { // almost always
-										disp_str = new double [] {-corr_stat[0], corr_stat[1]};
+										// FIXME: apply that for non-GPU version (and other variants) !
+										// convert to disparity for a quad camera (used in pre-shift)
+										disp_str = new double [] {-corr_stat[0]/Math.sqrt(2), corr_stat[1]};
+//										disp_str = new double [] {-corr_stat[0], corr_stat[1]};
 										if (disparity_map!=null) {
 											disparity_map[DISPARITY_INDEX_CM      ][nTile] = disp_str[0];
 											disparity_map[DISPARITY_INDEX_CM + 1  ][nTile] = disp_str[1];
@@ -2874,7 +2901,7 @@ public class ImageDtt extends ImageDttCPU {
 				ortho_weights[i] = 0.5*(1.0+Math.cos(Math.PI*dx))/imgdtt_params.ortho_eff_height;
 			}
 		}
-		if (globalDebugLevel > 0){
+		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
@@ -2882,7 +2909,7 @@ public class ImageDtt extends ImageDttCPU {
 		}
 
 
-		if (globalDebugLevel > 0) {
+		if (globalDebugLevel > 1) {
 			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
