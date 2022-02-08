@@ -77,6 +77,14 @@ public class ImageDttParameters {
 	public int     dbg_pair_mask =          0x3f;  // which pairs to combine
 	public int     corr_strip_hight =       9;     // number of rows to calculate
 
+	//bimax_
+	public double  bimax_lpf_neib =          0.5; // if >0, add ortho neibs (corners - squared)
+	public double  bimax_notch_pwr =         4.0; // calculating notch filter to suppress input data of the weaker maximum 
+	public double  bimax_adv_power =         2.0; // reduce weight from overlap with adversarial maximum 
+	public int     bimax_rad_convex_search = 2;   // how far from predicted to search for maximums
+	public int     bimax_min_num_samples =   4;   // minimal number of samples per pair per maximum
+	public int     bimax_min_num_pairs =     8;   // minimal number of used pairs
+
 	//lmamask_
 	public boolean lmamask_dbg =              false;  // show LMA images, exit after single BG
 	public boolean lmamask_en =               false;  // Use disparity-based LMA samples filter
@@ -450,6 +458,21 @@ public class ImageDttParameters {
 			gd.addNumericField("Number of correlation rows to combine (strip height)",            this.corr_strip_hight,  0, 3, "",
 					"Number of rows to combine/interpolate correlation results. Rows are twice denser than pixels correponding to largest baseline disparity");
 
+			gd.addMessage("LMA prefiltering for dual disparities in a tile");
+			
+		    gd.addNumericField("LPF for combined maximums",                                       this.bimax_lpf_neib,  6,8,"",
+		    		"0 - no LPF, >0 - add 4 scaled ortho neighbors and 4 corners bscaled as square of this value");
+		    gd.addNumericField("Notch filter power",                                              this.bimax_notch_pwr,  6,8,"",
+		    		"Reduce offending (other) correlation maximum by multiplying. High power reduces all < 1.0 values");
+		    gd.addNumericField("Reduction of sample weight by the other maximum",                 this.bimax_adv_power,  6,8,"",
+		    		"If X= (this strength /other strength), scale by X/(1+X) to theis power");
+			gd.addNumericField("Convex max search around predicted disparity",                    this.bimax_rad_convex_search,  0, 3, "",
+					"How far from predicted to search for maximums");
+			gd.addNumericField("Minimal samples per pair per max",                                this.bimax_min_num_samples,  0, 3, "",
+					"Minimal number of samples per pair per maximum to use this pair by LMA (each of the maximums used)");
+			gd.addNumericField("Minimal number of used pairs",                                    this.bimax_min_num_pairs,  0, 3, "",
+					"Do not use LMA if total number of used pairs is lower");
+			
 			gd.addMessage("LMA samples filter based on estimated disparity");
 			gd.addCheckbox    ("Debug LMA",                                                       this.lmamask_dbg,
 					"Generate debug images and exit after first clt_process_tl_correlations() while generating background image");
@@ -856,9 +879,16 @@ public class ImageDttParameters {
 		    this.min_corr =              gd.getNextNumber();
 
 
-  			this.dbg_pair_mask=    (int) gd.getNextNumber();
-  			this.corr_strip_hight= (int) gd.getNextNumber();
-
+  			this.dbg_pair_mask=           (int) gd.getNextNumber();
+  			this.corr_strip_hight=        (int) gd.getNextNumber();
+  			
+  		    this.bimax_lpf_neib =               gd.getNextNumber();
+  		    this.bimax_notch_pwr =              gd.getNextNumber();
+  		    this.bimax_adv_power =              gd.getNextNumber();
+  		    this.bimax_rad_convex_search= (int) gd.getNextNumber();
+  		    this.bimax_min_num_samples=   (int) gd.getNextNumber();
+  		    this.bimax_min_num_pairs=     (int) gd.getNextNumber();
+  			
   			this.lmamask_dbg =              gd.getNextBoolean();
   			this.lmamask_en =               gd.getNextBoolean();
 			this.lmamask_magic =            gd.getNextNumber();
@@ -1077,6 +1107,13 @@ public class ImageDttParameters {
 
 		properties.setProperty(prefix+"dbg_pair_mask",        this.dbg_pair_mask +"");
 		properties.setProperty(prefix+"corr_strip_hight",     this.corr_strip_hight +"");
+		
+		properties.setProperty(prefix+"bimax_lpf_neib",          this.bimax_lpf_neib +"");
+		properties.setProperty(prefix+"bimax_notch_pwr",         this.bimax_notch_pwr +"");
+		properties.setProperty(prefix+"bimax_adv_power",         this.bimax_adv_power +"");
+		properties.setProperty(prefix+"bimax_rad_convex_search", this.bimax_rad_convex_search +"");
+		properties.setProperty(prefix+"bimax_min_num_samples",   this.bimax_min_num_samples +"");
+		properties.setProperty(prefix+"bimax_min_num_pairs",     this.bimax_min_num_pairs +"");
 
 		properties.setProperty(prefix+"lmamask_dbg",          this.lmamask_dbg +"");
 		properties.setProperty(prefix+"lmamask_en",           this.lmamask_en +"");
@@ -1301,8 +1338,14 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"dbg_pair_mask")!=null)        this.dbg_pair_mask=Integer.parseInt(properties.getProperty(prefix+"dbg_pair_mask"));
 		if (properties.getProperty(prefix+"corr_strip_hight")!=null)     this.corr_strip_hight=Integer.parseInt(properties.getProperty(prefix+"corr_strip_hight"));
 
+		if (properties.getProperty(prefix+"bimax_lpf_neib")!=null)          this.bimax_lpf_neib=Double.parseDouble(properties.getProperty(prefix+"bimax_lpf_neib"));
+		if (properties.getProperty(prefix+"bimax_notch_pwr")!=null)         this.bimax_notch_pwr=Double.parseDouble(properties.getProperty(prefix+"bimax_notch_pwr"));
+		if (properties.getProperty(prefix+"bimax_adv_power")!=null)         this.bimax_adv_power=Double.parseDouble(properties.getProperty(prefix+"bimax_adv_power"));
+		if (properties.getProperty(prefix+"bimax_rad_convex_search")!=null) this.bimax_rad_convex_search=Integer.parseInt(properties.getProperty(prefix+"bimax_rad_convex_search"));
+		if (properties.getProperty(prefix+"bimax_min_num_samples")!=null)   this.bimax_min_num_samples=Integer.parseInt(properties.getProperty(prefix+"bimax_min_num_samples"));
+		if (properties.getProperty(prefix+"bimax_min_num_pairs")!=null)     this.bimax_min_num_pairs=Integer.parseInt(properties.getProperty(prefix+"bimax_min_num_pairs"));
 		
-		if (properties.getProperty(prefix+"lmamask_dbg")!=null)               this.lmamask_dbg=Boolean.parseBoolean(properties.getProperty(prefix+"lmamask_dbg"));
+		if (properties.getProperty(prefix+"lmamask_dbg")!=null)              this.lmamask_dbg=Boolean.parseBoolean(properties.getProperty(prefix+"lmamask_dbg"));
 		if (properties.getProperty(prefix+"lmamask_en")!=null)               this.lmamask_en=Boolean.parseBoolean(properties.getProperty(prefix+"lmamask_en"));
 		if (properties.getProperty(prefix+"lmamask_magic")!=null)            this.lmamask_magic=Double.parseDouble(properties.getProperty(prefix+"lmamask_magic"));
 		if (properties.getProperty(prefix+"lmamask_min_main")!=null)         this.lmamask_min_main=Double.parseDouble(properties.getProperty(prefix+"lmamask_min_main"));
@@ -1542,6 +1585,13 @@ public class ImageDttParameters {
 		idp.dbg_pair_mask=           this.dbg_pair_mask;
 		idp.corr_strip_hight=        this.corr_strip_hight;
 
+		idp.bimax_lpf_neib=          this.bimax_lpf_neib;
+		idp.bimax_notch_pwr=         this.bimax_notch_pwr;
+		idp.bimax_adv_power=         this.bimax_adv_power;
+		idp.bimax_rad_convex_search= this.bimax_rad_convex_search;
+		idp.bimax_min_num_samples=   this.bimax_min_num_samples;
+		idp.bimax_min_num_pairs=     this.bimax_min_num_pairs;
+		
 		idp.lmamask_dbg=               this.lmamask_dbg;
 		idp.lmamask_en=                this.lmamask_en;
 		idp.lmamask_magic=             this.lmamask_magic;

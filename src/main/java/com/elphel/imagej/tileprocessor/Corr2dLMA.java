@@ -547,7 +547,6 @@ public class Corr2dLMA {
 			}
 		}
 		
-		
 		// apply corrections
 		if (apply) {
 			for (int ncam = 0; ncam <num_cams; ncam++) {
@@ -1636,7 +1635,28 @@ public class Corr2dLMA {
 		return xy_offsets;
 	}
 	
-	
+	/**
+	 * Calculate offsets for multiple disparities, for each defined pair x,y expected offset, assuming only disparity, not lazy eye   
+	 * @param corrs - pairs 2D correlations (each in scanline order) - just to determine null/non-null
+	 * @param disparity_strengths - expected {disparity, strength} pairs (e.g. from CM)
+	 * @param disp_dist - per camera disparity matrix as a 1d (linescan order))
+	 * @return array of per-disparity, per pair x,y expected center offset in 2D correlations or nulls for undefined pairs (or null if already set)
+	 */
+	public double [][][] getPairsOffsets(
+			double [][]       corrs,
+			boolean []        pair_mask,
+			double [][]       disparity_strengths,
+			double [][]       disp_dist){ //
+		double [][][] pairs_offsets = new double [disparity_strengths.length][][];
+		for (int i = 0; i < pairs_offsets.length; i++) {
+			pairs_offsets[i] = getPairsOffsets(
+					corrs,                     // double [][]       corrs,
+					pair_mask,                 // boolean []        pair_mask,
+					disparity_strengths[i][0], // double            disparity,
+					disp_dist);                // double [][]       disp_dist)
+		}
+		return pairs_offsets;
+	}
 
 	public void printParams() { // not used in lwir
 		// to make sure it is updated
@@ -2062,7 +2082,7 @@ public class Corr2dLMA {
 		double [][] maxmin_amp = getMaxMinAmpTile();
 		double [][] abc =        getABCTile();
 		for (int tile = 0; tile < numTiles; tile++) {
-			ds[tile][0] = Double.NaN;
+			ds[tile][0] = Double.NaN + 0;
 			if (Double.isNaN(maxmin_amp[tile][0])) {
 				continue;
 			}

@@ -2631,7 +2631,8 @@ public class ImageDtt extends ImageDttCPU {
 								if (debugTile1) {
 									correlation2d.corrLMA2DualMax( // null pointer
 											imgdtt_params,                // ImageDttParameters  imgdtt_params,
-											imgdtt_params.lmas_LY_single, // false,    // boolean             adjust_ly, // adjust Lazy Eye
+								        	1,                            // int     combine_mode,   // 0 - both,  1 - strongest, 2 - nearest to zero, 3 - FG, 4 - BG
+//											imgdtt_params.lmas_LY_single, // false,    // boolean             adjust_ly, // adjust Lazy Eye
 											corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
 											corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
 											corrs,                        // corrs,          // double [][]         corrs,
@@ -2639,12 +2640,11 @@ public class ImageDtt extends ImageDttCPU {
 											rXY,                          // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
 											// all that are not null in corr_tiles
 											correlation2d.selectAll(),    // longToArray(imgdtt_params.dbg_pair_mask),  // int                 pair_mask, // which pairs to process
-											maxes,                     //double[][]          disp_str_dual,          // -preliminary center x in pixels for largest baseline
+											maxes,                        //double[][]          disp_str_dual,          // -preliminary center x in pixels for largest baseline
 											null, // poly_disp,                    // double[]            poly_ds,    // null or pair of disparity/strength
 											imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
 											null, // debug_lma_tile,               // double []           debug_lma_tile,
 											(debugTile0 ? 1: -2),         // int                 debug_level,
-//											-2, //0,                            // tile_lma_debug_level, // +2,         // int                 debug_level,
 											tileX,                        // int                 tileX, // just for debug output
 											tileY ); 
 									

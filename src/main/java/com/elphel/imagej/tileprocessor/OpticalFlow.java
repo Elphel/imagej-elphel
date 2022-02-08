@@ -4361,7 +4361,9 @@ public class OpticalFlow {
 		// Save pair selection and minimize them for scanning, then restore;
 		int num_sensors =scenes[indx_ref].getNumSensors();
 		int save_pairs_selection = clt_parameters.img_dtt.getMcorr(num_sensors);
-		clt_parameters.img_dtt.setMcorr(num_sensors, 0 ); // remove all
+		// FIXME: uncomment next
+		System.out.println ("++++ Uncomment next line ++++");
+////		clt_parameters.img_dtt.setMcorr(num_sensors, 0 ); // remove all
 		clt_parameters.img_dtt.setMcorrNeib(num_sensors,true);
 		clt_parameters.img_dtt.setMcorrSq  (num_sensors,true); // remove even more?
 		clt_parameters.img_dtt.setMcorrDia (num_sensors,true); // remove even more?
