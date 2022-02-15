@@ -2629,9 +2629,9 @@ public class ImageDtt extends ImageDttCPU {
 									}
 								}
 								if (debugTile1) {
-									correlation2d.corrLMA2DualMax( // null pointer
+									Corr2dLMA lma_dual = correlation2d.corrLMA2DualMax( // null pointer
 											imgdtt_params,                // ImageDttParameters  imgdtt_params,
-								        	1,                            // int     combine_mode,   // 0 - both,  1 - strongest, 2 - nearest to zero, 3 - FG, 4 - BG
+								        	0, // 3, // 0, // 1,                            // int     combine_mode,   // 0 - both,  1 - strongest, 2 - nearest to zero, 3 - FG, 4 - BG
 //											imgdtt_params.lmas_LY_single, // false,    // boolean             adjust_ly, // adjust Lazy Eye
 											corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
 											corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
@@ -2647,6 +2647,8 @@ public class ImageDtt extends ImageDttCPU {
 											(debugTile0 ? 1: -2),         // int                 debug_level,
 											tileX,                        // int                 tileX, // just for debug output
 											tileY ); 
+									System.out.println("clt_process_tl_correlations() corrLMA2DualMax() done, lma_dual="+
+										((lma_dual== null)? "null": " not null"));
 									
 								}
 								

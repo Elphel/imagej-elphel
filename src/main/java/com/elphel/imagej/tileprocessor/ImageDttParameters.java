@@ -84,6 +84,7 @@ public class ImageDttParameters {
 	public int     bimax_rad_convex_search = 2;   // how far from predicted to search for maximums
 	public int     bimax_min_num_samples =   4;   // minimal number of samples per pair per maximum
 	public int     bimax_min_num_pairs =     8;   // minimal number of used pairs
+	public boolean bimax_dual_pass =         true; // First pass - do not adjust disparity
 
 	//lmamask_
 	public boolean lmamask_dbg =              false;  // show LMA images, exit after single BG
@@ -183,7 +184,7 @@ public class ImageDttParameters {
 	public double  lma_disp_range =          5.0;   // disparity range to combine in one cluster (to mitigate ERS
 // LMA single parameters
 //	public boolean lmas_gaussian =           false; // model correlation maximum as a Gaussian (false - as a parabola)
-	public int     lmas_gaussian =           0;    //  0 - parabola, 1 - Gaussian, 2 - limited parabola, 3 - limited squared parabola
+	public int     lmas_gaussian =           3;    //  0 - parabola, 1 - Gaussian, 2 - limited parabola, 3 - limited squared parabola
 	public boolean lmas_adjust_wm =          true;  // used in new for width
 	public boolean lmas_adjust_wy =          true;  // adjust non-circular
 	public boolean lmas_adjust_ag =          true;  // adjust gains gains
@@ -212,7 +213,7 @@ public class ImageDttParameters {
 	public int     lma_gaussian =           0;     // 0 - parabola, 1 - Gaussian, 2 - limited parabola, 3 - limited squared parabola
 	public boolean lma_second =             true;  // re-run LMA after removing weak/failed tiles
 //	public boolean lma_second_gaussian =    false;  // re-run after removing weal/failed in Gaussian mode
-	public int     lma_second_gaussian =    0; // false;  // re-run after removing weal/failed in Gaussian mode
+	public int     lma_second_gaussian =    0; // false;  // re-run after removing weak/failed in Gaussian mode
 	public boolean lma_adjust_wm =          true;  // used in new for width
 	public boolean lma_adjust_wy =          true;  // false; // used in new for ellipse
 	public boolean lma_adjust_wxy =         true;  // used in new for lazy eye adjust parallel-to-disparity correction
@@ -472,6 +473,8 @@ public class ImageDttParameters {
 					"Minimal number of samples per pair per maximum to use this pair by LMA (each of the maximums used)");
 			gd.addNumericField("Minimal number of used pairs",                                    this.bimax_min_num_pairs,  0, 3, "",
 					"Do not use LMA if total number of used pairs is lower");
+			gd.addCheckbox    ("Dual-pass LMA",                                                   this.bimax_dual_pass,
+					"First adjust other parameters (keeping disparities), then add disparities");
 			
 			gd.addMessage("LMA samples filter based on estimated disparity");
 			gd.addCheckbox    ("Debug LMA",                                                       this.lmamask_dbg,
@@ -888,6 +891,7 @@ public class ImageDttParameters {
   		    this.bimax_rad_convex_search= (int) gd.getNextNumber();
   		    this.bimax_min_num_samples=   (int) gd.getNextNumber();
   		    this.bimax_min_num_pairs=     (int) gd.getNextNumber();
+  			this.bimax_dual_pass =              gd.getNextBoolean();
   			
   			this.lmamask_dbg =              gd.getNextBoolean();
   			this.lmamask_en =               gd.getNextBoolean();
@@ -1114,6 +1118,7 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"bimax_rad_convex_search", this.bimax_rad_convex_search +"");
 		properties.setProperty(prefix+"bimax_min_num_samples",   this.bimax_min_num_samples +"");
 		properties.setProperty(prefix+"bimax_min_num_pairs",     this.bimax_min_num_pairs +"");
+		properties.setProperty(prefix+"bimax_dual_pass",         this.bimax_dual_pass +"");
 
 		properties.setProperty(prefix+"lmamask_dbg",          this.lmamask_dbg +"");
 		properties.setProperty(prefix+"lmamask_en",           this.lmamask_en +"");
@@ -1344,6 +1349,7 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"bimax_rad_convex_search")!=null) this.bimax_rad_convex_search=Integer.parseInt(properties.getProperty(prefix+"bimax_rad_convex_search"));
 		if (properties.getProperty(prefix+"bimax_min_num_samples")!=null)   this.bimax_min_num_samples=Integer.parseInt(properties.getProperty(prefix+"bimax_min_num_samples"));
 		if (properties.getProperty(prefix+"bimax_min_num_pairs")!=null)     this.bimax_min_num_pairs=Integer.parseInt(properties.getProperty(prefix+"bimax_min_num_pairs"));
+		if (properties.getProperty(prefix+"bimax_dual_pass")!=null)         this.bimax_dual_pass=Boolean.parseBoolean(properties.getProperty(prefix+"bimax_dual_pass"));
 		
 		if (properties.getProperty(prefix+"lmamask_dbg")!=null)              this.lmamask_dbg=Boolean.parseBoolean(properties.getProperty(prefix+"lmamask_dbg"));
 		if (properties.getProperty(prefix+"lmamask_en")!=null)               this.lmamask_en=Boolean.parseBoolean(properties.getProperty(prefix+"lmamask_en"));
@@ -1591,6 +1597,7 @@ public class ImageDttParameters {
 		idp.bimax_rad_convex_search= this.bimax_rad_convex_search;
 		idp.bimax_min_num_samples=   this.bimax_min_num_samples;
 		idp.bimax_min_num_pairs=     this.bimax_min_num_pairs;
+		idp.bimax_dual_pass=         this.bimax_dual_pass;
 		
 		idp.lmamask_dbg=               this.lmamask_dbg;
 		idp.lmamask_en=                this.lmamask_en;

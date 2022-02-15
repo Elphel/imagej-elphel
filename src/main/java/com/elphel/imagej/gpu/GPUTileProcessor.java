@@ -74,6 +74,10 @@ import jcuda.nvrtc.nvrtcProgram;
 public class GPUTileProcessor {
 	public static boolean USE_DS_DP = false; // Use Dynamic Shared memory with Dynamic Parallelism (not implemented)  
 	String LIBRARY_PATH = "/usr/local/cuda/targets/x86_64-linux/lib/libcudadevrt.a"; // linux
+	// Can be downloaded and twice extracted from
+	// https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-cudart-dev-11-2_11.2.152-1_amd64.deb
+	// First deb itself, then data.tar.xz, and it will have usr/local/cuda/targets/x86_64-linux/lib/libcudadevrt.a inside
+	// Found "cuda-cudart-dev" on https://ubuntu.pkgs.org/
 	static String GPU_RESOURCE_DIR =              "kernels";
 	static String [] GPU_KERNEL_FILES = {"dtt8x8.cuh","TileProcessor.cuh"};
 	// "*" - generated defines, first index - separately compiled unit

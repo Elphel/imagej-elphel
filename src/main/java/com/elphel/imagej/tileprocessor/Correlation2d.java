@@ -3518,6 +3518,7 @@ public class Correlation2d {
     	}
     		Corr2dLMA lma = new Corr2dLMA(
     			corrs.length,
+				1, // int         numMax,
 				this, // Correlation2d correlation2d,
     			transform_size,
     			corr_wnd,
@@ -3620,6 +3621,7 @@ public class Correlation2d {
     					lma.addSample( // x = 0, y=0 - center
     							ntile, // tile
     							npair,
+    							0,     // int    imax,   // number of maximum (just a hint)
 //    							fcam,  // int    fcam, // first  camera index
 //    							scam,  // int    scam, // second camera index
     							ix,    // int    x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
@@ -3660,12 +3662,13 @@ public class Correlation2d {
     	boolean lmaSuccess = false;
     	while (!lmaSuccess) {
     		boolean OK = lma.initVector( // USED in lwir
+    				null, // 			boolean [] adjust_disparities, // null - adjust all, otherwise - per maximum
     				imgdtt_params.lma_adjust_wm,  // boolean adjust_width,     // adjust width of the maximum - lma_adjust_wm
     				imgdtt_params.lma_adjust_ag,  // boolean adjust_scales,    // adjust 2D correlation scales - lma_adjust_ag
     				imgdtt_params.lma_adjust_wy,  // boolean adjust_ellipse,   // allow non-circular correlation maximums lma_adjust_wy
     				imgdtt_params.lma_adjust_wxy, // boolean adjust_lazyeye_par,   // adjust disparity corrections parallel to disparities  lma_adjust_wxy
     				imgdtt_params.lma_adjust_ly1, // boolean adjust_lazyeye_ortho, // adjust disparity corrections orthogonal to disparities lma_adjust_ly1
-    				disp_str, // xcenter_str,                  // double [][] disp_str,         // initial value of disparity/strength/?
+    				new double[][][] {disp_str}, // xcenter, 
     				imgdtt_params.lma_half_width, // double  half_width,       // A=1/(half_widh)^2   lma_half_width
     				imgdtt_params.lma_cost_wy,     // double  cost_lazyeye_par,     // cost for each of the non-zero disparity corrections        lma_cost_wy
     				imgdtt_params.lma_cost_wxy     // double  cost_lazyeye_odtho    // cost for each of the non-zero ortho disparity corrections  lma_cost_wxy
@@ -3746,6 +3749,7 @@ public class Correlation2d {
     				} else { // have to restart LMA initialization
     					lma = new Corr2dLMA(
     							corrs.length,
+    							1, // int         numMax,
     							this, // 				Correlation2d correlation2d,
     							transform_size,
     							corr_wnd,
@@ -3755,12 +3759,14 @@ public class Correlation2d {
     					lma.setSamples(samples); // restore samples
     				}
     				lma.initVector( // USED in lwir
+    	    				null, // 			boolean [] adjust_disparities, // null - adjust all, otherwise - per maximum
     						imgdtt_params.lma_adjust_wm,  // boolean adjust_width,     // adjust width of the maximum - lma_adjust_wm
     						imgdtt_params.lma_adjust_ag,  // boolean adjust_scales,    // adjust 2D correlation scales - lma_adjust_ag
     						imgdtt_params.lma_adjust_wy,  // boolean adjust_ellipse,   // allow non-circular correlation maximums lma_adjust_wy
     						true, // imgdtt_params.lma_adjust_wxy, // boolean adjust_lazyeye_par,   // adjust disparity corrections parallel to disparities  lma_adjust_wxy
     						true, // imgdtt_params.lma_adjust_ly1, // boolean adjust_lazyeye_ortho, // adjust disparity corrections orthogonal to disparities lma_adjust_ly1
-    						ds, // disp_str, // xcenter_str,                  // double [][] disp_str,         // initial value of disparity/strength/?
+//    						ds, // disp_str, // xcenter_str,                  // double [][] disp_str,         // initial value of disparity/strength/?
+    	    				new double[][][] {ds}, // xcenter, 
     						imgdtt_params.lma_half_width, // double  half_width,       // A=1/(half_widh)^2   lma_half_width
     						imgdtt_params.lma_cost_wy,     // double  cost_lazyeye_par,     // cost for each of the non-zero disparity corrections        lma_cost_wy
     						imgdtt_params.lma_cost_wxy     // double  cost_lazyeye_odtho    // cost for each of the non-zero ortho disparity corrections  lma_cost_wxy
@@ -3959,6 +3965,7 @@ public class Correlation2d {
     	int corr_size = 2 * transform_size - 1;
     	Corr2dLMA lma = new Corr2dLMA(
     			1,
+				1, // int         numMax,
 				this, // Correlation2d correlation2d,
     			transform_size,
     			corr_wnd,
@@ -4118,6 +4125,7 @@ public class Correlation2d {
     	    	lma.addSample( // x = 0, y=0 - center
     	    			0,    // tile
     	    			npair,
+    	    			0,    // int    imax,   // number of maximum (just a hint)
     	    			ix,   // int    x,     // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
     	    			iy,   // int    y,     // y coordinate (0 - disparity axis)
     	    			v,    // double v,     // correlation value at that point
@@ -4193,12 +4201,13 @@ public class Correlation2d {
 			}
 			
     		lma.initVector(
+    				null, // 			boolean [] adjust_disparities, // null - adjust all, otherwise - per maximum
     				imgdtt_params.lmas_adjust_wm,  // boolean adjust_width,     // adjust width of the maximum - lma_adjust_wm
     				imgdtt_params.lmas_adjust_ag,  // boolean adjust_scales,    // adjust 2D correlation scales - lma_adjust_ag
     				imgdtt_params.lmas_adjust_wy,  // boolean adjust_ellipse,   // allow non-circular correlation maximums lma_adjust_wy
     				(adjust_ly ? imgdtt_params.lma_adjust_wxy : false), //imgdtt_params.lma_adjust_wxy, // boolean adjust_lazyeye_par,   // adjust disparity corrections parallel to disparities  lma_adjust_wxy
     				(adjust_ly ? imgdtt_params.lma_adjust_ly1: false), // imgdtt_params.lma_adjust_ly1, // boolean adjust_lazyeye_ortho, // adjust disparity corrections orthogonal to disparities lma_adjust_ly1
-    				disp_str2_scaled, // xcenter, 
+    				new double[][][] {disp_str2_scaled}, // xcenter, 
     				imgdtt_params.lma_half_width, // double  half_width,       // A=1/(half_widh)^2   lma_half_width
     				(adjust_ly ? imgdtt_params.lma_cost_wy : 0.0), // imgdtt_params.lma_cost_wy,     // double  cost_lazyeye_par,     // cost for each of the non-zero disparity corrections        lma_cost_wy
     				(adjust_ly ? imgdtt_params.lma_cost_wxy : 0.0) //imgdtt_params.lma_cost_wxy     // double  cost_lazyeye_odtho    // cost for each of the non-zero ortho disparity corrections  lma_cost_wxy
@@ -4262,7 +4271,8 @@ public class Correlation2d {
     		if (disp != null) {
     			disp_str2[0] = disp;
     			lma.initDisparity( // USED in lwir null pointer
-    					disp_str2); // double [][] disp_str         // initial value of disparity
+    					disp_str2, // double [][] disp_str         // initial value of disparity
+        				0); // int         nmax); //
 
     			if (debug_level > 1) {
     				System.out.println("Input data:");
@@ -4413,15 +4423,7 @@ public class Correlation2d {
     	if (imgdtt_params.lma_sigma > 0) gb = new DoubleGaussianBlur();
     	int center =       transform_size - 1;
     	int corr_size = 2 * transform_size - 1;
-    	Corr2dLMA lma = new Corr2dLMA(
-    			1,
-				this, // Correlation2d correlation2d,
-    			transform_size,
-    			corr_wnd,
-    			rXY,                       //double [][] rXY, // non-distorted X,Y offset per nominal pixel of disparity
-    			imgdtt_params.lmas_gaussian //boolean gaussian_mode
-    			);
-    	double [][][]       pair_offsets0 = lma.getPairsOffsets(
+    	double [][][]       pair_offsets0 = getPairsOffsets(
     			corrs,         // double [][]       corrs,
     			pair_mask,     // boolean []        pair_mask,
     			disp_str_dual, // double  [][]        disparity_strengths,
@@ -4429,7 +4431,7 @@ public class Correlation2d {
     	double [][][]       own_masks0 = new double [pair_offsets0.length][][];
     	double [][][] lma_corr_weights0 = getLmaWeights(
     			imgdtt_params,                 // ImageDttParameters  imgdtt_params,
-    			lma,                           // Corr2dLMA           lma,
+//    			lma,                           // Corr2dLMA           lma,
     			imgdtt_params.bimax_lpf_neib,  // double              lpf_neib,  // if >0, add ortho neibs (corners - squared)
     			imgdtt_params.bimax_notch_pwr, // double              notch_pwr, //  = 4.00;
     			imgdtt_params.bimax_adv_power, // double              adv_power,    // reduce weight from overlap with adversarial maximum 
@@ -4572,6 +4574,16 @@ public class Correlation2d {
    		if (num_used_pairs < imgdtt_params.bimax_min_num_pairs) {
    			return null;
    		}
+    	Corr2dLMA lma = new Corr2dLMA(
+    			1,
+				lma_corr_weights.length, // int         numMax,
+				this, // Correlation2d correlation2d,
+    			transform_size,
+    			corr_wnd,
+    			rXY,                       //double [][] rXY, // non-distorted X,Y offset per nominal pixel of disparity
+    			imgdtt_params.lmas_gaussian //boolean gaussian_mode
+    			);
+   		
    		for (int npair = 0; npair < pair_mask.length; npair++) if ((corrs[npair] != null) && (used_pairs[npair])){
    			for (int nmax = 0; nmax < lma_corr_weights.length; nmax++) { // use same blurred version for all max-es
    				for (int i = 1; i < lma_corr_weights[nmax][npair].length; i++) if (lma_corr_weights[nmax][npair][i] > 0.0) {
@@ -4582,13 +4594,14 @@ public class Correlation2d {
    					if (vasw_pwr != 0) {
    						w *= Math.pow(Math.abs(v), vasw_pwr);
    					}
-   					lma.addSample( // x = 0, y=0 - center
-   							0,    // tile
+					lma.addSample( // x = 0, y=0 - center
+   							0,     // tile
    							npair,
-   							ix,   // int    x,     // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
-   							iy,   // int    y,     // y coordinate (0 - disparity axis)
-   							v,    // double v,     // correlation value at that point
-   							w);   //double w)      // sample weight
+   							nmax,  // int    imax,   // number of maximum (just a hint)   							
+   							ix,    // int    x,     // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
+   							iy,    // int    y,     // y coordinate (0 - disparity axis)
+   							v,     // double v,     // correlation value at that point
+   							w);    //double w)      // sample weight
    				}
    				
    			}
@@ -4631,43 +4644,57 @@ public class Correlation2d {
    							corr_size,
    							corr_size,
    							true,
-   							"samples_weights"+"_x"+tileX+"_y"+tileY,
+   							"samples_weights"+"_x"+tileX+"_y"+tileY+"_nmx"+nmax,
    							getCorrTitles());
    				}
    			}
    		}
 
    		// initially will use just first (selected) maximum, both - whenLMA will be modified to support 3 maximums.
-    	double [][] disp_str2 = {disp_str_all[0]}; // temporary // will be calculated/set later
+    	double [][][] disp_str2 = new double[disp_str_all.length][1][];// = {disp_str_all[0]}; // temporary // will be calculated/set later
+    	for (int i = 0; i <disp_str_all.length; i++) if (disp_str_all[i] != null){
+    		disp_str2[i][0] = disp_str_all[i];
+    	}
+//   		double [][] disp_str2 = {disp_str_all[0]}; // temporary // will be calculated/set later
     	boolean lmaSuccess = false;
-    	int num_lma_retries = 0;
+//    	int num_lma_retries = 0;
 		
-		while (!lmaSuccess) {
-			num_lma_retries ++; // debug
-    		lma.initVector(
+    	// When running LMA - first do not touch disparity?
+//    	int lma_pass = imgdtt_params.bimax_dual_pass? 0 : 1; // pass0 - w/o disparity, pass 1 - with
+    	boolean [] adjust_disparities = new boolean [disp_str_all.length]; // all false;
+    	boolean needprep = true; //t npass = 0;
+    	for (int npass = (imgdtt_params.bimax_dual_pass? 00 : 1); npass < 2; npass++) { // may break while (!lmaSuccess) {
+ //   		num_lma_retries ++; // debug
+    		if (needprep) {
+    			lma.preparePars(
+    					disp_str2, // double [][][] disp_str_all,  initial value of disparity [max][tile]{disp, strength}
+    					imgdtt_params.lma_half_width); // double  half_width,       // A=1/(half_widh)^2   lma_half_width
+    			needprep = false;
+        		lma.setMatrices (disp_dist);
+        		lma.initMatrices (); // should be called after initVector and after setMatrices
+        		lma.initDisparity(disp_str2); // initial value of disparity [max][tile]{disp, strength}
+    		} else {
+    			lma.updateFromVector();
+    		}
+    		if (npass > 0) {
+    			adjust_disparities = null;
+    		}
+    		lma.setParMask( // USED in lwir
+    				adjust_disparities, // null, // 			boolean [] adjust_disparities, // null - adjust all, otherwise - per maximum
     				imgdtt_params.lmas_adjust_wm,  // boolean adjust_width,     // adjust width of the maximum - lma_adjust_wm
     				imgdtt_params.lmas_adjust_ag,  // boolean adjust_scales,    // adjust 2D correlation scales - lma_adjust_ag
     				imgdtt_params.lmas_adjust_wy,  // boolean adjust_ellipse,   // allow non-circular correlation maximums lma_adjust_wy
     				false, // (adjust_ly ? imgdtt_params.lma_adjust_wxy : false), //imgdtt_params.lma_adjust_wxy, // boolean adjust_lazyeye_par,   // adjust disparity corrections parallel to disparities  lma_adjust_wxy
     				false, // (adjust_ly ? imgdtt_params.lma_adjust_ly1: false), // imgdtt_params.lma_adjust_ly1, // boolean adjust_lazyeye_ortho, // adjust disparity corrections orthogonal to disparities lma_adjust_ly1
-    				disp_str2, // xcenter, 
-    				imgdtt_params.lma_half_width, // double  half_width,       // A=1/(half_widh)^2   lma_half_width
     				0.0, // (adjust_ly ? imgdtt_params.lma_cost_wy : 0.0), // imgdtt_params.lma_cost_wy,     // double  cost_lazyeye_par,     // cost for each of the non-zero disparity corrections        lma_cost_wy
-    				0.0  // (adjust_ly ? imgdtt_params.lma_cost_wxy : 0.0) //imgdtt_params.lma_cost_wxy     // double  cost_lazyeye_odtho    // cost for each of the non-zero ortho disparity corrections  lma_cost_wxy
-    				);
-    		lma.setMatrices(disp_dist);
-    		lma.initMatrices(); // should be called after initVector and after setMatrices
+    				0.0);  // (adjust_ly ? imgdtt_params.lma_cost_wxy : 0.0) //imgdtt_params.lma_cost_wxy     // double  cost_lazyeye_odtho    // cost for each of the non-zero ortho disparity corrections  lma_cost_wxy
 
-    		lma.initDisparity( // USED in lwir null pointer
-    				disp_str2); // double [][] disp_str         // initial value of disparity
-
-    		if (debug_level > 1) {
+    		if (debug_level > 0) { // 1) {
     			System.out.println("Input data:");
     			lma.printInputDataFx(false);
     			lma.printParams();
-
     		}
-    		lmaSuccess = 	lma.runLma(
+    		lmaSuccess = lma.runLma(
     				imgdtt_params.lmas_lambda_initial,     // double lambda,           // 0.1
     				imgdtt_params.lma_lambda_scale_good,   // double lambda_scale_good,// 0.5
     				imgdtt_params.lma_lambda_scale_bad,    // double lambda_scale_bad, // 8.0
@@ -4679,14 +4706,12 @@ public class Correlation2d {
     			if (debug_level > -2) {
     				System.out.println("Found bad tile/pair during single (probably wrong initial maximum - try around preliminary? "+lma.getBadTile());
     			}
-    		} else {
-    			break;
     		}
     	}
 
 		if (lmaSuccess) {
 			lma.updateFromVector();
-			double [][] dispStr = lma.lmaDisparityStrength( //TODO: add parameter to filter out negative minimums ?
+			double [][][] dispStrs = lma.lmaDisparityStrengths( //TODO: add parameter to filter out negative minimums ?
 					imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 					imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 					imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
@@ -4696,20 +4721,25 @@ public class Correlation2d {
 					imgdtt_params.lma_str_scale,     // convert lma-generated strength to match previous ones - scale
 					imgdtt_params.lma_str_offset     // convert lma-generated strength to match previous ones - add to result
 					);
-			if (dispStr[0][1] <= 0) {
+			for (int nmax = 0; nmax < dispStrs.length; nmax++) if (dispStrs[nmax][0][1] <= 0) {
 				lmaSuccess = false;
+				break;
+			}
+			if (!lmaSuccess) {
 				if (debug_lma_tile != null) {
-					debug_lma_tile[3] = num_lma_retries; // number of wasted attempts
+//					debug_lma_tile[3] = num_lma_retries; // number of wasted attempts
 					debug_lma_tile[4] = lma.getNumIter(); 
 				}    			
 			} else {
 				if (debug_level > -2) {
-					System.out.println(String.format("LMA disparity=%8.5f, str=%8.5f",
-							dispStr[0][0],dispStr[0][1]));
+					for (int nmax = 0; nmax < dispStrs.length; nmax++) {
+					System.out.println(String.format("LMA max-%d: disparity=%8.5f, str=%8.5f",
+							nmax,dispStrs[nmax][0][0],dispStrs[nmax][0][1]));
+					}
 				}
 				double [] rms = lma.getRMS();
 				if (debug_lma_tile != null) {
-					debug_lma_tile[3] = num_lma_retries; // number of wasted attempts
+//					debug_lma_tile[3] = num_lma_retries; // number of wasted attempts
 					debug_lma_tile[4] = lma.getNumIter(); 
 					debug_lma_tile[5] = rms[1]; // pure rms 
 				}    			
@@ -4747,7 +4777,7 @@ public class Correlation2d {
 			}
 
 		} else if (debug_lma_tile != null) {
-    		debug_lma_tile[3] = num_lma_retries; // number of wasted attempts 
+ //   		debug_lma_tile[3] = num_lma_retries; // number of wasted attempts 
     	}
     	return lmaSuccess? lma: null;
     }
@@ -4777,10 +4807,61 @@ public class Correlation2d {
     	}
     }
     
+	/**
+	 * Calculate offsets for multiple disparities, for each defined pair x,y expected offset, assuming only disparity, not lazy eye   
+	 * @param corrs - pairs 2D correlations (each in scanline order) - just to determine null/non-null
+	 * @param disparity_strengths - expected {disparity, strength} pairs (e.g. from CM)
+	 * @param disp_dist - per camera disparity matrix as a 1d (linescan order))
+	 * @return array of per-disparity, per pair x,y expected center offset in 2D correlations or nulls for undefined pairs (or null if already set)
+	 */
+	public double [][][] getPairsOffsets(
+			double [][]       corrs,
+			boolean []        pair_mask,
+			double [][]       disparity_strengths,
+			double [][]       disp_dist){ //
+		double [][][] pairs_offsets = new double [disparity_strengths.length][][];
+		for (int i = 0; i < pairs_offsets.length; i++) {
+			pairs_offsets[i] = getPairsOffsets(
+					corrs,                     // double [][]       corrs,
+					pair_mask,                 // boolean []        pair_mask,
+					disparity_strengths[i][0], // double            disparity,
+					disp_dist);                // double [][]       disp_dist)
+		}
+		return pairs_offsets;
+	}
+    
+	/**
+	 * Calculate each defined pair x,y expected offset, assuming only disparity, not lazy eye   
+	 * @param corrs - pairs 2D correlations (each in scanline order) - just to determine null/non-null
+	 * @param disparity - expected disparity (e.g. from CM)
+	 * @param disp_dist - per camera disparity matrix as a 1d (linescan order))
+	 * @return per pair x,y expected center offset in 2D correlations or nulls for undefined pairs (or null if already set)
+	 */
+
+    public double [][] getPairsOffsets(
+			double [][]       corrs,
+			boolean []        pair_mask,
+			double            disparity,
+			double [][]       disp_dist){ // 
+		double [][] xy_offsets = new double [corrs.length][];
+		Matrix [] m_disp = Corr2dLMA.getMatrices(
+				disp_dist, // double [][] am_disp,
+				getNumSensors()); // int num_cams)
+		for (int pair = 0; pair < xy_offsets.length; pair++) if ((pair < getNumPairs()) && (corrs[pair] != null) && ((pair_mask == null) || pair_mask[pair])){ // OK to calculate for each
+ 			int [] fscam = getPair(pair); // returns [first_cam, second_cam]
+			Matrix mdd_dnd = new Matrix(new double[] {-disparity,  0.0},2);
+			Matrix xcam_ycam_f = m_disp[fscam[0]].times(mdd_dnd);
+			Matrix xcam_ycam_s = m_disp[fscam[1]].times(mdd_dnd);
+			xy_offsets[pair] = xcam_ycam_f.minus(xcam_ycam_s).getColumnPackedCopy();	
+		}
+		return xy_offsets;
+	}
+
+    
     
 	public double[][][] getLmaWeights(
     		ImageDttParameters  imgdtt_params,
-    		Corr2dLMA           lma,
+//    		Corr2dLMA           lma,
     		double              lpf_neib,  // if >0, add ortho neibs (corners - squared)
     		double              notch_pwr, //  = 4.00;
     		double              adv_power,    // reduce weight from overlap with adversarial maximum 
