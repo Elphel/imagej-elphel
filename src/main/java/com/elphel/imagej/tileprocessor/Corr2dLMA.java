@@ -110,7 +110,7 @@ public class Corr2dLMA {
 
 	private double []         last_rms =        null; // {rms, rms_pure}, matching this.vector
 	private double []         good_or_bad_rms = null; // just for diagnostics, to read last (failed) rms
-	private double []         initial_rms =     null; // {rms, rms_pure}, first-calcualted rms
+	private double []         initial_rms =     null; // {rms, rms_pure}, first-calculated rms
 	private double []         last_ymfx =       null;
 	private double [][]       last_jt =         null;
 
@@ -121,7 +121,8 @@ public class Corr2dLMA {
 
 	private int []            used_cams_rmap; // variable-length list of used cameras numbers
 	private int [][]          used_pairs_map; // [tile][pair] -1 for unused pairs, >=0 for used ones
-	
+	private boolean []        last_common_scale = null; //When switching from common to individual the
+	                                                    // scale[0] is cloned, reverse - averaged to [0]
 	private boolean []        used_tiles;
 
 	private final int         transform_size;
@@ -882,6 +883,7 @@ public class Corr2dLMA {
 	 * Set/modify parameters mask. May be called after preparePars () or after updateFromVector() if LMA was ran
 	 * @param adjust_disparities null to adjust all (1 or 2) disparities or a boolean array of per maximum
 	 *                           individual disparity adjusts
+	 * @param common_scales per-maximum, if true - common scale for all pairs. Null - all individual (old mode)                         
 	 * @param adjust_width adjust correlation maximum width      
 	 * @param adjust_scales adjust per-pair amplitude
 	 * @param adjust_ellipse adjust per-pair maximum shape as an ellipse
@@ -891,8 +893,9 @@ public class Corr2dLMA {
 	 * @param cost_lazyeye_odtho cost of lazy eye orthogonal to disparity
 	 * @return OK/failure
 	 */
-	public boolean setParMask( // USED in lwir
+	public boolean setParMask(
 			boolean [] adjust_disparities, // null - adjust all, otherwise - per maximum
+			boolean [] common_scale,       // per-maximum, if true - common scale for all pairs
 			boolean adjust_width,          // adjust width of the maximum -                                           lma_adjust_wm
 			boolean adjust_scales,         // adjust 2D correlation scales -                                          lma_adjust_ag
 			boolean adjust_ellipse,        // allow non-circular correlation maximums                                 lma_adjust_wy
@@ -905,17 +908,56 @@ public class Corr2dLMA {
 			adjust_disparities = new boolean[numMax];
 			Arrays.fill(adjust_disparities, true);
 		}
+		if (common_scale == null) {
+			common_scale = new boolean[numMax];
+			Arrays.fill(common_scale, false);
+		}
+		if (last_common_scale == null) { // first time - same as it was {false, ...,false}
+			last_common_scale = new boolean[numMax];
+			Arrays.fill(last_common_scale, false);
+		}
+		
 		total_tiles = 0; // now
 		// per-tile parameters
 		for (int nTile = 0; nTile < numTiles; nTile++) if (used_tiles[nTile]) {
 			for (int nmax = 0; nmax < numMax; nmax++) {
 				int offs = (nTile * numMax + nmax) * tile_params;
+				// Do scales need to be changed??
+				if (common_scale[nmax] != last_common_scale[nmax]) {
+					double cs = 0.0;
+					// Do scales need to be averaged into [0]?
+					if (common_scale[nmax]) {
+						int num_used_pairs = 0;
+						for (int np = 0; np <num_pairs; np++) if (used_pairs[nTile][np]) {
+							//this.all_pars[G0_INDEX + i + offs] = Double.NaN; // will be assigned later for used - should be for all !
+							cs += this.all_pars[G0_INDEX + np + offs];
+							num_used_pairs++;
+						}
+						if (num_used_pairs > 0) {
+							cs /= num_used_pairs;
+						}
+					} else { // need to be copied
+						cs = this.all_pars[G0_INDEX + 0 + offs];
+					}
+					for (int np = 0; np <num_pairs; np++) { //  if (used_pairs[nTile][np]) {
+						this.all_pars[G0_INDEX + np + offs] = cs;
+					}						
+					last_common_scale[nmax] = common_scale[nmax];
+				}
+				
 				this.par_mask[DISP_INDEX + offs] = adjust_disparities[nmax];//  true;
 				this.par_mask[A_INDEX    + offs] = adjust_width;
 				this.par_mask[B_INDEX    + offs] = adjust_ellipse;
 				this.par_mask[CMA_INDEX  + offs] = adjust_ellipse;
-				for (int i = 0; i <num_pairs; i++) {
-					this.par_mask[G0_INDEX + i + offs] = used_pairs[nTile][i] & adjust_scales;
+				if (last_common_scale[nmax]) {
+					this.par_mask[G0_INDEX + 0 + offs] = adjust_scales;
+					for (int np = 1; np <num_pairs; np++) {
+						this.par_mask[G0_INDEX + np + offs] = false;
+					}
+				} else  {
+					for (int np = 0; np <num_pairs; np++) {
+						this.par_mask[G0_INDEX + np + offs] = used_pairs[nTile][np] & adjust_scales;
+					}
 				}
 			}
 			total_tiles++;
@@ -1201,7 +1243,9 @@ public class Corr2dLMA {
 				double B = BT[nmax][s.tile];
 				double C = CT[nmax][s.tile];
 
-				double Gp = av[G0_INDEX + pair + offs];
+				int cpair = last_common_scale[nmax]? 0: pair;
+				double Gp = av[G0_INDEX + cpair + offs]; // either common or individual;
+
 				double Wp = corr_wnd[s.ix][s.iy];
 				double WGp = Wp * Gp;
 				//			double xmxp = s.ix - xp_yp[s.tile][s.fcam][s.scam][0];
@@ -1234,11 +1278,19 @@ public class Corr2dLMA {
 					if (par_map[CMA_INDEX + offs] >= 0) {
 						jt[par_map[CMA_INDEX + offs]][ns] = -WGp* ymyp2;
 					}
-					for (int p = 0; p < num_pairs; p++) { // par_mask[G0_INDEX + p] as all pairs either used, or not - then npairs == 0
-						if (par_map[G0_INDEX + p + offs] >= 0) {
-							jt[par_map[G0_INDEX + p + offs]][ns] = (p== pair)? d : 0.0; // (par_mask[G0_INDEX + pair])? d;
+					
+					if (last_common_scale[nmax]) {
+						if (par_map[G0_INDEX + 0 + offs] >= 0) {
+							jt[par_map[G0_INDEX + 0 + offs]][ns] = d; // (par_mask[G0_INDEX + pair])? d;
+						}
+					} else {
+						for (int p = 0; p < num_pairs; p++) { // par_mask[G0_INDEX + p] as all pairs either used, or not - then npairs == 0
+							if (par_map[G0_INDEX + p + offs] >= 0) {
+								jt[par_map[G0_INDEX + p + offs]][ns] = (p== pair)? d : 0.0; // (par_mask[G0_INDEX + pair])? d;
+							}
 						}
 					}
+					
 					if (lazy_eye) {
 						if (nmax == 0) { // only zero during first pass, then accumulate only
 							for (int f = 0; f < num_cams; f++)  { // -1 for the last_cam and pre_last_cam
@@ -1382,7 +1434,9 @@ public class Corr2dLMA {
 				double B = BT[nmax][s.tile];
 				double C = CT[nmax][s.tile];
 
-				double Gp = av[G0_INDEX + pair + offs];
+				int cpair = last_common_scale[nmax]? 0: pair;
+				double Gp = av[G0_INDEX + cpair + offs]; // either common or individual;
+
 				double Wp = corr_wnd[s.ix][s.iy];
 				double WGp = Wp * Gp;
 				//			double xmxp = s.ix - xp_yp[s.tile][s.fcam][s.scam][0];
@@ -1421,12 +1475,27 @@ public class Corr2dLMA {
 					if (par_map[CMA_INDEX + offs] >= 0) {
 						jt[par_map[CMA_INDEX + offs]][ns] = -WGp * ymyp2 * lim_negative;
 					}
-					//				for (int p = 0; p < npairs[s.tile]; p++) { // par_mask[G0_INDEX + p] as all pairs either used, or not - then npairs == 0
+/*
 					for (int p = 0; p < num_pairs; p++) { // par_mask[G0_INDEX + p] as all pairs either used, or not - then npairs == 0
 						if (par_map[G0_INDEX + p + offs] >= 0) {
 							jt[par_map[G0_INDEX + p + offs]][ns] = (p== pair)? d : 0.0; // (par_mask[G0_INDEX + pair])? d;
 						}
 					}
+*/					
+					if (last_common_scale[nmax]) {
+						if (par_map[G0_INDEX + 0 + offs] >= 0) {
+							jt[par_map[G0_INDEX + 0 + offs]][ns] = d; // (par_mask[G0_INDEX + pair])? d;
+						}
+					} else {
+						for (int p = 0; p < num_pairs; p++) { // par_mask[G0_INDEX + p] as all pairs either used, or not - then npairs == 0
+							if (par_map[G0_INDEX + p + offs] >= 0) {
+								jt[par_map[G0_INDEX + p + offs]][ns] = (p== pair)? d : 0.0; // (par_mask[G0_INDEX + pair])? d;
+							}
+						}
+					}
+					
+					
+					
 					if (lazy_eye) {
 						if (nmax == 0) { // only zero during first pass, then accumulate only //   ****
 							for (int f = 0; f < num_cams; f++)  { // -1 for the last_cam and pre_last_cam
@@ -1568,7 +1637,8 @@ public class Corr2dLMA {
 				double A = AT[nmax][s.tile];
 				double B = BT[nmax][s.tile];
 				double C = CT[nmax][s.tile];
-				double Gp = av[G0_INDEX + pair + offs];
+				int cpair = last_common_scale[nmax]? 0: pair;
+				double Gp = av[G0_INDEX + cpair + offs]; // either common or individual;
 				double Wp = corr_wnd[s.ix][s.iy];
 				double WGp = Wp * Gp;
 				double xmxp = s.ix - xp_yp[nmax][s.tile][fs[0]][fs[1]][0]; // TODO - change format of xp_yp
@@ -1608,11 +1678,19 @@ public class Corr2dLMA {
 					if (par_map[CMA_INDEX + offs] >= 0) {
 						jt[par_map[CMA_INDEX + offs]][ns] = -WGp * ymyp2 * lim_negative_2d;
 					}
-					for (int p = 0; p < num_pairs; p++) { // par_mask[G0_INDEX + p] as all pairs either used, or not - then npairs == 0
-						if (par_map[G0_INDEX + p + offs] >= 0) {
-							jt[par_map[G0_INDEX + p + offs]][ns] = (p== pair)? (d * d) : 0.0; // (par_mask[G0_INDEX + pair])? d;
+
+					if (last_common_scale[nmax]) {
+						if (par_map[G0_INDEX + 0 + offs] >= 0) {
+							jt[par_map[G0_INDEX + 0 + offs]][ns] = d * d; // (par_mask[G0_INDEX + pair])? d;
+						}
+					} else {
+						for (int p = 0; p < num_pairs; p++) { // par_mask[G0_INDEX + p] as all pairs either used, or not - then npairs == 0
+							if (par_map[G0_INDEX + p + offs] >= 0) {
+								jt[par_map[G0_INDEX + p + offs]][ns] = (p== pair)? (d * d) : 0.0; // (par_mask[G0_INDEX + pair])? d;
+							}
 						}
 					}
+					
 					if (lazy_eye) {
 						if (nmax == 0) { // only zero during first pass, then accumulate only //   ****
 							for (int f = 0; f < num_cams; f++)  { // -1 for the last_cam and pre_last_cam
@@ -1751,7 +1829,8 @@ public class Corr2dLMA {
 				double A = AT[nmax][s.tile];
 				double B = BT[nmax][s.tile];
 				double C = CT[nmax][s.tile];
-				double Gp = av[G0_INDEX + pair + offs];
+				int cpair = last_common_scale[nmax]? 0: pair;
+				double Gp = av[G0_INDEX + cpair + offs]; // either common or individual;
 				double Wp = corr_wnd[s.ix][s.iy];
 				double WGp = Wp * Gp;
 				double xmxp = s.ix - xp_yp[nmax][s.tile][fs[0]][fs[1]][0];
@@ -1793,10 +1872,23 @@ public class Corr2dLMA {
 					if (par_map[A_INDEX + offs] >= 0)          jt[par_map[A_INDEX + offs]][ns] = -WGpexp*(xmxp2 + ymyp2);
 					if (par_map[B_INDEX + offs] >= 0)          jt[par_map[B_INDEX + offs]][ns] = -WGpexp* 2 * xmxp_ymyp;
 					if (par_map[CMA_INDEX + offs] >= 0)        jt[par_map[CMA_INDEX + offs]][ns] = -WGpexp* ymyp2;
+					/*
 					for (int p = 0; p < npairs[s.tile]; p++) { // par_mask[G0_INDEX + p] as all pairs either used, or not - then npairs == 0
 						if (par_map[G0_INDEX + p + offs] >= 0) jt[par_map[G0_INDEX + p + offs]][ns] = (p== pair)? comm : 0.0; // (par_mask[G0_INDEX + pair])? d;
 					}
-
+					*/
+					if (last_common_scale[nmax]) {
+						if (par_map[G0_INDEX + 0 + offs] >= 0) {
+							jt[par_map[G0_INDEX + 0 + offs]][ns] = comm; // (par_mask[G0_INDEX + pair])? d;
+						}
+					} else {
+						for (int p = 0; p < num_pairs; p++) { // par_mask[G0_INDEX + p] as all pairs either used, or not - then npairs == 0
+							if (par_map[G0_INDEX + p + offs] >= 0) {
+								jt[par_map[G0_INDEX + p + offs]][ns] = (p== pair)? comm : 0.0; // (par_mask[G0_INDEX + pair])? d;
+							}
+						}
+					}
+					
 					// process ddisp (last camera not used, is equal to minus sum of others to make a sum == 0)
 					if (lazy_eye) {
 						if (nmax == 0) { // only zero during first pass, then accumulate only
@@ -2498,6 +2590,7 @@ public class Corr2dLMA {
 		return rslt;
 	}
 
+	// has common threshold for scale ratios for foreground and background corr. maximums
 	public double [][] lmaDisparityStrength(
 			double  lmas_min_amp,     // minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 			double  lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
@@ -2509,7 +2602,8 @@ public class Corr2dLMA {
 			double  lma_str_offset    // convert lma-generated strength to match previous ones - add to result
 			){
 		return lmaDisparityStrengths(
-				lmas_min_amp,     // minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
+				lmas_min_amp,     // double  lmas_min_amp_fg,  // minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
+				lmas_min_amp,     // double  lmas_min_amp_bg,  // Same for bg correlation max (only used for multi-max)
 				lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 				lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 				lma_min_max_ac,   // minimal of A and C coefficients maximum (measures sharpest point/line)
@@ -2518,11 +2612,12 @@ public class Corr2dLMA {
 				lma_str_scale,    // convert lma-generated strength to match previous ones - scale
 				lma_str_offset    // convert lma-generated strength to match previous ones - add to result
 				)[0];
-
 	}
-	
+
+	// has separate thresholds for scale ratios for foreground and background corr. maximums
 	public double [][][] lmaDisparityStrengths(
-			double  lmas_min_amp,     // minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
+			double  lmas_min_amp_fg,  // minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
+			double  lmas_min_amp_bg,  // Same for bg correlation max (only used for multi-max)
 			double  lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 			double  lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 			double  lma_min_max_ac,   // minimal of A and C coefficients maximum (measures sharpest point/line)
@@ -2544,6 +2639,20 @@ public class Corr2dLMA {
 				}
 				if (maxmin_amp[tile][1] < 0.0) {
 					continue; // inverse maximum - discard tile
+				}
+				double lmas_min_amp = lmas_min_amp_fg;
+				double disparity = -all_pars[DISP_INDEX + offs];
+				if (numMax > 1) {
+					for (int nmax1 = 0; nmax1 < numMax; nmax1++) if (nmax1 != nmax){
+						int offs1 = (tile * numMax + nmax1) * tile_params;
+						double disparity1 = -all_pars[DISP_INDEX + offs1];
+						if (disparity1 > disparity) {
+							lmas_min_amp = lmas_min_amp_bg;
+							break;
+						}
+						
+						
+					}
 				}
 				if ((maxmin_amp[tile][1]/maxmin_amp[tile][0]) < lmas_min_amp) {
 					continue; // inverse maximum - discard tile
@@ -2570,7 +2679,7 @@ public class Corr2dLMA {
 
 				}
 				double strength = Math.sqrt(avg/rrms);
-				double disparity = -all_pars[DISP_INDEX + offs];
+//				double disparity = -all_pars[DISP_INDEX + offs];
 				if ((strength < lma_min_strength) || Double.isNaN(disparity)) {
 					continue;
 				}

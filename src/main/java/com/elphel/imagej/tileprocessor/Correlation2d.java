@@ -4410,14 +4410,7 @@ public class Correlation2d {
     	
     	boolean debug_graphic = imgdtt_params.lma_debug_graphic && (imgdtt_params.lma_debug_level1 > 3) && (debug_level > 0) ;
     	debug_graphic |= imgdtt_params.lmamask_dbg && (debug_level > 0) ;
-    	// TODO: Remove me
-    	debug_graphic |= true;
-    	/*
-		String dbg_title = null;
-    	if (debug_graphic) {
-			dbg_title = String.format("tX%d_tY%d",tileX,tileY);
-		}
-		*/
+
     	double [][] dbg_corr =    debug_graphic ? new double [corrs.length][] : null;
     	DoubleGaussianBlur gb = null;
     	if (imgdtt_params.lma_sigma > 0) gb = new DoubleGaussianBlur();
@@ -4449,50 +4442,69 @@ public class Correlation2d {
     	double [][]   disp_str_all;
     	double [][][] own_masks;
     	double [][][] pair_offsets;
+		boolean [] common_scale; //  = {false,false}; // true}; {true,true}; // // TODO: implement
+    	
     	if (lma_corr_weights0.length < 2) {
     		pair_offsets =     pair_offsets0;
     		lma_corr_weights = lma_corr_weights0;
     		disp_str_all =     disp_str_dual;
     		own_masks =        own_masks0;
-    	} else {
-    		int nearest_max = (Math.abs(disp_str_dual[0][0]) < Math.abs(disp_str_dual[0][0]))? 0 : 1;
-    		int fg_max =  (disp_str_dual[0][0] > disp_str_dual[0][0]) ? 0 : 1;
+    		common_scale = new boolean[] {imgdtt_params.bimax_common_fg};
+    	} else { // only 2 max are supported
+    		if (lma_corr_weights0.length > 2) {
+    			System.out.println("corrLMA2DualMax(): Only 2 correlation maximums are currently supported, all but 2 strongest are discarded");
+    		}
+    		int nearest_max = (Math.abs(disp_str_dual[0][0]) < Math.abs(disp_str_dual[1][0]))? 0 : 1;
+    		int fg_max =  (disp_str_dual[0][0] > disp_str_dual[1][0]) ? 0 : 1;
+    		
     		switch (combine_mode) {
     		case 0: // keep both
         		pair_offsets =     pair_offsets0;
     			lma_corr_weights = lma_corr_weights0; 
     			disp_str_all =     disp_str_dual;
         		own_masks =        own_masks0;
+        		common_scale = new boolean[disp_str_dual.length];
+        		for (int i = 0; i < common_scale.length; i++) {
+        			common_scale[i] = (i == fg_max) ? imgdtt_params.bimax_common_fg : imgdtt_params.bimax_common_bg; 
+        		}
     			break; 
     		case 1: // keep strongest
         		pair_offsets =     new double [][][] {pair_offsets0    [0]};
     			lma_corr_weights = new double [][][] {lma_corr_weights0[0]};
     			disp_str_all =     new double [][]   {disp_str_dual    [0]};
     			own_masks =        new double [][][] {own_masks0       [0]};
+        		common_scale =     new boolean[]     {(0 == fg_max) ? imgdtt_params.bimax_common_fg : imgdtt_params.bimax_common_bg}; 
     			break;
     		case 2: // keep nearest
         		pair_offsets =     new double [][][] {pair_offsets0    [nearest_max]};
     			lma_corr_weights = new double [][][] {lma_corr_weights0[nearest_max]};
     			disp_str_all =     new double [][]   {disp_str_dual    [nearest_max]};
     			own_masks =        new double [][][] {own_masks0       [nearest_max]};
+        		common_scale =     new boolean[]     {(nearest_max == fg_max) ? imgdtt_params.bimax_common_fg : imgdtt_params.bimax_common_bg}; 
     			break;
     		case 3: // keep foreground
         		pair_offsets =     new double [][][] {pair_offsets0    [fg_max]};
     			lma_corr_weights = new double [][][] {lma_corr_weights0[fg_max]};
     			disp_str_all =     new double [][]   {disp_str_dual    [fg_max]};
     			own_masks =        new double [][][] {own_masks0       [fg_max]};
+        		common_scale =     new boolean[]     {imgdtt_params.bimax_common_fg}; 
     			break;
     		case 4: // keep background
         		pair_offsets =     new double [][][] {pair_offsets0    [1-fg_max]};
     			lma_corr_weights = new double [][][] {lma_corr_weights0[1-fg_max]};
     			disp_str_all =     new double [][]   {disp_str_dual    [1-fg_max]};
     			own_masks =        new double [][][] {own_masks0       [1-fg_max]};
+        		common_scale =     new boolean[]     {imgdtt_params.bimax_common_bg}; 
     			break;
     		default: // keep both
         		pair_offsets =     pair_offsets0;
     			lma_corr_weights = lma_corr_weights0;
     			disp_str_all =     disp_str_dual;
     			own_masks =        own_masks0;
+        		common_scale = new boolean[disp_str_dual.length];
+        		for (int i = 0; i < common_scale.length; i++) {
+        			common_scale[i] = (i == fg_max) ? imgdtt_params.bimax_common_fg : imgdtt_params.bimax_common_bg; 
+        		}
     		}
     	}
     	
@@ -4505,9 +4517,6 @@ public class Correlation2d {
     	int num_used_pairs = 0;
    		for (int npair = 0; npair < pair_mask.length; npair++) if ((corrs[npair] != null) && (pair_mask[npair])){
 				double [] corr_blur = null;
-//			if (npair == 65) {
-//				System.out.println("---npair == "+npair);
-//			}
    			if (imgdtt_params.cnvx_en) { //  || (pair_shape_masks == null)) {
    				corr_blur = corrs[npair].clone();
    				if (corr_wnd_inv_limited != null) {
@@ -4655,16 +4664,12 @@ public class Correlation2d {
     	for (int i = 0; i <disp_str_all.length; i++) if (disp_str_all[i] != null){
     		disp_str2[i][0] = disp_str_all[i];
     	}
-//   		double [][] disp_str2 = {disp_str_all[0]}; // temporary // will be calculated/set later
     	boolean lmaSuccess = false;
-//    	int num_lma_retries = 0;
 		
     	// When running LMA - first do not touch disparity?
-//    	int lma_pass = imgdtt_params.bimax_dual_pass? 0 : 1; // pass0 - w/o disparity, pass 1 - with
     	boolean [] adjust_disparities = new boolean [disp_str_all.length]; // all false;
     	boolean needprep = true; //t npass = 0;
-    	for (int npass = (imgdtt_params.bimax_dual_pass? 00 : 1); npass < 2; npass++) { // may break while (!lmaSuccess) {
- //   		num_lma_retries ++; // debug
+    	for (int npass = (imgdtt_params.bimax_dual_pass? 0 : 1); npass < 2; npass++) { // may break while (!lmaSuccess) {
     		if (needprep) {
     			lma.preparePars(
     					disp_str2, // double [][][] disp_str_all,  initial value of disparity [max][tile]{disp, strength}
@@ -4679,8 +4684,10 @@ public class Correlation2d {
     		if (npass > 0) {
     			adjust_disparities = null;
     		}
+//    		boolean [] common_scale = {false,false}; // true}; {true,true}; // // TODO: implement
     		lma.setParMask( // USED in lwir
     				adjust_disparities, // null, // 			boolean [] adjust_disparities, // null - adjust all, otherwise - per maximum
+    				common_scale,       //boolean [] common_scale,       // per-maximum, if true - common scale for all pairs
     				imgdtt_params.lmas_adjust_wm,  // boolean adjust_width,     // adjust width of the maximum - lma_adjust_wm
     				imgdtt_params.lmas_adjust_ag,  // boolean adjust_scales,    // adjust 2D correlation scales - lma_adjust_ag
     				imgdtt_params.lmas_adjust_wy,  // boolean adjust_ellipse,   // allow non-circular correlation maximums lma_adjust_wy
@@ -4713,6 +4720,7 @@ public class Correlation2d {
 			lma.updateFromVector();
 			double [][][] dispStrs = lma.lmaDisparityStrengths( //TODO: add parameter to filter out negative minimums ?
 					imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
+					imgdtt_params.lmas_min_amp_bg,   //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 					imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 					imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 					imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
@@ -4721,7 +4729,7 @@ public class Correlation2d {
 					imgdtt_params.lma_str_scale,     // convert lma-generated strength to match previous ones - scale
 					imgdtt_params.lma_str_offset     // convert lma-generated strength to match previous ones - add to result
 					);
-			for (int nmax = 0; nmax < dispStrs.length; nmax++) if (dispStrs[nmax][0][1] <= 0) {
+			for (int nmax = 00; nmax < dispStrs.length; nmax++) if (dispStrs[nmax][0][1] <= 0) {
 				lmaSuccess = false;
 				break;
 			}
@@ -4876,7 +4884,7 @@ public class Correlation2d {
     		int                 tileX, // just for debug output
     		int                 tileY){
     	boolean debug_graphic = imgdtt_params.lma_debug_graphic && (imgdtt_params.lma_debug_level1 > 3) && (debug_level > 0) ;
-    	debug_graphic |= imgdtt_params.lmamask_dbg && (debug_level > 0) || true;
+    	debug_graphic |= imgdtt_params.lmamask_dbg && (debug_level > 0); //  || true;
     	String dbg_title = null;
     	if (debug_graphic) {
     		dbg_title = String.format("tX%d_tY%d",tileX,tileY);

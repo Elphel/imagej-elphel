@@ -85,6 +85,9 @@ public class ImageDttParameters {
 	public int     bimax_min_num_samples =   4;   // minimal number of samples per pair per maximum
 	public int     bimax_min_num_pairs =     8;   // minimal number of used pairs
 	public boolean bimax_dual_pass =         true; // First pass - do not adjust disparity
+	public boolean bimax_common_fg =         true; // Common gains for foreground/single correlation maximum 
+	public boolean bimax_common_bg =         true; // Common gains for background correlation maximum
+	
 
 	//lmamask_
 	public boolean lmamask_dbg =              false;  // show LMA images, exit after single BG
@@ -188,6 +191,9 @@ public class ImageDttParameters {
 	public boolean lmas_adjust_wm =          true;  // used in new for width
 	public boolean lmas_adjust_wy =          true;  // adjust non-circular
 	public boolean lmas_adjust_ag =          true;  // adjust gains gains
+	
+	
+	
 	// Pre-lma poly
 	public double  lmas_poly_str_scale =     1.0;   // scale pre-lma poly strength
 	public double  lmas_poly_str_min =       0.05;  // ignore tiles with poly strength (scaled) below
@@ -202,7 +208,8 @@ public class ImageDttParameters {
 	// Filtering and strength calculation
 	// High ratio of amplitudes may be caused by "neighbors" correlations when the same object disappears from the tile
 	// for small disparities 0.5...0.7 is OK, for larger, and small objects on uniform background, may need 0.2
-	public double  lmas_min_amp =            0.25;   // minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude           
+	public double  lmas_min_amp =            0.1;   // minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude           
+	public double  lmas_min_amp_bg =         0.01;  // same for background objects (all but fg)          
 	public double  lmas_max_rel_rms =        0.3;   // LWIR16: 0.5 maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 	public double  lmas_min_strength =       0.7;   // LWIR16: 0.4 minimal composite strength (sqrt(average amp squared over absolute RMS)
 	public double  lmas_min_ac =             0.02;  // LWIR16: 0.01  minimal of a and C coefficients maximum (measures sharpest point/line)
@@ -475,6 +482,10 @@ public class ImageDttParameters {
 					"Do not use LMA if total number of used pairs is lower");
 			gd.addCheckbox    ("Dual-pass LMA",                                                   this.bimax_dual_pass,
 					"First adjust other parameters (keeping disparities), then add disparities");
+			gd.addCheckbox    ("Common gains for foreground/single correlation maximum",          this.bimax_common_fg,
+					"Use common gain for all pairs for FG/single correlation (unchecked - use individual gain for each pair)");
+			gd.addCheckbox    ("Common gains for background correlation maximum",                 this.bimax_common_bg,
+					"Use common gain for all pairs for BG correlation(s) (unchecked - use individual gain for each pair)");
 			
 			gd.addMessage("LMA samples filter based on estimated disparity");
 			gd.addCheckbox    ("Debug LMA",                                                       this.lmamask_dbg,
@@ -698,6 +709,8 @@ public class ImageDttParameters {
 		    gd.addMessage("LMA (single) results filtering");
 		    gd.addNumericField("Minimal weakest pair to strongest pair correlation amplitude ratio",this.lmas_min_amp,  6, 8, "",
 		            "Discard tile if ratio of the weakest correlation pair amplitude to that of the strongest one is lower than this");
+		    gd.addNumericField("Same for BG objects (dual max)", this.lmas_min_amp_bg,  6, 8, "",
+		            "Discard tile if ratio of the weakest correlation pair amplitude to that of the strongest one is lower than this (BG objects, far maximum)");
 		    gd.addNumericField("Maximal relative RMS ",                                           this.lmas_max_rel_rms,  6, 8, "",
 		            "Discard tile if ratio of RMS to average of min and max amplitude exceeds this value");
 		    gd.addNumericField("Minimal composite strength",                                      this.lmas_min_strength,  6, 8, "",
@@ -892,6 +905,8 @@ public class ImageDttParameters {
   		    this.bimax_min_num_samples=   (int) gd.getNextNumber();
   		    this.bimax_min_num_pairs=     (int) gd.getNextNumber();
   			this.bimax_dual_pass =              gd.getNextBoolean();
+  			this.bimax_common_fg =              gd.getNextBoolean();
+  			this.bimax_common_bg =              gd.getNextBoolean();
   			
   			this.lmamask_dbg =              gd.getNextBoolean();
   			this.lmamask_en =               gd.getNextBoolean();
@@ -1002,6 +1017,7 @@ public class ImageDttParameters {
 			this.lmas_rms_diff =         gd.getNextNumber();
   			this.lmas_num_iter=    (int) gd.getNextNumber();
   			this.lmas_min_amp =          gd.getNextNumber();
+  			this.lmas_min_amp_bg =       gd.getNextNumber();
 			this.lmas_max_rel_rms =      gd.getNextNumber();
 			this.lmas_min_strength =     gd.getNextNumber();
 			this.lmas_min_ac =           gd.getNextNumber();
@@ -1119,6 +1135,8 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"bimax_min_num_samples",   this.bimax_min_num_samples +"");
 		properties.setProperty(prefix+"bimax_min_num_pairs",     this.bimax_min_num_pairs +"");
 		properties.setProperty(prefix+"bimax_dual_pass",         this.bimax_dual_pass +"");
+		properties.setProperty(prefix+"bimax_common_fg",         this.bimax_common_fg +"");
+		properties.setProperty(prefix+"bimax_common_bg",         this.bimax_common_bg +"");
 
 		properties.setProperty(prefix+"lmamask_dbg",          this.lmamask_dbg +"");
 		properties.setProperty(prefix+"lmamask_en",           this.lmamask_en +"");
@@ -1228,6 +1246,7 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"lmas_rms_diff",        this.lmas_rms_diff +"");
 		properties.setProperty(prefix+"lmas_num_iter",        this.lmas_num_iter +"");
 		properties.setProperty(prefix+"lmas_min_amp",         this.lmas_min_amp +"");
+		properties.setProperty(prefix+"lmas_min_amp_bg",      this.lmas_min_amp_bg +"");
 		properties.setProperty(prefix+"lmas_max_rel_rms",     this.lmas_max_rel_rms +"");
 		properties.setProperty(prefix+"lmas_min_strength",    this.lmas_min_strength +"");
 		properties.setProperty(prefix+"lmas_min_ac",          this.lmas_min_ac +"");
@@ -1350,6 +1369,8 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"bimax_min_num_samples")!=null)   this.bimax_min_num_samples=Integer.parseInt(properties.getProperty(prefix+"bimax_min_num_samples"));
 		if (properties.getProperty(prefix+"bimax_min_num_pairs")!=null)     this.bimax_min_num_pairs=Integer.parseInt(properties.getProperty(prefix+"bimax_min_num_pairs"));
 		if (properties.getProperty(prefix+"bimax_dual_pass")!=null)         this.bimax_dual_pass=Boolean.parseBoolean(properties.getProperty(prefix+"bimax_dual_pass"));
+		if (properties.getProperty(prefix+"bimax_common_fg")!=null)         this.bimax_common_fg=Boolean.parseBoolean(properties.getProperty(prefix+"bimax_common_fg"));
+		if (properties.getProperty(prefix+"bimax_common_bg")!=null)         this.bimax_common_bg=Boolean.parseBoolean(properties.getProperty(prefix+"bimax_common_bg"));
 		
 		if (properties.getProperty(prefix+"lmamask_dbg")!=null)              this.lmamask_dbg=Boolean.parseBoolean(properties.getProperty(prefix+"lmamask_dbg"));
 		if (properties.getProperty(prefix+"lmamask_en")!=null)               this.lmamask_en=Boolean.parseBoolean(properties.getProperty(prefix+"lmamask_en"));
@@ -1466,6 +1487,7 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"lmas_rms_diff")!=null)        this.lmas_rms_diff=Double.parseDouble(properties.getProperty(prefix+"lmas_rms_diff"));
 		if (properties.getProperty(prefix+"lmas_num_iter")!=null)        this.lmas_num_iter=Integer.parseInt(properties.getProperty(prefix+"lmas_num_iter"));
 		if (properties.getProperty(prefix+"lmas_min_amp")!=null)         this.lmas_min_amp=Double.parseDouble(properties.getProperty(prefix+"lmas_min_amp"));
+		if (properties.getProperty(prefix+"lmas_min_amp_bg")!=null)      this.lmas_min_amp_bg=Double.parseDouble(properties.getProperty(prefix+"lmas_min_amp_bg"));
 		if (properties.getProperty(prefix+"lmas_max_rel_rms")!=null)     this.lmas_max_rel_rms=Double.parseDouble(properties.getProperty(prefix+"lmas_max_rel_rms"));
 		if (properties.getProperty(prefix+"lmas_min_strength")!=null)    this.lmas_min_strength=Double.parseDouble(properties.getProperty(prefix+"lmas_min_strength"));
 		if (properties.getProperty(prefix+"lmas_min_ac")!=null)          this.lmas_min_ac=Double.parseDouble(properties.getProperty(prefix+"lmas_min_ac"));
@@ -1598,6 +1620,8 @@ public class ImageDttParameters {
 		idp.bimax_min_num_samples=   this.bimax_min_num_samples;
 		idp.bimax_min_num_pairs=     this.bimax_min_num_pairs;
 		idp.bimax_dual_pass=         this.bimax_dual_pass;
+		idp.bimax_common_fg=         this.bimax_common_fg;
+		idp.bimax_common_bg=         this.bimax_common_bg;
 		
 		idp.lmamask_dbg=               this.lmamask_dbg;
 		idp.lmamask_en=                this.lmamask_en;
@@ -1705,6 +1729,7 @@ public class ImageDttParameters {
 		idp.lmas_rms_diff =          this.lmas_rms_diff;
 		idp.lmas_num_iter =          this.lmas_num_iter;
 		idp.lmas_min_amp=            this.lmas_min_amp;
+		idp.lmas_min_amp_bg=         this.lmas_min_amp_bg;
 		idp.lmas_max_rel_rms=        this.lmas_max_rel_rms;
 		idp.lmas_min_strength=       this.lmas_min_strength;
 		idp.lmas_min_ac=             this.lmas_min_ac;

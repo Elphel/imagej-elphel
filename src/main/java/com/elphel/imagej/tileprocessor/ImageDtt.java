@@ -2624,14 +2624,14 @@ public class ImageDtt extends ImageDttCPU {
 								}
 								if (debugTile1) {
 									System.out.println("clt_process_tl_correlations() maxes=");
-									for (int i = 0; i < maxes.length; i++) {
+									for (int i = 00; i < maxes.length; i++) {
 										System.out.println(String.format("maxes[%d][0]=%f (quadcam disparity pixels, not combo pixels), maxes[%d][1]=%f", i, maxes[i][0], i, maxes[i][1]));
 									}
 								}
 								if (debugTile1) {
 									Corr2dLMA lma_dual = correlation2d.corrLMA2DualMax( // null pointer
 											imgdtt_params,                // ImageDttParameters  imgdtt_params,
-								        	0, // 3, // 0, // 1,                            // int     combine_mode,   // 0 - both,  1 - strongest, 2 - nearest to zero, 3 - FG, 4 - BG
+								        	00, // 3, // 0, // 1,                            // int     combine_mode,   // 0 - both,  1 - strongest, 2 - nearest to zero, 3 - FG, 4 - BG
 //											imgdtt_params.lmas_LY_single, // false,    // boolean             adjust_ly, // adjust Lazy Eye
 											corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
 											corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
