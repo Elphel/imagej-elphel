@@ -254,6 +254,9 @@ public class BiQuadParameters {
 	public int     mll_max_refines_pre =       5;
 	public double  mll_min_disp_change_lma =   0.003; // stop re-measure when difference is below, LMA, 120 pairs
 	public int     mll_max_refines_lma =       4;
+	public int     mll_max_refines_bg =        5;
+	
+	
 	public boolean mll_generate_scene_outlines = false; // Uses 2 GB - change format, add dimensions (separate color for ref)
 	
 // Exporting ML files	
@@ -689,12 +692,14 @@ public class BiQuadParameters {
 		gd.addMessage("Calculating GT Disparity");
 		gd.addNumericField("Min change of disparity (preliminary, 40 pairs/no LMA)",                               this.mll_min_disp_change_pre,  3,6,"pix",
 				"Refine tile until disparity change falls below");
-		gd.addNumericField("Number of disparity refine passes (preliminary, 40 pairs/no LMA)",                     this.mll_max_refines_pre,  0,3,"",
+		gd.addNumericField("Number of FG disparity refine passes (preliminary, 40 pairs/no LMA)",                  this.mll_max_refines_pre,  0,3,"",
 				"Abandon disparity refinement for tiles where disparity does not converge after this number of passes");
 		gd.addNumericField("Min change of disparity (final, 120 pairs with LMA)",                                  this.mll_min_disp_change_lma,  3,6,"pix",
 				"Refine tile until disparity change falls below");
-		gd.addNumericField("Number of disparity refine passes (final, 120 pairs with LMA)",                        this.mll_max_refines_lma,  0,3,"",
+		gd.addNumericField("Number of FG disparity refine passes (final, 120 pairs with LMA)",                     this.mll_max_refines_lma,  0,3,"",
 				"Abandon disparity refinement for tiles where disparity does not converge after this number of passes");
+		gd.addNumericField("Number of BG disparity refine passes (final, 120 pairs with LMA)",                     this.mll_max_refines_bg,  0,3,"",
+				"Measure BG disparity for the tiles that have dual correlation maximums");
 		gd.addCheckbox    ("Generate scene outlines",                                                              this.mll_generate_scene_outlines,
 				"Generate and save scene outlines for scene series (need to change format, it is 2GB with uncompressed Tiff)");
 		
@@ -997,6 +1002,7 @@ public class BiQuadParameters {
 		this.mll_max_refines_pre=     (int) gd.getNextNumber();
 		this.mll_min_disp_change_lma=       gd.getNextNumber();
 		this.mll_max_refines_lma=     (int) gd.getNextNumber();
+		this.mll_max_refines_bg=      (int) gd.getNextNumber();
 		this.mll_generate_scene_outlines=   gd.getNextBoolean();
 		
 		this.mll_add_combo=                 gd.getNextBoolean();
@@ -1242,11 +1248,12 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"oc_min_disparity",          this.oc_min_disparity+"");
 		properties.setProperty(prefix+"oc_min_strength",           this.oc_min_strength+"");
 
-		properties.setProperty(prefix+"mll_min_disp_change_pre",     this.mll_min_disp_change_pre+"");
-		properties.setProperty(prefix+"mll_max_refines_pre",         this.mll_max_refines_pre+"");
-		properties.setProperty(prefix+"mll_min_disp_change_lma",     this.mll_min_disp_change_lma+"");
-		properties.setProperty(prefix+"mll_max_refines_lma",         this.mll_max_refines_lma+"");
-		properties.setProperty(prefix+"mll_generate_scene_outlines", this.mll_generate_scene_outlines+"");
+		properties.setProperty(prefix+"mll_min_disp_change_pre",    this.mll_min_disp_change_pre+"");
+		properties.setProperty(prefix+"mll_max_refines_pre",        this.mll_max_refines_pre+"");
+		properties.setProperty(prefix+"mll_min_disp_change_lma",    this.mll_min_disp_change_lma+"");
+		properties.setProperty(prefix+"mll_max_refines_lma",        this.mll_max_refines_lma+"");
+		properties.setProperty(prefix+"mll_max_refines_bg",         this.mll_max_refines_bg+"");
+		properties.setProperty(prefix+"mll_generate_scene_outlines",this.mll_generate_scene_outlines+"");
 		
 		properties.setProperty(prefix+"mll_add_combo",             this.mll_add_combo+"");
 		properties.setProperty(prefix+"mll_save_accum",            this.mll_save_accum+"");
@@ -1492,6 +1499,7 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"mll_max_refines_pre")!=null)     this.mll_max_refines_pre=Integer.parseInt(properties.getProperty(prefix+"mll_max_refines_pre"));
 		if (properties.getProperty(prefix+"mll_min_disp_change_lma")!=null) this.mll_min_disp_change_lma=Double.parseDouble(properties.getProperty(prefix+"mll_min_disp_change_lma"));
 		if (properties.getProperty(prefix+"mll_max_refines_lma")!=null)     this.mll_max_refines_lma=Integer.parseInt(properties.getProperty(prefix+"mll_max_refines_lma"));
+		if (properties.getProperty(prefix+"mll_max_refines_bg")!=null)      this.mll_max_refines_bg=Integer.parseInt(properties.getProperty(prefix+"mll_max_refines_bg"));
 		if (properties.getProperty(prefix+"mll_generate_scene_outlines")!=null) this.mll_generate_scene_outlines=Boolean.parseBoolean(properties.getProperty(prefix+"mll_generate_scene_outlines"));
 		
 		if (properties.getProperty(prefix+"mll_add_combo")!=null)           this.mll_add_combo=Boolean.parseBoolean(properties.getProperty(prefix+"mll_add_combo"));
@@ -1738,6 +1746,7 @@ public class BiQuadParameters {
 		bqp.mll_max_refines_pre =       this.mll_max_refines_pre;
 		bqp.mll_min_disp_change_lma =   this.mll_min_disp_change_lma;
 		bqp.mll_max_refines_lma =       this.mll_max_refines_lma;
+		bqp.mll_max_refines_bg =        this.mll_max_refines_bg;
 		bqp.mll_generate_scene_outlines = this.mll_generate_scene_outlines;
 		
 		bqp.mll_add_combo =             this.mll_add_combo;

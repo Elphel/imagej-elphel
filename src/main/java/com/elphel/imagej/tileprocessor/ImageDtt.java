@@ -2420,6 +2420,9 @@ public class ImageDtt extends ImageDttCPU {
 			// which to use - num_pairs or num_used_pairs? Or set correlation2d to match num_used_pairs
 			
 			final boolean combine_corrs = (mcorr_comb_width > 0); // use 0 to disable combining (use LMA only)
+			if (!combine_corrs) {
+				System.out.println("**** Warning: clt_process_tl_correlations() does not use combine_corrs, new LMA is disbled ****");
+			}
 
 			if (clt_corr_out != null) {  // not used so far? REMOVE?
 				boolean [] calc_corr_pairs = correlation2d.getCorrPairs();
@@ -2587,7 +2590,6 @@ public class ImageDtt extends ImageDttCPU {
 									}
 								}
 
-
 								correlation2d.normalizeAccumulatedPairs(
 										corr_combo_tile,
 										sumw);
@@ -2611,76 +2613,160 @@ public class ImageDtt extends ImageDttCPU {
 								// calculate 0,1, or 2 maximums
 								if (debugTile1) {
 									System.out.println("clt_process_tl_correlations(): debugTile1");
+//									debugTile0 = true;
 								}
-								double [][] maxes = correlation2d.getDoublePoly(
-										disparity_scale, // double    disparity_scale,
-										((corr_dia_tile != null) ? corr_dia_tile : corr_combo_tile), // double [] combo_corrs,
-										imgdtt_params.mcorr_dual_fract); //double    min_fraction
-								// TODO: add corr layer - copy of combo with singles as nulls
-//								if ((maxes.length < 2) && (clt_corr_out != null) && (clt_corr_out.length > num_pairs)) {
-								if ((maxes.length < 2) && (corr_dia_tile!=null)) { //FIXME: Debug
-//									corrs[correlation2d.getNumPairs()] = null; // temporarily keep only with pairs
-									Arrays.fill(corrs[correlation2d.getNumPairs()+1], Double.NaN);
-								}
-								if (debugTile1) {
-									System.out.println("clt_process_tl_correlations() maxes=");
-									for (int i = 00; i < maxes.length; i++) {
-										System.out.println(String.format("maxes[%d][0]=%f (quadcam disparity pixels, not combo pixels), maxes[%d][1]=%f", i, maxes[i][0], i, maxes[i][1]));
+								double [][] disp_str_sel = null;
+								double [][] disp_str_lma = null;
+								int [] sel_fg_bg = null;
+								if (imgdtt_params.bimax_dual_LMA) {
+									double [][] maxes = correlation2d.getDoublePoly(
+											disparity_scale, // double    disparity_scale,
+											((corr_dia_tile != null) ? corr_dia_tile : corr_combo_tile), // double [] combo_corrs,
+											imgdtt_params.mcorr_dual_fract); //double    min_fraction
+									// TODO: add corr layer - copy of combo with singles as nulls
+									// just for debugging to indicate tiles with dual maximums
+									if ((maxes.length < 2) && (corr_dia_tile!=null)) { //FIXME: Debug
+										//									corrs[correlation2d.getNumPairs()] = null; // temporarily keep only with pairs
+										Arrays.fill(corrs[correlation2d.getNumPairs()+1], Double.NaN);
 									}
-								}
-								if (debugTile1) {
-									Corr2dLMA lma_dual = correlation2d.corrLMA2DualMax( // null pointer
-											imgdtt_params,                // ImageDttParameters  imgdtt_params,
-								        	00, // 3, // 0, // 1,                            // int     combine_mode,   // 0 - both,  1 - strongest, 2 - nearest to zero, 3 - FG, 4 - BG
-//											imgdtt_params.lmas_LY_single, // false,    // boolean             adjust_ly, // adjust Lazy Eye
-											corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
-											corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
-											corrs,                        // corrs,          // double [][]         corrs,
-											disp_dist,
-											rXY,                          // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
-											// all that are not null in corr_tiles
-											correlation2d.selectAll(),    // longToArray(imgdtt_params.dbg_pair_mask),  // int                 pair_mask, // which pairs to process
-											maxes,                        //double[][]          disp_str_dual,          // -preliminary center x in pixels for largest baseline
-											null, // poly_disp,                    // double[]            poly_ds,    // null or pair of disparity/strength
-											imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
-											null, // debug_lma_tile,               // double []           debug_lma_tile,
-											(debugTile0 ? 1: -2),         // int                 debug_level,
-											tileX,                        // int                 tileX, // just for debug output
-											tileY ); 
-									System.out.println("clt_process_tl_correlations() corrLMA2DualMax() done, lma_dual="+
-										((lma_dual== null)? "null": " not null"));
-									
-								}
-								
-								if (disparity_map != null) {
-									int [] ixy =   correlation2d.getMaxXYInt( // find integer pair or null if below threshold // USED in lwir
-											corr_combo_tile, // double [] data,      // [data_size * data_size]
-											null, // disp_str_combo,
-											correlation2d.getCombWidth(), //       data_width,
-											correlation2d.getCombHeight()/2 - correlation2d.getCombOffset(), // int       center_row, ??????????????
-											true, // boolean   axis_only,
-											-1.0, // imgdtt_params.min_corr,  // ???? double    minMax,    // minimal value to consider (at integer location, not interpolated)
-											false); // debugCluster); // tile_lma_debug_level > 0); // boolean   debug);
-									double [] corr_stat = correlation2d.getMaxXCm(         // get fractional center as a "center of mass" inside circle/square from the integer max
-											corr_combo_tile,                      // double [] data,      // [data_size * data_size]
-											correlation2d.getCombWidth(),        // int       data_width,      //  = 2 * transform_size - 1;
-											correlation2d.getCombHeight()/2 - correlation2d.getCombOffset(),// int       center_row,
-											ixy[0],                              // int       ixcenter,  // integer center x
-											false); // debugCluster); // (tile_lma_debug_level > 0)); // boolean   debug);
-									if (corr_stat != null) { // almost always
-										// FIXME: apply that for non-GPU version (and other variants) !
-										// convert to disparity for a quad camera (used in pre-shift)
-										disp_str = new double [] {-corr_stat[0]/Math.sqrt(2), corr_stat[1]};
-//										disp_str = new double [] {-corr_stat[0], corr_stat[1]};
-										if (disparity_map!=null) {
+									if ((maxes.length >= 2) || ! imgdtt_params.bimax_dual_only) {
+										/// create disparity/strength results w/o LMA. Use it if LMA fails
+										sel_fg_bg = new int[] { // first - index FG, second - index BG
+												Correlation2d.selDispStrIndex( // FG
+														Correlation2d.CAMEL_FG, // int                 combine_mode,   // 0 - both,  1 - strongest, 2 - nearest to zero, 3 - FG, 4 - BG
+														maxes),                           // double[][]          disp_str_dual)  // -preliminary center x in pixels for largest baseline
+												Correlation2d.selDispStrIndex( // BG
+														Correlation2d.CAMEL_BG, // int                 combine_mode,   // 0 - both,  1 - strongest, 2 - nearest to zero, 3 - FG, 4 - BG
+														maxes)                           // double[][]          disp_str_dual)  // -preliminary center x in pixels for largest baseline
+										};
+										
+										int sel_max = Correlation2d.selDispStrIndex( // single tile
+												imgdtt_params.bimax_combine_mode, // int                 combine_mode,   // 0 - both,  1 - strongest, 2 - nearest to zero, 3 - FG, 4 - BG
+												maxes);                           // double[][]          disp_str_dual)  // -preliminary center x in pixels for largest baseline
+										
+										disp_str_sel = Correlation2d.selDispStr( // single tile
+												imgdtt_params.bimax_combine_mode, // int                 combine_mode,   // 0 - both,  1 - strongest, 2 - nearest to zero, 3 - FG, 4 - BG
+												maxes);                           // double[][]          disp_str_dual)  // -preliminary center x in pixels for largest baseline
+										int combine_mode_corrected = imgdtt_params.bimax_combine_mode;
+										if (    (maxes[sel_fg_bg[0]][1] < imgdtt_params.mcorr_fb_fract * maxes[sel_fg_bg[1]][1]) ||
+												(maxes[sel_fg_bg[1]][1] < imgdtt_params.mcorr_bf_fract * maxes[sel_fg_bg[0]][1])) {
+											//maxes = new double [][] {maxes[0]}; // strongest
+											disp_str_sel = new double [][] {maxes[0]}; // strongest
+											sel_max = 0;
+											sel_fg_bg = new int[] {0,0};
+											combine_mode_corrected = Correlation2d.CAMEL_STRONGEST;
+										}
+										
+										if (run_lma) {
+											if (debugTile1) {
+												System.out.println("clt_process_tl_correlations() maxes=");
+												for (int i = 0; i < maxes.length; i++) {
+													System.out.println(String.format("maxes[%d][0]=%f (quadcam disparity pixels, not combo pixels), maxes[%d][1]=%f", i, maxes[i][0], i, maxes[i][1]));
+												}
+											}
+											int combine_mode_pre = imgdtt_params.bimax_post_LMA ? Correlation2d.CAMEL_BOTH : combine_mode_corrected;
+											Corr2dLMA lma_dual = correlation2d.corrLMA2DualMax( // null pointer
+													imgdtt_params,                // ImageDttParameters  imgdtt_params,
+													combine_mode_pre, // 3, // 0, // 1,// int     combine_mode,   // 0 - both,  1 - strongest, 2 - nearest to zero, 3 - FG, 4 - BG
+													corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
+													corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
+													corrs,                        // corrs,          // double [][]         corrs,
+													disp_dist,
+													rXY,                          // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
+													// all that are not null in corr_tiles
+													correlation2d.selectAll(),    // longToArray(imgdtt_params.dbg_pair_mask),  // int                 pair_mask, // which pairs to process
+													maxes,                        //double[][]          disp_str_dual,          // -preliminary center x in pixels for largest baseline
+													null, // debug_lma_tile,               // double []           debug_lma_tile,
+													(debugTile0 ? 1: -2),         // int                 debug_level,
+													tileX,                        // int                 tileX, // just for debug output
+													tileY );
+											if (debugTile1) {
+												System.out.println("clt_process_tl_correlations() corrLMA2DualMax() done, lma_dual="+
+														((lma_dual== null)? "null": " not null"));
+											}
+											if (lma_dual != null) {
+												double [][][] dispStrs = lma_dual.lmaDisparityStrengths( //TODO: add parameter to filter out negative minimums ?
+														imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
+														imgdtt_params.lmas_min_amp_bg,   //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
+														imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
+														imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
+														imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+														imgdtt_params.lmas_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
+														imgdtt_params.lmas_max_area,     //double  lma_max_area,     // maximal half-area (if > 0.0)
+														imgdtt_params.lma_str_scale,     // convert lma-generated strength to match previous ones - scale
+														imgdtt_params.lma_str_offset     // convert lma-generated strength to match previous ones - add to result
+														);
+
+												disp_str_lma = new double [dispStrs.length][]; // order matching input ones
+												for (int nmax = 0;nmax < dispStrs.length; nmax++) {
+													if ((dispStrs[nmax] != null) && (dispStrs[nmax].length >0)) {
+														disp_str_lma[nmax] = dispStrs[nmax][0];
+													}
+												}
+												if (imgdtt_params.bimax_post_LMA && (sel_max >=0)) {
+													disp_str_lma = new double [][] {disp_str_lma[sel_max]}; // was already selected before LMA
+												}
+											} // if (lma_dual != null) {
+										}
+									}
+									if (debugTile1) { // FIXME: remove debugTile1!
+										System.out.println("clt_process_tl_correlations() disp_str_sel=");
+										for (int nmax = 0; nmax < disp_str_sel.length; nmax++) {
+											System.out.println(String.format("disp_str_sel[%d][0]=%f, disp_str_sel[%d][1]=%f LMA=%s",
+													nmax, disp_str_sel[nmax][0], nmax, disp_str_sel[nmax][1], (((disp_str_lma!=null) && (disp_str_lma[nmax]!=null))?"true":"false")));
+										}
+									}
+									if ((disp_str_sel != null) && (disp_str_sel.length > 0)) { 
+										if (disparity_map != null) {
+											disparity_map[DISPARITY_INDEX_CM      ][nTile] = disp_str_sel[0][0]; // disparity non-LMA
+											disparity_map[DISPARITY_INDEX_CM + 1  ][nTile] = disp_str_sel[0][1]; // strength non-LMA;
+											disparity_map[DISPARITY_STRENGTH_INDEX][nTile] = disp_str_sel[0][1]; // strength non-LMA;
+											if ((disp_str_lma!=null) && (disp_str_lma.length>0)) {
+												if (disp_str_lma.length == 1) {
+													if (!Double.isNaN(disp_str_lma[0][0])) {
+														disparity_map[DISPARITY_INDEX_POLY    ][nTile] = disp_str_lma[0][0]; // disparity LMA
+														disparity_map[DISPARITY_INDEX_POLY + 1][nTile] = disp_str_lma[0][2]; // strength LMA
+														disparity_map[DISPARITY_STRENGTH_INDEX][nTile] = disp_str_lma[0][1]; // overwrite with LMA strength
+													}
+												} else {
+													int indx = sel_fg_bg[0];
+													if (!Double.isNaN(disp_str_lma[indx][0])) {
+														disparity_map[DISPARITY_INDEX_POLY    ][nTile] = disp_str_lma[indx][0]; // disparity LMA
+														disparity_map[DISPARITY_INDEX_POLY + 1][nTile] = disp_str_lma[indx][2]; // strength LMA
+														disparity_map[DISPARITY_STRENGTH_INDEX][nTile] = disp_str_lma[indx][1]; // overwrite with LMA strength
+													}
+												}
+											}
+										}
+									}
+								} else {  // if (imgdtt_params.bimax_dual_LMA) else
+									if (disparity_map != null) {
+										int [] ixy =   correlation2d.getMaxXYInt( // find integer pair or null if below threshold // USED in lwir
+												corr_combo_tile, // double [] data,      // [data_size * data_size]
+												null, // disp_str_combo,
+												correlation2d.getCombWidth(), //       data_width,
+												correlation2d.getCombHeight()/2 - correlation2d.getCombOffset(), // int       center_row, ??????????????
+												true, // boolean   axis_only,
+												-1.0, // imgdtt_params.min_corr,  // ???? double    minMax,    // minimal value to consider (at integer location, not interpolated)
+												false); // debugCluster); // tile_lma_debug_level > 0); // boolean   debug);
+										double [] corr_stat = correlation2d.getMaxXCm(         // get fractional center as a "center of mass" inside circle/square from the integer max
+												corr_combo_tile,                      // double [] data,      // [data_size * data_size]
+												correlation2d.getCombWidth(),        // int       data_width,      //  = 2 * transform_size - 1;
+												correlation2d.getCombHeight()/2 - correlation2d.getCombOffset(),// int       center_row,
+												ixy[0],                              // int       ixcenter,  // integer center x
+												false); // debugCluster); // (tile_lma_debug_level > 0)); // boolean   debug);
+										if (corr_stat != null) { // almost always
+											disp_str = new double [] {-corr_stat[0], corr_stat[1]};
 											disparity_map[DISPARITY_INDEX_CM      ][nTile] = disp_str[0];
 											disparity_map[DISPARITY_INDEX_CM + 1  ][nTile] = disp_str[1];
 											disparity_map[DISPARITY_STRENGTH_INDEX][nTile] = disp_str[1];
 										}
 									}
-								}
-							}
-							if (run_lma && (disparity_map != null)) {
+								} // if (imgdtt_params.bimax_dual_LMA) else
+							} // if (combine_corrs) {
+							
+							// 	New method depends on combine_corrs, so if it is disabled - use old way
+							if ((!imgdtt_params.bimax_dual_LMA || !combine_corrs) && run_lma && (disparity_map != null)) { // old way
 								// debug the LMA correlations
 								if (debugTile0) { // should be debugTile
 									System.out.println("Will run new LMA for tileX="+tileX+", tileY="+tileY);
@@ -2769,7 +2855,7 @@ public class ImageDtt extends ImageDttCPU {
 										debug_lma[i][nTile] = debug_lma_tile[i];
 									}
 								}
-							}
+							} // if (run_lma && (disparity_map != null))
 						}
 					}
 				};

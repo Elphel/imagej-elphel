@@ -87,7 +87,11 @@ public class ImageDttParameters {
 	public boolean bimax_dual_pass =         true; // First pass - do not adjust disparity
 	public boolean bimax_common_fg =         true; // Common gains for foreground/single correlation maximum 
 	public boolean bimax_common_bg =         true; // Common gains for background correlation maximum
-	
+	public boolean bimax_post_LMA =          true; // When dual max, LMA with two maximums, then select. If false,select before LMA
+	private static final String [] COMBINE_MODES= {"both","strongest","nearest","FG","BG"};
+	public int     bimax_combine_mode =      3;    // FG
+	public boolean bimax_dual_LMA =          true; // New LMA capable of FG/BG
+	public boolean bimax_dual_only =         false; // process only tiles with dual maximums (requires bimax_dual_LMA)
 
 	//lmamask_
 	public boolean lmamask_dbg =              false;  // show LMA images, exit after single BG
@@ -144,6 +148,8 @@ public class ImageDttParameters {
 	public double  mcorr_weights_power =    2.0;  // divide pair by horizontal (disparity) width after rotation/scaling (skip negative when measuring width)
 	public boolean mcorr_dynamic_weights =  true; // Apply weights to pairs dependent on the width in disparity direction
 	public double  mcorr_dual_fract=        0.15; // Minimal relative strength of the second correlation maximum to treat as FG+BG
+	public double  mcorr_fb_fract=          0.5;  // Minimal relative strength of FG to BG to keep (final, after LMA if enabled)
+	public double  mcorr_bf_fract=          0.2;  // Minimal relative strength of BG to FG to keep (final, after LMA if enabled)
 	
 	/// these are just for testing, actual will be generated specifically for different applications (LY will use closest pairs)  
 	public int     mcorr_comb_width =       15;
@@ -486,6 +492,14 @@ public class ImageDttParameters {
 					"Use common gain for all pairs for FG/single correlation (unchecked - use individual gain for each pair)");
 			gd.addCheckbox    ("Common gains for background correlation maximum",                 this.bimax_common_bg,
 					"Use common gain for all pairs for BG correlation(s) (unchecked - use individual gain for each pair)");
+			gd.addCheckbox    ("Select after LMA",                                                this.bimax_post_LMA,
+					"When dual max, LMA with two maximums, then select. If false,select before LMA");
+			gd. addChoice("Multiple maximums select mode", COMBINE_MODES, COMBINE_MODES[bimax_combine_mode], 
+					"Which maximum to keep after LMA");
+			gd.addCheckbox    ("Use updated LMA capable of FG/BG",                                this.bimax_dual_LMA,
+					"When dual max, LMA with two maximums, then select. If false,select before LMA");
+			gd.addCheckbox    ("Process only tiles with dual maximums (requires bimax_dual_LMA)",                                this.bimax_dual_only,
+					"May be used to determine BG after refining FG. First refine with false and mode = 3 (FG), then with true and mode = 4 (BG)");
 			
 			gd.addMessage("LMA samples filter based on estimated disparity");
 			gd.addCheckbox    ("Debug LMA",                                                       this.lmamask_dbg,
@@ -597,7 +611,11 @@ public class ImageDttParameters {
 					"Calculate each pairs's width (in the disparity direction) after rotation/scaling and apply");
 			gd.addNumericField("Minimal relative strength of the second maximum (0 - ignore)",    this.mcorr_dual_fract,  3,6,"",
 					"Minimal relative strength of the second correlation maximum to treat as FG+BG (0 - ignore dual maximums, no special treatment)");
-
+			gd.addNumericField("Minimal relative strength of FG to BG",                           this.mcorr_fb_fract,  3,6,"",
+					"Minimal relative strength of FG to BG to keep weaker (final, after LMA if enabled), <1.0");
+			gd.addNumericField("Minimal relative strength of BG to FG",                           this.mcorr_bf_fract,  3,6,"",
+					"Minimal relative strength of BG to FG to keep weaker (final, after LMA if enabled), <1.0");
+			
 			gd.addMessage("Generating grid for combining visualization, actual will be provided programmatically");
 			gd.addNumericField("Width of a combined correlation tile",                            this.mcorr_comb_width,  0, 3, "pix",
 					"Width of a tile to combine correlations after rotation/scaling");
@@ -907,6 +925,10 @@ public class ImageDttParameters {
   			this.bimax_dual_pass =              gd.getNextBoolean();
   			this.bimax_common_fg =              gd.getNextBoolean();
   			this.bimax_common_bg =              gd.getNextBoolean();
+  			this.bimax_post_LMA =               gd.getNextBoolean();
+  			this.bimax_combine_mode =           gd.getNextChoiceIndex();
+  			this.bimax_dual_LMA =               gd.getNextBoolean();
+  			this.bimax_dual_only =              gd.getNextBoolean();
   			
   			this.lmamask_dbg =              gd.getNextBoolean();
   			this.lmamask_en =               gd.getNextBoolean();
@@ -962,6 +984,8 @@ public class ImageDttParameters {
   			this.mcorr_weights_power=    gd.getNextNumber();
   			this.mcorr_dynamic_weights = gd.getNextBoolean();
   			this.mcorr_dual_fract=       gd.getNextNumber();
+  			this.mcorr_fb_fract=         gd.getNextNumber();
+  			this.mcorr_bf_fract=         gd.getNextNumber();
   			
   			this.mcorr_comb_width= (int) gd.getNextNumber();
   			this.mcorr_comb_height=(int) gd.getNextNumber();
@@ -1137,7 +1161,11 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"bimax_dual_pass",         this.bimax_dual_pass +"");
 		properties.setProperty(prefix+"bimax_common_fg",         this.bimax_common_fg +"");
 		properties.setProperty(prefix+"bimax_common_bg",         this.bimax_common_bg +"");
-
+		properties.setProperty(prefix+"bimax_post_LMA",          this.bimax_post_LMA +"");
+		properties.setProperty(prefix+"bimax_combine_mode",      this.bimax_combine_mode +"");
+		properties.setProperty(prefix+"bimax_dual_LMA",          this.bimax_dual_LMA +"");
+		properties.setProperty(prefix+"bimax_dual_only",         this.bimax_dual_only +"");
+		
 		properties.setProperty(prefix+"lmamask_dbg",          this.lmamask_dbg +"");
 		properties.setProperty(prefix+"lmamask_en",           this.lmamask_en +"");
 		properties.setProperty(prefix+"lmamask_magic",        this.lmamask_magic +"");
@@ -1191,6 +1219,8 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"mcorr_weights_power",  this.mcorr_weights_power +"");
 		properties.setProperty(prefix+"mcorr_dynamic_weights",this.mcorr_dynamic_weights +"");
 		properties.setProperty(prefix+"mcorr_dual_fract",     this.mcorr_dual_fract +"");
+		properties.setProperty(prefix+"mcorr_fb_fract",       this.mcorr_fb_fract +"");
+		properties.setProperty(prefix+"mcorr_bf_fract",       this.mcorr_bf_fract +"");
 		
 		properties.setProperty(prefix+"mcorr_comb_width",     this.mcorr_comb_width +"");
 		properties.setProperty(prefix+"mcorr_comb_height",    this.mcorr_comb_height +"");
@@ -1371,6 +1401,10 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"bimax_dual_pass")!=null)         this.bimax_dual_pass=Boolean.parseBoolean(properties.getProperty(prefix+"bimax_dual_pass"));
 		if (properties.getProperty(prefix+"bimax_common_fg")!=null)         this.bimax_common_fg=Boolean.parseBoolean(properties.getProperty(prefix+"bimax_common_fg"));
 		if (properties.getProperty(prefix+"bimax_common_bg")!=null)         this.bimax_common_bg=Boolean.parseBoolean(properties.getProperty(prefix+"bimax_common_bg"));
+		if (properties.getProperty(prefix+"bimax_post_LMA")!=null)          this.bimax_post_LMA=Boolean.parseBoolean(properties.getProperty(prefix+"bimax_post_LMA"));
+		if (properties.getProperty(prefix+"bimax_combine_mode")!=null)      this.bimax_combine_mode=Integer.parseInt(properties.getProperty(prefix+"bimax_combine_mode"));
+		if (properties.getProperty(prefix+"bimax_dual_LMA")!=null)          this.bimax_dual_LMA=Boolean.parseBoolean(properties.getProperty(prefix+"bimax_dual_LMA"));
+		if (properties.getProperty(prefix+"bimax_dual_only")!=null)         this.bimax_dual_only=Boolean.parseBoolean(properties.getProperty(prefix+"bimax_dual_only"));
 		
 		if (properties.getProperty(prefix+"lmamask_dbg")!=null)              this.lmamask_dbg=Boolean.parseBoolean(properties.getProperty(prefix+"lmamask_dbg"));
 		if (properties.getProperty(prefix+"lmamask_en")!=null)               this.lmamask_en=Boolean.parseBoolean(properties.getProperty(prefix+"lmamask_en"));
@@ -1425,6 +1459,8 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"mcorr_weights_power")!=null)  this.mcorr_weights_power=Double.parseDouble(properties.getProperty(prefix+"mcorr_weights_power"));
 		if (properties.getProperty(prefix+"mcorr_dynamic_weights")!=null)this.mcorr_dynamic_weights=Boolean.parseBoolean(properties.getProperty(prefix+"mcorr_dynamic_weights"));
 		if (properties.getProperty(prefix+"mcorr_dual_fract")!=null)     this.mcorr_dual_fract=Double.parseDouble(properties.getProperty(prefix+"mcorr_dual_fract"));
+		if (properties.getProperty(prefix+"mcorr_fb_fract")!=null)       this.mcorr_fb_fract=Double.parseDouble(properties.getProperty(prefix+"mcorr_fb_fract"));
+		if (properties.getProperty(prefix+"mcorr_bf_fract")!=null)       this.mcorr_bf_fract=Double.parseDouble(properties.getProperty(prefix+"mcorr_bf_fract"));
 		
 		if (properties.getProperty(prefix+"mcorr_comb_width")!=null)     this.mcorr_comb_width=Integer.parseInt(properties.getProperty(prefix+"mcorr_comb_width"));
 		if (properties.getProperty(prefix+"mcorr_comb_height")!=null)    this.mcorr_comb_height=Integer.parseInt(properties.getProperty(prefix+"mcorr_comb_height"));
@@ -1622,6 +1658,10 @@ public class ImageDttParameters {
 		idp.bimax_dual_pass=         this.bimax_dual_pass;
 		idp.bimax_common_fg=         this.bimax_common_fg;
 		idp.bimax_common_bg=         this.bimax_common_bg;
+		idp.bimax_post_LMA=          this.bimax_post_LMA;
+		idp.bimax_combine_mode=      this.bimax_combine_mode;
+		idp.bimax_dual_LMA=          this.bimax_dual_LMA;
+		idp.bimax_dual_only=         this.bimax_dual_only;
 		
 		idp.lmamask_dbg=               this.lmamask_dbg;
 		idp.lmamask_en=                this.lmamask_en;
@@ -1675,6 +1715,8 @@ public class ImageDttParameters {
 		idp.mcorr_weights_power=     this.mcorr_weights_power;
 		idp.mcorr_dynamic_weights=   this.mcorr_dynamic_weights;
 		idp.mcorr_dual_fract=        this.mcorr_dual_fract;
+		idp.mcorr_fb_fract=          this.mcorr_fb_fract;
+		idp.mcorr_bf_fract=          this.mcorr_bf_fract;
 		
 		idp.mcorr_comb_width=        this.mcorr_comb_width;
 		idp.mcorr_comb_height=       this.mcorr_comb_height;

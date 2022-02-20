@@ -121,7 +121,7 @@ public class Corr2dLMA {
 
 	private int []            used_cams_rmap; // variable-length list of used cameras numbers
 	private int [][]          used_pairs_map; // [tile][pair] -1 for unused pairs, >=0 for used ones
-	private boolean []        last_common_scale = null; //When switching from common to individual the
+	private boolean []        last_common_scale = null; // new boolean[1]; //When switching from common to individual the
 	                                                    // scale[0] is cloned, reverse - averaged to [0]
 	private boolean []        used_tiles;
 
@@ -598,6 +598,10 @@ public class Corr2dLMA {
 		if (adjust_disparities == null) {
 			adjust_disparities = new boolean[numMax];
 			Arrays.fill(adjust_disparities, true);
+		}
+		if (last_common_scale == null) { // first time - same as it was {false, ...,false}
+			last_common_scale = new boolean[numMax];
+			Arrays.fill(last_common_scale, false);
 		}
 		
 ///		double [][] disp_str = disp_str_all[0]; //FIXME: **************** 
@@ -2633,7 +2637,7 @@ public class Corr2dLMA {
 			double [][] abc =        getABCTile(nmax);       // nmax
 			for (int tile = 0; tile < numTiles; tile++) {
 				int offs = (tile * numMax + nmax) * tile_params;
-				ds[nmax][tile][0] = Double.NaN + 0;
+				ds[nmax][tile][0] = Double.NaN;
 				if (Double.isNaN(maxmin_amp[tile][0])) {
 					continue;
 				}

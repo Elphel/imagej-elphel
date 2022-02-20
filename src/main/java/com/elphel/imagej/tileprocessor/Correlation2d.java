@@ -41,6 +41,14 @@ public class Correlation2d {
 	public final static int PAIR_VERTICAL =        1;
 	public final static int PAIR_DIAGONAL_MAIN =   2;
 	public final static int PAIR_DIAGONAL_OTHER =  3;
+	
+	public final static int CAMEL_BOTH =      0;
+	public final static int CAMEL_STRONGEST = 1;
+	public final static int CAMEL_NEAREST =   2;
+	public final static int CAMEL_FG =        3;
+	public final static int CAMEL_BG =        4;
+	
+	
 	private final DttRad2 dtt;
 	private final int transform_size;
 	private final int transform_len;
@@ -4380,10 +4388,157 @@ public class Correlation2d {
     	return lmaSuccess? lma: null;
     }
     
+    /**
+     * Sort array of {disparity,strength} pairs in descending disparity order. Maintain is_lma if not null  
+     * @param disp_str_in array of {disparity, strength} pairs (will not be modified)
+     * @param is_lma optional array of boolean is_lma elements or null
+     * @return reordered array of {disparity, strength} pairs. If not null, is_lma will be updated accordingly
+     */
+    public static double [][] sortFgFirst(
+    		double[][] disp_str_in0,
+    		boolean [] is_lma
+    		){
+    	double[][] disp_str_in = disp_str_in0.clone();
+    	boolean [] is_lma1 = (is_lma == null)? null : is_lma.clone();
+		int nmax = 0;
+		for (int i = 0; i < disp_str_in.length; i++) if (disp_str_in[i] != null) nmax++;
+		double [][] disp_str = new double [nmax][];
+		for (int n = 0; n < nmax; n++) {
+			int idmx = -1;
+			for (int i = 0; i < disp_str_in.length; i++) if ((disp_str_in[i] != null) && !Double.isNaN(disp_str_in[i][0])){
+				if ((idmx < 0) || ( disp_str_in[i][0] > disp_str_in[idmx][0])) {
+					idmx = i;
+				}
+			}
+			if (idmx < 0) {
+				// truncate
+				double [][] disp_str_trunc = new double [n][];
+				for (int i = 0; i <n; i++) {
+					disp_str_trunc[i]=disp_str[i];
+				}
+				return disp_str_trunc;
+			}
+			disp_str[n] = disp_str_in[idmx];
+			if (is_lma != null) {
+				is_lma[n] = is_lma1[idmx];
+			}
+			disp_str_in[idmx] = null;
+		}
+		return  disp_str;
+    }
+    
+    
+    /**
+     * Select {disparity, strength} pair from potentially multiple 
+     * @param combine_mode processing mode:  0 - both,  1 - strongest, 2 - nearest to zero, 3 - FG, 4 - BG
+     * @param disp_str_dual [nmax]{disparity, strength}. One or two pairs of {disparity, strength}, 
+     *                      in descending strength order
+     * @return selected [nmax]{disparity, strength}. If two are returned, they have the same order as the input one
+     */
+    public static double [][] selDispStr( // single tile
+        	int                 combine_mode,   // 0 - both,  1 - strongest, 2 - nearest to zero, 3 - FG, 4 - BG
+    		double[][]          disp_str_dual)  // -preliminary center x in pixels for largest baseline
+    {
+    	double [][]   disp_str_all; 
+    	if (disp_str_dual.length < 2) {
+    		disp_str_all =     disp_str_dual;
+    	} else { // only 2 max are supported
+    		if (disp_str_dual.length > 2) {
+    			System.out.println("selDispStr(): Only 2 correlation maximums are currently supported, all but 2 strongest are discarded");
+    		}
+    		int nearest_max = (Math.abs(disp_str_dual[0][0]) < Math.abs(disp_str_dual[1][0]))? 0 : 1;
+    		int fg_max =  (disp_str_dual[0][0] > disp_str_dual[1][0]) ? 0 : 1;
+    		switch (combine_mode) {
+    		case CAMEL_BOTH: // keep both
+    			disp_str_all =     disp_str_dual;
+    			break; 
+    		case CAMEL_STRONGEST: // keep strongest
+    			disp_str_all =     new double [][]   {disp_str_dual    [0]};
+    			break;
+    		case CAMEL_NEAREST: // keep nearest
+    			disp_str_all =     new double [][]   {disp_str_dual    [nearest_max]};
+    			break;
+    		case CAMEL_FG: // keep foreground
+    			disp_str_all =     new double [][]   {disp_str_dual    [fg_max]};
+    			break;
+    		case CAMEL_BG: // keep background
+    			disp_str_all =     new double [][]   {disp_str_dual    [1-fg_max]};
+    			break;
+    		default: // keep both
+    			disp_str_all =     disp_str_dual;
+    		}
+    	}
+        return disp_str_all;
+    }
+  
+    /**
+     * Select index of {disparity, strength} pair from potentially multiple 
+     * @param combine_mode processing mode:  0 - both,  1 - strongest, 2 - nearest to zero, 3 - FG, 4 - BG
+     * @param disp_str_dual [nmax]{disparity, strength}. One or two pairs of {disparity, strength}, 
+     *                      in descending strength order
+     * @return index of selected pair or -1 if all are selected
+     */
+    public static int selDispStrIndex( // single tile
+    		int                 combine_mode,   // 0 - both,  1 - strongest, 2 - nearest to zero, 3 - FG, 4 - BG
+    		double[][]          disp_str_dual) {  // -preliminary center x in pixels for largest baseline
+    	if (disp_str_dual.length < 2) {
+    		return 0;
+    	} else { // only 2 max are supported
+    		if (disp_str_dual.length > 2) {
+    			System.out.println("selDispStr(): Only 2 correlation maximums are currently supported, all but 2 strongest are discarded");
+    		}
+    		int nearest_max = (Math.abs(disp_str_dual[0][0]) < Math.abs(disp_str_dual[1][0]))? 0 : 1;
+    		int fg_max =  (disp_str_dual[0][0] > disp_str_dual[1][0]) ? 0 : 1;
+    		switch (combine_mode) {
+    		case CAMEL_BOTH: // keep both
+    			return -1;
+    		case CAMEL_STRONGEST:// keep strongest
+    			return 0;
+    		case CAMEL_NEAREST:  // keep nearest
+    			return nearest_max;
+    		case CAMEL_FG:       // keep foreground
+    			return fg_max;
+    		case CAMEL_BG:       // keep background
+    			return 1-fg_max;
+    		default: // keep both
+    			return -1;
+    		}
+    	}
+    }
+    
+    
+    /**
+     * Process multiple 2D correlation pairs with LMA and extract {disparity,strength} data with
+     * Levenberg-Marquardt Algorithm (LMA). The data should be pre-processed (e.g. with
+     * rotation+scaling+accumulation of the correlation pairs followed by the polynomial approximation
+     * and expected disparity value (or up to 2 values) should be known. In the case of multiple
+     * (now just 2) disparities that correspond to foreground (FG) and background (BG) objects in the
+     * same tile, this method may process only one of them (strongest, nearest to 0, FG or BG) or both
+     * depending on the combine_mode.  
+     * @param imgdtt_params multiple processing parameters
+     * @param combine_mode processing mode:  0 - both,  1 - strongest, 2 - nearest to zero, 3 - FG, 4 - BG
+     * @param corr_wnd correlation window to save on re-calculation of the window
+     * @param corr_wnd_inv_limited correlation window, limited not to be smaller than threshold - used
+     *                             to find max/convex areas (or null)
+     * @param corrs     [pair][pixel] correlation data (per pair, per pixel). May have nulls for
+     *                  unused pairs as well as extra elements in the end (such as composite "combo" image
+     *                  containing result of accumulation of rotated+scaled individual correlation pairs).
+     * @param disp_dist per camera disparity matrix as a 1d (linescan order))
+     * @param rXY       non-distorted X,Y offset per nominal pixel of disparity
+     * @param pair_mask per pair boolean array, false elements disable corresponding correlation pairs in corrs  
+     * @param disp_str_dual [nmax]{disparity, strength}. One or two pairs of {disparity, strength}, 
+     *                      in descending strength order
+     * @param debug_lma_tile array for per-tile debug data or null if not needed
+     * @param debug_level debug level
+     * @param tileX     debug tile X (just for the debug images titles
+     * @param tileY     debug tile X (just for the debug images titles
+     * @return          Corr2dLMA instance if success, or null in case of failure. Corr2dLMA instance may be
+     *                  used to extract result (refined disparity/strength pair(s) and other values to judge
+     *                  the quality of LMA fitting
+     */
     public Corr2dLMA corrLMA2DualMax( // single tile
     		ImageDttParameters  imgdtt_params,
         	int                 combine_mode,   // 0 - both,  1 - strongest, 2 - nearest to zero, 3 - FG, 4 - BG
-//    		boolean             adjust_ly, // adjust Lazy Eye
     		double [][]         corr_wnd, // correlation window to save on re-calculation of the window
     		double []           corr_wnd_inv_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
     		double [][]         corrs, // may have more elements than pair_mask (corrs may have combo as last elements)
@@ -4392,21 +4547,14 @@ public class Correlation2d {
     		boolean []          pair_mask, // which pairs to process
     		// should never be null
     		double[][]          disp_str_dual,          // -preliminary center x in pixels for largest baseline
-    		double[]            poly_ds,    // null or pair of disparity/strength
-    		double              vasw_pwr,  // value as weight to this power,
     		double []           debug_lma_tile,
     		int                 debug_level,
     		int                 tileX, // just for debug output
-    		int                 tileY
-    		)
+    		int                 tileY)
     {
-    	
-//		double  lpf_neib =      0.5; // if >0, add ortho neibs (corners - squared)
-//		double  notch_pwr =     4.0; //calculating notch filter to suppress input data of the weaker maximum 
-//		double  adv_power =     2.0; // reduce weight from overlap with adversarial maximum 
- //   	int rad_convex_search = 2; // how far from predicted to search for maximums
-  //  	int min_num_samples =   4; // minimal number of samples per pair per maximum
-   // 	int min_num_pairs =     8; // minimal number of used pairs
+		int sel_max = selDispStrIndex( // single tile
+				imgdtt_params.bimax_combine_mode, // int                 combine_mode,   // 0 - both,  1 - strongest, 2 - nearest to zero, 3 - FG, 4 - BG
+				disp_str_dual);                   // double[][]          disp_str_dual)  // -preliminary center x in pixels for largest baseline
     	
     	boolean debug_graphic = imgdtt_params.lma_debug_graphic && (imgdtt_params.lma_debug_level1 > 3) && (debug_level > 0) ;
     	debug_graphic |= imgdtt_params.lmamask_dbg && (debug_level > 0) ;
@@ -4424,7 +4572,6 @@ public class Correlation2d {
     	double [][][]       own_masks0 = new double [pair_offsets0.length][][];
     	double [][][] lma_corr_weights0 = getLmaWeights(
     			imgdtt_params,                 // ImageDttParameters  imgdtt_params,
-//    			lma,                           // Corr2dLMA           lma,
     			imgdtt_params.bimax_lpf_neib,  // double              lpf_neib,  // if >0, add ortho neibs (corners - squared)
     			imgdtt_params.bimax_notch_pwr, // double              notch_pwr, //  = 4.00;
     			imgdtt_params.bimax_adv_power, // double              adv_power,    // reduce weight from overlap with adversarial maximum 
@@ -4443,6 +4590,7 @@ public class Correlation2d {
     	double [][][] own_masks;
     	double [][][] pair_offsets;
 		boolean [] common_scale; //  = {false,false}; // true}; {true,true}; // // TODO: implement
+//		int combine_mode_pre = imgdtt_params.bimax_post_LMA ? 0 : imgdtt_params.bimax_combine_mode;
     	
     	if (lma_corr_weights0.length < 2) {
     		pair_offsets =     pair_offsets0;
@@ -4454,6 +4602,27 @@ public class Correlation2d {
     		if (lma_corr_weights0.length > 2) {
     			System.out.println("corrLMA2DualMax(): Only 2 correlation maximums are currently supported, all but 2 strongest are discarded");
     		}
+    		int nearest_max = (Math.abs(disp_str_dual[0][0]) < Math.abs(disp_str_dual[1][0]))? 0 : 1;
+    		int fg_max =  (disp_str_dual[0][0] > disp_str_dual[1][0]) ? 0 : 1;
+    		if (imgdtt_params.bimax_post_LMA || (sel_max < 0)) { // keep multi
+        		pair_offsets =     pair_offsets0;
+    			lma_corr_weights = lma_corr_weights0; 
+    			disp_str_all =     disp_str_dual;
+        		own_masks =        own_masks0;
+        		common_scale = new boolean[disp_str_dual.length];
+        		for (int i = 0; i < common_scale.length; i++) {
+        			common_scale[i] = (i == fg_max) ? imgdtt_params.bimax_common_fg : imgdtt_params.bimax_common_bg; 
+        		}
+    		} else { // select one max right now
+    			//(sel_max == fg_max)
+        		pair_offsets =     new double [][][] {pair_offsets0    [sel_max]};
+    			lma_corr_weights = new double [][][] {lma_corr_weights0[sel_max]};
+    			disp_str_all =     new double [][]   {disp_str_dual    [sel_max]};
+    			own_masks =        new double [][][] {own_masks0       [sel_max]};
+        		common_scale =     new boolean[]     {(sel_max == fg_max) ? imgdtt_params.bimax_common_fg : imgdtt_params.bimax_common_bg}; 
+    		}
+    		
+    		/*
     		int nearest_max = (Math.abs(disp_str_dual[0][0]) < Math.abs(disp_str_dual[1][0]))? 0 : 1;
     		int fg_max =  (disp_str_dual[0][0] > disp_str_dual[1][0]) ? 0 : 1;
     		
@@ -4506,9 +4675,10 @@ public class Correlation2d {
         			common_scale[i] = (i == fg_max) ? imgdtt_params.bimax_common_fg : imgdtt_params.bimax_common_bg; 
         		}
     		}
+    		*/
     	}
     	
-    	double [][][] filtWeight =    new double [lma_corr_weights.length][corrs.length][];
+     	double [][][] filtWeight =    new double [lma_corr_weights.length][corrs.length][];
     	int num_disp_samples = 0;
     	int num_cnvx_samples = 0;
     	int num_comb_samples = 0;
@@ -4592,7 +4762,8 @@ public class Correlation2d {
     			rXY,                       //double [][] rXY, // non-distorted X,Y offset per nominal pixel of disparity
     			imgdtt_params.lmas_gaussian //boolean gaussian_mode
     			);
-   		
+   		//imgdtt_params.ortho_vasw_pwr
+    	double vasw_pwr = imgdtt_params.ortho_vasw_pwr;  // value as weight to this power,
    		for (int npair = 0; npair < pair_mask.length; npair++) if ((corrs[npair] != null) && (used_pairs[npair])){
    			for (int nmax = 0; nmax < lma_corr_weights.length; nmax++) { // use same blurred version for all max-es
    				for (int i = 1; i < lma_corr_weights[nmax][npair].length; i++) if (lma_corr_weights[nmax][npair][i] > 0.0) {
@@ -4612,7 +4783,6 @@ public class Correlation2d {
    							v,     // double v,     // correlation value at that point
    							w);    //double w)      // sample weight
    				}
-   				
    			}
    		}
    		
@@ -4684,8 +4854,7 @@ public class Correlation2d {
     		if (npass > 0) {
     			adjust_disparities = null;
     		}
-//    		boolean [] common_scale = {false,false}; // true}; {true,true}; // // TODO: implement
-    		lma.setParMask( // USED in lwir
+    		lma.setParMask(
     				adjust_disparities, // null, // 			boolean [] adjust_disparities, // null - adjust all, otherwise - per maximum
     				common_scale,       //boolean [] common_scale,       // per-maximum, if true - common scale for all pairs
     				imgdtt_params.lmas_adjust_wm,  // boolean adjust_width,     // adjust width of the maximum - lma_adjust_wm
@@ -4695,8 +4864,7 @@ public class Correlation2d {
     				false, // (adjust_ly ? imgdtt_params.lma_adjust_ly1: false), // imgdtt_params.lma_adjust_ly1, // boolean adjust_lazyeye_ortho, // adjust disparity corrections orthogonal to disparities lma_adjust_ly1
     				0.0, // (adjust_ly ? imgdtt_params.lma_cost_wy : 0.0), // imgdtt_params.lma_cost_wy,     // double  cost_lazyeye_par,     // cost for each of the non-zero disparity corrections        lma_cost_wy
     				0.0);  // (adjust_ly ? imgdtt_params.lma_cost_wxy : 0.0) //imgdtt_params.lma_cost_wxy     // double  cost_lazyeye_odtho    // cost for each of the non-zero ortho disparity corrections  lma_cost_wxy
-
-    		if (debug_level > 0) { // 1) {
+    		if (debug_level > 1) { // 1) {
     			System.out.println("Input data:");
     			lma.printInputDataFx(false);
     			lma.printParams();
@@ -4789,7 +4957,12 @@ public class Correlation2d {
     	}
     	return lmaSuccess? lma: null;
     }
-   
+   /**
+    * Low-pass filtering of correlation data with a 3x3 kernel
+    * @param data correlation data in scan-line order (will be modified), currently 15x15=225 long
+    * @param orth_val relative (to the center pixel) weight of the 4 ortho pixels (corner weights
+    *                 are orth_val * orth_val 
+    */
     void lpf_neib(
     		double [] data,
     		double orth_val) {
@@ -4865,11 +5038,35 @@ public class Correlation2d {
 		return xy_offsets;
 	}
 
-    
+    /**
+     * Generate masks (analog weights) per correlation maximum, per pair taking into account
+     * other (adversarial) correlation maximum(s) and reducing weigh.
+     * @param imgdtt_params multiple processing parameters
+     * @param lpf_neib low pass filtering parameter
+     * @param notch_pwr power to raise notch filter to generate an accumulated over all pairs
+     *                  notch filter that later is shifted according to the expected disparity
+     *                  for each individual pair. The higher the power, the wider and sharper
+     *                  is the filter.
+     * @param adv_power power to raise relative (to adversarial maximum) this maximum strength
+     *                  for each pixel. Higher power make filtering sharper
+     * @param corrs     [pair][pixel] correlation data (per pair, per pixel). May have nulls for
+     *                  unused pairs.  
+     * @param disp_dist per camera disparity matrix as a 1d (linescan order))
+     * @param rXY       non-distorted X,Y offset per nominal pixel of disparity
+     * @param pair_mask per pair boolean array, false elements disable corresponding correlation pairs in corrs  
+     * @param pair_offsets [nmax][pair]{x,y} per-maximum, per pair X,Y offset of the correlation maximum 
+     * @param own_masks [nmax][pair][pix] per-maximum, per-pair correlation pixel array calculated regardless of
+     *                  the adversaries. Should be initialized to double[nmax][][] or null (to skip calculation)
+     * @param disp_str_dual [nmax]{disparity, strength}. One or two pairs of {disparity, strength}, 
+     *                  in descending strength order
+     * @param debug_level debug level
+     * @param tileX     debug tile X (just for the debug images titles
+     * @param tileY     debug tile X (just for the debug images titles
+     * @return [nmax][pair][pixel] corresponding by the first dimension to the input disp_str_dual array
+     */
     
 	public double[][][] getLmaWeights(
     		ImageDttParameters  imgdtt_params,
-//    		Corr2dLMA           lma,
     		double              lpf_neib,  // if >0, add ortho neibs (corners - squared)
     		double              notch_pwr, //  = 4.00;
     		double              adv_power,    // reduce weight from overlap with adversarial maximum 
