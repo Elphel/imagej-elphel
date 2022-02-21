@@ -4437,6 +4437,11 @@ public class OpticalFlow {
 			} else if (nrefine == (clt_parameters.rig.mll_max_refines_pre + clt_parameters.rig.mll_max_refines_lma + 1)) {
 				clt_parameters.img_dtt.bimax_dual_only =    false; // not just dual only
 			}
+			
+			if (nrefine == (clt_parameters.rig.mll_max_refines_pre + clt_parameters.rig.mll_max_refines_lma + clt_parameters.rig.mll_max_bg_nearest)) {
+				clt_parameters.img_dtt.bimax_combine_mode = Correlation2d.CAMEL_NEAREST;
+			}
+			
 			int mcorr_sel = Correlation2d.corrSelEncode(clt_parameters.img_dtt,num_sensors);
 			double [][] disparity_map = 
 					correlateInterscene(
