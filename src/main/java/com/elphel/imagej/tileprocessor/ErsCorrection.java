@@ -769,7 +769,7 @@ public class ErsCorrection extends GeometryCorrection {
 	}
 
 	// setup from extrinsics vector
-	public void setupERSfromExtrinsics()
+	public void setupERSfromExtrinsics() 
 	{
 		double BUGS = 1.0;
 		if (line_time == OLD_LINE_TIME) {

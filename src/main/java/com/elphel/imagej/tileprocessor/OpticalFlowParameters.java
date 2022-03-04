@@ -38,8 +38,7 @@ public class OpticalFlowParameters {
 	public double      change_laplassian = 0.005 ;
 	public double      tolerance_absolute_inter = 0.25; // absolute disparity half-range in each tile
 	public double      tolerance_relative_inter = 0.2; // relative disparity half-range in each tile
-	public double      occupancy_inter =         0.25;   // fraction of remaining  tiles in the center 8x8 area (<1.0)
-
+	public double      occupancy_inter =          0.25;   // fraction of remaining  tiles in the center 8x8 area (<1.0)
 	public double      nsigma =                   1.5; // Remove outliers by more that this scaled sigma
 	public double      nsigma2 =                  2.0; // Second time  outlier filter (<0 - disable)
 	public double []   chn_weights = {1.0,1.0,1.0,1.0}; // strength, r,b,g
@@ -50,23 +49,20 @@ public class OpticalFlowParameters {
 	public double      frac_radius =              0.9;  // add to integer radius for window calculation
 	public double      tolerance_absolute_macro = 0.25; // absolute disparity half-range to consolidate macro tiles
 	public double      tolerance_relative_macro = 0.2;  // relative disparity half-range to consolidate macro tiles
-
 	public int         iradius_cm =               3;      // half-size of the square to process 
 	public double      dradius_cm =               1.5;      // weight calculation (1/(r/dradius)^2 + 1)
 	public int         refine_num_cm =            5;   // number of iterations to apply weights around new center
-	
 	public double      magic_scale = 0.85; // 2.0 * 0.85;
 	public int         max_refines =             50;
 	public int         num_refine_all =           3;
 	public double      min_change =               0.1; // 01;//   sqrt (dx*dx + dy*dy) for correction (int tiles) in pixels
-	
 	public int         best_neibs_num =           4; // use  4 best neighbors to calculate std deviation
 	public double      ref_stdev =                5.0; // strength 0.5 if standard deviation of best neighbors to tile difference is this.
-	
+	public boolean     ignore_ers =               false; // ignore velocities from individual ERS (LWIR - ignore, RGB - do not ignore
+	public double      lpf_pairs =                5.0;  // velocities LPF during pairwise fitting
+	public double      lpf_series =               5.0;  // velocities LPF during all-to-reference fitting 
 	public boolean     combine_empty_only =       true; // false;
-
 	public boolean     late_normalize_iterate =   true;
-	
 	public int         test_corr_rad_max =        3;
 	
 	// for recalculateFlowXY()
@@ -150,6 +146,14 @@ public class OpticalFlowParameters {
 				"Use this number of the neighbors (of total 8) that are most similar to the current tile to calculate confidence. Zero confidence if there are not enough neighbors.");
 		gd.addNumericField("Expected standard deviation of the Optical Flow",                 this.ref_stdev,     3,6,"pix",
 				"Calculate for the best neighbors around the current tile: confidence= (ref_stdev ^ 2)/(ref_stdev ^2 + stdev^2)");
+
+		gd.addMessage("Linear and Rotational Velocities");
+	    gd.addCheckbox    ("Ignore velocities from individual ERS",                           this.ignore_ers,
+			"Ignore relative pose from individa-scene ERS when calculating relative poses");
+		gd.addNumericField("Velocities LPF during pairwise fitting",                          this.lpf_pairs,     3,6,"samples",
+				"Half of the full width LPF to smooth ERS velocities during consecutive pairs pose fitting");
+		gd.addNumericField("Velocities LPF during all-to-reference fitting",                  this.lpf_series,     3,6,"samples",
+				"Half of the full width LPF to smooth ERS velocities during all scenes to reference pose fitting");
 		
 		gd.addMessage("Testing and Debug");
 	    gd.addCheckbox    ("Consolidate correlation macrotiles only if the current macrotile is null",  this.combine_empty_only,
@@ -203,9 +207,13 @@ public class OpticalFlowParameters {
 		this.best_neibs_num =         (int) gd.getNextNumber();
 		this.ref_stdev =                    gd.getNextNumber();
 
+		this.ignore_ers =                   gd.getNextBoolean();
+		this.lpf_pairs =                    gd.getNextNumber();
+		this.lpf_series =                   gd.getNextNumber();
+		
 		this.combine_empty_only =           gd.getNextBoolean();
 		this.late_normalize_iterate =       gd.getNextBoolean();
-		this.test_corr_rad_max =                (int) gd.getNextNumber();
+		this.test_corr_rad_max =      (int) gd.getNextNumber();
 		this.debug_level_optical =    (int) gd.getNextNumber();
 		this.debug_level_iterate =    (int) gd.getNextNumber();
 		this.enable_debug_images =          gd.getNextBoolean();
@@ -245,6 +253,10 @@ public class OpticalFlowParameters {
 	
 		properties.setProperty(prefix+"best_neibs_num",           this.best_neibs_num+"");
 		properties.setProperty(prefix+"ref_stdev",                this.ref_stdev+"");
+		
+		properties.setProperty(prefix+"ignore_ers",               this.ignore_ers+"");
+		properties.setProperty(prefix+"lpf_pairs",                this.lpf_pairs+"");
+		properties.setProperty(prefix+"lpf_series",               this.lpf_series+"");
 
 		properties.setProperty(prefix+"combine_empty_only",       this.combine_empty_only+"");
 		properties.setProperty(prefix+"late_normalize_iterate",   this.late_normalize_iterate+"");
@@ -289,6 +301,11 @@ public class OpticalFlowParameters {
 		if (properties.getProperty(prefix+"best_neibs_num")!=null)           this.best_neibs_num=Integer.parseInt(properties.getProperty(prefix+"best_neibs_num"));
 		if (properties.getProperty(prefix+"ref_stdev")!=null)                this.ref_stdev=Double.parseDouble(properties.getProperty(prefix+"ref_stdev"));
 		
+		
+		if (properties.getProperty(prefix+"ignore_ers")!=null)               this.ignore_ers=Boolean.parseBoolean(properties.getProperty(prefix+"ignore_ers"));
+		if (properties.getProperty(prefix+"lpf_pairs")!=null)                this.lpf_pairs=Double.parseDouble(properties.getProperty(prefix+"lpf_pairs"));
+		if (properties.getProperty(prefix+"lpf_series")!=null)               this.lpf_series=Double.parseDouble(properties.getProperty(prefix+"lpf_series"));
+		
 		if (properties.getProperty(prefix+"combine_empty_only")!=null)       this.combine_empty_only=Boolean.parseBoolean(properties.getProperty(prefix+"combine_empty_only"));
 		if (properties.getProperty(prefix+"late_normalize_iterate")!=null)   this.late_normalize_iterate=Boolean.parseBoolean(properties.getProperty(prefix+"late_normalize_iterate"));
 		if (properties.getProperty(prefix+"test_corr_rad_max")!=null)        this.test_corr_rad_max=Integer.parseInt(properties.getProperty(prefix+"test_corr_rad_max"));
@@ -330,6 +347,10 @@ public class OpticalFlowParameters {
 		
 		ofp.best_neibs_num =                this.best_neibs_num;
 		ofp.ref_stdev =                     this.ref_stdev;
+		
+		ofp.ignore_ers =                    this.ignore_ers;
+		ofp.lpf_pairs =                     this.lpf_pairs;
+		ofp.lpf_series =                    this.lpf_series; 
 		
 		ofp.combine_empty_only =            this.combine_empty_only;
 		ofp.late_normalize_iterate =        this.late_normalize_iterate;

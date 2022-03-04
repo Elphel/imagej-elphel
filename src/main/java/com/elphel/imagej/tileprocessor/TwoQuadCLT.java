@@ -8233,7 +8233,7 @@ if (debugLevel > -100) return true; // temporarily !
 			EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
 			Properties                                           properties,
-			boolean                                              reset_from_extrinsics,
+			boolean                                              reset_from_extrinsics, // true
 			final int        threadsMax,  // maximal number of threads to launch
 			final boolean    updateStatus,
 			final int        debugLevel)  throws Exception
@@ -8291,7 +8291,7 @@ if (debugLevel > -100) return true; // temporarily !
 //			QuadCLT qPrev = (i > 0) ? quadCLTs[i - 1] : null;
 			QuadCLTCPU qPrev = (i > 0) ? quadCLTs[i - 1] : null;
 			//			double [][][] pair_sets =
-			double [][] pose = 	opticalFlow.getPoseFromErs(
+			double [][] pose = 	OpticalFlow.getPoseFromErs(
 					// FIXME: *********** update getPoseFromErs to use QUADCLTCPU ! **********				
 					clt_parameters.ofp.k_prev, // k_prev,
 					(QuadCLT) quadCLTs[i],
@@ -8324,7 +8324,6 @@ if (debugLevel > -100) return true; // temporarily !
 			CLTParameters             clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
 			ColorProcParameters                                  colorProcParameters,
-//			ColorProcParameters                                  colorProcParameters_aux,
 			CorrectionColorProc.ColorGainsParameters             channelGainParameters,
 			EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
@@ -8347,12 +8346,8 @@ if (debugLevel > -100) return true; // temporarily !
 			return;
 		}
 		QuadCLT.SetChannels [] set_channels=quadCLT_main.setChannels(debugLevel);
-//		String set_name = set_channels[0].set_name;
-		
-//		QuadCLT [] quadCLTs = new QuadCLT [set_channels.length]; 
-//		QuadCLTCPU [] quadCLTs = new QuadCLTCPU [set_channels.length]; 
 		QuadCLT [] quadCLTs = new QuadCLT [set_channels.length]; 
-		for (int i = 0; i < quadCLTs.length; i++) {
+		for (int i = 00; i < quadCLTs.length; i++) {
 			quadCLTs[i] = (QuadCLT) quadCLT_main.spawnQuadCLT(
 					set_channels[i].set_name,
 					clt_parameters,
@@ -8361,8 +8356,8 @@ if (debugLevel > -100) return true; // temporarily !
 					debugLevel);
 			// temporarily fix wrong sign:
 			ErsCorrection ers = (ErsCorrection) (quadCLTs[i].getGeometryCorrection());
-			if (reset_from_extrinsics) {
-				System.out.println("Reset ERS parameters from intraframe extrinsics");
+			if (reset_from_extrinsics) { // extrinsics vector "IMU" parameters
+ 				System.out.println("Reset ERS parameters from intraframe extrinsics");
 				ers.setupERSfromExtrinsics();
 			}
 			quadCLTs[i].setDSRBG(
@@ -8394,71 +8389,6 @@ if (debugLevel > -100) return true; // temporarily !
 
 	}
 
-	/*
-	public void interSeriesLMA(
-			QuadCLT                                              quadCLT_main, // tiles should be set
-			CLTParameters             clt_parameters,
-			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
-			ColorProcParameters                                  colorProcParameters,
-//			ColorProcParameters                                  colorProcParameters_aux,
-			CorrectionColorProc.ColorGainsParameters             channelGainParameters,
-			EyesisCorrectionParameters.RGBParameters             rgbParameters,
-			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-			Properties                                           properties,
-			boolean                                              reset_from_extrinsics,
-			final int        threadsMax,  // maximal number of threads to launch
-			final boolean    updateStatus,
-			final int        debugLevel)  throws Exception
-	{
-		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
-			quadCLT_main.getGPU().resetGeometryCorrection();
-			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
-		}
-		// final boolean    batch_mode = clt_parameters.batch_run;
-		this.startTime=System.nanoTime();
-		String [] sourceFiles0=quadCLT_main.correctionsParameters.getSourcePaths();
-		QuadCLT.SetChannels [] set_channels_main = quadCLT_main.setChannels(debugLevel);
-		if ((set_channels_main == null) || (set_channels_main.length==0)) {
-			System.out.println("No files to process (of "+sourceFiles0.length+")");
-			return;
-		}
-		QuadCLT.SetChannels [] set_channels=quadCLT_main.setChannels(debugLevel);
-		
-		QuadCLT [] quadCLTs = new QuadCLT [set_channels.length]; 
-//		QuadCLTCPU [] quadCLTs = new QuadCLTCPU [set_channels.length]; 
-		for (int i = 0; i < quadCLTs.length; i++) {
-			quadCLTs[i] = (QuadCLT) quadCLT_main.spawnQuadCLT(
-					set_channels[i].set_name,
-					clt_parameters,
-					colorProcParameters, //
-					threadsMax,
-					debugLevel);
-			// temporarily fix wrong sign:
-//			ErsCorrection ers = (ErsCorrection) (quadCLTs[i].getGeometryCorrection());
-			quadCLTs[i].setDSRBG(
-					clt_parameters, // CLTParameters  clt_parameters,
-					threadsMax,     // int            threadsMax,  // maximal number of threads to launch
-					updateStatus,   // boolean        updateStatus,
-					debugLevel);    // int            debugLevel)
-		}
-		
-		
-		OpticalFlow opticalFlow = new OpticalFlow(
-				quadCLT_main.getNumSensors(),
-				clt_parameters.ofp.scale_no_lma_disparity, // double         scale_no_lma_disparity,
-				threadsMax,                                // int            threadsMax,  // maximal number of threads to launch
-				updateStatus);                             // boolean        updateStatus);
-		
-		opticalFlow.adjustSeries(
-				clt_parameters, // CLTParameters  clt_parameters,			
-				clt_parameters.ofp.k_prev, // k_prev,\
-				// FIXME: *********** update adjustSeries to use QUADCLTCPU ! **********								
-//				(QuadCLT []) 
-				quadCLTs, // QuadCLT [] scenes, // ordered by increasing timestamps
-				clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
-		System.out.println("End of interSeriesLMA()");
-	}
-	*/
 	
 	public void interSeriesLMA(
 			QuadCLT                                              quadCLT_main, // tiles should be set
@@ -8491,7 +8421,6 @@ if (debugLevel > -100) return true; // temporarily !
 		QuadCLT.SetChannels [] set_channels=quadCLT_main.setChannels(debugLevel);
 		
 		QuadCLT [] quadCLTs = new QuadCLT [set_channels.length]; 
-//		QuadCLTCPU [] quadCLTs = new QuadCLTCPU [set_channels.length]; 
 		for (int i = 0; i < quadCLTs.length; i++) {
 			quadCLTs[i] = (QuadCLT) quadCLT_main.spawnQuadCLT(
 					set_channels[i].set_name,
@@ -8499,8 +8428,6 @@ if (debugLevel > -100) return true; // temporarily !
 					colorProcParameters, //
 					threadsMax,
 					debugLevel);
-			// temporarily fix wrong sign:
-//			ErsCorrection ers = (ErsCorrection) (quadCLTs[i].getGeometryCorrection());
 			quadCLTs[i].setDSRBG(
 					clt_parameters, // CLTParameters  clt_parameters,
 					threadsMax,     // int            threadsMax,  // maximal number of threads to launch
@@ -11786,15 +11713,48 @@ if (debugLevel > -100) return true; // temporarily !
 									updateStatus,
 									debugLevel);
 						}
+						if (debugLevel > -2) { //  && clt_parameters.show_first_bg) {
+							quadCLT_aux.tp.showScan(
+									quadCLT_aux.tp.clt_3d_passes.get( quadCLT_aux.tp.clt_3d_passes.size() -1), //last
+									"last_data-"+quadCLT_aux.tp.clt_3d_passes.size());
+						}
+
+
 						//					double [][] aux_last_scan = quadCLT_aux.tp.getShowDS(
 						//							quadCLT_aux.tp.clt_3d_passes.get( quadCLT_aux.tp.clt_3d_passes.size() -1),
 						//							false); // boolean force_final);
-						double [][] aux_last_scan = quadCLT_aux.tp.getDSLMA(
+						double [][] aux_last_scan = TileProcessor.getDSLMA(
 								quadCLT_aux.tp.clt_3d_passes.get( quadCLT_aux.tp.clt_3d_passes.size() -1),
 								false); // boolean force_final);
+						//measure w/o LMA just to get strength w/o any averaging
+						
 						dsi[DSI_DISPARITY_AUX] =     aux_last_scan[0];
 						dsi[DSI_STRENGTH_AUX] =      aux_last_scan[1];
 						dsi[DSI_DISPARITY_AUX_LMA] = aux_last_scan[2];
+						
+						if (quadCLT_main.correctionsParameters.clt_batch_dsi_cm_strength) {
+							CLTPass3d scan = new CLTPass3d(quadCLT_aux.tp);
+							scan.setTileOpDisparity(aux_last_scan[0]); // measure w/o LMA, use just strength
+							quadCLT_aux.CLTMeas( // perform single pass according to prepared tiles operations and disparity
+									clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
+									scan,           // final CLTPass3d   scan,
+									false,          // final boolean     save_textures,
+									false,          // final boolean       need_diffs,     // calculate diffs even if textures are not needed 
+									0,              // final int         clust_radius,
+									true,           // final boolean     save_corr,
+									false,          // final boolean     run_lma, // =    true;
+									threadsMax,     // final int         threadsMax,  // maximal number of threads to launch
+									updateStatus,   // final boolean     updateStatus,
+									debugLevel);    // final int         debugLevel);
+							dsi[DSI_STRENGTH_AUX] =      scan.getStrength();
+							if (debugLevel > 1) {
+								quadCLT_aux.tp.showScan(
+										scan, // CLTPass3d   scan,
+										"test-strength");
+							}
+						} else {
+							dsi[DSI_STRENGTH_AUX] =      aux_last_scan[1];
+						}
 
 						//					quadCLT_main.saveDSIMain (dsi);
 						quadCLT_aux.saveDSIAll (

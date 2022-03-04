@@ -161,8 +161,9 @@ public class EyesisCorrectionParameters {
   		public boolean clt_batch_dbg1 =       true;  // Generate debug images if a single set is selected
   		public boolean clt_batch_dsi =        true;  // Create and save DSI combo image with the model
 		public boolean clt_batch_dsi_aux =    false;  // Calculate and save aux camera DSI (currently it is offset from the main/rig data
+		public boolean clt_batch_dsi_cm_strength = true;  // Use CM strength (no switch between LMA/no-LMA) for DSI export
 		public boolean clt_batch_dsi_aux_full=false;  // more than just preExpandCLTQuad3d() (same as for Lazy Eye
-  		public boolean clt_batch_save_extrinsics =    true;  // Save cameras extrinsic parameters with the model
+  		public boolean clt_batch_save_extrinsics = true;  // Save cameras extrinsic parameters with the model
   		public boolean clt_batch_save_all =   true;  // Save all parameters with the model
 
   		public boolean clt_batch_skip_scenes =     false;  // Skip all per-scene processing, go directly to processing sequences
@@ -320,6 +321,7 @@ public class EyesisCorrectionParameters {
 
   			cp.clt_batch_dsi=    		  this.clt_batch_dsi;
   			cp.clt_batch_dsi_aux=    	  this.clt_batch_dsi_aux;
+  			cp.clt_batch_dsi_cm_strength= this.clt_batch_dsi_cm_strength;
   			cp.clt_batch_dsi_aux_full= 	  this.clt_batch_dsi_aux_full;
   			cp.clt_batch_save_extrinsics= this.clt_batch_save_extrinsics;
   			cp.clt_batch_save_all=        this.clt_batch_save_all;
@@ -521,6 +523,7 @@ public class EyesisCorrectionParameters {
 
     		properties.setProperty(prefix+"clt_batch_dsi",             this.clt_batch_dsi+"");
     		properties.setProperty(prefix+"clt_batch_dsi_aux",         this.clt_batch_dsi_aux+"");
+    		properties.setProperty(prefix+"clt_batch_dsi_cm_strength", this.clt_batch_dsi_cm_strength+"");
     		properties.setProperty(prefix+"clt_batch_dsi_aux_full",    this.clt_batch_dsi_aux_full+"");
     		properties.setProperty(prefix+"clt_batch_save_extrinsics", this.clt_batch_save_extrinsics+"");
     		properties.setProperty(prefix+"clt_batch_save_all",        this.clt_batch_save_all+"");
@@ -700,6 +703,8 @@ public class EyesisCorrectionParameters {
 
 			if (properties.getProperty(prefix+"clt_batch_dsi")!= null)             this.clt_batch_dsi=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_dsi"));
 			if (properties.getProperty(prefix+"clt_batch_dsi_aux")!= null)         this.clt_batch_dsi_aux=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_dsi_aux"));
+			if (properties.getProperty(prefix+"clt_batch_dsi_cm_strength")!= null) this.clt_batch_dsi_cm_strength=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_dsi_cm_strength"));
+		
 			if (properties.getProperty(prefix+"clt_batch_dsi_aux_full")!= null)    this.clt_batch_dsi_aux_full=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_dsi_aux_full"));
 			if (properties.getProperty(prefix+"clt_batch_save_extrinsics")!= null) this.clt_batch_save_extrinsics=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_save_extrinsics"));
 			if (properties.getProperty(prefix+"clt_batch_save_all")!= null)        this.clt_batch_save_all=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_save_all"));
@@ -1094,10 +1099,11 @@ public class EyesisCorrectionParameters {
     		gd.addCheckbox    ("Include/genarate separate aux camera DSI data in the combo DSI",     this.clt_batch_dsi_aux,
     				"8-rig: DSI for the AUX camera is offset (by the rig baseline) from the main and rig DSI. Aux DSI requires extra processing time."+
     		"EO+LWIR - generate a separate GT+AUX file");
+    		gd.addCheckbox    ("Use CM strength (no switch between LMA/no-LMA) for DSI",             this.clt_batch_dsi_cm_strength,
+    				"Generate CM-only, single-tile strength for each tile keeping disparity and LMA-disparity from multi-tile"+
+    		        "to use as a layer for interscene matching");
     		gd.addCheckbox    ("Additional steps to calculate Aux DSI (more than for LY adjustment)",   this.clt_batch_dsi_aux_full,
     				"(Not yet tested)");
-    		
-    		
     		gd.addCheckbox    ("Save field adjustment data with the model",                          this.clt_batch_save_extrinsics,
     				"This data can be used to restore specific filed-adjusted cameras extrinsics used when the model was generated");
     		gd.addCheckbox    ("Save all parameters with the model",                                 this.clt_batch_save_all,
@@ -1225,7 +1231,8 @@ public class EyesisCorrectionParameters {
     		this.clt_batch_dbg1=         gd.getNextBoolean(); // 29
     		this.clt_batch_dsi=             gd.getNextBoolean();
     		this.clt_batch_dsi_aux=         gd.getNextBoolean();
-    		this.clt_batch_dsi_aux_full=         gd.getNextBoolean();
+    		this.clt_batch_dsi_cm_strength= gd.getNextBoolean();
+    		this.clt_batch_dsi_aux_full=    gd.getNextBoolean();
     		this.clt_batch_save_extrinsics= gd.getNextBoolean();
     		this.clt_batch_save_all=        gd.getNextBoolean();
     		

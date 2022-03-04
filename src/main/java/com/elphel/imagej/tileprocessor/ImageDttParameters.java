@@ -496,9 +496,10 @@ public class ImageDttParameters {
 					"When dual max, LMA with two maximums, then select. If false,select before LMA");
 			gd. addChoice("Multiple maximums select mode", COMBINE_MODES, COMBINE_MODES[bimax_combine_mode], 
 					"Which maximum to keep after LMA");
-			gd.addCheckbox    ("Use updated LMA capable of FG/BG",                                this.bimax_dual_LMA,
-					"When dual max, LMA with two maximums, then select. If false,select before LMA");
-			gd.addCheckbox    ("Process only tiles with dual maximums (requires bimax_dual_LMA)",                                this.bimax_dual_only,
+			gd.addCheckbox    ("Use updated LMA capable of FG/BG, force CM strength for strength",this.bimax_dual_LMA,
+					"Use LMA capable of FG/BG. Use CM strength (now 3) as DISPARITY_STRENGTH_INDEX (now 10)."+
+			        "When false (old) use LMA (DISPARITY_INDEX_POLY+1 now 9) as DISPARITY_STRENGTH_INDEX");
+			gd.addCheckbox    ("Process only tiles with dual maximums (requires bimax_dual_LMA)", this.bimax_dual_only,
 					"May be used to determine BG after refining FG. First refine with false and mode = 3 (FG), then with true and mode = 4 (BG)");
 			
 			gd.addMessage("LMA samples filter based on estimated disparity");

@@ -16587,12 +16587,13 @@ public class ImageDttCPU {
 		startAndJoin(threads);
 		return texture_tiles;
 	}
-	private double [][][] prepareNeibs(
+	private static double [][][] prepareNeibs(
 			int                 nTileC,
 			boolean             float_center, // false - center around provided value: target_disparity[center] or dcenter[0] if dcenter != null
 											  // dcenter[0] - center offset, dcenter[1] - tiltX, dcenter[2] - tiltY
 			double []           target_disparity, //  = new double [tilesY * tilesX];
 			TileNeibs           tn,
+			TileNeibs           tn_clust,
 			int                 clustRadius,
 			double []           wnd_neib,
 			int [][]            dtx_dty, // null or int [][] dtx_dty =    new int [wnd_neib.length][]; 
@@ -16608,6 +16609,7 @@ public class ImageDttCPU {
 			disparity_center = dcenter[0]; // 
 		}
 		double disparity_range = 2*(arange + rrange * Math.abs(disparity_center));
+		boolean [] left_pix = new boolean[clustDiameter*clustDiameter];
 		if (float_center) {
 			final double [] disp = new double [wnd_neib.length];
 			Arrays.fill(disp, Double.NaN);
@@ -16625,6 +16627,7 @@ public class ImageDttCPU {
 							double w = wnd_neib[indx];
 							swd += w * d;
 							sw += w;
+							left_pix[indx] = true;
 						}
 					}
 					indx++;
@@ -16637,21 +16640,25 @@ public class ImageDttCPU {
 				}
 			});
 			// Remove "worst" of min and max disparity tiles, until difference is smaller than the specified range
-			boolean [] update_mm = {true,true}; // do not recalculate the min/max end if it was not removed 
+			boolean [] update_mm = {true,true}; // do not recalculate the min/max end if it was not removed
+			double [] mm_diffs = new double[2];
 			while ((disp[tileList.get(tileList.size()-1)] - disp[tileList.get(0)]) > disparity_range) {
 				int [] min_max_indices = {tileList.get(0), tileList.get(tileList.size()-1)};
-				double [] mm_diffs = new double[2];
+//				double [] mm_diffs = new double[2];
 				boolean both_with_neib = true;
 				for (int imm = 0; imm < 2; imm++) if (update_mm[imm]){ // do not recalc same
 					update_mm[imm] = false;
 					int idy = (min_max_indices[imm] / clustDiameter) - clustRadius + 1;
 					int idx = (min_max_indices[imm] % clustDiameter) - clustRadius + 1;
 					int tileMM = tn.getNeibIndex(nTileC, idx, idy); // full tile index
+					int tile_clust = tn_clust.getNeibIndex(center_indx, idx, idy); // local tile index
 					double snw = 0.0, snwd = 0.0;
 					int nn = 0;
 					for (int dir = 0; dir < 8; dir++) {
 						int nTile1 = tn.getNeibIndex(tileMM, dir);
-						if ((nTile1 >= 0) && !Double.isNaN(target_disparity[nTile1])){
+						int tile_clust1 = tn_clust.getNeibIndex(tile_clust, dir);
+//						if ((nTile1 >= 0) && !Double.isNaN(target_disparity[nTile1])){
+						if ((nTile1 >= 0) && !Double.isNaN(target_disparity[nTile1]) && ((tile_clust1 < 0) || left_pix[tile_clust1] )){
 							double w = ((dir & 1) != 0) ? 1.0:1.5;
 							snw += w;
 							snwd += w * target_disparity[nTile1];
@@ -16677,7 +16684,7 @@ public class ImageDttCPU {
 					double w = wnd_neib[ri];
 					sw -= w;
 					swd -= w * disp[ri];
-					
+					left_pix[ri] = false;
 				} else {
 					break;
 				}
@@ -16879,7 +16886,9 @@ public class ImageDttCPU {
 				@Override
 				public void run() {
 					int tileXC, tileYC, nTileC;
-					TileNeibs tn = new TileNeibs(tilesX,tilesY);
+					TileNeibs tn =            new TileNeibs(tilesX,tilesY);
+					TileNeibs tn_clust =      new TileNeibs(2*clustRadius-1,    2*clustRadius-1);
+					TileNeibs tn_clust_tilt = new TileNeibs(2*clustRadiusTilt-1,2*clustRadiusTilt-1);
 					double [] dcenter = new double[3];
 					PolynomialApproximation pa = new PolynomialApproximation();
 					for (int iTileC = ai.getAndIncrement(); iTileC < tp_tasks.length; iTileC = ai.getAndIncrement()) if (tp_tasks[iTileC].getTask() != 0) {
@@ -16901,6 +16910,7 @@ public class ImageDttCPU {
 								float_center,     // boolean             float_center, // false - center around provided value
 								target_disparity, //double []           target_disparity, //  = new double [tilesY * tilesX];
 								tn,               //        TileNeibs           tn,
+								tn_clust_tilt,    // TileNeibs           tn_clust,
 								clustRadiusTilt , // int                 clustRadius,
 								wnd_neib_tilt,    // double []           wnd_neib,
 								null,             // int [][]            dtx_dty, // null or int [][] dtx_dty =    new int [wnd_neib.length][]; 
@@ -16943,6 +16953,7 @@ public class ImageDttCPU {
 								false, // float_center,     // boolean             float_center, // false - center around provided value
 								target_disparity, //double []           target_disparity, //  = new double [tilesY * tilesX];
 								tn,               //        TileNeibs           tn,
+								tn_clust,         // TileNeibs           tn_clust,
 								clustRadius ,     // int                 clustRadius,
 								wnd_neib,         // double []           wnd_neib,
 								dtx_dty,          // int [][]            dtx_dty, // null or int [][] dtx_dty =    new int [wnd_neib.length][]; 

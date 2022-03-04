@@ -3203,18 +3203,21 @@ public class OpticalFlow {
 			int debug_level
 			)
 	{
-		double scale_two_omegas = 2.0; // ers angular velocities contain double omegas 
+		double scale_two_omegas = 2.00; // ers angular velocities contain double omegas 
 		double [][][] scenes_xyzatr = new double [scenes.length][][]; // previous scene relative to the next one  
 		double [][][] ers_xyzatr = new double [scenes.length][][]; // previous scene relative to the next one  
 		// pass I -  adjust pairs using angular and linear velocities from intrascene ERS.
 		for (int i = 1; i < scenes.length; i++) {
 			QuadCLT reference_QuadClt = scenes[i];
 			QuadCLT scene_QuadClt = scenes[i - 1];
-			double [][] pose = 	getPoseFromErs(
-					k_prev,
-					reference_QuadClt,
-					scene_QuadClt,
-					debug_level);
+			double [][] pose = new double [2][3];
+			if (!clt_parameters.ofp.ignore_ers) { // ignore pose (all 0 when ERS is not available)
+				pose = 	getPoseFromErs(  
+						k_prev,
+						reference_QuadClt,
+						scene_QuadClt,
+						debug_level);
+			}
 			
 			reference_QuadClt.getErsCorrection().setupERSfromExtrinsics();
 			scene_QuadClt.getErsCorrection().setupERSfromExtrinsics();
@@ -3257,8 +3260,43 @@ public class OpticalFlow {
 			ers_xyzatr[i][1][0] = -ers_xyzatr[i][1][0]; /// TESTING!
 			ers_xyzatr[i][1][2] = -ers_xyzatr[i][1][2]; /// TESTING!
 		}
-		
-		
+
+		boolean show_results = true;
+		if (show_results) {
+			int dbg_w = ers_xyzatr.length;
+			int dbg_h = 6;
+			double [] dbg_img = new double [dbg_w * dbg_h];
+			for (int dh = 0; dh  < dbg_h; dh++) {
+				for (int dw = 0; dw  < dbg_w; dw++) {
+					dbg_img[dh*dbg_w + dw] = ers_xyzatr[dw][dh / 3][dh % 3];
+				}
+			}
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_img,
+					dbg_w,
+					dbg_h,
+					"ers_xyzatr"); //	dsrbg_titles);
+		}
+		if (clt_parameters.ofp.lpf_pairs > 0.0) {
+			ers_xyzatr = LPFVelocities(
+					ers_xyzatr,                    // double [][][]  ers_xyzatr_in,
+					clt_parameters.ofp.lpf_pairs); // double         half_run_range
+			if (show_results) {
+				int dbg_w = ers_xyzatr.length;
+				int dbg_h = 6;
+				double [] dbg_img = new double [dbg_w * dbg_h];
+				for (int dh = 0; dh  < dbg_h; dh++) {
+					for (int dw = 0; dw  < dbg_w; dw++) {
+						dbg_img[dh*dbg_w + dw] = ers_xyzatr[dw][dh / 3][dh % 3];
+					}
+				}
+				(new ShowDoubleFloatArrays()).showArrays(
+						dbg_img,
+						dbg_w,
+						dbg_h,
+						"ers_xyzatr_lpf"+clt_parameters.ofp.lpf_pairs); //	dsrbg_titles);
+			}
+		}
 	//{camera_xyz0, camera_atr0}	
 		
 		// pass II - set scene velocities from offsets to 1 before and one after, freeze ERS parameters, and
@@ -3306,9 +3344,33 @@ public class OpticalFlow {
 				System.out.println("Pass 2 scene "+i+" (of "+ scenes.length+") "+
 						reference_QuadClt.getImageName() + "/" + scene_QuadClt.getImageName()+" Done.");
 			}
-			
-			
 		}
+		//TODO: Add update ers with lpf here?
+//		boolean show_results = true;
+		if (show_results) {
+			int dbg_w = scenes_xyzatr1.length;
+			int dbg_h = 6;
+			double [] dbg_img = new double [dbg_w * dbg_h];
+			Arrays.fill(dbg_img, Double.NaN);
+			for (int dh = 0; dh  < dbg_h; dh++) {
+				for (int dw = 0; dw  < dbg_w; dw++) {
+					if (scenes_xyzatr1[dw] != null) {
+						dbg_img[dh*dbg_w + dw] = scenes_xyzatr1[dw][dh / 3][dh % 3];
+					}
+				}
+			}
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_img,
+					dbg_w,
+					dbg_h,
+					"scenes_xyzatr1"); //	dsrbg_titles);
+		}
+		
+		
+		
+		
+		// Update ERS velocities with running average?
+		
 		for (int i = 1; i < scenes.length; i++) {
 			QuadCLT reference_QuadClt = scenes[i];
 /*			
@@ -3448,6 +3510,7 @@ public class OpticalFlow {
 			int            debug_level
 			)
 	{
+		boolean show_results = true;
 		if (ref_index < 0) {
 			ref_index += scenes.length;
 		}
@@ -3465,6 +3528,52 @@ public class OpticalFlow {
 			param_regweights2[ErsCorrection.DP_DSVX +  j] = 0.0;
 			param_regweights2[ErsCorrection.DP_DSVAZ + j] = 0.0;
 		}
+		
+		
+		
+		
+		if (show_results) {
+			double [][][] ers_current = new double [scenes.length][][];
+			double [] scene_xyz_dt;
+			double [] scene_atr_dt;
+			for (int nscene = 0; nscene < scenes.length; nscene++) {
+				if (nscene == ref_index) {
+					scene_xyz_dt = ers_reference.getErsXYZ_dt();
+					scene_atr_dt = ers_reference.getErsATR_dt();
+				} else {
+					String sts = scenes[nscene].getImageName();
+					scene_xyz_dt = ers_reference.getSceneErsXYZ_dt(sts); 
+					scene_atr_dt = ers_reference.getSceneErsATR_dt(sts); 
+				}
+				if ((scene_xyz_dt != null) &&(scene_atr_dt != null)) {
+					ers_current[nscene] = new double[][] {scene_xyz_dt, scene_atr_dt};
+				} else {
+					System.out.println("adjustSeries(): null for nscene="+nscene);
+				}
+			}
+			
+			int dbg_w = ers_current.length;
+			int dbg_h = 6;
+			double [] dbg_img = new double [dbg_w * dbg_h];
+			Arrays.fill(dbg_img, Double.NaN);
+			for (int dh = 0; dh  < dbg_h; dh++) {
+				for (int dw = 0; dw  < dbg_w; dw++) {
+					if (ers_current[dw] != null) {
+						dbg_img[dh*dbg_w + dw] = ers_current[dw][dh / 3][dh % 3];
+					}
+				}
+			}
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_img,
+					dbg_w,
+					dbg_h,
+					"ers_pre_adjust"); //	dsrbg_titles);
+			System.out.println("adjustSeries(): dbg");
+		}
+		
+		
+		
+		
 		
 		// process scenes before reference
 		if (ref_index >  1) {
@@ -3523,9 +3632,6 @@ public class OpticalFlow {
 				if (delete_scene_asap) {
 					scenes[i+1] = null;
 				}
-				//			Runtime.getRuntime().gc();
-				//			System.out.println("Scene "+i+", --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
-
 			}
 		}
 		// process scenes after reference (if it is not the last
@@ -3533,8 +3639,6 @@ public class OpticalFlow {
 			for (int i =  ref_index + 1; i < scenes.length ; i++) {
 				QuadCLT scene_QuadClt =      scenes[i];
 				String last_known_ts =           scenes[i-1].getImageName(); // it should be present in the reference scene scenes
-//				String scene_ts =                scenes[i].getImageName(); // it should be present in the scenes[i+1] scenes
-//				ErsCorrection ers_scene_last_known = scenes[i-1].getErsCorrection();
 				ErsCorrection ers_scene =            scene_QuadClt.getErsCorrection();
 
 				double [] last_known_xyz = ers_reference.getSceneXYZ(last_known_ts);
@@ -3555,7 +3659,7 @@ public class OpticalFlow {
 							new_from_last_xyz,  // double [] scene_xyz,
 							new_from_last_atr); // double [] scene_atr)
 				}
-				// before adjusting - save original ERS, restart afterwards
+				// before adjusting - save original ERS, restore afterwards
 				double [] ers_scene_original_xyz_dt = ers_scene.getErsXYZ_dt();
 				double [] ers_scene_original_atr_dt = ers_scene.getErsATR_dt();
 
@@ -3589,16 +3693,181 @@ public class OpticalFlow {
 				if (delete_scene_asap) {
 					scenes[i-1] = null;
 				}
-				//			Runtime.getRuntime().gc();
-				//			System.out.println("Scene "+i+", --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
-
-
 			}		
 		}
+//		boolean show_results = true;
+		if (show_results) {
+			int dbg_w = scenes_xyzatr.length;
+			int dbg_h = 6;
+			double [] dbg_img = new double [dbg_w * dbg_h];
+			Arrays.fill(dbg_img, Double.NaN);
+			for (int dh = 0; dh  < dbg_h; dh++) {
+				for (int dw = 0; dw  < dbg_w; dw++) {
+					if (scenes_xyzatr[dw] != null) {
+						dbg_img[dh*dbg_w + dw] = scenes_xyzatr[dw][dh / 3][dh % 3];
+					}
+				}
+			}
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_img,
+					dbg_w,
+					dbg_h,
+					"scenes_xyzatr"); //	dsrbg_titles);
+		}
+		if (clt_parameters.ofp.lpf_series > 1.0) {
+			boolean ers_invert = true; // false;
+			// get current ers
+			double [][][]ers_xyzatr =  getVelocitiesFromScenes(
+					 scenes, // QuadCLT []     scenes, // ordered by increasing timestamps
+					 scenes_xyzatr,                    // double [][][]  scenes_xyzatr,
+					 clt_parameters.ofp.lpf_series);   // double         half_run_range
+			if (ers_invert) {
+				for (int nscene = 0; nscene < ers_xyzatr.length; nscene++) if (ers_xyzatr[nscene] != null) {
+					for (int m= 0; m < ers_xyzatr[nscene].length; m++) {
+						for (int n= 0; n < ers_xyzatr[nscene][m].length; n++) {
+							ers_xyzatr[nscene][m][n] = - ers_xyzatr[nscene][m][n]; 
+						}
+					}
+				}
+			}
+			
+			if (show_results) {
+				int dbg_w = ers_xyzatr.length;
+				int dbg_h = 6;
+				double [] dbg_img = new double [dbg_w * dbg_h];
+				Arrays.fill(dbg_img, Double.NaN);
+				for (int dh = 0; dh  < dbg_h; dh++) {
+					for (int dw = 0; dw  < dbg_w; dw++) {
+						if (ers_xyzatr[dw] != null) {
+							dbg_img[dh*dbg_w + dw] = ers_xyzatr[dw][dh / 3][dh % 3];
+						}
+					}
+				}
+				(new ShowDoubleFloatArrays()).showArrays(
+						dbg_img,
+						dbg_w,
+						dbg_h,
+						"scenes_xyzatr-ers_lpf"+clt_parameters.ofp.lpf_series); //	dsrbg_titles);
+			}
+//		}
+		
+//		if (clt_parameters.ofp.lpf_series > 1.0) { // readjust LMA with LPF-ed ERS
+			
+			// Set reference frame ERS
+			// restore original ers data
+			ers_reference.setErsDt(
+					ers_xyzatr[ref_index][0], // double []    ers_xyz_dt,
+					ers_xyzatr[ref_index][1]); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
+			ers_reference.setupERS();
+
+			/* 
+			 * Temporary enable scene ers, run and compare.
+			 
+				static final int DP_DSVAZ =15; // dw_dvaz, (rad/sec)
+				static final int DP_DSVTL =16; // dw_dvtl, (rad/sec)
+				static final int DP_DSVRL =17; // dw_dvrl, (rad/sec)
+				static final int DP_DSVX = 18; // dw_dvx,  (m/s)
+				static final int DP_DSVY = 19; // dw_dvy,  (m/s)
+				static final int DP_DSVZ = 20; // dw_dvz,  (m/s)
+boolean [] param_select3 = param_select2.clone()
+enable scene ers,
+use param_select3
+compare fitting results
+
+Do not forget to reduce strength weight.
+
+Maybe later - add same weight. Or use CM instead, even for LMA?
+			 */
+			
+			
+			
+			
+			for (int i =  00; i < scenes.length ; i++) if (i != ref_index){
+				String scene_ts =          scenes[i].getImageName(); // it should be present in the scenes[i+1] scenes
+				double [] scene_xyz =      ers_reference.getSceneXYZ(scene_ts);
+				double [] scene_atr =      ers_reference.getSceneATR(scene_ts);
+				ErsCorrection ers_scene =  scenes[i].getErsCorrection();
+				scenes_xyzatr[i] = adjustPairsLMA(
+						clt_parameters,     // CLTParameters  clt_parameters,			
+						reference_QuadClt, // QuadCLT reference_QuadCLT,
+						scenes[i], // QuadCLT scene_QuadCLT,
+						scene_xyz, // combo_XYZATR[0], // xyz
+						scene_atr, // combo_XYZATR[1], // atr
+						param_select2,             // final boolean[]   param_select,
+						param_regweights2, //  final double []   param_regweights,
+						debug_level); // int debug_level)
+				ers_reference.addScene(
+						scene_ts,
+						scenes_xyzatr[i][0],
+						scenes_xyzatr[i][1],
+						ers_scene.getErsXYZ_dt(),
+						ers_scene.getErsATR_dt()		
+						);
+				
+/* Was it just to undo LMA?
+				// restore original ers data
+				ers_scene.setErsDt(
+						ers_scene_original_xyz_dt, // double []    ers_xyz_dt,
+						ers_scene_original_atr_dt); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
+				ers_scene.setupERS();
+*/				
+				if (debug_level > -1) {
+					System.out.println("Pass 2 multi scene "+i+" (of "+ scenes.length+") "+
+							reference_QuadClt.getImageName() + "/" + scene_ts+" Done.");
+				}
+				if (delete_scene_asap) {
+					scenes[i-1] = null;
+				}
+			}		
+		}
+		
+		
+		// get add show current ERS, including reference
+		if (show_results) {
+			double [][][] ers_current = new double [scenes.length][][];
+			double [] scene_xyz_dt;
+			double [] scene_atr_dt;
+			for (int nscene = 0; nscene < scenes.length; nscene++) {
+				if (nscene == ref_index) {
+					scene_xyz_dt = ers_reference.getErsXYZ_dt();
+					scene_atr_dt = ers_reference.getErsATR_dt();
+				} else {
+					String sts = scenes[nscene].getImageName();
+					scene_xyz_dt = ers_reference.getSceneErsXYZ_dt(sts); 
+					scene_atr_dt = ers_reference.getSceneErsATR_dt(sts); 
+				}
+				if ((scene_xyz_dt != null) &&(scene_atr_dt != null)) {
+					ers_current[nscene] = new double[][] {scene_xyz_dt, scene_atr_dt};
+				} else {
+					System.out.println("adjustSeries(): null for nscene="+nscene);
+				}
+			}
+			
+			int dbg_w = ers_current.length;
+			int dbg_h = 6;
+			double [] dbg_img = new double [dbg_w * dbg_h];
+			Arrays.fill(dbg_img, Double.NaN);
+			for (int dh = 0; dh  < dbg_h; dh++) {
+				for (int dw = 0; dw  < dbg_w; dw++) {
+					if (ers_current[dw] != null) {
+						dbg_img[dh*dbg_w + dw] = ers_current[dw][dh / 3][dh % 3];
+					}
+				}
+			}
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_img,
+					dbg_w,
+					dbg_h,
+					"ers_current-2"); //	dsrbg_titles);
+			System.out.println("adjustSeries(): dbg-2");
+		}
+		
+//getVelocitiesFromScenes	
 		
 		reference_QuadClt.saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
 	            null, // String path,             // full name with extension or w/o path to use x3d directory
 	            debug_level+1);
+		
 		if (!delete_scene_asap && (debug_level > 1000)) { // Null pointer at compareRefSceneTiles ->ers_scene.setupERS();-> Quaternion quat_center1 = ...
 			System.out.println("adjustSeries(): preparing image set...");
 			int nscenes = scenes.length;
@@ -3614,17 +3883,121 @@ public class OpticalFlow {
 					all_scenes_xyzatr[i] = new double[][] {ers_reference.getSceneXYZ(ts),       ers_reference.getSceneATR(ts)}; 		
 					all_scenes_ers_dt[i] = new double[][] {ers_reference.getSceneErsXYZ_dt(ts), ers_reference.getSceneErsATR_dt(ts)}; 		
 				}
-		compareRefSceneTiles(
-				"" ,               // String suffix,
-				false,             // boolean blur_reference,
-				all_scenes_xyzatr, // double [][][] scene_xyzatr, // does not include reference
-				all_scenes_ers_dt, // double [][][] scene_ers_dt, // does not include reference
-				scenes,            // QuadCLT [] scenes,
-				8);                // int iscale) // 8
+				compareRefSceneTiles(
+						"" ,               // String suffix,
+						false,             // boolean blur_reference,
+						all_scenes_xyzatr, // double [][][] scene_xyzatr, // does not include reference
+						all_scenes_ers_dt, // double [][][] scene_ers_dt, // does not include reference
+						scenes,            // QuadCLT [] scenes,
+						8);                // int iscale) // 8
 		}		
 		if (debug_level > -1) {
 			System.out.println("adjustSeries() Done.");
 		}
+	}
+	
+	/**
+	 * Low-pass filter per-scene linear and angular velocities to be used for ERS 
+	 * @param ers_xyzatr_in scene linear and angular velocities before filtering [scene][2][3]
+	 * @param half_run_range number of scenes each way to average (0 - none,
+	 *        1 - 3, 2 - 5) reduced when near the limits
+	 * @return [scene][2][3] xyz/dt, atr/dt. atr[0] and atr[2] are inverted relative to input
+	 */
+	public static double [][][] LPFVelocities(
+			double [][][]  ers_xyzatr_in,
+			double         half_run_range
+			){
+		double [] weights = new double [(int) Math.floor(half_run_range)+1];
+		weights[0] = 1;
+		for (int i = 1; i < weights.length; i++) {
+			weights[i] = 0.5* (Math.cos(i*Math.PI/half_run_range));
+		}
+		double [][][] ers_xyzatr = new double [ers_xyzatr_in.length][][];
+		for (int nscene = 0; nscene < ers_xyzatr_in.length; nscene ++) {
+			double sw = 0.0;
+			double [][] swd =  new double[2][3]; 
+			for (int ds = -weights.length + 1; ds < weights.length; ds++) {
+				int ns = nscene + ds;
+				if ((ns >= 0) && (ns < ers_xyzatr.length) && (ers_xyzatr[ns] != null)) {
+					double w = (ds >= 0) ? weights[ds] : weights[-ds];
+					sw += w;
+					for (int m = 0; m < swd.length; m++) {
+						for (int d = 0; d < swd[m].length; d++) {
+							swd[m][d] += w * ers_xyzatr[ns][m][d];
+						}
+					}
+				}
+			}
+			if (sw > 0) {
+				ers_xyzatr[nscene] = new double[2][3];
+				for (int m = 0; m < swd.length; m++) {
+					for (int d = 0; d < swd[m].length; d++) {
+						ers_xyzatr[nscene][m][d] = swd[m][d]/sw;
+					}
+				}
+			}
+		}
+		return ers_xyzatr;
+	}
+	
+	
+	
+	/**
+	 * Calculate linear and angular velocities by running-average of the poses 
+	 * @param scenes Scene objects (to get timestamps)
+	 * @param scenes_xyzatr scene linear and angular coordinate [scene][2][3]
+	 * @param half_run_range number of scenes each way to average (0 - none,
+	 *        1 - 3, 2 - 5) reduced when near the limits
+	 * @return [scene][2][3] xyz/dt, atr/dt. atr[0] and atr[2] are inverted relative to input
+	 */
+	public static double [][][] getVelocitiesFromScenes(
+			QuadCLT []     scenes, // ordered by increasing timestamps
+			double [][][]  scenes_xyzatr,
+			double         half_run_range
+			){
+		double [] weights = new double [(int) Math.floor(half_run_range)+1];
+		weights[0] = 1;
+		for (int i = 1; i < weights.length; i++) {
+			weights[i] = 0.5* (Math.cos(i*Math.PI/half_run_range) +1.0);
+		}
+		double [][][] ers_xyzatr = new double [scenes_xyzatr.length][][];
+		for (int nscene = 0; nscene < scenes_xyzatr.length; nscene ++) if (scenes[nscene] != null){
+			double tref = scenes[nscene].getTimeStamp();
+			double s0 = 0.0, sx = 0.0, sx2 = 0.0;
+			double [][] sy =  new double[2][3]; 
+			double [][] sxy = new double[2][3];
+			int nds = 0;
+			for (int ds = -weights.length + 1; ds < weights.length; ds++) {
+				int ns = nscene + ds;
+				if ((ns >= 0) && (ns < scenes_xyzatr.length) && (scenes_xyzatr[ns] != null)) {
+					double w = (ds >= 0) ? weights[ds] : weights[-ds];
+					s0 += w;
+					double dt = scenes[ns].getTimeStamp() - tref;
+					double wx = w * dt;
+					sx +=  wx;
+					sx2 += wx * dt;
+					for (int m = 0; m < sy.length; m++) {
+						for (int d = 0; d < sy[m].length; d++) {
+							double y = scenes_xyzatr[ns][m][d];
+							sy [m][d] += w *  y;
+							sxy[m][d] += wx * y;
+						}
+					}
+					nds++; // number of different timestamps used
+				}
+			}
+			if ((nds > 1) && (s0 > 0)) {
+				ers_xyzatr[nscene] = new double[2][3];
+				for (int m = 0; m < sy.length; m++) {
+					for (int d = 0; d < sy[m].length; d++) {
+						ers_xyzatr[nscene][m][d] = (s0*sxy[m][d]-sx*sy[m][d])/(s0*sx2 - sx*sx);
+					}
+				}
+				ers_xyzatr[nscene][1][0] *= -1.0;
+				ers_xyzatr[nscene][1][2] *= -1.0;
+			}
+		}
+		return ers_xyzatr;
 	}
 	
 	public void IntersceneAccumulate(
@@ -7722,7 +8095,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 	
 	
 
-	double [][] getPoseFromErs(
+	static double [][] getPoseFromErs(
 			double k_prev,
 			QuadCLT reference_QuadCLT,
 			QuadCLT scene_QuadCLT,
@@ -7752,7 +8125,8 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		if (dt < 0) {
 			k_prev = (1.0-k_prev);
 		}
-		if (Math.abs(dt) > 0.15) { // at least two frames TODO: use number of lines* line_time * ...? 
+		double frame_time_min = ersCorrectionPrev.line_time*ersCorrectionPrev.pixelCorrectionHeight;// (70fps)
+		if (Math.abs(dt) > 2 * frame_time_min) { // 0.15) { // at least two frames TODO: use number of lines* line_time * ...? 
 			k_prev = 0.5;
 			System.out.println("Non-consecutive frames, dt = "+dt);
 		}

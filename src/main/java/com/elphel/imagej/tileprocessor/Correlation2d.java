@@ -2429,7 +2429,7 @@ public class Correlation2d {
 		int [] imx = new int[2];
 		for (int i = center_x - transform_size + 2; i < center_x + transform_size - 1; i++) {
 			double c = combo_corrs[i];
-			if ((c > combo_corrs[i - 1]) && (c > combo_corrs[i + 1])) {
+			if ((c > combo_corrs[i - 1]) && (c > combo_corrs[i + 1]) && (c > 0.0)) {
 				if ((imx[0] == 0) || (c > combo_corrs[imx[0]]))  {
 					imx[1] = imx[0];
 					imx[0] = i;
@@ -2439,7 +2439,9 @@ public class Correlation2d {
 				i++; // skip next after max
 			}
 		}
-		if (imx[0] == 0) return new double[0][];
+		if (imx[0] == 0) {
+			return new double[0][];
+		}
 		int nm = 1;
 		if ((imx[1] > 0) && (combo_corrs[imx[1]]/combo_corrs[imx[0]] > min_fraction)) {
 			nm++; 
@@ -4621,61 +4623,6 @@ public class Correlation2d {
     			own_masks =        new double [][][] {own_masks0       [sel_max]};
         		common_scale =     new boolean[]     {(sel_max == fg_max) ? imgdtt_params.bimax_common_fg : imgdtt_params.bimax_common_bg}; 
     		}
-    		
-    		/*
-    		int nearest_max = (Math.abs(disp_str_dual[0][0]) < Math.abs(disp_str_dual[1][0]))? 0 : 1;
-    		int fg_max =  (disp_str_dual[0][0] > disp_str_dual[1][0]) ? 0 : 1;
-    		
-    		switch (combine_mode) {
-    		case 0: // keep both
-        		pair_offsets =     pair_offsets0;
-    			lma_corr_weights = lma_corr_weights0; 
-    			disp_str_all =     disp_str_dual;
-        		own_masks =        own_masks0;
-        		common_scale = new boolean[disp_str_dual.length];
-        		for (int i = 0; i < common_scale.length; i++) {
-        			common_scale[i] = (i == fg_max) ? imgdtt_params.bimax_common_fg : imgdtt_params.bimax_common_bg; 
-        		}
-    			break; 
-    		case 1: // keep strongest
-        		pair_offsets =     new double [][][] {pair_offsets0    [0]};
-    			lma_corr_weights = new double [][][] {lma_corr_weights0[0]};
-    			disp_str_all =     new double [][]   {disp_str_dual    [0]};
-    			own_masks =        new double [][][] {own_masks0       [0]};
-        		common_scale =     new boolean[]     {(0 == fg_max) ? imgdtt_params.bimax_common_fg : imgdtt_params.bimax_common_bg}; 
-    			break;
-    		case 2: // keep nearest
-        		pair_offsets =     new double [][][] {pair_offsets0    [nearest_max]};
-    			lma_corr_weights = new double [][][] {lma_corr_weights0[nearest_max]};
-    			disp_str_all =     new double [][]   {disp_str_dual    [nearest_max]};
-    			own_masks =        new double [][][] {own_masks0       [nearest_max]};
-        		common_scale =     new boolean[]     {(nearest_max == fg_max) ? imgdtt_params.bimax_common_fg : imgdtt_params.bimax_common_bg}; 
-    			break;
-    		case 3: // keep foreground
-        		pair_offsets =     new double [][][] {pair_offsets0    [fg_max]};
-    			lma_corr_weights = new double [][][] {lma_corr_weights0[fg_max]};
-    			disp_str_all =     new double [][]   {disp_str_dual    [fg_max]};
-    			own_masks =        new double [][][] {own_masks0       [fg_max]};
-        		common_scale =     new boolean[]     {imgdtt_params.bimax_common_fg}; 
-    			break;
-    		case 4: // keep background
-        		pair_offsets =     new double [][][] {pair_offsets0    [1-fg_max]};
-    			lma_corr_weights = new double [][][] {lma_corr_weights0[1-fg_max]};
-    			disp_str_all =     new double [][]   {disp_str_dual    [1-fg_max]};
-    			own_masks =        new double [][][] {own_masks0       [1-fg_max]};
-        		common_scale =     new boolean[]     {imgdtt_params.bimax_common_bg}; 
-    			break;
-    		default: // keep both
-        		pair_offsets =     pair_offsets0;
-    			lma_corr_weights = lma_corr_weights0;
-    			disp_str_all =     disp_str_dual;
-    			own_masks =        own_masks0;
-        		common_scale = new boolean[disp_str_dual.length];
-        		for (int i = 0; i < common_scale.length; i++) {
-        			common_scale[i] = (i == fg_max) ? imgdtt_params.bimax_common_fg : imgdtt_params.bimax_common_bg; 
-        		}
-    		}
-    		*/
     	}
     	
      	double [][][] filtWeight =    new double [lma_corr_weights.length][corrs.length][];

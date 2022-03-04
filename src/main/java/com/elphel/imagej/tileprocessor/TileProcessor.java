@@ -3573,7 +3573,7 @@ ImageDtt.startAndJoin(threads);
 		}
 		return ds;
 	}
-	public double [][] getDSLMA(
+	public static double [][] getDSLMA(
 			CLTPass3d   scan,
 			boolean use_final)
 	{

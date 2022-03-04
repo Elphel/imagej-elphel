@@ -978,6 +978,16 @@ public class CLTPass3d{
 			restoreTileOpDisparity();
 			saveTileOpDisparity();
 		}
+		public int setTileOpDisparity(
+				double []  disparity) {
+			boolean [] selection = new boolean [disparity.length];
+			for (int i = 0; i < disparity.length; i++) {
+				selection[i] = !Double.isNaN(disparity[i]);
+			}
+			return setTileOpDisparity(
+					selection, // boolean [] selection,
+					disparity); // double []  disparity)
+		}
 
 		public int setTileOpDisparity(
 				boolean [] selection,
