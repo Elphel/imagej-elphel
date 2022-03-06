@@ -2614,7 +2614,8 @@ public class Corr2dLMA {
 				lma_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
 				lma_max_area,     // maximal half-area (if > 0.0)
 				lma_str_scale,    // convert lma-generated strength to match previous ones - scale
-				lma_str_offset    // convert lma-generated strength to match previous ones - add to result
+				lma_str_offset,    // convert lma-generated strength to match previous ones - add to result
+				false // boolean dbg_mode
 				)[0];
 	}
 
@@ -2626,11 +2627,12 @@ public class Corr2dLMA {
 			double  lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
 			double  lma_min_max_ac,   // minimal of A and C coefficients maximum (measures sharpest point/line)
 			double  lma_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
-			double  lma_max_area,     // maximal half-area (if > 0.0)
+			double  lma_max_area,     // maximal half-area (if > 0.0) // 20
 			double  lma_str_scale,    // convert lma-generated strength to match previous ones - scale
-			double  lma_str_offset    // convert lma-generated strength to match previous ones - add to result
+			double  lma_str_offset,    // convert lma-generated strength to match previous ones - add to result
+			boolean dbg_mode
 			){
-		double [][][] ds =         new double[numMax][numTiles][3];
+		double [][][] ds =         new double[numMax][numTiles][dbg_mode? 6 : 3];
 		double []   rms =        getRmsTile();
 		for (int nmax = 0; nmax < numMax; nmax++) {
 			double [][] maxmin_amp = getMaxMinAmpTile(nmax); // nmax
@@ -2654,8 +2656,6 @@ public class Corr2dLMA {
 							lmas_min_amp = lmas_min_amp_bg;
 							break;
 						}
-						
-						
 					}
 				}
 				if ((maxmin_amp[tile][1]/maxmin_amp[tile][0]) < lmas_min_amp) {
@@ -2663,24 +2663,24 @@ public class Corr2dLMA {
 				}
 				double avg = 0.50*(maxmin_amp[tile][0]+maxmin_amp[tile][1]); // max_min[1] can be negative - filter it out?
 				double rrms = rms[tile]/avg;
-				if (((lma_max_rel_rms > 0.0) && (rrms > lma_max_rel_rms)) ||
-						(Math.max(abc[tile][0], abc[tile][2]) < lma_min_max_ac)
-						//					|| (Math.min(abc[tile][0], abc[tile][2]) < lma_min_min_ac)
-						) {
+				if ((lma_max_rel_rms > 0.00) && (rrms > lma_max_rel_rms)) {
 					continue;
 				}
-				if (lma_max_area > 0) {
-					if ((abc[tile][0] > 0.0) && (abc[tile][2] > 0.0)) {
-						//					double area_old = 1.0/abc[tile][0] + 1.0/abc[tile][2]; // area of a maximum
-						double area =  1.0/Math.sqrt(abc[tile][0] * abc[tile][2]);
-						if (area > lma_max_area) {
-							continue; // too wide maximum
-						}
-					} else {
-						continue; // not a maximum
+				if (Math.max(abc[tile][0], abc[tile][2]) < lma_min_max_ac) {
+					continue;
+				}
+				if ((lma_min_min_ac > 0.0) && ((abc[tile][0] < lma_min_min_ac) || (abc[tile][2] < lma_min_min_ac))){
+					continue; // too large a or c (not sharp along at least one direction)
+				}
+				double area = 0.0;
+				if ((abc[tile][0] > 0.0) && (abc[tile][2] > 0.0)) {
+					//					double area_old = 1.0/abc[tile][0] + 1.0/abc[tile][2]; // area of a maximum
+					area =  1.0/Math.sqrt(abc[tile][0] * abc[tile][2]);
+					if ((lma_max_area > 0) && (area > lma_max_area)) {
+						continue; // too wide maximum
 					}
-
-
+				} else {
+					continue; // not a maximum
 				}
 				double strength = Math.sqrt(avg/rrms);
 //				double disparity = -all_pars[DISP_INDEX + offs];
@@ -2695,6 +2695,11 @@ public class Corr2dLMA {
 				ds[nmax][tile][0] = disparity;
 				ds[nmax][tile][1] = (strength * lma_str_scale) + lma_str_offset;
 				ds[nmax][tile][2] = strength; // as is
+				if (ds[nmax][tile].length > 3) {
+					ds[nmax][tile][3] = area;
+					ds[nmax][tile][4] = ac;
+					ds[nmax][tile][5] = Math.min(abc[tile][0],abc[tile][2]);
+				}
 			}
 		}
 		return ds;

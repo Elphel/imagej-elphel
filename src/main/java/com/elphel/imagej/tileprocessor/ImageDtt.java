@@ -2681,11 +2681,12 @@ public class ImageDtt extends ImageDttCPU {
 														(debugTile0 ? 1: -2),         // int                 debug_level,
 														tileX,                        // int                 tileX, // just for debug output
 														tileY );
-												if (debugTile1) {
+												if (debugTile1 && (lma_dual!= null)) { // addad (lma_dual != null)
 													System.out.println("clt_process_tl_correlations() corrLMA2DualMax() done, lma_dual="+
 															((lma_dual== null)? "null": " not null"));
 												}
 												if (lma_dual != null) {
+													boolean dbg_dispStrs = (debug_lma != null);
 													double [][][] dispStrs = lma_dual.lmaDisparityStrengths( //TODO: add parameter to filter out negative minimums ?
 															imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 															imgdtt_params.lmas_min_amp_bg,   //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
@@ -2695,13 +2696,18 @@ public class ImageDtt extends ImageDttCPU {
 															imgdtt_params.lmas_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
 															imgdtt_params.lmas_max_area,     //double  lma_max_area,     // maximal half-area (if > 0.0)
 															imgdtt_params.lma_str_scale,     // convert lma-generated strength to match previous ones - scale
-															imgdtt_params.lma_str_offset     // convert lma-generated strength to match previous ones - add to result
+															imgdtt_params.lma_str_offset,    // convert lma-generated strength to match previous ones - add to result
+															dbg_dispStrs // false // boolean dbg_mode
 															);
-
 													disp_str_lma = new double [dispStrs.length][]; // order matching input ones
 													for (int nmax = 0;nmax < dispStrs.length; nmax++) {
 														if ((dispStrs[nmax] != null) && (dispStrs[nmax].length >0)) {
 															disp_str_lma[nmax] = dispStrs[nmax][0];
+															if (dbg_dispStrs) {
+																for (int i = 0; i < dispStrs[nmax][0].length; i++) {
+																	debug_lma[i][nTile] = dispStrs[nmax][0][i];
+																}
+															}
 														}
 													}
 													if (imgdtt_params.bimax_post_LMA && (sel_max >=0)) {
@@ -2866,18 +2872,28 @@ public class ImageDtt extends ImageDttCPU {
 			}
 			startAndJoin(threads);
 			if (debug_lma != null) {
-	    		(new ShowDoubleFloatArrays()).showArrays(
-	    				debug_lma,
-	    				tilesX,
-	    				tilesY,
-	    				true,
-	    				"lma_debug",
-	    				new String[] {"disp_samples","num_cnvx_samples","num_comb_samples", "num_lmas","num_iters","rms"}
-	    				);
-				
+				if (imgdtt_params.bimax_dual_LMA) {
+					(new ShowDoubleFloatArrays()).showArrays(
+							debug_lma,
+							tilesX,
+							tilesY,
+							true,
+							"lma_debug_dual_LMA",
+							new String[] {"disparity","strength_mod","strength", "area","ac","min(a,c)"}
+							);
+				} else {
+					(new ShowDoubleFloatArrays()).showArrays(
+							debug_lma,
+							tilesX,
+							tilesY,
+							true,
+							"lma_debug",
+							new String[] {"disp_samples","num_cnvx_samples","num_comb_samples", "num_lmas","num_iters","rms"}
+							);
+				}
+
 			}			
 		}
-		
 		return;
 	}	
 	

@@ -12805,7 +12805,7 @@ public class QuadCLTCPU {
 		  if (clt_parameters.z_corr_map.containsKey(image_name)){ // not used in lwir
 			  z_correction +=clt_parameters.z_corr_map.get(image_name);
 		  }
-		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
+		  final double disparity_corr = (z_correction == 0) ? 0.00 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
 		  int mcorr_sel = save_corr ? Correlation2d.corrSelEncode(clt_parameters.img_dtt, getNumSensors()) : 0;
 		  TpTask[] tp_tasks = GpuQuad.setTasks( // null on geometryCorrection 
 				  num_sensors,                  // final int                      num_cams,

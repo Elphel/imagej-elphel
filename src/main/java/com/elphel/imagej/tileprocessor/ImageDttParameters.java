@@ -220,7 +220,7 @@ public class ImageDttParameters {
 	public double  lmas_min_strength =       0.7;   // LWIR16: 0.4 minimal composite strength (sqrt(average amp squared over absolute RMS)
 	public double  lmas_min_ac =             0.02;  // LWIR16: 0.01  minimal of a and C coefficients maximum (measures sharpest point/line)
 	public double  lmas_min_min_ac =         0.007; // LWIR16: 0.007 minimal of a and C coefficients minimum (measures sharpest point)
-	public double  lmas_max_area =           0.0;   // LWIR16: 0.0  maximal half-area (if > 0.0)
+	public double  lmas_max_area =          20.0;   // LWIR16: 0.0  maximal half-area (if > 0.0)
 
 //	public boolean lma_gaussian =           false; // model correlation maximum as a Gaussian (false - as a parabola)
 	public int     lma_gaussian =           0;     // 0 - parabola, 1 - Gaussian, 2 - limited parabola, 3 - limited squared parabola

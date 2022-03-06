@@ -3236,7 +3236,7 @@ public class OpticalFlow {
 						reference_QuadClt.getImageName() + "/" + scene_QuadClt.getImageName()+" Done.");
 			}
 		}
-		for (int i = 0; i < scenes.length; i++) {
+		for (int i = 00; i < scenes.length; i++) {
 			int i_prev = i - ((i > 0) ? 1 : 0);
 			int i_next = i + ((i < (scenes.length - 1)) ? 1 : 0);
 			double dt =  scenes[i_next].getTimeStamp() - scenes[i_prev].getTimeStamp();
@@ -3287,6 +3287,14 @@ public class OpticalFlow {
 				double [] dbg_img = new double [dbg_w * dbg_h];
 				for (int dh = 0; dh  < dbg_h; dh++) {
 					for (int dw = 0; dw  < dbg_w; dw++) {
+						if (ers_xyzatr[dw] == null) {
+							System.out.println("adjustPairsDualPass(): ers_xyzatr["+dw+"] == null");
+							continue;
+						}
+						if (ers_xyzatr[dw][dh/3] == null) {
+							System.out.println("adjustPairsDualPass(): ers_xyzatr["+dw+"]["+(dh/3)+"] == null");
+							continue;
+						}
 						dbg_img[dh*dbg_w + dw] = ers_xyzatr[dw][dh / 3][dh % 3];
 					}
 				}
@@ -3373,135 +3381,12 @@ public class OpticalFlow {
 		
 		for (int i = 1; i < scenes.length; i++) {
 			QuadCLT reference_QuadClt = scenes[i];
-/*			
-			QuadCLT scene_QuadClt = scenes[i - 1];
-			ErsCorrection ers_scene =     scene_QuadClt.getErsCorrection();
-			reference_QuadClt.getErsCorrection().addScene(scene_QuadClt.getImageName(),
-					scenes_xyzatr1[i][0],
-					scenes_xyzatr1[i][1],
-					ers_scene.getErsXYZ_dt(),		
-					ers_scene.getErsATR_dt()		
-					);
-*/					
 			reference_QuadClt.saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
 		            null, // String path,             // full name with extension or w/o path to use x3d directory
 		            debug_level+1);
 		}		
 	}
-/*
-	public void adjustSeries(
-			CLTParameters  clt_parameters,			
-			double k_prev, 
-			QuadCLT [] scenes, // ordered by increasing timestamps
-			int debug_level
-			)
-	{
-		double [][][] scenes_xyzatr = new double [scenes.length][][]; // previous scene relative to the next one
-//		double [][][] ers_xyzatr = new double [scenes.length][][]; // previous scene relative to the next one
-		QuadCLT reference_QuadClt = scenes[scenes.length-1]; // last acquired
-		ErsCorrection ers_reference = reference_QuadClt.getErsCorrection();
-		// modify LMA parameters to freeze reference ERS, remove pull on scene ERS
-		boolean[]   param_select2 =     clt_parameters.ilp.ilma_lma_select.clone();             // final boolean[]   param_select,
-		double []   param_regweights2 = clt_parameters.ilp.ilma_regularization_weights; //  final double []   param_regweights,
-		boolean delete_scene_asap = (debug_level < 10); // to save memory
-		// freeze reference ERS, free scene ERS
-		for (int j = 0; j <3; j++) {
-			param_select2[ErsCorrection.DP_DVX  + j] = false;
-			param_select2[ErsCorrection.DP_DVAZ + j] = false;
-			param_regweights2[ErsCorrection.DP_DSVX +  j] = 0.0+0;
-			param_regweights2[ErsCorrection.DP_DSVAZ + j] = 0.0;
-		}
-		
-		for (int i =  scenes.length - 3; i >=0 ; i--) {
-			QuadCLT scene_QuadClt =      scenes[i];
-			String last_known_ts =           scenes[i+1].getImageName(); // it should be present in the reference scene scenes
-			String scene_ts =                scenes[i].getImageName(); // it should be present in the scenes[i+1] scenes
-			ErsCorrection ers_scene_last_known = scenes[i+1].getErsCorrection();
-			ErsCorrection ers_scene =            scene_QuadClt.getErsCorrection();
-			
-			double [] last_known_xyz = ers_reference.getSceneXYZ(last_known_ts);
-			double [] last_known_atr = ers_reference.getSceneATR(last_known_ts);
 
-			double [] new_from_last_xyz = ers_scene_last_known.getSceneXYZ(scene_ts);
-			double [] new_from_last_atr = ers_scene_last_known.getSceneATR(scene_ts);
-			
-			// combine two rotations and two translations 
-			System.out.println("Processing scene "+i+": "+scene_QuadClt.getImageName());
-			double [][] combo_XYZATR = ErsCorrection.combineXYZATR(
-					last_known_xyz,     // double [] reference_xyz,
-					last_known_atr,     // double [] reference_atr, // null?
-					new_from_last_xyz,  // double [] scene_xyz,
-					new_from_last_atr); // double [] scene_atr)
-			
-			// before adjusting - save original ERS, restart afterwards
-			double [] ers_scene_original_xyz_dt = ers_scene.getErsXYZ_dt();
-			double [] ers_scene_original_atr_dt = ers_scene.getErsATR_dt();
-			
-			// ers should be correct for both
-			
-			scenes_xyzatr[i] = adjustPairsLMA(
-					clt_parameters,     // CLTParameters  clt_parameters,			
-					reference_QuadClt, // QuadCLT reference_QuadCLT,
-					scene_QuadClt, // QuadCLT scene_QuadCLT,
-					combo_XYZATR[0], // xyz
-					combo_XYZATR[1], // atr
-					param_select2,             // final boolean[]   param_select,
-					param_regweights2, //  final double []   param_regweights,
-					debug_level); // int debug_level)
-			ers_reference.addScene(scene_QuadClt.getImageName(),
-					scenes_xyzatr[i][0],
-					scenes_xyzatr[i][1],
-					ers_scene.getErsXYZ_dt(),		
-					ers_scene.getErsATR_dt()		
-					);
-			
-			// restore original ers data
-			ers_scene.setErsDt(
-					ers_scene_original_xyz_dt, // double []    ers_xyz_dt,
-					ers_scene_original_atr_dt); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
-			ers_scene.setupERS();
-			if (debug_level > -1) {
-				System.out.println("Pass multi scene "+i+" (of "+ scenes.length+") "+
-						reference_QuadClt.getImageName() + "/" + scene_QuadClt.getImageName()+" Done.");
-			}
-			if (delete_scene_asap) {
-				scenes[i+1] = null;
-			}
-//			Runtime.getRuntime().gc();
-//			System.out.println("Scene "+i+", --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
-			
-		}
-		reference_QuadClt.saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
-	            null, // String path,             // full name with extension or w/o path to use x3d directory
-	            debug_level+1);
-		if (!delete_scene_asap && (debug_level > -1)) {
-			System.out.println("adjustSeries(): preparing image set...");
-			int nscenes = scenes.length;
-			int indx_ref = nscenes - 1; 
-			double [][][] all_scenes_xyzatr = new double [scenes.length][][]; // includes reference (last)
-			double [][][] all_scenes_ers_dt = new double [scenes.length][][]; // includes reference (last)
-			all_scenes_xyzatr[indx_ref] = new double [][] {ZERO3,ZERO3};
-			all_scenes_ers_dt[indx_ref] = new double [][] {
-				ers_reference.getErsXYZ_dt(),
-				ers_reference.getErsATR_dt()};
-				for (int i = 0; i < nscenes; i++) if (i != indx_ref) {
-					String ts = scenes[i].getImageName();
-					all_scenes_xyzatr[i] = new double[][] {ers_reference.getSceneXYZ(ts),       ers_reference.getSceneATR(ts)}; 		
-					all_scenes_ers_dt[i] = new double[][] {ers_reference.getSceneErsXYZ_dt(ts), ers_reference.getSceneErsATR_dt(ts)}; 		
-				}
-		compareRefSceneTiles(
-				"" ,               // String suffix,
-				false,             // boolean blur_reference,
-				all_scenes_xyzatr, // double [][][] scene_xyzatr, // does not include reference
-				all_scenes_ers_dt, // double [][][] scene_ers_dt, // does not include reference
-				scenes,            // QuadCLT [] scenes,
-				8);                // int iscale) // 8
-		}		
-		if (debug_level > -1) {
-			System.out.println("adjustSeries() Done.");
-		}
-	}
-*/
 	public void adjustSeries(
 			CLTParameters  clt_parameters,			
 			double         k_prev, 
@@ -3910,7 +3795,7 @@ Maybe later - add same weight. Or use CM instead, even for LMA?
 		double [] weights = new double [(int) Math.floor(half_run_range)+1];
 		weights[0] = 1;
 		for (int i = 1; i < weights.length; i++) {
-			weights[i] = 0.5* (Math.cos(i*Math.PI/half_run_range));
+			weights[i] = 0.5* (Math.cos(i*Math.PI/half_run_range) + 1.0);
 		}
 		double [][][] ers_xyzatr = new double [ers_xyzatr_in.length][][];
 		for (int nscene = 0; nscene < ers_xyzatr_in.length; nscene ++) {
@@ -3918,12 +3803,12 @@ Maybe later - add same weight. Or use CM instead, even for LMA?
 			double [][] swd =  new double[2][3]; 
 			for (int ds = -weights.length + 1; ds < weights.length; ds++) {
 				int ns = nscene + ds;
-				if ((ns >= 0) && (ns < ers_xyzatr.length) && (ers_xyzatr[ns] != null)) {
+				if ((ns >= 0) && (ns < ers_xyzatr_in.length) && (ers_xyzatr_in[ns] != null)) {
 					double w = (ds >= 0) ? weights[ds] : weights[-ds];
 					sw += w;
 					for (int m = 0; m < swd.length; m++) {
 						for (int d = 0; d < swd[m].length; d++) {
-							swd[m][d] += w * ers_xyzatr[ns][m][d];
+							swd[m][d] += w * ers_xyzatr_in[ns][m][d];
 						}
 					}
 				}

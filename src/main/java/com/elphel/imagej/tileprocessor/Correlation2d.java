@@ -4842,7 +4842,8 @@ public class Correlation2d {
 					imgdtt_params.lmas_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
 					imgdtt_params.lmas_max_area,     //double  lma_max_area,     // maximal half-area (if > 0.0)
 					imgdtt_params.lma_str_scale,     // convert lma-generated strength to match previous ones - scale
-					imgdtt_params.lma_str_offset     // convert lma-generated strength to match previous ones - add to result
+					imgdtt_params.lma_str_offset,    // convert lma-generated strength to match previous ones - add to result
+					false // boolean dbg_mode
 					);
 			for (int nmax = 00; nmax < dispStrs.length; nmax++) if (dispStrs[nmax][0][1] <= 0) {
 				lmaSuccess = false;
