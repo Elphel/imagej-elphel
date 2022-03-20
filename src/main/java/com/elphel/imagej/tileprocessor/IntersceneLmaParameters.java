@@ -29,15 +29,19 @@ import java.util.Properties;
 import com.elphel.imagej.common.GenericJTabbedDialog;
 
 public class IntersceneLmaParameters {
+	public boolean    ilma_thread_invariant =  true; // Do not use DoubleAdder, provide results not dependent on threads
 	public boolean [] ilma_lma_select =             new boolean [ErsCorrection.DP_NUM_PARS]; // first three will not be used
 	public double  [] ilma_regularization_weights = new double  [ErsCorrection.DP_NUM_PARS]; // first three will not be used
-	public double     ilma_lambda = 0.1;
+	public boolean    ilma_ignore_ers =        false; // ignore linear and angular velocities, assume tham zeroes
+	public boolean    ilma_ers_adj_lin =       false; // adjust linear ERS for scene-to-ref (LWIR does not work, check with high-speed)
+	public boolean    ilma_ers_adj_ang =       false; // adjust angular ERS  for scene-to-ref (LWIR does not work, check with high-speed)
+	public double     ilma_lambda =            0.1;
 	public double     ilma_lambda_scale_good = 0.5;
 	public double     ilma_lambda_scale_bad =  8.0;
 	public double     ilma_lambda_max =      100;
 	public double     ilma_rms_diff =          0.001;
 	public int        ilma_num_iter =          20;
-	public int        ilma_num_corr =          10; // maximal number of full correlatiobn+LMA cycles
+	public int        ilma_num_corr =          10; // maximal number of full correlation+LMA cycles
 	public int        ilma_debug_level =       1;
 
 	public IntersceneLmaParameters() {
@@ -94,6 +98,8 @@ public class IntersceneLmaParameters {
 	
 	public void dialogQuestions(GenericJTabbedDialog gd) {
 		gd.addMessage("Interframe LMA parameters selection");
+	    gd.addCheckbox    ("Thread-invariant execution",           this.ilma_thread_invariant,
+	    		"Do not use DoubleAdder and provide results not dependent on threads" );
 		for (int i = ErsCorrection.DP_DVAZ; i < ErsCorrection.DP_NUM_PARS; i++) {
 		    gd.addCheckbox    (ErsCorrection.DP_DERIV_NAMES[i],           this.ilma_lma_select[i],
 		    		"Adjust parameter "+ErsCorrection.DP_DERIV_NAMES[i]+" with interscene LMA" );
@@ -105,6 +111,14 @@ public class IntersceneLmaParameters {
 			" will cause error equal to all reprojection ones");
 		}
 		gd.addMessage("LMA other parameters");
+		gd.addCheckbox    ("Ignore linear and angular velocities",        this.ilma_ignore_ers,
+	    		"Ignore calculated linear and angular velocities when correlating scenes to the reference one" );
+		
+		gd.addCheckbox    ("Adjust linear ERS for scene-to-ref",          this.ilma_ers_adj_lin,
+	    		"Adjust linear velocities during LMA for scene-to-reference matching. So far does not work for LWIR (not stable - effect is samll)" );
+		gd.addCheckbox    ("Aadjust angular ERS for scene-to-ref",        this.ilma_ers_adj_ang,
+	    		"Adjust angular velocities during LMA for scene-to-reference matching. So far does not work for LWIR (not stable - effect is samll)" );
+		
 		gd.addNumericField("LMA lambda",                                  this.ilma_lambda, 6,8,"",
 				"Initial value of the LMA lambda");
 		gd.addNumericField("Scale lambda after successful LMA iteration", this.ilma_lambda_scale_good, 3,5,"",
@@ -125,12 +139,16 @@ public class IntersceneLmaParameters {
 				"Debug level of interscene LMA operation.");
 	}
 	public void dialogAnswers(GenericJTabbedDialog gd) {
+		this.ilma_thread_invariant =              gd.getNextBoolean();
 		for (int i = ErsCorrection.DP_DVAZ; i < ErsCorrection.DP_NUM_PARS; i++) {
 		    this.ilma_lma_select[i] =             gd.getNextBoolean();
 		}
 		for (int i = ErsCorrection.DP_DVAZ; i < ErsCorrection.DP_NUM_PARS; i++) {
 			this.ilma_regularization_weights[i] = gd.getNextNumber();
 		}
+		this.ilma_ignore_ers =                    gd.getNextBoolean();
+		this.ilma_ers_adj_lin =                   gd.getNextBoolean();
+		this.ilma_ers_adj_ang =                   gd.getNextBoolean();
 		this.ilma_lambda =                        gd.getNextNumber();
 		this.ilma_lambda_scale_good =             gd.getNextNumber();
 		this.ilma_lambda_scale_bad =              gd.getNextNumber();
@@ -141,10 +159,14 @@ public class IntersceneLmaParameters {
 		this.ilma_debug_level =             (int) gd.getNextNumber();
 	}
 	public void setProperties(String prefix,Properties properties){
+		properties.setProperty(prefix+"ilma_thread_invariant",  this.ilma_thread_invariant+"");	
 		for (int i = ErsCorrection.DP_DVAZ; i < ErsCorrection.DP_NUM_PARS; i++) {
 			properties.setProperty(prefix+ErsCorrection.DP_DERIV_NAMES[i]+"_sel",           this.ilma_lma_select[i]+"");	
 			properties.setProperty(prefix+ErsCorrection.DP_DERIV_NAMES[i]+"_regweight",     this.ilma_regularization_weights[i]+"");	
 		}
+		properties.setProperty(prefix+"ilma_ignore_ers",        this.ilma_ignore_ers+"");	
+		properties.setProperty(prefix+"ilma_ers_adj_lin",       this.ilma_ers_adj_lin+"");	
+		properties.setProperty(prefix+"ilma_ers_adj_ang",       this.ilma_ers_adj_ang+"");	
 		properties.setProperty(prefix+"ilma_lambda",            this.ilma_lambda+"");	
 		properties.setProperty(prefix+"ilma_lambda_scale_good", this.ilma_lambda_scale_good+"");	
 		properties.setProperty(prefix+"ilma_lambda_scale_bad",  this.ilma_lambda_scale_bad+"");	
@@ -155,6 +177,7 @@ public class IntersceneLmaParameters {
 		properties.setProperty(prefix+"ilma_debug_level",       this.ilma_debug_level+"");	
 	}
 	public void getProperties(String prefix,Properties properties){
+		if (properties.getProperty(prefix+"ilma_thread_invariant")!=null)  this.ilma_thread_invariant=Boolean.parseBoolean(properties.getProperty(prefix+"ilma_thread_invariant"));
 		for (int i = ErsCorrection.DP_DVAZ; i < ErsCorrection.DP_NUM_PARS; i++) {
 			String pn_sel = prefix+ErsCorrection.DP_DERIV_NAMES[i]+"_sel";
 			if (properties.getProperty(pn_sel)!=null) this.ilma_lma_select[i]=Boolean.parseBoolean(properties.getProperty(pn_sel));
@@ -162,6 +185,9 @@ public class IntersceneLmaParameters {
 			if (properties.getProperty(pn_sel)!=null) this.ilma_regularization_weights[i]=Double.parseDouble(properties.getProperty(pn_sel));
 		}
 
+		if (properties.getProperty(prefix+"ilma_ignore_ers")!=null)        this.ilma_ignore_ers=Boolean.parseBoolean(properties.getProperty(prefix+"ilma_ignore_ers"));
+		if (properties.getProperty(prefix+"ilma_ers_adj_lin")!=null)       this.ilma_ers_adj_lin=Boolean.parseBoolean(properties.getProperty(prefix+"ilma_ers_adj_lin"));
+		if (properties.getProperty(prefix+"ilma_ers_adj_ang")!=null)       this.ilma_ers_adj_ang=Boolean.parseBoolean(properties.getProperty(prefix+"ilma_ers_adj_ang"));
 		if (properties.getProperty(prefix+"ilma_lambda")!=null)            this.ilma_lambda=Double.parseDouble(properties.getProperty(prefix+"ilma_lambda"));
 		if (properties.getProperty(prefix+"ilma_lambda_scale_good")!=null) this.ilma_lambda_scale_good=Double.parseDouble(properties.getProperty(prefix+"ilma_lambda_scale_good"));
 		if (properties.getProperty(prefix+"ilma_lambda_scale_bad")!=null)  this.ilma_lambda_scale_bad=Double.parseDouble(properties.getProperty(prefix+"ilma_lambda_scale_bad"));
@@ -175,8 +201,12 @@ public class IntersceneLmaParameters {
 	@Override
 	public IntersceneLmaParameters clone() throws CloneNotSupportedException {
 		IntersceneLmaParameters ilp =     new IntersceneLmaParameters();
+		ilp.ilma_thread_invariant =  this.ilma_thread_invariant;
 		System.arraycopy(this.ilma_lma_select,             0, ilp.ilma_lma_select,             0, ilma_lma_select.length);
 		System.arraycopy(this.ilma_regularization_weights, 0, ilp.ilma_regularization_weights, 0, ilma_regularization_weights.length);
+		ilp.ilma_ignore_ers =        this.ilma_ignore_ers;
+		ilp.ilma_ers_adj_lin =       this.ilma_ers_adj_lin;
+		ilp.ilma_ers_adj_ang =       this.ilma_ers_adj_ang;
 		ilp.ilma_lambda =            this.ilma_lambda;
 		ilp.ilma_lambda_scale_good = this.ilma_lambda_scale_good;
 		ilp.ilma_lambda_scale_bad =  this.ilma_lambda_scale_bad;

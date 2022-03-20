@@ -1,8 +1,16 @@
 package com.elphel.imagej.tileprocessor;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.DoubleAdder;
+
+import javax.xml.bind.DatatypeConverter;
 
 import Jama.Matrix;
 
@@ -27,12 +35,17 @@ public class IntersceneLma {
 	private double  [][]      macrotile_centers = null;  // (will be used to pull for regularization)
 	private double            infinity_disparity = 0.1;  // treat lower as infinity
 	private int               num_samples = 0;
+	private boolean           thread_invariant = true; // Do not use DoubleAdder, provide results not dependent on threads
 	public IntersceneLma(
-			OpticalFlow opticalFlow
+			OpticalFlow opticalFlow,
+			boolean thread_invariant
 			) {
+		this.thread_invariant = thread_invariant;
 		this.opticalFlow = opticalFlow;
 	}
-	
+	public double[] getLastRms() {
+		return last_rms;
+	}
 	public double [] getSceneXYZ(boolean initial) {
 		double [] full_vector = initial? backup_parameters_full: getFullVector(parameters_vector);
 		return new double[] {
@@ -170,6 +183,9 @@ public class IntersceneLma {
 		setSamplesWeights(vector_XYS);  // not regularization yet !
 
 		last_jt = new double [parameters_vector.length][];
+		if (debug_level > 1) {
+			System.out.println("prepareLMA() 1");
+		}
 		double [] fx = getFxDerivs(
 				parameters_vector, // double []         vector,
 				last_jt,           // final double [][] jt, // should be null or initialized with [vector.length][]
@@ -185,6 +201,10 @@ public class IntersceneLma {
 		}
 		normalizeWeights(); // make full weight == 1.0; pure_weight <= 1.0;
 		// remeasure fx - now with regularization terms.
+
+		if (debug_level > 1) {
+			System.out.println("prepareLMA() 2");
+		}
 		fx = getFxDerivs(
 				parameters_vector, // double []         vector,
 				last_jt,                // final double [][] jt, // should be null or initialized with [vector.length][]
@@ -292,6 +312,9 @@ public class IntersceneLma {
 		// maybe the following if() branch is not needed - already done in prepareLMA !
 		if (this.last_rms == null) { //first time, need to calculate all (vector is valid)
 			last_rms = new double[2];
+			if (debug_level > 1) {
+				System.out.println("lmaStep(): first step");
+			}
 			double [] fx = getFxDerivs(
 					parameters_vector, // double []         vector,
 					last_jt,           // final double [][] jt, // should be null or initialized with [vector.length][]
@@ -331,6 +354,19 @@ public class IntersceneLma {
 		Matrix wjtjlambda = new Matrix(getWJtJlambda(
 				lambda, // *10, // temporary
 				this.last_jt)); // double [][] jt)
+		if (debug_level > 1) {
+			try {
+				System.out.println("getFxDerivs(): getChecksum(this.y_vector)="+      getChecksum(this.y_vector));
+				System.out.println("getFxDerivs(): getChecksum(this.weights)="+       getChecksum(this.weights));
+				System.out.println("getFxDerivs(): getChecksum(this.last_ymfx)="+     getChecksum(this.last_ymfx));
+				System.out.println("getFxDerivs(): getChecksum(y_minus_fx_weighted)="+getChecksum(y_minus_fx_weighted));
+				System.out.println("getFxDerivs(): getChecksum(wjtjlambda)=         "+getChecksum(wjtjlambda));
+			} catch (NoSuchAlgorithmException | IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
 		if (debug_level>2) {
 			System.out.println("JtJ + lambda*diag(JtJ");
 			wjtjlambda.print(18, 6);
@@ -356,7 +392,18 @@ public class IntersceneLma {
 			System.out.println("Jt * (y-fx)");
 			jty.print(18, 6);
 		}
+		if (debug_level > 1) {
+			try {
+				System.out.println("getFxDerivs(): getChecksum(jtjl_inv)="+getChecksum(jtjl_inv));
+				System.out.println("getFxDerivs(): getChecksum(jty)=     "+getChecksum(jty));
+			} catch (NoSuchAlgorithmException | IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
 
+		
+		
 		Matrix mdelta = jtjl_inv.times(jty);
 		if (debug_level>2) {
 			System.out.println("mdelta");
@@ -369,6 +416,19 @@ public class IntersceneLma {
 		for (int i = 0; i < parameters_vector.length; i++) {
 			new_vector[i] += scale * delta[i];
 		}
+		if (debug_level > 1) {
+			try {
+				System.out.println("getFxDerivs(): getChecksum(mdelta)=            "+getChecksum(mdelta));
+				System.out.println("getFxDerivs(): getChecksum(delta)=             "+getChecksum(delta));
+				System.out.println("getFxDerivs(): getChecksum(parameters_vector)= "+getChecksum(parameters_vector));
+				System.out.println("getFxDerivs(): getChecksum(new_vector)=        "+getChecksum(new_vector));
+			} catch (NoSuchAlgorithmException | IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
+		
 		double [] fx = getFxDerivs(
 				new_vector, // double []         vector,
 				last_jt,           // final double [][] jt, // should be null or initialized with [vector.length][]
@@ -444,21 +504,46 @@ public class IntersceneLma {
 		
 		final Thread[] threads = ImageDtt.newThreadArray(opticalFlow.threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
-		final DoubleAdder asum_weight = new DoubleAdder(); 
-		for (int ithread = 0; ithread < threads.length; ithread++) {
-			threads[ithread] = new Thread() {
-				public void run() {
-					for (int iMTile = ai.getAndIncrement(); iMTile < vector_XYS.length; iMTile = ai.getAndIncrement()) if (vector_XYS[iMTile] != null){
-						double w = vector_XYS[iMTile][2];
-						weights[2 * iMTile] = w;
-						asum_weight.add(w);
+		double sum_weights;
+		if (thread_invariant) {
+			final double [] sw_arr = new double [vector_XYS.length]; 
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int iMTile = ai.getAndIncrement(); iMTile < vector_XYS.length; iMTile = ai.getAndIncrement()) if (vector_XYS[iMTile] != null){
+							double w = vector_XYS[iMTile][2];
+							weights[2 * iMTile] = w;
+//							asum_weight.add(w);
+							sw_arr[iMTile] = w;
+						}
 					}
-				}
-			};
-		}		      
-		ImageDtt.startAndJoin(threads);
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			sum_weights = 0.0;
+			for (double w:sw_arr) {
+				sum_weights += w;
+			}
+		} else {
+			final DoubleAdder asum_weight = new DoubleAdder(); 
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int iMTile = ai.getAndIncrement(); iMTile < vector_XYS.length; iMTile = ai.getAndIncrement()) if (vector_XYS[iMTile] != null){
+							double w = vector_XYS[iMTile][2];
+							weights[2 * iMTile] = w;
+							asum_weight.add(w);
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			sum_weights = asum_weight.sum();
+		}
+		
 		ai.set(0);
-		final double s = 0.5/asum_weight.sum();
+//		final double s = 0.5/asum_weight.sum();
+		final double s = 0.5/sum_weights;
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				public void run() {
@@ -473,7 +558,9 @@ public class IntersceneLma {
 		pure_weight = 1.0;
 	}
 
-	private void normalizeWeights()
+	
+	@Deprecated
+	private void normalizeWeights_old()
 	{
 //num_samples
 		final Thread[] threads = ImageDtt.newThreadArray(opticalFlow.threadsMax);
@@ -512,6 +599,58 @@ public class IntersceneLma {
 		}		      
 		ImageDtt.startAndJoin(threads);
 		
+	}
+
+	private void normalizeWeights()
+	{
+		final Thread[] threads = ImageDtt.newThreadArray(opticalFlow.threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		double full_weight, sum_weight_pure;
+		if (thread_invariant) {
+			sum_weight_pure = 0;
+			for (int i = 0;  i < num_samples; i++) {
+				sum_weight_pure += weights[i];
+			}
+			full_weight = sum_weight_pure;
+			for (int i = 0; i < par_indices.length; i++) {
+				int indx =  num_samples + i;
+				full_weight += weights[indx];
+			}
+		} else {
+			final DoubleAdder asum_weight = new DoubleAdder(); 
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int i = ai.getAndIncrement(); i < num_samples; i = ai.getAndIncrement()){
+							asum_weight.add(weights[i]);
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			sum_weight_pure = asum_weight.sum();
+			for (int i = 0; i < par_indices.length; i++) {
+				int indx =  num_samples + i;
+				asum_weight.add(weights[indx]);
+			}
+			full_weight = asum_weight.sum();
+		}
+		pure_weight = sum_weight_pure/full_weight;
+		final double s = 1.0/full_weight;
+		if (Double.isNaN(s)) {
+			System.out.println("normalizeWeights(): s == NaN");
+		}
+		ai.set(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int i = ai.getAndIncrement(); i < weights.length; i = ai.getAndIncrement()){
+						weights[i] *= s;
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
 	}
 	
 	
@@ -614,7 +753,18 @@ public class IntersceneLma {
 		for (int i = 0; i < par_indices.length; i++) {
 			fx [i + 2 * macrotile_centers.length] = vector[i]; // - parameters_initial[i]; // scale will be combined with weights
 			jt[i][i + 2 * macrotile_centers.length] = 1.0; // scale will be combined with weights
-		}		
+		}
+		if (debug_level > 1) {
+			try {
+				System.out.println    ("getFxDerivs(): getChecksum(fx)="+getChecksum(fx));
+				if (jt != null) {
+					System.out.println("getFxDerivs(): getChecksum(jt)="+getChecksum(jt));
+				}
+			} catch (NoSuchAlgorithmException | IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
 		return fx;
 	}
 	
@@ -659,30 +809,51 @@ public class IntersceneLma {
 			final double []   fx,
 			final double []   rms_fp // null or [2]
 			) {
-		final Thread[] threads =        ImageDtt.newThreadArray(opticalFlow.threadsMax);
-		final AtomicInteger ai =        new AtomicInteger(0);
-		final DoubleAdder asum_weight = new DoubleAdder();
-		final double [] wymfw =         new double [fx.length];
-		
-		for (int ithread = 0; ithread < threads.length; ithread++) {
-			threads[ithread] = new Thread() {
-				public void run() {
-					for (int i = ai.getAndIncrement(); i < num_samples; i = ai.getAndIncrement())  {
-						double d = y_vector[i] - fx[i];
-						double wd = d * weights[i];
-						double l2 = d * wd;
-						wymfw[i] = wd;
-						asum_weight.add(l2);
+		final Thread[]      threads =     ImageDtt.newThreadArray(opticalFlow.threadsMax);
+		final AtomicInteger ai =          new AtomicInteger(0);
+		final double []     wymfw =       new double [fx.length];
+		double s_rms; 
+		if (thread_invariant) {
+			final double [] l2_arr = new double [num_samples]; 
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int i = ai.getAndIncrement(); i < num_samples; i = ai.getAndIncrement())  {
+							double d = y_vector[i] - fx[i];
+							double wd = d * weights[i];
+							//double l2 = d * wd;
+							l2_arr[i] = d * wd;
+							wymfw[i] = wd;
+						}
 					}
-				}
-			};
-		}		      
-		ImageDtt.startAndJoin(threads);
-		double s_rms = asum_weight.sum();
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			s_rms = 0.0;
+			for (double l2:l2_arr) {
+				s_rms += l2;
+			}
+		} else {
+			final DoubleAdder   asum_weight = new DoubleAdder();
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int i = ai.getAndIncrement(); i < num_samples; i = ai.getAndIncrement())  {
+							double d = y_vector[i] - fx[i];
+							double wd = d * weights[i];
+							double l2 = d * wd;
+							wymfw[i] = wd;
+							asum_weight.add(l2);
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			s_rms = asum_weight.sum();
+		}
 		double rms_pure = Math.sqrt(s_rms/pure_weight);
 		for (int i = 0; i < par_indices.length; i++) {
 			int indx = i + num_samples;
-//			double d = parameters_initial[i] - fx[indx]; // fx[indx] == vector[i]
 			double d = y_vector[indx] - fx[indx]; // fx[indx] == vector[i]
 			double wd = d * weights[indx];
 			s_rms += d * wd;
@@ -695,6 +866,23 @@ public class IntersceneLma {
 		}
 		return wymfw;
 	}
+	
+	public static String getChecksum(Serializable object) throws IOException, NoSuchAlgorithmException {
+	    ByteArrayOutputStream baos = null;
+	    ObjectOutputStream oos = null;
+	    try {
+	        baos = new ByteArrayOutputStream();
+	        oos = new ObjectOutputStream(baos);
+	        oos.writeObject(object);
+	        MessageDigest md = MessageDigest.getInstance("MD5");
+	        byte[] thedigest = md.digest(baos.toByteArray());
+	        return DatatypeConverter.printHexBinary(thedigest);
+	    } finally {
+	        oos.close();
+	        baos.close();
+	    }
+	}
+	
 	
 /*	
  * par_indices

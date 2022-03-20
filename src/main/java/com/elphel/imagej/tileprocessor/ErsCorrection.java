@@ -250,6 +250,15 @@ public class ErsCorrection extends GeometryCorrection {
 		this.ers_wxyz_center_dt = ers_xyz_dt;
 		this.ers_watr_center_dt = ers_atr_dt;
 	}
+	public void setErsDt_test(
+			double []    ers_xyz_dt,
+			double []    ers_atr_dt) {
+		double k = 1.0; // 0.5;
+		this.ers_wxyz_center_dt = new double[] {-ers_xyz_dt[0],-ers_xyz_dt[1],-ers_xyz_dt[2]};
+		this.ers_watr_center_dt = new double[] {k* ers_atr_dt[0],-k*ers_atr_dt[1],k*ers_atr_dt[2]};//ers_atr_dt;
+	}
+	
+	
 	public void setErsD2t(
 			double []    ers_xyz_d2t,
 			double []    ers_atr_d2t) {

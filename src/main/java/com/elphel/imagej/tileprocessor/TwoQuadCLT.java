@@ -8310,6 +8310,8 @@ if (debugLevel > -100) return true; // temporarily !
 					pose[1], // atr
 					clt_parameters.ilp.ilma_lma_select,             // final boolean[]   param_select,
 					clt_parameters.ilp.ilma_regularization_weights, //  final double []   param_regweights,
+					null, // 			double []      rms, // null or double [2]
+					null, // double [][]    dbg_img,
 					clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
 		}
 
