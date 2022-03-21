@@ -266,24 +266,28 @@ public class IntersceneLma {
 		}
 		if (rslt[0]) { // better
 			if (iter >= num_iter) { // better, but num tries exceeded
-				if (debug_level > 0) System.out.println("Step "+iter+": Improved, but number of steps exceeded maximal");
+				if (debug_level > 1) System.out.println("Step "+iter+": Improved, but number of steps exceeded maximal");
 			} else {
-				if (debug_level > 0) System.out.println("Step "+iter+": LMA: Success");
+				if (debug_level > 1) System.out.println("Step "+iter+": LMA: Success");
 			}
 
 		} else { // improved over initial ?
 			if (last_rms[0] < initial_rms[0]) { // NaN
 				rslt[0] = true;
-				if (debug_level > 0) System.out.println("Step "+iter+": Failed to converge, but result improved over initial");
+				if (debug_level > 1) System.out.println("Step "+iter+": Failed to converge, but result improved over initial");
 			} else {
-				if (debug_level > 0) System.out.println("Step "+iter+": Failed to converge");
+				if (debug_level > 1) System.out.println("Step "+iter+": Failed to converge");
 			}
 		}
-		if (debug_level > 0) {
+		boolean show_intermediate = true;
+		if (show_intermediate && (debug_level > 0)) {
 			System.out.println("LMA: full RMS="+last_rms[0]+" ("+initial_rms[0]+"), pure RMS="+last_rms[1]+" ("+initial_rms[1]+") + lambda="+lambda);
 		}
 		if (debug_level > 0) {
 			if ((debug_level > 1) || (iter == 1) || last_run) {
+				if (!show_intermediate) {
+					System.out.println("LMA: full RMS="+last_rms[0]+" ("+initial_rms[0]+"), pure RMS="+last_rms[1]+" ("+initial_rms[1]+") + lambda="+lambda);
+				}
 				String [] lines = printOldNew(false); // boolean allvectors)
 				for (String line : lines) {
 					System.out.println(line);

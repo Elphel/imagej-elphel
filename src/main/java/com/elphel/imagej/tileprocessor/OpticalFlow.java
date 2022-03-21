@@ -581,7 +581,7 @@ public class OpticalFlow {
 			final int         debug_level, //1
 			final boolean     enable_debug_images) // true
 	{
-		boolean debug_mismatch = (debug_level > -10); // true;
+		boolean debug_mismatch = (debug_level > -10); // && enable_debug_images);
 //		int debug_corr2d = 0;// 10
 		
 		final TileProcessor tp =         reference_QuadClt.getTileProcessor();
@@ -3602,8 +3602,7 @@ public class OpticalFlow {
 			int            debug_level
 			)
 	{
-		boolean show_results = true;
-		
+		boolean show_results = clt_parameters.ilp.ilma_debug_adjust_series;
 		if (ref_index < 0) {
 			ref_index += scenes.length;
 		}
@@ -8428,6 +8427,8 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			double [][] flowXY = new double [macroTiles][2]; // zero pre-shifts
 			//		double [][] flowXY_frac = new double [macroTiles][]; // Will contain fractional X/Y shift for CLT
 			double [][] reference_tiles_macro = new double [macroTiles][];
+			// hack below to pass nlma for debugging. Change  clt_parameters.ilp.ilma_num_corr to -11 after first pass
+			int test_debug_level = clt_parameters.ilp.ilma_debug_invariant? (clt_parameters.ofp.debug_level_iterate-nlma): -11;
 			double [][] vector_XYS = correlate2DIterate( // returns optical flow and confidence
 					clt_parameters.img_dtt, // final ImageDttParameters  imgdtt_params,
 					// for prepareSceneTiles()			
@@ -8460,7 +8461,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					clt_parameters.ofp.min_change,               // final double      min_change,
 					clt_parameters.ofp.best_neibs_num,           // final int         best_num,
 					clt_parameters.ofp.ref_stdev,                // final double      ref_stdev,
-					clt_parameters.ofp.debug_level_iterate-nlma,      // final int         debug_level)
+					test_debug_level, // clt_parameters.ofp.debug_level_iterate-nlma,      // final int         debug_level)
 					clt_parameters.ofp.enable_debug_images);     //final boolean     enable_debug_images)
 			if (dbg_img != null) {
 				for (int iy = 0; iy < macroTilesY; iy++) {
@@ -8505,7 +8506,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				}
 			}
 
-			if (dbg_img != null) {
+			if (clt_parameters.ilp.ilma_debug_invariant) { // dbg_img != null) {
 				/*
 				long [] long_xyz0 =  new long [camera_xyz0.length];
 				long [] long_atr0 =  new long [camera_atr0.length];

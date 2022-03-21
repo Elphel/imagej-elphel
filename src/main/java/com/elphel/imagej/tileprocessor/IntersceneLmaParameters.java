@@ -29,7 +29,7 @@ import java.util.Properties;
 import com.elphel.imagej.common.GenericJTabbedDialog;
 
 public class IntersceneLmaParameters {
-	public boolean    ilma_thread_invariant =  true; // Do not use DoubleAdder, provide results not dependent on threads
+	public boolean    ilma_thread_invariant =     true; // Do not use DoubleAdder, provide results not dependent on threads
 	public boolean [] ilma_lma_select =             new boolean [ErsCorrection.DP_NUM_PARS]; // first three will not be used
 	public double  [] ilma_regularization_weights = new double  [ErsCorrection.DP_NUM_PARS]; // first three will not be used
 	public boolean    ilma_ignore_ers =        false; // ignore linear and angular velocities, assume tham zeroes
@@ -43,6 +43,8 @@ public class IntersceneLmaParameters {
 	public int        ilma_num_iter =          20;
 	public int        ilma_num_corr =          10; // maximal number of full correlation+LMA cycles
 	public int        ilma_debug_level =       1;
+	public boolean    ilma_debug_adjust_series = false; // Debug images for series of pose and ers
+	public boolean    ilma_debug_invariant =     false; // Monitoring variations when restarting program (should be ilma_thread_invariant=true)
 
 	public IntersceneLmaParameters() {
 		ilma_lma_select[ErsCorrection.DP_DVAZ]=  true;
@@ -133,11 +135,14 @@ public class IntersceneLmaParameters {
 				"A hard limit on LMA iterations.");
 		gd.addNumericField("Maximal number of correlation +LMA iterations",this.ilma_num_corr, 0,3,"",
 				"Outer cycle (recalculate correlations + lma). Otherwise exits if LMA exits at first iteration.");
-		
-		
+	    gd.addCheckbox    ("Debug adjust_series()",                       this.ilma_debug_adjust_series,
+	    		"Generate debug images for series of pose and ERS (derivatives of pose)" );
+	    gd.addCheckbox    ("Debug thread-invariant",                      this.ilma_debug_invariant,
+	    		"Generate debug images and text output to verify same results regardless of threads" );
 		gd.addNumericField("Debug level",                                 this.ilma_debug_level, 0,3,"",
 				"Debug level of interscene LMA operation.");
 	}
+	
 	public void dialogAnswers(GenericJTabbedDialog gd) {
 		this.ilma_thread_invariant =              gd.getNextBoolean();
 		for (int i = ErsCorrection.DP_DVAZ; i < ErsCorrection.DP_NUM_PARS; i++) {
@@ -156,6 +161,8 @@ public class IntersceneLmaParameters {
 		this.ilma_rms_diff =                      gd.getNextNumber();
 		this.ilma_num_iter =                (int) gd.getNextNumber();
 		this.ilma_num_corr =                (int) gd.getNextNumber();
+		this.ilma_debug_adjust_series =           gd.getNextBoolean();
+		this.ilma_debug_invariant =               gd.getNextBoolean();
 		this.ilma_debug_level =             (int) gd.getNextNumber();
 	}
 	public void setProperties(String prefix,Properties properties){
@@ -164,17 +171,19 @@ public class IntersceneLmaParameters {
 			properties.setProperty(prefix+ErsCorrection.DP_DERIV_NAMES[i]+"_sel",           this.ilma_lma_select[i]+"");	
 			properties.setProperty(prefix+ErsCorrection.DP_DERIV_NAMES[i]+"_regweight",     this.ilma_regularization_weights[i]+"");	
 		}
-		properties.setProperty(prefix+"ilma_ignore_ers",        this.ilma_ignore_ers+"");	
-		properties.setProperty(prefix+"ilma_ers_adj_lin",       this.ilma_ers_adj_lin+"");	
-		properties.setProperty(prefix+"ilma_ers_adj_ang",       this.ilma_ers_adj_ang+"");	
-		properties.setProperty(prefix+"ilma_lambda",            this.ilma_lambda+"");	
-		properties.setProperty(prefix+"ilma_lambda_scale_good", this.ilma_lambda_scale_good+"");	
-		properties.setProperty(prefix+"ilma_lambda_scale_bad",  this.ilma_lambda_scale_bad+"");	
-		properties.setProperty(prefix+"ilma_lambda_max",        this.ilma_lambda_max+"");	
-		properties.setProperty(prefix+"ilma_rms_diff",          this.ilma_rms_diff+"");	
-		properties.setProperty(prefix+"ilma_num_iter",          this.ilma_num_iter+"");	
-		properties.setProperty(prefix+"ilma_num_corr",          this.ilma_num_corr+"");	
-		properties.setProperty(prefix+"ilma_debug_level",       this.ilma_debug_level+"");	
+		properties.setProperty(prefix+"ilma_ignore_ers",         this.ilma_ignore_ers+"");	
+		properties.setProperty(prefix+"ilma_ers_adj_lin",        this.ilma_ers_adj_lin+"");	
+		properties.setProperty(prefix+"ilma_ers_adj_ang",        this.ilma_ers_adj_ang+"");	
+		properties.setProperty(prefix+"ilma_lambda",             this.ilma_lambda+"");	
+		properties.setProperty(prefix+"ilma_lambda_scale_good",  this.ilma_lambda_scale_good+"");	
+		properties.setProperty(prefix+"ilma_lambda_scale_bad",   this.ilma_lambda_scale_bad+"");	
+		properties.setProperty(prefix+"ilma_lambda_max",         this.ilma_lambda_max+"");	
+		properties.setProperty(prefix+"ilma_rms_diff",           this.ilma_rms_diff+"");	
+		properties.setProperty(prefix+"ilma_num_iter",           this.ilma_num_iter+"");	
+		properties.setProperty(prefix+"ilma_num_corr",           this.ilma_num_corr+"");	
+		properties.setProperty(prefix+"ilma_debug_adjust_series",this.ilma_debug_adjust_series+"");	
+		properties.setProperty(prefix+"ilma_debug_invariant",    this.ilma_debug_invariant+"");	
+		properties.setProperty(prefix+"ilma_debug_level",        this.ilma_debug_level+"");	
 	}
 	public void getProperties(String prefix,Properties properties){
 		if (properties.getProperty(prefix+"ilma_thread_invariant")!=null)  this.ilma_thread_invariant=Boolean.parseBoolean(properties.getProperty(prefix+"ilma_thread_invariant"));
@@ -184,18 +193,19 @@ public class IntersceneLmaParameters {
 			pn_sel = prefix+ErsCorrection.DP_DERIV_NAMES[i]+"_regweight";
 			if (properties.getProperty(pn_sel)!=null) this.ilma_regularization_weights[i]=Double.parseDouble(properties.getProperty(pn_sel));
 		}
-
-		if (properties.getProperty(prefix+"ilma_ignore_ers")!=null)        this.ilma_ignore_ers=Boolean.parseBoolean(properties.getProperty(prefix+"ilma_ignore_ers"));
-		if (properties.getProperty(prefix+"ilma_ers_adj_lin")!=null)       this.ilma_ers_adj_lin=Boolean.parseBoolean(properties.getProperty(prefix+"ilma_ers_adj_lin"));
-		if (properties.getProperty(prefix+"ilma_ers_adj_ang")!=null)       this.ilma_ers_adj_ang=Boolean.parseBoolean(properties.getProperty(prefix+"ilma_ers_adj_ang"));
-		if (properties.getProperty(prefix+"ilma_lambda")!=null)            this.ilma_lambda=Double.parseDouble(properties.getProperty(prefix+"ilma_lambda"));
-		if (properties.getProperty(prefix+"ilma_lambda_scale_good")!=null) this.ilma_lambda_scale_good=Double.parseDouble(properties.getProperty(prefix+"ilma_lambda_scale_good"));
-		if (properties.getProperty(prefix+"ilma_lambda_scale_bad")!=null)  this.ilma_lambda_scale_bad=Double.parseDouble(properties.getProperty(prefix+"ilma_lambda_scale_bad"));
-		if (properties.getProperty(prefix+"ilma_lambda_max")!=null)        this.ilma_lambda_max=Double.parseDouble(properties.getProperty(prefix+"ilma_lambda_max"));
-		if (properties.getProperty(prefix+"ilma_rms_diff")!=null)          this.ilma_rms_diff=Double.parseDouble(properties.getProperty(prefix+"ilma_rms_diff"));
-		if (properties.getProperty(prefix+"ilma_num_iter")!=null)          this.ilma_num_iter=Integer.parseInt(properties.getProperty(prefix+"ilma_num_iter"));
-		if (properties.getProperty(prefix+"ilma_num_corr")!=null)          this.ilma_num_corr=Integer.parseInt(properties.getProperty(prefix+"ilma_num_corr"));
-		if (properties.getProperty(prefix+"ilma_debug_level")!=null)       this.ilma_debug_level=Integer.parseInt(properties.getProperty(prefix+"ilma_debug_level"));
+		if (properties.getProperty(prefix+"ilma_ignore_ers")!=null)         this.ilma_ignore_ers=Boolean.parseBoolean(properties.getProperty(prefix+"ilma_ignore_ers"));
+		if (properties.getProperty(prefix+"ilma_ers_adj_lin")!=null)        this.ilma_ers_adj_lin=Boolean.parseBoolean(properties.getProperty(prefix+"ilma_ers_adj_lin"));
+		if (properties.getProperty(prefix+"ilma_ers_adj_ang")!=null)        this.ilma_ers_adj_ang=Boolean.parseBoolean(properties.getProperty(prefix+"ilma_ers_adj_ang"));
+		if (properties.getProperty(prefix+"ilma_lambda")!=null)             this.ilma_lambda=Double.parseDouble(properties.getProperty(prefix+"ilma_lambda"));
+		if (properties.getProperty(prefix+"ilma_lambda_scale_good")!=null)  this.ilma_lambda_scale_good=Double.parseDouble(properties.getProperty(prefix+"ilma_lambda_scale_good"));
+		if (properties.getProperty(prefix+"ilma_lambda_scale_bad")!=null)   this.ilma_lambda_scale_bad=Double.parseDouble(properties.getProperty(prefix+"ilma_lambda_scale_bad"));
+		if (properties.getProperty(prefix+"ilma_lambda_max")!=null)         this.ilma_lambda_max=Double.parseDouble(properties.getProperty(prefix+"ilma_lambda_max"));
+		if (properties.getProperty(prefix+"ilma_rms_diff")!=null)           this.ilma_rms_diff=Double.parseDouble(properties.getProperty(prefix+"ilma_rms_diff"));
+		if (properties.getProperty(prefix+"ilma_num_iter")!=null)           this.ilma_num_iter=Integer.parseInt(properties.getProperty(prefix+"ilma_num_iter"));
+		if (properties.getProperty(prefix+"ilma_num_corr")!=null)           this.ilma_num_corr=Integer.parseInt(properties.getProperty(prefix+"ilma_num_corr"));
+		if (properties.getProperty(prefix+"ilma_debug_adjust_series")!=null)this.ilma_debug_adjust_series=Boolean.parseBoolean(properties.getProperty(prefix+"ilma_debug_adjust_series"));
+		if (properties.getProperty(prefix+"ilma_debug_invariant")!=null)    this.ilma_debug_invariant=Boolean.parseBoolean(properties.getProperty(prefix+"ilma_debug_invariant"));
+		if (properties.getProperty(prefix+"ilma_debug_level")!=null)        this.ilma_debug_level=Integer.parseInt(properties.getProperty(prefix+"ilma_debug_level"));
 	}
 	
 	@Override
@@ -204,17 +214,19 @@ public class IntersceneLmaParameters {
 		ilp.ilma_thread_invariant =  this.ilma_thread_invariant;
 		System.arraycopy(this.ilma_lma_select,             0, ilp.ilma_lma_select,             0, ilma_lma_select.length);
 		System.arraycopy(this.ilma_regularization_weights, 0, ilp.ilma_regularization_weights, 0, ilma_regularization_weights.length);
-		ilp.ilma_ignore_ers =        this.ilma_ignore_ers;
-		ilp.ilma_ers_adj_lin =       this.ilma_ers_adj_lin;
-		ilp.ilma_ers_adj_ang =       this.ilma_ers_adj_ang;
-		ilp.ilma_lambda =            this.ilma_lambda;
-		ilp.ilma_lambda_scale_good = this.ilma_lambda_scale_good;
-		ilp.ilma_lambda_scale_bad =  this.ilma_lambda_scale_bad;
-		ilp.ilma_lambda_max =        this.ilma_lambda_max;
-		ilp.ilma_rms_diff =          this.ilma_rms_diff;
-		ilp.ilma_num_iter =          this.ilma_num_iter;
-		ilp.ilma_num_corr =          this.ilma_num_corr;
-		ilp.ilma_debug_level =       this.ilma_debug_level;
+		ilp.ilma_ignore_ers =          this.ilma_ignore_ers;
+		ilp.ilma_ers_adj_lin =         this.ilma_ers_adj_lin;
+		ilp.ilma_ers_adj_ang =         this.ilma_ers_adj_ang;
+		ilp.ilma_lambda =              this.ilma_lambda;
+		ilp.ilma_lambda_scale_good =   this.ilma_lambda_scale_good;
+		ilp.ilma_lambda_scale_bad =    this.ilma_lambda_scale_bad;
+		ilp.ilma_lambda_max =          this.ilma_lambda_max;
+		ilp.ilma_rms_diff =            this.ilma_rms_diff;
+		ilp.ilma_num_iter =            this.ilma_num_iter;
+		ilp.ilma_num_corr =            this.ilma_num_corr;
+		ilp.ilma_debug_adjust_series = this.ilma_debug_adjust_series;
+		ilp.ilma_debug_invariant =     this.ilma_debug_invariant;
+		ilp.ilma_debug_level =         this.ilma_debug_level;
 		return ilp;
 	}	
 }
