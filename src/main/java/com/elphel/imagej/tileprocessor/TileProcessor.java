@@ -4892,7 +4892,7 @@ ImageDtt.startAndJoin(threads);
 	}
 
 
-	public void growTiles(
+	public static void growTiles(
 			int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 			boolean [] tiles,
 			boolean [] prohibit,

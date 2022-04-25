@@ -258,7 +258,7 @@ public class ImageDttParameters {
 	public int     lma_num_iter =          10;     //
 	// Filtering and strength calculation
 	
-	public boolean lma_multi_cons =         true;  // false - run multi-tile LMA on all tiles, true - average each pare over all tiles 
+	public boolean lma_multi_cons =         true;  // false - run multi-tile LMA on all tiles, true - average each pair over all tiles 
 	
 	public double  lma_max_rel_rms =        0.25;  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 	public double  lma_min_strength =       1.0;   // minimal composite strength (sqrt(average amp squared over absolute RMS)

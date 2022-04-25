@@ -8934,7 +8934,7 @@ public class QuadCLTCPU {
 			  tp.showScan(
 					  tp.clt_3d_passes.get(bg_scan),   // CLTPass3d   scan,
 					  "bg_scan"); //String title)
-			  tp.showScan(
+			  tp.showScan( // selected is null
 					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
 					  "combo_scan-"+combo_scan); //String title)
 		  }
@@ -9240,11 +9240,18 @@ public class QuadCLTCPU {
 		  CLTPass3d bg_scan =    tp.clt_3d_passes.get(bg_scan_indx);
 		  CLTPass3d combo_scan = tp.clt_3d_passes.get(combo_scan_indx);
 		  TileNeibs tn = new TileNeibs(width,height);
-		  
 //		  int [][] bg_tile_op =    bg_scan.tile_op;
 //		  int [][] combo_tile_op = combo_scan.tile_op;
 		  boolean [] bg_sel =    bg_scan.getSelected(); 
-		  boolean [] combo_sel = combo_scan.getSelected();
+		  boolean [] combo_sel = combo_scan.getLMA();
+		  if (combo_sel == null) {
+			  System.out.println("No has_lma is available");
+			  combo_sel = combo_scan.getSelected();
+			  if (combo_sel == null) {
+				  System.out.println("No selected is available");
+				  combo_sel = combo_scan.getSelectedOrTileOp();
+			  }
+		  }
 		  double [] combo_disparity = new double [width*height];
 		  {
 			  int indx = 0;
@@ -9281,7 +9288,7 @@ public class QuadCLTCPU {
 		  bg_scan.setSelected(bg_sel); // maybe not needed, as it is already the same array
 		  // remove from combo all bg
 		  for (int indx = 0; indx < bg_sel.length; indx++) {
-			  combo_sel[indx] &= !bg_sel[indx];
+			  combo_sel[indx] &= !bg_sel[indx]; // null pointer
 		  }
 		  // Fill gaps
 		  for (; fill_gaps_combo > 0; fill_gaps_combo--) {
@@ -9381,7 +9388,7 @@ public class QuadCLTCPU {
 					  tp.clt_3d_passes.get(bg_scan),   // CLTPass3d   scan,
 					  "bg_scan_post"); //String title)
 			  tp.showScan(
-					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
+					  tp.clt_3d_passes.get(combo_scan+0),   // CLTPass3d   scan,
 					  "combo_scan-"+combo_scan+"_post"); //String title)
 //			  tp.showScan(
 //					  tp.clt_3d_passes.get(combo_scan),   // CLTPass3d   scan,
@@ -9389,14 +9396,14 @@ public class QuadCLTCPU {
 		  }
 		  // Increase density before LY
 		  if (clt_parameters.lym_mod_map) { // may not work when running directly, w/o getPreparedExtrinsics(dbg_path)
-		  updateScansForLY(
-				  bg_scan,                             // int bg_scan_indx,
-				  combo_scan,                          // int combo_scan_indx,
-				  clt_parameters.lym_top_bg ,          // boolean top_bg, // all above bg is bg
-				  clt_parameters.lym_fill_gaps_bg ,    // int fill_gaps_combo, // 1 - in 4 directions by 1, 2 - in 8 directions by 1,
-				  clt_parameters.lym_fill_gaps_combo , // int fill_gaps_bg,    // 1 - in 4 directions by 1, 2 - in 8 directions by 1,
-				  clt_parameters.lym_use_strength ,    // boolean use_strength,
-				  clt_parameters.lym_scale_deriv_str); // double scale_derivative_strength, // 1.0 - new strength - average of neibs, 0.5 - only 1/2 of neibs
+			  updateScansForLY(
+					  bg_scan,                             // int bg_scan_indx,
+					  combo_scan,                          // int combo_scan_indx,
+					  clt_parameters.lym_top_bg ,          // boolean top_bg, // all above bg is bg
+					  clt_parameters.lym_fill_gaps_bg ,    // int fill_gaps_combo, // 1 - in 4 directions by 1, 2 - in 8 directions by 1,
+					  clt_parameters.lym_fill_gaps_combo , // int fill_gaps_bg,    // 1 - in 4 directions by 1, 2 - in 8 directions by 1,
+					  clt_parameters.lym_use_strength ,    // boolean use_strength,
+					  clt_parameters.lym_scale_deriv_str); // double scale_derivative_strength, // 1.0 - new strength - average of neibs, 0.5 - only 1/2 of neibs
 		  }
 
 		  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) {
@@ -12759,7 +12766,7 @@ public class QuadCLTCPU {
 				  debugLevel);    // final int         debugLevel);
 		  return scan;
 	  }
-	  public CLTPass3d remeasure (
+	  public CLTPass3d remeasure ( //??
 			  CLTParameters    clt_parameters,
 			  double []        disparity) { // all that are not null
 		  return null;
@@ -12959,9 +12966,10 @@ public class QuadCLTCPU {
 							// When clt_mismatch is non-zero, no far objects extraction will be attempted
 							//optional, may be null
 							disparity_map,                 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+							null,                          // final double [][]         ddnd,            // data for LY. SHould be either null or [num_sensors][]
 							// REMOVE 'true'
 							run_lma, // clt_parameters.correlate_lma,  // final boolean             run_lma,         // calculate LMA, false - CM only
-				  		    // define combining of all 2D correlation pairs for CM (LMA does not use them)
+  // define combining of all 2D correlation pairs for CM (LMA does not use them)
 							clt_parameters.img_dtt.mcorr_comb_width, //final int                 mcorr_comb_width,  // combined correlation tile width (set <=0 to skip combined correlations)
 							clt_parameters.img_dtt.mcorr_comb_height,//final int                 mcorr_comb_height, // combined correlation tile full height
 							clt_parameters.img_dtt.mcorr_comb_offset,//final int                 mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
@@ -12989,6 +12997,7 @@ public class QuadCLTCPU {
 						  // When clt_mismatch is non-zero, no far objects extraction will be attempted
 						  //optional, may be null
 						  disparity_map,                       // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+						  null,                          // final double [][]         ddnd,            // data for LY. SHould be either null or [num_sensors][]
 						  run_lma,                             // final boolean             run_lma,         // calculate LMA, false - CM only (will not initialize LMA slices in disparity_map
 						  clt_parameters.getGpuFatZero(isMonochrome()), //final double              afat_zero2,      // gpu_fat_zero ==30? clt_parameters.getGpuFatZero(is_mono); absolute fat zero, same units as components squared values
 						  //					  clt_parameters.getCorrSigma(image_dtt.isMonochrome()), // final double              corr_sigma,
@@ -13112,7 +13121,8 @@ public class QuadCLTCPU {
 		  scan.is_measured =   true; // but no disparity map/textures
 		  scan.is_combo =      false;
 		  scan.has_lma = null;
-		  scan.getLMA(); // recalculate		  
+		  scan.getLMA(); // recalculate
+		  scan.getNumTileMax(); // calculate
 		  scan.resetProcessed();
 		  return scan;
 	  }
@@ -13128,6 +13138,13 @@ public class QuadCLTCPU {
 			  int           debugLevel)
 	  {
 		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
+		  CLTMeasureLY( // perform single pass according to prepared tiles operations and disparity // USED in lwir
+				  clt_parameters, // final CLTParameters clt_parameters,
+				  scan,           // final CLTPass3d     scan,
+				  bgIndex,        // final int           bgIndex, // combine, if >=0
+				  threadsMax,     // final int           threadsMax,  // maximal number of threads to launch
+				  updateStatus,   // final boolean       updateStatus,
+				  debugLevel);    // int           debugLevel);
 		  return scan;
 
 	  }
@@ -13258,70 +13275,39 @@ public class QuadCLTCPU {
 		  }
 		  // use new, LMA-based mismatch calculation
 		  double [][] lazy_eye_data;
-		  /*
-			  lazy_eye_data = image_dtt.cltMeasureLazyEye ( // returns d,s lazy eye parameters
-					  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
-					  tile_op,                      // per-tile operation bit codes
-					  disparity_array,              // clt_parameters.disparity,     // final double            disparity,
-					  image_data,                   // final double [][][]      imade_data, // first index - number of image in a quad
-					  saturation_imp,               // boolean [][] saturation_imp, // (near) saturated pixels or null
-					  null, // final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
-					  // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
-					  null, // disparity_map,    // [12][tp.tilesY * tp.tilesX]
-					  tilesX * image_dtt.transform_size, // imp_quad[0].getWidth(),       // final int width,
-					  clt_parameters.getFatZero(isMonochrome()),      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
-					  clt_parameters.corr_red,
-					  clt_parameters.corr_blue,
-					  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
-					  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
-					  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
-					  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
-					  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-					  clt_parameters.kernel_step,
-					  clt_parameters.clt_window,
-					  shiftXY, //
-					  disparity_corr, // final double              disparity_corr, // disparity at infinity
-					  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
-					  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
-					  clt_parameters.tileStep,      // final int                 tileStep, // process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters
-					  clt_parameters.tileX,         // final int               debug_tileX,
-					  clt_parameters.tileY,         // final int               debug_tileY,
-					  threadsMax,
-					  debugLevel - 2); // -0);
-			*/
-			  lazy_eye_data = image_dtt.cltMeasureLazyEye ( // returns d,s lazy eye parameters 
-					  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
-					  tile_op,                      // final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
-					  disparity_array,              // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
-					  image_data,                   // final double [][][]      imade_data, // first index - number of image in a quad
-					  saturation_imp,               // final boolean [][]        saturation_imp, // (near) saturated pixels or null
-					  tilesX * image_dtt.transform_size, // 	final int                 width,
-					  clt_parameters.getFatZero(isMonochrome()),      // final double              corr_fat_zero,    // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
-					  clt_parameters.corr_red,      // final double              corr_red,
-					  clt_parameters.corr_blue,     // final double              corr_blue,
-					  clt_parameters.getCorrSigma(image_dtt.isMonochrome()), // final double              corr_sigma,
-					  min_corr_selected, // 0.0001; //final double              min_corr,        // 0.02; // minimal correlation value to consider valid
-					  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
-					  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
-					  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-					  clt_parameters.kernel_step,    // final int                 kernel_step,
-					  clt_parameters.clt_window,     // final int                 window_type,
-					  shiftXY,                       // final double [][]         shiftXY, // [port]{shiftX,shiftY}
-					  disparity_corr,                // final double              disparity_corr, // disparity at infinity
-					  clt_parameters.shift_x,        // final double              shiftX, // shift image horizontally (positive - right) - just for testing
-					  clt_parameters.shift_y,        // final double              shiftY, // shift image vertically (positive - down)
-					  clt_parameters.tileStep,       // final int                 tileStep, // process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters
-					  clt_parameters.img_dtt.getMcorrSelLY(getNumSensors()), //    final int                 mcorr_sel, // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
+		  lazy_eye_data = image_dtt.cltMeasureLazyEye ( // returns d,s lazy eye parameters 
+				  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+				  tile_op,                      // final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
+				  disparity_array,              // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
+				  image_data,                   // final double [][][]      imade_data, // first index - number of image in a quad
+				  saturation_imp,               // final boolean [][]        saturation_imp, // (near) saturated pixels or null
+				  tilesX * image_dtt.transform_size, // 	final int                 width,
+				  clt_parameters.getFatZero(isMonochrome()),      // final double              corr_fat_zero,    // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
+				  clt_parameters.corr_red,      // final double              corr_red,
+				  clt_parameters.corr_blue,     // final double              corr_blue,
+				  clt_parameters.getCorrSigma(image_dtt.isMonochrome()), // final double              corr_sigma,
+				  min_corr_selected, // 0.0001; //final double              min_corr,        // 0.02; // minimal correlation value to consider valid
+				  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
+				  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
+				  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+				  clt_parameters.kernel_step,    // final int                 kernel_step,
+				  clt_parameters.clt_window,     // final int                 window_type,
+				  shiftXY,                       // final double [][]         shiftXY, // [port]{shiftX,shiftY}
+				  disparity_corr,                // final double              disparity_corr, // disparity at infinity
+				  clt_parameters.shift_x,        // final double              shiftX, // shift image horizontally (positive - right) - just for testing
+				  clt_parameters.shift_y,        // final double              shiftY, // shift image vertically (positive - down)
+				  clt_parameters.tileStep,       // final int                 tileStep, // process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters
+				  clt_parameters.img_dtt.getMcorrSelLY(getNumSensors()), //    final int                 mcorr_sel, // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
 
-					  clt_parameters.img_dtt.mcorr_comb_width,					// final int                 mcorr_comb_width,  // combined correlation tile width
-					  clt_parameters.img_dtt.mcorr_comb_height,					// final int                 mcorr_comb_height, // combined correlation tile full height
-					  clt_parameters.img_dtt.mcorr_comb_offset,					// final int                 mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
-					  clt_parameters.img_dtt.mcorr_comb_disp,					// final double              mcorr_comb_disp,   // Combined tile per-pixel disparity for baseline == side of a square
-					  
-					  clt_parameters.tileX,        // final int                 debug_tileX,
-					  clt_parameters.tileY,         // final int                 debug_tileY,
-					  threadsMax, // final int                 threadsMax,  // maximal number of threads to launch
-					  debugLevel - 2); // final int                 globalDebugLevel)
+				  clt_parameters.img_dtt.mcorr_comb_width,					// final int                 mcorr_comb_width,  // combined correlation tile width
+				  clt_parameters.img_dtt.mcorr_comb_height,					// final int                 mcorr_comb_height, // combined correlation tile full height
+				  clt_parameters.img_dtt.mcorr_comb_offset,					// final int                 mcorr_comb_offset, // combined correlation tile height offset: 0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)
+				  clt_parameters.img_dtt.mcorr_comb_disp,					// final double              mcorr_comb_disp,   // Combined tile per-pixel disparity for baseline == side of a square
+
+				  clt_parameters.tileX,        // final int                 debug_tileX,
+				  clt_parameters.tileY,         // final int                 debug_tileY,
+				  threadsMax, // final int                 threadsMax,  // maximal number of threads to launch
+				  debugLevel - 2); // final int                 globalDebugLevel)
 		  scan.setLazyEyeData(lazy_eye_data);
 		  scan.is_measured =   true; // but no disparity map/textures
 		  scan.is_combo =      false;

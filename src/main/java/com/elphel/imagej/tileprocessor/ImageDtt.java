@@ -1,6 +1,7 @@
 package com.elphel.imagej.tileprocessor;
 
 import java.awt.Rectangle;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -846,13 +847,33 @@ public class ImageDtt extends ImageDttCPU {
 		return extra;
 	}
 	
+	public void setUpdateTasksGPU(
+			final TpTask[]            tp_tasks
+			) {
+		gpuQuad.setTasks(                  // copy tp_tasks to the GPU memory
+				tp_tasks,                  // TpTask [] tile_tasks,
+				false,                     // use_aux); // boolean use_aux)
+				imgdtt_params.gpu_verify); // boolean verify
+		// FIXME: change back to false !!!!
+		// Testing, remove when done
+//		gpuQuad.resetGeometryCorrection();
+//		gpuQuad.setConvolutionKernels(true); // set kernels if they are not set already
+//		gpuQuad.setBayerImages(true);     // set Bayer images if this.quadCLT instance has new ones
+		// Why always NON-UNIFORM grid? Already set in tp_tasks
+		gpuQuad.execSetTilesOffsets(false); // false); // prepare tiles offsets in GPU memory, using NON-UNIFORM grid (pre-calculated)
+		// update tp_tasks
+		gpuQuad.updateTasks(
+				tp_tasks,
+				false); // boolean use_aux    // while is it in class member? - just to be able to free
 	
+		
+	}
 	
 	public void quadCorrTD(
 			final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
 			final TpTask[]            tp_tasks,
 			final float  [][][][]     fcorr_td,        // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
-			final GeometryCorrection  geometryCorrection,
+			final GeometryCorrection  geometryCorrection, // not used !!!
 			final double              gpu_sigma_r,     // 0.9, 1.1
 			final double              gpu_sigma_b,     // 0.9, 1.1
 			final double              gpu_sigma_g,     // 0.6, 0.7
@@ -950,7 +971,7 @@ public class ImageDtt extends ImageDttCPU {
 		
 		
 		
-		
+		// Why always NON-UNIFORM grid? Already set in tp_tasks
 		
 		gpuQuad.execSetTilesOffsets(false); // false); // prepare tiles offsets in GPU memory, using NON-UNIFORM grid (pre-calculated)
 		// update tp_tasks
@@ -1869,6 +1890,7 @@ public class ImageDtt extends ImageDttCPU {
 		
 	}
 	
+	@Deprecated
 	public void clt_process_tl_correlations_GPU( // convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td
 			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 			// both arrays should have same non-null tiles
@@ -1922,6 +1944,7 @@ public class ImageDtt extends ImageDttCPU {
 				globalDebugLevel);
 	}
 	
+	@Deprecated
 	public void clt_process_tl_correlations_GPU( // convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td
 			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 			// both arrays should have same non-null tiles
@@ -2275,13 +2298,13 @@ public class ImageDtt extends ImageDttCPU {
 	public void clt_process_tl_correlations( // convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td
 			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 	        final float  [][][][]     fcorr_td,        // [tilesY][tilesX][pair][4*64] transform domain representation of all selected corr pairs
-	        float [][][]              num_acc,         // number of accumulated tiles [tilesY][tilesX][pair] (or null)
+	        float [][][]              num_acc,         // number of accumulated tiles [tilesY][tilesX][pair] (or null). Can be inner null if not used in tp_tasks
 	        double []                 dcorr_weight,    // alternative to num_acc, compatible with CPU processing (only one non-zero enough)
 	        final double              gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
 	        final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0
 	        final int                 gpu_corr_rad,    // = transform_size - 1 ?
 	        // The tp_tasks data should be decoded from GPU to get coordinates
-			final TpTask []           tp_tasks,        // data from the reference frame - will be applied to LMW for the integrated correlations
+			final TpTask []           tp_tasks,        // data from the reference frame - will be applied to LMA for the integrated correlations
 			final double [][]         rXY,             // from geometryCorrection
 			// next both can be nulls
 		    final double [][][][]     clt_corr_out,   // sparse (by the first index) [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] or null
@@ -2291,6 +2314,7 @@ public class ImageDtt extends ImageDttCPU {
 			// When clt_mismatch is non-zero, no far objects extraction will be attempted
 			//optional, may be null
 			final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+			final double [][][][]     ddnd,            // [tilesY][tilesX][num_sensors][2] data for LY. Should be either null or [tilesY][tilesX][][]. disparity_map should be non-null
 			final boolean             run_lma,         // calculate LMA, false - CM only
   		    // define combining of all 2D correlation pairs for CM (LMA does not use them)
 			final int                 mcorr_comb_width,  // combined correlation tile width (set <=0 to skip combined correlations)
@@ -2455,12 +2479,14 @@ public class ImageDtt extends ImageDttCPU {
 			}
 
 			if (disparity_map != null){ // only slices that are needed, keep others
-				int [] used_slices = run_lma? 
-						(    new int[] {DISPARITY_INDEX_CM, DISPARITY_INDEX_CM+1,DISPARITY_INDEX_POLY,DISPARITY_INDEX_POLY+1,DISPARITY_STRENGTH_INDEX}):
-							(new int[] {DISPARITY_INDEX_CM, DISPARITY_INDEX_CM+1,DISPARITY_STRENGTH_INDEX});
-				int [] nan_slices =  run_lma?
-						(    new int[] {DISPARITY_INDEX_CM, DISPARITY_INDEX_POLY}):
-							(new int[] {DISPARITY_INDEX_CM});
+				boolean use_bimax = imgdtt_params.bimax_dual_LMA;
+				ArrayList<Integer> used_slices = new ArrayList<Integer>();
+				for (int i : new int[] {DISPARITY_INDEX_CM, DISPARITY_INDEX_CM+1,DISPARITY_STRENGTH_INDEX})	used_slices.add(i);
+				if (run_lma) for (int i : new int[] {DISPARITY_INDEX_POLY,DISPARITY_INDEX_POLY+1})	        used_slices.add(i);
+				if (use_bimax) used_slices.add(DISPARITY_VARIATIONS_INDEX);
+				ArrayList<Integer> nan_slices = new ArrayList<Integer>();
+				nan_slices.add(DISPARITY_INDEX_CM);
+				if (run_lma) nan_slices.add(DISPARITY_INDEX_POLY);
 				for (int indx:used_slices) {
 					disparity_map[indx] = new double[tilesY*tilesX];
 				}
@@ -2593,8 +2619,6 @@ public class ImageDtt extends ImageDttCPU {
 								correlation2d.normalizeAccumulatedPairs(
 										corr_combo_tile,
 										sumw);
-								
-//								corrs[corrs.length -1] = corr_combo_tile;  // last element
 								corrs[correlation2d.getNumPairs()] = corr_combo_tile;
 								if (corr_dia_tile != null) {
 									correlation2d.normalizeAccumulatedPairs(
@@ -2618,11 +2642,15 @@ public class ImageDtt extends ImageDttCPU {
 								double [][] disp_str_sel = null;
 								double [][] disp_str_lma = null;
 								int [] sel_fg_bg = null;
-								if (imgdtt_params.bimax_dual_LMA) {
+								// now use older LMA (single-max) when LY is needed
+								if (imgdtt_params.bimax_dual_LMA && (ddnd == null)) {
 									double [][] maxes = correlation2d.getDoublePoly(
 											disparity_scale, // double    disparity_scale,
 											((corr_dia_tile != null) ? corr_dia_tile : corr_combo_tile), // double [] combo_corrs,
 											imgdtt_params.mcorr_dual_fract); //double    min_fraction
+									if ((disparity_map != null) && (disparity_map[DISPARITY_VARIATIONS_INDEX] != null)) {
+										disparity_map[DISPARITY_VARIATIONS_INDEX    ][nTile] = maxes.length;
+									}
 									if (maxes.length > 0) {
 										// TODO: add corr layer - copy of combo with singles as nulls
 										// just for debugging to indicate tiles with dual maximums
@@ -2749,7 +2777,7 @@ public class ImageDtt extends ImageDttCPU {
 											}
 										}
 									}
-								} else {  // if (imgdtt_params.bimax_dual_LMA) else
+								} else {  // if (imgdtt_params.bimax_dual_LMA && (ddnd == null)) else
 									if (disparity_map != null) {
 										int [] ixy =   correlation2d.getMaxXYInt( // find integer pair or null if below threshold // USED in lwir
 												corr_combo_tile, // double [] data,      // [data_size * data_size]
@@ -2776,7 +2804,8 @@ public class ImageDtt extends ImageDttCPU {
 							} // if (combine_corrs) {
 							
 							// 	New method depends on combine_corrs, so if it is disabled - use old way
-							if ((!imgdtt_params.bimax_dual_LMA || !combine_corrs) && run_lma && (disparity_map != null)) { // old way
+							// ddnd != null - use corrLMA2Single()
+							if ((!imgdtt_params.bimax_dual_LMA || !combine_corrs || (ddnd != null)) && run_lma && (disparity_map != null)) { // old way
 								// debug the LMA correlations
 								if (debugTile0) { // should be debugTile
 									System.out.println("Will run new LMA for tileX="+tileX+", tileY="+tileY);
@@ -2788,10 +2817,10 @@ public class ImageDtt extends ImageDttCPU {
 										debug_lma_tile[i] = debug_lma[i][nTile];
 									}
 								}
-								
+								boolean use_LY = imgdtt_params.lmas_LY_single || (ddnd != null);
 								Corr2dLMA lma2 = correlation2d.corrLMA2Single( // null pointer
 										imgdtt_params,                // ImageDttParameters  imgdtt_params,
-										imgdtt_params.lmas_LY_single, // false,    // boolean             adjust_ly, // adjust Lazy Eye
+										use_LY, // imgdtt_params.lmas_LY_single, // false,    // boolean             adjust_ly, // adjust Lazy Eye
 										corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
 										corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
 										corrs,                        // corrs,          // double [][]         corrs,
@@ -2824,27 +2853,30 @@ public class ImageDtt extends ImageDttCPU {
 											imgdtt_params.lma_str_offset    // convert lma-generated strength to match previous ones - add to result
 											);
 									if (ds != null) { // always true
-										if (disparity_map!=null) {
+//										if (disparity_map!=null) {
 											disparity_map[DISPARITY_INDEX_POLY    ][nTile] = ds[0][0];
 											disparity_map[DISPARITY_INDEX_POLY + 1][nTile] = ds[0][2]; // LMA strength as is
 											disparity_map[DISPARITY_STRENGTH_INDEX][nTile] = ds[0][1]; // overwrite with LMA strength
+//										}
+										if (ddnd != null) {
+											ddnd[tileY][tileX] = lma2.getDdNd();
 										}
 										if (debugTile0) {
 											lma2.printStats(ds,1);
-											if (imgdtt_params.lmas_LY_single) {
-												double [][] ddnd = lma2.getDdNd(); // will not be used here
+											if (use_LY) { // imgdtt_params.lmas_LY_single) {
+//												double [][] ddnd = lma2.getDdNd(); // will not be used here
 												if (ddnd != null) {
 													double [][] dxy= new double [ddnd.length][2];
 													for (int i = 0; i < dxy.length; i++) {
-														dxy[i][0] = ddnd[i][0] * rXY[i][0] - ddnd[i][1] * rXY[i][1];
-														dxy[i][1] = ddnd[i][0] * rXY[i][1] + ddnd[i][1] * rXY[i][0];
+														dxy[i][0] = ddnd[tileY][tileX][i][0] * rXY[i][0] - ddnd[tileY][tileX][i][1] * rXY[i][1];
+														dxy[i][1] = ddnd[tileY][tileX][i][0] * rXY[i][1] + ddnd[tileY][tileX][i][1] * rXY[i][0];
 													}
 													System.out.print("       Port:  ");
 													for (int i = 0; i < dxy.length; i++) System.out.print(String.format("   %2d   ", i)); System.out.println();
 													System.out.print("Radial_in =  [");
-													for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", ddnd[i][0])); System.out.println("]");
+													for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", ddnd[tileY][tileX][i][0])); System.out.println("]");
 													System.out.print("Tangent_CW = [");
-													for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", ddnd[i][1])); System.out.println("]");
+													for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", ddnd[tileY][tileX][i][1])); System.out.println("]");
 													System.out.print("X =          [");
 													for (int i = 0; i < dxy.length; i++) System.out.print(String.format(" %6.3f,", dxy[i][0])); System.out.println("]");
 													System.out.print("Y =          [");

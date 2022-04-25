@@ -5323,38 +5323,6 @@ public class QuadCLT extends QuadCLTCPU {
 		  // use new, LMA-based mismatch calculation
 		  double [][] lazy_eye_data = null;
 		  if ((gpuQuad == null) || !(isAux()?clt_parameters.gpu_use_aux_adjust : clt_parameters.gpu_use_main_adjust)) { // CPU
-			  /*
-			  lazy_eye_data = image_dtt.cltMeasureLazyEye ( // returns d,s lazy eye parameters
-					  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
-					  tile_op,                      // per-tile operation bit codes
-					  disparity_array,              // clt_parameters.disparity,     // final double            disparity,
-					  image_data,                   // final double [][][]      imade_data, // first index - number of image in a quad
-					  saturation_imp,               // boolean [][] saturation_imp, // (near) saturated pixels or null
-					  null, // final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
-					  // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
-					  null, // disparity_map,    // [12][tp.tilesY * tp.tilesX]
-					  tilesX * image_dtt.transform_size, // imp_quad[0].getWidth(),       // final int width,
-					  clt_parameters.getFatZero(isMonochrome()),      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
-					  clt_parameters.corr_red,
-					  clt_parameters.corr_blue,
-					  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
-					  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
-					  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
-					  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
-					  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-					  clt_parameters.kernel_step,
-					  //					  image_dtt.transform_size,
-					  clt_parameters.clt_window,
-					  shiftXY, //
-					  disparity_corr, // final double              disparity_corr, // disparity at infinity
-					  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
-					  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
-					  clt_parameters.tileStep,         // 	final int                 tileStep, // process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters
-					  clt_parameters.tileX,         // final int               debug_tileX,
-					  clt_parameters.tileY,         // final int               debug_tileY,
-					  threadsMax,
-					  debugLevel - 2);
-			*/
 			  lazy_eye_data = image_dtt.cltMeasureLazyEye ( // returns d,s lazy eye parameters 
 					  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 					  tile_op,                      // final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile

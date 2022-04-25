@@ -718,23 +718,16 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			addButton("DSI histogram", panelClt5, color_report);
 			addButton("ML recalc", panelClt5, color_process);
 			addButton("Inter Test", panelClt5, color_stop);
-//			addButton("Aux Inter Test",             panelClt5, color_stop);
 			addButton("Inter Pairs", panelClt5, color_process);
-//			addButton("Aux Inter Pairs",            panelClt5, color_process);
 			addButton("Inter LMA", panelClt5, color_stop);
-//			addButton("Aux Inter LMA",              panelClt5, color_stop);
 			addButton("Inter Series", panelClt5, color_process);
-//			addButton("Aux Inter Series",           panelClt5, color_process);
 			addButton("Inter Accumulate", panelClt5, color_process);
-//			addButton("Aux Inter Accumulate",       panelClt5, color_process);
 			addButton("Inter Noise", panelClt5, color_process);
-//			addButton("Inter Noise Aux",            panelClt5, color_process);
 			addButton("Inter Debug Noise", panelClt5, color_report);
-//			addButton("Batch Noise Aux",            panelClt5, color_report);
 			addButton("Noise Stats", panelClt5, color_process);
-//			addButton("Noise Stats Aux",            panelClt5, color_process);
 			addButton("Test 1D", panelClt5, color_process);
 			addButton("Colorize Depth", panelClt5, color_process);
+			addButton("Main LY series", panelClt5, color_process);
 			plugInFrame.add(panelClt5);
 		}
 
@@ -752,6 +745,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			addButton("Noise Stats Aux", panelClt5aux, color_process);
 			addButton("Colorize Depth", panelClt5aux, color_process);
 			addButton("Inter Intra ML", panelClt5aux, color_report);
+			addButton("Aux LY series", panelClt5aux, color_process);
 			plugInFrame.add(panelClt5aux);
 		}
 
@@ -5268,6 +5262,21 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			testInterLMA(true);
 			return;
 			/* ======================================================================== */
+		} else if (label.equals("Main LY series")) {
+			DEBUG_LEVEL = MASTER_DEBUG_LEVEL;
+			EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+			CLT_PARAMETERS.batch_run = true;
+			adjustLYSeries(false);
+			return;
+			/* ======================================================================== */
+		} else if (label.equals("Aux LY series")) {
+			DEBUG_LEVEL = MASTER_DEBUG_LEVEL;
+			EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+			CLT_PARAMETERS.batch_run = true;
+			adjustLYSeries(true);
+			return;
+			
+			/* ======================================================================== */
 		} else if (label.equals("CLT rig edit")) {
 			DEBUG_LEVEL = MASTER_DEBUG_LEVEL;
 			if (QUAD_CLT_AUX == null) {
@@ -7364,6 +7373,101 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 		return true;
 	}
 
+	/**
+	 * Adjust LY using consecutive series of scenes
+	 * @param use_aux
+	 * @return
+	 */
+	public boolean adjustLYSeries(boolean use_aux) {
+		long startTime = System.nanoTime();
+		// load needed sensor and kernels files
+		if (!prepareRigImages())
+			return false;
+		String configPath = getSaveCongigPath();
+		if (configPath.equals("ABORT"))
+			return false;
+		setAllProperties(PROPERTIES); // batchRig may save properties with the model. Extrinsics will be updated,
+										// others should be set here
+		if (DEBUG_LEVEL > -2) {
+			System.out.println("++++++++++++++ adjustLYSeries ++++++++++++++");
+		}
+
+		if (CLT_PARAMETERS.useGPU()) { // only init GPU instances if it is used
+			if (GPU_TILE_PROCESSOR == null) {
+				try {
+					GPU_TILE_PROCESSOR = new GPUTileProcessor(CORRECTION_PARAMETERS.tile_processor_gpu);
+				} catch (Exception e) {
+					System.out.println("Failed to initialize GPU class");
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					return false;
+				} // final int debugLevel);
+			}
+			if (use_aux) {
+				if (CLT_PARAMETERS.useGPU(true) && (QUAD_CLT_AUX != null) && (GPU_QUAD_AUX == null)) { // if GPU AUX is
+																										// needed
+					try {
+						GPU_QUAD_AUX = new GpuQuad(//
+								GPU_TILE_PROCESSOR, QUAD_CLT_AUX, CLT_PARAMETERS.gpu_debug_level);
+					} catch (Exception e) {
+						System.out.println("Failed to initialize GpuQuad class");
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+						return false;
+					} // final int debugLevel);
+					QUAD_CLT_AUX.setGPU(GPU_QUAD_AUX);
+				}
+			} else {
+				if (CLT_PARAMETERS.useGPU(false) && (QUAD_CLT != null) && (GPU_QUAD == null)) { // if GPU main is needed
+					try {
+						GPU_QUAD = new GpuQuad(GPU_TILE_PROCESSOR, QUAD_CLT, CLT_PARAMETERS.gpu_debug_level);
+					} catch (Exception e) {
+						System.out.println("Failed to initialize GpuQuad class");
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+						return false;
+					} // final int debugLevel);
+					QUAD_CLT.setGPU(GPU_QUAD);
+				}
+			}
+		}
+		QuadCLT quadCLT = use_aux ? QUAD_CLT_AUX : QUAD_CLT;
+		ColorProcParameters colorProcParameters = use_aux ? COLOR_PROC_PARAMETERS_AUX : COLOR_PROC_PARAMETERS;
+		try {
+			TWO_QUAD_CLT.adjustLYSeries(
+					quadCLT, // QUAD_CLT, // QuadCLT quadCLT_main,
+					CLT_PARAMETERS, // EyesisCorrectionParameters.DCTParameters dct_parameters,
+					DEBAYER_PARAMETERS, // EyesisCorrectionParameters.DebayerParameters debayerParameters,
+					colorProcParameters, // COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters
+											// colorProcParameters,
+					CHANNEL_GAINS_PARAMETERS, // CorrectionColorProc.ColorGainsParameters channelGainParameters,
+					RGB_PARAMETERS, // EyesisCorrectionParameters.RGBParameters rgbParameters,
+					EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters
+												// equirectangularParameters,
+					PROPERTIES, // Properties properties,
+					true, // false, // boolean reset_from_extrinsics,
+					THREADS_MAX, // final int threadsMax, // maximal number of threads to launch
+					UPDATE_STATUS, // final boolean updateStatus,
+					DEBUG_LEVEL);
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} // final int debugLevel);
+		if (configPath != null) {
+			saveTimestampedProperties( // save config again
+					configPath, // full path or null
+					null, // use as default directory if path==null
+					true, PROPERTIES);
+		}
+		System.out.println("adjustLYSeries(): Processing finished at "
+				+ IJ.d2s(0.000000001 * (System.nanoTime() - startTime), 3) + " sec, --- Free memory="
+				+ Runtime.getRuntime().freeMemory() + " (of " + Runtime.getRuntime().totalMemory() + ")");
+		return true;
+	}
+	
+	
+	
+	
 	public boolean test1d() {
 		Clt1d clt1d = new Clt1d(CLT_PARAMETERS.transform_size); // CLT_PARAMETERS
 		clt1d.test1d(CLT_PARAMETERS);

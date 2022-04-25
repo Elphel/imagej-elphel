@@ -34,10 +34,11 @@ public class CLTPass3d{
 		public   int    [][]    tile_op;   // what was done in the current pass
 		private  double [][]    disparity_sav; // saved disparity
 		private  int    [][]    tile_op_sav;   // saved tile_op
-		public   double [][]    disparity_map =  null; // add 4 layers - worst difference for the port
-		public   double [][]    lazy_eye_data = null;
-		public   int            lma_cluster_size = -1;
+		public   double [][]    disparity_map =            null; // add 4 layers - worst difference for the port
+		public   double [][]    lazy_eye_data =            null;
+		public   int            lma_cluster_size =         -1;
 		public   boolean []     lazy_eye_force_disparity = null;
+		public   int []         num_tile_max =             null; // number of maximums in a tile
 
 		double []               calc_disparity = null; // composite disparity, calculated from "disparity", and "disparity_map" fields
 
@@ -361,6 +362,20 @@ public class CLTPass3d{
 		public boolean [] getSelected(){
 			return selected;
 		}
+		
+		public boolean [] getSelectedOrTileOp(){ // to use instead of getSelected if it is null
+			if (selected != null) return selected;
+			if (tile_op== null) return null;
+			boolean [] to_selected = new boolean [tile_op.length * tile_op[0].length];
+			int indx = 0;
+			for (int ty = 0; ty < tile_op.length; ty++) {
+				for (int tx = 0; tx < tile_op[ty].length; tx++) {
+					to_selected[indx++] = tile_op[ty][tx] != 0;
+				}
+			}
+			return to_selected;
+		}
+		
 
 		public boolean [] getBorderTiles(){
 			return this.border_tiles;
@@ -645,6 +660,19 @@ public class CLTPass3d{
 				}
 			}
 			return disparityLMA;
+		}
+		public int [] getNumTileMax() {
+			if (num_tile_max == null) {
+				if (disparity_map[ImageDtt.DISPARITY_VARIATIONS_INDEX] == null) {
+					return null;
+				}
+				num_tile_max = new int [disparity_map[ImageDtt.DISPARITY_VARIATIONS_INDEX].length];
+				for (int i = 0; i < num_tile_max.length; i++) {
+					///https://stackoverflow.com/questions/6341896/cast-int-to-double-then-back-to-int-in-java
+					num_tile_max[i] = (int)	disparity_map[ImageDtt.DISPARITY_VARIATIONS_INDEX][i];
+				}
+			}
+			return num_tile_max;
 		}
 		
 		public double getDisprityHor(int nt) {

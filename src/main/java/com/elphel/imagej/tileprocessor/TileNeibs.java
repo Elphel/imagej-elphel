@@ -101,8 +101,8 @@ public class TileNeibs{
 	/**
 	 * Get 2d element index after step N, NE, ... NW. Returns -1 if leaving array
 	 * @param indx start index
-	 * @param dx offsett in x direction
-	 * @param dy offsett in y direction
+	 * @param dx offset in x direction
+	 * @param dy offset in y direction
 	 * @return new index or -1 if leaving
 	 */
 	int getNeibIndex(int indx, int dx, int dy) {

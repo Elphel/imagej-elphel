@@ -164,7 +164,7 @@ public class ImageDttCPU {
 
 	static String [] DISPARITY_TITLES0 = {
 			"int_disp","int_y_disp","cm_disp","cm_y_disp","hor_disp","hor_strength","vert_disp","vert_strength",
-			"poly_disp", "poly_y_disp", "strength_disp", "vary_disp","overexp"};
+			"poly_disp", "poly_y_disp", "strength_disp", "vary_disp","overexp"}; // vary_disp -> number of maximums
 	
 //	static String [] DISPARITY_TITLES4 = {
 //			"int_disp","int_y_disp","cm_disp","cm_y_disp","hor_disp","hor_strength","vert_disp","vert_strength",
@@ -1690,7 +1690,7 @@ public class ImageDttCPU {
 	
 	public double[][] cltMeasureLazyEye ( // returns d,s lazy eye parameters 
 			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
-			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
+			final int [][]            tile_op,         // [tilesY][tilesX] - May be modified (set to 0) 
 			final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
 			final double [][][]       image_data, // first index - number of image in a quad
 		    final boolean [][]        saturation_imp, // (near) saturated pixels or null
@@ -1880,28 +1880,12 @@ public class ImageDttCPU {
 					double centerX; // center of aberration-corrected (common model) tile, X
 					double centerY; //
 					double [][] fract_shiftsXY = new double[numSensors][];
-					/*
-					Correlation2d corr2d = new Correlation2d(
-							numSensors,
-							imgdtt_params,              // ImageDttParameters  imgdtt_params,
-							transform_size,             // int transform_size,
-							2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
-							isMonochrome(), // boolean monochrome,
-							(globalDebugLevel > -1));   //   boolean debug)
-					corr2d.createOrtoNotch(
-							imgdtt_params.getEnhOrthoWidth(isAux()), // double getEnhOrthoWidth(isAux()),
-							imgdtt_params.getEnhOrthoScale(isAux()), //double getEnhOrthoScale(isAux()),
-							(imgdtt_params.lma_debug_level > 1)); // boolean debug);
-					 */							
-
 					double [][] rXY;
 					if (use_main) {
 						rXY = geometryCorrection.getRXY(true); // boolean use_rig_offsets,
 					} else  {
 						rXY = geometryCorrection.getRXY(false); // boolean use_rig_offsets,
 					}
-
-					//					for (int nTile = ai.getAndIncrement(); nTile < nTilesInChn; nTile = ai.getAndIncrement()) {
 					for (int nCluster = ai.getAndIncrement(); nCluster < nClustersInChn; nCluster = ai.getAndIncrement()) {
 						clustY = nCluster / clustersX;
 						clustX = nCluster % clustersX;
@@ -1910,8 +1894,6 @@ public class ImageDttCPU {
 						double [][][] corrs =     new double [clustSize][][];
 						double [][]   disp_str =  new double [clustSize][];
 						double [][]   pxpy =      new double [clustSize][2];
-//						double [] tile_weights =  new double [clustSize];
-
 						boolean debugCluster =  (clustX == debug_clustX) && (clustY == debug_clustY);
 						if (debugCluster) {
 							System.out.println("debugCluster");
@@ -2396,11 +2378,11 @@ public class ImageDttCPU {
 										}
 										
 										lma2 = correlation2d.corrLMA2Single(
-												imgdtt_params,                  // ImageDttParameters  imgdtt_params,
-												true,// false, // false,                        // boolean             adjust_ly, // adjust Lazy Eye
-												corr_wnd,                       // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
-												corr_wnd_inv_limited,           // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
-												corrs_cons,                     // corrs,          // double [][]         corrs,
+												imgdtt_params,                // ImageDttParameters  imgdtt_params,
+												true,// false, // false,      // boolean             adjust_ly, // adjust Lazy Eye
+												corr_wnd,                     // double [][]         corr_wnd, // correlation window to save on re-calculation of the window
+												corr_wnd_inv_limited,         // corr_wnd_limited, // correlation window, limited not to be smaller than threshold - used for finding max/convex areas (or null)
+												corrs_cons,                   // corrs,          // double [][]         corrs,
 												disp_dist_cons,
 												rXY,                          // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
 												// all that are not null in corr_tiles
@@ -2555,6 +2537,7 @@ public class ImageDttCPU {
 								} else {
 									lazy_eye_data[nCluster] = null;
 								}
+								
 							}
 						}
 					}
@@ -8854,9 +8837,7 @@ public class ImageDttCPU {
 			System.out.println("corr_partial_dbg(): empty fcorr_data");
 			return null;
 		}
-//		int []    tXY = getCorrSize(tp_tasks);
-//		final int tilesX = tXY[0];
-//		final int tilesY = tXY[1];
+		
 		final int tile_size = corr_size+1;
 		int ilayers = -1;
 		int flayer = 0;
@@ -8910,6 +8891,68 @@ public class ImageDttCPU {
 		return fcorr_data_out;
 	}
 
+	public static float [][] corr2d_decimate( // not used in lwir
+			final float [][]        corr2d_img,
+			final int               tilesX,
+			final int               tilesY,
+			final int               clust_size,
+			final int []            wh, 
+			final int               threadsMax,     // maximal number of threads to launch
+			final int               globalDebugLevel) {
+		int len = 0;
+		final float [][] corr2d_decimated = new float [corr2d_img.length][];
+		for (int i = 0; i < corr2d_img.length; i++) {
+			if (corr2d_img[i] != null) {
+				len = corr2d_img[i].length;
+				break;
+			}
+		}
+		final int tile_size = (int) Math.round(Math.sqrt(len/(tilesX * tilesY)));
+		final int clustersX = (int) Math.ceil(1.0 * tilesX / clust_size);
+		final int clustersY = (int) Math.ceil(1.0 * tilesY / clust_size);
+		final int clusters =  clustersX * clustersY;
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final int clust_lines = clust_size * tile_size;
+		final int in_line_len =  clustersX * clust_size * tile_size;
+		final int out_line_len = clustersX * tile_size;
+		if (wh != null) {
+			wh[0] = clustersX * tile_size;
+			wh[1] = clustersY * tile_size;
+		}
+
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int nLayer = ai.getAndIncrement(); nLayer < corr2d_img.length; nLayer = ai.getAndIncrement()) {
+						if (corr2d_img[nLayer] != null){
+							corr2d_decimated[nLayer] = new float [clusters * tile_size * tile_size];
+							for (int clustY = 0; clustY < clustersY; clustY++) {
+								for (int clustX = 0; clustX < clustersX; clustX++) {
+									int offs = clustY * clust_lines * in_line_len; 
+									for (int line = 0; line < tile_size; line++) {
+										System.arraycopy(
+												corr2d_img[nLayer],
+												(clustY * clust_lines + line) * in_line_len + clustX * clust_lines,
+												corr2d_decimated[nLayer],
+												(clustY * tile_size + line) * out_line_len + clustX * tile_size,
+												tile_size);
+									}
+								}
+							}
+						}
+					}
+				}
+			};
+		}
+		startAndJoin(threads);
+		return corr2d_decimated;
+	}
+
+	
+	
+	
 	@Deprecated
 	public static float [] corr_partial_wnd( // not used in lwir
 			final float  [][][]     fcorr_data,       // [tile][index][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
@@ -15863,6 +15906,7 @@ public class ImageDttCPU {
 		return clt_data; // per each input tile
 	}
 	
+	// FIXME: Does not yet support dual max (as in ImageDtt) - update and copy functionality. imgdtt_params.bimax_dual_LMA
 	public void clt_process_tl_correlations( // convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td
 			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 			final TpTask []           tp_tasks,        // data from the reference frame - will be applied to LMW for the integrated correlations
@@ -15881,6 +15925,8 @@ public class ImageDttCPU {
 			// When clt_mismatch is non-zero, no far objects extraction will be attempted
 			//optional, may be null
 			final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+			// ddnd is not yet implemented in non-GPU mode (see ImageDtt class
+			final double [][][][]     ddnd,            // [tilesY][tilesX][num_sensors][2] data for LY. Should be either null or [tilesY][tilesX][][]. disparity_map should be non-null
 			final boolean             run_lma,         // calculate LMA, false - CM only
   		    final double              afat_zero2,      // gpu_fat_zero ==30? clt_parameters.getGpuFatZero(is_mono); absolute fat zero, same units as components squared values
   		    final double              corr_sigma,      //
@@ -16174,7 +16220,7 @@ public class ImageDttCPU {
 	}	
 	
 	@Deprecated
-	public double [][] correlateMultiTilted(
+	public double [][] correlateMultiTilted( // Not used
 			final CLTParameters  clt_parameters,
 			final GeometryCorrection  geometryCorrection,			
 			final double [][][]       image_data,      // first index - number of image in a quad
@@ -16288,6 +16334,7 @@ public class ImageDttCPU {
 					// When clt_mismatch is non-zero, no far objects extraction will be attempted
 					//optional, may be null
 					disparity_map,                 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+					null,                          // final double [][]         ddnd,            // data for LY. SHould be either null or [num_sensors][]
 					clt_parameters.correlate_lma,  // final boolean             run_lma,         // calculate LMA, false - CM only
 		  		    // define combining of all 2D correlation pairs for CM (LMA does not use them)
 					clt_parameters.img_dtt.mcorr_comb_width, //final int                 mcorr_comb_width,  // combined correlation tile width (set <=0 to skip combined correlations)
@@ -16342,6 +16389,8 @@ public class ImageDttCPU {
 					// When clt_mismatch is non-zero, no far objects extraction will be attempted
 					//optional, may be null
 					disparity_map,                 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+					// not yet implemented - see ImageDtt.java (GPU version)
+					null,                          // final double [][]         ddnd,            // data for LY. SHould be either null or [num_sensors][]
 					clt_parameters.correlate_lma,  // final boolean             run_lma,         // calculate LMA, false - CM only
 					// last 2 - contrast, avg/ "geometric average)
 					clt_parameters.getGpuFatZero(isMonochrome()),   // clt_parameters.getGpuFatZero(ref_scene.isMonochrome()), // final double              afat_zero2,      // gpu_fat_zero ==30? clt_parameters.getGpuFatZero(is_mono); absolute fat zero, same units as components squared values

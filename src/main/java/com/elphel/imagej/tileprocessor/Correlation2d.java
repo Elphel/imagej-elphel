@@ -3989,6 +3989,24 @@ public class Correlation2d {
     	double [][] pair_offsets = null;
 ///    	if (imgdtt_params.lmamask_en && (disp_str != null)) {
        	if (disp_str != null) {
+       		// 04/22/2022 - trying to get m_disp - it was null
+    		lma.initVector(
+    				null, // 			boolean [] adjust_disparities, // null - adjust all, otherwise - per maximum
+    				imgdtt_params.lmas_adjust_wm,  // boolean adjust_width,     // adjust width of the maximum - lma_adjust_wm
+    				imgdtt_params.lmas_adjust_ag,  // boolean adjust_scales,    // adjust 2D correlation scales - lma_adjust_ag
+    				imgdtt_params.lmas_adjust_wy,  // boolean adjust_ellipse,   // allow non-circular correlation maximums lma_adjust_wy
+    				(adjust_ly ? imgdtt_params.lma_adjust_wxy : false), //imgdtt_params.lma_adjust_wxy, // boolean adjust_lazyeye_par,   // adjust disparity corrections parallel to disparities  lma_adjust_wxy
+    				(adjust_ly ? imgdtt_params.lma_adjust_ly1: false), // imgdtt_params.lma_adjust_ly1, // boolean adjust_lazyeye_ortho, // adjust disparity corrections orthogonal to disparities lma_adjust_ly1
+    				new double[][][] {{disp_str}}, // disp_str2_scaled}, // xcenter, 
+    				imgdtt_params.lma_half_width, // double  half_width,       // A=1/(half_widh)^2   lma_half_width
+    				(adjust_ly ? imgdtt_params.lma_cost_wy : 0.0), // imgdtt_params.lma_cost_wy,     // double  cost_lazyeye_par,     // cost for each of the non-zero disparity corrections        lma_cost_wy
+    				(adjust_ly ? imgdtt_params.lma_cost_wxy : 0.0) //imgdtt_params.lma_cost_wxy     // double  cost_lazyeye_odtho    // cost for each of the non-zero ortho disparity corrections  lma_cost_wxy
+    				);
+    		lma.setMatrices(disp_dist);
+    		lma.initMatrices(); // should be called after initVector and after setMatrices
+       		// End of 04/22/2022 - trying to get m_disp - it was null
+       		
+       		
     		pair_offsets = lma.getPairsOffsets(
     				corrs,                                   // double [][]       corrs,
     				pair_mask,                               // boolean []        pair_mask,
@@ -4599,7 +4617,7 @@ public class Correlation2d {
     		lma_corr_weights = lma_corr_weights0;
     		disp_str_all =     disp_str_dual;
     		own_masks =        own_masks0;
-    		common_scale = new boolean[] {imgdtt_params.bimax_common_fg};
+			common_scale = new boolean[] {imgdtt_params.bimax_common_fg};
     	} else { // only 2 max are supported
     		if (lma_corr_weights0.length > 2) {
     			System.out.println("corrLMA2DualMax(): Only 2 correlation maximums are currently supported, all but 2 strongest are discarded");
@@ -5390,7 +5408,7 @@ public class Correlation2d {
     		double [][] corrs,
     		double [][] weights){
     	double [][] xy_offsets_pairs = new double[corrs.length][]; // 
-    	for (int np = 0; np < corrs.length; np++) if (corrs[np]!= null) {
+    	for (int np = 0; np < corrs.length; np++) if ((corrs[np]!= null) && (weights[np]!= null)) {
             double [] wcorr = new double [corrs[np].length];
         	double  pair_weights = 0.0;
             for (int i = 0; i < wcorr.length; i++) if (weights[np][i] > 0.0){

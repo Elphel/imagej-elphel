@@ -8349,7 +8349,7 @@ if (debugLevel > -100) return true; // temporarily !
 		}
 		QuadCLT.SetChannels [] set_channels=quadCLT_main.setChannels(debugLevel);
 		QuadCLT [] quadCLTs = new QuadCLT [set_channels.length]; 
-		for (int i = 00; i < quadCLTs.length; i++) {
+		for (int i = 0; i < quadCLTs.length; i++) {
 			quadCLTs[i] = (QuadCLT) quadCLT_main.spawnQuadCLT(
 					set_channels[i].set_name,
 					clt_parameters,
@@ -8380,15 +8380,11 @@ if (debugLevel > -100) return true; // temporarily !
 		opticalFlow.adjustPairsDualPass(
 				clt_parameters, // CLTParameters  clt_parameters,			
 				clt_parameters.ofp.k_prev, // k_prev,
-				// FIXME: *********** update adjustPairsDualPass to use QUADCLTCPU ! **********				
-//				(QuadCLT []) 
 				quadCLTs, // QuadCLT [] scenes, // ordered by increasing timestamps
 				clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
 		
 
 		System.out.println("End of test");
-
-
 	}
 
 	
@@ -11076,7 +11072,7 @@ if (debugLevel > -100) return true; // temporarily !
 		
 	
 	
-	public double [][] inverseLinTFunc(
+	public static double [][] inverseLinTFunc(
 			double    x_add,
 			double [] x_val,
 			double [] y_val,
@@ -11096,7 +11092,6 @@ if (debugLevel > -100) return true; // temporarily !
 					x_y[1][i] = x_val[j] + x_add;
 					break;
 				} else 	if ((y_val[j] - y) * (y_val[j + 1] - y) <= 0) {
-//					x_y[1][i] = x_val[j] + (x_val[j+1] - x_val[j]) * (y - y_val[j])/(y_val[j+1]-y_val[j]);
 					x_y[1][i] = x_val[j] + x_add + (x_val[j+1] - x_val[j]) * (y - y_val[j])/(y_val[j+1]-y_val[j]);
 					break;
 				}
@@ -11105,6 +11100,307 @@ if (debugLevel > -100) return true; // temporarily !
 		}
 		return x_y;
 	}
+	
+	public void adjustLYSeries(
+			QuadCLT                                              quadCLT_main, // tiles should be set
+			CLTParameters             clt_parameters,
+			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
+			ColorProcParameters                                  colorProcParameters,
+			CorrectionColorProc.ColorGainsParameters             channelGainParameters,
+			EyesisCorrectionParameters.RGBParameters             rgbParameters,
+			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+			Properties                                           properties,
+			boolean                                              reset_from_extrinsics,
+			final int        threadsMax,  // maximal number of threads to launch
+			final boolean    updateStatus,
+			final int        debugLevel)  throws Exception
+	{
+		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
+			quadCLT_main.getGPU().resetGeometryCorrection();
+			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
+		}
+		// final boolean    batch_mode = clt_parameters.batch_run;
+		this.startTime=System.nanoTime();
+		String [] sourceFiles0=quadCLT_main.correctionsParameters.getSourcePaths();
+		QuadCLT.SetChannels [] set_channels_main = quadCLT_main.setChannels(debugLevel);
+		if ((set_channels_main == null) || (set_channels_main.length==0)) {
+			System.out.println("No files to process (of "+sourceFiles0.length+")");
+			return;
+		}
+		QuadCLT.SetChannels [] set_channels=quadCLT_main.setChannels(debugLevel);
+		QuadCLT [] quadCLTs = new QuadCLT [set_channels.length]; 
+		for (int i = 0; i < quadCLTs.length; i++) {
+			quadCLTs[i] = (QuadCLT) quadCLT_main.spawnQuadCLT(
+					set_channels[i].set_name,
+					clt_parameters,
+					colorProcParameters, //
+					threadsMax,
+					debugLevel);
+			// temporarily fix wrong sign:
+			ErsCorrection ers = (ErsCorrection) (quadCLTs[i].getGeometryCorrection());
+			if (reset_from_extrinsics) { // extrinsics vector "IMU" parameters
+ 				System.out.println("Reset ERS parameters from intraframe extrinsics");
+				ers.setupERSfromExtrinsics();
+			}
+			quadCLTs[i].setDSRBG(
+					clt_parameters, // CLTParameters  clt_parameters,
+					threadsMax,     // int            threadsMax,  // maximal number of threads to launch
+					updateStatus,   // boolean        updateStatus,
+					debugLevel);    // int            debugLevel)
+///			quadCLTs[i].showDSIMain();
+		}
+//		int     ref_index = quadCLTs.length-1; // last scene
+		boolean proc_infinity = true; 
+//		QuadCLT ref_scene = quadCLTs[ref_index];
+		int last_scene_index = quadCLTs.length-1;
+		QuadCLT last_scene = quadCLTs[last_scene_index];
+        String composite_suffix =    "-INTER-INTRA-LMA";
+        String num_corr_max_suffix = "-NUM-CORR-MAX";
+        int [] wh = new int[2];
+        double [][] composite_ds = last_scene.readDoubleArrayFromModelDirectory(
+        		composite_suffix, // String      suffix,
+    			0,                // int         num_slices, // (0 - all)
+    			wh);              // int []      wh)
+		// composite_ds == null if no file
+		boolean lma_only = true; // use clt_parameters
+		
+		MultisceneLY multisceneLY = new MultisceneLY (
+				quadCLTs[0].getNumSensors(),
+				threadsMax,                                // int            threadsMax,  // maximal number of threads to launch
+				updateStatus);                             // boolean        updateStatus);
+/*	String [] combo_dsn_titles_full = {"disp", "strength","disp_lma","num_valid","change",
+				"disp_bg", "strength_bg","disp_lma_bg","change_bg","disp_fg","disp_bg_all"}; */
+	    // read interscene composite data
+		boolean [][] is_scene_infinity = null; // per scene, per tile - is infinity.
+		double        far_inf =       -0.5; //
+		double        near_inf =       0.5; //
+		double        far_fract =      0.05; //
+		double        inf_range_offs = 0.05; // 
+		double        inf_range =      0.15; // 
+		double        min_inf_str =    0.2;  //
+		double        min_fg_str =     0.4;  //
+// non-infinity parameters		
+		int           clust_size =     4;
+		double        inf_range2 =     0.5;     // full range centered at inf_disp_ref to be used as infinity
+		double        scene_range =   10.0;    // disparity range for non-infinity in the same cluster 
+		double        inf_disp_ref = 0.0;
+
+		int tilesX = last_scene.tp.getTilesX();
+		int tilesY = last_scene.tp.getTilesY();
+		int clustersX = (int) Math.ceil(1.0 * tilesX / clust_size);
+		int clustersY = (int) Math.ceil(1.0 * tilesY / clust_size);
+		int clusters = clustersX * clustersY;
+		int []     num_tiles =    null;
+		boolean [] inf_cluster  = null;		
+		
+		boolean       debug      = debugLevel > -3; 
+		
+		if (proc_infinity) {
+			double [] inf_avg = new double[1];
+			boolean [] ref_inf = MultisceneLY.getComboInfinity(
+					last_scene.tp,   // TileProcessor tp,
+					composite_ds,   // double [][]   composite_ds,
+					far_inf,        // double        far_inf,
+					near_inf,       // double        near_inf,
+					far_fract,      // double        far_fract,
+					inf_range_offs, // double        inf_range_offs,
+					inf_range,      // double        inf_range,
+					min_inf_str,    // double        min_inf_str,
+					min_fg_str,     // double        min_fg_str,
+					inf_avg,        // double []     inf_avg,
+					debug);         // boolean       debug)
+			
+			is_scene_infinity =  MultisceneLY.infinityPerScene(
+		            quadCLTs,    // QuadCLT [] scenes,
+//		            ref_index,   // int        indx_ref,
+		            inf_avg[0],  // double     inf_disp_ref, // average disparity at infinity for ref scene
+		            ref_inf,     // boolean [] infinity_ref,
+		            debug,       // boolean    debug,
+		            threadsMax); // int        threadsMax)
+			inf_disp_ref = inf_avg[0];
+			num_tiles =    new int [clusters]; // may be null;
+			inf_cluster  = new boolean [clusters]; // may be null;
+		}
+		
+		int [][] numCorrMax = new int [quadCLTs.length][]; // -> 
+		double [][] dNumCorrMax =last_scene.readDoubleArrayFromModelDirectory(
+				num_corr_max_suffix, // String      suffix,
+    			0,                // int         num_slices, // (0 - all)
+    			wh);              // int []      wh)
+		if ((dNumCorrMax != null) && (dNumCorrMax.length == numCorrMax.length)) {
+			for (int nscene = 0; nscene < numCorrMax.length; nscene++) {
+				numCorrMax[nscene] = new int[dNumCorrMax[nscene].length];
+				for (int i = 0; i < dNumCorrMax[nscene].length; i++) {
+					numCorrMax[nscene][i] = (int) dNumCorrMax[nscene][i];
+				}
+			}
+		} else {
+			for (int i = 0; i < quadCLTs.length; i++) {
+				numCorrMax[i] = multisceneLY.getNumCorrMax(
+						clt_parameters, // CLTParameters  clt_parameters,
+						lma_only, // boolean lma_only,
+						quadCLTs[i], // QuadCLT scene, // ordered by increasing timestamps
+						debugLevel); // int debug_level)
+			}
+			dNumCorrMax = new double[numCorrMax.length][numCorrMax[0].length];
+			for (int nscene = 0; nscene < numCorrMax.length; nscene++) {
+				dNumCorrMax[nscene] = new double[dNumCorrMax[nscene].length];
+				for (int i = 0; i < dNumCorrMax[nscene].length; i++) {
+					dNumCorrMax[nscene][i] = numCorrMax[nscene][i];
+				}
+			}
+			
+			last_scene.saveDoubleArrayInModelDirectory( // error
+					num_corr_max_suffix,           // String      suffix,
+					null, // null,          // String []   labels, // or null
+					dNumCorrMax,       // dbg_data,         // double [][] data,
+					last_scene.tp.getTilesX(),                // int         width,
+					last_scene.tp.getTilesY());               // int         height)
+		}
+		boolean [][] valid_tile = new boolean[numCorrMax.length][numCorrMax[0].length];
+		for (int nscene = 0; nscene < numCorrMax.length; nscene++) {
+			for (int nTile = 0; nTile < numCorrMax[nscene].length; nTile++) {
+				valid_tile[nscene][nTile] = numCorrMax[nscene][nTile] == 1; // only single-maximum
+			}
+		}
+		double [][] target_disparities = MultisceneLY.useTilesLY(
+				clust_size,    // final int          clust_size,
+				inf_range,     // final double       inf_range,     // full range centered at inf_disp_ref to be used as infinity
+				scene_range,   // final double       scene_range,   // disparity range for non-infinity in the same cluster 
+				quadCLTs,      // final QuadCLT []   scenes,        // ordered by increasing timestamps
+				valid_tile,    // final boolean [][] valid_tile,    // tile with lma and single correlation maximum
+				inf_disp_ref,  // final double       inf_disp_ref,  // average disparity at infinity for ref scene // is_scene_infinity
+				is_scene_infinity, // final boolean [][] is_infinity,   // may be null, if not - may be infinity from the composite depth map
+				num_tiles,     //int []             in_num_tiles,     // null or array of number of clusters
+				inf_cluster,   //boolean []         in_inf_cluster,   // null or array of number of clusters, will return if cluster uses only infinite tiles
+				threadsMax,    // final int          threadsMax,
+				debug);        // final boolean      debug)
+		
+		double [][] lazy_eye_data = 	MultisceneLY.getLYData( // TODO: show lazy_eye_data[][]
+				clt_parameters,     // final CLTParameters  clt_parameters,
+				clust_size,         // final int            clust_size,
+				quadCLTs,           // final QuadCLT []     scenes,        // ordered by increasing timestamps
+				target_disparities, // final double[][]     target_disparities,
+				num_tiles,          // final int []         num_tiles,
+				threadsMax,         // final int            threadsMax,
+				debugLevel);        // final int            debug_level);
+		
+		if (debugLevel > -4) {
+			double [][] dbg_numCorrMax = new double[numCorrMax.length][];
+			for (int i = 0; i < dbg_numCorrMax.length; i++) {
+				dbg_numCorrMax[i] = new double[numCorrMax[i].length];
+				for (int ntile=0; ntile < numCorrMax[i].length; ntile++) {
+					dbg_numCorrMax[i][ntile] = numCorrMax[i][ntile];
+				}
+			}
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_numCorrMax,
+					tilesX,
+					tilesY,
+					true,
+					"numCorrMax");
+			(new ShowDoubleFloatArrays()).showArrays(
+					target_disparities,
+					tilesX,
+					tilesY,
+					true,
+					"target_disparities");
+			if ((num_tiles != null) || (inf_cluster!= null)) {
+				double [][] dbg_num_tiles = new double[4][]; 
+				if (num_tiles != null) {
+					dbg_num_tiles[0] = new double [clusters];
+					for (int nClust = 0; nClust < clusters; nClust++) {
+						dbg_num_tiles[0][nClust] = num_tiles[nClust];
+					}
+				}
+				if (inf_cluster != null) {
+					dbg_num_tiles[1] = new double [clusters];
+					for (int nClust = 0; nClust < clusters; nClust++) {
+						dbg_num_tiles[1][nClust] = inf_cluster[nClust]?1.0:0.0;
+					}
+				}
+
+				if ((num_tiles != null) && (inf_cluster!= null)) {
+					dbg_num_tiles[2] = new double [clusters];
+					dbg_num_tiles[3] = new double [clusters];
+					Arrays.fill(dbg_num_tiles[2], Double.NaN);
+					Arrays.fill(dbg_num_tiles[3], Double.NaN);
+					for (int nClust = 0; nClust < clusters; nClust++) {
+						if (inf_cluster[nClust]){
+							dbg_num_tiles[2][nClust] = num_tiles[nClust];
+						} else {
+							dbg_num_tiles[3][nClust] = num_tiles[nClust];
+						}
+					}
+				}
+
+				(new ShowDoubleFloatArrays()).showArrays(
+						dbg_num_tiles,
+						clustersX,
+						clustersY,
+						true,
+						"clusters_num_inf",
+						new String[] {"tiles","is_inf", "inf tiles", "fg tiles"});
+				
+				
+				if (lazy_eye_data != null) {
+					ExtrinsicAdjustment ea_dbg = new ExtrinsicAdjustment (
+							last_scene.getErsCorrection(), // GeometryCorrection gc,
+							clt_parameters.tileStep, // int         clusterSize,
+							clustersX,               // int         clustersX,
+							clustersY);              // int         clustersY)
+
+					double [][] dbg_cluster = new double [ExtrinsicAdjustment.get_INDX_LENGTH(last_scene.getNumSensors())][clustersY * clustersX];
+					for (int i = 0; i < dbg_cluster.length; i++) {
+						Arrays.fill(dbg_cluster[i], Double.NaN);
+					}
+					for (int n = 0; n < lazy_eye_data.length; n++) {
+						if (lazy_eye_data[n] != null) {
+							for (int i = 0; i < ExtrinsicAdjustment.get_INDX_LENGTH(last_scene.getNumSensors()); i++ ) {
+								dbg_cluster[i][n] = lazy_eye_data[n][i];
+							}
+						}
+					}
+					(new ShowDoubleFloatArrays()).showArrays(
+							  dbg_cluster,
+							  clustersX,
+							  clustersY,
+							  true,
+							  last_scene.getImageName()+"-lazy_eye_data",
+							  ea_dbg.data_titles); //  ExtrinsicAdjustment.DATA_TITLES);
+				}
+			}
+		}
+		
+		if (debugLevel > -100) {
+			return;
+		}
+		/* 
+        String composite_suffix = "-INTER-INTRA-LMA";
+        int [] wh = new int[2];
+        double [][] composite_ds = ref_scene.readDoubleArrayFromModelDirectory(
+        		composite_suffix, // String      suffix,
+    			0,                // int         num_slices, // (0 - all)
+    			wh);              // int []      wh)
+		 * */
+		
+		OpticalFlow opticalFlow = new OpticalFlow(
+				quadCLT_main.getNumSensors(),
+				clt_parameters.ofp.scale_no_lma_disparity, // double         scale_no_lma_disparity,
+				threadsMax,                                // int            threadsMax,  // maximal number of threads to launch
+				updateStatus);                             // boolean        updateStatus);
+		
+		opticalFlow.adjustPairsDualPass(
+				clt_parameters, // CLTParameters  clt_parameters,			
+				clt_parameters.ofp.k_prev, // k_prev,
+				quadCLTs, // QuadCLT [] scenes, // ordered by increasing timestamps
+				clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
+		/* */
+
+		System.out.println("End of adjustLYSeries()");
+	}
+
+	
 	
 	
 	public void batchLwirRig(
@@ -11124,15 +11420,9 @@ if (debugLevel > -100) return true; // temporarily !
 	{
 		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
 			quadCLT_main.setQuadClt(); // ignore previous result,
-//			quadCLT_main.getGPU().resetGeometryCorrection();
-//			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
-//			quadCLT_main.resetBayer();
 		}
 		if ((quadCLT_aux != null) && (quadCLT_aux.getGPU() != null)) {
 			quadCLT_aux.setQuadClt();
-//			quadCLT_aux.getGPU().resetGeometryCorrection();
-//			quadCLT_aux.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
-//			quadCLT_aux.resetBayer();
 		}
 
 		
@@ -11145,8 +11435,6 @@ if (debugLevel > -100) return true; // temporarily !
 		final int        debugLevelInner=clt_parameters.batch_run? -2: debugLevel;
 		this.startTime=System.nanoTime();
 		
-//		if (quadCLT_main.correctionsParameters.clt_batch_skip_scenes) {
-		
 		String [] sourceFiles=quadCLT_main.correctionsParameters.getSourcePaths();
 		QuadCLT.SetChannels [] set_channels_main = quadCLT_main.setChannels(debugLevel);
 		QuadCLT.SetChannels [] set_channels_aux =  quadCLT_aux.setChannels(debugLevel);
@@ -11154,7 +11442,6 @@ if (debugLevel > -100) return true; // temporarily !
 		if ((set_channels == null) || ((set_channels_aux != null) && (set_channels_aux.length > set_channels.length))) {
 			set_channels = set_channels_aux;
 		}
-//		if ((set_channels_main == null) || (set_channels_main.length==0) || (set_channels_aux == null) || (set_channels_aux.length==0)) {
 		if ((set_channels == null) || (set_channels.length==0)) {
 			System.out.println("No files to process (of "+sourceFiles.length+")");
 			return;
@@ -11162,27 +11449,14 @@ if (debugLevel > -100) return true; // temporarily !
 		if (!quadCLT_main.correctionsParameters.clt_batch_skip_scenes) {
 			double [] referenceExposures_main = null;
 			double [] referenceExposures_aux =  null;
-			//		if (!colorProcParameters.lwir_islwir && !(set_channels_main == null)) {
 			if (!quadCLT_main.isLwir() && !(set_channels_main == null)) {
 				referenceExposures_main = quadCLT_main.eyesisCorrections.calcReferenceExposures(debugLevel);
 			}
-			//		if (!colorProcParameters_aux.lwir_islwir && !(set_channels_aux == null)) {
 			if (!quadCLT_aux.isLwir() && !(set_channels_aux == null)) {
 				referenceExposures_aux =  quadCLT_aux.eyesisCorrections.calcReferenceExposures(debugLevel);
 			}
 
 			for (int nSet = 0; nSet < set_channels.length; nSet++){
-				/*
-				if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) { //TODO:  is it needed here? WAs not needed before - verify
-					quadCLT_main.getGPU().resetGeometryCorrection();
-					quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
-					quadCLT_main.resetBayer();
-				}
-				if ((quadCLT_aux != null) && (quadCLT_aux.getGPU() != null)) {
-					quadCLT_aux.getGPU().resetGeometryCorrection();
-					quadCLT_aux.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
-					quadCLT_aux.resetBayer();
-				}*/
 				
 				// nset -> name - n1, n2 (in 
 				String set_name = set_channels[nSet].set_name;
@@ -11205,9 +11479,6 @@ if (debugLevel > -100) return true; // temporarily !
 					}
 				}
 
-
-				//			int [] channelFiles_main = (set_channels_main==null)? null: set_channels_main[nSet].fileNumber();
-				//			int [] channelFiles_aux =  (set_channels_aux ==null)? null: set_channels_aux[nSet].fileNumber();
 				int [] channelFiles_main = (nSet_main < 0)? null: set_channels_main[nSet_main].fileNumber();
 				int [] channelFiles_aux =  (nSet_aux <  0)? null: set_channels_aux[nSet_aux].fileNumber();
 				boolean [][] saturation_imp_main = ((channelFiles_main != null) && (clt_parameters.sat_level > 0.0))? new boolean[channelFiles_main.length][] : null;
@@ -11449,21 +11720,7 @@ if (debugLevel > -100) return true; // temporarily !
 								if (assignments_dbg == null) continue;
 								dsi[DSI_DISPARITY_X3D] = assignments_dbg[TileSurface.ASGN_A_DISP];
 
-								// TODO use assignments_dbg
-
 								// generate ML data if enabled
-								/*
-						if (quadCLT_main.correctionsParameters.clt_batch_genMl) { // rig.ml_generate) { //clt_batch_genMl
-							outputMLData(
-									quadCLT_main,   // QuadCLT                                  quadCLT_main,  // tiles should be set
-									quadCLT_aux,    // QuadCLT                                  quadCLT_aux,
-									clt_parameters, // EyesisCorrectionParameters.CLTParameters clt_parameters,
-									null,           //String                                   ml_directory,       // full path or null (will use config one)
-									threadsMax,     // final int                                threadsMax,  // maximal number of threads to launch
-									updateStatus,   // final boolean                            updateStatus,
-									debugLevel);    // final int                                debugLevel)
-						}
-								 */
 								// copy regardless of ML generation
 								// See if it will copy all files, not just the main camera ones
 

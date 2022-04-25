@@ -62,6 +62,22 @@ import ij.io.FileSaver;
 import ij.process.ImageProcessor;
 
 public class OpticalFlow {
+	public static String [] COMBO_DSN_TITLES = {"disp", "strength","disp_lma","num_valid","change",
+			"disp_bg", "strength_bg","disp_lma_bg","change_bg","disp_fg","disp_bg_all"};
+	public static int COMBO_DSN_INDX_DISP =        0; // cumulative disparity (from CM or POLY), FG
+	public static int COMBO_DSN_INDX_STRENGTH =    1; // strength, FG
+	public static int COMBO_DSN_INDX_LMA =         2; // masked copy from 0 - cumulative disparity
+	public static int COMBO_DSN_INDX_VALID =       3; // initial only
+	public static int COMBO_DSN_INDX_CHANGE =      4; // increment
+	public static int COMBO_DSN_INDX_DISP_BG =     5; // cumulative BG disparity (from CM or POLY)
+	public static int COMBO_DSN_INDX_STRENGTH_BG = 6; // background strength
+	public static int COMBO_DSN_INDX_LMA_BG =      7; // masked copy from BG disparity 
+	public static int COMBO_DSN_INDX_CHANGE_BG =   8; // increment, BG
+	public static int COMBO_DSN_INDX_DISP_FG =     9; // cumulative disparity (from CM or POLY), FG
+	public static int COMBO_DSN_INDX_DISP_BG_ALL =10; // cumulative BG disparity (Use FG where no BG is available)
+
+	
+	
 	public static double [] ZERO3 = {0.0,0.0,0.0};
 	public static double  LINE_ERR = 0.1;
 	public int            threadsMax = 100;  // maximal number of threads to launch
@@ -2643,14 +2659,28 @@ public class OpticalFlow {
 		return disparity_strength;
 	}
 	
-	
-	
 	public double [][] transformToScenePxPyD(
 			final double []   disparity_ref, // invalid tiles - NaN in disparity
 			final double []   scene_xyz, // camera center in world coordinates
 			final double []   scene_atr, // camera orientation relative to world frame
 			final QuadCLT     scene_QuadClt,
-			final QuadCLT     reference_QuadClt)
+			final QuadCLT     reference_QuadClt) {
+		return transformToScenePxPyD(
+				disparity_ref, // invalid tiles - NaN in disparity
+				scene_xyz, // camera center in world coordinates
+				scene_atr, // camera orientation relative to world frame
+				scene_QuadClt,
+				reference_QuadClt,
+				this.threadsMax);
+	}
+	
+	public static double [][] transformToScenePxPyD(
+			final double []   disparity_ref, // invalid tiles - NaN in disparity
+			final double []   scene_xyz, // camera center in world coordinates
+			final double []   scene_atr, // camera orientation relative to world frame
+			final QuadCLT     scene_QuadClt,
+			final QuadCLT     reference_QuadClt,
+			int               threadsMax)
 	{
 		TileProcessor tp = reference_QuadClt.getTileProcessor();
 		final int tilesX = tp.getTilesX();
@@ -4857,8 +4887,10 @@ public class OpticalFlow {
 		boolean generate_outlines = false; // true; // TODO: move to configs
 		System.out.println("intersceneExport(), scene timestamp="+ref_scene.getImageName());
 		int num_scenes = scenes.length;
-		String [] combo_dsn_titles_full = {"disp", "strength","disp_lma","num_valid","change",
-				"disp_bg", "strength_bg","disp_lma_bg","change_bg","disp_fg","disp_bg_all"};
+		String [] combo_dsn_titles_full = COMBO_DSN_TITLES.clone();
+		//{"disp", "strength","disp_lma","num_valid","change",
+		//		"disp_bg", "strength_bg","disp_lma_bg","change_bg","disp_fg","disp_bg_all"};
+/*		
 		int combo_dsn_indx_disp =        0; // cumulative disparity (from CM or POLY), FG
 		int combo_dsn_indx_strength =    1; // strength, FG
 		int combo_dsn_indx_lma =         2; // masked copy from 0 - cumulative disparity
@@ -4870,8 +4902,8 @@ public class OpticalFlow {
 		int combo_dsn_indx_change_bg =   8; // increment, BG
 		int combo_dsn_indx_disp_fg =     9; // cumulative disparity (from CM or POLY), FG
 		int combo_dsn_indx_disp_bg_all =10; // cumulative BG disparity (Use FG where no BG is available)
-
-		String [] combo_dsn_titles = new String [combo_dsn_indx_disp_bg];
+*/
+		String [] combo_dsn_titles = new String [COMBO_DSN_INDX_DISP_BG];
 		for (int i = 0; i < combo_dsn_titles.length; i++) {
 			combo_dsn_titles[i] = combo_dsn_titles_full[i]; 
 		}
@@ -4886,14 +4918,14 @@ public class OpticalFlow {
 				clt_parameters.rig.mll_max_refines_pre;
 		
 		final int [] iter_indices = {
-				combo_dsn_indx_disp,
-				combo_dsn_indx_strength,
-				combo_dsn_indx_lma,
-				combo_dsn_indx_change}; // which to save for each iteration: {"disp", "strength","disp_lma","change"};
+				COMBO_DSN_INDX_DISP,
+				COMBO_DSN_INDX_STRENGTH,
+				COMBO_DSN_INDX_LMA,
+				COMBO_DSN_INDX_CHANGE}; // which to save for each iteration: {"disp", "strength","disp_lma","change"};
 		final int [] initial_indices = {
-				combo_dsn_indx_disp,
-				combo_dsn_indx_strength,
-				combo_dsn_indx_valid}; // initial: "disp", "strength","num_valid"
+				COMBO_DSN_INDX_DISP,
+				COMBO_DSN_INDX_STRENGTH,
+				COMBO_DSN_INDX_VALID}; // initial: "disp", "strength","num_valid"
 		double [][] combo_dsn =  null;
 		double[][] combo_dsn0 = prepareInitialComboDS( // 3
 				clt_parameters,   // final CLTParameters       clt_parameters,
@@ -4953,7 +4985,7 @@ public class OpticalFlow {
 		final int last_initial_slices = last_slices + initial_indices.length;
 		final boolean [] defined_tiles = new boolean [tiles];
 		for (int i = 0; i < defined_tiles.length; i++) {
-			defined_tiles[i] = !Double.isNaN(combo_dsn_change[combo_dsn_indx_disp][i]); // initially defined tiles 
+			defined_tiles[i] = !Double.isNaN(combo_dsn_change[COMBO_DSN_INDX_DISP][i]); // initially defined tiles 
 		}
 		final double [][] refine_results = new double [last_slices + 4 * (max_refines + 1)][];
 		String [] refine_titles = new String [refine_results.length];
@@ -4974,12 +5006,12 @@ public class OpticalFlow {
 				refine_titles[last_initial_slices + i * max_refines + nrefine ] = combo_dsn_titles[iter_indices[i]]+"-"+nrefine;
 			}
 		}
-		double [] target_disparity = combo_dsn_change[combo_dsn_indx_disp].clone();
+		double [] target_disparity = combo_dsn_change[COMBO_DSN_INDX_DISP].clone();
 		double [] target_disparity_orig = target_disparity.clone(); // will just use NaN/not NaN to restore tasks before second pass with LMA
 //		double [][] combo_dsn_final = new double [combo_dsn_titles.length][combo_dsn[0].length];
 		double [][] combo_dsn_final = 
 				new double [(clt_parameters.rig.mll_max_refines_bg > 0)? combo_dsn_titles_full.length:combo_dsn_titles.length][combo_dsn[0].length];
-		combo_dsn_final[combo_dsn_indx_disp]= combo_dsn[combo_dsn_indx_disp].clone();
+		combo_dsn_final[COMBO_DSN_INDX_DISP]= combo_dsn[COMBO_DSN_INDX_DISP].clone();
 		for (int i = 1; i < combo_dsn_final.length; i++) {
 			Arrays.fill(combo_dsn_final[i], Double.NaN);
 		}
@@ -5085,55 +5117,55 @@ public class OpticalFlow {
 					if (!Double.isNaN(map_disparity[nTile])) { // re-measured
 						boolean is_lma = (map_disparity_lma != null) && !Double.isNaN(map_disparity_lma[nTile]);
 						if (is_lma) {
-							combo_dsn_change[combo_dsn_indx_change][nTile] = map_disparity_lma[nTile] * corr_nonlma;
+							combo_dsn_change[COMBO_DSN_INDX_CHANGE][nTile] = map_disparity_lma[nTile] * corr_nonlma;
 						} else if (!Double.isNaN(map_disparity[nTile])) {
-							combo_dsn_change[combo_dsn_indx_change][nTile] = map_disparity[nTile] / clt_parameters.ofp.magic_scale * corr_lma;
+							combo_dsn_change[COMBO_DSN_INDX_CHANGE][nTile] = map_disparity[nTile] / clt_parameters.ofp.magic_scale * corr_lma;
 						}
-						if (!Double.isNaN(combo_dsn_change[combo_dsn_indx_change][nTile])) {
+						if (!Double.isNaN(combo_dsn_change[COMBO_DSN_INDX_CHANGE][nTile])) {
 //							corr_scale[nTile] = 1.0; // use default scale for the error to calculate new target disparity
 							// will keep previous new_corr_scale value when no previous data or switching non-LMA/LMA. Should be initialized to 1.0 
 							if (!Double.isNaN(disp_err[nTile]) && (is_lma == was_lma[nTile])) {
 								// current target_disparity: combo_dsn_change[combo_dsn_indx_disp][nTile]
-								double this_target_disparity = combo_dsn_change[combo_dsn_indx_disp][nTile];
+								double this_target_disparity = combo_dsn_change[COMBO_DSN_INDX_DISP][nTile];
 								double previous_target_disparity = this_target_disparity - corr_scale[nTile] * disp_err[nTile];
 								double prev_disp_err = disp_err[nTile];
-								double this_disp_err = combo_dsn_change[combo_dsn_indx_change][nTile];
+								double this_disp_err = combo_dsn_change[COMBO_DSN_INDX_CHANGE][nTile];
 								double new_corr_scale = (previous_target_disparity - this_target_disparity) / (this_disp_err - prev_disp_err);
 								if ((new_corr_scale <= max_scale) && (new_corr_scale >= min_scale)) {
 									corr_scale[nTile] = new_corr_scale;
 								}
 							}
 							
-							combo_dsn_change[combo_dsn_indx_disp][nTile] +=     combo_dsn_change[combo_dsn_indx_change][nTile] * corr_scale[nTile];
+							combo_dsn_change[COMBO_DSN_INDX_DISP][nTile] +=     combo_dsn_change[COMBO_DSN_INDX_CHANGE][nTile] * corr_scale[nTile];
 							was_lma[nTile] = is_lma;
 							
-							combo_dsn_change[combo_dsn_indx_strength][nTile]  = map_strength[nTile]; // combine CM/LMA
+							combo_dsn_change[COMBO_DSN_INDX_STRENGTH][nTile]  = map_strength[nTile]; // combine CM/LMA
 							if (bg_refine) {
-								combo_dsn_final[combo_dsn_indx_disp_bg][nTile] =    combo_dsn_change[combo_dsn_indx_disp][nTile];
-								combo_dsn_final[combo_dsn_indx_strength_bg][nTile] = combo_dsn_change[combo_dsn_indx_strength][nTile];
+								combo_dsn_final[COMBO_DSN_INDX_DISP_BG][nTile] =    combo_dsn_change[COMBO_DSN_INDX_DISP][nTile];
+								combo_dsn_final[COMBO_DSN_INDX_STRENGTH_BG][nTile] = combo_dsn_change[COMBO_DSN_INDX_STRENGTH][nTile];
 ///								combo_dsn_final[combo_dsn_indx_lma_bg][nTile] = combo_dsn_change[combo_dsn_indx_strength][nTile];
-								combo_dsn_final[combo_dsn_indx_lma_bg][nTile] = combo_dsn_change[combo_dsn_indx_disp][nTile];
+								combo_dsn_final[COMBO_DSN_INDX_LMA_BG][nTile] = combo_dsn_change[COMBO_DSN_INDX_DISP][nTile];
 								if (map_disparity_lma != null) {
-									combo_dsn_final[combo_dsn_indx_lma_bg][nTile] = Double.isNaN(map_disparity_lma[nTile])? Double.NaN : combo_dsn_final[combo_dsn_indx_disp_bg][nTile];
+									combo_dsn_final[COMBO_DSN_INDX_LMA_BG][nTile] = Double.isNaN(map_disparity_lma[nTile])? Double.NaN : combo_dsn_final[COMBO_DSN_INDX_DISP_BG][nTile];
 								}
 //								combo_dsn_final[combo_dsn_indx_valid][nTile] = combo_dsn[combo_dsn_indx_valid][nTile]; // not much sense
-								combo_dsn_final[combo_dsn_indx_change_bg][nTile] = combo_dsn_change[combo_dsn_indx_change][nTile];
+								combo_dsn_final[COMBO_DSN_INDX_CHANGE_BG][nTile] = combo_dsn_change[COMBO_DSN_INDX_CHANGE][nTile];
 							} else {
-								combo_dsn_final[combo_dsn_indx_disp][nTile] =    combo_dsn_change[combo_dsn_indx_disp][nTile];
-								combo_dsn_final[combo_dsn_indx_strength][nTile] = combo_dsn_change[combo_dsn_indx_strength][nTile];
+								combo_dsn_final[COMBO_DSN_INDX_DISP][nTile] =    combo_dsn_change[COMBO_DSN_INDX_DISP][nTile];
+								combo_dsn_final[COMBO_DSN_INDX_STRENGTH][nTile] = combo_dsn_change[COMBO_DSN_INDX_STRENGTH][nTile];
 ///								combo_dsn_final[combo_dsn_indx_lma][nTile] = combo_dsn_change[combo_dsn_indx_strength][nTile];
-								combo_dsn_final[combo_dsn_indx_lma][nTile] = combo_dsn_change[combo_dsn_indx_disp][nTile];
+								combo_dsn_final[COMBO_DSN_INDX_LMA][nTile] = combo_dsn_change[COMBO_DSN_INDX_DISP][nTile];
 								if (map_disparity_lma != null) {
-									combo_dsn_final[combo_dsn_indx_lma][nTile] = Double.isNaN(map_disparity_lma[nTile])? Double.NaN : combo_dsn_final[combo_dsn_indx_disp][nTile];
+									combo_dsn_final[COMBO_DSN_INDX_LMA][nTile] = Double.isNaN(map_disparity_lma[nTile])? Double.NaN : combo_dsn_final[COMBO_DSN_INDX_DISP][nTile];
 								}
-								combo_dsn_final[combo_dsn_indx_valid][nTile] = combo_dsn[combo_dsn_indx_valid][nTile]; // not much sense
-								combo_dsn_final[combo_dsn_indx_change][nTile] = combo_dsn_change[combo_dsn_indx_change][nTile];
+								combo_dsn_final[COMBO_DSN_INDX_VALID][nTile] = combo_dsn[COMBO_DSN_INDX_VALID][nTile]; // not much sense
+								combo_dsn_final[COMBO_DSN_INDX_CHANGE][nTile] = combo_dsn_change[COMBO_DSN_INDX_CHANGE][nTile];
 							}
 						}
-						disp_err[nTile] = combo_dsn_change[combo_dsn_indx_change][nTile];
+						disp_err[nTile] = combo_dsn_change[COMBO_DSN_INDX_CHANGE][nTile];
 						
-						if (Math.abs(combo_dsn_change[combo_dsn_indx_change][nTile]) >= min_disp_change) {
-							target_disparity[nTile] = combo_dsn_change[combo_dsn_indx_disp][nTile] ;
+						if (Math.abs(combo_dsn_change[COMBO_DSN_INDX_CHANGE][nTile]) >= min_disp_change) {
+							target_disparity[nTile] = combo_dsn_change[COMBO_DSN_INDX_DISP][nTile] ;
 							selection[nTile] = true;
 							num_tomeas ++;
 						} else {
@@ -5159,11 +5191,11 @@ public class OpticalFlow {
 			}
 			*/
 			// Copy disparity to disparity_lma and just mask out  tiles with no LMA data (keep all if LMA did not run at all)  
-			System.arraycopy(combo_dsn_change[combo_dsn_indx_disp], 0, combo_dsn_change[combo_dsn_indx_lma], 0, combo_dsn_change[combo_dsn_indx_disp].length); // lma
+			System.arraycopy(combo_dsn_change[COMBO_DSN_INDX_DISP], 0, combo_dsn_change[COMBO_DSN_INDX_LMA], 0, combo_dsn_change[COMBO_DSN_INDX_DISP].length); // lma
 			if (map_disparity_lma != null) { 
 				for (int i = 0; i < map_disparity_lma.length; i++) {
 					if (Double.isNaN(map_disparity_lma[i])) {
-						combo_dsn_change[combo_dsn_indx_lma][i] = Double.NaN;		
+						combo_dsn_change[COMBO_DSN_INDX_LMA][i] = Double.NaN;		
 					}
 				}
 			}
@@ -5192,11 +5224,11 @@ public class OpticalFlow {
 		// Add duplicate of FG disparity and FG+BG disparity (FG where no BG) for visual comparison
 		if (clt_parameters.rig.mll_max_refines_bg > 0) { 
 			for (int nTile =0; nTile < combo_dsn_change[0].length; nTile++) {
-				combo_dsn_final[combo_dsn_indx_disp_fg][nTile] = combo_dsn_final[combo_dsn_indx_disp][nTile];
-				if (Double.isNaN(combo_dsn_final[combo_dsn_indx_disp_bg][nTile])) {
-					combo_dsn_final[combo_dsn_indx_disp_bg_all][nTile] = combo_dsn_final[combo_dsn_indx_disp][nTile];
+				combo_dsn_final[COMBO_DSN_INDX_DISP_FG][nTile] = combo_dsn_final[COMBO_DSN_INDX_DISP][nTile];
+				if (Double.isNaN(combo_dsn_final[COMBO_DSN_INDX_DISP_BG][nTile])) {
+					combo_dsn_final[COMBO_DSN_INDX_DISP_BG_ALL][nTile] = combo_dsn_final[COMBO_DSN_INDX_DISP][nTile];
 				} else {
-					combo_dsn_final[combo_dsn_indx_disp_bg_all][nTile] = combo_dsn_final[combo_dsn_indx_disp_bg][nTile];
+					combo_dsn_final[COMBO_DSN_INDX_DISP_BG_ALL][nTile] = combo_dsn_final[COMBO_DSN_INDX_DISP_BG][nTile];
 				}
 			}
 		}
@@ -7216,6 +7248,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 							// When clt_mismatch is non-zero, no far objects extraction will be attempted
 							//optional, may be null
 							disparity_map,                 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+							null,                          // final double [][]         ddnd,            // data for LY. SHould be either null or [num_sensors][]
 							clt_parameters.correlate_lma,  // final boolean             run_lma,         // calculate LMA, false - CM only
 				  		    // define combining of all 2D correlation pairs for CM (LMA does not use them)
 							clt_parameters.img_dtt.mcorr_comb_width, //final int                 mcorr_comb_width,  // combined correlation tile width (set <=0 to skip combined correlations)
@@ -7279,6 +7312,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 							// When clt_mismatch is non-zero, no far objects extraction will be attempted
 							//optional, may be null
 							disparity_map,                 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+							null,                          // final double [][]         ddnd,            // data for LY. SHould be either null or [num_sensors][]
 							clt_parameters.correlate_lma,  // final boolean             run_lma,         // calculate LMA, false - CM only
 							// last 2 - contrast, avg/ "geometric average)
 							clt_parameters.getGpuFatZero(ref_scene.isMonochrome()),   // clt_parameters.getGpuFatZero(ref_scene.isMonochrome()), // final double              afat_zero2,      // gpu_fat_zero ==30? clt_parameters.getGpuFatZero(is_mono); absolute fat zero, same units as components squared values
@@ -7369,6 +7403,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					// When clt_mismatch is non-zero, no far objects extraction will be attempted
 					//optional, may be null
 					disparity_map,                 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+					null,                          // final double [][]         ddnd,            // data for LY. SHould be either null or [num_sensors][]
 					clt_parameters.correlate_lma,  // final boolean             run_lma,         // calculate LMA, false - CM only
 		  		    // define combining of all 2D correlation pairs for CM (LMA does not use them)
 					clt_parameters.img_dtt.mcorr_comb_width, //final int                 mcorr_comb_width,  // combined correlation tile width (set <=0 to skip combined correlations)
@@ -7417,6 +7452,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					// When clt_mismatch is non-zero, no far objects extraction will be attempted
 					//optional, may be null
 					disparity_map,                 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+					null,                          // final double [][]         ddnd,            // data for LY. SHould be either null or [num_sensors][]
 					clt_parameters.correlate_lma, // true,                          // final boolean             run_lma,         // calculate LMA, false - CM only
 					// last 2 - contrast, avg/ "geometric average)
 					clt_parameters.getGpuFatZero(ref_scene.isMonochrome()),   // clt_parameters.getGpuFatZero(ref_scene.isMonochrome()), // final double              afat_zero2,      // gpu_fat_zero ==30? clt_parameters.getGpuFatZero(is_mono); absolute fat zero, same units as components squared values
@@ -7475,6 +7511,17 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		return disparity_map; // disparity_map
 	}
 	
+	/**
+	 * Generate (randomly) offset 2D correlations for DNN training
+	 * @param clt_parameters
+	 * @param ref_scene
+	 * @param disparity_ref_in
+	 * @param disparity_offsets
+	 * @param margin
+	 * @param add_combo
+	 * @param debug_level
+	 * @return
+	 */
 	public float[][] generateOffset2DCorrelations(
 			final CLTParameters  clt_parameters,
 			final QuadCLT        ref_scene,
@@ -7583,6 +7630,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					// When clt_mismatch is non-zero, no far objects extraction will be attempted
 					//optional, may be null
 					null, // disparity_map,                 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+					null,                          // final double [][]         ddnd,            // data for LY. SHould be either null or [num_sensors][]
 					clt_parameters.correlate_lma,  // final boolean             run_lma,         // calculate LMA, false - CM only
 					// define combining of all 2D correlation pairs for CM (LMA does not use them)
 					(add_combo ? clt_parameters.img_dtt.mcorr_comb_width : 0), //final int                 mcorr_comb_width,  // combined correlation tile width (set <=0 to skip combined correlations)
@@ -7637,7 +7685,8 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					dcorr_tiles,                   // final double  [][][]      dcorr_tiles,     // [tile][pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 					// When clt_mismatch is non-zero, no far objects extraction will be attempted
 					//optional, may be null
-					null, // disparity_map,                 // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+					null, // disparity_map,        // final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+					null,                          // final double [][]         ddnd,            // data for LY. SHould be either null or [num_sensors][]
 					clt_parameters.correlate_lma,  // final boolean             run_lma,         // calculate LMA, false - CM only
 					// last 2 - contrast, avg/ "geometric average)
 					clt_parameters.getGpuFatZero(ref_scene.isMonochrome()),   // clt_parameters.getGpuFatZero(ref_scene.isMonochrome()), // final double              afat_zero2,      // gpu_fat_zero ==30? clt_parameters.getGpuFatZero(is_mono); absolute fat zero, same units as components squared values
@@ -7730,12 +7779,27 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		ImageDtt.startAndJoin(threads);
 	}
 
-	
 	public void accumulateCorrelations(
 			final TpTask []         tp_tasks,
 			final float [][][]      num_acc,     // number of accumulated tiles [tilesY][tilesX][pair] 
 			final double [][][][]   dcorr_td,    // [tile][pair][4][64] sparse transform domain representation of corr pairs 
 			final double [][][][][] dcorr_td_acc // [pair][tilesY][tilesX][4][64] sparse transform domain representation of corr pairs 
+			) {
+		accumulateCorrelations(
+				tp_tasks,
+				num_acc,     // number of accumulated tiles [tilesY][tilesX][pair] 
+				dcorr_td,    // [tile][pair][4][64] sparse transform domain representation of corr pairs 
+				dcorr_td_acc, // [pair][tilesY][tilesX][4][64] sparse transform domain representation of corr pairs
+				threadsMax);
+	}
+	
+	
+	public static void accumulateCorrelations(
+			final TpTask []         tp_tasks,
+			final float [][][]      num_acc,     // number of accumulated tiles [tilesY][tilesX][pair] 
+			final double [][][][]   dcorr_td,    // [tile][pair][4][64] sparse transform domain representation of corr pairs 
+			final double [][][][][] dcorr_td_acc, // [pair][tilesY][tilesX][4][64] sparse transform domain representation of corr pairs
+			final int               threadsMax
 			) {
 		final int tilesY = num_acc.length;
 		final int tilesX = num_acc[0].length;
@@ -7795,7 +7859,21 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 	public void accumulateCorrelations(
 			final float [][][]   num_acc,          // number of accumulated tiles [tilesY][tilesX][pair]
 			final float [][][][] fcorr_td,         // [tilesY][tilesX][pair][256] sparse transform domain representation of corr pairs 
-			final float [][][][] fcorr_td_acc      // [tilesY][tilesX][pair][256] sparse transform domain representation of corr pairs 
+			final float [][][][] fcorr_td_acc      // [tilesY][tilesX][pair][256] sparse transform domain representation of corr pairs
+			) {
+		accumulateCorrelations(
+				num_acc,          // number of accumulated tiles [tilesY][tilesX][pair]
+				fcorr_td,         // [tilesY][tilesX][pair][256] sparse transform domain representation of corr pairs 
+				fcorr_td_acc,      // [tilesY][tilesX][pair][256] sparse transform domain representation of corr pairs
+				threadsMax);
+	}
+
+	
+	public static void accumulateCorrelations(
+			final float [][][]   num_acc,          // number of accumulated tiles [tilesY][tilesX][pair]
+			final float [][][][] fcorr_td,         // [tilesY][tilesX][pair][256] sparse transform domain representation of corr pairs 
+			final float [][][][] fcorr_td_acc,      // [tilesY][tilesX][pair][256] sparse transform domain representation of corr pairs
+			final int threadsMax
 			) {
 		int tX=-1; 
 		for (int ity = 0; ity < fcorr_td.length; ity++) if (fcorr_td[ity] != null){
@@ -7826,7 +7904,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 										fcorr_td_acc[tileY][tileX][pair][i] += fcorr_td[tileY][tileX][pair][i];
 									}
 								}
-								num_acc[tileY][tileX][pair]++;
+								num_acc[tileY][tileX][pair] += 1;
 							}
 						}
 					}
@@ -7836,12 +7914,19 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		ImageDtt.startAndJoin(threads);
 	}
 
-	
-	
-	
 	public void accumulateCorrelations(  // normalize
+			final float  [][][]     num_acc,      // number of accumulated tiles [tilesY][tilesX][pair]
+			final double [][][][][] dcorr_td_acc) { // [pair][tilesY][tilesX][4][64] sparse transform domain representation of corr pairs
+		accumulateCorrelations(  // normalize
+				num_acc,     // number of accumulated tiles [tilesY][tilesX][pair]
+				dcorr_td_acc, // [pair][tilesY][tilesX][4][64] sparse transform domain representation of corr pairs
+				threadsMax);
+	}
+	
+	public static void accumulateCorrelations(  // normalize
 			final float  [][][]     num_acc,     // number of accumulated tiles [tilesY][tilesX][pair]
-			final double [][][][][] dcorr_td_acc // [pair][tilesY][tilesX][4][64] sparse transform domain representation of corr pairs 
+			final double [][][][][] dcorr_td_acc, // [pair][tilesY][tilesX][4][64] sparse transform domain representation of corr pairs
+			final int               threadsMax
 			) {
 		int tX=-1, tY=-1; 
 		for (int np = 0; np < dcorr_td_acc.length; np++) if (dcorr_td_acc[np] != null){
@@ -7878,10 +7963,21 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		}		      
 		ImageDtt.startAndJoin(threads);
 	}
-	
+
 	public void accumulateCorrelationsAcOnly( // normalize
 			final float [][][]   num_acc,          // number of accumulated tiles [tilesY][tilesX][pair]
 			final float [][][][] fcorr_td_acc      // [tilesY][tilesX][pair][256] sparse transform domain representation of corr pairs 
+			) {
+		accumulateCorrelationsAcOnly( // normalize
+				num_acc,          // number of accumulated tiles [tilesY][tilesX][pair]
+				fcorr_td_acc,     // [tilesY][tilesX][pair][256] sparse transform domain representation of corr pairs
+				threadsMax);
+	}
+
+	public static void accumulateCorrelationsAcOnly( // normalize
+			final float [][][]   num_acc,          // number of accumulated tiles [tilesY][tilesX][pair]
+			final float [][][][] fcorr_td_acc,      // [tilesY][tilesX][pair][256] sparse transform domain representation of corr pairs
+			final int            threadsMax
 			) {
 		int tX=-1; 
 		for (int ity = 0; ity < fcorr_td_acc.length; ity++) if (fcorr_td_acc[ity] != null){
@@ -7913,6 +8009,166 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			};
 		}		      
 		ImageDtt.startAndJoin(threads);
+	}
+
+	/**
+	 * Merge FD correlations and weights for tile clusters, normalize, modify fcorr_td_acc and
+	 * num_acc (to be used for fat zero). Put merged data to top left tile of each cluster, remove
+	 * other ones.
+	 * @param clust_size Cluster size (side of a square), rightmost and bottom may be partial (used ceil())
+	 * @param num_acc weighs (currently just number) of accumulated pairs (individually for each pair). WILL BE MODIFIED 
+	 * @param fcorr_td_acc Frequency-domain correlation per tile, per pair. . WILL BE MODIFIED 
+	 * @param tile_clust_weights Per-tile weights to calculate per-cluster average coordinates. Sum for each cluster is 1.0
+	 * @param threadsMax
+	 */
+	public static void  accumulateCorrelationsAcOnly( // normalize
+			final int            clust_size,
+			final float [][][]   num_acc,        // number of accumulated tiles [tilesY][tilesX][pair]
+			final float [][][][] fcorr_td_acc,   // [tilesY][tilesX][pair][256] sparse transform domain representation of corr pairs
+			final double [][]    tile_clust_weights,  // null or  [tilesY][tilesX]
+			final int            threadsMax
+			) {
+		int tX=-1; 
+		for (int ity = 0; ity < fcorr_td_acc.length; ity++) if (fcorr_td_acc[ity] != null){
+			tX = fcorr_td_acc[ity].length;
+			break;
+		}
+		final int tilesY =    fcorr_td_acc.length;
+		final int tilesX =    tX;
+		final int clustersX = (int) Math.ceil(1.0 * tilesX / clust_size);
+		final int clustersY = (int) Math.ceil(1.0 * tilesY / clust_size);
+		final int clusters =  clustersX * clustersY;
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nClust = ai.getAndIncrement(); nClust < clusters; nClust = ai.getAndIncrement()) {
+						int clustX = nClust % clustersX;
+						int clustY = nClust / clustersX;
+						double [] total_weights = null; // for this cluster, per-pair
+						double cluster_weight = 0.0;
+						for (int ctY = 0; ctY < clust_size; ctY++) {
+							int tileY = clustY * clust_size + ctY;
+							if (tileY < tilesY) {
+								for (int ctX = 0; ctX < clust_size; ctX++) {
+									int tileX = clustX * clust_size + ctX;
+									if (tileX < tilesX) {
+										if (num_acc[tileY][tileX] != null) {
+//											if (total_weights == null) {
+//												total_weights = new double [num_acc[tileY][tileX].length];
+//											}
+											for (int pair = 0; pair < num_acc[tileY][tileX].length; pair++) {
+												double w = num_acc[tileY][tileX][pair];
+												if (w > 0.0) {
+													if (total_weights == null) {
+														total_weights = new double [num_acc[tileY][tileX].length];
+													}
+													total_weights[pair] += w; // for this cluster, per-pair
+													tile_clust_weights[tileY][tileX] += w; // for this tile
+													cluster_weight += w; // all pairs, this cluster
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+						if (total_weights != null) {
+							// normalize per-tile weights, so for each cluster sum is 1.0
+							for (int ctY = 0; ctY < clust_size; ctY++) {
+								int tileY = clustY * clust_size + ctY;
+								if (tileY < tilesY) {
+									for (int ctX = 0; ctX < clust_size; ctX++) {
+										int tileX = clustX * clust_size + ctX;
+										if (tileX < tilesX) {
+//											for (int pair = 0; pair < total_weights.length; pair++) {
+												tile_clust_weights[tileY][tileX] /= cluster_weight; // for this tile
+//											}
+										}
+									}
+								}
+							}
+							
+							// add/normalize correlations from each tile in a cluster to the top-left tile
+							int tileX0 = clustX * clust_size;
+							int tileY0 = clustY * clust_size;
+							if (num_acc[tileY0][tileX0] == null) {
+								num_acc[tileY0][tileX0] = new float [total_weights.length];
+							}
+							if (fcorr_td_acc[tileY0][tileX0] == null) {
+								fcorr_td_acc[tileY0][tileX0] = new float [total_weights.length][];
+							}
+							for (int pair = 0; pair < total_weights.length; pair++) { // if (total_weights[pair] > 0) {
+								if (total_weights[pair] > 0) {
+									num_acc[tileY0][tileX0][pair] = (float) total_weights[pair];
+									for (int ctY = 0; ctY < clust_size; ctY++) {
+										int tileY = clustY * clust_size + ctY;
+										if (tileY < tilesY) {
+											for (int ctX = 0; ctX < clust_size; ctX++) {
+												int tileX = clustX * clust_size + ctX;
+												if (tileX < tilesX) {
+													if ((fcorr_td_acc[tileY][tileX] != null ) &&
+															(fcorr_td_acc[tileY][tileX][pair] != null )) {
+														if (fcorr_td_acc[tileY0][tileX0][pair] == null) {
+															fcorr_td_acc[tileY0][tileX0][pair] = new float [fcorr_td_acc[tileY][tileX][pair].length];
+														}
+														
+														for (int i = 0; i < fcorr_td_acc[tileY0][tileX0][pair].length; i++) {
+															fcorr_td_acc[tileY0][tileX0][pair][i] += fcorr_td_acc[tileY][tileX][pair][i];
+														}
+														/*
+													} else {
+														if (num_acc[tileY][tileX] != null) { 
+															num_acc[tileY][tileX][pair] =    0;
+														}
+														if (fcorr_td_acc[tileY][tileX] != null) {
+															fcorr_td_acc[tileY][tileX][pair] = null;
+														}
+													}
+													if ((ctY != 0) || (ctX != 0)){
+														if (num_acc[tileY][tileX] != null) { 
+															num_acc[tileY][tileX][pair] =    0;
+														}
+														if (fcorr_td_acc[tileY][tileX] != null) {
+															fcorr_td_acc[tileY][tileX][pair] = null;
+														}
+														*/
+													}
+												}
+											}
+										}
+									}
+									double k = 1.0 / total_weights[pair];
+									for (int i = 0; i < fcorr_td_acc[tileY0][tileX0][pair].length; i++) {
+										fcorr_td_acc[tileY0][tileX0][pair][i] *= k;
+									}
+								}
+							}
+						}
+						// Make null for all pairs (all tiles of empty clusters, all but top left for used ones)
+						int aa=0;
+						for (int ctY = 0; ctY < clust_size; ctY++) {
+							int tileY = clustY * clust_size + ctY;
+							if (tileY < tilesY) {
+								for (int ctX = 0; ctX < clust_size; ctX++) {
+									int tileX = clustX * clust_size + ctX;
+									if (tileX < tilesX) {
+										if ((ctY != 0) || (ctX != 0) || (total_weights == null)) {
+											num_acc[tileY][tileX] =      null; // OK, if that tileX, tileY is not used in tp_tasks
+											fcorr_td_acc[tileY][tileX] = null;
+										}
+									}
+								}
+							}
+						}
+						aa++;
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return;
 	}
 	
 	
