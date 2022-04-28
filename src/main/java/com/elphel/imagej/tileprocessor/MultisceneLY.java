@@ -280,11 +280,13 @@ public class MultisceneLY {
 	public static double [][] useTilesLY(
 			final int          clust_size,
 			final double       inf_range,     // full range centered at inf_disp_ref to be used as infinity
-			final double       scene_range,   // disparity range for non-infinity in the same cluster 
+			final double       scene_range,   // disparity range for non-infinity in the same cluster
+			final int          min_num_inf,   // Minimal number of tiles (in all scenes total) in an infinity cluster
 			final QuadCLT []   scenes,        // ordered by increasing timestamps
 			final boolean [][] valid_tile,    // tile with lma and single correlation maximum
 			final double       inf_disp_ref,  // average disparity at infinity for ref scene
-			final boolean [][] is_infinity,   // may be null, if not - may be infinity from the composite depth map
+			final boolean [][] is_infinity,   // may be null (all non-infinity), if not - may be infinity from the composite depth map
+			final boolean      only_infinity, // do not process non-infinity
 			int []             in_num_tiles,     // null or array of number of clusters
 			boolean []         in_inf_cluster,   // null or array of number of clusters, will return if cluster uses only infinite tiles
 			final int          threadsMax,
@@ -303,6 +305,10 @@ public class MultisceneLY {
 		
 		final int []     num_tiles =   (in_num_tiles != null)?   in_num_tiles :   (new int [clusters]);
 		final boolean [] inf_cluster = (in_inf_cluster != null)? in_inf_cluster : (new boolean [clusters]);
+		Arrays.fill(num_tiles, 0);
+		Arrays.fill(inf_cluster, false);
+		
+		final int [] num_inf_cluster = new int[clusters];
 		for (int nscene = 0; nscene < num_scenes; nscene++) {
 			target_disparities[nscene] = scenes[nscene].getDSRBG()[0];
 			Arrays.fill(rslt_disparities[nscene], Double.NaN);
@@ -314,7 +320,7 @@ public class MultisceneLY {
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
 					public void run() {
-						Cluster:
+//						Cluster:
 						for (int nClust = ai.getAndIncrement(); nClust < clusters; nClust = ai.getAndIncrement()) {
 							int clustX = nClust % clustersX;
 							int clustY = nClust / clustersX;
@@ -329,8 +335,9 @@ public class MultisceneLY {
 												if (is_infinity[nscene][nTile] &&
 														valid_tile[nscene][nTile] && // next may be NaN
 														(Math.abs(target_disparities[nscene][nTile] - inf_disp_ref) <= inf_hrange)) {
-													inf_cluster[nClust] = true;
-													continue Cluster;
+													num_inf_cluster[nClust]++;
+//													inf_cluster[nClust] = true;
+//													continue Cluster;
 												}
 											}
 										}
@@ -342,6 +349,21 @@ public class MultisceneLY {
 				};
 			}		      
 			ImageDtt.startAndJoin(threads);
+			ai.set(0);
+			// mark clusters as infinity if they have enough infinity tiles
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int nClust = ai.getAndIncrement(); nClust < clusters; nClust = ai.getAndIncrement()) {
+							if (num_inf_cluster[nClust] >= min_num_inf) {
+								inf_cluster[nClust] = true;
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			
 			
 			// Mark suitable infinity tiles (they are NaN now)
 			ai.set(0);
@@ -378,91 +400,196 @@ public class MultisceneLY {
 			ImageDtt.startAndJoin(threads);
 		}
 		
-		ai.set(0);
-		for (int ithread = 0; ithread < threads.length; ithread++) {
-			threads[ithread] = new Thread() {
-				public void run() {
-					double [] clust_disp = new double[clusters];
-					// only use clusters that are not infinity
-					for (int nClust = ai.getAndIncrement(); nClust < clusters; nClust = ai.getAndIncrement()) if (!inf_cluster[nClust]){
-						int clustX = nClust % clustersX;
-						int clustY = nClust / clustersX;
-//						int num_tot = 0;
-						for (int nscene = 0; nscene < num_scenes; nscene++) {
-							Arrays.fill(clust_disp,Double.NaN);
-							double sum_disp = 0;
-							int num_disp = 0;
+		if (!only_infinity) {
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						double [] clust_disp = new double[clusters];
+						// only use clusters that are not infinity
+						for (int nClust = ai.getAndIncrement(); nClust < clusters; nClust = ai.getAndIncrement()) if (!inf_cluster[nClust]){
+							int clustX = nClust % clustersX;
+							int clustY = nClust / clustersX;
+							//						int num_tot = 0;
+							for (int nscene = 0; nscene < num_scenes; nscene++) {
+								Arrays.fill(clust_disp,Double.NaN);
+								double sum_disp = 0;
+								int num_disp = 0;
 
-							for (int ctY = 0; ctY < clust_size; ctY++) {
-								int tileY = clustY * clust_size + ctY;
-								if (tileY < tilesY) {
-									for (int ctX = 0; ctX < clust_size; ctX++) {
-										int tileX = clustX * clust_size + ctX;
-										if (tileX < tilesX) {
-											int ct = ctY * clust_size + ctX;
-											int nTile = tileY*tilesX+tileX;
-											if (valid_tile[nscene][nTile]){
-												clust_disp[ct] = target_disparities[nscene][nTile];
-												sum_disp += clust_disp[ct];
-												num_disp ++;
+								for (int ctY = 0; ctY < clust_size; ctY++) {
+									int tileY = clustY * clust_size + ctY;
+									if (tileY < tilesY) {
+										for (int ctX = 0; ctX < clust_size; ctX++) {
+											int tileX = clustX * clust_size + ctX;
+											if (tileX < tilesX) {
+												int ct = ctY * clust_size + ctX;
+												int nTile = tileY*tilesX+tileX;
+												if (valid_tile[nscene][nTile]){
+													clust_disp[ct] = target_disparities[nscene][nTile];
+													sum_disp += clust_disp[ct];
+													num_disp ++;
+												}
 											}
 										}
 									}
 								}
-							}
-							while (num_disp > 0) {
-								int imin = 0;
-								int imax = 0;
-								for (int ct = 0; ct < clusters; ct++) if (!Double.isNaN(clust_disp[ct])){
-									if (!(clust_disp[ct] >= clust_disp[imin] )) imin = ct; 
-									if (!(clust_disp[ct] <= clust_disp[imax] )) imax = ct; 
-								}
-								if ((clust_disp[imax] - clust_disp[imin]) <= scene_range) {
-									break;
-								}
-								double disp_avg = sum_disp/num_disp;
-								if ((clust_disp[imax] - disp_avg) > (disp_avg - clust_disp[imin])){
-									sum_disp -= clust_disp[imax]; 
-									clust_disp[imax] = Double.NaN;
+								while (num_disp > 0) {
+									int imin = 0;
+									int imax = 0;
+									for (int ct = 0; ct < clusters; ct++) if (!Double.isNaN(clust_disp[ct])){
+										if (!(clust_disp[ct] >= clust_disp[imin] )) imin = ct; 
+										if (!(clust_disp[ct] <= clust_disp[imax] )) imax = ct; 
+									}
+									if ((clust_disp[imax] - clust_disp[imin]) <= scene_range) {
+										break;
+									}
+									double disp_avg = sum_disp/num_disp;
+									if ((clust_disp[imax] - disp_avg) > (disp_avg - clust_disp[imin])){
+										sum_disp -= clust_disp[imax]; 
+										clust_disp[imax] = Double.NaN;
 
-								} else {
-									sum_disp -= clust_disp[imin]; 
-									clust_disp[imin] = Double.NaN;
+									} else {
+										sum_disp -= clust_disp[imin]; 
+										clust_disp[imin] = Double.NaN;
+									}
+									num_disp --;
 								}
-								num_disp --;
-							}
-							for (int ctY = 0; ctY < clust_size; ctY++) {
-								int tileY = clustY * clust_size + ctY;
-								if (tileY < tilesY) {
-									for (int ctX = 0; ctX < clust_size; ctX++) {
-										int tileX = clustX * clust_size + ctX;
-										if (tileX < tilesX) {
-											int ct = ctY * clust_size + ctX;
-											int nTile = tileY*tilesX+tileX;
-											if (!Double.isNaN(clust_disp[ct])) {
-												rslt_disparities[nscene][nTile] = clust_disp[ct];
+								for (int ctY = 0; ctY < clust_size; ctY++) {
+									int tileY = clustY * clust_size + ctY;
+									if (tileY < tilesY) {
+										for (int ctX = 0; ctX < clust_size; ctX++) {
+											int tileX = clustX * clust_size + ctX;
+											if (tileX < tilesX) {
+												int ct = ctY * clust_size + ctX;
+												int nTile = tileY*tilesX+tileX;
+												if (!Double.isNaN(clust_disp[ct])) {
+													rslt_disparities[nscene][nTile] = clust_disp[ct];
+												}
 											}
 										}
 									}
 								}
+								num_tiles[nClust] += num_disp;
+								//								num_tot += num_disp;
 							}
-							num_tiles[nClust] += num_disp;
-							//								num_tot += num_disp;
 						}
 					}
-				}
-			};
-		}		      
-		ImageDtt.startAndJoin(threads);
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}
 		return rslt_disparities;
 	}
+
+	public static double [][][] getLYDataInfNoinf(
+			final CLTParameters  clt_parameters,
+			final int            clust_size,
+			final double         inf_range,         // full range centered at inf_disp_ref to be used as infinity
+			final double         scene_range,       // disparity range for non-infinity in the same cluster
+			final int            min_num_inf,       // Minimal number of tiles (in all scenes total) in an infinity cluster
+			final QuadCLT []     scenes,            // ordered by increasing timestamps
+			final boolean [][]   valid_tile,        // tile with lma and single correlation maximum
+			final double         inf_disp_ref,      // average disparity at infinity for ref scene // is_scene_infinity
+			final boolean [][]   is_scene_infinity, // may be null, if not - may be infinity from the composite depth map
+			final double  [][][] target_disparities,
+			final double         dbg_disparity_offset,
+			final int [][]       in_num_tiles,     // null or number of tiles per cluster to multiply strength
+			final int            threadsMax,
+			final int            debug_level){
+		final double [][][] inf_noinf_lazy_eye_data = new double [2][][];
+		int last_scene_index = scenes.length-1;
+		QuadCLT last_scene = scenes[last_scene_index];
+		int tilesX = last_scene.tp.getTilesX();
+		int tilesY = last_scene.tp.getTilesY();
+		int clustersX = (int) Math.ceil(1.0 * tilesX / clust_size);
+		int clustersY = (int) Math.ceil(1.0 * tilesY / clust_size);
+		int clusters = clustersX * clustersY;
+		final int [][]     num_tiles =   (in_num_tiles != null)?   in_num_tiles :   (new int [2][]);
+		for (int i = 0; i < num_tiles.length; i++) {
+			num_tiles[i] = new int [clusters];
+		}
+//		int [][]     num_tiles =    new int [2][clusters]; // may be null;; // null;
+		boolean [] inf_cluster  = new boolean [clusters]; // null;		
+		boolean       debug      = debug_level > -3;
+		// get for infinity only
+		double [][] target_disparities_inf = MultisceneLY.useTilesLY(
+				clust_size,    // final int          clust_size,
+				inf_range,     // final double       inf_range,     // full range centered at inf_disp_ref to be used as infinity
+				scene_range,   // final double       scene_range,   // disparity range for non-infinity in the same cluster
+				min_num_inf,   // final int          min_num_inf,   // Minimal number of tiles (in all scenes total) in an infinity cluster
+				scenes,        // final QuadCLT []   scenes,        // ordered by increasing timestamps
+				valid_tile,    // final boolean [][] valid_tile,    // tile with lma and single correlation maximum
+				inf_disp_ref,  // final double       inf_disp_ref,  // average disparity at infinity for ref scene // is_scene_infinity
+				is_scene_infinity, // final boolean [][] is_infinity,   // may be null, if not - may be infinity from the composite depth map
+				true,          // final boolean      only_infinity, // do not process non-infinity
+				num_tiles[0],  // int []             in_num_tiles,     // null or array of number of clusters
+				inf_cluster,   // boolean []         in_inf_cluster,   // null or array of number of clusters, will return if cluster uses only infinite tiles
+				threadsMax,    // final int          threadsMax,
+				debug);        // final boolean      debug)
+		
+		if (dbg_disparity_offset != 0.0) {
+			for (int nscene = 0; nscene < target_disparities_inf.length; nscene++) {
+				for (int i = 0; i < target_disparities_inf[nscene].length; i++) {
+					if (!Double.isNaN(target_disparities_inf[nscene][i])) {
+						target_disparities_inf[nscene][i] += dbg_disparity_offset;
+					}
+				}
+			}
+		}
+		
+		inf_noinf_lazy_eye_data[0] = 	MultisceneLY.getLYData( // TODO: show lazy_eye_data[][]
+				clt_parameters,         // final CLTParameters  clt_parameters,
+				clust_size,             // final int            clust_size,
+				scenes,                 // final QuadCLT []     scenes,        // ordered by increasing timestamps
+				target_disparities_inf, // final double[][]     target_disparities,
+				num_tiles[0],              // final int []         num_tiles,
+				threadsMax,             // final int            threadsMax,
+				debug_level);           // final int            debug_level);
+		// now for non-infinity:
+		double [][] target_disparities_noinf = MultisceneLY.useTilesLY(
+				clust_size,    // final int          clust_size,
+				inf_range,     // final double       inf_range,     // full range centered at inf_disp_ref to be used as infinity
+				scene_range,   // final double       scene_range,   // disparity range for non-infinity in the same cluster
+				min_num_inf,   // final int          min_num_inf,   // Minimal number of tiles (in all scenes total) in an infinity cluster
+				scenes,        // final QuadCLT []   scenes,        // ordered by increasing timestamps
+				valid_tile,    // final boolean [][] valid_tile,    // tile with lma and single correlation maximum
+				inf_disp_ref,  // final double       inf_disp_ref,  // average disparity at infinity for ref scene // is_scene_infinity
+				null,          // final boolean [][] is_infinity,   // may be null, if not - may be infinity from the composite depth map
+				false,         // final boolean      only_infinity, // do not process non-infinity
+				num_tiles[1],  // int []             in_num_tiles,     // null or array of number of clusters
+				inf_cluster,   // boolean []         in_inf_cluster,   // null or array of number of clusters, will return if cluster uses only infinite tiles
+				threadsMax,    // final int          threadsMax,
+				debug);        // final boolean      debug)
+		if (dbg_disparity_offset != 0.0) {
+			for (int nscene = 0; nscene < target_disparities_noinf.length; nscene++) {
+				for (int i = 0; i < target_disparities_noinf[nscene].length; i++) {
+					if (!Double.isNaN(target_disparities_noinf[nscene][i])) {
+						target_disparities_noinf[nscene][i] += dbg_disparity_offset;
+					}
+				}
+			}
+		}
+		inf_noinf_lazy_eye_data[1] = 	MultisceneLY.getLYData( // TODO: show lazy_eye_data[][]
+				clt_parameters,           // final CLTParameters  clt_parameters,
+				clust_size,               // final int            clust_size,
+				scenes,                   // final QuadCLT []     scenes,        // ordered by increasing timestamps
+				target_disparities_noinf, // final double[][]     target_disparities,
+				num_tiles[1],                // final int []         num_tiles,
+				threadsMax,               // final int            threadsMax,
+				debug_level);             // final int            debug_level);
+		if (target_disparities != null) {
+			target_disparities[0] = target_disparities_inf;
+			target_disparities[1] = target_disparities_noinf;
+		}
+		return inf_noinf_lazy_eye_data;
+	}	
 	
 	public static double [][] getLYData(
 			final CLTParameters  clt_parameters,
 			final int            clust_size,
 			final QuadCLT []     scenes,        // ordered by increasing timestamps
 			final double[][]     target_disparities,
-			final int []         num_tiles,
+			final int []         num_tiles, // null or number of tiles per cluster to multiply strength
 			final int            threadsMax,
 			final int            debug_level){
 		int last_scene_index = scenes.length-1;
@@ -700,6 +827,24 @@ public class MultisceneLY {
 						true,
 						last_scene.getImageName()+"-CORR-DECIMATED"+clust_size,
 						titles);
+				double [][] disparity_map_decimated = ImageDtt.corr2d_decimate( // not used in lwir
+						disparity_map,  // final float [][]        corr2d_img,
+						tilesX,        // final int               tilesX,
+						tilesY,        // final int               tilesY,
+						clust_size,    // final int               clust_size,
+						wh,            // final int []            wh, 
+						threadsMax,    // final int               threadsMax,     // maximal number of threads to launch
+						debug_level);  // final int               globalDebugLevel)
+				
+				(new ShowDoubleFloatArrays()).showArrays(
+						disparity_map_decimated,
+						wh[0],
+						wh[1],
+						true,
+						"disparity_map_decimated",
+						ImageDtt.getDisparityTitles(last_scene.getNumSensors(),last_scene.isMonochrome()) // ImageDtt.DISPARITY_TITLES
+						);
+				
 			}
 			
 			final double [][] rXY = last_scene.getErsCorrection().getRXY(false);
@@ -719,7 +864,9 @@ public class MultisceneLY {
 								lazy_eye_data[nClust] = new double [ExtrinsicAdjustment.get_INDX_LENGTH(numSens)];
 								// Number of tiles, strength or a product
 								double strength = disparity_map[ImageDtt.DISPARITY_INDEX_POLY + 1][nTile0];
-								
+								if (num_tiles != null) {
+									strength *= num_tiles[nClust];
+								}
 								lazy_eye_data[nClust][ExtrinsicAdjustment.INDX_STRENGTH] = strength;
 								lazy_eye_data[nClust][ExtrinsicAdjustment.INDX_TARGET] = combo_pXpYD[nTile0][2];
 								lazy_eye_data[nClust][ExtrinsicAdjustment.INDX_DIFF] =   disparity_map[ImageDtt.DISPARITY_INDEX_POLY][nTile0];

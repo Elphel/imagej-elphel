@@ -318,9 +318,24 @@ public class CLTParameters {
 	public int        lyf_min_samples = 5;       // Minimal number of tiles remaining in the sample
 	public boolean    lyf_norm_center = true;    // Replace samples with a single average with equal weight
 	public double     ly_corr_scale =   1.0;     // Scale calculated correction vector
-	public boolean    lyr_filter_ds =   false;    // true;
+	public boolean    lyr_filter_ds =   false;   // true;
 	public boolean    lyr_filter_lyf =  false;   // ~clt_parameters.lyf_filter, but may be different, now off for a single cameras
 
+	// Multi-scene LY parameters
+	// Infinity detection
+	public double     lyms_far_inf =       -0.5;  // Far limit when searching for infinity objects
+	public double     lyms_near_inf =       0.5;  // Near limit when searching for infinity objects
+	public double     lyms_far_fract =      0.05; // Mode of disparity distribution within range
+	public double     lyms_inf_range_offs = 0.05; // Add to the disparity distribution mode for infinity center
+	public double     lyms_inf_range =      0.15; // Consider infinity tiles that are within +/- half of this range from infinity center
+	//non-infinity parameters		
+	public double     lyms_min_inf_str =    0.2;  // Minimal strength of infinity tiles
+	public double     lyms_min_fg_str =     0.4;  // Minimal strength of non-infinity tiles
+	public int        lyms_clust_size =     4;    // cluster size (same in both directions) for measuring LY data
+	public double     lyms_scene_range =   10.0;  // disparity range for non-infinity in the same cluster 
+	public int        lyms_min_num_inf =   10;    // Minimal number of tiles (in all scenes total) in an infinity cluster
+	
+	
 
 	// old fcorr parameters, reuse?
 	// 		public int        fcorr_sample_size = 32;    // Use square this size side to detect outliers
@@ -1242,6 +1257,17 @@ public class CLTParameters {
 
 		properties.setProperty(prefix+"lyr_filter_ds",              this.lyr_filter_ds +"");
 		properties.setProperty(prefix+"lyr_filter_lyf",             this.lyr_filter_lyf +"");
+		
+		properties.setProperty(prefix+"lyms_far_inf",               this.lyms_far_inf +"");
+		properties.setProperty(prefix+"lyms_near_inf",              this.lyms_near_inf +"");
+		properties.setProperty(prefix+"lyms_far_fract",             this.lyms_far_fract +"");
+		properties.setProperty(prefix+"lyms_inf_range_offs",        this.lyms_inf_range_offs +"");
+		properties.setProperty(prefix+"lyms_inf_range",             this.lyms_inf_range +"");
+		properties.setProperty(prefix+"lyms_min_inf_str",           this.lyms_min_inf_str +"");
+		properties.setProperty(prefix+"lyms_min_fg_str",            this.lyms_min_fg_str +"");
+		properties.setProperty(prefix+"lyms_clust_size",            this.lyms_clust_size +"");
+		properties.setProperty(prefix+"lyms_scene_range",           this.lyms_scene_range +"");
+		properties.setProperty(prefix+"lyms_min_num_inf",           this.lyms_min_num_inf +"");
 
 		properties.setProperty(prefix+"corr_magic_scale",           this.corr_magic_scale +"");
 		properties.setProperty(prefix+"corr_select",                this.corr_select +"");
@@ -2073,6 +2099,17 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"lyr_filter_ds")!=null)                 this.lyr_filter_ds=Boolean.parseBoolean(properties.getProperty(prefix+"lyr_filter_ds"));
 		if (properties.getProperty(prefix+"lyr_filter_lyf")!=null)                this.lyr_filter_lyf=Boolean.parseBoolean(properties.getProperty(prefix+"lyr_filter_lyf"));
 
+		if (properties.getProperty(prefix+"lyms_far_inf")!=null)                  this.lyms_far_inf=Double.parseDouble(properties.getProperty(prefix+"lyms_far_inf"));
+		if (properties.getProperty(prefix+"lyms_near_inf")!=null)                 this.lyms_near_inf=Double.parseDouble(properties.getProperty(prefix+"lyms_near_inf"));
+		if (properties.getProperty(prefix+"lyms_far_fract")!=null)                this.lyms_far_fract=Double.parseDouble(properties.getProperty(prefix+"lyms_far_fract"));
+		if (properties.getProperty(prefix+"lyms_inf_range_offs")!=null)           this.lyms_inf_range_offs=Double.parseDouble(properties.getProperty(prefix+"lyms_inf_range_offs"));
+		if (properties.getProperty(prefix+"lyms_inf_range")!=null)                this.lyms_inf_range=Double.parseDouble(properties.getProperty(prefix+"lyms_inf_range"));
+		if (properties.getProperty(prefix+"lyms_min_inf_str")!=null)              this.lyms_min_inf_str=Double.parseDouble(properties.getProperty(prefix+"lyms_min_inf_str"));
+		if (properties.getProperty(prefix+"lyms_min_fg_str")!=null)               this.lyms_min_fg_str=Double.parseDouble(properties.getProperty(prefix+"lyms_min_fg_str"));
+		if (properties.getProperty(prefix+"lyms_clust_size")!=null)               this.lyms_clust_size=Integer.parseInt(properties.getProperty(prefix+"lyms_clust_size"));
+		if (properties.getProperty(prefix+"lyms_scene_range")!=null)              this.lyms_scene_range=Double.parseDouble(properties.getProperty(prefix+"lyms_scene_range"));
+		if (properties.getProperty(prefix+"lyms_min_num_inf")!=null)              this.lyms_min_num_inf=Integer.parseInt(properties.getProperty(prefix+"lyms_min_num_inf"));
+		
 		if (properties.getProperty(prefix+"corr_magic_scale")!=null)              this.corr_magic_scale=Double.parseDouble(properties.getProperty(prefix+"corr_magic_scale"));
 		if (properties.getProperty(prefix+"corr_select")!=null)                   this.corr_select=Integer.parseInt(properties.getProperty(prefix+"corr_select"));
 
@@ -3006,14 +3043,31 @@ public class CLTParameters {
 		gd.addCheckbox    ("Filter lazy eye pairs by their values wen GT data is available",                    this.lyr_filter_lyf,
 				"Same as \"Filter lazy eye pairs by their values\" above, but for the rig-guided adjustments");
 
+		gd.addTab         ("LY multiscene", "Multiscene series Lazy Eye correction");
 
-		//  			gd.addNumericField("Use square this size side to detect outliers",                                      this.fcorr_sample_size,  0);
-		//  			gd.addNumericField("Keep tiles only if there are more in each square",                                  this.fcorr_mintiles,     0);
-		//  			gd.addNumericField("Remove this fraction of tiles from each sample",                                    this.fcorr_reloutliers,  3);
-		//  			gd.addNumericField("Gaussian blur channel mismatch data",                                               this.fcorr_sigma,        3);
-
-		///  			gd.addNumericField("Calculated from correlation offset vs. actual one (not yet understood)",            this.corr_magic_scale,  3);
-
+		gd.addMessage     ("--- Infinity detection ---");
+		gd.addNumericField("Infinity far",                                                     this.lyms_far_inf,        4,6,"pix",
+				"Far limit when searching for infinity objects");
+		gd.addNumericField("Infinity near",                                                    this.lyms_near_inf,       4,6,"pix",
+				"Near limit when searching for infinity objects");
+		gd.addNumericField("Infinity mode (0.0 - min, 1.0 - max",                              this.lyms_far_fract,      4,6,"",
+				"Mode of disparity distribution within range (0.0 - min, 1.0 - max)");
+		gd.addNumericField("Offset infinity center from mode",                                 this.lyms_inf_range_offs, 4,6,"pix",
+				"Add to the disparity distribution mode for infinity center");
+		gd.addNumericField("Infinity full range",                                              this.lyms_inf_range,      4,6,"pix",
+				"Consider infinity tiles that are within +/- half of this range from infinity center");
+		gd.addMessage     ("--- LY data measurement ---");
+		gd.addNumericField("Minimal strength (infinity)",                                      this.lyms_min_inf_str,    4,6,"",
+				"Minimal strength of infinity tiles");
+		gd.addNumericField("Minimal strength (non-infinity)",                                  this.lyms_min_fg_str,     4,6,"",
+				"Minimal strength of non-infinity tiles");
+		gd.addNumericField("Cluster size",                                                     this.lyms_clust_size,     0,3,"pix",
+				"Cluster size (same in both directions) for measuring LY data");
+		gd.addNumericField("Per-scene disparity range",                                        this.lyms_scene_range,    4,6,"pix",
+				"Disparity range for non-infinity in the same cluster");
+		gd.addNumericField("Minimal number of infinity tiles",                                 this.lyms_min_num_inf,    0,3,"",
+				"Minimal number of tiles (in all scenes total) in an infinity cluster");
+		
 		gd.addTab         ("3D", "3D reconstruction");
 		gd.addMessage     ("--- 3D reconstruction ---");
 		gd.addCheckbox    ("Show generated textures",                                                                this.show_textures);
@@ -3976,13 +4030,17 @@ public class CLTParameters {
 
 		this.lyr_filter_ds=         gd.getNextBoolean();
 		this.lyr_filter_lyf=        gd.getNextBoolean();
-
-		//  			          this.fcorr_sample_size= (int)gd.getNextNumber();
-		//  			          this.fcorr_mintiles= (int)  gd.getNextNumber();
-		//  			          this.fcorr_reloutliers=     gd.getNextNumber();
-		//  			          this.fcorr_sigma=           gd.getNextNumber();
-
-		///  			          this.corr_magic_scale=      gd.getNextNumber();
+		
+		this.lyms_far_inf=          gd.getNextNumber();
+		this.lyms_near_inf=         gd.getNextNumber();
+		this.lyms_far_fract=        gd.getNextNumber();
+		this.lyms_inf_range_offs=   gd.getNextNumber();
+		this.lyms_inf_range=        gd.getNextNumber();
+		this.lyms_min_inf_str=      gd.getNextNumber();
+		this.lyms_min_fg_str=       gd.getNextNumber();
+		this.lyms_clust_size= (int) gd.getNextNumber();
+		this.lyms_scene_range=      gd.getNextNumber();
+		this.lyms_min_num_inf=(int) gd.getNextNumber();
 
 		this.show_textures=         gd.getNextBoolean();
 		this.debug_filters=         gd.getNextBoolean();

@@ -8950,6 +8950,64 @@ public class ImageDttCPU {
 		return corr2d_decimated;
 	}
 
+	public static double [][] corr2d_decimate( // not used in lwir
+			final double [][]        corr2d_img,
+			final int               tilesX,
+			final int               tilesY,
+			final int               clust_size,
+			final int []            wh, 
+			final int               threadsMax,     // maximal number of threads to launch
+			final int               globalDebugLevel) {
+		int len = 0;
+		final double [][] corr2d_decimated = new double [corr2d_img.length][];
+		for (int i = 0; i < corr2d_img.length; i++) {
+			if (corr2d_img[i] != null) {
+				len = corr2d_img[i].length;
+				break;
+			}
+		}
+		final int tile_size = (int) Math.round(Math.sqrt(len/(tilesX * tilesY)));
+		final int clustersX = (int) Math.ceil(1.0 * tilesX / clust_size);
+		final int clustersY = (int) Math.ceil(1.0 * tilesY / clust_size);
+		final int clusters =  clustersX * clustersY;
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final int clust_lines = clust_size * tile_size;
+		final int in_line_len =  clustersX * clust_size * tile_size;
+		final int out_line_len = clustersX * tile_size;
+		if (wh != null) {
+			wh[0] = clustersX * tile_size;
+			wh[1] = clustersY * tile_size;
+		}
+
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int nLayer = ai.getAndIncrement(); nLayer < corr2d_img.length; nLayer = ai.getAndIncrement()) {
+						if (corr2d_img[nLayer] != null){
+							corr2d_decimated[nLayer] = new double [clusters * tile_size * tile_size];
+							for (int clustY = 0; clustY < clustersY; clustY++) {
+								for (int clustX = 0; clustX < clustersX; clustX++) {
+									int offs = clustY * clust_lines * in_line_len; 
+									for (int line = 0; line < tile_size; line++) {
+										System.arraycopy(
+												corr2d_img[nLayer],
+												(clustY * clust_lines + line) * in_line_len + clustX * clust_lines,
+												corr2d_decimated[nLayer],
+												(clustY * tile_size + line) * out_line_len + clustX * tile_size,
+												tile_size);
+									}
+								}
+							}
+						}
+					}
+				}
+			};
+		}
+		startAndJoin(threads);
+		return corr2d_decimated;
+	}
 	
 	
 	
