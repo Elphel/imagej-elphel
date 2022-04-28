@@ -22,7 +22,15 @@ public class MultisceneLY {
 			this.threadsMax =             threadsMax;
 			this.updateStatus =           updateStatus;
 	}
-	
+	/**
+	 * Remeasure scene (from data in the model directory) to find number of correlation maximums
+	 * in each tile. Needed to keep only single-maximum tiles during Lazy Eye adjustment
+	 * @param clt_parameters parameters
+	 * @param lma_only keep only tiles that have LMA results
+	 * @param scene scene data 
+	 * @param debug_level debug level
+	 * @return number of correlation maximums per tile (now 0,1, or 2) in linescan order
+	 */
 	public int [] getNumCorrMax(
 			CLTParameters  clt_parameters,
 			boolean lma_only,
@@ -57,6 +65,28 @@ public class MultisceneLY {
 		return num_corr_max;
 	}
 	
+	/**
+	 * Process multiscene combined depth map to extract infinity tiles
+	 * by analyzing depth map histogram
+	 * @param tp tile processor instance
+	 * @param composite_ds [tile]{disparity, strength} - per-tile disparity/strength pair
+	 * @param far_inf far limit for a tile considered to be at infinity (typical -0.5)
+	 * @param near_inf near limit for infinity tiles (typical +0.5)
+	 * @param far_fract mode - fraction of all pixels in a  histogram, typical 0.05.
+	 *                  0.0 corresponds to exact minimum of all tiles far_inf<=disparity<=near_inf,
+	 *                  1.0 - exact maximum. 0.5 - median.
+	 * @param inf_range_offs - offset (add to) the mode value by this parameter to get average
+	 *                  expected disparity of objects at infinity. The result is returned in
+	 *                  inf_avg[0] that should be initialized to int[1] by the caller.
+	 * @param inf_range full range (symmetrical around offset mode value) of potentially
+	 *                  infinity tiles
+	 * @param min_inf_str minimal strength of infinity tiles
+	 * @param min_fg_str minimal strength of non-infinity tiles
+	 * @param inf_avg (should be initialized as double[1] - return parameter of average disparity
+	 *                  at infinity 
+	 * @param debug     generate debug images if true.
+	 * @return          per-tile array, where true is for infinity tiles
+	 */
 	public static boolean [] getComboInfinity(
 			TileProcessor tp,
 			double [][]   composite_ds,
@@ -168,6 +198,17 @@ public class MultisceneLY {
 		}
 		return is_inf;
 	}
+	
+	/**
+	 * Map reference scene (the last one in a sequence) disparity map and map of
+	 * the infinity tiles to all the scenes.  
+	 * @param scenes sequence of scenes
+	 * @param inf_disp_ref expected disparity at infinity
+	 * @param infinity_ref map of infinity tiles for the reference (last) scene
+	 * @param debug show debug images
+	 * @param threadsMax maximal number of threads to use
+	 * @return boolean array per tile - which tiles are infinity - per scene, per tile
+	 */
 	public static boolean [][] infinityPerScene(
 			QuadCLT [] scenes,
 			double     inf_disp_ref, // average disparity at infinity for ref scene
@@ -277,6 +318,36 @@ public class MultisceneLY {
 		}
 		return inf_scenes;
 	}
+	
+	/**
+	 * Filter tiles and generate target disparities array with NaN for the removed tiles.
+	 * Originally planned to generate both infinity tiles with target disparity equal to
+	 * the common expected infinity value and non-infinity ones with their own target
+	 * disparities, but later decided to do that in 2 passes - first processing only
+	 * infinity tiles (much smaller number), second pass - treat all as non-infinity
+	 * (own disparity) to get more data for LY offsets.   
+	 * @param clust_size cluster size
+	 * @param inf_range full range for the acceptable infinity tiles centered at inf_disp_ref
+	 * @param scene_range disparity range for non-infinity in the same cluster in the same scene
+	 * @param min_num_inf minimal number of tiles (in all scenes total) in an infinity cluster
+	 * @param scenes sequence of scenes ordered by increasing timestamps
+	 * @param valid_tile [scene_index][tile_index] array indicating tiles with exactly one
+	 *                   correlation maximum and valid LMA
+	 * @param inf_disp_ref average disparity at infinity for the reference (last) scene
+	 * @param is_infinity which tile of which scene is infinity. May be null (all non-infinity),
+	 *                    if not - may be infinity from the composite depth map
+	 * @param only_infinity - only generate tiles for infinity, skip non-infinity (set to NaN)
+	 * @param in_num_tiles int array of total number of clusters or null. If not null, will return
+	 *                     number of used tiles in each cluster
+	 * @param in_inf_cluster boolean array of total number of clusters or null. If not null will
+	 *                       return if the cluster is infinity (all non-infinity tiles will be
+	 *                       removed from it).
+	 * @param threadsMax maximal number of threads to use
+	 * @param debug show debug images
+	 * @return target disparity per scene per tile. Uses inf_disp_ref for infinity tiles and disparity
+	 *                maps for non-ifinity tiles (restored from the model directory to the scenes array).
+	 *                All unused (filtered out) tiles have NaN for disparity.
+	 */
 	public static double [][] useTilesLY(
 			final int          clust_size,
 			final double       inf_range,     // full range centered at inf_disp_ref to be used as infinity
@@ -320,7 +391,6 @@ public class MultisceneLY {
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
 					public void run() {
-//						Cluster:
 						for (int nClust = ai.getAndIncrement(); nClust < clusters; nClust = ai.getAndIncrement()) {
 							int clustX = nClust % clustersX;
 							int clustY = nClust / clustersX;
@@ -336,8 +406,6 @@ public class MultisceneLY {
 														valid_tile[nscene][nTile] && // next may be NaN
 														(Math.abs(target_disparities[nscene][nTile] - inf_disp_ref) <= inf_hrange)) {
 													num_inf_cluster[nClust]++;
-//													inf_cluster[nClust] = true;
-//													continue Cluster;
 												}
 											}
 										}
@@ -363,7 +431,6 @@ public class MultisceneLY {
 				};
 			}		      
 			ImageDtt.startAndJoin(threads);
-			
 			
 			// Mark suitable infinity tiles (they are NaN now)
 			ai.set(0);
@@ -481,6 +548,27 @@ public class MultisceneLY {
 		return rslt_disparities;
 	}
 
+	/**
+	 * Calculate Lazy Eye data in 2 passes - one for infinity adjustment, another - for LY.
+	 * @param clt_parameters parameters of calculation.
+	 * @param clust_size cluster size.
+	 * @param inf_range full range for the acceptable infinity tiles centered at inf_disp_ref.
+	 * @param scene_range disparity range for non-infinity in the same cluster in the same scene.
+	 * @param min_num_inf minimal number of tiles (in all scenes total) in an infinity cluster.
+	 * @param scenes sequence of scenes ordered by increasing timestamps.
+	 * @param valid_tile [scene_index][tile_index] array indicating tiles with exactly one
+	 *                   correlation maximum and valid LMA.
+	 * @param inf_disp_ref average disparity at infinity for the reference (last) scene
+	 * @param is_scene_infinity which tile of which scene is infinity. 
+	 * @param target_disparities if not null, should be initialized to double[2][][],
+	 *        will return target disparities array used for infinity [0][][] and non-infinity [1][][].
+	 * @param dbg_disparity_offset - add to all disparities (for testing).
+	 * @param in_num_tiles null or int[2][] - will return number of tiles per cluster for
+	 *                     infinity [0][] and non-infinity - [1][].
+	 * @param threadsMax maximal number of threads to use.
+	 * @param debug_level debug level, will show debug images if >-3.
+	 * @return [2][clusters][LY_sclices] LY data for infinity [0][][] and non-infinity[1][][].
+	 */
 	public static double [][][] getLYDataInfNoinf(
 			final CLTParameters  clt_parameters,
 			final int            clust_size,
@@ -493,7 +581,7 @@ public class MultisceneLY {
 			final boolean [][]   is_scene_infinity, // may be null, if not - may be infinity from the composite depth map
 			final double  [][][] target_disparities,
 			final double         dbg_disparity_offset,
-			final int [][]       in_num_tiles,     // null or number of tiles per cluster to multiply strength
+			final int [][]       in_num_tiles,      // null or number of tiles per cluster to multiply strength
 			final int            threadsMax,
 			final int            debug_level){
 		final double [][][] inf_noinf_lazy_eye_data = new double [2][][];
@@ -584,6 +672,19 @@ public class MultisceneLY {
 		return inf_noinf_lazy_eye_data;
 	}	
 	
+	
+	
+	/**
+	 * Calculate Lazy Eye data (now is called twice - separately for infinity and non-infinity)
+	 * @param clt_parameters parameters of calculation.
+	 * @param clust_size cluster size.
+	 * @param scenes sequence of scenes ordered by increasing timestamps.
+	 * @param target_disparities - per scene, per tile. NaN for unused tiles
+	 * @param num_tiles null or number of tiles per cluster, used to multiply strength in the LY results
+	 * @param threadsMax maximal number of threads
+	 * @param debug_level debug level. Generates debug images if >-3.
+	 * @return Lazy Eye data [clusters][LY_sclices]
+	 */
 	public static double [][] getLYData(
 			final CLTParameters  clt_parameters,
 			final int            clust_size,
@@ -596,7 +697,6 @@ public class MultisceneLY {
 		QuadCLT last_scene = scenes[last_scene_index];
 		int numSens = last_scene.getNumSensors();
 		final int num_scenes = scenes.length;
-//		final double[][] target_disparities = new double [num_scenes][];
 		final int tilesX = last_scene.tp.getTilesX();
 		final int tilesY = last_scene.tp.getTilesY();
 		final int clustersX = (int) Math.ceil(1.0 * tilesX / clust_size);
@@ -812,14 +912,6 @@ public class MultisceneLY {
 				for (int i = ind_length; i < titles.length; i++) {
 					titles[i] = "combo-"+(i - ind_length);
 				}
-/*				(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
-						accum_2d_img,
-						tilesX*(2*image_dtt.transform_size),
-						tilesY*(2*image_dtt.transform_size),
-						true,
-						last_scene.getImageName()+"-CORR-ACCUM"+num_scenes,
-						titles);
-						*/
 				(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
 						accum_2d_decimated,
 						wh[0],
@@ -921,14 +1013,19 @@ public class MultisceneLY {
 			throw new IllegalArgumentException ("CPU version not yet supported");
 		}
 		
-		
-		
-		// Combine tiles of each cluster, assign to top-left tile of each cluster. Remember to offset by 0.5*cluster_size,
-		// 0.5*cluster_size
-		
 		return lazy_eye_data;
 	}
 	
+	/**
+	 * Calculate average pX, pY, Disparity (pXpYD) for each cluster to be used in LY data.
+	 * @param clust_size cluster size
+	 * @param tp_tasks TpTask array to read center positions and disparity
+	 * @param tile_clust_weights [tilesY][tilesX] - tile weights within each cluster
+	 *                           (sum of the values for each cluster should be 1.0) 
+	 * @param threadsMax maximal number of threads to use
+	 * @return pXpYD array [tiles][] with only top-left corner tile of each cluster is
+	 *         non-null and contain {pX, pY, Disparity}
+	 */
 	public static double [][] getAveragePxPyD(
 			final int            clust_size, 
 			final TpTask [][]    tp_tasks,
@@ -952,9 +1049,6 @@ public class MultisceneLY {
 		final AtomicInteger ai = new AtomicInteger(0);
 		for (int iscene = 0; iscene < tp_tasks.length; iscene++) {
 			final int nscene = iscene;
-//			if (iscene == (tp_tasks.length-1)) {
-//				System.out.println("getAveragePxPyD() nscene="+nscene);
-//			}
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
 					public void run() {
@@ -977,7 +1071,7 @@ public class MultisceneLY {
 			ImageDtt.startAndJoin(threads);
 			ai.set(0);
 		}
-		//iterate by clustes, tiles in each cluster, ...
+		//iterate by clusters, tiles in each cluster, ...
 		for (int ithread = 00; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				public void run() {
@@ -987,10 +1081,6 @@ public class MultisceneLY {
 						int tileX0 = clust_size * clustX;  
 						int tileY0 = clust_size * clustY;
 						int tile0 = tileY0 * tilesX + tileX0;
-//						if (combo_pXpYD[tile0] == null) {
-//							combo_pXpYD[tile0] = new double [3];
-//						}
-						
 						for (int ctY = 0; ctY < clust_size; ctY++) {
 							int tileY = clustY * clust_size + ctY;
 							if (tileY < tilesY) {
