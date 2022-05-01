@@ -11152,19 +11152,7 @@ if (debugLevel > -100) return true; // temporarily !
 		boolean lma_only = true; // use clt_parameters
 		double        dbg_disparity_offset = 0.0; // 0.1
 		double        inf_disp_ref =   0.0;
-/*		
-		double        far_inf =       -0.5; //
-		double        near_inf =       0.5; //
-		double        far_fract =      0.05; //
-		double        inf_range_offs = 0.05; // 
-		double        inf_range =      0.15; // 
-		double        min_inf_str =    0.2;  //
-		double        min_fg_str =     0.4;  //
-// non-infinity parameters		
-		int           clust_size =     4;
-		double        scene_range =   10.0;    // disparity range for non-infinity in the same cluster 
-		int           min_num_inf =   10;      // Minimal number of tiles (in all scenes total) in an infinity cluster
-*/
+
 		int last_scene_index = quadCLTs.length-1;
 		QuadCLT last_scene = quadCLTs[last_scene_index];
         String composite_suffix =    "-INTER-INTRA-LMA";
@@ -11193,7 +11181,7 @@ if (debugLevel > -100) return true; // temporarily !
 //		int []     num_tiles =    new int [clusters]; // may be null;; // null;
 //		boolean [] inf_cluster  = new boolean [clusters]; // null;		
 		
-		boolean       debug      = debugLevel > -3; 
+		boolean       debug      = debugLevel > -2; 
 		
 		if (proc_infinity) {
 			double [] inf_avg = new double[1];
@@ -11263,14 +11251,11 @@ if (debugLevel > -100) return true; // temporarily !
 			}
 		}
 
+		
 		int [][] num_tiles2 = new int[2][];
 		double [][][] target_disparities = new double [2][][]; 
 		double [][][] lazy_eye_data = 	MultisceneLY.getLYDataInfNoinf(
 				clt_parameters,       // final CLTParameters  clt_parameters,
-				clt_parameters.lyms_clust_size,           // final int            clust_size,
-				clt_parameters.lyms_inf_range,            // final double         inf_range,         // full range centered at inf_disp_ref to be used as infinity
-				clt_parameters.lyms_scene_range,          // final double         scene_range,       // disparity range for non-infinity in the same cluster
-				clt_parameters.lyms_min_num_inf,          // final int            min_num_inf,       // Minimal number of tiles (in all scenes total) in an infinity cluster
 				quadCLTs,             // final QuadCLT []     scenes,            // ordered by increasing timestamps
 				valid_tile,           // final boolean [][]   valid_tile,        // tile with lma and single correlation maximum
 				inf_disp_ref,         // final double         inf_disp_ref,      // average disparity at infinity for ref scene // is_scene_infinity
@@ -11278,11 +11263,33 @@ if (debugLevel > -100) return true; // temporarily !
 				target_disparities,   // final double[][]     target_disparities,
 				dbg_disparity_offset, // final double         dbg_disparity_offset,
 				num_tiles2,           // final int [][]       in_num_tiles,     // null or number of tiles per cluster to multiply strength
+				null,                 // final CorrVector     corr_vector_delta, // null or extrinsic vector offset, applied to all scenes
 				threadsMax,           // final int            threadsMax,
 				debugLevel);          // final int            debug_level);
 		
+	    boolean                 use_tarz = false; // true; //false;
+	    double                  delta = 0.001; // 0.01;
+	    
+		MultisceneLY.debugLYDerivatives(
+				clt_parameters, // final CLTParameters     clt_parameters,
+				quadCLTs,             // final QuadCLT []        scenes,            // ordered by increasing timestamps
+				lazy_eye_data,        // double [][][]           lazy_eye_data2, // inf, no_inf
+				valid_tile,           // final boolean [][]      valid_tile,        // tile with lma and single correlation maximum
+				inf_disp_ref,         // final double            inf_disp_ref,      // average disparity at infinity for ref scene // is_scene_infinity
+				is_scene_infinity,    //final boolean [][]      is_scene_infinity, // may be null, if not - may be infinity from the composite depth map
+				false,                // boolean                 update_disparity, // re-measure disparity before measuring LY
+				threadsMax,           // final int               threadsMax,  // maximal number of threads to launch
+				true,                 // final boolean           updateStatus,
+				delta,                // double                  delta,
+				use_tarz,             // boolean                 use_tarz,  // derivatives by tarz, not symmetrical vectors
+				debugLevel); // final int               debugLevel);
+		if (debugLevel > -200) {
+			return;
+		}
+		
+		
 		// debug images
-		if (debugLevel > -3) {
+		if (debugLevel > -2) {
 			double [][] dbg_numCorrMax = new double[numCorrMax.length][];
 			for (int i = 0; i < dbg_numCorrMax.length; i++) {
 				dbg_numCorrMax[i] = new double[numCorrMax[i].length];
@@ -11311,13 +11318,19 @@ if (debugLevel > -100) return true; // temporarily !
 					"clusters_num_inf_boinf",
 					new String[] {"inf tiles", "noinf tiles"});
 
-		
+		}
 			if (lazy_eye_data != null) {
-				ExtrinsicAdjustment ea_dbg = new ExtrinsicAdjustment (
-						last_scene.getErsCorrection(), // GeometryCorrection gc,
-						clt_parameters.tileStep, // int         clusterSize,
-						clustersX,               // int         clustersX,
-						clustersY);              // int         clustersY)
+				multisceneLY.processLYdata(
+						clt_parameters,     // final CLTParameters  clt_parameters,
+						quadCLTs,           // final QuadCLT []     scenes,        // ordered by increasing timestamps
+						lazy_eye_data,      // final double [][][]  lazy_eye_data,
+						debugLevel);        // final int            debugLevel 
+				/*
+				ExtrinsicAdjustment ea = new ExtrinsicAdjustment (
+						last_scene.getErsCorrection(),  // GeometryCorrection gc,
+						clt_parameters.lyms_clust_size, // int         clusterSize,
+						clustersX,                      // int         clustersX,
+						clustersY);                     // int         clustersY)
 				double [][][] dbg_cluster = new double [lazy_eye_data.length][ExtrinsicAdjustment.get_INDX_LENGTH(last_scene.getNumSensors())][clustersY * clustersX];
 				for (int m = 0; m < lazy_eye_data.length; m++) {
 					for (int i = 0; i < dbg_cluster.length; i++) {
@@ -11338,11 +11351,18 @@ if (debugLevel > -100) return true; // temporarily !
 							clustersY,
 							true,
 							last_scene.getImageName()+"-lazy_eye_data-"+m,
-							ea_dbg.data_titles); //  ExtrinsicAdjustment.DATA_TITLES);
+							ea.data_titles); //  ExtrinsicAdjustment.DATA_TITLES);
 				}
-			}
+				*/
+// Testing next step				
+				
+				
+				
+				
+				
+			
 		}
-		if (debugLevel > -3) {
+		if (debugLevel > -2) {
 			System.out.println("adjustLYSeries() Done");
 		}
 

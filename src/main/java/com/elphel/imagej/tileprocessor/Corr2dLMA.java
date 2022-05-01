@@ -115,7 +115,7 @@ public class Corr2dLMA {
 	private double [][]       last_jt =         null;
 
 	private int               ddisp_index;   // =  G0_INDEX +    NUM_PAIRS; // disparity offset per camera (at least 1 should be disabled)
-	private int               ndisp_index;   //  =  ddisp_index + NUM_CAMS;  // disparity offset per camera - none should be disable
+	private int               ndisp_index;   //  =  ddisp_index + NUM_CAMS;  // disparity offset per camera - none should be disabled
 	private int               num_all_pars;  //  = ndisp_index+ NUM_CAMS; // maximal number of parameters
 	private final int []      used_cams_map; //  =  new int[NUM_CAMS]; // for each camera index return used index ???
 
@@ -1507,7 +1507,8 @@ public class Corr2dLMA {
 								if (par_map[ndisp_index + f] >= 0) jt[par_map[ndisp_index + f]][ns] = 0.0;
 							}
 						}
-						double [] dd_deriv = new double[3]; // derivatives by dependent dd_pre_lars, dd_last and nd_last (calculated on demand) with sign according to first/second in a pair
+						double [] dd_deriv = new double[3]; // derivatives by dependent dd_pre_last (0), dd_last (1) and nd_last (1)
+						                                    // (calculated on demand) with sign according to first/second in a pair
 						if ((fs[0] == pre_last_cam)) {
 							dd_deriv[0] =   2 * WGp * lim_negative * 
 									(       (A * xmxp + B * ymyp) * m_disp[s.tile][pre_last_cam].get(0, 0)+
@@ -1551,7 +1552,6 @@ public class Corr2dLMA {
 											(B * xmxp + C * ymyp) * m_disp[s.tile][fs[0]].get(1, 1));
 						}
 						if (par_map[ndisp_index + fs[1]] >= 0) {
-
 							jt[par_map[ndisp_index + fs[1]]][ns] -= 2 * WGp * lim_negative *
 									(       (A * xmxp + B * ymyp) * m_disp[s.tile][fs[1]].get(0, 1)+
 											(B * xmxp + C * ymyp) * m_disp[s.tile][fs[1]].get(1, 1));

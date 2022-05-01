@@ -245,7 +245,7 @@ public class ExtrinsicAdjustment {
 			double min_strength) {
 		if (ref_data == null) ref_data = data;
 		double [] avg = new double [indx_length];
-		double [] weights = new double [data.length];
+		double [] weights = new double [data.length]; // nullp
 		double sw = 0;
 		for (int cluster = 0; cluster < weights.length; cluster++) if ((ref_data[cluster] != null) && (data[cluster] != null) && !Double.isNaN (ref_data[cluster][INDX_STRENGTH])){
 			double w = ref_data[cluster][INDX_STRENGTH] - min_strength;
@@ -279,7 +279,7 @@ public class ExtrinsicAdjustment {
 		String dfmt =  "%"+format[0]+"."+format[1]+"f,";
 		String dfmta = "%"+format[0]+"."+(2*format[1])+"f";
 		String hfmt =  "%"+(format[0]/2)+"d%"+(format[0]-format[0]/2)+"s,";
-		double [] avg =  weightedLY (data, ref_data, min_strength);
+		double [] avg =  weightedLY (data, ref_data, min_strength); //nullp
 		String s = "";
 		double avg_dd = 0.0, avg_nd = 0.0, avg_x = 0.0, avg_y = 0.0;
 		for (int p = 0; p < num_sensors; p++) avg_dd += avg[indx_dd0 + p]/ num_sensors;
