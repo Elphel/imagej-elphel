@@ -329,6 +329,7 @@ public class CLTParameters {
 	public double     lyms_inf_range_offs = 0.05; // Add to the disparity distribution mode for infinity center
 	public double     lyms_inf_range =      0.15; // Consider infinity tiles that are within +/- half of this range from infinity center
 	//non-infinity parameters		
+	public int        lyms_margin =           6;  // discard tiles from each side
 	public double     lyms_min_inf_str =    0.2;  // Minimal strength of infinity tiles
 	public double     lyms_min_fg_str =     0.4;  // Minimal strength of non-infinity tiles
 	public int        lyms_clust_size =     4;    // cluster size (same in both directions) for measuring LY data
@@ -1263,6 +1264,7 @@ public class CLTParameters {
 		properties.setProperty(prefix+"lyms_far_fract",             this.lyms_far_fract +"");
 		properties.setProperty(prefix+"lyms_inf_range_offs",        this.lyms_inf_range_offs +"");
 		properties.setProperty(prefix+"lyms_inf_range",             this.lyms_inf_range +"");
+		properties.setProperty(prefix+"lyms_margin",                this.lyms_margin +"");
 		properties.setProperty(prefix+"lyms_min_inf_str",           this.lyms_min_inf_str +"");
 		properties.setProperty(prefix+"lyms_min_fg_str",            this.lyms_min_fg_str +"");
 		properties.setProperty(prefix+"lyms_clust_size",            this.lyms_clust_size +"");
@@ -2104,6 +2106,7 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"lyms_far_fract")!=null)                this.lyms_far_fract=Double.parseDouble(properties.getProperty(prefix+"lyms_far_fract"));
 		if (properties.getProperty(prefix+"lyms_inf_range_offs")!=null)           this.lyms_inf_range_offs=Double.parseDouble(properties.getProperty(prefix+"lyms_inf_range_offs"));
 		if (properties.getProperty(prefix+"lyms_inf_range")!=null)                this.lyms_inf_range=Double.parseDouble(properties.getProperty(prefix+"lyms_inf_range"));
+		if (properties.getProperty(prefix+"lyms_margin")!=null)                   this.lyms_margin=Integer.parseInt(properties.getProperty(prefix+"lyms_margin"));
 		if (properties.getProperty(prefix+"lyms_min_inf_str")!=null)              this.lyms_min_inf_str=Double.parseDouble(properties.getProperty(prefix+"lyms_min_inf_str"));
 		if (properties.getProperty(prefix+"lyms_min_fg_str")!=null)               this.lyms_min_fg_str=Double.parseDouble(properties.getProperty(prefix+"lyms_min_fg_str"));
 		if (properties.getProperty(prefix+"lyms_clust_size")!=null)               this.lyms_clust_size=Integer.parseInt(properties.getProperty(prefix+"lyms_clust_size"));
@@ -3057,6 +3060,8 @@ public class CLTParameters {
 		gd.addNumericField("Infinity full range",                                              this.lyms_inf_range,      4,6,"pix",
 				"Consider infinity tiles that are within +/- half of this range from infinity center");
 		gd.addMessage     ("--- LY data measurement ---");
+		gd.addNumericField("LY Margin",                                                        this.lyms_margin,         0,3,"tiles",
+				"Discard tiles from border");
 		gd.addNumericField("Minimal strength (infinity)",                                      this.lyms_min_inf_str,    4,6,"",
 				"Minimal strength of infinity tiles");
 		gd.addNumericField("Minimal strength (non-infinity)",                                  this.lyms_min_fg_str,     4,6,"",
@@ -4036,6 +4041,7 @@ public class CLTParameters {
 		this.lyms_far_fract=        gd.getNextNumber();
 		this.lyms_inf_range_offs=   gd.getNextNumber();
 		this.lyms_inf_range=        gd.getNextNumber();
+		this.lyms_margin=     (int) gd.getNextNumber();
 		this.lyms_min_inf_str=      gd.getNextNumber();
 		this.lyms_min_fg_str=       gd.getNextNumber();
 		this.lyms_clust_size= (int) gd.getNextNumber();

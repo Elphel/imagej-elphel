@@ -14,6 +14,8 @@ public class MultisceneLY {
 	public int            threadsMax = 100;  // maximal number of threads to launch
 	public boolean        updateStatus = true;
 	public int            numSens;
+    public static enum    MSLY_MODE {INF_ONLY, NOINF_ONLY, INF_NOINF};
+    public static String [] SINF_NOINF= {"inf","noinf"};  	
 	public MultisceneLY (
 			int            numSens,
 			int            threadsMax,  // maximal number of threads to launch
@@ -563,6 +565,7 @@ public class MultisceneLY {
 	 *                     infinity [0][] and non-infinity - [1][].
 	 * @param corr_vector_delta null or extrinsic vector offset, applied to all scenes.
 	 *        Only ERS parameters will be different, all the rest are the same for all scenes.
+	 * @param nrefine number of disparity refines for non-infinity.
 	 * @param threadsMax maximal number of threads to use.
 	 * @param debug_level debug level, will show debug images if >-2.
 	 * @return [2][clusters][LY_sclices] LY data for infinity [0][][] and non-infinity[1][][].
@@ -577,6 +580,7 @@ public class MultisceneLY {
 			final double         dbg_disparity_offset,
 			final int [][]       in_num_tiles,      // null or number of tiles per cluster to multiply strength
 			final CorrVector     corr_vector_delta, // null or extrinsic vector offset, applied to all scenes
+			final int            nrefine,           // number of disparity refines for non-inf
 			final int            threadsMax,
 			final int            debug_level){
 		final double [][][] inf_noinf_lazy_eye_data = new double [2][][];
@@ -587,6 +591,7 @@ public class MultisceneLY {
 		int clustersX = (int) Math.ceil(1.0 * tilesX / clt_parameters.lyms_clust_size);
 		int clustersY = (int) Math.ceil(1.0 * tilesY / clt_parameters.lyms_clust_size);
 		int clusters = clustersX * clustersY;
+		int numSens = last_scene.tp.getNumSensors();
 		final int [][]     num_tiles =   (in_num_tiles != null)?   in_num_tiles :   (new int [2][]);
 		for (int i = 0; i < num_tiles.length; i++) {
 			num_tiles[i] = new int [clusters];
@@ -628,7 +633,8 @@ public class MultisceneLY {
 				num_tiles[0],           // final int []         num_tiles,
 				corr_vector_delta,      // final CorrVector     corr_vector_delta, // null or extrinsic vector offset, applied to all scenes
 				threadsMax,             // final int            threadsMax,
-				debug_level);           // final int            debug_level);
+				debug_level,            // final int            debug_level);
+				((debug_level >-2)?"INF":null)); // String debug_suffix);
 		// now for non-infinity:
 		double [][] target_disparities_noinf = MultisceneLY.useTilesLY(
 				clt_parameters.lyms_clust_size,    // final int          clust_size,
@@ -661,7 +667,50 @@ public class MultisceneLY {
 				num_tiles[1],             // final int []         num_tiles,
 				corr_vector_delta,        // final CorrVector     corr_vector_delta, // null or extrinsic vector offset, applied to all scenes
 				threadsMax,               // final int            threadsMax,
-				debug_level);             // final int            debug_level);
+				debug_level,              // final int            debug_level);
+				((debug_level >-2)?"NOINF":null)); // String debug_suffix);
+
+		if (debug) {
+			showLY(
+					clt_parameters, // CLTParameters clt_parameters,
+					last_scene.getGeometryCorrection(), // GeometryCorrection gc,
+					clustersX, // int           clustersX,
+					clustersY, // int           clustersY,
+					inf_noinf_lazy_eye_data[1], // double [][]   ly_data,
+					"LY_noinf-initial"); // String        title);					
+		}
+		
+		for (int n = 0; n < nrefine; n++) {
+			// modify target disparity with disparity difference 
+			updateTargetDisparities(
+					clt_parameters,             // final CLTParameters clt_parameters,
+					last_scene.tp,              // final TileProcessor tp,
+					target_disparities_noinf,   // double [][] target_disparities,
+					inf_noinf_lazy_eye_data[1], // double [][] ly_data)
+					threadsMax);                // final int         threadsMax);
+			inf_noinf_lazy_eye_data[1] = 	MultisceneLY.getLYData( // TODO: show lazy_eye_data[][]
+					clt_parameters,           // final CLTParameters  clt_parameters,
+					clt_parameters.lyms_clust_size,               // final int            clust_size,
+					scenes,                   // final QuadCLT []     scenes,        // ordered by increasing timestamps
+					target_disparities_noinf, // final double[][]     target_disparities,
+					num_tiles[1],             // final int []         num_tiles,
+					corr_vector_delta,        // final CorrVector     corr_vector_delta, // null or extrinsic vector offset, applied to all scenes
+					threadsMax,               // final int            threadsMax,
+					debug_level,              // final int            debug_level);
+					((debug_level >-2)?("NOINF"+n):null)); // String debug_suffix);
+			
+			if (debug) {
+				showLY(
+						clt_parameters, // CLTParameters clt_parameters,
+						last_scene.getGeometryCorrection(), // GeometryCorrection gc,
+						clustersX, // int           clustersX,
+						clustersY, // int           clustersY,
+						inf_noinf_lazy_eye_data[1], // double [][]   ly_data,
+						"LY_noinf-"+n); // String        title);					
+			}
+			
+		}
+				
 		if (target_disparities != null) {
 			target_disparities[0] = target_disparities_inf;
 			target_disparities[1] = target_disparities_noinf;
@@ -669,6 +718,84 @@ public class MultisceneLY {
 		return inf_noinf_lazy_eye_data;
 	}	
 	
+	public static void showLY(
+			CLTParameters clt_parameters,
+			GeometryCorrection gc,
+			int           clustersX,
+			int           clustersY,
+			double [][]   ly_data,
+			String        title
+			) {
+		ExtrinsicAdjustment ea = new ExtrinsicAdjustment (
+				gc,                            // GeometryCorrection gc,
+				clt_parameters.lyms_clust_size, // int         clusterSize,
+				clustersX,                      // int         clustersX,
+				clustersY);                     // int         clustersY)
+		int numSens = gc.getNumSensors();
+		double [][] dbg_cluster = new double [ExtrinsicAdjustment.get_INDX_LENGTH(numSens)][clustersY * clustersX];
+		for (int i = 0; i < dbg_cluster.length; i++) {
+			Arrays.fill(dbg_cluster[i], Double.NaN);
+		}
+		for (int n = 0; n < ly_data.length; n++) {
+			if (ly_data[n] != null) {
+				for (int i = 0; i < ExtrinsicAdjustment.get_INDX_LENGTH(numSens); i++ ) {
+					dbg_cluster[i][n] = ly_data[n][i];
+				}
+			}
+		}
+		(new ShowDoubleFloatArrays()).showArrays(
+				dbg_cluster,
+				clustersX,
+				clustersY,
+				true,
+				title,
+				ea.data_titles); //  ExtrinsicAdjustment.DATA_TITLES);
+	}
+	
+	private static void updateTargetDisparities(
+		final CLTParameters clt_parameters,
+		final TileProcessor tp,
+		final double [][]   target_disparities,
+		final double [][]   ly_data,
+		final int           threadsMax)
+	{
+		final int clust_size = clt_parameters.lyms_clust_size;
+		final int tilesX = tp.getTilesX();
+		final int tilesY = tp.getTilesY();
+		final int clustersX = (int) Math.ceil(1.0 * tilesX / clust_size);
+		final int clustersY = (int) Math.ceil(1.0 * tilesY / clust_size);
+		final int clusters = clustersX * clustersY;
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+        for (int ithread = 0; ithread < threads.length; ithread++) {
+            threads[ithread] = new Thread() {
+                public void run() {
+                    for (int nClust = ai.getAndIncrement(); nClust < clusters; nClust = ai.getAndIncrement()) if (ly_data[nClust] != null) {
+                        int clustX = nClust % clustersX;
+                        int clustY = nClust / clustersX;
+                        double disp_diff = ly_data[nClust][ExtrinsicAdjustment.INDX_DIFF];
+                        for (int ctY = 0; ctY < clust_size; ctY++) {
+                            int tileY = clustY * clust_size + ctY;
+                            if (tileY < tilesY) {
+                                for (int ctX = 0; ctX < clust_size; ctX++) {
+                                    int tileX = clustX * clust_size + ctX;
+                                    if (tileX < tilesX) {
+                                    	int nTile = tileY*tilesX+tileX;
+                                        for (int nscene = 0; nscene < target_disparities.length; nscene++){
+                                        	if ((target_disparities[nscene] != null) && !Double.isNaN(target_disparities[nscene][nTile])) {
+                                        		target_disparities[nscene][nTile] += disp_diff;
+                                        	}
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+        }
+		ImageDtt.startAndJoin(threads);
+	}
 	
 	
 	/**
@@ -682,6 +809,7 @@ public class MultisceneLY {
 	 *        Only ERS parameters will be different, all the rest are the same for all scenes.
 	 * @param threadsMax maximal number of threads
 	 * @param debug_level debug level. Generates debug images if >-2.
+	 * @param debug_suffix - add to image name, null - no images
 	 * @return Lazy Eye data [clusters][LY_sclices]
 	 */
 	public static double [][] getLYData(
@@ -692,7 +820,8 @@ public class MultisceneLY {
 			final int []         num_tiles, // null or number of tiles per cluster to multiply strength
 			final CorrVector     corr_vector_delta, // null or extrinsic vector offset, applied to all scenes
 			final int            threadsMax,
-			final int            debug_level){
+			final int            debug_level,
+			final String         debug_suffix){
 		int last_scene_index = scenes.length-1;
 		QuadCLT last_scene = scenes[last_scene_index];
 		int numSens = last_scene.getNumSensors();
@@ -704,7 +833,7 @@ public class MultisceneLY {
 		final int clusters = clustersX * clustersY;
 		final int num_pairs = Correlation2d.getNumPairs(last_scene.getNumSensors());
 		
-		boolean show_corr = debug_level > -2;
+		boolean show_corr = (debug_suffix != null) ; //debug_level > -2;
 		final float  [][][]     fclt_corr = show_corr ? (new float [tilesX * tilesY][][]) : null;
 
 		final double [][][][][] dcorr_td_acc  = new double[num_pairs][][][][];
@@ -931,7 +1060,7 @@ public class MultisceneLY {
 						wh[0],
 						wh[1],
 						true,
-						last_scene.getImageName()+"-CORR-DECIMATED"+clust_size,
+						last_scene.getImageName()+"-CORR-DECIMATED"+clust_size+"-"+debug_suffix,
 						titles);
 				double [][] disparity_map_decimated = ImageDtt.corr2d_decimate( // not used in lwir
 						disparity_map,  // final float [][]        corr2d_img,
@@ -947,7 +1076,7 @@ public class MultisceneLY {
 						wh[0],
 						wh[1],
 						true,
-						"disparity_map_decimated",
+						"disparity_map_decimated"+"-"+debug_suffix,
 						ImageDtt.getDisparityTitles(last_scene.getNumSensors(),last_scene.isMonochrome()) // ImageDtt.DISPARITY_TITLES
 						);
 				
@@ -1131,12 +1260,90 @@ public class MultisceneLY {
 		return combo_pXpYD;
 	}
 	
+	public static double [][] mergeLY(
+			MSLY_MODE      adjust_mode,	
+			double [][][]  lazy_eye_data2,
+			boolean []     force_disparity // null or [clusters]
+			)
+			{
+		double [][] lazy_eye_data = null;
+		int clusters = 0;
+		for (int i = 0; i < lazy_eye_data2.length; i++) {
+			if (lazy_eye_data2[i] != null) {
+				clusters = lazy_eye_data2[i].length;
+				break;
+			}
+		}
+		if (adjust_mode == MSLY_MODE.INF_NOINF) {
+			if ((lazy_eye_data2.length < 2) || (lazy_eye_data2[1] == null)) {
+				adjust_mode = MSLY_MODE.INF_ONLY;
+			} else if (lazy_eye_data2[0] == null) {
+				adjust_mode = MSLY_MODE.NOINF_ONLY;
+			}
+		}
+		switch (adjust_mode) {
+		case INF_ONLY: 
+			if (lazy_eye_data2[0] == null) {
+				return null;
+			}
+			lazy_eye_data = lazy_eye_data2[0];
+			if (force_disparity != null) {
+				for (int i = 0; i < clusters; i++) {
+					force_disparity[i] = lazy_eye_data[i] != null;
+				}
+			}
+		break;
+		case NOINF_ONLY:
+			if ((lazy_eye_data2.length > 1) && (lazy_eye_data2[1] == null)) {
+				return null;
+			}
+			lazy_eye_data = lazy_eye_data2[1];
+			if (force_disparity != null) {
+				for (int i = 0; i < clusters; i++) {
+					force_disparity[i] = false;
+				}
+			}
+			
+		break;
+		case INF_NOINF: // both lazy_eye_data2[0] and lazy_eye_data2[1] are non-nulls
+			if (force_disparity != null) {
+				for (int i = 0; i < clusters; i++) {
+					force_disparity[i] = (lazy_eye_data2[0][i] != null) && (lazy_eye_data2[1][i] != null); // do not process w/o noinf
+				}
+			}
+			lazy_eye_data = new double [clusters][];
+			for (int i = 0; i < clusters; i++) if (lazy_eye_data2[1][i] != null){
+				lazy_eye_data[i] = lazy_eye_data2[1][i].clone();
+				if (lazy_eye_data2[0][i] != null) {
+					for (int n = 0;n < lazy_eye_data2[0][i].length; n++) {
+						switch (n){
+						case ExtrinsicAdjustment.INDX_DISP:
+						case ExtrinsicAdjustment.INDX_STRENGTH:
+						case ExtrinsicAdjustment.INDX_TARGET:
+						case ExtrinsicAdjustment.INDX_DIFF:
+							lazy_eye_data[i][n] =  lazy_eye_data2[0][i][n];
+						}
+					}
+				}
+			}			
+			break;
+		}
+		return lazy_eye_data;
+	}
+	
+	
 	public boolean processLYdata(
 			final CLTParameters  clt_parameters,
+			MSLY_MODE            adjust_mode,			
 			final QuadCLT []     scenes,        // ordered by increasing timestamps
-			final double [][][]  lazy_eye_data,
-			final int            debugLevel 
-			) {
+			final double [][][]  lazy_eye_data2,
+			final boolean [][]   valid_tile,        // tile with lma and single correlation maximum
+			final double         inf_disp_ref,      // average disparity at infinity for ref scene // is_scene_infinity
+			final boolean [][]   is_scene_infinity, // may be null, if not - may be infinity from the composite depth map
+			boolean              update_disparity, // re-measure disparity before measuring LY
+			final int            threadsMax,  // maximal number of threads to launch
+			final boolean        updateStatus,
+			final int            debugLevel) {
 		int last_scene_index = scenes.length-1;
 		QuadCLT last_scene = scenes[last_scene_index];
 		int numSens = last_scene.getNumSensors();
@@ -1153,20 +1360,20 @@ public class MultisceneLY {
 				clt_parameters.lyms_clust_size, // int         clusterSize,
 				clustersX,                      // int         clustersX,
 				clustersY);                     // int         clustersY)
-		double [][][] dbg_cluster = new double [lazy_eye_data.length][ExtrinsicAdjustment.get_INDX_LENGTH(last_scene.getNumSensors())][clustersY * clustersX];
-		for (int m = 0; m < lazy_eye_data.length; m++) {
+		double [][][] dbg_cluster = new double [lazy_eye_data2.length][ExtrinsicAdjustment.get_INDX_LENGTH(last_scene.getNumSensors())][clustersY * clustersX];
+		for (int m = 0; m < lazy_eye_data2.length; m++) {
 			for (int i = 0; i < dbg_cluster.length; i++) {
 				Arrays.fill(dbg_cluster[m][i], Double.NaN);
 			}
-			for (int n = 0; n < lazy_eye_data[m].length; n++) {
-				if (lazy_eye_data[m][n] != null) {
+			for (int n = 0; n < lazy_eye_data2[m].length; n++) {
+				if (lazy_eye_data2[m][n] != null) {
 					for (int i = 0; i < ExtrinsicAdjustment.get_INDX_LENGTH(last_scene.getNumSensors()); i++ ) {
-						dbg_cluster[m][i][n] = lazy_eye_data[m][n][i];
+						dbg_cluster[m][i][n] = lazy_eye_data2[m][n][i];
 					}
 				}
 			}
 		}
-		for (int m = 0; m < lazy_eye_data.length; m++) {
+		for (int m = 0; m < lazy_eye_data2.length; m++) {
 			(new ShowDoubleFloatArrays()).showArrays(
 					dbg_cluster[m],
 					clustersX,
@@ -1175,8 +1382,8 @@ public class MultisceneLY {
 					last_scene.getImageName()+"-lazy_eye_data-"+m,
 					ea.data_titles); //  ExtrinsicAdjustment.DATA_TITLES);
 		}
-		ea.showInput(lazy_eye_data[0],"first_data-inf");
-		ea.showInput(lazy_eye_data[1],"first_data-noinf");
+		ea.showInput(lazy_eye_data2[0],"first_data-inf");
+		ea.showInput(lazy_eye_data2[1],"first_data-noinf");
 		return true;
 	}
 	
@@ -1195,7 +1402,7 @@ public class MultisceneLY {
 			boolean                 use_tarz,  // derivatives by tarz, not symmetrical vectors
 			final int               debugLevel)
 	{
-		final String [] sinf_noinf= {"inf","noinf"};  
+//		final String [] sinf_noinf= {"inf","noinf"};  
 
 		//		  delta = 0.001;
 		/*double [] parameter_scales4 = { // multiply delay for each parameter
@@ -1235,7 +1442,7 @@ public class MultisceneLY {
 				300, // 2.943408022525927E-0,  // 4,  // 17 10000x vy
 				500.0}; // 390.6185365641268};    //4};  // 18 100000x vz
 		//		  delta = 0.001; // should be 0.001
-		final boolean debug_img = true; // false;
+		final boolean debug_img = false; // true; // false;
 		final int last_scene_index = scenes.length-1;
 		final QuadCLT last_scene = scenes[last_scene_index];
 		final int numSens = last_scene.getNumSensors();
@@ -1299,7 +1506,7 @@ public class MultisceneLY {
 			for (int nly = 0; nly < ly_initial2.length; nly++) if (ly_initial2[nly] != null ) {
 				ea.showInput(
 						ly_initial2[nly], // double[][] data,
-						"drv_reference-"+sinf_noinf[nly]);// String title);
+						"drv_reference-"+SINF_NOINF[nly]);// String title);
 			}
 			System.out.println("Initial:\n"+last_scene.getGeometryCorrection().getCorrVector().toString(true));  // true - short out
 			double min_strength = 0.1; // 0.23		  
@@ -1315,7 +1522,7 @@ public class MultisceneLY {
 				}
 			}
 		}
-
+		int            nrefine = 4;
 		for (int npar = 0; npar < num_pars; npar++) {
 			// perform asymmetric delta
 			double [] par_inc = new double [num_pars];
@@ -1341,62 +1548,17 @@ public class MultisceneLY {
 					0.0,               // final double         dbg_disparity_offset,
 					null,              // final int [][]       in_num_tiles,      // null or number of tiles per cluster to multiply strength
 					corr_delta,        // final CorrVector     corr_vector_delta, // null or extrinsic vector offset, applied to all scenes
+					nrefine,              // final int            nrefine,           // number of disparity refines for non-inf
 					threadsMax,        // final int            threadsMax,
 					debugLevel);       //  final int            debug_level);			
-///			if (update_disparity) {
-///							CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity
-///						clt_parameters,
-///						scanIndex,
-///						false,             // final boolean     save_textures,
-///						0,                 // final int         clust_radius,
-///						tp.threadsMax,     // maximal number of threads to launch
-///						false,             // updateStatus,
-///						debugLevelInner -1); // - 1); // -5-1
-///			}
-///			CLTMeasureLY( // perform single pass according to prepared tiles operations and disparity // USED in lwir
-///					clt_parameters,
-///					scanIndex,     // final int           scanIndex,
-					// only combine and calculate once, next passes keep
-					// remeasure each pass - target disparity is the same, but vector changes
-///					0, // bg_scan, // (num_iter >0)? -1: bg_scan,        // final int           bgIndex, // combine, if >=0
-///					tp.threadsMax,  // maximal number of threads to launch
-///					false, // updateStatus,
-///					debugLevelInner -1); // - 1); // -5-1
-///			ly = scan.getLazyEyeData();
 
 			if (debug_img) {
 				for (int nly = 0; nly < ly2.length; nly++) if (ly2[nly] != null ) {
 					ea.showInput(
 							ly2[nly], // double[][] data,
-							"drv_par-"+sinf_noinf[nly]);// String title);
+							"drv_par-"+SINF_NOINF[nly]);// String title);
 				}
-				
-				
-				
-				
 			}
-			//			  Tested - no difference
-			//			  CLTMeasureLY( // perform single pass according to prepared tiles operations and disparity // USED in lwir
-			//					  clt_parameters,
-			//					  scanIndex,     // final int           scanIndex,
-			//					  // only combine and calculate once, next passes keep
-			//					  // remeasure each pass - target disparity is the same, but vector changes
-			//					  0, // bg_scan, // (num_iter >0)? -1: bg_scan,        // final int           bgIndex, // combine, if >=0
-			//					  tp.threadsMax,  // maximal number of threads to launch
-			//					  false, // updateStatus,
-			//					  debugLevelInner -1); // - 1); // -5-1
-			//			  ly = scan.getLazyEyeData();
-			//			  ea.showInput(
-			//					  ly, // double[][] data,
-			//					  "drv_par"+npar+"-B");// String title);
-			//			  if (debugLevel > -3) {
-			//				  System.out.println(ea.stringWeightedLY(
-			//						  ly,                    // double [][] data,
-			//						  null,                  // double [][] ref_data,
-			//						  min_strength,          // double min_strength,
-			//						  pfmt,                  // int [] format,
-			//		                  "_"+titles[npar]));    // String suffix))
-			//			  }
 
 			for (int nly = 0; nly < ly_diff2.length; nly++) if (ly_diff2[nly] != null ) {
 				for (int cluster = 0; cluster < clusters; cluster++) if ((ly_initial2[nly][cluster] != null) && (ly2[nly][cluster]!=null)){
@@ -1422,7 +1584,7 @@ public class MultisceneLY {
 							ly_initial2[nly],            // double [][] ref_data,
 							min_strength,          // double min_strength,
 							pfmt,                  // int [] format,
-							"_d"+titles[npar]+"-"+sinf_noinf[nly]));    // String suffix))
+							"_d"+titles[npar]+"-"+SINF_NOINF[nly]));    // String suffix))
 					
 					if (debug_img) {
 						// check nd bug
@@ -1445,7 +1607,7 @@ public class MultisceneLY {
 								clustersX,
 								clustersY,
 								true,
-								"ND_test_npar-_"+npar+"-"+sinf_noinf[nly],
+								"ND_test_npar-_"+npar+"-"+SINF_NOINF[nly],
 								sens_titles);
 					}
 				}
@@ -1470,7 +1632,7 @@ public class MultisceneLY {
 						if (mode == 0) {
 							dbg_img2[nly][par][pix] = -ly_diff2[nly][par][indx][cluster];
 						} else {
-							dbg_img2[nly][par][pix] = ly_diff2[nly][par][indx][cluster];
+							dbg_img2[nly][par][pix] =  ly_diff2[nly][par][indx][cluster];
 						}
 					}
 				}
@@ -1482,7 +1644,7 @@ public class MultisceneLY {
 					width,
 					height,
 					true,
-					"dLY_dpar_"+delta+"DINV"+(update_disparity?"U":"")+"-"+sinf_noinf[nly],
+					"dLY_dpar_"+delta+"DINV"+(update_disparity?"U":"")+"-"+SINF_NOINF[nly],
 					titles);
 		}
 		dbg_img2 = new double [ly_diff2.length][num_pars][width*height];
@@ -1511,7 +1673,7 @@ public class MultisceneLY {
 					width,
 					height,
 					true,
-					"dLY_dpar_"+delta+"DINV"+(update_disparity?"U":"")+"-XY"+"-"+sinf_noinf[nly],
+					"dLY_dpar_"+delta+"DINV"+(update_disparity?"U":"")+"-XY"+"-"+SINF_NOINF[nly],
 					titles);
 		}
 		return;

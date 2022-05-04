@@ -100,6 +100,7 @@ import com.elphel.imagej.tileprocessor.DttRad2;
 import com.elphel.imagej.tileprocessor.ErsCorrection;
 import com.elphel.imagej.tileprocessor.ImageDtt;
 import com.elphel.imagej.tileprocessor.MLStats;
+import com.elphel.imagej.tileprocessor.MultisceneLY;
 import com.elphel.imagej.tileprocessor.QuadCLT;
 import com.elphel.imagej.tileprocessor.SymmVector;
 import com.elphel.imagej.tileprocessor.TwoQuadCLT;
@@ -7379,6 +7380,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 	 * @return
 	 */
 	public boolean adjustLYSeries(boolean use_aux) {
+		MultisceneLY.MSLY_MODE adjust_mode = MultisceneLY.MSLY_MODE.INF_NOINF;
 		long startTime = System.nanoTime();
 		// load needed sensor and kernels files
 		if (!prepareRigImages())
@@ -7436,9 +7438,10 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 		try {
 			TWO_QUAD_CLT.adjustLYSeries(
 					quadCLT, // QUAD_CLT, // QuadCLT quadCLT_main,
-					CLT_PARAMETERS, // EyesisCorrectionParameters.DCTParameters dct_parameters,
-					DEBAYER_PARAMETERS, // EyesisCorrectionParameters.DebayerParameters debayerParameters,
-					colorProcParameters, // COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters
+					CLT_PARAMETERS,       // EyesisCorrectionParameters.DCTParameters dct_parameters,
+					adjust_mode,          // MultisceneLY.MSLY_MODE                               adjust_mode,
+					DEBAYER_PARAMETERS,   // EyesisCorrectionParameters.DebayerParameters debayerParameters,
+					colorProcParameters,  // COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters
 											// colorProcParameters,
 					CHANNEL_GAINS_PARAMETERS, // CorrectionColorProc.ColorGainsParameters channelGainParameters,
 					RGB_PARAMETERS, // EyesisCorrectionParameters.RGBParameters rgbParameters,

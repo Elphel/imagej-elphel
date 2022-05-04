@@ -11103,7 +11103,8 @@ if (debugLevel > -100) return true; // temporarily !
 	
 	public void adjustLYSeries(
 			QuadCLT                                              quadCLT_main, // tiles should be set
-			CLTParameters             clt_parameters,
+			CLTParameters                                        clt_parameters,
+			MultisceneLY.MSLY_MODE                               adjust_mode,
 			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
 			ColorProcParameters                                  colorProcParameters,
 			CorrectionColorProc.ColorGainsParameters             channelGainParameters,
@@ -11139,7 +11140,7 @@ if (debugLevel > -100) return true; // temporarily !
 			// temporarily fix wrong sign:
 			ErsCorrection ers = (ErsCorrection) (quadCLTs[i].getGeometryCorrection());
 			if (reset_from_extrinsics) { // extrinsics vector "IMU" parameters
- 				System.out.println("Reset ERS parameters from intraframe extrinsics");
+				System.out.println("Reset ERS parameters from intraframe extrinsics");
 				ers.setupERSfromExtrinsics();
 			}
 			quadCLTs[i].setDSRBG(
@@ -11148,41 +11149,42 @@ if (debugLevel > -100) return true; // temporarily !
 					updateStatus,   // boolean        updateStatus,
 					debugLevel);    // int            debugLevel)
 		}
-		boolean proc_infinity = true; 
+		boolean proc_infinity = (adjust_mode == MultisceneLY.MSLY_MODE.INF_ONLY) || (adjust_mode == MultisceneLY.MSLY_MODE.INF_NOINF); //  true; 
 		boolean lma_only = true; // use clt_parameters
 		double        dbg_disparity_offset = 0.0; // 0.1
+		
 		double        inf_disp_ref =   0.0;
 
 		int last_scene_index = quadCLTs.length-1;
 		QuadCLT last_scene = quadCLTs[last_scene_index];
-        String composite_suffix =    "-INTER-INTRA-LMA";
-        String num_corr_max_suffix = "-NUM-CORR-MAX";
-        int [] wh = new int[2];
-        double [][] composite_ds = last_scene.readDoubleArrayFromModelDirectory(
-        		composite_suffix, // String      suffix,
-    			0,                // int         num_slices, // (0 - all)
-    			wh);              // int []      wh)
+		String composite_suffix =    "-INTER-INTRA-LMA";
+		String num_corr_max_suffix = "-NUM-CORR-MAX";
+		int [] wh = new int[2];
+		double [][] composite_ds = last_scene.readDoubleArrayFromModelDirectory(
+				composite_suffix, // String      suffix,
+				0,                // int         num_slices, // (0 - all)
+				wh);              // int []      wh)
 		// composite_ds == null if no file
-		
+
 		MultisceneLY multisceneLY = new MultisceneLY (
 				quadCLTs[0].getNumSensors(),
 				threadsMax,                                // int            threadsMax,  // maximal number of threads to launch
 				updateStatus);                             // boolean        updateStatus);
-	    // read interscene composite data
+		// read interscene composite data
 		boolean [][] is_scene_infinity = null; // per scene, per tile - is infinity.
 
-		
+
 
 		int tilesX = last_scene.tp.getTilesX();
 		int tilesY = last_scene.tp.getTilesY();
 		int clustersX = (int) Math.ceil(1.0 * tilesX / clt_parameters.lyms_clust_size);
 		int clustersY = (int) Math.ceil(1.0 * tilesY / clt_parameters.lyms_clust_size);
 		int clusters = clustersX * clustersY;
-//		int []     num_tiles =    new int [clusters]; // may be null;; // null;
-//		boolean [] inf_cluster  = new boolean [clusters]; // null;		
-		
+		//		int []     num_tiles =    new int [clusters]; // may be null;; // null;
+		//		boolean [] inf_cluster  = new boolean [clusters]; // null;		
+
 		boolean       debug      = debugLevel > -2; 
-		
+
 		if (proc_infinity) {
 			double [] inf_avg = new double[1];
 			boolean [] ref_inf = MultisceneLY.getComboInfinity(
@@ -11197,13 +11199,13 @@ if (debugLevel > -100) return true; // temporarily !
 					clt_parameters.lyms_min_fg_str,     // double        min_fg_str,
 					inf_avg,        // double []     inf_avg,
 					debug);         // boolean       debug)
-			
+
 			is_scene_infinity =  MultisceneLY.infinityPerScene(
-		            quadCLTs,    // QuadCLT [] scenes,
-		            inf_avg[0],  // double     inf_disp_ref, // average disparity at infinity for ref scene
-		            ref_inf,     // boolean [] infinity_ref,
-		            debug,       // boolean    debug,
-		            threadsMax); // int        threadsMax)
+					quadCLTs,    // QuadCLT [] scenes,
+					inf_avg[0],  // double     inf_disp_ref, // average disparity at infinity for ref scene
+					ref_inf,     // boolean [] infinity_ref,
+					debug,       // boolean    debug,
+					threadsMax); // int        threadsMax)
 			inf_disp_ref = inf_avg[0];
 		}
 		// Read or generate+save number of correlation maximums per scene, per tile
@@ -11211,8 +11213,8 @@ if (debugLevel > -100) return true; // temporarily !
 		int [][] numCorrMax = new int [quadCLTs.length][]; // -> 
 		double [][] dNumCorrMax =last_scene.readDoubleArrayFromModelDirectory(
 				num_corr_max_suffix, // String      suffix,
-    			0,                // int         num_slices, // (0 - all)
-    			wh);              // int []      wh)
+				0,                // int         num_slices, // (0 - all)
+				wh);              // int []      wh)
 		if ((dNumCorrMax != null) && (dNumCorrMax.length == numCorrMax.length)) {
 			for (int nscene = 0; nscene < numCorrMax.length; nscene++) {
 				numCorrMax[nscene] = new int[dNumCorrMax[nscene].length];
@@ -11235,7 +11237,7 @@ if (debugLevel > -100) return true; // temporarily !
 					dNumCorrMax[nscene][i] = numCorrMax[nscene][i];
 				}
 			}
-			
+
 			last_scene.saveDoubleArrayInModelDirectory( // error
 					num_corr_max_suffix,           // String      suffix,
 					null, // null,          // String []   labels, // or null
@@ -11248,46 +11250,197 @@ if (debugLevel > -100) return true; // temporarily !
 		for (int nscene = 0; nscene < numCorrMax.length; nscene++) {
 			for (int nTile = 0; nTile < numCorrMax[nscene].length; nTile++) {
 				valid_tile[nscene][nTile] = numCorrMax[nscene][nTile] == 1; // only single-maximum
+				if (clt_parameters.lyms_margin > 0) {
+					int tileX = nTile % tilesX;
+					int tileY = nTile / tilesX;
+					if (    (tileY < clt_parameters.lyms_margin) ||
+							(tileX < clt_parameters.lyms_margin) ||
+							(tileY >= (tilesY - clt_parameters.lyms_margin)) ||
+							(tileX >= (tilesX - clt_parameters.lyms_margin))) {
+						valid_tile[nscene][nTile] = false;	
+					}
+				}
 			}
 		}
 
-		
 		int [][] num_tiles2 = new int[2][];
 		double [][][] target_disparities = new double [2][][]; 
-		double [][][] lazy_eye_data = 	MultisceneLY.getLYDataInfNoinf(
-				clt_parameters,       // final CLTParameters  clt_parameters,
-				quadCLTs,             // final QuadCLT []     scenes,            // ordered by increasing timestamps
-				valid_tile,           // final boolean [][]   valid_tile,        // tile with lma and single correlation maximum
-				inf_disp_ref,         // final double         inf_disp_ref,      // average disparity at infinity for ref scene // is_scene_infinity
-				is_scene_infinity,    // final boolean [][]   is_scene_infinity, // may be null, if not - may be infinity from the composite depth map
-				target_disparities,   // final double[][]     target_disparities,
-				dbg_disparity_offset, // final double         dbg_disparity_offset,
-				num_tiles2,           // final int [][]       in_num_tiles,     // null or number of tiles per cluster to multiply strength
-				null,                 // final CorrVector     corr_vector_delta, // null or extrinsic vector offset, applied to all scenes
-				threadsMax,           // final int            threadsMax,
-				debugLevel);          // final int            debug_level);
+
+		boolean                 use_tarz = false; // true; //false;
+		double                  delta = 0.001; // 0.01;
+		boolean debug_derivs = false;
+
+		ExtrinsicAdjustment ea = new ExtrinsicAdjustment (
+				last_scene.getErsCorrection(),  // GeometryCorrection gc,
+				clt_parameters.lyms_clust_size, // int         clusterSize,
+				clustersX,                      // int         clustersX,
+				clustersY);                     // int         clustersY)
+		boolean [] force_disparity = new boolean[clusters];
+		boolean apply_extrinsic = (clt_parameters.ly_corr_scale != 0.0);
+//		int max_tries = 5; // organize cycle with comparing results
+		int max_tries =                   clt_parameters.lym_iter; // 25;
+
+		double inf_min = -1.0;
+		double inf_max =  1.0;
+		double [] old_new_rms = new double [2];
+		double min_sym_update =           clt_parameters.getLymChange(last_scene.isAux()); //  4e-6; // stop iterations if no angle changes more than this
+		double comp_diff = min_sym_update + 1; // (> min_sym_update)
 		
-	    boolean                 use_tarz = false; // true; //false;
-	    double                  delta = 0.001; // 0.01;
-	    
-		MultisceneLY.debugLYDerivatives(
-				clt_parameters, // final CLTParameters     clt_parameters,
-				quadCLTs,             // final QuadCLT []        scenes,            // ordered by increasing timestamps
-				lazy_eye_data,        // double [][][]           lazy_eye_data2, // inf, no_inf
-				valid_tile,           // final boolean [][]      valid_tile,        // tile with lma and single correlation maximum
-				inf_disp_ref,         // final double            inf_disp_ref,      // average disparity at infinity for ref scene // is_scene_infinity
-				is_scene_infinity,    //final boolean [][]      is_scene_infinity, // may be null, if not - may be infinity from the composite depth map
-				false,                // boolean                 update_disparity, // re-measure disparity before measuring LY
-				threadsMax,           // final int               threadsMax,  // maximal number of threads to launch
-				true,                 // final boolean           updateStatus,
-				delta,                // double                  delta,
-				use_tarz,             // boolean                 use_tarz,  // derivatives by tarz, not symmetrical vectors
-				debugLevel); // final int               debugLevel);
+		double []     disparity_offset = new double [clusters]; // 0.1
+		if (dbg_disparity_offset != 0.0) {
+			Arrays.fill(disparity_offset, dbg_disparity_offset);
+		}
+		int            nrefine = 4;
+		
+		for (int num_iter = 0; num_iter < max_tries; num_iter++){
+			// (re-)measure LY here, update all scenes? or just accumulater difference?
+			double [][][] lazy_eye_data2 = 	MultisceneLY.getLYDataInfNoinf(
+					clt_parameters,       // final CLTParameters  clt_parameters,
+					quadCLTs,             // final QuadCLT []     scenes,            // ordered by increasing timestamps
+					valid_tile,           // final boolean [][]   valid_tile,        // tile with lma and single correlation maximum
+					inf_disp_ref,         // final double         inf_disp_ref,      // average disparity at infinity for ref scene // is_scene_infinity
+					is_scene_infinity,    // final boolean [][]   is_scene_infinity, // may be null, if not - may be infinity from the composite depth map
+					target_disparities,   // final double[][]     target_disparities,
+					dbg_disparity_offset, // final double         dbg_disparity_offset,
+					num_tiles2,           // final int [][]       in_num_tiles,     // null or number of tiles per cluster to multiply strength
+					null,                 // final CorrVector     corr_vector_delta, // null or extrinsic vector offset, applied to all scenes
+					nrefine,              // final int            nrefine,           // number of disparity refines for non-inf
+					threadsMax,           // final int            threadsMax,
+					debugLevel);          // final int            debug_level);
+			if (debug_derivs && (num_iter == 0)) { // only once if any
+				MultisceneLY.debugLYDerivatives(
+						clt_parameters, // final CLTParameters     clt_parameters,
+						quadCLTs,             // final QuadCLT []        scenes,            // ordered by increasing timestamps
+						lazy_eye_data2,        // double [][][]           lazy_eye_data2, // inf, no_inf
+						valid_tile,           // final boolean [][]      valid_tile,        // tile with lma and single correlation maximum
+						inf_disp_ref,         // final double            inf_disp_ref,      // average disparity at infinity for ref scene // is_scene_infinity
+						is_scene_infinity,    //final boolean [][]      is_scene_infinity, // may be null, if not - may be infinity from the composite depth map
+						false,                // boolean                 update_disparity, // re-measure disparity before measuring LY
+						threadsMax,           // final int               threadsMax,  // maximal number of threads to launch
+						true,                 // final boolean           updateStatus,
+						delta,                // double                  delta,
+						use_tarz,             // boolean                 use_tarz,  // derivatives by tarz, not symmetrical vectors
+						debugLevel); // final int               debugLevel);
+			}
+			for (int nly = 0; nly < lazy_eye_data2.length; nly++) if (lazy_eye_data2[nly] != null ) {
+				ea.showInput(
+						lazy_eye_data2[nly], // double[][] data,
+						"drv_reference-"+MultisceneLY.SINF_NOINF[nly]);// String title);
+			}
+			double [][]  lazy_eye_data = MultisceneLY.mergeLY(
+					adjust_mode,         // MSLY_MODE      adjust_mode,	
+					lazy_eye_data2,      // double [][][]  lazy_eye_data2,
+					force_disparity);    // boolean []     force_disparity // null or [clusters]
+			ea.setForceDisparity(force_disparity);
+			ea.showInput(
+					lazy_eye_data, // double[][] data,
+					"ly_combo-"+lazy_eye_data.toString());// String title);
+			CorrVector corr_vector =   ea.solveCorr (
+					clt_parameters.ly_marg_fract, 	  // double      marg_fract,        // part of half-width, and half-height to reduce weights
+					clt_parameters.ly_inf_en,           // boolean     use_disparity,     // adjust disparity-related extrinsics
+					// 1.0 - to skip filtering infinity
+					inf_min, //double      inf_min_disparity, // minimal disparity for infinity 
+					inf_max, // double      inf_max_disparity, // minimal disparity for infinity
+					clt_parameters.ly_inf_min_broad, // inf_min_disp_abs,  // minimal disparity for infinity (absolute) 
+					clt_parameters.ly_inf_max_broad, // maximal disparity for infinity (absolute)
+					clt_parameters.ly_inf_tilt,      //   boolean     en_infinity_tilt,  // select infinity tiles form right/left tilted (false - from average)  
+					clt_parameters.ly_right_left,    //   boolean     infinity_right_left, // balance weights between right and left halves of infinity
+
+					clt_parameters.ly_aztilt_en,        // boolean     use_aztilts,       // Adjust azimuths and tilts excluding disparity
+					clt_parameters.ly_diff_roll_en,     // boolean     use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
+					//					  clt_parameters.ly_inf_force,        // boolean     force_convergence, // if true try to adjust convergence (disparity, symmetrical parameter 0) even with no disparity
+					clt_parameters.ly_min_forced,       // int         min_num_forced,    // minimal number of clusters with forced disparity to use it
+					// data, using just radial distortions
+					clt_parameters.ly_com_roll,         // boolean     common_roll,       // Enable common roll (valid for high disparity range only)
+					clt_parameters.ly_focalLength ,     // boolean     corr_focalLength,  // Correct scales (focal length temperature? variations)
+					clt_parameters.ly_ers_rot,          // boolean     ers_rot,           // Enable ERS correction of the camera rotation
+					clt_parameters.ly_ers_forw,         // boolean     ers_forw,          // Enable ERS correction of the camera linear movement in z direction
+					clt_parameters.ly_ers_side,         // boolean     ers_side,          // Enable ERS correction of the camera linear movement in x direction
+					clt_parameters.ly_ers_vert,         // boolean     ers_vert,          // Enable ERS correction of the camera linear movement in y direction
+					// add balancing-related here?
+					clt_parameters.ly_par_sel,          // 	int         manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
+					clt_parameters.ly_weight_infinity,     //0.3, // double      weight_infinity,     // 0.3, total weight of infinity tiles fraction (0.0 - 1.0) 
+					clt_parameters.ly_weight_disparity,    //0.0, // double      weight_disparity,    // 0.0 disparity weight relative to the sum of 8 lazy eye values of the same tile 
+					clt_parameters.ly_weight_disparity_inf,//0.5, // double      weight_disparity_inf,// 0.5 disparity weight relative to the sum of 8 lazy eye values of the same tile for infinity 
+					clt_parameters.ly_max_disparity_far,   //5.0, // double      max_disparity_far,   // 5.0 reduce weights of near tiles proportional to sqrt(max_disparity_far/disparity) 
+					clt_parameters.ly_max_disparity_use,   //5.0, // double      max_disparity_use,   // 5.0 (default 1000)disable near objects completely - use to avoid ERS
+					0.0, // clt_parameters.ly_inf_min_dfe,         //1.75,// double      min_dfe, // = 1.75;
+					0.0, // clt_parameters.ly_inf_max_dfe,         //5.0, // double      max_dfe, // = 5.0; // <=0 - disable feature
+
+					// moving objects filtering
+					false, // clt_parameters.ly_moving_en,  // 	boolean     moving_en,         // enable filtering areas with potentially moving objects 
+					clt_parameters.ly_moving_apply,  // 	boolean     moving_apply,      // apply filtering areas with potentially moving objects 
+					clt_parameters.ly_moving_sigma,   // 	double      moving_sigma,      // blurring sigma for moving objects = 1.0;
+					clt_parameters.ly_max_mov_disparity,  //		double      max_mov_disparity, // disparity limit for moving objects detection = 75.0;
+					clt_parameters.ly_rad_to_hdiag_mov,   // 	double      rad_to_hdiag_mov,  // radius to half-diagonal ratio to remove high-distortion corners = 0.7 ; // 0.8
+					clt_parameters.ly_max_mov_average,   //		double      max_mov_average,   // do not attempt to detect moving objects if ERS is not accurate for terrain = .25;
+					clt_parameters.ly_mov_min_L2,  // 	double      mov_min_L2,        // threshold for moving objects = 0.75;
+					lazy_eye_data, // scan.getLazyEyeData(),              // dsxy, // double [][] measured_dsxy,
+					force_disparity, // scan.getLazyEyeForceDisparity(),    // null, //	boolean [] force_disparity,    // boolean [] force_disparity,
+					false, // 	boolean     use_main, // corr_rots_aux != null;
+					last_scene.getGeometryCorrection().getCorrVector(), // CorrVector corr_vector,
+					old_new_rms, // double [] old_new_rms, // should be double[2]
+					debugLevel); //  + 5);// int debugLevel) >=2 to show images
+			if (debugLevel > -2){
+				System.out.println("Old extrinsic corrections:");
+				System.out.println(last_scene.getGeometryCorrection().getCorrVector().toString());
+			}
+			if (corr_vector != null) {
+				CorrVector diff_corr = corr_vector.diffFromVector(last_scene.getGeometryCorrection().getCorrVector());
+				comp_diff = diff_corr.getNorm(); // apply this to all scenes
+				if (debugLevel > -2){
+					System.out.println("New extrinsic corrections:");
+					System.out.println(corr_vector.toString());
+				}
+				if (debugLevel > -3){
+					System.out.println("Increment extrinsic corrections:");
+					System.out.println(diff_corr.toString());
+				}
+				last_scene.gpuResetCorrVector(); // next time GPU will need to set correction vector (and re-calculate offsets?)
+				if (apply_extrinsic){
+					// Apply correction to all scenes (adding, as ERS can be different)
+					// will need to update all scenes GC (write back to disk), but only after all are done
+					for (int i = 0; i < quadCLTs.length; i++) {
+						QuadCLT scene = quadCLTs[i];
+						CorrVector scene_vector = scene.getGeometryCorrection().getCorrVector();
+						scene_vector.incrementVector(diff_corr, 1.0); // no scale here
+						scene.getGeometryCorrection().setCorrVector(scene_vector);
+					}					
+					System.out.println("Extrinsic correction updated (can be disabled by setting clt_parameters.ly_corr_scale = 0.0) ");
+				} else {
+					System.out.println("Correction is not applied according clt_parameters.ly_corr_scale == 0.0) ");
+				}
+			} else {
+				if (debugLevel > -3){
+					System.out.println("LMA failed"); // What now?
+				}
+			}
+			boolean done = (comp_diff < min_sym_update) || (num_iter == (max_tries - 1));
+			//				  System.out.println("done="+done);
+			if (debugLevel > -10) { // should work even in batch mode
+				System.out.println("#### extrinsicsCLT(): iteration step = "+(num_iter + 1) + " ( of "+max_tries+") change = "+
+						comp_diff + " ("+min_sym_update+"), previous RMS = " + old_new_rms[0]+
+						" final RMS = " + old_new_rms[1]+ " (debugLevel = "+debugLevel+")");
+			}
+			if (debugLevel > -10) {
+				if ((debugLevel > -3) || done) {
+					System.out.println("New extrinsic corrections:");
+					System.out.println(last_scene.getGeometryCorrection().getCorrVector().toString());
+				}
+			}
+			if (comp_diff < min_sym_update) {
+				break;
+			}
+			inf_disp_ref = 0.0; // after first adjustment set infinity to 0.0
+		}
+// Now update correction vector for all scenes to disk - how was it read?
+// update 		
+		
 		if (debugLevel > -200) {
 			return;
 		}
-		
-		
+
+
 		// debug images
 		if (debugLevel > -2) {
 			double [][] dbg_numCorrMax = new double[numCorrMax.length][];
@@ -11319,49 +11472,22 @@ if (debugLevel > -100) return true; // temporarily !
 					new String[] {"inf tiles", "noinf tiles"});
 
 		}
-			if (lazy_eye_data != null) {
-				multisceneLY.processLYdata(
-						clt_parameters,     // final CLTParameters  clt_parameters,
-						quadCLTs,           // final QuadCLT []     scenes,        // ordered by increasing timestamps
-						lazy_eye_data,      // final double [][][]  lazy_eye_data,
-						debugLevel);        // final int            debugLevel 
-				/*
-				ExtrinsicAdjustment ea = new ExtrinsicAdjustment (
-						last_scene.getErsCorrection(),  // GeometryCorrection gc,
-						clt_parameters.lyms_clust_size, // int         clusterSize,
-						clustersX,                      // int         clustersX,
-						clustersY);                     // int         clustersY)
-				double [][][] dbg_cluster = new double [lazy_eye_data.length][ExtrinsicAdjustment.get_INDX_LENGTH(last_scene.getNumSensors())][clustersY * clustersX];
-				for (int m = 0; m < lazy_eye_data.length; m++) {
-					for (int i = 0; i < dbg_cluster.length; i++) {
-						Arrays.fill(dbg_cluster[m][i], Double.NaN);
-					}
-					for (int n = 0; n < lazy_eye_data[m].length; n++) {
-						if (lazy_eye_data[m][n] != null) {
-							for (int i = 0; i < ExtrinsicAdjustment.get_INDX_LENGTH(last_scene.getNumSensors()); i++ ) {
-								dbg_cluster[m][i][n] = lazy_eye_data[m][n][i];
-							}
-						}
-					}
-				}
-				for (int m = 0; m < lazy_eye_data.length; m++) {
-					(new ShowDoubleFloatArrays()).showArrays(
-							dbg_cluster[m],
-							clustersX,
-							clustersY,
-							true,
-							last_scene.getImageName()+"-lazy_eye_data-"+m,
-							ea.data_titles); //  ExtrinsicAdjustment.DATA_TITLES);
-				}
-				*/
-// Testing next step				
-				
-				
-				
-				
-				
-			
+		/* TODO: move all adjustments there?
+		if (lazy_eye_data != null) {
+			multisceneLY.processLYdata( // TODO: move all adjustments there?
+					clt_parameters,     // final CLTParameters  clt_parameters,
+					adjust_mode,        // MSLY_MODE            adjust_mode,	
+					quadCLTs,           // final QuadCLT []     scenes,        // ordered by increasing timestamps
+					lazy_eye_data2,      // final double [][][]  lazy_eye_data,
+					valid_tile,         // final boolean [][]   valid_tile,        // tile with lma and single correlation maximum
+					inf_disp_ref,       // final double         inf_disp_ref,      // average disparity at infinity for ref scene // is_scene_infinity
+					is_scene_infinity,  // final boolean [][]   is_scene_infinity, // may be null, if not - may be infinity from the composite depth map
+					false,              // boolean              update_disparity, // re-measure disparity before measuring LY
+					threadsMax,         // final int            threadsMax,  // maximal number of threads to launch
+					updateStatus,       // final boolean        updateStatus,
+					debugLevel);        // final int            debugLevel)
 		}
+		*/
 		if (debugLevel > -2) {
 			System.out.println("adjustLYSeries() Done");
 		}

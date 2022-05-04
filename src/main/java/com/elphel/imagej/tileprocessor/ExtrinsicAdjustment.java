@@ -117,6 +117,10 @@ public class ExtrinsicAdjustment {
 	public final int num_sensors;
 	
 	public double dbg_delta = 0; // 1.0E-5; // if not 0 - use delta instead of the derivatives in getJacobianTransposed
+	
+	public void setForceDisparity(boolean [] force_disparity) {
+		this.force_disparity = force_disparity;
+	}
 
 	public double [] getOldNewRMS() {
 		double [] on_rms = new double[2];
@@ -291,13 +295,13 @@ public class ExtrinsicAdjustment {
 		s += "Port"+suffix+": [";
 		for (int p = 0; p < num_sensors; p++) s += String.format(hfmt, p, "");s+="]\n";
 		s += "DD"+suffix+"=   [";
-		for (int p = 0; p < num_sensors; p++) s += String.format(dfmt, avg[indx_dd0 + p]);s+="]" + String.format(" # avg = "+dfmta+"\n", avg_dd);
+		for (int p = 0; p < num_sensors; p++) s += String.format(dfmt, avg[indx_dd0 + p]);s+="]" + String.format(" # avg = "+dfmta+" (should be 0)\n", avg_dd);
 		s += "ND"+suffix+"=   [";
-		for (int p = 0; p < num_sensors; p++) s += String.format(dfmt, avg[indx_nd0 + p]);s+="]" + String.format(" # avg = "+dfmta+"\n", avg_nd);
+		for (int p = 0; p < num_sensors; p++) s += String.format(dfmt, avg[indx_nd0 + p]);s+="]" + String.format(" # avg = "+dfmta+" (May be non-0, especially large S1)\n", avg_nd);
 		s += "DX"+suffix+"=   [";
-		for (int p = 0; p < num_sensors; p++) s += String.format(dfmt, avg[INDX_X0 + 2 * p + 0]);s+="]" + String.format(" # avg = "+dfmta+"\n", avg_x);
+		for (int p = 0; p < num_sensors; p++) s += String.format(dfmt, avg[INDX_X0 + 2 * p + 0]);s+="]" + String.format(" # avg = "+dfmta+" (should be 0)\n", avg_x);
 		s += "DY"+suffix+"=   [";
-		for (int p = 0; p < num_sensors; p++) s += String.format(dfmt, avg[INDX_X0 + 2 * p + 1]);s+="]" + String.format(" # avg = "+dfmta+"\n", avg_y);
+		for (int p = 0; p < num_sensors; p++) s += String.format(dfmt, avg[INDX_X0 + 2 * p + 1]);s+="]" + String.format(" # avg = "+dfmta+" (should be 0)\n", avg_y);
 		return s;
 	}
 	/*
@@ -457,19 +461,6 @@ public class ExtrinsicAdjustment {
 					x0y0, // double[][] data,
 					"nondistorted X0Y0");// String title);
 		}
-/*
-		this.par_mask = geometryCorrection.getParMask(
-				use_disparity, // has_disparity, // boolean use_disparity,
-				use_aztilts,       // Adjust azimuths and tilts excluding disparity
-				use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
-				common_roll,// boolean common_roll,
-				corr_focalLength,  // boolean corr_focalLength);
-				ers_rot,           // boolean ers_rot,           // Enable ERS correction of the camera rotation
-				ers_forw,          // Enable ERS correction of the camera linear movement in z direction
-				ers_side,          // Enable ERS correction of the camera linear movement in x direction
-				ers_vert,          // Enable ERS correction of the camera linear movement in y direction
-		  		manual_par_sel);   // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
-*/		  		
 		boolean [] filtered_infinity = null;
 		
 		double [] dfe = null;
@@ -496,20 +487,7 @@ public class ExtrinsicAdjustment {
 					inf_min_disparity,  // double min_infinity,
 					inf_max_disparity); // double max_infinity
 		 }
-/*
-		this.weights = getWeights( // will ignore window for infinity (already used for selection)
-				 measured_dsxy,        // double  [][] measured_dsxy,
-				 (use_disparity? force_disparity: null),   // boolean [] force_disparity, // same dimension as dsdn, true if disparity should be controlled
-				 filtered_infinity,    // boolean [] filtered_infinity,
-				 dfe, // 	double  []  distance_from_edge,// to reduce weight of the mountain ridge, increase clouds (or null)
-				 min_num_forced,       //				int min_num_forced,
-				 infinity_right_left, //	boolean infinity_right_left,  // each halve should have > min_num_forced, will calculate separate average
-				 weight_infinity,      // double weight_infinity,       // total weight of infinity tiles fraction (0.0 - 1.0) 
-				 weight_disparity,     // double weight_disparity,      // disparity weight relative to the sum of 8 lazy eye values of the same tile 
-				 weight_disparity_inf, // double weight_disparity_inf,  // disparity weight relative to the sum of 8 lazy eye values of the same tile for infinity 
-				 max_disparity_far,   // 					double max_disparity_far)     // reduce weights of near tiles proportional to sqrt(max_disparity_far/disparity)
-				 max_disparity_use);
-*/		
+
 		int [] inf_stat = setWeights( // number right, number left
 				 measured_dsxy,        // double  [][] measured_dsxy,
 				 (use_disparity? force_disparity: null),   // boolean [] force_disparity, // same dimension as dsdn, true if disparity should be controlled
@@ -2366,7 +2344,7 @@ public class ExtrinsicAdjustment {
 			if (rslt == null) {
 				return false; // need to check
 			}
-			if (debug_level > 1) {
+			if (debug_level > -3) { //  > 0) {
 				System.out.println("LMA step "+iter+": {"+rslt[0]+","+rslt[1]+"} full RMS= "+good_or_bad_rms[0]+
 						" ("+initial_rms[0]+"), pure RMS="+good_or_bad_rms[1]+" ("+initial_rms[1]+") + lambda="+lambda);
 			}
