@@ -116,7 +116,7 @@ public class GPUTileProcessor {
 //	public static int IMG_HEIGHT =             1936;
 	static int        KERNELS_HOR =             164;
 	static int        KERNELS_VERT =            123;
-	static int        KERNELS_LSTEP =             3; // 4;// FIXME: Make it dynamic: 3 for LWIR, 4 - for RGB?) 
+///	static int        KERNELS_LSTEP =             3; // 4;// FIXME: Make it dynamic: 3 for LWIR, 4 - for RGB?) 
 	static int        THREADS_PER_TILE =          8;
 	static int        TILES_PER_BLOCK =           4; // 8 - slower
 	static int        CORR_THREADS_PER_TILE =     8;
@@ -208,7 +208,7 @@ public class GPUTileProcessor {
         				"#define NUM_CAMS " +                       MAX_NUM_CAMS+"\n"+
 //        				"#define NUM_PAIRS " +                      NUM_PAIRS+"\n"+
 //        				"#define NUM_COLORS " +                     NUM_COLORS+"\n"+
-        				"#define KERNELS_LSTEP " +                  KERNELS_LSTEP+"\n"+
+///        				"#define KERNELS_LSTEP " +                  KERNELS_LSTEP+"\n"+
         				"#define THREADS_PER_TILE " +               THREADS_PER_TILE+"\n"+
         				"#define TILES_PER_BLOCK " +                TILES_PER_BLOCK+"\n"+
         				"#define CORR_THREADS_PER_TILE " +          CORR_THREADS_PER_TILE+"\n"+

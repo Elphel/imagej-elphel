@@ -100,7 +100,7 @@ GPU run time =523.451927ms, (direct conversion: 24.080189999999998ms, imclt: 17.
 //#define IMCLT_TILES_PER_BLOCK   4
 
 
-#define KERNELS_STEP  (1 << KERNELS_LSTEP)
+/// #define KERNELS_STEP  (1 << KERNELS_LSTEP)
 //#define TILES-X        (IMG-WIDTH / DTT_SIZE)
 //#define TILES-Y        (IMG-HEIGHT / DTT_SIZE)
 #define CONVERT_DIRECT_INDEXING_THREADS_LOG2 5
@@ -2810,7 +2810,7 @@ __global__ void convert_correct_tiles(
  * @param dust_remove          do not reduce average weight when only one image differs much from the average (true)
  * @param texture_stride       output stride in floats (now 256*4 = 1024)
  * @param gpu_texture_tiles    output array (number of colors +1 + ?)*16*16 rgba texture tiles) float values. Will not be calculated if null
- * @param inescan_order        0 low-res tiles have tghe same order, as gpu_texture_indices, 1 - in linescan order
+ * @param inescan_order        0 low-res tiles have the same order, as gpu_texture_indices, 1 - in linescan order
  * @param gpu_diff_rgb_combo   low-resolution output, with per-camera mismatch an each color average. Will not be calculated if null
  * @param num_tilesx           number of tiles in a row
  */
@@ -4106,11 +4106,32 @@ __device__ void convertCorrectTile(
 	int   kernel_index; // common for all coors
 	float kdx, kdy;
 	if (threadIdx.x == 0){
-		ktileX = min(max_kernel_hor,  max(0, ((int) lrintf(centerX * (1.0/KERNELS_STEP)+1))));
-		ktileY = min(max_kernel_vert, max(0, ((int) lrintf(centerY * (1.0/KERNELS_STEP)+1))));
-		kdx =    centerX - (ktileX << KERNELS_LSTEP) + (1 << (KERNELS_LSTEP -1)); // difference in pixel
-		kdy =    centerY - (ktileY << KERNELS_LSTEP) + (1 << (KERNELS_LSTEP -1)); // difference in pixel
-    	kernel_index = (ktileX + ktileY * kernels_hor) * num_colors;
+//		ktileX = min(max_kernel_hor,  max(0, ((int) lrintf(centerX * (1.0/KERNELS_STEP)+1))));
+//		ktileY = min(max_kernel_vert, max(0, ((int) lrintf(centerY * (1.0/KERNELS_STEP)+1))));
+//		kdx =    centerX - (ktileX << KERNELS_LSTEP) + (1 << (KERNELS_LSTEP -1)); // difference in pixel
+//		kdy =    centerY - (ktileY << KERNELS_LSTEP) + (1 << (KERNELS_LSTEP -1)); // difference in pixel
+
+		// From ImageDttCPU.java: extract_correct_tile() (modified 2022/05/12):
+//		int kernel_pitch = width/(clt_kernels[chn_kernel][0].length - 2);
+			// 1. find closest kernel
+//		ktileX = (int) Math.round(centerX/kernel_pitch) + 1;
+//		ktileY = (int) Math.round(centerY/kernel_pitch) + 1;
+//		if      (ktileY < 0)                                ktileY = 0;
+//		else if (ktileY >= clt_kernels[chn_kernel].length)  ktileY = clt_kernels[chn_kernel].length-1;
+//		if      (ktileX < 0)                                ktileX = 0;
+//		else if (ktileX >= clt_kernels[chn_kernel][ktileY].length) ktileX = clt_kernels[chn_kernel][ktileY].length-1;
+    	// extract center offset data stored with each kernel tile
+//		CltExtra ce = new CltExtra (clt_kernels[chn_kernel][ktileY][ktileX][4]);
+		// 2. calculate correction for center of the kernel offset
+//		double kdx = centerX - (ktileX -1 +0.5) *  kernel_pitch; // difference in pixel
+//		double kdy = centerY - (ktileY -1 +0.5) *  kernel_pitch;
+		int kernel_pitch = woi_width / (kernels_hor - 2);
+		ktileX = min(max_kernel_hor,  max(0, ((int) lrintf(centerX /kernel_pitch + 1))));
+		ktileY = min(max_kernel_vert, max(0, ((int) lrintf(centerY /kernel_pitch + 1))));
+		kdx =    centerX - (ktileX - 0.5) * kernel_pitch; // difference in pixel
+		kdy =    centerY - (ktileY - 0.5) * kernel_pitch; //
+
+		kernel_index = (ktileX + ktileY * kernels_hor) * num_colors;
 	}
     // broadcast kernel_index
     kernel_index =  __shfl_sync(
