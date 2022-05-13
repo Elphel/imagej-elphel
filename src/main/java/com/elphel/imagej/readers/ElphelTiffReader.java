@@ -326,6 +326,9 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 		          throw new ServiceException("Could not read EXIF data", e);
 		        }
 		      }
+		    if (directory==null) { // trying to read ImageJ file 640x512
+		    	return;
+		    }
 		    Date date =  directory.getDate(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL);
 
 		    if (date != null) {

@@ -1047,7 +1047,7 @@ public class ImageDttCPU {
 			final double [][]       image_data,
 			final int               width,
 			final double [][][][][] clt_kernels, // [color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-			final int               kernel_step,
+//			final int               kernel_step,
 //			final int               transform_size,
 			final int               window_type,
 			final double            shiftX, // shift image horizontally (positive - right) - just for testing
@@ -1097,7 +1097,7 @@ public class ImageDttCPU {
 								width,       // image width
 								clt_kernels, // [color][tileY][tileX][band][pixel]
 								clt_data[chn][tileY][tileX], //double  [][]        clt_tile,    // should be double [4][];
-								kernel_step,
+//								kernel_step,
 //								transform_size,
 								dtt,
 								chn,
@@ -1153,7 +1153,7 @@ public class ImageDttCPU {
 			final int                 width,
 			final GeometryCorrection  geometryCorrection,
 			final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-			final int                 kernel_step,
+//			final int                 kernel_step,
 //			final int                 transform_size,
 			final int                 window_type,
 			final double              shiftX, // shift image horizontally (positive - right) - just for testing
@@ -1243,7 +1243,7 @@ public class ImageDttCPU {
 										width,       // image width
 										clt_kernels[i], // [color][tileY][tileX][band][pixel]
 										clt_data[i][chn][tileY][tileX], //double  [][]        clt_tile,    // should be double [4][];
-										kernel_step,
+//										kernel_step,
 //										transform_size,
 										dtt,
 										chn,
@@ -1705,7 +1705,7 @@ public class ImageDttCPU {
 			final GeometryCorrection  geometryCorrection,
 			final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 			final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-			final int                 kernel_step,
+//			final int                 kernel_step,
 			final int                 window_type,
 			final double [][]         shiftXY, // [port]{shiftX,shiftY}
 			final double              disparity_corr, // disparity at infinity
@@ -2075,7 +2075,7 @@ public class ImageDttCPU {
 															width,       // image width
 															((clt_kernels == null) ? null : clt_kernels[i]), // [color][tileY][tileX][band][pixel]
 															clt_data[i][ncol][tileY][tileX], //double  [][]        clt_tile,    // should be double [4][];
-															kernel_step,
+//															kernel_step,
 															dtt,
 															ncol,
 															centersXY[cTile][i][0], // centerX, // center of aberration-corrected (common model) tile, X
@@ -2591,7 +2591,7 @@ public class ImageDttCPU {
 			final GeometryCorrection  geometryCorrection,
 			final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 			final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-			final int                 kernel_step,
+//			final int                 kernel_step,
 			final int                 window_type,
 			final double [][]         shiftXY, // [port]{shiftX,shiftY}
 			final double              disparity_corr, // disparity at infinity
@@ -2935,13 +2935,16 @@ public class ImageDttCPU {
 
 								for (int i = 0; i < numSensors; i++) {
 									clt_data[i][ncol][tileY][tileX] = new double [4][];
+//									if ((i==9) && (tileY>=18) && (tileY<=20) && (tileX >= 23) && (tileX <= 29)) {
+//										System.out.println("sensor="+i+", tileY="+tileY+", tileX="+tileX);
+//									}
 									// Extract image tiles and kernels, correct aberrations, return (ut do not apply) fractional shifts
 									fract_shiftsXY[i] = extract_correct_tile( // return a pair of residual offsets
 											image_data[i],
 											width,       // image width
 											((clt_kernels == null) ? null : clt_kernels[i]), // [color][tileY][tileX][band][pixel]
 											clt_data[i][ncol][tileY][tileX], //double  [][]        clt_tile,    // should be double [4][];
-											kernel_step,
+//											kernel_step,
 											dtt,
 											ncol,
 											centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
@@ -3423,7 +3426,7 @@ public class ImageDttCPU {
 			final GeometryCorrection  geometryCorrection,
 			final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 			final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-			final int                 kernel_step,
+//			final int                 kernel_step,
 			final int                 window_type,
 			final double [][]         shiftXY, // [port]{shiftX,shiftY}
 			final double              disparity_corr, // disparity at infinity
@@ -3865,7 +3868,7 @@ public class ImageDttCPU {
 												width,       // image width
 												null,
 												fpga_clt_data, //double  [][]        clt_tile,    // should be double [4][];
-												kernel_step,
+//												kernel_step,
 												dtt,
 												fpga_chn, // chn,
 												fpga_centersXY[0], // centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
@@ -3925,7 +3928,7 @@ public class ImageDttCPU {
 											width,       // image width
 											((clt_kernels == null) ? null : clt_kernels[i]), // [color][tileY][tileX][band][pixel]
 											clt_data[i][ncol][tileY][tileX], //double  [][]        clt_tile,    // should be double [4][];
-											kernel_step,
+//											kernel_step,
 											dtt,
 											ncol,
 											centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
@@ -4410,7 +4413,7 @@ public class ImageDttCPU {
 			final GeometryCorrection  geometryCorrection,
 			final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 			final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-			final int                 kernel_step,
+//			final int                 kernel_step,
 			final int                 window_type,
 			final double [][]         shiftXY, // [port]{shiftX,shiftY}
 			final double              disparity_corr, // disparity at infinity
@@ -4907,7 +4910,7 @@ public class ImageDttCPU {
 																width,       // image width
 																null,
 																fpga_clt_data, //double  [][]        clt_tile,    // should be double [4][];
-																kernel_step,
+//																kernel_step,
 																dtt,
 																fpga_chn, // chn,
 																fpga_centersXY[0], // centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
@@ -4967,7 +4970,7 @@ public class ImageDttCPU {
 															width,       // image width
 															((clt_kernels == null) ? null : clt_kernels[i]), // [color][tileY][tileX][band][pixel]
 															clt_data_tile[i][ncol], //  clt_data[i][ncol][tileY][tileX], //double  [][]        clt_tile,    // should be double [4][];
-															kernel_step,
+//															kernel_step,
 															dtt,
 															ncol,
 															centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
@@ -8899,8 +8902,11 @@ public class ImageDttCPU {
 			final int []            wh, 
 			final int               threadsMax,     // maximal number of threads to launch
 			final int               globalDebugLevel) {
+		if (corr2d_img == null) {
+			return null;
+		}
 		int len = 0;
-		final float [][] corr2d_decimated = new float [corr2d_img.length][];
+		final float [][] corr2d_decimated = new float [corr2d_img.length][]; //null
 		for (int i = 0; i < corr2d_img.length; i++) {
 			if (corr2d_img[i] != null) {
 				len = corr2d_img[i].length;
@@ -10026,19 +10032,313 @@ public class ImageDttCPU {
 		return dct_data_out;
 	}
 
+	/**
+	 * Centering and downsampling twice by balancing right/left and below/above pixels (step 2)
+	 * from the center. 
+	 * @param src_kernel
+	 * @param dst_kernel
+	 * @param src_size
+	 */
+	void clt_convert_double_kernel_centered( // converts double resolution kernel // not used in lwir
+			double []   src_kernel, //
+			double []   dst_kernel, // should be (2*dtt_size-1) * (2*dtt_size-1) + extra_items size - kernel and dx, dy to the nearest 1/2 pixels + actual full center shift)
+			int src_size) //, // 64
+	{
+		double delta = 1E-12;
+		int max_try = 100;
+		boolean debug = false;
+		int src_center = src_size / 2; // 32
+		// Find centroid
+		double sx=0.0, sy = 0.0, s = 0.0;
+		int indx = 0;
+		for (int i= -src_center; i < src_center; i++){
+			for (int j = -src_center; j < src_center; j++){
+				double d = src_kernel[indx++];
+				sx+= j*d;
+				sy+= i*d;
+				s += d;
+			}
+		}
+		int src_x = (int) Math.round(sx / s) + src_center; // closest full X (half-pixel) to the centroid
+		int src_y = (int) Math.round(sy / s) + src_center;
+		int sci = src_y* src_size + src_x;
+		
+		// Find X,Y offsets that maximize center value after 2:1 scaling
+		int [][] offsets = {
+				{-src_size-1,-src_size, -src_size+1},
+				{         -1,        0,           1},
+				{ src_size-1, src_size,  src_size+1}};
+		double dx= sx / s - (int) Math.round(sx / s); // relative to rounded (to half-pixel) centroid
+		double dy= sy / s - (int) Math.round(sy / s);
+		double PI2 = Math.PI/2;
+		int src_x_prev=       -1;
+		int src_y_prev=       -1;
+		double dx_prev =       Double.NaN;
+		double dy_prev =       Double.NaN;
+		double max_diff_prev = Double.NaN;
+
+		for (int pass = 0; pass < 2; pass++) { // repeat with updated center if max(abs(dx), abs(dy)) > 0.5 
+			int sci_hp = sci + 2;
+			int sci_hm = sci - 2;
+			int sci_vp = sci + 2 * src_size;
+			int sci_vm = sci - 2 * src_size;
+			for (int ntry = 0; ntry < max_try; ntry++) {
+				double diff_hor = 0.0;  // by two right from the center minus by two left from the center 
+				double diff_vert = 0.0; // by two down from the center minus by two up from the center
+				double dhor_dx = 0.0;
+				double dhor_dy = 0.0;
+				double dvert_dx = 0.0;
+				double dvert_dy = 0.0;
+
+				double max = 0; // not needed, just testing
+				double ww =  0; // not needed, just testing
+				for (int idy = -1; idy <= 1; idy++) {
+					double cosy = Math.cos(PI2*(idy - dy));
+					double siny = Math.sin(PI2*(idy - dy));
+					double dcosy_dy =  PI2 * siny;
+					for (int idx = -1; idx <= 1; idx++) {
+						double cosx = Math.cos(PI2*(idx - dx));
+						double sinx = Math.sin(PI2*(idx - dx));
+						double dcosx_dx =  PI2 * sinx;
+						double kd_hor = (src_kernel[sci_hp + offsets[idy+1][idx+1]] - src_kernel[sci_hm + offsets[idy+1][idx+1]]);
+						double kd_vert =(src_kernel[sci_vp + offsets[idy+1][idx+1]] - src_kernel[sci_vm + offsets[idy+1][idx+1]]);
+						double w = (0.25*(1 + cosy) * (1 +cosx));
+						max     += src_kernel[sci + offsets[idy+1][idx+1]] * (1 + cosy) * (1 +cosx);
+						ww+=w;
+						if (debug) {
+							System.out.println("idy="+idy+", idx="+idx+" w="+w +" sumw="+ww);
+						}
+						diff_hor +=  kd_hor *  (1 + cosy) * (1 + cosx);
+						diff_vert += kd_vert * (1 + cosy) * (1 + cosx);
+						dhor_dx +=   kd_hor *  (1 + cosy) *  dcosx_dx;		
+						dhor_dy +=   kd_hor *   dcosy_dy  * (1 + cosx);
+						dvert_dx +=  kd_vert * (1 + cosy) *  dcosx_dx;		
+						dvert_dy +=  kd_vert *  dcosy_dy  * (1 + cosx);
+					}
+				}
+				max *= 0.25/4; // ww; // 0.25/4; // /3:sum==1
+				double diff_hv = Math.sqrt(diff_hor*diff_hor + diff_vert*diff_vert);
+				if (debug) {
+					System.out.println("ntry="+ntry+", max="+max+", diff_hor="+diff_hor+", diff_vert="+diff_vert+", diff_hv="+diff_hv);
+				}
+				Matrix mmY = new Matrix(new double[] {-diff_hor, -diff_vert},2);
+				Matrix mJ = new Matrix(new double [][] {{dhor_dx, dhor_dy},{dvert_dx, dvert_dy}});
+				Matrix md2xd2y = mJ.solve(mmY);
+				double [] dxdy = md2xd2y.getColumnPackedCopy();
+				dx += dxdy[0];
+				dy += dxdy[1];
+				double diff = Math.sqrt(dxdy[0] * dxdy[0] + dxdy[1] * dxdy[1]);
+				if (diff < delta) {
+					break;
+				}
+			}
+			double max_diff = Math.max(Math.abs(dx),  Math.abs(dy));
+			if (max_diff <=0.5) {
+				break;
+			}
+			if (pass == 0) {
+				System.out.println("Pass 0: center offset exceeds 0.5 (dx = "+dx+
+						", dy="+dy+") when started from centroid, readjusting from new center");
+				// Saving old values (new may be worse)
+				max_diff_prev = max_diff;
+				src_x_prev = src_x;
+				src_y_prev = src_y;
+				dx_prev = dx;
+				dy_prev = dy;
+				// updating
+				int idx = (int) Math.round(dx);
+				int idy = (int) Math.round(dy);
+				src_x += idx;
+				src_y += idy;
+				dx -= idx;
+				dy -= idy;
+			} else {
+				if (max_diff < max_diff_prev) {
+					System.out.println("Pass 1: Still center offset exceeds 0.5 (dx = "+dx+
+							", dy="+dy+"), but improved over previous "+max_diff_prev);
+				} else {
+					System.out.println("Pass 1: Even worse! (dx = "+dx+
+							", dy="+dy+"), restoring previous values");
+					src_x = src_x_prev;
+					src_y = src_y_prev;
+					dx = dx_prev;
+					dy = dy_prev;
+				}
+			}
+			sci = src_y* src_size + src_x;
+		}
+		// FIXME TESTING! Remove when done ! Adding horizontal offset by 1 decimated pixel
+//		src_x -= 2;
+		indx = 0;
+		// downscale, copy
+		for (int i = -transform_size + 1; i < transform_size; i++){
+			int src_i = (src_y + 2 * i) * src_size  + src_x;
+			for (int j = -transform_size + 1; j < transform_size; j++){
+				double d = 0.0;
+				double sum = 0.0;
+				for (int idy = -1; idy <= 1; idy++) {
+					for (int idx = -1; idx <= 1; idx++) {
+						double k = (1 + Math.cos(PI2*(dy - idy))) * (1 + Math.cos(PI2*(dx -idx)));
+						d += src_kernel[src_i + 2 * j + offsets[idy+1][idx+1]] * k;
+						sum += k;
+						
+					}
+				}
+				dst_kernel[indx++] = d/sum;
+				if (debug) {
+					System.out.println("i="+i+", j="+j+" d="+d+" sum="+sum+" d/sum="+(d/sum));
+				}
+
+			}
+		}
+		// dx is relative to the rounded (to half-pixel) centroid
+
+///		dst_kernel[indx++] = 0.5*(src_x - src_center); // half-integer center offset (in pixels) of the decimated kernel 
+///		dst_kernel[indx++] = 0.5*(src_y - src_center);
+///		dst_kernel[indx++] = 0.5*(dx); // sx / s);             // actual center shift in pixels (to interpolate difference to neighbor regions)
+///		dst_kernel[indx++] = 0.5*(dy); // sy / s);
+// 2012/05/12 - now both offsets 0 and 2, 1 and 3 have the same data. Offset from the grid center to the (centered) kernel center
+		dst_kernel[indx++] = 0.5*(dx + src_x - src_center); // actual center shift in pixels (from the grid center) of the centered kernel 
+		dst_kernel[indx++] = 0.5*(dy + src_y - src_center);
+		dst_kernel[indx++] = 0.5*(dx + src_x - src_center); // actual center shift in pixels (from the grid center) of the centered kernel 
+		dst_kernel[indx++] = 0.5*(dy + src_y - src_center);
+
+	}
+	
+	/**
+	 * Centering and downsampling by maximizing the center value (needs fixing,
+	 * as it does not account for the denominator - sum afv all weights
+	 * @param src_kernel
+	 * @param dst_kernel
+	 * @param src_size
+	 */
+	void clt_convert_double_kernel_centered_max( // converts double resolution kernel // not used in lwir
+			double []   src_kernel, //
+			double []   dst_kernel, // should be (2*dtt_size-1) * (2*dtt_size-1) + extra_items size - kernel and dx, dy to the nearest 1/2 pixels + actual full center shift)
+			int src_size) //, // 64
+	{
+		double delta = 1E-12;
+		int max_try = 100;
+		int src_center = src_size / 2; // 32
+		// Find centroid
+		double sx=0.0, sy = 0.0, s = 0.0;
+		int indx = 0;
+		for (int i= -src_center; i < src_center; i++){
+			for (int j = -src_center; j < src_center; j++){
+				double d = src_kernel[indx++];
+				sx+= j*d;
+				sy+= i*d;
+				s += d;
+			}
+		}
+		int src_x = (int) Math.round(sx / s) + src_center;
+		int src_y = (int) Math.round(sy / s) + src_center;
+		int sci = src_y* src_size + src_x;
+		// Find X,Y offsets that maximize center value after 2:1 scaling
+		int [][] offsets = {
+				{-src_size-1,-src_size, -src_size+1},
+				{         -1,        0,           1},
+				{ src_size-1, src_size,  src_size+1}};
+		double max0 = src_kernel[sci];
+//		double max0 = src_kernel[sci];
+//		double delta = rdelta * max0;
+//		double dx= 0; // sx / s - (int) Math.round(sx / s);
+//		double dy= 0; // sy / s - (int) Math.round(sy / s);
+		double dx= sx / s - (int) Math.round(sx / s);
+		double dy= sy / s - (int) Math.round(sy / s);
+		double PI2 = Math.PI/2;
+		double max_prev = Double.NaN;
+		for (int ntry = 0; ntry < max_try; ntry++) {
+			double sdd_dx = 0;
+			double sdd_dy = 0;
+			double sdd_dx2 = 0;
+			double sdd_dy2 = 0;
+			double sdd_dxy = 0;
+			double max = 00; // not needed
+			double ww=0;
+			for (int idy = -1; idy <= 1; idy++) {
+				double cosy = Math.cos(PI2*(dy -idy));
+				double siny = Math.sin(PI2*(dy -idy));
+				for (int idx = -1; idx <= 1; idx++) {
+					double cosx = Math.cos(PI2*(dx -idx));
+					double sinx = Math.sin(PI2*(dx -idx));
+					double w = (0.25*(1 + cosy) * (1 +cosx));
+					ww+=w;
+					System.out.println("idy="+idy+", idx="+idx+" w="+w +" sumw="+ww);
+					max     += src_kernel[sci + offsets[idy+1][idx+1]] * (1 + cosy) * (1 +cosx);
+					sdd_dx  -= src_kernel[sci + offsets[idy+1][idx+1]] * (1 + cosy) * sinx; // no scale
+					sdd_dy  -= src_kernel[sci + offsets[idy+1][idx+1]] * siny * (1 + cosx); // no scale
+					sdd_dx2 -= src_kernel[sci + offsets[idy+1][idx+1]] * (1 + cosy) * cosx;
+					sdd_dy2 -= src_kernel[sci + offsets[idy+1][idx+1]] * cosy * (1 + cosx);
+					sdd_dxy -= src_kernel[sci + offsets[idy+1][idx+1]] * siny * sinx;
+/*					
+					max     += src_kernel[sci + offsets[idy+1][idx+1]] * (1 + Math.cos(PI2*(dy - idy)) * Math.cos(PI2*(dx -idx)));
+					sdd_dx  -= src_kernel[sci + offsets[idy+1][idx+1]] * Math.cos(PI2*(dy - idy)) * Math.sin(PI2*(dx -idx));
+					sdd_dy  -= src_kernel[sci + offsets[idy+1][idx+1]] * Math.sin(PI2*(dy - idy)) * Math.cos(PI2*(dx -idx));
+					sdd_dx2 -= src_kernel[sci + offsets[idy+1][idx+1]] * Math.cos(PI2*(dy - idy)) * Math.cos(PI2*(dx -idx));
+					sdd_dxy -= src_kernel[sci + offsets[idy+1][idx+1]] * Math.sin(PI2*(dy - idy)) * Math.sin(PI2*(dx -idx));
+*/
+				}
+			}
+			max *= 0.25/4; // ww; // 0.25/4; // /3:sum==1
+//			sdd_dx *= 0.5*PI2;
+//			sdd_dy *= 0.5*PI2;
+			System.out.println("ntry="+ntry+", max="+max);
+			
+			sdd_dx2 *= -PI2; //  -0.5* PI2 * PI2;
+			sdd_dy2 *= -PI2; //  -0.5* PI2 * PI2;
+			sdd_dxy *=  PI2; //  * PI2;
+//			Matrix mmY = new Matrix(new double[] {-sdd_dx, -sdd_dy},2);
+			Matrix mmY = new Matrix(new double[] {sdd_dx, sdd_dy},2);
+			Matrix mJ = new Matrix(new double [][] {{sdd_dx2, sdd_dxy},{sdd_dxy, sdd_dy2}});
+			Matrix md2xd2y = mJ.solve(mmY);
+			double [] dxdy = md2xd2y.getColumnPackedCopy();
+			dx += dxdy[0];
+			dy += dxdy[1];
+			double diff = Math.sqrt(dxdy[0] * dxdy[0] + dxdy[1] * dxdy[1]);
+			if (diff < delta) {
+				break;
+			}
+		}
+		
+		indx = 0;
+		// downscale, copy
+		for (int i = -transform_size + 1; i < transform_size; i++){
+			int src_i = (src_y + 2 * i) * src_size  + src_x;
+			for (int j = -transform_size + 1; j < transform_size; j++){
+				double d = 0.0;
+				double sum = 0.0;
+				for (int idy = -1; idy <= 1; idy++) {
+					for (int idx = -1; idx <= 1; idx++) {
+						double k = (1 + Math.cos(PI2*(dy - idy))) * (1 + Math.cos(PI2*(dx -idx)));
+						d += src_kernel[src_i + 2 * j + offsets[idy+1][idx+1]] * k;
+						sum += k;
+//					d += weights[k]*src_kernel[src_i + 2 * j + indices[k]];
+						
+					}
+				}
+				dst_kernel[indx++] = d/sum;
+				System.out.println("i="+i+", j="+j+" d="+d+" sum="+sum+" d/sum="+(d/sum));
+
+			}
+		}
+		dst_kernel[indx++] = 0.5*(src_x - src_center); // half-integer center offset (in pixels) of the decimated kernel 
+		dst_kernel[indx++] = 0.5*(src_y - src_center);
+		dst_kernel[indx++] = 0.5*(dx); // sx / s);             // actual center shift in pixels (to interpolate difference to neighbor regions)
+		dst_kernel[indx++] = 0.5*(dy); // sy / s);
+
+	}
+	
 	void clt_convert_double_kernel( // converts double resolution kernel // not used in lwir
 			double []   src_kernel, //
 			double []   dst_kernel, // should be (2*dtt_size-1) * (2*dtt_size-1) + extra_items size - kernel and dx, dy to the nearest 1/2 pixels + actual full center shift)
 			int src_size) //, // 64
-//			int transform_size) // 8
 	{
 
 		int [] indices = {0,-src_size,-1,1,src_size,-src_size-1,-src_size+1,src_size-1,src_size+1};
-//		double [] weights = {0.25,0.125,0.125,0.125,0.125,0.0625,0.0625,0.0625,0.0625};
-		// sum = 4.0, so sum of all kernels is ~ the same
 		double [] weights = {1.0, 0.5,  0.5,  0.5,  0.5,  0.25,  0.25,  0.25,  0.25};
 		int src_center = src_size / 2; // 32
-		// Find center
+		// Find centroid
 		double sx=0.0, sy = 0.0, s = 0.0;
 		int indx = 0;
 		for (int i= -src_center; i < src_center; i++){
@@ -10069,16 +10369,15 @@ public class ImageDttCPU {
 				dst_kernel[indx++] = d;
 			}
 		}
-		dst_kernel[indx++] = 0.5*(src_x - src_center);
+		dst_kernel[indx++] = 0.5*(src_x - src_center); // half-integer center offset (in pixels) of the decimated kernel 
 		dst_kernel[indx++] = 0.5*(src_y - src_center);
-		dst_kernel[indx++] = 0.5*(sx / s);             // actual center shift in pixels (to interapolate difference to neighbour regions)
+		dst_kernel[indx++] = 0.5*(sx / s);             // actual center shift in pixels (to interpolate difference to neighbor regions)
 		dst_kernel[indx++] = 0.5*(sy / s);
 	}
 
 	void clt_normalize_kernel(  // not used in lwir
 			double []   kernel, // should be (2*dtt_size-1) * (2*dtt_size-1) + 4 size (last (2*dtt_size-1) are not modified)
 			double []   window, // normalizes result kernel * window to have sum of elements == 1.0
-//			int transform_size, // 8
 			boolean bdebug)
 	{
 		double s = 0.0;
@@ -10100,9 +10399,8 @@ public class ImageDttCPU {
  	}
 
 	void clt_symmetrize_kernel(  // not used in lwir
-			double []     kernel,      // should be (2*dtt_size-1) * (2*dtt_size-1) +2 size (last 2 are not modified)
-			double [][]   sym_kernels) //, // set of 4 SS, AS, SA, AA kdernels, each dtt_size * dtt_size (may have 5-th with center shift
-///			final int     transform_size) // 8
+			double []     kernel,      // should be (2*dtt_size-1) * (2*dtt_size-1) + 8 size (last 8 are not modified)
+			double [][]   sym_kernels) //, // set of 4 SS, AS, SA, AA kernels, each dtt_size * dtt_size (may have 5-th with center shift
 	{
 		int in_size = 2*transform_size-1;
 		int dtt_size_m1 = transform_size - 1;
@@ -10126,7 +10424,13 @@ public class ImageDttCPU {
 		}
  	}
 
-	void clt_dtt3_kernel( // not used in lwir
+	/**
+	 * Convert 1 kernel using DCT3/DST3 (to be convolved with , so DCT3/DST3, not DCT4/DST4
+	 * @param kernels [5][8][8] (last row will not be modified, used for meta data)
+	 * @param dtt_size transform size - now 8 everywhere
+	 * @param dtt DttRad2 instance, may be null (will be created here)
+	 */
+	static void clt_dtt3_kernel( // not used in lwir
 			double [][]   kernels, // set of 4 SS, AS, SA, AA kdernels, each dtt_size * dtt_size (may have 5-th with center shift
 			final int     dtt_size, // 8
 			DttRad2       dtt)
@@ -10145,7 +10449,7 @@ public class ImageDttCPU {
 
 */
 	public class CltExtra{
-		public double data_x   = 0.0; // kernel data is relative to this displacement X (0.5 pixel increments)
+		public double data_x   = 0.0; // kernel data is relative to this displacement X (0.5 pixel increments) - 2022/05/12 - now same as cernter_x
 		public double data_y   = 0.0; // kernel data is relative to this displacement Y (0.5 pixel increments)
 		public double center_x = 0.0; // actual center X (use to find derivatives)
 		public double center_y = 0.0; // actual center X (use to find derivatives)
@@ -10161,7 +10465,7 @@ public class ImageDttCPU {
 			data_y   = data[1]; // kernel data is relative to this displacement Y (0.5 pixel increments)
 			center_x = data[2]; // actual center X (use to find derivatives)
 			center_y = data[3]; // actual center X (use to find derivatives)
-			dxc_dx   = data[4]; // add this to data_x per each pixel X-shift relative to the kernel centger location
+			dxc_dx   = data[4]; // add this to data_x per each pixel X-shift relative to the kernel center location
 			dxc_dy   = data[5]; // same per each Y-shift pixel
 			dyc_dx   = data[6];
 			dyc_dy   = data[7];
@@ -10273,8 +10577,6 @@ public class ImageDttCPU {
 			int                 width,       // image width
 			double  [][][][][]  clt_kernels, // [color][tileY][tileX][band][pixel]
 			double  [][]        clt_tile,    // should be double [4][];
-			int                 kernel_step,
-//			int                 transform_size,
 			DttRad2             dtt,
 			int                 chn,     // color channel
 			double              centerX, // center of aberration-corrected (common model) tile, X
@@ -10319,10 +10621,11 @@ public class ImageDttCPU {
 		double py = centerY - transform_size;
 		int ktileX = 0;
 		int ktileY = 0;
+		int kernel_pitch = width/(clt_kernels[chn_kernel][0].length - 2);
 		if (use_kernels) {
 			// 1. find closest kernel
-			ktileX = (int) Math.round(centerX/kernel_step) + 1;
-			ktileY = (int) Math.round(centerY/kernel_step) + 1;
+			ktileX = (int) Math.round(centerX/kernel_pitch) + 1;
+			ktileY = (int) Math.round(centerY/kernel_pitch) + 1;
 			if      (ktileY < 0)                                ktileY = 0;
 			else if (ktileY >= clt_kernels[chn_kernel].length)  ktileY = clt_kernels[chn_kernel].length-1;
 			if      (ktileX < 0)                                ktileX = 0;
@@ -10330,8 +10633,8 @@ public class ImageDttCPU {
 			// extract center offset data stored with each kernel tile
 			CltExtra ce = new CltExtra (clt_kernels[chn_kernel][ktileY][ktileX][4]);
 			// 2. calculate correction for center of the kernel offset
-			double kdx = centerX - (ktileX -1 +0.5) *  kernel_step; // difference in pixel
-			double kdy = centerY - (ktileY -1 +0.5) *  kernel_step;
+			double kdx = centerX - (ktileX -1 +0.5) *  kernel_pitch; // difference in pixel
+			double kdy = centerY - (ktileY -1 +0.5) *  kernel_pitch;
 			// 3. find top-left corner of the
 			// check signs, ce.data_x is "-" as if original kernel was shifted to "+" need to take pixel sifted "-"
 			// same with extra shift
@@ -12635,7 +12938,7 @@ public class ImageDttCPU {
 										width,       // image width
 										(clt_kernels_main == null) ? null : clt_kernels_main[i], // [color][tileY][tileX][band][pixel]
 										clt_data_main[i][chn], //double  [][]        clt_tile,    // should be double [4][];
-										clt_parameters.kernel_step,
+//										clt_parameters.kernel_step,
 //										transform_size,
 										dtt,
 										chn,
@@ -12658,7 +12961,7 @@ public class ImageDttCPU {
 										width,       // image width
 										(clt_kernels_aux == null) ? null : clt_kernels_aux[i], // [color][tileY][tileX][band][pixel]
 										clt_data_aux[i][chn], //double  [][]        clt_tile,    // should be double [4][];
-										clt_parameters.kernel_step,
+//										clt_parameters.kernel_step,
 //										transform_size,
 										dtt,
 										chn,
@@ -13474,7 +13777,7 @@ public class ImageDttCPU {
 										width,       // image width
 										(clt_kernels_main == null) ? null : clt_kernels_main[i], // [color][tileY][tileX][band][pixel]
 										clt_data_main[i][chn], //double  [][]        clt_tile,    // should be double [4][];
-										clt_parameters.kernel_step,
+//										clt_parameters.kernel_step,
 //										transform_size,
 										dtt,
 										chn,
@@ -13495,7 +13798,7 @@ public class ImageDttCPU {
 										width,       // image width
 										(clt_kernels_aux == null) ? null : clt_kernels_aux[i], // [color][tileY][tileX][band][pixel]
 										clt_data_aux[i][chn], //double  [][]        clt_tile,    // should be double [4][];
-										clt_parameters.kernel_step,
+//										clt_parameters.kernel_step,
 //										transform_size,
 										dtt,
 										chn,
@@ -14102,7 +14405,7 @@ public class ImageDttCPU {
 									width,       // image width
 									null,      // [color][tileY][tileX][band][pixel]
 									clt_data_main[0][chn], //double  [][]        clt_tile,    // should be double [4][];
-									clt_parameters.kernel_step,
+//									clt_parameters.kernel_step,
 //									transform_size,
 									dtt,
 									chn,
@@ -14121,7 +14424,7 @@ public class ImageDttCPU {
 									width,       // image width
 									null, // [color][tileY][tileX][band][pixel]
 									clt_data_aux[0][chn], //double  [][]        clt_tile,    // should be double [4][];
-									clt_parameters.kernel_step,
+//									clt_parameters.kernel_step,
 //									transform_size,
 									dtt,
 									chn,
@@ -14264,7 +14567,7 @@ public class ImageDttCPU {
 			final GeometryCorrection  geometryCorrection,
 			final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 			final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-			final int                 kernel_step,
+//			final int                 kernel_step,
 //			final int                 transform_size,
 			final int                 window_type,
 			final double [][]         shiftXY, // [port]{shiftX,shiftY}
@@ -14737,7 +15040,7 @@ public class ImageDttCPU {
 												width,       // image width
 												null,
 												fpga_clt_data, //double  [][]        clt_tile,    // should be double [4][];
-												kernel_step,
+//												kernel_step,
 //												transform_size,
 												dtt,
 												fpga_chn, // chn,
@@ -14799,7 +15102,7 @@ public class ImageDttCPU {
 											width,       // image width
 											((clt_kernels == null) ? null : clt_kernels[i]), // [color][tileY][tileX][band][pixel]
 											clt_data[i][ncol][tileY][tileX], //double  [][]        clt_tile,    // should be double [4][];
-											kernel_step,
+//											kernel_step,
 //											transform_size,
 											dtt,
 											ncol,
@@ -15851,7 +16154,7 @@ public class ImageDttCPU {
 			final double [][][][]     dcorr_td,        // [tile][pair][4][64] sparse by pair transform domain representation of corr pairs
 			// no combo here - rotate, combine in pixel domain after interframe
 			final double [][][][][][] clt_kernels,     // [sensor][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-			final int                 kernel_step,
+//			final int                 kernel_step,
 			final int                 window_type,
 			final double              corr_red,
 			final double              corr_blue,
@@ -15921,7 +16224,7 @@ public class ImageDttCPU {
 											width,       // image width
 											((clt_kernels == null) ? null : clt_kernels[nsens]), // [color][tileY][tileX][band][pixel]
 											clt_data[iTile][nsens][ncol], //double  [][]        clt_tile,    // should be double [4][];
-											kernel_step,
+//											kernel_step,
 											dtt,
 											ncol,
 											centersXY[nsens][0], // centerX, // center of aberration-corrected (common model) tile, X
@@ -16414,7 +16717,7 @@ public class ImageDttCPU {
 					dcorr_td,                                           // final double [][][][][]   dcorr_td,        // [pair][tilesY][tilesX][4][64] sparse transform domain representation of corr pairs
 					// no combo here - rotate, combine in pixel domain after interframe
 					clt_kernels,                                        // final double [][][][][][] clt_kernels,     // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-					clt_parameters.kernel_step,                         // final int                 kernel_step,
+//					clt_parameters.kernel_step,                         // final int                 kernel_step,
 					clt_parameters.clt_window,                          // final int                 window_type,
 					clt_parameters.corr_red,                            // final double              corr_red,
 					clt_parameters.corr_blue,                           // final double              corr_blue,
@@ -16864,7 +17167,7 @@ public class ImageDttCPU {
 			// no combo here - rotate, combine in pixel domain after interframe
 			final double [][][][][][] clt_kernels,     // [sensor][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 			final GeometryCorrection  geometryCorrection,
-			final int                 kernel_step,
+//			final int                 kernel_step,
 			final int                 window_type,
 			final double              corr_red,
 			final double              corr_blue,
@@ -17216,7 +17519,7 @@ public class ImageDttCPU {
 							dcorr_td_part,            // final double [][][][]     dcorr_td,        // [tile][pair][4][64] sparse by pair transform domain representation of corr pairs
 							// no combo here - rotate, combine in pixel domain after interframe
 							clt_kernels,              // final double [][][][][][] clt_kernels,     // [sensor][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-							kernel_step,              // final int                 kernel_step,
+//							kernel_step,              // final int                 kernel_step,
 							window_type,              // final int                 window_type,
 							corr_red,                 // final double              corr_red,
 							corr_blue,                // final double              corr_blue,

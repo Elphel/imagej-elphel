@@ -2080,8 +2080,8 @@ public class QuadCLT extends QuadCLTCPU {
 			iclt_fimg[ncam] = gpuQuad.getRBG(ncam);
 		}
 
-		int out_width =  gpuQuad.getImageWidth()  + gpuQuad.getDttSize();
-		int out_height = gpuQuad.getImageHeight() + gpuQuad.getDttSize();
+		int out_width =  gpuQuad.getImageWidth();//   + gpuQuad.getDttSize(); // 2022/05/12 removed margins from gpuQuad.getRBG(ncam);
+		int out_height = gpuQuad.getImageHeight(); // + gpuQuad.getDttSize(); // 2022/05/12 removed margins from gpuQuad.getRBG(ncam);
 		if (isLwir() && colorProcParameters.lwir_autorange) {
 			double rel_low =  colorProcParameters.lwir_low;
 			double rel_high = colorProcParameters.lwir_high;
@@ -2145,7 +2145,7 @@ public class QuadCLT extends QuadCLTCPU {
 				///					array_stack.addSlice("port_"+slice_seq[i], results[slice_seq[i]].getProcessor().getPixels());
 				///				}
 			}
-			ImagePlus imp_stack = new ImagePlus(image_name+sAux()+"-SHIFTED-D"+clt_parameters.disparity, array_stack);
+			ImagePlus imp_stack = new ImagePlus(image_name+sAux()+"GPU-SHIFTED-D"+clt_parameters.disparity, array_stack);
 			imp_stack.getProcessor().resetMinAndMax();
 			if (only4slice) {
 				return imp_stack;
@@ -2691,8 +2691,8 @@ public class QuadCLT extends QuadCLTCPU {
 			iclt_fimg[ncam] = quadCLT_main.getGPU().getRBG(ncam);
 		}
 
-		int out_width =  quadCLT_main.getGPU().getImageWidth()  + quadCLT_main.getGPU().getDttSize();
-		int out_height = quadCLT_main.getGPU().getImageHeight() + quadCLT_main.getGPU().getDttSize();
+		int out_width =  quadCLT_main.getGPU().getImageWidth(); //  + quadCLT_main.getGPU().getDttSize(); // 2022/05/12 removed margins from gpuQuad.getRBG(ncam);
+		int out_height = quadCLT_main.getGPU().getImageHeight(); // + quadCLT_main.getGPU().getDttSize();// 2022/05/12 removed margins from gpuQuad.getRBG(ncam);
 		int tilesX =     quadCLT_main.getGPU().getImageWidth()  / quadCLT_main.getGPU().getDttSize();
 		int tilesY =     quadCLT_main.getGPU().getImageHeight() / quadCLT_main.getGPU().getDttSize();
 		
@@ -2861,7 +2861,7 @@ public class QuadCLT extends QuadCLTCPU {
 					array_stack.addSlice("port_"+slice_seq[i], results[slice_seq[i]].getProcessor().getPixels());
 				}
 			}
-			ImagePlus imp_stack = new ImagePlus(name+"-SHIFTED-D"+clt_parameters.disparity, array_stack);
+			ImagePlus imp_stack = new ImagePlus(name+"GPU-SHIFTED-D"+clt_parameters.disparity, array_stack);
 			imp_stack.getProcessor().resetMinAndMax();
 			if (!batch_mode) {
 				imp_stack.updateAndDraw();
@@ -5338,7 +5338,7 @@ public class QuadCLT extends QuadCLTCPU {
 					  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
 					  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 					  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-					  clt_parameters.kernel_step,    // final int                 kernel_step,
+//					  clt_parameters.kernel_step,    // final int                 kernel_step,
 					  clt_parameters.clt_window,     // final int                 window_type,
 					  shiftXY,                       // final double [][]         shiftXY, // [port]{shiftX,shiftY}
 					  disparity_corr,                // final double              disparity_corr, // disparity at infinity

@@ -93,16 +93,29 @@ public class IntersceneLma {
 	}
 
 	public String [] printOldNew(boolean allvectors, int w, int d) {
+		String fmt1 = String.format("%%%d.%df", w,d);
 		ArrayList<String> lines = new ArrayList<String>();
 		for (int n = ErsCorrection.DP_DVAZ; n < ErsCorrection.DP_NUM_PARS; n+=3) {
 			boolean adj = false;
 			for (int i = 0; i <3; i++) adj |= par_mask[n+i];
 			if (allvectors || adj) {
 				String line = printNameV3(n, false, w,d)+"  (was "+printNameV3(n, true, w,d)+")";
+				line += ", diff="+String.format(fmt1, getV3Diff(n));
 				lines.add(line);
 			}
 		}
 		return lines.toArray(new String[lines.size()]);
+	}
+	
+	public double getV3Diff(int indx) {
+		double [] v_new = new double[3], v_old = new double[3];
+		System.arraycopy(getFullVector(parameters_vector), indx, v_new, 0, 3);
+		System.arraycopy(backup_parameters_full, indx, v_old, 0, 3);
+		double l2 = 0;
+		for (int i = 0; i < 3; i++) {
+			l2 += (v_new[i]-v_old[i]) * (v_new[i]-v_old[i]); 
+		}
+		return Math.sqrt(l2);
 	}
 	
 	public String printNameV3(int indx, boolean initial, int w, int d) {
@@ -282,6 +295,11 @@ public class IntersceneLma {
 		boolean show_intermediate = true;
 		if (show_intermediate && (debug_level > 0)) {
 			System.out.println("LMA: full RMS="+last_rms[0]+" ("+initial_rms[0]+"), pure RMS="+last_rms[1]+" ("+initial_rms[1]+") + lambda="+lambda);
+		}
+		String [] lines1 = printOldNew(false); // boolean allvectors)
+		System.out.print("iteration="+iter);
+		for (String line : lines1) {
+			System.out.println(line);
 		}
 		if (debug_level > 0) {
 			if ((debug_level > 1) || (iter == 1) || last_run) {

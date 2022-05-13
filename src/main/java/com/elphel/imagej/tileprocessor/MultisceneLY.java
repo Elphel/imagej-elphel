@@ -591,12 +591,10 @@ public class MultisceneLY {
 		int clustersX = (int) Math.ceil(1.0 * tilesX / clt_parameters.lyms_clust_size);
 		int clustersY = (int) Math.ceil(1.0 * tilesY / clt_parameters.lyms_clust_size);
 		int clusters = clustersX * clustersY;
-		int numSens = last_scene.tp.getNumSensors();
 		final int [][]     num_tiles =   (in_num_tiles != null)?   in_num_tiles :   (new int [2][]);
 		for (int i = 0; i < num_tiles.length; i++) {
 			num_tiles[i] = new int [clusters];
 		}
-//		int [][]     num_tiles =    new int [2][clusters]; // may be null;; // null;
 		boolean [] inf_cluster  = new boolean [clusters]; // null;		
 		boolean       debug      = debug_level > -2;
 		// get for infinity only
@@ -718,6 +716,18 @@ public class MultisceneLY {
 		return inf_noinf_lazy_eye_data;
 	}	
 	
+	/**
+	 * Display measure Lazy Eye data
+	 * 
+	 * @param clt_parameters configured parameters
+	 * @param gc GeometryCorrection instance (e.g from one scene), needed to create
+	 *           and initialize ExtrinsicAdjustment instance      
+	 * @param clustersX number of clusters in a row
+	 * @param clustersY number of clusters rows
+	 * @param ly_data Lazy Eye data - array in cluster line-scan order, each may be null
+	 *        or an array of LY data
+	 * @param title Image title to use
+	 */
 	public static void showLY(
 			CLTParameters clt_parameters,
 			GeometryCorrection gc,
@@ -752,6 +762,18 @@ public class MultisceneLY {
 				ea.data_titles); //  ExtrinsicAdjustment.DATA_TITLES);
 	}
 	
+	/**
+	 * Update per-tile target_disparity values for non-infinity tiles using LY data
+	 * (LMA disparity difference) adding that values to all tiles of the corresponding 
+	 * clusters in each scene where they are defined (non-NAN).
+	 *  
+	 * @param clt_parameters configuration parameters
+	 * @param tp TileProcessor instance
+	 * @param target_disparities per-scene, per-tile array of target disparities
+	 *        (NaN for undefined tiles)
+	 * @param ly_data Lazy Eye data (only differential disparity used)
+	 * @param threadsMax maximal number of threads
+	 */
 	private static void updateTargetDisparities(
 		final CLTParameters clt_parameters,
 		final TileProcessor tp,
@@ -938,7 +960,7 @@ public class MultisceneLY {
 						dcorr_td,                            // final double [][][][]     dcorr_td,        // [tile][pair][4][64] sparse by pair transform domain representation of corr pairs
 						// no combo here - rotate, combine in pixel domain after interframe
 						scene.getCltKernels(), //   clt_kernels,                         // final double [][][][][][] clt_kernels,     // [sensor][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-						clt_parameters.kernel_step,          // final int                 kernel_step,
+//						clt_parameters.kernel_step,          // final int                 kernel_step,
 						clt_parameters.clt_window,           // final int                 window_type,
 						clt_parameters.corr_red,             // final double              corr_red,
 						clt_parameters.corr_blue,            // final double              corr_blue,
@@ -1047,21 +1069,22 @@ public class MultisceneLY {
 						wh,            // final int []            wh, 
 						threadsMax,    // final int               threadsMax,     // maximal number of threads to launch
 						debug_level);  // final int               globalDebugLevel)
-				
-				String [] titles = new String [accum_2d_img.length]; // dcorr_tiles[0].length];
-				int ind_length = image_dtt.getCorrelation2d().getCorrTitles().length;
-				
-				System.arraycopy(image_dtt.getCorrelation2d().getCorrTitles(), 0, titles, 0, ind_length);
-				for (int i = ind_length; i < titles.length; i++) {
-					titles[i] = "combo-"+(i - ind_length);
+				if (accum_2d_img != null) {
+					String [] titles = new String [accum_2d_img.length]; // dcorr_tiles[0].length];
+					int ind_length = image_dtt.getCorrelation2d().getCorrTitles().length;
+
+					System.arraycopy(image_dtt.getCorrelation2d().getCorrTitles(), 0, titles, 0, ind_length);
+					for (int i = ind_length; i < titles.length; i++) {
+						titles[i] = "combo-"+(i - ind_length);
+					}
+					(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+							accum_2d_decimated,
+							wh[0],
+							wh[1],
+							true,
+							last_scene.getImageName()+"-CORR-DECIMATED"+clust_size+"-"+debug_suffix,
+							titles);
 				}
-				(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
-						accum_2d_decimated,
-						wh[0],
-						wh[1],
-						true,
-						last_scene.getImageName()+"-CORR-DECIMATED"+clust_size+"-"+debug_suffix,
-						titles);
 				double [][] disparity_map_decimated = ImageDtt.corr2d_decimate( // not used in lwir
 						disparity_map,  // final float [][]        corr2d_img,
 						tilesX,        // final int               tilesX,
@@ -1260,6 +1283,20 @@ public class MultisceneLY {
 		return combo_pXpYD;
 	}
 	
+	/**
+	 * Merge Lazy Eye data from two separate ones - for infinity (measuring disparity offset
+	 * with a goal to have disparity be exactly zero for objects at infinity (such as clouds)
+	 * and "lazy eye" measurements. It is needed as there are too few measurements for infinity
+	 * objects, so lazy eye data is measured separately for the same tiles and combined with
+	 * disparity measurements for infinity only   
+	 * @param adjust_mode uses enum MSLY_MODE: INF_ONLY, NOINF_ONLY, and INF_NOINF (typical)
+	 * @param lazy_eye_data2 [2][clusters][LY parameters] [0][][] - infinity measurements
+	 *        (disparity at infinity is used) ,[1][][] - non-infinity measurements (LY data
+	 *        is used). 
+	 * @param force_disparity if non null, should be initialized as boolean[clusters], will be
+	 *        updated to have true for tiles that have disparity data (offset for infinity)
+	 * @return combined LY array, compatible with (older) single-scene LY adjustment.
+	 */
 	public static double [][] mergeLY(
 			MSLY_MODE      adjust_mode,	
 			double [][][]  lazy_eye_data2,
@@ -1331,8 +1368,22 @@ public class MultisceneLY {
 		return lazy_eye_data;
 	}
 	
-	
-	public boolean processLYdata(
+	/**
+	 * A placeholder to move from TwoQuadCLT
+	 * @param clt_parameters
+	 * @param adjust_mode
+	 * @param scenes
+	 * @param lazy_eye_data2
+	 * @param valid_tile
+	 * @param inf_disp_ref
+	 * @param is_scene_infinity
+	 * @param update_disparity
+	 * @param threadsMax
+	 * @param updateStatus
+	 * @param debugLevel
+	 * @return
+	 */
+	public static boolean processLYdata(
 			final CLTParameters  clt_parameters,
 			MSLY_MODE            adjust_mode,			
 			final QuadCLT []     scenes,        // ordered by increasing timestamps
@@ -1387,7 +1438,26 @@ public class MultisceneLY {
 		return true;
 	}
 	
-	  // apply delta to each parameter, perform LY measurement and calculate difference
+	// apply delta to each parameter, perform LY measurement and calculate difference
+	
+	/**
+	 * Measure approximate derivatives of the LY data the subcameras poses
+	 * @param clt_parameters configuration parameters
+	 * @param scenes array of consecutive camera scenes, ordered by increasing timestamps
+	 * @param lazy_eye_data2 a pair of {infinity LY, non-infinity LY}
+	 * @param valid_tile per-scene, per tile array of "valid" tiles - ones that have exactly
+	 *        one obtained with LMA correlation maximum
+	 * @param inf_disp_ref avarage disparity of infinity tiles
+	 * @param is_scene_infinity (may be null) - per scene, per tile - tile predicted to be
+	 *        of infinity object, determined by applying rotation+movement of the composite
+	 *        depth map 
+	 * @param threadsMax maximal number of threads
+	 * @param delta delta for measuring derivatives, scaled for different parameters internally.
+	 *        Typical value 0.001 (0.01 is too high for some tiles)
+	 * @param use_tarz if true - use sensor pose angles (tilt, azimuth, roll, zoom), false -
+	 *        use symmetrical parameters (linear combination of T,A,R,Z)
+	 * @param debugLevel debug level (>-2 - threshold)
+	 */
 	public static void debugLYDerivatives(
 			final CLTParameters     clt_parameters,
 			final QuadCLT []        scenes,            // ordered by increasing timestamps
@@ -1395,40 +1465,11 @@ public class MultisceneLY {
 			final boolean [][]      valid_tile,        // tile with lma and single correlation maximum
 			final double            inf_disp_ref,      // average disparity at infinity for ref scene // is_scene_infinity
 			final boolean [][]      is_scene_infinity, // may be null, if not - may be infinity from the composite depth map
-			boolean                 update_disparity, // re-measure disparity before measuring LY
 			final int               threadsMax,  // maximal number of threads to launch
-			final boolean           updateStatus,
 			double                  delta,
 			boolean                 use_tarz,  // derivatives by tarz, not symmetrical vectors
 			final int               debugLevel)
 	{
-//		final String [] sinf_noinf= {"inf","noinf"};  
-
-		//		  delta = 0.001;
-		/*double [] parameter_scales4 = { // multiply delay for each parameter
-				  0.3,  // 0.014793657667505566, // 00 10 tilt0
-				  0.3,  // 0.015484017460841183, // 01 10 tilt1
-				  0.3,  // 0.02546712771769517,  // 02 10 tilt2
-
-				  0.3,  // 0.02071573747995167,  // 03 10 az0
-				  0.3,  // 0.026584237444512468, // 04 10 az1
-				  0.3,  // 0.014168012698804967, // 05 10 az2
-
-				  2.0,  // 1.8554483718240792E-4,// 06 roll0
-				  0.3, //2.3170738149889717E-4,  // 07 roll1
-				  0.3, //3.713239026512266E-4,   // 08 roll2
-				  0.3, //2.544834643007531E-4,   // 09 roll3
-				  0.3, // 2.5535557646736286E-4, // 10 zoom0 
-				  0.3, // 1.98531249109261E-4,   // 11 zoom1
-				  0.3, // 2.1802727086879284E-4, // 12 zoom2
-
-				  150, // 8.814346720176489E-1,  // 5,  // 13 10000x omega-tilt
-				  150, // 7.071297501674136E-1,  // 5,  // 14 10000x omega az
-				  150, // 1.306306793587865E-0,  // 4,  // 15 10000x omega roll
-				  300, // 2.8929916645453735E-0, // 4,  // 16 10000x vx
-				  300, // 2.943408022525927E-0,  // 4,  // 17 10000x vy
-				  500.0}; // 390.6185365641268};    //4};  // 18 100000x vz
-		 */
 		double scale_tl = 0.3;
 		double scale_az = 0.3;
 		double scale_rl0 = 2.0;
@@ -1644,7 +1685,7 @@ public class MultisceneLY {
 					width,
 					height,
 					true,
-					"dLY_dpar_"+delta+"DINV"+(update_disparity?"U":"")+"-"+SINF_NOINF[nly],
+					"dLY_dpar_"+delta+"DINV"+"-"+SINF_NOINF[nly],
 					titles);
 		}
 		dbg_img2 = new double [ly_diff2.length][num_pars][width*height];
@@ -1673,7 +1714,7 @@ public class MultisceneLY {
 					width,
 					height,
 					true,
-					"dLY_dpar_"+delta+"DINV"+(update_disparity?"U":"")+"-XY"+"-"+SINF_NOINF[nly],
+					"dLY_dpar_"+delta+"DINV"+"-XY"+"-"+SINF_NOINF[nly],
 					titles);
 		}
 		return;

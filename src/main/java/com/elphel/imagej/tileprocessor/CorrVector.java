@@ -621,6 +621,10 @@ public class CorrVector{ // TODO: Update to non-quad (extract to a file first)?
 		return toString(false);
 	}
 	
+	public double getTiltAzPerPixel() {
+		return 1.0/1000.0*geometryCorrection.focalLength/geometryCorrection.pixelSize;
+	}
+	
 	public String toString(boolean short_out) {
 		String s;
 		double [] sym_vect = toSymArray(null);

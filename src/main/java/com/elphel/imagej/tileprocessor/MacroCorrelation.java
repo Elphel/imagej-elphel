@@ -339,7 +339,7 @@ public class MacroCorrelation {
 				geometryCorrection,            // final GeometryCorrection  geometryCorrection,
 				null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 				null,     // clt_kernels,                  // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-				clt_parameters.kernel_step,
+//				clt_parameters.kernel_step,
 ///				clt_parameters.transform_size,
 				clt_parameters.clt_window,
 				shiftXY, //

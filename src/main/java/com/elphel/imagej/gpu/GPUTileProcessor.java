@@ -116,7 +116,7 @@ public class GPUTileProcessor {
 //	public static int IMG_HEIGHT =             1936;
 	static int        KERNELS_HOR =             164;
 	static int        KERNELS_VERT =            123;
-	static int        KERNELS_LSTEP =             4;
+	static int        KERNELS_LSTEP =             3; // 4;// FIXME: Make it dynamic: 3 for LWIR, 4 - for RGB?) 
 	static int        THREADS_PER_TILE =          8;
 	static int        TILES_PER_BLOCK =           4; // 8 - slower
 	static int        CORR_THREADS_PER_TILE =     8;

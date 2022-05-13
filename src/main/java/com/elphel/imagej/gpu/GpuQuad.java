@@ -3190,6 +3190,41 @@ public class GpuQuad{ // quad camera description
 	}
 
 	public float [][] getRBG (int ncam){
+		int gpu_height = (img_height + GPUTileProcessor.DTT_SIZE);
+		int gpu_width =  (img_width + GPUTileProcessor.DTT_SIZE);
+		int gpu_img_size =       gpu_width * gpu_height;
+		int rslt_img_size =      img_height * img_width; // width * height;
+		float [] cpu_corr_image = new float [ num_colors * gpu_img_size];
+		int gpu_width_in_bytes = gpu_width *Sizeof.FLOAT;
+
+		// for copying results to host
+		CUDA_MEMCPY2D copyD2H =   new CUDA_MEMCPY2D();
+		copyD2H.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
+		copyD2H.srcDevice =       gpu_corr_images_h[ncam]; // ((test & 1) ==0) ? src_dpointer : dst_dpointer; // copy same data
+		copyD2H.srcPitch =        imclt_stride*Sizeof.FLOAT;
+
+		copyD2H.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
+		copyD2H.dstHost =         Pointer.to(cpu_corr_image);
+		copyD2H.dstPitch =        gpu_width_in_bytes;
+
+		copyD2H.WidthInBytes =    gpu_width_in_bytes;
+		copyD2H.Height =          num_colors * gpu_height; // /2;
+
+		cuMemcpy2D(copyD2H); // run copy
+
+		float [][] fimg = new float [num_colors][ rslt_img_size];
+		for (int ncol = 0; ncol < num_colors; ncol++) {
+			int tl_offset = (GPUTileProcessor.DTT_SIZE/2) * (gpu_width + 1) + ncol*gpu_img_size;
+			for (int nrow=0; nrow < img_height; nrow++) {
+//				System.arraycopy(cpu_corr_image, ncol*gpu_img_size, fimg[ncol], 0, rslt_img_size);
+				System.arraycopy(cpu_corr_image, tl_offset + (gpu_width * nrow), fimg[ncol], img_width * nrow, img_width);
+			}
+		}
+		return fimg;
+	}
+
+	@Deprecated
+	public float [][] getRBGuntrimmed (int ncam){
 		int height = (img_height + GPUTileProcessor.DTT_SIZE);
 		int width =  (img_width + GPUTileProcessor.DTT_SIZE);
 		int rslt_img_size =      width * height;
@@ -3207,7 +3242,6 @@ public class GpuQuad{ // quad camera description
 		copyD2H.dstPitch =        width_in_bytes;
 
 		copyD2H.WidthInBytes =    width_in_bytes;
-//		copyD2H.Height =          3 * height; // /2;
 		copyD2H.Height =          num_colors * height; // /2;
 
 		cuMemcpy2D(copyD2H); // run copy
@@ -3218,7 +3252,9 @@ public class GpuQuad{ // quad camera description
 		}
 		return fimg;
 	}
-
+	
+	
+	
 	@Deprecated
 	public void  getTileSubcamOffsets(
 			final TpTask[]            tp_tasks,        // will use // modify to have offsets for 8 cameras

@@ -360,7 +360,7 @@ public class ImageDtt extends ImageDttCPU {
 		if (iclt_fimg != null) {
 			gpuQuad.execImcltRbgAll(isMonochrome());  // execute GPU kernel
 			for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
-				iclt_fimg[ncam] = gpuQuad.getRBG(ncam); // retrieve data from GPU
+				iclt_fimg[ncam] = gpuQuad.getRBG(ncam); // retrieve data from GPU (not used !)
 			}
 		} else {gpuQuad.execImcltRbgAll(isMonochrome());} // just for testing
 		// does it need texture tiles to be output?
@@ -1554,7 +1554,7 @@ public class ImageDtt extends ImageDttCPU {
 		if (iclt_fimg != null) {
 			gpuQuad.execImcltRbgAll(isMonochrome());  // execute GPU kernel
 			for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
-				iclt_fimg[ncam] = gpuQuad.getRBG(ncam); // retrieve data from GPU
+				iclt_fimg[ncam] = gpuQuad.getRBG(ncam); // retrieve data from GPU not used, but now width/height are nominal, not increased 
 			}
 		} else {gpuQuad.execImcltRbgAll(isMonochrome());} // just for testing
 		// does it need texture tiles to be output?

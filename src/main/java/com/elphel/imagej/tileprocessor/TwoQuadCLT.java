@@ -1158,7 +1158,7 @@ public class TwoQuadCLT {
 						array_stack.addSlice("port_"+slice_seq[i], results[slice_seq[i]].getProcessor().getPixels());
 					}
 				}
-				ImagePlus imp_stack = new ImagePlus(name+"-SHIFTED-D"+clt_parameters.disparity, array_stack);
+				ImagePlus imp_stack = new ImagePlus(name+"CPU-SHIFTED-D"+clt_parameters.disparity, array_stack);
 				imp_stack.getProcessor().resetMinAndMax();
 				if (!batch_mode) {
 					imp_stack.updateAndDraw();
@@ -1837,7 +1837,7 @@ public class TwoQuadCLT {
 						array_stack.addSlice("port_"+slice_seq[i], results[slice_seq[i]].getProcessor().getPixels());
 					}
 				}
-				ImagePlus imp_stack = new ImagePlus(name+"-SHIFTED-D"+clt_parameters.disparity, array_stack);
+				ImagePlus imp_stack = new ImagePlus(name+"CPU-SHIFTED-D"+clt_parameters.disparity, array_stack);
 				imp_stack.getProcessor().resetMinAndMax();
 				if (!batch_mode) {
 					imp_stack.updateAndDraw();
@@ -8286,7 +8286,12 @@ if (debugLevel > -100) return true; // temporarily !
 				clt_parameters.ofp.scale_no_lma_disparity, // double         scale_no_lma_disparity,
 				threadsMax,                                // int            threadsMax,  // maximal number of threads to launch
 				updateStatus);                             // boolean        updateStatus);
-		
+		int [][] offset_start_corner = {{-1,-1},{1,-1},{1,1},{-1,1}}; //{x,y}
+		int [][] offset_move = {{1,0},{0,1},{-1,0},{0,-1}};
+		double max_rms_maybe = 7.0;
+		double max_rms_sure = 2.0;
+		int pix_step = 20;
+		int search_rad = 0; // 2;
 		for (int i = 1; i < quadCLTs.length; i++) {
 //			QuadCLT qPrev = (i > 0) ? quadCLTs[i - 1] : null;
 			QuadCLTCPU qPrev = (i > 0) ? quadCLTs[i - 1] : null;
@@ -8297,22 +8302,88 @@ if (debugLevel > -100) return true; // temporarily !
 					(QuadCLT) quadCLTs[i],
 					(QuadCLT) qPrev,
 					clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
+			// without ers, velocity should start with all 0?
 			// how was it working before? qPrev.getErsCorrection() shoud remain what was set in the previous adjustment 
 			quadCLTs[i].getErsCorrection().setupERSfromExtrinsics();
 			qPrev.getErsCorrection().setupERSfromExtrinsics();
+//			double angle_per_pixel = qPrev.getGeometryCorrection().getCorrVector().getTiltAzPerPixel(); 
+			double angle_per_step = qPrev.getGeometryCorrection().getCorrVector().getTiltAzPerPixel() * pix_step; 
+
+			double [] rmses = new double [(2*search_rad+1)*(2*search_rad+1)];
+			Arrays.fill(rmses, max_rms_maybe+ 1.0); // undefined - set largesr than worst
+			double [][] atrs = new double [rmses.length][];
+			int rad = 0, dir=0, n=0;
+			int ntry = 0;
+			int num_good=0;
+			double [] rms2 = new double[2];
+			try_around:
+			for (rad = 0; rad <= search_rad; rad++) {
+				for (dir = 0; dir < ((rad==0)?1:4); dir++) {
+					for (n = 0; n < 2*rad; n++) {
+						int ix = rad*offset_start_corner[dir][0] + n * offset_move[dir][0];
+						int iy = rad*offset_start_corner[dir][1] + n * offset_move[dir][1];;
+						double [] atr = {
+								pose[1][0]+ix * angle_per_step,
+								pose[1][1]+iy * angle_per_step,
+								pose[1][2]};
+						if (debugLevel < -2) {
+							System.out.println("interPairsLMA(): trying adjustPairsLMA() with initial offset azimuth: "+
+									atr[0]+", tilt ="+atr[0]);
+						}
+
+						double [][] new_pose = opticalFlow.adjustPairsLMA(
+								clt_parameters, // CLTParameters  clt_parameters,
+								// FIXME: *********** update getPoseFromErs to use QUADCLTCPU ! **********				
+								(QuadCLT) quadCLTs[i],
+								(QuadCLT) qPrev,
+								pose[0], // xyz
+								atr, // pose[1], // atr
+								clt_parameters.ilp.ilma_lma_select,             // final boolean[]   param_select,
+								clt_parameters.ilp.ilma_regularization_weights, //  final double []   param_regweights,
+								rms2, // 			double []      rms, // null or double [2]
+								null, // double [][]    dbg_img,
+								max_rms_maybe, // double         max_rms,
+								clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
+						if (new_pose != null) {
+							atrs[ntry] = new_pose[1].clone();
+							rmses[ntry] =  rms2[0];
+							num_good++;
+							if (rms2[0] <= max_rms_sure) {
+								break try_around;
+							}
+						}
+						ntry++;
+					}
+				}
+			}
+			if (ntry >= rmses.length) { // otherwise all is done already, last atr is set to scene
+				if (debugLevel <-3) {
+					System.out.println("interPairsLMA(): left "+ntry+" candidates");
+				}
+				// rerun with the best atr
+				int best_indx = 0;
+				for (int j = 1; j < rmses.length; j++) {
+					if (rmses[j] < rmses[best_indx]) {
+						best_indx = j;
+					}
+				}
+				opticalFlow.adjustPairsLMA(
+						clt_parameters, // CLTParameters  clt_parameters,
+						// FIXME: *********** update getPoseFromErs to use QUADCLTCPU ! **********				
+						(QuadCLT) quadCLTs[i],
+						(QuadCLT) qPrev,
+						pose[0], // xyz
+						atrs[best_indx], // pose[1], // atr
+						clt_parameters.ilp.ilma_lma_select,             // final boolean[]   param_select,
+						clt_parameters.ilp.ilma_regularization_weights, //  final double []   param_regweights,
+						rms2, // 			double []      rms, // null or double [2]
+						null, // double [][]    dbg_img,
+						max_rms_maybe, // double         max_rms,
+						clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
+
+			}
 			
-			opticalFlow.adjustPairsLMA(
-					clt_parameters, // CLTParameters  clt_parameters,
-					// FIXME: *********** update getPoseFromErs to use QUADCLTCPU ! **********				
-					(QuadCLT) quadCLTs[i],
-					(QuadCLT) qPrev,
-					pose[0], // xyz
-					pose[1], // atr
-					clt_parameters.ilp.ilma_lma_select,             // final boolean[]   param_select,
-					clt_parameters.ilp.ilma_regularization_weights, //  final double []   param_regweights,
-					null, // 			double []      rms, // null or double [2]
-					null, // double [][]    dbg_img,
-					clt_parameters.ofp.debug_level_optical); // 1); // -1); // int debug_level);
+			
 		}
 
 
@@ -8403,7 +8474,7 @@ if (debugLevel > -100) return true; // temporarily !
 			final int        threadsMax,  // maximal number of threads to launch
 			final boolean    updateStatus,
 			final int        debugLevel)  throws Exception
-	{
+	{// in pattern_mode ignore ref_index and use parameter (center index?), step 0. Or do it by caller?
 		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
 			quadCLT_main.getGPU().resetGeometryCorrection();
 			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
@@ -8959,6 +9030,12 @@ if (debugLevel > -100) return true; // temporarily !
 			final int                                            debugLevel)  throws Exception
 	{
 		boolean ref_only =  clt_parameters.inp.ref_only; //  true; // process only reference frame (false - inter-scene)
+		boolean pattern_mode = clt_parameters.ofp.pattern_mode;
+		if (pattern_mode) {
+			ref_index = clt_parameters.ofp.center_index;
+			ref_step = 0;
+        }		
+		
 		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
 			quadCLT_main.getGPU().resetGeometryCorrection();
 			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
@@ -11116,6 +11193,8 @@ if (debugLevel > -100) return true; // temporarily !
 			final boolean    updateStatus,
 			final int        debugLevel)  throws Exception
 	{
+		boolean pattern_mode = clt_parameters.ofp.pattern_mode;
+
 		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
 			quadCLT_main.getGPU().resetGeometryCorrection();
 			quadCLT_main.gpuResetCorrVector(); // .getGPU().resetGeometryCorrectionVector();
@@ -11154,13 +11233,21 @@ if (debugLevel > -100) return true; // temporarily !
 		double        dbg_disparity_offset = 0.0; // 0.1
 		
 		double        inf_disp_ref =   0.0;
-
-		int last_scene_index = quadCLTs.length-1;
-		QuadCLT last_scene = quadCLTs[last_scene_index];
+//		int last_scene_index = quadCLTs.length-1;
+		int ref_scene_index = quadCLTs.length-1;
+		
+		if (pattern_mode) {
+			ref_scene_index = clt_parameters.ofp.center_index;
+        }		
+		
+		
+		
+//		QuadCLT last_scene = quadCLTs[last_scene_index];
+		QuadCLT ref_scene = quadCLTs[ref_scene_index];
 		String composite_suffix =    "-INTER-INTRA-LMA";
 		String num_corr_max_suffix = "-NUM-CORR-MAX";
 		int [] wh = new int[2];
-		double [][] composite_ds = last_scene.readDoubleArrayFromModelDirectory(
+		double [][] composite_ds = ref_scene.readDoubleArrayFromModelDirectory(
 				composite_suffix, // String      suffix,
 				0,                // int         num_slices, // (0 - all)
 				wh);              // int []      wh)
@@ -11175,8 +11262,8 @@ if (debugLevel > -100) return true; // temporarily !
 
 
 
-		int tilesX = last_scene.tp.getTilesX();
-		int tilesY = last_scene.tp.getTilesY();
+		int tilesX = ref_scene.tp.getTilesX();
+		int tilesY = ref_scene.tp.getTilesY();
 		int clustersX = (int) Math.ceil(1.0 * tilesX / clt_parameters.lyms_clust_size);
 		int clustersY = (int) Math.ceil(1.0 * tilesY / clt_parameters.lyms_clust_size);
 		int clusters = clustersX * clustersY;
@@ -11188,7 +11275,7 @@ if (debugLevel > -100) return true; // temporarily !
 		if (proc_infinity) {
 			double [] inf_avg = new double[1];
 			boolean [] ref_inf = MultisceneLY.getComboInfinity(
-					last_scene.tp,   // TileProcessor tp,
+					ref_scene.tp,   // TileProcessor tp,
 					composite_ds,   // double [][]   composite_ds,
 					clt_parameters.lyms_far_inf,        // double        far_inf,
 					clt_parameters.lyms_near_inf,       // double        near_inf,
@@ -11211,7 +11298,7 @@ if (debugLevel > -100) return true; // temporarily !
 		// Read or generate+save number of correlation maximums per scene, per tile
 		// Will use only tiles with one and only one correlation maximum 
 		int [][] numCorrMax = new int [quadCLTs.length][]; // -> 
-		double [][] dNumCorrMax =last_scene.readDoubleArrayFromModelDirectory(
+		double [][] dNumCorrMax =ref_scene.readDoubleArrayFromModelDirectory(
 				num_corr_max_suffix, // String      suffix,
 				0,                // int         num_slices, // (0 - all)
 				wh);              // int []      wh)
@@ -11238,12 +11325,12 @@ if (debugLevel > -100) return true; // temporarily !
 				}
 			}
 
-			last_scene.saveDoubleArrayInModelDirectory( // error
+			ref_scene.saveDoubleArrayInModelDirectory( // error
 					num_corr_max_suffix,           // String      suffix,
 					null, // null,          // String []   labels, // or null
 					dNumCorrMax,       // dbg_data,         // double [][] data,
-					last_scene.tp.getTilesX(),                // int         width,
-					last_scene.tp.getTilesY());               // int         height)
+					ref_scene.tp.getTilesX(),                // int         width,
+					ref_scene.tp.getTilesY());               // int         height)
 		}
 		// valid tile - one and only one maximum
 		boolean [][] valid_tile = new boolean[numCorrMax.length][numCorrMax[0].length];
@@ -11271,7 +11358,7 @@ if (debugLevel > -100) return true; // temporarily !
 		boolean debug_derivs = false;
 
 		ExtrinsicAdjustment ea = new ExtrinsicAdjustment (
-				last_scene.getErsCorrection(),  // GeometryCorrection gc,
+				ref_scene.getErsCorrection(),  // GeometryCorrection gc,
 				clt_parameters.lyms_clust_size, // int         clusterSize,
 				clustersX,                      // int         clustersX,
 				clustersY);                     // int         clustersY)
@@ -11283,7 +11370,7 @@ if (debugLevel > -100) return true; // temporarily !
 		double inf_min = -1.0;
 		double inf_max =  1.0;
 		double [] old_new_rms = new double [2];
-		double min_sym_update =           clt_parameters.getLymChange(last_scene.isAux()); //  4e-6; // stop iterations if no angle changes more than this
+		double min_sym_update =           clt_parameters.getLymChange(ref_scene.isAux()); //  4e-6; // stop iterations if no angle changes more than this
 		double comp_diff = min_sym_update + 1; // (> min_sym_update)
 		
 		double []     disparity_offset = new double [clusters]; // 0.1
@@ -11315,14 +11402,12 @@ if (debugLevel > -100) return true; // temporarily !
 						valid_tile,           // final boolean [][]      valid_tile,        // tile with lma and single correlation maximum
 						inf_disp_ref,         // final double            inf_disp_ref,      // average disparity at infinity for ref scene // is_scene_infinity
 						is_scene_infinity,    //final boolean [][]      is_scene_infinity, // may be null, if not - may be infinity from the composite depth map
-						false,                // boolean                 update_disparity, // re-measure disparity before measuring LY
 						threadsMax,           // final int               threadsMax,  // maximal number of threads to launch
-						true,                 // final boolean           updateStatus,
 						delta,                // double                  delta,
 						use_tarz,             // boolean                 use_tarz,  // derivatives by tarz, not symmetrical vectors
 						debugLevel); // final int               debugLevel);
 			}
-			for (int nly = 0; nly < lazy_eye_data2.length; nly++) if (lazy_eye_data2[nly] != null ) {
+			for (int nly = 00; nly < lazy_eye_data2.length; nly++) if (lazy_eye_data2[nly] != null ) {
 				ea.showInput(
 						lazy_eye_data2[nly], // double[][] data,
 						"drv_reference-"+MultisceneLY.SINF_NOINF[nly]);// String title);
@@ -11378,15 +11463,15 @@ if (debugLevel > -100) return true; // temporarily !
 					lazy_eye_data, // scan.getLazyEyeData(),              // dsxy, // double [][] measured_dsxy,
 					force_disparity, // scan.getLazyEyeForceDisparity(),    // null, //	boolean [] force_disparity,    // boolean [] force_disparity,
 					false, // 	boolean     use_main, // corr_rots_aux != null;
-					last_scene.getGeometryCorrection().getCorrVector(), // CorrVector corr_vector,
+					ref_scene.getGeometryCorrection().getCorrVector(), // CorrVector corr_vector,
 					old_new_rms, // double [] old_new_rms, // should be double[2]
 					debugLevel); //  + 5);// int debugLevel) >=2 to show images
 			if (debugLevel > -2){
 				System.out.println("Old extrinsic corrections:");
-				System.out.println(last_scene.getGeometryCorrection().getCorrVector().toString());
+				System.out.println(ref_scene.getGeometryCorrection().getCorrVector().toString());
 			}
 			if (corr_vector != null) {
-				CorrVector diff_corr = corr_vector.diffFromVector(last_scene.getGeometryCorrection().getCorrVector());
+				CorrVector diff_corr = corr_vector.diffFromVector(ref_scene.getGeometryCorrection().getCorrVector());
 				comp_diff = diff_corr.getNorm(); // apply this to all scenes
 				if (debugLevel > -2){
 					System.out.println("New extrinsic corrections:");
@@ -11396,7 +11481,7 @@ if (debugLevel > -100) return true; // temporarily !
 					System.out.println("Increment extrinsic corrections:");
 					System.out.println(diff_corr.toString());
 				}
-				last_scene.gpuResetCorrVector(); // next time GPU will need to set correction vector (and re-calculate offsets?)
+				ref_scene.gpuResetCorrVector(); // next time GPU will need to set correction vector (and re-calculate offsets?)
 				if (apply_extrinsic){
 					// Apply correction to all scenes (adding, as ERS can be different)
 					// will need to update all scenes GC (write back to disk), but only after all are done
@@ -11405,7 +11490,8 @@ if (debugLevel > -100) return true; // temporarily !
 						CorrVector scene_vector = scene.getGeometryCorrection().getCorrVector();
 						scene_vector.incrementVector(diff_corr, 1.0); // no scale here
 						scene.getGeometryCorrection().setCorrVector(scene_vector);
-					}					
+					}
+					quadCLT_main.getGeometryCorrection().setCorrVector(corr_vector); // updated system corr vector with the current updated one
 					System.out.println("Extrinsic correction updated (can be disabled by setting clt_parameters.ly_corr_scale = 0.0) ");
 				} else {
 					System.out.println("Correction is not applied according clt_parameters.ly_corr_scale == 0.0) ");
@@ -11425,7 +11511,7 @@ if (debugLevel > -100) return true; // temporarily !
 			if (debugLevel > -10) {
 				if ((debugLevel > -3) || done) {
 					System.out.println("New extrinsic corrections:");
-					System.out.println(last_scene.getGeometryCorrection().getCorrVector().toString());
+					System.out.println(ref_scene.getGeometryCorrection().getCorrVector().toString());
 				}
 			}
 			if (comp_diff < min_sym_update) {

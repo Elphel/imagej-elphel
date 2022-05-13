@@ -14,6 +14,7 @@ public class ColorProcParameters {
 	public boolean lwir_autorange =      true;
 	public double  lwir_too_cold =       100.0; // discard this number of pixels too cold
 	public double  lwir_too_hot =          3.0; // discard this number of pixels too hot
+	public boolean lwir_pseudocolor =     true;
 	public int     lwir_palette =           0; // 0 - white - hot, 1 - black - hot, 2+ - colored
 	public boolean lwir_subtract_dc   = false;
 	public boolean lwir_eq_chn   =      true;  // adjust average temperature between channels
@@ -84,7 +85,7 @@ public class ColorProcParameters {
 			boolean lwir_autorange,     //  true;
 			double  lwir_too_cold,      //   100.0; // discard this number of pixels too cold
 			double  lwir_too_hot,       //     3.0; // discard this number of pixels too hot
-
+			boolean lwir_pseudocolor,
 			int     lwir_palette,       //  0 - white - hot, 1 - black - hot, 2+ - colored
 			boolean lwir_subtract_dc,   //   = false;
 			boolean lwir_eq_chn,        // true
@@ -144,6 +145,7 @@ public class ColorProcParameters {
 		this.lwir_too_cold =  lwir_too_cold;
 		this.lwir_too_hot =   lwir_too_hot;
 
+		this.lwir_pseudocolor = lwir_pseudocolor;
 		this.lwir_palette = lwir_palette;
 		this.lwir_subtract_dc = lwir_subtract_dc;
 		this.lwir_eq_chn =lwir_eq_chn;
@@ -204,6 +206,7 @@ public class ColorProcParameters {
 		properties.setProperty(prefix+"lwir_too_cold",      this.lwir_too_cold+"");
 		properties.setProperty(prefix+"lwir_too_hot",       this.lwir_too_hot+"");
 
+		properties.setProperty(prefix+"lwir_pseudocolor",   this.lwir_pseudocolor+"");
 		properties.setProperty(prefix+"lwir_palette",       this.lwir_palette+"");
 		properties.setProperty(prefix+"lwir_subtract_dc",   this.lwir_subtract_dc+"");
 		properties.setProperty(prefix+"lwir_eq_chn",        this.lwir_eq_chn+"");
@@ -273,6 +276,7 @@ public class ColorProcParameters {
 		if (properties.getProperty(prefix+"lwir_too_cold")!=null)  this.lwir_too_cold=Double.parseDouble(properties.getProperty(prefix+"lwir_too_cold"));
 		if (properties.getProperty(prefix+"lwir_too_hot")!=null)   this.lwir_too_hot=Double.parseDouble(properties.getProperty(prefix+"lwir_too_hot"));
 
+		if (properties.getProperty(prefix+"lwir_pseudocolor")!=null) this.lwir_pseudocolor=Boolean.parseBoolean(properties.getProperty(prefix+"lwir_pseudocolor"));
 		if (properties.getProperty(prefix+"lwir_palette")!=null) this.lwir_palette=Integer.parseInt(properties.getProperty(prefix+"lwir_palette"));
 		if (properties.getProperty(prefix+"lwir_subtract_dc")!=null) this.lwir_subtract_dc=Boolean.parseBoolean(properties.getProperty(prefix+"lwir_subtract_dc"));
 		if (properties.getProperty(prefix+"lwir_eq_chn")!=null) this.lwir_eq_chn=Boolean.parseBoolean(properties.getProperty(prefix+"lwir_eq_chn"));
@@ -349,7 +353,8 @@ public class ColorProcParameters {
 		gd.addNumericField("Number of too cold pixels/image to ignore during autorange",    this.lwir_too_cold, 4); // 100.0
 		gd.addNumericField("Number of too hot pixels/image to ignore during autorange",     this.lwir_too_hot,  4); //  0.53
 
-		gd.addNumericField("LWIR pallet (0-white hot, 1-black hot, 2+ - pseudo colors ",    this.lwir_palette,    0);
+		gd.addCheckbox    ("Use pseudocolors for LWIR (unchecked - floating point monochrome)", this.lwir_pseudocolor);
+		gd.addNumericField("LWIR pallete (0-white hot, 1-black hot, 2+ - pseudo colors ",   this.lwir_palette,    0);
 		gd.addCheckbox    ("Subtract each image DC when conditioning",                      this.lwir_subtract_dc);
 		gd.addCheckbox    ("Adjust average temperature between cameras",                    this.lwir_eq_chn);
 
@@ -437,6 +442,7 @@ public class ColorProcParameters {
 		this.lwir_too_cold=            gd.getNextNumber();
 		this.lwir_too_hot=             gd.getNextNumber();
 
+		this.lwir_pseudocolor=         gd.getNextBoolean();
 		this.lwir_palette=       (int) gd.getNextNumber();
 		this.lwir_subtract_dc=         gd.getNextBoolean();
 		this.lwir_eq_chn=              gd.getNextBoolean();
@@ -503,6 +509,7 @@ public class ColorProcParameters {
 		cp.lwir_too_cold =           this.lwir_too_cold;
 		cp.lwir_too_hot =            this.lwir_too_hot;
 
+		cp.lwir_pseudocolor =        this.lwir_pseudocolor;
 		cp.lwir_palette =            this.lwir_palette;
 		cp.lwir_subtract_dc =        this.lwir_subtract_dc;
 		cp.lwir_eq_chn =             this.lwir_eq_chn;
@@ -567,6 +574,7 @@ public class ColorProcParameters {
 		this.lwir_too_cold =           cp.lwir_too_cold;
 		this.lwir_too_hot =            cp.lwir_too_hot;
 
+		this.lwir_pseudocolor =        cp.lwir_pseudocolor;
 		this.lwir_palette =            cp.lwir_palette;
 		this.lwir_subtract_dc =        cp.lwir_subtract_dc;
 		this.lwir_eq_chn =             cp.lwir_eq_chn;

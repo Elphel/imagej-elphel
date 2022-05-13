@@ -31,6 +31,7 @@ package com.elphel.imagej.readers;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringReader;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
@@ -46,9 +47,17 @@ import java.util.Iterator;
 import java.util.Properties;
 import java.util.Set;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+
 import org.apache.commons.compress.utils.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
 
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.tileprocessor.TileNeibs;
@@ -213,6 +222,11 @@ public class ImagejJp4Tiff {
 		ImagePlus imp=  null;
 		bytes = reader.openBytes(0);
 		int bpp =   reader.getBitsPerPixel();
+		if (bpp == 32) { // already ImageJ file - just read it and decode properties
+			imp =  new ImagePlus(content_fileName);
+			decodeProperiesFromInfo(imp);
+			return imp;
+		}
 
 		boolean is_le = reader.isLittleEndian();
 		int bytes_per_pixel =  (bpp + 7) / 9;
@@ -350,6 +364,43 @@ public class ImagejJp4Tiff {
 		imp.setProperty("Info", info);
 		return imp;
 	}
+	
+	public static boolean decodeProperiesFromInfo(ImagePlus imp){
+		if (imp.getProperty("Info")==null) return false;
+		String xml= (String) imp.getProperty("Info");
+
+	    DocumentBuilder db=null;
+		try {
+			db = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+		} catch (ParserConfigurationException e) {
+			return false;
+		}
+	    InputSource is = new InputSource();
+	    is.setCharacterStream(new StringReader(xml));
+    	Document doc = null;
+	    try {
+	    	doc = db.parse(is);
+	    } catch (SAXException e) {
+	    	return false;
+	    } catch (IOException e) {
+	    	return false;
+	    }
+	    NodeList allNodes=doc.getDocumentElement().getElementsByTagName("*");
+	    for (int i=0;i<allNodes.getLength();i++) {
+	        String name= allNodes.item(i).getNodeName();
+	        String value="";
+	        try {
+	        	value=allNodes.item(i).getFirstChild().getNodeValue();
+	        } catch(Exception e) {
+
+	        }
+    		imp.setProperty(name, value);
+
+	    }
+
+		return true;
+	}
+	
 
 	public float [] deGammaScale(float [] pixels, int width, Hashtable<String, Object> meta_hash, boolean degamma, boolean scale) {
 		int height = pixels.length/width;

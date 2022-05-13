@@ -60,10 +60,22 @@ public class OpticalFlowParameters {
 	public double      ref_stdev =                5.0; // strength 0.5 if standard deviation of best neighbors to tile difference is this.
 	public boolean     ignore_ers =               false; // ignore velocities from individual ERS (LWIR - ignore, RGB - do not ignore
 	public double      lpf_pairs =                5.0;  // velocities LPF during pairwise fitting
-	public double      lpf_series =               5.0;  // velocities LPF during all-to-reference fitting 
+	public double      lpf_series =               5.0;  // velocities LPF during all-to-reference fitting
+
+	public boolean     pattern_mode =             false; // true; // not yet used
+	public double      max_rms_maybe =            7.0;
+	public double      max_rms_sure =             2.1; // too high - false positives (for selected set >= 2.2), too low - longer testing
+	public int         pix_step =                20;
+	public int         search_rad =               2; // 0;
+	public int         center_index =             -1; // when <0 find center index after pair-wise matching and set (in pattern_mode)
+	
+	
+	
+	// "testing and debug" section
 	public boolean     combine_empty_only =       true; // false;
 	public boolean     late_normalize_iterate =   true;
 	public int         test_corr_rad_max =        3;
+	public boolean     show_result_images =       true;
 	
 	// for recalculateFlowXY()
 	
@@ -155,6 +167,20 @@ public class OpticalFlowParameters {
 		gd.addNumericField("Velocities LPF during all-to-reference fitting",                  this.lpf_series,     3,6,"samples",
 				"Half of the full width LPF to smooth ERS velocities during all scenes to reference pose fitting");
 		
+		gd.addMessage("Processing factory calibration (pattern) images, some settings may be useful for field images too");
+	    gd.addCheckbox    ("Pattern mode",                                                    this.pattern_mode,
+			     "When processing factory calibration images. Not used yet. In pattern mode XYZ adjustemnt (Inter-LMA tab) should be disabled");
+		gd.addNumericField("RMS larger than any possible RMS in correct fitting",             this.max_rms_maybe,     3,6,"pix",
+				"Now not important, can be set to sufficiently large value (now 7.0)");
+		gd.addNumericField("Definitely good RMS for scene pair-wise fitting",                 this.max_rms_sure,     3,6,"pix",
+				"When set too high leads to false positive fitting, too low - causes too much testing around.");
+		gd.addNumericField("Fitting scan search step",                                        this.pix_step,0,4,"pix",
+				"Search around in a spiral with specified pixel step. With the current LWIR resolution/focal length should be 20pix(safe)-50pix(probably OK).");
+		gd.addNumericField("Search distance",                                                 this.search_rad,0,4,"steps",
+				"Search in a spiral, 0 - just single center, 1 - 3x3 pattern, 2 - 5x5 pattern.");
+		gd.addNumericField("Center (reference) index",                                                 this.center_index,0,4,"steps",
+				"Will be used as a reference frame for matching all to it. If < 0 it will be calculated and set");
+
 		gd.addMessage("Testing and Debug");
 	    gd.addCheckbox    ("Consolidate correlation macrotiles only if the current macrotile is null",  this.combine_empty_only,
 			"When false - consolidate all macrotiles, including defined ones");
@@ -162,6 +188,9 @@ public class OpticalFlowParameters {
 			"Assumed true when consolidating macrotiles");
 		gd.addNumericField("Maximal consolidation radius to try",                             this.test_corr_rad_max,  0,4,"tiles",
 				"Test and dispaly consolidation from from zero to this radius around each macrotile");
+	    gd.addCheckbox    ("Show ERS debug images",   this.show_result_images,
+			"To be continued - debugging EDRS for LWIR, but ERS was too small, need to debug with faster rotations.");
+		
 		gd.addNumericField("Debug level for Optical Flow testing",                            this.debug_level_optical,  0,4,"",
 				"Apply to series or Optical FLow tests");
 		
@@ -211,9 +240,18 @@ public class OpticalFlowParameters {
 		this.lpf_pairs =                    gd.getNextNumber();
 		this.lpf_series =                   gd.getNextNumber();
 		
+		this.pattern_mode =                 gd.getNextBoolean();
+		this.max_rms_maybe =                gd.getNextNumber();
+		this.max_rms_sure =                 gd.getNextNumber();
+		this.pix_step =               (int) gd.getNextNumber();
+		this.search_rad =             (int) gd.getNextNumber();
+		this.center_index =           (int) gd.getNextNumber();
+		
 		this.combine_empty_only =           gd.getNextBoolean();
 		this.late_normalize_iterate =       gd.getNextBoolean();
 		this.test_corr_rad_max =      (int) gd.getNextNumber();
+		this.show_result_images =           gd.getNextBoolean();
+		
 		this.debug_level_optical =    (int) gd.getNextNumber();
 		this.debug_level_iterate =    (int) gd.getNextNumber();
 		this.enable_debug_images =          gd.getNextBoolean();
@@ -257,10 +295,19 @@ public class OpticalFlowParameters {
 		properties.setProperty(prefix+"ignore_ers",               this.ignore_ers+"");
 		properties.setProperty(prefix+"lpf_pairs",                this.lpf_pairs+"");
 		properties.setProperty(prefix+"lpf_series",               this.lpf_series+"");
+		
+		properties.setProperty(prefix+"pattern_mode",             this.pattern_mode+"");
+		properties.setProperty(prefix+"max_rms_maybe",            this.max_rms_maybe+"");
+		properties.setProperty(prefix+"max_rms_sure",             this.max_rms_sure+"");
+		properties.setProperty(prefix+"pix_step",                 this.pix_step+"");
+		properties.setProperty(prefix+"search_rad",               this.search_rad+"");
+		properties.setProperty(prefix+"center_index",             this.center_index+"");
 
 		properties.setProperty(prefix+"combine_empty_only",       this.combine_empty_only+"");
 		properties.setProperty(prefix+"late_normalize_iterate",   this.late_normalize_iterate+"");
 		properties.setProperty(prefix+"test_corr_rad_max",        this.test_corr_rad_max+"");
+		properties.setProperty(prefix+"show_result_images",       this.show_result_images+"");
+
 		properties.setProperty(prefix+"debug_level_optical",      this.debug_level_optical+"");
 		properties.setProperty(prefix+"debug_level_iterate",      this.debug_level_iterate+"");
 		properties.setProperty(prefix+"enable_debug_images",      this.enable_debug_images+"");
@@ -301,14 +348,22 @@ public class OpticalFlowParameters {
 		if (properties.getProperty(prefix+"best_neibs_num")!=null)           this.best_neibs_num=Integer.parseInt(properties.getProperty(prefix+"best_neibs_num"));
 		if (properties.getProperty(prefix+"ref_stdev")!=null)                this.ref_stdev=Double.parseDouble(properties.getProperty(prefix+"ref_stdev"));
 		
-		
 		if (properties.getProperty(prefix+"ignore_ers")!=null)               this.ignore_ers=Boolean.parseBoolean(properties.getProperty(prefix+"ignore_ers"));
 		if (properties.getProperty(prefix+"lpf_pairs")!=null)                this.lpf_pairs=Double.parseDouble(properties.getProperty(prefix+"lpf_pairs"));
 		if (properties.getProperty(prefix+"lpf_series")!=null)               this.lpf_series=Double.parseDouble(properties.getProperty(prefix+"lpf_series"));
+
+		if (properties.getProperty(prefix+"pattern_mode")!=null)             this.pattern_mode=Boolean.parseBoolean(properties.getProperty(prefix+"pattern_mode"));
+		if (properties.getProperty(prefix+"max_rms_maybe")!=null)            this.max_rms_maybe=Double.parseDouble(properties.getProperty(prefix+"max_rms_maybe"));
+		if (properties.getProperty(prefix+"max_rms_sure")!=null)             this.max_rms_sure=Double.parseDouble(properties.getProperty(prefix+"max_rms_sure"));
+		if (properties.getProperty(prefix+"pix_step")!=null)                 this.pix_step=Integer.parseInt(properties.getProperty(prefix+"pix_step"));
+		if (properties.getProperty(prefix+"search_rad")!=null)               this.search_rad=Integer.parseInt(properties.getProperty(prefix+"search_rad"));
+		if (properties.getProperty(prefix+"center_index")!=null)             this.center_index=Integer.parseInt(properties.getProperty(prefix+"center_index"));
 		
 		if (properties.getProperty(prefix+"combine_empty_only")!=null)       this.combine_empty_only=Boolean.parseBoolean(properties.getProperty(prefix+"combine_empty_only"));
 		if (properties.getProperty(prefix+"late_normalize_iterate")!=null)   this.late_normalize_iterate=Boolean.parseBoolean(properties.getProperty(prefix+"late_normalize_iterate"));
 		if (properties.getProperty(prefix+"test_corr_rad_max")!=null)        this.test_corr_rad_max=Integer.parseInt(properties.getProperty(prefix+"test_corr_rad_max"));
+		if (properties.getProperty(prefix+"show_result_images")!=null)       this.show_result_images=Boolean.parseBoolean(properties.getProperty(prefix+"show_result_images"));
+		
 		if (properties.getProperty(prefix+"debug_level_optical")!=null)      this.debug_level_optical=Integer.parseInt(properties.getProperty(prefix+"debug_level_optical"));
 		if (properties.getProperty(prefix+"debug_level_iterate")!=null)      this.debug_level_iterate=Integer.parseInt(properties.getProperty(prefix+"debug_level_iterate"));
 		if (properties.getProperty(prefix+"enable_debug_images")!=null)      this.enable_debug_images=Boolean.parseBoolean(properties.getProperty(prefix+"enable_debug_images"));
@@ -352,13 +407,21 @@ public class OpticalFlowParameters {
 		ofp.lpf_pairs =                     this.lpf_pairs;
 		ofp.lpf_series =                    this.lpf_series; 
 		
+		ofp.pattern_mode =                  this.pattern_mode; 
+		ofp.max_rms_maybe =                 this.max_rms_maybe; 
+		ofp.max_rms_sure =                  this.max_rms_sure; 
+		ofp.pix_step =                      this.pix_step; 
+		ofp.search_rad =                    this.search_rad; 
+		ofp.center_index =                  this.center_index; 
+		
 		ofp.combine_empty_only =            this.combine_empty_only;
 		ofp.late_normalize_iterate =        this.late_normalize_iterate;
 		ofp.test_corr_rad_max =             this.test_corr_rad_max;
+		ofp.show_result_images =            this.show_result_images;
+		
 		ofp.debug_level_optical =           this.debug_level_optical;
 		ofp.debug_level_iterate =           this.debug_level_iterate;
 		ofp.enable_debug_images =           this.enable_debug_images;
 		return ofp;
-		
 	}	
 }

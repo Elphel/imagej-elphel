@@ -84,6 +84,7 @@ public class CLTParameters {
 	public double     scale_b =           1.0;
 	public double     vignetting_max    = 0.4; // value in vignetting data to correspond to 1x in the kernel
 	public double     vignetting_range  = 5.0; // do not try to correct vignetting less than vignetting_max/vignetting_range
+	// NOT used !
 	public int        kernel_step =       16;  // source kernels step in pixels (have 1 kernel margin on each side)
 	public double     disparity  =        0.0; // nominal disparity between side of square cameras (pix)
 	public double     z_correction  =     0.0; // Inverse distance to infinity (misalignment correction)

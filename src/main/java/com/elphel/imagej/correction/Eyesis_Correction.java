@@ -276,6 +276,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			true, // boolean lwir_autorange, // true;
 			100.0, // double lwir_too_cold, // 100.0; // discard this number of pixels too cold
 			3.0, // double lwir_too_hot, // 3.0; // discard this number of pixels too hot
+			true, // lwir_pseudocolor,
 			1, // int lwir_palette, // 0 - white - hot, 1 - black - hot, 2+ - pseudocolored
 			false, // boolean lwir_subtract_dc, // = false;
 			true, // boolean lwir_eq_chn = true; // adjust average temperature between channels
@@ -7381,6 +7382,9 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 	 */
 	public boolean adjustLYSeries(boolean use_aux) {
 		MultisceneLY.MSLY_MODE adjust_mode = MultisceneLY.MSLY_MODE.INF_NOINF;
+		if (CLT_PARAMETERS.ofp.pattern_mode) {
+			adjust_mode = MultisceneLY.MSLY_MODE.NOINF_ONLY;	
+		}
 		long startTime = System.nanoTime();
 		// load needed sensor and kernels files
 		if (!prepareRigImages())

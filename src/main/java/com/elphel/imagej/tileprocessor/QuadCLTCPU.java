@@ -50,6 +50,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.DoubleAccumulator;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.checkerframework.checker.units.qual.m;
 
@@ -79,6 +81,7 @@ import ij.WindowManager;
 //import ij.gui.Overlay;
 import ij.io.FileSaver;
 import ij.process.ColorProcessor;
+import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 
 
@@ -308,7 +311,12 @@ public class QuadCLTCPU {
 	
 	
 	public double getTimeStamp() {
-		return Double.parseDouble(image_name.replace("_", "."));
+		String sts = image_name.replace("_", ".");
+		Matcher m = Pattern.compile("\\d").matcher(sts);
+		if(m.find()) {
+			sts = sts.substring(m.start());
+		}
+		return Double.parseDouble(sts);
 	}
 	public String getImageName() {
 		return image_name;
@@ -1503,7 +1511,7 @@ public class QuadCLTCPU {
 		PixelMapping.SensorData [] sensors =  eyesisCorrections.pixelMapping.sensors;
 		// verify that all sensors have the same distortion parameters
 		int numSensors = sensors.length;
-// if num_sesnors mismatch extrinsic_vect - reset extrinsic_vect and
+// if num_sensors mismatch extrinsic_vect - reset extrinsic_vect and
 		int vector_length = CorrVector.getLength(numSensors);
 		if ((extrinsic_vect == null) || (extrinsic_vect.length != vector_length)) {
 			if (extrinsic_vect == null) {
@@ -1658,6 +1666,11 @@ public class QuadCLTCPU {
 		  final int nChn=kernelStack.getSize();
 		  final int dtt_size =      clt_parameters.transform_size;
 		  final int dtt_len = dtt_size* dtt_size;
+		  // Assuming kernels array match image size with 2 extras (one on each side)
+		  int image_width = this.getGeometryCorrection().getSensorWH()[0];
+		  final int kernel_pitch = image_width / (kernelNumHor - 2); 
+		  
+		  
 		  final double [][][][][] clt_kernels = new double [nChn][kernelNumVert][kernelNumHor][5][];
 		  for (int chn = 0; chn < nChn; chn++){
 			  for (int tileY = 0; tileY < kernelNumVert ; tileY++){
@@ -1683,6 +1696,81 @@ public class QuadCLTCPU {
 			  }
 		  }
 
+		  // testing
+		  boolean debug_k00 = false; // true;
+		  if (debug_k00) {
+			  boolean show_raw = true;
+			  boolean show_decimated = true;
+			  float [] kernelPixels= null; // will be initialized at first use NOT yet?
+			  double [] kernel=      new double[kernelSize*kernelSize];
+			  int centered_len = (2*dtt_size-1) * (2*dtt_size-1);
+			  double [] kernel_centered = new double [centered_len + extra_items];
+			  ImageDtt image_dtt = new ImageDtt(
+					  getNumSensors(),
+					  clt_parameters.transform_size,
+					  clt_parameters.img_dtt,
+					  isAux(),
+					  isMonochrome(),
+					  isLwir(),
+					  clt_parameters.getScaleStrength(isAux()));
+			  int chn,tileY,tileX;
+//			  DttRad2 dtt = new DttRad2(dtt_size);
+			  ShowDoubleFloatArrays sdfa_instance = null;
+			  if (globalDebugLevel > -1) sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
+
+			  int nTile = 9;
+
+			  chn=nTile/numberOfKernelsInChn;
+			  tileY =(nTile % numberOfKernelsInChn)/kernelNumHor;
+			  tileX = nTile % kernelNumHor;
+			  if (tileX==0) {
+				  if (updateStatus) IJ.showStatus("Processing kernels, channel "+(chn+1)+" of "+nChn+", row "+(tileY+1)+" of "+kernelNumVert);
+				  if (globalDebugLevel>2) System.out.println("Processing kernels, channel "+(chn+1)+" of "+nChn+", row "+(tileY+1)+" of "+kernelNumVert+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+			  }
+			  kernelPixels=(float[]) kernelStack.getPixels(chn+1);
+
+			  /* read convolution kernel */
+			  extractOneKernel(
+					  kernelPixels, //  array of combined square kernels, each
+					  kernel, // will be filled, should have correct size before call
+					  kernelNumHor, // number of kernels in a row
+					  tileX, // horizontal number of kernel to extract
+					  tileY); // vertical number of kernel to extract
+			  if (show_raw) {
+				  int length=kernel.length;
+				  int size=(int) Math.sqrt(length);
+				  double s =0.0;
+				  for (int i=0;i<kernel.length;i++) s+=kernel[i];
+				  System.out.println("calculateCLTKernel(): sum(kernel_raw)="+s);
+				  sdfa_instance.showArrays(
+						  kernel,
+						  size,
+						  size,
+						  "raw_kernel-"+chn+"-X"+(clt_parameters.tileX/2)+"-Y"+(clt_parameters.tileY/2));
+
+			  }
+			  // now has 64x64
+			  image_dtt.clt_convert_double_kernel_centered( // converts double resolution kernel
+					  kernel,          // double []   src_kernel, //
+					  kernel_centered, // double []   dst_kernel, // should be (2*dtt_size-1) * (2*dtt_size-1) + extra_items size - kernel and dx, dy to the nearest 1/2 pixels
+					  // also actual full center shifts in sensor pixels
+					  kernelSize); // ,      // int src_size, // 64
+			  if (show_decimated) {
+				  int length=kernel_centered.length;
+				  int size=(int) Math.sqrt(length);
+				  double s =0.0;
+				  int klen = (2*dtt_size-1) * (2*dtt_size-1);
+				  for (int i = 0; i < klen; i++) s += kernel_centered[i];
+				  System.out.println("calculateCLTKernel(): sum(kernel_centered)="+s);
+				  sdfa_instance.showArrays(
+						  kernel_centered,
+						  size,
+						  size,
+						  "kernel_centered-"+chn+"-X"+(clt_parameters.tileX/2)+"-Y"+(clt_parameters.tileY/2));
+			  }
+		  }
+		  
+		  // ----------------
 		  final long startTime = System.nanoTime();
 		  System.out.println("calculateCLTKernel():numberOfKernels="+numberOfKernels);
 		  for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -1738,12 +1826,11 @@ public class QuadCLTCPU {
 						  }
 
 						  // now has 64x64
-						  image_dtt.clt_convert_double_kernel( // converts double resolution kernel
+						  image_dtt.clt_convert_double_kernel_centered ( // clt_convert_double_kernel( // converts double resolution kernel
 								  kernel,          // double []   src_kernel, //
 								  kernel_centered, // double []   dst_kernel, // should be (2*dtt_size-1) * (2*dtt_size-1) + extra_items size - kernel and dx, dy to the nearest 1/2 pixels
 								                   // also actual full center shifts in sensor pixels
 								  kernelSize); // ,      // int src_size, // 64
-///								  dtt_size);       // 8
 						  if ((globalDebugLevel > 0) && (tileY == clt_parameters.tileY/2)  && (tileX == clt_parameters.tileX/2)) {
 							  int length=kernel_centered.length;
 							  int size=(int) Math.sqrt(length);
@@ -1779,10 +1866,10 @@ public class QuadCLTCPU {
 
 							  }
 						  }
-						  image_dtt.clt_symmetrize_kernel( //
+						  image_dtt.clt_symmetrize_kernel(// each quadrant will have appropriate symmetry - SS, AS, SA, SS
 								  kernel_centered, // double []     kernel,      // should be (2*dtt_size-1) * (2*dtt_size-1) +4 size (last 4 are not modified)
 								  clt_kernels[chn][tileY][tileX]); // , // 	double [][]   sym_kernels, // set of 4 SS, AS, SA, AA kdernels, each dtt_size * dtt_size (may have 5-th with center shift
-///								  dtt_size); // 8
+
 						  for (int i = 0; i < extra_items; i++){
 							  clt_kernels[chn][tileY][tileX][4][i] = kernel_centered [centered_len + i];
 						  }
@@ -1803,7 +1890,8 @@ public class QuadCLTCPU {
 									  "pre_clt_kernels-"+chn,
 									  titles);
 						  }
-						  image_dtt.clt_dtt3_kernel( //
+//						  image_dtt.clt_dtt3_kernel( //
+						  ImageDtt.clt_dtt3_kernel( //
 								  clt_kernels[chn][tileY][tileX], // double [][]   kernels, // set of 4 SS, AS, SA, AA kdernels, each dtt_size * dtt_size (may have 5-th with center shift
 								  dtt_size, // 8
 								  dtt);
@@ -1817,10 +1905,10 @@ public class QuadCLTCPU {
 									  "full_dx =  "+clt_kernels[chn][tileY][tileX][4][2]+", "+
 									  "full_dy =  "+clt_kernels[chn][tileY][tileX][4][3]);
 						  }
-						  // Add sensor geometry correction (optional?)
+						  // Add sensor geometry correction  - no it is added during correction
 						  // Kernel center in pixels
-						  double kpx0 = (tileX -1 +0.5) *  clt_parameters.kernel_step;
-						  double kpy0 = (tileY -1 +0.5) *  clt_parameters.kernel_step;
+						  double kpx0 = (tileX -1 +0.5) * kernel_pitch; // clt_parameters.kernel_step;
+						  double kpy0 = (tileY -1 +0.5) * kernel_pitch; // clt_parameters.kernel_step;
 						  double [] corrPxPy = sensor.interpolateCorrectionVector(false, kpx0, kpy0);
 						  image_dtt.offsetKernelSensor(
 								  clt_kernels[chn][tileY][tileX], // double [][] clt_tile, // clt tile, including [4] - metadata
@@ -1839,9 +1927,9 @@ public class QuadCLTCPU {
 									  "full_dy =  "+clt_kernels[chn][tileY][tileX][4][3]);
 							  System.out.println("calculateCLTKernel() - after  corr: chn="+chn+" "+
 									  "kpx0 = "+kpx0+
-									  "kpy0 = "+kpy0+
-									  "corrPxPy[0] = "+corrPxPy[0]+
-									  "corrPxPy[1] = "+corrPxPy[1]);
+									  " kpy0 = "+kpy0+
+									  " corrPxPy[0] = "+corrPxPy[0]+
+									  " corrPxPy[1] = "+corrPxPy[1]);
 						  }
 
 						  if ((globalDebugLevel > 0) && (tileY == clt_parameters.tileY/2)  && (tileX == clt_parameters.tileX/2)) {
@@ -1885,9 +1973,9 @@ public class QuadCLTCPU {
 				  isLwir(),
 				  clt_parameters.getScaleStrength(isAux()));
 		  image_dtt.clt_fill_coord_corr(
-				  clt_parameters.kernel_step,  //  final int             kern_step, // distance between kernel centers, in pixels.
-				  clt_kernels,                 // final double [][][][] clt_data,
-				  threadsMax,                  // maximal number of threads to launch
+				  kernel_pitch,  // clt_parameters.kernel_step,  //  final int             kern_step, // distance between kernel centers, in pixels.
+				  clt_kernels,   // final double [][][][] clt_data,
+				  threadsMax,    // maximal number of threads to launch
 				  globalDebugLevel);
 		  return clt_kernels;
 	  }
@@ -2121,6 +2209,22 @@ public class QuadCLTCPU {
 				  ImageStack kernel_sharp_stack= imp_kernel_sharp.getStack();
 				  System.out.println("debugLevel = "+debugLevel+" kernel_sharp_stack.getWidth() = "+kernel_sharp_stack.getWidth()+
 						  " kernel_sharp_stack.getHeight() = "+kernel_sharp_stack.getHeight());
+				  // debugging
+				  if (chn==1000) {
+					  int test_chn = 15;
+					  ImagePlus imp_kernel_test=new ImagePlus(sharpKernelPaths[test_chn]);
+					  ImageStack kernel_test_stack= imp_kernel_test.getStack();
+					  
+					  System.out.println("+++++ createCLTKernels() testing calculateCLTKernel() with chn=15 tile=9");
+					  calculateCLTKernel ( // per color/per tileY/ per tileX/per quadrant (plus offset as 5-th)/per pixel
+							  sensors[test_chn],                            // to calculate extra shift (kernels are centered around green)
+							  kernel_test_stack,                      // final ImageStack kernelStack,  // first stack with 3 colors/slices convolution kernels
+							  srcKernelSize,                           // final int          kernelSize, // 64
+							  clt_parameters,                          // final EyesisCorrectionParameters.CLTParameters clt_parameters,
+							  threadsMax,  // maximal number of threads to launch
+							  updateStatus,
+							  debugLevel); // update status info
+				  }
 
 				  double [][][][][] kernels = calculateCLTKernel ( // per color/per tileY/ per tileX/per quadrant (plus offset as 5-th)/per pixel
 						  sensors[chn],                            // to calculate extra shift (kernels are centered around green)
@@ -2858,7 +2962,7 @@ public class QuadCLTCPU {
 					  double_stack,                 // final double [][]       imade_data,
 					  imp_src.getWidth(),           //	final int               width,
 					  clt_kernels[channel],         // final double [][][][][] clt_kernels, // [color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-					  clt_parameters.kernel_step,
+//					  clt_parameters.kernel_step,
 //					  clt_parameters.transform_size,
 					  clt_parameters.clt_window,
 					  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
@@ -3467,7 +3571,7 @@ public class QuadCLTCPU {
 					  double_stack,                 // final double [][]       imade_data,
 					  imp_src.getWidth(),           //	final int               width,
 					  clt_kernels[channel],         // final double [][][][][] clt_kernels, // [color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-					  clt_parameters.kernel_step,
+//					  clt_parameters.kernel_step,
 //					  image_dtt.transform_size,
 					  clt_parameters.clt_window,
 					  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
@@ -4043,7 +4147,7 @@ public class QuadCLTCPU {
 				  imp_quad[0].getWidth(),       //	final int               width,
 				  geometryCorrection,           // final GeometryCorrection  geometryCorrection,
 				  clt_kernels,                  // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-				  clt_parameters.kernel_step,
+//				  clt_parameters.kernel_step,
 //				  image_dtt.transform_size,
 				  clt_parameters.clt_window,
 				  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
@@ -5502,7 +5606,7 @@ public class QuadCLTCPU {
 				  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
 				  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 				  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-				  clt_parameters.kernel_step,
+//				  clt_parameters.kernel_step,
 				  clt_parameters.clt_window,
 				  shiftXY, //
 				  disparity_corr, // final double              disparity_corr, // disparity at infinity
@@ -5922,7 +6026,7 @@ public class QuadCLTCPU {
 						  ///						  array_stack.addSlice("port_"+slice_seq[i], results[slice_seq[i]].getProcessor().getPixels());
 					  }
 				  }
-				  ImagePlus imp_stack = new ImagePlus(image_name+sAux()+"-SHIFTED-D"+clt_parameters.disparity, array_stack);
+				  ImagePlus imp_stack = new ImagePlus(image_name+sAux()+"CPU-SHIFTED-D"+clt_parameters.disparity, array_stack);
 				  imp_stack.getProcessor().resetMinAndMax();
 				  if (!batch_mode) {
 					  imp_stack.updateAndDraw(); // not used in lwir
@@ -6398,7 +6502,7 @@ public class QuadCLTCPU {
 				  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
 				  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 				  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-				  clt_parameters.kernel_step,    // final int                 kernel_step,
+//				  clt_parameters.kernel_step,    // final int                 kernel_step,
 				  clt_parameters.clt_window,     // final int                 window_type,
 				  shiftXY,                       // final double [][]         shiftXY, // [port]{shiftX,shiftY}
 				  disparity_corr,                // final double              disparity_corr, // disparity at infinity
@@ -6778,7 +6882,7 @@ public class QuadCLTCPU {
 	  }
 
 
-	  // float
+	  // float, for GPU
 	  public ImagePlus linearStackToColor( // not used in lwir
 			  CLTParameters         clt_parameters,
 			  ColorProcParameters   colorProcParameters,
@@ -6810,6 +6914,13 @@ public class QuadCLTCPU {
 		  float []   alpha = null; // (0..1.0)
 		  if (iclt_data.length > 3) alpha = iclt_data[3];
 		  if (isLwir()) {
+			  if (colorProcParameters.lwir_pseudocolor) {
+				  ImageProcessor ip= new FloatProcessor(width,height);
+				  ip.setPixels(iclt_data[0]);
+				  ip.resetMinAndMax();
+				  ImagePlus imp =  new ImagePlus(name+suffix, ip);
+				  return imp;
+			  }
 			  String [] rgb_titles =  {"red","green","blue"};
 			  String [] rgba_titles = {"red","green","blue","alpha"};
 			  String [] titles = (alpha == null) ? rgb_titles : rgba_titles;
@@ -6929,6 +7040,17 @@ public class QuadCLTCPU {
 			  }
 		  }
 		  if (isLwir()) {
+			  if (colorProcParameters.lwir_pseudocolor) {
+				  ImageProcessor ip= new FloatProcessor(width,height);
+				  float [] pixels = new float [iclt_data[0].length];
+				  for (int i = 0; i < pixels.length; i++) {
+					  pixels[i] = (float) iclt_data[0][i];
+				  }
+				  ip.setPixels(pixels);
+				  ip.resetMinAndMax();
+				  ImagePlus imp =  new ImagePlus(name+suffix, ip);
+				  return imp;
+			  }
 			  String [] rgb_titles =  {"red","green","blue"};
 			  String [] rgba_titles = {"red","green","blue","alpha"};
 			  String [] titles = (alpha == null) ? rgb_titles : rgba_titles;
@@ -12131,7 +12253,7 @@ public class QuadCLTCPU {
 				  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
 				  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 				  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-				  clt_parameters.kernel_step,
+//				  clt_parameters.kernel_step,
 				  ///				  image_dtt.transform_size,
 				  clt_parameters.clt_window,
 				  shiftXY, //
@@ -12435,7 +12557,7 @@ public class QuadCLTCPU {
 						  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
 						  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 						  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-						  clt_parameters.kernel_step,
+//						  clt_parameters.kernel_step,
 						  clt_parameters.clt_window,
 						  shiftXY, //
 						  disparity_corr, // final double              disparity_corr, // disparity at infinity
@@ -12490,7 +12612,7 @@ public class QuadCLTCPU {
 						  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
 						  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 						  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-						  clt_parameters.kernel_step,
+//						  clt_parameters.kernel_step,
 						  clt_parameters.clt_window,
 						  shiftXY, //
 						  disparity_corr, // final double              disparity_corr, // disparity at infinity
@@ -12552,7 +12674,7 @@ public class QuadCLTCPU {
 					  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
 					  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 					  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-					  clt_parameters.kernel_step,
+//					  clt_parameters.kernel_step,
 					  clt_parameters.clt_window,
 					  shiftXY, //
 					  disparity_corr, // final double              disparity_corr, // disparity at infinity
@@ -12711,7 +12833,7 @@ public class QuadCLTCPU {
 				  geometryCorrection,           // final GeometryCorrection  geometryCorrection,
 				  geometryCorrection_main, // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 				  clt_kernels,                  // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-				  clt_parameters.kernel_step,
+//				  clt_parameters.kernel_step,
 				  clt_parameters.clt_window,
 				  shiftXY, //
 				  disparity_corr, // final double              disparity_corr, // disparity at infinity
@@ -12865,7 +12987,7 @@ public class QuadCLTCPU {
 					  // no combo here - rotate, combine in pixel domain after interframe
 					  clt_kernels,                         // final double [][][][][][] clt_kernels,     // [sensor][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 					  geometryCorrection,                  // final GeometryCorrection  geometryCorrection,
-					  clt_parameters.kernel_step,          // final int                 kernel_step,
+//					  clt_parameters.kernel_step,          // final int                 kernel_step,
 					  clt_parameters.clt_window,           // final int                 window_type,
 					  clt_parameters.corr_red,             // final double              corr_red,
 					  clt_parameters.corr_blue,            // final double              corr_blue,
@@ -12928,7 +13050,7 @@ public class QuadCLTCPU {
 						  dcorr_td,                            // final double [][][][]     dcorr_td,        // [tile][pair][4][64] sparse by pair transform domain representation of corr pairs
 						  // no combo here - rotate, combine in pixel domain after interframe
 						  clt_kernels,                         // final double [][][][][][] clt_kernels,     // [sensor][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-						  clt_parameters.kernel_step,          // final int                 kernel_step,
+//						  clt_parameters.kernel_step,          // final int                 kernel_step,
 						  clt_parameters.clt_window,           // final int                 window_type,
 						  clt_parameters.corr_red,             // final double              corr_red,
 						  clt_parameters.corr_blue,            // final double              corr_blue,
@@ -13290,7 +13412,7 @@ public class QuadCLTCPU {
 				  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
 				  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 				  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-				  clt_parameters.kernel_step,    // final int                 kernel_step,
+//				  clt_parameters.kernel_step,    // final int                 kernel_step,
 				  clt_parameters.clt_window,     // final int                 window_type,
 				  shiftXY,                       // final double [][]         shiftXY, // [port]{shiftX,shiftY}
 				  disparity_corr,                // final double              disparity_corr, // disparity at infinity

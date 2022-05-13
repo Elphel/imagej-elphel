@@ -145,6 +145,9 @@ import ij.process.ImageProcessor;
 
   public void showArrays(float[][] pixels, int width, int height,  boolean asStack, String title, String [] titles) {
 	    int i,j;
+	    if (pixels == null) {
+	    	return;
+	    }
 	    if (asStack) {
 	      float [] fpixels;
 	      ImageStack array_stack=new ImageStack(width,height);
