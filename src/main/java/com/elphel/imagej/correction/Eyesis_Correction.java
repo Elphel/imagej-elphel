@@ -6621,6 +6621,9 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 				QUAD_CLT_AUX.setGPU(GPU_QUAD_AUX);
 			}
 		}
+		CLT_PARAMETERS.setColorProcParameters(COLOR_PROC_PARAMETERS,     false);
+		CLT_PARAMETERS.setColorProcParameters(COLOR_PROC_PARAMETERS_AUX, true);
+		CLT_PARAMETERS.setRGBParameters(RGB_PARAMETERS);
 
 		try {
 			TWO_QUAD_CLT.batchLwirRig(QUAD_CLT, // QuadCLT quadCLT_main,

@@ -85,6 +85,7 @@ public class GPUTileProcessor {
 	static String GPU_CONVERT_DIRECT_NAME =        "convert_direct";      // name in C code
 	static String GPU_IMCLT_ALL_NAME =             "imclt_rbg_all";
 	static String GPU_CORRELATE2D_NAME =           "correlate2D";         // name in C code
+	static String GPU_CORRELATE2D_INTER_NAME =     "correlate2D_inter";   // name in C code
 	static String GPU_CORR2D_COMBINE_NAME =        "corr2D_combine";      // name in C code
 	static String GPU_CORR2D_NORMALIZE_NAME =      "corr2D_normalize";    // name in C code
 	static String GPU_TEXTURES_NAME =              "textures_nonoverlap"; // name in C code
@@ -163,6 +164,7 @@ public class GPUTileProcessor {
     CUfunction GPU_CONVERT_DIRECT_kernel =          null; // "convert_direct"
     CUfunction GPU_IMCLT_ALL_kernel =               null; // "imclt_rbg_all"
     CUfunction GPU_CORRELATE2D_kernel =             null; // "correlate2D"
+    CUfunction GPU_CORRELATE2D_INTER_kernel =       null; // "correlate2D_inter"
     CUfunction GPU_CORR2D_COMBINE_kernel =          null; // "corr2D_combine"
     CUfunction GPU_CORR2D_NORMALIZE_kernel =        null; // "corr2D_normalize";
     CUfunction GPU_TEXTURES_kernel =                null; // "textures_nonoverlap"
@@ -314,6 +316,7 @@ public class GPUTileProcessor {
         		GPU_CONVERT_DIRECT_NAME,
         		GPU_IMCLT_ALL_NAME,
         		GPU_CORRELATE2D_NAME,
+        		GPU_CORRELATE2D_INTER_NAME,
         		GPU_CORR2D_COMBINE_NAME,
         		GPU_CORR2D_NORMALIZE_NAME,
         		GPU_TEXTURES_NAME,
@@ -337,27 +340,29 @@ public class GPUTileProcessor {
         GPU_CONVERT_DIRECT_kernel =          functions[0];
         GPU_IMCLT_ALL_kernel =               functions[1];
         GPU_CORRELATE2D_kernel =             functions[2];
-        GPU_CORR2D_COMBINE_kernel =          functions[3];
-        GPU_CORR2D_NORMALIZE_kernel =        functions[4];
-        GPU_TEXTURES_kernel=                 functions[5];
-        GPU_RBGA_kernel=                     functions[6];
-        GPU_ROT_DERIV_kernel =               functions[7];
-        GPU_CALCULATE_TILES_OFFSETS_kernel = functions[8];
-        GPU_CALC_REVERSE_DISTORTION_kernel = functions[9];
+        GPU_CORRELATE2D_INTER_kernel =       functions[3];
+        GPU_CORR2D_COMBINE_kernel =          functions[4];
+        GPU_CORR2D_NORMALIZE_kernel =        functions[5];
+        GPU_TEXTURES_kernel=                 functions[6];
+        GPU_RBGA_kernel=                     functions[7];
+        GPU_ROT_DERIV_kernel =               functions[8];
+        GPU_CALCULATE_TILES_OFFSETS_kernel = functions[9];
+        GPU_CALC_REVERSE_DISTORTION_kernel = functions[10];
      // Kernels to use w/o Dynamic Parallelism    
-        GPU_CLEAR_TEXTURE_LIST_kernel =      functions[10];
-        GPU_MARK_TEXTURE_LIST_kernel =       functions[11];
-        GPU_MARK_TEXTURE_NEIGHBOR_kernel =   functions[12];
-        GPU_GEN_TEXTURE_LIST_kernel =        functions[13];
-        GPU_CLEAR_TEXTURE_RBGA_kernel =      functions[14];
-        GPU_TEXTURES_ACCUMULATE_kernel =     functions[15];
-        GPU_CREATE_NONOVERLAP_LIST_kernel =  functions[16];
+        GPU_CLEAR_TEXTURE_LIST_kernel =      functions[11];
+        GPU_MARK_TEXTURE_LIST_kernel =       functions[12];
+        GPU_MARK_TEXTURE_NEIGHBOR_kernel =   functions[13];
+        GPU_GEN_TEXTURE_LIST_kernel =        functions[14];
+        GPU_CLEAR_TEXTURE_RBGA_kernel =      functions[15];
+        GPU_TEXTURES_ACCUMULATE_kernel =     functions[16];
+        GPU_CREATE_NONOVERLAP_LIST_kernel =  functions[17];
         
 
         System.out.println("GPU kernel functions initialized");
         System.out.println(GPU_CONVERT_DIRECT_kernel.toString());
         System.out.println(GPU_IMCLT_ALL_kernel.toString());
         System.out.println(GPU_CORRELATE2D_kernel.toString());
+        System.out.println(GPU_CORRELATE2D_INTER_kernel.toString());
         System.out.println(GPU_CORR2D_COMBINE_kernel.toString());
         System.out.println(GPU_CORR2D_NORMALIZE_kernel.toString());
         System.out.println(GPU_TEXTURES_kernel.toString());

@@ -2384,7 +2384,7 @@ public class Correlation2d {
 	 * @return argmax() relative to the tile center
 	 */
 	
-	public double [] getMaxXYCm( // not used in lwir
+	public static double [] getMaxXYCm( // not used in lwir
 			double [] data,
 			int       data_width,      //  = 2 * transform_size - 1;
 			int       center_row,
@@ -2410,6 +2410,72 @@ public class Correlation2d {
 		}
 		return rslt;
 	}
+	
+	public static double [] getMaxXYCm(
+			double [] data,
+			int       data_width,      //  = 2 * transform_size - 1;
+			double    radius, // 0 - all same weight, > 0 cosine(PI/2*sqrt(dx^2+dy^2)/rad)
+			int       refine, //  re-center window around new maximum. 0 -no refines (single-pass)
+			boolean   debug)
+	{
+		int data_height = data.length/data_width;
+		int center_xy = (data_width - 1)/2; //  = transform_size - 1;
+		double x0 = center_xy, y0 = center_xy;
+		int imax= 0;
+		for (int i= 1; i < data.length;i++) {
+			if (data[i] > data[imax]) {
+				imax = i;
+			}
+		}
+		double mx = data[imax];
+		x0 = imax % data_width;
+		y0 = imax / data_width;
+		//calculate as "center of mass"
+		if (radius == 0) {
+			double s0 = 0, sx=0,sy = 0;
+			for (int iy = 0; iy < data_height; iy++) {
+				double y = iy - y0;
+				for (int ix = 0; ix < data_width; ix++) {
+					double x = ix - x0;
+					double d =  data[iy * data_width + ix];
+					s0 += d;
+					sx += d * x;
+					sy += d * y;
+				}
+			}
+			x0 += sx / s0;
+			y0 += sy / s0;
+		} else {
+			double radius2 = radius*radius;
+			for (int nref = 0; nref <= refine; nref++) {
+				double s0 = 0, sx=0,sy = 0;
+				for (int iy = 0; iy < data_height; iy++) {
+					double y = iy - y0;
+					for (int ix = 0; ix < data_width; ix++) {
+						double x = ix - x0;
+						double r2= x*x + y*y;
+						if (r2 < radius2) {
+							double r = Math.sqrt(r2);	
+							double d =  data[iy * data_width + ix];
+							d *=  Math.cos(0.5*Math.PI*r/radius);
+							s0 += d;
+							sx += d * x;
+							sy += d * y;
+						}
+					}
+				}
+				x0 += sx / s0;
+				y0 += sy / s0;
+			}
+		}
+		double [] rslt = {x0 - center_xy, y0 - center_xy, mx};
+		if (debug){
+			System.out.println("getMaxXYCm() -> "+rslt[0]+":"+rslt[1]);
+		}
+		return rslt;
+	}
+
+	
 	
 	/**
 	 * Analyze 1d correlation (single centerline of the 3D phase correlation combined output

@@ -1869,6 +1869,89 @@ public class QuadCLT extends QuadCLTCPU {
 				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	}
 	
+	public ImagePlus renderFromTD (
+			CLTParameters clt_parameters,
+			ColorProcParameters colorProcParameters,
+			EyesisCorrectionParameters.RGBParameters rgbParameters,
+			boolean toRGB,
+			boolean use_reference
+			) {
+        gpuQuad.execImcltRbgAll(isMonochrome(), use_reference); // add ref
+		// get data back from GPU
+		float [][][] iclt_fimg = new float [getNumSensors()][][];
+		for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
+			iclt_fimg[ncam] = gpuQuad.getRBG(ncam);
+		}
+
+		int out_width =  gpuQuad.getImageWidth();//   + gpuQuad.getDttSize(); // 2022/05/12 removed margins from gpuQuad.getRBG(ncam);
+		int out_height = gpuQuad.getImageHeight(); // + gpuQuad.getDttSize(); // 2022/05/12 removed margins from gpuQuad.getRBG(ncam);
+		if (isLwir() && colorProcParameters.lwir_autorange) {
+			double rel_low =  colorProcParameters.lwir_low;
+			double rel_high = colorProcParameters.lwir_high;
+			if (!Double.isNaN(getLwirOffset())) {
+				rel_low -=  getLwirOffset();
+				rel_high -= getLwirOffset();
+			}
+			double [] cold_hot =  autorange(
+					iclt_fimg,                         // iclt_data, // double [][][] iclt_data, //  [iQuad][ncol][i] - normally only [][2][] is non-null
+					rel_low,                           // double hard_cold,// matches data, DC (this.lwir_offset)  subtracted
+					rel_high,                          // double hard_hot,   // matches data, DC (this.lwir_offset)  subtracted
+					colorProcParameters.lwir_too_cold, // double too_cold, // pixels per image
+					colorProcParameters.lwir_too_hot,  // double too_hot,  // pixels per image
+					1024); // int num_bins)
+			if (cold_hot != null) {
+				if (!Double.isNaN(getLwirOffset())) {
+					cold_hot[0] += getLwirOffset();
+					cold_hot[1] += getLwirOffset();
+				}
+			}
+			setColdHot(cold_hot); // will be used for shifted images and for texture tiles
+		}
+		/* Prepare 4-channel images*/
+		ImagePlus [] imps_RGB = new ImagePlus[iclt_fimg.length];
+		for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
+            String title=String.format("%s%s-%02d",image_name, sAux(), ncam);
+			imps_RGB[ncam] = linearStackToColor( // probably no need to separate and process the second half with quadCLT_aux (!)
+					clt_parameters,
+					colorProcParameters,
+					rgbParameters,
+					title, // String name,
+					"-D"+clt_parameters.disparity, //String suffix, // such as disparity=...
+					toRGB,
+					!correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
+					false, // true, // boolean saveShowIntermediate, // save/show if set globally
+					false, // boolean saveShowFinal,        // save/show result (color image?)
+					iclt_fimg[ncam],
+					out_width,
+					out_height,
+					1.0, // scaleExposures[iAux][iSubCam], // double scaleExposure, // is it needed?
+					-1); // debugLevel );
+		}
+
+		// combine to a sliced color image
+		int [] slice_seq = {0,1,3,2}; //clockwise
+		if (imps_RGB.length > 4) {
+			slice_seq = new int [imps_RGB.length];
+			for (int i = 0; i < slice_seq.length; i++) {
+				slice_seq[i] = i;
+			}
+		}
+		int width = imps_RGB[0].getWidth();
+		int height = imps_RGB[0].getHeight();
+		ImageStack array_stack=new ImageStack(width,height);
+		for (int i = 0; i<slice_seq.length; i++){
+			///				if (imps_RGB[slice_seq[i]] != null) {
+			array_stack.addSlice("port_"+slice_seq[i], imps_RGB[slice_seq[i]].getProcessor().getPixels());
+			///				} else {
+			///					array_stack.addSlice("port_"+slice_seq[i], results[slice_seq[i]].getProcessor().getPixels());
+			///				}
+		}
+		ImagePlus imp_stack = new ImagePlus(image_name+sAux()+"GPU-SHIFTED-D"+clt_parameters.disparity, array_stack);
+		imp_stack.getProcessor().resetMinAndMax();
+		return imp_stack;
+	}
+	
+	
 	
 	
 	public ImagePlus processCLTQuadCorrGPU(
@@ -2459,20 +2542,20 @@ public class QuadCLT extends QuadCLTCPU {
 		};
 		quadCLT_main.getGPU().setLpfRbg( // constants memory - same for all cameras
 				lpf_rgb,
-				debugLevel > -1); // -3
+				debugLevel > 2); // -3
 
 		float [] lpf_flat = image_dtt.floatGetCltLpfFd(clt_parameters.getGpuCorrSigma(is_mono));
 
 		quadCLT_main.getGPU().setLpfCorr(// constants memory - same for all cameras
 				"lpf_corr", // String const_name, // "lpf_corr"
 				lpf_flat,
-				debugLevel > -1); // -3
+				debugLevel > 2); // -3
 
 		float [] lpf_rb_flat = image_dtt.floatGetCltLpfFd(clt_parameters.getGpuCorrRBSigma(is_mono));
 		quadCLT_main.getGPU().setLpfCorr(// constants memory - same for all cameras
 				"lpf_rb_corr", // String const_name, // "lpf_corr"
 				lpf_rb_flat,
-				debugLevel > -1); // -3
+				debugLevel > 2); // -3
 
 		final boolean use_aux = false; // currently GPU is configured for a single quad camera
 

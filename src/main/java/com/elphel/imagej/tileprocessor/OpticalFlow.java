@@ -2679,18 +2679,20 @@ public class OpticalFlow {
 			final double []   scene_xyz, // camera center in world coordinates
 			final double []   scene_atr, // camera orientation relative to world frame
 			final QuadCLT     scene_QuadClt,
-			final QuadCLT     reference_QuadClt,
+			final QuadCLT     reference_QuadClt, // now - may be null - for testing if scene is rotated ref
 			int               threadsMax)
 	{
-		TileProcessor tp = reference_QuadClt.getTileProcessor();
+		TileProcessor tp = scene_QuadClt.getTileProcessor();
 		final int tilesX = tp.getTilesX();
 		final int tilesY = tp.getTilesY();
 		final int tiles = tilesX*tilesY;
 		final int transform_size = tp.getTileSize();
 		final double [][] pXpYD=               new double [tiles][];
-		final ErsCorrection ersReferenceCorrection = reference_QuadClt.getErsCorrection();
 		final ErsCorrection ersSceneCorrection =     scene_QuadClt.getErsCorrection();
-		ersReferenceCorrection.setupERS(); // just in case - setUP using instance paRAMETERS
+		final ErsCorrection ersReferenceCorrection = (reference_QuadClt!=null)? reference_QuadClt.getErsCorrection(): ersSceneCorrection;
+		if (reference_QuadClt!=null) {
+			ersReferenceCorrection.setupERS(); // just in case - setUP using instance paRAMETERS
+		}
 		ersSceneCorrection.setupERS();
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
@@ -3499,7 +3501,7 @@ public class OpticalFlow {
 				}
 				if (debug_level > -2) {
 					System.out.println("---- interPairsLMA(): re-trying adjustPairsLMA() with initial offset azimuth: "+
-							atrs[best_indx][0]+", tilt ="+atrs[best_indx][1]+" best_indx="+best_indx);
+							atrs[best_indx][0]+", tilt ="+atrs[best_indx][1]+" best_indx="+best_indx); /// null pointer
 				}
 
 				scenes_xyzatr[i] = adjustPairsLMA(
@@ -3523,7 +3525,85 @@ public class OpticalFlow {
 			if (num_good == 0) {
 				System.out.println("****** Error ! Could not find any good match in a pair of consecutive scenes ! *****");
 			}
-		}
+			int        margin = clt_parameters.imp.margin;
+			int        sensor_mask_inter = clt_parameters.imp.sensor_mask_inter ; //-1;
+			float [][][] facc_2d_img = new float [1][][];
+			IntersceneLma intersceneLma = new IntersceneLma(
+					this, // OpticalFlow opticalFlow
+					clt_parameters.ilp.ilma_thread_invariant);
+//			int nlma = 0;
+			int lmaResult = -1;
+			boolean last_run = false;
+			double[] camera_xyz0 = scenes_xyzatr[i][0];
+			double[] camera_atr0 = scenes_xyzatr[i][1];
+			double [][][] coord_motion = null;
+			for (int nlma = 0; nlma < clt_parameters.imp.max_cycles; nlma ++) {
+				coord_motion = interCorrPair( // new double [tilesY][tilesX][][];
+						clt_parameters,      // CLTParameters  clt_parameters,
+						reference_QuadClt,   // QuadCLT reference_QuadCLT,
+						scene_QuadClt,       // QuadCLT scene_QuadCLT,
+						camera_xyz0,         // xyz
+						camera_atr0,         // pose[1], // atr
+						null,                // final boolean [] selection, // may be null, if not null do not  process unselected tiles
+						margin,              // final int        margin,
+						sensor_mask_inter,   // final int        sensor_mask_inter, // The bitmask - which sensors to correlate, -1 - all.
+						facc_2d_img, // final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)
+						clt_parameters.imp.debug_level); // 1); // -1); // int debug_level);
+				intersceneLma.prepareLMA(
+						camera_xyz0,  // final double []   scene_xyz0,     // camera center in world coordinates (or null to use instance)
+						camera_atr0,  // final double []   scene_atr0,     // camera orientation relative to world frame (or null to use instance)
+						// reference atr, xyz are considered 0.0
+						scene_QuadClt,        // final QuadCLT     scene_QuadClt,
+						reference_QuadClt,    // final QuadCLT     reference_QuadClt,
+						clt_parameters.ilp.ilma_lma_select,             // final boolean[]   param_select,
+						clt_parameters.ilp.ilma_regularization_weights, // final double []   param_regweights,
+						coord_motion[1],      // final double [][] vector_XYS, // optical flow X,Y, confidence obtained from the correlate2DIterate()
+						coord_motion[0],      // final double [][] centers,    // macrotile centers (in pixels and average disparities
+						(nlma == 0),                                    // boolean           first_run,
+						clt_parameters.imp.debug_level);           // final int         debug_level)
+				lmaResult = intersceneLma.runLma(
+						clt_parameters.ilp.ilma_lambda, // double lambda,           // 0.1
+						clt_parameters.ilp.ilma_lambda_scale_good, //  double lambda_scale_good,// 0.5
+						clt_parameters.ilp.ilma_lambda_scale_bad,  // double lambda_scale_bad, // 8.0
+						clt_parameters.ilp.ilma_lambda_max,        // double lambda_max,       // 100
+						clt_parameters.ilp.ilma_rms_diff,          // double rms_diff,         // 0.001
+						clt_parameters.imp.max_LMA,                // int    num_iter,         // 20
+						last_run,                                  // boolean last_run,
+						clt_parameters.imp.debug_level);           // int    debug_level)
+
+				camera_xyz0 = intersceneLma.getSceneXYZ(false); // true for initial values
+				camera_atr0 = intersceneLma.getSceneATR(false); // true for initial values
+				/*
+				if (clt_parameters.imp.debug_level > -1) {
+					System.out.println("adjustPairsLMA():  "+IntersceneLma.printNameV3("ATR",camera_atr0)+
+							" "+IntersceneLma.printNameV3("XYZ",camera_xyz0));
+				}
+				*/
+				double [] diffs_atr = intersceneLma.getV3Diff(ErsCorrection.DP_DSAZ);
+				double [] diffs_xyz = intersceneLma.getV3Diff(ErsCorrection.DP_DSX);
+				boolean last = (nlma == (clt_parameters.imp.max_cycles-1)) ||
+						((diffs_atr[0] < clt_parameters.imp.exit_change_atr) &&
+								(diffs_xyz[0] < clt_parameters.imp.exit_change_xyz));
+				if (last) {
+					if (clt_parameters.imp.debug_level > -2) {
+						String [] lines1 = intersceneLma.printOldNew(false); // boolean allvectors)
+						System.out.println("Adjusted interscene, iteration="+nlma+
+								", last RMS = "+intersceneLma.getLastRms()[0]+
+								" (pure RMS = "+intersceneLma.getLastRms()[1]+")"+
+								", results:");
+						for (String line : lines1) {
+							System.out.println(line);
+						}
+						if (intersceneLma.getLastRms()[0] > clt_parameters.imp.max_rms) {
+							throw new IllegalArgumentException ("Interscene adjustment failed, RMS="+
+									intersceneLma.getLastRms()[0]+" > "+ clt_parameters.imp.max_rms);
+						}
+					}
+					break;
+				}
+//				System.out.println();
+			}
+		} // TODO: add optional interCorrPair to display results
 		for (int i = 0; i < scenes.length; i++) {
 			int i_prev = i - ((i > 0) ? 1 : 0);
 			int i_next = i + ((i < (scenes.length - 1)) ? 1 : 0);
@@ -7338,7 +7418,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 						clt_parameters.img_dtt,            // final ImageDttParameters imgdtt_params,    // Now just extra correlation parameters, later will include, most others
 						tp_tasks, // *** will be updated inside from GPU-calculated geometry
 						fcorr_td, // fcorrs_td[nscene],                 // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
-						scenes[nscene].getErsCorrection(), //
+//						scenes[nscene].getErsCorrection(), //
 						clt_parameters.gpu_sigma_r,        // 0.9, 1.1
 						clt_parameters.gpu_sigma_b,        // 0.9, 1.1
 						clt_parameters.gpu_sigma_g,        // 0.6, 0.7
@@ -7398,7 +7478,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 							clt_parameters.tileY,          // final int                 debug_tileY,
 							threadsMax,                    // final int                 threadsMax,      // maximal number of threads to launch
 							debug_level + 2); // -1 );              // final int                 globalDebugLevel)
-					image_dtt.convertFcltCorr(
+					ImageDtt.convertFcltCorr(
 							dcorr_tiles, // double [][][] dcorr_tiles,// [tile][sparse, correlation pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 							fclt_corr);  // float  [][][] fclt_corr) //  new float [tilesX * tilesY][][] or null
 				}
@@ -7467,7 +7547,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 							clt_parameters.tileY,          // final int                 debug_tileY,
 							threadsMax,                    // final int                 threadsMax,      // maximal number of threads to launch
 							debug_level + 2); // -1 );              // final int                 globalDebugLevel)
-					image_dtt.convertFcltCorr(
+					ImageDtt.convertFcltCorr(
 							dcorr_tiles, // double [][][] dcorr_tiles,// [tile][sparse, correlation pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 							fclt_corr);  // float  [][][] fclt_corr) //  new float [tilesX * tilesY][][] or null
 				}
@@ -7730,7 +7810,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					clt_parameters.img_dtt,            // final ImageDttParameters imgdtt_params,    // Now just extra correlation parameters, later will include, most others
 					tp_tasks, // *** will be updated inside from GPU-calculated geometry
 					fcorr_td, // fcorrs_td[nscene],                 // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
-					ref_scene.getErsCorrection(), //
+//					ref_scene.getErsCorrection(), //
 					clt_parameters.gpu_sigma_r,        // 0.9, 1.1
 					clt_parameters.gpu_sigma_b,        // 0.9, 1.1
 					clt_parameters.gpu_sigma_g,        // 0.6, 0.7
@@ -7780,7 +7860,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					clt_parameters.tileY,          // final int                 debug_tileY,
 					threadsMax,                    // final int                 threadsMax,      // maximal number of threads to launch
 					debug_level + 2); // -1 );              // final int                 globalDebugLevel)
-			image_dtt.convertFcltCorr(
+			ImageDtt.convertFcltCorr(
 					dcorr_tiles, // double [][][] dcorr_tiles,// [tile][sparse, correlation pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 					fclt_corr);  // float  [][][] fclt_corr) //  new float [tilesX * tilesY][][] or null
 
@@ -8769,7 +8849,272 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		return new double [][] {wxyz_delta, watr_delta};
 	}
 	
-	
+	public double [][][]  interCorrPair( // return [tilesX*telesY]{ref_pXpYD, dXdYS}
+			CLTParameters    clt_parameters,			
+			QuadCLT          ref_scene,
+			QuadCLT          scene,
+			double []        scene_xyz,
+			double []        scene_atr,
+			final boolean [] selection, // may be null, if not null do not  process unselected tiles
+			final int        margin,
+			final int        sensor_mask_inter, // The bitmask - which sensors to correlate, -1 - all.
+			final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)
+			int              debug_level)
+	{
+		TileProcessor tp = ref_scene.getTileProcessor();
+		// Temporary reusing same ref scene ******
+		boolean scene_is_ref_test =    clt_parameters.imp.scene_is_ref_test; // false; // true;
+		boolean show_2d_correlations = clt_parameters.imp.show2dCorrelations(); // true;
+		boolean show_motion_vectors =  clt_parameters.imp.showMotionVectors(); // true;
+		boolean show_render_ref =      clt_parameters.imp.renderRef(); // false; //true;
+		boolean show_render_scene =    clt_parameters.imp.renderScene(); // false; // true;
+		boolean toRGB =                clt_parameters.imp.toRGB  ; // true;
+
+		if (scene_is_ref_test) {
+			scene_xyz = ZERO3.clone();
+			scene_atr = ZERO3.clone();
+			ref_scene = scene; // or opposite: 	scene = ref_scene;
+
+		}
+		
+		int tilesX =         tp.getTilesX();
+		int tilesY =         tp.getTilesY();
+//		double [][][] coord_motion = new double [tilesX*tilesY][][];
+		double [][][] coord_motion = null; // new double [2][tilesX*tilesY][];
+		final double [][][] motion_vectors = show_motion_vectors?new double [tilesY *tilesX][][]:null;
+
+		final float  [][][] fclt_corr = ((accum_2d_corr != null) || show_2d_correlations) ?
+				(new float [tilesX * tilesY][][]) : null;
+		if (debug_level > 1) {
+			System.out.println("interCorrPair():  "+IntersceneLma.printNameV3("ATR",scene_atr)+
+					" "+IntersceneLma.printNameV3("XYZ",scene_xyz));
+		}
+		ImageDtt image_dtt;
+		image_dtt = new ImageDtt(
+				numSens,
+				clt_parameters.transform_size,
+				clt_parameters.img_dtt,
+				ref_scene.isAux(),
+				ref_scene.isMonochrome(),
+				ref_scene.isLwir(),
+				clt_parameters.getScaleStrength(ref_scene.isAux()),
+				ref_scene.getGPU());
+		if (ref_scene.getGPU() != null) {
+			ref_scene.getGPU().setGpu_debug_level(debug_level - 4); // monitor GPU ops >=-1
+		}
+		final double disparity_corr = 0.00; // (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
+		double [][] dsrbg_ref= ref_scene.getDSRBG();
+		double [][] ref_pXpYD = transformToScenePxPyD( // full size - [tilesX*tilesY], some nulls
+				dsrbg_ref[00],  // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
+				ZERO3,         // final double []   scene_xyz, // camera center in world coordinates
+				ZERO3,         // final double []   scene_atr, // camera orientation relative to world frame
+				ref_scene,     // final QuadCLT     scene_QuadClt,
+				ref_scene);    // final QuadCLT     reference_QuadClt)
+		final double gpu_sigma_corr =     clt_parameters.getGpuCorrSigma(ref_scene.isMonochrome());
+		final double gpu_sigma_rb_corr =  ref_scene.isMonochrome()? 1.0 : clt_parameters.gpu_sigma_rb_corr;
+		final double gpu_sigma_log_corr = clt_parameters.getGpuCorrLoGSigma(ref_scene.isMonochrome());
+		TpTask[] tp_tasks_ref =  GpuQuad.setInterTasks(
+				ref_scene.getNumSensors(),
+				ref_scene.getErsCorrection().getSensorWH()[0],
+				!ref_scene.hasGPU(),          // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
+				ref_pXpYD,                    // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+				selection,                    // final boolean []          selection, // may be null, if not null do not  process unselected tiles
+				ref_scene.getErsCorrection(), // final GeometryCorrection  geometryCorrection,
+				disparity_corr,               // final double              disparity_corr,
+				margin,                       // final int                 margin,      // do not use tiles if their centers are closer to the edges
+				null,                         // final boolean []          valid_tiles,            
+				threadsMax);                  // final int                 threadsMax)  // maximal number of threads to launch
+		/*
+		double []   scene_ers_xyz_dt = ers_reference.getSceneErsXYZ_dt(ts);
+		double []   scene_ers_atr_dt = ers_reference.getSceneErsATR_dt(ts);
+		scene.getErsCorrection().setErsDt(
+				scene_ers_xyz_dt, // double []    ers_xyz_dt,
+				scene_ers_atr_dt); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
+		//setupERS() will be inside transformToScenePxPyD()
+		 */
+		double [][] scene_pXpYD = transformToScenePxPyD( // will be null for disparity == NaN, total size - tilesX*tilesY
+				dsrbg_ref[0], // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
+				scene_xyz,    // final double []   scene_xyz, // camera center in world coordinates
+				scene_atr,    // final double []   scene_atr, // camera orientation relative to world frame
+				scene,        // final QuadCLT     scene_QuadClt,
+				scene_is_ref_test ? null: ref_scene);   // final QuadCLT     reference_QuadClt)
+		TpTask[] tp_tasks =  GpuQuad.setInterTasks(
+				scene.getNumSensors(),
+				scene.getErsCorrection().getSensorWH()[0],
+				!scene.hasGPU(),          // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
+				scene_pXpYD,              // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+				selection,                // final boolean []          selection, // may be null, if not null do not  process unselected tiles
+				scene.getErsCorrection(), // final GeometryCorrection  geometryCorrection,
+				disparity_corr,           // final double              disparity_corr,
+				margin,                   // final int                 margin,      // do not use tiles if their centers are closer to the edges
+				null,                     // final boolean []          valid_tiles,            
+				threadsMax);              // final int                 threadsMax)  // maximal number of threads to launch
+		
+		if (ref_scene.hasGPU()) { // direct convert to reference_clt
+//			float  [][][][]     fcorr_td =       new float[tilesY][tilesX][][];
+			float  [][][][]     fcorr_td =  null; // no accumulation, use data in GPU
+			ref_scene.saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry
+			image_dtt.setReferenceTD(
+					clt_parameters.img_dtt,     // final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
+					tp_tasks_ref,               // final TpTask[]            tp_tasks,
+					clt_parameters.gpu_sigma_r, // final double              gpu_sigma_r,     // 0.9, 1.1
+					clt_parameters.gpu_sigma_b, // final double              gpu_sigma_b,     // 0.9, 1.1
+					clt_parameters.gpu_sigma_g, // final double              gpu_sigma_g,     // 0.6, 0.7
+					clt_parameters.gpu_sigma_m, // final double              gpu_sigma_m,     //  =       0.4; // 0.7;
+					threadsMax,                 // final int                 threadsMax,       // maximal number of threads to launch
+					debug_level);               // final int                 globalDebugLevel);
+			if (show_render_ref) {
+				ImagePlus imp_render_ref = ref_scene.renderFromTD (
+						clt_parameters,                                 // CLTParameters clt_parameters,
+						clt_parameters.getColorProcParameters(ref_scene.isAux()), //ColorProcParameters colorProcParameters,
+						clt_parameters.getRGBParameters(),              //EyesisCorrectionParameters.RGBParameters rgbParameters,
+						toRGB, // boolean toRGB,
+						true); //boolean use_reference
+				imp_render_ref.show();
+			}
+			
+			scene.saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry
+			image_dtt.interCorrTD(
+					clt_parameters.img_dtt,     // final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
+					tp_tasks,                   // final TpTask[]            tp_tasks,
+					fcorr_td,                   // final float  [][][][]     fcorr_td,        // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
+					clt_parameters.gpu_sigma_r, // final double              gpu_sigma_r,     // 0.9, 1.1
+					clt_parameters.gpu_sigma_b, // final double              gpu_sigma_b,     // 0.9, 1.1
+					clt_parameters.gpu_sigma_g, // final double              gpu_sigma_g,     // 0.6, 0.7
+					clt_parameters.gpu_sigma_m, // final double              gpu_sigma_m,     //  =       0.4; // 0.7;
+					gpu_sigma_rb_corr,          // final double              gpu_sigma_rb_corr,    //  = 0.5; // apply LPF after accumulating R and B correlation before G, monochrome ? 1.0 :
+					gpu_sigma_corr,             // final double              gpu_sigma_corr,       //  =    0.9;gpu_sigma_corr_m
+					gpu_sigma_log_corr,         // final double              gpu_sigma_log_corr,   // hpf to reduce dynamic range for correlations
+					clt_parameters.corr_red,    // final double              corr_red, // +used
+					clt_parameters.corr_blue,   // final double              corr_blue,// +used
+					sensor_mask_inter,          // final int                 sensor_mask_inter, // The bitmask - which sensors to correlate, -1 - all.
+					threadsMax,                 // final int                 threadsMax,       // maximal number of threads to launch
+					debug_level);               // final int                 globalDebugLevel);
+			if (show_render_scene) {
+				ImagePlus imp_render_scene = scene.renderFromTD (
+						clt_parameters,                                 // CLTParameters clt_parameters,
+						clt_parameters.getColorProcParameters(ref_scene.isAux()), //ColorProcParameters colorProcParameters,
+						clt_parameters.getRGBParameters(),              //EyesisCorrectionParameters.RGBParameters rgbParameters,
+						toRGB, // boolean toRGB,
+						false); //boolean use_reference
+				imp_render_scene.show();
+			}
+			
+	        double [][][]     dcorr_tiles = (fclt_corr != null)? (new double [tp_tasks.length][][]):null;
+	        // will use num_acc with variable number of accumulations (e.g. clusters)
+	        coord_motion = image_dtt.clt_process_tl_interscene(       // convert to pixel domain and process correlations already prepared in fcorr_td and/or fcorr_combo_td
+					clt_parameters.img_dtt,            // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
+					fcorr_td,                          // final float  [][][][]     fcorr_td,        // [tilesY][tilesX][pair][4*64] transform domain representation of all selected corr pairs
+			        null,                              // float [][][]              num_acc,         // number of accumulated tiles [tilesY][tilesX][pair] (or null). Can be inner null if not used in tp_tasks
+			        null,                              // double []                 dcorr_weight,    // alternative to num_acc, compatible with CPU processing (only one non-zero enough)
+			        clt_parameters.gpu_corr_scale,     // final double              gpu_corr_scale,  //  0.75; // reduce GPU-generated correlation values
+			        clt_parameters.getGpuFatZeroInter(ref_scene.isMonochrome()), // final double              gpu_fat_zero,    // clt_parameters.getGpuFatZero(is_mono);absolute == 30.0
+			        image_dtt.transform_size - 1,      // final int                 gpu_corr_rad,    // = transform_size - 1 ?
+			        // The tp_tasks data should be decoded from GPU to get coordinates
+			        tp_tasks,                          // final TpTask []           tp_tasks,        // data from the reference frame - will be applied to LMA for the integrated correlations
+					// to be converted to float (may be null)
+			        dcorr_tiles,                       // final double  [][][]      dcorr_tiles,     // [tile][pair_abs, sparse][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					ref_pXpYD,                         // final double [][]         pXpYD,           // pXpYD for the reference scene 
+					motion_vectors,                    // final double [][][]       motion_vectors,  // [tilesY*tilesX][][] -> [][][num_sel_sensors+1][2]
+					clt_parameters.imp.run_poly,       // final boolean             run_poly,        // polynomial max, if false - centroid
+					clt_parameters.imp.use_partial,    // final boolean             use_partial,     // find motion vectors for individual pairs, false - for sum only
+					clt_parameters.imp.centroid_radius,// final double              centroid_radius, // 0 - use all tile, >0 - cosine window around local max
+					clt_parameters.imp.n_recenter,     // final int                 n_recenter,      // when cosine window, re-center window this many times
+					clt_parameters.imp.min_str,        // final double              min_str,         //  = 0.25;
+					clt_parameters.imp.min_str_sum,    // final double              min_str_sum,     // = 0.8; // 5;
+					clt_parameters.tileX,              // final int                 debug_tileX,
+					clt_parameters.tileY,      	       // final int                 debug_tileY,
+					threadsMax,                        // final int                 threadsMax,       // maximal number of threads to launch
+					debug_level);                      // final int                 globalDebugLevel);
+			
+//		    ImageDtt.convertFcltCorr(
+//		            dcorr_tiles, // double [][][] dcorr_tiles,// [tile][sparse, correlation pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+//		            fclt_corr);  // float  [][][] fclt_corr) //  new float [tilesX * tilesY][][] or null
+
+		    float [][][] fclt_corr1 = ImageDtt.convertFcltCorr( // partial length, matching corr_indices = gpuQuad.getCorrIndices(); // also sets num_corr_tiles
+		            dcorr_tiles, // double [][][] dcorr_tiles,// [tile][sparse, correlation pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+		            fclt_corr);  // float  [][][] fclt_corr) //  new float [tilesX * tilesY][][] or null
+		    if (show_2d_correlations) { // visualize prepare ref_scene correlation data
+				float [][] dbg_corr_rslt_partial = ImageDtt.corr_partial_dbg( // not used in lwir
+						fclt_corr1, // final float  [][][]     fcorr_data,       // [tile][pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+						image_dtt.getGPU().getCorrIndices(), // tp_tasks,  // final TpTask []         tp_tasks,        //
+						tilesX,    //final int                tilesX,
+						tilesY,    //final int                tilesX,
+						2*image_dtt.transform_size - 1,	// final int               corr_size,
+						1000, // will be limited by available layersfinal int               layers0,
+						clt_parameters.corr_border_contrast, // final double            border_contrast,
+						threadsMax, // final int               threadsMax,     // maximal number of threads to launch
+						debug_level); // final int               globalDebugLevel)
+				
+				String [] titles = new String [dbg_corr_rslt_partial.length]; // dcorr_tiles[0].length];
+				for (int i = 0; i < titles.length; i++) {
+					if (i== (titles.length - 1)) {
+						titles[i] = "sum";
+					} else {
+						titles[i] = "sens-"+i;
+					}
+				}
+				
+				// titles.length = 15, corr_rslt_partial.length=16!
+				(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+						dbg_corr_rslt_partial,
+						tilesX*(2*image_dtt.transform_size),
+						tilesY*(2*image_dtt.transform_size),
+						true,
+						scene.getImageName()+"-"+ref_scene.getImageName()+"-interscene",
+						titles);
+			}
+		} else {
+			throw new IllegalArgumentException ("interCorrPair(): CPU mode not supported");
+		}
+		if (motion_vectors != null) {
+			int num_sens = 0;
+			int num_rslt = 0;
+			find_num_layers:
+				for (int nt = 0; nt <motion_vectors.length; nt++) {
+					if (motion_vectors[nt] != null) {
+						num_sens = motion_vectors[nt].length;
+						for (int i = 0; i < num_sens; i++) {
+							if (motion_vectors[nt][i] != null) {
+								num_rslt = motion_vectors[nt][i].length;
+								break find_num_layers;
+							}
+						}
+					}
+				}
+			double [][] dbg_img = new double [num_sens * num_rslt][tilesX*tilesY];
+			String [] titles = new String [dbg_img.length];
+			for (int ns = 0; ns < num_sens; ns++) {
+				String ss = (ns == (num_sens - 1))?"sum":(""+ns);
+				for (int nr = 0; nr < num_rslt; nr++) {
+					int indx = ns*num_rslt+nr;
+					Arrays.fill(dbg_img[indx],Double.NaN);
+					String sr="";
+					switch (nr) {
+					case 0:sr ="X";break;
+					case 1:sr ="Y";break;
+					case 2:sr ="S";break;
+					default:
+						sr = ""+nr;
+					}
+					titles[indx] = ss+":"+sr;
+					for (int nt = 0; nt <motion_vectors.length; nt++) {
+						if ((motion_vectors[nt] != null) && (motion_vectors[nt][ns] != null) ) {
+							dbg_img[indx][nt] = motion_vectors[nt][ns][nr];
+						}
+					}
+				}
+			}
+			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+					dbg_img,
+					tilesX,
+					tilesY,
+					true,
+					scene.getImageName()+"-"+ref_scene.getImageName()+"-motion_vectors",
+					titles);
+		}
+		return coord_motion;
+	}	
 	
 	public double[][]  adjustPairsLMA(
 			CLTParameters  clt_parameters,			
@@ -8972,12 +9317,11 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					last_run,                                  // boolean last_run,
 					clt_parameters.ilp.ilma_debug_level);      // int    debug_level)
 			// debugging:
-			String [] lines1 = intersceneLma.printOldNew(false); // boolean allvectors)
-			System.out.print("lmaResult="+lmaResult+", RMS="+intersceneLma.getLastRms()[0]);
-			for (String line : lines1) {
-				System.out.println(line);
-			}
-
+//			String [] lines1 = intersceneLma.printOldNew(false); // boolean allvectors)
+//			System.out.println("lmaResult="+lmaResult+", RMS="+intersceneLma.getLastRms()[0]);
+//			for (String line : lines1) {
+//				System.out.println(line);
+//			}
 			
 			if (lmaResult < 0) {
 				System.out.println("LMA failed, nlma="+nlma);
@@ -9000,6 +9344,14 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				break;
 			}
 		}
+		if (debug_level > 2) { // duplecate - already reported in intersceneLma.runLma()
+			System.out.println("LMA: full RMS="+intersceneLma.getLastRms()[0]+", pure RMS="+intersceneLma.getLastRms()[1]);
+			String [] lines = intersceneLma.printOldNew(false); // boolean allvectors)
+			for (String line : lines) {
+				System.out.println(line);
+			}
+		}
+
 		if (clt_parameters.ofp.enable_debug_images && (debug_level == 1))  {
 ///		if (!clt_parameters.ofp.enable_debug_images || (clt_parameters.ofp.enable_debug_images && (debug_level == 1)))  {
 			compareRefSceneTiles(
@@ -9017,7 +9369,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			//if (lmaResult < 0) { last_rms[0]
 		}
 		if (max_rms > 0.0) {
-			if (lmaResult <= 0) {
+			if (lmaResult < 0) { // = 0) {
 				return null;
 			}
 			if (!(intersceneLma.getLastRms()[0] <= max_rms)) {

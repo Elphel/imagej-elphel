@@ -923,7 +923,7 @@ public class MultisceneLY {
 						clt_parameters.img_dtt,            // final ImageDttParameters imgdtt_params,    // Now just extra correlation parameters, later will include, most others
 						tp_tasks_scenes[nscene],           // *** will be updated inside from GPU-calculated geometry
 						fcorr_td,                          // fcorrs_td[nscene],                 // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
-						scene_gc,     //
+//						scene_gc,     //
 						clt_parameters.gpu_sigma_r,        // 0.9, 1.1
 						clt_parameters.gpu_sigma_b,        // 0.9, 1.1
 						clt_parameters.gpu_sigma_g,        // 0.6, 0.7
@@ -1045,7 +1045,7 @@ public class MultisceneLY {
 					clt_parameters.tileY,          // final int                 debug_tileY,
 					threadsMax,                    // final int                 threadsMax,      // maximal number of threads to launch
 					debug_level + 2); // -1 );              // final int                 globalDebugLevel)
-			image_dtt.convertFcltCorr(
+			ImageDtt.convertFcltCorr(
 					dcorr_tiles, // double [][][] dcorr_tiles,// [tile][sparse, correlation pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 					fclt_corr);  // float  [][][] fclt_corr) //  new float [tilesX * tilesY][][] or null
 

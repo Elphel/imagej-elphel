@@ -8894,6 +8894,96 @@ public class ImageDttCPU {
 		return fcorr_data_out;
 	}
 
+	// For fcorr_data ordered in GPU sequence corr_indices
+	public static float [][] corr_partial_dbg( // should always use same number of corrs as in GPU 
+			final float  [][][]     fcorr_data,       // [tile][pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+			final int    []         corr_indices,
+			final int               tilesX,
+			final int               tilesY,
+			final int               corr_size,
+			final int               layers0,
+			final double            border_contrast,
+			final int               threadsMax,     // maximal number of threads to launch
+			final int               globalDebugLevel)
+	{
+		if ((fcorr_data == null) || (fcorr_data.length == 0)) { // assuming each defined tile has the same number of layers and non-null layers
+			System.out.println("corr_partial_dbg(): empty fcorr_data");
+			return null;
+		}
+		
+		final int tile_size = corr_size+1;
+		int ilayers = -1;
+		int flayer = 0;
+		for (int i = 0; i < fcorr_data.length; i++) {
+			if (fcorr_data[i] != null) {
+				ilayers = fcorr_data[i].length;
+				flayer = i;
+				break;
+			}
+		}
+		int num_corr_tiles = 0;
+		for (int i = 0; i < fcorr_data.length; i++) {
+			if (fcorr_data[i] != null) {
+				num_corr_tiles +=fcorr_data[i].length; 
+			}
+		}
+		
+		if (ilayers < 0) { // assuming each defined tile has the same number of layers and non-null layers
+			System.out.println("corr_partial_dbg(): empty fcorr_data, all nulls");
+			return null;
+		}
+		
+		final int layers = (layers0 < ilayers) ? layers0 : ilayers;
+		final int num_dst_tiles = num_corr_tiles/layers;
+		final int src_layers = corr_indices.length/num_dst_tiles;
+		
+		final int num_tiles = corr_indices.length/src_layers; //same as num_dst_tiles
+	
+		final float [][] fcorr_data_out = new float[layers][]; //  [tilesY*tilesX*tile_size*tile_size];
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		
+		for (int layer = 0; layer < layers; layer++) if (fcorr_data[flayer][layer] != null){
+			fcorr_data_out[layer] = new float[tilesY*tilesX*tile_size*tile_size];
+			Arrays.fill(fcorr_data_out[layer], Float.NaN);
+		}
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					int tileY,tileX;
+					/*
+					for (int nTile = ai.getAndIncrement(); nTile < tp_tasks.length; nTile = ai.getAndIncrement()) {
+						tileY = tp_tasks[nTile].getTileY(); //  nTile/tilesX;
+						tileX = tp_tasks[nTile].getTileX(); //nTile - tileY * tilesX;
+					*/	
+					for (int iCorrTile = ai.getAndIncrement(); iCorrTile < num_tiles; iCorrTile = ai.getAndIncrement()) {
+						int nTile = corr_indices[iCorrTile * src_layers] >> GPUTileProcessor.CORR_NTILE_SHIFT;
+					    tileY = nTile / tilesX;
+					    tileX = nTile % tilesX;
+						
+						if (fcorr_data[iCorrTile] != null) {
+							for (int layer = 0; layer < layers; layer++) if (fcorr_data[iCorrTile][layer] != null){ // sparse
+								for (int i = 0; i < corr_size;i++){
+									System.arraycopy(
+											fcorr_data[iCorrTile][layer],
+											corr_size* i,
+											fcorr_data_out[layer],
+											((tileY*tile_size + i) *tilesX + tileX)*tile_size ,
+											corr_size);
+								}
+							}
+						}
+					}
+				}
+			};
+		}
+		startAndJoin(threads);
+		return fcorr_data_out;
+	}
+	
+	
+	
 	public static float [][] corr2d_decimate( // not used in lwir
 			final float [][]        corr2d_img,
 			final int               tilesX,
@@ -16644,7 +16734,7 @@ public class ImageDttCPU {
 					clt_parameters.img_dtt,            // final ImageDttParameters imgdtt_params,    // Now just extra correlation parameters, later will include, most others
 					tp_tasks, // *** will be updated inside from GPU-calculated geometry
 					fcorr_td, // fcorrs_td[nscene],                 // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
-					geometryCorrection, //
+//					geometryCorrection, //
 					clt_parameters.gpu_sigma_r,        // 0.9, 1.1
 					clt_parameters.gpu_sigma_b,        // 0.9, 1.1
 					clt_parameters.gpu_sigma_g,        // 0.6, 0.7
@@ -17445,7 +17535,7 @@ public class ImageDttCPU {
 							imgdtt_params,            // final ImageDttParameters imgdtt_params,    // Now just extra correlation parameters, later will include, most others
 							tp_tasks_pass, // *** will be updated inside from GPU-calculated geometry
 							fcorr_td_part, // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
-							geometryCorrection, //
+//							geometryCorrection, //
 							gpu_sigma_r,        // 0.9, 1.1
 							gpu_sigma_b,        // 0.9, 1.1
 							gpu_sigma_g,        // 0.6, 0.7
@@ -17624,187 +17714,17 @@ public class ImageDttCPU {
 		}
 		return accum_weights;
 	}
-		
-		
-/*
- * 
- * Old version
-		for (int ithread = 0; ithread < threads.length; ithread++) {
-			threads[ithread] = new Thread() {
-				@Override
-				public void run() {
-					//					DttRad2 dtt = new DttRad2(transform_size);
-					//					dtt.set_window(window_type);
-					//					double [][] fract_shiftsXY = new double[numSensors][];
-					int tileXC, tileYC, nTileC;
-					TileNeibs tn = new TileNeibs(tilesX,tilesY);
-					PolynomialApproximation pa = new PolynomialApproximation();
-					for (int iTileC = ai.getAndIncrement(); iTileC < tp_tasks.length; iTileC = ai.getAndIncrement()) if (tp_tasks[iTileC].getTask() != 0) {
-						tileYC = tp_tasks[iTileC].getTileY(); //  /tilesX;
-						tileXC = tp_tasks[iTileC].getTileX(); //nTile % tilesX;
-						nTileC = tileYC * tilesX + tileXC;
-						if (tp_tasks[iTileC].getTask() == 0) continue; // nothing to do for this tile, should not normally happen
-						//calculate tilts (use larger clustRadiusTilt than clustRadius for accumulating tiles)
-						double [][][] mdata = 	prepareNeibs(
-								nTileC,           // int                 nTileC,
-								target_disparity, //double []           target_disparity, //  = new double [tilesY * tilesX];
-								tn,               //        TileNeibs           tn,
-								clustRadiusTilt , // int                 clustRadius,
-								wnd_neib_tilt,    // double []           wnd_neib,
-								null,             // int [][]            dtx_dty, // null or int [][] dtx_dty =    new int [wnd_neib.length][]; 
-								arange,           // double              arange,  // absolute disparity range to consolidate
-								rrange);          // double              rrange)  // relative disparity range to consolidate
 
-						double disparity_center = target_disparity[nTileC];
-						double tiltY = 0, tiltX=0;
-						
-						if (disparity_center > no_tilt) {
-							double[][] approx2d = pa.quadraticApproximation(
-									mdata,
-									true,          // boolean forceLinear,  // use linear approximation
-									damping,       // double [] damping,
-									-1);           // debug level
-							if (approx2d != null){
-								tiltX = approx2d[0][0];
-								tiltY = approx2d[0][1]; // approx2d[0][2] - const C (A*x+B*y+C), C is not used here 
-							}
-						}
-						
-						if (dbg_tilts != null) {
-							dbg_tilts[0][nTileC] = tiltX;
-							dbg_tilts[1][nTileC] = tiltY;
-						}
-
-						// apply smaller square for tiles accumulation
-						int [][] dtx_dty =    new int [wnd_neib.length][]; 
-						mdata = 	prepareNeibs(
-								nTileC,           // int                 nTileC,
-								target_disparity, //double []           target_disparity, //  = new double [tilesY * tilesX];
-								tn,               //        TileNeibs           tn,
-								clustRadius ,     // int                 clustRadius,
-								wnd_neib,         // double []           wnd_neib,
-								dtx_dty,          // int [][]            dtx_dty, // null or int [][] dtx_dty =    new int [wnd_neib.length][]; 
-								arange,           // double              arange,  // absolute disparity range to consolidate
-								rrange);          // double              rrange)  // relative disparity range to consolidate
-						int num_used = 0;
-						for (int i = 0; i < mdata.length; i++) 	if (mdata[i] != null) {
-							num_used++;
-						}
-						
-						tp_tasks_2d[iTileC] = new TpTask[num_used];
-						tp_weights_2d[iTileC] = new double[num_used];
-						int indx = 0;
-						int task_code = tp_tasks[iTileC].getTask(); // copy from the center tile
-						for (int mindx = 0; mindx < mdata.length; mindx++) if (mdata[mindx] != null) { // used_neibs[mindx]){
-							tp_weights_2d[iTileC][indx] = mdata[mindx][2][0];
-							int dtx = dtx_dty[mindx][0];
-							int dty = dtx_dty[mindx][1];
-							int tileX = tileXC + dtx;
-							int tileY = tileYC + dty;
-							double disparity_target = disparity_center + dty * tiltY + dtx * tiltX;
-							tp_tasks_2d  [iTileC][indx]  =  GpuQuad.setTask(
-									numSensors,          // int                 num_cams,
-//									transform_size,      // int                 transform_size,
-									task_code,           // int                 task_code,
-									tileX,               // int                 tileX,
-									tileY,               // int                 tileY,
-									disparity_target,    // double              target_disparity, // include disparity_corr
-									// use geometryCorrection.getCorrVector().getRotMatrices(); once per whole image set
-									corr_rots,           // Matrix []           corr_rots,        // if null, will be calculated
-									cond_gc);            // GeometryCorrection  geometryCorrection);
-							indx++;
-						}
-					}
-				}
-			};
-		}
-		
-		startAndJoin(threads);
-		// combine new tasks into a single array
-		int num_tasks_all = 0;
-		int [] tasks_indices = new int[tp_tasks_2d.length];
-		for (int i = 0; i < tp_tasks_2d.length; i++) {
-			tasks_indices[i] = num_tasks_all;
-			num_tasks_all += tp_tasks_2d[i].length;
-		}
-		final TpTask [] tp_tasks_all =   new TpTask [num_tasks_all];
-		
-		for (int i = 0; i < tp_tasks_2d.length; i++) {
-			System.arraycopy(tp_tasks_2d[i],   0, tp_tasks_all,   tasks_indices[i], tp_tasks_2d[i].length);
-		}
-// Correlate full tasks with many times referencing the same tile (just with different target disparity
-// for different center tiles
-		double [][][][]     dcorr_td_all = new double [tp_tasks_all.length][][][];
-		quadCorrTD( // clt_data [task][sensor][color][][];
-				image_data,               // final double [][][]       image_data,      // first index - number of image in a quad
-				width,                    // final int                 width,
-				tp_tasks_all,             //final TpTask []           tp_tasks,
-				imgdtt_params,            // final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
-				// dcorr_td should be either null, or double [tp_tasks.length][][];
-				dcorr_td_all,             // final double [][][][]     dcorr_td,        // [tile][pair][4][64] sparse by pair transform domain representation of corr pairs
-				// no combo here - rotate, combine in pixel domain after interframe
-				clt_kernels,              // final double [][][][][][] clt_kernels,     // [sensor][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-				kernel_step,              // final int                 kernel_step,
-				window_type,              // final int                 window_type,
-				corr_red,                 // final double              corr_red,
-				corr_blue,                // final double              corr_blue,
-				mcorr_sel,                // final int                 mcorr_sel,    // Which pairs to correlate // +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert
-				debug_tileX,              // final int                 debug_tileX,
-				debug_tileY,              // final int                 debug_tileY,
-				threadsMax,               // final int                 threadsMax,       // maximal number of threads to launch
-				globalDebugLevel);        // final int                 globalDebugLevel)
-		// combine transform-domain correlation tiles and assign results to center tiles, keeping track of total weights
-		// to use for scaling of the per-tile-variant fat zeros
-		// 			final double [][][][]     dcorr_td,        // [tile][pair][4][64] sparse by pair transform domain representation of corr pairs
-
-		ai.set(0);
-		final boolean [] selected_pairs =correlation2d.getCorrPairs();
-		final int transform_len = transform_size * transform_size;
-		final double [] accum_weights = new double [tp_tasks.length];
-		final int num_quadrants = 4;
-		for (int ithread = 0; ithread < threads.length; ithread++) {
-			threads[ithread] = new Thread() {
-				@Override
-				public void run() {
-					for (int iTileC = ai.getAndIncrement(); iTileC < tp_tasks.length; iTileC = ai.getAndIncrement()) if (tp_tasks[iTileC].getTask() != 0) {
-						dcorr_td[iTileC] = new double [selected_pairs.length][][];
-						for (int npair = 0; npair < selected_pairs.length; npair++) if (selected_pairs[npair]) {
-							dcorr_td[iTileC][npair] = new double [num_quadrants][transform_len];
-						}
-						double sw = 0, sw2 = 0;
-						for (int sub_tile = 0; sub_tile < tp_tasks_2d[iTileC].length; sub_tile++) {
-							double w = tp_weights_2d[iTileC][sub_tile];
-							sw += w;
-							sw2 += w * w;
-						}
-						accum_weights[iTileC] = (sw * sw) / sw2; // square S/N compared to that of a single tile
-						for (int npair = 0; npair < selected_pairs.length; npair++) if (selected_pairs[npair]) {
-							for (int sub_tile = 0; sub_tile < tp_tasks_2d[iTileC].length; sub_tile++) {
-								int task_indx_all = tasks_indices[iTileC] + sub_tile;
-								if (dcorr_td_all[task_indx_all][npair] != null) {
-									double tile_weight = tp_weights_2d[iTileC][sub_tile];
-									for (int q = 0; q < num_quadrants; q++) {
-										for (int i = 0; i < transform_len; i++) {
-											dcorr_td[iTileC][npair][q][i] += tile_weight * dcorr_td_all[task_indx_all][npair][q][i];
-										}
-									}
-								}
-							}							
-						}
-					}
-				}
-			};
-		}
-		startAndJoin(threads);
-		return accum_weights;
-	}
- * 
- */
-		
-
-	
      // convert from double[][][] sequence of correlation tiles from CPU implementation to the same float format to match the GPU one
-    public float [][][] convertFcltCorr(
+	/**
+	 * Convert from double[][][] sequence of correlation tiles from CPU implementation
+	 * to the same float format to match the GPU one.
+	 * 
+	 * @param dcorr_tiles input [tileX+tileY*tilesX][correlation pair number, some nulls][(2*transform_size-1)*(2*transform_size-1)]
+	 * @param fclt_corr result: new float [tilesX * tilesY][][] or null (will be generated and returned
+	 * @return fclt_corr (either input or generated), same [tilesX*tilesY] length
+	 */
+    public static float [][][] convertFcltCorr(
     		double [][][] dcorr_tiles,// [tile][sparse, correlation pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
     		float  [][][] fclt_corr) //  new float [tilesX * tilesY][][] or null
     {

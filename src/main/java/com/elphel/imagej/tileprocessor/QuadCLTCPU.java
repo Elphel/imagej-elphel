@@ -6914,7 +6914,7 @@ public class QuadCLTCPU {
 		  float []   alpha = null; // (0..1.0)
 		  if (iclt_data.length > 3) alpha = iclt_data[3];
 		  if (isLwir()) {
-			  if (colorProcParameters.lwir_pseudocolor) {
+			  if (!colorProcParameters.lwir_pseudocolor) {
 				  ImageProcessor ip= new FloatProcessor(width,height);
 				  ip.setPixels(iclt_data[0]);
 				  ip.resetMinAndMax();
@@ -7040,7 +7040,7 @@ public class QuadCLTCPU {
 			  }
 		  }
 		  if (isLwir()) {
-			  if (colorProcParameters.lwir_pseudocolor) {
+			  if (!colorProcParameters.lwir_pseudocolor) {
 				  ImageProcessor ip= new FloatProcessor(width,height);
 				  float [] pixels = new float [iclt_data[0].length];
 				  for (int i = 0; i < pixels.length; i++) {
@@ -12938,7 +12938,6 @@ public class QuadCLTCPU {
 		  int mcorr_sel = save_corr ? Correlation2d.corrSelEncode(clt_parameters.img_dtt, getNumSensors()) : 0;
 		  TpTask[] tp_tasks = GpuQuad.setTasks( // null on geometryCorrection 
 				  num_sensors,                  // final int                      num_cams,
-//				  image_dtt.getTransformSize(), // final int                      transform_size,
 				  disparity_array,              // final double [][]	           disparity_array,  // [tilesY][tilesX] - individual per-tile expected disparity
 				  disparity_corr,               // final double                   disparity_corr,
 				  tile_op,                      // final int [][]                 tile_op,          // [tilesY][tilesX] - what to do - 0 - nothing for this tile
@@ -12953,7 +12952,7 @@ public class QuadCLTCPU {
 		  
 		  double [][][][][] clt_data =  null;
 		  double [] tile_corr_weights = null;
-			double[][] dbg_tilts =       null;
+			double[][] dbg_tilts =      null;
 		  
 		  final double gpu_sigma_corr =     clt_parameters.getGpuCorrSigma(isMonochrome());
 		  final double gpu_sigma_rb_corr =  isMonochrome()? 1.0 : clt_parameters.gpu_sigma_rb_corr;
@@ -12967,7 +12966,6 @@ public class QuadCLTCPU {
 			  // set tasks for all non-NaN target disparities
 			  TpTask [] tp_tasks_target = GpuQuad.setTasks(
 					  num_sensors,                  // final int                      num_cams,
-//					  image_dtt.getTransformSize(), // final int                      transform_size,
 					  disparity_array,              // final double [][]	           disparity_array,  // [tilesY][tilesX] - individual per-tile expected disparity
 					  disparity_corr,               // final double                   disparity_corr,
 					  null, // tile_op,             // final int [][]                 tile_op,          // [tilesY][tilesX] - what to do - 0 - nothing for this tile
@@ -13025,7 +13023,7 @@ public class QuadCLTCPU {
 						  clt_parameters.img_dtt,            // final ImageDttParameters imgdtt_params,    // Now just extra correlation parameters, later will include, most others
 						  tp_tasks, // *** will be updated inside from GPU-calculated geometry
 						  fcorr_td, // fcorrs_td[nscene],                 // [tilesY][tilesX][pair][4*64] transform domain representation of 6 corr pairs
-						  geometryCorrection, //
+//						  geometryCorrection, //
 						  clt_parameters.gpu_sigma_r,        // 0.9, 1.1
 						  clt_parameters.gpu_sigma_b,        // 0.9, 1.1
 						  clt_parameters.gpu_sigma_g,        // 0.6, 0.7
@@ -13208,7 +13206,7 @@ public class QuadCLTCPU {
 							new String[] {"tiltX","tiltY","center","weight"});
 			  }
 			  float  [][][] fclt_corr = new float [dcorr_tiles.length][][]; // dcorr_tiles== null
-				image_dtt.convertFcltCorr(
+			  ImageDtt.convertFcltCorr(
 						dcorr_tiles, // double [][][] dcorr_tiles,// [tile][sparse, correlation pair][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 						fclt_corr);  // float  [][][] fclt_corr) //  new float [tilesX * tilesY][][] or null
 				float [][] dbg_corr_rslt_partial = ImageDtt.corr_partial_dbg( // not used in lwir
@@ -13222,7 +13220,6 @@ public class QuadCLTCPU {
 						threadsMax, // final int               threadsMax,     // maximal number of threads to launch
 						debugLevel); // final int               globalDebugLevel)
 				
-//				String [] titles_ind_corr = image_dtt.getCorrelation2d().getCorrTitles();
 				String [] titles = new String [dbg_corr_rslt_partial.length]; // dcorr_tiles[0].length];
 				int ind_length = image_dtt.getCorrelation2d().getCorrTitles().length;
 				

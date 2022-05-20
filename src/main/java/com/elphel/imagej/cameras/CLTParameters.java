@@ -37,11 +37,13 @@ import java.util.Set;
 
 import com.elphel.imagej.common.GenericJTabbedDialog;
 import com.elphel.imagej.common.WindowTools;
+import com.elphel.imagej.correction.CorrectionColorProc;
 import com.elphel.imagej.lwir.LwirReaderParameters;
 import com.elphel.imagej.tileprocessor.BiQuadParameters;
 import com.elphel.imagej.tileprocessor.ImageDtt;
 import com.elphel.imagej.tileprocessor.ImageDttParameters;
 import com.elphel.imagej.tileprocessor.IntersceneLmaParameters;
+import com.elphel.imagej.tileprocessor.IntersceneMatchParameters;
 import com.elphel.imagej.tileprocessor.MeasuredLayersFilterParameters;
 import com.elphel.imagej.tileprocessor.OpticalFlowParameters;
 import com.elphel.imagej.tileprocessor.PoleProcessorParameters;
@@ -884,8 +886,10 @@ public class CLTParameters {
 	public double     gpu_sigma_corr_m =     0.15;
 	public double     gpu_sigma_log_corr =   3.0; // fill in after testing
 	public double     gpu_sigma_log_corr_m = 3.0; // fill in after testing
-	public double     gpu_fatz =           500.0; // was 30
-	public double     gpu_fatz_m =         500.0; // was 30
+	public double     gpu_fatz =          2000.0; //  500.0; // was 30
+	public double     gpu_fatz_m =        2000.0; //  500.0; // was 30
+	public double     gpu_fatz_inter =   10000.0; // There is some artifact (bug or float precision)
+	public double     gpu_fatz_inter_m = 10000.0; //
 
 	public boolean    gpu_woi =             false; // if true - use gpu_woi_tx, ...
 	public int        gpu_woi_tx =              0;
@@ -946,6 +950,7 @@ public class CLTParameters {
 	public MeasuredLayersFilterParameters mlfp =    new MeasuredLayersFilterParameters();
 	public LwirReaderParameters           lwir =    new LwirReaderParameters();
 	public OpticalFlowParameters          ofp =     new OpticalFlowParameters();
+	public IntersceneMatchParameters      imp =     new IntersceneMatchParameters();
 	public IntersceneLmaParameters        ilp =     new IntersceneLmaParameters();
 	public InterNoiseParameters           inp =     new InterNoiseParameters();
 			
@@ -953,9 +958,30 @@ public class CLTParameters {
 	public HashMap<String,Double> infinity_distace_map = new HashMap<String,Double>(); //new one
 	public static String Z_CORR_PREFIX = "z_corr.";
 	public static String INFINITY_DISTANCE_PREFIX = "infinity_distance.";
-
 	public boolean   batch_run =               false; // turned on only while running in batch mode
 
+	// Quick fix to pass these parameters
+	public ColorProcParameters                             colorProcParameters;
+	public ColorProcParameters                             colorProcParametersAux;
+	public EyesisCorrectionParameters.RGBParameters        rgbParameters;
+
+	public void setColorProcParameters(ColorProcParameters colorProcParameters, boolean aux) {
+		if (aux) {
+			this.colorProcParametersAux = colorProcParameters;
+		}else {
+			this.colorProcParameters = colorProcParameters;
+		}
+	}
+	public void setRGBParameters (EyesisCorrectionParameters.RGBParameters rgbParameters) {
+		this.rgbParameters =rgbParameters;
+	}
+	public EyesisCorrectionParameters.RGBParameters getRGBParameters(){
+		return rgbParameters;
+	}
+	public ColorProcParameters getColorProcParameters(boolean aux) {
+		return aux? colorProcParametersAux:colorProcParameters;
+	}
+	
 	public boolean useGPU() {
 		return  useGPU(false) || useGPU(true);
 	
@@ -981,6 +1007,10 @@ public class CLTParameters {
 		return monochrome ? gpu_fatz_m : gpu_fatz;
 	}
 
+	public double getGpuFatZeroInter(boolean monochrome) {
+		return monochrome ? gpu_fatz_inter_m : gpu_fatz_inter;
+	}
+	
 	public double getGpuCorrSigma(boolean monochrome) {
 		return monochrome ? gpu_sigma_corr_m : gpu_sigma_corr;
 	}
@@ -1765,6 +1795,8 @@ public class CLTParameters {
 		properties.setProperty(prefix+"gpu_sigma_log_corr_m",       this.gpu_sigma_log_corr_m +"");
 		properties.setProperty(prefix+"gpu_fatz",                   this.gpu_fatz +"");
 		properties.setProperty(prefix+"gpu_fatz_m",                 this.gpu_fatz_m +"");
+		properties.setProperty(prefix+"gpu_fatz_inter",             this.gpu_fatz_inter +"");
+		properties.setProperty(prefix+"gpu_fatz_inter_m",           this.gpu_fatz_inter_m +"");
 
 		properties.setProperty(prefix+"gpu_woi",                    this.gpu_woi +"");
 		properties.setProperty(prefix+"gpu_woi_tx",                 this.gpu_woi_tx +"");
@@ -1836,6 +1868,7 @@ public class CLTParameters {
 		poles.setProperties   (prefix+"_poles",   properties);
 		lwir.setProperties    (prefix+"_lwir",    properties);
 		ofp.setProperties     (prefix+"_ofp_",    properties);
+		imp.setProperties     (prefix+"_imp_",    properties);
 		ilp.setProperties     (prefix+"_ilp_",    properties);
 		inp.setProperties     (prefix+"_inp_",    properties);
 
@@ -2617,6 +2650,8 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"gpu_sigma_log_corr_m")!=null)        this.gpu_sigma_log_corr_m=Double.parseDouble(properties.getProperty(prefix+"gpu_sigma_log_corr_m"));
 		if (properties.getProperty(prefix+"gpu_fatz")!=null)                    this.gpu_fatz=Double.parseDouble(properties.getProperty(prefix+"gpu_fatz"));
 		if (properties.getProperty(prefix+"gpu_fatz_m")!=null)                  this.gpu_fatz_m=Double.parseDouble(properties.getProperty(prefix+"gpu_fatz_m"));
+		if (properties.getProperty(prefix+"gpu_fatz_inter")!=null)              this.gpu_fatz_inter=Double.parseDouble(properties.getProperty(prefix+"gpu_fatz_inter"));
+		if (properties.getProperty(prefix+"gpu_fatz_inter_m")!=null)            this.gpu_fatz_inter_m=Double.parseDouble(properties.getProperty(prefix+"gpu_fatz_inter_m"));
 
 		if (properties.getProperty(prefix+"gpu_woi")!=null)                     this.gpu_woi=Boolean.parseBoolean(properties.getProperty(prefix+"gpu_woi"));
 		if (properties.getProperty(prefix+"gpu_woi_tx")!=null)                  this.gpu_woi_tx=Integer.parseInt(properties.getProperty(prefix+"gpu_woi_tx"));
@@ -2692,6 +2727,7 @@ public class CLTParameters {
 		poles.getProperties   (prefix+"_poles",   properties);
 		lwir.getProperties    (prefix+"_lwir",    properties);
 		ofp.getProperties     (prefix+"_ofp_",    properties);
+		imp.getProperties     (prefix+"_imp_",    properties);
 		ilp.getProperties     (prefix+"_ilp_",    properties);
 		inp.getProperties     (prefix+"_inp_",    properties);
 	}
@@ -3695,10 +3731,14 @@ public class CLTParameters {
 		gd.addNumericField("LoG sigma for correlation, mono",                                                           this.gpu_sigma_log_corr_m, 4, 6,"pix",
 				"Use LoG filter to reduce dynamic range of the correlation input to fit into float range");
 		
-		gd.addNumericField("Fat zero (absolute) for phase correlation of color images",                                 this.gpu_fatz, 4, 6,"",
-				"Add squared fat zero to the sum of squared amplitudes, color images");
-		gd.addNumericField("Fat zero (absolute) for phase correlation of monochrome images",                            this.gpu_fatz_m, 4, 6,"",
-				"Add squared fat zero to the sum of squared amplitudes, monochrome images");
+		gd.addNumericField("Fat zero (absolute) for intrascene phase correlation of color images",                                 this.gpu_fatz, 4, 6,"",
+				"Add squared fat zero to the sum of squared amplitudes in intrascene mode, color images");
+		gd.addNumericField("Fat zero (absolute) for intrascene phase correlation of monochrome images",                            this.gpu_fatz_m, 4, 6,"",
+				"Add squared fat zero to the sum of squared amplitudes in intrascene mode, monochrome images");
+		gd.addNumericField("Fat zero (absolute) for interscene phase correlation of color images",                                 this.gpu_fatz_inter, 4, 6,"",
+				"Add squared fat zero to the sum of squared amplitudes in interscene mode, color images");
+		gd.addNumericField("Fat zero (absolute) for interscene phase correlation of monochrome images",                            this.gpu_fatz_inter_m, 4, 6,"",
+				"Add squared fat zero to the sum of squared amplitudes in interscene mode, monochrome images");
 		gd.addMessage     ("--- GPU WOI selection ---");
 
 		gd.addCheckbox    ("Use following WOI for GPU processing (unchecked - ignore WOI dimensions)",                  this.gpu_woi);
@@ -3734,6 +3774,9 @@ public class CLTParameters {
 		gd.addTab         ("O-Flow", "parameters for the interscene Optical FLow calculations");
 		this.ofp.dialogQuestions(gd);
 
+		gd.addTab         ("Inter-Match", "Parameters for full-resolution (no decimation/macrotiles) scene matching");
+		this.imp.dialogQuestions(gd);
+		
 		gd.addTab         ("Inter-LMA", "parameters for the interscene LMA fitting");
 		this.ilp.dialogQuestions(gd);
 		
@@ -4541,6 +4584,8 @@ public class CLTParameters {
 		this.gpu_sigma_log_corr_m = gd.getNextNumber();
 		this.gpu_fatz =             gd.getNextNumber();
 		this.gpu_fatz_m =           gd.getNextNumber();
+		this.gpu_fatz_inter =       gd.getNextNumber();
+		this.gpu_fatz_inter_m =     gd.getNextNumber();
 
 		this.gpu_woi=               gd.getNextBoolean();
 		this.gpu_woi_tx =     (int) gd.getNextNumber();
@@ -4564,6 +4609,7 @@ public class CLTParameters {
 		
 		this.lwir.dialogAnswers(gd);
 		this.ofp.dialogAnswers(gd);
+		this.imp.dialogAnswers(gd);
 		this.ilp.dialogAnswers(gd);
 		this.inp.dialogAnswers(gd);
 

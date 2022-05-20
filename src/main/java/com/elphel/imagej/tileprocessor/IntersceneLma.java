@@ -89,33 +89,44 @@ public class IntersceneLma {
 	}
 
 	public String [] printOldNew(boolean allvectors) {
-		return printOldNew(allvectors, 8, 5);
+		return printOldNew(allvectors, 9, 6);
 	}
 
 	public String [] printOldNew(boolean allvectors, int w, int d) {
-		String fmt1 = String.format("%%%d.%df", w,d);
+		String fmt1 = String.format("%%%d.%df", w+2,d+2); // more for the differences
 		ArrayList<String> lines = new ArrayList<String>();
 		for (int n = ErsCorrection.DP_DVAZ; n < ErsCorrection.DP_NUM_PARS; n+=3) {
 			boolean adj = false;
 			for (int i = 0; i <3; i++) adj |= par_mask[n+i];
 			if (allvectors || adj) {
 				String line = printNameV3(n, false, w,d)+"  (was "+printNameV3(n, true, w,d)+")";
-				line += ", diff="+String.format(fmt1, getV3Diff(n));
+				line += ", diff_last="+String.format(fmt1, getV3Diff(n)[0]);
+				line += ", diff_first="+String.format(fmt1, getV3Diff(n)[1]);
 				lines.add(line);
 			}
 		}
 		return lines.toArray(new String[lines.size()]);
 	}
 	
-	public double getV3Diff(int indx) {
-		double [] v_new = new double[3], v_old = new double[3];
+	/**
+	 * Calculate L2 for 3-vector difference between the adjusted values, this LMA start values
+	 * and "backup" parameters - snapshot before the first adjustment (first calculation of 
+	 * the motion vectors+LMA iteration  
+	 * @param indx offset to the first element of the 3-vector in the full parameters array
+	 * @return a pair of L2 differences {diff_with_this_LMA_start, diff_with_first_lma_start}
+	 */
+	public double [] getV3Diff(int indx) {
+		double [] v_new = new double[3], v_backup = new double[3], v_start = new double[3];
 		System.arraycopy(getFullVector(parameters_vector), indx, v_new, 0, 3);
-		System.arraycopy(backup_parameters_full, indx, v_old, 0, 3);
-		double l2 = 0;
+		System.arraycopy(backup_parameters_full, indx, v_backup, 0, 3);
+		System.arraycopy(parameters_full, indx, v_start, 0, 3);
+		double l2_backup = 0;
+		double l2_start = 0;
 		for (int i = 0; i < 3; i++) {
-			l2 += (v_new[i]-v_old[i]) * (v_new[i]-v_old[i]); 
+			l2_backup += (v_new[i]-v_backup[i]) * (v_new[i]-v_backup[i]); 
+			l2_start +=  (v_new[i]-v_start[i]) *  (v_new[i]-v_start[i]); 
 		}
-		return Math.sqrt(l2);
+		return new double [] {Math.sqrt(l2_start), Math.sqrt(l2_backup)};
 	}
 	
 	public String printNameV3(int indx, boolean initial, int w, int d) {
@@ -129,7 +140,7 @@ public class IntersceneLma {
 	}
 	
 	public static String printNameV3(String name, double[] vector) {
-		return printNameV3(name, vector, 8, 5);
+		return printNameV3(name, vector, 10, 6);
 	}
 	
 	public static String printNameV3(String name, double[] vector, int w, int d) {
@@ -296,15 +307,17 @@ public class IntersceneLma {
 		if (show_intermediate && (debug_level > 0)) {
 			System.out.println("LMA: full RMS="+last_rms[0]+" ("+initial_rms[0]+"), pure RMS="+last_rms[1]+" ("+initial_rms[1]+") + lambda="+lambda);
 		}
-		String [] lines1 = printOldNew(false); // boolean allvectors)
-		System.out.print("iteration="+iter);
-		for (String line : lines1) {
-			System.out.println(line);
+		if (debug_level > 2){ 
+			String [] lines1 = printOldNew(false); // boolean allvectors)
+			System.out.println("iteration="+iter);
+			for (String line : lines1) {
+				System.out.println(line);
+			}
 		}
 		if (debug_level > 0) {
-			if ((debug_level > 1) || (iter == 1) || last_run) {
+			if ((debug_level > 1) ||  last_run) { // (iter == 1) || last_run) {
 				if (!show_intermediate) {
-					System.out.println("LMA: full RMS="+last_rms[0]+" ("+initial_rms[0]+"), pure RMS="+last_rms[1]+" ("+initial_rms[1]+") + lambda="+lambda);
+					System.out.println("LMA: iter="+iter+",   full RMS="+last_rms[0]+" ("+initial_rms[0]+"), pure RMS="+last_rms[1]+" ("+initial_rms[1]+") + lambda="+lambda);
 				}
 				String [] lines = printOldNew(false); // boolean allvectors)
 				for (String line : lines) {
@@ -676,7 +689,11 @@ public class IntersceneLma {
 	}
 	
 	
-	
+	/**
+	 * Combine unmodified parameters with these ones, using parameters mask
+	 * @param vector variable-length adjustable vector, corresponding to a parameter mask
+	 * @return full parameters vector combining adjusted and fixed parameters
+	 */
 	private double [] getFullVector(double [] vector) {
 		double [] full_vector = parameters_full.clone();
 		for (int i = 0; i < par_indices.length; i++) {
