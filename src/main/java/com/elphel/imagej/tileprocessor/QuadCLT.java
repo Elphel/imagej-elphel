@@ -5615,6 +5615,26 @@ if (debugLevel < -100) {
 			
 			return quadCLT;
 		}
-	  
+		public QuadCLT spawnNoModelQuadCLT(
+				String              set_name,
+				CLTParameters       clt_parameters,
+				ColorProcParameters colorProcParameters, //
+				int                 threadsMax,
+				int                 debugLevel)
+		{
+			QuadCLT quadCLT = new QuadCLT(this, set_name); //null
+			
+			quadCLT.restoreNoModel(
+					clt_parameters,
+					colorProcParameters,
+					null,                 // double []    noise_sigma_level,
+					-1,                   // noise_variant, // <0 - no-variants, compatible with old code
+					null,                 // final QuadCLTCPU     ref_scene, // may be null if scale_fpn <= 0
+					threadsMax,
+					debugLevel);
+			
+			return quadCLT;
+		}
+
 	  
 }

@@ -1988,6 +1988,23 @@ public class ErsCorrection extends GeometryCorrection {
 	}
 	
 	public static double [][] combineXYZATR(
+			double [][] reference_xyzatr,
+			double [][] scene_xyzatr){
+		return combineXYZATR(
+				reference_xyzatr[0],
+				reference_xyzatr[1],
+				scene_xyzatr[0],
+				scene_xyzatr[1]);
+	}
+		
+	public static double [][] invertXYZATR(
+			double [][] source_xyzatr){
+		return  invertXYZATR(
+				source_xyzatr[0],
+				source_xyzatr[1]);
+	}
+	
+	public static double [][] combineXYZATR(
 			double [] reference_xyz,
 			double [] reference_atr,
 			double [] scene_xyz,

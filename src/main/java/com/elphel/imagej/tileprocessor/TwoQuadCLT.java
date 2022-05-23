@@ -3074,11 +3074,13 @@ if (debugLevel > -100) return true; // temporarily !
 
 
 
-	public void copyJP4src(
+	public static void copyJP4src(
 			String                                   set_name,
 			QuadCLT                                  quadCLT_main,  // tiles should be set
 			QuadCLT                                  quadCLT_aux,
 			CLTParameters clt_parameters,
+			boolean                                  skip_existing,
+			boolean                                  search_KML,
 			final int                                debugLevel) // throws Exception
 	{
 		//		  quadCLT_main.writeKml(debugLevel);
@@ -3087,27 +3089,23 @@ if (debugLevel > -100) return true; // temporarily !
 
 		String [] sourceFiles_main=quadCLT_main.correctionsParameters.getSourcePaths();
 		//
-
-
-
 		//		  String [] sourceFiles_aux=quadCLT_main.correctionsParameters.getSourcePaths();
-		
 		if (set_name == null ) {
 			set_name = quadCLT_main.image_name;
 		}
-		if (set_name == null ) {
+		if ((set_name == null) && (quadCLT_aux !=null)) {
 			set_name = quadCLT_aux.image_name;
 		}		
 		if (set_name == null ) {
 			QuadCLT.SetChannels [] set_channels=quadCLT_main.setChannels(debugLevel);
-			if (set_channels == null) {
+			if ((set_channels == null)  && (quadCLT_aux !=null)) {
 				set_channels=quadCLT_aux.setChannels(debugLevel);
 			}
-			set_name = set_channels[0].set_name;
+			set_name = set_channels[00].set_name;
 		}
 
 		QuadCLT.SetChannels [] set_channels_main = quadCLT_main.setChannels(set_name,debugLevel); // only for specified image timestamp
-		QuadCLT.SetChannels [] set_channels_aux =  quadCLT_aux.setChannels(set_name,debugLevel);
+		QuadCLT.SetChannels [] set_channels_aux =  (quadCLT_aux !=null) ? quadCLT_aux.setChannels(set_name,debugLevel) : null;
 
 		ArrayList<String> path_list = new ArrayList<String>();
 		if (set_channels_main != null) for (int i = 0; i < set_channels_main.length; i++) {
@@ -3120,9 +3118,9 @@ if (debugLevel > -100) return true; // temporarily !
 				path_list.add(sourceFiles_main[fn]);
 			}
 		}
-		if (set_channels_main !=null) {
-			quadCLT_main.writeKml(debugLevel ); // also generated with x3d model
-		}
+//		if (set_channels_main !=null) {
+//			quadCLT_main.writeKml(debugLevel ); // also generated with x3d model
+//		}
 
 		String jp4_copy_path= quadCLT_main.correctionsParameters.selectX3dDirectory(
 				set_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
@@ -3133,6 +3131,11 @@ if (debugLevel > -100) return true; // temporarily !
 		if (!dir.exists()){
 			dir.mkdirs();
 			System.out.println("Created "+dir);
+		} else if (skip_existing) {
+			if (dir.list().length > 0) {
+				System.out.println("Skipping existing directory "+dir);
+				return;
+			}
 		}
 		for (String fname:path_list) {
 			if (fname.contains(set_name)) { // only files containing set name // TODO:improve
@@ -3148,6 +3151,11 @@ if (debugLevel > -100) return true; // temporarily !
 					System.out.println("Failed to copy "+fname+" -> "+dir);
 				}
 			}
+		}
+		if (search_KML && (set_channels_main !=null)) { // TODO: make it look in both MAIN and AUX. Look in only the same scene?
+			quadCLT_main.writeKml(
+					set_name,
+					debugLevel ); // also generated with x3d model
 		}
 		System.out.println("jp4_copy_path = "+jp4_copy_path);
 		//		  System.out.println("Do something useful here");
@@ -7657,8 +7665,8 @@ if (debugLevel > -100) return true; // temporarily !
 				}
 
 				quadCLT_main.preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
-						imp_srcs_main, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
-						saturation_imp_main, // boolean [][] saturation_imp, // (near) saturated pixels or null
+//						imp_srcs_main, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+//						saturation_imp_main, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						clt_parameters,
 						debayerParameters,
 						colorProcParameters,
@@ -7696,8 +7704,8 @@ if (debugLevel > -100) return true; // temporarily !
 							" (w/o rig), pass "+(num_adjust_aux+1)+" of "+quadCLT_main.correctionsParameters.rig_batch_adjust_aux);
 				}
 				quadCLT_aux.preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
-						imp_srcs_aux, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
-						saturation_imp_aux, // boolean [][] saturation_imp, // (near) saturated pixels or null
+//						imp_srcs_aux, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+//						saturation_imp_aux, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						clt_parameters,
 						debayerParameters,
 						colorProcParameters_aux,
@@ -7774,8 +7782,8 @@ if (debugLevel > -100) return true; // temporarily !
 				{
 					if (updateStatus) IJ.showStatus("Building basic DSI for the main camera image set "+quadCLT_main.image_name+ " (post rig adjustment)");
 					quadCLT_main.preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
-							imp_srcs_main, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
-							saturation_imp_main, // boolean [][] saturation_imp, // (near) saturated pixels or null
+//							imp_srcs_main, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+//							saturation_imp_main, // boolean [][] saturation_imp, // (near) saturated pixels or null
 							clt_parameters,
 							debayerParameters,
 							colorProcParameters,
@@ -7934,8 +7942,8 @@ if (debugLevel > -100) return true; // temporarily !
 			if (quadCLT_main.correctionsParameters.clt_batch_dsi_aux) {
 				if (updateStatus) IJ.showStatus("Building basic DSI for the aux camera image set "+quadCLT_main.image_name+" (for DSI export)");
 				quadCLT_aux.preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
-						imp_srcs_aux, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
-						saturation_imp_aux, // boolean [][] saturation_imp, // (near) saturated pixels or null
+//						imp_srcs_aux, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+//						saturation_imp_aux, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						clt_parameters,
 						debayerParameters,
 						colorProcParameters_aux,
@@ -7965,8 +7973,8 @@ if (debugLevel > -100) return true; // temporarily !
 			if (quadCLT_main.correctionsParameters.clt_batch_explore) {
 				if (updateStatus) IJ.showStatus("Building basic DSI for the main camera image set "+quadCLT_main.image_name+" (after all adjustments)");
 				quadCLT_main.preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
-						imp_srcs_main, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
-						saturation_imp_main, // boolean [][] saturation_imp, // (near) saturated pixels or null
+//						imp_srcs_main, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+//						saturation_imp_main, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						clt_parameters,
 						debayerParameters,
 						colorProcParameters,
@@ -8076,6 +8084,8 @@ if (debugLevel > -100) return true; // temporarily !
 						quadCLT_main,   // QuadCLT                                  quadCLT_main,  // tiles should be set
 						quadCLT_aux,    // QuadCLT                                  quadCLT_aux,
 						clt_parameters, // EyesisCorrectionParameters.CLTParameters clt_parameters,
+						true, // boolean                                  skip_existing,
+						true, // boolean                                  search_KML,
 						debugLevel);    // final int                                debugLevel)
 			}
 
@@ -8529,6 +8539,63 @@ if (debugLevel > -100) return true; // temporarily !
 		System.out.println("End of interSeriesLMA()");
 	}
 
+
+	/**
+	 * Build series of poses from just a single (reference) scene.
+	 * @param quadCLT_main
+	 * @param ref_index
+	 * @param ref_step
+	 * @param clt_parameters
+	 * @param debayerParameters
+	 * @param colorProcParameters
+	 * @param channelGainParameters
+	 * @param rgbParameters
+	 * @param equirectangularParameters
+	 * @param properties
+	 * @param reset_from_extrinsics
+	 * @param threadsMax
+	 * @param updateStatus
+	 * @param debugLevel
+	 * @throws Exception
+	 */
+    public void buildSeriesTQ(
+			QuadCLT                                              quadCLT_main, // tiles should be set
+			int                                                  ref_index, // -1 - last
+			int                                                  ref_step, 
+			CLTParameters             clt_parameters,
+			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
+			ColorProcParameters                                  colorProcParameters,
+			CorrectionColorProc.ColorGainsParameters             channelGainParameters,
+			EyesisCorrectionParameters.RGBParameters             rgbParameters,
+			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+			Properties                                           properties,
+			boolean                                              reset_from_extrinsics,
+			final int        threadsMax,  // maximal number of threads to launch
+			final boolean    updateStatus,
+			final int        debugLevel)  throws Exception
+    {
+		OpticalFlow opticalFlow = new OpticalFlow(
+				quadCLT_main.getNumSensors(),
+				clt_parameters.ofp.scale_no_lma_disparity, // double         scale_no_lma_disparity,
+				threadsMax,                                // int            threadsMax,  // maximal number of threads to launch
+				updateStatus);                             // boolean        updateStatus);
+		opticalFlow.buildSeries(
+				quadCLT_main,              // QuadCLT                                              quadCLT_main, // tiles should be set
+				ref_index,                 // int                                                  ref_index, // -1 - last
+				ref_step,                  // int                                                  ref_step, 
+				clt_parameters,            // CLTParameters             clt_parameters,
+				debayerParameters,         // EyesisCorrectionParameters.DebayerParameters         debayerParameters,
+				colorProcParameters,       // ColorProcParameters                                  colorProcParameters,
+				channelGainParameters,     // CorrectionColorProc.ColorGainsParameters             channelGainParameters,
+				rgbParameters,             // EyesisCorrectionParameters.RGBParameters             rgbParameters,
+				equirectangularParameters, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+				properties,                // Properties                                           properties,
+				reset_from_extrinsics, // boolean                                              reset_from_extrinsics,
+				threadsMax,  // final int        threadsMax,  // maximal number of threads to launch
+				updateStatus, // final boolean    updateStatus,
+				debugLevel+2); // final int        debugLevel)
+    }
+	
 	
 	
 	
@@ -11700,8 +11767,8 @@ if (debugLevel > -100) return true; // temporarily !
 						}
 						//Generates background image in model tree - should be done later, after adjustment (It is overwritten later, so OK)
 						quadCLT_main.preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
-								imp_srcs_main, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
-								saturation_imp_main, // boolean [][] saturation_imp, // (near) saturated pixels or null
+//								imp_srcs_main, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+//								saturation_imp_main, // boolean [][] saturation_imp, // (near) saturated pixels or null
 								clt_parameters,
 								debayerParameters,
 								colorProcParameters,
@@ -11752,8 +11819,8 @@ if (debugLevel > -100) return true; // temporarily !
 					if (quadCLT_main.correctionsParameters.clt_batch_dsi1){
 						System.out.println("Trying experimental features DSI/ERS");
 						quadCLT_main.preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
-								imp_srcs_main, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
-								saturation_imp_main, // boolean [][] saturation_imp, // (near) saturated pixels or null
+//								imp_srcs_main, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+//								saturation_imp_main, // boolean [][] saturation_imp, // (near) saturated pixels or null
 								clt_parameters,
 								debayerParameters,
 								colorProcParameters,
@@ -11785,6 +11852,8 @@ if (debugLevel > -100) return true; // temporarily !
 									quadCLT_main,   // QuadCLT                                  quadCLT_main,  // tiles should be set
 									quadCLT_aux,    // QuadCLT                                  quadCLT_aux,
 									clt_parameters, // EyesisCorrectionParameters.CLTParameters clt_parameters,
+									true, // boolean                                  skip_existing,
+									true, // boolean                                  search_KML,
 									debugLevel);    // final int                                debugLevel)
 						}
 					}			
@@ -11831,8 +11900,8 @@ if (debugLevel > -100) return true; // temporarily !
 					if (quadCLT_main.correctionsParameters.clt_batch_explore) {
 						if (updateStatus) IJ.showStatus("Building basic DSI for the main camera image set "+quadCLT_main.image_name+" (after all adjustments)");
 						quadCLT_main.preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
-								imp_srcs_main, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
-								saturation_imp_main, // boolean [][] saturation_imp, // (near) saturated pixels or null
+//								imp_srcs_main, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+//								saturation_imp_main, // boolean [][] saturation_imp, // (near) saturated pixels or null
 								clt_parameters,
 								debayerParameters,
 								colorProcParameters,
@@ -11911,6 +11980,8 @@ if (debugLevel > -100) return true; // temporarily !
 											quadCLT_main,   // QuadCLT                                  quadCLT_main,  // tiles should be set
 											quadCLT_aux,    // QuadCLT                                  quadCLT_aux,
 											clt_parameters, // EyesisCorrectionParameters.CLTParameters clt_parameters,
+											true, // boolean                                  skip_existing,
+											true, // boolean                                  search_KML,
 											debugLevel);    // final int                                debugLevel)
 								}
 
@@ -12035,8 +12106,8 @@ if (debugLevel > -100) return true; // temporarily !
 						//			    dbg_path = "/home/elphel/lwir16-proc/proc1/results_cuda/25/extrinsics_bgnd_combo.tif";
 						if (dbg_path == null) {
 							quadCLT_aux.preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
-									imp_srcs_aux, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
-									saturation_imp_aux, // boolean [][] saturation_imp, // (near) saturated pixels or null
+//									imp_srcs_aux, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+//									saturation_imp_aux, // boolean [][] saturation_imp, // (near) saturated pixels or null
 									clt_parameters,
 									debayerParameters,
 									colorProcParameters_aux,
@@ -12127,8 +12198,8 @@ if (debugLevel > -100) return true; // temporarily !
 					if (quadCLT_main.correctionsParameters.clt_batch_dsi_aux) {
 						if (updateStatus) IJ.showStatus("Building basic DSI for the aux camera image set "+quadCLT_main.image_name+" (for DSI export)");
 						quadCLT_aux.preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
-								imp_srcs_aux, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
-								saturation_imp_aux, // boolean [][] saturation_imp, // (near) saturated pixels or null
+//								imp_srcs_aux, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+//								saturation_imp_aux, // boolean [][] saturation_imp, // (near) saturated pixels or null
 								clt_parameters,
 								debayerParameters,
 								colorProcParameters_aux,
@@ -12206,6 +12277,8 @@ if (debugLevel > -100) return true; // temporarily !
 									quadCLT_main,   // QuadCLT                                  quadCLT_main,  // tiles should be set
 									quadCLT_aux,    // QuadCLT                                  quadCLT_aux,
 									clt_parameters, // EyesisCorrectionParameters.CLTParameters clt_parameters,
+									true, // boolean                                  skip_existing,
+									true, // boolean                                  search_KML,
 									debugLevel);    // final int                                debugLevel)
 						}
 						if (dsi_aux_from_main != null) {

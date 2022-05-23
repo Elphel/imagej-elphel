@@ -2467,6 +2467,10 @@ public class ImageDtt extends ImageDttCPU {
 			final int                 n_recenter,      // when cosine window, re-center window this many times
 			final double              min_str,         //  = 0.25;
 			final double              min_str_sum,     // = 0.8; // 5;
+			final int                 min_neibs,       //   2;	   // minimal number of strong neighbors (> min_str)
+			final double              weight_zero_neibs,//  0.2;   // Reduce weight for no-neib (1.0 for all 8)
+			final double              half_disparity,  //   5.0;   // Reduce weight twice for this disparity
+			final double              half_avg_diff,   //   0.2;   // when L2 of x,y difference from average of neibs - reduce twice
 			final int                 debug_tileX,
 			final int                 debug_tileY,
 			final int                 threadsMax,      // maximal number of threads to launch
@@ -2477,6 +2481,7 @@ public class ImageDtt extends ImageDttCPU {
 			System.out.println("clt_process_tl_interscene(): this.gpuQuad is null, bailing out");
 			return null;
 		}
+//		final int min_neibs = clt_parameters.imp.min_neibs;
 		final boolean extra_sum = true; // use sum of pixel-domain correlations (TD have artifacts for low contrast
 		// - maybe  -related to float vs. double - not tested yet 
 //		final int width =  gpuQuad.getImageWidth();
@@ -2657,16 +2662,99 @@ public class ImageDtt extends ImageDttCPU {
 								centroid_radius,       // double    radius, // 0 - all same weight, > 0 cosine(PI/2*sqrt(dx^2+dy^2)/rad)
 								n_recenter,            // int       refine, //  re-center window around new maximum. 0 -no refines (single-pass)
 								false);                // boolean   debug)
-						if ((mv != null) && (mv[2] < min_str)) {
-							mv = null;
+						if (mv != null) {
+							if (mv[2] < min_str) {
+								mv = null;
+							} else {
+								mv[2] -= min_str;
+							}
 						}
 						if (mv != null) {
 							if (pXpYD == null) {
 								coord_motion[0][nTile] = mv;
 							} else {
 								if (pXpYD[nTile] != null) { // seems always
-									coord_motion[0][nTile] = pXpYD[nTile];
+									coord_motion[0][nTile] = pXpYD[nTile].clone();
 									coord_motion[1][nTile] = mv;
+								}
+							}
+						}
+					}
+				}
+			};
+		}
+		startAndJoin(threads);
+		
+		ai.set(0);
+		final int tiles = tilesX * tilesY;
+		final double [][] mv = coord_motion[coord_motion.length - 1];
+		final double [][] pxd = (coord_motion.length>1) ? coord_motion[0] : null;
+		final double scale_num_neib = ((weight_zero_neibs >= 0) && (weight_zero_neibs < 1.0)) ? (weight_zero_neibs * 8/(1.0 - weight_zero_neibs)): 0.0;
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					double l2;
+					TileNeibs tn = new TileNeibs(tilesX,tilesY);
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) {
+						if ((mv[nTile] != null) && (pXpYD[nTile] != null)) { 
+							int num_neibs=0;
+							double sx=0.0, sy=0.0;
+							for (int dir = 0; dir < 8; dir++) {
+								int nTile1 = tn.getNeibIndex(nTile, dir);
+								if ((nTile1 >= 0) &&
+										(mv[nTile1] != null) &&
+										(pXpYD[nTile1] != null) &&
+										!Double.isNaN(mv[nTile1][2]) &&
+										!Double.isNaN(mv[nTile1][0]) &&
+										!Double.isNaN(mv[nTile1][1])){
+									num_neibs++;
+									sx += mv[nTile1][0];
+									sy += mv[nTile1][1];
+								}
+							}
+							if (num_neibs < min_neibs) { // filter by minimal neighbors
+								mv[nTile][2] = 0;
+								/*
+								mv[nTile] = null;
+								if (pxd != null) {
+									pxd[nTile] = null;
+								}
+								*/
+								continue;
+							}
+							if ((weight_zero_neibs >= 0) && (weight_zero_neibs < 1.0)) { // scale weight by number of neighbors
+								mv[nTile][2] *= (num_neibs + scale_num_neib)/(8.0 + scale_num_neib);
+							}
+							if (half_disparity > 0.0) { // scale by disparity
+								mv[nTile][2] *= half_disparity/(half_disparity + pxd[nTile][2]);
+							}
+							if ((half_avg_diff > 0.0) &&(num_neibs > 0)) {
+								double dx = mv[nTile][0] - sx / num_neibs;
+								double dy = mv[nTile][1] - sy / num_neibs;
+								l2 = Math.sqrt(dx * dx + dy * dy);
+								mv[nTile][2] *= half_avg_diff/(half_avg_diff + l2);
+							}
+						}
+					}
+				}
+			};
+		}
+		startAndJoin(threads);
+
+		ai.set(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					double l2;
+					TileNeibs tn = new TileNeibs(tilesX,tilesY);
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) {
+						if ((mv[nTile] != null) && (pXpYD[nTile] != null)) {
+							if (mv[nTile][2] <= 0) {
+								mv[nTile] = null;
+								if (pxd != null) {
+									pxd[nTile] = null;
 								}
 							}
 						}
@@ -2677,7 +2765,7 @@ public class ImageDtt extends ImageDttCPU {
 		startAndJoin(threads);
 		return coord_motion;
 	}
-	
+
 	
 	
 	// using most of the ImageDttCPU.clt_process_tl_correlations

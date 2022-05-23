@@ -34,11 +34,26 @@ public class IntersceneMatchParameters {
 	public  int     margin =                       1;      // do not use tiles if their centers are closer to the image edge
 	public  int     sensor_mask_inter =           -1;      // bitmask of the sensors to use (-1 - all)
 	public  boolean use_partial =                   true;  // find motion vectors for individual pairs, false - for sum only
-	public  boolean run_poly =                      false; // not yet imp[lemented
+	public  boolean run_poly =                      false; // not yet implemented
 	public  double  centroid_radius =               4.0;   // 
-	public  int     n_recenter =                    2;     // when cosine window, re-center window this many times 
+	public  int     n_recenter =                    2;     // when cosine window, re-center window this many times
+	// filtering motion vectors
 	public  double  min_str =                       0.25;  // minimal correlation strength for all but TD-accumulated layer
 	public  double  min_str_sum =                   0.8;	  // minimal correlation strength for TD-accumulated layer
+	public  int     min_neibs =                     2;	   // minimal number of strong neighbors (> min_str)
+	public  double  weight_zero_neibs =             0.2;   // Reduce weight for no-neib (1.0 for all 8)
+	public  double  half_disparity =                5.0;   // Reduce weight twice for this disparity
+	public  double  half_avg_diff =                 0.2;   // when L2 of x,y difference from average of neibs - reduce twice
+
+	// Detect initial match
+	public  int     pix_step =                      4;     // Azimuth/tilt search step in pixels
+	public  int     search_rad =                   10;     // Search radius in steps
+	public  double  maybe_sum =                     8.0;   // minimal sum of strengths (will search for the best)
+	public  double  shure_sum =                    30.0;   // definitely good sum of strengths (no farther search)
+	public  double  maybe_avg =                     0.005; // maybe average strength
+	public  double  shure_avg =                     0.015; // sure average strength
+	
+	
 	//LMA parameters
 	public  boolean [] adjust_atr = new boolean [] {true,true,true};
 	public  boolean [] adjust_xyz = new boolean [] {true,true,true};
@@ -55,12 +70,13 @@ public class IntersceneMatchParameters {
 	public  boolean toRGB =                         true;  // render scenes in pseudo-colors DOES NOT WORK - use ColorProcParameters
 	private boolean show_2d_correlations =          true;  // show raw 2D correlations (individual and combined)
 	private boolean show_motion_vectors =           true;  // show calculated motion vectors
-	public  int     debug_level =                     -1;  // all renders are disable for debug_level < 0, scene "renders" for for debug_level < 1               
+	public  int     debug_level =                     -1;  // all renders are disable for debug_level < 0, scene "renders" for for debug_level < 1
     
 	public boolean renderRef()          {return (debug_level>1) && render_ref;}
 	public boolean renderScene()        {return (debug_level>1) && render_scene;}
 	public boolean show2dCorrelations() {return (debug_level>1) && show_2d_correlations;}
-	public boolean showMotionVectors()  {return (debug_level>0) && show_motion_vectors;}
+	public boolean showMotionVectors()  {return (debug_level>1) && show_motion_vectors;}
+	public boolean showCorrMotion()     {return (debug_level>0) && show_motion_vectors;}
 
 	public IntersceneMatchParameters() {
 		
@@ -81,11 +97,35 @@ public class IntersceneMatchParameters {
 				"Calculate centroids after multiplication by a half-cosine window. All correlation data farther than this value from the center is ignored");
 		gd.addNumericField("Refine centroids",                       this.n_recenter, 0,5,"",
 				"Repeat centroids after moving the window center to the new centroid location this many times (0 - calculate once)");
+		
+		gd.addMessage  ("Filtering motion vectors");
 		gd.addNumericField("Minimal correlation strength (non-sum)", this.min_str, 5,7,"",
 				"Minimal correlation strength for individual correlation and for pixel-domain averaged one. Weeker tiles results are removed.");
 		gd.addNumericField("Minimal correlation strength (sum only)",this.min_str_sum, 5,7,"",
 				"Minimal correlation strength for transform-domain averaging. Weeker tiles results are removed.");
+		gd.addNumericField("Minimal number of neighbors (of 8)",     this.min_neibs, 0,3,"",
+				"Remove motion vectors with less than this number of defined (passing min_str) neighbors.");
+		gd.addNumericField("No-neighbors weight (<1.0)",             this.weight_zero_neibs, 5,7,"",
+				"Punish for reduced neighbors - weigh for no-neighbors), weight of 8 neighbors = 1.0.");
+		gd.addNumericField("Disparity to reduce weight twice from infinity", this.half_disparity, 5,7,"",
+				"Weight at this disparity is 0.5, at infinity - 1.0.");
+		gd.addNumericField("Difference from neighbors average ",     this.half_avg_diff, 5,7,"",
+				"Reduce twice for high difference from neighbors average.");
 
+		gd.addMessage  ("Initial search for the intre-scene match");
+		gd.addNumericField("Azimuth/tilt step",                      this.pix_step, 0,3,"pix",
+				"Search in a spiral starting with no-shift with this step between probes, in approximate pixels");
+		gd.addNumericField("Search spiral radius",                   this.search_rad, 0,3,"steps",
+				"Maximal search radius in steps");
+		gd.addNumericField("\"Maybe\" sum of strengths",             this.maybe_sum, 5,7,"",
+				"Minimal acceptable sum of defined tiles strengths (will look for the best among matching)");
+		gd.addNumericField("\"Sure\" sum of strengths",              this.shure_sum, 5,7,"",
+				"Definitely sufficient sum of defined tiles strengths (will non continue looking for better).");
+		gd.addNumericField("\"Maybe\" average of strengths",         this.maybe_avg, 5,7,"",
+				"Minimal acceptable average of defined tiles strengths (will look for the best among matching)");
+		gd.addNumericField("\"Sure\" average of strengths",          this.shure_avg, 5,7,"",
+				"Definitely sufficient average of defined tiles strengths (will non continue looking for better).");
+		
 		gd.addMessage  ("LMA parameters");
 		gd.addCheckbox ("Azimuth",                                   this.adjust_atr[0],
 				"Adjust scene camera azimuth with LMA");
@@ -141,6 +181,16 @@ public class IntersceneMatchParameters {
 		this.n_recenter =         (int) gd.getNextNumber();
 		this.min_str =                  gd.getNextNumber();
 		this.min_str_sum =              gd.getNextNumber();
+		this.min_neibs =          (int) gd.getNextNumber();
+		this.weight_zero_neibs =        gd.getNextNumber();
+		this.half_disparity =           gd.getNextNumber();
+		this.half_avg_diff =            gd.getNextNumber();
+		this.pix_step =           (int) gd.getNextNumber();
+		this.search_rad =         (int) gd.getNextNumber();
+		this.maybe_sum =                gd.getNextNumber();
+		this.shure_sum =                gd.getNextNumber();
+		this.maybe_avg =                gd.getNextNumber();
+		this.shure_avg =                gd.getNextNumber();
 		this.adjust_atr[0] =            gd.getNextBoolean();
 		this.adjust_atr[1] =            gd.getNextBoolean();
 		this.adjust_atr[2] =            gd.getNextBoolean();
@@ -159,6 +209,8 @@ public class IntersceneMatchParameters {
 		this.show_2d_correlations =     gd.getNextBoolean();
 		this.show_motion_vectors =      gd.getNextBoolean();
 		this.debug_level =        (int) gd.getNextNumber();
+		
+		if (this.weight_zero_neibs > 1.0) this.weight_zero_neibs = 1.0;
 	}
 	
 	public void setProperties(String prefix,Properties properties){
@@ -170,6 +222,16 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"n_recenter",           this.n_recenter+"");          // int
 		properties.setProperty(prefix+"min_str",              this.min_str+"");             // double
 		properties.setProperty(prefix+"min_str_sum",          this.min_str_sum+"");         // double
+		properties.setProperty(prefix+"min_neibs",            this.min_neibs+"");           // int
+		properties.setProperty(prefix+"weight_zero_neibs",    this.weight_zero_neibs+"");   // double
+		properties.setProperty(prefix+"half_disparity",       this.half_disparity+"");      // double
+		properties.setProperty(prefix+"half_avg_diff",        this.half_avg_diff+"");       // double
+		properties.setProperty(prefix+"pix_step",             this.pix_step+"");            // int
+		properties.setProperty(prefix+"search_rad",           this.search_rad+"");          // int
+		properties.setProperty(prefix+"maybe_sum",            this.maybe_sum+"");           // double
+		properties.setProperty(prefix+"shure_sum",            this.shure_sum+"");           // double
+		properties.setProperty(prefix+"maybe_avg",            this.maybe_avg+"");           // double
+		properties.setProperty(prefix+"shure_avg",            this.shure_avg+"");           // double
 		properties.setProperty(prefix+"adjust_atr_0",         this.adjust_atr[0]+"");       // boolean
 		properties.setProperty(prefix+"adjust_atr_1",         this.adjust_atr[1]+"");       // boolean
 		properties.setProperty(prefix+"adjust_atr_2",         this.adjust_atr[2]+"");       // boolean
@@ -199,6 +261,16 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"margin")!=null)               this.margin=Integer.parseInt(properties.getProperty(prefix+"margin"));
 		if (properties.getProperty(prefix+"min_str")!=null)              this.min_str=Double.parseDouble(properties.getProperty(prefix+"min_str"));
 		if (properties.getProperty(prefix+"min_str_sum")!=null)          this.min_str_sum=Double.parseDouble(properties.getProperty(prefix+"min_str_sum"));
+		if (properties.getProperty(prefix+"min_neibs")!=null)            this.min_neibs=Integer.parseInt(properties.getProperty(prefix+"min_neibs"));
+		if (properties.getProperty(prefix+"weight_zero_neibs")!=null)    this.weight_zero_neibs=Double.parseDouble(properties.getProperty(prefix+"weight_zero_neibs"));
+		if (properties.getProperty(prefix+"half_disparity")!=null)       this.half_disparity=Double.parseDouble(properties.getProperty(prefix+"half_disparity"));
+		if (properties.getProperty(prefix+"half_avg_diff")!=null)        this.half_avg_diff=Double.parseDouble(properties.getProperty(prefix+"half_avg_diff"));
+		if (properties.getProperty(prefix+"pix_step")!=null)             this.pix_step=Integer.parseInt(properties.getProperty(prefix+"pix_step"));
+		if (properties.getProperty(prefix+"search_rad")!=null)           this.search_rad=Integer.parseInt(properties.getProperty(prefix+"search_rad"));
+		if (properties.getProperty(prefix+"maybe_sum")!=null)            this.maybe_sum=Double.parseDouble(properties.getProperty(prefix+"maybe_sum"));
+		if (properties.getProperty(prefix+"shure_sum")!=null)            this.shure_sum=Double.parseDouble(properties.getProperty(prefix+"shure_sum"));
+		if (properties.getProperty(prefix+"maybe_avg")!=null)            this.maybe_avg=Double.parseDouble(properties.getProperty(prefix+"maybe_avg"));
+		if (properties.getProperty(prefix+"shure_avg")!=null)            this.shure_avg=Double.parseDouble(properties.getProperty(prefix+"shure_avg"));
 		if (properties.getProperty(prefix+"adjust_atr_0")!=null)         this.adjust_atr[0]=Boolean.parseBoolean(properties.getProperty(prefix+"adjust_atr_0"));		
 		if (properties.getProperty(prefix+"adjust_atr_1")!=null)         this.adjust_atr[1]=Boolean.parseBoolean(properties.getProperty(prefix+"adjust_atr_1"));		
 		if (properties.getProperty(prefix+"adjust_atr_2")!=null)         this.adjust_atr[2]=Boolean.parseBoolean(properties.getProperty(prefix+"adjust_atr_2"));		
@@ -230,6 +302,16 @@ public class IntersceneMatchParameters {
 		imp.n_recenter            = this.n_recenter;
 		imp.min_str               = this.min_str;
 		imp.min_str_sum           = this.min_str_sum;
+		imp.min_neibs             = this.min_neibs;
+		imp.weight_zero_neibs     = this.weight_zero_neibs;
+		imp.half_disparity        = this.half_disparity;
+		imp.half_avg_diff         = this.half_avg_diff;
+		imp.pix_step =              this.pix_step;
+		imp.search_rad =            this.search_rad;
+		imp.maybe_sum =             this.maybe_sum;
+		imp.shure_sum =             this.shure_sum;
+		imp.maybe_avg =             this.maybe_avg;
+		imp.shure_avg =             this.shure_avg;
 		imp.adjust_atr[0]         = this.adjust_atr[0];
 		imp.adjust_atr[1]         = this.adjust_atr[1];
 		imp.adjust_atr[2]         = this.adjust_atr[2];
@@ -250,5 +332,4 @@ public class IntersceneMatchParameters {
 		imp.debug_level           = this.debug_level;
 		return imp;
 	}	
-
 }

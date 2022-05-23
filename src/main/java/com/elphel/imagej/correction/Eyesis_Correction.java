@@ -737,6 +737,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			panelClt5aux = new Panel();
 			panelClt5aux.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
 			addButton("LIST extrinsics", panelClt5aux, color_report);
+			addButton("Aux Build Series", panelClt5aux, color_stop);
 			addButton("Aux Inter Test", panelClt5aux, color_stop);
 			addButton("Aux Inter Pairs", panelClt5aux, color_process);
 			addButton("Aux Inter LMA", panelClt5aux, color_stop);
@@ -5132,6 +5133,13 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			testInterScene(false);
 			return;
 			/* ======================================================================== */
+		} else if (label.equals("Aux Build Series")) {
+			DEBUG_LEVEL = MASTER_DEBUG_LEVEL;
+			EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+			CLT_PARAMETERS.batch_run = true;
+			buildSeries(true);
+			return;
+			/* ======================================================================== */
 		} else if (label.equals("Aux Inter Test")) {
 			DEBUG_LEVEL = MASTER_DEBUG_LEVEL;
 			EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
@@ -6745,6 +6753,102 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 				+ Runtime.getRuntime().freeMemory() + " (of " + Runtime.getRuntime().totalMemory() + ")");
 		return true;
 	}
+	
+	
+	public boolean buildSeries(boolean use_aux) {
+		long startTime = System.nanoTime();
+		// load needed sensor and kernels files
+		if (!prepareRigImages())
+			return false;
+		String configPath = getSaveCongigPath();
+		if (configPath.equals("ABORT"))
+			return false;
+		setAllProperties(PROPERTIES); // batchRig may save properties with the model. Extrinsics will be updated,
+										// others should be set here
+		if (DEBUG_LEVEL > -2) {
+			System.out.println("++++++++++++++ Building series from scratch ++++++++++++++");
+		}
+		if (CLT_PARAMETERS.useGPU()) { // only init GPU instances if it is used
+			if (GPU_TILE_PROCESSOR == null) {
+				try {
+					GPU_TILE_PROCESSOR = new GPUTileProcessor(CORRECTION_PARAMETERS.tile_processor_gpu);
+				} catch (Exception e) {
+					System.out.println("Failed to initialize GPU class");
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+					return false;
+				} // final int debugLevel);
+			}
+			if (use_aux) {
+				if (CLT_PARAMETERS.useGPU(true) && (QUAD_CLT_AUX != null) && (GPU_QUAD_AUX == null)) { // if GPU AUX is
+																										// needed
+					try {
+						GPU_QUAD_AUX = new GpuQuad(//
+								GPU_TILE_PROCESSOR, QUAD_CLT_AUX, CLT_PARAMETERS.gpu_debug_level);
+					} catch (Exception e) {
+						System.out.println("Failed to initialize GpuQuad class");
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+						return false;
+					} // final int debugLevel);
+					QUAD_CLT_AUX.setGPU(GPU_QUAD_AUX);
+				}
+			} else {
+				if (CLT_PARAMETERS.useGPU(false) && (QUAD_CLT != null) && (GPU_QUAD == null)) { // if GPU main is needed
+					try {
+						GPU_QUAD = new GpuQuad(GPU_TILE_PROCESSOR, QUAD_CLT, CLT_PARAMETERS.gpu_debug_level);
+					} catch (Exception e) {
+						System.out.println("Failed to initialize GpuQuad class");
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+						return false;
+					} // final int debugLevel);
+					QUAD_CLT.setGPU(GPU_QUAD);
+				}
+			}
+
+		}
+		QuadCLT quadCLT = use_aux ? QUAD_CLT_AUX : QUAD_CLT;
+		ColorProcParameters colorProcParameters = use_aux ? COLOR_PROC_PARAMETERS_AUX : COLOR_PROC_PARAMETERS;
+		CLT_PARAMETERS.setColorProcParameters(COLOR_PROC_PARAMETERS,     false);
+		CLT_PARAMETERS.setColorProcParameters(COLOR_PROC_PARAMETERS_AUX, true);
+		CLT_PARAMETERS.setRGBParameters(RGB_PARAMETERS);
+		
+		try {
+			TWO_QUAD_CLT.buildSeriesTQ(
+					quadCLT, // QUAD_CLT, // QuadCLT quadCLT_main,
+					-1, // int  ref_index,
+					0,  // int  ref_step, 
+					// QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
+					CLT_PARAMETERS, // EyesisCorrectionParameters.DCTParameters dct_parameters,
+					DEBAYER_PARAMETERS, // EyesisCorrectionParameters.DebayerParameters debayerParameters,
+					colorProcParameters, // COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters
+											// colorProcParameters,
+					CHANNEL_GAINS_PARAMETERS, // CorrectionColorProc.ColorGainsParameters channelGainParameters,
+					RGB_PARAMETERS, // EyesisCorrectionParameters.RGBParameters rgbParameters,
+					EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters
+												// equirectangularParameters,
+					PROPERTIES, // Properties properties,
+					true, // false, // boolean reset_from_extrinsics,
+					THREADS_MAX, // final int threadsMax, // maximal number of threads to launch
+					UPDATE_STATUS, // final boolean updateStatus,
+					DEBUG_LEVEL);
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} // final int debugLevel);
+		if (configPath != null) {
+			saveTimestampedProperties( // save config again
+					configPath, // full path or null
+					null, // use as default directory if path==null
+					true, PROPERTIES);
+		}
+		System.out.println("batchRig(): Processing finished at "
+				+ IJ.d2s(0.000000001 * (System.nanoTime() - startTime), 3) + " sec, --- Free memory="
+				+ Runtime.getRuntime().freeMemory() + " (of " + Runtime.getRuntime().totalMemory() + ")");
+		return true;
+	}
+	
 
 	public boolean testInterLMA(boolean use_aux) {
 		long startTime = System.nanoTime();
@@ -7791,12 +7895,14 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			System.out.println("++++++++++++++ Copying JP4 source files ++++++++++++++");
 		}
 		try {
-			TWO_QUAD_CLT.copyJP4src( // actually there is no sense to process multiple image sets. Combine with other
+			TwoQuadCLT.copyJP4src( // actually there is no sense to process multiple image sets. Combine with other
 										// processing?
 					null, // String set_name
 					QUAD_CLT, // QuadCLT quadCLT_main,
 					QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
 					CLT_PARAMETERS, // EyesisCorrectionParameters.DCTParameters dct_parameters,
+					true, // boolean                                  skip_existing,
+					true, // boolean                                  search_KML,
 					DEBUG_LEVEL);
 		} catch (Exception e) {
 			// TODO Auto-generated catch block

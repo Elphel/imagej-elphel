@@ -67,6 +67,7 @@ import com.elphel.imagej.correction.EyesisCorrections;
 import com.elphel.imagej.gpu.GpuQuad;
 import com.elphel.imagej.gpu.TpTask;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
+import com.elphel.imagej.readers.ImagejJp4Tiff;
 import com.elphel.imagej.tileprocessor.CorrVector;
 import com.elphel.imagej.tileprocessor.QuadCLTCPU.SetChannels;
 import com.elphel.imagej.x3d.export.WavefrontExport;
@@ -83,6 +84,7 @@ import ij.io.FileSaver;
 import ij.process.ColorProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
+import loci.formats.FormatException;
 
 
 public class QuadCLTCPU {
@@ -708,6 +710,80 @@ public class QuadCLTCPU {
 //		showDSIMain();
 		return this; //  can only be QuadCLT instance
 	}
+	
+	public QuadCLTCPU restoreNoModel(
+			CLTParameters        clt_parameters,
+			ColorProcParameters  colorProcParameters,
+			NoiseParameters	     noise_sigma_level,
+			int                  noise_variant, // <0 - no-variants, compatible with old code
+			QuadCLTCPU           ref_scene, // may be null if scale_fpn <= 0
+			int                  threadsMax,
+			int                  debugLevel)
+
+	{
+		final int        debugLevelInner=clt_parameters.batch_run? -2: debugLevel;
+		String jp4_copy_path= correctionsParameters.selectX3dDirectory(
+				this.image_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+				correctionsParameters.jp4SubDir,
+				true,  // smart,
+				true);  //newAllowed, // save
+		String [] sourceFiles = correctionsParameters.selectSourceFileInSet(jp4_copy_path, debugLevel);
+		SetChannels [] set_channels=setChannels(
+				null, // single set name
+				sourceFiles,
+				debugLevel);
+		// sets set name to jp4, overwrite
+		set_channels[0].set_name = this.image_name; // set_name;
+		double [] referenceExposures = null;
+		if (!isLwir()) { // colorProcParameters.lwir_islwir) {
+			referenceExposures = eyesisCorrections.calcReferenceExposures(sourceFiles, debugLevel);
+		}
+		int [] channelFiles = set_channels[0].fileNumber();		
+		boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
+		double []    scaleExposures = new double[channelFiles.length];
+//		ImagePlus [] imp_srcs = 
+		conditionImageSet(
+				clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+				colorProcParameters,            //  ColorProcParameters                       colorProcParameters, //
+				sourceFiles,                    // String []                                 sourceFiles,
+				this.image_name,                       // String                                    set_name,
+				referenceExposures,             // double []                                 referenceExposures,
+				channelFiles,                   // int []                                    channelFiles,
+				scaleExposures,                 // output  // double [] scaleExposures
+				saturation_imp,                 // output  // boolean [][]                              saturation_imp,
+				threadsMax,                     // int                                       threadsMax,
+				debugLevelInner);               // int                                       debugLevel);
+		if (noise_sigma_level != null) {
+			generateAddNoise(
+					"-NOISE",
+					ref_scene, // final QuadCLTCPU ref_scene, // may be null if scale_fpn <= 0
+					noise_sigma_level,
+					noise_variant, //final int       noise_variant, // <0 - no-variants, compatible with old code
+					threadsMax,
+					1); // debugLevel); // final int       debug_level)
+		}
+		/*
+		// try to restore DSI generated from interscene if available, if not use single-scene -DSI_MAIN
+		if (restoreDSI(
+				"-DSI_INTER",
+				true // silent
+				) < 0) { 
+			restoreDSI(
+					"-DSI_MAIN",  // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
+					false); // silent
+		}
+		restoreInterProperties( // restore properties for interscene processing (extrinsics, ers, ...) // get relative poses (98)
+				null, // String path,             // full name with extension or null to use x3d directory
+				false, // boolean all_properties,//				null, // Properties properties,   // if null - will only save extrinsics)
+				debugLevel);
+//		showDSIMain();
+       */
+ 		return this; //  can only be QuadCLT instance
+	}
+	
+	
+	
+	
 	
 	// generate and save noise file (each Bayer component amplitude same as the corresponding image average,
 	// apply gaussian blur with sigma (before Bayer scaling)
@@ -8053,8 +8129,8 @@ public class QuadCLTCPU {
 
 // need to replace for low-res?
 				  preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
-						  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
-						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
+//						  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+//						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						  clt_parameters,
 						  debayerParameters,
 						  colorProcParameters,
@@ -8352,8 +8428,8 @@ public class QuadCLTCPU {
 	}
 
 	  public boolean preExpandCLTQuad3d( // USED in lwir
-			  ImagePlus []                                     imp_quad, // should have properties "name"(base for saving results), "channel","path"
-			  boolean [][]                                     saturation_imp,   // (near) saturated pixels or null
+//			  ImagePlus []                                     imp_quad, // should have properties "name"(base for saving results), "channel","path"
+//			  boolean [][]                                     saturation_imp,   // (near) saturated pixels or null
 			  CLTParameters                                    clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 			  ColorProcParameters                              colorProcParameters,
@@ -8368,7 +8444,8 @@ public class QuadCLTCPU {
 		  final boolean    show_init_refine = clt_parameters.show_init_refine; // change to true?
 
 		  //max_expand
-		  String name = (String) imp_quad[0].getProperty("name");
+//		  String name = (String) imp_quad[0].getProperty("name");
+		  String name = getImageName();
 		  // should create data for the macro! (diff, rgb) make sure .texture_tiles is measured correctly
 		  CLTPass3d bgnd_data = CLTBackgroundMeas( // measure background - both CPU and GPU (remove textures from GPU)
 				  clt_parameters,
@@ -11490,7 +11567,7 @@ public class QuadCLTCPU {
 		  }
 
 		  // Save KML and ratings files if they do not exist (so not to overwrite edited ones), make them world-writable
-		  writeKml        (debugLevel);
+		  writeKml        (null, debugLevel);
 		  writeRatingFile (debugLevel);
 
 
@@ -13828,8 +13905,8 @@ public class QuadCLTCPU {
 			  if (correctionsParameters.clt_batch_extrinsic) {
 				  if (tp != null) tp.resetCLTPasses();
 				  boolean ok = preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
-						  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
-						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
+//						  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+//						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						  clt_parameters,
 						  debayerParameters,
 						  colorProcParameters,
@@ -13852,8 +13929,8 @@ public class QuadCLTCPU {
 			  if (correctionsParameters.clt_batch_poly) {
 				  if (tp != null) tp.resetCLTPasses();
 				  boolean ok = preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
-						  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
-						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
+//						  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+//						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						  clt_parameters,
 						  debayerParameters,
 						  colorProcParameters,
@@ -13893,8 +13970,8 @@ public class QuadCLTCPU {
 			  if (correctionsParameters.clt_batch_explore) {
 				  if (tp != null) tp.resetCLTPasses();
 				  boolean ok = preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
-						  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
-						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
+//						  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+//						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						  clt_parameters,
 						  debayerParameters,
 						  colorProcParameters,
@@ -13976,6 +14053,7 @@ public class QuadCLTCPU {
 	  public boolean setGpsLla( // USED in lwir
 			  String source_file)
 	  {
+		  /*
 		  ImagePlus imp=(new JP46_Reader_camera(false)).open(
 				  "", // path,
 				  source_file,
@@ -13983,23 +14061,38 @@ public class QuadCLTCPU {
 				  true, // un-apply camera color gains
 				  null, // new window
 				  false); // do not show
+		   */
+		  ImagePlus imp=null;
+		  try {
+			  imp = (new ImagejJp4Tiff()).readTiffJp4(
+					  source_file,
+					  true);
+		  } catch (IOException | FormatException e) {
+			  // TODO Auto-generated catch block
+			  e.printStackTrace();
+		  } // scale);
+
 		  if (imp.getProperty("LATITUDE") != null){
 			  gps_lla = new double[3];
 			  for (int i = 0; i < 3; i++) {
 				  gps_lla[i] = Double.NaN;
 			  }
-				if (imp.getProperty("LATITUDE")  != null) gps_lla[0] =Double.parseDouble((String) imp.getProperty("LATITUDE"));
-				if (imp.getProperty("LONGITUDE") != null) gps_lla[1] =Double.parseDouble((String) imp.getProperty("LONGITUDE"));
-				if (imp.getProperty("ALTITUDE")  != null) gps_lla[2] =Double.parseDouble((String) imp.getProperty("ALTITUDE"));
-				return true;
+			  if (imp.getProperty("LATITUDE")  != null) gps_lla[0] =Double.parseDouble((String) imp.getProperty("LATITUDE"));
+			  if (imp.getProperty("LONGITUDE") != null) gps_lla[1] =Double.parseDouble((String) imp.getProperty("LONGITUDE"));
+			  if (imp.getProperty("ALTITUDE")  != null) gps_lla[2] =Double.parseDouble((String) imp.getProperty("ALTITUDE"));
+			  return true;
 		  }
 		  return false; // not used in lwir
 	  }
 
 
 	  public boolean writeKml( // USED in lwir
+			  String image_name,
 			  int debugLevel )
 	  {
+		  if (image_name == null) {
+			  image_name = this.image_name;
+		  }
 		  String [] sourceFiles_main=correctionsParameters.getSourcePaths();
 		  SetChannels [] set_channels = setChannels(image_name,debugLevel); // only for specified image timestamp
 
@@ -14010,6 +14103,7 @@ public class QuadCLTCPU {
 			  }
 		  }
 		  for (String fname:path_list) {
+			  System.out.println("writeKml(): "+fname);
 			  if (setGpsLla(fname)) {
 				  break;
 			  }

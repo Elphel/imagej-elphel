@@ -389,7 +389,7 @@ public class IntersceneLma {
 		Matrix wjtjlambda = new Matrix(getWJtJlambda(
 				lambda, // *10, // temporary
 				this.last_jt)); // double [][] jt)
-		if (debug_level > 1) {
+		if (debug_level > 2) {
 			try {
 				System.out.println("getFxDerivs(): getChecksum(this.y_vector)="+      getChecksum(this.y_vector));
 				System.out.println("getFxDerivs(): getChecksum(this.weights)="+       getChecksum(this.weights));
@@ -427,7 +427,7 @@ public class IntersceneLma {
 			System.out.println("Jt * (y-fx)");
 			jty.print(18, 6);
 		}
-		if (debug_level > 1) {
+		if (debug_level > 2) {
 			try {
 				System.out.println("getFxDerivs(): getChecksum(jtjl_inv)="+getChecksum(jtjl_inv));
 				System.out.println("getFxDerivs(): getChecksum(jty)=     "+getChecksum(jty));
@@ -451,7 +451,7 @@ public class IntersceneLma {
 		for (int i = 0; i < parameters_vector.length; i++) {
 			new_vector[i] += scale * delta[i];
 		}
-		if (debug_level > 1) {
+		if (debug_level > 2) {
 			try {
 				System.out.println("getFxDerivs(): getChecksum(mdelta)=            "+getChecksum(mdelta));
 				System.out.println("getFxDerivs(): getChecksum(delta)=             "+getChecksum(delta));
@@ -793,7 +793,7 @@ public class IntersceneLma {
 			fx [i + 2 * macrotile_centers.length] = vector[i]; // - parameters_initial[i]; // scale will be combined with weights
 			jt[i][i + 2 * macrotile_centers.length] = 1.0; // scale will be combined with weights
 		}
-		if (debug_level > 1) {
+		if (debug_level > 2) {
 			try {
 				System.out.println    ("getFxDerivs(): getChecksum(fx)="+getChecksum(fx));
 				if (jt != null) {

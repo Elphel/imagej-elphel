@@ -328,6 +328,7 @@ public class JP46_Reader_camera implements PlugIn, ActionListener {
 			imp = openJpegOrGif(directory, fileName);
 			if (imp == null) {
 				IJ.showMessage("JP46 Reader Error", "Could not open "+directory+"" + fileName + " as JPEG/JP46");
+				System.out.println("JP46 Reader Error: Could not open "+directory+"" + fileName + " as JPEG/JP46");
 			} else {
 				if ((imp_src==null)&& showImage) imp.show(); /* Shows before re-ordering*/
 				ElphelMakerNote = readElphelMakerNote(directory, fileName, 16,xtraExif); /* after or 8.2.2 */

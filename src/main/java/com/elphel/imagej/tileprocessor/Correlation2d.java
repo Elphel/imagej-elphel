@@ -2438,9 +2438,11 @@ public class Correlation2d {
 				for (int ix = 0; ix < data_width; ix++) {
 					double x = ix - x0;
 					double d =  data[iy * data_width + ix];
-					s0 += d;
-					sx += d * x;
-					sy += d * y;
+					if (d > 0) { // ignore negative
+						s0 += d;
+						sx += d * x;
+						sy += d * y;
+					}
 				}
 			}
 			x0 += sx / s0;
@@ -2457,10 +2459,12 @@ public class Correlation2d {
 						if (r2 < radius2) {
 							double r = Math.sqrt(r2);	
 							double d =  data[iy * data_width + ix];
-							d *=  Math.cos(0.5*Math.PI*r/radius);
-							s0 += d;
-							sx += d * x;
-							sy += d * y;
+							if (d > 0) { // ignore negative
+								d *=  Math.cos(0.5*Math.PI*r/radius);
+								s0 += d;
+								sx += d * x;
+								sy += d * y;
+							}
 						}
 					}
 				}
