@@ -122,6 +122,167 @@ public class QuadCLT extends QuadCLTCPU {
 		}
 	}
 	
+
+	public static double [] removeDisparityLMAOutliers( // just LMA FG
+			final boolean     non_lma,
+			final double [][] dls,
+			final double      max_strength,  // do not touch stronger
+			final int         nth_fromextrem, // 0 - compare to max/min. 1 - second max/min, ... 
+			final double      tolerance_absolute,
+			final double      tolerance_relative,
+			final int         width,
+			final int         max_iter,
+			final int         threadsMax,
+			final int         debug_level)
+	{
+		final int tiles = dls[0].length;
+		final double [] disparity =     dls[0].clone();
+		final double [] disparity_out = dls[0].clone();
+		final double [] disparity_lma = dls[1].clone();
+		final double [] strength =      dls[2]; // will not be updated
+		final TileNeibs tn =  new TileNeibs(width, tiles/width);
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final AtomicInteger anum_updated = new AtomicInteger(0);
+		final int dbg_tile = 989;
+		for (int iter = 0; iter < max_iter; iter++) {
+			ai.set(0);
+			anum_updated.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						double [] neibs = new double[8];
+						for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) {
+							if ((debug_level >0) && (nTile == dbg_tile)) {
+								System.out.println("removeDisparityOutliers() nTile="+nTile);
+							}
+							if (    !Double.isNaN(disparity[nTile]) &&
+									(!Double.isNaN(disparity_lma[nTile]) ^ non_lma) &&
+									(strength[nTile] < max_strength)) { // weak LMA
+								Arrays.fill(neibs, Double.NaN);
+								for (int dir = 0; dir < 8; dir++) {
+									int ineib = tn.getNeibIndex(nTile, dir);
+									if (ineib >= 0) {
+										neibs[dir] = non_lma ? disparity[ineib] : disparity_lma[ineib];
+										if (Double.isNaN(disparity[ineib])) {
+											neibs[dir] =Double.NaN;
+										}
+									}
+								}
+								Arrays.sort(neibs); // increasing, NaNs - in the end
+								int num_defined = neibs.length;
+								for (int i = 0; i < neibs.length; i++) {
+									if (Double.isNaN(neibs[i])) {
+										num_defined = i;
+										break;
+									}
+								}
+								if (num_defined > 0) {
+									int nth_min = nth_fromextrem;
+									if (nth_min >= num_defined) {
+										nth_min = num_defined - 1;
+									}
+									int nth_max = num_defined - 1 - nth_min;
+									double d_max = neibs[nth_max] + tolerance_absolute + neibs[nth_max]*tolerance_relative;
+									if ((non_lma ? disparity[nTile] : disparity_lma[nTile]) > d_max) {
+										disparity_out[nTile] = Double.NaN;
+									}
+									if (disparity_out[nTile] != disparity[nTile]) {
+										anum_updated.getAndIncrement();
+									}
+								}
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			if (anum_updated.get() ==0) {
+				break;
+			}
+			System.arraycopy(disparity_out,0,disparity,0,tiles);
+		}
+		return disparity_out;
+	}
+	
+	/**
+	 * Remove no-LMA tiles if they do not have a close neighbors that have LMA
+	 * result. As an option - do not touch tiles that do not have LMA neighbors
+	 * @param dls disparity, lma-disparity, strength (disparity and LMA disparity
+	 *            have the same values, just some of LMA have NaN. 
+	 * @param max_strength Do not touch tiles stronger than that
+	 * @param diff_from_lma_pos Difference from farthest FG objects (OK to have large, e.g. 100)
+	 * @param diff_from_lma_neg diff_from_lma_neg Difference from nearest BG objects (small, as FG are usually more visible)
+	 * @param remove_no_lma_neib remove tiles that do not have LMA neighbors
+	 * @param width       DSI width
+	 * @param threadsMax
+	 * @param debug_level
+	 * @return new disparity array, removed tiles are Double.NaN
+	 */
+	public static double [] removeDisparityOutliersByLMA(
+			final double [][] dls,
+			final double      max_strength,  // do not touch stronger
+			final double      diff_from_lma_pos,   // Difference from farthest FG objects (OK to have large, e.g. 100)
+			final double      diff_from_lma_neg,   // Difference from nearest BG objects (small, as FG are usually more visible)
+			final boolean     remove_no_lma_neib,  // remove without LMA neighbors
+			final int         width,               //tilesX
+			final int         threadsMax,
+			final int         debug_level)
+	{
+		final int tiles = dls[0].length;
+		final double [] disparity =     dls[0].clone();
+		final double [] disparity_out = dls[0].clone();
+		final double [] disparity_lma = dls[1].clone();
+		final double [] strength =      dls[2]; // will not be updated
+		final TileNeibs tn =  new TileNeibs(width, tiles/width);
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final AtomicInteger anum_updated = new AtomicInteger(0);
+		final int dbg_tile = 1066;
+		anum_updated.set(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) {
+						if ((debug_level >0) && (nTile == dbg_tile)) {
+							System.out.println("removeDisparityOutliers() nTile="+nTile);
+						}
+						if (Double.isNaN(disparity_lma[nTile]) && !Double.isNaN(disparity[nTile]) && (strength[nTile] < max_strength)) {
+							double best_fit_pos = Double.NaN; // Closest higher disparity than this
+							double best_fit_neg = Double.NaN; // Closest lower disparity than this
+							for (int dir = 0; dir < 8; dir++) {
+								int ineib = tn.getNeibIndex(nTile, dir);
+								if (    (ineib >= 0) &&
+										!Double.isNaN(disparity_lma[ineib]) &&
+										!Double.isNaN(disparity[ineib])) {
+									double d = disparity[nTile] - disparity_lma[ineib];
+									if (d > 0) {
+										if (!(d >= best_fit_neg)) {
+											best_fit_neg = d;
+										}
+									} else {
+										if (!(-d >= best_fit_pos)) {
+											best_fit_neg = -d;
+										}
+									}
+								}
+							}
+							if (    (best_fit_neg > diff_from_lma_neg) ||
+									(best_fit_pos > diff_from_lma_pos) ||
+									(Double.isNaN(best_fit_pos) && Double.isNaN(best_fit_neg) && remove_no_lma_neib)) {
+								disparity_out[nTile] = Double.NaN;
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return disparity_out;
+	}
+	
+	
+	
 	public static double [] removeDisparityOutliers(
 			final double [][] ds0,
 			final double      max_strength,  // do not touch stronger
@@ -199,8 +360,8 @@ public class QuadCLT extends QuadCLTCPU {
 			System.arraycopy(disparity_out,0,disparity,0,tiles);
 		}
 		return disparity_out;
-		
 	}
+	
 	public static double [][] fillDisparityStrength(
 			final double [][] ds0,
 			final double      min_disparity,
@@ -1869,12 +2030,74 @@ public class QuadCLT extends QuadCLTCPU {
 				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	}
 	
+	public static ImagePlus renderGPUFromDSI(
+			CLTParameters     clt_parameters,
+			double []         disparity_ref,
+			final double []   scene_xyz, // camera center in world coordinates
+			final double []   scene_atr, // camera orientation relative to world frame
+			final QuadCLT     scene,
+			String            suffix,
+			int               threadsMax,
+			final int         debugLevel){
+		 double [][] pXpYD =OpticalFlow.transformToScenePxPyD(
+				disparity_ref, // final double []   disparity_ref, // invalid tiles - NaN in disparity
+				scene_xyz,     // final double []   scene_xyz, // camera center in world coordinates
+				scene_atr,     // final double []   scene_atr, // camera orientation relative to world frame
+				scene, // final QuadCLT     scene_QuadClt,
+				scene, // final QuadCLT     reference_QuadClt, // now - may be null - for testing if scene is rotated ref
+				threadsMax);   // int               threadsMax)
+	    TpTask[] tp_tasks_ref =  GpuQuad.setInterTasks(
+	    		scene.getNumSensors(),
+	    		scene.getErsCorrection().getSensorWH()[0],
+	            !scene.hasGPU(),              // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
+	            pXpYD,                        // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+	            null,                         // final boolean []          selection, // may be null, if not null do not  process unselected tiles
+	            scene.getErsCorrection(), // final GeometryCorrection  geometryCorrection,
+	            0.0,                          // final double              disparity_corr,
+	            0, // margin,                 // final int                 margin,      // do not use tiles if their centers are closer to the edges
+	            null,                         // final boolean []          valid_tiles,            
+	            threadsMax);                  // final int                 threadsMax)  // maximal number of threads to launch
+	    scene.saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry
+	    ImageDtt image_dtt = new ImageDtt(
+	    		scene.getNumSensors(),
+	    		clt_parameters.transform_size,
+	    		clt_parameters.img_dtt,
+	    		scene.isAux(),
+	    		scene.isMonochrome(),
+	    		scene.isLwir(),
+	    		clt_parameters.getScaleStrength(scene.isAux()),
+	    		scene.getGPU());
+	    boolean use_reference = false;
+	    boolean toRGB =         true; // does not work here, define in ColorProcParameters
+	    image_dtt.setReferenceTD( // change to main?
+	            clt_parameters.img_dtt,     // final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
+	            use_reference, // true, // final boolean             use_reference_buffer,
+	            tp_tasks_ref,               // final TpTask[]            tp_tasks,
+	            clt_parameters.gpu_sigma_r, // final double              gpu_sigma_r,     // 0.9, 1.1
+	            clt_parameters.gpu_sigma_b, // final double              gpu_sigma_b,     // 0.9, 1.1
+	            clt_parameters.gpu_sigma_g, // final double              gpu_sigma_g,     // 0.6, 0.7
+	            clt_parameters.gpu_sigma_m, // final double              gpu_sigma_m,     //  =       0.4; // 0.7;
+	            threadsMax,                 // final int                 threadsMax,       // maximal number of threads to launch
+	            debugLevel);                // final int                 globalDebugLevel);
+        ImagePlus imp_render = scene.renderFromTD (
+                clt_parameters,                                 // CLTParameters clt_parameters,
+                clt_parameters.getColorProcParameters(scene.isAux()), //ColorProcParameters colorProcParameters,
+                clt_parameters.getRGBParameters(),              //EyesisCorrectionParameters.RGBParameters rgbParameters,
+                toRGB, // boolean toRGB,
+                use_reference, //boolean use_reference
+                suffix); // String  suffix)
+		return imp_render;
+	}
+	
+	
+	
 	public ImagePlus renderFromTD (
 			CLTParameters clt_parameters,
 			ColorProcParameters colorProcParameters,
 			EyesisCorrectionParameters.RGBParameters rgbParameters,
 			boolean toRGB,
-			boolean use_reference
+			boolean use_reference,
+			String  suffix
 			) {
         gpuQuad.execImcltRbgAll(isMonochrome(), use_reference); // add ref
 		// get data back from GPU
@@ -1946,7 +2169,7 @@ public class QuadCLT extends QuadCLTCPU {
 			///					array_stack.addSlice("port_"+slice_seq[i], results[slice_seq[i]].getProcessor().getPixels());
 			///				}
 		}
-		ImagePlus imp_stack = new ImagePlus(image_name+sAux()+"GPU-SHIFTED-D"+clt_parameters.disparity, array_stack);
+		ImagePlus imp_stack = new ImagePlus(image_name+sAux()+suffix, array_stack);
 		imp_stack.getProcessor().resetMinAndMax();
 		return imp_stack;
 	}

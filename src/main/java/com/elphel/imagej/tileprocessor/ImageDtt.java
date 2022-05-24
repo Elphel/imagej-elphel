@@ -1163,6 +1163,7 @@ public class ImageDtt extends ImageDttCPU {
 	 * Convert reference scene to FD and save result in extra GPU array for the future interscene correlation
 	 * Geometry correction and images will come from gpuQuad instance - 
 	 * @param imgdtt_params
+	 * @param use_reference_buffer true - use extra GPU array, false - use main one
 	 * @param tp_tasks
 	 * @param gpu_sigma_r
 	 * @param gpu_sigma_b
@@ -1173,6 +1174,7 @@ public class ImageDtt extends ImageDttCPU {
 	 */
 	public void setReferenceTD(
 			final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
+			final boolean             use_reference_buffer,
 			final TpTask[]            tp_tasks,
 			final double              gpu_sigma_r,     // 0.9, 1.1
 			final double              gpu_sigma_b,     // 0.9, 1.1
@@ -1201,7 +1203,7 @@ public class ImageDtt extends ImageDttCPU {
 				tp_tasks,
 				false); // boolean use_aux    // while is it in class member? - just to be able to free
 		// Skipping if ((fdisp_dist != null) || (fpxpy != null)) {...
-		gpuQuad.execConvertDirect(true); // put results into a "reference" buffer
+		gpuQuad.execConvertDirect(use_reference_buffer); // put results into a "reference" buffer
 	}
 
 

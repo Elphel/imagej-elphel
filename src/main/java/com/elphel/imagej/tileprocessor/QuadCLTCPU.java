@@ -158,6 +158,18 @@ public class QuadCLTCPU {
     public double [][]                                     ds_from_main = null;
     public double [][]                                     dsrbg = null; // D, S, R,B,G
     
+    public double [][] getDLS(){ // get disparity, disparity_lma, strength
+    	if (dsi == null) {
+//    		System.out.println("dsi== null, use spawnQuadCLT(), restoreFromModel(), ... to set it");
+    		return null;
+    	}
+    	double [][] dls = new double[3][];
+    	dls[0] = dsi[isAux()? TwoQuadCLT.DSI_DISPARITY_AUX :     TwoQuadCLT.DSI_DISPARITY_MAIN];
+    	dls[1] = dsi[isAux()? TwoQuadCLT.DSI_DISPARITY_AUX_LMA : TwoQuadCLT.DSI_DISPARITY_MAIN_LMA];
+    	dls[2] = dsi[isAux()? TwoQuadCLT.DSI_STRENGTH_AUX :      TwoQuadCLT.DSI_STRENGTH_MAIN];
+    	return dls;
+    }
+    
     public TileProcessor getTileProcessor() {
     	return tp;
     }
@@ -502,8 +514,6 @@ public class QuadCLTCPU {
     }
     public String [] getDSRGGTitles() {
 		return isMonochrome()?
-//				(new String[]{"disparity","strength", "disparity_lma","Y"}):
-//					(new String[]{"disparity","strength", "disparity_lma","R","B","G"});
 		(new String[]{"disparity","strength", "Y"}):
 			(new String[]{"disparity","strength", "R","B","G"});
     }
@@ -643,7 +653,7 @@ public class QuadCLTCPU {
 		return rgba;
 	}
 	
-	public QuadCLTCPU restoreFromModel(
+	public QuadCLTCPU restoreFromModel( // restores dsi
 			CLTParameters        clt_parameters,
 			ColorProcParameters  colorProcParameters,
 			NoiseParameters	     noise_sigma_level,
