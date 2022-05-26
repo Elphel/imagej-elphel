@@ -11311,7 +11311,7 @@ if (debugLevel > -100) return true; // temporarily !
 		
 //		QuadCLT last_scene = quadCLTs[last_scene_index];
 		QuadCLT ref_scene = quadCLTs[ref_scene_index];
-		String composite_suffix =    "-INTER-INTRA-LMA";
+		String composite_suffix =    "-INTER-INTRA-LMA"; // is already read if available!
 		String num_corr_max_suffix = "-NUM-CORR-MAX";
 		int [] wh = new int[2];
 		double [][] composite_ds = ref_scene.readDoubleArrayFromModelDirectory(
@@ -11337,7 +11337,7 @@ if (debugLevel > -100) return true; // temporarily !
 		//		int []     num_tiles =    new int [clusters]; // may be null;; // null;
 		//		boolean [] inf_cluster  = new boolean [clusters]; // null;		
 
-		boolean       debug      = debugLevel > -2; 
+		boolean       debug      = debugLevel > -3; 
 
 		if (proc_infinity) {
 			double [] inf_avg = new double[1];
@@ -11666,6 +11666,8 @@ if (debugLevel > -100) return true; // temporarily !
 			final boolean    updateStatus,
 			final int        debugLevel)  throws Exception
 	{
+		
+		
 		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
 			quadCLT_main.setQuadClt(); // ignore previous result,
 		}
@@ -11673,6 +11675,7 @@ if (debugLevel > -100) return true; // temporarily !
 			quadCLT_aux.setQuadClt();
 		}
 
+		//quadCLT_main.correctionsParameters.rig_batch_adjust_main_gt
 		
 		// final boolean    batch_mode = clt_parameters.batch_run;
 		// Reset dsi data (only 2 slices will be used)
@@ -11684,8 +11687,22 @@ if (debugLevel > -100) return true; // temporarily !
 		this.startTime=System.nanoTime();
 		
 		String [] sourceFiles=quadCLT_main.correctionsParameters.getSourcePaths();
-		QuadCLT.SetChannels [] set_channels_main = quadCLT_main.setChannels(debugLevel);
-		QuadCLT.SetChannels [] set_channels_aux =  quadCLT_aux.setChannels(debugLevel);
+		boolean process_main_sources = false;
+		boolean process_aux_sources = false;
+		// TODO: clean up - are there duplicates
+		if (quadCLT_main != null) {
+			process_main_sources |= quadCLT_main.correctionsParameters.process_main_sources;
+			process_aux_sources |=  quadCLT_main.correctionsParameters.process_aux_sources;
+		}
+		if (quadCLT_aux != null) {
+			process_aux_sources |= quadCLT_aux.correctionsParameters.process_main_sources;
+			process_aux_sources |= quadCLT_aux.correctionsParameters.process_aux_sources;
+		}
+		
+		//quadCLT_main.correctionsParameters.rig_batch_adjust_main_gt
+		
+		QuadCLT.SetChannels [] set_channels_main = process_main_sources? quadCLT_main.setChannels(debugLevel):null;
+		QuadCLT.SetChannels [] set_channels_aux =  process_aux_sources?  quadCLT_aux.setChannels(debugLevel):null;
 		QuadCLT.SetChannels [] set_channels = set_channels_main;
 		if ((set_channels == null) || ((set_channels_aux != null) && (set_channels_aux.length > set_channels.length))) {
 			set_channels = set_channels_aux;

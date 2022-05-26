@@ -238,7 +238,7 @@ public class QuadCLT extends QuadCLTCPU {
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final AtomicInteger anum_updated = new AtomicInteger(0);
-		final int dbg_tile = 1066;
+		final int dbg_tile = 1235;
 		anum_updated.set(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
@@ -5847,7 +5847,7 @@ if (debugLevel < -100) {
 		{
 			QuadCLT quadCLT = new QuadCLT(this, set_name); //null
 			
-			quadCLT.restoreNoModel(
+			return (QuadCLT) quadCLT.restoreNoModel(
 					clt_parameters,
 					colorProcParameters,
 					null,                 // double []    noise_sigma_level,
@@ -5855,8 +5855,7 @@ if (debugLevel < -100) {
 					null,                 // final QuadCLTCPU     ref_scene, // may be null if scale_fpn <= 0
 					threadsMax,
 					debugLevel);
-			
-			return quadCLT;
+//			return quadCLT;
 		}
 
 	  

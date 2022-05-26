@@ -2664,6 +2664,54 @@ public class OpticalFlow {
 		}
 		return disparity_strength;
 	}
+
+	/**
+	 * Transform disparity to world XYZ to test distance in meters
+	 * @param disparity_ref [tilesX * tilesY] per-tile disparity
+	 * @param quadClt       scene
+	 * @param threadsMax    
+	 * @return per tile array (with possible nulls) of X,Y,Z triplets in meters (left, up, negative distance)
+	 */
+	public static double [][] transformToWorldXYZ(
+			final double []   disparity_ref, // invalid tiles - NaN in disparity
+			final QuadCLT     quadClt, // now - may be null - for testing if scene is rotated ref
+			int               threadsMax)
+	{
+		TileProcessor tp = quadClt.getTileProcessor();
+		final int tilesX = tp.getTilesX();
+		final int tilesY = tp.getTilesY();
+		final int tiles = tilesX*tilesY;
+		final int transform_size = tp.getTileSize();
+		final double [][] world_xyz=           new double [tiles][];
+		final ErsCorrection ersCorrection = quadClt.getErsCorrection();
+		ersCorrection.setupERS();
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) if (!Double.isNaN(disparity_ref[nTile])) {
+						double disparity = disparity_ref[nTile];
+						int tileY = nTile / tilesX;  
+						int tileX = nTile % tilesX;
+						double centerX = tileX * transform_size + transform_size/2; //  - shiftX;
+						double centerY = tileY * transform_size + transform_size/2; //  - shiftY;
+						world_xyz[nTile] = ersCorrection.getWorldCoordinatesERS( // ersCorrection - reference
+								centerX,        // double px,                // pixel coordinate X in the reference view
+								centerY,        // double py,                // pixel coordinate Y in the reference view
+								disparity,      // double disparity,         // reference disparity 
+								true,           // boolean distortedView,    // This camera view is distorted (diff.rect), false - rectilinear
+								ZERO3,          // double [] reference_xyz,  // this view position in world coordinates (typically ZERO3)
+								ZERO3);         // double [] reference_atr,  // this view orientation relative to world frame  (typically ZERO3)
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return world_xyz;
+	}
+	
+	
 	
 	public double [][] transformToScenePxPyD(
 			final double []   disparity_ref, // invalid tiles - NaN in disparity
@@ -3789,7 +3837,7 @@ public class OpticalFlow {
 			QuadCLT                                              quadCLT_main, // tiles should be set
 			int                                                  ref_index, // -1 - last
 			int                                                  ref_step, 
-			CLTParameters             clt_parameters,
+			CLTParameters                                        clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
 			ColorProcParameters                                  colorProcParameters,
 			CorrectionColorProc.ColorGainsParameters             channelGainParameters,
@@ -3801,11 +3849,18 @@ public class OpticalFlow {
 			final boolean    updateStatus,
 			final int        debugLevel)  throws Exception
     {
-    	boolean build_ref_dsi =      false; // true;
-    	boolean build_orientations = false;
-    	boolean build_interscene =   false; // true;
-    	boolean export_images =      true; // 16-slice images (same disparity, COMBO_DSN_INDX_DISP_FG and COMBO_DSN_INDX_DISP_BG_ALL,
-    	boolean show_images =        true;
+    	boolean build_ref_dsi =      clt_parameters.imp.force_ref_dsi;
+    	boolean build_orientations = clt_parameters.imp.force_orientations ;
+    	boolean build_interscene =   clt_parameters.imp.force_interscene;
+    	boolean export_images =      clt_parameters.imp.export_images;
+    	boolean export_dsi_image =   clt_parameters.imp.show_ranges;
+    	boolean show_images =        clt_parameters.imp.show_images;
+
+		double  range_disparity_offset = clt_parameters.imp.range_disparity_offset ; //   -0.08;
+		double  range_min_strength =     clt_parameters.imp.range_min_strength ; // 0.5;
+		double  range_max =              clt_parameters.imp.range_max ; //  5000.0;
+		
+    	
 		final int        debugLevelInner=clt_parameters.batch_run? -2: debugLevel; // copied from TQ
     	
 		if ((quadCLT_main != null) && (quadCLT_main.getGPU() != null)) {
@@ -3822,11 +3877,27 @@ public class OpticalFlow {
 		}
 		QuadCLT.SetChannels [] set_channels=quadCLT_main.setChannels(debugLevel);
 		QuadCLT [] quadCLTs = new QuadCLT [set_channels.length];
-		if (ref_index <0) {
+		if (ref_index < 0) {
 			ref_index += quadCLTs.length; 
 		}
 		double [][][] scenes_xyzatr = new double [quadCLTs.length][][]; // previous scene relative to the next one
 		scenes_xyzatr[ref_index] = new double[2][3]; // all zeros
+		// See if build_ref_dsi is needed
+		if (!build_ref_dsi) {
+			quadCLTs[ref_index] = (QuadCLT) quadCLT_main.spawnNoModelQuadCLT( // will conditionImageSet
+					set_channels[ref_index].set_name,
+					clt_parameters,
+					colorProcParameters, //
+					threadsMax,
+					debugLevel-2);
+			if ((quadCLTs[ref_index] == null) || !quadCLTs[ref_index].dsiExists()) {
+				if (debugLevel >-2) {
+					System.out.println("DSI data for scene "+set_channels[ref_index].set_name+" does not exist, forcing its calculation.");
+				}
+				build_ref_dsi = true;
+			}
+		}
+		
 		
 		if (build_ref_dsi) {
 			TwoQuadCLT.copyJP4src( // actually there is no sense to process multiple image sets. Combine with other
@@ -3917,9 +3988,19 @@ public class OpticalFlow {
 				threadsMax,     // int            threadsMax,  // maximal number of threads to launch
 				updateStatus,   // boolean        updateStatus,
 				debugLevel);    // int            debugLevel)
-		QuadCLT reference_QuadClt = quadCLTs[ref_index];
-		ErsCorrection ers_reference = reference_QuadClt.getErsCorrection();
+//		QuadCLT reference_QuadClt = quadCLTs[ref_index];
+		ErsCorrection ers_reference = quadCLTs[ref_index].getErsCorrection();
+		if (!build_orientations) {
+			if (!quadCLTs[ref_index].propertiesContainString (".scenes_")){
+				if (debugLevel >-2) {
+					System.out.println("Egomotion data for scene "+set_channels[ref_index].set_name+" does not exist, forcing its calculation.");
+				}
+				build_orientations = true;
+			}
+		}
+		
 		if (build_orientations) {
+			double maximal_series_rms = 0.0;
 			double [] lma_rms = new double[2];
 			double [] use_atr = null;
 			for (int scene_index =  ref_index - 1; scene_index >= 0 ; scene_index--) {
@@ -3937,7 +4018,7 @@ public class OpticalFlow {
 				if (scene_index ==  ref_index - 1) { // search around for the best fit
 					use_atr = spiralSearchATR(
 							clt_parameters, // CLTParameters             clt_parameters,
-							reference_QuadClt, // QuadCLT                   reference_QuadClt,
+							quadCLTs[ref_index], // QuadCLT                   reference_QuadClt,
 							scene_QuadClt, // QuadCLT                   scene_QuadClt,
 							debugLevel);
 					if (use_atr == null) {
@@ -3955,7 +4036,7 @@ public class OpticalFlow {
 				// Refine with LMA
 				scenes_xyzatr[scene_index] = adjustPairsLMAInterscene(
 						clt_parameters,                                 // CLTParameters  clt_parameters,
-						reference_QuadClt,                              // QuadCLT reference_QuadCLT,
+						quadCLTs[ref_index],                              // QuadCLT reference_QuadCLT,
 						scene_QuadClt,                                  // QuadCLT scene_QuadCLT,
 						scenes_xyzatr[scene_index][0],                                // xyz
 						scenes_xyzatr[scene_index][1],                                // atr
@@ -3971,10 +4052,14 @@ public class OpticalFlow {
 						ZERO3, // ers_scene.getErsXYZ_dt(),		
 						ZERO3 // ers_scene.getErsATR_dt()		
 						);
+			    if (lma_rms[0] > maximal_series_rms) {
+			        maximal_series_rms = lma_rms[0];
+			    }
 
 				if (debugLevel > -3) {
 					System.out.println("Pass multi scene "+scene_index+" (of "+ quadCLTs.length+") "+
-							reference_QuadClt.getImageName() + "/" + scene_QuadClt.getImageName()+" Done.");
+							quadCLTs[ref_index].getImageName() + "/" + scene_QuadClt.getImageName()+
+							" Done. RMS="+lma_rms[0]+", maximal so far was "+maximal_series_rms);
 				}
 				/*
 			if (delete_scene_asap) {
@@ -3982,11 +4067,24 @@ public class OpticalFlow {
 			}
 				 */
 			}
-			reference_QuadClt.saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
+			if (debugLevel > -4) {
+				System.out.println("All multi scene passes are Done. Maximal RMSE was "+maximal_series_rms);
+			}
+
+			quadCLTs[ref_index].saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
 					null, // String path,             // full name with extension or w/o path to use x3d directory
 					debugLevel+1);
 		} // if (build_orientations) {
 		double [][] combo_dsn_final = null;
+		if (!build_interscene) {
+			if (!quadCLTs[ref_index].interDsiExists()) {
+				if (debugLevel >-2) {
+					System.out.println("Interscene DSI data for scene "+set_channels[ref_index].set_name+" does not exist, forcing its calculation.");
+				}
+				build_interscene = true;
+			}
+		}
+		
 		if (build_interscene) {
 			if (!build_orientations) {
 				for (int scene_index =  ref_index - 1; scene_index >= 0 ; scene_index--) {
@@ -4006,6 +4104,7 @@ public class OpticalFlow {
 					colorProcParameters, // ColorProcParameters  colorProcParameters,
 					debugLevel);         // int                  debug_level
 		}
+		
 		if (export_images) {
 			if (combo_dsn_final == null) {
 				combo_dsn_final = quadCLTs[ref_index].readDoubleArrayFromModelDirectory(
@@ -4013,8 +4112,55 @@ public class OpticalFlow {
 						0, // int         num_slices, // (0 - all)
 						null); // int []      wh);
 			}
-			double [] fg_disparity = combo_dsn_final[COMBO_DSN_INDX_DISP_FG];
-			double [] bg_disparity = combo_dsn_final[COMBO_DSN_INDX_DISP_BG_ALL];
+			// re-load 
+			/*
+			quadCLTs[ref_index] = (QuadCLT) quadCLT_main.spawnQuadCLT( // restores dsi from "DSI-MAIN"
+					set_channels[ref_index].set_name,
+					clt_parameters,
+					colorProcParameters, //
+					threadsMax,
+					debugLevel);
+			*/
+			double [][] dls = {
+					combo_dsn_final[COMBO_DSN_INDX_DISP],
+					combo_dsn_final[COMBO_DSN_INDX_LMA],
+					combo_dsn_final[COMBO_DSN_INDX_STRENGTH]
+			};
+			double [][] ds = conditionInitialDS(
+					clt_parameters,      // CLTParameters  clt_parameters,
+					dls,                 // double [][]    dls
+					quadCLTs[ref_index], // QuadCLT        scene,
+					debugLevel);			
+			
+			double [] fg_disparity = ds[0]; // combo_dsn_final[COMBO_DSN_INDX_DISP_FG];
+			
+			double [] bg_lma = combo_dsn_final[COMBO_DSN_INDX_DISP_BG_ALL].clone();
+			double [] bg_str = combo_dsn_final[COMBO_DSN_INDX_STRENGTH].clone();
+			
+			for (int i = 0; i < bg_lma.length; i++) {
+				if (Double.isNaN(combo_dsn_final[COMBO_DSN_INDX_LMA][i])){
+					bg_lma[i] = Double.NaN;
+				}
+				if (!Double.isNaN(combo_dsn_final[COMBO_DSN_INDX_DISP_BG][i])){
+					bg_lma[i] = combo_dsn_final[COMBO_DSN_INDX_LMA_BG][i];
+				}
+				if (!Double.isNaN(combo_dsn_final[COMBO_DSN_INDX_STRENGTH_BG][i])){
+					bg_str[i] = combo_dsn_final[COMBO_DSN_INDX_STRENGTH_BG][i];
+				}
+			}
+			double [][] dls_bg = {
+					combo_dsn_final[COMBO_DSN_INDX_DISP_BG_ALL],
+					bg_lma,
+					bg_str
+			};
+			double [][] ds_bg = conditionInitialDS(
+					clt_parameters,      // CLTParameters  clt_parameters,
+					dls_bg,                 // double [][]    dls
+					quadCLTs[ref_index], // QuadCLT        scene,
+					debugLevel);			
+			double [] bg_disparity = ds_bg[0]; // combo_dsn_final[COMBO_DSN_INDX_DISP_FG];
+
+
 			double [] constant_disparity = new double [fg_disparity.length];
 			Arrays.fill(constant_disparity,clt_parameters.disparity);
 			ImagePlus imp_constant = QuadCLT.renderGPUFromDSI(
@@ -4064,12 +4210,94 @@ public class OpticalFlow {
 				imp_bg.show();
 			}
 		}
+		
+		if (export_dsi_image) {
+			if (combo_dsn_final == null) {
+				combo_dsn_final =quadCLTs[ref_index].readDoubleArrayFromModelDirectory(
+						"-INTER-INTRA-LMA", // String      suffix,
+						0, // int         num_slices, // (0 - all)
+						null); // int []      wh);
+			}
+			// re-load , should create quadCLTs[ref_index].dsi
+			/*
+			quadCLTs[ref_index] = (QuadCLT) quadCLT_main.spawnQuadCLT( // restores dsi from "DSI-MAIN"
+					set_channels[ref_index].set_name,
+					clt_parameters,
+					colorProcParameters, //
+					threadsMax,
+					debugLevel);
+			*/
+			// TODO:********************
+//			double [] disparity = combo_dsn_final[COMBO_DSN_INDX_DISP].clone();
+//			double [] strength =  combo_dsn_final[COMBO_DSN_INDX_STRENGTH];
+			double [][] dls = {
+					combo_dsn_final[COMBO_DSN_INDX_DISP],
+					combo_dsn_final[COMBO_DSN_INDX_LMA],
+					combo_dsn_final[COMBO_DSN_INDX_STRENGTH]
+			};
+			double [][] ds = conditionInitialDS(
+					clt_parameters,      // CLTParameters  clt_parameters,
+					dls,                 // double [][]    dls
+					quadCLTs[ref_index], // QuadCLT        scene,
+					debugLevel);         // int debug_level)
+			double [] disparity = ds[0];
+			double [] strength = ds[1];		
+			double [][]szxy = getSceneSZXY(
+					quadCLTs[ref_index],    // QuadCLT scene,
+					range_disparity_offset, // double    disparity_offset,
+					range_min_strength,     // double    min_strength,
+					range_max,              // double    max_range,
+					disparity,              // double [] disparity,
+					strength);              // double [] strength)
+			String [] szxy_titles = {"strength", "Z(m)", "X(m)", "Y(m)"};
+			TileProcessor tp = quadCLTs[ref_index].getTileProcessor();
+			int tilesX =         tp.getTilesX();
+	        int tilesY =         tp.getTilesY();
+
+			(new ShowDoubleFloatArrays()).showArrays(
+					szxy,
+					tilesX,
+					tilesY,
+					true,
+					quadCLTs[ref_index].getImageName()+"_SZXY",
+					szxy_titles);
+		}		
 		// Add 16-images:
 		//disparity = 0, FG, BG
 		System.out.println("buildSeries(): DONE"); //
 		return true;
     }
     
+    public double [][] getSceneSZXY(
+    	QuadCLT   scene,
+    	double    disparity_offset,
+    	double    min_strength,
+    	double    max_range,
+    	double [] disparity0,
+    	double [] strength){ // may be null
+    	double [] disparity = disparity0.clone();
+		for (int i = 0; i < disparity.length; i++) {
+			disparity[i] -= disparity_offset;
+		}
+    	double [][] xyz = transformToWorldXYZ(
+    			disparity, // [final double []   disparity_ref, // invalid tiles - NaN in disparity
+    			scene, // final QuadCLT     quadClt, // now - may be null - for testing if scene is rotated ref
+    			threadsMax); // int               threadsMax);
+    	
+    	double [][] szxy = new double [4][disparity.length];
+    	szxy[0] = strength;
+    	for (int i = 1; i < szxy.length; i++) {
+    		Arrays.fill(szxy[i], Double.NaN);
+    	}
+    	for (int nTile = 0; nTile < xyz.length; nTile++) if (xyz[nTile] != null) {
+    		if ((xyz[nTile][2] < 0) && (xyz[nTile][2] > -max_range) && ((strength == null) ||(strength[nTile] >= min_strength))) {
+    			szxy[1][nTile] = -xyz[nTile][2];
+    			szxy[2][nTile] = xyz[nTile][0];
+    			szxy[3][nTile] = xyz[nTile][1];
+    		}
+    	}
+    	return szxy;
+    }
     
 
     public double [] spiralSearchATR(
@@ -4311,6 +4539,8 @@ public class OpticalFlow {
 		Arrays.fill(dbg_rms_pre, Double.NaN);
 		// process scenes before reference
 		int dbg_ref_index = 10; // wait for ref_index <= dbg_ref_index and print (manually update dbg_ref_index
+		double maximal_series_rms = 0.0;
+		double maximal_series_rms1 = 0.0;
 		if (ref_index >  1) {
 			for (int i =  ref_index - 2; i >= 0 ; i--) {
 				QuadCLT scene_QuadClt =      scenes[i];
@@ -4381,6 +4611,9 @@ public class OpticalFlow {
 						}
 					}
 				}
+				if (lma_rms[0] > maximal_series_rms) {
+					maximal_series_rms = lma_rms[0];
+				}
 				dbg_rms_pre[i] = lma_rms[0];
 				ers_reference.addScene(scene_QuadClt.getImageName(),
 						scenes_xyzatr[i][0],
@@ -4396,7 +4629,8 @@ public class OpticalFlow {
 				ers_scene.setupERS();
 				if (debug_level > -1) {
 					System.out.println("Pass multi scene "+i+" (of "+ scenes.length+") "+
-							reference_QuadClt.getImageName() + "/" + scene_QuadClt.getImageName()+" Done.");
+							reference_QuadClt.getImageName() + "/" + scene_QuadClt.getImageName()+
+							" Done. RMS="+lma_rms[0]+", maximal so far was "+maximal_series_rms);
 				}
 				if (delete_scene_asap) {
 					scenes[i+1] = null;
@@ -4471,6 +4705,9 @@ public class OpticalFlow {
 							0.0, // double         max_rms,
 							debug_level); // int debug_level)
 				}
+			    if (lma_rms[0] > maximal_series_rms) {
+			        maximal_series_rms = lma_rms[0];
+			    }
 				dbg_rms_pre[i] = lma_rms[0];
 				ers_reference.addScene(scene_QuadClt.getImageName(),
 						scenes_xyzatr[i][0],
@@ -4486,13 +4723,18 @@ public class OpticalFlow {
 				ers_scene.setupERS();
 				if (debug_level > -1) {
 					System.out.println("Pass multi scene "+i+" (of "+ scenes.length+") "+
-							reference_QuadClt.getImageName() + "/" + scene_QuadClt.getImageName()+" Done.");
+			                reference_QuadClt.getImageName() + "/" + scene_QuadClt.getImageName()+
+			                " Done. RMS="+lma_rms[0]+", maximal so far was "+maximal_series_rms);
 				}
 				if (delete_scene_asap) {
 					scenes[i-1] = null;
 				}
 			}		
 		}
+		if (debug_level > -3) {
+			System.out.println("All multi scene passes are Done. Maximal RMSE was "+maximal_series_rms);
+		}
+		
 //		boolean show_results = true;
 		if (show_results) {
 			int dbg_w = scenes_xyzatr.length;
@@ -4601,6 +4843,9 @@ public class OpticalFlow {
 							0.0,                             // double         max_rms,
 							debug_level);                    // int debug_level)
 				}
+			    if (lma_rms[0] > maximal_series_rms1) {
+			        maximal_series_rms1 = lma_rms[0];
+			    }
 				dbg_rms[i] = lma_rms[0];
 				ers_reference.addScene(
 						scene_ts,
@@ -4619,7 +4864,8 @@ public class OpticalFlow {
 */				
 				if (debug_level > -1) {
 					System.out.println("Pass 2 multi scene "+i+" (of "+ scenes.length+") "+
-							reference_QuadClt.getImageName() + "/" + scene_ts+" Done.");
+							reference_QuadClt.getImageName() + "/" + scene_ts+
+							" Done. RMS="+lma_rms[0]+", maximal so far was "+maximal_series_rms);
 				}
 				if (delete_scene_asap) {
 					scenes[i-1] = null;
@@ -4638,8 +4884,9 @@ public class OpticalFlow {
 		}
 		rms_pre_mean /= rms_pre_num;
 		rms_mean /= rms_num;
-		if (debug_level > -1) {
-			System.out.println("adjustSeries() rms_pre_mean="+rms_pre_mean+", rms_mean="+rms_mean);
+		if (debug_level > -3) {
+			System.out.println("adjustSeries() rms_pre_mean="+rms_pre_mean+", rms_mean="+
+					rms_mean+", maximal RMSE="+maximal_series_rms1);
 		}
 
 		if (show_results) {
@@ -4798,8 +5045,9 @@ public class OpticalFlow {
 						scenes,            // QuadCLT [] scenes,
 						8);                // int iscale) // 8
 		}		
-		if (debug_level > -1) {
-			System.out.println("adjustSeries() Done.");
+		if (debug_level > -3) {
+			System.out.println("adjustSeries() Done. Maximal RMSE in pass1 was "+maximal_series_rms+
+					", in pass2 - "+maximal_series_rms1);
 		}
 	}
 	
@@ -6668,8 +6916,8 @@ public class OpticalFlow {
 		for (int i = 0; i < num_scenes; i++) {
 			initial_ds[i] = conditionInitialDS(
 					clt_parameters, // CLTParameters  clt_parameters,
-					scenes[i], // QuadCLT        scene,
-					-1); // int debug_level);
+					scenes[i],      // QuadCLT        scene,
+					-1);            // int debug_level);
 		}
 		if (debug_level > -1) {
 			String []   dbg_titles = new String [2*num_scenes];
@@ -9092,8 +9340,26 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 	}
 	
 	// what does it do?
+	
 	private double [][] conditionInitialDS(
 			CLTParameters  clt_parameters,
+			QuadCLT        scene,
+			int debug_level){
+		double [][] dls = scene.getDLS();
+		if (dls == null) {
+			return null;
+		}
+		return conditionInitialDS(
+				clt_parameters,
+				dls,
+				scene,
+				debug_level);
+	}
+	
+	
+	private double [][] conditionInitialDS(
+			CLTParameters  clt_parameters,
+			double [][]    dls,
 			QuadCLT        scene,
 			int debug_level)
 	{
@@ -9125,7 +9391,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		
 		
 		final double      outliers_max_strength = 0.1; ///  0.25;
-		final double      outliers_from_lma_max_strength = 0.5;
+		final double      outliers_from_lma_max_strength = 0.8;
 		final double      diff_from_lma_pos = 100.0;
 		final double      diff_from_lma_neg = 2.0;
 		final int         outliers_lma_nth_fromextrem = 1; 
@@ -9136,11 +9402,12 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 //		if (dsrbg == null) {
 //			return null;
 //		}
+		/*
 		double [][] dls = scene.getDLS();
 		if (dls == null) {
 			return null;
 		}
-		
+		*/
 		String [] dbg_titles = {"str", "lma", "disp","-lma","by-lma","-nonlma", "old-disp","old-sngl","weak","filled"}; 
 		double [][] dbg_img = new double [dbg_titles.length][];
 		//Remove crazy LMA high-disparity tiles
@@ -9172,7 +9439,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		// mostly filter infinity, clouds, sky
 		disp_outliers = QuadCLT.removeDisparityLMAOutliers( // filter non-lma tiles
 				true,                       // final boolean     non_ma,
-				dls, //final double [][] dls,
+				new double[][] {disp_outliers, dls[1], dls[2]}, //final double [][] dls,
 				outliers_lma_max_strength,   // final double      max_strength,  // do not touch stronger
 				outliers_lma_nth_fromextrem, // final int         nth_fromextrem, // 0 - compare to max/min. 1 - second max/min, ... 
 				outliers_tolerance_absolute, // final double      tolerance_absolute,

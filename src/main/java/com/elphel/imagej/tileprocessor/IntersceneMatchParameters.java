@@ -30,6 +30,18 @@ import com.elphel.imagej.common.GenericJTabbedDialog;
 
 public class IntersceneMatchParameters {
 	// Maybe add parameters to make sure there is enough data? Enough in each zone? Enough spread?
+	public  boolean force_ref_dsi =      false; // true;
+	public  boolean force_orientations = false;
+	public  boolean force_interscene =   false; // true;
+	public  boolean export_images =      true; // 16-slice images (same disparity, COMBO_DSN_INDX_DISP_FG and COMBO_DSN_INDX_DISP_BG_ALL,
+	public  boolean show_images =        false;
+	public  boolean show_ranges =        true;
+	
+	public  double  range_disparity_offset =   -0.08;
+	public  double  range_min_strength = 0.5;
+	public  double  range_max =       5000.0;
+	
+
 	// Some "AGC" to adjust how much to discard
 	public  int     margin =                       1;      // do not use tiles if their centers are closer to the image edge
 	public  int     sensor_mask_inter =           -1;      // bitmask of the sensors to use (-1 - all)
@@ -85,6 +97,28 @@ public class IntersceneMatchParameters {
 	public void dialogQuestions(GenericJTabbedDialog gd) {
 		//		gd.addMessage  ("Scene parameters selection");
 
+		gd.addMessage  ("Build series options");
+		gd.addCheckbox ("Force reference scene DSI calculation",     this.force_ref_dsi,
+				"Calculate reference scene DSI even if the file exists.");
+		gd.addCheckbox ("Force egomotion calculation",               this.force_orientations,
+				"Calculate relative poses of each scene camera relative to the reference scene even if the data exists.");
+		gd.addCheckbox ("Force interscene DSI accumulation",         this.force_interscene,
+				"Force interscene calculation (+ML export) even if it was performed before.");
+		gd.addCheckbox ("Export all-sensor images",                  this.export_images,
+				"Export multi-slice images: with constant disparity, with foreground disparity, and with background disparity");
+		gd.addCheckbox ("Show exported images",                      this.show_images,
+				"Display generated/saved images");
+		gd.addCheckbox ("Show distances in meters",                  this.show_ranges,
+				"Calculate strength, distance, X, and Y in meters");
+		
+		gd.addNumericField("Disparity at infinity",                  this.range_disparity_offset, 5,7,"pix",
+				"Disparity at infinity - subtract from measured disparity when converting to ranges.");
+		gd.addNumericField("Minimal strength for range calculation", this.range_min_strength, 5,7,"",
+				"Disregard weaker results when measuring range.");
+		gd.addNumericField("Maximal displayed range",                this.range_max, 5,7,"m",
+				"Do not display extremely far objects.");
+		
+		gd.addMessage  ("Interscene match parameters");
 		gd.addNumericField("Image margin",                           this.margin, 0,5,"pix",
 				"Do not use tiles if their centers are closer to the virtual image edge");
 		gd.addNumericField("Used sensors mask",                      this.sensor_mask_inter, 0,5,"",
@@ -112,7 +146,7 @@ public class IntersceneMatchParameters {
 		gd.addNumericField("Difference from neighbors average ",     this.half_avg_diff, 5,7,"",
 				"Reduce twice for high difference from neighbors average.");
 
-		gd.addMessage  ("Initial search for the intre-scene match");
+		gd.addMessage  ("Initial search for the inter-scene match");
 		gd.addNumericField("Azimuth/tilt step",                      this.pix_step, 0,3,"pix",
 				"Search in a spiral starting with no-shift with this step between probes, in approximate pixels");
 		gd.addNumericField("Search spiral radius",                   this.search_rad, 0,3,"steps",
@@ -173,6 +207,16 @@ public class IntersceneMatchParameters {
 	}
 
 	public void dialogAnswers(GenericJTabbedDialog gd) {
+		this.force_ref_dsi =            gd.getNextBoolean();
+		this.force_orientations =       gd.getNextBoolean();
+		this.force_interscene =         gd.getNextBoolean();
+		this.export_images =            gd.getNextBoolean();
+		this.show_images =              gd.getNextBoolean();
+		this.show_ranges =              gd.getNextBoolean();
+		this.range_disparity_offset =   gd.getNextNumber();
+		this.range_min_strength =       gd.getNextNumber();
+		this.range_max =                gd.getNextNumber();
+
 		this.margin =             (int) gd.getNextNumber();
 		this.sensor_mask_inter=   (int) gd.getNextNumber();
 		this.use_partial =              gd.getNextBoolean();
@@ -214,6 +258,17 @@ public class IntersceneMatchParameters {
 	}
 	
 	public void setProperties(String prefix,Properties properties){
+		properties.setProperty(prefix+"force_ref_dsi",        this.force_ref_dsi + "");     // boolean
+		properties.setProperty(prefix+"force_orientations",   this.force_orientations + "");// boolean
+		properties.setProperty(prefix+"force_interscene",     this.force_interscene + "");  // boolean
+		properties.setProperty(prefix+"export_images",        this.export_images + "");     // boolean
+		properties.setProperty(prefix+"show_images",          this.show_images + "");       // boolean
+		properties.setProperty(prefix+"show_ranges",          this.show_ranges + "");       // boolean
+
+		properties.setProperty(prefix+"range_disparity_offset",this.range_disparity_offset+""); // double
+		properties.setProperty(prefix+"range_min_strength",   this.range_min_strength+"");  // double
+		properties.setProperty(prefix+"range_max",            this.range_max+"");           // double
+		
 		properties.setProperty(prefix+"margin",               this.margin+"");              // int
 		properties.setProperty(prefix+"sensor_mask_inter",    this.sensor_mask_inter+"");   // int
 		properties.setProperty(prefix+"use_partial",          this.use_partial+"");         // boolean
@@ -253,12 +308,21 @@ public class IntersceneMatchParameters {
 	}
 	
 	public void getProperties(String prefix,Properties properties){
+		if (properties.getProperty(prefix+"force_ref_dsi")!=null)        this.force_ref_dsi=Boolean.parseBoolean(properties.getProperty(prefix+"force_ref_dsi"));		
+		if (properties.getProperty(prefix+"force_orientations")!=null)   this.force_orientations=Boolean.parseBoolean(properties.getProperty(prefix+"force_orientations"));		
+		if (properties.getProperty(prefix+"force_interscene")!=null)     this.force_interscene=Boolean.parseBoolean(properties.getProperty(prefix+"force_interscene"));		
+		if (properties.getProperty(prefix+"export_images")!=null)        this.export_images=Boolean.parseBoolean(properties.getProperty(prefix+"export_images"));		
+		if (properties.getProperty(prefix+"show_images")!=null)          this.show_images=Boolean.parseBoolean(properties.getProperty(prefix+"show_images"));		
+		if (properties.getProperty(prefix+"show_ranges")!=null)          this.show_images=Boolean.parseBoolean(properties.getProperty(prefix+"show_ranges"));
+		if (properties.getProperty(prefix+"range_disparity_offset")!=null) this.range_disparity_offset=Double.parseDouble(properties.getProperty(prefix+"range_disparity_offset"));
+		if (properties.getProperty(prefix+"range_min_strength")!=null)   this.range_min_strength=Double.parseDouble(properties.getProperty(prefix+"range_min_strength"));
+		if (properties.getProperty(prefix+"range_max")!=null)            this.range_max=Double.parseDouble(properties.getProperty(prefix+"range_max"));
 		if (properties.getProperty(prefix+"margin")!=null)               this.margin=Integer.parseInt(properties.getProperty(prefix+"margin"));
 		if (properties.getProperty(prefix+"sensor_mask_inter")!=null)    this.sensor_mask_inter=Integer.parseInt(properties.getProperty(prefix+"sensor_mask_inter"));
 		if (properties.getProperty(prefix+"use_partial")!=null)          this.use_partial=Boolean.parseBoolean(properties.getProperty(prefix+"use_partial"));		
 		if (properties.getProperty(prefix+"run_poly")!=null)             this.run_poly=Boolean.parseBoolean(properties.getProperty(prefix+"run_poly"));
 		if (properties.getProperty(prefix+"centroid_radius")!=null)      this.centroid_radius=Double.parseDouble(properties.getProperty(prefix+"centroid_radius"));
-		if (properties.getProperty(prefix+"margin")!=null)               this.margin=Integer.parseInt(properties.getProperty(prefix+"margin"));
+		if (properties.getProperty(prefix+"n_recenter")!=null)           this.n_recenter=Integer.parseInt(properties.getProperty(prefix+"n_recenter"));
 		if (properties.getProperty(prefix+"min_str")!=null)              this.min_str=Double.parseDouble(properties.getProperty(prefix+"min_str"));
 		if (properties.getProperty(prefix+"min_str_sum")!=null)          this.min_str_sum=Double.parseDouble(properties.getProperty(prefix+"min_str_sum"));
 		if (properties.getProperty(prefix+"min_neibs")!=null)            this.min_neibs=Integer.parseInt(properties.getProperty(prefix+"min_neibs"));
@@ -294,6 +358,15 @@ public class IntersceneMatchParameters {
 	@Override
 	public IntersceneMatchParameters clone() throws CloneNotSupportedException {
 		IntersceneMatchParameters imp =     new IntersceneMatchParameters();
+ 		imp.force_ref_dsi         = this.force_ref_dsi;
+		imp.force_orientations    = this.force_orientations;
+		imp.force_interscene      = this.force_interscene;
+		imp.export_images         = this.export_images;
+		imp.show_images           = this.show_images;
+		imp.show_ranges           = this.show_ranges;
+		imp.range_disparity_offset = this.range_disparity_offset;
+		imp.range_min_strength    = this.range_min_strength;
+		imp.range_max             = this.range_max;
 		imp.margin                = this.margin;
 		imp.sensor_mask_inter     = this.sensor_mask_inter;
 		imp.use_partial           = this.use_partial;

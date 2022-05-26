@@ -767,7 +767,9 @@ public class CLTPass3d{
 				double [] strength) {
 			this.calc_disparity = disparity;
 			this.strength =       strength;
-			calc_disparity_combo = calc_disparity.clone();
+			if (calc_disparity_combo != null) {
+				calc_disparity_combo = calc_disparity.clone();
+			}
 		}
 
 		/**

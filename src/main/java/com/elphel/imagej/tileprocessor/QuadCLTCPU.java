@@ -88,6 +88,10 @@ import loci.formats.FormatException;
 
 
 public class QuadCLTCPU {
+	public static final String [] DSI_SUFFIXES = {"-INTER-INTRA-LMA","-INTER-INTRA","-DSI_MAIN"};
+	public static int             INDEX_INTER =     0;
+	public static int             INDEX_INTER_LMA = 1;
+	public static int             INDEX_DSI_MAIN =  2;
 	public static final String [] FGBG_TITLES_ADJ = {"disparity","strength"};
 //	public static final String [] FGBG_TITLES = {"disparity","strength", "rms","rms-split","fg-disp","fg-str","bg-disp","bg-str"};
 	public static final String [] FGBG_TITLES_AUX = {"disparity","strength", "rms","rms-split","fg-disp","fg-str","bg-disp","bg-str","aux-disp","aux-str"};
@@ -354,8 +358,47 @@ public class QuadCLTCPU {
 				true);  //newAllowed, // save
 		return x3d_path;
 	}
+
+	public void setDSI(
+			double [][] dsi) {
+		this.dsi = dsi;
+	}
+
+	public void setDSIFromCombo(
+			double [][] combo_dsi) {
+		this.dsi = new double [TwoQuadCLT.DSI_SLICES.length][];
+		this.dsi[is_aux?TwoQuadCLT.DSI_DISPARITY_AUX:TwoQuadCLT.DSI_DISPARITY_MAIN] =
+				combo_dsi[OpticalFlow.COMBO_DSN_INDX_DISP_FG];
+		this.dsi[is_aux?TwoQuadCLT.DSI_STRENGTH_AUX:TwoQuadCLT.DSI_STRENGTH_MAIN] =
+				combo_dsi[OpticalFlow.COMBO_DSN_INDX_STRENGTH];
+		this.dsi[is_aux?TwoQuadCLT.DSI_DISPARITY_AUX_LMA:TwoQuadCLT.DSI_DISPARITY_MAIN_LMA] =
+				combo_dsi[OpticalFlow.COMBO_DSN_INDX_LMA];
+	}
 	
 	
+	public boolean dsiExists() {
+		int num_slices = restoreDSI(
+				DSI_SUFFIXES[INDEX_DSI_MAIN], // String suffix, // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
+				null, // double [][] dsi, // if null - just check file exists
+				true); // boolean silent);
+		return num_slices >= 0;
+	}
+
+	public boolean interDsiExists() {
+		int num_slices = restoreDSI(
+				DSI_SUFFIXES[INDEX_INTER_LMA], // String suffix, // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
+				null, // double [][] dsi, // if null - just check file exists
+				true); // boolean silent);
+		if (num_slices >= 0) {
+			return true;
+		}
+		num_slices = restoreDSI(
+				DSI_SUFFIXES[INDEX_INTER], // String suffix, // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
+				null, // double [][] dsi, // if null - just check file exists
+				true); // boolean silent);
+		return num_slices >= 0;
+	}
+
 	public int restoreDSI(
 			String suffix,
 			boolean silent) // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
@@ -395,19 +438,38 @@ public class QuadCLTCPU {
 			}
 			return -1;
 		}
+		if (dsi == null) {
+			return 0; // just check file exists
+		}
 		int num_slices_read = 0;
 		ImageStack dsi_stack = imp.getStack();
 		for (int nl = 0; nl < imp.getStackSize(); nl++) {
-			for (int n = 0; n < TwoQuadCLT.DSI_SLICES.length; n++)
-				if (TwoQuadCLT.DSI_SLICES[n].equals(dsi_stack.getSliceLabel(nl + 1))) {
-					float [] fpixels = (float[]) dsi_stack.getPixels(nl + 1);
-					dsi[n] = new double [fpixels.length];
-					for (int i = 0; i < fpixels.length; i++) {
-						dsi[n][i] = fpixels[i];
+			multiformat:
+			{
+				for (int n = 0; n < TwoQuadCLT.DSI_SLICES.length; n++) {
+					if (TwoQuadCLT.DSI_SLICES[n].equals(dsi_stack.getSliceLabel(nl + 1))) {
+						float [] fpixels = (float[]) dsi_stack.getPixels(nl + 1);
+						dsi[n] = new double [fpixels.length];
+						for (int i = 0; i < fpixels.length; i++) {
+							dsi[n][i] = fpixels[i];
+						}
+						num_slices_read ++;
+						break multiformat;
 					}
-					num_slices_read ++;
-					break;
 				}
+				for (int n = 0; n < OpticalFlow.COMBO_DSN_TITLES.length; n++) {
+					if (OpticalFlow.COMBO_DSN_TITLES[n].equals(dsi_stack.getSliceLabel(nl + 1))) {
+						float [] fpixels = (float[]) dsi_stack.getPixels(nl + 1);
+						dsi[n] = new double [fpixels.length];
+						for (int i = 0; i < fpixels.length; i++) {
+							dsi[n][i] = fpixels[i];
+						}
+						num_slices_read ++;
+						break multiformat;
+					}
+				}
+				
+			}
 		}
 		return num_slices_read;
 	}
@@ -476,6 +538,7 @@ public class QuadCLTCPU {
 	public Properties restoreInterProperties( // restore properties for interscene processing (extrinsics, ers, ...)
 			String path,             // full name with extension or null to use x3d directory
 			boolean all_properties,
+			
 			int debugLevel)
 	{
 		if (path == null) {
@@ -505,8 +568,30 @@ public class QuadCLTCPU {
 		ers.getPropertiesLineTime(prefix, properties); // will set old value if not in the file
 		System.out.println("Restored interframe properties from :"+path);
 		return properties;
-		
 	}
+	
+	public boolean propertiesContainString (
+			String     needle) {
+		return propertiesContainString (
+				 needle,
+				this.properties);
+	}
+	
+	public static boolean propertiesContainString (
+			String     needle,
+			Properties properties) {
+		Set<String> set_keys = properties.stringPropertyNames();
+		boolean found = false;
+		for (String haystack:set_keys) {
+			if (haystack.indexOf(needle) >= 0) {
+				found = true;
+				break;
+			}
+		}
+		return found;
+	}
+	
+	
 
 //	Moving here form QC:
     public double [][]  getDSRBG (){
@@ -524,7 +609,13 @@ public class QuadCLTCPU {
 			boolean        updateStatus,
 			int            debugLevel)
     {
-    	setDSRBG(
+    	if (this.dsi == null) {
+    		if (debugLevel > -4) {
+    			System.out.println ("--- No DSI available for "+this.getImageName());
+    		}
+    		return;
+    	}
+    	setDSRBG( // will likely not be used at all. Use  getDLS() instead
     			this.dsi[is_aux?TwoQuadCLT.DSI_DISPARITY_AUX:TwoQuadCLT.DSI_DISPARITY_MAIN],
     			this.dsi[is_aux?TwoQuadCLT.DSI_STRENGTH_AUX:TwoQuadCLT.DSI_STRENGTH_MAIN],
     			this.dsi[is_aux?TwoQuadCLT.DSI_DISPARITY_AUX_LMA:TwoQuadCLT.DSI_DISPARITY_MAIN_LMA],
@@ -533,6 +624,7 @@ public class QuadCLTCPU {
     	        updateStatus,
     			debugLevel);
     }
+    
     public void setDSRBG(
     		double [] disparity,
     		double [] strength,
@@ -561,33 +653,38 @@ public class QuadCLTCPU {
     			threadsMax,  // maximal number of threads to launch
     			updateStatus,
     			debugLevel);
-    	if (isMonochrome()) { // only [2] is non-zero
-    		this.dsrbg = new double[][] {
-    			disparity,
-    			strength,
-//    			disparity_lma,
-    			((rbg.length>2)?rbg[2]:rbg[0])}; // [2] - for old compatibility, [0] - new (2021)
+    	if (rbg == null) { // will likely not be used at all. Use  getDLS() instead
+			this.dsrbg = new double[][] {
+				disparity,
+				strength,
+				disparity_lma};
+
     	} else {
-    		this.dsrbg = new double[][] {
-    			disparity,
-    			strength,
-//    			disparity_lma,
-    			rbg[0],rbg[1],rbg[2]};
+    		if (isMonochrome()) { // only [2] is non-zero
+    			this.dsrbg = new double[][] {
+    				disparity,
+    				strength,
+    				//    			disparity_lma,
+    				((rbg.length>2)?rbg[2]:rbg[0])}; // [2] - for old compatibility, [0] - new (2021)
+    		} else {
+    			this.dsrbg = new double[][] {
+    				disparity,
+    				strength,
+    				//    			disparity_lma,
+    				rbg[0],rbg[1],rbg[2]};
+    		}
+    		if (debugLevel > 1) { // -2) {
+    			String title = image_name+"-DSRBG";
+    			String [] titles = getDSRGGTitles();
+    			(new ShowDoubleFloatArrays()).showArrays(
+    					this.dsrbg,
+    					tp.getTilesX(),
+    					tp.getTilesY(),
+    					true,
+    					title,
+    					titles);
+    		}
     	}
-		if (debugLevel > 1) { // -2) {
-			String title = image_name+"-DSRBG";
-			String [] titles = getDSRGGTitles();
-			(new ShowDoubleFloatArrays()).showArrays(
-					this.dsrbg,
-					tp.getTilesX(),
-					tp.getTilesY(),
-					true,
-					title,
-					titles);
-		}
-    	
-    	
-    	
     }
 	
 	public double[][] getTileRBG(
@@ -670,6 +767,12 @@ public class QuadCLTCPU {
 				true,  // smart,
 				true);  //newAllowed, // save
 		String [] sourceFiles = correctionsParameters.selectSourceFileInSet(jp4_copy_path, debugLevel);
+		if (sourceFiles.length < getNumSensors()) {
+			if (sourceFiles.length > 0) {
+				System.out.println("not enough source files ("+sourceFiles.length+") in "+jp4_copy_path);
+			}
+			return null;
+		}
 		SetChannels [] set_channels=setChannels(
 				null, // single set name
 				sourceFiles,
@@ -705,19 +808,32 @@ public class QuadCLTCPU {
 					1); // debugLevel); // final int       debug_level)
 		}
 		// try to restore DSI generated from interscene if available, if not use single-scene -DSI_MAIN
-		if (restoreDSI(
-				"-DSI_INTER",
-				true // silent
-				) < 0) { 
-			restoreDSI(
-					"-DSI_MAIN",  // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
-					false); // silent
+		int dsi_result = -1;
+		double [][] dsi_tmp = new double [11][];
+		for (int i = 0; i <DSI_SUFFIXES.length; i++) {
+			dsi_result =restoreDSI(
+					DSI_SUFFIXES[i],
+					dsi_tmp,         //double [][] dsi,
+					(i < (DSI_SUFFIXES.length -1))); // silent
+			if (dsi_result >= 0) {
+				System.out.println ("Using "+getX3dDirectory()+ Prefs.getFileSeparator() + image_name + DSI_SUFFIXES[i] + ".tiff");
+				if (i < 2) { // DSI format for COMBO_DSN_INDX_* is different, 
+					setDSIFromCombo(dsi_tmp); // reformat
+				} else {
+					setDSI(dsi_tmp); // as is
+				}
+				break;
+			}
 		}
-		restoreInterProperties( // restore properties for interscene processing (extrinsics, ers, ...) // get relative poses (98)
-				null, // String path,             // full name with extension or null to use x3d directory
-				false, // boolean all_properties,//				null, // Properties properties,   // if null - will only save extrinsics)
-				debugLevel);
-//		showDSIMain();
+		if (dsi_result < 0) {
+				System.out.println("No DSI data for the scene "+this.getImageName()+", setting this.dsi=null");
+				setDSI(null);
+		} else {
+			restoreInterProperties( // restore properties for interscene processing (extrinsics, ers, ...) // get relative poses (98)
+					null, // String path,             // full name with extension or null to use x3d directory
+					false, // boolean all_properties,//				null, // Properties properties,   // if null - will only save extrinsics)
+					debugLevel);
+		}
 		return this; //  can only be QuadCLT instance
 	}
 	
@@ -738,6 +854,12 @@ public class QuadCLTCPU {
 				true,  // smart,
 				true);  //newAllowed, // save
 		String [] sourceFiles = correctionsParameters.selectSourceFileInSet(jp4_copy_path, debugLevel);
+		if (sourceFiles.length < getNumSensors()) {
+			if (sourceFiles.length > 0) {
+				System.out.println("not enough source files ("+sourceFiles.length+") in "+jp4_copy_path);
+			}
+			return null;
+		}
 		SetChannels [] set_channels=setChannels(
 				null, // single set name
 				sourceFiles,
