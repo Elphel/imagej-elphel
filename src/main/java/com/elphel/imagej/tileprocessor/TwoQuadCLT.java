@@ -3137,6 +3137,11 @@ if (debugLevel > -100) return true; // temporarily !
 				return;
 			}
 		}
+		if (search_KML && (set_channels_main !=null)) { // TODO: make it look in both MAIN and AUX. Look in only the same scene?
+			quadCLT_main.writeKml(
+					set_name,
+					debugLevel ); // also generated with x3d model
+		}
 		for (String fname:path_list) {
 			if (fname.contains(set_name)) { // only files containing set name // TODO:improve
 				File file = new File(fname);
@@ -3151,11 +3156,6 @@ if (debugLevel > -100) return true; // temporarily !
 					System.out.println("Failed to copy "+fname+" -> "+dir);
 				}
 			}
-		}
-		if (search_KML && (set_channels_main !=null)) { // TODO: make it look in both MAIN and AUX. Look in only the same scene?
-			quadCLT_main.writeKml(
-					set_name,
-					debugLevel ); // also generated with x3d model
 		}
 		System.out.println("jp4_copy_path = "+jp4_copy_path);
 		//		  System.out.println("Do something useful here");

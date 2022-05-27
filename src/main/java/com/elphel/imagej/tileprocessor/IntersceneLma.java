@@ -620,7 +620,7 @@ public class IntersceneLma {
 		pure_weight = s_pure/full_weight;
 		final double s = 1.0/asum_weight.sum();
 		if (Double.isNaN(s)) {
-			System.out.println("normalizeWeights(): s == NaN");
+			System.out.println("normalizeWeights(): s == NaN : 1");
 		}
 		ai.set(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -673,7 +673,7 @@ public class IntersceneLma {
 		pure_weight = sum_weight_pure/full_weight;
 		final double s = 1.0/full_weight;
 		if (Double.isNaN(s)) {
-			System.out.println("normalizeWeights(): s == NaN");
+			System.out.println("normalizeWeights(): s == NaN  : 2");
 		}
 		ai.set(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {

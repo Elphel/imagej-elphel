@@ -838,6 +838,10 @@ public class GpuQuad{ // quad camera description
 		}
 		float [] fbayer = new float [bayer_data[0][0].length];
 		for (int ncam = 0; ncam < bayer_data.length; ncam++) {
+			if (bayer_data[ncam][0] == null) {
+				System.out.println("BUG!! bayer_data["+ncam+"][0] == null");
+				continue;
+			}
 			for (int i = 0; i <  bayer_data[ncam][0].length; i++) {
 				fbayer[i] = (float) (bayer_data[ncam][0][i]); //  + bayer_data[ncam][1][i] + bayer_data[ncam][2][i]);
 				for (int j = 1; j < bayer_data[ncam].length; j++) {

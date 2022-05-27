@@ -2467,6 +2467,9 @@ public class ImageDtt extends ImageDttCPU {
 			final boolean             use_partial,     // find motion vectors for individual pairs, false - for sum only
 			final double              centroid_radius, // 0 - use all tile, >0 - cosine window around local max
 			final int                 n_recenter,      // when cosine window, re-center window this many times
+			final double              td_weight,    // mix correlations accumulated in TD with 
+			final double              pd_weight,    // correlations (post) accumulated in PD
+			final boolean             td_nopd_only, // only use TD accumulated data if no safe PD is available for the tile.
 			final double              min_str,         //  = 0.25;
 			final double              min_str_sum,     // = 0.8; // 5;
 			final int                 min_neibs,       //   2;	   // minimal number of strong neighbors (> min_str)
@@ -2658,26 +2661,60 @@ public class ImageDtt extends ImageDttCPU {
 							}
 						}
 						// now calculate only for composite
-						double [] mv = Correlation2d.getMaxXYCm(
+						double [] mv_pd = new double [3];
+						double [] mv_td = new double [3];
+						if (pd_weight > 0.0) {
+							mv_pd = Correlation2d.getMaxXYCm(
 								corrs[corrs.length-1], // double [] data,
 								corr_size,             // int       data_width,      //  = 2 * transform_size - 1;
 								centroid_radius,       // double    radius, // 0 - all same weight, > 0 cosine(PI/2*sqrt(dx^2+dy^2)/rad)
 								n_recenter,            // int       refine, //  re-center window around new maximum. 0 -no refines (single-pass)
 								false);                // boolean   debug)
-						if (mv != null) {
-							if (mv[2] < min_str) {
-								mv = null;
-							} else {
-								mv[2] -= min_str;
+							if (mv_pd != null) {
+								if (mv_pd[2] < min_str) {
+									mv_pd = null;
+								} else {
+									mv_pd[2] -= min_str;
+								}
 							}
 						}
-						if (mv != null) {
-							if (pXpYD == null) {
-								coord_motion[0][nTile] = mv;
-							} else {
-								if (pXpYD[nTile] != null) { // seems always
-									coord_motion[0][nTile] = pXpYD[nTile].clone();
-									coord_motion[1][nTile] = mv;
+						if (td_weight > 0.0) {
+							mv_td = Correlation2d.getMaxXYCm(
+								corrs[corrs.length-2], // double [] data,
+								corr_size,             // int       data_width,      //  = 2 * transform_size - 1;
+								centroid_radius,       // double    radius, // 0 - all same weight, > 0 cosine(PI/2*sqrt(dx^2+dy^2)/rad)
+								n_recenter,            // int       refine, //  re-center window around new maximum. 0 -no refines (single-pass)
+								false);                // boolean   debug)
+							if (mv_td != null) {
+								if (mv_td[2] < min_str_sum) {
+									mv_td = null;
+								} else {
+									mv_td[2] -= min_str_sum;
+								}
+							}
+						}
+						if ((mv_td != null) || (mv_pd != null)) {
+							double [] mv = new double[3];
+							if (mv_pd != null) {
+								mv = mv_pd;
+								mv[2] *= pd_weight;
+								if ((mv_td != null) && !td_nopd_only) {  // mix
+									mv[0] = (mv[0] * pd_weight + mv_td[0] * td_weight)/ (pd_weight + td_weight);
+									mv[1] = (mv[1] * pd_weight + mv_td[1] * td_weight)/ (pd_weight + td_weight);
+									mv[2] += mv_td[2] * td_weight;
+								} // mix
+							} else { // (mv_pd == null) &&  (mv_td != null)  below
+								mv = mv_td;
+								mv[2] *= td_weight;
+							}
+							if (mv != null) {
+								if (pXpYD == null) {
+									coord_motion[0][nTile] = mv;
+								} else {
+									if (pXpYD[nTile] != null) { // seems always
+										coord_motion[0][nTile] = pXpYD[nTile].clone();
+										coord_motion[1][nTile] = mv;
+									}
 								}
 							}
 						}

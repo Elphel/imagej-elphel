@@ -50,6 +50,12 @@ public class IntersceneMatchParameters {
 	public  double  centroid_radius =               4.0;   // 
 	public  int     n_recenter =                    2;     // when cosine window, re-center window this many times
 	// filtering motion vectors
+	// TD accumulation of the inter-scene correlations  demonstrated artifacts (horizontally offset by 8 pixels
+	// false maximum that is sharper than the real one. Still not understood - maybe float precision related. 
+	public  double  td_weight =                     0.5;   // mix correlations accumulated in TD with 
+	public  double  pd_weight =                     0.5;   // correlations (post) accumulated in PD
+	public  boolean td_nopd_only =                  true;  // only use TD accumulated data if no safe PD is available for the tile.
+
 	public  double  min_str =                       0.25;  // minimal correlation strength for all but TD-accumulated layer
 	public  double  min_str_sum =                   0.8;	  // minimal correlation strength for TD-accumulated layer
 	public  int     min_neibs =                     2;	   // minimal number of strong neighbors (> min_str)
@@ -131,6 +137,14 @@ public class IntersceneMatchParameters {
 				"Calculate centroids after multiplication by a half-cosine window. All correlation data farther than this value from the center is ignored");
 		gd.addNumericField("Refine centroids",                       this.n_recenter, 0,5,"",
 				"Repeat centroids after moving the window center to the new centroid location this many times (0 - calculate once)");
+
+		gd.addMessage  ("Mixing TD and PD accumulation of 2d correlations");
+		gd.addNumericField("TD-accumulated weight",                  this.td_weight, 5,7,"",
+				"Mix argmax from TD-accumulated correlation.");
+		gd.addNumericField("PD-accumulated weight",                  this.pd_weight, 5,7,"",
+				"Mix argmax from PD-accumulated correlation.");
+		gd.addCheckbox ("TD when no PD only",                        this.td_nopd_only,
+				"Use argmax from TD only if PD data is not available for this tile.");
 		
 		gd.addMessage  ("Filtering motion vectors");
 		gd.addNumericField("Minimal correlation strength (non-sum)", this.min_str, 5,7,"",
@@ -223,6 +237,11 @@ public class IntersceneMatchParameters {
 		this.run_poly =                 gd.getNextBoolean();
 		this.centroid_radius =          gd.getNextNumber();
 		this.n_recenter =         (int) gd.getNextNumber();
+
+		this.td_weight =                gd.getNextNumber();
+		this.pd_weight =                gd.getNextNumber();
+		this.td_nopd_only =             gd.getNextBoolean();
+		
 		this.min_str =                  gd.getNextNumber();
 		this.min_str_sum =              gd.getNextNumber();
 		this.min_neibs =          (int) gd.getNextNumber();
@@ -275,6 +294,11 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"run_poly",             this.run_poly+"");            // boolean
 		properties.setProperty(prefix+"centroid_radius",      this.centroid_radius+"");     // double
 		properties.setProperty(prefix+"n_recenter",           this.n_recenter+"");          // int
+		
+		properties.setProperty(prefix+"td_weight",            this.td_weight+"");           // double
+		properties.setProperty(prefix+"pd_weight",            this.pd_weight+"");           // double
+		properties.setProperty(prefix+"td_nopd_only",         this.td_nopd_only+"");        // boolean
+		
 		properties.setProperty(prefix+"min_str",              this.min_str+"");             // double
 		properties.setProperty(prefix+"min_str_sum",          this.min_str_sum+"");         // double
 		properties.setProperty(prefix+"min_neibs",            this.min_neibs+"");           // int
@@ -323,6 +347,11 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"run_poly")!=null)             this.run_poly=Boolean.parseBoolean(properties.getProperty(prefix+"run_poly"));
 		if (properties.getProperty(prefix+"centroid_radius")!=null)      this.centroid_radius=Double.parseDouble(properties.getProperty(prefix+"centroid_radius"));
 		if (properties.getProperty(prefix+"n_recenter")!=null)           this.n_recenter=Integer.parseInt(properties.getProperty(prefix+"n_recenter"));
+		
+		if (properties.getProperty(prefix+"td_weight")!=null)            this.td_weight=Double.parseDouble(properties.getProperty(prefix+"td_weight"));
+		if (properties.getProperty(prefix+"pd_weight")!=null)            this.pd_weight=Double.parseDouble(properties.getProperty(prefix+"pd_weight"));
+		if (properties.getProperty(prefix+"td_nopd_only")!=null)         this.td_nopd_only=Boolean.parseBoolean(properties.getProperty(prefix+"td_nopd_only"));
+		
 		if (properties.getProperty(prefix+"min_str")!=null)              this.min_str=Double.parseDouble(properties.getProperty(prefix+"min_str"));
 		if (properties.getProperty(prefix+"min_str_sum")!=null)          this.min_str_sum=Double.parseDouble(properties.getProperty(prefix+"min_str_sum"));
 		if (properties.getProperty(prefix+"min_neibs")!=null)            this.min_neibs=Integer.parseInt(properties.getProperty(prefix+"min_neibs"));
@@ -373,6 +402,11 @@ public class IntersceneMatchParameters {
 		imp.run_poly              = this.run_poly;
 		imp.centroid_radius       = this.centroid_radius;
 		imp.n_recenter            = this.n_recenter;
+		
+		imp.td_weight             = this.td_weight;
+		imp.pd_weight             = this.pd_weight;
+		imp.td_nopd_only          = this.td_nopd_only;
+
 		imp.min_str               = this.min_str;
 		imp.min_str_sum           = this.min_str_sum;
 		imp.min_neibs             = this.min_neibs;

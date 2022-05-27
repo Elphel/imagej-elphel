@@ -649,19 +649,20 @@ public class ImagejJp4Tiff {
 			return center;
 		}
 		System.out.println ("Discontinuities remain, will fix by clusters");
-		fixByClusters(
+		boolean OK = fixByClusters(
 				width,
 				height,
 				FIXCH6_BIT,         // int    bad_bit,
 				idata,              // int [] data)
 				(dbg_img != null)); // boolean debug)
+		System.out.println ("FixByClusters -> "+OK);
 		for (int i = 0; i < idata.length; i++) {
 			pixels[i+640] = idata[i];
 		}
 		return center;
 	}
 
-	public boolean fixByClusters(
+	public static boolean fixByClusters(
 			int    width,
 			int    height,
 			int    bad_bit,
@@ -733,6 +734,9 @@ public class ImagejJp4Tiff {
 				}
 				if (ndir == 1) {
 					indx++;
+					if (indx >= clusters.length) { // start from the beginning
+						indx -= clusters.length;
+					}
 				}
 			}
 			if (ntry >= (2*clusters.length)) {

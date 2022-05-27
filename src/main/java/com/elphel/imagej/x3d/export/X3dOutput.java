@@ -284,6 +284,7 @@ public class X3dOutput {
 		addTextElement(kmlDoc, el_Camera, "heading",   String.format("%f",0.0));
 		addTextElement(kmlDoc, el_Camera, "tilt",      String.format("%f",90.0));
 		addTextElement(kmlDoc, el_Camera, "roll",      String.format("%f",0.0));
+		addTextElement(kmlDoc, el_Camera, "altitudeMode", "clampToGround");
 		if (icon_path != null) {
 			Element el_Icon = addElement(kmlDoc, el_PhotoOverlay, "Icon");
 			addTextElement(kmlDoc, el_Icon, "href",  icon_path);
@@ -296,6 +297,7 @@ public class X3dOutput {
 		addTextElement(kmlDoc, el_OriginalData, "heading",   String.format("%f",0.0));
 		addTextElement(kmlDoc, el_OriginalData, "tilt",      String.format("%f",90.0));
 		addTextElement(kmlDoc, el_OriginalData, "roll",      String.format("%f",0.0));
+		addTextElement(kmlDoc, el_OriginalData, "altitudeMode", "clampToGround");
 
 		try {
 			// write the content into xml file

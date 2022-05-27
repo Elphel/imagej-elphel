@@ -3907,7 +3907,7 @@ public class OpticalFlow {
 					null, // QuadCLT quadCLT_aux,
 					clt_parameters, // EyesisCorrectionParameters.DCTParameters dct_parameters,
 					true, // boolean                                  skip_existing,
-					false, // boolean                                  search_KML,
+					true, // false, // boolean                                  search_KML,
 					debugLevel);
 			quadCLTs[ref_index] = (QuadCLT) quadCLT_main.spawnNoModelQuadCLT( // will conditionImageSet
 					set_channels[ref_index].set_name,
@@ -3971,7 +3971,7 @@ public class OpticalFlow {
 						null, // QuadCLT quadCLT_aux,
 						clt_parameters, // EyesisCorrectionParameters.DCTParameters dct_parameters,
 						true, // boolean                                  skip_existing,					
-						false, // boolean                                  search_KML,
+						true, // false, // boolean                                  search_KML,
 						debugLevel);
 			} // split cycles to remove output clutter
 		} // if (build_ref_dsi) {
@@ -4060,6 +4060,9 @@ public class OpticalFlow {
 					System.out.println("Pass multi scene "+scene_index+" (of "+ quadCLTs.length+") "+
 							quadCLTs[ref_index].getImageName() + "/" + scene_QuadClt.getImageName()+
 							" Done. RMS="+lma_rms[0]+", maximal so far was "+maximal_series_rms);
+				}
+				if (scene_index == 25) {
+					System.out.println("scene_index == 25");
 				}
 				/*
 			if (delete_scene_asap) {
@@ -9666,7 +9669,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		final float  [][][] fclt_corr = ((accum_2d_corr != null) || show_2d_correlations) ?
 				(new float [tilesX * tilesY][][]) : null;
 		if (debug_level > 1) {
-			System.out.println("interCorrPair():  "+IntersceneLma.printNameV3("ATR",scene_atr)+
+			System.out.println("interCorrPair():   "+IntersceneLma.printNameV3("ATR",scene_atr)+
 					" "+IntersceneLma.printNameV3("XYZ",scene_xyz));
 		}
 		ImageDtt image_dtt;
@@ -9682,10 +9685,11 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		if (ref_scene.getGPU() != null) {
 			ref_scene.getGPU().setGpu_debug_level(debug_level - 4); // monitor GPU ops >=-1
 		}
-		final double disparity_corr = 0.00; // (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
-		double [][] dsrbg_ref= ref_scene.getDSRBG();
+		final double disparity_corr = 0.0; // (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
+//		double [][] dsrbg_ref= ref_scene.getDSRBG();
+		double [][] dls= ref_scene.getDLS();
 		double [][] ref_pXpYD = transformToScenePxPyD( // full size - [tilesX*tilesY], some nulls
-				dsrbg_ref[0],  // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
+				dls[0],  // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
 				ZERO3,         // final double []   scene_xyz, // camera center in world coordinates
 				ZERO3,         // final double []   scene_atr, // camera orientation relative to world frame
 				ref_scene,     // final QuadCLT     scene_QuadClt,
@@ -9713,7 +9717,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		//setupERS() will be inside transformToScenePxPyD()
 		 */
 		double [][] scene_pXpYD = transformToScenePxPyD( // will be null for disparity == NaN, total size - tilesX*tilesY
-				dsrbg_ref[0], // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
+				dls[0], // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
 				scene_xyz,    // final double []   scene_xyz, // camera center in world coordinates
 				scene_atr,    // final double []   scene_atr, // camera orientation relative to world frame
 				scene,        // final QuadCLT     scene_QuadClt,
@@ -9804,6 +9808,9 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					clt_parameters.imp.use_partial,    // final boolean             use_partial,     // find motion vectors for individual pairs, false - for sum only
 					clt_parameters.imp.centroid_radius,// final double              centroid_radius, // 0 - use all tile, >0 - cosine window around local max
 					clt_parameters.imp.n_recenter,     // final int                 n_recenter,      // when cosine window, re-center window this many times
+					clt_parameters.imp.td_weight,      // final double  td_weight,    // mix correlations accumulated in TD with 
+					clt_parameters.imp.pd_weight,      // final double  pd_weight,    // correlations (post) accumulated in PD
+					clt_parameters.imp.td_nopd_only,   // final boolean td_nopd_only, // only use TD accumulated data if no safe PD is available for the tile.
 					clt_parameters.imp.min_str,        // final double              min_str,         //  = 0.25;
 					clt_parameters.imp.min_str_sum,    // final double              min_str_sum,     // = 0.8; // 5;
 					clt_parameters.imp.min_neibs,      // final int                 min_neibs,       //   2;	   // minimal number of strong neighbors (> min_str)

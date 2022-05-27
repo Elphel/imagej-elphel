@@ -138,8 +138,9 @@ public class EyesisCorrectionParameters {
     	public String x3dSubdirSuffix=         "";
 
   		// CLT 3d batch parameters
-    	public boolean process_main_sources = false;
-    	public boolean process_aux_sources =  true;
+    	public boolean process_main_sources = false; // not yet used
+    	public boolean process_aux_sources =  true; // not yet used
+    	public int     kml_sensors=                0xffffffff; // all sensors 
     	
     	public int     rig_batch_adjust_main = 0;
     	public int     rig_batch_adjust_aux =  0;
@@ -305,6 +306,7 @@ public class EyesisCorrectionParameters {
   			cp.process_main_sources=    this.process_main_sources;
   			cp.process_aux_sources=     this.process_aux_sources;
   			
+  			cp.kml_sensors=             this.kml_sensors;
   			cp.rig_batch_adjust_main=   this.rig_batch_adjust_main;
   			cp.rig_batch_adjust_aux=	this.rig_batch_adjust_aux;
   			cp.rig_batch_adjust_rig=	this.rig_batch_adjust_rig;
@@ -508,6 +510,8 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"process_main_sources",  this.process_main_sources+"");
     		properties.setProperty(prefix+"process_aux_sources",   this.process_aux_sources+"");
 
+    		properties.setProperty(prefix+"kml_sensors",           this.kml_sensors+"");
+
     		properties.setProperty(prefix+"rig_batch_adjust_main", this.rig_batch_adjust_main+"");
     		properties.setProperty(prefix+"rig_batch_adjust_aux",  this.rig_batch_adjust_aux+"");
     		properties.setProperty(prefix+"rig_batch_adjust_rig",  this.rig_batch_adjust_rig+"");
@@ -693,6 +697,8 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"process_main_sources")!= null) this.process_main_sources=Boolean.parseBoolean(properties.getProperty(prefix+"process_main_sources"));
 			if (properties.getProperty(prefix+"process_aux_sources")!= null)  this.process_aux_sources=Boolean.parseBoolean(properties.getProperty(prefix+"process_aux_sources"));
 
+  		    if (properties.getProperty(prefix+"kml_sensors")!=null) this.kml_sensors=Integer.parseInt(properties.getProperty(prefix+"kml_sensors"));
+  		    
   		    if (properties.getProperty(prefix+"rig_batch_adjust_main")!=null) this.rig_batch_adjust_main=Integer.parseInt(properties.getProperty(prefix+"rig_batch_adjust_main"));
   		    if (properties.getProperty(prefix+"rig_batch_adjust_aux")!=null)  this.rig_batch_adjust_aux=Integer.parseInt(properties.getProperty(prefix+"rig_batch_adjust_aux"));
   		    if (properties.getProperty(prefix+"rig_batch_adjust_rig")!=null)  this.rig_batch_adjust_rig=Integer.parseInt(properties.getProperty(prefix+"rig_batch_adjust_rig"));
@@ -1086,6 +1092,8 @@ public class EyesisCorrectionParameters {
     		gd.addCheckbox    ("Process main camera source images (false - ignore)",   this.process_main_sources); // 20c
     		gd.addCheckbox    ("Process AUX camera source images (false - ignore)",    this.process_aux_sources); // 20d
   			
+			gd.addNumericField("Bitmask of channels were to look for GPS data",                            this.kml_sensors,  0);
+
 			gd.addNumericField("Repeat main camera field adjustment (early, before rig)",                  this.rig_batch_adjust_main,  0);
 			gd.addNumericField("Repeat aux camera field adjustment  (early, before rig)",                  this.rig_batch_adjust_aux,   0);
 			gd.addNumericField("Repeat 2-quad camera rig field adjustment  (early, before late main/aux)", this.rig_batch_adjust_rig,   0);
@@ -1226,6 +1234,8 @@ public class EyesisCorrectionParameters {
     		this.process_main_sources=              gd.getNextBoolean(); // 20c
     		this.process_aux_sources=               gd.getNextBoolean(); // 20d
 
+    		this.kml_sensors =                (int) gd.getNextNumber();
+
     		this.rig_batch_adjust_main =      (int) gd.getNextNumber();
 			this.rig_batch_adjust_aux =       (int) gd.getNextNumber();
 			this.rig_batch_adjust_rig =       (int) gd.getNextNumber();
@@ -1289,7 +1299,7 @@ public class EyesisCorrectionParameters {
     		return (this.sourcePaths!=null)?this.sourcePaths:empty;
     	}
 
-    	public int getChannelFromTiff(String path, String suffix){
+    	public static int getChannelFromTiff(String path, String suffix){
     		int indexSuffix=path.length()-suffix.length();
     		int indexLastDash=indexSuffix-1; // in jp4 it will be underscore, not dash? Or should we change that?
     		while ((indexLastDash>0) &&

@@ -14214,9 +14214,42 @@ public class QuadCLTCPU {
 			  if (imp.getProperty("ALTITUDE")  != null) gps_lla[2] =Double.parseDouble((String) imp.getProperty("ALTITUDE"));
 			  return true;
 		  }
+		  if (imp.getProperty("STD_GPS_Latitude")  != null) {
+			  gps_lla = new double[3];
+			  for (int i = 0; i < 3; i++) {
+				  gps_lla[i] = Double.NaN;
+			  }
+			  if (imp.getProperty("STD_GPS_Latitude")  != null) gps_lla[0] =parseDegreeMinSec((String) imp.getProperty("STD_GPS_Latitude"));
+			  if (imp.getProperty("STD_GPS_Longitude")  != null) gps_lla[1] =parseDegreeMinSec((String) imp.getProperty("STD_GPS_Longitude"));
+			  if (imp.getProperty("STD_GPS_Altitude")  != null) gps_lla[2] =parseStringToEndString((String) imp.getProperty("STD_GPS_Altitude"),"m");
+			  return true;
+		  }
 		  return false; // not used in lwir
 	  }
 
+	  static double parseDegreeMinSec(String s) {
+		  int indx_degree = s.indexOf("\u00B0");
+		  int indx_minute  = s.indexOf("\u2032");
+		  if (indx_minute < 0) {
+			  indx_minute  = s.indexOf("'");
+		  }
+		  int indx_second  = s.indexOf("\u2033");
+		  if (indx_second < 0) {
+			  indx_second  = s.indexOf("\"");
+		  }
+		  double degrees =  Double.parseDouble(s.substring(0,indx_degree));
+		  double min_sec = Double.parseDouble(s.substring(indx_degree+1, indx_minute))/60.0 +
+				  Double.parseDouble(s.substring(indx_minute+1, indx_second))/3600.0;
+		  if (degrees < 0) {
+			  return degrees - min_sec;
+		  } else {
+			  return degrees + min_sec;
+		  }
+	  }
+	  static double parseStringToEndString(String s, String end_string) {
+		  int indx_end = s.indexOf(end_string);
+		  return Double.parseDouble(s.substring(0, indx_end));
+	  }
 
 	  public boolean writeKml( // USED in lwir
 			  String image_name,
@@ -14227,12 +14260,18 @@ public class QuadCLTCPU {
 		  }
 		  String [] sourceFiles_main=correctionsParameters.getSourcePaths();
 		  SetChannels [] set_channels = setChannels(image_name,debugLevel); // only for specified image timestamp
+		  int kml_sensors = correctionsParameters.kml_sensors;	
 
 		  ArrayList<String> path_list = new ArrayList<String>();
 		  for (int i = 0; i < set_channels.length; i++) {
-			  for (int fn:set_channels[i].file_number) {
-				  path_list.add(sourceFiles_main[fn]);
+			  for (int nchn = 0; nchn < set_channels[i].file_number.length; nchn++) {
+				  if ((kml_sensors & (1 << nchn)) != 0) {
+					  path_list.add(sourceFiles_main[set_channels[i].file_number[nchn]]);
+				  }
 			  }
+///			  for (int fn:set_channels[i].file_number) {
+///				  path_list.add(sourceFiles_main[fn]);
+///			  }
 		  }
 		  for (String fname:path_list) {
 			  System.out.println("writeKml(): "+fname);
