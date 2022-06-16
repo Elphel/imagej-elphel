@@ -2965,7 +2965,7 @@ extern "C" __global__ void convert_direct(  // called with a single block, singl
 		float           ** gpu_kernels,        // [num_cams],
 		float           ** gpu_images,         // [num_cams],
 		float            * gpu_ftasks,         // flattened tasks, 27 floats for quad EO, 99 floats for LWIR16
-		float           ** gpu_clt,            // [num_cams][TILE-SY][TILES-X][num_colors][DTT_SIZE*DTT_SIZE]
+		float           ** gpu_clt,            // [num_cams][TILES-Y][TILES-X][num_colors][DTT_SIZE*DTT_SIZE]
 		size_t             dstride,            // in floats (pixels)
 		int                num_tiles,          // number of tiles in task
 		int                lpf_mask,           // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green. Now - always 0 !
@@ -3012,6 +3012,58 @@ extern "C" __global__ void convert_direct(  // called with a single block, singl
 
 	 }
 }
+
+/**
+ * Erase CLT tiles before generating corrected images when not all tiles are converted. IMCLT for full images
+ * processes all CLT tiles, so if some tiles are skipped, they preserve all TD data that appears in the output.
+ * No erase is needed before correlations or texture generation.
+ *
+ * @param num_cams           number of subcameras <= NUM_CAMS. 4 for RGB, 16 for lwir in LWIR16
+ * @param num_colors         number of colors <= NUM_COLORS. 3 for RGB, 1 for lwir/mono
+ * @param tiles_x            number of tiles in a row
+ * @param tiles_y            number of tile rows
+ * @param gpu_clt            array of per-camera aberration-corrected transform-domain image representations
+ * @param fill_data          data to write (normally 0.0f, may be NaN?)
+ */
+extern "C" __global__ void erase_clt_tiles(
+		    int                num_cams,           // actual number of cameras
+		    int                num_colors,         // actual number of colors: 3 for RGB, 1 for LWIR/mono
+			int                tiles_x,
+			int                tiles_y,
+			float           ** gpu_clt,            // [num_cams][tiles_y][tiles_x][num_colors][4*DTT_SIZE*DTT_SIZE]
+			float              fill_data)
+{
+	if (threadIdx.x == 0) { // anyway 1,1,1
+		dim3 threads_erase(NUM_THREADS, 1, 1); // (32,1,1)
+		dim3 grid_erase   (tiles_x, tiles_y, num_cams);
+		erase_clt_tiles_inner<<<grid_erase,threads_erase>>>(
+				num_colors,             // int                num_colors,
+				tiles_x,                // int                tiles_x,
+				gpu_clt,                // float           ** gpu_clt,
+				fill_data);             // float              fill_data)
+	}
+}
+
+extern "C" __global__ void erase_clt_tiles_inner(
+		int                num_colors,         // actual number of colors: 3 for RGB, 1 for LWIR/mono
+		int                tiles_x,
+		float           ** gpu_clt,            // [num_cams][tiles_y][tiles_x][num_colors][4*DTT_SIZE*DTT_SIZE]
+		float              fill_data)
+{
+	int tile_size = num_colors * (4*DTT_SIZE*DTT_SIZE);
+	// can not use gridDim -> cuda.CudaException: CUDA_ERROR_INVALID_PTX
+//	float * data = gpu_clt[blockIdx.z] + tile_size * (blockIdx.x + blockIdx.y * gridDim.x) + threadIdx.x;
+	float * data = gpu_clt[blockIdx.z] + tile_size * (blockIdx.x + blockIdx.y * tiles_x) + threadIdx.x;
+	for (int ncol = 0; ncol < num_colors; ncol++){
+#pragma unroll
+		for (int i = 0; i < (4*DTT_SIZE*DTT_SIZE/NUM_THREADS); i++){
+			*data = fill_data;
+			data += NUM_THREADS;
+		}
+	}
+}
+
+
 
 /**
  * Helper kernel for convert_direct() - perform actual conversion.

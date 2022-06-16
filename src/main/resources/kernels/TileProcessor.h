@@ -163,8 +163,22 @@ __global__ void imclt_rbg_all(
 		const size_t       dstride);            // in floats (pixels)
 
 extern "C" __global__ void erase8x8(
-		float           * gpu_top_left,
-		const size_t      dstride);
+		float            * gpu_top_left,
+		const size_t       dstride);
+
+extern "C" __global__ void erase_clt_tiles(
+		int                num_cams,           // actual number of cameras
+		int                num_colors,         // actual number of colors: 3 for RGB, 1 for LWIR/mono
+		int                tiles_x,
+		int                tiles_y,
+		float           ** gpu_clt,            // [num_cams][tiles_y][tiles_x][num_colors][4*DTT_SIZE*DTT_SIZE]
+		float              fill_data);
+
+extern "C" __global__ void erase_clt_tiles_inner(
+		int                num_colors,         // actual number of colors: 3 for RGB, 1 for LWIR/mono
+		int                tiles_x,
+		float           ** gpu_clt,            // [num_cams][tiles_y][tiles_x][num_colors][4*DTT_SIZE*DTT_SIZE]
+		float              fill_data);
 
 extern "C" __global__ void imclt_rbg(
 		float           * gpu_clt,            // [TILES-Y][TILES-X][NUM_COLORS][DTT_SIZE*DTT_SIZE]
