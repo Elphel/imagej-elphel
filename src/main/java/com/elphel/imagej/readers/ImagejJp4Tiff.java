@@ -95,7 +95,7 @@ public class ImagejJp4Tiff {
 //	private static final int    FIXCH6_MAXVAL  = 23367; // higher - subtract 4096, <19271 -add 4096 
 	private static final int    FIXCH6_EXPECTED  = 21319; // expected value 
 	private static final String FIXCH6_EARLIEST = "2021-12-01 00:00:00.000";
-	private static final String FIXCH6_LATEST =   "2022-04-01 00:00:00.000";
+	private static final String FIXCH6_LATEST =   "2022-12-01 00:00:00.000";
 	
 	// -- Fields --
 

@@ -2720,6 +2720,7 @@ public class OpticalFlow {
 			final QuadCLT     scene_QuadClt,
 			final QuadCLT     reference_QuadClt) {
 		return transformToScenePxPyD(
+				null, // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
 				disparity_ref, // invalid tiles - NaN in disparity
 				scene_xyz, // camera center in world coordinates
 				scene_atr, // camera orientation relative to world frame
@@ -2728,6 +2729,111 @@ public class OpticalFlow {
 				this.threadsMax);
 	}
 	
+	/**
+	 * Calculate pX, pY, Disparity triplets for the rotated scene to match uniform grid of a virtual camera
+	 * Supports reference window larger that the physical sensor to show more of the other frames with partial
+	 * overlap.
+	 * @param full_woi_in null or a larger reference window {width, height, left, top}
+	 * @param disparity_ref_in disparity value - either full_woi size or a reference frame only (rest will be 0)  
+	 * @param scene_xyz scene linear offset (in meters)
+	 * @param scene_atr scene azimuth, tilt, roll offset
+	 * @param scene_QuadClt 
+	 * @param reference_QuadClt
+	 * @param threadsMax
+	 * @return pX, pY, Disparity of the other scene. pX, pY are measured from the sensor top left corner
+	 */
+	public static double [][] transformToScenePxPyD(
+			final Rectangle   full_woi_in,      // show larger than sensor WOI (or null) IN TILES
+			final double []   disparity_ref_in, // invalid tiles - NaN in disparity
+			final double []   scene_xyz,        // camera center in world coordinates
+			final double []   scene_atr,        // camera orientation relative to world frame
+			final QuadCLT     scene_QuadClt,
+			final QuadCLT     reference_QuadClt, // now - may be null - for testing if scene is rotated ref
+			int               threadsMax)
+	{
+		
+		TileProcessor tp = scene_QuadClt.getTileProcessor();
+		final int tilesX = (full_woi_in==null) ? tp.getTilesX() : full_woi_in.width; // full width,includeing extra
+		final int tilesY = (full_woi_in==null) ? tp.getTilesY() : full_woi_in.height;
+		final int offsetX_ref = (full_woi_in==null) ? 0 : full_woi_in.x;
+		final int offsetY_ref = (full_woi_in==null) ? 0 : full_woi_in.y;
+		int ref_w = tp.getTilesX();
+		int ref_h = tp.getTilesY();
+		double [] dref = disparity_ref_in;
+		if (full_woi_in!=null) {
+			if ((ref_w + offsetX_ref) > tilesX) ref_w =  tilesX - offsetX_ref;
+			if ((ref_h + offsetY_ref) > tilesY) ref_h =  tilesY - offsetY_ref;
+			if (disparity_ref_in.length < (full_woi_in.width * full_woi_in.height)) {
+				dref= new double[full_woi_in.width * full_woi_in.height];
+				for (int i = 0; i < ref_h; i++) {
+					System.arraycopy(
+							disparity_ref_in,
+							i * tp.getTilesX(), // not truncated
+							dref,
+							(i + offsetY_ref) * full_woi_in.width + offsetX_ref,
+							ref_w); // may be truncated
+				}
+			}
+		}
+		final double []   disparity_ref = dref;
+		final int tilesX_ref = ref_w;
+		final int tilesY_ref = ref_h;
+		final int tiles = tilesX*tilesY;
+		final int transform_size = tp.getTileSize();
+		final double [][] pXpYD=               new double [tiles][];
+		final ErsCorrection ersSceneCorrection =     scene_QuadClt.getErsCorrection();
+		final ErsCorrection ersReferenceCorrection = (reference_QuadClt!=null)? reference_QuadClt.getErsCorrection(): ersSceneCorrection;
+		if (reference_QuadClt!=null) {
+			ersReferenceCorrection.setupERS(); // just in case - setUP using instance paRAMETERS
+		}
+		ersSceneCorrection.setupERS();
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) if (!Double.isNaN(disparity_ref[nTile])) {
+						double disparity = disparity_ref[nTile];
+						int tileY = nTile / tilesX;  
+						int tileX = nTile % tilesX;
+						double centerX = (tileX + 0.5 - offsetX_ref) * transform_size; //  - shiftX;
+						double centerY = (tileY + 0.5 - offsetY_ref) * transform_size; //  - shiftY;
+						if (disparity < 0) {
+							disparity = 1.0* disparity; // 0.0;
+						}
+						if (scene_QuadClt == reference_QuadClt) {
+							pXpYD[nTile] = new double [] {centerX, centerY, disparity};
+						} else {
+							pXpYD[nTile] = ersReferenceCorrection.getImageCoordinatesERS( // ersCorrection - reference
+									scene_QuadClt,  // QuadCLT cameraQuadCLT, // camera station that got image to be to be matched 
+									centerX,        // double px,                // pixel coordinate X in the reference view
+									centerY,        // double py,                // pixel coordinate Y in the reference view
+									disparity,      // double disparity,         // reference disparity 
+									true,           // boolean distortedView,    // This camera view is distorted (diff.rect), false - rectilinear
+									ZERO3,          // double [] reference_xyz,  // this view position in world coordinates (typically ZERO3)
+									ZERO3,          // double [] reference_atr,  // this view orientation relative to world frame  (typically ZERO3)
+									true,           // boolean distortedCamera,  // camera view is distorted (false - rectilinear)
+									scene_xyz,      // double [] camera_xyz,     // camera center in world coordinates
+									scene_atr,      // double [] camera_atr,     // camera orientation relative to world frame
+									LINE_ERR);      // double    line_err)       // threshold error in scan lines (1.0)
+							if (pXpYD[nTile] != null) {
+								if (    (pXpYD[nTile][0] < 0.0) ||
+										(pXpYD[nTile][1] < 0.0) ||
+										(pXpYD[nTile][0] > ersSceneCorrection.getSensorWH()[0]) ||
+										(pXpYD[nTile][1] > ersSceneCorrection.getSensorWH()[1])) {
+									pXpYD[nTile] = null;
+								}
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return pXpYD;
+	}
+	
+	@Deprecated
 	public static double [][] transformToScenePxPyD(
 			final double []   disparity_ref, // invalid tiles - NaN in disparity
 			final double []   scene_xyz, // camera center in world coordinates
@@ -2793,6 +2899,8 @@ public class OpticalFlow {
 		ImageDtt.startAndJoin(threads);
 		return pXpYD;
 	}
+
+
 	
 	//TODO: refine inter-scene pose to accommodate refined disparity map
 	/**
@@ -3855,6 +3963,8 @@ public class OpticalFlow {
     	boolean export_images =      clt_parameters.imp.export_images;
     	boolean export_dsi_image =   clt_parameters.imp.show_ranges;
     	boolean show_images =        clt_parameters.imp.show_images;
+    	boolean show_images_bgfg =   clt_parameters.imp.show_images_bgfg;
+    	boolean show_images_mono =   clt_parameters.imp.show_images_mono;
 
 		double  range_disparity_offset = clt_parameters.imp.range_disparity_offset ; //   -0.08;
 		double  range_min_strength =     clt_parameters.imp.range_min_strength ; // 0.5;
@@ -4109,6 +4219,7 @@ public class OpticalFlow {
 		}
 		
 		if (export_images) {
+			final boolean     toRGB = true;
 			if (combo_dsn_final == null) {
 				combo_dsn_final = quadCLTs[ref_index].readDoubleArrayFromModelDirectory(
 						"-INTER-INTRA-LMA", // String      suffix,
@@ -4166,51 +4277,108 @@ public class OpticalFlow {
 
 			double [] constant_disparity = new double [fg_disparity.length];
 			Arrays.fill(constant_disparity,clt_parameters.disparity);
+			Rectangle testr = new Rectangle(10, 8, 100,80);
 			ImagePlus imp_constant = QuadCLT.renderGPUFromDSI(
+					testr, // null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
+					clt_parameters,      // CLTParameters     clt_parameters,
+					constant_disparity,  // double []         disparity_ref,
+					ZERO3,               // final double []   scene_xyz, // camera center in world coordinates
+					new double[] {.1,0.1,.1}, // ZERO3,               // final double []   scene_atr, // camera orientation relative to world frame
+					quadCLTs[ref_index], // final QuadCLT     scene,
+					true, // toRGB,               // final boolean     toRGB,
+					"GPU-SHIFTED-D"+clt_parameters.disparity, // String            suffix,
+					threadsMax,          // int               threadsMax,
+					debugLevel);         // int         debugLevel)
+			quadCLTs[ref_index].saveImagePlusInModelDirectory(
+					null, // "GPU-SHIFTED-D"+clt_parameters.disparity, // String      suffix,
+					imp_constant); // ImagePlus   imp)
+			ImagePlus imp_constant_mono = QuadCLT.renderGPUFromDSI(
+					testr, // null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 					clt_parameters,      // CLTParameters     clt_parameters,
 					constant_disparity,  // double []         disparity_ref,
 					ZERO3,               // final double []   scene_xyz, // camera center in world coordinates
 					ZERO3,               // final double []   scene_atr, // camera orientation relative to world frame
 					quadCLTs[ref_index], // final QuadCLT     scene,
+					false, // toRGB,               // final boolean     toRGB,
 					"GPU-SHIFTED-D"+clt_parameters.disparity, // String            suffix,
 					threadsMax,          // int               threadsMax,
 					debugLevel);         // int         debugLevel)
 			quadCLTs[ref_index].saveImagePlusInModelDirectory(
-					"GPU-SHIFTED-D"+clt_parameters.disparity, // String      suffix,
-					imp_constant); // ImagePlus   imp)
+					null, // "GPU-SHIFTED-D"+clt_parameters.disparity, // String      suffix,
+					imp_constant_mono); // ImagePlus   imp)
 			if (show_images) {
 				imp_constant.show();
+				if (show_images_mono) {
+					imp_constant_mono.show();
+				}
 			}
-			Arrays.fill(constant_disparity,clt_parameters.disparity);
 			ImagePlus imp_fg = QuadCLT.renderGPUFromDSI(
+					null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 					clt_parameters,      // CLTParameters     clt_parameters,
 					fg_disparity,  // double []         disparity_ref,
 					ZERO3,               // final double []   scene_xyz, // camera center in world coordinates
 					ZERO3,               // final double []   scene_atr, // camera orientation relative to world frame
 					quadCLTs[ref_index], // final QuadCLT     scene,
+					true, // toRGB,               // final boolean     toRGB,
 					"GPU-SHIFTED-FOREGROUND", // String            suffix,
 					threadsMax,          // int               threadsMax,
 					debugLevel);         // int         debugLevel)
 			quadCLTs[ref_index].saveImagePlusInModelDirectory(
-					"GPU-SHIFTED-FOREGROUND", // String      suffix,
+					null, // "GPU-SHIFTED-FOREGROUND", // String      suffix,
 					imp_fg); // ImagePlus   imp)
-			if (show_images) {
+			ImagePlus imp_fg_mono = QuadCLT.renderGPUFromDSI(
+					null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
+					clt_parameters,      // CLTParameters     clt_parameters,
+					fg_disparity,  // double []         disparity_ref,
+					ZERO3,               // final double []   scene_xyz, // camera center in world coordinates
+					ZERO3,               // final double []   scene_atr, // camera orientation relative to world frame
+					quadCLTs[ref_index], // final QuadCLT     scene,
+					false, // toRGB,               // final boolean     toRGB,
+					"GPU-SHIFTED-FOREGROUND", // String            suffix,
+					threadsMax,          // int               threadsMax,
+					debugLevel);         // int         debugLevel)
+			quadCLTs[ref_index].saveImagePlusInModelDirectory(
+					null, // "GPU-SHIFTED-FOREGROUND", // String      suffix,
+					imp_fg_mono); // ImagePlus   imp)
+			if (show_images && show_images_bgfg) {
 				imp_fg.show();
+				if (show_images_mono) {
+					imp_fg_mono.show();
+				}
 			}
 			ImagePlus imp_bg = QuadCLT.renderGPUFromDSI(
+					null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 					clt_parameters,      // CLTParameters     clt_parameters,
 					bg_disparity,        // double []         disparity_ref,
 					ZERO3,               // final double []   scene_xyz, // camera center in world coordinates
 					ZERO3,               // final double []   scene_atr, // camera orientation relative to world frame
 					quadCLTs[ref_index], // final QuadCLT     scene,
+					true,               // final boolean     toRGB,
 					"GPU-SHIFTED-BACKGROUND", // String            suffix,
 					threadsMax,          // int               threadsMax,
 					debugLevel);         // int         debugLevel)
 			quadCLTs[ref_index].saveImagePlusInModelDirectory(
-					"GPU-SHIFTED-BACKGROUND", // String      suffix,
+					null, // "GPU-SHIFTED-BACKGROUND", // String      suffix,
 					imp_bg); // ImagePlus   imp)
-			if (show_images) {
+			ImagePlus imp_bg_mono = QuadCLT.renderGPUFromDSI(
+					null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
+					clt_parameters,      // CLTParameters     clt_parameters,
+					bg_disparity,        // double []         disparity_ref,
+					ZERO3,               // final double []   scene_xyz, // camera center in world coordinates
+					ZERO3,               // final double []   scene_atr, // camera orientation relative to world frame
+					quadCLTs[ref_index], // final QuadCLT     scene,
+					false,               // final boolean     toRGB,
+					"GPU-SHIFTED-BACKGROUND", // String            suffix,
+					threadsMax,          // int               threadsMax,
+					debugLevel);         // int         debugLevel)
+			quadCLTs[ref_index].saveImagePlusInModelDirectory(
+					null, // "GPU-SHIFTED-BACKGROUND", // String      suffix,
+					imp_bg_mono); // ImagePlus   imp)
+			if (show_images && show_images_bgfg) {
 				imp_bg.show();
+				if (show_images_mono) {
+					imp_bg_mono.show();
+				}
 			}
 		}
 		
@@ -9739,6 +9907,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			float  [][][][]     fcorr_td =  null; // no accumulation, use data in GPU
 			ref_scene.saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry
 			image_dtt.setReferenceTD(
+					null,                       // final int []              wh,               // null (use sensor dimensions) or pair {width, height} in pixels
 					clt_parameters.img_dtt,     // final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
 					true, // final boolean             use_reference_buffer,
 					tp_tasks_ref,               // final TpTask[]            tp_tasks,
@@ -9753,6 +9922,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 						clt_parameters,                                 // CLTParameters clt_parameters,
 						clt_parameters.getColorProcParameters(ref_scene.isAux()), //ColorProcParameters colorProcParameters,
 						clt_parameters.getRGBParameters(),              //EyesisCorrectionParameters.RGBParameters rgbParameters,
+						null, // int []  wh,
 						toRGB, // boolean toRGB,
 						true,  //boolean use_reference
 						"GPU-SHIFTED-REFERENCE"); // String  suffix)
@@ -9781,6 +9951,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 						clt_parameters,                                 // CLTParameters clt_parameters,
 						clt_parameters.getColorProcParameters(ref_scene.isAux()), //ColorProcParameters colorProcParameters,
 						clt_parameters.getRGBParameters(),              //EyesisCorrectionParameters.RGBParameters rgbParameters,
+						null, // int []  wh,
 						toRGB, // boolean toRGB,
 						false, //boolean use_reference
 						"GPU-SHIFTED-SCENE"); // String  suffix)

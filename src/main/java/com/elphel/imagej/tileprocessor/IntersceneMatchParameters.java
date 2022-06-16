@@ -33,8 +33,10 @@ public class IntersceneMatchParameters {
 	public  boolean force_ref_dsi =      false; // true;
 	public  boolean force_orientations = false;
 	public  boolean force_interscene =   false; // true;
-	public  boolean export_images =      true; // 16-slice images (same disparity, COMBO_DSN_INDX_DISP_FG and COMBO_DSN_INDX_DISP_BG_ALL,
-	public  boolean show_images =        false;
+	public  boolean export_images =      true;  // pseudo-color 16-slice images (same disparity, COMBO_DSN_INDX_DISP_FG and COMBO_DSN_INDX_DISP_BG_ALL,
+	public  boolean show_images =        false; // color, infinity
+	public  boolean show_images_bgfg =   false; // bg and fg
+	public  boolean show_images_mono =   false; // float, monochrome 16-slice images (same disparity, COMBO_DSN_INDX_DISP_FG and COMBO_DSN_INDX_DISP_BG_ALL,
 	public  boolean show_ranges =        true;
 	
 	public  double  range_disparity_offset =   -0.08;
@@ -112,8 +114,12 @@ public class IntersceneMatchParameters {
 				"Force interscene calculation (+ML export) even if it was performed before.");
 		gd.addCheckbox ("Export all-sensor images",                  this.export_images,
 				"Export multi-slice images: with constant disparity, with foreground disparity, and with background disparity");
-		gd.addCheckbox ("Show exported images",                      this.show_images,
-				"Display generated/saved images");
+		gd.addCheckbox ("Show exported images (same disparity)",     this.show_images,
+				"Display generated/saved image set, pseudocolors");
+		gd.addCheckbox ("Show exported FG/BG",                       this.show_images_bgfg,
+				"Show foreground and background exported images");
+		gd.addCheckbox ("Show floating-point monochrome images",     this.show_images_mono,
+				"Display generated/saved monochrome images");
 		gd.addCheckbox ("Show distances in meters",                  this.show_ranges,
 				"Calculate strength, distance, X, and Y in meters");
 		
@@ -226,6 +232,8 @@ public class IntersceneMatchParameters {
 		this.force_interscene =         gd.getNextBoolean();
 		this.export_images =            gd.getNextBoolean();
 		this.show_images =              gd.getNextBoolean();
+		this.show_images_bgfg =         gd.getNextBoolean();
+		this.show_images_mono =         gd.getNextBoolean();
 		this.show_ranges =              gd.getNextBoolean();
 		this.range_disparity_offset =   gd.getNextNumber();
 		this.range_min_strength =       gd.getNextNumber();
@@ -282,6 +290,8 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"force_interscene",     this.force_interscene + "");  // boolean
 		properties.setProperty(prefix+"export_images",        this.export_images + "");     // boolean
 		properties.setProperty(prefix+"show_images",          this.show_images + "");       // boolean
+		properties.setProperty(prefix+"show_images_bgfg",     this.show_images_bgfg + "");  // boolean
+		properties.setProperty(prefix+"show_images_mono",     this.show_images_mono + "");  // boolean
 		properties.setProperty(prefix+"show_ranges",          this.show_ranges + "");       // boolean
 
 		properties.setProperty(prefix+"range_disparity_offset",this.range_disparity_offset+""); // double
@@ -337,6 +347,8 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"force_interscene")!=null)     this.force_interscene=Boolean.parseBoolean(properties.getProperty(prefix+"force_interscene"));		
 		if (properties.getProperty(prefix+"export_images")!=null)        this.export_images=Boolean.parseBoolean(properties.getProperty(prefix+"export_images"));		
 		if (properties.getProperty(prefix+"show_images")!=null)          this.show_images=Boolean.parseBoolean(properties.getProperty(prefix+"show_images"));		
+		if (properties.getProperty(prefix+"show_images_bgfg")!=null)     this.show_images_bgfg=Boolean.parseBoolean(properties.getProperty(prefix+"show_images_bgfg"));		
+		if (properties.getProperty(prefix+"show_images_mono")!=null)     this.show_images_mono=Boolean.parseBoolean(properties.getProperty(prefix+"show_images_mono"));		
 		if (properties.getProperty(prefix+"show_ranges")!=null)          this.show_images=Boolean.parseBoolean(properties.getProperty(prefix+"show_ranges"));
 		if (properties.getProperty(prefix+"range_disparity_offset")!=null) this.range_disparity_offset=Double.parseDouble(properties.getProperty(prefix+"range_disparity_offset"));
 		if (properties.getProperty(prefix+"range_min_strength")!=null)   this.range_min_strength=Double.parseDouble(properties.getProperty(prefix+"range_min_strength"));
@@ -392,6 +404,8 @@ public class IntersceneMatchParameters {
 		imp.force_interscene      = this.force_interscene;
 		imp.export_images         = this.export_images;
 		imp.show_images           = this.show_images;
+		imp.show_images_bgfg      = this.show_images_bgfg;
+		imp.show_images_mono      = this.show_images_mono;
 		imp.show_ranges           = this.show_ranges;
 		imp.range_disparity_offset = this.range_disparity_offset;
 		imp.range_min_strength    = this.range_min_strength;

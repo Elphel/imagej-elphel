@@ -141,35 +141,16 @@ public class ImageDtt extends ImageDttCPU {
 
 
 		final boolean macro_mode = macro_scale != 1;      // correlate tile data instead of the pixel data
-//		final int quad = getNumSensors(); // 4;   // number of subcameras
-//		final int numcol = 3; // number of colors // keep the same, just do not use [0] and [1], [2] - green
 		final int numcol = isMonochrome()?1:3;
 
 		final int width =  gpuQuad.getImageWidth();
 		final int height = gpuQuad.getImageHeight();
 		final int tilesX=gpuQuad.getTilesX(); // width/transform_size;
 		final int tilesY=gpuQuad.getTilesY(); // final int tilesY=height/transform_size;
-////		final int nTilesInChn=tilesX*tilesY;
-////		final double [][][][][][] clt_data = new double[quad][numcol][tilesY][tilesX][][];
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final double [] col_weights= new double [numcol]; // colors are RBG
 		final double [][] dbg_distort = debug_distort? (new double [4*getNumSensors()][tilesX*tilesY]) : null;
-		// not yet used with GPU
-/**		
-		final double [][] corr_wnd = Corr2dLMA.getCorrWnd(
-				transform_size,
-				imgdtt_params.lma_wnd);
-		final double [] corr_wnd_inv_limited = (imgdtt_params.lma_min_wnd <= 1.0)?  new double [corr_wnd.length * corr_wnd[0].length]: null;
-		if (corr_wnd_inv_limited != null) {
-			double inv_pwr = imgdtt_params.lma_wnd_pwr - (imgdtt_params.lma_wnd - 1.0); // compensate for lma_wnd
-			for (int i = imgdtt_params.lma_hard_marg; i < (corr_wnd.length - imgdtt_params.lma_hard_marg); i++) {
-				for (int j = imgdtt_params.lma_hard_marg; j < (corr_wnd.length - imgdtt_params.lma_hard_marg); j++) {
-					corr_wnd_inv_limited[i * (corr_wnd.length) + j] = 1.0/Math.max(Math.pow(corr_wnd[i][j],inv_pwr), imgdtt_params.lma_min_wnd);
-				}
-			}
-		}
-*/
 		// keep for now for mono, find out  what do they mean for macro mode
 		
 		if (isMonochrome()) {
@@ -1173,6 +1154,7 @@ public class ImageDtt extends ImageDttCPU {
 	 * @param globalDebugLevel
 	 */
 	public void setReferenceTD(
+			final int []              wh,               // null (use sensor dimensions) or pair {width, height} in pixels
 			final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
 			final boolean             use_reference_buffer,
 			final TpTask[]            tp_tasks,
@@ -1203,7 +1185,8 @@ public class ImageDtt extends ImageDttCPU {
 				tp_tasks,
 				false); // boolean use_aux    // while is it in class member? - just to be able to free
 		// Skipping if ((fdisp_dist != null) || (fpxpy != null)) {...
-		gpuQuad.execConvertDirect(use_reference_buffer); // put results into a "reference" buffer
+//		int [] wh = null;
+		gpuQuad.execConvertDirect(use_reference_buffer, wh); // put results into a "reference" buffer
 	}
 
 

@@ -1,5 +1,6 @@
 package com.elphel.imagej.tileprocessor;
 
+import java.awt.Rectangle;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -237,6 +238,7 @@ public class MultisceneLY {
 			String ts = scenes[nscene].getImageName();
 			if (nscene == last_scene_index) {
 				scenes_pXpYD[nscene] = OpticalFlow.transformToScenePxPyD(
+						null, // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
 						disparity_ref,      // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
 						OpticalFlow.ZERO3,              // final double []   scene_xyz, // camera center in world coordinates
 						OpticalFlow.ZERO3,              // final double []   scene_atr, // camera orientation relative to world frame
@@ -253,6 +255,7 @@ public class MultisceneLY {
 						scene_ers_atr_dt); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
 				//setupERS() will be inside transformToScenePxPyD()
 				scenes_pXpYD[nscene] = OpticalFlow.transformToScenePxPyD( // will be null for disparity == NaN, total size - tilesX*tilesY
+						null, // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
 						disparity_ref,      // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
 						scene_xyz,          // final double []   scene_xyz, // camera center in world coordinates
 						scene_atr,          // final double []   scene_atr, // camera orientation relative to world frame

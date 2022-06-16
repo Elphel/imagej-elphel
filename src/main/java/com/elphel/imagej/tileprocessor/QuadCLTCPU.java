@@ -1175,12 +1175,15 @@ public class QuadCLTCPU {
 	}
 	
 	public void saveImagePlusInModelDirectory(
-			String      suffix,
+			String      suffix, // null - use title from the imp
 			ImagePlus   imp)
 	{
 		String x3d_path = getX3dDirectory();
-		String file_name = image_name + suffix;
-		String file_path = x3d_path + Prefs.getFileSeparator() + file_name + ".tiff";
+		String file_name = (suffix==null) ? imp.getTitle():(image_name + suffix);
+		String file_path = x3d_path + Prefs.getFileSeparator() + file_name; // + ".tiff";
+		if (!file_path.endsWith(".tiff")) {
+			file_path +=".tiff";
+		}
 		FileSaver fs=new FileSaver(imp);
 		fs.saveAsTiff(file_path);
 		System.out.println("saveDoubleArrayInModelDirectory(): saved "+file_path);
@@ -7122,7 +7125,8 @@ public class QuadCLTCPU {
 		  float []   alpha = null; // (0..1.0)
 		  if (iclt_data.length > 3) alpha = iclt_data[3];
 		  if (isLwir()) {
-			  if (!colorProcParameters.lwir_pseudocolor) {
+////			  if (!colorProcParameters.lwir_pseudocolor) {
+			  if (!toRGB) {
 				  ImageProcessor ip= new FloatProcessor(width,height);
 				  ip.setPixels(iclt_data[0]);
 				  ip.resetMinAndMax();

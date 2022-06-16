@@ -2031,20 +2031,95 @@ public class QuadCLT extends QuadCLTCPU {
 	}
 	
 	public static ImagePlus renderGPUFromDSI(
+			final Rectangle   full_woi_in,      // show larger than sensor WOI in tiles (or null)
 			CLTParameters     clt_parameters,
 			double []         disparity_ref,
 			final double []   scene_xyz, // camera center in world coordinates
 			final double []   scene_atr, // camera orientation relative to world frame
 			final QuadCLT     scene,
+			final boolean     toRGB,
 			String            suffix,
 			int               threadsMax,
 			final int         debugLevel){
-		 double [][] pXpYD =OpticalFlow.transformToScenePxPyD(
+		double [][] pXpYD =OpticalFlow.transformToScenePxPyD(
+				full_woi_in,   // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
 				disparity_ref, // final double []   disparity_ref, // invalid tiles - NaN in disparity
 				scene_xyz,     // final double []   scene_xyz, // camera center in world coordinates
 				scene_atr,     // final double []   scene_atr, // camera orientation relative to world frame
-				scene, // final QuadCLT     scene_QuadClt,
-				scene, // final QuadCLT     reference_QuadClt, // now - may be null - for testing if scene is rotated ref
+				scene,         // final QuadCLT     scene_QuadClt,
+				null, // scene,         // final QuadCLT     reference_QuadClt, // now - may be null - for testing if scene is rotated ref
+				threadsMax);   // int               threadsMax)
+		int rendered_width = scene.getErsCorrection().getSensorWH()[0];
+		if (full_woi_in != null) {
+			rendered_width = full_woi_in.width * GPUTileProcessor.DTT_SIZE;
+		}
+		//scene_QuadClt.getTileProcessor().getTileSize();
+	    TpTask[] tp_tasks_ref =  GpuQuad.setInterTasks( // inter?
+	    		scene.getNumSensors(),
+	    		rendered_width,               // should match output size, pXpYD.length
+	            !scene.hasGPU(),              // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
+	            pXpYD,                        // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
+	            null,                         // final boolean []          selection, // may be null, if not null do not  process unselected tiles
+	            scene.getErsCorrection(),     // final GeometryCorrection  geometryCorrection,
+	            0.0,                          // final double              disparity_corr,
+	            0, // margin,                 // final int                 margin,      // do not use tiles if their centers are closer to the edges
+	            null,                         // final boolean []          valid_tiles,            
+	            threadsMax);                  // final int                 threadsMax)  // maximal number of threads to launch
+	    scene.saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry
+	    ImageDtt image_dtt = new ImageDtt(
+	    		scene.getNumSensors(),
+	    		clt_parameters.transform_size,
+	    		clt_parameters.img_dtt,
+	    		scene.isAux(),
+	    		scene.isMonochrome(),
+	    		scene.isLwir(),
+	    		clt_parameters.getScaleStrength(scene.isAux()),
+	    		scene.getGPU());
+	    boolean use_reference = false;
+	    int [] wh = (full_woi_in == null)? null: new int[]{
+	    		full_woi_in.width * GPUTileProcessor.DTT_SIZE,
+	    		full_woi_in.height * GPUTileProcessor.DTT_SIZE};
+//	    boolean toRGB =         true; // does not work here, define in ColorProcParameters
+	    image_dtt.setReferenceTD( // change to main?
+	    		wh, // null,                       // final int []              wh,               // null (use sensor dimensions) or pair {width, height} in pixels
+	            clt_parameters.img_dtt,     // final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
+	            use_reference, // true, // final boolean             use_reference_buffer,
+	            tp_tasks_ref,               // final TpTask[]            tp_tasks,
+	            clt_parameters.gpu_sigma_r, // final double              gpu_sigma_r,     // 0.9, 1.1
+	            clt_parameters.gpu_sigma_b, // final double              gpu_sigma_b,     // 0.9, 1.1
+	            clt_parameters.gpu_sigma_g, // final double              gpu_sigma_g,     // 0.6, 0.7
+	            clt_parameters.gpu_sigma_m, // final double              gpu_sigma_m,     //  =       0.4; // 0.7;
+	            threadsMax,                 // final int                 threadsMax,       // maximal number of threads to launch
+	            debugLevel);                // final int                 globalDebugLevel);
+        ImagePlus imp_render = scene.renderFromTD (
+                clt_parameters,                                 // CLTParameters clt_parameters,
+                clt_parameters.getColorProcParameters(scene.isAux()), //ColorProcParameters colorProcParameters,
+                clt_parameters.getRGBParameters(),              //EyesisCorrectionParameters.RGBParameters rgbParameters,\
+                wh,                                             // null, // int []  wh,
+                toRGB,                                          // boolean toRGB,
+                use_reference,                                  // boolean use_reference
+                suffix);                                        // String  suffix)
+		return imp_render;
+	}
+	
+	@Deprecated
+	public static ImagePlus renderGPUFromDSI( // being replaced by the above
+			CLTParameters     clt_parameters,
+			double []         disparity_ref,
+			final double []   scene_xyz, // camera center in world coordinates
+			final double []   scene_atr, // camera orientation relative to world frame
+			final QuadCLT     scene,
+			final boolean     toRGB,
+			String            suffix,
+			int               threadsMax,
+			final int         debugLevel){
+		double [][] pXpYD =OpticalFlow.transformToScenePxPyD(
+				null,          // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
+				disparity_ref, // final double []   disparity_ref, // invalid tiles - NaN in disparity
+				scene_xyz,     // final double []   scene_xyz, // camera center in world coordinates
+				scene_atr,     // final double []   scene_atr, // camera orientation relative to world frame
+				scene,         // final QuadCLT     scene_QuadClt,
+				scene,         // final QuadCLT     reference_QuadClt, // now - may be null - for testing if scene is rotated ref
 				threadsMax);   // int               threadsMax)
 	    TpTask[] tp_tasks_ref =  GpuQuad.setInterTasks(
 	    		scene.getNumSensors(),
@@ -2068,8 +2143,9 @@ public class QuadCLT extends QuadCLTCPU {
 	    		clt_parameters.getScaleStrength(scene.isAux()),
 	    		scene.getGPU());
 	    boolean use_reference = false;
-	    boolean toRGB =         true; // does not work here, define in ColorProcParameters
+//	    boolean toRGB =         true; // does not work here, define in ColorProcParameters
 	    image_dtt.setReferenceTD( // change to main?
+				null,                       // final int []              wh,               // null (use sensor dimensions) or pair {width, height} in pixels
 	            clt_parameters.img_dtt,     // final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
 	            use_reference, // true, // final boolean             use_reference_buffer,
 	            tp_tasks_ref,               // final TpTask[]            tp_tasks,
@@ -2083,6 +2159,7 @@ public class QuadCLT extends QuadCLTCPU {
                 clt_parameters,                                 // CLTParameters clt_parameters,
                 clt_parameters.getColorProcParameters(scene.isAux()), //ColorProcParameters colorProcParameters,
                 clt_parameters.getRGBParameters(),              //EyesisCorrectionParameters.RGBParameters rgbParameters,
+				null, // int []  wh,
                 toRGB, // boolean toRGB,
                 use_reference, //boolean use_reference
                 suffix); // String  suffix)
@@ -2090,22 +2167,26 @@ public class QuadCLT extends QuadCLTCPU {
 	}
 	
 	
-	
 	public ImagePlus renderFromTD (
 			CLTParameters clt_parameters,
 			ColorProcParameters colorProcParameters,
 			EyesisCorrectionParameters.RGBParameters rgbParameters,
+			int []  wh,
 			boolean toRGB,
 			boolean use_reference,
 			String  suffix
 			) {
-        gpuQuad.execImcltRbgAll(isMonochrome(), use_reference); // add ref
+		suffix+=(toRGB?"-COLOR":"-MONO");
+        gpuQuad.execImcltRbgAll(
+        		isMonochrome(),
+        		use_reference,
+				wh); //int [] wh
 		// get data back from GPU
 		float [][][] iclt_fimg = new float [getNumSensors()][][];
 		for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
-			iclt_fimg[ncam] = gpuQuad.getRBG(ncam);
+			iclt_fimg[ncam] = gpuQuad.getRBG(ncam); // updated window
 		}
-
+		// 2022/06/15 - handles variable window size
 		int out_width =  gpuQuad.getImageWidth();//   + gpuQuad.getDttSize(); // 2022/05/12 removed margins from gpuQuad.getRBG(ncam);
 		int out_height = gpuQuad.getImageHeight(); // + gpuQuad.getDttSize(); // 2022/05/12 removed margins from gpuQuad.getRBG(ncam);
 		if (isLwir() && colorProcParameters.lwir_autorange) {
@@ -2140,7 +2221,7 @@ public class QuadCLT extends QuadCLTCPU {
 					rgbParameters,
 					title, // String name,
 					"-D"+clt_parameters.disparity, //String suffix, // such as disparity=...
-					toRGB,
+					toRGB, // does not work here?
 					!correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
 					false, // true, // boolean saveShowIntermediate, // save/show if set globally
 					false, // boolean saveShowFinal,        // save/show result (color image?)
@@ -2263,6 +2344,9 @@ public class QuadCLT extends QuadCLTCPU {
 
 		boolean advanced=  correctionsParameters.zcorrect || correctionsParameters.equirectangular;
 		boolean toRGB=     advanced? true: correctionsParameters.toRGB;
+		if (isLwir()) {
+			toRGB = colorProcParameters.lwir_pseudocolor;
+		}
 		
 		ImagePlus [] results = null;
 		if (imp_quad !=  null) {
@@ -3655,14 +3739,14 @@ public class QuadCLT extends QuadCLTCPU {
 		  float [][] texture_rgb = isMonochrome() ? (new float [][] {texture_img[0]}): (new float [][] {texture_img[0],texture_img[1],texture_img[2]});
 		  float [][] texture_rgba = isMonochrome() ? (new float [][] {texture_img[0],texture_img[1]}) : (new float [][] {texture_img[0],texture_img[1],texture_img[2],texture_img[3]});
 
-			
+		  boolean toRGB = !isLwir() || colorProcParameters.lwir_pseudocolor;	
 		  ImagePlus imp_texture_bgnd = linearStackToColor(
 				  clt_parameters,
 				  colorProcParameters,
 				  rgbParameters,
 				  name+"-texture-bgnd", // String name,
 				  "", //String suffix, // such as disparity=...
-				  true, // toRGB,
+				  toRGB, // toRGB,
 				  !this.correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
 				  true, // boolean saveShowIntermediate, // save/show if set globally
 				  false, //true, // boolean saveShowFinal,        // save/show result (color image?)
@@ -5058,13 +5142,14 @@ public class QuadCLT extends QuadCLTCPU {
 				  texture_woi_pix.width/transform_size,
 				  texture_woi_pix.height/transform_size);
 		  scan.setSelected(scan.getTextureSelection().clone()); // null
+		  boolean toRGB = !isLwir() || colorProcParameters.lwir_pseudocolor;	
 		  ImagePlus imp_texture_cluster = linearStackToColor(
 				  clt_parameters,
 				  colorProcParameters,
 				  rgbParameters,
 				  name+"-texture", // String name,
 				  "", //String suffix, // such as disparity=...
-				  true, // toRGB,
+				  toRGB, // true, // toRGB,
 				  !this.correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
 				  true, // boolean saveShowIntermediate, // save/show if set globally
 				  false, //true, // boolean saveShowFinal,        // save/show result (color image?)

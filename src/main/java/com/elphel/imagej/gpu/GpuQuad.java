@@ -5,6 +5,7 @@ import static jcuda.driver.JCudaDriver.cuCtxSynchronize;
 import static jcuda.driver.JCudaDriver.cuLaunchKernel;
 import static jcuda.driver.JCudaDriver.cuMemAlloc;
 import static jcuda.driver.JCudaDriver.cuMemAllocPitch;
+import static jcuda.driver.JCudaDriver.cuMemFree;
 import static jcuda.driver.JCudaDriver.cuMemcpy2D;
 import static jcuda.driver.JCudaDriver.cuMemcpyDtoH;
 import static jcuda.driver.JCudaDriver.cuMemcpyHtoD;
@@ -57,9 +58,9 @@ public class GpuQuad{ // quad camera description
 	private CUdeviceptr [] gpu_kernels_h;
 	private CUdeviceptr [] gpu_kernel_offsets_h;
 	private CUdeviceptr [] gpu_bayer_h;
-	private CUdeviceptr [] gpu_clt_h;
-	private CUdeviceptr [] gpu_clt_ref_h = null;
-	private CUdeviceptr [] gpu_corr_images_h;
+	private CUdeviceptr [] gpu_clt_h =         null;
+	private CUdeviceptr [] gpu_clt_ref_h =     null;
+	private CUdeviceptr [] gpu_corr_images_h = null;
 	// GPU pointers to array of GPU pointers
 	private CUdeviceptr gpu_kernels;
 	private CUdeviceptr gpu_kernel_offsets;
@@ -73,9 +74,13 @@ public class GpuQuad{ // quad camera description
 	private CUdeviceptr gpu_corrs_combo_td;
 
 	private CUdeviceptr gpu_textures;
-	private CUdeviceptr gpu_clt;
-	private CUdeviceptr gpu_clt_ref = null; // will be allocated when first needed?
-	private CUdeviceptr gpu_4_images; // may actually be 16
+	private CUdeviceptr gpu_clt =      null;
+	private CUdeviceptr gpu_clt_ref =  null; // will be allocated when first needed?
+	private CUdeviceptr gpu_4_images = null; // may actually be 16
+	/// will store w,h (in pixels) when allocating /reallocating memory
+	private int [] gpu_clt_wh =        null;
+	private int [] gpu_clt_ref_wh =    null;
+	private int [] gpu_4_images_wh =   null;
 	private CUdeviceptr gpu_corr_indices;
 	private CUdeviceptr gpu_corr_combo_indices;
 	private CUdeviceptr gpu_num_corr_tiles;
@@ -279,8 +284,8 @@ public class GpuQuad{ // quad camera description
 		gpu_corrs_combo_td =      new CUdeviceptr(); //  allocate tilesX * tilesY *             4 * DTT_SIZE * DTT_SIZE * Sizeof.FLOAT
 
 		gpu_textures =            new CUdeviceptr(); //  allocate tilesX * tilesY * ? * 256 * Sizeof.FLOAT
-		gpu_clt =                 new CUdeviceptr();
-		gpu_4_images =            new CUdeviceptr();
+///		gpu_clt =                 new CUdeviceptr();
+///		gpu_4_images =            new CUdeviceptr();
 		gpu_corr_indices =        new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.FLOAT
 		// May add separate gpu_corr_indices_td here
 		gpu_corr_combo_indices =  new CUdeviceptr(); //  allocate tilesX * tilesY * 1 * Sizeof.FLOAT            
@@ -324,6 +329,9 @@ public class GpuQuad{ // quad camera description
 					img_height,               // long Height,
 					Sizeof.FLOAT);            // int ElementSizeBytes)
 			mclt_stride = (int)(device_stride[0] / Sizeof.FLOAT);
+			
+// Maybe move _bayer to use variable width/height as gpu_clt, gpu_corr_images_h	
+			/*
 			gpu_corr_images_h[ncam] =  new CUdeviceptr();
 			cuMemAllocPitch (
 					gpu_corr_images_h[ncam],               // CUdeviceptr dptr,
@@ -332,8 +340,9 @@ public class GpuQuad{ // quad camera description
 					3*(img_height + GPUTileProcessor.DTT_SIZE),// long Height,
 					Sizeof.FLOAT);            // int ElementSizeBytes)
 			imclt_stride = (int)(device_stride[0] / Sizeof.FLOAT);
-			gpu_clt_h[ncam] = new CUdeviceptr();
-			cuMemAlloc(gpu_clt_h[ncam],tilesY * tilesX * num_colors * 4 * GPUTileProcessor.DTT_SIZE * GPUTileProcessor.DTT_SIZE * Sizeof.FLOAT ); //     public static int cuMemAlloc(CUdeviceptr dptr, long bytesize)
+			*/
+///			gpu_clt_h[ncam] = new CUdeviceptr();
+///			cuMemAlloc(gpu_clt_h[ncam],tilesY * tilesX * num_colors * 4 * GPUTileProcessor.DTT_SIZE * GPUTileProcessor.DTT_SIZE * Sizeof.FLOAT ); //     public static int cuMemAlloc(CUdeviceptr dptr, long bytesize)
 		}
 		// now create device arrays pointers
 		if (Sizeof.POINTER != Sizeof.LONG) {
@@ -344,14 +353,14 @@ public class GpuQuad{ // quad camera description
 		cuMemAlloc(gpu_kernels,        num_cams * Sizeof.POINTER);
 		cuMemAlloc(gpu_kernel_offsets, num_cams * Sizeof.POINTER);
 		cuMemAlloc(gpu_bayer,          num_cams * Sizeof.POINTER);
-		cuMemAlloc(gpu_clt,            num_cams * Sizeof.POINTER);
-		cuMemAlloc(gpu_4_images,       num_cams * Sizeof.POINTER);
+///		cuMemAlloc(gpu_clt,            num_cams * Sizeof.POINTER);
+///		cuMemAlloc(gpu_4_images,       num_cams * Sizeof.POINTER);
 
 		long [] gpu_kernels_l =        new long [num_cams];
 		long [] gpu_kernel_offsets_l = new long [num_cams];
 		long [] gpu_bayer_l =          new long [num_cams];
-		long [] gpu_clt_l =            new long [num_cams];
-		long [] gpu_4_images_l =       new long [num_cams];
+///		long [] gpu_clt_l =            new long [num_cams];
+///		long [] gpu_4_images_l =       new long [num_cams];
 
 		for (int ncam = 0; ncam < num_cams; ncam++) gpu_kernels_l[ncam] =        GPUTileProcessor.getPointerAddress(gpu_kernels_h[ncam]);
 		cuMemcpyHtoD(gpu_kernels, Pointer.to(gpu_kernels_l),                     num_cams * Sizeof.POINTER);
@@ -362,11 +371,11 @@ public class GpuQuad{ // quad camera description
 		for (int ncam = 0; ncam < num_cams; ncam++) gpu_bayer_l[ncam] =          GPUTileProcessor.getPointerAddress(gpu_bayer_h[ncam]);
 		cuMemcpyHtoD(gpu_bayer, Pointer.to(gpu_bayer_l),                         num_cams * Sizeof.POINTER);
 
-		for (int ncam = 0; ncam < num_cams; ncam++) gpu_clt_l[ncam] =            GPUTileProcessor.getPointerAddress(gpu_clt_h[ncam]);
-		cuMemcpyHtoD(gpu_clt, Pointer.to(gpu_clt_l),                             num_cams * Sizeof.POINTER);
+///		for (int ncam = 0; ncam < num_cams; ncam++) gpu_clt_l[ncam] =            GPUTileProcessor.getPointerAddress(gpu_clt_h[ncam]);
+///		cuMemcpyHtoD(gpu_clt, Pointer.to(gpu_clt_l),                             num_cams * Sizeof.POINTER);
 
-		for (int ncam = 0; ncam < num_cams; ncam++) gpu_4_images_l[ncam] =       GPUTileProcessor.getPointerAddress(gpu_corr_images_h[ncam]);
-		cuMemcpyHtoD(gpu_4_images, Pointer.to(gpu_4_images_l),                   num_cams * Sizeof.POINTER);
+///		for (int ncam = 0; ncam < num_cams; ncam++) gpu_4_images_l[ncam] =       GPUTileProcessor.getPointerAddress(gpu_corr_images_h[ncam]);
+///		cuMemcpyHtoD(gpu_4_images, Pointer.to(gpu_4_images_l),                   num_cams * Sizeof.POINTER);
 
 		// Set GeometryCorrection data
 		cuMemAlloc(gpu_geometry_correction,      GeometryCorrection.arrayLength(GPUTileProcessor.MAX_NUM_CAMS) * Sizeof.FLOAT); // always maximal number of cameras (sparse)
@@ -465,11 +474,11 @@ public class GpuQuad{ // quad camera description
 		texture_stride_rgba = (int)(device_stride[0] / Sizeof.FLOAT);
 	}
 	public int getTilesX() {
-		return img_width / GPUTileProcessor.DTT_SIZE;
+		return getImageWidth() / GPUTileProcessor.DTT_SIZE;
 	}
 
 	public int getTilesY() {
-		return img_height / GPUTileProcessor.DTT_SIZE;
+		return getImageHeight() / GPUTileProcessor.DTT_SIZE;
 	}
 
 	public void resetGeometryCorrection() {
@@ -486,8 +495,14 @@ public class GpuQuad{ // quad camera description
 			System.out.println("======resetGeometryCorrectionVector()");
 		}
 	}
-	public int getImageWidth()  {return this.img_width;}
-	public int getImageHeight() {return this.img_height;}
+//	public int getImageWidth()  {return this.img_width;}
+//	public int getImageHeight() {return this.img_height;}
+	public int getImageWidth()  {return (gpu_4_images_wh== null) ? getSensorWidth(): gpu_4_images_wh[0];}
+	public int getImageHeight() {return (gpu_4_images_wh== null) ? getSensorHeight(): gpu_4_images_wh[1];} // valid after last IMCLT
+	
+	public int getSensorWidth()  {return this.img_width;}
+	public int getSensorHeight() {return this.img_height;}
+	
 	public int getDttSize()     {return GPUTileProcessor.DTT_SIZE;}
 //	public int getNumCams()     {return GPUTileProcessor.NUM_CAMS;}
 	public int getSensorMaskInter() {return sensor_mask_inter;}
@@ -1450,30 +1465,97 @@ public class GpuQuad{ // quad camera description
 	 * Direct CLT conversion and aberration correction 
 	 */
 	public void execConvertDirect() {
-		execConvertDirect(false);
+		execConvertDirect(
+				false,
+				null);
 	}
 	/**
 	 * Convert and save TD representation in either normal or reference scene. Reference scene TD representation
 	 * is used for interscene correlation (for "IMU")
 	 * @param ref_scene save result into a separate buffer for interscene correlation when true.
+	 * @param wh window width, height (or null)
 	 */
-	public void execConvertDirect(boolean ref_scene) {
+	public void execConvertDirect(
+			boolean ref_scene,
+			int [] wh) {
 		if (this.gpuTileProcessor.GPU_CONVERT_DIRECT_kernel == null) 
 		{
 			IJ.showMessage("Error", "No GPU kernel: GPU_CONVERT_DIRECT_kernel");
 			return;
 		}
+		if (wh == null) {
+			wh = new int[] {img_width, img_height};
+		}
 		setConvolutionKernels(false); // set kernels if they are not set already
 		setBayerImages(false); // set Bayer images if this.quadCLT instance has new ones
 		// kernel parameters: pointer to pointers
-		int tilesX =  img_width / GPUTileProcessor.DTT_SIZE;
+//		int tilesX =  img_width / GPUTileProcessor.DTT_SIZE;
+		int tilesX =  wh[0] / GPUTileProcessor.DTT_SIZE;
+		// De-allocate if size mismatch, allocate if needed. Now it is the only place where clt is allocated
+		if (ref_scene) {
+			if ((gpu_clt_ref_wh != null) && ((gpu_clt_ref_wh[0] != wh[0]) || (gpu_clt_ref_wh[1] != wh[1]))) {
+				for (int ncam = 0; ncam < num_cams; ncam++) {
+					cuMemFree (gpu_clt_ref_h[ncam]);
+				}
+				cuMemFree (gpu_clt_ref);
+				gpu_clt_ref = null;
+				gpu_clt_ref_wh = null;
+			}
+			if (gpu_clt_ref == null) { // Allocate memory, create pointers for reference scene TD representation
+				long [] gpu_clt_ref_l = new long [num_cams];
+//				int tilesY =  img_height / GPUTileProcessor.DTT_SIZE;
+				int tilesY =  wh[1] / GPUTileProcessor.DTT_SIZE;
+				gpu_clt_ref_h =    new CUdeviceptr[num_cams];
+				for (int ncam = 0; ncam < num_cams; ncam++) {
+					gpu_clt_ref_h[ncam] = new CUdeviceptr();
+					cuMemAlloc(gpu_clt_ref_h[ncam],
+							   tilesY * tilesX * num_colors * 4 * GPUTileProcessor.DTT_SIZE * GPUTileProcessor.DTT_SIZE * Sizeof.FLOAT );
+				}
+				gpu_clt_ref =  new CUdeviceptr();
+				cuMemAlloc(gpu_clt_ref, num_cams * Sizeof.POINTER);
+				for (int ncam = 0; ncam < num_cams; ncam++) {
+					gpu_clt_ref_l[ncam] = GPUTileProcessor.getPointerAddress(gpu_clt_ref_h[ncam]);
+				}
+				cuMemcpyHtoD(gpu_clt_ref, Pointer.to(gpu_clt_ref_l), num_cams * Sizeof.POINTER);
+				gpu_clt_ref_wh = wh.clone();
+			}
+		} else { // same for main (not ref) memory
+			if ((gpu_clt_wh != null) && ((gpu_clt_wh[0] != wh[0]) || (gpu_clt_wh[1] != wh[1]))) {
+				for (int ncam = 0; ncam < num_cams; ncam++) {
+					cuMemFree (gpu_clt_h[ncam]);
+				}
+				cuMemFree (gpu_clt);
+				gpu_clt = null;
+				gpu_clt_wh = null;
+			}
+			if (gpu_clt == null) { // Allocate memory, create pointers for reference scene TD representation
+				long [] gpu_clt_l = new long [num_cams];
+//				int tilesY =  img_height / GPUTileProcessor.DTT_SIZE;
+				int tilesY =  wh[1] / GPUTileProcessor.DTT_SIZE;
+				gpu_clt_h =    new CUdeviceptr[num_cams];
+				for (int ncam = 0; ncam < num_cams; ncam++) {
+					gpu_clt_h[ncam] = new CUdeviceptr();
+					cuMemAlloc(gpu_clt_h[ncam],
+							   tilesY * tilesX * num_colors * 4 * GPUTileProcessor.DTT_SIZE * GPUTileProcessor.DTT_SIZE * Sizeof.FLOAT );
+				}
+				gpu_clt =  new CUdeviceptr();
+				cuMemAlloc(gpu_clt, num_cams * Sizeof.POINTER);
+				for (int ncam = 0; ncam < num_cams; ncam++) {
+					gpu_clt_l[ncam] = GPUTileProcessor.getPointerAddress(gpu_clt_h[ncam]);
+				}
+				cuMemcpyHtoD(gpu_clt, Pointer.to(gpu_clt_l), num_cams * Sizeof.POINTER);
+				gpu_clt_wh = wh.clone();
+			}
+		}
+		/*
 		if (ref_scene && (gpu_clt_ref == null)) { // Allocate memory, create pointers for reference scene TD representation
 			long [] gpu_clt_ref_l = new long [num_cams];
 			int tilesY =  img_height / GPUTileProcessor.DTT_SIZE;
 			gpu_clt_ref_h =    new CUdeviceptr[num_cams];
 			for (int ncam = 0; ncam < num_cams; ncam++) {
 				gpu_clt_ref_h[ncam] = new CUdeviceptr();
-				cuMemAlloc(gpu_clt_ref_h[ncam],tilesY * tilesX * num_colors * 4 * GPUTileProcessor.DTT_SIZE * GPUTileProcessor.DTT_SIZE * Sizeof.FLOAT );
+				cuMemAlloc(gpu_clt_ref_h[ncam],
+						   tilesY * tilesX * num_colors * 4 * GPUTileProcessor.DTT_SIZE * GPUTileProcessor.DTT_SIZE * Sizeof.FLOAT );
 			}
 			gpu_clt_ref =  new CUdeviceptr();
 			cuMemAlloc(gpu_clt_ref, num_cams * Sizeof.POINTER);
@@ -1481,7 +1563,9 @@ public class GpuQuad{ // quad camera description
 				gpu_clt_ref_l[ncam] = GPUTileProcessor.getPointerAddress(gpu_clt_ref_h[ncam]);
 			}
 			cuMemcpyHtoD(gpu_clt_ref, Pointer.to(gpu_clt_ref_l), num_cams * Sizeof.POINTER);
+			gpu_clt_ref_wh = wh.clone();
 		}
+		*/
 		CUdeviceptr gpu_clt_selected = ref_scene ? gpu_clt_ref : gpu_clt;
 		int [] GridFullWarps =    {1, 1, 1};
 		int [] ThreadsFullWarps = {1, 1, 1};
@@ -1497,8 +1581,8 @@ public class GpuQuad{ // quad camera description
 				Pointer.to(new int[] { num_task_tiles }),
 				// move lpf to 4-image generator kernel - DONE
 				Pointer.to(new int[] { 0 }), // lpf_mask
-				Pointer.to(new int[] { img_width}),          // int                woi_width,
-				Pointer.to(new int[] { img_height}),         // int                woi_height,
+				Pointer.to(new int[] { wh[0]}), // img_width}),          // int                woi_width,
+				Pointer.to(new int[] { wh[1]}), // img_height}),         // int                woi_height,
 				Pointer.to(new int[] { kernels_hor}),        // int                kernels_hor,
 				Pointer.to(new int[] { kernels_vert}),       // int                kernels_vert);
 				Pointer.to(gpu_active_tiles),
@@ -1527,21 +1611,59 @@ public class GpuQuad{ // quad camera description
 			boolean is_mono) {
 		execImcltRbgAll(
 				is_mono,
-				false);
+				false,
+				null   ); //int [] wh
 	}
 	
-	public void execImcltRbgAll(
+	public void execImcltRbgAll( // Now allocates/re-allocates GPU memory
 			boolean is_mono,
-			boolean ref_scene
-			) {
+			boolean ref_scene,
+			int []  wh) {
 		if (this.gpuTileProcessor.GPU_IMCLT_ALL_kernel == null)
 		{
 			IJ.showMessage("Error", "No GPU kernel: GPU_IMCLT_ALL_kernel");
 			return;
 		}
+		if (wh == null) {
+			wh = new int[] {img_width, img_height};
+		}
 		int apply_lpf =  1;
-		int tilesX =  img_width / GPUTileProcessor.DTT_SIZE;
-		int tilesY =  img_height / GPUTileProcessor.DTT_SIZE;
+///		int tilesX =  img_width / GPUTileProcessor.DTT_SIZE;
+///		int tilesY =  img_height / GPUTileProcessor.DTT_SIZE;
+		int tilesX =  wh[0] / GPUTileProcessor.DTT_SIZE;
+		int tilesY =  wh[1] / GPUTileProcessor.DTT_SIZE;
+		// Free if allocated but size mismatch
+		if ((gpu_4_images_wh != null) && ((gpu_4_images_wh[0] != wh[0]) || (gpu_4_images_wh[1] != wh[1]))) {
+		    for (int ncam = 0; ncam < num_cams; ncam++) {
+		        cuMemFree (gpu_corr_images_h[ncam]);
+		    }
+		    cuMemFree (gpu_4_images);
+		    gpu_4_images = null;
+		    gpu_4_images_wh = null;
+		}
+		// Allocate if was not allocated or was freed
+		if (gpu_4_images == null) { // Allocate memory, create pointers
+			long [] device_stride = new long [1];
+			for (int ncam = 0; ncam < num_cams; ncam++) {
+				gpu_corr_images_h[ncam] =  new CUdeviceptr();
+				cuMemAllocPitch (
+						gpu_corr_images_h[ncam],               // CUdeviceptr dptr,
+						device_stride,                         // long[] pPitch,
+//						(img_width + GPUTileProcessor.DTT_SIZE) * Sizeof.FLOAT, // long WidthInBytes,
+						(wh[0] + GPUTileProcessor.DTT_SIZE) * Sizeof.FLOAT, // long WidthInBytes,
+//						3*(img_height + GPUTileProcessor.DTT_SIZE),// long Height,
+						3*(wh[1] + GPUTileProcessor.DTT_SIZE),// long Height, //FIXME*** No need for 3x? ****
+						Sizeof.FLOAT);            // int ElementSizeBytes)
+				imclt_stride = (int)(device_stride[0] / Sizeof.FLOAT);
+			}
+			gpu_4_images =  new CUdeviceptr();
+			cuMemAlloc(gpu_4_images,       num_cams * Sizeof.POINTER);
+			long [] gpu_4_images_l =       new long [num_cams];
+			for (int ncam = 0; ncam < num_cams; ncam++) gpu_4_images_l[ncam] =       GPUTileProcessor.getPointerAddress(gpu_corr_images_h[ncam]);
+			cuMemcpyHtoD(gpu_4_images, Pointer.to(gpu_4_images_l),                   num_cams * Sizeof.POINTER);
+			gpu_4_images_wh = wh.clone();			
+		}
+
 		CUdeviceptr gpu_clt_selected = ref_scene ? gpu_clt_ref : gpu_clt;
 		int [] ThreadsFullWarps = {1, 1, 1};
 		int [] GridFullWarps =    {1, 1, 1};
@@ -3350,10 +3472,16 @@ public class GpuQuad{ // quad camera description
 	}
 
 	public float [][] getRBG (int ncam){
-		int gpu_height = (img_height + GPUTileProcessor.DTT_SIZE);
-		int gpu_width =  (img_width + GPUTileProcessor.DTT_SIZE);
+		int out_width =  getImageWidth();//   + gpuQuad.getDttSize(); // 2022/05/12 removed margins from gpuQuad.getRBG(ncam);
+		int out_height = getImageHeight(); // + gpuQuad.getDttSize(); // 2022/05/12 removed margins from gpuQuad.getRBG(ncam);
+		
+///		int gpu_height = (img_height + GPUTileProcessor.DTT_SIZE);
+///		int gpu_width =  (img_width + GPUTileProcessor.DTT_SIZE);
+		int gpu_height = (out_height + GPUTileProcessor.DTT_SIZE);
+		int gpu_width =  (out_width + GPUTileProcessor.DTT_SIZE);
 		int gpu_img_size =       gpu_width * gpu_height;
-		int rslt_img_size =      img_height * img_width; // width * height;
+///		int rslt_img_size =      img_height * img_width; // width * height;
+		int rslt_img_size =      out_height * out_width; // width * height;
 		float [] cpu_corr_image = new float [ num_colors * gpu_img_size];
 		int gpu_width_in_bytes = gpu_width *Sizeof.FLOAT;
 
@@ -3375,45 +3503,15 @@ public class GpuQuad{ // quad camera description
 		float [][] fimg = new float [num_colors][ rslt_img_size];
 		for (int ncol = 0; ncol < num_colors; ncol++) {
 			int tl_offset = (GPUTileProcessor.DTT_SIZE/2) * (gpu_width + 1) + ncol*gpu_img_size;
-			for (int nrow=0; nrow < img_height; nrow++) {
-//				System.arraycopy(cpu_corr_image, ncol*gpu_img_size, fimg[ncol], 0, rslt_img_size);
-				System.arraycopy(cpu_corr_image, tl_offset + (gpu_width * nrow), fimg[ncol], img_width * nrow, img_width);
+//			for (int nrow=0; nrow < img_height; nrow++) {
+			for (int nrow=0; nrow < out_height; nrow++) {
+//				System.arraycopy(cpu_corr_image, tl_offset + (gpu_width * nrow), fimg[ncol], img_width * nrow, img_width);
+				System.arraycopy(cpu_corr_image, tl_offset + (gpu_width * nrow), fimg[ncol], out_width * nrow, out_width);
 			}
 		}
 		return fimg;
 	}
 
-	@Deprecated
-	public float [][] getRBGuntrimmed (int ncam){
-		int height = (img_height + GPUTileProcessor.DTT_SIZE);
-		int width =  (img_width + GPUTileProcessor.DTT_SIZE);
-		int rslt_img_size =      width * height;
-		float [] cpu_corr_image = new float [ num_colors * rslt_img_size];
-		int width_in_bytes = width *Sizeof.FLOAT;
-
-		// for copying results to host
-		CUDA_MEMCPY2D copyD2H =   new CUDA_MEMCPY2D();
-		copyD2H.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
-		copyD2H.srcDevice =       gpu_corr_images_h[ncam]; // ((test & 1) ==0) ? src_dpointer : dst_dpointer; // copy same data
-		copyD2H.srcPitch =        imclt_stride*Sizeof.FLOAT;
-
-		copyD2H.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
-		copyD2H.dstHost =         Pointer.to(cpu_corr_image);
-		copyD2H.dstPitch =        width_in_bytes;
-
-		copyD2H.WidthInBytes =    width_in_bytes;
-		copyD2H.Height =          num_colors * height; // /2;
-
-		cuMemcpy2D(copyD2H); // run copy
-
-		float [][] fimg = new float [num_colors][ rslt_img_size];
-		for (int ncol = 0; ncol < num_colors; ncol++) {
-			System.arraycopy(cpu_corr_image, ncol*rslt_img_size, fimg[ncol], 0, rslt_img_size);
-		}
-		return fimg;
-	}
-	
-	
 	
 	@Deprecated
 	public void  getTileSubcamOffsets(
@@ -3553,7 +3651,7 @@ public class GpuQuad{ // quad camera description
 
 	public static TpTask[]  setInterTasks(
 			final int                 num_cams,
-			final int                 img_width,
+			final int                 img_width, // should match pXpYD
 			final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
 			final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
 			final boolean []          selection, // may be null, if not null do not  process unselected tiles
@@ -3567,7 +3665,8 @@ public class GpuQuad{ // quad camera description
 		//change to fixed 511?
 		final int task_code = ((1 << num_pairs)-1) << GPUTileProcessor.TASK_CORR_BITS; //  correlation only
 		final double min_px = margin; 
-		final double max_px = img_width - 1 - margin;
+//		final double max_px = img_width - 1 - margin;
+		final double max_px = geometryCorrection.getSensorWH()[0] - 1 - margin; // sensor width here, not window width
 		final double [] min_py = new double[num_cams] ;
 		final double [] max_py = new double[num_cams] ;
 		for (int i = 0; i < num_cams; i++) {
@@ -3598,8 +3697,6 @@ public class GpuQuad{ // quad camera description
 						int tileY = nTile / tilesX;
 						int tileX = nTile % tilesX;
 						TpTask tp_task = new TpTask(num_cams, tileX, tileY);
-//						tp_task.ty = tileY;
-//						tp_task.tx = tileX;
 						tp_task.task = task_code;
 						double disparity = pXpYD[nTile][2] + disparity_corr;
 						tp_task.target_disparity = (float) disparity; // will it be used?
