@@ -339,7 +339,7 @@ public class ImageDtt extends ImageDttCPU {
 		}
 		
 		
-		gpuQuad.execConvertDirect();
+		gpuQuad.execConvertDirect(-1); // boolean erase_clt
 		if (iclt_fimg != null) {
 			gpuQuad.execImcltRbgAll(isMonochrome());  // execute GPU kernel
 			for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {
@@ -958,7 +958,7 @@ public class ImageDtt extends ImageDttCPU {
 		
        	// Skipping if ((fdisp_dist != null) || (fpxpy != null)) {...
 
-		gpuQuad.execConvertDirect();
+		gpuQuad.execConvertDirect(-1); // boolean erase_clt
 		if (mcorr_sel == 0) { // no correlation at all
 			return;
 		}
@@ -1124,7 +1124,7 @@ public class ImageDtt extends ImageDttCPU {
 		
        	// Skipping if ((fdisp_dist != null) || (fpxpy != null)) {...
 
-		gpuQuad.execConvertDirect();
+		gpuQuad.execConvertDirect(-1); // boolean erase_clt
 		if (sensor_mask_inter == 0) { // no correlation at all
 			return;
 		}
@@ -1143,6 +1143,9 @@ public class ImageDtt extends ImageDttCPU {
 	/**
 	 * Convert reference scene to FD and save result in extra GPU array for the future interscene correlation
 	 * Geometry correction and images will come from gpuQuad instance - 
+	 * @param erase_clt erase CLT (<0 - do not erase, 0 - erase to 0.0, >0 - erase to NaN). Needed only for later IMCLT
+	 *                  end rendering images. NaN produces sharp, distinct borders; 0f - blended
+	 * @param wh if null, will uses sensor dimensions. Otherwise {width, height} in pixels
 	 * @param imgdtt_params
 	 * @param use_reference_buffer true - use extra GPU array, false - use main one
 	 * @param tp_tasks
@@ -1154,6 +1157,7 @@ public class ImageDtt extends ImageDttCPU {
 	 * @param globalDebugLevel
 	 */
 	public void setReferenceTD(
+			final int                 erase_clt,
 			final int []              wh,               // null (use sensor dimensions) or pair {width, height} in pixels
 			final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
 			final boolean             use_reference_buffer,
@@ -1186,7 +1190,8 @@ public class ImageDtt extends ImageDttCPU {
 				false); // boolean use_aux    // while is it in class member? - just to be able to free
 		// Skipping if ((fdisp_dist != null) || (fpxpy != null)) {...
 //		int [] wh = null;
-		gpuQuad.execConvertDirect(use_reference_buffer, wh); // put results into a "reference" buffer
+//		int  erase_clt = 1; // NaN;
+		gpuQuad.execConvertDirect(use_reference_buffer, wh, erase_clt); // put results into a "reference" buffer
 	}
 
 
@@ -1297,7 +1302,7 @@ public class ImageDtt extends ImageDttCPU {
 ///		gpuQuad.execSetTilesOffsets(); // prepare tiles offsets in GPU memory
        	// Skipping if ((fdisp_dist != null) || (fpxpy != null)) {...
        	
-		gpuQuad.execConvertDirect();
+		gpuQuad.execConvertDirect(-1); // boolean erase_clt
 
 		//Generate 2D phase correlations from the CLT representation
 		int mcorr_sel = Correlation2d.corrSelEncode(imgdtt_params,numSensors);
@@ -1688,7 +1693,7 @@ public class ImageDtt extends ImageDttCPU {
 //		GPUTileProcessor.TpTask[] tp_tasks_full2)
 		
 		
-		gpuQuad.execConvertDirect();
+		gpuQuad.execConvertDirect(-1); // boolean erase_clt
 		if (iclt_fimg != null) {
 			gpuQuad.execImcltRbgAll(isMonochrome());  // execute GPU kernel
 			for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {

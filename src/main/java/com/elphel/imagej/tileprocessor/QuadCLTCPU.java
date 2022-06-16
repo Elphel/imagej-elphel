@@ -7062,7 +7062,7 @@ public class QuadCLTCPU {
 		  too_cold *= iclt_data.length;
 		  too_hot *= iclt_data.length;
 		  int [] hist = null;
-		  for (int iQuad = 0; iQuad < iclt_data.length; iQuad++) {
+		  for (int iQuad = 0; iQuad < iclt_data.length; iQuad++) if (iclt_data[iQuad] != null){
 			  int [] this_hist = getLwirHistogram(
 					  iclt_data[iQuad][ncol], // double [] data,
 					  hard_cold,
@@ -7079,11 +7079,11 @@ public class QuadCLTCPU {
 		  double [] rel_lim = {
 				  getMarginFromHist(
 						  hist, // histogram
-						  too_cold, // double cumul_val, // cummulative number of items to be ignored
+						  too_cold, // double cumul_val, // cumulative number of items to be ignored
 						  false), // boolean high_marg)
 				  getMarginFromHist(
 						  hist, // histogram
-						  too_hot, // double cumul_val, // cummulative number of items to be ignored
+						  too_hot, // double cumul_val, // cumulative number of items to be ignored
 						  true)}; // boolean high_marg)
 		  double [] abs_lim = {
 				  rel_lim[0] * (hard_hot - hard_cold) + hard_cold,

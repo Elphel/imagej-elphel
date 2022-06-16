@@ -3963,6 +3963,9 @@ public class OpticalFlow {
     	boolean export_images =      clt_parameters.imp.export_images;
     	boolean export_dsi_image =   clt_parameters.imp.show_ranges;
     	boolean show_images =        clt_parameters.imp.show_images;
+    	boolean show_color_nan =     clt_parameters.imp.show_color_nan;
+    	boolean show_mono_nan =      clt_parameters.imp.show_mono_nan;
+    	
     	boolean show_images_bgfg =   clt_parameters.imp.show_images_bgfg;
     	boolean show_images_mono =   clt_parameters.imp.show_images_mono;
 
@@ -4279,11 +4282,12 @@ public class OpticalFlow {
 			Arrays.fill(constant_disparity,clt_parameters.disparity);
 			Rectangle testr = new Rectangle(10, 8, 100,80);
 			ImagePlus imp_constant = QuadCLT.renderGPUFromDSI(
-					testr, // null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
+					-1,                  // final int         sensor_mask,
+					null, // testr, // null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 					clt_parameters,      // CLTParameters     clt_parameters,
 					constant_disparity,  // double []         disparity_ref,
 					ZERO3,               // final double []   scene_xyz, // camera center in world coordinates
-					new double[] {.1,0.1,.1}, // ZERO3,               // final double []   scene_atr, // camera orientation relative to world frame
+					ZERO3, // new double[] {.1,0.1,.1}, // ZERO3,               // final double []   scene_atr, // camera orientation relative to world frame
 					quadCLTs[ref_index], // final QuadCLT     scene,
 					true, // toRGB,               // final boolean     toRGB,
 					"GPU-SHIFTED-D"+clt_parameters.disparity, // String            suffix,
@@ -4293,7 +4297,8 @@ public class OpticalFlow {
 					null, // "GPU-SHIFTED-D"+clt_parameters.disparity, // String      suffix,
 					imp_constant); // ImagePlus   imp)
 			ImagePlus imp_constant_mono = QuadCLT.renderGPUFromDSI(
-					testr, // null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
+					-1,                  // final int         sensor_mask,
+					null, // testr, // null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 					clt_parameters,      // CLTParameters     clt_parameters,
 					constant_disparity,  // double []         disparity_ref,
 					ZERO3,               // final double []   scene_xyz, // camera center in world coordinates
@@ -4313,6 +4318,7 @@ public class OpticalFlow {
 				}
 			}
 			ImagePlus imp_fg = QuadCLT.renderGPUFromDSI(
+					-1,                  // final int         sensor_mask,
 					null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 					clt_parameters,      // CLTParameters     clt_parameters,
 					fg_disparity,  // double []         disparity_ref,
@@ -4327,6 +4333,7 @@ public class OpticalFlow {
 					null, // "GPU-SHIFTED-FOREGROUND", // String      suffix,
 					imp_fg); // ImagePlus   imp)
 			ImagePlus imp_fg_mono = QuadCLT.renderGPUFromDSI(
+					-1,                  // final int         sensor_mask,
 					null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 					clt_parameters,      // CLTParameters     clt_parameters,
 					fg_disparity,  // double []         disparity_ref,
@@ -4347,6 +4354,7 @@ public class OpticalFlow {
 				}
 			}
 			ImagePlus imp_bg = QuadCLT.renderGPUFromDSI(
+					-1,                  // final int         sensor_mask,
 					null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 					clt_parameters,      // CLTParameters     clt_parameters,
 					bg_disparity,        // double []         disparity_ref,
@@ -4361,6 +4369,7 @@ public class OpticalFlow {
 					null, // "GPU-SHIFTED-BACKGROUND", // String      suffix,
 					imp_bg); // ImagePlus   imp)
 			ImagePlus imp_bg_mono = QuadCLT.renderGPUFromDSI(
+					-1,                  // final int         sensor_mask,
 					null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 					clt_parameters,      // CLTParameters     clt_parameters,
 					bg_disparity,        // double []         disparity_ref,
@@ -9812,6 +9821,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)
 			int              debug_level)
 	{
+		
 		TileProcessor tp = ref_scene.getTileProcessor();
 		// Temporary reusing same ref scene ******
 		boolean scene_is_ref_test =    clt_parameters.imp.scene_is_ref_test; // false; // true;
@@ -9821,6 +9831,8 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		boolean show_render_scene =    clt_parameters.imp.renderScene(); // false; // true;
 		boolean toRGB =                clt_parameters.imp.toRGB  ; // true;
 		boolean show_coord_motion =    clt_parameters.imp.showCorrMotion(); // mae its own
+	    int     erase_clt = (toRGB? clt_parameters.imp.show_color_nan : clt_parameters.imp.show_mono_nan) ? 1:0;
+
 		if (scene_is_ref_test) {
 			scene_xyz = ZERO3.clone();
 			scene_atr = ZERO3.clone();
@@ -9907,6 +9919,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			float  [][][][]     fcorr_td =  null; // no accumulation, use data in GPU
 			ref_scene.saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry
 			image_dtt.setReferenceTD(
+					erase_clt,
 					null,                       // final int []              wh,               // null (use sensor dimensions) or pair {width, height} in pixels
 					clt_parameters.img_dtt,     // final ImageDttParameters  imgdtt_params,    // Now just extra correlation parameters, later will include, most others
 					true, // final boolean             use_reference_buffer,
@@ -9919,6 +9932,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					debug_level);               // final int                 globalDebugLevel);
 			if (show_render_ref) {
 				ImagePlus imp_render_ref = ref_scene.renderFromTD (
+						-1,                  // final int         sensor_mask,
 						clt_parameters,                                 // CLTParameters clt_parameters,
 						clt_parameters.getColorProcParameters(ref_scene.isAux()), //ColorProcParameters colorProcParameters,
 						clt_parameters.getRGBParameters(),              //EyesisCorrectionParameters.RGBParameters rgbParameters,
@@ -9948,6 +9962,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					debug_level);               // final int                 globalDebugLevel);
 			if (show_render_scene) {
 				ImagePlus imp_render_scene = scene.renderFromTD (
+						-1,                  // final int         sensor_mask,
 						clt_parameters,                                 // CLTParameters clt_parameters,
 						clt_parameters.getColorProcParameters(ref_scene.isAux()), //ColorProcParameters colorProcParameters,
 						clt_parameters.getRGBParameters(),              //EyesisCorrectionParameters.RGBParameters rgbParameters,

@@ -102,6 +102,7 @@ public class GPUTileProcessor {
 	static String GPU_CLEAR_TEXTURE_RBGA_NAME =    "clear_texture_rbga";
 	static String GPU_TEXTURES_ACCUMULATE_NAME =   "textures_accumulate";
 	static String GPU_CREATE_NONOVERLAP_LIST_NAME ="create_nonoverlap_list";
+	static String GPU_ERASE_CLT_TILES_NAME =       "erase_clt_tiles";
 
 	
 	
@@ -180,6 +181,7 @@ public class GPUTileProcessor {
     CUfunction GPU_CLEAR_TEXTURE_RBGA_kernel =      null; // "clear_texture_rbga"
     CUfunction GPU_TEXTURES_ACCUMULATE_kernel =     null; // "textures_accumulate"
     CUfunction GPU_CREATE_NONOVERLAP_LIST_kernel =  null; // "create_nonoverlap_list"
+    CUfunction GPU_ERASE_CLT_TILES_kernel =         null; // "erase_clt_tiles"
     
     
 
@@ -331,7 +333,8 @@ public class GPUTileProcessor {
         		GPU_GEN_TEXTURE_LIST_NAME,
         		GPU_CLEAR_TEXTURE_RBGA_NAME,
         		GPU_TEXTURES_ACCUMULATE_NAME,
-        		GPU_CREATE_NONOVERLAP_LIST_NAME
+        		GPU_CREATE_NONOVERLAP_LIST_NAME,
+        		GPU_ERASE_CLT_TILES_NAME
         };
         CUfunction[] functions = createFunctions(kernelSources,
         		                                 func_names,
@@ -356,6 +359,7 @@ public class GPUTileProcessor {
         GPU_CLEAR_TEXTURE_RBGA_kernel =      functions[15];
         GPU_TEXTURES_ACCUMULATE_kernel =     functions[16];
         GPU_CREATE_NONOVERLAP_LIST_kernel =  functions[17];
+        GPU_ERASE_CLT_TILES_kernel =         functions[18];
         
 
         System.out.println("GPU kernel functions initialized");
@@ -378,6 +382,7 @@ public class GPUTileProcessor {
         System.out.println(GPU_CLEAR_TEXTURE_RBGA_kernel.toString());
         System.out.println(GPU_TEXTURES_ACCUMULATE_kernel.toString());
         System.out.println(GPU_CREATE_NONOVERLAP_LIST_kernel.toString());
+        System.out.println(GPU_ERASE_CLT_TILES_kernel.toString());
         // GPU data structures are now initialized through GpuQuad instances
     }
     

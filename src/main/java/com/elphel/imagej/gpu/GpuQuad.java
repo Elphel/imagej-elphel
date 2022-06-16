@@ -1464,33 +1464,44 @@ public class GpuQuad{ // quad camera description
 	/**
 	 * Direct CLT conversion and aberration correction 
 	 */
-	public void execConvertDirect() {
+	public void execConvertDirect(int  erase_clt) {
 		execConvertDirect(
 				false,
-				null);
+				null,
+				erase_clt);
 	}
 	/**
 	 * Convert and save TD representation in either normal or reference scene. Reference scene TD representation
 	 * is used for interscene correlation (for "IMU")
 	 * @param ref_scene save result into a separate buffer for interscene correlation when true.
 	 * @param wh window width, height (or null)
+	 * @param erase_clt erase CLT data. Only needed before execImcltRbgAll() if not all the
+	 *                  tiles are converted. <0 - do not erase, 0 - erase to 0, 1 - erase to NaN 
 	 */
 	public void execConvertDirect(
-			boolean ref_scene,
-			int [] wh) {
+			boolean  ref_scene,
+			int []   wh,
+			int      erase_clt) {
 		if (this.gpuTileProcessor.GPU_CONVERT_DIRECT_kernel == null) 
 		{
 			IJ.showMessage("Error", "No GPU kernel: GPU_CONVERT_DIRECT_kernel");
 			return;
 		}
+		if (this.gpuTileProcessor.GPU_ERASE_CLT_TILES_kernel == null) 
+		{
+			IJ.showMessage("Error", "No GPU kernel: GPU_ERASE_CLT_TILES_kernel");
+			return;
+		}
+		
+		
 		if (wh == null) {
 			wh = new int[] {img_width, img_height};
 		}
 		setConvolutionKernels(false); // set kernels if they are not set already
 		setBayerImages(false); // set Bayer images if this.quadCLT instance has new ones
 		// kernel parameters: pointer to pointers
-//		int tilesX =  img_width / GPUTileProcessor.DTT_SIZE;
 		int tilesX =  wh[0] / GPUTileProcessor.DTT_SIZE;
+		int tilesY =  wh[1] / GPUTileProcessor.DTT_SIZE;
 		// De-allocate if size mismatch, allocate if needed. Now it is the only place where clt is allocated
 		if (ref_scene) {
 			if ((gpu_clt_ref_wh != null) && ((gpu_clt_ref_wh[0] != wh[0]) || (gpu_clt_ref_wh[1] != wh[1]))) {
@@ -1503,8 +1514,6 @@ public class GpuQuad{ // quad camera description
 			}
 			if (gpu_clt_ref == null) { // Allocate memory, create pointers for reference scene TD representation
 				long [] gpu_clt_ref_l = new long [num_cams];
-//				int tilesY =  img_height / GPUTileProcessor.DTT_SIZE;
-				int tilesY =  wh[1] / GPUTileProcessor.DTT_SIZE;
 				gpu_clt_ref_h =    new CUdeviceptr[num_cams];
 				for (int ncam = 0; ncam < num_cams; ncam++) {
 					gpu_clt_ref_h[ncam] = new CUdeviceptr();
@@ -1530,8 +1539,6 @@ public class GpuQuad{ // quad camera description
 			}
 			if (gpu_clt == null) { // Allocate memory, create pointers for reference scene TD representation
 				long [] gpu_clt_l = new long [num_cams];
-//				int tilesY =  img_height / GPUTileProcessor.DTT_SIZE;
-				int tilesY =  wh[1] / GPUTileProcessor.DTT_SIZE;
 				gpu_clt_h =    new CUdeviceptr[num_cams];
 				for (int ncam = 0; ncam < num_cams; ncam++) {
 					gpu_clt_h[ncam] = new CUdeviceptr();
@@ -1547,28 +1554,32 @@ public class GpuQuad{ // quad camera description
 				gpu_clt_wh = wh.clone();
 			}
 		}
-		/*
-		if (ref_scene && (gpu_clt_ref == null)) { // Allocate memory, create pointers for reference scene TD representation
-			long [] gpu_clt_ref_l = new long [num_cams];
-			int tilesY =  img_height / GPUTileProcessor.DTT_SIZE;
-			gpu_clt_ref_h =    new CUdeviceptr[num_cams];
-			for (int ncam = 0; ncam < num_cams; ncam++) {
-				gpu_clt_ref_h[ncam] = new CUdeviceptr();
-				cuMemAlloc(gpu_clt_ref_h[ncam],
-						   tilesY * tilesX * num_colors * 4 * GPUTileProcessor.DTT_SIZE * GPUTileProcessor.DTT_SIZE * Sizeof.FLOAT );
-			}
-			gpu_clt_ref =  new CUdeviceptr();
-			cuMemAlloc(gpu_clt_ref, num_cams * Sizeof.POINTER);
-			for (int ncam = 0; ncam < num_cams; ncam++) {
-				gpu_clt_ref_l[ncam] = GPUTileProcessor.getPointerAddress(gpu_clt_ref_h[ncam]);
-			}
-			cuMemcpyHtoD(gpu_clt_ref, Pointer.to(gpu_clt_ref_l), num_cams * Sizeof.POINTER);
-			gpu_clt_ref_wh = wh.clone();
-		}
-		*/
 		CUdeviceptr gpu_clt_selected = ref_scene ? gpu_clt_ref : gpu_clt;
 		int [] GridFullWarps =    {1, 1, 1};
 		int [] ThreadsFullWarps = {1, 1, 1};
+		
+		if (erase_clt >= 0) {
+			float fill_data = (erase_clt > 0) ? Float.NaN : 0.0f;
+			Pointer kernelParametersEraseClt = Pointer.to(
+					Pointer.to(new int[] { num_cams}),   // int      num_cams,
+					Pointer.to(new int[] { num_colors}), // int      num_colors,
+					Pointer.to(new int[] { tilesX}),     // int      tiles_x,
+					Pointer.to(new int[] { tilesY}),     // int      tiles_y,
+					Pointer.to(gpu_clt_selected),        // float ** gpu_clt,// [num_cams][tiles_y][tiles_x][num_colors][4*DTT_SIZE*DTT_SIZE]
+					Pointer.to(new float[] { fill_data})); // float    fill_data
+			cuCtxSynchronize();
+			// Call the kernel function
+			cuLaunchKernel(this.gpuTileProcessor.GPU_ERASE_CLT_TILES_kernel,
+					GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],   // Grid dimension
+					ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
+					0, null,                           // Shared memory size and stream (shared - only dynamic, static is in code)
+					kernelParametersEraseClt, null);   // Kernel- and extra parameters
+			cuCtxSynchronize(); // remove later CUDA_ERROR_ILLEGAL_ADDRESS
+			if (getGpu_debug_level() > -1) {
+				System.out.println("======execConvertDirect(): erased CLT");
+			}
+		}
+		
 		Pointer kernelParameters = Pointer.to(
 				Pointer.to(new int[] { num_cams}),              // int                  num_cams,
 				Pointer.to(new int[] { num_colors}),            // int                  num_colors,
@@ -1598,7 +1609,7 @@ public class GpuQuad{ // quad camera description
 				kernelParameters, null);   // Kernel- and extra parameters
 		cuCtxSynchronize(); // remove later CUDA_ERROR_ILLEGAL_ADDRESS
 		if (getGpu_debug_level() > -1) {
-			System.out.println("======execConvertDirect("+ref_scene+")");
+			System.out.println("======execConvertDirect("+ref_scene+", "+erase_clt+")");
 		}
 	}
 
