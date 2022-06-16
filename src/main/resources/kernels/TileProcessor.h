@@ -82,10 +82,28 @@ extern "C" __global__ void correlate2D(
 		int               tilesx,             // number of tile rows
 		int             * gpu_corr_indices,   // packed tile+pair
 		int             * pnum_corr_tiles,    // pointer to a number of correlation tiles to process
-		size_t      corr_stride,        // in floats
+		size_t            corr_stride,        // in floats
 //		int               corr_stride,        // in floats
 		int               corr_radius,        // radius of the output correlation (7 for 15x15)
 		float           * gpu_corrs);          // correlation output data
+
+extern "C" __global__ void correlate2D_inter( // only results in TD
+		int               num_cams,
+		int               sel_sensors,
+		float          ** gpu_clt,            // [num_cams] ->[TILES-Y][TILES-X][colors][DTT_SIZE*DTT_SIZE]
+		float          ** gpu_clt_ref,        // [num_cams] ->[TILES-Y][TILES-X][colors][DTT_SIZE*DTT_SIZE]
+		int               colors,             // number of colors (3/1)
+		float             scale0,             // scale for R
+		float             scale1,             // scale for B
+		float             scale2,             // scale for G
+		float            * gpu_ftasks,        // flattened tasks, 27 floats for quad EO, 99 floats for LWIR16
+		int               num_tiles,          // number of tiles in task
+		int               tilesx,             // number of tile rows
+		int             * gpu_corr_indices,   // packed tile+pair
+		int             * pnum_corr_tiles,    // pointer to a number of correlation tiles to process
+		size_t            corr_stride,        // in floats
+		float           * gpu_corrs);         // correlation output data
+
 
 extern "C" __global__ void corr2D_normalize(
 		int               num_corr_tiles,     // number of correlation tiles to process
