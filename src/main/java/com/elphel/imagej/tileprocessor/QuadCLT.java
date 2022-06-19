@@ -221,9 +221,10 @@ public class QuadCLT extends QuadCLTCPU {
 	 */
 	public static double [] removeDisparityOutliersByLMA(
 			final double [][] dls,
-			final double      max_strength,  // do not touch stronger
+			final double      max_strength,        // do not touch stronger
 			final double      diff_from_lma_pos,   // Difference from farthest FG objects (OK to have large, e.g. 100)
 			final double      diff_from_lma_neg,   // Difference from nearest BG objects (small, as FG are usually more visible)
+			final int         search_radius,       // Search farther if no LMA neighbor is found closer. Original value - 1 (8 neighbors)
 			final boolean     remove_no_lma_neib,  // remove without LMA neighbors
 			final int         width,               //tilesX
 			final int         threadsMax,
@@ -238,7 +239,7 @@ public class QuadCLT extends QuadCLTCPU {
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final AtomicInteger anum_updated = new AtomicInteger(0);
-		final int dbg_tile = 1235;
+		final int dbg_tile = 1944;
 		anum_updated.set(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
@@ -250,21 +251,27 @@ public class QuadCLT extends QuadCLTCPU {
 						if (Double.isNaN(disparity_lma[nTile]) && !Double.isNaN(disparity[nTile]) && (strength[nTile] < max_strength)) {
 							double best_fit_pos = Double.NaN; // Closest higher disparity than this
 							double best_fit_neg = Double.NaN; // Closest lower disparity than this
-							for (int dir = 0; dir < 8; dir++) {
-								int ineib = tn.getNeibIndex(nTile, dir);
-								if (    (ineib >= 0) &&
-										!Double.isNaN(disparity_lma[ineib]) &&
-										!Double.isNaN(disparity[ineib])) {
-									double d = disparity[nTile] - disparity_lma[ineib];
-									if (d > 0) {
-										if (!(d >= best_fit_neg)) {
-											best_fit_neg = d;
-										}
-									} else {
-										if (!(-d >= best_fit_pos)) {
-											best_fit_neg = -d;
+							for (int rad = 1; rad <= search_radius; rad++) {
+								int numdir = TileNeibs.getNumDirs(rad);
+								for (int dir = 0; dir < numdir; dir++) {
+									int ineib = tn.getNeibIndexRadius(nTile, dir, rad);
+									if (    (ineib >= 0) &&
+											!Double.isNaN(disparity_lma[ineib]) &&
+											!Double.isNaN(disparity[ineib])) {
+										double d = disparity[nTile] - disparity_lma[ineib];
+										if (d > 0) {
+											if (!(d >= best_fit_neg)) {
+												best_fit_neg = d;
+											}
+										} else {
+											if (!(-d >= best_fit_pos)) {
+												best_fit_neg = -d;
+											}
 										}
 									}
+								}
+								if (!(Double.isNaN(best_fit_pos) && Double.isNaN(best_fit_neg))) {
+									break;
 								}
 							}
 							if (    (best_fit_neg > diff_from_lma_neg) ||
@@ -2064,7 +2071,7 @@ public class QuadCLT extends QuadCLTCPU {
 	            null,                         // final boolean []          selection, // may be null, if not null do not  process unselected tiles
 	            scene.getErsCorrection(),     // final GeometryCorrection  geometryCorrection,
 	            0.0,                          // final double              disparity_corr,
-	            0, // margin,                 // final int                 margin,      // do not use tiles if their centers are closer to the edges
+	            -1, // 0, // margin,                 // final int                 margin,      // do not use tiles if their centers are closer to the edges
 	            null,                         // final boolean []          valid_tiles,            
 	            threadsMax);                  // final int                 threadsMax)  // maximal number of threads to launch
 	    scene.saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry

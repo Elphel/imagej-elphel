@@ -65,8 +65,11 @@ public class GpuQuad{ // quad camera description
 	private CUdeviceptr gpu_kernels;
 	private CUdeviceptr gpu_kernel_offsets;
 	private CUdeviceptr gpu_bayer;
-//	private CUdeviceptr gpu_tasks;
-	private CUdeviceptr gpu_ftasks;
+
+	private CUdeviceptr gpu_ftasks=null;
+	private int gpu_ftasks_len = 0;
+	private CUdeviceptr gpu_active_tiles=null; // will be re-allocated with gpu_ftasks
+	
 	private CUdeviceptr gpu_corrs;
 	private CUdeviceptr gpu_corr_weights;
 	private CUdeviceptr gpu_corrs_td;
@@ -98,7 +101,7 @@ public class GpuQuad{ // quad camera description
 	private CUdeviceptr gpu_rot_deriv;
 	private CUdeviceptr gpu_geometry_correction;
 	private CUdeviceptr gpu_rByRDist;
-	private CUdeviceptr gpu_active_tiles;
+//	private CUdeviceptr gpu_active_tiles;
 	private CUdeviceptr gpu_num_active_tiles;
 	private int mclt_stride;
 	private int corr_stride;
@@ -274,8 +277,7 @@ public class GpuQuad{ // quad camera description
 		gpu_kernels =             new CUdeviceptr();
 		gpu_kernel_offsets =      new CUdeviceptr();
 		gpu_bayer =               new CUdeviceptr();
-//		gpu_tasks =               new CUdeviceptr(); //  allocate tilesX * tilesY * TPTASK_SIZE * Sizeof.FLOAT
-		gpu_ftasks =              new CUdeviceptr(); //  allocate tilesX * tilesY * getTaskSize() * Sizeof.FLOAT
+///		gpu_ftasks =              new CUdeviceptr(); //  allocate tilesX * tilesY * getTaskSize() * Sizeof.FLOAT
 		gpu_corrs =               new CUdeviceptr(); //  allocate tilesX * tilesY * NUM_PAIRS * CORR_SIZE * Sizeof.FLOAT
 		gpu_corr_weights =        new CUdeviceptr(); //  allocate tilesX * tilesY * NUM_PAIRS * Sizeof.FLOAT
 
@@ -284,8 +286,6 @@ public class GpuQuad{ // quad camera description
 		gpu_corrs_combo_td =      new CUdeviceptr(); //  allocate tilesX * tilesY *             4 * DTT_SIZE * DTT_SIZE * Sizeof.FLOAT
 
 		gpu_textures =            new CUdeviceptr(); //  allocate tilesX * tilesY * ? * 256 * Sizeof.FLOAT
-///		gpu_clt =                 new CUdeviceptr();
-///		gpu_4_images =            new CUdeviceptr();
 		gpu_corr_indices =        new CUdeviceptr(); //  allocate tilesX * tilesY * 6 * Sizeof.FLOAT
 		// May add separate gpu_corr_indices_td here
 		gpu_corr_combo_indices =  new CUdeviceptr(); //  allocate tilesX * tilesY * 1 * Sizeof.FLOAT            
@@ -309,7 +309,7 @@ public class GpuQuad{ // quad camera description
 		gpu_geometry_correction=  new CUdeviceptr();
 		gpu_rByRDist=             new CUdeviceptr(); //  calculated once for the camera distortion model in CPU (move to GPU?)
 
-		gpu_active_tiles =        new CUdeviceptr(); //  TILESX*TILESY*sizeof(int)
+///		gpu_active_tiles =        new CUdeviceptr(); //  TILESX*TILESY*sizeof(int)
 		gpu_num_active_tiles =    new CUdeviceptr(); //  1 int
 
 		// Init data arrays for all kernels
@@ -330,19 +330,6 @@ public class GpuQuad{ // quad camera description
 					Sizeof.FLOAT);            // int ElementSizeBytes)
 			mclt_stride = (int)(device_stride[0] / Sizeof.FLOAT);
 			
-// Maybe move _bayer to use variable width/height as gpu_clt, gpu_corr_images_h	
-			/*
-			gpu_corr_images_h[ncam] =  new CUdeviceptr();
-			cuMemAllocPitch (
-					gpu_corr_images_h[ncam],               // CUdeviceptr dptr,
-					device_stride,                         // long[] pPitch,
-					(img_width + GPUTileProcessor.DTT_SIZE) * Sizeof.FLOAT, // long WidthInBytes,
-					3*(img_height + GPUTileProcessor.DTT_SIZE),// long Height,
-					Sizeof.FLOAT);            // int ElementSizeBytes)
-			imclt_stride = (int)(device_stride[0] / Sizeof.FLOAT);
-			*/
-///			gpu_clt_h[ncam] = new CUdeviceptr();
-///			cuMemAlloc(gpu_clt_h[ncam],tilesY * tilesX * num_colors * 4 * GPUTileProcessor.DTT_SIZE * GPUTileProcessor.DTT_SIZE * Sizeof.FLOAT ); //     public static int cuMemAlloc(CUdeviceptr dptr, long bytesize)
 		}
 		// now create device arrays pointers
 		if (Sizeof.POINTER != Sizeof.LONG) {
@@ -353,14 +340,10 @@ public class GpuQuad{ // quad camera description
 		cuMemAlloc(gpu_kernels,        num_cams * Sizeof.POINTER);
 		cuMemAlloc(gpu_kernel_offsets, num_cams * Sizeof.POINTER);
 		cuMemAlloc(gpu_bayer,          num_cams * Sizeof.POINTER);
-///		cuMemAlloc(gpu_clt,            num_cams * Sizeof.POINTER);
-///		cuMemAlloc(gpu_4_images,       num_cams * Sizeof.POINTER);
 
 		long [] gpu_kernels_l =        new long [num_cams];
 		long [] gpu_kernel_offsets_l = new long [num_cams];
 		long [] gpu_bayer_l =          new long [num_cams];
-///		long [] gpu_clt_l =            new long [num_cams];
-///		long [] gpu_4_images_l =       new long [num_cams];
 
 		for (int ncam = 0; ncam < num_cams; ncam++) gpu_kernels_l[ncam] =        GPUTileProcessor.getPointerAddress(gpu_kernels_h[ncam]);
 		cuMemcpyHtoD(gpu_kernels, Pointer.to(gpu_kernels_l),                     num_cams * Sizeof.POINTER);
@@ -371,23 +354,16 @@ public class GpuQuad{ // quad camera description
 		for (int ncam = 0; ncam < num_cams; ncam++) gpu_bayer_l[ncam] =          GPUTileProcessor.getPointerAddress(gpu_bayer_h[ncam]);
 		cuMemcpyHtoD(gpu_bayer, Pointer.to(gpu_bayer_l),                         num_cams * Sizeof.POINTER);
 
-///		for (int ncam = 0; ncam < num_cams; ncam++) gpu_clt_l[ncam] =            GPUTileProcessor.getPointerAddress(gpu_clt_h[ncam]);
-///		cuMemcpyHtoD(gpu_clt, Pointer.to(gpu_clt_l),                             num_cams * Sizeof.POINTER);
-
-///		for (int ncam = 0; ncam < num_cams; ncam++) gpu_4_images_l[ncam] =       GPUTileProcessor.getPointerAddress(gpu_corr_images_h[ncam]);
-///		cuMemcpyHtoD(gpu_4_images, Pointer.to(gpu_4_images_l),                   num_cams * Sizeof.POINTER);
-
 		// Set GeometryCorrection data
 		cuMemAlloc(gpu_geometry_correction,      GeometryCorrection.arrayLength(GPUTileProcessor.MAX_NUM_CAMS) * Sizeof.FLOAT); // always maximal number of cameras (sparse)
 		cuMemAlloc(gpu_rByRDist,                 GPUTileProcessor.RBYRDIST_LEN *  Sizeof.FLOAT);
 		cuMemAlloc(gpu_rot_deriv,                5*GPUTileProcessor.MAX_NUM_CAMS*3*3 * Sizeof.FLOAT); // always maximal number of cameras (sparse)
-		//        	cuMemAlloc(gpu_correction_vector,        CorrVector.LENGTH * Sizeof.FLOAT);
 		cuMemAlloc(gpu_correction_vector,        GPUTileProcessor.CORR_VECTOR_MAX_LENGTH * Sizeof.FLOAT); // update CORR_VECTOR_LENGTH to fit 
 
-
 		// Set task array
-//		cuMemAlloc(gpu_tasks,      tilesX * tilesY * GPUTileProcessor.TPTASK_SIZE * Sizeof.FLOAT);
-		cuMemAlloc(gpu_ftasks,      tilesX * tilesY * getTaskSize() * Sizeof.FLOAT);
+//		cuMemAlloc(gpu_ftasks,      tilesX * tilesY * getTaskSize() * Sizeof.FLOAT);
+//		checkAllocateGpuFtasks((tilesX+4) * (tilesY+4)); // +4 - "a little more" (will reallocate if needed)
+		checkAllocateGpuFtasks(tilesX * tilesY); // +4 - "a little more" (will reallocate if needed)
 		//=========== Seems that in many places Sizeof.POINTER (==8) is used instead of Sizeof.FLOAT !!! ============
 		// Set corrs array
 		int num_pairs = Correlation2d.getNumPairs(quadCLT.getNumSensors());
@@ -412,8 +388,8 @@ public class GpuQuad{ // quad camera description
 		cuMemAlloc(gpu_num_texture_ovlp,                  8 * Sizeof.FLOAT);
 		cuMemAlloc(gpu_texture_indices_len,               1 * Sizeof.FLOAT);
 
-
-		cuMemAlloc(gpu_active_tiles,        tilesX * tilesY * Sizeof.FLOAT);
+// will be dynamically allocated with gpu_ftasks
+//		cuMemAlloc(gpu_active_tiles,        tilesX * tilesY * Sizeof.FLOAT);
 		cuMemAlloc(gpu_num_active_tiles,                  1 * Sizeof.FLOAT);
 
 		cuMemAlloc(gpu_corr_weights, num_pairs* tilesX * tilesY * Sizeof.FLOAT);
@@ -473,6 +449,33 @@ public class GpuQuad{ // quad camera description
 				Sizeof.FLOAT);                         // int ElementSizeBytes)
 		texture_stride_rgba = (int)(device_stride[0] / Sizeof.FLOAT);
 	}
+	
+	private void checkAllocateGpuFtasks(int max_tasks) {
+/*
+ * Got jcuda.CudaException: CUDA_ERROR_MISALIGNED_ADDRESS
+	at jcuda.driver.JCudaDriver.checkResult(JCudaDriver.java:396)
+	at jcuda.driver.JCudaDriver.cuCtxSynchronize(JCudaDriver.java:2426)
+	at com.elphel.imagej.gpu.GpuQuad.execConvertDirect(GpuQuad.java:1596)
+	
+	Will try rounding to multiple of smth (was 0x80)
+	
+ */
+		max_tasks = (max_tasks + 0x7f) & ~0x7f; 
+		if (max_tasks > gpu_ftasks_len) {
+			if (gpu_ftasks != null) {
+				cuMemFree (gpu_ftasks);
+			}
+			if (gpu_active_tiles != null) {
+				cuMemFree (gpu_active_tiles);
+			}
+			gpu_ftasks =       new CUdeviceptr();
+			cuMemAlloc(gpu_ftasks, max_tasks * getTaskSize() * Sizeof.FLOAT);
+			gpu_active_tiles = new CUdeviceptr(); 
+			cuMemAlloc(gpu_active_tiles, max_tasks * Sizeof.FLOAT);
+			gpu_ftasks_len = max_tasks;
+		}
+	}
+	
 	public int getTilesX() {
 		return getImageWidth() / GPUTileProcessor.DTT_SIZE;
 	}
@@ -619,7 +622,8 @@ public class GpuQuad{ // quad camera description
 			)
 	{
 		if (verify) checkTasks(tile_tasks);
-		num_task_tiles = tile_tasks.length;
+		num_task_tiles = tile_tasks.length; // only place that modifies num_task_tiles and may require allocation
+		checkAllocateGpuFtasks(num_task_tiles); 
 		int task_size = getTaskSize();
 		float [] ftasks = new float [task_size * num_task_tiles];
 		for (int i = 0; i < num_task_tiles; i++) {
@@ -645,7 +649,7 @@ public class GpuQuad{ // quad camera description
 			boolean use_aux    // while is it in class member? - just to be able to free
 			)
 	{
-		num_task_tiles = tile_tasks.length;
+		num_task_tiles = tile_tasks.length; // does not require re-allocation, as tile_tasks should be already set to GPU
 		int task_size = getTaskSize();
 		float [] ftasks = new float [task_size * num_task_tiles];
 		cuMemcpyDtoH(Pointer.to(ftasks), gpu_ftasks, task_size * num_task_tiles * Sizeof.FLOAT);

@@ -140,6 +140,70 @@ public class TileNeibs{
 		default: return indx;
 		}
 	}
+	
+
+	public static int getNumDirs(int radius) {
+		if (radius < 0) {
+			return 0;
+		} else if (radius == 0) {
+			return 1;
+		} else {
+			return 8 * radius;
+		}
+	}
+	
+	/**
+	 * Get 2d element index after step of variable radius:
+	 * radius==1 - same as getNeibIndex(int indx, int dir), 8 directions
+	 * radius==2 - 16 directions (5x5 square), 0 - still up, north
+	 * radius==3 - 24 directions (7x7 square)
+	 * ...
+	 * @param indx start index
+	 * @param dir step direction (CW from up)
+	 * @param radius - "distance" from the start point
+	 * @return new index or -1 if leaving array in any direction
+	 */
+
+	public int getNeibIndexRadius(int indx, int dir, int radius) {
+		if (radius < 2) {
+			return  getNeibIndex(indx, dir);
+		}
+		int y = indx / sizeX;
+		int x = indx % sizeX;
+		if (dir > (8 * radius)) {
+			System.out.println("getNeibIndex(): indx="+indx+", dir="+dir+", radius="+radius);
+		}
+		int dr = (dir + radius) % (8 * radius);
+		int quad = dr / (2 * radius);
+		int side = dr %  (2 * radius);
+		switch (quad) {
+		case 0:
+			x = x - radius + side;
+			y = y - radius;
+			break;
+		case 1:
+			x = x + radius; 
+			y = y - radius + side;
+			break;
+		case 2:
+			x = x + radius - side; 
+			y = y + radius;
+			break;
+		case 3:
+			x = x - radius; 
+			y = y + radius - side;
+			break;
+		}
+		if ((x >= 0) && (y >= 0) && (x < sizeX) && (y < sizeY)) {
+			return x + sizeX*y;
+		} else {
+			return -1;
+		}
+	}
+	
+	
+	
+	
 	/**
 	 * Get 2d element index after step N, NE, ... NW. Returns -1 if leaving array
 	 * And 2 steps for dir = 8(N), 9(NNE),..23(NNW)

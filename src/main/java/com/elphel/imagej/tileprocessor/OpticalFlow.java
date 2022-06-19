@@ -2493,6 +2493,7 @@ public class OpticalFlow {
 				scene_ers_atr_dt); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
 		//setupERS() will be inside transformToScenePxPyD()
 		double [][] scene_pXpYD = transformToScenePxPyD( // will be null for disparity == NaN
+				null, // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
 				disparity_ref,      // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
 				scene_xyz,          // final double []   scene_xyz, // camera center in world coordinates
 				scene_atr,          // final double []   scene_atr, // camera orientation relative to world frame
@@ -2710,20 +2711,19 @@ public class OpticalFlow {
 		ImageDtt.startAndJoin(threads);
 		return world_xyz;
 	}
-	
-	
-	
+
 	public double [][] transformToScenePxPyD(
+			final Rectangle   full_woi_in,      // show larger than sensor WOI (or null) IN TILES
 			final double []   disparity_ref, // invalid tiles - NaN in disparity
 			final double []   scene_xyz, // camera center in world coordinates
 			final double []   scene_atr, // camera orientation relative to world frame
 			final QuadCLT     scene_QuadClt,
 			final QuadCLT     reference_QuadClt) {
 		return transformToScenePxPyD(
-				null, // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
+				full_woi_in,   // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
 				disparity_ref, // invalid tiles - NaN in disparity
-				scene_xyz, // camera center in world coordinates
-				scene_atr, // camera orientation relative to world frame
+				scene_xyz,     // camera center in world coordinates
+				scene_atr,     // camera orientation relative to world frame
 				scene_QuadClt,
 				reference_QuadClt,
 				this.threadsMax);
@@ -3963,8 +3963,8 @@ public class OpticalFlow {
     	boolean export_images =      clt_parameters.imp.export_images;
     	boolean export_dsi_image =   clt_parameters.imp.show_ranges;
     	boolean show_images =        clt_parameters.imp.show_images;
-    	boolean show_color_nan =     clt_parameters.imp.show_color_nan;
-    	boolean show_mono_nan =      clt_parameters.imp.show_mono_nan;
+//    	boolean show_color_nan =     clt_parameters.imp.show_color_nan;
+//    	boolean show_mono_nan =      clt_parameters.imp.show_mono_nan;
     	
     	boolean show_images_bgfg =   clt_parameters.imp.show_images_bgfg;
     	boolean show_images_mono =   clt_parameters.imp.show_images_mono;
@@ -3972,6 +3972,15 @@ public class OpticalFlow {
 		double  range_disparity_offset = clt_parameters.imp.range_disparity_offset ; //   -0.08;
 		double  range_min_strength =     clt_parameters.imp.range_min_strength ; // 0.5;
 		double  range_max =              clt_parameters.imp.range_max ; //  5000.0;
+		
+		boolean generate_mapped =    clt_parameters.imp.generate_mapped;
+		int     extra_hor_tile =     clt_parameters.imp.extra_hor_tile;
+		int     extra_vert_tile =    clt_parameters.imp.extra_vert_tile;
+		int     sensor_mask =        clt_parameters.imp.sensor_mask; // -1 - all
+		int     mode3d =             clt_parameters.imp.mode3d; // 0 - infinity, 1 - FG, 2 - BG
+		boolean show_mapped_color =  clt_parameters.imp.show_mapped_color;
+		boolean show_mapped_mono =   clt_parameters.imp.show_mapped_mono;
+		
 		
     	
 		final int        debugLevelInner=clt_parameters.batch_run? -2: debugLevel; // copied from TQ
@@ -4221,29 +4230,124 @@ public class OpticalFlow {
 					debugLevel);         // int                  debug_level
 		}
 		
+		if (generate_mapped) {
+			if (!build_orientations && !build_interscene) {
+				for (int scene_index =  ref_index - 1; scene_index >= 0 ; scene_index--) {
+					quadCLTs[scene_index] = (QuadCLT) quadCLT_main.spawnNoModelQuadCLT( // restores image data
+							set_channels[scene_index].set_name,
+							clt_parameters,
+							colorProcParameters, //
+							threadsMax,
+							debugLevel-2);
+				}
+			}
+			double [] selected_disparity = null;
+			int tilesX =  quadCLTs[ref_index].getTileProcessor().getTilesX();
+	        int tilesY =  quadCLTs[ref_index].getTileProcessor().getTilesY();
+	        if (mode3d == 0) {
+				selected_disparity = new double [tilesX * tilesY];
+				Arrays.fill(selected_disparity,clt_parameters.disparity);
+	        } else {
+				if (combo_dsn_final == null) {
+					combo_dsn_final = quadCLTs[ref_index].readDoubleArrayFromModelDirectory(
+							"-INTER-INTRA-LMA", // String      suffix,
+							0, // int         num_slices, // (0 - all)
+							null); // int []      wh);
+				}
+				double [][] dls = {
+						combo_dsn_final[COMBO_DSN_INDX_DISP],
+						combo_dsn_final[COMBO_DSN_INDX_LMA],
+						combo_dsn_final[COMBO_DSN_INDX_STRENGTH]
+				};
+				double [][] ds = conditionInitialDS(
+						true,                // boolean        use_conf,       // use configuration parameters, false - use following  
+						clt_parameters,      // CLTParameters  clt_parameters,
+						dls,                 // double [][]    dls
+						quadCLTs[ref_index], // QuadCLT        scene,
+						debugLevel);			
+				
+				selected_disparity = ds[0]; // combo_dsn_final[COMBO_DSN_INDX_DISP_FG];
+				if (mode3d > 1) { // BG mode
+					double [] bg_lma = combo_dsn_final[COMBO_DSN_INDX_DISP_BG_ALL].clone();
+					double [] bg_str = combo_dsn_final[COMBO_DSN_INDX_STRENGTH].clone();
+					
+					for (int i = 0; i < bg_lma.length; i++) {
+						if (Double.isNaN(combo_dsn_final[COMBO_DSN_INDX_LMA][i])){
+							bg_lma[i] = Double.NaN;
+						}
+						if (!Double.isNaN(combo_dsn_final[COMBO_DSN_INDX_DISP_BG][i])){
+							bg_lma[i] = combo_dsn_final[COMBO_DSN_INDX_LMA_BG][i];
+						}
+						if (!Double.isNaN(combo_dsn_final[COMBO_DSN_INDX_STRENGTH_BG][i])){
+							bg_str[i] = combo_dsn_final[COMBO_DSN_INDX_STRENGTH_BG][i];
+						}
+					}
+					double [][] dls_bg = {
+							combo_dsn_final[COMBO_DSN_INDX_DISP_BG_ALL],
+							bg_lma,
+							bg_str
+					};
+					double [][] ds_bg = conditionInitialDS(
+							false, // boolean        use_conf,       // use configuration parameters, false - use following  
+							clt_parameters,      // CLTParameters  clt_parameters,
+							dls_bg,                 // double [][]    dls
+							quadCLTs[ref_index], // QuadCLT        scene,
+							debugLevel);			
+					selected_disparity = ds_bg[0]; // combo_dsn_final[COMBO_DSN_INDX_DISP_FG];
+				}
+	        }
+	        // for now using disparity for just standard size (90x64), later may use full size and at
+	        // minimum fill peripheral areas with Laplassian?
+	        Rectangle fov_tiles = new Rectangle(
+	        		extra_hor_tile,
+	        		extra_vert_tile,
+	        		tilesX + 2 * extra_hor_tile,
+	        		tilesY + 2 * extra_vert_tile);
+    		boolean       toRGB = !show_mapped_mono; // false; // true;// ** TEMPORARILY **
+	        String scenes_suffix = quadCLTs[quadCLTs.length-1].getImageName()+
+	        		"-SEQ-"; // MOD3D"+mode3d + "-"+(toRGB?"COLOR":"MONO");
+	        if      (mode3d <  0) scenes_suffix+="RAW";
+	        else if (mode3d == 0) scenes_suffix+="INF";
+	        else if (mode3d == 1) scenes_suffix+="FG";
+	        else if (mode3d == 2) scenes_suffix+="BG";
+	        scenes_suffix += "-"+(toRGB?"COLOR":"MONO");
+	        ImagePlus imp_scenes = renderSceneSequence(
+	        		clt_parameters,     // CLTParameters clt_parameters,
+	        		fov_tiles,          // Rectangle     fov_tiles,
+	        		mode3d,             // int           mode3d,
+	        		toRGB,              // boolean       toRGB,
+	        		sensor_mask,        // int           sensor_mask,
+	        		scenes_suffix,      // String        suffix,
+	        		selected_disparity, // double []     ref_disparity,			
+	        		quadCLTs,           // QuadCLT []    quadCLTs,
+	        		debugLevel);        // int           debugLevel);
+	        
+			quadCLTs[ref_index].saveImagePlusInModelDirectory(
+					null, // "GPU-SHIFTED-D"+clt_parameters.disparity, // String      suffix,
+					imp_scenes); // ImagePlus   imp)
+			if (show_mapped_color) {
+				imp_scenes.show();
+				/*
+				if (show_images_mono) {
+					imp_scenes.show();
+				}
+				*/
+			}
+		}
 		if (export_images) {
-			final boolean     toRGB = true;
 			if (combo_dsn_final == null) {
 				combo_dsn_final = quadCLTs[ref_index].readDoubleArrayFromModelDirectory(
 						"-INTER-INTRA-LMA", // String      suffix,
 						0, // int         num_slices, // (0 - all)
 						null); // int []      wh);
 			}
-			// re-load 
-			/*
-			quadCLTs[ref_index] = (QuadCLT) quadCLT_main.spawnQuadCLT( // restores dsi from "DSI-MAIN"
-					set_channels[ref_index].set_name,
-					clt_parameters,
-					colorProcParameters, //
-					threadsMax,
-					debugLevel);
-			*/
 			double [][] dls = {
 					combo_dsn_final[COMBO_DSN_INDX_DISP],
 					combo_dsn_final[COMBO_DSN_INDX_LMA],
 					combo_dsn_final[COMBO_DSN_INDX_STRENGTH]
 			};
 			double [][] ds = conditionInitialDS(
+					false, // boolean        use_conf,       // use configuration parameters, false - use following  
 					clt_parameters,      // CLTParameters  clt_parameters,
 					dls,                 // double [][]    dls
 					quadCLTs[ref_index], // QuadCLT        scene,
@@ -4271,6 +4375,7 @@ public class OpticalFlow {
 					bg_str
 			};
 			double [][] ds_bg = conditionInitialDS(
+					false, // boolean        use_conf,       // use configuration parameters, false - use following  
 					clt_parameters,      // CLTParameters  clt_parameters,
 					dls_bg,                 // double [][]    dls
 					quadCLTs[ref_index], // QuadCLT        scene,
@@ -4399,23 +4504,13 @@ public class OpticalFlow {
 						null); // int []      wh);
 			}
 			// re-load , should create quadCLTs[ref_index].dsi
-			/*
-			quadCLTs[ref_index] = (QuadCLT) quadCLT_main.spawnQuadCLT( // restores dsi from "DSI-MAIN"
-					set_channels[ref_index].set_name,
-					clt_parameters,
-					colorProcParameters, //
-					threadsMax,
-					debugLevel);
-			*/
-			// TODO:********************
-//			double [] disparity = combo_dsn_final[COMBO_DSN_INDX_DISP].clone();
-//			double [] strength =  combo_dsn_final[COMBO_DSN_INDX_STRENGTH];
 			double [][] dls = {
 					combo_dsn_final[COMBO_DSN_INDX_DISP],
 					combo_dsn_final[COMBO_DSN_INDX_LMA],
 					combo_dsn_final[COMBO_DSN_INDX_STRENGTH]
 			};
 			double [][] ds = conditionInitialDS(
+					false, // boolean        use_conf,       // use configuration parameters, false - use following  
 					clt_parameters,      // CLTParameters  clt_parameters,
 					dls,                 // double [][]    dls
 					quadCLTs[ref_index], // QuadCLT        scene,
@@ -4447,6 +4542,74 @@ public class OpticalFlow {
 		System.out.println("buildSeries(): DONE"); //
 		return true;
     }
+    
+    public ImagePlus renderSceneSequence(
+    		CLTParameters clt_parameters,
+    		Rectangle     fov_tiles,
+    		int           mode3d,
+    		boolean       toRGB,
+    		int           sensor_mask,
+    		String        suffix,
+    		double []     ref_disparity,			
+    		QuadCLT []    quadCLTs,
+    		int           debugLevel) {
+//    	int mode3d=-1;
+        int ref_index = quadCLTs.length -1;
+    	int num_sens = quadCLTs[ref_index].getNumSensors();
+		ErsCorrection ers_reference = quadCLTs[ref_index].getErsCorrection();
+        int num_used_sens = 0;
+        for (int i = 0; i < num_sens; i++) if (((sensor_mask >> i) & 1) != 0) num_used_sens++;
+        int [] channels = new int [num_used_sens];
+        int nch = 0;
+        for (int i = 0; i < num_sens; i++) if (((sensor_mask >> i) & 1) != 0) channels[nch++] = i;
+        ImageStack stack_scenes = null;
+        int dbg_scene = 95;
+		for (int nscene =  0; nscene < quadCLTs.length ; nscene++) if (quadCLTs[nscene] != null){
+			if (nscene== dbg_scene) {
+				System.out.println("renderSceneSequence(): nscene = "+nscene);
+			}
+			String ts = quadCLTs[nscene].getImageName();
+			double []   scene_xyz = ZERO3;
+			double []   scene_atr = ZERO3;
+			if ((nscene != ref_index) && (mode3d >= 0)) {
+				scene_xyz = ers_reference.getSceneXYZ(ts);
+				scene_atr = ers_reference.getSceneATR(ts);
+				double []   scene_ers_xyz_dt = ers_reference.getSceneErsXYZ_dt(ts);
+				double []   scene_ers_atr_dt = ers_reference.getSceneErsATR_dt(ts);
+				quadCLTs[nscene].getErsCorrection().setErsDt(
+						scene_ers_xyz_dt, // double []    ers_xyz_dt,
+						scene_ers_atr_dt); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
+			}
+			ImagePlus imp_scene = QuadCLT.renderGPUFromDSI(
+					sensor_mask,                  // final int         sensor_mask,
+					fov_tiles, // testr, // null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
+					clt_parameters,      // CLTParameters     clt_parameters,
+					ref_disparity,       // double []         disparity_ref,
+					scene_xyz,           // final double []   scene_xyz, // camera center in world coordinates
+					scene_atr,           // final double []   scene_atr, // camera orientation relative to world frame
+					quadCLTs[nscene],    // final QuadCLT     scene,
+					toRGB,               // final boolean     toRGB,
+//					"GPU-SHIFTED-D"+clt_parameters.disparity, // String            suffix,
+					"", // String            suffix, no suffix here
+					threadsMax,          // int               threadsMax,
+					debugLevel);         // int         debugLevel)
+			if (stack_scenes == null) {
+				stack_scenes = new ImageStack(imp_scene.getWidth(),imp_scene.getHeight());
+			}
+			for (int i = 0; i < channels.length; i++) {
+				stack_scenes.addSlice(
+						ts+"-"+channels[i],
+						imp_scene.getStack().getPixels(i+1));
+			}
+			
+		}
+//		ImagePlus imp_scenes = new ImagePlus(image_name+sAux()+suffix, stack_scenes);
+		ImagePlus imp_scenes = new ImagePlus(suffix, stack_scenes);
+		imp_scenes.getProcessor().resetMinAndMax();
+    	return imp_scenes;
+    }
+    
+    
     
     public double [][] getSceneSZXY(
     	QuadCLT   scene,
@@ -7295,6 +7458,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			if (nscene == indx_ref) {
 				// transform to self - maybe use a method that sets central points
 				scene_pXpYD = transformToScenePxPyD(
+						null, // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
 						disparity_ref,      // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
 						ZERO3,              // final double []   scene_xyz, // camera center in world coordinates
 						ZERO3,              // final double []   scene_atr, // camera orientation relative to world frame
@@ -7311,6 +7475,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 						scene_ers_atr_dt); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
 				//setupERS() will be inside transformToScenePxPyD()
 				scene_pXpYD = transformToScenePxPyD( // will be null for disparity == NaN
+						null, // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
 						disparity_ref,      // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
 						scene_xyz,          // final double []   scene_xyz, // camera center in world coordinates
 						scene_atr,          // final double []   scene_atr, // camera orientation relative to world frame
@@ -8215,6 +8380,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			if (nscene == indx_ref) {
 				// transform to self - maybe use a method that sets central points
 				scene_pXpYD = transformToScenePxPyD(
+						null, // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
 						disparity_ref,      // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
 						ZERO3,              // final double []   scene_xyz, // camera center in world coordinates
 						ZERO3,              // final double []   scene_atr, // camera orientation relative to world frame
@@ -8231,6 +8397,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 						scene_ers_atr_dt); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
 				//setupERS() will be inside transformToScenePxPyD()
 				double [][] scene_pXpYD_prefilter = transformToScenePxPyD( // will be null for disparity == NaN, total size - tilesX*tilesY
+						null, // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
 						disparity_ref,      // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
 						scene_xyz,          // final double []   scene_xyz, // camera center in world coordinates
 						scene_atr,          // final double []   scene_atr, // camera orientation relative to world frame
@@ -8646,6 +8813,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		double [][] scene_pXpYD;
 		// transform to self - maybe use a method that sets central points
 		scene_pXpYD = transformToScenePxPyD(
+				null, // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
 				disparity_ref,      // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
 				ZERO3,              // final double []   scene_xyz, // camera center in world coordinates
 				ZERO3,              // final double []   scene_atr, // camera orientation relative to world frame
@@ -9530,6 +9698,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			return null;
 		}
 		return conditionInitialDS(
+				false, // boolean        use_conf,       // use configuration parameters, false - use following  
 				clt_parameters,
 				dls,
 				scene,
@@ -9537,64 +9706,154 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 	}
 	
 	
+	
 	private double [][] conditionInitialDS(
+			boolean        use_conf,       // use configuration parameters, false - use following  
 			CLTParameters  clt_parameters,
 			double [][]    dls,
 			QuadCLT        scene,
 			int debug_level)
 	{
+		int         num_bottom =                      6; // average this number of lowest disparity neighbors (of 8)
+		int         num_passes =                    100;
+		double      max_change =                      1.0e-3;
+		double      min_disparity =                  -0.2;
+		double      max_sym_disparity =               0.2;		
+		double      min_strength_replace =            0.05; ///  0.14; /// Before /// - LWIR, after - RGB
+		double      min_strength_blur =               0.06; ///  0.2;
+		double      sigma =                           2; /// 5;
+		int         num_blur =                        1; // 3;
+		double      disparity_corr =                  0.0;
+		int         outliers_nth_fromextrem =         1; // second from min/max - removes dual-tile max/mins
+		double      outliers_tolerance_absolute =     0.2;
+		double      outliers_tolerance_relative =     0.02;
+		int         outliers_max_iter =             100;
+		double      outliers_max_strength2 =          1.0; // 0.5; any
+		int         outliers_nth_fromextrem2 =        0; // second from min/max - removes dual-tile max/mins
+		double      outliers_tolerance_absolute2 =    0.5;
+		double      outliers_tolerance_relative2 =    0.1;
+		double      outliers_lma_max_strength =       0.5;
+		double      outliers_max_strength =           0.1; ///  0.25;
+		double      outliers_from_lma_max_strength =  0.8;
+		int         search_radius =                   1;       // Search farther if no LMA neighbor is found closer. Original value - 1 (8 neighbors)
+		boolean     remove_no_lma_neib =              false;
+		double      diff_from_lma_pos =             100.0;
+		double      diff_from_lma_neg =               2.0;
+		int         outliers_lma_nth_fromextrem =     1; 
+		int         margin =                          8; // pixels
+		
+		if (use_conf) {
+			num_bottom                    = clt_parameters.imp.num_bottom;
+			num_passes                    = clt_parameters.imp.num_passes;
+			max_change                    = clt_parameters.imp.max_change;
+			min_disparity                 = clt_parameters.imp.min_disparity;
+			max_sym_disparity             = clt_parameters.imp.max_sym_disparity;
+			min_strength_replace          = clt_parameters.imp.min_strength_replace;
+			min_strength_blur             = clt_parameters.imp.min_strength_blur;
+			sigma                         = clt_parameters.imp.sigma;
+			num_blur                      = clt_parameters.imp.num_blur;
+			disparity_corr                = clt_parameters.imp.disparity_corr;
+			outliers_nth_fromextrem       = clt_parameters.imp.outliers_nth_fromextrem;
+			outliers_tolerance_absolute   = clt_parameters.imp.outliers_tolerance_absolute;
+			outliers_tolerance_relative   = clt_parameters.imp.outliers_tolerance_relative;
+			outliers_max_iter             = clt_parameters.imp.outliers_max_iter;
+			outliers_max_strength2        = clt_parameters.imp.outliers_max_strength2;
+			outliers_nth_fromextrem2      = clt_parameters.imp.outliers_nth_fromextrem2;
+			outliers_tolerance_absolute2  = clt_parameters.imp.outliers_tolerance_absolute2;
+			outliers_tolerance_relative2  = clt_parameters.imp.outliers_tolerance_relative2;
+			outliers_lma_max_strength     = clt_parameters.imp.outliers_lma_max_strength;
+			outliers_max_strength         = clt_parameters.imp.outliers_max_strength;
+			outliers_from_lma_max_strength= clt_parameters.imp.outliers_from_lma_max_strength;
+			search_radius                 = clt_parameters.imp.search_radius;
+			remove_no_lma_neib            = clt_parameters.imp.remove_no_lma_neib;
+			diff_from_lma_pos             = clt_parameters.imp.diff_from_lma_pos;
+			diff_from_lma_neg             = clt_parameters.imp.diff_from_lma_neg;
+			outliers_lma_nth_fromextrem   = clt_parameters.imp.outliers_lma_nth_fromextrem;
+			margin                        = clt_parameters.imp.filter_margin;
+		}
+		
+		return conditionInitialDS(
+				clt_parameters,                 // CLTParameters  clt_parameters,
+				dls,                            // double [][]    dls,
+				scene,                          // QuadCLT        scene,
+				debug_level,                    // int            debug_level,
+				num_bottom,                     // final int         num_bottom,
+				num_passes,                     // final int         num_passes,
+				max_change,                     // final double      max_change,
+				min_disparity,                  // final double      min_disparity,
+				max_sym_disparity,              // final double      max_sym_disparity,		
+				min_strength_replace,           // final double      min_strength_replace,
+				min_strength_blur,              // final double      min_strength_blur,
+				sigma,                          // final double      sigma,
+				num_blur,                       // final int         num_blur,
+				disparity_corr,                 // final double      disparity_corr,
+				outliers_nth_fromextrem,        // final int         outliers_nth_fromextrem,
+				outliers_tolerance_absolute,    // final double      outliers_tolerance_absolute,
+				outliers_tolerance_relative,    // final double      outliers_tolerance_relative,
+				outliers_max_iter,              // final int         outliers_max_iter,
+				outliers_max_strength2,         // final double      outliers_max_strength2,
+				outliers_nth_fromextrem2,       // final int         outliers_nth_fromextrem2,
+				outliers_tolerance_absolute2,   // final double      outliers_tolerance_absolute2,
+				outliers_tolerance_relative2,   // final double      outliers_tolerance_relative2,
+				outliers_lma_max_strength,      // final double      outliers_lma_max_strength,
+				outliers_max_strength,          // final double      outliers_max_strength,
+				outliers_from_lma_max_strength, // final double      outliers_from_lma_max_strength,
+				search_radius,       // final int         search_radius,       // Search farther if no LMA neighbor is found closer. Original value - 1 (8 neighbors)
+				remove_no_lma_neib,  // final boolean     remove_no_lma_neib,  // remove without LMA neighbors
+				diff_from_lma_pos,              // final double      diff_from_lma_pos,
+				diff_from_lma_neg,              // final double      diff_from_lma_neg,
+				outliers_lma_nth_fromextrem,    // final int         outliers_lma_nth_fromextrem, 
+				margin);                        // final int         margin)		
+    }		
+	
+	
+	
+	private double [][] conditionInitialDS(
+			CLTParameters  clt_parameters,
+			double [][]    dls,
+			QuadCLT        scene,
+			int            debug_level,
+			final int         num_bottom,
+			final int         num_passes,
+			final double      max_change,
+			final double      min_disparity,
+			final double      max_sym_disparity,		
+			final double      min_strength_replace,
+			final double      min_strength_blur,
+			final double      sigma,
+			final int         num_blur,
+			final double      disparity_corr,
+			final int         outliers_nth_fromextrem,
+			final double      outliers_tolerance_absolute,
+			final double      outliers_tolerance_relative,
+			final int         outliers_max_iter,
+			final double      outliers_max_strength2,
+			final int         outliers_nth_fromextrem2,
+			final double      outliers_tolerance_absolute2,
+			final double      outliers_tolerance_relative2,
+			final double      outliers_lma_max_strength,
+			final double      outliers_max_strength,
+			final double      outliers_from_lma_max_strength,
+			final int         search_radius,       // Search farther if no LMA neighbor is found closer. Original value - 1 (8 neighbors)
+			final boolean     remove_no_lma_neib,  // remove without LMA neighbors
+			final double      diff_from_lma_pos,
+			final double      diff_from_lma_neg,
+			final int         outliers_lma_nth_fromextrem, 
+			final int         margin)
+	{
 		final int tilesX = scene.getTileProcessor().getTilesX();
 		final int tilesY = scene.getTileProcessor().getTilesY();
 		final int transform_size = scene.getTileProcessor().getTileSize();
 		final int tiles =tilesX * tilesY;
-		final int         num_bottom = 6; // average this number of lowest disparity neighbors (of 8)
-		final int         num_passes = 100;
-		final double      max_change = 1e-3;
-		final double      min_disparity = -.2;
-		final double      max_sym_disparity = .2;		
-		final double      min_strength_replace = 0.05; ///  0.14; /// Before /// - LWIR, after - RGB
-		final double      min_strength_blur =    0.06; ///  0.2;
-		final double      sigma =    2; /// 5;
-		final int         num_blur = 1; // 3;
-		final double      disparity_corr = 0.00;
 		
-		final int         outliers_nth_fromextrem = 1; // second from min/max - removes dual-tile max/mins
-		final double      outliers_tolerance_absolute = .2;
-		final double      outliers_tolerance_relative = .02;
-		final int         outliers_max_iter = 100;
-		final double      outliers_max_strength2 = 1.0; // 0.5; any
-		final int         outliers_nth_fromextrem2 = 0; // second from min/max - removes dual-tile max/mins
-		final double      outliers_tolerance_absolute2 = .5;
-		final double      outliers_tolerance_relative2 = .1;
 
-		final double      outliers_lma_max_strength = 0.5;
-		
-		
-		final double      outliers_max_strength = 0.1; ///  0.25;
-		final double      outliers_from_lma_max_strength = 0.8;
-		final double      diff_from_lma_pos = 100.0;
-		final double      diff_from_lma_neg = 2.0;
-		final int         outliers_lma_nth_fromextrem = 1; 
-		
-//		final int margin = 4; /// was 8 for EO 8; // pixels
-		final int margin = 8; // pixels
-//		double [][] dsrbg = scene.getDSRBG();
-//		if (dsrbg == null) {
-//			return null;
-//		}
-		/*
-		double [][] dls = scene.getDLS();
-		if (dls == null) {
-			return null;
-		}
-		*/
 		String [] dbg_titles = {"str", "lma", "disp","-lma","by-lma","-nonlma", "old-disp","old-sngl","weak","filled"}; 
 		double [][] dbg_img = new double [dbg_titles.length][];
 		//Remove crazy LMA high-disparity tiles
 		dbg_img[0] = dls[2].clone();
 		dbg_img[1] = dls[1].clone();
 		dbg_img[2] = dls[0].clone();
-		double [] disp_outliers = QuadCLT.removeDisparityLMAOutliers(
+		double [] disp_outliers = QuadCLT.removeDisparityLMAOutliers( // nothing removed
 				false,                       // final boolean     non_ma,
 				dls, //final double [][] dls,
 				outliers_lma_max_strength,   // final double      max_strength,  // do not touch stronger
@@ -9606,18 +9865,19 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				threadsMax,                  // final int         threadsMax,
 				debug_level);                // final int         debug_level)
 		dbg_img[3] = disp_outliers.clone();
-		disp_outliers = QuadCLT.removeDisparityOutliersByLMA(
+		disp_outliers = QuadCLT.removeDisparityOutliersByLMA( // removed sky edge near strong objects
 				new double[][] {disp_outliers, dls[1], dls[2]}, //final double [][] dls,
 				outliers_from_lma_max_strength,  // final double      max_strength,  // do not touch stronger
 				diff_from_lma_pos,           // final double      diff_from_lma_pos,   // Difference from farthest FG objects (OK to have large, e.g. 100)
 				diff_from_lma_neg,           // final double      diff_from_lma_neg,   // Difference from nearest BG objects (small, as FG are usually more visible)
-				false,                       // final boolean     remove_no_lma_neib,  // remove without LMA neighbors
-				tilesX,                      //final int         width,               //tilesX
+				search_radius,               // int               search_radius,       // Search farther if no LMA neighbor is found closer. Original value - 1 (8				
+				remove_no_lma_neib,          // final boolean     remove_no_lma_neib,  // remove without LMA neighbors
+				tilesX,                      // final int         width,               //tilesX
 				threadsMax,                  // final int         threadsMax,
 				debug_level);                // final int         debug_level)
 		dbg_img[4] = disp_outliers.clone();
 		// mostly filter infinity, clouds, sky
-		disp_outliers = QuadCLT.removeDisparityLMAOutliers( // filter non-lma tiles
+		disp_outliers = QuadCLT.removeDisparityLMAOutliers( // filter non-lma tiles // removed too few !!!
 				true,                       // final boolean     non_ma,
 				new double[][] {disp_outliers, dls[1], dls[2]}, //final double [][] dls,
 				outliers_lma_max_strength,   // final double      max_strength,  // do not touch stronger
@@ -9869,6 +10129,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 //		double [][] dsrbg_ref= ref_scene.getDSRBG();
 		double [][] dls= ref_scene.getDLS();
 		double [][] ref_pXpYD = transformToScenePxPyD( // full size - [tilesX*tilesY], some nulls
+				null, // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
 				dls[0],  // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
 				ZERO3,         // final double []   scene_xyz, // camera center in world coordinates
 				ZERO3,         // final double []   scene_atr, // camera orientation relative to world frame
@@ -9897,6 +10158,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		//setupERS() will be inside transformToScenePxPyD()
 		 */
 		double [][] scene_pXpYD = transformToScenePxPyD( // will be null for disparity == NaN, total size - tilesX*tilesY
+				null, // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
 				dls[0], // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
 				scene_xyz,    // final double []   scene_xyz, // camera center in world coordinates
 				scene_atr,    // final double []   scene_atr, // camera orientation relative to world frame

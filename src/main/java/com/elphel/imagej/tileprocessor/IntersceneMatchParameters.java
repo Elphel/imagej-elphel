@@ -41,9 +41,47 @@ public class IntersceneMatchParameters {
 	public  boolean show_mono_nan =      false; // use NAN background for monochrome images (sharp, but distinct black)
 	public  boolean show_ranges =        true;
 	
+	public  boolean generate_mapped =    true;
+	public  int     extra_hor_tile =     15;
+	public  int     extra_vert_tile =    10;
+	public  int     sensor_mask =        1; // -1 - all
+	public  int     mode3d =             1; // -1 - raw, 0 - infinity, 1 - FG, 2 - BG
+	public  boolean show_mapped_color =  true;
+	public  boolean show_mapped_mono =   false;
+	
 	public  double  range_disparity_offset =   -0.08;
 	public  double  range_min_strength = 0.5;
 	public  double  range_max =       5000.0;
+	
+// Other parameters for filtering depth maps	
+	public  int         num_bottom =                      6; // average this number of lowest disparity neighbors (of 8)
+	public  int         num_passes =                    100;
+	public  double      max_change =                      1.0e-3;
+	public  double      min_disparity =                  -0.2;
+	public  double      max_sym_disparity =               0.2;		
+	public  double      min_strength_replace =            0.05; ///  0.14; /// Before /// - LWIR, after - RGB
+	public  double      min_strength_blur =               0.06; ///  0.2;
+	public  double      sigma =                           2; /// 5;
+	public  int         num_blur =                        1; // 3;
+	public  double      disparity_corr =                  0.0;
+	public  int         outliers_nth_fromextrem =         1; // second from min/max - removes dual-tile max/mins
+	public  double      outliers_tolerance_absolute =     0.2;
+	public  double      outliers_tolerance_relative =     0.02;
+	public  int         outliers_max_iter =             100;
+	public  double      outliers_max_strength2 =          1.0; // 0.5; any
+	public  int         outliers_nth_fromextrem2 =        0; // second from min/max - removes dual-tile max/mins
+	public  double      outliers_tolerance_absolute2 =    0.5;
+	public  double      outliers_tolerance_relative2 =    0.1;
+	public  double      outliers_lma_max_strength =       0.5;
+	public  double      outliers_max_strength =           0.1; ///  0.25;
+	public  double      outliers_from_lma_max_strength =  0.8;
+	public  int         search_radius =                   3;  // Search farther if no LMA neighbor is found closer. Original value - 1 (8 neighbors)
+	public  boolean     remove_no_lma_neib =              true;
+	public  double      diff_from_lma_pos =             100.0;
+	public  double      diff_from_lma_neg =               2.0;
+	public  int         outliers_lma_nth_fromextrem =     1; 
+	public  int         filter_margin =                  -8; // 8; // pixels
+	
 	
 
 	// Some "AGC" to adjust how much to discard
@@ -126,7 +164,8 @@ public class IntersceneMatchParameters {
 				"Use NaN for undefined tiles (false - 0.0f). NaN produces sharp distinct result, 0.0f - blended");
 		gd.addCheckbox ("Mono NaN background",                       this.show_mono_nan,
 				"Use NaN for undefined tiles (false - 0.0f). NaN produces sharp distinct result, 0.0f - blended");
-	
+
+		gd.addMessage  ("Metric distance map generation");
 		gd.addCheckbox ("Show distances in meters",                  this.show_ranges,
 				"Calculate strength, distance, X, and Y in meters");
 		gd.addNumericField("Disparity at infinity",                  this.range_disparity_offset, 5,7,"pix",
@@ -135,6 +174,81 @@ public class IntersceneMatchParameters {
 				"Disregard weaker results when measuring range.");
 		gd.addNumericField("Maximal displayed range",                this.range_max, 5,7,"m",
 				"Do not display extremely far objects.");
+
+		gd.addMessage  ("Depth map filtering parameters");
+		gd.addNumericField("Average lowest disparity neighbors",     this.num_bottom, 0,3,"",
+				"Average this number of lowest disparity neighbors (of 8)");
+		gd.addNumericField("Number of filter iterations",            this.num_passes, 0,3,"",
+				"Number of filter iterations");
+		gd.addNumericField("Maximal change to exit",                 this.max_change, 5,7,"pix",
+				"Maximal change to exit iterations");
+		gd.addNumericField("Minimal disparity",                      this.min_disparity, 5,7,"pix",
+				"Minimal acceptable disparity");
+		gd.addNumericField("Max neib. disparity difference",         this.max_sym_disparity, 5,7,"pix",
+				"Difference from the nearest of neighbors should not exceed this");
+		gd.addNumericField("Minimal strength to replace",            this.min_strength_replace, 5,7,"",
+				"Minimal strength to replace");
+		gd.addNumericField("Minimal strength to blur",               this.min_strength_blur, 5,7,"",
+				"Minimal strength to blur");
+		gd.addNumericField("Blur weak sigma",                        this.sigma, 5,7,"",
+				"Blur weak sigma");
+		gd.addNumericField("Number of blur passes",                  this.num_blur, 0,3,"",
+				"Number of blur passes");
+		gd.addNumericField("Disparity offset (not used)",            this.disparity_corr, 5,7,"",
+				"for setInterTasks() - currently not used ");
+		gd.addNumericField("Outlier N-th from extreme",              this.outliers_nth_fromextrem, 0,3,"",
+				"0 - use min/max, 1 - use second min/max, ... second from min/max - removes dual-tile clusters max/mins");
+		gd.addNumericField("Outliers tolerance absolute",            this.outliers_tolerance_absolute, 5,7,"pix",
+				"Absolute difference from extreme neighbor");
+		gd.addNumericField("Outliers tolerance realtive",            this.outliers_tolerance_relative, 5,7,"pix/pix",
+				"Add to tolerance as a fraction of absolute tile disparity");
+		gd.addNumericField("Maximal number of outlier iterations",   this.outliers_max_iter, 0,3,"",
+				"Maximal number of iterations for removing outliers");
+		gd.addNumericField("Maximal outlier strength 2",             this.outliers_max_strength2, 5,7,"",
+				"Maximal outlier strength for second pass filtering");
+		gd.addNumericField("Outlier N-th from extreme 2",            this.outliers_nth_fromextrem2, 0,3,"",
+				"Second filter: 0 - use min/max, 1 - use second min/max, ... second from min/max - removes dual-tile clusters max/mins");
+		gd.addNumericField("Outliers tolerance absolute 2",          this.outliers_tolerance_absolute2, 5,7,"",
+				"Absolute difference from extreme neighbor, second filter");
+		gd.addNumericField("Outliers tolerance realtive 2",          this.outliers_tolerance_relative2, 5,7,"",
+				"Add to tolerance as a fraction of absolute tile disparity, second filter");
+		gd.addNumericField("Outliers LMA maximal strength",          this.outliers_lma_max_strength, 5,7,"",
+				"Maximal LMA strength for an outlier");
+		gd.addNumericField("Outliers non-LMA maximal strength",      this.outliers_max_strength, 5,7,"",
+				"Outliers non-LMA (centroid) maximal strength");
+		gd.addNumericField("Outliers from LMA max strength",         this.outliers_from_lma_max_strength, 5,7,"",
+				"Non-LMA outliers from LMA neighbors maximal strength");
+		
+		gd.addNumericField("Search for LMA radius",                  this.search_radius, 0,3,"tile",
+				"Search farther if no LMA tiles are found around this non-LMA tile");
+		gd.addCheckbox ("Remove non-LMA tile if no LMA near",        this.remove_no_lma_neib,
+				"Remove non-LMA tile if no LMA one is found within specified radius");
+		
+		gd.addNumericField("LMA difference positive",                this.diff_from_lma_pos, 5,7,"",
+				"Maximal non-LMA tile positive difference from the LMA neighbor");
+		gd.addNumericField("LMA difference negative",                this.diff_from_lma_neg, 5,7,"",
+				"Maximal non-LMA tile negative difference from the LMA neighbor");
+		gd.addNumericField("LMA outliers N-th from extreme",         this.outliers_lma_nth_fromextrem, 0,3,"",
+				"0 - use min/max, 1 - use second min/max, ... ");
+		gd.addNumericField("Margin from the sensor FOV edge ",        this.filter_margin, 0,3,"pix",
+				"Disregard tiles with centers closer to the sensor FoV in pixels");
+		
+		
+		gd.addMessage  ("Show scene sequence");
+		gd.addCheckbox ("Generate mapped scene sequence",            this.generate_mapped,
+				"Generate scene sequence mapped to the reference scene");
+		gd.addNumericField("Scene sequence horizontal extra",        this.extra_hor_tile, 0,3,"tiles",
+				"Enlarge reference scene window horizontally in each direction to accommodate other scenes in a sequence");
+		gd.addNumericField("Scene sequence vertical extra",          this.extra_vert_tile, 0,3,"tiles",
+				"Enlarge reference scene window vertically in each direction to accommodate other scenes in a sequence");
+		gd.addNumericField("Sensor mask (bitmask, -1 - all sensors)",this.sensor_mask, 0,3,"",
+				"Select which sensors to be included in each scene of the sequence");
+		gd.addNumericField("3D mode (-1 - RAW, 0 - infinity, 1 - FG, 2 BG)",   this.mode3d, 0, 3, "",
+				"3D mode for rendering scenes in a sequence: -1 - raw images, 0 - no 3D, use infinity; 1 - Foreground; 2 - Background");
+		gd.addCheckbox ("Show scene sequences in (pseudo)colors",    this.show_mapped_color,
+				"Show generated scene sequences in (pseudo)color mode");
+		gd.addCheckbox ("Show scene sequences in monochrome",        this.show_mapped_mono,
+				"Show generated scene sequences in monochrome mode");
 		
 		gd.addMessage  ("Interscene match parameters");
 		gd.addNumericField("Image margin",                           this.margin, 0,5,"pix",
@@ -247,6 +361,42 @@ public class IntersceneMatchParameters {
 		this.range_min_strength =       gd.getNextNumber();
 		this.range_max =                gd.getNextNumber();
 
+		this.num_bottom =               (int) gd.getNextNumber();
+		this.num_passes =               (int) gd.getNextNumber();
+		this.max_change =                     gd.getNextNumber();
+		this.min_disparity =                  gd.getNextNumber();
+		this.max_sym_disparity =              gd.getNextNumber();
+		this.min_strength_replace =           gd.getNextNumber();
+		this.min_strength_blur =              gd.getNextNumber();
+		this.sigma =                          gd.getNextNumber();
+		this.num_blur =                 (int) gd.getNextNumber();
+		this.disparity_corr =                 gd.getNextNumber();
+		this.outliers_nth_fromextrem =  (int) gd.getNextNumber();
+		this.outliers_tolerance_absolute =    gd.getNextNumber();
+		this.outliers_tolerance_relative =    gd.getNextNumber();
+		this.outliers_max_iter =        (int) gd.getNextNumber();
+		this.outliers_max_strength2 =         gd.getNextNumber();
+		this.outliers_nth_fromextrem2 = (int) gd.getNextNumber();
+		this.outliers_tolerance_absolute2 =   gd.getNextNumber();
+		this.outliers_tolerance_relative2 =   gd.getNextNumber();
+		this.outliers_lma_max_strength =      gd.getNextNumber();
+		this.outliers_max_strength =          gd.getNextNumber();
+		this.outliers_from_lma_max_strength = gd.getNextNumber();
+		this.search_radius =            (int) gd.getNextNumber();
+		this.remove_no_lma_neib =             gd.getNextBoolean();
+		this.diff_from_lma_pos =              gd.getNextNumber();
+		this.diff_from_lma_neg =              gd.getNextNumber();
+		this.outliers_lma_nth_fromextrem=(int)gd.getNextNumber();
+		this.filter_margin =            (int) gd.getNextNumber();
+		
+		this.generate_mapped =          gd.getNextBoolean();
+		this.extra_hor_tile =     (int) gd.getNextNumber();
+		this.extra_vert_tile =    (int) gd.getNextNumber();
+		this.sensor_mask =        (int) gd.getNextNumber();
+		this.mode3d =             (int) gd.getNextNumber();
+		this.show_mapped_color =        gd.getNextBoolean();
+		this.show_mapped_mono =         gd.getNextBoolean();
+		
 		this.margin =             (int) gd.getNextNumber();
 		this.sensor_mask_inter=   (int) gd.getNextNumber();
 		this.use_partial =              gd.getNextBoolean();
@@ -300,12 +450,49 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"show_images",          this.show_images + "");       // boolean
 		properties.setProperty(prefix+"show_images_bgfg",     this.show_images_bgfg + "");  // boolean
 		properties.setProperty(prefix+"show_images_mono",     this.show_images_mono + "");  // boolean
-		properties.setProperty(prefix+"show_color_nan",       this.show_color_nan + "");  // boolean
-		properties.setProperty(prefix+"show_mono_nan",       this.show_mono_nan + "");  // boolean
+		properties.setProperty(prefix+"show_color_nan",       this.show_color_nan + "");    // boolean
+		properties.setProperty(prefix+"show_mono_nan",        this.show_mono_nan + "");     // boolean
 		properties.setProperty(prefix+"show_ranges",          this.show_ranges + "");       // boolean
 		properties.setProperty(prefix+"range_disparity_offset",this.range_disparity_offset+""); // double
 		properties.setProperty(prefix+"range_min_strength",   this.range_min_strength+"");  // double
 		properties.setProperty(prefix+"range_max",            this.range_max+"");           // double
+
+		properties.setProperty(prefix+"num_bottom",                    this.num_bottom+"");                    // int
+		properties.setProperty(prefix+"num_passes",                    this.num_passes+"");                    // int
+		properties.setProperty(prefix+"max_change",                    this.max_change+"");                    // double
+		properties.setProperty(prefix+"min_disparity",                 this.min_disparity+"");                 // double
+		properties.setProperty(prefix+"max_sym_disparity",             this.max_sym_disparity+"");             // double
+		properties.setProperty(prefix+"min_strength_replace",          this.min_strength_replace+"");          // double
+		properties.setProperty(prefix+"min_strength_blur",             this.min_strength_blur+"");             // double
+		properties.setProperty(prefix+"sigma",                         this.sigma+"");                         // double
+		properties.setProperty(prefix+"num_blur",                      this.num_blur+"");                      // int
+		properties.setProperty(prefix+"disparity_corr",                this.disparity_corr+"");                // double
+		properties.setProperty(prefix+"outliers_nth_fromextrem",       this.outliers_nth_fromextrem+"");       // int
+		properties.setProperty(prefix+"outliers_tolerance_absolute",   this.outliers_tolerance_absolute+"");   // double
+		properties.setProperty(prefix+"outliers_tolerance_relative",   this.outliers_tolerance_relative+"");   // double
+		properties.setProperty(prefix+"outliers_max_iter",             this.outliers_max_iter+"");             // int
+		properties.setProperty(prefix+"outliers_max_strength2",        this.outliers_max_strength2+"");        // double
+		properties.setProperty(prefix+"outliers_nth_fromextrem2",      this.outliers_nth_fromextrem2+"");      // int
+		properties.setProperty(prefix+"outliers_tolerance_absolute2",  this.outliers_tolerance_absolute2+"");  // double
+		properties.setProperty(prefix+"outliers_tolerance_relative2",  this.outliers_tolerance_relative2+"");  // double
+		properties.setProperty(prefix+"outliers_lma_max_strength",     this.outliers_lma_max_strength+"");     // double
+		properties.setProperty(prefix+"outliers_max_strength",         this.outliers_max_strength+"");         // double
+		properties.setProperty(prefix+"outliers_from_lma_max_strength",this.outliers_from_lma_max_strength+"");// double
+		properties.setProperty(prefix+"search_radius",                 this.search_radius+"");                 // int
+		properties.setProperty(prefix+"remove_no_lma_neib",            this.remove_no_lma_neib+"");            // boolean
+		properties.setProperty(prefix+"diff_from_lma_pos",             this.diff_from_lma_pos+"");             // double
+		properties.setProperty(prefix+"diff_from_lma_neg",             this.diff_from_lma_neg+"");             // double
+		properties.setProperty(prefix+"outliers_lma_nth_fromextrem",   this.outliers_lma_nth_fromextrem+"");   // int
+		properties.setProperty(prefix+"filter_margin",                 this.filter_margin+"");                 // int
+		
+		properties.setProperty(prefix+"generate_mapped",      this.generate_mapped+"");     // boolean
+		properties.setProperty(prefix+"extra_hor_tile",       this.extra_hor_tile+"");      // int
+		properties.setProperty(prefix+"extra_vert_tile",      this.extra_vert_tile+"");     // int
+		properties.setProperty(prefix+"sensor_mask",          this.sensor_mask+"");         // int
+		properties.setProperty(prefix+"mode3d",                this.mode3d+"");         // int
+		properties.setProperty(prefix+"show_mapped_color",    this.show_mapped_color+"");   // boolean
+		properties.setProperty(prefix+"show_mapped_mono",     this.show_mapped_mono+"");    // boolean
+		
 		properties.setProperty(prefix+"margin",               this.margin+"");              // int
 		properties.setProperty(prefix+"sensor_mask_inter",    this.sensor_mask_inter+"");   // int
 		properties.setProperty(prefix+"use_partial",          this.use_partial+"");         // boolean
@@ -363,6 +550,42 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"range_disparity_offset")!=null) this.range_disparity_offset=Double.parseDouble(properties.getProperty(prefix+"range_disparity_offset"));
 		if (properties.getProperty(prefix+"range_min_strength")!=null)   this.range_min_strength=Double.parseDouble(properties.getProperty(prefix+"range_min_strength"));
 		if (properties.getProperty(prefix+"range_max")!=null)            this.range_max=Double.parseDouble(properties.getProperty(prefix+"range_max"));
+		
+		if (properties.getProperty(prefix+"num_bottom")!=null)                    this.num_bottom=Integer.parseInt(properties.getProperty(prefix+"num_bottom"));
+		if (properties.getProperty(prefix+"num_passes")!=null)                    this.num_passes=Integer.parseInt(properties.getProperty(prefix+"num_passes"));
+		if (properties.getProperty(prefix+"max_change")!=null)                    this.max_change=Double.parseDouble(properties.getProperty(prefix+"max_change"));
+		if (properties.getProperty(prefix+"min_disparity")!=null)                 this.min_disparity=Double.parseDouble(properties.getProperty(prefix+"min_disparity"));
+		if (properties.getProperty(prefix+"max_sym_disparity")!=null)             this.max_sym_disparity=Double.parseDouble(properties.getProperty(prefix+"max_sym_disparity"));
+		if (properties.getProperty(prefix+"min_strength_replace")!=null)          this.min_strength_replace=Double.parseDouble(properties.getProperty(prefix+"min_strength_replace"));
+		if (properties.getProperty(prefix+"min_strength_blur")!=null)             this.min_strength_blur=Double.parseDouble(properties.getProperty(prefix+"min_strength_blur"));
+		if (properties.getProperty(prefix+"sigma")!=null)                         this.sigma=Double.parseDouble(properties.getProperty(prefix+"sigma"));
+		if (properties.getProperty(prefix+"num_blur")!=null)                      this.num_blur=Integer.parseInt(properties.getProperty(prefix+"num_blur"));
+		if (properties.getProperty(prefix+"disparity_corr")!=null)                this.disparity_corr=Double.parseDouble(properties.getProperty(prefix+"disparity_corr"));
+		if (properties.getProperty(prefix+"outliers_nth_fromextrem")!=null)       this.outliers_nth_fromextrem=Integer.parseInt(properties.getProperty(prefix+"outliers_nth_fromextrem"));
+		if (properties.getProperty(prefix+"outliers_tolerance_absolute")!=null)   this.outliers_tolerance_absolute=Double.parseDouble(properties.getProperty(prefix+"outliers_tolerance_absolute"));
+		if (properties.getProperty(prefix+"outliers_tolerance_relative")!=null)   this.outliers_tolerance_relative=Double.parseDouble(properties.getProperty(prefix+"outliers_tolerance_relative"));
+		if (properties.getProperty(prefix+"outliers_max_iter")!=null)             this.outliers_max_iter=Integer.parseInt(properties.getProperty(prefix+"outliers_max_iter"));
+		if (properties.getProperty(prefix+"outliers_max_strength2")!=null)        this.outliers_max_strength2=Double.parseDouble(properties.getProperty(prefix+"outliers_max_strength2"));
+		if (properties.getProperty(prefix+"outliers_nth_fromextrem2")!=null)      this.outliers_nth_fromextrem2=Integer.parseInt(properties.getProperty(prefix+"outliers_nth_fromextrem2"));
+		if (properties.getProperty(prefix+"outliers_tolerance_absolute2")!=null)  this.outliers_tolerance_absolute2=Double.parseDouble(properties.getProperty(prefix+"outliers_tolerance_absolute2"));
+		if (properties.getProperty(prefix+"outliers_tolerance_relative2")!=null)  this.outliers_tolerance_relative2=Double.parseDouble(properties.getProperty(prefix+"outliers_tolerance_relative2"));
+		if (properties.getProperty(prefix+"outliers_lma_max_strength")!=null)     this.outliers_lma_max_strength=Double.parseDouble(properties.getProperty(prefix+"outliers_lma_max_strength"));
+		if (properties.getProperty(prefix+"outliers_max_strength")!=null)         this.outliers_max_strength=Double.parseDouble(properties.getProperty(prefix+"outliers_max_strength"));
+		if (properties.getProperty(prefix+"outliers_from_lma_max_strength")!=null)this.outliers_from_lma_max_strength=Double.parseDouble(properties.getProperty(prefix+"outliers_from_lma_max_strength"));
+		if (properties.getProperty(prefix+"search_radius")!=null)                 this.search_radius=Integer.parseInt(properties.getProperty(prefix+"search_radius"));
+		if (properties.getProperty(prefix+"remove_no_lma_neib")!=null)            this.remove_no_lma_neib=Boolean.parseBoolean(properties.getProperty(prefix+"remove_no_lma_neib"));
+		if (properties.getProperty(prefix+"diff_from_lma_pos")!=null)             this.diff_from_lma_pos=Double.parseDouble(properties.getProperty(prefix+"diff_from_lma_pos"));
+		if (properties.getProperty(prefix+"diff_from_lma_neg")!=null)             this.diff_from_lma_neg=Double.parseDouble(properties.getProperty(prefix+"diff_from_lma_neg"));
+		if (properties.getProperty(prefix+"outliers_lma_nth_fromextrem")!=null)   this.outliers_lma_nth_fromextrem=Integer.parseInt(properties.getProperty(prefix+"outliers_lma_nth_fromextrem"));
+		if (properties.getProperty(prefix+"filter_margin")!=null)                 this.filter_margin=Integer.parseInt(properties.getProperty(prefix+"filter_margin"));
+		
+		if (properties.getProperty(prefix+"generate_mapped")!=null)      this.generate_mapped=Boolean.parseBoolean(properties.getProperty(prefix+"generate_mapped"));
+		if (properties.getProperty(prefix+"extra_hor_tile")!=null)       this.extra_hor_tile=Integer.parseInt(properties.getProperty(prefix+"extra_hor_tile"));
+		if (properties.getProperty(prefix+"extra_vert_tile")!=null)      this.extra_vert_tile=Integer.parseInt(properties.getProperty(prefix+"extra_vert_tile"));
+		if (properties.getProperty(prefix+"sensor_mask")!=null)          this.sensor_mask=Integer.parseInt(properties.getProperty(prefix+"sensor_mask"));
+		if (properties.getProperty(prefix+"mode3d")!=null)               this.mode3d=Integer.parseInt(properties.getProperty(prefix+"mode3d"));
+		if (properties.getProperty(prefix+"show_mapped_color")!=null)    this.show_mapped_color=Boolean.parseBoolean(properties.getProperty(prefix+"show_mapped_color"));
+		if (properties.getProperty(prefix+"show_mapped_mono")!=null)     this.show_mapped_mono=Boolean.parseBoolean(properties.getProperty(prefix+"show_mapped_mono"));
 		if (properties.getProperty(prefix+"margin")!=null)               this.margin=Integer.parseInt(properties.getProperty(prefix+"margin"));
 		if (properties.getProperty(prefix+"sensor_mask_inter")!=null)    this.sensor_mask_inter=Integer.parseInt(properties.getProperty(prefix+"sensor_mask_inter"));
 		if (properties.getProperty(prefix+"use_partial")!=null)          this.use_partial=Boolean.parseBoolean(properties.getProperty(prefix+"use_partial"));		
@@ -419,9 +642,46 @@ public class IntersceneMatchParameters {
 		imp.show_color_nan        = this.show_color_nan;
 		imp.show_mono_nan         = this.show_mono_nan;
 		imp.show_ranges           = this.show_ranges;
-		imp.range_disparity_offset = this.range_disparity_offset;
+		imp.range_disparity_offset= this.range_disparity_offset;
 		imp.range_min_strength    = this.range_min_strength;
 		imp.range_max             = this.range_max;
+		
+		imp.num_bottom                    = this.num_bottom;
+		imp.num_passes                    = this.num_passes;
+		imp.max_change                    = this.max_change;
+		imp.min_disparity                 = this.min_disparity;
+		imp.max_sym_disparity             = this.max_sym_disparity;
+		imp.min_strength_replace          = this.min_strength_replace;
+		imp.min_strength_blur             = this.min_strength_blur;
+		imp.sigma                         = this.sigma;
+		imp.num_blur                      = this.num_blur;
+		imp.disparity_corr                = this.disparity_corr;
+		imp.outliers_nth_fromextrem       = this.outliers_nth_fromextrem;
+		imp.outliers_tolerance_absolute   = this.outliers_tolerance_absolute;
+		imp.outliers_tolerance_relative   = this.outliers_tolerance_relative;
+		imp.outliers_max_iter             = this.outliers_max_iter;
+		imp.outliers_max_strength2        = this.outliers_max_strength2;
+		imp.outliers_nth_fromextrem2      = this.outliers_nth_fromextrem2;
+		imp.outliers_tolerance_absolute2  = this.outliers_tolerance_absolute2;
+		imp.outliers_tolerance_relative2  = this.outliers_tolerance_relative2;
+		imp.outliers_lma_max_strength     = this.outliers_lma_max_strength;
+		imp.outliers_max_strength         = this.outliers_max_strength;
+		imp.outliers_from_lma_max_strength= this.outliers_from_lma_max_strength;
+		imp.search_radius                 = this.search_radius;
+		imp.remove_no_lma_neib            = this.remove_no_lma_neib;
+		imp.diff_from_lma_pos             = this.diff_from_lma_pos;
+		imp.diff_from_lma_neg             = this.diff_from_lma_neg;
+		imp.outliers_lma_nth_fromextrem   = this.outliers_lma_nth_fromextrem;
+		imp.filter_margin                 = this.filter_margin;
+
+		imp.generate_mapped       = this.generate_mapped;
+		imp.extra_hor_tile        = this.extra_hor_tile;
+		imp.extra_vert_tile       = this.extra_vert_tile;
+		imp.sensor_mask           = this.sensor_mask;
+		imp.mode3d                = this.mode3d;               
+		imp.show_mapped_color     = this.show_mapped_color;
+		imp.show_mapped_mono      = this.show_mapped_mono;
+		
 		imp.margin                = this.margin;
 		imp.sensor_mask_inter     = this.sensor_mask_inter;
 		imp.use_partial           = this.use_partial;
