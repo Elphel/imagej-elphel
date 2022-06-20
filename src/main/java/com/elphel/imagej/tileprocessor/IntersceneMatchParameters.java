@@ -29,6 +29,7 @@ import java.util.Properties;
 import com.elphel.imagej.common.GenericJTabbedDialog;
 
 public class IntersceneMatchParameters {
+	public static String [] MODES3D = {"RAW", "INF", "FG", "BG"}; // RAW:-1
 	// Maybe add parameters to make sure there is enough data? Enough in each zone? Enough spread?
 	public  boolean force_ref_dsi =      false; // true;
 	public  boolean force_orientations = false;
@@ -44,6 +45,7 @@ public class IntersceneMatchParameters {
 	public  boolean generate_mapped =    true;
 	public  int     extra_hor_tile =     15;
 	public  int     extra_vert_tile =    10;
+	public  boolean crop_3d =            true; // do not show extra of FG/BG views (currently they only ref scene has disparity)
 	public  int     sensor_mask =        1; // -1 - all
 	public  int     mode3d =             1; // -1 - raw, 0 - infinity, 1 - FG, 2 - BG
 	public  boolean show_mapped_color =  true;
@@ -52,6 +54,7 @@ public class IntersceneMatchParameters {
 	public  double  range_disparity_offset =   -0.08;
 	public  double  range_min_strength = 0.5;
 	public  double  range_max =       5000.0;
+	
 	
 // Other parameters for filtering depth maps	
 	public  int         num_bottom =                      6; // average this number of lowest disparity neighbors (of 8)
@@ -132,6 +135,12 @@ public class IntersceneMatchParameters {
 	private boolean show_motion_vectors =           true;  // show calculated motion vectors
 	public  int     debug_level =                     -1;  // all renders are disable for debug_level < 0, scene "renders" for for debug_level < 1
     
+	// Pairwise ERS testing
+	public boolean  test_ers =           false;
+	public  int     test_ers0 =         -1; // try adjusting a pair of scenes with ERS. Reference scene index
+	public  int     test_ers1 =         -1; // try adjusting a pair of scenes with ERS. Other scene index
+	
+	
 	public boolean renderRef()          {return (debug_level>1) && render_ref;}
 	public boolean renderScene()        {return (debug_level>1) && render_scene;}
 	public boolean show2dCorrelations() {return (debug_level>1) && show_2d_correlations;}
@@ -174,6 +183,7 @@ public class IntersceneMatchParameters {
 				"Disregard weaker results when measuring range.");
 		gd.addNumericField("Maximal displayed range",                this.range_max, 5,7,"m",
 				"Do not display extremely far objects.");
+		
 
 		gd.addMessage  ("Depth map filtering parameters");
 		gd.addNumericField("Average lowest disparity neighbors",     this.num_bottom, 0,3,"",
@@ -241,10 +251,17 @@ public class IntersceneMatchParameters {
 				"Enlarge reference scene window horizontally in each direction to accommodate other scenes in a sequence");
 		gd.addNumericField("Scene sequence vertical extra",          this.extra_vert_tile, 0,3,"tiles",
 				"Enlarge reference scene window vertically in each direction to accommodate other scenes in a sequence");
+		gd.addCheckbox ("Crop 3D",                                   this.crop_3d,
+				"Do not enlarge reference scene windows fro 3D views (FG, BG)");
+		
+		
 		gd.addNumericField("Sensor mask (bitmask, -1 - all sensors)",this.sensor_mask, 0,3,"",
 				"Select which sensors to be included in each scene of the sequence");
-		gd.addNumericField("3D mode (-1 - RAW, 0 - infinity, 1 - FG, 2 BG)",   this.mode3d, 0, 3, "",
-				"3D mode for rendering scenes in a sequence: -1 - raw images, 0 - no 3D, use infinity; 1 - Foreground; 2 - Background");
+		
+		gd. addChoice("3D mode ",                 MODES3D, MODES3D[this.mode3d + 1], 
+				"3D mode for rendering scenes in a sequence: RAW - raw images, INF - no 3D, use infinity; FG - Foreground; BG - Background");
+		
+		
 		gd.addCheckbox ("Show scene sequences in (pseudo)colors",    this.show_mapped_color,
 				"Show generated scene sequences in (pseudo)color mode");
 		gd.addCheckbox ("Show scene sequences in monochrome",        this.show_mapped_mono,
@@ -344,6 +361,15 @@ public class IntersceneMatchParameters {
 		gd.addNumericField("Debug Level for interscene match",       this.debug_level, 0,3,"",
 				"Debug Level for the above parameters: renders and raw correlations need >1,  motion vectors > 0");
 
+		gd.addMessage  ("Pairwise ERS testing");
+		gd.addCheckbox ("Replace scene with reference scene",        this.test_ers,
+				"Correlate reference scene with itself for testing (may want to manually change scene_atr and scene_xyz in debug mode)");
+		gd.addNumericField("Test scene reference index",             this.test_ers0, 0,3,"",
+				"Reference scene index in a scene sequence");
+		gd.addNumericField("Test scene other scene index",           this.test_ers1, 0,3,"",
+				"Other scene index in a scene sequence (should have a very different angular/linear velocity component)");
+		
+		
 	}
 
 	public void dialogAnswers(GenericJTabbedDialog gd) {
@@ -392,8 +418,9 @@ public class IntersceneMatchParameters {
 		this.generate_mapped =          gd.getNextBoolean();
 		this.extra_hor_tile =     (int) gd.getNextNumber();
 		this.extra_vert_tile =    (int) gd.getNextNumber();
+		this.crop_3d =                  gd.getNextBoolean();
 		this.sensor_mask =        (int) gd.getNextNumber();
-		this.mode3d =             (int) gd.getNextNumber();
+		this.mode3d =                   gd.getNextChoiceIndex() - 1;
 		this.show_mapped_color =        gd.getNextBoolean();
 		this.show_mapped_mono =         gd.getNextBoolean();
 		
@@ -438,6 +465,10 @@ public class IntersceneMatchParameters {
 		this.show_2d_correlations =     gd.getNextBoolean();
 		this.show_motion_vectors =      gd.getNextBoolean();
 		this.debug_level =        (int) gd.getNextNumber();
+
+		this.test_ers =                 gd.getNextBoolean();
+		this.test_ers0 =          (int) gd.getNextNumber();
+		this.test_ers1 =          (int) gd.getNextNumber();
 		
 		if (this.weight_zero_neibs > 1.0) this.weight_zero_neibs = 1.0;
 	}
@@ -488,8 +519,9 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"generate_mapped",      this.generate_mapped+"");     // boolean
 		properties.setProperty(prefix+"extra_hor_tile",       this.extra_hor_tile+"");      // int
 		properties.setProperty(prefix+"extra_vert_tile",      this.extra_vert_tile+"");     // int
+		properties.setProperty(prefix+"crop_3d",              this.crop_3d+"");             // boolean
 		properties.setProperty(prefix+"sensor_mask",          this.sensor_mask+"");         // int
-		properties.setProperty(prefix+"mode3d",                this.mode3d+"");         // int
+		properties.setProperty(prefix+"mode3d",               this.mode3d+"");              // int
 		properties.setProperty(prefix+"show_mapped_color",    this.show_mapped_color+"");   // boolean
 		properties.setProperty(prefix+"show_mapped_mono",     this.show_mapped_mono+"");    // boolean
 		
@@ -534,6 +566,11 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"show_2d_correlations", this.show_2d_correlations+"");// boolean
 		properties.setProperty(prefix+"show_motion_vectors",  this.show_motion_vectors+""); // boolean
 		properties.setProperty(prefix+"debug_level",          this.debug_level+"");         // int
+
+		properties.setProperty(prefix+"test_ers",             this.test_ers+"");            // boolean
+		properties.setProperty(prefix+"test_ers0",            this.test_ers0+"");           // int
+		properties.setProperty(prefix+"test_ers1",            this.test_ers1+"");           // int
+	
 	}
 	
 	public void getProperties(String prefix,Properties properties){
@@ -582,6 +619,7 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"generate_mapped")!=null)      this.generate_mapped=Boolean.parseBoolean(properties.getProperty(prefix+"generate_mapped"));
 		if (properties.getProperty(prefix+"extra_hor_tile")!=null)       this.extra_hor_tile=Integer.parseInt(properties.getProperty(prefix+"extra_hor_tile"));
 		if (properties.getProperty(prefix+"extra_vert_tile")!=null)      this.extra_vert_tile=Integer.parseInt(properties.getProperty(prefix+"extra_vert_tile"));
+		if (properties.getProperty(prefix+"crop_3d")!=null)              this.crop_3d=Boolean.parseBoolean(properties.getProperty(prefix+"crop_3d"));		
 		if (properties.getProperty(prefix+"sensor_mask")!=null)          this.sensor_mask=Integer.parseInt(properties.getProperty(prefix+"sensor_mask"));
 		if (properties.getProperty(prefix+"mode3d")!=null)               this.mode3d=Integer.parseInt(properties.getProperty(prefix+"mode3d"));
 		if (properties.getProperty(prefix+"show_mapped_color")!=null)    this.show_mapped_color=Boolean.parseBoolean(properties.getProperty(prefix+"show_mapped_color"));
@@ -627,6 +665,9 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"show_2d_correlations")!=null) this.show_2d_correlations=Boolean.parseBoolean(properties.getProperty(prefix+"show_2d_correlations"));		
 		if (properties.getProperty(prefix+"show_motion_vectors")!=null)  this.show_motion_vectors=Boolean.parseBoolean(properties.getProperty(prefix+"show_motion_vectors"));		
 		if (properties.getProperty(prefix+"debug_level")!=null)          this.debug_level=Integer.parseInt(properties.getProperty(prefix+"debug_level"));
+		if (properties.getProperty(prefix+"test_ers")!=null)             this.test_ers=Boolean.parseBoolean(properties.getProperty(prefix+"test_ers"));		
+		if (properties.getProperty(prefix+"test_ers0")!=null)            this.test_ers0=Integer.parseInt(properties.getProperty(prefix+"test_ers0"));
+		if (properties.getProperty(prefix+"test_ers1")!=null)            this.test_ers1=Integer.parseInt(properties.getProperty(prefix+"test_ers1"));
 	}
 	
 	@Override
@@ -677,6 +718,7 @@ public class IntersceneMatchParameters {
 		imp.generate_mapped       = this.generate_mapped;
 		imp.extra_hor_tile        = this.extra_hor_tile;
 		imp.extra_vert_tile       = this.extra_vert_tile;
+		imp.crop_3d               = this.crop_3d;
 		imp.sensor_mask           = this.sensor_mask;
 		imp.mode3d                = this.mode3d;               
 		imp.show_mapped_color     = this.show_mapped_color;

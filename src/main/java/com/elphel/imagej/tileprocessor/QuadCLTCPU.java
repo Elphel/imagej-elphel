@@ -2684,7 +2684,7 @@ public class QuadCLTCPU {
 			  }
 		  }
 	  }
-	  public double []reformatKernel2( // averages by exactly 2 (decimate==2) // not used in lwir
+	  public static double []reformatKernel2( // averages by exactly 2 (decimate==2) // not used in lwir
 			  double [] src_kernel, //
 			  int src_size,
 			  int dst_size){
@@ -2697,7 +2697,7 @@ public class QuadCLTCPU {
 		  return dst_kernel;
 	  }
 
-	  private void reformatKernel2( // averages by exactly 2 (decimate==2) // not used in lwir
+	  private static void reformatKernel2( // averages by exactly 2 (decimate==2) // not used in lwir
 			  double [] src_kernel, //
 			  double [] dst_kernel,
 			  int src_size,
@@ -2739,7 +2739,7 @@ public class QuadCLTCPU {
 
 	  }
 
-	  public ImageStack  YPrPbToRGB(double [][] yPrPb,  // USED in lwir
+	  public static ImageStack  YPrPbToRGB(double [][] yPrPb,  // USED in lwir
 			  double Kr,        // 0.299;
 			  double Kb,        // 0.114;
 			  int width
@@ -2779,7 +2779,7 @@ public class QuadCLTCPU {
 
 	  }
 
-	  public double [][]  YPrPbToRBG(double [][] yPrPb, // not used in lwir
+	  public static double [][]  YPrPbToRBG(double [][] yPrPb, // not used in lwir
 			  double Kr,        // 0.299;
 			  double Kb,        // 0.114;
 			  int width
@@ -2812,13 +2812,13 @@ public class QuadCLTCPU {
 		  return rbg;
 	  }
 
-	  public void debayer_rbg( // not used in lwir
+	  public static void debayer_rbg( // not used in lwir
 			  ImageStack stack_rbg){
 		  debayer_rbg(stack_rbg, 1.0);
 	  }
 
 	  // Simple in-place debayer by (bi) linear approximation, assumes [0R/00], [00/B0], [G0/0G] slices
-	  public void debayer_rbg( // not used in lwir
+	  public static void debayer_rbg( // not used in lwir
 			  ImageStack stack_rbg,
 			  double scale)
 	  {
@@ -5363,9 +5363,7 @@ public class QuadCLTCPU {
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
 
-
-
-	  public void channelGainsEqualize( // USED in lwir
+	  public static void channelGainsEqualize( // USED in lwir
 			  boolean gain_equalize,
 			  boolean colors_equalize,
 			  boolean nosat_equalize,
@@ -5397,7 +5395,7 @@ public class QuadCLTCPU {
 					  debugLevel);
 		  }
 	  }
-	  public void channelGainsEqualize_old( // not used in lwir
+	  public static void channelGainsEqualize_old( // not used in lwir
 			  boolean gain_equalize,
 			  boolean colors_equalize,
 			  boolean nosat_equalize,
@@ -5471,7 +5469,7 @@ public class QuadCLTCPU {
 		  }
 	  }
 
-	  public void channelGainsEqualize_new( // USED in lwir
+	  public static void channelGainsEqualize_new( // USED in lwir
 			  boolean gain_equalize,
 			  boolean colors_equalize,
 			  boolean nosat_equalize,
@@ -5574,7 +5572,7 @@ public class QuadCLTCPU {
 			  }
 		  }
 	  }
-	  public double []  channelLwirEqualize( // USED in lwir
+	  public static double []  channelLwirEqualize( // USED in lwir
 			  int [] channelFiles,
 			  ImagePlus [] imp_srcs,
 			  boolean      remove_dc,
@@ -5583,9 +5581,6 @@ public class QuadCLTCPU {
 			  int debugLevel){
 		  double [] offsets = new double [channelFiles.length];
 		  double [][] avr_pix = new double [channelFiles.length][2]; // val/weight
-//		  double [] wnd_x = {};
-//		  double [] wnd_y = {};
-//		  double total_s = 0.0, total_w = 0.0;
 		  DoubleAccumulator atotal_s = new DoubleAccumulator(Double::sum, 0L);
 		  DoubleAccumulator atotal_w = new DoubleAccumulator(Double::sum, 0L);
 		  final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
@@ -6667,43 +6662,12 @@ public class QuadCLTCPU {
 			  z_correction +=clt_parameters.z_corr_map.get(name);// not used in lwir
 		  }
 		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
-		  /*
-		  double [][] lazy_eye_data = image_dtt.cltMeasureLazyEye(
-				  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
-				  tile_op,                      // per-tile operation bit codes
-				  disparity_array,              // final double            disparity,
-				  image_data, // double_stacks,                // final double [][][]      imade_data, // first index - number of image in a quad
-				  saturation_imp,               // boolean [][] saturation_imp, // (near) saturated pixels or null
-				  clt_mismatch,                 // [12][tp.tilesY * tp.tilesX] // transpose unapplied. null - do not calculate
-				  disparity_map,                // [2][tp.tilesY * tp.tilesX]
-				  imp_quad[0].getWidth(),       // final int width,
-				  clt_parameters.getFatZero(isMonochrome()),      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
-				  clt_parameters.corr_red,
-				  clt_parameters.corr_blue,
-				  clt_parameters.getCorrSigma(image_dtt.isMonochrome()),
-				  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
-				  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
-				  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
-				  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-				  clt_parameters.kernel_step,
-				  clt_parameters.clt_window,
-				  shiftXY, //
-				  disparity_corr, // final double              disparity_corr, // disparity at infinity
-				  clt_parameters.shift_x,          // final int               shiftX, // shift image horizontally (positive - right) - just for testing
-				  clt_parameters.shift_y,          // final int               shiftY, // shift image vertically (positive - down)
-				  clt_parameters.tileStep,         // 	final int                 tileStep, // process tileStep x tileStep cluster of tiles when adjusting lazy eye parameters
-				  clt_parameters.tileX, // -1234, // clt_parameters.tileX,         // final int               debug_tileX,
-				  clt_parameters.tileY,         // final int               debug_tileY, -1234 will cause port coordinates debug images
-				  threadsMax,
-				  debugLevel);
-		  */
 		  double [][] lazy_eye_data = image_dtt.cltMeasureLazyEye ( // returns d,s lazy eye parameters 
 				  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 				  tile_op,                      // final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 				  disparity_array,              // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
 				  image_data,                   // final double [][][]      imade_data, // first index - number of image in a quad
 				  saturation_imp,               // final boolean [][]        saturation_imp, // (near) saturated pixels or null
-//				  tilesX * image_dtt.transform_size, // 	final int                 width,
 				  geometryCorrection.getSensorWH()[0], // 	final int                 width,
 				  clt_parameters.getFatZero(isMonochrome()),      // final double              corr_fat_zero,    // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
 				  clt_parameters.corr_red,      // final double              corr_red,
@@ -6713,7 +6677,6 @@ public class QuadCLTCPU {
 				  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
 				  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 				  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-//				  clt_parameters.kernel_step,    // final int                 kernel_step,
 				  clt_parameters.clt_window,     // final int                 window_type,
 				  shiftXY,                       // final double [][]         shiftXY, // [port]{shiftX,shiftY}
 				  disparity_corr,                // final double              disparity_corr, // disparity at infinity
@@ -6731,8 +6694,6 @@ public class QuadCLTCPU {
 				  clt_parameters.tileY,         // final int                 debug_tileY,
 				  threadsMax, // final int                 threadsMax,  // maximal number of threads to launch
 				  debugLevel - 2); // final int                 globalDebugLevel)
-		  
-		  
 
 		  if (lazy_eye_data != null) {
 				  int clustersX= (tilesX + clt_parameters.tileStep - 1) / clt_parameters.tileStep;
@@ -6903,7 +6864,7 @@ public class QuadCLTCPU {
 		  return results;
 	  }
 
-	  double [][] resizeGridTexture( // USED in lwir
+	  static double [][] resizeGridTexture( // USED in lwir
 			  double [][] imgData,
 			  int tileSize,
 			  int tilesX,
@@ -6928,7 +6889,7 @@ public class QuadCLTCPU {
 		  }
 		  return rslt;
 	  }
-	  public int [] getLwirHistogram( // USED in lwir
+	  public static int [] getLwirHistogram( // USED in lwir
 			  double [] data,
 			  double    hard_cold,
 			  double    hard_hot,
@@ -6943,14 +6904,14 @@ public class QuadCLTCPU {
 		  }
 		  return hist;
 	  }
-	  public int [] getLwirHistogram( // USED in lwir
+	  public static int [] getLwirHistogram( // USED in lwir
 			  float [] data,
 			  double    hard_cold,
 			  double    hard_hot,
 			  int       num_bins) {
 		  int [] hist = new int [num_bins];
 		  double k = num_bins / (hard_hot - hard_cold);
-		  for (double d:data) {
+		  for (double d:data) if (!Double.isNaN(d)){
 			  int bin = (int) ((d - hard_cold)*k);
 			  if (bin < 0) bin = 0;
 			  else if (bin >= num_bins) bin = (num_bins -1);
@@ -6958,7 +6919,7 @@ public class QuadCLTCPU {
 		  }
 		  return hist;
 	  }
-	  public int [] addHist( // USED in lwir
+	  public static int [] addHist( // USED in lwir
 			  int [] this_hist,
 			  int [] other_hist) {
 		  for (int i = 0; i < this_hist.length; i++) {
@@ -6968,7 +6929,7 @@ public class QuadCLTCPU {
 	  }
 	  // get low/high (soft min/max) from the histogram
 	  // returns value between 0.0 (low histogram limit and 1.0 - high histgram limit
-	  public double getMarginFromHist( // USED in lwir
+	  public static double getMarginFromHist( // USED in lwir
 			  int [] hist, // histogram
 			  double cumul_val, // cummulative number of items to be ignored
 			  boolean high_marg) { // false - find low margin(output ~0.0) , true - find high margin (output ~1.0)
@@ -7004,19 +6965,25 @@ public class QuadCLTCPU {
 		  return v;
 	  }
 
-	  public double [] autorange( // USED in lwir
+	  public static double [] autorange( // USED in lwir
 			  double [][][] iclt_data, //  [iQuad][ncol][i] - normally only [][2][] is non-null
 			  double hard_cold,// matches data, DC (this.lwir_offset)  subtracted
 			  double hard_hot, // matches data, DC (this.lwir_offset)  subtracted
 			  double too_cold, // pixels per image
 			  double too_hot,  // pixels per image
 			  int num_bins) {
-		  int ncol;
-		  for (ncol = 0; ncol < iclt_data[0].length; ncol++) {
-			  if (iclt_data[0][ncol] != null) break;
+		  int num_chn = 0;
+		  int ncol=0;
+		  for (int nsens = 0; nsens < iclt_data.length; nsens++) if (iclt_data[nsens] != null) {
+			  num_chn++;
+			  if (ncol==0) {
+				  for (ncol = 0; ncol < iclt_data[nsens].length; ncol++) {
+					  if (iclt_data[nsens][ncol] != null) break;
+				  }
+			  }
 		  }
-		  too_cold *= iclt_data.length;
-		  too_hot *= iclt_data.length;
+		  too_cold *= num_chn; // iclt_data.length;
+		  too_hot *= num_chn; // iclt_data.length;
 		  int [] hist = null;
 		  for (int iQuad = 0; iQuad < iclt_data.length; iQuad++) {
 			  int [] this_hist = getLwirHistogram(
@@ -7048,7 +7015,7 @@ public class QuadCLTCPU {
 		  return abs_lim;
 	  }
 
-	  public double [] autorange( // USED in lwir
+	  public static double [] autorange( // USED in lwir
 			  float [][][] iclt_data, //  [iQuad][ncol][i] - normally only [][2][] is non-null
 			  double hard_cold,// matches data, DC (this.lwir_offset)  subtracted
 			  double hard_hot, // matches data, DC (this.lwir_offset)  subtracted
@@ -8041,88 +8008,6 @@ public class QuadCLTCPU {
 						  debugLevel + 2);
 
 		    }
-	  }
-
-
-	  public double [][] process_disparity_scan( // not used in lwir
-			  double [][] disparities_maps,
-			  double disp_step,
-			  double disp_start,
-			  double min_strength)
-	  {
-		  final int num_items = 5;
-		  final int index_strength = 3;
-		  final int index_cm = 1;
-		  final int index_poly = 1;
-
-		  final int ind_b_cm =   0;
-		  final int ind_b_poly = 1;
-		  final int ind_a_cm =   2;
-		  final int ind_a_poly = 3;
-		  final int ind_rms_cm =   4;
-		  final int ind_rms_poly = 5;
-		  final int ind_strength =   6;
-		  final int ind_samples = 7;
-
-		  final int num_steps = disparities_maps.length / num_items; // int, cm, poly, strength, variety
-		  final int disp_len =  disparities_maps[0].length;
-		  double [][] rslt = new double [8][disp_len];
-		  for (int i = 0; i < disp_len; i++){
-			  double s0 = 0.0, sx = 0.0, sx2 = 0.0, sy_cm = 0.0, sxy_cm = 0.0, sy_poly = 0.0, sxy_poly = 0.0;
-			  int samples = 0;
-			  for (int step = 0; step < num_steps; step++ ){
-				  double wi = disparities_maps[num_items*step + index_strength][i];
-				  if (wi > min_strength) {
-					  double xi =      disp_start + step * disp_step;
-					  double yi_cm =   disparities_maps[num_items*step + index_cm][i];
-					  double yi_poly = disparities_maps[num_items*step + index_poly][i];
-					  if (Double.isNaN(yi_cm) || Double.isNaN(yi_poly)) continue;
-					  s0 +=     wi;
-					  sx +=     wi*xi;
-					  sx2 +=    wi*xi*xi;
-					  sy_cm +=  wi*yi_cm;
-					  sxy_cm += wi*xi*yi_cm;
-					  sy_poly +=  wi*yi_poly;
-					  sxy_poly += wi*xi*yi_poly;
-					  samples++;
-				  }
-			  }
-			  double denom = (s0*sx2 - sx*sx);
-			  rslt[ind_strength][i] = s0;
-			  rslt[ind_samples][i] =  samples;
-			  if (denom != 0.0) {
-				  rslt[ind_a_cm][i] =     (s0*sxy_cm - sx*sy_cm) /  denom;
-				  rslt[ind_b_cm][i] =     (sy_cm*sx2 - sx*sxy_cm) / denom;
-				  rslt[ind_a_poly][i] =   (s0*sxy_poly - sx*sy_poly) /  denom;
-				  rslt[ind_b_poly][i] =   (sy_poly*sx2 - sx*sxy_poly) / denom;
-				  rslt[ind_rms_cm][i] =   0.0;
-				  rslt[ind_rms_poly][i] = 0.0;
-				  for (int step = 0; step < num_steps; step++ ){
-					  double wi = disparities_maps[num_items*step + index_strength][i];
-					  if (wi > min_strength) {
-						  double xi =      disp_start + step * disp_step;
-						  double yi_cm =   disparities_maps[num_items*step + index_cm][i];
-						  double yi_poly = disparities_maps[num_items*step + index_poly][i];
-						  if (Double.isNaN(yi_cm) || Double.isNaN(yi_poly)) continue;
-						  double d_cm =   yi_cm -   (rslt[ind_a_cm][i]*xi +rslt[ind_b_cm][i]);
-						  double d_poly = yi_poly - (rslt[ind_a_poly][i]*xi +rslt[ind_b_poly][i]);
-						  rslt[ind_rms_cm][i] +=   wi*d_cm*d_cm;
-						  rslt[ind_rms_poly][i] += wi*d_poly*d_poly;
-					  }
-				  }
-				  rslt[ind_rms_cm][i] =   Math.sqrt(rslt[ind_rms_cm][i]/s0);
-				  rslt[ind_rms_poly][i] = Math.sqrt(rslt[ind_rms_cm][i]/s0);
-			  } else {
-				  rslt[ind_a_cm][i] =     Double.NaN;
-				  rslt[ind_b_cm][i] =     Double.NaN;
-				  rslt[ind_a_poly][i] =   Double.NaN;
-				  rslt[ind_b_poly][i] =   Double.NaN;
-				  rslt[ind_rms_cm][i] =   Double.NaN;
-				  rslt[ind_rms_poly][i] = Double.NaN;
-			  }
-
-		  }
-		  return rslt;
 	  }
 
 	  public void showCLTPlanes( // not used in lwir
