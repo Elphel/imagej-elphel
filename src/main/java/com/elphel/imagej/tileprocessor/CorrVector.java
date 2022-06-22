@@ -519,7 +519,7 @@ public class CorrVector{ // TODO: Update to non-quad (extract to a file first)?
 	
 	public double [] getIMU() {
 //		double [] imu = {vector[IMU_INDEX + 0], vector[IMU_INDEX + 1], vector[IMU_INDEX + 2],vector[IMU_INDEX + 3], vector[IMU_INDEX + 4], vector[IMU_INDEX + 5]};
-		int indx = getZoomIndex();
+		int indx = getIMUIndex(); // Was bug: getZoomIndex();
 		double [] imu = new double[6];
 		for (int i = 0; i < imu.length; i++) {
 			imu[i] = vector[indx + i];
@@ -528,10 +528,15 @@ public class CorrVector{ // TODO: Update to non-quad (extract to a file first)?
 	}
 
 	public void setIMU(double [] imu) {
-		int indx = getZoomIndex();
+		int indx = getIMUIndex(); // Was bug: getZoomIndex();
 		for (int i = 0; i < imu.length; i++) {
 			vector [indx + i] = imu[i];
 		}
+		System.out.print("setIMU(");
+		for (int i = 0; i < imu.length; i++) {
+			System.out.print(imu[i]+",");
+		}
+		System.out.println(")");
 	}
 
 	public double setZoomsFromF(double [] f) { // USED in lwir

@@ -67,22 +67,22 @@ public class IntersceneLma {
 				full_vector[ErsCorrection.DP_DAZ],full_vector[ErsCorrection.DP_DTL],full_vector[ErsCorrection.DP_DRL]};
 	}
 
-	public double [] getSceneERSXYZ(boolean initial) {
+	public double [] getSceneERSXYZ(boolean initial) { // never used
 		double [] full_vector = initial? backup_parameters_full: getFullVector(parameters_vector);
 		return new double[] {
 				full_vector[ErsCorrection.DP_DSVX],full_vector[ErsCorrection.DP_DSVY],full_vector[ErsCorrection.DP_DSVZ]};
 	}
-	public double [] getSceneERSATR(boolean initial) {
+	public double [] getSceneERSATR(boolean initial) { // never used
 		double [] full_vector = initial? backup_parameters_full: getFullVector(parameters_vector);
 		return new double[] {
 				full_vector[ErsCorrection.DP_DSVAZ],full_vector[ErsCorrection.DP_DSVTL],full_vector[ErsCorrection.DP_DSVRL]};
 	}
-	public double [] getReferenceERSXYZ(boolean initial) {
+	public double [] getReferenceERSXYZ(boolean initial) { // never used
 		double [] full_vector = initial? backup_parameters_full: getFullVector(parameters_vector);
 		return new double[] {
 				full_vector[ErsCorrection.DP_DSVX],full_vector[ErsCorrection.DP_DSVY],full_vector[ErsCorrection.DP_DSVZ]};
 	}
-	public double [] getReferenceERSATR(boolean initial) {
+	public double [] getReferenceERSATR(boolean initial) { // never used
 		double [] full_vector = initial? backup_parameters_full: getFullVector(parameters_vector);
 		return new double[] {
 				full_vector[ErsCorrection.DP_DSVAZ],full_vector[ErsCorrection.DP_DSVTL],full_vector[ErsCorrection.DP_DSVRL]};
@@ -389,7 +389,7 @@ public class IntersceneLma {
 		Matrix wjtjlambda = new Matrix(getWJtJlambda(
 				lambda, // *10, // temporary
 				this.last_jt)); // double [][] jt)
-		if (debug_level > 2) {
+		if (debug_level > 3) {
 			try {
 				System.out.println("getFxDerivs(): getChecksum(this.y_vector)="+      getChecksum(this.y_vector));
 				System.out.println("getFxDerivs(): getChecksum(this.weights)="+       getChecksum(this.weights));
@@ -793,7 +793,7 @@ public class IntersceneLma {
 			fx [i + 2 * macrotile_centers.length] = vector[i]; // - parameters_initial[i]; // scale will be combined with weights
 			jt[i][i + 2 * macrotile_centers.length] = 1.0; // scale will be combined with weights
 		}
-		if (debug_level > 2) {
+		if (debug_level > 3) {
 			try {
 				System.out.println    ("getFxDerivs(): getChecksum(fx)="+getChecksum(fx));
 				if (jt != null) {

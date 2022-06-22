@@ -2045,6 +2045,7 @@ public class QuadCLT extends QuadCLTCPU {
 			final double []   scene_xyz, // camera center in world coordinates
 			final double []   scene_atr, // camera orientation relative to world frame
 			final QuadCLT     scene,
+			final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 			final boolean     toRGB,
 			String            suffix,
 			int               threadsMax,
@@ -2056,7 +2057,7 @@ public class QuadCLT extends QuadCLTCPU {
 				scene_xyz,     // final double []   scene_xyz, // camera center in world coordinates
 				scene_atr,     // final double []   scene_atr, // camera orientation relative to world frame
 				scene,         // final QuadCLT     scene_QuadClt,
-				null, // scene,         // final QuadCLT     reference_QuadClt, // now - may be null - for testing if scene is rotated ref
+				ref_scene,     // final QuadCLT     reference_QuadClt, // now - may be null - for testing if scene is rotated ref
 				threadsMax);   // int               threadsMax)
 		int rendered_width = scene.getErsCorrection().getSensorWH()[0];
 		if (full_woi_in != null) {
@@ -2238,8 +2239,7 @@ public class QuadCLT extends QuadCLTCPU {
 			
 			return null;
 		}
-		
-
+		saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry
 // GPU-specific
 		boolean showCoord = debugLevel > 1;
 		boolean is_mono = isMonochrome();

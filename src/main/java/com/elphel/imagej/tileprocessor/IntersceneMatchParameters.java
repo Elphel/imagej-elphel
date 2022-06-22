@@ -116,6 +116,22 @@ public class IntersceneMatchParameters {
 	public  double  maybe_avg =                     0.005; // maybe average strength
 	public  double  shure_avg =                     0.015; // sure average strength
 	
+	// Reference scene disparity 
+	public  boolean use_combo_dsi =                 true;  // use interscene DSI if available (instead of the single-scene)
+	public  boolean use_lma_dsi =                   true;  // only use reference DSI tiles that have LMA (strong) disparity
+	
+	// Remove moving objects (goal is not to detect slightest movement, but to improve pose matching
+	public  boolean mov_en =                        true;  // enable detection/removal of the moving objects during pose matching
+	public  double  mov_sigma =                     1.5;   // pix - weighted-blur offsets before detection
+	// next two to prevent motion detection while errors are too big
+	public  double  mov_max_std =                   0.5;   // pix
+	public  double  mov_thresh_rel =                3.5;   // .0;   // exceed average error
+	public  double  mov_thresh_abs=                 0.5;   // sqrt(dx^2+dy^2) in moving areas 
+	public  double  mov_clust_max =                 1.5;   // cluster maximum should exceed threshold this times
+	public  int     mov_grow =                      4;     // grow detected moving area
+	public  boolean mov_show =                      true; // show debug images for movement detection
+	public  int     mov_debug_level =               1;     // >0 verbose
+	
 	
 	//LMA parameters
 	public  boolean [] adjust_atr = new boolean [] {true,true,true};
@@ -126,7 +142,7 @@ public class IntersceneMatchParameters {
 	public  int     max_LMA =                      25;     // hard limit on LMA iterations
 	public  double  max_rms =                       2.0;   // maximal RMS to consider adjustment to be a failure
 	
-	// Debug and visualisation
+	// Debug and visualization
 	public  boolean scene_is_ref_test=              false; // correlate ref-2-ref for testing
 	private boolean render_ref =                    true;  // render reference scene
 	private boolean render_scene =                  true;  // render scene to be correlated with ref
@@ -146,6 +162,10 @@ public class IntersceneMatchParameters {
 	public boolean show2dCorrelations() {return (debug_level>1) && show_2d_correlations;}
 	public boolean showMotionVectors()  {return (debug_level>1) && show_motion_vectors;}
 	public boolean showCorrMotion()     {return (debug_level>0) && show_motion_vectors;}
+	
+	public boolean showMovementDetection(){return (debug_level>0) && mov_show;}
+	public int movDebugLevel()            {return (debug_level > -1) ? mov_debug_level : 0;}
+	
 
 	public IntersceneMatchParameters() {
 		
@@ -317,6 +337,32 @@ public class IntersceneMatchParameters {
 		gd.addNumericField("\"Sure\" average of strengths",          this.shure_avg, 5,7,"",
 				"Definitely sufficient average of defined tiles strengths (will non continue looking for better).");
 		
+		gd.addMessage  ("Reference scene disparity");
+		gd.addCheckbox ("Use combo DSI (if available)",              this.use_combo_dsi,
+				"Use interscene DSI if available (instead of the single-scene)");
+		gd.addCheckbox ("LMA tiles only",                            this.use_lma_dsi,
+				"Use only strong correlation tiles (with LMA available) for interscene correlation (pose matching)");
+		
+		gd.addMessage  ("Detect and remove moving objects from pose matching");
+		gd.addCheckbox ("Enable movement detection/elimination",     this.mov_en,
+				"Detect and mask areas with detected movement to improve pose matching");
+		gd.addNumericField("Detection blur sigma",                   this.mov_sigma, 6,7,"pix",
+				"Blur squared difference (dx^2+dy^2) befopre thresholding for movement detection");
+		gd.addNumericField("Max weighted mismatch std",              this.mov_max_std, 6,7,"pix",
+				"Do not try to detect moving objects until approximate pose match is achieved (standard deviation)");
+		gd.addNumericField("Relative threshold",                     this.mov_thresh_rel, 6,7,"x",
+				"Moving areas over standard deviation. Both relative and absolute should be exceeded.");
+		gd.addNumericField("Absolute threshold",                     this.mov_thresh_abs, 6,7,"pix",
+				"Moving areas sqrt(dx*dx+dy*dy). Both relative and absolute should be exceeded.");
+		gd.addNumericField("Cluster max over threshold",             this.mov_clust_max, 6,7,"",
+				"Moving cluster should contain tile with this exceed over thresholds");
+		gd.addNumericField("Moving cluster grow",                    this.mov_grow, 0,3,"",
+				"Standard grow values - 1 - ortho, 2 - diagonal, 3 - twice orto, 4 - twice diagonal");
+		gd.addCheckbox ("Show movement debug images",                this.mov_show,
+				"Disabled if 'Debug Level for interscene match' < 1");
+		gd.addNumericField("Debug level for movement detection (0/1)", this.mov_debug_level, 0,3,"",
+				"Disabled if 'Debug Level for interscene match' < 0");
+		
 		gd.addMessage  ("LMA parameters");
 		gd.addCheckbox ("Azimuth",                                   this.adjust_atr[0],
 				"Adjust scene camera azimuth with LMA");
@@ -447,6 +493,20 @@ public class IntersceneMatchParameters {
 		this.shure_sum =                gd.getNextNumber();
 		this.maybe_avg =                gd.getNextNumber();
 		this.shure_avg =                gd.getNextNumber();
+		
+		this.use_combo_dsi =            gd.getNextBoolean();
+		this.use_lma_dsi =              gd.getNextBoolean();
+		
+		this.mov_en =                   gd.getNextBoolean();
+		this.mov_sigma =                gd.getNextNumber();
+		this.mov_max_std =              gd.getNextNumber();
+		this.mov_thresh_rel =           gd.getNextNumber();
+		this.mov_thresh_abs =           gd.getNextNumber();
+		this.mov_clust_max =            gd.getNextNumber();
+		this.mov_grow =           (int) gd.getNextNumber();
+		this.mov_show =                 gd.getNextBoolean();
+		this.mov_debug_level =    (int) gd.getNextNumber();
+		
 		this.adjust_atr[0] =            gd.getNextBoolean();
 		this.adjust_atr[1] =            gd.getNextBoolean();
 		this.adjust_atr[2] =            gd.getNextBoolean();
@@ -548,6 +608,18 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"shure_sum",            this.shure_sum+"");           // double
 		properties.setProperty(prefix+"maybe_avg",            this.maybe_avg+"");           // double
 		properties.setProperty(prefix+"shure_avg",            this.shure_avg+"");           // double
+		properties.setProperty(prefix+"use_combo_dsi",        this.use_combo_dsi+"");       // boolean
+		properties.setProperty(prefix+"use_lma_dsi",          this.use_lma_dsi+"");         // boolean
+		properties.setProperty(prefix+"mov_en",               this.mov_en+"");              // boolean
+		properties.setProperty(prefix+"mov_sigma",            this.mov_sigma+"");           // double
+		properties.setProperty(prefix+"mov_max_std",          this.mov_max_std+"");         // double
+		properties.setProperty(prefix+"mov_thresh_rel",       this.mov_thresh_rel+"");      // double
+		properties.setProperty(prefix+"mov_thresh_abs",       this.mov_thresh_abs+"");      // double
+		properties.setProperty(prefix+"mov_clust_max",        this.mov_clust_max+"");       // double
+		properties.setProperty(prefix+"mov_grow",             this.mov_grow+"");            // int
+		properties.setProperty(prefix+"mov_show",             this.mov_show+"");            // boolean
+		properties.setProperty(prefix+"mov_debug_level",      this.mov_debug_level+"");     // int
+		
 		properties.setProperty(prefix+"adjust_atr_0",         this.adjust_atr[0]+"");       // boolean
 		properties.setProperty(prefix+"adjust_atr_1",         this.adjust_atr[1]+"");       // boolean
 		properties.setProperty(prefix+"adjust_atr_2",         this.adjust_atr[2]+"");       // boolean
@@ -566,7 +638,6 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"show_2d_correlations", this.show_2d_correlations+"");// boolean
 		properties.setProperty(prefix+"show_motion_vectors",  this.show_motion_vectors+""); // boolean
 		properties.setProperty(prefix+"debug_level",          this.debug_level+"");         // int
-
 		properties.setProperty(prefix+"test_ers",             this.test_ers+"");            // boolean
 		properties.setProperty(prefix+"test_ers0",            this.test_ers0+"");           // int
 		properties.setProperty(prefix+"test_ers1",            this.test_ers1+"");           // int
@@ -647,6 +718,19 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"shure_sum")!=null)            this.shure_sum=Double.parseDouble(properties.getProperty(prefix+"shure_sum"));
 		if (properties.getProperty(prefix+"maybe_avg")!=null)            this.maybe_avg=Double.parseDouble(properties.getProperty(prefix+"maybe_avg"));
 		if (properties.getProperty(prefix+"shure_avg")!=null)            this.shure_avg=Double.parseDouble(properties.getProperty(prefix+"shure_avg"));
+		if (properties.getProperty(prefix+"use_combo_dsi")!=null)        this.use_combo_dsi=Boolean.parseBoolean(properties.getProperty(prefix+"use_combo_dsi"));		
+		if (properties.getProperty(prefix+"use_lma_dsi")!=null)          this.use_lma_dsi=Boolean.parseBoolean(properties.getProperty(prefix+"use_lma_dsi"));
+		
+		if (properties.getProperty(prefix+"mov_en")!=null)               this.mov_en=Boolean.parseBoolean(properties.getProperty(prefix+"mov_en"));
+		if (properties.getProperty(prefix+"mov_sigma")!=null)            this.mov_sigma=Double.parseDouble(properties.getProperty(prefix+"mov_sigma"));
+		if (properties.getProperty(prefix+"mov_max_std")!=null)          this.mov_max_std=Double.parseDouble(properties.getProperty(prefix+"mov_max_std"));
+		if (properties.getProperty(prefix+"mov_thresh_rel")!=null)       this.mov_thresh_rel=Double.parseDouble(properties.getProperty(prefix+"mov_thresh_rel"));
+		if (properties.getProperty(prefix+"mov_thresh_abs")!=null)       this.mov_thresh_abs=Double.parseDouble(properties.getProperty(prefix+"mov_thresh_abs"));
+		if (properties.getProperty(prefix+"mov_clust_max")!=null)        this.mov_clust_max=Double.parseDouble(properties.getProperty(prefix+"mov_clust_max"));
+		if (properties.getProperty(prefix+"mov_grow")!=null)             this.mov_grow=Integer.parseInt(properties.getProperty(prefix+"mov_grow"));
+		if (properties.getProperty(prefix+"mov_show")!=null)             this.mov_show=Boolean.parseBoolean(properties.getProperty(prefix+"mov_show"));
+		if (properties.getProperty(prefix+"mov_debug_level")!=null)      this.mov_debug_level=Integer.parseInt(properties.getProperty(prefix+"mov_debug_level"));
+		
 		if (properties.getProperty(prefix+"adjust_atr_0")!=null)         this.adjust_atr[0]=Boolean.parseBoolean(properties.getProperty(prefix+"adjust_atr_0"));		
 		if (properties.getProperty(prefix+"adjust_atr_1")!=null)         this.adjust_atr[1]=Boolean.parseBoolean(properties.getProperty(prefix+"adjust_atr_1"));		
 		if (properties.getProperty(prefix+"adjust_atr_2")!=null)         this.adjust_atr[2]=Boolean.parseBoolean(properties.getProperty(prefix+"adjust_atr_2"));		
@@ -747,6 +831,19 @@ public class IntersceneMatchParameters {
 		imp.shure_sum =             this.shure_sum;
 		imp.maybe_avg =             this.maybe_avg;
 		imp.shure_avg =             this.shure_avg;
+		imp.use_combo_dsi         = this.use_combo_dsi;
+		imp.use_lma_dsi           = this.use_lma_dsi;
+		
+		imp.mov_en                = this.mov_en;
+		imp.mov_sigma             = this.mov_sigma;
+		imp.mov_max_std           = this.mov_max_std;
+		imp.mov_thresh_rel        = this.mov_thresh_rel;
+		imp.mov_thresh_abs        = this.mov_thresh_abs;
+		imp.mov_clust_max         = this.mov_clust_max;
+		imp.mov_grow              = this.mov_grow;
+		imp.mov_show              = this.mov_show;
+		imp.mov_debug_level       = this.mov_debug_level;
+		
 		imp.adjust_atr[0]         = this.adjust_atr[0];
 		imp.adjust_atr[1]         = this.adjust_atr[1];
 		imp.adjust_atr[2]         = this.adjust_atr[2];
