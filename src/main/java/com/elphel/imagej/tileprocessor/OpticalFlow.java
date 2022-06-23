@@ -3983,6 +3983,7 @@ public class OpticalFlow {
 		boolean show_mapped_color =  clt_parameters.imp.show_mapped_color;
 		boolean show_mapped_mono =   clt_parameters.imp.show_mapped_mono;
 		
+		boolean  readjust_orient =   clt_parameters.imp.readjust_orient;
 		boolean  test_ers =          clt_parameters.imp.test_ers;
 		int     test_ers0 =          clt_parameters.imp.test_ers0; // try adjusting a pair of scenes with ERS. Reference scene index
 		int     test_ers1 =          clt_parameters.imp.test_ers1; // try adjusting a pair of scenes with ERS. Other scene index
@@ -4236,9 +4237,28 @@ public class OpticalFlow {
 					debugLevel);         // int                  debug_level
 		}
 		
+		if (readjust_orient) {
+			if (!build_orientations && !build_interscene) {
+				for (int nscene = 0; nscene < (quadCLTs.length -1); nscene++) {
+					quadCLTs[nscene] = (QuadCLT) quadCLT_main.spawnNoModelQuadCLT( // restores image data
+							set_channels[nscene].set_name,
+							clt_parameters,
+							colorProcParameters, //
+							threadsMax,
+							debugLevel-2);
+				}
+			}
+			
+			reAdjustPairsLMAInterscene( // after combo dgi is available and preliminary poses are known
+					clt_parameters,     // CLTParameters  clt_parameters,
+					quadCLTs,           // QuadCLT []     quadCLTs,
+					debugLevel) ;       // int            debugLevel)
+			
+		}
+
 		if (test_ers) {
 			test_ers0 = quadCLTs.length -1; // make it always == reference !
-			if (!build_orientations && !build_interscene) {
+			if (!build_orientations && !build_interscene && !readjust_orient) {
 				for (int nscene = 0; nscene < (quadCLTs.length -1); nscene++) {
 					if ((Math.abs(nscene - test_ers0) <= 1) || (Math.abs(nscene - test_ers1) <= 1)) {
 						quadCLTs[nscene] = (QuadCLT) quadCLT_main.spawnNoModelQuadCLT( // restores image data
@@ -4250,8 +4270,6 @@ public class OpticalFlow {
 					}
 				}
 			}
-			
-			
 			testERS(
 					clt_parameters, // CLTParameters clt_parameters,
 					test_ers0, // int           indx0, // reference scene in a pair
@@ -4259,9 +4277,12 @@ public class OpticalFlow {
 					//		    		double []     ref_disparity,			
 					quadCLTs, // QuadCLT []    quadCLTs,
 					debugLevel); // int           debugLevel)
+
 			System.out.println("buildSeries(): ABORTED after test_ers"); //
 			return true;
 		}
+		
+		
 		
 		if (generate_mapped) {
 			if (!build_orientations && !build_interscene) {
@@ -4318,8 +4339,8 @@ public class OpticalFlow {
 	        		bg_str
 	        };
 	        double [][] ds_bg = conditionInitialDS(
-	        		false, // boolean        use_conf,       // use configuration parameters, false - use following  
-	        		clt_parameters,      // CLTParameters  clt_parameters,
+	        		true, // boolean        use_conf,       // use configuration parameters, false - use following  
+	        		clt_parameters,         // CLTParameters  clt_parameters,
 	        		dls_bg,                 // double [][]    dls
 	        		quadCLTs[ref_index], // QuadCLT        scene,
 	        		debugLevel);			
@@ -4413,7 +4434,7 @@ public class OpticalFlow {
 					combo_dsn_final[COMBO_DSN_INDX_STRENGTH]
 			};
 			double [][] ds = conditionInitialDS(
-					false, // boolean        use_conf,       // use configuration parameters, false - use following  
+					true, // boolean        use_conf,       // use configuration parameters, false - use following  
 					clt_parameters,      // CLTParameters  clt_parameters,
 					dls,                 // double [][]    dls
 					quadCLTs[ref_index], // QuadCLT        scene,
@@ -4441,7 +4462,7 @@ public class OpticalFlow {
 					bg_str
 			};
 			double [][] ds_bg = conditionInitialDS(
-					false, // boolean        use_conf,       // use configuration parameters, false - use following  
+					true, // boolean        use_conf,       // use configuration parameters, false - use following  
 					clt_parameters,      // CLTParameters  clt_parameters,
 					dls_bg,                 // double [][]    dls
 					quadCLTs[ref_index], // QuadCLT        scene,
@@ -4582,7 +4603,7 @@ public class OpticalFlow {
 					combo_dsn_final[COMBO_DSN_INDX_STRENGTH]
 			};
 			double [][] ds = conditionInitialDS(
-					false, // boolean        use_conf,       // use configuration parameters, false - use following  
+					true, // boolean        use_conf,       // use configuration parameters, false - use following  
 					clt_parameters,      // CLTParameters  clt_parameters,
 					dls,                 // double [][]    dls
 					quadCLTs[ref_index], // QuadCLT        scene,
@@ -11267,6 +11288,127 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		return new double [][] {camera_xyz0, camera_atr0};
 	}
 
+	public boolean  reAdjustPairsLMAInterscene( // after combo dgi is available and preliminary poses are known
+			CLTParameters  clt_parameters,
+    		QuadCLT []     quadCLTs,
+			int            debugLevel)
+	{
+	    boolean use_combo_dsi =        clt_parameters.imp.use_combo_dsi;
+	    boolean use_lma_dsi =          clt_parameters.imp.use_lma_dsi;
+    	int ref_index = quadCLTs.length-1;
+		int tilesX =  quadCLTs[ref_index].getTileProcessor().getTilesX();
+        int tilesY =  quadCLTs[ref_index].getTileProcessor().getTilesY();
+        double [] disparity_raw = new double [tilesX * tilesY];
+        Arrays.fill(disparity_raw,clt_parameters.disparity);
+        double [][] combo_dsn_final = quadCLTs[ref_index].readDoubleArrayFromModelDirectory(
+        			"-INTER-INTRA-LMA", // String      suffix,
+        			0, // int         num_slices, // (0 - all)
+        			null); // int []      wh);
+        double [][] dls = {
+        		combo_dsn_final[COMBO_DSN_INDX_DISP],
+        		combo_dsn_final[COMBO_DSN_INDX_LMA],
+        		combo_dsn_final[COMBO_DSN_INDX_STRENGTH]
+        };
+        double [][] ds = conditionInitialDS(
+        		true,                // boolean        use_conf,       // use configuration parameters, false - use following  
+        		clt_parameters,      // CLTParameters  clt_parameters,
+        		dls,                 // double [][]    dls
+        		quadCLTs[ref_index], // QuadCLT        scene,
+        		debugLevel);			
+//        double [] disparity_fg = ds[0]; // combo_dsn_final[COMBO_DSN_INDX_DISP_FG];
+        double [] interscene_ref_disparity = null; // keep null to use old single-scene disparity for interscene matching
+        if (use_combo_dsi) {
+        	interscene_ref_disparity = ds[0].clone(); // use_lma_dsi ?
+        	if (use_lma_dsi) {
+        		for (int i = 0; i < interscene_ref_disparity.length; i++) {
+        			if (Double.isNaN(dls[1][i])) {
+        				interscene_ref_disparity[i] = Double.NaN;
+        			}
+        		}
+        	}
+        }
+		ErsCorrection ers_reference = quadCLTs[ref_index].getErsCorrection();
+        double [][][] dxyzatr_dt = new double[quadCLTs.length][][];
+		double [][][] scenes_xyzatr = new double [quadCLTs.length][][]; // previous scene relative to the next one
+		scenes_xyzatr[ref_index] = new double[2][3]; // all zeros
+		// should have at least next or previous non-null
+		double maximal_series_rms = 0.0;
+        for (int nscene = ref_index; nscene > 0; nscene--) if (quadCLTs[nscene] != null){
+			String ts = quadCLTs[nscene].getImageName();
+        	int nscene0 = nscene - 1;
+        	if ((nscene0 < 0) || (quadCLTs[nscene0]== null)) {
+        		nscene0 = nscene;
+        	}
+        	int nscene1 = nscene + 1;
+        	if ((nscene1 > ref_index) || (quadCLTs[nscene1]== null)) {
+        		nscene1 = nscene;
+        	}
+        	if (nscene1 == nscene0) {
+        		System.out.println("**** Isoloated scene!!! skippiung... ****");
+        		continue;
+        	}
+        	double dt = quadCLTs[nscene1].getTimeStamp() - quadCLTs[nscene0].getTimeStamp();
+        	String ts0 = quadCLTs[nscene0].getImageName();
+        	String ts1 = quadCLTs[nscene1].getImageName();
+    		double [] scene_xyz0 = ers_reference.getSceneXYZ(ts0);
+    		double [] scene_atr0 = ers_reference.getSceneATR(ts0);
+    		double [] scene_xyz1 = (nscene1== ref_index)? ZERO3:ers_reference.getSceneXYZ(ts1);
+    		double [] scene_atr1 = (nscene1== ref_index)? ZERO3:ers_reference.getSceneATR(ts1);
+    		dxyzatr_dt[nscene] = new double[2][3];
+    		for (int i = 0; i < 3; i++) {
+    			dxyzatr_dt[nscene][0][i] = 0.0; // (scene_xyz1[i]-scene_xyz0[i])/dt;
+    			dxyzatr_dt[nscene][1][i] = (scene_atr1[i]-scene_atr0[i])/dt;
+    		}
+			double []   scene_xyz_pre = ZERO3;
+			double []   scene_atr_pre = ZERO3;
+			quadCLTs[nscene].getErsCorrection().setErsDt( // set for ref also (should be set before non-ref!)
+					dxyzatr_dt[nscene][0], // double []    ers_xyz_dt,
+					dxyzatr_dt[nscene][1]); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
+			if (nscene != ref_index) {
+				scene_xyz_pre = ers_reference.getSceneXYZ(ts);
+				scene_atr_pre = ers_reference.getSceneATR(ts);
+				double []      lma_rms = new double[2];
+				scenes_xyzatr[nscene] = adjustPairsLMAInterscene(
+						clt_parameters,                                 // CLTParameters  clt_parameters,
+						quadCLTs[ref_index],                            // QuadCLT reference_QuadCLT,
+						interscene_ref_disparity,                       // double []        ref_disparity, // null or alternative reference disparity  
+						quadCLTs[nscene],                               // QuadCLT scene_QuadCLT,
+						scene_xyz_pre,                                  // xyz
+						scene_atr_pre,                                  // atr
+						clt_parameters.ilp.ilma_lma_select,                                  // final boolean[]   param_select,
+						clt_parameters.ilp.ilma_regularization_weights,                              //  final double []   param_regweights,
+						lma_rms,                                        // double []      rms, // null or double [2]
+						clt_parameters.imp.max_rms,                     // double         max_rms,
+						clt_parameters.imp.debug_level);                // 1); // -1); // int debug_level);
+				System.out.println("lma_rms={"+lma_rms[0]+","+lma_rms[1]+"}");
+				ers_reference.addScene(ts,
+						scenes_xyzatr[nscene][0],
+						scenes_xyzatr[nscene][1],
+						quadCLTs[nscene].getErsCorrection().getErsXYZ_dt(),	// same as dxyzatr_dt[nscene][0], just keep for future adjustments?	
+						quadCLTs[nscene].getErsCorrection().getErsATR_dt()	// same as dxyzatr_dt[nscene][1], just keep for future adjustments?		
+						);
+			    if (lma_rms[0] > maximal_series_rms) {
+			        maximal_series_rms = lma_rms[0];
+			    }
+
+				if (debugLevel > -3) {
+					System.out.println("reAdjustPairsLMAInterscene "+nscene+" (of "+ quadCLTs.length+") "+
+							quadCLTs[ref_index].getImageName() + "/" + ts+
+							" Done. RMS="+lma_rms[0]+", maximal so far was "+maximal_series_rms);
+				}
+			}
+        }
+		
+		if (debugLevel > -4) {
+			System.out.println("All multi scene passes are Done. Maximal RMSE was "+maximal_series_rms);
+		}
+
+		quadCLTs[ref_index].saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
+				null, // String path,             // full name with extension or w/o path to use x3d directory
+				debugLevel+1);
+		return true;
+	}
+	
 	public double[][]  adjustPairsLMAInterscene(
 			CLTParameters  clt_parameters,			
 			QuadCLT        reference_QuadClt,

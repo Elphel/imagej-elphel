@@ -33,6 +33,9 @@ public class IntersceneMatchParameters {
 	// Maybe add parameters to make sure there is enough data? Enough in each zone? Enough spread?
 	public  boolean force_ref_dsi =      false; // true;
 	public  boolean force_orientations = false;
+	public  boolean readjust_orient =    false;
+	public  double  blur_egomotion =     2.0;
+	
 	public  boolean force_interscene =   false; // true;
 	public  boolean export_images =      true;  // pseudo-color 16-slice images (same disparity, COMBO_DSN_INDX_DISP_FG and COMBO_DSN_INDX_DISP_BG_ALL,
 	public  boolean show_images =        false; // color, infinity
@@ -120,6 +123,7 @@ public class IntersceneMatchParameters {
 	public  boolean use_combo_dsi =                 true;  // use interscene DSI if available (instead of the single-scene)
 	public  boolean use_lma_dsi =                   true;  // only use reference DSI tiles that have LMA (strong) disparity
 	
+	
 	// Remove moving objects (goal is not to detect slightest movement, but to improve pose matching
 	public  boolean mov_en =                        true;  // enable detection/removal of the moving objects during pose matching
 	public  double  mov_sigma =                     1.5;   // pix - weighted-blur offsets before detection
@@ -134,6 +138,7 @@ public class IntersceneMatchParameters {
 	
 	
 	//LMA parameters
+	
 	public  boolean [] adjust_atr = new boolean [] {true,true,true};
 	public  boolean [] adjust_xyz = new boolean [] {true,true,true};
 	public  double  exit_change_atr =               1.0E-5;//rad,  L2 norm for difference to ext LMA 
@@ -151,10 +156,11 @@ public class IntersceneMatchParameters {
 	private boolean show_motion_vectors =           true;  // show calculated motion vectors
 	public  int     debug_level =                     -1;  // all renders are disable for debug_level < 0, scene "renders" for for debug_level < 1
     
+
 	// Pairwise ERS testing
-	public boolean  test_ers =           false;
-	public  int     test_ers0 =         -1; // try adjusting a pair of scenes with ERS. Reference scene index
-	public  int     test_ers1 =         -1; // try adjusting a pair of scenes with ERS. Other scene index
+	public boolean  test_ers =                     false;
+	public  int     test_ers0 =                       -1; // try adjusting a pair of scenes with ERS. Reference scene index
+	public  int     test_ers1 =                       -1; // try adjusting a pair of scenes with ERS. Other scene index
 	
 	
 	public boolean renderRef()          {return (debug_level>1) && render_ref;}
@@ -179,6 +185,10 @@ public class IntersceneMatchParameters {
 				"Calculate reference scene DSI even if the file exists.");
 		gd.addCheckbox ("Force egomotion calculation",               this.force_orientations,
 				"Calculate relative poses of each scene camera relative to the reference scene even if the data exists.");
+		gd.addCheckbox ("Readjust egomotion",                        this.readjust_orient,
+				"Re-calculate egomotion using known orientation and combined DSI.");
+		gd.addNumericField("Disparity at infinity",                  this.blur_egomotion, 3,5,"scenes",
+				"LPF egomotion components with this sigma before using as ERS.");
 		gd.addCheckbox ("Force interscene DSI accumulation",         this.force_interscene,
 				"Force interscene calculation (+ML export) even if it was performed before.");
 		gd.addCheckbox ("Export all-sensor images",                  this.export_images,
@@ -408,8 +418,8 @@ public class IntersceneMatchParameters {
 				"Debug Level for the above parameters: renders and raw correlations need >1,  motion vectors > 0");
 
 		gd.addMessage  ("Pairwise ERS testing");
-		gd.addCheckbox ("Replace scene with reference scene",        this.test_ers,
-				"Correlate reference scene with itself for testing (may want to manually change scene_atr and scene_xyz in debug mode)");
+		gd.addCheckbox ("Test pairwise matching with ERS",        this.test_ers,
+				"Test pairwise dispaly and pose correction to test ERS compensation");
 		gd.addNumericField("Test scene reference index",             this.test_ers0, 0,3,"",
 				"Reference scene index in a scene sequence");
 		gd.addNumericField("Test scene other scene index",           this.test_ers1, 0,3,"",
@@ -421,6 +431,8 @@ public class IntersceneMatchParameters {
 	public void dialogAnswers(GenericJTabbedDialog gd) {
 		this.force_ref_dsi =            gd.getNextBoolean();
 		this.force_orientations =       gd.getNextBoolean();
+		this.readjust_orient =          gd.getNextBoolean();
+		this.blur_egomotion =           gd.getNextNumber();
 		this.force_interscene =         gd.getNextBoolean();
 		this.export_images =            gd.getNextBoolean();
 		this.show_images =              gd.getNextBoolean();
@@ -536,6 +548,8 @@ public class IntersceneMatchParameters {
 	public void setProperties(String prefix,Properties properties){
 		properties.setProperty(prefix+"force_ref_dsi",        this.force_ref_dsi + "");     // boolean
 		properties.setProperty(prefix+"force_orientations",   this.force_orientations + "");// boolean
+		properties.setProperty(prefix+"readjust_orient",      this.readjust_orient + "");   // boolean
+		properties.setProperty(prefix+"blur_egomotion",       this.blur_egomotion+"");      // double
 		properties.setProperty(prefix+"force_interscene",     this.force_interscene + "");  // boolean
 		properties.setProperty(prefix+"export_images",        this.export_images + "");     // boolean
 		properties.setProperty(prefix+"show_images",          this.show_images + "");       // boolean
@@ -647,6 +661,8 @@ public class IntersceneMatchParameters {
 	public void getProperties(String prefix,Properties properties){
 		if (properties.getProperty(prefix+"force_ref_dsi")!=null)        this.force_ref_dsi=Boolean.parseBoolean(properties.getProperty(prefix+"force_ref_dsi"));		
 		if (properties.getProperty(prefix+"force_orientations")!=null)   this.force_orientations=Boolean.parseBoolean(properties.getProperty(prefix+"force_orientations"));		
+		if (properties.getProperty(prefix+"readjust_orient")!=null)      this.readjust_orient=Boolean.parseBoolean(properties.getProperty(prefix+"readjust_orient"));		
+		if (properties.getProperty(prefix+"blur_egomotion")!=null)       this.blur_egomotion=Double.parseDouble(properties.getProperty(prefix+"blur_egomotion"));
 		if (properties.getProperty(prefix+"force_interscene")!=null)     this.force_interscene=Boolean.parseBoolean(properties.getProperty(prefix+"force_interscene"));		
 		if (properties.getProperty(prefix+"export_images")!=null)        this.export_images=Boolean.parseBoolean(properties.getProperty(prefix+"export_images"));		
 		if (properties.getProperty(prefix+"show_images")!=null)          this.show_images=Boolean.parseBoolean(properties.getProperty(prefix+"show_images"));		
@@ -759,6 +775,8 @@ public class IntersceneMatchParameters {
 		IntersceneMatchParameters imp =     new IntersceneMatchParameters();
  		imp.force_ref_dsi         = this.force_ref_dsi;
 		imp.force_orientations    = this.force_orientations;
+		imp.readjust_orient       = this.readjust_orient;
+		imp.blur_egomotion        = this.blur_egomotion;
 		imp.force_interscene      = this.force_interscene;
 		imp.export_images         = this.export_images;
 		imp.show_images           = this.show_images;
