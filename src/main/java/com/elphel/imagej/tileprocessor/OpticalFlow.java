@@ -24,6 +24,7 @@
 package com.elphel.imagej.tileprocessor;
 
 import java.awt.Color;
+import java.awt.Font;
 import java.awt.Rectangle;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -62,7 +63,11 @@ import ij.ImageStack;
 import ij.Prefs;
 import ij.gui.Line;
 import ij.io.FileSaver;
+import ij.process.FloatProcessor;
+import ij.process.ImageConverter;
 import ij.process.ImageProcessor;
+import ij.plugin.filter.AVI_Writer;
+import ij.plugin.filter.GaussianBlur;
 
 public class OpticalFlow {
 	public static String [] COMBO_DSN_TITLES = {"disp", "strength","disp_lma","num_valid","change",
@@ -3943,6 +3948,7 @@ public class OpticalFlow {
 	 * @throws Exception
 	 */
     public boolean buildSeries(
+    		boolean                                              batch_mode,
 			QuadCLT                                              quadCLT_main, // tiles should be set
 			int                                                  ref_index, // -1 - last
 			int                                                  ref_step, 
@@ -3962,13 +3968,14 @@ public class OpticalFlow {
     	boolean build_orientations = clt_parameters.imp.force_orientations ;
     	boolean build_interscene =   clt_parameters.imp.force_interscene;
     	boolean export_images =      clt_parameters.imp.export_images;
-    	boolean export_dsi_image =   clt_parameters.imp.show_ranges;
-    	boolean show_images =        clt_parameters.imp.show_images;
+    	boolean export_dsi_image =   clt_parameters.imp.export_ranges;
+    	boolean show_dsi_image =     clt_parameters.imp.show_ranges && !batch_mode;
+    	boolean show_images =        clt_parameters.imp.show_images && !batch_mode;
 //    	boolean show_color_nan =     clt_parameters.imp.show_color_nan;
 //    	boolean show_mono_nan =      clt_parameters.imp.show_mono_nan;
     	
-    	boolean show_images_bgfg =   clt_parameters.imp.show_images_bgfg;
-    	boolean show_images_mono =   clt_parameters.imp.show_images_mono;
+    	boolean show_images_bgfg =   clt_parameters.imp.show_images_bgfg && !batch_mode;
+    	boolean show_images_mono =   clt_parameters.imp.show_images_mono && !batch_mode;
 
 		double  range_disparity_offset = clt_parameters.imp.range_disparity_offset ; //   -0.08;
 		double  range_min_strength =     clt_parameters.imp.range_min_strength ; // 0.5;
@@ -3980,11 +3987,32 @@ public class OpticalFlow {
 		boolean crop_3d =            clt_parameters.imp.crop_3d;
 		int     sensor_mask =        clt_parameters.imp.sensor_mask; // -1 - all
 		int     mode3d =             clt_parameters.imp.mode3d; // 0 - infinity, 1 - FG, 2 - BG
-		boolean show_mapped_color =  clt_parameters.imp.show_mapped_color;
-		boolean show_mapped_mono =   clt_parameters.imp.show_mapped_mono;
+		boolean save_mapped_color =  clt_parameters.imp.save_mapped_color;
+		boolean save_mapped_mono =   clt_parameters.imp.save_mapped_mono;
+		boolean show_mapped_color =  clt_parameters.imp.show_mapped_color && !batch_mode;
+		boolean show_mapped_mono =   clt_parameters.imp.show_mapped_mono && !batch_mode;
+		// video
+		boolean gen_avi_color =      clt_parameters.imp.gen_avi_color;
+		boolean gen_avi_mono =       clt_parameters.imp.gen_avi_mono;
+		double  video_fps =          clt_parameters.imp.video_fps;
+		int     mode_avi =           clt_parameters.imp.mode_avi;
+		int     avi_JPEG_quality =   clt_parameters.imp.avi_JPEG_quality; // 90;
+	    boolean run_ffmpeg =         clt_parameters.imp.run_ffmpeg;
+		String  video_ext =          clt_parameters.imp.video_ext;
+		String  video_codec =        clt_parameters.imp.video_codec.toLowerCase();
+		String  video_extra =        clt_parameters.imp.video_extra;
+		boolean remove_avi =         clt_parameters.imp.remove_avi;
+		boolean um_mono =            clt_parameters.imp.um_mono;
+		double  um_sigma =           clt_parameters.imp.um_sigma;
+		double  um_weight =          clt_parameters.imp.um_weight;
+		
+		boolean annotate_color =     clt_parameters.imp.annotate_color;
+		boolean annotate_mono =      clt_parameters.imp.annotate_mono;
+		final Color annotate_color_color = clt_parameters.imp.annotate_color_color;
+		final Color annotate_color_mono =  clt_parameters.imp.annotate_color_mono;
 		
 		boolean  readjust_orient =   clt_parameters.imp.readjust_orient;
-		boolean  test_ers =          clt_parameters.imp.test_ers;
+		boolean  test_ers =          clt_parameters.imp.test_ers && !batch_mode;
 		int     test_ers0 =          clt_parameters.imp.test_ers0; // try adjusting a pair of scenes with ERS. Reference scene index
 		int     test_ers1 =          clt_parameters.imp.test_ers1; // try adjusting a pair of scenes with ERS. Other scene index
 		test_ers &= (test_ers0 >= 0) && (test_ers1 >= 0);
@@ -4139,8 +4167,12 @@ public class OpticalFlow {
 						threadsMax,
 						debugLevel-2);
 			} // split cycles to remove output clutter
-
+			int debug_scene = -15;
 			for (int scene_index =  ref_index - 1; scene_index >= 0 ; scene_index--) {
+				if (scene_index == debug_scene) {
+					System.out.println("scene_index = "+scene_index);
+					System.out.println("scene_index = "+scene_index);
+				}
 				QuadCLT scene_QuadClt = quadCLTs[scene_index];
 				// get initial xyzatr:
 				if (scene_index ==  ref_index - 1) { // search around for the best fit
@@ -4400,9 +4432,12 @@ public class OpticalFlow {
 	        for (int col_mode = 0; col_mode<2; col_mode++) {
 	        	// mode3d = col_mode/2 -1 ; // col_mode < 6
 	        	double[] selected_disparity = (mode3d > 1)?disparity_bg:((mode3d > 0)?disparity_fg: disparity_raw);
-	        	boolean       toRGB = (col_mode & 1) == 0;
+	        	final boolean       toRGB = (col_mode & 1) == 0;
 	        	String scenes_suffix = quadCLTs[quadCLTs.length-1].getImageName()+
 	        			"-SEQ-" + IntersceneMatchParameters.MODES3D[mode3d+1] + "-"+(toRGB?"COLOR":"MONO");
+	        	if (!toRGB && um_mono) {
+	        		scenes_suffix+=String.format("-UM%.1f_%.2f",um_sigma,um_weight);
+	        	}
 	        	ImagePlus imp_scenes = renderSceneSequence(
 	        			clt_parameters,     // CLTParameters clt_parameters,
 	        			fov_tiles,          // Rectangle     fov_tiles,
@@ -4413,9 +4448,97 @@ public class OpticalFlow {
 	        			selected_disparity, // double []     ref_disparity,			
 	        			quadCLTs,           // QuadCLT []    quadCLTs,
 	        			debugLevel);        // int           debugLevel);
-	        	quadCLTs[ref_index].saveImagePlusInModelDirectory(
-	        			null, // "GPU-SHIFTED-D"+clt_parameters.disparity, // String      suffix,
-	        			imp_scenes); // ImagePlus   imp)
+	        	if (toRGB ? save_mapped_color: save_mapped_mono) {	        	
+	        		quadCLTs[ref_index].saveImagePlusInModelDirectory(
+	        				null, // "GPU-SHIFTED-D"+clt_parameters.disparity, // String      suffix,
+	        				imp_scenes); // ImagePlus   imp)
+	        	}
+// Save as AVI	        	
+	        	if (toRGB ? gen_avi_color: gen_avi_mono) {
+	        		if (toRGB ? annotate_color: annotate_mono) {
+	        			// If it is mono, first convert to color
+	        			ImageConverter imageConverter = new ImageConverter(imp_scenes);
+	        			imageConverter.convertToRGB(); // Did it convert imp_scenes ?
+	        		}
+	        		final Color fcolor = toRGB ? annotate_color_color: annotate_color_mono;
+	    			final ImageStack fstack_scenes = imp_scenes.getImageStack();
+	    			final int width =  imp_scenes.getWidth();
+	    			final int height = imp_scenes.getHeight();
+					final int posX= width - 119; // 521;
+					final int posY= height + 1;  // 513;
+					final Font font = new Font("Monospaced", Font.PLAIN, 12);
+	    			final int nSlices = fstack_scenes.getSize();
+	    			final Thread[] threads = ImageDtt.newThreadArray(QuadCLT.THREADS_MAX);
+	    			final AtomicInteger ai = new AtomicInteger(0);
+	    			for (int ithread = 0; ithread < threads.length; ithread++) {
+	    				threads[ithread] = new Thread() {
+	    					public void run() {
+	    						for (int nSlice = ai.getAndIncrement(); nSlice < nSlices; nSlice = ai.getAndIncrement()) {
+	    							String scene_title = fstack_scenes.getSliceLabel(nSlice+1);
+	    							ImageProcessor ip = fstack_scenes.getProcessor(nSlice+1);
+									ip.setColor(fcolor); // Color.BLUE);
+									ip.setFont(font);
+									if (toRGB) {
+										ip.drawString(scene_title, posX, posY,Color.BLACK);
+									} else {
+										ip.drawString(scene_title, posX, posY);
+									}
+	    						}
+	    					}
+	    				};
+	    			}		      
+	    			ImageDtt.startAndJoin(threads);
+	        		String avi_path=null;
+	        		video:
+	        		{
+	        			try {
+	        				avi_path=quadCLTs[ref_index].saveAVIInModelDirectory(
+	        						null,             // "GPU-SHIFTED-D"+clt_parameters.disparity, // String      suffix,
+	        						mode_avi,         // int         avi_mode,
+	        						avi_JPEG_quality, // int         avi_JPEG_quality,
+	        						video_fps,        // double      fps,
+	        						imp_scenes);      // ImagePlus   imp)
+	        			} catch (IOException e) {
+	        				// TODO Auto-generated catch block
+	        				e.printStackTrace();
+	        				break video;
+
+	        			}
+	        			// Convert with ffmpeg?
+	        			if (avi_path == null) {
+	        				break video;
+	        			}
+	        			if (!run_ffmpeg) {
+	        				break video; // webm not requested
+	        			}
+	        			String webm_path = avi_path.substring(0, avi_path.length()-4)+video_ext;
+	        			// added -y not to as "overwrite y/n?"
+	        			String shellCommand = String.format("ffmpeg -y -i %s -c %s %s %s",
+	        					avi_path, video_codec, video_extra, webm_path);
+	        			Process p = null;
+	        			try {
+	        				p = Runtime.getRuntime().exec(shellCommand);
+	        			} catch (IOException e) {
+	        				System.out.println("Failed shell command: \""+shellCommand+"\"");
+	        			}
+	        			if (p != null) {
+	        				p.waitFor();
+	        			}
+        				System.out.println("Ran shell command: \""+shellCommand+"\"");
+        				// Check if webm file exists
+        				if (!(new File(webm_path)).exists()) {
+	        				System.out.println("Failed to create : \""+webm_path+"\"");
+	        				break video;
+        				}
+        				if (remove_avi) {
+        					(new File(avi_path)).delete();
+	        				System.out.println("Deleted AVI video file: \""+avi_path+"\"");
+        				}
+//ffmpeg -i 1654629772_573400-SEQ-FG-COLOR.avi -c vp8 -b:v 0 -crf 40 1654629772_573400-SEQ-FG-COLOR-VP8.webm
+	        		}
+//		String  video_extra =        clt_parameters.imp.video_extra;
+
+	        	}
 	        	if (toRGB ? show_mapped_color: show_mapped_mono) {
 	        		imp_scenes.show();
 	        	}
@@ -4475,6 +4598,7 @@ public class OpticalFlow {
 			Rectangle testr = new Rectangle(10, 8, 100,80);
 			ImagePlus imp_constant = QuadCLT.renderGPUFromDSI(
 					-1,                  // final int         sensor_mask,
+					false, // final boolean     merge_channels,
 					null, // testr, // null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 					clt_parameters,      // CLTParameters     clt_parameters,
 					constant_disparity,  // double []         disparity_ref,
@@ -4491,6 +4615,7 @@ public class OpticalFlow {
 					imp_constant); // ImagePlus   imp)
 			ImagePlus imp_constant_mono = QuadCLT.renderGPUFromDSI(
 					-1,                  // final int         sensor_mask,
+					false, // final boolean     merge_channels,
 					null, // testr, // null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 					clt_parameters,      // CLTParameters     clt_parameters,
 					constant_disparity,  // double []         disparity_ref,
@@ -4513,6 +4638,7 @@ public class OpticalFlow {
 			}
 			ImagePlus imp_fg = QuadCLT.renderGPUFromDSI(
 					-1,                  // final int         sensor_mask,
+					false, // final boolean     merge_channels,
 					null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 					clt_parameters,      // CLTParameters     clt_parameters,
 					fg_disparity,  // double []         disparity_ref,
@@ -4529,6 +4655,7 @@ public class OpticalFlow {
 					imp_fg); // ImagePlus   imp)
 			ImagePlus imp_fg_mono = QuadCLT.renderGPUFromDSI(
 					-1,                  // final int         sensor_mask,
+					false, // final boolean     merge_channels,
 					null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 					clt_parameters,      // CLTParameters     clt_parameters,
 					fg_disparity,  // double []         disparity_ref,
@@ -4551,6 +4678,7 @@ public class OpticalFlow {
 			}
 			ImagePlus imp_bg = QuadCLT.renderGPUFromDSI(
 					-1,                  // final int         sensor_mask,
+					false, // final boolean     merge_channels,
 					null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 					clt_parameters,      // CLTParameters     clt_parameters,
 					bg_disparity,        // double []         disparity_ref,
@@ -4567,6 +4695,7 @@ public class OpticalFlow {
 					imp_bg); // ImagePlus   imp)
 			ImagePlus imp_bg_mono = QuadCLT.renderGPUFromDSI(
 					-1,                  // final int         sensor_mask,
+					false, // final boolean     merge_channels,
 					null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 					clt_parameters,      // CLTParameters     clt_parameters,
 					bg_disparity,        // double []         disparity_ref,
@@ -4621,17 +4750,20 @@ public class OpticalFlow {
 			TileProcessor tp = quadCLTs[ref_index].getTileProcessor();
 			int tilesX =         tp.getTilesX();
 	        int tilesY =         tp.getTilesY();
+	        ImagePlus impSZXY = (new ShowDoubleFloatArrays()).makeArrays(
+        			szxy,
+        			tilesX,
+        			tilesY,
+        			quadCLTs[ref_index].getImageName()+"_SZXY",
+        			szxy_titles);
+	        quadCLTs[ref_index].saveImagePlusInModelDirectory(
+					null, // "GPU-SHIFTED-BACKGROUND", // String      suffix,
+					impSZXY); // ImagePlus   imp)
+	        if (show_dsi_image) {
+	        	impSZXY.show();
 
-			(new ShowDoubleFloatArrays()).showArrays(
-					szxy,
-					tilesX,
-					tilesY,
-					true,
-					quadCLTs[ref_index].getImageName()+"_SZXY",
-					szxy_titles);
+	        }
 		}		
-		// Add 16-images:
-		//disparity = 0, FG, BG
 		System.out.println("buildSeries(): DONE"); //
 		return true;
     }
@@ -4727,16 +4859,17 @@ public class OpticalFlow {
 			
 			if (show_color) {
 				ImagePlus imp_scene_color = QuadCLT.renderGPUFromDSI(
-						sensor_mask,                  // final int         sensor_mask,
+						sensor_mask,         // final int         sensor_mask,
+						false,               // final boolean     merge_channels,
 						null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 						clt_parameters,      // CLTParameters     clt_parameters,
-						disparity_fg,       // double []         disparity_ref,
+						disparity_fg,        // double []         disparity_ref,
 						scene_xyz,           // final double []   scene_xyz, // camera center in world coordinates
 						scene_atr,           // final double []   scene_atr, // camera orientation relative to world frame
 						quadCLTs[nscene],    // final QuadCLT     scene,
 						quadCLTs[ref_index], // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
-						true,               // final boolean     toRGB,
-						"", // String            suffix, no suffix here
+						true,                // final boolean     toRGB,
+						"",                  // String            suffix, no suffix here
 						threadsMax,          // int               threadsMax,
 						debugLevel);         // int         debugLevel)
 				if (stack_scenes_color == null) {
@@ -4748,16 +4881,17 @@ public class OpticalFlow {
 			}
 			if (show_mono) {
 				ImagePlus imp_scene_mono = QuadCLT.renderGPUFromDSI(
-						sensor_mask,                  // final int         sensor_mask,
+						sensor_mask,         // final int         sensor_mask,
+						false,               // final boolean     merge_channels,
 						null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 						clt_parameters,      // CLTParameters     clt_parameters,
-						disparity_fg,       // double []         disparity_ref,
+						disparity_fg,        // double []         disparity_ref,
 						scene_xyz,           // final double []   scene_xyz, // camera center in world coordinates
 						scene_atr,           // final double []   scene_atr, // camera orientation relative to world frame
 						quadCLTs[nscene],    // final QuadCLT     scene,
 						quadCLTs[ref_index], // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 						false,               // final boolean     toRGB,
-						"", // String            suffix, no suffix here
+						"",                  // String            suffix, no suffix here
 						threadsMax,          // int               threadsMax,
 						debugLevel);         // int         debugLevel)
 				if (stack_scenes_mono == null) {
@@ -4859,16 +4993,17 @@ public class OpticalFlow {
 			}
 			if (show_color) {
 				ImagePlus imp_scene_color = QuadCLT.renderGPUFromDSI(
-						sensor_mask,                  // final int         sensor_mask,
+						sensor_mask,         // final int         sensor_mask,
+						false,               // final boolean     merge_channels,
 						null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 						clt_parameters,      // CLTParameters     clt_parameters,
-						disparity_fg,       // double []         disparity_ref,
+						disparity_fg,        // double []         disparity_ref,
 						scene_xyz,           // final double []   scene_xyz, // camera center in world coordinates
 						scene_atr,           // final double []   scene_atr, // camera orientation relative to world frame
 						quadCLTs[nscene],    // final QuadCLT     scene,
 						quadCLTs[ref_index], // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
-						true,               // final boolean     toRGB,
-						"", // String            suffix, no suffix here
+						true,                // final boolean     toRGB,
+						"",                  // String            suffix, no suffix here
 						threadsMax,          // int               threadsMax,
 						debugLevel);         // int         debugLevel)
 				if (stack_adjusted_color == null) {
@@ -4880,16 +5015,17 @@ public class OpticalFlow {
 			}
 			if (show_mono) {
 				ImagePlus imp_scene_mono = QuadCLT.renderGPUFromDSI(
-						sensor_mask,                  // final int         sensor_mask,
+						sensor_mask,         // final int         sensor_mask,
+						false,               // final boolean     merge_channels,
 						null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 						clt_parameters,      // CLTParameters     clt_parameters,
-						disparity_fg,       // double []         disparity_ref,
+						disparity_fg,        // double []         disparity_ref,
 						scene_xyz,           // final double []   scene_xyz, // camera center in world coordinates
 						scene_atr,           // final double []   scene_atr, // camera orientation relative to world frame
 						quadCLTs[nscene],    // final QuadCLT     scene,
 						quadCLTs[ref_index], // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 						false,               // final boolean     toRGB,
-						"", // String            suffix, no suffix here
+						"",                  // String            suffix, no suffix here
 						threadsMax,          // int               threadsMax,
 						debugLevel);         // int         debugLevel)
 				if (stack_adjusted_mono == null) {
@@ -4964,17 +5100,39 @@ public class OpticalFlow {
     }
     
     
-    public ImagePlus renderSceneSequence(
+    public static ImagePlus renderSceneSequence(
     		CLTParameters clt_parameters,
     		Rectangle     fov_tiles,
     		int           mode3d,
     		boolean       toRGB,
     		int           sensor_mask,
-    		String        suffix,
+    		String        suffix_in,
     		double []     ref_disparity,			
     		QuadCLT []    quadCLTs,
     		int           debugLevel) {
-//    	int mode3d=-1;
+
+		// video
+		boolean gen_avi_color =      clt_parameters.imp.gen_avi_color;
+		boolean gen_avi_mono =       clt_parameters.imp.gen_avi_mono;
+		double  video_fps =          clt_parameters.imp.video_fps;
+		int     mode_avi =           clt_parameters.imp.mode_avi;
+	    boolean run_ffmpeg =         clt_parameters.imp.run_ffmpeg;
+		String  video_ext =          clt_parameters.imp.video_ext;
+		String  video_codec =        clt_parameters.imp.video_codec;
+		boolean remove_avi =         clt_parameters.imp.remove_avi;
+		boolean um_mono =            clt_parameters.imp.um_mono;
+		double  um_sigma =           clt_parameters.imp.um_sigma;
+		double  um_weight =          clt_parameters.imp.um_weight;
+    	final float fum_weight = (float)  um_weight; 
+    	
+    	boolean merge_all = clt_parameters.imp.merge_all;
+    	if (mode3d < 1) {
+    		merge_all = false;
+    	}
+    	if (merge_all) {
+    		sensor_mask = 1;
+    	}
+    	String        suffix = suffix_in+((mode3d > 0)?(merge_all?"-MERGED":"-SINGLE"):"");
         int ref_index = quadCLTs.length -1;
     	int num_sens = quadCLTs[ref_index].getNumSensors();
 		ErsCorrection ers_reference = quadCLTs[ref_index].getErsCorrection();
@@ -5001,9 +5159,11 @@ public class OpticalFlow {
 						scene_ers_xyz_dt, // double []    ers_xyz_dt,
 						scene_ers_atr_dt); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
 			}
+			int sm = merge_all? -1: sensor_mask;
 			ImagePlus imp_scene = QuadCLT.renderGPUFromDSI(
-					sensor_mask,                  // final int         sensor_mask,
-					fov_tiles, // testr, // null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
+					sm,                  // final int         sensor_mask,
+					merge_all,           // final boolean     merge_channels,
+					fov_tiles,           // testr, // null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 					clt_parameters,      // CLTParameters     clt_parameters,
 					ref_disparity,       // double []         disparity_ref,
 					scene_xyz,           // final double []   scene_xyz, // camera center in world coordinates
@@ -5011,9 +5171,8 @@ public class OpticalFlow {
 					quadCLTs[nscene],    // final QuadCLT     scene,
 					quadCLTs[ref_index], // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 					toRGB,               // final boolean     toRGB,
-//					"GPU-SHIFTED-D"+clt_parameters.disparity, // String            suffix,
 					"", // String            suffix, no suffix here
-					threadsMax,          // int               threadsMax,
+					QuadCLT.THREADS_MAX,          // int               threadsMax,
 					debugLevel);         // int         debugLevel)
 			if (stack_scenes == null) {
 				stack_scenes = new ImageStack(imp_scene.getWidth(),imp_scene.getHeight());
@@ -5023,9 +5182,35 @@ public class OpticalFlow {
 						ts+"-"+channels[i],
 						imp_scene.getStack().getPixels(i+1));
 			}
-			
 		}
-//		ImagePlus imp_scenes = new ImagePlus(image_name+sAux()+suffix, stack_scenes);
+		// Apply unsharp mask here, in parallel
+		if (um_mono && !toRGB) {
+			final ImageStack fstack_scenes = stack_scenes;
+			final int nSlices = fstack_scenes.getSize();
+			final Thread[] threads = ImageDtt.newThreadArray(QuadCLT.THREADS_MAX);
+			final AtomicInteger ai = new AtomicInteger(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int nSlice = ai.getAndIncrement(); nSlice < nSlices; nSlice = ai.getAndIncrement()) {
+							FloatProcessor fp = (FloatProcessor) fstack_scenes.getProcessor(nSlice+1);
+							float [] fpixels = (float[]) fstack_scenes.getPixels(nSlice+1);
+							float [] fpixels_orig = fpixels.clone();
+							(new GaussianBlur()).blurFloat(
+									fp,       // FloatProcessor ip,
+									um_sigma, // double sigmaX,
+									um_sigma, // double sigmaY,
+									0.01);    // double accuracy)
+							for (int i = 0; i < fpixels.length; i++) {
+								fpixels[i] = fpixels_orig[i] - fum_weight * fpixels[i];
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}
+		
 		ImagePlus imp_scenes = new ImagePlus(suffix, stack_scenes);
 		imp_scenes.getProcessor().resetMinAndMax();
     	return imp_scenes;
@@ -10616,6 +10801,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			if (show_render_ref) {
 				ImagePlus imp_render_ref = ref_scene.renderFromTD (
 						-1,                  // final int         sensor_mask,
+						false,               // boolean             merge_channels,
 						clt_parameters,                                 // CLTParameters clt_parameters,
 						clt_parameters.getColorProcParameters(ref_scene.isAux()), //ColorProcParameters colorProcParameters,
 						clt_parameters.getRGBParameters(),              //EyesisCorrectionParameters.RGBParameters rgbParameters,
@@ -10646,6 +10832,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			if (show_render_scene) {
 				ImagePlus imp_render_scene = scene.renderFromTD (
 						-1,                  // final int         sensor_mask,
+						false,               // boolean             merge_channels,
 						clt_parameters,                                 // CLTParameters clt_parameters,
 						clt_parameters.getColorProcParameters(ref_scene.isAux()), //ColorProcParameters colorProcParameters,
 						clt_parameters.getRGBParameters(),              //EyesisCorrectionParameters.RGBParameters rgbParameters,
@@ -11352,6 +11539,11 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
         	String ts1 = quadCLTs[nscene1].getImageName();
     		double [] scene_xyz0 = ers_reference.getSceneXYZ(ts0);
     		double [] scene_atr0 = ers_reference.getSceneATR(ts0);
+    		if (scene_xyz0 == null) {
+    			System.out.println ("No egomotion data for timestamp "+ts0);
+    			System.out.println ("Need to re-run with Force egomotion calculation");
+    			break;
+    		}
     		double [] scene_xyz1 = (nscene1== ref_index)? ZERO3:ers_reference.getSceneXYZ(ts1);
     		double [] scene_atr1 = (nscene1== ref_index)? ZERO3:ers_reference.getSceneATR(ts1);
     		dxyzatr_dt[nscene] = new double[2][3];
@@ -11364,7 +11556,12 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			quadCLTs[nscene].getErsCorrection().setErsDt( // set for ref also (should be set before non-ref!)
 					dxyzatr_dt[nscene][0], // double []    ers_xyz_dt,
 					dxyzatr_dt[nscene][1]); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
+			int debug_scene = -15;
 			if (nscene != ref_index) {
+				if (nscene == debug_scene) {
+					System.out.println("nscene = "+nscene);
+					System.out.println("nscene = "+nscene);
+				}
 				scene_xyz_pre = ers_reference.getSceneXYZ(ts);
 				scene_atr_pre = ers_reference.getSceneATR(ts);
 				double []      lma_rms = new double[2];

@@ -27,9 +27,15 @@ package com.elphel.imagej.cameras;
 */
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Properties;
 
 import javax.swing.JFileChooser;
@@ -91,6 +97,9 @@ public class EyesisCorrectionParameters {
 //    	public String [] sourceSetPaths=       {}; // 2019 - directories with image sets
     	public boolean   use_set_dirs =        false; // each image set in a directory, use directory as a timestamp
     	public String sourceDirectory=         "";
+    	public String sourceSequencesList=     "";
+    	public boolean useSourceList=          false;
+    	
     	public String sourcePrefix=            "";
     	public String sourceSuffix=            ".tiff"; //".jp4"
     	// first subcamera index as in properties of the sensor configuration and kernels and CLT kernels
@@ -256,6 +265,10 @@ public class EyesisCorrectionParameters {
   			cp.zcorrect=  			    this.zcorrect;
   			cp.saveSettings=  		    this.saveSettings;
   			cp.sourceDirectory=    	    this.sourceDirectory;
+  			
+  			cp.sourceSequencesList=     this.sourceSequencesList;
+  			cp.useSourceList=    	    this.useSourceList;
+  			
   			cp.tile_processor_gpu =     this.tile_processor_gpu;
   			cp.use_set_dirs =           this.use_set_dirs;
 //  			cp.sourcePrefix=    	    this.sourcePrefix;
@@ -442,6 +455,10 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"saveSettings",this.saveSettings+"");
 
     		properties.setProperty(prefix+"sourceDirectory",this.sourceDirectory);
+    		
+    		properties.setProperty(prefix+"sourceSequencesList",this.sourceSequencesList);
+    		properties.setProperty(prefix+"useSourceList",this.useSourceList+"");
+    		
     		properties.setProperty(prefix+"tile_processor_gpu",this.tile_processor_gpu);
 
     		properties.setProperty(prefix+"use_set_dirs",   this.use_set_dirs+"");
@@ -627,6 +644,8 @@ public class EyesisCorrectionParameters {
   		    if (properties.getProperty(prefix+"zcorrect")!=null) this.zcorrect=Boolean.parseBoolean(properties.getProperty(prefix+"zcorrect"));
   		    if (properties.getProperty(prefix+"saveSettings")!=null) this.saveSettings=Boolean.parseBoolean(properties.getProperty(prefix+"saveSettings"));
 			if (properties.getProperty(prefix+"sourceDirectory")!=      null) this.sourceDirectory=properties.getProperty(prefix+"sourceDirectory");
+			if (properties.getProperty(prefix+"sourceSequencesList")!=      null) this.sourceSequencesList=properties.getProperty(prefix+"sourceSequencesList");			
+  		    if (properties.getProperty(prefix+"useSourceList")!=null) this.useSourceList=Boolean.parseBoolean(properties.getProperty(prefix+"useSourceList")); // save 32-bit tiff also if the end result is 8 or 16 bit
 			if (properties.getProperty(prefix+"tile_processor_gpu")!=      null) this.tile_processor_gpu=properties.getProperty(prefix+"tile_processor_gpu");
   		    if (properties.getProperty(prefix+"firstSubCamera")!=       null) this.firstSubCamera=Integer.parseInt(properties.getProperty(prefix+"firstSubCamera"));
   		    if (properties.getProperty(prefix+"firstSubCameraConfig")!= null) this.firstSubCameraConfig=Integer.parseInt(properties.getProperty(prefix+"firstSubCameraConfig"));
@@ -830,6 +849,10 @@ public class EyesisCorrectionParameters {
     		gd.addStringField ("Source files directory",                           this.sourceDirectory, 60);
     		gd.addCheckbox    ("Select source directory",                          false);
     		gd.addCheckbox    ("Use individual subdirectory for image set",        this.use_set_dirs);
+    		
+    		gd.addStringField ("Source sequences list file",                       this.sourceSequencesList, 60);
+    		gd.addCheckbox    ("Select source sequences file",                     false);
+    		gd.addCheckbox    ("Use source list to iterate multiple sequences",    this.useSourceList);
 
     		gd.addStringField ("Sensor calibration directory",                     this.sensorDirectory, 60);
     		gd.addCheckbox    ("Select sensor calibration directory",              false);
@@ -959,6 +982,11 @@ public class EyesisCorrectionParameters {
 
     		this.sourceDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSourceDirectory(false, false);
     		this.use_set_dirs =          gd.getNextBoolean();
+    		
+    		this.sourceSequencesList=     gd.getNextString(); if (gd.getNextBoolean()) selectSourceSequencesList(false, false);
+    		this.useSourceList =          gd.getNextBoolean();
+    		
+    		
     		this.sensorDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSensorDirectory(false, false);
     		this.sharpKernelDirectory=   gd.getNextString(); if (gd.getNextBoolean()) selectSharpKernelDirectory(false, false);
     		this.smoothKernelDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectSmoothKernelDirectory(false, true);
@@ -1031,6 +1059,10 @@ public class EyesisCorrectionParameters {
     		gd.addCheckbox    ("Select source directory",                          false);                       // 3
     		gd.addCheckbox    ("Use individual subdirectory for each image set (timestamp as name)", this.use_set_dirs); //10
 
+    		gd.addStringField ("Source sequences list file",                       this.sourceSequencesList, 60); // 10x
+    		gd.addCheckbox    ("Select source sequences file",                     false);                        // 10y
+    		gd.addCheckbox    ("Use source list to iterate multiple sequences",    this.useSourceList);           // 10z
+    		
     		gd.addStringField ("x3d model version",                                this.x3dModelVersion, 60);    // 10a
     		gd.addStringField ("jp4 source copy subdirectory",                     this.jp4SubDir, 60);          // 10b
     		gd.addStringField ("x3d output directory",                             this.x3dDirectory, 60);       // 8
@@ -1192,6 +1224,10 @@ public class EyesisCorrectionParameters {
 
     		this.sourceDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSourceDirectory(false, false);   // 3
     		this.use_set_dirs =          gd.getNextBoolean();
+    		
+    		this.sourceSequencesList=    gd.getNextString(); if (gd.getNextBoolean()) selectSourceSequencesList(false, false); // 10x,10y
+    		this.useSourceList =         gd.getNextBoolean();                                                                  // 10z
+    		
     		this.x3dModelVersion=        gd.getNextString(); //  10a
     		this.jp4SubDir=              gd.getNextString(); //  10b
     		this.x3dDirectory=           gd.getNextString(); if (gd.getNextBoolean()) selectX3dDirectory(false, true);       // 9
@@ -1412,6 +1448,7 @@ public class EyesisCorrectionParameters {
     		}
     		return (new File(filePath)).getParentFile().getPath();
     	}
+    	
     	public String [] getSetList(String [] filePaths) {
     		if ((filePaths == null) || (filePaths.length == 0)) {
     			return new String[0];
@@ -1451,10 +1488,54 @@ public class EyesisCorrectionParameters {
     		prefixes[0] = sourcePrefix;
     		return prefixes;
     	}
-
+    	public class PathFirstLast{
+    		public String path;
+    		public int first = 0;
+    		public int last = -1;
+    		PathFirstLast (String path, int first, int last){
+    			this.path = path;
+    			this.first = first;
+    			this.last =  last;
+    		}
+    	}
+    	public PathFirstLast [] getSourceSets(
+    			String seq_str) {    // full path to the sequence directory
+    		List<String> lines;
+    		Path seq_path = Paths.get(seq_str);
+    		try {
+    			lines = Files.readAllLines(seq_path, StandardCharsets.UTF_8);
+    			//                lines.stream().forEach(System.out::println);
+    		} catch (IOException e) {
+    			e.printStackTrace();
+    			return null;
+    		}
+    		Path basedir = seq_path.getParent();
+    		ArrayList<PathFirstLast> path_list= new ArrayList<PathFirstLast>();
+            for (String line:lines){
+                String[] tokens = line.split("#")[0].trim().split("[\\s,;]+");
+                if ((tokens.length > 0) && (tokens[0].length() > 0)) {
+                	Path dir_path = basedir.resolve(Paths.get(tokens[0]));
+                	path_list.add(new PathFirstLast(
+                			dir_path.toString(),
+                			((tokens.length > 1)? Integer.parseInt(tokens[1]):0),
+                			((tokens.length > 2)? Integer.parseInt(tokens[2]):-1)));
+                }
+            }
+            return path_list.toArray(new PathFirstLast[0]);
+    	}
+//Path newPath = path.resolve(childPath);
+    	/*
+    	public static File [] getSeqScenes(String seq_path) {
+    		File seq_file = new File(seq_path);
+    		File [] scene_files =seq_file.listFiles();
+    		return scene_files; // may contain non-directories, will be filtered by filterScenes
+    	}
+    	*/
+    	
     	public boolean selectSourceSets(int debugLevel) {
-    		String [] defaultPaths = getSetList(this.sourcePaths); // returns non-null
-    		File [] defaultFiles = new File[defaultPaths.length];
+//    		PathFirstLast [] pfl=getSourceSets(this.sourceSequencesList);
+    		String [] defaultPaths = getSetList(this.sourcePaths); // returns non-null 99 scenes list
+    		File [] defaultFiles = new File[defaultPaths.length]; // 99 directories
     		for (int i = 0; i < defaultPaths.length; i++) {
     			defaultFiles[i] = new File(defaultPaths[i]);
     		}
@@ -1467,11 +1548,6 @@ public class EyesisCorrectionParameters {
     		extensions[0] = sourceSuffix;
     		prefixes[0] =   sourcePrefix;
 			MultipleExtensionsFileFilter setFilter = new MultipleExtensionsFileFilter(prefixes,extensions,"Image sets");
-			MultipleExtensionsFileFilter setFilterMain = new MultipleExtensionsFileFilter(
-					new String[] {prefixes[0]},new String[] {extensions[0]},"Image sets main");
-			MultipleExtensionsFileFilter setFilterAux = new MultipleExtensionsFileFilter(
-					new String[] {prefixes[1]},new String[] {extensions[1]},"Image sets main");
-
 	    	DirectoryChoser dc = new DirectoryChoser(
 	    			setFilter,
 	    			num_chn_files,
@@ -1482,38 +1558,65 @@ public class EyesisCorrectionParameters {
 	    	dc.setDialogTitle("Select Image sets (directories with simultaneous image files)");
 	    	dc.setApproveButtonText("Select");
 	    	File cur_dir = new File(this.sourceDirectory);
-//	    	if (cur_dir != null) {
-//	    		cur_dir = cur_dir.getParentFile();
-//	    	}
 	    	dc.setCurrentDirectory(cur_dir);
 	    	dc.setSelectedFiles(defaultFiles);
-
-
 	    	int returnVal = dc.showOpenDialog(IJ.getInstance());
 	    	if (returnVal!=JFileChooser.APPROVE_OPTION)	return false;
 	    	File [] files = dc.getSelectedFiles();
 	    	if (files.length<1) return false;
 	    	// Can not make it work correctly with multiple selection, giving up for now
-
+	    	filterScenes(
+	    			files, // File [] scene_dirs
+	    			0,     // int scene_first, // first scene to process
+	    		   -1);   // int scene_last)  // last scene to process (negative - add length
+    		return true;
+    	}
+    	public void filterScenes(
+    			File [] scene_dirs,
+    			int scene_first, // first scene to process
+    			int scene_last) {  // last scene to process (negative - add length
+    		int num_chn_main = numSubCameras;
+    		int num_chn_aux =  ((aux_camera != null)?aux_camera.numSubCameras : 0);
+    		int num_chn_files = num_chn_main + num_chn_aux;
+    		String [] extensions = getSourceSuffixes();//    		={this.sourceSuffix};
+    		String [] prefixes = getSourcePrefixes();
+    		extensions[0] =      sourceSuffix;
+    		prefixes[0] =        sourcePrefix;
+			MultipleExtensionsFileFilter setFilter = new MultipleExtensionsFileFilter(prefixes,extensions,"Image sets");
+			MultipleExtensionsFileFilter setFilterMain = new MultipleExtensionsFileFilter(
+					new String[] {prefixes[0]},new String[] {extensions[0]},"Image sets main");
+			MultipleExtensionsFileFilter setFilterAux = null;
+			if (prefixes.length > 1) {
+				setFilterAux = new MultipleExtensionsFileFilter(
+					new String[] {prefixes[1]},new String[] {extensions[1]},"Image sets main");
+			}
+			
+	    	// detect all scene dirs that have at least one relevant file, sort them and remove first/last before more filtering 
 	    	ArrayList<File>  setDirList =   new ArrayList<File>(); // list of set directories
+	    	for (int nFile=0;nFile<scene_dirs.length;nFile++) {
+	    		if (scene_dirs[nFile].isDirectory() && (scene_dirs[nFile].listFiles(setFilterMain).length + scene_dirs[nFile].listFiles(setFilterAux).length) > 0) {
+	    			setDirList.add(scene_dirs[nFile]);
+	    		}
+	    	}
+	    	Collections.sort(setDirList);
+	    	if (scene_last < 0) {
+	    		scene_last += setDirList.size();
+	    	}
+	    	scene_dirs = setDirList.subList(scene_first, scene_last+1).toArray(new File[0]);
+	    	setDirList =   new ArrayList<File>(); // list of set directories
 	    	ArrayList<File>  setFilesList = new ArrayList<File>(); // list of set files
-	    	for (int nFile=0;nFile<files.length;nFile++) {
-//	    		String [] setChnFiles = files[nFile].list(setFilter);
-	    		File [] setChnFiles =     files[nFile].listFiles(setFilter);
-	    		File [] setMainChnFiles = files[nFile].listFiles(setFilterMain);
-	    		File [] setAuxChnFiles =  files[nFile].listFiles(setFilterAux);
+	    	for (int nFile=0;nFile<scene_dirs.length;nFile++) {
+	    		File [] setChnFiles =     scene_dirs[nFile].listFiles(setFilter);
+	    		File [] setMainChnFiles = scene_dirs[nFile].listFiles(setFilterMain);
+	    		File [] setAuxChnFiles =  (setFilterAux== null) ? (new File [0]) : scene_dirs[nFile].listFiles(setFilterAux);
 	    		int num_match = setChnFiles.length;
 	    		if (num_match == num_chn_files) {
-//	    			|| // all files for main and aux
-//	    				(setMainChnFiles.length == num_chn_main) || // has all needed main camera files
-//	    				(setAuxChnFiles.length == num_chn_aux))   //   has all needed camera files
-//	    				{ // only use sets of exact number of files
-	    			setDirList.add(files[nFile]);
+	    			setDirList.add(scene_dirs[nFile]);
 	    			for (File f: setChnFiles) {
 	    				setFilesList.add(f);
 	    			}
 	    		} else if ((setMainChnFiles.length == num_chn_main) || (setAuxChnFiles.length == num_chn_aux))  {
-	    			setDirList.add(files[nFile]);
+	    			setDirList.add(scene_dirs[nFile]);
 	    			if (setMainChnFiles.length == num_chn_main) {
 		    			for (File f: setMainChnFiles) setFilesList.add(f);
 	    			}
@@ -1526,16 +1629,14 @@ public class EyesisCorrectionParameters {
 	    	for (int nFile = 0; nFile < sourceSetPaths.length; nFile++) {
 	    		sourceSetPaths[nFile]= setDirList.get(nFile).getPath();
 	    	}
-
 	    	this.sourcePaths = new String[setFilesList.size()];
 	    	for (int nFile = 0; nFile < sourcePaths.length; nFile++) {
 	    		sourcePaths[nFile]= setFilesList.get(nFile).getPath();
 	    	}
-
 	    	if (setDirList.size() >1) {
 	    		this.sourceDirectory = setDirList.get(0).getParentFile().getPath();
 	    	}
-    		return true;
+	    	return;
     	}
 
 // get list of source files in a directory
@@ -1567,8 +1668,6 @@ public class EyesisCorrectionParameters {
 	    	}
     		return sourcePaths;
     	}
-    	
-    	
     	
 
     	public boolean selectSourceFiles(boolean allFiles) {
@@ -1997,6 +2096,20 @@ public class EyesisCorrectionParameters {
     		if (dir!=null) this.sourceDirectory=dir;
     		return dir;
     	}
+    	
+    	public String selectSourceSequencesList(boolean smart, boolean newAllowed) { // normally newAllowed=false
+    		String path= CalibrationFileManagement.selectFile(
+    				smart,
+    				newAllowed, // save
+    				"Text file with a list of scene sequences to process", // title
+    				"Select file list", // button
+    				null, // filter
+    				this.sourceSequencesList);
+    		if (path!=null) this.sourceSequencesList=path;
+    		return path;
+    	}
+    	
+    	
     	public String selectGPUSourceDirectory(boolean smart, boolean newAllowed) { // normally newAllowed=false
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,

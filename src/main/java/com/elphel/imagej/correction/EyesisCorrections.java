@@ -178,7 +178,7 @@ public class EyesisCorrections {
 			for (int nChn=0;nChn< this.usedChannels.length; nChn++) if (this.usedChannels[nChn]) sChannels+=" "+nChn;
 			System.out.println ("Number of used channels: "+numUsedChannels+" ("+sChannels+" )");
 		}
-		createChannelVignetting(correct_vignetting);
+		createChannelVignetting(correct_vignetting); // *** THIS READS ALL SOURCE FILES ***
 		if ((this.debugLevel>101) && (correctionsParameters.sourcePaths!=null) && (correctionsParameters.sourcePaths.length>0)) {
 			testFF(correctionsParameters.sourcePaths[0]);
 		}

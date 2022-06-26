@@ -142,10 +142,21 @@ public class ImageDtt extends ImageDttCPU {
 
 		final boolean macro_mode = macro_scale != 1;      // correlate tile data instead of the pixel data
 		final int numcol = isMonochrome()?1:3;
+		// FIXME maybe something else is needed.
+		// When switching from larger images to smaller ones requested texture was smaller than
+		// still increased GPU window size
+		if (texture_tiles != null) { // maybe something else is needed
+			// GPUTileProcessor.DTT_SIZE
+			if ((texture_tiles.length != gpuQuad.getTilesY()) ||
+					(texture_tiles[0].length != gpuQuad.getTilesX())) {
+				gpuQuad.deallocate4Images();
+			}
+		}
+		
 
 		final int width =  gpuQuad.getImageWidth();
 		final int height = gpuQuad.getImageHeight();
-		final int tilesX=gpuQuad.getTilesX(); // width/transform_size;
+		final int tilesX=gpuQuad.getTilesX(); // width/transform_size; // still old - before
 		final int tilesY=gpuQuad.getTilesY(); // final int tilesY=height/transform_size;
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
@@ -270,7 +281,7 @@ public class ImageDtt extends ImageDttCPU {
 		final boolean use_main = geometryCorrection_main != null;
 		boolean [] used_corrs = new boolean[1];
 	    final int all_pairs = imgdtt_params.dbg_pair_mask; //TODO: use tile tasks
-		final TpTask[] tp_tasks =  gpuQuad.setTpTask(
+		final TpTask[] tp_tasks =  gpuQuad.setTpTask( // tile-op is 80x64
 				disparity_array, // final double [][]  disparity_array,  // [tilesY][tilesX] - individual per-tile expected disparity
 				disparity_corr,  // final double       disparity_corr,
 				used_corrs,      // final boolean []   need_corrs,       // should be initialized to boolean[1] or null

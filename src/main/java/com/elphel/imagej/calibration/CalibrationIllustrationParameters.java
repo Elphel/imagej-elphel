@@ -94,7 +94,7 @@ public class CalibrationIllustrationParameters {
 	private double                 min_ts =                       0.0;                   
 	private double                 max_ts =              2000000000.0;
 
-	int                    auto_range_wnd_type =          3; // 0 - piramid, 1 half-sin, 2-piramid squared, 3 - sin^2
+	int                    auto_range_wnd_type =          3; // 0 - pyramid, 1 half-sin, 2-pyramid squared, 3 - sin^2
 	boolean                calib_offs_gain =              true; // perform offset/gain calibration
 	double                 calib_offs_gain_ts =           0.0;  // timestamp to start gain calibration
 	double                 calib_offs_gain_dur = 2000000000.0;  // duration for gain calibration 

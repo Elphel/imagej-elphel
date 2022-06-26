@@ -2039,6 +2039,7 @@ public class QuadCLT extends QuadCLTCPU {
 	
 	public static ImagePlus renderGPUFromDSI(
 			final int         sensor_mask,
+			final boolean     merge_channels,
 			final Rectangle   full_woi_in,      // show larger than sensor WOI in tiles (or null)
 			CLTParameters     clt_parameters,
 			double []         disparity_ref,
@@ -2105,6 +2106,7 @@ public class QuadCLT extends QuadCLTCPU {
 	            debugLevel);                // final int                 globalDebugLevel);
         ImagePlus imp_render = scene.renderFromTD (
         		sensor_mask,                  // final int         sensor_mask,
+        		merge_channels,               // boolean             merge_channels,
                 clt_parameters,                                 // CLTParameters clt_parameters,
                 clt_parameters.getColorProcParameters(scene.isAux()), //ColorProcParameters colorProcParameters,
                 clt_parameters.getRGBParameters(),              //EyesisCorrectionParameters.RGBParameters rgbParameters,\
@@ -2117,14 +2119,15 @@ public class QuadCLT extends QuadCLTCPU {
 	
 	
 	public ImagePlus renderFromTD (
-			int         sensor_mask,
-			CLTParameters clt_parameters,
+			int                 sensor_mask,
+			boolean             merge_channels,
+			CLTParameters       clt_parameters,
 			ColorProcParameters colorProcParameters,
 			EyesisCorrectionParameters.RGBParameters rgbParameters,
-			int []  wh,
-			boolean toRGB,
-			boolean use_reference,
-			String  suffix
+			int []              wh,
+			boolean             toRGB,
+			boolean             use_reference,
+			String              suffix
 			) {
 		suffix+=(toRGB?"-COLOR":"-MONO");
         gpuQuad.execImcltRbgAll(
@@ -2132,10 +2135,43 @@ public class QuadCLT extends QuadCLTCPU {
         		use_reference,
 				wh); //int [] wh
 		// get data back from GPU
-		float [][][] iclt_fimg = new float [getNumSensors()][][];
+		final float [][][] iclt_fimg = new float [getNumSensors()][][];
+		int nchn = 0;
+		int ncol = 0;
+		int nTiles = 0;
 		for (int ncam = 0; ncam < iclt_fimg.length; ncam++) if (((1 << ncam) & sensor_mask) != 0){
 			iclt_fimg[ncam] = gpuQuad.getRBG(ncam); // updated window
+			ncol = iclt_fimg[ncam].length;
+			nTiles = iclt_fimg[ncam][0].length;
+			nchn++;
 		}
+		if (merge_channels) {
+			final double scale = 1.0 / nchn;
+			final float [][] iclt_fimg_combo = new float [ncol][nTiles];
+			final Thread[] threads = ImageDtt.newThreadArray(THREADS_MAX);
+			final AtomicInteger ai = new AtomicInteger(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int nTile = ai.getAndIncrement(); nTile < iclt_fimg_combo[0].length; nTile = ai.getAndIncrement()) {
+							for (int ncol = 0; ncol < iclt_fimg_combo.length; ncol++) {
+								double d = 0;
+								for (int i = 0; i < iclt_fimg.length; i++) if (iclt_fimg[i] != null) {
+									d+=iclt_fimg[i][ncol][nTile];
+								}
+								iclt_fimg_combo[ncol][nTile] = (float) (d * scale);
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			iclt_fimg[0] = iclt_fimg_combo;
+			for (int i = 1; i < iclt_fimg.length; i++) {
+				iclt_fimg[i] = null;
+			}
+		}
+		
 		// 2022/06/15 - handles variable window size
 		int out_width =  gpuQuad.getImageWidth();//   + gpuQuad.getDttSize(); // 2022/05/12 removed margins from gpuQuad.getRBG(ncam);
 		int out_height = gpuQuad.getImageHeight(); // + gpuQuad.getDttSize(); // 2022/05/12 removed margins from gpuQuad.getRBG(ncam);
@@ -5380,8 +5416,8 @@ public class QuadCLT extends QuadCLTCPU {
 			  final int           debugLevel)
 	  {
 			  
-		  final int tilesX = tp.getTilesX();
-		  final int tilesY = tp.getTilesY();
+		  final int tilesX = tp.getTilesX(); // may be different from last GPU run !
+		  final int tilesY = tp.getTilesY(); // may be different from last GPU run !
 		  /*
 		  int d = ImageDtt.setImgMask(0, 0xf);
 		  d =     ImageDtt.setForcedDisparity(d,true);

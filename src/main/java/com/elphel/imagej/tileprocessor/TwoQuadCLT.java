@@ -8574,28 +8574,57 @@ if (debugLevel > -100) return true; // temporarily !
 			final boolean    updateStatus,
 			final int        debugLevel)  throws Exception
     {
+    	long start_time_all = System.nanoTime();
 		OpticalFlow opticalFlow = new OpticalFlow(
 				quadCLT_main.getNumSensors(),
 				clt_parameters.ofp.scale_no_lma_disparity, // double         scale_no_lma_disparity,
 				threadsMax,                                // int            threadsMax,  // maximal number of threads to launch
 				updateStatus);                             // boolean        updateStatus);
-		opticalFlow.buildSeries(
-				quadCLT_main,              // QuadCLT                                              quadCLT_main, // tiles should be set
-				ref_index,                 // int                                                  ref_index, // -1 - last
-				ref_step,                  // int                                                  ref_step, 
-				clt_parameters,            // CLTParameters             clt_parameters,
-				debayerParameters,         // EyesisCorrectionParameters.DebayerParameters         debayerParameters,
-				colorProcParameters,       // ColorProcParameters                                  colorProcParameters,
-				channelGainParameters,     // CorrectionColorProc.ColorGainsParameters             channelGainParameters,
-				rgbParameters,             // EyesisCorrectionParameters.RGBParameters             rgbParameters,
-				equirectangularParameters, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-				properties,                // Properties                                           properties,
-				reset_from_extrinsics, // boolean                                              reset_from_extrinsics,
-				threadsMax,  // final int        threadsMax,  // maximal number of threads to launch
-				updateStatus, // final boolean    updateStatus,
-				debugLevel+2); // final int        debugLevel)
+		
+		EyesisCorrectionParameters.CorrectionParameters.PathFirstLast[] pathFirstLast = null;
+		int num_seq = 1;
+		if (quadCLT_main.correctionsParameters.useSourceList) {
+			pathFirstLast = quadCLT_main.correctionsParameters.getSourceSets(
+					quadCLT_main.correctionsParameters.sourceSequencesList);
+			if (pathFirstLast != null) {
+				num_seq = pathFirstLast.length; 
+			}
+		}
+		for (int nseq = 0; nseq < num_seq; nseq++) {
+	    	long start_time_seq = System.nanoTime();
+	    	System.out.println("\n\n\nPROCESSING SCENE SEQUENCE "+nseq+" (last is "+(num_seq-1)+")\n\n");
+			if (pathFirstLast != null) {
+				File [] scene_dirs = (new File(pathFirstLast[nseq].path)).listFiles(); // may contain non-directories, will be filtered by filterScenes
+				quadCLT_main.correctionsParameters.filterScenes(
+						scene_dirs, // File [] scene_dirs,
+						pathFirstLast[nseq].first, // int scene_first, // first scene to process
+						pathFirstLast[nseq].last); // int scene_last);  // last scene to process (negative - add length
+			}
+			
+			opticalFlow.buildSeries(
+		    		(pathFirstLast != null),   //boolean                                              batch_mode,
+					quadCLT_main,              // QuadCLT                                              quadCLT_main, // tiles should be set
+					ref_index,                 // int                                                  ref_index, // -1 - last
+					ref_step,                  // int                                                  ref_step, 
+					clt_parameters,            // CLTParameters             clt_parameters,
+					debayerParameters,         // EyesisCorrectionParameters.DebayerParameters         debayerParameters,
+					colorProcParameters,       // ColorProcParameters                                  colorProcParameters,
+					channelGainParameters,     // CorrectionColorProc.ColorGainsParameters             channelGainParameters,
+					rgbParameters,             // EyesisCorrectionParameters.RGBParameters             rgbParameters,
+					equirectangularParameters, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+					properties,                // Properties                                           properties,
+					reset_from_extrinsics, // boolean                                              reset_from_extrinsics,
+					threadsMax,  // final int        threadsMax,  // maximal number of threads to launch
+					updateStatus, // final boolean    updateStatus,
+					debugLevel+2); // final int        debugLevel)
+	    	System.out.println("\n\n\nPROCESSING SCENE SEQUENCE "+nseq+" (last is "+(num_seq-1)+") is FINISHED in "+
+	    			IJ.d2s(0.000000001*(System.nanoTime()-start_time_seq),3)+" sec ("+
+	    			IJ.d2s(0.000000001*(System.nanoTime()-start_time_all),3)+" sec from the overall start");
+		}
+    	System.out.println("\n\n\nPROCESSING OF "+num_seq+" SCENE SEQUENCES is FINISHED in "+
+    			IJ.d2s(0.000000001*(System.nanoTime()-start_time_all),3)+" sec.");
+
     }
-	
 	
 	
 	

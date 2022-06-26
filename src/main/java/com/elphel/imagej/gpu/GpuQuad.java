@@ -1114,8 +1114,16 @@ public class GpuQuad{ // quad camera description
 			final int                      corr_mask,        // <0 - use corr mask from the tile tile_op, >=0 - overwrite all with non-zero corr_mask_tp
 			final int                      threadsMax)       // maximal number of threads to launch
 	{
-		final int tilesX = getTilesX();
-		final int tilesY = getTilesY();
+		final int tilesX = tile_op[0].length; //getTilesX();
+		final int tilesY = tile_op.length; // getTilesY();
+		if (tilesY > tile_op.length) {
+			System.out.println("BUG!!!! tilesX="+tilesX+", tilesY="+tilesY+", tile_op.length="+
+					tile_op.length+", tile_op[0].length="+tile_op[0].length);
+			System.out.println();
+			System.out.println();
+			System.out.println();
+			System.out.println();
+		}
 		final AtomicInteger ai =            new AtomicInteger(0);
 		final AtomicBoolean acorrs =        new AtomicBoolean(false);
 		final List<TpTask> task_list = new CopyOnWriteArrayList<TpTask>();
@@ -1630,6 +1638,27 @@ public class GpuQuad{ // quad camera description
 				null   ); //int [] wh
 	}
 	
+	public void deallocate4Images(int []  wh) {
+		if (gpu_4_images_wh != null) {
+			if (wh == null) {
+				wh = new int[] {img_width, img_height};
+			}
+			if ((gpu_4_images_wh[0] != wh[0]) || (gpu_4_images_wh[1] != wh[1])) {
+				deallocate4Images();
+			}
+		}
+	}
+	public void deallocate4Images() {
+		if (gpu_4_images_wh != null) {
+		    for (int ncam = 0; ncam < num_cams; ncam++) {
+		        cuMemFree (gpu_corr_images_h[ncam]);
+		    }
+		    cuMemFree (gpu_4_images);
+		    gpu_4_images = null;
+		    gpu_4_images_wh = null;
+		}
+	}
+	
 	public void execImcltRbgAll( // Now allocates/re-allocates GPU memory
 			boolean is_mono,
 			boolean ref_scene,
@@ -1648,6 +1677,8 @@ public class GpuQuad{ // quad camera description
 		int tilesX =  wh[0] / GPUTileProcessor.DTT_SIZE;
 		int tilesY =  wh[1] / GPUTileProcessor.DTT_SIZE;
 		// Free if allocated but size mismatch
+		deallocate4Images(wh);
+		/*
 		if ((gpu_4_images_wh != null) && ((gpu_4_images_wh[0] != wh[0]) || (gpu_4_images_wh[1] != wh[1]))) {
 		    for (int ncam = 0; ncam < num_cams; ncam++) {
 		        cuMemFree (gpu_corr_images_h[ncam]);
@@ -1655,7 +1686,7 @@ public class GpuQuad{ // quad camera description
 		    cuMemFree (gpu_4_images);
 		    gpu_4_images = null;
 		    gpu_4_images_wh = null;
-		}
+		}*/
 		// Allocate if was not allocated or was freed
 		if (gpu_4_images == null) { // Allocate memory, create pointers
 			long [] device_stride = new long [1];
@@ -3474,6 +3505,14 @@ public class GpuQuad{ // quad camera description
 			int tileY = tile / full_width;
 			int wtileX = tileX - woi.x;
 			int wtileY = tileY - woi.y;
+			if ((tileY >= texture_tiles.length) || (tileX >= texture_tiles[0].length)) {
+				System.out.println("BUG!!!! tileX="+tileX+", tileY="+tileY+", tile_op.length="+
+						texture_tiles.length+", tile_op[0].length="+texture_tiles[0].length);
+				System.out.println();
+				System.out.println();
+				System.out.println();
+				System.out.println();
+			}
 			texture_tiles[tileY][tileX] = new double [num_slices][texture_slice_size];
 			if ((wtileX >=0 ) && (wtileX < woi.width) && (wtileY >= 0) && (wtileY < woi.height)) {
 				for (int slice = 0; slice < num_slices; slice++) {

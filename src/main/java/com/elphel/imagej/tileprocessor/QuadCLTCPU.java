@@ -81,6 +81,7 @@ import ij.Prefs;
 import ij.WindowManager;
 //import ij.gui.Overlay;
 import ij.io.FileSaver;
+import ij.plugin.filter.AVI_Writer;
 import ij.process.ColorProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
@@ -116,7 +117,7 @@ public class QuadCLTCPU {
 	public static final int       DSRBG_MONO =          3;
 	
 	public static final boolean   USE_PRE_2021 = false; // temporary
-	
+	public static final int       THREADS_MAX =       100;
 
 //	public GPUTileProcessor.GpuQuad gpuQuad =      null;
 
@@ -760,6 +761,9 @@ public class QuadCLTCPU {
 			int                  debugLevel)
 
 	{
+		if (getGPUQuad() != null) {
+			getGPUQuad().deallocate4Images();
+		}
 		final int        debugLevelInner=clt_parameters.batch_run? -2: debugLevel;
 		String jp4_copy_path= correctionsParameters.selectX3dDirectory(
 				this.image_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
@@ -1174,7 +1178,7 @@ public class QuadCLTCPU {
 		return imp;
 	}
 	
-	public void saveImagePlusInModelDirectory(
+	public String saveImagePlusInModelDirectory(
 			String      suffix, // null - use title from the imp
 			ImagePlus   imp)
 	{
@@ -1187,7 +1191,36 @@ public class QuadCLTCPU {
 		FileSaver fs=new FileSaver(imp);
 		fs.saveAsTiff(file_path);
 		System.out.println("saveDoubleArrayInModelDirectory(): saved "+file_path);
+		return file_path;
 	}
+	
+	public String saveAVIInModelDirectory(
+			String      suffix, // null - use title from the imp
+			int         mode_avi,
+			int         avi_JPEG_quality,
+			double      fps,
+			ImagePlus   imp) throws IOException
+	{
+		String [] remove_ext = {".tiff", ".tif", ".avi"};
+		String x3d_path = getX3dDirectory();
+		String file_name = (suffix==null) ? imp.getTitle():(image_name + suffix);
+		String file_path = x3d_path + Prefs.getFileSeparator() + file_name; // + ".tiff";
+		for (String ext:remove_ext) {
+			if (file_path.endsWith(ext)) {
+				file_path = file_path.substring(0,file_path.length()-ext.length());
+			}
+		}
+		file_path += ".avi";
+		imp.getCalibration().fps = fps;
+		(new AVI_Writer()).writeImage (
+				imp, // ImagePlus imp,
+				file_path, // String path,
+				mode_avi, // int compression,
+				avi_JPEG_quality); //int jpegQuality)
+		System.out.println("saveAVIInModelDirectory(): saved "+file_path);
+		return file_path;
+	}
+
 	
 	
 	

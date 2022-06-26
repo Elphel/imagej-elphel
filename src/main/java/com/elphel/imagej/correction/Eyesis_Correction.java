@@ -5930,7 +5930,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 		if (DEBUG_LEVEL > -2) {
 			System.out.println("++++++++++++++ Running initSensorFiles for the auxiliary camera ++++++++++++++");
 		}
-		EYESIS_CORRECTIONS_AUX.initSensorFiles(DEBUG_LEVEL + 2, false, // true,
+		EYESIS_CORRECTIONS_AUX.initSensorFiles(DEBUG_LEVEL + 2, false, // true, // ***** here reads all files *****
 				true, // false,
 				COLOR_PROC_PARAMETERS_AUX.correct_vignetting); // boolean correct_vignetting
 

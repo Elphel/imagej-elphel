@@ -175,6 +175,15 @@ public class IntersceneLma {
 		par_mask = param_select;
 		macrotile_centers = centers;
 		num_samples = 2 * centers.length;
+		/*
+		for (int i = 0; i < vector_XYS.length; i++){
+			if (((vector_XYS[i] == null) && (centers[i]!=null)) ||
+				((vector_XYS[i] != null) && (centers[i]==null))) {
+				vector_XYS[i] = null;
+				centers[i]= null;
+			}
+		}
+		*/		
 		ErsCorrection ers_ref =   reference_QuadClt.getErsCorrection();
 		ErsCorrection ers_scene = scene_QuadClt.getErsCorrection();
 		final double []   scene_xyz = (scene_xyz0 != null) ? scene_xyz0 : ers_scene.camera_xyz;
@@ -198,13 +207,13 @@ public class IntersceneLma {
 		int num_pars = 0;
 		for (int i = 0; i < par_mask.length; i++) if (par_mask[i]) num_pars++;
 		par_indices = new int [num_pars];
-		num_pars = 0;
+		num_pars = 00;
 		for (int i = 0; i < par_mask.length; i++) if (par_mask[i]) par_indices[num_pars++] = i;
 		parameters_vector = new double [par_indices.length];
 		for (int i = 0; i < par_indices.length; i++) parameters_vector[i] = full_parameters_vector[par_indices[i]];
 //		parameters_initial = parameters_vector.clone();
 		
-		setSamplesWeights(vector_XYS);  // not regularization yet !
+		setSamplesWeights(vector_XYS);  // not regularized yet !
 
 		last_jt = new double [parameters_vector.length][];
 		if (debug_level > 1) {
@@ -218,7 +227,7 @@ public class IntersceneLma {
 				debug_level);      // final int         debug_level)
 		double [][] wjtj = getWJtJlambda( // USED in lwir all NAN
 				0.0,               // final double      lambda,
-				last_jt);               // final double [][] jt)
+				last_jt);               // final double [][] jt) all 0???
 		for (int i = 0; i < parameters_vector.length; i++) {
 			int indx = num_samples + i;
 			weights[indx] = param_regweights[par_indices[i]]/Math.sqrt(wjtj[i][i]);
@@ -533,7 +542,7 @@ public class IntersceneLma {
 	
 	
 	private void setSamplesWeights(
-			final double [][] vector_XYS) // not regularization yet
+			final double [][] vector_XYS) // not regularizedn yet
 	{
 		this.weights = new double [num_samples + parameters_vector.length];
 		
@@ -575,7 +584,9 @@ public class IntersceneLma {
 			ImageDtt.startAndJoin(threads);
 			sum_weights = asum_weight.sum();
 		}
-		
+		if (sum_weights <= 1E-8) {
+			System.out.println("!!!!!! setSamplesWeights(): sum_weights=="+sum_weights+" <= 1E-8");
+		}
 		ai.set(0);
 //		final double s = 0.5/asum_weight.sum();
 		final double s = 0.5/sum_weights;
@@ -593,7 +604,7 @@ public class IntersceneLma {
 		pure_weight = 1.0;
 	}
 
-	
+	/*
 	@Deprecated
 	private void normalizeWeights_old()
 	{
@@ -633,8 +644,8 @@ public class IntersceneLma {
 			};
 		}		      
 		ImageDtt.startAndJoin(threads);
-		
 	}
+	*/
 
 	private void normalizeWeights()
 	{
@@ -642,7 +653,7 @@ public class IntersceneLma {
 		final AtomicInteger ai = new AtomicInteger(0);
 		double full_weight, sum_weight_pure;
 		if (thread_invariant) {
-			sum_weight_pure = 0;
+			sum_weight_pure = 00;
 			for (int i = 0;  i < num_samples; i++) {
 				sum_weight_pure += weights[i];
 			}
@@ -754,7 +765,7 @@ public class IntersceneLma {
 			threads[ithread] = new Thread() {
 				public void run() {
 					for (int iMTile = ai.getAndIncrement(); iMTile < macrotile_centers.length; iMTile = ai.getAndIncrement()) {
-						if ((macrotile_centers[iMTile]!=null) &&(weights[iMTile] > 0.0)){
+						if ((macrotile_centers[iMTile]!=null) &&(weights[2*iMTile] > 0.0)){  // was: weights[iMTile]?
 							//infinity_disparity
 							boolean is_infinity = macrotile_centers[iMTile][2] < infinity_disparity;
 							double [][] deriv_params = ers_ref.getDPxSceneDParameters(
@@ -826,6 +837,9 @@ public class IntersceneLma {
 						if (j >= i) {
 							double d = 0.0;
 							for (int k = 0; k < nup_points; k++) {
+								if (jt[i][k] != 0) {
+									d+=0;
+								}
 								d += weights[k]*jt[i][k]*jt[j][k];
 							}
 							wjtjl[i][j] = d;
