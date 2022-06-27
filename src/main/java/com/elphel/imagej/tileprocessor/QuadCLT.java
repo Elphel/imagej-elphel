@@ -2043,6 +2043,8 @@ public class QuadCLT extends QuadCLTCPU {
 			final Rectangle   full_woi_in,      // show larger than sensor WOI in tiles (or null)
 			CLTParameters     clt_parameters,
 			double []         disparity_ref,
+			// not used, just as null/not null now. All offsets are already in scene_xyz, scene_atr (including ref)
+//    		double []         stereo_offset, // offset reference camera {x,y,z} or null
 			final double []   scene_xyz, // camera center in world coordinates
 			final double []   scene_atr, // camera orientation relative to world frame
 			final QuadCLT     scene,
@@ -2052,7 +2054,7 @@ public class QuadCLT extends QuadCLTCPU {
 			int               threadsMax,
 			final int         debugLevel){
 		boolean show_nan = toRGB? clt_parameters.imp.show_color_nan : clt_parameters.imp.show_mono_nan;
-		double [][] pXpYD =OpticalFlow.transformToScenePxPyD(
+		double [][] pXpYD =OpticalFlow.transformToScenePxPyD( // now should work with offset ref_scene
 				full_woi_in,   // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
 				disparity_ref, // final double []   disparity_ref, // invalid tiles - NaN in disparity
 				scene_xyz,     // final double []   scene_xyz, // camera center in world coordinates
@@ -2065,7 +2067,7 @@ public class QuadCLT extends QuadCLTCPU {
 			rendered_width = full_woi_in.width * GPUTileProcessor.DTT_SIZE;
 		}
 		//scene_QuadClt.getTileProcessor().getTileSize();
-	    TpTask[] tp_tasks_ref =  GpuQuad.setInterTasks( // inter?
+	    TpTask[] tp_tasks_ref =  GpuQuad.setInterTasks( // "true" reference, with stereo actual reference will be offset
 	    		scene.getNumSensors(),
 	    		rendered_width,               // should match output size, pXpYD.length
 	            !scene.hasGPU(),              // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY

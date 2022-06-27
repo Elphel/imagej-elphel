@@ -2227,6 +2227,9 @@ public class EyesisCorrectionParameters {
     				null, // filter
     				this.x3dDirectory); //this.sourceDirectory);
     		if (dir!=null) {
+        		while (dir.endsWith(Prefs.getFileSeparator())) {
+        			dir = dir.substring(0, dir.length()-1);
+        		}
     			this.x3dDirectory=dir;
     			if (this.use_x3d_subdirs && (name != null) && !name.equals("")) {
 //    				name = this.x3dDirectory + Prefs.getFileSeparator(); // +this.x3dSubdirPrefix + name + this.x3dSubdirSuffix;
@@ -2242,6 +2245,9 @@ public class EyesisCorrectionParameters {
     						null, // filter
     						name); //this.x3dDirectory + Prefs.getFileSeparator()+name); //this.sourceDirectory);
     			}
+    		}
+    		while (dir.endsWith(Prefs.getFileSeparator())) {
+    			dir = dir.substring(0, dir.length()-1);
     		}
     		return dir;
     	}

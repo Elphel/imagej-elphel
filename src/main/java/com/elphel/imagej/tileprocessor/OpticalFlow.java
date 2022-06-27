@@ -2780,6 +2780,9 @@ public class OpticalFlow {
 				}
 			}
 		}
+		final boolean ref_is_identity =
+				(scene_xyz[0]==0.0) && (scene_xyz[1]==0.0) && (scene_xyz[1]==0.0) &&
+				(scene_atr[0]==0.0) && (scene_atr[1]==0.0) && (scene_atr[1]==0.0);
 		final double []   disparity_ref = dref;
 //		final int tilesX_ref = ref_w;
 //		final int tilesY_ref = ref_h;
@@ -2806,7 +2809,7 @@ public class OpticalFlow {
 						if (disparity < 0) {
 							disparity = 1.0* disparity; // 0.0;
 						}
-						if (scene_QuadClt == reference_QuadClt) {
+						if ((scene_QuadClt == reference_QuadClt) && (ref_is_identity)) {
 							pXpYD[nTile] = new double [] {centerX, centerY, disparity};
 						} else {
 							pXpYD[nTile] = ersReferenceCorrection.getImageCoordinatesERS( // ersCorrection - reference
@@ -3982,6 +3985,12 @@ public class OpticalFlow {
 		double  range_max =              clt_parameters.imp.range_max ; //  5000.0;
 		
 		boolean generate_mapped =    clt_parameters.imp.generate_mapped;
+		boolean generate_stereo =    clt_parameters.imp.generate_stereo;
+		double  stereo_baseline =   clt_parameters.imp.stereo_baseline;
+		double  stereo_baseline_meters =    0.001 * stereo_baseline;
+		boolean stereo_merge =       clt_parameters.imp.stereo_merge;
+		int     stereo_gap =         clt_parameters.imp.stereo_gap;
+		
 		int     extra_hor_tile =     clt_parameters.imp.extra_hor_tile;
 		int     extra_vert_tile =    clt_parameters.imp.extra_vert_tile;
 		boolean crop_3d =            clt_parameters.imp.crop_3d;
@@ -4005,6 +4014,9 @@ public class OpticalFlow {
 		boolean um_mono =            clt_parameters.imp.um_mono;
 		double  um_sigma =           clt_parameters.imp.um_sigma;
 		double  um_weight =          clt_parameters.imp.um_weight;
+		boolean mono_fixed =         clt_parameters.imp.mono_fixed;
+		double  mono_range =         clt_parameters.imp.mono_range;
+		
 		
 		boolean annotate_color =     clt_parameters.imp.annotate_color;
 		boolean annotate_mono =      clt_parameters.imp.annotate_mono;
@@ -4438,111 +4450,185 @@ public class OpticalFlow {
 	        	if (!toRGB && um_mono) {
 	        		scenes_suffix+=String.format("-UM%.1f_%.2f",um_sigma,um_weight);
 	        	}
-	        	ImagePlus imp_scenes = renderSceneSequence(
-	        			clt_parameters,     // CLTParameters clt_parameters,
-	        			fov_tiles,          // Rectangle     fov_tiles,
-	        			mode3d,             // int           mode3d,
-	        			toRGB,              // boolean       toRGB,
-	        			sensor_mask,        // int           sensor_mask,
-	        			scenes_suffix,      // String        suffix,
-	        			selected_disparity, // double []     ref_disparity,			
-	        			quadCLTs,           // QuadCLT []    quadCLTs,
-	        			debugLevel);        // int           debugLevel);
-	        	if (toRGB ? save_mapped_color: save_mapped_mono) {	        	
-	        		quadCLTs[ref_index].saveImagePlusInModelDirectory(
-	        				null, // "GPU-SHIFTED-D"+clt_parameters.disparity, // String      suffix,
-	        				imp_scenes); // ImagePlus   imp)
-	        	}
-// Save as AVI	        	
-	        	if (toRGB ? gen_avi_color: gen_avi_mono) {
-	        		if (toRGB ? annotate_color: annotate_mono) {
-	        			// If it is mono, first convert to color
-	        			ImageConverter imageConverter = new ImageConverter(imp_scenes);
-	        			imageConverter.convertToRGB(); // Did it convert imp_scenes ?
+	        	int num_stereo = (generate_stereo && (mode3d > 0))? 2:1; // only for 3D views
+	        	boolean combine_left_right = (num_stereo > 1) && stereo_merge;
+	        	ImagePlus [] imp_scenes_pair = new ImagePlus[num_stereo];
+	        	String scenes_suffix_pair = scenes_suffix;
+	        	for (int nstereo = 0; nstereo < num_stereo; nstereo++) {
+	        		double [] xyz_offset = {
+	        				-stereo_baseline_meters * (nstereo - 0.5) * (num_stereo - 1), // x offset
+	        				0.0,  // Y offset
+	        				0.0}; // Z offset
+	        		if (num_stereo > 1) {
+//	        			scenes_suffix = scenes_suffix_pair + ((nstereo > 0)?(combine_left_right?"-STEREO":"-RIGHT"):"-LEFT"); // check if opposite
+	        			scenes_suffix = scenes_suffix_pair + ((nstereo > 0)?"-RIGHT":"-LEFT"); // check if opposite
+	        			scenes_suffix += stereo_baseline;
 	        		}
-	        		final Color fcolor = toRGB ? annotate_color_color: annotate_color_mono;
-	    			final ImageStack fstack_scenes = imp_scenes.getImageStack();
-	    			final int width =  imp_scenes.getWidth();
-	    			final int height = imp_scenes.getHeight();
-					final int posX= width - 119; // 521;
-					final int posY= height + 1;  // 513;
-					final Font font = new Font("Monospaced", Font.PLAIN, 12);
-	    			final int nSlices = fstack_scenes.getSize();
-	    			final Thread[] threads = ImageDtt.newThreadArray(QuadCLT.THREADS_MAX);
-	    			final AtomicInteger ai = new AtomicInteger(0);
-	    			for (int ithread = 0; ithread < threads.length; ithread++) {
-	    				threads[ithread] = new Thread() {
-	    					public void run() {
-	    						for (int nSlice = ai.getAndIncrement(); nSlice < nSlices; nSlice = ai.getAndIncrement()) {
-	    							String scene_title = fstack_scenes.getSliceLabel(nSlice+1);
-	    							ImageProcessor ip = fstack_scenes.getProcessor(nSlice+1);
-									ip.setColor(fcolor); // Color.BLUE);
-									ip.setFont(font);
-									if (toRGB) {
-										ip.drawString(scene_title, posX, posY,Color.BLACK);
-									} else {
-										ip.drawString(scene_title, posX, posY);
-									}
-	    						}
-	    					}
-	    				};
-	    			}		      
-	    			ImageDtt.startAndJoin(threads);
-	        		String avi_path=null;
-	        		video:
-	        		{
-	        			try {
-	        				avi_path=quadCLTs[ref_index].saveAVIInModelDirectory(
-	        						null,             // "GPU-SHIFTED-D"+clt_parameters.disparity, // String      suffix,
-	        						mode_avi,         // int         avi_mode,
-	        						avi_JPEG_quality, // int         avi_JPEG_quality,
-	        						video_fps,        // double      fps,
-	        						imp_scenes);      // ImagePlus   imp)
-	        			} catch (IOException e) {
-	        				// TODO Auto-generated catch block
-	        				e.printStackTrace();
-	        				break video;
-
-	        			}
-	        			// Convert with ffmpeg?
-	        			if (avi_path == null) {
-	        				break video;
-	        			}
-	        			if (!run_ffmpeg) {
-	        				break video; // webm not requested
-	        			}
-	        			String webm_path = avi_path.substring(0, avi_path.length()-4)+video_ext;
-	        			// added -y not to as "overwrite y/n?"
-	        			String shellCommand = String.format("ffmpeg -y -i %s -c %s %s %s",
-	        					avi_path, video_codec, video_extra, webm_path);
-	        			Process p = null;
-	        			try {
-	        				p = Runtime.getRuntime().exec(shellCommand);
-	        			} catch (IOException e) {
-	        				System.out.println("Failed shell command: \""+shellCommand+"\"");
-	        			}
-	        			if (p != null) {
-	        				p.waitFor();
-	        			}
-        				System.out.println("Ran shell command: \""+shellCommand+"\"");
-        				// Check if webm file exists
-        				if (!(new File(webm_path)).exists()) {
-	        				System.out.println("Failed to create : \""+webm_path+"\"");
-	        				break video;
-        				}
-        				if (remove_avi) {
-        					(new File(avi_path)).delete();
-	        				System.out.println("Deleted AVI video file: \""+avi_path+"\"");
-        				}
-//ffmpeg -i 1654629772_573400-SEQ-FG-COLOR.avi -c vp8 -b:v 0 -crf 40 1654629772_573400-SEQ-FG-COLOR-VP8.webm
+//	        		ImagePlus imp_scenes 
+	        		imp_scenes_pair[nstereo]= renderSceneSequence(
+	        				clt_parameters,     // CLTParameters clt_parameters,
+	        				fov_tiles,          // Rectangle     fov_tiles,
+	        				mode3d,             // int           mode3d,
+	        				toRGB,              // boolean       toRGB,
+	        				xyz_offset,         // double []     stereo_offset, // offset reference camera {x,y,z}
+	        				sensor_mask,        // int           sensor_mask,
+	        				scenes_suffix,      // String        suffix,
+	        				selected_disparity, // double []     ref_disparity,			
+	        				quadCLTs,           // QuadCLT []    quadCLTs,
+	        				debugLevel);        // int           debugLevel);
+	        		if (toRGB ? save_mapped_color: save_mapped_mono) {	        	
+	        			quadCLTs[ref_index].saveImagePlusInModelDirectory(
+	        					null, // "GPU-SHIFTED-D"+clt_parameters.disparity, // String      suffix,
+	        					imp_scenes_pair[nstereo]); // imp_scenes); // ImagePlus   imp)
 	        		}
-//		String  video_extra =        clt_parameters.imp.video_extra;
+	        		// Save as AVI	        	
+	        		if (toRGB ? gen_avi_color: gen_avi_mono) {
+	        			if (toRGB ? annotate_color: annotate_mono) {
+	        				if (!toRGB) {
+	        					// If it is mono, first convert to color
+	        					if (mono_fixed && um_mono) {
+//	        						imp_scenes.getProcessor().setMinAndMax(-mono_range/2, mono_range/2);
+	        						imp_scenes_pair[nstereo].getProcessor().setMinAndMax(-mono_range/2, mono_range/2);
+	        					}
 
-	        	}
-	        	if (toRGB ? show_mapped_color: show_mapped_mono) {
-	        		imp_scenes.show();
-	        	}
-	        }
+//	        					ImageConverter imageConverter = new ImageConverter(imp_scenes);
+	        					ImageConverter imageConverter = new ImageConverter(imp_scenes_pair[nstereo]);
+	        					imageConverter.convertToRGB(); // Did it convert imp_scenes ?
+	        				}
+
+	        				final Color fcolor = toRGB ? annotate_color_color: annotate_color_mono;
+	        				final ImageStack fstack_scenes = imp_scenes_pair[nstereo].getImageStack();
+	        				final int width =  imp_scenes_pair[nstereo].getWidth();
+	        				final int height = imp_scenes_pair[nstereo].getHeight();
+	        				final int posX= width - 119; // 521;
+	        				final int posY= height + 1;  // 513;
+	        				final Font font = new Font("Monospaced", Font.PLAIN, 12);
+	        				final int nSlices = fstack_scenes.getSize();
+	        				final Thread[] threads = ImageDtt.newThreadArray(QuadCLT.THREADS_MAX);
+	        				final AtomicInteger ai = new AtomicInteger(0);
+	        				for (int ithread = 0; ithread < threads.length; ithread++) {
+	        					threads[ithread] = new Thread() {
+	        						public void run() {
+	        							for (int nSlice = ai.getAndIncrement(); nSlice < nSlices; nSlice = ai.getAndIncrement()) {
+	        								String scene_title = fstack_scenes.getSliceLabel(nSlice+1);
+	        								ImageProcessor ip = fstack_scenes.getProcessor(nSlice+1);
+	        								ip.setColor(fcolor); // Color.BLUE);
+	        								ip.setFont(font);
+	        								if (toRGB) {
+	        									ip.drawString(scene_title, posX, posY,Color.BLACK);
+	        								} else {
+	        									ip.drawString(scene_title, posX, posY);
+	        								}
+	        							}
+	        						}
+	        					};
+	        				}		      
+	        				ImageDtt.startAndJoin(threads);
+	        			}
+	        			if (combine_left_right && (nstereo == 0)) {
+	        				continue;
+	        			}
+	        			if (combine_left_right) { // combine pairs multi-threaded
+// 				stack_scenes = new ImageStack(imp_scene.getWidth(),imp_scene.getHeight());
+	        				final int left_width = imp_scenes_pair[0].getWidth();
+	        				final int right_width = imp_scenes_pair[1].getWidth();
+	        				final int stereo_width =  left_width + right_width+stereo_gap;
+	        				final int stereo_height = imp_scenes_pair[0].getHeight();
+	        				final ImageStack stereo_stack = new ImageStack(stereo_width, stereo_height);
+	        				final int nSlices = imp_scenes_pair[0].getStack().getSize();
+	        				for (int i = 0; i < nSlices; i++) {
+	        					stereo_stack.addSlice(
+	        							imp_scenes_pair[0].getStack().getSliceLabel(i+1),
+	        							new int[stereo_width * stereo_height]);
+	        				}
+	        				final Thread[] threads = ImageDtt.newThreadArray(QuadCLT.THREADS_MAX);
+	        				final AtomicInteger ai = new AtomicInteger(0);
+	        				for (int ithread = 0; ithread < threads.length; ithread++) {
+	        					threads[ithread] = new Thread() {
+	        						public void run() {
+	        							for (int nSlice = ai.getAndIncrement(); nSlice < nSlices; nSlice = ai.getAndIncrement()) {
+	        								int[] pixels_stereo = (int[]) stereo_stack.getPixels(nSlice+1);
+	        								int[] pixels_left = (int[]) imp_scenes_pair[0].getStack().getPixels(nSlice+1);
+	        								int[] pixels_right = (int[]) imp_scenes_pair[1].getStack().getPixels(nSlice+1);
+	        								for (int row = 0; row < stereo_height; row++) {
+	        									System.arraycopy(
+	        											pixels_left,
+	        											left_width * row,
+	        											pixels_stereo,
+	        											stereo_width * row,
+	        											left_width);
+	        									System.arraycopy(
+	        											pixels_right,
+	        											right_width * row,
+	        											pixels_stereo,
+	        											stereo_width * row + left_width + stereo_gap,
+	        											right_width);
+	        								}
+	        							}
+	        						}
+	        					};
+	        				}		      
+	        				ImageDtt.startAndJoin(threads);
+	        				// convert stereo_stack to imp_scenes_pair[1], keeping calibration and fps?
+	        				imp_scenes_pair[1].setStack(stereo_stack);
+	        				String title = imp_scenes_pair[1].getTitle();
+	        				imp_scenes_pair[1].setTitle(title.replace("-RIGHT","-STEREO"));
+	        				
+	        			}
+	        			
+	        			String avi_path=null;
+	        			video:
+	        			{
+	        				try {
+	        					avi_path=quadCLTs[ref_index].saveAVIInModelDirectory(
+	        							null,             // "GPU-SHIFTED-D"+clt_parameters.disparity, // String      suffix,
+	        							mode_avi,         // int         avi_mode,
+	        							avi_JPEG_quality, // int         avi_JPEG_quality,
+	        							video_fps,        // double      fps,
+	        							imp_scenes_pair[nstereo]);      // ImagePlus   imp)
+	        				} catch (IOException e) {
+	        					// TODO Auto-generated catch block
+	        					e.printStackTrace();
+	        					break video;
+
+	        				}
+	        				// Convert with ffmpeg?
+	        				if (avi_path == null) {
+	        					break video;
+	        				}
+	        				if (!run_ffmpeg) {
+	        					break video; // webm not requested
+	        				}
+	        				String webm_path = avi_path.substring(0, avi_path.length()-4)+video_ext;
+	        				// added -y not to as "overwrite y/n?"
+	        				String shellCommand = String.format("ffmpeg -y -i %s -c %s %s %s",
+	        						avi_path, video_codec, video_extra, webm_path);
+	        				Process p = null;
+	        				try {
+	        					p = Runtime.getRuntime().exec(shellCommand);
+	        				} catch (IOException e) {
+	        					System.out.println("Failed shell command: \""+shellCommand+"\"");
+	        				}
+	        				if (p != null) {
+	        					p.waitFor();
+	        				}
+	        				System.out.println("Ran shell command: \""+shellCommand+"\"");
+	        				// Check if webm file exists
+	        				if (!(new File(webm_path)).exists()) {
+	        					System.out.println("Failed to create : \""+webm_path+"\"");
+	        					break video;
+	        				}
+	        				if (remove_avi) {
+	        					(new File(avi_path)).delete();
+	        					System.out.println("Deleted AVI video file: \""+avi_path+"\"");
+	        				}
+	        			}
+	        		}
+	        		if (toRGB ? show_mapped_color: show_mapped_mono) {
+	        			imp_scenes_pair[nstereo].show();
+	        		}
+	        	} // for (int nstereo = 0; nstereo < num_stereo; nstereo++)
+	        } // for (int col_mode = 0; col_mode<2; col_mode++) {
 		}
 		if (export_images) {
 			if (combo_dsn_final == null) {
@@ -5105,13 +5191,15 @@ public class OpticalFlow {
     		Rectangle     fov_tiles,
     		int           mode3d,
     		boolean       toRGB,
+    		double []     stereo_xyz, // offset reference camera {x,y,z}
     		int           sensor_mask,
     		String        suffix_in,
     		double []     ref_disparity,			
     		QuadCLT []    quadCLTs,
     		int           debugLevel) {
-
+    	double [] stereo_atr = ZERO3; // maybe later play with rotated camera
 		// video
+    	/*
 		boolean gen_avi_color =      clt_parameters.imp.gen_avi_color;
 		boolean gen_avi_mono =       clt_parameters.imp.gen_avi_mono;
 		double  video_fps =          clt_parameters.imp.video_fps;
@@ -5120,6 +5208,7 @@ public class OpticalFlow {
 		String  video_ext =          clt_parameters.imp.video_ext;
 		String  video_codec =        clt_parameters.imp.video_codec;
 		boolean remove_avi =         clt_parameters.imp.remove_avi;
+		*/
 		boolean um_mono =            clt_parameters.imp.um_mono;
 		double  um_sigma =           clt_parameters.imp.um_sigma;
 		double  um_weight =          clt_parameters.imp.um_weight;
@@ -5159,6 +5248,15 @@ public class OpticalFlow {
 						scene_ers_xyz_dt, // double []    ers_xyz_dt,
 						scene_ers_atr_dt); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
 			}
+			if (stereo_xyz != null) { // offset all, including reference scene
+				double [][] combo_xyzatr = ErsCorrection.combineXYZATR(
+						stereo_xyz,  // double [] reference_xyz,
+						stereo_atr,  // double [] reference_atr, 
+						scene_xyz,   // double [] scene_xyz,
+						scene_atr);  // double [] scene_atr) 
+				scene_xyz = combo_xyzatr[0];
+				scene_atr = combo_xyzatr[1];
+			}
 			int sm = merge_all? -1: sensor_mask;
 			ImagePlus imp_scene = QuadCLT.renderGPUFromDSI(
 					sm,                  // final int         sensor_mask,
@@ -5166,6 +5264,7 @@ public class OpticalFlow {
 					fov_tiles,           // testr, // null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 					clt_parameters,      // CLTParameters     clt_parameters,
 					ref_disparity,       // double []         disparity_ref,
+					// not used, just as null/not null now
 					scene_xyz,           // final double []   scene_xyz, // camera center in world coordinates
 					scene_atr,           // final double []   scene_atr, // camera orientation relative to world frame
 					quadCLTs[nscene],    // final QuadCLT     scene,
