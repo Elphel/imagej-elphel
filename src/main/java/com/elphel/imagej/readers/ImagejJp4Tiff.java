@@ -645,17 +645,17 @@ public class ImagejJp4Tiff {
 		}
 
 		if (num_diff == 0) {
-			System.out.println ("No discontinuities remain");
+///			System.out.println ("No discontinuities remain");
 			return center;
 		}
-		System.out.println ("Discontinuities remain, will fix by clusters");
+///		System.out.println ("Discontinuities remain, will fix by clusters");
 		boolean OK = fixByClusters(
 				width,
 				height,
 				FIXCH6_BIT,         // int    bad_bit,
 				idata,              // int [] data)
 				(dbg_img != null)); // boolean debug)
-		System.out.println ("FixByClusters -> "+OK);
+///		System.out.println ("FixByClusters -> "+OK);
 		for (int i = 0; i < idata.length; i++) {
 			pixels[i+640] = idata[i];
 		}

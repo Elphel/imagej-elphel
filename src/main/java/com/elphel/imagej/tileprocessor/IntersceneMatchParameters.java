@@ -25,6 +25,7 @@ package com.elphel.imagej.tileprocessor;
  */
 
 import java.awt.Color;
+import java.io.IOException;
 import java.util.Properties;
 
 import com.elphel.imagej.common.GenericJTabbedDialog;
@@ -35,22 +36,40 @@ public class IntersceneMatchParameters {
 	// Maybe add parameters to make sure there is enough data? Enough in each zone? Enough spread?
 	public  boolean force_ref_dsi =      false; // true;
 	public  boolean force_orientations = false;
-	public  boolean readjust_orient =    false;
-	public  double  blur_egomotion =     2.0;
+	public  int min_num_orient =         2; // make from parameters, should be >= 1
+	public  int min_num_interscene =     2; // make from parameters, should be >= 1
+
+	public  boolean generate_mapped =    true; // generate any of the sequences - Tiff, video, mono or stereo
+	public  boolean save_mapped_color =  false; // may be not needed when using AVI
+	public  boolean save_mapped_mono =   true;  // may be not needed when using AVI
+	public  boolean generate_raw =       false;
+	public  boolean generate_inf =       false;
+	public  boolean generate_fg =        true;
+	public  boolean generate_bg =        false;
+
+	public  boolean generate_stereo =    false; // applies to all stereobases, including 0
 	
-	public  boolean force_interscene =   false; // true;
 	public  boolean export_images =      true;  // pseudo-color 16-slice images (same disparity, COMBO_DSN_INDX_DISP_FG and COMBO_DSN_INDX_DISP_BG_ALL,
 	public  boolean show_images =        false; // color, infinity
 	public  boolean show_images_bgfg =   false; // bg and fg
 	public  boolean show_images_mono =   false; // float, monochrome 16-slice images (same disparity, COMBO_DSN_INDX_DISP_FG and COMBO_DSN_INDX_DISP_BG_ALL,
 	public  boolean show_color_nan =     true;  // use NAN background for color images (sharp, but distinct black)
 	public  boolean show_mono_nan =      false; // use NAN background for monochrome images (sharp, but distinct black)
+	
+	
+	public  double [] stereo_bases = {0.0, 200.0, 500.0, 1000.0}; 
+	public  boolean [] generate_stereo_var = new boolean[stereo_bases.length];
+
+	// Other parameters
+	public  int     min_num_scenes =     10;     // abandon series if there are less than this number of scenes in it 
+	public  double  blur_egomotion =     2.0;
+	
+	
 	public  boolean export_ranges =      true;
 	public  boolean show_ranges =        true;
 	
-	public  boolean generate_mapped =    true;
-	public  boolean generate_stereo =    false;
-	public  double  stereo_baseline =    500.0;// mm
+	public  boolean export_ml_files =    false; // export files for DNN training
+	
 	public  boolean stereo_merge =       true;
 	public  int     stereo_gap =         30;   // pixels between right and left frames
 
@@ -59,15 +78,14 @@ public class IntersceneMatchParameters {
 	public  boolean crop_3d =            true; // do not show extra of FG/BG views (currently they only ref scene has disparity)
 	public  int     sensor_mask =        1; // -1 - all
 	public  boolean merge_all =          true; // merge all 16 channels for 3D modes 
-	public  int     mode3d =             1; // -1 - raw, 0 - infinity, 1 - FG, 2 - BG
-	public  boolean save_mapped_color =  true; // may be not needed when using AVI
-	public  boolean save_mapped_mono =   true; // may be not needed when using AVI
+
 	public  boolean show_mapped_color =  true;
 	public  boolean show_mapped_mono =   true;
 
-	public  boolean gen_avi_color =      true;
-	public  boolean gen_avi_mono =       true;
+	public  boolean gen_avi_color =      true; // will use save_mapped_color
+	public  boolean gen_avi_mono =       true; // will use save_mapped_mono
 	public  double  video_fps =          15; // 4x slowmo
+	public  double  sensor_fps =         60; // sensor fps
 	public  int     mode_avi =           0; // 0 - raw, 1 - JPEG, 2 - PNG
 	public  int     avi_JPEG_quality =  90;
 	public  boolean run_ffmpeg =         true; // only after AVI
@@ -218,30 +236,78 @@ public class IntersceneMatchParameters {
 				"Calculate reference scene DSI even if the file exists.");
 		gd.addCheckbox ("Force egomotion calculation",               this.force_orientations,
 				"Calculate relative poses of each scene camera relative to the reference scene even if the data exists.");
-		gd.addCheckbox ("Readjust egomotion",                        this.readjust_orient,
-				"Re-calculate egomotion using known orientation and combined DSI.");
-		gd.addNumericField("LPF egomotion sigma",                    this.blur_egomotion, 3,5,"scenes",
-				"LPF egomotion components with this sigma before using as ERS (not implemented).");
-		gd.addCheckbox ("Force interscene DSI accumulation",         this.force_interscene,
-				"Force interscene calculation (+ML export) even if it was performed before.");
+		gd.addNumericField("Minimal number of egomotion calculations",this.min_num_orient, 0,3,"",
+				"Minimal number of fitting scenes cycles, should be >=1. First cycle includes spiral search for the first scene");
+		gd.addNumericField("Minimal number of interscene accumulations", this.min_num_interscene, 0,3,"",
+				"Minimal required number of re-calculations of the interscene-accumulated DSI.");
+		
+		gd.addMessage  ("Generate/show scene sequences");
+		gd.addCheckbox ("Generate mapped scene sequence",            this.generate_mapped,
+				"Generate scene sequence mapped to the reference scene.");
+		gd.addCheckbox ("Save scene sequences in (pseudo)colors as TIFF",this.save_mapped_color,
+				"Save generated scene sequences in (pseudo)color mode as a multi-slice TIFF.");
+		gd.addCheckbox ("Save scene sequences in monochrome as TIFF",    this.save_mapped_mono,
+				"Show generated scene sequences in monochrome mode as a multi-slice TIFF. May use Unsharp Mask.");
+		gd.addCheckbox ("Generate color video",                      this.gen_avi_color,
+				"Generate video for color scene sequences.");
+		gd.addCheckbox ("Generate monochrome video",                 this.gen_avi_mono,
+				"Generate video for monochrome scene sequences.");
+		gd.addCheckbox ("Show scene sequences in (pseudo) colors",    this.show_mapped_color,
+				"Show generated scene sequences in (pseudo) color mode. Disabled in batch mode");
+		gd.addCheckbox ("Show scene sequences in monochrome",        this.show_mapped_mono,
+				"Show generated scene sequences in monochrome mode. May use Unsharp Mask. Disabled in batch mode.");
+		
+		
+		gd.addCheckbox ("Generate RAW images",                       this.generate_raw,
+				"Raw images from single (top) camera using original view - just after aberration correction and aligning sensors .");
+		gd.addCheckbox ("Generate INF images",                       this.generate_inf,
+				"Single-camera images aligned at infinity - 2D correction functionally similar to camera stabilization.");
+		gd.addCheckbox ("Generate 3D-corrected FG images",           this.generate_fg,
+				"Correct in 3D scene images (from all 16 sensors) matching reference (last in sequence) scene with foreground (FG) priority.");
+		gd.addCheckbox ("Generate 3D-corrected BG images",           this.generate_bg,
+				"Correct in 3D scene images (from all 16 sensors) matching reference (last in sequence) scene with background (BG) priority.");
+		gd.addCheckbox ("Generate binocular stereo pairs",           this.generate_stereo,
+				"Generate stereo-pairs for 3D-corrected videos (FG,BG). Ebables specific modes (including 0-baseline / mono).");
+		
+		for (int i = 0; i < stereo_bases.length; i++) {
+			double base = stereo_bases[i];
+			String title = (base == 0.0)?
+					"Generate mono (single camera) scene sequences":
+						"Generate "+base+"mm-baseline stereo scene sequences";
+			String tooltip = (base == 0.0)?
+					"Generate mono (single camera) scene sequences as Tiff and/or video.":
+						"Generate "+base+"mm-baseline stereo scene sequences as Tiff and/or video.";
+			gd.addCheckbox (title,                                   this.generate_stereo_var[i], tooltip);
+		}
+
+		gd.addMessage  ("Generate/save reference (last) scene images");
 		gd.addCheckbox ("Export all-sensor images",                  this.export_images,
 				"Export multi-slice images: with constant disparity, with foreground disparity, and with background disparity");
 		gd.addCheckbox ("Show exported images (same disparity)",     this.show_images,
 				"Display generated/saved image set, pseudocolors");
-		gd.addCheckbox ("Show exported FG/BG",                       this.show_images_bgfg,
+		gd.addCheckbox ("Show exported FG/BG 3d-corrected",          this.show_images_bgfg,
 				"Show foreground and background exported images");
 		gd.addCheckbox ("Show floating-point monochrome images",     this.show_images_mono,
-				"Display generated/saved monochrome images");
+				"Display generated/saved monochrome images (in addition to color) ");
+		gd.addCheckbox ("Generate metric depth map",                 this.export_ranges,
+				"Calculate strength, distance, X, and Y in meters");
+		gd.addCheckbox ("Show metric depth map",                     this.show_ranges,
+				"Display calculated depth map in meters");
+		gd.addCheckbox ("Export files for DNN training/testing",     this.export_ml_files,
+				"Display calculated depth map in meters");
+		
+		gd.addMessage  ("Additional parameters");
+
 		gd.addCheckbox ("Color NaN background",                      this.show_color_nan,
 				"Use NaN for undefined tiles (false - 0.0f). NaN produces sharp distinct result, 0.0f - blended");
 		gd.addCheckbox ("Mono NaN background",                       this.show_mono_nan,
 				"Use NaN for undefined tiles (false - 0.0f). NaN produces sharp distinct result, 0.0f - blended");
+		gd.addNumericField("Minimal number of scenes to keep series",this.min_num_scenes, 0,3,"",
+				"Scrap all seriest if less numer of scenes can be matched to the reference scene (including reference itself)");
+		gd.addNumericField("LPF egomotion sigma",                    this.blur_egomotion, 3,5,"scenes",
+				"LPF egomotion components with this sigma before using as ERS (not implemented).");
 
 		gd.addMessage  ("Metric distance map generation");
-		gd.addCheckbox ("Export distances in meters",                this.export_ranges,
-				"Calculate strength, distance, X, and Y in meters");
-		gd.addCheckbox ("Show distances in meters",                  this.show_ranges,
-				"Display calculated depth map in meters");
 		gd.addNumericField("Disparity at infinity",                  this.range_disparity_offset, 5,7,"pix",
 				"Disparity at infinity - subtract from measured disparity when converting to ranges.");
 		gd.addNumericField("Minimal strength for range calculation", this.range_min_strength, 5,7,"",
@@ -309,13 +375,21 @@ public class IntersceneMatchParameters {
 				"Disregard tiles with centers closer to the sensor FoV in pixels");
 		
 		
-		gd.addMessage  ("Generate/show scene sequences");
-		gd.addCheckbox ("Generate mapped scene sequence",            this.generate_mapped,
-				"Generate scene sequence mapped to the reference scene.");
-		gd.addCheckbox ("Generate right/left pairs",                 this.generate_stereo,
-				"Generate stereo-pairs for 3D-corrected videos (FG,BG).");
-		gd.addNumericField("Stereo baseline",                        this.stereo_baseline, 5,7,"mm",
-				"Synthetic 3D with possibly exagerrated stereo baseline");
+		gd.addMessage  ("Stereo");
+		if (stereo_bases.length > 0) {
+			String [] stereo_choices = new String [stereo_bases.length + 1];
+			stereo_choices[0] = "--none--";
+			for (int i = 0; i < stereo_bases.length; i++) {
+				stereo_choices[i+1] = stereo_bases[i]+"mm";	
+			}
+			gd. addChoice("Remove stereo-base",                 stereo_choices, stereo_choices[0], 
+					"Remove selected stereo-base");
+		}
+		gd.addStringField("Add another baseline (mm)",                 "",
+				"Add another stereo baseline (mm).");
+		
+//		gd.addNumericField("Stereo baseline",                        this.stereo_baseline, 5,7,"mm",
+//				"Synthetic 3D with possibly exagerrated stereo baseline");
 		gd.addCheckbox ("Stereo merge right, left",                  this.stereo_merge,
 				"Combine stereo pair in a single (wide) frame. Unchecked - generate separate videos.");
 		gd.addNumericField("Stereo gap",        this.stereo_gap, 0,3,"pix",
@@ -333,26 +407,15 @@ public class IntersceneMatchParameters {
 		gd.addCheckbox ("Merge all channels in 3D modes",                                   this.merge_all,
 				"Ignore sensor mask, use all channels and merge them into one in 3D modes (FG and BG)");
 		
-		gd. addChoice("3D mode",                 MODES3D, MODES3D[this.mode3d + 1], 
-				"3D mode for rendering scenes in a sequence: RAW - raw images, INF - no 3D, use infinity; FG - Foreground; BG - Background");
+///		gd. addChoice("3D mode",                 MODES3D, MODES3D[this.mode3d + 1], 
+///				"3D mode for rendering scenes in a sequence: RAW - raw images, INF - no 3D, use infinity; FG - Foreground; BG - Background");
 		
-		
-		gd.addCheckbox ("Save scene sequences in (pseudo)colors as TIFF",this.save_mapped_color,
-				"Save generated scene sequences in (pseudo)color mode as a multi-slice TIFF");
-		gd.addCheckbox ("Show scene sequences in monochrome as TIFF",    this.save_mapped_mono,
-				"Show generated scene sequences in monochrome mode as a multi-slice TIFF. May use Unsharp Mask.");
-		gd.addCheckbox ("Show scene sequences in (pseudo)colors",        this.show_mapped_color,
-				"Show generated scene sequences in (pseudo)color mode.");
-		gd.addCheckbox ("Show scene sequences in monochrome",            this.show_mapped_mono,
-				"Show generated scene sequences in monochrome mode. May use Unsharp Mask.");
 		
 		gd.addMessage  ("Generate video for scene sequences");
-		gd.addCheckbox ("Generate color video",                      this.gen_avi_color,
-				"Generate video for color scene sequences.");
-		gd.addCheckbox ("Generate mono video",                       this.gen_avi_mono,
-				"Generate video for monochrome scene sequences.");
 		gd.addNumericField("Video output frame rate",                this.video_fps, 5,7,"fps",
 				"Video frames per second (original is 60fps).");
+		gd.addNumericField("Sensor frame rate (60 for Boson)",       this.sensor_fps, 5,7,"fps",
+				"Sensor (real) frame rate to be used in realtime videos after slowmo.");
 		gd. addChoice("AVI mode",                                     MODES_AVI, MODES_AVI[this.mode_avi], 
 				"AVI generation mode");
 		gd.addNumericField("AVI JPEG Quality",                       this.avi_JPEG_quality, 0,3,"",
@@ -524,22 +587,44 @@ public class IntersceneMatchParameters {
 	}
 
 	public void dialogAnswers(GenericJTabbedDialog gd) {
-		this.force_ref_dsi =            gd.getNextBoolean();
-		this.force_orientations =       gd.getNextBoolean();
-		this.readjust_orient =          gd.getNextBoolean();
-		this.blur_egomotion =           gd.getNextNumber();
-		this.force_interscene =         gd.getNextBoolean();
-		this.export_images =            gd.getNextBoolean();
-		this.show_images =              gd.getNextBoolean();
-		this.show_images_bgfg =         gd.getNextBoolean();
-		this.show_images_mono =         gd.getNextBoolean();
-		this.show_color_nan =           gd.getNextBoolean();
-		this.show_mono_nan =            gd.getNextBoolean();
-		this.export_ranges =            gd.getNextBoolean();
-		this.show_ranges =              gd.getNextBoolean();
-		this.range_disparity_offset =   gd.getNextNumber();
-		this.range_min_strength =       gd.getNextNumber();
-		this.range_max =                gd.getNextNumber();
+		this.force_ref_dsi =                  gd.getNextBoolean();
+		this.force_orientations =             gd.getNextBoolean();
+		this.min_num_orient =           (int) gd.getNextNumber(); if (min_num_orient < 1) min_num_orient = 1;
+		this.min_num_interscene =       (int) gd.getNextNumber(); if (min_num_interscene < 1) min_num_interscene = 1;
+		this.generate_mapped =                gd.getNextBoolean();
+		this.save_mapped_color =              gd.getNextBoolean(); // as tiff
+		this.save_mapped_mono =               gd.getNextBoolean(); // as tiff
+		this.gen_avi_color =                  gd.getNextBoolean(); // as video
+		this.gen_avi_mono =                   gd.getNextBoolean(); // as video
+		this.show_mapped_color =              gd.getNextBoolean();
+		this.show_mapped_mono =               gd.getNextBoolean();
+		this.generate_raw =                   gd.getNextBoolean();
+		this.generate_inf =                   gd.getNextBoolean();
+		this.generate_fg =                    gd.getNextBoolean();
+		this.generate_bg =                    gd.getNextBoolean();
+		this.generate_stereo =                gd.getNextBoolean();
+		for (int i = 0; i < stereo_bases.length; i++) {
+			this.generate_stereo_var[i] =     gd.getNextBoolean();
+		}
+		
+		this.export_images =                  gd.getNextBoolean();
+		this.show_images =                    gd.getNextBoolean();
+		this.show_images_bgfg =               gd.getNextBoolean();
+		this.show_images_mono =               gd.getNextBoolean();
+		this.export_ranges =                  gd.getNextBoolean();
+		this.show_ranges =                    gd.getNextBoolean();
+		this.export_ml_files =                gd.getNextBoolean();
+
+		// additional parameters		
+		this.show_color_nan =                 gd.getNextBoolean();
+		this.show_mono_nan =                  gd.getNextBoolean();
+		
+		
+		this.min_num_scenes =           (int) gd.getNextNumber();
+		this.blur_egomotion =                 gd.getNextNumber();
+		this.range_disparity_offset =         gd.getNextNumber();
+		this.range_min_strength =             gd.getNextNumber();
+		this.range_max =                      gd.getNextNumber();
 
 		this.num_bottom =               (int) gd.getNextNumber();
 		this.num_passes =               (int) gd.getNextNumber();
@@ -568,9 +653,24 @@ public class IntersceneMatchParameters {
 		this.diff_from_lma_neg =              gd.getNextNumber();
 		this.outliers_lma_nth_fromextrem=(int)gd.getNextNumber();
 		this.filter_margin =            (int) gd.getNextNumber();
-		this.generate_mapped =                gd.getNextBoolean();
-		this.generate_stereo =                gd.getNextBoolean();
-		this.stereo_baseline =                gd.getNextNumber();
+		if (stereo_bases.length > 0) {
+			int i =                               gd.getNextChoiceIndex();
+			if (i > 0) {
+				removeStereo(i-1);
+			}
+		}
+		String s =                            gd.getNextString();
+		if (s.trim().length() > 0) {
+			try {
+				double d = Double.parseDouble(s);
+				addStereo(d, true);
+//				orderStereo();
+			} catch (Exception e) {
+
+			}
+		}
+		
+//		this.stereo_baseline =                gd.getNextNumber();
 		this.stereo_merge =                   gd.getNextBoolean();
 		this.stereo_gap =               (int) gd.getNextNumber();
 		
@@ -580,15 +680,10 @@ public class IntersceneMatchParameters {
 		this.sensor_mask =        (int) gd.getNextNumber();
 		this.merge_all =                gd.getNextBoolean();
 		
-		this.mode3d =                   gd.getNextChoiceIndex() - 1;
-		this.save_mapped_color =        gd.getNextBoolean();
-		this.save_mapped_mono =         gd.getNextBoolean();
-		this.show_mapped_color =        gd.getNextBoolean();
-		this.show_mapped_mono =         gd.getNextBoolean();
+//		this.mode3d =                   gd.getNextChoiceIndex() - 1;
 		
-		this.gen_avi_color =            gd.getNextBoolean();
-		this.gen_avi_mono =             gd.getNextBoolean();
 		this.video_fps =                gd.getNextNumber();
+		this.sensor_fps =               gd.getNextNumber();
 		this.mode_avi =                 gd.getNextChoiceIndex();
 		this.avi_JPEG_quality =   (int) gd.getNextNumber();
 		this.run_ffmpeg =               gd.getNextBoolean();
@@ -689,23 +784,48 @@ public class IntersceneMatchParameters {
 	}
 	
 	public void setProperties(String prefix,Properties properties){
-		properties.setProperty(prefix+"force_ref_dsi",        this.force_ref_dsi + "");     // boolean
-		properties.setProperty(prefix+"force_orientations",   this.force_orientations + "");// boolean
-		properties.setProperty(prefix+"readjust_orient",      this.readjust_orient + "");   // boolean
-		properties.setProperty(prefix+"blur_egomotion",       this.blur_egomotion+"");      // double
-		properties.setProperty(prefix+"force_interscene",     this.force_interscene + "");  // boolean
-		properties.setProperty(prefix+"export_images",        this.export_images + "");     // boolean
-		properties.setProperty(prefix+"show_images",          this.show_images + "");       // boolean
-		properties.setProperty(prefix+"show_images_bgfg",     this.show_images_bgfg + "");  // boolean
-		properties.setProperty(prefix+"show_images_mono",     this.show_images_mono + "");  // boolean
-		properties.setProperty(prefix+"show_color_nan",       this.show_color_nan + "");    // boolean
-		properties.setProperty(prefix+"show_mono_nan",        this.show_mono_nan + "");     // boolean
-		properties.setProperty(prefix+"export_ranges",        this.export_ranges + "");       // boolean
-		properties.setProperty(prefix+"show_ranges",          this.show_ranges + "");       // boolean
-		properties.setProperty(prefix+"range_disparity_offset",this.range_disparity_offset+""); // double
-		properties.setProperty(prefix+"range_min_strength",   this.range_min_strength+"");  // double
-		properties.setProperty(prefix+"range_max",            this.range_max+"");           // double
+		properties.setProperty(prefix+"force_ref_dsi",                 this.force_ref_dsi + "");               // boolean
+		properties.setProperty(prefix+"force_orientations",            this.force_orientations + "");          // boolean
+//		properties.setProperty(prefix+"readjust_orient",               this.readjust_orient + "");             // boolean
+//		properties.setProperty(prefix+"force_interscene",              this.force_interscene + "");            // boolean
+		properties.setProperty(prefix+"min_num_orient",                this.min_num_orient+"");                // int
+		properties.setProperty(prefix+"min_num_interscene",            this.min_num_interscene+"");            // int
+		properties.setProperty(prefix+"generate_mapped",               this.generate_mapped+"");               // boolean
+		properties.setProperty(prefix+"save_mapped_color",             this.save_mapped_color+"");             // boolean
+		properties.setProperty(prefix+"save_mapped_mono",              this.save_mapped_mono+"");              // boolean
+		properties.setProperty(prefix+"gen_avi_color",                 this.gen_avi_color+"");       // boolean
+		properties.setProperty(prefix+"gen_avi_mono",                  this.gen_avi_mono+"");        // boolean
+		properties.setProperty(prefix+"show_mapped_color",    this.show_mapped_color+"");   // boolean
+		properties.setProperty(prefix+"show_mapped_mono",     this.show_mapped_mono+"");    // boolean
+		
+		properties.setProperty(prefix+"generate_raw",                  this.generate_raw+"");                  // boolean
+		properties.setProperty(prefix+"generate_inf",                  this.generate_inf+"");                  // boolean
+		properties.setProperty(prefix+"generate_fg",                   this.generate_fg+"");                   // boolean
+		properties.setProperty(prefix+"generate_bg",                   this.generate_bg+"");                   // boolean
+		properties.setProperty(prefix+"generate_stereo",               this.generate_stereo+"");               // boolean
+		
+		properties.setProperty(prefix+"stereo_bases_num",              this.stereo_bases.length+"");           // int
+		for (int i = 0; i < this.stereo_bases.length; i++) {
+			properties.setProperty(prefix+"stereo_bases_"+i,           this.stereo_bases[i]+"");               // double
+			properties.setProperty(prefix+"generate_stereo_var_"+i,    this.generate_stereo_var[i]+"");        // boolean
+		}
 
+		properties.setProperty(prefix+"export_images",                 this.export_images + "");               // boolean
+		properties.setProperty(prefix+"show_images",                   this.show_images + "");                 // boolean
+		properties.setProperty(prefix+"show_images_bgfg",              this.show_images_bgfg + "");            // boolean
+		properties.setProperty(prefix+"show_images_mono",              this.show_images_mono + "");            // boolean
+		properties.setProperty(prefix+"export_ranges",                 this.export_ranges + "");               // boolean
+		properties.setProperty(prefix+"show_ranges",                   this.show_ranges + "");                 // boolean
+		properties.setProperty(prefix+"export_ml_files",               this.export_ml_files + "");                 // boolean
+		
+		
+		properties.setProperty(prefix+"show_color_nan",                this.show_color_nan + "");              // boolean
+		properties.setProperty(prefix+"show_mono_nan",                 this.show_mono_nan + "");               // boolean
+		properties.setProperty(prefix+"min_num_scenes",                this.min_num_scenes+"");                // int
+		properties.setProperty(prefix+"blur_egomotion",                this.blur_egomotion+"");                // double
+		properties.setProperty(prefix+"range_disparity_offset",        this.range_disparity_offset+"");        // double
+		properties.setProperty(prefix+"range_min_strength",            this.range_min_strength+"");            // double
+		properties.setProperty(prefix+"range_max",                     this.range_max+"");                     // double
 		properties.setProperty(prefix+"num_bottom",                    this.num_bottom+"");                    // int
 		properties.setProperty(prefix+"num_passes",                    this.num_passes+"");                    // int
 		properties.setProperty(prefix+"max_change",                    this.max_change+"");                    // double
@@ -733,9 +853,7 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"diff_from_lma_neg",             this.diff_from_lma_neg+"");             // double
 		properties.setProperty(prefix+"outliers_lma_nth_fromextrem",   this.outliers_lma_nth_fromextrem+"");   // int
 		properties.setProperty(prefix+"filter_margin",                 this.filter_margin+"");                 // int
-		properties.setProperty(prefix+"generate_mapped",               this.generate_mapped+"");               // boolean
-		properties.setProperty(prefix+"generate_stereo",               this.generate_stereo+"");               // boolean
-		properties.setProperty(prefix+"stereo_baseline",               this.stereo_baseline+"");               // double
+//		properties.setProperty(prefix+"stereo_baseline",               this.stereo_baseline+"");               // double
 		properties.setProperty(prefix+"stereo_merge",                  this.stereo_merge+"");                  // boolean
 		properties.setProperty(prefix+"stereo_gap",                    this.stereo_gap+"");                    // int
 		
@@ -744,15 +862,9 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"crop_3d",              this.crop_3d+"");             // boolean
 		properties.setProperty(prefix+"sensor_mask",          this.sensor_mask+"");         // int
 		properties.setProperty(prefix+"merge_all",            this.merge_all+"");             // boolean
-		properties.setProperty(prefix+"mode3d",               this.mode3d+"");              // int
-		properties.setProperty(prefix+"save_mapped_color",    this.save_mapped_color+"");   // boolean
-		properties.setProperty(prefix+"save_mapped_mono",     this.save_mapped_mono+"");    // boolean
-		properties.setProperty(prefix+"show_mapped_color",    this.show_mapped_color+"");   // boolean
-		properties.setProperty(prefix+"show_mapped_mono",     this.show_mapped_mono+"");    // boolean
 		
-		properties.setProperty(prefix+"gen_avi_color",        this.gen_avi_color+"");       // boolean
-		properties.setProperty(prefix+"gen_avi_mono",         this.gen_avi_mono+"");        // boolean
 		properties.setProperty(prefix+"video_fps",            this.video_fps+"");           // double
+		properties.setProperty(prefix+"sensor_fps",           this.sensor_fps+"");          // double
 		properties.setProperty(prefix+"mode_avi",             this.mode_avi+"");            // int
 		properties.setProperty(prefix+"avi_JPEG_quality",     this.avi_JPEG_quality+"");    // int
 		properties.setProperty(prefix+"run_ffmpeg",           this.run_ffmpeg+"");          // boolean
@@ -836,23 +948,52 @@ public class IntersceneMatchParameters {
 	}
 	
 	public void getProperties(String prefix,Properties properties){
-		if (properties.getProperty(prefix+"force_ref_dsi")!=null)        this.force_ref_dsi=Boolean.parseBoolean(properties.getProperty(prefix+"force_ref_dsi"));		
-		if (properties.getProperty(prefix+"force_orientations")!=null)   this.force_orientations=Boolean.parseBoolean(properties.getProperty(prefix+"force_orientations"));		
-		if (properties.getProperty(prefix+"readjust_orient")!=null)      this.readjust_orient=Boolean.parseBoolean(properties.getProperty(prefix+"readjust_orient"));		
-		if (properties.getProperty(prefix+"blur_egomotion")!=null)       this.blur_egomotion=Double.parseDouble(properties.getProperty(prefix+"blur_egomotion"));
-		if (properties.getProperty(prefix+"force_interscene")!=null)     this.force_interscene=Boolean.parseBoolean(properties.getProperty(prefix+"force_interscene"));		
-		if (properties.getProperty(prefix+"export_images")!=null)        this.export_images=Boolean.parseBoolean(properties.getProperty(prefix+"export_images"));		
-		if (properties.getProperty(prefix+"show_images")!=null)          this.show_images=Boolean.parseBoolean(properties.getProperty(prefix+"show_images"));		
-		if (properties.getProperty(prefix+"show_images_bgfg")!=null)     this.show_images_bgfg=Boolean.parseBoolean(properties.getProperty(prefix+"show_images_bgfg"));		
-		if (properties.getProperty(prefix+"show_images_mono")!=null)     this.show_images_mono=Boolean.parseBoolean(properties.getProperty(prefix+"show_images_mono"));		
-		if (properties.getProperty(prefix+"show_color_nan")!=null)       this.show_color_nan=Boolean.parseBoolean(properties.getProperty(prefix+"show_color_nan"));		
-		if (properties.getProperty(prefix+"show_mono_nan")!=null)        this.show_mono_nan=Boolean.parseBoolean(properties.getProperty(prefix+"show_mono_nan"));		
-		if (properties.getProperty(prefix+"export_ranges")!=null)        this.export_ranges=Boolean.parseBoolean(properties.getProperty(prefix+"export_ranges"));
-		if (properties.getProperty(prefix+"show_ranges")!=null)          this.show_images=Boolean.parseBoolean(properties.getProperty(prefix+"show_ranges"));
-		if (properties.getProperty(prefix+"range_disparity_offset")!=null) this.range_disparity_offset=Double.parseDouble(properties.getProperty(prefix+"range_disparity_offset"));
-		if (properties.getProperty(prefix+"range_min_strength")!=null)   this.range_min_strength=Double.parseDouble(properties.getProperty(prefix+"range_min_strength"));
-		if (properties.getProperty(prefix+"range_max")!=null)            this.range_max=Double.parseDouble(properties.getProperty(prefix+"range_max"));
+		if (properties.getProperty(prefix+"force_ref_dsi")!=null)                 this.force_ref_dsi=Boolean.parseBoolean(properties.getProperty(prefix+"force_ref_dsi"));		
+		if (properties.getProperty(prefix+"force_orientations")!=null)            this.force_orientations=Boolean.parseBoolean(properties.getProperty(prefix+"force_orientations"));		
+//		if (properties.getProperty(prefix+"readjust_orient")!=null)               this.readjust_orient=Boolean.parseBoolean(properties.getProperty(prefix+"readjust_orient"));		
+//		if (properties.getProperty(prefix+"force_interscene")!=null)              this.force_interscene=Boolean.parseBoolean(properties.getProperty(prefix+"force_interscene"));		
+		if (properties.getProperty(prefix+"min_num_orient")!=null)                this.min_num_orient=Integer.parseInt(properties.getProperty(prefix+"min_num_orient"));
+		if (properties.getProperty(prefix+"min_num_interscene")!=null)            this.min_num_interscene=Integer.parseInt(properties.getProperty(prefix+"min_num_interscene"));
+		if (properties.getProperty(prefix+"generate_mapped")!=null)               this.generate_mapped=Boolean.parseBoolean(properties.getProperty(prefix+"generate_mapped"));
+		if (properties.getProperty(prefix+"save_mapped_color")!=null)             this.save_mapped_color=Boolean.parseBoolean(properties.getProperty(prefix+"save_mapped_color"));
+		if (properties.getProperty(prefix+"save_mapped_mono")!=null)              this.save_mapped_mono=Boolean.parseBoolean(properties.getProperty(prefix+"save_mapped_mono"));
+		if (properties.getProperty(prefix+"gen_avi_color")!=null)                 this.gen_avi_color=Boolean.parseBoolean(properties.getProperty(prefix+"gen_avi_color"));
+		if (properties.getProperty(prefix+"gen_avi_mono")!=null)                  this.gen_avi_mono=Boolean.parseBoolean(properties.getProperty(prefix+"gen_avi_mono"));
+		if (properties.getProperty(prefix+"show_mapped_color")!=null)    this.show_mapped_color=Boolean.parseBoolean(properties.getProperty(prefix+"show_mapped_color"));
+		if (properties.getProperty(prefix+"show_mapped_mono")!=null)     this.show_mapped_mono=Boolean.parseBoolean(properties.getProperty(prefix+"show_mapped_mono"));
 		
+		if (properties.getProperty(prefix+"generate_raw")!=null)                  this.generate_raw=Boolean.parseBoolean(properties.getProperty(prefix+"generate_raw"));
+		if (properties.getProperty(prefix+"generate_inf")!=null)                  this.generate_inf=Boolean.parseBoolean(properties.getProperty(prefix+"generate_inf"));
+		if (properties.getProperty(prefix+"generate_fg")!=null)                   this.generate_fg=Boolean.parseBoolean(properties.getProperty(prefix+"generate_fg"));
+		if (properties.getProperty(prefix+"generate_bg")!=null)                   this.generate_bg=Boolean.parseBoolean(properties.getProperty(prefix+"generate_bg"));
+		
+		if (properties.getProperty(prefix+"generate_stereo")!=null)               this.generate_stereo=Boolean.parseBoolean(properties.getProperty(prefix+"generate_stereo"));
+		if (properties.getProperty(prefix+"stereo_bases_num")!=null) {
+			 int stereo_bases_num=Integer.parseInt(properties.getProperty(prefix+"stereo_bases_num"));
+			 this.stereo_bases =        new double[stereo_bases_num];
+			 this.generate_stereo_var = new boolean[stereo_bases_num];
+			 for (int i = 0; i < stereo_bases_num; i++) {
+				 if (properties.getProperty(prefix+"stereo_bases_"+i)!=null)       this.stereo_bases[i]=Double.parseDouble(properties.getProperty(prefix+"stereo_bases_"+i));
+				 if (properties.getProperty(prefix+"generate_stereo_var_"+i)!=null)this.generate_stereo_var[i]=Boolean.parseBoolean(properties.getProperty(prefix+"generate_stereo_var_"+i));
+			 }
+			 orderStereo(); 
+		}
+		
+		if (properties.getProperty(prefix+"export_images")!=null)                 this.export_images=Boolean.parseBoolean(properties.getProperty(prefix+"export_images"));		
+		if (properties.getProperty(prefix+"show_images")!=null)                   this.show_images=Boolean.parseBoolean(properties.getProperty(prefix+"show_images"));		
+		if (properties.getProperty(prefix+"show_images_bgfg")!=null)              this.show_images_bgfg=Boolean.parseBoolean(properties.getProperty(prefix+"show_images_bgfg"));		
+		if (properties.getProperty(prefix+"show_images_mono")!=null)              this.show_images_mono=Boolean.parseBoolean(properties.getProperty(prefix+"show_images_mono"));		
+		if (properties.getProperty(prefix+"export_ranges")!=null)                 this.export_ranges=Boolean.parseBoolean(properties.getProperty(prefix+"export_ranges"));
+		if (properties.getProperty(prefix+"show_ranges")!=null)                   this.show_images=Boolean.parseBoolean(properties.getProperty(prefix+"show_ranges"));
+		if (properties.getProperty(prefix+"export_ml_files")!=null)               this.export_ml_files=Boolean.parseBoolean(properties.getProperty(prefix+"export_ml_files"));
+
+		if (properties.getProperty(prefix+"show_color_nan")!=null)                this.show_color_nan=Boolean.parseBoolean(properties.getProperty(prefix+"show_color_nan"));		
+		if (properties.getProperty(prefix+"show_mono_nan")!=null)                 this.show_mono_nan=Boolean.parseBoolean(properties.getProperty(prefix+"show_mono_nan"));
+		if (properties.getProperty(prefix+"min_num_scenes")!=null)                this.min_num_scenes=Integer.parseInt(properties.getProperty(prefix+"min_num_scenes"));
+		if (properties.getProperty(prefix+"blur_egomotion")!=null)                this.blur_egomotion=Double.parseDouble(properties.getProperty(prefix+"blur_egomotion"));
+		if (properties.getProperty(prefix+"range_disparity_offset")!=null)        this.range_disparity_offset=Double.parseDouble(properties.getProperty(prefix+"range_disparity_offset"));
+		if (properties.getProperty(prefix+"range_min_strength")!=null)            this.range_min_strength=Double.parseDouble(properties.getProperty(prefix+"range_min_strength"));
+		if (properties.getProperty(prefix+"range_max")!=null)                     this.range_max=Double.parseDouble(properties.getProperty(prefix+"range_max"));
 		if (properties.getProperty(prefix+"num_bottom")!=null)                    this.num_bottom=Integer.parseInt(properties.getProperty(prefix+"num_bottom"));
 		if (properties.getProperty(prefix+"num_passes")!=null)                    this.num_passes=Integer.parseInt(properties.getProperty(prefix+"num_passes"));
 		if (properties.getProperty(prefix+"max_change")!=null)                    this.max_change=Double.parseDouble(properties.getProperty(prefix+"max_change"));
@@ -880,9 +1021,8 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"diff_from_lma_neg")!=null)             this.diff_from_lma_neg=Double.parseDouble(properties.getProperty(prefix+"diff_from_lma_neg"));
 		if (properties.getProperty(prefix+"outliers_lma_nth_fromextrem")!=null)   this.outliers_lma_nth_fromextrem=Integer.parseInt(properties.getProperty(prefix+"outliers_lma_nth_fromextrem"));
 		if (properties.getProperty(prefix+"filter_margin")!=null)                 this.filter_margin=Integer.parseInt(properties.getProperty(prefix+"filter_margin"));
-		if (properties.getProperty(prefix+"generate_mapped")!=null)               this.generate_mapped=Boolean.parseBoolean(properties.getProperty(prefix+"generate_mapped"));
-		if (properties.getProperty(prefix+"generate_stereo")!=null)               this.generate_stereo=Boolean.parseBoolean(properties.getProperty(prefix+"generate_stereo"));
-		if (properties.getProperty(prefix+"stereo_baseline")!=null)               this.stereo_baseline=Double.parseDouble(properties.getProperty(prefix+"stereo_baseline"));
+
+//		if (properties.getProperty(prefix+"stereo_baseline")!=null)               this.stereo_baseline=Double.parseDouble(properties.getProperty(prefix+"stereo_baseline"));
 		if (properties.getProperty(prefix+"stereo_merge")!=null)                  this.stereo_merge=Boolean.parseBoolean(properties.getProperty(prefix+"stereo_merge"));
 		if (properties.getProperty(prefix+"stereo_gap")!=null)                    this.stereo_gap=Integer.parseInt(properties.getProperty(prefix+"stereo_gap"));
 		
@@ -892,15 +1032,9 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"crop_3d")!=null)              this.crop_3d=Boolean.parseBoolean(properties.getProperty(prefix+"crop_3d"));		
 		if (properties.getProperty(prefix+"sensor_mask")!=null)          this.sensor_mask=Integer.parseInt(properties.getProperty(prefix+"sensor_mask"));
 		if (properties.getProperty(prefix+"merge_all")!=null)            this.merge_all=Boolean.parseBoolean(properties.getProperty(prefix+"merge_all"));		
-		if (properties.getProperty(prefix+"mode3d")!=null)               this.mode3d=Integer.parseInt(properties.getProperty(prefix+"mode3d"));
-		if (properties.getProperty(prefix+"save_mapped_color")!=null)    this.save_mapped_color=Boolean.parseBoolean(properties.getProperty(prefix+"save_mapped_color"));
-		if (properties.getProperty(prefix+"save_mapped_mono")!=null)     this.save_mapped_mono=Boolean.parseBoolean(properties.getProperty(prefix+"save_mapped_mono"));
-		if (properties.getProperty(prefix+"show_mapped_color")!=null)    this.show_mapped_color=Boolean.parseBoolean(properties.getProperty(prefix+"show_mapped_color"));
-		if (properties.getProperty(prefix+"show_mapped_mono")!=null)     this.show_mapped_mono=Boolean.parseBoolean(properties.getProperty(prefix+"show_mapped_mono"));
 		
-		if (properties.getProperty(prefix+"gen_avi_color")!=null)        this.gen_avi_color=Boolean.parseBoolean(properties.getProperty(prefix+"gen_avi_color"));
-		if (properties.getProperty(prefix+"gen_avi_mono")!=null)         this.gen_avi_mono=Boolean.parseBoolean(properties.getProperty(prefix+"gen_avi_mono"));
 		if (properties.getProperty(prefix+"video_fps")!=null)            this.video_fps=Double.parseDouble(properties.getProperty(prefix+"video_fps"));
+		if (properties.getProperty(prefix+"sensor_fps")!=null)           this.sensor_fps=Double.parseDouble(properties.getProperty(prefix+"sensor_fps"));
 		if (properties.getProperty(prefix+"mode_avi")!=null)             this.mode_avi=Integer.parseInt(properties.getProperty(prefix+"mode_avi"));
 		if (properties.getProperty(prefix+"avi_JPEG_quality")!=null)     this.avi_JPEG_quality=Integer.parseInt(properties.getProperty(prefix+"avi_JPEG_quality"));
 		if (properties.getProperty(prefix+"run_ffmpeg")!=null)           this.run_ffmpeg=Boolean.parseBoolean(properties.getProperty(prefix+"run_ffmpeg"));
@@ -989,23 +1123,45 @@ public class IntersceneMatchParameters {
 	@Override
 	public IntersceneMatchParameters clone() throws CloneNotSupportedException {
 		IntersceneMatchParameters imp =     new IntersceneMatchParameters();
- 		imp.force_ref_dsi         = this.force_ref_dsi;
-		imp.force_orientations    = this.force_orientations;
-		imp.readjust_orient       = this.readjust_orient;
-		imp.blur_egomotion        = this.blur_egomotion;
-		imp.force_interscene      = this.force_interscene;
-		imp.export_images         = this.export_images;
-		imp.show_images           = this.show_images;
-		imp.show_images_bgfg      = this.show_images_bgfg;
-		imp.show_images_mono      = this.show_images_mono;
-		imp.show_color_nan        = this.show_color_nan;
-		imp.show_mono_nan         = this.show_mono_nan;
-		imp.export_ranges         = this.export_ranges;
-		imp.show_ranges           = this.show_ranges;
-		imp.range_disparity_offset= this.range_disparity_offset;
-		imp.range_min_strength    = this.range_min_strength;
-		imp.range_max             = this.range_max;
+ 		imp.force_ref_dsi                 = this.force_ref_dsi;
+		imp.force_orientations            = this.force_orientations;
+//		imp.readjust_orient               = this.readjust_orient;
+//		imp.force_interscene              = this.force_interscene;
+		imp.min_num_orient                = this.min_num_orient;
+		imp.min_num_interscene            = this.min_num_interscene;
+		imp.generate_mapped               = this.generate_mapped;
+		imp.save_mapped_color             = this.save_mapped_color;
+		imp.save_mapped_mono              = this.save_mapped_mono;
+		imp.gen_avi_color                 = this.gen_avi_color;
+		imp.gen_avi_mono                  = this.gen_avi_mono;
+		imp.show_mapped_color             = this.show_mapped_color;
+		imp.show_mapped_mono              = this.show_mapped_mono;
 		
+		imp.generate_raw                  = this.generate_raw;
+		imp.generate_inf                  = this.generate_inf;
+		imp.generate_fg                   = this.generate_fg;
+		imp.generate_bg                   = this.generate_bg;
+		
+		imp.generate_stereo               = this.generate_stereo;
+		
+		imp.stereo_bases                  = this.stereo_bases.clone();
+		imp.generate_stereo_var           = this.generate_stereo_var.clone();
+		
+		imp.export_images                 = this.export_images;
+		imp.show_images                   = this.show_images;
+		imp.show_images_bgfg              = this.show_images_bgfg;
+		imp.show_images_mono              = this.show_images_mono;
+		imp.export_ranges                 = this.export_ranges;
+		imp.show_ranges                   = this.show_ranges;
+		imp.export_ml_files               = this.export_ml_files;
+
+		imp.show_color_nan                = this.show_color_nan;
+		imp.show_mono_nan                 = this.show_mono_nan;
+		imp.min_num_scenes                = this.min_num_scenes;
+		imp.blur_egomotion                = this.blur_egomotion;
+		imp.range_disparity_offset        = this.range_disparity_offset;
+		imp.range_min_strength            = this.range_min_strength;
+		imp.range_max                     = this.range_max;
 		imp.num_bottom                    = this.num_bottom;
 		imp.num_passes                    = this.num_passes;
 		imp.max_change                    = this.max_change;
@@ -1033,9 +1189,7 @@ public class IntersceneMatchParameters {
 		imp.diff_from_lma_neg             = this.diff_from_lma_neg;
 		imp.outliers_lma_nth_fromextrem   = this.outliers_lma_nth_fromextrem;
 		imp.filter_margin                 = this.filter_margin;
-		imp.generate_mapped               = this.generate_mapped;
-		imp.generate_stereo               = this.generate_stereo;
-		imp.stereo_baseline               = this.stereo_baseline;
+//		imp.stereo_baseline               = this.stereo_baseline;
 		imp.stereo_merge                  = this.stereo_merge;
 		imp.stereo_gap                    = this.stereo_gap;
 		
@@ -1044,15 +1198,9 @@ public class IntersceneMatchParameters {
 		imp.crop_3d               = this.crop_3d;
 		imp.sensor_mask           = this.sensor_mask;
 		imp.merge_all             = this.merge_all;
-		imp.mode3d                = this.mode3d;               
-		imp.save_mapped_color     = this.save_mapped_color;
-		imp.save_mapped_mono      = this.save_mapped_mono;
-		imp.show_mapped_color     = this.show_mapped_color;
-		imp.show_mapped_mono      = this.show_mapped_mono;
 
-		imp.gen_avi_color =         this. gen_avi_color;
-		imp.gen_avi_mono =          this. gen_avi_mono;
 		imp.video_fps =             this. video_fps;
+		imp.sensor_fps =            this. sensor_fps;
 		imp.mode_avi =              this. mode_avi;
 		imp.avi_JPEG_quality =      this. avi_JPEG_quality;
 		imp.run_ffmpeg =            this. run_ffmpeg;
@@ -1141,5 +1289,55 @@ public class IntersceneMatchParameters {
 			return new Color((int) lcolor, true);
 		}
 	}
+	
+	public void orderStereo(){
+		boolean ordered;
+		do {
+			ordered=true;
+			for (int i = 0; i < (stereo_bases.length - 1); i++) {
+				if (stereo_bases[i+1]<stereo_bases[i]) {
+					boolean en = generate_stereo_var[i+1];
+					generate_stereo_var[i+1] = generate_stereo_var[i];
+					generate_stereo_var[i] = en;
+					double base =  stereo_bases[i+1];
+					stereo_bases[i+1] = stereo_bases[i];
+					stereo_bases[i] = base;
+					ordered = false;
+				}
+			}
+			
+		} while (!ordered);
+	}
+	
+	public void addStereo(double base, boolean en) {
+		double [] bases = new double [stereo_bases.length + 1];
+		boolean [] ens = new boolean [stereo_bases.length + 1];
+		bases[0] = base;
+		ens[0] = en;
+		System.arraycopy(stereo_bases, 0, bases, 1,      stereo_bases.length);
+		System.arraycopy(generate_stereo_var, 0, ens, 1, stereo_bases.length);
+		stereo_bases = bases;
+		generate_stereo_var = ens;
+		orderStereo();
+	}
+	
+	public void removeStereo(int indx) {
+		if ((indx >=0) && (indx <stereo_bases.length)) {
+			double [] bases = new double [stereo_bases.length - 1];
+			boolean [] ens = new boolean [stereo_bases.length - 1];
+			if (indx > 0) {
+				System.arraycopy(stereo_bases,        0, bases, 0, indx);
+				System.arraycopy(generate_stereo_var, 0, ens,   0, indx);
+			}
+			if (indx < (stereo_bases.length - 1)) {
+				System.arraycopy(stereo_bases,        indx+1, bases, indx, stereo_bases.length - indx - 1);
+				System.arraycopy(generate_stereo_var, indx+1, ens,   indx, stereo_bases.length - indx - 1);
+			}
+			stereo_bases = bases;
+			generate_stereo_var = ens;
+		}
+	}
+
+		
 	
 }

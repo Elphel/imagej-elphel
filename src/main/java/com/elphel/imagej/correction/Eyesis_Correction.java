@@ -1118,14 +1118,17 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 			default:
 				LOG_LEVEL = "OFF";
 			}
-
+			LOG_LEVEL = "ERROR"; // setting it here to shut up?
 			boolean LOG_LEVEL_SET = loci.common.DebugTools.enableLogging(LOG_LEVEL);
 			if (!LOG_LEVEL_SET) { // only first time true
 				loci.common.DebugTools.setRootLevel(LOG_LEVEL);
 			}
 			System.out.println("DEBUG_LEVEL = " + DEBUG_LEVEL + ", CLT_PARAMETERS.lwir.getDebugLevel() = "
-					+ CLT_PARAMETERS.lwir.getDebugLevel() + " LOG_LEVEL=" + LOG_LEVEL + "LOG_LEVEL_SET="
+					+ CLT_PARAMETERS.lwir.getDebugLevel() + " LOG_LEVEL=" + LOG_LEVEL + " LOG_LEVEL_SET="
 					+ LOG_LEVEL_SET);
+			//https://www.javadoc.io/doc/org.openmicroscopy/ome-common/6.0.5/loci/common/DebugTools.html#enableLogging(java.lang.String)
+			// Temporary overwrite with public static boolean enableIJLogging​(boolean debug)
+			loci.common.DebugTools.enableIJLogging(false);
 		}
 
 		/* ======================================================================== */

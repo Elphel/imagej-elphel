@@ -22,6 +22,7 @@ package com.elphel.imagej.tileprocessor;
  **
  */
 import java.awt.Rectangle;
+import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileFilter;
@@ -29,7 +30,9 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.PrintWriter;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -37,6 +40,8 @@ import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -348,17 +353,17 @@ public class TwoQuadCLT {
 
 			Runtime.getRuntime().gc();
 			if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels_aux.length+") finished at "+
-					IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+					IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory32="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 			if (quadCLT_aux.eyesisCorrections.stopRequested.get()>0) {
 				System.out.println("User requested stop");
 				System.out.println("Processing "+(nSet + 1)+" file sets (of "+set_channels_main.length+") finished at "+
-						IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+						IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory33="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 				return;
 			}
 		}
 		System.out.println("processCLTQuadCorrPairs(): processing "+(quadCLT_main.getTotalFiles(set_channels_main)+quadCLT_aux.getTotalFiles(set_channels_aux))+" files ("+set_channels_main.length+" file sets) finished at "+
-				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory34="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 	}
 
@@ -480,19 +485,19 @@ public class TwoQuadCLT {
 
 			Runtime.getRuntime().gc();
 			if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels_aux.length+") finished at "+
-					IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+					IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory35="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 			if (quadCLT_aux.eyesisCorrections.stopRequested.get()>0) {
 				System.out.println("User requested stop");
 				System.out.println("Processing "+(nSet + 1)+" file sets (of "+set_channels_main.length+") finished at "+
-						IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+						IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory36="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 				return;
 			}
 		}
 		int num_main = ((quadCLT_main != null) && (set_channels_main != null))?  quadCLT_main.getTotalFiles(set_channels_main) : 0;
 		int num_aux =  ((quadCLT_aux != null) &&  (set_channels_aux != null))?   quadCLT_aux.getTotalFiles(set_channels_aux) : 0;
 		System.out.println("prepareFilesForGPUDebug(): processing "+(num_main + num_aux)+" files ("+set_channels.length+" file sets) finished at "+
-				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory37="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 	}
 	
@@ -589,17 +594,17 @@ public class TwoQuadCLT {
 
 			Runtime.getRuntime().gc();
 			if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels_aux.length+") finished at "+
-					IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+					IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory38="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 			if (quadCLT_aux.eyesisCorrections.stopRequested.get()>0) {
 				System.out.println("User requested stop");
 				System.out.println("Processing "+(nSet + 1)+" file sets (of "+set_channels_main.length+") finished at "+
-						IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+						IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory39="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 				return;
 			}
 		}
 		System.out.println("prepareFilesForGPUDebug(): processing "+(quadCLT_main.getTotalFiles(set_channels_main)+quadCLT_aux.getTotalFiles(set_channels_aux))+" files ("+set_channels_main.length+" file sets) finished at "+
-				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory40="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 	}
 	
@@ -701,17 +706,17 @@ public class TwoQuadCLT {
 
 			Runtime.getRuntime().gc();
 			if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels_aux.length+") finished at "+
-					IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+					IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory41="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 			if (quadCLT_aux.eyesisCorrections.stopRequested.get()>0) {
 				System.out.println("User requested stop");
 				System.out.println("Processing "+(nSet + 1)+" file sets (of "+set_channels_main.length+") finished at "+
-						IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+						IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory42="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 				return;
 			}
 		}
 		System.out.println("processCLTQuadCorrPairsGpu(): processing "+(quadCLT_main.getTotalFiles(set_channels_main)+quadCLT_aux.getTotalFiles(set_channels_aux))+" files ("+set_channels_main.length+" file sets) finished at "+
-				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory43="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 	}
 	
@@ -2048,17 +2053,17 @@ public class TwoQuadCLT {
 
 			Runtime.getRuntime().gc();
 			if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels_aux.length+") finished at "+
-					IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+					IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory44="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 			if (quadCLT_aux.eyesisCorrections.stopRequested.get()>0) {
 				System.out.println("User requested stop");
 				System.out.println("Processing "+(nSet + 1)+" file sets (of "+set_channels_main.length+") finished at "+
-						IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+						IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory45="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 				return;
 			}
 		}
 		System.out.println("processInfinityRigs(): processing "+(quadCLT_main.getTotalFiles(set_channels_main)+quadCLT_aux.getTotalFiles(set_channels_aux))+" files ("+set_channels_main.length+" file sets) finished at "+
-				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory46="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 	}
 
@@ -3420,9 +3425,9 @@ if (debugLevel > -100) return true; // temporarily !
 					debugLevel);                              // int                  debugLevel
 			Runtime.getRuntime().gc();
 			if (clt_parameters.rig.ml_randomize) {
-				System.out.println("Generated ML data, randomized offset = "+String.format("%8.5f...%8.5f",disparity_offset_low,disparity_offset_high)+", --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				System.out.println("Generated ML data, randomized offset = "+String.format("%8.5f...%8.5f",disparity_offset_low,disparity_offset_high)+", --- Free memory47="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			} else {
-				System.out.println("Generated ML data, offset = "+String.format("%8.5f",disparity_offset_low)+", --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				System.out.println("Generated ML data, offset = "+String.format("%8.5f",disparity_offset_low)+", --- Free memory48="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			}
 			if (clt_parameters.rig.ml_randomize && (sweep_step == (clt_parameters.rig.ml_sweep_steps-2))) { // reduce by 1 for random
 				break;
@@ -3600,7 +3605,7 @@ if (debugLevel > -100) return true; // temporarily !
 			}
 		}
 		Runtime.getRuntime().gc();
-    	System.out.println("Generated ML data, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+    	System.out.println("Generated ML data, --- Free memory49="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	}
 
 
@@ -4093,7 +4098,7 @@ if (debugLevel > -100) return true; // temporarily !
 					biCamDSI_persistent.biScans.remove(1);
 				}
 				Runtime.getRuntime().gc();
-				System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				System.out.println("--- Free memory50="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 
 			}
@@ -8023,7 +8028,7 @@ if (debugLevel > -100) return true; // temporarily !
 			}
 			resetRig   (false); // includes biCamDSI_persistent = null
 			Runtime.getRuntime().gc();
-			System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+			System.out.println("--- Free memory51="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 			if (quadCLT_main.correctionsParameters.clt_batch_surf) {
 				if (updateStatus) IJ.showStatus("Creating and filtering supertile plane surfaces from the DSI "+quadCLT_main.image_name);
@@ -8121,17 +8126,17 @@ if (debugLevel > -100) return true; // temporarily !
 			}
 			Runtime.getRuntime().gc();
 			if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels_aux.length+") finished at "+
-					IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+					IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory52="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 			if (quadCLT_aux.eyesisCorrections.stopRequested.get()>0) {
 				System.out.println("User requested stop");
 				System.out.println("Processing "+(nSet + 1)+" file sets (of "+set_channels_main.length+") finished at "+
-						IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+						IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory53="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 				return;
 			}
 		}
 		System.out.println("batchRig(): processing "+(quadCLT_main.getTotalFiles(set_channels_main)+quadCLT_aux.getTotalFiles(set_channels_aux))+" files ("+set_channels_main.length+" file sets) finished at "+
-				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory54="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 	}
 
@@ -8574,6 +8579,8 @@ if (debugLevel > -100) return true; // temporarily !
 			final boolean    updateStatus,
 			final int        debugLevel)  throws Exception
     {
+  	
+    	
     	long start_time_all = System.nanoTime();
 		OpticalFlow opticalFlow = new OpticalFlow(
 				quadCLT_main.getNumSensors(),
@@ -8590,9 +8597,10 @@ if (debugLevel > -100) return true; // temporarily !
 				num_seq = pathFirstLast.length; 
 			}
 		}
+		String [][] video_lists = new String [num_seq][];
 		for (int nseq = 0; nseq < num_seq; nseq++) {
 	    	long start_time_seq = System.nanoTime();
-	    	System.out.println("\n\n\nPROCESSING SCENE SEQUENCE "+nseq+" (last is "+(num_seq-1)+")\n\n");
+	    	System.out.println("\nSTARTED PROCESSING SCENE SEQUENCE "+nseq+" (last is "+(num_seq-1)+")");
 			if (pathFirstLast != null) {
 				File [] scene_dirs = (new File(pathFirstLast[nseq].path)).listFiles(); // may contain non-directories, will be filtered by filterScenes
 				quadCLT_main.correctionsParameters.filterScenes(
@@ -8600,8 +8608,8 @@ if (debugLevel > -100) return true; // temporarily !
 						pathFirstLast[nseq].first, // int scene_first, // first scene to process
 						pathFirstLast[nseq].last); // int scene_last);  // last scene to process (negative - add length
 			}
-			
-			opticalFlow.buildSeries(
+			String [][] video_list = new String[1][];
+			String model_directory = opticalFlow.buildSeries(
 		    		(pathFirstLast != null),   //boolean                                              batch_mode,
 					quadCLT_main,              // QuadCLT                                              quadCLT_main, // tiles should be set
 					ref_index,                 // int                                                  ref_index, // -1 - last
@@ -8613,14 +8621,104 @@ if (debugLevel > -100) return true; // temporarily !
 					rgbParameters,             // EyesisCorrectionParameters.RGBParameters             rgbParameters,
 					equirectangularParameters, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
 					properties,                // Properties                                           properties,
-					reset_from_extrinsics, // boolean                                              reset_from_extrinsics,
-					threadsMax,  // final int        threadsMax,  // maximal number of threads to launch
+					reset_from_extrinsics,     // boolean                                              reset_from_extrinsics,
+					video_list,                // String [][]                                            video_list, // null or list of generated avi or webm paths
+					threadsMax,                // final int        threadsMax,  // maximal number of threads to launch
 					updateStatus, // final boolean    updateStatus,
 					debugLevel+2); // final int        debugLevel)
-	    	System.out.println("\n\n\nPROCESSING SCENE SEQUENCE "+nseq+" (last is "+(num_seq-1)+") is FINISHED in "+
+			video_lists[nseq] = video_list[0];
+	    	System.out.println("PROCESSING SCENE SEQUENCE "+nseq+" (last is "+(num_seq-1)+") is FINISHED in "+
 	    			IJ.d2s(0.000000001*(System.nanoTime()-start_time_seq),3)+" sec ("+
 	    			IJ.d2s(0.000000001*(System.nanoTime()-start_time_all),3)+" sec from the overall start");
+	    	// will open dialog if does not exist
+	    	String linkedModelsDirectory = quadCLT_main.correctionsParameters.selectLinkedModelsDirectory(true,true);
+	    	if ((linkedModelsDirectory != null) && (linkedModelsDirectory.length() > 0) && (model_directory != null)) {
+	    		Path pathAbsolute = Paths.get(model_directory);
+	    		Path pathBase = Paths.get(linkedModelsDirectory);
+	    		Path pathRelative = pathBase.relativize(pathAbsolute);
+	    		File linkDir = new File(linkedModelsDirectory);
+	    		linkDir.mkdirs();
+	    		File link = new File(linkDir, pathAbsolute.getFileName().toString());
+	    		if (link.exists()) {
+	    			link.delete();
+	    		}
+	    		Files.createSymbolicLink(link.toPath(), pathRelative);
+	    	}
 		}
+		// combine videos if generated
+		if ((video_lists.length > 1) && (video_lists[0] != null) && (video_lists[0].length > 1)) { // do not combine if single sequence or no videos
+			String concat_list_name="concat.list";
+			concat_videos: {
+				System.out.println("Generating "+(video_lists[0].length)+" combined video files.");
+				String videoDirectory = quadCLT_main.correctionsParameters.selectVideoDirectory(true,true);
+				if (videoDirectory == null) {
+					break concat_videos;
+				}
+				File video_dir = new File (videoDirectory);
+				video_dir.mkdirs(); // SHould already exist actually
+				for (int nvideo = 0; nvideo < video_lists[0].length; nvideo++) {
+					// get name with <ts_sec_first>-<ts_sec_last>
+					//				String spath0 = video_lists[0][nvideo];
+					String name0 = Paths.get(video_lists[0][nvideo]).getFileName().toString();
+					String name1 = Paths.get(video_lists[video_lists.length-1][nvideo]).getFileName().toString();
+					String ts_sec0=name0.substring(0,name0.indexOf("_")); // seconds of the first timestamp
+					String ts_sec1=name1.substring(0,name1.indexOf("_")); // seconds of the last timestamp
+					String suffix0 = name0.substring(name0.indexOf("-")); // Skip timestamp
+					String combo_video_name = ts_sec0+"-"+ts_sec1+suffix0;
+					File list_to_concat = new File (video_dir,concat_list_name);
+					// delete if exists
+		    		if (list_to_concat.exists()) {
+		    			list_to_concat.delete();
+		    		}
+		    		
+		    		PrintWriter writer = new PrintWriter(list_to_concat, "UTF-8");
+		    		for (int i = 0; i <video_lists.length; i++) {
+		    			if ((video_lists[i] != null) && (video_lists[i].length > nvideo)) {
+		    				writer.println("file '"+video_lists[i][nvideo]+"'");
+		    			} else {
+		    				System.out.println("Specific video segment "+i+":"+nvideo+" is missing, skipping");
+		    			}
+		    		}
+		    		writer.close();
+		    		File video_out =  new File (video_dir,combo_video_name);
+		    		if (video_out.exists()) {
+		    			video_out.delete();
+		    		}
+		    		double pts_scale = clt_parameters.imp.video_fps/clt_parameters.imp.sensor_fps;
+    	    		String shellCommand = String.format("ffmpeg -y -f concat -safe 0 -i %s -r 60 -vf setpts=%f*PTS %s",
+    	    				list_to_concat.toString(), pts_scale,video_out.toString());
+
+    				
+    				Process p = null;
+    				int exit_code = -1;
+					System.out.println("Will run shell command: \""+shellCommand+"\"");
+					System.out.println("This may take a while, please wait ...");
+    				try {
+    	    			p = Runtime.getRuntime().exec(
+    	    					shellCommand,
+    	    					null, // env
+    	    					video_dir // working dir - needed if "-report" is added to ffmpeg command
+    	    					);
+    				} catch (IOException e) {
+    					System.out.println("Failed shell command: \""+shellCommand+"\"");
+    				}
+    				
+    				if (p != null) {
+    					p.waitFor();
+    					exit_code = p.exitValue();
+    				}
+    				
+    				System.out.println("Ran shell command: \""+shellCommand+"\" -> ");
+		    		if ((exit_code != 0) || !video_out.exists()) {
+    					System.out.println("Failed to create : \""+video_out.toString()+"\"");
+		    		}
+				}
+			}
+		} else {
+			System.out.println("No combined videos are generated");
+		}
+		
+		
     	System.out.println("\n\n\nPROCESSING OF "+num_seq+" SCENE SEQUENCES is FINISHED in "+
     			IJ.d2s(0.000000001*(System.nanoTime()-start_time_all),3)+" sec.");
 
@@ -11987,7 +12085,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 
 						Runtime.getRuntime().gc();
-						System.out.println("--- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+						System.out.println("--- Free memory55="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 						if (quadCLT_main.correctionsParameters.clt_batch_surf) {
 							if (updateStatus) IJ.showStatus("Creating and filtering supertile plane surfaces from the DSI "+quadCLT_main.image_name);
@@ -12380,12 +12478,12 @@ if (debugLevel > -100) return true; // temporarily !
 
 				Runtime.getRuntime().gc();
 				if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels_aux.length+") finished at "+
-						IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+						IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory56="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 				if (quadCLT_aux.eyesisCorrections.stopRequested.get()>0) {
 					System.out.println("User requested stop");
 					System.out.println("Processing "+(nSet + 1)+" file sets (of "+set_channels_main.length+") finished at "+
-							IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+							IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory57="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 					return;
 				}
 			}
@@ -12594,7 +12692,7 @@ if (debugLevel > -100) return true; // temporarily !
 		}
 
 		System.out.println("batchLwirRig(): processing "+(num_main + num_aux)+" files ("+set_channels.length+" file sets) finished at "+
-				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory58="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	}
 
 	public void showDSI()

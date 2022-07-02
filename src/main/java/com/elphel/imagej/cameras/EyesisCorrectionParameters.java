@@ -201,7 +201,10 @@ public class EyesisCorrectionParameters {
     	public String x3dModelVersion="v01";
     	public String jp4SubDir="jp4"; // FIXME:
 
+    	public String linkedModels="";   // linked models with reference scenes
     	public String x3dDirectory="";
+    	public String videoDirectory=""; // combined (with MPEG) from multiple scene sequences video files
+
 
     	public String mlDirectory="ml";
 
@@ -308,6 +311,8 @@ public class EyesisCorrectionParameters {
   			cp.referenceExposure=    	this.referenceExposure;
   			cp.relativeExposure=    	this.relativeExposure;
   			cp.swapSubchannels01=    	this.swapSubchannels01;
+  			cp.linkedModels=    		this.linkedModels;
+  			cp.videoDirectory=    		this.videoDirectory;
   			cp.x3dDirectory=    		this.x3dDirectory;
   			cp.mlDirectory=    	     	this.mlDirectory;
   			cp.use_x3d_subdirs=    		this.use_x3d_subdirs;
@@ -514,6 +519,8 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"cltKernelPrefix",       this.cltKernelPrefix);
     		properties.setProperty(prefix+"cltSuffix",             this.cltSuffix);
 
+    		properties.setProperty(prefix+"linkedModels",          this.linkedModels);
+    		properties.setProperty(prefix+"videoDirectory",        this.videoDirectory);
     		properties.setProperty(prefix+"x3dDirectory",          this.x3dDirectory);
     		properties.setProperty(prefix+"use_x3d_subdirs",       this.use_x3d_subdirs+"");
 
@@ -701,6 +708,8 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"cltKernelPrefix")!=      null) this.cltKernelPrefix=properties.getProperty(prefix+"cltKernelPrefix");
 			if (properties.getProperty(prefix+"cltSuffix")!=            null) this.cltSuffix=properties.getProperty(prefix+"cltSuffix");
 
+			if (properties.getProperty(prefix+"linkedModels")!=         null) this.linkedModels=properties.getProperty(prefix+"linkedModels");
+			if (properties.getProperty(prefix+"videoDirectory")!=       null) this.videoDirectory=properties.getProperty(prefix+"videoDirectory");
 			if (properties.getProperty(prefix+"x3dDirectory")!=         null) this.x3dDirectory=properties.getProperty(prefix+"x3dDirectory");
 
 			if (properties.getProperty(prefix+"use_x3d_subdirs")!= null) this.use_x3d_subdirs=Boolean.parseBoolean(properties.getProperty(prefix+"use_x3d_subdirs"));
@@ -870,8 +879,18 @@ public class EyesisCorrectionParameters {
 
     		gd.addStringField ("x3d model version",                                this.x3dModelVersion, 20);    // 10a
     		gd.addStringField ("JP4 source image copy model subdirectory",         this.jp4SubDir, 20);    // 10b
+    		
+    		gd.addStringField ("Linked reference models",                          this.linkedModels, 60,
+    				"Directory where links to reference models directories will be created.");
+    		gd.addCheckbox    ("Select linked reference models directory",         false);
+    		
+    		gd.addStringField ("Video directory",                                  this.videoDirectory, 60,
+    				"Directory to store combined video files.");
+    		gd.addCheckbox    ("Select video directory",                           false);
+    		
     		gd.addStringField ("x3d output directory",                             this.x3dDirectory, 60);
     		gd.addCheckbox    ("Select x3d output directory",                      false);
+    		
     		gd.addCheckbox    ("Use individual subdirectory for each 3d model (timestamp as name)", this.use_x3d_subdirs);
 
     		gd.addStringField ("x3d subdirectory prefix",                          this.x3dSubdirPrefix, 10,
@@ -994,6 +1013,8 @@ public class EyesisCorrectionParameters {
     		this.cltKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectCLTKernelDirectory(false, true);
     		this.x3dModelVersion=        gd.getNextString(); // 10a
     		this.jp4SubDir=              gd.getNextString(); // 10b
+    		this.linkedModels=           gd.getNextString(); if (gd.getNextBoolean()) selectLinkedModelsDirectory(false, true);
+    		this.videoDirectory=         gd.getNextString(); if (gd.getNextBoolean()) selectVideoDirectory(false, true);
     		this.x3dDirectory=           gd.getNextString(); if (gd.getNextBoolean()) selectX3dDirectory(false, true);
     		this.use_x3d_subdirs=        gd.getNextBoolean();
 
@@ -1065,6 +1086,15 @@ public class EyesisCorrectionParameters {
     		
     		gd.addStringField ("x3d model version",                                this.x3dModelVersion, 60);    // 10a
     		gd.addStringField ("jp4 source copy subdirectory",                     this.jp4SubDir, 60);          // 10b
+    		
+    		gd.addStringField ("Linked reference models",                          this.linkedModels, 60,
+    				"Directory where links to reference models directories will be created.");
+    		gd.addCheckbox    ("Select linked reference models directory",         false);
+    		
+    		gd.addStringField ("Video directory",                                  this.videoDirectory, 60,
+    				"Directory to store combined video files.");
+    		gd.addCheckbox    ("Select video directory",                           false);
+    		
     		gd.addStringField ("x3d output directory",                             this.x3dDirectory, 60);       // 8
     		gd.addCheckbox    ("Select x3d output (top model) directory",          false);                       // 9
 
@@ -1230,6 +1260,8 @@ public class EyesisCorrectionParameters {
     		
     		this.x3dModelVersion=        gd.getNextString(); //  10a
     		this.jp4SubDir=              gd.getNextString(); //  10b
+    		this.linkedModels=           gd.getNextString(); if (gd.getNextBoolean()) selectLinkedModelsDirectory(false, true);
+    		this.videoDirectory=         gd.getNextString(); if (gd.getNextBoolean()) selectVideoDirectory(false, true);
     		this.x3dDirectory=           gd.getNextString(); if (gd.getNextBoolean()) selectX3dDirectory(false, true);       // 9
     		this.use_x3d_subdirs=        gd.getNextBoolean(); // 10
 //    		this.sourcePrefix=           gd.getNextString();  // 13
@@ -2192,6 +2224,31 @@ public class EyesisCorrectionParameters {
     		return dir;
     	}
 
+    	public String selectLinkedModelsDirectory(boolean smart, boolean newAllowed) {
+    		String dir= CalibrationFileManagement.selectDirectory(
+    				smart,
+    				newAllowed, // save
+    				"linked models directory", // title
+    				"Select linked models directory", // button
+    				null, // filter
+    				this.linkedModels); //this.sourceDirectory);
+    		if (dir!=null) this.linkedModels=dir;
+    		return dir;
+    	}
+
+    	public String selectVideoDirectory(boolean smart, boolean newAllowed) {
+    		String dir= CalibrationFileManagement.selectDirectory(
+    				smart,
+    				newAllowed, // save
+    				"video directory", // title
+    				"Select video directory", // button
+    				null, // filter
+    				this.videoDirectory); //this.sourceDirectory);
+    		if (dir!=null) this.videoDirectory=dir;
+    		return dir;
+    	}
+    	
+    	
     	public String selectMlDirectory(String name, boolean smart, boolean newAllowed) {
     		if ((name != null) && (this.mlDirectory.length()>0) && (!this.mlDirectory.contains(Prefs.getFileSeparator()))) {
     			// relative to the X3D model version
@@ -2218,7 +2275,6 @@ public class EyesisCorrectionParameters {
     	// select qualified (by 'name' - quad timestamp) x3d subdirectory
 
     	public String selectX3dDirectory(String name, String version, boolean smart, boolean newAllowed) {
-
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
     				newAllowed, // save

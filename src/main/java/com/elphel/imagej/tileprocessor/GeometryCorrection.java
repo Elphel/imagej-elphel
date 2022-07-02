@@ -801,7 +801,7 @@ public class GeometryCorrection {
 		int    [] full_par_index;
 
 		public RigOffset () {
-			System.out.println("created RigOffset");
+///			System.out.println("created RigOffset");
 			par_scales = new double [VECTOR_LENGTH];
 			par_scales[AUX_AZIMUTH_INDEX] =  1000.0*focalLength/pixelSize;
 			par_scales[AUX_TILT_INDEX] =     1000.0*focalLength/pixelSize;

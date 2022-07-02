@@ -37,7 +37,7 @@ import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 public class TileProcessor {
-	
+	public boolean run_garbage_collection=false;
 	public static String [] SCAN_TITLES4 = {
 			"tile_op",       //  0
 			"final",         //  1 - calculated, filtered, combined disparity
@@ -251,10 +251,11 @@ public class TileProcessor {
 		rig_pre_poles_sel =      null;
 		rig_post_poles_sel =     null;
 		clt_3d_passes_rig_size = 0;
-
-		Runtime runtime = Runtime.getRuntime();
-	    runtime.gc();
-		System.out.println("--- Free memory="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
+		if (run_garbage_collection) {
+			Runtime runtime = Runtime.getRuntime();
+			runtime.gc();
+			System.out.println("--- Free memory30="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
+		}
 	}
 
 	public void saveCLTPasses(boolean rig){
@@ -309,7 +310,7 @@ public class TileProcessor {
 		}
 		Runtime runtime = Runtime.getRuntime();
 	    runtime.gc();
-		System.out.println("--- Free memory="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
+		System.out.println("--- Free memory31="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
 	}
 
 	public void removeNonMeasurement(){ // executed during expansion (CLT 3D)

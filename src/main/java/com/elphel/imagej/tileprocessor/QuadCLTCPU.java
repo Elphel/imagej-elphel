@@ -163,6 +163,40 @@ public class QuadCLTCPU {
     public double [][]                                     ds_from_main = null;
     public double [][]                                     dsrbg = null; // D, S, R,B,G
     
+    //number of times orientation is (re) calculated: 0 - none, 1 - before accumulation, 2 - readjusted after accumulation
+    public int                                             num_orient = 0; 
+    //number of times scenes are accumulated: 0 - none, 1 - after first orientation, 2 - after second orientation
+    public int                                             num_accum =  0;
+    
+    public void inc_orient()        {num_orient++;}
+    public void inc_accum()         {num_accum++;}
+    public void set_orient(int num) {num_orient = num;}
+    public void set_accum (int num) {num_accum = num;}
+    public int  getNumOrient()      {return num_orient;}
+    public int  getNumAccum()       {return num_accum;}
+    
+    public int getEarliestScene(
+    		QuadCLT []     scenes) {
+    	String ts_ref = getImageName();
+    	ErsCorrection ers_reference = getErsCorrection();
+    	for (int nscene = scenes.length - 1; nscene >= 0; nscene--) {
+    		if (scenes[nscene] == null) {
+    			return nscene + 1;
+    		}
+    		String ts = scenes[nscene].getImageName();
+    		if (!ts.equals(ts_ref)) {
+				double []   scene_xyz = ers_reference.getSceneXYZ(ts);
+				double []   scene_atr = ers_reference.getSceneATR(ts);
+				if ((scene_xyz == null) || (scene_atr == null)){
+					return nscene + 1;
+				}
+    		}
+    	}
+    	return 0;
+    	
+    }
+    
+    
     public double [][] getDLS(){ // get disparity, disparity_lma, strength
     	if (dsi == null) {
 //    		System.out.println("dsi== null, use spawnQuadCLT(), restoreFromModel(), ... to set it");
@@ -340,7 +374,17 @@ public class QuadCLTCPU {
 	public String getImageName() {
 		return image_name;
 	}
-    
+
+	public String getX3dTopDirectory() { // replace direct calculations  
+		String x3d_path = correctionsParameters.selectX3dDirectory( // for x3d and obj
+				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+				null,
+				true,  // smart,
+				true);  //newAllowed, // save
+		return x3d_path;
+	}
+
+	
 	public String getX3dDirectory() { // replace direct calculations  
 		String x3d_path = correctionsParameters.selectX3dDirectory( // for x3d and obj
 				correctionsParameters.getModelName(image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
@@ -477,10 +521,9 @@ public class QuadCLTCPU {
 	
 	public void saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
 			String path,             // full name with extension or w/o path to use x3d directory
-//			Properties properties,   // if null - will only save extrinsics)
 			int debugLevel)
 	{
-		// upggrade to ErsCorrection (including setting initial velocities and angular velocities, resets accelerations, resets scenes
+		// upgrade to ErsCorrection (including setting initial velocities and angular velocities, resets accelerations, resets scenes
 		if (!(geometryCorrection instanceof ErsCorrection)) {
 			geometryCorrection = new ErsCorrection(geometryCorrection, false); // no need to copy just created gc
 		}
@@ -495,9 +538,7 @@ public class QuadCLTCPU {
 		}
 		Properties	inter_properties = new Properties();
 		String prefix = is_aux?PREFIX_AUX:PREFIX; 
-//		setProperties(QuadCLT.PREFIX,inter_properties); 
 		setProperties(prefix,inter_properties); 
-//		quadCLT_aux.setProperties(QuadCLT.PREFIX_AUX,properties);
 		OutputStream os;
 		try {
 			os = new FileOutputStream(path);
@@ -567,6 +608,10 @@ public class QuadCLTCPU {
 		ers.getPropertiesERS(prefix,    properties);
 		ers.getPropertiesScenes(prefix, properties);
 		ers.getPropertiesLineTime(prefix, properties); // will set old value if not in the file
+		
+		
+		
+		
 		System.out.println("Restored interframe properties from :"+path);
 		return properties;
 	}
@@ -1193,6 +1238,7 @@ public class QuadCLTCPU {
 		System.out.println("saveDoubleArrayInModelDirectory(): saved "+file_path);
 		return file_path;
 	}
+
 	
 	public String saveAVIInModelDirectory(
 			String      suffix, // null - use title from the imp
@@ -1561,7 +1607,6 @@ public class QuadCLTCPU {
 		if (properties == null) {
 			properties = this.properties;
 		}
-//		System.out.println("setProperties("+prefix+")");
 		for (int n = 0; n < fine_corr.length; n++){
 			for (int d = 0; d < fine_corr[n].length; d++){
 				for (int i = 0; i < fine_corr[n][d].length; i++){
@@ -1575,12 +1620,6 @@ public class QuadCLTCPU {
 			gc = new GeometryCorrection(this.extrinsic_vect); // not used in lwir
 		}
 		gc.setPropertiesExtrinsic(prefix, properties);
-		/*
-		for (int i = 0; i < GeometryCorrection.CORR_NAMES.length; i++){
-			String name = prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
-			properties.setProperty(name,  gc.getCorrVector().toArray()[i]+"");
-		}
-		*/
 		if (is_aux && (gc.rigOffset != null)) {
 			gc.rigOffset.setProperties(prefix,properties);
 		}
@@ -1591,11 +1630,13 @@ public class QuadCLTCPU {
 			ers.setPropertiesScenes(prefix, properties);
 			ers.setPropertiesLineTime(prefix, properties);
 		}
+		properties.setProperty(prefix+"num_orient",      this.num_orient+"");
+		properties.setProperty(prefix+"num_accum",       this.num_accum+"");
+		
 	}
 
 
 	public void copyPropertiesFrom(Properties other_properties, String other_prefix, String this_prefix){ // save // not used in lwir
-//		System.out.println("copyPropertiesFrom(other_properties, "+other_prefix+", this_prefix"+")");
 		for (int n = 0; n < fine_corr.length; n++){
 			for (int d = 0; d < fine_corr[n].length; d++){
 				for (int i = 0; i < fine_corr[n][d].length; i++){
@@ -1608,15 +1649,21 @@ public class QuadCLTCPU {
 				}
 			}
 		}
-		/*
-		GeometryCorrection gc = geometryCorrection;
-		if (gc == null) { // if it was not yet created
-			gc = new GeometryCorrection(this.extrinsic_vect);
-		}
-		*/
 		double [] other_extrinsic_vect = GeometryCorrection.getPropertiesExtrinsic(other_prefix, other_properties);
 		int num_cams = CorrVector.getCamerasFromEV(other_extrinsic_vect.length);
 		GeometryCorrection.setPropertiesExtrinsic(this_prefix, properties, other_extrinsic_vect);
+
+		if (other_properties.getProperty(other_prefix+"num_orient")!=null) {
+			this.num_orient = Integer.parseInt(other_properties.getProperty(other_prefix+"num_orient"));
+			properties.setProperty(this_prefix+"num_orient",   this.num_orient+"");
+		}
+		if (other_properties.getProperty(other_prefix+"num_accum")!=null) {
+			this.num_accum = Integer.parseInt(other_properties.getProperty(other_prefix+"num_accum"));
+			properties.setProperty(this_prefix+"num_accum",   this.num_accum+"");
+		}
+
+		
+		
 		/*
 		for (int i = 0; i < GeometryCorrection.CORR_NAMES.length; i++){
 			String other_name = other_prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
@@ -1716,14 +1763,12 @@ public class QuadCLTCPU {
 			geometryCorrection.setCorrVector(this.extrinsic_vect);
 //			geometryCorrection = new GeometryCorrection(this.extrinsic_vect);
 		}
-//
-		
-		
 		if (is_aux) {
 			geometryCorrection.setRigOffsetFromProperies(prefix, properties);
 		}
-		// inter-frame properties only make sense for, well, scenes. So they will only be read 
-		
+		// inter-frame properties only make sense for, well, scenes. So they will only be read
+		if (properties.getProperty(prefix+"num_orient")!=null) this.num_orient=Integer.parseInt(properties.getProperty(prefix+"num_orient"));
+		if (properties.getProperty(prefix+"num_accum")!=null)  this.num_accum= Integer.parseInt(properties.getProperty(prefix+"num_accum"));
 	}
 
 	public void setKernelImageFile(ImagePlus img_kernels){ // not used in lwir
@@ -3024,7 +3069,7 @@ public class QuadCLTCPU {
 			  }
 			  //pixelMapping
 			  if (debugLevel >-1) System.out.println("Processing image "+(iImage+1)+" (of "+fileIndices.length+") finished at "+
-					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory4="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
 				  System.out.println("User requested stop");
 				  return;
@@ -3715,7 +3760,7 @@ public class QuadCLTCPU {
 					  }
 					  //pixelMapping
 					  if (debugLevel >-1) System.out.println("Processing image "+(iImage+1)+" (of "+fileIndices.length+") finished at "+
-							  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+							  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory5="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 					  if (eyesisCorrections.stopRequested.get()>0) {
 						  System.out.println("User requested stop");
 						  return;
@@ -3725,7 +3770,7 @@ public class QuadCLTCPU {
 			  }
 		  }
 		  System.out.println("processCLTSets(): processing "+fileIndices.length+" files finished at "+
-				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory6="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
 
 	  public ImagePlus processCLTSetImage( // not used in lwir
@@ -4318,14 +4363,14 @@ public class QuadCLTCPU {
 					  updateStatus,
 					  debugLevel);
 			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+setNames.size()+") finished at "+
-					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory7="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
 				  System.out.println("User requested stop");
 				  return;
 			  }
 		  }
 		  System.out.println("processCLTQuads(): processing "+fileIndices.length+" files finished at "+
-				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory8="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
 	  
 	  @Deprecated
@@ -5221,16 +5266,16 @@ public class QuadCLTCPU {
 					  updateStatus,
 					  debugLevel);
 			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels.length+") finished at "+
-					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory9="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
 				  System.out.println("User requested stop");
 				  System.out.println("Processing "+(nSet + 1)+" file sets (of "+set_channels.length+") finished at "+
-						  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+						  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory10="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 				  return;
 			  }
 		  }
 		  System.out.println("processCLTQuadCorrs(): processing "+getTotalFiles(set_channels)+" files ("+set_channels.length+" file sets) finished at "+
-				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory11="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
 
 
@@ -5303,16 +5348,16 @@ public class QuadCLTCPU {
 					  updateStatus,
 					  debugLevel);
 			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels.length+") finished at "+
-					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory12="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
 				  System.out.println("User requested stop");
 				  System.out.println("Processing "+(nSet + 1)+" file sets (of "+set_channels.length+") finished at "+
-						  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+						  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory13="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 				  return;
 			  }
 		  }
 		  System.out.println("processCLTQuadCorrs(): processing "+getTotalFiles(set_channels)+" files ("+set_channels.length+" file sets) finished at "+
-				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory14="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
 
 
@@ -5384,16 +5429,16 @@ public class QuadCLTCPU {
 					  updateStatus,
 					  debugLevel);
 			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels.length+") finished at "+
-					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory15="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
 				  System.out.println("User requested stop");
 				  System.out.println("Processing "+(nSet + 1)+" file sets (of "+set_channels.length+") finished at "+
-						  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+						  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory16="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 				  return;
 			  }
 		  }
 		  System.out.println("processCLTQuadCorrs(): processing "+getTotalFiles(set_channels)+" files ("+set_channels.length+" file sets) finished at "+
-				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory17="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
 
 	  public static void channelGainsEqualize( // USED in lwir
@@ -8068,7 +8113,7 @@ public class QuadCLTCPU {
 				  debugLevel);
 		  Runtime.getRuntime().gc();
 	      System.out.println("showCLTPlanes(): processing  finished at "+
-			  IJ.d2s(0.000000001*(System.nanoTime()-this.startStepTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+			  IJ.d2s(0.000000001*(System.nanoTime()-this.startStepTime),3)+" sec, --- Free memory18="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
 
 	  public double [][]  assignCLTPlanes( // not used in lwir
@@ -8102,7 +8147,7 @@ public class QuadCLTCPU {
 		  			debugLevel);
 		  	Runtime.getRuntime().gc();
 		  	System.out.println("assignCLTPlanes(): processing  finished at "+
-		  			IJ.d2s(0.000000001*(System.nanoTime()-this.startStepTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+		  			IJ.d2s(0.000000001*(System.nanoTime()-this.startStepTime),3)+" sec, --- Free memory19="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 		  	return assign_dbg;
 
 	  }
@@ -8308,16 +8353,16 @@ public class QuadCLTCPU {
 //			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+setNames.size()+") finished at "+
 //					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels.length+") finished at "+
-					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory20="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
 				  System.out.println("User requested stop");
 				  return;
 			  }
 		  }
 //		  System.out.println("Processing "+fileIndices.length+" files finished at "+
-//				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+//				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory21="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 		  System.out.println("Processing "+getTotalFiles(set_channels)+" files finished at "+
-				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory22="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
 
 	public double [][] depthMapMainToAux(// USED in lwir
@@ -9144,7 +9189,7 @@ public class QuadCLTCPU {
  ///// Refining after all added   - end
 		  Runtime.getRuntime().gc();
 	      System.out.println("preExpandCLTQuad3d(): processing  finished at "+
-			  IJ.d2s(0.000000001*(System.nanoTime()-this.startStepTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+			  IJ.d2s(0.000000001*(System.nanoTime()-this.startStepTime),3)+" sec, --- Free memory23="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 		  return true;
 	  }
 
@@ -10969,7 +11014,7 @@ public class QuadCLTCPU {
 
     	  Runtime runtime = Runtime.getRuntime();
     	  runtime.gc();
-    	  System.out.println("--- Free memory="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
+    	  System.out.println("--- Free memory24="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
 
 
     	  // Get filtered (by flexible "plates" that can tilt to accommodate tiles disparity/strength map, that uses data from all previous
@@ -11627,7 +11672,7 @@ public class QuadCLTCPU {
 
 		  Runtime.getRuntime().gc();
 		  System.out.println("output3d(): generating 3d output files  finished at "+
-				  IJ.d2s(0.000000001*(System.nanoTime()-this.startStepTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				  IJ.d2s(0.000000001*(System.nanoTime()-this.startStepTime),3)+" sec, --- Free memory25="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 		  return true;
 	  }
 
@@ -13872,7 +13917,7 @@ public class QuadCLTCPU {
 		  for (nSet = 0; nSet < setNames.size(); nSet++){
 			  if ((nSet > 0) &&(debugLevel > -2)) {
 				  System.out.println("Processing set "+(nSet+0)+" (of "+setNames.size()+") finished at "+
-				  IJ.d2s(0.000000001*(System.nanoTime()-this.startSetTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				  IJ.d2s(0.000000001*(System.nanoTime()-this.startSetTime),3)+" sec, --- Free memory26="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  }
 			  this.startSetTime = System.nanoTime();
 //			  boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[QUAD][] : null;
@@ -14091,17 +14136,17 @@ public class QuadCLTCPU {
 			  if (eyesisCorrections.stopRequested.get()>0) {
 				  System.out.println("User requested stop");
 				  System.out.println("Processing "+(nSet + 1)+" file sets (of "+setNames.size()+") finished at "+
-						  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+						  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory27="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 				  return;
 			  }
 		  }
 		  if (debugLevel > -2) {
 			  System.out.println("Processing set "+nSet+" (of "+setNames.size()+") finished at "+
-			  IJ.d2s(0.000000001*(System.nanoTime()-this.startSetTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+			  IJ.d2s(0.000000001*(System.nanoTime()-this.startSetTime),3)+" sec, --- Free memory28="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 		  }
 
 		  System.out.println("Processing "+fileIndices.length+" files ("+setNames.size()+" file sets) finished in "+
-				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory29="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
 
 	  public boolean setGpsLla( // USED in lwir

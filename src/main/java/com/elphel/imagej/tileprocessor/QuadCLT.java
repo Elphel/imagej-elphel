@@ -2025,16 +2025,16 @@ public class QuadCLT extends QuadCLTCPU {
 					false,                     // final boolean                                   updateStatus,
 					debugLevel);               // final int                                       debugLevel);
 			if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels.length+") finished at "+
-					IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+					IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory1="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			if (eyesisCorrections.stopRequested.get()>0) {
 				System.out.println("User requested stop");
 				System.out.println("Processing "+(nSet + 1)+" file sets (of "+set_channels.length+") finished at "+
-						IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+						IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory2="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 				return;
 			}
 		}
 		System.out.println("processCLTQuadCorrs(): processing "+getTotalFiles(set_channels)+" files ("+set_channels.length+" file sets) finished at "+
-				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory3="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	}
 	
 	public static ImagePlus renderGPUFromDSI(
