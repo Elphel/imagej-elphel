@@ -8579,8 +8579,14 @@ if (debugLevel > -100) return true; // temporarily !
 			final boolean    updateStatus,
 			final int        debugLevel)  throws Exception
     {
-  	
-    	
+		int     stereo_gap =         clt_parameters.imp.stereo_gap;
+		double  stereo_intereye =    clt_parameters.imp.stereo_intereye;
+		double  stereo_phone_width = clt_parameters.imp.stereo_phone_width; // 0 - no padding
+		boolean stereo_pad = (stereo_intereye > 0) && (stereo_phone_width > 0);  
+		int     video_crf =          clt_parameters.imp.video_crf;
+		String  video_codec =        clt_parameters.imp.video_codec.toLowerCase();
+
+		
     	long start_time_all = System.nanoTime();
 		OpticalFlow opticalFlow = new OpticalFlow(
 				quadCLT_main.getNumSensors(),
@@ -8597,7 +8603,8 @@ if (debugLevel > -100) return true; // temporarily !
 				num_seq = pathFirstLast.length; 
 			}
 		}
-		String [][] video_lists = new String [num_seq][];
+		String [][] video_lists =   new String [num_seq][];
+		int [][]    stereo_widths = new int  [num_seq][];
 		for (int nseq = 0; nseq < num_seq; nseq++) {
 	    	long start_time_seq = System.nanoTime();
 	    	System.out.println("\nSTARTED PROCESSING SCENE SEQUENCE "+nseq+" (last is "+(num_seq-1)+")");
@@ -8609,6 +8616,7 @@ if (debugLevel > -100) return true; // temporarily !
 						pathFirstLast[nseq].last); // int scene_last);  // last scene to process (negative - add length
 			}
 			String [][] video_list = new String[1][];
+			int [][] widths_list = new int [1][];
 			String model_directory = opticalFlow.buildSeries(
 		    		(pathFirstLast != null),   //boolean                                              batch_mode,
 					quadCLT_main,              // QuadCLT                                              quadCLT_main, // tiles should be set
@@ -8623,10 +8631,12 @@ if (debugLevel > -100) return true; // temporarily !
 					properties,                // Properties                                           properties,
 					reset_from_extrinsics,     // boolean                                              reset_from_extrinsics,
 					video_list,                // String [][]                                            video_list, // null or list of generated avi or webm paths
+					widths_list,
 					threadsMax,                // final int        threadsMax,  // maximal number of threads to launch
 					updateStatus, // final boolean    updateStatus,
 					debugLevel+2); // final int        debugLevel)
 			video_lists[nseq] = video_list[0];
+			stereo_widths[nseq] = widths_list[0];
 	    	System.out.println("PROCESSING SCENE SEQUENCE "+nseq+" (last is "+(num_seq-1)+") is FINISHED in "+
 	    			IJ.d2s(0.000000001*(System.nanoTime()-start_time_seq),3)+" sec ("+
 	    			IJ.d2s(0.000000001*(System.nanoTime()-start_time_all),3)+" sec from the overall start");
@@ -8647,7 +8657,6 @@ if (debugLevel > -100) return true; // temporarily !
 		}
 		// combine videos if generated
 		if ((video_lists.length > 1) && (video_lists[0] != null) && (video_lists[0].length > 1)) { // do not combine if single sequence or no videos
-			String concat_list_name="concat.list";
 			concat_videos: {
 				System.out.println("Generating "+(video_lists[0].length)+" combined video files.");
 				String videoDirectory = quadCLT_main.correctionsParameters.selectVideoDirectory(true,true);
@@ -8655,7 +8664,7 @@ if (debugLevel > -100) return true; // temporarily !
 					break concat_videos;
 				}
 				File video_dir = new File (videoDirectory);
-				video_dir.mkdirs(); // SHould already exist actually
+				video_dir.mkdirs(); // Should already exist actually
 				for (int nvideo = 0; nvideo < video_lists[0].length; nvideo++) {
 					// get name with <ts_sec_first>-<ts_sec_last>
 					//				String spath0 = video_lists[0][nvideo];
@@ -8664,7 +8673,8 @@ if (debugLevel > -100) return true; // temporarily !
 					String ts_sec0=name0.substring(0,name0.indexOf("_")); // seconds of the first timestamp
 					String ts_sec1=name1.substring(0,name1.indexOf("_")); // seconds of the last timestamp
 					String suffix0 = name0.substring(name0.indexOf("-")); // Skip timestamp
-					String combo_video_name = ts_sec0+"-"+ts_sec1+suffix0;
+		    		String combo_video_name = ts_sec0+"-"+ts_sec1+suffix0;
+		    		String concat_list_name = combo_video_name.substring(0, combo_video_name.lastIndexOf("."))+".list"; 
 					File list_to_concat = new File (video_dir,concat_list_name);
 					// delete if exists
 		    		if (list_to_concat.exists()) {
@@ -8672,22 +8682,49 @@ if (debugLevel > -100) return true; // temporarily !
 		    		}
 		    		
 		    		PrintWriter writer = new PrintWriter(list_to_concat, "UTF-8");
+		    		int this_stereo_width = 0;
+		    		int num_segments=0;
 		    		for (int i = 0; i <video_lists.length; i++) {
 		    			if ((video_lists[i] != null) && (video_lists[i].length > nvideo)) {
-		    				writer.println("file '"+video_lists[i][nvideo]+"'");
+		    				if ((new File(video_lists[i][nvideo])).exists()) {
+		    					writer.println("file '"+video_lists[i][nvideo]+"'");
+		    					if (stereo_pad) {
+		    						this_stereo_width = stereo_widths[i][nvideo];
+		    					}
+		    					num_segments++;
+		    				} else {
+		    					System.out.println("Missing video segment: "+video_lists[i][nvideo]);
+		    				}
 		    			} else {
 		    				System.out.println("Specific video segment "+i+":"+nvideo+" is missing, skipping");
 		    			}
 		    		}
 		    		writer.close();
+		    		if (num_segments == 0) {
+		    			System.out.println("No segments found for "+combo_video_name);
+		    			continue;
+		    		}
+
+		    		if (this_stereo_width > 0) {
+		    			String combo_base = combo_video_name.substring(0,combo_video_name.lastIndexOf(".")) ;
+		    			String combo_ext = combo_video_name.substring(combo_video_name.lastIndexOf(".")) ;
+		    			combo_video_name = combo_base+"-"+stereo_phone_width+"mm"+combo_ext;
+		    		}
 		    		File video_out =  new File (video_dir,combo_video_name);
 		    		if (video_out.exists()) {
 		    			video_out.delete();
 		    		}
 		    		double pts_scale = clt_parameters.imp.video_fps/clt_parameters.imp.sensor_fps;
-    	    		String shellCommand = String.format("ffmpeg -y -f concat -safe 0 -i %s -r 60 -vf setpts=%f*PTS %s",
-    	    				list_to_concat.toString(), pts_scale,video_out.toString());
-
+		    		String shellCommand;
+		    		if (this_stereo_width > 0) {//  add padding to stereo video
+		    			int padded_width= 16* ( (int) Math.round((this_stereo_width + stereo_gap) * stereo_phone_width/stereo_intereye/32));
+		    			shellCommand = String.format(
+		    					"ffmpeg -y -f concat -safe 0 -i %s -r 60 -vf pad=width=%d:height=0:x=-1:y=-1:color=black,setpts=%f*PTS -b:v 0 -crf %d -c %s %s",
+	    	    				list_to_concat.toString(), padded_width, pts_scale, video_crf, video_codec, video_out.toString());
+		    		} else {
+		    			shellCommand = String.format("ffmpeg -y -f concat -safe 0 -i %s -r 60 -vf setpts=%f*PTS -b:v 0 -crf %d -c %s %s",
+	    	    				list_to_concat.toString(), pts_scale, video_crf, video_codec, video_out.toString());
+		    		}
     				
     				Process p = null;
     				int exit_code = -1;

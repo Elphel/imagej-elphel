@@ -101,6 +101,8 @@ public class ImageDttParameters {
 	public double  lmamask_min_neib =         0.10;
 	public double  lmamask_weight_neib =      0.75;
 	public double  lmamask_weight_neib_neib = 0.5;
+	public double  lmamask_threshold =        0.25; // zero out if below to reduce number of samples
+	public double  lmamask_pwr =              0.5; // "flatten" mask top
 	// Extracting bi-convex (convex in both orthogonal directions) cells and allowing non-convex on the selection border only
 	public boolean cnvx_en =                true;  // Use convex-based LMA samples filter
 	public boolean cnvx_or =                false;  // If both lmamask_en and cnvx_en are available, use max; if false - multiply masks 
@@ -150,6 +152,9 @@ public class ImageDttParameters {
 	public double  mcorr_dual_fract=        0.15; // Minimal relative strength of the second correlation maximum to treat as FG+BG
 	public double  mcorr_fb_fract=          0.5;  // Minimal relative strength of FG to BG to keep (final, after LMA if enabled)
 	public double  mcorr_bf_fract=          0.2;  // Minimal relative strength of BG to FG to keep (final, after LMA if enabled)
+	public double  mcorr_dual_min_max=      0.2;  // Minimal absolute strength of the strongest in a dual-max to consider second one
+	public double  mcorr_dual_min_min=      0.08; // Minimal absolute strength of a weakest in a dual-max to consider second one
+	
 	
 	/// these are just for testing, actual will be generated specifically for different applications (LY will use closest pairs)  
 	public int     mcorr_comb_width =       15;
@@ -217,10 +222,10 @@ public class ImageDttParameters {
 	public double  lmas_min_amp =            0.1;   // minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude           
 	public double  lmas_min_amp_bg =         0.01;  // same for background objects (all but fg)          
 	public double  lmas_max_rel_rms =        0.3;   // LWIR16: 0.5 maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
-	public double  lmas_min_strength =       0.7;   // LWIR16: 0.4 minimal composite strength (sqrt(average amp squared over absolute RMS)
-	public double  lmas_min_ac =             0.02;  // LWIR16: 0.01  minimal of a and C coefficients maximum (measures sharpest point/line)
-	public double  lmas_min_min_ac =         0.007; // LWIR16: 0.007 minimal of a and C coefficients minimum (measures sharpest point)
-	public double  lmas_max_area =          20.0;   // LWIR16: 0.0  maximal half-area (if > 0.0)
+	public double  lmas_min_strength =       1.1; // 0.7;   // LWIR16: 0.4 minimal composite strength (sqrt(average amp squared over absolute RMS)
+	public double  lmas_min_max_ac =         0.175; // 0.14;  // LWIR16: 0.01  maximal of a and C coefficients minimum (measures sharpest point/line)
+	public double  lmas_min_min_ac =         0.003; // LWIR16: 0.007 minimal of a and C coefficients minimum (measures sharpest point)
+	public double  lmas_max_area =          30.0;   // LWIR16: 0.0  maximal half-area (if > 0.0)
 
 //	public boolean lma_gaussian =           false; // model correlation maximum as a Gaussian (false - as a parabola)
 	public int     lma_gaussian =           0;     // 0 - parabola, 1 - Gaussian, 2 - limited parabola, 3 - limited squared parabola
@@ -262,10 +267,13 @@ public class ImageDttParameters {
 	
 	public double  lma_max_rel_rms =        0.25;  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 	public double  lma_min_strength =       1.0;   // minimal composite strength (sqrt(average amp squared over absolute RMS)
+	public double  lma_ac_offset =          0.015; // add to a,c coefficients for near-lines where A,C could become negative because of window 
+
 	public double  lma_min_ac =             0.05;  // minimal of a and C coefficients maximum (measures sharpest point/line)
 	public double  lma_min_min_ac =         0.015; // minimal of a and C coefficients minimum (measures sharpest point)
 	public double  lma_max_area =           30.0;  //45.0;  // maximal half-area (if > 0.0)
 
+	
 	public double  lma_str_scale =          0.2665;   // LWIR16: 0.2 convert lma-generated strength to match previous ones - scale
 	public double  lma_str_offset =         0.1046;   // LWIR16: 0.05 convert lma-generated strength to match previous ones - add to result
 
@@ -518,6 +526,11 @@ public class ImageDttParameters {
 		    gd.addNumericField("Neighbor of neighbor weights",                                    this.lmamask_weight_neib_neib,  6,8,"",
 		    		"Weight of neighbors of conditionally or anconditionally included poins regardless of their values");
 
+		    gd.addNumericField("LMA weight threshold",                                            this.lmamask_threshold,  6,8,"",
+		    		"Subtract from mask and normalize to increase number of zeros and so reduce LMA samples");
+		    gd.addNumericField("LMA weight raise to power to \"flatten\"",                        this.lmamask_pwr,  6,8,"",
+		    		"Raise to this power (<1) to \"flatten\" weights distribution top");
+		    
 			gd.addMessage("LMA samples filter based on convex sample values");
 			gd.addCheckbox    ("Use convex-based LMA samples filtering",                          this.cnvx_en,
 					"Select LMA samples based on convex correlation samples");
@@ -616,6 +629,11 @@ public class ImageDttParameters {
 					"Minimal relative strength of FG to BG to keep weaker (final, after LMA if enabled), <1.0");
 			gd.addNumericField("Minimal relative strength of BG to FG",                           this.mcorr_bf_fract,  3,6,"",
 					"Minimal relative strength of BG to FG to keep weaker (final, after LMA if enabled), <1.0");
+			
+			gd.addNumericField("Minimal strength of the strongest in a dual-max",                 this.mcorr_dual_min_max,  3,6,"",
+					"Minimal absolute strength of the strongest in a dual-max to consider second one");
+			gd.addNumericField("Minimal strength of the weakest in a dual- max",                  this.mcorr_dual_min_min,  3,6,"",
+					"Minimal absolute strength of the weakest in a dual-max to consider dual-max");
 			
 			gd.addMessage("Generating grid for combining visualization, actual will be provided programmatically");
 			gd.addNumericField("Width of a combined correlation tile",                            this.mcorr_comb_width,  0, 3, "pix",
@@ -734,7 +752,7 @@ public class ImageDttParameters {
 		            "Discard tile if ratio of RMS to average of min and max amplitude exceeds this value");
 		    gd.addNumericField("Minimal composite strength",                                      this.lmas_min_strength,  6, 8, "",
 		            "Discard tile if composite strength (average amplitude over SQRT of RMS) is below");
-		    gd.addNumericField("Minimal max (A,C)",                                               this.lmas_min_ac,  6, 8, "",
+		    gd.addNumericField("Minimal max (A,C)",                                               this.lmas_min_max_ac,  6, 8, "",
 		            "Minimal value of max (A,C) coefficients to keep the tile (measures sharpest point/line correlation maximum)");
 			gd.addNumericField("Minimal min (A,C)",                                               this.lmas_min_min_ac,  6, 8, "",
 					"Minimal value of min (A,C) coefficients to keep the tile (measures sharpest point correlation maximum)");
@@ -808,6 +826,9 @@ public class ImageDttParameters {
 					"Discard tile if ratio of RMS to average of min and max amplitude exceeds this value");
 			gd.addNumericField("Minimal composite strength",                                      this.lma_min_strength,  6, 8, "",
 					"Discard tile if composite strength (average amplitude over SQRT of RMS) is below");
+			gd.addNumericField("Offset A,C coefficients",                                         this.lma_ac_offset,  6, 8, "",
+					"Add to A, C coefficients for near-lines where A,C could become negative because of window ");
+			
 			gd.addNumericField("Minimal max (A,C)",                                               this.lma_min_ac,  6, 8, "",
 					"Minimal value of max (A,C) coefficients to keep the tile (measures sharpest point/line correlation maximum)");
 			gd.addNumericField("Minimal min (A,C)",                                               this.lma_min_min_ac,  6, 8, "",
@@ -938,6 +959,8 @@ public class ImageDttParameters {
 			this.lmamask_min_neib =         gd.getNextNumber();
 			this.lmamask_weight_neib =      gd.getNextNumber();
 			this.lmamask_weight_neib_neib = gd.getNextNumber();
+			this.lmamask_threshold =        gd.getNextNumber();
+			this.lmamask_pwr =              gd.getNextNumber();
 
   			this.cnvx_en =                 gd.getNextBoolean();
   			this.cnvx_or =                 gd.getNextBoolean();
@@ -987,6 +1010,8 @@ public class ImageDttParameters {
   			this.mcorr_dual_fract=       gd.getNextNumber();
   			this.mcorr_fb_fract=         gd.getNextNumber();
   			this.mcorr_bf_fract=         gd.getNextNumber();
+  			this.mcorr_dual_min_max=     gd.getNextNumber();
+  			this.mcorr_dual_min_min=     gd.getNextNumber();
   			
   			this.mcorr_comb_width= (int) gd.getNextNumber();
   			this.mcorr_comb_height=(int) gd.getNextNumber();
@@ -1045,7 +1070,7 @@ public class ImageDttParameters {
   			this.lmas_min_amp_bg =       gd.getNextNumber();
 			this.lmas_max_rel_rms =      gd.getNextNumber();
 			this.lmas_min_strength =     gd.getNextNumber();
-			this.lmas_min_ac =           gd.getNextNumber();
+			this.lmas_min_max_ac =           gd.getNextNumber();
 			this.lmas_min_min_ac =       gd.getNextNumber();
 			this.lmas_max_area =         gd.getNextNumber();
 
@@ -1080,6 +1105,8 @@ public class ImageDttParameters {
   			this.lma_multi_cons =        gd.getNextBoolean();
 			this.lma_max_rel_rms =       gd.getNextNumber();
 			this.lma_min_strength =      gd.getNextNumber();
+			this.lma_ac_offset =         gd.getNextNumber();
+
 			this.lma_min_ac =            gd.getNextNumber();
 			this.lma_min_min_ac =        gd.getNextNumber();
 			this.lma_max_area =          gd.getNextNumber();
@@ -1167,15 +1194,18 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"bimax_dual_LMA",          this.bimax_dual_LMA +"");
 		properties.setProperty(prefix+"bimax_dual_only",         this.bimax_dual_only +"");
 		
-		properties.setProperty(prefix+"lmamask_dbg",          this.lmamask_dbg +"");
-		properties.setProperty(prefix+"lmamask_en",           this.lmamask_en +"");
-		properties.setProperty(prefix+"lmamask_magic",        this.lmamask_magic +"");
-		properties.setProperty(prefix+"lmamask_min_main",     this.lmamask_min_main +"");
-		properties.setProperty(prefix+"lmamask_min_neib",     this.lmamask_min_neib +"");
-		properties.setProperty(prefix+"lmamask_weight_neib",  this.lmamask_weight_neib +"");
-		properties.setProperty(prefix+"lmamask_weight_neib_neib", this.lmamask_weight_neib_neib +"");
-		properties.setProperty(prefix+"cnvx_en",               this.cnvx_en +"");
-		properties.setProperty(prefix+"cnvx_or",               this.cnvx_or +"");
+		properties.setProperty(prefix+"lmamask_dbg",             this.lmamask_dbg +"");
+		properties.setProperty(prefix+"lmamask_en",              this.lmamask_en +"");
+		properties.setProperty(prefix+"lmamask_magic",           this.lmamask_magic +"");
+		properties.setProperty(prefix+"lmamask_min_main",        this.lmamask_min_main +"");
+		properties.setProperty(prefix+"lmamask_min_neib",        this.lmamask_min_neib +"");
+		properties.setProperty(prefix+"lmamask_weight_neib",     this.lmamask_weight_neib +"");
+		properties.setProperty(prefix+"lmamask_weight_neib_neib",this.lmamask_weight_neib_neib +"");
+		properties.setProperty(prefix+"lmamask_threshold",       this.lmamask_threshold +"");
+		properties.setProperty(prefix+"lmamask_pwr",             this.lmamask_pwr +"");
+
+		properties.setProperty(prefix+"cnvx_en",              this.cnvx_en +"");
+		properties.setProperty(prefix+"cnvx_or",              this.cnvx_or +"");
 		properties.setProperty(prefix+"cnvx_hwnd_size",       this.cnvx_hwnd_size +"");
 		properties.setProperty(prefix+"cnvx_weight",          this.cnvx_weight +"");
 		properties.setProperty(prefix+"cnvx_add3x3",          this.cnvx_add3x3 +"");
@@ -1222,6 +1252,8 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"mcorr_dual_fract",     this.mcorr_dual_fract +"");
 		properties.setProperty(prefix+"mcorr_fb_fract",       this.mcorr_fb_fract +"");
 		properties.setProperty(prefix+"mcorr_bf_fract",       this.mcorr_bf_fract +"");
+		properties.setProperty(prefix+"mcorr_dual_min_max",   this.mcorr_dual_min_max +"");
+		properties.setProperty(prefix+"mcorr_dual_min_min",   this.mcorr_dual_min_min +"");
 		
 		properties.setProperty(prefix+"mcorr_comb_width",     this.mcorr_comb_width +"");
 		properties.setProperty(prefix+"mcorr_comb_height",    this.mcorr_comb_height +"");
@@ -1280,7 +1312,7 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"lmas_min_amp_bg",      this.lmas_min_amp_bg +"");
 		properties.setProperty(prefix+"lmas_max_rel_rms",     this.lmas_max_rel_rms +"");
 		properties.setProperty(prefix+"lmas_min_strength",    this.lmas_min_strength +"");
-		properties.setProperty(prefix+"lmas_min_ac",          this.lmas_min_ac +"");
+		properties.setProperty(prefix+"lmas_min_max_ac",      this.lmas_min_max_ac +"");
 		properties.setProperty(prefix+"lmas_min_min_ac",      this.lmas_min_min_ac +"");
 		properties.setProperty(prefix+"lmas_max_area",        this.lmas_max_area +"");
 
@@ -1316,6 +1348,9 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"lma_multi_cons",       this.lma_multi_cons +"");
 		properties.setProperty(prefix+"lma_max_rel_rms",      this.lma_max_rel_rms +"");
 		properties.setProperty(prefix+"lma_min_strength",     this.lma_min_strength +"");
+		properties.setProperty(prefix+"lma_ac_offset",        this.lma_ac_offset +"");
+
+		
 		properties.setProperty(prefix+"lma_min_ac",           this.lma_min_ac +"");
 		properties.setProperty(prefix+"lma_min_min_ac",       this.lma_min_min_ac +"");
 		properties.setProperty(prefix+"lma_max_area",         this.lma_max_area +"");
@@ -1414,6 +1449,8 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"lmamask_min_neib")!=null)         this.lmamask_min_neib=Double.parseDouble(properties.getProperty(prefix+"lmamask_min_neib"));
 		if (properties.getProperty(prefix+"lmamask_weight_neib")!=null)      this.lmamask_weight_neib=Double.parseDouble(properties.getProperty(prefix+"lmamask_weight_neib"));
 		if (properties.getProperty(prefix+"lmamask_weight_neib_neib")!=null) this.lmamask_weight_neib_neib=Double.parseDouble(properties.getProperty(prefix+"lmamask_weight_neib_neib"));
+		if (properties.getProperty(prefix+"lmamask_threshold")!=null)        this.lmamask_threshold=Double.parseDouble(properties.getProperty(prefix+"lmamask_threshold"));
+		if (properties.getProperty(prefix+"lmamask_pwr")!=null)              this.lmamask_pwr=Double.parseDouble(properties.getProperty(prefix+"lmamask_pwr"));
 
 		if (properties.getProperty(prefix+"cnvx_en")!=null)                  this.cnvx_en=Boolean.parseBoolean(properties.getProperty(prefix+"cnvx_en"));
 		if (properties.getProperty(prefix+"cnvx_or")!=null)                  this.cnvx_or=Boolean.parseBoolean(properties.getProperty(prefix+"cnvx_or"));
@@ -1462,6 +1499,8 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"mcorr_dual_fract")!=null)     this.mcorr_dual_fract=Double.parseDouble(properties.getProperty(prefix+"mcorr_dual_fract"));
 		if (properties.getProperty(prefix+"mcorr_fb_fract")!=null)       this.mcorr_fb_fract=Double.parseDouble(properties.getProperty(prefix+"mcorr_fb_fract"));
 		if (properties.getProperty(prefix+"mcorr_bf_fract")!=null)       this.mcorr_bf_fract=Double.parseDouble(properties.getProperty(prefix+"mcorr_bf_fract"));
+		if (properties.getProperty(prefix+"mcorr_dual_min_max")!=null)   this.mcorr_dual_min_max=Double.parseDouble(properties.getProperty(prefix+"mcorr_dual_min_max"));
+		if (properties.getProperty(prefix+"mcorr_dual_min_min")!=null)   this.mcorr_dual_min_min=Double.parseDouble(properties.getProperty(prefix+"mcorr_dual_min_min"));
 		
 		if (properties.getProperty(prefix+"mcorr_comb_width")!=null)     this.mcorr_comb_width=Integer.parseInt(properties.getProperty(prefix+"mcorr_comb_width"));
 		if (properties.getProperty(prefix+"mcorr_comb_height")!=null)    this.mcorr_comb_height=Integer.parseInt(properties.getProperty(prefix+"mcorr_comb_height"));
@@ -1527,7 +1566,7 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"lmas_min_amp_bg")!=null)      this.lmas_min_amp_bg=Double.parseDouble(properties.getProperty(prefix+"lmas_min_amp_bg"));
 		if (properties.getProperty(prefix+"lmas_max_rel_rms")!=null)     this.lmas_max_rel_rms=Double.parseDouble(properties.getProperty(prefix+"lmas_max_rel_rms"));
 		if (properties.getProperty(prefix+"lmas_min_strength")!=null)    this.lmas_min_strength=Double.parseDouble(properties.getProperty(prefix+"lmas_min_strength"));
-		if (properties.getProperty(prefix+"lmas_min_ac")!=null)          this.lmas_min_ac=Double.parseDouble(properties.getProperty(prefix+"lmas_min_ac"));
+		if (properties.getProperty(prefix+"lmas_min_max_ac")!=null)      this.lmas_min_max_ac=Double.parseDouble(properties.getProperty(prefix+"lmas_min_max_ac"));
 		if (properties.getProperty(prefix+"lmas_min_min_ac")!=null)      this.lmas_min_min_ac=Double.parseDouble(properties.getProperty(prefix+"lmas_min_min_ac"));
 		if (properties.getProperty(prefix+"lmas_max_area")!=null)        this.lmas_max_area=Double.parseDouble(properties.getProperty(prefix+"lmas_max_area"));
 
@@ -1576,6 +1615,8 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"lma_multi_cons")!=null)       this.lma_multi_cons=Boolean.parseBoolean(properties.getProperty(prefix+"lma_multi_cons"));
 		if (properties.getProperty(prefix+"lma_max_rel_rms")!=null)      this.lma_max_rel_rms=Double.parseDouble(properties.getProperty(prefix+"lma_max_rel_rms"));
 		if (properties.getProperty(prefix+"lma_min_strength")!=null)     this.lma_min_strength=Double.parseDouble(properties.getProperty(prefix+"lma_min_strength"));
+		if (properties.getProperty(prefix+"lma_ac_offset")!=null)        this.lma_ac_offset=Double.parseDouble(properties.getProperty(prefix+"lma_ac_offset"));
+		
 		if (properties.getProperty(prefix+"lma_min_ac")!=null)           this.lma_min_ac=Double.parseDouble(properties.getProperty(prefix+"lma_min_ac"));
 		if (properties.getProperty(prefix+"lma_min_min_ac")!=null)       this.lma_min_min_ac=Double.parseDouble(properties.getProperty(prefix+"lma_min_min_ac"));
 		if (properties.getProperty(prefix+"lma_max_area")!=null)         this.lma_max_area=Double.parseDouble(properties.getProperty(prefix+"lma_max_area"));
@@ -1664,15 +1705,19 @@ public class ImageDttParameters {
 		idp.bimax_dual_LMA=          this.bimax_dual_LMA;
 		idp.bimax_dual_only=         this.bimax_dual_only;
 		
-		idp.lmamask_dbg=               this.lmamask_dbg;
-		idp.lmamask_en=                this.lmamask_en;
-		idp.lmamask_magic=             this.lmamask_magic;
-		idp.lmamask_min_main=          this.lmamask_min_main;
-		idp.lmamask_min_neib=          this.lmamask_min_neib;
-		idp.lmamask_weight_neib=       this.lmamask_weight_neib;
-		idp.lmamask_weight_neib_neib=  this.lmamask_weight_neib_neib;
-		idp.cnvx_en=                   this.cnvx_en;
-		idp.cnvx_or=                   this.cnvx_or;
+		idp.lmamask_dbg=             this.lmamask_dbg;
+		idp.lmamask_en=              this.lmamask_en;
+		idp.lmamask_magic=           this.lmamask_magic;
+		idp.lmamask_min_main=        this.lmamask_min_main;
+		idp.lmamask_min_neib=        this.lmamask_min_neib;
+		idp.lmamask_weight_neib=     this.lmamask_weight_neib;
+		idp.lmamask_weight_neib_neib=this.lmamask_weight_neib_neib;
+		idp.lmamask_threshold=       this.lmamask_threshold;
+		idp.lmamask_pwr=             this.lmamask_pwr;
+		
+		
+		idp.cnvx_en=                 this.cnvx_en;
+		idp.cnvx_or=                 this.cnvx_or;
 		idp.cnvx_hwnd_size=          this.cnvx_hwnd_size;
 		idp.cnvx_weight=             this.cnvx_weight;
 		idp.cnvx_add3x3=             this.cnvx_add3x3;
@@ -1718,6 +1763,8 @@ public class ImageDttParameters {
 		idp.mcorr_dual_fract=        this.mcorr_dual_fract;
 		idp.mcorr_fb_fract=          this.mcorr_fb_fract;
 		idp.mcorr_bf_fract=          this.mcorr_bf_fract;
+		idp.mcorr_dual_min_max=      this.mcorr_dual_min_max;
+		idp.mcorr_dual_min_min=      this.mcorr_dual_min_min;
 		
 		idp.mcorr_comb_width=        this.mcorr_comb_width;
 		idp.mcorr_comb_height=       this.mcorr_comb_height;
@@ -1775,7 +1822,7 @@ public class ImageDttParameters {
 		idp.lmas_min_amp_bg=         this.lmas_min_amp_bg;
 		idp.lmas_max_rel_rms=        this.lmas_max_rel_rms;
 		idp.lmas_min_strength=       this.lmas_min_strength;
-		idp.lmas_min_ac=             this.lmas_min_ac;
+		idp.lmas_min_max_ac=             this.lmas_min_max_ac;
 		idp.lmas_min_min_ac=         this.lmas_min_min_ac;
 		idp.lmas_max_area=           this.lmas_max_area;
 
@@ -1809,6 +1856,8 @@ public class ImageDttParameters {
 		idp.lma_multi_cons =         this.lma_multi_cons;
 		idp.lma_max_rel_rms=         this.lma_max_rel_rms;
 		idp.lma_min_strength=        this.lma_min_strength;
+		idp.lma_ac_offset=           this.lma_ac_offset;
+		
 		idp.lma_min_ac=              this.lma_min_ac;
 		idp.lma_min_min_ac=          this.lma_min_min_ac;
 		idp.lma_max_area=            this.lma_max_area;

@@ -2488,12 +2488,16 @@ public class Correlation2d {
 	 *        pixels (measured for quad square camera). It is now 1/sqrt(2) 
 	 * @param combo_corrs 2D phase correlation, now 15x15 = 255 pixels long 
 	 * @param min_fraction minimal ratio of weaker maximum to the strongest
+	 * @param min_max minimal absolute strength of the strongest in a dual-max to consider second one
+	 * @param min_min minimal absolute strength of a weakest in a dual-max to consider second one
 	 * @return array of 1 or 2 {disparity, strength} pairs (zero pairs if no local max)
 	 */
 	public double [][] getDoublePoly(
 			double    disparity_scale,
 			double [] combo_corrs,
-			double    min_fraction
+			double    min_fraction,
+			double    min_max, // =      0.2;  // Minimal absolute strength of the strongest in a dual-max to consider second one
+			double    min_min  // =      0.08; // Minimal absolute strength of a weakest in a dual-max to consider second one
 			){
 		int center_x = 2* (transform_size - 1) * transform_size; // 112
 		int [] imx = new int[2];
@@ -2513,7 +2517,10 @@ public class Correlation2d {
 			return new double[0][];
 		}
 		int nm = 1;
-		if ((imx[1] > 0) && (combo_corrs[imx[1]]/combo_corrs[imx[0]] > min_fraction)) {
+		if (	(imx[1] > 0) &&
+				(combo_corrs[imx[1]]/combo_corrs[imx[0]] >= min_fraction) &&
+				(combo_corrs[imx[0]] >= min_max) &&
+				(combo_corrs[imx[1]] >= min_min)) {
 			nm++; 
 		}
 		double [][] maxes = new double [nm][2];
@@ -3795,14 +3802,15 @@ public class Correlation2d {
 
     		//    		double [][] ds =         lma.getDisparityStrength();
     		ds = lma.lmaDisparityStrength(
-    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
+    				imgdtt_params.lmas_min_amp,     //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
     				imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
     				imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
     				imgdtt_params.lma_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
     				imgdtt_params.lma_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
     				imgdtt_params.lma_max_area,     //double  lma_max_area,     // maximal half-area (if > 0.0)
     				imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
-    				imgdtt_params.lma_str_offset    // convert lma-generated strength to match previous ones - add to result
+    				imgdtt_params.lma_str_offset,   // convert lma-generated strength to match previous ones - add to result
+    				imgdtt_params.lma_ac_offset     // Add to A, C coefficients for near-lines where A,C could become negative because of window
     				);
     		if (debug_level > 0) lma.printStats(ds,clust_width);
 
@@ -3905,7 +3913,8 @@ public class Correlation2d {
     	    				imgdtt_params.lma_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
     	    				imgdtt_params.lma_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
     						imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
-    						imgdtt_params.lma_str_offset    // convert lma-generated strength to match previous ones - add to result
+    						imgdtt_params.lma_str_offset,    // convert lma-generated strength to match previous ones - add to result
+    	    				imgdtt_params.lma_ac_offset     // Add to A, C coefficients for near-lines where A,C could become negative because of window
     						);
     				if (debug_level > 0) { // -2) {
     					lma.printStats(ds,clust_width);
@@ -4408,11 +4417,12 @@ public class Correlation2d {
     				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
     				imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
     				imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
-    				imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+    				imgdtt_params.lmas_min_max_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
     				imgdtt_params.lmas_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
     				imgdtt_params.lmas_max_area,     //double  lma_max_area,     // maximal half-area (if > 0.0)
     				imgdtt_params.lma_str_scale,     // convert lma-generated strength to match previous ones - scale
-    				imgdtt_params.lma_str_offset     // convert lma-generated strength to match previous ones - add to result
+    				imgdtt_params.lma_str_offset,     // convert lma-generated strength to match previous ones - add to result
+    				imgdtt_params.lma_ac_offset     // Add to A, C coefficients for near-lines where A,C could become negative because of window
     				);
     		if (dispStr[0][1] <= 0) {
     			lmaSuccess = false;
@@ -4661,20 +4671,22 @@ public class Correlation2d {
     			disp_dist);    // double [][]       disp_dist);
     	double [][][]       own_masks0 = new double [pair_offsets0.length][][];
     	double [][][] lma_corr_weights0 = getLmaWeights(
-    			imgdtt_params,                 // ImageDttParameters  imgdtt_params,
-    			imgdtt_params.bimax_lpf_neib,  // double              lpf_neib,  // if >0, add ortho neibs (corners - squared)
-    			imgdtt_params.bimax_notch_pwr, // double              notch_pwr, //  = 4.00;
-    			imgdtt_params.bimax_adv_power, // double              adv_power,    // reduce weight from overlap with adversarial maximum 
-    			corrs,                         // double [][]         corrs, // may have more elements than pair_mask (corrs may have combo as last elements)
-    			disp_dist,                     // double [][]         disp_dist, // per camera disparity matrix as a 1d (linescan order)
-    			disp_dist,                     // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
-    			pair_mask,                     // boolean []          pair_mask, // which pairs to process
-    			pair_offsets0,                 // double [][][]       pair_offsets,
-    			own_masks0,                    // double [][][]       own_masks, // individual per-maximum, per-pair masks regardless of adversaries or null
-    			disp_str_dual,                 // double[][]          disp_str_dual, // single or a pair of {disparity, strength} pairs. First is the strongest of two.
-    			debug_level,                   // int                 debug_level,
-    			tileX,                         // int                 tileX, // just for debug output
-    			tileY);                        // int                 tileY
+    			imgdtt_params,                  // ImageDttParameters  imgdtt_params,
+    			imgdtt_params.bimax_lpf_neib,   // double              lpf_neib,  // if >0, add ortho neibs (corners - squared)
+    			imgdtt_params.bimax_notch_pwr,  // double              notch_pwr, //  = 4.00;
+    			imgdtt_params.bimax_adv_power,  // double              adv_power,    // reduce weight from overlap with adversarial maximum
+    			imgdtt_params.lmamask_threshold,// double              lmamask_threshold, // Subtract, normalize, remove <0 to reduce non-zero LMA samples 
+    			imgdtt_params.lmamask_pwr,      // double              lmamask_pwr,       // raise to this power (<1) to flatten mask top 
+    			corrs,                          // double [][]         corrs, // may have more elements than pair_mask (corrs may have combo as last elements)
+    			disp_dist,                      // double [][]         disp_dist, // per camera disparity matrix as a 1d (linescan order)
+    			disp_dist,                      // double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
+    			pair_mask,                      // boolean []          pair_mask, // which pairs to process
+    			pair_offsets0,                  // double [][][]       pair_offsets,
+    			own_masks0,                     // double [][][]       own_masks, // individual per-maximum, per-pair masks regardless of adversaries or null
+    			disp_str_dual,                  // double[][]          disp_str_dual, // single or a pair of {disparity, strength} pairs. First is the strongest of two.
+    			debug_level,                    // int                 debug_level,
+    			tileX,                          // int                 tileX, // just for debug output
+    			tileY);                         // int                 tileY
     	double [][][] lma_corr_weights;
     	double [][]   disp_str_all;
     	double [][][] own_masks;
@@ -4764,11 +4776,19 @@ public class Correlation2d {
    	   						imgdtt_params.cnvx_add3x3,    // boolean   add3x3,
    	   						imgdtt_params.cnvx_weight,    // double    nc_cost,
    	   						(debug_level > 2));           // boolean   debug);
-
-   	   				for (int i = 0; i < filtWeight[nmax][npair].length; i++){
-   	   					lma_corr_weights[nmax][npair][i] *= filtWeight[nmax][npair][i];
+//WRONG!!!
+   	   				if (imgdtt_params.cnvx_or) {
+   	   					for (int i = 0; i < filtWeight[nmax][npair].length; i++){
+   	   						lma_corr_weights[nmax][npair][i] = Math.max(lma_corr_weights[nmax][npair][i],filtWeight[nmax][npair][i]);
+   	   					}
+   	   				} else {
+   	   					for (int i = 0; i < filtWeight[nmax][npair].length; i++){
+   	   						lma_corr_weights[nmax][npair][i] *= filtWeight[nmax][npair][i];
+   	   					}
    	   				}
    				}
+   				
+   				
    			}
    			used_pairs[npair] = true;
    			for (int nmax = 0; nmax < lma_corr_weights.length; nmax++) { // use same blurred version for all max-es
@@ -4830,9 +4850,9 @@ public class Correlation2d {
    			debug_lma_tile[4] = -1; // last number of LMA iterations 
    			debug_lma_tile[5] = -1; // LMA RMA  
    		}
-   		if (debug_graphic) {
+   		if (debug_graphic) { // filt weight bad for highly elongated max. Is it used?
    			if (dbg_corr != null) {
-   				(new ShowDoubleFloatArrays()).showArrays(
+   				(new ShowDoubleFloatArrays()).showArrays( // OK
    						dbg_corr,
    						corr_size,
    						corr_size,
@@ -4840,7 +4860,7 @@ public class Correlation2d {
    						"corr_blurred"+"_x"+tileX+"_y"+tileY,
    						getCorrTitles());
    			}
-   			for (int nmax = 0; nmax < filtWeight.length; nmax++) {
+   			for (int nmax = 0; nmax < filtWeight.length; nmax++) {// Not long
    				if (filtWeight[nmax] != null) {
    					(new ShowDoubleFloatArrays()).showArrays(
    							filtWeight[nmax],
@@ -4851,7 +4871,7 @@ public class Correlation2d {
    							getCorrTitles());
    				}
    			}
-   			for (int nmax = 0; nmax < lma_corr_weights.length; nmax++) {
+   			for (int nmax = 0; nmax < lma_corr_weights.length; nmax++) {// Not long
    				if (lma_corr_weights[nmax] != null) {
    					(new ShowDoubleFloatArrays()).showArrays(
    							lma_corr_weights[nmax],
@@ -4926,12 +4946,13 @@ public class Correlation2d {
 					imgdtt_params.lmas_min_amp_bg,   //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 					imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 					imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
-					imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+					imgdtt_params.lmas_min_max_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
 					imgdtt_params.lmas_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
 					imgdtt_params.lmas_max_area,     //double  lma_max_area,     // maximal half-area (if > 0.0)
 					imgdtt_params.lma_str_scale,     // convert lma-generated strength to match previous ones - scale
 					imgdtt_params.lma_str_offset,    // convert lma-generated strength to match previous ones - add to result
-					false // boolean dbg_mode
+					false, // boolean dbg_mode
+    				imgdtt_params.lma_ac_offset     // Add to A, C coefficients for near-lines where A,C could become negative because of window
 					);
 			for (int nmax = 00; nmax < dispStrs.length; nmax++) if (dispStrs[nmax][0][1] <= 0) {
 				lmaSuccess = false;
@@ -5085,6 +5106,11 @@ public class Correlation2d {
      *                  is the filter.
      * @param adv_power power to raise relative (to adversarial maximum) this maximum strength
      *                  for each pixel. Higher power make filtering sharper
+     *                  
+     * @param lmamask_threshold subtract, normalize, remove <0 to reduce non-zero LMA samples
+     *  
+     * @param lmamask_pwr raise to this power (<1) to flatten mask top 
+     *                  
      * @param corrs     [pair][pixel] correlation data (per pair, per pixel). May have nulls for
      *                  unused pairs.  
      * @param disp_dist per camera disparity matrix as a 1d (linescan order))
@@ -5105,7 +5131,9 @@ public class Correlation2d {
     		ImageDttParameters  imgdtt_params,
     		double              lpf_neib,  // if >0, add ortho neibs (corners - squared)
     		double              notch_pwr, //  = 4.00;
-    		double              adv_power,    // reduce weight from overlap with adversarial maximum 
+    		double              adv_power,    // reduce weight from overlap with adversarial maximum
+    		double              lmamask_threshold, // Subtract, normalize, remove <0 to reduce non-zero LMA samples 
+    		double              lmamask_pwr,       // raise to this power (<1) to flatten mask top 
     		double [][]         corrs, // may have more elements than pair_mask (corrs may have combo as last elements)
     		double [][]         disp_dist, // per camera disparity matrix as a 1d (linescan order)
     		double [][]         rXY, // non-distorted X,Y offset per nominal pixel of disparity
@@ -5238,6 +5266,16 @@ public class Correlation2d {
     			}
     		}
     	}
+    	double norm_scale = 1.0/(1.0 - lmamask_threshold);
+		for (int nmax = 0; nmax < pair_shapes_masks.length; nmax ++) if (pair_shapes_masks[nmax] != null){ // probably always
+			for (int npair = 0; npair < pair_shapes_masks[nmax].length; npair++) if (pair_shapes_masks[nmax][npair] != null){
+				for (int i = 0; i < pair_shapes_masks[nmax][npair].length; i++) {
+					double d = norm_scale*(pair_shapes_masks[nmax][npair][i]-lmamask_threshold);
+					d = (d > 0) ? Math.pow(d, lmamask_pwr) : 0;
+					pair_shapes_masks[nmax][npair][i] = d;
+				}
+			}
+		}
     	
     	if (debug_graphic) {
     		(new ShowDoubleFloatArrays()).showArrays(

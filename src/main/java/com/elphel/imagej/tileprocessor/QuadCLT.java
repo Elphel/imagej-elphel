@@ -122,6 +122,120 @@ public class QuadCLT extends QuadCLTCPU {
 		}
 	}
 	
+	/**
+	 * Remove weak non-LMA tiles if they do not have any LMA or strong neighbors and
+	 * too few weak neighbors. Single strong neighbor within range is enough, strong/LMA
+	 * that are not within range are still counted towards total "good" neighbors. For
+	 * example, weak tiles of the sky just above strong sky-line will survive if the
+	 * number of similar weak neighbor tiles representing clouds plus number of sky-line
+	 * tiles is sufficient. Range may be somewhat wider than that for stronger tiles.
+	 * Strong neibs with lower disparity count as weak ones (towards number of good neibs).
+	 * There should be at least one "near".
+	 *  
+	 * @param dls {disparity, lma_disparity, strength} - not to be modified
+	 * @param strong strength to be considered non weak 
+	 * @param weak   strength to be considered weak, below - just delete (may be 0 if not used) 
+	 * @param min_neibs minimal number of neighbors (of 8) to survive
+	 * @param tolerance_absolute - absolute tolerance
+	 * @param tolerance_relative
+	 * @param width
+	 * @param max_iter
+	 * @param threadsMax
+	 * @param debug_level
+	 * @return updated disparity with some tiles replaced with Double.NaN
+	 */
+	
+	public static double [] removeFewWeak(
+			final double [][] dls,
+			final double      strong,
+			final double      weak,
+			final int         min_neibs, 
+			final double      tolerance_absolute,
+			final double      tolerance_relative,
+			final int         width,
+			final int         max_iter,
+			final int         threadsMax,
+			final int         debug_level)
+	{
+		final int tiles = dls[0].length;
+		final double [] disparity =     dls[0].clone();
+		final double [] disparity_out = dls[0].clone();
+		final double [] disparity_lma = dls[1].clone();
+		final double [] strength =      dls[2]; // will not be updated
+		final TileNeibs tn =  new TileNeibs(width, tiles/width);
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final AtomicInteger anum_updated = new AtomicInteger(0);
+		final int dbg_tile = 2512;
+		for (int iter = 0; iter < max_iter; iter++) {
+			ai.set(0);
+			anum_updated.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) {
+							if ((debug_level >0) && (nTile == dbg_tile)) {
+								System.out.println("removeFewWeak():removeDisparityOutliers() nTile="+nTile);
+							}
+							if (    !Double.isNaN(disparity[nTile]) &&
+									Double.isNaN(disparity_lma[nTile]) && // is not lma 
+									(strength[nTile] < strong)) {         // weak
+								if (strength[nTile] < weak) {
+									disparity_out[nTile] = Double.NaN;
+									anum_updated.getAndIncrement();
+									continue;
+								}
+								double tolerance = tolerance_absolute +  ((disparity[nTile]>0)? disparity[nTile]*tolerance_relative:0);
+								double lim_max = disparity[nTile] + tolerance; 
+								double lim_min = disparity[nTile] - tolerance;
+								int num_goog_neibs = 0; // strong or close
+								int num_near = 0;
+								boolean keep = false;
+								for (int dir = 0; dir < 8; dir++) {
+									int ineib = tn.getNeibIndex(nTile, dir);
+									if ((ineib >= 0) && !Double.isNaN(disparity[ineib])) {
+										boolean near = (disparity[ineib] >= lim_min) && (disparity[ineib] <= lim_max);
+										boolean is_strong = !Double.isNaN(disparity_lma[ineib]) ||
+												(strength[ineib] >= strong);
+										// Strong and near only counts for strong in FG (nearer), far ones same as weak
+										if (near && is_strong && (disparity[ineib] >= disparity[nTile])) {
+											keep = true;
+											break;
+										}
+										if (near || is_strong) {
+											num_goog_neibs++;
+											if (near) num_near++;
+											if ((num_goog_neibs >= min_neibs) && (num_near > 0)) {
+												keep = true;
+												break;
+											}
+										}
+									}
+								}
+								if (!keep) {
+									disparity_out[nTile] = Double.NaN;
+									anum_updated.getAndIncrement();
+								}
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			if (anum_updated.get() ==0) {
+				break;
+			}
+			System.arraycopy(disparity_out,0,disparity,0,tiles);
+		}
+		return disparity_out;
+	}
+	
+	
+	
+	
+	
+	
+	
 
 	public static double [] removeDisparityLMAOutliers( // just LMA FG
 			final boolean     non_lma,
@@ -144,7 +258,7 @@ public class QuadCLT extends QuadCLTCPU {
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final AtomicInteger anum_updated = new AtomicInteger(0);
-		final int dbg_tile = 989;
+		final int dbg_tile = 2997;
 		for (int iter = 0; iter < max_iter; iter++) {
 			ai.set(0);
 			anum_updated.set(0);
@@ -157,7 +271,7 @@ public class QuadCLT extends QuadCLTCPU {
 								System.out.println("removeDisparityOutliers() nTile="+nTile);
 							}
 							if (    !Double.isNaN(disparity[nTile]) &&
-									(!Double.isNaN(disparity_lma[nTile]) ^ non_lma) &&
+									(!Double.isNaN(disparity_lma[nTile]) ^ non_lma) && // is_lma 
 									(strength[nTile] < max_strength)) { // weak LMA
 								Arrays.fill(neibs, Double.NaN);
 								for (int dir = 0; dir < 8; dir++) {
@@ -395,12 +509,13 @@ public class QuadCLT extends QuadCLTCPU {
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final AtomicInteger anum_gaps = new AtomicInteger(0);
+		final int dbg_tile = 2191;
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				public void run() {
 					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) {
 						if (ds[0][nTile] < min_disparity) {
-							ds[0][nTile] = min_disparity;
+							ds[0][nTile] = Double.NaN; // min_disparity;
 						}
 						if (Double.isNaN(ds[0][nTile]) || (ds[1][nTile] <= 0)) {
 							ds[0][nTile] = Double.NaN;
@@ -432,14 +547,23 @@ public class QuadCLT extends QuadCLTCPU {
 						double [] neibs_sorted = new double[8];
 						for (int indx = ai.getAndIncrement(); indx < num_gaps; indx = ai.getAndIncrement()) {
 							int nTile = tile_indices[indx];
+							if ((debug_level >0) && (nTile == dbg_tile)) {
+								System.out.println("fillDisparityStrength() nTile="+nTile);
+							}
+							
 							if (!fill_all[0] && !Double.isNaN(ds[0][nTile])) {
 								continue; // fill only new
 							}
 							Arrays.fill(neibs, Double.NaN);
+							double swd = 0.0, sw = 0.0;
 							for (int dir = 0; dir < 8; dir++) {
 								int nt_neib = tn.getNeibIndex(nTile, dir);
 								if (nt_neib >= 0) {
 									neibs[dir] = ds[0][nt_neib];
+									if (! Double.isNaN(neibs[dir])) {
+										sw +=  neibw[dir];
+										swd += neibw[dir] * neibs[dir]; 
+									}
 								}
 							}
 							System.arraycopy(neibs, 0, neibs_sorted, 0, 8);
@@ -447,14 +571,17 @@ public class QuadCLT extends QuadCLTCPU {
 							if (Double.isNaN(neibs_sorted[min_defined - 1])) {
 								continue; // too few defined neighbors
 							}
+							swd /= sw; // here = not zero;
 							if (!fill_all[0]) {
 								anum_gaps.getAndIncrement();
 							}
 							double max_disp = neibs_sorted[num_bottom - 1];
-							if (!(ds[0][nTile] > max_sym_disparity)){
-								max_disp = Double.NaN;
+//							if (!(ds[0][nTile] > max_sym_disparity)){
+							if (!(swd > max_sym_disparity)){ // here compare to average, not this!
+								max_disp = Double.NaN; // so it will average all
 							}
-							double swd = 0.0, sw = 0.0;
+							swd = 0.0;
+							sw = 0.0;
 							for (int dir = 0; dir < 8; dir++) {
 								if (!Double.isNaN(neibs[dir]) && !(neibs[dir] > max_disp)) { // handles NaNs
 									sw +=  neibw[dir];
@@ -486,6 +613,11 @@ public class QuadCLT extends QuadCLTCPU {
 				break;
 			}
 			fill_all[0] = anum_gaps.get() == 0; // no new tiles filled
+			if (npass == (num_passes-1)){
+				System.out.println("fillDisparityStrength() LAST PASS ! npass="+npass+", change="+Math.sqrt(amax_diff.get())+" ("+max_change+")");
+				System.out.println("fillDisparityStrength() LAST PASS ! npass="+npass+", change="+Math.sqrt(amax_diff.get())+" ("+max_change+")");
+				System.out.println("fillDisparityStrength() LAST PASS ! npass="+npass+", change="+Math.sqrt(amax_diff.get())+" ("+max_change+")");
+			}
 		} // for (int npass = 0; npass < num_passes; npass+= fill_all[0]? 1:0 )
 		
 		return ds;

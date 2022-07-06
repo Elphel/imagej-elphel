@@ -40,6 +40,7 @@ public class IntersceneMatchParameters {
 	public  int min_num_interscene =     2; // make from parameters, should be >= 1
 
 	public  boolean generate_mapped =    true; // generate any of the sequences - Tiff, video, mono or stereo
+	public  boolean reuse_video =        false; // dry-run video generation, just reassemble video fragments (active if !generate_mapped)
 	public  boolean save_mapped_color =  false; // may be not needed when using AVI
 	public  boolean save_mapped_mono =   true;  // may be not needed when using AVI
 	public  boolean generate_raw =       false;
@@ -71,7 +72,9 @@ public class IntersceneMatchParameters {
 	public  boolean export_ml_files =    false; // export files for DNN training
 	
 	public  boolean stereo_merge =       true;
-	public  int     stereo_gap =         30;   // pixels between right and left frames
+	public  int     stereo_gap =         32;    // pixels between right and left frames
+	public  double  stereo_intereye =    63.5;  // mm 
+	public  double  stereo_phone_width = 143.0; // mm if 0 - no padding. Will be padded only when merging
 
 	public  int     extra_hor_tile =     15;
 	public  int     extra_vert_tile =    10;
@@ -91,7 +94,8 @@ public class IntersceneMatchParameters {
 	public  boolean run_ffmpeg =         true; // only after AVI
 	public  String  video_ext =          ".webm";
 	public  String  video_codec =        "vp8";
-	public  String  video_extra =        "-b:v 0 -crf 40"; // extra FFMPEG parameters
+//	public  String  video_extra =        "-b:v 0 -crf 40"; // extra FFMPEG parameters
+	public  int     video_crf =          40;   // lower - better, larger file size
 	public  boolean remove_avi =         true; // remove avi after conversion to webm
 	public  boolean um_mono =            true; // applies to both TIFF and AVI 
 	public  double  um_sigma =           10;
@@ -100,8 +104,10 @@ public class IntersceneMatchParameters {
 	public  double  mono_range =       500.0;  // monochrome full-scale range (+/- half)
 	public  boolean annotate_color =     true; // annotate pseudo-color video frames with timestamps 
 	public  boolean annotate_mono =      true; // annotate monochrome video frames with timestamps 
-	public Color annotate_color_color = new Color( 255, 255, 255); // greenish over "fire"
-	public Color annotate_color_mono =  new Color( 255, 180, 100); // reddish over grey
+	public Color   annotate_color_color = new Color( 255, 255, 255); // greenish over "fire"
+//	public Color annotate_color_mono =  new Color( 255, 180, 100); // reddish over grey
+	public Color   annotate_color_mono =  new Color( 255, 255, 255); // reddish over grey
+	public boolean annotate_transparent_mono =  false; // // black if not transparent
 	
 	
 	
@@ -111,11 +117,12 @@ public class IntersceneMatchParameters {
 	
 	
 // Other parameters for filtering depth maps	
-	public  int         num_bottom =                      6; // average this number of lowest disparity neighbors (of 8)
+	public  int         num_bottom =                      3; // 6; // average this number of lowest disparity neighbors (of 8)
 	public  int         num_passes =                    100;
 	public  double      max_change =                      1.0e-3;
-	public  double      min_disparity =                  -0.2;
-	public  double      max_sym_disparity =               0.2;		
+	public  double      min_disparity =                  -0.15; // 0.2;
+	public  double      max_sym_disparity =               0.1; // 0.2;
+	// 2 next are wrong currently - minimal strength is ~0.25
 	public  double      min_strength_replace =            0.05; ///  0.14; /// Before /// - LWIR, after - RGB
 	public  double      min_strength_blur =               0.06; ///  0.2;
 	public  double      sigma =                           2; /// 5;
@@ -129,15 +136,21 @@ public class IntersceneMatchParameters {
 	public  int         outliers_nth_fromextrem2 =        0; // second from min/max - removes dual-tile max/mins
 	public  double      outliers_tolerance_absolute2 =    0.5;
 	public  double      outliers_tolerance_relative2 =    0.1;
-	public  double      outliers_lma_max_strength =       0.5;
+	public  double      outliers_lma_max_strength =       0.4; // 0.5;
 	public  double      outliers_max_strength =           0.1; ///  0.25;
 	public  double      outliers_from_lma_max_strength =  0.8;
 	public  int         search_radius =                   3;  // Search farther if no LMA neighbor is found closer. Original value - 1 (8 neighbors)
 	public  boolean     remove_no_lma_neib =              true;
 	public  double      diff_from_lma_pos =             100.0;
 	public  double      diff_from_lma_neg =               2.0;
-	public  int         outliers_lma_nth_fromextrem =     1; 
+	public  int         outliers_lma_nth_fromextrem =     0; // 1; 
 	public  int         filter_margin =                  -8; // 8; // pixels
+	
+	public  double      weak_tolerance_absolute=          0.25;
+	public  double      weak_tolerance_relative=          0.025;
+	public  int         weak_min_neibs =                  5;
+	public  double      strong_strength=                  0.5;
+	public  double      weak_strength=                    0.2; // none is below 
 	
 	
 
@@ -244,6 +257,8 @@ public class IntersceneMatchParameters {
 		gd.addMessage  ("Generate/show scene sequences");
 		gd.addCheckbox ("Generate mapped scene sequence",            this.generate_mapped,
 				"Generate scene sequence mapped to the reference scene.");
+		gd.addCheckbox ("Reuse existing video fragments, disable other options",this.reuse_video,
+				"Dry-run video generation, just re-assemble earlier generated video fragments. Disables all other file generation.");
 		gd.addCheckbox ("Save scene sequences in (pseudo)colors as TIFF",this.save_mapped_color,
 				"Save generated scene sequences in (pseudo)color mode as a multi-slice TIFF.");
 		gd.addCheckbox ("Save scene sequences in monochrome as TIFF",    this.save_mapped_mono,
@@ -325,12 +340,13 @@ public class IntersceneMatchParameters {
 				"Maximal change to exit iterations");
 		gd.addNumericField("Minimal disparity",                      this.min_disparity, 5,7,"pix",
 				"Minimal acceptable disparity");
-		gd.addNumericField("Max neib. disparity difference",         this.max_sym_disparity, 5,7,"pix",
-				"Difference from the nearest of neighbors should not exceed this");
+		gd.addNumericField("Disparity range for symmetrical pull",   this.max_sym_disparity, 5,7,"pix",
+				"For larger disparities undefined tiles are pull predominantly down (to average of lowest), "+
+		        "but for small disparities (sky) pull is to average of all neighbors.");
 		gd.addNumericField("Minimal strength to replace",            this.min_strength_replace, 5,7,"",
-				"Minimal strength to replace");
+				"Minimal strength to replace (now not used)");
 		gd.addNumericField("Minimal strength to blur",               this.min_strength_blur, 5,7,"",
-				"Minimal strength to blur");
+				"Minimal strength to blur  (now not used)");
 		gd.addNumericField("Blur weak sigma",                        this.sigma, 5,7,"",
 				"Blur weak sigma");
 		gd.addNumericField("Number of blur passes",                  this.num_blur, 0,3,"",
@@ -371,9 +387,20 @@ public class IntersceneMatchParameters {
 				"Maximal non-LMA tile negative difference from the LMA neighbor");
 		gd.addNumericField("LMA outliers N-th from extreme",         this.outliers_lma_nth_fromextrem, 0,3,"",
 				"0 - use min/max, 1 - use second min/max, ... ");
-		gd.addNumericField("Margin from the sensor FOV edge ",        this.filter_margin, 0,3,"pix",
+		gd.addNumericField("Margin from the sensor FOV edge ",       this.filter_margin, 0,3,"pix",
 				"Disregard tiles with centers closer to the sensor FoV in pixels");
 		
+		gd.addMessage  ("Removing weak tiles with insufficient matching neighbors");
+		gd.addNumericField("Neighbor disparity tolerance (absolute)",this.weak_tolerance_absolute, 5,7,"pix",
+				"Absolute disparity difference to be considered a neighbor");
+		gd.addNumericField("Neighbor disparity tolerance (relative)", this.weak_tolerance_relative, 5,7,"",
+				"Relative disparity difference to be considered a neighbor");
+		gd.addNumericField("Minimal matching neighbors",              this.weak_min_neibs, 0,3,"",
+				"Minimal number of weak matching neighbors (at least one is needed if there are strong non-neighbors).");
+		gd.addNumericField("Minimal strength to be strong",           this.strong_strength, 5,7,"",
+				"Minimal strength to be considered strong(not weak). LMA are also considered strong.");
+		gd.addNumericField("Minimal weak strength",                   this.weak_strength, 5,7,"",
+				"Weaker are removed unconditionally (not used now).");
 		
 		gd.addMessage  ("Stereo");
 		if (stereo_bases.length > 0) {
@@ -392,8 +419,13 @@ public class IntersceneMatchParameters {
 //				"Synthetic 3D with possibly exagerrated stereo baseline");
 		gd.addCheckbox ("Stereo merge right, left",                  this.stereo_merge,
 				"Combine stereo pair in a single (wide) frame. Unchecked - generate separate videos.");
-		gd.addNumericField("Stereo gap",        this.stereo_gap, 0,3,"pix",
+		gd.addNumericField("Stereo gap",                             this.stereo_gap, 0,3,"pix",
 				"Distance (pixels) between right and left sub-images in a stereo frame.");
+		gd.addNumericField("VR headset stereo base",                 this.stereo_intereye, 5,7,"mm",
+				"Inter-lens distance of the VR phone adapter (Google Cardboard - 63.5)");
+		gd.addNumericField("Phone screen width",                     this.stereo_phone_width, 5,7,"mm",
+				"Phone screen width in full screen video mode.");
+		
 		
 		gd.addNumericField("Scene sequence horizontal extra",        this.extra_hor_tile, 0,3,"tiles",
 				"Enlarge reference scene window horizontally in each direction to accommodate other scenes in a sequence");
@@ -427,8 +459,13 @@ public class IntersceneMatchParameters {
 				"Converted video extension, starting with dot.");
 		gd.addStringField ("Video encoder",                          this.video_codec, 60,
 				"FFMPEG video encoder, such as \"VP8\" or \"VP9\".");
-		gd.addStringField ("Video extra parameters",                 this.video_extra, 60,
-				"FFMPEG video encoder additional parameters, such as, such as \"-b:v 0 -crf 40\".");
+//		gd.addStringField ("Video extra parameters",                 this.video_extra, 60,
+//				"FFMPEG video encoder additional parameters, such as, such as \"-b:v 0 -crf 40\".");
+		
+		gd.addNumericField("Video CRF",                             this.video_crf, 0,3,"",
+				"Quality - the lower the better. 40 - OK");		
+
+		
 		
 		gd.addCheckbox ("Remove AVI",                                this.remove_avi,
 				"Remove large AVI files after conversion with ffmpeg.");
@@ -454,6 +491,9 @@ public class IntersceneMatchParameters {
 		gd.addStringField ("Timestamp color for pseudocolor frames",scolor, 8, "Any invalid hex number disables annotation");
 		scolor = (this.annotate_color_mono==null)?"none":String.format("%08x", getLongColor(this.annotate_color_mono));
 		gd.addStringField ("Timestamp color for monochrome frames",scolor, 8, "Any invalid hex number disables annotation");
+		gd.addCheckbox ("Transparent timestamp background (monochrome)",this.annotate_transparent_mono,
+				"Put monochrome timestamp over image (unchecked - use black background). Color - always black.");
+
 		
 		gd.addMessage  ("Interscene match parameters");
 		gd.addNumericField("Image margin",                           this.margin, 0,5,"pix",
@@ -592,6 +632,7 @@ public class IntersceneMatchParameters {
 		this.min_num_orient =           (int) gd.getNextNumber(); if (min_num_orient < 1) min_num_orient = 1;
 		this.min_num_interscene =       (int) gd.getNextNumber(); if (min_num_interscene < 1) min_num_interscene = 1;
 		this.generate_mapped =                gd.getNextBoolean();
+		this.reuse_video =                    gd.getNextBoolean();
 		this.save_mapped_color =              gd.getNextBoolean(); // as tiff
 		this.save_mapped_mono =               gd.getNextBoolean(); // as tiff
 		this.gen_avi_color =                  gd.getNextBoolean(); // as video
@@ -653,6 +694,13 @@ public class IntersceneMatchParameters {
 		this.diff_from_lma_neg =              gd.getNextNumber();
 		this.outliers_lma_nth_fromextrem=(int)gd.getNextNumber();
 		this.filter_margin =            (int) gd.getNextNumber();
+		
+		this.weak_tolerance_absolute =        gd.getNextNumber();
+		this.weak_tolerance_relative =        gd.getNextNumber();
+		this.weak_min_neibs =           (int) gd.getNextNumber();
+		this.strong_strength =                gd.getNextNumber();
+		this.weak_strength =                  gd.getNextNumber();
+		
 		if (stereo_bases.length > 0) {
 			int i =                               gd.getNextChoiceIndex();
 			if (i > 0) {
@@ -670,9 +718,11 @@ public class IntersceneMatchParameters {
 			}
 		}
 		
-//		this.stereo_baseline =                gd.getNextNumber();
-		this.stereo_merge =                   gd.getNextBoolean();
-		this.stereo_gap =               (int) gd.getNextNumber();
+//		this.stereo_baseline =          gd.getNextNumber();
+		this.stereo_merge =             gd.getNextBoolean();
+		this.stereo_gap =         (int) gd.getNextNumber();
+		this.stereo_intereye =          gd.getNextNumber();
+		this.stereo_phone_width =       gd.getNextNumber();
 		
 		this.extra_hor_tile =     (int) gd.getNextNumber();
 		this.extra_vert_tile =    (int) gd.getNextNumber();
@@ -689,7 +739,8 @@ public class IntersceneMatchParameters {
 		this.run_ffmpeg =               gd.getNextBoolean();
 		this.video_ext=                 gd.getNextString();	
 		this.video_codec=               gd.getNextString();	
-		this.video_extra=               gd.getNextString();	
+//		this.video_extra=               gd.getNextString();	
+		this.video_crf =          (int) gd.getNextNumber();
 		this.remove_avi =               gd.getNextBoolean();
 		this.um_mono =                  gd.getNextBoolean();
 		this.um_sigma =                 gd.getNextNumber();
@@ -718,7 +769,7 @@ public class IntersceneMatchParameters {
 				this.annotate_color_mono = null;
 			}
 		}
-		
+		this.annotate_transparent_mono= gd.getNextBoolean();
 		
 		this.margin =             (int) gd.getNextNumber();
 		this.sensor_mask_inter=   (int) gd.getNextNumber();
@@ -791,6 +842,7 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"min_num_orient",                this.min_num_orient+"");                // int
 		properties.setProperty(prefix+"min_num_interscene",            this.min_num_interscene+"");            // int
 		properties.setProperty(prefix+"generate_mapped",               this.generate_mapped+"");               // boolean
+		properties.setProperty(prefix+"reuse_video",                   this.reuse_video+"");                   // boolean
 		properties.setProperty(prefix+"save_mapped_color",             this.save_mapped_color+"");             // boolean
 		properties.setProperty(prefix+"save_mapped_mono",              this.save_mapped_mono+"");              // boolean
 		properties.setProperty(prefix+"gen_avi_color",                 this.gen_avi_color+"");       // boolean
@@ -853,9 +905,17 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"diff_from_lma_neg",             this.diff_from_lma_neg+"");             // double
 		properties.setProperty(prefix+"outliers_lma_nth_fromextrem",   this.outliers_lma_nth_fromextrem+"");   // int
 		properties.setProperty(prefix+"filter_margin",                 this.filter_margin+"");                 // int
-//		properties.setProperty(prefix+"stereo_baseline",               this.stereo_baseline+"");               // double
+		
+		properties.setProperty(prefix+"weak_tolerance_absolute",       this.weak_tolerance_absolute+"");       // double
+		properties.setProperty(prefix+"weak_tolerance_relative",       this.weak_tolerance_relative+"");       // double
+		properties.setProperty(prefix+"weak_min_neibs",                this.weak_min_neibs+"");                // int
+		properties.setProperty(prefix+"strong_strength",               this.strong_strength+"");               // double
+		properties.setProperty(prefix+"weak_strength",                 this.weak_strength+"");                 // double
+		
 		properties.setProperty(prefix+"stereo_merge",                  this.stereo_merge+"");                  // boolean
 		properties.setProperty(prefix+"stereo_gap",                    this.stereo_gap+"");                    // int
+		properties.setProperty(prefix+"stereo_intereye",               this.stereo_intereye+"");               // double
+		properties.setProperty(prefix+"stereo_phone_width",            this.stereo_phone_width+"");            // double
 		
 		properties.setProperty(prefix+"extra_hor_tile",       this.extra_hor_tile+"");      // int
 		properties.setProperty(prefix+"extra_vert_tile",      this.extra_vert_tile+"");     // int
@@ -870,7 +930,8 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"run_ffmpeg",           this.run_ffmpeg+"");          // boolean
 		properties.setProperty(prefix+"video_ext",            this.video_ext+"");           // String
 		properties.setProperty(prefix+"video_codec",          this.video_codec+"");         // String
-		properties.setProperty(prefix+"video_extra",          this.video_extra+"");         // String
+//		properties.setProperty(prefix+"video_extra",          this.video_extra+"");         // String
+		properties.setProperty(prefix+"video_crf",            this.video_crf+"");           // int
 		properties.setProperty(prefix+"remove_avi",           this.remove_avi+"");          // boolean
 		properties.setProperty(prefix+"um_mono",              this.um_mono+"");             // boolean
 		properties.setProperty(prefix+"um_sigma",             this.um_sigma+"");            // double
@@ -887,7 +948,7 @@ public class IntersceneMatchParameters {
 			long lcolor_annotate =        (annotate_color_mono == null) ? -1 : getLongColor(annotate_color_mono);
 			properties.setProperty(prefix+"annotate_color_mono",              lcolor_annotate+"");
 		}
-
+		properties.setProperty(prefix+"annotate_transparent_mono",this.annotate_transparent_mono+"");// boolean
 		properties.setProperty(prefix+"margin",               this.margin+"");              // int
 		properties.setProperty(prefix+"sensor_mask_inter",    this.sensor_mask_inter+"");   // int
 		properties.setProperty(prefix+"use_partial",          this.use_partial+"");         // boolean
@@ -955,6 +1016,8 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"min_num_orient")!=null)                this.min_num_orient=Integer.parseInt(properties.getProperty(prefix+"min_num_orient"));
 		if (properties.getProperty(prefix+"min_num_interscene")!=null)            this.min_num_interscene=Integer.parseInt(properties.getProperty(prefix+"min_num_interscene"));
 		if (properties.getProperty(prefix+"generate_mapped")!=null)               this.generate_mapped=Boolean.parseBoolean(properties.getProperty(prefix+"generate_mapped"));
+		if (properties.getProperty(prefix+"reuse_video")!=null)                   this.reuse_video=Boolean.parseBoolean(properties.getProperty(prefix+"reuse_video"));
+		
 		if (properties.getProperty(prefix+"save_mapped_color")!=null)             this.save_mapped_color=Boolean.parseBoolean(properties.getProperty(prefix+"save_mapped_color"));
 		if (properties.getProperty(prefix+"save_mapped_mono")!=null)              this.save_mapped_mono=Boolean.parseBoolean(properties.getProperty(prefix+"save_mapped_mono"));
 		if (properties.getProperty(prefix+"gen_avi_color")!=null)                 this.gen_avi_color=Boolean.parseBoolean(properties.getProperty(prefix+"gen_avi_color"));
@@ -984,7 +1047,7 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"show_images_bgfg")!=null)              this.show_images_bgfg=Boolean.parseBoolean(properties.getProperty(prefix+"show_images_bgfg"));		
 		if (properties.getProperty(prefix+"show_images_mono")!=null)              this.show_images_mono=Boolean.parseBoolean(properties.getProperty(prefix+"show_images_mono"));		
 		if (properties.getProperty(prefix+"export_ranges")!=null)                 this.export_ranges=Boolean.parseBoolean(properties.getProperty(prefix+"export_ranges"));
-		if (properties.getProperty(prefix+"show_ranges")!=null)                   this.show_images=Boolean.parseBoolean(properties.getProperty(prefix+"show_ranges"));
+		if (properties.getProperty(prefix+"show_ranges")!=null)                   this.show_ranges=Boolean.parseBoolean(properties.getProperty(prefix+"show_ranges"));
 		if (properties.getProperty(prefix+"export_ml_files")!=null)               this.export_ml_files=Boolean.parseBoolean(properties.getProperty(prefix+"export_ml_files"));
 
 		if (properties.getProperty(prefix+"show_color_nan")!=null)                this.show_color_nan=Boolean.parseBoolean(properties.getProperty(prefix+"show_color_nan"));		
@@ -1022,10 +1085,16 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"outliers_lma_nth_fromextrem")!=null)   this.outliers_lma_nth_fromextrem=Integer.parseInt(properties.getProperty(prefix+"outliers_lma_nth_fromextrem"));
 		if (properties.getProperty(prefix+"filter_margin")!=null)                 this.filter_margin=Integer.parseInt(properties.getProperty(prefix+"filter_margin"));
 
-//		if (properties.getProperty(prefix+"stereo_baseline")!=null)               this.stereo_baseline=Double.parseDouble(properties.getProperty(prefix+"stereo_baseline"));
+		if (properties.getProperty(prefix+"weak_tolerance_absolute")!=null)       this.weak_tolerance_absolute=Double.parseDouble(properties.getProperty(prefix+"weak_tolerance_absolute"));
+		if (properties.getProperty(prefix+"weak_tolerance_relative")!=null)       this.weak_tolerance_relative=Double.parseDouble(properties.getProperty(prefix+"weak_tolerance_relative"));
+		if (properties.getProperty(prefix+"weak_min_neibs")!=null)                this.weak_min_neibs=Integer.parseInt(properties.getProperty(prefix+"weak_min_neibs"));
+		if (properties.getProperty(prefix+"strong_strength")!=null)               this.strong_strength=Double.parseDouble(properties.getProperty(prefix+"strong_strength"));
+		if (properties.getProperty(prefix+"weak_strength")!=null)                 this.weak_strength=Double.parseDouble(properties.getProperty(prefix+"weak_strength"));
+		
 		if (properties.getProperty(prefix+"stereo_merge")!=null)                  this.stereo_merge=Boolean.parseBoolean(properties.getProperty(prefix+"stereo_merge"));
 		if (properties.getProperty(prefix+"stereo_gap")!=null)                    this.stereo_gap=Integer.parseInt(properties.getProperty(prefix+"stereo_gap"));
-		
+		if (properties.getProperty(prefix+"stereo_intereye")!=null)               this.stereo_intereye=Double.parseDouble(properties.getProperty(prefix+"stereo_intereye"));
+		if (properties.getProperty(prefix+"stereo_phone_width")!=null)            this.stereo_phone_width=Double.parseDouble(properties.getProperty(prefix+"stereo_phone_width"));
 		
 		if (properties.getProperty(prefix+"extra_hor_tile")!=null)       this.extra_hor_tile=Integer.parseInt(properties.getProperty(prefix+"extra_hor_tile"));
 		if (properties.getProperty(prefix+"extra_vert_tile")!=null)      this.extra_vert_tile=Integer.parseInt(properties.getProperty(prefix+"extra_vert_tile"));
@@ -1040,7 +1109,8 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"run_ffmpeg")!=null)           this.run_ffmpeg=Boolean.parseBoolean(properties.getProperty(prefix+"run_ffmpeg"));
 		if (properties.getProperty(prefix+"video_ext")!=null)            this.video_ext=(String) properties.getProperty(prefix+"video_ext");
 		if (properties.getProperty(prefix+"video_codec")!=null)          this.video_codec=(String) properties.getProperty(prefix+"video_codec");
-		if (properties.getProperty(prefix+"video_extra")!=null)          this.video_extra=(String) properties.getProperty(prefix+"video_extra");
+///		if (properties.getProperty(prefix+"video_extra")!=null)          this.video_extra=(String) properties.getProperty(prefix+"video_extra");
+		if (properties.getProperty(prefix+"video_crf")!=null)            this.video_crf=Integer.parseInt(properties.getProperty(prefix+"video_crf"));
 		if (properties.getProperty(prefix+"remove_avi")!=null)           this.remove_avi=Boolean.parseBoolean(properties.getProperty(prefix+"remove_avi"));
 		if (properties.getProperty(prefix+"um_mono")!=null)              this.um_mono=Boolean.parseBoolean(properties.getProperty(prefix+"um_mono"));
 		if (properties.getProperty(prefix+"um_sigma")!=null)             this.um_sigma=Double.parseDouble(properties.getProperty(prefix+"um_sigma"));
@@ -1060,6 +1130,7 @@ public class IntersceneMatchParameters {
 			if (lcolor_annotate < 0) this.annotate_color_mono = null;
 			else this.annotate_color_mono = setLongColor(lcolor_annotate);
 		}
+		if (properties.getProperty(prefix+"annotate_transparent_mono")!=null) this.annotate_transparent_mono=Boolean.parseBoolean(properties.getProperty(prefix+"annotate_transparent_mono"));
 		
 		if (properties.getProperty(prefix+"margin")!=null)               this.margin=Integer.parseInt(properties.getProperty(prefix+"margin"));
 		if (properties.getProperty(prefix+"sensor_mask_inter")!=null)    this.sensor_mask_inter=Integer.parseInt(properties.getProperty(prefix+"sensor_mask_inter"));
@@ -1130,6 +1201,7 @@ public class IntersceneMatchParameters {
 		imp.min_num_orient                = this.min_num_orient;
 		imp.min_num_interscene            = this.min_num_interscene;
 		imp.generate_mapped               = this.generate_mapped;
+		imp.reuse_video                   = this.reuse_video;
 		imp.save_mapped_color             = this.save_mapped_color;
 		imp.save_mapped_mono              = this.save_mapped_mono;
 		imp.gen_avi_color                 = this.gen_avi_color;
@@ -1189,9 +1261,17 @@ public class IntersceneMatchParameters {
 		imp.diff_from_lma_neg             = this.diff_from_lma_neg;
 		imp.outliers_lma_nth_fromextrem   = this.outliers_lma_nth_fromextrem;
 		imp.filter_margin                 = this.filter_margin;
-//		imp.stereo_baseline               = this.stereo_baseline;
+
+		imp.weak_tolerance_absolute       = this.weak_tolerance_absolute;
+		imp.weak_tolerance_relative       = this.weak_tolerance_relative;
+		imp.weak_min_neibs                = this.weak_min_neibs;
+		imp.strong_strength               = this.strong_strength;
+		imp.weak_strength                 = this.weak_strength;
+		
 		imp.stereo_merge                  = this.stereo_merge;
 		imp.stereo_gap                    = this.stereo_gap;
+		imp.stereo_intereye               = this. stereo_intereye;
+		imp.stereo_phone_width            = this. stereo_phone_width;
 		
 		imp.extra_hor_tile        = this.extra_hor_tile;
 		imp.extra_vert_tile       = this.extra_vert_tile;
@@ -1206,7 +1286,8 @@ public class IntersceneMatchParameters {
 		imp.run_ffmpeg =            this. run_ffmpeg;
 		imp.video_ext =             this. video_ext;
 		imp.video_codec =           this. video_codec;
-		imp.video_extra =           this. video_extra;
+//		imp.video_extra =           this. video_extra;
+		imp.video_crf =             this. video_crf;
 		imp.remove_avi =            this. remove_avi;
 		
 		imp.um_mono =               this. um_mono;
@@ -1219,6 +1300,7 @@ public class IntersceneMatchParameters {
 		imp.annotate_mono =         this. annotate_mono;
 		imp.annotate_color_color =  this. annotate_color_color;
 		imp.annotate_color_mono =   this. annotate_color_mono;
+		imp.annotate_transparent_mono = this. annotate_transparent_mono;
 
 		imp.margin                = this.margin;
 		imp.sensor_mask_inter     = this.sensor_mask_inter;

@@ -2860,8 +2860,12 @@ public class ImageDtt extends ImageDttCPU {
 		// keep for now for mono, find out  what do they mean for macro mode
 		
 		final int corr_size = transform_size * 2 - 1;
+		final String[] debug_lma_titles_nobi = {"disp_samples","num_cnvx_samples","num_comb_samples", "num_lmas","num_iters","rms"};
+		final String[] debug_lma_titles_bi  = {"disparity","strength_mod","strength", "area","ac","min(a,c)","max(a,c)","a","c","b","str1","rrms","rms"};
+		final String[] debug_lma_titles= imgdtt_params.bimax_dual_LMA? debug_lma_titles_bi:debug_lma_titles_nobi;
+//		final double [][]         debug_lma = imgdtt_params.lmamask_dbg? (new double [6][tilesX*tilesY]):null;
+		final double [][]         debug_lma = imgdtt_params.lmamask_dbg? (new double [debug_lma_titles.length][tilesX*tilesY]):null;
 
-		final double [][]         debug_lma = imgdtt_params.lmamask_dbg? (new double [6][tilesX*tilesY]):null;
 		if (debug_lma != null) {
 			for (int i = 0; i < debug_lma.length; i++) {
 				Arrays.fill(debug_lma[i], Double.NaN);
@@ -3026,7 +3030,8 @@ public class ImageDtt extends ImageDttCPU {
 							}
 							nTile = tileY * tilesX + tileX;
 							if (tp_tasks[iTile].getTask() == 0) continue; // nothing to do for this tile
-							boolean debugTile0 =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > 1); // 0);
+							boolean debugTile0 =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > 0); // 1);
+							debugTile0 |=(tileX == debug_tileX-1) && (tileY == debug_tileY) && (globalDebugLevel > 0); // 1);
 							boolean debugTile1 =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > -10);
 							if (debugTile0) {
 								System.out.println("clt_process_tl_correlations(): tileX="+tileX+", tileY="+tileY+", iTile="+iTile+", nTile="+nTile);
@@ -3161,7 +3166,9 @@ public class ImageDtt extends ImageDttCPU {
 									double [][] maxes = correlation2d.getDoublePoly(
 											disparity_scale, // double    disparity_scale,
 											((corr_dia_tile != null) ? corr_dia_tile : corr_combo_tile), // double [] combo_corrs,
-											imgdtt_params.mcorr_dual_fract); //double    min_fraction
+											imgdtt_params.mcorr_dual_fract,   //double    min_fraction
+											imgdtt_params.mcorr_dual_min_max,  // double    min_max, // =      0.2;  // Minimal absolute strength of the strongest in a dual-max to consider second one
+											imgdtt_params.mcorr_dual_min_min); // double    min_min);  // =      0.08; // Minimal absolute strength of a weakest in a dual-max to consider second one
 									if ((disparity_map != null) && (disparity_map[DISPARITY_VARIATIONS_INDEX] != null)) {
 										disparity_map[DISPARITY_VARIATIONS_INDEX    ][nTile] = maxes.length;
 									}
@@ -3234,12 +3241,13 @@ public class ImageDtt extends ImageDttCPU {
 															imgdtt_params.lmas_min_amp_bg,   //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 															imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 															imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
-															imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+															imgdtt_params.lmas_min_max_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
 															imgdtt_params.lmas_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
 															imgdtt_params.lmas_max_area,     //double  lma_max_area,     // maximal half-area (if > 0.0)
 															imgdtt_params.lma_str_scale,     // convert lma-generated strength to match previous ones - scale
 															imgdtt_params.lma_str_offset,    // convert lma-generated strength to match previous ones - add to result
-															dbg_dispStrs // false // boolean dbg_mode
+															dbg_dispStrs, // false // boolean dbg_mode
+										    				imgdtt_params.lma_ac_offset     // Add to A, C coefficients for near-lines where A,C could become negative because of window
 															);
 													disp_str_lma = new double [dispStrs.length][]; // order matching input ones
 													for (int nmax = 0;nmax < dispStrs.length; nmax++) {
@@ -3360,11 +3368,12 @@ public class ImageDtt extends ImageDttCPU {
 											imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 											imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 											imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
-											imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+											imgdtt_params.lmas_min_max_ac,       // maximal of A and C coefficients minimum (measures sharpest point/line)
 											imgdtt_params.lmas_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
 											imgdtt_params.lmas_max_area,      //double  lma_max_area,     // maximal half-area (if > 0.0)
 											imgdtt_params.lma_str_scale,    // convert lma-generated strength to match previous ones - scale
-											imgdtt_params.lma_str_offset    // convert lma-generated strength to match previous ones - add to result
+											imgdtt_params.lma_str_offset,    // convert lma-generated strength to match previous ones - add to result
+						    				imgdtt_params.lma_ac_offset     // Add to A, C coefficients for near-lines where A,C could become negative because of window
 											);
 									if (ds != null) { // always true
 //										if (disparity_map!=null) {
@@ -3425,7 +3434,7 @@ public class ImageDtt extends ImageDttCPU {
 							tilesY,
 							true,
 							"lma_debug_dual_LMA",
-							new String[] {"disparity","strength_mod","strength", "area","ac","min(a,c)"}
+							debug_lma_titles
 							);
 				} else {
 					(new ShowDoubleFloatArrays()).showArrays(
@@ -3434,7 +3443,7 @@ public class ImageDtt extends ImageDttCPU {
 							tilesY,
 							true,
 							"lma_debug",
-							new String[] {"disp_samples","num_cnvx_samples","num_comb_samples", "num_lmas","num_iters","rms"}
+							debug_lma_titles
 							);
 				}
 
@@ -4815,11 +4824,12 @@ public class ImageDtt extends ImageDttCPU {
 				    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 									imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 									imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
-									imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+									imgdtt_params.lmas_min_max_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
 									imgdtt_params.lmas_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
 									imgdtt_params.lmas_max_area,     // double  lma_max_area,     // maximal half-area (if > 0.0)
 									imgdtt_params.lma_str_scale,     // convert lma-generated strength to match previous ones - scale
-									imgdtt_params.lma_str_offset     // convert lma-generated strength to match previous ones - add to result
+									imgdtt_params.lma_str_offset,     // convert lma-generated strength to match previous ones - add to result
+				    				imgdtt_params.lma_ac_offset     // Add to A, C coefficients for near-lines where A,C could become negative because of window
 									)[0];
 							if (tile_lma_debug_level > 0) {
 								double [][] ds_dbg = {disp_str};
@@ -5112,11 +5122,12 @@ public class ImageDtt extends ImageDttCPU {
 				    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 									imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 									imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
-									imgdtt_params.lmas_min_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
+									imgdtt_params.lmas_min_max_ac,       // minimal of A and C coefficients maximum (measures sharpest point/line)
 									imgdtt_params.lmas_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
 									imgdtt_params.lmas_max_area,     // double  lma_max_area,     // maximal half-area (if > 0.0)
 									imgdtt_params.lma_str_scale,     // convert lma-generated strength to match previous ones - scale
-									imgdtt_params.lma_str_offset     // convert lma-generated strength to match previous ones - add to result
+									imgdtt_params.lma_str_offset,     // convert lma-generated strength to match previous ones - add to result
+				    				imgdtt_params.lma_ac_offset     // Add to A, C coefficients for near-lines where A,C could become negative because of window
 									)[0];
 							if (tile_lma_debug_level > 0) {
 								double [][] ds_dbg = {disp_str};

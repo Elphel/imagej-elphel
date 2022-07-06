@@ -172,8 +172,10 @@ public class QuadCLTCPU {
     public void inc_accum()         {num_accum++;}
     public void set_orient(int num) {num_orient = num;}
     public void set_accum (int num) {num_accum = num;}
-    public int  getNumOrient()      {return num_orient;}
-    public int  getNumAccum()       {return num_accum;}
+    public int  getNumOrient()      {
+    	return num_orient;}
+    public int  getNumAccum()       {
+    	return num_accum;}
     
     public int getEarliestScene(
     		QuadCLT []     scenes) {
@@ -1241,6 +1243,7 @@ public class QuadCLTCPU {
 
 	
 	public String saveAVIInModelDirectory(
+			boolean     dry_run, 
 			String      suffix, // null - use title from the imp
 			int         mode_avi,
 			int         avi_JPEG_quality,
@@ -1258,12 +1261,16 @@ public class QuadCLTCPU {
 		}
 		file_path += ".avi";
 		imp.getCalibration().fps = fps;
-		(new AVI_Writer()).writeImage (
-				imp, // ImagePlus imp,
-				file_path, // String path,
-				mode_avi, // int compression,
-				avi_JPEG_quality); //int jpegQuality)
-		System.out.println("saveAVIInModelDirectory(): saved "+file_path);
+		if (dry_run) {
+			System.out.println("saveAVIInModelDirectory(): simulated writing "+file_path);
+		} else {
+			(new AVI_Writer()).writeImage (
+					imp, // ImagePlus imp,
+					file_path, // String path,
+					mode_avi, // int compression,
+					avi_JPEG_quality); //int jpegQuality)
+			System.out.println("saveAVIInModelDirectory(): saved "+file_path);
+		}
 		return file_path;
 	}
 

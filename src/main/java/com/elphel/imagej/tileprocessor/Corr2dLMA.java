@@ -2603,7 +2603,8 @@ public class Corr2dLMA {
 			double  lma_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
 			double  lma_max_area,     // maximal half-area (if > 0.0)
 			double  lma_str_scale,    // convert lma-generated strength to match previous ones - scale
-			double  lma_str_offset    // convert lma-generated strength to match previous ones - add to result
+			double  lma_str_offset,   // convert lma-generated strength to match previous ones - add to result
+			double  lma_ac_offset     // add to a,c coefficients for near-lines where A,C could become negative because of window 
 			){
 		return lmaDisparityStrengths(
 				lmas_min_amp,     // double  lmas_min_amp_fg,  // minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
@@ -2615,7 +2616,8 @@ public class Corr2dLMA {
 				lma_max_area,     // maximal half-area (if > 0.0)
 				lma_str_scale,    // convert lma-generated strength to match previous ones - scale
 				lma_str_offset,    // convert lma-generated strength to match previous ones - add to result
-				false // boolean dbg_mode
+				false,             // boolean dbg_mode
+				lma_ac_offset     // add to a,c coefficients for near-lines where A,C could become negative because of window 
 				)[0];
 	}
 
@@ -2625,19 +2627,22 @@ public class Corr2dLMA {
 			double  lmas_min_amp_bg,  // Same for bg correlation max (only used for multi-max)
 			double  lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 			double  lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
-			double  lma_min_max_ac,   // minimal of A and C coefficients maximum (measures sharpest point/line)
-			double  lma_min_min_ac,   // minimal of A and C coefficients minimum (measures sharpest point)
+			double  lma_min_max_ac,   // maximal of A and C coefficients minimum (measures sharpest point/line)
+			double  lma_min_min_ac,   // minimal of A and C coefficients minimum 
 			double  lma_max_area,     // maximal half-area (if > 0.0) // 20
 			double  lma_str_scale,    // convert lma-generated strength to match previous ones - scale
-			double  lma_str_offset,    // convert lma-generated strength to match previous ones - add to result
-			boolean dbg_mode
+			double  lma_str_offset,   // convert lma-generated strength to match previous ones - add to result
+			boolean dbg_mode,
+			double  lma_ac_offset     // add to a,c coefficients for near-lines where A,C could become negative because of window 
 			){
-		double [][][] ds =         new double[numMax][numTiles][dbg_mode? 6 : 3];
+		double [][][] ds =         new double[numMax][numTiles][dbg_mode? 13 : 3];
 		double []   rms =        getRmsTile();
 		for (int nmax = 0; nmax < numMax; nmax++) {
 			double [][] maxmin_amp = getMaxMinAmpTile(nmax); // nmax
 			double [][] abc =        getABCTile(nmax);       // nmax
 			for (int tile = 0; tile < numTiles; tile++) {
+				abc[tile][0] += lma_ac_offset;
+				abc[tile][2] += lma_ac_offset;
 				int offs = (tile * numMax + nmax) * tile_params;
 				ds[nmax][tile][0] = Double.NaN;
 				if (Double.isNaN(maxmin_amp[tile][0])) {
@@ -2666,7 +2671,7 @@ public class Corr2dLMA {
 				if ((lma_max_rel_rms > 0.00) && (rrms > lma_max_rel_rms)) {
 					continue;
 				}
-				if (Math.max(abc[tile][0], abc[tile][2]) < lma_min_max_ac) {
+				if (Math.max(abc[tile][0], abc[tile][2]) < (lma_min_max_ac + lma_ac_offset)) { // so old lma_min_max_ac will stay
 					continue;
 				}
 				if ((lma_min_min_ac > 0.0) && ((abc[tile][0] < lma_min_min_ac) || (abc[tile][2] < lma_min_min_ac))){
@@ -2691,14 +2696,22 @@ public class Corr2dLMA {
 				if (ac < 0) {
 					continue;
 				}
-				strength = Math.sqrt(strength * Math.sqrt(ac)); // / area ); // new strength
+				double strength1 = Math.sqrt(strength * Math.sqrt(ac)); // / area ); // new strength
 				ds[nmax][tile][0] = disparity;
-				ds[nmax][tile][1] = (strength * lma_str_scale) + lma_str_offset;
-				ds[nmax][tile][2] = strength; // as is
+				ds[nmax][tile][1] = (strength1 * lma_str_scale) + lma_str_offset;
+				ds[nmax][tile][2] = strength1; // as is
 				if (ds[nmax][tile].length > 3) {
 					ds[nmax][tile][3] = area;
 					ds[nmax][tile][4] = ac;
 					ds[nmax][tile][5] = Math.min(abc[tile][0],abc[tile][2]);
+					ds[nmax][tile][6] = Math.max(abc[tile][0],abc[tile][2]);
+					ds[nmax][tile][7] = abc[tile][0];
+					ds[nmax][tile][8] = abc[tile][2];
+					ds[nmax][tile][9] = abc[tile][1];
+					ds[nmax][tile][10] = strength;
+					ds[nmax][tile][11] = rrms;
+					ds[nmax][tile][12] = rms[tile];
+					
 				}
 			}
 		}
@@ -3053,7 +3066,7 @@ public class Corr2dLMA {
 			}
 		}
 		if (debug_level > 0) {
-			System.out.println("LMA: full RMS="+last_rms[0]+" ("+initial_rms[0]+"), pure RMS="+last_rms[1]+" ("+initial_rms[1]+") + lambda="+lambda);
+			System.out.println("Corr2dLMA:LMA: full RMS="+last_rms[0]+" ("+initial_rms[0]+"), pure RMS="+last_rms[1]+" ("+initial_rms[1]+") + lambda="+lambda);
 		}
 
 		return rslt[0];
