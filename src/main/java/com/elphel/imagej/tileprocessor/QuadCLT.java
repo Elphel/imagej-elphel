@@ -613,7 +613,7 @@ public class QuadCLT extends QuadCLTCPU {
 				break;
 			}
 			fill_all[0] = anum_gaps.get() == 0; // no new tiles filled
-			if (npass == (num_passes-1)){
+			if ((debug_level>0) && (npass == (num_passes-1))){
 				System.out.println("fillDisparityStrength() LAST PASS ! npass="+npass+", change="+Math.sqrt(amax_diff.get())+" ("+max_change+")");
 				System.out.println("fillDisparityStrength() LAST PASS ! npass="+npass+", change="+Math.sqrt(amax_diff.get())+" ("+max_change+")");
 				System.out.println("fillDisparityStrength() LAST PASS ! npass="+npass+", change="+Math.sqrt(amax_diff.get())+" ("+max_change+")");
@@ -2197,6 +2197,27 @@ public class QuadCLT extends QuadCLTCPU {
 		int rendered_width = scene.getErsCorrection().getSensorWH()[0];
 		if (full_woi_in != null) {
 			rendered_width = full_woi_in.width * GPUTileProcessor.DTT_SIZE;
+		}
+		boolean showPxPyD = false;
+		if (showPxPyD) {
+			int dbg_width = rendered_width/GPUTileProcessor.DTT_SIZE;
+			int dbg_height = pXpYD.length/dbg_width;
+			double [][] dbg_img = new double [3][pXpYD.length];
+			for (int i = 0; i < dbg_img.length; i++) {
+				Arrays.fill(dbg_img[i], Double.NaN);
+			}
+			for (int nTile = 0; nTile < pXpYD.length; nTile++) if (pXpYD[nTile] != null){
+				for (int i = 0; i < dbg_img.length; i++) {
+					dbg_img[i][nTile] = pXpYD[nTile][i];
+				}				
+			}
+			(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+					dbg_img,
+					dbg_width,
+					dbg_height,
+					true,
+					"pXpYD",
+					new String[] {"pX","pY","Disparity"});
 		}
 		//scene_QuadClt.getTileProcessor().getTileSize();
 	    TpTask[] tp_tasks_ref =  GpuQuad.setInterTasks( // "true" reference, with stereo actual reference will be offset

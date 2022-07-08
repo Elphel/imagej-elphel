@@ -317,11 +317,13 @@ public class ErsCorrection extends GeometryCorrection {
 	public void setPropertiesScenes(String prefix, Properties properties){
 		String [] timestamps = getScenes();
 		for (String k : timestamps) {
-			String [] s_scenes = getScene(k).toStrings();
-			properties.setProperty(prefix+SCENES_PREFIX+"_"+k,        s_scenes[0]);
-			properties.setProperty(prefix+SCENES_PREFIX+"_"+k+"_dt",  s_scenes[1]);
-			properties.setProperty(prefix+SCENES_PREFIX+"_"+k+"_d2t", s_scenes[2]);
-//			properties.setProperty(prefix+SCENES_PREFIX+"_"+k, getScene(k).toString());
+			if (getScene(k) != null) {
+				String [] s_scenes = getScene(k).toStrings(); // null pointer
+				properties.setProperty(prefix+SCENES_PREFIX+"_"+k,        s_scenes[0]);
+				properties.setProperty(prefix+SCENES_PREFIX+"_"+k+"_dt",  s_scenes[1]);
+				properties.setProperty(prefix+SCENES_PREFIX+"_"+k+"_d2t", s_scenes[2]);
+				//			properties.setProperty(prefix+SCENES_PREFIX+"_"+k, getScene(k).toString());
+			}
 		}
 	}
 	

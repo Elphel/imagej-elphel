@@ -540,7 +540,7 @@ public class QuadCLTCPU {
 		}
 		Properties	inter_properties = new Properties();
 		String prefix = is_aux?PREFIX_AUX:PREFIX; 
-		setProperties(prefix,inter_properties); 
+		setProperties(prefix,inter_properties);  // null pointer
 		OutputStream os;
 		try {
 			os = new FileOutputStream(path);
@@ -1634,7 +1634,7 @@ public class QuadCLTCPU {
 			ErsCorrection ers = (ErsCorrection) gc;
 			ers.setPropertiesPose(prefix, properties);
 			ers.setPropertiesERS(prefix, properties);
-			ers.setPropertiesScenes(prefix, properties);
+			ers.setPropertiesScenes(prefix, properties);  // null pointer
 			ers.setPropertiesLineTime(prefix, properties);
 		}
 		properties.setProperty(prefix+"num_orient",      this.num_orient+"");

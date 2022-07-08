@@ -27,6 +27,7 @@ package com.elphel.imagej.tileprocessor;
 import java.awt.Color;
 import java.io.IOException;
 import java.util.Properties;
+import java.util.StringTokenizer;
 
 import com.elphel.imagej.common.GenericJTabbedDialog;
 
@@ -57,9 +58,15 @@ public class IntersceneMatchParameters {
 	public  boolean show_color_nan =     true;  // use NAN background for color images (sharp, but distinct black)
 	public  boolean show_mono_nan =      false; // use NAN background for monochrome images (sharp, but distinct black)
 	
+//	public  double [] stereo_bases =   {0.0, 200.0, 500.0, 1000.0}; 
+	public  double [][] stereo_views = {  // base, up, back
+			{   0.0,   0.0,    0.0},
+			{ 200.0,   0.0,    0.0},
+			{ 500.0,   0.0, 2000.0},
+			{1000.0, 500.0, 3000.0}};
 	
-	public  double [] stereo_bases = {0.0, 200.0, 500.0, 1000.0}; 
-	public  boolean [] generate_stereo_var = new boolean[stereo_bases.length];
+//	public  boolean [] generate_stereo_var = new boolean[stereo_bases.length];
+	public  boolean [] generate_stereo_var = new boolean[stereo_views.length];
 
 	// Other parameters
 	public  int     min_num_scenes =     10;     // abandon series if there are less than this number of scenes in it 
@@ -89,24 +96,30 @@ public class IntersceneMatchParameters {
 	public  boolean gen_avi_mono =       true; // will use save_mapped_mono
 	public  double  video_fps =          15; // 4x slowmo
 	public  double  sensor_fps =         60; // sensor fps
-	public  int     mode_avi =           0; // 0 - raw, 1 - JPEG, 2 - PNG
+	public  int     mode_avi =           0;  // 0 - raw, 1 - JPEG, 2 - PNG
 	public  int     avi_JPEG_quality =  90;
 	public  boolean run_ffmpeg =         true; // only after AVI
 	public  String  video_ext =          ".webm";
 	public  String  video_codec =        "vp8";
-//	public  String  video_extra =        "-b:v 0 -crf 40"; // extra FFMPEG parameters
-	public  int     video_crf =          40;   // lower - better, larger file size
+	public  int     video_crf =         40;    // lower - better, larger file size
 	public  boolean remove_avi =         true; // remove avi after conversion to webm
+	public  String  video_codec_combo =  "vp8"; // applies when combining videos
+	public  int     video_crf_combo =   40;    // lower - better, larger file size applies when combining videos
 	public  boolean um_mono =            true; // applies to both TIFF and AVI 
-	public  double  um_sigma =           10;
+	public  double  um_sigma =          10;
 	public  double  um_weight =          0.97; //
 	public  boolean mono_fixed =         true; // normalize to fixed range when converting to 8 bits 
 	public  double  mono_range =       500.0;  // monochrome full-scale range (+/- half)
+	public  boolean anaglyth_en =        true; // applies to both TIFF and AVI 
+	public static Color   anaglyph_left_default = new Color (255, 0, 0); // red
+	public static Color   anaglyph_right_default =new Color (0, 255, 255); // cyan
+	public Color   anaglyph_left =    anaglyph_left_default;
+	public Color   anaglyph_right =   anaglyph_right_default; // cyan
+	
 	public  boolean annotate_color =     true; // annotate pseudo-color video frames with timestamps 
 	public  boolean annotate_mono =      true; // annotate monochrome video frames with timestamps 
-	public Color   annotate_color_color = new Color( 255, 255, 255); // greenish over "fire"
-//	public Color annotate_color_mono =  new Color( 255, 180, 100); // reddish over grey
-	public Color   annotate_color_mono =  new Color( 255, 255, 255); // reddish over grey
+	public Color   annotate_color_color =new Color( 255, 255, 255); // greenish over "fire"
+	public Color annotate_color_mono =   new Color( 255, 180,  50); // reddish over grey
 	public boolean annotate_transparent_mono =  false; // // black if not transparent
 	
 	
@@ -235,8 +248,9 @@ public class IntersceneMatchParameters {
 	
 	public boolean showMovementDetection(){return (debug_level>0) && mov_show;}
 	public int movDebugLevel()            {return (debug_level > -1) ? mov_debug_level : 0;}
-	
 
+	
+	
 	public IntersceneMatchParameters() {
 		
 	}
@@ -283,7 +297,7 @@ public class IntersceneMatchParameters {
 				"Correct in 3D scene images (from all 16 sensors) matching reference (last in sequence) scene with background (BG) priority.");
 		gd.addCheckbox ("Generate binocular stereo pairs",           this.generate_stereo,
 				"Generate stereo-pairs for 3D-corrected videos (FG,BG). Ebables specific modes (including 0-baseline / mono).");
-		
+		/*
 		for (int i = 0; i < stereo_bases.length; i++) {
 			double base = stereo_bases[i];
 			String title = (base == 0.0)?
@@ -294,7 +308,27 @@ public class IntersceneMatchParameters {
 						"Generate "+base+"mm-baseline stereo scene sequences as Tiff and/or video.";
 			gd.addCheckbox (title,                                   this.generate_stereo_var[i], tooltip);
 		}
+		*/
 
+		for (int i = 0; i < stereo_views.length; i++) {
+//			String stereo_view = doublesToString(stereo_views[i]);
+			double base = stereo_views[i][0]; // stereo_bases[i];
+			String ub = String.format("(%.0fmm up, %.0fmm back) ",stereo_views[i][1],stereo_views[i][2]);
+			if ((stereo_views[i][1]==0) && (stereo_views[i][2]==0)){
+				ub="";
+			}
+			String title = (base == 0.0)?
+					"Generate mono (single camera) scene sequences"+ub:
+						"Generate "+base+"mm-baseline stereo scene sequences"+ub;
+			String tooltip = (base == 0.0)?
+					"Generate mono (single camera) scene sequences "+ub+"as Tiff and/or video.":
+						"Generate "+base+"mm-baseline stereo scene sequences "+ub+"as Tiff and/or video.";
+			gd.addCheckbox (title,                                   this.generate_stereo_var[i], tooltip);
+		}
+		
+		
+		
+		
 		gd.addMessage  ("Generate/save reference (last) scene images");
 		gd.addCheckbox ("Export all-sensor images",                  this.export_images,
 				"Export multi-slice images: with constant disparity, with foreground disparity, and with background disparity");
@@ -403,6 +437,7 @@ public class IntersceneMatchParameters {
 				"Weaker are removed unconditionally (not used now).");
 		
 		gd.addMessage  ("Stereo");
+		/*
 		if (stereo_bases.length > 0) {
 			String [] stereo_choices = new String [stereo_bases.length + 1];
 			stereo_choices[0] = "--none--";
@@ -412,8 +447,20 @@ public class IntersceneMatchParameters {
 			gd. addChoice("Remove stereo-base",                 stereo_choices, stereo_choices[0], 
 					"Remove selected stereo-base");
 		}
-		gd.addStringField("Add another baseline (mm)",                 "",
-				"Add another stereo baseline (mm).");
+		*/
+		if (stereo_views.length > 0) {
+			String [] stereo_choices = new String [stereo_views.length + 1];
+			stereo_choices[0] = "--none--";
+			for (int i = 0; i < stereo_views.length; i++) {
+				stereo_choices[i+1] = doublesToString(stereo_views[i])+" mm";	
+			}
+			gd. addChoice("Remove stereo-view (base, up, back)",      stereo_choices, stereo_choices[0], 
+					"Remove selected stereo-view, consisting of streo-base, viewpoint above camera, viewpoint behing camera - all in mm");
+		}
+
+		
+		gd.addStringField("Add another stereo view (baseline, above, behind)",                 "", 40,
+				"Add another stereo view by providing baseline, above camera, behind camera (mm).");
 		
 //		gd.addNumericField("Stereo baseline",                        this.stereo_baseline, 5,7,"mm",
 //				"Synthetic 3D with possibly exagerrated stereo baseline");
@@ -459,16 +506,17 @@ public class IntersceneMatchParameters {
 				"Converted video extension, starting with dot.");
 		gd.addStringField ("Video encoder",                          this.video_codec, 60,
 				"FFMPEG video encoder, such as \"VP8\" or \"VP9\".");
-//		gd.addStringField ("Video extra parameters",                 this.video_extra, 60,
-//				"FFMPEG video encoder additional parameters, such as, such as \"-b:v 0 -crf 40\".");
-		
-		gd.addNumericField("Video CRF",                             this.video_crf, 0,3,"",
+		gd.addNumericField("Video CRF",                              this.video_crf, 0,3,"",
 				"Quality - the lower the better. 40 - OK");		
 
-		
-		
 		gd.addCheckbox ("Remove AVI",                                this.remove_avi,
-				"Remove large AVI files after conversion with ffmpeg.");
+				"Remove large AVI files after (and only) conversion with ffmpeg.");
+		
+		gd.addStringField ("Video encoder for combining",            this.video_codec_combo, 60,
+				"FFMPEG video encoder, such as \"VP8\" or \"VP9\". Applies when merging segments.");
+		gd.addNumericField("Video CRF for combining",                this.video_crf_combo, 0,3,"",
+				"Quality - the lower the better. 40 - OK.  Applies when merging segments.");		
+		
 		gd.addCheckbox ("Apply unsharp mask to mono",                this.um_mono,
 				"Apply unsharp mask to monochrome image sequences/video.  Applies to TIFF generatiojn too");
 		gd.addNumericField("Unsharp mask sigma (radius)",            this.um_sigma, 5,7,"pix",
@@ -481,6 +529,18 @@ public class IntersceneMatchParameters {
 		gd.addNumericField("Monochrome full range",                  this.mono_range, 5,7,"",
 				"Monochrome full range to convert to 0..255.");
 		
+
+		gd.addCheckbox ("Generate anaglyph stereo",                  this.anaglyth_en,
+				"Apply unsharp mask to monochrome image sequences/video.  Applies to TIFF generatiojn too");
+
+		{String scolor = String.format("%08x", getLongColor(this.anaglyph_left));
+		gd.addStringField ("Anaglyph color left",scolor, 8, "Any invalid hex number sets default red");}
+		
+		{String scolor = String.format("%08x", getLongColor(this.anaglyph_right));
+		gd.addStringField ("Anaglyph color right",scolor, 8, "Any invalid hex number sets default cyan");}
+		
+		
+		
 		
 		
 		gd.addCheckbox ("Timestamp color videos",                    this.annotate_color,
@@ -490,6 +550,7 @@ public class IntersceneMatchParameters {
 		String scolor = (this.annotate_color_color==null)?"none":String.format("%08x", getLongColor(this.annotate_color_color));
 		gd.addStringField ("Timestamp color for pseudocolor frames",scolor, 8, "Any invalid hex number disables annotation");
 		scolor = (this.annotate_color_mono==null)?"none":String.format("%08x", getLongColor(this.annotate_color_mono));
+		
 		gd.addStringField ("Timestamp color for monochrome frames",scolor, 8, "Any invalid hex number disables annotation");
 		gd.addCheckbox ("Transparent timestamp background (monochrome)",this.annotate_transparent_mono,
 				"Put monochrome timestamp over image (unchecked - use black background). Color - always black.");
@@ -644,7 +705,12 @@ public class IntersceneMatchParameters {
 		this.generate_fg =                    gd.getNextBoolean();
 		this.generate_bg =                    gd.getNextBoolean();
 		this.generate_stereo =                gd.getNextBoolean();
+		/*
 		for (int i = 0; i < stereo_bases.length; i++) {
+			this.generate_stereo_var[i] =     gd.getNextBoolean();
+		}
+		*/
+		for (int i = 0; i < stereo_views.length; i++) {
 			this.generate_stereo_var[i] =     gd.getNextBoolean();
 		}
 		
@@ -700,9 +766,10 @@ public class IntersceneMatchParameters {
 		this.weak_min_neibs =           (int) gd.getNextNumber();
 		this.strong_strength =                gd.getNextNumber();
 		this.weak_strength =                  gd.getNextNumber();
-		
+
+		/*
 		if (stereo_bases.length > 0) {
-			int i =                               gd.getNextChoiceIndex();
+			int i =                           gd.getNextChoiceIndex();
 			if (i > 0) {
 				removeStereo(i-1);
 			}
@@ -717,6 +784,15 @@ public class IntersceneMatchParameters {
 
 			}
 		}
+		 */
+		if (stereo_views.length > 0) {
+			int i =                           gd.getNextChoiceIndex();
+			if (i > 0) {
+				removeStereoView(i-1);
+			}
+		}
+		String s =                            gd.getNextString();
+		addStereoView(s, true);
 		
 //		this.stereo_baseline =          gd.getNextNumber();
 		this.stereo_merge =             gd.getNextBoolean();
@@ -739,14 +815,39 @@ public class IntersceneMatchParameters {
 		this.run_ffmpeg =               gd.getNextBoolean();
 		this.video_ext=                 gd.getNextString();	
 		this.video_codec=               gd.getNextString();	
-//		this.video_extra=               gd.getNextString();	
 		this.video_crf =          (int) gd.getNextNumber();
 		this.remove_avi =               gd.getNextBoolean();
+		this.video_codec_combo=         gd.getNextString();	
+		this.video_crf_combo =    (int) gd.getNextNumber();
 		this.um_mono =                  gd.getNextBoolean();
 		this.um_sigma =                 gd.getNextNumber();
 		this.um_weight =                gd.getNextNumber();
 		this.mono_fixed =               gd.getNextBoolean();
 		this.mono_range =               gd.getNextNumber();
+		
+		this.anaglyth_en =              gd.getNextBoolean();
+		{
+			String scolor =             gd.getNextString();
+			long lcolor = -1;
+			try {
+				lcolor = Long.parseLong(scolor,16);
+				this.anaglyph_left = setLongColor(lcolor);
+			} catch(NumberFormatException e){
+				this.anaglyph_left = anaglyph_left_default;
+			}
+		}
+
+		{
+			String scolor =             gd.getNextString();
+			long lcolor = -1;
+			try {
+				lcolor = Long.parseLong(scolor,16);
+				this.anaglyph_right = setLongColor(lcolor);
+			} catch(NumberFormatException e){
+				this.anaglyph_right = anaglyph_right_default;
+			}
+		}
+		
 		this.annotate_color =           gd.getNextBoolean();
 		this.annotate_mono =            gd.getNextBoolean();
 		{
@@ -855,13 +956,21 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"generate_fg",                   this.generate_fg+"");                   // boolean
 		properties.setProperty(prefix+"generate_bg",                   this.generate_bg+"");                   // boolean
 		properties.setProperty(prefix+"generate_stereo",               this.generate_stereo+"");               // boolean
-		
+		/*
 		properties.setProperty(prefix+"stereo_bases_num",              this.stereo_bases.length+"");           // int
 		for (int i = 0; i < this.stereo_bases.length; i++) {
 			properties.setProperty(prefix+"stereo_bases_"+i,           this.stereo_bases[i]+"");               // double
 			properties.setProperty(prefix+"generate_stereo_var_"+i,    this.generate_stereo_var[i]+"");        // boolean
 		}
-
+	   */
+		properties.setProperty(prefix+"stereo_views_num",                  this.stereo_views.length+"");           // int
+		for (int i = 0; i < this.stereo_views.length; i++) {
+			properties.setProperty(prefix+"stereo_views_"+i,           doublesToString(this.stereo_views[i])); // String
+			properties.setProperty(prefix+"generate_stereo_var_"+i,    this.generate_stereo_var[i]+"");        // boolean
+		}
+		
+		
+		
 		properties.setProperty(prefix+"export_images",                 this.export_images + "");               // boolean
 		properties.setProperty(prefix+"show_images",                   this.show_images + "");                 // boolean
 		properties.setProperty(prefix+"show_images_bgfg",              this.show_images_bgfg + "");            // boolean
@@ -930,14 +1039,24 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"run_ffmpeg",           this.run_ffmpeg+"");          // boolean
 		properties.setProperty(prefix+"video_ext",            this.video_ext+"");           // String
 		properties.setProperty(prefix+"video_codec",          this.video_codec+"");         // String
-//		properties.setProperty(prefix+"video_extra",          this.video_extra+"");         // String
 		properties.setProperty(prefix+"video_crf",            this.video_crf+"");           // int
 		properties.setProperty(prefix+"remove_avi",           this.remove_avi+"");          // boolean
+
+		properties.setProperty(prefix+"video_codec_combo",    this.video_codec_combo+"");         // String
+		properties.setProperty(prefix+"video_crf_combo",      this.video_crf_combo+"");           // int
+		
 		properties.setProperty(prefix+"um_mono",              this.um_mono+"");             // boolean
 		properties.setProperty(prefix+"um_sigma",             this.um_sigma+"");            // double
 		properties.setProperty(prefix+"um_weight",            this.um_weight+"");           // double
 		properties.setProperty(prefix+"mono_fixed",           this.mono_fixed+"");          // boolean
 		properties.setProperty(prefix+"mono_range",           this.mono_range+"");          // double
+
+		properties.setProperty(prefix+"anaglyth_en",          this.anaglyth_en+"");         // boolean
+		
+		properties.setProperty(prefix+"anaglyph_left",        getLongColor(anaglyph_left)+""); // Color
+		properties.setProperty(prefix+"anaglyph_right",       getLongColor(anaglyph_right)+""); // Color
+		
+		
 		properties.setProperty(prefix+"annotate_color",       this.annotate_color+"");      // boolean
 		properties.setProperty(prefix+"annotate_mono",        this.annotate_mono+"");       // boolean
 		{
@@ -1031,6 +1150,7 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"generate_bg")!=null)                   this.generate_bg=Boolean.parseBoolean(properties.getProperty(prefix+"generate_bg"));
 		
 		if (properties.getProperty(prefix+"generate_stereo")!=null)               this.generate_stereo=Boolean.parseBoolean(properties.getProperty(prefix+"generate_stereo"));
+		/*
 		if (properties.getProperty(prefix+"stereo_bases_num")!=null) {
 			 int stereo_bases_num=Integer.parseInt(properties.getProperty(prefix+"stereo_bases_num"));
 			 this.stereo_bases =        new double[stereo_bases_num];
@@ -1041,6 +1161,24 @@ public class IntersceneMatchParameters {
 			 }
 			 orderStereo(); 
 		}
+		*/
+		if (properties.getProperty(prefix+"stereo_views_num")!=null) {
+			 int stereo_views_num=Integer.parseInt(properties.getProperty(prefix+"stereo_views_num"));
+			 this.stereo_views =        new double[stereo_views_num][];
+			 this.generate_stereo_var = new boolean[stereo_views_num];
+			 for (int i = 0; i < stereo_views_num; i++) {
+				 if (properties.getProperty(prefix+"stereo_views_"+i)!=null) {
+					 this.stereo_views[i]=StringToDoubles(properties.getProperty(prefix+"stereo_views_"+i),3);
+				 }
+				 if (properties.getProperty(prefix+"generate_stereo_var_"+i)!=null) {
+					 this.generate_stereo_var[i]=Boolean.parseBoolean(properties.getProperty(prefix+"generate_stereo_var_"+i));
+				 }
+			 }
+			 orderStereoViews(); 
+		}
+		
+		
+		
 		
 		if (properties.getProperty(prefix+"export_images")!=null)                 this.export_images=Boolean.parseBoolean(properties.getProperty(prefix+"export_images"));		
 		if (properties.getProperty(prefix+"show_images")!=null)                   this.show_images=Boolean.parseBoolean(properties.getProperty(prefix+"show_images"));		
@@ -1109,14 +1247,32 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"run_ffmpeg")!=null)           this.run_ffmpeg=Boolean.parseBoolean(properties.getProperty(prefix+"run_ffmpeg"));
 		if (properties.getProperty(prefix+"video_ext")!=null)            this.video_ext=(String) properties.getProperty(prefix+"video_ext");
 		if (properties.getProperty(prefix+"video_codec")!=null)          this.video_codec=(String) properties.getProperty(prefix+"video_codec");
-///		if (properties.getProperty(prefix+"video_extra")!=null)          this.video_extra=(String) properties.getProperty(prefix+"video_extra");
 		if (properties.getProperty(prefix+"video_crf")!=null)            this.video_crf=Integer.parseInt(properties.getProperty(prefix+"video_crf"));
 		if (properties.getProperty(prefix+"remove_avi")!=null)           this.remove_avi=Boolean.parseBoolean(properties.getProperty(prefix+"remove_avi"));
+		if (properties.getProperty(prefix+"video_codec_combo")!=null)    this.video_codec_combo=(String) properties.getProperty(prefix+"video_codec_combo");
+		if (properties.getProperty(prefix+"video_crf_combo")!=null)      this.video_crf_combo=Integer.parseInt(properties.getProperty(prefix+"video_crf_combo"));
 		if (properties.getProperty(prefix+"um_mono")!=null)              this.um_mono=Boolean.parseBoolean(properties.getProperty(prefix+"um_mono"));
 		if (properties.getProperty(prefix+"um_sigma")!=null)             this.um_sigma=Double.parseDouble(properties.getProperty(prefix+"um_sigma"));
 		if (properties.getProperty(prefix+"um_weight")!=null)            this.um_weight=Double.parseDouble(properties.getProperty(prefix+"um_weight"));
 		if (properties.getProperty(prefix+"mono_fixed")!=null)           this.mono_fixed=Boolean.parseBoolean(properties.getProperty(prefix+"mono_fixed"));
 		if (properties.getProperty(prefix+"mono_range")!=null)           this.mono_range=Double.parseDouble(properties.getProperty(prefix+"mono_range"));
+		
+		if (properties.getProperty(prefix+"anaglyth_en")!=null)           this.anaglyth_en=Boolean.parseBoolean(properties.getProperty(prefix+"anaglyth_en"));
+		if  (properties.getProperty(prefix+"anaglyph_left") != null) {
+			try {
+				this.anaglyph_left = setLongColor(Long.parseLong(properties.getProperty(prefix+"anaglyph_left")));
+			} catch(NumberFormatException e){
+				this.anaglyph_left = anaglyph_left_default;
+			}
+		}
+		if  (properties.getProperty(prefix+"anaglyph_right") != null) {
+			try {
+				this.anaglyph_right = setLongColor(Long.parseLong(properties.getProperty(prefix+"anaglyph_right")));
+			} catch(NumberFormatException e){
+				this.anaglyph_right = anaglyph_right_default;
+			}
+		}
+		
 		if (properties.getProperty(prefix+"annotate_color")!=null)       this.annotate_color=Boolean.parseBoolean(properties.getProperty(prefix+"annotate_color"));
 		if (properties.getProperty(prefix+"annotate_mono")!=null)        this.annotate_mono=Boolean.parseBoolean(properties.getProperty(prefix+"annotate_mono"));
 
@@ -1216,7 +1372,11 @@ public class IntersceneMatchParameters {
 		
 		imp.generate_stereo               = this.generate_stereo;
 		
-		imp.stereo_bases                  = this.stereo_bases.clone();
+//		imp.stereo_bases                  = this.stereo_bases.clone();
+		imp.stereo_views                  = this.stereo_views.clone();
+		for (int i = 0; i < this.stereo_views.length; i++) {
+			imp.stereo_views[i]           = this.stereo_views[i].clone();
+		}
 		imp.generate_stereo_var           = this.generate_stereo_var.clone();
 		
 		imp.export_images                 = this.export_images;
@@ -1286,15 +1446,20 @@ public class IntersceneMatchParameters {
 		imp.run_ffmpeg =            this. run_ffmpeg;
 		imp.video_ext =             this. video_ext;
 		imp.video_codec =           this. video_codec;
-//		imp.video_extra =           this. video_extra;
 		imp.video_crf =             this. video_crf;
 		imp.remove_avi =            this. remove_avi;
+		imp.video_codec_combo =     this. video_codec_combo;
+		imp.video_crf_combo =       this. video_crf_combo;
 		
 		imp.um_mono =               this. um_mono;
 		imp.um_sigma =              this. um_sigma;
 		imp.um_weight =             this. um_weight;
 		imp.mono_fixed =            this. mono_fixed;
 		imp.mono_range =            this. mono_range;
+		
+		imp.anaglyth_en =           this. anaglyth_en;
+		imp.anaglyph_left =         this. anaglyph_left;
+		imp.anaglyph_right =        this. anaglyph_right;
 		
 		imp.annotate_color =        this. annotate_color;
 		imp.annotate_mono =         this. annotate_mono;
@@ -1371,7 +1536,8 @@ public class IntersceneMatchParameters {
 			return new Color((int) lcolor, true);
 		}
 	}
-	
+
+	/*
 	public void orderStereo(){
 		boolean ordered;
 		do {
@@ -1390,7 +1556,6 @@ public class IntersceneMatchParameters {
 			
 		} while (!ordered);
 	}
-	
 	public void addStereo(double base, boolean en) {
 		double [] bases = new double [stereo_bases.length + 1];
 		boolean [] ens = new boolean [stereo_bases.length + 1];
@@ -1402,7 +1567,6 @@ public class IntersceneMatchParameters {
 		generate_stereo_var = ens;
 		orderStereo();
 	}
-	
 	public void removeStereo(int indx) {
 		if ((indx >=0) && (indx <stereo_bases.length)) {
 			double [] bases = new double [stereo_bases.length - 1];
@@ -1419,7 +1583,128 @@ public class IntersceneMatchParameters {
 			generate_stereo_var = ens;
 		}
 	}
+	
 
+	 */
+	
+	public void orderStereoViews(){
+		boolean ordered;
+		do {
+			ordered=true;
+			for (int i = 0; i < (stereo_views.length - 1); i++) {
+				if (stereo_views[i+1][0] > stereo_views[i][0]) {
+					continue;
+				}
+				if (    (stereo_views[i+1][0] == stereo_views[i][0]) &&
+						(stereo_views[i+1][1] >  stereo_views[i][1])) {
+					continue;
+				}
+				if (    (stereo_views[i+1][0] == stereo_views[i][0]) &&
+						(stereo_views[i+1][1] == stereo_views[i][1]) &&
+						(stereo_views[i+1][2] >  stereo_views[i][2])) {
+					continue;
+				}
+				if (    (stereo_views[i+1][0] == stereo_views[i][0]) &&
+						(stereo_views[i+1][1] == stereo_views[i][1]) &&
+						(stereo_views[i+1][2] == stereo_views[i][2])) {
+					// all same values - remove extra
+					generate_stereo_var[i] |= generate_stereo_var[i+1];
+					for (int j = i+1; j < (stereo_views.length - 1); j++) {
+						generate_stereo_var[j] = generate_stereo_var[j+1];
+						stereo_views[j] = stereo_views[j + 1]; 
+					}
+					ordered = false;
+					break; // next while
+				}
+				boolean en = generate_stereo_var[i+1];
+				generate_stereo_var[i+1] = generate_stereo_var[i];
+				generate_stereo_var[i] = en;
+				double [] view =  stereo_views[i+1];
+				stereo_views[i+1] = stereo_views[i];
+				stereo_views[i] = view;
+				ordered = false;
+			}
+
+		} while (!ordered);
+		return;
+	}
+
+	public void addStereoView(String stereo_view_string, boolean en) {
+		double[] stereo_view = StringToDoubles(stereo_view_string,3);
+		if (stereo_view != null) {
+			addStereoView(stereo_view, en);
+		}
+	}
+	
+	public void addStereoView(double[] stereo_view, boolean en) {
+		double [][]  views = new double [stereo_views.length + 1][];
+		boolean [] ens = new boolean [stereo_views.length + 1];
+		views[0] = stereo_view;
+		ens[0] = en;
+		System.arraycopy(stereo_views, 0, views, 1,      stereo_views.length);
+		System.arraycopy(generate_stereo_var, 0, ens, 1, stereo_views.length);
+		stereo_views = views;
+		generate_stereo_var = ens;
+		orderStereoViews();
+	}
+	
+	public void removeStereoView(int indx) {
+		if ((indx >=0) && (indx <stereo_views.length)) {
+			double [][] views = new double [stereo_views.length - 1][];
+			boolean [] ens = new boolean [stereo_views.length - 1];
+			if (indx > 0) {
+				System.arraycopy(stereo_views,        0, views, 0, indx);
+				System.arraycopy(generate_stereo_var, 0, ens,   0, indx);
+			}
+			if (indx < (stereo_views.length - 1)) {
+				System.arraycopy(stereo_views,        indx+1, views, indx, stereo_views.length - indx - 1);
+				System.arraycopy(generate_stereo_var, indx+1, ens,   indx, stereo_views.length - indx - 1);
+			}
+			stereo_views = views;
+			generate_stereo_var = ens;
+		}
+	}
+
+	public static String doublesToString(double [] data) {
+		return doublesToString(data, null);
+	}
+	public static String doublesToString(double [] data, String fmt) {
+		if ((fmt == null) || (fmt.trim().length()==0)) {
+			fmt = "%.0f";
+		}
+		String s = "";
+		for (int i = 0; i < data.length; i++) {
+			s+=String.format(fmt,data[i]);
+			if (i < (data.length - 1)) {
+				s+= ", ";
+			}
+		}
+		return s;
+	}
+	
+	public static double [] StringToDoubles(String s, int len) {
+		StringTokenizer st = new StringTokenizer(s, " \t\n\r\f,");
+		if (st.countTokens() == 0) {
+			return null;
+		}
+		if (len <= 0) {
+			len = st.countTokens();
+		}
+		double [] data = new double [len]; 
+		int i = 0;
+		while (st.hasMoreTokens() && (i < len)) {
+			double d = 0;
+			try {
+				d = Double.parseDouble(st.nextToken());
+			} catch(NumberFormatException e){
+				d = 0;
+			}
+
+			data[i++] = d;
+		}
+		return data;
+	}
+	
 		
 	
 }

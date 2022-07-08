@@ -8563,10 +8563,10 @@ if (debugLevel > -100) return true; // temporarily !
 	 * @param debugLevel
 	 * @throws Exception
 	 */
-    public void buildSeriesTQ(
+    public static void buildSeriesTQ(
 			QuadCLT                                              quadCLT_main, // tiles should be set
-			int                                                  ref_index, // -1 - last
-			int                                                  ref_step, 
+			int                                                  ref_index_unused, // -1 - last
+			int                                                  ref_step_unused, // not used here
 			CLTParameters             clt_parameters,
 			EyesisCorrectionParameters.DebayerParameters         debayerParameters,
 			ColorProcParameters                                  colorProcParameters,
@@ -8583,9 +8583,12 @@ if (debugLevel > -100) return true; // temporarily !
 		double  stereo_intereye =    clt_parameters.imp.stereo_intereye;
 		double  stereo_phone_width = clt_parameters.imp.stereo_phone_width; // 0 - no padding
 		boolean stereo_pad = (stereo_intereye > 0) && (stereo_phone_width > 0);  
-		int     video_crf =          clt_parameters.imp.video_crf;
-		String  video_codec =        clt_parameters.imp.video_codec.toLowerCase();
-
+		int     video_crf_combo =    clt_parameters.imp.video_crf_combo;
+		String  video_codec_combo =  clt_parameters.imp.video_codec_combo.toLowerCase();
+    	int     min_num_scenes =     clt_parameters.imp.min_num_scenes; // abandon series if there are less than this number of scenes in it 
+    	if (min_num_scenes < 1) {
+    		min_num_scenes = 1;
+    	}
 		
     	long start_time_all = System.nanoTime();
 		OpticalFlow opticalFlow = new OpticalFlow(
@@ -8603,8 +8606,33 @@ if (debugLevel > -100) return true; // temporarily !
 				num_seq = pathFirstLast.length; 
 			}
 		}
-		String [][] video_lists =   new String [num_seq][];
-		int [][]    stereo_widths = new int  [num_seq][];
+		class VideoSet {
+			String []    video_paths;
+			int []       stereo_widths;
+			int          earliest_scene, reference_scene;
+			VideoSet(
+					String [] paths,
+					int [] stereo_widths,
+					int earliest_scene,
+					int reference_scene) {
+				this.video_paths =      paths;
+				this.stereo_widths =   stereo_widths;
+				this.earliest_scene =  earliest_scene;
+				this.reference_scene = reference_scene;
+			}
+			String [] getVideoPaths() {return video_paths;}
+			int []    getStereoWidths() {return stereo_widths;}
+			
+		}
+		
+		ArrayList<VideoSet> video_sets_list = new ArrayList<VideoSet>();
+		
+//		String [][] video_lists =   new String [num_seq][];
+//		int [] earliest_scene_pointer = new int[1];
+//		int [][]    stereo_widths = new int  [num_seq][];
+		
+		
+		
 		for (int nseq = 0; nseq < num_seq; nseq++) {
 	    	long start_time_seq = System.nanoTime();
 	    	System.out.println("\nSTARTED PROCESSING SCENE SEQUENCE "+nseq+" (last is "+(num_seq-1)+")");
@@ -8615,61 +8643,91 @@ if (debugLevel > -100) return true; // temporarily !
 						pathFirstLast[nseq].first, // int scene_first, // first scene to process
 						pathFirstLast[nseq].last); // int scene_last);  // last scene to process (negative - add length
 			}
+			
 			String [][] video_list = new String[1][];
 			int [][] widths_list = new int [1][];
-			String model_directory = opticalFlow.buildSeries(
-		    		(pathFirstLast != null),   //boolean                                              batch_mode,
-					quadCLT_main,              // QuadCLT                                              quadCLT_main, // tiles should be set
-					ref_index,                 // int                                                  ref_index, // -1 - last
-					ref_step,                  // int                                                  ref_step, 
-					clt_parameters,            // CLTParameters             clt_parameters,
-					debayerParameters,         // EyesisCorrectionParameters.DebayerParameters         debayerParameters,
-					colorProcParameters,       // ColorProcParameters                                  colorProcParameters,
-					channelGainParameters,     // CorrectionColorProc.ColorGainsParameters             channelGainParameters,
-					rgbParameters,             // EyesisCorrectionParameters.RGBParameters             rgbParameters,
-					equirectangularParameters, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-					properties,                // Properties                                           properties,
-					reset_from_extrinsics,     // boolean                                              reset_from_extrinsics,
-					video_list,                // String [][]                                            video_list, // null or list of generated avi or webm paths
-					widths_list,
-					threadsMax,                // final int        threadsMax,  // maximal number of threads to launch
-					updateStatus, // final boolean    updateStatus,
-					debugLevel+2); // final int        debugLevel)
-			video_lists[nseq] = video_list[0];
-			stereo_widths[nseq] = widths_list[0];
-	    	System.out.println("PROCESSING SCENE SEQUENCE "+nseq+" (last is "+(num_seq-1)+") is FINISHED in "+
-	    			IJ.d2s(0.000000001*(System.nanoTime()-start_time_seq),3)+" sec ("+
-	    			IJ.d2s(0.000000001*(System.nanoTime()-start_time_all),3)+" sec from the overall start");
-	    	// will open dialog if does not exist
-	    	String linkedModelsDirectory = quadCLT_main.correctionsParameters.selectLinkedModelsDirectory(true,true);
-	    	if ((linkedModelsDirectory != null) && (linkedModelsDirectory.length() > 0) && (model_directory != null)) {
-	    		Path pathAbsolute = Paths.get(model_directory);
-	    		Path pathBase = Paths.get(linkedModelsDirectory);
-	    		Path pathRelative = pathBase.relativize(pathAbsolute);
-	    		File linkDir = new File(linkedModelsDirectory);
-	    		linkDir.mkdirs();
-	    		File link = new File(linkDir, pathAbsolute.getFileName().toString());
-	    		if (link.exists()) {
-	    			link.delete();
-	    		}
-	    		Files.createSymbolicLink(link.toPath(), pathRelative);
-	    	}
+			int ref_index = -1; // -1 - last
+			int [] start_ref_pointers = new int[2];
+			while ((ref_index < 0) || ((ref_index + 1) >= min_num_scenes)) {
+				String model_directory = opticalFlow.buildSeries(
+						(pathFirstLast != null),   //boolean                                              batch_mode,
+						quadCLT_main,              // QuadCLT                                              quadCLT_main, // tiles should be set
+						ref_index,                 // int                                                  ref_index, // -1 - last
+						clt_parameters,            // CLTParameters             clt_parameters,
+						debayerParameters,         // EyesisCorrectionParameters.DebayerParameters         debayerParameters,
+						colorProcParameters,       // ColorProcParameters                                  colorProcParameters,
+						channelGainParameters,     // CorrectionColorProc.ColorGainsParameters             channelGainParameters,
+						rgbParameters,             // EyesisCorrectionParameters.RGBParameters             rgbParameters,
+						equirectangularParameters, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+						properties,                // Properties                                           properties,
+						reset_from_extrinsics,     // boolean                                              reset_from_extrinsics,
+						video_list,                // String [][]                                            video_list, // null or list of generated avi or webm paths
+						widths_list,
+						start_ref_pointers,        // int []                                               start_ref_pointers,
+						threadsMax,                // final int        threadsMax,  // maximal number of threads to launch
+						updateStatus, // final boolean    updateStatus,
+						debugLevel+2); // final int        debugLevel)
+				if (model_directory == null) {
+					System.out.println("Failed to build sequence for series "+ref_index);
+					break; // and go to the to next scene sequence from the list
+				}
+				video_sets_list.add(new VideoSet(
+						video_list[0], // String [] paths,
+						widths_list[0], // int [] stereo_widths,
+						start_ref_pointers[0], // int earliest_scene,
+						start_ref_pointers[1])); // int reference_scene);
+				String series_action = (start_ref_pointers[0] < (min_num_scenes-1))?"is FINISHED ":("will continue down from scene "+(start_ref_pointers[0]));
+				System.out.println("PROCESSING SCENE SEQUENCE "+nseq+" (last is "+(num_seq-1)+") "+series_action+" in "+
+						IJ.d2s(0.000000001*(System.nanoTime()-start_time_seq),3)+" sec ("+
+						IJ.d2s(0.000000001*(System.nanoTime()-start_time_all),3)+" sec from the overall start");
+				// will open dialog if does not exist
+				String linkedModelsDirectory = quadCLT_main.correctionsParameters.selectLinkedModelsDirectory(true,true);
+				if ((linkedModelsDirectory != null) && (linkedModelsDirectory.length() > 0)) {
+					Path pathAbsolute = Paths.get(model_directory);
+					Path pathBase = Paths.get(linkedModelsDirectory);
+					Path pathRelative = pathBase.relativize(pathAbsolute);
+					File linkDir = new File(linkedModelsDirectory);
+					linkDir.mkdirs();
+					File link = new File(linkDir, pathAbsolute.getFileName().toString());
+					if (link.exists()) {
+						link.delete();
+					}
+					Files.createSymbolicLink(link.toPath(), pathRelative);
+				}
+				if (start_ref_pointers[0] < (min_num_scenes-1)) {
+					break;
+				}
+				ref_index = start_ref_pointers[0]; // continue from the same attached to the previous reference
+			}
 		}
+		
 		// combine videos if generated
-		if ((video_lists.length > 1) && (video_lists[0] != null) && (video_lists[0].length > 1)) { // do not combine if single sequence or no videos
+		if ((video_sets_list.size() > 1) &&
+				(video_sets_list.get(0).getVideoPaths() != null) &&
+				(video_sets_list.get(0).getVideoPaths().length > 0)) {
+			// need to sort first video_sets_list!
+			
+			Collections.sort(video_sets_list, new Comparator<VideoSet>() {
+				@Override
+				public int compare(VideoSet lhs, VideoSet rhs) {
+					// -1 - less than, 1 - greater than, 0 - equal, not inverted for ascending disparity
+					return  lhs.getVideoPaths()[0].compareTo(rhs.getVideoPaths()[0]);
+				}
+			});
+//		if ((video_lists.length > 1) && (video_lists[0] != null) && (video_lists[0].length > 1)) { // do not combine if single sequence or no videos
 			concat_videos: {
-				System.out.println("Generating "+(video_lists[0].length)+" combined video files.");
+				System.out.println("Generating "+(video_sets_list.get(0).getVideoPaths().length)+" combined video files.");
 				String videoDirectory = quadCLT_main.correctionsParameters.selectVideoDirectory(true,true);
 				if (videoDirectory == null) {
 					break concat_videos;
 				}
 				File video_dir = new File (videoDirectory);
 				video_dir.mkdirs(); // Should already exist actually
-				for (int nvideo = 0; nvideo < video_lists[0].length; nvideo++) {
+				for (int nvideo = 0; nvideo < video_sets_list.get(0).getVideoPaths().length; nvideo++) {
 					// get name with <ts_sec_first>-<ts_sec_last>
 					//				String spath0 = video_lists[0][nvideo];
-					String name0 = Paths.get(video_lists[0][nvideo]).getFileName().toString();
-					String name1 = Paths.get(video_lists[video_lists.length-1][nvideo]).getFileName().toString();
+					String name0 = Paths.get(video_sets_list.get(0).getVideoPaths()[nvideo]).getFileName().toString();
+					String name1 = Paths.get(video_sets_list.get(video_sets_list.size()-1).getVideoPaths()[nvideo]).getFileName().toString();
 					String ts_sec0=name0.substring(0,name0.indexOf("_")); // seconds of the first timestamp
 					String ts_sec1=name1.substring(0,name1.indexOf("_")); // seconds of the last timestamp
 					String suffix0 = name0.substring(name0.indexOf("-")); // Skip timestamp
@@ -8684,16 +8742,16 @@ if (debugLevel > -100) return true; // temporarily !
 		    		PrintWriter writer = new PrintWriter(list_to_concat, "UTF-8");
 		    		int this_stereo_width = 0;
 		    		int num_segments=0;
-		    		for (int i = 0; i <video_lists.length; i++) {
-		    			if ((video_lists[i] != null) && (video_lists[i].length > nvideo)) {
-		    				if ((new File(video_lists[i][nvideo])).exists()) {
-		    					writer.println("file '"+video_lists[i][nvideo]+"'");
+		    		for (int i = 0; i <video_sets_list.size(); i++) {
+		    			if (video_sets_list.size() > nvideo) {
+		    				if ((new File(video_sets_list.get(i).getVideoPaths()[nvideo])).exists()) {
+		    					writer.println("file '"+video_sets_list.get(i).getVideoPaths()[nvideo]+"'");
 		    					if (stereo_pad) {
-		    						this_stereo_width = stereo_widths[i][nvideo];
+		    						this_stereo_width = video_sets_list.get(i).getStereoWidths()[nvideo];
 		    					}
 		    					num_segments++;
 		    				} else {
-		    					System.out.println("Missing video segment: "+video_lists[i][nvideo]);
+		    					System.out.println("Missing video segment: "+video_sets_list.get(i).getVideoPaths()[nvideo]);
 		    				}
 		    			} else {
 		    				System.out.println("Specific video segment "+i+":"+nvideo+" is missing, skipping");
@@ -8720,10 +8778,10 @@ if (debugLevel > -100) return true; // temporarily !
 		    			int padded_width= 16* ( (int) Math.round((this_stereo_width + stereo_gap) * stereo_phone_width/stereo_intereye/32));
 		    			shellCommand = String.format(
 		    					"ffmpeg -y -f concat -safe 0 -i %s -r 60 -vf pad=width=%d:height=0:x=-1:y=-1:color=black,setpts=%f*PTS -b:v 0 -crf %d -c %s %s",
-	    	    				list_to_concat.toString(), padded_width, pts_scale, video_crf, video_codec, video_out.toString());
+	    	    				list_to_concat.toString(), padded_width, pts_scale, video_crf_combo, video_codec_combo, video_out.toString());
 		    		} else {
 		    			shellCommand = String.format("ffmpeg -y -f concat -safe 0 -i %s -r 60 -vf setpts=%f*PTS -b:v 0 -crf %d -c %s %s",
-	    	    				list_to_concat.toString(), pts_scale, video_crf, video_codec, video_out.toString());
+	    	    				list_to_concat.toString(), pts_scale, video_crf_combo, video_codec_combo, video_out.toString());
 		    		}
     				
     				Process p = null;

@@ -6818,7 +6818,7 @@ public class Eyesis_Correction implements PlugIn, ActionListener {
 		CLT_PARAMETERS.setRGBParameters(RGB_PARAMETERS);
 		
 		try {
-			TWO_QUAD_CLT.buildSeriesTQ(
+			TwoQuadCLT.buildSeriesTQ(
 					quadCLT, // QUAD_CLT, // QuadCLT quadCLT_main,
 					-1, // int  ref_index,
 					0,  // int  ref_step, 
