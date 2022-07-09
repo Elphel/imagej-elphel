@@ -2248,6 +2248,7 @@ public class OpticalFlow {
 		String title =  reference_QuadCLT.getImageName()+"-"+scene_QuadCLT.image_name+suffix;
 		double [][] dsrbg = transformCameraVew( // shifts previous image correctly (right)
 				title,                   // final String    title,
+				null, // final double [][] dsrbg_camera_in,
 				camera_xyz0, // double [] camera_xyz, // camera center in world coordinates
 				camera_atr0, //double [] camera_atr, // camera orientation relative to world frame
 				scene_QuadCLT,       // QuadCLT   camera_QuadClt,
@@ -2257,6 +2258,7 @@ public class OpticalFlow {
 		if (blur_reference) {
 			dsrbg_ref = transformCameraVew( // shifts previous image correctly (right)
 					title+"-reference",     // final String    title,
+					null, // final double [][] dsrbg_camera_in,
 					ZERO3, // camera_xyz0,  // double [] camera_xyz, // camera center in world coordinates
 					ZERO3, // camera_atr0,  // double [] camera_atr, // camera orientation relative to world frame
 					reference_QuadCLT,      // scene_QuadCLT,       // QuadCLT   camera_QuadClt,
@@ -2266,7 +2268,6 @@ public class OpticalFlow {
 			dsrbg_ref= reference_QuadCLT.getDSRBG();
 		}
 		double [][][] pair = {dsrbg_ref,  dsrbg};
-		
 		TileProcessor tp = reference_QuadCLT.getTileProcessor();
         int tilesX = tp.getTilesX();
 		int tilesY = tp.getTilesY();
@@ -2321,6 +2322,7 @@ public class OpticalFlow {
 				ers_scene.setupERS();
 				dsrbg[i] = transformCameraVew(   // shifts previous image correctly (right) null pointer
 						title,                   // final String    title,
+						null, // final double [][] dsrbg_camera_in,
 						scene_xyzatr[indx][0],   // double [] camera_xyz, // camera center in world coordinates
 						scene_xyzatr[indx][1],   //double [] camera_atr, // camera orientation relative to world frame
 						scenes[indx],            // QuadCLT   camera_QuadClt,
@@ -2497,6 +2499,7 @@ public class OpticalFlow {
 				scene_ers_xyz_dt, // double []    ers_xyz_dt,
 				scene_ers_atr_dt); // double []    ers_atr_dt)(ers_scene_original_xyz_dt);
 		//setupERS() will be inside transformToScenePxPyD()
+		// OK to use the same reference_QuadClt for both reference_QuadClt and scene_QuadClt
 		double [][] scene_pXpYD = transformToScenePxPyD( // will be null for disparity == NaN
 				null, // final Rectangle [] extra_woi,    // show larger than sensor WOI (or null)
 				disparity_ref,      // final double []   disparity_ref, // invalid tiles - NaN in disparity (maybe it should not be masked by margins?)
@@ -2505,7 +2508,7 @@ public class OpticalFlow {
 				scene_QuadClt,      // final QuadCLT     scene_QuadClt,
 				reference_QuadClt); // final QuadCLT     reference_QuadClt)
 		
-		TpTask[]  tp_tasks =  GpuQuad.setInterTasks(
+		TpTask[]  tp_tasks =  GpuQuad.setInterTasks( // just to calculate valid_tiles
 				scene_QuadClt.getNumSensors(),
 				scene_QuadClt.getGeometryCorrection().getSensorWH()[0],
 				!scene_QuadClt.hasGPU(), // final boolean             calcPortsCoordinatesAndDerivatives, // GPU can calculate them centreXY
@@ -2516,7 +2519,7 @@ public class OpticalFlow {
     			margin, // final int                 margin,      // do not use tiles if their centers are closer to the edges
     			valid_tiles, // final boolean []          valid_tiles,            
     			threadsMax); // final int                 threadsMax)  // maximal number of threads to launch
-		//FIXME:  not clear here tp_tasks was supposed to go? 
+		//FIXME:  not clear here tp_tasks was supposed to go? no
 		/*
 		scene_QuadClt.getGPU().setInterTasks(
 				scene_pXpYD, // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
@@ -2646,7 +2649,7 @@ public class OpticalFlow {
 				};
 			}		      
 			ImageDtt.startAndJoin(threads);
-			double [][] toref_pXpYD = transformFromScenePxPyD(
+			double [][] toref_pXpYD = transformFromScenePxPyD( // does not look at identity scene_xyz, scene_atr 
 					scene_pXpYD, // final double [][] pXpYD_scene, // tiles correspond to reference, pX,pY,D - for scene
 					scene_xyz,   // final double []   scene_xyz,   // camera center in world coordinates
 					scene_atr,   // final double []   scene_atr,   // camera orientation relative to world frame
@@ -2780,9 +2783,9 @@ public class OpticalFlow {
 				}
 			}
 		}
-		final boolean ref_is_identity = false;
-///				(scene_xyz[0]==0.0) && (scene_xyz[1]==0.0) && (scene_xyz[2]==0.0) &&
-///				(scene_atr[0]==0.0) && (scene_atr[1]==0.0) && (scene_atr[2]==0.0);
+		final boolean ref_is_identity = 
+				(scene_xyz[0]==0.0) && (scene_xyz[1]==0.0) && (scene_xyz[2]==0.0) &&
+				(scene_atr[0]==0.0) && (scene_atr[1]==0.0) && (scene_atr[2]==0.0);
 		final double []   disparity_ref = dref;
 //		final int tilesX_ref = ref_w;
 //		final int tilesY_ref = ref_h;
@@ -3243,6 +3246,7 @@ public class OpticalFlow {
 	 * Transform scene view to visually match with a reference scene. It is not accurate as it uses resampling and
 	 * related low pass filtering.
 	 * @param title image title to print
+	 * @param dsrbg_camera_in - null (old compatibility) or [variable_length][tiles] array of disparity, strength, ... for the camera tiles 
 	 * @param scene_xyz Scene X (right),Y (up), Z (negative away form camera) in the reference camera coordinates
 	 *        or null to use scene instance coordinates.
 	 * @param scene_atr Scene azimuth, tilt and roll (or null to use scene instance).
@@ -3253,12 +3257,14 @@ public class OpticalFlow {
 	 */
 	public double [][] transformCameraVew(
 			final String    title,
+			final double [][] dsrbg_camera_in,
 			final double [] scene_xyz, // camera center in world coordinates
 			final double [] scene_atr, // camera orientation relative to world frame
 			final QuadCLT   scene_QuadClt,
 			final QuadCLT   reference_QuadClt,
 			final int       iscale)
 	{
+		boolean debug = (title != null) && (title.length() > 0);
 		final double line_error = 0.5;
 		TileProcessor tp = reference_QuadClt.getTileProcessor();
 		final int tilesX = tp.getTilesX();
@@ -3271,9 +3277,9 @@ public class OpticalFlow {
 		final int stilesX = iscale*tilesX; 
 		final int stilesY = iscale*tilesY;
 		final int stiles = stilesX*stilesY;
-		final double sigma = 0.5 * iscale;
+		final double sigma = 0.5 * iscale; // was 0.5
 		final double scale =  1.0 * iscale/transform_size;
-		final double [][] dsrbg_camera =    scene_QuadClt.getDSRBG();
+		final double [][] dsrbg_camera = (dsrbg_camera_in == null) ? scene_QuadClt.getDSRBG() : dsrbg_camera_in;
 		if (dsrbg_camera == null) {
 			return null;
 		}
@@ -3288,14 +3294,15 @@ public class OpticalFlow {
 		final ErsCorrection ersSceneCorrection =     scene_QuadClt.getErsCorrection();
 		ersReferenceCorrection.setupERS(); // just in case - setUP using instance paRAMETERS
 		ersSceneCorrection.setupERS();
-		System.out.println("\ntransformCameraVew(): >> "+title +" <<");
-		System.out.println("Reference scene ("+reference_QuadClt.getImageName()+"):");
-		ersReferenceCorrection.printVectors(null, null);
-		System.out.println("Target scene ("+scene_QuadClt.getImageName()+"):");
-		ersSceneCorrection.printVectors    (scene_xyz, scene_atr);
+		if (debug) {
+			System.out.println("\ntransformCameraVew(): transformCameraVew(): >> "+title +" <<");
+			System.out.println("transformCameraVew(): Reference scene ("+reference_QuadClt.getImageName()+"):");
+			ersReferenceCorrection.printVectors(null, null);
+			System.out.println("transformCameraVew(): Target scene ("+scene_QuadClt.getImageName()+"):");
+			ersSceneCorrection.printVectors    (scene_xyz, scene_atr);
+		}
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
-//		final double [] zbuffer = new double [tiles];
 		DoubleAccumulator [] azbuffer = new DoubleAccumulator[tiles];
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
@@ -3360,6 +3367,15 @@ public class OpticalFlow {
 		}		      
 		ImageDtt.startAndJoin(threads);
 		ai.set(0);
+		if (debug) {
+			(new ShowDoubleFloatArrays()).showArrays(
+				ds,
+				stilesX,
+				stilesY,
+				true,
+				"ds-0",
+				new String[] {"D","S"});
+		}
 		
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
@@ -3379,7 +3395,16 @@ public class OpticalFlow {
 		}		      
 		ImageDtt.startAndJoin(threads);
 		ai.set(0);
-
+		if (debug) {
+			(new ShowDoubleFloatArrays()).showArrays(
+					ds,
+					stilesX,
+					stilesY,
+					true,
+					"ds-1",
+					new String[] {"D","S"});
+		}
+		
 		final double [][] dsrbg_out = new double [dsrbg_camera.length][tiles];
 		final int [][] num_non_nan = new int [dsrbg_out.length] [tiles];
 		
@@ -3411,6 +3436,15 @@ public class OpticalFlow {
 			};
 		}		      
 		ImageDtt.startAndJoin(threads);
+		if (debug) {
+			(new ShowDoubleFloatArrays()).showArrays(
+					dsrbg_out,
+					tilesX,
+					tilesY,
+					true,
+					"dsrbg_out-0");
+		}
+		
 		
 		for (int i = 0; i < dsrbg_out.length; i++) {
 			for (int j = 0; j < tiles; j++) {
@@ -3421,7 +3455,15 @@ public class OpticalFlow {
 				}
 			}
 		}
-
+		if (debug) {
+			(new ShowDoubleFloatArrays()).showArrays(
+					dsrbg_out,
+					tilesX,
+					tilesY,
+					true,
+					"dsrbg_out-1");
+		}
+		/*
 		if (num_passes > 0) {
 			for (int i = 0; i < dsrbg_out.length; i++) {
 				dsrbg_out[i] = tp.fillNaNs(
@@ -3433,6 +3475,15 @@ public class OpticalFlow {
 						threadsMax);                   // final int threadsMax) // maximal number of threads to launch                         
 			}
 		}
+		if (debug) {
+			(new ShowDoubleFloatArrays()).showArrays(
+					dsrbg_out,
+					tilesX,
+					tilesY,
+					true,
+					"dsrbg_out-2");
+		}
+		*/
 		return dsrbg_out;
 	}
 
@@ -4443,8 +4494,10 @@ public class OpticalFlow {
 		if (generate_mapped || reuse_video) {
 			int tilesX =  quadCLTs[ref_index].getTileProcessor().getTilesX();
 	        int tilesY =  quadCLTs[ref_index].getTileProcessor().getTilesY();
-	        double [] disparity_fg = null;
-	        double [] disparity_bg = null;
+	        double [] disparity_fg =  null;
+	        double [] strength_fg =   null;
+	        double [] disparity_bg =  null;
+	        double [] strength_bg =   null;
 	        double [] disparity_raw = null;
 	        if (generate_mapped) {
 	        	disparity_raw = new double [tilesX * tilesY];
@@ -4468,6 +4521,7 @@ public class OpticalFlow {
 	        			debugLevel);			
 
 	        	disparity_fg = ds[0]; // combo_dsn_final[COMBO_DSN_INDX_DISP_FG];
+	        	strength_fg =  ds[1];
 	        	// BG mode
 	        	double [] bg_lma = combo_dsn_final[COMBO_DSN_INDX_DISP_BG_ALL].clone();
 	        	double [] bg_str = combo_dsn_final[COMBO_DSN_INDX_STRENGTH].clone();
@@ -4495,7 +4549,7 @@ public class OpticalFlow {
 	        			quadCLTs[ref_index],    // QuadCLT        scene,
 	        			debugLevel);			
 	        	disparity_bg = ds_bg[0]; // combo_dsn_final[COMBO_DSN_INDX_DISP_FG];
-
+	        	strength_bg =  ds_bg[1];
 	        	// for now using disparity for just standard size (90x64), later may use full size and at
 	        	// minimum fill peripheral areas with Laplassian?
 	        	double [][] dxyzatr_dt = new double [quadCLTs.length][];
@@ -4568,6 +4622,12 @@ public class OpticalFlow {
 	        		// col_mode: 0 - mono, 1 - color
 	        		for (int col_mode = 0; col_mode < 2; col_mode++) if (gen_seq_mono_color[col_mode]){ // skip if not needed
 	        			double[] selected_disparity = (mode3d > 1)?disparity_bg:((mode3d > 0)?disparity_fg: disparity_raw); 
+	        			double[] selected_strength =  (mode3d > 1)?strength_bg:((mode3d > 0)?strength_fg: null);
+	        			if (selected_strength != null) { // for FG/BG only, fixing for transformCameraVew()
+	        				for (int i = 0; i < selected_disparity.length; i++) {
+	        					if (!Double.isNaN(selected_disparity[i]) && (selected_strength[i] == 0)) selected_strength[i] = 0.01; // transformCameraVew ignores strength= 0
+	        				}
+	        			}
 	        			final boolean       toRGB = col_mode > 0;
 	        			String scenes_suffix = quadCLTs[quadCLTs.length-1].getImageName()+
 	        					"-SEQ-" + IntersceneMatchParameters.MODES3D[mode3d+1] + "-"+(toRGB?"COLOR":"MONO");
@@ -4593,7 +4653,17 @@ public class OpticalFlow {
 	        				if (views[ibase][2] != 0) {
 	        					scenes_suffix += "-Z"+views[ibase][2];
 	        				}
-
+	        				double [][] ds_vantage = new double[][] {selected_disparity,selected_strength};
+	        				if ((views[ibase][0] != 0) || (views[ibase][1] != 0) || (views[ibase][2] != 0)) {
+	        					ds_vantage = transformCameraVew(
+	        							null, // (debug_ds_fg_virt?"transformCameraVew":null),     // final String    title,
+	        							ds_vantage,                    // final double [][] dsrbg_camera_in,
+	        							xyz_offset, // _inverse[0], // final double [] scene_xyz, // camera center in world coordinates
+	        							ZERO3, // _inverse[1], // final double [] scene_atr, // camera orientation relative to world frame
+	        							quadCLTs[ref_index],      // final QuadCLT   scene_QuadClt,
+	        							quadCLTs[ref_index],      // final QuadCLT   reference_QuadClt,
+	        							8); // iscale);                  // final int       iscale);
+	        				}
 	        				if (generate_mapped) {
 	        					imp_scenes_pair[nstereo]= renderSceneSequence(
 	        							clt_parameters,     // CLTParameters clt_parameters,
@@ -4603,7 +4673,7 @@ public class OpticalFlow {
 	        							xyz_offset,         // double []     stereo_offset, // offset reference camera {x,y,z}
 	        							sensor_mask,        // int           sensor_mask,
 	        							scenes_suffix,      // String        suffix,
-	        							selected_disparity, // double []     ref_disparity,			
+	        							ds_vantage[0],      // selected_disparity, // double []     ref_disparity,			
 	        							quadCLTs,           // QuadCLT []    quadCLTs,
 	        							debugLevel);        // int           debugLevel);
 	        					if (save_mapped_mono_color[col_mode]) {	        	
@@ -4870,14 +4940,14 @@ public class OpticalFlow {
 					combo_dsn_final[COMBO_DSN_INDX_LMA],
 					combo_dsn_final[COMBO_DSN_INDX_STRENGTH]
 			};
-			double [][] ds = conditionInitialDS(
+			double [][] ds_fg = conditionInitialDS(
 					true, // boolean        use_conf,       // use configuration parameters, false - use following  
 					clt_parameters,      // CLTParameters  clt_parameters,
 					dls,                 // double [][]    dls
 					quadCLTs[ref_index], // QuadCLT        scene,
 					debugLevel);			
 			
-			double [] fg_disparity = ds[0]; // combo_dsn_final[COMBO_DSN_INDX_DISP_FG];
+			double [] fg_disparity = ds_fg[0]; // combo_dsn_final[COMBO_DSN_INDX_DISP_FG];
 			
 			double [] bg_lma = combo_dsn_final[COMBO_DSN_INDX_DISP_BG_ALL].clone();
 			double [] bg_str = combo_dsn_final[COMBO_DSN_INDX_STRENGTH].clone();
@@ -4951,8 +5021,13 @@ public class OpticalFlow {
 				}
 			}
 			
-			boolean offset_fg_image = true; // config later, generate FG image for all stereo views
+			boolean offset_fg_image = false; // true; // config later, generate FG image for all stereo views
 			double [][] img_views = offset_fg_image ? stereo_views : (new double [][] {{0,0,0}});
+			double min_str = 0.01; 
+			for (int i = 0; i < ds_fg[0].length; i++) {
+				if (!Double.isNaN(ds_fg[0][i]) && (ds_fg[1][i] == 0)) ds_fg[1][i] = min_str; // transformCameraVew ignores strength= 0
+				if (!Double.isNaN(ds_bg[0][i]) && (ds_bg[1][i] == 0)) ds_bg[1][i] = min_str;
+			}
 			for (int ibase = 0; ibase < img_views.length; ibase++) if (!offset_fg_image || generate_stereo_var[ibase]) {
         		double  stereo_baseline_meters =    0.001 * img_views[ibase][0];
         		double  view_height_meters =        0.001 * img_views[ibase][1];
@@ -4961,7 +5036,7 @@ public class OpticalFlow {
 						-stereo_baseline_meters, // x offset
 						-view_height_meters,     // Y offset
 						-view_back_meters};      // Z offset
-        		
+				double [] atr_offset = ZERO3; 
         		String scenes_suffix = "";
 				if (img_views[ibase][0] != 0) {
 					scenes_suffix += "-B"+img_views[ibase][0];
@@ -4972,14 +5047,39 @@ public class OpticalFlow {
 				if (img_views[ibase][2] != 0) {
 					scenes_suffix += "-Z"+img_views[ibase][2];
 				}
-        		
+        		// calculate virtual view fg_ds_virt from the reference ds_fg;
+				boolean debug_ds_fg_virt = false; // false;
+				double [][] ds_fg_virt = ds_fg;
+				if ((img_views[ibase][0] != 0) || (img_views[ibase][1] != 0) || (img_views[ibase][2] != 0)) {
+					ds_fg_virt = transformCameraVew(
+							(debug_ds_fg_virt?"transformCameraVew":null),     // final String    title,
+							ds_fg,                    // final double [][] dsrbg_camera_in,
+							xyz_offset, // _inverse[0], // final double [] scene_xyz, // camera center in world coordinates
+							atr_offset, // _inverse[1], // final double [] scene_atr, // camera orientation relative to world frame
+							quadCLTs[ref_index],      // final QuadCLT   scene_QuadClt,
+							quadCLTs[ref_index],      // final QuadCLT   reference_QuadClt,
+							8); // iscale);                  // final int       iscale);
+					if (debug_ds_fg_virt){
+						int dbgX =  quadCLTs[ref_index].getTileProcessor().getTilesX();
+						int dbgY =  quadCLTs[ref_index].getTileProcessor().getTilesY();
+						double [][] dbg_img = new double[][] {ds_fg[0],ds_fg_virt[0],ds_fg[1],ds_fg_virt[1]};
+						(new ShowDoubleFloatArrays()).showArrays(
+								dbg_img,
+								dbgX,
+								dbgY,
+								true,
+								"virtual-view-ds",
+								new String[] {"d-ref","d-virt","s-ref","s-virt"}); //	dsrbg_titles);
+					}
+				}
+				
 				ImagePlus imp_fg = QuadCLT.renderGPUFromDSI(
 						-1,                  // final int         sensor_mask,
-						false, // final boolean     merge_channels,
+						false,               // final boolean     merge_channels,
 						null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 						clt_parameters,      // CLTParameters     clt_parameters,
-						fg_disparity,  // double []         disparity_ref,
-						xyz_offset, // ZERO3,               // final double []   scene_xyz, // camera center in world coordinates
+						ds_fg_virt[0],       // fg_disparity,  // double []         disparity_ref,
+						xyz_offset,          // ZERO3,               // final double []   scene_xyz, // camera center in world coordinates
 						ZERO3,               // final double []   scene_atr, // camera orientation relative to world frame
 						quadCLTs[ref_index], // final QuadCLT     scene,
 						quadCLTs[ref_index], // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
@@ -4995,7 +5095,7 @@ public class OpticalFlow {
 						false, // final boolean     merge_channels,
 						null,                // final Rectangle   full_woi_in,      // show larger than sensor WOI (or null)
 						clt_parameters,      // CLTParameters     clt_parameters,
-						fg_disparity,  // double []         disparity_ref,
+						ds_fg_virt[0], // fg_disparity,  // double []         disparity_ref,
 						xyz_offset, // ZERO3,               // final double []   scene_xyz, // camera center in world coordinates
 						ZERO3,               // final double []   scene_atr, // camera orientation relative to world frame
 						quadCLTs[ref_index], // final QuadCLT     scene,
@@ -12896,6 +12996,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		String title = this_image_name+"-"+scene_QuadCLT.image_name+"-dt"+dt;
 		double [][] dsrbg = transformCameraVew( // shifts previous image correctly (right)
 				title,                   // final String    title,
+				null, // final double [][] dsrbg_camera_in,
 				camera_xyz0,             // double [] camera_xyz, // camera center in world coordinates
 				camera_atr0,             //double [] camera_atr, // camera orientation relative to world frame
 				scene_QuadCLT,           // QuadCLT   camera_QuadClt,

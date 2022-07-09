@@ -34,6 +34,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
@@ -53,6 +54,8 @@ import ij.gui.GenericDialog;
 
 public class EyesisCorrectionParameters {
     public static class CorrectionParameters{
+    	public static final String [] KEY_DIRS= {"rootDirectory",
+    			"sourceDirectory","linkedModels","videoDirectory","x3dDirectory","resultsDirectory"};
     	public static final String AUX_PREFIX = "AUX-";
     	public boolean swapSubchannels01=      true; // false; // (false: 0-1-2, true - 1-0-2)
   		public boolean split=                  true;
@@ -855,40 +858,40 @@ public class EyesisCorrectionParameters {
     		gd.addCheckbox    ("Save current settings with results",               this.saveSettings);
 
             gd.addTab("Directories","Direcories paths");
-    		gd.addStringField ("Source files directory",                           this.sourceDirectory, 60);
+    		gd.addStringField ("Source files directory",                           this.sourceDirectory, 80);
     		gd.addCheckbox    ("Select source directory",                          false);
     		gd.addCheckbox    ("Use individual subdirectory for image set",        this.use_set_dirs);
     		
-    		gd.addStringField ("Source sequences list file",                       this.sourceSequencesList, 60);
+    		gd.addStringField ("Source sequences list file",                       this.sourceSequencesList, 80);
     		gd.addCheckbox    ("Select source sequences file",                     false);
     		gd.addCheckbox    ("Use source list to iterate multiple sequences",    this.useSourceList);
 
-    		gd.addStringField ("Sensor calibration directory",                     this.sensorDirectory, 60);
+    		gd.addStringField ("Sensor calibration directory",                     this.sensorDirectory, 80);
     		gd.addCheckbox    ("Select sensor calibration directory",              false);
 
-    		gd.addStringField ("Aberration kernels (sharp) directory",             this.sharpKernelDirectory, 60);
+    		gd.addStringField ("Aberration kernels (sharp) directory",             this.sharpKernelDirectory, 80);
     		gd.addCheckbox    ("Select aberration kernels (sharp) directory",      false);
-    		gd.addStringField ("Aberration kernels (smooth) directory",            this.smoothKernelDirectory, 60);
+    		gd.addStringField ("Aberration kernels (smooth) directory",            this.smoothKernelDirectory, 80);
     		gd.addCheckbox    ("Select aberration kernels (smooth) directory",     false);
 
-    		gd.addStringField ("Aberration kernels for DCT directory",             this.dctKernelDirectory, 60);
+    		gd.addStringField ("Aberration kernels for DCT directory",             this.dctKernelDirectory, 80);
     		gd.addCheckbox    ("Select aberration kernels for DCT directory",      false);
 
-    		gd.addStringField ("Aberration kernels for CLT directory",             this.cltKernelDirectory, 60);
+    		gd.addStringField ("Aberration kernels for CLT directory",             this.cltKernelDirectory, 80);
     		gd.addCheckbox    ("Select aberration kernels for CLT directory",      false);
 
     		gd.addStringField ("x3d model version",                                this.x3dModelVersion, 20);    // 10a
     		gd.addStringField ("JP4 source image copy model subdirectory",         this.jp4SubDir, 20);    // 10b
     		
-    		gd.addStringField ("Linked reference models",                          this.linkedModels, 60,
+    		gd.addStringField ("Linked reference models",                          this.linkedModels, 80,
     				"Directory where links to reference models directories will be created.");
     		gd.addCheckbox    ("Select linked reference models directory",         false);
     		
-    		gd.addStringField ("Video directory",                                  this.videoDirectory, 60,
+    		gd.addStringField ("Video directory",                                  this.videoDirectory, 80,
     				"Directory to store combined video files.");
     		gd.addCheckbox    ("Select video directory",                           false);
     		
-    		gd.addStringField ("x3d output directory",                             this.x3dDirectory, 60);
+    		gd.addStringField ("x3d output directory",                             this.x3dDirectory, 80);
     		gd.addCheckbox    ("Select x3d output directory",                      false);
     		
     		gd.addCheckbox    ("Use individual subdirectory for each 3d model (timestamp as name)", this.use_x3d_subdirs);
@@ -897,18 +900,18 @@ public class EyesisCorrectionParameters {
     				"When using timestamp as a subdirectory, add this prefix");
     		gd.addStringField ("x3d subdirectory suffix",                          this.x3dSubdirSuffix, 10,
     				"When using timestamp as a subdirectory, add this suffix");
-    		gd.addStringField ("ML output directory",                              this.mlDirectory, 60,
+    		gd.addStringField ("ML output directory",                              this.mlDirectory, 80,
     				"Non-empty directory with no \"/\" separator makes it a subdirectory of the model version directory");
     		gd.addCheckbox    ("Select ML output directory", false,"Erase text field or use \"/\" in it to enable absolute directory path selection");
 
-    		gd.addStringField("Equirectangular maps directory (may be empty)",     this.equirectangularDirectory, 60);
+    		gd.addStringField("Equirectangular maps directory (may be empty)",     this.equirectangularDirectory, 80);
     		gd.addCheckbox("Select equirectangular maps directory",                false);
-    		gd.addStringField("Results directory",                                 this.resultsDirectory, 60);
+    		gd.addStringField("Results directory",                                 this.resultsDirectory, 80);
     		gd.addCheckbox("Select results directory",                             false);
 
             gd.addTab("Prefix/suffix","Prefixes and suffixes for various file types");
-    		gd.addStringField("Source files prefix",                               this.sourcePrefix, 60);
-    		gd.addStringField("Source files suffix",                               this.sourceSuffix, 60);
+    		gd.addStringField("Source files prefix",                               this.sourcePrefix, 80);
+    		gd.addStringField("Source files suffix",                               this.sourceSuffix, 80);
     		gd.addNumericField("First subcamera (in the source filenames)",        this.firstSubCamera, 0);
     		gd.addNumericField("First subcamera (in config (clt, sensor) directories)",        this.firstSubCameraConfig, 0);
     		gd.addNumericField("Number of subcameras in this camera",              this.numSubCameras, 0);
@@ -1071,58 +1074,58 @@ public class EyesisCorrectionParameters {
 
     		gd.addTab         ("File paths", "Select files and directories paths (common to main and optional auxiliary)");
 			gd.addMessage     ("============ Common to the main and optional auxiliary camera============");
-    		gd.addStringField ("GPU tile_processor_gpu project absolute path",     this.tile_processor_gpu, 60,
+    		gd.addStringField ("GPU tile_processor_gpu project absolute path",     this.tile_processor_gpu, 80,
     				"Keep empty to use default GPU kernels");
     		gd.addCheckbox    ("Select GPU directory",                             false);
 
     		gd.addCheckbox    ("Save current settings with results",               this.saveSettings);           // 1
-    		gd.addStringField ("Source files directory",                           this.sourceDirectory, 60);    // 2
+    		gd.addStringField ("Source files directory",                           this.sourceDirectory, 80);    // 2
     		gd.addCheckbox    ("Select source directory",                          false);                       // 3
     		gd.addCheckbox    ("Use individual subdirectory for each image set (timestamp as name)", this.use_set_dirs); //10
 
-    		gd.addStringField ("Source sequences list file",                       this.sourceSequencesList, 60); // 10x
+    		gd.addStringField ("Source sequences list file",                       this.sourceSequencesList, 80); // 10x
     		gd.addCheckbox    ("Select source sequences file",                     false);                        // 10y
     		gd.addCheckbox    ("Use source list to iterate multiple sequences",    this.useSourceList);           // 10z
     		
-    		gd.addStringField ("x3d model version",                                this.x3dModelVersion, 60);    // 10a
-    		gd.addStringField ("jp4 source copy subdirectory",                     this.jp4SubDir, 60);          // 10b
+    		gd.addStringField ("x3d model version",                                this.x3dModelVersion, 80);    // 10a
+    		gd.addStringField ("jp4 source copy subdirectory",                     this.jp4SubDir, 80);          // 10b
     		
-    		gd.addStringField ("Linked reference models",                          this.linkedModels, 60,
+    		gd.addStringField ("Linked reference models",                          this.linkedModels, 80,
     				"Directory where links to reference models directories will be created.");
     		gd.addCheckbox    ("Select linked reference models directory",         false);
     		
-    		gd.addStringField ("Video directory",                                  this.videoDirectory, 60,
+    		gd.addStringField ("Video directory",                                  this.videoDirectory, 80,
     				"Directory to store combined video files.");
     		gd.addCheckbox    ("Select video directory",                           false);
     		
-    		gd.addStringField ("x3d output directory",                             this.x3dDirectory, 60);       // 8
+    		gd.addStringField ("x3d output directory",                             this.x3dDirectory, 80);       // 8
     		gd.addCheckbox    ("Select x3d output (top model) directory",          false);                       // 9
 
     		gd.addCheckbox    ("Use individual subdirectory for each 3d model (timestamp as name)", this.use_x3d_subdirs); //10
 
-//    		gd.addStringField ("Source files prefix",                              this.sourcePrefix, 60);       // 13
-//    		gd.addStringField ("Source files suffix",                              this.sourceSuffix, 60);       // 14
+//    		gd.addStringField ("Source files prefix",                              this.sourcePrefix, 80);       // 13
+//    		gd.addStringField ("Source files suffix",                              this.sourceSuffix, 80);       // 14
 
     		gd.addStringField ("x3d subdirectory prefix",                          this.x3dSubdirPrefix, 10,    // 14a
     				"When using timestamp as a subdirectory, add this prefix");
 
-    		gd.addStringField ("ML output directory",                              this.mlDirectory, 60,
+    		gd.addStringField ("ML output directory",                              this.mlDirectory, 80,
     				"Non-empty directory with no \"/\" separator makes it a subdirectory of the model version directory");
     		gd.addCheckbox    ("Select ML output directory", false,"Erase text field or use \"/\" in it to enable absolute directory path selection");
 
 			gd.addMessage     ("============ Main camera============");
 
-    		gd.addStringField ("Sensor calibration directory",                     this.sensorDirectory, 60);    // 4
+    		gd.addStringField ("Sensor calibration directory",                     this.sensorDirectory, 80);    // 4
     		gd.addCheckbox    ("Select sensor calibration directory",              false);                       // 5
-    		gd.addStringField ("Aberration kernels for CLT directory",             this.cltKernelDirectory, 60); // 6
+    		gd.addStringField ("Aberration kernels for CLT directory",             this.cltKernelDirectory, 80); // 6
     		gd.addCheckbox    ("Select aberration kernels for CLT directory",      false);                       // 7
-    		gd.addStringField ("Results directory",                                this.resultsDirectory, 60);   // 11
+    		gd.addStringField ("Results directory",                                this.resultsDirectory, 80);   // 11
     		gd.addCheckbox    ("Select results directory",                         false);                       // 12
     		gd.addNumericField("First subcamera (in the source filename)",         this.firstSubCamera, 0);      // 15
     		gd.addNumericField("First subcamera (in config (clt, sensor) directories)", this.firstSubCameraConfig, 0);
     		gd.addNumericField("Number of subcameras in this camera ",             this.numSubCameras, 0); // 16
-    		gd.addStringField ("Source files prefix",                              this.sourcePrefix, 60);       // 13
-    		gd.addStringField ("Source files suffix",                              this.sourceSuffix, 60);       // 14
+    		gd.addStringField ("Source files prefix",                              this.sourcePrefix, 80);       // 13
+    		gd.addStringField ("Source files suffix",                              this.sourceSuffix, 80);       // 14
     		gd.addStringField ("Sensor files prefix",                              this.sensorPrefix, 40);       // 17
     		gd.addStringField ("Sensor files suffix",                              this.sensorSuffix, 40);       // 18
 
@@ -1132,17 +1135,17 @@ public class EyesisCorrectionParameters {
     				"When using timestamp as a subdirectory, add this suffix");
 
 			gd.addMessage     ("============ Auxiliary camera============");
-    		gd.addStringField ("Aux sensor calibration directory",                     this.aux_camera.sensorDirectory, 60);    // 4b
+    		gd.addStringField ("Aux sensor calibration directory",                     this.aux_camera.sensorDirectory, 80);    // 4b
     		gd.addCheckbox    ("Select aux sensor calibration directory",              false);                                  // 5b
-    		gd.addStringField ("Aberration kernels for aux CLT directory",             this.aux_camera.cltKernelDirectory, 60); // 6b
+    		gd.addStringField ("Aberration kernels for aux CLT directory",             this.aux_camera.cltKernelDirectory, 80); // 6b
     		gd.addCheckbox    ("Select aberration kernels for aux CLT directory",      false);                                  // 7b
-    		gd.addStringField ("Aux results directory",                                this.aux_camera.resultsDirectory, 60);   // 11b
+    		gd.addStringField ("Aux results directory",                                this.aux_camera.resultsDirectory, 80);   // 11b
     		gd.addCheckbox    ("Select aux results directory",                         false);                                  // 12b
     		gd.addNumericField("First aux subcamera (in the source filename)",         this.aux_camera.firstSubCamera, 0);      // 15b
     		gd.addNumericField("First aux subcamera (in config (clt, sensor) directories)",this.aux_camera.firstSubCameraConfig, 0);
     		gd.addNumericField("Number of aux subcameras in this camera ",             this.aux_camera.numSubCameras, 0); // 16b
-    		gd.addStringField ("Aux Source files prefix",                              this.aux_camera.sourcePrefix, 60);       // 13
-    		gd.addStringField ("Aux Source files suffix",                              this.aux_camera.sourceSuffix, 60);       // 14
+    		gd.addStringField ("Aux Source files prefix",                              this.aux_camera.sourcePrefix, 80);       // 13
+    		gd.addStringField ("Aux Source files suffix",                              this.aux_camera.sourceSuffix, 80);       // 14
     		gd.addStringField ("Aux sensor files prefix",                              this.aux_camera.sensorPrefix, 40);       // 17b
     		gd.addStringField ("Aux sensor files suffix",                              this.aux_camera.sensorSuffix, 40);       // 18b
     		gd.addStringField ("Aux CLT kernel files prefix",                          this.aux_camera.cltKernelPrefix, 40);    // 19b
@@ -1541,12 +1544,83 @@ public class EyesisCorrectionParameters {
     			e.printStackTrace();
     			return null;
     		}
-    		Path basedir = seq_path.getParent();
+    		Path base_path = seq_path.getParent();
+    		// first - scan all file and set sourceDirectory, x3dDirectory, linkedModels,videoDirectory,resultsDirectory
+//    		String [] dir_paths = new String[KEY_DIRS.length];
+    		HashMap<String,String> dir_map = new HashMap<String,String>();
+            for (String line:lines){
+                String[] tokens = line.split("#")[0].trim().split("[\\s,;=]+");
+                if ((tokens.length > 2) && (tokens[0].toUpperCase().equals("SET"))) {
+                	parse_set:
+                	{
+                		for (String dir_name:KEY_DIRS) if (dir_name.equals(tokens[1])) {
+                			dir_map.put(dir_name,tokens[2]);
+                			System.out.println("Parsed SET: "+tokens[1]+" in line: "+line);
+                			break parse_set;
+                		}
+                		System.out.println("*********** Unknown SET: "+tokens[1]+" in line: "+line);
+                	}
+                }
+            }
+            if (dir_map.containsKey("rootDirectory")) {
+            	base_path=base_path.resolve(Paths.get(dir_map.get("rootDirectory")));
+    			File base_dir = new File(base_path.toString());
+    			if (!base_dir.exists()) {
+    				base_dir.mkdirs();
+    			}
+            }
+            // set sourceDirectory: 
+            if (dir_map.containsKey("sourceDirectory")) {
+            	this.sourceDirectory=(base_path.resolve(Paths.get(dir_map.get("sourceDirectory")))).toString();
+            }
+    		if ((this.sourceDirectory == null) ||
+    				(this.sourceDirectory.trim().length() == 0) ||
+    				!(new File(this.sourceDirectory).exists())) {
+    			System.out.println("Problem with source scenes directory ("+this.sourceDirectory+", using current: "+seq_path.getParent());
+    			this.sourceDirectory = seq_path.getParent().toString();
+    		}
+    		Path source_path = Paths.get(this.sourceDirectory);
+			File source_dir = new File(source_path.toString());
+			if (!source_dir.exists()) {
+				source_dir.mkdirs();
+			}
+            // Set other directories (possibly relative to base_path)
+			for (int i = 2; i < KEY_DIRS.length; i++) { // skip "rootDirectory" and "sourceDirectory"
+	            if (dir_map.containsKey(KEY_DIRS[i])) {
+	            	Path dir_path=base_path.resolve(Paths.get(dir_map.get(KEY_DIRS[i])));
+	    			File dir_file = new File(dir_path.toString());
+	    			if (!dir_file.exists()) {
+	    				dir_file.mkdirs();
+	    			}
+	    			switch (i) {
+	    			case 2: 
+	    				this.linkedModels =     dir_path.toString();
+	    				System.out.println("this.linkedModels="+this.linkedModels);
+	    				break;
+	    			case 3: 
+	    				this.videoDirectory =   dir_path.toString();
+	    				System.out.println("this.videoDirectory="+this.videoDirectory);
+	    				break;
+	    			case 4: 
+	    				this.x3dDirectory =     dir_path.toString();
+	    				System.out.println("this.x3dDirectory="+this.x3dDirectory);
+	    				break;
+	    			case 5: 
+	    				this.resultsDirectory = dir_path.toString();
+	    				System.out.println("this.resultsDirectory="+this.resultsDirectory);
+	    				break;
+	    			}
+	            }
+			}
+			// process source sequence directories
     		ArrayList<PathFirstLast> path_list= new ArrayList<PathFirstLast>();
             for (String line:lines){
-                String[] tokens = line.split("#")[0].trim().split("[\\s,;]+");
-                if ((tokens.length > 0) && (tokens[0].length() > 0)) {
-                	Path dir_path = basedir.resolve(Paths.get(tokens[0]));
+                String[] tokens = line.split("#")[0].trim().split("[\\s,;=]+");
+                if ((tokens.length > 0) &&
+                		(tokens[0].length() > 0) &&
+                		(!tokens[0].toUpperCase().equals("SET"))
+                		) {
+                	Path dir_path = source_path.resolve(Paths.get(tokens[0]));
                 	path_list.add(new PathFirstLast(
                 			dir_path.toString(),
                 			((tokens.length > 1)? Integer.parseInt(tokens[1]):0),
@@ -1555,14 +1629,7 @@ public class EyesisCorrectionParameters {
             }
             return path_list.toArray(new PathFirstLast[0]);
     	}
-//Path newPath = path.resolve(childPath);
-    	/*
-    	public static File [] getSeqScenes(String seq_path) {
-    		File seq_file = new File(seq_path);
-    		File [] scene_files =seq_file.listFiles();
-    		return scene_files; // may contain non-directories, will be filtered by filterScenes
-    	}
-    	*/
+
     	
     	public boolean selectSourceSets(int debugLevel) {
 //    		PathFirstLast [] pfl=getSourceSets(this.sourceSequencesList);
