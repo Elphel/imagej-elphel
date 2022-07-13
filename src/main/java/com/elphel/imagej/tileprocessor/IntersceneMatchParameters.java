@@ -181,8 +181,8 @@ public class IntersceneMatchParameters {
 	public  double  pd_weight =                     0.5;   // correlations (post) accumulated in PD
 	public  boolean td_nopd_only =                  true;  // only use TD accumulated data if no safe PD is available for the tile.
 
-	public  double  min_str =                       0.25;  // minimal correlation strength for all but TD-accumulated layer
-	public  double  min_str_sum =                   0.8;	  // minimal correlation strength for TD-accumulated layer
+	public  double  min_str =                       0.2; // 0.25;  // minimal correlation strength for all but TD-accumulated layer
+	public  double  min_str_sum =                   0.7; // 0.8;	  // minimal correlation strength for TD-accumulated layer
 	public  int     min_neibs =                     2;	   // minimal number of strong neighbors (> min_str)
 	public  double  weight_zero_neibs =             0.2;   // Reduce weight for no-neib (1.0 for all 8)
 	public  double  half_disparity =                5.0;   // Reduce weight twice for this disparity

@@ -2596,6 +2596,7 @@ public class Corr2dLMA {
 
 	// has common threshold for scale ratios for foreground and background corr. maximums
 	public double [][] lmaDisparityStrength(
+			boolean bypass_tests,     // keep even weak for later analysis. Normally - only in test mode
 			double  lmas_min_amp,     // minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 			double  lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 			double  lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
@@ -2607,6 +2608,7 @@ public class Corr2dLMA {
 			double  lma_ac_offset     // add to a,c coefficients for near-lines where A,C could become negative because of window 
 			){
 		return lmaDisparityStrengths(
+				bypass_tests, //boolean bypass_tests,     // keep even weak for later analysis. Normally - only in test mode
 				lmas_min_amp,     // double  lmas_min_amp_fg,  // minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 				lmas_min_amp,     // double  lmas_min_amp_bg,  // Same for bg correlation max (only used for multi-max)
 				lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
@@ -2623,6 +2625,7 @@ public class Corr2dLMA {
 
 	// has separate thresholds for scale ratios for foreground and background corr. maximums
 	public double [][][] lmaDisparityStrengths(
+			boolean bypass_tests,     // keep even weak for later analysis. Normally - only in test mode
 			double  lmas_min_amp_fg,  // minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 			double  lmas_min_amp_bg,  // Same for bg correlation max (only used for multi-max)
 			double  lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
@@ -2635,7 +2638,9 @@ public class Corr2dLMA {
 			boolean dbg_mode,
 			double  lma_ac_offset     // add to a,c coefficients for near-lines where A,C could become negative because of window 
 			){
-		double [][][] ds =         new double[numMax][numTiles][dbg_mode? 13 : 3];
+		
+		double [][][] ds =         new double[numMax][numTiles][dbg_mode? 14 : 3];
+		int reason_index = (dbg_mode && bypass_tests)? 13:-1;
 		double []   rms =        getRmsTile();
 		for (int nmax = 0; nmax < numMax; nmax++) {
 			double [][] maxmin_amp = getMaxMinAmpTile(nmax); // nmax
@@ -2669,32 +2674,60 @@ public class Corr2dLMA {
 				double avg = 0.50*(maxmin_amp[tile][0]+maxmin_amp[tile][1]); // max_min[1] can be negative - filter it out?
 				double rrms = rms[tile]/avg;
 				if ((lma_max_rel_rms > 0.00) && (rrms > lma_max_rel_rms)) {
-					continue;
+					if (bypass_tests) {
+						if ((reason_index > 0) && (ds[nmax][tile][reason_index] == 0)) ds[nmax][tile][reason_index] = 1;
+					} else {
+						continue;
+					}
 				}
 				if (Math.max(abc[tile][0], abc[tile][2]) < (lma_min_max_ac + lma_ac_offset)) { // so old lma_min_max_ac will stay
-					continue;
+					if (bypass_tests) {
+						if ((reason_index > 0) && (ds[nmax][tile][reason_index] == 0)) ds[nmax][tile][reason_index] = 2;
+					} else {
+						continue;
+					}
 				}
 				if ((lma_min_min_ac > 0.0) && ((abc[tile][0] < lma_min_min_ac) || (abc[tile][2] < lma_min_min_ac))){
-					continue; // too large a or c (not sharp along at least one direction)
+					if (bypass_tests) {
+						if ((reason_index > 0) && (ds[nmax][tile][reason_index] == 0)) ds[nmax][tile][reason_index] = 3;
+					} else {
+						continue; // too large a or c (not sharp along at least one direction)
+					}
 				}
-				double area = 0.0;
+				double area = 1000.0;
 				if ((abc[tile][0] > 0.0) && (abc[tile][2] > 0.0)) {
 					//					double area_old = 1.0/abc[tile][0] + 1.0/abc[tile][2]; // area of a maximum
 					area =  1.0/Math.sqrt(abc[tile][0] * abc[tile][2]);
 					if ((lma_max_area > 0) && (area > lma_max_area)) {
-						continue; // too wide maximum
+						if (bypass_tests) {
+						    if ((reason_index > 0) && (ds[nmax][tile][reason_index] == 0)) ds[nmax][tile][reason_index] = 4;
+						} else {
+						    continue; // too wide maximum
+						}
 					}
 				} else {
-					continue; // not a maximum
+					if (bypass_tests) {
+						if ((reason_index > 0) && (ds[nmax][tile][reason_index] == 0)) ds[nmax][tile][reason_index] = 5;
+					} else {
+						continue;// not a maximum (keep area = 1000.0)
+					}
 				}
 				double strength = Math.sqrt(avg/rrms);
 //				double disparity = -all_pars[DISP_INDEX + offs];
 				if ((strength < lma_min_strength) || Double.isNaN(disparity)) {
-					continue;
+					if (bypass_tests) {
+					    if ((reason_index > 0) && (ds[nmax][tile][reason_index] == 0)) ds[nmax][tile][reason_index] = 6;
+					} else {
+					    continue;
+					}
 				}
 				double ac = abc[tile][0] * abc[tile][2];
 				if (ac < 0) {
-					continue;
+					if (bypass_tests) {
+					    if ((reason_index > 0) && (ds[nmax][tile][reason_index] == 0)) ds[nmax][tile][reason_index] = 7;
+					} else {
+					    continue;
+					}
 				}
 				double strength1 = Math.sqrt(strength * Math.sqrt(ac)); // / area ); // new strength
 				ds[nmax][tile][0] = disparity;
@@ -2711,7 +2744,6 @@ public class Corr2dLMA {
 					ds[nmax][tile][10] = strength;
 					ds[nmax][tile][11] = rrms;
 					ds[nmax][tile][12] = rms[tile];
-					
 				}
 			}
 		}

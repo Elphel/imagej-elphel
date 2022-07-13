@@ -185,7 +185,7 @@ public class EyesisCorrectionParameters {
   		public boolean clt_batch_skip_scenes =     false;  // Skip all per-scene processing, go directly to processing sequences
   		
   		public boolean clt_batch_pose_pairs_main = false;  // calculate pair-wise camera poses
-  		public boolean clt_batch_pose_last_main =  false;  // calculate camera poses realtive to the last scene
+  		public boolean clt_batch_pose_last_main =  false;  // calculate camera poses relative to the last scene
   		public boolean clt_batch_pose_scene_main = false;  // calculate camera poses relative to all other ones
   		public int     clt_batch_offset_main =     0;      // when selecting multiple reference scene, offset from the last one
   		public int     clt_batch_step_main   =     3;      // step (decreasing timestamp) to select reference frames in a sequence

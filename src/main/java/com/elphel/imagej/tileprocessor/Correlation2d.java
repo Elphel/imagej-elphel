@@ -3801,7 +3801,9 @@ public class Correlation2d {
     		}
 
     		//    		double [][] ds =         lma.getDisparityStrength();
+    		
     		ds = lma.lmaDisparityStrength(
+    				false, // boolean bypass_tests,     // keep even weak for later analysis. Normally - only in test mode
     				imgdtt_params.lmas_min_amp,     //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
     				imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
     				imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
@@ -3906,6 +3908,7 @@ public class Correlation2d {
         			}
     				//        		double [][] ds =         lma.getDisparityStrength();
     				ds = lma.lmaDisparityStrength(
+    	    				false, // boolean bypass_tests,     // keep even weak for later analysis. Normally - only in test mode
     	    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
     						imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
     						imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
@@ -4414,6 +4417,7 @@ public class Correlation2d {
 
 
     		double [][] dispStr = lma.lmaDisparityStrength( //TODO: add parameter to filter out negative minimums ?
+    				false, // boolean bypass_tests,     // keep even weak for later analysis. Normally - only in test mode
     				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
     				imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
     				imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
@@ -4423,6 +4427,7 @@ public class Correlation2d {
     				imgdtt_params.lma_str_scale,     // convert lma-generated strength to match previous ones - scale
     				imgdtt_params.lma_str_offset,     // convert lma-generated strength to match previous ones - add to result
     				imgdtt_params.lma_ac_offset     // Add to A, C coefficients for near-lines where A,C could become negative because of window
+    				
     				);
     		if (dispStr[0][1] <= 0) {
     			lmaSuccess = false;
@@ -4942,6 +4947,8 @@ public class Correlation2d {
 		if (lmaSuccess) {
 			lma.updateFromVector();
 			double [][][] dispStrs = lma.lmaDisparityStrengths( //TODO: add parameter to filter out negative minimums ?
+					imgdtt_params.lmamask_dbg, // false, // boolean bypass_tests,     // keep even weak for later analysis. Normally - only in test mode
+					
 					imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 					imgdtt_params.lmas_min_amp_bg,   //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 					imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
@@ -4953,6 +4960,11 @@ public class Correlation2d {
 					imgdtt_params.lma_str_offset,    // convert lma-generated strength to match previous ones - add to result
 					false, // boolean dbg_mode
     				imgdtt_params.lma_ac_offset     // Add to A, C coefficients for near-lines where A,C could become negative because of window
+    				
+
+    				
+    				
+    				
 					);
 			for (int nmax = 00; nmax < dispStrs.length; nmax++) if (dispStrs[nmax][0][1] <= 0) {
 				lmaSuccess = false;

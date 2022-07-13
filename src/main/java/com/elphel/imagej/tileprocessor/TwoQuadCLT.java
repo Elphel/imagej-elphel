@@ -11599,7 +11599,7 @@ if (debugLevel > -100) return true; // temporarily !
 				}
 			}
 		} else {
-			for (int i = 0; i < quadCLTs.length; i++) {
+			for (int i = 0; i < quadCLTs.length; i++) { // requise DSI for each model
 				numCorrMax[i] = multisceneLY.getNumCorrMax(
 						clt_parameters, // CLTParameters  clt_parameters,
 						lma_only, // boolean lma_only,

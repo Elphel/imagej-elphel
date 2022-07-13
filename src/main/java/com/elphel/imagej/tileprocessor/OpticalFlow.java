@@ -4632,7 +4632,11 @@ public class OpticalFlow {
 	        			String scenes_suffix = quadCLTs[quadCLTs.length-1].getImageName()+
 	        					"-SEQ-" + IntersceneMatchParameters.MODES3D[mode3d+1] + "-"+(toRGB?"COLOR":"MONO");
 	        			if (!toRGB && um_mono) {
-	        				scenes_suffix+=String.format("-UM%.1f_%.2f",um_sigma,um_weight);
+	        				if (mono_fixed) {
+		        				scenes_suffix+=String.format("-UM%.1f_%.2f_%.0f",um_sigma,um_weight,mono_range);
+	        				} else {
+		        				scenes_suffix+=String.format("-UM%.1f_%.2f_A",um_sigma,um_weight);
+	        				}
 	        			}
 	        			int num_stereo = (is_stereo && (mode3d > 0))? 2:1; // only for 3D views
 	        			boolean combine_left_right = (num_stereo > 1) && (stereo_merge || (anaglyth_en && !toRGB));
@@ -4645,13 +4649,13 @@ public class OpticalFlow {
 	        						-view_back_meters};   // Z offset
 	        				if (num_stereo > 1) {
 	        					scenes_suffix = scenes_suffix_pair + ((nstereo > 0)?"-RIGHT":"-LEFT"); // check if opposite
-	        					scenes_suffix += "-B"+views[ibase][0];
+	        					scenes_suffix += "-B"+String.format("%.0f",views[ibase][0]);
 	        				}
 	        				if (views[ibase][1] != 0) {
-	        					scenes_suffix += "-Y"+views[ibase][1];
+	        					scenes_suffix += "-Y"+String.format("%.0f",views[ibase][1]);
 	        				}
 	        				if (views[ibase][2] != 0) {
-	        					scenes_suffix += "-Z"+views[ibase][2];
+	        					scenes_suffix += "-Z"+String.format("%.0f",views[ibase][2]);
 	        				}
 	        				double [][] ds_vantage = new double[][] {selected_disparity,selected_strength};
 	        				if ((views[ibase][0] != 0) || (views[ibase][1] != 0) || (views[ibase][2] != 0)) {
@@ -5039,13 +5043,16 @@ public class OpticalFlow {
 				double [] atr_offset = ZERO3; 
         		String scenes_suffix = "";
 				if (img_views[ibase][0] != 0) {
-					scenes_suffix += "-B"+img_views[ibase][0];
+					scenes_suffix += "-B"+String.format("%.0f",img_views[ibase][0]);
+					
 				}
 				if (img_views[ibase][1] != 0) {
-					scenes_suffix += "-Y"+img_views[ibase][1];
+					scenes_suffix += "-Y"+String.format("%.0f",img_views[ibase][1]);
+					
 				}
 				if (img_views[ibase][2] != 0) {
-					scenes_suffix += "-Z"+img_views[ibase][2];
+					scenes_suffix += "-Z"+String.format("%.0f",img_views[ibase][2]);
+
 				}
         		// calculate virtual view fg_ds_virt from the reference ds_fg;
 				boolean debug_ds_fg_virt = false; // false;
@@ -11689,7 +11696,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		if (ref_scene.getGPU() != null) {
 			ref_scene.getGPU().setGpu_debug_level(debug_level - 4); // monitor GPU ops >=-1
 		}
-		final double disparity_corr = 0.0; // (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
+		final double disparity_corr = 0.00; // (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
 //ref_disparity	
 		if (ref_disparity == null) {
 			ref_disparity = ref_scene.getDLS()[use_lma_dsi?1:0];
@@ -11830,7 +11837,10 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 	        		threadsMax,                        // final int                 threadsMax,       // maximal number of threads to launch
 	        		debug_level);
 	        // final int                 globalDebugLevel);
-
+	        if (coord_motion == null) {
+	        	System.out.println("clt_process_tl_interscene() returned null");
+	        	return null;
+	        }
 	        if (mov_en) {
 	        	String debug_image_name = mov_debug_images ? (scene.getImageName()+"-"+ref_scene.getImageName()+"-movements"): null;
 	        	boolean [] move_mask = getMovementMask(
@@ -12626,6 +12636,10 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					sensor_mask_inter,   // final int        sensor_mask_inter, // The bitmask - which sensors to correlate, -1 - all.
 					facc_2d_img, // final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)final float [][][]   accum_2d_corr, // if [1][][] - return accumulated 2d correlations (all pairs)
 					debug_level); // 1); // -1); // int debug_level);
+	        if (coord_motion == null) {
+	        	System.out.println("adjustPairsLMAInterscene() returned null");
+	        	return null;
+	        }
 			intersceneLma.prepareLMA(
 					camera_xyz0,         // final double []   scene_xyz0,     // camera center in world coordinates (or null to use instance)
 					camera_atr0,         // final double []   scene_atr0,     // camera orientation relative to world frame (or null to use instance)

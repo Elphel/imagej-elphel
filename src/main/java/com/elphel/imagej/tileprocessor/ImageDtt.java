@@ -2860,8 +2860,11 @@ public class ImageDtt extends ImageDttCPU {
 		// keep for now for mono, find out  what do they mean for macro mode
 		
 		final int corr_size = transform_size * 2 - 1;
-		final String[] debug_lma_titles_nobi = {"disp_samples","num_cnvx_samples","num_comb_samples", "num_lmas","num_iters","rms"};
-		final String[] debug_lma_titles_bi  = {"disparity","strength_mod","strength", "area","ac","min(a,c)","max(a,c)","a","c","b","str1","rrms","rms"};
+		//FIXME: lmaDisparityStrengths expects length = 14;
+		final String[] debug_lma_titles_nobi = {"disp_samples","num_cnvx_samples","num_comb_samples",
+				"num_lmas","num_iters","rms"};
+		final String[] debug_lma_titles_bi  = {"disparity","strength_mod","strength", "area","ac","min(a,c)",
+				"max(a,c)","a","c","b","str1","rrms","rms","fail_reason"};
 		final String[] debug_lma_titles= imgdtt_params.bimax_dual_LMA? debug_lma_titles_bi:debug_lma_titles_nobi;
 //		final double [][]         debug_lma = imgdtt_params.lmamask_dbg? (new double [6][tilesX*tilesY]):null;
 		final double [][]         debug_lma = imgdtt_params.lmamask_dbg? (new double [debug_lma_titles.length][tilesX*tilesY]):null;
@@ -3237,6 +3240,7 @@ public class ImageDtt extends ImageDttCPU {
 												if (lma_dual != null) {
 													boolean dbg_dispStrs = (debug_lma != null);
 													double [][][] dispStrs = lma_dual.lmaDisparityStrengths( //TODO: add parameter to filter out negative minimums ?
+															dbg_dispStrs, // false, // boolean bypass_tests,     // keep even weak for later analysis. Normally - only in test mode
 															imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 															imgdtt_params.lmas_min_amp_bg,   //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 															imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
@@ -3365,6 +3369,7 @@ public class ImageDtt extends ImageDttCPU {
 								double [][] ds = null;
 								if (lma2 != null) {
 									ds = lma2.lmaDisparityStrength(
+						    				false, // boolean bypass_tests,     // keep even weak for later analysis. Normally - only in test mode
 											imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 											imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 											imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
@@ -4821,6 +4826,7 @@ public class ImageDtt extends ImageDttCPU {
 							if (dbg_img != null) dbg_img[1][nclust] = 1.0;
 							// was for single tile
 							disp_str = lma2.lmaDisparityStrength(
+				    				false, // boolean bypass_tests,     // keep even weak for later analysis. Normally - only in test mode
 				    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 									imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 									imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
@@ -5119,6 +5125,7 @@ public class ImageDtt extends ImageDttCPU {
 						if (lma2 != null) {
 							// was for single tile
 							disp_str = lma2.lmaDisparityStrength(
+				    				false, // boolean bypass_tests,     // keep even weak for later analysis. Normally - only in test mode
 				    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 									imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 									imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)

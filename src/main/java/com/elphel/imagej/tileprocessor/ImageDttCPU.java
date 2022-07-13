@@ -2234,6 +2234,7 @@ public class ImageDttCPU {
 											if (lma2 != null) {
 												dbg_num_good_lma ++;
 												disp_str[cTile] = lma2.lmaDisparityStrength(
+									    				false, // boolean bypass_tests,     // keep even weak for later analysis. Normally - only in test mode
 									    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 														imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 														imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
@@ -2418,6 +2419,7 @@ public class ImageDttCPU {
 								double [][] ddnd = lma2.getDdNd();
 								double [] stats  = lma2.getStats(num_good_tiles);
 								double [][] lma_ds = lma2.lmaDisparityStrength(
+					    				false, // boolean bypass_tests,     // keep even weak for later analysis. Normally - only in test mode
 					    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 					    				imgdtt_params.lma_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 					    				imgdtt_params.lma_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
@@ -3156,6 +3158,7 @@ public class ImageDttCPU {
 								double [][] ds = null;
 								if (lma2 != null) {
 									ds = lma2.lmaDisparityStrength(
+						    				false, // boolean bypass_tests,     // keep even weak for later analysis. Normally - only in test mode
 						    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 											imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 											imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
@@ -4262,6 +4265,7 @@ public class ImageDttCPU {
 							double [][] ds = null;
 							if (lma2 != null) {
 								ds = lma2.lmaDisparityStrength(
+					    				false, // boolean bypass_tests,     // keep even weak for later analysis. Normally - only in test mode
 										imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 										imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 										imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
@@ -5183,6 +5187,7 @@ public class ImageDttCPU {
 							double [][] ds = null;
 							if (lma2 != null) {
 								ds = lma2.lmaDisparityStrength(
+					    				false, // boolean bypass_tests,     // keep even weak for later analysis. Normally - only in test mode
 										imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 										imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 										imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
@@ -15610,6 +15615,7 @@ public class ImageDttCPU {
 							    	double [][] ds = null;
 							    	if (lma2 != null) {
 							    		ds = lma2.lmaDisparityStrength(
+							    				false, // boolean bypass_tests,     // keep even weak for later analysis. Normally - only in test mode
 							    				imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 							    				imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 							    				imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
@@ -16621,6 +16627,7 @@ public class ImageDttCPU {
 							double [][] ds = null;
 							if (lma2 != null) {
 								ds = lma2.lmaDisparityStrength(
+					    				false, // boolean bypass_tests,     // keep even weak for later analysis. Normally - only in test mode
 										imgdtt_params.lmas_min_amp,      //  minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude
 										imgdtt_params.lmas_max_rel_rms,  // maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
 										imgdtt_params.lmas_min_strength, // minimal composite strength (sqrt(average amp squared over absolute RMS)
