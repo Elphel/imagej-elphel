@@ -457,6 +457,36 @@ public class QuadCLTCPU {
 				silent);
 	}
 	
+	public boolean [] getReliableTiles(
+			double min_strength,
+			boolean needs_lma) {
+		double [][] main_dsi = readDsiMain();
+		if (main_dsi == null) {
+			return null;
+		}
+		double [] disparity_lma = main_dsi[isAux()?TwoQuadCLT.DSI_DISPARITY_AUX_LMA:TwoQuadCLT.DSI_DISPARITY_MAIN_LMA];
+		double [] strength = main_dsi[isAux()?TwoQuadCLT.DSI_STRENGTH_AUX:TwoQuadCLT.DSI_STRENGTH_MAIN];
+		if ((strength == null) || (needs_lma && (disparity_lma == null) )) {
+			return null;
+		}
+		boolean [] reliable = new boolean [strength.length];
+		for (int i = 0; i < reliable.length; i++) {
+			reliable[i] = (strength[i] >= min_strength) && (!needs_lma || !Double.isNaN(disparity_lma[i]));
+		}
+		return reliable;
+	}
+	public double [][] readDsiMain(){
+		double [][] main_dsi = new double [TwoQuadCLT.DSI_SLICES.length][];
+		int slices = restoreDSI(
+				DSI_SUFFIXES[INDEX_DSI_MAIN], // String suffix, // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
+				main_dsi,
+				true); // boolean silent)
+		if (slices < 3) {
+			return null;
+		}
+		return main_dsi;
+	}
+	
 	public int restoreDSI(
 			String suffix, // "-DSI_COMBO", "-DSI_MAIN" (DSI_COMBO_SUFFIX, DSI_MAIN_SUFFIX)
 			double [][] dsi,

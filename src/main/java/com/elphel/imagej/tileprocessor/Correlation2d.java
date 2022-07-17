@@ -2412,11 +2412,13 @@ public class Correlation2d {
 	}
 	
 	public static double [] getMaxXYCm(
-			double [] data,
-			int       data_width,      //  = 2 * transform_size - 1;
-			double    radius, // 0 - all same weight, > 0 cosine(PI/2*sqrt(dx^2+dy^2)/rad)
-			int       refine, //  re-center window around new maximum. 0 -no refines (single-pass)
-			boolean   debug)
+			double []  data, // will be modified if fpn_mask != null;
+			int        data_width,      //  = 2 * transform_size - 1;
+			double     radius, // 0 - all same weight, > 0 cosine(PI/2*sqrt(dx^2+dy^2)/rad)
+			int        refine, //  re-center window around new maximum. 0 -no refines (single-pass)
+			boolean [] fpn_mask,
+			boolean    ignore_border, // only if fpn_mask != null - ignore tile if maximum touches fpn_mask
+			boolean    debug)
 	{
 		int data_height = data.length/data_width;
 		int center_xy = (data_width - 1)/2; //  = transform_size - 1;
@@ -2428,8 +2430,29 @@ public class Correlation2d {
 			}
 		}
 		double mx = data[imax];
-		x0 = imax % data_width;
-		y0 = imax / data_width;
+		int ix0 = imax % data_width;
+		int iy0 = imax / data_width;
+		x0 = ix0;
+		y0 = iy0;
+		// if (fpn_mask != null
+		if (fpn_mask != null) {
+			for (int i = 0; i < fpn_mask.length; i++) if (fpn_mask[i]) {
+				int iy = i / data_width; 
+				int ix = i - iy * data_width; 
+				if (ignore_border) {
+					if(((ix - ix0) <= 1) && ((ix - ix0) >= -1) && ((iy - iy0) <= 1) && ((iy - iy0) >= -1)) {
+						return null; // new double[3];
+					}
+				}
+				int ix1 = 2 * ix0 - ix;
+				if ((ix1 >= 0) && (ix1 < data_width)) {
+					int iy1 = 2 * iy0 - iy;
+					if ((iy1 >= 0) && (iy1 < data_height)) {
+						data[iy1 * data_width + ix1] = 0.0; // zero out symmetrical to fpn mask around integer maximum
+					}
+				}
+			}
+		}
 		//calculate as "center of mass"
 		if (radius == 0) {
 			double s0 = 0, sx=0,sy = 0;
@@ -2442,6 +2465,9 @@ public class Correlation2d {
 						s0 += d;
 						sx += d * x;
 						sy += d * y;
+					} else if (Double.isNaN(d)) {
+						System.out.println("NaN in getMaxXYCm()");
+						return null;
 					}
 				}
 			}

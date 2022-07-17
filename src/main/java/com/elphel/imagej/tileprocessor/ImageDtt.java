@@ -2461,16 +2461,21 @@ public class ImageDtt extends ImageDttCPU {
 			// to be converted to float (may be null)
 			final double  [][][]      dcorr_tiles,     // [tile][pair absolute, sparse][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 			final double [][]         pXpYD,           // pXpYD for the reference scene 
+			final double [][]         fpn_offsets,     // null, or per-tile X,Y offset to be blanked
+			final double              fpn_radius,      // radius to be blanked around FPN offset center
+			final boolean             fpn_ignore_border, // only if fpn_mask != null - ignore tile if maximum touches fpn_mask			
 			final double[][][]        motion_vectors,  // [tilesY*tilesX][][] -> [][num_sel_sensors+1 or 2][3]
 			final boolean             run_poly,        // polynomial max, if false - centroid
 			final boolean             use_partial,     // find motion vectors for individual pairs, false - for sum only
 			final double              centroid_radius, // 0 - use all tile, >0 - cosine window around local max
 			final int                 n_recenter,      // when cosine window, re-center window this many times
-			final double              td_weight,    // mix correlations accumulated in TD with 
-			final double              pd_weight,    // correlations (post) accumulated in PD
-			final boolean             td_nopd_only, // only use TD accumulated data if no safe PD is available for the tile.
-			final double              min_str,         //  = 0.25;
-			final double              min_str_sum,     // = 0.8; // 5;
+			final double              td_weight,       // mix correlations accumulated in TD with 
+			final double              pd_weight,       // correlations (post) accumulated in PD
+			final boolean             td_nopd_only,    // only use TD accumulated data if no safe PD is available for the tile.
+			final double              min_str_nofpn,    //  = 0.25;
+			final double              min_str_sum_nofpn,// = 0.8; // 5;
+			final double              min_str_fpn,      //  = 0.25;
+			final double              min_str_sum_fpn,  // = 0.8; // 5;
 			final int                 min_neibs,       //   2;	   // minimal number of strong neighbors (> min_str)
 			final double              weight_zero_neibs,//  0.2;   // Reduce weight for no-neib (1.0 for all 8)
 			final double              half_disparity,  //   5.0;   // Reduce weight twice for this disparity
@@ -2573,13 +2578,11 @@ public class ImageDtt extends ImageDttCPU {
 
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
-		
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				@Override
 				public void run() {
 					int tileY,tileX,nTile; // , chn;
-					//					for (int iTile = ai.getAndIncrement(); iTile < tp_tasks.length; iTile = ai.getAndIncrement()) {
 					for (int iCorrTile = ai.getAndIncrement(); iCorrTile < num_tiles; iCorrTile = ai.getAndIncrement()) {
 						nTile = (corr_indices[iCorrTile* used_sensors_list.length] >> GPUTileProcessor.CORR_NTILE_SHIFT);
 						tileY = nTile / tilesX;
@@ -2587,6 +2590,29 @@ public class ImageDtt extends ImageDttCPU {
 						boolean debugTile0 =(tileX == debug_tileX) && (tileY == debug_tileY) && (globalDebugLevel > 2); // 0);
 						if (debugTile0) {
 							System.out.println("clt_process_tl_correlations(): tileX="+tileX+", tileY="+tileY+", nTile="+nTile+", nTile="+nTile);
+						}
+						// zero FPN right in the fcorr2D so it will go to both processing and display
+						boolean [] fpn_mask = null;
+						double min_str = min_str_nofpn;         // higher threshold when FPN is possible
+						double min_str_sum = min_str_sum_nofpn; // higher threshold when FPN is possible
+						if ((fpn_offsets != null) && (fpn_offsets[nTile] != null)) {
+							double fpn_x = transform_size - 1 - fpn_offsets[nTile][0]; //  0 -> 7.0 
+							double fpn_y = transform_size - 1 - fpn_offsets[nTile][1]; //  0 -> 7.0
+							int min_x = (int) Math.max(Math.round(fpn_x - fpn_radius),0); 
+							int max_x = (int) Math.min(Math.round(fpn_x + fpn_radius), corr_size-1); 
+							int min_y = (int) Math.max(Math.round(fpn_y - fpn_radius),0); 
+							int max_y = (int) Math.min(Math.round(fpn_y + fpn_radius), corr_size-1); 
+							int fcorr2D_indx = (iCorrTile + 1)*  used_sensors_list.length -1; // last in each group - sum in TD
+							fpn_mask = new boolean[fcorr2D[fcorr2D_indx].length];
+							for (int iy = min_y; iy <= max_y; iy++) {
+								for (int ix = min_x; ix <= max_x; ix++) {
+									int indx = iy * corr_size + ix;
+									fcorr2D[fcorr2D_indx][indx] = 0;
+									fpn_mask[indx] = true;
+								}
+							}
+							min_str = min_str_fpn;
+							min_str_sum = min_str_sum_fpn;
 						}
 						double [][] corrs = new double [corrs_len + extra_len][];
 						// copy correlation tiles from the GPU's floating point arrays
@@ -2617,7 +2643,7 @@ public class ImageDtt extends ImageDttCPU {
 							}
 						}
 
-						if (dcorr_tiles != null) {
+						if (dcorr_tiles != null) { // This will be visualized
 							int index_es = getNumSensors() + extra_len;
 							dcorr_tiles[iCorrTile] = new double[getNumSensors()+1 + extra_len][];
 							if (extra_sum) {
@@ -2651,6 +2677,8 @@ public class ImageDtt extends ImageDttCPU {
 										corr_size,       // int       data_width,      //  = 2 * transform_size - 1;
 										centroid_radius, // double    radius, // 0 - all same weight, > 0 cosine(PI/2*sqrt(dx^2+dy^2)/rad)
 										n_recenter,      // int       refine, //  re-center window around new maximum. 0 -no refines (single-pass)
+										null,            // boolean [] fpn_mask,
+										false,           // boolean    ignore_border, // only if fpn_mask != null - ignore tile if maximum touches fpn_mask
 										false);          // boolean   debug)
 								if (motion_vectors[nTile][nsens] != null) {
 									if (motion_vectors[nTile][nsens][2] < min_vstr) {
@@ -2668,6 +2696,8 @@ public class ImageDtt extends ImageDttCPU {
 								corr_size,             // int       data_width,      //  = 2 * transform_size - 1;
 								centroid_radius,       // double    radius, // 0 - all same weight, > 0 cosine(PI/2*sqrt(dx^2+dy^2)/rad)
 								n_recenter,            // int       refine, //  re-center window around new maximum. 0 -no refines (single-pass)
+								null,                  // boolean [] fpn_mask,
+								false,                 // boolean    ignore_border, // only if fpn_mask != null - ignore tile if maximum touches fpn_mask
 								false);                // boolean   debug)
 							if (mv_pd != null) {
 								if (mv_pd[2] < min_str) {
@@ -2683,6 +2713,8 @@ public class ImageDtt extends ImageDttCPU {
 								corr_size,             // int       data_width,      //  = 2 * transform_size - 1;
 								centroid_radius,       // double    radius, // 0 - all same weight, > 0 cosine(PI/2*sqrt(dx^2+dy^2)/rad)
 								n_recenter,            // int       refine, //  re-center window around new maximum. 0 -no refines (single-pass)
+								fpn_mask,              // boolean [] fpn_mask,
+								false,                 // boolean    ignore_border, // only if fpn_mask != null - ignore tile if maximum touches fpn_mask
 								false);                // boolean   debug)
 							if (mv_td != null) {
 								if (mv_td[2] < min_str_sum) {
@@ -2735,6 +2767,9 @@ public class ImageDtt extends ImageDttCPU {
 					double l2;
 					TileNeibs tn = new TileNeibs(tilesX,tilesY);
 					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) {
+//						if (nTile==162) {
+//							System.out.println("nTile="+nTile);
+//						}
 						if ((mv[nTile] != null) && (pXpYD[nTile] != null)) { 
 							int num_neibs=0;
 							double sx=0.0, sy=0.0;
@@ -2785,9 +2820,12 @@ public class ImageDtt extends ImageDttCPU {
 			threads[ithread] = new Thread() {
 				@Override
 				public void run() {
-					double l2;
-					TileNeibs tn = new TileNeibs(tilesX,tilesY);
+//					double l2;
+//					TileNeibs tn = new TileNeibs(tilesX,tilesY);
 					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) {
+//						if (nTile==162) {
+//							System.out.println("nTile="+nTile);
+//						}
 						if ((mv[nTile] != null) && (pXpYD[nTile] != null)) {
 							if (mv[nTile][2] <= 0) {
 								mv[nTile] = null;
