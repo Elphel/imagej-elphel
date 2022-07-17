@@ -2728,15 +2728,16 @@ public class ImageDtt extends ImageDttCPU {
 							double [] mv = new double[3];
 							if (mv_pd != null) {
 								mv = mv_pd;
-								mv[2] *= pd_weight;
+								// mv[2] *= pd_weight;
 								if ((mv_td != null) && !td_nopd_only) {  // mix
 									mv[0] = (mv[0] * pd_weight + mv_td[0] * td_weight)/ (pd_weight + td_weight);
 									mv[1] = (mv[1] * pd_weight + mv_td[1] * td_weight)/ (pd_weight + td_weight);
-									mv[2] += mv_td[2] * td_weight;
+									//mv[2] += mv_td[2] * td_weight;
+									mv[2] = (mv[2] * pd_weight + mv_td[2] * td_weight)/ (pd_weight + td_weight);
 								} // mix
 							} else { // (mv_pd == null) &&  (mv_td != null)  below
 								mv = mv_td;
-								mv[2] *= td_weight;
+								//mv[2] *= td_weight;
 							}
 							if (mv != null) {
 								if (pXpYD == null) {

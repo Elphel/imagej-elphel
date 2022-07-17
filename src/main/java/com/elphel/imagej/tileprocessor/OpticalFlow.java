@@ -5807,6 +5807,7 @@ public class OpticalFlow {
 		double [][] pose = new double [2][3];
     	double angle_per_step = reference_QuadClt.getGeometryCorrection().getCorrVector().getTiltAzPerPixel() * pix_step;
     	double [][] atrs = new double [(2*search_rad+1)*(2*search_rad+1)][];
+    	boolean [] good_offset =    new boolean [atrs.length];
     	double [] confidences_sum = new double [atrs.length];
     	double [] confidences_avg = new double [atrs.length];
     	double [] confidences_fom = new double [atrs.length];
@@ -5874,6 +5875,7 @@ public class OpticalFlow {
     					confidences_avg[ntry] = avg_strength;
     					confidences_fom[ntry] = fom;
     					boolean good = (num_defined > min_defined) && (rms < max_search_rms) && (fom > maybe_fom) && (sum_strength > maybe_sum) && (avg_strength > maybe_avg);
+    					good_offset[ntry] = good;
     					if (debugLevel > -2) {
     						System.out.println ((good?"* ":"  ")+"ntry = "+ntry+", num_defined = "+num_defined+" ("+min_defined+")"+
     								", FOM="+fom+
@@ -5890,6 +5892,9 @@ public class OpticalFlow {
     						}
     						num_good++;
     					}
+//    					if (ntry == 105) {
+//    						System.out.println("spiralSearchATR(): ntry="+ntry);
+//    					}
     					ntry++;
     				}
     			}
@@ -5900,10 +5905,9 @@ public class OpticalFlow {
     		return null;
     	}
     	if (use_atr == null) {
-    		int best_ntry = 0;
-    		for (int i = 1; i <  atrs.length; i++) {
-//    			if (confidences_sum[i] > confidences_sum[best_ntry]) {
-       			if (confidences_fom[i] > confidences_fom[best_ntry]) {
+    		int best_ntry = -1;
+    		for (int i = 0; i <  atrs.length; i++) if (good_offset[i]){
+       			if ((best_ntry < 0) || (confidences_fom[i] > confidences_fom[best_ntry])) {
     				best_ntry = i;
     			}
     		}
