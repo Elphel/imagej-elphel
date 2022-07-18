@@ -709,7 +709,7 @@ public class BiQuadParameters {
 		gd.addMessage("ML output files export for LWIR16 camera");
 		gd.addCheckbox    ("Add combo slice",                                                                     this.mll_add_combo,
 				"Add combined correlations slice from all available pairs after rotation/scaling. Will not be used for training, can be removed to reduce processing time");
-		gd.addCheckbox    ("Save interscene correlations",                                                        this.mll_save_accum,
+		gd.addCheckbox    ("Save interscene correlations (no-shift)",                                             this.mll_save_accum,
 				"Save interscene combination of correlations as used for GT calculation. Will not be used for training, can be removed to reduce processing time");
 		gd.addCheckbox    ("Randomize disparity offsets",                                                         this.mll_randomize_offsets,
 				"Add random offset to the file-common disparity offset. The total disparity offset histogram is squared half-period of cosine"+

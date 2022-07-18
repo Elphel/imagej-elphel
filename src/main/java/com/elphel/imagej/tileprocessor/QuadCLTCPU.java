@@ -150,7 +150,6 @@ public class QuadCLTCPU {
 	boolean new_image_data =                               false;
     boolean [][]                                           saturation_imp = null; // (near) saturated pixels or null
     boolean                                                is_aux = false;
-//    boolean                                              is_mono = false; // Use clt_kernels?
     double  []                                             lwir_offsets = null; // per image subtracted values
     double                                                 lwir_offset =  Double.NaN; // average of lwir_offsets[]
     // hot and cold are calculated during autoranging (when generating 4 images for restored (added lwir_offset)
@@ -8613,6 +8612,18 @@ public class QuadCLTCPU {
     			  updateStatus,
     			  debugLevel);
 		  
+		  if ((debugLevel > -2)  && (bgmask != null)) {
+			  double [][] dbg_img = new double[1][tp.getTilesY() * tp.getTilesX()];
+			  for (int i = 0; i<dbg_img[0].length;i++){
+				  dbg_img[0][i] =  bgmask[i]?1:0;
+			  }
+			  (new ShowDoubleFloatArrays()).showArrays(
+					dbg_img,
+					tp.getTilesX(),
+					tp.getTilesY(),
+					true, "bgmask");
+		  }
+		  
     	  ImagePlus imp_bgnd_int = getBackgroundImage( // null pointer
     			  bgmask, // boolean []                                bgnd_tiles, 
     			  clt_parameters,
@@ -8794,7 +8805,7 @@ public class QuadCLTCPU {
 
     	  System.out.println("new_meas.size()="+new_meas.size());
     	  int indx = 0;
-    	  if (clt_parameters.show_macro) {
+    	  if ((debugLevel > -1) && clt_parameters.show_macro) {
     		  for (CLTPass3d pass: new_meas) {
     			  tp.showScan(
     					  pass, // CLTPass3d   scan,
@@ -11886,13 +11897,13 @@ public class QuadCLTCPU {
 				  2,      // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 				  bgnd_tiles_grown2,
 				  null); // prohibit
-		  if (sdfa_instance!=null){
+		  if (false && (sdfa_instance!=null)){
 			  double [][] dbg_img = new double[5][tilesY * tilesX];
 			  String [] titles = {"old","new","strict","grown","more_grown"};
 			  for (int i = 0; i<dbg_img[0].length;i++){
 				  //
 				  dbg_img[0][i] =  bgnd_dbg[i]?1:0;
-				  dbg_img[1][i] =  bgnd_tiles_new[i]?1:0;
+				  dbg_img[1][i] =  bgnd_tiles_new[i]?1:0; // null
 				  dbg_img[2][i] =  bgnd_strict[i]?1:0;
 				  dbg_img[3][i] =  bgnd_tiles_grown[i]?1:0;
 				  dbg_img[4][i] =  bgnd_tiles[i]?1:0;
@@ -13311,6 +13322,7 @@ public class QuadCLTCPU {
 							clt_parameters.tileX,          // final int                 debug_tileX,
 							clt_parameters.tileY,          // final int                 debug_tileY,
 							threadsMax,                    // final int                 threadsMax,      // maximal number of threads to launch
+							null,                          // final String              debug_suffix,
 							debugLevel + 2+1); // -1 );              // final int                 globalDebugLevel)
 				  
 			  } else {			  
@@ -13344,6 +13356,7 @@ public class QuadCLTCPU {
 						  clt_parameters.tileX,          // final int                 debug_tileX,
 						  clt_parameters.tileY,          // final int                 debug_tileY,
 						  threadsMax,                    // final int                 threadsMax,      // maximal number of threads to launch
+						  null,                          // final String              debug_suffix,
 						  debugLevel -1 );              // final int                 globalDebugLevel)
 			  }
 		  }

@@ -150,7 +150,7 @@ public class TileProcessor {
 		this.trustedCorrelation = trustedCorrelation;
 		this.maxOverexposure =      maxOverexposure;
 		this.threadsMax = threadsMax;
-		this.scan_titles = new String[SCAN_TITLES4.length + (this.numSensors-4)*6];
+		this.scan_titles = new String[SCAN_TITLES4.length + (this.numSensors-4)*6 + 1];
 		int idiff0 =    getStringIndex("diff0",    SCAN_TITLES4);
 		int idiff2max = getStringIndex("diff2max", SCAN_TITLES4);
 		int ir0 =       getStringIndex("r0", SCAN_TITLES4);
@@ -163,6 +163,7 @@ public class TileProcessor {
 		for (int i = 0; i < numSensors; i++)  scan_titles[indx++] = "g"+i;
 		for (int i = 0; i < numSensors; i++)  scan_titles[indx++] = "y"+i;
 		for (int i = 0; i < numSensors; i++)  scan_titles[indx++] = "d"+i;
+		this.scan_titles[this.scan_titles.length-1] = "spread";
 	}
 	
 	public TileProcessor(TileProcessor tp) {
@@ -3629,6 +3630,8 @@ ImageDtt.startAndJoin(threads);
 		int i_diff2maxAvg =    getScanTitleIndex("diff2maxAvg");    // 21 18*
 		int i_normStrength =   getScanTitleIndex("normStrength");   // 22 19*
 		int i_overexp =        getScanTitleIndex("overexp");        // 23 20*
+		int i_spread =         getScanTitleIndex("spread");         // 23 20*
+		
 		
 		
 		int i_getImgToneRGB = ImageDtt.getImgToneRGB(numSensors);
@@ -3728,6 +3731,19 @@ ImageDtt.startAndJoin(threads);
 									scale_diff* 1.0 * dbg_img[this_IMG_TONE_RGB_G + np][i];
 						}
 					}
+				}
+				dbg_img[i_spread] = new double [tlen];
+				for (int i = 0; i < tlen; i++){ // see spread - later zero correlation strength if spread > certain
+					double min_y=0, max_y=0;
+					for (int np = 0; np < numSensors; np++) {
+						if ((np == 0) || (dbg_img[this_IMG_TONE_RGB_DIFF+np][i] < min_y)) {
+							min_y = dbg_img[this_IMG_TONE_RGB_DIFF+np][i];
+						}
+						if ((np == 0) || (dbg_img[this_IMG_TONE_RGB_DIFF+np][i] > max_y)) {
+							max_y = dbg_img[this_IMG_TONE_RGB_DIFF+np][i];
+						}
+					}
+					dbg_img[i_spread][i] = (max_y - min_y)/(scale_diff* 0.5); // equals to y for mono
 				}
 			}
 		}

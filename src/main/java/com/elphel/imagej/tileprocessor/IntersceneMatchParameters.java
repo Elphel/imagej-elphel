@@ -136,6 +136,7 @@ public class IntersceneMatchParameters {
 	public  double      min_disparity =                  -0.15; // 0.2;
 	public  double      max_sym_disparity =               0.1; // 0.2;
 	// 2 next are wrong currently - minimal strength is ~0.25
+	public  double      min_strength_lma =                0.3;  // no real filtering
 	public  double      min_strength_replace =            0.05; ///  0.14; /// Before /// - LWIR, after - RGB
 	public  double      min_strength_blur =               0.06; ///  0.2;
 	public  double      sigma =                           2; /// 5;
@@ -397,6 +398,8 @@ public class IntersceneMatchParameters {
 		gd.addNumericField("Disparity range for symmetrical pull",   this.max_sym_disparity, 5,7,"pix",
 				"For larger disparities undefined tiles are pull predominantly down (to average of lowest), "+
 		        "but for small disparities (sky) pull is to average of all neighbors.");
+		gd.addNumericField("Minimal strength LMA",                   this.min_strength_lma, 5,7,"",
+				"Lower strength for LMA tiles - treat as non-LMA");
 		gd.addNumericField("Minimal strength to replace",            this.min_strength_replace, 5,7,"",
 				"Minimal strength to replace (now not used)");
 		gd.addNumericField("Minimal strength to blur",               this.min_strength_blur, 5,7,"",
@@ -786,6 +789,7 @@ public class IntersceneMatchParameters {
 		this.max_change =                     gd.getNextNumber();
 		this.min_disparity =                  gd.getNextNumber();
 		this.max_sym_disparity =              gd.getNextNumber();
+		this.min_strength_lma =               gd.getNextNumber();
 		this.min_strength_replace =           gd.getNextNumber();
 		this.min_strength_blur =              gd.getNextNumber();
 		this.sigma =                          gd.getNextNumber();
@@ -1054,6 +1058,7 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"max_change",                    this.max_change+"");                    // double
 		properties.setProperty(prefix+"min_disparity",                 this.min_disparity+"");                 // double
 		properties.setProperty(prefix+"max_sym_disparity",             this.max_sym_disparity+"");             // double
+		properties.setProperty(prefix+"min_strength_lma",              this.min_strength_lma+"");          // double
 		properties.setProperty(prefix+"min_strength_replace",          this.min_strength_replace+"");          // double
 		properties.setProperty(prefix+"min_strength_blur",             this.min_strength_blur+"");             // double
 		properties.setProperty(prefix+"sigma",                         this.sigma+"");                         // double
@@ -1278,6 +1283,7 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"max_change")!=null)                    this.max_change=Double.parseDouble(properties.getProperty(prefix+"max_change"));
 		if (properties.getProperty(prefix+"min_disparity")!=null)                 this.min_disparity=Double.parseDouble(properties.getProperty(prefix+"min_disparity"));
 		if (properties.getProperty(prefix+"max_sym_disparity")!=null)             this.max_sym_disparity=Double.parseDouble(properties.getProperty(prefix+"max_sym_disparity"));
+		if (properties.getProperty(prefix+"min_strength_lma")!=null)              this.min_strength_lma=Double.parseDouble(properties.getProperty(prefix+"min_strength_lma"));
 		if (properties.getProperty(prefix+"min_strength_replace")!=null)          this.min_strength_replace=Double.parseDouble(properties.getProperty(prefix+"min_strength_replace"));
 		if (properties.getProperty(prefix+"min_strength_blur")!=null)             this.min_strength_blur=Double.parseDouble(properties.getProperty(prefix+"min_strength_blur"));
 		if (properties.getProperty(prefix+"sigma")!=null)                         this.sigma=Double.parseDouble(properties.getProperty(prefix+"sigma"));
@@ -1494,6 +1500,7 @@ public class IntersceneMatchParameters {
 		imp.max_change                    = this.max_change;
 		imp.min_disparity                 = this.min_disparity;
 		imp.max_sym_disparity             = this.max_sym_disparity;
+		imp.min_strength_lma              = this.min_strength_lma;
 		imp.min_strength_replace          = this.min_strength_replace;
 		imp.min_strength_blur             = this.min_strength_blur;
 		imp.sigma                         = this.sigma;

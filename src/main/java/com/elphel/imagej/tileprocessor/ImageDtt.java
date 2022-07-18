@@ -2876,6 +2876,7 @@ public class ImageDtt extends ImageDttCPU {
 			final int                 debug_tileX,
 			final int                 debug_tileY,
 			final int                 threadsMax,      // maximal number of threads to launch
+			final String              debug_suffix,
 			final int                 globalDebugLevel)
 	{
 		final double disparity_scale = 1.0/Math.sqrt(2); // combo pixels -> disparity pixels
@@ -3471,13 +3472,27 @@ public class ImageDtt extends ImageDttCPU {
 			}
 			startAndJoin(threads);
 			if (debug_lma != null) {
+				String suffix = (debug_suffix == null)?"":debug_suffix; 
 				if (imgdtt_params.bimax_dual_LMA) {
+					System.out.println("Parameters that influence LMA results filtering:");
+					System.out.println("Reasons of failure is in the last slice (fail_reason) of the image.");
+					System.out.println("Reasons ar in the code of Cor2dLMA.lmaDisparityStrengths().");
+					System.out.println("     lmas_min_amp: "+imgdtt_params.lmas_min_amp);
+					System.out.println("  lmas_min_amp_bg: "+imgdtt_params.lmas_min_amp_bg);
+					System.out.println(" lmas_max_rel_rms: "+imgdtt_params.lmas_max_rel_rms);
+					System.out.println("lmas_min_strength: "+imgdtt_params.lmas_min_strength);
+					System.out.println("  lmas_min_max_ac: "+imgdtt_params.lmas_min_max_ac);
+					System.out.println("  lmas_min_min_ac: "+imgdtt_params.lmas_min_min_ac);
+					System.out.println("    lmas_max_area: "+imgdtt_params.lmas_max_area);
+					System.out.println("    lma_str_scale: "+imgdtt_params.lma_str_scale);
+					System.out.println("   lma_str_offset: "+imgdtt_params.lma_str_offset);
+					System.out.println("    lma_ac_offset: "+imgdtt_params.lma_ac_offset);
 					(new ShowDoubleFloatArrays()).showArrays(
 							debug_lma,
 							tilesX,
 							tilesY,
 							true,
-							"lma_debug_dual_LMA",
+							"lma_debug_dual_LMA-"+suffix,
 							debug_lma_titles
 							);
 				} else {
@@ -3486,7 +3501,7 @@ public class ImageDtt extends ImageDttCPU {
 							tilesX,
 							tilesY,
 							true,
-							"lma_debug",
+							"lma_debug-"+suffix,
 							debug_lma_titles
 							);
 				}

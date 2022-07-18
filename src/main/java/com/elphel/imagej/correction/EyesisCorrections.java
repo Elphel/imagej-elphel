@@ -171,7 +171,7 @@ public class EyesisCorrections {
 				if (!this.usedChannels[nChn]) this.pixelMapping.removeChannel(nChn);
 			}
 		}
-		int numUsedChannels=0;
+		int numUsedChannels=00;
 		for (int nChn=0;nChn< this.usedChannels.length; nChn++) if (this.usedChannels[nChn]) numUsedChannels++;
 		if (this.debugLevel>0) {
 			String sChannels="";
@@ -739,6 +739,7 @@ public class EyesisCorrections {
 			};
 		}		      
 		ImageDtt.startAndJoin(threads);
+		return;
 	}
 
 	boolean [] usedChannels(String [] paths){

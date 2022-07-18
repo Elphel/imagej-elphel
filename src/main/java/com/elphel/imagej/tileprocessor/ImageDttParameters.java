@@ -222,7 +222,7 @@ public class ImageDttParameters {
 	public double  lmas_min_amp =            0.1;   // minimal ratio of minimal pair correlation amplitude to maximal pair correlation amplitude           
 	public double  lmas_min_amp_bg =         0.01;  // same for background objects (all but fg)          
 	public double  lmas_max_rel_rms =        0.5; // 0.3;   // LWIR16: 0.5 maximal relative (to average max/min amplitude LMA RMS) // May be up to 0.3)
-	public double  lmas_min_strength =       1.0; // 1.1; // 0.7;   // LWIR16: 0.4 minimal composite strength (sqrt(average amp squared over absolute RMS)
+	public double  lmas_min_strength =       1.5; // 1.3; // 1.0;// TE was 1.0? // 1.1; // 0.7;   // LWIR16: 0.4 minimal composite strength (sqrt(average amp squared over absolute RMS)
 	public double  lmas_min_max_ac =         0.04; // 0.175; // 0.14;  // LWIR16: 0.01  maximal of a and C coefficients minimum (measures sharpest point/line)
 	public double  lmas_min_min_ac =         0.003; // LWIR16: 0.007 minimal of a and C coefficients minimum (measures sharpest point)
 	public double  lmas_max_area =          45.0; // 30.0;   // LWIR16: 0.0  maximal half-area (if > 0.0)
