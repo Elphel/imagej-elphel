@@ -176,7 +176,6 @@ public class IntersceneMatchParameters {
 	public  double  centroid_radius =               4.0;   // 
 	public  int     n_recenter =                    2;     // when cosine window, re-center window this many times
 	// filtering motion vectors
-	public  double  min_ref_str =                   0.22;  // For orientations: use only tiles of the reference scene DSI_MAIN is stronger  
 	// TD accumulation of the inter-scene correlations  demonstrated artifacts (horizontally offset by 8 pixels
 	// false maximum that is sharper than the real one. Still not understood - maybe float precision related. 
 	public  double  td_weight =                     0.5;   // mix correlations accumulated in TD with 
@@ -194,7 +193,18 @@ public class IntersceneMatchParameters {
 	public  double  half_disparity =                5.0;   // Reduce weight twice for this disparity
 	public  double  half_avg_diff =                 0.2;   // when L2 of x,y difference from average of neibs - reduce twice
 
+	// Photometric calibration (move elsewhere)?
+	public boolean  photo_en =                      false; // perform photogrammetric calibration to equalize pixel values
+	public int      photo_num_full =                1;     // Number of full recalibrations with re-processing of the images  
+	public int      photo_num_refines =             3;     // Calibrate, remove outliers, recalibrate, ... 
+	public double   photo_min_strength =            0.0;   // maybe add to filter out weak tiles
+	public double   photo_max_diff =                40.0;  // To filter mismatches. Normal (adjusted) have RMSE ~9
+	public boolean  photo_debug =                   false; // Generate images and text
+	
+	
+	
 	// Detect initial match
+	public  double  min_ref_str =                   0.22;  // For orientations: use only tiles of the reference scene DSI_MAIN is stronger  
 	public  int     pix_step =                      4;     // Azimuth/tilt search step in pixels
 	public  int     search_rad =                   10;     // Search radius in steps
 	public  double  maybe_sum =                     1.0;   // minimal sum of strengths (will search for the best)
@@ -593,9 +603,9 @@ public class IntersceneMatchParameters {
 		gd.addNumericField("Refine centroids",                       this.n_recenter, 0,5,"",
 				"Repeat centroids after moving the window center to the new centroid location this many times (0 - calculate once)");
 
-		gd.addMessage  ("Filter tiles to use for scene poses");
-		gd.addNumericField("DSI_MAIN minimal strength",              this.min_ref_str, 5,7,"",
-				"Match only tiles where DSI_MAIN is stronger than that (and has LMA).");
+	//	gd.addMessage  ("Filter tiles to use for scene poses");
+	//	gd.addNumericField("DSI_MAIN minimal strength",              this.min_ref_str, 5,7,"",
+	//			"Match only tiles where DSI_MAIN is stronger than that (and has LMA).");
 		
 		
 		gd.addMessage  ("Mixing TD and PD accumulation of 2d correlations");
@@ -625,7 +635,25 @@ public class IntersceneMatchParameters {
 		gd.addNumericField("Difference from neighbors average ",     this.half_avg_diff, 5,7,"",
 				"Reduce twice for high difference from neighbors average.");
 
+		gd.addMessage  ("Photometric calibration (move elsewhere?)");
+		gd.addCheckbox ("Enable photometric calibration",            this.photo_en,
+				"Equalize per- sensor gains and offsets. Requires disparity map. Save to reference scene and with current scene (to .corr-zml).");
+		gd.addNumericField("Full photometric (re)calibrations",      this.photo_num_full, 0,3,"pix",
+				"Full recalibratrions include re-importing raw images with updated offsets/gains");
+		gd.addNumericField("Refines",                                this.photo_num_refines, 0,3,"pix",
+				"Calculate calibration, remove outliers (e.g. FG/BG) and repeat");
+		gd.addNumericField("Minimal DSI strength",                   this.photo_min_strength, 5,7,"",
+				"Do not use weak tiles.");
+		gd.addNumericField("Maximal channel mismatch",               this.photo_max_diff, 5,7,"",
+				"Detect (and remove outliers). Adjusted images have RMSE ~9 counts.");
+		gd.addCheckbox ("Debug pphotometric calibration",            this.photo_debug,
+				"Generate debug images an text output.");
+		
+		
 		gd.addMessage  ("Initial search for the inter-scene match");
+		gd.addNumericField("DSI_MAIN minimal strength",              this.min_ref_str, 5,7,"",
+					"Match only tiles where DSI_MAIN is stronger than that (and has LMA).");
+		
 		gd.addNumericField("Azimuth/tilt step",                      this.pix_step, 0,3,"pix",
 				"Search in a spiral starting with no-shift with this step between probes, in approximate pixels");
 		gd.addNumericField("Search spiral radius",                   this.search_rad, 0,3,"steps",
@@ -931,7 +959,7 @@ public class IntersceneMatchParameters {
 		this.centroid_radius =          gd.getNextNumber();
 		this.n_recenter =         (int) gd.getNextNumber();
 
-		this.min_ref_str =              gd.getNextNumber();
+//		this.min_ref_str =              gd.getNextNumber();
 
 		this.td_weight =                gd.getNextNumber();
 		this.pd_weight =                gd.getNextNumber();
@@ -946,6 +974,15 @@ public class IntersceneMatchParameters {
 		this.weight_zero_neibs =        gd.getNextNumber();
 		this.half_disparity =           gd.getNextNumber();
 		this.half_avg_diff =            gd.getNextNumber();
+		
+		this.photo_en =                 gd.getNextBoolean();
+		this.photo_num_full =     (int) gd.getNextNumber();
+		this.photo_num_refines =  (int) gd.getNextNumber();
+		this.photo_min_strength =       gd.getNextNumber();
+		this.photo_max_diff =           gd.getNextNumber();
+		this.photo_debug =              gd.getNextBoolean();
+		
+		this.min_ref_str =              gd.getNextNumber();
 		this.pix_step =           (int) gd.getNextNumber();
 		this.search_rad =         (int) gd.getNextNumber();
 		this.maybe_sum =                gd.getNextNumber();
@@ -1157,6 +1194,14 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"weight_zero_neibs",    this.weight_zero_neibs+"");   // double
 		properties.setProperty(prefix+"half_disparity",       this.half_disparity+"");      // double
 		properties.setProperty(prefix+"half_avg_diff",        this.half_avg_diff+"");       // double
+		
+		properties.setProperty(prefix+"photo_en",             this.photo_en+"");            // boolean
+		properties.setProperty(prefix+"photo_num_full",       this.photo_num_full+"");      // int
+		properties.setProperty(prefix+"photo_num_refines",    this.photo_num_refines+"");   // int
+		properties.setProperty(prefix+"photo_min_strength",   this.photo_min_strength+"");  // double
+		properties.setProperty(prefix+"photo_max_diff",       this.photo_max_diff+"");      // double
+		properties.setProperty(prefix+"photo_debug",          this.photo_debug+"");         // boolean
+		
 		properties.setProperty(prefix+"pix_step",             this.pix_step+"");            // int
 		properties.setProperty(prefix+"search_rad",           this.search_rad+"");          // int
 		properties.setProperty(prefix+"maybe_sum",            this.maybe_sum+"");           // double
@@ -1394,6 +1439,14 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"weight_zero_neibs")!=null)    this.weight_zero_neibs=Double.parseDouble(properties.getProperty(prefix+"weight_zero_neibs"));
 		if (properties.getProperty(prefix+"half_disparity")!=null)       this.half_disparity=Double.parseDouble(properties.getProperty(prefix+"half_disparity"));
 		if (properties.getProperty(prefix+"half_avg_diff")!=null)        this.half_avg_diff=Double.parseDouble(properties.getProperty(prefix+"half_avg_diff"));
+		
+		if (properties.getProperty(prefix+"photo_en")!=null)             this.photo_en=Boolean.parseBoolean(properties.getProperty(prefix+"photo_en"));		
+		if (properties.getProperty(prefix+"photo_num_full")!=null)       this.photo_num_full=Integer.parseInt(properties.getProperty(prefix+"photo_num_full"));
+		if (properties.getProperty(prefix+"photo_num_refines")!=null)    this.photo_num_refines=Integer.parseInt(properties.getProperty(prefix+"photo_num_refines"));
+		if (properties.getProperty(prefix+"photo_min_strength")!=null)   this.photo_min_strength=Double.parseDouble(properties.getProperty(prefix+"photo_min_strength"));
+		if (properties.getProperty(prefix+"photo_max_diff")!=null)       this.photo_max_diff=Double.parseDouble(properties.getProperty(prefix+"photo_max_diff"));
+		if (properties.getProperty(prefix+"photo_debug")!=null)          this.photo_debug=Boolean.parseBoolean(properties.getProperty(prefix+"photo_debug"));		
+		
 		if (properties.getProperty(prefix+"pix_step")!=null)             this.pix_step=Integer.parseInt(properties.getProperty(prefix+"pix_step"));
 		if (properties.getProperty(prefix+"search_rad")!=null)           this.search_rad=Integer.parseInt(properties.getProperty(prefix+"search_rad"));
 		if (properties.getProperty(prefix+"maybe_sum")!=null)            this.maybe_sum=Double.parseDouble(properties.getProperty(prefix+"maybe_sum"));
@@ -1590,6 +1643,14 @@ public class IntersceneMatchParameters {
 		imp.weight_zero_neibs     = this.weight_zero_neibs;
 		imp.half_disparity        = this.half_disparity;
 		imp.half_avg_diff         = this.half_avg_diff;
+		
+		imp.photo_en              = this.photo_en;
+		imp.photo_num_full        = this.photo_num_full;
+		imp.photo_num_refines     = this.photo_num_refines;
+		imp.photo_min_strength    = this.photo_min_strength;
+		imp.photo_max_diff        = this.photo_max_diff;
+		imp.photo_debug           = this.photo_debug;
+		
 		imp.pix_step =              this.pix_step;
 		imp.search_rad =            this.search_rad;
 		imp.maybe_sum =             this.maybe_sum;

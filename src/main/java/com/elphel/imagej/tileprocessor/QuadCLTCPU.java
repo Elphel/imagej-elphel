@@ -152,6 +152,7 @@ public class QuadCLTCPU {
     boolean                                                is_aux = false;
     double  []                                             lwir_offsets = null; // per image subtracted values
     double []                                              lwir_scales = null;  // per image scales
+    @Deprecated
     double                                                 lwir_offset =  Double.NaN; // average of lwir_offsets[]
     // hot and cold are calculated during autoranging (when generating 4 images for restored (added lwir_offset)
     // absolute temperatures to be used instead of colorProcParameters lwir_low and lwir_high if autoranging
@@ -1478,7 +1479,15 @@ public class QuadCLTCPU {
     public boolean isLwir()       {return geometryCorrection.isLwir();} // clt_kernels // USED in lwir
     public boolean isMonochrome() {return geometryCorrection.isMonochrome();} // clt_kernels // USED in lwir
     
-    public double  getLwirOffset() {return lwir_offset;} // USED in lwir
+    public double  getLwirOffset() {
+    	double s = 0;
+    	if (lwir_offsets == null) {
+    		throw new IllegalArgumentException ("Trying to use non-existing lwir_offsets!");
+    	}
+    	for (double offset:lwir_offsets) s+=offset;
+    	lwir_offset = s/lwir_offsets.length;
+    	return lwir_offset;
+    }
     
     public boolean isLwirCalibrated() {
     	return lwir_offsets != null;
@@ -5256,6 +5265,7 @@ public class QuadCLTCPU {
 								  set_name, // just for debug messages == setNames.get(nSet)
 								  threadsMax,
 								  debugLevel));
+				  // will actually is now calculated by setLwirOffsets()
 				  int num_avg = 0;
 				  this.lwir_offset = 0.0;
 				  for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++){
