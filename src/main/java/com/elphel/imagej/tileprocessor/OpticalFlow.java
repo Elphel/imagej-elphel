@@ -4044,7 +4044,8 @@ public class OpticalFlow {
     	
     	boolean export_images =              clt_parameters.imp.export_images;
     	boolean export_dsi_image =           clt_parameters.imp.export_ranges;
-    	boolean export_ml_files =             clt_parameters.imp.export_ml_files;
+    	boolean export_ml_files =            clt_parameters.imp.export_ml_files;
+    	boolean calibrate_photometric =      true;
     	
     	boolean show_dsi_image =             clt_parameters.imp.show_ranges && !batch_mode;
     	boolean show_images =                clt_parameters.imp.show_images && !batch_mode;
@@ -4424,7 +4425,9 @@ public class OpticalFlow {
 		} else {// if (build_orientations) {
 			if (!reuse_video) { // reuse_video only uses reference scene
 				for (int scene_index =  ref_index - 1; scene_index >= earliest_scene ; scene_index--) {
-					quadCLTs[scene_index] = (QuadCLT) quadCLT_main.spawnNoModelQuadCLT( // restores image data
+//					quadCLTs[scene_index] = (QuadCLT) quadCLT_main.spawnNoModelQuadCLT( // restores image data
+					// to include ref scene photometric calibration
+					quadCLTs[scene_index] = quadCLTs[ref_index].spawnNoModelQuadCLT( // restores image data
 							set_channels[scene_index].set_name,
 							clt_parameters,
 							colorProcParameters, //
@@ -4504,6 +4507,62 @@ public class OpticalFlow {
 			}
 		}
 
+		if (calibrate_photometric) {
+			if (combo_dsn_final == null) { // always re-read?
+				combo_dsn_final =quadCLTs[ref_index].readDoubleArrayFromModelDirectory( // always re-read?
+						"-INTER-INTRA-LMA", // String      suffix,
+						0, // int         num_slices, // (0 - all)
+						null); // int []      wh);
+			}
+			double [][] combo_dsn_final_filtered = 
+					conditionComboDsnFinal(
+							true,                // boolean        use_conf,       // use configuration parameters, false - use following  
+							clt_parameters,      // CLTParameters  clt_parameters,
+							combo_dsn_final,     // double [][]    combo_dsn_final, // dls,
+							quadCLTs[ref_index], // QuadCLT        scene,
+							debugLevel); // int            debugLevel);// > 0
+			QuadCLT.calibratePhotometric(
+					clt_parameters,           // CLTParameters     clt_parameters,
+					quadCLTs[ref_index],      // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
+					0.0,                      // final double      min_strength,
+					100.0,                    // final double      max_diff,    // 30.0
+					2,                        // final int         num_refines, // 2
+					combo_dsn_final_filtered, // final double [][] combo_dsn_final,     // double [][]    combo_dsn_final, // dls,			
+					threadsMax,               // int               threadsMax,
+					true);                    //final boolean     debug)
+			// copy offsets to the current to be saved with other properties. Is it correct/needed?
+			quadCLTs[ref_index].saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
+					null, // String path,             // full name with extension or w/o path to use x3d directory
+					debugLevel+1);
+			quadCLT_main.setLwirOffsets(quadCLTs[ref_index].getLwirOffsets());
+			quadCLT_main.setLwirScales(quadCLTs[ref_index].getLwirScales());
+// Re-read reference and other scenes using new offsets			
+			quadCLTs[ref_index] = (QuadCLT) quadCLT_main.spawnQuadCLT( // restores dsi from "DSI-MAIN"
+					set_channels[ref_index].set_name,
+					clt_parameters,
+					colorProcParameters, //
+					threadsMax,
+					debugLevel);
+			quadCLTs[ref_index].setDSRBG(
+					clt_parameters, // CLTParameters  clt_parameters,
+					threadsMax,     // int            threadsMax,  // maximal number of threads to launch
+					updateStatus,   // boolean        updateStatus,
+					debugLevel);    // int            debugLevel)
+			ers_reference = quadCLTs[ref_index].getErsCorrection();
+			if (!reuse_video) { // reuse_video only uses reference scene
+				for (int scene_index =  ref_index - 1; scene_index >= earliest_scene ; scene_index--) {
+					//						quadCLTs[scene_index] = (QuadCLT) quadCLT_main.spawnNoModelQuadCLT( // restores image data
+					// to include ref scene photometric calibration
+					quadCLTs[scene_index] = quadCLTs[ref_index].spawnNoModelQuadCLT( // restores image data
+							set_channels[scene_index].set_name,
+							clt_parameters,
+							colorProcParameters, //
+							threadsMax,
+							debugLevel-2);
+				}
+			}
+		}
+		
 		if (test_ers) { // only debug feature
 			test_ers0 = quadCLTs.length -1; // make it always == reference !
 			
@@ -5025,6 +5084,7 @@ public class OpticalFlow {
 					quadCLTs[ref_index], // final QuadCLT     scene,
 					quadCLTs[ref_index], // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 					true, // toRGB,               // final boolean     toRGB,
+					clt_parameters.imp.show_color_nan, // boolean show_nan
 					"GPU-SHIFTED-D"+clt_parameters.disparity, // String            suffix,
 					threadsMax,          // int               threadsMax,
 					debugLevel);         // int         debugLevel)
@@ -5042,6 +5102,7 @@ public class OpticalFlow {
 					quadCLTs[ref_index], // final QuadCLT     scene,
 					quadCLTs[ref_index], // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 					false, // toRGB,               // final boolean     toRGB,
+					clt_parameters.imp.show_mono_nan, // boolean show_nan
 					"GPU-SHIFTED-D"+clt_parameters.disparity, // String            suffix,
 					threadsMax,          // int               threadsMax,
 					debugLevel);         // int         debugLevel)
@@ -5121,6 +5182,7 @@ public class OpticalFlow {
 						quadCLTs[ref_index], // final QuadCLT     scene,
 						quadCLTs[ref_index], // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 						true, // toRGB,               // final boolean     toRGB,
+						clt_parameters.imp.show_color_nan,
 						scenes_suffix+"GPU-SHIFTED-FOREGROUND", // String            suffix,
 						threadsMax,          // int               threadsMax,
 						debugLevel);         // int         debugLevel)
@@ -5138,6 +5200,7 @@ public class OpticalFlow {
 						quadCLTs[ref_index], // final QuadCLT     scene,
 						quadCLTs[ref_index], // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 						false, // toRGB,               // final boolean     toRGB,
+						clt_parameters.imp.show_mono_nan,
 						scenes_suffix+"GPU-SHIFTED-FOREGROUND", // String            suffix,
 						threadsMax,          // int               threadsMax,
 						debugLevel);         // int         debugLevel)
@@ -5164,6 +5227,7 @@ public class OpticalFlow {
 					quadCLTs[ref_index], // final QuadCLT     scene,
 					quadCLTs[ref_index], // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 					true,               // final boolean     toRGB,
+					clt_parameters.imp.show_color_nan,
 					"GPU-SHIFTED-BACKGROUND", // String            suffix,
 					threadsMax,          // int               threadsMax,
 					debugLevel);         // int         debugLevel)
@@ -5181,6 +5245,7 @@ public class OpticalFlow {
 					quadCLTs[ref_index], // final QuadCLT     scene,
 					quadCLTs[ref_index], // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 					false,               // final boolean     toRGB,
+					clt_parameters.imp.show_mono_nan,
 					"GPU-SHIFTED-BACKGROUND", // String            suffix,
 					threadsMax,          // int               threadsMax,
 					debugLevel);         // int         debugLevel)
@@ -5244,6 +5309,7 @@ public class OpticalFlow {
 
 	        }
 		}
+		
 		if (export_ml_files) { 
 			if (combo_dsn_final == null) { // always re-read?
 				combo_dsn_final =quadCLTs[ref_index].readDoubleArrayFromModelDirectory( // always re-read?
@@ -5381,6 +5447,8 @@ public class OpticalFlow {
 						quadCLTs[nscene],    // final QuadCLT     scene,
 						quadCLTs[ref_index], // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 						true,                // final boolean     toRGB,
+						clt_parameters.imp.show_color_nan,
+
 						"",                  // String            suffix, no suffix here
 						threadsMax,          // int               threadsMax,
 						debugLevel);         // int         debugLevel)
@@ -5403,6 +5471,7 @@ public class OpticalFlow {
 						quadCLTs[nscene],    // final QuadCLT     scene,
 						quadCLTs[ref_index], // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 						false,               // final boolean     toRGB,
+						clt_parameters.imp.show_mono_nan,
 						"",                  // String            suffix, no suffix here
 						threadsMax,          // int               threadsMax,
 						debugLevel);         // int         debugLevel)
@@ -5516,6 +5585,7 @@ public class OpticalFlow {
 						quadCLTs[nscene],    // final QuadCLT     scene,
 						quadCLTs[ref_index], // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 						true,                // final boolean     toRGB,
+						clt_parameters.imp.show_color_nan,
 						"",                  // String            suffix, no suffix here
 						threadsMax,          // int               threadsMax,
 						debugLevel);         // int         debugLevel)
@@ -5538,6 +5608,7 @@ public class OpticalFlow {
 						quadCLTs[nscene],    // final QuadCLT     scene,
 						quadCLTs[ref_index], // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 						false,               // final boolean     toRGB,
+						clt_parameters.imp.show_mono_nan,
 						"",                  // String            suffix, no suffix here
 						threadsMax,          // int               threadsMax,
 						debugLevel);         // int         debugLevel)
@@ -5702,6 +5773,7 @@ public class OpticalFlow {
 					quadCLTs[nscene],    // final QuadCLT     scene,
 					quadCLTs[ref_index], // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 					toRGB,               // final boolean     toRGB,
+					(toRGB? clt_parameters.imp.show_color_nan : clt_parameters.imp.show_mono_nan),
 					"", // String            suffix, no suffix here
 					QuadCLT.THREADS_MAX,          // int               threadsMax,
 					debugLevel);         // int         debugLevel)

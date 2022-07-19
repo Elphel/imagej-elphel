@@ -151,6 +151,7 @@ public class QuadCLTCPU {
     boolean [][]                                           saturation_imp = null; // (near) saturated pixels or null
     boolean                                                is_aux = false;
     double  []                                             lwir_offsets = null; // per image subtracted values
+    double []                                              lwir_scales = null;  // per image scales
     double                                                 lwir_offset =  Double.NaN; // average of lwir_offsets[]
     // hot and cold are calculated during autoranging (when generating 4 images for restored (added lwir_offset)
     // absolute temperatures to be used instead of colorProcParameters lwir_low and lwir_high if autoranging
@@ -261,6 +262,7 @@ public class QuadCLTCPU {
 		this.is_aux =                 qParent.is_aux;
 //		this.is_mono =                 qParent.is_mono;
 		this.lwir_offsets =           ErsCorrection.clone1d(qParent.lwir_offsets);
+		this.lwir_scales =            ErsCorrection.clone1d(qParent.lwir_scales);
 		this.lwir_offset =            qParent.lwir_offset;
 		this.lwir_cold_hot =          ErsCorrection.clone1d(qParent.lwir_cold_hot);
 		this.ds_from_main =           ErsCorrection.clone2d(qParent.ds_from_main);
@@ -1477,6 +1479,37 @@ public class QuadCLTCPU {
     public boolean isMonochrome() {return geometryCorrection.isMonochrome();} // clt_kernels // USED in lwir
     
     public double  getLwirOffset() {return lwir_offset;} // USED in lwir
+    
+    public boolean isLwirCalibrated() {
+    	return lwir_offsets != null;
+    }
+    public double [] getLwirOffsets() {
+    	if (lwir_offsets == null) {
+    		lwir_offsets = new double [getNumSensors()];
+    	}
+    	return lwir_offsets;
+    }
+    public double [] getLwirScales() {
+    	if (lwir_scales == null) {
+    		lwir_scales = new double [getNumSensors()];
+    		Arrays.fill(lwir_scales, 1.0);
+    	}
+    	return lwir_scales;
+    }
+    public void setLwirOffsets(double [] offsets) {
+    	lwir_offsets = offsets; // will need to update properties!
+    	if (offsets != null) {
+    		double s = 0;
+    		for (double offset:offsets) s+=offset;
+    		lwir_offset = s/offsets.length;
+    	} else {
+    		lwir_offset = Double.NaN;
+    	}
+    }
+
+    public void setLwirScales(double [] scales) {
+    	lwir_scales = scales; // will need to update properties!
+    }
 
     public double [] getColdHot() { // USED in lwir
     	return lwir_cold_hot;
@@ -1668,7 +1701,15 @@ public class QuadCLTCPU {
 		}
 		properties.setProperty(prefix+"num_orient",      this.num_orient+"");
 		properties.setProperty(prefix+"num_accum",       this.num_accum+"");
-		
+		if (this.lwir_offsets != null) {
+			properties.setProperty(prefix+"lwir_offsets",
+					IntersceneMatchParameters.doublesToString(this.lwir_offsets));
+		}
+		if (this.lwir_scales != null) {
+			properties.setProperty(prefix+"lwir_scales",
+					IntersceneMatchParameters.doublesToString(this.lwir_scales));
+		}
+
 	}
 
 
@@ -1697,7 +1738,19 @@ public class QuadCLTCPU {
 			this.num_accum = Integer.parseInt(other_properties.getProperty(other_prefix+"num_accum"));
 			properties.setProperty(this_prefix+"num_accum",   this.num_accum+"");
 		}
-
+		// copy offsets and scales
+		if (other_properties.getProperty(other_prefix+"lwir_offsets")!=null) {
+			this.lwir_offsets= IntersceneMatchParameters.StringToDoubles(
+					other_properties.getProperty(other_prefix+"lwir_offsets"),0);
+			properties.setProperty(this_prefix+"lwir_offsets",
+					IntersceneMatchParameters.doublesToString(this.lwir_offsets));
+		}
+		if (other_properties.getProperty(other_prefix+"lwir_scales")!=null) {
+			this.lwir_scales= IntersceneMatchParameters.StringToDoubles(
+					other_properties.getProperty(other_prefix+"lwir_scales"),0);
+			properties.setProperty(this_prefix+"lwir_scales",
+					IntersceneMatchParameters.doublesToString(this.lwir_scales));
+		}
 		
 		
 		/*
@@ -1803,8 +1856,24 @@ public class QuadCLTCPU {
 			geometryCorrection.setRigOffsetFromProperies(prefix, properties);
 		}
 		// inter-frame properties only make sense for, well, scenes. So they will only be read
-		if (properties.getProperty(prefix+"num_orient")!=null) this.num_orient=Integer.parseInt(properties.getProperty(prefix+"num_orient"));
-		if (properties.getProperty(prefix+"num_accum")!=null)  this.num_accum= Integer.parseInt(properties.getProperty(prefix+"num_accum"));
+		if (properties.getProperty(prefix+"num_orient")!=null) {
+			this.num_orient=Integer.parseInt(properties.getProperty(prefix+"num_orient"));
+		}
+		if (properties.getProperty(prefix+"num_accum")!=null) {
+			this.num_accum= Integer.parseInt(properties.getProperty(prefix+"num_accum"));
+		}
+		
+		if (properties.getProperty(prefix+"lwir_offsets")!=null) {
+			this.lwir_offsets= IntersceneMatchParameters.StringToDoubles(
+					properties.getProperty(prefix+"lwir_offsets"),0);
+		}
+		if (properties.getProperty(prefix+"lwir_scales")!=null) {
+			this.lwir_scales= IntersceneMatchParameters.StringToDoubles(
+					properties.getProperty(prefix+"lwir_scales"),0);
+		}
+			
+		
+		
 	}
 
 	public void setKernelImageFile(ImagePlus img_kernels){ // not used in lwir
@@ -4889,6 +4958,7 @@ public class QuadCLTCPU {
 		  boolean lwir_subtract_dc =   colorProcParameters.lwir_subtract_dc;
 		  boolean lwir_eq_chn =        colorProcParameters.lwir_eq_chn;
 		  boolean correct_vignetting = colorProcParameters.correct_vignetting;
+		  boolean recalc_lwir_offsets = false;
 
 		  final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		  final AtomicInteger ai = new AtomicInteger(0);
@@ -5176,23 +5246,36 @@ public class QuadCLTCPU {
 					  debugLevel);
 		  }
 		  if (is_lwir && (lwir_subtract_dc || lwir_eq_chn)) {
-			   this.lwir_offsets = channelLwirEqualize(
-						  channelFiles,
-						  imp_srcs,
-						  lwir_subtract_dc, // boolean      remove_dc,
-						  set_name, // just for debug messages == setNames.get(nSet)
-						  threadsMax,
-						  debugLevel);
-			   int num_avg = 0;
-			   this.lwir_offset = 0.0;
-			   for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++){
-				   int nFile=channelFiles[srcChannel];
-				   if (nFile >=0){
-					   this.lwir_offset += this.lwir_offsets[srcChannel];
-					   num_avg++;
-				   }
-			   }
-			   this.lwir_offset /= num_avg;
+			  if (recalc_lwir_offsets || !isLwirCalibrated()) {
+//				  this.lwir_offsets = 
+				  setLwirOffsets(
+						  channelLwirEqualize( // now only calculates offsets, does not apply
+								  channelFiles,
+								  imp_srcs,
+								  lwir_subtract_dc, // boolean      remove_dc,
+								  set_name, // just for debug messages == setNames.get(nSet)
+								  threadsMax,
+								  debugLevel));
+				  int num_avg = 0;
+				  this.lwir_offset = 0.0;
+				  for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++){
+					  int nFile=channelFiles[srcChannel];
+					  if (nFile >=0){
+						  this.lwir_offset += this.lwir_offsets[srcChannel];
+						  num_avg++;
+					  }
+				  }
+				  this.lwir_offset /= num_avg;
+			  }
+			  double [] offsets = getLwirOffsets();
+			  double [] scales =  getLwirScales();
+			  channelLwirApplyEqualize( // now apply (was part of channelLwirEqualize() )
+					  channelFiles, // int [] channelFiles,
+					  imp_srcs,     // ImagePlus [] imp_srcs,
+					  offsets,      // double []    offsets,
+					  scales,       // double []    scales,
+					  threadsMax,
+					  debugLevel);
 		  }
 // 08/12/2020 common part moved here, from getRigImageStacks()
 		  image_name = (String) imp_srcs[0].getProperty("name");
@@ -5686,6 +5769,7 @@ public class QuadCLTCPU {
 			  }
 		  }
 	  }
+	  
 	  public static double []  channelLwirEqualize( // USED in lwir
 			  int [] channelFiles,
 			  ImagePlus [] imp_srcs,
@@ -5705,11 +5789,7 @@ public class QuadCLTCPU {
 				  public void run() {
 					  double [] wnd_x;
 					  double [] wnd_y;
-
-					  //					  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
 					  for (int srcChannel = ai.getAndIncrement(); srcChannel < channelFiles.length; srcChannel = ai.getAndIncrement()) {
-
-						  //		  for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++){
 						  int nFile=channelFiles[srcChannel];
 						  if (nFile >=0){
 							  avr_pix[srcChannel][0] = 0.0;
@@ -5717,18 +5797,14 @@ public class QuadCLTCPU {
 							  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
 							  int width =  imp_srcs[srcChannel].getWidth();
 							  int height = imp_srcs[srcChannel].getHeight();
-//							  if (wnd_x.length != width) {
 								  wnd_x = new double[width];
 								  for (int i = 0; i < width; i++) {
 									  wnd_x[i] = 0.5 - 0.5*Math.cos(2*Math.PI * (i+1) / (width + 1));
 								  }
-//							  }
-//							  if (wnd_y.length != height) {
 								  wnd_y = new double[height];
 								  for (int i = 0; i < height; i++) {
 									  wnd_y[i] = 0.5 - 0.5*Math.cos(2*Math.PI * (i+1) / (height + 1));
 								  }
-//							  }
 							  int indx = 0;
 							  for (int y = 0; y < height; y++) {
 								  for (int x = 0; x < width; x++) {
@@ -5737,8 +5813,6 @@ public class QuadCLTCPU {
 									  avr_pix[srcChannel][1] += w;
 								  }
 							  }
-//							  total_s += avr_pix[srcChannel][0];
-//							  total_w += avr_pix[srcChannel][1];
 							  atotal_s.accumulate(avr_pix[srcChannel][0]);
 							  atotal_w.accumulate(avr_pix[srcChannel][1]);
 							  avr_pix[srcChannel][0]/=avr_pix[srcChannel][1]; // weighted average
@@ -5748,7 +5822,6 @@ public class QuadCLTCPU {
 			  };
 		  }		      
 		  ImageDtt.startAndJoin(threads);
-//		  double avg = total_s/total_w;
 		  double avg = atotal_s.get()/atotal_w.get();
 		  
 		  if (!remove_dc) { // not used in lwir
@@ -5766,13 +5839,12 @@ public class QuadCLTCPU {
 					  for (int srcChannel = ai.getAndIncrement(); srcChannel < channelFiles.length; srcChannel = ai.getAndIncrement()) {
 						  int nFile=channelFiles[srcChannel];
 						  if (nFile >=0) {
-							  //				  offsets[srcChannel]= (avr_pix[srcChannel][0] - (remove_dc ? 0.0: avg));
 							  offsets[srcChannel]= avr_pix[srcChannel][0];
-							  float fd = (float)offsets[srcChannel];
-							  float [] pixels = (float []) imp_srcs[srcChannel].getProcessor().getPixels();
-							  for (int i = 0; i < pixels.length; i++) {
-								  pixels[i] -= fd;
-							  }
+//							  float fd = (float)offsets[srcChannel];
+//							  float [] pixels = (float []) imp_srcs[srcChannel].getProcessor().getPixels();
+//							  for (int i = 0; i < pixels.length; i++) {
+//								  pixels[i] -= fd;
+//							  }
 						  }
 					  }
 				  }
@@ -5782,6 +5854,37 @@ public class QuadCLTCPU {
 		  return offsets;
 	  }
 
+	  public static void channelLwirApplyEqualize(
+			  int [] channelFiles,
+			  ImagePlus [] imp_srcs,
+			  double []    offsets,
+			  double []    scales,
+			  final int    threadsMax,
+			  int          debugLevel){
+		  final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		  final AtomicInteger ai = new AtomicInteger(0);
+		  for (int ithread = 0; ithread < threads.length; ithread++) {
+			  threads[ithread] = new Thread() {
+				  public void run() {
+					  for (int srcChannel = ai.getAndIncrement(); srcChannel < channelFiles.length; srcChannel = ai.getAndIncrement()) {
+						  int nFile=channelFiles[srcChannel];
+						  if (nFile >=0) {
+							  float fd = (float)offsets[srcChannel];
+							  float fscale = (float) scales[srcChannel];
+							  float [] pixels = (float []) imp_srcs[srcChannel].getProcessor().getPixels();
+							  for (int i = 0; i < pixels.length; i++) {
+								  pixels[i] = (pixels[i] - fd) * fscale;
+							  }
+						  }
+					  }
+				  }
+			  };
+		  }		      
+		  ImageDtt.startAndJoin(threads);
+		  
+	  }  
+	  
+	  
 //	  public ImagePlus [] processCLTQuadCorrCPU( // USED in lwir
 	  public void processCLTQuadCorrCPU( // USED in lwir
 //			  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"

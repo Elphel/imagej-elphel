@@ -475,7 +475,7 @@ public class IntersceneMatchParameters {
 			String [] stereo_choices = new String [stereo_views.length + 1];
 			stereo_choices[0] = "--none--";
 			for (int i = 0; i < stereo_views.length; i++) {
-				stereo_choices[i+1] = doublesToString(stereo_views[i])+" mm";	
+				stereo_choices[i+1] = doublesToString(stereo_views[i],"%.0f")+" mm";	
 			}
 			gd. addChoice("Remove stereo-view (base, up, back)",      stereo_choices, stereo_choices[0], 
 					"Remove selected stereo-view, consisting of streo-base, viewpoint above camera, viewpoint behing camera - all in mm");
@@ -1031,7 +1031,7 @@ public class IntersceneMatchParameters {
 	   */
 		properties.setProperty(prefix+"stereo_views_num",                  this.stereo_views.length+"");           // int
 		for (int i = 0; i < this.stereo_views.length; i++) {
-			properties.setProperty(prefix+"stereo_views_"+i,           doublesToString(this.stereo_views[i])); // String
+			properties.setProperty(prefix+"stereo_views_"+i,           doublesToString(this.stereo_views[i],"%.0f")); // String
 			properties.setProperty(prefix+"generate_stereo_var_"+i,    this.generate_stereo_var[i]+"");        // boolean
 		}
 		
@@ -1785,12 +1785,16 @@ public class IntersceneMatchParameters {
 		return doublesToString(data, null);
 	}
 	public static String doublesToString(double [] data, String fmt) {
-		if ((fmt == null) || (fmt.trim().length()==0)) {
-			fmt = "%.0f";
-		}
+//		if ((fmt == null) || (fmt.trim().length()==0)) {
+//			fmt = "%.0f";
+//		}
 		String s = "";
 		for (int i = 0; i < data.length; i++) {
-			s+=String.format(fmt,data[i]);
+			if (fmt==null) {
+				s += data[i]; // unformatted
+			} else { 
+				s+=String.format(fmt,data[i]);
+			}
 			if (i < (data.length - 1)) {
 				s+= ", ";
 			}
