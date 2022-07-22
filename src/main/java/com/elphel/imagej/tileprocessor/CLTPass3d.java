@@ -1259,10 +1259,10 @@ public class CLTPass3d{
 			final double strength =        disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nTile];
 			final double disparity =       disparity_map[ImageDtt.DISPARITY_INDEX_CM][nTile]; // is it combined with LMA?
 //			double fom = strength - w_adisp * Math.abs(disparity) - w_cdiff * second_max;
-			
+			double cdiff = (second_max == null) ? 0.0:second_max[nTile];
 			double fom = strength
 					- w_adisp * Math.abs(disparity)
-					- w_cdiff * second_max[nTile] *(min_strength/strength);
+					- w_cdiff * cdiff *(min_strength/strength);
 			
 			
 			if ((strength <= 0) || (strength <= min_strength) || Double.isNaN(fom)) {

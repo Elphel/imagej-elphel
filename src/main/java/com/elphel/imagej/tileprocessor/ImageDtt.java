@@ -219,7 +219,7 @@ public class ImageDtt extends ImageDttCPU {
 		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
-				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
+				System.out.println("a. ortho_weights["+i+"]="+ ortho_weights[i]);
 			}
 		}
 
@@ -1528,7 +1528,7 @@ public class ImageDtt extends ImageDttCPU {
 		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
-				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
+				System.out.println("b. ortho_weights["+i+"]="+ ortho_weights[i]);
 			}
 		}
 
@@ -2195,7 +2195,7 @@ public class ImageDtt extends ImageDttCPU {
 		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
-				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
+				System.out.println("c. ortho_weights["+i+"]="+ ortho_weights[i]);
 			}
 		}
 
@@ -2951,7 +2951,7 @@ public class ImageDtt extends ImageDttCPU {
 		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
-				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
+				System.out.println("d. ortho_weights["+i+"]="+ ortho_weights[i]);
 			}
 		}
 
@@ -3626,7 +3626,7 @@ public class ImageDtt extends ImageDttCPU {
 		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
-				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
+				System.out.println("e. ortho_weights["+i+"]="+ ortho_weights[i]);
 			}
 		}
 

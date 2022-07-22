@@ -4322,12 +4322,24 @@ public class OpticalFlow {
 						debugLevel-2);
 			} // split cycles to remove output clutter
 			int debug_scene = -15;
-			
+			boolean debug2 = true;
 			boolean [] reliable_ref = null;
 			if (min_ref_str > 0.0) {
 				reliable_ref = quadCLTs[ref_index].getReliableTiles( // will be null if does not exist.
 						min_ref_str,   // double min_strength,
 						true);         // boolean needs_lma);
+				if (debug2) {
+					double [] dbg_img = new double [reliable_ref.length];
+					for (int i = 0; i < dbg_img.length; i++) {
+						dbg_img[i] = reliable_ref[i]?1:0;
+					}
+					(new ShowDoubleFloatArrays()).showArrays(
+							dbg_img,
+							quadCLTs[ref_index].getTileProcessor().getTilesX(),
+							quadCLTs[ref_index].getTileProcessor().getTilesY(),
+							"reliable_ref");
+				}
+				
 			}
 			
 			for (int scene_index =  ref_index - 1; scene_index >= earliest_scene ; scene_index--) {
@@ -11431,7 +11443,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		double      max_change =                      1.0e-3;
 		double      min_disparity =                  -0.2;
 		double      max_sym_disparity =               0.2;
-		double      min_strength_lma =                0.7; // weaker - treat as non-lma
+		double      min_strength_lma =                0.0; // 7; // weaker - treat as non-lma
 		double      min_strength_replace =            0.05; ///  0.14; /// Before /// - LWIR, after - RGB
 		double      min_strength_blur =               0.06; ///  0.2;
 		double      sigma =                           2; /// 5;
@@ -11684,7 +11696,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				tilesX,               // int         width,
 				sigma);               // double      sigma);
 		dbg_img[10] = disp.clone();
-		double [][] ds = {disp,     clean_lma};
+		double [][] ds = {disp,     dls[2]};
 		final double [][] ds_filled = QuadCLT.fillDisparityStrength(
 				ds,                // final double [][] ds0,
 				min_disparity,     // final double      min_disparity,

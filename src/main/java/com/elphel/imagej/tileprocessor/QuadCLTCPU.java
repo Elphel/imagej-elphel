@@ -8688,7 +8688,7 @@ public class QuadCLTCPU {
 	  {
 		  final boolean    show_init_refine =  clt_parameters.show_init_refine; // change to true?
     	  boolean lwir2022 = true;
-    	  boolean debug2 = true;
+    	  boolean debug_graphic = false; // true;
 
 		  boolean no_macro = isLwir(); // make it a separate configurable parameter?
 		  // change debugLevel to 0
@@ -8730,7 +8730,7 @@ public class QuadCLTCPU {
 		  
 		  //    	  if (show_init_refine)
 //		  if ((debugLevel > -2) && clt_parameters.show_first_bg) {
-		  if ((debugLevel > -3) && clt_parameters.show_first_bg) {
+		  if ((debugLevel > -2) && clt_parameters.show_first_bg) {
 			  tp.showScan(
 					  tp.clt_3d_passes.get(0), // CLTPass3d   scan,
 					  "bgnd_data_lma-"+tp.clt_3d_passes.size());
@@ -9035,37 +9035,49 @@ public class QuadCLTCPU {
     					  updateStatus,
     					  debugLevel);
 
-    			  if (debugLevel > -3){
+    			  if (debugLevel > -2){
     				  System.out.println("CLTMeasCorr("+refine_pass+")-*");
     			  }
     			  if ((debugLevel > 0) && show_init_refine) tp.showScan( // remove by debug
     					  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
     					  "after_measure-"+tp.clt_3d_passes.size());
     			  if (nnn < (clt_parameters.gr_num_refines-1)) { // all but last, because after last the next fresh one will be used
-    				  CLTPass3d combo_pass = tp.compositeScan(
-    						  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
-    						  bg_pass, //  final int                   firstPass,
-    						  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
-    						  //      				  tp.clt_3d_passes.get(bg_pass).getSelected(), // selected , // final boolean [] bg_tiles,          // get from selected in clt_3d_passes.get(0);
-    						  //   				  clt_parameters.ex_min_over,// final double     ex_min_over,       // when expanding over previously detected (by error) background, disregard far tiles
-    						  tp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
-    		    			  tp.getMaxOverexposure(),                          //  final double                max_overexposure,
-    						  0.0, // clt_parameters.bgnd_range,                //	 final double                disp_far,   // limit results to the disparity range
-    						  clt_parameters.grow_disp_max,                     // final double                disp_near,
-    						  clt_parameters.combine_min_strength,              // final double                minStrength,
-    						  clt_parameters.combine_min_hor,                   // final double                minStrengthHor,
-    						  clt_parameters.combine_min_vert,                  // final double                minStrengthVert,
-    						  false,                                            // final boolean               no_weak,
-    						  false,                                            // final boolean               use_last,   //
-    						  // TODO: when useCombo - pay attention to borders (disregard)
-    						  false, // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
-    						  true, // 	 final boolean               copyDebug)
-    						  debugLevel);
-
+    				  CLTPass3d combo_pass;
+    				  if (lwir2022) {
+    					  combo_pass = tp.compositeScan(
+    							  tp.clt_3d_passes,           // final ArrayList <CLTPass3d> passes,
+    							  bg_pass,                    // final int                   firstPass,
+    							  tp.clt_3d_passes.size(),    // final int                   lastPassPlus1,
+    							  fom_min_strength,           // final double                fom_min_strength,
+    							  false,                      // final boolean               fom_use_lma,
+    							  fom_adisp,                  // final double                fom_adisp,     // 0.5
+    							  fom_cdiff,                  // final double                fom_cdiff,     // 0.02
+    							  fom_inf_bonus,              // final double                fom_inf_bonus, // 0.2; // add this to infinity FOM (if it is closer than fom_inf_range)
+    							  fom_inf_range,              // final double                fom_inf_range, // 0.5;
+    							  true,                       // final boolean               copyDebug)
+    							  debugLevel);
+    				  } else {
+    					  combo_pass = tp.compositeScan(
+    							  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
+    							  bg_pass, //  final int                   firstPass,
+    							  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
+    							  tp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
+    							  tp.getMaxOverexposure(),                          //  final double                max_overexposure,
+    							  0.0, // clt_parameters.bgnd_range,                //	 final double                disp_far,   // limit results to the disparity range
+    							  clt_parameters.grow_disp_max,                     // final double                disp_near,
+    							  clt_parameters.combine_min_strength,              // final double                minStrength,
+    							  clt_parameters.combine_min_hor,                   // final double                minStrengthHor,
+    							  clt_parameters.combine_min_vert,                  // final double                minStrengthVert,
+    							  false,                                            // final boolean               no_weak,
+    							  false,                                            // final boolean               use_last,   //
+    							  // TODO: when useCombo - pay attention to borders (disregard)
+    							  false, // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
+    							  true, // 	 final boolean               copyDebug)
+    							  debugLevel);
+    				  }
     				  if (show_init_refine && (debugLevel>0)) tp.showScan(
     						  combo_pass, // CLTPass3d   scan,
     						  "after_compositeScan-"+tp.clt_3d_passes.size());
-
     				  tp.clt_3d_passes.add(combo_pass);
 
     			  }
@@ -9083,7 +9095,7 @@ public class QuadCLTCPU {
 					  threadsMax,        // maximal number of threads to launch
 					  updateStatus,
 					  debugLevel);
-			  if (show_init_refine) tp.showScan(
+			  if (show_init_refine && (debugLevel >-2)) tp.showScan(
 					  tp.clt_3d_passes.get(tp.clt_3d_passes.size() -1), // CLTPass3d   scan,
 					  "after_measure_macro-"+tp.clt_3d_passes.size());
 			  if (debugLevel > -1){
@@ -9102,7 +9114,7 @@ public class QuadCLTCPU {
     	  int dbg_tileX = 58; // 42;
     	  int dbg_tileY = 48; // 28;
     	  boolean break_now = true;
-    	  while (!break_now && debug2) {
+    	  while (!break_now && debug_graphic) {
     		  tp.printScans(
     				  tp.clt_3d_passes,        // final ArrayList <CLTPass3d> passes,
     				  0, // bg_pass,           // final int                   firstPass,
@@ -9188,7 +9200,7 @@ public class QuadCLTCPU {
 				  combo_pass, // CLTPass3d         combo_pass,
 				  debugLevel); // final int         debugLevel);
 		  tp.clt_3d_passes.add(refined0);
-		  if (show_init_refine) tp.showScan(
+		  if (show_init_refine && (debugLevel > -2)) tp.showScan(
 				  tp.clt_3d_passes.get(tp.clt_3d_passes.size() -1), // last scan (combo)
 				  "first_refined-"+tp.clt_3d_passes.size());
 
@@ -9225,7 +9237,7 @@ public class QuadCLTCPU {
 				  true,                       // final boolean               copyDebug)
 				  debugLevel);
 		  tp.clt_3d_passes.add(combo_pass);
-		  if (show_init_refine) {
+		  if (show_init_refine && (debugLevel >-2)) {
 			  tp.showScan(
 				  tp.clt_3d_passes.get(tp.clt_3d_passes.size() - 1), // CLTPass3d   scan,
 				  "combo_after_first_lma-"+tp.clt_3d_passes.size());
@@ -9269,7 +9281,7 @@ public class QuadCLTCPU {
 			  
 
 			  ///    		  if (debugLevel > 1)
-			  if (debug2 && (debugLevel > -3)) { // &&  (debugLevel > 0)
+			  if (debug_graphic && (debugLevel > -2)) { // &&  (debugLevel > 0)
 				  tp.showScan(
 						  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
 						  "before_makeUnique-"+refine_pass);
@@ -9289,7 +9301,7 @@ public class QuadCLTCPU {
 			  if (debugLevel > -1){
 				  System.out.println("cycle makeUnique("+refine_pass+") -> left: "+numLeftRemoved[0]+", removed:" + numLeftRemoved[1]);
 			  }
-			  if (debug2 && (debugLevel > -3)) { // (show_init_refine && (debugLevel >0)) {
+			  if (debug_graphic && (debugLevel > -3)) { // (show_init_refine && (debugLevel >0)) {
 				  tp.showScan(
 					  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
 					  "after_refinePassSetup-"+tp.clt_3d_passes.size());
@@ -9363,7 +9375,7 @@ public class QuadCLTCPU {
 			  }
 			  tp.clt_3d_passes.add(combo_pass);
 		  }
-		  if (show_init_refine) {
+		  if (show_init_refine && (debugLevel >-2)) {
 			  tp.showScan(
 				  tp.clt_3d_passes.get(tp.clt_3d_passes.size() - 1), // CLTPass3d   scan,
 				  "before multi-tile-"+tp.clt_3d_passes.size());
@@ -9373,7 +9385,7 @@ public class QuadCLTCPU {
 //		  CLTPass3d 
 		  combo_pass = tp.clt_3d_passes.get(tp.clt_3d_passes.size() - 1); // last pass created by tp.compositeScan
     	  break_now = true;
-    	  while (!break_now && debug2) {
+    	  while (!break_now && debug_graphic) {
     		  tp.printScans(
     				  tp.clt_3d_passes,        // final ArrayList <CLTPass3d> passes,
     				  0, // bg_pass,           // final int                   firstPass,
@@ -9470,7 +9482,7 @@ public class QuadCLTCPU {
 							  threadsMax,
 							  updateStatus,
 							  debugLevel);
-				  if (show_init_refine) tp.showScan(
+				  if (show_init_refine && (debugLevel > -2)) tp.showScan(
 						  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
 						  "after_measure-"+tp.clt_3d_passes.size());
 				  
@@ -9512,7 +9524,7 @@ public class QuadCLTCPU {
 						  disparity[i] = disparity_LMA[i]; // update only measured, others will be removed by makeUnique
 					  }
 				  }
-				  if (show_init_refine) tp.showScan(
+				  if (show_init_refine && (debugLevel > -2)) tp.showScan(
 						  combo_multi[clust_radius-1], // CLTPass3d   scan,
 						  "combo_multi-"+clust_radius+"-pass"+nnn);
 				  
@@ -9522,27 +9534,7 @@ public class QuadCLTCPU {
 				  // when done, grow to fill gaps from 3x3 first (by 1 step) and from 5x5 - second?(by 2 steps), ...
 			  }
 		  }
-		  
-    	  break_now = true;
-    	  while (!break_now && debug2) {
-    		  tp.printScans(
-    				  tp.clt_3d_passes,        // final ArrayList <CLTPass3d> passes,
-    				  0, // bg_pass,           // final int                   firstPass,
-    				  tp.clt_3d_passes.size(), // final int                   lastPassPlus1,
-    				  true,                    // final boolean               use_lma,
-    				  fom_min_strength,        // final double                min_strength,
-    				  fom_adisp,               // final double     fom_adisp,     // 0.5
-    				  fom_cdiff,               // final double     fom_cdiff,     // 0.02
-    				  fom_inf_bonus,           // final double     fom_inf_bonus, // 0.2; // add this to infinity FOM (if it is closer than fom_inf_range)
-    				  fom_inf_range,           // final double     fom_inf_range, // 0.5;
-    				  dbg_tileX,               // 	 final int                   tileX,
-    				  dbg_tileY);              //     					 final int                   tileY
-    	  }  
-		  
-		  
-		  
-		  
-			  // Restore pairs selection
+		  // Restore pairs selection
 		  clt_parameters.img_dtt.setMcorr(getNumSensors(), save_pairs_selection); // restore
 		  if (clt_parameters.gr_nan_bg) {
 			  if (debugLevel > -2) {
@@ -9557,7 +9549,21 @@ public class QuadCLTCPU {
 						  "pre-last_pass-"+tp.clt_3d_passes.size());
 			  }
 		  }
-		  
+    	  break_now = true;
+    	  while (!break_now && debug_graphic) {
+    		  tp.printScans(
+    				  tp.clt_3d_passes,        // final ArrayList <CLTPass3d> passes,
+    				  0, // bg_pass,           // final int                   firstPass,
+    				  tp.clt_3d_passes.size(), // final int                   lastPassPlus1,
+    				  true,                    // final boolean               use_lma,
+    				  fom_min_strength,        // final double                min_strength,
+    				  fom_adisp,               // final double     fom_adisp,     // 0.5
+    				  fom_cdiff,               // final double     fom_cdiff,     // 0.02
+    				  fom_inf_bonus,           // final double     fom_inf_bonus, // 0.2; // add this to infinity FOM (if it is closer than fom_inf_range)
+    				  fom_inf_range,           // final double     fom_inf_range, // 0.5;
+    				  dbg_tileX,               // 	 final int                   tileX,
+    				  dbg_tileY);              //     					 final int                   tileY
+    	  }  
 		  
 		  if (clt_parameters.gr_exp_certain) {
 			  int num_added = tp.expandCertainMulti ( 

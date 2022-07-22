@@ -1867,6 +1867,7 @@ ImageDtt.startAndJoin(threads);
 		for (DSD dsd:dsd_list) {
 			CLTPass3d pass = passes.get(dsd.indx);
 			double [] diffs = pass.getSecondMaxDiff(false);
+			double diff = (diffs == null)?Double.NaN:diffs[nt];
 			String prefix = " ";
 			if (dsd.indx == dsd_max_fom.indx) {
 				prefix = "+";
@@ -1878,7 +1879,7 @@ ImageDtt.startAndJoin(threads);
 			}
 			System.out.println (String.format("%1s%4d: %8.3f %6.4f %6.4f %5b %1d %8.3f %8.3f",
 					prefix, // 
-					dsd.indx, dsd.disparity, dsd.strength, dsd.adiff, dsd.has_lma, dsd.clust_radius, diffs[nt], dsd.fom));
+					dsd.indx, dsd.disparity, dsd.strength, dsd.adiff, dsd.has_lma, dsd.clust_radius, diff, dsd.fom));
 		}
 		System.out.println();
 		return;

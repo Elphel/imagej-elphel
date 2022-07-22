@@ -136,7 +136,7 @@ public class IntersceneMatchParameters {
 	public  double      min_disparity =                  -0.15; // 0.2;
 	public  double      max_sym_disparity =               0.1; // 0.2;
 	// 2 next are wrong currently - minimal strength is ~0.25
-	public  double      min_strength_lma =                0.3;  // no real filtering
+	public  double      min_strength_lma =                0.0; // 0.3;  // no real filtering
 	public  double      min_strength_replace =            0.05; ///  0.14; /// Before /// - LWIR, after - RGB
 	public  double      min_strength_blur =               0.06; ///  0.2;
 	public  double      sigma =                           2; /// 5;

@@ -1829,7 +1829,7 @@ public class ImageDttCPU {
 		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
-				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
+				System.out.println("f. ortho_weights["+i+"]="+ ortho_weights[i]);
 			}
 		}
 
@@ -3624,7 +3624,7 @@ public class ImageDttCPU {
 		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
-				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
+				System.out.println("g. ortho_weights["+i+"]="+ ortho_weights[i]);
 			}
 		}
 
@@ -4602,7 +4602,7 @@ public class ImageDttCPU {
 		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
-				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
+				System.out.println("h. ortho_weights["+i+"]="+ ortho_weights[i]);
 			}
 		}
 
@@ -7878,7 +7878,7 @@ public class ImageDttCPU {
 		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
-				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
+				System.out.println("i. ortho_weights["+i+"]="+ ortho_weights[i]);
 			}
 		}
 
@@ -12732,7 +12732,7 @@ public class ImageDttCPU {
 		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ clt_parameters.img_dtt.ortho_height+" ortho_eff_height="+ clt_parameters.img_dtt.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
-				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
+				System.out.println("j. ortho_weights["+i+"]="+ ortho_weights[i]);
 			}
 		}
 
@@ -13669,7 +13669,7 @@ public class ImageDttCPU {
 		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ clt_parameters.img_dtt.ortho_height+" ortho_eff_height="+ clt_parameters.img_dtt.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
-				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
+				System.out.println("k. ortho_weights["+i+"]="+ ortho_weights[i]);
 			}
 		}
 
@@ -14386,7 +14386,7 @@ public class ImageDttCPU {
 		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ clt_parameters.img_dtt.ortho_height+" ortho_eff_height="+ clt_parameters.img_dtt.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
-				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
+				System.out.println("l. ortho_weights["+i+"]="+ ortho_weights[i]);
 			}
 		}
 
@@ -14798,7 +14798,7 @@ public class ImageDttCPU {
 		if (globalDebugLevel > 1){
 			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
 			for (int i = 0; i < corr_size; i++){
-				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
+				System.out.println("m. ortho_weights["+i+"]="+ ortho_weights[i]);
 			}
 		}
 
