@@ -12493,6 +12493,8 @@ if (debugLevel > -100) return true; // temporarily !
 									0,              // final int         clust_radius,
 									true,           // final boolean     save_corr,
 									false,          // final boolean     run_lma, // =    true;
+									0.0,            // final double        max_chn_diff, // filter correlation results by maximum difference between channels
+									-1.0,           // final double        mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
 									threadsMax,     // final int         threadsMax,  // maximal number of threads to launch
 									updateStatus,   // final boolean     updateStatus,
 									debugLevel);    // final int         debugLevel);

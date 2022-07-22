@@ -3847,6 +3847,9 @@ public class QuadCLT extends QuadCLTCPU {
 		  if ((gpuQuad == null) || !(isAux()?clt_parameters.gpu_use_aux : clt_parameters.gpu_use_main)) {
 			  return super.CLTBackgroundMeas( // measure background // USED in lwir
 					  clt_parameters,
+					  true, //  final boolean     run_lma, //			  
+					  clt_parameters.getMaxChannelMismatch(isLwir()), // max_chn_diff, //final double      max_chn_diff, // filter correlation results by maximum difference between channels
+					  clt_parameters.mismatch_override, // final double      mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
 					  debugLevel);
@@ -3995,6 +3998,7 @@ public class QuadCLT extends QuadCLTCPU {
 
 	  public ImagePlus getBackgroundImage(
 			  boolean []                                bgnd_tiles, 
+			  CLTPass3d                                 bgnd_data,
 			  CLTParameters                             clt_parameters,
 			  ColorProcParameters                       colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters  rgbParameters,
@@ -4007,6 +4011,7 @@ public class QuadCLT extends QuadCLTCPU {
 		  if ((gpuQuad == null) || !(isAux()?clt_parameters.gpu_use_aux : clt_parameters.gpu_use_main)) {
 			  return super.getBackgroundImage( // measure background // USED in lwir
 					  bgnd_tiles, 
+					  bgnd_data,
 					  clt_parameters,
 					  colorProcParameters,
 					  rgbParameters,
@@ -4019,7 +4024,7 @@ public class QuadCLT extends QuadCLTCPU {
 		  
 		  final int tilesX = tp.getTilesX();
 		  final int tilesY = tp.getTilesY();
-		  CLTPass3d bgnd_data = tp.clt_3d_passes.get(0);
+//		  CLTPass3d bgnd_data = tp.clt_3d_passes.get(0);
 		  boolean [] bgnd_tiles_grown2 = bgnd_data.getSelected().clone(); // only these have non 0 alpha
 		  tp.growTiles(
 				  2,      // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more

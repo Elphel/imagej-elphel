@@ -8389,7 +8389,7 @@ public class QuadCLTCPU {
 // Add here composite scans and show FG and BG images
 				  // adjust extrinsics here
 
-
+// Only here it uses 2 planes
 				  ArrayList<CLTPass3d> combo_pass_list = tp.compositeScan(
 						  2, // just FG and BG
 						  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
@@ -8686,33 +8686,57 @@ public class QuadCLTCPU {
 			  final boolean                                    updateStatus,
 			  final int                                        debugLevel)
 	  {
+		  final boolean    show_init_refine =  clt_parameters.show_init_refine; // change to true?
+    	  boolean lwir2022 = true;
+    	  boolean debug2 = true;
+
 		  boolean no_macro = isLwir(); // make it a separate configurable parameter?
 		  // change debugLevel to 0
 		  this.startStepTime=System.nanoTime()+0;
-		  final boolean    show_init_refine = clt_parameters.show_init_refine; // change to true?
+		  final double     max_mismatch =      clt_parameters.getMaxChannelMismatch(isLwir());
+		  final double     mismatch_override = clt_parameters.mismatch_override;
+		  final double     fom_min_strength =  clt_parameters.fom_min_strength;
+		  final double     fom_adisp =         clt_parameters.getFomWAdisp(isLwir()); // 0.5;
+		  final double     fom_cdiff =         clt_parameters.getFomCDiff(isLwir()); // 0.02;
+		  final double     fom_inf_bonus  =    clt_parameters.fom_inf_bonus;  // 0.2; // add this to infinity FOM (if it is closer than fom_inf_range)
+		  final double     fom_inf_range  =    clt_parameters.fom_inf_range;  // 0.5;
 
 		  //max_expand
 //		  String name = (String) imp_quad[0].getProperty("name");
 		  String name = getImageName();
 		  // should create data for the macro! (diff, rgb) make sure .texture_tiles is measured correctly
-		  CLTPass3d bgnd_data = CLTBackgroundMeas( // measure background - both CPU and GPU (remove textures from GPU)
+		  CLTPass3d bgnd_data_lma = CLTBackgroundMeas( // measure background - both CPU and GPU (remove textures from GPU)
 				  clt_parameters,
-				  threadsMax,  // maximal number of threads to launch
+				  true,              //  final boolean     run_lma, //			  
+				  max_mismatch,      // max_chn_diff, //final double      max_chn_diff, // filter correlation results by maximum difference between channels
+				  mismatch_override, // final double      mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
+				  threadsMax,        // maximal number of threads to launch
 				  updateStatus,
 				  debugLevel);
 		  if (clt_parameters.img_dtt.lmamask_dbg) {
 			  System.out.println("Remove me - QCC8257");
 			  return false;
 		  }
+		  tp.clt_3d_passes.add(bgnd_data_lma);
+		  CLTPass3d bgnd_data_nolma = CLTBackgroundMeas( // measure background - both CPU and GPU (remove textures from GPU)
+				  clt_parameters,
+				  false,              //  final boolean     run_lma, //			  
+				  max_mismatch,      // max_chn_diff, //final double      max_chn_diff, // filter correlation results by maximum difference between channels
+				  mismatch_override, // final double      mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
+				  threadsMax,        // maximal number of threads to launch
+				  updateStatus,
+				  debugLevel);
+		  tp.clt_3d_passes.add(bgnd_data_nolma);
 		  
-		  
-		  tp.clt_3d_passes.add(bgnd_data);
 		  //    	  if (show_init_refine)
 //		  if ((debugLevel > -2) && clt_parameters.show_first_bg) {
-		  if ((debugLevel > -2) && clt_parameters.show_first_bg) {
+		  if ((debugLevel > -3) && clt_parameters.show_first_bg) {
 			  tp.showScan(
 					  tp.clt_3d_passes.get(0), // CLTPass3d   scan,
-					  "bgnd_data-"+tp.clt_3d_passes.size());
+					  "bgnd_data_lma-"+tp.clt_3d_passes.size());
+			  tp.showScan(
+					  tp.clt_3d_passes.get(1), // CLTPass3d   scan,
+					  "bgnd_data_nolma-"+tp.clt_3d_passes.size());
 		  }
 
 		  //TODO: Move away from here?
@@ -8720,10 +8744,13 @@ public class QuadCLTCPU {
 
 		  boolean [] bgmask = getBackgroundImageMasks(
     			  clt_parameters,
-    			  name,               // .getTitle(), //String name=(String) imp_src.getProperty("name");
+    			  bgnd_data_lma,   // CLTPass3d               bgnd_data,
+    			  name,        // .getTitle(), //String name=(String) imp_src.getProperty("name");
     			  threadsMax,  // maximal number of threads to launch
     			  updateStatus,
     			  debugLevel);
+		  
+		  bgnd_data_nolma.setSelected(bgnd_data_lma.getSelected());
 		  
 		  if ((debugLevel > -2)  && (bgmask != null)) {
 			  double [][] dbg_img = new double[1][tp.getTilesY() * tp.getTilesX()];
@@ -8739,6 +8766,7 @@ public class QuadCLTCPU {
 		  
     	  ImagePlus imp_bgnd_int = getBackgroundImage( // null pointer
     			  bgmask, // boolean []                                bgnd_tiles, 
+    			  bgnd_data_lma,   // CLTPass3d               bgnd_data,
     			  clt_parameters,
     			  colorProcParameters,
     			  rgbParameters,
@@ -8765,7 +8793,7 @@ public class QuadCLTCPU {
 
 ////    	  imp_bgnd.show(); /// all black -> change clt_parameters.alpha0, clt_parameters.alpha1 
     	  
-    	  bgnd_data.texture = (imp_bgnd == null)? null: ( imp_bgnd.getTitle()+ (clt_parameters.black_back? ".jpeg" : ".png"));
+    	  bgnd_data_lma.texture = (imp_bgnd == null)? null: ( imp_bgnd.getTitle()+ (clt_parameters.black_back? ".jpeg" : ".png"));
 
     	  // create x3d file
     	  X3dOutput x3dOutput = new X3dOutput(
@@ -8816,10 +8844,10 @@ public class QuadCLTCPU {
 
 
     		  double [][][] input_data = mc.CLTMacroSetData( // perform single pass according to prepared tiles operations and disparity
-    				  bgnd_data);           // final CLTPass3d      src_scan, // results of the normal correlations (now expecting infinity)
+    				  bgnd_data_nolma);           // final CLTPass3d      src_scan, // results of the normal correlations (now expecting infinity)
 
     		  TileProcessor mtp =  mc.CLTMacroScan( // perform single pass according to prepared tiles operations and disparity
-    				  bgnd_data,          // final CLTPass3d                            src_scan, // results of the normal correlations (now expecting infinity)
+    				  bgnd_data_nolma,          // final CLTPass3d                            src_scan, // results of the normal correlations (now expecting infinity)
     				  clt_parameters,     // EyesisCorrectionParameters.CLTParameters clt_parameters,
     				  geometryCorrection, // GeometryCorrection geometryCorrection,
     				  0.0,                // 	final double                             macro_disparity_low,
@@ -8934,10 +8962,13 @@ public class QuadCLTCPU {
     	  clt_parameters.img_dtt.setMcorrNeib(getNumSensors(),true);
     	  clt_parameters.img_dtt.setMcorrSq  (getNumSensors(),true); // remove even more?
     	  clt_parameters.img_dtt.setMcorrDia (getNumSensors(),true); // remove even more?
-    	  boolean save_run_lma = clt_parameters.correlate_lma;
-    	  clt_parameters.correlate_lma = false;
+//    	  boolean save_run_lma = clt_parameters.correlate_lma; 
+//    	  clt_parameters.correlate_lma = false;
     	  
     	  int dbg_num_new = 0; // only BG in the list
+		  if (show_init_refine) tp.showScan(
+				  tp.clt_3d_passes.get(tp.clt_3d_passes.size()-1), // CLTPass3d   scan,
+				  "before adding-"+tp.clt_3d_passes.size());
     	  for (CLTPass3d from_macro_pass: new_meas) {
     		  if (debugLevel > -3) {
     			  System.out.println("Next from new_meas: "+dbg_num_new);
@@ -8987,22 +9018,27 @@ public class QuadCLTCPU {
     			  if (debugLevel > -3){ // -1
     				  System.out.println("cycle makeUnique("+refine_pass+") -> left: "+numLeftRemoved[0]+", removed:" + numLeftRemoved[1]);
     			  }
-    			  if (show_init_refine) tp.showScan(
+    			  if (show_init_refine && (debugLevel>0)) tp.showScan(
     					  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
     					  "after_refinePassSetup-"+tp.clt_3d_passes.size());
+    			  // Adding filtering for large difference only here (high-disparity ghosts in the sky)
+    			  // In other places may harm FG/BG borders
      			  CLTMeasCorr( // perform single pass according to prepared tiles operations and disparity // CUDA_ERROR_INVALID_VALUE on lowres
     					  clt_parameters,
     					  refine_pass,
-    					  false, // true, // final boolean     save_textures,
+    					  false, // true,    // final boolean     save_textures,
     					  0,                 // final int         clust_radius,
-    					  threadsMax,  // maximal number of threads to launch
+    					  false, // clt_parameters.correlate_lma, // final boolean       run_lma, //
+    					  max_mismatch,      // final double      max_chn_diff, // filter correlation results by maximum difference between channels
+    					  mismatch_override, //final double      mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
+    					  threadsMax,        // maximal number of threads to launch
     					  updateStatus,
     					  debugLevel);
 
     			  if (debugLevel > -3){
     				  System.out.println("CLTMeasCorr("+refine_pass+")-*");
     			  }
-    			  if (show_init_refine) tp.showScan(
+    			  if ((debugLevel > 0) && show_init_refine) tp.showScan( // remove by debug
     					  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
     					  "after_measure-"+tp.clt_3d_passes.size());
     			  if (nnn < (clt_parameters.gr_num_refines-1)) { // all but last, because after last the next fresh one will be used
@@ -9026,7 +9062,7 @@ public class QuadCLTCPU {
     						  true, // 	 final boolean               copyDebug)
     						  debugLevel);
 
-    				  if (show_init_refine) tp.showScan(
+    				  if (show_init_refine && (debugLevel>0)) tp.showScan(
     						  combo_pass, // CLTPass3d   scan,
     						  "after_compositeScan-"+tp.clt_3d_passes.size());
 
@@ -9041,47 +9077,103 @@ public class QuadCLTCPU {
 					  tp.clt_3d_passes.size() -1, // new, refine_pass+1, - just added from macro - VERIFY
 					  true, // final boolean     save_textures,
 					  0,                 // final int         clust_radius,
-					  threadsMax,  // maximal number of threads to launch
+					  false, // clt_parameters.correlate_lma, // final boolean       run_lma, //
+					  max_mismatch,      // final double      max_chn_diff, // filter correlation results by maximum difference between channels
+					  mismatch_override, //final double      mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
+					  threadsMax,        // maximal number of threads to launch
 					  updateStatus,
 					  debugLevel);
-			  if (debugLevel > -1){
-				  System.out.println("CLTMeasure("+(tp.clt_3d_passes.size() -1)+")");
-			  }
 			  if (show_init_refine) tp.showScan(
 					  tp.clt_3d_passes.get(tp.clt_3d_passes.size() -1), // CLTPass3d   scan,
 					  "after_measure_macro-"+tp.clt_3d_passes.size());
+			  if (debugLevel > -1){
+				  System.out.println("CLTMeasure("+(tp.clt_3d_passes.size() -1)+")");
+			  }
     	  }
 
     	  // Restore pair selection and minimize them for scanning, then restore;
     	  if (!clt_parameters.gr_reduce_sngl) {
     		  clt_parameters.img_dtt.setMcorr(getNumSensors(), save_pairs_selection); // restore
     	  }
-    	  clt_parameters.correlate_lma = save_run_lma; // restore
+//    	  clt_parameters.correlate_lma = save_run_lma; // restore *********
+    	  
+    	  
+// Manually debug here for various tiles
+    	  int dbg_tileX = 58; // 42;
+    	  int dbg_tileY = 48; // 28;
+    	  boolean break_now = true;
+    	  while (!break_now && debug2) {
+    		  tp.printScans(
+    				  tp.clt_3d_passes,        // final ArrayList <CLTPass3d> passes,
+    				  0, // bg_pass,           // final int                   firstPass,
+    				  tp.clt_3d_passes.size(), // final int                   lastPassPlus1,
+    				  false,                   // 	final boolean               use_lma,
+    				  fom_min_strength,         // final double                min_strength,
+    				  fom_adisp,               // final double     fom_adisp,     // 0.5
+    				  fom_cdiff,               // final double     fom_cdiff,     // 0.02
+    				  fom_inf_bonus,           // final double     fom_inf_bonus, // 0.2; // add this to infinity FOM (if it is closer than fom_inf_range)
+    				  fom_inf_range,           // final double     fom_inf_range, // 0.5;
+    				  dbg_tileX,               // 	 final int                   tileX,
+    				  dbg_tileY);              //     					 final int                   tileY
+    		  CLTPass3d combo_pass = tp.compositeScan(
+					  tp.clt_3d_passes,           // final ArrayList <CLTPass3d> passes,
+					  bg_pass,                    // final int                   firstPass,
+					  tp.clt_3d_passes.size(),    // final int                   lastPassPlus1,
+ //					  tp.getTrustedCorrelation(), // final double                trustedCorrelation,
+					  fom_min_strength,           // final double                fom_min_strength,
+					  false,                      // final boolean               fom_use_lma,
+					  fom_adisp,                  // final double                fom_adisp,     // 0.5
+					  fom_cdiff,                  // final double                fom_cdiff,     // 0.02
+					  fom_inf_bonus,              // final double                fom_inf_bonus, // 0.2; // add this to infinity FOM (if it is closer than fom_inf_range)
+					  fom_inf_range,              // final double                fom_inf_range, // 0.5;
+					  true,                       // final boolean               copyDebug)
+					  debugLevel);
+    		  tp.showScan( combo_pass, "combo_after_all_measured-"+tp.clt_3d_passes.size());
+    		  if (break_now) {
+    			  break;
+    		  }
+    	  }
+
     	  
     	  
 /// Refining after all added
 		  if (debugLevel > -3){
-			  System.out.println("---- Refining after all added , combining all previous mesurements ----");
+			  System.out.println("---- Refining after all added , combining all previous measurements ----");
 		  }
 		  // first - combine all measured before (that was missing)
-		  
-		  CLTPass3d combo_pass = tp.compositeScan(
-				  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
-				  bg_pass, //  final int                   firstPass,
-				  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
-				  tp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
-				  tp.getMaxOverexposure(),                          //  final double                max_overexposure,
-				  0.0, // clt_parameters.bgnd_range,                //	 final double                disp_far,   // limit results to the disparity range
-				  clt_parameters.grow_disp_max,                     // final double                disp_near,
-				  clt_parameters.combine_min_strength,              // final double                minStrength,
-				  clt_parameters.combine_min_hor,                   // final double                minStrengthHor,
-				  clt_parameters.combine_min_vert,                  // final double                minStrengthVert,
-				  false,                                            // final boolean               no_weak,
-				  false,                                            // final boolean               use_last,   //
-				  // TODO: when useCombo - pay attention to borders (disregard)
-				  false,                                            // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
-				  true,                                             // 	 final boolean               copyDebug)
-				  debugLevel);
+		  CLTPass3d combo_pass = null;
+		  if (lwir2022) {
+			  combo_pass = tp.compositeScan(
+					  tp.clt_3d_passes,           // final ArrayList <CLTPass3d> passes,
+					  bg_pass,                    // final int                   firstPass,
+					  tp.clt_3d_passes.size(),    // final int                   lastPassPlus1,
+					  fom_min_strength,           // final double                fom_min_strength,
+					  false,                      // final boolean               fom_use_lma,
+					  fom_adisp,                  // final double                fom_adisp,     // 0.5
+					  fom_cdiff,                  // final double                fom_cdiff,     // 0.02
+					  fom_inf_bonus,              // final double                fom_inf_bonus, // 0.2; // add this to infinity FOM (if it is closer than fom_inf_range)
+					  fom_inf_range,              // final double                fom_inf_range, // 0.5;
+					  true,                       // final boolean               copyDebug)
+					  debugLevel);
+		  } else {
+			  combo_pass = tp.compositeScan(
+					  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
+					  bg_pass, //  final int                   firstPass,
+					  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
+					  tp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
+					  tp.getMaxOverexposure(),                          //  final double                max_overexposure,
+					  0.0, // clt_parameters.bgnd_range,                //	 final double                disp_far,   // limit results to the disparity range
+					  clt_parameters.grow_disp_max,                     // final double                disp_near,
+					  clt_parameters.combine_min_strength,              // final double                minStrength,
+					  clt_parameters.combine_min_hor,                   // final double                minStrengthHor,
+					  clt_parameters.combine_min_vert,                  // final double                minStrengthVert,
+					  false,                                            // final boolean               no_weak,
+					  false,                                            // final boolean               use_last,   //
+					  // TODO: when useCombo - pay attention to borders (disregard)
+					  false,                                            // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
+					  true,                                             // 	 final boolean               copyDebug)
+					  debugLevel);
+		  }
 		  tp.clt_3d_passes.add(combo_pass);
 		  if (debugLevel > -3){
 			  System.out.println("---- Refining after all added , combined all previous mesurements ----");
@@ -9089,6 +9181,57 @@ public class QuadCLTCPU {
 		  if (show_init_refine) tp.showScan(
 				  tp.clt_3d_passes.get(tp.clt_3d_passes.size() -1), // last scan (combo)
 				  "combo_after_all_measured-"+tp.clt_3d_passes.size());
+		  // now measure with LMA everything w/o filtering
+		  // next adds to the list !
+		  refine_pass = tp.clt_3d_passes.size(); // 1
+		  CLTPass3d refined0 = tp.refinePassSetup( // prepare tile tasks for the refine pass (re-measure disparities)
+				  combo_pass, // CLTPass3d         combo_pass,
+				  debugLevel); // final int         debugLevel);
+		  tp.clt_3d_passes.add(refined0);
+		  if (show_init_refine) tp.showScan(
+				  tp.clt_3d_passes.get(tp.clt_3d_passes.size() -1), // last scan (combo)
+				  "first_refined-"+tp.clt_3d_passes.size());
+
+		  CLTMeasCorr( // perform single pass according to prepared tiles operations and disparity
+				  clt_parameters,
+				  tp.clt_3d_passes.size() - 1,// last one, combo
+				  true, // final boolean     save_textures,
+				  0,                 // final int         clust_radius,
+				  clt_parameters.correlate_lma, // final boolean       run_lma, //
+				  max_mismatch,      // final double      max_chn_diff, // filter correlation results by maximum difference between channels
+				  mismatch_override, //final double      mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
+				  threadsMax,        // maximal number of threads to launch
+				  updateStatus,
+				  debugLevel);
+//		  if (debugLevel > -1){
+		  if (debugLevel > -3){
+			  System.out.println("After first LMA measure ("+(tp.clt_3d_passes.size() - 1)+")");
+		  }
+		  if (show_init_refine) {
+			  tp.showScan(
+				  tp.clt_3d_passes.get(tp.clt_3d_passes.size() - 1), // CLTPass3d   scan,
+				  "after_first_lma_measure-"+tp.clt_3d_passes.size());
+		  }
+		  combo_pass = tp.compositeScan(
+				  tp.clt_3d_passes,           // final ArrayList <CLTPass3d> passes,
+				  bg_pass,                    // final int                   firstPass,
+				  tp.clt_3d_passes.size(),    // final int                   lastPassPlus1,
+				  fom_min_strength,           // final double                fom_min_strength,
+				  true,                      // final boolean               fom_use_lma,
+				  fom_adisp,                  // final double                fom_adisp,     // 0.5
+				  fom_cdiff,                  // final double                fom_cdiff,     // 0.02
+				  fom_inf_bonus,              // final double                fom_inf_bonus, // 0.2; // add this to infinity FOM (if it is closer than fom_inf_range)
+				  fom_inf_range,              // final double                fom_inf_range, // 0.5;
+				  true,                       // final boolean               copyDebug)
+				  debugLevel);
+		  tp.clt_3d_passes.add(combo_pass);
+		  if (show_init_refine) {
+			  tp.showScan(
+				  tp.clt_3d_passes.get(tp.clt_3d_passes.size() - 1), // CLTPass3d   scan,
+				  "combo_after_first_lma-"+tp.clt_3d_passes.size());
+		  }
+
+		  
 		  
 		  // find out - why first pass corresponds to last scan step?
     	  // first ("before_makeUnique-41-" was empty)
@@ -9097,6 +9240,7 @@ public class QuadCLTCPU {
 	    		  clt_parameters.img_dtt.setMcorr(getNumSensors(), save_pairs_selection); // restore
 	    	  }
 			  refine_pass = tp.clt_3d_passes.size(); // 1
+// refinePassSetup() - old one - try to update
 			  CLTPass3d refined = tp.refinePassSetup( // prepare tile tasks for the refine pass (re-measure disparities)
 					  //				  final double [][][]       image_data, // first index - number of image in a quad
 					  clt_parameters,
@@ -9122,12 +9266,14 @@ public class QuadCLTCPU {
 					  updateStatus,
 					  debugLevel); //2);
 			  tp.clt_3d_passes.add(refined);
+			  
 
 			  ///    		  if (debugLevel > 1)
-			  if (debugLevel > 0)
+			  if (debug2 && (debugLevel > -3)) { // &&  (debugLevel > 0)
 				  tp.showScan(
 						  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
 						  "before_makeUnique-"+refine_pass);
+			  }
 			  int [] numLeftRemoved = tp.makeUnique(
 					  tp.clt_3d_passes,                  // final ArrayList <CLTPass3d> passes,
 					  0,                                 //  final int                   firstPass,
@@ -9143,23 +9289,38 @@ public class QuadCLTCPU {
 			  if (debugLevel > -1){
 				  System.out.println("cycle makeUnique("+refine_pass+") -> left: "+numLeftRemoved[0]+", removed:" + numLeftRemoved[1]);
 			  }
-			  if (show_init_refine) tp.showScan(
+			  if (debug2 && (debugLevel > -3)) { // (show_init_refine && (debugLevel >0)) {
+				  tp.showScan(
 					  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
 					  "after_refinePassSetup-"+tp.clt_3d_passes.size());
-			  
+			  }
 			  
 // first time - last scan step????
-//			  CLTMeasureCorr( // perform single pass according to prepared tiles operations and disparity
-			  CLTMeasCorr( // perform single pass according to prepared tiles operations and disparity
-//					  image_data, // first index - number of image in a quad
-//					  saturation_imp, //final boolean [][]  saturation_imp, // (near) saturated pixels or null
-					  clt_parameters,
-					  refine_pass,
-					  true, // final boolean     save_textures,
-					  0,                 // final int         clust_radius,
-					  threadsMax,  // maximal number of threads to launch
-					  updateStatus,
-					  debugLevel);
+			  if (lwir2022) {
+				  CLTMeasCorr( // perform single pass according to prepared tiles operations and disparity
+						  clt_parameters,
+						  refine_pass,
+						  true, // final boolean     save_textures,
+						  0,                   // final int         clust_radius,
+						  clt_parameters.correlate_lma, // final boolean       run_lma, //
+						  max_mismatch,        // final double      max_chn_diff, // filter correlation results by maximum difference between channels
+						  mismatch_override,   //final double      mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
+						  threadsMax,          // maximal number of threads to launch
+						  updateStatus,
+						  debugLevel);
+			  } else {
+				  CLTMeasCorr( // perform single pass according to prepared tiles operations and disparity
+						  clt_parameters,
+						  refine_pass,
+						  true, // final boolean     save_textures,
+						  0,                 // final int         clust_radius,
+						  clt_parameters.correlate_lma, // final boolean       run_lma, //
+						  0,              // final double      max_chn_diff, // filter correlation results by maximum difference between channels
+						  -1,                //final double      mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
+						  threadsMax,  // maximal number of threads to launch
+						  updateStatus,
+						  debugLevel);
+			  }
 //			  if (debugLevel > -1){
 			  if (debugLevel > -2){
 				  System.out.println("?.CLTMeasure("+refine_pass+")");
@@ -9167,37 +9328,73 @@ public class QuadCLTCPU {
 			  if (show_init_refine) tp.showScan(
 					  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
 					  "after_measure-"+tp.clt_3d_passes.size());
-
-//			  CLTPass3d 
-			  combo_pass = tp.compositeScan(
-					  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
-					  bg_pass, //  final int                   firstPass,
-					  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
-					  tp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
-					  tp.getMaxOverexposure(),                          //  final double                max_overexposure,
-					  0.0, // clt_parameters.bgnd_range,                //	 final double                disp_far,   // limit results to the disparity range
-					  clt_parameters.grow_disp_max,                     // final double                disp_near,
-					  clt_parameters.combine_min_strength,              // final double                minStrength,
-					  clt_parameters.combine_min_hor,                   // final double                minStrengthHor,
-					  clt_parameters.combine_min_vert,                  // final double                minStrengthVert,
-					  false,                                            // final boolean               no_weak,
-					  false,                                            // final boolean               use_last,   //
-					  // TODO: when useCombo - pay attention to borders (disregard)
-					  false,                                            // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
-					  true,                                             // 	 final boolean               copyDebug)
-					  debugLevel);
+//
+			  if (lwir2022) {
+				  combo_pass = tp.compositeScan(
+						  tp.clt_3d_passes,           // final ArrayList <CLTPass3d> passes,
+						  bg_pass,                    // final int                   firstPass,
+						  tp.clt_3d_passes.size(),    // final int                   lastPassPlus1,
+						  fom_min_strength,           // final double                fom_min_strength,
+						  true,                       // final boolean               fom_use_lma,
+						  fom_adisp,                  // final double                fom_adisp,     // 0.5
+						  fom_cdiff,                  // final double                fom_cdiff,     // 0.02
+						  fom_inf_bonus,              // final double                fom_inf_bonus, // 0.2; // add this to infinity FOM (if it is closer than fom_inf_range)
+						  fom_inf_range,              // final double                fom_inf_range, // 0.5;
+						  true,                       // final boolean               copyDebug)
+						  debugLevel);
+			  } else {
+				  combo_pass = tp.compositeScan(
+						  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
+						  bg_pass, //  final int                   firstPass,
+						  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
+						  tp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
+						  tp.getMaxOverexposure(),                          //  final double                max_overexposure,
+						  0.0, // clt_parameters.bgnd_range,                //	 final double                disp_far,   // limit results to the disparity range
+						  clt_parameters.grow_disp_max,                     // final double                disp_near,
+						  clt_parameters.combine_min_strength,              // final double                minStrength,
+						  clt_parameters.combine_min_hor,                   // final double                minStrengthHor,
+						  clt_parameters.combine_min_vert,                  // final double                minStrengthVert,
+						  false,                                            // final boolean               no_weak,
+						  false,                                            // final boolean               use_last,   //
+						  // TODO: when useCombo - pay attention to borders (disregard)
+						  false,                                            // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
+						  true,                                             // 	 final boolean               copyDebug)
+						  debugLevel);
+			  }
 			  tp.clt_3d_passes.add(combo_pass);
+		  }
+		  if (show_init_refine) {
+			  tp.showScan(
+				  tp.clt_3d_passes.get(tp.clt_3d_passes.size() - 1), // CLTPass3d   scan,
+				  "before multi-tile-"+tp.clt_3d_passes.size());
 		  }
 		  
 		  // create and measure several variable-cluster scans from the same single-tile combo_pass
 //		  CLTPass3d 
 		  combo_pass = tp.clt_3d_passes.get(tp.clt_3d_passes.size() - 1); // last pass created by tp.compositeScan
+    	  break_now = true;
+    	  while (!break_now && debug2) {
+    		  tp.printScans(
+    				  tp.clt_3d_passes,        // final ArrayList <CLTPass3d> passes,
+    				  0, // bg_pass,           // final int                   firstPass,
+    				  tp.clt_3d_passes.size(), // final int                   lastPassPlus1,
+    				  true,                    // final boolean               use_lma,
+    				  fom_min_strength,        // final double                min_strength,
+    				  fom_adisp,               // final double     fom_adisp,     // 0.5
+    				  fom_cdiff,               // final double     fom_cdiff,     // 0.02
+    				  fom_inf_bonus,           // final double     fom_inf_bonus, // 0.2; // add this to infinity FOM (if it is closer than fom_inf_range)
+    				  fom_inf_range,           // final double     fom_inf_range, // 0.5;
+    				  dbg_tileX,               // 	 final int                   tileX,
+    				  dbg_tileY);              //     					 final int                   tileY
+    	  }  
+		  
+		  
+		  
 //		  int max_clust_radius =  4; // 7x7
 		  CLTPass3d [] combo_multi = new CLTPass3d[clt_parameters.gr_max_clust_radius+1];
 		  combo_multi[0] = combo_pass;
 		  int max_expand_radius = 0; // max_clust_radius;
 		  for (int clust_radius = 2; clust_radius <= clt_parameters.gr_max_clust_radius; clust_radius++) {
-//		  for (int clust_radius = 4; clust_radius <= max_clust_radius; clust_radius++) { // just for faster testing
 
 	    	  if (clt_parameters.gr_reduce_multi) {
 		    	  clt_parameters.img_dtt.setMcorr(getNumSensors(), 0 ); // remove all
@@ -9209,7 +9406,7 @@ public class QuadCLTCPU {
 			  
 			  // using combo_pass (latest)
 			  int num_added = 0;
-			  if (clust_radius < max_expand_radius) {
+			  if (clust_radius < max_expand_radius) { // disabled currently by int max_expand_radius = 0;
 				  num_added = tp.expandCertainMulti ( 
 					  combo_pass, // CLTPass3d             combo_pass, // modify
 					  tp.clt_3d_passes, //ArrayList <CLTPass3d> passes,
@@ -9267,6 +9464,9 @@ public class QuadCLTCPU {
 							  refine_pass,
 							  false,          // true,           // final boolean     save_textures,
 							  clust_radius,   // final int         clust_radius,
+	    					  clt_parameters.correlate_lma, // final boolean       run_lma, //
+	    					  0,              // final double      max_chn_diff, // filter correlation results by maximum difference between channels
+	    					  -1,                //final double      mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
 							  threadsMax,
 							  updateStatus,
 							  debugLevel);
@@ -9274,24 +9474,38 @@ public class QuadCLTCPU {
 						  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
 						  "after_measure-"+tp.clt_3d_passes.size());
 				  
-				  
-				  combo_multi[clust_radius-1] = tp.compositeScan(
-						  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
-						  bg_pass, //  final int                   firstPass,
-						  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
-						  tp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
-						  tp.getMaxOverexposure(),                          //  final double                max_overexposure,
-						  -0.5, // 0.0, // clt_parameters.bgnd_range,                //	 final double                disp_far,   // limit results to the disparity range
-						  clt_parameters.grow_disp_max,                     // final double                disp_near,
-						  clt_parameters.combine_min_strength,              // final double                minStrength,
-						  clt_parameters.combine_min_hor,                   // final double                minStrengthHor,
-						  clt_parameters.combine_min_vert,                  // final double                minStrengthVert,
-						  false,                                            // final boolean               no_weak,
-						  false,                                            // final boolean               use_last,   //
-						  // TODO: when useCombo - pay attention to borders (disregard)
-						  false,                                            // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
-						  true,                                             // 	 final boolean               copyDebug)
-						  debugLevel);
+				  if (lwir2022) {
+					  combo_multi[clust_radius-1] = tp.compositeScan(
+							  tp.clt_3d_passes,           // final ArrayList <CLTPass3d> passes,
+							  bg_pass,                    // final int                   firstPass,
+							  tp.clt_3d_passes.size(),    // final int                   lastPassPlus1,
+							  fom_min_strength,           // final double                fom_min_strength,
+							  true,                       // final boolean               fom_use_lma,
+							  fom_adisp,                  // final double                fom_adisp,     // 0.5
+							  fom_cdiff,                  // final double                fom_cdiff,     // 0.02
+							  fom_inf_bonus,              // final double                fom_inf_bonus, // 0.2; // add this to infinity FOM (if it is closer than fom_inf_range)
+							  fom_inf_range,              // final double                fom_inf_range, // 0.5;
+							  true,                       // final boolean               copyDebug)
+							  debugLevel);
+				  } else {
+					  combo_multi[clust_radius-1] = tp.compositeScan(
+							  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
+							  bg_pass, //  final int                   firstPass,
+							  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
+							  tp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
+							  tp.getMaxOverexposure(),                          //  final double                max_overexposure,
+							  -0.5, // 0.0, // clt_parameters.bgnd_range,                //	 final double                disp_far,   // limit results to the disparity range
+							  clt_parameters.grow_disp_max,                     // final double                disp_near,
+							  clt_parameters.combine_min_strength,              // final double                minStrength,
+							  clt_parameters.combine_min_hor,                   // final double                minStrengthHor,
+							  clt_parameters.combine_min_vert,                  // final double                minStrengthVert,
+							  false,                                            // final boolean               no_weak,
+							  false,                                            // final boolean               use_last,   //
+							  // TODO: when useCombo - pay attention to borders (disregard)
+							  false,                                            // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
+							  true,                                             // 	 final boolean               copyDebug)
+							  debugLevel);
+				  }
 				  double [] disparity_LMA = combo_multi[clust_radius-1].getDisparityLMA();
 				  for (int i = 0; i< disparity.length; i++) {
 					  if (!Double.isNaN(disparity_LMA[i])) {
@@ -9304,12 +9518,30 @@ public class QuadCLTCPU {
 				  
 				  tp.clt_3d_passes.add(combo_multi[clust_radius-1] );
 				  combo_pass = combo_multi[clust_radius-1];
-				  
 				  // combine tasks from (original) combo_pass and combo_pass_multi (use its combo_disparity, but saved getLMA from original combo_pass ?
 				  // when done, grow to fill gaps from 3x3 first (by 1 step) and from 5x5 - second?(by 2 steps), ...
-
 			  }
 		  }
+		  
+    	  break_now = true;
+    	  while (!break_now && debug2) {
+    		  tp.printScans(
+    				  tp.clt_3d_passes,        // final ArrayList <CLTPass3d> passes,
+    				  0, // bg_pass,           // final int                   firstPass,
+    				  tp.clt_3d_passes.size(), // final int                   lastPassPlus1,
+    				  true,                    // final boolean               use_lma,
+    				  fom_min_strength,        // final double                min_strength,
+    				  fom_adisp,               // final double     fom_adisp,     // 0.5
+    				  fom_cdiff,               // final double     fom_cdiff,     // 0.02
+    				  fom_inf_bonus,           // final double     fom_inf_bonus, // 0.2; // add this to infinity FOM (if it is closer than fom_inf_range)
+    				  fom_inf_range,           // final double     fom_inf_range, // 0.5;
+    				  dbg_tileX,               // 	 final int                   tileX,
+    				  dbg_tileY);              //     					 final int                   tileY
+    	  }  
+		  
+		  
+		  
+		  
 			  // Restore pairs selection
 		  clt_parameters.img_dtt.setMcorr(getNumSensors(), save_pairs_selection); // restore
 		  if (clt_parameters.gr_nan_bg) {
@@ -11930,18 +12162,14 @@ public class QuadCLTCPU {
 
 //	  public ImagePlus getBackgroundImage( // USED in lwir
 	  public boolean[] getBackgroundImageMasks( // USED in lwir
-//			  boolean    no_image_save,
 			  CLTParameters           clt_parameters,
-//			  ColorProcParameters colorProcParameters,
-//			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
+			  CLTPass3d               bgnd_data,
 			  String     name,
-//			  int        disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
 			  int        threadsMax,  // maximal number of threads to launch
 			  boolean    updateStatus,
 			  int        debugLevel
 			  )
 	  {
-//		  final boolean new_mode = false;
 		  boolean dbg_gpu_transition = true;
 
 
@@ -11953,8 +12181,7 @@ public class QuadCLTCPU {
 		  if ((debugLevel > -1))
 			  sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
-		  CLTPass3d bgnd_data = tp.clt_3d_passes.get(0);
-//		  double [][][][] texture_tiles = bgnd_data.texture_tiles;
+//		  CLTPass3d bgnd_data = tp.clt_3d_passes.get(0);
 
 		  boolean [] bgnd_tiles =   tp.getBackgroundMask( // which tiles do belong to the background
 				  clt_parameters.bgnd_range,     // disparity range to be considered background
@@ -12031,6 +12258,7 @@ public class QuadCLTCPU {
 	  // Get BG image from already available non-overlapped texture_tiles in bg_scan
 	  public ImagePlus getBackgroundImage( // USED in lwir
 			  boolean []                                bgnd_tiles, 
+			  CLTPass3d                                 bgnd_data,
 			  CLTParameters                             clt_parameters,
 			  ColorProcParameters                       colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters  rgbParameters,
@@ -12045,7 +12273,7 @@ public class QuadCLTCPU {
 		  final boolean new_mode = false;
 		  int num_bgnd = 0;
 
-		  CLTPass3d bgnd_data = tp.clt_3d_passes.get(0);
+//		  CLTPass3d bgnd_data = tp.clt_3d_passes.get(0);
 		  double [][][][] texture_tiles = bgnd_data.texture_tiles;
 		  double [][][][] texture_tiles_bgnd = new double[tilesY][tilesX][][];
 		  double [] alpha_zero = new double [4*clt_parameters.transform_size*clt_parameters.transform_size];
@@ -12467,7 +12695,10 @@ public class QuadCLTCPU {
 	  
 
 	  public CLTPass3d CLTBackgroundMeas( // measure background // USED in lwir
-			  CLTParameters           clt_parameters,
+			  CLTParameters       clt_parameters,
+			  final boolean       run_lma, //			  
+			  final double        max_chn_diff, // filter correlation results by maximum difference between channels
+			  final double        mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
 			  final int           threadsMax,  // maximal number of threads to launch
 			  final boolean       updateStatus,
 			  final int           debugLevel)
@@ -12488,7 +12719,9 @@ public class QuadCLTCPU {
 				  true,            // final boolean       need_diffs,     // calculate diffs even if textures are not needed. Also calculates low-res 
 				  0,               // final int           clust_radius,
 			      true,            // final boolean       save_corr,
-				  true,            // final boolean       run_lma, // =    true;
+			      run_lma,          // true,            // final boolean       run_lma, // =    true;
+			      max_chn_diff,     // 0.0,            // final double        max_chn_diff, // filter correlation results by maximum difference between channels
+			      mismatch_override,// -1.0,           // final double        mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
 				  threadsMax,      // final int           threadsMax,  // maximal number of threads to launch
 				  updateStatus,    // final boolean       updateStatus,
 				  debugLevel);     // final int           debugLevel);
@@ -12694,6 +12927,8 @@ public class QuadCLTCPU {
 					  clust_radius,   // final int         clust_radius,
 					  true,           // final boolean     save_corr,
 					  run_lma,        // final boolean     run_lma, // =    true;
+					  0.0,            // final double        max_chn_diff, // filter correlation results by maximum difference between channels
+					  -1.0,           // final double        mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
 					  threadsMax,     // final int         threadsMax,  // maximal number of threads to launch
 					  updateStatus,   // final boolean     updateStatus,
 					  debugLevel);    // final int         debugLevel);
@@ -13205,13 +13440,17 @@ public class QuadCLTCPU {
 			  final int         scanIndex,
 			  final boolean     save_textures,
 			  final int         clust_radius,
+			  final boolean     run_lma, //			  
+			  final double      max_chn_diff, // filter correlation results by maximum difference between channels
+			  final double      mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
 			  final int         threadsMax,  // maximal number of threads to launch
 			  final boolean     updateStatus,
 			  final int         debugLevel)
 	  {
 		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
-		  boolean       run_lma =    clt_parameters.correlate_lma;
-		  boolean       need_diffs = true; //???
+//		  boolean       run_lma =    clt_parameters.correlate_lma;
+		  boolean       need_diffs = true;
+//		  double        mismatch_override = 
 		  CLTMeas( // perform single pass according to prepared tiles operations and disparity
 				  clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 				  scan,           // final CLTPass3d   scan,
@@ -13220,6 +13459,8 @@ public class QuadCLTCPU {
 				  clust_radius,   // final int         clust_radius,
 				  true,           // final boolean     save_corr,
 				  run_lma,        // final boolean     run_lma, // =    true;
+				  max_chn_diff,   // final double        max_chn_diff, // filter correlation results by maximum difference between channels
+				  mismatch_override, // final double        mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
 				  threadsMax,     // final int         threadsMax,  // maximal number of threads to launch
 				  updateStatus,   // final boolean     updateStatus,
 				  debugLevel);    // final int         debugLevel);
@@ -13230,7 +13471,7 @@ public class QuadCLTCPU {
 			  double []        disparity) { // all that are not null
 		  return null;
 	  }
-	  // Trying 10/2021 ImageDttCPU methods
+	  // Trying 10/2021 ImageDttCPU methods. 7/18/22 - added max_chn_diff to get rid of ghosts in the sky
 	  public CLTPass3d CLTMeas( // perform single pass according to prepared tiles operations and disparity // USED in lwir
 			  final CLTParameters clt_parameters,
 			  final CLTPass3d     scan,
@@ -13239,6 +13480,8 @@ public class QuadCLTCPU {
 			  final int           clust_radius,
 			  final boolean       save_corr,
 			  final boolean       run_lma, // =    true;
+			  final double        max_chn_diff, // filter correlation results by maximum difference between channels
+			  final double        mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
 			  final int           threadsMax,  // maximal number of threads to launch
 			  final boolean       updateStatus,
 			  final int           debugLevel)
@@ -13579,6 +13822,12 @@ public class QuadCLTCPU {
 		  scan.is_measured =   true; // but no disparity map/textures
 		  scan.is_combo =      false;
 		  scan.has_lma = null;
+		  if (max_chn_diff > 0 ) {
+			  scan.resetByDiff(
+					  max_chn_diff,
+					  mismatch_override);
+		  }
+		  
 		  scan.getLMA(); // recalculate
 		  scan.getNumTileMax(); // calculate
 		  scan.resetProcessed();
@@ -14973,6 +15222,8 @@ public class QuadCLTCPU {
 					  clust_radius,   // final int           clust_radius,
 					  true,           // final boolean       save_corr,
 					  true,           // final boolean       run_lma, // =    true;
+					  0.0,            // final double        max_chn_diff, // filter correlation results by maximum difference between channels
+					  -1.0,           // final double        mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
 					  100,            // final int           threadsMax,  // maximal number of threads to launch
 					  true,           // final boolean       updateStatus,
 					  0);             // final int           debugLevel) 

@@ -35,6 +35,7 @@ public class CLTPass3d{
 		private  double [][]    disparity_sav; // saved disparity
 		private  int    [][]    tile_op_sav;   // saved tile_op
 		public   double [][]    disparity_map =            null; // add 4 layers - worst difference for the port
+		public   double []      second_max = null;
 		public   double [][]    lazy_eye_data =            null;
 		public   int            lma_cluster_size =         -1;
 		public   boolean []     lazy_eye_force_disparity = null;
@@ -315,7 +316,7 @@ public class CLTPass3d{
 		}
 		/**
 		 * Get FPGA-calculated per-tile maximal differences between the particular image and the average one.
-		 * @return per-camera sesnor array of line-scan differences
+		 * @return per-camera sensor array of line-scan differences
 		 */
 
 		public double [][] getDiffs (){
@@ -738,6 +739,45 @@ public class CLTPass3d{
 			}
 		}
 		
+		/**
+		 * Remove correlation results for tiles that have large variations - this normally leads to fake high-disparity
+		 * values in the sky (at a distance of disparity from the high-contrast skyline). This method should only be used
+		 * during initial disparity scan as FG/BG overlap also causes mismatch.
+		 * This method calculates ands sets this.
+		 * Images have to be equalized.second_max
+		 * @param max_diff maximal difference for the sane correlation results (50-100 for LWIR?) 
+		 * @param mismatch_override keep tile with large mismatch if there is LMA with really strong correlation 
+		 */
+		public void resetByDiff(
+				double max_diff,
+				double mismatch_override) {
+			setSecondMax();
+			if ((disparity_map == null) ||(disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX] == null)) {
+				System.out.println("resetByDiff(): strength is null! (no tiles left)");
+				return;
+			}
+			int len = disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX].length; // null
+			if ((lma_disparity_index >= 0) && (disparity_map[lma_disparity_index] != null) && (disparity_map[lma_disparity_index+1] != null)){
+				for (int i = 0; i < len; i++ ) {
+					if (second_max[i] > max_diff) {
+						if ((mismatch_override <= 0) || !(disparity_map[lma_disparity_index +1][i] >= mismatch_override)) {
+							disparity_map[lma_disparity_index][i] =    Double.NaN;
+							disparity_map[lma_disparity_index +1][i] = 0.0;
+							disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][i] = 0.0; // disparity_cm will stay
+						}
+					}
+				}
+			} else { // Seems first are all non-LMA
+				for (int i = 0; i < len; i++ ) {
+					if ((second_max[i] > max_diff) && 
+							((mismatch_override <= 0) || !(disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][i] >= mismatch_override))) {
+						disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][i] = 0.0;
+					}
+				}
+			}
+		}
+		
+		
 		public boolean [] hasLMADefined(){ // will try not to create this.has_lma
 			if (disparity_map == null) {
 				if (has_lma==null) {
@@ -1108,7 +1148,16 @@ public class CLTPass3d{
 			}
 		}
 
-
+        public void setSecondMax() {
+        	this.second_max = getSecondMaxDiff(false);
+        }
+        public double [] getSecondMax() {
+        	if (this.second_max == null) {
+        		setSecondMax();
+        	}
+        	return this.second_max;
+        }
+		
 		public double [] getSecondMaxDiff (
 				final boolean averaged)
 		{
@@ -1170,8 +1219,58 @@ public class CLTPass3d{
 			ImageDtt.startAndJoin(threads);
 			return second_max_averaged;
 		}
-
-
+		@Deprecated
+		public double [] getFOM(
+				double w_adisp,
+				double w_cdiff
+				) {
+			// should it use getDisparity(), getStrength()?
+			final double [] strength =        disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX];
+			final double [] disparity =       disparity_map[ImageDtt.DISPARITY_INDEX_CM]; // is it combined with LMA?
+//			final double [] second_max_diff = getSecondMaxDiff(false);
+ 			final double [] fom = new double [strength.length];
+			
+			final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+			final AtomicInteger ai = new AtomicInteger(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					@Override
+					public void run() {
+						for (int nTile = ai.getAndIncrement(); nTile < fom.length; nTile = ai.getAndIncrement()) {
+							double tfom = strength[nTile] - w_adisp * Math.abs(disparity[nTile]) - w_cdiff * second_max[nTile];
+							if ((strength[nTile] <= 0) || Double.isNaN(tfom)) {
+								fom[nTile] = Double.NEGATIVE_INFINITY;
+							} else {
+								fom[nTile] = tfom;
+							}
+						}
+					}
+				};
+			}
+			ImageDtt.startAndJoin(threads);
+ 			return fom;
+		}
+		public double getFOM(
+				int    nTile,
+				double min_strength,
+				double w_adisp,
+				double w_cdiff
+				){
+			final double strength =        disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nTile];
+			final double disparity =       disparity_map[ImageDtt.DISPARITY_INDEX_CM][nTile]; // is it combined with LMA?
+//			double fom = strength - w_adisp * Math.abs(disparity) - w_cdiff * second_max;
+			
+			double fom = strength
+					- w_adisp * Math.abs(disparity)
+					- w_cdiff * second_max[nTile] *(min_strength/strength);
+			
+			
+			if ((strength <= 0) || (strength <= min_strength) || Double.isNaN(fom)) {
+				return Double.NEGATIVE_INFINITY;
+			} else {
+				return fom;
+			}
+		}
 
 		// same, but 2 steps around
 		public boolean [] getUntestedBackgroundBorder2 (

@@ -4244,6 +4244,8 @@ public class OpticalFlow {
 						0,              // final int         clust_radius,
 						true,           // final boolean     save_corr,
 						false,          // final boolean     run_lma, // =    true;
+						0.0,            // final double        max_chn_diff, // filter correlation results by maximum difference between channels
+						-1.0,           // final double        mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
 						threadsMax,     // final int         threadsMax,  // maximal number of threads to launch
 						updateStatus,   // final boolean     updateStatus,
 						debugLevel);    // final int         debugLevel);
@@ -4544,7 +4546,8 @@ public class OpticalFlow {
 						debugLevel+1);
 				quadCLT_main.setLwirOffsets(quadCLTs[ref_index].getLwirOffsets());
 				quadCLT_main.setLwirScales(quadCLTs[ref_index].getLwirScales());
-				// Re-read reference and other scenes using new offsets			
+				// Re-read reference and other scenes using new offsets	
+				quadCLTs[ref_index].saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry
 				quadCLTs[ref_index] = (QuadCLT) quadCLT_main.spawnQuadCLT( // restores dsi from "DSI-MAIN"
 						set_channels[ref_index].set_name,
 						clt_parameters,

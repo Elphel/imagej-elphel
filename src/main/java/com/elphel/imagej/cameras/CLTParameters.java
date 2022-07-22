@@ -351,6 +351,23 @@ public class CLTParameters {
 	public int        corr_select =       0;     // Select correlation type for all-pair supertiles and assignments (0 - CM, 1 - polynomial)
 
 	// 3d reconstruction
+	// maximal difference between sensors for the same tile when approximately (within correlation range) converged
+	// Maybe add later minimal strength that overrides this limitation (for gradients)
+	public double     mismatch_rgb    =  10.0;    
+	public double     mismatch_lwir   = 300.0;
+	public double     mismatch_override = 0.6; // correlation strength to override large mismatch
+
+	public double     fom_min_strength =  0.12;// discard all weaker
+	public double     fom_adisp_rgb =     0.5;
+	public double     fom_cdiff_rgb =     0.1;
+	public double     fom_adisp_lwir =    0.5;
+	public double     fom_cdiff_lwir =    0.03; // 0.02;
+	public double     fom_inf_bonus  =    0.2; // add this to infinity FOM (if it is closer than fom_inf_range)
+	public double     fom_inf_range  =    0.8; // 0.5
+	
+	
+	
+	
 	public boolean    show_textures    = true;  // show generated textures
 	public boolean    debug_filters    = false;// show intermediate results of filtering
 	// not used anywhere so far
@@ -412,7 +429,7 @@ public class CLTParameters {
 	public double     or_absVert       = 0.19;  // Minimal vertical absolute scaled offset ortho strength needed for replacement
 	public double     or_maxDisp       = 5.0;   // Maximal disparity to apply ortho correction
 
-	public boolean    poles_fix        = true;  // Continue vertical structures to the ground
+	public boolean    poles_fix        = false; // true;  // Continue vertical structures to the ground
 	public int        poles_len        = 25;    // Number of tiles to extend over the poles bottoms
 	public double     poles_ratio      = 1.0;   // Maximal ratio of invisible to visible pole length
 	public double     poles_min_strength = 0.1; // Set new pole segment strength to max of horizontal correlation and this value
@@ -515,6 +532,9 @@ public class CLTParameters {
 	public double     outlierDiffPos   =  1.0;   // Replace weak outlier tiles that have higher disparity than weighted average
 	public double     outlierDiffNeg   =  0.4;   // Replace weak outlier tiles that have lower disparity than weighted average
 
+	
+	
+	
 	// TODO: Make refine skip if already good?
 	public boolean    combine_refine    = true; // combine with all previous after refine pass
 	public double     combine_min_strength = 0.12; // Disregard weaker tiles when combining scans
@@ -1040,6 +1060,16 @@ public class CLTParameters {
 	public int getLyInfScale (int num_tiles) {
 		return (int) Math.max(ly_inf_scale_r * num_tiles , ly_inf_scale );
 	}
+	
+	public double getMaxChannelMismatch(boolean lwir){
+		return lwir? mismatch_lwir : mismatch_rgb;
+	}
+	public double getFomWAdisp(boolean lwir){
+		return lwir? fom_adisp_lwir : fom_adisp_rgb;
+	}
+	public double getFomCDiff(boolean lwir){
+		return lwir? fom_cdiff_lwir : fom_cdiff_rgb;
+	}
 
 	public CLTParameters(){}
 	public void setProperties(String prefix,Properties properties){
@@ -1305,6 +1335,18 @@ public class CLTParameters {
 		properties.setProperty(prefix+"corr_magic_scale",           this.corr_magic_scale +"");
 		properties.setProperty(prefix+"corr_select",                this.corr_select +"");
 
+		properties.setProperty(prefix+"mismatch_rgb",               this.mismatch_rgb+"");
+		properties.setProperty(prefix+"mismatch_lwir",              this.mismatch_lwir+"");
+		properties.setProperty(prefix+"mismatch_override",          this.mismatch_override+"");
+		
+		properties.setProperty(prefix+"fom_min_strength",           this.fom_min_strength+"");
+		properties.setProperty(prefix+"fom_adisp_rgb",              this.fom_adisp_rgb+"");
+		properties.setProperty(prefix+"fom_cdiff_rgb",              this.fom_cdiff_rgb+"");
+		properties.setProperty(prefix+"fom_adisp_lwir",             this.fom_adisp_lwir+"");
+		properties.setProperty(prefix+"fom_cdiff_lwir",             this.fom_cdiff_lwir+"");
+		properties.setProperty(prefix+"fom_inf_bonus",              this.fom_inf_bonus+"");
+		properties.setProperty(prefix+"fom_inf_range",              this.fom_inf_range+"");
+		
 		properties.setProperty(prefix+"show_textures",              this.show_textures+"");
 		properties.setProperty(prefix+"debug_filters",              this.debug_filters+"");
 
@@ -2150,6 +2192,18 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"corr_magic_scale")!=null)              this.corr_magic_scale=Double.parseDouble(properties.getProperty(prefix+"corr_magic_scale"));
 		if (properties.getProperty(prefix+"corr_select")!=null)                   this.corr_select=Integer.parseInt(properties.getProperty(prefix+"corr_select"));
 
+		if (properties.getProperty(prefix+"mismatch_rgb")!=null)                  this.mismatch_rgb=Double.parseDouble(properties.getProperty(prefix+"mismatch_rgb"));
+		if (properties.getProperty(prefix+"mismatch_lwir")!=null)                 this.mismatch_lwir=Double.parseDouble(properties.getProperty(prefix+"mismatch_lwir"));
+		if (properties.getProperty(prefix+"mismatch_override")!=null)             this.mismatch_override=Double.parseDouble(properties.getProperty(prefix+"mismatch_override"));
+
+		if (properties.getProperty(prefix+"fom_min_strength")!=null)              this.fom_min_strength=Double.parseDouble(properties.getProperty(prefix+"fom_min_strength"));
+		if (properties.getProperty(prefix+"fom_adisp_rgb")!=null)                 this.fom_adisp_rgb=Double.parseDouble(properties.getProperty(prefix+"fom_adisp_rgb"));
+		if (properties.getProperty(prefix+"fom_cdiff_rgb")!=null)                 this.fom_cdiff_rgb=Double.parseDouble(properties.getProperty(prefix+"fom_cdiff_rgb"));
+		if (properties.getProperty(prefix+"fom_adisp_lwir")!=null)                this.fom_adisp_lwir=Double.parseDouble(properties.getProperty(prefix+"fom_adisp_lwir"));
+		if (properties.getProperty(prefix+"fom_cdiff_lwir")!=null)                this.fom_cdiff_lwir=Double.parseDouble(properties.getProperty(prefix+"fom_cdiff_lwir"));
+		if (properties.getProperty(prefix+"fom_inf_bonus")!=null)                 this.fom_inf_bonus=Double.parseDouble(properties.getProperty(prefix+"fom_inf_bonus"));
+		if (properties.getProperty(prefix+"fom_inf_range")!=null)                 this.fom_inf_range=Double.parseDouble(properties.getProperty(prefix+"fom_inf_range"));
+		
 		if (properties.getProperty(prefix+"show_textures")!=null)                 this.show_textures=Boolean.parseBoolean(properties.getProperty(prefix+"show_textures"));
 		if (properties.getProperty(prefix+"debug_filters")!=null)                 this.debug_filters=Boolean.parseBoolean(properties.getProperty(prefix+"debug_filters"));
 
@@ -3111,6 +3165,30 @@ public class CLTParameters {
 				"Minimal number of tiles (in all scenes total) in an infinity cluster");
 		
 		gd.addTab         ("3D", "3D reconstruction");
+
+		gd.addNumericField("Maximal channel mismatchatch for RGB cameras",                                           this.mismatch_rgb,  4,6,"counts",
+				"Discard correlation results during disparity sweep if channels differ more (RGB)");
+		gd.addNumericField("Maximal channel mismatchatch for LWIR cameras",                                          this.mismatch_lwir,  4,6,"counts",
+				"Discard correlation results during disparity sweep if channels differ more (LWIR)");
+		gd.addNumericField("Minimal correlation strength to override mismatch filter",                               this.mismatch_override,  4,6,"",
+				"Allow tiles with the really strong correlation to have large mismatch.");
+		
+		gd.addMessage     ("--- FOM for initial DSI ---");
+		gd.addNumericField("Minimal strength",                                                                       this.fom_min_strength,  4,6,"",
+				"Discard all weaker tiles (FOM=NEGATIVE_INFINITY).");
+		gd.addNumericField("Weight of residual disparity, RGB",                                                      this.fom_adisp_rgb,  4,6,"",
+				"Subtract absolute value of the residual disparity from the tile correlation strength for RGB sensors.");
+		gd.addNumericField("Weight of residual disparity, LWIR",                                                     this.fom_adisp_lwir,  4,6,"",
+				"Subtract absolute value of the residual disparity from the tile correlation strength for LWIR sensors.");
+		gd.addNumericField("Weight of interchannel mismatch, RGB",                                                   this.fom_cdiff_rgb,  4,6,"",
+				"Allows to discard gross mismatch. Requires photometric equalization that in turn requires DSI, so reduce if calibration is not available");
+		gd.addNumericField("Weight of interchannel mismatch, LWIR",                                                  this.fom_cdiff_lwir,  4,6,"",
+				"Allows to discard gross mismatch. Requires photometric equalization that in turn requires DSI, so reduce if calibration is not available");
+		gd.addNumericField("Infinity tiles FOM bonus",                                                               this.fom_inf_bonus,  4,6,"",
+				"Prevent stray FG over sky - add to FOM.");
+		gd.addNumericField("Infinity bonus disparity range",                                                         this.fom_inf_range,  4,6,"pix",
+				"Infinity range to receive FOM bonus.");
+
 		gd.addMessage     ("--- 3D reconstruction ---");
 		gd.addCheckbox    ("Show generated textures",                                                                this.show_textures);
 		gd.addCheckbox    ("show intermediate results of filtering",                                                 this.debug_filters);
@@ -3410,7 +3488,7 @@ public class CLTParameters {
 		gd.addNumericField("Do not re-measure correlation if target disparity differs from some previous less",             this.gr_unique_tol,  6);
 		gd.addNumericField("Larger tolerance for expanding (not refining)",                                                 this.gr_unique_pretol,  6);
 		
-		gd.addMessage     ("--- Mukti-tile DSI expansion ---");
+		gd.addMessage     ("--- Multi-tile DSI expansion ---");
 		gd.addNumericField("Maximal cluster radius",                                                                        this.gr_max_clust_radius,  0,6,"",
 				"2 - 3x3, 3 - 5x5, 4 - 7x7 tiles");
 		gd.addNumericField("Number of refines for each cluster radius",                                                    this.gr_num_refines,  0,6,"",
@@ -4092,6 +4170,18 @@ public class CLTParameters {
 		this.lyms_scene_range=      gd.getNextNumber();
 		this.lyms_min_num_inf=(int) gd.getNextNumber();
 
+		this.mismatch_rgb=          gd.getNextNumber();
+		this.mismatch_lwir=         gd.getNextNumber();
+		this.mismatch_override=     gd.getNextNumber();
+		
+		this.fom_min_strength=      gd.getNextNumber();
+		this.fom_adisp_rgb=         gd.getNextNumber();
+		this.fom_adisp_lwir=        gd.getNextNumber();
+		this.fom_cdiff_rgb=         gd.getNextNumber();
+		this.fom_cdiff_lwir=        gd.getNextNumber();
+		this.fom_inf_bonus=         gd.getNextNumber();
+		this.fom_inf_range=         gd.getNextNumber();
+		
 		this.show_textures=         gd.getNextBoolean();
 		this.debug_filters=         gd.getNextBoolean();
 		this.min_smth=              gd.getNextNumber();

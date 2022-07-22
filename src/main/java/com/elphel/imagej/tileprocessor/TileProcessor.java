@@ -1058,18 +1058,25 @@ public class TileProcessor {
 				 copyDebug,
 				 debugLevel).get(0);
 	}
-	class DSD{
-		int    indx;
-		double disparity;
-		double strength;
-		double adiff;
+	public class DSD implements Comparable<DSD>{
+		int     indx;
+		double  disparity;
+		double  strength;
+		double  adiff;
 		boolean has_lma;
 		int     clust_radius;
+		double  fom = Double.NEGATIVE_INFINITY;
 		DSD (int indx){ // only index
 			this.indx =      indx;
 		}
-
-		DSD (int indx, double disparity, double strength,	double adiff, boolean has_lma, int clust_radius){
+		DSD (   int indx,
+				double disparity,
+				double strength,
+				double adiff,
+				boolean has_lma,
+				int clust_radius
+				){
+			
 			this.indx =         indx;
 			this.disparity =    disparity;
 			this.strength =     strength;
@@ -1077,9 +1084,44 @@ public class TileProcessor {
 			this.has_lma =      has_lma;
 			this.clust_radius = clust_radius;
 		}
-	}
 
-	private ArrayList<DSD> filterDsdList( // TODO: Finish adding has_lma !!!!!!!!!!!!!!!!!
+		DSD (   int indx,
+				double disparity,
+				double strength,
+				double adiff,
+				boolean has_lma,
+				int clust_radius,
+				double fom
+				){
+			this.indx =         indx;
+			this.disparity =    disparity;
+			this.strength =     strength;
+			this.adiff =        adiff;
+			this.has_lma =      has_lma;
+			this.clust_radius = clust_radius;
+			this.fom = fom;
+		}
+		@Override
+		public int compareTo(DSD other) {
+			return (Double.valueOf(this.disparity)).compareTo(other.disparity);
+		}
+	}
+	Comparator<DSD> dsdByFom =  new Comparator<DSD>() {
+        public int compare(DSD lhs, DSD rhs) {
+            return (lhs.fom > rhs.fom) ? 1 : ((lhs.fom < rhs.fom)? -1: 0);
+        }
+    };
+	Comparator<DSD> dsdByLmaRadFom =  new Comparator<DSD>() {
+        public int compare(DSD lhs, DSD rhs) {
+        	if ( lhs.has_lma && !rhs.has_lma) return  1;
+        	if (!lhs.has_lma &&  rhs.has_lma) return -1;
+        	if ( lhs.clust_radius < rhs.clust_radius) return  1;
+        	if ( lhs.clust_radius > rhs.clust_radius) return -1;
+            return (lhs.fom > rhs.fom) ? 1 : ((lhs.fom < rhs.fom)? -1: 0);
+        }
+    };
+
+	private static ArrayList<DSD> filterDsdList( // TODO: Finish adding has_lma !!!!!!!!!!!!!!!!!
 			ArrayList<DSD> src_list,
 			double         disp_tolerance,
 			int            max_len,
@@ -1405,6 +1447,7 @@ public class TileProcessor {
 								disparity_tolerance, // double         disp_tolerance,
 								num_planes,          // int            max_len,
 								descending);         // boolean        descending)
+						// here got 1 entry for each plane (currently - just one plane
 						for (int np = 0; np< full_list.size(); np++) {
 							CLTPass3d pass =        passes.get(full_list.get(np).indx);
 							CLTPass3d combo_pass  = combo_pass_list.get(np);
@@ -1418,7 +1461,6 @@ public class TileProcessor {
 							double mdisp =         m_lma?
 									mdisp_lma_arr[nt] : pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nt];
 							double corr_magic = m_lma ? corr_magic_scale_lma : corr_magic_scale;
-//							combo_pass.calc_disparity[nt] =         pass.disparity_map[disparity_index][nt]/corr_magic_scale +  pass.disparity[ty][tx];
 							combo_pass.calc_disparity[nt] =         mdisp/corr_magic +  pass.disparity[ty][tx];
 							combo_pass.strength[nt] =               pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nt];
 							combo_pass.has_lma[nt] =                m_lma;
@@ -1441,6 +1483,7 @@ public class TileProcessor {
 							}
 						}
 						// fill empty planes (if any). May be all if there were no even weak tiles (old best_index<0)
+						// ???
 						for (int np = full_list.size(); np < num_planes; np++) {
 							CLTPass3d combo_pass  = combo_pass_list.get(np);
 							combo_pass.tile_op[ty][tx] =            0;
@@ -1449,7 +1492,9 @@ public class TileProcessor {
 							combo_pass.strength[nt] =               0.0;
 //							combo_pass.has_lma[nt] =                false;
 							// Only copy for full disparity
-							for (int i = 0; i< numSensors; i++)  combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = Double.NaN;
+							for (int i = 0; i< numSensors; i++) {
+								combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = Double.NaN;
+							}
 							if (copyDebug){
 								combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nt] =            Double.NaN;
 								combo_pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nt] =      Double.NaN;
@@ -1552,7 +1597,292 @@ ImageDtt.startAndJoin(threads);
 		return combo_pass_list;
 	}
 
+	/**
+	 * Prepare combined map from multiple passes. Single-plane, no vertical/horizontal processing
+	 * Designed to prevent false near objects over empty sky. Should be used after correlation data
+	 * is filtered by pixel values differences between channels (that requires good equqlization)
+	 * When selecting between multiple measured "scans" (for each tile) only measured ones are
+	 * processed - others are ignored.
+	 * For now - single plane only!
+	 * First all non-lma data is removed if lma exists
+	 * Second only the smallest radius data is kept
+	 * Third: maximal strength scan is found, and tiles stronger that this value decreased by str_tolerance
+	 * are kept.
+	 * Among them the lowest disparity one is found. Tiles from this disparity to this disparity plus
+	 * disp_range are considered, among them the smallest adisp (absolute value of the residual disparity)
+	 * is selected)
+	 * @param passes        input data as an ArrayList <CLTPass3d>
+	 * @param firstPass       index of the first pass to use
+	 * @param lastPassPlus1   index plus 1 of the last pass to use
+	 * @param disp_far        lowest disparity value to consider (does not apply to max_tried_disparity)
+	 * @param disp_near       highest disparity value to consider (does not apply to max_tried_disparity)
+	 * @param fom_min_strength    ignore weaker tiles
+	 * @param fom_use_lma     obey LMA/noLMA and clust_radius
+	 * @param fom_adisp       weight of the absolute value of the residual disparity
+	 * @param fom_cdiff       weight of the inter-channel pixel mismatch (needs photometric equalization)
+	 * @param fom_inf_bonus   select among this weaker than the highest FOM
+	 * @param fom_inf_range   select among tiles with this larger disparity than zero (infinity)
+	 * @param copyDebug       copy data that is only needed for debug purposes
+	 * @param debugLevel      debug level
+	 * @return                composite scan (not added to the list)
+	 */
+	public CLTPass3d compositeScan(
+			 final ArrayList <CLTPass3d> passes,
+			 final int                   firstPass,
+			 final int                   lastPassPlus1,
+//			 final double                trustedCorrelation,
+			 final double                fom_min_strength,
+			 final boolean               fom_use_lma,
+			 final double                fom_adisp,     // 0.5
+			 final double                fom_cdiff,     // 0.02
+			 final double                fom_inf_bonus, // 0.2; // add this to infinity FOM (if it is closer than fom_inf_range)
+			 final double                fom_inf_range, // 0.5;
+			 final boolean               copyDebug,
+			 final int                   debugLevel)
+	{
+		final double  corr_magic_scale_lma = 1.0; 
+		final int dbg_tile = -1;
+		final int tlen = tilesX * tilesY;
+		// will use (09/2021) both ImageDtt.DISPARITY_INDEX_CM and ImageDtt.DISPARITY_INDEX_POLY (now LMA) 
+		//		final int disparity_index = usePoly ? ImageDtt.DISPARITY_INDEX_POLY : ImageDtt.DISPARITY_INDEX_CM;
 
+		CLTPass3d combo_pass = new CLTPass3d(this);
+		combo_pass.tile_op =              new int [tilesY][tilesX]; // for just non-zero
+		combo_pass.disparity_map =        new double [ImageDtt.getDisparityTitles(getNumSensors(), isMonochrome()).length][];
+
+		for (int i = 0; i< numSensors; i++) combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i] = new double[tlen];
+		if (copyDebug){
+			combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM] =            new double[tlen];
+			combo_pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX] =      new double[tlen];
+			combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_HOR] =           new double[tlen];
+			combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_HOR_STRENGTH] =  new double[tlen];
+			combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_VERT] =          new double[tlen];
+			combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_VERT_STRENGTH] = new double[tlen];
+			combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY] =          new double[tlen]; // LMA disparity
+			combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY+1] =        new double[tlen]; // LMA strength
+		}
+		// for now - will copy from the best full correlation measurement
+		combo_pass.texture_tiles =        new double [tilesY][tilesX][][];
+		combo_pass.max_tried_disparity =  new double [tilesY][tilesX];
+		combo_pass.is_combo =             true;
+		combo_pass.calc_disparity =       new double [tlen];
+		combo_pass.calc_disparity_hor =   new double [tlen];
+		combo_pass.calc_disparity_vert =  new double [tlen];
+		combo_pass.strength =             new double [tlen];
+		combo_pass.strength_hor =         new double [tlen];
+		combo_pass.strength_vert =        new double [tlen];
+		combo_pass.has_lma =              new boolean [tlen];
+		for (int ty = 0; ty < tilesY; ty ++) for (int tx = 0; tx < tilesX; tx ++) combo_pass.texture_tiles[ty][tx] = null;
+//		final CLTPass3d combo_pass0 = combo_pass; // will replace!
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tlen; nTile = ai.getAndIncrement()) {
+						int tx = nTile % tilesX;
+						int ty = nTile / tilesX;
+						ArrayList<DSD> dsd_list = new  ArrayList<DSD>();
+						for (int ipass = firstPass;  ipass <lastPassPlus1; ipass++ ){
+							CLTPass3d pass = passes.get(ipass);
+							if (nTile == dbg_tile) {
+								System.out.println("compositeScan(): ipass = "+ipass+" nTile = "+nTile+" pass.tile_op["+ty+"]["+tx+"]="+pass.tile_op[ty][tx]+
+										" pass.isCombo()="+(pass.isCombo())+" pass.isProcessed()="+(pass.isProcessed()));
+							}
+							if ( pass.isMeasured() && (pass.tile_op[ty][tx] != 0 )) { // current tile has valid data
+								if (	(Double.isNaN(combo_pass.max_tried_disparity[ty][tx]) ||
+										(pass.disparity[ty][tx] > combo_pass.max_tried_disparity[ty][tx]))){
+									combo_pass.max_tried_disparity[ty][tx] = pass.disparity[ty][tx];
+								}
+								int clust_radius =        pass.getClustRadius();
+								double [] mdisp_lma_arr = pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY];
+								boolean m_lma =        (mdisp_lma_arr != null) && !Double.isNaN(mdisp_lma_arr[nTile]);
+								double mdisp =         m_lma?
+										mdisp_lma_arr[nTile] : pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nTile];
+								double corr_magic = m_lma ? corr_magic_scale_lma : corr_magic_scale;
+								double strength =      pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nTile];
+								double adiff =         Math.abs(mdisp);
+								double disp = mdisp/corr_magic +  pass.disparity[ty][tx];
+								if (strength >= fom_min_strength) {
+									double fom = pass.getFOM(
+											nTile,
+											fom_min_strength,
+											fom_adisp,
+											fom_cdiff);
+									dsd_list.add(new DSD(ipass, disp, strength,  adiff, m_lma, clust_radius,fom)); //second_max_diff[nt]));
+								}
+							}
+						}
+						if (!dsd_list.isEmpty()) {
+							// DSD dsd_max_fom = fom_use_lma ? Collections.max(dsd_list, dsdByLmaRadFom):Collections.max(dsd_list, dsdByFom);
+							DSD fom_best = getSkyFom(
+									dsd_list,           // final ArrayList<DSD> dsd_list,
+									fom_use_lma,        // boolean              use_lma, // and radius
+									fom_inf_bonus,      // final double         fom_inf_bonus, // 0.2; // add this to infinity FOM (if it is closer than fom_inf_range)
+									fom_inf_range);     // final double         fom_inf_range) // 0.5;
+							Collections.sort(dsd_list);
+							CLTPass3d pass = passes.get(fom_best.indx);
+							combo_pass.tile_op[ty][tx] =            pass.tile_op[ty][tx];
+							if (pass.texture_tiles != null) {
+								combo_pass.texture_tiles[ty][tx] =  pass.texture_tiles[ty][tx];
+							}
+							double [] mdisp_lma_arr = pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY];
+							boolean m_lma =        (mdisp_lma_arr != null) && !Double.isNaN(mdisp_lma_arr[nTile]);
+
+							double mdisp =         m_lma?
+									mdisp_lma_arr[nTile] : pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nTile];
+							double corr_magic = m_lma ? corr_magic_scale_lma : corr_magic_scale;
+							combo_pass.calc_disparity[nTile] =         mdisp/corr_magic +  pass.disparity[ty][tx];
+							combo_pass.strength[nTile] =               pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nTile];
+							combo_pass.has_lma[nTile] =                m_lma;
+							// Only copy for full disparity
+							for (int i = 0; i< numSensors; i++) {
+								if (pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i]!= null) {// do not copy empty
+									combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nTile] = pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nTile];
+								}
+							}
+							if (copyDebug){
+								combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nTile] =            pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nTile];
+								combo_pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nTile] =      pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nTile];
+								if (pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY] != null) {
+									combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY][nTile] =          pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY][nTile];
+								}
+								if (pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY + 1] != null) {
+									combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY+1][nTile] =        pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY+1][nTile];
+								}
+							}
+						} else { // Fill in data for empty tile
+							combo_pass.tile_op[ty][tx] =            0;
+							combo_pass.texture_tiles[ty][tx] =      null;
+							combo_pass.calc_disparity[nTile] =         Double.NaN;
+							combo_pass.strength[nTile] =               0.0;
+							// Only copy for full disparity
+							for (int i = 0; i< numSensors; i++) {
+								combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nTile] = Double.NaN;
+							}
+							if (copyDebug){
+								combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nTile] =            Double.NaN;
+								combo_pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nTile] =      Double.NaN;
+								if (combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY] != null) {
+									combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY][nTile] =          Double.NaN;
+								}
+								if (combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY+1] != null) {
+									combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY+1][nTile] =        Double.NaN;
+								}
+							}
+						}// if (!dsd_list.isEmpty()) else {
+						// fill empty planes (if any). May be all if there were no even weak tiles (old best_index<0)
+					}
+				}
+			};
+		}
+		ImageDtt.startAndJoin(threads);
+		combo_pass.getDisparity(); // See if it does not break anything - triggers calculation if not done yet
+		combo_pass.fixNaNDisparity(); // mostly for debug, measured disparity should be already fixed from NaN
+		return combo_pass;
+	}
+	
+	public DSD getSkyFom(
+			final ArrayList<DSD> dsd_list,
+			boolean              use_lma, // and radius
+			final double         fom_inf_bonus, // 0.2; // add this to infinity FOM (if it is closer than fom_inf_range)
+			final double         fom_inf_range) // 0.5;
+	{
+		if (dsd_list.isEmpty()) {
+			return null;
+		}
+		DSD dsd_max_fom = use_lma ? Collections.max(dsd_list, dsdByLmaRadFom):Collections.max(dsd_list, dsdByFom);
+		double min_fom = dsd_max_fom.fom - fom_inf_bonus;
+		boolean need_lma = use_lma ? dsd_max_fom.has_lma : false;
+		int max_radius = use_lma ? dsd_max_fom.clust_radius:-1;
+		double best_fom = Double.NaN;
+		DSD dsd_best = dsd_max_fom;
+		for (int i = 0; i < dsd_list.size(); i++) {
+			DSD dsd = dsd_list.get(i);
+			if (	(dsd.fom >= min_fom) &&
+					(!need_lma || dsd.has_lma) &&
+					((max_radius < 0) || (dsd.clust_radius <= max_radius)) &&
+					(dsd.disparity <= fom_inf_range) &&
+					!(dsd.fom <= best_fom)) {
+				best_fom = dsd.fom;
+				dsd_best = dsd;
+			}
+		}
+		return dsd_best; // dsd_best will not be modified from dsd_max_fom.indx if no infinity result is good enough
+	}
+	
+	public void printScans(
+			final ArrayList <CLTPass3d> passes,
+			final int                   firstPass,
+			final int                   lastPassPlus1,
+			final boolean               use_lma,
+			final double                fom_min_strength,
+			final double                fom_adisp,     // 0.5
+			final double                fom_cdiff,     // 0.02
+			final double                fom_inf_bonus, // 0.2; // add this to infinity FOM (if it is closer than fom_inf_range)
+			final double                fom_inf_range, // 0.5;
+			final int                   tileX,
+			final int                   tileY
+			) {
+		ArrayList<DSD> dsd_list = new  ArrayList<DSD>();
+		int nt = getTilesX()*tileY + tileX;
+		final double  corr_magic_scale_lma = 1.0; 
+		for (int ipass = firstPass;  ipass <lastPassPlus1; ipass++ ){
+			CLTPass3d pass = passes.get(ipass);
+			if ( pass.isMeasured() && (pass.tile_op[tileY][tileX] != 0 )) {
+				int clust_radius =        pass.getClustRadius();
+				double [] mdisp_lma_arr = pass.disparity_map[ImageDtt.DISPARITY_INDEX_POLY];
+				boolean m_lma =        (mdisp_lma_arr != null) && !Double.isNaN(mdisp_lma_arr[nt]);
+				double mdisp =         m_lma?
+						mdisp_lma_arr[nt] : pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nt];
+				double corr_magic = m_lma ? corr_magic_scale_lma : corr_magic_scale;
+				double strength =      pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nt];
+				double adiff =         Math.abs(mdisp);
+				double disp = mdisp/corr_magic +  pass.disparity[tileY][tileX];
+				double fom = pass.getFOM(
+						nt,
+						fom_min_strength,
+						fom_adisp,
+						fom_cdiff);
+				dsd_list.add(new DSD(ipass, disp, strength,  adiff, m_lma, clust_radius,fom)); //second_max_diff[nt]));
+			}
+		}
+		if (dsd_list.isEmpty()) {
+			System.out.println("Scans for tileX="+tileX+" tileY="+tileY+ " ntile="+nt+" list IS EMPTY");
+			return;
+		}
+		DSD dsd_max_fom = use_lma ? Collections.max(dsd_list, dsdByLmaRadFom):Collections.max(dsd_list, dsdByFom);
+		DSD sky_best = getSkyFom(
+				 dsd_list,       // final ArrayList<DSD> dsd_list,
+				 use_lma,        // boolean              use_lma, // and radius
+				 fom_inf_bonus,  // final double         fom_inf_bonus, // 0.2; // add this to infinity FOM (if it is closer than fom_inf_range)
+				 fom_inf_range); // final double         fom_inf_range) // 0.5;
+		Collections.sort(dsd_list);
+		System.out.println ("Scans for tileX="+tileX+" tileY="+tileY+ " ntile="+nt+
+				" (fom_adisp="+fom_adisp+", fom_cdiff="+fom_cdiff+
+				", fom_inf_bonus="+fom_inf_bonus+", fom_inf_range="+fom_inf_range+"):");
+//		System.out.println ("   0:    1.907 0.1389 1.6207 false 0  165.572  chn_dif");
+		System.out.println (" pass     disp  stren  adisp   lma  R  chn_dif    FOM");
+		for (DSD dsd:dsd_list) {
+			CLTPass3d pass = passes.get(dsd.indx);
+			double [] diffs = pass.getSecondMaxDiff(false);
+			String prefix = " ";
+			if (dsd.indx == dsd_max_fom.indx) {
+				prefix = "+";
+				if (dsd.indx == sky_best.indx) {
+					prefix = "*";
+				}
+			} else if (dsd.indx == sky_best.indx) {
+				prefix = "S";
+			}
+			System.out.println (String.format("%1s%4d: %8.3f %6.4f %6.4f %5b %1d %8.3f %8.3f",
+					prefix, // 
+					dsd.indx, dsd.disparity, dsd.strength, dsd.adiff, dsd.has_lma, dsd.clust_radius, diffs[nt], dsd.fom));
+		}
+		System.out.println();
+		return;
+	}
 	
 	public int expandCertain (
 			 final CLTPass3d             combo_pass, // modify
@@ -5277,9 +5607,9 @@ ImageDtt.startAndJoin(threads);
 				System.out.println("FilterScan(): this_disparity["+i+"] = "+this_disparity[i]+"this_strength["+i+"] = "+this_strength[i]);
 			}
 
-			if (this_disparity[i] < disparity_far) {
+			if (this_disparity[i] < disparity_far) { 
 				if (has_lma[i] || (this_strength[i] > this_maybe)){
-					if (bg_tiles[i]) { // far can only be among previously selected for bgnd? bg_tiles = null ?
+					if (bg_tiles[i]) { // far can only be among previously selected for bgnd? bg_tiles = null ? // null here
 						far_tiles[i] = true;
 					}
 				}
@@ -5898,6 +6228,38 @@ ImageDtt.startAndJoin(threads);
 		return null;
 	}
 
+	
+	public CLTPass3d refinePassSetup( // prepare tile tasks for the second pass based on the previous one(s)
+			CLTPass3d         combo_pass,
+			final int         debugLevel) {
+		CLTPass3d scan_next =new CLTPass3d(this);
+		double [] prev_disparity = combo_pass.getDisparity(1); // (0) - calc_disparity_combo - wrong
+		double [][] disparityTask = new double [tilesY][tilesX];
+		int [][]    tile_op =       new int [tilesY][tilesX];
+		boolean [] borderTiles =    new boolean[tilesY*tilesX]; // to zero alpha in the images
+		boolean [] need_meas = new boolean [prev_disparity.length];
+		for (int i = 0; i < need_meas.length; i++) {
+			need_meas[i] = !Double.isNaN(prev_disparity[i]);
+		}
+
+		int op = ImageDtt.setImgMask(0, 0xf);
+		op =     ImageDtt.setPairMask(op,0xf);
+		op =     ImageDtt.setForcedDisparity(op,true);
+		for (int ty = 0; ty < tilesY; ty++) for (int tx = 0; tx <tilesX; tx++){
+			int indx =  tilesX * ty + tx;
+			disparityTask[ty][tx] = prev_disparity[indx];
+			tile_op[ty][tx] = op;
+		}
+		scan_next.setClustRadius(0);
+		scan_next.disparity =     disparityTask; // will have NaN-s
+		scan_next.tile_op =       tile_op;
+		scan_next.setBorderTiles (borderTiles);
+		scan_next.setSelected(need_meas); // includes border_tiles
+		return scan_next;
+	}
+		
+	
+	
 	public CLTPass3d refinePassSetupMulti( // prepare tile tasks for the second pass based on the previous one(s)
 			CLTPass3d         combo_pass,
 			int               clust_radius,     // 0 - initial single-tile, 1 - 1x1 (same), 2 - 3x3, 3 5x5
