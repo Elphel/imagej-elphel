@@ -95,7 +95,8 @@ public class QuadCLTCPU {
 	public static int             INDEX_DSI_MAIN =  2;
 	public static final String [] FGBG_TITLES_ADJ = {"disparity","strength"};
 //	public static final String [] FGBG_TITLES = {"disparity","strength", "rms","rms-split","fg-disp","fg-str","bg-disp","bg-str"};
-	public static final String [] FGBG_TITLES_AUX = {"disparity","strength", "rms","rms-split","fg-disp","fg-str","bg-disp","bg-str","aux-disp","aux-str"};
+	public static final String [] FGBG_TITLES_AUX = 
+		{"disparity","strength", "rms","rms-split","fg-disp","fg-str","bg-disp","bg-str","aux-disp","aux-str"};
 //	public static final enum      FGBG           {DISPARITY,  STRENGTH,   RMS,  RMS_SPLIT,  FG_DISP,  FG_STR,  BG_DISP,  BG_STR};
 	public static final int       FGBG_DISPARITY = 0;
 	public static final int       FGBG_STRENGTH =  1;
@@ -168,7 +169,7 @@ public class QuadCLTCPU {
     public int                                             num_orient = 0; 
     //number of times scenes are accumulated: 0 - none, 1 - after first orientation, 2 - after second orientation
     public int                                             num_accum =  0;
-    
+    public boolean[] blue_sky =                            null;
     public void inc_orient()        {num_orient++;}
     public void inc_accum()         {num_accum++;}
     public void set_orient(int num) {num_orient = num;}
@@ -408,6 +409,126 @@ public class QuadCLTCPU {
 		return x3d_path;
 	}
 
+	/**
+	 * Discriminate "blue sky" areas with no details at infinity. Such areas
+	 * have both low strength and low pixel value variations between channels
+	 * when calculated for 0 disparity. Assuming that there are no large enough
+	 * featureless areas in the scene itself (not always true, of course).
+	 * So first find tiles with a product of strength and disparity is less than
+	 * sky_seed (<sky_lim), shrink it by sky_shrink (to eliminate small non-infinity
+	 * false positive areas), then expand limited by  sky_lim (expecting a strong
+	 * enough skyline). The (optionally) expand by sky_expand_extra more.
+	 * Expansion by 1 is horizontal/vertical only, by 2 includes diagonals,
+	 * and so on. 
+	 *  
+	 * @param sky_seed minimal value of strength*spread to seed sky areas 
+	 * @param sky_lim maximal value of strength*spread over which sky area will
+	 *                        be expanded
+	 * @param sky_shrink shrink initial sky area to eliminate small non-sky areas. 
+	 * @param sky_expand_extra additionally expand
+	 * @param width number of tiles in a row 
+	 * @param strength 1d array of tile strengths in scanline order
+	 * @param spread 1d array of tile spreads (second maximal difference from
+	 *                  of per-sensor pixel values in a tile to their average
+	 *                  in scanline order. 
+	 * @param debugLevel debug level
+	 * @return boolean 1d array of the pixels belonging to the blue sky.
+	 */
+	public static boolean [] getBlueSky  (
+			double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
+			double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
+			int    sky_shrink, //  =       4;
+			int    sky_expand_extra, //  = 100; // 1?
+			int    width,
+			double [] strength,
+			double [] spread,
+			int debugLevel) {
+		if ((strength == null) || (spread==null)) {
+			return null;
+		}
+		String [] dbg_titles = {"sky", "seed", "max", "shrank"};
+		double [][] dbg_img = (debugLevel>0) ? new double [dbg_titles.length][strength.length]:null;
+		
+		boolean [] sky_tiles =      new  boolean [strength.length];
+		boolean [] prohibit_tiles = new  boolean [strength.length];
+		for (int i = 0; i < sky_tiles.length; i++) {
+			double d = strength[i] * spread[i];
+			sky_tiles[i] =      (d < sky_seed);
+			prohibit_tiles[i] = (d >= sky_lim);
+		}
+		if (dbg_img != null) {
+			for (int i = 0; i < sky_tiles.length; i++) {
+				dbg_img[1][i] = sky_tiles[i]? 1 : 0;
+				dbg_img[2][i] = prohibit_tiles[i]? 0 : 1;
+			}			
+		}
+		TileNeibs tn = new TileNeibs(width,sky_tiles.length/width);
+		tn.shrinkSelection(
+				sky_shrink,    // int        shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				sky_tiles,     // boolean [] tiles,
+				null);         // boolean [] prohibit)
+		if (dbg_img != null) {
+			for (int i = 0; i < sky_tiles.length; i++) {
+				dbg_img[3][i] = sky_tiles[i]? 1 : 0;
+			}			
+		}
+		tn.growSelection(
+				2*width ,        // int        shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				sky_tiles,       // boolean [] tiles,
+				prohibit_tiles); // boolean [] prohibit)
+		if (sky_expand_extra > 0) {
+			tn.growSelection(
+					sky_expand_extra , // int        shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+					sky_tiles,         // boolean [] tiles,
+					null);             // boolean [] prohibit)
+		}
+
+		if (dbg_img != null) {
+			for (int i = 0; i < sky_tiles.length; i++) {
+				dbg_img[0][i] = sky_tiles[i]? 1 : 0;
+			}
+			
+			(new ShowDoubleFloatArrays()).showArrays(
+					dbg_img,
+					width,
+					sky_tiles.length/width,
+					true,
+					"sky_selection",
+					dbg_titles); //	dsrbg_titles);
+		}
+		
+		return sky_tiles;
+	}
+	
+	public boolean [] getBlueSky () {
+		return this.blue_sky;
+	}
+
+	public void setBlueSky (boolean [] blue_sky) {
+		this.blue_sky = blue_sky;
+	}
+	
+	public void setBlueSky (
+			double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
+			double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
+			int    sky_shrink, //  =       4;
+			int    sky_expand_extra, //  = 100; // 1?
+			double [] strength,
+			double [] spread,
+			int debugLevel) {
+		int width = tp.getTilesX();
+		this.blue_sky = getBlueSky  (
+				sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
+				sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
+				sky_shrink, //  =       4;
+				sky_expand_extra, //  = 100; // 1?
+				width,
+				strength,
+				spread,
+				debugLevel);
+	}
+	
+	
 	public void setDSI(
 			double [][] dsi) {
 		this.dsi = dsi;
@@ -415,7 +536,7 @@ public class QuadCLTCPU {
 
 	public void setDSIFromCombo(
 			double [][] combo_dsi) {
-		this.dsi = new double [TwoQuadCLT.DSI_SLICES.length][];
+		this.dsi = new double [TwoQuadCLT.DSI_SLICES.length][]; // will not have DSI_SPREAD_AUX
 		this.dsi[is_aux?TwoQuadCLT.DSI_DISPARITY_AUX:TwoQuadCLT.DSI_DISPARITY_MAIN] =
 				combo_dsi[OpticalFlow.COMBO_DSN_INDX_DISP_FG];
 		this.dsi[is_aux?TwoQuadCLT.DSI_STRENGTH_AUX:TwoQuadCLT.DSI_STRENGTH_MAIN] =
@@ -473,7 +594,14 @@ public class QuadCLTCPU {
 		}
 		boolean [] reliable = new boolean [strength.length];
 		for (int i = 0; i < reliable.length; i++) {
-			reliable[i] = (strength[i] >= min_strength) && (!needs_lma || !Double.isNaN(disparity_lma[i]));
+			reliable[i] = (strength[i] >= min_strength) &&
+					(!needs_lma || !Double.isNaN(disparity_lma[i]));
+		}
+		boolean [] blue_sky = getBlueSky();
+		if (blue_sky != null) {
+			for (int i = 0; i < reliable.length; i++) {
+				reliable[i] &= !blue_sky[i];
+			}
 		}
 		return reliable;
 	}
@@ -1360,7 +1488,8 @@ public class QuadCLTCPU {
 	{
 		String x3d_path = getX3dDirectory();
 		String title = image_name+TwoQuadCLT.DSI_COMBO_SUFFIX;
-		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(dsi,tp.getTilesX(), tp.getTilesY(),  title, TwoQuadCLT.DSI_SLICES);
+		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(
+				dsi,tp.getTilesX(), tp.getTilesY(),  title, TwoQuadCLT.DSI_SLICES);
 		eyesisCorrections.saveAndShow(
 				imp,      // ImagePlus             imp,
 				x3d_path, // String                path,
@@ -1373,7 +1502,8 @@ public class QuadCLTCPU {
 	public void showDSI(double [][] dsi)
 	{
 		  String title = image_name + TwoQuadCLT.DSI_COMBO_SUFFIX;
-		  (new ShowDoubleFloatArrays()).showArrays(dsi, tp.getTilesX(), tp.getTilesY(), true, title, TwoQuadCLT.DSI_SLICES);
+		  (new ShowDoubleFloatArrays()).showArrays(
+				  dsi, tp.getTilesX(), tp.getTilesY(), true, title, TwoQuadCLT.DSI_SLICES);
 	}
 
 	public void saveDSIMain(){saveDSIMain(this.dsi);}
@@ -1382,10 +1512,15 @@ public class QuadCLTCPU {
 	{
 		String x3d_path = getX3dDirectory();
 		String title = image_name+"-DSI_MAIN";
-		String []   titles =   {TwoQuadCLT.DSI_SLICES[TwoQuadCLT.DSI_DISPARITY_MAIN], TwoQuadCLT.DSI_SLICES[TwoQuadCLT.DSI_STRENGTH_MAIN]};
-		double [][] dsi_main = {dsi[TwoQuadCLT.DSI_DISPARITY_MAIN],        dsi[TwoQuadCLT.DSI_STRENGTH_MAIN]};
+		String []   titles =   {
+				TwoQuadCLT.DSI_SLICES[TwoQuadCLT.DSI_DISPARITY_MAIN],
+				TwoQuadCLT.DSI_SLICES[TwoQuadCLT.DSI_STRENGTH_MAIN]};
+		double [][] dsi_main = {
+				dsi[TwoQuadCLT.DSI_DISPARITY_MAIN],
+				dsi[TwoQuadCLT.DSI_STRENGTH_MAIN]};
 
-		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(dsi_main, tp.getTilesX(), tp.getTilesY(),  title, titles);
+		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(
+				dsi_main, tp.getTilesX(), tp.getTilesY(),  title, titles);
 		eyesisCorrections.saveAndShow(
 				imp,      // ImagePlus             imp,
 				x3d_path, // String                path,
@@ -1400,7 +1535,8 @@ public class QuadCLTCPU {
 	{
 		String x3d_path = getX3dDirectory();
 		String title = image_name+suffix; // "-DSI_MAIN";
-		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(dsi, tp.getTilesX(), tp.getTilesY(),  title, TwoQuadCLT.DSI_SLICES);
+		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(
+				dsi, tp.getTilesX(), tp.getTilesY(),  title, TwoQuadCLT.DSI_SLICES);
 		eyesisCorrections.saveAndShow(
 				imp,      // ImagePlus             imp,
 				x3d_path, // String                path,
@@ -9584,7 +9720,8 @@ public class QuadCLTCPU {
 					  combo_pass, // CLTPass3d   scan,
 					  "after_multi-tile_disparity_extension");
 		  }
-
+		  // copy second_max from the BG pass to the last one (to be used)
+		  tp.clt_3d_passes.get(tp.clt_3d_passes.size()-1).setSecondMax(tp.clt_3d_passes.get(bg_pass).getSecondMax());
  ///// Refining after all added   - end
 		  Runtime.getRuntime().gc();
 	      System.out.println("preExpandCLTQuad3d(): processing  finished at "+

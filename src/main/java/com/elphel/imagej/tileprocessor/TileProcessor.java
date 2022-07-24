@@ -3910,13 +3910,14 @@ ImageDtt.startAndJoin(threads);
 			CLTPass3d   scan,
 			boolean use_final)
 	{
-		double [] disparity =    scan.getDisparity(use_final?0:1);
-		double [] disparityLMA = scan.getDisparityLMA();
+		double [] disparity =     scan.getDisparity(use_final?0:1);
+		double [] disparityLMA =  scan.getDisparityLMA();
+		double [] second_max_bg = scan.getSecondMax();
 		if (!use_final) {
 			scan.setStrength(null);
 		}
 		double [] strength =     scan.getStrength();
-		return new double [][] {disparity, strength, disparityLMA}; 
+		return new double [][] {disparity, strength, disparityLMA,second_max_bg}; // second maximal difference between channels in BG 
 	}
 
 	// TODO: update for variable length

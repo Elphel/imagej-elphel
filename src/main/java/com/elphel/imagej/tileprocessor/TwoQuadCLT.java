@@ -80,6 +80,8 @@ public class TwoQuadCLT {
 	public static  int DSI_STRENGTH_MAIN =      6;
 	public static  int DSI_STRENGTH_AUX =       7;
 	public static  int DSI_STRENGTH_RIG =       8;
+	public static  int DSI_SPREAD_MAIN =        9;
+	public static  int DSI_SPREAD_AUX =        10;
 
 	public static String DSI_COMBO_SUFFIX = "-DSI_COMBO";
 	public static String DSI_MAIN_SUFFIX =  "-DSI_MAIN";
@@ -93,7 +95,9 @@ public class TwoQuadCLT {
 				"disparity_x3d",
 			    "strength_main",
 			    "strength_aux",
-			    "strength_rig"};
+			    "strength_rig",
+			    "spread_main",
+			    "spread_aux"};
 
 	public long                                            startTime;     // start of batch processing
 	public long                                            startSetTime;  // start of set processing

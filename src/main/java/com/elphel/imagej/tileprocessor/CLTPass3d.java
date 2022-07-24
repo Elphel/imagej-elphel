@@ -1148,6 +1148,9 @@ public class CLTPass3d{
 			}
 		}
 
+        public void setSecondMax(double [] second_max) { // setting "fake" for the non-measurement scan
+        	this.second_max = second_max;
+        }
         public void setSecondMax() {
         	this.second_max = getSecondMaxDiff(false);
         }

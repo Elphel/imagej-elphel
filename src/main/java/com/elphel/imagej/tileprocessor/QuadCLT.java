@@ -482,8 +482,8 @@ public class QuadCLT extends QuadCLTCPU {
 		}
 		return disparity_out;
 	}
-	
-	public static double [][] fillDisparityStrength(
+	@Deprecated
+	public static double [][] fillDisparityStrength0(
 			final double [][] ds0,
 			final double      min_disparity,
 			final double      max_sym_disparity, // lower disparity - num_bottom = 8; 
@@ -494,6 +494,8 @@ public class QuadCLT extends QuadCLTCPU {
 			final int         threadsMax,
 			final int         debug_level)
 	{
+		final double max_disp_diff = 1.00; // no pull from pixels that are this high than average of lowest
+		final int num_bot_avg = 3; // number of lowest neighbors to average
         final double   diagonal_weight = 0.5 * Math.sqrt(2.0); // relative to ortho
 		double wdiag = 0.25 *diagonal_weight / (diagonal_weight + 1.0);
 		double wortho = 0.25 / (diagonal_weight + 1.0);
@@ -509,7 +511,7 @@ public class QuadCLT extends QuadCLTCPU {
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final AtomicInteger anum_gaps = new AtomicInteger(0);
-		final int dbg_tile = 2191;
+		final int dbg_tile = 89;
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				public void run() {
@@ -566,17 +568,28 @@ public class QuadCLT extends QuadCLTCPU {
 									}
 								}
 							}
+							swd /= sw; // here = not zero;
+
 							System.arraycopy(neibs, 0, neibs_sorted, 0, 8);
 							Arrays.sort(neibs_sorted); // NaNs in the end
 							if (Double.isNaN(neibs_sorted[min_defined - 1])) {
 								continue; // too few defined neighbors
 							}
-							swd /= sw; // here = not zero;
+							double swd_low = 0, sw_low = 0;
+							for (int i = 0; i < num_bot_avg; i++) if (!Double.isNaN(neibs_sorted[i])) {
+								 swd_low += neibs_sorted[i];
+								 sw_low += 1.0;
+							}
+							double max_d = swd_low / sw_low + max_disp_diff;
+							
 							if (!fill_all[0]) {
 								anum_gaps.getAndIncrement();
 							}
 							double max_disp = neibs_sorted[num_bottom - 1];
-//							if (!(ds[0][nTile] > max_sym_disparity)){
+							if (!(max_disp < max_d)) {
+								max_disp = max_d; // this will reduce number of averaged if tries to pull to high 
+							}
+							
 							if (!(swd > max_sym_disparity)){ // here compare to average, not this!
 								max_disp = Double.NaN; // so it will average all
 							}
@@ -598,6 +611,10 @@ public class QuadCLT extends QuadCLTCPU {
 								}
 								amax_diff.accumulate(d2);
 							}
+							if ((debug_level >0) && (nTile == dbg_tile)) {
+								System.out.println("fillDisparityStrength() nTile="+nTile+" swd="+swd);
+							}
+							
 							disp_new[nTile] = swd;		
 						}
 					}
@@ -607,7 +624,7 @@ public class QuadCLT extends QuadCLTCPU {
 			ai.set(0);
 			System.arraycopy(disp_new, 0, ds[0], 0, tiles);
 			if ((debug_level > 0) && fill_all[0]) {
-				System.out.println("fillDisparityStrength() npass="+npass+", change="+Math.sqrt(amax_diff.get())+" ("+max_change+")");
+				System.out.println("fillDisparityStrength() num_gaps="+num_gaps+", npass="+npass+", change="+Math.sqrt(amax_diff.get())+" ("+max_change+")");
 			}
 			if (fill_all[0] && (amax_diff.get() < max_change2)) {
 				break;
@@ -623,111 +640,201 @@ public class QuadCLT extends QuadCLTCPU {
 		return ds;
 	}
 
-	/*
-    public double [][]  getDSRBG (){
-    	return dsrbg;
-    }
-
-    public void setDSRBG(
-			CLTParameters  clt_parameters,
-			int            threadsMax,  // maximal number of threads to launch
-			boolean        updateStatus,
-			int            debugLevel)
-    {
-    	setDSRBG(
-    			this.dsi[is_aux?TwoQuadCLT.DSI_DISPARITY_AUX:TwoQuadCLT.DSI_DISPARITY_MAIN],
-    			this.dsi[is_aux?TwoQuadCLT.DSI_STRENGTH_AUX:TwoQuadCLT.DSI_STRENGTH_MAIN],
-    			this.dsi[is_aux?TwoQuadCLT.DSI_DISPARITY_AUX_LMA:TwoQuadCLT.DSI_DISPARITY_MAIN_LMA],
-    			clt_parameters,
-    			threadsMax,
-    	        updateStatus,
-    			debugLevel);
-    }
-    public void setDSRBG(
-    		double [] disparity,
-    		double [] strength,
-    		double [] disparity_lma,
-			CLTParameters  clt_parameters,
-			int            threadsMax,  // maximal number of threads to launch
-			boolean        updateStatus,
-			int            debugLevel)
-    {
-    	double[][] rbg = getTileRBG(
-    			clt_parameters,
-    			disparity,
-    			strength,
-    			disparity_lma,
-    			threadsMax,  // maximal number of threads to launch
-    			updateStatus,
-    			debugLevel);
-    	double [][] dsrbg = {
-    			disparity,
-    			strength,
-    			disparity_lma,
-    			rbg[0],rbg[1],rbg[2]};
-    	this.dsrbg = dsrbg;
-    }
-	
-	public double[][] getTileRBG(
-			CLTParameters  clt_parameters,
-			double []      disparity,
-			double []      strength,
-    		double []      disparity_lma,
-			int            threadsMax,  // maximal number of threads to launch
-			boolean        updateStatus,
-			int            debugLevel)
+	// trying new version
+	public static double [][] fillDisparityStrength(
+			final double [][] ds0,
+			final double      min_disparity,
+			final double      max_sym_disparity, // lower disparity - num_bottom = 8; 
+			final int         num_bottom, // average this number of lowest disparity neighbors (of 8)
+			final int         num_passes,
+			final double      max_change,
+			final int         width,
+			final int         threadsMax,
+			final int         debug_level)
 	{
-		CLTPass3d scan = new CLTPass3d(tp);
-		scan.setCalcDisparityStrength(
-				disparity,
-				strength);
-		if (disparity_lma == null) {
-			scan.resetLMA();
-		} else {
-			scan.setLMA(disparity_lma);
+		final double max_disp_diff =     1.00; // no pull from pixels that are this high than average of lowest
+		final double max_disp_diff_rel = 0.2; // no pull from pixels that are this high than average of lowest
+		final double anchor_up_abs =     0.2; // if anchor is more than that larger, pull as if it is that latger
+		final double anchor_up_rel =     0.2; // add to anchor_up_abs multiplied by anchor disparity
+		final int    min_float_neibs =   2; // minimal number of float neibs to override fixed;
+		
+        final double   diagonal_weight = 0.5 * Math.sqrt(2.0); // relative to ortho
+		double wdiag = 0.25 *diagonal_weight / (diagonal_weight + 1.0);
+		double wortho = 0.25 / (diagonal_weight + 1.0);
+		final double [] neibw = {wortho, wdiag, wortho, wdiag, wortho, wdiag, wortho, wdiag}; 
+
+		final double max_change2 = max_change * max_change;
+		final double [][] ds = new double [][] {ds0[0].clone(),ds0[1].clone()};
+		final int tiles = ds[0].length;
+		final TileNeibs tn =  new TileNeibs(width, tiles/width);
+		
+		final boolean [] floating =      new boolean[tiles]; // which tiles will change
+		final double [] anchors =        new double [tiles]; // average of the known fixed neighbors
+		final double [] anchor_weights = new double [tiles]; // weights of anchors
+		Arrays.fill(anchors,Double.NaN);
+		
+		final int [] tile_indices = new int [tiles];
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final AtomicInteger anum_gaps = new AtomicInteger(0);
+		final int dbg_tile = -3379;
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) {
+						if (ds[0][nTile] < min_disparity) {
+							ds[0][nTile] = Double.NaN; // min_disparity;
+						}
+						if (Double.isNaN(ds[0][nTile]) || (ds[1][nTile] <= 0)) { // blue_sky is made small >0 weight
+							ds[0][nTile] = Double.NaN;
+							ds[1][nTile] = 0.0;
+							int indx = anum_gaps.getAndIncrement();
+							tile_indices[indx] = nTile;
+							floating[nTile] = true;
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		ai.set(0);
+		final int num_gaps = anum_gaps.get(); 
+		if (num_gaps == 0) {
+			return ds; // no gaps already
 		}
-		boolean [] selection = new boolean [disparity.length];
-		for (int i = 0; i < disparity.length; i++) {
-			selection[i] = (!Double.isNaN(disparity[i]) && ((strength == null) || (strength[i] > 0)));
-		}
-		scan.setTileOpDisparity(selection, disparity);
-		// will work only with GPU
-		// reset bayer source, geometry correction/vector
-		//this.new_image_data =     true;
-		QuadCLT savedQuadClt =  gpuQuad.getQuadCLT();
-		if (savedQuadClt != this) {
-			gpuQuad.updateQuadCLT(this);
-		} else {
-			savedQuadClt = null;
-		}
-		setPassAvgRBGA( // get image from a single pass, return relative path for x3d // USED in lwir
-				clt_parameters, // CLTParameters           CLTParameters           clt_parameters,,
-				scan,
-				threadsMax,  // maximal number of threads to launch
-				updateStatus,
-				debugLevel);
-		double [][] rgba = scan.getTilesRBGA();
-		if (debugLevel > -1) { // -2) {
-			String title = image_name+"-RBGA";
-			String [] titles = {"R","B","G","A"};
-			(new ShowDoubleFloatArrays()).showArrays(
-					rgba,
-					tp.getTilesX(),
-					tp.getTilesY(),
-					true,
-					title,
-					titles);
-		}
-        // Maybe resotore y caller?
-		if (savedQuadClt !=  null) {
-			gpuQuad.updateQuadCLT(savedQuadClt);
-		}
-		return rgba;
+		
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					double [] neibs = new double[8];
+					for (int indx = ai.getAndIncrement(); indx < num_gaps; indx = ai.getAndIncrement()) {
+						int nTile = tile_indices[indx];
+						if ((debug_level >0) && (nTile == dbg_tile)) {
+							System.out.println("fillDisparityStrength() nTile="+nTile);
+						}
+						Arrays.fill(neibs, Double.NaN);
+						double min_def_disp = Double.NaN;
+						for (int dir = 0; dir < 8; dir++) {
+							int nt_neib = tn.getNeibIndex(nTile, dir);
+							if ((nt_neib >= 0) && !floating[nt_neib]) {
+								neibs[dir] = ds[0][nt_neib];
+								if (!(neibs[dir] >= min_def_disp)) { // true if was NaN or new is smaller
+									min_def_disp = neibs[dir];
+								}
+							}
+						}
+						if (!Double.isNaN(min_def_disp)) { // no fixed neighbors
+							double max_to_vag = min_def_disp * (1.0 + max_disp_diff_rel) + max_disp_diff;
+							double swd = 0.0, sw = 0.0;
+							for (int dir = 0; dir < 8; dir++) {
+								if (neibs[dir] < max_to_vag) {// NaN OK, will be false
+									sw +=  neibw[dir];
+									swd += neibw[dir] * neibs[dir]; 
+								}
+							}
+							anchors[nTile] = swd / sw; // here = not zero as there will be at least one tile for min_def_disp
+							anchor_weights[nTile] = sw;
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		
+		ai.set(0);
+		final boolean [] fill_all = {false};
+		final double [] disp_new = ds[0].clone();
+		DoubleAccumulator amax_diff =  new DoubleAccumulator (Double::max, Double.NEGATIVE_INFINITY);
+		for (int npass = 0; npass < num_passes; npass+= fill_all[0]? 1:0 ) { // do not limit initial passes
+			anum_gaps.set(0);
+			amax_diff.reset();
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						double [] neibs = new double[8];
+						for (int indx = ai.getAndIncrement(); indx < num_gaps; indx = ai.getAndIncrement()) {
+							int nTile = tile_indices[indx];
+							if ((debug_level >0) && (nTile == dbg_tile)) {
+								System.out.println("fillDisparityStrength() nTile="+nTile);
+							}
+							if (!fill_all[0] && !Double.isNaN(ds[0][nTile])) {
+								continue; // fill only new
+							}
+							Arrays.fill(neibs, Double.NaN);
+							// average only floating, use anchors for fixed
+							double swd = 0.0, sw = 0.0;
+							double new_val; //  = Double.NaN;
+							int num_floats = 0;
+							for (int dir = 0; dir < 8; dir++) {
+								int nt_neib = tn.getNeibIndex(nTile, dir);
+								if ((nt_neib >= 0) && floating[nt_neib]) {
+									neibs[dir] = ds[0][nt_neib];
+									if (! Double.isNaN(neibs[dir])) {
+										sw +=  neibw[dir];
+										swd += neibw[dir] * neibs[dir];
+										num_floats++;
+									}
+								}
+							}
+							if ((sw > 0) || (anchor_weights[nTile] > 0)) {
+								// (num_floats >= min_float_neibs) to disallow floats BG pull down through just diagonal 
+								if ((sw > 0) && (anchor_weights[nTile] > 0) && (num_floats >= min_float_neibs)) {
+									double avg_flt = swd/sw;
+									double max_fix = avg_flt + anchor_up_abs+ avg_flt*anchor_up_rel;
+									double avg_fix = anchors[nTile];
+									if (avg_fix > max_fix) {
+										avg_fix = max_fix;
+									}
+									new_val = (avg_fix * anchor_weights[nTile] + swd)/(sw + anchor_weights[nTile]);
+								} else if (anchor_weights[nTile] > 0) { // (sw == 0) || (num_floats < min_float_neibs)
+									new_val = anchors[nTile];
+								} else { // OK even if number of float neighbors is <  min_float_neibs - there are no fixed competitors 
+									new_val = swd/sw;
+								}
+								if (fill_all[0]) {
+									double d2 = max_change2 * 2;
+									if (!Double.isNaN(disp_new[nTile])){
+										double d = new_val -  disp_new[nTile];
+										d2 = d * d;
+										if ((debug_level > 0) &&  (d2 > 15)) {
+											System.out.println(
+													"fillDisparityStrength(): nTile="+nTile+
+													" tileX="+(nTile%width)+ " tileY="+(nTile/width)+
+													", d="+d);
+										}
+									}
+									amax_diff.accumulate(d2);
+								} else {
+									anum_gaps.getAndIncrement();
+								}
+								disp_new[nTile] = new_val;
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			ai.set(0);
+			System.arraycopy(disp_new, 0, ds[0], 0, tiles);
+			if ((debug_level > 0) && fill_all[0]) {
+				System.out.println("fillDisparityStrength() num_gaps="+num_gaps+", npass="+npass+", change="+Math.sqrt(amax_diff.get())+" ("+max_change+")");
+			}
+			if (fill_all[0] && (amax_diff.get() < max_change2)) {
+				break;
+			}
+			if (anum_gaps.get() == 0) { // no new tiles filled
+				fill_all[0] = true; 
+			}
+			if ((debug_level>0) && (npass == (num_passes-1))){
+				System.out.println("fillDisparityStrength() LAST PASS ! npass="+npass+", change="+Math.sqrt(amax_diff.get())+" ("+max_change+")");
+				System.out.println("fillDisparityStrength() LAST PASS ! npass="+npass+", change="+Math.sqrt(amax_diff.get())+" ("+max_change+")");
+				System.out.println("fillDisparityStrength() LAST PASS ! npass="+npass+", change="+Math.sqrt(amax_diff.get())+" ("+max_change+")");
+			}
+		} // for (int npass = 0; npass < num_passes; npass+= fill_all[0]? 1:0 )
+		return ds;
 	}
 	
-*/	
-	
-	
+		
 	@Deprecated
 	public double [][] getOpticalFlow(
 			double disparity_min,

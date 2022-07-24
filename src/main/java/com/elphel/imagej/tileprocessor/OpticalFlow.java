@@ -3982,16 +3982,8 @@ public class OpticalFlow {
 		            debug_level+1);
 		}		
 	}
-	/*
-	public class VideoPathParams{
-		public String path;
-		public int    width;
-		public int    height;
-		public int    gap;
-		public double fps;
-		public double real_fps;
-	}
-	*/
+
+	
 	/**
 	 * Build series of poses from just a single (reference) scene.
 	 * @param quadCLT_main
@@ -4142,6 +4134,12 @@ public class OpticalFlow {
 		
 		double  min_ref_str =        clt_parameters.imp.min_ref_str;
 		
+		double sky_seed =       7.0;  // start with product of strength by diff_second below this
+		double sky_lim  =      15.0; // then expand to product of strength by diff_second below this
+		int    sky_shrink =       4;
+		int    sky_expand_extra = 0; // 1?
+		
+		boolean [] ref_blue_sky = null; // turn off "lma" in the ML output  
 		
 		if (reuse_video) { // disable all other options
 			generate_mapped = false;
@@ -4200,89 +4198,117 @@ public class OpticalFlow {
 		}
 		
 		// 1. Reference scene DSI
-		if (build_ref_dsi) {
-			TwoQuadCLT.copyJP4src( // actually there is no sense to process multiple image sets. Combine with other
-					// processing?
-					set_channels[ref_index].set_name, // String set_name
-					quadCLT_main, // QuadCLT quadCLT_main,
-					null, // QuadCLT quadCLT_aux,
-					clt_parameters, // EyesisCorrectionParameters.DCTParameters dct_parameters,
-					true, // boolean                                  skip_existing,
-					true, // false, // boolean                                  search_KML,
-					debugLevel);
-			quadCLTs[ref_index] = (QuadCLT) quadCLT_main.spawnNoModelQuadCLT( // will conditionImageSet
-					set_channels[ref_index].set_name,
-					clt_parameters,
-					colorProcParameters, //
-					threadsMax,
-					debugLevel-2);
-			quadCLTs[ref_index].saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry
-			quadCLTs[ref_index].preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
-	                clt_parameters,
-	                debayerParameters,
-	                colorProcParameters,
-	                rgbParameters,
-	                threadsMax,  // maximal number of threads to launch
-	                updateStatus,
-	                debugLevelInner);
-			double [][] aux_last_scan = TileProcessor.getDSLMA(
-					quadCLTs[ref_index].tp.clt_3d_passes.get( quadCLTs[ref_index].tp.clt_3d_passes.size() -1),
-					false); // boolean force_final);
-			double [][] dsi = new double [TwoQuadCLT.DSI_SLICES.length][];
-			dsi[TwoQuadCLT.DSI_DISPARITY_AUX] =     aux_last_scan[0];
-			dsi[TwoQuadCLT.DSI_STRENGTH_AUX] =      aux_last_scan[1];
-			dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA] = aux_last_scan[2];
-			
-			if (quadCLT_main.correctionsParameters.clt_batch_dsi_cm_strength) {
-				CLTPass3d scan = new CLTPass3d(quadCLTs[ref_index].tp);
-				scan.setTileOpDisparity(aux_last_scan[0]); // measure w/o LMA, use just strength
-				quadCLTs[ref_index].CLTMeas( // perform single pass according to prepared tiles operations and disparity
-						clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
-						scan,           // final CLTPass3d   scan,
-						false,          // final boolean     save_textures,
-						false,          // final boolean       need_diffs,     // calculate diffs even if textures are not needed 
-						0,              // final int         clust_radius,
-						true,           // final boolean     save_corr,
-						false,          // final boolean     run_lma, // =    true;
-						0.0,            // final double        max_chn_diff, // filter correlation results by maximum difference between channels
-						-1.0,           // final double        mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
-						threadsMax,     // final int         threadsMax,  // maximal number of threads to launch
-						updateStatus,   // final boolean     updateStatus,
-						debugLevel);    // final int         debugLevel);
-				dsi[TwoQuadCLT.DSI_STRENGTH_AUX] =      scan.getStrength();
-				if (debugLevel > 1) {
-					quadCLTs[ref_index].tp.showScan(
-							scan, // CLTPass3d   scan,
-							"test-strength");
-				}
-			} else {
-				dsi[TwoQuadCLT.DSI_STRENGTH_AUX] =      aux_last_scan[1];
-			}
-			quadCLTs[ref_index].saveDSIAll (
-					"-DSI_MAIN", // String suffix, // "-DSI_MAIN"
-					dsi);
-			quadCLTs[ref_index].saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
-					null, // String path,             // full name with extension or w/o path to use x3d directory
-					//							 	null, // Properties properties,   // if null - will only save extrinsics)
-					debugLevel);
-			// Copy source files to the model directory - they are needed for poses and interscene
-			for (int scene_index =  ref_index - 1; scene_index >= 0 ; scene_index--) {
+		while (quadCLTs[ref_index].getBlueSky() == null) {
+			if (build_ref_dsi) {
 				TwoQuadCLT.copyJP4src( // actually there is no sense to process multiple image sets. Combine with other
 						// processing?
-						set_channels[scene_index].set_name, // String set_name
+						set_channels[ref_index].set_name, // String set_name
 						quadCLT_main, // QuadCLT quadCLT_main,
 						null, // QuadCLT quadCLT_aux,
 						clt_parameters, // EyesisCorrectionParameters.DCTParameters dct_parameters,
-						true, // boolean                                  skip_existing,					
+						true, // boolean                                  skip_existing,
 						true, // false, // boolean                                  search_KML,
 						debugLevel);
-			} // split cycles to remove output clutter
-			
-			quadCLTs[ref_index].set_orient(0); // reset orientations
-			quadCLTs[ref_index].set_accum(0);  // reset accumulations ("build_interscene") number
-			earliest_scene = 0;  // reset failures, try to use again all scenes
-			
-		} // if (build_ref_dsi) {
+				quadCLTs[ref_index] = (QuadCLT) quadCLT_main.spawnNoModelQuadCLT( // will conditionImageSet
+						set_channels[ref_index].set_name,
+						clt_parameters,
+						colorProcParameters, //
+						threadsMax,
+						debugLevel-2);
+				quadCLTs[ref_index].saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry
+				quadCLTs[ref_index].preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
+						clt_parameters,
+						debayerParameters,
+						colorProcParameters,
+						rgbParameters,
+						threadsMax,  // maximal number of threads to launch
+						updateStatus,
+						debugLevelInner);
+				double [][] aux_last_scan = TileProcessor.getDSLMA(
+						quadCLTs[ref_index].tp.clt_3d_passes.get( quadCLTs[ref_index].tp.clt_3d_passes.size() -1),
+						false); // boolean force_final);
+				double [][] dsi = new double [TwoQuadCLT.DSI_SLICES.length][];
+				dsi[TwoQuadCLT.DSI_DISPARITY_AUX] =     aux_last_scan[0];
+				dsi[TwoQuadCLT.DSI_STRENGTH_AUX] =      aux_last_scan[1];
+				dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA] = aux_last_scan[2];
+				dsi[TwoQuadCLT.DSI_SPREAD_AUX] =        aux_last_scan[3];
+
+				if (quadCLT_main.correctionsParameters.clt_batch_dsi_cm_strength) {
+					CLTPass3d scan = new CLTPass3d(quadCLTs[ref_index].tp);
+					scan.setTileOpDisparity(aux_last_scan[0]); // measure w/o LMA, use just strength
+					quadCLTs[ref_index].CLTMeas( // perform single pass according to prepared tiles operations and disparity
+							clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
+							scan,           // final CLTPass3d   scan,
+							false,          // final boolean     save_textures,
+							false,          // final boolean       need_diffs,     // calculate diffs even if textures are not needed 
+							0,              // final int         clust_radius,
+							true,           // final boolean     save_corr,
+							false,          // final boolean     run_lma, // =    true;
+							0.0,            // final double        max_chn_diff, // filter correlation results by maximum difference between channels
+							-1.0,           // final double        mismatch_override, // keep tile with large mismatch if there is LMA with really strong correlation
+							threadsMax,     // final int         threadsMax,  // maximal number of threads to launch
+							updateStatus,   // final boolean     updateStatus,
+							debugLevel-2);  // final int         debugLevel);
+					dsi[TwoQuadCLT.DSI_STRENGTH_AUX] =      scan.getStrength();
+					if (debugLevel > 1) {
+						quadCLTs[ref_index].tp.showScan(
+								scan, // CLTPass3d   scan,
+								"test-strength");
+					}
+				} else {
+					dsi[TwoQuadCLT.DSI_STRENGTH_AUX] =      aux_last_scan[1];
+				}
+				int tilesX = quadCLTs[ref_index].getTileProcessor().getTilesX();
+				quadCLTs[ref_index].setBlueSky  (
+						sky_seed,           // double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
+						sky_lim,            // double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
+						sky_shrink,         // int    sky_shrink, //  =       4;
+						sky_expand_extra,   // int    sky_expand_extra, //  = 100; // 1?
+						dsi[TwoQuadCLT.DSI_STRENGTH_AUX], // double [] strength,
+						dsi[TwoQuadCLT.DSI_SPREAD_AUX], // double [] spread,
+						debugLevel);        // int debugLevel)
+
+				quadCLTs[ref_index].saveDSIAll (
+						"-DSI_MAIN", // String suffix, // "-DSI_MAIN"
+						dsi);
+				quadCLTs[ref_index].saveInterProperties( // save properties for interscene processing (extrinsics, ers, ...)
+						null, // String path,             // full name with extension or w/o path to use x3d directory
+						//							 	null, // Properties properties,   // if null - will only save extrinsics)
+						debugLevel);
+				// Copy source files to the model directory - they are needed for poses and interscene
+				for (int scene_index =  ref_index - 1; scene_index >= 0 ; scene_index--) {
+					TwoQuadCLT.copyJP4src( // actually there is no sense to process multiple image sets. Combine with other
+							// processing?
+							set_channels[scene_index].set_name, // String set_name
+							quadCLT_main, // QuadCLT quadCLT_main,
+							null, // QuadCLT quadCLT_aux,
+							clt_parameters, // EyesisCorrectionParameters.DCTParameters dct_parameters,
+							true, // boolean                                  skip_existing,					
+							true, // false, // boolean                                  search_KML,
+							debugLevel);
+				} // split cycles to remove output clutter
+
+				quadCLTs[ref_index].set_orient(0); // reset orientations
+				quadCLTs[ref_index].set_accum(0);  // reset accumulations ("build_interscene") number
+				earliest_scene = 0;  // reset failures, try to use again all scenes
+			} else {// if (build_ref_dsi) {
+				// read DSI_MAIN
+				double [][] dsi = quadCLTs[ref_index].readDsiMain();
+				if (dsi[TwoQuadCLT.DSI_SPREAD_AUX] == null) {
+					System.out.println("DSI_MAIN file has old format and does not have spread data, will recalculate.");
+				} else {
+					quadCLTs[ref_index].setBlueSky  (
+							sky_seed,           // double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
+							sky_lim,            // double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
+							sky_shrink,         // int    sky_shrink, //  =       4;
+							sky_expand_extra,   // int    sky_expand_extra, //  = 100; // 1?
+							dsi[TwoQuadCLT.DSI_STRENGTH_AUX], // double [] strength,
+							dsi[TwoQuadCLT.DSI_SPREAD_AUX], // double [] spread,
+							debugLevel);        // int debugLevel)
+				}
+			}
+		} // while (blue_sky == null) 
+		ref_blue_sky = quadCLTs[ref_index].getBlueSky();
 		
 		quadCLTs[ref_index] = (QuadCLT) quadCLT_main.spawnQuadCLT( // restores dsi from "DSI-MAIN"
 				set_channels[ref_index].set_name,
@@ -4290,6 +4316,7 @@ public class OpticalFlow {
 				colorProcParameters, //
 				threadsMax,
 				debugLevel);
+		quadCLTs[ref_index].setBlueSky(ref_blue_sky);
 		
 		quadCLTs[ref_index].setDSRBG(
 				clt_parameters, // CLTParameters  clt_parameters,
@@ -4566,6 +4593,7 @@ public class OpticalFlow {
 						colorProcParameters, //
 						threadsMax,
 						debugLevel);
+				quadCLTs[ref_index].setBlueSky(ref_blue_sky);
 				quadCLTs[ref_index].setDSRBG(
 						clt_parameters, // CLTParameters  clt_parameters,
 						threadsMax,     // int            threadsMax,  // maximal number of threads to launch
@@ -5347,6 +5375,8 @@ public class OpticalFlow {
 							combo_dsn_final,     // double [][]    combo_dsn_final, // dls,
 							quadCLTs[ref_index], // QuadCLT        scene,
 							debugLevel); // int            debugLevel);// > 0
+			
+			
 			intersceneMlExport(
 					clt_parameters,      // CLTParameters        clt_parameters,
 					ers_reference,       // ErsCorrection        ers_reference,
@@ -8132,14 +8162,21 @@ public class OpticalFlow {
 		
 
 		double  disp_ampl = Math.max(Math.abs(disparity_low),Math.abs(disparity_high));
-		//		String suffix =ref_scene.correctionsParameters.mlDirectory; // now "ML32
 		int      indx_ref = scenes.length - 1; // Always added to the end even if out-of order
 		QuadCLT  ref_scene = scenes[indx_ref]; // ordered by increasing timestamps
-//		int num_scenes =  scenes.length; // FIXME: skip unmatched
 		final int num_scenes =  indx_ref - ref_scene.getEarliestScene(scenes) + 1;
 		final int tilesX = ref_scene.getTileProcessor().getTilesX();
 		final int tilesY = ref_scene.getTileProcessor().getTilesY();
 		final int tiles = tilesX * tilesY;
+
+		boolean [] blue_sky = ref_scene.getBlueSky();
+		double  [] payload_blue_sky = new double[tiles];
+		Arrays.fill(payload_blue_sky,Double.NaN);
+		if (blue_sky != null) {
+			for (int i = 0; i < tiles; i++) {
+				payload_blue_sky[i] = blue_sky[i] ? 1.0 : 0.0;
+			}
+		}
 		
 		double  fat_zero_single = clt_parameters.getGpuFatZero(ref_scene.isMonochrome()); // for single scene
 		ImageDtt image_dtt;
@@ -8214,7 +8251,9 @@ public class OpticalFlow {
 					combo_dsn_final[COMBO_DSN_INDX_LMA_BG],     // masked copy from BG disparity 
 					combo_dsn_final[COMBO_DSN_INDX_CHANGE_BG],  // increment, BG
 					combo_dsn_final[COMBO_DSN_INDX_DISP_FG],    //cumulative disparity (from CM or POLY), FG == COMBO_DSN_INDX_DISP
-					combo_dsn_final[COMBO_DSN_INDX_DISP_BG_ALL] // cumulative BG disparity (Use FG where no BG is available)
+					combo_dsn_final[COMBO_DSN_INDX_DISP_BG_ALL],// cumulative BG disparity (Use FG where no BG is available)
+					payload_blue_sky                            // detected featureless sky - 1.0, reliable - 0.0, no data - NaN
+					
 			};
 			for (int i = 0; i < payload.length; i++) {
 				add_tile_meta(
@@ -8275,6 +8314,7 @@ public class OpticalFlow {
 			imp_ml.setProperty("metaBGLastDiff",      ""+9);
 			imp_ml.setProperty("metaFGDisparity",     ""+10); //=="metaGTDisparity"
 			imp_ml.setProperty("metaBGDisparityAll",  ""+11);
+			imp_ml.setProperty("metaBlueSky",         ""+12);
 			(new JP46_Reader_camera(false)).encodeProperiesToInfo(imp_ml);			
 			FileSaver fs=new FileSaver(imp_ml);
 			fs.saveAsTiff(file_path);
@@ -8340,8 +8380,9 @@ public class OpticalFlow {
 					combo_dsn_final[COMBO_DSN_INDX_STRENGTH_BG],// background strength
 					combo_dsn_final[COMBO_DSN_INDX_LMA_BG],     // masked copy from BG disparity 
 					combo_dsn_final[COMBO_DSN_INDX_CHANGE_BG],  // increment, BG
-					combo_dsn_final[COMBO_DSN_INDX_DISP_FG],    //cumulative disparity (from CM or POLY), FG == COMBO_DSN_INDX_DISP
-					combo_dsn_final[COMBO_DSN_INDX_DISP_BG_ALL] // cumulative BG disparity (Use FG where no BG is available)
+					combo_dsn_final[COMBO_DSN_INDX_DISP_FG],    // cumulative disparity (from CM or POLY), FG == COMBO_DSN_INDX_DISP
+					combo_dsn_final[COMBO_DSN_INDX_DISP_BG_ALL],// cumulative BG disparity (Use FG where no BG is available)
+					payload_blue_sky                            // detected featureless sky - 1.0, reliable - 0.0, no data - NaN
 			};
 			for (int i = 0; i < payload.length; i++) {
 				add_tile_meta(
@@ -8418,6 +8459,7 @@ public class OpticalFlow {
 			imp_ml.setProperty("metaBGLastDiff",      ""+9);
 			imp_ml.setProperty("metaFGDisparity",     ""+10); //=="metaGTDisparity"
 			imp_ml.setProperty("metaBGDisparityAll",  ""+11);
+			imp_ml.setProperty("metaBlueSky",         ""+12);
 			(new JP46_Reader_camera(false)).encodeProperiesToInfo(imp_ml);			
 			FileSaver fs=new FileSaver(imp_ml);
 			fs.saveAsTiff(file_path);
@@ -11590,7 +11632,6 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			final int         weak_min_neibs,
 			final double      strong_strength,
 			final double      weak_strength)
-			
 	{
 		
 		final int tilesX = scene.getTileProcessor().getTilesX();
@@ -11598,23 +11639,34 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		final int transform_size = scene.getTileProcessor().getTileSize();
 		final int tiles =tilesX * tilesY;
 
-		String [] dbg_titles = {"str", "lma", "clean-lma", "disp","-lma","by-lma","-nonlma", "few_weak", "old-disp","old-sngl","weak","filled"}; 
+		String [] dbg_titles = {"str", "lma", "clean-lma", "disp","-sky","-lma","by-lma","-nonlma", "few_weak", "old-disp","old-sngl","weak","filled"}; 
 		double [][] dbg_img = new double [dbg_titles.length][];
 		double [] clean_lma = dls[1].clone();
-		for (int i = 0; i <clean_lma.length; i++) {
+		double [] clean_disparity = dls[0].clone();
+		for (int i = 00; i <clean_lma.length; i++) {
 			if (dls[2][i] < min_strength_lma) {
 				clean_lma[i] = Double.NaN;
 			}
 		}
+		boolean [] blue_sky = scene.getBlueSky();
+		if (blue_sky != null) {
+			for (int i = 0; i < clean_lma.length; i++) if (blue_sky[i]){
+				clean_lma[i] = Double.NaN;
+				clean_disparity[i] = 0.0;
+			}
+		}
+		
 		//Remove crazy LMA high-disparity tiles
 		dbg_img[0] = dls[2].clone();
 		dbg_img[1] = dls[1].clone();
 		dbg_img[2] = clean_lma.clone();
 		dbg_img[3] = dls[0].clone();
+		dbg_img[4] = clean_disparity.clone();
 		double [] disp_outliers = QuadCLT.removeDisparityLMAOutliers( // nothing removed (trying to remove bad LMA)
 				false,                       // final boolean     non_ma,
 //				dls, //final double [][] dls,
-				new double[][] {dls[1], dls[1], clean_lma}, //final double [][] dls,
+//				new double[][] {dls[0],  clean_lma, dls[2]}, //final double [][] dls,
+				new double[][] {clean_disparity,  clean_lma, dls[2]}, //final double [][] dls,
 				outliers_lma_max_strength,   // final double      max_strength,  // do not touch stronger
 				outliers_lma_nth_fromextrem, // final int         nth_fromextrem, // 0 - compare to max/min. 1 - second max/min, ... 
 				outliers_tolerance_absolute, // final double      tolerance_absolute,
@@ -11623,9 +11675,9 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				outliers_max_iter,           // final int         max_iter,
 				threadsMax,                  // final int         threadsMax,
 				debug_level);                // final int         debug_level)
-		dbg_img[4] = disp_outliers.clone();
+		dbg_img[5] = disp_outliers.clone();
 		disp_outliers = QuadCLT.removeDisparityOutliersByLMA( // removed sky, keeps sky edge near strong objects
-				new double[][] {disp_outliers, dls[1], clean_lma}, //final double [][] dls,
+				new double[][] {disp_outliers, clean_lma, dls[2]}, //final double [][] dls,
 				outliers_from_lma_max_strength,  // final double      max_strength,  // do not touch stronger
 				diff_from_lma_pos,           // final double      diff_from_lma_pos,   // Difference from farthest FG objects (OK to have large, e.g. 100)
 				diff_from_lma_neg,           // final double      diff_from_lma_neg,   // Difference from nearest BG objects (small, as FG are usually more visible)
@@ -11634,11 +11686,11 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				tilesX,                      // final int         width,               //tilesX
 				threadsMax,                  // final int         threadsMax,
 				debug_level);                // final int         debug_level)
-		dbg_img[5] = disp_outliers.clone();
+		dbg_img[6] = disp_outliers.clone();
 		// mostly filter infinity, clouds, sky
 		disp_outliers = QuadCLT.removeDisparityLMAOutliers( // filter non-lma tiles // removed too few !!!
 				true,                       // final boolean     non_ma,
-				new double[][] {disp_outliers, dls[1], clean_lma}, //final double [][] dls,
+				new double[][] {disp_outliers, clean_lma, dls[2]}, //final double [][] dls,
 				outliers_max_strength,   // final double      max_strength,  // do not touch stronger
 				outliers_nth_fromextrem, // final int         nth_fromextrem, // 0 - compare to max/min. 1 - second max/min, ... 
 				outliers_tolerance_absolute, // final double      tolerance_absolute,
@@ -11647,10 +11699,10 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				outliers_max_iter,           // final int         max_iter,
 				threadsMax,                  // final int         threadsMax,
 				debug_level);                // final int         debug_level)
-		dbg_img[6] = disp_outliers.clone();
+		dbg_img[7] = disp_outliers.clone();
 		
 		disp_outliers = QuadCLT.removeFewWeak( // filter non-lma tiles // removed too few !!!
-				new double[][] {disp_outliers, dls[1], clean_lma}, //final double [][] dls,
+				new double[][] {disp_outliers, clean_lma, dls[2]}, //final double [][] dls,
 				strong_strength,             // final double      strong,
 				weak_strength,               // final double      weak,
 				weak_min_neibs,              // final int         min_neibs, 
@@ -11661,10 +11713,10 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				threadsMax,                  // final int         threadsMax,
 				debug_level);                // final int         debug_level)
 		
-		dbg_img[7] = disp_outliers.clone();
+		dbg_img[8] = disp_outliers.clone();
 		// Pre- 2022 filters, some may be obsolete 
 		disp_outliers = QuadCLT.removeDisparityOutliers(
-				new double[][] {disp_outliers, clean_lma}, //final double [][] dls,
+				new double[][] {disp_outliers, dls[2]}, //final double [][] dls,
 				outliers_max_strength,       // final double      max_strength,  // do not touch stronger
 				outliers_nth_fromextrem,     // final int         nth_fromextrem, // 0 - compare to max/min. 1 - second max/min, ... 
 				outliers_tolerance_absolute, // final double      tolerance_absolute,
@@ -11674,10 +11726,10 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				false,                       // final boolean     fit_completely, // do not add tolerance when replacing
 				threadsMax,                  // final int         threadsMax,
 				debug_level);                // final int         debug_level)
-		dbg_img[8] = disp_outliers.clone();
+		dbg_img[9] = disp_outliers.clone();
 		// remove extreme single-tile outliers (some may be strong - 0.404)
 		disp_outliers = QuadCLT.removeDisparityOutliers(
-				new double[][] {disp_outliers, clean_lma}, //final double [][] dls,
+				new double[][] {disp_outliers,  dls[2]}, //final double [][] dls,
 				outliers_max_strength2,       // final double      max_strength,  // do not touch stronger
 				outliers_nth_fromextrem2,     // final int         nth_fromextrem, // 0 - compare to max/min. 1 - second max/min, ... 
 				outliers_tolerance_absolute2, // final double      tolerance_absolute,
@@ -11687,16 +11739,23 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				false,                       //  final boolean     fit_completely, // do not add tolerance when replacing
 				threadsMax,                  // final int         threadsMax,
 				debug_level);                // final int         debug_level)
-		dbg_img[9] = disp_outliers.clone();
+		dbg_img[10] = disp_outliers.clone();
 		double [] disp = QuadCLT.blurWeak(
-				new double[][] {disp_outliers, clean_lma}, //final double [][] dls,
+				new double[][] {disp_outliers, dls[2]}, //final double [][] dls,
 				min_strength_blur,    // double      min_strength_blur,
 				min_strength_replace, // double      min_strength_replace,
 				num_blur,             // int         n,
 				tilesX,               // int         width,
 				sigma);               // double      sigma);
-		dbg_img[10] = disp.clone();
+		dbg_img[11] = disp.clone();
 		double [][] ds = {disp,     dls[2]};
+		if (blue_sky != null) { // Temporary, dix - pass blue_sky to fillDisparityStrength()
+			for (int i = 0; i < clean_lma.length; i++) if (blue_sky[i]){
+				ds[0][i] = 0.0;
+				ds[1][i] = 0.0001;
+			}
+		}
+		// ignores results of the last step that produces zero-strength?
 		final double [][] ds_filled = QuadCLT.fillDisparityStrength(
 				ds,                // final double [][] ds0,
 				min_disparity,     // final double      min_disparity,
@@ -11706,8 +11765,15 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				max_change,        // final double      max_change,
 				tilesX,            // final int         width,
 				threadsMax,        // final int         threadsMax,
-				debug_level); // final int         debug_level)
-		dbg_img[11] = ds_filled[0].clone();
+				debug_level+1); // final int         debug_level)
+		if (blue_sky != null) {
+			for (int i = 0; i < clean_lma.length; i++) if (blue_sky[i]){
+				ds_filled[0][i] = 0.0;
+			}
+		}
+		
+		
+		dbg_img[12] = ds_filled[0].clone();
 		
 		if ((debug_level > 0)) {// && (clt_parameters.ofp.enable_debug_images)) {
 			(new ShowDoubleFloatArrays()).showArrays(
@@ -11751,17 +11817,6 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
     			valid_tiles, // final boolean []          valid_tiles,            
     			threadsMax); // final int                 threadsMax)  // maximal number of threads to launch
 		
-		//FIXME:  not clear where tp_tasks was supposed to go? They are not needed, but  valid_tiles - are
-
-		/*
-		scene.getGPU().setInterTasks(
-				pXpYD, // final double [][]         pXpYD, // per-tile array of pX,pY,disparity triplets (or nulls)
-    			scene.getGeometryCorrection(), // final GeometryCorrection  geometryCorrection,
-    			disparity_corr, // final double              disparity_corr,
-    			margin, // final int                 margin,      // do not use tiles if their centers are closer to the edges
-    			valid_tiles, // final boolean []          valid_tiles,            
-    			threadsMax); // final int                 threadsMax)  // maximal number of threads to launch
-    			*/
 		ai.set(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
