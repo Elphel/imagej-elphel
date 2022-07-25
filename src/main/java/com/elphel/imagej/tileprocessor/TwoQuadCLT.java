@@ -82,6 +82,8 @@ public class TwoQuadCLT {
 	public static  int DSI_STRENGTH_RIG =       8;
 	public static  int DSI_SPREAD_MAIN =        9;
 	public static  int DSI_SPREAD_AUX =        10;
+	public static  int DSI_AVGVAL_MAIN =       11;
+	public static  int DSI_AVGVAL_AUX =        12;
 
 	public static String DSI_COMBO_SUFFIX = "-DSI_COMBO";
 	public static String DSI_MAIN_SUFFIX =  "-DSI_MAIN";
@@ -97,7 +99,9 @@ public class TwoQuadCLT {
 			    "strength_aux",
 			    "strength_rig",
 			    "spread_main",
-			    "spread_aux"};
+			    "spread_aux",
+			    "avgval_main",
+			    "avgval_aux"};
 
 	public long                                            startTime;     // start of batch processing
 	public long                                            startSetTime;  // start of set processing

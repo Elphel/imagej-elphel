@@ -35,7 +35,8 @@ public class CLTPass3d{
 		private  double [][]    disparity_sav; // saved disparity
 		private  int    [][]    tile_op_sav;   // saved tile_op
 		public   double [][]    disparity_map =            null; // add 4 layers - worst difference for the port
-		public   double []      second_max = null;
+		public   double []      second_max =               null; // second maximal difference between channels
+		public   double []      avg_val =                  null; // average pixel value for all channels (for cold sky)
 		public   double [][]    lazy_eye_data =            null;
 		public   int            lma_cluster_size =         -1;
 		public   boolean []     lazy_eye_force_disparity = null;
@@ -325,6 +326,16 @@ public class CLTPass3d{
 			for (int i = 0; i< these_diffs.length; i++) these_diffs[i] = disparity_map[ImageDtt.IMG_DIFF0_INDEX + i]; // IMG_DIFF0_INDEX does not depend on num sensors
 			return these_diffs;
 		}
+		
+		public double [][] getRBGs (){
+			if (disparity_map == null) return null;
+			int numcol = tileProcessor.isMonochrome()? 1: 3;
+			double  [][] these_RBGs =    new double[numcol*getNumSensors()][];
+			for (int i = 0; i< these_RBGs.length; i++) these_RBGs[i] = disparity_map[ImageDtt.getImgToneRGB(getNumSensors()) + i]; // IMG_DIFF0_INDEX does not depend on num sensors
+			return these_RBGs;
+		}
+		
+	//getImgToneRGB() 	
 
 		public void resetCalc(){ // only needed if the same task was reused
 			calc_disparity = null;
@@ -751,7 +762,6 @@ public class CLTPass3d{
 		public void resetByDiff(
 				double max_diff,
 				double mismatch_override) {
-			setSecondMax();
 			if ((disparity_map == null) ||(disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX] == null)) {
 				System.out.println("resetByDiff(): strength is null! (no tiles left)");
 				return;
@@ -1161,6 +1171,62 @@ public class CLTPass3d{
         	return this.second_max;
         }
 		
+        public void setAvgVal(double [] avg_val) { // setting "fake" for the non-measurement scan
+        	this.avg_val = avg_val;
+        }
+        public void setAvgVal() {
+        	this.avg_val = getLowResChn();
+        }
+        public double [] getAvgVal() {
+        	if (this.avg_val == null) {
+        		setAvgVal();
+        	}
+        	return this.avg_val;
+        }
+        
+        
+        
+		public double [] getLowResChn ()
+		{
+			final int numcolors = tileProcessor.isMonochrome()?1:3;
+			final double [][] rbg = getRBGs();
+			if (rbg == null) return null;
+			for (int i = 0; i < rbg.length; i++) {
+				if (rbg[i] == null) return null;
+			}
+			final double [] col_weights = {0.25,0.25,0.5};
+			final int tilesX = tileProcessor.getTilesX();
+			final int tilesY = tileProcessor.getTilesY();
+			final int num_tiles = tilesX * tilesY;
+			final double [] lowres = new double [num_tiles];
+			final boolean [] measured =  measuredTiles ();
+			final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+			final AtomicInteger ai = new AtomicInteger(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					@Override
+					public void run() {
+						for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement()) {
+							double d = 0.0;
+							if (numcolors == 1) {
+								for (int i = 0; i < rbg.length; i++) {
+									d += rbg[i][nTile];
+								}
+							} else {
+								for (int i = 0; i < rbg.length; i++) {
+									int col= i%numcolors;
+									d += rbg[i][nTile]*col_weights[col];
+								}
+							}
+							lowres[nTile] = d/getNumSensors();
+						}
+					}
+				};
+			}
+			ImageDtt.startAndJoin(threads);
+			return lowres;
+		}        
+        
 		public double [] getSecondMaxDiff (
 				final boolean averaged)
 		{
@@ -1222,6 +1288,9 @@ public class CLTPass3d{
 			ImageDtt.startAndJoin(threads);
 			return second_max_averaged;
 		}
+		
+		
+		
 		@Deprecated
 		public double [] getFOM(
 				double w_adisp,

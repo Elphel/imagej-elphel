@@ -422,6 +422,7 @@ public class QuadCLTCPU {
 	 * and so on. 
 	 *  
 	 * @param sky_seed minimal value of strength*spread to seed sky areas 
+	 * @param disparity_seed maximal disparity to seed sky areas (not needed for expand) 
 	 * @param sky_lim maximal value of strength*spread over which sky area will
 	 *                        be expanded
 	 * @param sky_shrink shrink initial sky area to eliminate small non-sky areas. 
@@ -431,31 +432,138 @@ public class QuadCLTCPU {
 	 * @param spread 1d array of tile spreads (second maximal difference from
 	 *                  of per-sensor pixel values in a tile to their average
 	 *                  in scanline order. 
+	 * @param disparity 1d array of tile disparity in scanline order
 	 * @param debugLevel debug level
 	 * @return boolean 1d array of the pixels belonging to the blue sky.
 	 */
 	public static boolean [] getBlueSky  (
 			double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
+			double disparity_seed, //          2.0;  // seed - disparity_lma limit
 			double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
 			int    sky_shrink, //  =       4;
 			int    sky_expand_extra, //  = 100; // 1?
 			int    width,
 			double [] strength,
 			double [] spread,
+			double [] disparity,
+			double [] avg_val,
 			int debugLevel) {
 		if ((strength == null) || (spread==null)) {
 			return null;
 		}
+		double [] temp_scales = null;
+		double cold_scale =    0.2;  // <=1.0. 1.0 - disables temperature dependence
+		double cold_frac =     0.005; // this and lower will scale fom by  cold_scale
+		double hot_frac =      0.9;    // this and above will scale fom by 1.0
+		double min_strength =  0.08;
+		int    seed_rows =     5; // sky should appear in this top rows 
+		
+		
+		int num_bins = 1000;
+		if (avg_val != null) {
+			double min_temp = Double.NaN, max_temp=Double.NaN, avg_temp = 0;
+			int num_def = 0;
+			for (int i = 0; i < avg_val.length; i++) {
+				double d = avg_val[i];
+				if (!Double.isNaN(d)) {
+					if (!(d <= max_temp)) max_temp = d;
+					if (!(d >= min_temp)) min_temp = d;
+					avg_temp += d;
+					num_def++;
+				}
+			}
+			if (num_def > 00) {
+				avg_temp/= num_def;
+				// build a histogram from min to max
+				double [] hist = new double [num_bins];
+				double kbin = num_bins/(max_temp - min_temp);
+				int maxbin = num_bins - 1;
+				double s = 1.0/num_def;
+				for (int i = 0; i < avg_val.length; i++) {
+					double d = avg_val[i];
+					if (!Double.isNaN(d)) {
+						int ibin = (int) Math.floor((d - min_temp) * kbin);
+						if (ibin <0) ibin = 0;
+						else if (ibin > maxbin) {
+							ibin = maxbin;
+						}
+						hist[ibin] += s;
+					}
+				}
+				for (int i = 1; i < num_bins; i++) { // make cumulative, last is 1.0;
+					hist[i] += hist[i-1];
+				}
+				double temp_cold = min_temp;
+				double temp_hot =  max_temp;
+				for (int i = 0; i < num_bins; i++) {
+					if (hist[i] > cold_frac) {
+						double d = hist[i];
+						double d_prev = (i > 0)? hist[ i-1 ]: 0.0;
+						double b_cold = (cold_frac-d_prev)/(d-d_prev) + i;
+						temp_cold = min_temp + b_cold* (max_temp - min_temp) / num_bins;
+						break;
+					}
+				}
+				for (int i = num_bins - 2; i >= 0; i--) {
+					if (hist[i] <= hot_frac) {
+						double d =      hist[i];
+						double d_next = hist[i+1];
+						double b_hot = (hot_frac - d)/(d_next - d) + i;
+						temp_hot = min_temp + b_hot* (max_temp - min_temp) / num_bins;
+						break;
+					}
+				}
+				temp_scales = new double[avg_val.length];
+				Arrays.fill(temp_scales, Double.NaN);
+				double kscale = (1.0 - cold_scale)/(temp_hot - temp_cold);
+				for (int i = 0; i < avg_val.length; i++) {
+					double d = avg_val[i];
+					if (!Double.isNaN(d)) {
+						if (d < temp_cold) {
+							temp_scales[i] = cold_scale;
+						} else if (d > temp_hot) {
+							temp_scales[i] = 1.0;
+						} else {
+							temp_scales[i] = cold_scale + (d - temp_cold) * kscale;
+						}
+					}
+				}
+			}
+		}
+		
+		
+		String [] dbg_in_titles =    {"fom", "strength", "spread", "disparity", "avg_val", "tscale"};
 		String [] dbg_titles = {"sky", "seed", "max", "shrank"};
+		
+		if (debugLevel>0) {
+			double [] fom = new double[strength.length];
+			for (int i = 0; i < fom.length; i++) {
+				fom[i] =  Math.max(strength[i], min_strength) * spread[i] * temp_scales[i];
+			}
+			(new ShowDoubleFloatArrays()).showArrays(
+					new double[][] {fom, strength, spread, disparity, avg_val, temp_scales},
+					width,
+					fom.length/width,
+					true,
+					"sky_input",
+					dbg_in_titles); //	dsrbg_titles);
+
+		}
 		double [][] dbg_img = (debugLevel>0) ? new double [dbg_titles.length][strength.length]:null;
 		
 		boolean [] sky_tiles =      new  boolean [strength.length];
 		boolean [] prohibit_tiles = new  boolean [strength.length];
 		for (int i = 0; i < sky_tiles.length; i++) {
-			double d = strength[i] * spread[i];
-			sky_tiles[i] =      (d < sky_seed);
+			double d = Math.max(strength[i], min_strength) * spread[i];
+			if (temp_scales != null) {
+				d *=temp_scales[i];
+			}
 			prohibit_tiles[i] = (d >= sky_lim);
+			int row = i/width;
+//			sky_tiles[i] =    (row < seed_rows) &&  (d < sky_seed) && !(disparity[i] > disparity_seed);
+			sky_tiles[i] = (d < sky_seed) && !(disparity[i] > disparity_seed);
 		}
+		//seed_rows
 		if (dbg_img != null) {
 			for (int i = 0; i < sky_tiles.length; i++) {
 				dbg_img[1][i] = sky_tiles[i]? 1 : 0;
@@ -467,6 +575,9 @@ public class QuadCLTCPU {
 				sky_shrink,    // int        shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 				sky_tiles,     // boolean [] tiles,
 				null);         // boolean [] prohibit)
+		if (seed_rows > 0) {
+			Arrays.fill(sky_tiles, seed_rows * width, sky_tiles.length, false);
+		}
 		if (dbg_img != null) {
 			for (int i = 0; i < sky_tiles.length; i++) {
 				dbg_img[3][i] = sky_tiles[i]? 1 : 0;
@@ -510,21 +621,27 @@ public class QuadCLTCPU {
 	
 	public void setBlueSky (
 			double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
+			double lma_seed, //          2.0;  // seed - disparity_lma limit
 			double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
 			int    sky_shrink, //  =       4;
 			int    sky_expand_extra, //  = 100; // 1?
 			double [] strength,
 			double [] spread,
+			double [] disp_lma,
+			double [] avg_val,
 			int debugLevel) {
 		int width = tp.getTilesX();
 		this.blue_sky = getBlueSky  (
 				sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
+				lma_seed, //          2.0;  // seed - disparity_lma limit
 				sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
 				sky_shrink, //  =       4;
 				sky_expand_extra, //  = 100; // 1?
 				width,
 				strength,
 				spread,
+				disp_lma,
+				avg_val,
 				debugLevel);
 	}
 	
@@ -1020,7 +1137,7 @@ public class QuadCLTCPU {
 		}
 		// try to restore DSI generated from interscene if available, if not use single-scene -DSI_MAIN
 		int dsi_result = -1;
-		double [][] dsi_tmp = new double [11][];
+		double [][] dsi_tmp = new double [OpticalFlow.COMBO_DSN_TITLES.length][];
 		for (int i = 0; i <DSI_SUFFIXES.length; i++) {
 			dsi_result =restoreDSI(
 					DSI_SUFFIXES[i],
@@ -9722,6 +9839,7 @@ public class QuadCLTCPU {
 		  }
 		  // copy second_max from the BG pass to the last one (to be used)
 		  tp.clt_3d_passes.get(tp.clt_3d_passes.size()-1).setSecondMax(tp.clt_3d_passes.get(bg_pass).getSecondMax());
+		  tp.clt_3d_passes.get(tp.clt_3d_passes.size()-1).setAvgVal(tp.clt_3d_passes.get(bg_pass).getAvgVal());
  ///// Refining after all added   - end
 		  Runtime.getRuntime().gc();
 	      System.out.println("preExpandCLTQuad3d(): processing  finished at "+
@@ -13965,6 +14083,8 @@ public class QuadCLTCPU {
 		  scan.is_measured =   true; // but no disparity map/textures
 		  scan.is_combo =      false;
 		  scan.has_lma = null;
+		  scan.setAvgVal();
+		  scan.setSecondMax(); // always needed even with max_chn_diff==0 as it is exported in a file
 		  if (max_chn_diff > 0 ) {
 			  scan.resetByDiff(
 					  max_chn_diff,

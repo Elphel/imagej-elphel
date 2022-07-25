@@ -71,7 +71,7 @@ import ij.plugin.filter.GaussianBlur;
 
 public class OpticalFlow {
 	public static String [] COMBO_DSN_TITLES = {"disp", "strength","disp_lma","num_valid","change",
-			"disp_bg", "strength_bg","disp_lma_bg","change_bg","disp_fg","disp_bg_all"};
+			"disp_bg", "strength_bg","disp_lma_bg","change_bg","disp_fg","disp_bg_all","blue_sky"};
 	public static int COMBO_DSN_INDX_DISP =        0; // cumulative disparity (from CM or POLY), FG
 	public static int COMBO_DSN_INDX_STRENGTH =    1; // strength, FG
 	public static int COMBO_DSN_INDX_LMA =         2; // masked copy from 0 - cumulative disparity
@@ -83,8 +83,7 @@ public class OpticalFlow {
 	public static int COMBO_DSN_INDX_CHANGE_BG =   8; // increment, BG
 	public static int COMBO_DSN_INDX_DISP_FG =     9; // cumulative disparity (from CM or POLY), FG
 	public static int COMBO_DSN_INDX_DISP_BG_ALL =10; // cumulative BG disparity (Use FG where no BG is available)
-
-	
+	public static int COMBO_DSN_INDX_BLUE_SKY =   11; // Detected featureless infinity (sky)
 	
 	public static double [] ZERO3 = {0.0,0.0,0.0};
 	public static double  LINE_ERR = 0.1;
@@ -4133,10 +4132,10 @@ public class OpticalFlow {
 		final int        debugLevelInner=clt_parameters.batch_run? -2: debugLevel; // copied from TQ
 		
 		double  min_ref_str =        clt_parameters.imp.min_ref_str;
-		
-		double sky_seed =       7.0;  // start with product of strength by diff_second below this
-		double sky_lim  =      15.0; // then expand to product of strength by diff_second below this
-		int    sky_shrink =       4;
+		double sky_seed =         7.0;  // start with product of strength by diff_second below this
+		double sky_lim =         15.0; // then expand to product of strength by diff_second below this
+		double lma_seed=          2.0;  // seed - disparity_lma limit		double sky_lim  =      15.0; // then expand to product of strength by diff_second below this
+		int    sky_shrink =       6;
 		int    sky_expand_extra = 0; // 1?
 		
 		boolean [] ref_blue_sky = null; // turn off "lma" in the ML output  
@@ -4198,7 +4197,7 @@ public class OpticalFlow {
 		}
 		
 		// 1. Reference scene DSI
-		while (quadCLTs[ref_index].getBlueSky() == null) {
+		while ((quadCLTs[ref_index] == null) || (quadCLTs[ref_index].getBlueSky() == null)) { // null
 			if (build_ref_dsi) {
 				TwoQuadCLT.copyJP4src( // actually there is no sense to process multiple image sets. Combine with other
 						// processing?
@@ -4232,6 +4231,7 @@ public class OpticalFlow {
 				dsi[TwoQuadCLT.DSI_STRENGTH_AUX] =      aux_last_scan[1];
 				dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA] = aux_last_scan[2];
 				dsi[TwoQuadCLT.DSI_SPREAD_AUX] =        aux_last_scan[3];
+				dsi[TwoQuadCLT.DSI_AVGVAL_AUX] =        aux_last_scan[4];
 
 				if (quadCLT_main.correctionsParameters.clt_batch_dsi_cm_strength) {
 					CLTPass3d scan = new CLTPass3d(quadCLTs[ref_index].tp);
@@ -4258,16 +4258,24 @@ public class OpticalFlow {
 				} else {
 					dsi[TwoQuadCLT.DSI_STRENGTH_AUX] =      aux_last_scan[1];
 				}
-				int tilesX = quadCLTs[ref_index].getTileProcessor().getTilesX();
-				quadCLTs[ref_index].setBlueSky  (
-						sky_seed,           // double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
-						sky_lim,            // double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
-						sky_shrink,         // int    sky_shrink, //  =       4;
-						sky_expand_extra,   // int    sky_expand_extra, //  = 100; // 1?
-						dsi[TwoQuadCLT.DSI_STRENGTH_AUX], // double [] strength,
-						dsi[TwoQuadCLT.DSI_SPREAD_AUX], // double [] spread,
-						debugLevel);        // int debugLevel)
-
+//				int tilesX = quadCLTs[ref_index].getTileProcessor().getTilesX();
+				boolean retry=false;
+				while (true) {
+					quadCLTs[ref_index].setBlueSky  (
+							sky_seed,           // double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
+							lma_seed,
+							sky_lim,            // double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
+							sky_shrink,         // int    sky_shrink, //  =       4;
+							sky_expand_extra,   // int    sky_expand_extra, //  = 100; // 1?
+							dsi[TwoQuadCLT.DSI_STRENGTH_AUX], // double [] strength,
+							dsi[TwoQuadCLT.DSI_SPREAD_AUX], // double [] spread,
+							dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA], // double [] spread,
+							dsi[TwoQuadCLT.DSI_AVGVAL_AUX],//	double [] avg_val,
+							batch_mode? -1: 1); /// debugLevel);        // int debugLevel)
+					if (!retry) {
+						break;
+					}
+				}
 				quadCLTs[ref_index].saveDSIAll (
 						"-DSI_MAIN", // String suffix, // "-DSI_MAIN"
 						dsi);
@@ -4298,12 +4306,15 @@ public class OpticalFlow {
 					System.out.println("DSI_MAIN file has old format and does not have spread data, will recalculate.");
 				} else {
 					quadCLTs[ref_index].setBlueSky  (
-							sky_seed,           // double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
-							sky_lim,            // double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
-							sky_shrink,         // int    sky_shrink, //  =       4;
-							sky_expand_extra,   // int    sky_expand_extra, //  = 100; // 1?
-							dsi[TwoQuadCLT.DSI_STRENGTH_AUX], // double [] strength,
-							dsi[TwoQuadCLT.DSI_SPREAD_AUX], // double [] spread,
+							sky_seed,                              // double sky_seed, //  =       7.0;  // start with product of strength by diff_second below this
+							lma_seed,                              //          2.0;  // seed - disparity_lma limit
+							sky_lim,                               // double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
+							sky_shrink,                            // int    sky_shrink, //  =       4;
+							sky_expand_extra,                      // int    sky_expand_extra, //  = 100; // 1?
+							dsi[TwoQuadCLT.DSI_STRENGTH_AUX],      // double [] strength,
+							dsi[TwoQuadCLT.DSI_SPREAD_AUX],        // double [] spread,
+							dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA], //double [] disp_lma,
+							dsi[TwoQuadCLT.DSI_AVGVAL_AUX],//	double [] avg_val,
 							debugLevel);        // int debugLevel)
 				}
 			}
@@ -4349,7 +4360,7 @@ public class OpticalFlow {
 						debugLevel-2);
 			} // split cycles to remove output clutter
 			int debug_scene = -15;
-			boolean debug2 = true;
+			boolean debug2 = false; // true;
 			boolean [] reliable_ref = null;
 			if (min_ref_str > 0.0) {
 				reliable_ref = quadCLTs[ref_index].getReliableTiles( // will be null if does not exist.
@@ -4556,6 +4567,9 @@ public class OpticalFlow {
 		}
 
 		if (photo_en && !reuse_video) {
+			if (debugLevel > -3) {
+				System.out.println("**** Running photometric equalization *****");
+			}
 			if (combo_dsn_final == null) { // always re-read?
 				combo_dsn_final =quadCLTs[ref_index].readDoubleArrayFromModelDirectory( // always re-read?
 						"-INTER-INTRA-LMA", // String      suffix,
@@ -7558,7 +7572,8 @@ public class OpticalFlow {
 		double [] target_disparity_orig = target_disparity.clone(); // will just use NaN/not NaN to restore tasks before second pass with LMA
 //		double [][] combo_dsn_final = new double [combo_dsn_titles.length][combo_dsn[0].length];
 		double [][] combo_dsn_final = 
-				new double [(clt_parameters.rig.mll_max_refines_bg > 0)? combo_dsn_titles_full.length:combo_dsn_titles.length][combo_dsn[0].length];
+				new double [(clt_parameters.rig.mll_max_refines_bg > 0)?
+						combo_dsn_titles_full.length:combo_dsn_titles.length][combo_dsn[0].length];
 		combo_dsn_final[COMBO_DSN_INDX_DISP]= combo_dsn[COMBO_DSN_INDX_DISP].clone();
 		for (int i = 1; i < combo_dsn_final.length; i++) {
 			Arrays.fill(combo_dsn_final[i], Double.NaN);
@@ -7766,6 +7781,17 @@ public class OpticalFlow {
 				}
 			}
 		}
+		// add blue sky slice
+		boolean [] blue_sky = ref_scene.getBlueSky();
+		double  [] payload_blue_sky = combo_dsn_final[combo_dsn_final.length-1]; // last slice, length by titles
+		Arrays.fill(payload_blue_sky,Double.NaN);
+		if (blue_sky != null) {
+			for (int i = 0; i < tiles; i++) {
+				payload_blue_sky[i] = blue_sky[i] ? 1.0 : 0.0;
+			}
+		}
+		
+		
 		
 		// restore modified parameters
 		clt_parameters.img_dtt.bimax_combine_mode = save_bimax_combine_mode;
@@ -8169,15 +8195,26 @@ public class OpticalFlow {
 		final int tilesY = ref_scene.getTileProcessor().getTilesY();
 		final int tiles = tilesX * tilesY;
 
-		boolean [] blue_sky = ref_scene.getBlueSky();
-		double  [] payload_blue_sky = new double[tiles];
-		Arrays.fill(payload_blue_sky,Double.NaN);
-		if (blue_sky != null) {
-			for (int i = 0; i < tiles; i++) {
-				payload_blue_sky[i] = blue_sky[i] ? 1.0 : 0.0;
+		// COMBO_DSN_TITLES
+		// fix for old files
+		if (combo_dsn_final.length < COMBO_DSN_TITLES.length) {
+			System.out.println("=== Old data format, rebuilding blue sky ===");
+			double[][] combo_dsn_final_was = combo_dsn_final;
+			combo_dsn_final = new double[COMBO_DSN_TITLES.length][]; 
+			for (int i = 0; i < combo_dsn_final_was.length; i++) {
+				combo_dsn_final[i] = combo_dsn_final_was[i];
+			}
+			for (int i = combo_dsn_final_was.length; i < combo_dsn_final.length; i++) {
+				combo_dsn_final[i] = new double[tiles];
+				Arrays.fill(combo_dsn_final[i],Double.NaN);
+			}
+			boolean [] blue_sky = ref_scene.getBlueSky();
+			if (blue_sky != null) {
+				for (int i = 0; i < tiles; i++) {
+					combo_dsn_final[COMBO_DSN_INDX_BLUE_SKY][i] = blue_sky[i] ? 1.0 : 0.0;
+				}
 			}
 		}
-		
 		double  fat_zero_single = clt_parameters.getGpuFatZero(ref_scene.isMonochrome()); // for single scene
 		ImageDtt image_dtt;
 		image_dtt = new ImageDtt(
@@ -8252,7 +8289,7 @@ public class OpticalFlow {
 					combo_dsn_final[COMBO_DSN_INDX_CHANGE_BG],  // increment, BG
 					combo_dsn_final[COMBO_DSN_INDX_DISP_FG],    //cumulative disparity (from CM or POLY), FG == COMBO_DSN_INDX_DISP
 					combo_dsn_final[COMBO_DSN_INDX_DISP_BG_ALL],// cumulative BG disparity (Use FG where no BG is available)
-					payload_blue_sky                            // detected featureless sky - 1.0, reliable - 0.0, no data - NaN
+					combo_dsn_final[COMBO_DSN_INDX_BLUE_SKY]    // detected featureless sky - 1.0, reliable - 0.0, no data - NaN
 					
 			};
 			for (int i = 0; i < payload.length; i++) {
@@ -8382,7 +8419,7 @@ public class OpticalFlow {
 					combo_dsn_final[COMBO_DSN_INDX_CHANGE_BG],  // increment, BG
 					combo_dsn_final[COMBO_DSN_INDX_DISP_FG],    // cumulative disparity (from CM or POLY), FG == COMBO_DSN_INDX_DISP
 					combo_dsn_final[COMBO_DSN_INDX_DISP_BG_ALL],// cumulative BG disparity (Use FG where no BG is available)
-					payload_blue_sky                            // detected featureless sky - 1.0, reliable - 0.0, no data - NaN
+					combo_dsn_final[COMBO_DSN_INDX_BLUE_SKY]    // detected featureless sky - 1.0, reliable - 0.0, no data - NaN
 			};
 			for (int i = 0; i < payload.length; i++) {
 				add_tile_meta(

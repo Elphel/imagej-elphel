@@ -3913,11 +3913,12 @@ ImageDtt.startAndJoin(threads);
 		double [] disparity =     scan.getDisparity(use_final?0:1);
 		double [] disparityLMA =  scan.getDisparityLMA();
 		double [] second_max_bg = scan.getSecondMax();
+		double [] avg_val =       scan.getAvgVal();
 		if (!use_final) {
 			scan.setStrength(null);
 		}
 		double [] strength =     scan.getStrength();
-		return new double [][] {disparity, strength, disparityLMA,second_max_bg}; // second maximal difference between channels in BG 
+		return new double [][] {disparity, strength, disparityLMA,second_max_bg, avg_val}; // second maximal difference between channels in BG 
 	}
 
 	// TODO: update for variable length

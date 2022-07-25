@@ -343,10 +343,11 @@ public class TileNeibs{
 		boolean [] src_tiles = tiles.clone(); // just in case
 		// grow
 		boolean hor = true;
+		int num_prev = 0;
 		for (; grow > 0; grow--){
 			boolean single = (grow ==1) && hor;
 			src_tiles = tiles.clone();
-			int num_new = 0;
+			int num_new = 1; // as if previous pass was successful
 			if (hor){
 				for (int tileY = 0; tileY < sizeY; tileY++){
 					for (int tileX = 0; tileX < (sizeX - 1); tileX++){
@@ -394,9 +395,10 @@ public class TileNeibs{
 				}
 			}
 			hor = !hor;
-			if (num_new == 0){
+			if ((num_new == 0) && (num_prev == 0)){
 				break;
 			}
+			num_prev = num_new;
 		}
 	}
 
