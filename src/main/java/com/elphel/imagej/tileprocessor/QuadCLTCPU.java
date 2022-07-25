@@ -1137,7 +1137,11 @@ public class QuadCLTCPU {
 		}
 		// try to restore DSI generated from interscene if available, if not use single-scene -DSI_MAIN
 		int dsi_result = -1;
-		double [][] dsi_tmp = new double [OpticalFlow.COMBO_DSN_TITLES.length][];
+		int max_length=OpticalFlow.COMBO_DSN_TITLES.length;
+		if (max_length < TwoQuadCLT.DSI_SLICES.length) {
+			max_length = TwoQuadCLT.DSI_SLICES.length;
+		}
+		double [][] dsi_tmp = new double [max_length][];
 		for (int i = 0; i <DSI_SUFFIXES.length; i++) {
 			dsi_result =restoreDSI(
 					DSI_SUFFIXES[i],
