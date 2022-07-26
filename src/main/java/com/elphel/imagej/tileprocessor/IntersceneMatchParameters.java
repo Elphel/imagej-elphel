@@ -192,16 +192,6 @@ public class IntersceneMatchParameters {
 	public  double  weight_zero_neibs =             0.2;   // Reduce weight for no-neib (1.0 for all 8)
 	public  double  half_disparity =                5.0;   // Reduce weight twice for this disparity
 	public  double  half_avg_diff =                 0.2;   // when L2 of x,y difference from average of neibs - reduce twice
-
-	// Photometric calibration (move elsewhere)?
-	public boolean  photo_en =                      false; // perform photogrammetric calibration to equalize pixel values
-	public int      photo_num_full =                1;     // Number of full recalibrations with re-processing of the images  
-	public int      photo_num_refines =             3;     // Calibrate, remove outliers, recalibrate, ... 
-	public double   photo_min_strength =            0.0;   // maybe add to filter out weak tiles
-	public double   photo_max_diff =                40.0;  // To filter mismatches. Normal (adjusted) have RMSE ~9
-	public boolean  photo_debug =                   false; // Generate images and text
-	
-	
 	
 	// Detect initial match
 	public  double  min_ref_str =                   0.22;  // For orientations: use only tiles of the reference scene DSI_MAIN is stronger  
@@ -257,13 +247,25 @@ public class IntersceneMatchParameters {
 	private boolean show_2d_correlations =          true;  // show raw 2D correlations (individual and combined)
 	private boolean show_motion_vectors =           true;  // show calculated motion vectors
 	public  int     debug_level =                     -1;  // all renders are disable for debug_level < 0, scene "renders" for for debug_level < 1
-    
 
 	// Pairwise ERS testing
 	public boolean  test_ers =                     false;
 	public  int     test_ers0 =                       -1; // try adjusting a pair of scenes with ERS. Reference scene index
 	public  int     test_ers1 =                       -1; // try adjusting a pair of scenes with ERS. Other scene index
-	
+
+	// SKy detection/filtering
+	public  double  sky_highest_min =                -50; // lowest absolute value should not be higher (requires photometric) 
+	public  double  cold_frac =                        0.005; // this and lower will scale fom by  cold_scale
+	public  double  hot_frac =                         0.9;    // this and above will scale fom by 1.0
+	public  double  cold_scale =                       0.2;  // <=1.0. 1.0 - disables temperature dependence
+	public  double  sky_seed =                         5.0;  // start with product of strength by diff_second below this
+	public  double  lma_seed =                         2.0;  // seed - disparity_lma limit		double sky_lim  =      15.0; // then expand to product of strength by diff_second below this
+	public  int     sky_shrink =                       3;
+	public  int     seed_rows =                        5; // sky should appear in this top rows 
+	public  double  sky_lim =                         15.0; // then expand to product of strength by diff_second below this
+	public  int     sky_expand_extra =                 0; // 1?
+	public  double  min_strength =                     0.08;
+	public  int     lowest_sky_row =                  50;// appears that low - invalid, remove completely
 	
 	public boolean renderRef()            {return renderRef             (debug_level);}
 	public boolean renderScene()          {return renderScene           (debug_level);}
@@ -634,21 +636,6 @@ public class IntersceneMatchParameters {
 				"Weight at this disparity is 0.5, at infinity - 1.0.");
 		gd.addNumericField("Difference from neighbors average ",     this.half_avg_diff, 5,7,"",
 				"Reduce twice for high difference from neighbors average.");
-
-		gd.addMessage  ("Photometric calibration (move elsewhere?)");
-		gd.addCheckbox ("Enable photometric calibration",            this.photo_en,
-				"Equalize per- sensor gains and offsets. Requires disparity map. Save to reference scene and with current scene (to .corr-zml).");
-		gd.addNumericField("Full photometric (re)calibrations",      this.photo_num_full, 0,3,"pix",
-				"Full recalibratrions include re-importing raw images with updated offsets/gains");
-		gd.addNumericField("Refines",                                this.photo_num_refines, 0,3,"pix",
-				"Calculate calibration, remove outliers (e.g. FG/BG) and repeat");
-		gd.addNumericField("Minimal DSI strength",                   this.photo_min_strength, 5,7,"",
-				"Do not use weak tiles.");
-		gd.addNumericField("Maximal channel mismatch",               this.photo_max_diff, 5,7,"",
-				"Detect (and remove outliers). Adjusted images have RMSE ~9 counts.");
-		gd.addCheckbox ("Debug pphotometric calibration",            this.photo_debug,
-				"Generate debug images an text output.");
-		
 		
 		gd.addMessage  ("Initial search for the inter-scene match");
 		gd.addNumericField("DSI_MAIN minimal strength",              this.min_ref_str, 5,7,"",
@@ -756,7 +743,7 @@ public class IntersceneMatchParameters {
 				"Debug Level for the above parameters: renders and raw correlations need >1,  motion vectors > 0");
 
 		gd.addMessage  ("Pairwise ERS testing");
-		gd.addCheckbox ("Test pairwise matching with ERS",        this.test_ers,
+		gd.addCheckbox ("Test pairwise matching with ERS",           this.test_ers,
 				"Test pairwise dispaly and pose correction to test ERS compensation");
 		gd.addNumericField("Test scene reference index",             this.test_ers0, 0,3,"",
 				"Reference scene index in a scene sequence");
@@ -764,6 +751,35 @@ public class IntersceneMatchParameters {
 				"Other scene index in a scene sequence (should have a very different angular/linear velocity component)");
 		
 		
+		gd.addTab("Sky","Featureless sky areas detection and filtering (LWIR only)");
+		gd.addMessage  ("Temperature-related filtering (requires photometric calibration)");
+		gd.addNumericField("High limit of the scene coldest tile",   this.sky_highest_min, 5,7,"",
+				"Sky is normally cold. If the (globally offset) minimal scene absolutre pixel value is above - no sky in the scene (debug images still show it)");
+		gd.addNumericField("Cold level fraction",                    this.cold_frac, 5,7,"",
+				"All tiles below this percentile are considered \"cold\".");
+		gd.addNumericField("Hot level fraction",                     this.hot_frac, 5,7,"",
+				"All tiles above this percentile are considered \"hot\".");
+		gd.addNumericField("Cold FOM scale",                         this.cold_scale, 5,7,"",
+				"Multiply (strength*spread) by this value (reduce), and linearly scale up to 1.0 for hot ones.");
+		gd.addMessage  ("Generate seed tiles for the potential sky area");
+		gd.addNumericField("Seed FOM level",                         this.sky_seed, 5,7,"",
+				"Maximal FOM (strength*spread*temp_scale) level to seed sky area, temp_scale is generated from average pixel value "+
+		        "at infinity and 3 above parameters");
+		gd.addNumericField("Seed maximal disparity",                 this.lma_seed, 5,7,"pix",
+				"Seed tiles should not have LMA-found disparity above this");
+		gd.addNumericField("Shrink sky seed",                        this.sky_shrink, 0,3,"",
+				"Shrink sky seed tiles to eliminate too small (false) clusters. One shrinks in hor/vert, 2 - with diagonals, ...");
+		gd.addNumericField("Seed rows",                              this.seed_rows, 0,3,"",
+				"Sky is above and normally should appear in the top image rows. Applies after shrinking.");
+		gd.addMessage  ("Expand seed tiles");
+		gd.addNumericField("Expand FOM limit",                       this.sky_lim, 5,7,"",
+				"Expand while FOM is below this value (usually to a high-contrast skyline).");
+		gd.addNumericField("Expand extra",                           this.sky_expand_extra, 0,3,"",
+				"Additionally expand sky area after reaching threshold in the previous step.");
+		gd.addNumericField("Modify strength to be at least this",    this.min_strength, 5,7,"",
+				"Input strength has some with zero values resulting in zero FOM. Make them at least this.");
+		gd.addNumericField("Lowest sky row",                        this.lowest_sky_row, 0,3,"",
+				"Last defense - if the detected sky area reaches near-bottom of the page - it is invalid, remove it (but keep in debug images)");
 	}
 
 	public void dialogAnswers(GenericJTabbedDialog gd) {
@@ -975,13 +991,6 @@ public class IntersceneMatchParameters {
 		this.half_disparity =           gd.getNextNumber();
 		this.half_avg_diff =            gd.getNextNumber();
 		
-		this.photo_en =                 gd.getNextBoolean();
-		this.photo_num_full =     (int) gd.getNextNumber();
-		this.photo_num_refines =  (int) gd.getNextNumber();
-		this.photo_min_strength =       gd.getNextNumber();
-		this.photo_max_diff =           gd.getNextNumber();
-		this.photo_debug =              gd.getNextBoolean();
-		
 		this.min_ref_str =              gd.getNextNumber();
 		this.pix_step =           (int) gd.getNextNumber();
 		this.search_rad =         (int) gd.getNextNumber();
@@ -1034,6 +1043,21 @@ public class IntersceneMatchParameters {
 		this.test_ers =                 gd.getNextBoolean();
 		this.test_ers0 =          (int) gd.getNextNumber();
 		this.test_ers1 =          (int) gd.getNextNumber();
+
+		this.sky_highest_min =          gd.getNextNumber(); 	
+		this.cold_frac =                gd.getNextNumber();       	
+		this.hot_frac =                 gd.getNextNumber();        	
+		this.cold_scale =               gd.getNextNumber();      	
+		this.sky_seed =                 gd.getNextNumber();        	
+		this.lma_seed =                 gd.getNextNumber();        	
+		this.sky_shrink =         (int) gd.getNextNumber();      	
+		this.seed_rows =          (int) gd.getNextNumber();       	
+		this.sky_lim =                  gd.getNextNumber();         	
+		this.sky_expand_extra =   (int) gd.getNextNumber();	
+		this.min_strength =             gd.getNextNumber();    
+		this.lowest_sky_row =     (int) gd.getNextNumber();
+		
+		
 		
 		if (this.weight_zero_neibs > 1.0) this.weight_zero_neibs = 1.0;
 	}
@@ -1195,13 +1219,6 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"half_disparity",       this.half_disparity+"");      // double
 		properties.setProperty(prefix+"half_avg_diff",        this.half_avg_diff+"");       // double
 		
-		properties.setProperty(prefix+"photo_en",             this.photo_en+"");            // boolean
-		properties.setProperty(prefix+"photo_num_full",       this.photo_num_full+"");      // int
-		properties.setProperty(prefix+"photo_num_refines",    this.photo_num_refines+"");   // int
-		properties.setProperty(prefix+"photo_min_strength",   this.photo_min_strength+"");  // double
-		properties.setProperty(prefix+"photo_max_diff",       this.photo_max_diff+"");      // double
-		properties.setProperty(prefix+"photo_debug",          this.photo_debug+"");         // boolean
-		
 		properties.setProperty(prefix+"pix_step",             this.pix_step+"");            // int
 		properties.setProperty(prefix+"search_rad",           this.search_rad+"");          // int
 		properties.setProperty(prefix+"maybe_sum",            this.maybe_sum+"");           // double
@@ -1252,6 +1269,21 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"test_ers",             this.test_ers+"");            // boolean
 		properties.setProperty(prefix+"test_ers0",            this.test_ers0+"");           // int
 		properties.setProperty(prefix+"test_ers1",            this.test_ers1+"");           // int
+	
+
+		properties.setProperty(prefix+"sky_highest_min",      this.sky_highest_min+"");     // double
+		properties.setProperty(prefix+"cold_frac",            this.cold_frac+"");           // double
+		properties.setProperty(prefix+"hot_frac",             this.hot_frac+"");            // double
+		properties.setProperty(prefix+"cold_scale",           this.cold_scale+"");          // double
+		properties.setProperty(prefix+"sky_seed",             this.sky_seed+"");            // double
+		properties.setProperty(prefix+"lma_seed",             this.lma_seed+"");            // double
+		properties.setProperty(prefix+"sky_shrink",           this.sky_shrink+"");          // int
+		properties.setProperty(prefix+"seed_rows",            this.seed_rows+"");           // int
+		properties.setProperty(prefix+"sky_lim",              this.sky_lim+"");             // double
+		properties.setProperty(prefix+"sky_expand_extra",     this.sky_expand_extra+"");    // int
+		properties.setProperty(prefix+"min_strength",         this.min_strength+"");        // double
+		properties.setProperty(prefix+"lowest_sky_row",       this.lowest_sky_row+"");      // int
+	
 	
 	}
 	
@@ -1440,13 +1472,6 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"half_disparity")!=null)       this.half_disparity=Double.parseDouble(properties.getProperty(prefix+"half_disparity"));
 		if (properties.getProperty(prefix+"half_avg_diff")!=null)        this.half_avg_diff=Double.parseDouble(properties.getProperty(prefix+"half_avg_diff"));
 		
-		if (properties.getProperty(prefix+"photo_en")!=null)             this.photo_en=Boolean.parseBoolean(properties.getProperty(prefix+"photo_en"));		
-		if (properties.getProperty(prefix+"photo_num_full")!=null)       this.photo_num_full=Integer.parseInt(properties.getProperty(prefix+"photo_num_full"));
-		if (properties.getProperty(prefix+"photo_num_refines")!=null)    this.photo_num_refines=Integer.parseInt(properties.getProperty(prefix+"photo_num_refines"));
-		if (properties.getProperty(prefix+"photo_min_strength")!=null)   this.photo_min_strength=Double.parseDouble(properties.getProperty(prefix+"photo_min_strength"));
-		if (properties.getProperty(prefix+"photo_max_diff")!=null)       this.photo_max_diff=Double.parseDouble(properties.getProperty(prefix+"photo_max_diff"));
-		if (properties.getProperty(prefix+"photo_debug")!=null)          this.photo_debug=Boolean.parseBoolean(properties.getProperty(prefix+"photo_debug"));		
-		
 		if (properties.getProperty(prefix+"pix_step")!=null)             this.pix_step=Integer.parseInt(properties.getProperty(prefix+"pix_step"));
 		if (properties.getProperty(prefix+"search_rad")!=null)           this.search_rad=Integer.parseInt(properties.getProperty(prefix+"search_rad"));
 		if (properties.getProperty(prefix+"maybe_sum")!=null)            this.maybe_sum=Double.parseDouble(properties.getProperty(prefix+"maybe_sum"));
@@ -1457,8 +1482,6 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"max_search_rms")!=null)       this.max_search_rms=Double.parseDouble(properties.getProperty(prefix+"max_search_rms"));
 		if (properties.getProperty(prefix+"maybe_fom")!=null)            this.maybe_fom=Double.parseDouble(properties.getProperty(prefix+"maybe_fom"));
 		if (properties.getProperty(prefix+"sure_fom")!=null)             this.sure_fom=Double.parseDouble(properties.getProperty(prefix+"sure_fom"));
-		
-		
 		
 		if (properties.getProperty(prefix+"use_combo_dsi")!=null)        this.use_combo_dsi=Boolean.parseBoolean(properties.getProperty(prefix+"use_combo_dsi"));		
 		if (properties.getProperty(prefix+"use_lma_dsi")!=null)          this.use_lma_dsi=Boolean.parseBoolean(properties.getProperty(prefix+"use_lma_dsi"));
@@ -1499,6 +1522,19 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"test_ers")!=null)             this.test_ers=Boolean.parseBoolean(properties.getProperty(prefix+"test_ers"));		
 		if (properties.getProperty(prefix+"test_ers0")!=null)            this.test_ers0=Integer.parseInt(properties.getProperty(prefix+"test_ers0"));
 		if (properties.getProperty(prefix+"test_ers1")!=null)            this.test_ers1=Integer.parseInt(properties.getProperty(prefix+"test_ers1"));
+		
+		if (properties.getProperty(prefix+"sky_highest_min")!=null)      this.sky_highest_min=Double.parseDouble(properties.getProperty(prefix+"sky_highest_min"));
+		if (properties.getProperty(prefix+"cold_frac")!=null)            this.cold_frac=Double.parseDouble(properties.getProperty(prefix+"cold_frac"));
+		if (properties.getProperty(prefix+"hot_frac")!=null)             this.hot_frac=Double.parseDouble(properties.getProperty(prefix+"hot_frac"));
+		if (properties.getProperty(prefix+"cold_scale")!=null)           this.cold_scale=Double.parseDouble(properties.getProperty(prefix+"cold_scale"));
+		if (properties.getProperty(prefix+"sky_seed")!=null)             this.sky_seed=Double.parseDouble(properties.getProperty(prefix+"sky_seed"));
+		if (properties.getProperty(prefix+"lma_seed")!=null)             this.lma_seed=Double.parseDouble(properties.getProperty(prefix+"lma_seed"));
+		if (properties.getProperty(prefix+"sky_shrink")!=null)           this.sky_shrink=Integer.parseInt(properties.getProperty(prefix+"sky_shrink"));
+		if (properties.getProperty(prefix+"seed_rows")!=null)            this.seed_rows=Integer.parseInt(properties.getProperty(prefix+"seed_rows"));
+		if (properties.getProperty(prefix+"sky_lim")!=null)              this.sky_lim=Double.parseDouble(properties.getProperty(prefix+"sky_lim"));
+		if (properties.getProperty(prefix+"sky_expand_extra")!=null)     this.sky_expand_extra=Integer.parseInt(properties.getProperty(prefix+"sky_expand_extra"));
+		if (properties.getProperty(prefix+"min_strength")!=null)         this.min_strength=Double.parseDouble(properties.getProperty(prefix+"min_strength"));
+		if (properties.getProperty(prefix+"lowest_sky_row")!=null)       this.lowest_sky_row=Integer.parseInt(properties.getProperty(prefix+"lowest_sky_row"));
 	}
 	
 	@Override
@@ -1644,13 +1680,6 @@ public class IntersceneMatchParameters {
 		imp.half_disparity        = this.half_disparity;
 		imp.half_avg_diff         = this.half_avg_diff;
 		
-		imp.photo_en              = this.photo_en;
-		imp.photo_num_full        = this.photo_num_full;
-		imp.photo_num_refines     = this.photo_num_refines;
-		imp.photo_min_strength    = this.photo_min_strength;
-		imp.photo_max_diff        = this.photo_max_diff;
-		imp.photo_debug           = this.photo_debug;
-		
 		imp.pix_step =              this.pix_step;
 		imp.search_rad =            this.search_rad;
 		imp.maybe_sum =             this.maybe_sum;
@@ -1698,6 +1727,23 @@ public class IntersceneMatchParameters {
 		imp.show_2d_correlations  = this.show_2d_correlations;
 		imp.show_motion_vectors   = this.show_motion_vectors ;
 		imp.debug_level           = this.debug_level;
+
+		imp.test_ers =              this.test_ers;         
+		imp.test_ers0 =             this.test_ers0;
+		imp.test_ers1 =             this.test_ers1;
+		
+		imp.sky_highest_min =       this.sky_highest_min;
+		imp.cold_frac =             this.cold_frac;
+		imp.hot_frac =              this.hot_frac;
+		imp.cold_scale =            this.cold_scale;
+		imp.sky_seed =              this.sky_seed;
+		imp.lma_seed =              this.lma_seed;
+		imp.sky_shrink =            this.sky_shrink;
+		imp.seed_rows =             this.seed_rows;
+		imp.sky_lim =               this.sky_lim;
+		imp.sky_expand_extra =      this.sky_expand_extra;
+		imp.min_strength =          this.min_strength;
+		imp.lowest_sky_row =        this.lowest_sky_row;
 		return imp;
 	}
 	public static long getLongColor(Color color) {
@@ -1713,56 +1759,6 @@ public class IntersceneMatchParameters {
 			return new Color((int) lcolor, true);
 		}
 	}
-
-	/*
-	public void orderStereo(){
-		boolean ordered;
-		do {
-			ordered=true;
-			for (int i = 0; i < (stereo_bases.length - 1); i++) {
-				if (stereo_bases[i+1]<stereo_bases[i]) {
-					boolean en = generate_stereo_var[i+1];
-					generate_stereo_var[i+1] = generate_stereo_var[i];
-					generate_stereo_var[i] = en;
-					double base =  stereo_bases[i+1];
-					stereo_bases[i+1] = stereo_bases[i];
-					stereo_bases[i] = base;
-					ordered = false;
-				}
-			}
-			
-		} while (!ordered);
-	}
-	public void addStereo(double base, boolean en) {
-		double [] bases = new double [stereo_bases.length + 1];
-		boolean [] ens = new boolean [stereo_bases.length + 1];
-		bases[0] = base;
-		ens[0] = en;
-		System.arraycopy(stereo_bases, 0, bases, 1,      stereo_bases.length);
-		System.arraycopy(generate_stereo_var, 0, ens, 1, stereo_bases.length);
-		stereo_bases = bases;
-		generate_stereo_var = ens;
-		orderStereo();
-	}
-	public void removeStereo(int indx) {
-		if ((indx >=0) && (indx <stereo_bases.length)) {
-			double [] bases = new double [stereo_bases.length - 1];
-			boolean [] ens = new boolean [stereo_bases.length - 1];
-			if (indx > 0) {
-				System.arraycopy(stereo_bases,        0, bases, 0, indx);
-				System.arraycopy(generate_stereo_var, 0, ens,   0, indx);
-			}
-			if (indx < (stereo_bases.length - 1)) {
-				System.arraycopy(stereo_bases,        indx+1, bases, indx, stereo_bases.length - indx - 1);
-				System.arraycopy(generate_stereo_var, indx+1, ens,   indx, stereo_bases.length - indx - 1);
-			}
-			stereo_bases = bases;
-			generate_stereo_var = ens;
-		}
-	}
-	
-
-	 */
 	
 	public void orderStereoViews(){
 		boolean ordered;

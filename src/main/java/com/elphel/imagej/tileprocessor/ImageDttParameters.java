@@ -28,6 +28,7 @@ import java.util.Properties;
 import com.elphel.imagej.common.GenericJTabbedDialog;
 
 public class ImageDttParameters {
+	// "ImageDtt" tab followed by others
 	public boolean gpu_mode_debug =         true;
 	public boolean gpu_verify =             false; // verify tasks/ input data
 	public boolean corr_mode_debug =        true;
@@ -398,741 +399,743 @@ public class ImageDttParameters {
 	
 	public void dialogQuestions(GenericJTabbedDialog gd) {
 		
-		    gd.addCheckbox    ("Debug CPU->GPU matching",                                         this.gpu_mode_debug,
+		gd.addTab         ("imageDtt", "Setup extra ImageDtt parameters - eventually all will be set that way");
+		gd.addCheckbox    ("Debug CPU->GPU matching",                                         this.gpu_mode_debug,
 				"output clt_corr_partial");
-		    gd.addCheckbox    ("Verify GPU input",                                                this.gpu_verify,
+		gd.addCheckbox    ("Verify GPU input",                                                this.gpu_verify,
 				"Check tp_tasks and fix NaN");
-			gd.addCheckbox    ("Enable ImageDtt correlation debug layers",                        this.corr_mode_debug,
-					"false - return (old) per-coord correlations, true - replace them with more pairs correlation (new)");
-			gd.addCheckbox    ("Replace CM layer with mixed/new poly one",                        this.mix_corr_poly);
-			gd.addCheckbox    ("If LMA fails, discard tile",                                      this.corr_poly_only);
-			gd.addNumericField("Use poly mode if strength is greater than",                       this.min_poly_strength,  3,6,"", "AND condition");
-			gd.addNumericField("Maximal polynomial approximation half-width",                     this.max_poly_hwidth,  3,6,"pix", "Maximal polynomial approximation half-width (in both directions), Most now are ~2.0");
-			gd.addNumericField("Polynomial argmax correction (positive - near, negative - far)",  this.poly_corr_scale,  3,6,"×", "Shift value if correlation maximum is wide in X than in Y to detect near objects (negative - far ones)");
+		gd.addCheckbox    ("Enable ImageDtt correlation debug layers",                        this.corr_mode_debug,
+				"false - return (old) per-coord correlations, true - replace them with more pairs correlation (new)");
+		gd.addCheckbox    ("Replace CM layer with mixed/new poly one",                        this.mix_corr_poly);
+		gd.addCheckbox    ("If LMA fails, discard tile",                                      this.corr_poly_only);
+		gd.addNumericField("Use poly mode if strength is greater than",                       this.min_poly_strength,  3,6,"", "AND condition");
+		gd.addNumericField("Maximal polynomial approximation half-width",                     this.max_poly_hwidth,  3,6,"pix", "Maximal polynomial approximation half-width (in both directions), Most now are ~2.0");
+		gd.addNumericField("Polynomial argmax correction (positive - near, negative - far)",  this.poly_corr_scale,  3,6,"×", "Shift value if correlation maximum is wide in X than in Y to detect near objects (negative - far ones)");
 
-			gd.addNumericField("When calculating poly raise correlation value to this power",     this.poly_pwr,  3,6,"", "Trying to reduce sticking to integer values");
-			gd.addNumericField("When calculating poly multiply weight by correlation value",      this.poly_vasw_pwr,3,6,"",
-					"Raise value to this power and apply as weight");
-			gd.addNumericField("Magic scale for CM correlation",                                  this.corr_magic_scale_cm,  3,6,"",
-					"Reported center of mass correlation value is this part of actual");
-			gd.addNumericField("Magic scale for Poly correlation",                                this.corr_magic_scale_poly,  3,6,"",
-					"Reported polynomial correlation value is this part of actual");
+		gd.addNumericField("When calculating poly raise correlation value to this power",     this.poly_pwr,  3,6,"", "Trying to reduce sticking to integer values");
+		gd.addNumericField("When calculating poly multiply weight by correlation value",      this.poly_vasw_pwr,3,6,"",
+				"Raise value to this power and apply as weight");
+		gd.addNumericField("Magic scale for CM correlation",                                  this.corr_magic_scale_cm,  3,6,"",
+				"Reported center of mass correlation value is this part of actual");
+		gd.addNumericField("Magic scale for Poly correlation",                                this.corr_magic_scale_poly,  3,6,"",
+				"Reported polynomial correlation value is this part of actual");
 
-			gd.addNumericField("Height of non-zero weights for hor/vert correlation",             this.ortho_height,  3);
-			gd.addNumericField("Effective correlation stripe height to match strengths",          this.ortho_eff_height,  3,6,"", "For matching 2-d and 1-d correlation maximums");
+		gd.addNumericField("Height of non-zero weights for hor/vert correlation",             this.ortho_height,  3);
+		gd.addNumericField("Effective correlation stripe height to match strengths",          this.ortho_eff_height,  3,6,"", "For matching 2-d and 1-d correlation maximums");
 
-			gd.addNumericField("Number of samples to fit parabola in ortho mode",                 this.ortho_nsamples,  3);
-			gd.addNumericField("Use data as weights when fitting parabola for ortho mode",        this.ortho_vasw_pwr,3,6,"",
-					"Raise value to this power and apply as weight.  Reduce width to 3 samples if false, 5 OK when true");
+		gd.addNumericField("Number of samples to fit parabola in ortho mode",                 this.ortho_nsamples,  3);
+		gd.addNumericField("Use data as weights when fitting parabola for ortho mode",        this.ortho_vasw_pwr,3,6,"",
+				"Raise value to this power and apply as weight.  Reduce width to 3 samples if false, 5 OK when true");
 
-			gd.addNumericField("Reduce weight of center correlation pixels from center for the main camera",this.enhortho_width, 0, 3, "pix",
-					"Reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)");
-			gd.addNumericField("Reduce weight of center correlation pixels from center for the aux camera", this.enhortho_width_aux, 0, 3, "pix",
-					"Reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)");
-			gd.addNumericField("Multiply center correlation pixels for the main camera",                   this.enhortho_scale, 0,3, "pix",
-					"Multiply center correlation pixels (inside enhortho_width) (1.0 - disables enh_ortho) - main camera");
-			gd.addNumericField("Multiply center correlation pixels for the aux camera",                    this.enhortho_scale_aux, 0,3, "pix",
-					"Multiply center correlation pixels (inside enhortho_width) (1.0 - disables enh_ortho) - aux camera");
+		gd.addNumericField("Reduce weight of center correlation pixels from center for the main camera",this.enhortho_width, 0, 3, "pix",
+				"Reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)");
+		gd.addNumericField("Reduce weight of center correlation pixels from center for the aux camera", this.enhortho_width_aux, 0, 3, "pix",
+				"Reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)");
+		gd.addNumericField("Multiply center correlation pixels for the main camera",                   this.enhortho_scale, 0,3, "pix",
+				"Multiply center correlation pixels (inside enhortho_width) (1.0 - disables enh_ortho) - main camera");
+		gd.addNumericField("Multiply center correlation pixels for the aux camera",                    this.enhortho_scale_aux, 0,3, "pix",
+				"Multiply center correlation pixels (inside enhortho_width) (1.0 - disables enh_ortho) - aux camera");
 
-			gd.addCheckbox    ("Use polynomial when measuring mismatch (false - use center of mass)",      this.ly_poly);
-			gd.addNumericField("Maximal allowed mismatch difference calculated as polynomial maximum",     this.ly_crazy_poly,3,6,"px",
-					"Use CM method as a back-up, if polynomial maximum is far off");
-			gd.addCheckbox    ("Use CM offset measuremets if poly failed",                                  this.ly_poly_backup);
+		gd.addCheckbox    ("Use polynomial when measuring mismatch (false - use center of mass)",      this.ly_poly);
+		gd.addNumericField("Maximal allowed mismatch difference calculated as polynomial maximum",     this.ly_crazy_poly,3,6,"px",
+				"Use CM method as a back-up, if polynomial maximum is far off");
+		gd.addCheckbox    ("Use CM offset measuremets if poly failed",                                  this.ly_poly_backup);
 
-			gd.addMessage("Far objects correction");
-			gd.addCheckbox    ("Try to correct far objects (make them closer) by hor/vert comparison",      this.fo_correct);
-			gd.addCheckbox    ("Use smallest disparity/foreground objects (false - largest)",               this.fo_far,
-					"When disparity is different for different directios, use smallest (longest distance)");
-			gd.addNumericField("Minimal strength for all correlations (full, hor, vert) to try to correct", this.fo_min_strength,  3,6,"",
-					"Do not correct if any of the full, hor or vert strength is lower than this");
+		gd.addMessage("Far objects correction");
+		gd.addCheckbox    ("Try to correct far objects (make them closer) by hor/vert comparison",      this.fo_correct);
+		gd.addCheckbox    ("Use smallest disparity/foreground objects (false - largest)",               this.fo_far,
+				"When disparity is different for different directios, use smallest (longest distance)");
+		gd.addNumericField("Minimal strength for all correlations (full, hor, vert) to try to correct", this.fo_min_strength,  3,6,"",
+				"Do not correct if any of the full, hor or vert strength is lower than this");
 
-			gd.addNumericField("Minimal effective strength (corrected for width/hight)",                    this.fo_min_eff,  3,6,"",
-					"Minimal strength for the direction divided by width in disparity direction and multiplied by width in orthogonal direction");
-			gd.addNumericField("Minimal ratio of the effective strength to that of the orthogonal one",     this.fo_min_eff_ratio,  3,6,"",
-					"Ratio of the effective strength in the disparity max/min direction to that of the orthogonal pair(s)");
+		gd.addNumericField("Minimal effective strength (corrected for width/hight)",                    this.fo_min_eff,  3,6,"",
+				"Minimal strength for the direction divided by width in disparity direction and multiplied by width in orthogonal direction");
+		gd.addNumericField("Minimal ratio of the effective strength to that of the orthogonal one",     this.fo_min_eff_ratio,  3,6,"",
+				"Ratio of the effective strength in the disparity max/min direction to that of the orthogonal pair(s)");
 
-			gd.addNumericField("Maximal correlation half-width",                                            this.fo_max_hwidth,  3,6,"pix",
-					"Do not correct if any of the full, hor or vert half-width is above this");
-			gd.addNumericField("Minimal disparity difference to attempt extraction of foreground objects",  this.fo_min_diff,  3,6,"pix",
-					"Keep all-pair disparity if directional difference is below this value");
-			gd.addCheckbox    ("Require min/max to be orthogonal",                                          this.fo_ortho,
-					"Correct fore/background only if the smallest/largest disparity is for orthogonal directions");
-			gd.addNumericField("Overcorrection scale",                                            this.fo_overcorrection,  3,6,"",
-					"Add scaled hor/vert difference to the largest of hor/vert disparity. Use 0 to just select largest of disparities");
-			gd.addNumericField("Limit overcorrection",                                            this.fo_lim_overcorr,  3,6,"",
-					"Limit full correction with respect to largest - fullcorr difference. 1.0 does not allow overcorrection, < 1.0 - the result will be closer to full correction");
+		gd.addNumericField("Maximal correlation half-width",                                            this.fo_max_hwidth,  3,6,"pix",
+				"Do not correct if any of the full, hor or vert half-width is above this");
+		gd.addNumericField("Minimal disparity difference to attempt extraction of foreground objects",  this.fo_min_diff,  3,6,"pix",
+				"Keep all-pair disparity if directional difference is below this value");
+		gd.addCheckbox    ("Require min/max to be orthogonal",                                          this.fo_ortho,
+				"Correct fore/background only if the smallest/largest disparity is for orthogonal directions");
+		gd.addNumericField("Overcorrection scale",                                            this.fo_overcorrection,  3,6,"",
+				"Add scaled hor/vert difference to the largest of hor/vert disparity. Use 0 to just select largest of disparities");
+		gd.addNumericField("Limit overcorrection",                                            this.fo_lim_overcorr,  3,6,"",
+				"Limit full correction with respect to largest - fullcorr difference. 1.0 does not allow overcorrection, < 1.0 - the result will be closer to full correction");
 
-			gd.addNumericField("Maximal disparity difference to calculate mismatch",             this.mismatch_max_diff,  3,6,"",
-					"Too low value will disqualify large mismatches, too high - treat multi-z disparity as mismatch");
+		gd.addNumericField("Maximal disparity difference to calculate mismatch",             this.mismatch_max_diff,  3,6,"",
+				"Too low value will disqualify large mismatches, too high - treat multi-z disparity as mismatch");
 
-	  		gd.addNumericField("Add to pair correlation before multiplying by other pairs",       this.corr_offset,  6,8,"",
-	  				"0.0 - pure product (false-positive tolerant), higher the value - closer to the sum (linear, better S/N");
+		gd.addNumericField("Add to pair correlation before multiplying by other pairs",       this.corr_offset,  6,8,"",
+				"0.0 - pure product (false-positive tolerant), higher the value - closer to the sum (linear, better S/N");
 
-			gd.addCheckbox    ("Double weight of diagonal pairs when combining",                  this.twice_diagonal,
-					"Diagonal pairs provide twice denser samples, when true it doubles the weight of diagonal pairs");
+		gd.addCheckbox    ("Double weight of diagonal pairs when combining",                  this.twice_diagonal,
+				"Diagonal pairs provide twice denser samples, when true it doubles the weight of diagonal pairs");
 
-		    gd.addNumericField("Extract disparity max/argmax if maximal value is above",          this.min_corr,  6,8,"",
-		    		"skip unreliable correlations");
-
-
-			gd.addNumericField("Debug: which pairs to combine",                                   this.dbg_pair_mask,  0, 3, "",
-					"Bits: 0, 1 - horizontal pairs, 2,3 - verical pairs, 4,5 - diagonal pairs");
-			gd.addNumericField("Number of correlation rows to combine (strip height)",            this.corr_strip_hight,  0, 3, "",
-					"Number of rows to combine/interpolate correlation results. Rows are twice denser than pixels correponding to largest baseline disparity");
-
-			gd.addMessage("LMA prefiltering for dual disparities in a tile");
-			
-		    gd.addNumericField("LPF for combined maximums",                                       this.bimax_lpf_neib,  6,8,"",
-		    		"0 - no LPF, >0 - add 4 scaled ortho neighbors and 4 corners bscaled as square of this value");
-		    gd.addNumericField("Notch filter power",                                              this.bimax_notch_pwr,  6,8,"",
-		    		"Reduce offending (other) correlation maximum by multiplying. High power reduces all < 1.0 values");
-		    gd.addNumericField("Reduction of sample weight by the other maximum",                 this.bimax_adv_power,  6,8,"",
-		    		"If X= (this strength /other strength), scale by X/(1+X) to theis power");
-			gd.addNumericField("Convex max search around predicted disparity",                    this.bimax_rad_convex_search,  0, 3, "",
-					"How far from predicted to search for maximums");
-			gd.addNumericField("Minimal samples per pair per max",                                this.bimax_min_num_samples,  0, 3, "",
-					"Minimal number of samples per pair per maximum to use this pair by LMA (each of the maximums used)");
-			gd.addNumericField("Minimal number of used pairs",                                    this.bimax_min_num_pairs,  0, 3, "",
-					"Do not use LMA if total number of used pairs is lower");
-			gd.addCheckbox    ("Dual-pass LMA",                                                   this.bimax_dual_pass,
-					"First adjust other parameters (keeping disparities), then add disparities");
-			gd.addCheckbox    ("Common gains for foreground/single correlation maximum",          this.bimax_common_fg,
-					"Use common gain for all pairs for FG/single correlation (unchecked - use individual gain for each pair)");
-			gd.addCheckbox    ("Common gains for background correlation maximum",                 this.bimax_common_bg,
-					"Use common gain for all pairs for BG correlation(s) (unchecked - use individual gain for each pair)");
-			gd.addCheckbox    ("Select after LMA",                                                this.bimax_post_LMA,
-					"When dual max, LMA with two maximums, then select. If false,select before LMA");
-			gd. addChoice("Multiple maximums select mode", COMBINE_MODES, COMBINE_MODES[bimax_combine_mode], 
-					"Which maximum to keep after LMA");
-			gd.addCheckbox    ("Use updated LMA capable of FG/BG, force CM strength for strength",this.bimax_dual_LMA,
-					"Use LMA capable of FG/BG. Use CM strength (now 3) as DISPARITY_STRENGTH_INDEX (now 10)."+
-			        "When false (old) use LMA (DISPARITY_INDEX_POLY+1 now 9) as DISPARITY_STRENGTH_INDEX");
-			gd.addCheckbox    ("Process only tiles with dual maximums (requires bimax_dual_LMA)", this.bimax_dual_only,
-					"May be used to determine BG after refining FG. First refine with false and mode = 3 (FG), then with true and mode = 4 (BG)");
-			
-			gd.addMessage("LMA samples filter based on estimated disparity");
-			gd.addCheckbox    ("Debug LMA",                                                       this.lmamask_dbg,
-					"Generate debug images and exit after first clt_process_tl_correlations() while generating background image");
-			gd.addCheckbox    ("Use disparity-based LMA samples filtering",                       this.lmamask_en,
-					"Generate weighs by averaging 2D correlation shape and per-pair shifting for estimated from CM disparity");
-		    gd.addNumericField("Divide estimated disparity by magic 0.85",                        this.lmamask_magic,  6,8,"",
-		    		"Increase estimated disparity for iniital LMA setiings");
-		    gd.addNumericField("Minimal relative sample value for unconditional inclusion",       this.lmamask_min_main,  6,8,"",
-		    		"Relatrive (to maximal) value in averaged correlation to be assigned window vlaue of 1.0 regardless of neighbors");
-		    gd.addNumericField("Minimal relative sample value for neighbor inclusion",            this.lmamask_min_neib,  6,8,"",
-		    		"Minimal relative sample value for conditional inclusion (if it has unconditional neighbor");
-		    gd.addNumericField("Neighbor weight",                                                 this.lmamask_weight_neib,  6,8,"",
-		    		"Assign window value for strong enough values of neighbors of unconditionally included");
-		    gd.addNumericField("Neighbor of neighbor weights",                                    this.lmamask_weight_neib_neib,  6,8,"",
-		    		"Weight of neighbors of conditionally or anconditionally included poins regardless of their values");
-
-		    gd.addNumericField("LMA weight threshold",                                            this.lmamask_threshold,  6,8,"",
-		    		"Subtract from mask and normalize to increase number of zeros and so reduce LMA samples");
-		    gd.addNumericField("LMA weight raise to power to \"flatten\"",                        this.lmamask_pwr,  6,8,"",
-		    		"Raise to this power (<1) to \"flatten\" weights distribution top");
-		    
-			gd.addMessage("LMA samples filter based on convex sample values");
-			gd.addCheckbox    ("Use convex-based LMA samples filtering",                          this.cnvx_en,
-					"Select LMA samples based on convex correlation samples");
-			gd.addCheckbox    ("'OR' window functions",                                           this.cnvx_or,
-					"If both lmamask_en and cnvx_en are available, use max(); if false - multiply masks");
-			gd.addNumericField("Half window size to extract bi-convex cells",                     this.cnvx_hwnd_size,  0, 3, "pix",
-					"Create selection mask for quadratic approximation inside square around initial maximum position, specify distance from the center");
-		    gd.addNumericField("Relative weight of non-convex (border) cell",                     this.cnvx_weight,  6,8,"",
-		    		"Weight of the bi-convex points is 1.0, this value specifies reduced weight of the border (non-bi-convex) points");
-			gd.addCheckbox    ("Always select 3x3 cells around integer maximum",                  this.cnvx_add3x3,
-					"Add 3x3 cells selection around the original argmax, regardless of bi-convex property");
-
-			gd.addNumericField("Min samples per pair",                                            this.cnvx_min_samples,  0, 3, "pix",
-					"Minimal number of used samples on a 2D correlation pair");
-			gd.addCheckbox    ("Always select 3x3 cells around integer maximum",                  this.cnvx_non_coll,
-					"Must have non-collinear samples in each correlation pair");
-			gd.addNumericField("Minimal correlation pairs per tile",                              this.cnvx_min_pairs,  0, 3, "",
-					"Minimal number 2D correlation pairs per tile");
-
-			gd.addMessage("Correlation pairs selection for multicamera confifurations");
-			gd.addNumericField("Min number of sensors for \"multi\"",                             this.mcorr_multi,  0, 3, "sensors",
-					"Cameras with this or larger number of sensor will use a \"_multi\" version of parameters (when available)");
-
-			gd.addCheckbox    ("Use linescan (old) numeration for quad cameras",               this.mcorr_quad_sequence,
-					"if true, quadcam ports CW are 2,4,2,0, if false - 0, 1, 2, 3");
-			
-			gd.addCheckbox    ("Top is 0 for small cameras",               this.mcorr_topis0,
-					"True if sensor 0 is strait up, false if it is rotated clockwise so it has the same height as the last sensor");
-			gd.addCheckbox    ("Top is 0 for multi cameras",               this.mcorr_topis0_multi,
-					"True if sensor 0 is strait up, false if it is rotated clockwise so it has the same height as the last sensor");
-			
-			gd.addCheckbox    ("Calculate all correlation pairs for small cameras",               this.mcorr_all,
-					"N*(N-1)/2: 6 for quad, 120 for lwir16 ");
-			gd.addCheckbox    ("Calculate all correlation pairs for multi cameras",               this.mcorr_all_multi,
-					"N*(N-1)/2: 6 for quad, 120 for lwir16");
-
-			gd.addCheckbox    ("Calculate correlation pairs - diameters for small cameras",       this.mcorr_dia,
-					"All diameter pairs. N/2: 2 for quad, 8 for lwir16");
-			gd.addCheckbox    ("Calculate correlation pairs - diameters for multi cameras",       this.mcorr_dia_multi,
-					"All diameter pairs. N/2: 2 for quad, 8 for lwir16");
-
-			gd.addCheckbox    ("Calculate correlation pairs of squares for small cameras",        this.mcorr_sq,
-					"All pairs with the lengths equal to side of a square. N: 4 for quad, 16 for lwir16");
-			gd.addCheckbox    ("Calculate correlation pairs of squares for multi cameras",        this.mcorr_sq_multi,
-					"All pairs with the lengths equal to side of a square. N: 4 for quad, 16 for lwir16");
-			
-			gd.addCheckbox    ("Calculate neighbor pairs for small cameras",                     this.mcorr_neib,
-					"All neighbor pairs. N: 4 for quad, 16 for lwir16");
-			gd.addCheckbox    ("Calculate neighbor pairs for multi cameras",                     this.mcorr_neib_multi,
-					"All neighbor pairs. N: 4 for quad, 16 for lwir16");
-			
-			gd.addCheckbox    ("Calculate horizontal pairs for small cameras",                   this.mcorr_hor,
-					"All horizontal pairs. N: 2 for quad, 7 for lwir16");
-			gd.addCheckbox    ("Calculate horizontal pairs for multi cameras",                   this.mcorr_hor_multi,
-					"All horizontal pairs. N: 2 for quad, 7 for lwir16");
-
-			gd.addCheckbox    ("Calculate vertical pairs for small cameras",                     this.mcorr_vert,
-					"All vertical pairs. N: 2 for quad, 8 for lwir16");
-			gd.addCheckbox    ("Calculate vertical pairs for multi cameras",                     this.mcorr_vert_multi,
-					"All vertical pairs. N: 2 for quad, 8 for lwir16");
-			
-			gd.addNumericField    ("Limit sensors: (0 - all, 1 - binocular, 2 - quad, 3 - octal)",this.mcorr_limit_sensors,  0, 3, "",
-					"Limit correlations to subset of the sensors for performance comparison: 1 - (4,12), 2 - (2,6,10,14), 3 - (0,2,4,6,8,10,12,14)");
-			
-			gd.addNumericField    ("Select correlation pairs for LY for small cameras",          this.mcorr_sel_ly,  0, 3, "",
-					" +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert");
-			gd.addNumericField    ("Select correlation pairs for LY for multi cameras",          this.mcorr_sel_ly_multi,  0, 3, "",
-					" +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert");
-
-			gd.addCheckbox    ("Combine all pairs",                                               this.mcorr_cons_all,
-					"Combine all calculated correlation pairs");
-			gd.addCheckbox    ("Combine diameters",                                               this.mcorr_cons_dia,
-					"Combine all pairs with the length of a diameter");
-			gd.addCheckbox    ("Combine squares",                                                 this.mcorr_cons_sq,
-					"Combine all pairs with the length of a side of an inscribed square");
-			gd.addCheckbox    ("Combine neighbors",                                               this.mcorr_cons_neib,
-					"Combine all neighbor pairs ");
-			gd.addCheckbox    ("Combine horizontal pairs",                                        this.mcorr_cons_hor,
-					"Combine all calculated horizontal pairs regardless of length");
-			gd.addCheckbox    ("Combine vertical pairs",                                          this.mcorr_cons_vert,
-					"Combine all calculated vertical pairs regardless of length");
-			gd.addMessage("Weights for mixing correlation pairs");
-			for (int i = 0; i < mcorr_weights.length; i++) {
-				gd.addNumericField("Weight of correlation pair "+(i+1)+" long",                   this.mcorr_weights[i],  3,6,"",
-						"Relative weight of pairs, length - number of sensors intervals (1 - neighbors,..., 8 - diameters)");
-			}
-			gd.addCheckbox    ("Apply static weights defined above",                              this.mcorr_static_weights,
-					"Apply length-dependent weights for rotated/scaled pairs");
-			gd.addNumericField("Divide correlation pair weight by its width to this power",       this.mcorr_weights_power,  3,6,"pix",
-					"Increase weight of pairs with linear features perpendicular to the base direction and long base pairs");
-			gd.addCheckbox    ("Apply dynaminc (feature-dependent) weights defined above",        this.mcorr_dynamic_weights,
-					"Calculate each pairs's width (in the disparity direction) after rotation/scaling and apply");
-			gd.addNumericField("Minimal relative strength of the second maximum (0 - ignore)",    this.mcorr_dual_fract,  3,6,"",
-					"Minimal relative strength of the second correlation maximum to treat as FG+BG (0 - ignore dual maximums, no special treatment)");
-			gd.addNumericField("Minimal relative strength of FG to BG",                           this.mcorr_fb_fract,  3,6,"",
-					"Minimal relative strength of FG to BG to keep weaker (final, after LMA if enabled), <1.0");
-			gd.addNumericField("Minimal relative strength of BG to FG",                           this.mcorr_bf_fract,  3,6,"",
-					"Minimal relative strength of BG to FG to keep weaker (final, after LMA if enabled), <1.0");
-			
-			gd.addNumericField("Minimal strength of the strongest in a dual-max",                 this.mcorr_dual_min_max,  3,6,"",
-					"Minimal absolute strength of the strongest in a dual-max to consider second one");
-			gd.addNumericField("Minimal strength of the weakest in a dual- max",                  this.mcorr_dual_min_min,  3,6,"",
-					"Minimal absolute strength of the weakest in a dual-max to consider dual-max");
-			
-			gd.addMessage("Generating grid for combining visualization, actual will be provided programmatically");
-			gd.addNumericField("Width of a combined correlation tile",                            this.mcorr_comb_width,  0, 3, "pix",
-					"Width of a tile to combine correlations after rotation/scaling");
-			gd.addNumericField("Height of a combined correlation tile",                           this.mcorr_comb_height,  0, 3, "pix",
-					"Full height of a tile to combine correlations after rotation/scaling");
-			gd.addNumericField("Height offset of a combined correlation tile",                    this.mcorr_comb_offset,  0, 3, "pix",
-					"0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)");
-			gd.addNumericField("Relative per-pixel disparity",                                    this.mcorr_comb_disp,  3,6,"pix",
-					"Combined tile per-pixel disparity for baseline == diameter");
-			gd.addCheckbox    ("Debug correlation scaling/rotation for combining",                this.mcorr_comb_dbg,
-					"Generate/show correlation pairs scaled/rotated for combining");
-			
-			gd.addMessage("Window for pole detection mode");
-			gd.addNumericField("Strip height for pole detection",                                 this.corr_strip_notch,  0, 3, "half-pix",
-					"Number of rows to combine/interpolate correlation results. Rows are twice denser than pixels correponding to largest baseline disparity");
-
-			gd.addNumericField("50% correlation window cutoff height for poles (0 in the center)",this.corr_notch_hwidth,  3, 6, "half-pix",
-					"Correlation window height argument for 50% value");
-			gd.addNumericField("0% to 100 % transition range for poles",                          this.corr_notch_blur,  3,6,"half-pix",
-					"Transition range, shifted sine is used");
-
-			gd.addMessage("Window for normal correlations");
-			gd.addNumericField("Number of rows to calculate CM disparity",                        this.corr_wndy_size,  0, 3, "",
-					"Number of rows to calculate maximum. Normally should be equal to the previous parameter");
-
-			gd.addNumericField("50% correlation window cutoff height",                            this.corr_wndy_hwidth,  3, 6, "",
-					"Correlation window height argument for 50% value");
-			gd.addNumericField("100% to 0 % correlation vertical window transition range",        this.corr_wndy_blur,  3,6,"",
-					"Transition range, shifted sine is used");
-
-			gd.addNumericField("Half-number of columns to calculate CM disparity",                this.corr_wndx_size,  0, 3, "",
-					"Horizontal size of the window (symmetrical around integer argmax, only odd/even values are used in odd/even rows");
-
-			gd.addNumericField("50% correlation window cutoff width",                             this.corr_wndx_hwidth,  3, 6, "",
-					"Correlation window width argument for 50% value");
-			gd.addNumericField("100% to 0 % correlation horizontal window transition range",      this.corr_wndx_blur,  3, 6, "",
-					"Transition range, shifted sine is used");
-
-			gd.addTab("Corr Intra","Parameters Group 2D Phase correlation");
-
-			gd.addCheckbox    ("Use group phase correlation for disparity calculation",                this.pcorr_use,
-					"Default false, for compatibility with existing code/ old configs");
-			gd.addCheckbox    ("Use group phase correlation to combine hor and vert pairs separately", this.pcorr_use_hv,
-					"Use even when hor are not combined with vert");
-			gd.addNumericField("Correlation sigma for monochrome images",                         this.pcorr_sigma_mono,  3, 6, "pix",
-					"after normalization");
-			gd.addNumericField("Correlation sigma for Bayer images",                              this.pcorr_sigma,  3, 6, "pix",
-					"after normalization");
-			gd.addNumericField("Extra correlation sigma for red and blue",                        this.pcorr_sigma_rb,  3, 6, "pix",
-					"before normalization");
-			gd.addNumericField("Correlation relative fat zero for Bayer images",                  this.pcorr_fat_zero,  3, 6, "",
-					"Normalized to average correlation absolute value");
-			gd.addNumericField("Correlation relative fat zero for monochrome images",             this.pcorr_fat_zero_mono,  3, 6, "",
-					"Normalized to average correlation absolute value");
-			gd.addNumericField("Debug feature - shift correlation result X",                      this.pcorr_dbg_offsx,  3, 6, "",
-					"Rotate in Transform Domain");
-			gd.addNumericField("Debug feature - shift correlation result Y",                      this.pcorr_dbg_offsy,  3, 6, "",
-					"Rotate in Transform Domain");
-			
-			gd.addMessage("Multi-tile averaging");
-			gd.addNumericField("Absolute disparity range to consolidate",                         this.tilt_arange,  3, 6, "",
-					"Only use neighbor tiles if their differ less from the center");
-			gd.addNumericField("Relative disparity range to consolidate",                         this.tilt_rrange,  3, 6, "",
-					"Only use neighbor tiles if their differ less from the center relative to the center disparity");
-			gd.addNumericField("No tilt if center disparity is smaller",                          this.tilt_no_tilt,  3, 6, "",
-					"Use constant disparity for the whole cluster if center disparity is below");
-			gd.addNumericField("Tilt regularization",                                             this.tilt_damp_tilt,  3, 6, "",
-					"Minimize tilt when data is insufficient to determine it");
-			gd.addNumericField    ("Increase cluster radius for measuring tilt by this",          this.tilt_clust_extra,  0, 3, "",
-					"Before averaging calculate tilt using larger square, e.g. ==2 - use 7x7 for tilt for 3x3 averaging");
-			
-			gd.addTab("Corr LMA","Parameters for LMA fitting of the correlation maximum parameters");
-			gd.addMessage("Single-tile (no lazy eye) only parameters (some are common");
-			gd.addNumericField("Cluster disparity range",                                         this.lma_disp_range,  3, 6, "pix",
-					"Disparity range to combine in one cluster (to mitigate ERS");
-//			gd.addCheckbox    ("Correlation maximum as gaussian",                                 this.lmas_gaussian,
-//					"Model correlation maximum as a Gaussian exp(-r^2)  (false - as a parabola - 1-r^2)");
-			gd.addNumericField    ("Correlation maximum function type",                            this.lmas_gaussian,  0, 3, "",
-					"0 - parabola - 1-r^2, 1 -  exp(-r^2), 2 - limited parabola (>=0), 3 - limited squared parabola  (1-r^2)^2");
-			
-			gd.addCheckbox    ("Fit correlation defined half-width",                              this.lmas_adjust_wm,
-					"Allow fitting of the half-width common for all pairs, defined by the LPF filter of the phase correlation");
-			gd.addCheckbox    ("Adjust ellipse parameters (was Fit extra vertical half-width)",   this.lmas_adjust_wy,
-					"Adjust ellipse (non-circular) of the correlation maximum (was Fit extra perpendicular to disparity half-width (not used? and only possible with multi-baseline cameras))");
-			gd.addCheckbox    ("Adjust per-pair scale (was Adjust per-group amplitudes)",         this.lmas_adjust_ag,
-					"Each correlation pair gain (was Each correlation type's amplitude (now always needed))");
-
-			gd.addMessage("pre-LMA (polynomial) filtering");
-			gd.addNumericField("Scale pre-LMA poly strength",                                     this.lmas_poly_str_scale,  3, 6, "",
-					"Calculated as maximal value over average radius");
-			gd.addNumericField("Minimal pre-LMA poly strength (scaled)",                          this.lmas_poly_str_min,  3, 6, "",
-					"Ignore tiles with pre-LMA poly strength (scaled with above) below this value");
-			
-
-			gd.addCheckbox    ("Use center point for initial LMA",                                this.lmas_poly_continue,
-					"Use center po8int if polynomial argmax() failed");
-			gd.addCheckbox    ("Adjust LY when performing single-tile LMA (non-LY operations)",   this.lmas_LY_single,
-					"Adjust individual sensor misaligtnments when performing LMA-based argmax() when LY output itself is not requested");
-			gd.addCheckbox    ("Adjust LY when performing single-tile LMA first LY stage",        this.lmas_LY_single_LY,
-					"Adjust individual sensor misaligtnments when performing first pass of LMA-based argmax() before processing clusters for LY");
-			
-		    gd.addMessage("LMA (single) LMA fitting parameters");
-		    gd.addNumericField("Initial value of LMA lambda",                                     this.lmas_lambda_initial,  3, 6, "",
-		            "The higher the lambda the more close it will be to the gradient descent (slower/safer)");
-		    gd.addNumericField("Relative RMS improvement to exit LMA",                            this.lmas_rms_diff,  6, 8, "",
-		            "LMA will report success when realtive RMS improvements fall below this value");
-		    gd.addNumericField("LMA maximal iterations",                                          this.lmas_num_iter,  0, 3, "",
-		            "Limit LMA cycles, so it will exit after certain number of small improvements");
-		    gd.addMessage("LMA (single) results filtering");
-		    gd.addNumericField("Minimal weakest pair to strongest pair correlation amplitude ratio",this.lmas_min_amp,  6, 8, "",
-		            "Discard tile if ratio of the weakest correlation pair amplitude to that of the strongest one is lower than this");
-		    gd.addNumericField("Same for BG objects (dual max)", this.lmas_min_amp_bg,  6, 8, "",
-		            "Discard tile if ratio of the weakest correlation pair amplitude to that of the strongest one is lower than this (BG objects, far maximum)");
-		    gd.addNumericField("Maximal relative RMS ",                                           this.lmas_max_rel_rms,  6, 8, "",
-		            "Discard tile if ratio of RMS to average of min and max amplitude exceeds this value");
-		    gd.addNumericField("Minimal composite strength",                                      this.lmas_min_strength,  6, 8, "",
-		            "Discard tile if composite strength (average amplitude over SQRT of RMS) is below");
-		    gd.addNumericField("Minimal max (A,C)",                                               this.lmas_min_max_ac,  6, 8, "",
-		            "Minimal value of max (A,C) coefficients to keep the tile (measures sharpest point/line correlation maximum)");
-			gd.addNumericField("Minimal min (A,C)",                                               this.lmas_min_min_ac,  6, 8, "",
-					"Minimal value of min (A,C) coefficients to keep the tile (measures sharpest point correlation maximum)");
-		    gd.addNumericField("Maximal area",                                                    this.lmas_max_area,  6, 8, "sq.pix",
-		            "Maximal product of maximum half-width by half-height, ignore check if <=0");
-
-			gd.addMessage("Multi-tile (for lazy eye) LMA (some are used for with single-tile mode too)");
-			gd.addNumericField    ("Correlation maximum function type",                            this.lma_gaussian,  0, 3, "",
-					"0 - parabola - 1-r^2, 1 -  exp(-r^2), 2 - limited parabola (>=0), 3 - limited squared parabola  (1-r^2)^2");
-			
-			gd.addCheckbox    ("Re-run LMA after removing weak/failed tiles",                     this.lma_second,
-					"Re-run LMA with filtered tiles (see Correlation strength calculation section below)");
-//			gd.addCheckbox    ("Gaussian mode during LMA re-run",                                 this.lma_second_gaussian,
-//					"Parabola is more stable when using with un-filtered tiles, so it makes sense to use Gaussina only on filtered tiles");
-			gd.addNumericField    ("Correlation maximum function typedurinf re-run",              this.lma_second_gaussian,  0, 3, "",
-					"0 - parabola - 1-r^2, 1 -  exp(-r^2), 2 - limited parabola (>=0), 3 - limited squared parabola  (1-r^2)^2."+
-			" Parabola is more stable when using with un-filtered tiles, so it makes sense to use Gaussina only on filtered tiles");
-
-			gd.addCheckbox    ("Fit correlation defined half-width",                              this.lma_adjust_wm,
-					"Allow fitting of the half-width common for all pairs, defined by the LPF filter of the phase correlation");
-			gd.addCheckbox    ("Adjust ellipse parameters (was Fit extra vertical half-width)",   this.lma_adjust_wy,
-					"Adjust ellipse (non-circular) of the correlation maximum (was Fit extra perpendicular to disparity half-width (not used? and only possible with multi-baseline cameras))");
-			gd.addCheckbox    ("Adjust \"lazy eye\" parameters parallel to disparity",            this.lma_adjust_wxy,
-					"(was Fit extra half-width along disparity) Increased width in disparity direction caused by multi-distance objects in the tile");
-			gd.addCheckbox    ("Adjust \"lazy eye\" parameters orthogonal CW to disparity",       this.lma_adjust_ly1,
-					"Increased width in disparity direction caused by multi-distance objects in the tile");
-
-			gd.addCheckbox    ("Adjust per-pair scale (was Adjust per-group amplitudes)",         this.lma_adjust_ag,
-					"Each correlation pair gain (was Each correlation type's amplitude (now always needed))");
-
-			gd.addNumericField("LMA window power",                                                this.lma_wnd,  3, 6, "",
-					"Raise cosine window to this power (1.0 - plane 2D cosine");
-			gd.addNumericField("Minimal window value for normalization during max/convex",        this.lma_min_wnd,  3, 6, "",
-					"divide values by the 2D correlation window if it is >= this value for finding maximums and convex areas");
-			gd.addNumericField("LMA window power for convex region",                              this.lma_wnd_pwr,  3, 6, "",
-					"Raise window for finding a maximum and a convex region to this power");
-			gd.addNumericField("LMA hard margin",                                                 this.lma_hard_marg,  0, 3, "",
-					"Zero out this width margins before blurring");
-			gd.addNumericField("LMA soft margins iterations",                                     this.lma_soft_marg,  0, 3, "",
-					"Do not look for maximums inside this width margins");
-			gd.addNumericField("LMA blur sigma",                                                  this.lma_sigma,  3, 6, "",
-					"Blur correlation before finding maximum and convex region");
+		gd.addNumericField("Extract disparity max/argmax if maximal value is above",          this.min_corr,  6,8,"",
+				"skip unreliable correlations");
 
 
-			gd.addNumericField("Initial/expected half-width of the correlation maximum in both directions", this.lma_half_width,  3, 6, "pix",
-					"With LPF sigma = 0.9 it seems to be ~= 2.0. Used both as initial parameter and the fitted value difference from this may be penalized");
-			gd.addNumericField("Lazy eye cost parallel to disparity (was Cost of the difference of the actual half-width...)",  this.lma_cost_wy,  5, 8, "",
-					"The higher this cost, the more close the fitted half-width will be to the expected one");
-			gd.addNumericField("Lazy eye cost ortho to disparity (was Cost of hor / vert widths difference)",  this.lma_cost_wxy,  5, 8, "",
-					"Tries to enforce equal width and hight of the correlation maximum");
+		gd.addNumericField("Debug: which pairs to combine",                                   this.dbg_pair_mask,  0, 3, "",
+				"Bits: 0, 1 - horizontal pairs, 2,3 - verical pairs, 4,5 - diagonal pairs");
+		gd.addNumericField("Number of correlation rows to combine (strip height)",            this.corr_strip_hight,  0, 3, "",
+				"Number of rows to combine/interpolate correlation results. Rows are twice denser than pixels correponding to largest baseline disparity");
 
-			gd.addNumericField("Initial value of LMA lambda",                                     this.lma_lambda_initial,  3, 6, "",
-					"The higher the lambda the more close it will be to the gradient descent (slower/safer)");
-			gd.addNumericField("Scale (decrease) LMA lambda on success (usually 0.5)",            this.lma_lambda_scale_good,  3, 6, "",
-					"Make it smaller for unsafe but faster converging (if all goes well)");
-			gd.addNumericField("Scale (increase) LMA lambda after failure (usually 8.0)",         this.lma_lambda_scale_bad,  3, 6, "",
-					"Bad convergence usually means errors in Jacobian (derivatives)");
-			gd.addNumericField("Lambda value to give up increasing it",                           this.lma_lambda_max,  3, 6, "",
-					"Gives up LMA if increased lambda still does not improve RMS");
-			gd.addNumericField("Relative RMS improvement to exit LMA",                            this.lma_rms_diff,  6, 8, "",
-					"LMA will report success when realtive RMS improvements fall below this value");
+		gd.addMessage("LMA prefiltering for dual disparities in a tile");
 
-			gd.addNumericField("LMA maximal iterations",                                          this.lma_num_iter,  0, 3, "",
-					"Limit LMA cycles, so it will exit after certain number of small improvements");
+		gd.addNumericField("LPF for combined maximums",                                       this.bimax_lpf_neib,  6,8,"",
+				"0 - no LPF, >0 - add 4 scaled ortho neighbors and 4 corners bscaled as square of this value");
+		gd.addNumericField("Notch filter power",                                              this.bimax_notch_pwr,  6,8,"",
+				"Reduce offending (other) correlation maximum by multiplying. High power reduces all < 1.0 values");
+		gd.addNumericField("Reduction of sample weight by the other maximum",                 this.bimax_adv_power,  6,8,"",
+				"If X= (this strength /other strength), scale by X/(1+X) to theis power");
+		gd.addNumericField("Convex max search around predicted disparity",                    this.bimax_rad_convex_search,  0, 3, "",
+				"How far from predicted to search for maximums");
+		gd.addNumericField("Minimal samples per pair per max",                                this.bimax_min_num_samples,  0, 3, "",
+				"Minimal number of samples per pair per maximum to use this pair by LMA (each of the maximums used)");
+		gd.addNumericField("Minimal number of used pairs",                                    this.bimax_min_num_pairs,  0, 3, "",
+				"Do not use LMA if total number of used pairs is lower");
+		gd.addCheckbox    ("Dual-pass LMA",                                                   this.bimax_dual_pass,
+				"First adjust other parameters (keeping disparities), then add disparities");
+		gd.addCheckbox    ("Common gains for foreground/single correlation maximum",          this.bimax_common_fg,
+				"Use common gain for all pairs for FG/single correlation (unchecked - use individual gain for each pair)");
+		gd.addCheckbox    ("Common gains for background correlation maximum",                 this.bimax_common_bg,
+				"Use common gain for all pairs for BG correlation(s) (unchecked - use individual gain for each pair)");
+		gd.addCheckbox    ("Select after LMA",                                                this.bimax_post_LMA,
+				"When dual max, LMA with two maximums, then select. If false,select before LMA");
+		gd. addChoice("Multiple maximums select mode", COMBINE_MODES, COMBINE_MODES[bimax_combine_mode], 
+				"Which maximum to keep after LMA");
+		gd.addCheckbox    ("Use updated LMA capable of FG/BG, force CM strength for strength",this.bimax_dual_LMA,
+				"Use LMA capable of FG/BG. Use CM strength (now 3) as DISPARITY_STRENGTH_INDEX (now 10)."+
+				"When false (old) use LMA (DISPARITY_INDEX_POLY+1 now 9) as DISPARITY_STRENGTH_INDEX");
+		gd.addCheckbox    ("Process only tiles with dual maximums (requires bimax_dual_LMA)", this.bimax_dual_only,
+				"May be used to determine BG after refining FG. First refine with false and mode = 3 (FG), then with true and mode = 4 (BG)");
 
-			gd.addMessage("LMA results filtering");
-			gd.addCheckbox    ("Average correlation tiles instead of the multi-tile LMA",         this.lma_multi_cons,
-					"False - run multi-tile LMA on all tiles, true - average each pair over all tiles (as in GPU)");
-			
-			gd.addNumericField("Maximal relative RMS ",                                           this.lma_max_rel_rms,  6, 8, "",
-					"Discard tile if ratio of RMS to average of min and max amplitude exceeds this value");
-			gd.addNumericField("Minimal composite strength",                                      this.lma_min_strength,  6, 8, "",
-					"Discard tile if composite strength (average amplitude over SQRT of RMS) is below");
-			gd.addNumericField("Offset A,C coefficients",                                         this.lma_ac_offset,  6, 8, "",
-					"Add to A, C coefficients for near-lines where A,C could become negative because of window ");
-			
-			gd.addNumericField("Minimal max (A,C)",                                               this.lma_min_ac,  6, 8, "",
-					"Minimal value of max (A,C) coefficients to keep the tile (measures sharpest point/line correlation maximum)");
-			gd.addNumericField("Minimal min (A,C)",                                               this.lma_min_min_ac,  6, 8, "",
-					"Minimal value of min (A,C) coefficients to keep the tile (measures sharpest point correlation maximum)");
-			gd.addNumericField("Maximal area",                                                    this.lma_max_area,  6, 8, "sq.pix",
-					"Maximal product of maximum half-width by half-height, ignore check if <=0");
+		gd.addMessage("LMA samples filter based on estimated disparity");
+		gd.addCheckbox    ("Debug LMA",                                                       this.lmamask_dbg,
+				"Generate debug images and exit after first clt_process_tl_correlations() while generating background image");
+		gd.addCheckbox    ("Use disparity-based LMA samples filtering",                       this.lmamask_en,
+				"Generate weighs by averaging 2D correlation shape and per-pair shifting for estimated from CM disparity");
+		gd.addNumericField("Divide estimated disparity by magic 0.85",                        this.lmamask_magic,  6,8,"",
+				"Increase estimated disparity for iniital LMA setiings");
+		gd.addNumericField("Minimal relative sample value for unconditional inclusion",       this.lmamask_min_main,  6,8,"",
+				"Relatrive (to maximal) value in averaged correlation to be assigned window vlaue of 1.0 regardless of neighbors");
+		gd.addNumericField("Minimal relative sample value for neighbor inclusion",            this.lmamask_min_neib,  6,8,"",
+				"Minimal relative sample value for conditional inclusion (if it has unconditional neighbor");
+		gd.addNumericField("Neighbor weight",                                                 this.lmamask_weight_neib,  6,8,"",
+				"Assign window value for strong enough values of neighbors of unconditionally included");
+		gd.addNumericField("Neighbor of neighbor weights",                                    this.lmamask_weight_neib_neib,  6,8,"",
+				"Weight of neighbors of conditionally or anconditionally included poins regardless of their values");
 
-			gd.addMessage("Correlation strength calculation (match legacy)");
-			gd.addNumericField("Composite correlation strength scale",                            this.lma_str_scale,  6, 8, "",
-					"Multiply LMA composite correlation strength to match older CM value");
-			gd.addNumericField("Composite correlation strength offset",                           this.lma_str_offset,  6, 8, "",
-					"Add to scaled composite correlation strength to match older CM value");
+		gd.addNumericField("LMA weight threshold",                                            this.lmamask_threshold,  6,8,"",
+				"Subtract from mask and normalize to increase number of zeros and so reduce LMA samples");
+		gd.addNumericField("LMA weight raise to power to \"flatten\"",                        this.lmamask_pwr,  6,8,"",
+				"Raise to this power (<1) to \"flatten\" weights distribution top");
 
-			gd.addMessage("Lazy eye results interpretation");
-			gd.addCheckbox    ("Convert dd, nd -> dx, dx",                                        this.lma_diff_xy,
-					"Convert per camera disparity correction (and orthogonal to disparity)  to X,Y correction");
-			gd.addNumericField("Minimal per-tile weight for lazy eye correction",                 this.lma_diff_minw,  6, 8, "",
-					"Minimal average per-tile weight to use this tile cluster for lazy eye correction");
-			gd.addNumericField("Lazy eye data blur sigma",                                        this.lma_diff_sigma,  6, 8, "",
-					"Lazy eye data blur sigma relative to tile cluster side");
+		gd.addMessage("LMA samples filter based on convex sample values");
+		gd.addCheckbox    ("Use convex-based LMA samples filtering",                          this.cnvx_en,
+				"Select LMA samples based on convex correlation samples");
+		gd.addCheckbox    ("'OR' window functions",                                           this.cnvx_or,
+				"If both lmamask_en and cnvx_en are available, use max(); if false - multiply masks");
+		gd.addNumericField("Half window size to extract bi-convex cells",                     this.cnvx_hwnd_size,  0, 3, "pix",
+				"Create selection mask for quadratic approximation inside square around initial maximum position, specify distance from the center");
+		gd.addNumericField("Relative weight of non-convex (border) cell",                     this.cnvx_weight,  6,8,"",
+				"Weight of the bi-convex points is 1.0, this value specifies reduced weight of the border (non-bi-convex) points");
+		gd.addCheckbox    ("Always select 3x3 cells around integer maximum",                  this.cnvx_add3x3,
+				"Add 3x3 cells selection around the original argmax, regardless of bi-convex property");
+
+		gd.addNumericField("Min samples per pair",                                            this.cnvx_min_samples,  0, 3, "pix",
+				"Minimal number of used samples on a 2D correlation pair");
+		gd.addCheckbox    ("Always select 3x3 cells around integer maximum",                  this.cnvx_non_coll,
+				"Must have non-collinear samples in each correlation pair");
+		gd.addNumericField("Minimal correlation pairs per tile",                              this.cnvx_min_pairs,  0, 3, "",
+				"Minimal number 2D correlation pairs per tile");
+
+		gd.addMessage("Correlation pairs selection for multicamera confifurations");
+		gd.addNumericField("Min number of sensors for \"multi\"",                             this.mcorr_multi,  0, 3, "sensors",
+				"Cameras with this or larger number of sensor will use a \"_multi\" version of parameters (when available)");
+
+		gd.addCheckbox    ("Use linescan (old) numeration for quad cameras",               this.mcorr_quad_sequence,
+				"if true, quadcam ports CW are 2,4,2,0, if false - 0, 1, 2, 3");
+
+		gd.addCheckbox    ("Top is 0 for small cameras",               this.mcorr_topis0,
+				"True if sensor 0 is strait up, false if it is rotated clockwise so it has the same height as the last sensor");
+		gd.addCheckbox    ("Top is 0 for multi cameras",               this.mcorr_topis0_multi,
+				"True if sensor 0 is strait up, false if it is rotated clockwise so it has the same height as the last sensor");
+
+		gd.addCheckbox    ("Calculate all correlation pairs for small cameras",               this.mcorr_all,
+				"N*(N-1)/2: 6 for quad, 120 for lwir16 ");
+		gd.addCheckbox    ("Calculate all correlation pairs for multi cameras",               this.mcorr_all_multi,
+				"N*(N-1)/2: 6 for quad, 120 for lwir16");
+
+		gd.addCheckbox    ("Calculate correlation pairs - diameters for small cameras",       this.mcorr_dia,
+				"All diameter pairs. N/2: 2 for quad, 8 for lwir16");
+		gd.addCheckbox    ("Calculate correlation pairs - diameters for multi cameras",       this.mcorr_dia_multi,
+				"All diameter pairs. N/2: 2 for quad, 8 for lwir16");
+
+		gd.addCheckbox    ("Calculate correlation pairs of squares for small cameras",        this.mcorr_sq,
+				"All pairs with the lengths equal to side of a square. N: 4 for quad, 16 for lwir16");
+		gd.addCheckbox    ("Calculate correlation pairs of squares for multi cameras",        this.mcorr_sq_multi,
+				"All pairs with the lengths equal to side of a square. N: 4 for quad, 16 for lwir16");
+
+		gd.addCheckbox    ("Calculate neighbor pairs for small cameras",                     this.mcorr_neib,
+				"All neighbor pairs. N: 4 for quad, 16 for lwir16");
+		gd.addCheckbox    ("Calculate neighbor pairs for multi cameras",                     this.mcorr_neib_multi,
+				"All neighbor pairs. N: 4 for quad, 16 for lwir16");
+
+		gd.addCheckbox    ("Calculate horizontal pairs for small cameras",                   this.mcorr_hor,
+				"All horizontal pairs. N: 2 for quad, 7 for lwir16");
+		gd.addCheckbox    ("Calculate horizontal pairs for multi cameras",                   this.mcorr_hor_multi,
+				"All horizontal pairs. N: 2 for quad, 7 for lwir16");
+
+		gd.addCheckbox    ("Calculate vertical pairs for small cameras",                     this.mcorr_vert,
+				"All vertical pairs. N: 2 for quad, 8 for lwir16");
+		gd.addCheckbox    ("Calculate vertical pairs for multi cameras",                     this.mcorr_vert_multi,
+				"All vertical pairs. N: 2 for quad, 8 for lwir16");
+
+		gd.addNumericField    ("Limit sensors: (0 - all, 1 - binocular, 2 - quad, 3 - octal)",this.mcorr_limit_sensors,  0, 3, "",
+				"Limit correlations to subset of the sensors for performance comparison: 1 - (4,12), 2 - (2,6,10,14), 3 - (0,2,4,6,8,10,12,14)");
+
+		gd.addNumericField    ("Select correlation pairs for LY for small cameras",          this.mcorr_sel_ly,  0, 3, "",
+				" +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert");
+		gd.addNumericField    ("Select correlation pairs for LY for multi cameras",          this.mcorr_sel_ly_multi,  0, 3, "",
+				" +1 - all, +2 - dia, +4 - sq, +8 - neibs, +16 - hor + 32 - vert");
+
+		gd.addCheckbox    ("Combine all pairs",                                               this.mcorr_cons_all,
+				"Combine all calculated correlation pairs");
+		gd.addCheckbox    ("Combine diameters",                                               this.mcorr_cons_dia,
+				"Combine all pairs with the length of a diameter");
+		gd.addCheckbox    ("Combine squares",                                                 this.mcorr_cons_sq,
+				"Combine all pairs with the length of a side of an inscribed square");
+		gd.addCheckbox    ("Combine neighbors",                                               this.mcorr_cons_neib,
+				"Combine all neighbor pairs ");
+		gd.addCheckbox    ("Combine horizontal pairs",                                        this.mcorr_cons_hor,
+				"Combine all calculated horizontal pairs regardless of length");
+		gd.addCheckbox    ("Combine vertical pairs",                                          this.mcorr_cons_vert,
+				"Combine all calculated vertical pairs regardless of length");
+		gd.addMessage("Weights for mixing correlation pairs");
+		for (int i = 0; i < mcorr_weights.length; i++) {
+			gd.addNumericField("Weight of correlation pair "+(i+1)+" long",                   this.mcorr_weights[i],  3,6,"",
+					"Relative weight of pairs, length - number of sensors intervals (1 - neighbors,..., 8 - diameters)");
+		}
+		gd.addCheckbox    ("Apply static weights defined above",                              this.mcorr_static_weights,
+				"Apply length-dependent weights for rotated/scaled pairs");
+		gd.addNumericField("Divide correlation pair weight by its width to this power",       this.mcorr_weights_power,  3,6,"pix",
+				"Increase weight of pairs with linear features perpendicular to the base direction and long base pairs");
+		gd.addCheckbox    ("Apply dynaminc (feature-dependent) weights defined above",        this.mcorr_dynamic_weights,
+				"Calculate each pairs's width (in the disparity direction) after rotation/scaling and apply");
+		gd.addNumericField("Minimal relative strength of the second maximum (0 - ignore)",    this.mcorr_dual_fract,  3,6,"",
+				"Minimal relative strength of the second correlation maximum to treat as FG+BG (0 - ignore dual maximums, no special treatment)");
+		gd.addNumericField("Minimal relative strength of FG to BG",                           this.mcorr_fb_fract,  3,6,"",
+				"Minimal relative strength of FG to BG to keep weaker (final, after LMA if enabled), <1.0");
+		gd.addNumericField("Minimal relative strength of BG to FG",                           this.mcorr_bf_fract,  3,6,"",
+				"Minimal relative strength of BG to FG to keep weaker (final, after LMA if enabled), <1.0");
+
+		gd.addNumericField("Minimal strength of the strongest in a dual-max",                 this.mcorr_dual_min_max,  3,6,"",
+				"Minimal absolute strength of the strongest in a dual-max to consider second one");
+		gd.addNumericField("Minimal strength of the weakest in a dual- max",                  this.mcorr_dual_min_min,  3,6,"",
+				"Minimal absolute strength of the weakest in a dual-max to consider dual-max");
+
+		gd.addMessage("Generating grid for combining visualization, actual will be provided programmatically");
+		gd.addNumericField("Width of a combined correlation tile",                            this.mcorr_comb_width,  0, 3, "pix",
+				"Width of a tile to combine correlations after rotation/scaling");
+		gd.addNumericField("Height of a combined correlation tile",                           this.mcorr_comb_height,  0, 3, "pix",
+				"Full height of a tile to combine correlations after rotation/scaling");
+		gd.addNumericField("Height offset of a combined correlation tile",                    this.mcorr_comb_offset,  0, 3, "pix",
+				"0 - centered (-height/2 to height/2), height/2 - only positive (0 to height)");
+		gd.addNumericField("Relative per-pixel disparity",                                    this.mcorr_comb_disp,  3,6,"pix",
+				"Combined tile per-pixel disparity for baseline == diameter");
+		gd.addCheckbox    ("Debug correlation scaling/rotation for combining",                this.mcorr_comb_dbg,
+				"Generate/show correlation pairs scaled/rotated for combining");
+
+		gd.addMessage("Window for pole detection mode");
+		gd.addNumericField("Strip height for pole detection",                                 this.corr_strip_notch,  0, 3, "half-pix",
+				"Number of rows to combine/interpolate correlation results. Rows are twice denser than pixels correponding to largest baseline disparity");
+
+		gd.addNumericField("50% correlation window cutoff height for poles (0 in the center)",this.corr_notch_hwidth,  3, 6, "half-pix",
+				"Correlation window height argument for 50% value");
+		gd.addNumericField("0% to 100 % transition range for poles",                          this.corr_notch_blur,  3,6,"half-pix",
+				"Transition range, shifted sine is used");
+
+		gd.addMessage("Window for normal correlations");
+		gd.addNumericField("Number of rows to calculate CM disparity",                        this.corr_wndy_size,  0, 3, "",
+				"Number of rows to calculate maximum. Normally should be equal to the previous parameter");
+
+		gd.addNumericField("50% correlation window cutoff height",                            this.corr_wndy_hwidth,  3, 6, "",
+				"Correlation window height argument for 50% value");
+		gd.addNumericField("100% to 0 % correlation vertical window transition range",        this.corr_wndy_blur,  3,6,"",
+				"Transition range, shifted sine is used");
+
+		gd.addNumericField("Half-number of columns to calculate CM disparity",                this.corr_wndx_size,  0, 3, "",
+				"Horizontal size of the window (symmetrical around integer argmax, only odd/even values are used in odd/even rows");
+
+		gd.addNumericField("50% correlation window cutoff width",                             this.corr_wndx_hwidth,  3, 6, "",
+				"Correlation window width argument for 50% value");
+		gd.addNumericField("100% to 0 % correlation horizontal window transition range",      this.corr_wndx_blur,  3, 6, "",
+				"Transition range, shifted sine is used");
+
+		gd.addTab("Corr Intra","Parameters Group 2D Phase correlation");
+
+		gd.addCheckbox    ("Use group phase correlation for disparity calculation",                this.pcorr_use,
+				"Default false, for compatibility with existing code/ old configs");
+		gd.addCheckbox    ("Use group phase correlation to combine hor and vert pairs separately", this.pcorr_use_hv,
+				"Use even when hor are not combined with vert");
+		gd.addNumericField("Correlation sigma for monochrome images",                         this.pcorr_sigma_mono,  3, 6, "pix",
+				"after normalization");
+		gd.addNumericField("Correlation sigma for Bayer images",                              this.pcorr_sigma,  3, 6, "pix",
+				"after normalization");
+		gd.addNumericField("Extra correlation sigma for red and blue",                        this.pcorr_sigma_rb,  3, 6, "pix",
+				"before normalization");
+		gd.addNumericField("Correlation relative fat zero for Bayer images",                  this.pcorr_fat_zero,  3, 6, "",
+				"Normalized to average correlation absolute value");
+		gd.addNumericField("Correlation relative fat zero for monochrome images",             this.pcorr_fat_zero_mono,  3, 6, "",
+				"Normalized to average correlation absolute value");
+		gd.addNumericField("Debug feature - shift correlation result X",                      this.pcorr_dbg_offsx,  3, 6, "",
+				"Rotate in Transform Domain");
+		gd.addNumericField("Debug feature - shift correlation result Y",                      this.pcorr_dbg_offsy,  3, 6, "",
+				"Rotate in Transform Domain");
+
+		gd.addMessage("Multi-tile averaging");
+		gd.addNumericField("Absolute disparity range to consolidate",                         this.tilt_arange,  3, 6, "",
+				"Only use neighbor tiles if their differ less from the center");
+		gd.addNumericField("Relative disparity range to consolidate",                         this.tilt_rrange,  3, 6, "",
+				"Only use neighbor tiles if their differ less from the center relative to the center disparity");
+		gd.addNumericField("No tilt if center disparity is smaller",                          this.tilt_no_tilt,  3, 6, "",
+				"Use constant disparity for the whole cluster if center disparity is below");
+		gd.addNumericField("Tilt regularization",                                             this.tilt_damp_tilt,  3, 6, "",
+				"Minimize tilt when data is insufficient to determine it");
+		gd.addNumericField    ("Increase cluster radius for measuring tilt by this",          this.tilt_clust_extra,  0, 3, "",
+				"Before averaging calculate tilt using larger square, e.g. ==2 - use 7x7 for tilt for 3x3 averaging");
+
+		gd.addTab("Corr LMA","Parameters for LMA fitting of the correlation maximum parameters");
+		gd.addMessage("Single-tile (no lazy eye) only parameters (some are common");
+		gd.addNumericField("Cluster disparity range",                                         this.lma_disp_range,  3, 6, "pix",
+				"Disparity range to combine in one cluster (to mitigate ERS");
+		//			gd.addCheckbox    ("Correlation maximum as gaussian",                                 this.lmas_gaussian,
+		//					"Model correlation maximum as a Gaussian exp(-r^2)  (false - as a parabola - 1-r^2)");
+		gd.addNumericField    ("Correlation maximum function type",                            this.lmas_gaussian,  0, 3, "",
+				"0 - parabola - 1-r^2, 1 -  exp(-r^2), 2 - limited parabola (>=0), 3 - limited squared parabola  (1-r^2)^2");
+
+		gd.addCheckbox    ("Fit correlation defined half-width",                              this.lmas_adjust_wm,
+				"Allow fitting of the half-width common for all pairs, defined by the LPF filter of the phase correlation");
+		gd.addCheckbox    ("Adjust ellipse parameters (was Fit extra vertical half-width)",   this.lmas_adjust_wy,
+				"Adjust ellipse (non-circular) of the correlation maximum (was Fit extra perpendicular to disparity half-width (not used? and only possible with multi-baseline cameras))");
+		gd.addCheckbox    ("Adjust per-pair scale (was Adjust per-group amplitudes)",         this.lmas_adjust_ag,
+				"Each correlation pair gain (was Each correlation type's amplitude (now always needed))");
+
+		gd.addMessage("pre-LMA (polynomial) filtering");
+		gd.addNumericField("Scale pre-LMA poly strength",                                     this.lmas_poly_str_scale,  3, 6, "",
+				"Calculated as maximal value over average radius");
+		gd.addNumericField("Minimal pre-LMA poly strength (scaled)",                          this.lmas_poly_str_min,  3, 6, "",
+				"Ignore tiles with pre-LMA poly strength (scaled with above) below this value");
 
 
-			gd.addMessage("Debug LMA parameters");
-			gd.addNumericField("LMA debug level",                                                 this.lma_debug_level,  0, 3, "",
-					"Debug/verbosity level for the LMA correaltion maximum fitting");
-			gd.addNumericField("LMA debug level1",                                                this.lma_debug_level1,  0, 3, "",
-					"Debug/verbosity level for the new LMA correaltion maximum fitting");
-			gd.addCheckbox    ("Enable LMA debug images",                                         this.lma_debug_graphic,
-					"If false, no debug images generated regardless of debug levels");
+		gd.addCheckbox    ("Use center point for initial LMA",                                this.lmas_poly_continue,
+				"Use center po8int if polynomial argmax() failed");
+		gd.addCheckbox    ("Adjust LY when performing single-tile LMA (non-LY operations)",   this.lmas_LY_single,
+				"Adjust individual sensor misaligtnments when performing LMA-based argmax() when LY output itself is not requested");
+		gd.addCheckbox    ("Adjust LY when performing single-tile LMA first LY stage",        this.lmas_LY_single_LY,
+				"Adjust individual sensor misaligtnments when performing first pass of LMA-based argmax() before processing clusters for LY");
 
-			gd.addCheckbox    ("Use new correlation methods compatible with x8 camera",           this.corr_var_cam,
-					"Debug feature to compare old/new methods");
+		gd.addMessage("LMA (single) LMA fitting parameters");
+		gd.addNumericField("Initial value of LMA lambda",                                     this.lmas_lambda_initial,  3, 6, "",
+				"The higher the lambda the more close it will be to the gradient descent (slower/safer)");
+		gd.addNumericField("Relative RMS improvement to exit LMA",                            this.lmas_rms_diff,  6, 8, "",
+				"LMA will report success when realtive RMS improvements fall below this value");
+		gd.addNumericField("LMA maximal iterations",                                          this.lmas_num_iter,  0, 3, "",
+				"Limit LMA cycles, so it will exit after certain number of small improvements");
+		gd.addMessage("LMA (single) results filtering");
+		gd.addNumericField("Minimal weakest pair to strongest pair correlation amplitude ratio",this.lmas_min_amp,  6, 8, "",
+				"Discard tile if ratio of the weakest correlation pair amplitude to that of the strongest one is lower than this");
+		gd.addNumericField("Same for BG objects (dual max)", this.lmas_min_amp_bg,  6, 8, "",
+				"Discard tile if ratio of the weakest correlation pair amplitude to that of the strongest one is lower than this (BG objects, far maximum)");
+		gd.addNumericField("Maximal relative RMS ",                                           this.lmas_max_rel_rms,  6, 8, "",
+				"Discard tile if ratio of RMS to average of min and max amplitude exceeds this value");
+		gd.addNumericField("Minimal composite strength",                                      this.lmas_min_strength,  6, 8, "",
+				"Discard tile if composite strength (average amplitude over SQRT of RMS) is below");
+		gd.addNumericField("Minimal max (A,C)",                                               this.lmas_min_max_ac,  6, 8, "",
+				"Minimal value of max (A,C) coefficients to keep the tile (measures sharpest point/line correlation maximum)");
+		gd.addNumericField("Minimal min (A,C)",                                               this.lmas_min_min_ac,  6, 8, "",
+				"Minimal value of min (A,C) coefficients to keep the tile (measures sharpest point correlation maximum)");
+		gd.addNumericField("Maximal area",                                                    this.lmas_max_area,  6, 8, "sq.pix",
+				"Maximal product of maximum half-width by half-height, ignore check if <=0");
 
-			gd.addNumericField("Normalization for the CM correlation strength (old)",             this.cm_max_normalization,  6, 8, "",
-					"Fraction of correlation maximum radius, being squared multiplied by maximum to have the same total mass. ~= 0.5, the lower the value, the higher strength reported by the CM");
-			gd.addMessage("Cameras offsets in the disparity direction and orthogonal to disparity (debugging LMA)");
-			gd.addNumericField("LMA debug offsets scale",                                         this.lma_dbg_scale,  6, 8, "",
-					"Scale the following offsets by this value");
-			gd.addNumericField("LMA debug offset: camera0, parallel",                   this.lma_dbg_offset[0][0],  6, 8, "pix",
-					"Add camera offset in the direction of disparity (to/from center)");
-			gd.addNumericField("LMA debug offset: camera0, ortho",                      this.lma_dbg_offset[0][1],  6, 8, "pix",
-					"Add camera offset in the direction of disparity (to/from center)");
-			gd.addNumericField("LMA debug offset: camera1, parallel",                   this.lma_dbg_offset[1][0],  6, 8, "pix",
-					"Add camera offset in the direction of disparity (to/from center)");
-			gd.addNumericField("LMA debug offset: camera1, ortho",                      this.lma_dbg_offset[1][1],  6, 8, "pix",
-					"Add camera offset in the direction of disparity (to/from center)");
-			gd.addNumericField("LMA debug offset: camera2, parallel",                   this.lma_dbg_offset[2][0],  6, 8, "pix",
-					"Add camera offset in the direction of disparity (to/from center)");
-			gd.addNumericField("LMA debug offset: camera2, ortho",                      this.lma_dbg_offset[2][1],  6, 8, "pix",
-					"Add camera offset in the direction of disparity (to/from center)");
-			gd.addNumericField("LMA debug offset: camera3, parallel",                   this.lma_dbg_offset[3][0],  6, 8, "pix",
-					"Add camera offset in the direction of disparity (to/from center)");
-			gd.addNumericField("LMA debug offset: camera3, ortho",                      this.lma_dbg_offset[3][1],  6, 8, "pix",
-					"Add camera offset in the direction of disparity (to/from center)");
+		gd.addMessage("Multi-tile (for lazy eye) LMA (some are used for with single-tile mode too)");
+		gd.addNumericField    ("Correlation maximum function type",                            this.lma_gaussian,  0, 3, "",
+				"0 - parabola - 1-r^2, 1 -  exp(-r^2), 2 - limited parabola (>=0), 3 - limited squared parabola  (1-r^2)^2");
+
+		gd.addCheckbox    ("Re-run LMA after removing weak/failed tiles",                     this.lma_second,
+				"Re-run LMA with filtered tiles (see Correlation strength calculation section below)");
+		//			gd.addCheckbox    ("Gaussian mode during LMA re-run",                                 this.lma_second_gaussian,
+		//					"Parabola is more stable when using with un-filtered tiles, so it makes sense to use Gaussina only on filtered tiles");
+		gd.addNumericField    ("Correlation maximum function typedurinf re-run",              this.lma_second_gaussian,  0, 3, "",
+				"0 - parabola - 1-r^2, 1 -  exp(-r^2), 2 - limited parabola (>=0), 3 - limited squared parabola  (1-r^2)^2."+
+				" Parabola is more stable when using with un-filtered tiles, so it makes sense to use Gaussina only on filtered tiles");
+
+		gd.addCheckbox    ("Fit correlation defined half-width",                              this.lma_adjust_wm,
+				"Allow fitting of the half-width common for all pairs, defined by the LPF filter of the phase correlation");
+		gd.addCheckbox    ("Adjust ellipse parameters (was Fit extra vertical half-width)",   this.lma_adjust_wy,
+				"Adjust ellipse (non-circular) of the correlation maximum (was Fit extra perpendicular to disparity half-width (not used? and only possible with multi-baseline cameras))");
+		gd.addCheckbox    ("Adjust \"lazy eye\" parameters parallel to disparity",            this.lma_adjust_wxy,
+				"(was Fit extra half-width along disparity) Increased width in disparity direction caused by multi-distance objects in the tile");
+		gd.addCheckbox    ("Adjust \"lazy eye\" parameters orthogonal CW to disparity",       this.lma_adjust_ly1,
+				"Increased width in disparity direction caused by multi-distance objects in the tile");
+
+		gd.addCheckbox    ("Adjust per-pair scale (was Adjust per-group amplitudes)",         this.lma_adjust_ag,
+				"Each correlation pair gain (was Each correlation type's amplitude (now always needed))");
+
+		gd.addNumericField("LMA window power",                                                this.lma_wnd,  3, 6, "",
+				"Raise cosine window to this power (1.0 - plane 2D cosine");
+		gd.addNumericField("Minimal window value for normalization during max/convex",        this.lma_min_wnd,  3, 6, "",
+				"divide values by the 2D correlation window if it is >= this value for finding maximums and convex areas");
+		gd.addNumericField("LMA window power for convex region",                              this.lma_wnd_pwr,  3, 6, "",
+				"Raise window for finding a maximum and a convex region to this power");
+		gd.addNumericField("LMA hard margin",                                                 this.lma_hard_marg,  0, 3, "",
+				"Zero out this width margins before blurring");
+		gd.addNumericField("LMA soft margins iterations",                                     this.lma_soft_marg,  0, 3, "",
+				"Do not look for maximums inside this width margins");
+		gd.addNumericField("LMA blur sigma",                                                  this.lma_sigma,  3, 6, "",
+				"Blur correlation before finding maximum and convex region");
 
 
-			//	public double  cm_max_normalization =   0.55; //
+		gd.addNumericField("Initial/expected half-width of the correlation maximum in both directions", this.lma_half_width,  3, 6, "pix",
+				"With LPF sigma = 0.9 it seems to be ~= 2.0. Used both as initial parameter and the fitted value difference from this may be penalized");
+		gd.addNumericField("Lazy eye cost parallel to disparity (was Cost of the difference of the actual half-width...)",  this.lma_cost_wy,  5, 8, "",
+				"The higher this cost, the more close the fitted half-width will be to the expected one");
+		gd.addNumericField("Lazy eye cost ortho to disparity (was Cost of hor / vert widths difference)",  this.lma_cost_wxy,  5, 8, "",
+				"Tries to enforce equal width and hight of the correlation maximum");
+
+		gd.addNumericField("Initial value of LMA lambda",                                     this.lma_lambda_initial,  3, 6, "",
+				"The higher the lambda the more close it will be to the gradient descent (slower/safer)");
+		gd.addNumericField("Scale (decrease) LMA lambda on success (usually 0.5)",            this.lma_lambda_scale_good,  3, 6, "",
+				"Make it smaller for unsafe but faster converging (if all goes well)");
+		gd.addNumericField("Scale (increase) LMA lambda after failure (usually 8.0)",         this.lma_lambda_scale_bad,  3, 6, "",
+				"Bad convergence usually means errors in Jacobian (derivatives)");
+		gd.addNumericField("Lambda value to give up increasing it",                           this.lma_lambda_max,  3, 6, "",
+				"Gives up LMA if increased lambda still does not improve RMS");
+		gd.addNumericField("Relative RMS improvement to exit LMA",                            this.lma_rms_diff,  6, 8, "",
+				"LMA will report success when realtive RMS improvements fall below this value");
+
+		gd.addNumericField("LMA maximal iterations",                                          this.lma_num_iter,  0, 3, "",
+				"Limit LMA cycles, so it will exit after certain number of small improvements");
+
+		gd.addMessage("LMA results filtering");
+		gd.addCheckbox    ("Average correlation tiles instead of the multi-tile LMA",         this.lma_multi_cons,
+				"False - run multi-tile LMA on all tiles, true - average each pair over all tiles (as in GPU)");
+
+		gd.addNumericField("Maximal relative RMS ",                                           this.lma_max_rel_rms,  6, 8, "",
+				"Discard tile if ratio of RMS to average of min and max amplitude exceeds this value");
+		gd.addNumericField("Minimal composite strength",                                      this.lma_min_strength,  6, 8, "",
+				"Discard tile if composite strength (average amplitude over SQRT of RMS) is below");
+		gd.addNumericField("Offset A,C coefficients",                                         this.lma_ac_offset,  6, 8, "",
+				"Add to A, C coefficients for near-lines where A,C could become negative because of window ");
+
+		gd.addNumericField("Minimal max (A,C)",                                               this.lma_min_ac,  6, 8, "",
+				"Minimal value of max (A,C) coefficients to keep the tile (measures sharpest point/line correlation maximum)");
+		gd.addNumericField("Minimal min (A,C)",                                               this.lma_min_min_ac,  6, 8, "",
+				"Minimal value of min (A,C) coefficients to keep the tile (measures sharpest point correlation maximum)");
+		gd.addNumericField("Maximal area",                                                    this.lma_max_area,  6, 8, "sq.pix",
+				"Maximal product of maximum half-width by half-height, ignore check if <=0");
+
+		gd.addMessage("Correlation strength calculation (match legacy)");
+		gd.addNumericField("Composite correlation strength scale",                            this.lma_str_scale,  6, 8, "",
+				"Multiply LMA composite correlation strength to match older CM value");
+		gd.addNumericField("Composite correlation strength offset",                           this.lma_str_offset,  6, 8, "",
+				"Add to scaled composite correlation strength to match older CM value");
+
+		gd.addMessage("Lazy eye results interpretation");
+		gd.addCheckbox    ("Convert dd, nd -> dx, dx",                                        this.lma_diff_xy,
+				"Convert per camera disparity correction (and orthogonal to disparity)  to X,Y correction");
+		gd.addNumericField("Minimal per-tile weight for lazy eye correction",                 this.lma_diff_minw,  6, 8, "",
+				"Minimal average per-tile weight to use this tile cluster for lazy eye correction");
+		gd.addNumericField("Lazy eye data blur sigma",                                        this.lma_diff_sigma,  6, 8, "",
+				"Lazy eye data blur sigma relative to tile cluster side");
+
+
+		gd.addMessage("Debug LMA parameters");
+		gd.addNumericField("LMA debug level",                                                 this.lma_debug_level,  0, 3, "",
+				"Debug/verbosity level for the LMA correaltion maximum fitting");
+		gd.addNumericField("LMA debug level1",                                                this.lma_debug_level1,  0, 3, "",
+				"Debug/verbosity level for the new LMA correaltion maximum fitting");
+		gd.addCheckbox    ("Enable LMA debug images",                                         this.lma_debug_graphic,
+				"If false, no debug images generated regardless of debug levels");
+
+		gd.addCheckbox    ("Use new correlation methods compatible with x8 camera",           this.corr_var_cam,
+				"Debug feature to compare old/new methods");
+
+		gd.addNumericField("Normalization for the CM correlation strength (old)",             this.cm_max_normalization,  6, 8, "",
+				"Fraction of correlation maximum radius, being squared multiplied by maximum to have the same total mass. ~= 0.5, the lower the value, the higher strength reported by the CM");
+		gd.addMessage("Cameras offsets in the disparity direction and orthogonal to disparity (debugging LMA)");
+		gd.addNumericField("LMA debug offsets scale",                                         this.lma_dbg_scale,  6, 8, "",
+				"Scale the following offsets by this value");
+		gd.addNumericField("LMA debug offset: camera0, parallel",                   this.lma_dbg_offset[0][0],  6, 8, "pix",
+				"Add camera offset in the direction of disparity (to/from center)");
+		gd.addNumericField("LMA debug offset: camera0, ortho",                      this.lma_dbg_offset[0][1],  6, 8, "pix",
+				"Add camera offset in the direction of disparity (to/from center)");
+		gd.addNumericField("LMA debug offset: camera1, parallel",                   this.lma_dbg_offset[1][0],  6, 8, "pix",
+				"Add camera offset in the direction of disparity (to/from center)");
+		gd.addNumericField("LMA debug offset: camera1, ortho",                      this.lma_dbg_offset[1][1],  6, 8, "pix",
+				"Add camera offset in the direction of disparity (to/from center)");
+		gd.addNumericField("LMA debug offset: camera2, parallel",                   this.lma_dbg_offset[2][0],  6, 8, "pix",
+				"Add camera offset in the direction of disparity (to/from center)");
+		gd.addNumericField("LMA debug offset: camera2, ortho",                      this.lma_dbg_offset[2][1],  6, 8, "pix",
+				"Add camera offset in the direction of disparity (to/from center)");
+		gd.addNumericField("LMA debug offset: camera3, parallel",                   this.lma_dbg_offset[3][0],  6, 8, "pix",
+				"Add camera offset in the direction of disparity (to/from center)");
+		gd.addNumericField("LMA debug offset: camera3, ortho",                      this.lma_dbg_offset[3][1],  6, 8, "pix",
+				"Add camera offset in the direction of disparity (to/from center)");
+
+
+		//	public double  cm_max_normalization =   0.55; //
 
 	}
 	public void dialogAnswers(GenericJTabbedDialog gd) {
-			this.gpu_mode_debug =        gd.getNextBoolean();
-			this.gpu_verify =            gd.getNextBoolean();
-			this.corr_mode_debug=        gd.getNextBoolean();
-			this.mix_corr_poly=          gd.getNextBoolean();
-			this.corr_poly_only=         gd.getNextBoolean();
-			this.min_poly_strength=      gd.getNextNumber();
-			this.max_poly_hwidth=        gd.getNextNumber();
-			this.poly_corr_scale=        gd.getNextNumber();
+		this.gpu_mode_debug =        gd.getNextBoolean();
+		this.gpu_verify =            gd.getNextBoolean();
+		this.corr_mode_debug=        gd.getNextBoolean();
+		this.mix_corr_poly=          gd.getNextBoolean();
+		this.corr_poly_only=         gd.getNextBoolean();
+		this.min_poly_strength=      gd.getNextNumber();
+		this.max_poly_hwidth=        gd.getNextNumber();
+		this.poly_corr_scale=        gd.getNextNumber();
 
-			this.poly_pwr=               gd.getNextNumber();
-			this.poly_vasw_pwr=          gd.getNextNumber();
-			this.corr_magic_scale_cm=    gd.getNextNumber();
-			this.corr_magic_scale_poly=  gd.getNextNumber();
+		this.poly_pwr=               gd.getNextNumber();
+		this.poly_vasw_pwr=          gd.getNextNumber();
+		this.corr_magic_scale_cm=    gd.getNextNumber();
+		this.corr_magic_scale_poly=  gd.getNextNumber();
 
-			this.ortho_height =    (int) gd.getNextNumber();
-			this.ortho_eff_height=       gd.getNextNumber();
-			this.ortho_nsamples =  (int) gd.getNextNumber();
-			this.ortho_vasw_pwr =        gd.getNextNumber();
+		this.ortho_height =    (int) gd.getNextNumber();
+		this.ortho_eff_height=       gd.getNextNumber();
+		this.ortho_nsamples =  (int) gd.getNextNumber();
+		this.ortho_vasw_pwr =        gd.getNextNumber();
 
-  			this.enhortho_width=   (int) gd.getNextNumber();
-  			this.enhortho_width_aux=(int)gd.getNextNumber();
-  			this.enhortho_scale=         gd.getNextNumber();
-  			this.enhortho_scale_aux=     gd.getNextNumber();
+		this.enhortho_width=   (int) gd.getNextNumber();
+		this.enhortho_width_aux=(int)gd.getNextNumber();
+		this.enhortho_scale=         gd.getNextNumber();
+		this.enhortho_scale_aux=     gd.getNextNumber();
 
-  			this.ly_poly =               gd.getNextBoolean();
-  			this.ly_crazy_poly=          gd.getNextNumber();
-  			this.ly_poly_backup =        gd.getNextBoolean();
+		this.ly_poly =               gd.getNextBoolean();
+		this.ly_crazy_poly=          gd.getNextNumber();
+		this.ly_poly_backup =        gd.getNextBoolean();
 
-  			this.fo_correct =            gd.getNextBoolean();
-  			this.fo_far =                gd.getNextBoolean();
-  			this.fo_min_strength =       gd.getNextNumber();
-  			this.fo_min_eff =            gd.getNextNumber();
-  			this.fo_min_eff_ratio =      gd.getNextNumber();
-  			this.fo_max_hwidth =         gd.getNextNumber();
-  			this.fo_min_diff =           gd.getNextNumber();
-  			this.fo_ortho =              gd.getNextBoolean();
-  			this.fo_overcorrection =     gd.getNextNumber();
-  			this.fo_lim_overcorr =       gd.getNextNumber();
+		this.fo_correct =            gd.getNextBoolean();
+		this.fo_far =                gd.getNextBoolean();
+		this.fo_min_strength =       gd.getNextNumber();
+		this.fo_min_eff =            gd.getNextNumber();
+		this.fo_min_eff_ratio =      gd.getNextNumber();
+		this.fo_max_hwidth =         gd.getNextNumber();
+		this.fo_min_diff =           gd.getNextNumber();
+		this.fo_ortho =              gd.getNextBoolean();
+		this.fo_overcorrection =     gd.getNextNumber();
+		this.fo_lim_overcorr =       gd.getNextNumber();
 
-  			this.mismatch_max_diff =     gd.getNextNumber();
+		this.mismatch_max_diff =     gd.getNextNumber();
 
-  			this.corr_offset =           gd.getNextNumber();
-  			this.twice_diagonal =        gd.getNextBoolean();
-		    this.min_corr =              gd.getNextNumber();
-
-
-  			this.dbg_pair_mask=           (int) gd.getNextNumber();
-  			this.corr_strip_hight=        (int) gd.getNextNumber();
-  			
-  		    this.bimax_lpf_neib =               gd.getNextNumber();
-  		    this.bimax_notch_pwr =              gd.getNextNumber();
-  		    this.bimax_adv_power =              gd.getNextNumber();
-  		    this.bimax_rad_convex_search= (int) gd.getNextNumber();
-  		    this.bimax_min_num_samples=   (int) gd.getNextNumber();
-  		    this.bimax_min_num_pairs=     (int) gd.getNextNumber();
-  			this.bimax_dual_pass =              gd.getNextBoolean();
-  			this.bimax_common_fg =              gd.getNextBoolean();
-  			this.bimax_common_bg =              gd.getNextBoolean();
-  			this.bimax_post_LMA =               gd.getNextBoolean();
-  			this.bimax_combine_mode =           gd.getNextChoiceIndex();
-  			this.bimax_dual_LMA =               gd.getNextBoolean();
-  			this.bimax_dual_only =              gd.getNextBoolean();
-  			
-  			this.lmamask_dbg =              gd.getNextBoolean();
-  			this.lmamask_en =               gd.getNextBoolean();
-			this.lmamask_magic =            gd.getNextNumber();
-			this.lmamask_min_main =         gd.getNextNumber();
-			this.lmamask_min_neib =         gd.getNextNumber();
-			this.lmamask_weight_neib =      gd.getNextNumber();
-			this.lmamask_weight_neib_neib = gd.getNextNumber();
-			this.lmamask_threshold =        gd.getNextNumber();
-			this.lmamask_pwr =              gd.getNextNumber();
-
-  			this.cnvx_en =                 gd.getNextBoolean();
-  			this.cnvx_or =                 gd.getNextBoolean();
-  			this.cnvx_hwnd_size=   (int) gd.getNextNumber();
-			this.cnvx_weight =           gd.getNextNumber();
-  			this.cnvx_add3x3 =           gd.getNextBoolean();
-
-  			this.cnvx_min_samples= (int) gd.getNextNumber();
-  			this.cnvx_non_coll =         gd.getNextBoolean();
-  			this.cnvx_min_pairs=   (int) gd.getNextNumber();
-
-  			this.mcorr_multi=      (int) gd.getNextNumber();
-  			this.mcorr_quad_sequence =   gd.getNextBoolean();
-  			this.mcorr_topis0 =          gd.getNextBoolean();
-  			this.mcorr_topis0_multi =    gd.getNextBoolean();
-  			this.mcorr_all =             gd.getNextBoolean();
-  			this.mcorr_all_multi =       gd.getNextBoolean();
-  			this.mcorr_dia =             gd.getNextBoolean();
-  			this.mcorr_dia_multi =       gd.getNextBoolean();
-  			this.mcorr_sq =              gd.getNextBoolean();
-  			this.mcorr_sq_multi =        gd.getNextBoolean();
-  			this.mcorr_neib =            gd.getNextBoolean();
-  			this.mcorr_neib_multi =      gd.getNextBoolean();
-  			
-  			this.mcorr_hor =             gd.getNextBoolean();
-  			this.mcorr_hor_multi =       gd.getNextBoolean();
-  			this.mcorr_vert =            gd.getNextBoolean();
-  			this.mcorr_vert_multi =      gd.getNextBoolean();
-  			this.mcorr_limit_sensors=(int)gd.getNextNumber();
-  			
-  			this.mcorr_sel_ly=     (int) gd.getNextNumber();
-  			this.mcorr_sel_ly_multi=(int)gd.getNextNumber();
-
-  			this.mcorr_cons_all =        gd.getNextBoolean();
-  			this.mcorr_cons_dia =        gd.getNextBoolean();
-  			this.mcorr_cons_sq =         gd.getNextBoolean();
-  			this.mcorr_cons_neib =       gd.getNextBoolean();
-  			this.mcorr_cons_hor =        gd.getNextBoolean();
-  			this.mcorr_cons_vert =       gd.getNextBoolean();
-  			
-			for (int i = 0; i < mcorr_weights.length; i++) {
-				this.mcorr_weights[i] = gd.getNextNumber();
-			}
-  			this.mcorr_static_weights =  gd.getNextBoolean();
-  			this.mcorr_weights_power=    gd.getNextNumber();
-  			this.mcorr_dynamic_weights = gd.getNextBoolean();
-  			this.mcorr_dual_fract=       gd.getNextNumber();
-  			this.mcorr_fb_fract=         gd.getNextNumber();
-  			this.mcorr_bf_fract=         gd.getNextNumber();
-  			this.mcorr_dual_min_max=     gd.getNextNumber();
-  			this.mcorr_dual_min_min=     gd.getNextNumber();
-  			
-  			this.mcorr_comb_width= (int) gd.getNextNumber();
-  			this.mcorr_comb_height=(int) gd.getNextNumber();
-  			this.mcorr_comb_offset=(int) gd.getNextNumber();
-  			this.mcorr_comb_disp=        gd.getNextNumber();
-  			this.mcorr_comb_dbg =        gd.getNextBoolean();
-  			
-  			this.corr_strip_notch= (int) gd.getNextNumber();
-  			this.corr_notch_hwidth=      gd.getNextNumber();
-  			this.corr_notch_blur=        gd.getNextNumber();
-
-  			this.corr_wndy_size=   (int) gd.getNextNumber();
-
-			this.corr_wndy_hwidth =      gd.getNextNumber();
-			this.corr_wndy_blur =        gd.getNextNumber();
-
-  			this.corr_wndx_size=   (int) gd.getNextNumber();
-
-			this.corr_wndx_hwidth =      gd.getNextNumber();
-			this.corr_wndx_blur =        gd.getNextNumber();
-
-			this.pcorr_use=              gd.getNextBoolean();
-			this.pcorr_use_hv=           gd.getNextBoolean();
-			this.pcorr_sigma_mono =      gd.getNextNumber();
-			this.pcorr_sigma =           gd.getNextNumber();
-			this.pcorr_sigma_rb =        gd.getNextNumber();
-			this.pcorr_fat_zero =        gd.getNextNumber();
-			this.pcorr_fat_zero_mono =   gd.getNextNumber();
-			this.pcorr_dbg_offsx =       gd.getNextNumber();
-			this.pcorr_dbg_offsy =       gd.getNextNumber();
-
-			this.tilt_arange =           gd.getNextNumber();
-			this.tilt_rrange =           gd.getNextNumber();
-			this.tilt_no_tilt =          gd.getNextNumber();
-			this.tilt_damp_tilt =        gd.getNextNumber();
-			this.tilt_clust_extra= (int) gd.getNextNumber();
-			
-//LMA tab
-			this.lma_disp_range =        gd.getNextNumber();
-			this.lmas_gaussian=    (int) gd.getNextNumber();
-			this.lmas_adjust_wm=         gd.getNextBoolean();
-			this.lmas_adjust_wy=         gd.getNextBoolean();
-			this.lmas_adjust_ag=         gd.getNextBoolean();
-
-			this.lmas_poly_str_scale =   gd.getNextNumber();
-			this.lmas_poly_str_min =     gd.getNextNumber();
-
-			this.lmas_poly_continue=     gd.getNextBoolean();
-			this.lmas_LY_single=         gd.getNextBoolean();
-			this.lmas_LY_single_LY=      gd.getNextBoolean();
-
-			this.lmas_lambda_initial =   gd.getNextNumber();
-			this.lmas_rms_diff =         gd.getNextNumber();
-  			this.lmas_num_iter=    (int) gd.getNextNumber();
-  			this.lmas_min_amp =          gd.getNextNumber();
-  			this.lmas_min_amp_bg =       gd.getNextNumber();
-			this.lmas_max_rel_rms =      gd.getNextNumber();
-			this.lmas_min_strength =     gd.getNextNumber();
-			this.lmas_min_max_ac =           gd.getNextNumber();
-			this.lmas_min_min_ac =       gd.getNextNumber();
-			this.lmas_max_area =         gd.getNextNumber();
-
-			this.lma_gaussian=     (int) gd.getNextNumber();
-			this.lma_second=             gd.getNextBoolean();
-			this.lma_second_gaussian= (int) gd.getNextNumber();
-			this.lma_adjust_wm=          gd.getNextBoolean();
-			this.lma_adjust_wy=          gd.getNextBoolean();
-			this.lma_adjust_wxy=         gd.getNextBoolean();
-			this.lma_adjust_ly1=         gd.getNextBoolean();
-			this.lma_adjust_ag=          gd.getNextBoolean();
-
-			this.lma_wnd =               gd.getNextNumber();
-			this.lma_min_wnd =           gd.getNextNumber();
-			this.lma_wnd_pwr =           gd.getNextNumber();
-  			this.lma_hard_marg=    (int) gd.getNextNumber();
-  			this.lma_soft_marg=    (int) gd.getNextNumber();
-			this.lma_sigma =             gd.getNextNumber();
+		this.corr_offset =           gd.getNextNumber();
+		this.twice_diagonal =        gd.getNextBoolean();
+		this.min_corr =              gd.getNextNumber();
 
 
-			this.lma_half_width =        gd.getNextNumber();
-			this.lma_cost_wy =           gd.getNextNumber();
-			this.lma_cost_wxy =          gd.getNextNumber();
+		this.dbg_pair_mask=           (int) gd.getNextNumber();
+		this.corr_strip_hight=        (int) gd.getNextNumber();
 
-			this.lma_lambda_initial =    gd.getNextNumber();
-			this.lma_lambda_scale_good = gd.getNextNumber();
-			this.lma_lambda_scale_bad =  gd.getNextNumber();
-			this.lma_lambda_max =        gd.getNextNumber();
-			this.lma_rms_diff =          gd.getNextNumber();
-  			this.lma_num_iter=     (int) gd.getNextNumber();
+		this.bimax_lpf_neib =               gd.getNextNumber();
+		this.bimax_notch_pwr =              gd.getNextNumber();
+		this.bimax_adv_power =              gd.getNextNumber();
+		this.bimax_rad_convex_search= (int) gd.getNextNumber();
+		this.bimax_min_num_samples=   (int) gd.getNextNumber();
+		this.bimax_min_num_pairs=     (int) gd.getNextNumber();
+		this.bimax_dual_pass =              gd.getNextBoolean();
+		this.bimax_common_fg =              gd.getNextBoolean();
+		this.bimax_common_bg =              gd.getNextBoolean();
+		this.bimax_post_LMA =               gd.getNextBoolean();
+		this.bimax_combine_mode =           gd.getNextChoiceIndex();
+		this.bimax_dual_LMA =               gd.getNextBoolean();
+		this.bimax_dual_only =              gd.getNextBoolean();
 
-  			this.lma_multi_cons =        gd.getNextBoolean();
-			this.lma_max_rel_rms =       gd.getNextNumber();
-			this.lma_min_strength =      gd.getNextNumber();
-			this.lma_ac_offset =         gd.getNextNumber();
+		this.lmamask_dbg =              gd.getNextBoolean();
+		this.lmamask_en =               gd.getNextBoolean();
+		this.lmamask_magic =            gd.getNextNumber();
+		this.lmamask_min_main =         gd.getNextNumber();
+		this.lmamask_min_neib =         gd.getNextNumber();
+		this.lmamask_weight_neib =      gd.getNextNumber();
+		this.lmamask_weight_neib_neib = gd.getNextNumber();
+		this.lmamask_threshold =        gd.getNextNumber();
+		this.lmamask_pwr =              gd.getNextNumber();
 
-			this.lma_min_ac =            gd.getNextNumber();
-			this.lma_min_min_ac =        gd.getNextNumber();
-			this.lma_max_area =          gd.getNextNumber();
+		this.cnvx_en =                 gd.getNextBoolean();
+		this.cnvx_or =                 gd.getNextBoolean();
+		this.cnvx_hwnd_size=   (int) gd.getNextNumber();
+		this.cnvx_weight =           gd.getNextNumber();
+		this.cnvx_add3x3 =           gd.getNextBoolean();
 
-			this.lma_str_scale =         gd.getNextNumber();
-			this.lma_str_offset =        gd.getNextNumber();
+		this.cnvx_min_samples= (int) gd.getNextNumber();
+		this.cnvx_non_coll =         gd.getNextBoolean();
+		this.cnvx_min_pairs=   (int) gd.getNextNumber();
 
-  			this.lma_diff_xy =           gd.getNextBoolean();
-  			this.lma_diff_minw=          gd.getNextNumber();
-  			this.lma_diff_sigma=         gd.getNextNumber();
+		this.mcorr_multi=      (int) gd.getNextNumber();
+		this.mcorr_quad_sequence =   gd.getNextBoolean();
+		this.mcorr_topis0 =          gd.getNextBoolean();
+		this.mcorr_topis0_multi =    gd.getNextBoolean();
+		this.mcorr_all =             gd.getNextBoolean();
+		this.mcorr_all_multi =       gd.getNextBoolean();
+		this.mcorr_dia =             gd.getNextBoolean();
+		this.mcorr_dia_multi =       gd.getNextBoolean();
+		this.mcorr_sq =              gd.getNextBoolean();
+		this.mcorr_sq_multi =        gd.getNextBoolean();
+		this.mcorr_neib =            gd.getNextBoolean();
+		this.mcorr_neib_multi =      gd.getNextBoolean();
 
-  			this.lma_debug_level=  (int) gd.getNextNumber();
-  			this.lma_debug_level1= (int) gd.getNextNumber();
-  			this.lma_debug_graphic =     gd.getNextBoolean();
-  			this.corr_var_cam =          gd.getNextBoolean();
-  			this.cm_max_normalization=   gd.getNextNumber();
-  			this.lma_dbg_scale=          gd.getNextNumber();
+		this.mcorr_hor =             gd.getNextBoolean();
+		this.mcorr_hor_multi =       gd.getNextBoolean();
+		this.mcorr_vert =            gd.getNextBoolean();
+		this.mcorr_vert_multi =      gd.getNextBoolean();
+		this.mcorr_limit_sensors=(int)gd.getNextNumber();
 
-  			for (int i = 0; i < 4; i++) for (int j=0; j < 2; j++) {
-  				this.lma_dbg_offset[i][j]=   gd.getNextNumber();
-  			}
-  			return;
+		this.mcorr_sel_ly=     (int) gd.getNextNumber();
+		this.mcorr_sel_ly_multi=(int)gd.getNextNumber();
+
+		this.mcorr_cons_all =        gd.getNextBoolean();
+		this.mcorr_cons_dia =        gd.getNextBoolean();
+		this.mcorr_cons_sq =         gd.getNextBoolean();
+		this.mcorr_cons_neib =       gd.getNextBoolean();
+		this.mcorr_cons_hor =        gd.getNextBoolean();
+		this.mcorr_cons_vert =       gd.getNextBoolean();
+
+		for (int i = 0; i < mcorr_weights.length; i++) {
+			this.mcorr_weights[i] = gd.getNextNumber();
+		}
+		this.mcorr_static_weights =  gd.getNextBoolean();
+		this.mcorr_weights_power=    gd.getNextNumber();
+		this.mcorr_dynamic_weights = gd.getNextBoolean();
+		this.mcorr_dual_fract=       gd.getNextNumber();
+		this.mcorr_fb_fract=         gd.getNextNumber();
+		this.mcorr_bf_fract=         gd.getNextNumber();
+		this.mcorr_dual_min_max=     gd.getNextNumber();
+		this.mcorr_dual_min_min=     gd.getNextNumber();
+
+		this.mcorr_comb_width= (int) gd.getNextNumber();
+		this.mcorr_comb_height=(int) gd.getNextNumber();
+		this.mcorr_comb_offset=(int) gd.getNextNumber();
+		this.mcorr_comb_disp=        gd.getNextNumber();
+		this.mcorr_comb_dbg =        gd.getNextBoolean();
+
+		this.corr_strip_notch= (int) gd.getNextNumber();
+		this.corr_notch_hwidth=      gd.getNextNumber();
+		this.corr_notch_blur=        gd.getNextNumber();
+
+		this.corr_wndy_size=   (int) gd.getNextNumber();
+
+		this.corr_wndy_hwidth =      gd.getNextNumber();
+		this.corr_wndy_blur =        gd.getNextNumber();
+
+		this.corr_wndx_size=   (int) gd.getNextNumber();
+
+		this.corr_wndx_hwidth =      gd.getNextNumber();
+		this.corr_wndx_blur =        gd.getNextNumber();
+
+		this.pcorr_use=              gd.getNextBoolean();
+		this.pcorr_use_hv=           gd.getNextBoolean();
+		this.pcorr_sigma_mono =      gd.getNextNumber();
+		this.pcorr_sigma =           gd.getNextNumber();
+		this.pcorr_sigma_rb =        gd.getNextNumber();
+		this.pcorr_fat_zero =        gd.getNextNumber();
+		this.pcorr_fat_zero_mono =   gd.getNextNumber();
+		this.pcorr_dbg_offsx =       gd.getNextNumber();
+		this.pcorr_dbg_offsy =       gd.getNextNumber();
+
+		this.tilt_arange =           gd.getNextNumber();
+		this.tilt_rrange =           gd.getNextNumber();
+		this.tilt_no_tilt =          gd.getNextNumber();
+		this.tilt_damp_tilt =        gd.getNextNumber();
+		this.tilt_clust_extra= (int) gd.getNextNumber();
+
+		//LMA tab
+		this.lma_disp_range =        gd.getNextNumber();
+		this.lmas_gaussian=    (int) gd.getNextNumber();
+		this.lmas_adjust_wm=         gd.getNextBoolean();
+		this.lmas_adjust_wy=         gd.getNextBoolean();
+		this.lmas_adjust_ag=         gd.getNextBoolean();
+
+		this.lmas_poly_str_scale =   gd.getNextNumber();
+		this.lmas_poly_str_min =     gd.getNextNumber();
+
+		this.lmas_poly_continue=     gd.getNextBoolean();
+		this.lmas_LY_single=         gd.getNextBoolean();
+		this.lmas_LY_single_LY=      gd.getNextBoolean();
+
+		this.lmas_lambda_initial =   gd.getNextNumber();
+		this.lmas_rms_diff =         gd.getNextNumber();
+		this.lmas_num_iter=    (int) gd.getNextNumber();
+		this.lmas_min_amp =          gd.getNextNumber();
+		this.lmas_min_amp_bg =       gd.getNextNumber();
+		this.lmas_max_rel_rms =      gd.getNextNumber();
+		this.lmas_min_strength =     gd.getNextNumber();
+		this.lmas_min_max_ac =           gd.getNextNumber();
+		this.lmas_min_min_ac =       gd.getNextNumber();
+		this.lmas_max_area =         gd.getNextNumber();
+
+		this.lma_gaussian=     (int) gd.getNextNumber();
+		this.lma_second=             gd.getNextBoolean();
+		this.lma_second_gaussian= (int) gd.getNextNumber();
+		this.lma_adjust_wm=          gd.getNextBoolean();
+		this.lma_adjust_wy=          gd.getNextBoolean();
+		this.lma_adjust_wxy=         gd.getNextBoolean();
+		this.lma_adjust_ly1=         gd.getNextBoolean();
+		this.lma_adjust_ag=          gd.getNextBoolean();
+
+		this.lma_wnd =               gd.getNextNumber();
+		this.lma_min_wnd =           gd.getNextNumber();
+		this.lma_wnd_pwr =           gd.getNextNumber();
+		this.lma_hard_marg=    (int) gd.getNextNumber();
+		this.lma_soft_marg=    (int) gd.getNextNumber();
+		this.lma_sigma =             gd.getNextNumber();
+
+
+		this.lma_half_width =        gd.getNextNumber();
+		this.lma_cost_wy =           gd.getNextNumber();
+		this.lma_cost_wxy =          gd.getNextNumber();
+
+		this.lma_lambda_initial =    gd.getNextNumber();
+		this.lma_lambda_scale_good = gd.getNextNumber();
+		this.lma_lambda_scale_bad =  gd.getNextNumber();
+		this.lma_lambda_max =        gd.getNextNumber();
+		this.lma_rms_diff =          gd.getNextNumber();
+		this.lma_num_iter=     (int) gd.getNextNumber();
+
+		this.lma_multi_cons =        gd.getNextBoolean();
+		this.lma_max_rel_rms =       gd.getNextNumber();
+		this.lma_min_strength =      gd.getNextNumber();
+		this.lma_ac_offset =         gd.getNextNumber();
+
+		this.lma_min_ac =            gd.getNextNumber();
+		this.lma_min_min_ac =        gd.getNextNumber();
+		this.lma_max_area =          gd.getNextNumber();
+
+		this.lma_str_scale =         gd.getNextNumber();
+		this.lma_str_offset =        gd.getNextNumber();
+
+		this.lma_diff_xy =           gd.getNextBoolean();
+		this.lma_diff_minw=          gd.getNextNumber();
+		this.lma_diff_sigma=         gd.getNextNumber();
+
+		this.lma_debug_level=  (int) gd.getNextNumber();
+		this.lma_debug_level1= (int) gd.getNextNumber();
+		this.lma_debug_graphic =     gd.getNextBoolean();
+		this.corr_var_cam =          gd.getNextBoolean();
+		this.cm_max_normalization=   gd.getNextNumber();
+		this.lma_dbg_scale=          gd.getNextNumber();
+
+		for (int i = 0; i < 4; i++) for (int j=0; j < 2; j++) {
+			this.lma_dbg_offset[i][j]=   gd.getNextNumber();
+		}
+		return;
 	}
 
 
 	public void setProperties(String prefix,Properties properties){
+		
 		properties.setProperty(prefix+"gpu_mode_debug",       this.gpu_mode_debug+"");
 		properties.setProperty(prefix+"gpu_verify",           this.gpu_verify+"");
 		properties.setProperty(prefix+"corr_mode_debug",      this.corr_mode_debug+"");

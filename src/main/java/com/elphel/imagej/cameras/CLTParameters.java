@@ -365,6 +365,13 @@ public class CLTParameters {
 	public double     fom_inf_bonus  =    0.2; // add this to infinity FOM (if it is closer than fom_inf_range)
 	public double     fom_inf_range  =    0.8; // 0.5
 	
+	// Photometric calibration (move elsewhere)?
+	public boolean    photo_en =                      false; // perform photogrammetric calibration to equalize pixel values
+	public int        photo_num_full =                3;     // Number of full recalibrations with re-processing of the images  
+	public int        photo_num_refines =             3;     // Calibrate, remove outliers, recalibrate, ... 
+	public double     photo_min_strength =            0.0;   // maybe add to filter out weak tiles
+	public double     photo_max_diff =                40.0;  // To filter mismatches. Normal (adjusted) have RMSE ~9
+	public boolean    photo_debug =                   false; // Generate images and text
 	
 	
 	
@@ -1347,6 +1354,13 @@ public class CLTParameters {
 		properties.setProperty(prefix+"fom_inf_bonus",              this.fom_inf_bonus+"");
 		properties.setProperty(prefix+"fom_inf_range",              this.fom_inf_range+"");
 		
+		properties.setProperty(prefix+"photo_en",                   this.photo_en+"");            // boolean
+		properties.setProperty(prefix+"photo_num_full",             this.photo_num_full+"");      // int
+		properties.setProperty(prefix+"photo_num_refines",          this.photo_num_refines+"");   // int
+		properties.setProperty(prefix+"photo_min_strength",         this.photo_min_strength+"");  // double
+		properties.setProperty(prefix+"photo_max_diff",             this.photo_max_diff+"");      // double
+		properties.setProperty(prefix+"photo_debug",                this.photo_debug+"");         // boolean
+		
 		properties.setProperty(prefix+"show_textures",              this.show_textures+"");
 		properties.setProperty(prefix+"debug_filters",              this.debug_filters+"");
 
@@ -2204,6 +2218,13 @@ public class CLTParameters {
 		if (properties.getProperty(prefix+"fom_inf_bonus")!=null)                 this.fom_inf_bonus=Double.parseDouble(properties.getProperty(prefix+"fom_inf_bonus"));
 		if (properties.getProperty(prefix+"fom_inf_range")!=null)                 this.fom_inf_range=Double.parseDouble(properties.getProperty(prefix+"fom_inf_range"));
 		
+		if (properties.getProperty(prefix+"photo_en")!=null)             this.photo_en=Boolean.parseBoolean(properties.getProperty(prefix+"photo_en"));		
+		if (properties.getProperty(prefix+"photo_num_full")!=null)       this.photo_num_full=Integer.parseInt(properties.getProperty(prefix+"photo_num_full"));
+		if (properties.getProperty(prefix+"photo_num_refines")!=null)    this.photo_num_refines=Integer.parseInt(properties.getProperty(prefix+"photo_num_refines"));
+		if (properties.getProperty(prefix+"photo_min_strength")!=null)   this.photo_min_strength=Double.parseDouble(properties.getProperty(prefix+"photo_min_strength"));
+		if (properties.getProperty(prefix+"photo_max_diff")!=null)       this.photo_max_diff=Double.parseDouble(properties.getProperty(prefix+"photo_max_diff"));
+		if (properties.getProperty(prefix+"photo_debug")!=null)          this.photo_debug=Boolean.parseBoolean(properties.getProperty(prefix+"photo_debug"));		
+		
 		if (properties.getProperty(prefix+"show_textures")!=null)                 this.show_textures=Boolean.parseBoolean(properties.getProperty(prefix+"show_textures"));
 		if (properties.getProperty(prefix+"debug_filters")!=null)                 this.debug_filters=Boolean.parseBoolean(properties.getProperty(prefix+"debug_filters"));
 
@@ -2788,7 +2809,7 @@ public class CLTParameters {
 
 	public boolean showJDialog() {
 		//  			GenericDialog gd = new GenericDialog("Set CLT parameters");
-		GenericJTabbedDialog gd = new GenericJTabbedDialog("Set CLT parameters",800,900);
+		GenericJTabbedDialog gd = new GenericJTabbedDialog("Set CLT parameters",1090,900);
 		gd.addTab         ("General", "General parameters");
 		gd.addNumericField("Nominal (rectilinear) disparity between side of square cameras (pix)",              this.disparity,  3,7,"pix",
 				"Used when rendering 4 images");
@@ -2855,7 +2876,7 @@ public class CLTParameters {
 		gd.addNumericField("Calculated from correlation offset vs. actual one (not yet understood)",            this.corr_magic_scale,  3,6,"", "CM and poly");
 		gd.addNumericField("Select all-pair correlation type to use 0 - CM, 1 - poly",                          this.corr_select,  0);
 
-		gd.addTab         ("imageDtt", "Setup extra ImageDtt parameters - eventually all will be set that way");
+//		gd.addTab         ("imageDtt", "Setup extra ImageDtt parameters - eventually all will be set that way");
 		this.img_dtt.dialogQuestions(gd);
 		gd.addTab         ("Rig", "Parameters for the wide baseline rig with two quad cameras");
 		this.rig.dialogQuestions(gd);
@@ -3164,16 +3185,16 @@ public class CLTParameters {
 		gd.addNumericField("Minimal number of infinity tiles",                                 this.lyms_min_num_inf,    0,3,"",
 				"Minimal number of tiles (in all scenes total) in an infinity cluster");
 		
-		gd.addTab         ("3D", "3D reconstruction");
-
-		gd.addNumericField("Maximal channel mismatchatch for RGB cameras",                                           this.mismatch_rgb,  4,6,"counts",
+		
+		gd.addTab         ("Initial DSI", "Building initial (single-scene) DSI");
+		gd.addMessage     ("--- Filter tiles by inter-channel mismatch (requires photometic equalization) ---");
+		gd.addNumericField("Maximal channel mismatch for RGB cameras",                                               this.mismatch_rgb,  4,6,"counts",
 				"Discard correlation results during disparity sweep if channels differ more (RGB)");
-		gd.addNumericField("Maximal channel mismatchatch for LWIR cameras",                                          this.mismatch_lwir,  4,6,"counts",
+		gd.addNumericField("Maximal channel mismatch for LWIR cameras",                                              this.mismatch_lwir,  4,6,"counts",
 				"Discard correlation results during disparity sweep if channels differ more (LWIR)");
 		gd.addNumericField("Minimal correlation strength to override mismatch filter",                               this.mismatch_override,  4,6,"",
 				"Allow tiles with the really strong correlation to have large mismatch.");
-		
-		gd.addMessage     ("--- FOM for initial DSI ---");
+		gd.addMessage     ("--- FOM for initial DSI (the combination of parameters that ranges corelation results) ---");
 		gd.addNumericField("Minimal strength",                                                                       this.fom_min_strength,  4,6,"",
 				"Discard all weaker tiles (FOM=NEGATIVE_INFINITY).");
 		gd.addNumericField("Weight of residual disparity, RGB",                                                      this.fom_adisp_rgb,  4,6,"",
@@ -3188,8 +3209,30 @@ public class CLTParameters {
 				"Prevent stray FG over sky - add to FOM.");
 		gd.addNumericField("Infinity bonus disparity range",                                                         this.fom_inf_range,  4,6,"pix",
 				"Infinity range to receive FOM bonus.");
+		gd.addMessage     ("See \"Corr LMA\" tab under \"LMA (single) results filtering\" for LMA parameters");
+		gd.addMessage     ("that influence the results on the last stages of the DSI building.");
+		gd.addMessage     ("\"Sky\" tab parameters define featureless sky area detection that supplement initial DSI.");
 
-		gd.addMessage     ("--- 3D reconstruction ---");
+ 		gd.addTab  ("Photometric","Photometric equalization - can be performed after DSI is available)");
+ 		gd.addMessage  ("Photometric calibration is saved with the current scene (and saved with the \"Save\" command and with the reference scene.");
+ 		gd.addMessage  ("It is applied when the source files are read.");
+		gd.addCheckbox ("Enable photometric calibration",            this.photo_en,
+				"Equalize per- sensor gains and offsets. Requires disparity map. Save to reference scene and with current scene (to .corr-zml).");
+		gd.addNumericField("Full photometric (re)calibrations",      this.photo_num_full, 0,3,"pix",
+				"Full recalibratrions include re-importing raw images with updated offsets/gains");
+		gd.addNumericField("Refines",                                this.photo_num_refines, 0,3,"pix",
+				"Calculate calibration, remove outliers (e.g. FG/BG) and repeat");
+		gd.addNumericField("Minimal DSI strength",                   this.photo_min_strength, 5,7,"",
+				"Do not use weak tiles.");
+		gd.addNumericField("Maximal channel mismatch",               this.photo_max_diff, 5,7,"",
+				"Detect (and remove outliers). Adjusted images have RMSE ~9 counts.");
+		gd.addCheckbox ("Debug pphotometric calibration",            this.photo_debug,
+				"Generate debug images an text output.");
+		
+		
+		
+		
+		gd.addTab         ("3D", "3D reconstruction");
 		gd.addCheckbox    ("Show generated textures",                                                                this.show_textures);
 		gd.addCheckbox    ("show intermediate results of filtering",                                                 this.debug_filters);
 
@@ -4181,6 +4224,13 @@ public class CLTParameters {
 		this.fom_cdiff_lwir=        gd.getNextNumber();
 		this.fom_inf_bonus=         gd.getNextNumber();
 		this.fom_inf_range=         gd.getNextNumber();
+		
+ 		this.photo_en =                 gd.getNextBoolean();
+		this.photo_num_full =     (int) gd.getNextNumber();
+		this.photo_num_refines =  (int) gd.getNextNumber();
+		this.photo_min_strength =       gd.getNextNumber();
+		this.photo_max_diff =           gd.getNextNumber();
+		this.photo_debug =              gd.getNextBoolean();
 		
 		this.show_textures=         gd.getNextBoolean();
 		this.debug_filters=         gd.getNextBoolean();

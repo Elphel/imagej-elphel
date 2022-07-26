@@ -4038,12 +4038,12 @@ public class OpticalFlow {
     	boolean export_ml_files =            clt_parameters.imp.export_ml_files;
 
     	//boolean calibrate_photometric =      true;
-    	boolean  photo_en =                  clt_parameters.imp.photo_en; //          false; // perform photogrammetric calibration to equalize pixel values
-    	int      photo_num_full =            clt_parameters.imp.photo_num_full; //     1;    // Number of full recalibrations with re-processing of the images  
-    	int      photo_num_refines =         clt_parameters.imp.photo_num_refines; //  3;    // Calibrate, remove outliers, recalibrate, ... 
-    	double   photo_min_strength =        clt_parameters.imp.photo_min_strength; // 0.0;  // maybe add to filter out weak tiles
-    	double   photo_max_diff =            clt_parameters.imp.photo_max_diff; //    40.0;  // To filter mismatches. Normal (adjusted) have RMSE ~9
-    	boolean  photo_debug =               clt_parameters.imp.photo_debug; //       false; // Generate images and text
+    	boolean  photo_en =                  clt_parameters.photo_en; //          false; // perform photogrammetric calibration to equalize pixel values
+    	int      photo_num_full =            clt_parameters.photo_num_full; //     1;    // Number of full recalibrations with re-processing of the images  
+    	int      photo_num_refines =         clt_parameters.photo_num_refines; //  3;    // Calibrate, remove outliers, recalibrate, ... 
+    	double   photo_min_strength =        clt_parameters.photo_min_strength; // 0.0;  // maybe add to filter out weak tiles
+    	double   photo_max_diff =            clt_parameters.photo_max_diff; //    40.0;  // To filter mismatches. Normal (adjusted) have RMSE ~9
+    	boolean  photo_debug =               clt_parameters.photo_debug; //       false; // Generate images and text
     	
     	boolean show_dsi_image =             clt_parameters.imp.show_ranges && !batch_mode;
     	boolean show_images =                clt_parameters.imp.show_images && !batch_mode;
@@ -4132,11 +4132,19 @@ public class OpticalFlow {
 		final int        debugLevelInner=clt_parameters.batch_run? -2: debugLevel; // copied from TQ
 		
 		double  min_ref_str =        clt_parameters.imp.min_ref_str;
-		double sky_seed =         7.0;  // start with product of strength by diff_second below this
-		double sky_lim =         15.0; // then expand to product of strength by diff_second below this
-		double lma_seed=          2.0;  // seed - disparity_lma limit		double sky_lim  =      15.0; // then expand to product of strength by diff_second below this
-		int    sky_shrink =       6;
-		int    sky_expand_extra = 0; // 1?
+		
+ 		double sky_highest_min =     clt_parameters.imp.sky_highest_min;
+ 		double cold_frac =           clt_parameters.imp.cold_frac;
+ 		double hot_frac =            clt_parameters.imp.hot_frac;
+ 		double cold_scale =          clt_parameters.imp.cold_scale;
+ 		double sky_seed =            clt_parameters.imp.sky_seed;
+ 		double lma_seed =            clt_parameters.imp.lma_seed;
+ 		int    sky_shrink =          clt_parameters.imp.sky_shrink;
+ 		int    seed_rows =           clt_parameters.imp.seed_rows;
+ 		double sky_lim =             clt_parameters.imp.sky_lim;
+ 		int    sky_expand_extra =    clt_parameters.imp.sky_expand_extra;
+ 		double min_strength =        clt_parameters.imp.min_strength;
+ 		int    lowest_sky_row =      clt_parameters.imp.lowest_sky_row;
 		
 		boolean [] ref_blue_sky = null; // turn off "lma" in the ML output  
 		
@@ -4267,6 +4275,13 @@ public class OpticalFlow {
 							sky_lim,            // double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
 							sky_shrink,         // int    sky_shrink, //  =       4;
 							sky_expand_extra,   // int    sky_expand_extra, //  = 100; // 1?
+							cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
+							cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
+							hot_frac, // =         0.9;    // this and above will scale fom by 1.0
+							min_strength, // =     0.08;
+							seed_rows, // =        5; // sky should appear in this top rows 
+							lowest_sky_row,        //  =     50;// appears that low - invalid, remove completely
+							sky_highest_min,       //  =   100; // lowest absolute value should not be higher (requires photometric) 
 							dsi[TwoQuadCLT.DSI_STRENGTH_AUX], // double [] strength,
 							dsi[TwoQuadCLT.DSI_SPREAD_AUX], // double [] spread,
 							dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA], // double [] spread,
@@ -4311,6 +4326,13 @@ public class OpticalFlow {
 							sky_lim,                               // double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
 							sky_shrink,                            // int    sky_shrink, //  =       4;
 							sky_expand_extra,                      // int    sky_expand_extra, //  = 100; // 1?
+							cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
+							cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
+							hot_frac, // =         0.9;    // this and above will scale fom by 1.0
+							min_strength, // =     0.08;
+							seed_rows, // =        5; // sky should appear in this top rows
+							lowest_sky_row,        //  =     50;// appears that low - invalid, remove completely
+							sky_highest_min,       //  =   100; // lowest absolute value should not be higher (requires photometric) 
 							dsi[TwoQuadCLT.DSI_STRENGTH_AUX],      // double [] strength,
 							dsi[TwoQuadCLT.DSI_SPREAD_AUX],        // double [] spread,
 							dsi[TwoQuadCLT.DSI_DISPARITY_AUX_LMA], //double [] disp_lma,

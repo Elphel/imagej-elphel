@@ -152,7 +152,8 @@ public class QuadCLTCPU {
     boolean [][]                                           saturation_imp = null; // (near) saturated pixels or null
     boolean                                                is_aux = false;
     double  []                                             lwir_offsets = null; // per image subtracted values
-    double []                                              lwir_scales = null;  // per image scales
+    double []                                              lwir_scales =  null;  // per image scales
+//double []                                              lwir_scales2 = null;  // per image quadratic scales
     @Deprecated
     double                                                 lwir_offset =  Double.NaN; // average of lwir_offsets[]
     // hot and cold are calculated during autoranging (when generating 4 images for restored (added lwir_offset)
@@ -442,6 +443,13 @@ public class QuadCLTCPU {
 			double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
 			int    sky_shrink, //  =       4;
 			int    sky_expand_extra, //  = 100; // 1?
+			double cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
+			double cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
+			double hot_frac, // =         0.9;    // this and above will scale fom by 1.0
+			double min_strength, // =     0.08;
+			int    seed_rows, // =        5; // sky should appear in this top rows 
+			int    lowest_sky_row,        //  =     50;// appears that low - invalid, remove completely
+			double sky_highest_min,       //  =   -50; // 100; // lowest absolute value should not be higher (requires photometric) 
 			int    width,
 			double [] strength,
 			double [] spread,
@@ -452,15 +460,16 @@ public class QuadCLTCPU {
 			return null;
 		}
 		double [] temp_scales = null;
+		/*
 		double cold_scale =    0.2;  // <=1.0. 1.0 - disables temperature dependence
 		double cold_frac =     0.005; // this and lower will scale fom by  cold_scale
 		double hot_frac =      0.9;    // this and above will scale fom by 1.0
 		double min_strength =  0.08;
 		int    seed_rows =     5; // sky should appear in this top rows 
-		
-		
-		int num_bins = 1000;
+		*/
+		boolean failure = false;
 		if (avg_val != null) {
+			int num_bins = 1000;
 			double min_temp = Double.NaN, max_temp=Double.NaN, avg_temp = 0;
 			int num_def = 0;
 			for (int i = 0; i < avg_val.length; i++) {
@@ -512,6 +521,10 @@ public class QuadCLTCPU {
 						temp_hot = min_temp + b_hot* (max_temp - min_temp) / num_bins;
 						break;
 					}
+				}
+				if (temp_cold > sky_highest_min) {
+					System.out.println("getBlueSky(): Coldest offset value "+temp_cold+" > "+sky_highest_min+" - invalid sky" );
+					failure = true;
 				}
 				temp_scales = new double[avg_val.length];
 				Arrays.fill(temp_scales, Double.NaN);
@@ -607,7 +620,16 @@ public class QuadCLTCPU {
 					"sky_selection",
 					dbg_titles); //	dsrbg_titles);
 		}
-		
+		for (int i = lowest_sky_row*width; i < sky_tiles.length; i++) {
+			if (sky_tiles[i]) {
+				System.out.println("getBlueSky(): sky area appeared too low - at row "+(i/width)+" >= "+lowest_sky_row+" removing blue sky");
+				failure = true;
+				break;
+			}
+		}
+		if (failure) { // Will still show in debug images !!!
+			Arrays.fill(sky_tiles, false);
+		}
 		return sky_tiles;
 	}
 	
@@ -625,6 +647,13 @@ public class QuadCLTCPU {
 			double sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
 			int    sky_shrink, //  =       4;
 			int    sky_expand_extra, //  = 100; // 1?
+			double cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
+			double cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
+			double hot_frac, // =         0.9;    // this and above will scale fom by 1.0
+			double min_strength, // =     0.08;
+			int    seed_rows, // =        5; // sky should appear in this top rows
+			int    lowest_sky_row,        //  =     50;// appears that low - invalid, remove completely
+			double sky_highest_max,       //  =   100; // lowest absolute value should not be higher (requires photometric) 
 			double [] strength,
 			double [] spread,
 			double [] disp_lma,
@@ -637,6 +666,13 @@ public class QuadCLTCPU {
 				sky_lim, //   =      15.0; // then expand to product of strength by diff_second below this
 				sky_shrink, //  =       4;
 				sky_expand_extra, //  = 100; // 1?
+				cold_scale, // =       0.2;  // <=1.0. 1.0 - disables temperature dependence
+				cold_frac, // =        0.005; // this and lower will scale fom by  cold_scale
+				hot_frac, // =         0.9;    // this and above will scale fom by 1.0
+				min_strength, // =     0.08;
+				seed_rows, // =        5; // sky should appear in this top rows 
+				lowest_sky_row,        //  =     50;// appears that low - invalid, remove completely
+				sky_highest_max,       //  =   100; // lowest absolute value should not be higher (requires photometric) 
 				width,
 				strength,
 				spread,
