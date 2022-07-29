@@ -153,7 +153,7 @@ public class QuadCLTCPU {
     boolean                                                is_aux = false;
     double  []                                             lwir_offsets = null; // per image subtracted values
     double []                                              lwir_scales =  null;  // per image scales
-//double []                                              lwir_scales2 = null;  // per image quadratic scales
+    double []                                              lwir_scales2 = null;  // per image quadratic scales
     @Deprecated
     double                                                 lwir_offset =  Double.NaN; // average of lwir_offsets[]
     // hot and cold are calculated during autoranging (when generating 4 images for restored (added lwir_offset)
@@ -266,6 +266,7 @@ public class QuadCLTCPU {
 //		this.is_mono =                 qParent.is_mono;
 		this.lwir_offsets =           ErsCorrection.clone1d(qParent.lwir_offsets);
 		this.lwir_scales =            ErsCorrection.clone1d(qParent.lwir_scales);
+		this.lwir_scales2 =           ErsCorrection.clone1d(qParent.lwir_scales2);
 		this.lwir_offset =            qParent.lwir_offset;
 		this.lwir_cold_hot =          ErsCorrection.clone1d(qParent.lwir_cold_hot);
 		this.ds_from_main =           ErsCorrection.clone2d(qParent.ds_from_main);
@@ -1798,6 +1799,12 @@ public class QuadCLTCPU {
     	}
     	return lwir_scales;
     }
+    public double [] getLwirScales2() {
+    	if (lwir_scales2 == null) {
+    		lwir_scales2 = new double [getNumSensors()]; // all 0;
+    	}
+    	return lwir_scales2;
+    }
     public void setLwirOffsets(double [] offsets) {
     	lwir_offsets = offsets; // will need to update properties!
     	if (offsets != null) {
@@ -1811,6 +1818,9 @@ public class QuadCLTCPU {
 
     public void setLwirScales(double [] scales) {
     	lwir_scales = scales; // will need to update properties!
+    }
+    public void setLwirScales2(double [] scales2) {
+    	lwir_scales2 = scales2; // will need to update properties!
     }
 
     public double [] getColdHot() { // USED in lwir
@@ -2011,6 +2021,10 @@ public class QuadCLTCPU {
 			properties.setProperty(prefix+"lwir_scales",
 					IntersceneMatchParameters.doublesToString(this.lwir_scales));
 		}
+		if (this.lwir_scales2 != null) {
+			properties.setProperty(prefix+"lwir_scales2",
+					IntersceneMatchParameters.doublesToString(this.lwir_scales2));
+		}
 
 	}
 
@@ -2052,6 +2066,12 @@ public class QuadCLTCPU {
 					other_properties.getProperty(other_prefix+"lwir_scales"),0);
 			properties.setProperty(this_prefix+"lwir_scales",
 					IntersceneMatchParameters.doublesToString(this.lwir_scales));
+		}
+		if (other_properties.getProperty(other_prefix+"lwir_scales2")!=null) {
+			this.lwir_scales2= IntersceneMatchParameters.StringToDoubles(
+					other_properties.getProperty(other_prefix+"lwir_scales2"),0);
+			properties.setProperty(this_prefix+"lwir_scales2",
+					IntersceneMatchParameters.doublesToString(this.lwir_scales2));
 		}
 		
 		
@@ -2172,6 +2192,10 @@ public class QuadCLTCPU {
 		if (properties.getProperty(prefix+"lwir_scales")!=null) {
 			this.lwir_scales= IntersceneMatchParameters.StringToDoubles(
 					properties.getProperty(prefix+"lwir_scales"),0);
+		}
+		if (properties.getProperty(prefix+"lwir_scales2")!=null) {
+			this.lwir_scales2= IntersceneMatchParameters.StringToDoubles(
+					properties.getProperty(prefix+"lwir_scales2"),0);
 		}
 			
 		
@@ -5570,13 +5594,15 @@ public class QuadCLTCPU {
 				  }
 				  this.lwir_offset /= num_avg;
 			  }
-			  double [] offsets = getLwirOffsets();
-			  double [] scales =  getLwirScales();
+			  double [] offsets =  getLwirOffsets();
+			  double [] scales =   getLwirScales();
+			  double [] scales2 =  getLwirScales2();
 			  channelLwirApplyEqualize( // now apply (was part of channelLwirEqualize() )
 					  channelFiles, // int [] channelFiles,
 					  imp_srcs,     // ImagePlus [] imp_srcs,
 					  offsets,      // double []    offsets,
 					  scales,       // double []    scales,
+					  scales2,      // double []    scales2,
 					  threadsMax,
 					  debugLevel);
 		  }
@@ -6162,6 +6188,7 @@ public class QuadCLTCPU {
 			  ImagePlus [] imp_srcs,
 			  double []    offsets,
 			  double []    scales,
+			  double []    scales2,
 			  final int    threadsMax,
 			  int          debugLevel){
 		  final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
@@ -6173,10 +6200,12 @@ public class QuadCLTCPU {
 						  int nFile=channelFiles[srcChannel];
 						  if (nFile >=0) {
 							  float fd = (float)offsets[srcChannel];
-							  float fscale = (float) scales[srcChannel];
+							  float fscale =  (float) scales[srcChannel];
+							  float fscale2 = (float) scales2[srcChannel];
 							  float [] pixels = (float []) imp_srcs[srcChannel].getProcessor().getPixels();
 							  for (int i = 0; i < pixels.length; i++) {
-								  pixels[i] = (pixels[i] - fd) * fscale;
+								  float poffs = (pixels[i] - fd);
+								  pixels[i] = poffs * fscale + poffs*poffs*fscale2;
 							  }
 						  }
 					  }

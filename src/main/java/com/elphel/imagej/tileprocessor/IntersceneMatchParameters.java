@@ -185,8 +185,8 @@ public class IntersceneMatchParameters {
 	public  double  min_str_fpn =                   0.2; // 0.25; // minimal correlation strength for all but TD-accumulated layer
 	public  double  min_str_sum_fpn =               0.5; // 0.8;  // minimal correlation strength for TD-accumulated layer
 
-	public  double  min_str =                       0.18;  // tiles w/o FPN: minimal correlation strength for all but TD-accumulated layer
-	public  double  min_str_sum =                   0.33; // tiles w/o FPN: minimal correlation strength for TD-accumulated layer
+	public  double  min_str =                       0.12; //18;  // tiles w/o FPN: minimal correlation strength for all but TD-accumulated layer
+	public  double  min_str_sum =                   0.2;  // 0.33; // tiles w/o FPN: minimal correlation strength for TD-accumulated layer
 
 	public  int     min_neibs =                     2;	   // minimal number of strong neighbors (> min_str)
 	public  double  weight_zero_neibs =             0.2;   // Reduce weight for no-neib (1.0 for all 8)
@@ -194,7 +194,7 @@ public class IntersceneMatchParameters {
 	public  double  half_avg_diff =                 0.2;   // when L2 of x,y difference from average of neibs - reduce twice
 	
 	// Detect initial match
-	public  double  min_ref_str =                   0.22;  // For orientations: use only tiles of the reference scene DSI_MAIN is stronger  
+	public  double  min_ref_str =                   0.15;  // 0.22;  // For orientations: use only tiles of the reference scene DSI_MAIN is stronger  
 	public  int     pix_step =                      4;     // Azimuth/tilt search step in pixels
 	public  int     search_rad =                   10;     // Search radius in steps
 	public  double  maybe_sum =                     1.0;   // minimal sum of strengths (will search for the best)

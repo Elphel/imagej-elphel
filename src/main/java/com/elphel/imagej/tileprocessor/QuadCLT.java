@@ -45,6 +45,7 @@ import com.elphel.imagej.cameras.CLTParameters;
 import com.elphel.imagej.cameras.ColorProcParameters;
 import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
+import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.correction.CorrectionColorProc;
 import com.elphel.imagej.correction.EyesisCorrections;
@@ -2426,20 +2427,234 @@ public class QuadCLT extends QuadCLTCPU {
 			}
 			double [] offsets_old = ref_scene.getLwirOffsets();
 			double [] scales_old =  ref_scene.getLwirScales();
+			double [] scales2_old = ref_scene.getLwirScales2();
 			double [] offsets_new = new double[num_sens];
 			double [] scales_new =  new double[num_sens];
+			double [] scales2_new = new double[num_sens];
 			for (int n = 0; n < num_sens; n++) {
 				scales_new[n] = scales_old[n]/scales[n];
-//				offsets_new[n] = offsets_old[n]  - offsets[n] / scales_old[n];
 				offsets_new[n] = offsets_old[n]  + offsets[n] / scales_old[n];
 			}
 			System.out.println("calibratePhotometric() Updated calibration:");
 			for (int n = 0; n < num_sens; n++) {
-				System.out.println(String.format("%2d: %8.4f %8.6f", n,offsets_new[n],scales_new[n]));
+				System.out.println(String.format("%2d: %8.4f %8.6f %8.6f", n,offsets_new[n],scales_new[n], scales2_new[n]));
 			}
 			System.out.println();
-			ref_scene.setLwirOffsets(offsets_new);
-			ref_scene.setLwirScales (scales_new);
+			ref_scene.setLwirOffsets (offsets_new);
+			ref_scene.setLwirScales  (scales_new);
+			ref_scene.setLwirScales2 (scales2_new);
+			return true;
+	}
+	public static boolean calibratePhotometric2( // quadratic
+			CLTParameters     clt_parameters,
+			final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
+			final double      min_strength,
+			final double      max_diff,    // 30.0
+			final int         num_refines, // 2
+			final double [][] combo_dsn_final,     // double [][]    combo_dsn_final, // dls,			
+			int               threadsMax,
+			final boolean     debug)
+	{
+		
+		// filter disparity by LMA only, same bg and fg
+			double []         disparity_ref= combo_dsn_final[OpticalFlow.COMBO_DSN_INDX_DISP].clone();
+			for (int i = 00; i < disparity_ref.length; i++) {
+				if (combo_dsn_final[OpticalFlow.COMBO_DSN_INDX_STRENGTH][i] < min_strength) {
+					disparity_ref[i] = Double.NaN;
+				} else if (combo_dsn_final[OpticalFlow.COMBO_DSN_INDX_DISP_BG_ALL][i] !=
+						combo_dsn_final[OpticalFlow.COMBO_DSN_INDX_DISP][i]) {
+					disparity_ref[i] = Double.NaN;
+				}
+			}
+			
+			ImagePlus img_ref = renderGPUFromDSI(
+					-1,                 // final int         sensor_mask,
+					false,              // final boolean     merge_channels,
+					null,               // final Rectangle   full_woi_in,      // show larger than sensor WOI in tiles (or null)
+					 clt_parameters,    // CLTParameters     clt_parameters,
+					 disparity_ref,     // double []         disparity_ref,
+					 OpticalFlow.ZERO3, // final double []   scene_xyz, // camera center in world coordinates
+					 OpticalFlow.ZERO3, // final double []   scene_atr, // camera orientation relative to world frame
+					 ref_scene,         // final QuadCLT     scene,
+					 ref_scene,         // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
+					false,              // final boolean     toRGB,
+					true,               // final boolean     show_nan,
+					"PHOTOMETRIC",      // String            suffix,
+					threadsMax,         // int               threadsMax,
+					-2);        // final int         debugLevel);
+			img_ref.show();
+			ImageStack imageStack = img_ref.getStack();
+			int num_sens=imageStack.getSize();
+			float [] fpixels;
+			double [][] dpixels = new double [num_sens][];
+			for (int n = 0; n < num_sens; n++) {
+				fpixels = (float[]) imageStack.getPixels(n + 1);
+				dpixels[n] = new double [fpixels.length];
+				for (int i = 0; i < fpixels.length; i++) {
+					dpixels[n][i] = fpixels[i];
+				}
+			}
+			boolean quadratic = true;
+//			double [][] dpix_orig = new double[num_sens][];
+//			for (int n = 0; n < num_sens; n++) {
+//				dpix_orig[n] =  dpixels[n].clone();
+//			}					
+			int width =  img_ref.getWidth();
+			int height = img_ref.getHeight();
+			int len = width* height;
+			double [] avg_pix = new double [len];
+			double [] offsets = new double[dpixels.length];
+			double [] scales = new double[dpixels.length];
+			double    s0 =  0.0;
+			double    sx=   0.0;
+			double    sx2 = 0.0;
+			double [] sy = new double[num_sens];
+			double [] sxy = new double[num_sens];
+			boolean [] good_pix = new boolean[len];
+			double [][] pa_coeff = new double[num_sens][];
+			Arrays.fill(good_pix, true);
+			for (int nref = 0; nref < num_refines; nref++) {
+				Arrays.fill(avg_pix, 0.0);
+				int num_good = 0;
+				for (int i = 0; i < len; i++) {
+					for (int n = 0; n < num_sens; n++) {
+						avg_pix[i]+=dpixels[n][i];
+						good_pix[i] &= !Double.isNaN(dpixels[n][i]);
+					}
+					avg_pix[i] /= dpixels.length;
+					if (good_pix[i]) {
+						num_good++;
+					}
+				}
+				double [][] pa_data = new double [num_good][2];  
+				for (int nsens = 0; nsens < num_sens; nsens++) {
+					int indx = 0;
+					for (int i = 0; i < len; i++) if (good_pix[i]){
+						pa_data[indx][0] = dpixels[nsens][i]; 
+						pa_data[indx][1] = avg_pix[i];
+						indx++;
+					}
+					// quadratic
+					pa_coeff[nsens] =(new PolynomialApproximation(0)).polynomialApproximation1d(pa_data, quadratic ? 2 : 1);
+				}
+				if (debug) {
+					System.out.println("calibratePhotometric() nref="+nref);
+					for (int n = 0; n < num_sens; n++) {
+						System.out.println(String.format("%2d: %8.4f %8.6f %8.6f", n,pa_coeff[n][0],pa_coeff[n][1], 1e6*pa_coeff[n][2]));
+					}
+					System.out.println();
+					double [][] diffs = new double [num_sens][len];
+					for (int n = 0; n < num_sens; n++) {
+						Arrays.fill(diffs[n], Double.NaN);
+					}
+					for (int i = 0; i < len; i++)  if (good_pix[i]) { // if (!Double.isNaN(avg_pix[i])){
+						for (int n = 0; n < num_sens; n++) {
+//							diffs[n][i] = dpixels[n][i] - (scales[n] * avg_pix[i] + offsets[n]);
+							diffs[n][i] = -(avg_pix[i] - pa_coeff[n][2] * dpixels[n][i] * dpixels[n][i] - pa_coeff[n][1] * dpixels[n][i] - pa_coeff[n][0]); 
+						}
+					}
+					(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+							diffs,
+							width,
+							height,
+							true,
+							"photometric-quad-err"+nref);
+				}				
+				
+				
+				Arrays.fill(offsets,0.0);
+				Arrays.fill(scales,0.0);
+				s0 =  0.0;
+				sx=   0.0;
+				sx2 = 0.0;
+				Arrays.fill(sy,0.0);
+				Arrays.fill(sxy,0.0);
+				for (int i = 0; i < len; i++)  if (good_pix[i]) { // !Double.isNaN(avg_pix[i])){
+					s0 +=  1.0;
+					sx +=  avg_pix[i];
+					sx2 += avg_pix[i] * avg_pix[i];
+					for (int n = 0; n < num_sens; n++) {
+						sy[n] +=  dpixels[n][i];
+						sxy[n] += dpixels[n][i] * avg_pix[i];
+					}
+				}
+				for (int n = 0; n < num_sens; n++) {
+					double d = s0 * sx2 + sx * sy[n];
+					scales[n] =  (sxy[n] * s0 + sy[n] * sy[n]) / d;
+					offsets[n] = (sy[n] * sx2 -sxy[n]*sx) / d;
+				}
+				
+				
+				if (debug) {
+					System.out.println("calibratePhotometric() nref="+nref);
+					for (int n = 0; n < num_sens; n++) {
+						System.out.println(String.format("%2d: %8.4f %8.6f", n,offsets[n],scales[n]));
+					}
+					System.out.println();
+					double [][] diffs = new double [num_sens][len];
+					for (int n = 0; n < num_sens; n++) {
+						Arrays.fill(diffs[n], Double.NaN);
+					}
+					for (int i = 0; i < len; i++)  if (good_pix[i]) { // if (!Double.isNaN(avg_pix[i])){
+						for (int n = 0; n < num_sens; n++) {
+							diffs[n][i] = dpixels[n][i] - (scales[n] * avg_pix[i] + offsets[n]);
+						}
+					}
+					(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+							diffs,
+							width,
+							height,
+							true,
+							"photometric-err"+nref);
+
+					// dpix_orig[n] =  dpixels[n].clone();
+					double [][] corrected = new double [num_sens][len];
+					for (int n = 0; n < num_sens; n++) {
+						Arrays.fill(corrected[n], Double.NaN);
+						for (int i = 0; i < len; i++)  if (!Double.isNaN(dpixels[n][i])){
+							corrected[n][i] = (dpixels[n][i] - offsets[n])/scales[n];
+						}
+					}
+
+					(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+							corrected,
+							width,
+							height,
+							true,
+							"photometric-corr"+nref);
+				}
+				//max_diff
+				if (nref < (num_refines-1)) {
+					for (int i = 0; i < len; i++)  if (good_pix[i]) { // !Double.isNaN(avg_pix[i])){
+						for (int n = 0; n < num_sens; n++) {
+							double diff = Math.abs(dpixels[n][i] - (scales[n] * avg_pix[i] + offsets[n]));
+							if (diff > max_diff) {
+//								dpixels[n][i] = Double.NaN;
+								good_pix[i] = false;
+								break;
+							}
+						}
+					}
+				}
+			}
+			double [] offsets_old = ref_scene.getLwirOffsets();
+			double [] scales_old =  ref_scene.getLwirScales();
+			double [] scales2_old = ref_scene.getLwirScales2();
+			double [] offsets_new = new double[num_sens];
+			double [] scales_new =  new double[num_sens];
+			double [] scales2_new = new double[num_sens];
+			for (int n = 0; n < num_sens; n++) {
+				scales_new[n] = scales_old[n]/scales[n];
+				offsets_new[n] = offsets_old[n]  + offsets[n] / scales_old[n];
+			}
+			System.out.println("calibratePhotometric() Updated calibration:");
+			for (int n = 0; n < num_sens; n++) {
+				System.out.println(String.format("%2d: %8.4f %8.6f %8.6f", n,offsets_new[n],scales_new[n], scales2_new[n]));
+			}
+			System.out.println();
+			ref_scene.setLwirOffsets (offsets_new);
+			ref_scene.setLwirScales  (scales_new);
+			ref_scene.setLwirScales2 (scales2_new);
 			return true;
 	}
 	

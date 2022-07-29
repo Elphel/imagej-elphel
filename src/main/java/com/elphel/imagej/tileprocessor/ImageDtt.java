@@ -2802,6 +2802,19 @@ public class ImageDtt extends ImageDttCPU {
 							}
 							if (half_disparity > 0.0) { // scale by disparity
 								mv[nTile][2] *= half_disparity/(half_disparity + pxd[nTile][2]);
+								//							} else { // temporary, testing, make equalization?
+								//								double disp0 = 5.0;
+								//								if (pxd[nTile][2] > disp0) {
+								//									mv[nTile][2] *= pxd[nTile][2]/disp0;
+								//								}
+								/*
+							} else {
+								double disp0 = 5.0;
+								if (pxd[nTile][2] > disp0) {
+									mv[nTile][2] *= 10; // pxd[nTile][2]/disp0;
+								}
+								 */
+
 							}
 							if ((half_avg_diff > 0.0) &&(num_neibs > 0)) {
 								double dx = mv[nTile][0] - sx / num_neibs;

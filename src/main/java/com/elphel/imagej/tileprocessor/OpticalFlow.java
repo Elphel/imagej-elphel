@@ -4186,7 +4186,7 @@ public class OpticalFlow {
 		//start_index
 		
 		
-		double [][][] scenes_xyzatr = new double [quadCLTs.length][][]; // previous scene relative to the next one
+		double [][][] scenes_xyzatr =      new double [quadCLTs.length][][]; // previous scene relative to the next one
 		scenes_xyzatr[ref_index] = new double[2][3]; // all zeros
 		// See if build_ref_dsi is needed
 		if (!build_ref_dsi) {
@@ -4382,7 +4382,7 @@ public class OpticalFlow {
 						debugLevel-2);
 			} // split cycles to remove output clutter
 			int debug_scene = -15;
-			boolean debug2 = false; // true;
+			boolean debug2 = !batch_mode; // false; // true;
 			boolean [] reliable_ref = null;
 			if (min_ref_str > 0.0) {
 				reliable_ref = quadCLTs[ref_index].getReliableTiles( // will be null if does not exist.
@@ -4431,9 +4431,26 @@ public class OpticalFlow {
 					}
 					scenes_xyzatr[scene_index] = new double [][] {new double[3], use_atr};
 				} else { // assume linear motion
+					int num_avg = 1; // 3;
+					double scale_xyz = 0.0; // 0.5;
+					int na = num_avg;
+					if ((scene_index + 1 + na) > ref_index) {
+						na = ref_index - (scene_index + 1); 
+					}
+					
 					double [][] last_diff = ErsCorrection.combineXYZATR(
-							scenes_xyzatr[scene_index+1],
-							ErsCorrection.invertXYZATR(scenes_xyzatr[scene_index+2]));
+							scenes_xyzatr[scene_index + 1],
+							ErsCorrection.invertXYZATR(scenes_xyzatr[scene_index+1 + na]));
+					for (int i = 0; i < 3; i++) {
+						last_diff[0][i] /= na;
+						last_diff[1][i] /= na;
+					}
+					for (int i = 0; i < 3; i++) {
+						last_diff[0][i] *= scale_xyz;
+					}					
+//					last_diff[0][0] = 0.0;
+//					last_diff[0][1] = 0.0;
+//					last_diff[0][2] = 0.0;
 					scenes_xyzatr[scene_index] = ErsCorrection.combineXYZATR(
 							scenes_xyzatr[scene_index+1],
 							last_diff);
@@ -4606,7 +4623,7 @@ public class OpticalFlow {
 							quadCLTs[ref_index], // QuadCLT        scene,
 							debugLevel); // int            debugLevel);// > 0
 			for (int nrecalib = 0; nrecalib < photo_num_full; nrecalib++) {
-				QuadCLT.calibratePhotometric(
+				QuadCLT.calibratePhotometric2(
 						clt_parameters,           // CLTParameters     clt_parameters,
 						quadCLTs[ref_index],      // final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 						photo_min_strength,       // final double      min_strength,
@@ -4620,7 +4637,8 @@ public class OpticalFlow {
 						null, // String path,             // full name with extension or w/o path to use x3d directory
 						debugLevel+1);
 				quadCLT_main.setLwirOffsets(quadCLTs[ref_index].getLwirOffsets());
-				quadCLT_main.setLwirScales(quadCLTs[ref_index].getLwirScales());
+				quadCLT_main.setLwirScales (quadCLTs[ref_index].getLwirScales ());
+				quadCLT_main.setLwirScales2(quadCLTs[ref_index].getLwirScales2());
 				// Re-read reference and other scenes using new offsets	
 				quadCLTs[ref_index].saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry
 				quadCLTs[ref_index] = (QuadCLT) quadCLT_main.spawnQuadCLT( // restores dsi from "DSI-MAIN"
@@ -12478,6 +12496,242 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		return coord_motion;
 	}
 	
+	/**
+	 * Equalize weights of the motion vectors to boost that of important buy weak one.
+	 * Process overlapping (by half, using shifted cosine weight function) supertiles
+	 * independetly and if it qualifies, increase its tiles weights equlaizing (with
+	 * certain limitations) total supertile weights.
+	 * @param coord_motion       [2][tilesX*tilesY][3] input/output arrays.[0][tile][] is
+	 *                           pXpYD triplet (
+	 * @param stride_hor         half of a supertile width
+	 * @param stride_vert        half of a supertile height
+	 * @param min_stile_weight   minimal total weight of the tiles in a supertile (lower
+	 *                           will not be modified)
+	 * @param min_stile_number   minimal number of defined tiles in a supertile
+	 * @param min_stile_fraction minimal total tile strength compared to the average one
+	 * @param min_disparity      minimal disparity of tiles to consider (after filtering)
+	 * @param max_disparity      maximal disparity of tiles to consider (after filtering)
+	 * @param weight_add         add to each tile after scaling (if total weight < average)
+	 * @param weight_scale       scale each tile (if total weight < average)
+	 * If total new weight of a supertile exceeds average - scale each tile to match. If
+	 * lower - keep as is. Only after this step remove tiles (replace with original weight)
+	 * that are discarded by the disparity filter. Multiply result by the the window and
+	 * accumulate (in 4 passes to prevent contentions for the same destination array  
+	 */
+	public void equalizeMotionVectorsWeights(
+			final double [][][] coord_motion,
+			final int           tilesX,
+			final int           stride_hor,
+			final int           stride_vert,
+			final double        min_stile_weight,
+			final int           min_stile_number,
+			final double        min_stile_fraction,
+			final double        min_disparity,
+			final double        max_disparity,
+			final double        weight_add,
+			final double        weight_scale)
+	{
+		final int tiles = coord_motion[0].length;
+		final int tilesY = tiles/tilesX;
+		final int stile_width =  2 * stride_hor;
+		final int stile_height = 2 * stride_vert;
+		double [] whor =  new double [stride_hor];
+		double [] wvert = new double [stride_vert];
+		for (int i = 0; i < stride_hor;  i++) whor[i] =  0.5 *(1.0 - Math.cos(Math.PI*(i+0.5)/stride_hor)); 
+		for (int i = 0; i < stride_vert; i++) wvert[i] = 0.5 *(1.0 - Math.cos(Math.PI*(i+0.5)/stride_vert));
+		final int stilesX = (tilesX - 1)/stride_hor;  // 9
+		final int stilesY = (tilesY - 1)/stride_vert; // 7
+		final int stiles = stilesX * stilesY;
+		int indx = 0;
+		final double[] wind = new double[stile_height*stile_width];
+		for (int iy = 0; iy < stile_height;iy++) {
+			int iy1 = (iy >= stride_vert) ? (stile_height - 1 - iy) : iy;
+			for (int ix = 0; ix < stile_width; ix++) {
+				int ix1 = (ix >= stride_hor) ? (stile_width - 1 - ix) : ix;
+				wind[indx++] = wvert[iy1] * whor[ix1];
+			}
+		}
+		final double [] stile_weight = new double [stiles];
+		final int [] stile_number = new int [stiles];
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final int dbg_stile =  -1;
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int sTile = ai.getAndIncrement(); sTile < stiles; sTile = ai.getAndIncrement()) {
+						if (sTile == dbg_stile) {
+							System.out.println("normalizeMotionVectorsWeights (): dbg_stile = "+dbg_stile);
+						}
+						int sTileX = sTile % stilesX;
+						int sTileY = sTile / stilesX;
+						stile_weight[sTile] = 0.0;
+						int num_tiles = 0; // for partial stiles
+						for (int iy = 0; iy < stile_height;iy++) {
+							int tileY = sTileY * stride_vert + iy;
+							if (tileY >= tilesY) continue;
+							for (int ix = 0; ix < stile_width; ix++) {
+								int tileX = sTileX * stride_hor + ix;
+								if (tileX >= tilesX) continue;
+								num_tiles++; // for partial stiles
+								int tile = tileX + tilesX*tileY;
+								if ((coord_motion[1][tile] != null) && !Double.isNaN(coord_motion[0][tile][2])) {
+									stile_weight[sTile] += coord_motion[1][tile][2];
+									stile_number[sTile]++;
+								}
+							}
+						}
+						stile_weight[sTile] *= 1.0 * stile_height * stile_height / num_tiles; // increase for partiaL stiles
+						stile_number[sTile] *= stile_height*stile_height;
+						stile_number[sTile] /= num_tiles;
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		/*
+		double avg_tile_str = 0.0;
+		int num_defined = 0;
+		for (int tile = 0; tile < coord_motion[0].length; tile++) {
+			if ((coord_motion[1][tile] != null) && !Double.isNaN(coord_motion[0][tile][2])) {
+				num_defined++;
+				avg_tile_str +=coord_motion[1][tile][2];
+			}
+		}
+		*/
+		double sum_stile_str = 0.0;
+		int num_stiles_defined = 0;
+		for (int sTile = 0; sTile < stiles; sTile++) {
+			if (stile_weight[sTile] > 0) {
+				num_stiles_defined++;
+				sum_stile_str+=stile_weight[sTile];
+			}
+		}
+		if (num_stiles_defined <=0) {
+			System.out.println("normalizeMotionVectorsWeights(): no defined supertiles, bailing out");
+			return;
+		}
+		final boolean [] dbg_mod = new boolean [stiles];
+		final double [] tile_new_strength = new double [tiles]; // accumulate new strengths here
+		final double avg_stile_str = sum_stile_str / num_stiles_defined;
+		final double min_combo_weight = Math.max(min_stile_weight, min_stile_fraction * avg_stile_str);
+		for (int offsy = 0; offsy < 2; offsy++) { // avoiding overlap
+			final int foffsy = offsy;
+			final int sty2 = (stilesY + 1 - offsy) / 2;
+			for (int offsx = 0; offsx < 2; offsx++) {
+				final int foffsx = offsx;
+				final int stx2 = (stilesX + 1 - offsx) / 2;
+				final int st2 = sty2*stx2;
+				ai.set(0);
+				for (int ithread = 0; ithread < threads.length; ithread++) {
+					threads[ithread] = new Thread() {
+						public void run() {
+							double [] mod_weights =  new double [stile_height*stile_width];
+							for (int indx = ai.getAndIncrement(); indx < st2; indx = ai.getAndIncrement()) {
+								int stileY = (indx/stx2)*2+foffsy;
+								int stileX = (indx%stx2)*2+foffsx;
+								int sTile = stileX + (stilesX * stileY);
+								if (sTile == dbg_stile) {
+									System.out.println("normalizeMotionVectorsWeights (): dbg_stile = "+dbg_stile);
+								}
+								boolean keep_old = false;
+								// check this tile qualifies:
+								//stile_number
+								if (stile_number[sTile] < min_stile_number) {
+									keep_old = true;
+								}
+								if (stile_weight[sTile] < min_combo_weight) {
+									keep_old = true;
+								}
+								if (stile_weight[sTile] >= avg_stile_str) { // already strong enough
+									keep_old = true;
+								}
+								Arrays.fill(mod_weights,0);
+								double sum_weights = 0.0;
+								int num_tiles = 0; // for partial stiles
+								for (int iy = 0; iy < stile_height;iy++) {
+									int tileY = stileY * stride_vert + iy;
+									if (tileY >= tilesY) continue;
+									for (int ix = 0; ix < stile_width; ix++) {
+										int tileX = stileX * stride_hor + ix;
+										if (tileX >= tilesX) continue;
+										int tile = tileX + tilesX*tileY;
+										num_tiles ++;
+										if ((coord_motion[1][tile] != null) && !Double.isNaN(coord_motion[0][tile][2])) {
+											int ltile = ix + iy * stile_width;
+											mod_weights[ltile] = keep_old ?
+													coord_motion[1][tile][2] :
+														(weight_add + coord_motion[1][tile][2] ) * weight_scale;
+											sum_weights += mod_weights[ltile];
+										}
+									}
+								}
+								sum_weights *= 1.0 * stile_height * stile_height / num_tiles  ; // increase for partial tiles 
+								if (!keep_old) {
+									if (sum_weights > avg_stile_str) { // scale back
+										double s = avg_stile_str/sum_weights;
+										for (int ltile = 0; ltile < mod_weights.length; ltile++) {
+											mod_weights[ltile] *= s;
+										}
+									}
+									for (int iy = 0; iy < stile_height;iy++) {
+										int tileY = stileY * stride_vert + iy;
+										if (tileY >= tilesY) continue;
+										for (int ix = 0; ix < stile_width; ix++) {
+											int tileX = stileX * stride_hor + ix;
+											if (tileX >= tilesX) continue;
+											int tile = tileX + tilesX*tileY;
+											int ltile = ix + iy * stile_width;
+											// remove out of range disparity
+											if (coord_motion[0][tile] != null) {
+												double disp = coord_motion[0][tile][2]; // shopuld be non-null
+												if ((disp < min_disparity) || (disp > max_disparity)) { // min/max = NaN - OK
+													mod_weights[ltile] = coord_motion[1][tile][2]; // use original value
+												}
+											}
+										}
+									}
+									dbg_mod[sTile] = true;
+								}
+								// multiply by window and accumulate
+								for (int iy = 0; iy < stile_height;iy++) {
+									int tileY = stileY * stride_vert + iy;
+									if (tileY >= tilesY) continue;
+									for (int ix = 0; ix < stile_width; ix++) {
+										int tileX = stileX * stride_hor + ix;
+										if (tileX >= tilesX) continue;
+										int tile = tileX + tilesX*tileY;
+										int ltile = ix + iy * stile_width;
+										// wind
+										tile_new_strength[tile] += wind[ltile] * mod_weights[ltile];
+									}
+								}
+							}
+						}
+					};
+				}		      
+				ImageDtt.startAndJoin(threads);
+			}
+		}
+		ai.set(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) {
+						if (tile_new_strength[nTile] > 0.0) { // assuming ((coord_motion[1][nTile] != null) && !Double.isNaN(coord_motion[0][nTile][2]))
+							if (coord_motion[1][nTile] == null) {
+								System.out.println("coord_motion[1]["+nTile+"] == null, tileX="+(nTile%tilesX)+", tileY="+(nTile/tilesX));
+							} else {
+								coord_motion[1][nTile][2] = tile_new_strength[nTile]; // replace modified
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return;
+	}
 	
 	public static boolean [] getMovementMask(
 			CLTParameters clt_parameters,
@@ -13123,6 +13377,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		double[] camera_atr0 = camera_atr.clone();
 		double [][][] coord_motion = null;
 		boolean show_corr_fpn = debug_level > -1; //  -3; *********** Change to debug FPN correleation *** 
+		boolean       run_equalize = false;
 		
 		int nlma = 00;
 		for (; nlma < clt_parameters.imp.max_cycles; nlma ++) {
@@ -13148,6 +13403,75 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 	        	System.out.println("adjustPairsLMAInterscene() returned null");
 	        	return null;
 	        }
+			int           eq_stride_hor =         8;
+			int           eq_stride_vert =        8;
+			double        eq_min_stile_weight =   1.0;
+			int           eq_min_stile_number =   10;
+			double        eq_min_stile_fraction = 0.05;
+			double        eq_min_disparity =      5;
+			double        eq_max_disparity =    100;
+			double        eq_weight_add =         0.1;
+			double        eq_weight_scale =      10;
+			
+			if (run_equalize && near_important) {
+				TileProcessor tp = reference_QuadClt.getTileProcessor();
+				int tilesX = tp.getTilesX();
+				int tilesY = tp.getTilesY();
+				// backup coord_motion[1][][2] // strength
+				double [] strength_backup = new double [coord_motion[1].length];
+				for (int i = 0; i < strength_backup.length; i++) if (coord_motion[1][i] != null) {
+					strength_backup[i] = coord_motion[1][i][2];
+				}
+
+				while (run_equalize) {
+					// restore
+					for (int i = 0; i < strength_backup.length; i++) if (coord_motion[1][i] != null) {
+						coord_motion[1][i][2] = strength_backup[i];
+					}
+					equalizeMotionVectorsWeights(
+							coord_motion, // final double [][][] coord_motion,
+							tilesX, // final int           tilesX,
+							eq_stride_hor, // final int           stride_hor,
+							eq_stride_vert, // final int           stride_vert,
+							eq_min_stile_weight, // final double        min_stile_weight,
+							eq_min_stile_number, // final int           min_stile_number,
+							eq_min_stile_fraction, // final double        min_stile_fraction,
+							eq_min_disparity, // final double        min_disparity,
+							eq_max_disparity, // final double        max_disparity,
+							eq_weight_add, // final double        weight_add,
+							eq_weight_scale); // final double        weight_scale)
+					String [] mvTitles = {"dx", "dy","conf", "conf0", "pX", "pY","Disp","defined"}; // ,"blurX","blurY", "blur"};
+					double [][] dbg_img = new double [mvTitles.length][tilesX*tilesY];
+					for (int l = 0; l < dbg_img.length; l++) {
+						Arrays.fill(dbg_img[l], Double.NaN);
+					}
+					for (int nTile = 0; nTile <  coord_motion[0].length; nTile++) {
+						if (coord_motion[0][nTile] != null) {
+							for (int i = 0; i <3; i++) {
+								dbg_img[4+i][nTile] = coord_motion[0][nTile][i];
+							}
+						}
+						dbg_img[3] = strength_backup;
+						if (coord_motion[1][nTile] != null) {
+							for (int i = 0; i <3; i++) {
+								dbg_img[0+i][nTile] = coord_motion[1][nTile][i];
+							}
+						}
+						dbg_img[7][nTile] = ((coord_motion[0][nTile] != null)?1:0)+((coord_motion[0][nTile] != null)?2:0);
+					}
+					(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+							dbg_img,
+							tilesX,
+							tilesY,
+							true,
+							scene_QuadClt.getImageName()+"-"+reference_QuadClt.getImageName()+"-coord_motion-eq",
+							mvTitles);
+				}
+
+			}
+
+	        
+	        
 			intersceneLma.prepareLMA(
 					camera_xyz0,         // final double []   scene_xyz0,     // camera center in world coordinates (or null to use instance)
 					camera_atr0,         // final double []   scene_atr0,     // camera orientation relative to world frame (or null to use instance)
@@ -13158,7 +13482,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					param_regweights,    // final double []   param_regweights,
 					coord_motion[1],     // final double [][] vector_XYS, // optical flow X,Y, confidence obtained from the correlate2DIterate()
 					coord_motion[0],     // final double [][] centers,    // macrotile centers (in pixels and average disparities
-					(nlma == 0),                                    // boolean           first_run,
+					(nlma == 0),         // boolean           first_run,
 					clt_parameters.imp.debug_level);           // final int         debug_level)
 			lmaResult = intersceneLma.runLma(
 					clt_parameters.ilp.ilma_lambda, // double lambda,           // 0.1
@@ -13255,6 +13579,12 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 					true,
 					scene_QuadClt.getImageName()+"-"+reference_QuadClt.getImageName()+"-CORR-FPN",
 					fpn_dbg_titles);
+			
+			
+			
+			
+			
+			
 		}
 		
 		
