@@ -58,14 +58,17 @@ public class IntersceneMatchParameters {
 	public  boolean show_color_nan =     true;  // use NAN background for color images (sharp, but distinct black)
 	public  boolean show_mono_nan =      false; // use NAN background for monochrome images (sharp, but distinct black)
 	
-//	public  double [] stereo_bases =   {0.0, 200.0, 500.0, 1000.0}; 
+
+	
+	
+	
+	
 	public  double [][] stereo_views = {  // base, up, back
 			{   0.0,   0.0,    0.0},
 			{ 200.0,   0.0,    0.0},
 			{ 500.0,   0.0, 2000.0},
 			{1000.0, 500.0, 3000.0}};
 	
-//	public  boolean [] generate_stereo_var = new boolean[stereo_bases.length];
 	public  boolean [] generate_stereo_var = new boolean[stereo_views.length];
 
 	// Other parameters
@@ -78,95 +81,9 @@ public class IntersceneMatchParameters {
 	
 	public  boolean export_ml_files =    false; // export files for DNN training
 	
-	public  boolean stereo_merge =       true;
-	public  int     stereo_gap =         32;    // pixels between right and left frames
-	public  double  stereo_intereye =    63.5;  // mm 
-	public  double  stereo_phone_width = 143.0; // mm if 0 - no padding. Will be padded only when merging
-
-	public  int     extra_hor_tile =     15;
-	public  int     extra_vert_tile =    10;
-	public  boolean crop_3d =            true; // do not show extra of FG/BG views (currently they only ref scene has disparity)
-	public  int     sensor_mask =        1; // -1 - all
-	public  boolean merge_all =          true; // merge all 16 channels for 3D modes 
-
-	public  boolean show_mapped_color =  true;
-	public  boolean show_mapped_mono =   true;
-
-	public  boolean gen_avi_color =      true; // will use save_mapped_color
-	public  boolean gen_avi_mono =       true; // will use save_mapped_mono
-	public  double  video_fps =          15; // 4x slowmo
-	public  double  sensor_fps =         60; // sensor fps
-	public  int     mode_avi =           0;  // 0 - raw, 1 - JPEG, 2 - PNG
-	public  int     avi_JPEG_quality =  90;
-	public  boolean run_ffmpeg =         true; // only after AVI
-	public  String  video_ext =          ".webm";
-	public  String  video_codec =        "vp8";
-	public  int     video_crf =         40;    // lower - better, larger file size
-	public  boolean remove_avi =         true; // remove avi after conversion to webm
-	public  String  video_codec_combo =  "vp8"; // applies when combining videos
-	public  int     video_crf_combo =   40;    // lower - better, larger file size applies when combining videos
-	public  boolean um_mono =            true; // applies to both TIFF and AVI 
-	public  double  um_sigma =          10;
-	public  double  um_weight =          0.97; //
-	public  boolean mono_fixed =         true; // normalize to fixed range when converting to 8 bits 
-	public  double  mono_range =       500.0;  // monochrome full-scale range (+/- half)
-	public  boolean anaglyth_en =        true; // applies to both TIFF and AVI 
-	public static Color   anaglyph_left_default = new Color (255, 0, 0); // red
-	public static Color   anaglyph_right_default =new Color (0, 255, 255); // cyan
-	public Color   anaglyph_left =    anaglyph_left_default;
-	public Color   anaglyph_right =   anaglyph_right_default; // cyan
-	
-	public  boolean annotate_color =     true; // annotate pseudo-color video frames with timestamps 
-	public  boolean annotate_mono =      true; // annotate monochrome video frames with timestamps 
-	public Color   annotate_color_color =new Color( 255, 255, 255); // greenish over "fire"
-	public Color annotate_color_mono =   new Color( 255, 180,  50); // reddish over grey
-	public boolean annotate_transparent_mono =  false; // // black if not transparent
-	
-	
-	
 	public  double  range_disparity_offset =   -0.08;
 	public  double  range_min_strength = 0.5;
 	public  double  range_max =       5000.0;
-	
-	
-// Other parameters for filtering depth maps	
-	public  int         num_bottom =                      3; // 6; // average this number of lowest disparity neighbors (of 8)
-	public  int         num_passes =                    100;
-	public  double      max_change =                      1.0e-3;
-	public  double      min_disparity =                  -0.15; // 0.2;
-	public  double      max_sym_disparity =               0.1; // 0.2;
-	// 2 next are wrong currently - minimal strength is ~0.25
-	public  double      min_strength_lma =                0.0; // 0.3;  // no real filtering
-	public  double      min_strength_replace =            0.05; ///  0.14; /// Before /// - LWIR, after - RGB
-	public  double      min_strength_blur =               0.06; ///  0.2;
-	public  double      sigma =                           2; /// 5;
-	public  int         num_blur =                        1; // 3;
-	public  double      disparity_corr =                  0.0;
-	public  int         outliers_nth_fromextrem =         1; // second from min/max - removes dual-tile max/mins
-	public  double      outliers_tolerance_absolute =     0.2;
-	public  double      outliers_tolerance_relative =     0.02;
-	public  int         outliers_max_iter =             100;
-	public  double      outliers_max_strength2 =          1.0; // 0.5; any
-	public  int         outliers_nth_fromextrem2 =        0; // second from min/max - removes dual-tile max/mins
-	public  double      outliers_tolerance_absolute2 =    0.5;
-	public  double      outliers_tolerance_relative2 =    0.1;
-	public  double      outliers_lma_max_strength =       0.4; // 0.5;
-	public  double      outliers_max_strength =           0.1; ///  0.25;
-	public  double      outliers_from_lma_max_strength =  0.8;
-	public  int         search_radius =                   3;  // Search farther if no LMA neighbor is found closer. Original value - 1 (8 neighbors)
-	public  boolean     remove_no_lma_neib =              true;
-	public  double      diff_from_lma_pos =             100.0;
-	public  double      diff_from_lma_neg =               2.0;
-	public  int         outliers_lma_nth_fromextrem =     0; // 1; 
-	public  int         filter_margin =                  -8; // 8; // pixels
-	
-	public  double      weak_tolerance_absolute=          0.25;
-	public  double      weak_tolerance_relative=          0.025;
-	public  int         weak_min_neibs =                  5;
-	public  double      strong_strength=                  0.5;
-	public  double      weak_strength=                    0.2; // none is below 
-//------------	
-	
 
 	// Some "AGC" to adjust how much to discard
 	public  int     margin =                       1;      // do not use tiles if their centers are closer to the image edge
@@ -253,7 +170,45 @@ public class IntersceneMatchParameters {
 	public  int     test_ers0 =                       -1; // try adjusting a pair of scenes with ERS. Reference scene index
 	public  int     test_ers1 =                       -1; // try adjusting a pair of scenes with ERS. Other scene index
 
-	// SKy detection/filtering
+	// Other parameters for filtering depth maps	
+	public  int         num_bottom =                      3; // 6; // average this number of lowest disparity neighbors (of 8)
+	public  int         num_passes =                    100;
+	public  double      max_change =                      1.0e-3;
+	public  double      min_disparity =                  -0.15; // 0.2;
+	public  double      max_sym_disparity =               0.1; // 0.2;
+	// 2 next are wrong currently - minimal strength is ~0.25
+	public  double      min_strength_lma =                0.0; // 0.3;  // no real filtering
+	public  double      min_strength_replace =            0.05; ///  0.14; /// Before /// - LWIR, after - RGB
+	public  double      min_strength_blur =               0.06; ///  0.2;
+	public  double      sigma =                           2; /// 5;
+	public  int         num_blur =                        1; // 3;
+	public  double      disparity_corr =                  0.0;
+	public  int         outliers_nth_fromextrem =         1; // second from min/max - removes dual-tile max/mins
+	public  double      outliers_tolerance_absolute =     0.2;
+	public  double      outliers_tolerance_relative =     0.02;
+	public  int         outliers_max_iter =             100;
+	public  double      outliers_max_strength2 =          1.0; // 0.5; any
+	public  int         outliers_nth_fromextrem2 =        0; // second from min/max - removes dual-tile max/mins
+	public  double      outliers_tolerance_absolute2 =    0.5;
+	public  double      outliers_tolerance_relative2 =    0.1;
+	public  double      outliers_lma_max_strength =       0.4; // 0.5;
+	public  double      outliers_max_strength =           0.1; ///  0.25;
+	public  double      outliers_from_lma_max_strength =  0.8;
+	public  int         search_radius =                   3;  // Search farther if no LMA neighbor is found closer. Original value - 1 (8 neighbors)
+	public  boolean     remove_no_lma_neib =              true;
+	public  double      diff_from_lma_pos =             100.0;
+	public  double      diff_from_lma_neg =               2.0;
+	public  int         outliers_lma_nth_fromextrem =     0; // 1; 
+	public  int         filter_margin =                  -8; // 8; // pixels
+
+	public  double      weak_tolerance_absolute=          0.25;
+	public  double      weak_tolerance_relative=          0.025;
+	public  int         weak_min_neibs =                  5;
+	public  double      strong_strength=                  0.5;
+	public  double      weak_strength=                    0.2; // none is below 
+	//------------	
+	
+	// Sky detection/filtering
 	public  double  sky_highest_min =                -50; // lowest absolute value should not be higher (requires photometric) 
 	public  double  cold_frac =                        0.005; // this and lower will scale fom by  cold_scale
 	public  double  hot_frac =                         0.9;    // this and above will scale fom by 1.0
@@ -283,6 +238,49 @@ public class IntersceneMatchParameters {
 	public  double  eq_weight_scale =      20.0;   // maximal boost ratio 
 	public  double  eq_level =              0.9; // equalization level (0.0 - leave as is, 1.0 - boost to have the same supertile strength as average)  
 	
+	public  boolean stereo_merge =       true;
+	public  int     stereo_gap =         32;    // pixels between right and left frames
+	public  double  stereo_intereye =    63.5;  // mm 
+	public  double  stereo_phone_width = 143.0; // mm if 0 - no padding. Will be padded only when merging
+
+	public  int     extra_hor_tile =     15;
+	public  int     extra_vert_tile =    10;
+	public  boolean crop_3d =            true; // do not show extra of FG/BG views (currently they only ref scene has disparity)
+	public  int     sensor_mask =        1; // -1 - all
+	public  boolean merge_all =          true; // merge all 16 channels for 3D modes 
+
+	public  boolean show_mapped_color =  true;
+	public  boolean show_mapped_mono =   true;
+
+	public  boolean gen_avi_color =      true; // will use save_mapped_color
+	public  boolean gen_avi_mono =       true; // will use save_mapped_mono
+	public  double  video_fps =          15; // 4x slowmo
+	public  double  sensor_fps =         60; // sensor fps
+	public  int     mode_avi =           0;  // 0 - raw, 1 - JPEG, 2 - PNG
+	public  int     avi_JPEG_quality =  90;
+	public  boolean run_ffmpeg =         true; // only after AVI
+	public  String  video_ext =          ".webm";
+	public  String  video_codec =        "vp8";
+	public  int     video_crf =         40;    // lower - better, larger file size
+	public  boolean remove_avi =         true; // remove avi after conversion to webm
+	public  String  video_codec_combo =  "vp8"; // applies when combining videos
+	public  int     video_crf_combo =   40;    // lower - better, larger file size applies when combining videos
+	public  boolean um_mono =            true; // applies to both TIFF and AVI 
+	public  double  um_sigma =          10;
+	public  double  um_weight =          0.97; //
+	public  boolean mono_fixed =         true; // normalize to fixed range when converting to 8 bits 
+	public  double  mono_range =       500.0;  // monochrome full-scale range (+/- half)
+	public  boolean anaglyth_en =        true; // applies to both TIFF and AVI 
+	public static Color   anaglyph_left_default = new Color (255, 0, 0); // red
+	public static Color   anaglyph_right_default =new Color (0, 255, 255); // cyan
+	public Color   anaglyph_left =    anaglyph_left_default;
+	public Color   anaglyph_right =   anaglyph_right_default; // cyan
+	
+	public  boolean annotate_color =     true; // annotate pseudo-color video frames with timestamps 
+	public  boolean annotate_mono =      true; // annotate monochrome video frames with timestamps 
+	public Color   annotate_color_color =new Color( 255, 255, 255); // greenish over "fire"
+	public Color annotate_color_mono =   new Color( 255, 180,  50); // reddish over grey
+	public boolean annotate_transparent_mono =  false; // // black if not transparent
 	
 	
 	public boolean renderRef()            {return renderRef             (debug_level);}
@@ -348,21 +346,8 @@ public class IntersceneMatchParameters {
 				"Correct in 3D scene images (from all 16 sensors) matching reference (last in sequence) scene with background (BG) priority.");
 		gd.addCheckbox ("Generate binocular stereo pairs",           this.generate_stereo,
 				"Generate stereo-pairs for 3D-corrected videos (FG,BG). Ebables specific modes (including 0-baseline / mono).");
-		/*
-		for (int i = 0; i < stereo_bases.length; i++) {
-			double base = stereo_bases[i];
-			String title = (base == 0.0)?
-					"Generate mono (single camera) scene sequences":
-						"Generate "+base+"mm-baseline stereo scene sequences";
-			String tooltip = (base == 0.0)?
-					"Generate mono (single camera) scene sequences as Tiff and/or video.":
-						"Generate "+base+"mm-baseline stereo scene sequences as Tiff and/or video.";
-			gd.addCheckbox (title,                                   this.generate_stereo_var[i], tooltip);
-		}
-		*/
 
 		for (int i = 0; i < stereo_views.length; i++) {
-//			String stereo_view = doublesToString(stereo_views[i]);
 			double base = stereo_views[i][0]; // stereo_bases[i];
 			String ub = String.format("(%.0fmm up, %.0fmm back) ",stereo_views[i][1],stereo_views[i][2]);
 			if ((stereo_views[i][1]==0) && (stereo_views[i][2]==0)){
@@ -414,200 +399,6 @@ public class IntersceneMatchParameters {
 				"Disregard weaker results when measuring range.");
 		gd.addNumericField("Maximal displayed range",                this.range_max, 5,7,"m",
 				"Do not display extremely far objects.");
-		
-
-		gd.addMessage  ("Depth map filtering parameters");
-		gd.addNumericField("Average lowest disparity neighbors",     this.num_bottom, 0,3,"",
-				"Average this number of lowest disparity neighbors (of 8)");
-		gd.addNumericField("Number of filter iterations",            this.num_passes, 0,3,"",
-				"Number of filter iterations");
-		gd.addNumericField("Maximal change to exit",                 this.max_change, 5,7,"pix",
-				"Maximal change to exit iterations");
-		gd.addNumericField("Minimal disparity",                      this.min_disparity, 5,7,"pix",
-				"Minimal acceptable disparity");
-		gd.addNumericField("Disparity range for symmetrical pull",   this.max_sym_disparity, 5,7,"pix",
-				"For larger disparities undefined tiles are pull predominantly down (to average of lowest), "+
-		        "but for small disparities (sky) pull is to average of all neighbors.");
-		gd.addNumericField("Minimal strength LMA",                   this.min_strength_lma, 5,7,"",
-				"Lower strength for LMA tiles - treat as non-LMA");
-		gd.addNumericField("Minimal strength to replace",            this.min_strength_replace, 5,7,"",
-				"Minimal strength to replace (now not used)");
-		gd.addNumericField("Minimal strength to blur",               this.min_strength_blur, 5,7,"",
-				"Minimal strength to blur  (now not used)");
-		gd.addNumericField("Blur weak sigma",                        this.sigma, 5,7,"",
-				"Blur weak sigma");
-		gd.addNumericField("Number of blur passes",                  this.num_blur, 0,3,"",
-				"Number of blur passes");
-		gd.addNumericField("Disparity offset (not used)",            this.disparity_corr, 5,7,"",
-				"for setInterTasks() - currently not used ");
-		gd.addNumericField("Outlier N-th from extreme",              this.outliers_nth_fromextrem, 0,3,"",
-				"0 - use min/max, 1 - use second min/max, ... second from min/max - removes dual-tile clusters max/mins");
-		gd.addNumericField("Outliers tolerance absolute",            this.outliers_tolerance_absolute, 5,7,"pix",
-				"Absolute difference from extreme neighbor");
-		gd.addNumericField("Outliers tolerance realtive",            this.outliers_tolerance_relative, 5,7,"pix/pix",
-				"Add to tolerance as a fraction of absolute tile disparity");
-		gd.addNumericField("Maximal number of outlier iterations",   this.outliers_max_iter, 0,3,"",
-				"Maximal number of iterations for removing outliers");
-		gd.addNumericField("Maximal outlier strength 2",             this.outliers_max_strength2, 5,7,"",
-				"Maximal outlier strength for second pass filtering");
-		gd.addNumericField("Outlier N-th from extreme 2",            this.outliers_nth_fromextrem2, 0,3,"",
-				"Second filter: 0 - use min/max, 1 - use second min/max, ... second from min/max - removes dual-tile clusters max/mins");
-		gd.addNumericField("Outliers tolerance absolute 2",          this.outliers_tolerance_absolute2, 5,7,"",
-				"Absolute difference from extreme neighbor, second filter");
-		gd.addNumericField("Outliers tolerance realtive 2",          this.outliers_tolerance_relative2, 5,7,"",
-				"Add to tolerance as a fraction of absolute tile disparity, second filter");
-		gd.addNumericField("Outliers LMA maximal strength",          this.outliers_lma_max_strength, 5,7,"",
-				"Maximal LMA strength for an outlier");
-		gd.addNumericField("Outliers non-LMA maximal strength",      this.outliers_max_strength, 5,7,"",
-				"Outliers non-LMA (centroid) maximal strength");
-		gd.addNumericField("Outliers from LMA max strength",         this.outliers_from_lma_max_strength, 5,7,"",
-				"Non-LMA outliers from LMA neighbors maximal strength");
-		
-		gd.addNumericField("Search for LMA radius",                  this.search_radius, 0,3,"tile",
-				"Search farther if no LMA tiles are found around this non-LMA tile");
-		gd.addCheckbox ("Remove non-LMA tile if no LMA near",        this.remove_no_lma_neib,
-				"Remove non-LMA tile if no LMA one is found within specified radius");
-		
-		gd.addNumericField("LMA difference positive",                this.diff_from_lma_pos, 5,7,"",
-				"Maximal non-LMA tile positive difference from the LMA neighbor");
-		gd.addNumericField("LMA difference negative",                this.diff_from_lma_neg, 5,7,"",
-				"Maximal non-LMA tile negative difference from the LMA neighbor");
-		gd.addNumericField("LMA outliers N-th from extreme",         this.outliers_lma_nth_fromextrem, 0,3,"",
-				"0 - use min/max, 1 - use second min/max, ... ");
-		gd.addNumericField("Margin from the sensor FOV edge ",       this.filter_margin, 0,3,"pix",
-				"Disregard tiles with centers closer to the sensor FoV in pixels");
-		
-		gd.addMessage  ("Removing weak tiles with insufficient matching neighbors");
-		gd.addNumericField("Neighbor disparity tolerance (absolute)",this.weak_tolerance_absolute, 5,7,"pix",
-				"Absolute disparity difference to be considered a neighbor");
-		gd.addNumericField("Neighbor disparity tolerance (relative)", this.weak_tolerance_relative, 5,7,"",
-				"Relative disparity difference to be considered a neighbor");
-		gd.addNumericField("Minimal matching neighbors",              this.weak_min_neibs, 0,3,"",
-				"Minimal number of weak matching neighbors (at least one is needed if there are strong non-neighbors).");
-		gd.addNumericField("Minimal strength to be strong",           this.strong_strength, 5,7,"",
-				"Minimal strength to be considered strong(not weak). LMA are also considered strong.");
-		gd.addNumericField("Minimal weak strength",                   this.weak_strength, 5,7,"",
-				"Weaker are removed unconditionally (not used now).");
-		
-		gd.addMessage  ("Stereo");
-		/*
-		if (stereo_bases.length > 0) {
-			String [] stereo_choices = new String [stereo_bases.length + 1];
-			stereo_choices[0] = "--none--";
-			for (int i = 0; i < stereo_bases.length; i++) {
-				stereo_choices[i+1] = stereo_bases[i]+"mm";	
-			}
-			gd. addChoice("Remove stereo-base",                 stereo_choices, stereo_choices[0], 
-					"Remove selected stereo-base");
-		}
-		*/
-		if (stereo_views.length > 0) {
-			String [] stereo_choices = new String [stereo_views.length + 1];
-			stereo_choices[0] = "--none--";
-			for (int i = 0; i < stereo_views.length; i++) {
-				stereo_choices[i+1] = doublesToString(stereo_views[i],"%.0f")+" mm";	
-			}
-			gd. addChoice("Remove stereo-view (base, up, back)",      stereo_choices, stereo_choices[0], 
-					"Remove selected stereo-view, consisting of streo-base, viewpoint above camera, viewpoint behing camera - all in mm");
-		}
-
-		
-		gd.addStringField("Add another stereo view (baseline, above, behind)",                 "", 40,
-				"Add another stereo view by providing baseline, above camera, behind camera (mm).");
-		
-//		gd.addNumericField("Stereo baseline",                        this.stereo_baseline, 5,7,"mm",
-//				"Synthetic 3D with possibly exagerrated stereo baseline");
-		gd.addCheckbox ("Stereo merge right, left",                  this.stereo_merge,
-				"Combine stereo pair in a single (wide) frame. Unchecked - generate separate videos.");
-		gd.addNumericField("Stereo gap",                             this.stereo_gap, 0,3,"pix",
-				"Distance (pixels) between right and left sub-images in a stereo frame.");
-		gd.addNumericField("VR headset stereo base",                 this.stereo_intereye, 5,7,"mm",
-				"Inter-lens distance of the VR phone adapter (Google Cardboard - 63.5)");
-		gd.addNumericField("Phone screen width",                     this.stereo_phone_width, 5,7,"mm",
-				"Phone screen width in full screen video mode.");
-		
-		
-		gd.addNumericField("Scene sequence horizontal extra",        this.extra_hor_tile, 0,3,"tiles",
-				"Enlarge reference scene window horizontally in each direction to accommodate other scenes in a sequence");
-		gd.addNumericField("Scene sequence vertical extra",          this.extra_vert_tile, 0,3,"tiles",
-				"Enlarge reference scene window vertically in each direction to accommodate other scenes in a sequence");
-		gd.addCheckbox ("Crop 3D",                                   this.crop_3d,
-				"Do not enlarge reference scene windows fro 3D views (FG, BG)");
-		
-		gd.addNumericField("Sensor mask (bitmask, -1 - all sensors)",this.sensor_mask, 0,3,"",
-				"Select which sensors to be included in each scene of the sequence");
-		gd.addCheckbox ("Merge all channels in 3D modes",                                   this.merge_all,
-				"Ignore sensor mask, use all channels and merge them into one in 3D modes (FG and BG)");
-		
-///		gd. addChoice("3D mode",                 MODES3D, MODES3D[this.mode3d + 1], 
-///				"3D mode for rendering scenes in a sequence: RAW - raw images, INF - no 3D, use infinity; FG - Foreground; BG - Background");
-		
-		
-		gd.addMessage  ("Generate video for scene sequences");
-		gd.addNumericField("Video output frame rate",                this.video_fps, 5,7,"fps",
-				"Video frames per second (original is 60fps).");
-		gd.addNumericField("Sensor frame rate (60 for Boson)",       this.sensor_fps, 5,7,"fps",
-				"Sensor (real) frame rate to be used in realtime videos after slowmo.");
-		gd. addChoice("AVI mode",                                     MODES_AVI, MODES_AVI[this.mode_avi], 
-				"AVI generation mode");
-		gd.addNumericField("AVI JPEG Quality",                       this.avi_JPEG_quality, 0,3,"",
-				"Only used in JPEG compression mode");		
-		
-		gd.addCheckbox ("Convert AVI to WEBM",                       this.run_ffmpeg,
-				"Run ffmpeg on AVI video to convert to smaller modern video.");
-		gd.addStringField ("Result video extension (e.g. \".webm\")",this.video_ext, 60,
-				"Converted video extension, starting with dot.");
-		gd.addStringField ("Video encoder",                          this.video_codec, 60,
-				"FFMPEG video encoder, such as \"VP8\" or \"VP9\".");
-		gd.addNumericField("Video CRF",                              this.video_crf, 0,3,"",
-				"Quality - the lower the better. 40 - OK");		
-
-		gd.addCheckbox ("Remove AVI",                                this.remove_avi,
-				"Remove large AVI files after (and only) conversion with ffmpeg.");
-		
-		gd.addStringField ("Video encoder for combining",            this.video_codec_combo, 60,
-				"FFMPEG video encoder, such as \"VP8\" or \"VP9\". Applies when merging segments.");
-		gd.addNumericField("Video CRF for combining",                this.video_crf_combo, 0,3,"",
-				"Quality - the lower the better. 40 - OK.  Applies when merging segments.");		
-		
-		gd.addCheckbox ("Apply unsharp mask to mono",                this.um_mono,
-				"Apply unsharp mask to monochrome image sequences/video.  Applies to TIFF generatiojn too");
-		gd.addNumericField("Unsharp mask sigma (radius)",            this.um_sigma, 5,7,"pix",
-				"Unsharp mask Gaussian sigma.");
-		gd.addNumericField("Unsharp mask weight",                    this.um_weight, 5,7,"",
-				"Unsharp mask weightt (multiply blurred version before subtraction from the original).");
-		
-		gd.addCheckbox ("Fixed monochrome range",                    this.mono_fixed,
-				"Normalize monochrome (after UM) to a fixed range when converting to 8 bit RGB.");
-		gd.addNumericField("Monochrome full range",                  this.mono_range, 5,7,"",
-				"Monochrome full range to convert to 0..255.");
-		
-
-		gd.addCheckbox ("Generate anaglyph stereo",                  this.anaglyth_en,
-				"Apply unsharp mask to monochrome image sequences/video.  Applies to TIFF generatiojn too");
-
-		{String scolor = String.format("%08x", getLongColor(this.anaglyph_left));
-		gd.addStringField ("Anaglyph color left",scolor, 8, "Any invalid hex number sets default red");}
-		
-		{String scolor = String.format("%08x", getLongColor(this.anaglyph_right));
-		gd.addStringField ("Anaglyph color right",scolor, 8, "Any invalid hex number sets default cyan");}
-		
-		
-		
-		
-		
-		gd.addCheckbox ("Timestamp color videos",                    this.annotate_color,
-				"Annotate pseudo-color video frames with timestamps.");
-		gd.addCheckbox ("Timestamp monochrome videos",               this.annotate_mono,
-				"Annotate monochrome video frames with timestamps.");
-		String scolor = (this.annotate_color_color==null)?"none":String.format("%08x", getLongColor(this.annotate_color_color));
-		gd.addStringField ("Timestamp color for pseudocolor frames",scolor, 8, "Any invalid hex number disables annotation");
-		scolor = (this.annotate_color_mono==null)?"none":String.format("%08x", getLongColor(this.annotate_color_mono));
-		
-		gd.addStringField ("Timestamp color for monochrome frames",scolor, 8, "Any invalid hex number disables annotation");
-		gd.addCheckbox ("Transparent timestamp background (monochrome)",this.annotate_transparent_mono,
-				"Put monochrome timestamp over image (unchecked - use black background). Color - always black.");
-
 		
 		gd.addMessage  ("Interscene match parameters");
 		gd.addNumericField("Image margin",                           this.margin, 0,5,"pix",
@@ -769,6 +560,80 @@ public class IntersceneMatchParameters {
 				"Other scene index in a scene sequence (should have a very different angular/linear velocity component)");
 		
 		
+		gd.addTab("Fiter DSI","Filter DSI before use (interscene fitting, interscene accumulation, ML generation");
+//		gd.addMessage  ("Depth map filtering parameters");
+		gd.addNumericField("Average lowest disparity neighbors",     this.num_bottom, 0,3,"",
+				"Average this number of lowest disparity neighbors (of 8)");
+		gd.addNumericField("Number of filter iterations",            this.num_passes, 0,3,"",
+				"Number of filter iterations");
+		gd.addNumericField("Maximal change to exit",                 this.max_change, 5,7,"pix",
+				"Maximal change to exit iterations");
+		gd.addNumericField("Minimal disparity",                      this.min_disparity, 5,7,"pix",
+				"Minimal acceptable disparity");
+		gd.addNumericField("Disparity range for symmetrical pull",   this.max_sym_disparity, 5,7,"pix",
+				"For larger disparities undefined tiles are pull predominantly down (to average of lowest), "+
+		        "but for small disparities (sky) pull is to average of all neighbors.");
+		gd.addNumericField("Minimal strength LMA",                   this.min_strength_lma, 5,7,"",
+				"Lower strength for LMA tiles - treat as non-LMA");
+		gd.addNumericField("Minimal strength to replace",            this.min_strength_replace, 5,7,"",
+				"Minimal strength to replace (now not used)");
+		gd.addNumericField("Minimal strength to blur",               this.min_strength_blur, 5,7,"",
+				"Minimal strength to blur  (now not used)");
+		gd.addNumericField("Blur weak sigma",                        this.sigma, 5,7,"",
+				"Blur weak sigma");
+		gd.addNumericField("Number of blur passes",                  this.num_blur, 0,3,"",
+				"Number of blur passes");
+		gd.addNumericField("Disparity offset (not used)",            this.disparity_corr, 5,7,"",
+				"for setInterTasks() - currently not used ");
+		gd.addNumericField("Outlier N-th from extreme",              this.outliers_nth_fromextrem, 0,3,"",
+				"0 - use min/max, 1 - use second min/max, ... second from min/max - removes dual-tile clusters max/mins");
+		gd.addNumericField("Outliers tolerance absolute",            this.outliers_tolerance_absolute, 5,7,"pix",
+				"Absolute difference from extreme neighbor");
+		gd.addNumericField("Outliers tolerance realtive",            this.outliers_tolerance_relative, 5,7,"pix/pix",
+				"Add to tolerance as a fraction of absolute tile disparity");
+		gd.addNumericField("Maximal number of outlier iterations",   this.outliers_max_iter, 0,3,"",
+				"Maximal number of iterations for removing outliers");
+		gd.addNumericField("Maximal outlier strength 2",             this.outliers_max_strength2, 5,7,"",
+				"Maximal outlier strength for second pass filtering");
+		gd.addNumericField("Outlier N-th from extreme 2",            this.outliers_nth_fromextrem2, 0,3,"",
+				"Second filter: 0 - use min/max, 1 - use second min/max, ... second from min/max - removes dual-tile clusters max/mins");
+		gd.addNumericField("Outliers tolerance absolute 2",          this.outliers_tolerance_absolute2, 5,7,"",
+				"Absolute difference from extreme neighbor, second filter");
+		gd.addNumericField("Outliers tolerance realtive 2",          this.outliers_tolerance_relative2, 5,7,"",
+				"Add to tolerance as a fraction of absolute tile disparity, second filter");
+		gd.addNumericField("Outliers LMA maximal strength",          this.outliers_lma_max_strength, 5,7,"",
+				"Maximal LMA strength for an outlier");
+		gd.addNumericField("Outliers non-LMA maximal strength",      this.outliers_max_strength, 5,7,"",
+				"Outliers non-LMA (centroid) maximal strength");
+		gd.addNumericField("Outliers from LMA max strength",         this.outliers_from_lma_max_strength, 5,7,"",
+				"Non-LMA outliers from LMA neighbors maximal strength");
+		
+		gd.addNumericField("Search for LMA radius",                  this.search_radius, 0,3,"tile",
+				"Search farther if no LMA tiles are found around this non-LMA tile");
+		gd.addCheckbox ("Remove non-LMA tile if no LMA near",        this.remove_no_lma_neib,
+				"Remove non-LMA tile if no LMA one is found within specified radius");
+		
+		gd.addNumericField("LMA difference positive",                this.diff_from_lma_pos, 5,7,"",
+				"Maximal non-LMA tile positive difference from the LMA neighbor");
+		gd.addNumericField("LMA difference negative",                this.diff_from_lma_neg, 5,7,"",
+				"Maximal non-LMA tile negative difference from the LMA neighbor");
+		gd.addNumericField("LMA outliers N-th from extreme",         this.outliers_lma_nth_fromextrem, 0,3,"",
+				"0 - use min/max, 1 - use second min/max, ... ");
+		gd.addNumericField("Margin from the sensor FOV edge ",       this.filter_margin, 0,3,"pix",
+				"Disregard tiles with centers closer to the sensor FoV in pixels");
+		
+		gd.addMessage  ("Removing weak tiles with insufficient matching neighbors");
+		gd.addNumericField("Neighbor disparity tolerance (absolute)",this.weak_tolerance_absolute, 5,7,"pix",
+				"Absolute disparity difference to be considered a neighbor");
+		gd.addNumericField("Neighbor disparity tolerance (relative)", this.weak_tolerance_relative, 5,7,"",
+				"Relative disparity difference to be considered a neighbor");
+		gd.addNumericField("Minimal matching neighbors",              this.weak_min_neibs, 0,3,"",
+				"Minimal number of weak matching neighbors (at least one is needed if there are strong non-neighbors).");
+		gd.addNumericField("Minimal strength to be strong",           this.strong_strength, 5,7,"",
+				"Minimal strength to be considered strong(not weak). LMA are also considered strong.");
+		gd.addNumericField("Minimal weak strength",                   this.weak_strength, 5,7,"",
+				"Weaker are removed unconditionally (not used now).");
+		
 		gd.addTab("Sky","Featureless sky areas detection and filtering (LWIR only)");
 		gd.addMessage  ("Temperature-related filtering (requires photometric calibration)");
 		gd.addNumericField("High limit of the scene coldest tile",   this.sky_highest_min, 5,7,"",
@@ -823,10 +688,105 @@ public class IntersceneMatchParameters {
 		gd.addMessage  ("Boost amount. Each defined tile will be increased by approximately previous subtracted offset and then scaled");
 		gd.addNumericField("Add to strength before scaling",         this.eq_weight_add, 5,7,"",
 				"Add to strength, then scale.");
-		gd.addNumericField("Maximal boost ratio",    this.eq_weight_scale, 5,7,"",
+		gd.addNumericField("Maximal boost ratio",                    this.eq_weight_scale, 5,7,"",
 				"Strength scale. If the new supertile strength exceed the target value, each tile will be scaled down to match.");
-		gd.addNumericField("Equalization level",    this.eq_level, 5,7,"",
+		gd.addNumericField("Equalization level",                     this.eq_level, 5,7,"",
 				"Target supertile strength will be set to: 0 - original strength (no modification), 1.0 - average supertile strength.");
+		
+		gd.addTab("Stereo/Video","Parameters for stereo video generation");
+		
+		gd.addMessage  ("Stereo");
+		if (stereo_views.length > 0) {
+			String [] stereo_choices = new String [stereo_views.length + 1];
+			stereo_choices[0] = "--none--";
+			for (int i = 0; i < stereo_views.length; i++) {
+				stereo_choices[i+1] = doublesToString(stereo_views[i],"%.0f")+" mm";	
+			}
+			gd. addChoice("Remove stereo-view (base, up, back)",      stereo_choices, stereo_choices[0], 
+					"Remove selected stereo-view, consisting of streo-base, viewpoint above camera, viewpoint behing camera - all in mm");
+		}
+		gd.addStringField("Add another stereo view (baseline, above, behind)",                 "", 40,
+				"Add another stereo view by providing baseline, above camera, behind camera (mm).");
+		gd.addCheckbox ("Stereo merge right, left",                  this.stereo_merge,
+				"Combine stereo pair in a single (wide) frame. Unchecked - generate separate videos.");
+		gd.addNumericField("Stereo gap",                             this.stereo_gap, 0,3,"pix",
+				"Distance (pixels) between right and left sub-images in a stereo frame.");
+		gd.addNumericField("VR headset stereo base",                 this.stereo_intereye, 5,7,"mm",
+				"Inter-lens distance of the VR phone adapter (Google Cardboard - 63.5)");
+		gd.addNumericField("Phone screen width",                     this.stereo_phone_width, 5,7,"mm",
+				"Phone screen width in full screen video mode.");
+		gd.addNumericField("Scene sequence horizontal extra",        this.extra_hor_tile, 0,3,"tiles",
+				"Enlarge reference scene window horizontally in each direction to accommodate other scenes in a sequence");
+		gd.addNumericField("Scene sequence vertical extra",          this.extra_vert_tile, 0,3,"tiles",
+				"Enlarge reference scene window vertically in each direction to accommodate other scenes in a sequence");
+		gd.addCheckbox ("Crop 3D",                                   this.crop_3d,
+				"Do not enlarge reference scene windows fro 3D views (FG, BG)");
+		
+		gd.addNumericField("Sensor mask (bitmask, -1 - all sensors)",this.sensor_mask, 0,3,"",
+				"Select which sensors to be included in each scene of the sequence");
+		gd.addCheckbox ("Merge all channels in 3D modes",                                   this.merge_all,
+				"Ignore sensor mask, use all channels and merge them into one in 3D modes (FG and BG)");
+		
+		gd.addMessage  ("Generate video for scene sequences");
+		gd.addNumericField("Video output frame rate",                this.video_fps, 5,7,"fps",
+				"Video frames per second (original is 60fps).");
+		gd.addNumericField("Sensor frame rate (60 for Boson)",       this.sensor_fps, 5,7,"fps",
+				"Sensor (real) frame rate to be used in realtime videos after slowmo.");
+		gd. addChoice("AVI mode",                                     MODES_AVI, MODES_AVI[this.mode_avi], 
+				"AVI generation mode");
+		gd.addNumericField("AVI JPEG Quality",                       this.avi_JPEG_quality, 0,3,"",
+				"Only used in JPEG compression mode");		
+		
+		gd.addCheckbox ("Convert AVI to WEBM",                       this.run_ffmpeg,
+				"Run ffmpeg on AVI video to convert to smaller modern video.");
+		gd.addStringField ("Result video extension (e.g. \".webm\")",this.video_ext, 60,
+				"Converted video extension, starting with dot.");
+		gd.addStringField ("Video encoder",                          this.video_codec, 60,
+				"FFMPEG video encoder, such as \"VP8\" or \"VP9\".");
+		gd.addNumericField("Video CRF",                              this.video_crf, 0,3,"",
+				"Quality - the lower the better. 40 - OK");		
+
+		gd.addCheckbox ("Remove AVI",                                this.remove_avi,
+				"Remove large AVI files after (and only) conversion with ffmpeg.");
+		
+		gd.addStringField ("Video encoder for combining",            this.video_codec_combo, 60,
+				"FFMPEG video encoder, such as \"VP8\" or \"VP9\". Applies when merging segments.");
+		gd.addNumericField("Video CRF for combining",                this.video_crf_combo, 0,3,"",
+				"Quality - the lower the better. 40 - OK.  Applies when merging segments.");		
+		
+		gd.addCheckbox ("Apply unsharp mask to mono",                this.um_mono,
+				"Apply unsharp mask to monochrome image sequences/video.  Applies to TIFF generatiojn too");
+		gd.addNumericField("Unsharp mask sigma (radius)",            this.um_sigma, 5,7,"pix",
+				"Unsharp mask Gaussian sigma.");
+		gd.addNumericField("Unsharp mask weight",                    this.um_weight, 5,7,"",
+				"Unsharp mask weightt (multiply blurred version before subtraction from the original).");
+		
+		gd.addCheckbox ("Fixed monochrome range",                    this.mono_fixed,
+				"Normalize monochrome (after UM) to a fixed range when converting to 8 bit RGB.");
+		gd.addNumericField("Monochrome full range",                  this.mono_range, 5,7,"",
+				"Monochrome full range to convert to 0..255.");
+		
+
+		gd.addCheckbox ("Generate anaglyph stereo",                  this.anaglyth_en,
+				"Apply unsharp mask to monochrome image sequences/video.  Applies to TIFF generatiojn too");
+
+		{String scolor = String.format("%08x", getLongColor(this.anaglyph_left));
+		gd.addStringField ("Anaglyph color left",scolor, 8, "Any invalid hex number sets default red");}
+		
+		{String scolor = String.format("%08x", getLongColor(this.anaglyph_right));
+		gd.addStringField ("Anaglyph color right",scolor, 8, "Any invalid hex number sets default cyan");}
+		gd.addCheckbox ("Timestamp color videos",                    this.annotate_color,
+				"Annotate pseudo-color video frames with timestamps.");
+		gd.addCheckbox ("Timestamp monochrome videos",               this.annotate_mono,
+				"Annotate monochrome video frames with timestamps.");
+		String scolor = (this.annotate_color_color==null)?"none":String.format("%08x", getLongColor(this.annotate_color_color));
+		gd.addStringField ("Timestamp color for pseudocolor frames",scolor, 8, "Any invalid hex number disables annotation");
+		scolor = (this.annotate_color_mono==null)?"none":String.format("%08x", getLongColor(this.annotate_color_mono));
+		
+		gd.addStringField ("Timestamp color for monochrome frames",scolor, 8, "Any invalid hex number disables annotation");
+		gd.addCheckbox ("Transparent timestamp background (monochrome)",this.annotate_transparent_mono,
+				"Put monochrome timestamp over image (unchecked - use black background). Color - always black.");
+		
 	}
 
 	public void dialogAnswers(GenericJTabbedDialog gd) {
@@ -874,146 +834,6 @@ public class IntersceneMatchParameters {
 		this.range_disparity_offset =         gd.getNextNumber();
 		this.range_min_strength =             gd.getNextNumber();
 		this.range_max =                      gd.getNextNumber();
-
-		this.num_bottom =               (int) gd.getNextNumber();
-		this.num_passes =               (int) gd.getNextNumber();
-		this.max_change =                     gd.getNextNumber();
-		this.min_disparity =                  gd.getNextNumber();
-		this.max_sym_disparity =              gd.getNextNumber();
-		this.min_strength_lma =               gd.getNextNumber();
-		this.min_strength_replace =           gd.getNextNumber();
-		this.min_strength_blur =              gd.getNextNumber();
-		this.sigma =                          gd.getNextNumber();
-		this.num_blur =                 (int) gd.getNextNumber();
-		this.disparity_corr =                 gd.getNextNumber();
-		this.outliers_nth_fromextrem =  (int) gd.getNextNumber();
-		this.outliers_tolerance_absolute =    gd.getNextNumber();
-		this.outliers_tolerance_relative =    gd.getNextNumber();
-		this.outliers_max_iter =        (int) gd.getNextNumber();
-		this.outliers_max_strength2 =         gd.getNextNumber();
-		this.outliers_nth_fromextrem2 = (int) gd.getNextNumber();
-		this.outliers_tolerance_absolute2 =   gd.getNextNumber();
-		this.outliers_tolerance_relative2 =   gd.getNextNumber();
-		this.outliers_lma_max_strength =      gd.getNextNumber();
-		this.outliers_max_strength =          gd.getNextNumber();
-		this.outliers_from_lma_max_strength = gd.getNextNumber();
-		this.search_radius =            (int) gd.getNextNumber();
-		this.remove_no_lma_neib =             gd.getNextBoolean();
-		this.diff_from_lma_pos =              gd.getNextNumber();
-		this.diff_from_lma_neg =              gd.getNextNumber();
-		this.outliers_lma_nth_fromextrem=(int)gd.getNextNumber();
-		this.filter_margin =            (int) gd.getNextNumber();
-		
-		this.weak_tolerance_absolute =        gd.getNextNumber();
-		this.weak_tolerance_relative =        gd.getNextNumber();
-		this.weak_min_neibs =           (int) gd.getNextNumber();
-		this.strong_strength =                gd.getNextNumber();
-		this.weak_strength =                  gd.getNextNumber();
-
-		/*
-		if (stereo_bases.length > 0) {
-			int i =                           gd.getNextChoiceIndex();
-			if (i > 0) {
-				removeStereo(i-1);
-			}
-		}
-		String s =                            gd.getNextString();
-		if (s.trim().length() > 0) {
-			try {
-				double d = Double.parseDouble(s);
-				addStereo(d, true);
-//				orderStereo();
-			} catch (Exception e) {
-
-			}
-		}
-		 */
-		if (stereo_views.length > 0) {
-			int i =                           gd.getNextChoiceIndex();
-			if (i > 0) {
-				removeStereoView(i-1);
-			}
-		}
-		String s =                            gd.getNextString();
-		addStereoView(s, true);
-		
-//		this.stereo_baseline =          gd.getNextNumber();
-		this.stereo_merge =             gd.getNextBoolean();
-		this.stereo_gap =         (int) gd.getNextNumber();
-		this.stereo_intereye =          gd.getNextNumber();
-		this.stereo_phone_width =       gd.getNextNumber();
-		
-		this.extra_hor_tile =     (int) gd.getNextNumber();
-		this.extra_vert_tile =    (int) gd.getNextNumber();
-		this.crop_3d =                  gd.getNextBoolean();
-		this.sensor_mask =        (int) gd.getNextNumber();
-		this.merge_all =                gd.getNextBoolean();
-		
-//		this.mode3d =                   gd.getNextChoiceIndex() - 1;
-		
-		this.video_fps =                gd.getNextNumber();
-		this.sensor_fps =               gd.getNextNumber();
-		this.mode_avi =                 gd.getNextChoiceIndex();
-		this.avi_JPEG_quality =   (int) gd.getNextNumber();
-		this.run_ffmpeg =               gd.getNextBoolean();
-		this.video_ext=                 gd.getNextString();	
-		this.video_codec=               gd.getNextString();	
-		this.video_crf =          (int) gd.getNextNumber();
-		this.remove_avi =               gd.getNextBoolean();
-		this.video_codec_combo=         gd.getNextString();	
-		this.video_crf_combo =    (int) gd.getNextNumber();
-		this.um_mono =                  gd.getNextBoolean();
-		this.um_sigma =                 gd.getNextNumber();
-		this.um_weight =                gd.getNextNumber();
-		this.mono_fixed =               gd.getNextBoolean();
-		this.mono_range =               gd.getNextNumber();
-		
-		this.anaglyth_en =              gd.getNextBoolean();
-		{
-			String scolor =             gd.getNextString();
-			long lcolor = -1;
-			try {
-				lcolor = Long.parseLong(scolor,16);
-				this.anaglyph_left = setLongColor(lcolor);
-			} catch(NumberFormatException e){
-				this.anaglyph_left = anaglyph_left_default;
-			}
-		}
-
-		{
-			String scolor =             gd.getNextString();
-			long lcolor = -1;
-			try {
-				lcolor = Long.parseLong(scolor,16);
-				this.anaglyph_right = setLongColor(lcolor);
-			} catch(NumberFormatException e){
-				this.anaglyph_right = anaglyph_right_default;
-			}
-		}
-		
-		this.annotate_color =           gd.getNextBoolean();
-		this.annotate_mono =            gd.getNextBoolean();
-		{
-			String scolor =             gd.getNextString();
-			long lcolor = -1;
-			try {
-				lcolor = Long.parseLong(scolor,16);
-				this.annotate_color_color = setLongColor(lcolor);
-			} catch(NumberFormatException e){
-				this.annotate_color_color = null;
-			}
-		}
-		{
-			String scolor =             gd.getNextString();
-			long lcolor = -1;
-			try {
-				lcolor = Long.parseLong(scolor,16);
-				this.annotate_color_mono = setLongColor(lcolor);
-			} catch(NumberFormatException e){
-				this.annotate_color_mono = null;
-			}
-		}
-		this.annotate_transparent_mono= gd.getNextBoolean();
 		
 		this.margin =             (int) gd.getNextNumber();
 		this.sensor_mask_inter=   (int) gd.getNextNumber();
@@ -1091,6 +911,41 @@ public class IntersceneMatchParameters {
 		this.test_ers0 =          (int) gd.getNextNumber();
 		this.test_ers1 =          (int) gd.getNextNumber();
 
+		this.num_bottom =               (int) gd.getNextNumber();
+		this.num_passes =               (int) gd.getNextNumber();
+		this.max_change =                     gd.getNextNumber();
+		this.min_disparity =                  gd.getNextNumber();
+		this.max_sym_disparity =              gd.getNextNumber();
+		this.min_strength_lma =               gd.getNextNumber();
+		this.min_strength_replace =           gd.getNextNumber();
+		this.min_strength_blur =              gd.getNextNumber();
+		this.sigma =                          gd.getNextNumber();
+		this.num_blur =                 (int) gd.getNextNumber();
+		this.disparity_corr =                 gd.getNextNumber();
+		this.outliers_nth_fromextrem =  (int) gd.getNextNumber();
+		this.outliers_tolerance_absolute =    gd.getNextNumber();
+		this.outliers_tolerance_relative =    gd.getNextNumber();
+		this.outliers_max_iter =        (int) gd.getNextNumber();
+		this.outliers_max_strength2 =         gd.getNextNumber();
+		this.outliers_nth_fromextrem2 = (int) gd.getNextNumber();
+		this.outliers_tolerance_absolute2 =   gd.getNextNumber();
+		this.outliers_tolerance_relative2 =   gd.getNextNumber();
+		this.outliers_lma_max_strength =      gd.getNextNumber();
+		this.outliers_max_strength =          gd.getNextNumber();
+		this.outliers_from_lma_max_strength = gd.getNextNumber();
+		this.search_radius =            (int) gd.getNextNumber();
+		this.remove_no_lma_neib =             gd.getNextBoolean();
+		this.diff_from_lma_pos =              gd.getNextNumber();
+		this.diff_from_lma_neg =              gd.getNextNumber();
+		this.outliers_lma_nth_fromextrem=(int)gd.getNextNumber();
+		this.filter_margin =            (int) gd.getNextNumber();
+		
+		this.weak_tolerance_absolute =        gd.getNextNumber();
+		this.weak_tolerance_relative =        gd.getNextNumber();
+		this.weak_min_neibs =           (int) gd.getNextNumber();
+		this.strong_strength =                gd.getNextNumber();
+		this.weak_strength =                  gd.getNextNumber();
+		
 		this.sky_highest_min =          gd.getNextNumber(); 	
 		this.cold_frac =                gd.getNextNumber();       	
 		this.hot_frac =                 gd.getNextNumber();        	
@@ -1117,6 +972,90 @@ public class IntersceneMatchParameters {
 		this.eq_weight_scale =          gd.getNextNumber();    
 		this.eq_level =                 gd.getNextNumber();    
 		
+		
+		
+		if (stereo_views.length > 0) {
+			int i =                           gd.getNextChoiceIndex();
+			if (i > 0) {
+				removeStereoView(i-1);
+			}
+		}
+		String s =                            gd.getNextString();
+		addStereoView(s, true);
+		this.stereo_merge =             gd.getNextBoolean();
+		this.stereo_gap =         (int) gd.getNextNumber();
+		this.stereo_intereye =          gd.getNextNumber();
+		this.stereo_phone_width =       gd.getNextNumber();
+		this.extra_hor_tile =     (int) gd.getNextNumber();
+		this.extra_vert_tile =    (int) gd.getNextNumber();
+		this.crop_3d =                  gd.getNextBoolean();
+		this.sensor_mask =        (int) gd.getNextNumber();
+		this.merge_all =                gd.getNextBoolean();
+		this.video_fps =                gd.getNextNumber();
+		this.sensor_fps =               gd.getNextNumber();
+		this.mode_avi =                 gd.getNextChoiceIndex();
+		this.avi_JPEG_quality =   (int) gd.getNextNumber();
+		this.run_ffmpeg =               gd.getNextBoolean();
+		this.video_ext=                 gd.getNextString();	
+		this.video_codec=               gd.getNextString();	
+		this.video_crf =          (int) gd.getNextNumber();
+		this.remove_avi =               gd.getNextBoolean();
+		this.video_codec_combo=         gd.getNextString();	
+		this.video_crf_combo =    (int) gd.getNextNumber();
+		this.um_mono =                  gd.getNextBoolean();
+		this.um_sigma =                 gd.getNextNumber();
+		this.um_weight =                gd.getNextNumber();
+		this.mono_fixed =               gd.getNextBoolean();
+		this.mono_range =               gd.getNextNumber();
+		
+		this.anaglyth_en =              gd.getNextBoolean();
+		{
+			String scolor =             gd.getNextString();
+			long lcolor = -1;
+			try {
+				lcolor = Long.parseLong(scolor,16);
+				this.anaglyph_left = setLongColor(lcolor);
+			} catch(NumberFormatException e){
+				this.anaglyph_left = anaglyph_left_default;
+			}
+		}
+
+		{
+			String scolor =             gd.getNextString();
+			long lcolor = -1;
+			try {
+				lcolor = Long.parseLong(scolor,16);
+				this.anaglyph_right = setLongColor(lcolor);
+			} catch(NumberFormatException e){
+				this.anaglyph_right = anaglyph_right_default;
+			}
+		}
+		
+		this.annotate_color =           gd.getNextBoolean();
+		this.annotate_mono =            gd.getNextBoolean();
+		{
+			String scolor =             gd.getNextString();
+			long lcolor = -1;
+			try {
+				lcolor = Long.parseLong(scolor,16);
+				this.annotate_color_color = setLongColor(lcolor);
+			} catch(NumberFormatException e){
+				this.annotate_color_color = null;
+			}
+		}
+		{
+			String scolor =             gd.getNextString();
+			long lcolor = -1;
+			try {
+				lcolor = Long.parseLong(scolor,16);
+				this.annotate_color_mono = setLongColor(lcolor);
+			} catch(NumberFormatException e){
+				this.annotate_color_mono = null;
+			}
+		}
+		this.annotate_transparent_mono= gd.getNextBoolean();
+		
+			
 		
 		
 		if (this.weight_zero_neibs > 1.0) this.weight_zero_neibs = 1.0;
@@ -1166,7 +1105,6 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"show_ranges",                   this.show_ranges + "");                 // boolean
 		properties.setProperty(prefix+"export_ml_files",               this.export_ml_files + "");                 // boolean
 		
-		
 		properties.setProperty(prefix+"show_color_nan",                this.show_color_nan + "");              // boolean
 		properties.setProperty(prefix+"show_mono_nan",                 this.show_mono_nan + "");               // boolean
 		properties.setProperty(prefix+"min_num_scenes",                this.min_num_scenes+"");                // int
@@ -1174,88 +1112,8 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"range_disparity_offset",        this.range_disparity_offset+"");        // double
 		properties.setProperty(prefix+"range_min_strength",            this.range_min_strength+"");            // double
 		properties.setProperty(prefix+"range_max",                     this.range_max+"");                     // double
-		properties.setProperty(prefix+"num_bottom",                    this.num_bottom+"");                    // int
-		properties.setProperty(prefix+"num_passes",                    this.num_passes+"");                    // int
-		properties.setProperty(prefix+"max_change",                    this.max_change+"");                    // double
-		properties.setProperty(prefix+"min_disparity",                 this.min_disparity+"");                 // double
-		properties.setProperty(prefix+"max_sym_disparity",             this.max_sym_disparity+"");             // double
-		properties.setProperty(prefix+"min_strength_lma",              this.min_strength_lma+"");          // double
-		properties.setProperty(prefix+"min_strength_replace",          this.min_strength_replace+"");          // double
-		properties.setProperty(prefix+"min_strength_blur",             this.min_strength_blur+"");             // double
-		properties.setProperty(prefix+"sigma",                         this.sigma+"");                         // double
-		properties.setProperty(prefix+"num_blur",                      this.num_blur+"");                      // int
-		properties.setProperty(prefix+"disparity_corr",                this.disparity_corr+"");                // double
-		properties.setProperty(prefix+"outliers_nth_fromextrem",       this.outliers_nth_fromextrem+"");       // int
-		properties.setProperty(prefix+"outliers_tolerance_absolute",   this.outliers_tolerance_absolute+"");   // double
-		properties.setProperty(prefix+"outliers_tolerance_relative",   this.outliers_tolerance_relative+"");   // double
-		properties.setProperty(prefix+"outliers_max_iter",             this.outliers_max_iter+"");             // int
-		properties.setProperty(prefix+"outliers_max_strength2",        this.outliers_max_strength2+"");        // double
-		properties.setProperty(prefix+"outliers_nth_fromextrem2",      this.outliers_nth_fromextrem2+"");      // int
-		properties.setProperty(prefix+"outliers_tolerance_absolute2",  this.outliers_tolerance_absolute2+"");  // double
-		properties.setProperty(prefix+"outliers_tolerance_relative2",  this.outliers_tolerance_relative2+"");  // double
-		properties.setProperty(prefix+"outliers_lma_max_strength",     this.outliers_lma_max_strength+"");     // double
-		properties.setProperty(prefix+"outliers_max_strength",         this.outliers_max_strength+"");         // double
-		properties.setProperty(prefix+"outliers_from_lma_max_strength",this.outliers_from_lma_max_strength+"");// double
-		properties.setProperty(prefix+"search_radius",                 this.search_radius+"");                 // int
-		properties.setProperty(prefix+"remove_no_lma_neib",            this.remove_no_lma_neib+"");            // boolean
-		properties.setProperty(prefix+"diff_from_lma_pos",             this.diff_from_lma_pos+"");             // double
-		properties.setProperty(prefix+"diff_from_lma_neg",             this.diff_from_lma_neg+"");             // double
-		properties.setProperty(prefix+"outliers_lma_nth_fromextrem",   this.outliers_lma_nth_fromextrem+"");   // int
-		properties.setProperty(prefix+"filter_margin",                 this.filter_margin+"");                 // int
-		
-		properties.setProperty(prefix+"weak_tolerance_absolute",       this.weak_tolerance_absolute+"");       // double
-		properties.setProperty(prefix+"weak_tolerance_relative",       this.weak_tolerance_relative+"");       // double
-		properties.setProperty(prefix+"weak_min_neibs",                this.weak_min_neibs+"");                // int
-		properties.setProperty(prefix+"strong_strength",               this.strong_strength+"");               // double
-		properties.setProperty(prefix+"weak_strength",                 this.weak_strength+"");                 // double
-		
-		properties.setProperty(prefix+"stereo_merge",                  this.stereo_merge+"");                  // boolean
-		properties.setProperty(prefix+"stereo_gap",                    this.stereo_gap+"");                    // int
-		properties.setProperty(prefix+"stereo_intereye",               this.stereo_intereye+"");               // double
-		properties.setProperty(prefix+"stereo_phone_width",            this.stereo_phone_width+"");            // double
-		
-		properties.setProperty(prefix+"extra_hor_tile",       this.extra_hor_tile+"");      // int
-		properties.setProperty(prefix+"extra_vert_tile",      this.extra_vert_tile+"");     // int
-		properties.setProperty(prefix+"crop_3d",              this.crop_3d+"");             // boolean
-		properties.setProperty(prefix+"sensor_mask",          this.sensor_mask+"");         // int
-		properties.setProperty(prefix+"merge_all",            this.merge_all+"");             // boolean
-		
-		properties.setProperty(prefix+"video_fps",            this.video_fps+"");           // double
-		properties.setProperty(prefix+"sensor_fps",           this.sensor_fps+"");          // double
-		properties.setProperty(prefix+"mode_avi",             this.mode_avi+"");            // int
-		properties.setProperty(prefix+"avi_JPEG_quality",     this.avi_JPEG_quality+"");    // int
-		properties.setProperty(prefix+"run_ffmpeg",           this.run_ffmpeg+"");          // boolean
-		properties.setProperty(prefix+"video_ext",            this.video_ext+"");           // String
-		properties.setProperty(prefix+"video_codec",          this.video_codec+"");         // String
-		properties.setProperty(prefix+"video_crf",            this.video_crf+"");           // int
-		properties.setProperty(prefix+"remove_avi",           this.remove_avi+"");          // boolean
-
-		properties.setProperty(prefix+"video_codec_combo",    this.video_codec_combo+"");         // String
-		properties.setProperty(prefix+"video_crf_combo",      this.video_crf_combo+"");           // int
-		
-		properties.setProperty(prefix+"um_mono",              this.um_mono+"");             // boolean
-		properties.setProperty(prefix+"um_sigma",             this.um_sigma+"");            // double
-		properties.setProperty(prefix+"um_weight",            this.um_weight+"");           // double
-		properties.setProperty(prefix+"mono_fixed",           this.mono_fixed+"");          // boolean
-		properties.setProperty(prefix+"mono_range",           this.mono_range+"");          // double
-
-		properties.setProperty(prefix+"anaglyth_en",          this.anaglyth_en+"");         // boolean
-		
-		properties.setProperty(prefix+"anaglyph_left",        getLongColor(anaglyph_left)+""); // Color
-		properties.setProperty(prefix+"anaglyph_right",       getLongColor(anaglyph_right)+""); // Color
 		
 		
-		properties.setProperty(prefix+"annotate_color",       this.annotate_color+"");      // boolean
-		properties.setProperty(prefix+"annotate_mono",        this.annotate_mono+"");       // boolean
-		{
-			long lcolor_annotate =        (annotate_color_color == null) ? -1 : getLongColor(annotate_color_color);
-			properties.setProperty(prefix+"annotate_color_color",              lcolor_annotate+"");
-		}
-		{
-			long lcolor_annotate =        (annotate_color_mono == null) ? -1 : getLongColor(annotate_color_mono);
-			properties.setProperty(prefix+"annotate_color_mono",              lcolor_annotate+"");
-		}
-		properties.setProperty(prefix+"annotate_transparent_mono",this.annotate_transparent_mono+"");// boolean
 		properties.setProperty(prefix+"margin",               this.margin+"");              // int
 		properties.setProperty(prefix+"sensor_mask_inter",    this.sensor_mask_inter+"");   // int
 		properties.setProperty(prefix+"use_partial",          this.use_partial+"");         // boolean
@@ -1330,6 +1188,39 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"test_ers0",            this.test_ers0+"");           // int
 		properties.setProperty(prefix+"test_ers1",            this.test_ers1+"");           // int
 	
+		properties.setProperty(prefix+"num_bottom",                    this.num_bottom+"");                    // int
+		properties.setProperty(prefix+"num_passes",                    this.num_passes+"");                    // int
+		properties.setProperty(prefix+"max_change",                    this.max_change+"");                    // double
+		properties.setProperty(prefix+"min_disparity",                 this.min_disparity+"");                 // double
+		properties.setProperty(prefix+"max_sym_disparity",             this.max_sym_disparity+"");             // double
+		properties.setProperty(prefix+"min_strength_lma",              this.min_strength_lma+"");          // double
+		properties.setProperty(prefix+"min_strength_replace",          this.min_strength_replace+"");          // double
+		properties.setProperty(prefix+"min_strength_blur",             this.min_strength_blur+"");             // double
+		properties.setProperty(prefix+"sigma",                         this.sigma+"");                         // double
+		properties.setProperty(prefix+"num_blur",                      this.num_blur+"");                      // int
+		properties.setProperty(prefix+"disparity_corr",                this.disparity_corr+"");                // double
+		properties.setProperty(prefix+"outliers_nth_fromextrem",       this.outliers_nth_fromextrem+"");       // int
+		properties.setProperty(prefix+"outliers_tolerance_absolute",   this.outliers_tolerance_absolute+"");   // double
+		properties.setProperty(prefix+"outliers_tolerance_relative",   this.outliers_tolerance_relative+"");   // double
+		properties.setProperty(prefix+"outliers_max_iter",             this.outliers_max_iter+"");             // int
+		properties.setProperty(prefix+"outliers_max_strength2",        this.outliers_max_strength2+"");        // double
+		properties.setProperty(prefix+"outliers_nth_fromextrem2",      this.outliers_nth_fromextrem2+"");      // int
+		properties.setProperty(prefix+"outliers_tolerance_absolute2",  this.outliers_tolerance_absolute2+"");  // double
+		properties.setProperty(prefix+"outliers_tolerance_relative2",  this.outliers_tolerance_relative2+"");  // double
+		properties.setProperty(prefix+"outliers_lma_max_strength",     this.outliers_lma_max_strength+"");     // double
+		properties.setProperty(prefix+"outliers_max_strength",         this.outliers_max_strength+"");         // double
+		properties.setProperty(prefix+"outliers_from_lma_max_strength",this.outliers_from_lma_max_strength+"");// double
+		properties.setProperty(prefix+"search_radius",                 this.search_radius+"");                 // int
+		properties.setProperty(prefix+"remove_no_lma_neib",            this.remove_no_lma_neib+"");            // boolean
+		properties.setProperty(prefix+"diff_from_lma_pos",             this.diff_from_lma_pos+"");             // double
+		properties.setProperty(prefix+"diff_from_lma_neg",             this.diff_from_lma_neg+"");             // double
+		properties.setProperty(prefix+"outliers_lma_nth_fromextrem",   this.outliers_lma_nth_fromextrem+"");   // int
+		properties.setProperty(prefix+"filter_margin",                 this.filter_margin+"");                 // int
+		properties.setProperty(prefix+"weak_tolerance_absolute",       this.weak_tolerance_absolute+"");       // double
+		properties.setProperty(prefix+"weak_tolerance_relative",       this.weak_tolerance_relative+"");       // double
+		properties.setProperty(prefix+"weak_min_neibs",                this.weak_min_neibs+"");                // int
+		properties.setProperty(prefix+"strong_strength",               this.strong_strength+"");               // double
+		properties.setProperty(prefix+"weak_strength",                 this.weak_strength+"");                 // double
 
 		properties.setProperty(prefix+"sky_highest_min",      this.sky_highest_min+"");     // double
 		properties.setProperty(prefix+"cold_frac",            this.cold_frac+"");           // double
@@ -1355,13 +1246,52 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"eq_weight_add",        this.eq_weight_add+"");       // double
 		properties.setProperty(prefix+"eq_weight_scale",      this.eq_weight_scale+"");     // double
 		properties.setProperty(prefix+"eq_level",             this.eq_level+"");            // double
+
+		properties.setProperty(prefix+"stereo_merge",                  this.stereo_merge+"");                  // boolean
+		properties.setProperty(prefix+"stereo_gap",                    this.stereo_gap+"");                    // int
+		properties.setProperty(prefix+"stereo_intereye",               this.stereo_intereye+"");               // double
+		properties.setProperty(prefix+"stereo_phone_width",            this.stereo_phone_width+"");            // double
+		properties.setProperty(prefix+"extra_hor_tile",       this.extra_hor_tile+"");      // int
+		properties.setProperty(prefix+"extra_vert_tile",      this.extra_vert_tile+"");     // int
+		properties.setProperty(prefix+"crop_3d",              this.crop_3d+"");             // boolean
+		properties.setProperty(prefix+"sensor_mask",          this.sensor_mask+"");         // int
+		properties.setProperty(prefix+"merge_all",            this.merge_all+"");             // boolean
+		properties.setProperty(prefix+"video_fps",            this.video_fps+"");           // double
+		properties.setProperty(prefix+"sensor_fps",           this.sensor_fps+"");          // double
+		properties.setProperty(prefix+"mode_avi",             this.mode_avi+"");            // int
+		properties.setProperty(prefix+"avi_JPEG_quality",     this.avi_JPEG_quality+"");    // int
+		properties.setProperty(prefix+"run_ffmpeg",           this.run_ffmpeg+"");          // boolean
+		properties.setProperty(prefix+"video_ext",            this.video_ext+"");           // String
+		properties.setProperty(prefix+"video_codec",          this.video_codec+"");         // String
+		properties.setProperty(prefix+"video_crf",            this.video_crf+"");           // int
+		properties.setProperty(prefix+"remove_avi",           this.remove_avi+"");          // boolean
+		properties.setProperty(prefix+"video_codec_combo",    this.video_codec_combo+"");         // String
+		properties.setProperty(prefix+"video_crf_combo",      this.video_crf_combo+"");           // int
+		properties.setProperty(prefix+"um_mono",              this.um_mono+"");             // boolean
+		properties.setProperty(prefix+"um_sigma",             this.um_sigma+"");            // double
+		properties.setProperty(prefix+"um_weight",            this.um_weight+"");           // double
+		properties.setProperty(prefix+"mono_fixed",           this.mono_fixed+"");          // boolean
+		properties.setProperty(prefix+"mono_range",           this.mono_range+"");          // double
+		properties.setProperty(prefix+"anaglyth_en",          this.anaglyth_en+"");         // boolean
+		properties.setProperty(prefix+"anaglyph_left",        getLongColor(anaglyph_left)+""); // Color
+		properties.setProperty(prefix+"anaglyph_right",       getLongColor(anaglyph_right)+""); // Color
+		properties.setProperty(prefix+"annotate_color",       this.annotate_color+"");      // boolean
+		properties.setProperty(prefix+"annotate_mono",        this.annotate_mono+"");       // boolean
+		{
+			long lcolor_annotate =        (annotate_color_color == null) ? -1 : getLongColor(annotate_color_color);
+			properties.setProperty(prefix+"annotate_color_color",              lcolor_annotate+"");
+		}
+		{
+			long lcolor_annotate =        (annotate_color_mono == null) ? -1 : getLongColor(annotate_color_mono);
+			properties.setProperty(prefix+"annotate_color_mono",              lcolor_annotate+"");
+		}
+		properties.setProperty(prefix+"annotate_transparent_mono",this.annotate_transparent_mono+"");// boolean
+		
 	}
 	
 	public void getProperties(String prefix,Properties properties){
 		if (properties.getProperty(prefix+"force_ref_dsi")!=null)                 this.force_ref_dsi=Boolean.parseBoolean(properties.getProperty(prefix+"force_ref_dsi"));		
 		if (properties.getProperty(prefix+"force_orientations")!=null)            this.force_orientations=Boolean.parseBoolean(properties.getProperty(prefix+"force_orientations"));		
-//		if (properties.getProperty(prefix+"readjust_orient")!=null)               this.readjust_orient=Boolean.parseBoolean(properties.getProperty(prefix+"readjust_orient"));		
-//		if (properties.getProperty(prefix+"force_interscene")!=null)              this.force_interscene=Boolean.parseBoolean(properties.getProperty(prefix+"force_interscene"));		
 		if (properties.getProperty(prefix+"min_num_orient")!=null)                this.min_num_orient=Integer.parseInt(properties.getProperty(prefix+"min_num_orient"));
 		if (properties.getProperty(prefix+"min_num_interscene")!=null)            this.min_num_interscene=Integer.parseInt(properties.getProperty(prefix+"min_num_interscene"));
 		if (properties.getProperty(prefix+"generate_mapped")!=null)               this.generate_mapped=Boolean.parseBoolean(properties.getProperty(prefix+"generate_mapped"));
@@ -1380,18 +1310,6 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"generate_bg")!=null)                   this.generate_bg=Boolean.parseBoolean(properties.getProperty(prefix+"generate_bg"));
 		
 		if (properties.getProperty(prefix+"generate_stereo")!=null)               this.generate_stereo=Boolean.parseBoolean(properties.getProperty(prefix+"generate_stereo"));
-		/*
-		if (properties.getProperty(prefix+"stereo_bases_num")!=null) {
-			 int stereo_bases_num=Integer.parseInt(properties.getProperty(prefix+"stereo_bases_num"));
-			 this.stereo_bases =        new double[stereo_bases_num];
-			 this.generate_stereo_var = new boolean[stereo_bases_num];
-			 for (int i = 0; i < stereo_bases_num; i++) {
-				 if (properties.getProperty(prefix+"stereo_bases_"+i)!=null)       this.stereo_bases[i]=Double.parseDouble(properties.getProperty(prefix+"stereo_bases_"+i));
-				 if (properties.getProperty(prefix+"generate_stereo_var_"+i)!=null)this.generate_stereo_var[i]=Boolean.parseBoolean(properties.getProperty(prefix+"generate_stereo_var_"+i));
-			 }
-			 orderStereo(); 
-		}
-		*/
 		if (properties.getProperty(prefix+"stereo_views_num")!=null) {
 			 int stereo_views_num=Integer.parseInt(properties.getProperty(prefix+"stereo_views_num"));
 			 this.stereo_views =        new double[stereo_views_num][];
@@ -1407,117 +1325,24 @@ public class IntersceneMatchParameters {
 			 orderStereoViews(); 
 		}
 		
-		
-		
-		
-		if (properties.getProperty(prefix+"export_images")!=null)                 this.export_images=Boolean.parseBoolean(properties.getProperty(prefix+"export_images"));		
-		if (properties.getProperty(prefix+"show_images")!=null)                   this.show_images=Boolean.parseBoolean(properties.getProperty(prefix+"show_images"));		
-		if (properties.getProperty(prefix+"show_images_bgfg")!=null)              this.show_images_bgfg=Boolean.parseBoolean(properties.getProperty(prefix+"show_images_bgfg"));		
-		if (properties.getProperty(prefix+"show_images_mono")!=null)              this.show_images_mono=Boolean.parseBoolean(properties.getProperty(prefix+"show_images_mono"));		
-		if (properties.getProperty(prefix+"export_ranges")!=null)                 this.export_ranges=Boolean.parseBoolean(properties.getProperty(prefix+"export_ranges"));
-		if (properties.getProperty(prefix+"show_ranges")!=null)                   this.show_ranges=Boolean.parseBoolean(properties.getProperty(prefix+"show_ranges"));
-		if (properties.getProperty(prefix+"export_ml_files")!=null)               this.export_ml_files=Boolean.parseBoolean(properties.getProperty(prefix+"export_ml_files"));
+		if (properties.getProperty(prefix+"export_images")!=null)        this.export_images=Boolean.parseBoolean(properties.getProperty(prefix+"export_images"));		
+		if (properties.getProperty(prefix+"show_images")!=null)          this.show_images=Boolean.parseBoolean(properties.getProperty(prefix+"show_images"));		
+		if (properties.getProperty(prefix+"show_images_bgfg")!=null)     this.show_images_bgfg=Boolean.parseBoolean(properties.getProperty(prefix+"show_images_bgfg"));		
+		if (properties.getProperty(prefix+"show_images_mono")!=null)     this.show_images_mono=Boolean.parseBoolean(properties.getProperty(prefix+"show_images_mono"));		
+		if (properties.getProperty(prefix+"export_ranges")!=null)        this.export_ranges=Boolean.parseBoolean(properties.getProperty(prefix+"export_ranges"));
+		if (properties.getProperty(prefix+"show_ranges")!=null)          this.show_ranges=Boolean.parseBoolean(properties.getProperty(prefix+"show_ranges"));
+		if (properties.getProperty(prefix+"export_ml_files")!=null)      this.export_ml_files=Boolean.parseBoolean(properties.getProperty(prefix+"export_ml_files"));
 
-		if (properties.getProperty(prefix+"show_color_nan")!=null)                this.show_color_nan=Boolean.parseBoolean(properties.getProperty(prefix+"show_color_nan"));		
-		if (properties.getProperty(prefix+"show_mono_nan")!=null)                 this.show_mono_nan=Boolean.parseBoolean(properties.getProperty(prefix+"show_mono_nan"));
-		if (properties.getProperty(prefix+"min_num_scenes")!=null)                this.min_num_scenes=Integer.parseInt(properties.getProperty(prefix+"min_num_scenes"));
-		if (properties.getProperty(prefix+"blur_egomotion")!=null)                this.blur_egomotion=Double.parseDouble(properties.getProperty(prefix+"blur_egomotion"));
-		if (properties.getProperty(prefix+"range_disparity_offset")!=null)        this.range_disparity_offset=Double.parseDouble(properties.getProperty(prefix+"range_disparity_offset"));
-		if (properties.getProperty(prefix+"range_min_strength")!=null)            this.range_min_strength=Double.parseDouble(properties.getProperty(prefix+"range_min_strength"));
-		if (properties.getProperty(prefix+"range_max")!=null)                     this.range_max=Double.parseDouble(properties.getProperty(prefix+"range_max"));
-		if (properties.getProperty(prefix+"num_bottom")!=null)                    this.num_bottom=Integer.parseInt(properties.getProperty(prefix+"num_bottom"));
-		if (properties.getProperty(prefix+"num_passes")!=null)                    this.num_passes=Integer.parseInt(properties.getProperty(prefix+"num_passes"));
-		if (properties.getProperty(prefix+"max_change")!=null)                    this.max_change=Double.parseDouble(properties.getProperty(prefix+"max_change"));
-		if (properties.getProperty(prefix+"min_disparity")!=null)                 this.min_disparity=Double.parseDouble(properties.getProperty(prefix+"min_disparity"));
-		if (properties.getProperty(prefix+"max_sym_disparity")!=null)             this.max_sym_disparity=Double.parseDouble(properties.getProperty(prefix+"max_sym_disparity"));
-		if (properties.getProperty(prefix+"min_strength_lma")!=null)              this.min_strength_lma=Double.parseDouble(properties.getProperty(prefix+"min_strength_lma"));
-		if (properties.getProperty(prefix+"min_strength_replace")!=null)          this.min_strength_replace=Double.parseDouble(properties.getProperty(prefix+"min_strength_replace"));
-		if (properties.getProperty(prefix+"min_strength_blur")!=null)             this.min_strength_blur=Double.parseDouble(properties.getProperty(prefix+"min_strength_blur"));
-		if (properties.getProperty(prefix+"sigma")!=null)                         this.sigma=Double.parseDouble(properties.getProperty(prefix+"sigma"));
-		if (properties.getProperty(prefix+"num_blur")!=null)                      this.num_blur=Integer.parseInt(properties.getProperty(prefix+"num_blur"));
-		if (properties.getProperty(prefix+"disparity_corr")!=null)                this.disparity_corr=Double.parseDouble(properties.getProperty(prefix+"disparity_corr"));
-		if (properties.getProperty(prefix+"outliers_nth_fromextrem")!=null)       this.outliers_nth_fromextrem=Integer.parseInt(properties.getProperty(prefix+"outliers_nth_fromextrem"));
-		if (properties.getProperty(prefix+"outliers_tolerance_absolute")!=null)   this.outliers_tolerance_absolute=Double.parseDouble(properties.getProperty(prefix+"outliers_tolerance_absolute"));
-		if (properties.getProperty(prefix+"outliers_tolerance_relative")!=null)   this.outliers_tolerance_relative=Double.parseDouble(properties.getProperty(prefix+"outliers_tolerance_relative"));
-		if (properties.getProperty(prefix+"outliers_max_iter")!=null)             this.outliers_max_iter=Integer.parseInt(properties.getProperty(prefix+"outliers_max_iter"));
-		if (properties.getProperty(prefix+"outliers_max_strength2")!=null)        this.outliers_max_strength2=Double.parseDouble(properties.getProperty(prefix+"outliers_max_strength2"));
-		if (properties.getProperty(prefix+"outliers_nth_fromextrem2")!=null)      this.outliers_nth_fromextrem2=Integer.parseInt(properties.getProperty(prefix+"outliers_nth_fromextrem2"));
-		if (properties.getProperty(prefix+"outliers_tolerance_absolute2")!=null)  this.outliers_tolerance_absolute2=Double.parseDouble(properties.getProperty(prefix+"outliers_tolerance_absolute2"));
-		if (properties.getProperty(prefix+"outliers_tolerance_relative2")!=null)  this.outliers_tolerance_relative2=Double.parseDouble(properties.getProperty(prefix+"outliers_tolerance_relative2"));
-		if (properties.getProperty(prefix+"outliers_lma_max_strength")!=null)     this.outliers_lma_max_strength=Double.parseDouble(properties.getProperty(prefix+"outliers_lma_max_strength"));
-		if (properties.getProperty(prefix+"outliers_max_strength")!=null)         this.outliers_max_strength=Double.parseDouble(properties.getProperty(prefix+"outliers_max_strength"));
-		if (properties.getProperty(prefix+"outliers_from_lma_max_strength")!=null)this.outliers_from_lma_max_strength=Double.parseDouble(properties.getProperty(prefix+"outliers_from_lma_max_strength"));
-		if (properties.getProperty(prefix+"search_radius")!=null)                 this.search_radius=Integer.parseInt(properties.getProperty(prefix+"search_radius"));
-		if (properties.getProperty(prefix+"remove_no_lma_neib")!=null)            this.remove_no_lma_neib=Boolean.parseBoolean(properties.getProperty(prefix+"remove_no_lma_neib"));
-		if (properties.getProperty(prefix+"diff_from_lma_pos")!=null)             this.diff_from_lma_pos=Double.parseDouble(properties.getProperty(prefix+"diff_from_lma_pos"));
-		if (properties.getProperty(prefix+"diff_from_lma_neg")!=null)             this.diff_from_lma_neg=Double.parseDouble(properties.getProperty(prefix+"diff_from_lma_neg"));
-		if (properties.getProperty(prefix+"outliers_lma_nth_fromextrem")!=null)   this.outliers_lma_nth_fromextrem=Integer.parseInt(properties.getProperty(prefix+"outliers_lma_nth_fromextrem"));
-		if (properties.getProperty(prefix+"filter_margin")!=null)                 this.filter_margin=Integer.parseInt(properties.getProperty(prefix+"filter_margin"));
+		if (properties.getProperty(prefix+"show_color_nan")!=null)       this.show_color_nan=Boolean.parseBoolean(properties.getProperty(prefix+"show_color_nan"));		
+		if (properties.getProperty(prefix+"show_mono_nan")!=null)        this.show_mono_nan=Boolean.parseBoolean(properties.getProperty(prefix+"show_mono_nan"));
+		if (properties.getProperty(prefix+"min_num_scenes")!=null)       this.min_num_scenes=Integer.parseInt(properties.getProperty(prefix+"min_num_scenes"));
+		if (properties.getProperty(prefix+"blur_egomotion")!=null)       this.blur_egomotion=Double.parseDouble(properties.getProperty(prefix+"blur_egomotion"));
+		if (properties.getProperty(prefix+"range_disparity_offset")!=null)this.range_disparity_offset=Double.parseDouble(properties.getProperty(prefix+"range_disparity_offset"));
+		if (properties.getProperty(prefix+"range_min_strength")!=null)   this.range_min_strength=Double.parseDouble(properties.getProperty(prefix+"range_min_strength"));
+		if (properties.getProperty(prefix+"range_max")!=null)            this.range_max=Double.parseDouble(properties.getProperty(prefix+"range_max"));
 
-		if (properties.getProperty(prefix+"weak_tolerance_absolute")!=null)       this.weak_tolerance_absolute=Double.parseDouble(properties.getProperty(prefix+"weak_tolerance_absolute"));
-		if (properties.getProperty(prefix+"weak_tolerance_relative")!=null)       this.weak_tolerance_relative=Double.parseDouble(properties.getProperty(prefix+"weak_tolerance_relative"));
-		if (properties.getProperty(prefix+"weak_min_neibs")!=null)                this.weak_min_neibs=Integer.parseInt(properties.getProperty(prefix+"weak_min_neibs"));
-		if (properties.getProperty(prefix+"strong_strength")!=null)               this.strong_strength=Double.parseDouble(properties.getProperty(prefix+"strong_strength"));
-		if (properties.getProperty(prefix+"weak_strength")!=null)                 this.weak_strength=Double.parseDouble(properties.getProperty(prefix+"weak_strength"));
 		
-		if (properties.getProperty(prefix+"stereo_merge")!=null)                  this.stereo_merge=Boolean.parseBoolean(properties.getProperty(prefix+"stereo_merge"));
-		if (properties.getProperty(prefix+"stereo_gap")!=null)                    this.stereo_gap=Integer.parseInt(properties.getProperty(prefix+"stereo_gap"));
-		if (properties.getProperty(prefix+"stereo_intereye")!=null)               this.stereo_intereye=Double.parseDouble(properties.getProperty(prefix+"stereo_intereye"));
-		if (properties.getProperty(prefix+"stereo_phone_width")!=null)            this.stereo_phone_width=Double.parseDouble(properties.getProperty(prefix+"stereo_phone_width"));
 		
-		if (properties.getProperty(prefix+"extra_hor_tile")!=null)       this.extra_hor_tile=Integer.parseInt(properties.getProperty(prefix+"extra_hor_tile"));
-		if (properties.getProperty(prefix+"extra_vert_tile")!=null)      this.extra_vert_tile=Integer.parseInt(properties.getProperty(prefix+"extra_vert_tile"));
-		if (properties.getProperty(prefix+"crop_3d")!=null)              this.crop_3d=Boolean.parseBoolean(properties.getProperty(prefix+"crop_3d"));		
-		if (properties.getProperty(prefix+"sensor_mask")!=null)          this.sensor_mask=Integer.parseInt(properties.getProperty(prefix+"sensor_mask"));
-		if (properties.getProperty(prefix+"merge_all")!=null)            this.merge_all=Boolean.parseBoolean(properties.getProperty(prefix+"merge_all"));		
-		
-		if (properties.getProperty(prefix+"video_fps")!=null)            this.video_fps=Double.parseDouble(properties.getProperty(prefix+"video_fps"));
-		if (properties.getProperty(prefix+"sensor_fps")!=null)           this.sensor_fps=Double.parseDouble(properties.getProperty(prefix+"sensor_fps"));
-		if (properties.getProperty(prefix+"mode_avi")!=null)             this.mode_avi=Integer.parseInt(properties.getProperty(prefix+"mode_avi"));
-		if (properties.getProperty(prefix+"avi_JPEG_quality")!=null)     this.avi_JPEG_quality=Integer.parseInt(properties.getProperty(prefix+"avi_JPEG_quality"));
-		if (properties.getProperty(prefix+"run_ffmpeg")!=null)           this.run_ffmpeg=Boolean.parseBoolean(properties.getProperty(prefix+"run_ffmpeg"));
-		if (properties.getProperty(prefix+"video_ext")!=null)            this.video_ext=(String) properties.getProperty(prefix+"video_ext");
-		if (properties.getProperty(prefix+"video_codec")!=null)          this.video_codec=(String) properties.getProperty(prefix+"video_codec");
-		if (properties.getProperty(prefix+"video_crf")!=null)            this.video_crf=Integer.parseInt(properties.getProperty(prefix+"video_crf"));
-		if (properties.getProperty(prefix+"remove_avi")!=null)           this.remove_avi=Boolean.parseBoolean(properties.getProperty(prefix+"remove_avi"));
-		if (properties.getProperty(prefix+"video_codec_combo")!=null)    this.video_codec_combo=(String) properties.getProperty(prefix+"video_codec_combo");
-		if (properties.getProperty(prefix+"video_crf_combo")!=null)      this.video_crf_combo=Integer.parseInt(properties.getProperty(prefix+"video_crf_combo"));
-		if (properties.getProperty(prefix+"um_mono")!=null)              this.um_mono=Boolean.parseBoolean(properties.getProperty(prefix+"um_mono"));
-		if (properties.getProperty(prefix+"um_sigma")!=null)             this.um_sigma=Double.parseDouble(properties.getProperty(prefix+"um_sigma"));
-		if (properties.getProperty(prefix+"um_weight")!=null)            this.um_weight=Double.parseDouble(properties.getProperty(prefix+"um_weight"));
-		if (properties.getProperty(prefix+"mono_fixed")!=null)           this.mono_fixed=Boolean.parseBoolean(properties.getProperty(prefix+"mono_fixed"));
-		if (properties.getProperty(prefix+"mono_range")!=null)           this.mono_range=Double.parseDouble(properties.getProperty(prefix+"mono_range"));
-		
-		if (properties.getProperty(prefix+"anaglyth_en")!=null)           this.anaglyth_en=Boolean.parseBoolean(properties.getProperty(prefix+"anaglyth_en"));
-		if  (properties.getProperty(prefix+"anaglyph_left") != null) {
-			try {
-				this.anaglyph_left = setLongColor(Long.parseLong(properties.getProperty(prefix+"anaglyph_left")));
-			} catch(NumberFormatException e){
-				this.anaglyph_left = anaglyph_left_default;
-			}
-		}
-		if  (properties.getProperty(prefix+"anaglyph_right") != null) {
-			try {
-				this.anaglyph_right = setLongColor(Long.parseLong(properties.getProperty(prefix+"anaglyph_right")));
-			} catch(NumberFormatException e){
-				this.anaglyph_right = anaglyph_right_default;
-			}
-		}
-		
-		if (properties.getProperty(prefix+"annotate_color")!=null)       this.annotate_color=Boolean.parseBoolean(properties.getProperty(prefix+"annotate_color"));
-		if (properties.getProperty(prefix+"annotate_mono")!=null)        this.annotate_mono=Boolean.parseBoolean(properties.getProperty(prefix+"annotate_mono"));
-
-		if  (properties.getProperty(prefix+"annotate_color_color")!=null) {
-			long lcolor_annotate = Long.parseLong(properties.getProperty(prefix+"annotate_color_color"));
-			if (lcolor_annotate < 0) this.annotate_color_color = null;
-			else this.annotate_color_color = setLongColor(lcolor_annotate);
-		}
-		if  (properties.getProperty(prefix+"annotate_color_mono")!=null) {
-			long lcolor_annotate = Long.parseLong(properties.getProperty(prefix+"annotate_color_mono"));
-			if (lcolor_annotate < 0) this.annotate_color_mono = null;
-			else this.annotate_color_mono = setLongColor(lcolor_annotate);
-		}
-		if (properties.getProperty(prefix+"annotate_transparent_mono")!=null) this.annotate_transparent_mono=Boolean.parseBoolean(properties.getProperty(prefix+"annotate_transparent_mono"));
 		
 		if (properties.getProperty(prefix+"margin")!=null)               this.margin=Integer.parseInt(properties.getProperty(prefix+"margin"));
 		if (properties.getProperty(prefix+"sensor_mask_inter")!=null)    this.sensor_mask_inter=Integer.parseInt(properties.getProperty(prefix+"sensor_mask_inter"));
@@ -1592,6 +1417,40 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"test_ers")!=null)             this.test_ers=Boolean.parseBoolean(properties.getProperty(prefix+"test_ers"));		
 		if (properties.getProperty(prefix+"test_ers0")!=null)            this.test_ers0=Integer.parseInt(properties.getProperty(prefix+"test_ers0"));
 		if (properties.getProperty(prefix+"test_ers1")!=null)            this.test_ers1=Integer.parseInt(properties.getProperty(prefix+"test_ers1"));
+
+		if (properties.getProperty(prefix+"num_bottom")!=null)                    this.num_bottom=Integer.parseInt(properties.getProperty(prefix+"num_bottom"));
+		if (properties.getProperty(prefix+"num_passes")!=null)                    this.num_passes=Integer.parseInt(properties.getProperty(prefix+"num_passes"));
+		if (properties.getProperty(prefix+"max_change")!=null)                    this.max_change=Double.parseDouble(properties.getProperty(prefix+"max_change"));
+		if (properties.getProperty(prefix+"min_disparity")!=null)                 this.min_disparity=Double.parseDouble(properties.getProperty(prefix+"min_disparity"));
+		if (properties.getProperty(prefix+"max_sym_disparity")!=null)             this.max_sym_disparity=Double.parseDouble(properties.getProperty(prefix+"max_sym_disparity"));
+		if (properties.getProperty(prefix+"min_strength_lma")!=null)              this.min_strength_lma=Double.parseDouble(properties.getProperty(prefix+"min_strength_lma"));
+		if (properties.getProperty(prefix+"min_strength_replace")!=null)          this.min_strength_replace=Double.parseDouble(properties.getProperty(prefix+"min_strength_replace"));
+		if (properties.getProperty(prefix+"min_strength_blur")!=null)             this.min_strength_blur=Double.parseDouble(properties.getProperty(prefix+"min_strength_blur"));
+		if (properties.getProperty(prefix+"sigma")!=null)                         this.sigma=Double.parseDouble(properties.getProperty(prefix+"sigma"));
+		if (properties.getProperty(prefix+"num_blur")!=null)                      this.num_blur=Integer.parseInt(properties.getProperty(prefix+"num_blur"));
+		if (properties.getProperty(prefix+"disparity_corr")!=null)                this.disparity_corr=Double.parseDouble(properties.getProperty(prefix+"disparity_corr"));
+		if (properties.getProperty(prefix+"outliers_nth_fromextrem")!=null)       this.outliers_nth_fromextrem=Integer.parseInt(properties.getProperty(prefix+"outliers_nth_fromextrem"));
+		if (properties.getProperty(prefix+"outliers_tolerance_absolute")!=null)   this.outliers_tolerance_absolute=Double.parseDouble(properties.getProperty(prefix+"outliers_tolerance_absolute"));
+		if (properties.getProperty(prefix+"outliers_tolerance_relative")!=null)   this.outliers_tolerance_relative=Double.parseDouble(properties.getProperty(prefix+"outliers_tolerance_relative"));
+		if (properties.getProperty(prefix+"outliers_max_iter")!=null)             this.outliers_max_iter=Integer.parseInt(properties.getProperty(prefix+"outliers_max_iter"));
+		if (properties.getProperty(prefix+"outliers_max_strength2")!=null)        this.outliers_max_strength2=Double.parseDouble(properties.getProperty(prefix+"outliers_max_strength2"));
+		if (properties.getProperty(prefix+"outliers_nth_fromextrem2")!=null)      this.outliers_nth_fromextrem2=Integer.parseInt(properties.getProperty(prefix+"outliers_nth_fromextrem2"));
+		if (properties.getProperty(prefix+"outliers_tolerance_absolute2")!=null)  this.outliers_tolerance_absolute2=Double.parseDouble(properties.getProperty(prefix+"outliers_tolerance_absolute2"));
+		if (properties.getProperty(prefix+"outliers_tolerance_relative2")!=null)  this.outliers_tolerance_relative2=Double.parseDouble(properties.getProperty(prefix+"outliers_tolerance_relative2"));
+		if (properties.getProperty(prefix+"outliers_lma_max_strength")!=null)     this.outliers_lma_max_strength=Double.parseDouble(properties.getProperty(prefix+"outliers_lma_max_strength"));
+		if (properties.getProperty(prefix+"outliers_max_strength")!=null)         this.outliers_max_strength=Double.parseDouble(properties.getProperty(prefix+"outliers_max_strength"));
+		if (properties.getProperty(prefix+"outliers_from_lma_max_strength")!=null)this.outliers_from_lma_max_strength=Double.parseDouble(properties.getProperty(prefix+"outliers_from_lma_max_strength"));
+		if (properties.getProperty(prefix+"search_radius")!=null)                 this.search_radius=Integer.parseInt(properties.getProperty(prefix+"search_radius"));
+		if (properties.getProperty(prefix+"remove_no_lma_neib")!=null)            this.remove_no_lma_neib=Boolean.parseBoolean(properties.getProperty(prefix+"remove_no_lma_neib"));
+		if (properties.getProperty(prefix+"diff_from_lma_pos")!=null)             this.diff_from_lma_pos=Double.parseDouble(properties.getProperty(prefix+"diff_from_lma_pos"));
+		if (properties.getProperty(prefix+"diff_from_lma_neg")!=null)             this.diff_from_lma_neg=Double.parseDouble(properties.getProperty(prefix+"diff_from_lma_neg"));
+		if (properties.getProperty(prefix+"outliers_lma_nth_fromextrem")!=null)   this.outliers_lma_nth_fromextrem=Integer.parseInt(properties.getProperty(prefix+"outliers_lma_nth_fromextrem"));
+		if (properties.getProperty(prefix+"filter_margin")!=null)                 this.filter_margin=Integer.parseInt(properties.getProperty(prefix+"filter_margin"));
+		if (properties.getProperty(prefix+"weak_tolerance_absolute")!=null)       this.weak_tolerance_absolute=Double.parseDouble(properties.getProperty(prefix+"weak_tolerance_absolute"));
+		if (properties.getProperty(prefix+"weak_tolerance_relative")!=null)       this.weak_tolerance_relative=Double.parseDouble(properties.getProperty(prefix+"weak_tolerance_relative"));
+		if (properties.getProperty(prefix+"weak_min_neibs")!=null)                this.weak_min_neibs=Integer.parseInt(properties.getProperty(prefix+"weak_min_neibs"));
+		if (properties.getProperty(prefix+"strong_strength")!=null)               this.strong_strength=Double.parseDouble(properties.getProperty(prefix+"strong_strength"));
+		if (properties.getProperty(prefix+"weak_strength")!=null)                 this.weak_strength=Double.parseDouble(properties.getProperty(prefix+"weak_strength"));
 		
 		if (properties.getProperty(prefix+"sky_highest_min")!=null)      this.sky_highest_min=Double.parseDouble(properties.getProperty(prefix+"sky_highest_min"));
 		if (properties.getProperty(prefix+"cold_frac")!=null)            this.cold_frac=Double.parseDouble(properties.getProperty(prefix+"cold_frac"));
@@ -1617,6 +1476,67 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"eq_weight_add")!=null)        this.eq_weight_add=Double.parseDouble(properties.getProperty(prefix+"eq_weight_add"));
 		if (properties.getProperty(prefix+"eq_weight_scale")!=null)      this.eq_weight_scale=Double.parseDouble(properties.getProperty(prefix+"eq_weight_scale"));
 		if (properties.getProperty(prefix+"eq_level")!=null)             this.eq_level=Double.parseDouble(properties.getProperty(prefix+"eq_level"));
+		
+		
+		
+		if (properties.getProperty(prefix+"stereo_merge")!=null)         this.stereo_merge=Boolean.parseBoolean(properties.getProperty(prefix+"stereo_merge"));
+		if (properties.getProperty(prefix+"stereo_gap")!=null)           this.stereo_gap=Integer.parseInt(properties.getProperty(prefix+"stereo_gap"));
+		if (properties.getProperty(prefix+"stereo_intereye")!=null)      this.stereo_intereye=Double.parseDouble(properties.getProperty(prefix+"stereo_intereye"));
+		if (properties.getProperty(prefix+"stereo_phone_width")!=null)   this.stereo_phone_width=Double.parseDouble(properties.getProperty(prefix+"stereo_phone_width"));
+		
+		if (properties.getProperty(prefix+"extra_hor_tile")!=null)       this.extra_hor_tile=Integer.parseInt(properties.getProperty(prefix+"extra_hor_tile"));
+		if (properties.getProperty(prefix+"extra_vert_tile")!=null)      this.extra_vert_tile=Integer.parseInt(properties.getProperty(prefix+"extra_vert_tile"));
+		if (properties.getProperty(prefix+"crop_3d")!=null)              this.crop_3d=Boolean.parseBoolean(properties.getProperty(prefix+"crop_3d"));		
+		if (properties.getProperty(prefix+"sensor_mask")!=null)          this.sensor_mask=Integer.parseInt(properties.getProperty(prefix+"sensor_mask"));
+		if (properties.getProperty(prefix+"merge_all")!=null)            this.merge_all=Boolean.parseBoolean(properties.getProperty(prefix+"merge_all"));		
+		
+		if (properties.getProperty(prefix+"video_fps")!=null)            this.video_fps=Double.parseDouble(properties.getProperty(prefix+"video_fps"));
+		if (properties.getProperty(prefix+"sensor_fps")!=null)           this.sensor_fps=Double.parseDouble(properties.getProperty(prefix+"sensor_fps"));
+		if (properties.getProperty(prefix+"mode_avi")!=null)             this.mode_avi=Integer.parseInt(properties.getProperty(prefix+"mode_avi"));
+		if (properties.getProperty(prefix+"avi_JPEG_quality")!=null)     this.avi_JPEG_quality=Integer.parseInt(properties.getProperty(prefix+"avi_JPEG_quality"));
+		if (properties.getProperty(prefix+"run_ffmpeg")!=null)           this.run_ffmpeg=Boolean.parseBoolean(properties.getProperty(prefix+"run_ffmpeg"));
+		if (properties.getProperty(prefix+"video_ext")!=null)            this.video_ext=(String) properties.getProperty(prefix+"video_ext");
+		if (properties.getProperty(prefix+"video_codec")!=null)          this.video_codec=(String) properties.getProperty(prefix+"video_codec");
+		if (properties.getProperty(prefix+"video_crf")!=null)            this.video_crf=Integer.parseInt(properties.getProperty(prefix+"video_crf"));
+		if (properties.getProperty(prefix+"remove_avi")!=null)           this.remove_avi=Boolean.parseBoolean(properties.getProperty(prefix+"remove_avi"));
+		if (properties.getProperty(prefix+"video_codec_combo")!=null)    this.video_codec_combo=(String) properties.getProperty(prefix+"video_codec_combo");
+		if (properties.getProperty(prefix+"video_crf_combo")!=null)      this.video_crf_combo=Integer.parseInt(properties.getProperty(prefix+"video_crf_combo"));
+		if (properties.getProperty(prefix+"um_mono")!=null)              this.um_mono=Boolean.parseBoolean(properties.getProperty(prefix+"um_mono"));
+		if (properties.getProperty(prefix+"um_sigma")!=null)             this.um_sigma=Double.parseDouble(properties.getProperty(prefix+"um_sigma"));
+		if (properties.getProperty(prefix+"um_weight")!=null)            this.um_weight=Double.parseDouble(properties.getProperty(prefix+"um_weight"));
+		if (properties.getProperty(prefix+"mono_fixed")!=null)           this.mono_fixed=Boolean.parseBoolean(properties.getProperty(prefix+"mono_fixed"));
+		if (properties.getProperty(prefix+"mono_range")!=null)           this.mono_range=Double.parseDouble(properties.getProperty(prefix+"mono_range"));
+		
+		if (properties.getProperty(prefix+"anaglyth_en")!=null)           this.anaglyth_en=Boolean.parseBoolean(properties.getProperty(prefix+"anaglyth_en"));
+		if  (properties.getProperty(prefix+"anaglyph_left") != null) {
+			try {
+				this.anaglyph_left = setLongColor(Long.parseLong(properties.getProperty(prefix+"anaglyph_left")));
+			} catch(NumberFormatException e){
+				this.anaglyph_left = anaglyph_left_default;
+			}
+		}
+		if  (properties.getProperty(prefix+"anaglyph_right") != null) {
+			try {
+				this.anaglyph_right = setLongColor(Long.parseLong(properties.getProperty(prefix+"anaglyph_right")));
+			} catch(NumberFormatException e){
+				this.anaglyph_right = anaglyph_right_default;
+			}
+		}
+		
+		if (properties.getProperty(prefix+"annotate_color")!=null)       this.annotate_color=Boolean.parseBoolean(properties.getProperty(prefix+"annotate_color"));
+		if (properties.getProperty(prefix+"annotate_mono")!=null)        this.annotate_mono=Boolean.parseBoolean(properties.getProperty(prefix+"annotate_mono"));
+
+		if  (properties.getProperty(prefix+"annotate_color_color")!=null) {
+			long lcolor_annotate = Long.parseLong(properties.getProperty(prefix+"annotate_color_color"));
+			if (lcolor_annotate < 0) this.annotate_color_color = null;
+			else this.annotate_color_color = setLongColor(lcolor_annotate);
+		}
+		if  (properties.getProperty(prefix+"annotate_color_mono")!=null) {
+			long lcolor_annotate = Long.parseLong(properties.getProperty(prefix+"annotate_color_mono"));
+			if (lcolor_annotate < 0) this.annotate_color_mono = null;
+			else this.annotate_color_mono = setLongColor(lcolor_annotate);
+		}
+		if (properties.getProperty(prefix+"annotate_transparent_mono")!=null) this.annotate_transparent_mono=Boolean.parseBoolean(properties.getProperty(prefix+"annotate_transparent_mono"));
 	}
 	
 	@Override
@@ -1666,79 +1586,6 @@ public class IntersceneMatchParameters {
 		imp.range_disparity_offset        = this.range_disparity_offset;
 		imp.range_min_strength            = this.range_min_strength;
 		imp.range_max                     = this.range_max;
-		imp.num_bottom                    = this.num_bottom;
-		imp.num_passes                    = this.num_passes;
-		imp.max_change                    = this.max_change;
-		imp.min_disparity                 = this.min_disparity;
-		imp.max_sym_disparity             = this.max_sym_disparity;
-		imp.min_strength_lma              = this.min_strength_lma;
-		imp.min_strength_replace          = this.min_strength_replace;
-		imp.min_strength_blur             = this.min_strength_blur;
-		imp.sigma                         = this.sigma;
-		imp.num_blur                      = this.num_blur;
-		imp.disparity_corr                = this.disparity_corr;
-		imp.outliers_nth_fromextrem       = this.outliers_nth_fromextrem;
-		imp.outliers_tolerance_absolute   = this.outliers_tolerance_absolute;
-		imp.outliers_tolerance_relative   = this.outliers_tolerance_relative;
-		imp.outliers_max_iter             = this.outliers_max_iter;
-		imp.outliers_max_strength2        = this.outliers_max_strength2;
-		imp.outliers_nth_fromextrem2      = this.outliers_nth_fromextrem2;
-		imp.outliers_tolerance_absolute2  = this.outliers_tolerance_absolute2;
-		imp.outliers_tolerance_relative2  = this.outliers_tolerance_relative2;
-		imp.outliers_lma_max_strength     = this.outliers_lma_max_strength;
-		imp.outliers_max_strength         = this.outliers_max_strength;
-		imp.outliers_from_lma_max_strength= this.outliers_from_lma_max_strength;
-		imp.search_radius                 = this.search_radius;
-		imp.remove_no_lma_neib            = this.remove_no_lma_neib;
-		imp.diff_from_lma_pos             = this.diff_from_lma_pos;
-		imp.diff_from_lma_neg             = this.diff_from_lma_neg;
-		imp.outliers_lma_nth_fromextrem   = this.outliers_lma_nth_fromextrem;
-		imp.filter_margin                 = this.filter_margin;
-
-		imp.weak_tolerance_absolute       = this.weak_tolerance_absolute;
-		imp.weak_tolerance_relative       = this.weak_tolerance_relative;
-		imp.weak_min_neibs                = this.weak_min_neibs;
-		imp.strong_strength               = this.strong_strength;
-		imp.weak_strength                 = this.weak_strength;
-		
-		imp.stereo_merge                  = this.stereo_merge;
-		imp.stereo_gap                    = this.stereo_gap;
-		imp.stereo_intereye               = this. stereo_intereye;
-		imp.stereo_phone_width            = this. stereo_phone_width;
-		
-		imp.extra_hor_tile        = this.extra_hor_tile;
-		imp.extra_vert_tile       = this.extra_vert_tile;
-		imp.crop_3d               = this.crop_3d;
-		imp.sensor_mask           = this.sensor_mask;
-		imp.merge_all             = this.merge_all;
-
-		imp.video_fps =             this. video_fps;
-		imp.sensor_fps =            this. sensor_fps;
-		imp.mode_avi =              this. mode_avi;
-		imp.avi_JPEG_quality =      this. avi_JPEG_quality;
-		imp.run_ffmpeg =            this. run_ffmpeg;
-		imp.video_ext =             this. video_ext;
-		imp.video_codec =           this. video_codec;
-		imp.video_crf =             this. video_crf;
-		imp.remove_avi =            this. remove_avi;
-		imp.video_codec_combo =     this. video_codec_combo;
-		imp.video_crf_combo =       this. video_crf_combo;
-		
-		imp.um_mono =               this. um_mono;
-		imp.um_sigma =              this. um_sigma;
-		imp.um_weight =             this. um_weight;
-		imp.mono_fixed =            this. mono_fixed;
-		imp.mono_range =            this. mono_range;
-		
-		imp.anaglyth_en =           this. anaglyth_en;
-		imp.anaglyph_left =         this. anaglyph_left;
-		imp.anaglyph_right =        this. anaglyph_right;
-		
-		imp.annotate_color =        this. annotate_color;
-		imp.annotate_mono =         this. annotate_mono;
-		imp.annotate_color_color =  this. annotate_color_color;
-		imp.annotate_color_mono =   this. annotate_color_mono;
-		imp.annotate_transparent_mono = this. annotate_transparent_mono;
 
 		imp.margin                = this.margin;
 		imp.sensor_mask_inter     = this.sensor_mask_inter;
@@ -1813,6 +1660,40 @@ public class IntersceneMatchParameters {
 		imp.test_ers =              this.test_ers;         
 		imp.test_ers0 =             this.test_ers0;
 		imp.test_ers1 =             this.test_ers1;
+
+		imp.num_bottom                    = this.num_bottom;
+		imp.num_passes                    = this.num_passes;
+		imp.max_change                    = this.max_change;
+		imp.min_disparity                 = this.min_disparity;
+		imp.max_sym_disparity             = this.max_sym_disparity;
+		imp.min_strength_lma              = this.min_strength_lma;
+		imp.min_strength_replace          = this.min_strength_replace;
+		imp.min_strength_blur             = this.min_strength_blur;
+		imp.sigma                         = this.sigma;
+		imp.num_blur                      = this.num_blur;
+		imp.disparity_corr                = this.disparity_corr;
+		imp.outliers_nth_fromextrem       = this.outliers_nth_fromextrem;
+		imp.outliers_tolerance_absolute   = this.outliers_tolerance_absolute;
+		imp.outliers_tolerance_relative   = this.outliers_tolerance_relative;
+		imp.outliers_max_iter             = this.outliers_max_iter;
+		imp.outliers_max_strength2        = this.outliers_max_strength2;
+		imp.outliers_nth_fromextrem2      = this.outliers_nth_fromextrem2;
+		imp.outliers_tolerance_absolute2  = this.outliers_tolerance_absolute2;
+		imp.outliers_tolerance_relative2  = this.outliers_tolerance_relative2;
+		imp.outliers_lma_max_strength     = this.outliers_lma_max_strength;
+		imp.outliers_max_strength         = this.outliers_max_strength;
+		imp.outliers_from_lma_max_strength= this.outliers_from_lma_max_strength;
+		imp.search_radius                 = this.search_radius;
+		imp.remove_no_lma_neib            = this.remove_no_lma_neib;
+		imp.diff_from_lma_pos             = this.diff_from_lma_pos;
+		imp.diff_from_lma_neg             = this.diff_from_lma_neg;
+		imp.outliers_lma_nth_fromextrem   = this.outliers_lma_nth_fromextrem;
+		imp.filter_margin                 = this.filter_margin;
+		imp.weak_tolerance_absolute       = this.weak_tolerance_absolute;
+		imp.weak_tolerance_relative       = this.weak_tolerance_relative;
+		imp.weak_min_neibs                = this.weak_min_neibs;
+		imp.strong_strength               = this.strong_strength;
+		imp.weak_strength                 = this.weak_strength;
 		
 		imp.sky_highest_min =       this.sky_highest_min;
 		imp.cold_frac =             this.cold_frac;
@@ -1838,6 +1719,46 @@ public class IntersceneMatchParameters {
 		imp.eq_weight_add =         this.eq_weight_add;
 		imp.eq_weight_scale =       this.eq_weight_scale;
 		imp.eq_level =              this.eq_level;
+		
+		imp.stereo_merge                  = this.stereo_merge;
+		imp.stereo_gap                    = this.stereo_gap;
+		imp.stereo_intereye               = this. stereo_intereye;
+		imp.stereo_phone_width            = this. stereo_phone_width;
+		
+		imp.extra_hor_tile        = this.extra_hor_tile;
+		imp.extra_vert_tile       = this.extra_vert_tile;
+		imp.crop_3d               = this.crop_3d;
+		imp.sensor_mask           = this.sensor_mask;
+		imp.merge_all             = this.merge_all;
+
+		imp.video_fps =             this. video_fps;
+		imp.sensor_fps =            this. sensor_fps;
+		imp.mode_avi =              this. mode_avi;
+		imp.avi_JPEG_quality =      this. avi_JPEG_quality;
+		imp.run_ffmpeg =            this. run_ffmpeg;
+		imp.video_ext =             this. video_ext;
+		imp.video_codec =           this. video_codec;
+		imp.video_crf =             this. video_crf;
+		imp.remove_avi =            this. remove_avi;
+		imp.video_codec_combo =     this. video_codec_combo;
+		imp.video_crf_combo =       this. video_crf_combo;
+		
+		imp.um_mono =               this. um_mono;
+		imp.um_sigma =              this. um_sigma;
+		imp.um_weight =             this. um_weight;
+		imp.mono_fixed =            this. mono_fixed;
+		imp.mono_range =            this. mono_range;
+		
+		imp.anaglyth_en =           this. anaglyth_en;
+		imp.anaglyph_left =         this. anaglyph_left;
+		imp.anaglyph_right =        this. anaglyph_right;
+		
+		imp.annotate_color =        this. annotate_color;
+		imp.annotate_mono =         this. annotate_mono;
+		imp.annotate_color_color =  this. annotate_color_color;
+		imp.annotate_color_mono =   this. annotate_color_mono;
+		imp.annotate_transparent_mono = this. annotate_transparent_mono;
+		
 		
 		return imp;
 	}
