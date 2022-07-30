@@ -165,7 +165,7 @@ public class IntersceneMatchParameters {
 	public  int         weak_min_neibs =                  5;
 	public  double      strong_strength=                  0.5;
 	public  double      weak_strength=                    0.2; // none is below 
-	
+//------------	
 	
 
 	// Some "AGC" to adjust how much to discard
@@ -266,6 +266,24 @@ public class IntersceneMatchParameters {
 	public  int     sky_expand_extra =                 0; // 1?
 	public  double  min_strength =                     0.08;
 	public  int     lowest_sky_row =                  50;// appears that low - invalid, remove completely
+	
+// equalization of the inter-scene correlations	
+	public  boolean eq_en =                 true;// equalize "important" FG tiles for better camera XYZ fitting
+	public  int     eq_stride_hor =         8;   // half of a equalization supertile width
+	public  int     eq_stride_vert =        8;   // half of a equalization supertile height
+	// Supertile qualification
+	public  double  eq_min_stile_weight =   0.2; // minimal total weight of the tiles in a supertile (lower will not be modified)
+	public  int     eq_min_stile_number =   10;  // minimal number of defined tiles in a supertile
+	public  double  eq_min_stile_fraction = 0.02;// minimal total tile strength compared to the average one
+	// Individual tiles qualification
+	public  double  eq_min_disparity =      5; // minimal disparity of tiles to consider (applies after filtering / boosting)
+	public  double  eq_max_disparity =   1000; // maximal disparity of tiles to consider (applies after filtering / boosting)
+	// Boost amount 
+	public  double  eq_weight_add =         0.03; // calculate from min-strengths
+	public  double  eq_weight_scale =      20.0;   // maximal boost ratio 
+	public  double  eq_level =              0.9; // equalization level (0.0 - leave as is, 1.0 - boost to have the same supertile strength as average)  
+	
+	
 	
 	public boolean renderRef()            {return renderRef             (debug_level);}
 	public boolean renderScene()          {return renderScene           (debug_level);}
@@ -778,8 +796,37 @@ public class IntersceneMatchParameters {
 				"Additionally expand sky area after reaching threshold in the previous step.");
 		gd.addNumericField("Modify strength to be at least this",    this.min_strength, 5,7,"",
 				"Input strength has some with zero values resulting in zero FOM. Make them at least this.");
-		gd.addNumericField("Lowest sky row",                        this.lowest_sky_row, 0,3,"",
+		gd.addNumericField("Lowest sky row",                         this.lowest_sky_row, 0,3,"",
 				"Last defense - if the detected sky area reaches near-bottom of the page - it is invalid, remove it (but keep in debug images)");
+		
+		
+		gd.addTab("Interscene Equalization","Equalization of the interscene correlation confidence to improve camera X,Y,Z matching");
+		gd.addCheckbox ("Enable equalization",                       this.eq_en,
+				"Enable boosting of the weak but important interscene correlation tiles strength by equalizing average strength of the \"supertiles\"");
+		gd.addMessage  ("Equalization supertiles dimensions");
+		gd.addNumericField("Supertile horizontal stride",            this.eq_stride_hor, 0,3,"tiles",
+				"Half of a equalization supertile width - supertiles have a 50% overlap in each direction.");
+		gd.addNumericField("Supertile vertical stride",              this.eq_stride_hor, 0,3,"tiles",
+				"Half of a equalization supertile height - supertiles have a 50% overlap in each direction.");
+		gd.addMessage  ("Supertile qualification (not qualified will keep the original strength value)");
+		gd.addNumericField("Minimal supertile total weight",         this.eq_min_stile_weight, 5,7,"",
+				"Minimal total weight of the tiles in a supertile (lower will not be modified).");
+		gd.addNumericField("Minimal number of defined tiles",        this.eq_min_stile_number, 0,3,"tiles",
+				"Minimal number of defined tiles in a supertile.");
+		gd.addNumericField("Minimal weight fraction of average",     this.eq_min_stile_fraction, 5,7,"",
+				"Minimal total supertile strength RELATIVE to the average one.");
+		gd.addMessage  ("Individual tiles qualification (applied after calculating the amount of boost).");
+		gd.addNumericField("Minimal equalized tile disparity",       this.eq_min_disparity, 5,7,"pix",
+				"Allows to disqualify infinity and far tiles (do not contribute to camera X,Y,Z) freom boosting.");
+		gd.addNumericField("Maximal equalized tile disparity",       this.eq_max_disparity, 5,7,"pix",
+				"Unlikely to have meaning, introduced for symmetry. Can be set to a large number.");
+		gd.addMessage  ("Boost amount. Each defined tile will be increased by approximately previous subtracted offset and then scaled");
+		gd.addNumericField("Add to strength before scaling",         this.eq_weight_add, 5,7,"",
+				"Add to strength, then scale.");
+		gd.addNumericField("Maximal boost ratio",    this.eq_weight_scale, 5,7,"",
+				"Strength scale. If the new supertile strength exceed the target value, each tile will be scaled down to match.");
+		gd.addNumericField("Equalization level",    this.eq_level, 5,7,"",
+				"Target supertile strength will be set to: 0 - original strength (no modification), 1.0 - average supertile strength.");
 	}
 
 	public void dialogAnswers(GenericJTabbedDialog gd) {
@@ -1056,6 +1103,19 @@ public class IntersceneMatchParameters {
 		this.sky_expand_extra =   (int) gd.getNextNumber();	
 		this.min_strength =             gd.getNextNumber();    
 		this.lowest_sky_row =     (int) gd.getNextNumber();
+
+		// equalization of the inter-scene correlations	
+		this.eq_en =                    gd.getNextBoolean();
+		this.eq_stride_hor =      (int) gd.getNextNumber();
+		this.eq_stride_vert =     (int) gd.getNextNumber();
+		this.eq_min_stile_weight =      gd.getNextNumber();    
+		this.eq_min_stile_number =(int) gd.getNextNumber();
+		this.eq_min_stile_fraction =    gd.getNextNumber();    
+		this.eq_min_disparity =         gd.getNextNumber();    
+		this.eq_max_disparity =         gd.getNextNumber();    
+		this.eq_weight_add =            gd.getNextNumber();    
+		this.eq_weight_scale =          gd.getNextNumber();    
+		this.eq_level =                 gd.getNextNumber();    
 		
 		
 		
@@ -1284,7 +1344,17 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"min_strength",         this.min_strength+"");        // double
 		properties.setProperty(prefix+"lowest_sky_row",       this.lowest_sky_row+"");      // int
 	
-	
+		properties.setProperty(prefix+"eq_en",                this.eq_en+"");               // boolean
+		properties.setProperty(prefix+"eq_stride_hor",        this.eq_stride_hor+"");       // int
+		properties.setProperty(prefix+"eq_stride_vert",       this.eq_stride_vert+"");      // int
+		properties.setProperty(prefix+"eq_min_stile_weight",  this.eq_min_stile_weight+""); // double
+		properties.setProperty(prefix+"eq_min_stile_number",  this.eq_min_stile_number+""); // int
+		properties.setProperty(prefix+"eq_min_stile_fraction",this.eq_min_stile_fraction+"");// double
+		properties.setProperty(prefix+"eq_min_disparity",     this.eq_min_disparity+"");    // double
+		properties.setProperty(prefix+"eq_max_disparity",     this.eq_max_disparity+"");    // double
+		properties.setProperty(prefix+"eq_weight_add",        this.eq_weight_add+"");       // double
+		properties.setProperty(prefix+"eq_weight_scale",      this.eq_weight_scale+"");     // double
+		properties.setProperty(prefix+"eq_level",             this.eq_level+"");            // double
 	}
 	
 	public void getProperties(String prefix,Properties properties){
@@ -1535,6 +1605,18 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"sky_expand_extra")!=null)     this.sky_expand_extra=Integer.parseInt(properties.getProperty(prefix+"sky_expand_extra"));
 		if (properties.getProperty(prefix+"min_strength")!=null)         this.min_strength=Double.parseDouble(properties.getProperty(prefix+"min_strength"));
 		if (properties.getProperty(prefix+"lowest_sky_row")!=null)       this.lowest_sky_row=Integer.parseInt(properties.getProperty(prefix+"lowest_sky_row"));
+		
+		if (properties.getProperty(prefix+"eq_en")!=null)                this.eq_en=Boolean.parseBoolean(properties.getProperty(prefix+"eq_en"));		
+		if (properties.getProperty(prefix+"eq_stride_hor")!=null)        this.eq_stride_hor=Integer.parseInt(properties.getProperty(prefix+"eq_stride_hor"));
+		if (properties.getProperty(prefix+"eq_stride_vert")!=null)       this.eq_stride_vert=Integer.parseInt(properties.getProperty(prefix+"eq_stride_vert"));
+		if (properties.getProperty(prefix+"eq_min_stile_weight")!=null)  this.eq_min_stile_weight=Double.parseDouble(properties.getProperty(prefix+"eq_min_stile_weight"));
+		if (properties.getProperty(prefix+"eq_min_stile_number")!=null)  this.eq_min_stile_number=Integer.parseInt(properties.getProperty(prefix+"eq_min_stile_number"));
+		if (properties.getProperty(prefix+"eq_min_stile_fraction")!=null)this.eq_min_stile_fraction=Double.parseDouble(properties.getProperty(prefix+"eq_min_stile_fraction"));
+		if (properties.getProperty(prefix+"eq_min_disparity")!=null)     this.eq_min_disparity=Double.parseDouble(properties.getProperty(prefix+"eq_min_disparity"));
+		if (properties.getProperty(prefix+"eq_max_disparity")!=null)     this.eq_max_disparity=Double.parseDouble(properties.getProperty(prefix+"eq_max_disparity"));
+		if (properties.getProperty(prefix+"eq_weight_add")!=null)        this.eq_weight_add=Double.parseDouble(properties.getProperty(prefix+"eq_weight_add"));
+		if (properties.getProperty(prefix+"eq_weight_scale")!=null)      this.eq_weight_scale=Double.parseDouble(properties.getProperty(prefix+"eq_weight_scale"));
+		if (properties.getProperty(prefix+"eq_level")!=null)             this.eq_level=Double.parseDouble(properties.getProperty(prefix+"eq_level"));
 	}
 	
 	@Override
@@ -1744,6 +1826,19 @@ public class IntersceneMatchParameters {
 		imp.sky_expand_extra =      this.sky_expand_extra;
 		imp.min_strength =          this.min_strength;
 		imp.lowest_sky_row =        this.lowest_sky_row;
+		
+		imp.eq_en =                 this.eq_en;
+		imp.eq_stride_hor =         this.eq_stride_hor;
+		imp.eq_stride_vert =        this.eq_stride_vert;
+		imp.eq_min_stile_weight =   this.eq_min_stile_weight;
+		imp.eq_min_stile_number =   this.eq_min_stile_number;
+		imp.eq_min_stile_fraction = this.eq_min_stile_fraction;
+		imp.eq_min_disparity =      this.eq_min_disparity;
+		imp.eq_max_disparity =      this.eq_max_disparity;
+		imp.eq_weight_add =         this.eq_weight_add;
+		imp.eq_weight_scale =       this.eq_weight_scale;
+		imp.eq_level =              this.eq_level;
+		
 		return imp;
 	}
 	public static long getLongColor(Color color) {

@@ -12145,6 +12145,22 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 	    double  fpn_radius =           clt_parameters.imp.fpn_radius;
 	    boolean fpn_ignore_border =    clt_parameters.imp.fpn_ignore_border; // only if fpn_mask != null - ignore tile if maximum touches fpn_mask
 	    
+	    boolean eq_debug =             false;
+	    boolean eq_en = near_important && clt_parameters.imp.eq_en; //  true;// equalize "important" FG tiles for better camera XYZ fitting	    
+        int     eq_stride_hor =        clt_parameters.imp.eq_stride_hor; //  8;
+		int     eq_stride_vert =       clt_parameters.imp.eq_stride_vert; // 8;
+		double  eq_min_stile_weight =  clt_parameters.imp.eq_min_stile_weight; // 0.2; // 1.0;
+		int     eq_min_stile_number =  clt_parameters.imp.eq_min_stile_number; // 10;
+		double  eq_min_stile_fraction =clt_parameters.imp.eq_min_stile_fraction; // 0.02; // 0.05;
+		double  eq_min_disparity =     clt_parameters.imp.eq_min_disparity; //  5;
+		double  eq_max_disparity =     clt_parameters.imp.eq_max_disparity; // 100;
+		double  eq_weight_add =        clt_parameters.imp.eq_weight_add; //  0.05;
+		double  eq_weight_scale =      clt_parameters.imp.eq_weight_scale; // 10;
+		double  eq_level =             clt_parameters.imp.eq_level; //  0.8; // equalize to (log) fraction of average/this strength      
+	    
+	    
+	    
+	    
 		if (scene_is_ref_test) {
 			scene_xyz = ZERO3.clone();
 			scene_atr = ZERO3.clone();
@@ -12356,6 +12372,71 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 	        	System.out.println("clt_process_tl_interscene() returned null");
 	        	return null;
 	        }
+	        
+	   		if (eq_en) {
+//		   		double  eq_weight_add = (min_str * clt_parameters.imp.pd_weight +  min_str_sum * clt_parameters.imp.td_weight) /
+//			   	   		 (clt_parameters.imp.pd_weight +  clt_parameters.imp.td_weight);
+				double [] strength_backup = null;
+				if (eq_debug) { // **** Set manually in debugger ****
+					strength_backup = new double [coord_motion[1].length];
+					for (int i = 0; i < strength_backup.length; i++) if (coord_motion[1][i] != null) {
+						strength_backup[i] = coord_motion[1][i][2];
+					}else {
+						strength_backup[i] = Double.NaN;
+					}
+				}
+				do {
+					// restore
+					if (strength_backup != null) {
+						for (int i = 0; i < strength_backup.length; i++) if (coord_motion[1][i] != null) {
+							coord_motion[1][i][2] = strength_backup[i];
+						}
+					}
+					equalizeMotionVectorsWeights(
+							coord_motion,          // final double [][][] coord_motion,
+							tilesX,                // final int           tilesX,
+							eq_stride_hor,         // final int           stride_hor,
+							eq_stride_vert,        // final int           stride_vert,
+							eq_min_stile_weight,   // final double        min_stile_weight,
+							eq_min_stile_number,   // final int           min_stile_number,
+							eq_min_stile_fraction, // final double        min_stile_fraction,
+							eq_min_disparity,      // final double        min_disparity,
+							eq_max_disparity,      // final double        max_disparity,
+							eq_weight_add,         // final double        weight_add,
+							eq_weight_scale,       // final double        weight_scale)
+							eq_level);             // equalize to (log) fraction of average/this strength
+					if (eq_debug) {
+						String [] mvTitles = {"dx", "dy","conf", "conf0", "pX", "pY","Disp","defined"}; // ,"blurX","blurY", "blur"};
+						double [][] dbg_img = new double [mvTitles.length][tilesX*tilesY];
+						for (int l = 0; l < dbg_img.length; l++) {
+							Arrays.fill(dbg_img[l], Double.NaN);
+						}
+						for (int nTile = 0; nTile <  coord_motion[0].length; nTile++) {
+							if (coord_motion[0][nTile] != null) {
+								for (int i = 0; i <3; i++) {
+									dbg_img[4+i][nTile] = coord_motion[0][nTile][i];
+								}
+							}
+							dbg_img[3] = strength_backup;
+							if (coord_motion[1][nTile] != null) {
+								for (int i = 0; i <3; i++) {
+									dbg_img[0+i][nTile] = coord_motion[1][nTile][i];
+								}
+							}
+							dbg_img[7][nTile] = ((coord_motion[0][nTile] != null)?1:0)+((coord_motion[0][nTile] != null)?2:0);
+						}
+						(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
+								dbg_img,
+								tilesX,
+								tilesY,
+								true,
+								scene.getImageName()+"-"+ref_scene.getImageName()+"-coord_motion-eq",
+								mvTitles);
+
+					}
+				} while (eq_debug);
+	   		}
+	        
 	        if (mov_en) {
 	        	String debug_image_name = mov_debug_images ? (scene.getImageName()+"-"+ref_scene.getImageName()+"-movements"): null;
 	        	boolean [] move_mask = getMovementMask(
@@ -12513,6 +12594,8 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 	 * @param max_disparity      maximal disparity of tiles to consider (after filtering)
 	 * @param weight_add         add to each tile after scaling (if total weight < average)
 	 * @param weight_scale       scale each tile (if total weight < average)
+	 * @param eq_level           equalize (log scale) to this ratio between average and this
+	 *                           strength (0.0 - leave as is, equalize weak to average strength 
 	 * If total new weight of a supertile exceeds average - scale each tile to match. If
 	 * lower - keep as is. Only after this step remove tiles (replace with original weight)
 	 * that are discarded by the disparity filter. Multiply result by the the window and
@@ -12529,7 +12612,8 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			final double        min_disparity,
 			final double        max_disparity,
 			final double        weight_add,
-			final double        weight_scale)
+			final double        weight_scale,
+			final double        eq_level) // equalize to (log) fraction of average/this strength      
 	{
 		final int tiles = coord_motion[0].length;
 		final int tilesY = tiles/tilesX;
@@ -12539,8 +12623,8 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		double [] wvert = new double [stride_vert];
 		for (int i = 0; i < stride_hor;  i++) whor[i] =  0.5 *(1.0 - Math.cos(Math.PI*(i+0.5)/stride_hor)); 
 		for (int i = 0; i < stride_vert; i++) wvert[i] = 0.5 *(1.0 - Math.cos(Math.PI*(i+0.5)/stride_vert));
-		final int stilesX = (tilesX - 1)/stride_hor;  // 9
-		final int stilesY = (tilesY - 1)/stride_vert; // 7
+		final int stilesX = (tilesX - 1)/stride_hor + 2; // 10  // 9
+		final int stilesY = (tilesY - 1)/stride_vert + 2; // 8 // 7
 		final int stiles = stilesX * stilesY;
 		int indx = 0;
 		final double[] wind = new double[stile_height*stile_width];
@@ -12568,11 +12652,11 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 						stile_weight[sTile] = 0.0;
 						int num_tiles = 0; // for partial stiles
 						for (int iy = 0; iy < stile_height;iy++) {
-							int tileY = sTileY * stride_vert + iy;
-							if (tileY >= tilesY) continue;
+							int tileY = (sTileY - 1) * stride_vert + iy;
+							if ((tileY < 0) || (tileY >= tilesY)) continue;
 							for (int ix = 0; ix < stile_width; ix++) {
-								int tileX = sTileX * stride_hor + ix;
-								if (tileX >= tilesX) continue;
+								int tileX = (sTileX - 1) * stride_hor + ix;
+								if ((tileX < 0) || (tileX >= tilesX)) continue;
 								num_tiles++; // for partial stiles
 								int tile = tileX + tilesX*tileY;
 								if ((coord_motion[1][tile] != null) && !Double.isNaN(coord_motion[0][tile][2])) {
@@ -12589,16 +12673,6 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 			};
 		}		      
 		ImageDtt.startAndJoin(threads);
-		/*
-		double avg_tile_str = 0.0;
-		int num_defined = 0;
-		for (int tile = 0; tile < coord_motion[0].length; tile++) {
-			if ((coord_motion[1][tile] != null) && !Double.isNaN(coord_motion[0][tile][2])) {
-				num_defined++;
-				avg_tile_str +=coord_motion[1][tile][2];
-			}
-		}
-		*/
 		double sum_stile_str = 0.0;
 		int num_stiles_defined = 0;
 		for (int sTile = 0; sTile < stiles; sTile++) {
@@ -12646,15 +12720,18 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 								if (stile_weight[sTile] >= avg_stile_str) { // already strong enough
 									keep_old = true;
 								}
+								double target_str=Math.exp(
+										eq_level*Math.log(avg_stile_str) +
+										(1.0-eq_level)*stile_weight[sTile]);
 								Arrays.fill(mod_weights,0);
 								double sum_weights = 0.0;
 								int num_tiles = 0; // for partial stiles
 								for (int iy = 0; iy < stile_height;iy++) {
-									int tileY = stileY * stride_vert + iy;
-									if (tileY >= tilesY) continue;
+									int tileY = (stileY - 1) * stride_vert + iy;
+									if ((tileY < 0) || (tileY >= tilesY)) continue;
 									for (int ix = 0; ix < stile_width; ix++) {
-										int tileX = stileX * stride_hor + ix;
-										if (tileX >= tilesX) continue;
+										int tileX = (stileX - 1) * stride_hor + ix;
+										if ((tileX < 0) || (tileX >= tilesX)) continue;
 										int tile = tileX + tilesX*tileY;
 										num_tiles ++;
 										if ((coord_motion[1][tile] != null) && !Double.isNaN(coord_motion[0][tile][2])) {
@@ -12668,18 +12745,18 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 								}
 								sum_weights *= 1.0 * stile_height * stile_height / num_tiles  ; // increase for partial tiles 
 								if (!keep_old) {
-									if (sum_weights > avg_stile_str) { // scale back
-										double s = avg_stile_str/sum_weights;
+									if (sum_weights > target_str) { // scale back
+										double s = target_str/sum_weights;
 										for (int ltile = 0; ltile < mod_weights.length; ltile++) {
 											mod_weights[ltile] *= s;
 										}
 									}
 									for (int iy = 0; iy < stile_height;iy++) {
-										int tileY = stileY * stride_vert + iy;
-										if (tileY >= tilesY) continue;
+										int tileY = (stileY - 1) * stride_vert + iy;
+										if ((tileY < 0) || (tileY >= tilesY)) continue;
 										for (int ix = 0; ix < stile_width; ix++) {
-											int tileX = stileX * stride_hor + ix;
-											if (tileX >= tilesX) continue;
+											int tileX = (stileX - 1) * stride_hor + ix;
+											if ((tileX < 0) || (tileX >= tilesX)) continue;
 											int tile = tileX + tilesX*tileY;
 											int ltile = ix + iy * stile_width;
 											// remove out of range disparity
@@ -12695,11 +12772,11 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 								}
 								// multiply by window and accumulate
 								for (int iy = 0; iy < stile_height;iy++) {
-									int tileY = stileY * stride_vert + iy;
-									if (tileY >= tilesY) continue;
+									int tileY = (stileY - 1) * stride_vert + iy;
+									if ((tileY < 0) || (tileY >= tilesY)) continue;
 									for (int ix = 0; ix < stile_width; ix++) {
-										int tileX = stileX * stride_hor + ix;
-										if (tileX >= tilesX) continue;
+										int tileX = (stileX - 1) * stride_hor + ix;
+										if ((tileX < 0) || (tileX >= tilesX)) continue;
 										int tile = tileX + tilesX*tileY;
 										int ltile = ix + iy * stile_width;
 										// wind
@@ -13377,9 +13454,10 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 		double[] camera_atr0 = camera_atr.clone();
 		double [][][] coord_motion = null;
 		boolean show_corr_fpn = debug_level > -1; //  -3; *********** Change to debug FPN correleation *** 
-		boolean       run_equalize = false;
+//		boolean       run_equalize =   true;
+//		boolean       debug_equalize = false;
 		
-		int nlma = 00;
+		int nlma = 0;
 		for (; nlma < clt_parameters.imp.max_cycles; nlma ++) {
 			
 			boolean near_important = nlma > 0;
@@ -13403,43 +13481,54 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 	        	System.out.println("adjustPairsLMAInterscene() returned null");
 	        	return null;
 	        }
+	        /*
 			int           eq_stride_hor =         8;
 			int           eq_stride_vert =        8;
-			double        eq_min_stile_weight =   1.0;
+			double        eq_min_stile_weight =   0.2; // 1.0;
 			int           eq_min_stile_number =   10;
-			double        eq_min_stile_fraction = 0.05;
+			double        eq_min_stile_fraction = 0.02; // 0.05;
 			double        eq_min_disparity =      5;
 			double        eq_max_disparity =    100;
 			double        eq_weight_add =         0.1;
 			double        eq_weight_scale =      10;
+			double        eq_level =              0.8; // equalize to (log) fraction of average/this strength      
 			
 			if (run_equalize && near_important) {
 				TileProcessor tp = reference_QuadClt.getTileProcessor();
 				int tilesX = tp.getTilesX();
 				int tilesY = tp.getTilesY();
 				// backup coord_motion[1][][2] // strength
-				double [] strength_backup = new double [coord_motion[1].length];
-				for (int i = 0; i < strength_backup.length; i++) if (coord_motion[1][i] != null) {
-					strength_backup[i] = coord_motion[1][i][2];
+				double [] strength_backup = null;
+				if (debug_equalize) {
+					strength_backup = new double [coord_motion[1].length];
+					for (int i = 0; i < strength_backup.length; i++) if (coord_motion[1][i] != null) {
+						strength_backup[i] = coord_motion[1][i][2];
+					}
 				}
-
 				while (run_equalize) {
 					// restore
-					for (int i = 0; i < strength_backup.length; i++) if (coord_motion[1][i] != null) {
-						coord_motion[1][i][2] = strength_backup[i];
+					if (strength_backup != null) {
+						for (int i = 0; i < strength_backup.length; i++) if (coord_motion[1][i] != null) {
+							coord_motion[1][i][2] = strength_backup[i];
+						}
 					}
 					equalizeMotionVectorsWeights(
-							coord_motion, // final double [][][] coord_motion,
-							tilesX, // final int           tilesX,
-							eq_stride_hor, // final int           stride_hor,
-							eq_stride_vert, // final int           stride_vert,
-							eq_min_stile_weight, // final double        min_stile_weight,
-							eq_min_stile_number, // final int           min_stile_number,
+							coord_motion,          // final double [][][] coord_motion,
+							tilesX,                // final int           tilesX,
+							eq_stride_hor,         // final int           stride_hor,
+							eq_stride_vert,        // final int           stride_vert,
+							eq_min_stile_weight,   // final double        min_stile_weight,
+							eq_min_stile_number,   // final int           min_stile_number,
 							eq_min_stile_fraction, // final double        min_stile_fraction,
-							eq_min_disparity, // final double        min_disparity,
-							eq_max_disparity, // final double        max_disparity,
-							eq_weight_add, // final double        weight_add,
-							eq_weight_scale); // final double        weight_scale)
+							eq_min_disparity,      // final double        min_disparity,
+							eq_max_disparity,      // final double        max_disparity,
+							eq_weight_add,         // final double        weight_add,
+							eq_weight_scale,       // final double        weight_scale)
+							eq_level);             // equalize to (log) fraction of average/this strength      
+
+					if (!debug_equalize) {
+						break;
+					}
 					String [] mvTitles = {"dx", "dy","conf", "conf0", "pX", "pY","Disp","defined"}; // ,"blurX","blurY", "blur"};
 					double [][] dbg_img = new double [mvTitles.length][tilesX*tilesY];
 					for (int l = 0; l < dbg_img.length; l++) {
@@ -13469,8 +13558,7 @@ public double[][] correlateIntersceneDebug( // only uses GPU and quad
 				}
 
 			}
-
-	        
+	        */
 	        
 			intersceneLma.prepareLMA(
 					camera_xyz0,         // final double []   scene_xyz0,     // camera center in world coordinates (or null to use instance)

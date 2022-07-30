@@ -461,13 +461,6 @@ public class QuadCLTCPU {
 			return null;
 		}
 		double [] temp_scales = null;
-		/*
-		double cold_scale =    0.2;  // <=1.0. 1.0 - disables temperature dependence
-		double cold_frac =     0.005; // this and lower will scale fom by  cold_scale
-		double hot_frac =      0.9;    // this and above will scale fom by 1.0
-		double min_strength =  0.08;
-		int    seed_rows =     5; // sky should appear in this top rows 
-		*/
 		boolean failure = false;
 		if (avg_val != null) {
 			int num_bins = 1000;
