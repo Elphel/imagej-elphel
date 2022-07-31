@@ -2276,8 +2276,8 @@ public class QuadCLT extends QuadCLTCPU {
 		System.out.println("processCLTQuadCorrs(): processing "+getTotalFiles(set_channels)+" files ("+set_channels.length+" file sets) finished at "+
 				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory3="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	}
-	
-	public static boolean calibratePhotometric(
+	@Deprecated 
+	public static boolean calibratePhotometric( // not used
 			CLTParameters     clt_parameters,
 			final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
 			final double      min_strength,
@@ -2504,7 +2504,8 @@ public class QuadCLT extends QuadCLTCPU {
 			int len = width* height;
 			double [] avg_pix = new double [len];
 			double [] offsets = new double[dpixels.length];
-			double [] scales = new double[dpixels.length];
+			double [] scales =  new double[dpixels.length];
+			double [] scales2 = new double[dpixels.length];
 			double    s0 =  0.0;
 			double    sx=   0.0;
 			double    sx2 = 0.0;
@@ -2512,7 +2513,17 @@ public class QuadCLT extends QuadCLTCPU {
 			double [] sxy = new double[num_sens];
 			boolean [] good_pix = new boolean[len];
 			double [][] pa_coeff = new double[num_sens][];
+			double min_abs_a = 1E-9;
 			Arrays.fill(good_pix, true);
+			
+			double [] offs_old =    ref_scene.getLwirOffsets();
+			double [] scales_old =  ref_scene.getLwirScales();
+			double [] scales2_old = ref_scene.getLwirScales2();
+			
+			double [] offs_new =    new double [num_sens];
+			double [] scales_new =  new double [num_sens];
+			double [] scales2_new = new double [num_sens];
+			
 			for (int nref = 0; nref < num_refines; nref++) {
 				Arrays.fill(avg_pix, 0.0);
 				int num_good = 0;
@@ -2526,31 +2537,75 @@ public class QuadCLT extends QuadCLTCPU {
 						num_good++;
 					}
 				}
-				double [][] pa_data = new double [num_good][2];  
+				double [][] pa_data = new double [num_good][2];
+				double [][] raw = new double [num_sens][len];
 				for (int nsens = 0; nsens < num_sens; nsens++) {
+					Arrays.fill(raw[nsens],Double.NaN); // debug only
+					
 					int indx = 0;
 					for (int i = 0; i < len; i++) if (good_pix[i]){
-						pa_data[indx][0] = dpixels[nsens][i]; 
+						double A0 = scales2_old[nsens];
+						double B0 = scales_old[nsens];
+						double C0 = offs_old[nsens];
+						double a = A0;
+						double b = (B0 - 2 * C0 * A0);
+						double c = (C0*C0*A0 -C0 * B0 - dpixels[nsens][i]);
+						double p = -c/b;
+						if (Math.abs(a) >= min_abs_a) {
+							p= (-b + Math.sqrt(b*b - 4 * a * c))/(2 * a);
+						}
+						raw[nsens][i] = p;
+						pa_data[indx][0] = p; // dpixels[nsens][i]; 
 						pa_data[indx][1] = avg_pix[i];
 						indx++;
 					}
 					// quadratic
 					pa_coeff[nsens] =(new PolynomialApproximation(0)).polynomialApproximation1d(pa_data, quadratic ? 2 : 1);
+					double a = pa_coeff[nsens][2];
+					double b = pa_coeff[nsens][1];
+					double c = pa_coeff[nsens][0];
+					double A = a;
+					double C = -c/b;
+					if (Math.abs(a) >= min_abs_a) {
+						C = (-b + Math.sqrt(b*b - 4*a*c))/(2 * a);
+					}
+					double B = 2 * C * a + b;
+					scales2_new[nsens] = A;
+					scales_new [nsens] = B;
+					offs_new[nsens] =    C;
 				}
+				
 				if (debug) {
 					System.out.println("calibratePhotometric() nref="+nref);
+					/*
+					System.out.println(String.format("%3s %8s %8s %8s",
+							"chn","   c   ","   b   ", " 1e6*a "));
 					for (int n = 0; n < num_sens; n++) {
 						System.out.println(String.format("%2d: %8.4f %8.6f %8.6f", n,pa_coeff[n][0],pa_coeff[n][1], 1e6*pa_coeff[n][2]));
 					}
 					System.out.println();
+					*/
+					System.out.println(String.format("%3s %10s %8s %8s %10s %8s %8s",
+						//  "chn","   c   ","   b   ", " 1e6*a "));          
+							"chn","  offs0  ","scale0 ", "scale20","  offs "," scale ", " scale2"));
+					for (int n = 0; n < num_sens; n++) {
+						System.out.println(String.format("%2d: %10.4f %8.5f %8.5f %10.4f %8.5f %8.5f",
+								n,offs_old[n],scales_old[n], 1e6*scales2_old[n],
+								offs_new[n],scales_new[n], 1e6*scales2_new[n]));
+					}
+					System.out.println();
+					
+					
+					
 					double [][] diffs = new double [num_sens][len];
 					for (int n = 0; n < num_sens; n++) {
 						Arrays.fill(diffs[n], Double.NaN);
 					}
 					for (int i = 0; i < len; i++)  if (good_pix[i]) { // if (!Double.isNaN(avg_pix[i])){
 						for (int n = 0; n < num_sens; n++) {
-//							diffs[n][i] = dpixels[n][i] - (scales[n] * avg_pix[i] + offsets[n]);
-							diffs[n][i] = -(avg_pix[i] - pa_coeff[n][2] * dpixels[n][i] * dpixels[n][i] - pa_coeff[n][1] * dpixels[n][i] - pa_coeff[n][0]); 
+							double poffs = raw[n][i] - offs_new[n];
+							diffs[n][i] = -(avg_pix[i] -
+									(poffs * scales_new[n] + poffs*poffs*scales2_new[n]));  
 						}
 					}
 					(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
@@ -2559,60 +2614,12 @@ public class QuadCLT extends QuadCLTCPU {
 							height,
 							true,
 							"photometric-quad-err"+nref);
-				}				
-				
-				
-				Arrays.fill(offsets,0.0);
-				Arrays.fill(scales,0.0);
-				s0 =  0.0;
-				sx=   0.0;
-				sx2 = 0.0;
-				Arrays.fill(sy,0.0);
-				Arrays.fill(sxy,0.0);
-				for (int i = 0; i < len; i++)  if (good_pix[i]) { // !Double.isNaN(avg_pix[i])){
-					s0 +=  1.0;
-					sx +=  avg_pix[i];
-					sx2 += avg_pix[i] * avg_pix[i];
-					for (int n = 0; n < num_sens; n++) {
-						sy[n] +=  dpixels[n][i];
-						sxy[n] += dpixels[n][i] * avg_pix[i];
-					}
-				}
-				for (int n = 0; n < num_sens; n++) {
-					double d = s0 * sx2 + sx * sy[n];
-					scales[n] =  (sxy[n] * s0 + sy[n] * sy[n]) / d;
-					offsets[n] = (sy[n] * sx2 -sxy[n]*sx) / d;
-				}
-				
-				
-				if (debug) {
-					System.out.println("calibratePhotometric() nref="+nref);
-					for (int n = 0; n < num_sens; n++) {
-						System.out.println(String.format("%2d: %8.4f %8.6f", n,offsets[n],scales[n]));
-					}
-					System.out.println();
-					double [][] diffs = new double [num_sens][len];
-					for (int n = 0; n < num_sens; n++) {
-						Arrays.fill(diffs[n], Double.NaN);
-					}
-					for (int i = 0; i < len; i++)  if (good_pix[i]) { // if (!Double.isNaN(avg_pix[i])){
-						for (int n = 0; n < num_sens; n++) {
-							diffs[n][i] = dpixels[n][i] - (scales[n] * avg_pix[i] + offsets[n]);
-						}
-					}
-					(new ShowDoubleFloatArrays()).showArrays( // out of boundary 15
-							diffs,
-							width,
-							height,
-							true,
-							"photometric-err"+nref);
-
-					// dpix_orig[n] =  dpixels[n].clone();
 					double [][] corrected = new double [num_sens][len];
 					for (int n = 0; n < num_sens; n++) {
 						Arrays.fill(corrected[n], Double.NaN);
 						for (int i = 0; i < len; i++)  if (!Double.isNaN(dpixels[n][i])){
-							corrected[n][i] = (dpixels[n][i] - offsets[n])/scales[n];
+							double poffs = raw[n][i] - offs_new[n];
+							corrected[n][i] =	(poffs * scales_new[n] + poffs*poffs*scales2_new[n]);  
 						}
 					}
 
@@ -2621,15 +2628,16 @@ public class QuadCLT extends QuadCLTCPU {
 							width,
 							height,
 							true,
-							"photometric-corr"+nref);
-				}
+							"photometric-quad-corr"+nref);
+				}				
 				//max_diff
 				if (nref < (num_refines-1)) {
 					for (int i = 0; i < len; i++)  if (good_pix[i]) { // !Double.isNaN(avg_pix[i])){
 						for (int n = 0; n < num_sens; n++) {
-							double diff = Math.abs(dpixels[n][i] - (scales[n] * avg_pix[i] + offsets[n]));
+							double poffs = raw[n][i] - offs_new[n];
+							double diff = Math.abs(avg_pix[i] -
+									(poffs * scales_new[n] + poffs*poffs*scales2_new[n]));
 							if (diff > max_diff) {
-//								dpixels[n][i] = Double.NaN;
 								good_pix[i] = false;
 								break;
 							}
@@ -2637,22 +2645,12 @@ public class QuadCLT extends QuadCLTCPU {
 					}
 				}
 			}
-			double [] offsets_old = ref_scene.getLwirOffsets();
-			double [] scales_old =  ref_scene.getLwirScales();
-			double [] scales2_old = ref_scene.getLwirScales2();
-			double [] offsets_new = new double[num_sens];
-			double [] scales_new =  new double[num_sens];
-			double [] scales2_new = new double[num_sens];
-			for (int n = 0; n < num_sens; n++) {
-				scales_new[n] = scales_old[n]/scales[n];
-				offsets_new[n] = offsets_old[n]  + offsets[n] / scales_old[n];
-			}
 			System.out.println("calibratePhotometric() Updated calibration:");
 			for (int n = 0; n < num_sens; n++) {
-				System.out.println(String.format("%2d: %8.4f %8.6f %8.6f", n,offsets_new[n],scales_new[n], scales2_new[n]));
+				System.out.println(String.format("%2d: %10.4f %8.6f %8.6f", n,offs_new[n],scales_new[n], 1E6*scales2_new[n]));
 			}
 			System.out.println();
-			ref_scene.setLwirOffsets (offsets_new);
+			ref_scene.setLwirOffsets (offs_new);
 			ref_scene.setLwirScales  (scales_new);
 			ref_scene.setLwirScales2 (scales2_new);
 			return true;

@@ -58,11 +58,6 @@ public class IntersceneMatchParameters {
 	public  boolean show_color_nan =     true;  // use NAN background for color images (sharp, but distinct black)
 	public  boolean show_mono_nan =      false; // use NAN background for monochrome images (sharp, but distinct black)
 	
-
-	
-	
-	
-	
 	public  double [][] stereo_views = {  // base, up, back
 			{   0.0,   0.0,    0.0},
 			{ 200.0,   0.0,    0.0},
@@ -85,76 +80,8 @@ public class IntersceneMatchParameters {
 	public  double  range_min_strength = 0.5;
 	public  double  range_max =       5000.0;
 
-	// Some "AGC" to adjust how much to discard
-	public  int     margin =                       1;      // do not use tiles if their centers are closer to the image edge
-	public  int     sensor_mask_inter =           -1;      // bitmask of the sensors to use (-1 - all)
-	public  boolean use_partial =                   true;  // find motion vectors for individual pairs, false - for sum only
-	public  boolean run_poly =                      false; // not yet implemented
-	public  double  centroid_radius =               4.0;   // 
-	public  int     n_recenter =                    2;     // when cosine window, re-center window this many times
-	// filtering motion vectors
-	// TD accumulation of the inter-scene correlations  demonstrated artifacts (horizontally offset by 8 pixels
-	// false maximum that is sharper than the real one. Still not understood - maybe float precision related. 
-	public  double  td_weight =                     0.5;   // mix correlations accumulated in TD with 
-	public  double  pd_weight =                     0.5;   // correlations (post) accumulated in PD
-	public  boolean td_nopd_only =                  false; // true;  // only use TD accumulated data if no safe PD is available for the tile.
-
-	public  double  min_str_fpn =                   0.2; // 0.25; // minimal correlation strength for all but TD-accumulated layer
-	public  double  min_str_sum_fpn =               0.5; // 0.8;  // minimal correlation strength for TD-accumulated layer
-
-	public  double  min_str =                       0.12; //18;  // tiles w/o FPN: minimal correlation strength for all but TD-accumulated layer
-	public  double  min_str_sum =                   0.2;  // 0.33; // tiles w/o FPN: minimal correlation strength for TD-accumulated layer
-
-	public  int     min_neibs =                     2;	   // minimal number of strong neighbors (> min_str)
-	public  double  weight_zero_neibs =             0.2;   // Reduce weight for no-neib (1.0 for all 8)
-	public  double  half_disparity =                5.0;   // Reduce weight twice for this disparity
-	public  double  half_avg_diff =                 0.2;   // when L2 of x,y difference from average of neibs - reduce twice
-	
-	// Detect initial match
-	public  double  min_ref_str =                   0.15;  // 0.22;  // For orientations: use only tiles of the reference scene DSI_MAIN is stronger  
-	public  int     pix_step =                      4;     // Azimuth/tilt search step in pixels
-	public  int     search_rad =                   10;     // Search radius in steps
-	public  double  maybe_sum =                     1.0;   // minimal sum of strengths (will search for the best)
-	public  double  sure_sum =                     50.0;   // definitely good sum of strengths (no more search) too high, will be FOM-defined
-	public  double  maybe_avg =                     0.01;  // maybe average strength
-	public  double  sure_avg =                      0.15;  // 0.015; // sure average strength disabling (was 0.03)
-	public  double  max_search_rms =                1.5;   // good - 0.34, so-so - 0.999
-	public  double  maybe_fom =                     1.0;   // good - 38, second good - 4.5
-	public  double  sure_fom =                     12.0;   // good - 38, second good - 4.5
 	
 	
-	// Reference scene disparity 
-	public  boolean use_combo_dsi =                 true;  // use interscene DSI if available (instead of the single-scene)
-	public  boolean use_lma_dsi =                   true;  // only use reference DSI tiles that have LMA (strong) disparity
-	
-	// Remove correlation caused by FPN
-	public  boolean fpn_remove =                    true;  // only use reference DSI tiles that have LMA (strong) disparity
-	public  double  fpn_max_offset =                8.0;   // pix - ignore larger FPN offsets
-	public  double  fpn_radius =                    0.75;  // pix - zero around center 
-	public  boolean fpn_ignore_border =             false; // only if fpn_mask != null - ignore tile if maximum touches fpn_mask
-	
-	// Remove moving objects (goal is not to detect slightest movement, but to improve pose matching
-	public  boolean mov_en =                        true;  // enable detection/removal of the moving objects during pose matching
-	public  double  mov_sigma =                     1.5;   // pix - weighted-blur offsets before detection
-	// next two to prevent motion detection while errors are too big
-	public  double  mov_max_std =                   0.5;   // pix
-	public  double  mov_thresh_rel =                3.5;   // .0;   // exceed average error
-	public  double  mov_thresh_abs=                 0.5;   // sqrt(dx^2+dy^2) in moving areas 
-	public  double  mov_clust_max =                 1.5;   // cluster maximum should exceed threshold this times
-	public  int     mov_grow =                      4;     // grow detected moving area
-	public  boolean mov_show =                      true; // show debug images for movement detection
-	public  int     mov_debug_level =               1;     // >0 verbose
-	
-	
-	//LMA parameters
-	
-	public  boolean [] adjust_atr = new boolean [] {true,true,true};
-	public  boolean [] adjust_xyz = new boolean [] {true,true,true};
-	public  double  exit_change_atr =               1.0E-5;//rad,  L2 norm for difference to ext LMA 
-	public  double  exit_change_xyz =               1.0E-3;//meters, L2 norm for difference to ext LMA 
-	public  int     max_cycles =                   10;     // hard limit on full correlation/LMA cycles
-	public  int     max_LMA =                      25;     // hard limit on LMA iterations
-	public  double  max_rms =                       2.0;   // maximal RMS to consider adjustment to be a failure
 	
 	// Debug and visualization
 	public  boolean scene_is_ref_test=              false; // correlate ref-2-ref for testing
@@ -221,6 +148,74 @@ public class IntersceneMatchParameters {
 	public  int     sky_expand_extra =                 0; // 1?
 	public  double  min_strength =                     0.08;
 	public  int     lowest_sky_row =                  50;// appears that low - invalid, remove completely
+	
+	// Some "AGC" to adjust how much to discard
+	public  int     margin =                       1;      // do not use tiles if their centers are closer to the image edge
+	public  int     sensor_mask_inter =           -1;      // bitmask of the sensors to use (-1 - all)
+	public  boolean use_partial =                   true;  // find motion vectors for individual pairs, false - for sum only
+	public  boolean run_poly =                      false; // not yet implemented
+	public  double  centroid_radius =               4.0;   // 
+	public  int     n_recenter =                    2;     // when cosine window, re-center window this many times
+	// filtering motion vectors
+	// TD accumulation of the inter-scene correlations  demonstrated artifacts (horizontally offset by 8 pixels
+	// false maximum that is sharper than the real one. Still not understood - maybe float precision related. 
+	public  double  td_weight =                     0.5;   // mix correlations accumulated in TD with 
+	public  double  pd_weight =                     0.5;   // correlations (post) accumulated in PD
+	public  boolean td_nopd_only =                  false; // true;  // only use TD accumulated data if no safe PD is available for the tile.
+
+	public  double  min_str_fpn =                   0.2; // 0.25; // minimal correlation strength for all but TD-accumulated layer
+	public  double  min_str_sum_fpn =               0.5; // 0.8;  // minimal correlation strength for TD-accumulated layer
+
+	public  double  min_str =                       0.12; //18;  // tiles w/o FPN: minimal correlation strength for all but TD-accumulated layer
+	public  double  min_str_sum =                   0.2;  // 0.33; // tiles w/o FPN: minimal correlation strength for TD-accumulated layer
+
+	public  int     min_neibs =                     2;	   // minimal number of strong neighbors (> min_str)
+	public  double  weight_zero_neibs =             0.2;   // Reduce weight for no-neib (1.0 for all 8)
+	public  double  half_disparity =                5.0;   // Reduce weight twice for this disparity
+	public  double  half_avg_diff =                 0.2;   // when L2 of x,y difference from average of neibs - reduce twice
+	
+	// Detect initial match
+	public  double  min_ref_str =                   0.15;  // 0.22;  // For orientations: use only tiles of the reference scene DSI_MAIN is stronger  
+	public  int     pix_step =                      4;     // Azimuth/tilt search step in pixels
+	public  int     search_rad =                   10;     // Search radius in steps
+	public  double  maybe_sum =                     1.0;   // minimal sum of strengths (will search for the best)
+	public  double  sure_sum =                     50.0;   // definitely good sum of strengths (no more search) too high, will be FOM-defined
+	public  double  maybe_avg =                     0.01;  // maybe average strength
+	public  double  sure_avg =                      0.15;  // 0.015; // sure average strength disabling (was 0.03)
+	public  double  max_search_rms =                1.5;   // good - 0.34, so-so - 0.999
+	public  double  maybe_fom =                     1.0;   // good - 38, second good - 4.5
+	public  double  sure_fom =                     12.0;   // good - 38, second good - 4.5
+	
+	
+	// Reference scene disparity 
+	public  boolean use_combo_dsi =                 true;  // use interscene DSI if available (instead of the single-scene)
+	public  boolean use_lma_dsi =                   true;  // only use reference DSI tiles that have LMA (strong) disparity
+	
+	// Remove correlation caused by FPN
+	public  boolean fpn_remove =                    true;  // only use reference DSI tiles that have LMA (strong) disparity
+	public  double  fpn_max_offset =                8.0;   // pix - ignore larger FPN offsets
+	public  double  fpn_radius =                    0.75;  // pix - zero around center 
+	public  boolean fpn_ignore_border =             false; // only if fpn_mask != null - ignore tile if maximum touches fpn_mask
+	
+	// Remove moving objects (goal is not to detect slightest movement, but to improve pose matching
+	public  boolean mov_en =                        true;  // enable detection/removal of the moving objects during pose matching
+	public  double  mov_sigma =                     1.5;   // pix - weighted-blur offsets before detection
+	// next two to prevent motion detection while errors are too big
+	public  double  mov_max_std =                   0.5;   // pix
+	public  double  mov_thresh_rel =                3.5;   // .0;   // exceed average error
+	public  double  mov_thresh_abs=                 0.5;   // sqrt(dx^2+dy^2) in moving areas 
+	public  double  mov_clust_max =                 1.5;   // cluster maximum should exceed threshold this times
+	public  int     mov_grow =                      4;     // grow detected moving area
+	public  boolean mov_show =                      true; // show debug images for movement detection
+	public  int     mov_debug_level =               1;     // >0 verbose
+	//LMA parameters
+	public  boolean [] adjust_atr = new boolean [] {true,true,true};
+	public  boolean [] adjust_xyz = new boolean [] {true,true,true};
+	public  double  exit_change_atr =               1.0E-5;//rad,  L2 norm for difference to ext LMA 
+	public  double  exit_change_xyz =               1.0E-3;//meters, L2 norm for difference to ext LMA 
+	public  int     max_cycles =                   10;     // hard limit on full correlation/LMA cycles
+	public  int     max_LMA =                      25;     // hard limit on LMA iterations
+	public  double  max_rms =                       2.0;   // maximal RMS to consider adjustment to be a failure
 	
 // equalization of the inter-scene correlations	
 	public  boolean eq_en =                 true;// equalize "important" FG tiles for better camera XYZ fitting
@@ -306,7 +301,8 @@ public class IntersceneMatchParameters {
 
 	public void dialogQuestions(GenericJTabbedDialog gd) {
 		//		gd.addMessage  ("Scene parameters selection");
-
+//		gd.addTab         ("Inter-Match", "Parameters for full-resolution (no decimation/macrotiles) scene matching");
+		gd.addTab         ("Scene Series", "Processing os series of scene and multi-series sets");
 		gd.addMessage  ("Build series options");
 		gd.addCheckbox ("Force reference scene DSI calculation",     this.force_ref_dsi,
 				"Calculate reference scene DSI even if the file exists.");
@@ -400,140 +396,11 @@ public class IntersceneMatchParameters {
 		gd.addNumericField("Maximal displayed range",                this.range_max, 5,7,"m",
 				"Do not display extremely far objects.");
 		
-		gd.addMessage  ("Interscene match parameters");
-		gd.addNumericField("Image margin",                           this.margin, 0,5,"pix",
-				"Do not use tiles if their centers are closer to the virtual image edge");
-		gd.addNumericField("Used sensors mask",                      this.sensor_mask_inter, 0,5,"",
-				"Bitmask of the sensors to use, -1 - use all");
-		gd.addCheckbox ("Preserve partial",                          this.use_partial,
-				"Preserve motion vectors for each of the selected sensors, fallse - use only combined (in transform domain and in pixel domain)");
-		gd.addCheckbox ("Poly maximums",                             this.run_poly,
-				"Use polinomial interpolationn to determin correlation maximums instead of centroids (not yet implemented, ignored)");
-		gd.addNumericField("Centroid radius",                        this.centroid_radius, 5,7,"pix",
-				"Calculate centroids after multiplication by a half-cosine window. All correlation data farther than this value from the center is ignored");
-		gd.addNumericField("Refine centroids",                       this.n_recenter, 0,5,"",
-				"Repeat centroids after moving the window center to the new centroid location this many times (0 - calculate once)");
 
-	//	gd.addMessage  ("Filter tiles to use for scene poses");
-	//	gd.addNumericField("DSI_MAIN minimal strength",              this.min_ref_str, 5,7,"",
-	//			"Match only tiles where DSI_MAIN is stronger than that (and has LMA).");
+	
 		
 		
-		gd.addMessage  ("Mixing TD and PD accumulation of 2d correlations");
-		gd.addNumericField("TD-accumulated weight",                  this.td_weight, 5,7,"",
-				"Mix argmax from TD-accumulated correlation.");
-		gd.addNumericField("PD-accumulated weight",                  this.pd_weight, 5,7,"",
-				"Mix argmax from PD-accumulated correlation.");
-		gd.addCheckbox ("TD when no PD only",                        this.td_nopd_only,
-				"Use argmax from TD only if PD data is not available for this tile.");
 		
-		gd.addMessage  ("Filtering motion vectors");
-		gd.addNumericField("Minimal correlation strength (non-sum)",       this.min_str, 5,7,"",
-				"Minimal correlation strength for individual correlation and for pixel-domain averaged one. Weeker tiles results are removed.");
-		gd.addNumericField("Minimal correlation strength (non-sum) w/FPN", this.min_str_fpn, 5,7,"",
-				"Similar to above, but for small offsets where FPN correlation may be present");
-		gd.addNumericField("Minimal correlation strength (sum only)",      this.min_str_sum, 5,7,"",
-				"Minimal correlation strength for transform-domain averaging. Weeker tiles results are removed.");
-		gd.addNumericField("Minimal correlation strength (sum only) w/FPN",this.min_str_sum_fpn, 5,7,"",
-				"Similar to above, but for small offsets where FPN correlation may be present");
-		
-		gd.addNumericField("Minimal number of neighbors (of 8)",     this.min_neibs, 0,3,"",
-				"Remove motion vectors with less than this number of defined (passing min_str) neighbors.");
-		gd.addNumericField("No-neighbors weight (<1.0)",             this.weight_zero_neibs, 5,7,"",
-				"Punish for reduced neighbors - weigh for no-neighbors), weight of 8 neighbors = 1.0.");
-		gd.addNumericField("Disparity to reduce weight twice from infinity", this.half_disparity, 5,7,"",
-				"Weight at this disparity is 0.5, at infinity - 1.0.");
-		gd.addNumericField("Difference from neighbors average ",     this.half_avg_diff, 5,7,"",
-				"Reduce twice for high difference from neighbors average.");
-		
-		gd.addMessage  ("Initial search for the inter-scene match");
-		gd.addNumericField("DSI_MAIN minimal strength",              this.min_ref_str, 5,7,"",
-					"Match only tiles where DSI_MAIN is stronger than that (and has LMA).");
-		
-		gd.addNumericField("Azimuth/tilt step",                      this.pix_step, 0,3,"pix",
-				"Search in a spiral starting with no-shift with this step between probes, in approximate pixels");
-		gd.addNumericField("Search spiral radius",                   this.search_rad, 0,3,"steps",
-				"Maximal search radius in steps");
-		gd.addNumericField("\"Maybe\" sum of strengths",             this.maybe_sum, 5,7,"",
-				"Minimal acceptable sum of defined tiles strengths (will look for the best among matching)");
-		gd.addNumericField("\"Sure\" sum of strengths",              this.sure_sum, 5,7,"",
-				"Definitely sufficient sum of defined tiles strengths (will not continue looking for better).");
-		gd.addNumericField("\"Maybe\" average of strengths",         this.maybe_avg, 5,7,"",
-				"Minimal acceptable average of defined tiles strengths (will look for the best among matching)");
-		gd.addNumericField("\"Sure\" average of strengths",          this.sure_avg, 5,7,"",
-				"Definitely sufficient average of defined tiles strengths (will not continue looking for better).");
-		
-		gd.addNumericField("Maximal offset standard deviation",      this.max_search_rms, 5,7,"pix",
-				"Standard deviation for X,Y offsets.");
-		gd.addNumericField("\"Maybe\" FOM",                          this.maybe_fom, 5,7,"",
-				"Minimal acceptable Figure of Merit (semi-total strength divided by standard deviation of offsets), will look for the best among matching.");
-		gd.addNumericField("\"Sure\" FOM",                           this.sure_fom, 5,7,"",
-				"Definitely sufficient FOM (semi-total strength divided by standard deviation of offsets), will non continue looking for better.");
-		
-		
-		gd.addMessage  ("Reference scene disparity");
-		gd.addCheckbox ("Use combo DSI (if available)",              this.use_combo_dsi,
-				"Use interscene DSI if available (instead of the single-scene)");
-		gd.addCheckbox ("LMA tiles only",                            this.use_lma_dsi,
-				"Use only strong correlation tiles (with LMA available) for interscene correlation (pose matching)");
-
-		gd.addMessage  ("Supress FPN in interscene correlations");
-		gd.addCheckbox ("Enable FPN suppression",                    this.fpn_remove,
-				"Zero-out integrated inter-scene correlation around zero-shift offset");
-		gd.addNumericField("Maximal FPN offset to consider",         this.fpn_max_offset, 6,7,"pix",
-				"Maximal offset from the zero shift to consider (normally just 8 pix)");
-		gd.addNumericField("FPN suppression radius",                 this.fpn_radius, 6,7,"pix",
-				"Blank correlation pixels closer than this distance from the FPN offset");
-		gd.addCheckbox ("Ignore maximums \"touching\" FPN",          this.fpn_ignore_border,
-				"Discard TD integrated tiles where local maximum is a neighbor (including diagonal) to blanked FPN correlation pixels");
-		
-		gd.addMessage  ("Detect and remove moving objects from pose matching");
-		gd.addCheckbox ("Enable movement detection/elimination",     this.mov_en,
-				"Detect and mask areas with detected movement to improve pose matching");
-		gd.addNumericField("Detection blur sigma",                   this.mov_sigma, 6,7,"pix",
-				"Blur squared difference (dx^2+dy^2) befopre thresholding for movement detection");
-		gd.addNumericField("Max weighted mismatch std",              this.mov_max_std, 6,7,"pix",
-				"Do not try to detect moving objects until approximate pose match is achieved (standard deviation)");
-		gd.addNumericField("Relative threshold",                     this.mov_thresh_rel, 6,7,"x",
-				"Moving areas over standard deviation. Both relative and absolute should be exceeded.");
-		gd.addNumericField("Absolute threshold",                     this.mov_thresh_abs, 6,7,"pix",
-				"Moving areas sqrt(dx*dx+dy*dy). Both relative and absolute should be exceeded.");
-		gd.addNumericField("Cluster max over threshold",             this.mov_clust_max, 6,7,"",
-				"Moving cluster should contain tile with this exceed over thresholds");
-		gd.addNumericField("Moving cluster grow",                    this.mov_grow, 0,3,"",
-				"Standard grow values - 1 - ortho, 2 - diagonal, 3 - twice orto, 4 - twice diagonal");
-		gd.addCheckbox ("Show movement debug images",                this.mov_show,
-				"Disabled if 'Debug Level for interscene match' < 1");
-		gd.addNumericField("Debug level for movement detection (0/1)", this.mov_debug_level, 0,3,"",
-				"Disabled if 'Debug Level for interscene match' < 0");
-		
-		gd.addMessage  ("LMA parameters");
-		gd.addCheckbox ("Azimuth",                                   this.adjust_atr[0],
-				"Adjust scene camera azimuth with LMA");
-		gd.addCheckbox ("Tilt",                                      this.adjust_atr[1],
-				"Adjust scene camera tilt with LMA");
-		gd.addCheckbox ("Roll",                                      this.adjust_atr[2],
-				"Adjust scene camera roll with LMA");
-		gd.addCheckbox ("X",                                         this.adjust_xyz[0],
-				"Adjust scene camera X with LMA");
-		gd.addCheckbox ("Y",                                         this.adjust_xyz[1],
-				"Adjust scene camera Y with LMA");
-		gd.addCheckbox ("Z",                                         this.adjust_xyz[2],
-				"Adjust scene camera Z with LMA");
-
-		gd.addNumericField("Exit ATR change",                        this.exit_change_atr, 6,7,"pix",
-				"L2 of azimuth, tilt, roll change (in pixels at infinity) to exit fitting");
-		gd.addNumericField("Exit XYZ change",                        this.exit_change_xyz, 5,7,"m",
-				"L2 of linear scene camera position change (in meters) to exit fitting");
-
-
-		gd.addNumericField("Max full iterations",                    this.max_cycles, 0,3,"",
-				"Hard limit on interscene correlations plus LMA cycles");
-		gd.addNumericField("Max LMA iterations",                     this.max_LMA, 0,3,"",
-				"Hard limit on LMA iterations");
-		gd.addNumericField("Maximal RMS to fail",                    this.max_rms, 5,7,"pix",
-				"Maximal fitting RMS to consider fitting failure");
-
 
 		gd.addMessage  ("Debug and visialization parameters");
 		gd.addCheckbox ("Replace scene with reference scene",        this.scene_is_ref_test,
@@ -664,8 +531,144 @@ public class IntersceneMatchParameters {
 		gd.addNumericField("Lowest sky row",                         this.lowest_sky_row, 0,3,"",
 				"Last defense - if the detected sky area reaches near-bottom of the page - it is invalid, remove it (but keep in debug images)");
 		
+		gd.addTab         ("Inter-Match", "Parameters for full-resolution scene matching");
+//		gd.addTab("Interscene Equalization","Equalization of the interscene correlation confidence to improve camera X,Y,Z matching");
+
+
 		
-		gd.addTab("Interscene Equalization","Equalization of the interscene correlation confidence to improve camera X,Y,Z matching");
+		
+		
+		
+		
+		gd.addMessage  ("Interscene match parameters");
+		gd.addNumericField("Image margin",                           this.margin, 0,5,"pix",
+				"Do not use tiles if their centers are closer to the virtual image edge");
+		gd.addNumericField("Used sensors mask",                      this.sensor_mask_inter, 0,5,"",
+				"Bitmask of the sensors to use, -1 - use all");
+		gd.addCheckbox ("Preserve partial",                          this.use_partial,
+				"Preserve motion vectors for each of the selected sensors, fallse - use only combined (in transform domain and in pixel domain)");
+		gd.addCheckbox ("Poly maximums",                             this.run_poly,
+				"Use polinomial interpolationn to determin correlation maximums instead of centroids (not yet implemented, ignored)");
+		gd.addNumericField("Centroid radius",                        this.centroid_radius, 5,7,"pix",
+				"Calculate centroids after multiplication by a half-cosine window. All correlation data farther than this value from the center is ignored");
+		gd.addNumericField("Refine centroids",                       this.n_recenter, 0,5,"",
+				"Repeat centroids after moving the window center to the new centroid location this many times (0 - calculate once)");
+		gd.addMessage  ("Mixing TD and PD accumulation of 2d correlations");
+		gd.addNumericField("TD-accumulated weight",                  this.td_weight, 5,7,"",
+				"Mix argmax from TD-accumulated correlation.");
+		gd.addNumericField("PD-accumulated weight",                  this.pd_weight, 5,7,"",
+				"Mix argmax from PD-accumulated correlation.");
+		gd.addCheckbox ("TD when no PD only",                        this.td_nopd_only,
+				"Use argmax from TD only if PD data is not available for this tile.");
+		gd.addMessage  ("Filtering motion vectors");
+		gd.addNumericField("Minimal correlation strength (non-sum)",       this.min_str, 5,7,"",
+				"Minimal correlation strength for individual correlation and for pixel-domain averaged one. Weeker tiles results are removed.");
+		gd.addNumericField("Minimal correlation strength (non-sum) w/FPN", this.min_str_fpn, 5,7,"",
+				"Similar to above, but for small offsets where FPN correlation may be present");
+		gd.addNumericField("Minimal correlation strength (sum only)",      this.min_str_sum, 5,7,"",
+				"Minimal correlation strength for transform-domain averaging. Weeker tiles results are removed.");
+		gd.addNumericField("Minimal correlation strength (sum only) w/FPN",this.min_str_sum_fpn, 5,7,"",
+				"Similar to above, but for small offsets where FPN correlation may be present");
+		
+		gd.addNumericField("Minimal number of neighbors (of 8)",     this.min_neibs, 0,3,"",
+				"Remove motion vectors with less than this number of defined (passing min_str) neighbors.");
+		gd.addNumericField("No-neighbors weight (<1.0)",             this.weight_zero_neibs, 5,7,"",
+				"Punish for reduced neighbors - weigh for no-neighbors), weight of 8 neighbors = 1.0.");
+		gd.addNumericField("Disparity to reduce weight twice from infinity", this.half_disparity, 5,7,"",
+				"Weight at this disparity is 0.5, at infinity - 1.0.");
+		gd.addNumericField("Difference from neighbors average ",     this.half_avg_diff, 5,7,"",
+				"Reduce twice for high difference from neighbors average.");
+		
+		gd.addMessage  ("Initial search for the inter-scene match");
+		gd.addNumericField("DSI_MAIN minimal strength",              this.min_ref_str, 5,7,"",
+					"Match only tiles where DSI_MAIN is stronger than that (and has LMA).");
+		
+		gd.addNumericField("Azimuth/tilt step",                      this.pix_step, 0,3,"pix",
+				"Search in a spiral starting with no-shift with this step between probes, in approximate pixels");
+		gd.addNumericField("Search spiral radius",                   this.search_rad, 0,3,"steps",
+				"Maximal search radius in steps");
+		gd.addNumericField("\"Maybe\" sum of strengths",             this.maybe_sum, 5,7,"",
+				"Minimal acceptable sum of defined tiles strengths (will look for the best among matching)");
+		gd.addNumericField("\"Sure\" sum of strengths",              this.sure_sum, 5,7,"",
+				"Definitely sufficient sum of defined tiles strengths (will not continue looking for better).");
+		gd.addNumericField("\"Maybe\" average of strengths",         this.maybe_avg, 5,7,"",
+				"Minimal acceptable average of defined tiles strengths (will look for the best among matching)");
+		gd.addNumericField("\"Sure\" average of strengths",          this.sure_avg, 5,7,"",
+				"Definitely sufficient average of defined tiles strengths (will not continue looking for better).");
+		
+		gd.addNumericField("Maximal offset standard deviation",      this.max_search_rms, 5,7,"pix",
+				"Standard deviation for X,Y offsets.");
+		gd.addNumericField("\"Maybe\" FOM",                          this.maybe_fom, 5,7,"",
+				"Minimal acceptable Figure of Merit (semi-total strength divided by standard deviation of offsets), will look for the best among matching.");
+		gd.addNumericField("\"Sure\" FOM",                           this.sure_fom, 5,7,"",
+				"Definitely sufficient FOM (semi-total strength divided by standard deviation of offsets), will non continue looking for better.");
+		
+		
+		gd.addMessage  ("Reference scene disparity");
+		gd.addCheckbox ("Use combo DSI (if available)",              this.use_combo_dsi,
+				"Use interscene DSI if available (instead of the single-scene)");
+		gd.addCheckbox ("LMA tiles only",                            this.use_lma_dsi,
+				"Use only strong correlation tiles (with LMA available) for interscene correlation (pose matching)");
+
+		gd.addMessage  ("Supress FPN in interscene correlations");
+		gd.addCheckbox ("Enable FPN suppression",                    this.fpn_remove,
+				"Zero-out integrated inter-scene correlation around zero-shift offset");
+		gd.addNumericField("Maximal FPN offset to consider",         this.fpn_max_offset, 6,7,"pix",
+				"Maximal offset from the zero shift to consider (normally just 8 pix)");
+		gd.addNumericField("FPN suppression radius",                 this.fpn_radius, 6,7,"pix",
+				"Blank correlation pixels closer than this distance from the FPN offset");
+		gd.addCheckbox ("Ignore maximums \"touching\" FPN",          this.fpn_ignore_border,
+				"Discard TD integrated tiles where local maximum is a neighbor (including diagonal) to blanked FPN correlation pixels");
+		
+		gd.addMessage  ("Detect and remove moving objects from pose matching");
+		gd.addCheckbox ("Enable movement detection/elimination",     this.mov_en,
+				"Detect and mask areas with detected movement to improve pose matching");
+		gd.addNumericField("Detection blur sigma",                   this.mov_sigma, 6,7,"pix",
+				"Blur squared difference (dx^2+dy^2) befopre thresholding for movement detection");
+		gd.addNumericField("Max weighted mismatch std",              this.mov_max_std, 6,7,"pix",
+				"Do not try to detect moving objects until approximate pose match is achieved (standard deviation)");
+		gd.addNumericField("Relative threshold",                     this.mov_thresh_rel, 6,7,"x",
+				"Moving areas over standard deviation. Both relative and absolute should be exceeded.");
+		gd.addNumericField("Absolute threshold",                     this.mov_thresh_abs, 6,7,"pix",
+				"Moving areas sqrt(dx*dx+dy*dy). Both relative and absolute should be exceeded.");
+		gd.addNumericField("Cluster max over threshold",             this.mov_clust_max, 6,7,"",
+				"Moving cluster should contain tile with this exceed over thresholds");
+		gd.addNumericField("Moving cluster grow",                    this.mov_grow, 0,3,"",
+				"Standard grow values - 1 - ortho, 2 - diagonal, 3 - twice orto, 4 - twice diagonal");
+		gd.addCheckbox ("Show movement debug images",                this.mov_show,
+				"Disabled if 'Debug Level for interscene match' < 1");
+		gd.addNumericField("Debug level for movement detection (0/1)", this.mov_debug_level, 0,3,"",
+				"Disabled if 'Debug Level for interscene match' < 0");
+		
+		gd.addMessage  ("LMA parameters");
+		gd.addCheckbox ("Azimuth",                                   this.adjust_atr[0],
+				"Adjust scene camera azimuth with LMA");
+		gd.addCheckbox ("Tilt",                                      this.adjust_atr[1],
+				"Adjust scene camera tilt with LMA");
+		gd.addCheckbox ("Roll",                                      this.adjust_atr[2],
+				"Adjust scene camera roll with LMA");
+		gd.addCheckbox ("X",                                         this.adjust_xyz[0],
+				"Adjust scene camera X with LMA");
+		gd.addCheckbox ("Y",                                         this.adjust_xyz[1],
+				"Adjust scene camera Y with LMA");
+		gd.addCheckbox ("Z",                                         this.adjust_xyz[2],
+				"Adjust scene camera Z with LMA");
+
+		gd.addNumericField("Exit ATR change",                        this.exit_change_atr, 6,7,"pix",
+				"L2 of azimuth, tilt, roll change (in pixels at infinity) to exit fitting");
+		gd.addNumericField("Exit XYZ change",                        this.exit_change_xyz, 5,7,"m",
+				"L2 of linear scene camera position change (in meters) to exit fitting");
+
+
+		gd.addNumericField("Max full iterations",                    this.max_cycles, 0,3,"",
+				"Hard limit on interscene correlations plus LMA cycles");
+		gd.addNumericField("Max LMA iterations",                     this.max_LMA, 0,3,"",
+				"Hard limit on LMA iterations");
+		gd.addNumericField("Maximal RMS to fail",                    this.max_rms, 5,7,"pix",
+				"Maximal fitting RMS to consider fitting failure");
+		
+		
+		gd.addMessage  ("Interscene Equalization (Equalization of the interscene correlation confidence to improve camera X,Y,Z matching)");
 		gd.addCheckbox ("Enable equalization",                       this.eq_en,
 				"Enable boosting of the weak but important interscene correlation tiles strength by equalizing average strength of the \"supertiles\"");
 		gd.addMessage  ("Equalization supertiles dimensions");
@@ -835,70 +838,10 @@ public class IntersceneMatchParameters {
 		this.range_min_strength =             gd.getNextNumber();
 		this.range_max =                      gd.getNextNumber();
 		
-		this.margin =             (int) gd.getNextNumber();
-		this.sensor_mask_inter=   (int) gd.getNextNumber();
-		this.use_partial =              gd.getNextBoolean();
-		this.run_poly =                 gd.getNextBoolean();
-		this.centroid_radius =          gd.getNextNumber();
-		this.n_recenter =         (int) gd.getNextNumber();
 
-//		this.min_ref_str =              gd.getNextNumber();
-
-		this.td_weight =                gd.getNextNumber();
-		this.pd_weight =                gd.getNextNumber();
-		this.td_nopd_only =             gd.getNextBoolean();
 		
-		this.min_str =                  gd.getNextNumber();
-		this.min_str_fpn =              gd.getNextNumber();
-		this.min_str_sum =              gd.getNextNumber();
-		this.min_str_sum_fpn =          gd.getNextNumber();
-
-		this.min_neibs =          (int) gd.getNextNumber();
-		this.weight_zero_neibs =        gd.getNextNumber();
-		this.half_disparity =           gd.getNextNumber();
-		this.half_avg_diff =            gd.getNextNumber();
 		
-		this.min_ref_str =              gd.getNextNumber();
-		this.pix_step =           (int) gd.getNextNumber();
-		this.search_rad =         (int) gd.getNextNumber();
-		this.maybe_sum =                gd.getNextNumber();
-		this.sure_sum =                 gd.getNextNumber();
-		this.maybe_avg =                gd.getNextNumber();
-		this.sure_avg =                 gd.getNextNumber();
 		
-		this.max_search_rms =           gd.getNextNumber();
-		this.maybe_fom =                gd.getNextNumber();
-		this.sure_fom =                 gd.getNextNumber();
-
-		this.use_combo_dsi =            gd.getNextBoolean();
-		this.use_lma_dsi =              gd.getNextBoolean();
-		
-		this.fpn_remove =               gd.getNextBoolean();
-		this.fpn_max_offset =           gd.getNextNumber();
-		this.fpn_radius =               gd.getNextNumber();
-		this.fpn_ignore_border =        gd.getNextBoolean();
-		
-		this.mov_en =                   gd.getNextBoolean();
-		this.mov_sigma =                gd.getNextNumber();
-		this.mov_max_std =              gd.getNextNumber();
-		this.mov_thresh_rel =           gd.getNextNumber();
-		this.mov_thresh_abs =           gd.getNextNumber();
-		this.mov_clust_max =            gd.getNextNumber();
-		this.mov_grow =           (int) gd.getNextNumber();
-		this.mov_show =                 gd.getNextBoolean();
-		this.mov_debug_level =    (int) gd.getNextNumber();
-		
-		this.adjust_atr[0] =            gd.getNextBoolean();
-		this.adjust_atr[1] =            gd.getNextBoolean();
-		this.adjust_atr[2] =            gd.getNextBoolean();
-		this.adjust_xyz[0] =            gd.getNextBoolean();
-		this.adjust_xyz[1] =            gd.getNextBoolean();
-		this.adjust_xyz[2] =            gd.getNextBoolean();
-		this.exit_change_atr =          gd.getNextNumber();
-		this.exit_change_xyz =          gd.getNextNumber();
-		this.max_cycles =         (int) gd.getNextNumber();
-		this.max_LMA =            (int) gd.getNextNumber();
-		this.max_rms =                  gd.getNextNumber();
 		this.scene_is_ref_test =        gd.getNextBoolean();
 		this.render_ref =               gd.getNextBoolean();
 		this.render_scene =             gd.getNextBoolean();
@@ -958,7 +901,62 @@ public class IntersceneMatchParameters {
 		this.sky_expand_extra =   (int) gd.getNextNumber();	
 		this.min_strength =             gd.getNextNumber();    
 		this.lowest_sky_row =     (int) gd.getNextNumber();
-
+		
+		this.margin =             (int) gd.getNextNumber();
+		this.sensor_mask_inter=   (int) gd.getNextNumber();
+		this.use_partial =              gd.getNextBoolean();
+		this.run_poly =                 gd.getNextBoolean();
+		this.centroid_radius =          gd.getNextNumber();
+		this.n_recenter =         (int) gd.getNextNumber();
+		this.td_weight =                gd.getNextNumber();
+		this.pd_weight =                gd.getNextNumber();
+		this.td_nopd_only =             gd.getNextBoolean();
+		this.min_str =                  gd.getNextNumber();
+		this.min_str_fpn =              gd.getNextNumber();
+		this.min_str_sum =              gd.getNextNumber();
+		this.min_str_sum_fpn =          gd.getNextNumber();
+		this.min_neibs =          (int) gd.getNextNumber();
+		this.weight_zero_neibs =        gd.getNextNumber();
+		this.half_disparity =           gd.getNextNumber();
+		this.half_avg_diff =            gd.getNextNumber();
+		this.min_ref_str =              gd.getNextNumber();
+		this.pix_step =           (int) gd.getNextNumber();
+		this.search_rad =         (int) gd.getNextNumber();
+		this.maybe_sum =                gd.getNextNumber();
+		this.sure_sum =                 gd.getNextNumber();
+		this.maybe_avg =                gd.getNextNumber();
+		this.sure_avg =                 gd.getNextNumber();
+		this.max_search_rms =           gd.getNextNumber();
+		this.maybe_fom =                gd.getNextNumber();
+		this.sure_fom =                 gd.getNextNumber();
+		this.use_combo_dsi =            gd.getNextBoolean();
+		this.use_lma_dsi =              gd.getNextBoolean();
+		this.fpn_remove =               gd.getNextBoolean();
+		this.fpn_max_offset =           gd.getNextNumber();
+		this.fpn_radius =               gd.getNextNumber();
+		this.fpn_ignore_border =        gd.getNextBoolean();
+		this.mov_en =                   gd.getNextBoolean();
+		this.mov_sigma =                gd.getNextNumber();
+		this.mov_max_std =              gd.getNextNumber();
+		this.mov_thresh_rel =           gd.getNextNumber();
+		this.mov_thresh_abs =           gd.getNextNumber();
+		this.mov_clust_max =            gd.getNextNumber();
+		this.mov_grow =           (int) gd.getNextNumber();
+		this.mov_show =                 gd.getNextBoolean();
+		this.mov_debug_level =    (int) gd.getNextNumber();
+		this.adjust_atr[0] =            gd.getNextBoolean();
+		this.adjust_atr[1] =            gd.getNextBoolean();
+		this.adjust_atr[2] =            gd.getNextBoolean();
+		this.adjust_xyz[0] =            gd.getNextBoolean();
+		this.adjust_xyz[1] =            gd.getNextBoolean();
+		this.adjust_xyz[2] =            gd.getNextBoolean();
+		this.exit_change_atr =          gd.getNextNumber();
+		this.exit_change_xyz =          gd.getNextNumber();
+		this.max_cycles =         (int) gd.getNextNumber();
+		this.max_LMA =            (int) gd.getNextNumber();
+		this.max_rms =                  gd.getNextNumber();
+		
+		
 		// equalization of the inter-scene correlations	
 		this.eq_en =                    gd.getNextBoolean();
 		this.eq_stride_hor =      (int) gd.getNextNumber();
@@ -1114,69 +1112,6 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"range_max",                     this.range_max+"");                     // double
 		
 		
-		properties.setProperty(prefix+"margin",               this.margin+"");              // int
-		properties.setProperty(prefix+"sensor_mask_inter",    this.sensor_mask_inter+"");   // int
-		properties.setProperty(prefix+"use_partial",          this.use_partial+"");         // boolean
-		properties.setProperty(prefix+"run_poly",             this.run_poly+"");            // boolean
-		properties.setProperty(prefix+"centroid_radius",      this.centroid_radius+"");     // double
-		properties.setProperty(prefix+"n_recenter",           this.n_recenter+"");          // int
-
-		properties.setProperty(prefix+"min_ref_str",          this.min_ref_str+"");           // double
-		
-		properties.setProperty(prefix+"td_weight",            this.td_weight+"");           // double
-		properties.setProperty(prefix+"pd_weight",            this.pd_weight+"");           // double
-		properties.setProperty(prefix+"td_nopd_only",         this.td_nopd_only+"");        // boolean
-		
-		properties.setProperty(prefix+"min_str",              this.min_str+"");             // double
-		properties.setProperty(prefix+"min_str_fpn",          this.min_str_fpn+"");         // double
-		properties.setProperty(prefix+"min_str_sum",          this.min_str_sum+"");         // double
-		properties.setProperty(prefix+"min_str_sum_fpn",      this.min_str_sum_fpn+"");     // double
-		
-		properties.setProperty(prefix+"min_neibs",            this.min_neibs+"");           // int
-		properties.setProperty(prefix+"weight_zero_neibs",    this.weight_zero_neibs+"");   // double
-		properties.setProperty(prefix+"half_disparity",       this.half_disparity+"");      // double
-		properties.setProperty(prefix+"half_avg_diff",        this.half_avg_diff+"");       // double
-		
-		properties.setProperty(prefix+"pix_step",             this.pix_step+"");            // int
-		properties.setProperty(prefix+"search_rad",           this.search_rad+"");          // int
-		properties.setProperty(prefix+"maybe_sum",            this.maybe_sum+"");           // double
-		properties.setProperty(prefix+"sure_sum",             this.sure_sum+"");            // double
-		properties.setProperty(prefix+"maybe_avg",            this.maybe_avg+"");           // double
-		properties.setProperty(prefix+"sure_avg",             this.sure_avg+"");            // double
-		
-		properties.setProperty(prefix+"max_search_rms",       this.max_search_rms+"");      // double
-		properties.setProperty(prefix+"maybe_fom",            this.maybe_fom+"");           // double
-		properties.setProperty(prefix+"sure_fom",             this.sure_fom+"");            // double
-		
-		properties.setProperty(prefix+"use_combo_dsi",        this.use_combo_dsi+"");       // boolean
-		properties.setProperty(prefix+"use_lma_dsi",          this.use_lma_dsi+"");         // boolean
-		
-		properties.setProperty(prefix+"fpn_remove",           this.fpn_remove+"");          // boolean
-		properties.setProperty(prefix+"fpn_max_offset",       this.fpn_max_offset+"");      // double
-		properties.setProperty(prefix+"fpn_radius",           this.fpn_radius+"");          // double
-		properties.setProperty(prefix+"fpn_ignore_border",    this.fpn_ignore_border+"");   // boolean
-		
-		properties.setProperty(prefix+"mov_en",               this.mov_en+"");              // boolean
-		properties.setProperty(prefix+"mov_sigma",            this.mov_sigma+"");           // double
-		properties.setProperty(prefix+"mov_max_std",          this.mov_max_std+"");         // double
-		properties.setProperty(prefix+"mov_thresh_rel",       this.mov_thresh_rel+"");      // double
-		properties.setProperty(prefix+"mov_thresh_abs",       this.mov_thresh_abs+"");      // double
-		properties.setProperty(prefix+"mov_clust_max",        this.mov_clust_max+"");       // double
-		properties.setProperty(prefix+"mov_grow",             this.mov_grow+"");            // int
-		properties.setProperty(prefix+"mov_show",             this.mov_show+"");            // boolean
-		properties.setProperty(prefix+"mov_debug_level",      this.mov_debug_level+"");     // int
-		
-		properties.setProperty(prefix+"adjust_atr_0",         this.adjust_atr[0]+"");       // boolean
-		properties.setProperty(prefix+"adjust_atr_1",         this.adjust_atr[1]+"");       // boolean
-		properties.setProperty(prefix+"adjust_atr_2",         this.adjust_atr[2]+"");       // boolean
-		properties.setProperty(prefix+"adjust_xyz_0",         this.adjust_xyz[0]+"");       // boolean
-		properties.setProperty(prefix+"adjust_xyz_1",         this.adjust_xyz[1]+"");       // boolean
-		properties.setProperty(prefix+"adjust_xyz_2",         this.adjust_xyz[2]+"");       // boolean
-		properties.setProperty(prefix+"exit_change_atr",      this.exit_change_atr+"");     // double
-		properties.setProperty(prefix+"exit_change_xyz",      this.exit_change_xyz+"");     // double
-		properties.setProperty(prefix+"max_cycles",           this.max_cycles+"");          // int
-		properties.setProperty(prefix+"max_LMA",              this.max_LMA+"");             // int
-		properties.setProperty(prefix+"max_rms",              this.max_rms+"");             // double
 		properties.setProperty(prefix+"scene_is_ref_test",    this.scene_is_ref_test+"");   // boolean
 		properties.setProperty(prefix+"render_ref",           this.render_ref+"");          // boolean
 		properties.setProperty(prefix+"render_scene",         this.render_scene+"");        // boolean
@@ -1234,6 +1169,61 @@ public class IntersceneMatchParameters {
 		properties.setProperty(prefix+"sky_expand_extra",     this.sky_expand_extra+"");    // int
 		properties.setProperty(prefix+"min_strength",         this.min_strength+"");        // double
 		properties.setProperty(prefix+"lowest_sky_row",       this.lowest_sky_row+"");      // int
+	
+		
+		properties.setProperty(prefix+"margin",               this.margin+"");              // int
+		properties.setProperty(prefix+"sensor_mask_inter",    this.sensor_mask_inter+"");   // int
+		properties.setProperty(prefix+"use_partial",          this.use_partial+"");         // boolean
+		properties.setProperty(prefix+"run_poly",             this.run_poly+"");            // boolean
+		properties.setProperty(prefix+"centroid_radius",      this.centroid_radius+"");     // double
+		properties.setProperty(prefix+"n_recenter",           this.n_recenter+"");          // int
+		properties.setProperty(prefix+"min_ref_str",          this.min_ref_str+"");           // double
+		properties.setProperty(prefix+"td_weight",            this.td_weight+"");           // double
+		properties.setProperty(prefix+"pd_weight",            this.pd_weight+"");           // double
+		properties.setProperty(prefix+"td_nopd_only",         this.td_nopd_only+"");        // boolean
+		properties.setProperty(prefix+"min_str",              this.min_str+"");             // double
+		properties.setProperty(prefix+"min_str_fpn",          this.min_str_fpn+"");         // double
+		properties.setProperty(prefix+"min_str_sum",          this.min_str_sum+"");         // double
+		properties.setProperty(prefix+"min_str_sum_fpn",      this.min_str_sum_fpn+"");     // double
+		properties.setProperty(prefix+"min_neibs",            this.min_neibs+"");           // int
+		properties.setProperty(prefix+"weight_zero_neibs",    this.weight_zero_neibs+"");   // double
+		properties.setProperty(prefix+"half_disparity",       this.half_disparity+"");      // double
+		properties.setProperty(prefix+"half_avg_diff",        this.half_avg_diff+"");       // double
+		properties.setProperty(prefix+"pix_step",             this.pix_step+"");            // int
+		properties.setProperty(prefix+"search_rad",           this.search_rad+"");          // int
+		properties.setProperty(prefix+"maybe_sum",            this.maybe_sum+"");           // double
+		properties.setProperty(prefix+"sure_sum",             this.sure_sum+"");            // double
+		properties.setProperty(prefix+"maybe_avg",            this.maybe_avg+"");           // double
+		properties.setProperty(prefix+"sure_avg",             this.sure_avg+"");            // double
+		properties.setProperty(prefix+"max_search_rms",       this.max_search_rms+"");      // double
+		properties.setProperty(prefix+"maybe_fom",            this.maybe_fom+"");           // double
+		properties.setProperty(prefix+"sure_fom",             this.sure_fom+"");            // double
+		properties.setProperty(prefix+"use_combo_dsi",        this.use_combo_dsi+"");       // boolean
+		properties.setProperty(prefix+"use_lma_dsi",          this.use_lma_dsi+"");         // boolean
+		properties.setProperty(prefix+"fpn_remove",           this.fpn_remove+"");          // boolean
+		properties.setProperty(prefix+"fpn_max_offset",       this.fpn_max_offset+"");      // double
+		properties.setProperty(prefix+"fpn_radius",           this.fpn_radius+"");          // double
+		properties.setProperty(prefix+"fpn_ignore_border",    this.fpn_ignore_border+"");   // boolean
+		properties.setProperty(prefix+"mov_en",               this.mov_en+"");              // boolean
+		properties.setProperty(prefix+"mov_sigma",            this.mov_sigma+"");           // double
+		properties.setProperty(prefix+"mov_max_std",          this.mov_max_std+"");         // double
+		properties.setProperty(prefix+"mov_thresh_rel",       this.mov_thresh_rel+"");      // double
+		properties.setProperty(prefix+"mov_thresh_abs",       this.mov_thresh_abs+"");      // double
+		properties.setProperty(prefix+"mov_clust_max",        this.mov_clust_max+"");       // double
+		properties.setProperty(prefix+"mov_grow",             this.mov_grow+"");            // int
+		properties.setProperty(prefix+"mov_show",             this.mov_show+"");            // boolean
+		properties.setProperty(prefix+"mov_debug_level",      this.mov_debug_level+"");     // int
+		properties.setProperty(prefix+"adjust_atr_0",         this.adjust_atr[0]+"");       // boolean
+		properties.setProperty(prefix+"adjust_atr_1",         this.adjust_atr[1]+"");       // boolean
+		properties.setProperty(prefix+"adjust_atr_2",         this.adjust_atr[2]+"");       // boolean
+		properties.setProperty(prefix+"adjust_xyz_0",         this.adjust_xyz[0]+"");       // boolean
+		properties.setProperty(prefix+"adjust_xyz_1",         this.adjust_xyz[1]+"");       // boolean
+		properties.setProperty(prefix+"adjust_xyz_2",         this.adjust_xyz[2]+"");       // boolean
+		properties.setProperty(prefix+"exit_change_atr",      this.exit_change_atr+"");     // double
+		properties.setProperty(prefix+"exit_change_xyz",      this.exit_change_xyz+"");     // double
+		properties.setProperty(prefix+"max_cycles",           this.max_cycles+"");          // int
+		properties.setProperty(prefix+"max_LMA",              this.max_LMA+"");             // int
+		properties.setProperty(prefix+"max_rms",              this.max_rms+"");             // double
 	
 		properties.setProperty(prefix+"eq_en",                this.eq_en+"");               // boolean
 		properties.setProperty(prefix+"eq_stride_hor",        this.eq_stride_hor+"");       // int
@@ -1343,70 +1333,6 @@ public class IntersceneMatchParameters {
 
 		
 		
-		
-		if (properties.getProperty(prefix+"margin")!=null)               this.margin=Integer.parseInt(properties.getProperty(prefix+"margin"));
-		if (properties.getProperty(prefix+"sensor_mask_inter")!=null)    this.sensor_mask_inter=Integer.parseInt(properties.getProperty(prefix+"sensor_mask_inter"));
-		if (properties.getProperty(prefix+"use_partial")!=null)          this.use_partial=Boolean.parseBoolean(properties.getProperty(prefix+"use_partial"));		
-		if (properties.getProperty(prefix+"run_poly")!=null)             this.run_poly=Boolean.parseBoolean(properties.getProperty(prefix+"run_poly"));
-		if (properties.getProperty(prefix+"centroid_radius")!=null)      this.centroid_radius=Double.parseDouble(properties.getProperty(prefix+"centroid_radius"));
-		if (properties.getProperty(prefix+"n_recenter")!=null)           this.n_recenter=Integer.parseInt(properties.getProperty(prefix+"n_recenter"));
-		
-		if (properties.getProperty(prefix+"min_ref_str")!=null)          this.min_ref_str=Double.parseDouble(properties.getProperty(prefix+"min_ref_str"));
-
-		if (properties.getProperty(prefix+"td_weight")!=null)            this.td_weight=Double.parseDouble(properties.getProperty(prefix+"td_weight"));
-		if (properties.getProperty(prefix+"pd_weight")!=null)            this.pd_weight=Double.parseDouble(properties.getProperty(prefix+"pd_weight"));
-		if (properties.getProperty(prefix+"td_nopd_only")!=null)         this.td_nopd_only=Boolean.parseBoolean(properties.getProperty(prefix+"td_nopd_only"));
-		
-		if (properties.getProperty(prefix+"min_str")!=null)              this.min_str=Double.parseDouble(properties.getProperty(prefix+"min_str"));
-		if (properties.getProperty(prefix+"min_str_fpn")!=null)          this.min_str_fpn=Double.parseDouble(properties.getProperty(prefix+"min_str_fpn"));
-		if (properties.getProperty(prefix+"min_str_sum")!=null)          this.min_str_sum=Double.parseDouble(properties.getProperty(prefix+"min_str_sum"));
-		if (properties.getProperty(prefix+"min_str_sum_fpn")!=null)      this.min_str_sum_fpn=Double.parseDouble(properties.getProperty(prefix+"min_str_sum_fpn"));
-
-		if (properties.getProperty(prefix+"min_neibs")!=null)            this.min_neibs=Integer.parseInt(properties.getProperty(prefix+"min_neibs"));
-		if (properties.getProperty(prefix+"weight_zero_neibs")!=null)    this.weight_zero_neibs=Double.parseDouble(properties.getProperty(prefix+"weight_zero_neibs"));
-		if (properties.getProperty(prefix+"half_disparity")!=null)       this.half_disparity=Double.parseDouble(properties.getProperty(prefix+"half_disparity"));
-		if (properties.getProperty(prefix+"half_avg_diff")!=null)        this.half_avg_diff=Double.parseDouble(properties.getProperty(prefix+"half_avg_diff"));
-		
-		if (properties.getProperty(prefix+"pix_step")!=null)             this.pix_step=Integer.parseInt(properties.getProperty(prefix+"pix_step"));
-		if (properties.getProperty(prefix+"search_rad")!=null)           this.search_rad=Integer.parseInt(properties.getProperty(prefix+"search_rad"));
-		if (properties.getProperty(prefix+"maybe_sum")!=null)            this.maybe_sum=Double.parseDouble(properties.getProperty(prefix+"maybe_sum"));
-		if (properties.getProperty(prefix+"sure_sum")!=null)             this.sure_sum=Double.parseDouble(properties.getProperty(prefix+"sure_sum"));
-		if (properties.getProperty(prefix+"maybe_avg")!=null)            this.maybe_avg=Double.parseDouble(properties.getProperty(prefix+"maybe_avg"));
-		if (properties.getProperty(prefix+"sure_avg")!=null)             this.sure_avg=Double.parseDouble(properties.getProperty(prefix+"sure_avg"));
-
-		if (properties.getProperty(prefix+"max_search_rms")!=null)       this.max_search_rms=Double.parseDouble(properties.getProperty(prefix+"max_search_rms"));
-		if (properties.getProperty(prefix+"maybe_fom")!=null)            this.maybe_fom=Double.parseDouble(properties.getProperty(prefix+"maybe_fom"));
-		if (properties.getProperty(prefix+"sure_fom")!=null)             this.sure_fom=Double.parseDouble(properties.getProperty(prefix+"sure_fom"));
-		
-		if (properties.getProperty(prefix+"use_combo_dsi")!=null)        this.use_combo_dsi=Boolean.parseBoolean(properties.getProperty(prefix+"use_combo_dsi"));		
-		if (properties.getProperty(prefix+"use_lma_dsi")!=null)          this.use_lma_dsi=Boolean.parseBoolean(properties.getProperty(prefix+"use_lma_dsi"));
-
-		if (properties.getProperty(prefix+"fpn_remove")!=null)           this.fpn_remove=Boolean.parseBoolean(properties.getProperty(prefix+"fpn_remove"));
-		if (properties.getProperty(prefix+"fpn_max_offset")!=null)       this.fpn_max_offset=Double.parseDouble(properties.getProperty(prefix+"fpn_max_offset"));
-		if (properties.getProperty(prefix+"fpn_radius")!=null)           this.fpn_radius=Double.parseDouble(properties.getProperty(prefix+"fpn_radius"));
-		if (properties.getProperty(prefix+"fpn_ignore_border")!=null)    this.fpn_ignore_border=Boolean.parseBoolean(properties.getProperty(prefix+"fpn_ignore_border"));
-		
-		if (properties.getProperty(prefix+"mov_en")!=null)               this.mov_en=Boolean.parseBoolean(properties.getProperty(prefix+"mov_en"));
-		if (properties.getProperty(prefix+"mov_sigma")!=null)            this.mov_sigma=Double.parseDouble(properties.getProperty(prefix+"mov_sigma"));
-		if (properties.getProperty(prefix+"mov_max_std")!=null)          this.mov_max_std=Double.parseDouble(properties.getProperty(prefix+"mov_max_std"));
-		if (properties.getProperty(prefix+"mov_thresh_rel")!=null)       this.mov_thresh_rel=Double.parseDouble(properties.getProperty(prefix+"mov_thresh_rel"));
-		if (properties.getProperty(prefix+"mov_thresh_abs")!=null)       this.mov_thresh_abs=Double.parseDouble(properties.getProperty(prefix+"mov_thresh_abs"));
-		if (properties.getProperty(prefix+"mov_clust_max")!=null)        this.mov_clust_max=Double.parseDouble(properties.getProperty(prefix+"mov_clust_max"));
-		if (properties.getProperty(prefix+"mov_grow")!=null)             this.mov_grow=Integer.parseInt(properties.getProperty(prefix+"mov_grow"));
-		if (properties.getProperty(prefix+"mov_show")!=null)             this.mov_show=Boolean.parseBoolean(properties.getProperty(prefix+"mov_show"));
-		if (properties.getProperty(prefix+"mov_debug_level")!=null)      this.mov_debug_level=Integer.parseInt(properties.getProperty(prefix+"mov_debug_level"));
-		
-		if (properties.getProperty(prefix+"adjust_atr_0")!=null)         this.adjust_atr[0]=Boolean.parseBoolean(properties.getProperty(prefix+"adjust_atr_0"));		
-		if (properties.getProperty(prefix+"adjust_atr_1")!=null)         this.adjust_atr[1]=Boolean.parseBoolean(properties.getProperty(prefix+"adjust_atr_1"));		
-		if (properties.getProperty(prefix+"adjust_atr_2")!=null)         this.adjust_atr[2]=Boolean.parseBoolean(properties.getProperty(prefix+"adjust_atr_2"));		
-		if (properties.getProperty(prefix+"adjust_xyz_0")!=null)         this.adjust_xyz[0]=Boolean.parseBoolean(properties.getProperty(prefix+"adjust_xyz_0"));		
-		if (properties.getProperty(prefix+"adjust_xyz_1")!=null)         this.adjust_xyz[1]=Boolean.parseBoolean(properties.getProperty(prefix+"adjust_xyz_1"));		
-		if (properties.getProperty(prefix+"adjust_xyz_2")!=null)         this.adjust_xyz[2]=Boolean.parseBoolean(properties.getProperty(prefix+"adjust_xyz_2"));		
-		if (properties.getProperty(prefix+"exit_change_atr")!=null)      this.exit_change_atr=Double.parseDouble(properties.getProperty(prefix+"exit_change_atr"));
-		if (properties.getProperty(prefix+"exit_change_xyz")!=null)      this.exit_change_xyz=Double.parseDouble(properties.getProperty(prefix+"exit_change_xyz"));
-		if (properties.getProperty(prefix+"max_cycles")!=null)           this.max_cycles=Integer.parseInt(properties.getProperty(prefix+"max_cycles"));
-		if (properties.getProperty(prefix+"max_LMA")!=null)              this.max_LMA=Integer.parseInt(properties.getProperty(prefix+"max_LMA"));
-		if (properties.getProperty(prefix+"max_rms")!=null)              this.max_rms=Double.parseDouble(properties.getProperty(prefix+"max_rms"));
 		if (properties.getProperty(prefix+"scene_is_ref_test")!=null)    this.scene_is_ref_test=Boolean.parseBoolean(properties.getProperty(prefix+"scene_is_ref_test"));		
 		if (properties.getProperty(prefix+"render_ref")!=null)           this.render_ref=Boolean.parseBoolean(properties.getProperty(prefix+"render_ref"));		
 		if (properties.getProperty(prefix+"render_scene")!=null)         this.render_scene=Boolean.parseBoolean(properties.getProperty(prefix+"render_scene"));		
@@ -1417,7 +1343,6 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"test_ers")!=null)             this.test_ers=Boolean.parseBoolean(properties.getProperty(prefix+"test_ers"));		
 		if (properties.getProperty(prefix+"test_ers0")!=null)            this.test_ers0=Integer.parseInt(properties.getProperty(prefix+"test_ers0"));
 		if (properties.getProperty(prefix+"test_ers1")!=null)            this.test_ers1=Integer.parseInt(properties.getProperty(prefix+"test_ers1"));
-
 		if (properties.getProperty(prefix+"num_bottom")!=null)                    this.num_bottom=Integer.parseInt(properties.getProperty(prefix+"num_bottom"));
 		if (properties.getProperty(prefix+"num_passes")!=null)                    this.num_passes=Integer.parseInt(properties.getProperty(prefix+"num_passes"));
 		if (properties.getProperty(prefix+"max_change")!=null)                    this.max_change=Double.parseDouble(properties.getProperty(prefix+"max_change"));
@@ -1465,6 +1390,61 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"min_strength")!=null)         this.min_strength=Double.parseDouble(properties.getProperty(prefix+"min_strength"));
 		if (properties.getProperty(prefix+"lowest_sky_row")!=null)       this.lowest_sky_row=Integer.parseInt(properties.getProperty(prefix+"lowest_sky_row"));
 		
+		
+		if (properties.getProperty(prefix+"margin")!=null)               this.margin=Integer.parseInt(properties.getProperty(prefix+"margin"));
+		if (properties.getProperty(prefix+"sensor_mask_inter")!=null)    this.sensor_mask_inter=Integer.parseInt(properties.getProperty(prefix+"sensor_mask_inter"));
+		if (properties.getProperty(prefix+"use_partial")!=null)          this.use_partial=Boolean.parseBoolean(properties.getProperty(prefix+"use_partial"));		
+		if (properties.getProperty(prefix+"run_poly")!=null)             this.run_poly=Boolean.parseBoolean(properties.getProperty(prefix+"run_poly"));
+		if (properties.getProperty(prefix+"centroid_radius")!=null)      this.centroid_radius=Double.parseDouble(properties.getProperty(prefix+"centroid_radius"));
+		if (properties.getProperty(prefix+"n_recenter")!=null)           this.n_recenter=Integer.parseInt(properties.getProperty(prefix+"n_recenter"));
+		if (properties.getProperty(prefix+"min_ref_str")!=null)          this.min_ref_str=Double.parseDouble(properties.getProperty(prefix+"min_ref_str"));
+		if (properties.getProperty(prefix+"td_weight")!=null)            this.td_weight=Double.parseDouble(properties.getProperty(prefix+"td_weight"));
+		if (properties.getProperty(prefix+"pd_weight")!=null)            this.pd_weight=Double.parseDouble(properties.getProperty(prefix+"pd_weight"));
+		if (properties.getProperty(prefix+"td_nopd_only")!=null)         this.td_nopd_only=Boolean.parseBoolean(properties.getProperty(prefix+"td_nopd_only"));
+		if (properties.getProperty(prefix+"min_str")!=null)              this.min_str=Double.parseDouble(properties.getProperty(prefix+"min_str"));
+		if (properties.getProperty(prefix+"min_str_fpn")!=null)          this.min_str_fpn=Double.parseDouble(properties.getProperty(prefix+"min_str_fpn"));
+		if (properties.getProperty(prefix+"min_str_sum")!=null)          this.min_str_sum=Double.parseDouble(properties.getProperty(prefix+"min_str_sum"));
+		if (properties.getProperty(prefix+"min_str_sum_fpn")!=null)      this.min_str_sum_fpn=Double.parseDouble(properties.getProperty(prefix+"min_str_sum_fpn"));
+		if (properties.getProperty(prefix+"min_neibs")!=null)            this.min_neibs=Integer.parseInt(properties.getProperty(prefix+"min_neibs"));
+		if (properties.getProperty(prefix+"weight_zero_neibs")!=null)    this.weight_zero_neibs=Double.parseDouble(properties.getProperty(prefix+"weight_zero_neibs"));
+		if (properties.getProperty(prefix+"half_disparity")!=null)       this.half_disparity=Double.parseDouble(properties.getProperty(prefix+"half_disparity"));
+		if (properties.getProperty(prefix+"half_avg_diff")!=null)        this.half_avg_diff=Double.parseDouble(properties.getProperty(prefix+"half_avg_diff"));
+		if (properties.getProperty(prefix+"pix_step")!=null)             this.pix_step=Integer.parseInt(properties.getProperty(prefix+"pix_step"));
+		if (properties.getProperty(prefix+"search_rad")!=null)           this.search_rad=Integer.parseInt(properties.getProperty(prefix+"search_rad"));
+		if (properties.getProperty(prefix+"maybe_sum")!=null)            this.maybe_sum=Double.parseDouble(properties.getProperty(prefix+"maybe_sum"));
+		if (properties.getProperty(prefix+"sure_sum")!=null)             this.sure_sum=Double.parseDouble(properties.getProperty(prefix+"sure_sum"));
+		if (properties.getProperty(prefix+"maybe_avg")!=null)            this.maybe_avg=Double.parseDouble(properties.getProperty(prefix+"maybe_avg"));
+		if (properties.getProperty(prefix+"sure_avg")!=null)             this.sure_avg=Double.parseDouble(properties.getProperty(prefix+"sure_avg"));
+		if (properties.getProperty(prefix+"max_search_rms")!=null)       this.max_search_rms=Double.parseDouble(properties.getProperty(prefix+"max_search_rms"));
+		if (properties.getProperty(prefix+"maybe_fom")!=null)            this.maybe_fom=Double.parseDouble(properties.getProperty(prefix+"maybe_fom"));
+		if (properties.getProperty(prefix+"sure_fom")!=null)             this.sure_fom=Double.parseDouble(properties.getProperty(prefix+"sure_fom"));
+		if (properties.getProperty(prefix+"use_combo_dsi")!=null)        this.use_combo_dsi=Boolean.parseBoolean(properties.getProperty(prefix+"use_combo_dsi"));		
+		if (properties.getProperty(prefix+"use_lma_dsi")!=null)          this.use_lma_dsi=Boolean.parseBoolean(properties.getProperty(prefix+"use_lma_dsi"));
+		if (properties.getProperty(prefix+"fpn_remove")!=null)           this.fpn_remove=Boolean.parseBoolean(properties.getProperty(prefix+"fpn_remove"));
+		if (properties.getProperty(prefix+"fpn_max_offset")!=null)       this.fpn_max_offset=Double.parseDouble(properties.getProperty(prefix+"fpn_max_offset"));
+		if (properties.getProperty(prefix+"fpn_radius")!=null)           this.fpn_radius=Double.parseDouble(properties.getProperty(prefix+"fpn_radius"));
+		if (properties.getProperty(prefix+"fpn_ignore_border")!=null)    this.fpn_ignore_border=Boolean.parseBoolean(properties.getProperty(prefix+"fpn_ignore_border"));
+		if (properties.getProperty(prefix+"mov_en")!=null)               this.mov_en=Boolean.parseBoolean(properties.getProperty(prefix+"mov_en"));
+		if (properties.getProperty(prefix+"mov_sigma")!=null)            this.mov_sigma=Double.parseDouble(properties.getProperty(prefix+"mov_sigma"));
+		if (properties.getProperty(prefix+"mov_max_std")!=null)          this.mov_max_std=Double.parseDouble(properties.getProperty(prefix+"mov_max_std"));
+		if (properties.getProperty(prefix+"mov_thresh_rel")!=null)       this.mov_thresh_rel=Double.parseDouble(properties.getProperty(prefix+"mov_thresh_rel"));
+		if (properties.getProperty(prefix+"mov_thresh_abs")!=null)       this.mov_thresh_abs=Double.parseDouble(properties.getProperty(prefix+"mov_thresh_abs"));
+		if (properties.getProperty(prefix+"mov_clust_max")!=null)        this.mov_clust_max=Double.parseDouble(properties.getProperty(prefix+"mov_clust_max"));
+		if (properties.getProperty(prefix+"mov_grow")!=null)             this.mov_grow=Integer.parseInt(properties.getProperty(prefix+"mov_grow"));
+		if (properties.getProperty(prefix+"mov_show")!=null)             this.mov_show=Boolean.parseBoolean(properties.getProperty(prefix+"mov_show"));
+		if (properties.getProperty(prefix+"mov_debug_level")!=null)      this.mov_debug_level=Integer.parseInt(properties.getProperty(prefix+"mov_debug_level"));
+		if (properties.getProperty(prefix+"adjust_atr_0")!=null)         this.adjust_atr[0]=Boolean.parseBoolean(properties.getProperty(prefix+"adjust_atr_0"));		
+		if (properties.getProperty(prefix+"adjust_atr_1")!=null)         this.adjust_atr[1]=Boolean.parseBoolean(properties.getProperty(prefix+"adjust_atr_1"));		
+		if (properties.getProperty(prefix+"adjust_atr_2")!=null)         this.adjust_atr[2]=Boolean.parseBoolean(properties.getProperty(prefix+"adjust_atr_2"));		
+		if (properties.getProperty(prefix+"adjust_xyz_0")!=null)         this.adjust_xyz[0]=Boolean.parseBoolean(properties.getProperty(prefix+"adjust_xyz_0"));		
+		if (properties.getProperty(prefix+"adjust_xyz_1")!=null)         this.adjust_xyz[1]=Boolean.parseBoolean(properties.getProperty(prefix+"adjust_xyz_1"));		
+		if (properties.getProperty(prefix+"adjust_xyz_2")!=null)         this.adjust_xyz[2]=Boolean.parseBoolean(properties.getProperty(prefix+"adjust_xyz_2"));		
+		if (properties.getProperty(prefix+"exit_change_atr")!=null)      this.exit_change_atr=Double.parseDouble(properties.getProperty(prefix+"exit_change_atr"));
+		if (properties.getProperty(prefix+"exit_change_xyz")!=null)      this.exit_change_xyz=Double.parseDouble(properties.getProperty(prefix+"exit_change_xyz"));
+		if (properties.getProperty(prefix+"max_cycles")!=null)           this.max_cycles=Integer.parseInt(properties.getProperty(prefix+"max_cycles"));
+		if (properties.getProperty(prefix+"max_LMA")!=null)              this.max_LMA=Integer.parseInt(properties.getProperty(prefix+"max_LMA"));
+		if (properties.getProperty(prefix+"max_rms")!=null)              this.max_rms=Double.parseDouble(properties.getProperty(prefix+"max_rms"));
+		
 		if (properties.getProperty(prefix+"eq_en")!=null)                this.eq_en=Boolean.parseBoolean(properties.getProperty(prefix+"eq_en"));		
 		if (properties.getProperty(prefix+"eq_stride_hor")!=null)        this.eq_stride_hor=Integer.parseInt(properties.getProperty(prefix+"eq_stride_hor"));
 		if (properties.getProperty(prefix+"eq_stride_vert")!=null)       this.eq_stride_vert=Integer.parseInt(properties.getProperty(prefix+"eq_stride_vert"));
@@ -1476,8 +1456,6 @@ public class IntersceneMatchParameters {
 		if (properties.getProperty(prefix+"eq_weight_add")!=null)        this.eq_weight_add=Double.parseDouble(properties.getProperty(prefix+"eq_weight_add"));
 		if (properties.getProperty(prefix+"eq_weight_scale")!=null)      this.eq_weight_scale=Double.parseDouble(properties.getProperty(prefix+"eq_weight_scale"));
 		if (properties.getProperty(prefix+"eq_level")!=null)             this.eq_level=Double.parseDouble(properties.getProperty(prefix+"eq_level"));
-		
-		
 		
 		if (properties.getProperty(prefix+"stereo_merge")!=null)         this.stereo_merge=Boolean.parseBoolean(properties.getProperty(prefix+"stereo_merge"));
 		if (properties.getProperty(prefix+"stereo_gap")!=null)           this.stereo_gap=Integer.parseInt(properties.getProperty(prefix+"stereo_gap"));
@@ -1587,68 +1565,9 @@ public class IntersceneMatchParameters {
 		imp.range_min_strength            = this.range_min_strength;
 		imp.range_max                     = this.range_max;
 
-		imp.margin                = this.margin;
-		imp.sensor_mask_inter     = this.sensor_mask_inter;
-		imp.use_partial           = this.use_partial;
-		imp.run_poly              = this.run_poly;
-		imp.centroid_radius       = this.centroid_radius;
-		imp.n_recenter            = this.n_recenter;
 		
-		imp.min_ref_str           = this.min_ref_str;
-
-		imp.td_weight             = this.td_weight;
-		imp.pd_weight             = this.pd_weight;
-		imp.td_nopd_only          = this.td_nopd_only;
-
-		imp.min_str               = this.min_str;
-		imp.min_str_fpn           = this.min_str_fpn;
-		imp.min_str_sum           = this.min_str_sum;
-		imp.min_str_sum_fpn       = this.min_str_sum_fpn;
-		imp.min_neibs             = this.min_neibs;
-		imp.weight_zero_neibs     = this.weight_zero_neibs;
-		imp.half_disparity        = this.half_disparity;
-		imp.half_avg_diff         = this.half_avg_diff;
 		
-		imp.pix_step =              this.pix_step;
-		imp.search_rad =            this.search_rad;
-		imp.maybe_sum =             this.maybe_sum;
-		imp.sure_sum =              this.sure_sum;
-		imp.maybe_avg =             this.maybe_avg;
-		imp.sure_avg =              this.sure_avg;
 		
-		imp.max_search_rms =        this.max_search_rms;
-		imp.maybe_fom =             this.maybe_fom;
-		imp.sure_fom =              this.sure_fom;
-		
-		imp.use_combo_dsi         = this.use_combo_dsi;
-		imp.use_lma_dsi           = this.use_lma_dsi;
-		
-		imp.fpn_remove            = this.fpn_remove;
-		imp.fpn_max_offset        = this.fpn_max_offset;
-		imp.fpn_radius            = this.fpn_radius;
-		imp.fpn_ignore_border     = this.fpn_ignore_border;
-		
-		imp.mov_en                = this.mov_en;
-		imp.mov_sigma             = this.mov_sigma;
-		imp.mov_max_std           = this.mov_max_std;
-		imp.mov_thresh_rel        = this.mov_thresh_rel;
-		imp.mov_thresh_abs        = this.mov_thresh_abs;
-		imp.mov_clust_max         = this.mov_clust_max;
-		imp.mov_grow              = this.mov_grow;
-		imp.mov_show              = this.mov_show;
-		imp.mov_debug_level       = this.mov_debug_level;
-		
-		imp.adjust_atr[0]         = this.adjust_atr[0];
-		imp.adjust_atr[1]         = this.adjust_atr[1];
-		imp.adjust_atr[2]         = this.adjust_atr[2];
-		imp.adjust_xyz[0]         = this.adjust_xyz[0];
-		imp.adjust_xyz[1]         = this.adjust_xyz[1];
-		imp.adjust_xyz[2]         = this.adjust_xyz[2];
-		imp.exit_change_atr       = this.exit_change_atr;
-		imp.exit_change_xyz       = this.exit_change_xyz;
-		imp.max_cycles            = this.max_cycles;
-		imp.max_LMA               = this.max_LMA;
-		imp.max_rms               = this.max_rms;
 		imp.scene_is_ref_test     = this.scene_is_ref_test;
 		imp.render_ref            = this.render_ref;
 		imp.render_scene          = this.render_scene;
@@ -1707,6 +1626,60 @@ public class IntersceneMatchParameters {
 		imp.sky_expand_extra =      this.sky_expand_extra;
 		imp.min_strength =          this.min_strength;
 		imp.lowest_sky_row =        this.lowest_sky_row;
+		
+		imp.margin                = this.margin;
+		imp.sensor_mask_inter     = this.sensor_mask_inter;
+		imp.use_partial           = this.use_partial;
+		imp.run_poly              = this.run_poly;
+		imp.centroid_radius       = this.centroid_radius;
+		imp.n_recenter            = this.n_recenter;
+		imp.min_ref_str           = this.min_ref_str;
+		imp.td_weight             = this.td_weight;
+		imp.pd_weight             = this.pd_weight;
+		imp.td_nopd_only          = this.td_nopd_only;
+		imp.min_str               = this.min_str;
+		imp.min_str_fpn           = this.min_str_fpn;
+		imp.min_str_sum           = this.min_str_sum;
+		imp.min_str_sum_fpn       = this.min_str_sum_fpn;
+		imp.min_neibs             = this.min_neibs;
+		imp.weight_zero_neibs     = this.weight_zero_neibs;
+		imp.half_disparity        = this.half_disparity;
+		imp.half_avg_diff         = this.half_avg_diff;
+		imp.pix_step =              this.pix_step;
+		imp.search_rad =            this.search_rad;
+		imp.maybe_sum =             this.maybe_sum;
+		imp.sure_sum =              this.sure_sum;
+		imp.maybe_avg =             this.maybe_avg;
+		imp.sure_avg =              this.sure_avg;
+		imp.max_search_rms =        this.max_search_rms;
+		imp.maybe_fom =             this.maybe_fom;
+		imp.sure_fom =              this.sure_fom;
+		imp.use_combo_dsi         = this.use_combo_dsi;
+		imp.use_lma_dsi           = this.use_lma_dsi;
+		imp.fpn_remove            = this.fpn_remove;
+		imp.fpn_max_offset        = this.fpn_max_offset;
+		imp.fpn_radius            = this.fpn_radius;
+		imp.fpn_ignore_border     = this.fpn_ignore_border;
+		imp.mov_en                = this.mov_en;
+		imp.mov_sigma             = this.mov_sigma;
+		imp.mov_max_std           = this.mov_max_std;
+		imp.mov_thresh_rel        = this.mov_thresh_rel;
+		imp.mov_thresh_abs        = this.mov_thresh_abs;
+		imp.mov_clust_max         = this.mov_clust_max;
+		imp.mov_grow              = this.mov_grow;
+		imp.mov_show              = this.mov_show;
+		imp.mov_debug_level       = this.mov_debug_level;
+		imp.adjust_atr[0]         = this.adjust_atr[0];
+		imp.adjust_atr[1]         = this.adjust_atr[1];
+		imp.adjust_atr[2]         = this.adjust_atr[2];
+		imp.adjust_xyz[0]         = this.adjust_xyz[0];
+		imp.adjust_xyz[1]         = this.adjust_xyz[1];
+		imp.adjust_xyz[2]         = this.adjust_xyz[2];
+		imp.exit_change_atr       = this.exit_change_atr;
+		imp.exit_change_xyz       = this.exit_change_xyz;
+		imp.max_cycles            = this.max_cycles;
+		imp.max_LMA               = this.max_LMA;
+		imp.max_rms               = this.max_rms;
 		
 		imp.eq_en =                 this.eq_en;
 		imp.eq_stride_hor =         this.eq_stride_hor;

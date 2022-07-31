@@ -4666,6 +4666,8 @@ public class OpticalFlow {
 						threadsMax,
 						debugLevel-2);
 			}
+		} else {
+			System.out.println("Using photometric calibration from scene "+quadCLTs[ref_index].getPhotometricScene());
 		}
 		
 		if (test_ers) { // only debug feature

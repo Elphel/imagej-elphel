@@ -3218,9 +3218,9 @@ public class CLTParameters {
  		gd.addMessage  ("It is applied when the source files are read.");
 		gd.addCheckbox ("Enable photometric calibration",            this.photo_en,
 				"Equalize per- sensor gains and offsets. Requires disparity map. Save to reference scene and with current scene (to .corr-zml).");
-		gd.addNumericField("Full photometric (re)calibrations",      this.photo_num_full, 0,3,"pix",
+		gd.addNumericField("Full photometric (re)calibrations",      this.photo_num_full, 0,3,"",
 				"Full recalibratrions include re-importing raw images with updated offsets/gains");
-		gd.addNumericField("Refines",                                this.photo_num_refines, 0,3,"pix",
+		gd.addNumericField("Refines",                                this.photo_num_refines, 0,3,"",
 				"Calculate calibration, remove outliers (e.g. FG/BG) and repeat");
 		gd.addNumericField("Minimal DSI strength",                   this.photo_min_strength, 5,7,"",
 				"Do not use weak tiles.");
@@ -3895,7 +3895,6 @@ public class CLTParameters {
 		gd.addTab         ("O-Flow", "parameters for the interscene Optical FLow calculations");
 		this.ofp.dialogQuestions(gd);
 
-		gd.addTab         ("Inter-Match", "Parameters for full-resolution (no decimation/macrotiles) scene matching");
 		this.imp.dialogQuestions(gd);
 		
 		gd.addTab         ("Inter-LMA", "parameters for the interscene LMA fitting");

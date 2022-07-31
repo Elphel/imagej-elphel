@@ -151,6 +151,7 @@ public class QuadCLTCPU {
 	boolean new_image_data =                               false;
     boolean [][]                                           saturation_imp = null; // (near) saturated pixels or null
     boolean                                                is_aux = false;
+    String                                                 photometric_scene = null;
     double  []                                             lwir_offsets = null; // per image subtracted values
     double []                                              lwir_scales =  null;  // per image scales
     double []                                              lwir_scales2 = null;  // per image quadratic scales
@@ -264,6 +265,8 @@ public class QuadCLTCPU {
 		if (qParent.saturation_imp != null) this.saturation_imp = qParent.saturation_imp.clone(); // each camera will be re-written, not just modified, so shallow copy 
 		this.is_aux =                 qParent.is_aux;
 //		this.is_mono =                 qParent.is_mono;
+		
+		this.photometric_scene =      qParent.photometric_scene; 
 		this.lwir_offsets =           ErsCorrection.clone1d(qParent.lwir_offsets);
 		this.lwir_scales =            ErsCorrection.clone1d(qParent.lwir_scales);
 		this.lwir_scales2 =           ErsCorrection.clone1d(qParent.lwir_scales2);
@@ -1807,13 +1810,20 @@ public class QuadCLTCPU {
     	} else {
     		lwir_offset = Double.NaN;
     	}
+    	this.photometric_scene = getImageName();
     }
 
+    public String getPhotometricScene() {
+    	return this.photometric_scene;
+    }
+    
     public void setLwirScales(double [] scales) {
     	lwir_scales = scales; // will need to update properties!
+    	this.photometric_scene = getImageName();
     }
     public void setLwirScales2(double [] scales2) {
     	lwir_scales2 = scales2; // will need to update properties!
+    	this.photometric_scene = getImageName();
     }
 
     public double [] getColdHot() { // USED in lwir
@@ -2018,7 +2028,9 @@ public class QuadCLTCPU {
 			properties.setProperty(prefix+"lwir_scales2",
 					IntersceneMatchParameters.doublesToString(this.lwir_scales2));
 		}
-
+		if (this.photometric_scene != null) {
+			properties.setProperty(prefix+"photometric_scene", this.photometric_scene);
+		}
 	}
 
 
@@ -2065,6 +2077,10 @@ public class QuadCLTCPU {
 					other_properties.getProperty(other_prefix+"lwir_scales2"),0);
 			properties.setProperty(this_prefix+"lwir_scales2",
 					IntersceneMatchParameters.doublesToString(this.lwir_scales2));
+		}
+		if (other_properties.getProperty(other_prefix+"photometric_scene")!=null) {
+			this.photometric_scene= (String) other_properties.getProperty(other_prefix+"photometric_scene");
+			properties.setProperty(this_prefix+"photometric_scene", this.photometric_scene);
 		}
 		
 		
@@ -2190,9 +2206,9 @@ public class QuadCLTCPU {
 			this.lwir_scales2= IntersceneMatchParameters.StringToDoubles(
 					properties.getProperty(prefix+"lwir_scales2"),0);
 		}
-			
-		
-		
+		if (properties.getProperty(prefix+"photometric_scene")!=null) {
+			this.photometric_scene= (String) properties.getProperty(prefix+"photometric_scene");
+		}
 	}
 
 	public void setKernelImageFile(ImagePlus img_kernels){ // not used in lwir
