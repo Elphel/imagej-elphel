@@ -2443,8 +2443,10 @@ public class QuadCLT extends QuadCLTCPU {
 			ref_scene.setLwirOffsets (offsets_new);
 			ref_scene.setLwirScales  (scales_new);
 			ref_scene.setLwirScales2 (scales2_new);
+			ref_scene.setPhotometricScene(); // use ref_scene name
 			return true;
 	}
+	
 	public static boolean calibratePhotometric2( // quadratic
 			CLTParameters     clt_parameters,
 			final QuadCLT     ref_scene, // now - may be null - for testing if scene is rotated ref
@@ -2653,6 +2655,7 @@ public class QuadCLT extends QuadCLTCPU {
 			ref_scene.setLwirOffsets (offs_new);
 			ref_scene.setLwirScales  (scales_new);
 			ref_scene.setLwirScales2 (scales2_new);
+			ref_scene.setPhotometricScene(); // use ref_scene name
 			return true;
 	}
 	

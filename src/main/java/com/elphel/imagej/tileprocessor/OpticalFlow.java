@@ -4639,6 +4639,8 @@ public class OpticalFlow {
 				quadCLT_main.setLwirOffsets(quadCLTs[ref_index].getLwirOffsets());
 				quadCLT_main.setLwirScales (quadCLTs[ref_index].getLwirScales ());
 				quadCLT_main.setLwirScales2(quadCLTs[ref_index].getLwirScales2());
+				quadCLT_main.setPhotometricScene(quadCLTs[ref_index].getPhotometricScene());
+				
 				// Re-read reference and other scenes using new offsets	
 				quadCLTs[ref_index].saveQuadClt(); // to re-load new set of Bayer images to the GPU (do nothing for CPU) and Geometry
 				quadCLTs[ref_index] = (QuadCLT) quadCLT_main.spawnQuadCLT( // restores dsi from "DSI-MAIN"

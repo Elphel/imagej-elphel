@@ -1810,20 +1810,27 @@ public class QuadCLTCPU {
     	} else {
     		lwir_offset = Double.NaN;
     	}
-    	this.photometric_scene = getImageName();
+//    	this.photometric_scene = getImageName();
     }
 
     public String getPhotometricScene() {
     	return this.photometric_scene;
     }
-    
+    public void setPhotometricScene(String scene_name) {
+    	this.photometric_scene = scene_name;
+    }
+
+    public void setPhotometricScene() {
+    	setPhotometricScene(getImageName());
+    }
+
     public void setLwirScales(double [] scales) {
     	lwir_scales = scales; // will need to update properties!
-    	this.photometric_scene = getImageName();
+//    	this.photometric_scene = getImageName();
     }
     public void setLwirScales2(double [] scales2) {
     	lwir_scales2 = scales2; // will need to update properties!
-    	this.photometric_scene = getImageName();
+//    	this.photometric_scene = getImageName();
     }
 
     public double [] getColdHot() { // USED in lwir
